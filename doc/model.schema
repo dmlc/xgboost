@@ -1,6 +1,140 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
+    "gbtree": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "const": "gbtree"
+        },
+        "model": {
+          "type": "object",
+          "properties": {
+            "gbtree_model_param": {
+              "$ref": "#/definitions/gbtree_model_param"
+            },
+            "trees": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "tree_param": {
+                    "type": "object",
+                    "properties": {
+                      "num_nodes": {
+                        "type": "string"
+                      },
+                      "size_leaf_vector": {
+                        "type": "string"
+                      },
+                      "num_feature": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "num_nodes",
+                      "num_feature",
+                      "size_leaf_vector"
+                    ]
+                  },
+                  "id": {
+                    "type": "integer"
+                  },
+                  "loss_changes": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "sum_hessian": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "base_weights": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "leaf_child_counts": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "left_children": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "right_children": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "parents": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "split_indices": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "split_conditions": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "default_left": {
+                    "type": "array",
+                    "items": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "required": [
+                  "tree_param",
+                  "loss_changes",
+                  "sum_hessian",
+                  "base_weights",
+                  "leaf_child_counts",
+                  "left_children",
+                  "right_children",
+                  "parents",
+                  "split_indices",
+                  "split_conditions",
+                  "default_left"
+                ]
+              }
+            },
+            "tree_info": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          },
+          "required": [
+            "gbtree_model_param",
+            "trees",
+            "tree_info"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "model"
+      ]
+    },
     "gbtree_model_param": {
       "type": "object",
       "properties": {
@@ -35,7 +169,6 @@
         "size_leaf_vector"
       ]
     },
-
     "reg_loss_param": {
       "type": "object",
       "properties": {
@@ -75,138 +208,8 @@
         "gradient_booster": {
           "oneOf": [
             {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "const": "gbtree"
-                },
-                "model": {
-                  "type": "object",
-                  "properties": {
-                    "gbtree_model_param": {
-                      "$ref": "#/definitions/gbtree_model_param"
-                    },
-                    "trees": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "tree_param": {
-                            "type": "object",
-                            "properties": {
-                              "num_nodes": {
-                                "type": "string"
-                              },
-                              "size_leaf_vector": {
-                                "type": "string"
-                              },
-                              "num_feature": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "num_nodes",
-                              "num_feature",
-                              "size_leaf_vector"
-                            ]
-                          },
-                          "id": {
-                            "type": "integer"
-                          },
-                          "loss_changes": {
-                            "type": "array",
-                            "items": {
-                              "type": "number"
-                            }
-                          },
-                          "sum_hessian": {
-                            "type": "array",
-                            "items": {
-                              "type": "number"
-                            }
-                          },
-                          "base_weights": {
-                            "type": "array",
-                            "items": {
-                              "type": "number"
-                            }
-                          },
-                          "leaf_child_counts": {
-                            "type": "array",
-                            "items": {
-                              "type": "integer"
-                            }
-                          },
-                          "left_children": {
-                            "type": "array",
-                            "items": {
-                              "type": "integer"
-                            }
-                          },
-                          "right_children": {
-                            "type": "array",
-                            "items": {
-                              "type": "integer"
-                            }
-                          },
-                          "parents": {
-                            "type": "array",
-                            "items": {
-                              "type": "integer"
-                            }
-                          },
-                          "split_indices": {
-                            "type": "array",
-                            "items": {
-                              "type": "integer"
-                            }
-                          },
-                          "split_conditions": {
-                            "type": "array",
-                            "items": {
-                              "type": "number"
-                            }
-                          },
-                          "default_left": {
-                            "type": "array",
-                            "items": {
-                              "type": "boolean"
-                            }
-                          }
-                        },
-                        "required": [
-                          "tree_param",
-                          "loss_changes",
-                          "sum_hessian",
-                          "base_weights",
-                          "leaf_child_counts",
-                          "left_children",
-                          "right_children",
-                          "parents",
-                          "split_indices",
-                          "split_conditions",
-                          "default_left"
-                        ]
-                      }
-                    },
-                    "tree_info": {
-                      "type": "array",
-                      "items": {
-                        "type": "integer"
-                      }
-                    }
-                  },
-                  "required": [
-                    "gbtree_model_param",
-                    "trees"
-                  ]
-                }
-              },
-              "required": [
-                "name",
-                "model"
-              ]
-            },
+	      "$ref": "#/definitions/gbtree"
+	    },
 	    {
 	      "type": "object",
 	      "properties": {
@@ -223,6 +226,26 @@
 		  }
 		}
 	      }
+	    },
+	    {
+	      "type": "object",
+	      "properties": {
+		"name": { "const": "dart" },
+		"gbtree": {
+                  "$ref": "#/definitions/gbtree"
+		},
+                "weight_drop": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+	      },
+              "required": [
+                "name",
+                "gbtree",
+                "weight_drop"
+              ]
 	    }
           ]
         },
