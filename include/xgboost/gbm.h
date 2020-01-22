@@ -1,5 +1,5 @@
 /*!
- * Copyright by Contributors
+ * Copyright 2014-2020 by Contributors
  * \file gbm.h
  * \brief Interface of gradient booster,
  *  that learns through gradient statistics.
@@ -18,6 +18,7 @@
 #include <utility>
 #include <string>
 #include <functional>
+#include <unordered_map>
 #include <memory>
 
 namespace xgboost {
@@ -28,6 +29,8 @@ class ObjFunction;
 
 struct GenericParameter;
 struct LearnerModelParam;
+struct PredictionCacheEntry;
+class PredictionContainer;
 
 /*!
  * \brief interface of gradient boosting model.
@@ -38,7 +41,7 @@ class GradientBooster : public Model, public Configurable {
 
  public:
   /*! \brief virtual destructor */
-  virtual ~GradientBooster() = default;
+  ~GradientBooster() override = default;
   /*!
    * \brief Set the configuration of gradient boosting.
    *  User must call configure once before InitModel and Training.
@@ -71,19 +74,22 @@ class GradientBooster : public Model, public Configurable {
    * \param obj The objective function, optional, can be nullptr when use customized version
    * the booster may change content of gpair
    */
-  virtual void DoBoost(DMatrix* p_fmat,
-                       HostDeviceVector<GradientPair>* in_gpair,
-                       ObjFunction* obj = nullptr) = 0;
+  virtual void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
+                       PredictionCacheEntry *prediction) = 0;
 
   /*!
    * \brief generate predictions for given feature matrix
    * \param dmat feature matrix
    * \param out_preds output vector to hold the predictions
-   * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
-   *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
+   * \param training Whether the prediction value is used for training.  For dart booster
+   *                 drop out is performed during training.
+   * \param ntree_limit limit the number of trees used in prediction,
+   *                    when it equals 0, this means we do not limit
+   *                    number of trees, this parameter is only valid
+   *                    for gbtree, but not for gblinear
    */
   virtual void PredictBatch(DMatrix* dmat,
-                            HostDeviceVector<bst_float>* out_preds,
+                            PredictionCacheEntry* out_preds,
                             bool training,
                             unsigned ntree_limit = 0) = 0;
   /*!
@@ -158,8 +164,7 @@ class GradientBooster : public Model, public Configurable {
   static GradientBooster* Create(
       const std::string& name,
       GenericParameter const* generic_param,
-      LearnerModelParam const* learner_model_param,
-      const std::vector<std::shared_ptr<DMatrix> >& cache_mats);
+      LearnerModelParam const* learner_model_param);
 
   static void AssertGPUSupport() {
 #ifndef XGBOOST_USE_CUDA
@@ -174,8 +179,7 @@ class GradientBooster : public Model, public Configurable {
 struct GradientBoosterReg
     : public dmlc::FunctionRegEntryBase<
   GradientBoosterReg,
-  std::function<GradientBooster* (const std::vector<std::shared_ptr<DMatrix> > &cached_mats,
-                                  LearnerModelParam const* learner_model_param)> > {
+  std::function<GradientBooster* (LearnerModelParam const* learner_model_param)> > {
 };
 
 /*!

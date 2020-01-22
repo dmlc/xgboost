@@ -10,6 +10,7 @@
 #include "xgboost/learner.h"
 #include "../helpers.h"
 #include "../../../src/gbm/gbtree.h"
+#include "xgboost/predictor.h"
 
 namespace xgboost {
 TEST(GBTree, SelectTreeMethod) {
@@ -22,9 +23,8 @@ TEST(GBTree, SelectTreeMethod) {
   mparam.num_feature = kCols;
   mparam.num_output_group = 1;
 
-  std::vector<std::shared_ptr<DMatrix> > caches;
   std::unique_ptr<GradientBooster> p_gbm {
-    GradientBooster::Create("gbtree", &generic_param, &mparam, caches)};
+    GradientBooster::Create("gbtree", &generic_param, &mparam)};
   auto& gbtree = dynamic_cast<gbm::GBTree&> (*p_gbm);
 
   // Test if `tree_method` can be set
