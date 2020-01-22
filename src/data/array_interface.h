@@ -1,14 +1,15 @@
 /*!
  * Copyright 2019 by Contributors
- * \file columnar.h
+ * \file array_interface.h
  * \brief Basic structure holding a reference to arrow columnar data format.
  */
-#ifndef XGBOOST_DATA_COLUMNAR_H_
-#define XGBOOST_DATA_COLUMNAR_H_
+#ifndef XGBOOST_DATA_ARRAY_INTERFACE_H_
+#define XGBOOST_DATA_ARRAY_INTERFACE_H_
 
 #include <cinttypes>
 #include <map>
 #include <string>
+#include <utility>
 
 #include "xgboost/data.h"
 #include "xgboost/json.h"
@@ -18,7 +19,7 @@
 
 namespace xgboost {
 // Common errors in parsing columnar format.
-struct ColumnarErrors {
+struct ArrayInterfaceErrors {
   static char const* Contigious() {
     return "Memory should be contigious.";
   }
@@ -119,15 +120,12 @@ class ArrayInterfaceHandler {
     if (array.find("version") == array.cend()) {
       LOG(FATAL) << "Missing `version' field for array interface";
     }
-    auto version = get<Integer const>(array.at("version"));
-    CHECK_EQ(version, 1) << ColumnarErrors::Version();
-
     if (array.find("typestr") == array.cend()) {
       LOG(FATAL) << "Missing `typestr' field for array interface";
     }
     auto typestr = get<String const>(array.at("typestr"));
-    CHECK_EQ(typestr.size(),    3) << ColumnarErrors::TypestrFormat();
-    CHECK_NE(typestr.front(), '>') << ColumnarErrors::BigEndian();
+    CHECK_EQ(typestr.size(),    3) << ArrayInterfaceErrors::TypestrFormat();
+    CHECK_NE(typestr.front(), '>') << ArrayInterfaceErrors::BigEndian();
 
     if (array.find("shape") == array.cend()) {
       LOG(FATAL) << "Missing `shape' field for array interface";
@@ -149,7 +147,7 @@ class ArrayInterfaceHandler {
       auto p_mask = GetPtrFromArrayData<RBitField8::value_type*>(j_mask);
 
       auto j_shape = get<Array const>(j_mask.at("shape"));
-      CHECK_EQ(j_shape.size(), 1) << ColumnarErrors::Dimension(1);
+      CHECK_EQ(j_shape.size(), 1) << ArrayInterfaceErrors::Dimension(1);
       auto typestr = get<String const>(j_mask.at("typestr"));
       // For now this is just 1, we can support different size of interger in mask.
       int64_t const type_length = typestr.at(2) - 48;
@@ -178,8 +176,8 @@ class ArrayInterfaceHandler {
 
       if (j_mask.find("strides") != j_mask.cend()) {
         auto strides = get<Array const>(column.at("strides"));
-        CHECK_EQ(strides.size(),                        1) << ColumnarErrors::Dimension(1);
-        CHECK_EQ(get<Integer>(strides.at(0)), type_length) << ColumnarErrors::Contigious();
+        CHECK_EQ(strides.size(),                        1) << ArrayInterfaceErrors::Dimension(1);
+        CHECK_EQ(get<Integer>(strides.at(0)), type_length) << ArrayInterfaceErrors::Contigious();
       }
 
       s_mask = {p_mask, span_size};
@@ -188,18 +186,28 @@ class ArrayInterfaceHandler {
     return 0;
   }
 
-  static size_t ExtractLength(std::map<std::string, Json> const& column) {
+  static std::pair<size_t, size_t> ExtractShape(
+      std::map<std::string, Json> const& column) {
     auto j_shape = get<Array const>(column.at("shape"));
-    CHECK_EQ(j_shape.size(), 1) << ColumnarErrors::Dimension(1);
     auto typestr = get<String const>(column.at("typestr"));
     if (column.find("strides") != column.cend()) {
-      auto strides = get<Array const>(column.at("strides"));
-      CHECK_EQ(strides.size(), 1) << ColumnarErrors::Dimension(1);
-      CHECK_EQ(get<Integer>(strides.at(0)), typestr.at(2) - '0')
-          << ColumnarErrors::Contigious();
+      if (!IsA<Null>(column.at("strides"))) {
+        auto strides = get<Array const>(column.at("strides"));
+        CHECK_EQ(strides.size(), j_shape.size())
+            << ArrayInterfaceErrors::Dimension(1);
+        CHECK_EQ(get<Integer>(strides.at(0)), typestr.at(2) - '0')
+            << ArrayInterfaceErrors::Contigious();
+      }
     }
 
-    return static_cast<size_t>(get<Integer const>(j_shape.at(0)));
+    if (j_shape.size() == 1) {
+      return {static_cast<size_t>(get<Integer const>(j_shape.at(0))), 1};
+    } else {
+      CHECK_EQ(j_shape.size(), 2)
+          << "Only 1D or 2-D arrays currently supported.";
+      return {static_cast<size_t>(get<Integer const>(j_shape.at(0))),
+              static_cast<size_t>(get<Integer const>(j_shape.at(1)))};
+    }
   }
   template <typename T>
   static common::Span<T> ExtractData(std::map<std::string, Json> const& column) {
@@ -212,25 +220,27 @@ class ArrayInterfaceHandler {
         << "Input data type and typestr mismatch. typestr: " << typestr;
 
 
-    auto length = ExtractLength(column);
+    auto shape = ExtractShape(column);
 
     T* p_data = ArrayInterfaceHandler::GetPtrFromArrayData<T*>(column);
-    return common::Span<T>{p_data, length};
+    return common::Span<T>{p_data, shape.first * shape.second};
   }
 };
 
 // A view over __array_interface__
-class Columnar {
+class ArrayInterface {
   using mask_type = unsigned char;
   using index_type = int32_t;
 
  public:
-  Columnar() = default;
-  explicit Columnar(std::map<std::string, Json> const& column) {
+  ArrayInterface() = default;
+  explicit ArrayInterface(std::map<std::string, Json> const& column) {
     ArrayInterfaceHandler::Validate(column);
     data = ArrayInterfaceHandler::GetPtrFromArrayData<void*>(column);
     CHECK(data) << "Column is null";
-    size = ArrayInterfaceHandler::ExtractLength(column);
+    auto shape = ArrayInterfaceHandler::ExtractShape(column);
+    num_rows = shape.first;
+    num_cols = shape.second;
 
     common::Span<RBitField8::value_type> s_mask;
     size_t n_bits = ArrayInterfaceHandler::ExtractMask(column, &s_mask);
@@ -238,7 +248,7 @@ class Columnar {
     valid = RBitField8(s_mask);
 
     if (s_mask.data()) {
-      CHECK_EQ(n_bits, size)
+      CHECK_EQ(n_bits, num_rows)
           << "Shape of bit mask doesn't match data shape. "
           << "XGBoost doesn't support internal broadcasting.";
     }
@@ -271,7 +281,7 @@ class Columnar {
     } else if (type[1] == 'u' && type[2] == '8') {
       return;
     } else {
-      LOG(FATAL) << ColumnarErrors::UnSupportedType(type);
+      LOG(FATAL) << ArrayInterfaceErrors::UnSupportedType(type);
       return;
     }
   }
@@ -304,10 +314,11 @@ class Columnar {
   }
 
   RBitField8 valid;
-  int32_t size;
+  int32_t num_rows;
+  int32_t num_cols;
   void* data;
   char type[3];
 };
 
 }  // namespace xgboost
-#endif  // XGBOOST_DATA_COLUMNAR_H_
+#endif  // XGBOOST_DATA_ARRAY_INTERFACE_H_

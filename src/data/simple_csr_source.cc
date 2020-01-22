@@ -7,7 +7,6 @@
 #include <xgboost/json.h>
 
 #include "simple_csr_source.h"
-#include "columnar.h"
 
 namespace xgboost {
 namespace data {
