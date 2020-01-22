@@ -112,7 +112,7 @@ TEST(c_api, ConfigIO) {
   delete pp_dmat;
 }
 
-TEST(c_api, Json_ModelIO) {
+TEST(c_api, JsonModelIO) {
   size_t constexpr kRows = 10;
   dmlc::TemporaryDirectory tempdir;
 

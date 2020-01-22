@@ -7,6 +7,7 @@
 #include "./param.h"
 #include "../common/timer.h"
 #include "coordinate_common.h"
+#include "xgboost/json.h"
 
 namespace xgboost {
 namespace linear {
@@ -32,6 +33,18 @@ class CoordinateUpdater : public LinearUpdater {
     selector_.reset(FeatureSelector::Create(tparam_.feature_selector));
     monitor_.Init("CoordinateUpdater");
   }
+
+  void LoadConfig(Json const& in) override {
+    auto const& config = get<Object const>(in);
+    fromJson(config.at("linear_train_param"), &tparam_);
+    fromJson(config.at("coordinate_param"), &cparam_);
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["linear_train_param"] = toJson(tparam_);
+    out["coordinate_param"] = toJson(cparam_);
+  }
+
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
     tparam_.DenormalizePenalties(sum_instance_weight);

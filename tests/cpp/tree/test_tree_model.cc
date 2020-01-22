@@ -220,7 +220,7 @@ TEST(Tree, DumpDot) {
   ASSERT_NE(str.find(R"(graph [ bgcolor="#FFFF00" ])"), std::string::npos);
 }
 
-TEST(Tree, Json_IO) {
+TEST(Tree, JsonIO) {
   RegTree tree;
   tree.ExpandNode(0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
   Json j_tree{Object()};

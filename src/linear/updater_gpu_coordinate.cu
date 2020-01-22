@@ -37,8 +37,20 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
   // set training parameter
   void Configure(Args const& args) override {
     tparam_.UpdateAllowUnknown(args);
+    coord_param_.UpdateAllowUnknown(args);
     selector_.reset(FeatureSelector::Create(tparam_.feature_selector));
     monitor_.Init("GPUCoordinateUpdater");
+  }
+
+  void LoadConfig(Json const& in) override {
+    auto const& config = get<Object const>(in);
+    fromJson(config.at("linear_train_param"), &tparam_);
+    fromJson(config.at("coordinate_param"), &coord_param_);
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["linear_train_param"] = toJson(tparam_);
+    out["coordinate_param"] = toJson(coord_param_);
   }
 
   void LazyInitDevice(DMatrix *p_fmat, const LearnerModelParam &model_param) {
