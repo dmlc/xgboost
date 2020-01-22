@@ -688,7 +688,7 @@ class DMatrix(object):
         """Set info type property into DMatrix."""
 
         # If we are passed a dataframe, extract the series
-        if isinstance(data, CUDF_DataFrame):
+        if CUDF_INSTALLED and isinstance(data, CUDF_DataFrame):
             if len(data.columns) != 1:
                 raise ValueError('Expecting meta-info to contain a single column')
             data = data[data.columns[0]]
