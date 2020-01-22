@@ -7,7 +7,7 @@
 #include "../helpers.h"
 #include <thrust/device_vector.h>
 #include "../../../src/data/device_adapter.cuh"
-#include "test_columnar.h"
+#include "test_array_interface.h"
 using namespace xgboost;  // NOLINT
 
 void TestCudfAdapter()

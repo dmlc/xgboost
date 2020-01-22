@@ -48,6 +48,15 @@ def no_cudf():
             'reason': 'CUDF is not installed'}
 
 
+def no_cupy():
+    reason = 'cupy is not installed.'
+    try:
+        import cupy as _   # noqa
+        return {'condition': False, 'reason': reason}
+    except ImportError:
+        return {'condition': True, 'reason': reason}
+
+
 def no_dask_cudf():
     reason = 'dask_cudf is not installed.'
     try:

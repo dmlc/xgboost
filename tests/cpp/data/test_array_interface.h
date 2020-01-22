@@ -8,7 +8,6 @@
 #include "../../../src/common/bitfield.h"
 #include "../../../src/common/device_helpers.cuh"
 #include "../../../src/data/simple_csr_source.h"
-#include "../../../src/data/columnar.h"
 
 namespace xgboost {
 
@@ -62,4 +61,24 @@ Json GenerateSparseColumn(std::string const& typestr, size_t kRows,
   column["typestr"] = String(typestr);
   return column;
 }
+
+template <typename T>
+Json Generate2dArrayInterface(int rows, int cols, std::string typestr,
+                                thrust::device_vector<T>* p_data) {
+  auto& data = *p_data;
+  thrust::sequence(data.begin(), data.end());
+
+  Json array_interface{Object()};
+  std::vector<Json> shape = {Json(static_cast<Integer::Int>(rows)),
+                             Json(static_cast<Integer::Int>(cols))};
+  array_interface["shape"] = Array(shape);
+  std::vector<Json> j_data{
+      Json(Integer(reinterpret_cast<Integer::Int>(data.data().get()))),
+      Json(Boolean(false))};
+  array_interface["data"] = j_data;
+  array_interface["version"] = Integer(static_cast<Integer::Int>(1));
+  array_interface["typestr"] = String(typestr);
+  return array_interface;
+}
+
 }  // namespace xgboost
