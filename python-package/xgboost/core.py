@@ -497,29 +497,33 @@ class DMatrix(object):
     def _init_from_csr(self, csr):
         """Initialize data from a CSR matrix."""
         if len(csr.indices) != len(csr.data):
-            raise ValueError('length mismatch: {} vs {}'.format(len(csr.indices), len(csr.data)))
+            raise ValueError('length mismatch: {} vs {}'.format(
+                len(csr.indices), len(csr.data)))
         handle = ctypes.c_void_p()
-        _check_call(_LIB.XGDMatrixCreateFromCSREx(c_array(ctypes.c_size_t, csr.indptr),
-                                                  c_array(ctypes.c_uint, csr.indices),
-                                                  c_array(ctypes.c_float, csr.data),
-                                                  ctypes.c_size_t(len(csr.indptr)),
-                                                  ctypes.c_size_t(len(csr.data)),
-                                                  ctypes.c_size_t(csr.shape[1]),
-                                                  ctypes.byref(handle)))
+        _check_call(_LIB.XGDMatrixCreateFromCSREx(
+            c_array(ctypes.c_size_t, csr.indptr),
+            c_array(ctypes.c_uint, csr.indices),
+            c_array(ctypes.c_float, csr.data),
+            ctypes.c_size_t(len(csr.indptr)),
+            ctypes.c_size_t(len(csr.data)),
+            ctypes.c_size_t(csr.shape[1]),
+            ctypes.byref(handle)))
         self.handle = handle
 
     def _init_from_csc(self, csc):
         """Initialize data from a CSC matrix."""
         if len(csc.indices) != len(csc.data):
-            raise ValueError('length mismatch: {} vs {}'.format(len(csc.indices), len(csc.data)))
+            raise ValueError('length mismatch: {} vs {}'.format(
+                len(csc.indices), len(csc.data)))
         handle = ctypes.c_void_p()
-        _check_call(_LIB.XGDMatrixCreateFromCSCEx(c_array(ctypes.c_size_t, csc.indptr),
-                                                  c_array(ctypes.c_uint, csc.indices),
-                                                  c_array(ctypes.c_float, csc.data),
-                                                  ctypes.c_size_t(len(csc.indptr)),
-                                                  ctypes.c_size_t(len(csc.data)),
-                                                  ctypes.c_size_t(csc.shape[0]),
-                                                  ctypes.byref(handle)))
+        _check_call(_LIB.XGDMatrixCreateFromCSCEx(
+            c_array(ctypes.c_size_t, csc.indptr),
+            c_array(ctypes.c_uint, csc.indices),
+            c_array(ctypes.c_float, csc.data),
+            ctypes.c_size_t(len(csc.indptr)),
+            ctypes.c_size_t(len(csc.data)),
+            ctypes.c_size_t(csc.shape[0]),
+            ctypes.byref(handle)))
         self.handle = handle
 
     def _init_from_npy2d(self, mat, missing, nthread):
@@ -573,7 +577,8 @@ class DMatrix(object):
         # always return stypes for dt ingestion
         feature_type_strings = (ctypes.c_char_p * data.ncols)()
         for icol in range(data.ncols):
-            feature_type_strings[icol] = ctypes.c_char_p(data.stypes[icol].name.encode('utf-8'))
+            feature_type_strings[icol] = ctypes.c_char_p(
+                data.stypes[icol].name.encode('utf-8'))
 
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromDT(
@@ -599,7 +604,8 @@ class DMatrix(object):
         _check_call(
             _LIB.XGDMatrixCreateFromArrayInterfaceColumns(
                 interfaces_str,
-                ctypes.c_float(missing), ctypes.c_int(nthread), ctypes.byref(handle)))
+                ctypes.c_float(missing), ctypes.c_int(nthread),
+                ctypes.byref(handle)))
         self.handle = handle
 
     def _init_from_array_interface(self, data, missing, nthread):
@@ -615,7 +621,8 @@ class DMatrix(object):
         _check_call(
             _LIB.XGDMatrixCreateFromArrayInterface(
                 interface_str,
-                ctypes.c_float(missing), ctypes.c_int(nthread), ctypes.byref(handle)))
+                ctypes.c_float(missing), ctypes.c_int(nthread),
+                ctypes.byref(handle)))
         self.handle = handle
 
     def __del__(self):
