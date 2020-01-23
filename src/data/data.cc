@@ -109,10 +109,10 @@ void LoadVectorField(dmlc::Stream* strm, const std::string& expected_name,
 }
 
 template <typename T>
-void LoadVectorField(dmlc::Stream* strm, const std::string& expected_field_name,
-                     xgboost::DataType expected_field_type,
+void LoadVectorField(dmlc::Stream* strm, const std::string& expected_name,
+                     xgboost::DataType expected_type,
                      xgboost::HostDeviceVector<T>* field) {
-  LoadVectorField(strm, expected_field_name, expected_field_type, &field->HostVector());
+  LoadVectorField(strm, expected_name, expected_type, &field->HostVector());
 }
 
 }  // anonymous namespace
@@ -133,7 +133,7 @@ void MetaInfo::Clear() {
 /*
  * Binary serialization format for MetaInfo:
  *
- * | name        | type     | is_vector | num_row | num_col | value           |
+ * | name        | type     | is_scalar | num_row | num_col | value           |
  * |-------------+----------+-----------+---------+---------+-----------------|
  * | num_row     | kUInt64  | True      | NA      |      NA | ${num_row_}     |
  * | num_col     | kUInt64  | True      | NA      |      NA | ${num_col_}     |
@@ -143,7 +143,7 @@ void MetaInfo::Clear() {
  * | weights     | kFloat32 | False     | ${size} |       1 | ${weights_}     |
  * | base_margin | kFloat32 | False     | ${size} |       1 | ${base_margin_} |
  *
- * Note that the scalar fields (is_vector=True) will have num_row and num_col missing.
+ * Note that the scalar fields (is_scalar=True) will have num_row and num_col missing.
  * Also notice the difference between the saved name and the name used in `SetInfo':
  * the former uses the plural form.
  */
