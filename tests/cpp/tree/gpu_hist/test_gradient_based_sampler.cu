@@ -8,7 +8,7 @@ namespace xgboost {
 namespace tree {
 
 void VerifySampling(size_t page_size, float subsample, int sampling_method) {
-  constexpr size_t kRows = 2048;
+  constexpr size_t kRows = 4096;
   constexpr size_t kCols = 1;
   size_t sample_rows = kRows * subsample;
 
