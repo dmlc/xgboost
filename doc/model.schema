@@ -180,14 +180,14 @@
     "softmax_multiclass_param": {
       "type": "object",
       "properties": {
-	"num_class": { "type": "string" }
+        "num_class": { "type": "string" }
       }
     },
     "lambda_rank_param": {
       "type": "object",
       "properties": {
-	"num_pairsample": { "type": "string" },
-	"fix_list_weight": { "type": "string" }
+        "num_pairsample": { "type": "string" },
+        "fix_list_weight": { "type": "string" }
       }
     }
   },
@@ -208,45 +208,45 @@
         "gradient_booster": {
           "oneOf": [
             {
-	      "$ref": "#/definitions/gbtree"
-	    },
-	    {
-	      "type": "object",
-	      "properties": {
-		"name": { "const": "gblinear" },
-		"model": {
-		  "type": "object",
-		  "properties": {
-		    "weights": {
-		      "type": "array",
-		      "items": {
-			"type": "number"
-		      }
-		    }
-		  }
-		}
-	      }
-	    },
-	    {
-	      "type": "object",
-	      "properties": {
-		"name": { "const": "dart" },
-		"gbtree": {
+              "$ref": "#/definitions/gbtree"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "gblinear" },
+                "model": {
+                  "type": "object",
+                  "properties": {
+                    "weights": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "dart" },
+                "gbtree": {
                   "$ref": "#/definitions/gbtree"
-		},
+                },
                 "weight_drop": {
                   "type": "array",
                   "items": {
                     "type": "number"
                   }
                 }
-	      },
+              },
               "required": [
                 "name",
                 "gbtree",
                 "weight_drop"
               ]
-	    }
+            }
           ]
         },
 
@@ -256,51 +256,51 @@
               "type": "object",
               "properties": {
                 "name": { "const": "reg:squarederror" },
-		"reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
+                "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
               },
               "required": [
                 "name",
                 "reg_loss_param"
               ]
             },
-	    {
+            {
               "type": "object",
               "properties": {
                 "name": { "const": "reg:squaredlogerror" },
-		"reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
+                "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
               },
               "required": [
                 "name",
                 "reg_loss_param"
               ]
             },
-	    {
+            {
               "type": "object",
               "properties": {
                 "name": { "const": "reg:logistic" },
-		"reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
+                "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
               },
               "required": [
                 "name",
                 "reg_loss_param"
               ]
             },
-	    {
+            {
               "type": "object",
               "properties": {
                 "name": { "const": "binary:logistic" },
-		"reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
+                "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
               },
               "required": [
                 "name",
                 "reg_loss_param"
               ]
             },
-	    {
+            {
               "type": "object",
               "properties": {
                 "name": { "const": "binary:logitraw" },
-		"reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
+                "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
               },
               "required": [
                 "name",
@@ -308,46 +308,46 @@
               ]
             },
 
-	    {
+            {
               "type": "object",
               "properties": {
                 "name": { "const": "count:poisson" },
-		"poisson_regression_param": {
-		  "type": "object",
-		  "properties": {
-		    "max_delta_step": { "type": "string" }
-		  }
-		}
+                "poisson_regression_param": {
+                  "type": "object",
+                  "properties": {
+                    "max_delta_step": { "type": "string" }
+                  }
+                }
               },
               "required": [
                 "name",
                 "poisson_regression_param"
               ]
             },
-	    {
+            {
               "type": "object",
               "properties": {
                 "name": { "const": "reg:tweedie" },
-		"tweedie_regression_param": {
-		  "type": "object",
-		  "properties": {
-		    "tweedie_variance_power": { "type": "string" }
-		  }
-		}
+                "tweedie_regression_param": {
+                  "type": "object",
+                  "properties": {
+                    "tweedie_variance_power": { "type": "string" }
+                  }
+                }
               },
               "required": [
                 "name",
                 "tweedie_regression_param"
               ]
             },
-	    {
+            {
               "type": "object",
               "properties": {
                 "name": { "const": "survival:cox" }
               },
               "required": [ "name" ]
             },
-	    {
+            {
               "type": "object",
               "properties": {
                 "name": { "const": "reg:gamma" }
@@ -355,22 +355,22 @@
               "required": [ "name" ]
             },
 
-	    {
+            {
               "type": "object",
               "properties": {
                 "name": { "const": "multi:softprob" },
-		"softmax_multiclass_param": { "$ref": "#/definitions/softmax_multiclass_param"}
+                "softmax_multiclass_param": { "$ref": "#/definitions/softmax_multiclass_param"}
               },
               "required": [
                 "name",
                 "softmax_multiclass_param"
               ]
             },
-	    {
+            {
               "type": "object",
               "properties": {
                 "name": { "const": "multi:softmax" },
-		"softmax_multiclass_param": { "$ref": "#/definitions/softmax_multiclass_param"}
+                "softmax_multiclass_param": { "$ref": "#/definitions/softmax_multiclass_param"}
               },
               "required": [
                 "name",
@@ -378,33 +378,33 @@
               ]
             },
 
-	    {
+            {
               "type": "object",
               "properties": {
                 "name": { "const": "rank:pairwise" },
-		"lambda_rank_param": { "$ref": "#/definitions/lambda_rank_param"}
+                "lambda_rank_param": { "$ref": "#/definitions/lambda_rank_param"}
               },
               "required": [
                 "name",
                 "lambda_rank_param"
               ]
             },
-	    {
+            {
               "type": "object",
               "properties": {
                 "name": { "const": "rank:ndcg" },
-		"lambda_rank_param": { "$ref": "#/definitions/lambda_rank_param"}
+                "lambda_rank_param": { "$ref": "#/definitions/lambda_rank_param"}
               },
               "required": [
                 "name",
                 "lambda_rank_param"
               ]
             },
-	    {
+            {
               "type": "object",
               "properties": {
                 "name": { "const": "rank:map" },
-		"lambda_rank_param": { "$ref": "#/definitions/lambda_rank_param"}
+                "lambda_rank_param": { "$ref": "#/definitions/lambda_rank_param"}
               },
               "required": [
                 "name",
@@ -414,14 +414,14 @@
           ]
         },
 
-	"learner_model_param": {
-	  "type": "object",
-	  "properties": {
-	    "base_score": { "type": "string" },
-	    "num_class": { "type": "string" },
-	    "num_feature": { "type": "string" }
-	  }
-	}
+        "learner_model_param": {
+          "type": "object",
+          "properties": {
+            "base_score": { "type": "string" },
+            "num_class": { "type": "string" },
+            "num_feature": { "type": "string" }
+          }
+        }
       },
       "required": [
         "gradient_booster",
