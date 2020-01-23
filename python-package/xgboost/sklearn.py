@@ -487,13 +487,6 @@ class XGBModel(XGBModelBase):
           If you want to run prediction using multiple thread, call ``xgb.copy()`` to make copies
           of model object and then call ``predict()``.
 
-        .. note:: Using ``predict()`` with DART booster
-
-          If the booster object is DART type, ``predict()`` will perform dropouts, i.e. only
-          some of the trees will be evaluated. This will produce incorrect results if ``data`` is
-          not the training data. To obtain correct results on test sets, set ``ntree_limit`` to
-          a nonzero value, e.g.
-
           .. code-block:: python
 
             preds = bst.predict(dtest, ntree_limit=num_round)
@@ -607,7 +600,8 @@ class XGBModel(XGBModelBase):
         feature_importances_ : array of shape ``[n_features]``
 
         """
-        if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
+        if getattr(self, 'booster', None) is not None and self.booster not in {
+                'gbtree', 'dart'}:
             raise AttributeError('Feature importance is not defined for Booster type {}'
                                  .format(self.booster))
         b = self.get_booster()
@@ -774,14 +768,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
           If you want to run prediction using multiple thread, call
           ``xgb.copy()`` to make copies of model object and then call
           ``predict()``.
-
-        .. note:: Using ``predict()`` with DART booster
-
-          If the booster object is DART type, ``predict()`` will perform
-          dropouts, i.e. only some of the trees will be evaluated. This will
-          produce incorrect results if ``data`` is not the training data. To
-          obtain correct results on test sets, set ``ntree_limit`` to a nonzero
-          value, e.g.
 
           .. code-block:: python
 
