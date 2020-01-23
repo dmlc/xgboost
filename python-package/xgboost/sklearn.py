@@ -134,24 +134,25 @@ __model_doc = '''
 
             \\*\\*kwargs is unsupported by scikit-learn.  We do not guarantee
             that parameters passed via this argument will interact properly
-            with scikit-learn.  '''
+            with scikit-learn.
+'''
 
 __custom_obj_note = '''
-    .. note::  Custom objective function
+        .. note::  Custom objective function
 
-        A custom objective function can be provided for the ``objective``
-        parameter. In this case, it should have the signature
-        ``objective(y_true, y_pred) -> grad, hess``:
+            A custom objective function can be provided for the ``objective``
+            parameter. In this case, it should have the signature
+            ``objective(y_true, y_pred) -> grad, hess``:
 
-        y_true: array_like of shape [n_samples]
-            The target values
-        y_pred: array_like of shape [n_samples]
-            The predicted values
+            y_true: array_like of shape [n_samples]
+                The target values
+            y_pred: array_like of shape [n_samples]
+                The predicted values
 
-        grad: array_like of shape [n_samples]
-            The value of the gradient for each sample point.
-        hess: array_like of shape [n_samples]
-            The value of the second derivative for each sample point
+            grad: array_like of shape [n_samples]
+                The value of the gradient for each sample point.
+            hess: array_like of shape [n_samples]
+                The value of the second derivative for each sample point
 '''
 
 
