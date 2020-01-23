@@ -3,7 +3,8 @@
 # pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
 import numpy as np
-from .core import Booster, STRING_TYPES, XGBoostError, CallbackEnv, EarlyStopException
+from .core import Booster, STRING_TYPES, XGBoostError, CallbackEnv
+from .core import EarlyStopException
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
 from . import rabit
 from . import callback
@@ -37,10 +38,11 @@ def _train_internal(params, dtrain,
 
     _params = dict(params) if isinstance(params, list) else params
 
-    if 'num_parallel_tree' in _params:
+    if 'num_parallel_tree' in _params and params[
+            'num_parallel_tree'] is not None:
         num_parallel_tree = _params['num_parallel_tree']
         nboost //= num_parallel_tree
-    if 'num_class' in _params:
+    if 'num_class' in _params and _params['num_class'] is not None:
         nboost //= _params['num_class']
 
     # Distributed code: Load the checkpoint from rabit.

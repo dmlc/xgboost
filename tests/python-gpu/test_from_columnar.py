@@ -47,10 +47,6 @@ Arrow specification.'''
         dmatrix_from_cudf(np.float32, np.NAN)
         dmatrix_from_cudf(np.float64, np.NAN)
 
-        dmatrix_from_cudf(np.uint8, 2)
-        dmatrix_from_cudf(np.uint32, 3)
-        dmatrix_from_cudf(np.uint64, 4)
-
         dmatrix_from_cudf(np.int8, 2)
         dmatrix_from_cudf(np.int32, -2)
         dmatrix_from_cudf(np.int64, -3)
