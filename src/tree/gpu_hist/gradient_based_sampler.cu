@@ -43,6 +43,7 @@ GradientBasedSampler::GradientBasedSampler(EllpackPageImpl* page,
     ba_.Allocate(batch_param_.gpu_id,
                  &gpair_, sample_rows_,
                  &row_weight_, n_rows,
+                 &threshold_, n_rows + 1,
                  &row_index_, n_rows,
                  &sample_row_index_, n_rows);
     thrust::copy(thrust::counting_iterator<size_t>(0),
@@ -155,16 +156,78 @@ struct CombineGradientPair : public thrust::unary_function<GradientPair, float> 
   }
 };
 
+/*! \brief A functor that calculates the difference between the sample rate and the desired sample
+ * rows, given a cumulative gradient sum.
+ */
+struct SampleRateDelta : public thrust::binary_function<float, size_t, float> {
+  common::Span<float> threshold;
+  size_t n_rows;
+  size_t sample_rows;
+
+  XGBOOST_DEVICE SampleRateDelta(common::Span<float> _threshold,
+                                 size_t _n_rows,
+                                 size_t _sample_rows)
+      : threshold(_threshold), n_rows(_n_rows), sample_rows(_sample_rows) {}
+
+  XGBOOST_DEVICE float operator()(float gradient_sum, size_t row_index) const {
+    // For the last row, if gradient_sum/sample_rows > gradient, that means no row will be sampled
+    // with probability equal to 1, so we use the mean as the threshold.
+    if (row_index == n_rows - 1) {
+      float last = threshold[n_rows - 1];
+      float mean = gradient_sum / sample_rows;
+      if (mean > last) {
+        threshold[n_rows] = mean;
+        return 0.0f;
+      } else {
+        return std::numeric_limits<float>::max();
+      }
+    }
+
+    // For a given u = threshold[row_index], the summed sample rate for the rows above the current
+    // row is `gradient_sum / u`.
+    //
+    // Rows below (including the current row) are sampled with probability equal to 1, thus adding
+    // up to `n_rows - row_index`.
+    //
+    // The total sample rate is therefore `gradient_sum / u + n_rows - row_index`.
+    //
+    // We want to choose the threshold that makes this value as close to `sample_rows` as possible.
+    float u = threshold[row_index + 1];
+    if (u == 0.0f) {
+      return std::numeric_limits<float>::max();
+    } else {
+      return fabsf(gradient_sum / u + n_rows - row_index - sample_rows);
+    }
+  }
+};
+
+size_t GradientBasedSampler::CalculateThresholdIndex(common::Span<GradientPair> gpair) {
+  thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
+                    dh::tbegin(threshold_),
+                    CombineGradientPair());
+  thrust::sort(dh::tbegin(threshold_), dh::tend(threshold_) - 1);
+  thrust::inclusive_scan(dh::tbegin(threshold_), dh::tend(threshold_) - 1, dh::tbegin(row_weight_));
+  thrust::transform(dh::tbegin(row_weight_), dh::tend(row_weight_),
+                    thrust::counting_iterator<size_t>(0),
+                    dh::tbegin(row_weight_),
+                    SampleRateDelta(threshold_, gpair.size(), sample_rows_));
+  thrust::device_ptr<float> min = thrust::min_element(dh::tbegin(row_weight_),
+                                                      dh::tend(row_weight_));
+  return thrust::distance(dh::tbegin(row_weight_), min) + 1;
+}
+
 /*! \brief A functor that calculates the weight of each row, and scales gradient pairs by 1/p_i. */
 struct CalculateWeight
     : public thrust::binary_function<GradientPair, size_t, thrust::tuple<float, GradientPair>> {
-  size_t sample_rows;
-  float normalization;
+  common::Span<float> threshold;
+  size_t threshold_index;
   RandomWeight rnd;
   CombineGradientPair combine;
 
-  XGBOOST_DEVICE CalculateWeight(size_t _sample_rows, float _normalization, RandomWeight _rnd)
-      : sample_rows(_sample_rows), normalization(_normalization), rnd(_rnd) {}
+  XGBOOST_DEVICE CalculateWeight(common::Span<float> _threshold,
+                                 size_t _threshold_index,
+                                 RandomWeight _rnd)
+    : threshold(_threshold), threshold_index(_threshold_index), rnd(_rnd) {}
 
   XGBOOST_DEVICE thrust::tuple<float, GradientPair> operator()(const GradientPair& gpair,
                                                                size_t i) {
@@ -173,7 +236,8 @@ struct CalculateWeight
       return thrust::make_tuple(std::numeric_limits<float>::max(), gpair);
     }
     float combined_gradient = combine(gpair);
-    float p = sample_rows * combined_gradient / normalization;
+    float u = threshold[threshold_index];
+    float p = combined_gradient / u;
     if (p >= 1) {
       // Always select this row.
       return thrust::make_tuple(0.0f, gpair);
@@ -187,15 +251,13 @@ struct CalculateWeight
 
 GradientBasedSample GradientBasedSampler::GradientBasedSampling(
     common::Span<GradientPair> gpair, DMatrix* dmat) {
-  float normalization = thrust::transform_reduce(dh::tbegin(gpair), dh::tend(gpair),
-                                                 CombineGradientPair(),
-                                                 0.0f,
-                                                 thrust::plus<float>());
+  size_t threshold_index = CalculateThresholdIndex(gpair);
+  printf("threshold_index=%lu\n", threshold_index);
   thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
                     thrust::counting_iterator<size_t>(0),
                     thrust::make_zip_iterator(thrust::make_tuple(
                         dh::tbegin(row_weight_), dh::tbegin(gpair))),
-                    CalculateWeight(sample_rows_, normalization,
+                    CalculateWeight(threshold_, threshold_index,
                         RandomWeight(common::GlobalRandom()())));
   return SequentialPoissonSampling(gpair, dmat);
 }

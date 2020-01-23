@@ -50,6 +50,9 @@ class GradientBasedSampler {
   /*! \brief Concatenate all the rows from a DMatrix into a single ELLPACK page. */
   void ConcatenatePages(DMatrix* dmat);
 
+  /*! \brief Calculate the threshold used to normalize sampling probabilities. */
+  size_t CalculateThresholdIndex(common::Span<GradientPair> gpair);
+
   /*! \brief Fixed-size Poisson sampling after the row weights are calculated. */
   GradientBasedSample SequentialPoissonSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
 
@@ -65,6 +68,7 @@ class GradientBasedSampler {
   std::unique_ptr<EllpackPageImpl> page_;
   common::Span<GradientPair> gpair_;
   common::Span<float> row_weight_;
+  common::Span<float> threshold_;
   common::Span<size_t> row_index_;
   common::Span<size_t> sample_row_index_;
   bool page_concatenated_{false};
