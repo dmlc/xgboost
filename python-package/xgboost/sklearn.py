@@ -110,6 +110,15 @@ __model_doc = '''
         None, defaults to np.nan.
     num_parallel_tree: int
         Used for boosting random forest.
+    monotone_constraints : str
+        Constraint of variable monotonicity.  See tutorial for more
+        information.c
+    interaction_constraints : str
+        Constraints for interaction representing permitted interactions.  The
+        constraints must be specified in the form of a nest list, e.g. [[0, 1],
+        [2, 3, 4]], where each inner list is a group of indices of features
+        that are allowed to interact with each other.  See tutorial for more
+        information
     importance_type: string, default "gain"
         The feature importance type for the feature_importances\\_ property:
         either "gain", "weight", "cover", "total_gain" or "total_cover".
@@ -128,21 +137,21 @@ __model_doc = '''
             with scikit-learn.  '''
 
 __custom_obj_note = '''
-    Note
-    ----
-    A custom objective function can be provided for the ``objective``
-    parameter. In this case, it should have the signature
-    ``objective(y_true, y_pred) -> grad, hess``:
+    .. note::  Custom objective function
 
-    y_true: array_like of shape [n_samples]
-        The target values
-    y_pred: array_like of shape [n_samples]
-        The predicted values
+        A custom objective function can be provided for the ``objective``
+        parameter. In this case, it should have the signature
+        ``objective(y_true, y_pred) -> grad, hess``:
 
-    grad: array_like of shape [n_samples]
-        The value of the gradient for each sample point.
-    hess: array_like of shape [n_samples]
-        The value of the second derivative for each sample point
+        y_true: array_like of shape [n_samples]
+            The target values
+        y_pred: array_like of shape [n_samples]
+            The predicted values
+
+        grad: array_like of shape [n_samples]
+            The value of the gradient for each sample point.
+        hess: array_like of shape [n_samples]
+            The value of the second derivative for each sample point
 '''
 
 
@@ -198,8 +207,9 @@ class XGBModel(XGBModelBase):
                  colsample_bytree=None, colsample_bylevel=None,
                  colsample_bynode=None, reg_alpha=None, reg_lambda=None,
                  scale_pos_weight=None, base_score=None, random_state=None,
-                 missing=None, num_parallel_tree=None, importance_type="gain",
-                 gpu_id=None, **kwargs):
+                 missing=None, num_parallel_tree=None,
+                 monotone_constraints=None, interaction_constraints=None,
+                 importance_type="gain", gpu_id=None, **kwargs):
         if not SKLEARN_INSTALLED:
             raise XGBoostError(
                 'sklearn needs to be installed in order to use this module')
@@ -228,8 +238,10 @@ class XGBModel(XGBModelBase):
         self._Booster = None
         self.random_state = random_state
         self.n_jobs = n_jobs
-        self.gpu_id = gpu_id
+        self.monotone_constraints = monotone_constraints
+        self.interaction_constraints = interaction_constraints
         self.importance_type = importance_type
+        self.gpu_id = gpu_id
 
     def __setstate__(self, state):
         # backward compatibility code

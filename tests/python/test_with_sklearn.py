@@ -715,6 +715,17 @@ def test_XGBClassifier_resume():
         assert log_loss1 > log_loss2
 
 
+def test_constraint_parameters():
+    reg = xgb.XGBRegressor(interaction_constraints='[[0, 1], [2, 3, 4]]')
+    X = np.random.randn(10, 10)
+    y = np.random.randn(10)
+    reg.fit(X, y)
+
+    config = json.loads(reg.get_booster().save_config())
+    assert config['learner']['gradient_booster']['updater']['grow_colmaker'][
+        'train_param']['interaction_constraints'] == '[[0, 1], [2, 3, 4]]'
+
+
 class TestBoostFromPrediction(unittest.TestCase):
     def run_boost_from_prediction(self, tree_method):
         from sklearn.datasets import load_breast_cancer
