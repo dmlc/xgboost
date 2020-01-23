@@ -34,19 +34,21 @@ DMLC_REGISTRY_ENABLE(::xgboost::data::SparsePageFormatReg<::xgboost::EllpackPage
 namespace {
 
 template <typename T>
-void SaveScaleField(dmlc::Stream *strm, const std::string &name,
-                    xgboost::DataType type, const T &field) {
+void SaveScalarField(dmlc::Stream *strm, const std::string &name,
+                     xgboost::DataType type, const T &field) {
   strm->Write(name);
   strm->Write(type);
+  strm->Write(true);  // is_scalar=True
   strm->Write(field);
 }
 
 template <typename T>
 void SaveVectorField(dmlc::Stream *strm, const std::string &name,
                      xgboost::DataType type, std::pair<uint64_t, uint64_t> shape,
-                     const std::vector<T> &field) {
+                     const std::vector<T>& field) {
   strm->Write(name);
   strm->Write(type);
+  strm->Write(false);  // is_scalar=False
   strm->Write(shape.first);
   strm->Write(shape.second);
   strm->Write(field);
@@ -54,56 +56,62 @@ void SaveVectorField(dmlc::Stream *strm, const std::string &name,
 
 template <typename T>
 void SaveVectorField(dmlc::Stream* strm, const std::string& name,
-                     xgboost::DataType type,
-                     std::pair<uint64_t, uint64_t> shape,
+                     xgboost::DataType type, std::pair<uint64_t, uint64_t> shape,
                      const xgboost::HostDeviceVector<T>& field) {
   SaveVectorField(strm, name, type, shape, field.ConstHostVector());
 }
 
 template <typename T>
-void LoadScaleField(dmlc::Stream* strm, const std::string& expected_field_name,
-                    xgboost::DataType expected_field_type, T* field) {
-  std::string invalid {"MetaInfo: Invalid format. "};
-  std::string field_name;
-  xgboost::DataType field_type;
-  CHECK(strm->Read(&field_name)) << invalid;
-  CHECK_EQ(field_name, expected_field_name)
-      << invalid << " Expected field: " << expected_field_name
-      << ", got: " << field_name;
-  CHECK(strm->Read(&field_type)) << invalid;
-  CHECK(field_type == expected_field_type)
-      << invalid << "Expected field of type: " << static_cast<int>(expected_field_type) << ", "
-      << "got field type: " << static_cast<int>(field_type);
+void LoadScalarField(dmlc::Stream* strm, const std::string& expected_name,
+                     xgboost::DataType expected_type, T* field) {
+  const std::string invalid {"MetaInfo: Invalid format. "};
+  std::string name;
+  xgboost::DataType type;
+  bool is_scalar;
+  CHECK(strm->Read(&name)) << invalid;
+  CHECK_EQ(name, expected_name)
+      << invalid << " Expected field: " << expected_name << ", got: " << name;
+  CHECK(strm->Read(&type)) << invalid;
+  CHECK(type == expected_type)
+      << invalid << "Expected field of type: " << static_cast<int>(expected_type) << ", "
+      << "got field type: " << static_cast<int>(type);
+  CHECK(strm->Read(&is_scalar)) << invalid;
+  CHECK(is_scalar)
+    << invalid << "Expected field " << expected_name << " to be a scalar; got a vector";
   CHECK(strm->Read(field, sizeof(T))) << invalid;
 }
 
 template <typename T>
-void LoadVectorField(dmlc::Stream *strm, const std::string &expected_field_name,
-                     xgboost::DataType expected_type, std::vector<T> *field) {
-  std::string field_name;
+void LoadVectorField(dmlc::Stream* strm, const std::string& expected_name,
+                     xgboost::DataType expected_type, std::vector<T>* field) {
+  const std::string invalid {"MetaInfo: Invalid format. "};
+  std::string name;
   xgboost::DataType type;
-  CHECK(strm->Read(&field_name)) << "MetaInfo: invalid format";
-  CHECK_EQ(field_name, expected_field_name)
-    << "MetaInfo: invalid format; expected field " << expected_field_name
-    << ", got field " << field_name;
-  CHECK(strm->Read(&type)) << "MetaInfo: invalid format";
+  bool is_scalar;
+  CHECK(strm->Read(&name)) << invalid;
+  CHECK_EQ(name, expected_name)
+    << invalid << " Expected field: " << expected_name << ", got: " << name;
+  CHECK(strm->Read(&type)) << invalid;
   CHECK(type == expected_type)
-      << "MetaInfo: invalid format; expected field of type: "
-      << static_cast<int>(expected_type)
-      << ", got field type: " << static_cast<int>(type);
+    << invalid << "Expected field of type: " << static_cast<int>(expected_type) << ", "
+    << "got field type: " << static_cast<int>(type);
+  CHECK(strm->Read(&is_scalar)) << invalid;
+  CHECK(!is_scalar)
+    << invalid << "Expected field " << expected_name << " to be a vector; got a scalar";
   std::pair<uint64_t, uint64_t> shape;
 
   CHECK(strm->Read(&shape.first));
   CHECK(strm->Read(&shape.second));
-  CHECK_EQ(shape.second, 1) << "MetaInfo: invalid format.  Number of columns is expected to be 1.";
+  // TODO(hcho3): this restriction may be lifted, once we add a field with more than 1 column.
+  CHECK_EQ(shape.second, 1) << invalid << "Number of columns is expected to be 1.";
 
-  CHECK(strm->Read(field)) << "MetaInfo: invalid format";
+  CHECK(strm->Read(field)) << invalid;
 }
 
 template <typename T>
-void LoadVectorField(dmlc::Stream *strm, const std::string &expected_field_name,
+void LoadVectorField(dmlc::Stream* strm, const std::string& expected_field_name,
                      xgboost::DataType expected_field_type,
-                     xgboost::HostDeviceVector<T> *field) {
+                     xgboost::HostDeviceVector<T>* field) {
   LoadVectorField(strm, expected_field_name, expected_field_type, &field->HostVector());
 }
 
@@ -123,20 +131,21 @@ void MetaInfo::Clear() {
 }
 
 /*
- * Used format:
+ * Binary serialization format for MetaInfo:
  *
- * | name        | type     | rows    | columns | value           |
- * |-------------+----------+---------+---------+-----------------|
- * | num_row     | kUInt64  | NA      |      NA | ${num_row_}     |
- * | num_col     | kUInt64  | NA      |      NA | ${num_col_}     |
- * | num_nonzero | kUInt64  | NA      |      NA | ${num_nonzero_} |
- * | labels      | kFloat32 | ${size} |       1 | ${labels_}      |
- * | group_ptr   | kUInt32  | ${size} |       1 | ${group_ptr_}   |
- * | weights     | kFloat32 | ${size} |       1 | ${weights_}     |
- * | base_margin | kFloat32 | ${size} |       1 | ${abse_margin}  |
+ * | name        | type     | is_vector | num_row | num_col | value           |
+ * |-------------+----------+-----------+---------+---------+-----------------|
+ * | num_row     | kUInt64  | True      | NA      |      NA | ${num_row_}     |
+ * | num_col     | kUInt64  | True      | NA      |      NA | ${num_col_}     |
+ * | num_nonzero | kUInt64  | True      | NA      |      NA | ${num_nonzero_} |
+ * | labels      | kFloat32 | False     | ${size} |       1 | ${labels_}      |
+ * | group_ptr   | kUInt32  | False     | ${size} |       1 | ${group_ptr_}   |
+ * | weights     | kFloat32 | False     | ${size} |       1 | ${weights_}     |
+ * | base_margin | kFloat32 | False     | ${size} |       1 | ${base_margin_} |
  *
- * Notice the difference between saved name and the name used in `SetInfo': the former
- * uses plural.
+ * Note that the scalar fields (is_vector=True) will have num_row and num_col missing.
+ * Also notice the difference between the saved name and the name used in `SetInfo':
+ * the former uses the plural form.
  */
 
 void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
@@ -144,10 +153,9 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   fo->Write(kNumField);
   int field_cnt = 0;  // make sure we are actually writing kNumField fields
 
-  SaveScaleField(fo, u8"num_row", DataType::kUInt64, num_row_); ++field_cnt;
-  SaveScaleField(fo, u8"num_col", DataType::kUInt64, num_col_); ++field_cnt;
-  SaveScaleField(fo, u8"num_nonzero", DataType::kUInt64, num_nonzero_); ++field_cnt;
-
+  SaveScalarField(fo, u8"num_row", DataType::kUInt64, num_row_); ++field_cnt;
+  SaveScalarField(fo, u8"num_col", DataType::kUInt64, num_col_); ++field_cnt;
+  SaveScalarField(fo, u8"num_nonzero", DataType::kUInt64, num_nonzero_); ++field_cnt;
   SaveVectorField(fo, u8"labels", DataType::kFloat32,
                   {labels_.Size(), 1}, labels_); ++field_cnt;
   SaveVectorField(fo, u8"group_ptr", DataType::kUInt32,
@@ -180,9 +188,9 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
     LOG(WARNING) << "MetaInfo: the given binary file contains extra fields which will be ignored.";
   }
 
-  LoadScaleField(fi, u8"num_row", DataType::kUInt64, &num_row_);
-  LoadScaleField(fi, u8"num_col", DataType::kUInt64, &num_col_);
-  LoadScaleField(fi, u8"num_nonzero", DataType::kUInt64, &num_nonzero_);
+  LoadScalarField(fi, u8"num_row", DataType::kUInt64, &num_row_);
+  LoadScalarField(fi, u8"num_col", DataType::kUInt64, &num_col_);
+  LoadScalarField(fi, u8"num_nonzero", DataType::kUInt64, &num_nonzero_);
   LoadVectorField(fi, u8"labels", DataType::kFloat32, &labels_);
   LoadVectorField(fi, u8"group_ptr", DataType::kUInt32, &group_ptr_);
   LoadVectorField(fi, u8"weights", DataType::kFloat32, &weights_);
