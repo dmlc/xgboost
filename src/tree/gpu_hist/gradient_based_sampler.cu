@@ -170,38 +170,20 @@ struct SampleRateDelta : public thrust::binary_function<float, size_t, float> {
       : threshold(_threshold), n_rows(_n_rows), sample_rows(_sample_rows) {}
 
   XGBOOST_DEVICE float operator()(float gradient_sum, size_t row_index) const {
-    // For the last row, if gradient_sum/sample_rows > gradient, that means no row will be sampled
-    // with probability equal to 1, so we use the mean as the threshold.
-    if (row_index == n_rows - 1) {
-      float last = threshold[n_rows - 1];
-      float mean = gradient_sum / sample_rows;
-      if (mean > last) {
-        threshold[n_rows] = mean;
-        return 0.0f;
-      } else {
-        return std::numeric_limits<float>::max();
-      }
-    }
-
-    // For a given u = threshold[row_index], the summed sample rate for the rows above the current
-    // row is `gradient_sum / u`.
-    //
-    // Rows below (including the current row) are sampled with probability equal to 1, thus adding
-    // up to `n_rows - row_index`.
-    //
-    // The total sample rate is therefore `gradient_sum / u + n_rows - row_index`.
-    //
-    // We want to choose the threshold that makes this value as close to `sample_rows` as possible.
-    float u = threshold[row_index + 1];
-    if (u == 0.0f) {
-      return std::numeric_limits<float>::max();
+    float lower = threshold[row_index];
+    float upper = threshold[row_index + 1];
+    float u = gradient_sum / static_cast<float>(sample_rows - n_rows + row_index + 1);
+    if (u > lower && u <= upper) {
+      threshold[row_index + 1] = u;
+      return 0.0f;
     } else {
-      return fabsf(gradient_sum / u + n_rows - row_index - sample_rows);
+      return std::numeric_limits<float>::max();
     }
   }
 };
 
 size_t GradientBasedSampler::CalculateThresholdIndex(common::Span<GradientPair> gpair) {
+  thrust::fill(dh::tend(threshold_) - 1, dh::tend(threshold_), std::numeric_limits<float>::max());
   thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
                     dh::tbegin(threshold_),
                     CombineGradientPair());
@@ -252,7 +234,6 @@ struct CalculateWeight
 GradientBasedSample GradientBasedSampler::GradientBasedSampling(
     common::Span<GradientPair> gpair, DMatrix* dmat) {
   size_t threshold_index = CalculateThresholdIndex(gpair);
-  printf("threshold_index=%lu\n", threshold_index);
   thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
                     thrust::counting_iterator<size_t>(0),
                     thrust::make_zip_iterator(thrust::make_tuple(

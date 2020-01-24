@@ -416,11 +416,8 @@ __global__ void SharedMemHistKernel(xgboost::EllpackMatrix matrix,
   }
   for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
     int ridx = d_ridx[idx / matrix.info.row_stride];
-    if (!matrix.IsInRange(ridx)) {
-      continue;
-    }
-    int gidx = matrix.gidx_iter[(ridx - matrix.base_rowid) * matrix.info.row_stride
-        + idx % matrix.info.row_stride];
+    int gidx =
+        matrix.gidx_iter[ridx * matrix.info.row_stride + idx % matrix.info.row_stride];
     if (gidx != matrix.info.n_bins) {
       // If we are not using shared memory, accumulate the values directly into
       // global memory
@@ -481,7 +478,6 @@ struct GPUHistMakerDevice {
                           std::function<bool(ExpandEntry, ExpandEntry)>>;
   std::unique_ptr<ExpandQueue> qexpand;
 
-  bool use_gradient_based_sampling {false};
   std::unique_ptr<GradientBasedSampler> sampler;
 
   GPUHistMakerDevice(int _device_id,
@@ -498,8 +494,7 @@ struct GPUHistMakerDevice {
         prediction_cache_initialised(false),
         column_sampler(column_sampler_seed),
         interaction_constraints(param, n_features),
-        batch_param(_batch_param),
-        use_gradient_based_sampling(_page->matrix.n_rows != _n_rows) {
+        batch_param(_batch_param) {
     sampler.reset(new GradientBasedSampler(page,
                                            n_rows,
                                            batch_param,
