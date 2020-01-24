@@ -127,6 +127,8 @@ class HostDeviceVector {
 
   void Resize(size_t new_size, T v = T());
 
+  using value_type = T;
+
  private:
   HostDeviceVectorImpl<T>* impl_;
 };

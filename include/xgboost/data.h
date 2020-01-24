@@ -26,7 +26,7 @@ namespace xgboost {
 class DMatrix;
 
 /*! \brief data type accepted by xgboost interface */
-enum DataType {
+enum class DataType : uint8_t {
   kFloat32 = 1,
   kDouble = 2,
   kUInt32 = 3,
@@ -38,6 +38,9 @@ enum DataType {
  */
 class MetaInfo {
  public:
+  /*! \brief number of data fields in MetaInfo */
+  static constexpr uint64_t kNumField = 7;
+
   /*! \brief number of rows in the data */
   uint64_t num_row_{0};
   /*! \brief number of columns in the data */

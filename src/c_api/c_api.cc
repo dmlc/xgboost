@@ -340,7 +340,7 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
   API_BEGIN();
   CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo(field, info, kFloat32, len);
+      ->get()->Info().SetInfo(field, info, xgboost::DataType::kFloat32, len);
   API_END();
 }
 
@@ -361,7 +361,7 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
   API_BEGIN();
   CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo(field, info, kUInt32, len);
+      ->get()->Info().SetInfo(field, info, xgboost::DataType::kUInt32, len);
   API_END();
 }
 
@@ -372,7 +372,7 @@ XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
   CHECK_HANDLE();
   LOG(WARNING) << "XGDMatrixSetGroup is deprecated, use `XGDMatrixSetUIntInfo` instead.";
   static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo("group", group, kUInt32, len);
+      ->get()->Info().SetInfo("group", group, xgboost::DataType::kUInt32, len);
   API_END();
 }
 
