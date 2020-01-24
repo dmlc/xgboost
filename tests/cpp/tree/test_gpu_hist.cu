@@ -384,7 +384,7 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair,
 }
 
 TEST(GpuHist, UniformSampling) {
-  constexpr size_t kRows = 6;
+  constexpr size_t kRows = 4096;
   constexpr size_t kCols = 2;
   constexpr float kSubsample = 0.99;
 
@@ -407,12 +407,12 @@ TEST(GpuHist, UniformSampling) {
   auto preds_h = preds.ConstHostVector();
   auto preds_sampling_h = preds_sampling.ConstHostVector();
   for (int i = 0; i < kRows; i++) {
-    EXPECT_NEAR(preds_h[i], preds_sampling_h[i], 2e-6);
+    EXPECT_NEAR(preds_h[i], preds_sampling_h[i], 1e-3);
   }
 }
 
 TEST(GpuHist, GradientBasedSampling) {
-  constexpr size_t kRows = 6;
+  constexpr size_t kRows = 4096;
   constexpr size_t kCols = 2;
   constexpr float kSubsample = 0.99;
 
@@ -435,7 +435,7 @@ TEST(GpuHist, GradientBasedSampling) {
   auto preds_h = preds.ConstHostVector();
   auto preds_sampling_h = preds_sampling.ConstHostVector();
   for (int i = 0; i < kRows; i++) {
-    EXPECT_NEAR(preds_h[i], preds_sampling_h[i], 1e-5);
+    EXPECT_NEAR(preds_h[i], preds_sampling_h[i], 1e-3);
   }
 }
 
