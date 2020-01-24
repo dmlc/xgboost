@@ -79,18 +79,17 @@ void SparseCuts::SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
   p_cuts_->min_vals_.resize(end_col - beg_col, 0);
 
   for (uint32_t col_id = beg_col; col_id < page.Size() && col_id < end_col; ++col_id) {
-    // Using a local variable makes things easier, but at the cost of memory trashing.
-    WXQSketch sketch;
     common::Span<xgboost::Entry const> const column = page[col_id];
     uint32_t const n_bins = std::min(static_cast<uint32_t>(column.size()),
                                      max_num_bins);
+    // Using a local variable makes things easier, but at the cost of memory trashing.
+    WXQSketch sketch(info.num_row_, 1.0 / (n_bins * kFactor));
     if (n_bins == 0) {
       // cut_ptrs_ is initialized with a zero, so there's always an element at the back
       p_cuts_->cut_ptrs_.emplace_back(p_cuts_->cut_ptrs_.back());
       continue;
     }
 
-    sketch.Init(info.num_row_, 1.0 / (n_bins * kFactor));
     for (auto const& entry : column) {
       uint32_t weight_ind = 0;
       if (use_group_ind) {
@@ -241,10 +240,7 @@ void DenseCuts::Build(DMatrix* p_fmat, uint32_t max_num_bins) {
   unsigned const nstep =
       static_cast<unsigned>((info.num_col_ + nthread - 1) / nthread);
   unsigned const ncol = static_cast<unsigned>(info.num_col_);
-  sketchs.resize(info.num_col_);
-  for (auto& s : sketchs) {
-    s.Init(info.num_row_, 1.0 / (max_num_bins * kFactor));
-  }
+  sketchs.resize(info.num_col_, WXQSketch(info.num_row_, 1.0 / (max_num_bins * kFactor)));
 
   // Data groups, used in ranking.
   std::vector<bst_uint> const& group_ptr = info.group_ptr_;

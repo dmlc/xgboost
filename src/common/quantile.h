@@ -481,14 +481,12 @@ class WXQuantileSketch {
    * \param maxn maximum number of data points can be feed into sketch
    * \param eps accuracy level of summary
    */
-  void Init(size_t maxn, double eps) {
+  WXQuantileSketch(size_t maxn, double eps) {
     LimitSizeLevel(maxn, eps, &nlevel, &limit_size);
     // lazy reserve the space, if there is only one value, no need to allocate
     // space
     inqueue_.queue.resize(1);
     inqueue_.qtail = 0;
-    data.clear();
-    level.clear();
   }
 
   static void LimitSizeLevel(size_t maxn, double eps, size_t *out_nlevel,
@@ -603,6 +601,11 @@ class WXQuantileSketch {
       level[l].data = dmlc::BeginPtr(data) + l * limit_size;
     }
   }
+
+  // temporal summary, used for temp-merge
+  SummaryContainer temp;
+
+ private:
   // number of levels
   size_t nlevel;
   // size of summary in each level
@@ -611,10 +614,6 @@ class WXQuantileSketch {
   std::vector<Summary> level;
   // content of the summary
   std::vector<Entry> data;
-  // temporal summary, used for temp-merge
-  SummaryContainer temp;
-
- private:
   // input data queue
   typename Summary::Queue inqueue_;
 };

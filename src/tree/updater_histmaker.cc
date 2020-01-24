@@ -398,10 +398,8 @@ class CQHistMaker: public HistMaker {
     }
     const size_t work_set_size = work_set_.size();
 
-    sketchs_.resize(this->qexpand_.size() * work_set_size);
-    for (auto& sketch : sketchs_) {
-      sketch.Init(info.num_row_, this->param_.sketch_eps);
-    }
+    sketchs_.resize(this->qexpand_.size() * work_set_size,
+                    WXQSketch(info.num_row_, this->param_.sketch_eps));
     // intitialize the summary array
     summary_array_.resize(sketchs_.size());
     // setup maximum size
