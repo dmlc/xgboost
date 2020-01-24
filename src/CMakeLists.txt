@@ -5,7 +5,7 @@ list(REMOVE_ITEM CPU_SOURCES ${xgboost_SOURCE_DIR}/src/cli_main.cc)
 # Object library is necessary for jvm-package, which creates its own shared
 # library.
 if (USE_CUDA)
-  file(GLOB_RECURSE CUDA_SOURCES *.cu)
+  file(GLOB_RECURSE CUDA_SOURCES *.cu *.cuh)
   add_library(objxgboost OBJECT ${CPU_SOURCES} ${CUDA_SOURCES} ${PLUGINS_SOURCES})
   target_compile_definitions(objxgboost
     PRIVATE -DXGBOOST_USE_CUDA=1)
@@ -99,5 +99,9 @@ endif (USE_OPENMP OR USE_CUDA)
 # replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462
 # for issues caused by mixing of /MD and /MT flags
 msvc_use_static_runtime()
+
+# This grouping organises source files nicely in visual studio
+auto_source_group("${CUDA_SOURCES}")
+auto_source_group("${CPU_SOURCES}")
 
 #-- End object library

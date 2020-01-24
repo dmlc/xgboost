@@ -173,7 +173,7 @@ class ClangTidy(object):
             self.compile_commands = json.load(fd)
         tidy_file = os.path.join(self.root_path, '.clang-tidy')
         with open(tidy_file) as fd:
-            self.clang_tidy = yaml.load(fd)
+            self.clang_tidy = yaml.safe_load(fd)
             self.clang_tidy = str(self.clang_tidy)
         all_files = []
         for entry in self.compile_commands:
