@@ -507,20 +507,6 @@ class LearnerImpl : public Learner {
 #ifdef XGBOOST_USE_CUDA
           if (saved_param == "predictor" || saved_param == "gpu_id") {
             cfg_[saved_param] = kv.second;
-            if(false) {
-            LOG(INFO)
-              << "Parameter '" << saved_param << "' has been recovered from "
-              << "the saved model. It will be set to "
-              << RenderParamVal(kv.second) << " for prediction. To "
-              << "override the predictor behavior, explicitly set '"
-              << saved_param << "' parameter as follows:\n"
-              << "  * Python package: bst.set_param('"
-              << saved_param << "', [new value])\n"
-              << "  * R package:      xgb.parameters(bst) <- list("
-              << saved_param << " = [new value])\n"
-              << "  * JVM packages:   bst.setParam(\""
-              << saved_param << "\", [new value])";
-            }
           }
 #else
           if (is_gpu_predictor) {
