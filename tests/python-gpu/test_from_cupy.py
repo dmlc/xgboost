@@ -51,21 +51,23 @@ Arrow specification.'''
     @pytest.mark.skipif(**tm.no_cupy())
     def test_cupy_training(self):
         import cupy as cp
+        np.random.seed(1)
         X = cp.random.randn(50, 10, dtype="float32")
         y = cp.random.randn(50, dtype="float32")
         weights = np.random.random(50)
-        cupy_weights = cp.array(weights)
+        cupy_weights = cp.array(weights) + 1
         base_margin = np.random.random(50)
         cupy_base_margin = cp.array(base_margin)
 
         evals_result_cupy = {}
         dtrain_cp = xgb.DMatrix(X, y, weight=cupy_weights, base_margin=cupy_base_margin)
-        xgb.train({'gpu_id': 0}, dtrain_cp, evals=[(dtrain_cp, "train")],
+        params = {'gpu_id': 0, 'nthread': 1}
+        xgb.train(params, dtrain_cp, evals=[(dtrain_cp, "train")],
                   evals_result=evals_result_cupy)
         evals_result_np = {}
         dtrain_np = xgb.DMatrix(cp.asnumpy(X), cp.asnumpy(y), weight=weights,
                                 base_margin=base_margin)
-        xgb.train({'gpu_id': 0}, dtrain_np, evals=[(dtrain_np, "train")],
+        xgb.train(params, dtrain_np, evals=[(dtrain_np, "train")],
                   evals_result=evals_result_np)
         assert np.array_equal(evals_result_cupy["train"]["rmse"], evals_result_np["train"]["rmse"])
 
