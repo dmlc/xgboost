@@ -826,7 +826,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         'Fit gradient boosting classifier', 1)
 
     def predict(self, data, output_margin=False, ntree_limit=None,
-    pred_leaf=False, pred_contribs=False, approx_contribs=False,
+                pred_leaf=False, pred_contribs=False, approx_contribs=False,
                 validate_features=True, base_margin=None):
         """
         Predict with `data`.

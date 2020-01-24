@@ -14,6 +14,7 @@
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
+#include <xgboost/gbm.h>
 
 #include <utility>
 #include <map>

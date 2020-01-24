@@ -245,6 +245,7 @@ TEST(Objective, DeclareUnifiedTest(TweedieRegressionGPair)) {
                    {},  // Empty weight.
                    {   1, 1.09f, 2.24f, 2.45f, 0, 0.10f, 1.33f, 1.55f},
                    {0.89f, 0.98f, 2.02f, 2.21f, 1, 1.08f, 2.11f, 2.30f});
+  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"tweedie-nloglik@1.1"});
   delete obj;
 }
 

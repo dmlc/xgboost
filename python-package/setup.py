@@ -34,11 +34,9 @@ print("Install libxgboost from: %s" % LIB_PATH)
 
 
 setup(name='xgboost',
-      version=open(os.path.join(
-          CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
+      version=open(os.path.join(CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
       description="XGBoost Python Package",
-      long_description=io.open(os.path.join(
-          CURRENT_DIR, 'README.rst'), encoding='utf-8').read(),
+      long_description=io.open(os.path.join(CURRENT_DIR, 'README.rst'), encoding='utf-8').read(),
       install_requires=[
           'numpy',
           'scipy',

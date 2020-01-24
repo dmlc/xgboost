@@ -657,26 +657,6 @@ XGB_DLL int XGBoosterGetAttrNames(BoosterHandle handle,
                                   bst_ulong* out_len,
                                   const char*** out);
 
-// --- Distributed training API----
-// NOTE: functions in rabit/c_api.h will be also available in libxgboost.so
-/*!
- * \brief Initialize the booster from rabit checkpoint.
- *  This is used in distributed training API.
- * \param handle handle
- * \param version The output version of the model.
- * \return 0 when success, -1 when failure happens
- */
-XGB_DLL int XGBoosterLoadRabitCheckpoint(
-    BoosterHandle handle,
-    int* version);
-
-/*!
- * \brief Save the current checkpoint to rabit.
- * \param handle handle
- * \return 0 when success, -1 when failure happens
- */
-XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle);
-
 /*!
 * \brief Xgbfi: XGBoost Feature Interactions & Importance
 * \param handle BoosterHandle

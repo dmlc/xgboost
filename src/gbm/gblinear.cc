@@ -7,13 +7,10 @@
  */
 #include <dmlc/omp.h>
 #include <dmlc/parameter.h>
-<<<<<<< HEAD
 #include <xgboost/gbm.h>
 #include <xgboost/logging.h>
 #include <xgboost/linear_updater.h>
 #include <xgboost/model_visitor.h>
-=======
->>>>>>> upstream/master
 
 #include <vector>
 #include <string>
@@ -58,17 +55,10 @@ struct GBLinearTrainParam : public XGBoostParameter<GBLinearTrainParam> {
 class GBLinear : public GradientBooster {
  public:
   explicit GBLinear(const std::vector<std::shared_ptr<DMatrix> > &cache,
-<<<<<<< HEAD
-                    bst_float base_margin)
-      : base_margin_(base_margin),
-        model_(base_margin),
-        previous_model_(base_margin),
-=======
                     LearnerModelParam const* learner_model_param)
       : learner_model_param_{learner_model_param},
         model_{learner_model_param_},
         previous_model_{learner_model_param_},
->>>>>>> upstream/master
         sum_instance_weight_(0),
         sum_weight_complete_(false),
         is_converged_(false) {

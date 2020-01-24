@@ -818,30 +818,6 @@ XGB_DLL int XGBoosterGetAttrNames(BoosterHandle handle,
   API_END();
 }
 
-XGB_DLL int XGBoosterLoadRabitCheckpoint(BoosterHandle handle,
-                                         int* version) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  auto* bst = static_cast<Learner*>(handle);
-  *version = rabit::LoadCheckPoint(bst);
-  if (*version != 0) {
-    bst->Configure();
-  }
-  API_END();
-}
-
-XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  auto* bst = static_cast<Learner*>(handle);
-  if (bst->AllowLazyCheckPoint()) {
-    rabit::LazyCheckPoint(bst);
-  } else {
-    rabit::CheckPoint(bst);
-  }
-  API_END();
-}
-
 XGB_DLL int XGBoosterGetFeatureInteractions(BoosterHandle handle,
                                             int max_fi_depth,
                                             int max_tree_depth,

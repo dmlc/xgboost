@@ -55,7 +55,6 @@ class GBLinearModel : public Model {
 
   // weight for each of feature, bias is the last one
   std::vector<bst_float> weight;
-  bst_float base_margin;
   // initialize the model parameter
   inline void LazyInitModel() {
     if (!weight.empty())

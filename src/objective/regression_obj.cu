@@ -539,10 +539,7 @@ class TweedieRegression : public ObjFunction {
   }
 
   const char* DefaultEvalMetric() const override {
-    std::ostringstream os;
-    os << "tweedie-nloglik@" << param_.tweedie_variance_power;
-    std::string metric = os.str();
-    return metric.c_str();
+    return metric_.c_str();
   }
 
   void SaveConfig(Json* p_out) const override {
@@ -555,6 +552,7 @@ class TweedieRegression : public ObjFunction {
   }
 
  private:
+  std::string metric_;
   TweedieRegressionParam param_;
   HostDeviceVector<int> label_correct_;
 };
