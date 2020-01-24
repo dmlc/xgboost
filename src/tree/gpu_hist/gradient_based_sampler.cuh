@@ -21,6 +21,82 @@ struct GradientBasedSample {
   common::Span<GradientPair> gpair;
 };
 
+class SamplingStrategy {
+ public:
+  /*! \brief Sample from a DMatrix based on the given gradient pairs. */
+  virtual GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) = 0;
+};
+
+/*! \brief No sampling in in-memory mode. */
+class NoSampling : public SamplingStrategy {
+ public:
+  explicit NoSampling(EllpackPageImpl* page);
+
+  GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
+
+ private:
+  EllpackPageImpl* page_;
+};
+
+/*! \brief No sampling in external memory mode. */
+class ExternalMemoryNoSampling : public SamplingStrategy {
+ public:
+  ExternalMemoryNoSampling(EllpackPageImpl* page,
+                           size_t n_rows,
+                           const BatchParam& batch_param);
+
+  GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
+
+ private:
+  /*! \brief Concatenate all the rows from a DMatrix into a single ELLPACK page. */
+  void ConcatenatePages(DMatrix* dmat);
+
+  BatchParam batch_param_;
+  std::unique_ptr<EllpackPageImpl> page_;
+  bool page_concatenated_{false};
+};
+
+/*! \brief Uniform sampling in in-memory mode. */
+class UniformSampling : public SamplingStrategy {
+ public:
+  UniformSampling(EllpackPageImpl* page, float subsample);
+
+  GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
+
+ private:
+  EllpackPageImpl* page_;
+  float subsample_;
+};
+
+/*! \brief No sampling in external memory mode. */
+class ExternalMemoryUniformSampling : public SamplingStrategy {
+ public:
+  ExternalMemoryUniformSampling(float subsample);
+
+  GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
+
+ private:
+  dh::BulkAllocator ba_;
+  EllpackPageImpl* original_page_;
+  float subsample_;
+  BatchParam batch_param_;
+  std::unique_ptr<EllpackPageImpl> page_;
+  common::Span<GradientPair> gpair_;
+  common::Span<size_t> sample_row_index_;
+};
+
+class GradientBasedSampling : public SamplingStrategy {
+ public:
+  /*! \brief Gradient-based sampling in in-memory mode.. */
+  GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
+};
+
+class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
+ public:
+  /*! \brief Gradient-based sampling in external memory mode.. */
+  GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
+};
+
 /*! \brief Draw a sample of rows from a DMatrix.
  *
  * \see Ke, G., Meng, Q., Finley, T., Wang, T., Chen, W., Ma, W., ... & Liu, T. Y. (2017).
@@ -32,10 +108,9 @@ struct GradientBasedSample {
  */
 class GradientBasedSampler {
  public:
-
   GradientBasedSampler(EllpackPageImpl* page,
                        size_t n_rows,
-                       BatchParam batch_param,
+                       const BatchParam& batch_param,
                        float subsample,
                        int sampling_method);
 
@@ -43,13 +118,6 @@ class GradientBasedSampler {
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat);
 
  private:
-  GradientBasedSample NoSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
-  GradientBasedSample UniformSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
-  GradientBasedSample GradientBasedSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
-
-  /*! \brief Concatenate all the rows from a DMatrix into a single ELLPACK page. */
-  void ConcatenatePages(DMatrix* dmat);
-
   /*! \brief Calculate the threshold used to normalize sampling probabilities. */
   size_t CalculateThresholdIndex(common::Span<GradientPair> gpair);
 
@@ -57,6 +125,9 @@ class GradientBasedSampler {
   GradientBasedSample SequentialPoissonSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
 
   common::Monitor monitor_;
+  std::unique_ptr<SamplingStrategy> strategy_;
+
+
   dh::BulkAllocator ba_;
   EllpackPageImpl* original_page_;
   float subsample_;
