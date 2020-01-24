@@ -15,6 +15,7 @@ Installation Guide
 
   * The binary wheel will support GPU algorithms (`gpu_hist`) on machines with NVIDIA GPUs. Please note that **training with multiple GPUs is only supported for Linux platform**. See :doc:`gpu/index`.
   * Currently, we provide binary wheels for 64-bit Linux and Windows.
+  * Nightly builds are available. You can now run *pip install https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/xgboost-[version]+[commit hash]-py2.py3-none-manylinux1_x86_64.whl* to install the nightly build with the given commit hash. See `this page <https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/list.html>`_ to see the list of all nightly builds.
 
 ****************************
 Building XGBoost from source
@@ -72,8 +73,10 @@ Our goal is to build the shared library:
 
 The minimal building requirement is
 
-- A recent C++ compiler supporting C++11 (g++-4.8 or higher)
-- CMake 3.2 or higher
+- A recent C++ compiler supporting C++11 (g++-5.0 or higher)
+- CMake 3.3 or higher (3.12 for building with CUDA)
+
+For a list of CMake options, see ``#-- Options`` in CMakeLists.txt on top of source tree.
 
 Building on Ubuntu/Debian
 =========================
@@ -95,11 +98,11 @@ Building on OSX
 Install with pip: simple method
 --------------------------------
 
-First, obtain ``gcc-8`` with Homebrew (https://brew.sh/) to enable multi-threading (i.e. using multiple CPU threads for training). The default Apple Clang compiler does not support OpenMP, so using the default compiler would have disabled multi-threading.
+First, obtain ``gcc-9`` and ``OpenMP`` with Homebrew (https://brew.sh/) to enable multi-threading (i.e. using multiple CPU threads for training). The default Apple Clang compiler does not support OpenMP, so using the default compiler would have disabled multi-threading.
 
 .. code-block:: bash
 
-  brew install gcc@8
+  brew install gcc@9 libomp
 
 Then install XGBoost with ``pip``:
 
@@ -112,11 +115,12 @@ You might need to run the command with ``--user`` flag if you run into permissio
 Build from the source code - advanced method
 --------------------------------------------
 
-Obtain ``gcc-8`` from Homebrew:
+Obtain ``gcc-9`` and ``OpenMP`` from Homebrew:
 
 .. code-block:: bash
 
-  brew install gcc@8
+  brew install gcc@9 libomp
+
 
 Now clone the repository:
 
@@ -124,13 +128,13 @@ Now clone the repository:
 
   git clone --recursive https://github.com/dmlc/xgboost
 
-Create the ``build/`` directory and invoke CMake. Make sure to add ``CC=gcc-8 CXX=g++-8`` so that Homebrew GCC is selected. After invoking CMake, you can build XGBoost with ``make``:
+Create the ``build/`` directory and invoke CMake. Make sure to add ``CC=gcc-9 CXX=g++-9`` so that Homebrew GCC is selected. After invoking CMake, you can build XGBoost with ``make``:
 
 .. code-block:: bash
 
   mkdir build
   cd build
-  CC=gcc-8 CXX=g++-8 cmake ..
+  CC=gcc-9 CXX=g++-9 cmake ..
   make -j4
 
 You may now continue to `Python Package Installation`_.
@@ -355,11 +359,11 @@ If all fails, try `Building the shared library`_ to see whether a problem is spe
 Installing R package on Mac OSX with multi-threading
 ----------------------------------------------------
 
-First, obtain ``gcc-8`` with Homebrew (https://brew.sh/) to enable multi-threading (i.e. using multiple CPU threads for training). The default Apple Clang compiler does not support OpenMP, so using the default compiler would have disabled multi-threading.
+First, obtain ``gcc-9`` and ``OpenMP`` with Homebrew (https://brew.sh/) to enable multi-threading (i.e. using multiple CPU threads for training). The default Apple Clang compiler does not support OpenMP, so using the default compiler would have disabled multi-threading.
 
 .. code-block:: bash
 
-  brew install gcc@8
+  brew install gcc@9 libomp
 
 Now, clone the repository:
 
@@ -367,13 +371,13 @@ Now, clone the repository:
 
   git clone --recursive https://github.com/dmlc/xgboost
 
-Create the ``build/`` directory and invoke CMake with option ``R_LIB=ON``. Make sure to add ``CC=gcc-8 CXX=g++-8`` so that Homebrew GCC is selected. After invoking CMake, you can install the R package by running ``make`` and ``make install``:
+Create the ``build/`` directory and invoke CMake with option ``R_LIB=ON``. Make sure to add ``CC=gcc-9 CXX=g++-9`` so that Homebrew GCC is selected. After invoking CMake, you can install the R package by running ``make`` and ``make install``:
 
 .. code-block:: bash
 
   mkdir build
   cd build
-  CC=gcc-7 CXX=g++-7 cmake .. -DR_LIB=ON
+  CC=gcc-9 CXX=g++-9 cmake .. -DR_LIB=ON
   make -j4
   make install
 

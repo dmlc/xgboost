@@ -1,37 +1,28 @@
 # coding: utf-8
 # pylint: disable= invalid-name,  unused-import
-"""For compatibility"""
-
-from __future__ import absolute_import
-
+"""For compatibility and optional dependencies."""
 import abc
 import os
 import sys
 
 from pathlib import PurePath
 
-PY3 = (sys.version_info[0] == 3)
+assert (sys.version_info[0] == 3), 'Python 2 is no longer supported.'
 
-if PY3:
-    # pylint: disable=invalid-name, redefined-builtin
-    STRING_TYPES = (str,)
-
-
-    def py_str(x):
-        """convert c string back to python string"""
-        return x.decode('utf-8')
-else:
-    STRING_TYPES = (basestring,)  # pylint: disable=undefined-variable
+# pylint: disable=invalid-name, redefined-builtin
+STRING_TYPES = (str,)
 
 
-    def py_str(x):
-        """convert c string back to python string"""
-        return x
+def py_str(x):
+    """convert c string back to python string"""
+    return x.decode('utf-8')
 
-########################################################################################
+
+###############################################################################
 # START NUMPY PATHLIB ATTRIBUTION
-########################################################################################
-# os.PathLike compatibility used in  Numpy: https://github.com/numpy/numpy/tree/v1.17.0
+###############################################################################
+# os.PathLike compatibility used in  Numpy:
+# https://github.com/numpy/numpy/tree/v1.17.0
 # Attribution:
 # https://github.com/numpy/numpy/blob/v1.17.0/numpy/compat/py3k.py#L188-L247
 # Backport os.fs_path, os.PathLike, and PurePath.__fspath__
@@ -55,7 +46,6 @@ else:
             if issubclass(subclass, PurePath):
                 return True
             return hasattr(subclass, '__fspath__')
-
 
     def os_fspath(path):
         """Return the path representation of a path-like object.
@@ -84,26 +74,21 @@ else:
         raise TypeError("expected {}.__fspath__() to return str or bytes, "
                         "not {}".format(path_type.__name__,
                                         type(path_repr).__name__))
-########################################################################################
+###############################################################################
 # END NUMPY PATHLIB ATTRIBUTION
-########################################################################################
-
-# pickle
-try:
-    import cPickle as pickle  # noqa
-except ImportError:
-    import pickle  # noqa
+###############################################################################
 
 # pandas
 try:
     from pandas import DataFrame, Series
-    from pandas import MultiIndex
+    from pandas import MultiIndex, Int64Index
     from pandas import concat as pandas_concat
 
     PANDAS_INSTALLED = True
 except ImportError:
 
     MultiIndex = object
+    Int64Index = object
     DataFrame = object
     Series = object
     pandas_concat = None
@@ -130,6 +115,7 @@ except ImportError:
     DT_INSTALLED = False
 
 
+# cudf
 try:
     from cudf import DataFrame as CUDF_DataFrame
     from cudf import Series as CUDF_Series

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2019 by Contributors
  * \file updater_sync.cc
  * \brief synchronize the tree in all distributed nodes
  */
@@ -7,6 +7,8 @@
 #include <vector>
 #include <string>
 #include <limits>
+
+#include "xgboost/json.h"
 #include "../common/io.h"
 
 namespace xgboost {
@@ -21,6 +23,9 @@ DMLC_REGISTRY_FILE_TAG(updater_sync);
 class TreeSyncher: public TreeUpdater {
  public:
   void Configure(const Args& args) override {}
+
+  void LoadConfig(Json const& in) override {}
+  void SaveConfig(Json* p_out) const override {}
 
   char const* Name() const override {
     return "prune";

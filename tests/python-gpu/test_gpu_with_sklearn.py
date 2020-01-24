@@ -2,9 +2,11 @@ import xgboost as xgb
 import pytest
 import sys
 import numpy as np
+import unittest
 
 sys.path.append("tests/python")
-import testing as tm
+import testing as tm               # noqa
+import test_with_sklearn as twskl  # noqa
 
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 
@@ -29,3 +31,10 @@ def test_gpu_binary_classification():
             err = sum(1 for i in range(len(preds))
                       if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
             assert err < 0.1
+
+
+class TestGPUBoostFromPrediction(unittest.TestCase):
+    cpu_test = twskl.TestBoostFromPrediction()
+
+    def test_boost_from_prediction_gpu_hist(self):
+        self.cpu_test.run_boost_from_prediction('gpu_hist')

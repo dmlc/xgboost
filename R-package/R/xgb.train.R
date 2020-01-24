@@ -293,6 +293,9 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   }
   # Sort the callbacks into categories
   cb <- categorize.callbacks(callbacks)
+  if (!is.null(params[['seed']])) {
+    warning("xgb.train: `seed` is ignored in R package.  Use `set.seed()` instead.")
+  }
 
   # The tree updating process would need slightly different handling
   is_update <- NVL(params[['process_type']], '.') == 'update'

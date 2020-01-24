@@ -4,7 +4,7 @@ ignore=tests
 
 extension-pkg-whitelist=numpy
 
-disable=unexpected-special-method-signature,too-many-nested-blocks,useless-object-inheritance
+disable=unexpected-special-method-signature,too-many-nested-blocks,useless-object-inheritance,import-outside-toplevel,unsubscriptable-object
 
 dummy-variables-rgx=(unused|)_.*
 

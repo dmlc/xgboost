@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import unittest
 import pytest
+import numpy as np
 
 import testing as tm
 import xgboost as xgb
@@ -28,6 +29,8 @@ class TestDataTable(unittest.TestCase):
         assert dm.feature_types == ['int', 'float', 'i']
         assert dm.num_row() == 2
         assert dm.num_col() == 3
+
+        np.testing.assert_array_equal(np.array([1, 2]), dm.get_label())
 
         # overwrite feature_names
         dm = xgb.DMatrix(dtable, label=pd.Series([1, 2]),

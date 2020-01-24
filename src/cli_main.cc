@@ -12,6 +12,8 @@
 #include <xgboost/learner.h>
 #include <xgboost/data.h>
 #include <xgboost/logging.h>
+#include <xgboost/parameter.h>
+
 #include <dmlc/timer.h>
 #include <iomanip>
 #include <ctime>
@@ -30,7 +32,7 @@ enum CLITask {
   kPredict = 2
 };
 
-struct CLIParam : public dmlc::Parameter<CLIParam> {
+struct CLIParam : public XGBoostParameter<CLIParam> {
   /*! \brief the task name */
   int task;
   /*! \brief whether evaluate training statistics */
@@ -123,7 +125,7 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
   // customized configure function of CLIParam
   inline void Configure(const std::vector<std::pair<std::string, std::string> >& _cfg) {
     this->cfg = _cfg;
-    this->InitAllowUnknown(_cfg);
+    this->UpdateAllowUnknown(_cfg);
     for (const auto& kv : _cfg) {
       if (!strncmp("eval[", kv.first.c_str(), 5)) {
         char evname[256];

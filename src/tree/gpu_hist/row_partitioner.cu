@@ -1,4 +1,3 @@
-
 /*!
  * Copyright 2017-2019 XGBoost contributors
  */
@@ -11,23 +10,22 @@ namespace xgboost {
 namespace tree {
 
 struct IndicateLeftTransform {
-  RowPartitioner::TreePositionT left_nidx;
-  explicit IndicateLeftTransform(RowPartitioner::TreePositionT left_nidx)
+  bst_node_t left_nidx;
+  explicit IndicateLeftTransform(bst_node_t left_nidx)
       : left_nidx(left_nidx) {}
-  __host__ __device__ __forceinline__ int operator()(
-      const RowPartitioner::TreePositionT& x) const {
+  __host__ __device__ __forceinline__ int operator()(const bst_node_t& x) const {
     return x == left_nidx ? 1 : 0;
   }
 };
 /*
  * position: Position of rows belonged to current split node.
  */
-void RowPartitioner::SortPosition(common::Span<TreePositionT> position,
-                                  common::Span<TreePositionT> position_out,
+void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
+                                  common::Span<bst_node_t> position_out,
                                   common::Span<RowIndexT> ridx,
                                   common::Span<RowIndexT> ridx_out,
-                                  TreePositionT left_nidx,
-                                  TreePositionT right_nidx,
+                                  bst_node_t left_nidx,
+                                  bst_node_t right_nidx,
                                   int64_t* d_left_count, cudaStream_t stream) {
   // radix sort over 1 bit, see:
   // https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch39.html
@@ -54,8 +52,8 @@ void RowPartitioner::SortPosition(common::Span<TreePositionT> position,
   IndicateLeftTransform is_left(left_nidx);
   // an iterator that given a old position returns whether it belongs to left or right
   // node.
-  cub::TransformInputIterator<TreePositionT, IndicateLeftTransform,
-                              TreePositionT*>
+  cub::TransformInputIterator<bst_node_t, IndicateLeftTransform,
+                              bst_node_t*>
       in_itr(d_position_in, is_left);
   dh::DiscardLambdaItr<decltype(write_results)> out_itr(write_results);
   size_t temp_storage_bytes = 0;
@@ -74,7 +72,7 @@ RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
   position_a.resize(num_rows);
   position_b.resize(num_rows);
   ridx = dh::DoubleBuffer<RowIndexT>{&ridx_a, &ridx_b};
-  position = dh::DoubleBuffer<TreePositionT>{&position_a, &position_b};
+  position = dh::DoubleBuffer<bst_node_t>{&position_a, &position_b};
   ridx_segments.emplace_back(Segment(0, num_rows));
 
   thrust::sequence(
@@ -98,7 +96,7 @@ RowPartitioner::~RowPartitioner() {
 }
 
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(
-    TreePositionT nidx) {
+    bst_node_t nidx) {
   auto segment = ridx_segments.at(nidx);
   // Return empty span here as a valid result
   // Will error if we try to construct a span from a pointer with size 0
@@ -112,36 +110,35 @@ common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows() {
   return ridx.CurrentSpan();
 }
 
-common::Span<const RowPartitioner::TreePositionT>
-RowPartitioner::GetPosition() {
+common::Span<const bst_node_t> RowPartitioner::GetPosition() {
   return position.CurrentSpan();
 }
 std::vector<RowPartitioner::RowIndexT> RowPartitioner::GetRowsHost(
-    TreePositionT nidx) {
+    bst_node_t nidx) {
   auto span = GetRows(nidx);
   std::vector<RowIndexT> rows(span.size());
   dh::CopyDeviceSpanToVector(&rows, span);
   return rows;
 }
 
-std::vector<RowPartitioner::TreePositionT> RowPartitioner::GetPositionHost() {
+std::vector<bst_node_t> RowPartitioner::GetPositionHost() {
   auto span = GetPosition();
-  std::vector<TreePositionT> position(span.size());
+  std::vector<bst_node_t> position(span.size());
   dh::CopyDeviceSpanToVector(&position, span);
   return position;
 }
 
 void RowPartitioner::SortPositionAndCopy(const Segment& segment,
-                                         TreePositionT left_nidx,
-                                         TreePositionT right_nidx,
+                                         bst_node_t left_nidx,
+                                         bst_node_t right_nidx,
                                          int64_t* d_left_count,
                                          cudaStream_t stream) {
   SortPosition(
       // position_in
-      common::Span<TreePositionT>(position.Current() + segment.begin,
+      common::Span<bst_node_t>(position.Current() + segment.begin,
                                   segment.Size()),
       // position_out
-      common::Span<TreePositionT>(position.other() + segment.begin,
+      common::Span<bst_node_t>(position.other() + segment.begin,
                                   segment.Size()),
       // row index in
       common::Span<RowIndexT>(ridx.Current() + segment.begin, segment.Size()),

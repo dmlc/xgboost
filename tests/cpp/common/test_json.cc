@@ -226,6 +226,10 @@ TEST(Json, EmptyObject) {
   std::stringstream iss(str);
   auto json = Json::Load(StringView{str.c_str(), str.size()});
   ASSERT_TRUE(IsA<Object>(json["statistic"]));
+
+  str = R"json({"Config": {},"Model": {}})json"; // NOLINT
+  json = Json::Load(StringView{str.c_str(), str.size()});
+  ASSERT_TRUE(IsA<Object>(json["Model"]));
 }
 
 TEST(Json, EmptyArray) {

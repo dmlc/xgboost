@@ -5,8 +5,6 @@ which is a specialized version for xgboost tasks.
 
 # pylint: disable=invalid-name, missing-docstring, too-many-arguments, too-many-locals
 # pylint: disable=too-many-branches, too-many-statements, too-many-instance-attributes
-from __future__ import absolute_import
-
 import socket
 import struct
 import time
@@ -153,8 +151,7 @@ class RabitTracker(object):
             except socket.error as e:
                 if e.errno in [98, 48]:
                     continue
-                else:
-                    raise
+                raise
         sock.listen(256)
         self.sock = sock
         self.hostIP = hostIP
@@ -333,8 +330,8 @@ class RabitTracker(object):
         self.thread.start()
 
     def join(self):
-        while self.thread.isAlive():
+        while self.thread.is_alive():
             self.thread.join(100)
 
     def alive(self):
-        return self.thread.isAlive()
+        return self.thread.is_alive()

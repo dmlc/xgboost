@@ -5,10 +5,11 @@
  * \author Hyunsu Philip Cho
  */
 
-#ifndef XGBOOST_ENUM_CLASS_PARAM_H_
-#define XGBOOST_ENUM_CLASS_PARAM_H_
+#ifndef XGBOOST_PARAMETER_H_
+#define XGBOOST_PARAMETER_H_
 
 #include <dmlc/parameter.h>
+#include <xgboost/base.h>
 #include <string>
 #include <type_traits>
 
@@ -78,4 +79,28 @@ class FieldEntry<EnumClass> : public FieldEntry<int> {  \
 }  /* namespace parameter */  \
 }  /* namespace dmlc */
 
-#endif  // XGBOOST_ENUM_CLASS_PARAM_H_
+namespace xgboost {
+template <typename Type>
+struct XGBoostParameter : public dmlc::Parameter<Type> {
+ protected:
+  bool initialised_ {false};
+
+ public:
+  template <typename Container>
+  Args UpdateAllowUnknown(Container const& kwargs, bool* out_changed = nullptr) {
+    if (initialised_) {
+      return dmlc::Parameter<Type>::UpdateAllowUnknown(kwargs, out_changed);
+    } else {
+      auto unknown = dmlc::Parameter<Type>::InitAllowUnknown(kwargs);
+      if (out_changed) {
+        *out_changed = true;
+      }
+      initialised_ = true;
+      return unknown;
+    }
+  }
+  bool GetInitialised() const { return static_cast<bool>(this->initialised_); }
+};
+}  // namespace xgboost
+
+#endif  // XGBOOST_PARAMETER_H_

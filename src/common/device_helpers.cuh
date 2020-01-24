@@ -7,29 +7,52 @@
 #include <thrust/device_malloc_allocator.h>
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
-#include <xgboost/logging.h>
+#include <thrust/logical.h>
+
+#include <omp.h>
 #include <rabit/rabit.h>
+#include <cub/cub.cuh>
 #include <cub/util_allocator.cuh>
 
-#include "xgboost/host_device_vector.h"
-#include "xgboost/span.h"
-
-#include "common.h"
-
 #include <algorithm>
-#include <omp.h>
 #include <chrono>
 #include <ctime>
-#include <cub/cub.cuh>
 #include <numeric>
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include "xgboost/logging.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/span.h"
+
+#include "common.h"
 #include "timer.h"
 
 #ifdef XGBOOST_USE_NCCL
 #include "nccl.h"
 #include "../common/io.h"
+#endif
+
+#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
+
+#else  // In device code and CUDA < 600
+XGBOOST_DEVICE __forceinline__ double atomicAdd(double* address, double val) {
+  unsigned long long int* address_as_ull =
+      (unsigned long long int*)address;                   // NOLINT
+  unsigned long long int old = *address_as_ull, assumed;  // NOLINT
+
+  do {
+    assumed = old;
+    old = atomicCAS(address_as_ull, assumed,
+                    __double_as_longlong(val + __longlong_as_double(assumed)));
+
+    // Note: uses integer comparison to avoid hang in case of NaN (since NaN !=
+    // NaN)
+  } while (assumed != old);
+
+  return __longlong_as_double(old);
+}
 #endif
 
 namespace dh {
@@ -120,30 +143,92 @@ DEV_INLINE void AtomicOrByte(unsigned int* __restrict__ buffer, size_t ibyte, un
   atomicOr(&buffer[ibyte / sizeof(unsigned int)], (unsigned int)b << (ibyte % (sizeof(unsigned int)) * 8));
 }
 
-/*!
- * \brief Find the strict upper bound for an element in a sorted array
- *  using binary search.
- * \param cuts pointer to the first element of the sorted array
- * \param n length of the sorted array
- * \param v value for which to find the upper bound
- * \return the smallest index i such that v < cuts[i], or n if v is greater or equal
- *  than all elements of the array
-*/
-DEV_INLINE int UpperBound(const float* __restrict__ cuts, int n, float v) {
-  if (n == 0)           { return 0; }
-  if (cuts[n - 1] <= v) { return n; }
-  if (cuts[0] > v)      { return 0; }
+namespace internal {
 
-  int left = 0, right = n - 1;
-  while (right - left > 1) {
-    int middle = left + (right - left) / 2;
-    if (cuts[middle] > v) {
-      right = middle;
+// Items of size 'n' are sorted in an order determined by the Comparator
+// If left is true, find the number of elements where 'comp(item, v)' returns true;
+// 0 if nothing is true
+// If left is false, find the number of elements where '!comp(item, v)' returns true;
+// 0 if nothing is true
+template <typename T, typename Comparator = thrust::greater<T>>
+XGBOOST_DEVICE __forceinline__ uint32_t
+CountNumItemsImpl(bool left, const T * __restrict__ items, uint32_t n, T v,
+                  const Comparator &comp = Comparator()) {
+  const T *items_begin = items;
+  uint32_t num_remaining = n;
+  const T *middle_item = nullptr;
+  uint32_t middle;
+  while (num_remaining > 0) {
+    middle_item = items_begin;
+    middle = num_remaining / 2;
+    middle_item += middle;
+    if ((left && comp(*middle_item, v)) || (!left && !comp(v, *middle_item))) {
+      items_begin = ++middle_item;
+      num_remaining -= middle + 1;
     } else {
-      left = middle;
+      num_remaining = middle;
     }
   }
-  return right;
+
+  return left ? items_begin - items : items + n - items_begin;
+}
+
+}
+
+/*!
+ * \brief Find the strict upper bound for an element in a sorted array
+ *        using binary search.
+ * \param items pointer to the first element of the sorted array
+ * \param n length of the sorted array
+ * \param v value for which to find the upper bound
+ * \param comp determines how the items are sorted ascending/descending order - should conform
+ *        to ordering semantics
+ * \return the smallest index i that has a value > v, or n if none is larger when sorted ascendingly
+ *         or, an index i with a value < v, or 0 if none is smaller when sorted descendingly
+*/
+// Preserve existing default behavior of upper bound
+template <typename T, typename Comp = thrust::less<T>>
+XGBOOST_DEVICE __forceinline__ uint32_t UpperBound(const T *__restrict__ items,
+                                                   uint32_t n,
+                                                   T v,
+                                                   const Comp &comp = Comp()) {
+  if (std::is_same<Comp, thrust::less<T>>::value ||
+      std::is_same<Comp, thrust::greater<T>>::value) {
+    return n - internal::CountNumItemsImpl(false, items, n, v, comp);
+  } else {
+    static_assert(std::is_same<Comp, thrust::less<T>>::value ||
+                  std::is_same<Comp, thrust::greater<T>>::value,
+                  "Invalid comparator used in Upperbound - can only be thrust::greater/less");
+    return std::numeric_limits<uint32_t>::max(); // Simply to quiesce the compiler
+  }
+}
+
+/*!
+ * \brief Find the strict lower bound for an element in a sorted array
+ *        using binary search.
+ * \param items pointer to the first element of the sorted array
+ * \param n length of the sorted array
+ * \param v value for which to find the upper bound
+ * \param comp determines how the items are sorted ascending/descending order - should conform
+ *        to ordering semantics
+ * \return the smallest index i that has a value >= v, or n if none is larger
+ *         when sorted ascendingly
+ *         or, an index i with a value <= v, or 0 if none is smaller when sorted descendingly
+*/
+template <typename T, typename Comp = thrust::less<T>>
+XGBOOST_DEVICE __forceinline__ uint32_t LowerBound(const T *__restrict__ items,
+                                                   uint32_t n,
+                                                   T v,
+                                                   const Comp &comp = Comp()) {
+  if (std::is_same<Comp, thrust::less<T>>::value ||
+      std::is_same<Comp, thrust::greater<T>>::value) {
+    return internal::CountNumItemsImpl(true, items, n, v, comp);
+  } else {
+    static_assert(std::is_same<Comp, thrust::less<T>>::value ||
+                  std::is_same<Comp, thrust::greater<T>>::value,
+                  "Invalid comparator used in LowerBound - can only be thrust::greater/less");
+    return std::numeric_limits<uint32_t>::max(); // Simply to quiesce the compiler
+  }
 }
 
 template <typename T>
@@ -183,24 +268,53 @@ __global__ void LaunchNKernel(size_t begin, size_t end, L lambda) {
 }
 template <typename L>
 __global__ void LaunchNKernel(int device_idx, size_t begin, size_t end,
-                                L lambda) {
+                              L lambda) {
   for (auto i : GridStrideRange(begin, end)) {
     lambda(i, device_idx);
   }
 }
+
+/* \brief A wrapper around kernel launching syntax, used to guard against empty input.
+ *
+ * - nvcc fails to deduce template argument when kernel is a template accepting __device__
+ *   function as argument.  Hence functions like `LaunchN` cannot use this wrapper.
+ *
+ * - With c++ initialization list `{}` syntax, you are forced to comply with the CUDA type
+ *   spcification.
+ */
+class LaunchKernel {
+  size_t shmem_size_;
+  cudaStream_t stream_;
+
+  dim3 grids_;
+  dim3 blocks_;
+
+ public:
+  LaunchKernel(uint32_t _grids, uint32_t _blk, size_t _shmem=0, cudaStream_t _s=0) :
+      grids_{_grids, 1, 1}, blocks_{_blk, 1, 1}, shmem_size_{_shmem}, stream_{_s} {}
+  LaunchKernel(dim3 _grids, dim3 _blk, size_t _shmem=0, cudaStream_t _s=0) :
+      grids_{_grids}, blocks_{_blk}, shmem_size_{_shmem}, stream_{_s} {}
+
+  template <typename K, typename... Args>
+  void operator()(K kernel, Args... args) {
+    if (XGBOOST_EXPECT(grids_.x * grids_.y * grids_.z == 0, false)) {
+      LOG(DEBUG) << "Skipping empty CUDA kernel.";
+      return;
+    }
+    kernel<<<grids_, blocks_, shmem_size_, stream_>>>(args...);  // NOLINT
+  }
+};
 
 template <int ITEMS_PER_THREAD = 8, int BLOCK_THREADS = 256, typename L>
 inline void LaunchN(int device_idx, size_t n, cudaStream_t stream, L lambda) {
   if (n == 0) {
     return;
   }
-
   safe_cuda(cudaSetDevice(device_idx));
-
   const int GRID_SIZE =
       static_cast<int>(xgboost::common::DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
-  LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS, 0, stream>>>(static_cast<size_t>(0),
-                                                         n, lambda);
+  LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS, 0, stream>>>(  // NOLINT
+      static_cast<size_t>(0), n, lambda);
 }
 
 // Default stream version
@@ -235,7 +349,6 @@ class MemoryLogger {
       }
       num_deallocations++;
       CHECK_LE(num_deallocations, num_allocations);
-      CHECK_EQ(itr->second, n);
       currently_allocated_bytes -= itr->second;
       device_allocations.erase(itr);
     }
@@ -260,6 +373,10 @@ public:
     safe_cuda(cudaGetDevice(&current_device));
     stats_.RegisterDeallocation(ptr, n, current_device);
   }
+  size_t PeakMemory()
+  {
+    return stats_.peak_allocated_bytes;
+  }
   void Log() {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
       return;
@@ -269,7 +386,7 @@ public:
     LOG(CONSOLE) << "======== Device " << current_device << " Memory Allocations: "
       << " ========";
     LOG(CONSOLE) << "Peak memory usage: "
-      << stats_.peak_allocated_bytes / 1000000 << "mb";
+      << stats_.peak_allocated_bytes / 1048576 << "MiB";
     LOG(CONSOLE) << "Number of allocations: " << stats_.num_allocations;
   }
 };
@@ -278,6 +395,16 @@ public:
 inline detail::MemoryLogger &GlobalMemoryLogger() {
   static detail::MemoryLogger memory_logger;
   return memory_logger;
+}
+
+// dh::DebugSyncDevice(__FILE__, __LINE__);
+inline void DebugSyncDevice(std::string file="", int32_t line = -1) {
+  if (file != "" && line != -1) {
+    auto rank = rabit::GetRank();
+    LOG(DEBUG) << "R:" << rank << ": " << file << ":" << line;
+  }
+  safe_cuda(cudaDeviceSynchronize());
+  safe_cuda(cudaGetLastError());
 }
 
 namespace detail{
@@ -317,8 +444,8 @@ struct XGBCachingDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
   };
    cub::CachingDeviceAllocator& GetGlobalCachingAllocator ()
    {
-    // Configure allocator with maximum cached bin size of ~1GB and no limit on
-    // maximum cached bytes
+     // Configure allocator with maximum cached bin size of ~1GB and no limit on
+     // maximum cached bytes
      static cub::CachingDeviceAllocator *allocator = new cub::CachingDeviceAllocator(2, 9, 29);
      return *allocator;
    }
@@ -449,7 +576,7 @@ void CopyDeviceSpan(xgboost::common::Span<T> dst,
 class BulkAllocator {
   std::vector<char *> d_ptr_;
   std::vector<size_t> size_;
-  std::vector<int> device_idx_;
+  int device_idx_{-1};
 
   static const int kAlign = 256;
 
@@ -519,22 +646,32 @@ class BulkAllocator {
   }
 
  public:
-   BulkAllocator() = default;
+  BulkAllocator() = default;
   // prevent accidental copying, moving or assignment of this object
   BulkAllocator(const BulkAllocator&) = delete;
   BulkAllocator(BulkAllocator&&) = delete;
   void operator=(const BulkAllocator&) = delete;
   void operator=(BulkAllocator&&) = delete;
 
+  /*!
+   * \brief Clear the bulk allocator.
+   *
+   * This frees the GPU memory managed by this allocator.
+   */
+  void Clear() {
+    if (d_ptr_.empty()) return;
+
+    safe_cuda(cudaSetDevice(device_idx_));
+    size_t idx = 0;
+    std::for_each(d_ptr_.begin(), d_ptr_.end(), [&](char *dptr) {
+      XGBDeviceAllocator<char>().deallocate(thrust::device_ptr<char>(dptr), size_[idx++]);
+    });
+    d_ptr_.clear();
+    size_.clear();
+  }
+
   ~BulkAllocator() {
-    for (size_t i = 0; i < d_ptr_.size(); i++) {
-      if (!(d_ptr_[i] == nullptr)) {
-        safe_cuda(cudaSetDevice(device_idx_[i]));
-        XGBDeviceAllocator<char> allocator;
-        allocator.deallocate(thrust::device_ptr<char>(d_ptr_[i]), size_[i]);
-        d_ptr_[i] = nullptr;
-      }
-    }
+    Clear();
   }
 
   // returns sum of bytes for all allocations
@@ -544,6 +681,8 @@ class BulkAllocator {
 
   template <typename... Args>
   void Allocate(int device_idx, Args... args) {
+    if (device_idx_ == -1) device_idx_ = device_idx;
+    else CHECK(device_idx_ == device_idx);
     size_t size = GetSizeBytes(args...);
 
     char *ptr = AllocateDevice(device_idx, size);
@@ -552,7 +691,6 @@ class BulkAllocator {
 
     d_ptr_.push_back(ptr);
     size_.push_back(size);
-    device_idx_.push_back(device_idx);
   }
 };
 
@@ -733,7 +871,7 @@ void SparseTransformLbs(int device_idx, dh::CubMemory *temp_memory,
                       BLOCK_THREADS, segments, num_segments, count);
 
   LbsKernel<TILE_SIZE, ITEMS_PER_THREAD, BLOCK_THREADS, OffsetT>
-      <<<uint32_t(num_tiles), BLOCK_THREADS>>>(tmp_tile_coordinates,
+      <<<uint32_t(num_tiles), BLOCK_THREADS>>>(tmp_tile_coordinates,  // NOLINT
                                                segments + 1, f, num_segments);
 }
 
@@ -933,7 +1071,6 @@ class SaveCudaContext {
  * streams. Must be initialised before use. If XGBoost is compiled without NCCL
  * this is a dummy class that will error if used with more than one GPU.
  */
-
 class AllReducer {
   bool initialised_;
   size_t allreduce_bytes_;  // Keep statistics of the number of bytes communicated
@@ -956,31 +1093,9 @@ class AllReducer {
    *
    * \param device_ordinal The device ordinal.
    */
+  void Init(int _device_ordinal);
 
-  void Init(int _device_ordinal) {
-#ifdef XGBOOST_USE_NCCL
-    /** \brief this >monitor . init. */
-    device_ordinal = _device_ordinal;
-    id = GetUniqueId();
-    dh::safe_cuda(cudaSetDevice(device_ordinal));
-    dh::safe_nccl(ncclCommInitRank(&comm, rabit::GetWorldSize(), id, rabit::GetRank()));
-    safe_cuda(cudaStreamCreate(&stream));
-    initialised_ = true;
-#endif
-  }
-  ~AllReducer() {
-#ifdef XGBOOST_USE_NCCL
-    if (initialised_) {
-      dh::safe_cuda(cudaStreamDestroy(stream));
-      ncclCommDestroy(comm);
-    }
-    if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
-      LOG(CONSOLE) << "======== NCCL Statistics========";
-      LOG(CONSOLE) << "AllReduce calls: " << allreduce_calls_;
-      LOG(CONSOLE) << "AllReduce total MB communicated: " << allreduce_bytes_/1000000;
-    }
-#endif
-  }
+  ~AllReducer();
 
   /**
    * \brief Allreduce. Use in exactly the same way as NCCL but without needing
@@ -1216,5 +1331,17 @@ public:
     return *offset;
   }
 };
+
+// Atomic add function for gradients
+template <typename OutputGradientT, typename InputGradientT>
+DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
+                               const InputGradientT& gpair) {
+  auto dst_ptr = reinterpret_cast<typename OutputGradientT::ValueT*>(dest);
+
+  atomicAdd(dst_ptr,
+            static_cast<typename OutputGradientT::ValueT>(gpair.GetGrad()));
+  atomicAdd(dst_ptr + 1,
+            static_cast<typename OutputGradientT::ValueT>(gpair.GetHess()));
+}
 
 }  // namespace dh

@@ -24,7 +24,7 @@ C++: Google Test
 ================
 Add your test under the directory `tests/cpp/ <https://github.com/dmlc/xgboost/tree/master/tests/cpp>`_. Refer to `this excellent tutorial on using Google Test <https://developer.ibm.com/articles/au-googletestingframework/>`_.
 
-You may try running your test by following instructions in :ref:`this section <running_gtest>`.
+You may try running your test by following instructions in :ref:`this section <running_gtest>`. Note. Google Test version 1.8.1 or later is required.
 
 JVM packages: JUnit / scalatest
 ===============================

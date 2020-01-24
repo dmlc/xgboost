@@ -17,15 +17,13 @@ TEST(EllpackPage, EmptyDMatrix) {
   constexpr int kNRows = 0, kNCols = 0, kMaxBin = 256, kGpuBatchNRows = 64;
   constexpr float kSparsity = 0;
   auto dmat = *CreateDMatrix(kNRows, kNCols, kSparsity);
-  auto& page = *dmat->GetBatches<EllpackPage>().begin();
+  auto& page = *dmat->GetBatches<EllpackPage>({0, kMaxBin, kGpuBatchNRows}).begin();
   auto impl = page.Impl();
-  impl->Init(0, kMaxBin, kGpuBatchNRows);
-  ASSERT_EQ(impl->ellpack_matrix.feature_segments.size(), 1);
-  ASSERT_EQ(impl->ellpack_matrix.min_fvalue.size(), 0);
-  ASSERT_EQ(impl->ellpack_matrix.gidx_fvalue_map.size(), 0);
-  ASSERT_EQ(impl->ellpack_matrix.row_stride, 0);
-  ASSERT_EQ(impl->ellpack_matrix.null_gidx_value, 0);
-  ASSERT_EQ(impl->n_bins, 0);
+  ASSERT_EQ(impl->matrix.info.feature_segments.size(), 1);
+  ASSERT_EQ(impl->matrix.info.min_fvalue.size(), 0);
+  ASSERT_EQ(impl->matrix.info.gidx_fvalue_map.size(), 0);
+  ASSERT_EQ(impl->matrix.info.row_stride, 0);
+  ASSERT_EQ(impl->matrix.info.n_bins, 0);
   ASSERT_EQ(impl->gidx_buffer.size(), 4);
 }
 
@@ -37,7 +35,7 @@ TEST(EllpackPage, BuildGidxDense) {
   dh::CopyDeviceSpanToVector(&h_gidx_buffer, page->gidx_buffer);
   common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
 
-  ASSERT_EQ(page->ellpack_matrix.row_stride, kNCols);
+  ASSERT_EQ(page->matrix.info.row_stride, kNCols);
 
   std::vector<uint32_t> solution = {
     0, 3, 8,  9, 14, 17, 20, 21,
@@ -70,7 +68,7 @@ TEST(EllpackPage, BuildGidxSparse) {
   dh::CopyDeviceSpanToVector(&h_gidx_buffer, page->gidx_buffer);
   common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
 
-  ASSERT_LE(page->ellpack_matrix.row_stride, 3);
+  ASSERT_LE(page->matrix.info.row_stride, 3);
 
   // row_stride = 3, 16 rows, 48 entries for ELLPack
   std::vector<uint32_t> solution = {
@@ -78,7 +76,7 @@ TEST(EllpackPage, BuildGidxSparse) {
     24, 24, 24, 24, 24,  5, 24, 24,  0, 16, 24, 15, 24, 24, 24, 24,
     24,  7, 14, 16,  4, 24, 24, 24, 24, 24,  9, 24, 24,  1, 24, 24
   };
-  for (size_t i = 0; i < kNRows * page->ellpack_matrix.row_stride; ++i) {
+  for (size_t i = 0; i < kNRows * page->matrix.info.row_stride; ++i) {
     ASSERT_EQ(solution[i], gidx[i]);
   }
 }

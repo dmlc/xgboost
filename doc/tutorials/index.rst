@@ -10,6 +10,7 @@ See `Awesome XGBoost <https://github.com/dmlc/xgboost/tree/master/demo>`_ for mo
   :caption: Contents:
 
   model
+  saving_model
   Distributed XGBoost with AWS YARN <aws_yarn>
   kubernetes
   Distributed XGBoost with XGBoost4J-Spark <https://xgboost.readthedocs.io/en/latest/jvm/xgboost4j_spark_tutorial.html>

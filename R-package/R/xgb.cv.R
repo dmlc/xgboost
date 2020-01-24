@@ -47,6 +47,8 @@
 #' @param folds \code{list} provides a possibility to use a list of pre-defined CV folds
 #'        (each element must be a vector of test fold's indices). When folds are supplied,
 #'        the \code{nfold} and \code{stratified} parameters are ignored.
+#' @param train_folds \code{list} list specifying which indicies to use for training. If \code{NULL}
+#'        (the default) all indices not specified in \code{folds} will be used for training.
 #' @param verbose \code{boolean}, print the statistics during the process
 #' @param print_every_n Print each n-th iteration evaluation messages when \code{verbose>0}.
 #'        Default is 1 which means all messages are printed. This parameter is passed to the
@@ -114,7 +116,7 @@
 #' @export
 xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = NA,
                    prediction = FALSE, showsd = TRUE, metrics=list(),
-                   obj = NULL, feval = NULL, stratified = TRUE, folds = NULL,
+                   obj = NULL, feval = NULL, stratified = TRUE, folds = NULL, train_folds = NULL,
                    verbose = TRUE, print_every_n=1L,
                    early_stopping_rounds = NULL, maximize = NULL, callbacks = list(), ...) {
 
@@ -186,10 +188,15 @@ xgb.cv <- function(params=list(), data, nrounds, nfold, label = NULL, missing = 
 
 
   # create the booster-folds
+  # train_folds
   dall <- xgb.get.DMatrix(data, label, missing)
   bst_folds <- lapply(seq_along(folds), function(k) {
     dtest  <- slice(dall, folds[[k]])
-    dtrain <- slice(dall, unlist(folds[-k]))
+    # code originally contributed by @RolandASc on stackoverflow
+    if(is.null(train_folds))
+       dtrain <- slice(dall, unlist(folds[-k]))
+    else
+       dtrain <- slice(dall, train_folds[[k]])
     handle <- xgb.Booster.handle(params, list(dtrain, dtest))
     list(dtrain = dtrain, bst = handle, watchlist = list(train = dtrain, test=dtest), index = folds[[k]])
   })

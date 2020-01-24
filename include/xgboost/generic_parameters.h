@@ -5,14 +5,17 @@
 #ifndef XGBOOST_GENERIC_PARAMETERS_H_
 #define XGBOOST_GENERIC_PARAMETERS_H_
 
-#include <dmlc/parameter.h>
 #include <xgboost/logging.h>
-#include <xgboost/enum_class_param.h>
+#include <xgboost/parameter.h>
 
 #include <string>
 
 namespace xgboost {
-struct GenericParameter : public dmlc::Parameter<GenericParameter> {
+struct GenericParameter : public XGBoostParameter<GenericParameter> {
+  // Constant representing the device ID of CPU.
+  static int32_t constexpr kCpuId = -1;
+
+ public:
   // stored random seed
   int seed;
   // whether seed the PRNG each iteration
@@ -22,6 +25,11 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
   int nthread;
   // primary device, -1 means no gpu.
   int gpu_id;
+  // gpu page size in external memory mode, 0 means using the default.
+  size_t gpu_page_size;
+  bool enable_experimental_json_serialization {false};
+  bool validate_parameters {false};
+  bool validate_features {true};
 
   void CheckDeprecated() {
     if (this->n_gpus != 0) {
@@ -30,6 +38,12 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
           << this->__MANAGER__()->Find("n_gpus")->GetFieldInfo().description;
     }
   }
+  /*!
+   * \brief Configure the parameter `gpu_id'.
+   *
+   * \param require_gpu  Whether GPU is explicitly required from user.
+   */
+  void ConfigureGpuId(bool require_gpu);
 
   // declare parameters
   DMLC_DECLARE_PARAMETER(GenericParameter) {
@@ -50,6 +64,20 @@ struct GenericParameter : public dmlc::Parameter<GenericParameter> {
         .set_default(-1)
         .set_lower_bound(-1)
         .describe("The primary GPU device ordinal.");
+    DMLC_DECLARE_FIELD(gpu_page_size)
+        .set_default(0)
+        .set_lower_bound(0)
+        .describe("GPU page size when running in external memory mode.");
+    DMLC_DECLARE_FIELD(enable_experimental_json_serialization)
+        .set_default(false)
+        .describe("Enable using JSON for memory serialization (Python Pickle, "
+                  "rabit checkpoints etc.).");
+    DMLC_DECLARE_FIELD(validate_parameters)
+        .set_default(false)
+        .describe("Enable checking whether parameters are used or not.");
+    DMLC_DECLARE_FIELD(validate_features)
+        .set_default(false)
+        .describe("Enable validating input DMatrix.");
     DMLC_DECLARE_FIELD(n_gpus)
         .set_default(0)
         .set_range(0, 1)

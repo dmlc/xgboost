@@ -5,7 +5,6 @@
 #ifndef XGBOOST_METRIC_METRIC_COMMON_H_
 #define XGBOOST_METRIC_METRIC_COMMON_H_
 
-#include <dmlc/parameter.h>
 #include "../common/common.h"
 
 namespace xgboost {

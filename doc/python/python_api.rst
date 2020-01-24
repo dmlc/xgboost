@@ -82,6 +82,8 @@ Dask API
 
 .. autofunction:: xgboost.dask.DaskDMatrix
 
+.. autofunction:: xgboost.dask.train
+
 .. autofunction:: xgboost.dask.predict
 
 .. autofunction:: xgboost.dask.DaskXGBClassifier

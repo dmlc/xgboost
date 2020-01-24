@@ -17,7 +17,7 @@
 *.tar.gz
 *conf
 *buffer
-*model
+*.model
 *pyc
 *.train
 *.test

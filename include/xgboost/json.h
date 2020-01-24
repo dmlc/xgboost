@@ -5,6 +5,7 @@
 #define XGBOOST_JSON_H_
 
 #include <xgboost/logging.h>
+#include <xgboost/parameter.h>
 #include <string>
 
 #include <map>
@@ -201,6 +202,17 @@ class JsonInteger : public Value {
             typename std::enable_if<std::is_same<IntT, size_t>::value>::type* = nullptr>
   JsonInteger(IntT value) : Value(ValueKind::Integer),  // NOLINT
                             integer_{static_cast<Int>(value)} {}
+  template <typename IntT,
+            typename std::enable_if<std::is_same<IntT, int32_t>::value>::type* = nullptr>
+  JsonInteger(IntT value) : Value(ValueKind::Integer),  // NOLINT
+                            integer_{static_cast<Int>(value)} {}
+  template <typename IntT,
+            typename std::enable_if<
+                std::is_same<IntT, uint32_t>::value &&
+                !std::is_same<std::size_t, uint32_t>::value>::type * = nullptr>
+  JsonInteger(IntT value)  // NOLINT
+      : Value(ValueKind::Integer),
+        integer_{static_cast<Int>(value)} {}
 
   Json& operator[](std::string const & key) override;
   Json& operator[](int ind) override;
@@ -322,6 +334,9 @@ class Json {
   static void Dump(Json json, std::ostream* stream,
                    bool pretty = ConsoleLogger::ShouldLog(
                        ConsoleLogger::LogVerbosity::kDebug));
+  static void Dump(Json json, std::string* out,
+                   bool pretty = ConsoleLogger::ShouldLog(
+                       ConsoleLogger::LogVerbosity::kDebug));
 
   Json() : ptr_{new JsonNull} {}
 
@@ -398,6 +413,13 @@ class Json {
 
   bool operator==(Json const& rhs) const {
     return *ptr_ == *(rhs.ptr_);
+  }
+
+  friend std::ostream& operator<<(std::ostream& os, Json const& j) {
+    std::string str;
+    Json::Dump(j, &str);
+    os << str;
+    return os;
   }
 
  private:
@@ -522,8 +544,8 @@ using Null    = JsonNull;
 
 // Utils tailored for XGBoost.
 
-template <typename Type>
-Object toJson(dmlc::Parameter<Type> const& param) {
+template <typename Parameter>
+Object toJson(Parameter const& param) {
   Object obj;
   for (auto const& kv : param.__DICT__()) {
     obj[kv.first] = kv.second;
@@ -531,14 +553,14 @@ Object toJson(dmlc::Parameter<Type> const& param) {
   return obj;
 }
 
-template <typename Type>
-void fromJson(Json const& obj, dmlc::Parameter<Type>* param) {
+template <typename Parameter>
+void fromJson(Json const& obj, Parameter* param) {
   auto const& j_param = get<Object const>(obj);
   std::map<std::string, std::string> m;
   for (auto const& kv : j_param) {
     m[kv.first] = get<String const>(kv.second);
   }
-  param->InitAllowUnknown(m);
+  param->UpdateAllowUnknown(m);
 }
 }  // namespace xgboost
 #endif  // XGBOOST_JSON_H_

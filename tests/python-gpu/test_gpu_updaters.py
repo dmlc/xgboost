@@ -2,6 +2,7 @@ import numpy as np
 import sys
 import unittest
 import pytest
+import xgboost
 
 sys.path.append("tests/python")
 from regression_test_utilities import run_suite, parameter_combinations, \
@@ -18,16 +19,19 @@ def assert_gpu_results(cpu_results, gpu_results):
 datasets = ["Boston", "Cancer", "Digits", "Sparse regression",
             "Sparse regression with weights", "Small weights regression"]
 
+test_param = parameter_combinations({
+    'gpu_id': [0],
+    'max_depth': [2, 8],
+    'max_leaves': [255, 4],
+    'max_bin': [2, 256],
+    'grow_policy': ['lossguide'],
+    'single_precision_histogram': [True],
+    'min_child_weight': [0],
+    'lambda': [0]})
+
 
 class TestGPU(unittest.TestCase):
     def test_gpu_hist(self):
-        test_param = parameter_combinations({'gpu_id': [0], 'max_depth': [2, 8],
-                                             'max_leaves': [255, 4],
-                                             'max_bin': [2, 256],
-                                             'grow_policy': ['lossguide']})
-        test_param.append({'single_precision_histogram': True})
-        test_param.append({'min_child_weight': 0,
-                           'lambda': 0})
         for param in test_param:
             param['tree_method'] = 'gpu_hist'
             gpu_results = run_suite(param, select_datasets=datasets)
@@ -35,6 +39,44 @@ class TestGPU(unittest.TestCase):
             param['tree_method'] = 'hist'
             cpu_results = run_suite(param, select_datasets=datasets)
             assert_gpu_results(cpu_results, gpu_results)
+
+    # NOTE(rongou): Because the `Boston` dataset is too small, this only tests external memory mode
+    # with a single page. To test multiple pages, set DMatrix::kPageSize to, say, 1024.
+    def test_external_memory(self):
+        for param in reversed(test_param):
+            param['tree_method'] = 'gpu_hist'
+            param['gpu_page_size'] = 1024
+            gpu_results = run_suite(param, select_datasets=["Boston"])
+            assert_results_non_increasing(gpu_results, 1e-2)
+            ext_mem_results = run_suite(param, select_datasets=["Boston External Memory"])
+            assert_results_non_increasing(ext_mem_results, 1e-2)
+            assert_gpu_results(gpu_results, ext_mem_results)
+            break
+
+    def test_with_empty_dmatrix(self):
+        # FIXME(trivialfis): This should be done with all updaters
+        kRows = 0
+        kCols = 100
+
+        X = np.empty((kRows, kCols))
+        y = np.empty((kRows))
+
+        dtrain = xgboost.DMatrix(X, y)
+
+        bst = xgboost.train({'verbosity': 2,
+                             'tree_method': 'gpu_hist',
+                             'gpu_id': 0},
+                            dtrain,
+                            verbose_eval=True,
+                            num_boost_round=6,
+                            evals=[(dtrain, 'Train')])
+
+        kRows = 100
+        X = np.random.randn(kRows, kCols)
+
+        dtest = xgboost.DMatrix(X)
+        predictions = bst.predict(dtest)
+        np.testing.assert_allclose(predictions, 0.5, 1e-6)
 
     @pytest.mark.mgpu
     def test_specified_gpu_id_gpu_update(self):

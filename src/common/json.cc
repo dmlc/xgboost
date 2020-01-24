@@ -243,7 +243,7 @@ Json& JsonNumber::operator[](int ind) {
 
 bool JsonNumber::operator==(Value const& rhs) const {
   if (!IsA<JsonNumber>(&rhs)) { return false; }
-  return number_ == Cast<JsonNumber const>(&rhs)->getNumber();
+  return std::abs(number_ - Cast<JsonNumber const>(&rhs)->getNumber()) < kRtEps;
 }
 
 Value & JsonNumber::operator=(Value const &rhs) {
@@ -504,7 +504,10 @@ Json JsonReader::ParseObject() {
   SkipSpaces();
   char ch = PeekNextChar();
 
-  if (ch == '}') return Json(std::move(data));
+  if (ch == '}') {
+    GetChar('}');
+    return Json(std::move(data));
+  }
 
   while (true) {
     SkipSpaces();
@@ -716,6 +719,14 @@ void Json::Dump(Json json, std::ostream *stream, bool pretty) {
   GlobalCLocale guard;
   JsonWriter writer(stream, pretty);
   writer.Save(json);
+}
+
+void Json::Dump(Json json, std::string* str, bool pretty) {
+  GlobalCLocale guard;
+  std::stringstream ss;
+  JsonWriter writer(&ss, pretty);
+  writer.Save(json);
+  *str = ss.str();
 }
 
 Json& Json::operator=(Json const &other) = default;

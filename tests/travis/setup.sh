@@ -2,12 +2,13 @@
 
 if [ ${TASK} == "python_test" ]; then
     if [ ${TRAVIS_OS_NAME} == "osx" ]; then
-        wget -O conda.sh https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
+        wget -O conda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
     else
-        wget -O conda.sh https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+        echo "We are no longer running Linux test on Travis."
+        exit 1
     fi
     bash conda.sh -b -p $HOME/miniconda
-    export PATH="$HOME/miniconda/bin:$PATH"
+    source $HOME/miniconda/bin/activate
     hash -r
     conda config --set always_yes yes --set changeps1 no
     conda update -q conda

@@ -19,7 +19,7 @@ if (USE_CUDA)
   # OpenMP is mandatory for CUDA
   find_package(OpenMP REQUIRED)
   target_include_directories(testxgboost PRIVATE
-    ${PROJECT_SOURCE_DIR}/cub/)
+    ${xgboost_SOURCE_DIR}/cub/)
   target_compile_options(testxgboost PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
@@ -43,28 +43,36 @@ if (USE_CUDA)
     target_include_directories(testxgboost PRIVATE "${NVTX_HEADER_DIR}")
     target_compile_definitions(testxgboost PRIVATE -DXGBOOST_USE_NVTX=1)
   endif (USE_NVTX)
+  if (MSVC)
+    target_compile_options(testxgboost PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>
+    )
+  endif (MSVC)
 endif (USE_CUDA)
+
+if (MSVC)
+  target_compile_options(testxgboost PRIVATE
+    $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/utf-8>
+  )
+endif (MSVC)
 
 target_include_directories(testxgboost
   PRIVATE
   ${GTEST_INCLUDE_DIRS}
-  ${PROJECT_SOURCE_DIR}/include
-  ${PROJECT_SOURCE_DIR}/dmlc-core/include
-  ${PROJECT_SOURCE_DIR}/rabit/include)
+  ${xgboost_SOURCE_DIR}/include
+  ${xgboost_SOURCE_DIR}/dmlc-core/include
+  ${xgboost_SOURCE_DIR}/rabit/include)
 set_target_properties(
   testxgboost PROPERTIES
   CXX_STANDARD 11
   CXX_STANDARD_REQUIRED ON)
-if ((NOT OpenMP_CXX_LIBRARIES) AND (NOT MSVC))  # old CMake doesn't define this variable
-  set(OpenMP_CXX_LIBRARIES "gomp;pthread")
-endif ((NOT OpenMP_CXX_LIBRARIES) AND (NOT MSVC))
 target_link_libraries(testxgboost
   PRIVATE
   ${GTEST_LIBRARIES}
   ${LINKED_LIBRARIES_PRIVATE}
-  ${OpenMP_CXX_LIBRARIES})
+  OpenMP::OpenMP_CXX)
 target_compile_definitions(testxgboost PRIVATE ${XGBOOST_DEFINITIONS})
-if (USE_OPENMP)
-  target_compile_options(testxgboost PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>)
-endif (USE_OPENMP)
-set_output_directory(testxgboost ${PROJECT_BINARY_DIR})
+set_output_directory(testxgboost ${xgboost_BINARY_DIR})
+
+# This grouping organises source files nicely in visual studio
+auto_source_group("${TEST_SOURCES}")

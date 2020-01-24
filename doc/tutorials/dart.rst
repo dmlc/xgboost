@@ -108,12 +108,4 @@ Sample Script
            'skip_drop': 0.5}
   num_round = 50
   bst = xgb.train(param, dtrain, num_round)
-  # make prediction
-  # ntree_limit must not be 0
-  preds = bst.predict(dtest, ntree_limit=num_round)
-
-.. note:: Specify ``ntree_limit`` when predicting with test sets
-
-  By default, ``bst.predict()`` will perform dropouts on trees. To obtain
-  correct results on test sets, disable dropouts by specifying
-  a nonzero value for ``ntree_limit``.
+  preds = bst.predict(dtest)

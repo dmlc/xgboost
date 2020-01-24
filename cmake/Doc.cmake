@@ -6,7 +6,7 @@ function (run_doxygen)
   endif (NOT DOXYGEN_DOT_FOUND)
 
   configure_file(
-    ${PROJECT_SOURCE_DIR}/doc/Doxyfile.in
+    ${xgboost_SOURCE_DIR}/doc/Doxyfile.in
     ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
   add_custom_target( doc_doxygen ALL
     COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile

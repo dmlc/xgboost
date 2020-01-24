@@ -109,3 +109,66 @@ def test_classifier(client):
     assert list(history['validation_0'].keys())[0] == 'merror'
     assert len(list(history['validation_0'])) == 1
     assert len(history['validation_0']['merror']) == 2
+
+    assert classifier.n_classes_ == 10
+
+    # Test with dataframe.
+    X_d = dd.from_dask_array(X)
+    y_d = dd.from_dask_array(y)
+    classifier.fit(X_d, y_d)
+
+    assert classifier.n_classes_ == 10
+    prediction = classifier.predict(X_d)
+
+    assert prediction.ndim == 1
+    assert prediction.shape[0] == kRows
+
+
+def run_empty_dmatrix(client, parameters):
+
+    def _check_outputs(out, predictions):
+        assert isinstance(out['booster'], xgb.dask.Booster)
+        assert len(out['history']['validation']['rmse']) == 2
+        assert isinstance(predictions, np.ndarray)
+        assert predictions.shape[0] == 1
+
+    kRows, kCols = 1, 97
+    X = dd.from_array(np.random.randn(kRows, kCols))
+    y = dd.from_array(np.random.rand(kRows))
+    dtrain = xgb.dask.DaskDMatrix(client, X, y)
+
+    out = xgb.dask.train(client, parameters,
+                         dtrain=dtrain,
+                         evals=[(dtrain, 'validation')],
+                         num_boost_round=2)
+    predictions = xgb.dask.predict(client=client, model=out,
+                                   data=dtrain).compute()
+    _check_outputs(out, predictions)
+
+    # train has more rows than evals
+    valid = dtrain
+    kRows += 1
+    X = dd.from_array(np.random.randn(kRows, kCols))
+    y = dd.from_array(np.random.rand(kRows))
+    dtrain = xgb.dask.DaskDMatrix(client, X, y)
+
+    out = xgb.dask.train(client, parameters,
+                         dtrain=dtrain,
+                         evals=[(valid, 'validation')],
+                         num_boost_round=2)
+    predictions = xgb.dask.predict(client=client, model=out,
+                                   data=valid).compute()
+    _check_outputs(out, predictions)
+
+
+# No test for Exact, as empty DMatrix handling are mostly for distributed
+# environment and Exact doesn't support it.
+
+def test_empty_dmatrix_hist(client):
+    parameters = {'tree_method': 'hist'}
+    run_empty_dmatrix(client, parameters)
+
+
+def test_empty_dmatrix_approx(client):
+    parameters = {'tree_method': 'approx'}
+    run_empty_dmatrix(client, parameters)

@@ -29,7 +29,7 @@ class HostDeviceVectorImpl {
     if (device >= 0) {
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
-      data_d_.resize(size, v);
+      data_d_->resize(size, v);
     } else {
       data_h_.resize(size, v);
     }
@@ -47,34 +47,40 @@ class HostDeviceVectorImpl {
     }
   }
 
+  HostDeviceVectorImpl(HostDeviceVectorImpl<T>&& that) :
+    device_{that.device_},
+    data_h_{std::move(that.data_h_)},
+    data_d_{std::move(that.data_d_)},
+    gpu_access_{that.gpu_access_} {}
+
   ~HostDeviceVectorImpl() {
     if (device_ >= 0) {
       SetDevice();
     }
   }
 
-  size_t Size() const { return HostCanRead() ? data_h_.size() : data_d_.size(); }
+  size_t Size() const { return HostCanRead() ? data_h_.size() : data_d_->size(); }
 
   int DeviceIdx() const { return device_; }
 
   T* DevicePointer() {
     LazySyncDevice(GPUAccess::kWrite);
-    return data_d_.data().get();
+    return data_d_->data().get();
   }
 
   const T* ConstDevicePointer() {
     LazySyncDevice(GPUAccess::kRead);
-    return data_d_.data().get();
+    return data_d_->data().get();
   }
 
   common::Span<T> DeviceSpan() {
     LazySyncDevice(GPUAccess::kWrite);
-    return {data_d_.data().get(), Size()};
+    return {data_d_->data().get(), Size()};
   }
 
   common::Span<const T> ConstDeviceSpan() {
     LazySyncDevice(GPUAccess::kRead);
-    return {data_d_.data().get(), Size()};
+    return {data_d_->data().get(), Size()};
   }
 
   void Fill(T v) {  // NOLINT
@@ -83,17 +89,19 @@ class HostDeviceVectorImpl {
     } else {
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
-      thrust::fill(data_d_.begin(), data_d_.end(), v);
+      thrust::fill(data_d_->begin(), data_d_->end(), v);
     }
   }
 
   void Copy(HostDeviceVectorImpl<T>* other) {
     CHECK_EQ(Size(), other->Size());
+    SetDevice(other->device_);
     // Data is on host.
     if (HostCanWrite() && other->HostCanWrite()) {
       std::copy(other->data_h_.begin(), other->data_h_.end(), data_h_.begin());
       return;
     }
+    SetDevice();
     CopyToDevice(other);
   }
 
@@ -138,11 +146,11 @@ class HostDeviceVectorImpl {
 
   void Resize(size_t new_size, T v) {
     if (new_size == Size()) { return; }
-    if (Size() == 0 && device_ >= 0) {
+    if ((Size() == 0 && device_ >= 0) || (DeviceCanWrite() && device_ >= 0)) {
       // fast on-device resize
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
-      data_d_.resize(new_size, v);
+      data_d_->resize(new_size, v);
     } else {
       // resize on host
       LazySyncHost(GPUAccess::kNone);
@@ -158,11 +166,11 @@ class HostDeviceVectorImpl {
       return;
     }
     gpu_access_ = access;
-    if (data_h_.size() != data_d_.size()) { data_h_.resize(data_d_.size()); }
+    if (data_h_.size() != data_d_->size()) { data_h_.resize(data_d_->size()); }
     SetDevice();
     dh::safe_cuda(cudaMemcpy(data_h_.data(),
-                             data_d_.data().get(),
-                             data_d_.size() * sizeof(T),
+                             data_d_->data().get(),
+                             data_d_->size() * sizeof(T),
                              cudaMemcpyDeviceToHost));
   }
 
@@ -176,9 +184,9 @@ class HostDeviceVectorImpl {
     // data is on the host
     LazyResizeDevice(data_h_.size());
     SetDevice();
-    dh::safe_cuda(cudaMemcpy(data_d_.data().get(),
+    dh::safe_cuda(cudaMemcpy(data_d_->data().get(),
                              data_h_.data(),
-                             data_d_.size() * sizeof(T),
+                             data_d_->size() * sizeof(T),
                              cudaMemcpyHostToDevice));
     gpu_access_ = access;
   }
@@ -189,11 +197,12 @@ class HostDeviceVectorImpl {
   bool DeviceCanAccess(GPUAccess access) const { return gpu_access_ >= access; }
   bool DeviceCanRead() const { return DeviceCanAccess(GPUAccess::kRead); }
   bool DeviceCanWrite() const { return DeviceCanAccess(GPUAccess::kWrite); }
+  GPUAccess Access() const { return gpu_access_; }
 
  private:
   int device_{-1};
   std::vector<T> data_h_{};
-  dh::device_vector<T> data_d_{};
+  std::unique_ptr<dh::device_vector<T>> data_d_{};
   GPUAccess gpu_access_{GPUAccess::kNone};
 
   void CopyToDevice(HostDeviceVectorImpl* other) {
@@ -203,8 +212,8 @@ class HostDeviceVectorImpl {
       LazyResizeDevice(Size());
       gpu_access_ = GPUAccess::kWrite;
       SetDevice();
-      dh::safe_cuda(cudaMemcpyAsync(data_d_.data().get(), other->data_d_.data().get(),
-                                    data_d_.size() * sizeof(T), cudaMemcpyDefault));
+      dh::safe_cuda(cudaMemcpyAsync(data_d_->data().get(), other->data_d_->data().get(),
+                                    data_d_->size() * sizeof(T), cudaMemcpyDefault));
     }
   }
 
@@ -212,14 +221,14 @@ class HostDeviceVectorImpl {
     LazyResizeDevice(Size());
     gpu_access_ = GPUAccess::kWrite;
     SetDevice();
-    dh::safe_cuda(cudaMemcpyAsync(data_d_.data().get(), begin,
-                                  data_d_.size() * sizeof(T), cudaMemcpyDefault));
+    dh::safe_cuda(cudaMemcpyAsync(data_d_->data().get(), begin,
+                                  data_d_->size() * sizeof(T), cudaMemcpyDefault));
   }
 
   void LazyResizeDevice(size_t new_size) {
-    if (new_size == data_d_.size()) { return; }
+    if (data_d_ && new_size == data_d_->size()) { return; }
     SetDevice();
-    data_d_.resize(new_size);
+    data_d_->resize(new_size);
   }
 
   void SetDevice() {
@@ -228,6 +237,10 @@ class HostDeviceVectorImpl {
       dh::safe_cuda(cudaSetDevice(device_));
     } else {
       (*cudaSetDeviceHandler)(device_);
+    }
+
+    if (!data_d_) {
+      data_d_.reset(new dh::device_vector<T>);
     }
   }
 };
@@ -245,16 +258,17 @@ HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, int device)
     : impl_(new HostDeviceVectorImpl<T>(init, device)) {}
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(const HostDeviceVector<T>& other)
-    : impl_(new HostDeviceVectorImpl<T>(*other.impl_)) {}
+HostDeviceVector<T>::HostDeviceVector(HostDeviceVector<T>&& other)
+    : impl_(new HostDeviceVectorImpl<T>(std::move(*other.impl_))) {}
 
 template <typename T>
-HostDeviceVector<T>& HostDeviceVector<T>::operator=(const HostDeviceVector<T>& other) {
+HostDeviceVector<T>& HostDeviceVector<T>::operator=(HostDeviceVector<T>&& other) {
   if (this == &other) { return *this; }
 
-  std::unique_ptr<HostDeviceVectorImpl<T>> newImpl(new HostDeviceVectorImpl<T>(*other.impl_));
+  std::unique_ptr<HostDeviceVectorImpl<T>> new_impl(
+      new HostDeviceVectorImpl<T>(std::move(*other.impl_)));
   delete impl_;
-  impl_ = newImpl.release();
+  impl_ = new_impl.release();
   return *this;
 }
 
@@ -339,6 +353,11 @@ bool HostDeviceVector<T>::DeviceCanWrite() const {
 }
 
 template <typename T>
+GPUAccess HostDeviceVector<T>::DeviceAccess() const {
+  return impl_->Access();
+}
+
+template <typename T>
 void HostDeviceVector<T>::SetDevice(int device) const {
   impl_->SetDevice(device);
 }
@@ -351,8 +370,20 @@ void HostDeviceVector<T>::Resize(size_t new_size, T v) {
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
-template class HostDeviceVector<int>;
+template class HostDeviceVector<int32_t>;   // bst_node_t
 template class HostDeviceVector<Entry>;
-template class HostDeviceVector<size_t>;
+template class HostDeviceVector<uint64_t>;  // bst_row_t
+template class HostDeviceVector<uint32_t>;  // bst_feature_t
+
+#if defined(__APPLE__)
+/*
+ * On OSX:
+ *
+ * typedef unsigned int         uint32_t;
+ * typedef unsigned long long   uint64_t;
+ * typedef unsigned long       __darwin_size_t;
+ */
+template class HostDeviceVector<std::size_t>;
+#endif  // defined(__APPLE__)
 
 }  // namespace xgboost

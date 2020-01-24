@@ -2,6 +2,7 @@ import numpy as np
 import xgboost as xgb
 import sys
 import pytest
+
 sys.path.append("tests/python")
 import testing as tm
 
@@ -46,10 +47,6 @@ Arrow specification.'''
         dmatrix_from_cudf(np.float32, np.NAN)
         dmatrix_from_cudf(np.float64, np.NAN)
 
-        dmatrix_from_cudf(np.uint8, 2)
-        dmatrix_from_cudf(np.uint32, 3)
-        dmatrix_from_cudf(np.uint64, 4)
-
         dmatrix_from_cudf(np.int8, 2)
         dmatrix_from_cudf(np.int32, -2)
         dmatrix_from_cudf(np.int64, -3)
@@ -86,3 +83,64 @@ Arrow specification.'''
             'x': cudf.Series([True, False, True, True, True])})
         with pytest.raises(Exception):
             dtrain = xgb.DMatrix(X_boolean, label=y_boolean)
+
+    @pytest.mark.skipif(**tm.no_cudf())
+    def test_cudf_training(self):
+        from cudf import DataFrame as df
+        import pandas as pd
+        X = pd.DataFrame(np.random.randn(50, 10))
+        y = pd.DataFrame(np.random.randn(50))
+        weights = np.random.random(50)
+        cudf_weights = df.from_pandas(pd.DataFrame(weights))
+        base_margin = np.random.random(50)
+        cudf_base_margin = df.from_pandas(pd.DataFrame(base_margin))
+
+        evals_result_cudf = {}
+        dtrain_cudf = xgb.DMatrix(df.from_pandas(X), df.from_pandas(y), weight=cudf_weights,
+                                  base_margin=cudf_base_margin)
+        xgb.train({'gpu_id': 0}, dtrain_cudf, evals=[(dtrain_cudf, "train")],
+                  evals_result=evals_result_cudf)
+        evals_result_np = {}
+        dtrain_np = xgb.DMatrix(X, y, weight=weights, base_margin=base_margin)
+        xgb.train({}, dtrain_np, evals=[(dtrain_np, "train")],
+                  evals_result=evals_result_np)
+        assert np.array_equal(evals_result_cudf["train"]["rmse"], evals_result_np["train"]["rmse"])
+
+    @pytest.mark.skipif(**tm.no_cudf())
+    def test_cudf_metainfo(self):
+        from cudf import DataFrame as df
+        import pandas as pd
+        n = 100
+        X = np.random.random((n, 2))
+        dmat_cudf = xgb.DMatrix(X)
+        dmat = xgb.DMatrix(X)
+        floats = np.random.random(n)
+        uints = np.array([4, 2, 8]).astype("uint32")
+        cudf_floats = df.from_pandas(pd.DataFrame(floats))
+        cudf_uints = df.from_pandas(pd.DataFrame(uints))
+        dmat.set_float_info('weight', floats)
+        dmat.set_float_info('label', floats)
+        dmat.set_float_info('base_margin', floats)
+        dmat.set_uint_info('group', uints)
+        dmat_cudf.set_interface_info('weight', cudf_floats)
+        dmat_cudf.set_interface_info('label', cudf_floats)
+        dmat_cudf.set_interface_info('base_margin', cudf_floats)
+        dmat_cudf.set_interface_info('group', cudf_uints)
+
+        # Test setting info with cudf DataFrame
+        assert np.array_equal(dmat.get_float_info('weight'), dmat_cudf.get_float_info('weight'))
+        assert np.array_equal(dmat.get_float_info('label'), dmat_cudf.get_float_info('label'))
+        assert np.array_equal(dmat.get_float_info('base_margin'),
+                              dmat_cudf.get_float_info('base_margin'))
+        assert np.array_equal(dmat.get_uint_info('group_ptr'), dmat_cudf.get_uint_info('group_ptr'))
+
+        # Test setting info with cudf Series
+        dmat_cudf.set_interface_info('weight', cudf_floats[cudf_floats.columns[0]])
+        dmat_cudf.set_interface_info('label', cudf_floats[cudf_floats.columns[0]])
+        dmat_cudf.set_interface_info('base_margin', cudf_floats[cudf_floats.columns[0]])
+        dmat_cudf.set_interface_info('group', cudf_uints[cudf_uints.columns[0]])
+        assert np.array_equal(dmat.get_float_info('weight'), dmat_cudf.get_float_info('weight'))
+        assert np.array_equal(dmat.get_float_info('label'), dmat_cudf.get_float_info('label'))
+        assert np.array_equal(dmat.get_float_info('base_margin'),
+                              dmat_cudf.get_float_info('base_margin'))
+        assert np.array_equal(dmat.get_uint_info('group_ptr'), dmat_cudf.get_uint_info('group_ptr'))

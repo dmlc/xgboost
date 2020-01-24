@@ -164,8 +164,9 @@ class GPUSketcher {
     auto counting = thrust::make_counting_iterator(size_t(0));
     using TransformT = thrust::transform_iterator<decltype(get_size), decltype(counting), size_t>;
     TransformT row_size_iter = TransformT(counting, get_size);
-    row_stride_ =
+    size_t batch_row_stride =
         thrust::reduce(row_size_iter, row_size_iter + n_rows_, 0, thrust::maximum<size_t>());
+    row_stride_ = std::max(row_stride_, batch_row_stride);
   }
 
   // This needs to be public because of the __device__ lambda.
@@ -252,8 +253,10 @@ class GPUSketcher {
       });
     } else if (n_cuts_cur_[icol] > 0) {
       // if more elements than cuts: use binary search on cumulative weights
-      int block = 256;
-      FindCutsK<<<common::DivRoundUp(n_cuts_cur_[icol], block), block>>>(
+      uint32_t constexpr kBlockThreads = 256;
+      uint32_t const kGrids = common::DivRoundUp(n_cuts_cur_[icol], kBlockThreads);
+      dh::LaunchKernel {kGrids, kBlockThreads} (
+          FindCutsK,
           cuts_d_.data().get() + icol * n_cuts_,
           fvalues_cur_.data().get(),
           weights2_.data().get(),
@@ -403,7 +406,8 @@ class GPUSketcher {
     // NOTE: This will typically support ~ 4M features - 64K*64
     dim3 grid3(common::DivRoundUp(batch_nrows, block3.x),
                common::DivRoundUp(num_cols_, block3.y), 1);
-    UnpackFeaturesK<<<grid3, block3>>>(
+    dh::LaunchKernel {grid3, block3} (
+        UnpackFeaturesK,
         fvalues_.data().get(),
         has_weights_ ? feature_weights_.data().get() : nullptr,
         row_ptrs_.data().get() + batch_row_begin,
