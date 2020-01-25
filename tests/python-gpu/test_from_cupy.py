@@ -52,10 +52,11 @@ Arrow specification.'''
     def test_cupy_training(self):
         import cupy as cp
         np.random.seed(1)
+        cp.random.seed(1)
         X = cp.random.randn(50, 10, dtype="float32")
         y = cp.random.randn(50, dtype="float32")
-        weights = np.random.random(50)
-        cupy_weights = cp.array(weights) + 1
+        weights = np.random.random(50) + 1
+        cupy_weights = cp.array(weights)
         base_margin = np.random.random(50)
         cupy_base_margin = cp.array(base_margin)
 
