@@ -36,7 +36,7 @@ TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPair)) {
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
 }
 
-TEST(Objective, DeclareUnifiedTest(NDCG_Json_IO)) {
+TEST(Objective, DeclareUnifiedTest(NDCG_JsonIO)) {
   xgboost::GenericParameter tparam;
   tparam.UpdateAllowUnknown(Args{});
 
