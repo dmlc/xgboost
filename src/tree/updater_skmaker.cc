@@ -129,6 +129,8 @@ class SketchMaker: public BaseMaker {
     const MetaInfo& info = p_fmat->Info();
     sketchs_.resize(this->qexpand_.size() * tree.param.num_feature * 3,
                     WXQSketch(info.num_row_, this->param_.sketch_eps));
+    std::fill(sketchs_.begin(), sketchs_.end(),
+              WXQSketch(info.num_row_, this->param_.sketch_eps));
     thread_sketch_.resize(omp_get_max_threads());
     // number of rows in
     const size_t nrows = p_fmat->Info().num_row_;

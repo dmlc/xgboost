@@ -101,16 +101,11 @@ struct SketchContainer {
   std::vector<std::mutex> col_locks_; // NOLINT
   static constexpr int kOmpNumColsParallelizeLimit = 1000;
 
-  SketchContainer(int max_bin, DMatrix* dmat) : col_locks_(dmat->Info().num_col_) {
-    const MetaInfo& info = dmat->Info();
-    // Initialize Sketches for this dmatrix
-    sketches_.resize(info.num_col_);
-#pragma omp parallel for default(none) shared(info, max_bin) schedule(static) \
-if (info.num_col_ > kOmpNumColsParallelizeLimit)  // NOLINT
-    for (int icol = 0; icol < info.num_col_; ++icol) {  // NOLINT
-      sketches_[icol].Init(info.num_row_, 1.0 / (8 * max_bin));
-    }
-  }
+  SketchContainer(int max_bin, DMatrix* dmat)
+      : col_locks_(dmat->Info().num_col_),
+        sketches_(
+            dmat->Info().num_col_,
+            DenseCuts::WXQSketch(dmat->Info().num_row_, 1.0 / (8 * max_bin))) {}
 
   // Prevent copying/assigning/moving this as its internals can't be assigned/copied/moved
   SketchContainer(const SketchContainer &) = delete;

@@ -400,6 +400,9 @@ class CQHistMaker: public HistMaker {
 
     sketchs_.resize(this->qexpand_.size() * work_set_size,
                     WXQSketch(info.num_row_, this->param_.sketch_eps));
+    std::fill(sketchs_.begin(), sketchs_.end(),
+              WXQSketch(info.num_row_, this->param_.sketch_eps));
+
     // intitialize the summary array
     summary_array_.resize(sketchs_.size());
     // setup maximum size

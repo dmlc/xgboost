@@ -233,14 +233,13 @@ void DenseCuts::Build(DMatrix* p_fmat, uint32_t max_num_bins) {
 
   // safe factor for better accuracy
   constexpr int kFactor = 8;
-  std::vector<WXQSketch> sketchs;
 
   const int nthread = omp_get_max_threads();
 
-  unsigned const nstep =
-      static_cast<unsigned>((info.num_col_ + nthread - 1) / nthread);
-  unsigned const ncol = static_cast<unsigned>(info.num_col_);
-  sketchs.resize(info.num_col_, WXQSketch(info.num_row_, 1.0 / (max_num_bins * kFactor)));
+  unsigned const nstep = static_cast<unsigned>((info.num_col_ + nthread - 1) /
+  nthread); unsigned const ncol = static_cast<unsigned>(info.num_col_);
+  std::vector<WXQSketch> sketchs(info.num_col_, WXQSketch(info.num_row_, 1.0 /
+  (max_num_bins * kFactor)));
 
   // Data groups, used in ranking.
   std::vector<bst_uint> const& group_ptr = info.group_ptr_;
