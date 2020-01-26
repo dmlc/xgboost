@@ -4,6 +4,13 @@ AC_PREREQ(2.62)
 
 AC_INIT([xgboost],[0.6-3],[],[xgboost],[])
 
+### Endian detection
+AC_MSG_CHECKING([endian])
+AC_MSG_RESULT([])
+AC_RUN_IFELSE([AC_LANG_PROGRAM([[#include <stdint.h>]], [[const uint16_t endianness = 256; return !!(*(const uint8_t *)&endianness);]])],
+  [ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN=1"],
+  [ENDIAN_FLAG="-DDMLC_CMAKE_LITTLE_ENDIAN=0"])
+
 OPENMP_CXXFLAGS=""
 
 if test `uname -s` = "Linux"
@@ -26,6 +33,7 @@ then
 fi
 
 AC_SUBST(OPENMP_CXXFLAGS)
+AC_SUBST(ENDIAN_FLAG)
 AC_CONFIG_FILES([src/Makevars])
 AC_OUTPUT
 
