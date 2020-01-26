@@ -4,6 +4,11 @@ AC_PREREQ(2.62)
 
 AC_INIT([xgboost],[0.6-3],[],[xgboost],[])
 
+### Check whether backtrace() is part of libc or the external lib libexecinfo
+AC_MSG_CHECKING([Backtrace lib])
+AC_MSG_RESULT([])
+AC_CHECK_LIB([execinfo], [backtrace], [BACKTRACE_LIB=-lexecinfo], [BACKTRACE_LIB=''])
+
 ### Endian detection
 AC_MSG_CHECKING([endian])
 AC_MSG_RESULT([])
@@ -34,6 +39,7 @@ fi
 
 AC_SUBST(OPENMP_CXXFLAGS)
 AC_SUBST(ENDIAN_FLAG)
+AC_SUBST(BACKTRACE_LIB)
 AC_CONFIG_FILES([src/Makevars])
 AC_OUTPUT
 
