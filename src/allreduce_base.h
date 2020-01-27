@@ -571,10 +571,6 @@ class AllreduceBase : public IEngine {
   int world_size;
   // connect retry time
   int connect_retry;
-  // backdoor listening peer connection
-  utils::TCPSocket sock_listen;
-  // backdoor port
-  int port = 0;
   // enable bootstrap cache 0 false 1 true
   bool rabit_bootstrap_cache = false;
   // enable detailed logging
