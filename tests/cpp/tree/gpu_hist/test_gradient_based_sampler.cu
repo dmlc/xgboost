@@ -7,7 +7,10 @@
 namespace xgboost {
 namespace tree {
 
-void VerifySampling(size_t page_size, float subsample, int sampling_method) {
+void VerifySampling(size_t page_size,
+                    float subsample,
+                    int sampling_method,
+                    bool fixed_size_sampling = false) {
   constexpr size_t kRows = 4096;
   constexpr size_t kCols = 1;
   size_t sample_rows = kRows * subsample;
@@ -30,9 +33,16 @@ void VerifySampling(size_t page_size, float subsample, int sampling_method) {
 
   GradientBasedSampler sampler(page, kRows, param, subsample, sampling_method);
   auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get());
-  EXPECT_EQ(sample.sample_rows, sample_rows);
-  EXPECT_EQ(sample.page->matrix.n_rows, sample_rows);
-  EXPECT_EQ(sample.gpair.size(), sample_rows);
+
+  if (fixed_size_sampling) {
+    EXPECT_EQ(sample.sample_rows, kRows);
+    EXPECT_EQ(sample.page->matrix.n_rows, kRows);
+    EXPECT_EQ(sample.gpair.size(), kRows);
+  } else {
+    EXPECT_NEAR(sample.sample_rows, sample_rows, kRows * 0.012);
+    EXPECT_NEAR(sample.page->matrix.n_rows, sample_rows, kRows * 0.012);
+    EXPECT_NEAR(sample.gpair.size(), sample_rows, kRows * 0.012);
+  }
 
   GradientPair sum_sampled_gpair{};
   std::vector<GradientPair> sampled_gpair_h(sample.gpair.size());
@@ -48,7 +58,8 @@ TEST(GradientBasedSampler, NoSampling) {
   constexpr size_t kPageSize = 0;
   constexpr float kSubsample = 1.0f;
   constexpr int kSamplingMethod = TrainParam::kUniform;
-  VerifySampling(kPageSize, kSubsample, kSamplingMethod);
+  constexpr bool kFixedSizeSampling = true;
+  VerifySampling(kPageSize, kSubsample, kSamplingMethod, kFixedSizeSampling);
 }
 
 // In external mode, when not sampling, we concatenate the pages together.
@@ -101,7 +112,8 @@ TEST(GradientBasedSampler, UniformSampling) {
   constexpr size_t kPageSize = 0;
   constexpr float kSubsample = 0.5;
   constexpr int kSamplingMethod = TrainParam::kUniform;
-  VerifySampling(kPageSize, kSubsample, kSamplingMethod);
+  constexpr bool kFixedSizeSampling = true;
+  VerifySampling(kPageSize, kSubsample, kSamplingMethod, kFixedSizeSampling);
 }
 
 TEST(GradientBasedSampler, UniformSampling_ExternalMemory) {
@@ -113,14 +125,15 @@ TEST(GradientBasedSampler, UniformSampling_ExternalMemory) {
 
 TEST(GradientBasedSampler, GradientBasedSampling) {
   constexpr size_t kPageSize = 0;
-  constexpr float kSubsample = 0.5;
+  constexpr float kSubsample = 0.8;
   constexpr int kSamplingMethod = TrainParam::kGradientBased;
-  VerifySampling(kPageSize, kSubsample, kSamplingMethod);
+  constexpr bool kFixedSizeSampling = true;
+  VerifySampling(kPageSize, kSubsample, kSamplingMethod, kFixedSizeSampling);
 }
 
 TEST(GradientBasedSampler, GradientBasedSampling_ExternalMemory) {
   constexpr size_t kPageSize = 1024;
-  constexpr float kSubsample = 0.5;
+  constexpr float kSubsample = 0.8;
   constexpr int kSamplingMethod = TrainParam::kGradientBased;
   VerifySampling(kPageSize, kSubsample, kSamplingMethod);
 }

@@ -71,30 +71,61 @@ class UniformSampling : public SamplingStrategy {
 /*! \brief No sampling in external memory mode. */
 class ExternalMemoryUniformSampling : public SamplingStrategy {
  public:
-  ExternalMemoryUniformSampling(float subsample);
+  ExternalMemoryUniformSampling(EllpackPageImpl* page,
+                                size_t n_rows,
+                                const BatchParam& batch_param,
+                                float subsample);
 
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:
   dh::BulkAllocator ba_;
   EllpackPageImpl* original_page_;
-  float subsample_;
   BatchParam batch_param_;
+  float subsample_;
   std::unique_ptr<EllpackPageImpl> page_;
-  common::Span<GradientPair> gpair_;
+  dh::device_vector<GradientPair> gpair_;
   common::Span<size_t> sample_row_index_;
 };
 
+/*! \brief Gradient-based sampling in in-memory mode.. */
 class GradientBasedSampling : public SamplingStrategy {
  public:
-  /*! \brief Gradient-based sampling in in-memory mode.. */
+  GradientBasedSampling(EllpackPageImpl* page,
+                        size_t n_rows,
+                        const BatchParam& batch_param,
+                        float subsample);
+
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
+
+ private:
+  EllpackPageImpl* page_;
+  float subsample_;
+  dh::BulkAllocator ba_;
+  common::Span<float> threshold_;
+  common::Span<float> grad_sum_;
 };
 
+/*! \brief Gradient-based sampling in external memory mode.. */
 class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
  public:
-  /*! \brief Gradient-based sampling in external memory mode.. */
+  ExternalMemoryGradientBasedSampling(EllpackPageImpl* page,
+                                      size_t n_rows,
+                                      const BatchParam& batch_param,
+                                      float subsample);
+
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
+
+ private:
+  dh::BulkAllocator ba_;
+  EllpackPageImpl* original_page_;
+  BatchParam batch_param_;
+  float subsample_;
+  common::Span<float> threshold_;
+  common::Span<float> grad_sum_;
+  std::unique_ptr<EllpackPageImpl> page_;
+  dh::device_vector<GradientPair> gpair_;
+  common::Span<size_t> sample_row_index_;
 };
 
 /*! \brief Draw a sample of rows from a DMatrix.
@@ -117,32 +148,15 @@ class GradientBasedSampler {
   /*! \brief Sample from a DMatrix based on the given gradient pairs. */
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat);
 
- private:
   /*! \brief Calculate the threshold used to normalize sampling probabilities. */
-  size_t CalculateThresholdIndex(common::Span<GradientPair> gpair);
+  static size_t CalculateThresholdIndex(common::Span<GradientPair> gpair,
+                                        common::Span<float> threshold,
+                                        common::Span<float> grad_sum,
+                                        size_t sample_rows);
 
-  /*! \brief Fixed-size Poisson sampling after the row weights are calculated. */
-  GradientBasedSample SequentialPoissonSampling(common::Span<GradientPair> gpair, DMatrix* dmat);
-
+ private:
   common::Monitor monitor_;
   std::unique_ptr<SamplingStrategy> strategy_;
-
-
-  dh::BulkAllocator ba_;
-  EllpackPageImpl* original_page_;
-  float subsample_;
-  bool is_external_memory_;
-  bool is_sampling_;
-  BatchParam batch_param_;
-  int sampling_method_;
-  size_t sample_rows_;
-  std::unique_ptr<EllpackPageImpl> page_;
-  common::Span<GradientPair> gpair_;
-  common::Span<float> row_weight_;
-  common::Span<float> threshold_;
-  common::Span<size_t> row_index_;
-  common::Span<size_t> sample_row_index_;
-  bool page_concatenated_{false};
 };
 };  // namespace tree
 };  // namespace xgboost
