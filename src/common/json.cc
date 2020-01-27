@@ -69,7 +69,7 @@ void JsonWriter::Visit(JsonNull const* null) {
   this->Write("null");
 }
 
-fvoid JsonWriter::Visit(JsonString const* str) {
+void JsonWriter::Visit(JsonString const* str) {
   std::string buffer;
   buffer += '"';
   auto const& string = str->getString();
