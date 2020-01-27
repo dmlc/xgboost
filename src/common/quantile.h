@@ -37,7 +37,7 @@ class WXQSummary {
     /*! \brief the value of data */
     DType value;
     // constructor
-    XGBOOST_DEVICE Entry() = default;
+    Entry() = default;
     // constructor
     XGBOOST_DEVICE Entry(RType rmin, RType rmax, RType wmin, DType value)
         : rmin(rmin), rmax(rmax), wmin(wmin), value(value) {}
@@ -116,42 +116,6 @@ class WXQSummary {
       res = std::max(data[i].rmax - data[i].rmin - data[i].wmin, res);
     }
     return res;
-  }
-  /*!
-   * \brief query qvalue, start from istart
-   * \param qvalue the value we query for
-   * \param istart starting position
-   */
-  Entry Query(DType qvalue, size_t &istart) const {  // NOLINT(*)
-    while (istart < size && qvalue > data[istart].value) {
-      ++istart;
-    }
-    if (istart == size) {
-      RType rmax = data[size - 1].rmax;
-      return Entry(rmax, rmax, 0.0f, qvalue);
-    }
-    if (qvalue == data[istart].value) {
-      return data[istart];
-    } else {
-      if (istart == 0) {
-        return Entry(0.0f, 0.0f, 0.0f, qvalue);
-      } else {
-        return Entry(data[istart - 1].RMinNext(), data[istart].RMaxPrev(), 0.0f,
-                     qvalue);
-      }
-    }
-  }
-  void MakeFromSorted(const Entry *entries, size_t n) {
-    size = 0;
-    for (size_t i = 0; i < n;) {
-      size_t j = i + 1;
-      // ignore repeated values
-      for (; j < n && entries[j].value == entries[i].value; ++j) {
-      }
-      data[size++] = Entry(entries[i].rmin, entries[i].rmax, entries[i].wmin,
-                           entries[i].value);
-      i = j;
-    }
   }
   /*!
    * \brief debug function, validate whether the summary

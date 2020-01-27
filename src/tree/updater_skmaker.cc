@@ -300,6 +300,29 @@ class SketchMaker: public BaseMaker {
     p_tree->Stat(nid).base_weight = static_cast<bst_float>(node_sum.CalcWeight(param_));
     p_tree->Stat(nid).sum_hess = static_cast<bst_float>(node_sum.sum_hess);
   }
+
+  WXQSketch::Summary::Entry QuerySketchEntry(
+      bst_float query_value, size_t &istart,  // NOLINT(*)
+      const WXQSketch::Summary &summary) {
+    while (istart < summary.size && query_value > summary.data[istart].value) {
+      ++istart;
+    }
+    if (istart == summary.size) {
+      float rmax = summary.data[summary.size - 1].rmax;
+      return WXQSketch::Summary::Entry(rmax, rmax, 0.0f, query_value);
+    }
+    if (query_value == summary.data[istart].value) {
+      return summary.data[istart];
+    }
+    if (istart == 0) {
+      return WXQSketch::Summary::Entry(0.0f, 0.0f, 0.0f, query_value);
+    }
+
+    return WXQSketch::Summary::Entry(summary.data[istart - 1].RMinNext(),
+                                     summary.data[istart].RMaxPrev(), 0.0f,
+                                     query_value);
+  }
+  
   inline void EnumerateSplit(const WXQSketch::Summary &pos_grad,
                              const WXQSketch::Summary &neg_grad,
                              const WXQSketch::Summary &sum_hess,
@@ -327,9 +350,9 @@ class SketchMaker: public BaseMaker {
     feat_sum.sum_hess = sum_hess.data[sum_hess.size - 1].rmax;
     size_t ipos = 0, ineg = 0, ihess = 0;
     for (size_t i = 1; i < fsplits.size(); ++i) {
-      WXQSketch::Entry pos = pos_grad.Query(fsplits[i], ipos);
-      WXQSketch::Entry neg = neg_grad.Query(fsplits[i], ineg);
-      WXQSketch::Entry hess = sum_hess.Query(fsplits[i], ihess);
+      WXQSketch::Entry pos = QuerySketchEntry(fsplits[i], ipos, pos_grad);
+      WXQSketch::Entry neg = QuerySketchEntry(fsplits[i], ipos, neg_grad);
+      WXQSketch::Entry hess = QuerySketchEntry(fsplits[i], ipos, sum_hess);
       SKStats s, c;
       s.pos_grad = 0.5f * (pos.rmin + pos.rmax - pos.wmin);
       s.neg_grad = 0.5f * (neg.rmin + neg.rmax - neg.wmin);
