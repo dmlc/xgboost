@@ -3,6 +3,7 @@
 #include <xgboost/gbm.h>
 
 #include "../helpers.h"
+#include "test_json_io.h"
 #include "../../../src/gbm/gblinear_model.h"
 
 namespace xgboost {
@@ -32,5 +33,9 @@ TEST(Linear, GPUCoordinate) {
   ASSERT_EQ(model.bias()[0], 5.0f);
 
   delete mat;
+}
+
+TEST(GPUCoordinate, JsonIO) {
+  TestUpdaterJsonIO("gpu_coord_descent");
 }
 }  // namespace xgboost

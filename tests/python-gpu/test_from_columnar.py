@@ -88,9 +88,10 @@ Arrow specification.'''
     def test_cudf_training(self):
         from cudf import DataFrame as df
         import pandas as pd
+        np.random.seed(1)
         X = pd.DataFrame(np.random.randn(50, 10))
         y = pd.DataFrame(np.random.randn(50))
-        weights = np.random.random(50)
+        weights = np.random.random(50) + 1.0
         cudf_weights = df.from_pandas(pd.DataFrame(weights))
         base_margin = np.random.random(50)
         cudf_base_margin = df.from_pandas(pd.DataFrame(base_margin))
@@ -98,11 +99,12 @@ Arrow specification.'''
         evals_result_cudf = {}
         dtrain_cudf = xgb.DMatrix(df.from_pandas(X), df.from_pandas(y), weight=cudf_weights,
                                   base_margin=cudf_base_margin)
-        xgb.train({'gpu_id': 0}, dtrain_cudf, evals=[(dtrain_cudf, "train")],
+        params = {'gpu_id': 0, 'nthread': 1}
+        xgb.train(params, dtrain_cudf, evals=[(dtrain_cudf, "train")],
                   evals_result=evals_result_cudf)
         evals_result_np = {}
         dtrain_np = xgb.DMatrix(X, y, weight=weights, base_margin=base_margin)
-        xgb.train({}, dtrain_np, evals=[(dtrain_np, "train")],
+        xgb.train(params, dtrain_np, evals=[(dtrain_np, "train")],
                   evals_result=evals_result_np)
         assert np.array_equal(evals_result_cudf["train"]["rmse"], evals_result_np["train"]["rmse"])
 

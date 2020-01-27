@@ -134,7 +134,7 @@ TEST(Learner, Configuration) {
   }
 }
 
-TEST(Learner, Json_ModelIO) {
+TEST(Learner, JsonModelIO) {
   // Test of comparing JSON object directly.
   size_t constexpr kRows = 8;
   int32_t constexpr kIters = 4;

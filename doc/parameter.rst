@@ -208,6 +208,17 @@ Parameters for Tree Booster
 * ``num_parallel_tree``, [default=1]
   - Number of parallel trees constructed during each iteration. This option is used to support boosted random forest.
 
+* ``monotone_constraints``
+
+  - Constraint of variable monotonicity.  See tutorial for more information.
+
+* ``interaction_constraints``
+
+  - Constraints for interaction representing permitted interactions.  The constraints must
+    be specified in the form of a nest list, e.g. ``[[0, 1], [2, 3, 4]]``, where each inner
+    list is a group of indices of features that are allowed to interact with each other.
+    See tutorial for more information
+
 Additional parameters for Dart Booster (``booster=dart``)
 =========================================================
 
