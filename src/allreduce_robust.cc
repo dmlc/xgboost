@@ -19,6 +19,8 @@
 #include "rabit/internal/rabit-inl.h"
 #include "allreduce_robust.h"
 
+#undef _assert
+
 namespace rabit {
 namespace engine {
 
