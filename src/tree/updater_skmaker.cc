@@ -322,7 +322,7 @@ class SketchMaker: public BaseMaker {
                                      summary.data[istart].RMaxPrev(), 0.0f,
                                      query_value);
   }
-  
+
   inline void EnumerateSplit(const WXQSketch::Summary &pos_grad,
                              const WXQSketch::Summary &neg_grad,
                              const WXQSketch::Summary &sum_hess,

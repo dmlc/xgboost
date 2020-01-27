@@ -17,7 +17,70 @@
 
 namespace xgboost {
 namespace common {
+template <typename DType, typename RType>
+class WXQSummary;
 
+namespace detail {
+/*! \brief an entry in the sketch summary */
+template <typename RType, typename DType>
+struct SketchEntry {
+  /*! \brief minimum rank */
+  RType rmin;
+  /*! \brief maximum rank */
+  RType rmax;
+  /*! \brief maximum weight */
+  RType wmin;
+  /*! \brief the value of data */
+  DType value;
+  // constructor
+  SketchEntry() = default;
+  // constructor
+  XGBOOST_DEVICE SketchEntry(RType rmin, RType rmax, RType wmin, DType value)
+      : rmin(rmin), rmax(rmax), wmin(wmin), value(value) {}
+  /*!
+   * \brief debug function,  check Valid
+   * \param eps the tolerate level for violating the relation
+   */
+  void CheckValid(RType eps = 0) const {
+    CHECK(rmin >= 0 && rmax >= 0 && wmin >= 0) << "nonneg constraint";
+    CHECK(rmax - rmin - wmin > -eps) << "relation constraint: min/max";
+  }
+  /*! \return rmin estimation for v strictly bigger than value */
+  XGBOOST_DEVICE RType RMinNext() const { return rmin + wmin; }
+  /*! \return rmax estimation for v strictly smaller than value */
+  XGBOOST_DEVICE RType RMaxPrev() const { return rmax - wmin; }
+};
+/*! \brief input data queue before entering the summary */
+template <typename RType, typename DType>
+struct Queue {
+  // entry in the queue
+  struct QEntry {
+    // value of the instance
+    DType value;
+    // weight of instance
+    RType weight;
+    // default constructor
+    QEntry() = default;
+    // constructor
+    QEntry(DType value, RType weight) : value(value), weight(weight) {}
+    // comparator on value
+    bool operator<(const QEntry &b) const { return value < b.value; }
+  };
+  // the input queue
+  std::vector<QEntry> queue;
+  // end of the queue
+  size_t qtail;
+  // push data to the queue
+  void Push(DType x, RType w) {
+    if (qtail == 0 || queue[qtail - 1].value != x) {
+      queue[qtail++] = QEntry(x, w);
+    } else {
+      queue[qtail - 1].weight += w;
+    }
+  }
+  void MakeSummary(WXQSummary<RType, DType> *out);
+};
+}  // namespace detail
 /*!
  * \brief experimental wsummary
  * \tparam DType type of data content
@@ -26,80 +89,7 @@ namespace common {
 template <typename DType, typename RType>
 class WXQSummary {
  public:
-  /*! \brief an entry in the sketch summary */
-  struct Entry {
-    /*! \brief minimum rank */
-    RType rmin;
-    /*! \brief maximum rank */
-    RType rmax;
-    /*! \brief maximum weight */
-    RType wmin;
-    /*! \brief the value of data */
-    DType value;
-    // constructor
-    Entry() = default;
-    // constructor
-    XGBOOST_DEVICE Entry(RType rmin, RType rmax, RType wmin, DType value)
-        : rmin(rmin), rmax(rmax), wmin(wmin), value(value) {}
-    /*!
-     * \brief debug function,  check Valid
-     * \param eps the tolerate level for violating the relation
-     */
-    void CheckValid(RType eps = 0) const {
-      CHECK(rmin >= 0 && rmax >= 0 && wmin >= 0) << "nonneg constraint";
-      CHECK(rmax - rmin - wmin > -eps) << "relation constraint: min/max";
-    }
-    /*! \return rmin estimation for v strictly bigger than value */
-    XGBOOST_DEVICE RType RMinNext() const { return rmin + wmin; }
-    /*! \return rmax estimation for v strictly smaller than value */
-    XGBOOST_DEVICE RType RMaxPrev() const { return rmax - wmin; }
-  };
-  /*! \brief input data queue before entering the summary */
-  struct Queue {
-    // entry in the queue
-    struct QEntry {
-      // value of the instance
-      DType value;
-      // weight of instance
-      RType weight;
-      // default constructor
-      QEntry() = default;
-      // constructor
-      QEntry(DType value, RType weight) : value(value), weight(weight) {}
-      // comparator on value
-      bool operator<(const QEntry &b) const { return value < b.value; }
-    };
-    // the input queue
-    std::vector<QEntry> queue;
-    // end of the queue
-    size_t qtail;
-    // push data to the queue
-    void Push(DType x, RType w) {
-      if (qtail == 0 || queue[qtail - 1].value != x) {
-        queue[qtail++] = QEntry(x, w);
-      } else {
-        queue[qtail - 1].weight += w;
-      }
-    }
-    void MakeSummary(WXQSummary *out) {
-      std::sort(queue.begin(), queue.begin() + qtail);
-      out->size = 0;
-      // start update sketch
-      RType wsum = 0;
-      // construct data with unique weights
-      for (size_t i = 0; i < qtail;) {
-        size_t j = i + 1;
-        RType w = queue[i].weight;
-        while (j < qtail && queue[j].value == queue[i].value) {
-          w += queue[j].weight;
-          ++j;
-        }
-        out->data[out->size++] = Entry(wsum, wsum + w, w, queue[i].value);
-        wsum += w;
-        i = j;
-      }
-    }
-  };
+  using Entry = detail::SketchEntry<DType, RType>;
   /*! \brief data field */
   Entry *data;
   /*! \brief number of elements in the summary */
@@ -579,9 +569,32 @@ class WXQuantileSketch {
   // content of the summary
   std::vector<Entry> data;
   // input data queue
-  typename Summary::Queue inqueue_;
+  detail::Queue<RType, DType> inqueue_;
 };
 
+namespace detail {
+template <typename RType, typename DType>
+void Queue<RType, DType>::MakeSummary(WXQSummary<RType, DType> *out) {
+  using Entry = typename WXQSummary<RType, DType>::Entry;
+  std::sort(queue.begin(), queue.begin() + qtail);
+  out->size = 0;
+  // start update sketch
+  RType wsum = 0;
+  // construct data with unique weights
+  for (size_t i = 0; i < qtail;) {
+    size_t j = i + 1;
+    RType w = queue[i].weight;
+    while (j < qtail && queue[j].value == queue[i].value) {
+      w += queue[j].weight;
+      ++j;
+    }
+    out->data[out->size++] = Entry(wsum, wsum + w, w, queue[i].value);
+    wsum += w;
+    i = j;
+  }
+}
+
+};  // namespace detail
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_QUANTILE_H_
