@@ -679,8 +679,6 @@ for more details about differences between saving model and serializing.
       common::MemoryFixSizeBuffer binary_buf(&buffer[0], json_offset);
       this->LoadModel(&binary_buf);
 
-      common::MemoryFixSizeBuffer json_buf {&buffer[0] + json_offset,
-                                            buffer.size() - json_offset};
       auto config = Json::Load({buffer.c_str() + json_offset, buffer.size() - json_offset});
       this->LoadConfig(config);
     }
