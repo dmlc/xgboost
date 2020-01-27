@@ -252,10 +252,15 @@ Rpack: clean_all
 	cp -r dmlc-core/include xgboost/src/dmlc-core/include
 	cp -r dmlc-core/src xgboost/src/dmlc-core/src
 	cp ./LICENSE xgboost
-	cat R-package/src/Makevars.in|sed '2s/.*/PKGROOT=./' | sed '3s/.*/ENABLE_STD_THREAD=0/' > xgboost/src/Makevars.in
+	# Modify PKGROOT in Makevars.in
+	cat R-package/src/Makevars.in|sed '2s/.*/PKGROOT=./' > xgboost/src/Makevars.in
+	# Configure Makevars.win (Windows-specific Makevars, likely using MinGW)
 	cp xgboost/src/Makevars.in xgboost/src/Makevars.win
+	cat xgboost/src/Makevars.in| sed '3s/.*/ENABLE_STD_THREAD=0/' > xgboost/src/Makevars.win
 	sed -i -e 's/@OPENMP_CXXFLAGS@/$$\(SHLIB_OPENMP_CXXFLAGS\)/g' xgboost/src/Makevars.win
 	sed -i -e 's/-pthread/$$\(SHLIB_PTHREAD_FLAGS\)/g' xgboost/src/Makevars.win
+	sed -i -e 's/@ENDIAN_FLAG@/-DDMLC_CMAKE_LITTLE_ENDIAN=1/g' xgboost/src/Makevars.win
+	sed -i -e 's/@BACKTRACE_LIB@//g' xgboost/src/Makevars.win
 	bash R-package/remove_warning_suppression_pragma.sh
 	rm xgboost/remove_warning_suppression_pragma.sh
 
