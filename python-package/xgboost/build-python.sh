@@ -18,9 +18,6 @@ cd ./xgboost/
 #remove the pre-compiled .so and trigger the system's on-the-fly compiling
 mkdir -p build
 cd build
-if [ -f * ]; then
-  rm -r *
-fi
 if cmake .. && make -j4; then
     echo "Successfully built multi-thread xgboost"
 else
