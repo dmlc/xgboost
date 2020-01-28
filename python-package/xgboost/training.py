@@ -521,13 +521,13 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         try:
             for cb in callbacks_after_iter:
                 cb(CallbackEnv(model=None,
-                              cvfolds=cvfolds,
-                              iteration=i,
-                              begin_iteration=0,
-                              end_iteration=num_boost_round,
-                              score_tree_interval=None,
-                              rank=0,
-                              evaluation_result_list=res))
+                               cvfolds=cvfolds,
+                               iteration=i,
+                               begin_iteration=0,
+                               end_iteration=num_boost_round,
+                               score_tree_interval=None,
+                               rank=0,
+                               evaluation_result_list=res))
         except EarlyStopException as e:
             for k in results:
                 results[k] = results[k][:(e.best_iteration + 1)]
