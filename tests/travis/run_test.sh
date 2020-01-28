@@ -13,6 +13,7 @@ if [ ${TASK} == "python_sdist_test" ]; then
     conda install numpy scipy
 
     python -m pip install xgboost-*.tar.gz -v --user
+    python -c 'import xgboost' || exit -1
 fi
 
 if [ ${TASK} == "python_test" ]; then
