@@ -44,8 +44,9 @@ std::vector<Monitor::StatMap> Monitor::CollectFromOtherRanks() const {
     statistic[kv.first] = Object();
     auto& j_pair = statistic[kv.first];
     j_pair["count"] = Integer(kv.second.count);
-    j_pair["elapsed"] = Integer(std::chrono::duration_cast<std::chrono::microseconds>(
-        kv.second.timer.elapsed).count());
+    j_pair["elapsed"] = Integer(static_cast<int64_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(
+        kv.second.timer.elapsed).count()));
   }
 
   std::stringstream ss;

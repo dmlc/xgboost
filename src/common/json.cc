@@ -630,13 +630,13 @@ Json JsonReader::ParseNumber() {
     // multiply zero by inf which gives nan.
     if (f != 0.0) {
       // Only use exp10 from libc on gcc+linux
-#if !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__)
+#if !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__) || !defined(__linux__)
 #define exp10(val) std::pow(10, (val))
-#endif  // !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__)
+#endif  // !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__) || !defined(__linux__)
       f *= exp10(exponent);
-#if !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__)
+#if !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__) || !defined(__linux__)
 #undef exp10
-#endif  // !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__)
+#endif  // !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__) || !defined(__linux__)
     }
   }
 
