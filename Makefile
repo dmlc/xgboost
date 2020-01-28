@@ -221,7 +221,9 @@ pippack: clean_all
 	rm -rf python-package/xgboost/rabit
 	rm -rf python-package/xgboost/src
 	cp -r python-package xgboost-python
-	cp -r Makefile xgboost-python/xgboost/
+	cp -r CMakeLists.txt xgboost-python/xgboost/
+	cp -r cmake xgboost-python/xgboost/
+	cp -r plugin xgboost-python/xgboost/
 	cp -r make xgboost-python/xgboost/
 	cp -r src xgboost-python/xgboost/
 	cp -r tests xgboost-python/xgboost/
