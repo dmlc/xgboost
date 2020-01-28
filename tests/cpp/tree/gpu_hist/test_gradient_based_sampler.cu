@@ -50,8 +50,8 @@ void VerifySampling(size_t page_size,
   for (const auto& gp : sampled_gpair_h) {
     sum_sampled_gpair += gp;
   }
-  EXPECT_NEAR(sum_gpair.GetGrad(), sum_sampled_gpair.GetGrad(), 0.01f * kRows);
-  EXPECT_NEAR(sum_gpair.GetHess(), sum_sampled_gpair.GetHess(), 0.01f * kRows);
+  EXPECT_NEAR(sum_gpair.GetGrad(), sum_sampled_gpair.GetGrad(), 0.02f * kRows);
+  EXPECT_NEAR(sum_gpair.GetHess(), sum_sampled_gpair.GetHess(), 0.02f * kRows);
 }
 
 TEST(GradientBasedSampler, NoSampling) {

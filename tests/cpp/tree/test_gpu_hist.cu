@@ -407,7 +407,7 @@ TEST(GpuHist, UniformSampling) {
   auto preds_h = preds.ConstHostVector();
   auto preds_sampling_h = preds_sampling.ConstHostVector();
   for (int i = 0; i < kRows; i++) {
-    EXPECT_NEAR(preds_h[i], preds_sampling_h[i], 1e-3);
+    EXPECT_NEAR(preds_h[i], preds_sampling_h[i], 2e-3);
   }
 }
 
@@ -503,7 +503,7 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   auto preds_h = preds.ConstHostVector();
   auto preds_ext_h = preds_ext.ConstHostVector();
   for (int i = 0; i < kRows; i++) {
-    EXPECT_NEAR(preds_h[i], preds_ext_h[i], 2e-6);
+    EXPECT_NEAR(preds_h[i], preds_ext_h[i], 3e-3);
   }
 }
 
