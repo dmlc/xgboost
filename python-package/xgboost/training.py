@@ -94,13 +94,13 @@ def _train_internal(params, dtrain,
         try:
             for cb in callbacks_after_iter:
                 cb(CallbackEnv(model=bst,
-                              cvfolds=None,
-                              iteration=i,
-                              begin_iteration=start_iteration,
-                              end_iteration=num_boost_round,
-                              score_tree_interval=score_tree_interval,
-                              rank=rank,
-                              evaluation_result_list=evaluation_result_list))
+                               cvfolds=None,
+                               iteration=i,
+                               begin_iteration=start_iteration,
+                               end_iteration=num_boost_round,
+                               score_tree_interval=score_tree_interval,
+                               rank=rank,
+                               evaluation_result_list=evaluation_result_list))
         except EarlyStopException:
             break
         # do checkpoint after evaluation, in case evaluation also updates booster.
