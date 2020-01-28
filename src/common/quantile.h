@@ -124,6 +124,18 @@ class WXQSummary {
       }
     }
   }
+  void MakeFromSorted(const Entry *entries, size_t n) {
+    size = 0;
+    for (size_t i = 0; i < n;) {
+      size_t j = i + 1;
+      // ignore repeated values
+      for (; j < n && entries[j].value == entries[i].value; ++j) {
+      }
+      data[size++] = Entry(entries[i].rmin, entries[i].rmax, entries[i].wmin,
+                           entries[i].value);
+      i = j;
+    }
+  }
   // set prune
   void SetPrune(const WXQSummary<DType, RType> &src, size_t maxsize) {
     if (src.size <= maxsize) {

@@ -309,18 +309,18 @@ class SketchMaker: public BaseMaker {
     }
     if (istart == summary.size) {
       float rmax = summary.data[summary.size - 1].rmax;
-      return WXQSketch::Summary::Entry(rmax, rmax, 0.0f, query_value);
+      return {rmax, rmax, 0.0f, query_value};
     }
     if (query_value == summary.data[istart].value) {
       return summary.data[istart];
     }
     if (istart == 0) {
-      return WXQSketch::Summary::Entry(0.0f, 0.0f, 0.0f, query_value);
+      return {0.0f, 0.0f, 0.0f, query_value};
     }
 
-    return WXQSketch::Summary::Entry(summary.data[istart - 1].RMinNext(),
-                                     summary.data[istart].RMaxPrev(), 0.0f,
-                                     query_value);
+    return {summary.data[istart - 1].RMinNext(),
+            summary.data[istart].RMaxPrev(), 0.0f,
+                                     query_value };
   }
 
   inline void EnumerateSplit(const WXQSketch::Summary &pos_grad,
