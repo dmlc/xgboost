@@ -1,11 +1,10 @@
 #!/bin/bash
 
-if [ ${TASK} == "python_test" ]; then
+if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_sdist_test" ]; then
     if [ ${TRAVIS_OS_NAME} == "osx" ]; then
         wget -O conda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
     else
-        echo "We are no longer running Linux test on Travis."
-        exit 1
+        wget -O conda.sh https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
     fi
     bash conda.sh -b -p $HOME/miniconda
     source $HOME/miniconda/bin/activate

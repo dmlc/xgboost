@@ -4,7 +4,7 @@ make -f dmlc-core/scripts/packages.mk lz4
 
 source $HOME/miniconda/bin/activate
 
-if [ ${TASK} == "python_sdist_test"]; then
+if [ ${TASK} == "python_sdist_test" ]; then
     set -e
     make pippack
 
