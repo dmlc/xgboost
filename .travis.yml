@@ -3,19 +3,32 @@ sudo: required
 
 # Enabling test OS X
 os:
+  - linux
   - osx
 
 osx_image: xcode10.3
+dist: bionic
 
 # Use Build Matrix to do lint and build seperately
 env:
   matrix:
     # python package test
     - TASK=python_test
+    # test installation of Python source distribution
+    - TASK=python_sdist_test
     # java package test
     - TASK=java_test
     # cmake test
     - TASK=cmake_test
+
+matrix:
+  exclude:
+    - os: linux
+      env: TASK=python_test
+    - os: linux
+      env: TASK=java_test
+    - os: linux
+      env: TASK=cmake_test
 
 # dependent brew packages
 addons:
