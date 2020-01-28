@@ -31,7 +31,6 @@ class SamplingStrategy {
 class NoSampling : public SamplingStrategy {
  public:
   explicit NoSampling(EllpackPageImpl* page);
-
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:
@@ -44,13 +43,9 @@ class ExternalMemoryNoSampling : public SamplingStrategy {
   ExternalMemoryNoSampling(EllpackPageImpl* page,
                            size_t n_rows,
                            const BatchParam& batch_param);
-
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:
-  /*! \brief Concatenate all the rows from a DMatrix into a single ELLPACK page. */
-  void ConcatenatePages(DMatrix* dmat);
-
   BatchParam batch_param_;
   std::unique_ptr<EllpackPageImpl> page_;
   bool page_concatenated_{false};
@@ -60,7 +55,6 @@ class ExternalMemoryNoSampling : public SamplingStrategy {
 class UniformSampling : public SamplingStrategy {
  public:
   UniformSampling(EllpackPageImpl* page, float subsample);
-
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:
@@ -75,7 +69,6 @@ class ExternalMemoryUniformSampling : public SamplingStrategy {
                                 size_t n_rows,
                                 const BatchParam& batch_param,
                                 float subsample);
-
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:
@@ -84,7 +77,7 @@ class ExternalMemoryUniformSampling : public SamplingStrategy {
   BatchParam batch_param_;
   float subsample_;
   std::unique_ptr<EllpackPageImpl> page_;
-  dh::device_vector<GradientPair> gpair_;
+  dh::device_vector<GradientPair> gpair_{};
   common::Span<size_t> sample_row_index_;
 };
 
@@ -95,7 +88,6 @@ class GradientBasedSampling : public SamplingStrategy {
                         size_t n_rows,
                         const BatchParam& batch_param,
                         float subsample);
-
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:
@@ -113,7 +105,6 @@ class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
                                       size_t n_rows,
                                       const BatchParam& batch_param,
                                       float subsample);
-
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:

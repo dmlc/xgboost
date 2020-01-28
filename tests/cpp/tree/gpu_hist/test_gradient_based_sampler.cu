@@ -10,7 +10,8 @@ namespace tree {
 void VerifySampling(size_t page_size,
                     float subsample,
                     int sampling_method,
-                    bool fixed_size_sampling = false) {
+                    bool fixed_size_sampling = true,
+                    bool check_sum = true) {
   constexpr size_t kRows = 4096;
   constexpr size_t kCols = 1;
   size_t sample_rows = kRows * subsample;
@@ -39,9 +40,9 @@ void VerifySampling(size_t page_size,
     EXPECT_EQ(sample.page->matrix.n_rows, kRows);
     EXPECT_EQ(sample.gpair.size(), kRows);
   } else {
-    EXPECT_NEAR(sample.sample_rows, sample_rows, kRows * 0.012);
-    EXPECT_NEAR(sample.page->matrix.n_rows, sample_rows, kRows * 0.012);
-    EXPECT_NEAR(sample.gpair.size(), sample_rows, kRows * 0.012);
+    EXPECT_NEAR(sample.sample_rows, sample_rows, kRows * 0.012f);
+    EXPECT_NEAR(sample.page->matrix.n_rows, sample_rows, kRows * 0.012f);
+    EXPECT_NEAR(sample.gpair.size(), sample_rows, kRows * 0.012f);
   }
 
   GradientPair sum_sampled_gpair{};
@@ -50,16 +51,20 @@ void VerifySampling(size_t page_size,
   for (const auto& gp : sampled_gpair_h) {
     sum_sampled_gpair += gp;
   }
-  EXPECT_NEAR(sum_gpair.GetGrad(), sum_sampled_gpair.GetGrad(), 0.02f * kRows);
-  EXPECT_NEAR(sum_gpair.GetHess(), sum_sampled_gpair.GetHess(), 0.02f * kRows);
+  if (check_sum) {
+    EXPECT_NEAR(sum_gpair.GetGrad(), sum_sampled_gpair.GetGrad(), 0.02f * kRows);
+    EXPECT_NEAR(sum_gpair.GetHess(), sum_sampled_gpair.GetHess(), 0.02f * kRows);
+  } else {
+    EXPECT_NEAR(sum_gpair.GetGrad() / kRows, sum_sampled_gpair.GetGrad() / sample_rows, 0.02f);
+    EXPECT_NEAR(sum_gpair.GetHess() / kRows, sum_sampled_gpair.GetHess() / sample_rows, 0.02f);
+  }
 }
 
 TEST(GradientBasedSampler, NoSampling) {
   constexpr size_t kPageSize = 0;
   constexpr float kSubsample = 1.0f;
   constexpr int kSamplingMethod = TrainParam::kUniform;
-  constexpr bool kFixedSizeSampling = true;
-  VerifySampling(kPageSize, kSubsample, kSamplingMethod, kFixedSizeSampling);
+  VerifySampling(kPageSize, kSubsample, kSamplingMethod);
 }
 
 // In external mode, when not sampling, we concatenate the pages together.
@@ -113,29 +118,32 @@ TEST(GradientBasedSampler, UniformSampling) {
   constexpr float kSubsample = 0.5;
   constexpr int kSamplingMethod = TrainParam::kUniform;
   constexpr bool kFixedSizeSampling = true;
-  VerifySampling(kPageSize, kSubsample, kSamplingMethod, kFixedSizeSampling);
+  constexpr bool kCheckSum = false;
+  VerifySampling(kPageSize, kSubsample, kSamplingMethod, kFixedSizeSampling, kCheckSum);
 }
 
 TEST(GradientBasedSampler, UniformSampling_ExternalMemory) {
   constexpr size_t kPageSize = 1024;
   constexpr float kSubsample = 0.5;
   constexpr int kSamplingMethod = TrainParam::kUniform;
-  VerifySampling(kPageSize, kSubsample, kSamplingMethod);
+  constexpr bool kFixedSizeSampling = false;
+  constexpr bool kCheckSum = false;
+  VerifySampling(kPageSize, kSubsample, kSamplingMethod, kFixedSizeSampling, kCheckSum);
 }
 
 TEST(GradientBasedSampler, GradientBasedSampling) {
   constexpr size_t kPageSize = 0;
   constexpr float kSubsample = 0.8;
   constexpr int kSamplingMethod = TrainParam::kGradientBased;
-  constexpr bool kFixedSizeSampling = true;
-  VerifySampling(kPageSize, kSubsample, kSamplingMethod, kFixedSizeSampling);
+  VerifySampling(kPageSize, kSubsample, kSamplingMethod);
 }
 
 TEST(GradientBasedSampler, GradientBasedSampling_ExternalMemory) {
   constexpr size_t kPageSize = 1024;
   constexpr float kSubsample = 0.8;
   constexpr int kSamplingMethod = TrainParam::kGradientBased;
-  VerifySampling(kPageSize, kSubsample, kSamplingMethod);
+  constexpr bool kFixedSizeSampling = false;
+  VerifySampling(kPageSize, kSubsample, kSamplingMethod, kFixedSizeSampling);
 }
 
 };  // namespace tree
