@@ -316,13 +316,21 @@ R Package Installation
 Installing pre-packaged version
 -------------------------------
 
-You can install xgboost from CRAN just like any other R package:
+You can install XGBoost from CRAN just like any other R package:
 
 .. code-block:: R
 
-  install.packages("xgboost")
+   install.packages("xgboost")
 
-For OSX users, single-threaded version will be installed. So only one thread will be used for training. To enable use of multiple threads (and utilize capacity of multi-core CPUs), see the section :ref:`osx_multithread` to install XGBoost from source.
+.. note:: Using all CPU cores (threads) on Mac OSX
+
+   If you are using Mac OSX, you should first install OpenMP library (``libomp``) by running
+
+   .. code-block:: bash
+
+      brew install libomp
+
+   and then run ``install.packages("xgboost")``. Without OpenMP, XGBoost will only use a single CPU core, leading to suboptimal training speed.
 
 Installing the development version
 ----------------------------------
@@ -339,47 +347,13 @@ Thus, one has to run git to check out the code first:
   cd xgboost
   git submodule init
   git submodule update
-  cd R-package
-  R CMD INSTALL .
-
-If the last line fails because of the error ``R: command not found``, it means that R was not set up to run from command line.
-In this case, just start R as you would normally do and run the following:
-
-.. code-block:: R
-
-  setwd('wherever/you/cloned/it/xgboost/R-package/')
-  install.packages('.', repos = NULL, type="source")
-
-The package could also be built and installed with CMake (and Visual C++ 2015 on Windows) using instructions from :ref:`r_gpu_support`, but without GPU support (omit the ``-DUSE_CUDA=ON`` cmake parameter).
-
-If all fails, try `Building the shared library`_ to see whether a problem is specific to R package or not.
-
-.. _osx_multithread:
-
-Installing R package on Mac OSX with multi-threading
-----------------------------------------------------
-
-First, obtain ``gcc-9`` and ``OpenMP`` with Homebrew (https://brew.sh/) to enable multi-threading (i.e. using multiple CPU threads for training). The default Apple Clang compiler does not support OpenMP, so using the default compiler would have disabled multi-threading.
-
-.. code-block:: bash
-
-  brew install gcc@9 libomp
-
-Now, clone the repository:
-
-.. code-block:: bash
-
-  git clone --recursive https://github.com/dmlc/xgboost
-
-Create the ``build/`` directory and invoke CMake with option ``R_LIB=ON``. Make sure to add ``CC=gcc-9 CXX=g++-9`` so that Homebrew GCC is selected. After invoking CMake, you can install the R package by running ``make`` and ``make install``:
-
-.. code-block:: bash
-
   mkdir build
   cd build
-  CC=gcc-9 CXX=g++-9 cmake .. -DR_LIB=ON
+  cmake .. -DR_LIB=ON
   make -j4
   make install
+
+If all fails, try `Building the shared library`_ to see whether a problem is specific to R package or not.
 
 .. _r_gpu_support:
 
