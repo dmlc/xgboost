@@ -172,6 +172,7 @@ GradientBasedSample ExternalMemoryUniformSampling::Sample(common::Span<GradientP
                     ClearEmptyRows());
 
   // Create a new ELLPACK page with empty rows.
+  page_.reset();  // Release the device memory first before reallocating
   page_.reset(new EllpackPageImpl(batch_param_.gpu_id,
                                   original_page_->matrix.info,
                                   sample_rows));
@@ -348,6 +349,7 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(common::Span<Gra
                     ClearEmptyRows());
 
   // Create a new ELLPACK page with empty rows.
+  page_.reset();  // Release the device memory first before reallocating
   page_.reset(new EllpackPageImpl(batch_param_.gpu_id,
                                   original_page_->matrix.info,
                                   sample_rows));
