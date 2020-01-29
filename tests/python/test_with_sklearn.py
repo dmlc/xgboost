@@ -626,7 +626,7 @@ def save_load_model(model_path):
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
         xgb_model.save_model(model_path)
-        xgb_model = xgb.XGBModel()
+        xgb_model = xgb.XGBClassifier()
         xgb_model.load_model(model_path)
         assert isinstance(xgb_model.classes_, np.ndarray)
         assert isinstance(xgb_model._Booster, xgb.Booster)
@@ -637,20 +637,21 @@ def save_load_model(model_path):
         err = sum(1 for i in range(len(preds))
                   if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
         assert err < 0.1
+        assert xgb_model.get_booster().attr('scikit_learn') is None
+
+        with pytest.raises(TypeError):
+            xgb_model = xgb.XGBModel()
+            xgb_model.load_model(model_path)
 
 
 def test_save_load_model():
     with TemporaryDirectory() as tempdir:
         model_path = os.path.join(tempdir, 'digits.model')
         save_load_model(model_path)
-        assert os.path.exists(
-            os.path.join(tempdir, 'digits.model.scikit-learn.meta.json'))
 
     with TemporaryDirectory() as tempdir:
         model_path = os.path.join(tempdir, 'digits.model.json')
         save_load_model(model_path)
-        assert not os.path.exists(
-            os.path.join(tempdir, 'digits.model.json.scikit-learn.meta.json'))
 
     from sklearn.datasets import load_digits
     with TemporaryDirectory() as tempdir:

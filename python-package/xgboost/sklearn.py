@@ -4,7 +4,6 @@
 import copy
 import warnings
 import json
-import os
 import numpy as np
 from .core import Booster, DMatrix, XGBoostError
 from .training import train
@@ -48,11 +47,6 @@ def _objective_decorator(func):
         labels = dmatrix.get_label()
         return func(labels, preds)
     return inner
-
-
-def _meta_path(filename):
-    filename = filename + '.scikit-learn.meta.json'
-    return filename
 
 
 __estimator_doc = '''
@@ -341,13 +335,7 @@ class XGBModel(XGBModelBase):
 
         The model is saved in an XGBoost internal format which is universal
         among the various XGBoost interfaces. Auxiliary attributes of the
-        Python Booster object (such as feature names) will not be saved.  When
-        using binary output format, Scikit-Learn specific attributes will be
-        saved into a separated meta file named:
-
-          ``fname.scikit-learn.meta.json``
-
-        with fname being the specified output file name.
+        Python Booster object (such as feature names) will not be saved.
 
           .. note::
 
@@ -377,21 +365,12 @@ class XGBModel(XGBModelBase):
                 meta[k] = v
             except TypeError:
                 warnings.warn(str(k) + ' is not saved in Scikit-Learn meta.')
+        meta['type'] = type(self).__name__
+        meta = json.dumps(meta)
+        self.get_booster().set_attr(scikit_learn=meta)
         self.get_booster().save_model(fname)
-        if fname.endswith('.json'):
-            # Concatenate the model and meta.  FIXME(trivialfis): Use
-            # `XGBoosterGetModelRaw` to eliminate the additional file IO.
-            with open(fname, 'r') as fd:
-                model = json.load(fd)
-                model['scikit-learn'] = meta
-            with open(fname, 'w') as fd:
-                json.dump(model, fd)
-        else:
-            meta_path = _meta_path(fname)
-            warnings.warn('Saving additional XGBoost Scikit-Learn interface ' +
-                          f'attributes to: {meta_path}')
-            with open(meta_path, 'w') as fd:
-                json.dump(meta, fd)
+        # Delete the attribute after save
+        self.get_booster().set_attr(scikit_learn=None)
 
     def load_model(self, fname):
         # pylint: disable=attribute-defined-outside-init
@@ -399,14 +378,7 @@ class XGBModel(XGBModelBase):
 
         The model is loaded from an XGBoost internal format which is universal
         among the various XGBoost interfaces. Auxiliary attributes of the
-        Python Booster object (such as feature names) will not be loaded.  When
-        using binary model format, XGBoost will look for a Scikit-Learn wrapper
-        specific meta file name:
-
-          ``fname.scikit-learn.meta.json``
-
-        with fname being specified input file name.  A warning is emitted when
-        the file is not found.
+        Python Booster object (such as feature names) will not be loaded.
 
         Parameters
         ----------
@@ -416,30 +388,13 @@ class XGBModel(XGBModelBase):
         """
         if self._Booster is None:
             self._Booster = Booster({'n_jobs': self.n_jobs})
-        # Native booster will ignore the additional field in JSON file.
         self._Booster.load_model(fname)
-        meta_path = _meta_path(fname)
-        if fname.endswith('.json'):
-            with open(fname, 'r') as fd:
-                model = json.load(fd)
-            if 'scikit-learn' in model.keys():
-                # JSON model from Scikit-Learn interface
-                meta = model['scikit-learn']
-            else:
-                # JSON model from other interfaces
-                meta = {}
-                warnings.warn('Loading a native XGBoost model with ' +
-                              'Scikit-Learn interface.')
-        elif os.path.exists(meta_path):
-            # native binary model + JSON meta
-            with open(meta_path, 'r') as fd:
-                meta = json.load(fd)
-        else:
-            # native binary model
+        meta = self._Booster.attr('scikit_learn')
+        if meta is None:
             warnings.warn(
-                'Scikit-Learn interface specific meta data is not found in:' +
-                f' {meta_path}, only raw model is loaded')
+                'Loading a native XGBoost model with Scikit-Learn interface.')
             return
+        meta = json.loads(meta)
         states = dict()
         for k, v in meta.items():
             if k == '_le':
@@ -449,8 +404,16 @@ class XGBModel(XGBModelBase):
             if k == 'classes_':
                 self.classes_ = np.array(v)
                 continue
+            if k == 'type' and type(self).__name__ != v:
+                msg = f'Current model type: {type(self).__name__}, ' + \
+                    f'type of model in file: {v}'
+                raise TypeError(msg)
+            if k == 'type':
+                continue
             states[k] = v
         self.__dict__.update(states)
+        # Delete the attribute after load
+        self.get_booster().set_attr(scikit_learn=None)
 
     def fit(self, X, y, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None, early_stopping_rounds=None,

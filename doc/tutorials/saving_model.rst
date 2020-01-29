@@ -85,21 +85,6 @@ again after the model is loaded. If the customized function is useful, please co
 making a PR for implementing it inside XGBoost, this way we can have your functions
 working with different language bindings.
 
-
-**********************
-Scikit-Learn interface
-**********************
-
-There are many Scikit-Learn specific attributes we need to maintain in saved model, but
-they are not available for native XGBoost core.  Hence calling ``save_model`` without
-providing ``json`` extension will generate an additional meta file storing those
-attributes.  The new file will sit nearby to the specified output file.  When loading
-model back, XGBoost will look for this meta file and emit a warning if not found.  As the
-meta file itself is saved as a JSON document, if users have specifed using JSON as output
-format, XGBoost will concatenate the two files automatically.  The concatenated model is
-portable across language bindings and APIs, additional fields are simply ommited by other
-APIs.  This behaviour is introduced in XGBoost 1.0.0.
-
 ******************************************************
 Loading pickled file from different version of XGBoost
 ******************************************************
