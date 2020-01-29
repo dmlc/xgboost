@@ -171,7 +171,7 @@ try:
                     self.classes_ = np.array(v)
                     continue
                 meta[k] = v
-                self.__dict__.update(meta)
+            self.__dict__.update(meta)
 except ImportError:
     SKLEARN_INSTALLED = False
 

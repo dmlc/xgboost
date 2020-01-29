@@ -639,6 +639,13 @@ def save_load_model(model_path):
         assert err < 0.1
         assert xgb_model.get_booster().attr('scikit_learn') is None
 
+        # test native booster
+        preds = xgb_model.predict(X[test_index], output_margin=True)
+        booster = xgb.Booster(model_file=model_path)
+        predt_1 = booster.predict(xgb.DMatrix(X[test_index]),
+                                  output_margin=True)
+        assert np.allclose(preds, predt_1)
+
         with pytest.raises(TypeError):
             xgb_model = xgb.XGBModel()
             xgb_model.load_model(model_path)
