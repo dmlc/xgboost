@@ -4,9 +4,9 @@
 import abc
 import os
 import sys
-import numpy as np
-
 from pathlib import PurePath
+
+import numpy as np
 
 assert (sys.version_info[0] == 3), 'Python 2 is no longer supported.'
 
@@ -163,6 +163,8 @@ try:
             return meta
 
         def from_json(self, doc):
+            # pylint: disable=attribute-defined-outside-init
+            '''Load the encoder back from a JSON compatible dict.'''
             meta = dict()
             for k, v in doc.items():
                 if k == 'classes_':

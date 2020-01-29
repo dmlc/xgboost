@@ -394,6 +394,7 @@ class XGBModel(XGBModelBase):
                 json.dump(meta, fd)
 
     def load_model(self, fname):
+        # pylint: disable=attribute-defined-outside-init
         """Load the model from a file.
 
         The model is loaded from an XGBoost internal format which is universal
@@ -446,7 +447,7 @@ class XGBModel(XGBModelBase):
             eval_set=None, eval_metric=None, early_stopping_rounds=None,
             verbose=True, xgb_model=None, sample_weight_eval_set=None,
             callbacks=None):
-        # pylint:invalid-name,attribute-defined-outside-init
+        # pylint: disable=invalid-name,attribute-defined-outside-init
         """Fit gradient boosting model
 
         Parameters
@@ -747,7 +748,7 @@ class XGBModel(XGBModelBase):
     "Implementation of the scikit-learn API for XGBoost classification.",
     ['model', 'objective'])
 class XGBClassifier(XGBModel, XGBClassifierBase):
-    # pylint: disable=missing-docstring,invalid-name
+    # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
     def __init__(self, objective="binary:logistic", **kwargs):
         super().__init__(objective=objective, **kwargs)
 
