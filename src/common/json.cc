@@ -1,6 +1,7 @@
 /*!
  * Copyright (c) by Contributors 2019
  */
+#include <cctype>
 #include <sstream>
 #include <limits>
 #include <cmath>
@@ -351,7 +352,9 @@ Json JsonReader::Parse() {
       return ParseObject();
     } else if ( c == '[' ) {
       return ParseArray();
-    } else if ( c == '-' || std::isdigit(c) ) {
+    } else if ( c == '-' || std::isdigit(c) ||
+                c == 'N' ) {
+      // For now we only accept `NaN`, not `nan` as the later violiates LR(1) with `null`.
       return ParseNumber();
     } else if ( c == '\"' ) {
       return ParseString();
@@ -547,6 +550,13 @@ Json JsonReader::ParseNumber() {
 
   // TODO(trivialfis): Add back all the checks for number
   bool negative = false;
+  if (XGBOOST_EXPECT(*p == 'N', false)) {
+    GetChar('N');
+    GetChar('a');
+    GetChar('N');
+    return Json(static_cast<Number::Float>(std::numeric_limits<float>::quiet_NaN()));
+  }
+
   if ('-' == *p) {
     ++p;
     negative = true;

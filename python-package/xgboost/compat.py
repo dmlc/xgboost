@@ -4,6 +4,7 @@
 import abc
 import os
 import sys
+import numpy as np
 
 from pathlib import PurePath
 
@@ -148,7 +149,27 @@ try:
 
     XGBKFold = KFold
     XGBStratifiedKFold = StratifiedKFold
-    XGBLabelEncoder = LabelEncoder
+
+    class XGBoostLabelEncoder(LabelEncoder):
+        '''Label encoder with JSON serialization methods.'''
+        def to_json(self):
+            '''Returns a JSON compatible dictionary'''
+            meta = dict()
+            for k, v in self.__dict__.items():
+                if isinstance(v, np.ndarray):
+                    meta[k] = v.tolist()
+                else:
+                    meta[k] = v
+            return meta
+
+        def from_json(self, doc):
+            meta = dict()
+            for k, v in doc.items():
+                if k == 'classes_':
+                    self.classes_ = np.array(v)
+                    continue
+                meta[k] = v
+                self.__dict__.update(meta)
 except ImportError:
     SKLEARN_INSTALLED = False
 
@@ -159,7 +180,7 @@ except ImportError:
 
     XGBKFold = None
     XGBStratifiedKFold = None
-    XGBLabelEncoder = None
+    XGBoostLabelEncoder = None
 
 
 # dask

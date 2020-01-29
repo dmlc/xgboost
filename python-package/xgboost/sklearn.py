@@ -4,6 +4,7 @@
 import copy
 import warnings
 import json
+import os
 import numpy as np
 from .core import Booster, DMatrix, XGBoostError
 from .training import train
@@ -11,7 +12,7 @@ from .training import train
 # Do not use class names on scikit-learn directly.  Re-define the classes on
 # .compat to guarantee the behavior without scikit-learn
 from .compat import (SKLEARN_INSTALLED, XGBModelBase,
-                     XGBClassifierBase, XGBRegressorBase, XGBLabelEncoder)
+                     XGBClassifierBase, XGBRegressorBase, XGBoostLabelEncoder)
 
 
 def _objective_decorator(func):
@@ -47,6 +48,11 @@ def _objective_decorator(func):
         labels = dmatrix.get_label()
         return func(labels, preds)
     return inner
+
+
+def _meta_path(filename):
+    filename = filename + '.scikit-learn.meta.json'
+    return filename
 
 
 __estimator_doc = '''
@@ -330,13 +336,18 @@ class XGBModel(XGBModelBase):
         """Gets the number of xgboost boosting rounds."""
         return self.n_estimators
 
-    def save_model(self, fname):
+    def save_model(self, fname: str):
         """Save the model to a file.
 
         The model is saved in an XGBoost internal format which is universal
         among the various XGBoost interfaces. Auxiliary attributes of the
-        Python Booster object (such as feature names) will not be saved.
-        Label encodings (text labels to numeric labels) will be also lost.
+        Python Booster object (such as feature names) will not be saved.  When
+        using binary output format, Scikit-Learn specific attributes will be
+        saved into a separated meta file named:
+
+          ``fname.scikit-learn.meta.json``
+
+        with fname being the specified output file name.
 
           ..note:
 
@@ -350,14 +361,51 @@ class XGBModel(XGBModelBase):
             Output file name
 
         """
+        meta = dict()
+        for k, v in self.__dict__.items():
+            if k == '_le':
+                meta['_le'] = self._le.to_json()
+                continue
+            if k == '_Booster':
+                continue
+            if k == 'classes_':
+                # numpy array is not JSON serializable
+                meta['classes_'] = self.classes_.tolist()
+                continue
+            try:
+                json.dumps({k: v})
+                meta[k] = v
+            except TypeError:
+                warnings.warn(str(k) + ' is not saved in Scikit-Learn meta.')
         self.get_booster().save_model(fname)
+        if fname.endswith('.json'):
+            # Concatenate the model and meta.  FIXME(trivialfis): Use
+            # `XGBoosterGetModelRaw` to eliminate the additional file IO.
+            with open(fname, 'r') as fd:
+                model = json.load(fd)
+                model['scikit-learn'] = meta
+            with open(fname, 'w') as fd:
+                json.dump(model, fd)
+        else:
+            meta_path = _meta_path(fname)
+            warnings.warn('Saving additional XGBoost Scikit-Learn wrapper ' +
+                          f'attributes to: {meta_path}')
+            with open(meta_path, 'w') as fd:
+                json.dump(meta, fd)
 
     def load_model(self, fname):
         """Load the model from a file.
 
         The model is loaded from an XGBoost internal format which is universal
         among the various XGBoost interfaces. Auxiliary attributes of the
-        Python Booster object (such as feature names) will not be loaded.
+        Python Booster object (such as feature names) will not be loaded.  When
+        using binary model format, XGBoost will look for a Scikit-Learn wrapper
+        specific meta file name:
+
+          ``fname.scikit-learn.meta.json``
+
+        with fname being specified input file name.  A warning is emitted when
+        the file is not found.
 
         Parameters
         ----------
@@ -367,7 +415,32 @@ class XGBModel(XGBModelBase):
         """
         if self._Booster is None:
             self._Booster = Booster({'n_jobs': self.n_jobs})
+        # Native booster will ignore the additional field in JSON file.
         self._Booster.load_model(fname)
+        meta_path = _meta_path(fname)
+        if fname.endswith('.json'):
+            with open(fname, 'r') as fd:
+                model = json.load(fd)
+                meta = model['scikit-learn']
+        elif os.path.exists(meta_path):
+            with open(meta_path, 'r') as fd:
+                meta = json.load(fd)
+        else:
+            warnings.warn(
+                'Scikit-Learn interface specific meta data is not found in:' +
+                f' {meta_path}, only raw model is loaded')
+            return
+        states = dict()
+        for k, v in meta.items():
+            if k == '_le':
+                self._le = XGBoostLabelEncoder()
+                self._le.from_json(v)
+                continue
+            if k == 'classes_':
+                self.classes_ = np.array(v)
+                continue
+            states[k] = v
+        self.__dict__.update(states)
 
     def fit(self, X, y, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None, early_stopping_rounds=None,
@@ -674,7 +747,7 @@ class XGBModel(XGBModelBase):
     "Implementation of the scikit-learn API for XGBoost classification.",
     ['model', 'objective'])
 class XGBClassifier(XGBModel, XGBClassifierBase):
-    # pylint: disable=missing-docstring,too-many-arguments,invalid-name,too-many-instance-attributes
+    # pylint: disable=missing-docstring,invalid-name
     def __init__(self, objective="binary:logistic", **kwargs):
         super().__init__(objective=objective, **kwargs)
 
@@ -710,7 +783,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             else:
                 xgb_options.update({"eval_metric": eval_metric})
 
-        self._le = XGBLabelEncoder().fit(y)
+        self._le = XGBoostLabelEncoder().fit(y)
         training_labels = self._le.transform(y)
 
         if eval_set is not None:
@@ -805,10 +878,11 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                                missing=self.missing, nthread=self.n_jobs)
         if ntree_limit is None:
             ntree_limit = getattr(self, "best_ntree_limit", 0)
-        class_probs = self.get_booster().predict(test_dmatrix,
-                                                 output_margin=output_margin,
-                                                 ntree_limit=ntree_limit,
-                                                 validate_features=validate_features)
+        class_probs = self.get_booster().predict(
+            test_dmatrix,
+            output_margin=output_margin,
+            ntree_limit=ntree_limit,
+            validate_features=validate_features)
         if output_margin:
             # If output_margin is active, simply return the scores
             return class_probs

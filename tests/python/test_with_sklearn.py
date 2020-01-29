@@ -1,5 +1,6 @@
 import numpy as np
 import xgboost as xgb
+from xgboost.sklearn import XGBoostLabelEncoder
 import testing as tm
 import tempfile
 import os
@@ -614,7 +615,7 @@ def test_validation_weights_xgbclassifier():
                 for i in [0, 1]))
 
 
-def test_save_load_model():
+def save_load_model(model_path):
     from sklearn.datasets import load_digits
     from sklearn.model_selection import KFold
 
@@ -622,18 +623,34 @@ def test_save_load_model():
     y = digits['target']
     X = digits['data']
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
+    for train_index, test_index in kf.split(X, y):
+        xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
+        xgb_model.save_model(model_path)
+        xgb_model = xgb.XGBModel()
+        xgb_model.load_model(model_path)
+        assert isinstance(xgb_model.classes_, np.ndarray)
+        assert isinstance(xgb_model._Booster, xgb.Booster)
+        assert isinstance(xgb_model._le, XGBoostLabelEncoder)
+        assert isinstance(xgb_model._le.classes_, np.ndarray)
+        preds = xgb_model.predict(X[test_index])
+        labels = y[test_index]
+        err = sum(1 for i in range(len(preds))
+                  if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+        assert err < 0.1
+
+
+def test_save_load_model():
     with TemporaryDirectory() as tempdir:
         model_path = os.path.join(tempdir, 'digits.model')
-        for train_index, test_index in kf.split(X, y):
-            xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
-            xgb_model.save_model(model_path)
-            xgb_model = xgb.XGBModel()
-            xgb_model.load_model(model_path)
-            preds = xgb_model.predict(X[test_index])
-            labels = y[test_index]
-            err = sum(1 for i in range(len(preds))
-                      if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
-            assert err < 0.1
+        save_load_model(model_path)
+        assert os.path.exists(
+            os.path.join(tempdir, 'digits.model.scikit-learn.meta.json'))
+
+    with TemporaryDirectory() as tempdir:
+        model_path = os.path.join(tempdir, 'digits.model.json')
+        save_load_model(model_path)
+        assert not os.path.exists(
+            os.path.join(tempdir, 'digits.model.json.scikit-learn.meta.json'))
 
 
 def test_RFECV():
