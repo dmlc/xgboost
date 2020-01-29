@@ -331,44 +331,39 @@ class XGBModel(XGBModelBase):
         return self.n_estimators
 
     def save_model(self, fname):
-        """
-        Save the model to a file.
+        """Save the model to a file.
 
-        The model is saved in an XGBoost internal binary format which is
-        universal among the various XGBoost interfaces. Auxiliary attributes of
-        the Python Booster object (such as feature names) will not be loaded.
+        The model is saved in an XGBoost internal format which is universal
+        among the various XGBoost interfaces. Auxiliary attributes of the
+        Python Booster object (such as feature names) will not be saved.
         Label encodings (text labels to numeric labels) will be also lost.
-        **If you are using only the Python interface, we recommend pickling the
-        model object for best results.**
+
+          ..note:
+
+            See:
+
+            https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html
 
         Parameters
         ----------
         fname : string
             Output file name
+
         """
-        warnings.warn("save_model: Useful attributes in the Python " +
-                      "object {} will be lost. ".format(type(self).__name__) +
-                      "If you did not mean to export the model to " +
-                      "a non-Python binding of XGBoost, consider " +
-                      "using `pickle` or `joblib` to save your model.",
-                      Warning)
         self.get_booster().save_model(fname)
 
     def load_model(self, fname):
-        """
-        Load the model from a file.
+        """Load the model from a file.
 
-        The model is loaded from an XGBoost internal binary format which is
-        universal among the various XGBoost interfaces. Auxiliary attributes of
-        the Python Booster object (such as feature names) will not be loaded.
-        Label encodings (text labels to numeric labels) will be also lost.
-        **If you are using only the Python interface, we recommend pickling the
-        model object for best results.**
+        The model is loaded from an XGBoost internal format which is universal
+        among the various XGBoost interfaces. Auxiliary attributes of the
+        Python Booster object (such as feature names) will not be loaded.
 
         Parameters
         ----------
         fname : string or a memory buffer
             Input file name or memory buffer(see also save_raw)
+
         """
         if self._Booster is None:
             self._Booster = Booster({'n_jobs': self.n_jobs})
@@ -376,8 +371,9 @@ class XGBModel(XGBModelBase):
 
     def fit(self, X, y, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None, early_stopping_rounds=None,
-            verbose=True, xgb_model=None, sample_weight_eval_set=None, callbacks=None):
-        # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
+            verbose=True, xgb_model=None, sample_weight_eval_set=None,
+            callbacks=None):
+        # pylint:invalid-name,attribute-defined-outside-init
         """Fit gradient boosting model
 
         Parameters

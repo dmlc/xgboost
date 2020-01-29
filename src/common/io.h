@@ -52,7 +52,7 @@ class PeekableInStream : public dmlc::Stream {
 class FixedSizeStream : public PeekableInStream {
  public:
   explicit FixedSizeStream(PeekableInStream* stream);
-  ~FixedSizeStream() = default;
+  ~FixedSizeStream() override = default;
 
   size_t Read(void* dptr, size_t size) override;
   size_t PeekRead(void* dptr, size_t size) override;
