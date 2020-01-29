@@ -349,7 +349,7 @@ class XGBModel(XGBModelBase):
 
         with fname being the specified output file name.
 
-          ..note:
+          .. note::
 
             See:
 
@@ -388,7 +388,7 @@ class XGBModel(XGBModelBase):
                 json.dump(model, fd)
         else:
             meta_path = _meta_path(fname)
-            warnings.warn('Saving additional XGBoost Scikit-Learn wrapper ' +
+            warnings.warn('Saving additional XGBoost Scikit-Learn interface ' +
                           f'attributes to: {meta_path}')
             with open(meta_path, 'w') as fd:
                 json.dump(meta, fd)
@@ -410,8 +410,8 @@ class XGBModel(XGBModelBase):
 
         Parameters
         ----------
-        fname : string or a memory buffer
-            Input file name or memory buffer(see also save_raw)
+        fname : string
+            Input file name.
 
         """
         if self._Booster is None:
@@ -422,11 +422,20 @@ class XGBModel(XGBModelBase):
         if fname.endswith('.json'):
             with open(fname, 'r') as fd:
                 model = json.load(fd)
+            if 'scikit-learn' in model.keys():
+                # JSON model from Scikit-Learn interface
                 meta = model['scikit-learn']
+            else:
+                # JSON model from other interfaces
+                meta = {}
+                warnings.warn('Loading a native XGBoost model with ' +
+                              'Scikit-Learn interface.')
         elif os.path.exists(meta_path):
+            # native binary model + JSON meta
             with open(meta_path, 'r') as fd:
                 meta = json.load(fd)
         else:
+            # native binary model
             warnings.warn(
                 'Scikit-Learn interface specific meta data is not found in:' +
                 f' {meta_path}, only raw model is loaded')
@@ -893,7 +902,12 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         else:
             column_indexes = np.repeat(0, class_probs.shape[0])
             column_indexes[class_probs > 0.5] = 1
-        return self._le.inverse_transform(column_indexes)
+
+        if hasattr(self, '_le'):
+            return self._le.inverse_transform(column_indexes)
+        warnings.warn(
+            'Label encoder is not defined.  Returning class probability.')
+        return class_probs
 
     def predict_proba(self, data, ntree_limit=None, validate_features=True,
                       base_margin=None):

@@ -652,6 +652,28 @@ def test_save_load_model():
         assert not os.path.exists(
             os.path.join(tempdir, 'digits.model.json.scikit-learn.meta.json'))
 
+    from sklearn.datasets import load_digits
+    with TemporaryDirectory() as tempdir:
+        model_path = os.path.join(tempdir, 'digits.model.json')
+        digits = load_digits(2)
+        y = digits['target']
+        X = digits['data']
+        booster = xgb.train({'tree_method': 'hist',
+                             'objective': 'binary:logistic'},
+                            dtrain=xgb.DMatrix(X, y),
+                            num_boost_round=4)
+        predt_0 = booster.predict(xgb.DMatrix(X))
+        booster.save_model(model_path)
+        cls = xgb.XGBClassifier()
+        cls.load_model(model_path)
+        predt_1 = cls.predict(X)
+        assert np.allclose(predt_0, predt_1)
+
+        cls = xgb.XGBModel()
+        cls.load_model(model_path)
+        predt_1 = cls.predict(X)
+        assert np.allclose(predt_0, predt_1)
+
 
 def test_RFECV():
     from sklearn.datasets import load_boston
