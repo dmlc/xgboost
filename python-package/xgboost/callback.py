@@ -161,8 +161,8 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
 
     Parameters
     ----------
-    stopp_rounds : int
-       The stopping rounds before the trend occur.
+    stopping_rounds : int
+       The stopping rounds before the trend occurs.
 
     maximize : bool
         Whether to maximize evaluation metric.
@@ -205,6 +205,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
 
         state['maximize_score'] = maximize_score
         state['best_iteration'] = 0
+        state['iterations_since_best'] = 0
         if maximize_score:
             state['best_score'] = float('-inf')
         else:
@@ -225,6 +226,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
         """internal function"""
         if not state:
             init(env)
+
         score = env.evaluation_result_list[-1][1]
         best_score = state['best_score']
         best_iteration = state['best_iteration']
@@ -237,15 +239,51 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
             state['best_msg'] = msg
             state['best_score'] = score
             state['best_iteration'] = env.iteration
+            state['iterations_since_best'] = 0
             # save the property to attributes, so they will occur in checkpoint.
             if env.model is not None:
                 env.model.set_attr(best_score=str(state['best_score']),
                                    best_iteration=str(state['best_iteration']),
                                    best_msg=state['best_msg'])
-        elif env.iteration - best_iteration >= stopping_rounds:
+        elif state['iterations_since_best'] >= stopping_rounds:
             best_msg = state['best_msg']
             if verbose and env.rank == 0:
                 msg = "Stopping. Best iteration:\n{}\n\n"
                 rabit.tracker_print(msg.format(best_msg))
             raise EarlyStopException(best_iteration)
+        state['iterations_since_best'] += 1
+    return callback
+
+def early_stop_interval(stopping_rounds, maximize=False, verbose=True):
+    """Create a callback that enables score tree interval evaluation
+
+    If the current iteration is not in the score tree interval (set by
+    ``eval_start`` or ``eval_interval``) it will not evaluate for early
+    stopping.
+
+    Aside from not evaluating for early stopping this method performs the
+    same functionality as :meth:`callback.early_stop`
+
+    Parameters
+    ----------
+    stopping_rounds : int
+       The stopping rounds before the trend occurs.
+
+    maximize : bool
+        Whether to maximize evaluation metric.
+
+    verbose : optional, bool
+        Whether to print message about early stopping information.
+
+    Returns
+    -------
+    callback : function
+        The requested callback function.
+    """
+    cb = early_stop(stopping_rounds, maximize=maximize, verbose=verbose)
+
+    def callback(env):
+        if env.score_tree_interval is None or env.iteration in env.score_tree_interval:
+            cb(env)
+
     return callback

@@ -54,6 +54,7 @@ CallbackEnv = collections.namedtuple(
      "iteration",
      "begin_iteration",
      "end_iteration",
+     "score_tree_interval",
      "rank",
      "evaluation_result_list"])
 
