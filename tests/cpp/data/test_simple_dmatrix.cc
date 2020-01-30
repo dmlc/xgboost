@@ -83,7 +83,7 @@ TEST(SimpleDMatrix, Empty) {
     CHECK_EQ(batch.Size(), 0);
   }
 
-  data::DenseAdapter dense_adapter(nullptr, 0, 0, 0);
+  data::DenseAdapter dense_adapter(nullptr, 0, 0);
   dmat = data::SimpleDMatrix(&dense_adapter,
                              std::numeric_limits<float>::quiet_NaN(), 1);
   CHECK_EQ(dmat.Info().num_nonzero_, 0);
@@ -136,7 +136,7 @@ TEST(SimpleDMatrix, FromDense) {
   int m = 3;
   int n = 2;
   std::vector<float> data = {1, 2, 3, 4, 5, 6};
-  data::DenseAdapter adapter(data.data(), m, m * n, n);
+  data::DenseAdapter adapter(data.data(), m, n);
   data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
                            -1);
   EXPECT_EQ(dmat.Info().num_col_, 2);

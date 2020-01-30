@@ -46,7 +46,6 @@ TEST(ParallelGHistBuilder, Reset) {
   hist_builder.Reset(nthreads, kNodes, space, target_hist);
 
   common::ParallelFor2d(space, nthreads, [&](size_t inode, common::Range1d r) {
-    const size_t itask = r.begin();
     const size_t tid = omp_get_thread_num();
 
     GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
@@ -65,7 +64,6 @@ TEST(ParallelGHistBuilder, Reset) {
   hist_builder.Reset(nthreads, kNodesExtended, space2, target_hist);
 
   common::ParallelFor2d(space2, nthreads, [&](size_t inode, common::Range1d r) {
-    const size_t itask = r.begin();
     const size_t tid = omp_get_thread_num();
 
     GHistRow hist = hist_builder.GetInitializedHist(tid, inode);
@@ -80,7 +78,6 @@ TEST(ParallelGHistBuilder, Reset) {
 TEST(ParallelGHistBuilder, ReduceHist) {
   constexpr size_t kBins = 10;
   constexpr size_t kNodes = 5;
-  constexpr size_t kNodesExtended = 10;
   constexpr size_t kTasksPerNode = 10;
   constexpr double kValue = 1.0;
   const size_t nthreads = GetNThreads();
@@ -104,7 +101,6 @@ TEST(ParallelGHistBuilder, ReduceHist) {
 
   // Simple analog of BuildHist function, works in parallel for both tree-nodes and data in node
   common::ParallelFor2d(space, nthreads, [&](size_t inode, common::Range1d r) {
-    const size_t itask = r.begin();
     const size_t tid = omp_get_thread_num();
 
     GHistRow hist = hist_builder.GetInitializedHist(tid, inode);

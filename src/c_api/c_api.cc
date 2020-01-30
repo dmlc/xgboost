@@ -257,7 +257,7 @@ XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
                                    xgboost::bst_ulong ncol, bst_float missing,
                                    DMatrixHandle* out) {
   API_BEGIN();
-  data::DenseAdapter adapter(data, nrow, nrow * ncol, ncol);
+  data::DenseAdapter adapter(data, nrow, ncol);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, 1));
   API_END();
 }
@@ -268,7 +268,7 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
                                        bst_float missing, DMatrixHandle* out,
                                        int nthread) {
   API_BEGIN();
-  data::DenseAdapter adapter(data, nrow, nrow * ncol, ncol);
+  data::DenseAdapter adapter(data, nrow, ncol);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
   API_END();
 }
