@@ -31,17 +31,17 @@ libxgboostp2nccl:
 	# pip install -r requirements_build.txt
 	echo "arch: `arch`"
 	echo "cuda_short: `cat cuda_short.txt`"
-	mkdir -p build && cd build && cmake .. -DUSE_CUDA=ON ${NCCL} -DCMAKE_BUILD_TYPE=RELWITHDEBINFO && make -j
+	mkdir -p build && cd build && cmake .. -DUSE_CUDA=ON ${NCCL} -DCMAKE_BUILD_TYPE=RELWITHDEBINFO && make -j$(nproc)
 
 libxgboostp2nonccl:
 	#pip install -r requirements_runtime.txt
 	# pip install -r requirements_build.txt
-	mkdir -p build && cd build && cmake .. -DUSE_CUDA=ON -DCMAKE_BUILD_TYPE=RELWITHDEBINFO && make -j
+	mkdir -p build && cd build && cmake .. -DUSE_CUDA=ON -DCMAKE_BUILD_TYPE=RELWITHDEBINFO && make -j$(nproc)
 
 libxgboostp2cpu-only:
 	#pip install -r requirements_runtime.txt
 	# pip install -r requirements_build.txt
-	mkdir -p build && cd build && cmake .. -DUSE_CUDA=OFF -DCMAKE_BUILD_TYPE=RELWITHDEBINFO && make -j
+	mkdir -p build && cd build && cmake .. -DUSE_CUDA=OFF -DCMAKE_BUILD_TYPE=RELWITHDEBINFO && make -j$(nproc)
 
 libxgboostp3:
 	cd python-package && rm -rf dist && python setup.py sdist bdist_wheel
