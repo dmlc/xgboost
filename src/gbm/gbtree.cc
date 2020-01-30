@@ -440,27 +440,6 @@ class Dart : public GBTree {
     PredLoopSpecalize(p_fmat, &out_preds, num_group, 0, ntree_limit);
   }
 
-  void PredictInstance(const SparsePage::Inst &inst,
-                       std::vector<bst_float> *out_preds,
-                       unsigned ntree_limit) override {
-    DropTrees(false);
-    if (thread_temp_.size() == 0) {
-      thread_temp_.resize(1, RegTree::FVec());
-      thread_temp_[0].Init(model_.learner_model_param_->num_feature);
-    }
-    out_preds->resize(model_.learner_model_param_->num_output_group);
-    ntree_limit *= model_.learner_model_param_->num_output_group;
-    if (ntree_limit == 0 || ntree_limit > model_.trees.size()) {
-      ntree_limit = static_cast<unsigned>(model_.trees.size());
-    }
-    // loop over output groups
-    for (uint32_t gid = 0; gid < model_.learner_model_param_->num_output_group; ++gid) {
-      (*out_preds)[gid] =
-          PredValue(inst, gid, &thread_temp_[0], 0, ntree_limit) +
-          model_.learner_model_param_->base_score;
-    }
-  }
-
   bool UseGPU() const override {
     return GBTree::UseGPU();
   }

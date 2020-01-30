@@ -9,7 +9,6 @@
 #include <thrust/system_error.h>
 #include <thrust/logical.h>
 
-#include <omp.h>
 #include <rabit/rabit.h>
 #include <cub/cub.cuh>
 #include <cub/util_allocator.cuh>

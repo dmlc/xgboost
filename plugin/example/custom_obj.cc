@@ -5,6 +5,7 @@
  *  This plugin defines the additional metric function.
  */
 #include <xgboost/base.h>
+#include <xgboost/data.h>
 #include <xgboost/parameter.h>
 #include <xgboost/objective.h>
 #include <xgboost/json.h>

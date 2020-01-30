@@ -9,10 +9,8 @@
 
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
-#include <xgboost/data.h>
 #include <xgboost/model.h>
 #include <xgboost/generic_parameters.h>
-#include <xgboost/host_device_vector.h>
 
 #include <vector>
 #include <utility>
@@ -20,6 +18,11 @@
 #include <functional>
 
 namespace xgboost {
+
+class MetaInfo;
+
+template <typename T>
+class HostDeviceVector;
 
 /*! \brief interface of objective function */
 class ObjFunction : public Configurable {

@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <utility>
 
+#include "xgboost/data.h"
 #include "xgboost/json.h"
 #include "xgboost/parameter.h"
 

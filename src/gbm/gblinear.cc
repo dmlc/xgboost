@@ -151,16 +151,6 @@ class GBLinear : public GradientBooster {
     }
     monitor_.Stop("PredictBatch");
   }
-  // add base margin
-  void PredictInstance(const SparsePage::Inst &inst,
-                       std::vector<bst_float> *out_preds,
-                       unsigned ntree_limit) override {
-    const int ngroup = model_.learner_model_param_->num_output_group;
-    for (int gid = 0; gid < ngroup; ++gid) {
-      this->Pred(inst, dmlc::BeginPtr(*out_preds), gid,
-                 learner_model_param_->base_score);
-    }
-  }
 
   void PredictLeaf(DMatrix *p_fmat,
                    std::vector<bst_float> *out_preds,
