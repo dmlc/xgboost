@@ -670,9 +670,10 @@ class LearnerImpl : public Learner {
   for more details about differences between saving model and serializing.
 
 )doc";
-      int64_t json_offset {-1};
-      CHECK_EQ(fp.Read(&json_offset, sizeof(json_offset)), sizeof(json_offset));
-      CHECK_GT(json_offset, 0);
+      int64_t sz {-1};
+      CHECK_EQ(fp.Read(&sz, sizeof(sz)), sizeof(sz));
+      CHECK_GT(sz, 0);
+      size_t json_offset = static_cast<size_t>(sz);
       std::string buffer;
       common::FixedSizeStream{&fp}.Take(&buffer);
 

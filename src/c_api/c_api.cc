@@ -311,7 +311,7 @@ XGB_DLL int XGDMatrixSliceDMatrixEx(DMatrixHandle handle,
   DMatrix* dmat = static_cast<std::shared_ptr<DMatrix>*>(handle)->get();
   CHECK(dynamic_cast<data::SimpleDMatrix*>(dmat))
       << "Slice only supported for SimpleDMatrix currently.";
-  data::DMatrixSliceAdapter adapter(dmat, {idxset, len});
+  data::DMatrixSliceAdapter adapter(dmat, {idxset, static_cast<size_t>(len)});
   *out = new std::shared_ptr<DMatrix>(
       DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1));
   API_END();
