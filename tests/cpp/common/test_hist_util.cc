@@ -228,13 +228,39 @@ TEST(SparseCuts, MultiThreadedBuild) {
   omp_set_num_threads(ori_nthreads);
 }
 
-TEST(hist_util, Basic) {
+TEST(hist_util, BasicCategorical) {
   std::vector<float> x = {0.0, 1.0, 2.0, 4.0};
   int num_bins = x.size();
   auto dmat = GetDMatrixFromData(x);
   HistogramCuts cuts;
   DenseCuts dense(&cuts);
   dense.Build(&dmat, num_bins);
+  // Expect each unique value to have its own bin
+  for (auto i = 0ull; i < x.size(); i++) {
+    EXPECT_EQ(cuts.SearchBin(x[i], 0), i);
+  }
+  auto cuts_from_sketch = cuts.Values();
+  EXPECT_EQ(cuts_from_sketch.size(), x.size());
+  EXPECT_LE(cuts.MinValues()[0], x.front());
+  EXPECT_GE(cuts_from_sketch.front(), x.front());
+  EXPECT_GE(cuts_from_sketch.back(), x.back());
+
+
+}
+
+TEST(hist_util, BasicContinuous) {
+  std::vector<float> x(256);
+  std::iota(x.begin(), x.end(), 0);
+  int num_bins = x.size();
+  auto dmat = GetDMatrixFromData(x);
+  HistogramCuts cuts;
+  DenseCuts dense(&cuts);
+  dense.Build(&dmat, num_bins);
+
+  // Expect each unique value to have its own bin
+  for (auto i = 0ull; i < x.size(); i++) {
+    EXPECT_EQ(cuts.SearchBin(x[i], 0), i);
+  }
   auto cuts_from_sketch = cuts.Values();
   EXPECT_EQ(cuts_from_sketch.size(), x.size());
   EXPECT_LE(cuts.MinValues()[0], x.front());
@@ -243,8 +269,10 @@ TEST(hist_util, Basic) {
 }
 
 TEST(hist_util, DenseCutsAccuracyTest) {
-  int bin_sizes[] = {2, 16, 256,512};
-  int sizes[] = {25, 100, 1000};
+  int bin_sizes[] = {16};
+  int sizes[] = {25};
+  //int bin_sizes[] = {2, 16, 256,512};
+  //int sizes[] = {25, 100, 1000};
   float low = -100;
   float high = 100;
   for (auto n : sizes) {
@@ -258,10 +286,10 @@ TEST(hist_util, DenseCutsAccuracyTest) {
       dense.Build(&dmat, num_bins);
       auto cuts_from_sketch = cuts.Values();
       auto cuts_from_sort = CutsFromSort(x_sorted, num_bins);
-      EXPECT_LE(cuts.MinValues()[0], x_sorted.front());
-      EXPECT_GE(cuts_from_sketch.front(), x_sorted.front());
+      EXPECT_LT(cuts.MinValues()[0], x_sorted.front());
+      EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());
       EXPECT_GE(cuts_from_sketch.back(), x_sorted.back());
-      EXPECT_EQ(cuts_from_sketch.size(), std::min(n, num_bins));
+      ASSERT_EQ(cuts_from_sketch.size(), std::min(n, num_bins));
     }
   }
 }

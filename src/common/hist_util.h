@@ -205,9 +205,9 @@ class CutsBuilder {
         }
       }
     } else {
-      for (size_t i = 2; i < summary.size; ++i) {
-        bst_float cpt = summary.data[i - 1].value;
-        if (i == 2 || cpt > p_cuts_->cut_values_.back()) {
+      for (size_t i = 1; i < summary.size; ++i) {
+        bst_float cpt = summary.data[i].value;
+        if (i == 1 || cpt > p_cuts_->cut_values_.back()) {
           p_cuts_->cut_values_.push_back(cpt);
         }
       }
