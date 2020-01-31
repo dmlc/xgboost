@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <gtest/gtest.h>
 
 #include "../../../src/common/column_matrix.h"
@@ -17,8 +18,8 @@ TEST(CreateBlockedSpace2d, Test) {
 
   ASSERT_EQ(kDim1 * kDim2, space.Size());
 
-  for (auto i = 0; i < kDim1; i++) {
-    for (auto j = 0; j < kDim2; j++) {
+  for (size_t i = 0; i < kDim1; i++) {
+    for (size_t j = 0; j < kDim2; j++) {
       ASSERT_EQ(space.GetFirstDimension(i*kDim2 + j), i);
       ASSERT_EQ(j, space.GetRange(i*kDim2 + j).begin());
       ASSERT_EQ(j + kGrainSize, space.GetRange(i*kDim2 + j).end());
@@ -43,7 +44,7 @@ TEST(ParallelFor2d, Test) {
     }
   });
 
-  for (auto i = 0; i < kDim1 * kDim2; i++) {
+  for (size_t i = 0; i < kDim1 * kDim2; i++) {
     ASSERT_EQ(matrix[i], 1);
   }
 }
@@ -61,7 +62,7 @@ TEST(ParallelFor2dNonUniform, Test) {
   }, kGrainSize);
 
   std::vector<std::vector<int>> working_space(kDim1);
-  for (auto i = 0; i < kDim1; i++) {
+  for (size_t i = 0; i < kDim1; i++) {
     working_space[i].resize(dim2[i], 0);
   }
 
@@ -71,8 +72,8 @@ TEST(ParallelFor2dNonUniform, Test) {
     }
   });
 
-  for (auto i = 0; i < kDim1; i++) {
-    for (auto j = 0; j < dim2[i]; j++) {
+  for (size_t i = 0; i < kDim1; i++) {
+    for (size_t j = 0; j < dim2[i]; j++) {
       ASSERT_EQ(working_space[i][j], 1);
     }
   }

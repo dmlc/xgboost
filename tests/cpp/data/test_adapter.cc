@@ -7,7 +7,6 @@
 #include "../helpers.h"
 using namespace xgboost;  // NOLINT
 TEST(adapter, CSRAdapter) {
-  int m = 3;
   int n = 2;
   std::vector<float> data = {1, 2, 3, 4, 5};
   std::vector<unsigned> feature_idx = {0, 1, 0, 1, 1};
