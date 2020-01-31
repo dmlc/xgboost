@@ -325,7 +325,7 @@ class XGBModel(XGBModelBase):
                 try:
                     ret = t(value)
                     return ret
-                except ValueError:  # pylint: disable=broad-except
+                except ValueError:
                     continue
             return None
 
