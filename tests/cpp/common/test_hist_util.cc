@@ -5,6 +5,7 @@
 
 #include "../../../src/common/hist_util.h"
 #include "../helpers.h"
+#include "test_hist_util.h"
 
 namespace xgboost {
 namespace common {
@@ -152,14 +153,6 @@ TEST(CutsBuilder, SearchGroupInd) {
   delete pp_dmat;
 }
 
-namespace {
-class SparseCutsWrapper : public SparseCuts {
- public:
-  std::vector<uint32_t> const& ColPtrs()   const { return p_cuts_->Ptrs(); }
-  std::vector<float>    const& ColValues() const { return p_cuts_->Values(); }
-};
-}  // anonymous namespace
-
 TEST(SparseCuts, SingleThreadedBuild) {
   size_t constexpr kRows = 267;
   size_t constexpr kCols = 31;
@@ -233,6 +226,44 @@ TEST(SparseCuts, MultiThreadedBuild) {
   }
 
   omp_set_num_threads(ori_nthreads);
+}
+
+TEST(hist_util, Basic) {
+  std::vector<float> x = {0.0, 1.0, 2.0, 4.0};
+  int num_bins = x.size();
+  auto dmat = GetDMatrixFromData(x);
+  HistogramCuts cuts;
+  DenseCuts dense(&cuts);
+  dense.Build(&dmat, num_bins);
+  auto cuts_from_sketch = cuts.Values();
+  EXPECT_EQ(cuts_from_sketch.size(), x.size());
+  EXPECT_LE(cuts.MinValues()[0], x.front());
+  EXPECT_GE(cuts_from_sketch.front(), x.front());
+  EXPECT_GE(cuts_from_sketch.back(), x.back());
+}
+
+TEST(hist_util, DenseCutsAccuracyTest) {
+  int bin_sizes[] = {2, 16, 256,512};
+  int sizes[] = {25, 100, 1000};
+  float low = -100;
+  float high = 100;
+  for (auto n : sizes) {
+    auto x = GenerateRandomSingleColumn(n, low, high);
+    std::vector<float > x_sorted(x);
+    std::sort(x_sorted.begin(), x_sorted.end());
+    auto dmat = GetDMatrixFromData(x);
+    for (auto num_bins : bin_sizes) {
+      HistogramCuts cuts;
+      DenseCuts dense(&cuts);
+      dense.Build(&dmat, num_bins);
+      auto cuts_from_sketch = cuts.Values();
+      auto cuts_from_sort = CutsFromSort(x_sorted, num_bins);
+      EXPECT_LE(cuts.MinValues()[0], x_sorted.front());
+      EXPECT_GE(cuts_from_sketch.front(), x_sorted.front());
+      EXPECT_GE(cuts_from_sketch.back(), x_sorted.back());
+      EXPECT_EQ(cuts_from_sketch.size(), std::min(n, num_bins));
+    }
+  }
 }
 
 }  // namespace common
