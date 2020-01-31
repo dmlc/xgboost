@@ -105,9 +105,8 @@ __model_doc = '''
            Using gblinear booster with shotgun updater is nondeterministic as
            it uses Hogwild algorithm.
 
-    missing : float, optional
-        Value in the data which needs to be present as a missing value. If
-        None, defaults to np.nan.
+    missing : float, default np.nan
+        Value in the data which needs to be present as a missing value.
     num_parallel_tree: int
         Used for boosting random forest.
     monotone_constraints : str
@@ -208,7 +207,7 @@ class XGBModel(XGBModelBase):
                  colsample_bytree=None, colsample_bylevel=None,
                  colsample_bynode=None, reg_alpha=None, reg_lambda=None,
                  scale_pos_weight=None, base_score=None, random_state=None,
-                 missing=None, num_parallel_tree=None,
+                 missing=np.nan, num_parallel_tree=None,
                  monotone_constraints=None, interaction_constraints=None,
                  importance_type="gain", gpu_id=None, **kwargs):
         if not SKLEARN_INSTALLED:
@@ -233,25 +232,15 @@ class XGBModel(XGBModelBase):
         self.reg_lambda = reg_lambda
         self.scale_pos_weight = scale_pos_weight
         self.base_score = base_score
-        self.missing = missing if missing is not None else np.nan
+        self.missing = missing
         self.num_parallel_tree = num_parallel_tree
         self.kwargs = kwargs
-        self._Booster = None
         self.random_state = random_state
         self.n_jobs = n_jobs
         self.monotone_constraints = monotone_constraints
         self.interaction_constraints = interaction_constraints
         self.importance_type = importance_type
         self.gpu_id = gpu_id
-
-    def __setstate__(self, state):
-        # backward compatibility code
-        # load booster from raw if it is raw
-        # the booster now support pickle
-        bst = state["_Booster"]
-        if bst is not None and not isinstance(bst, Booster):
-            state["_Booster"] = Booster(model_file=bst)
-        self.__dict__.update(state)
 
     def get_booster(self):
         """Get the underlying xgboost Booster of this model.
@@ -262,7 +251,7 @@ class XGBModel(XGBModelBase):
         -------
         booster : a xgboost booster of underlying model
         """
-        if self._Booster is None:
+        if not hasattr(self, '_Booster'):
             raise XGBoostError('need to call fit or load_model beforehand')
         return self._Booster
 
@@ -386,7 +375,7 @@ class XGBModel(XGBModelBase):
             Input file name.
 
         """
-        if self._Booster is None:
+        if not hasattr(self, '_Booster'):
             self._Booster = Booster({'n_jobs': self.n_jobs})
         self._Booster.load_model(fname)
         meta = self._Booster.attr('scikit_learn')
