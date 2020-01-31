@@ -59,6 +59,29 @@ def generate_regression_model():
     reg.save_model(skl_json('reg'))
 
 
+def generate_logistic_model():
+    print('Logistic')
+    y = np.random.randint(0, 2, size=kRows)
+    assert y.max() == 1 and y.min() == 0
+
+    data = xgboost.DMatrix(X, label=y, weight=w)
+    booster = xgboost.train({'tree_method': 'hist',
+                             'num_parallel_tree': kForests,
+                             'max_depth': kMaxDepth,
+                             'objective': 'binary:logistic'},
+                            num_boost_round=kRounds, dtrain=data)
+    booster.save_model(booster_bin('logit'))
+    booster.save_model(booster_json('logit'))
+
+    reg = xgboost.XGBClassifier(tree_method='hist',
+                                num_parallel_tree=kForests,
+                                max_depth=kMaxDepth,
+                                n_estimators=kRounds)
+    reg.fit(X, y, w)
+    reg.save_model(skl_bin('logit'))
+    reg.save_model(skl_json('logit'))
+
+
 def generate_classification_model():
     print('Classification')
     y = np.random.randint(0, kClasses, size=kRows)
@@ -83,7 +106,7 @@ def generate_classification_model():
 def generate_ranking_model():
     print('Learning to Rank')
     y = np.random.randint(5, size=kRows)
-    w = np.random.randn(20)
+    w = np.random.uniform(size=20)
     g = np.repeat(50, 20)
 
     data = xgboost.DMatrix(X, y, weight=w)
@@ -119,6 +142,7 @@ if __name__ == '__main__':
         os.mkdir(target_dir)
 
     generate_regression_model()
+    generate_logistic_model()
     generate_classification_model()
     generate_ranking_model()
     write_versions()

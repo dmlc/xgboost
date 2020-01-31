@@ -39,7 +39,7 @@ class TestBasic(unittest.TestCase):
     def test_basic(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
-        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
+        param = {'max_depth': 2, 'eta': 1,
                  'objective': 'binary:logistic'}
         # specify validations set to watch performance
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]

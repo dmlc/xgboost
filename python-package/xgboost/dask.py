@@ -600,6 +600,7 @@ class DaskXGBRegressor(DaskScikitLearnBase):
         results = train(self.client, params, dtrain,
                         num_boost_round=self.get_num_boosting_rounds(),
                         evals=evals)
+        # pylint: disable=attribute-defined-outside-init
         self._Booster = results['booster']
         # pylint: disable=attribute-defined-outside-init
         self.evals_result_ = results['history']

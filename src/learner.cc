@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2019 by Contributors
+ * Copyright 2014-2020 by Contributors
  * \file learner.cc
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
@@ -117,8 +117,9 @@ LearnerModelParam::LearnerModelParam(
     LearnerModelParamLegacy const &user_param, float base_margin)
     : base_score{base_margin}, num_feature{user_param.num_feature},
       num_output_group{user_param.num_class == 0
-                           ? 1
-                           : static_cast<uint32_t>(user_param.num_class)} {}
+                       ? 1
+                       : static_cast<uint32_t>(user_param.num_class)}
+{}
 
 struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
   // data split mode, can be row, col, or none.
@@ -140,7 +141,7 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
         .describe("Data split mode for distributed training.");
     DMLC_DECLARE_FIELD(disable_default_eval_metric)
         .set_default(0)
-        .describe("flag to disable default metric. Set to >0 to disable");
+        .describe("Flag to disable default metric. Set to >0 to disable");
     DMLC_DECLARE_FIELD(booster)
         .set_default("gbtree")
         .describe("Gradient booster used for training.");
@@ -200,6 +201,7 @@ class LearnerImpl : public Learner {
     Args args = {cfg_.cbegin(), cfg_.cend()};
 
     tparam_.UpdateAllowUnknown(args);
+    auto mparam_backup = mparam_;
     mparam_.UpdateAllowUnknown(args);
     generic_parameters_.UpdateAllowUnknown(args);
     generic_parameters_.CheckDeprecated();
@@ -217,17 +219,33 @@ class LearnerImpl : public Learner {
 
     // set seed only before the model is initialized
     common::GlobalRandom().seed(generic_parameters_.seed);
+
     // must precede configure gbm since num_features is required for gbm
     this->ConfigureNumFeatures();
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
     this->ConfigureObjective(old_tparam, &args);
-    this->ConfigureGBM(old_tparam, args);
-    this->ConfigureMetrics(args);
 
+    // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
+    // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
+    // keep the stability, we initialize it in binary LoadModel instead of configuration.
+    // Under what condition should we omit the transformation:
+    //
+    // - base_score is loaded from old binary model.
+    //
+    // What are the other possible conditions:
+    //
+    // - model loaded from new binary or JSON.
+    // - model is created from scratch.
+    // - model is configured second time due to change of parameter
+    if (!learner_model_param_.Initialized() || mparam_.base_score != mparam_backup.base_score) {
+      learner_model_param_ = LearnerModelParam(mparam_,
+                                               obj_->ProbToMargin(mparam_.base_score));
+    }
+
+    this->ConfigureGBM(old_tparam, args);
     generic_parameters_.ConfigureGpuId(this->gbm_->UseGPU());
 
-    learner_model_param_ = LearnerModelParam(mparam_,
-                                             obj_->ProbToMargin(mparam_.base_score));
+    this->ConfigureMetrics(args);
 
     this->need_configuration_ = false;
     if (generic_parameters_.validate_parameters) {
@@ -336,9 +354,6 @@ class LearnerImpl : public Learner {
                                        &generic_parameters_, &learner_model_param_,
                                        cache_));
     gbm_->LoadModel(gradient_booster);
-
-    learner_model_param_ = LearnerModelParam(mparam_,
-                                             obj_->ProbToMargin(mparam_.base_score));
 
     auto const& j_attributes = get<Object const>(learner.at("attributes"));
     attributes_.clear();
@@ -459,6 +474,7 @@ class LearnerImpl : public Learner {
     }
 
     if (header[0] == '{') {
+      // Dispatch to JSON
       auto json_stream = common::FixedSizeStream(&fp);
       std::string buffer;
       json_stream.Take(&buffer);
@@ -471,25 +487,9 @@ class LearnerImpl : public Learner {
     // read parameter
     CHECK_EQ(fi->Read(&mparam_, sizeof(mparam_)), sizeof(mparam_))
         << "BoostLearner: wrong model format";
-    {
-      // backward compatibility code for compatible with old model type
-      // for new model, Read(&name_obj_) is suffice
-      uint64_t len;
-      CHECK_EQ(fi->Read(&len, sizeof(len)), sizeof(len));
-      if (len >= std::numeric_limits<unsigned>::max()) {
-        int gap;
-        CHECK_EQ(fi->Read(&gap, sizeof(gap)), sizeof(gap))
-            << "BoostLearner: wrong model format";
-        len = len >> static_cast<uint64_t>(32UL);
-      }
-      if (len != 0) {
-        tparam_.objective.resize(len);
-        CHECK_EQ(fi->Read(&tparam_.objective[0], len), len)
-            << "BoostLearner: wrong model format";
-      }
-    }
+    CHECK(fi->Read(&tparam_.objective)) << "BoostLearner: wrong model format";
     CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
-    // duplicated code with LazyInitModel
+
     obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
     gbm_.reset(GradientBooster::Create(tparam_.booster, &generic_parameters_,
                                        &learner_model_param_, cache_));
@@ -508,17 +508,38 @@ class LearnerImpl : public Learner {
       }
       attributes_ = std::map<std::string, std::string>(attr.begin(), attr.end());
     }
-    if (tparam_.objective == "count:poisson") {
-      std::string max_delta_step;
-      fi->Read(&max_delta_step);
-      cfg_["max_delta_step"] = max_delta_step;
+    bool warn_old_model { false };
+    if (attributes_.find("count_poisson_max_delta_step") != attributes_.cend()) {
+      // Loading model from < 1.0.0, objective is not saved.
+      cfg_["max_delta_step"] = attributes_["count_poisson_max_delta_step"];
+      attributes_.erase("count_poisson_max_delta_step");
+    } else {
+      warn_old_model = true;
     }
-    if (mparam_.contain_eval_metrics != 0) {
-      std::vector<std::string> metr;
-      fi->Read(&metr);
-      for (auto name : metr) {
-        metrics_.emplace_back(Metric::Create(name, &generic_parameters_));
-      }
+
+    if (attributes_.find("version") != attributes_.cend()) {
+      learner_model_param_ = LearnerModelParam(mparam_,
+                                               obj_->ProbToMargin(mparam_.base_score));
+      attributes_.erase("version");
+    } else {
+      // Before 1.0.0, base_score is saved as a transformed value, and there's no version
+      // attribute in the saved model.
+      learner_model_param_ = LearnerModelParam(mparam_, mparam_.base_score);
+      warn_old_model = true;
+    }
+    if (attributes_.find("objective") != attributes_.cend()) {
+      auto obj_str = attributes_.at("objective");
+      auto j_obj = Json::Load({obj_str.c_str(), obj_str.size()});
+      obj_->LoadConfig(j_obj);
+      attributes_.erase("objective");
+    } else {
+      // Similar to JSON model IO, we save the objective.
+      warn_old_model = true;
+    }
+
+    if (warn_old_model) {
+      LOG(WARNING) << "Loading model from XGBoost < 1.0.0, consider saving it "
+                      "again for improved compatibility";
     }
 
     cfg_["num_class"] = common::ToString(mparam_.num_class);
@@ -526,15 +547,6 @@ class LearnerImpl : public Learner {
 
     auto n = tparam_.__DICT__();
     cfg_.insert(n.cbegin(), n.cend());
-
-    Args args = {cfg_.cbegin(), cfg_.cend()};
-    generic_parameters_.UpdateAllowUnknown(args);
-    gbm_->Configure(args);
-    obj_->Configure({cfg_.begin(), cfg_.end()});
-
-    for (auto& p_metric : metrics_) {
-      p_metric->Configure({cfg_.begin(), cfg_.end()});
-    }
 
     // copy dsplit from config since it will not run again during restore
     if (tparam_.dsplit == DataSplitMode::kAuto && rabit::IsDistributed()) {
@@ -552,15 +564,9 @@ class LearnerImpl : public Learner {
   void SaveModel(dmlc::Stream* fo) const override {
     LearnerModelParamLegacy mparam = mparam_;  // make a copy to potentially modify
     std::vector<std::pair<std::string, std::string> > extra_attr;
-    // extra attributed to be added just before saving
-    if (tparam_.objective == "count:poisson") {
-      auto it = cfg_.find("max_delta_step");
-      if (it != cfg_.end()) {
-        // write `max_delta_step` parameter as extra attribute of booster
-        mparam.contain_extra_attrs = 1;
-        extra_attr.emplace_back("count_poisson_max_delta_step", it->second);
-      }
-    }
+    mparam.contain_extra_attrs = 1;
+    extra_attr.emplace_back(std::make_pair("version", Version::String(Version::Self())));
+
     {
       std::vector<std::string> saved_params;
       // check if rabit_bootstrap_cache were set to non zero before adding to checkpoint
@@ -577,6 +583,14 @@ class LearnerImpl : public Learner {
         }
       }
     }
+    {
+      // Save the objective.
+      Json j_obj { Object() };
+      obj_->SaveConfig(&j_obj);
+      std::string obj_doc;
+      Json::Dump(j_obj, &obj_doc);
+      extra_attr.emplace_back("objective", obj_doc);
+    }
     fo->Write(&mparam, sizeof(LearnerModelParamLegacy));
     fo->Write(tparam_.objective);
     fo->Write(tparam_.booster);
@@ -587,26 +601,7 @@ class LearnerImpl : public Learner {
         attr[kv.first] = kv.second;
       }
       fo->Write(std::vector<std::pair<std::string, std::string>>(
-                  attr.begin(), attr.end()));
-    }
-    if (tparam_.objective == "count:poisson") {
-      auto it = cfg_.find("max_delta_step");
-      if (it != cfg_.end()) {
-        fo->Write(it->second);
-      } else {
-        // recover value of max_delta_step from extra attributes
-        auto it2 = attributes_.find("count_poisson_max_delta_step");
-        const std::string max_delta_step
-          = (it2 != attributes_.end()) ? it2->second : kMaxDeltaStepDefaultValue;
-        fo->Write(max_delta_step);
-      }
-    }
-    if (mparam.contain_eval_metrics != 0) {
-      std::vector<std::string> metr;
-      for (auto& ev : metrics_) {
-        metr.emplace_back(ev->Name());
-      }
-      fo->Write(metr);
+          attr.begin(), attr.end()));
     }
   }
 
@@ -661,11 +656,13 @@ class LearnerImpl : public Learner {
 
   If you are loading a serialized model (like pickle in Python) generated by older
   XGBoost, please export the model by calling `Booster.save_model` from that version
-  first, then load it back in current version.  See:
+  first, then load it back in current version.  There's a simple script for helping
+  the process. See:
 
     https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html
 
-  for more details about differences between saving model and serializing.
+  for reference to the script, and more details about differences between saving model and
+  serializing.
 
 )doc";
       int64_t sz {-1};
@@ -854,7 +851,8 @@ class LearnerImpl : public Learner {
 
   void ConfigureObjective(LearnerTrainParam const& old, Args* p_args) {
     // Once binary IO is gone, NONE of these config is useful.
-    if (cfg_.find("num_class") != cfg_.cend() && cfg_.at("num_class") != "0") {
+    if (cfg_.find("num_class") != cfg_.cend() && cfg_.at("num_class") != "0" &&
+        tparam_.objective != "multi:softprob") {
       cfg_["num_output_group"] = cfg_["num_class"];
       if (atoi(cfg_["num_class"].c_str()) > 1 && cfg_.count("objective") == 0) {
         tparam_.objective = "multi:softmax";
@@ -919,7 +917,6 @@ class LearnerImpl : public Learner {
     }
     CHECK_NE(mparam_.num_feature, 0)
         << "0 feature is supplied.  Are you using raw Booster interface?";
-    learner_model_param_.num_feature = mparam_.num_feature;
     // Remove these once binary IO is gone.
     cfg_["num_feature"] = common::ToString(mparam_.num_feature);
     cfg_["num_class"] = common::ToString(mparam_.num_class);
