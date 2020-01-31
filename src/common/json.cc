@@ -24,7 +24,7 @@ void JsonWriter::Visit(JsonArray const* arr) {
   for (size_t i = 0; i < size; ++i) {
     auto const& value = vec[i];
     this->Save(value);
-    if (i != size-1) { Write(", "); }
+    if (i != size-1) { Write(","); }
   }
   this->Write("]");
 }
@@ -38,7 +38,7 @@ void JsonWriter::Visit(JsonObject const* obj) {
   size_t size = obj->getObject().size();
 
   for (auto& value : obj->getObject()) {
-    this->Write("\"" + value.first + "\": ");
+    this->Write("\"" + value.first + "\":");
     this->Save(value.second);
 
     if (i != size-1) {
