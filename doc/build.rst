@@ -98,11 +98,11 @@ Building on OSX
 Install with pip: simple method
 --------------------------------
 
-First, obtain ``gcc-9`` and ``OpenMP`` with Homebrew (https://brew.sh/) to enable multi-threading (i.e. using multiple CPU threads for training). The default Apple Clang compiler does not support OpenMP, so using the default compiler would have disabled multi-threading.
+First, obtain the OpenMP library (``libomp``) with Homebrew (https://brew.sh/) to enable multi-threading (i.e. using multiple CPU threads for training):
 
 .. code-block:: bash
 
-  brew install gcc@9 libomp
+  brew install libomp
 
 Then install XGBoost with ``pip``:
 
@@ -115,11 +115,11 @@ You might need to run the command with ``--user`` flag if you run into permissio
 Build from the source code - advanced method
 --------------------------------------------
 
-Obtain ``gcc-9`` and ``OpenMP`` from Homebrew:
+Obtain ``libomp`` from Homebrew:
 
 .. code-block:: bash
 
-  brew install gcc@9 libomp
+  brew install libomp
 
 
 Now clone the repository:
@@ -128,13 +128,13 @@ Now clone the repository:
 
   git clone --recursive https://github.com/dmlc/xgboost
 
-Create the ``build/`` directory and invoke CMake. Make sure to add ``CC=gcc-9 CXX=g++-9`` so that Homebrew GCC is selected. After invoking CMake, you can build XGBoost with ``make``:
+Create the ``build/`` directory and invoke CMake. After invoking CMake, you can build XGBoost with ``make``:
 
 .. code-block:: bash
 
   mkdir build
   cd build
-  CC=gcc-9 CXX=g++-9 cmake ..
+  cmake ..
   make -j4
 
 You may now continue to `Python Package Installation`_.

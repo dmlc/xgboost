@@ -2,7 +2,7 @@
  * Copyright 2017-2018 by Contributors
  * \file updater_quantile_hist.cc
  * \brief use quantized feature values to construct a tree
- * \author Philip Cho, Tianqi Checn
+ * \author Philip Cho, Tianqi Checn, Egor Smirnov
  */
 #include <dmlc/timer.h>
 #include <rabit/rabit.h>
@@ -44,7 +44,7 @@ void QuantileHistMaker::Configure(const Args& args) {
   pruner_->Configure(args);
   param_.UpdateAllowUnknown(args);
 
-  // initialise the split evaluator
+  // initialize the split evaluator
   if (!spliteval_) {
     spliteval_.reset(SplitEvaluator::Create(param_.split_evaluator));
   }
@@ -100,65 +100,120 @@ void QuantileHistMaker::Builder::SyncHistograms(
     int sync_count,
     RegTree *p_tree) {
   builder_monitor_.Start("SyncHistograms");
-  this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
-  // use Subtraction Trick
-  for (auto const& node_pair : nodes_for_subtraction_trick_) {
-    hist_.AddHistRow(node_pair.first);
-    SubtractionTrick(hist_[node_pair.first], hist_[node_pair.second],
-                     hist_[(*p_tree)[node_pair.first].Parent()]);
+
+  const bool isDistributed = rabit::IsDistributed();
+
+  const size_t nbins = hist_builder_.GetNumBins();
+  common::BlockedSpace2d space(nodes_for_explicit_hist_build_.size(), [&](size_t node) {
+    return nbins;
+  }, 1024);
+
+  common::ParallelFor2d(space, this->nthread_, [&](size_t node, common::Range1d r) {
+    const auto entry = nodes_for_explicit_hist_build_[node];
+    auto this_hist = hist_[entry.nid];
+    // Merging histograms from each thread into once
+    hist_buffer_.ReduceHist(node, r.begin(), r.end());
+
+    if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1 && !isDistributed) {
+      auto parent_hist = hist_[(*p_tree)[entry.nid].Parent()];
+      auto sibling_hist = hist_[entry.sibling_nid];
+
+      SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
+    }
+  });
+
+  if (isDistributed) {
+    this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
+    // use Subtraction Trick
+    for (auto const& node : nodes_for_subtraction_trick_) {
+      SubtractionTrick(hist_[node.nid], hist_[node.sibling_nid],
+                       hist_[(*p_tree)[node.nid].Parent()]);
+    }
   }
+
   builder_monitor_.Stop("SyncHistograms");
 }
 
+void QuantileHistMaker::Builder::BuildHistogramsLossGuide(
+                        ExpandEntry entry,
+                        const GHistIndexMatrix &gmat,
+                        const GHistIndexBlockMatrix &gmatb,
+                        RegTree *p_tree,
+                        const std::vector<GradientPair> &gpair_h) {
+  nodes_for_explicit_hist_build_.clear();
+  nodes_for_subtraction_trick_.clear();
+  nodes_for_explicit_hist_build_.push_back(entry);
+
+  if (entry.sibling_nid > -1) {
+    nodes_for_subtraction_trick_.emplace_back(entry.sibling_nid, entry.nid,
+        p_tree->GetDepth(entry.sibling_nid), 0.0f, 0);
+  }
+
+  int starting_index = std::numeric_limits<int>::max();
+  int sync_count = 0;
+
+  AddHistRows(&starting_index, &sync_count);
+  BuildLocalHistograms(gmat, gmatb, p_tree, gpair_h);
+  SyncHistograms(starting_index, sync_count, p_tree);
+}
+
+
+void QuantileHistMaker::Builder::AddHistRows(int *starting_index, int *sync_count) {
+  builder_monitor_.Start("AddHistRows");
+
+  for (auto const& entry : nodes_for_explicit_hist_build_) {
+    int nid = entry.nid;
+    hist_.AddHistRow(nid);
+    (*starting_index) = std::min(nid, (*starting_index));
+  }
+  (*sync_count) = nodes_for_explicit_hist_build_.size();
+
+  for (auto const& node : nodes_for_subtraction_trick_) {
+    hist_.AddHistRow(node.nid);
+  }
+
+  builder_monitor_.Stop("AddHistRows");
+}
+
+
 void QuantileHistMaker::Builder::BuildLocalHistograms(
-    int *starting_index,
-    int *sync_count,
     const GHistIndexMatrix &gmat,
     const GHistIndexBlockMatrix &gmatb,
     RegTree *p_tree,
     const std::vector<GradientPair> &gpair_h) {
   builder_monitor_.Start("BuildLocalHistograms");
-  for (auto const& entry : qexpand_depth_wise_) {
-    int nid = entry.nid;
-    RegTree::Node &node = (*p_tree)[nid];
-    if (rabit::IsDistributed()) {
-      if (node.IsRoot() || node.IsLeftChild()) {
-        hist_.AddHistRow(nid);
-        // in distributed setting, we always calculate from left child or root node
-        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-        if (!node.IsRoot()) {
-          nodes_for_subtraction_trick_[(*p_tree)[node.Parent()].RightChild()] = nid;
-        }
-        (*sync_count)++;
-        (*starting_index) = std::min((*starting_index), nid);
-      }
-    } else {
-      if (!node.IsRoot() && node.IsLeftChild() &&
-          (row_set_collection_[nid].Size() <
-           row_set_collection_[(*p_tree)[node.Parent()].RightChild()].Size())) {
-        hist_.AddHistRow(nid);
-        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-        nodes_for_subtraction_trick_[(*p_tree)[node.Parent()].RightChild()] = nid;
-        (*sync_count)++;
-        (*starting_index) = std::min((*starting_index), nid);
-      } else if (!node.IsRoot() && !node.IsLeftChild() &&
-                 (row_set_collection_[nid].Size() <=
-                  row_set_collection_[(*p_tree)[node.Parent()].LeftChild()].Size())) {
-        hist_.AddHistRow(nid);
-        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-        nodes_for_subtraction_trick_[(*p_tree)[node.Parent()].LeftChild()] = nid;
-        (*sync_count)++;
-        (*starting_index) = std::min((*starting_index), nid);
-      } else if (node.IsRoot()) {
-        hist_.AddHistRow(nid);
-        BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_[nid], false);
-        (*sync_count)++;
-        (*starting_index) = std::min((*starting_index), nid);
-      }
-    }
+
+  const size_t n_nodes = nodes_for_explicit_hist_build_.size();
+
+  // create space of size (# rows in each node)
+  common::BlockedSpace2d space(n_nodes, [&](size_t node) {
+    const int32_t nid = nodes_for_explicit_hist_build_[node].nid;
+    return row_set_collection_[nid].Size();
+  }, 256);
+
+  std::vector<GHistRow> target_hists(n_nodes);
+  for (size_t i = 0; i < n_nodes; ++i) {
+    const int32_t nid = nodes_for_explicit_hist_build_[i].nid;
+    target_hists[i] = hist_[nid];
   }
+
+  hist_buffer_.Reset(this->nthread_, n_nodes, space, target_hists);
+
+  // Parallel processing by nodes and data in each node
+  common::ParallelFor2d(space, this->nthread_, [&](size_t nid_in_set, common::Range1d r) {
+    const auto tid = static_cast<unsigned>(omp_get_thread_num());
+    const int32_t nid = nodes_for_explicit_hist_build_[nid_in_set].nid;
+
+    auto start_of_row_set = row_set_collection_[nid].begin;
+    auto rid_set = RowSetCollection::Elem(start_of_row_set + r.begin(),
+                                      start_of_row_set + r.end(),
+                                      nid);
+    BuildHist(gpair_h, rid_set, gmat, gmatb, hist_buffer_.GetInitializedHist(tid, nid_in_set));
+  });
+
   builder_monitor_.Stop("BuildLocalHistograms");
 }
+
 
 void QuantileHistMaker::Builder::BuildNodeStats(
     const GHistIndexMatrix &gmat,
@@ -193,7 +248,7 @@ void QuantileHistMaker::Builder::EvaluateSplits(
     int depth,
     unsigned *timestamp,
     std::vector<ExpandEntry> *temp_qexpand_depth) {
-  this->EvaluateSplit(qexpand_depth_wise_, gmat, hist_, *p_fmat, *p_tree);
+  EvaluateSplit(qexpand_depth_wise_, gmat, hist_, *p_fmat, *p_tree);
 
   for (auto const& entry : qexpand_depth_wise_) {
     int nid = entry.nid;
@@ -206,12 +261,49 @@ void QuantileHistMaker::Builder::EvaluateSplits(
       this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
       int left_id = (*p_tree)[nid].LeftChild();
       int right_id = (*p_tree)[nid].RightChild();
-      temp_qexpand_depth->push_back(ExpandEntry(left_id,
+      temp_qexpand_depth->push_back(ExpandEntry(left_id, right_id,
                                                 p_tree->GetDepth(left_id), 0.0, (*timestamp)++));
-      temp_qexpand_depth->push_back(ExpandEntry(right_id,
+      temp_qexpand_depth->push_back(ExpandEntry(right_id, left_id,
                                                 p_tree->GetDepth(right_id), 0.0, (*timestamp)++));
       // - 1 parent + 2 new children
       (*num_leaves)++;
+    }
+  }
+}
+
+// Split nodes to 2 sets depending on amount of rows in each node
+// Histograms for small nodes will be built explicitly
+// Histograms for big nodes will be built by 'Subtraction Trick'
+// Exception: in distributed setting, we always build the histogram for the left child node
+//    and use 'Subtraction Trick' to built the histogram for the right child node.
+//    This ensures that the workers operate on the same set of tree nodes.
+void QuantileHistMaker::Builder::SplitSiblings(const std::vector<ExpandEntry>& nodes,
+                   std::vector<ExpandEntry>* small_siblings,
+                   std::vector<ExpandEntry>* big_siblings,
+                   RegTree *p_tree) {
+  for (auto const& entry : nodes) {
+    int nid = entry.nid;
+    RegTree::Node &node = (*p_tree)[nid];
+    if (rabit::IsDistributed()) {
+      if (node.IsRoot() || node.IsLeftChild()) {
+        small_siblings->push_back(entry);
+      } else {
+        big_siblings->push_back(entry);
+      }
+    } else {
+      if (!node.IsRoot() && node.IsLeftChild() &&
+          (row_set_collection_[nid].Size() <
+           row_set_collection_[(*p_tree)[node.Parent()].RightChild()].Size())) {
+        small_siblings->push_back(entry);
+      } else if (!node.IsRoot() && !node.IsLeftChild() &&
+                 (row_set_collection_[nid].Size() <=
+                  row_set_collection_[(*p_tree)[node.Parent()].LeftChild()].Size())) {
+        small_siblings->push_back(entry);
+      } else if (node.IsRoot()) {
+        small_siblings->push_back(entry);
+      } else {
+        big_siblings->push_back(entry);
+      }
     }
   }
 }
@@ -227,21 +319,28 @@ void QuantileHistMaker::Builder::ExpandWithDepthWise(
   int num_leaves = 0;
 
   // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
-  qexpand_depth_wise_.emplace_back(ExpandEntry(ExpandEntry::kRootNid,
+  qexpand_depth_wise_.emplace_back(ExpandEntry(ExpandEntry::kRootNid, ExpandEntry::kEmptyNid,
       p_tree->GetDepth(ExpandEntry::kRootNid), 0.0, timestamp++));
   ++num_leaves;
   for (int depth = 0; depth < param_.max_depth + 1; depth++) {
     int starting_index = std::numeric_limits<int>::max();
     int sync_count = 0;
     std::vector<ExpandEntry> temp_qexpand_depth;
-    BuildLocalHistograms(&starting_index, &sync_count, gmat, gmatb, p_tree, gpair_h);
+
+    SplitSiblings(qexpand_depth_wise_, &nodes_for_explicit_hist_build_,
+                  &nodes_for_subtraction_trick_, p_tree);
+    AddHistRows(&starting_index, &sync_count);
+
+    BuildLocalHistograms(gmat, gmatb, p_tree, gpair_h);
     SyncHistograms(starting_index, sync_count, p_tree);
+
     BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
     EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
                    &temp_qexpand_depth);
     // clean up
     qexpand_depth_wise_.clear();
     nodes_for_subtraction_trick_.clear();
+    nodes_for_explicit_hist_build_.clear();
     if (temp_qexpand_depth.empty()) {
       break;
     } else {
@@ -262,14 +361,12 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
   unsigned timestamp = 0;
   int num_leaves = 0;
 
-  hist_.AddHistRow(ExpandEntry::kRootNid);
-  BuildHist(gpair_h, row_set_collection_[ExpandEntry::kRootNid], gmat, gmatb,
-      hist_[ExpandEntry::kRootNid], true);
+  ExpandEntry node(ExpandEntry::kRootNid, ExpandEntry::kEmptyNid,
+      p_tree->GetDepth(0), 0.0f, timestamp++);
+  BuildHistogramsLossGuide(node, gmat, gmatb, p_tree, gpair_h);
 
   this->InitNewNode(ExpandEntry::kRootNid, gmat, gpair_h, *p_fmat, *p_tree);
 
-  ExpandEntry node(ExpandEntry::kRootNid, p_tree->GetDepth(ExpandEntry::kRootNid),
-      snode_[ExpandEntry::kRootNid].best.loss_chg, timestamp++);
   this->EvaluateSplit({node}, gmat, hist_, *p_fmat, *p_tree);
   node.loss_chg = snode_[ExpandEntry::kRootNid].best.loss_chg;
 
@@ -289,20 +386,20 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
 
       const int cleft = (*p_tree)[nid].LeftChild();
       const int cright = (*p_tree)[nid].RightChild();
-      hist_.AddHistRow(cleft);
-      hist_.AddHistRow(cright);
+
+      ExpandEntry left_node(cleft, cright, p_tree->GetDepth(cleft),
+                            0.0f, timestamp++);
+      ExpandEntry right_node(cright, cleft, p_tree->GetDepth(cright),
+                            0.0f, timestamp++);
 
       if (rabit::IsDistributed()) {
         // in distributed mode, we need to keep consistent across workers
-        BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft], true);
-        SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
+        BuildHistogramsLossGuide(left_node, gmat, gmatb, p_tree, gpair_h);
       } else {
         if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
-          BuildHist(gpair_h, row_set_collection_[cleft], gmat, gmatb, hist_[cleft], true);
-          SubtractionTrick(hist_[cright], hist_[cleft], hist_[nid]);
+          BuildHistogramsLossGuide(left_node, gmat, gmatb, p_tree, gpair_h);
         } else {
-          BuildHist(gpair_h, row_set_collection_[cright], gmat, gmatb, hist_[cright], true);
-          SubtractionTrick(hist_[cleft], hist_[cright], hist_[nid]);
+          BuildHistogramsLossGuide(right_node, gmat, gmatb, p_tree, gpair_h);
         }
       }
 
@@ -312,11 +409,6 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
       spliteval_->AddSplit(nid, cleft, cright, featureid,
                            snode_[cleft].weight, snode_[cright].weight);
       interaction_constraints_.Split(nid, featureid, cleft, cright);
-
-      ExpandEntry left_node(cleft, p_tree->GetDepth(cleft),
-                            snode_[cleft].best.loss_chg, timestamp++);
-      ExpandEntry right_node(cright, p_tree->GetDepth(cright),
-                            snode_[cright].best.loss_chg, timestamp++);
 
       this->EvaluateSplit({left_node, right_node}, gmat, hist_, *p_fmat, *p_tree);
       left_node.loss_chg = snode_[cleft].best.loss_chg;
@@ -427,6 +519,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     // initialize histogram collection
     uint32_t nbins = gmat.cut.Ptrs().back();
     hist_.Init(nbins);
+    hist_buffer_.Init(nbins);
 
     // initialize histogram builder
 #pragma omp parallel
@@ -589,7 +682,7 @@ void QuantileHistMaker::Builder::EvaluateSplit(const std::vector<ExpandEntry>& n
   builder_monitor_.Start("EvaluateSplit");
 
   const size_t n_nodes_in_set = nodes_set.size();
-  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);
+  const size_t nthread = std::max(1, this->nthread_);
 
   using FeatureSetType = std::shared_ptr<HostDeviceVector<bst_feature_t>>;
   std::vector<FeatureSetType> features_sets(n_nodes_in_set);
@@ -607,12 +700,13 @@ void QuantileHistMaker::Builder::EvaluateSplit(const std::vector<ExpandEntry>& n
 
   // Create 2D space (# of nodes to process x # of features to process)
   // to process them in parallel
+  const size_t grain_size = std::max<size_t>(1, features_sets[0]->Size() / nthread);
   common::BlockedSpace2d space(n_nodes_in_set, [&](size_t nid_in_set) {
       return features_sets[nid_in_set]->Size();
-  }, 1);
+  }, grain_size);
 
   // Start parallel enumeration for all tree nodes in the set and all features
-  common::ParallelFor2d(space, [&](size_t nid_in_set, common::Range1d r) {
+  common::ParallelFor2d(space, this->nthread_, [&](size_t nid_in_set, common::Range1d r) {
     const int32_t nid = nodes_set[nid_in_set].nid;
     const auto tid = static_cast<unsigned>(omp_get_thread_num());
     GHistRow node_hist = hist[nid];

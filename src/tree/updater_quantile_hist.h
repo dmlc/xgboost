@@ -2,7 +2,7 @@
  * Copyright 2017-2018 by Contributors
  * \file updater_quantile_hist.h
  * \brief use quantized feature values to construct a tree
- * \author Philip Cho, Tianqi Chen
+ * \author Philip Cho, Tianqi Chen, Egor Smirnov
  */
 #ifndef XGBOOST_TREE_UPDATER_QUANTILE_HIST_H_
 #define XGBOOST_TREE_UPDATER_QUANTILE_HIST_H_
@@ -157,18 +157,12 @@ class QuantileHistMaker: public TreeUpdater {
                           const RowSetCollection::Elem row_indices,
                           const GHistIndexMatrix& gmat,
                           const GHistIndexBlockMatrix& gmatb,
-                          GHistRow hist,
-                          bool sync_hist) {
-      builder_monitor_.Start("BuildHist");
+                          GHistRow hist) {
       if (param_.enable_feature_grouping > 0) {
         hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
         hist_builder_.BuildHist(gpair, row_indices, gmat, hist);
       }
-      if (sync_hist) {
-        this->histred_.Allreduce(hist.data(), hist_builder_.GetNumBins());
-      }
-      builder_monitor_.Stop("BuildHist");
     }
 
     inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
@@ -183,13 +177,15 @@ class QuantileHistMaker: public TreeUpdater {
    protected:
     /* tree growing policies */
     struct ExpandEntry {
-      static const int kRootNid = 0;
+      static const int kRootNid  = 0;
+      static const int kEmptyNid = -1;
       int nid;
+      int sibling_nid;
       int depth;
       bst_float loss_chg;
       unsigned timestamp;
-      ExpandEntry(int nid, int depth, bst_float loss_chg, unsigned tstmp)
-              : nid(nid), depth(depth), loss_chg(loss_chg), timestamp(tstmp) {}
+      ExpandEntry(int nid, int sibling_nid, int depth, bst_float loss_chg, unsigned tstmp):
+        nid(nid), sibling_nid(sibling_nid), depth(depth), loss_chg(loss_chg), timestamp(tstmp) {}
     };
 
     // initialize temp data structure
@@ -259,12 +255,27 @@ class QuantileHistMaker: public TreeUpdater {
                              RegTree *p_tree,
                              const std::vector<GradientPair> &gpair_h);
 
-    void BuildLocalHistograms(int *starting_index,
-                              int *sync_count,
-                              const GHistIndexMatrix &gmat,
+    void BuildLocalHistograms(const GHistIndexMatrix &gmat,
                               const GHistIndexBlockMatrix &gmatb,
                               RegTree *p_tree,
                               const std::vector<GradientPair> &gpair_h);
+
+    void AddHistRows(int *starting_index, int *sync_count);
+
+    void BuildHistogramsLossGuide(
+                        ExpandEntry entry,
+                        const GHistIndexMatrix &gmat,
+                        const GHistIndexBlockMatrix &gmatb,
+                        RegTree *p_tree,
+                        const std::vector<GradientPair> &gpair_h);
+
+    // Split nodes to 2 sets depending on amount of rows in each node
+    // Histograms for small nodes will be built explicitly
+    // Histograms for big nodes will be built by 'Subtraction Trick'
+    void SplitSiblings(const std::vector<ExpandEntry>& nodes,
+                   std::vector<ExpandEntry>* small_siblings,
+                   std::vector<ExpandEntry>* big_siblings,
+                   RegTree *p_tree);
 
     void SyncHistograms(int starting_index,
                         int sync_count,
@@ -336,12 +347,15 @@ class QuantileHistMaker: public TreeUpdater {
     std::vector<ExpandEntry> qexpand_depth_wise_;
     // key is the node id which should be calculated by Subtraction Trick, value is the node which
     // provides the evidence for substracts
-    std::unordered_map<int, int> nodes_for_subtraction_trick_;
+    std::vector<ExpandEntry> nodes_for_subtraction_trick_;
+    // list of nodes whose histograms would be built explicitly.
+    std::vector<ExpandEntry> nodes_for_explicit_hist_build_;
 
     enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
 
     common::Monitor builder_monitor_;
+    common::ParallelGHistBuilder hist_buffer_;
     rabit::Reducer<GradStats, GradStats::Reduce> histred_;
   };
 
