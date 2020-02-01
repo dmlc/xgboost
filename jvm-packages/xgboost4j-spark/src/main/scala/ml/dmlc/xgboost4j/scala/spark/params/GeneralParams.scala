@@ -106,6 +106,18 @@ private[spark] trait GeneralParams extends Params {
   final def getMissing: Float = $(missing)
 
   /**
+   * Allows for skipping processing of missing values. default: false
+   */
+  final val skipProcessingMissing = new BooleanParam(
+    this,
+    "skipProcessingMissing",
+    "Allow to skip processing missing values in the input. " +
+      "Should only be used if th input is known to contain no missing values."
+  )
+
+  final def getSkipProcessingMissing: Boolean = $(skipProcessingMissing)
+
+  /**
     * Allows for having a non-zero value for missing when training on prediction
     * on a Sparse or Empty vector.
     */

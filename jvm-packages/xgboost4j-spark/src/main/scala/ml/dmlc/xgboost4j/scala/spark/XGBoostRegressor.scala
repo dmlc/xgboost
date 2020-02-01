@@ -257,6 +257,7 @@ class XGBoostRegressionModel private[ml] (
     val dm = new DMatrix(XGBoost.processMissingValues(
       Iterator(features.asXGB),
       $(missing),
+      $(skipProcessingMissing),
       $(allowNonZeroForMissing)
     ))
     _booster.predict(data = dm)(0)(0)
@@ -299,6 +300,7 @@ class XGBoostRegressionModel private[ml] (
             XGBoost.processMissingValues(
               features.map(_.asXGB),
               $(missing),
+              $(skipProcessingMissing),
               $(allowNonZeroForMissing)
             ),
             cacheInfo)

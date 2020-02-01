@@ -261,6 +261,7 @@ class XGBoostClassificationModel private[ml](
     val dm = new DMatrix(XGBoost.processMissingValues(
       Iterator(features.asXGB),
       $(missing),
+      $(skipProcessingMissing),
       $(allowNonZeroForMissing)
     ))
     val probability = _booster.predict(data = dm)(0).map(_.toDouble)
@@ -321,6 +322,7 @@ class XGBoostClassificationModel private[ml](
             XGBoost.processMissingValues(
               features.map(_.asXGB),
               $(missing),
+              $(skipProcessingMissing),
               $(allowNonZeroForMissing)
             ),
             cacheInfo)
