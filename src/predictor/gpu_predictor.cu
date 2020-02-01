@@ -325,9 +325,9 @@ class GPUPredictor : public xgboost::Predictor {
 
     DevicePredictInternal(dmat, out_preds, model, tree_begin, tree_end);
 
-    auto cache_emtry = this->FindCache(dmat);
-    if (cache_emtry == cache_->cend()) { return; }
-    if (cache_emtry->second.predictions.Size() == 0) {
+    auto cache_entry = this->FindCache(dmat);
+    if (cache_entry == cache_->cend()) { return; }
+    if (cache_entry->second.predictions.Size() == 0) {
       // Initialise the cache on first iteration, this comes useful
       // when performing training continuation:
       //
@@ -337,10 +337,10 @@ class GPUPredictor : public xgboost::Predictor {
       //
       // If we don't initialise this cache, the 2 step will recieve an invalid cache as
       // the first step only modifies prediction store in learner without following code.
-      InitOutPredictions(cache_emtry->second.data->Info(),
-                         &(cache_emtry->second.predictions), model);
-      CHECK_EQ(cache_emtry->second.predictions.Size(), out_preds->Size());
-      cache_emtry->second.predictions.Copy(*out_preds);
+      InitOutPredictions(cache_entry->second.data->Info(),
+                         &(cache_entry->second.predictions), model);
+      CHECK_EQ(cache_entry->second.predictions.Size(), out_preds->Size());
+      cache_entry->second.predictions.Copy(*out_preds);
     }
   }
 
