@@ -10,6 +10,7 @@
 #include <xgboost/data.h>
 #include <algorithm>
 #include <vector>
+#include <utility>
 
 namespace xgboost {
 namespace common {
@@ -57,6 +58,13 @@ class RowSetCollection {
         << "access element that is not in the set";
     return e;
   }
+
+  /*! \brief return corresponding element set given the node_id */
+  inline Elem& operator[](unsigned node_id) {
+    Elem& e = elem_of_each_node_[node_id];
+    return e;
+  }
+
   // clear up things
   inline void Clear() {
     elem_of_each_node_.clear();
@@ -83,25 +91,18 @@ class RowSetCollection {
   }
   // split rowset into two
   inline void AddSplit(unsigned node_id,
-                       const std::vector<Split>& row_split_tloc,
                        unsigned left_node_id,
-                       unsigned right_node_id) {
+                       unsigned right_node_id,
+                       size_t n_left,
+                       size_t n_right) {
     const Elem e = elem_of_each_node_[node_id];
-    const auto nthread = static_cast<bst_omp_uint>(row_split_tloc.size());
     CHECK(e.begin != nullptr);
     size_t* all_begin = dmlc::BeginPtr(row_indices_);
     size_t* begin = all_begin + (e.begin - all_begin);
 
-    size_t* it = begin;
-    for (bst_omp_uint tid = 0; tid < nthread; ++tid) {
-      std::copy(row_split_tloc[tid].left.begin(), row_split_tloc[tid].left.end(), it);
-      it += row_split_tloc[tid].left.size();
-    }
-    size_t* split_pt = it;
-    for (bst_omp_uint tid = 0; tid < nthread; ++tid) {
-      std::copy(row_split_tloc[tid].right.begin(), row_split_tloc[tid].right.end(), it);
-      it += row_split_tloc[tid].right.size();
-    }
+    CHECK_EQ(n_left + n_right, e.Size());
+    CHECK_LE(begin + n_left, e.end);
+    CHECK_EQ(begin + n_left + n_right, e.end);
 
     if (left_node_id >= elem_of_each_node_.size()) {
       elem_of_each_node_.resize(left_node_id + 1, Elem(nullptr, nullptr, -1));
@@ -110,18 +111,137 @@ class RowSetCollection {
       elem_of_each_node_.resize(right_node_id + 1, Elem(nullptr, nullptr, -1));
     }
 
-    elem_of_each_node_[left_node_id] = Elem(begin, split_pt, left_node_id);
-    elem_of_each_node_[right_node_id] = Elem(split_pt, e.end, right_node_id);
+    elem_of_each_node_[left_node_id] = Elem(begin, begin + n_left, left_node_id);
+    elem_of_each_node_[right_node_id] = Elem(begin + n_left, e.end, right_node_id);
     elem_of_each_node_[node_id] = Elem(nullptr, nullptr, -1);
   }
 
-  // stores the row indices in the set
+  // stores the row indexes in the set
   std::vector<size_t> row_indices_;
 
  private:
   // vector: node_id -> elements
   std::vector<Elem> elem_of_each_node_;
 };
+
+
+// The builder is required for samples partition to left and rights children for set of nodes
+// Responsible for:
+// 1) Effective memory allocation for intermediate results for multi-thread work
+// 2) Merging partial results produced by threads into original row set (row_set_collection_)
+// BlockSize is template to enable memory alignment easily with C++11 'alignas()' feature
+template<size_t BlockSize>
+class PartitionBuilder {
+ public:
+  template<typename Func>
+  void Init(const size_t n_tasks, size_t n_nodes, Func funcNTaks) {
+    left_right_nodes_sizes_.resize(n_nodes);
+    blocks_offsets_.resize(n_nodes+1);
+
+    blocks_offsets_[0] = 0;
+    for (size_t i = 1; i < n_nodes+1; ++i) {
+      blocks_offsets_[i] = blocks_offsets_[i-1] + funcNTaks(i-1);
+    }
+
+    if (n_tasks > max_n_tasks_) {
+      mem_blocks_.resize(n_tasks);
+      max_n_tasks_ = n_tasks;
+    }
+  }
+
+  size_t* GetLeftBuffer(int nid, size_t begin, size_t end) {
+    const size_t task_idx = GetTaskIdx(nid, begin);
+    CHECK_LE(task_idx, mem_blocks_.size());
+    return mem_blocks_[task_idx].left();
+  }
+
+  size_t* GetRightBuffer(int nid, size_t begin, size_t end) {
+    const size_t task_idx = GetTaskIdx(nid, begin);
+    CHECK_LE(task_idx, mem_blocks_.size());
+    return mem_blocks_[task_idx].right();
+  }
+
+  void SetNLeftElems(int nid, size_t begin, size_t end, size_t n_left) {
+    size_t task_idx = GetTaskIdx(nid, begin);
+    CHECK_LE(task_idx, mem_blocks_.size());
+    mem_blocks_[task_idx].n_left = n_left;
+  }
+
+  void SetNRightElems(int nid, size_t begin, size_t end, size_t n_right) {
+    size_t task_idx = GetTaskIdx(nid, begin);
+    CHECK_LE(task_idx, mem_blocks_.size());
+    mem_blocks_[task_idx].n_right = n_right;
+  }
+
+
+  size_t GetNLeftElems(int nid) const {
+    return left_right_nodes_sizes_[nid].first;
+  }
+
+  size_t GetNRightElems(int nid) const {
+    return left_right_nodes_sizes_[nid].second;
+  }
+
+  // Each thread has partial results for some set of tree-nodes
+  // The function decides order of merging partial results into final row set
+  void CalculateRowOffsets() {
+    for (size_t i = 0; i < blocks_offsets_.size()-1; ++i) {
+      size_t n_left = 0;
+      for (size_t j = blocks_offsets_[i]; j < blocks_offsets_[i+1]; ++j) {
+        mem_blocks_[j].n_offset_left = n_left;
+        n_left += mem_blocks_[j].n_left;
+      }
+      size_t n_right = 0;
+      for (size_t j = blocks_offsets_[i]; j < blocks_offsets_[i+1]; ++j) {
+        mem_blocks_[j].n_offset_right = n_left + n_right;
+        n_right += mem_blocks_[j].n_right;
+      }
+      left_right_nodes_sizes_[i] = {n_left, n_right};
+    }
+  }
+
+  void MergeToArray(int nid, size_t begin, size_t* rows_indexes) {
+    size_t task_idx = GetTaskIdx(nid, begin);
+
+    size_t* left_result  = rows_indexes + mem_blocks_[task_idx].n_offset_left;
+    size_t* right_result = rows_indexes + mem_blocks_[task_idx].n_offset_right;
+
+    const size_t* left = mem_blocks_[task_idx].left();
+    const size_t* right = mem_blocks_[task_idx].right();
+
+    std::copy_n(left, mem_blocks_[task_idx].n_left, left_result);
+    std::copy_n(right, mem_blocks_[task_idx].n_right, right_result);
+  }
+
+ protected:
+  size_t GetTaskIdx(int nid, size_t begin) {
+    return blocks_offsets_[nid] + begin / BlockSize;
+  }
+
+  struct BlockInfo{
+    size_t n_left;
+    size_t n_right;
+
+    size_t n_offset_left;
+    size_t n_offset_right;
+
+    size_t* left() {
+      return &left_data_[0];
+    }
+
+    size_t* right() {
+      return &right_data_[0];
+    }
+   private:
+    alignas(128) size_t left_data_[BlockSize];
+    alignas(128) size_t right_data_[BlockSize];
+  };
+  std::vector<std::pair<size_t, size_t>> left_right_nodes_sizes_;
+  std::vector<size_t> blocks_offsets_;
+  std::vector<BlockInfo> mem_blocks_;
+  size_t max_n_tasks_ = 0;
+};
+
 
 }  // namespace common
 }  // namespace xgboost

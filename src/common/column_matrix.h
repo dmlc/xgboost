@@ -37,6 +37,7 @@ class Column {
   size_t Size() const { return len_; }
   uint32_t GetGlobalBinIdx(size_t idx) const { return index_base_ + index_[idx]; }
   uint32_t GetFeatureBinIdx(size_t idx) const { return index_[idx]; }
+  const uint32_t* GetFeatureBinIdxPtr() const { return index_; }
   // column.GetFeatureBinIdx(idx) + column.GetBaseIdx(idx) ==
   // column.GetGlobalBinIdx(idx)
   uint32_t GetBaseIdx() const { return index_base_; }

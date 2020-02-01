@@ -707,40 +707,107 @@ void SubtractionHist(GHistRow dst, const GHistRow src1, const GHistRow src2,
   }
 }
 
+template<typename FPType, bool do_prefetch>
+void BuildHistDenseKernel(const size_t* rid, const float* pgh, const uint32_t* index,
+    FPType* hist_data, size_t ibegin, size_t iend, size_t n_features,
+    size_t prefetch_offset, size_t prefetch_step) {
+  for (size_t i = ibegin; i < iend; ++i) {
+    const size_t icol_start = rid[i] * n_features;
+    const size_t idx_gh = 2*rid[i];
+
+    if (do_prefetch) {
+      const size_t icol_start_prefetch = rid[i+prefetch_offset] * n_features;
+
+      PREFETCH_READ_T0(pgh + 2*rid[i + prefetch_offset]);
+      for (size_t j = icol_start_prefetch; j < icol_start_prefetch + n_features;
+            j += prefetch_step) {
+        PREFETCH_READ_T0(index + j);
+      }
+    }
+
+    for (size_t j = icol_start; j < icol_start + n_features; ++j) {
+      const uint32_t idx_bin = 2*index[j];
+
+      hist_data[idx_bin]   += pgh[idx_gh];
+      hist_data[idx_bin+1] += pgh[idx_gh+1];
+    }
+  }
+}
+
+template<typename FPType, bool do_prefetch>
+void BuildHistSparseKernel(const size_t* rid, const float* pgh, const uint32_t* index,
+    FPType* hist_data, const size_t* row_ptr, size_t ibegin, size_t iend,
+    size_t prefetch_offset, size_t prefetch_step) {
+  for (size_t i = ibegin; i < iend; ++i) {
+    const size_t icol_start = row_ptr[rid[i]];
+    const size_t icol_end = row_ptr[rid[i]+1];
+    const size_t idx_gh = 2*rid[i];
+
+    if (do_prefetch) {
+      const size_t icol_start_prftch = row_ptr[rid[i+prefetch_offset]];
+      const size_t icol_end_prefect = row_ptr[rid[i+prefetch_offset]+1];
+
+      PREFETCH_READ_T0(pgh + 2*rid[i + prefetch_offset]);
+      for (size_t j = icol_start_prftch; j < icol_end_prefect; j+=prefetch_step) {
+        PREFETCH_READ_T0(index + j);
+      }
+    }
+
+    for (size_t j = icol_start; j < icol_end; ++j) {
+      const uint32_t idx_bin = 2*index[j];
+      hist_data[idx_bin]   += pgh[idx_gh];
+      hist_data[idx_bin+1] += pgh[idx_gh+1];
+    }
+  }
+}
+
+template<typename FPType, bool do_prefetch>
+void BuildHistKernel(const size_t* rid, const float* pgh, const uint32_t* index,
+    FPType* hist_data, const size_t* row_ptr, size_t ibegin, size_t iend,
+    size_t prefetch_offset, size_t prefetch_step, bool isDense) {
+  if (isDense) {
+    const size_t n_features = row_ptr[rid[0]+1] - row_ptr[rid[0]];
+    BuildHistDenseKernel<FPType, do_prefetch>(rid, pgh, index, hist_data,
+        ibegin, iend, n_features, prefetch_offset, prefetch_step);
+  } else {
+    BuildHistSparseKernel<FPType, do_prefetch>(rid, pgh, index, hist_data, row_ptr,
+        ibegin, iend, prefetch_offset, prefetch_step);
+  }
+}
 
 void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
                              const RowSetCollection::Elem row_indices,
                              const GHistIndexMatrix& gmat,
-                             GHistRow hist) {
+                             GHistRow hist,
+                             bool isDense) {
   const size_t* rid =  row_indices.begin;
   const size_t nrows = row_indices.Size();
   const uint32_t* index = gmat.index.data();
   const size_t* row_ptr =  gmat.row_ptr.data();
   const float* pgh = reinterpret_cast<const float*>(gpair.data());
 
-  double* hist_data = reinterpret_cast<double*>(hist.data());
+  using FPType = decltype(tree::GradStats::sum_grad);
+  FPType* hist_data = reinterpret_cast<FPType*>(hist.data());
 
   const size_t cache_line_size = 64;
   const size_t prefetch_offset = 10;
   size_t no_prefetch_size = prefetch_offset + cache_line_size/sizeof(*rid);
   no_prefetch_size = no_prefetch_size > nrows ? nrows : no_prefetch_size;
+  const size_t prefetch_step = cache_line_size / sizeof(*index);
 
-  for (size_t i = 0; i < nrows; ++i) {
-    const size_t icol_start = row_ptr[rid[i]];
-    const size_t icol_end = row_ptr[rid[i]+1];
+  // if need to work with all rows from bin-matrix (e.g. root node)
+  const bool contiguousBlock = (rid[row_indices.Size()-1] - rid[0]) == (row_indices.Size() - 1);
 
-    if (i < nrows - no_prefetch_size) {
-      PREFETCH_READ_T0(row_ptr + rid[i + prefetch_offset]);
-      PREFETCH_READ_T0(pgh + 2*rid[i + prefetch_offset]);
-    }
-
-    for (size_t j = icol_start; j < icol_end; ++j) {
-      const uint32_t idx_bin = 2*index[j];
-      const size_t idx_gh = 2*rid[i];
-
-      hist_data[idx_bin] += pgh[idx_gh];
-      hist_data[idx_bin+1] += pgh[idx_gh+1];
-    }
+  if (contiguousBlock) {
+    // contiguous memory access, built-in HW prefetching is enough
+    BuildHistKernel<FPType, false>(rid, pgh, index, hist_data, row_ptr,
+        0, nrows, prefetch_offset, prefetch_step, isDense);
+  } else {
+    BuildHistKernel<FPType, true>(rid, pgh, index, hist_data, row_ptr,
+        0, nrows - no_prefetch_size, prefetch_offset, prefetch_step, isDense);
+    // no prefetching to avoid loading extra memory
+    BuildHistKernel<FPType, false>(rid, pgh, index, hist_data, row_ptr,
+        nrows - no_prefetch_size, nrows, prefetch_offset, prefetch_step, isDense);
   }
 }
 
