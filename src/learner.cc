@@ -826,6 +826,7 @@ class LearnerImpl : public Learner {
       gbm_->PredictLeaf(data, &out_preds->HostVector(), ntree_limit);
     } else {
       this->PredictRaw(data, out_preds, training, ntree_limit);
+      this->AssertPredictionIsFinite(out_preds);  // Scan for INFs and NANs
       if (!output_margin) {
         obj_->PredTransform(out_preds);
       }
@@ -852,6 +853,29 @@ class LearnerImpl : public Learner {
         << "Predict must happen after Load or configuration";
     this->ValidateDMatrix(data);
     gbm_->PredictBatch(data, out_preds, training, ntree_limit);
+  }
+
+  /*!
+   * \brief Scan prediction vector for any INFs and NANs and throws error if INF/NAN is found
+   * \param preds vector containing predictions
+   */
+  void AssertPredictionIsFinite(HostDeviceVector<bst_float>* preds) {
+    for (auto e : preds->ConstHostVector()) {
+      if (XGBOOST_EXPECT(!std::isfinite(e), false)) {
+        std::ostringstream oss;
+        FeatureMap fmap;
+        int tree_id = 0;
+        for (const std::string& e : gbm_->DumpModel(fmap, false, "text")) {
+          oss << "\nbooster[" << (tree_id++) << "]:\n" << e;
+        }
+        LOG(FATAL) << "Detected an INF or NAN in prediction value from the fitted model."
+                   << "\n*****************************************************************"
+                   << "\nText dump of your model"
+                   << "\n-----------------------------------------------------------------"
+                   << oss.str()
+                   << "*****************************************************************";
+      }
+    }
   }
 
   void ConfigureObjective(LearnerTrainParam const& old, Args* p_args) {
