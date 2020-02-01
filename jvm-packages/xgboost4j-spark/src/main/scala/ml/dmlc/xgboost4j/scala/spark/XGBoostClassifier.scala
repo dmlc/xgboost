@@ -250,6 +250,11 @@ class XGBoostClassificationModel private[ml](
     value
   )
 
+  def setSkipProcessingMissing(value: Boolean): this.type = set(
+    skipProcessingMissing,
+    value
+  )
+
   def setInferBatchSize(value: Int): this.type = set(inferBatchSize, value)
 
   /**

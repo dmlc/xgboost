@@ -241,6 +241,11 @@ class XGBoostRegressionModel private[ml] (
 
   def setMissing(value: Float): this.type = set(missing, value)
 
+  def setSkipProcessingMissing(value: Boolean): this.type = set(
+    skipProcessingMissing,
+    value
+  )
+
   def setAllowZeroForMissingValue(value: Boolean): this.type = set(
     allowNonZeroForMissing,
     value
