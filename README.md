@@ -1,3 +1,5 @@
+[![Gitpod Ready-to-Code](https://img.shields.io/badge/Gitpod-Ready--to--Code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/dmlc/xgboost) 
+
 <img src=https://raw.githubusercontent.com/dmlc/dmlc.github.io/master/img/logo-m/xgboost.png width=135/>  eXtreme Gradient Boosting
 ===========
 [![Build Status](https://xgboost-ci.net/job/xgboost/job/master/badge/icon?style=plastic)](https://xgboost-ci.net/blue/organizations/jenkins/xgboost/activity)
