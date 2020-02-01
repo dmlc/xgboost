@@ -21,7 +21,7 @@ class FixedPrecisionStreamContainer : public std::basic_stringstream<
   char, std::char_traits<char>, Allocator> {
  public:
   FixedPrecisionStreamContainer() {
-    this->precision(std::numeric_limits<Number::Float>::max_digits10);
+    this->precision(std::numeric_limits<double>::max_digits10);
     this->imbue(std::locale("C"));
     this->setf(std::ios::scientific);
   }

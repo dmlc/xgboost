@@ -145,7 +145,7 @@ xgb.iter.update <- function(booster_handle, dtrain, iter, obj = NULL) {
   if (is.null(obj)) {
     .Call(XGBoosterUpdateOneIter_R, booster_handle, as.integer(iter), dtrain)
   } else {
-    pred <- predict(booster_handle, dtrain, outputmargin = TRUE, reshape = TRUE)
+    pred <- predict(booster_handle, dtrain, outputmargin = TRUE, training = TRUE, reshape = TRUE)
     gpair <- obj(pred, dtrain)
     .Call(XGBoosterBoostOneIter_R, booster_handle, dtrain, gpair$grad, gpair$hess)
   }

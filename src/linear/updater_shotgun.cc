@@ -23,11 +23,20 @@ class ShotgunUpdater : public LinearUpdater {
     }
     selector_.reset(FeatureSelector::Create(param_.feature_selector));
   }
+  void LoadConfig(Json const& in) override {
+    auto const& config = get<Object const>(in);
+    fromJson(config.at("linear_train_param"), &param_);
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["linear_train_param"] = toJson(param_);
+  }
+
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
     auto &gpair = in_gpair->HostVector();
     param_.DenormalizePenalties(sum_instance_weight);
-    const int ngroup = model->param.num_output_group;
+    const int ngroup = model->learner_model_param_->num_output_group;
 
     // update bias
     for (int gid = 0; gid < ngroup; ++gid) {

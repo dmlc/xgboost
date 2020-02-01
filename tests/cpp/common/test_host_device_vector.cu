@@ -60,6 +60,7 @@ void PlusOne(HostDeviceVector<int> *v) {
   SetDevice(device);
   thrust::transform(dh::tcbegin(*v), dh::tcend(*v), dh::tbegin(*v),
                     [=]__device__(unsigned int a){ return a + 1; });
+  ASSERT_TRUE(v->DeviceCanWrite());
 }
 
 void CheckDevice(HostDeviceVector<int>* v,
@@ -125,7 +126,8 @@ TEST(HostDeviceVector, Copy) {
     // a separate scope to ensure that v1 is gone before further checks
     HostDeviceVector<int> v1;
     InitHostDeviceVector(n, device, &v1);
-    v = v1;
+    v.Resize(v1.Size());
+    v.Copy(v1);
   }
   CheckDevice(&v, n, 0, GPUAccess::kRead);
   PlusOne(&v);

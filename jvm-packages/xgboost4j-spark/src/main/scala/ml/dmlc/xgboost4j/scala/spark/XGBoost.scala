@@ -21,11 +21,11 @@ import java.nio.file.Files
 
 import scala.collection.{AbstractIterator, mutable}
 import scala.util.Random
+import scala.collection.JavaConverters._
 
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.spark.CheckpointManager.CheckpointParam
-import ml.dmlc.xgboost4j.scala.spark.XGBoost.logger
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
@@ -69,6 +69,7 @@ private[this] case class XGBoostExecutionParams(
     obj: ObjectiveTrait,
     eval: EvalTrait,
     missing: Float,
+    allowNonZeroForMissing: Boolean,
     trackerConf: TrackerConf,
     timeoutRequestWorkers: Long,
     checkpointParam: CheckpointParam,
@@ -162,6 +163,9 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     val obj = overridedParams.getOrElse("custom_obj", null).asInstanceOf[ObjectiveTrait]
     val eval = overridedParams.getOrElse("custom_eval", null).asInstanceOf[EvalTrait]
     val missing = overridedParams.getOrElse("missing", Float.NaN).asInstanceOf[Float]
+    val allowNonZeroForMissing = overridedParams
+                                 .getOrElse("allow_non_zero_for_missing", false)
+                                 .asInstanceOf[Boolean]
     validateSparkSslConf
 
     if (overridedParams.contains("tree_method")) {
@@ -212,7 +216,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
       .asInstanceOf[Boolean]
 
     val xgbExecParam = XGBoostExecutionParams(nWorkers, round, useExternalMemory, obj, eval,
-      missing, trackerConf,
+      missing, allowNonZeroForMissing, trackerConf,
       timeoutRequestWorkers,
       checkpointParam,
       inputParams,
@@ -221,6 +225,24 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     xgbExecParam.setRawParamMap(overridedParams)
     xgbExecParam
   }
+
+  private[spark] def buildRabitParams : Map[String, String] = Map(
+    "rabit_reduce_ring_mincount" ->
+      overridedParams.getOrElse("rabit_ring_reduce_threshold", 32 << 10).toString,
+    "rabit_debug" ->
+      (overridedParams.getOrElse("verbosity", 0).toString.toInt == 3).toString,
+    "rabit_timeout" ->
+      (overridedParams.getOrElse("rabit_timeout", -1).toString.toInt >= 0).toString,
+    "rabit_timeout_sec" -> {
+      if (overridedParams.getOrElse("rabit_timeout", -1).toString.toInt >= 0) {
+        overridedParams.get("rabit_timeout").toString
+      } else {
+        "1800"
+      }
+    },
+    "DMLC_WORKER_CONNECT_RETRY" ->
+      overridedParams.getOrElse("dmlc_worker_connect_retry", 5).toString
+  )
 }
 
 /**
@@ -237,14 +259,19 @@ private[spark] case class XGBLabeledPointGroup(
 object XGBoost extends Serializable {
   private val logger = LogFactory.getLog("XGBoostSpark")
 
-  private def verifyMissingSetting(xgbLabelPoints: Iterator[XGBLabeledPoint], missing: Float):
-      Iterator[XGBLabeledPoint] = {
-    if (missing != 0.0f) {
+  private def verifyMissingSetting(
+      xgbLabelPoints: Iterator[XGBLabeledPoint],
+      missing: Float,
+      allowNonZeroMissing: Boolean): Iterator[XGBLabeledPoint] = {
+    if (missing != 0.0f && !allowNonZeroMissing) {
       xgbLabelPoints.map(labeledPoint => {
         if (labeledPoint.indices != null) {
             throw new RuntimeException(s"you can only specify missing value as 0.0 (the currently" +
               s" set value $missing) when you have SparseVector or Empty vector as your feature" +
-              " format")
+              s" format. If you didn't use Spark's VectorAssembler class to build your feature " +
+              s"vector but instead did so in a way that preserves zeros in your feature vector " +
+              s"you can avoid this check by using the 'allow_non_zero_missing parameter'" +
+              s" (only use if you know what you are doing)")
         }
         labeledPoint
       })
@@ -270,22 +297,28 @@ object XGBoost extends Serializable {
 
   private[spark] def processMissingValues(
       xgbLabelPoints: Iterator[XGBLabeledPoint],
-      missing: Float): Iterator[XGBLabeledPoint] = {
+      missing: Float,
+      allowNonZeroMissing: Boolean): Iterator[XGBLabeledPoint] = {
     if (!missing.isNaN) {
-      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing),
+      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing, allowNonZeroMissing),
         missing, (v: Float) => v != missing)
     } else {
-      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing),
+      removeMissingValues(verifyMissingSetting(xgbLabelPoints, missing, allowNonZeroMissing),
         missing, (v: Float) => !v.isNaN)
     }
   }
 
   private def processMissingValuesWithGroup(
       xgbLabelPointGroups: Iterator[Array[XGBLabeledPoint]],
-      missing: Float): Iterator[Array[XGBLabeledPoint]] = {
+      missing: Float,
+      allowNonZeroMissing: Boolean): Iterator[Array[XGBLabeledPoint]] = {
     if (!missing.isNaN) {
       xgbLabelPointGroups.map {
-        labeledPoints => XGBoost.processMissingValues(labeledPoints.iterator, missing).toArray
+        labeledPoints => XGBoost.processMissingValues(
+          labeledPoints.iterator,
+          missing,
+          allowNonZeroMissing
+        ).toArray
       }
     } else {
       xgbLabelPointGroups
@@ -320,7 +353,9 @@ object XGBoost extends Serializable {
           s" ${TaskContext.getPartitionId()}")
     }
     val taskId = TaskContext.getPartitionId().toString
+    val attempt = TaskContext.get().attemptNumber.toString
     rabitEnv.put("DMLC_TASK_ID", taskId)
+    rabitEnv.put("DMLC_NUM_ATTEMPT", attempt)
     rabitEnv.put("DMLC_WORKER_STOP_PROCESS_ON_ERROR", "false")
 
     try {
@@ -333,7 +368,7 @@ object XGBoost extends Serializable {
       Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
     } catch {
       case xgbException: XGBoostError =>
-        logger.error(s"XGBooster worker $taskId has failed due to ", xgbException)
+        logger.error(s"XGBooster worker $taskId has failed $attempt times due to ", xgbException)
         throw xgbException
     } finally {
       Rabit.shutdown()
@@ -408,7 +443,8 @@ object XGBoost extends Serializable {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPoints => {
         val watches = Watches.buildWatches(xgbExecutionParams,
-          processMissingValues(labeledPoints, xgbExecutionParams.missing),
+          processMissingValues(labeledPoints, xgbExecutionParams.missing,
+            xgbExecutionParams.allowNonZeroForMissing),
           getCacheDirName(xgbExecutionParams.useExternalMemory))
         buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, checkpointRound,
           xgbExecutionParams.obj, xgbExecutionParams.eval, prevBooster)
@@ -420,7 +456,7 @@ object XGBoost extends Serializable {
             val watches = Watches.buildWatches(
               nameAndLabeledPointSets.map {
                 case (name, iter) => (name, processMissingValues(iter,
-                  xgbExecutionParams.missing))
+                  xgbExecutionParams.missing, xgbExecutionParams.allowNonZeroForMissing))
               },
               getCacheDirName(xgbExecutionParams.useExternalMemory))
             buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, checkpointRound,
@@ -439,7 +475,8 @@ object XGBoost extends Serializable {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPointGroups => {
         val watches = Watches.buildWatchesWithGroup(xgbExecutionParam,
-          processMissingValuesWithGroup(labeledPointGroups, xgbExecutionParam.missing),
+          processMissingValuesWithGroup(labeledPointGroups, xgbExecutionParam.missing,
+            xgbExecutionParam.allowNonZeroForMissing),
           getCacheDirName(xgbExecutionParam.useExternalMemory))
         buildDistributedBooster(watches, xgbExecutionParam, rabitEnv, checkpointRound,
           xgbExecutionParam.obj, xgbExecutionParam.eval, prevBooster)
@@ -450,7 +487,7 @@ object XGBoost extends Serializable {
           val watches = Watches.buildWatchesWithGroup(
             labeledPointGroupSets.map {
               case (name, iter) => (name, processMissingValuesWithGroup(iter,
-                xgbExecutionParam.missing))
+                xgbExecutionParam.missing, xgbExecutionParam.allowNonZeroForMissing))
             },
             getCacheDirName(xgbExecutionParam.useExternalMemory))
           buildDistributedBooster(watches, xgbExecutionParam, rabitEnv, checkpointRound,
@@ -490,8 +527,9 @@ object XGBoost extends Serializable {
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]] = Map()):
     (Booster, Map[String, Array[Float]]) = {
     logger.info(s"Running XGBoost ${spark.VERSION} with parameters:\n${params.mkString("\n")}")
-    val xgbExecParams = new XGBoostExecutionParamsFactory(params, trainingData.sparkContext).
-      buildXGBRuntimeParams
+    val xgbParamsFactory = new XGBoostExecutionParamsFactory(params, trainingData.sparkContext)
+    val xgbExecParams = xgbParamsFactory.buildXGBRuntimeParams
+    val xgbRabitParams = xgbParamsFactory.buildRabitParams.asJava
     val sc = trainingData.sparkContext
     val checkpointManager = new CheckpointManager(sc, xgbExecParams.checkpointParam.
       checkpointPath)
@@ -510,13 +548,14 @@ object XGBoost extends Serializable {
             val parallelismTracker = new SparkParallelismTracker(sc,
               xgbExecParams.timeoutRequestWorkers,
               xgbExecParams.numWorkers)
-            val rabitEnv = tracker.getWorkerEnvs
+
+            tracker.getWorkerEnvs().putAll(xgbRabitParams)
             val boostersAndMetrics = if (hasGroup) {
-              trainForRanking(transformedTrainingData.left.get, xgbExecParams, rabitEnv,
-                checkpointRound, prevBooster, evalSetsMap)
+              trainForRanking(transformedTrainingData.left.get, xgbExecParams,
+                tracker.getWorkerEnvs(), checkpointRound, prevBooster, evalSetsMap)
             } else {
-              trainForNonRanking(transformedTrainingData.right.get, xgbExecParams, rabitEnv,
-                checkpointRound, prevBooster, evalSetsMap)
+              trainForNonRanking(transformedTrainingData.right.get, xgbExecParams,
+                tracker.getWorkerEnvs(), checkpointRound, prevBooster, evalSetsMap)
             }
             val sparkJobThread = new Thread() {
               override def run() {

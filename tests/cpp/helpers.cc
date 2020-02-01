@@ -1,15 +1,17 @@
 /*!
- * Copyright 2016-2018 XGBoost contributors
+ * Copyright 2016-2019 XGBoost contributors
  */
 #include <dmlc/filesystem.h>
 #include <xgboost/logging.h>
+#include <xgboost/gbm.h>
 #include <xgboost/json.h>
-
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <random>
 #include <cinttypes>
-#include "./helpers.h"
+
+#include "helpers.h"
 #include "xgboost/c_api.h"
 
 #include "../../src/data/simple_csr_source.h"
@@ -44,7 +46,7 @@ void CheckObjFunctionImpl(std::unique_ptr<xgboost::ObjFunction> const& obj,
                           std::vector<xgboost::bst_float> preds,
                           std::vector<xgboost::bst_float> labels,
                           std::vector<xgboost::bst_float> weights,
-                          xgboost::MetaInfo info,
+                          xgboost::MetaInfo const& info,
                           std::vector<xgboost::bst_float> out_grad,
                           std::vector<xgboost::bst_float> out_hess) {
   xgboost::HostDeviceVector<xgboost::bst_float> in_preds(preds);
@@ -112,7 +114,6 @@ void CheckRankingObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
 
   CheckObjFunctionImpl(obj, preds, labels, weights, info, out_grad, out_hess);
 }
-
 
 xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
                                  xgboost::HostDeviceVector<xgboost::bst_float> preds,
@@ -192,6 +193,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
   return dmat;
 }
 
+
 std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
     size_t n_rows, size_t n_cols, size_t page_size, bool deterministic,
     const dmlc::TemporaryDirectory& tempdir) {
@@ -217,17 +219,17 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
   } else {
      gen.reset(new std::mt19937(rdev()));
   }
+  std::uniform_int_distribution<size_t> label(0, 1);
   std::uniform_int_distribution<size_t> dis(1, n_cols);
 
   for (size_t i = 0; i < n_rows; ++i) {
     // Make sure that all cols are slotted in the first few rows; randomly distribute the
     // rest
     std::stringstream row_data;
-    fo << i;
     size_t j = 0;
     if (rem_cols > 0) {
        for (; j < std::min(static_cast<size_t>(rem_cols), cols_per_row); ++j) {
-         row_data << " " << (col_idx+j) << ":" << (col_idx+j+1)*10;
+         row_data << label(*gen) << " " << (col_idx+j) << ":" << (col_idx+j+1)*10*i;
        }
        rem_cols -= cols_per_row;
     } else {
@@ -235,7 +237,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
        size_t ncols = dis(*gen);
        for (; j < ncols; ++j) {
          size_t fid = (col_idx+j) % n_cols;
-         row_data << " " << fid << ":" << (fid+1)*10;
+         row_data << label(*gen) << " " << fid << ":" << (fid+1)*10*i;
        }
     }
     col_idx += j;
@@ -257,16 +259,42 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
   }
 }
 
-gbm::GBTreeModel CreateTestModel() {
+gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param) {
   std::vector<std::unique_ptr<RegTree>> trees;
   trees.push_back(std::unique_ptr<RegTree>(new RegTree));
   (*trees.back())[0].SetLeaf(1.5f);
   (*trees.back()).Stat(0).sum_hess = 1.0f;
-  gbm::GBTreeModel model(0.5);
+  gbm::GBTreeModel model(param);
   model.CommitModel(std::move(trees), 0);
-  model.param.num_output_group = 1;
-  model.base_margin = 0;
   return model;
+}
+
+std::unique_ptr<GradientBooster> CreateTrainedGBM(
+    std::string name, Args kwargs, size_t kRows, size_t kCols,
+    LearnerModelParam const* learner_model_param,
+    GenericParameter const* generic_param) {
+  std::unique_ptr<GradientBooster> gbm {
+    GradientBooster::Create(name, generic_param, learner_model_param, {})};
+  gbm->Configure(kwargs);
+  auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
+  auto p_dmat = *pp_dmat;
+
+  std::vector<float> labels(kRows);
+  for (size_t i = 0; i < kRows; ++i) {
+    labels[i] = i;
+  }
+  p_dmat->Info().labels_.HostVector() = labels;
+  HostDeviceVector<GradientPair> gpair;
+  auto& h_gpair = gpair.HostVector();
+  h_gpair.resize(kRows);
+  for (size_t i = 0; i < kRows; ++i) {
+    h_gpair[i] = {static_cast<float>(i), 1};
+  }
+
+  gbm->DoBoost(p_dmat.get(), &gpair, nullptr);
+
+  delete pp_dmat;
+  return gbm;
 }
 
 }  // namespace xgboost

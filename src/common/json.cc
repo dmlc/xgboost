@@ -1,6 +1,7 @@
 /*!
  * Copyright (c) by Contributors 2019
  */
+#include <cctype>
 #include <sstream>
 #include <limits>
 #include <cmath>
@@ -243,7 +244,7 @@ Json& JsonNumber::operator[](int ind) {
 
 bool JsonNumber::operator==(Value const& rhs) const {
   if (!IsA<JsonNumber>(&rhs)) { return false; }
-  return number_ == Cast<JsonNumber const>(&rhs)->getNumber();
+  return std::abs(number_ - Cast<JsonNumber const>(&rhs)->getNumber()) < kRtEps;
 }
 
 Value & JsonNumber::operator=(Value const &rhs) {
@@ -351,7 +352,9 @@ Json JsonReader::Parse() {
       return ParseObject();
     } else if ( c == '[' ) {
       return ParseArray();
-    } else if ( c == '-' || std::isdigit(c) ) {
+    } else if ( c == '-' || std::isdigit(c) ||
+                c == 'N' ) {
+      // For now we only accept `NaN`, not `nan` as the later violiates LR(1) with `null`.
       return ParseNumber();
     } else if ( c == '\"' ) {
       return ParseString();
@@ -504,7 +507,10 @@ Json JsonReader::ParseObject() {
   SkipSpaces();
   char ch = PeekNextChar();
 
-  if (ch == '}') return Json(std::move(data));
+  if (ch == '}') {
+    GetChar('}');
+    return Json(std::move(data));
+  }
 
   while (true) {
     SkipSpaces();
@@ -544,6 +550,13 @@ Json JsonReader::ParseNumber() {
 
   // TODO(trivialfis): Add back all the checks for number
   bool negative = false;
+  if (XGBOOST_EXPECT(*p == 'N', false)) {
+    GetChar('N');
+    GetChar('a');
+    GetChar('N');
+    return Json(static_cast<Number::Float>(std::numeric_limits<float>::quiet_NaN()));
+  }
+
   if ('-' == *p) {
     ++p;
     negative = true;
@@ -627,13 +640,13 @@ Json JsonReader::ParseNumber() {
     // multiply zero by inf which gives nan.
     if (f != 0.0) {
       // Only use exp10 from libc on gcc+linux
-#if !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__)
+#if !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__) || !defined(__linux__)
 #define exp10(val) std::pow(10, (val))
-#endif  // !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__)
+#endif  // !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__) || !defined(__linux__)
       f *= exp10(exponent);
-#if !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__)
+#if !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__) || !defined(__linux__)
 #undef exp10
-#endif  // !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__)
+#endif  // !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__) || !defined(__linux__)
     }
   }
 

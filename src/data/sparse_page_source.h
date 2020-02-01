@@ -21,6 +21,7 @@
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 
+#include "adapter.h"
 #include "sparse_page_writer.h"
 #include "../common/common.h"
 
@@ -182,22 +183,21 @@ class SparsePageSource : public DataSource<T> {
     return *page_;
   }
 
-  /*!
-   * \brief Create source by taking data from parser.
-   * \param src source parser.
-   * \param cache_info The cache_info of cache file location.
-   * \param page_size Page size for external memory.
-   */
-  static void CreateRowPage(dmlc::Parser<uint32_t>* src,
+  template <typename AdapterT>
+  static void CreateRowPage(AdapterT* adapter, float missing, int nthread,
                             const std::string& cache_info,
                             const size_t page_size = DMatrix::kPageSize) {
     const std::string page_type = ".row.page";
     auto cinfo = ParseCacheInfo(cache_info, page_type);
     {
-      SparsePageWriter<SparsePage> writer(cinfo.name_shards, cinfo.format_shards, 6);
+      SparsePageWriter<SparsePage> writer(cinfo.name_shards,
+                                          cinfo.format_shards, 6);
       std::shared_ptr<SparsePage> page;
-      writer.Alloc(&page); page->Clear();
+      writer.Alloc(&page);
+      page->Clear();
 
+      uint64_t inferred_num_columns = 0;
+      uint64_t inferred_num_rows = 0;
       MetaInfo info;
       size_t bytes_write = 0;
       double tstart = dmlc::GetTime();
@@ -209,22 +209,29 @@ class SparsePageSource : public DataSource<T> {
       uint64_t last_group_id = default_max;
       bst_uint group_size = 0;
       std::vector<uint64_t> qids;
-
-      while (src->Next()) {
-        const dmlc::RowBlock<uint32_t>& batch = src->Value();
-        if (batch.label != nullptr) {
+      adapter->BeforeFirst();
+      while (adapter->Next()) {
+        auto& batch = adapter->Value();
+        if (batch.Labels() != nullptr) {
           auto& labels = info.labels_.HostVector();
-          labels.insert(labels.end(), batch.label, batch.label + batch.size);
+          labels.insert(labels.end(), batch.Labels(),
+                        batch.Labels() + batch.Size());
         }
-        if (batch.weight != nullptr) {
+        if (batch.Weights() != nullptr) {
           auto& weights = info.weights_.HostVector();
-          weights.insert(weights.end(), batch.weight, batch.weight + batch.size);
+          weights.insert(weights.end(), batch.Weights(),
+                         batch.Weights() + batch.Size());
         }
-        if (batch.qid != nullptr) {
-          qids.insert(qids.end(), batch.qid, batch.qid + batch.size);
+        if (batch.BaseMargin() != nullptr) {
+          auto& base_margin = info.base_margin_.HostVector();
+          base_margin.insert(base_margin.end(), batch.BaseMargin(),
+                             batch.BaseMargin() + batch.Size());
+        }
+        if (batch.Qid() != nullptr) {
+          qids.insert(qids.end(), batch.Qid(), batch.Qid() + batch.Size());
           // get group
-          for (size_t i = 0; i < batch.size; ++i) {
-            const uint64_t cur_group_id = batch.qid[i];
+          for (size_t i = 0; i < batch.Size(); ++i) {
+            const uint64_t cur_group_id = batch.Qid()[i];
             if (last_group_id == default_max || last_group_id != cur_group_id) {
               info.group_ptr_.push_back(group_size);
             }
@@ -232,49 +239,77 @@ class SparsePageSource : public DataSource<T> {
             ++group_size;
           }
         }
-        info.num_row_ += batch.size;
-        info.num_nonzero_ +=  batch.offset[batch.size] - batch.offset[0];
-        for (size_t i = batch.offset[0]; i < batch.offset[batch.size]; ++i) {
-          uint32_t index = batch.index[i];
-          info.num_col_ = std::max(info.num_col_,
-                                   static_cast<uint64_t>(index + 1));
-        }
-        page->Push(batch);
+        auto batch_max_columns = page->Push(batch, missing, nthread);
+        inferred_num_columns =
+            std::max(batch_max_columns, inferred_num_columns);
         if (page->MemCostBytes() >= page_size) {
+          inferred_num_rows += page->Size();
+          info.num_nonzero_ += page->offset.HostVector().back();
           bytes_write += page->MemCostBytes();
           writer.PushWrite(std::move(page));
           writer.Alloc(&page);
           page->Clear();
+          page->SetBaseRowId(inferred_num_rows);
 
           double tdiff = dmlc::GetTime() - tstart;
           if (tdiff >= tick_expected) {
             LOG(CONSOLE) << "Writing " << page_type << " to " << cache_info
-                         << " in " << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
-                         << (bytes_write >> 20UL) << " written";
+                         << " in " << ((bytes_write >> 20UL) / tdiff)
+                         << " MB/s, " << (bytes_write >> 20UL) << " written";
             tick_expected += static_cast<size_t>(kStep);
           }
         }
       }
+
       if (last_group_id != default_max) {
         if (group_size > info.group_ptr_.back()) {
           info.group_ptr_.push_back(group_size);
         }
       }
-
-      if (page->data.Size() != 0) {
-        writer.PushWrite(std::move(page));
+      inferred_num_rows += page->Size();
+      if (!page->offset.HostVector().empty()) {
+        info.num_nonzero_ += page->offset.HostVector().back();
       }
 
-      std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(cinfo.name_info.c_str(), "w"));
+      // Deal with empty rows/columns if necessary
+      if (adapter->NumColumns() == kAdapterUnknownSize) {
+        info.num_col_ = inferred_num_columns;
+      } else {
+        info.num_col_ = adapter->NumColumns();
+      }
+      // Synchronise worker columns
+      rabit::Allreduce<rabit::op::Max>(&info.num_col_, 1);
+
+      if (adapter->NumRows() == kAdapterUnknownSize) {
+        info.num_row_ = inferred_num_rows;
+      } else {
+        if (page->offset.HostVector().empty()) {
+          page->offset.HostVector().emplace_back(0);
+        }
+
+        while (inferred_num_rows < adapter->NumRows()) {
+          page->offset.HostVector().emplace_back(
+              page->offset.HostVector().back());
+          inferred_num_rows++;
+        }
+        info.num_row_ = adapter->NumRows();
+      }
+
+      // Make sure we have at least one page if the dataset is empty
+      if (page->data.Size() > 0 || info.num_row_ == 0) {
+        writer.PushWrite(std::move(page));
+      }
+      std::unique_ptr<dmlc::Stream> fo(
+          dmlc::Stream::Create(cinfo.name_info.c_str(), "w"));
       int tmagic = kMagic;
       fo->Write(&tmagic, sizeof(tmagic));
       // Either every row has query ID or none at all
       CHECK(qids.empty() || qids.size() == info.num_row_);
       info.SaveBinary(fo.get());
     }
-    LOG(INFO) << "SparsePageSource::CreateRowPage Finished writing to " << cinfo.name_info;
+    LOG(INFO) << "SparsePageSource::CreateRowPage Finished writing to "
+              << cinfo.name_info;
   }
-
   /*!
    * \brief Create source cache by copy content from DMatrix.
    * Creates transposed column page, may be sorted or not.
@@ -324,7 +359,6 @@ class SparsePageSource : public DataSource<T> {
       writer.Alloc(&page);
       page->Clear();
 
-      MetaInfo info = src->Info();
       size_t bytes_write = 0;
       double tstart = dmlc::GetTime();
       for (auto& batch : src->GetBatches<SparsePage>()) {

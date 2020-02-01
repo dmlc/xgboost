@@ -148,8 +148,10 @@ XGB_DLL SEXP XGBoosterEvalOneIter_R(SEXP handle, SEXP iter, SEXP dmats, SEXP evn
  * \param dmat data matrix
  * \param option_mask output_margin:1 predict_leaf:2
  * \param ntree_limit limit number of trees used in prediction
+ * \param training Whether the prediction value is used for training.
  */
-XGB_DLL SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP option_mask, SEXP ntree_limit);
+XGB_DLL SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP option_mask,
+                                SEXP ntree_limit, SEXP training);
 /*!
  * \brief load model from existing file
  * \param handle handle

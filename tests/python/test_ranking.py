@@ -135,7 +135,7 @@ class TestRanking(unittest.TestCase):
         # specify validations set to watch performance
         watchlist = [(self.dtest, 'eval'), (self.dtrain, 'train')]
         bst = xgboost.train(self.params, self.dtrain, num_boost_round=2500,
-                        early_stopping_rounds=10, evals=watchlist)
+                            early_stopping_rounds=10, evals=watchlist)
         assert bst.best_score > 0.98
 
     def test_cv(self):
@@ -161,8 +161,6 @@ class TestRanking(unittest.TestCase):
         """
         Retrieve the group number from the dmatrix
         """
-        # control that should work
-        self.dtrain.get_uint_info('root_index')
         # test the new getter
         self.dtrain.get_uint_info('group_ptr')
 

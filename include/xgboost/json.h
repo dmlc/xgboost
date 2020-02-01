@@ -202,6 +202,17 @@ class JsonInteger : public Value {
             typename std::enable_if<std::is_same<IntT, size_t>::value>::type* = nullptr>
   JsonInteger(IntT value) : Value(ValueKind::Integer),  // NOLINT
                             integer_{static_cast<Int>(value)} {}
+  template <typename IntT,
+            typename std::enable_if<std::is_same<IntT, int32_t>::value>::type* = nullptr>
+  JsonInteger(IntT value) : Value(ValueKind::Integer),  // NOLINT
+                            integer_{static_cast<Int>(value)} {}
+  template <typename IntT,
+            typename std::enable_if<
+                std::is_same<IntT, uint32_t>::value &&
+                !std::is_same<std::size_t, uint32_t>::value>::type * = nullptr>
+  JsonInteger(IntT value)  // NOLINT
+      : Value(ValueKind::Integer),
+        integer_{static_cast<Int>(value)} {}
 
   Json& operator[](std::string const & key) override;
   Json& operator[](int ind) override;
@@ -533,8 +544,8 @@ using Null    = JsonNull;
 
 // Utils tailored for XGBoost.
 
-template <typename Type>
-Object toJson(XGBoostParameter<Type> const& param) {
+template <typename Parameter>
+Object toJson(Parameter const& param) {
   Object obj;
   for (auto const& kv : param.__DICT__()) {
     obj[kv.first] = kv.second;
@@ -542,8 +553,8 @@ Object toJson(XGBoostParameter<Type> const& param) {
   return obj;
 }
 
-template <typename Type>
-void fromJson(Json const& obj, XGBoostParameter<Type>* param) {
+template <typename Parameter>
+void fromJson(Json const& obj, Parameter* param) {
   auto const& j_param = get<Object const>(obj);
   std::map<std::string, std::string> m;
   for (auto const& kv : j_param) {

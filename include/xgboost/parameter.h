@@ -99,6 +99,7 @@ struct XGBoostParameter : public dmlc::Parameter<Type> {
       return unknown;
     }
   }
+  bool GetInitialised() const { return static_cast<bool>(this->initialised_); }
 };
 }  // namespace xgboost
 

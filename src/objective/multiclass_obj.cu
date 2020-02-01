@@ -73,6 +73,11 @@ class SoftmaxMultiClassObj : public ObjFunction {
     label_correct_.Fill(1);
 
     const bool is_null_weight = info.weights_.Size() == 0;
+    if (!is_null_weight) {
+      CHECK_EQ(info.weights_.Size(), ndata)
+          << "Number of weights should be equal to number of data points.";
+    }
+
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t idx,
                            common::Span<GradientPair> gpair,

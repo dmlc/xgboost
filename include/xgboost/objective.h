@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2019 by Contributors
  * \file objective.h
  * \brief interface of objective function used by xgboost.
  * \author Tianqi Chen, Kailong Chen

@@ -4,8 +4,14 @@
 \alias{xgb.importance}
 \title{Importance of features in a model.}
 \usage{
-xgb.importance(feature_names = NULL, model = NULL, trees = NULL,
-  data = NULL, label = NULL, target = NULL)
+xgb.importance(
+  feature_names = NULL,
+  model = NULL,
+  trees = NULL,
+  data = NULL,
+  label = NULL,
+  target = NULL
+)
 }
 \arguments{
 \item{feature_names}{character vector of feature names. If the model already

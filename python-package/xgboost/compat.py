@@ -1,30 +1,22 @@
 # coding: utf-8
 # pylint: disable= invalid-name,  unused-import
 """For compatibility and optional dependencies."""
-
-from __future__ import absolute_import
-
 import abc
 import os
 import sys
-
 from pathlib import PurePath
 
-PY3 = (sys.version_info[0] == 3)
+import numpy as np
 
-if PY3:
-    # pylint: disable=invalid-name, redefined-builtin
-    STRING_TYPES = (str,)
+assert (sys.version_info[0] == 3), 'Python 2 is no longer supported.'
 
-    def py_str(x):
-        """convert c string back to python string"""
-        return x.decode('utf-8')
-else:
-    STRING_TYPES = (basestring,)  # pylint: disable=undefined-variable
+# pylint: disable=invalid-name, redefined-builtin
+STRING_TYPES = (str,)
 
-    def py_str(x):
-        """convert c string back to python string"""
-        return x
+
+def py_str(x):
+    """convert c string back to python string"""
+    return x.decode('utf-8')
 
 
 ###############################################################################
@@ -87,22 +79,17 @@ else:
 # END NUMPY PATHLIB ATTRIBUTION
 ###############################################################################
 
-# pickle
-try:
-    import cPickle as pickle  # noqa
-except ImportError:
-    import pickle  # noqa
-
 # pandas
 try:
     from pandas import DataFrame, Series
-    from pandas import MultiIndex
+    from pandas import MultiIndex, Int64Index
     from pandas import concat as pandas_concat
 
     PANDAS_INSTALLED = True
 except ImportError:
 
     MultiIndex = object
+    Int64Index = object
     DataFrame = object
     Series = object
     pandas_concat = None
@@ -129,6 +116,7 @@ except ImportError:
     DT_INSTALLED = False
 
 
+# cudf
 try:
     from cudf import DataFrame as CUDF_DataFrame
     from cudf import Series as CUDF_Series
@@ -161,7 +149,29 @@ try:
 
     XGBKFold = KFold
     XGBStratifiedKFold = StratifiedKFold
-    XGBLabelEncoder = LabelEncoder
+
+    class XGBoostLabelEncoder(LabelEncoder):
+        '''Label encoder with JSON serialization methods.'''
+        def to_json(self):
+            '''Returns a JSON compatible dictionary'''
+            meta = dict()
+            for k, v in self.__dict__.items():
+                if isinstance(v, np.ndarray):
+                    meta[k] = v.tolist()
+                else:
+                    meta[k] = v
+            return meta
+
+        def from_json(self, doc):
+            # pylint: disable=attribute-defined-outside-init
+            '''Load the encoder back from a JSON compatible dict.'''
+            meta = dict()
+            for k, v in doc.items():
+                if k == 'classes_':
+                    self.classes_ = np.array(v)
+                    continue
+                meta[k] = v
+            self.__dict__.update(meta)
 except ImportError:
     SKLEARN_INSTALLED = False
 
@@ -172,7 +182,7 @@ except ImportError:
 
     XGBKFold = None
     XGBStratifiedKFold = None
-    XGBLabelEncoder = None
+    XGBoostLabelEncoder = None
 
 
 # dask

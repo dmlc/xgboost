@@ -1,14 +1,12 @@
 # coding: utf-8
 # pylint: disable= invalid-name
-
 """Distributed XGBoost Rabit related API."""
-from __future__ import absolute_import
 import sys
 import ctypes
+import pickle
 import numpy as np
 
 from .core import _LIB, c_str, STRING_TYPES
-from .compat import pickle
 
 
 def _init_rabit():

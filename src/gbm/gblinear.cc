@@ -7,14 +7,17 @@
  */
 #include <dmlc/omp.h>
 #include <dmlc/parameter.h>
-#include <xgboost/gbm.h>
-#include <xgboost/logging.h>
-#include <xgboost/linear_updater.h>
 
 #include <vector>
 #include <string>
 #include <sstream>
 #include <algorithm>
+
+#include "xgboost/gbm.h"
+#include "xgboost/json.h"
+#include "xgboost/linear_updater.h"
+#include "xgboost/logging.h"
+#include "xgboost/learner.h"
 
 #include "gblinear_model.h"
 #include "../common/timer.h"
@@ -48,8 +51,10 @@ struct GBLinearTrainParam : public XGBoostParameter<GBLinearTrainParam> {
 class GBLinear : public GradientBooster {
  public:
   explicit GBLinear(const std::vector<std::shared_ptr<DMatrix> > &cache,
-                    bst_float base_margin)
-      : base_margin_(base_margin),
+                    LearnerModelParam const* learner_model_param)
+      : learner_model_param_{learner_model_param},
+        model_{learner_model_param_},
+        previous_model_{learner_model_param_},
         sum_instance_weight_(0),
         sum_weight_complete_(false),
         is_converged_(false) {
@@ -62,10 +67,10 @@ class GBLinear : public GradientBooster {
   }
   void Configure(const Args& cfg) override {
     if (model_.weight.size() == 0) {
-      model_.param.InitAllowUnknown(cfg);
+      model_.Configure(cfg);
     }
     param_.UpdateAllowUnknown(cfg);
-    updater_.reset(LinearUpdater::Create(param_.updater, learner_param_));
+    updater_.reset(LinearUpdater::Create(param_.updater, generic_param_));
     updater_->Configure(cfg);
     monitor_.Init("GBLinear");
     if (param_.updater == "gpu_coord_descent") {
@@ -78,6 +83,37 @@ class GBLinear : public GradientBooster {
   }
   void Save(dmlc::Stream* fo) const override {
     model_.Save(fo);
+  }
+
+  void SaveModel(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String{"gblinear"};
+
+    out["model"] = Object();
+    auto& model = out["model"];
+    model_.SaveModel(&model);
+  }
+  void LoadModel(Json const& in) override {
+    CHECK_EQ(get<String>(in["name"]), "gblinear");
+    auto const& model = in["model"];
+    model_.LoadModel(model);
+  }
+
+  void LoadConfig(Json const& in) override {
+    CHECK_EQ(get<String>(in["name"]), "gblinear");
+    fromJson(in["gblinear_train_param"], &param_);
+    updater_.reset(LinearUpdater::Create(param_.updater, generic_param_));
+    this->updater_->LoadConfig(in["updater"]);
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String{"gblinear"};
+    out["gblinear_train_param"] = toJson(param_);
+
+    out["updater"] = Object();
+    auto& j_updater = out["updater"];
+    CHECK(this->updater_);
+    this->updater_->SaveConfig(&j_updater);
   }
 
   void DoBoost(DMatrix *p_fmat,
@@ -98,6 +134,7 @@ class GBLinear : public GradientBooster {
 
   void PredictBatch(DMatrix *p_fmat,
                     HostDeviceVector<bst_float> *out_preds,
+                    bool training,
                     unsigned ntree_limit) override {
     monitor_.Start("PredictBatch");
     CHECK_EQ(ntree_limit, 0U)
@@ -116,12 +153,12 @@ class GBLinear : public GradientBooster {
   }
   // add base margin
   void PredictInstance(const SparsePage::Inst &inst,
-               std::vector<bst_float> *out_preds,
-               unsigned ntree_limit,
-               unsigned root_index) override {
-    const int ngroup = model_.param.num_output_group;
+                       std::vector<bst_float> *out_preds,
+                       unsigned ntree_limit) override {
+    const int ngroup = model_.learner_model_param_->num_output_group;
     for (int gid = 0; gid < ngroup; ++gid) {
-      this->Pred(inst, dmlc::BeginPtr(*out_preds), gid, base_margin_);
+      this->Pred(inst, dmlc::BeginPtr(*out_preds), gid,
+                 learner_model_param_->base_score);
     }
   }
 
@@ -139,8 +176,8 @@ class GBLinear : public GradientBooster {
     CHECK_EQ(ntree_limit, 0U)
         << "GBLinear::PredictContribution: ntrees is only valid for gbtree predictor";
     const auto& base_margin = p_fmat->Info().base_margin_.ConstHostVector();
-    const int ngroup = model_.param.num_output_group;
-    const size_t ncolumns = model_.param.num_feature + 1;
+    const int ngroup = model_.learner_model_param_->num_output_group;
+    const size_t ncolumns = model_.learner_model_param_->num_feature + 1;
     // allocate space for (#features + bias) times #groups times #rows
     std::vector<bst_float>& contribs = *out_contribs;
     contribs.resize(p_fmat->Info().num_row_ * ncolumns * ngroup);
@@ -150,35 +187,38 @@ class GBLinear : public GradientBooster {
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
-      #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
-         auto inst = batch[i];
+        auto inst = batch[i];
         auto row_idx = static_cast<size_t>(batch.base_rowid + i);
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {
           bst_float *p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
           // calculate linear terms' contributions
           for (auto& ins : inst) {
-            if (ins.index >= model_.param.num_feature) continue;
+            if (ins.index >= model_.learner_model_param_->num_feature) continue;
             p_contribs[ins.index] = ins.fvalue * model_[ins.index][gid];
           }
           // add base margin to BIAS
           p_contribs[ncolumns - 1] = model_.bias()[gid] +
-            ((base_margin.size() != 0) ? base_margin[row_idx * ngroup + gid] : base_margin_);
+            ((base_margin.size() != 0) ? base_margin[row_idx * ngroup + gid] :
+                                         learner_model_param_->base_score);
         }
       }
     }
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat,
-                           std::vector<bst_float>* out_contribs,
-                           unsigned ntree_limit, bool approximate) override {
-                             std::vector<bst_float>& contribs = *out_contribs;
+                                       std::vector<bst_float>* out_contribs,
+                                       unsigned ntree_limit, bool approximate) override {
+    std::vector<bst_float>& contribs = *out_contribs;
 
-     // linear models have no interaction effects
-     const size_t nelements = model_.param.num_feature*model_.param.num_feature;
-     contribs.resize(p_fmat->Info().num_row_ * nelements * model_.param.num_output_group);
-     std::fill(contribs.begin(), contribs.end(), 0);
+    // linear models have no interaction effects
+    const size_t nelements = model_.learner_model_param_->num_feature *
+                             model_.learner_model_param_->num_feature;
+    contribs.resize(p_fmat->Info().num_row_ * nelements *
+                    model_.learner_model_param_->num_output_group);
+    std::fill(contribs.begin(), contribs.end(), 0);
   }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap,
@@ -197,26 +237,26 @@ class GBLinear : public GradientBooster {
 
  protected:
   void PredictBatchInternal(DMatrix *p_fmat,
-               std::vector<bst_float> *out_preds) {
+                            std::vector<bst_float> *out_preds) {
     monitor_.Start("PredictBatchInternal");
       model_.LazyInitModel();
     std::vector<bst_float> &preds = *out_preds;
     const auto& base_margin = p_fmat->Info().base_margin_.ConstHostVector();
     // start collecting the prediction
-    const int ngroup = model_.param.num_output_group;
+    const int ngroup = model_.learner_model_param_->num_output_group;
     preds.resize(p_fmat->Info().num_row_ * ngroup);
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       // output convention: nrow * k, where nrow is number of rows
       // k is number of group
       // parallel over local batch
       const auto nsize = static_cast<omp_ulong>(batch.Size());
-      #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
       for (omp_ulong i = 0; i < nsize; ++i) {
         const size_t ridx = batch.base_rowid + i;
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {
           bst_float margin =  (base_margin.size() != 0) ?
-              base_margin[ridx * ngroup + gid] : base_margin_;
+              base_margin[ridx * ngroup + gid] : learner_model_param_->base_score;
           this->Pred(batch[i], &preds[ridx * ngroup], gid, margin);
         }
       }
@@ -228,7 +268,7 @@ class GBLinear : public GradientBooster {
     for (auto &kv : cache_) {
       PredictionCacheEntry &e = kv.second;
       if (e.predictions.size() == 0) {
-        size_t n = model_.param.num_output_group * e.data->Info().num_row_;
+        size_t n = model_.learner_model_param_->num_output_group * e.data->Info().num_row_;
         e.predictions.resize(n);
       }
       this->PredictBatchInternal(e.data.get(), &e.predictions);
@@ -263,18 +303,18 @@ class GBLinear : public GradientBooster {
     }
   }
 
-  inline void Pred(const SparsePage::Inst &inst, bst_float *preds, int gid,
-                   bst_float base) {
+  void Pred(const SparsePage::Inst &inst, bst_float *preds, int gid,
+            bst_float base) {
     bst_float psum = model_.bias()[gid] + base;
     for (const auto& ins : inst) {
-      if (ins.index >= model_.param.num_feature) continue;
+      if (ins.index >= model_.learner_model_param_->num_feature) continue;
       psum += ins.fvalue * model_[ins.index][gid];
     }
     preds[gid] = psum;
   }
 
   // biase margin score
-  bst_float base_margin_;
+  LearnerModelParam const* learner_model_param_;
   // model field
   GBLinearModel model_;
   GBLinearModel previous_model_;
@@ -303,14 +343,13 @@ class GBLinear : public GradientBooster {
 };
 
 // register the objective functions
-DMLC_REGISTER_PARAMETER(GBLinearModelParam);
 DMLC_REGISTER_PARAMETER(GBLinearTrainParam);
 
 XGBOOST_REGISTER_GBM(GBLinear, "gblinear")
     .describe("Linear booster, implement generalized linear model.")
     .set_body([](const std::vector<std::shared_ptr<DMatrix> > &cache,
-                 bst_float base_margin) {
-      return new GBLinear(cache, base_margin);
+                 LearnerModelParam const* booster_config) {
+      return new GBLinear(cache, booster_config);
     });
 }  // namespace gbm
 }  // namespace xgboost

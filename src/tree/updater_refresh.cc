@@ -10,6 +10,7 @@
 #include <vector>
 #include <limits>
 
+#include "xgboost/json.h"
 #include "./param.h"
 #include "../common/io.h"
 
@@ -23,6 +24,14 @@ class TreeRefresher: public TreeUpdater {
  public:
   void Configure(const Args& args) override {
     param_.UpdateAllowUnknown(args);
+  }
+  void LoadConfig(Json const& in) override {
+    auto const& config = get<Object const>(in);
+    fromJson(config.at("train_param"), &this->param_);
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["train_param"] = toJson(param_);
   }
   char const* Name() const override {
     return "refresh";
@@ -90,9 +99,7 @@ class TreeRefresher: public TreeUpdater {
     param_.learning_rate = lr / trees.size();
     int offset = 0;
     for (auto tree : trees) {
-      for (int rid = 0; rid < tree->param.num_roots; ++rid) {
-        this->Refresh(dmlc::BeginPtr(stemp[0]) + offset, rid, tree);
-      }
+      this->Refresh(dmlc::BeginPtr(stemp[0]) + offset, 0, tree);
       offset += tree->param.num_nodes;
     }
     // set learning rate back
@@ -107,7 +114,7 @@ class TreeRefresher: public TreeUpdater {
                               const bst_uint ridx,
                               GradStats *gstats) {
     // start from groups that belongs to current data
-    auto pid = static_cast<int>(info.GetRoot(ridx));
+    auto pid = 0;
     gstats[pid].Add(gpair[ridx]);
     // tranverse tree
     while (!tree[pid].IsLeaf()) {

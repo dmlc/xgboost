@@ -11,8 +11,8 @@
 #include "../helpers.h"
 #include "gtest/gtest.h"
 
+#include "xgboost/json.h"
 #include "../../../src/data/sparse_page_source.h"
-#include "../../../src/gbm/gbtree_model.h"
 #include "../../../src/tree/updater_gpu_hist.cu"
 #include "../../../src/tree/updater_gpu_common.cuh"
 #include "../../../src/common/common.h"
@@ -56,22 +56,6 @@ TEST(GpuHist, DeviceHistogram) {
   };
 }
 
-namespace {
-class HistogramCutsWrapper : public common::HistogramCuts {
- public:
-  using SuperT = common::HistogramCuts;
-  void SetValues(std::vector<float> cuts) {
-    SuperT::cut_values_ = cuts;
-  }
-  void SetPtrs(std::vector<uint32_t> ptrs) {
-    SuperT::cut_ptrs_ = ptrs;
-  }
-  void SetMins(std::vector<float> mins) {
-    SuperT::min_vals_ = mins;
-  }
-};
-}  //  anonymous namespace
-
 std::vector<GradientPairPrecise> GetHostHistGpair() {
   // 24 bins, 3 bins for each feature (column).
   std::vector<GradientPairPrecise> hist_gpair = {
@@ -98,9 +82,10 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   };
   param.Init(args);
   auto page = BuildEllpackPage(kNRows, kNCols);
-  GPUHistMakerDevice<GradientSumT> maker(0, page.get(), kNRows, param, kNCols, kNCols);
+  BatchParam batch_param{};
+  GPUHistMakerDevice<GradientSumT> maker(0, page.get(), kNRows, param, kNCols, kNCols, batch_param);
   maker.InitHistogram();
-  
+
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
   std::vector<GradientPair> h_gpair(kNRows);
@@ -199,7 +184,9 @@ TEST(GpuHist, EvaluateSplits) {
 
   // Initialize GPUHistMakerDevice
   auto page = BuildEllpackPage(kNRows, kNCols);
-  GPUHistMakerDevice<GradientPairPrecise> maker(0, page.get(), kNRows, param, kNCols, kNCols);
+  BatchParam batch_param{};
+  GPUHistMakerDevice<GradientPairPrecise>
+      maker(0, page.get(), kNRows, param, kNCols, kNCols, batch_param);
   // Initialize GPUHistMakerDevice::node_sum_gradients
   maker.node_sum_gradients = {{6.4f, 12.8f}};
 
@@ -332,21 +319,25 @@ int32_t TestMinSplitLoss(DMatrix* dmat, float gamma, HostDeviceVector<GradientPa
   return n_nodes;
 }
 
-TEST(GpuHist, MinSplitLoss) {
-  constexpr size_t kRows = 32;
-  constexpr size_t kCols = 16;
-  constexpr float kSparsity = 0.6;
-  auto dmat = CreateDMatrix(kRows, kCols, kSparsity, 3);
-
+HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows) {
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
-  std::vector<GradientPair> h_gpair(kRows);
+  std::vector<GradientPair> h_gpair(n_rows);
   for (auto &gpair : h_gpair) {
     bst_float grad = dist(&gen);
     bst_float hess = dist(&gen);
     gpair = GradientPair(grad, hess);
   }
   HostDeviceVector<GradientPair> gpair(h_gpair);
+  return gpair;
+}
+
+TEST(GpuHist, MinSplitLoss) {
+  constexpr size_t kRows = 32;
+  constexpr size_t kCols = 16;
+  constexpr float kSparsity = 0.6;
+  auto dmat = CreateDMatrix(kRows, kCols, kSparsity, 3);
+  auto gpair = GenerateRandomGradients(kRows);
 
   {
     int32_t n_nodes = TestMinSplitLoss((*dmat).get(), 0.01, &gpair);
@@ -361,6 +352,95 @@ TEST(GpuHist, MinSplitLoss) {
     ASSERT_EQ(n_nodes, static_cast<decltype(n_nodes)>(0));
   }
   delete dmat;
+}
+
+void UpdateTree(HostDeviceVector<GradientPair>* gpair,
+                DMatrix* dmat,
+                size_t gpu_page_size,
+                RegTree* tree,
+                HostDeviceVector<bst_float>* preds) {
+  constexpr size_t kMaxBin = 2;
+
+  if (gpu_page_size > 0) {
+    // Loop over the batches and count the records
+    int64_t batch_count = 0;
+    int64_t row_count = 0;
+    for (const auto& batch : dmat->GetBatches<EllpackPage>({0, kMaxBin, 0, gpu_page_size})) {
+      EXPECT_LT(batch.Size(), dmat->Info().num_row_);
+      batch_count++;
+      row_count += batch.Size();
+    }
+    EXPECT_GE(batch_count, 2);
+    EXPECT_EQ(row_count, dmat->Info().num_row_);
+  }
+
+  Args args{
+      {"max_depth", "2"},
+      {"max_bin", std::to_string(kMaxBin)},
+      {"min_child_weight", "0.0"},
+      {"reg_alpha", "0"},
+      {"reg_lambda", "0"}
+  };
+
+  tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker;
+  GenericParameter generic_param(CreateEmptyGenericParam(0));
+  generic_param.gpu_page_size = gpu_page_size;
+  hist_maker.Configure(args, &generic_param);
+
+  hist_maker.Update(gpair, dmat, {tree});
+  hist_maker.UpdatePredictionCache(dmat, preds);
+}
+
+TEST(GpuHist, ExternalMemory) {
+  constexpr size_t kRows = 6;
+  constexpr size_t kCols = 2;
+  constexpr size_t kPageSize = 1;
+
+  // Create an in-memory DMatrix.
+  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
+
+  // Create a DMatrix with multiple batches.
+  dmlc::TemporaryDirectory tmpdir;
+  std::unique_ptr<DMatrix>
+      dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+
+  auto gpair = GenerateRandomGradients(kRows);
+
+  // Build a tree using the in-memory DMatrix.
+  RegTree tree;
+  HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
+  UpdateTree(&gpair, dmat.get(), 0, &tree, &preds);
+
+  // Build another tree using multiple ELLPACK pages.
+  RegTree tree_ext;
+  HostDeviceVector<bst_float> preds_ext(kRows, 0.0, 0);
+  UpdateTree(&gpair, dmat_ext.get(), kPageSize, &tree_ext, &preds_ext);
+
+  // Make sure the predictions are the same.
+  auto preds_h = preds.ConstHostVector();
+  auto preds_ext_h = preds_ext.ConstHostVector();
+  for (int i = 0; i < kRows; i++) {
+    ASSERT_FLOAT_EQ(preds_h[i], preds_ext_h[i]);
+  }
+}
+
+TEST(GpuHist, Config_IO) {
+  GenericParameter generic_param(CreateEmptyGenericParam(0));
+  std::unique_ptr<TreeUpdater> updater {TreeUpdater::Create("grow_gpu_hist", &generic_param) };
+  updater->Configure(Args{});
+
+  Json j_updater { Object() };
+  updater->SaveConfig(&j_updater);
+  ASSERT_TRUE(IsA<Object>(j_updater["gpu_hist_train_param"]));
+  ASSERT_TRUE(IsA<Object>(j_updater["train_param"]));
+  updater->LoadConfig(j_updater);
+
+  Json j_updater_roundtrip { Object() };
+  updater->SaveConfig(&j_updater_roundtrip);
+  ASSERT_TRUE(IsA<Object>(j_updater_roundtrip["gpu_hist_train_param"]));
+  ASSERT_TRUE(IsA<Object>(j_updater_roundtrip["train_param"]));
+
+  ASSERT_EQ(j_updater, j_updater_roundtrip);
 }
 
 }  // namespace tree

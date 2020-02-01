@@ -1,10 +1,13 @@
 import numpy as np
 import xgboost as xgb
+from xgboost.sklearn import XGBoostLabelEncoder
 import testing as tm
 import tempfile
 import os
 import shutil
 import pytest
+import unittest
+import json
 
 rng = np.random.RandomState(1994)
 
@@ -96,6 +99,7 @@ def test_ranking():
     valid_data = xgb.DMatrix(x_valid, y_valid)
     test_data = xgb.DMatrix(x_test)
     train_data.set_group(train_group)
+    assert train_data.get_label().shape[0] == x_train.shape[0]
     valid_data.set_group(valid_group)
 
     params_orig = {'tree_method': 'exact', 'objective': 'rank:pairwise',
@@ -115,9 +119,10 @@ def test_feature_importances_weight():
     digits = load_digits(2)
     y = digits['target']
     X = digits['data']
-    xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact", importance_type="weight").fit(X, y)
-
+    xgb_model = xgb.XGBClassifier(random_state=0,
+                                  tree_method="exact",
+                                  learning_rate=0.1,
+                                  importance_type="weight").fit(X, y)
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.00833333, 0.,
                     0., 0., 0., 0., 0., 0., 0., 0.025, 0.14166667, 0., 0., 0.,
                     0., 0., 0., 0.00833333, 0.25833333, 0., 0., 0., 0.,
@@ -132,12 +137,16 @@ def test_feature_importances_weight():
     import pandas as pd
     y = pd.Series(digits['target'])
     X = pd.DataFrame(digits['data'])
-    xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact", importance_type="weight").fit(X, y)
+    xgb_model = xgb.XGBClassifier(random_state=0,
+                                  tree_method="exact",
+                                  learning_rate=0.1,
+                                  importance_type="weight").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
-    xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact", importance_type="weight").fit(X, y)
+    xgb_model = xgb.XGBClassifier(random_state=0,
+                                  tree_method="exact",
+                                  learning_rate=0.1,
+                                  importance_type="weight").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
@@ -149,7 +158,9 @@ def test_feature_importances_gain():
     y = digits['target']
     X = digits['data']
     xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact", importance_type="gain").fit(X, y)
+        random_state=0, tree_method="exact",
+        learning_rate=0.1,
+        importance_type="gain").fit(X, y)
 
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                     0.00326159, 0., 0., 0., 0., 0., 0., 0., 0.,
@@ -167,11 +178,15 @@ def test_feature_importances_gain():
     y = pd.Series(digits['target'])
     X = pd.DataFrame(digits['data'])
     xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact", importance_type="gain").fit(X, y)
+        random_state=0, tree_method="exact",
+        learning_rate=0.1,
+        importance_type="gain").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact", importance_type="gain").fit(X, y)
+        random_state=0, tree_method="exact",
+        learning_rate=0.1,
+        importance_type="gain").fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
@@ -188,6 +203,10 @@ def test_num_parallel_tree():
     bst = reg.fit(X=boston['data'], y=boston['target'])
     dump = bst.get_booster().get_dump(dump_format='json')
     assert len(dump) == 4
+
+    config = json.loads(bst.get_booster().save_config())
+    assert int(config['learner']['gradient_booster']['gbtree_train_param'][
+        'num_parallel_tree']) == 4
 
 
 def test_boston_housing_regression():
@@ -242,7 +261,7 @@ def test_parameter_tuning():
     boston = load_boston()
     y = boston['target']
     X = boston['data']
-    xgb_model = xgb.XGBRegressor()
+    xgb_model = xgb.XGBRegressor(learning_rate=0.1)
     clf = GridSearchCV(xgb_model, {'max_depth': [2, 4, 6],
                                    'n_estimators': [50, 100, 200]},
                        cv=3, verbose=1, iid=True)
@@ -450,6 +469,10 @@ def test_sklearn_random_state():
     clf = xgb.XGBClassifier(random_state=401)
     assert clf.get_xgb_params()['random_state'] == 401
 
+    random_state = np.random.RandomState(seed=403)
+    clf = xgb.XGBClassifier(random_state=random_state)
+    assert isinstance(clf.get_xgb_params()['random_state'], int)
+
 
 def test_sklearn_n_jobs():
     clf = xgb.XGBClassifier(n_jobs=1)
@@ -592,7 +615,7 @@ def test_validation_weights_xgbclassifier():
                 for i in [0, 1]))
 
 
-def test_save_load_model():
+def save_load_model(model_path):
     from sklearn.datasets import load_digits
     from sklearn.model_selection import KFold
 
@@ -600,18 +623,64 @@ def test_save_load_model():
     y = digits['target']
     X = digits['data']
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
-    with TemporaryDirectory() as tempdir:
-        model_path = os.path.join(tempdir, 'digits.model')
-        for train_index, test_index in kf.split(X, y):
-            xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
-            xgb_model.save_model(model_path)
+    for train_index, test_index in kf.split(X, y):
+        xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
+        xgb_model.save_model(model_path)
+        xgb_model = xgb.XGBClassifier()
+        xgb_model.load_model(model_path)
+        assert isinstance(xgb_model.classes_, np.ndarray)
+        assert isinstance(xgb_model._Booster, xgb.Booster)
+        assert isinstance(xgb_model._le, XGBoostLabelEncoder)
+        assert isinstance(xgb_model._le.classes_, np.ndarray)
+        preds = xgb_model.predict(X[test_index])
+        labels = y[test_index]
+        err = sum(1 for i in range(len(preds))
+                  if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+        assert err < 0.1
+        assert xgb_model.get_booster().attr('scikit_learn') is None
+
+        # test native booster
+        preds = xgb_model.predict(X[test_index], output_margin=True)
+        booster = xgb.Booster(model_file=model_path)
+        predt_1 = booster.predict(xgb.DMatrix(X[test_index]),
+                                  output_margin=True)
+        assert np.allclose(preds, predt_1)
+
+        with pytest.raises(TypeError):
             xgb_model = xgb.XGBModel()
             xgb_model.load_model(model_path)
-            preds = xgb_model.predict(X[test_index])
-            labels = y[test_index]
-            err = sum(1 for i in range(len(preds))
-                      if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
-            assert err < 0.1
+
+
+def test_save_load_model():
+    with TemporaryDirectory() as tempdir:
+        model_path = os.path.join(tempdir, 'digits.model')
+        save_load_model(model_path)
+
+    with TemporaryDirectory() as tempdir:
+        model_path = os.path.join(tempdir, 'digits.model.json')
+        save_load_model(model_path)
+
+    from sklearn.datasets import load_digits
+    with TemporaryDirectory() as tempdir:
+        model_path = os.path.join(tempdir, 'digits.model.json')
+        digits = load_digits(2)
+        y = digits['target']
+        X = digits['data']
+        booster = xgb.train({'tree_method': 'hist',
+                             'objective': 'binary:logistic'},
+                            dtrain=xgb.DMatrix(X, y),
+                            num_boost_round=4)
+        predt_0 = booster.predict(xgb.DMatrix(X))
+        booster.save_model(model_path)
+        cls = xgb.XGBClassifier()
+        cls.load_model(model_path)
+        predt_1 = cls.predict(X)
+        assert np.allclose(predt_0, predt_1)
+
+        cls = xgb.XGBModel()
+        cls.load_model(model_path)
+        predt_1 = cls.predict(X)
+        assert np.allclose(predt_0, predt_1)
 
 
 def test_RFECV():
@@ -691,3 +760,50 @@ def test_XGBClassifier_resume():
 
         assert np.any(pred1 != pred2)
         assert log_loss1 > log_loss2
+
+
+def test_constraint_parameters():
+    reg = xgb.XGBRegressor(interaction_constraints='[[0, 1], [2, 3, 4]]')
+    X = np.random.randn(10, 10)
+    y = np.random.randn(10)
+    reg.fit(X, y)
+
+    config = json.loads(reg.get_booster().save_config())
+    assert config['learner']['gradient_booster']['updater']['grow_colmaker'][
+        'train_param']['interaction_constraints'] == '[[0, 1], [2, 3, 4]]'
+
+
+class TestBoostFromPrediction(unittest.TestCase):
+    def run_boost_from_prediction(self, tree_method):
+        from sklearn.datasets import load_breast_cancer
+        X, y = load_breast_cancer(return_X_y=True)
+        model_0 = xgb.XGBClassifier(
+            learning_rate=0.3, random_state=0, n_estimators=4,
+            tree_method=tree_method)
+        model_0.fit(X=X, y=y)
+        margin = model_0.predict(X, output_margin=True)
+
+        model_1 = xgb.XGBClassifier(
+            learning_rate=0.3, random_state=0, n_estimators=4,
+            tree_method=tree_method)
+        model_1.fit(X=X, y=y, base_margin=margin)
+        predictions_1 = model_1.predict(X, base_margin=margin)
+
+        cls_2 = xgb.XGBClassifier(
+            learning_rate=0.3, random_state=0, n_estimators=8,
+            tree_method=tree_method)
+        cls_2.fit(X=X, y=y)
+        predictions_2 = cls_2.predict(X)
+        assert np.all(predictions_1 == predictions_2)
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_boost_from_prediction_hist(self):
+        self.run_boost_from_prediction('hist')
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_boost_from_prediction_approx(self):
+        self.run_boost_from_prediction('approx')
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_boost_from_prediction_exact(self):
+        self.run_boost_from_prediction('exact')

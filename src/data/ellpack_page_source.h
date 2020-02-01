@@ -9,7 +9,6 @@
 #include <memory>
 #include <string>
 
-#include "sparse_page_source.h"
 #include "../common/timer.h"
 
 namespace xgboost {

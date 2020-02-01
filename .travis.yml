@@ -3,34 +3,49 @@ sudo: required
 
 # Enabling test OS X
 os:
+  - linux
   - osx
 
-osx_image: xcode9.3
+osx_image: xcode10.3
+dist: bionic
 
 # Use Build Matrix to do lint and build seperately
 env:
   matrix:
     # python package test
     - TASK=python_test
+    # test installation of Python source distribution
+    - TASK=python_sdist_test
     # java package test
     - TASK=java_test
     # cmake test
-    # - TASK=cmake_test
+    - TASK=cmake_test
 
-# dependent apt packages
+matrix:
+  exclude:
+    - os: linux
+      env: TASK=python_test
+    - os: linux
+      env: TASK=java_test
+    - os: linux
+      env: TASK=cmake_test
+
+# dependent brew packages
 addons:
   homebrew:
     packages:
-      - gcc@7
+      - cmake
+      - libomp
       - graphviz
       - openssl
       - libgit2
+      - wget
       - r
     update: true
 
 before_install:
   - source dmlc-core/scripts/travis/travis_setup_env.sh
-  - export PYTHONPATH=${PYTHONPATH}:${PWD}/python-package
+  - if [ "${TASK}" != "python_sdist_test" ]; then export PYTHONPATH=${PYTHONPATH}:${PWD}/python-package; fi
   - echo "MAVEN_OPTS='-Xmx2g -XX:MaxPermSize=1024m -XX:ReservedCodeCacheSize=512m -Dorg.slf4j.simpleLogger.defaultLogLevel=error'" > ~/.mavenrc
 
 install:
