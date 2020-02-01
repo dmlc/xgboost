@@ -14,6 +14,7 @@
 #include <string>
 #include <sstream>
 #include <utility>
+#include <cmath>
 
 #include "xgboost/logging.h"
 #include "xgboost/parameter.h"
@@ -120,11 +121,11 @@ class ElasticNet final : public SplitEvaluator {
   bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
       const override {
     const double denominator = stats.sum_hess + params_->reg_lambda;
-    if (denominator == 0.0) {
-      return 0.0f;
+    if (std::fabs(denominator) < kRtEps) {
+      denominator = std::copysign(kRtEps, denominator);
     }
     bst_float w = -ThresholdL1(stats.sum_grad) / denominator;
-    if (params_->max_delta_step != 0.0f && std::abs(w) > params_->max_delta_step) {
+    if (params_->max_delta_step != 0.0f && std::fabs(w) > params_->max_delta_step) {
       w = std::copysign(params_->max_delta_step, w);
     }
     return w;
