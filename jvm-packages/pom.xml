@@ -37,6 +37,7 @@
         <spark.version>2.4.3</spark.version>
         <scala.version>2.12.8</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
+        <hadoop.version>2.7.3</hadoop.version>
     </properties>
     <repositories>
         <repository>
