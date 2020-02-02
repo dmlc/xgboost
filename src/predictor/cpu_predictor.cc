@@ -171,7 +171,7 @@ class CPUPredictor : public Predictor {
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }
-
+    std::cout << "run PredLoopInternal in PredictBatch\n";
     this->PredLoopInternal(dmat, &out_preds->HostVector(), model,
                            tree_begin, ntree_limit);
 

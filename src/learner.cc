@@ -704,6 +704,7 @@ class LearnerImpl : public Learner {
     this->ValidateDMatrix(train);
 
     monitor_.Start("PredictRaw");
+    std::cout << "calling UpdateOneIter\n";
     this->PredictRaw(train, &preds_[train], true);
     monitor_.Stop("PredictRaw");
     TrainingObserver::Instance().Observe(preds_[train], "Predictions");
@@ -745,6 +746,7 @@ class LearnerImpl : public Learner {
     for (size_t i = 0; i < data_sets.size(); ++i) {
       DMatrix * dmat = data_sets[i];
       this->ValidateDMatrix(dmat);
+      std::cout << "calling EvalOneIter\n";
       this->PredictRaw(data_sets[i], &preds_[dmat], false);
       obj_->EvalTransform(&preds_[dmat]);
       for (auto& ev : metrics_) {
