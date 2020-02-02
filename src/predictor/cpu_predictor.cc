@@ -177,6 +177,7 @@ class CPUPredictor : public Predictor {
 
     auto cache_entry = this->FindCache(dmat);
     if (cache_entry == cache_->cend()) {
+      std::cout << "cannot find cache\n";
       if (!generic_param_->adding_all_to_cache) {
         return;
       } else {
