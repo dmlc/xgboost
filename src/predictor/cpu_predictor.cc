@@ -176,8 +176,11 @@ class CPUPredictor : public Predictor {
                            tree_begin, ntree_limit);
 
     auto cache_entry = this->FindCache(dmat);
-    if (cache_entry == cache_->cend()) {
+    if (!generic_param_->adding_all_to_cache && cache_entry == cache_->cend()) {
       return;
+    } else if (generic_param_->adding_all_to_cache) {
+      auto * new_cache_entry = new PredictionCacheEntry();
+      (*cache_)[dmat] = (*new_cache_entry);
     }
     if (cache_entry->second.predictions.Size() == 0) {
       // See comment in GPUPredictor::PredictBatch.
