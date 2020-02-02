@@ -202,6 +202,7 @@ class LearnerImpl : public Learner {
     tparam_.UpdateAllowUnknown(args);
     mparam_.UpdateAllowUnknown(args);
     generic_parameters_.UpdateAllowUnknown(args);
+    std::cout << "all_to_prediction_cache:" << generic_parameters_.adding_all_to_cache << "\n";
     generic_parameters_.CheckDeprecated();
 
     ConsoleLogger::Configure(args);
