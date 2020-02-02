@@ -198,6 +198,7 @@ class CPUPredictor : public Predictor {
 
       if (e.predictions.Size() == 0) {
         InitOutPredictions(e.data->Info(), &(e.predictions), model);
+        std::cout << "calling PredLoopInternal in UpdatePredictionCache\n";
         PredLoopInternal(e.data.get(), &(e.predictions.HostVector()), model, 0,
                          model.trees.size());
       } else if (model.learner_model_param_->num_output_group == 1 && updaters->size() > 0 &&
