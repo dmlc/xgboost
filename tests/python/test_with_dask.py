@@ -97,7 +97,7 @@ def test_dask_regressor():
             assert len(history['validation_0']['rmse']) == 2
 
 
-def test_dask_classifier(client):
+def test_dask_classifier():
     with LocalCluster(n_workers=5) as cluster:
         with Client(cluster) as client:
             X, y = generate_array()
