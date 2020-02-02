@@ -30,7 +30,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   bool enable_experimental_json_serialization {false};
   bool validate_parameters {false};
   bool validate_features {true};
-  bool adding_all_to_cache {true};
+  bool adding_all_to_cache {false};
 
   void CheckDeprecated() {
     if (this->n_gpus != 0) {
@@ -87,7 +87,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
 "\n\tPlease switch to distributed training with one process per GPU."
 "\n\tThis can be done using Dask or Spark.  See documentation for details.");
     DMLC_DECLARE_FIELD(adding_all_to_cache)
-      .set_default(true)
+      .set_default(false)
       .describe("adding prediction results for all dmatrix to prediction cache");
   }
 

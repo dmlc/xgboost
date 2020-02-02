@@ -154,6 +154,11 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
       logger.info("parameter \"maximize_evaluation_metrics\" is set to " + maximize)
       overridedParams += ("maximize_evaluation_metrics" -> maximize)
     }
+
+    if (params.contains("checkpoint_path") && params.contains("checkpoint_interval")) {
+      overridedParams += "adding_all_to_cache" -> true
+    }
+
     overridedParams
   }
 
