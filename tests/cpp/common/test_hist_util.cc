@@ -228,56 +228,36 @@ TEST(SparseCuts, MultiThreadedBuild) {
   omp_set_num_threads(ori_nthreads);
 }
 
-TEST(hist_util, BasicCategorical) {
-  std::vector<float> x = {0.0, 1.0, 2.0, 4.0};
-  int num_bins = x.size();
-  auto dmat = GetDMatrixFromData(x);
-  HistogramCuts cuts;
-  DenseCuts dense(&cuts);
-  dense.Build(&dmat, num_bins);
-  // Expect each unique value to have its own bin
-  for (auto i = 0ull; i < x.size(); i++) {
-    EXPECT_EQ(cuts.SearchBin(x[i], 0), i);
+TEST(hist_util, DenseCutsCategorical) {
+  int categorical_sizes[] = {2, 6, 8, 12};
+  int num_bins = 256;
+  int sizes[] = {25, 100, 1000};
+  for (auto n : sizes) {
+    for (auto num_categories : categorical_sizes) {
+    auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
+    auto dmat = GetDMatrixFromData(x);
+    std::vector<float> x_sorted(x);
+    std::sort(x_sorted.begin(), x_sorted.end());
+      HistogramCuts cuts;
+      DenseCuts dense(&cuts);
+      dense.Build(&dmat, num_bins);
+      auto cuts_from_sketch = cuts.Values();
+      EXPECT_LT(cuts.MinValues()[0], x_sorted.front());
+      EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());
+      EXPECT_GE(cuts_from_sketch.back(), x_sorted.back());
+      EXPECT_EQ(cuts_from_sketch.size(), num_categories);
+    }
   }
-  auto cuts_from_sketch = cuts.Values();
-  EXPECT_EQ(cuts_from_sketch.size(), x.size());
-  EXPECT_LE(cuts.MinValues()[0], x.front());
-  EXPECT_GE(cuts_from_sketch.front(), x.front());
-  EXPECT_GE(cuts_from_sketch.back(), x.back());
-
-
-}
-
-TEST(hist_util, BasicContinuous) {
-  std::vector<float> x(256);
-  std::iota(x.begin(), x.end(), 0);
-  int num_bins = x.size();
-  auto dmat = GetDMatrixFromData(x);
-  HistogramCuts cuts;
-  DenseCuts dense(&cuts);
-  dense.Build(&dmat, num_bins);
-
-  // Expect each unique value to have its own bin
-  for (auto i = 0ull; i < x.size(); i++) {
-    EXPECT_EQ(cuts.SearchBin(x[i], 0), i);
-  }
-  auto cuts_from_sketch = cuts.Values();
-  EXPECT_EQ(cuts_from_sketch.size(), x.size());
-  EXPECT_LE(cuts.MinValues()[0], x.front());
-  EXPECT_GE(cuts_from_sketch.front(), x.front());
-  EXPECT_GE(cuts_from_sketch.back(), x.back());
 }
 
 TEST(hist_util, DenseCutsAccuracyTest) {
-  int bin_sizes[] = {16};
-  int sizes[] = {25};
-  //int bin_sizes[] = {2, 16, 256,512};
-  //int sizes[] = {25, 100, 1000};
+  int bin_sizes[] = {2, 16, 256, 512};
+  int sizes[] = {25, 100, 1000};
   float low = -100;
   float high = 100;
   for (auto n : sizes) {
     auto x = GenerateRandomSingleColumn(n, low, high);
-    std::vector<float > x_sorted(x);
+    std::vector<float> x_sorted(x);
     std::sort(x_sorted.begin(), x_sorted.end());
     auto dmat = GetDMatrixFromData(x);
     for (auto num_bins : bin_sizes) {
@@ -285,11 +265,21 @@ TEST(hist_util, DenseCutsAccuracyTest) {
       DenseCuts dense(&cuts);
       dense.Build(&dmat, num_bins);
       auto cuts_from_sketch = cuts.Values();
-      auto cuts_from_sort = CutsFromSort(x_sorted, num_bins);
       EXPECT_LT(cuts.MinValues()[0], x_sorted.front());
       EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());
       EXPECT_GE(cuts_from_sketch.back(), x_sorted.back());
-      ASSERT_EQ(cuts_from_sketch.size(), std::min(n, num_bins));
+
+      if (x.size() <= num_bins) {
+        // Less unique values than number of bins
+        // Each value should get its own bin
+        for (auto i = 0ull; i < x.size(); i++) {
+          EXPECT_EQ(cuts.SearchBin(x_sorted[i], 0), i);
+        }
+      }
+      // Don't perform this test for categorical
+      if (cuts_from_sketch.size() > 16) {
+        TestRank(cuts_from_sketch, x_sorted,0.01);
+      }
     }
   }
 }

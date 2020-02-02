@@ -14,22 +14,38 @@ std::vector<float> GenerateRandomSingleColumn(int n, float low = -100,
   return x;
 }
 
+std::vector<float> GenerateRandomCategoricalSingleColumn(int n,
+                                                         int num_categories) {
+  std::vector<float> x(n);
+  std::mt19937 rng(0);
+  std::uniform_int_distribution<int> dist(0, num_categories - 1);
+  std::generate(x.begin(), x.end(), [&]() { return dist(rng); });
+  // Make sure each category is present
+  for(auto i = 0ull; i < num_categories; i++)
+  {
+    x[i] = i;
+  }
+  return x;
+}
+
 data::SimpleDMatrix GetDMatrixFromData(const std::vector<float>& x) {
-  data::DenseAdapter adapter(x.data(), x.size(), x.size(), 1);
+  data::DenseAdapter adapter(x.data(), x.size(), 1);
   return data::SimpleDMatrix(&adapter, std::numeric_limits<float>::quiet_NaN(),
                              1);
 }
 
-std::vector<float> CutsFromSort(const std::vector<float>& x_sorted,
-                                int num_bins) {
-  if (x_sorted.size() <= num_bins) return x_sorted;
-  std::vector<float> cuts(num_bins);
-  for(auto i = 0ull; i < num_bins; i++)
-  {
-    double rank = double(i)/num_bins;
-    cuts[i] = x_sorted[size_t(rank*x_sorted.size())];
+void TestRank(const std::vector<float>& cuts,
+              const std::vector<float>& sorted_x, float eps) {
+  // Ignore the first and last cut, they are special
+  size_t j = 0;
+  for (auto i = 1ull; i < cuts.size() - 1; i++) {
+    int expected_rank = (i * sorted_x.size()) / cuts.size() + 1;
+    while (cuts[i] > sorted_x[j]) {
+      j++;
+    }
+    int actual_rank = j;
+    EXPECT_LT(std::abs(expected_rank - actual_rank), sorted_x.size() * eps);
   }
-  return cuts;
 }
 }  // namespace common
 }  // namespace xgboost
