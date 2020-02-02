@@ -178,11 +178,12 @@ class CPUPredictor : public Predictor {
     auto cache_entry = this->FindCache(dmat);
     if (cache_entry == cache_->cend()) {
       std::cout << "cannot find cache\n";
-      if (!generic_param_->adding_all_to_cache) {
+      if (!generic_param_->adding_all_to_cache || !(*cache_).empty()) {
         return;
       } else {
         std::cout << "adding dmatrix to cache\n";
         (*cache_)[dmat].data = static_cast<std::shared_ptr<DMatrix>>(dmat);
+        return;
       }
     }
     if (cache_entry->second.predictions.Size() == 0) {

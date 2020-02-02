@@ -30,7 +30,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   bool enable_experimental_json_serialization {false};
   bool validate_parameters {false};
   bool validate_features {true};
-  bool adding_all_to_cache{true};
+  bool adding_all_to_cache {true};
 
   void CheckDeprecated() {
     if (this->n_gpus != 0) {
