@@ -176,6 +176,7 @@ class CPUPredictor : public Predictor {
                            tree_begin, ntree_limit);
 
     auto cache_entry = this->FindCache(dmat);
+    std::cout << "adding_all_to_cache: " << generic_param_->adding_all_to_cache << "\n";
     if (cache_entry == cache_->cend()) {
       if (!generic_param_->adding_all_to_cache) {
         return;
