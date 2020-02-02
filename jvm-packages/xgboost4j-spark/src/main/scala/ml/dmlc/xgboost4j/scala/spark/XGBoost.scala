@@ -156,7 +156,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     }
 
     if (params.contains("checkpoint_path") && params.contains("checkpoint_interval")) {
-      overridedParams += "adding_all_to_cache" -> true
+      overridedParams += "adding_all_to_cache" -> false
     }
 
     overridedParams
