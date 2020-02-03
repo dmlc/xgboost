@@ -678,7 +678,7 @@ public class Booster implements Serializable, KryoSerializable {
    */
   private void init(DMatrix[] cacheMats) throws XGBoostError {
     long[] handles = null;
-    if (cacheMats != null) {
+    if (cacheMats != null && cacheMats.length > 0) {
       handles = dmatrixsToHandles(cacheMats);
     }
     long[] out = new long[1];

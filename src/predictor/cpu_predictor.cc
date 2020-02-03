@@ -189,7 +189,7 @@ class CPUPredictor : public Predictor {
     if (cache_entry->second.predictions.Size() == 0) {
       // See comment in GPUPredictor::PredictBatch.
       InitOutPredictions(cache_entry->second.data->Info(),
-                         &(cache_entry->second.predictions), model);
+              &(cache_entry->second.predictions), model);
       cache_entry->second.predictions.Copy(*out_preds);
     }
   }
