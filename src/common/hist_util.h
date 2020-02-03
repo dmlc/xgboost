@@ -196,20 +196,10 @@ class CutsBuilder {
   }
 
   void AddCutPoint(WXQSketch::SummaryContainer const& summary) {
-    if (summary.size > 1 && summary.size <= 16) {
-      /* specialized code categorial / ordinal data -- use midpoints */
-      for (size_t i = 1; i < summary.size; ++i) {
-        bst_float cpt = (summary.data[i].value + summary.data[i - 1].value) / 2.0f;
-        if (i == 1 || cpt > p_cuts_->cut_values_.back()) {
-          p_cuts_->cut_values_.push_back(cpt);
-        }
-      }
-    } else {
-      for (size_t i = 1; i < summary.size; ++i) {
-        bst_float cpt = summary.data[i].value;
-        if (i == 1 || cpt > p_cuts_->cut_values_.back()) {
-          p_cuts_->cut_values_.push_back(cpt);
-        }
+    for (size_t i = 1; i < summary.size; ++i) {
+      bst_float cpt = summary.data[i].value;
+      if (i == 1 || cpt > p_cuts_->cut_values_.back()) {
+        p_cuts_->cut_values_.push_back(cpt);
       }
     }
   }
