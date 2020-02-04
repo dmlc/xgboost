@@ -91,7 +91,12 @@ Loading pickled file from different version of XGBoost
 
 As noted, pickled model is neither portable nor stable, but in some cases the pickled
 models are valuable.  One way to restore it in the future is to load it back with that
-specific version of Python and XGBoost, export the model by calling `save_model`.
+specific version of Python and XGBoost, export the model by calling `save_model`.  To help
+easing the mitigation, we created a simple script for converting pickled XGBoost 0.90
+Scikit-Learn interface object to XGBoost 1.0.0 native model.  Please note that the script
+suites simple use cases, and it's adviced not to use pickle when stability is needed.
+It's located in ``xgboost/doc/ptyhon`` with the name ``convert_090to100.py``.  See
+comments in the script for more details.
 
 ********************************************************
 Saving and Loading the internal parameters configuration
