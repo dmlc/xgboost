@@ -53,11 +53,10 @@ to ask questions at `the user forum <https://discuss.xgboost.ai>`_.
 
 * `Building the Shared Library`_
 
-  - `Building on Ubuntu/Debian`_
+  - `Building on Linux Distributions`_
   - `Building on OSX`_
   - `Building on Windows`_
   - `Building with GPU support`_
-  - `Customized Building`_
 
 * `Python Package Installation`_
 * `R Package Installation`_
@@ -290,6 +289,7 @@ created under the ``dist`` directory.  Then you can install it by invoking the f
 command under ``dist`` directory:
 
 .. code-block:: bash
+
   # under python-package directory
   cd dist
   pip install ./xgboost-1.0.0.tar.gz
