@@ -204,7 +204,10 @@ struct LearnerModelParam {
   /* \brief number of classes, if it is multi-class classification  */
   uint32_t num_output_group;
 
-  LearnerModelParam() : base_score {0.5}, num_feature{0}, num_output_group{0} {}
+  /* \brief Whether this parameter is initialized through constructor. */
+  bool initialized;
+
+  LearnerModelParam() : base_score {0.5}, num_feature{0}, num_output_group{0}, initialized{false} {}
   // As the old `LearnerModelParamLegacy` is still used by binary IO, we keep
   // this one as an immutable copy.
   LearnerModelParam(LearnerModelParamLegacy const& user_param, float base_margin);

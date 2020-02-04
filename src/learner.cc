@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2019 by Contributors
+ * Copyright 2014-2020 by Contributors
  * \file learner.cc
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
@@ -117,8 +117,9 @@ LearnerModelParam::LearnerModelParam(
     LearnerModelParamLegacy const &user_param, float base_margin)
     : base_score{base_margin}, num_feature{user_param.num_feature},
       num_output_group{user_param.num_class == 0
-                           ? 1
-                           : static_cast<uint32_t>(user_param.num_class)} {}
+                       ? 1
+                       : static_cast<uint32_t>(user_param.num_class)},
+      initialized{true} {}
 
 struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
   // data split mode, can be row, col, or none.
@@ -200,6 +201,7 @@ class LearnerImpl : public Learner {
     Args args = {cfg_.cbegin(), cfg_.cend()};
 
     tparam_.UpdateAllowUnknown(args);
+    auto mparam_backup = mparam_;
     mparam_.UpdateAllowUnknown(args);
     generic_parameters_.UpdateAllowUnknown(args);
     generic_parameters_.CheckDeprecated();
@@ -217,17 +219,24 @@ class LearnerImpl : public Learner {
 
     // set seed only before the model is initialized
     common::GlobalRandom().seed(generic_parameters_.seed);
+
+    generic_parameters_.ConfigureGpuId(this->gbm_->UseGPU());
+
+    // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
+    // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
+    // keep the stability, we initialize it in binary LoadModel instead of configuration.
+    if (!learner_model_param_.initialized ||
+        mparam_backup.base_score != mparam_.base_score) {
+      learner_model_param_ = LearnerModelParam(mparam_,
+                                               obj_->ProbToMargin(mparam_.base_score));
+    }
+
     // must precede configure gbm since num_features is required for gbm
     this->ConfigureNumFeatures();
     args = {cfg_.cbegin(), cfg_.cend()};  // renew
     this->ConfigureObjective(old_tparam, &args);
     this->ConfigureGBM(old_tparam, args);
     this->ConfigureMetrics(args);
-
-    generic_parameters_.ConfigureGpuId(this->gbm_->UseGPU());
-
-    learner_model_param_ = LearnerModelParam(mparam_,
-                                             obj_->ProbToMargin(mparam_.base_score));
 
     this->need_configuration_ = false;
     if (generic_parameters_.validate_parameters) {
@@ -336,9 +345,6 @@ class LearnerImpl : public Learner {
                                        &generic_parameters_, &learner_model_param_,
                                        cache_));
     gbm_->LoadModel(gradient_booster);
-
-    learner_model_param_ = LearnerModelParam(mparam_,
-                                             obj_->ProbToMargin(mparam_.base_score));
 
     auto const& j_attributes = get<Object const>(learner.at("attributes"));
     attributes_.clear();
@@ -488,6 +494,7 @@ class LearnerImpl : public Learner {
             << "BoostLearner: wrong model format";
       }
     }
+
     CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
     // duplicated code with LazyInitModel
     obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
@@ -508,6 +515,16 @@ class LearnerImpl : public Learner {
       }
       attributes_ = std::map<std::string, std::string>(attr.begin(), attr.end());
     }
+
+    if (attributes_.find("version") != attributes_.cend()) {
+      learner_model_param_ = LearnerModelParam(mparam_,
+                                               obj_->ProbToMargin(mparam_.base_score));
+    } else {
+      // Before 1.0.0, base_score is saved as a transform value, and there's no version
+      // field of model.
+      learner_model_param_ = LearnerModelParam(mparam_, mparam_.base_score);
+    }
+
     if (tparam_.objective == "count:poisson") {
       std::string max_delta_step;
       fi->Read(&max_delta_step);
@@ -552,6 +569,9 @@ class LearnerImpl : public Learner {
   void SaveModel(dmlc::Stream* fo) const override {
     LearnerModelParamLegacy mparam = mparam_;  // make a copy to potentially modify
     std::vector<std::pair<std::string, std::string> > extra_attr;
+    mparam.contain_extra_attrs = 1;
+    extra_attr.emplace_back(std::make_pair("version", Version::String(Version::Self())));
+
     // extra attributed to be added just before saving
     if (tparam_.objective == "count:poisson") {
       auto it = cfg_.find("max_delta_step");
@@ -587,7 +607,7 @@ class LearnerImpl : public Learner {
         attr[kv.first] = kv.second;
       }
       fo->Write(std::vector<std::pair<std::string, std::string>>(
-                  attr.begin(), attr.end()));
+          attr.begin(), attr.end()));
     }
     if (tparam_.objective == "count:poisson") {
       auto it = cfg_.find("max_delta_step");
