@@ -220,8 +220,14 @@ class LearnerImpl : public Learner {
     // set seed only before the model is initialized
     common::GlobalRandom().seed(generic_parameters_.seed);
 
-    generic_parameters_.ConfigureGpuId(this->gbm_->UseGPU());
+    // must precede configure gbm since num_features is required for gbm
+    this->ConfigureNumFeatures();
+    args = {cfg_.cbegin(), cfg_.cend()};  // renew
+    this->ConfigureObjective(old_tparam, &args);
+    this->ConfigureGBM(old_tparam, args);
+    this->ConfigureMetrics(args);
 
+    generic_parameters_.ConfigureGpuId(this->gbm_->UseGPU());
     // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
     // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
     // keep the stability, we initialize it in binary LoadModel instead of configuration.
@@ -230,13 +236,6 @@ class LearnerImpl : public Learner {
       learner_model_param_ = LearnerModelParam(mparam_,
                                                obj_->ProbToMargin(mparam_.base_score));
     }
-
-    // must precede configure gbm since num_features is required for gbm
-    this->ConfigureNumFeatures();
-    args = {cfg_.cbegin(), cfg_.cend()};  // renew
-    this->ConfigureObjective(old_tparam, &args);
-    this->ConfigureGBM(old_tparam, args);
-    this->ConfigureMetrics(args);
 
     this->need_configuration_ = false;
     if (generic_parameters_.validate_parameters) {
