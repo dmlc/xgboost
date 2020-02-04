@@ -95,6 +95,7 @@ class BuildExt(build_ext.build_ext):
     def build(self, src_dir, build_dir, generator, build_tool=None, use_omp=1):
         '''Build the core library with CMake.'''
         cmake_cmd = ['cmake', src_dir, generator]
+
         for k, v in USER_OPTIONS.items():
             arg = k.replace('-', '_').upper()
             value = str(v[2])
@@ -102,15 +103,15 @@ class BuildExt(build_ext.build_ext):
             if k == 'USE_OPENMP' and use_omp == 0:
                 continue
 
-        if system() == 'Windows':
-            cmake_cmd.append('--build')
-
         subprocess.check_call(cmake_cmd, cwd=build_dir)
 
         if system() != 'Windows':
             nproc = os.cpu_count()
             subprocess.check_call([build_tool, '-j' + str(nproc)],
                                   cwd=build_dir)
+        else:
+            subprocess.check_call(['cmake', '--build', '.',
+                                   '--config', 'Release'], cwd=build_dir)
 
     def build_cmake_extension(self):
         '''Configure and build using CMake'''
