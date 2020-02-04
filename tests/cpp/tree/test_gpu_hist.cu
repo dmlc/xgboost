@@ -88,12 +88,13 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
-  std::vector<GradientPair> h_gpair(kNRows);
-  for (auto &gpair : h_gpair) {
+  HostDeviceVector<GradientPair> gpair(kNRows);
+  for (auto &gp : gpair.HostVector()) {
     bst_float grad = dist(&gen);
     bst_float hess = dist(&gen);
-    gpair = GradientPair(grad, hess);
+    gp = GradientPair(grad, hess);
   }
+  gpair.SetDevice(0);
 
   thrust::host_vector<common::CompressedByteT> h_gidx_buffer (page->gidx_buffer.size());
 
@@ -104,7 +105,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
 
   maker.row_partitioner.reset(new RowPartitioner(0, kNRows));
   maker.hist.AllocateHistogram(0);
-  dh::CopyVectorToDeviceSpan(maker.gpair, h_gpair);
+  maker.gpair = gpair.DeviceSpan();
 
   maker.use_shared_memory_histograms = use_shared_memory_histograms;
   maker.BuildHist(0);
@@ -319,19 +320,6 @@ int32_t TestMinSplitLoss(DMatrix* dmat, float gamma, HostDeviceVector<GradientPa
   return n_nodes;
 }
 
-HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows) {
-  xgboost::SimpleLCG gen;
-  xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
-  std::vector<GradientPair> h_gpair(n_rows);
-  for (auto &gpair : h_gpair) {
-    bst_float grad = dist(&gen);
-    bst_float hess = dist(&gen);
-    gpair = GradientPair(grad, hess);
-  }
-  HostDeviceVector<GradientPair> gpair(h_gpair);
-  return gpair;
-}
-
 TEST(GpuHist, MinSplitLoss) {
   constexpr size_t kRows = 32;
   constexpr size_t kCols = 16;
@@ -358,7 +346,9 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair,
                 DMatrix* dmat,
                 size_t gpu_page_size,
                 RegTree* tree,
-                HostDeviceVector<bst_float>* preds) {
+                HostDeviceVector<bst_float>* preds,
+                float subsample = 1.0f,
+                const std::string& sampling_method = "uniform") {
   constexpr size_t kMaxBin = 2;
 
   if (gpu_page_size > 0) {
@@ -379,7 +369,9 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair,
       {"max_bin", std::to_string(kMaxBin)},
       {"min_child_weight", "0.0"},
       {"reg_alpha", "0"},
-      {"reg_lambda", "0"}
+      {"reg_lambda", "0"},
+      {"subsample", std::to_string(subsample)},
+      {"sampling_method", sampling_method},
   };
 
   tree::GPUHistMakerSpecialised<GradientPairPrecise> hist_maker;
@@ -391,10 +383,66 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair,
   hist_maker.UpdatePredictionCache(dmat, preds);
 }
 
-TEST(GpuHist, ExternalMemory) {
-  constexpr size_t kRows = 6;
+TEST(GpuHist, UniformSampling) {
+  constexpr size_t kRows = 4096;
   constexpr size_t kCols = 2;
-  constexpr size_t kPageSize = 1;
+  constexpr float kSubsample = 0.99;
+
+  // Create an in-memory DMatrix.
+  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
+
+  auto gpair = GenerateRandomGradients(kRows);
+
+  // Build a tree using the in-memory DMatrix.
+  RegTree tree;
+  HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
+  UpdateTree(&gpair, dmat.get(), 0, &tree, &preds);
+
+  // Build another tree using sampling.
+  RegTree tree_sampling;
+  HostDeviceVector<bst_float> preds_sampling(kRows, 0.0, 0);
+  UpdateTree(&gpair, dmat.get(), 0, &tree_sampling, &preds_sampling, kSubsample);
+
+  // Make sure the predictions are the same.
+  auto preds_h = preds.ConstHostVector();
+  auto preds_sampling_h = preds_sampling.ConstHostVector();
+  for (int i = 0; i < kRows; i++) {
+    EXPECT_NEAR(preds_h[i], preds_sampling_h[i], 2e-3);
+  }
+}
+
+TEST(GpuHist, GradientBasedSampling) {
+  constexpr size_t kRows = 4096;
+  constexpr size_t kCols = 2;
+  constexpr float kSubsample = 0.99;
+
+  // Create an in-memory DMatrix.
+  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
+
+  auto gpair = GenerateRandomGradients(kRows);
+
+  // Build a tree using the in-memory DMatrix.
+  RegTree tree;
+  HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
+  UpdateTree(&gpair, dmat.get(), 0, &tree, &preds);
+
+  // Build another tree using sampling.
+  RegTree tree_sampling;
+  HostDeviceVector<bst_float> preds_sampling(kRows, 0.0, 0);
+  UpdateTree(&gpair, dmat.get(), 0, &tree_sampling, &preds_sampling, kSubsample, "gradient_based");
+
+  // Make sure the predictions are the same.
+  auto preds_h = preds.ConstHostVector();
+  auto preds_sampling_h = preds_sampling.ConstHostVector();
+  for (int i = 0; i < kRows; i++) {
+    EXPECT_NEAR(preds_h[i], preds_sampling_h[i], 1e-3);
+  }
+}
+
+TEST(GpuHist, ExternalMemory) {
+  constexpr size_t kRows = 4096;
+  constexpr size_t kCols = 2;
+  constexpr size_t kPageSize = 1024;
 
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
@@ -420,7 +468,42 @@ TEST(GpuHist, ExternalMemory) {
   auto preds_h = preds.ConstHostVector();
   auto preds_ext_h = preds_ext.ConstHostVector();
   for (int i = 0; i < kRows; i++) {
-    ASSERT_FLOAT_EQ(preds_h[i], preds_ext_h[i]);
+    EXPECT_NEAR(preds_h[i], preds_ext_h[i], 2e-6);
+  }
+}
+
+TEST(GpuHist, ExternalMemoryWithSampling) {
+  constexpr size_t kRows = 4096;
+  constexpr size_t kCols = 2;
+  constexpr size_t kPageSize = 1024;
+  constexpr float kSubsample = 0.5;
+  const std::string kSamplingMethod = "gradient_based";
+
+  // Create an in-memory DMatrix.
+  std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
+
+  // Create a DMatrix with multiple batches.
+  dmlc::TemporaryDirectory tmpdir;
+  std::unique_ptr<DMatrix>
+      dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+
+  auto gpair = GenerateRandomGradients(kRows);
+
+  // Build a tree using the in-memory DMatrix.
+  RegTree tree;
+  HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
+  UpdateTree(&gpair, dmat.get(), 0, &tree, &preds, kSubsample, kSamplingMethod);
+
+  // Build another tree using multiple ELLPACK pages.
+  RegTree tree_ext;
+  HostDeviceVector<bst_float> preds_ext(kRows, 0.0, 0);
+  UpdateTree(&gpair, dmat_ext.get(), kPageSize, &tree_ext, &preds_ext, kSubsample, kSamplingMethod);
+
+  // Make sure the predictions are the same.
+  auto preds_h = preds.ConstHostVector();
+  auto preds_ext_h = preds_ext.ConstHostVector();
+  for (int i = 0; i < kRows; i++) {
+    EXPECT_NEAR(preds_h[i], preds_ext_h[i], 3e-3);
   }
 }
 

@@ -221,6 +221,19 @@ inline GenericParameter CreateEmptyGenericParam(int gpu_id) {
   return tparam;
 }
 
+inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows) {
+  xgboost::SimpleLCG gen;
+  xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
+  std::vector<GradientPair> h_gpair(n_rows);
+  for (auto &gpair : h_gpair) {
+    bst_float grad = dist(&gen);
+    bst_float hess = dist(&gen);
+    gpair = GradientPair(grad, hess);
+  }
+  HostDeviceVector<GradientPair> gpair(h_gpair);
+  return gpair;
+}
+
 #if defined(__CUDACC__)
 namespace {
 class HistogramCutsWrapper : public common::HistogramCuts {

@@ -71,6 +71,11 @@ struct EllpackInfo {
                        size_t row_stride,
                        const common::HistogramCuts& hmat,
                        dh::BulkAllocator* ba);
+
+  /*! \brief Return the total number of symbols (total number of bins plus 1 for not found). */
+  size_t NumSymbols() const {
+    return n_bins + 1;
+  }
 };
 
 /** \brief Struct for accessing and manipulating an ellpack matrix on the
@@ -201,12 +206,37 @@ class EllpackPageImpl {
   EllpackPageImpl() = default;
 
   /*!
+   * \brief Constructor from an existing EllpackInfo.
+   *
+   * This is used in the sampling case. The ELLPACK page is constructed from an existing EllpackInfo
+   * and the given number of rows.
+   */
+  explicit EllpackPageImpl(int device, EllpackInfo info, size_t n_rows);
+
+  /*!
    * \brief Constructor from an existing DMatrix.
    *
    * This is used in the in-memory case. The ELLPACK page is constructed from an existing DMatrix
    * in CSR format.
    */
   explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
+
+  /*! \brief Copy the elements of the given ELLPACK page into this page.
+   *
+   * @param device The GPU device to use.
+   * @param page The ELLPACK page to copy from.
+   * @param offset The number of elements to skip before copying.
+   * @returns The number of elements copied.
+   */
+  size_t Copy(int device, EllpackPageImpl* page, size_t offset);
+
+  /*! \brief Compact the given ELLPACK page into the current page.
+   *
+   * @param device The GPU device to use.
+   * @param page The ELLPACK page to compact from.
+   * @param row_indexes Row indexes for the compacted page.
+   */
+  void Compact(int device, EllpackPageImpl* page, common::Span<size_t> row_indexes);
 
   /*!
    * \brief Initialize the EllpackInfo contained in the EllpackMatrix.

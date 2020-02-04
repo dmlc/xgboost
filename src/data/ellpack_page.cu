@@ -64,6 +64,20 @@ __global__ void CompressBinEllpackKernel(
   wr.AtomicWriteSymbol(buffer, bin, (irow + base_row) * row_stride + ifeature);
 }
 
+// Construct an ELLPACK matrix with the given number of empty rows.
+EllpackPageImpl::EllpackPageImpl(int device, EllpackInfo info, size_t n_rows) {
+  monitor_.Init("ellpack_page");
+  dh::safe_cuda(cudaSetDevice(device));
+
+  matrix.info = info;
+  matrix.base_rowid = 0;
+  matrix.n_rows = n_rows;
+
+  monitor_.StartCuda("InitCompressedData");
+  InitCompressedData(device, n_rows);
+  monitor_.StopCuda("InitCompressedData");
+}
+
 // Construct an ELLPACK matrix in memory.
 EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
   monitor_.Init("ellpack_page");
@@ -96,6 +110,85 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
   monitor_.StopCuda("BinningCompression");
 }
 
+// A functor that copies the data from one EllpackPage to another.
+struct CopyPage {
+  common::CompressedBufferWriter cbw;
+  common::CompressedByteT* dst_data_d;
+  common::CompressedIterator<uint32_t> src_iterator_d;
+  // The number of elements to skip.
+  size_t offset;
+
+  CopyPage(EllpackPageImpl* dst, EllpackPageImpl* src, size_t offset)
+      : cbw{dst->matrix.info.NumSymbols()},
+        dst_data_d{dst->gidx_buffer.data()},
+        src_iterator_d{src->gidx_buffer.data(), src->matrix.info.NumSymbols()},
+        offset(offset) {}
+
+  __device__ void operator()(size_t element_id) {
+    cbw.AtomicWriteSymbol(dst_data_d, src_iterator_d[element_id], element_id + offset);
+  }
+};
+
+// Copy the data from the given EllpackPage to the current page.
+size_t EllpackPageImpl::Copy(int device, EllpackPageImpl* page, size_t offset) {
+  monitor_.StartCuda("Copy");
+  size_t num_elements = page->matrix.n_rows * page->matrix.info.row_stride;
+  CHECK_EQ(matrix.info.row_stride, page->matrix.info.row_stride);
+  CHECK_EQ(matrix.info.NumSymbols(), page->matrix.info.NumSymbols());
+  CHECK_GE(matrix.n_rows * matrix.info.row_stride, offset + num_elements);
+  dh::LaunchN(device, num_elements, CopyPage(this, page, offset));
+  monitor_.StopCuda("Copy");
+  return num_elements;
+}
+
+// A functor that compacts the rows from one EllpackPage into another.
+struct CompactPage {
+  common::CompressedBufferWriter cbw;
+  common::CompressedByteT* dst_data_d;
+  common::CompressedIterator<uint32_t> src_iterator_d;
+  /*! \brief An array that maps the rows from the full DMatrix to the compacted page.
+   *
+   * The total size is the number of rows in the original, uncompacted DMatrix. Elements are the
+   * row ids in the compacted page. Rows not needed are set to SIZE_MAX.
+   *
+   * An example compacting 16 rows to 8 rows:
+   * [SIZE_MAX, 0, 1, SIZE_MAX, SIZE_MAX, 2, SIZE_MAX, 3, 4, 5, SIZE_MAX, 6, SIZE_MAX, 7, SIZE_MAX,
+   * SIZE_MAX]
+   */
+  common::Span<size_t> row_indexes;
+  size_t base_rowid;
+  size_t row_stride;
+
+  CompactPage(EllpackPageImpl* dst, EllpackPageImpl* src, common::Span<size_t> row_indexes)
+      : cbw{dst->matrix.info.NumSymbols()},
+        dst_data_d{dst->gidx_buffer.data()},
+        src_iterator_d{src->gidx_buffer.data(), src->matrix.info.NumSymbols()},
+        row_indexes(row_indexes),
+        base_rowid{src->matrix.base_rowid},
+        row_stride{src->matrix.info.row_stride} {}
+
+  __device__ void operator()(size_t row_id) {
+    size_t src_row = base_rowid + row_id;
+    size_t dst_row = row_indexes[src_row];
+    if (dst_row == SIZE_MAX) return;
+    size_t dst_offset = dst_row * row_stride;
+    size_t src_offset = row_id * row_stride;
+    for (size_t j = 0; j < row_stride; j++) {
+      cbw.AtomicWriteSymbol(dst_data_d, src_iterator_d[src_offset + j], dst_offset + j);
+    }
+  }
+};
+
+// Compacts the data from the given EllpackPage into the current page.
+void EllpackPageImpl::Compact(int device, EllpackPageImpl* page, common::Span<size_t> row_indexes) {
+  monitor_.StartCuda("Compact");
+  CHECK_EQ(matrix.info.row_stride, page->matrix.info.row_stride);
+  CHECK_EQ(matrix.info.NumSymbols(), page->matrix.info.NumSymbols());
+  CHECK_LE(page->matrix.base_rowid + page->matrix.n_rows, row_indexes.size());
+  dh::LaunchN(device, page->matrix.n_rows, CompactPage(this, page, row_indexes));
+  monitor_.StopCuda("Compact");
+}
+
 // Construct an EllpackInfo based on histogram cuts of features.
 EllpackInfo::EllpackInfo(int device,
                          bool is_dense,
@@ -123,16 +216,14 @@ void EllpackPageImpl::InitInfo(int device,
 
 // Initialize the buffer to stored compressed features.
 void EllpackPageImpl::InitCompressedData(int device, size_t num_rows) {
-  size_t num_symbols = matrix.info.n_bins + 1;
+  size_t num_symbols = matrix.info.NumSymbols();
 
   // Required buffer size for storing data matrix in ELLPack format.
   size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize(
       matrix.info.row_stride * num_rows, num_symbols);
   ba_.Allocate(device, &gidx_buffer, compressed_size_bytes);
 
-  thrust::fill(
-      thrust::device_pointer_cast(gidx_buffer.data()),
-      thrust::device_pointer_cast(gidx_buffer.data() + gidx_buffer.size()), 0);
+  thrust::fill(dh::tbegin(gidx_buffer), dh::tend(gidx_buffer), 0);
 
   matrix.gidx_iter = common::CompressedIterator<uint32_t>(gidx_buffer.data(), num_symbols);
 }
@@ -149,7 +240,6 @@ void EllpackPageImpl::CreateHistIndices(int device,
 
   const auto& offset_vec = row_batch.offset.ConstHostVector();
 
-  int num_symbols = matrix.info.n_bins + 1;
   // bin and compress entries in batches of rows
   size_t gpu_batch_nrows = std::min(
       dh::TotalMemory(device) / (16 * row_stride * sizeof(Entry)),
@@ -193,7 +283,7 @@ void EllpackPageImpl::CreateHistIndices(int device,
                      1);
     dh::LaunchKernel {grid3, block3} (
         CompressBinEllpackKernel,
-        common::CompressedBufferWriter(num_symbols),
+        common::CompressedBufferWriter(matrix.info.NumSymbols()),
         gidx_buffer.data(),
         row_ptrs.data().get(),
         entries_d.data().get(),
@@ -254,11 +344,9 @@ void EllpackPageImpl::CompressSparsePage(int device) {
 
 // Return the memory cost for storing the compressed features.
 size_t EllpackPageImpl::MemCostBytes() const {
-  size_t num_symbols = matrix.info.n_bins + 1;
-
   // Required buffer size for storing data matrix in ELLPack format.
   size_t compressed_size_bytes = common::CompressedBufferWriter::CalculateBufferSize(
-      matrix.info.row_stride * matrix.n_rows, num_symbols);
+      matrix.info.row_stride * matrix.n_rows, matrix.info.NumSymbols());
   return compressed_size_bytes;
 }
 
@@ -280,5 +368,4 @@ void EllpackPageImpl::InitDevice(int device, EllpackInfo info) {
 
   device_initialized_ = true;
 }
-
 }  // namespace xgboost
