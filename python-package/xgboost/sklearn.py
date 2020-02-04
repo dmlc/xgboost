@@ -738,7 +738,7 @@ class XGBModel(XGBModelBase):
     "Implementation of the scikit-learn API for XGBoost classification.",
     ['model', 'objective'])
 class XGBClassifier(XGBModel, XGBClassifierBase):
-    # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
+    # pylint: disable=missing-docstring,too-many-instance-attributes
     def __init__(self, objective="binary:logistic", **kwargs):
         super().__init__(objective=objective, **kwargs)
 
@@ -749,7 +749,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
 
         evals_result = {}
-        self.classes_ = np.unique(y)
+        if self.objective != 'binary:logistic':
+            self.classes_ = np.array([0.0, 1.0])
+        else:
+            self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)
 
         xgb_options = self.get_xgb_params()
@@ -774,7 +777,11 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             else:
                 xgb_options.update({"eval_metric": eval_metric})
 
-        self._le = XGBoostLabelEncoder().fit(y)
+        if self.objective != 'binary:logistic':
+            self._le = XGBoostLabelEncoder().fit(y)
+        else:
+            self._le = None
+
         training_labels = self._le.transform(y)
 
         if eval_set is not None:
@@ -886,6 +893,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         if hasattr(self, '_le'):
             return self._le.inverse_transform(column_indexes)
+        if self.objective == 'binary:logistic':
+            return class_probs
+
         warnings.warn(
             'Label encoder is not defined.  Returning class probability.')
         return class_probs
@@ -906,8 +916,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         data : DMatrix
             The dmatrix storing the input.
         ntree_limit : int
-            Limit number of trees in the prediction; defaults to best_ntree_limit if defined
-            (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
+            Limit number of trees in the prediction; defaults to
+            best_ntree_limit if defined (i.e. it has been trained with early
+            stopping), otherwise 0 (use all trees).
         validate_features : bool
             When this is True, validate that the Booster's and data's feature_names are identical.
             Otherwise, it is assumed that the feature_names are the same.
