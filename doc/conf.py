@@ -18,26 +18,40 @@ from urllib.error import HTTPError
 from recommonmark.parser import CommonMarkParser
 import sys
 import re
-import os, subprocess
-import shlex
+import os
+import subprocess
 import guzzle_sphinx_theme
 
 git_branch = os.getenv('SPHINX_GIT_BRANCH', default=None)
 if git_branch is None:
-    # If SPHINX_GIT_BRANCH environment variable is not given, run git to determine branch name
-    git_branch = [re.sub(r'origin/', '', x.lstrip(' ')) for x in str(git.branch('-r', '--contains', 'HEAD')).rstrip('\n').split('\n')]
+    # If SPHINX_GIT_BRANCH environment variable is not given, run git
+    # to determine branch name
+    git_branch = [
+        re.sub(r'origin/', '', x.lstrip(' ')) for x in str(
+            git.branch('-r', '--contains', 'HEAD')).rstrip('\n').split('\n')
+    ]
     git_branch = [x for x in git_branch if 'HEAD' not in x]
 print('git_branch = {}'.format(git_branch[0]))
 try:
-  filename, _ = urllib.request.urlretrieve('https://s3-us-west-2.amazonaws.com/xgboost-docs/{}.tar.bz2'.format(git_branch[0]))
-  call('if [ -d tmp ]; then rm -rf tmp; fi; mkdir -p tmp/jvm; cd tmp/jvm; tar xvf {}'.format(filename), shell=True)
+    filename, _ = urllib.request.urlretrieve(
+        'https://s3-us-west-2.amazonaws.com/xgboost-docs/{}.tar.bz2'.format(
+            git_branch[0]))
+    call(
+        'if [ -d tmp ]; then rm -rf tmp; fi; mkdir -p tmp/jvm; cd tmp/jvm; tar xvf {}'
+        .format(filename),
+        shell=True)
 except HTTPError:
-  print('JVM doc not found. Skipping...')
+    print('JVM doc not found. Skipping...')
 try:
-  filename, _ = urllib.request.urlretrieve('https://s3-us-west-2.amazonaws.com/xgboost-docs/doxygen/{}.tar.bz2'.format(git_branch[0]))
-  call('mkdir -p tmp/dev; cd tmp/dev; tar xvf {}; mv doc_doxygen/html/* .; rm -rf doc_doxygen'.format(filename), shell=True)
+    filename, _ = urllib.request.urlretrieve(
+        'https://s3-us-west-2.amazonaws.com/xgboost-docs/doxygen/{}.tar.bz2'.
+        format(git_branch[0]))
+    call(
+        'mkdir -p tmp/dev; cd tmp/dev; tar xvf {}; mv doc_doxygen/html/* .; rm -rf doc_doxygen'
+        .format(filename),
+        shell=True)
 except HTTPError:
-  print('C API doc not found. Skipping...')
+    print('C API doc not found. Skipping...')
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -48,22 +62,22 @@ sys.path.insert(0, libpath)
 sys.path.insert(0, curr_path)
 
 # -- mock out modules
-import mock
+import mock                     # NOQA
 MOCK_MODULES = ['scipy', 'scipy.sparse', 'sklearn', 'pandas']
 for mod_name in MOCK_MODULES:
-  sys.modules[mod_name] = mock.Mock()
+    sys.modules[mod_name] = mock.Mock()
 
 # -- General configuration ------------------------------------------------
 
 # General information about the project.
 project = u'xgboost'
 author = u'%s developers' % project
-copyright = u'2019, %s' % author
+copyright = u'2020, %s' % author
 github_doc_root = 'https://github.com/dmlc/xgboost/tree/master/doc/'
 
 os.environ['XGBOOST_BUILD_DOC'] = '1'
 # Version information.
-import xgboost
+import xgboost                  # NOQA
 version = xgboost.__version__
 release = xgboost.__version__
 
@@ -99,7 +113,7 @@ source_parsers = {
 source_suffix = ['.rst', '.md']
 
 # The encoding of source files.
-#source_encoding = 'utf-8-sig'
+# source_encoding = 'utf-8-sig'
 
 # The master toctree document.
 master_doc = 'index'
@@ -115,9 +129,9 @@ autoclass_content = 'both'
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
-#today = ''
+# today = ''
 # Else, today_fmt is used as the format for a strftime call.
-#today_fmt = '%B %d, %Y'
+# today_fmt = '%B %d, %Y'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -126,27 +140,27 @@ html_extra_path = ['./tmp']
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
-#default_role = None
+# default_role = None
 
 # If true, '()' will be appended to :func: etc. cross-reference text.
-#add_function_parentheses = True
+# add_function_parentheses = True
 
 # If true, the current module name will be prepended to all description
 # unit titles (such as .. function::).
-#add_module_names = True
+# add_module_names = True
 
 # If true, sectionauthor and moduleauthor directives will be shown in the
 # output. They are ignored by default.
-#show_authors = False
+# show_authors = False
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
 
 # A list of ignored prefixes for module index sorting.
-#modindex_common_prefix = []
+# modindex_common_prefix = []
 
 # If true, keep warnings as "system message" paragraphs in the built documents.
-#keep_warnings = False
+# keep_warnings = False
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = False
@@ -191,27 +205,32 @@ latex_documents = [
    author, 'manual'),
 ]
 
-intersphinx_mapping = {'python': ('https://docs.python.org/3.6', None),
-                       'numpy': ('http://docs.scipy.org/doc/numpy/', None),
-                       'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None),
-                       'pandas': ('http://pandas-docs.github.io/pandas-docs-travis/', None),
-                       'sklearn': ('http://scikit-learn.org/stable', None)}
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/3.6', None),
+    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
+    'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None),
+    'pandas': ('http://pandas-docs.github.io/pandas-docs-travis/', None),
+    'sklearn': ('http://scikit-learn.org/stable', None)
+}
+
 
 # hook for doxygen
 def run_doxygen(folder):
-  """Run the doxygen make command in the designated folder."""
-  try:
-    retcode = subprocess.call("cd %s; make doxygen" % folder, shell=True)
-    if retcode < 0:
-      sys.stderr.write("doxygen terminated by signal %s" % (-retcode))
-  except OSError as e:
-    sys.stderr.write("doxygen execution failed: %s" % e)
+    """Run the doxygen make command in the designated folder."""
+    try:
+        retcode = subprocess.call("cd %s; make doxygen" % folder, shell=True)
+        if retcode < 0:
+            sys.stderr.write("doxygen terminated by signal %s" % (-retcode))
+    except OSError as e:
+        sys.stderr.write("doxygen execution failed: %s" % e)
+
 
 def generate_doxygen_xml(app):
-  """Run the doxygen make commands if we're on the ReadTheDocs server"""
-  read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
-  if read_the_docs_build:
-    run_doxygen('..')
+    """Run the doxygen make commands if we're on the ReadTheDocs server"""
+    read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
+    if read_the_docs_build:
+        run_doxygen('..')
+
 
 def setup(app):
-  app.add_stylesheet('custom.css')
+    app.add_stylesheet('custom.css')
