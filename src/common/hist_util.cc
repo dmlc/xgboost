@@ -106,8 +106,8 @@ void SparseCuts::SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
     WQSketch::SummaryContainer out_summary;
     sketch.GetSummary(&out_summary);
     WQSketch::SummaryContainer summary;
-    summary.Reserve(n_bins);
-    summary.SetPrune(out_summary, n_bins);
+    summary.Reserve(n_bins + 1);
+    summary.SetPrune(out_summary, n_bins + 1);
 
     // Can be use data[1] as the min values so that we don't need to
     // store another array?
