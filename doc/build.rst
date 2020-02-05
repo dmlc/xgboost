@@ -160,8 +160,11 @@ To build with Visual Studio, we will need CMake. Make sure to install a recent v
   mkdir build
   cd build
   cmake .. -G"Visual Studio 14 2015 Win64"
+  # for VS15: cmake .. -G"Visual Studio 15 2017" -A x64
+  # for VS16: cmake .. -G"Visual Studio 16 2019" -A x64
+  cmake --build . --config Release
 
-This specifies an out of source build using the Visual Studio 64 bit generator. (Change the ``-G`` option appropriately if you have a different version of Visual Studio installed.) Open the ``.sln`` file in the build directory and build with Visual Studio.
+This specifies an out of source build using the Visual Studio 64 bit generator. (Change the ``-G`` option appropriately if you have a different version of Visual Studio installed.)
 
 After the build process successfully ends, you will find a ``xgboost.dll`` library file inside ``./lib/`` folder.
 
