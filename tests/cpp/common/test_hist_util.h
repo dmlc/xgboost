@@ -1,20 +1,27 @@
-
+#pragma once
 #include <gtest/gtest.h>
 #include "../../../src/data/simple_dmatrix.h"
 
+// Some helper functions used to test both GPU and CPU algorithms
+// 
 namespace xgboost {
 namespace common {
 
-std::vector<float> GenerateRandomSingleColumn(int n, float low = -100,
-                                              float high = 100) {
-  std::vector<float> x(n);
+  // Generate columns with different ranges
+inline std::vector<float> GenerateRandom(int num_rows, int num_columns) {
+  std::vector<float> x(num_rows*num_columns);
   std::mt19937 rng(0);
-  std::uniform_real_distribution<float> dist(low, high);
+  std::uniform_real_distribution<float> dist(0.0, 1.0);
   std::generate(x.begin(), x.end(), [&]() { return dist(rng); });
+  for (auto i = 0ull; i < num_columns; i++) {
+    for (auto j = 0ull; j < num_rows; j++) {
+      x[j * num_columns + i] += i;
+    }
+  }
   return x;
 }
 
-std::vector<float> GenerateRandomCategoricalSingleColumn(int n,
+inline std::vector<float> GenerateRandomCategoricalSingleColumn(int n,
                                                          int num_categories) {
   std::vector<float> x(n);
   std::mt19937 rng(0);
@@ -28,24 +35,95 @@ std::vector<float> GenerateRandomCategoricalSingleColumn(int n,
   return x;
 }
 
-data::SimpleDMatrix GetDMatrixFromData(const std::vector<float>& x) {
-  data::DenseAdapter adapter(x.data(), x.size(), 1);
+inline data::SimpleDMatrix GetDMatrixFromData(const std::vector<float>& x, int num_rows, int num_columns) {
+  data::DenseAdapter adapter(x.data(), num_rows, num_columns);
   return data::SimpleDMatrix(&adapter, std::numeric_limits<float>::quiet_NaN(),
                              1);
 }
 
-void TestRank(const std::vector<float>& cuts,
-              const std::vector<float>& sorted_x, float eps) {
-  // Ignore the first and last cut, they are special
+// Test that elements are approximately equally distributed among bins
+inline void TestBinDistribution(const HistogramCuts& cuts, int column_idx,
+                                const std::vector<float>& column, 
+                                int num_bins) {
+  std::map<int, int> counts;
+  for (auto& v : column) {
+    counts[cuts.SearchBin(v, column_idx)]++;
+  }
+  int local_num_bins = cuts.Ptrs()[column_idx + 1] - cuts.Ptrs()[column_idx];
+  int expected_num_elements = column.size() / local_num_bins;
+  // Allow about 30% deviation. This test is not very strict, it only ensures
+  // roughly equal distribution
+  int allowable_error = std::max(2, int(expected_num_elements * 0.3));
+
+  // First and last bin can have smaller
+  for (auto& kv : counts) {
+    EXPECT_LE(std::abs(counts[kv.first] - expected_num_elements),
+             allowable_error );
+  }
+}
+
+  // Test sketch quantiles against the real quantiles
+  // Not a very strict test
+inline void TestRank(const std::vector<float>& cuts,
+              const std::vector<float>& sorted_x) {
+  float eps = 0.05;
+  // Ignore the last cut, its special
   size_t j = 0;
-  for (auto i = 1ull; i < cuts.size() - 1; i++) {
-    int expected_rank = (i * sorted_x.size()) / cuts.size() + 1;
+  for (auto i = 0; i < cuts.size() - 1; i++) {
+    int expected_rank = ((i+1) * sorted_x.size()) / cuts.size();
     while (cuts[i] > sorted_x[j]) {
       j++;
     }
     int actual_rank = j;
-    EXPECT_LT(std::abs(expected_rank - actual_rank), sorted_x.size() * eps);
+    int acceptable_error = std::max(2, int(sorted_x.size() * eps));
+    ASSERT_LE(std::abs(expected_rank - actual_rank), acceptable_error);
   }
 }
+
+inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
+                           const std::vector<float>& column,
+                     int num_bins) {
+  std::vector<float> sorted_column(column);
+  std::sort(sorted_column.begin(), sorted_column.end());
+  EXPECT_LT(cuts.MinValues()[column_idx], sorted_column.front());
+  EXPECT_GT(cuts.Values()[cuts.Ptrs()[column_idx]], sorted_column.front());
+  EXPECT_GE(cuts.Values()[cuts.Ptrs()[column_idx+1]-1], sorted_column.back());
+
+  if (sorted_column.size() <= num_bins) {
+    // Less unique values than number of bins
+    // Each value should get its own bin
+
+    // First check the inputs are unique
+    int num_unique =
+        std::set<float>(sorted_column.begin(), sorted_column.end()).size();
+    EXPECT_EQ(num_unique, sorted_column.size());
+    for (auto i = 0ull; i < sorted_column.size(); i++) {
+      ASSERT_EQ(cuts.SearchBin(sorted_column[i], column_idx),
+                cuts.Ptrs()[column_idx] + i);
+    }
+  }
+  int num_cuts_column = cuts.Ptrs()[column_idx + 1] - cuts.Ptrs()[column_idx];
+  std::vector<float> column_cuts(num_cuts_column);
+  std::copy(cuts.Values().begin() + cuts.Ptrs()[column_idx],
+            cuts.Values().begin() + cuts.Ptrs()[column_idx + 1],
+            column_cuts.begin());
+  TestBinDistribution(cuts, column_idx, sorted_column, num_bins);
+  TestRank(column_cuts, sorted_column);
+}
+
+// x is dense and row major
+inline void ValidateCuts(const HistogramCuts& cuts, std::vector<float>& x,
+                         int num_rows, int num_columns,
+                          int num_bins) {
+   for (auto i = 0ull; i < num_columns; i++) {
+     // Extract the column
+     std::vector<float> column(num_rows);
+     for (auto j = 0ull; j < num_rows; j++) {
+       column[j] = x[j*num_columns + i];
+     }
+     ValidateColumn(cuts,i, column, num_bins);
+   }
+}
+
 }  // namespace common
 }  // namespace xgboost

@@ -25,9 +25,9 @@
 namespace xgboost {
 namespace common {
 
-using WXQSketch = DenseCuts::WXQSketch;
+using WQSketch = DenseCuts::WQSketch;
 
-__global__ void FindCutsK(WXQSketch::Entry* __restrict__ cuts,
+__global__ void FindCutsK(WQSketch::Entry* __restrict__ cuts,
                           const bst_float* __restrict__ data,
                           const float* __restrict__ cum_weights,
                           int nsamples,
@@ -52,7 +52,7 @@ __global__ void FindCutsK(WXQSketch::Entry* __restrict__ cuts,
   // repeated values will be filtered out on the CPU
   bst_float rmin = isample > 0 ? cum_weights[isample - 1] : 0;
   bst_float rmax = cum_weights[isample];
-  cuts[icut] = WXQSketch::Entry(rmin, rmax, rmax - rmin, data[isample]);
+  cuts[icut] = WQSketch::Entry(rmin, rmax, rmax - rmin, data[isample]);
 }
 
 // predictate for thrust filtering that returns true if the element is not a NaN
@@ -97,7 +97,7 @@ __global__ void UnpackFeaturesK(float* __restrict__ fvalues,
  *  across distinct rows.
  */
 struct SketchContainer {
-  std::vector<DenseCuts::WXQSketch> sketches_;  // NOLINT
+  std::vector<DenseCuts::WQSketch> sketches_;  // NOLINT
   std::vector<std::mutex> col_locks_; // NOLINT
   static constexpr int kOmpNumColsParallelizeLimit = 1000;
 
@@ -245,11 +245,11 @@ class GPUSketcher {
     if (n_cuts_ > n_unique) {
       float* weights2_ptr = weights2_.data().get();
       float* fvalues_ptr = fvalues_cur_.data().get();
-      WXQSketch::Entry* cuts_ptr = cuts_d_.data().get() + icol * n_cuts_;
+      WQSketch::Entry* cuts_ptr = cuts_d_.data().get() + icol * n_cuts_;
       dh::LaunchN(device_, n_unique, [=]__device__(size_t i) {
         bst_float rmax = weights2_ptr[i];
         bst_float rmin = i > 0 ? weights2_ptr[i - 1] : 0;
-        cuts_ptr[i] = WXQSketch::Entry(rmin, rmax, rmax - rmin, fvalues_ptr[i]);
+        cuts_ptr[i] = WQSketch::Entry(rmin, rmax, rmax - rmin, fvalues_ptr[i]);
       });
     } else if (n_cuts_cur_[icol] > 0) {
       // if more elements than cuts: use binary search on cumulative weights
@@ -287,7 +287,7 @@ class GPUSketcher {
     constexpr int kFactor = 8;
     double eps = 1.0 / (kFactor * max_bin_);
     size_t dummy_nlevel;
-    WXQSketch::LimitSizeLevel(gpu_batch_nrows_, eps, &dummy_nlevel, &n_cuts_);
+    WQSketch::LimitSizeLevel(gpu_batch_nrows_, eps, &dummy_nlevel, &n_cuts_);
 
     // allocate necessary GPU buffers
     dh::safe_cuda(cudaSetDevice(device_));
@@ -425,7 +425,7 @@ class GPUSketcher {
 #pragma omp parallel for default(none) schedule(static) \
 if (num_cols_ > SketchContainer::kOmpNumColsParallelizeLimit) // NOLINT
     for (int icol = 0; icol < num_cols_; ++icol) {
-      WXQSketch::SummaryContainer summary;
+      WQSketch::SummaryContainer summary;
       summary.Reserve(n_cuts_);
       summary.MakeFromSorted(&cuts_h_[n_cuts_ * icol], n_cuts_cur_[icol]);
 
@@ -450,8 +450,8 @@ if (num_cols_ > SketchContainer::kOmpNumColsParallelizeLimit) // NOLINT
   dh::device_vector<bst_float> fvalues_{};
   dh::device_vector<bst_float> feature_weights_{};
   dh::device_vector<bst_float> fvalues_cur_{};
-  dh::device_vector<WXQSketch::Entry> cuts_d_{};
-  thrust::host_vector<WXQSketch::Entry> cuts_h_{};
+  dh::device_vector<WQSketch::Entry> cuts_d_{};
+  thrust::host_vector<WQSketch::Entry> cuts_h_{};
   dh::device_vector<bst_float> weights_{};
   dh::device_vector<bst_float> weights2_{};
   std::vector<size_t> n_cuts_cur_{};
