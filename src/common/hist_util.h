@@ -101,6 +101,7 @@ struct SimpleArray {
 using GHistIndexRow = Span<uint32_t const>;
 
 // A CSC matrix representing histogram cuts, used in CPU quantile hist.
+// The cut values represent upper bounds of bins containing approximately equal numbers of elements
 class HistogramCuts {
   // Using friends to avoid creating a virtual class, since HistogramCuts is used as value
   // object in many places.
@@ -147,6 +148,8 @@ class HistogramCuts {
 
   size_t TotalBins() const { return cut_ptrs_.back(); }
 
+  // Return the index of a cut point that is strictly greater than the input
+  // value, or the last available index if none exists
   BinIdx SearchBin(float value, uint32_t column_id) const {
     auto beg = cut_ptrs_.at(column_id);
     auto end = cut_ptrs_.at(column_id + 1);
