@@ -1,4 +1,6 @@
-// Copyright by Contributors
+/*!
+ * Copyright 2017-2020 XGBoost contributors
+ */
 #include <gtest/gtest.h>
 #include <vector>
 #include "helpers.h"
@@ -79,13 +81,13 @@ TEST(Learner, CheckGroup) {
   std::vector<std::shared_ptr<xgboost::DMatrix>> mat = {p_mat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
   learner->SetParams({Arg{"objective", "rank:pairwise"}});
-  EXPECT_NO_THROW(learner->UpdateOneIter(0, p_mat.get()));
+  EXPECT_NO_THROW(learner->UpdateOneIter(0, p_mat));
 
   group.resize(kNumGroups+1);
   group[3] = 4;
   group[4] = 1;
   p_mat->Info().SetInfo("group", group.data(), DataType::kUInt32, kNumGroups+1);
-  EXPECT_ANY_THROW(learner->UpdateOneIter(0, p_mat.get()));
+  EXPECT_ANY_THROW(learner->UpdateOneIter(0, p_mat));
 
   delete pp_mat;
 }
@@ -107,7 +109,7 @@ TEST(Learner, SLOW_CheckMultiBatch) {
   std::vector<std::shared_ptr<DMatrix>> mat{dmat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
   learner->SetParams(Args{{"objective", "binary:logistic"}});
-  learner->UpdateOneIter(0, dmat.get());
+  learner->UpdateOneIter(0, dmat);
 }
 
 TEST(Learner, Configuration) {
@@ -142,6 +144,7 @@ TEST(Learner, JsonModelIO) {
   auto pp_dmat = CreateDMatrix(kRows, 10, 0);
   std::shared_ptr<DMatrix> p_dmat {*pp_dmat};
   p_dmat->Info().labels_.Resize(kRows);
+  CHECK_NE(p_dmat->Info().num_col_, 0);
 
   {
     std::unique_ptr<Learner> learner { Learner::Create({p_dmat}) };
@@ -160,7 +163,7 @@ TEST(Learner, JsonModelIO) {
   {
     std::unique_ptr<Learner> learner { Learner::Create({p_dmat}) };
     for (int32_t iter = 0; iter < kIters; ++iter) {
-      learner->UpdateOneIter(iter, p_dmat.get());
+      learner->UpdateOneIter(iter, p_dmat);
     }
     learner->SetAttr("best_score", "15.2");
 
@@ -197,20 +200,20 @@ TEST(Learner, GPUConfiguration) {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"booster", "gblinear"},
                         Arg{"updater", "gpu_coord_descent"}});
-    learner->UpdateOneIter(0, p_dmat.get());
+    learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
   }
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "gpu_hist"}});
-    learner->UpdateOneIter(0, p_dmat.get());
+    learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
   }
   {
     // with CPU algorithm
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "hist"}});
-    learner->UpdateOneIter(0, p_dmat.get());
+    learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, -1);
   }
   {
@@ -218,7 +221,7 @@ TEST(Learner, GPUConfiguration) {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "hist"},
                         Arg{"gpu_id", "0"}});
-    learner->UpdateOneIter(0, p_dmat.get());
+    learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
   }
   {
@@ -228,7 +231,7 @@ TEST(Learner, GPUConfiguration) {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "hist"},
                         Arg{"predictor", "gpu_predictor"}});
-    learner->UpdateOneIter(0, p_dmat.get());
+    learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
   }
 

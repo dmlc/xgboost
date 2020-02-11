@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2019 XGBoost contributors
+ * Copyright 2017-2020 XGBoost contributors
  */
 #pragma once
 #include <thrust/device_ptr.h>
@@ -9,7 +9,6 @@
 #include <thrust/system_error.h>
 #include <thrust/logical.h>
 
-#include <omp.h>
 #include <rabit/rabit.h>
 #include <cub/cub.cuh>
 #include <cub/util_allocator.cuh>

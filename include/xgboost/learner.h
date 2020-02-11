@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2019 by Contributors
+ * Copyright 2015-2020 by Contributors
  * \file learner.h
  * \brief Learner interface that integrates objective, gbm and evaluation together.
  *  This is the user facing XGBoost training module.
@@ -59,7 +59,7 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
    * \param iter current iteration number
    * \param train reference to the data matrix.
    */
-  virtual void UpdateOneIter(int iter, DMatrix* train) = 0;
+  virtual void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) = 0;
   /*!
    * \brief Do customized gradient boosting with in_gpair.
    *  in_gair can be mutated after this call.
@@ -68,7 +68,7 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
    * \param in_gpair The input gradient statistics.
    */
   virtual void BoostOneIter(int iter,
-                            DMatrix* train,
+                            std::shared_ptr<DMatrix> train,
                             HostDeviceVector<GradientPair>* in_gpair) = 0;
   /*!
    * \brief evaluate the model for specific iteration using the configured metrics.
@@ -78,7 +78,7 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
    * \return a string corresponding to the evaluation result
    */
   virtual std::string EvalOneIter(int iter,
-                                  const std::vector<DMatrix*>& data_sets,
+                                  const std::vector<std::shared_ptr<DMatrix>>& data_sets,
                                   const std::vector<std::string>& data_names) = 0;
   /*!
    * \brief get prediction given the model.
@@ -92,7 +92,7 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
    * \param approx_contribs whether to approximate the feature contributions for speed
    * \param pred_interactions whether to compute the feature pair contributions
    */
-  virtual void Predict(DMatrix* data,
+  virtual void Predict(std::shared_ptr<DMatrix> data,
                        bool output_margin,
                        HostDeviceVector<bst_float> *out_preds,
                        unsigned ntree_limit = 0,
