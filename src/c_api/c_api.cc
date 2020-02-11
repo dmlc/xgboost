@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2019 by Contributors
+// Copyright (c) 2014-2020 by Contributors
 #include <dmlc/thread_local.h>
 #include <rabit/rabit.h>
 #include <rabit/c_api.h>
@@ -498,7 +498,7 @@ XGB_DLL int XGBoosterUpdateOneIter(BoosterHandle handle,
   auto *dtr =
       static_cast<std::shared_ptr<DMatrix>*>(dtrain);
 
-  bst->UpdateOneIter(iter, dtr->get());
+  bst->UpdateOneIter(iter, *dtr);
   API_END();
 }
 
@@ -519,7 +519,7 @@ XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle,
     tmp_gpair_h[i] = GradientPair(grad[i], hess[i]);
   }
 
-  bst->BoostOneIter(0, dtr->get(), &tmp_gpair);
+  bst->BoostOneIter(0, *dtr, &tmp_gpair);
   API_END();
 }
 
@@ -533,11 +533,11 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
   API_BEGIN();
   CHECK_HANDLE();
   auto* bst = static_cast<Learner*>(handle);
-  std::vector<DMatrix*> data_sets;
+  std::vector<std::shared_ptr<DMatrix>> data_sets;
   std::vector<std::string> data_names;
 
   for (xgboost::bst_ulong i = 0; i < len; ++i) {
-    data_sets.push_back(static_cast<std::shared_ptr<DMatrix>*>(dmats[i])->get());
+    data_sets.push_back(*static_cast<std::shared_ptr<DMatrix>*>(dmats[i]));
     data_names.emplace_back(evnames[i]);
   }
 
@@ -560,7 +560,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
   auto *bst = static_cast<Learner*>(handle);
   HostDeviceVector<bst_float> tmp_preds;
   bst->Predict(
-      static_cast<std::shared_ptr<DMatrix>*>(dmat)->get(),
+      *static_cast<std::shared_ptr<DMatrix>*>(dmat),
       (option_mask & 1) != 0,
       &tmp_preds, ntree_limit,
       static_cast<bool>(training),

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2020 by Contributors
  * \file gblinear.cc
  * \brief Implementation of Linear booster, with L1/L2 regularization: Elastic Net
  *        the update rule is parallel coordinate descent (shotgun)
@@ -239,7 +239,7 @@ class GBLinear : public GradientBooster {
   void PredictBatchInternal(DMatrix *p_fmat,
                             std::vector<bst_float> *out_preds) {
     monitor_.Start("PredictBatchInternal");
-      model_.LazyInitModel();
+    model_.LazyInitModel();
     std::vector<bst_float> &preds = *out_preds;
     const auto& base_margin = p_fmat->Info().base_margin_.ConstHostVector();
     // start collecting the prediction
@@ -250,6 +250,9 @@ class GBLinear : public GradientBooster {
       // k is number of group
       // parallel over local batch
       const auto nsize = static_cast<omp_ulong>(batch.Size());
+      if (base_margin.size() != 0) {
+        CHECK_EQ(base_margin.size(), nsize * ngroup);
+      }
 #pragma omp parallel for schedule(static)
       for (omp_ulong i = 0; i < nsize; ++i) {
         const size_t ridx = batch.base_rowid + i;

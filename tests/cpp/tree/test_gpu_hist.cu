@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2019 XGBoost contributors
+ * Copyright 2017-2020 XGBoost contributors
  */
 #include <thrust/device_vector.h>
 #include <dmlc/filesystem.h>
@@ -387,6 +387,7 @@ TEST(GpuHist, UniformSampling) {
   constexpr size_t kRows = 4096;
   constexpr size_t kCols = 2;
   constexpr float kSubsample = 0.99;
+  common::GlobalRandom().seed(1994);
 
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
@@ -415,6 +416,7 @@ TEST(GpuHist, GradientBasedSampling) {
   constexpr size_t kRows = 4096;
   constexpr size_t kCols = 2;
   constexpr float kSubsample = 0.99;
+  common::GlobalRandom().seed(1994);
 
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
@@ -478,6 +480,7 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   constexpr size_t kPageSize = 1024;
   constexpr float kSubsample = 0.5;
   const std::string kSamplingMethod = "gradient_based";
+  common::GlobalRandom().seed(0);
 
   // Create an in-memory DMatrix.
   std::unique_ptr<DMatrix> dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, 0, true));
@@ -503,7 +506,7 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   auto preds_h = preds.ConstHostVector();
   auto preds_ext_h = preds_ext.ConstHostVector();
   for (int i = 0; i < kRows; i++) {
-    EXPECT_NEAR(preds_h[i], preds_ext_h[i], 3e-3);
+    EXPECT_NEAR(preds_h[i], preds_ext_h[i], 2e-3);
   }
 }
 
