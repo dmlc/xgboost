@@ -896,12 +896,11 @@ class DMatrix(object):
         res = DMatrix(None, feature_names=self.feature_names,
                       feature_types=self.feature_types)
         res.handle = ctypes.c_void_p()
-        _check_call(_LIB.XGDMatrixSliceDMatrixEx(
-            self.handle,
-            c_array(ctypes.c_int, rindex),
-            c_bst_ulong(len(rindex)),
-            ctypes.byref(res.handle),
-            ctypes.c_int(1 if allow_groups else 0)))
+        _check_call(_LIB.XGDMatrixSliceDMatrixEx(self.handle,
+                                                 c_array(ctypes.c_int, rindex),
+                                                 c_bst_ulong(len(rindex)),
+                                                 ctypes.byref(res.handle),
+                                                 ctypes.c_int(1 if allow_groups else 0)))
         return res
 
     @property
@@ -955,8 +954,7 @@ class DMatrix(object):
             if not all(isinstance(f, STRING_TYPES) and
                        not any(x in f for x in set(('[', ']', '<')))
                        for f in feature_names):
-                raise ValueError('feature_names must be string, and may not '
-                                 'contain [, ] or <')
+                raise ValueError('feature_names must be string, and may not contain [, ] or <')
         else:
             # reset feature_types also
             self.feature_types = None
@@ -998,8 +996,7 @@ class DMatrix(object):
             valid = ('int', 'float', 'i', 'q')
             if not all(isinstance(f, STRING_TYPES) and f in valid
                        for f in feature_types):
-                raise ValueError(
-                    'All feature_names must be {int, float, i, q}')
+                raise ValueError('All feature_names must be {int, float, i, q}')
         self._feature_types = feature_types
 
 
@@ -1027,8 +1024,7 @@ class Booster(object):
         """
         for d in cache:
             if not isinstance(d, DMatrix):
-                raise TypeError('invalid cache item: {}'.format(
-                    type(d).__name__), cache)
+                raise TypeError('invalid cache item: {}'.format(type(d).__name__), cache)
             self._validate_features(d)
 
         dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
@@ -1037,7 +1033,7 @@ class Booster(object):
                                          ctypes.byref(self.handle)))
 
         if isinstance(params, dict) and \
-           'validate_parameters' not in params.keys():
+            'validate_parameters' not in params.keys():
             params['validate_parameters'] = 1
         self.set_param(params or {})
         if (params is not None) and ('booster' in params):
@@ -1166,8 +1162,7 @@ class Booster(object):
         Returns
         -------
         value : str
-            The attribute value of the key, returns None if attribute do not
-            exist.
+            The attribute value of the key, returns None if attribute do not exist.
         """
         ret = ctypes.c_char_p()
         success = ctypes.c_int()
@@ -1182,8 +1177,8 @@ class Booster(object):
 
         Returns
         -------
-        result : dictionary of attribute_name: attribute_value pairs of
-            strings.  Returns an empty dict if there's no attributes.
+        result : dictionary of  attribute_name: attribute_value pairs of strings.
+            Returns an empty dict if there's no attributes.
         """
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
@@ -1199,8 +1194,7 @@ class Booster(object):
         Parameters
         ----------
         **kwargs
-            The attributes to set. Setting a value to None deletes an
-            attribute.
+            The attributes to set. Setting a value to None deletes an attribute.
         """
         for key, value in kwargs.items():
             if value is not None:
@@ -1273,11 +1267,9 @@ class Booster(object):
 
         """
         if len(grad) != len(hess):
-            raise ValueError('grad / hess length mismatch: {} / {}'.format(
-                len(grad), len(hess)))
+            raise ValueError('grad / hess length mismatch: {} / {}'.format(len(grad), len(hess)))
         if not isinstance(dtrain, DMatrix):
-            raise TypeError('invalid training matrix: {}'.format(
-                type(dtrain).__name__))
+            raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
         self._validate_features(dtrain)
 
         _check_call(_LIB.XGBoosterBoostOneIter(self.handle, dtrain.handle,
@@ -1627,16 +1619,14 @@ class Booster(object):
 
         .. note:: Feature importance is defined only for tree boosters
 
-            Feature importance is only defined when the decision tree model is
-            chosen as base learner (`booster=gbtree`). It is not defined for
-            other base learner types, such as linear learners
-            (`booster=gblinear`).
+            Feature importance is only defined when the decision tree model is chosen as base
+            learner (`booster=gbtree`). It is not defined for other base learner types, such
+            as linear learners (`booster=gblinear`).
 
         .. note:: Zero-importance features will not be included
 
-           Keep in mind that this function does not include zero-importance
-           feature, i.e.  those features that have not been used in any split
-           conditions.
+           Keep in mind that this function does not include zero-importance feature, i.e.
+           those features that have not been used in any split conditions.
 
         Parameters
         ----------
@@ -1650,22 +1640,17 @@ class Booster(object):
         """Get feature importance of each feature.
         Importance type can be defined as:
 
-        * 'weight': the number of times a feature is used to split the data
-          across all trees.
+        * 'weight': the number of times a feature is used to split the data across all trees.
         * 'gain': the average gain across all splits the feature is used in.
-        * 'cover': the average coverage across all splits the feature is used
-          in.
-        * 'total_gain': the total gain across all splits the feature is used
-          in.
-        * 'total_cover': the total coverage across all splits the feature is
-          used in.
+        * 'cover': the average coverage across all splits the feature is used in.
+        * 'total_gain': the total gain across all splits the feature is used in.
+        * 'total_cover': the total coverage across all splits the feature is used in.
 
         .. note:: Feature importance is defined only for tree boosters
 
-            Feature importance is only defined when the decision tree
-            model is chosen as base learner (`booster=gbtree`). It is
-            not defined for other base learner types, such as linear
-            learners (`booster=gblinear`).
+            Feature importance is only defined when the decision tree model is chosen as base
+            learner (`booster=gbtree`). It is not defined for other base learner types, such
+            as linear learners (`booster=gblinear`).
 
         Parameters
         ----------
@@ -1673,17 +1658,13 @@ class Booster(object):
            The name of feature map file.
         importance_type: str, default 'weight'
             One of the importance types defined above.
-
         """
         fmap = os_fspath(fmap)
-        if getattr(self, 'booster', None) is not None and self.booster not in {
-                'gbtree', 'dart'}:
-            raise ValueError(
-                'Feature importance is not defined for Booster type {}'
-                .format(self.booster))
+        if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
+            raise ValueError('Feature importance is not defined for Booster type {}'
+                             .format(self.booster))
 
-        allowed_importance_types = ['weight', 'gain', 'cover', 'total_gain',
-                                    'total_cover']
+        allowed_importance_types = ['weight', 'gain', 'cover', 'total_gain', 'total_cover']
         if importance_type not in allowed_importance_types:
             msg = ("importance_type mismatch, got '{}', expected one of " +
                    repr(allowed_importance_types))
@@ -1735,8 +1716,7 @@ class Booster(object):
                 if len(arr) == 1:
                     continue
 
-                # look for the closing bracket, extract only info within that
-                # bracket
+                # look for the closing bracket, extract only info within that bracket
                 fid = arr[1].split(']')
 
                 # extract gain or cover from string after closing bracket
@@ -1763,9 +1743,9 @@ class Booster(object):
     def trees_to_dataframe(self, fmap=''):
         """Parse a boosted tree model text dump into a pandas DataFrame structure.
 
-        This feature is only defined when the decision tree model is chosen as
-        base learner (`booster in {gbtree, dart}`). It is not defined for other
-        base learner types, such as linear learners (`booster=gblinear`).
+        This feature is only defined when the decision tree model is chosen as base
+        learner (`booster in {gbtree, dart}`). It is not defined for other base learner
+        types, such as linear learners (`booster=gblinear`).
 
         Parameters
         ----------
@@ -1778,8 +1758,7 @@ class Booster(object):
             raise Exception(('pandas must be available to use this method.'
                              'Install pandas before calling again.'))
 
-        if getattr(self, 'booster', None) is not None and self.booster not in {
-                'gbtree', 'dart'}:
+        if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
             raise ValueError('This method is not defined for Booster type {}'
                              .format(self.booster))
 
@@ -1835,8 +1814,7 @@ class Booster(object):
                     gains.append(float(stats[7]))
                     covers.append(float(stats[9]))
 
-        ids = [str(t_id) + '-' + str(n_id)
-               for t_id, n_id in zip(tree_ids, node_ids)]
+        ids = [str(t_id) + '-' + str(n_id) for t_id, n_id in zip(tree_ids, node_ids)]
         df = DataFrame({'Tree': tree_ids, 'Node': node_ids, 'ID': ids,
                         'Feature': fids, 'Split': splits, 'Yes': y_directs,
                         'No': n_directs, 'Missing': missings, 'Gain': gains,
@@ -1916,6 +1894,5 @@ class Booster(object):
             return DataFrame(nph, columns=['SplitValue', 'Count'])
         if as_pandas and not PANDAS_INSTALLED:
             sys.stderr.write(
-                "Returning histogram as ndarray (as_pandas == True, but pandas"
-                " is not installed).")
+                "Returning histogram as ndarray (as_pandas == True, but pandas is not installed).")
         return nph
