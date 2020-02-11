@@ -41,6 +41,25 @@ inline data::SimpleDMatrix GetDMatrixFromData(const std::vector<float>& x, int n
                              1);
 }
 
+inline std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
+    const std::vector<float>& x, int num_rows, int num_columns,
+    size_t page_size, const dmlc::TemporaryDirectory& tempdir) {
+  // Create the svm file in a temp dir
+  const std::string tmp_file = tempdir.path + "/temp.libsvm";
+  std::ofstream fo(tmp_file.c_str());
+  for (auto i = 0ull; i < num_rows; i++) {
+    std::stringstream row_data;
+    for (auto j = 0ull; j < num_columns; j++) {
+      row_data << 1 << " " << j << ":" << std::setprecision(15)
+               << x[i * num_columns + j];
+    }
+    fo << row_data.str() << "\n";
+  }
+  fo.close();
+  return std::shared_ptr<DMatrix>(DMatrix::Load(
+      tmp_file + "#" + tmp_file + ".cache", true, false, "auto", page_size));
+}
+
 // Test that elements are approximately equally distributed among bins
 inline void TestBinDistribution(const HistogramCuts& cuts, int column_idx,
                                 const std::vector<float>& column, 
@@ -85,9 +104,20 @@ inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
                      int num_bins) {
   std::vector<float> sorted_column(column);
   std::sort(sorted_column.begin(), sorted_column.end());
+
+  // Check the endpoints are correct
   EXPECT_LT(cuts.MinValues()[column_idx], sorted_column.front());
   EXPECT_GT(cuts.Values()[cuts.Ptrs()[column_idx]], sorted_column.front());
   EXPECT_GE(cuts.Values()[cuts.Ptrs()[column_idx+1]-1], sorted_column.back());
+
+  // Check the cuts are sorted
+  auto cuts_begin = cuts.Values().begin() + cuts.Ptrs()[column_idx];
+  auto cuts_end = cuts.Values().begin() + cuts.Ptrs()[column_idx + 1];
+  EXPECT_TRUE(std::is_sorted(cuts_begin, cuts_end));
+
+  // Check all cut points are unique
+  EXPECT_EQ(std::set<float>(cuts_begin, cuts_end).size(),
+            cuts_end - cuts_begin);
 
   if (sorted_column.size() <= num_bins) {
     // Less unique values than number of bins

@@ -266,6 +266,24 @@ TEST(hist_util, DenseCutsAccuracyTest) {
   }
 }
 
+TEST(hist_util, DenseCutsExternalMemory) {
+  int bin_sizes[] = {2, 16, 256, 512};
+  int sizes[] = {100, 1000, 1500};
+  int num_columns = 5;
+  for (auto num_rows : sizes) {
+    auto x = GenerateRandom(num_rows, num_columns);
+    dmlc::TemporaryDirectory tmpdir;
+    auto dmat =
+        GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, 50, tmpdir);
+    for (auto num_bins : bin_sizes) {
+      HistogramCuts cuts;
+      DenseCuts dense(&cuts);
+      dense.Build(dmat.get(), num_bins);
+      ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
+    }
+  }
+}
+
 TEST(hist_util, SparseCutsAccuracyTest) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
@@ -300,6 +318,24 @@ TEST(hist_util, SparseCutsCategorical) {
       EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());
       EXPECT_GE(cuts_from_sketch.back(), x_sorted.back());
       EXPECT_EQ(cuts_from_sketch.size(), num_categories);
+    }
+  }
+}
+
+TEST(hist_util, SparseCutsExternalMemory) {
+  int bin_sizes[] = {2, 16, 256, 512};
+  int sizes[] = {100, 1000, 1500};
+  int num_columns = 5;
+  for (auto num_rows : sizes) {
+    auto x = GenerateRandom(num_rows, num_columns);
+    dmlc::TemporaryDirectory tmpdir;
+    auto dmat =
+        GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, 50, tmpdir);
+    for (auto num_bins : bin_sizes) {
+      HistogramCuts cuts;
+      SparseCuts dense(&cuts);
+      dense.Build(dmat.get(), num_bins);
+      ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
     }
   }
 }
