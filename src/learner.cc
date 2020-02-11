@@ -511,10 +511,11 @@ class LearnerImpl : public Learner {
     bool warn_old_model { false };
     if (attributes_.find("count_poisson_max_delta_step") != attributes_.cend()) {
       // Loading model from < 1.0.0, objective is not saved.
-      cfg_["max_delta_step"] = attributes_["count_poisson_max_delta_step"];
+      cfg_["max_delta_step"] = attributes_.at("count_poisson_max_delta_step");
       attributes_.erase("count_poisson_max_delta_step");
-    } else {
       warn_old_model = true;
+    } else {
+      warn_old_model = false;
     }
 
     if (attributes_.find("version") != attributes_.cend()) {
@@ -533,8 +534,15 @@ class LearnerImpl : public Learner {
       obj_->LoadConfig(j_obj);
       attributes_.erase("objective");
     } else {
-      // Similar to JSON model IO, we save the objective.
       warn_old_model = true;
+    }
+    if (attributes_.find("metrics") != attributes_.cend()) {
+      auto metrics_str = attributes_.at("metrics");
+      std::vector<std::string> names { common::Split(metrics_str, ';') };
+      attributes_.erase("metrics");
+      for (auto const& n : names) {
+        this->SetParam(kEvalMetric, n);
+      }
     }
 
     if (warn_old_model) {
@@ -584,13 +592,23 @@ class LearnerImpl : public Learner {
       }
     }
     {
-      // Save the objective.
+      // Similar to JSON model IO, we save the objective.
       Json j_obj { Object() };
       obj_->SaveConfig(&j_obj);
       std::string obj_doc;
       Json::Dump(j_obj, &obj_doc);
       extra_attr.emplace_back("objective", obj_doc);
     }
+    // As of 1.0.0, JVM Package and R Package uses Save/Load model for serialization.
+    // Remove this part once they are ported to use actual serialization methods.
+    if (mparam.contain_eval_metrics != 0) {
+      std::stringstream os;
+      for (auto& ev : metrics_) {
+        os << ev->Name() << ";";
+      }
+      extra_attr.emplace_back("metrics", os.str());
+    }
+
     fo->Write(&mparam, sizeof(LearnerModelParamLegacy));
     fo->Write(tparam_.objective);
     fo->Write(tparam_.booster);

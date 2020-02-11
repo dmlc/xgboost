@@ -180,6 +180,39 @@ TEST(Learner, JsonModelIO) {
   delete pp_dmat;
 }
 
+TEST(Learner, BinaryModelIO) {
+  size_t constexpr kRows = 8;
+  int32_t constexpr kIters = 4;
+  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
+  std::shared_ptr<DMatrix> p_dmat {*pp_dmat};
+  p_dmat->Info().labels_.Resize(kRows);
+
+  std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
+  learner->SetParam("eval_metric", "rmsle");
+  learner->Configure();
+  for (int32_t iter = 0; iter < kIters; ++iter) {
+    learner->UpdateOneIter(iter, p_dmat.get());
+  }
+  dmlc::TemporaryDirectory tempdir;
+  std::string const fname = tempdir.path + "binary_model_io.bin";
+  {
+    // Make sure the write is complete before loading.
+    std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
+    learner->SaveModel(fo.get());
+  }
+
+  learner.reset(Learner::Create({p_dmat}));
+  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
+  learner->LoadModel(fi.get());
+  learner->Configure();
+  Json config { Object() };
+  learner->SaveConfig(&config);
+  std::string config_str;
+  Json::Dump(config, &config_str);
+  ASSERT_NE(config_str.find("rmsle"), std::string::npos);
+  ASSERT_EQ(config_str.find("WARNING"), std::string::npos);
+}
+
 #if defined(XGBOOST_USE_CUDA)
 // Tests for automatic GPU configuration.
 TEST(Learner, GPUConfiguration) {
