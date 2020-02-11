@@ -4,6 +4,8 @@
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
  */
+#include <bits/stdint-intn.h>
+#include <bits/stdint-uintn.h>
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
 
@@ -67,19 +69,26 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   /* \brief global bias */
   bst_float base_score;
   /* \brief number of features  */
-  unsigned num_feature;
+  uint32_t num_feature;
   /* \brief number of classes, if it is multi-class classification  */
-  int num_class;
+  int32_t num_class;
   /*! \brief Model contain additional properties */
-  int contain_extra_attrs;
+  int32_t contain_extra_attrs;
   /*! \brief Model contain eval metrics */
-  int contain_eval_metrics;
+  int32_t contain_eval_metrics;
+  /*! \brief the version of XGBoost. */
+  uint32_t major_version;
+  uint32_t minor_version;
   /*! \brief reserved field */
-  int reserved[29];
+  int reserved[27];
   /*! \brief constructor */
   LearnerModelParamLegacy() {
     std::memset(this, 0, sizeof(LearnerModelParamLegacy));
     base_score = 0.5f;
+    major_version = std::get<0>(Version::Self());
+    minor_version = std::get<1>(Version::Self());
+    static_assert(sizeof(LearnerModelParamLegacy) == 136,
+                  "Do not change the size of this struct, as it will break binary IO.");
   }
   // Skip other legacy fields.
   Json ToJson() const {
@@ -487,6 +496,7 @@ class LearnerImpl : public Learner {
     // read parameter
     CHECK_EQ(fi->Read(&mparam_, sizeof(mparam_)), sizeof(mparam_))
         << "BoostLearner: wrong model format";
+
     CHECK(fi->Read(&tparam_.objective)) << "BoostLearner: wrong model format";
     CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
 
@@ -518,10 +528,9 @@ class LearnerImpl : public Learner {
       warn_old_model = false;
     }
 
-    if (attributes_.find("version") != attributes_.cend()) {
+    if (mparam_.major_version >= 1) {
       learner_model_param_ = LearnerModelParam(mparam_,
                                                obj_->ProbToMargin(mparam_.base_score));
-      attributes_.erase("version");
     } else {
       // Before 1.0.0, base_score is saved as a transformed value, and there's no version
       // attribute in the saved model.
@@ -550,6 +559,10 @@ class LearnerImpl : public Learner {
                       "again for improved compatibility";
     }
 
+    // Renew the version.
+    mparam_.major_version = std::get<0>(Version::Self());
+    mparam_.minor_version = std::get<1>(Version::Self());
+
     cfg_["num_class"] = common::ToString(mparam_.num_class);
     cfg_["num_feature"] = common::ToString(mparam_.num_feature);
 
@@ -573,7 +586,6 @@ class LearnerImpl : public Learner {
     LearnerModelParamLegacy mparam = mparam_;  // make a copy to potentially modify
     std::vector<std::pair<std::string, std::string> > extra_attr;
     mparam.contain_extra_attrs = 1;
-    extra_attr.emplace_back(std::make_pair("version", Version::String(Version::Self())));
 
     {
       std::vector<std::string> saved_params;
