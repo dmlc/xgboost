@@ -34,12 +34,8 @@ def run_booster_check(booster, name):
         assert len(booster.get_dump()) == gm.kForests * gm.kRounds
         assert float(
             config['learner']['learner_model_param']['base_score']) == 0.5
-        if name.find('0.90') != -1:
-            assert config['learner']['learner_train_param'][
-                'objective'] == 'reg:squarederror'
-        else:
-            assert config['learner']['learner_train_param'][
-                'objective'] == 'reg:squarederror'
+        assert config['learner']['learner_train_param'][
+            'objective'] == 'reg:squarederror'
 
 
 def run_scikit_model_check(name, path):
