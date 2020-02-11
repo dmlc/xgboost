@@ -211,6 +211,8 @@ TEST(Learner, BinaryModelIO) {
   Json::Dump(config, &config_str);
   ASSERT_NE(config_str.find("rmsle"), std::string::npos);
   ASSERT_EQ(config_str.find("WARNING"), std::string::npos);
+
+  delete pp_dmat;
 }
 
 #if defined(XGBOOST_USE_CUDA)
