@@ -4,8 +4,6 @@
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
  */
-#include <bits/stdint-intn.h>
-#include <bits/stdint-uintn.h>
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
 
