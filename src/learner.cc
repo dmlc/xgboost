@@ -748,20 +748,19 @@ class LearnerImpl : public Learner {
       metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
     }
     for (size_t i = 0; i < data_sets.size(); ++i) {
-      std::shared_ptr<DMatrix> dmat = data_sets[i];
-      auto& predt = this->cache_.Cache(dmat, generic_parameters_.gpu_id);
-      this->ValidateDMatrix(dmat.get());
-      this->PredictRaw(dmat.get(), &predt, false);
+      std::shared_ptr<DMatrix> m = data_sets[i];
+      auto &predt = this->cache_.Cache(m, generic_parameters_.gpu_id);
+      this->ValidateDMatrix(m.get());
+      this->PredictRaw(m.get(), &predt, false);
 
-      predictions_.SetDevice(generic_parameters_.gpu_id);
-      predictions_.Resize(predt.predictions.Size());
-      predictions_.Copy(predt.predictions);
+      auto &out = output_predictions_.Cache(m, generic_parameters_.gpu_id).predictions;
+      out.Resize(predt.predictions.Size());
+      out.Copy(predt.predictions);
 
-      obj_->EvalTransform(&predictions_);
+      obj_->EvalTransform(&out);
       for (auto& ev : metrics_) {
         os << '\t' << data_names[i] << '-' << ev->Name() << ':'
-           << ev->Eval(predictions_, data_sets[i]->Info(),
-                       tparam_.dsplit == DataSplitMode::kRow);
+           << ev->Eval(out, m->Info(), tparam_.dsplit == DataSplitMode::kRow);
       }
     }
 
@@ -1000,7 +999,7 @@ class LearnerImpl : public Learner {
   PredictionContainer cache_;
   /*! \brief Temporary storage to prediction.  Useful for storing data transformed by
    *  objective function */
-  HostDeviceVector<float> predictions_;
+  PredictionContainer output_predictions_;
 
   common::Monitor monitor_;
 
