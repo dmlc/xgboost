@@ -110,6 +110,6 @@ object Synthetic extends {
 
   val trainWithDiffFeatureSize: Seq[XGBLabeledPoint] = Seq(
     XGBLabeledPoint(1.0f, 2, Array(0, 1), Array(1.0f, 2.0f)),
-    XGBLabeledPoint(0.0f, 3, Array(0, 1, 2), Array(1.0f, 2.0f, 3.0f)),
+    XGBLabeledPoint(0.0f, 3, Array(0, 1, 2), Array(1.0f, 2.0f, 3.0f))
   )
 }
