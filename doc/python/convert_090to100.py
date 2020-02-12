@@ -70,7 +70,8 @@ if __name__ == '__main__':
                      ' XGBoost 0.90 to XGBoost 1.0.0 model (not pickle).')
     )
     parser.add_argument('--old-pickle', type=str,
-                        help='Path to old pickle file.')
+                        help='Path to old pickle file.',
+                        required=True)
     args = parser.parse_args()
 
     xgboost_skl_90to100(args.old_pickle)
