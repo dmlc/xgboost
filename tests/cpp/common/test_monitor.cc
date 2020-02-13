@@ -16,6 +16,8 @@ TEST(Monitor, Logging) {
 
   Args args = {std::make_pair("verbosity", "3")};
   ConsoleLogger::Configure(args);
+  ASSERT_EQ(ConsoleLogger::GlobalVerbosity(), ConsoleLogger::LogVerbosity::kDebug);
+
   testing::internal::CaptureStderr();
   run_monitor();
   std::string output = testing::internal::GetCapturedStderr();

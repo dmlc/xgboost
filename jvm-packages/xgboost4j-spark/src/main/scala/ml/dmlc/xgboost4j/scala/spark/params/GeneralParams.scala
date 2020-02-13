@@ -106,6 +106,21 @@ private[spark] trait GeneralParams extends Params {
   final def getMissing: Float = $(missing)
 
   /**
+    * Allows for having a non-zero value for missing when training on prediction
+    * on a Sparse or Empty vector.
+    */
+  final val allowNonZeroForMissing = new BooleanParam(
+    this,
+    "allowNonZeroForMissing",
+    "Allow to have a non-zero value for missing when training or " +
+      "predicting on a Sparse or Empty vector. Should only be used if did " +
+      "not use Spark's VectorAssembler class to construct the feature vector " +
+      "but instead used a method that preserves zeros in your vector."
+  )
+
+  final def getAllowNonZeroForMissingValue: Boolean = $(allowNonZeroForMissing)
+
+  /**
     * the maximum time to wait for the job requesting new workers. default: 30 minutes
     */
   final val timeoutRequestWorkers = new LongParam(this, "timeoutRequestWorkers", "the maximum " +
@@ -175,7 +190,8 @@ private[spark] trait GeneralParams extends Params {
     useExternalMemory -> false, silent -> 0, verbosity -> 1,
     customObj -> null, customEval -> null, missing -> Float.NaN,
     trackerConf -> TrackerConf(), seed -> 0, timeoutRequestWorkers -> 30 * 60 * 1000L,
-    checkpointPath -> "", checkpointInterval -> -1)
+    checkpointPath -> "", checkpointInterval -> -1,
+    allowNonZeroForMissing -> false)
 }
 
 trait HasLeafPredictionCol extends Params {
@@ -241,7 +257,7 @@ trait HasNumClass extends Params {
 
 private[spark] trait ParamMapFuncs extends Params {
 
-  def XGBoostToMLlibParams(xgboostParams: Map[String, Any]): Unit = {
+  def XGBoost2MLlibParams(xgboostParams: Map[String, Any]): Unit = {
     for ((paramName, paramValue) <- xgboostParams) {
       if ((paramName == "booster" && paramValue != "gbtree") ||
         (paramName == "updater" && paramValue != "grow_histmaker,prune" &&
@@ -251,17 +267,18 @@ private[spark] trait ParamMapFuncs extends Params {
           " and grow_histmaker,prune or hist as the updater type")
       }
       val name = CaseFormat.LOWER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, paramName)
-      params.find(_.name == name) match {
-        case None =>
-        case Some(_: DoubleParam) =>
+      params.find(_.name == name).foreach {
+        case _: DoubleParam =>
           set(name, paramValue.toString.toDouble)
-        case Some(_: BooleanParam) =>
+        case _: BooleanParam =>
           set(name, paramValue.toString.toBoolean)
-        case Some(_: IntParam) =>
+        case _: IntParam =>
           set(name, paramValue.toString.toInt)
-        case Some(_: FloatParam) =>
+        case _: FloatParam =>
           set(name, paramValue.toString.toFloat)
-        case Some(_: Param[_]) =>
+        case _: LongParam =>
+          set(name, paramValue.toString.toLong)
+        case _: Param[_] =>
           set(name, paramValue)
       }
     }

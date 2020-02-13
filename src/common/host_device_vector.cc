@@ -8,9 +8,9 @@
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <cstdint>
+#include <memory>
 #include <utility>
-#include <type_traits>
-#include "./host_device_vector.h"
+#include "xgboost/host_device_vector.h"
 
 namespace xgboost {
 
@@ -19,6 +19,7 @@ struct HostDeviceVectorImpl {
   explicit HostDeviceVectorImpl(size_t size, T v) : data_h_(size, v) {}
   HostDeviceVectorImpl(std::initializer_list<T> init) : data_h_(init) {}
   explicit HostDeviceVectorImpl(std::vector<T>  init) : data_h_(std::move(init)) {}
+  HostDeviceVectorImpl(HostDeviceVectorImpl&& that) : data_h_(std::move(that.data_h_)) {}
 
   void Swap(HostDeviceVectorImpl &other) {
      data_h_.swap(other.data_h_);
@@ -49,27 +50,30 @@ HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, int device)
 }
 
 template <typename T>
+HostDeviceVector<T>::HostDeviceVector(HostDeviceVector<T>&& that) {
+  impl_ = new HostDeviceVectorImpl<T>(std::move(*that.impl_));
+}
+
+template <typename T>
+HostDeviceVector<T>& HostDeviceVector<T>::operator=(HostDeviceVector<T>&& that) {
+  if (this == &that) { return *this; }
+
+  std::unique_ptr<HostDeviceVectorImpl<T>> new_impl(
+      new HostDeviceVectorImpl<T>(std::move(*that.impl_)));
+  delete impl_;
+  impl_ = new_impl.release();
+  return *this;
+}
+
+template <typename T>
 HostDeviceVector<T>::~HostDeviceVector() {
   delete impl_;
   impl_ = nullptr;
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(const HostDeviceVector<T>& other)
-  : impl_(nullptr) {
-  impl_ = new HostDeviceVectorImpl<T>(*other.impl_);
-}
-
-template <typename T>
-HostDeviceVector<T>& HostDeviceVector<T>::operator=(const HostDeviceVector<T>& other) {
-  if (this == &other) {
-    return *this;
-  }
-
-  HostDeviceVectorImpl<T> newInstance(*other.impl_);
-  newInstance.Swap(*impl_);
-
-  return *this;
+GPUAccess HostDeviceVector<T>::DeviceAccess() const {
+  return kNone;
 }
 
 template <typename T>
@@ -168,13 +172,21 @@ namespace xgboost {
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
-template class HostDeviceVector<int>;
-template class HostDeviceVector<bst_uint>;
+template class HostDeviceVector<int32_t>;   // bst_node_t
 template class HostDeviceVector<Entry>;
-// Instantiate HostDeviceVector<size_t> only when size_t is distinct from bst_uint
-template class HostDeviceVector<std::conditional<std::is_same<size_t, bst_uint>::value,
-                                                 DummyType<0>,
-                                                 size_t>::type>;
+template class HostDeviceVector<uint64_t>;  // bst_row_t
+template class HostDeviceVector<uint32_t>;  // bst_feature_t
+
+#if defined(__APPLE__)
+/*
+ * On OSX:
+ *
+ * typedef unsigned int         uint32_t;
+ * typedef unsigned long long   uint64_t;
+ * typedef unsigned long       __darwin_size_t;
+ */
+template class HostDeviceVector<std::size_t>;
+#endif  // defined(__APPLE__)
 
 }  // namespace xgboost
 

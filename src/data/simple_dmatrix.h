@@ -11,12 +11,15 @@
 #include <xgboost/data.h>
 
 #include <algorithm>
-#include <cstring>
 #include <memory>
+#include <limits>
 #include <utility>
 #include <vector>
 
 #include "simple_csr_source.h"
+#include "../common/group_data.h"
+#include "../common/math.h"
+#include "adapter.h"
 
 namespace xgboost {
 namespace data {
@@ -25,6 +28,9 @@ class SimpleDMatrix : public DMatrix {
  public:
   explicit SimpleDMatrix(std::unique_ptr<DataSource<SparsePage>>&& source)
       : source_(std::move(source)) {}
+
+  template <typename AdapterT>
+  explicit SimpleDMatrix(AdapterT* adapter, float missing, int nthread);
 
   MetaInfo& Info() override;
 
@@ -38,7 +44,7 @@ class SimpleDMatrix : public DMatrix {
   BatchSet<SparsePage> GetRowBatches() override;
   BatchSet<CSCPage> GetColumnBatches() override;
   BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
-  BatchSet<EllpackPage> GetEllpackBatches() override;
+  BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
 
   // source data pointer.
   std::unique_ptr<DataSource<SparsePage>> source_;

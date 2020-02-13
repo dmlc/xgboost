@@ -13,50 +13,24 @@
 #include <string>
 #include <cstring>
 
+#include "common.h"
+
 namespace xgboost {
 namespace common {
 using MemoryFixSizeBuffer = rabit::utils::MemoryFixSizeBuffer;
 using MemoryBufferStream = rabit::utils::MemoryBufferStream;
 
 /*!
- * \brief Input stream that support additional PeekRead
- *  operation, besides read.
+ * \brief Input stream that support additional PeekRead operation,
+ *  besides read.
  */
 class PeekableInStream : public dmlc::Stream {
  public:
   explicit PeekableInStream(dmlc::Stream* strm)
       : strm_(strm), buffer_ptr_(0) {}
 
-  size_t Read(void* dptr, size_t size) override {
-    size_t nbuffer = buffer_.length() - buffer_ptr_;
-    if (nbuffer == 0) return strm_->Read(dptr, size);
-    if (nbuffer < size) {
-      std::memcpy(dptr, dmlc::BeginPtr(buffer_) + buffer_ptr_, nbuffer);
-      buffer_ptr_ += nbuffer;
-      return nbuffer + strm_->Read(reinterpret_cast<char*>(dptr) + nbuffer,
-                                   size - nbuffer);
-    } else {
-      std::memcpy(dptr, dmlc::BeginPtr(buffer_) + buffer_ptr_, size);
-      buffer_ptr_ += size;
-      return size;
-    }
-  }
-
-  size_t PeekRead(void* dptr, size_t size) {
-    size_t nbuffer = buffer_.length() - buffer_ptr_;
-    if (nbuffer < size) {
-      buffer_ = buffer_.substr(buffer_ptr_, buffer_.length());
-      buffer_ptr_ = 0;
-      buffer_.resize(size);
-      size_t nadd = strm_->Read(dmlc::BeginPtr(buffer_) + nbuffer, size - nbuffer);
-      buffer_.resize(nbuffer + nadd);
-      std::memcpy(dptr, dmlc::BeginPtr(buffer_), buffer_.length());
-      return buffer_.length();
-    } else {
-      std::memcpy(dptr, dmlc::BeginPtr(buffer_) + buffer_ptr_, size);
-      return size;
-    }
-  }
+  size_t Read(void* dptr, size_t size) override;
+  virtual size_t PeekRead(void* dptr, size_t size);
 
   void Write(const void* dptr, size_t size) override {
     LOG(FATAL) << "Not implemented";
@@ -70,9 +44,48 @@ class PeekableInStream : public dmlc::Stream {
   /*! \brief internal buffer */
   std::string buffer_;
 };
+/*!
+ * \brief A simple class used to consume `dmlc::Stream' all at once.
+ *
+ * With it one can load the rabit checkpoint into a known size string buffer.
+ */
+class FixedSizeStream : public PeekableInStream {
+ public:
+  explicit FixedSizeStream(PeekableInStream* stream);
+  ~FixedSizeStream() override = default;
+
+  size_t Read(void* dptr, size_t size) override;
+  size_t PeekRead(void* dptr, size_t size) override;
+  size_t Size() const { return buffer_.size(); }
+  size_t Tell() const { return pointer_; }
+  void Seek(size_t pos);
+
+  void Write(const void* dptr, size_t size) override {
+    LOG(FATAL) << "Not implemented";
+  }
+
+  /*!
+   *  \brief Take the buffer from `FixedSizeStream'.  The one in `FixedSizeStream' will be
+   *  cleared out.
+   */
+  void Take(std::string* out);
+
+ private:
+  size_t pointer_;
+  std::string buffer_;
+};
 
 // Optimized for consecutive file loading in unix like systime.
 std::string LoadSequentialFile(std::string fname);
+
+inline std::string FileExtension(std::string const& fname) {
+  auto splited = Split(fname, '.');
+  if (splited.size() > 1) {
+    return splited.back();
+  } else {
+    return "";
+  }
+}
 
 }  // namespace common
 }  // namespace xgboost

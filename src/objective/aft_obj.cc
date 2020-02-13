@@ -12,6 +12,9 @@
 #include <memory>
 #include <utility>
 #include <cmath>
+
+#include "xgboost/json.h"
+
 #include "../common/math.h"
 #include "../common/random.h"
 #include "../common/survival_util.h"
@@ -27,7 +30,7 @@ DMLC_REGISTRY_FILE_TAG(aft_obj);
 class AFTObj : public ObjFunction {
  public:
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
     loss_.reset(new AFTLoss(param_.aft_noise_distribution));
   }
 
@@ -36,12 +39,12 @@ class AFTObj : public ObjFunction {
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
     /* Boilerplate */
-    CHECK_EQ(preds.Size(), info.extra_float_info_.at("label_lower_bound").Size());
-    CHECK_EQ(preds.Size(), info.extra_float_info_.at("label_upper_bound").Size());
+    CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
+    CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
 
     const auto& yhat = preds.HostVector();
-    const auto& y_lower = info.extra_float_info_.at("label_lower_bound").HostVector();
-    const auto& y_higher = info.extra_float_info_.at("label_upper_bound").HostVector();
+    const auto& y_lower = info.labels_lower_bound_.HostVector();
+    const auto& y_higher = info.labels_upper_bound_.HostVector();
     const auto& weights = info.weights_.HostVector();
     const bool is_null_weight = weights.empty();
 
@@ -81,6 +84,17 @@ class AFTObj : public ObjFunction {
 
   const char* DefaultEvalMetric() const override {
     return "aft_obj";
+  }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("aft:survival");
+    out["aft_survival_param"] = toJson(param_);
+  }
+
+  void LoadConfig(Json const& in) override {
+    fromJson(in["aft_survival_param"], &param_);
+    loss_.reset(new AFTLoss(param_.aft_noise_distribution));
   }
 
  private:

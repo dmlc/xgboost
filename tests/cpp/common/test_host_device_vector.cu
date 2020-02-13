@@ -7,7 +7,7 @@
 #include <thrust/iterator/counting_iterator.h>
 
 #include "../../../src/common/device_helpers.cuh"
-#include "../../../src/common/host_device_vector.h"
+#include <xgboost/host_device_vector.h>
 
 namespace xgboost {
 namespace common {
@@ -58,8 +58,9 @@ void InitHostDeviceVector(size_t n, int device, HostDeviceVector<int> *v) {
 void PlusOne(HostDeviceVector<int> *v) {
   int device = v->DeviceIdx();
   SetDevice(device);
-  thrust::transform(v->tbegin(), v->tend(), v->tbegin(),
+  thrust::transform(dh::tcbegin(*v), dh::tcend(*v), dh::tbegin(*v),
                     [=]__device__(unsigned int a){ return a + 1; });
+  ASSERT_TRUE(v->DeviceCanWrite());
 }
 
 void CheckDevice(HostDeviceVector<int>* v,
@@ -69,7 +70,7 @@ void CheckDevice(HostDeviceVector<int>* v,
   ASSERT_EQ(v->Size(), size);
   SetDevice(v->DeviceIdx());
 
-  ASSERT_TRUE(thrust::equal(v->tcbegin(), v->tcend(),
+  ASSERT_TRUE(thrust::equal(dh::tcbegin(*v), dh::tcend(*v),
                             thrust::make_counting_iterator(first)));
   ASSERT_TRUE(v->DeviceCanRead());
   // ensure that the device has at most the access specified by access
@@ -77,7 +78,7 @@ void CheckDevice(HostDeviceVector<int>* v,
   ASSERT_EQ(v->HostCanRead(), access == GPUAccess::kRead);
   ASSERT_FALSE(v->HostCanWrite());
 
-  ASSERT_TRUE(thrust::equal(v->tbegin(), v->tend(),
+  ASSERT_TRUE(thrust::equal(dh::tbegin(*v), dh::tend(*v),
                             thrust::make_counting_iterator(first)));
   ASSERT_TRUE(v->DeviceCanRead());
   ASSERT_TRUE(v->DeviceCanWrite());
@@ -125,7 +126,8 @@ TEST(HostDeviceVector, Copy) {
     // a separate scope to ensure that v1 is gone before further checks
     HostDeviceVector<int> v1;
     InitHostDeviceVector(n, device, &v1);
-    v = v1;
+    v.Resize(v1.Size());
+    v.Copy(v1);
   }
   CheckDevice(&v, n, 0, GPUAccess::kRead);
   PlusOne(&v);

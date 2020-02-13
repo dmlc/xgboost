@@ -14,11 +14,15 @@
 
 #include <gtest/gtest.h>
 
+#include <dmlc/filesystem.h>
 #include <xgboost/base.h>
 #include <xgboost/objective.h>
 #include <xgboost/metric.h>
+#include <xgboost/json.h>
 #include <xgboost/predictor.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/c_api.h>
+#include <xgboost/learner.h>
 
 #include "../../src/common/common.h"
 #include "../../src/common/hist_util.h"
@@ -46,20 +50,30 @@ void CreateSimpleTestData(const std::string& filename);
 
 void CreateBigTestData(const std::string& filename, size_t n_entries);
 
-void CheckObjFunction(xgboost::ObjFunction * obj,
+void CheckObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                       std::vector<xgboost::bst_float> preds,
                       std::vector<xgboost::bst_float> labels,
                       std::vector<xgboost::bst_float> weights,
                       std::vector<xgboost::bst_float> out_grad,
                       std::vector<xgboost::bst_float> out_hess);
 
-void CheckRankingObjFunction(xgboost::ObjFunction * obj,
-                      std::vector<xgboost::bst_float> preds,
-                      std::vector<xgboost::bst_float> labels,
-                      std::vector<xgboost::bst_float> weights,
-                      std::vector<xgboost::bst_uint> groups,
-                      std::vector<xgboost::bst_float> out_grad,
-                      std::vector<xgboost::bst_float> out_hess);
+xgboost::Json CheckConfigReloadImpl(xgboost::Configurable* const configurable,
+                                    std::string name);
+
+template <typename T>
+xgboost::Json CheckConfigReload(std::unique_ptr<T> const& configurable,
+                                std::string name = "") {
+  return CheckConfigReloadImpl(dynamic_cast<xgboost::Configurable*>(configurable.get()),
+                               name);
+}
+
+void CheckRankingObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
+                             std::vector<xgboost::bst_float> preds,
+                             std::vector<xgboost::bst_float> labels,
+                             std::vector<xgboost::bst_float> weights,
+                             std::vector<xgboost::bst_uint> groups,
+                             std::vector<xgboost::bst_float> out_grad,
+                             std::vector<xgboost::bst_float> out_hess);
 
 xgboost::bst_float GetMetricEval(
   xgboost::Metric * metric,
@@ -188,10 +202,16 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
  *
  * \return The new dmatrix.
  */
-std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(size_t n_rows, size_t n_cols,
-                                                       size_t page_size, bool deterministic);
+std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
+    size_t n_rows, size_t n_cols, size_t page_size, bool deterministic,
+    const dmlc::TemporaryDirectory& tempdir = dmlc::TemporaryDirectory());
 
-gbm::GBTreeModel CreateTestModel();
+gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param);
+
+std::unique_ptr<GradientBooster> CreateTrainedGBM(
+    std::string name, Args kwargs, size_t kRows, size_t kCols,
+    LearnerModelParam const* learner_model_param,
+    GenericParameter const* generic_param);
 
 inline GenericParameter CreateEmptyGenericParam(int gpu_id) {
   xgboost::GenericParameter tparam;
@@ -199,6 +219,19 @@ inline GenericParameter CreateEmptyGenericParam(int gpu_id) {
     {"gpu_id", std::to_string(gpu_id)}};
   tparam.Init(args);
   return tparam;
+}
+
+inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows) {
+  xgboost::SimpleLCG gen;
+  xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
+  std::vector<GradientPair> h_gpair(n_rows);
+  for (auto &gpair : h_gpair) {
+    bst_float grad = dist(&gen);
+    bst_float hess = dist(&gen);
+    gpair = GradientPair(grad, hess);
+  }
+  HostDeviceVector<GradientPair> gpair(h_gpair);
+  return gpair;
 }
 
 #if defined(__CUDACC__)
@@ -236,16 +269,15 @@ inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
           0.26f, 0.71f, 1.83f});
   cmat.SetMins({0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f});
 
-  auto is_dense = (*dmat)->Info().num_nonzero_ ==
-                  (*dmat)->Info().num_row_ * (*dmat)->Info().num_col_;
-  size_t row_stride = 0;
+  bst_row_t row_stride = 0;
   const auto &offset_vec = batch.offset.ConstHostVector();
   for (size_t i = 1; i < offset_vec.size(); ++i) {
     row_stride = std::max(row_stride, offset_vec[i] - offset_vec[i-1]);
   }
 
-  auto page = std::unique_ptr<EllpackPageImpl>(new EllpackPageImpl(dmat->get()));
-  page->InitCompressedData(0, cmat, row_stride, is_dense);
+  auto page = std::unique_ptr<EllpackPageImpl>(new EllpackPageImpl(dmat->get(), {0, 256, 0}));
+  page->InitInfo(0, (*dmat)->IsDense(), row_stride, cmat);
+  page->InitCompressedData(0, n_rows);
   page->CreateHistIndices(0, batch, RowStateOnDevice(batch.Size(), batch.Size()));
 
   delete dmat;

@@ -7,18 +7,27 @@
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <xgboost/generic_parameters.h>
+#include <xgboost/host_device_vector.h>
+#include <xgboost/model.h>
+
 #include <functional>
 #include <string>
 #include <utility>
 #include <vector>
-#include "../../src/gbm/gblinear_model.h"
-#include "../../src/common/host_device_vector.h"
+
 
 namespace xgboost {
+
+class Json;
+
+namespace gbm {
+class GBLinearModel;
+}  // namespace gbm
+
 /*!
  * \brief interface of linear updater
  */
-class LinearUpdater {
+class LinearUpdater : public Configurable {
  protected:
   GenericParameter const* learner_param_;
 

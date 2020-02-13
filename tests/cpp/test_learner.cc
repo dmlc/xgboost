@@ -1,10 +1,15 @@
-// Copyright by Contributors
+/*!
+ * Copyright 2017-2020 XGBoost contributors
+ */
 #include <gtest/gtest.h>
 #include <vector>
 #include "helpers.h"
+#include <dmlc/filesystem.h>
 
-#include "xgboost/learner.h"
-#include "dmlc/filesystem.h"
+#include <xgboost/learner.h>
+#include <xgboost/version_config.h>
+#include "xgboost/json.h"
+#include "../../src/common/io.h"
 
 namespace xgboost {
 
@@ -25,6 +30,27 @@ TEST(Learner, Basic) {
   static_assert(std::is_integral<decltype(major)>::value, "Wrong major version type");
   static_assert(std::is_integral<decltype(minor)>::value, "Wrong minor version type");
   static_assert(std::is_integral<decltype(patch)>::value, "Wrong patch version type");
+}
+
+TEST(Learner, ParameterValidation) {
+  ConsoleLogger::Configure({{"verbosity", "2"}});
+  size_t constexpr kRows = 1;
+  size_t constexpr kCols = 1;
+  auto pp_mat = CreateDMatrix(kRows, kCols, 0);
+  auto& p_mat = *pp_mat;
+
+  auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
+  learner->SetParam("validate_parameters", "1");
+  learner->SetParam("Knock Knock", "Who's there?");
+  learner->SetParam("Silence", "....");
+  learner->SetParam("tree_method", "exact");
+
+  testing::internal::CaptureStderr();
+  learner->Configure();
+  std::string output = testing::internal::GetCapturedStderr();
+
+  ASSERT_TRUE(output.find("Parameters: { Knock Knock, Silence }") != std::string::npos);
+  delete pp_mat;
 }
 
 TEST(Learner, CheckGroup) {
@@ -55,19 +81,18 @@ TEST(Learner, CheckGroup) {
   std::vector<std::shared_ptr<xgboost::DMatrix>> mat = {p_mat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
   learner->SetParams({Arg{"objective", "rank:pairwise"}});
-  EXPECT_NO_THROW(learner->UpdateOneIter(0, p_mat.get()));
+  EXPECT_NO_THROW(learner->UpdateOneIter(0, p_mat));
 
   group.resize(kNumGroups+1);
   group[3] = 4;
   group[4] = 1;
   p_mat->Info().SetInfo("group", group.data(), DataType::kUInt32, kNumGroups+1);
-  EXPECT_ANY_THROW(learner->UpdateOneIter(0, p_mat.get()));
+  EXPECT_ANY_THROW(learner->UpdateOneIter(0, p_mat));
 
   delete pp_mat;
 }
 
 TEST(Learner, SLOW_CheckMultiBatch) {
-  using Arg = std::pair<std::string, std::string>;
   // Create sufficiently large data to make two row pages
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/big.libsvm";
@@ -83,8 +108,8 @@ TEST(Learner, SLOW_CheckMultiBatch) {
   dmat->Info().SetInfo("label", labels.data(), DataType::kFloat32, num_row);
   std::vector<std::shared_ptr<DMatrix>> mat{dmat};
   auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
-  learner->SetParams({Arg{"objective", "binary:logistic"}, Arg{"verbosity", "3"}});
-  learner->UpdateOneIter(0, dmat.get());
+  learner->SetParams(Args{{"objective", "binary:logistic"}});
+  learner->UpdateOneIter(0, dmat);
 }
 
 TEST(Learner, Configuration) {
@@ -111,83 +136,89 @@ TEST(Learner, Configuration) {
   }
 }
 
-TEST(Learner, ObjectiveParameter) {
-  using Arg = std::pair<std::string, std::string>;
-  size_t constexpr kRows = 10;
+TEST(Learner, JsonModelIO) {
+  // Test of comparing JSON object directly.
+  size_t constexpr kRows = 8;
+  int32_t constexpr kIters = 4;
+
   auto pp_dmat = CreateDMatrix(kRows, 10, 0);
-  auto p_dmat = *pp_dmat;
-
-  std::vector<bst_float> labels(kRows);
-  for (size_t i = 0; i < labels.size(); ++i) {
-    labels[i] = i;
-  }
-  p_dmat->Info().labels_.HostVector() = labels;
-  std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
-
-  std::unique_ptr<Learner> learner {Learner::Create(mat)};
-  learner->SetParams({Arg{"tree_method", "auto"},
-                      Arg{"objective", "multi:softprob"},
-                      Arg{"num_class", "10"}});
-  learner->UpdateOneIter(0, p_dmat.get());
-  auto attr_names = learner->GetConfigurationArguments();
-  ASSERT_EQ(attr_names.at("objective"), "multi:softprob");
-
-  dmlc::TemporaryDirectory tempdir;
-  const std::string fname = tempdir.path + "/model_para.bst";
+  std::shared_ptr<DMatrix> p_dmat {*pp_dmat};
+  p_dmat->Info().labels_.Resize(kRows);
+  CHECK_NE(p_dmat->Info().num_col_, 0);
 
   {
-    // Create a scope to close the stream before next read.
-    std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
-    learner->Save(fo.get());
+    std::unique_ptr<Learner> learner { Learner::Create({p_dmat}) };
+    learner->Configure();
+    Json out { Object() };
+    learner->SaveModel(&out);
+
+    learner->LoadModel(out);
+    learner->Configure();
+
+    Json new_in { Object() };
+    learner->SaveModel(&new_in);
+    ASSERT_EQ(new_in, out);
   }
 
+  {
+    std::unique_ptr<Learner> learner { Learner::Create({p_dmat}) };
+    for (int32_t iter = 0; iter < kIters; ++iter) {
+      learner->UpdateOneIter(iter, p_dmat);
+    }
+    learner->SetAttr("best_score", "15.2");
+
+    Json out { Object() };
+    learner->SaveModel(&out);
+
+    learner->LoadModel(out);
+    Json new_in { Object() };
+    learner->Configure();
+    learner->SaveModel(&new_in);
+
+    ASSERT_TRUE(IsA<Object>(out["learner"]["attributes"]));
+    ASSERT_EQ(get<Object>(out["learner"]["attributes"]).size(), 1);
+    ASSERT_EQ(out, new_in);
+  }
+
+  delete pp_dmat;
+}
+
+TEST(Learner, BinaryModelIO) {
+  size_t constexpr kRows = 8;
+  int32_t constexpr kIters = 4;
+  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
+  std::shared_ptr<DMatrix> p_dmat {*pp_dmat};
+  p_dmat->Info().labels_.Resize(kRows);
+
+  std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
+  learner->SetParam("eval_metric", "rmsle");
+  learner->Configure();
+  for (int32_t iter = 0; iter < kIters; ++iter) {
+    learner->UpdateOneIter(iter, p_dmat);
+  }
+  dmlc::TemporaryDirectory tempdir;
+  std::string const fname = tempdir.path + "binary_model_io.bin";
+  {
+    // Make sure the write is complete before loading.
+    std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
+    learner->SaveModel(fo.get());
+  }
+
+  learner.reset(Learner::Create({p_dmat}));
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
-  std::unique_ptr<Learner> learner1 {Learner::Create(mat)};
-  learner1->Load(fi.get());
-  auto attr_names1 = learner1->GetConfigurationArguments();
-  ASSERT_EQ(attr_names1.at("objective"), "multi:softprob");
+  learner->LoadModel(fi.get());
+  learner->Configure();
+  Json config { Object() };
+  learner->SaveConfig(&config);
+  std::string config_str;
+  Json::Dump(config, &config_str);
+  ASSERT_NE(config_str.find("rmsle"), std::string::npos);
+  ASSERT_EQ(config_str.find("WARNING"), std::string::npos);
 
   delete pp_dmat;
 }
 
 #if defined(XGBOOST_USE_CUDA)
-
-TEST(Learner, IO) {
-  using Arg = std::pair<std::string, std::string>;
-  size_t constexpr kRows = 10;
-  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
-  auto p_dmat = *pp_dmat;
-
-  std::vector<bst_float> labels(kRows);
-  for (size_t i = 0; i < labels.size(); ++i) {
-    labels[i] = i;
-  }
-  p_dmat->Info().labels_.HostVector() = labels;
-  std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
-
-  std::unique_ptr<Learner> learner {Learner::Create(mat)};
-  learner->SetParams({Arg{"tree_method", "auto"},
-                      Arg{"predictor", "gpu_predictor"},
-                      Arg{"gpu_id", "0"}});
-  learner->UpdateOneIter(0, p_dmat.get());
-  ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
-
-  dmlc::TemporaryDirectory tempdir;
-  const std::string fname = tempdir.path + "/model.bst";
-
-  {
-    // Create a scope to close the stream before next read.
-    std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
-    learner->Save(fo.get());
-  }
-
-  std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r"));
-  learner->Load(fi.get());
-  ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
-
-  delete pp_dmat;
-}
-
 // Tests for automatic GPU configuration.
 TEST(Learner, GPUConfiguration) {
   using Arg = std::pair<std::string, std::string>;
@@ -204,20 +235,20 @@ TEST(Learner, GPUConfiguration) {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"booster", "gblinear"},
                         Arg{"updater", "gpu_coord_descent"}});
-    learner->UpdateOneIter(0, p_dmat.get());
+    learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
   }
   {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "gpu_hist"}});
-    learner->UpdateOneIter(0, p_dmat.get());
+    learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
   }
   {
     // with CPU algorithm
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "hist"}});
-    learner->UpdateOneIter(0, p_dmat.get());
+    learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, -1);
   }
   {
@@ -225,7 +256,7 @@ TEST(Learner, GPUConfiguration) {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "hist"},
                         Arg{"gpu_id", "0"}});
-    learner->UpdateOneIter(0, p_dmat.get());
+    learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
   }
   {
@@ -235,12 +266,11 @@ TEST(Learner, GPUConfiguration) {
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "hist"},
                         Arg{"predictor", "gpu_predictor"}});
-    learner->UpdateOneIter(0, p_dmat.get());
+    learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
   }
 
   delete pp_dmat;
 }
-#endif  // XGBOOST_USE_CUDA
-
+#endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost

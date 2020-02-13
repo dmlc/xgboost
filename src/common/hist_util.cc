@@ -1,13 +1,17 @@
 /*!
  * Copyright 2017-2019 by Contributors
-  * \file hist_util.cc
+ * \file hist_util.cc
  */
-#include "./hist_util.h"
 #include <dmlc/timer.h>
-#include <rabit/rabit.h>
 #include <dmlc/omp.h>
+
+#include <rabit/rabit.h>
 #include <numeric>
 #include <vector>
+
+#include "xgboost/base.h"
+#include "../common/common.h"
+#include "./hist_util.h"
 #include "./random.h"
 #include "./column_matrix.h"
 #include "./quantile.h"
@@ -289,6 +293,7 @@ void DenseCuts::Build(DMatrix* p_fmat, uint32_t max_num_bins) {
 
 void DenseCuts::Init
 (std::vector<WXQSketch>* in_sketchs, uint32_t max_num_bins) {
+  monitor_.Start(__func__);
   std::vector<WXQSketch>& sketchs = *in_sketchs;
   constexpr int kFactor = 8;
   // gather the histogram data
@@ -328,6 +333,7 @@ void DenseCuts::Init
     CHECK_GT(cut_size, p_cuts_->cut_ptrs_.back());
     p_cuts_->cut_ptrs_.push_back(cut_size);
   }
+  monitor_.Stop(__func__);
 }
 
 void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
@@ -353,7 +359,9 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
     // The number of threads is pegged to the batch size. If the OMP
     // block is parallelized on anything other than the batch/block size,
     // it should be reassigned
-    const size_t batch_threads = std::min(batch.Size(), static_cast<size_t>(omp_get_max_threads()));
+    const size_t batch_threads = std::max(
+        size_t(1),
+        std::min(batch.Size(), static_cast<size_t>(omp_get_max_threads())));
     MemStackAllocator<size_t, 128> partial_sums(batch_threads);
     size_t* p_part = partial_sums.Get();
 
@@ -414,9 +422,10 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
     }
 
     #pragma omp parallel for num_threads(nthread) schedule(static)
-    for (int32_t idx = 0; idx < int32_t(nbins); ++idx) {
+    for (bst_omp_uint idx = 0; idx < bst_omp_uint(nbins); ++idx) {
       for (int32_t tid = 0; tid < nthread; ++tid) {
         hit_count[idx] += hit_count_tloc_[tid * nbins + idx];
+        hit_count_tloc_[tid * nbins + idx] = 0;  // reset for next batch
       }
     }
 
@@ -565,7 +574,7 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
         for (auto fid : group) {
           nnz += feature_nnz[fid];
         }
-        float nnz_rate = static_cast<float>(nnz) / nrow;
+        double nnz_rate = static_cast<double>(nnz) / nrow;
         // take apart small sparse group, due it will not gain on speed
         if (nnz_rate <= param.sparse_threshold) {
           for (auto fid : group) {
@@ -650,130 +659,142 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
   }
 }
 
-// used when data layout is kDenseDataZeroBased or kDenseDataOneBased
-// it means that "row_ptr" is not needed for hist computations
-void BuildHistLocalDense(size_t istart, size_t iend, size_t nrows, const size_t* rid,
-    const uint32_t* index, const GradientPair::ValueT* pgh, const size_t* row_ptr,
-    GradStatHist::GradType* data_local_hist, GradStatHist* grad_stat_global) {
-  GradStatHist grad_stat;  // make local var to prevent false sharing
+/*!
+ * \brief fill a histogram by zeroes
+ */
+void InitilizeHistByZeroes(GHistRow hist, size_t begin, size_t end) {
+  memset(hist.data() + begin, '\0', (end-begin)*sizeof(tree::GradStats));
+}
 
-  const size_t n_features = row_ptr[rid[istart]+1] - row_ptr[rid[istart]];
+/*!
+ * \brief Increment hist as dst += add in range [begin, end)
+ */
+void IncrementHist(GHistRow dst, const GHistRow add, size_t begin, size_t end) {
+  using FPType = decltype(tree::GradStats::sum_grad);
+  FPType* pdst = reinterpret_cast<FPType*>(dst.data());
+  const FPType* padd = reinterpret_cast<const FPType*>(add.data());
+
+  for (size_t i = 2 * begin; i < 2 * end; ++i) {
+    pdst[i] += padd[i];
+  }
+}
+
+/*!
+ * \brief Copy hist from src to dst in range [begin, end)
+ */
+void CopyHist(GHistRow dst, const GHistRow src, size_t begin, size_t end) {
+  using FPType = decltype(tree::GradStats::sum_grad);
+  FPType* pdst = reinterpret_cast<FPType*>(dst.data());
+  const FPType* psrc = reinterpret_cast<const FPType*>(src.data());
+
+  for (size_t i = 2 * begin; i < 2 * end; ++i) {
+    pdst[i] = psrc[i];
+  }
+}
+
+/*!
+ * \brief Compute Subtraction: dst = src1 - src2 in range [begin, end)
+ */
+void SubtractionHist(GHistRow dst, const GHistRow src1, const GHistRow src2,
+                     size_t begin, size_t end) {
+  using FPType = decltype(tree::GradStats::sum_grad);
+  FPType* pdst = reinterpret_cast<FPType*>(dst.data());
+  const FPType* psrc1 = reinterpret_cast<const FPType*>(src1.data());
+  const FPType* psrc2 = reinterpret_cast<const FPType*>(src2.data());
+
+  for (size_t i = 2 * begin; i < 2 * end; ++i) {
+    pdst[i] = psrc1[i] - psrc2[i];
+  }
+}
+
+
+void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
+                             const RowSetCollection::Elem row_indices,
+                             const GHistIndexMatrix& gmat,
+                             GHistRow hist) {
+  const size_t* rid =  row_indices.begin;
+  const size_t nrows = row_indices.Size();
+  const uint32_t* index = gmat.index.data();
+  const size_t* row_ptr =  gmat.row_ptr.data();
+  const float* pgh = reinterpret_cast<const float*>(gpair.data());
+
+  double* hist_data = reinterpret_cast<double*>(hist.data());
+
   const size_t cache_line_size = 64;
-  const size_t prefetch_step = cache_line_size / sizeof(*index);
   const size_t prefetch_offset = 10;
-
   size_t no_prefetch_size = prefetch_offset + cache_line_size/sizeof(*rid);
   no_prefetch_size = no_prefetch_size > nrows ? nrows : no_prefetch_size;
 
-  // if read each row in some block of bin-matrix - it's dense block
-  // and we dont need SW prefetch in this case
-  const bool denseBlock = (rid[iend-1] - rid[istart]) == (iend - istart - 1);
+  for (size_t i = 0; i < nrows; ++i) {
+    const size_t icol_start = row_ptr[rid[i]];
+    const size_t icol_end = row_ptr[rid[i]+1];
 
-  if (iend < nrows - no_prefetch_size && !denseBlock) {
-    for (size_t i = istart; i < iend; ++i) {
-      const size_t icol_start = rid[i] * n_features;
-      const size_t icol_start_prefetch = rid[i+prefetch_offset] * n_features;
+    if (i < nrows - no_prefetch_size) {
+      PREFETCH_READ_T0(row_ptr + rid[i + prefetch_offset]);
+      PREFETCH_READ_T0(pgh + 2*rid[i + prefetch_offset]);
+    }
+
+    for (size_t j = icol_start; j < icol_end; ++j) {
+      const uint32_t idx_bin = 2*index[j];
       const size_t idx_gh = 2*rid[i];
 
-      PREFETCH_READ_T0(pgh + 2*rid[i + prefetch_offset]);
+      hist_data[idx_bin] += pgh[idx_gh];
+      hist_data[idx_bin+1] += pgh[idx_gh+1];
+    }
+  }
+}
 
-      for (size_t j = icol_start_prefetch; j < icol_start_prefetch + n_features;
-          j += prefetch_step) {
-        PREFETCH_READ_T0(index + j);
+void GHistBuilder::BuildBlockHist(const std::vector<GradientPair>& gpair,
+                                  const RowSetCollection::Elem row_indices,
+                                  const GHistIndexBlockMatrix& gmatb,
+                                  GHistRow hist) {
+  constexpr int kUnroll = 8;  // loop unrolling factor
+  const size_t nblock = gmatb.GetNumBlock();
+  const size_t nrows = row_indices.end - row_indices.begin;
+  const size_t rest = nrows % kUnroll;
+
+#if defined(_OPENMP)
+  const auto nthread = static_cast<bst_omp_uint>(this->nthread_);  // NOLINT
+#endif  // defined(_OPENMP)
+  tree::GradStats* p_hist = hist.data();
+
+#pragma omp parallel for num_threads(nthread) schedule(guided)
+  for (bst_omp_uint bid = 0; bid < nblock; ++bid) {
+    auto gmat = gmatb[bid];
+
+    for (size_t i = 0; i < nrows - rest; i += kUnroll) {
+      size_t rid[kUnroll];
+      size_t ibegin[kUnroll];
+      size_t iend[kUnroll];
+      GradientPair stat[kUnroll];
+
+      for (int k = 0; k < kUnroll; ++k) {
+        rid[k] = row_indices.begin[i + k];
+        ibegin[k] = gmat.row_ptr[rid[k]];
+        iend[k] = gmat.row_ptr[rid[k] + 1];
+        stat[k] = gpair[rid[k]];
       }
-
-      grad_stat.sum_grad += pgh[idx_gh];
-      grad_stat.sum_hess += pgh[idx_gh+1];
-
-      for (size_t j = icol_start; j < icol_start + n_features; ++j) {
-        const uint32_t idx_bin = 2*index[j];
-        data_local_hist[idx_bin] += pgh[idx_gh];
-        data_local_hist[idx_bin+1] += pgh[idx_gh+1];
+      for (int k = 0; k < kUnroll; ++k) {
+        for (size_t j = ibegin[k]; j < iend[k]; ++j) {
+          const uint32_t bin = gmat.index[j];
+          p_hist[bin].Add(stat[k]);
+        }
       }
     }
-  } else {
-    for (size_t i = istart; i < iend; ++i) {
-      const size_t icol_start = rid[i] * n_features;
-      const size_t idx_gh = 2*rid[i];
-      grad_stat.sum_grad += pgh[idx_gh];
-      grad_stat.sum_hess += pgh[idx_gh+1];
-
-      for (size_t j = icol_start; j < icol_start + n_features; ++j) {
-        const uint32_t idx_bin      = 2*index[j];
-        data_local_hist[idx_bin]   += pgh[idx_gh];
-        data_local_hist[idx_bin+1] += pgh[idx_gh+1];
+    for (size_t i = nrows - rest; i < nrows; ++i) {
+      const size_t rid = row_indices.begin[i];
+      const size_t ibegin = gmat.row_ptr[rid];
+      const size_t iend = gmat.row_ptr[rid + 1];
+      const GradientPair stat = gpair[rid];
+      for (size_t j = ibegin; j < iend; ++j) {
+        const uint32_t bin = gmat.index[j];
+        p_hist[bin].Add(stat);
       }
     }
   }
-  grad_stat_global->Add(grad_stat);
 }
 
-// used when data layout is kSparseData
-// it means that "row_ptr" is needed for hist computations
-void BuildHistLocalSparse(size_t istart, size_t iend, size_t nrows, const size_t* rid,
-    const uint32_t* index, const GradientPair::ValueT* pgh, const size_t* row_ptr,
-    GradStatHist::GradType* data_local_hist, GradStatHist* grad_stat_global) {
-  GradStatHist grad_stat;  // make local var to prevent false sharing
-
-  const size_t cache_line_size = 64;
-  const size_t prefetch_step = cache_line_size / sizeof(index[0]);
-  const size_t prefetch_offset = 10;
-
-  size_t no_prefetch_size = prefetch_offset + cache_line_size/sizeof(*rid);
-  no_prefetch_size = no_prefetch_size > nrows ? nrows : no_prefetch_size;
-
-  // if read each row in some block of bin-matrix - it's dense block
-  // and we dont need SW prefetch in this case
-  const bool denseBlock = (rid[iend-1] - rid[istart]) == (iend - istart);
-
-  if (iend < nrows - no_prefetch_size && !denseBlock) {
-    for (size_t i = istart; i < iend; ++i) {
-      const size_t icol_start = row_ptr[rid[i]];
-      const size_t icol_end = row_ptr[rid[i]+1];
-      const size_t idx_gh = 2*rid[i];
-
-      const size_t icol_start10 = row_ptr[rid[i+prefetch_offset]];
-      const size_t icol_end10 = row_ptr[rid[i+prefetch_offset]+1];
-
-      PREFETCH_READ_T0(pgh + 2*rid[i + prefetch_offset]);
-
-      for (size_t j = icol_start10; j < icol_end10; j+=prefetch_step) {
-        PREFETCH_READ_T0(index + j);
-      }
-
-      grad_stat.sum_grad += pgh[idx_gh];
-      grad_stat.sum_hess += pgh[idx_gh+1];
-
-      for (size_t j = icol_start; j < icol_end; ++j) {
-        const uint32_t idx_bin      = 2*index[j];
-        data_local_hist[idx_bin]   += pgh[idx_gh];
-        data_local_hist[idx_bin+1] += pgh[idx_gh+1];
-      }
-    }
-  } else {
-    for (size_t i = istart; i < iend; ++i) {
-      const size_t icol_start = row_ptr[rid[i]];
-      const size_t icol_end = row_ptr[rid[i]+1];
-      const size_t idx_gh = 2*rid[i];
-
-      grad_stat.sum_grad += pgh[idx_gh];
-      grad_stat.sum_hess += pgh[idx_gh+1];
-
-      for (size_t j = icol_start; j < icol_end; ++j) {
-        const uint32_t idx_bin      = 2*index[j];
-        data_local_hist[idx_bin]   += pgh[idx_gh];
-        data_local_hist[idx_bin+1] += pgh[idx_gh+1];
-      }
-    }
-  }
-  grad_stat_global->Add(grad_stat);
-}
-
-void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
-  GradStatHist* p_self = self.data();
-  GradStatHist* p_sibling = sibling.data();
-  GradStatHist* p_parent = parent.data();
-
+void GHistBuilder::SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
   const size_t size = self.size();
   CHECK_EQ(sibling.size(), size);
   CHECK_EQ(parent.size(), size);
@@ -785,9 +806,7 @@ void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
   for (omp_ulong iblock = 0; iblock < n_blocks; ++iblock) {
     const size_t ibegin = iblock*block_size;
     const size_t iend = (((iblock+1)*block_size > size) ? size : ibegin + block_size);
-    for (bst_omp_uint bin_id = ibegin; bin_id < iend; bin_id++) {
-      p_self[bin_id].SetSubstract(p_parent[bin_id], p_sibling[bin_id]);
-    }
+    SubtractionHist(self, parent, sibling, ibegin, iend);
   }
 }
 

@@ -139,6 +139,8 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @param reshape whether to reshape the vector of predictions to a matrix form when there are several
 #'        prediction outputs per case. This option has no effect when either of predleaf, predcontrib,
 #'        or predinteraction flags is TRUE.
+#' @param training whether is the prediction result used for training.  For dart booster,
+#'        training predicting will perform dropout.
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
 #'
 #' @details
@@ -288,7 +290,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @export
 predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FALSE, ntreelimit = NULL,
                                 predleaf = FALSE, predcontrib = FALSE, approxcontrib = FALSE, predinteraction = FALSE,
-                                reshape = FALSE, ...) {
+                                reshape = FALSE, training = FALSE, ...) {
 
   object <- xgb.Booster.complete(object, saveraw = FALSE)
   if (!inherits(newdata, "xgb.DMatrix"))
@@ -307,7 +309,8 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   option <- 0L + 1L * as.logical(outputmargin) + 2L * as.logical(predleaf) + 4L * as.logical(predcontrib) +
     8L * as.logical(approxcontrib) + 16L * as.logical(predinteraction)
 
-  ret <- .Call(XGBoosterPredict_R, object$handle, newdata, option[1], as.integer(ntreelimit))
+  ret <- .Call(XGBoosterPredict_R, object$handle, newdata, option[1],
+               as.integer(ntreelimit), as.integer(training))
 
   n_ret <- length(ret)
   n_row <- nrow(newdata)

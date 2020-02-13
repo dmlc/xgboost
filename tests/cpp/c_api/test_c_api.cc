@@ -1,7 +1,15 @@
-// Copyright by Contributors
+/*!
+ * Copyright 2019-2020 XGBoost contributors
+ */
 #include <gtest/gtest.h>
+#include <xgboost/version_config.h>
 #include <xgboost/c_api.h>
 #include <xgboost/data.h>
+#include <xgboost/learner.h>
+
+#include "../helpers.h"
+#include "../../../src/common/io.h"
+
 
 TEST(c_api, XGDMatrixCreateFromMatDT) {
   std::vector<int> col0 = {0, -1, 3};
@@ -63,3 +71,79 @@ TEST(c_api, XGDMatrixCreateFromMat_omp) {
     delete dmat;
   }
 }
+
+namespace xgboost {
+
+TEST(c_api, Version) {
+  int patch {0};
+  XGBoostVersion(NULL, NULL, &patch);  // NOLINT
+  ASSERT_EQ(patch, XGBOOST_VER_PATCH);
+}
+
+TEST(c_api, ConfigIO) {
+  size_t constexpr kRows = 10;
+  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
+  auto p_dmat = *pp_dmat;
+  std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
+  std::vector<bst_float> labels(kRows);
+  for (size_t i = 0; i < labels.size(); ++i) {
+    labels[i] = i;
+  }
+  p_dmat->Info().labels_.HostVector() = labels;
+
+  std::shared_ptr<Learner> learner { Learner::Create(mat) };
+
+  BoosterHandle handle = learner.get();
+  learner->UpdateOneIter(0, p_dmat);
+
+  char const* out[1];
+  bst_ulong len {0};
+  XGBoosterSaveJsonConfig(handle, &len, out);
+
+  std::string config_str_0 { out[0] };
+  auto config_0 = Json::Load({config_str_0.c_str(), config_str_0.size()});
+  XGBoosterLoadJsonConfig(handle, out[0]);
+
+  bst_ulong len_1 {0};
+  std::string config_str_1 { out[0] };
+  XGBoosterSaveJsonConfig(handle, &len_1, out);
+  auto config_1 = Json::Load({config_str_1.c_str(), config_str_1.size()});
+
+  ASSERT_EQ(config_0, config_1);
+
+  delete pp_dmat;
+}
+
+TEST(c_api, JsonModelIO) {
+  size_t constexpr kRows = 10;
+  dmlc::TemporaryDirectory tempdir;
+
+  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
+  auto p_dmat = *pp_dmat;
+  std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
+  std::vector<bst_float> labels(kRows);
+  for (size_t i = 0; i < labels.size(); ++i) {
+    labels[i] = i;
+  }
+  p_dmat->Info().labels_.HostVector() = labels;
+
+  std::shared_ptr<Learner> learner { Learner::Create(mat) };
+
+  learner->UpdateOneIter(0, p_dmat);
+  BoosterHandle handle = learner.get();
+
+  std::string modelfile_0 = tempdir.path + "/model_0.json";
+  XGBoosterSaveModel(handle, modelfile_0.c_str());
+  XGBoosterLoadModel(handle, modelfile_0.c_str());
+
+  std::string modelfile_1 = tempdir.path + "/model_1.json";
+  XGBoosterSaveModel(handle, modelfile_1.c_str());
+
+  auto model_str_0 = common::LoadSequentialFile(modelfile_0);
+  auto model_str_1 = common::LoadSequentialFile(modelfile_1);
+
+  ASSERT_EQ(model_str_0.front(), '{');
+  ASSERT_EQ(model_str_0, model_str_1);
+  delete pp_dmat;
+}
+}  // namespace xgboost

@@ -17,7 +17,7 @@
 *.tar.gz
 *conf
 *buffer
-*model
+*.model
 *pyc
 *.train
 *.test
@@ -101,3 +101,6 @@ R-package/src/Makevars
 .idea
 *.iml
 /cmake-build-debug/
+
+# GDB
+.gdb_history

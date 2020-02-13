@@ -8,7 +8,7 @@
 #ifndef XGBOOST_COMMON_SURVIVAL_UTIL_H_
 #define XGBOOST_COMMON_SURVIVAL_UTIL_H_
 
-#include <xgboost/enum_class_param.h>
+#include <xgboost/parameter.h>
 #include <memory>
 
 namespace xgboost {
@@ -30,7 +30,7 @@ namespace common {
 // Constant PI
 const double kPI = 3.14159265358979323846;
 
-struct AFTParam : public dmlc::Parameter<AFTParam> {
+struct AFTParam : public XGBoostParameter<AFTParam> {
   AFTDistributionType aft_noise_distribution;
   float aft_sigma;
   DMLC_DECLARE_PARAMETER(AFTParam) {

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2019 by Contributors
+ * Copyright 2014-2020 by Contributors
  * \file cli_main.cc
  * \brief The command line interface program of xgboost.
  *  This file is not included in dynamic library.
@@ -12,6 +12,8 @@
 #include <xgboost/learner.h>
 #include <xgboost/data.h>
 #include <xgboost/logging.h>
+#include <xgboost/parameter.h>
+
 #include <dmlc/timer.h>
 #include <iomanip>
 #include <ctime>
@@ -30,7 +32,7 @@ enum CLITask {
   kPredict = 2
 };
 
-struct CLIParam : public dmlc::Parameter<CLIParam> {
+struct CLIParam : public XGBoostParameter<CLIParam> {
   /*! \brief the task name */
   int task;
   /*! \brief whether evaluate training statistics */
@@ -123,7 +125,7 @@ struct CLIParam : public dmlc::Parameter<CLIParam> {
   // customized configure function of CLIParam
   inline void Configure(const std::vector<std::pair<std::string, std::string> >& _cfg) {
     this->cfg = _cfg;
-    this->InitAllowUnknown(_cfg);
+    this->UpdateAllowUnknown(_cfg);
     for (const auto& kv : _cfg) {
       if (!strncmp("eval[", kv.first.c_str(), 5)) {
         char evname[256];
@@ -163,7 +165,7 @@ void CLITrain(const CLIParam& param) {
           param.dsplit == 2));
   std::vector<std::shared_ptr<DMatrix> > deval;
   std::vector<std::shared_ptr<DMatrix> > cache_mats;
-  std::vector<DMatrix*> eval_datasets;
+  std::vector<std::shared_ptr<DMatrix>> eval_datasets;
   cache_mats.push_back(dtrain);
   for (size_t i = 0; i < param.eval_data_names.size(); ++i) {
     deval.emplace_back(
@@ -171,12 +173,12 @@ void CLITrain(const CLIParam& param) {
             param.eval_data_paths[i],
             ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity(),
             param.dsplit == 2)));
-    eval_datasets.push_back(deval.back().get());
+    eval_datasets.push_back(deval.back());
     cache_mats.push_back(deval.back());
   }
   std::vector<std::string> eval_data_names = param.eval_data_names;
   if (param.eval_train) {
-    eval_datasets.push_back(dtrain.get());
+    eval_datasets.push_back(dtrain);
     eval_data_names.emplace_back("train");
   }
   // initialize the learner.
@@ -201,7 +203,7 @@ void CLITrain(const CLIParam& param) {
     double elapsed = dmlc::GetTime() - start;
     if (version % 2 == 0) {
       LOG(INFO) << "boosting round " << i << ", " << elapsed << " sec elapsed";
-      learner->UpdateOneIter(i, dtrain.get());
+      learner->UpdateOneIter(i, dtrain);
       if (learner->AllowLazyCheckPoint()) {
         rabit::LazyCheckPoint(learner.get());
       } else {
@@ -303,7 +305,7 @@ void CLIPredict(const CLIParam& param) {
   CHECK_NE(param.test_path, "NULL")
       << "Test dataset parameter test:data must be specified.";
   // load data
-  std::unique_ptr<DMatrix> dtest(
+  std::shared_ptr<DMatrix> dtest(
       DMatrix::Load(
           param.test_path,
           ConsoleLogger::GlobalVerbosity() > ConsoleLogger::DefaultVerbosity(),
@@ -319,7 +321,7 @@ void CLIPredict(const CLIParam& param) {
 
   LOG(INFO) << "start prediction...";
   HostDeviceVector<bst_float> preds;
-  learner->Predict(dtest.get(), param.pred_margin, &preds, param.ntree_limit);
+  learner->Predict(dtest, param.pred_margin, &preds, param.ntree_limit);
   LOG(CONSOLE) << "writing prediction to " << param.name_pred;
 
   std::unique_ptr<dmlc::Stream> fo(

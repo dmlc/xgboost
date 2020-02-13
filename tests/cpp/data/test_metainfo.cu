@@ -9,8 +9,7 @@
 namespace xgboost {
 
 template <typename T>
-std::string PrepareData(std::string typestr, thrust::device_vector<T>* out) {
-  constexpr size_t kRows = 16;
+std::string PrepareData(std::string typestr, thrust::device_vector<T>* out, const size_t kRows=16) {
   out->resize(kRows);
   auto& d_data = *out;
 
@@ -31,9 +30,10 @@ std::string PrepareData(std::string typestr, thrust::device_vector<T>* out) {
         Json(Integer(reinterpret_cast<Integer::Int>(p_d_data))),
         Json(Boolean(false))};
   column["data"] = j_data;
+  Json array(std::vector<Json>{column});
 
   std::stringstream ss;
-  Json::Dump(column, &ss);
+  Json::Dump(array, &ss);
   std::string str = ss.str();
 
   return str;
@@ -65,7 +65,15 @@ TEST(MetaInfo, FromInterface) {
     ASSERT_EQ(h_base_margin[i], d_data[i]);
   }
 
-  EXPECT_ANY_THROW({info.SetInfo("group", str.c_str());});
+  thrust::device_vector<int> d_group_data;
+  std::string group_str = PrepareData<int>("<i4", &d_group_data, 4);
+  d_group_data[0] = 4;
+  d_group_data[1] = 3;
+  d_group_data[2] = 2;
+  d_group_data[3] = 1;
+  info.SetInfo("group", group_str.c_str());
+  std::vector<bst_group_t> expected_group_ptr = {0, 4, 7, 9, 10};
+  EXPECT_EQ(info.group_ptr_, expected_group_ptr);
 }
 
 TEST(MetaInfo, Group) {

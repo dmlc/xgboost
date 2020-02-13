@@ -7,12 +7,12 @@
 
 #include <rabit/rabit.h>
 #include <xgboost/metric.h>
+#include <xgboost/host_device_vector.h>
 #include <dmlc/registry.h>
 #include <cmath>
 #include <memory>
 #include <vector>
 
-#include "../common/host_device_vector.h"
 #include "../common/math.h"
 #include "../common/survival_util.h"
 
@@ -47,20 +47,20 @@ struct EvalAFT : public Metric {
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
                  bool distributed) override {
-    CHECK_NE(info.extra_float_info_.at("label_lower_bound").Size(), 0U)
+    CHECK_NE(info.labels_lower_bound_.Size(), 0U)
       << "y_lower cannot be empty";
-    CHECK_NE(info.extra_float_info_.at("label_upper_bound").Size(), 0U)
+    CHECK_NE(info.labels_upper_bound_.Size(), 0U)
       << "y_higher cannot be empty";
-    CHECK_EQ(preds.Size(), info.extra_float_info_.at("label_lower_bound").Size());
-    CHECK_EQ(preds.Size(), info.extra_float_info_.at("label_upper_bound").Size());
+    CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
+    CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
 
     /* Compute negative log likelihood for each data point and compute weighted average */
     double nloglik_sum = 0.0;
     double weight_sum = 0.0;
 
     const auto& yhat = preds.HostVector();
-    const auto& y_lower = info.extra_float_info_.at("label_lower_bound").HostVector();
-    const auto& y_higher = info.extra_float_info_.at("label_upper_bound").HostVector();
+    const auto& y_lower = info.labels_lower_bound_.HostVector();
+    const auto& y_higher = info.labels_upper_bound_.HostVector();
     const auto& weights = info.weights_.HostVector();
     const bool is_null_weight = weights.empty();
     const size_t nsize = yhat.size();

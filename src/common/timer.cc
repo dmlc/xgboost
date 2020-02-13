@@ -13,6 +13,20 @@
 namespace xgboost {
 namespace common {
 
+void Monitor::Start(std::string const &name) {
+  if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
+    statistics_map[name].timer.Start();
+  }
+}
+
+void Monitor::Stop(const std::string &name) {
+  if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
+    auto &stats = statistics_map[name];
+    stats.timer.Stop();
+    stats.count++;
+  }
+}
+
 std::vector<Monitor::StatMap> Monitor::CollectFromOtherRanks() const {
   // Since other nodes might have started timers that this one haven't, so
   // we can't simply call all reduce.
@@ -30,8 +44,9 @@ std::vector<Monitor::StatMap> Monitor::CollectFromOtherRanks() const {
     statistic[kv.first] = Object();
     auto& j_pair = statistic[kv.first];
     j_pair["count"] = Integer(kv.second.count);
-    j_pair["elapsed"] = Integer(std::chrono::duration_cast<std::chrono::microseconds>(
-        kv.second.timer.elapsed).count());
+    j_pair["elapsed"] = Integer(static_cast<int64_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(
+        kv.second.timer.elapsed).count()));
   }
 
   std::stringstream ss;
@@ -74,10 +89,10 @@ void Monitor::PrintStatistics(StatMap const& statistics) const {
           "Timer for " << kv.first << " did not get stopped properly.";
       continue;
     }
-    std::cout << kv.first << ": " << static_cast<double>(kv.second.second) / 1e+6
-              << "s, " << kv.second.first << " calls @ "
-              << kv.second.second
-              << "us" << std::endl;
+    LOG(CONSOLE) << kv.first << ": " << static_cast<double>(kv.second.second) / 1e+6
+                 << "s, " << kv.second.first << " calls @ "
+                 << kv.second.second
+                 << "us" << std::endl;
   }
 }
 
@@ -92,10 +107,9 @@ void Monitor::Print() const {
     if (rabit::GetRank() == 0) {
       LOG(CONSOLE) << "======== Monitor: " << label << " ========";
       for (size_t i = 0; i < world.size(); ++i) {
-        std::cout << "From rank: " << i << ": " << std::endl;
+        LOG(CONSOLE) << "From rank: " << i << ": " << std::endl;
         auto const& statistic = world[i];
         this->PrintStatistics(statistic);
-        std::cout << std::endl;
       }
     }
   } else {
@@ -108,7 +122,6 @@ void Monitor::Print() const {
     LOG(CONSOLE) << "======== Monitor: " << label << " ========";
     this->PrintStatistics(stat_map);
   }
-  std::cout << std::endl;
 }
 
 }  // namespace common

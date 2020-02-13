@@ -11,9 +11,8 @@
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
-#include <xgboost/objective.h>
-#include <xgboost/feature_map.h>
-#include <xgboost/generic_parameters.h>
+#include <xgboost/host_device_vector.h>
+#include <xgboost/model.h>
 
 #include <vector>
 #include <utility>
@@ -21,15 +20,21 @@
 #include <functional>
 #include <memory>
 
-#include "../../src/common/host_device_vector.h"
-
 namespace xgboost {
+
+class Json;
+class FeatureMap;
+class ObjFunction;
+
+struct GenericParameter;
+struct LearnerModelParam;
+
 /*!
  * \brief interface of gradient boosting model.
  */
-class GradientBooster {
+class GradientBooster : public Model, public Configurable {
  protected:
-  GenericParameter const* learner_param_;
+  GenericParameter const* generic_param_;
 
  public:
   /*! \brief virtual destructor */
@@ -79,6 +84,7 @@ class GradientBooster {
    */
   virtual void PredictBatch(DMatrix* dmat,
                             HostDeviceVector<bst_float>* out_preds,
+                            bool training,
                             unsigned ntree_limit = 0) = 0;
   /*!
    * \brief online prediction function, predict score for one instance at a time
@@ -89,13 +95,11 @@ class GradientBooster {
    * \param inst the instance you want to predict
    * \param out_preds output vector to hold the predictions
    * \param ntree_limit limit the number of trees used in prediction
-   * \param root_index the root index
    * \sa Predict
    */
   virtual void PredictInstance(const SparsePage::Inst& inst,
-                       std::vector<bst_float>* out_preds,
-                       unsigned ntree_limit = 0,
-                       unsigned root_index = 0) = 0;
+                               std::vector<bst_float>* out_preds,
+                               unsigned ntree_limit = 0) = 0;
   /*!
    * \brief predict the leaf index of each tree, the output will be nsample * ntree vector
    *        this is only valid in gbtree predictor
@@ -120,13 +124,14 @@ class GradientBooster {
    * \param condition_feature feature to condition on (i.e. fix) during calculations
    */
   virtual void PredictContribution(DMatrix* dmat,
-                           std::vector<bst_float>* out_contribs,
-                           unsigned ntree_limit = 0, bool approximate = false,
-                           int condition = 0, unsigned condition_feature = 0) = 0;
+                                   std::vector<bst_float>* out_contribs,
+                                   unsigned ntree_limit = 0,
+                                   bool approximate = false, int condition = 0,
+                                   unsigned condition_feature = 0) = 0;
 
   virtual void PredictInteractionContributions(DMatrix* dmat,
-                           std::vector<bst_float>* out_contribs,
-                           unsigned ntree_limit, bool approximate) = 0;
+                                               std::vector<bst_float>* out_contribs,
+                                               unsigned ntree_limit, bool approximate) = 0;
 
   /*!
    * \brief dump the model in the requested format
@@ -139,21 +144,22 @@ class GradientBooster {
                                              bool with_stats,
                                              std::string format) const = 0;
   /*!
-   * \brief Whether the current booster use GPU.
+   * \brief Whether the current booster uses GPU.
    */
   virtual bool UseGPU() const = 0;
   /*!
    * \brief create a gradient booster from given name
    * \param name name of gradient booster
+   * \param generic_param Pointer to runtime parameters
+   * \param learner_model_param pointer to global model parameters
    * \param cache_mats The cache data matrix of the Booster.
-   * \param base_margin The base margin of prediction.
    * \return The created booster.
    */
   static GradientBooster* Create(
       const std::string& name,
-      GenericParameter const* gparam,
-      const std::vector<std::shared_ptr<DMatrix> >& cache_mats,
-      bst_float base_margin);
+      GenericParameter const* generic_param,
+      LearnerModelParam const* learner_model_param,
+      const std::vector<std::shared_ptr<DMatrix> >& cache_mats);
 
   static void AssertGPUSupport() {
 #ifndef XGBOOST_USE_CUDA
@@ -169,7 +175,7 @@ struct GradientBoosterReg
     : public dmlc::FunctionRegEntryBase<
   GradientBoosterReg,
   std::function<GradientBooster* (const std::vector<std::shared_ptr<DMatrix> > &cached_mats,
-                                  bst_float base_margin)> > {
+                                  LearnerModelParam const* learner_model_param)> > {
 };
 
 /*!

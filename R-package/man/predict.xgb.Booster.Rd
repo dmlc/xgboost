@@ -5,10 +5,20 @@
 \alias{predict.xgb.Booster.handle}
 \title{Predict method for eXtreme Gradient Boosting model}
 \usage{
-\method{predict}{xgb.Booster}(object, newdata, missing = NA,
-  outputmargin = FALSE, ntreelimit = NULL, predleaf = FALSE,
-  predcontrib = FALSE, approxcontrib = FALSE, predinteraction = FALSE,
-  reshape = FALSE, ...)
+\method{predict}{xgb.Booster}(
+  object,
+  newdata,
+  missing = NA,
+  outputmargin = FALSE,
+  ntreelimit = NULL,
+  predleaf = FALSE,
+  predcontrib = FALSE,
+  approxcontrib = FALSE,
+  predinteraction = FALSE,
+  reshape = FALSE,
+  training = FALSE,
+  ...
+)
 
 \method{predict}{xgb.Booster.handle}(object, ...)
 }
@@ -38,6 +48,9 @@ It will use all the trees by default (\code{NULL} value).}
 \item{reshape}{whether to reshape the vector of predictions to a matrix form when there are several
 prediction outputs per case. This option has no effect when either of predleaf, predcontrib,
 or predinteraction flags is TRUE.}
+
+\item{training}{whether is the prediction result used for training.  For dart booster,
+training predicting will perform dropout.}
 
 \item{...}{Parameters passed to \code{predict.xgb.Booster}}
 }

@@ -58,9 +58,13 @@ function(set_output_directory target dir)
 		RUNTIME_OUTPUT_DIRECTORY ${dir}
 		RUNTIME_OUTPUT_DIRECTORY_DEBUG ${dir}
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE ${dir}
+		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
+		RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${dir}
 		LIBRARY_OUTPUT_DIRECTORY ${dir}
 		LIBRARY_OUTPUT_DIRECTORY_DEBUG ${dir}
 		LIBRARY_OUTPUT_DIRECTORY_RELEASE ${dir}
+		LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
+		LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL ${dir}
 	)
 endfunction(set_output_directory)
 
@@ -111,7 +115,7 @@ DESTINATION \"${build_dir}/bak\")")
 
   install(CODE "file(REMOVE_RECURSE \"${build_dir}/R-package\")")
   install(
-    DIRECTORY "${PROJECT_SOURCE_DIR}/R-package"
+    DIRECTORY "${xgboost_SOURCE_DIR}/R-package"
     DESTINATION "${build_dir}"
     REGEX "src/*" EXCLUDE
     REGEX "R-package/configure" EXCLUDE

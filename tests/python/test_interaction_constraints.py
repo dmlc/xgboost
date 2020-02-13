@@ -10,7 +10,7 @@ rng = np.random.RandomState(1994)
 
 
 class TestInteractionConstraints(unittest.TestCase):
-    def test_interaction_constraints(self, tree_method='hist'):
+    def run_interaction_constraints(self, tree_method):
         x1 = np.random.normal(loc=1.0, scale=1.0, size=1000)
         x2 = np.random.normal(loc=1.0, scale=1.0, size=1000)
         x3 = np.random.choice([1, 2, 3], size=1000, replace=True)
@@ -25,8 +25,7 @@ class TestInteractionConstraints(unittest.TestCase):
             'eta': 0.1,
             'nthread': 2,
             'interaction_constraints': '[[0, 1]]',
-            'tree_method': tree_method,
-            'verbosity': 2
+            'tree_method': tree_method
         }
         num_boost_round = 12
         # Fit a model that only allows interaction between x1 and x2
@@ -50,8 +49,17 @@ class TestInteractionConstraints(unittest.TestCase):
         diff2 = preds[2] - preds[1]
         assert np.all(np.abs(diff2 - diff2[0]) < 1e-4)
 
+    def test_exact_interaction_constraints(self):
+        self.run_interaction_constraints(tree_method='exact')
+
+    def test_hist_interaction_constraints(self):
+        self.run_interaction_constraints(tree_method='hist')
+
+    def test_approx_interaction_constraints(self):
+        self.run_interaction_constraints(tree_method='approx')
+
     @pytest.mark.skipif(**tm.no_sklearn())
-    def test_training_accuracy(self, tree_method='hist'):
+    def training_accuracy(self, tree_method):
         from sklearn.metrics import accuracy_score
         dtrain = xgboost.DMatrix(dpath + 'agaricus.txt.train?indexing_mode=1')
         dtest = xgboost.DMatrix(dpath + 'agaricus.txt.test?indexing_mode=1')
@@ -73,3 +81,12 @@ class TestInteractionConstraints(unittest.TestCase):
         bst = xgboost.train(params, dtrain, num_boost_round)
         pred_dtest = (bst.predict(dtest) < 0.5)
         assert accuracy_score(dtest.get_label(), pred_dtest) < 0.1
+
+    def test_hist_training_accuracy(self):
+        self.training_accuracy(tree_method='hist')
+
+    def test_exact_training_accuracy(self):
+        self.training_accuracy(tree_method='exact')
+
+    def test_approx_training_accuracy(self):
+        self.training_accuracy(tree_method='approx')

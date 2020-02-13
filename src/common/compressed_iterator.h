@@ -63,7 +63,7 @@ class CompressedBufferWriter {
    * \fn  static size_t CompressedBufferWriter::CalculateBufferSize(int
    * num_elements, int num_symbols)
    *
-   * \brief Calculates number of bytes requiredm for a given number of elements
+   * \brief Calculates number of bytes required for a given number of elements
    * and a symbol range.
    *
    * \author  Rory
@@ -74,7 +74,6 @@ class CompressedBufferWriter {
    *
    * \return  The calculated buffer size.
    */
-
   static size_t CalculateBufferSize(size_t num_elements, size_t num_symbols) {
     const int bits_per_byte = 8;
     size_t compressed_size = static_cast<size_t>(std::ceil(
@@ -188,7 +187,7 @@ class CompressedIterator {
 
  public:
   CompressedIterator() : buffer_(nullptr), symbol_bits_(0), offset_(0) {}
-  CompressedIterator(CompressedByteT *buffer, int num_symbols)
+  CompressedIterator(CompressedByteT *buffer, size_t num_symbols)
       : buffer_(buffer), offset_(0) {
     symbol_bits_ = detail::SymbolBits(num_symbols);
   }
@@ -209,7 +208,7 @@ class CompressedIterator {
         (bits_per_byte - ((offset_ + 1) * symbol_bits_)) % bits_per_byte;
     tmp >>= bit_shift;
     // Mask off unneeded bits
-    uint64_t mask = (1 << symbol_bits_) - 1;
+    uint64_t mask = (static_cast<uint64_t>(1) << symbol_bits_) - 1;
     return static_cast<T>(tmp & mask);
   }
 

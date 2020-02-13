@@ -16,9 +16,10 @@
 #include <vector>
 #include <limits>
 
-#include "columnar.h"
-
 namespace xgboost {
+
+class Json;
+
 namespace data {
 /*!
  * \brief The simplest form of data holder, can be used to create DMatrix.
@@ -44,20 +45,7 @@ class SimpleCSRSource : public DataSource<SparsePage> {
    * \param src source data iter.
    */
   void CopyFrom(DMatrix* src);
-  /*!
-   * \brief copy content of data from parser, also set the additional information.
-   * \param src source data iter.
-   * \param info The additional information reflected in the parser.
-   */
-  void CopyFrom(dmlc::Parser<uint32_t>* src);
-  /*!
-   * \brief copy content of data from foreign **GPU** columnar buffer.
-   * \param interfaces_str JSON representation of cuda array interfaces.
-   * \param has_missing Whether did users supply their own missing value.
-   * \param missing The missing value set by users.
-   */
-  void CopyFrom(std::string const& cuda_interfaces_str, bool has_missing,
-                bst_float missing = std::numeric_limits<float>::quiet_NaN());
+
   /*!
    * \brief Load data from binary stream.
    * \param fi the pointer to load data from.
@@ -78,14 +66,6 @@ class SimpleCSRSource : public DataSource<SparsePage> {
   static const int kMagic = 0xffffab01;
 
  private:
-  /*!
-   * \brief copy content of data from foreign GPU columnar buffer.
-   * \param columns JSON representation of array interfaces.
-   * \param missing specifed missing value
-   */
-  void FromDeviceColumnar(std::vector<Json> const& columns,
-                          bool has_missing = false,
-                          float missing = std::numeric_limits<float>::quiet_NaN());
   /*! \brief internal variable, used to support iterator interface */
   bool at_first_{true};
 };

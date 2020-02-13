@@ -12,41 +12,8 @@
 #include "../common/random.h"
 #include "param.h"
 
-#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
-
-#else  // In device code and CUDA < 600
-XGBOOST_DEVICE __forceinline__ double atomicAdd(double* address, double val) {
-  unsigned long long int* address_as_ull =
-      (unsigned long long int*)address;                   // NOLINT
-  unsigned long long int old = *address_as_ull, assumed;  // NOLINT
-
-  do {
-    assumed = old;
-    old = atomicCAS(address_as_ull, assumed,
-                    __double_as_longlong(val + __longlong_as_double(assumed)));
-
-    // Note: uses integer comparison to avoid hang in case of NaN (since NaN !=
-    // NaN)
-  } while (assumed != old);
-
-  return __longlong_as_double(old);
-}
-#endif
-
 namespace xgboost {
 namespace tree {
-
-// Atomic add function for gradients
-template <typename OutputGradientT, typename InputGradientT>
-DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
-                               const InputGradientT& gpair) {
-  auto dst_ptr = reinterpret_cast<typename OutputGradientT::ValueT*>(dest);
-
-  atomicAdd(dst_ptr,
-            static_cast<typename OutputGradientT::ValueT>(gpair.GetGrad()));
-  atomicAdd(dst_ptr + 1,
-            static_cast<typename OutputGradientT::ValueT>(gpair.GetHess()));
-}
 
 struct GPUTrainingParam {
   // minimum amount of hessian(weight) allowed in a child
@@ -72,7 +39,7 @@ struct GPUTrainingParam {
 using NodeIdT = int32_t;
 
 /** used to assign default id to a Node */
-static const int kUnusedNode = -1;
+static const bst_node_t kUnusedNode = -1;
 
 /**
  * @enum DefaultDirection node.cuh
@@ -218,42 +185,6 @@ struct SumCallbackOp {
 // Total number of nodes in tree, given depth
 XGBOOST_DEVICE inline int MaxNodesDepth(int depth) {
   return (1 << (depth + 1)) - 1;
-}
-
-/*
- * Random
- */
-struct BernoulliRng {
-  float p;
-  uint32_t seed;
-
-  XGBOOST_DEVICE BernoulliRng(float p, size_t seed_) : p(p) {
-    seed = static_cast<uint32_t>(seed_);
-  }
-
-  XGBOOST_DEVICE bool operator()(const int i) const {
-    thrust::default_random_engine rng(seed);
-    thrust::uniform_real_distribution<float> dist;
-    rng.discard(i);
-    return dist(rng) <= p;
-  }
-};
-
-// Set gradient pair to 0 with p = 1 - subsample
-inline void SubsampleGradientPair(int device_idx,
-                                  common::Span<GradientPair> d_gpair,
-                                  float subsample, int offset = 0) {
-  if (subsample == 1.0) {
-    return;
-  }
-
-  BernoulliRng rng(subsample, common::GlobalRandom()());
-
-  dh::LaunchN(device_idx, d_gpair.size(), [=] XGBOOST_DEVICE(int i) {
-    if (!rng(i + offset)) {
-      d_gpair[i] = GradientPair();
-    }
-  });
 }
 
 }  // namespace tree

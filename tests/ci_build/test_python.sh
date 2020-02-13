@@ -26,13 +26,20 @@ fi
 # Run specified test suite
 case "$suite" in
   gpu)
-    pytest -v -s --fulltrace -m "(not slow) and (not mgpu)" tests/python-gpu
+    pytest -v -s --fulltrace -m "not mgpu" tests/python-gpu
     ;;
 
   mgpu)
-    pytest -v -s --fulltrace -m "(not slow) and mgpu" tests/python-gpu
+    pytest -v -s --fulltrace -m "mgpu" tests/python-gpu
     cd tests/distributed
     ./runtests-gpu.sh
+    cd -
+    pytest -v -s --fulltrace -m "mgpu" tests/python-gpu/test_gpu_with_dask.py
+    ;;
+
+  cudf)
+    source activate cudf_test
+    pytest -v -s --fulltrace -m "not mgpu" tests/python-gpu/test_from_columnar.py tests/python-gpu/test_from_cupy.py
     ;;
 
   cpu)
@@ -42,7 +49,7 @@ case "$suite" in
     ;;
 
   *)
-    echo "Usage: $0 {gpu|mgpu|cpu}"
+    echo "Usage: $0 {gpu|mgpu|cudf|cpu}"
     exit 1
     ;;
 esac

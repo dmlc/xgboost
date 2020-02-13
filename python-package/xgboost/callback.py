@@ -1,7 +1,6 @@
 # coding: utf-8
 # pylint: disable=invalid-name, too-many-statements
 """Training Library containing training routines."""
-from __future__ import absolute_import
 
 from . import rabit
 from .core import EarlyStopException
@@ -134,14 +133,16 @@ def reset_learning_rate(learning_rates):
 
         if context == 'train':
             bst, i, n = env.model, env.iteration, env.end_iteration
-            bst.set_param('learning_rate', get_learning_rate(i, n, learning_rates))
+            bst.set_param(
+                'learning_rate', get_learning_rate(i, n, learning_rates))
         elif context == 'cv':
             i, n = env.iteration, env.end_iteration
             for cvpack in env.cvfolds:
                 bst = cvpack.bst
-                bst.set_param('learning_rate', get_learning_rate(i, n, learning_rates))
+                bst.set_param(
+                    'learning_rate', get_learning_rate(i, n, learning_rates))
 
-    callback.before_iteration = True
+    callback.before_iteration = False
     return callback
 
 

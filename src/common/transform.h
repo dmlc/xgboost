@@ -5,14 +5,17 @@
 #define XGBOOST_COMMON_TRANSFORM_H_
 
 #include <dmlc/omp.h>
+#include <dmlc/common.h>
+
 #include <xgboost/data.h>
 #include <utility>
 #include <vector>
 #include <type_traits>  // enable_if
 
-#include "host_device_vector.h"
+#include "xgboost/host_device_vector.h"
+#include "xgboost/span.h"
+
 #include "common.h"
-#include "span.h"
 
 #if defined (__CUDACC__)
 #include "device_helpers.cuh"
@@ -130,9 +133,12 @@ class Transform {
       size_t shard_size = range_size;
       Range shard_range {0, static_cast<Range::DifferenceType>(shard_size)};
       dh::safe_cuda(cudaSetDevice(device_));
-      const int GRID_SIZE =
+      const int kGrids =
           static_cast<int>(DivRoundUp(*(range_.end()), kBlockThreads));
-      detail::LaunchCUDAKernel<<<GRID_SIZE, kBlockThreads>>>(
+      if (kGrids == 0) {
+        return;
+      }
+      detail::LaunchCUDAKernel<<<kGrids, kBlockThreads>>>(  // NOLINT
           _func, shard_range, UnpackHDVOnDevice(_vectors)...);
     }
 #else
@@ -147,10 +153,12 @@ class Transform {
     template <typename... HDV>
     void LaunchCPU(Functor func, HDV*... vectors) const {
       omp_ulong end = static_cast<omp_ulong>(*(range_.end()));
+      dmlc::OMPException omp_exc;
 #pragma omp parallel for schedule(static)
       for (omp_ulong idx = 0; idx < end; ++idx) {
-        func(idx, UnpackHDV(vectors)...);
+        omp_exc.Run(func, idx, UnpackHDV(vectors)...);
       }
+      omp_exc.Rethrow();
     }
 
    private:

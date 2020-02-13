@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 
-#include "../../../src/common/span.h"
+#include <xgboost/span.h>
 #include "test_span.h"
 
 namespace xgboost {
@@ -98,7 +98,8 @@ TEST(Span, FromPtrLen) {
   }
 
   {
-    EXPECT_ANY_THROW(Span<float> tmp (arr, -1););
+    auto lazy = [=]() {Span<float const, 16> tmp (arr, 5);};
+    EXPECT_ANY_THROW(lazy());
   }
 
   // dynamic extent
@@ -298,6 +299,32 @@ TEST(Span, Obversers) {
   ASSERT_EQ(status, 1);
 }
 
+TEST(Span, FrontBack) {
+  {
+    float arr[4] {0, 1, 2, 3};
+    Span<float, 4> s(arr);
+    ASSERT_EQ(s.front(), 0);
+    ASSERT_EQ(s.back(), 3);
+  }
+  {
+    std::vector<double> arr {0, 1, 2, 3};
+    Span<double> s(arr);
+    ASSERT_EQ(s.front(), 0);
+    ASSERT_EQ(s.back(), 3);
+  }
+
+  {
+    Span<float, 0> s;
+    EXPECT_ANY_THROW(s.front());
+    EXPECT_ANY_THROW(s.back());
+  }
+  {
+    Span<float> s;
+    EXPECT_ANY_THROW(s.front());
+    EXPECT_ANY_THROW(s.back());
+  }
+}
+
 TEST(Span, FirstLast) {
   // static extent
   {
@@ -310,11 +337,11 @@ TEST(Span, FirstLast) {
     ASSERT_EQ(first.size(), 4);
     ASSERT_EQ(first.data(), arr);
 
-    for (int64_t i = 0; i < first.size(); ++i) {
+    for (size_t i = 0; i < first.size(); ++i) {
       ASSERT_EQ(first[i], arr[i]);
     }
-
-    EXPECT_ANY_THROW(s.first<-1>());
+    auto constexpr kOne = static_cast<Span<float, 4>::index_type>(-1);
+    EXPECT_ANY_THROW(s.first<kOne>());
     EXPECT_ANY_THROW(s.first<17>());
     EXPECT_ANY_THROW(s.first<32>());
   }
@@ -329,11 +356,11 @@ TEST(Span, FirstLast) {
     ASSERT_EQ(last.size(), 4);
     ASSERT_EQ(last.data(), arr + 12);
 
-    for (int64_t i = 0; i < last.size(); ++i) {
+    for (size_t i = 0; i < last.size(); ++i) {
       ASSERT_EQ(last[i], arr[i+12]);
     }
-
-    EXPECT_ANY_THROW(s.last<-1>());
+    auto constexpr kOne = static_cast<Span<float, 4>::index_type>(-1);
+    EXPECT_ANY_THROW(s.last<kOne>());
     EXPECT_ANY_THROW(s.last<17>());
     EXPECT_ANY_THROW(s.last<32>());
   }
@@ -348,7 +375,7 @@ TEST(Span, FirstLast) {
     ASSERT_EQ(first.size(), 4);
     ASSERT_EQ(first.data(), s.data());
 
-    for (int64_t i = 0; i < first.size(); ++i) {
+    for (size_t i = 0; i < first.size(); ++i) {
       ASSERT_EQ(first[i], s[i]);
     }
 
@@ -368,7 +395,7 @@ TEST(Span, FirstLast) {
     ASSERT_EQ(last.size(), 4);
     ASSERT_EQ(last.data(), s.data() + 12);
 
-    for (int64_t i = 0; i < last.size(); ++i) {
+    for (size_t i = 0; i < last.size(); ++i) {
       ASSERT_EQ(s[12 + i], last[i]);
     }
 
@@ -397,7 +424,8 @@ TEST(Span, Subspan) {
   EXPECT_ANY_THROW(s1.subspan(-1, 0));
   EXPECT_ANY_THROW(s1.subspan(16, 0));
 
-  EXPECT_ANY_THROW(s1.subspan<-1>());
+  auto constexpr kOne = static_cast<Span<int, 4>::index_type>(-1);
+  EXPECT_ANY_THROW(s1.subspan<kOne>());
   EXPECT_ANY_THROW(s1.subspan<16>());
 }
 

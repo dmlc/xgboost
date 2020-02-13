@@ -34,8 +34,8 @@ class ConfigParser {
       line_comment_regex_("^#"),
       key_regex_(R"rx(^([^#"'=\r\n\t ]+)[\t ]*=)rx"),
       key_regex_escaped_(R"rx(^(["'])([^"'=\r\n]+)\1[\t ]*=)rx"),
-      value_regex_(R"rx(^([^#"'=\r\n\t ]+)[\t ]*(?:#.*){0,1}$)rx"),
-      value_regex_escaped_(R"rx(^(["'])([^"'=\r\n]+)\1[\t ]*(?:#.*){0,1}$)rx")
+      value_regex_(R"rx(^([^#"'\r\n\t ]+)[\t ]*(?:#.*){0,1}$)rx"),
+      value_regex_escaped_(R"rx(^(["'])([^"'\r\n]+)\1[\t ]*(?:#.*){0,1}$)rx")
   {}
 
   std::string LoadConfigFile(const std::string& path) {

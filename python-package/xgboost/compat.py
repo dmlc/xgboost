@@ -1,37 +1,29 @@
 # coding: utf-8
 # pylint: disable= invalid-name,  unused-import
-"""For compatibility"""
-
-from __future__ import absolute_import
-
+"""For compatibility and optional dependencies."""
 import abc
 import os
 import sys
-
 from pathlib import PurePath
 
-PY3 = (sys.version_info[0] == 3)
+import numpy as np
 
-if PY3:
-    # pylint: disable=invalid-name, redefined-builtin
-    STRING_TYPES = (str,)
+assert (sys.version_info[0] == 3), 'Python 2 is no longer supported.'
 
-
-    def py_str(x):
-        """convert c string back to python string"""
-        return x.decode('utf-8')
-else:
-    STRING_TYPES = (basestring,)  # pylint: disable=undefined-variable
+# pylint: disable=invalid-name, redefined-builtin
+STRING_TYPES = (str,)
 
 
-    def py_str(x):
-        """convert c string back to python string"""
-        return x
+def py_str(x):
+    """convert c string back to python string"""
+    return x.decode('utf-8')
 
-########################################################################################
+
+###############################################################################
 # START NUMPY PATHLIB ATTRIBUTION
-########################################################################################
-# os.PathLike compatibility used in  Numpy: https://github.com/numpy/numpy/tree/v1.17.0
+###############################################################################
+# os.PathLike compatibility used in  Numpy:
+# https://github.com/numpy/numpy/tree/v1.17.0
 # Attribution:
 # https://github.com/numpy/numpy/blob/v1.17.0/numpy/compat/py3k.py#L188-L247
 # Backport os.fs_path, os.PathLike, and PurePath.__fspath__
@@ -55,7 +47,6 @@ else:
             if issubclass(subclass, PurePath):
                 return True
             return hasattr(subclass, '__fspath__')
-
 
     def os_fspath(path):
         """Return the path representation of a path-like object.
@@ -84,26 +75,24 @@ else:
         raise TypeError("expected {}.__fspath__() to return str or bytes, "
                         "not {}".format(path_type.__name__,
                                         type(path_repr).__name__))
-########################################################################################
+###############################################################################
 # END NUMPY PATHLIB ATTRIBUTION
-########################################################################################
-
-# pickle
-try:
-    import cPickle as pickle  # noqa
-except ImportError:
-    import pickle  # noqa
+###############################################################################
 
 # pandas
 try:
-    from pandas import DataFrame
-    from pandas import MultiIndex
+    from pandas import DataFrame, Series
+    from pandas import MultiIndex, Int64Index
+    from pandas import concat as pandas_concat
 
     PANDAS_INSTALLED = True
 except ImportError:
 
     MultiIndex = object
+    Int64Index = object
     DataFrame = object
+    Series = object
+    pandas_concat = None
     PANDAS_INSTALLED = False
 
 # dt
@@ -127,12 +116,19 @@ except ImportError:
     DT_INSTALLED = False
 
 
+# cudf
 try:
     from cudf import DataFrame as CUDF_DataFrame
+    from cudf import Series as CUDF_Series
+    from cudf import MultiIndex as CUDF_MultiIndex
+    from cudf import concat as CUDF_concat
     CUDF_INSTALLED = True
 except ImportError:
     CUDF_DataFrame = object
+    CUDF_Series = object
+    CUDF_MultiIndex = object
     CUDF_INSTALLED = False
+    CUDF_concat = None
 
 # sklearn
 try:
@@ -153,7 +149,29 @@ try:
 
     XGBKFold = KFold
     XGBStratifiedKFold = StratifiedKFold
-    XGBLabelEncoder = LabelEncoder
+
+    class XGBoostLabelEncoder(LabelEncoder):
+        '''Label encoder with JSON serialization methods.'''
+        def to_json(self):
+            '''Returns a JSON compatible dictionary'''
+            meta = dict()
+            for k, v in self.__dict__.items():
+                if isinstance(v, np.ndarray):
+                    meta[k] = v.tolist()
+                else:
+                    meta[k] = v
+            return meta
+
+        def from_json(self, doc):
+            # pylint: disable=attribute-defined-outside-init
+            '''Load the encoder back from a JSON compatible dict.'''
+            meta = dict()
+            for k, v in doc.items():
+                if k == 'classes_':
+                    self.classes_ = np.array(v)
+                    continue
+                meta[k] = v
+            self.__dict__.update(meta)
 except ImportError:
     SKLEARN_INSTALLED = False
 
@@ -164,21 +182,40 @@ except ImportError:
 
     XGBKFold = None
     XGBStratifiedKFold = None
-    XGBLabelEncoder = None
+    XGBoostLabelEncoder = None
 
 
 # dask
 try:
-    from dask.dataframe import DataFrame as DaskDataFrame
-    from dask.dataframe import Series as DaskSeries
-    from dask.array import Array as DaskArray
+    import dask
+    from dask import delayed
+    from dask import dataframe as dd
+    from dask import array as da
+    from dask.distributed import Client, get_client
+    from dask.distributed import comm as distributed_comm
+    from dask.distributed import wait as distributed_wait
     from distributed import get_worker as distributed_get_worker
 
     DASK_INSTALLED = True
 except ImportError:
-    DaskDataFrame = object
-    DaskSeries = object
-    DaskArray = object
+    dd = None
+    da = None
+    Client = None
+    delayed = None
+    get_client = None
+    distributed_comm = None
+    distributed_wait = None
     distributed_get_worker = None
+    dask = None
 
     DASK_INSTALLED = False
+
+
+try:
+    import sparse
+    import scipy.sparse as scipy_sparse
+    SCIPY_INSTALLED = True
+except ImportError:
+    sparse = False
+    scipy_sparse = False
+    SCIPY_INSTALLED = False

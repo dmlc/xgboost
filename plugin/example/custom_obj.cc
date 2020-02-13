@@ -1,12 +1,13 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2015-2019 by Contributors
  * \file custom_metric.cc
  * \brief This is an example to define plugin of xgboost.
  *  This plugin defines the additional metric function.
  */
 #include <xgboost/base.h>
-#include <dmlc/parameter.h>
+#include <xgboost/parameter.h>
 #include <xgboost/objective.h>
+#include <xgboost/json.h>
 
 namespace xgboost {
 namespace obj {
@@ -15,7 +16,7 @@ namespace obj {
 // You do not have to use it.
 // see http://dmlc-core.readthedocs.org/en/latest/parameter.html
 // for introduction of this module.
-struct MyLogisticParam : public dmlc::Parameter<MyLogisticParam> {
+struct MyLogisticParam : public XGBoostParameter<MyLogisticParam> {
   float scale_neg_weight;
   // declare parameters
   DMLC_DECLARE_PARAMETER(MyLogisticParam) {
@@ -31,7 +32,7 @@ DMLC_REGISTER_PARAMETER(MyLogisticParam);
 class MyLogistic : public ObjFunction {
  public:
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
   }
   void GetGradient(const HostDeviceVector<bst_float> &preds,
                    const MetaInfo &info,
@@ -67,6 +68,16 @@ class MyLogistic : public ObjFunction {
   bst_float ProbToMargin(bst_float base_score) const override {
     // transform probability to margin value
     return -std::log(1.0f / base_score - 1.0f);
+  }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("my_logistic");
+    out["my_logistic_param"] = toJson(param_);
+  }
+
+  void LoadConfig(Json const& in) override {
+    fromJson(in["my_logistic_param"], &param_);
   }
 
  private:

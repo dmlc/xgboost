@@ -7,7 +7,6 @@
  */
 
 #include <dmlc/registry.h>
-#include <xgboost/enum_class_param.h>
 #include <algorithm>
 #include <cstdlib>
 #include "survival_util.h"

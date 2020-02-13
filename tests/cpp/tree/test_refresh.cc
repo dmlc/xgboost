@@ -1,13 +1,15 @@
 /*!
  * Copyright 2018-2019 by Contributors
  */
-#include "../helpers.h"
-#include "../../../src/common/host_device_vector.h"
+#include <xgboost/host_device_vector.h>
 #include <xgboost/tree_updater.h>
 #include <gtest/gtest.h>
+
 #include <vector>
 #include <string>
 #include <memory>
+
+#include "../helpers.h"
 
 namespace xgboost {
 namespace tree {
@@ -26,7 +28,7 @@ TEST(Updater, Refresh) {
 
   RegTree tree = RegTree();
   auto lparam = CreateEmptyGenericParam(GPUIDX);
-  tree.param.InitAllowUnknown(cfg);
+  tree.param.UpdateAllowUnknown(cfg);
   std::vector<RegTree*> trees {&tree};
   std::unique_ptr<TreeUpdater> refresher(TreeUpdater::Create("refresh", &lparam));
 

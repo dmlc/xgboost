@@ -1,15 +1,17 @@
 /*!
- * Copyright 2018 by Contributors
+ * Copyright 2018-2019 by Contributors
  * \file hinge.cc
  * \brief Provides an implementation of the hinge loss function
  * \author Henry Gouk
  */
-#include <xgboost/objective.h>
+#include "xgboost/objective.h"
+#include "xgboost/json.h"
+#include "xgboost/span.h"
+#include "xgboost/host_device_vector.h"
+
 #include "../common/math.h"
 #include "../common/transform.h"
 #include "../common/common.h"
-#include "../common/span.h"
-#include "../common/host_device_vector.h"
 
 namespace xgboost {
 namespace obj {
@@ -35,8 +37,12 @@ class HingeObj : public ObjFunction {
         << "preds.size=" << preds.Size()
         << ", label.size=" << info.labels_.Size();
 
-    const bool is_null_weight = info.weights_.Size() == 0;
     const size_t ndata = preds.Size();
+    const bool is_null_weight = info.weights_.Size() == 0;
+    if (!is_null_weight) {
+      CHECK_EQ(info.weights_.Size(), ndata)
+          << "Number of weights should be equal to number of data points.";
+    }
     out_gpair->Resize(ndata);
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t _idx,
@@ -75,6 +81,12 @@ class HingeObj : public ObjFunction {
   const char* DefaultEvalMetric() const override {
     return "error";
   }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String("binary:hinge");
+  }
+  void LoadConfig(Json const& in) override {}
 };
 
 // register the objective functions

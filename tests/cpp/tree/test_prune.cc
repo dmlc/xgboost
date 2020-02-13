@@ -2,7 +2,7 @@
  * Copyright 2018-2019 by Contributors
  */
 #include "../helpers.h"
-#include "../../../src/common/host_device_vector.h"
+#include <xgboost/host_device_vector.h>
 #include <xgboost/tree_updater.h>
 #include <gtest/gtest.h>
 #include <vector>
@@ -33,7 +33,7 @@ TEST(Updater, Prune) {
 
   // prepare tree
   RegTree tree = RegTree();
-  tree.param.InitAllowUnknown(cfg);
+  tree.param.UpdateAllowUnknown(cfg);
   std::vector<RegTree*> trees {&tree};
   // prepare pruner
   std::unique_ptr<TreeUpdater> pruner(TreeUpdater::Create("prune", &lparam));

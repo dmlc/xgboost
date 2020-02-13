@@ -172,9 +172,9 @@ parameter:
                                      early_stopping_rounds = 10)
 
 **Choice of tree construction algorithm**. To use feature interaction constraints, be sure
-to set the ``tree_method`` parameter to one of the following: ``exact``, ``hist`` or
-``gpu_hist``.  Support for ``gpu_hist`` is added after (excluding) version 0.90.
-
+to set the ``tree_method`` parameter to one of the following: ``exact``, ``hist``,
+``approx`` or ``gpu_hist``.  Support for ``gpu_hist`` and ``approx`` is added only in
+1.0.0.
 
 **************
 Advanced topic
