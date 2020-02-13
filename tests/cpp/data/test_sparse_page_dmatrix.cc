@@ -106,7 +106,7 @@ TEST(SparsePageDMatrix, Empty) {
     EXPECT_EQ(batch.Size(), 0);
   }
 
-  data::DenseAdapter dense_adapter(nullptr, 0, 0, 0);
+  data::DenseAdapter dense_adapter(nullptr, 0, 0);
    data::SparsePageDMatrix dmat2(&dense_adapter,
     std::numeric_limits<float>::quiet_NaN(), 1,tmp_file);
   EXPECT_EQ(dmat2.Info().num_nonzero_, 0);
@@ -163,7 +163,7 @@ TEST(SparsePageDMatrix, FromDense) {
   int m = 3;
   int n = 2;
   std::vector<float> data = {1, 2, 3, 4, 5, 6};
-  data::DenseAdapter adapter(data.data(), m, m * n, n);
+  data::DenseAdapter adapter(data.data(), m, n);
   data::SparsePageDMatrix dmat(
       &adapter, std::numeric_limits<float>::quiet_NaN(), 1, tmp_file);
   EXPECT_EQ(dmat.Info().num_col_, 2);

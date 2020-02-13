@@ -5,12 +5,13 @@
 #include <xgboost/gbm.h>
 
 #include "../helpers.h"
-
+#include "test_json_io.h"
 #include "../../../src/gbm/gblinear_model.h"
+#include "xgboost/base.h"
 
 namespace xgboost {
 
-TEST(Linear, shotgun) {
+TEST(Linear, Shotgun) {
   size_t constexpr kRows = 10;
   size_t constexpr kCols = 10;
 
@@ -45,6 +46,10 @@ TEST(Linear, shotgun) {
   delete pp_dmat;
 }
 
+TEST(Shotgun, JsonIO) {
+  TestUpdaterJsonIO("shotgun");
+}
+
 TEST(Linear, coordinate) {
   size_t constexpr kRows = 10;
   size_t constexpr kCols = 10;
@@ -70,6 +75,10 @@ TEST(Linear, coordinate) {
   ASSERT_EQ(model.bias()[0], 5.0f);
 
   delete pp_dmat;
+}
+
+TEST(Coordinate, JsonIO){
+  TestUpdaterJsonIO("coord_descent");
 }
 
 }  // namespace xgboost

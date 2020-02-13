@@ -115,7 +115,6 @@ class TestRanking(unittest.TestCase):
         # model training parameters
         cls.params = {'objective': 'rank:pairwise',
                       'booster': 'gbtree',
-                      'silent': 0,
                       'eval_metric': ['ndcg']
                       }
 
@@ -143,7 +142,7 @@ class TestRanking(unittest.TestCase):
         Test cross-validation with a group specified
         """
         cv = xgboost.cv(self.params, self.dtrain, num_boost_round=2500,
-                    early_stopping_rounds=10, nfold=10, as_pandas=False)
+                        early_stopping_rounds=10, nfold=10, as_pandas=False)
         assert isinstance(cv, dict)
         self.assertSetEqual(set(cv.keys()), {'test-ndcg-mean', 'train-ndcg-mean', 'test-ndcg-std', 'train-ndcg-std'},
                             "CV results dict key mismatch")
@@ -153,7 +152,8 @@ class TestRanking(unittest.TestCase):
         Test cross-validation with a group specified
         """
         cv = xgboost.cv(self.params, self.dtrain, num_boost_round=2500,
-                    early_stopping_rounds=10, shuffle=False, nfold=10, as_pandas=False)
+                        early_stopping_rounds=10, shuffle=False, nfold=10,
+                        as_pandas=False)
         assert isinstance(cv, dict)
         assert len(cv) == 4
 

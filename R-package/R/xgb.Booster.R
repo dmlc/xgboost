@@ -139,6 +139,8 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @param reshape whether to reshape the vector of predictions to a matrix form when there are several
 #'        prediction outputs per case. This option has no effect when either of predleaf, predcontrib,
 #'        or predinteraction flags is TRUE.
+#' @param training whether is the prediction result used for training.  For dart booster,
+#'        training predicting will perform dropout.
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
 #'
 #' @details

@@ -1,5 +1,6 @@
 import numpy as np
 import xgboost as xgb
+from xgboost.sklearn import XGBoostLabelEncoder
 import testing as tm
 import tempfile
 import os
@@ -500,6 +501,13 @@ def test_kwargs():
     assert clf.get_params()['n_estimators'] == 1000
 
 
+def test_kwargs_error():
+    params = {'updater': 'grow_gpu_hist', 'subsample': .5, 'n_jobs': -1}
+    with pytest.raises(TypeError):
+        clf = xgb.XGBClassifier(n_jobs=1000, **params)
+        assert isinstance(clf, xgb.XGBClassifier)
+
+
 def test_kwargs_grid_search():
     from sklearn.model_selection import GridSearchCV
     from sklearn import datasets
@@ -520,19 +528,23 @@ def test_kwargs_grid_search():
     assert len(means) == len(set(means))
 
 
-def test_kwargs_error():
-    params = {'updater': 'grow_gpu_hist', 'subsample': .5, 'n_jobs': -1}
-    with pytest.raises(TypeError):
-        clf = xgb.XGBClassifier(n_jobs=1000, **params)
-        assert isinstance(clf, xgb.XGBClassifier)
-
-
 def test_sklearn_clone():
     from sklearn.base import clone
 
     clf = xgb.XGBClassifier(n_jobs=2)
     clf.n_jobs = -1
     clone(clf)
+
+
+def test_sklearn_get_default_params():
+    from sklearn.datasets import load_digits
+    digits_2class = load_digits(2)
+    X = digits_2class['data']
+    y = digits_2class['target']
+    cls = xgb.XGBClassifier()
+    assert cls.get_params()['base_score'] is None
+    cls.fit(X[:4, ...], y[:4, ...])
+    assert cls.get_params()['base_score'] is not None
 
 
 def test_validation_weights_xgbmodel():
@@ -625,7 +637,7 @@ def test_validation_weights_xgbclassifier():
                 for i in [0, 1]))
 
 
-def test_save_load_model():
+def save_load_model(model_path):
     from sklearn.datasets import load_digits
     from sklearn.model_selection import KFold
 
@@ -633,18 +645,64 @@ def test_save_load_model():
     y = digits['target']
     X = digits['data']
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
-    with TemporaryDirectory() as tempdir:
-        model_path = os.path.join(tempdir, 'digits.model')
-        for train_index, test_index in kf.split(X, y):
-            xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
-            xgb_model.save_model(model_path)
+    for train_index, test_index in kf.split(X, y):
+        xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
+        xgb_model.save_model(model_path)
+        xgb_model = xgb.XGBClassifier()
+        xgb_model.load_model(model_path)
+        assert isinstance(xgb_model.classes_, np.ndarray)
+        assert isinstance(xgb_model._Booster, xgb.Booster)
+        assert isinstance(xgb_model._le, XGBoostLabelEncoder)
+        assert isinstance(xgb_model._le.classes_, np.ndarray)
+        preds = xgb_model.predict(X[test_index])
+        labels = y[test_index]
+        err = sum(1 for i in range(len(preds))
+                  if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+        assert err < 0.1
+        assert xgb_model.get_booster().attr('scikit_learn') is None
+
+        # test native booster
+        preds = xgb_model.predict(X[test_index], output_margin=True)
+        booster = xgb.Booster(model_file=model_path)
+        predt_1 = booster.predict(xgb.DMatrix(X[test_index]),
+                                  output_margin=True)
+        assert np.allclose(preds, predt_1)
+
+        with pytest.raises(TypeError):
             xgb_model = xgb.XGBModel()
             xgb_model.load_model(model_path)
-            preds = xgb_model.predict(X[test_index])
-            labels = y[test_index]
-            err = sum(1 for i in range(len(preds))
-                      if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
-            assert err < 0.1
+
+
+def test_save_load_model():
+    with TemporaryDirectory() as tempdir:
+        model_path = os.path.join(tempdir, 'digits.model')
+        save_load_model(model_path)
+
+    with TemporaryDirectory() as tempdir:
+        model_path = os.path.join(tempdir, 'digits.model.json')
+        save_load_model(model_path)
+
+    from sklearn.datasets import load_digits
+    with TemporaryDirectory() as tempdir:
+        model_path = os.path.join(tempdir, 'digits.model.json')
+        digits = load_digits(2)
+        y = digits['target']
+        X = digits['data']
+        booster = xgb.train({'tree_method': 'hist',
+                             'objective': 'binary:logistic'},
+                            dtrain=xgb.DMatrix(X, y),
+                            num_boost_round=4)
+        predt_0 = booster.predict(xgb.DMatrix(X))
+        booster.save_model(model_path)
+        cls = xgb.XGBClassifier()
+        cls.load_model(model_path)
+        predt_1 = cls.predict(X)
+        assert np.allclose(predt_0, predt_1)
+
+        cls = xgb.XGBModel()
+        cls.load_model(model_path)
+        predt_1 = cls.predict(X)
+        assert np.allclose(predt_0, predt_1)
 
 
 def test_RFECV():
@@ -724,6 +782,17 @@ def test_XGBClassifier_resume():
 
         assert np.any(pred1 != pred2)
         assert log_loss1 > log_loss2
+
+
+def test_constraint_parameters():
+    reg = xgb.XGBRegressor(interaction_constraints='[[0, 1], [2, 3, 4]]')
+    X = np.random.randn(10, 10)
+    y = np.random.randn(10)
+    reg.fit(X, y)
+
+    config = json.loads(reg.get_booster().save_config())
+    assert config['learner']['gradient_booster']['updater']['grow_colmaker'][
+        'train_param']['interaction_constraints'] == '[[0, 1], [2, 3, 4]]'
 
 
 class TestBoostFromPrediction(unittest.TestCase):

@@ -13,19 +13,25 @@
  See the License for the specific language governing permissions and
  limitations under the License.
  */
-package ml.dmlc.xgboost4j.java;
 
-/**
- * custom error class for xgboost
- *
- * @author hzx
- */
-public class XGBoostError extends Exception {
-  public XGBoostError(String message) {
-    super(message);
+package ml.dmlc.xgboost4j.scala
+
+import ml.dmlc.xgboost4j.java.{ExternalCheckpointManager => JavaECM}
+import org.apache.hadoop.fs.FileSystem
+
+class ExternalCheckpointManager(checkpointPath: String, fs: FileSystem)
+  extends JavaECM(checkpointPath, fs) {
+
+  def updateCheckpoint(booster: Booster): Unit = {
+    super.updateCheckpoint(booster.booster)
   }
 
-  public XGBoostError(String message, Throwable cause) {
-    super(message, cause);
+  def loadCheckpointAsScalaBooster(): Booster = {
+    val loadedBooster = super.loadCheckpointAsBooster()
+    if (loadedBooster == null) {
+      null
+    } else {
+      new Booster(loadedBooster)
+    }
   }
 }

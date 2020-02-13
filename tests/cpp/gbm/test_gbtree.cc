@@ -103,8 +103,8 @@ TEST(GBTree, ChoosePredictor) {
 }
 #endif  // XGBOOST_USE_CUDA
 
-// Some other parts of test are in `Tree.Json_IO'.
-TEST(GBTree, Json_IO) {
+// Some other parts of test are in `Tree.JsonIO'.
+TEST(GBTree, JsonIO) {
   size_t constexpr kRows = 16, kCols = 16;
 
   LearnerModelParam mparam;
@@ -143,7 +143,7 @@ TEST(GBTree, Json_IO) {
   ASSERT_EQ(get<String>(j_train_param["num_parallel_tree"]), "1");
 }
 
-TEST(Dart, Json_IO) {
+TEST(Dart, JsonIO) {
   size_t constexpr kRows = 16, kCols = 16;
 
   LearnerModelParam mparam;

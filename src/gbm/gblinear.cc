@@ -106,11 +106,18 @@ class GBLinear : public GradientBooster {
   void LoadConfig(Json const& in) override {
     CHECK_EQ(get<String>(in["name"]), "gblinear");
     fromJson(in["gblinear_train_param"], &param_);
+    updater_.reset(LinearUpdater::Create(param_.updater, generic_param_));
+    this->updater_->LoadConfig(in["updater"]);
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String{"gblinear"};
     out["gblinear_train_param"] = toJson(param_);
+
+    out["updater"] = Object();
+    auto& j_updater = out["updater"];
+    CHECK(this->updater_);
+    this->updater_->SaveConfig(&j_updater);
   }
 
   void DoBoost(DMatrix *p_fmat,

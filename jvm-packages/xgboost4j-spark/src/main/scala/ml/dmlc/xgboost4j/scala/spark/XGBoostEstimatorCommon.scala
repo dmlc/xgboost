@@ -24,7 +24,7 @@ private[spark] sealed trait XGBoostEstimatorCommon extends GeneralParams with Le
   with BoosterParams with RabitParams with ParamMapFuncs with NonParamVariables {
 
   def needDeterministicRepartitioning: Boolean = {
-    getCheckpointPath.nonEmpty && getCheckpointInterval > 0
+    getCheckpointPath != null && getCheckpointPath.nonEmpty && getCheckpointInterval > 0
   }
 }
 

@@ -4,6 +4,18 @@ make -f dmlc-core/scripts/packages.mk lz4
 
 source $HOME/miniconda/bin/activate
 
+if [ ${TASK} == "python_sdist_test" ]; then
+    set -e
+    make pippack
+
+    conda activate python3
+    python --version
+    conda install numpy scipy
+
+    python -m pip install xgboost-*.tar.gz -v --user
+    python -c 'import xgboost' || exit -1
+fi
+
 if [ ${TASK} == "python_test" ]; then
     set -e
     # Build/test

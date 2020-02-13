@@ -49,6 +49,9 @@ It will use all the trees by default (\code{NULL} value).}
 prediction outputs per case. This option has no effect when either of predleaf, predcontrib,
 or predinteraction flags is TRUE.}
 
+\item{training}{whether is the prediction result used for training.  For dart booster,
+training predicting will perform dropout.}
+
 \item{...}{Parameters passed to \code{predict.xgb.Booster}}
 }
 \value{
