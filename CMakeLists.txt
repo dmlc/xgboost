@@ -49,7 +49,7 @@ option(USE_SANITIZER "Use santizer flags" OFF)
 option(SANITIZER_PATH "Path to sanitizes.")
 set(ENABLED_SANITIZERS "address" "leak" CACHE STRING
   "Semicolon separated list of sanitizer names. E.g 'address;leak'. Supported sanitizers are
-address, leak and thread.")
+address, leak, undefined and thread.")
 ## Plugins
 option(PLUGIN_LZ4 "Build lz4 plugin" OFF)
 option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
