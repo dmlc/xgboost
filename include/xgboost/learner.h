@@ -208,6 +208,8 @@ struct LearnerModelParam {
   // As the old `LearnerModelParamLegacy` is still used by binary IO, we keep
   // this one as an immutable copy.
   LearnerModelParam(LearnerModelParamLegacy const& user_param, float base_margin);
+  /* \brief Whether this parameter is initialized with LearnerModelParamLegacy. */
+  bool Initialized() const { return num_feature != 0; }
 };
 
 }  // namespace xgboost
