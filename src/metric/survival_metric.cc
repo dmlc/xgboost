@@ -12,6 +12,7 @@
 #include <cmath>
 #include <memory>
 #include <vector>
+#include <limits>
 
 #include "../common/math.h"
 #include "../common/survival_util.h"
@@ -63,10 +64,12 @@ struct EvalAFT : public Metric {
     const auto& y_higher = info.labels_upper_bound_.HostVector();
     const auto& weights = info.weights_.HostVector();
     const bool is_null_weight = weights.empty();
-    const size_t nsize = yhat.size();
+    CHECK_LE(yhat.size(), static_cast<size_t>(std::numeric_limits<omp_ulong>::max()))
+      << "yhat is too big";
+    const omp_ulong nsize = static_cast<omp_ulong>(yhat.size());
 
     #pragma omp parallel for schedule(static)
-    for (size_t i = 0; i < nsize; ++i) {
+    for (omp_ulong i = 0; i < nsize; ++i) {
       // If weights are empty, data is unweighted so we use 1.0 everywhere
       double w = is_null_weight ? 1.0 : weights[i];
       double loss = loss_->Loss(std::log(y_lower[i]), std::log(y_higher[i]),

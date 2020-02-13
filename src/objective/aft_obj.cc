@@ -8,6 +8,7 @@
 #include <xgboost/logging.h>
 #include <xgboost/objective.h>
 #include <vector>
+#include <limits>
 #include <algorithm>
 #include <memory>
 #include <utility>
@@ -50,12 +51,14 @@ class AFTObj : public ObjFunction {
 
     out_gpair->Resize(yhat.size());
     std::vector<GradientPair>& gpair = out_gpair->HostVector();
-    size_t nsize = yhat.size();
+    CHECK_LE(yhat.size(), static_cast<size_t>(std::numeric_limits<omp_ulong>::max()))
+      << "yhat is too big";
+    const omp_ulong nsize = static_cast<omp_ulong>(yhat.size());
     double first_order_grad;
     double second_order_grad;
 
     #pragma omp parallel for schedule(static)
-    for (int i = 0; i < nsize; ++i) {
+    for (omp_ulong i = 0; i < nsize; ++i) {
       // If weights are empty, data is unweighted so we use 1.0 everywhere
       double w = is_null_weight ? 1.0 : weights[i];
       first_order_grad = loss_->Gradient(std::log(y_lower[i]), std::log(y_higher[i]),
