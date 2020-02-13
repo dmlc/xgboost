@@ -14,6 +14,7 @@
 #include <string>
 #include <sstream>
 #include <utility>
+#include <cmath>
 
 #include "xgboost/logging.h"
 #include "xgboost/parameter.h"
@@ -119,8 +120,13 @@ class ElasticNet final : public SplitEvaluator {
 
   bst_float ComputeWeight(bst_uint parentID, const GradStats& stats)
       const override {
+    // TODO(hcho3): Find out the cause as to why sum_hess may be zero here
+    // https://discuss.xgboost.ai/t/still-getting-unexplained-nans-new-replication-code
+    if (stats.sum_hess == 0 && params_->reg_lambda == 0.0f) {
+      return 0.0f;
+    }
     bst_float w = -ThresholdL1(stats.sum_grad) / (stats.sum_hess + params_->reg_lambda);
-    if (params_->max_delta_step != 0.0f && std::abs(w) > params_->max_delta_step) {
+    if (params_->max_delta_step != 0.0f && std::fabs(w) > params_->max_delta_step) {
       w = std::copysign(params_->max_delta_step, w);
     }
     return w;
