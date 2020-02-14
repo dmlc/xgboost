@@ -288,7 +288,7 @@ if __name__ == '__main__':
           },
           extras_require={
               'pandas': ['pandas'],
-              'sklearn': ['sklearn'],
+              'scikit-learn': ['scikit-learn'],
               'dask': ['dask', 'pandas', 'distributed'],
               'datatable': ['datatable'],
               'plotting': ['graphviz', 'matplotlib']
