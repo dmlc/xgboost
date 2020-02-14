@@ -228,17 +228,23 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
     std::stringstream row_data;
     size_t j = 0;
     if (rem_cols > 0) {
-       for (; j < std::min(static_cast<size_t>(rem_cols), cols_per_row); ++j) {
-         row_data << label(*gen) << " " << (col_idx+j) << ":" << (col_idx+j+1)*10*i;
-       }
-       rem_cols -= cols_per_row;
+      for (; j < std::min(static_cast<size_t>(rem_cols), cols_per_row); ++j) {
+        row_data << label(*gen) << " " << (col_idx + j) << ":"
+                 << (col_idx + j + 1) * 10 * i;
+      }
+      rem_cols -= cols_per_row;
     } else {
-       // Take some random number of colums in [1, n_cols] and slot them here
-       size_t ncols = dis(*gen);
-       for (; j < ncols; ++j) {
-         size_t fid = (col_idx+j) % n_cols;
-         row_data << label(*gen) << " " << fid << ":" << (fid+1)*10*i;
-       }
+      // Take some random number of colums in [1, n_cols] and slot them here
+      std::vector<size_t> random_columns;
+      size_t ncols = dis(*gen);
+      for (; j < ncols; ++j) {
+        size_t fid = (col_idx + j) % n_cols;
+        random_columns.push_back(fid);
+      }
+      std::sort(random_columns.begin(), random_columns.end());
+      for (auto fid : random_columns) {
+        row_data << label(*gen) << " " << fid << ":" << (fid + 1) * 10 * i;
+      }
     }
     col_idx += j;
 
