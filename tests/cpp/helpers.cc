@@ -1,8 +1,11 @@
 /*!
- * Copyright 2016-2019 XGBoost contributors
+ * Copyright 2016-2020 XGBoost contributors
  */
 #include <dmlc/filesystem.h>
 #include <xgboost/logging.h>
+#include <xgboost/objective.h>
+#include <xgboost/metric.h>
+#include <xgboost/learner.h>
 #include <xgboost/gbm.h>
 #include <xgboost/json.h>
 #include <gtest/gtest.h>
@@ -16,6 +19,7 @@
 
 #include "../../src/data/simple_csr_source.h"
 #include "../../src/gbm/gbtree_model.h"
+#include "xgboost/predictor.h"
 
 bool FileExists(const std::string& filename) {
   struct stat st;
@@ -265,13 +269,19 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
   }
 }
 
-gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param) {
-  std::vector<std::unique_ptr<RegTree>> trees;
-  trees.push_back(std::unique_ptr<RegTree>(new RegTree));
-  (*trees.back())[0].SetLeaf(1.5f);
-  (*trees.back()).Stat(0).sum_hess = 1.0f;
+gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, size_t n_classes) {
   gbm::GBTreeModel model(param);
-  model.CommitModel(std::move(trees), 0);
+
+  for (size_t i = 0; i < n_classes; ++i) {
+    std::vector<std::unique_ptr<RegTree>> trees;
+    trees.push_back(std::unique_ptr<RegTree>(new RegTree));
+    if (i == 0) {
+      (*trees.back())[0].SetLeaf(1.5f);
+      (*trees.back()).Stat(0).sum_hess = 1.0f;
+    }
+    model.CommitModel(std::move(trees), i);
+  }
+
   return model;
 }
 
@@ -279,8 +289,9 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
     std::string name, Args kwargs, size_t kRows, size_t kCols,
     LearnerModelParam const* learner_model_param,
     GenericParameter const* generic_param) {
+  auto caches = std::make_shared< PredictionContainer >();;
   std::unique_ptr<GradientBooster> gbm {
-    GradientBooster::Create(name, generic_param, learner_model_param, {})};
+    GradientBooster::Create(name, generic_param, learner_model_param)};
   gbm->Configure(kwargs);
   auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
   auto p_dmat = *pp_dmat;
@@ -297,7 +308,9 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
     h_gpair[i] = {static_cast<float>(i), 1};
   }
 
-  gbm->DoBoost(p_dmat.get(), &gpair, nullptr);
+  PredictionCacheEntry predts;
+
+  gbm->DoBoost(p_dmat.get(), &gpair, &predts);
 
   delete pp_dmat;
   return gbm;

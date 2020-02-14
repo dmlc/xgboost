@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2018 by Contributors
+ * Copyright 2017-2020 by Contributors
  */
 #include <thrust/copy.h>
 #include <thrust/device_ptr.h>
@@ -295,9 +295,8 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
  public:
-  GPUPredictor(GenericParameter const* generic_param,
-               std::shared_ptr<std::unordered_map<DMatrix*, PredictionCacheEntry>> cache) :
-      Predictor::Predictor{generic_param, cache} {}
+  explicit GPUPredictor(GenericParameter const* generic_param) :
+      Predictor::Predictor{generic_param} {}
 
   ~GPUPredictor() override {
     if (generic_param_->gpu_id >= 0) {
@@ -305,43 +304,53 @@ class GPUPredictor : public xgboost::Predictor {
     }
   }
 
-  void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
+  void PredictBatch(DMatrix* dmat, PredictionCacheEntry* predts,
                     const gbm::GBTreeModel& model, int tree_begin,
                     unsigned ntree_limit = 0) override {
+    // This function is duplicated with CPU predictor PredictBatch, see comments in there.
+    // FIXME(trivialfis): Remove the duplication.
     int device = generic_param_->gpu_id;
     CHECK_GE(device, 0) << "Set `gpu_id' to positive value for processing GPU data.";
     ConfigureDevice(device);
 
-    if (this->PredictFromCache(dmat, out_preds, model, ntree_limit)) {
-      return;
-    }
-    this->InitOutPredictions(dmat->Info(), out_preds, model);
-
-    int32_t tree_end = ntree_limit * model.learner_model_param_->num_output_group;
-
-    if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
-      tree_end = static_cast<unsigned>(model.trees.size());
+    CHECK_EQ(tree_begin, 0);
+    auto* out_preds = &predts->predictions;
+    CHECK_GE(predts->version, tree_begin);
+    if (predts->version == 0) {
+      CHECK_EQ(out_preds->Size(), 0);
+      this->InitOutPredictions(dmat->Info(), out_preds, model);
     }
 
-    DevicePredictInternal(dmat, out_preds, model, tree_begin, tree_end);
+    uint32_t const output_groups =  model.learner_model_param_->num_output_group;
+    CHECK_NE(output_groups, 0);
 
-    auto cache_emtry = this->FindCache(dmat);
-    if (cache_emtry == cache_->cend()) { return; }
-    if (cache_emtry->second.predictions.Size() == 0) {
-      // Initialise the cache on first iteration, this comes useful
-      // when performing training continuation:
-      //
-      // 1. PredictBatch
-      // 2. CommitModel
-      //  - updater->UpdatePredictionCache
-      //
-      // If we don't initialise this cache, the 2 step will recieve an invalid cache as
-      // the first step only modifies prediction store in learner without following code.
-      InitOutPredictions(cache_emtry->second.data->Info(),
-                         &(cache_emtry->second.predictions), model);
-      CHECK_EQ(cache_emtry->second.predictions.Size(), out_preds->Size());
-      cache_emtry->second.predictions.Copy(*out_preds);
+    uint32_t real_ntree_limit = ntree_limit * output_groups;
+    if (real_ntree_limit == 0 || real_ntree_limit > model.trees.size()) {
+      real_ntree_limit = static_cast<uint32_t>(model.trees.size());
     }
+
+    uint32_t const end_version = (tree_begin + real_ntree_limit) / output_groups;
+
+    if (predts->version > end_version) {
+      CHECK_NE(ntree_limit, 0);
+      this->InitOutPredictions(dmat->Info(), out_preds, model);
+      predts->version = 0;
+    }
+    uint32_t const beg_version = predts->version;
+    CHECK_LE(beg_version, end_version);
+
+    if (beg_version < end_version) {
+      this->DevicePredictInternal(dmat, out_preds, model,
+                                  beg_version * output_groups,
+                                  end_version * output_groups);
+    }
+
+    uint32_t delta = end_version - beg_version;
+    CHECK_LE(delta, model.trees.size());
+    predts->Update(delta);
+
+    CHECK(out_preds->Size() == output_groups * dmat->Info().num_row_ ||
+          out_preds->Size() == dmat->Info().num_row_);
   }
 
  protected:
@@ -361,49 +370,30 @@ class GPUPredictor : public xgboost::Predictor {
     }
   }
 
-  bool PredictFromCache(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
-                        const gbm::GBTreeModel& model, unsigned ntree_limit) {
-    if (ntree_limit == 0 ||
-        ntree_limit * model.learner_model_param_->num_output_group >= model.trees.size()) {
-      auto it = (*cache_).find(dmat);
-      if (it != cache_->cend()) {
-        const HostDeviceVector<bst_float>& y = it->second.predictions;
-        if (y.Size() != 0) {
-          monitor_.StartCuda("PredictFromCache");
-          out_preds->SetDevice(y.DeviceIdx());
-          out_preds->Resize(y.Size());
-          out_preds->Copy(y);
-          monitor_.StopCuda("PredictFromCache");
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
   void UpdatePredictionCache(
       const gbm::GBTreeModel& model,
       std::vector<std::unique_ptr<TreeUpdater>>* updaters,
-      int num_new_trees) override {
+      int num_new_trees,
+      DMatrix* m,
+      PredictionCacheEntry* predts) override {
+    int device = generic_param_->gpu_id;
+    ConfigureDevice(device);
     auto old_ntree = model.trees.size() - num_new_trees;
     // update cache entry
-    for (auto& kv : (*cache_)) {
-      PredictionCacheEntry& e = kv.second;
-      DMatrix* dmat = kv.first;
-      HostDeviceVector<bst_float>& predictions = e.predictions;
-
-      if (predictions.Size() == 0) {
-        this->InitOutPredictions(dmat->Info(), &predictions, model);
-      }
-
-      if (model.learner_model_param_->num_output_group == 1 && updaters->size() > 0 &&
-          num_new_trees == 1 &&
-          updaters->back()->UpdatePredictionCache(e.data.get(), &predictions)) {
-        // do nothing
-      } else {
-        DevicePredictInternal(dmat, &predictions, model, old_ntree, model.trees.size());
-      }
+    auto* out = &predts->predictions;
+    if (predts->predictions.Size() == 0) {
+      InitOutPredictions(m->Info(), out, model);
+      DevicePredictInternal(m, out, model, 0, model.trees.size());
+    } else if (model.learner_model_param_->num_output_group == 1 &&
+               updaters->size() > 0 &&
+               num_new_trees == 1 &&
+               updaters->back()->UpdatePredictionCache(m, out)) {
+      {}
+    } else {
+      DevicePredictInternal(m, out, model, old_ntree, model.trees.size());
     }
+    auto delta = num_new_trees / model.learner_model_param_->num_output_group;
+    predts->Update(delta);
   }
 
   void PredictInstance(const SparsePage::Inst& inst,
@@ -442,11 +432,6 @@ class GPUPredictor : public xgboost::Predictor {
 
   void Configure(const std::vector<std::pair<std::string, std::string>>& cfg) override {
     Predictor::Configure(cfg);
-
-    int device = generic_param_->gpu_id;
-    if (device >= 0) {
-      ConfigureDevice(device);
-    }
   }
 
  private:
@@ -469,9 +454,8 @@ class GPUPredictor : public xgboost::Predictor {
 
 XGBOOST_REGISTER_PREDICTOR(GPUPredictor, "gpu_predictor")
 .describe("Make predictions using GPU.")
-.set_body([](GenericParameter const* generic_param,
-             std::shared_ptr<std::unordered_map<DMatrix*, PredictionCacheEntry>> cache) {
-            return new GPUPredictor(generic_param, cache);
+.set_body([](GenericParameter const* generic_param) {
+            return new GPUPredictor(generic_param);
           });
 
 }  // namespace predictor

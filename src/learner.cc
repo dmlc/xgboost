@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <limits>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <stack>
@@ -17,6 +18,8 @@
 #include <vector>
 
 #include "xgboost/base.h"
+#include "xgboost/data.h"
+#include "xgboost/predictor.h"
 #include "xgboost/feature_map.h"
 #include "xgboost/gbm.h"
 #include "xgboost/generic_parameters.h"
@@ -195,9 +198,12 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
  */
 class LearnerImpl : public Learner {
  public:
-  explicit LearnerImpl(std::vector<std::shared_ptr<DMatrix> >  cache)
-      : need_configuration_{true}, cache_(std::move(cache)) {
+  explicit LearnerImpl(std::vector<std::shared_ptr<DMatrix> > cache)
+      : need_configuration_{true} {
     monitor_.Init("Learner");
+    for (std::shared_ptr<DMatrix> const& d : cache) {
+      cache_.Cache(d, GenericParameter::kCpuId);
+    }
   }
   // Configuration before data is known.
   void Configure() override {
@@ -358,8 +364,7 @@ class LearnerImpl : public Learner {
     name = get<String>(gradient_booster["name"]);
     tparam_.UpdateAllowUnknown(Args{{"booster", name}});
     gbm_.reset(GradientBooster::Create(tparam_.booster,
-                                       &generic_parameters_, &learner_model_param_,
-                                       cache_));
+                                       &generic_parameters_, &learner_model_param_));
     gbm_->LoadModel(gradient_booster);
 
     auto const& j_attributes = get<Object const>(learner.at("attributes"));
@@ -413,8 +418,7 @@ class LearnerImpl : public Learner {
     tparam_.booster = get<String>(gradient_booster["name"]);
     if (!gbm_) {
       gbm_.reset(GradientBooster::Create(tparam_.booster,
-                                         &generic_parameters_, &learner_model_param_,
-                                         cache_));
+                                         &generic_parameters_, &learner_model_param_));
     }
     gbm_->LoadConfig(gradient_booster);
 
@@ -500,7 +504,7 @@ class LearnerImpl : public Learner {
 
     obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
     gbm_.reset(GradientBooster::Create(tparam_.booster, &generic_parameters_,
-                                       &learner_model_param_, cache_));
+                                       &learner_model_param_));
     gbm_->Load(fi);
     if (mparam_.contain_extra_attrs != 0) {
       std::vector<std::pair<std::string, std::string> > attr;
@@ -726,17 +730,18 @@ class LearnerImpl : public Learner {
     this->CheckDataSplitMode();
     this->ValidateDMatrix(train.get());
 
+    auto& predt = this->cache_.Cache(train, generic_parameters_.gpu_id);
+
     monitor_.Start("PredictRaw");
-    this->PredictRaw(train.get(), &preds_[train.get()], true);
+    this->PredictRaw(train.get(), &predt, true);
     monitor_.Stop("PredictRaw");
-    TrainingObserver::Instance().Observe(preds_[train.get()], "Predictions");
 
     monitor_.Start("GetGradient");
-    obj_->GetGradient(preds_[train.get()], train->Info(), iter, &gpair_);
+    obj_->GetGradient(predt.predictions, train->Info(), iter, &gpair_);
     monitor_.Stop("GetGradient");
     TrainingObserver::Instance().Observe(gpair_, "Gradients");
 
-    gbm_->DoBoost(train.get(), &gpair_, obj_.get());
+    gbm_->DoBoost(train.get(), &gpair_, &predt);
     monitor_.Stop("UpdateOneIter");
   }
 
@@ -749,12 +754,14 @@ class LearnerImpl : public Learner {
     }
     this->CheckDataSplitMode();
     this->ValidateDMatrix(train.get());
+    this->cache_.Cache(train, generic_parameters_.gpu_id);
 
-    gbm_->DoBoost(train.get(), in_gpair);
+    gbm_->DoBoost(train.get(), in_gpair, &cache_.Entry(train.get()));
     monitor_.Stop("BoostOneIter");
   }
 
-  std::string EvalOneIter(int iter, const std::vector<std::shared_ptr<DMatrix>>& data_sets,
+  std::string EvalOneIter(int iter,
+                          const std::vector<std::shared_ptr<DMatrix>>& data_sets,
                           const std::vector<std::string>& data_names) override {
     monitor_.Start("EvalOneIter");
     this->Configure();
@@ -766,14 +773,19 @@ class LearnerImpl : public Learner {
       metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
     }
     for (size_t i = 0; i < data_sets.size(); ++i) {
-      DMatrix * dmat = data_sets[i].get();
-      this->ValidateDMatrix(dmat);
-      this->PredictRaw(dmat, &preds_[dmat], false);
-      obj_->EvalTransform(&preds_[dmat]);
+      std::shared_ptr<DMatrix> m = data_sets[i];
+      auto &predt = this->cache_.Cache(m, generic_parameters_.gpu_id);
+      this->ValidateDMatrix(m.get());
+      this->PredictRaw(m.get(), &predt, false);
+
+      auto &out = output_predictions_.Cache(m, generic_parameters_.gpu_id).predictions;
+      out.Resize(predt.predictions.Size());
+      out.Copy(predt.predictions);
+
+      obj_->EvalTransform(&out);
       for (auto& ev : metrics_) {
         os << '\t' << data_names[i] << '-' << ev->Name() << ':'
-           << ev->Eval(preds_[dmat], data_sets[i]->Info(),
-                       tparam_.dsplit == DataSplitMode::kRow);
+           << ev->Eval(out, m->Info(), tparam_.dsplit == DataSplitMode::kRow);
       }
     }
 
@@ -848,7 +860,12 @@ class LearnerImpl : public Learner {
     } else if (pred_leaf) {
       gbm_->PredictLeaf(data.get(), &out_preds->HostVector(), ntree_limit);
     } else {
-      this->PredictRaw(data.get(), out_preds, training, ntree_limit);
+      auto& prediction = cache_.Cache(data, generic_parameters_.gpu_id);
+      this->PredictRaw(data.get(), &prediction, training, ntree_limit);
+      // Copy the prediction cache to output prediction. out_preds comes from C API
+      out_preds->SetDevice(generic_parameters_.gpu_id);
+      out_preds->Resize(prediction.predictions.Size());
+      out_preds->Copy(prediction.predictions);
       if (!output_margin) {
         obj_->PredTransform(out_preds);
       }
@@ -868,11 +885,10 @@ class LearnerImpl : public Learner {
    *   predictor, when it equals 0, this means we are using all the trees
    * \param training allow dropout when the DART booster is being used
    */
-  void PredictRaw(DMatrix* data, HostDeviceVector<bst_float>* out_preds,
+  void PredictRaw(DMatrix* data, PredictionCacheEntry* out_preds,
                   bool training,
                   unsigned ntree_limit = 0) const {
-    CHECK(gbm_ != nullptr)
-        << "Predict must happen after Load or configuration";
+    CHECK(gbm_ != nullptr) << "Predict must happen after Load or configuration";
     this->ValidateDMatrix(data);
     gbm_->PredictBatch(data, out_preds, training, ntree_limit);
   }
@@ -920,7 +936,7 @@ class LearnerImpl : public Learner {
   void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
     if (gbm_ == nullptr || old.booster != tparam_.booster) {
       gbm_.reset(GradientBooster::Create(tparam_.booster, &generic_parameters_,
-                                         &learner_model_param_, cache_));
+                                         &learner_model_param_));
     }
     gbm_->Configure(args);
   }
@@ -930,9 +946,10 @@ class LearnerImpl : public Learner {
     // estimate feature bound
     // TODO(hcho3): Change num_feature to 64-bit integer
     unsigned num_feature = 0;
-    for (auto & matrix : cache_) {
-      CHECK(matrix != nullptr);
-      const uint64_t num_col = matrix->Info().num_col_;
+    for (auto & matrix : cache_.Container()) {
+      CHECK(matrix.first);
+      CHECK(!matrix.second.ref.expired());
+      const uint64_t num_col = matrix.first->Info().num_col_;
       CHECK_LE(num_col, static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
           << "Unfortunately, XGBoost does not support data matrices with "
           << std::numeric_limits<unsigned>::max() << " features or greater";
@@ -990,13 +1007,12 @@ class LearnerImpl : public Learner {
   // `enable_experimental_json_serialization' is set to false.  Will be removed once JSON
   // takes over.
   std::string const serialisation_header_ { u8"CONFIG-offset:" };
-  // configurations
+  // User provided configurations
   std::map<std::string, std::string> cfg_;
+  // Stores information like best-iteration for early stopping.
   std::map<std::string, std::string> attributes_;
   std::vector<std::string> metric_names_;
   static std::string const kEvalMetric;  // NOLINT
-  // temporal storages for prediction
-  std::map<DMatrix*, HostDeviceVector<bst_float>> preds_;
   // gradient pairs
   HostDeviceVector<GradientPair> gpair_;
   bool need_configuration_;
@@ -1004,8 +1020,11 @@ class LearnerImpl : public Learner {
  private:
   /*! \brief random number transformation seed. */
   static int32_t constexpr kRandSeedMagic = 127;
-  // internal cached dmatrix
-  std::vector<std::shared_ptr<DMatrix> > cache_;
+  // internal cached dmatrix for prediction.
+  PredictionContainer cache_;
+  /*! \brief Temporary storage to prediction.  Useful for storing data transformed by
+   *  objective function */
+  PredictionContainer output_predictions_;
 
   common::Monitor monitor_;
 

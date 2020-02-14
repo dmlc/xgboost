@@ -16,6 +16,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "xgboost/data.h"
 #include "xgboost/logging.h"
 #include "xgboost/gbm.h"
 #include "xgboost/predictor.h"
@@ -151,14 +152,8 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
 // gradient boosted trees
 class GBTree : public GradientBooster {
  public:
-  explicit GBTree(LearnerModelParam const* booster_config) : model_(booster_config) {}
-
-  void InitCache(const std::vector<std::shared_ptr<DMatrix> > &cache) {
-    cache_ = std::make_shared<std::unordered_map<DMatrix*, PredictionCacheEntry>>();
-    for (std::shared_ptr<DMatrix> const& d : cache) {
-      (*cache_)[d.get()].data = d;
-    }
-  }
+  explicit GBTree(LearnerModelParam const* booster_config) :
+      model_(booster_config) {}
 
   void Configure(const Args& cfg) override;
   // Revise `tree_method` and `updater` parameters after seeing the training
@@ -171,7 +166,7 @@ class GBTree : public GradientBooster {
   /*! \brief Carry out one iteration of boosting */
   void DoBoost(DMatrix* p_fmat,
                HostDeviceVector<GradientPair>* in_gpair,
-               ObjFunction* obj) override;
+               PredictionCacheEntry* predt) override;
 
   bool UseGPU() const override {
     return
@@ -204,11 +199,12 @@ class GBTree : public GradientBooster {
   }
 
   void PredictBatch(DMatrix* p_fmat,
-                    HostDeviceVector<bst_float>* out_preds,
+                    PredictionCacheEntry* out_preds,
                     bool training,
                     unsigned ntree_limit) override {
     CHECK(configured_);
-    GetPredictor(out_preds, p_fmat)->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
+    GetPredictor(&out_preds->predictions, p_fmat)->PredictBatch(
+        p_fmat, out_preds, model_, 0, ntree_limit);
   }
 
   void PredictInstance(const SparsePage::Inst& inst,
@@ -318,7 +314,9 @@ class GBTree : public GradientBooster {
   }
 
   // commit new trees all at once
-  virtual void CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees);
+  virtual void CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees,
+                           DMatrix* m,
+                           PredictionCacheEntry* predts);
 
   // --- data structure ---
   GBTreeModel model_;
@@ -332,11 +330,6 @@ class GBTree : public GradientBooster {
   Args cfg_;
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
-  /**
-   * \brief Map of matrices and associated cached predictions to facilitate
-   * storing and looking up predictions.
-   */
-  std::shared_ptr<std::unordered_map<DMatrix*, PredictionCacheEntry>> cache_;
   // Predictors
   std::unique_ptr<Predictor> cpu_predictor_;
 #if defined(XGBOOST_USE_CUDA)

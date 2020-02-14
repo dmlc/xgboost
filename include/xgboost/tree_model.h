@@ -158,7 +158,7 @@ class RegTree : public Model {
     }
     /*! \brief whether this node is deleted */
     XGBOOST_DEVICE bool IsDeleted() const {
-      return sindex_ == std::numeric_limits<unsigned>::max();
+      return sindex_ == std::numeric_limits<uint32_t>::max();
     }
     /*! \brief whether current node is root */
     XGBOOST_DEVICE bool IsRoot() const { return parent_ == kInvalidNodeId; }

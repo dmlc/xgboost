@@ -55,8 +55,9 @@ class GBLinearModel : public Model {
   std::vector<bst_float> weight;
   // initialize the model parameter
   inline void LazyInitModel() {
-    if (!weight.empty())
+    if (!weight.empty()) {
       return;
+    }
     // bias is the last weight
     weight.resize((learner_model_param_->num_feature + 1) *
                   learner_model_param_->num_output_group);
