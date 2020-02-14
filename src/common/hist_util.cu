@@ -148,7 +148,7 @@ class GPUSketcher {
       this->SketchBatch(batch, info);
     }
 
-    hmat->Init(&sketch_container_->sketches_, max_bin_);
+    hmat->Init(&sketch_container_->sketches_, max_bin_, info.num_row_);
     return row_stride_;
   }
 
