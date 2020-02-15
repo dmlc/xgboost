@@ -234,15 +234,10 @@ class QuantileHistMaker: public TreeUpdater {
     // Enumerate the split values of specific feature
     // Returns the sum of gradients corresponding to the data points that contains a non-missing
     // value for the particular feature fid.
-    template<int d_step>
-    GradStats EnumerateSplit(
-                        const GHistIndexMatrix& gmat,
-                        const GHistRow& hist,
-                        const NodeEntry& snode,
-                        const MetaInfo& info,
-                        SplitEntry* p_best,
-                        bst_uint fid,
-                        bst_uint nodeID);
+    template <int d_step>
+    GradStats EnumerateSplit(const GHistIndexMatrix &gmat, const GHistRow &hist,
+                             const NodeEntry &snode, const MetaInfo &info,
+                             SplitEntry *p_best, bst_uint fid, bst_uint nodeID) const;
 
     // if sum of statistics for non-missing values in the node
     // is equal to sum of statistics for all values:
