@@ -17,6 +17,7 @@
 #include <string>
 #include <utility>
 
+#include "xgboost/data.h"
 #include "xgboost/logging.h"
 #include "xgboost/tree_updater.h"
 
@@ -27,8 +28,8 @@
 #include "../common/random.h"
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
-#include "../common/column_matrix.h"
 #include "../common/threading_utils.h"
+#include "../data/gradient_index_source.h"
 
 
 namespace xgboost {
@@ -55,15 +56,18 @@ void QuantileHistMaker::Configure(const Args& args) {
 void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
                                DMatrix *dmat,
                                const std::vector<RegTree *> &trees) {
-  if (dmat != p_last_dmat_ || is_gmat_initialized_ == false) {
-    gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
-    column_matrix_.Init(gmat_, param_.sparse_threshold);
+  BatchParam batch_param;
+  batch_param.max_bin = param_.max_bin;
+  auto sketch = [&]() -> GradientIndexPage& {
+    return (*dmat->GetBatches<GradientIndexPage>(batch_param).begin())
+        .CopyToColumns(param_.sparse_threshold);
+  };
+  if (dmat != p_last_dmat_) {
+    auto &gradient_index = sketch();
+
     if (param_.enable_feature_grouping > 0) {
-      gmatb_.Init(gmat_, column_matrix_, param_);
+      gmatb_.Init(gradient_index, gradient_index.column_matrix, param_);
     }
-    // A proper solution is puting cut matrix in DMatrix, see:
-    // https://github.com/dmlc/xgboost/issues/5143
-    is_gmat_initialized_ = true;
   }
   // rescale learning rate according to size of trees
   float lr = param_.learning_rate;
@@ -78,7 +82,9 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
         int_constraint_, dmat));
   }
   for (auto tree : trees) {
-    builder_->Update(gmat_, gmatb_, column_matrix_, gpair, dmat, tree);
+    auto &gradient_index = sketch();
+    builder_->Update(gradient_index,
+                     gmatb_, gpair, dmat, tree);
   }
   param_.learning_rate = lr;
 
@@ -136,7 +142,7 @@ void QuantileHistMaker::Builder::SyncHistograms(
 
 void QuantileHistMaker::Builder::BuildHistogramsLossGuide(
                         ExpandEntry entry,
-                        const GHistIndexMatrix &gmat,
+                        const GradientIndexPage &gmat,
                         const GHistIndexBlockMatrix &gmatb,
                         RegTree *p_tree,
                         const std::vector<GradientPair> &gpair_h) {
@@ -177,7 +183,7 @@ void QuantileHistMaker::Builder::AddHistRows(int *starting_index, int *sync_coun
 
 
 void QuantileHistMaker::Builder::BuildLocalHistograms(
-    const GHistIndexMatrix &gmat,
+    const GradientIndexPage &gmat,
     const GHistIndexBlockMatrix &gmatb,
     RegTree *p_tree,
     const std::vector<GradientPair> &gpair_h) {
@@ -216,7 +222,7 @@ void QuantileHistMaker::Builder::BuildLocalHistograms(
 
 
 void QuantileHistMaker::Builder::BuildNodeStats(
-    const GHistIndexMatrix &gmat,
+    const GradientIndexPage &gmat,
     DMatrix *p_fmat,
     RegTree *p_tree,
     const std::vector<GradientPair> &gpair_h) {
@@ -240,8 +246,7 @@ void QuantileHistMaker::Builder::BuildNodeStats(
 }
 
 void QuantileHistMaker::Builder::EvaluateSplits(
-    const GHistIndexMatrix &gmat,
-    const ColumnMatrix &column_matrix,
+    const GradientIndexPage &gmat,
     DMatrix *p_fmat,
     RegTree *p_tree,
     int *num_leaves,
@@ -258,7 +263,7 @@ void QuantileHistMaker::Builder::EvaluateSplits(
         (param_.max_leaves > 0 && (*num_leaves) == param_.max_leaves)) {
       (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
     } else {
-      this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
+      this->ApplySplit(nid, gmat, hist_, *p_fmat, p_tree);
       int left_id = (*p_tree)[nid].LeftChild();
       int right_id = (*p_tree)[nid].RightChild();
       temp_qexpand_depth->push_back(ExpandEntry(left_id, right_id,
@@ -309,9 +314,8 @@ void QuantileHistMaker::Builder::SplitSiblings(const std::vector<ExpandEntry>& n
 }
 
 void QuantileHistMaker::Builder::ExpandWithDepthWise(
-  const GHistIndexMatrix &gmat,
+  const GradientIndexPage &gmat,
   const GHistIndexBlockMatrix &gmatb,
-  const ColumnMatrix &column_matrix,
   DMatrix *p_fmat,
   RegTree *p_tree,
   const std::vector<GradientPair> &gpair_h) {
@@ -335,7 +339,7 @@ void QuantileHistMaker::Builder::ExpandWithDepthWise(
     SyncHistograms(starting_index, sync_count, p_tree);
 
     BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
-    EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
+    EvaluateSplits(gmat, p_fmat, p_tree, &num_leaves, depth, &timestamp,
                    &temp_qexpand_depth);
     // clean up
     qexpand_depth_wise_.clear();
@@ -351,9 +355,8 @@ void QuantileHistMaker::Builder::ExpandWithDepthWise(
 }
 
 void QuantileHistMaker::Builder::ExpandWithLossGuide(
-    const GHistIndexMatrix& gmat,
+    const GradientIndexPage& gmat,
     const GHistIndexBlockMatrix& gmatb,
-    const ColumnMatrix& column_matrix,
     DMatrix* p_fmat,
     RegTree* p_tree,
     const std::vector<GradientPair>& gpair_h) {
@@ -382,7 +385,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
         || (param_.max_leaves > 0 && num_leaves == param_.max_leaves) ) {
       (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
     } else {
-      this->ApplySplit(nid, gmat, column_matrix, hist_, *p_fmat, p_tree);
+      this->ApplySplit(nid, gmat, hist_, *p_fmat, p_tree);
 
       const int cleft = (*p_tree)[nid].LeftChild();
       const int cright = (*p_tree)[nid].RightChild();
@@ -422,9 +425,8 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
   }
 }
 
-void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
+void QuantileHistMaker::Builder::Update(const GradientIndexPage& gmat,
                                         const GHistIndexBlockMatrix& gmatb,
-                                        const ColumnMatrix& column_matrix,
                                         HostDeviceVector<GradientPair>* gpair,
                                         DMatrix* p_fmat,
                                         RegTree* p_tree) {
@@ -438,9 +440,9 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
   this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
 
   if (param_.grow_policy == TrainParam::kLossGuide) {
-    ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
+    ExpandWithLossGuide(gmat, gmatb, p_fmat, p_tree, gpair_h);
   } else {
-    ExpandWithDepthWise(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
+    ExpandWithDepthWise(gmat, gmatb, p_fmat, p_tree, gpair_h);
   }
 
   for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
@@ -497,7 +499,7 @@ bool QuantileHistMaker::Builder::UpdatePredictionCache(
   return true;
 }
 
-void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
+void QuantileHistMaker::Builder::InitData(const GradientIndexPage& gmat,
                                           const std::vector<GradientPair>& gpair,
                                           const DMatrix& fmat,
                                           const RegTree& tree) {
@@ -675,7 +677,7 @@ bool QuantileHistMaker::Builder::SplitContainsMissingValues(const GradStats e,
 
 // nodes_set - set of nodes to be processed in parallel
 void QuantileHistMaker::Builder::EvaluateSplit(const std::vector<ExpandEntry>& nodes_set,
-                                               const GHistIndexMatrix& gmat,
+                                               const GradientIndexPage& gmat,
                                                const HistCollection& hist,
                                                const DMatrix& fmat,
                                                const RegTree& tree) {
@@ -736,8 +738,7 @@ void QuantileHistMaker::Builder::EvaluateSplit(const std::vector<ExpandEntry>& n
 }
 
 void QuantileHistMaker::Builder::ApplySplit(int nid,
-                                            const GHistIndexMatrix& gmat,
-                                            const ColumnMatrix& column_matrix,
+                                            const GradientIndexPage& gmat,
                                             const HistCollection& hist,
                                             const DMatrix& fmat,
                                             RegTree* p_tree) {
@@ -779,6 +780,7 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
 
   const auto& rowset = row_set_collection_[nid];
 
+  auto const& column_matrix = gmat.column_matrix;
   Column column = column_matrix.GetColumn(fid);
   if (column.GetType() == xgboost::common::kDenseColumn) {
     ApplySplitDenseData(rowset, gmat, &row_split_tloc_, column, split_cond,
@@ -795,7 +797,7 @@ void QuantileHistMaker::Builder::ApplySplit(int nid,
 
 void QuantileHistMaker::Builder::ApplySplitDenseData(
     const RowSetCollection::Elem rowset,
-    const GHistIndexMatrix& gmat,
+    const GradientIndexPage& gmat,
     std::vector<RowSetCollection::Split>* p_row_split_tloc,
     const Column& column,
     bst_int split_cond,
@@ -857,7 +859,7 @@ void QuantileHistMaker::Builder::ApplySplitDenseData(
 
 void QuantileHistMaker::Builder::ApplySplitSparseData(
     const RowSetCollection::Elem rowset,
-    const GHistIndexMatrix& gmat,
+    const GradientIndexPage& gmat,
     std::vector<RowSetCollection::Split>* p_row_split_tloc,
     const Column& column,
     bst_uint lower_bound,
@@ -925,7 +927,7 @@ void QuantileHistMaker::Builder::ApplySplitSparseData(
 }
 
 void QuantileHistMaker::Builder::InitNewNode(int nid,
-                                             const GHistIndexMatrix& gmat,
+                                             const GradientIndexPage& gmat,
                                              const std::vector<GradientPair>& gpair,
                                              const DMatrix& fmat,
                                              const RegTree& tree) {
@@ -979,15 +981,10 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
 // Enumerate the split values of specific feature.
 // Returns the sum of gradients corresponding to the data points that contains a non-missing value
 // for the particular feature fid.
-template<int d_step>
+template <int d_step>
 GradStats QuantileHistMaker::Builder::EnumerateSplit(
-                                                const GHistIndexMatrix& gmat,
-                                                const GHistRow& hist,
-                                                const NodeEntry& snode,
-                                                const MetaInfo& info,
-                                                SplitEntry* p_best,
-                                                bst_uint fid,
-                                                bst_uint nodeID) {
+    const GradientIndexPage &gmat, const GHistRow &hist, const NodeEntry &snode,
+    const MetaInfo &info, SplitEntry *p_best, bst_uint fid, bst_uint nodeID) {
   CHECK(d_step == +1 || d_step == -1);
 
   // aliases

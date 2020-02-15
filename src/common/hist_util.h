@@ -22,6 +22,7 @@
 #include "./quantile.h"
 #include "./timer.h"
 #include "../include/rabit/rabit.h"
+#include "xgboost/base.h"
 
 namespace xgboost {
 namespace common {
@@ -139,9 +140,7 @@ class HistogramCuts {
     return cut_ptrs_.at(feature+1) - cut_ptrs_[feature];
   }
 
-  // Getters.  Cuts should be of no use after building histogram indices, but currently
-  // it's deeply linked with quantile_hist, gpu sketcher and gpu_hist.  So we preserve
-  // these for now.
+  // Getters.
   std::vector<uint32_t> const& Ptrs()      const { return cut_ptrs_;   }
   std::vector<float>    const& Values()    const { return cut_values_; }
   std::vector<float>    const& MinValues() const { return min_vals_;   }
@@ -199,6 +198,7 @@ class CutsBuilder {
   }
 
   void AddCutPoint(WQSketch::SummaryContainer const& summary, int max_bin) {
+    CHECK_GE(max_bin, 2);
     size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
     for (size_t i = 1; i < required_cuts; ++i) {
       bst_float cpt = summary.data[i].value;
@@ -259,43 +259,6 @@ size_t DeviceSketch(int device,
                     DMatrix* dmat,
                     HistogramCuts* hmat);
 
-/*!
- * \brief preprocessed global index matrix, in CSR format
- *  Transform floating values to integer index in histogram
- *  This is a global histogram index.
- */
-struct GHistIndexMatrix {
-  /*! \brief row pointer to rows by element position */
-  std::vector<size_t> row_ptr;
-  /*! \brief The index data */
-  std::vector<uint32_t> index;
-  /*! \brief hit count of each index */
-  std::vector<size_t> hit_count;
-  /*! \brief The corresponding cuts */
-  HistogramCuts cut;
-  // Create a global histogram matrix, given cut
-  void Init(DMatrix* p_fmat, int max_num_bins);
-  // get i-th row
-  inline GHistIndexRow operator[](size_t i) const {
-    return {&index[0] + row_ptr[i],
-            static_cast<GHistIndexRow::index_type>(
-                row_ptr[i + 1] - row_ptr[i])};
-  }
-  inline void GetFeatureCounts(size_t* counts) const {
-    auto nfeature = cut.Ptrs().size() - 1;
-    for (unsigned fid = 0; fid < nfeature; ++fid) {
-      auto ibegin = cut.Ptrs()[fid];
-      auto iend = cut.Ptrs()[fid + 1];
-      for (auto i = ibegin; i < iend; ++i) {
-        counts[fid] += hit_count[i];
-      }
-    }
-  }
-
- private:
-  std::vector<size_t> hit_count_tloc_;
-};
-
 struct GHistIndexBlock {
   const size_t* row_ptr;
   const uint32_t* index;
@@ -313,7 +276,7 @@ class ColumnMatrix;
 
 class GHistIndexBlockMatrix {
  public:
-  void Init(const GHistIndexMatrix& gmat,
+  void Init(const GradientIndexPage& gmat,
             const ColumnMatrix& colmat,
             const tree::TrainParam& param);
 
@@ -615,7 +578,7 @@ class GHistBuilder {
   // construct a histogram via histogram aggregation
   void BuildHist(const std::vector<GradientPair>& gpair,
                  const RowSetCollection::Elem row_indices,
-                 const GHistIndexMatrix& gmat,
+                 const GradientIndexPage& gmat,
                  GHistRow hist);
   // same, with feature grouping
   void BuildBlockHist(const std::vector<GradientPair>& gpair,

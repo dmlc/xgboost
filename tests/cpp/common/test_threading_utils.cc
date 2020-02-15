@@ -1,7 +1,6 @@
 #include <cstddef>
 #include <gtest/gtest.h>
 
-#include "../../../src/common/column_matrix.h"
 #include "../../../src/common/threading_utils.h"
 
 namespace xgboost {

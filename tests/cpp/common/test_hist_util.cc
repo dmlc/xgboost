@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "../../../src/common/hist_util.h"
+#include "../../../src/data/gradient_index_source.h"
 #include "../helpers.h"
 #include "test_hist_util.h"
 
@@ -161,7 +162,7 @@ TEST(SparseCuts, SingleThreadedBuild) {
   auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
   std::shared_ptr<DMatrix> p_fmat {*pp_dmat};
 
-  common::GHistIndexMatrix hmat;
+  GradientIndexPage hmat;
   hmat.Init(p_fmat.get(), kBins);
 
   HistogramCuts cuts;

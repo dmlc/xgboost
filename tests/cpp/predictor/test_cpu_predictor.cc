@@ -7,9 +7,11 @@
 
 #include "../helpers.h"
 #include "../../../src/gbm/gbtree_model.h"
+#include "test_predictor.h"
+#include "xgboost/data.h"
 
 namespace xgboost {
-TEST(CpuPredictor, Basic) {
+TEST(CPUPredictor, Basic) {
   auto lparam = CreateEmptyGenericParam(GPUIDX);
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
@@ -78,7 +80,14 @@ TEST(CpuPredictor, Basic) {
   delete dmat;
 }
 
-TEST(CpuPredictor, ExternalMemory) {
+#if defined(XGBOOST_USE_CUDA)
+TEST(CPUPredictor, GradientIndexTraining) {
+  size_t constexpr kRows { 128 };
+  TestTrainingPrediction(kRows, "hist");
+}
+#endif  // defined(XGBOOST_USE_CUDA
+
+TEST(CPUPredictor, ExternalMemory) {
   dmlc::TemporaryDirectory tmpdir;
   std::string filename = tmpdir.path + "/big.libsvm";
   std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64, filename);

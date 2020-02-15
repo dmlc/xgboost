@@ -32,18 +32,18 @@ class QuantileHistMock : public QuantileHistMaker {
         : RealImpl(param, std::move(pruner), std::move(spliteval), std::move(int_constraint), fmat) {}
 
    public:
-    void TestInitData(const GHistIndexMatrix& gmat,
+    void TestInitData(const GradientIndexPage& gmat,
                       const std::vector<GradientPair>& gpair,
                       DMatrix* p_fmat,
                       const RegTree& tree) {
       RealImpl::InitData(gmat, gpair, *p_fmat, tree);
       ASSERT_EQ(data_layout_, kSparseData);
 
-      /* The creation of HistCutMatrix and GHistIndexMatrix are not technically
+      /* The creation of HistCutMatrix and GradientIndexPage are not technically
        * part of QuantileHist updater logic, but we include it here because
-       * QuantileHist updater object currently stores GHistIndexMatrix
+       * QuantileHist updater object currently stores GradientIndexPage
        * internally. According to https://github.com/dmlc/xgboost/pull/3803,
-       * we should eventually move GHistIndexMatrix out of the QuantileHist
+       * we should eventually move GradientIndexPage out of the QuantileHist
        * updater. */
 
       const size_t num_row = p_fmat->Info().num_row_;
@@ -64,7 +64,7 @@ class QuantileHistMock : public QuantileHistMaker {
         }
       }
 
-      /* Validate GHistIndexMatrix */
+      /* Validate GradientIndexPage */
       ASSERT_EQ(gmat.row_ptr.size(), num_row + 1);
       ASSERT_LT(*std::max_element(gmat.index.begin(), gmat.index.end()),
                 gmat.cut.Ptrs().back());
@@ -77,7 +77,7 @@ class QuantileHistMock : public QuantileHistMaker {
           SparsePage::Inst inst = batch[i];
           ASSERT_EQ(gmat.row_ptr[rid] + inst.size(), gmat.row_ptr[rid + 1]);
           for (size_t j = 0; j < inst.size(); ++j) {
-            // Each entry of GHistIndexMatrix represents a bin ID
+            // Each entry of GradientIndexPage represents a bin ID
             const size_t bin_id = gmat.index[gmat_row_offset + j];
             const size_t fid = inst[j].index;
             // The bin ID must correspond to correct feature
@@ -97,7 +97,7 @@ class QuantileHistMock : public QuantileHistMaker {
     }
 
     void TestBuildHist(int nid,
-                       const GHistIndexMatrix& gmat,
+                       const GradientIndexPage& gmat,
                        const DMatrix& fmat,
                        const RegTree& tree) {
       const std::vector<GradientPair> gpair =
@@ -142,7 +142,7 @@ class QuantileHistMock : public QuantileHistMaker {
       auto dmat = CreateDMatrix(kNRows, kNCols, 0, 3);
       // dense, no missing values
 
-      common::GHistIndexMatrix gmat;
+      GradientIndexPage gmat;
       gmat.Init((*dmat).get(), kMaxBins);
 
       RealImpl::InitData(gmat, row_gpairs, *(*dmat), tree);
@@ -255,7 +255,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
   void TestInitData() {
     size_t constexpr kMaxBins = 4;
-    common::GHistIndexMatrix gmat;
+    GradientIndexPage gmat;
     gmat.Init((*dmat_).get(), kMaxBins);
 
     RegTree tree = RegTree();
@@ -273,7 +273,7 @@ class QuantileHistMock : public QuantileHistMaker {
     tree.param.UpdateAllowUnknown(cfg_);
 
     size_t constexpr kMaxBins = 4;
-    common::GHistIndexMatrix gmat;
+    GradientIndexPage gmat;
     gmat.Init((*dmat_).get(), kMaxBins);
 
     builder_->TestBuildHist(0, gmat, *(*dmat_).get(), tree);

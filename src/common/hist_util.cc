@@ -13,7 +13,6 @@
 #include "../common/common.h"
 #include "./hist_util.h"
 #include "./random.h"
-#include "./column_matrix.h"
 #include "./quantile.h"
 #include "./../tree/updater_quantile_hist.h"
 
@@ -348,104 +347,6 @@ void DenseCuts::Init
   monitor_.Stop(__func__);
 }
 
-void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
-  cut.Build(p_fmat, max_num_bins);
-  const int32_t nthread = omp_get_max_threads();
-  const uint32_t nbins = cut.Ptrs().back();
-  hit_count.resize(nbins, 0);
-  hit_count_tloc_.resize(nthread * nbins, 0);
-
-
-  size_t new_size = 1;
-  for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
-    new_size += batch.Size();
-  }
-
-  row_ptr.resize(new_size);
-  row_ptr[0] = 0;
-
-  size_t rbegin = 0;
-  size_t prev_sum = 0;
-
-  for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
-    // The number of threads is pegged to the batch size. If the OMP
-    // block is parallelized on anything other than the batch/block size,
-    // it should be reassigned
-    const size_t batch_threads = std::max(
-        size_t(1),
-        std::min(batch.Size(), static_cast<size_t>(omp_get_max_threads())));
-    MemStackAllocator<size_t, 128> partial_sums(batch_threads);
-    size_t* p_part = partial_sums.Get();
-
-    size_t block_size =  batch.Size() / batch_threads;
-
-    #pragma omp parallel num_threads(batch_threads)
-    {
-      #pragma omp for
-      for (omp_ulong tid = 0; tid < batch_threads; ++tid) {
-        size_t ibegin = block_size * tid;
-        size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
-
-        size_t sum = 0;
-        for (size_t i = ibegin; i < iend; ++i) {
-          sum += batch[i].size();
-          row_ptr[rbegin + 1 + i] = sum;
-        }
-      }
-
-      #pragma omp single
-      {
-        p_part[0] = prev_sum;
-        for (size_t i = 1; i < batch_threads; ++i) {
-          p_part[i] = p_part[i - 1] + row_ptr[rbegin + i*block_size];
-        }
-      }
-
-      #pragma omp for
-      for (omp_ulong tid = 0; tid < batch_threads; ++tid) {
-        size_t ibegin = block_size * tid;
-        size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
-
-        for (size_t i = ibegin; i < iend; ++i) {
-          row_ptr[rbegin + 1 + i] += p_part[tid];
-        }
-      }
-    }
-
-    index.resize(row_ptr[rbegin + batch.Size()]);
-
-    CHECK_GT(cut.Values().size(), 0U);
-
-    #pragma omp parallel for num_threads(batch_threads) schedule(static)
-    for (omp_ulong i = 0; i < batch.Size(); ++i) { // NOLINT(*)
-      const int tid = omp_get_thread_num();
-      size_t ibegin = row_ptr[rbegin + i];
-      size_t iend = row_ptr[rbegin + i + 1];
-      SparsePage::Inst inst = batch[i];
-
-      CHECK_EQ(ibegin + inst.size(), iend);
-      for (bst_uint j = 0; j < inst.size(); ++j) {
-        uint32_t idx = cut.SearchBin(inst[j]);
-
-        index[ibegin + j] = idx;
-        ++hit_count_tloc_[tid * nbins + idx];
-      }
-      std::sort(index.begin() + ibegin, index.begin() + iend);
-    }
-
-    #pragma omp parallel for num_threads(nthread) schedule(static)
-    for (bst_omp_uint idx = 0; idx < bst_omp_uint(nbins); ++idx) {
-      for (int32_t tid = 0; tid < nthread; ++tid) {
-        hit_count[idx] += hit_count_tloc_[tid * nbins + idx];
-        hit_count_tloc_[tid * nbins + idx] = 0;  // reset for next batch
-      }
-    }
-
-    prev_sum = row_ptr[rbegin + batch.Size()];
-    rbegin += batch.Size();
-  }
-}
-
 static size_t GetConflictCount(const std::vector<bool>& mark,
                                const Column& column,
                                size_t max_cnt) {
@@ -553,7 +454,7 @@ FindGroups(const std::vector<unsigned>& feature_list,
 }
 
 inline std::vector<std::vector<unsigned>>
-FastFeatureGrouping(const GHistIndexMatrix& gmat,
+FastFeatureGrouping(const GradientIndexPage& gmat,
                     const ColumnMatrix& colmat,
                     const tree::TrainParam& param) {
   const size_t nrow = gmat.row_ptr.size() - 1;
@@ -607,7 +508,7 @@ FastFeatureGrouping(const GHistIndexMatrix& gmat,
   return groups;
 }
 
-void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
+void GHistIndexBlockMatrix::Init(const GradientIndexPage& gmat,
                                  const ColumnMatrix& colmat,
                                  const tree::TrainParam& param) {
   cut_ = &gmat.cut;
@@ -722,7 +623,7 @@ void SubtractionHist(GHistRow dst, const GHistRow src1, const GHistRow src2,
 
 void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
                              const RowSetCollection::Elem row_indices,
-                             const GHistIndexMatrix& gmat,
+                             const GradientIndexPage& gmat,
                              GHistRow hist) {
   const size_t* rid =  row_indices.begin;
   const size_t nrows = row_indices.Size();
