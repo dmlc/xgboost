@@ -186,6 +186,13 @@ class QuantileHistMaker: public TreeUpdater {
       unsigned timestamp;
       ExpandEntry(int nid, int sibling_nid, int depth, bst_float loss_chg, unsigned tstmp):
         nid(nid), sibling_nid(sibling_nid), depth(depth), loss_chg(loss_chg), timestamp(tstmp) {}
+
+      bool IsValid(TrainParam const& param, int32_t num_leaves) const {
+        bool ret = loss_chg <= kRtEps ||
+                   (param.max_depth > 0 && this->depth == param.max_depth) ||
+                   (param.max_leaves > 0 && num_leaves == param.max_leaves);
+        return ret;
+      }
     };
 
     // initialize temp data structure
@@ -207,8 +214,8 @@ class QuantileHistMaker: public TreeUpdater {
                         const DMatrix& fmat,
                         RegTree* p_tree);
 
-    void PartitionKernel(const size_t node_in_set, const size_t nid, const size_t ibegin,
-                         const size_t iend, const int32_t split_cond,
+    void PartitionKernel(const size_t node_in_set, const size_t nid, common::Range1d range,
+                         const int32_t split_cond,
                          const ColumnMatrix& column_matrix, const GHistIndexMatrix& gmat,
                          const RegTree& tree);
 

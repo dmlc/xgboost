@@ -187,8 +187,8 @@ class ColumnMatrix {
 
   std::vector<size_t> feature_counts_;
   std::vector<ColumnType> type_;
-  SimpleArray<uint32_t> index_;  // index_: may store smaller integers; needs padding
-  SimpleArray<size_t> row_ind_;
+  std::vector<uint32_t> index_;  // index_: may store smaller integers; needs padding
+  std::vector<size_t> row_ind_;
   std::vector<ColumnBoundary> boundary_;
 
   // index_base_[fid]: least bin id for feature fid

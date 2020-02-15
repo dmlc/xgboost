@@ -293,7 +293,7 @@ void QuantileHistMaker::Builder::EvaluateSplits(
 
   std::vector<ExpandEntry> nodes_for_apply_split;
   AddSplitsToTree(gmat, p_fmat, p_tree, num_leaves, depth, timestamp,
-      &nodes_for_apply_split, temp_qexpand_depth);
+                  &nodes_for_apply_split, temp_qexpand_depth);
 
   ApplySplit(nodes_for_apply_split, gmat, column_matrix, hist_, *p_fmat, p_tree);
 }
@@ -404,9 +404,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
     const ExpandEntry candidate = qexpand_loss_guided_->top();
     const int nid = candidate.nid;
     qexpand_loss_guided_->pop();
-    if (candidate.loss_chg <= kRtEps
-        || (param_.max_depth > 0 && candidate.depth == param_.max_depth)
-        || (param_.max_leaves > 0 && num_leaves == param_.max_leaves) ) {
+    if (candidate.IsValid(param_, num_leaves)) {
       (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
     } else {
       NodeEntry& e = snode_[nid];
@@ -569,7 +567,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     {
       this->nthread_ = omp_get_num_threads();
     }
-    hist_builder_.Init(this->nthread_, nbins);
+    hist_builder_ = GHistBuilder(this->nthread_, nbins);
 
     std::vector<size_t>& row_indices = row_set_collection_.row_indices_;
     row_indices.resize(info.num_row_);
@@ -775,10 +773,12 @@ void QuantileHistMaker::Builder::EvaluateSplit(const std::vector<ExpandEntry>& n
   builder_monitor_.Stop("EvaluateSplit");
 }
 
-template<bool default_left>
-inline std::pair<size_t, size_t> PartitionDenseKernel(const size_t* rid,
-    const uint32_t* idx, const uint32_t offset, const int32_t split_cond,
-    const size_t istart, const size_t iend, size_t* p_left, size_t* p_right) {
+template <bool default_left>
+inline std::pair<size_t, size_t> PartitionDenseKernel(
+    const size_t *rid, const uint32_t *idx,
+    const uint32_t offset, const int32_t split_cond,
+    const size_t istart, const size_t iend, size_t *p_left,
+    size_t *p_right) {
   size_t ileft = 0;
   size_t iright = 0;
 
@@ -802,7 +802,6 @@ inline std::pair<size_t, size_t> PartitionDenseKernel(const size_t* rid,
 
   return { ileft, iright };
 }
-
 
 template<bool default_left>
 inline std::pair<size_t, size_t> PartitionSparseKernel(const size_t* rid,
@@ -862,12 +861,12 @@ inline std::pair<size_t, size_t> PartitionSparseKernel(const size_t* rid,
 }
 
 void QuantileHistMaker::Builder::PartitionKernel(
-        const size_t node_in_set, const size_t nid, const size_t ibegin, const size_t iend,
-        const int32_t split_cond, const ColumnMatrix& column_matrix,
-        const GHistIndexMatrix& gmat, const RegTree& tree) {
+    const size_t node_in_set, const size_t nid, common::Range1d range,
+    const int32_t split_cond, const ColumnMatrix& column_matrix,
+    const GHistIndexMatrix& gmat, const RegTree& tree) {
   const size_t* rid = row_set_collection_[nid].begin;
-  size_t* p_left = partition_builder_.GetLeftBuffer(node_in_set, ibegin, iend);
-  size_t* p_right = partition_builder_.GetRightBuffer(node_in_set, ibegin, iend);
+  size_t* p_left = partition_builder_.GetLeftBuffer(node_in_set, range.begin(), range.end());
+  size_t* p_right = partition_builder_.GetRightBuffer(node_in_set, range.begin(), range.end());
 
   const bst_uint fid = tree[nid].SplitIndex();
   const bool default_left = tree[nid].DefaultLeft();
@@ -880,29 +879,31 @@ void QuantileHistMaker::Builder::PartitionKernel(
   if (column.GetType() == xgboost::common::kDenseColumn) {
     if (default_left) {
       child_nodes_sizes = PartitionDenseKernel<true>(rid, idx, offset, split_cond,
-                                       ibegin, iend, p_left, p_right);
+                                                     range.begin(), range.end(), p_left, p_right);
     } else {
       child_nodes_sizes = PartitionDenseKernel<false>(rid, idx, offset, split_cond,
-                                       ibegin, iend, p_left, p_right);
+                                                      range.begin(), range.end(), p_left, p_right);
     }
   } else {
     const uint32_t lower_bound = gmat.cut.Ptrs()[fid];
     const uint32_t upper_bound = gmat.cut.Ptrs()[fid + 1];
 
     if (default_left) {
-      child_nodes_sizes = PartitionSparseKernel<true>(rid, idx, offset, split_cond,
-          ibegin, iend, p_left, p_right, lower_bound, upper_bound, column);
+      child_nodes_sizes = PartitionSparseKernel<true>(
+          rid, idx, offset, split_cond,
+          range.begin(), range.end(), p_left, p_right, lower_bound, upper_bound, column);
     } else {
-      child_nodes_sizes = PartitionSparseKernel<false>(rid, idx, offset, split_cond,
-          ibegin, iend, p_left, p_right, lower_bound, upper_bound, column);
+      child_nodes_sizes = PartitionSparseKernel<false>(
+          rid, idx, offset, split_cond,
+          range.begin(), range.end(), p_left, p_right, lower_bound, upper_bound, column);
     }
   }
 
   const size_t n_left  = child_nodes_sizes.first;
   const size_t n_right = child_nodes_sizes.second;
 
-  partition_builder_.SetNLeftElems(node_in_set, ibegin, iend, n_left);
-  partition_builder_.SetNRightElems(node_in_set, ibegin, iend, n_right);
+  partition_builder_.SetNLeftElems(node_in_set, range.begin(), range.end(), n_left);
+  partition_builder_.SetNRightElems(node_in_set, range.begin(), range.end(), n_right);
 }
 
 
@@ -979,8 +980,8 @@ void QuantileHistMaker::Builder::ApplySplit(const std::vector<ExpandEntry> nodes
   // Store results in intermediate buffers from partition_builder_
   common::ParallelFor2d(space, this->nthread_, [&](size_t node_in_set, common::Range1d r) {
     const int32_t nid = nodes[node_in_set].nid;
-    PartitionKernel(node_in_set, nid, r.begin(), r.end(),
-        split_conditions[node_in_set], column_matrix, gmat, *p_tree);
+    PartitionKernel(node_in_set, nid, r,
+                    split_conditions[node_in_set], column_matrix, gmat, *p_tree);
   });
 
   // 3. Compute offsets to copy blocks of row-indexes

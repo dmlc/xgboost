@@ -9,6 +9,8 @@
 #include <vector>
 #include <algorithm>
 
+#include "xgboost/logging.h"
+
 namespace xgboost {
 namespace common {
 
@@ -20,11 +22,11 @@ class Range1d {
     CHECK_LT(begin, end);
   }
 
-  size_t begin() {
+  size_t begin() const {  // NOLINT
     return begin_;
   }
 
-  size_t end() {
+  size_t end() const {  // NOLINT
     return end_;
   }
 

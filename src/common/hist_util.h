@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017 by Contributors
+ * Copyright 2017-2020 by Contributors
  * \file hist_util.h
  * \brief Utility for fast histogram aggregation
  * \author Philip Cho, Tianqi Chen
@@ -25,75 +25,6 @@
 
 namespace xgboost {
 namespace common {
-
-/*
- * \brief A thin wrapper around dynamically allocated C-style array.
- * Make sure to call resize() before use.
- */
-template<typename T>
-struct SimpleArray {
-  ~SimpleArray() {
-    std::free(ptr_);
-    ptr_ = nullptr;
-  }
-
-  void resize(size_t n) {
-    T* ptr = static_cast<T*>(std::malloc(n * sizeof(T)));
-    CHECK(ptr) << "Failed to allocate memory";
-    if (ptr_) {
-      std::memcpy(ptr, ptr_, n_ * sizeof(T));
-      std::free(ptr_);
-    }
-    ptr_ = ptr;
-    n_ = n;
-  }
-
-  T& operator[](size_t idx) {
-    return ptr_[idx];
-  }
-
-  T& operator[](size_t idx) const {
-    return ptr_[idx];
-  }
-
-  size_t size() const {
-    return n_;
-  }
-
-  T back() const {
-    return ptr_[n_-1];
-  }
-
-  T* data() {
-    return ptr_;
-  }
-
-  const T* data() const {
-    return ptr_;
-  }
-
-
-  T* begin() {
-    return ptr_;
-  }
-
-  const T* begin() const {
-    return ptr_;
-  }
-
-  T* end() {
-    return ptr_ + n_;
-  }
-
-  const T* end() const {
-    return ptr_ + n_;
-  }
-
- private:
-  T* ptr_ = nullptr;
-  size_t n_ = 0;
-};
-
 /*!
  * \brief A single row in global histogram index.
  *  Directly represent the global index in the histogram entry.
@@ -267,8 +198,9 @@ size_t DeviceSketch(int device,
 
 /*!
  * \brief preprocessed global index matrix, in CSR format
- *  Transform floating values to integer index in histogram
- *  This is a global histogram index.
+ *
+ *  Transform floating values to integer index in histogram This is a global histogram
+ *  index for CPU histogram.  On GPU ellpack page is used.
  */
 struct GHistIndexMatrix {
   /*! \brief row pointer to rows by element position */
@@ -612,11 +544,8 @@ class ParallelGHistBuilder {
  */
 class GHistBuilder {
  public:
-  // initialize builder
-  inline void Init(size_t nthread, uint32_t nbins) {
-    nthread_ = nthread;
-    nbins_ = nbins;
-  }
+  GHistBuilder() : nthread_{0}, nbins_{0} {}
+  GHistBuilder(size_t nthread, uint32_t nbins) : nthread_{nthread}, nbins_{nbins} {}
 
   // construct a histogram via histogram aggregation
   void BuildHist(const std::vector<GradientPair>& gpair,
@@ -632,7 +561,7 @@ class GHistBuilder {
   // construct a histogram via subtraction trick
   void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);
 
-  uint32_t GetNumBins() {
+  uint32_t GetNumBins() const {
       return nbins_;
   }
 
