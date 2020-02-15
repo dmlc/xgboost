@@ -146,8 +146,12 @@ class CPUPredictor : public Predictor {
     CHECK_EQ(tree_begin, 0);
     auto* out_preds = &predts->predictions;
     CHECK_GE(predts->version, tree_begin);
+    if (out_preds->Size() == 0 && dmat->Info().num_row_ != 0) {
+      CHECK_EQ(predts->version, 0);
+    }
     if (predts->version == 0) {
-      CHECK_EQ(out_preds->Size(), 0);
+      // out_preds->Size() can be non-zero as it's initialized here before any tree is
+      // built at the 0^th iterator.
       this->InitOutPredictions(dmat->Info(), out_preds, model);
     }
 
@@ -183,30 +187,6 @@ class CPUPredictor : public Predictor {
 
     CHECK(out_preds->Size() == output_groups * dmat->Info().num_row_ ||
           out_preds->Size() == dmat->Info().num_row_);
-  }
-
-  void UpdatePredictionCache(
-      const gbm::GBTreeModel& model,
-      std::vector<std::unique_ptr<TreeUpdater>>* updaters,
-      int num_new_trees,
-      DMatrix* m,
-      PredictionCacheEntry* predts) override {
-    int old_ntree = model.trees.size() - num_new_trees;
-    // update cache entry
-    auto* out = &predts->predictions;
-    if (predts->predictions.Size() == 0) {
-      this->InitOutPredictions(m->Info(), out, model);
-      this->PredInternal(m, &out->HostVector(), model, 0, model.trees.size());
-    } else if (model.learner_model_param_->num_output_group == 1 &&
-               updaters->size() > 0 &&
-               num_new_trees == 1 &&
-               updaters->back()->UpdatePredictionCache(m, out)) {
-      {}
-    } else {
-      PredInternal(m, &out->HostVector(), model, old_ntree, model.trees.size());
-    }
-    auto delta = num_new_trees / model.learner_model_param_->num_output_group;
-    predts->Update(delta);
   }
 
   void PredictInstance(const SparsePage::Inst& inst,

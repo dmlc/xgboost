@@ -87,6 +87,7 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
    * \param out_preds output vector that stores the prediction
    * \param ntree_limit limit number of trees used for boosted tree
    *   predictor, when it equals 0, this means we are using all the trees
+   * \param training Whether the prediction result is used for training
    * \param pred_leaf whether to only predict the leaf index of each tree in a boosted tree predictor
    * \param pred_contribs whether to only predict the feature contributions
    * \param approx_contribs whether to approximate the feature contributions for speed

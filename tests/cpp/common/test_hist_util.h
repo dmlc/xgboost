@@ -1,9 +1,15 @@
 #pragma once
 #include <gtest/gtest.h>
+#include <dmlc/filesystem.h>
+#include <random>
+#include <vector>
+#include <string>
+#include <fstream>
+#include "../../../src/common/hist_util.h"
 #include "../../../src/data/simple_dmatrix.h"
 
 // Some helper functions used to test both GPU and CPU algorithms
-// 
+//
 namespace xgboost {
 namespace common {
 
@@ -13,8 +19,8 @@ inline std::vector<float> GenerateRandom(int num_rows, int num_columns) {
   std::mt19937 rng(0);
   std::uniform_real_distribution<float> dist(0.0, 1.0);
   std::generate(x.begin(), x.end(), [&]() { return dist(rng); });
-  for (auto i = 0ull; i < num_columns; i++) {
-    for (auto j = 0ull; j < num_rows; j++) {
+  for (auto i = 0; i < num_columns; i++) {
+    for (auto j = 0; j < num_rows; j++) {
       x[j * num_columns + i] += i;
     }
   }
@@ -22,14 +28,13 @@ inline std::vector<float> GenerateRandom(int num_rows, int num_columns) {
 }
 
 inline std::vector<float> GenerateRandomCategoricalSingleColumn(int n,
-                                                         int num_categories) {
+                                                                int num_categories) {
   std::vector<float> x(n);
   std::mt19937 rng(0);
   std::uniform_int_distribution<int> dist(0, num_categories - 1);
   std::generate(x.begin(), x.end(), [&]() { return dist(rng); });
   // Make sure each category is present
-  for(auto i = 0ull; i < num_categories; i++)
-  {
+  for(auto i = 0; i < num_categories; i++) {
     x[i] = i;
   }
   return x;
@@ -47,9 +52,9 @@ inline std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
   // Create the svm file in a temp dir
   const std::string tmp_file = tempdir.path + "/temp.libsvm";
   std::ofstream fo(tmp_file.c_str());
-  for (auto i = 0ull; i < num_rows; i++) {
+  for (auto i = 0; i < num_rows; i++) {
     std::stringstream row_data;
-    for (auto j = 0ull; j < num_columns; j++) {
+    for (auto j = 0; j < num_columns; j++) {
       row_data << 1 << " " << j << ":" << std::setprecision(15)
                << x[i * num_columns + j];
     }
@@ -62,7 +67,7 @@ inline std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
 
 // Test that elements are approximately equally distributed among bins
 inline void TestBinDistribution(const HistogramCuts& cuts, int column_idx,
-                                const std::vector<float>& column, 
+                                const std::vector<float>& column,
                                 int num_bins) {
   std::map<int, int> counts;
   for (auto& v : column) {
@@ -144,11 +149,11 @@ inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
 // x is dense and row major
 inline void ValidateCuts(const HistogramCuts& cuts, std::vector<float>& x,
                          int num_rows, int num_columns,
-                          int num_bins) {
-   for (auto i = 0ull; i < num_columns; i++) {
+                         int num_bins) {
+   for (auto i = 0; i < num_columns; i++) {
      // Extract the column
      std::vector<float> column(num_rows);
-     for (auto j = 0ull; j < num_rows; j++) {
+     for (auto j = 0; j < num_rows; j++) {
        column[j] = x[j*num_columns + i];
      }
      ValidateColumn(cuts,i, column, num_bins);

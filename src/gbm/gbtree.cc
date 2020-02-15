@@ -296,8 +296,15 @@ void GBTree::CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& ne
     num_new_trees += new_trees[gid].size();
     model_.CommitModel(std::move(new_trees[gid]), gid);
   }
-  CHECK(configured_);
-  GetPredictor()->UpdatePredictionCache(model_, &updaters_, num_new_trees, m, predts);
+  auto* out = &predts->predictions;
+  if (model_.learner_model_param_->num_output_group == 1 &&
+      updaters_.size() > 0 &&
+      num_new_trees == 1 &&
+      out->Size() > 0 &&
+      updaters_.back()->UpdatePredictionCache(m, out)) {
+    auto delta = num_new_trees / model_.learner_model_param_->num_output_group;
+    predts->Update(delta);
+  }
   monitor_.Stop("CommitModel");
 }
 
@@ -355,6 +362,76 @@ void GBTree::SaveModel(Json* p_out) const {
   out["model"] = Object();
   auto& model = out["model"];
   model_.SaveModel(&model);
+}
+
+void GBTree::PredictBatch(DMatrix* p_fmat,
+                          PredictionCacheEntry* out_preds,
+                          bool training,
+                          unsigned ntree_limit) {
+  CHECK(configured_);
+  GetPredictor(&out_preds->predictions, p_fmat)
+      ->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
+}
+
+std::unique_ptr<Predictor> const &
+GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
+                     DMatrix *f_dmat) const {
+  CHECK(configured_);
+  if (tparam_.predictor != PredictorType::kAuto) {
+    if (tparam_.predictor == PredictorType::kGPUPredictor) {
+#if defined(XGBOOST_USE_CUDA)
+      CHECK(gpu_predictor_);
+      return gpu_predictor_;
+#else
+      this->AssertGPUSupport();
+#endif  // defined(XGBOOST_USE_CUDA)
+    }
+    CHECK(cpu_predictor_);
+    return cpu_predictor_;
+  }
+
+  auto on_device =
+      f_dmat &&
+      (*(f_dmat->GetBatches<SparsePage>().begin())).data.DeviceCanRead();
+
+  // Use GPU Predictor if data is already on device.
+  if (on_device) {
+#if defined(XGBOOST_USE_CUDA)
+    CHECK(gpu_predictor_);
+    return gpu_predictor_;
+#else
+    LOG(FATAL) << "Data is on CUDA device, but XGBoost is not compiled with "
+                  "CUDA support.";
+    return cpu_predictor_;
+#endif  // defined(XGBOOST_USE_CUDA)
+  }
+
+  // GPU_Hist by default has prediction cache calculated from quantile values,
+  // so GPU Predictor is not used for training dataset.  But when XGBoost
+  // performs continue training with an existing model, the prediction cache is
+  // not availbale and number of trees doesn't equal zero, the whole training
+  // dataset got copied into GPU for precise prediction.  This condition tries
+  // to avoid such copy by calling CPU Predictor instead.
+  if ((out_pred && out_pred->Size() == 0) && (model_.param.num_trees != 0) &&
+      // FIXME(trivialfis): Implement a better method for testing whether data
+      // is on device after DMatrix refactoring is done.
+      !on_device) {
+    CHECK(cpu_predictor_);
+    return cpu_predictor_;
+  }
+
+  if (tparam_.tree_method == TreeMethod::kGPUHist) {
+#if defined(XGBOOST_USE_CUDA)
+    CHECK(gpu_predictor_);
+    return gpu_predictor_;
+#else
+    this->AssertGPUSupport();
+    return cpu_predictor_;
+#endif  // defined(XGBOOST_USE_CUDA)
+  }
+
+  CHECK(cpu_predictor_);
+  return cpu_predictor_;
 }
 
 class Dart : public GBTree {

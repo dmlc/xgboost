@@ -134,31 +134,6 @@ class Predictor {
                             uint32_t const ntree_limit = 0) = 0;
 
   /**
-   * \fn  virtual void Predictor::UpdatePredictionCache( const gbm::GBTreeModel
-   * &model, std::vector<std::unique_ptr<TreeUpdater> >* updaters, int
-   * num_new_trees) = 0;
-   *
-   * \brief Update the internal prediction cache using newly added trees. Will
-   * use the tree updater to do this if possible. Should be called as a part of
-   * the tree boosting process to facilitate the look up of predictions
-   * at a later time.
-   *
-   * \param           model         The model.
-   * \param [in,out]  updaters      The updater sequence for gradient boosting.
-   * \param           num_new_trees Number of new trees.
-   */
-
-  virtual void UpdatePredictionCache(
-      const gbm::GBTreeModel& model,
-      std::vector<std::unique_ptr<TreeUpdater>>* updaters,
-      int num_new_trees,
-      DMatrix* m,
-      PredictionCacheEntry* predts) = 0;
-
-  /**
-   * \fn  virtual void Predictor::PredictInstance( const SparsePage::Inst&
-   * inst, std::vector<bst_float>* out_preds, const gbm::GBTreeModel& model,
-   *
    * \brief online prediction function, predict score for one instance at a time
    * NOTE: use the batch prediction interface if possible, batch prediction is
    * usually more efficient than online prediction This function is NOT
@@ -234,7 +209,6 @@ class Predictor {
    *
    * \param name           Name of the predictor.
    * \param generic_param  Pointer to runtime parameters.
-   * \param cache          Pointer to prediction cache.
    */
   static Predictor* Create(
       std::string const& name, GenericParameter const* generic_param);
