@@ -244,7 +244,7 @@ class DenseCuts  : public CutsBuilder {
       CutsBuilder(container) {
     monitor_.Init(__FUNCTION__);
   }
-  void Init(std::vector<WQSketch>* sketchs, uint32_t max_num_bins);
+  void Init(std::vector<WQSketch>* sketchs, uint32_t max_num_bins, size_t max_rows);
   void Build(DMatrix* p_fmat, uint32_t max_num_bins) override;
 };
 
