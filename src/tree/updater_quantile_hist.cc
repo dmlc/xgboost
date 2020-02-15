@@ -752,8 +752,9 @@ void QuantileHistMaker::Builder::EvaluateSplit(const std::vector<ExpandEntry>& n
     for (auto idx_in_feature_set = r.begin(); idx_in_feature_set < r.end(); ++idx_in_feature_set) {
       const auto fid = features_sets[nid_in_set]->ConstHostVector()[idx_in_feature_set];
       if (interaction_constraints_.Query(nid, fid)) {
-        auto grad_stats = this->EnumerateSplit<+1>(gmat, node_hist, snode_[nid], fmat.Info(),
-                                                   &best_split_tloc_[nthread*nid_in_set + tid], fid, nid);
+        auto grad_stats = this->EnumerateSplit<+1>(
+            gmat, node_hist, snode_[nid], fmat.Info(),
+            &best_split_tloc_[nthread*nid_in_set + tid], fid, nid);
         if (SplitContainsMissingValues(grad_stats, snode_[nid])) {
           this->EnumerateSplit<-1>(gmat, node_hist, snode_[nid], fmat.Info(),
                                    &best_split_tloc_[nthread*nid_in_set + tid], fid, nid);
