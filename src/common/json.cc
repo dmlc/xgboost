@@ -693,30 +693,6 @@ Json JsonReader::ParseBoolean() {
   return Json{JsonBoolean{result}};
 }
 
-// This is an ad-hoc solution for writing numeric value in standard way.  We need to add
-// a locale independent way of writing stream like `std::{from, to}_chars' from C++-17.
-// FIXME(trivialfis): Remove this.
-class GlobalCLocale {
-  std::locale ori_;
-
- public:
-  GlobalCLocale() : ori_{std::locale()} {
-    if (ori_ != std::locale::classic()) {
-      std::string const name{"C"};
-      try {
-        std::locale::global(std::locale(name.c_str()));
-      } catch (std::runtime_error const &e) {
-        LOG(FATAL) << "Failed to set locale: " << name;
-      }
-    }
-  }
-  ~GlobalCLocale() {
-    if (ori_ != std::locale::classic()) {
-      std::locale::global(ori_);
-    }
-  }
-};
-
 Json Json::Load(StringView str) {
   JsonReader reader(str);
   Json json{reader.Load()};
