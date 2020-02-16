@@ -718,26 +718,22 @@ class GlobalCLocale {
 };
 
 Json Json::Load(StringView str) {
-  GlobalCLocale guard;
   JsonReader reader(str);
   Json json{reader.Load()};
   return json;
 }
 
 Json Json::Load(JsonReader* reader) {
-  GlobalCLocale guard;
   Json json{reader->Load()};
   return json;
 }
 
 void Json::Dump(Json json, std::ostream *stream, bool pretty) {
-  GlobalCLocale guard;
   JsonWriter writer(stream, pretty);
   writer.Save(json);
 }
 
 void Json::Dump(Json json, std::string* str, bool pretty) {
-  GlobalCLocale guard;
   std::stringstream ss;
   JsonWriter writer(&ss, pretty);
   writer.Save(json);
