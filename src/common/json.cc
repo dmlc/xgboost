@@ -2,6 +2,7 @@
  * Copyright (c) by Contributors 2019
  */
 #include <cctype>
+#include <locale>
 #include <sstream>
 #include <limits>
 #include <cmath>
@@ -700,15 +701,19 @@ class GlobalCLocale {
 
  public:
   GlobalCLocale() : ori_{std::locale()} {
-    std::string const name {"C"};
-    try {
-      std::locale::global(std::locale(name.c_str()));
-    } catch (std::runtime_error const& e) {
-      LOG(FATAL) << "Failed to set locale: " << name;
+    if (ori_ != std::locale::classic()) {
+      std::string const name{"C"};
+      try {
+        std::locale::global(std::locale(name.c_str()));
+      } catch (std::runtime_error const &e) {
+        LOG(FATAL) << "Failed to set locale: " << name;
+      }
     }
   }
   ~GlobalCLocale() {
-    std::locale::global(ori_);
+    if (ori_ != std::locale::classic()) {
+      std::locale::global(ori_);
+    }
   }
 };
 
