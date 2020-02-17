@@ -329,7 +329,7 @@ XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle, const char* fname,
   if (data::SimpleDMatrix* derived = dynamic_cast<data::SimpleDMatrix*>(dmat)) {
     derived->SaveToLocalFile(fname);
   } else {
-    LOG(FATAL) << "Legacy binary saving only supported by SimpleDMatrix";
+    LOG(FATAL) << "binary saving only supported by SimpleDMatrix";
   }
   API_END();
 }
