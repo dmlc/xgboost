@@ -139,8 +139,8 @@ class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     val r = new Random(0)
     var df = ss.createDataFrame(Seq.fill(100)(r.nextInt(2)).map(i => (i, i))).
       toDF("feature", "label")
-    // since 0.82/model has 251 features and xgboost has enabled column check since 1.0.0
-    // we must ensure column number should be same with model's
+    // 0.82/model was trained with 251 features. and transform will throw exception
+    // if feature size of data is not equal to 251
     for (x <- 1 to 250) {
       df = df.withColumn(s"feature_${x}", lit(1))
     }

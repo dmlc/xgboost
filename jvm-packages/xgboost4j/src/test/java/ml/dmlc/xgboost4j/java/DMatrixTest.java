@@ -66,6 +66,7 @@ public class DMatrixTest {
     java.util.List<LabeledPoint> blist = new java.util.LinkedList<LabeledPoint>();
     int featureSize = 4;
     for (int i = 0; i < nrep; ++i) {
+      // set some rows with wrong feature size
       if (i % 10 == 1) {
         featureSize = 5;
       }

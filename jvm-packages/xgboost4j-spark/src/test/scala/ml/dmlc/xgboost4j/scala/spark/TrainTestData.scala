@@ -87,13 +87,18 @@ object MultiClassification extends TrainTestData {
 }
 
 object Regression extends TrainTestData {
-  val train: Seq[XGBLabeledPoint] = getLabeledPoints("/machine.txt.train", 36, zeroBased = true)
-  val test: Seq[XGBLabeledPoint] = getLabeledPoints("/machine.txt.test", 36, zeroBased = true)
+  val MACHINE_COL_NUM = 36
+  val train: Seq[XGBLabeledPoint] = getLabeledPoints(
+    "/machine.txt.train", MACHINE_COL_NUM, zeroBased = true)
+  val test: Seq[XGBLabeledPoint] = getLabeledPoints(
+    "/machine.txt.test", MACHINE_COL_NUM, zeroBased = true)
 }
 
 object Ranking extends TrainTestData {
+  val RANK_COL_NUM = 3
   val train: Seq[XGBLabeledPoint] = getLabeledPointsWithGroup("/rank.train.csv")
-  val test: Seq[XGBLabeledPoint] = getLabeledPoints("/rank.test.txt", 3, zeroBased = false)
+  val test: Seq[XGBLabeledPoint] = getLabeledPoints(
+    "/rank.test.txt", RANK_COL_NUM, zeroBased = false)
 
   private def getGroups(resource: String): Seq[Int] = {
     getResourceLines(resource).map(_.toInt).toList
@@ -101,15 +106,17 @@ object Ranking extends TrainTestData {
 }
 
 object Synthetic extends {
+  val TRAIN_COL_NUM = 3
+  val TRAIN_WRONG_COL_NUM = 2
   val train: Seq[XGBLabeledPoint] = Seq(
-    XGBLabeledPoint(1.0f, 3, Array(0, 1), Array(1.0f, 2.0f)),
-    XGBLabeledPoint(0.0f, 3, Array(0, 1, 2), Array(1.0f, 2.0f, 3.0f)),
-    XGBLabeledPoint(0.0f, 3, Array(0, 1, 2), Array(1.0f, 2.0f, 3.0f)),
-    XGBLabeledPoint(1.0f, 3, Array(0, 1), Array(1.0f, 2.0f))
+    XGBLabeledPoint(1.0f, TRAIN_COL_NUM, Array(0, 1), Array(1.0f, 2.0f)),
+    XGBLabeledPoint(0.0f, TRAIN_COL_NUM, Array(0, 1, 2), Array(1.0f, 2.0f, 3.0f)),
+    XGBLabeledPoint(0.0f, TRAIN_COL_NUM, Array(0, 1, 2), Array(1.0f, 2.0f, 3.0f)),
+    XGBLabeledPoint(1.0f, TRAIN_COL_NUM, Array(0, 1), Array(1.0f, 2.0f))
   )
 
   val trainWithDiffFeatureSize: Seq[XGBLabeledPoint] = Seq(
-    XGBLabeledPoint(1.0f, 2, Array(0, 1), Array(1.0f, 2.0f)),
-    XGBLabeledPoint(0.0f, 3, Array(0, 1, 2), Array(1.0f, 2.0f, 3.0f))
+    XGBLabeledPoint(1.0f, TRAIN_WRONG_COL_NUM, Array(0, 1), Array(1.0f, 2.0f)),
+    XGBLabeledPoint(0.0f, TRAIN_COL_NUM, Array(0, 1, 2), Array(1.0f, 2.0f, 3.0f))
   )
 }

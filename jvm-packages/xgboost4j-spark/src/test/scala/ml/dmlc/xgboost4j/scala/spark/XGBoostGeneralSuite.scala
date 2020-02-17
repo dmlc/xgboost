@@ -18,14 +18,17 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import java.nio.file.Files
 
+import ml.dmlc.xgboost4j.java.XGBoostError
+
 import scala.util.Random
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.DMatrix
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.TaskContext
+import org.apache.spark.{Partitioner, TaskContext}
 import org.scalatest.FunSuite
 import org.apache.spark.ml.feature.VectorAssembler
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.lit
 
 class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
@@ -350,8 +353,8 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     val r = new Random(0)
     var df = ss.createDataFrame(Seq.fill(100000)(1).map(i => (i, i))).
       toDF("feature", "label").repartition(5)
-    // since 0.82/model has 251 features and xgboost has enabled column check since 1.0.0
-    // we must ensure column number should be same with model's
+    // 0.82/model was trained with 251 features. and transform will throw exception
+    // if feature size of data is not equal to 251
     for (x <- 1 to 250) {
       df = df.withColumn(s"feature_${x}", lit(1))
     }
@@ -369,5 +372,47 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     val df2 = model.transform(df1)
     df1.collect()
     df2.collect()
+  }
+
+  test("transform throwing exception when feature size of dataset is different with model's") {
+    val modelPath = getClass.getResource("/model/0.82/model").getPath
+    val model = XGBoostClassificationModel.read.load(modelPath)
+    val r = new Random(0)
+    // 0.82/model was trained with 251 features. and transform will throw exception
+    // if feature size of data is not equal to 251
+    val df = ss.createDataFrame(Seq.fill(100)(r.nextInt(2)).map(i => (i, i))).
+      toDF("feature", "label")
+    val assembler = new VectorAssembler()
+      .setInputCols(df.columns.filter(!_.contains("label")))
+      .setOutputCol("features")
+    val thrown = intercept[Exception] {
+      model.transform(assembler.transform(df)).show()
+    }
+    assert(thrown.getMessage.contains(
+      "Number of columns does not match number of features in booster"))
+  }
+
+  test("train throwing exception when feature size of dataset is different on distributed train") {
+    val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+      "objective" -> "binary:logistic",
+      "num_round" -> 5, "num_workers" -> 2, "use_external_memory" -> true, "missing" -> 0)
+    import DataUtils._
+    val sparkSession = SparkSession.builder().getOrCreate()
+    import sparkSession.implicits._
+    val repartitioned = sc.parallelize(Synthetic.trainWithDiffFeatureSize, 2)
+      .map(lp => (lp.label, lp)).partitionBy(
+      new Partitioner {
+        override def numPartitions: Int = 2
+
+        override def getPartition(key: Any): Int = key.asInstanceOf[Float].toInt
+      }
+    ).map(_._2).zipWithIndex().map {
+      case (lp, id) =>
+        (id, lp.label, lp.features)
+    }.toDF("id", "label", "features")
+    val xgb = new XGBoostClassifier(paramMap)
+    intercept[XGBoostError] {
+      xgb.fit(repartitioned)
+    }
   }
 }
