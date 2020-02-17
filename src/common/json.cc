@@ -2,6 +2,7 @@
  * Copyright (c) by Contributors 2019
  */
 #include <cctype>
+#include <locale>
 #include <sstream>
 #include <limits>
 #include <cmath>
@@ -692,47 +693,23 @@ Json JsonReader::ParseBoolean() {
   return Json{JsonBoolean{result}};
 }
 
-// This is an ad-hoc solution for writing numeric value in standard way.  We need to add
-// a locale independent way of writing stream like `std::{from, to}_chars' from C++-17.
-// FIXME(trivialfis): Remove this.
-class GlobalCLocale {
-  std::locale ori_;
-
- public:
-  GlobalCLocale() : ori_{std::locale()} {
-    std::string const name {"C"};
-    try {
-      std::locale::global(std::locale(name.c_str()));
-    } catch (std::runtime_error const& e) {
-      LOG(FATAL) << "Failed to set locale: " << name;
-    }
-  }
-  ~GlobalCLocale() {
-    std::locale::global(ori_);
-  }
-};
-
 Json Json::Load(StringView str) {
-  GlobalCLocale guard;
   JsonReader reader(str);
   Json json{reader.Load()};
   return json;
 }
 
 Json Json::Load(JsonReader* reader) {
-  GlobalCLocale guard;
   Json json{reader->Load()};
   return json;
 }
 
 void Json::Dump(Json json, std::ostream *stream, bool pretty) {
-  GlobalCLocale guard;
   JsonWriter writer(stream, pretty);
   writer.Save(json);
 }
 
 void Json::Dump(Json json, std::string* str, bool pretty) {
-  GlobalCLocale guard;
   std::stringstream ss;
   JsonWriter writer(&ss, pretty);
   writer.Save(json);
