@@ -17,7 +17,6 @@
 #include "helpers.h"
 #include "xgboost/c_api.h"
 
-#include "../../src/data/simple_csr_source.h"
 #include "../../src/gbm/gbtree_model.h"
 #include "xgboost/predictor.h"
 
@@ -256,17 +255,13 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
   }
   fo.close();
 
-  std::unique_ptr<DMatrix> dmat(DMatrix::Load(
-    tmp_file + "#" + tmp_file + ".cache", true, false, "auto", page_size));
-  EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
-
-  if (!page_size) {
-    std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource);
-    source->CopyFrom(dmat.get());
-    return std::unique_ptr<DMatrix>(DMatrix::Create(std::move(source)));
-  } else {
-    return dmat;
+  std::string uri = tmp_file;
+  if (page_size > 0) {
+    uri += "#" + tmp_file + ".cache";
   }
+  std::unique_ptr<DMatrix> dmat(
+      DMatrix::Load(uri, true, false, "auto", page_size));
+  return dmat;
 }
 
 gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, size_t n_classes) {

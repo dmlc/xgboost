@@ -12,9 +12,9 @@
 #include "xgboost/version_config.h"
 #include "sparse_page_writer.h"
 #include "simple_dmatrix.h"
-#include "simple_csr_source.h"
 
 #include "../common/io.h"
+#include "../common/math.h"
 #include "../common/version.h"
 #include "../common/group_data.h"
 #include "../data/adapter.h"
@@ -336,10 +336,8 @@ DMatrix* DMatrix::Load(const std::string& uri,
     if (fi != nullptr) {
       common::PeekableInStream is(fi.get());
       if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic) &&
-        magic == data::SimpleCSRSource::kMagic) {
-        std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
-        source->LoadBinary(&is);
-        DMatrix* dmat = DMatrix::Create(std::move(source), cache_file);
+        magic == data::SimpleDMatrix::kMagic) {
+        DMatrix* dmat = new data::SimpleDMatrix(&is);
         if (!silent) {
           LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
             << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
@@ -412,13 +410,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
 }
 
 
-void DMatrix::SaveToLocalFile(const std::string& fname) {
-  data::SimpleCSRSource source;
-  source.CopyFrom(this);
-  std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
-  source.SaveBinary(fo.get());
-}
-
+/*
 DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
                          const std::string& cache_prefix) {
   if (cache_prefix.length() == 0) {
@@ -434,6 +426,7 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
 #endif  // DMLC_ENABLE_STD_THREAD
   }
 }
+*/
 
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,

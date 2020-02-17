@@ -20,7 +20,6 @@
 #include "xgboost/json.h"
 
 #include "c_api_error.h"
-#include "../data/simple_csr_source.h"
 #include "../common/io.h"
 #include "../data/adapter.h"
 #include "../data/simple_dmatrix.h"
@@ -296,8 +295,6 @@ XGB_DLL int XGDMatrixSliceDMatrixEx(DMatrixHandle handle,
                                     xgboost::bst_ulong len,
                                     DMatrixHandle* out,
                                     int allow_groups) {
-  std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
-
   API_BEGIN();
   CHECK_HANDLE();
   if (!allow_groups) {
@@ -324,12 +321,16 @@ XGB_DLL int XGDMatrixFree(DMatrixHandle handle) {
   API_END();
 }
 
-XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle,
-                                const char* fname,
+XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle, const char* fname,
                                 int silent) {
   API_BEGIN();
   CHECK_HANDLE();
-  static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->SaveToLocalFile(fname);
+  auto dmat = static_cast<std::shared_ptr<DMatrix>*>(handle)->get();
+  if (data::SimpleDMatrix* derived = dynamic_cast<data::SimpleDMatrix*>(dmat)) {
+    derived->SaveToLocalFile(fname);
+  } else {
+    LOG(FATAL) << "Legacy binary saving only supported by SimpleDMatrix";
+  }
   API_END();
 }
 
