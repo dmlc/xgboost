@@ -201,11 +201,7 @@ class GBTree : public GradientBooster {
   void PredictBatch(DMatrix* p_fmat,
                     PredictionCacheEntry* out_preds,
                     bool training,
-                    unsigned ntree_limit) override {
-    CHECK(configured_);
-    GetPredictor(&out_preds->predictions, p_fmat)->PredictBatch(
-        p_fmat, out_preds, model_, 0, ntree_limit);
-  }
+                    unsigned ntree_limit) override;
 
   void PredictInstance(const SparsePage::Inst& inst,
                        std::vector<bst_float>* out_preds,
@@ -256,62 +252,7 @@ class GBTree : public GradientBooster {
                      std::vector<std::unique_ptr<RegTree> >* ret);
 
   std::unique_ptr<Predictor> const& GetPredictor(HostDeviceVector<float> const* out_pred = nullptr,
-                                                 DMatrix* f_dmat = nullptr) const {
-    CHECK(configured_);
-    if (tparam_.predictor != PredictorType::kAuto) {
-      if (tparam_.predictor == PredictorType::kGPUPredictor) {
-#if defined(XGBOOST_USE_CUDA)
-        CHECK(gpu_predictor_);
-        return gpu_predictor_;
-#else
-        this->AssertGPUSupport();
-#endif  // defined(XGBOOST_USE_CUDA)
-      }
-      CHECK(cpu_predictor_);
-      return cpu_predictor_;
-    }
-
-    auto on_device = f_dmat && (*(f_dmat->GetBatches<SparsePage>().begin())).data.DeviceCanRead();
-
-    // Use GPU Predictor if data is already on device.
-    if (on_device) {
-#if defined(XGBOOST_USE_CUDA)
-      CHECK(gpu_predictor_);
-      return gpu_predictor_;
-#else
-      LOG(FATAL) << "Data is on CUDA device, but XGBoost is not compiled with CUDA support.";
-      return cpu_predictor_;
-#endif  // defined(XGBOOST_USE_CUDA)
-    }
-
-    // GPU_Hist by default has prediction cache calculated from quantile values, so GPU
-    // Predictor is not used for training dataset.  But when XGBoost performs continue
-    // training with an existing model, the prediction cache is not availbale and number
-    // of trees doesn't equal zero, the whole training dataset got copied into GPU for
-    // precise prediction.  This condition tries to avoid such copy by calling CPU
-    // Predictor instead.
-    if ((out_pred && out_pred->Size() == 0) &&
-        (model_.param.num_trees != 0) &&
-        // FIXME(trivialfis): Implement a better method for testing whether data is on
-        // device after DMatrix refactoring is done.
-        !on_device) {
-      CHECK(cpu_predictor_);
-      return cpu_predictor_;
-    }
-
-    if (tparam_.tree_method == TreeMethod::kGPUHist) {
-#if defined(XGBOOST_USE_CUDA)
-      CHECK(gpu_predictor_);
-      return gpu_predictor_;
-#else
-      this->AssertGPUSupport();
-      return cpu_predictor_;
-#endif  // defined(XGBOOST_USE_CUDA)
-    }
-
-    CHECK(cpu_predictor_);
-    return cpu_predictor_;
-  }
+                                                 DMatrix* f_dmat = nullptr) const;
 
   // commit new trees all at once
   virtual void CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees,

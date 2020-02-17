@@ -73,6 +73,7 @@ class TreeUpdater : public Configurable {
   /*!
    * \brief Create a tree updater given name
    * \param name Name of the tree updater.
+   * \param tparam A global runtime parameter
    */
   static TreeUpdater* Create(const std::string& name, GenericParameter const* tparam);
 };

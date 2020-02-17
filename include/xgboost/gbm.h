@@ -71,7 +71,7 @@ class GradientBooster : public Model, public Configurable {
    * \brief perform update to the model(boosting)
    * \param p_fmat feature matrix that provide access to features
    * \param in_gpair address of the gradient pair statistics of the data
-   * \param obj The objective function, optional, can be nullptr when use customized version
+   * \param prediction The output prediction cache entry that needs to be updated.
    * the booster may change content of gpair
    */
   virtual void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
@@ -158,7 +158,6 @@ class GradientBooster : public Model, public Configurable {
    * \param name name of gradient booster
    * \param generic_param Pointer to runtime parameters
    * \param learner_model_param pointer to global model parameters
-   * \param cache_mats The cache data matrix of the Booster.
    * \return The created booster.
    */
   static GradientBooster* Create(
