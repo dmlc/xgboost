@@ -24,6 +24,7 @@
 #include "adapter.h"
 #include "sparse_page_writer.h"
 #include "../common/common.h"
+#include <xgboost/data.h>
 
 namespace {
 
@@ -49,6 +50,26 @@ GetCacheShards(const std::string& cache_info) {
 namespace xgboost {
 namespace data {
 
+template<typename S, typename T>
+class SparseBatchIteratorImpl : public BatchIteratorImpl<T> {
+ public:
+  explicit SparseBatchIteratorImpl(S* source) : source_(source) {
+    CHECK(source_ != nullptr);
+    source_->BeforeFirst();
+    source_->Next();
+  }
+  T& operator*() override { return source_->Value(); }
+  const T& operator*() const override { return source_->Value(); }
+  void operator++() override { at_end_ = !source_->Next(); }
+  bool AtEnd() const override { return at_end_; }
+
+ private:
+  S* source_{nullptr};
+  bool at_end_{ false };
+};
+
+  /*! \brief magic number used to identify Page */
+  static const int kMagic = 0xffffab02;
 /*!
  * \brief decide the format from cache prefix.
  * \return pair of row format, column format type of the cache prefix.
@@ -89,34 +110,22 @@ inline CacheInfo ParseCacheInfo(const std::string& cache_info, const std::string
   return info;
 }
 
-/*!
- * \brief External memory data source.
- * \code
- * std::unique_ptr<DataSource> source(new SimpleCSRSource(cache_prefix));
- * // add data to source
- * DMatrix* dmat = DMatrix::Create(std::move(source));
- * \encode
- */
-template<typename T>
-class SparsePageSource : public DataSource<T> {
+  template <typename PageT>
+class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
  public:
-  /*!
-   * \brief Create source from cache files the cache_prefix.
-   * \param cache_prefix The prefix of cache we want to solve.
-   */
-  explicit SparsePageSource(const std::string& cache_info,
-                            const std::string& page_type) noexcept(false)
+  ExternalMemoryPrefetcher(const std::string& cache_info,
+                           const std::string& page_type) noexcept(false)
       : base_rowid_(0), page_(nullptr), clock_ptr_(0) {
     // read in the info files
     std::vector<std::string> cache_shards = GetCacheShards(cache_info);
     CHECK_NE(cache_shards.size(), 0U);
     {
       std::string name_info = cache_shards[0];
-      std::unique_ptr<dmlc::Stream> finfo(dmlc::Stream::Create(name_info.c_str(), "r"));
+      std::unique_ptr<dmlc::Stream> finfo(
+          dmlc::Stream::Create(name_info.c_str(), "r"));
       int tmagic;
       CHECK_EQ(finfo->Read(&tmagic, sizeof(tmagic)), sizeof(tmagic));
       CHECK_EQ(tmagic, kMagic) << "invalid format, magic number mismatch";
-      this->info.LoadBinary(finfo.get());
     }
     files_.resize(cache_shards.size());
     formats_.resize(cache_shards.size());
@@ -129,21 +138,22 @@ class SparsePageSource : public DataSource<T> {
       std::unique_ptr<dmlc::SeekStream>& fi = files_[i];
       std::string format;
       CHECK(fi->Read(&format)) << "Invalid page format";
-      formats_[i].reset(CreatePageFormat<T>(format));
-      std::unique_ptr<SparsePageFormat<T>>& fmt = formats_[i];
+      formats_[i].reset(CreatePageFormat<PageT>(format));
+      std::unique_ptr<SparsePageFormat<PageT>>& fmt = formats_[i];
       size_t fbegin = fi->Tell();
-      prefetchers_[i].reset(new dmlc::ThreadedIter<T>(4));
-      prefetchers_[i]->Init([&fi, &fmt] (T** dptr) {
-        if (*dptr == nullptr) {
-          *dptr = new T();
-        }
-        return fmt->Read(*dptr, fi.get());
-      }, [&fi, fbegin] () { fi->Seek(fbegin); });
+      prefetchers_[i].reset(new dmlc::ThreadedIter<PageT>(4));
+      prefetchers_[i]->Init(
+          [&fi, &fmt](PageT** dptr) {
+            if (*dptr == nullptr) {
+              *dptr = new PageT();
+            }
+            return fmt->Read(*dptr, fi.get());
+          },
+          [&fi, fbegin]() { fi->Seek(fbegin); });
     }
   }
-
   /*! \brief destructor */
-  ~SparsePageSource() override {
+  ~ExternalMemoryPrefetcher() override {
     delete page_;
   }
 
@@ -175,18 +185,34 @@ class SparsePageSource : public DataSource<T> {
   }
 
   // implement Value
-  T& Value() {
+  PageT& Value() {
     return *page_;
   }
 
-  const T& Value() const override {
+  const PageT& Value() const override {
     return *page_;
   }
+private:
+  /*! \brief number of rows */
+  size_t base_rowid_;
+  /*! \brief page currently on hold. */
+  PageT* page_;
+  /*! \brief internal clock ptr */
+  size_t clock_ptr_;
+  /*! \brief file pointer to the row blob file. */
+  std::vector<std::unique_ptr<dmlc::SeekStream>> files_;
+  /*! \brief Sparse page format file. */
+  std::vector<std::unique_ptr<SparsePageFormat<PageT>>> formats_;
+  /*! \brief internal prefetcher. */
+  std::vector<std::unique_ptr<dmlc::ThreadedIter<PageT>>> prefetchers_;
+};
 
+class SparsePageSource {
+ public:
   template <typename AdapterT>
-  static void CreateRowPage(AdapterT* adapter, float missing, int nthread,
-                            const std::string& cache_info,
-                            const size_t page_size = DMatrix::kPageSize) {
+  SparsePageSource(AdapterT* adapter, float missing, int nthread,
+                      const std::string& cache_info,
+                      const size_t page_size = DMatrix::kPageSize){
     const std::string page_type = ".row.page";
     auto cinfo = ParseCacheInfo(cache_info, page_type);
     {
@@ -198,7 +224,6 @@ class SparsePageSource : public DataSource<T> {
 
       uint64_t inferred_num_columns = 0;
       uint64_t inferred_num_rows = 0;
-      MetaInfo info;
       size_t bytes_write = 0;
       double tstart = dmlc::GetTime();
       // print every 4 sec.
@@ -307,54 +332,32 @@ class SparsePageSource : public DataSource<T> {
       CHECK(qids.empty() || qids.size() == info.num_row_);
       info.SaveBinary(fo.get());
     }
-    LOG(INFO) << "SparsePageSource::CreateRowPage Finished writing to "
+    LOG(INFO) << "SparsePageSource Finished writing to "
               << cinfo.name_info;
-  }
-  /*!
-   * \brief Create source cache by copy content from DMatrix.
-   * Creates transposed column page, may be sorted or not.
-   * \param cache_info The cache_info of cache file location.
-   * \param sorted Whether columns should be pre-sorted
-   */
-  static void CreateColumnPage(DMatrix* src,
-                               const std::string& cache_info, bool sorted) {
-    const std::string page_type = sorted ? ".sorted.col.page" : ".col.page";
-    CreatePageFromDMatrix(src, cache_info, page_type);
+
+    external_prefetcher_.reset(new ExternalMemoryPrefetcher<SparsePage>(cache_info, page_type));
   }
 
-  /*!
-   * \brief Check if the cache file already exists.
-   * \param cache_info The cache prefix of files.
-   * \param page_type   Type of the page.
-   * \return Whether cache file already exists.
-   */
-  static bool CacheExist(const std::string& cache_info,
-                         const std::string& page_type) {
-    std::vector<std::string> cache_shards = GetCacheShards(cache_info);
-    CHECK_NE(cache_shards.size(), 0U);
-    {
-      std::string name_info = cache_shards[0];
-      std::unique_ptr<dmlc::Stream> finfo(dmlc::Stream::Create(name_info.c_str(), "r", true));
-      if (finfo == nullptr) return false;
-    }
-    for (const std::string& prefix : cache_shards) {
-      std::string name_row = prefix + page_type;
-      std::unique_ptr<dmlc::Stream> frow(dmlc::Stream::Create(name_row.c_str(), "r", true));
-      if (frow == nullptr) return false;
-    }
-    return true;
+  BatchSet<SparsePage> GetBatchSet() {
+    auto begin_iter = BatchIterator<SparsePage>(
+        new SparseBatchIteratorImpl<ExternalMemoryPrefetcher<SparsePage>,
+                                    SparsePage>(external_prefetcher_.get()));
+    return BatchSet<SparsePage>(begin_iter);
   }
+  MetaInfo info;
+private:
+  std::unique_ptr<ExternalMemoryPrefetcher<SparsePage>> external_prefetcher_;
+};
 
-  /*! \brief magic number used to identify Page */
-  static const int kMagic = 0xffffab02;
-
- private:
-  static void CreatePageFromDMatrix(DMatrix* src, const std::string& cache_info,
-                                    const std::string& page_type,
-                                    const size_t page_size = DMatrix::kPageSize) {
+class CSCPageSource {
+ public:
+  CSCPageSource(DMatrix* src, const std::string& cache_info,
+                const size_t page_size = DMatrix::kPageSize) {
+    std::string page_type = ".col.page";
     auto cinfo = ParseCacheInfo(cache_info, page_type);
     {
-      SparsePageWriter<SparsePage> writer(cinfo.name_shards, cinfo.format_shards, 6);
+      SparsePageWriter<SparsePage> writer(cinfo.name_shards, cinfo.format_shards,
+        6);
       std::shared_ptr<SparsePage> page;
       writer.Alloc(&page);
       page->Clear();
@@ -362,15 +365,7 @@ class SparsePageSource : public DataSource<T> {
       size_t bytes_write = 0;
       double tstart = dmlc::GetTime();
       for (auto& batch : src->GetBatches<SparsePage>()) {
-        if (page_type == ".col.page") {
-          page->PushCSC(batch.GetTranspose(src->Info().num_col_));
-        } else if (page_type == ".sorted.col.page") {
-          SparsePage tmp = batch.GetTranspose(src->Info().num_col_);
-          page->PushCSC(tmp);
-          page->SortRows();
-        } else {
-          LOG(FATAL) << "Unknown page type: " << page_type;
-        }
+        page->PushCSC(batch.GetTranspose(src->Info().num_col_));
 
         if (page->MemCostBytes() >= page_size) {
           bytes_write += page->MemCostBytes();
@@ -379,30 +374,79 @@ class SparsePageSource : public DataSource<T> {
           page->Clear();
           double tdiff = dmlc::GetTime() - tstart;
           LOG(INFO) << "Writing to " << cache_info << " in "
-                    << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
-                    << (bytes_write >> 20UL) << " written";
+            << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
+            << (bytes_write >> 20UL) << " written";
         }
       }
       if (page->data.Size() != 0) {
         writer.PushWrite(std::move(page));
       }
+      LOG(INFO) << "CSCPageSource: Finished writing to " << cinfo.name_info;
     }
-    LOG(INFO) << "SparsePageSource: Finished writing to " << cinfo.name_info;
+    external_prefetcher_.reset(
+        new ExternalMemoryPrefetcher<CSCPage>(cache_info, page_type));
   }
 
-  /*! \brief number of rows */
-  size_t base_rowid_;
-  /*! \brief page currently on hold. */
-  T* page_;
-  /*! \brief internal clock ptr */
-  size_t clock_ptr_;
-  /*! \brief file pointer to the row blob file. */
-  std::vector<std::unique_ptr<dmlc::SeekStream>> files_;
-  /*! \brief Sparse page format file. */
-  std::vector<std::unique_ptr<SparsePageFormat<T>>> formats_;
-  /*! \brief internal prefetcher. */
-  std::vector<std::unique_ptr<dmlc::ThreadedIter<T>>> prefetchers_;
+  BatchSet<CSCPage> GetBatchSet() {
+    auto begin_iter = BatchIterator<CSCPage>(
+        new SparseBatchIteratorImpl<ExternalMemoryPrefetcher<CSCPage>, CSCPage>(
+            external_prefetcher_.get()));
+    return BatchSet<CSCPage>(begin_iter);
+  }
+
+ private:
+  std::unique_ptr<ExternalMemoryPrefetcher<CSCPage>> external_prefetcher_;
 };
+
+class SortedCSCPageSource {
+public:
+  SortedCSCPageSource(DMatrix* src, const std::string& cache_info,
+    const size_t page_size = DMatrix::kPageSize) {
+    std::string page_type = ".sorted.col.page";
+    auto cinfo = ParseCacheInfo(cache_info, page_type);
+    {
+      SparsePageWriter<SparsePage> writer(cinfo.name_shards, cinfo.format_shards,
+        6);
+      std::shared_ptr<SparsePage> page;
+      writer.Alloc(&page);
+      page->Clear();
+
+      size_t bytes_write = 0;
+      double tstart = dmlc::GetTime();
+      for (auto& batch : src->GetBatches<SparsePage>()) {
+        SparsePage tmp = batch.GetTranspose(src->Info().num_col_);
+        page->PushCSC(tmp);
+        page->SortRows();
+
+        if (page->MemCostBytes() >= page_size) {
+          bytes_write += page->MemCostBytes();
+          writer.PushWrite(std::move(page));
+          writer.Alloc(&page);
+          page->Clear();
+          double tdiff = dmlc::GetTime() - tstart;
+          LOG(INFO) << "Writing to " << cache_info << " in "
+            << ((bytes_write >> 20UL) / tdiff) << " MB/s, "
+            << (bytes_write >> 20UL) << " written";
+        }
+      }
+      if (page->data.Size() != 0) {
+        writer.PushWrite(std::move(page));
+      }
+      LOG(INFO) << "SortedCSCPageSource: Finished writing to " << cinfo.name_info;
+    }
+    external_prefetcher_.reset(new ExternalMemoryPrefetcher<SortedCSCPage>(cache_info, page_type));
+  }
+  BatchSet<SortedCSCPage> GetBatchSet() {
+  auto begin_iter = BatchIterator<SortedCSCPage>(
+      new SparseBatchIteratorImpl<ExternalMemoryPrefetcher<SortedCSCPage>, SortedCSCPage>(
+          external_prefetcher_.get()));
+  return BatchSet<SortedCSCPage>(begin_iter);
+  }
+
+private:
+  std::unique_ptr<ExternalMemoryPrefetcher<SortedCSCPage>> external_prefetcher_;
+};
+
 }  // namespace data
 }  // namespace xgboost
 #endif  // XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
