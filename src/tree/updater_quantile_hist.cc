@@ -241,7 +241,6 @@ void QuantileHistMaker::Builder::BuildNodeStats(
 
 void QuantileHistMaker::Builder::AddSplitsToTree(
           const GHistIndexMatrix &gmat,
-          DMatrix *p_fmat,
           RegTree *p_tree,
           int *num_leaves,
           int depth,
@@ -280,22 +279,21 @@ void QuantileHistMaker::Builder::AddSplitsToTree(
 }
 
 
-void QuantileHistMaker::Builder::EvaluateSplits(
+void QuantileHistMaker::Builder::EvaluateAndApplySplits(
     const GHistIndexMatrix &gmat,
     const ColumnMatrix &column_matrix,
-    DMatrix *p_fmat,
     RegTree *p_tree,
     int *num_leaves,
     int depth,
     unsigned *timestamp,
     std::vector<ExpandEntry> *temp_qexpand_depth) {
-  EvaluateSplit(qexpand_depth_wise_, gmat, hist_, *p_fmat, *p_tree);
+  EvaluateSplits(qexpand_depth_wise_, gmat, hist_, *p_tree);
 
   std::vector<ExpandEntry> nodes_for_apply_split;
-  AddSplitsToTree(gmat, p_fmat, p_tree, num_leaves, depth, timestamp,
+  AddSplitsToTree(gmat, p_tree, num_leaves, depth, timestamp,
                   &nodes_for_apply_split, temp_qexpand_depth);
 
-  ApplySplit(nodes_for_apply_split, gmat, column_matrix, hist_, *p_fmat, p_tree);
+  ApplySplit(nodes_for_apply_split, gmat, column_matrix, hist_, p_tree);
 }
 
 // Split nodes to 2 sets depending on amount of rows in each node
@@ -362,7 +360,7 @@ void QuantileHistMaker::Builder::ExpandWithDepthWise(
     SyncHistograms(starting_index, sync_count, p_tree);
 
     BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
-    EvaluateSplits(gmat, column_matrix, p_fmat, p_tree, &num_leaves, depth, &timestamp,
+    EvaluateAndApplySplits(gmat, column_matrix, p_tree, &num_leaves, depth, &timestamp,
                    &temp_qexpand_depth);
     // clean up
     qexpand_depth_wise_.clear();
@@ -394,7 +392,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
 
   this->InitNewNode(ExpandEntry::kRootNid, gmat, gpair_h, *p_fmat, *p_tree);
 
-  this->EvaluateSplit({node}, gmat, hist_, *p_fmat, *p_tree);
+  this->EvaluateSplits({node}, gmat, hist_, *p_tree);
   node.loss_chg = snode_[ExpandEntry::kRootNid].best.loss_chg;
 
   qexpand_loss_guided_->push(node);
@@ -416,7 +414,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
                          e.best.DefaultLeft(), e.weight, left_leaf_weight,
                          right_leaf_weight, e.best.loss_chg, e.stats.sum_hess);
 
-      this->ApplySplit({candidate}, gmat, column_matrix, hist_, *p_fmat, p_tree);
+      this->ApplySplit({candidate}, gmat, column_matrix, hist_, p_tree);
 
       const int cleft = (*p_tree)[nid].LeftChild();
       const int cright = (*p_tree)[nid].RightChild();
@@ -444,7 +442,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
                            snode_[cleft].weight, snode_[cright].weight);
       interaction_constraints_.Split(nid, featureid, cleft, cright);
 
-      this->EvaluateSplit({left_node, right_node}, gmat, hist_, *p_fmat, *p_tree);
+      this->EvaluateSplits({left_node, right_node}, gmat, hist_, *p_tree);
       left_node.loss_chg = snode_[cleft].best.loss_chg;
       right_node.loss_chg = snode_[cright].best.loss_chg;
 
@@ -712,12 +710,11 @@ bool QuantileHistMaker::Builder::SplitContainsMissingValues(const GradStats e,
 }
 
 // nodes_set - set of nodes to be processed in parallel
-void QuantileHistMaker::Builder::EvaluateSplit(const std::vector<ExpandEntry>& nodes_set,
+void QuantileHistMaker::Builder::EvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
                                                const GHistIndexMatrix& gmat,
                                                const HistCollection& hist,
-                                               const DMatrix& fmat,
                                                const RegTree& tree) {
-  builder_monitor_.Start("EvaluateSplit");
+  builder_monitor_.Start("EvaluateSplits");
 
   const size_t n_nodes_in_set = nodes_set.size();
   const size_t nthread = std::max(1, this->nthread_);
@@ -752,12 +749,11 @@ void QuantileHistMaker::Builder::EvaluateSplit(const std::vector<ExpandEntry>& n
     for (auto idx_in_feature_set = r.begin(); idx_in_feature_set < r.end(); ++idx_in_feature_set) {
       const auto fid = features_sets[nid_in_set]->ConstHostVector()[idx_in_feature_set];
       if (interaction_constraints_.Query(nid, fid)) {
-        auto grad_stats = this->EnumerateSplit<+1>(
-            gmat, node_hist, snode_[nid], fmat.Info(),
+        auto grad_stats = this->EnumerateSplit<+1>(gmat, node_hist, snode_[nid],
             &best_split_tloc_[nthread*nid_in_set + tid], fid, nid);
         if (SplitContainsMissingValues(grad_stats, snode_[nid])) {
-          this->EnumerateSplit<-1>(gmat, node_hist, snode_[nid], fmat.Info(),
-                                   &best_split_tloc_[nthread*nid_in_set + tid], fid, nid);
+          this->EnumerateSplit<-1>(gmat, node_hist, snode_[nid],
+              &best_split_tloc_[nthread*nid_in_set + tid], fid, nid);
         }
       }
     }
@@ -771,7 +767,7 @@ void QuantileHistMaker::Builder::EvaluateSplit(const std::vector<ExpandEntry>& n
     }
   }
 
-  builder_monitor_.Stop("EvaluateSplit");
+  builder_monitor_.Stop("EvaluateSplits");
 }
 
 template <bool default_left>
@@ -953,7 +949,6 @@ void QuantileHistMaker::Builder::ApplySplit(const std::vector<ExpandEntry> nodes
                                             const GHistIndexMatrix& gmat,
                                             const ColumnMatrix& column_matrix,
                                             const HistCollection& hist,
-                                            const DMatrix& fmat,
                                             RegTree* p_tree) {
   builder_monitor_.Start("ApplySplit");
 
@@ -1061,7 +1056,7 @@ void QuantileHistMaker::Builder::InitNewNode(int nid,
 template <int d_step>
 GradStats QuantileHistMaker::Builder::EnumerateSplit(
     const GHistIndexMatrix &gmat, const GHistRow &hist, const NodeEntry &snode,
-    const MetaInfo &info, SplitEntry *p_best, bst_uint fid, bst_uint nodeID) const {
+    SplitEntry *p_best, bst_uint fid, bst_uint nodeID) const {
   CHECK(d_step == +1 || d_step == -1);
 
   // aliases

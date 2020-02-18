@@ -78,7 +78,7 @@ class HistogramCuts {
 
   size_t TotalBins() const { return cut_ptrs_.back(); }
 
-  BinIdx SearchBin(float value, uint32_t column_id) {
+  BinIdx SearchBin(float value, uint32_t column_id) const {
     auto beg = cut_ptrs_.at(column_id);
     auto end = cut_ptrs_.at(column_id + 1);
     auto it = std::upper_bound(cut_values_.cbegin() + beg, cut_values_.cbegin() + end, value);
@@ -89,7 +89,7 @@ class HistogramCuts {
     return idx;
   }
 
-  BinIdx SearchBin(Entry const& e) {
+  BinIdx SearchBin(Entry const& e) const {
     return SearchBin(e.fvalue, e.index);
   }
 };

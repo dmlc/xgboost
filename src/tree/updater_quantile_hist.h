@@ -201,17 +201,15 @@ class QuantileHistMaker: public TreeUpdater {
                   const DMatrix& fmat,
                   const RegTree& tree);
 
-    void EvaluateSplit(const std::vector<ExpandEntry>& nodes_set,
-                       const GHistIndexMatrix& gmat,
-                       const HistCollection& hist,
-                       const DMatrix& fmat,
-                       const RegTree& tree);
+    void EvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
+                        const GHistIndexMatrix& gmat,
+                        const HistCollection& hist,
+                        const RegTree& tree);
 
     void ApplySplit(std::vector<ExpandEntry> nodes,
                         const GHistIndexMatrix& gmat,
                         const ColumnMatrix& column_matrix,
                         const HistCollection& hist,
-                        const DMatrix& fmat,
                         RegTree* p_tree);
 
     void PartitionKernel(const size_t node_in_set, const size_t nid, common::Range1d range,
@@ -236,8 +234,8 @@ class QuantileHistMaker: public TreeUpdater {
     // value for the particular feature fid.
     template <int d_step>
     GradStats EnumerateSplit(const GHistIndexMatrix &gmat, const GHistRow &hist,
-                             const NodeEntry &snode, const MetaInfo &info,
-                             SplitEntry *p_best, bst_uint fid, bst_uint nodeID) const;
+                             const NodeEntry &snode, SplitEntry *p_best,
+                             bst_uint fid, bst_uint nodeID) const;
 
     // if sum of statistics for non-missing values in the node
     // is equal to sum of statistics for all values:
@@ -283,18 +281,16 @@ class QuantileHistMaker: public TreeUpdater {
                         RegTree *p_tree,
                         const std::vector<GradientPair> &gpair_h);
 
-    void EvaluateSplits(const GHistIndexMatrix &gmat,
-                        const ColumnMatrix &column_matrix,
-                        DMatrix *p_fmat,
-                        RegTree *p_tree,
-                        int *num_leaves,
-                        int depth,
-                        unsigned *timestamp,
-                        std::vector<ExpandEntry> *temp_qexpand_depth);
+    void EvaluateAndApplySplits(const GHistIndexMatrix &gmat,
+                                const ColumnMatrix &column_matrix,
+                                RegTree *p_tree,
+                                int *num_leaves,
+                                int depth,
+                                unsigned *timestamp,
+                                std::vector<ExpandEntry> *temp_qexpand_depth);
 
     void AddSplitsToTree(
               const GHistIndexMatrix &gmat,
-              DMatrix *p_fmat,
               RegTree *p_tree,
               int *num_leaves,
               int depth,
