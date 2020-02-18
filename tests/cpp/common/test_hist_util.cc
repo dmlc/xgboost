@@ -240,7 +240,7 @@ TEST(hist_util, DenseCutsCategorical) {
        auto dmat = GetDMatrixFromData(x, n, 1);
        HistogramCuts cuts;
        DenseCuts dense(&cuts);
-       dense.Build(&dmat, num_bins);
+       dense.Build(dmat.get(), num_bins);
        auto cuts_from_sketch = cuts.Values();
        EXPECT_LT(cuts.MinValues()[0], x_sorted.front());
        EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());
@@ -260,7 +260,7 @@ TEST(hist_util, DenseCutsAccuracyTest) {
     for (auto num_bins : bin_sizes) {
       HistogramCuts cuts;
       DenseCuts dense(&cuts);
-      dense.Build(&dmat, num_bins);
+      dense.Build(dmat.get(), num_bins);
       ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
     }
   }
@@ -294,7 +294,7 @@ TEST(hist_util, SparseCutsAccuracyTest) {
     for (auto num_bins : bin_sizes) {
       HistogramCuts cuts;
       SparseCuts sparse(&cuts);
-      sparse.Build(&dmat, num_bins);
+      sparse.Build(dmat.get(), num_bins);
       ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
     }
   }
@@ -312,7 +312,7 @@ TEST(hist_util, SparseCutsCategorical) {
       auto dmat = GetDMatrixFromData(x, n, 1);
       HistogramCuts cuts;
       SparseCuts sparse(&cuts);
-      sparse.Build(&dmat, num_bins);
+      sparse.Build(dmat.get(), num_bins);
       auto cuts_from_sketch = cuts.Values();
       EXPECT_LT(cuts.MinValues()[0], x_sorted.front());
       EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());

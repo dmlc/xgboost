@@ -18,7 +18,7 @@ class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
   bool Read(EllpackPage* page, dmlc::SeekStream* fi) override {
     auto* impl = page->Impl();
     impl->Clear();
-    if (!fi->Read(&impl->matrix.n_rows))  return false;
+    if (!fi->Read(&impl->matrix.n_rows)) return false;
     return fi->Read(&impl->idx_buffer);
   }
 

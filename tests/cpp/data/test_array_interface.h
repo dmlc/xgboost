@@ -7,7 +7,6 @@
 #include <memory>
 #include "../../../src/common/bitfield.h"
 #include "../../../src/common/device_helpers.cuh"
-#include "../../../src/data/simple_csr_source.h"
 
 namespace xgboost {
 
