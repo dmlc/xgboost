@@ -77,6 +77,18 @@ TEST(SparsePageDMatrix, ColAccess) {
   EXPECT_FALSE(FileExists(tmp_file + ".cache.sorted.col.page"));
 }
 
+TEST(SparsePageDMatrix, ExistingCacheFile) {
+
+  dmlc::TemporaryDirectory tmpdir;
+  std::string filename = tmpdir.path + "/big.libsvm";
+  std::unique_ptr<xgboost::DMatrix> dmat =
+      xgboost::CreateSparsePageDMatrix(12, 64, filename);
+  EXPECT_ANY_THROW({
+    std::unique_ptr<xgboost::DMatrix> dmat2 =
+        xgboost::CreateSparsePageDMatrix(12, 64, filename);
+  });
+}
+
 // Multi-batches access
 TEST(SparsePageDMatrix, ColAccessBatches) {
   dmlc::TemporaryDirectory tmpdir;

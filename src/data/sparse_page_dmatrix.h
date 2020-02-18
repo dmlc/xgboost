@@ -22,17 +22,13 @@ namespace data {
 // Used for external memory.
 class SparsePageDMatrix : public DMatrix {
  public:
-  explicit SparsePageDMatrix(std::unique_ptr<DataSource<SparsePage>>&& source,
-                             std::string cache_info)
-      :  cache_info_(std::move(cache_info)) {}
-
   template <typename AdapterT>
   explicit SparsePageDMatrix(AdapterT* adapter, float missing, int nthread,
                              const std::string& cache_prefix,
                              size_t page_size = kPageSize)
       : cache_info_(std::move(cache_prefix)) {
     row_source_.reset(new data::SparsePageSource(adapter, missing, nthread,
-                                                    cache_prefix, page_size));
+                                                 cache_prefix, page_size));
   }
   // Set number of threads but keep old value so we can reset it after
   ~SparsePageDMatrix() override = default;

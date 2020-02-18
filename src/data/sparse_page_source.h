@@ -112,8 +112,17 @@ inline CacheInfo ParseCacheInfo(const std::string& cache_info, const std::string
 
 inline void TryDeleteCacheFile(const std::string& file) {
   if (std::remove(file.c_str()) != 0) {
-    LOG(INFO) << "Couldn't remove external memory cache file " << file
+    LOG(WARNING) << "Couldn't remove external memory cache file " << file
               << "; you may want to remove it manually";
+  }
+}
+
+inline void CheckCacheFileExists(const std::string& file) {
+  struct stat st;
+  if (stat(file.c_str(), &st) == 0) {
+    LOG(FATAL) << "Cache file " << file
+               << " exists already; Is there another DMatrix with the same "
+                  "cache prefix? Otherwise please remove it manually.";
   }
 }
 
@@ -216,6 +225,13 @@ class SparsePageSource {
                    const size_t page_size = DMatrix::kPageSize) {
     const std::string page_type = ".row.page";
     cache_info_ = ParseCacheInfo(cache_info, page_type);
+
+    // Warn user if old cache files
+    CheckCacheFileExists(cache_info_.name_info);
+    for (auto file : cache_info_.name_shards) {
+      CheckCacheFileExists(file);
+    }
+
     {
       SparsePageWriter<SparsePage> writer(cache_info_.name_shards,
                                           cache_info_.format_shards, 6);
@@ -368,6 +384,9 @@ class CSCPageSource {
                 const size_t page_size = DMatrix::kPageSize) {
     std::string page_type = ".col.page";
     cache_info_ = ParseCacheInfo(cache_info, page_type);
+    for (auto file : cache_info_.name_shards) {
+      CheckCacheFileExists(file);
+    }
     {
       SparsePageWriter<SparsePage> writer(cache_info_.name_shards,
                                           cache_info_.format_shards, 6);
@@ -426,6 +445,9 @@ class SortedCSCPageSource {
                       const size_t page_size = DMatrix::kPageSize) {
     std::string page_type = ".sorted.col.page";
     cache_info_ = ParseCacheInfo(cache_info, page_type);
+    for (auto file : cache_info_.name_shards) {
+      CheckCacheFileExists(file);
+    }
     {
       SparsePageWriter<SparsePage> writer(cache_info_.name_shards,
                                           cache_info_.format_shards, 6);
