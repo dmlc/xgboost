@@ -17,6 +17,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <fstream>
 
 #include "xgboost/base.h"
 #include "xgboost/data.h"
@@ -118,14 +119,19 @@ inline void TryDeleteCacheFile(const std::string& file) {
 }
 
 inline void CheckCacheFileExists(const std::string& file) {
-  struct stat st;
-  if (stat(file.c_str(), &st) == 0) {
+  std::ifstream f(file.c_str());
+  if (f.good()) {
     LOG(FATAL) << "Cache file " << file
                << " exists already; Is there another DMatrix with the same "
                   "cache prefix? Otherwise please remove it manually.";
   }
 }
 
+  /**
+   * \brief Given a set of cache files and page type, this object iterates over batches using prefetching for improved performance. Not thread safe.
+   *
+   * \tparam  PageT Type of the page t.
+   */
   template <typename PageT>
 class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
  public:
@@ -172,29 +178,35 @@ class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
 
   // implement Next
   bool Next() override {
+    CHECK(mutex_.try_lock()) << "Multiple threads attempting to use prefetcher";
     // doing clock rotation over shards.
     if (page_ != nullptr) {
       size_t n = prefetchers_.size();
       prefetchers_[(clock_ptr_ + n - 1) % n]->Recycle(&page_);
     }
+
     if (prefetchers_[clock_ptr_]->Next(&page_)) {
       page_->SetBaseRowId(base_rowid_);
       base_rowid_ += page_->Size();
       // advance clock
       clock_ptr_ = (clock_ptr_ + 1) % prefetchers_.size();
+      mutex_.unlock();
       return true;
     } else {
+      mutex_.unlock();
       return false;
     }
   }
 
   // implement BeforeFirst
   void BeforeFirst() override {
+    CHECK(mutex_.try_lock()) << "Multiple threads attempting to use prefetcher";
     base_rowid_ = 0;
     clock_ptr_ = 0;
     for (auto& p : prefetchers_) {
       p->BeforeFirst();
     }
+    mutex_.unlock();
   }
 
   // implement Value
@@ -203,6 +215,7 @@ class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
   const PageT& Value() const override { return *page_; }
 
  private:
+  std::mutex mutex_;
   /*! \brief number of rows */
   size_t base_rowid_;
   /*! \brief page currently on hold. */
