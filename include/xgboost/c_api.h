@@ -531,6 +531,7 @@ XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle);
  *        notice.
  *
  * \param handle handle to Booster object.
+ * \param out_len length of output string
  * \param out_str A valid pointer to array of characters.  The characters array is
  *                allocated and managed by XGBoost, while pointer to that array needs to
  *                be managed by caller.

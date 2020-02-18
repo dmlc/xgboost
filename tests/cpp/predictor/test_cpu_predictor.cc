@@ -1,4 +1,6 @@
-// Copyright by Contributors
+/*!
+ * Copyright 2017-2020 XGBoost contributors
+ */
 #include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
@@ -9,9 +11,8 @@
 namespace xgboost {
 TEST(CpuPredictor, Basic) {
   auto lparam = CreateEmptyGenericParam(GPUIDX);
-  auto cache = std::make_shared<std::unordered_map<DMatrix*, PredictionCacheEntry>>();
   std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam, cache));
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
 
   int kRows = 5;
   int kCols = 5;
@@ -26,10 +27,11 @@ TEST(CpuPredictor, Basic) {
   auto dmat = CreateDMatrix(kRows, kCols, 0);
 
   // Test predict batch
-  HostDeviceVector<float> out_predictions;
+  PredictionCacheEntry out_predictions;
   cpu_predictor->PredictBatch((*dmat).get(), &out_predictions, model, 0);
-  std::vector<float>& out_predictions_h = out_predictions.HostVector();
-  for (size_t i = 0; i < out_predictions.Size(); i++) {
+  ASSERT_EQ(model.trees.size(), out_predictions.version);
+  std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
+  for (size_t i = 0; i < out_predictions.predictions.Size(); i++) {
     ASSERT_EQ(out_predictions_h[i], 1.5);
   }
 
@@ -81,10 +83,9 @@ TEST(CpuPredictor, ExternalMemory) {
   std::string filename = tmpdir.path + "/big.libsvm";
   std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64, filename);
   auto lparam = CreateEmptyGenericParam(GPUIDX);
-  auto cache = std::make_shared<std::unordered_map<DMatrix*, PredictionCacheEntry>>();
 
   std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam, cache));
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
 
   LearnerModelParam param;
   param.base_score = 0;
@@ -94,10 +95,10 @@ TEST(CpuPredictor, ExternalMemory) {
   gbm::GBTreeModel model = CreateTestModel(&param);
 
   // Test predict batch
-  HostDeviceVector<float> out_predictions;
+  PredictionCacheEntry out_predictions;
   cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
-  std::vector<float> &out_predictions_h = out_predictions.HostVector();
-  ASSERT_EQ(out_predictions.Size(), dmat->Info().num_row_);
+  std::vector<float> &out_predictions_h = out_predictions.predictions.HostVector();
+  ASSERT_EQ(out_predictions.predictions.Size(), dmat->Info().num_row_);
   for (const auto& v : out_predictions_h) {
     ASSERT_EQ(v, 1.5);
   }

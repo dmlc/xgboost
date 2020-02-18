@@ -406,7 +406,7 @@ class Json {
   /*! \brief Index Json object with int, used for Json Array. */
   Json& operator[](int ind)                 const { return (*ptr_)[ind]; }
 
-  /*! \Brief Return the reference to stored Json value. */
+  /*! \brief Return the reference to stored Json value. */
   Value const& GetValue() const & { return *ptr_; }
   Value const& GetValue() &&      { return *ptr_; }
   Value&       GetValue() &       { return *ptr_; }

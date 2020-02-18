@@ -105,9 +105,8 @@ __model_doc = '''
            Using gblinear booster with shotgun updater is nondeterministic as
            it uses Hogwild algorithm.
 
-    missing : float, optional
-        Value in the data which needs to be present as a missing value. If
-        None, defaults to np.nan.
+    missing : float, default np.nan
+        Value in the data which needs to be present as a missing value.
     num_parallel_tree: int
         Used for boosting random forest.
     monotone_constraints : str
@@ -200,7 +199,7 @@ Parameters
 @xgboost_model_doc("""Implementation of the Scikit-Learn API for XGBoost.""",
                    ['estimators', 'model', 'objective'])
 class XGBModel(XGBModelBase):
-    # pylint: disable=too-many-arguments, too-many-instance-attributes, invalid-name, missing-docstring
+    # pylint: disable=too-many-arguments, too-many-instance-attributes, missing-docstring
     def __init__(self, max_depth=None, learning_rate=None, n_estimators=100,
                  verbosity=None, objective=None, booster=None,
                  tree_method=None, n_jobs=None, gamma=None,
@@ -208,9 +207,10 @@ class XGBModel(XGBModelBase):
                  colsample_bytree=None, colsample_bylevel=None,
                  colsample_bynode=None, reg_alpha=None, reg_lambda=None,
                  scale_pos_weight=None, base_score=None, random_state=None,
-                 missing=None, num_parallel_tree=None,
+                 missing=np.nan, num_parallel_tree=None,
                  monotone_constraints=None, interaction_constraints=None,
-                 importance_type="gain", gpu_id=None, **kwargs):
+                 importance_type="gain", gpu_id=None,
+                 validate_parameters=False, **kwargs):
         if not SKLEARN_INSTALLED:
             raise XGBoostError(
                 'sklearn needs to be installed in order to use this module')
@@ -233,25 +233,19 @@ class XGBModel(XGBModelBase):
         self.reg_lambda = reg_lambda
         self.scale_pos_weight = scale_pos_weight
         self.base_score = base_score
-        self.missing = missing if missing is not None else np.nan
+        self.missing = missing
         self.num_parallel_tree = num_parallel_tree
         self.kwargs = kwargs
-        self._Booster = None
         self.random_state = random_state
         self.n_jobs = n_jobs
         self.monotone_constraints = monotone_constraints
         self.interaction_constraints = interaction_constraints
         self.importance_type = importance_type
         self.gpu_id = gpu_id
-
-    def __setstate__(self, state):
-        # backward compatibility code
-        # load booster from raw if it is raw
-        # the booster now support pickle
-        bst = state["_Booster"]
-        if bst is not None and not isinstance(bst, Booster):
-            state["_Booster"] = Booster(model_file=bst)
-        self.__dict__.update(state)
+        # Parameter validation is not working with Scikit-Learn interface, as
+        # it passes all paraemters into XGBoost core, whether they are used or
+        # not.
+        self.validate_parameters = validate_parameters
 
     def get_booster(self):
         """Get the underlying xgboost Booster of this model.
@@ -262,7 +256,7 @@ class XGBModel(XGBModelBase):
         -------
         booster : a xgboost booster of underlying model
         """
-        if self._Booster is None:
+        if not hasattr(self, '_Booster'):
             raise XGBoostError('need to call fit or load_model beforehand')
         return self._Booster
 
@@ -314,11 +308,35 @@ class XGBModel(XGBModelBase):
         if isinstance(params['random_state'], np.random.RandomState):
             params['random_state'] = params['random_state'].randint(
                 np.iinfo(np.int32).max)
-        # Parameter validation is not working with Scikit-Learn interface, as
-        # it passes all paraemters into XGBoost core, whether they are used or
-        # not.
-        if 'validate_parameters' not in params.keys():
-            params['validate_parameters'] = False
+
+        def parse_parameter(value):
+            for t in (int, float):
+                try:
+                    ret = t(value)
+                    return ret
+                except ValueError:
+                    continue
+            return None
+
+        # Get internal parameter values
+        try:
+            config = json.loads(self.get_booster().save_config())
+            stack = [config]
+            internal = {}
+            while stack:
+                obj = stack.pop()
+                for k, v in obj.items():
+                    if k.endswith('_param'):
+                        for p_k, p_v in v.items():
+                            internal[p_k] = p_v
+                    elif isinstance(v, dict):
+                        stack.append(v)
+
+            for k, v in internal.items():
+                if k in params.keys() and params[k] is None:
+                    params[k] = parse_parameter(v)
+        except XGBoostError:
+            pass
         return params
 
     def get_xgb_params(self):
@@ -386,7 +404,7 @@ class XGBModel(XGBModelBase):
             Input file name.
 
         """
-        if self._Booster is None:
+        if not hasattr(self, '_Booster'):
             self._Booster = Booster({'n_jobs': self.n_jobs})
         self._Booster.load_model(fname)
         meta = self._Booster.attr('scikit_learn')

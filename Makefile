@@ -207,33 +207,12 @@ doxygen:
 
 # create standalone python tar file.
 pypack: ${XGBOOST_DYLIB}
-	cp ${XGBOOST_DYLIB} python-package/xgboost
+	cp ${XGBOOST_DYLIB} python-package/xgboost/lib
 	cd python-package; tar cf xgboost.tar xgboost; cd ..
 
 # create pip source dist (sdist) pack for PyPI
 pippack: clean_all
-	rm -rf xgboost-python
-# remove symlinked directories in python-package/xgboost
-	rm -rf python-package/xgboost/lib
-	rm -rf python-package/xgboost/dmlc-core
-	rm -rf python-package/xgboost/include
-	rm -rf python-package/xgboost/make
-	rm -rf python-package/xgboost/rabit
-	rm -rf python-package/xgboost/src
-	cp -r python-package xgboost-python
-	cp -r CMakeLists.txt xgboost-python/xgboost/
-	cp -r cmake xgboost-python/xgboost/
-	cp -r plugin xgboost-python/xgboost/
-	cp -r make xgboost-python/xgboost/
-	cp -r src xgboost-python/xgboost/
-	cp -r tests xgboost-python/xgboost/
-	cp -r include xgboost-python/xgboost/
-	cp -r dmlc-core xgboost-python/xgboost/
-	cp -r rabit xgboost-python/xgboost/
-# Use setup_pip.py instead of setup.py
-	mv xgboost-python/setup_pip.py xgboost-python/setup.py
-# Build sdist tarball
-	cd xgboost-python; python setup.py sdist; mv dist/*.tar.gz ..; cd ..
+	cd python-package; python setup.py sdist; mv dist/*.tar.gz ..; cd ..
 
 # Script to make a clean installable R package.
 Rpack: clean_all
@@ -254,9 +233,9 @@ Rpack: clean_all
 	cp -r dmlc-core/include xgboost/src/dmlc-core/include
 	cp -r dmlc-core/src xgboost/src/dmlc-core/src
 	cp ./LICENSE xgboost
-	# Modify PKGROOT in Makevars.in
+# Modify PKGROOT in Makevars.in
 	cat R-package/src/Makevars.in|sed '2s/.*/PKGROOT=./' > xgboost/src/Makevars.in
-	# Configure Makevars.win (Windows-specific Makevars, likely using MinGW)
+# Configure Makevars.win (Windows-specific Makevars, likely using MinGW)
 	cp xgboost/src/Makevars.in xgboost/src/Makevars.win
 	cat xgboost/src/Makevars.in| sed '3s/.*/ENABLE_STD_THREAD=0/' > xgboost/src/Makevars.win
 	sed -i -e 's/@OPENMP_CXXFLAGS@/$$\(SHLIB_OPENMP_CXXFLAGS\)/g' xgboost/src/Makevars.win

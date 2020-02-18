@@ -81,4 +81,119 @@ TEST(EllpackPage, BuildGidxSparse) {
   }
 }
 
+struct ReadRowFunction {
+  EllpackMatrix matrix;
+  int row;
+  bst_float* row_data_d;
+  ReadRowFunction(EllpackMatrix matrix, int row, bst_float* row_data_d)
+      : matrix(std::move(matrix)), row(row), row_data_d(row_data_d) {}
+
+  __device__ void operator()(size_t col) {
+    auto value = matrix.GetElement(row, col);
+    if (isnan(value)) {
+      value = -1;
+    }
+    row_data_d[col] = value;
+  }
+};
+
+TEST(EllpackPage, Copy) {
+  constexpr size_t kRows = 1024;
+  constexpr size_t kCols = 16;
+  constexpr size_t kPageSize = 1024;
+
+  // Create a DMatrix with multiple batches.
+  dmlc::TemporaryDirectory tmpdir;
+  std::unique_ptr<DMatrix>
+      dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+  BatchParam param{0, 256, 0, kPageSize};
+  auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
+
+  // Create an empty result page.
+  EllpackPageImpl result(0, page->matrix.info, kRows);
+
+  // Copy batch pages into the result page.
+  size_t offset = 0;
+  for (auto& batch : dmat->GetBatches<EllpackPage>(param)) {
+    size_t num_elements = result.Copy(0, batch.Impl(), offset);
+    offset += num_elements;
+  }
+
+  size_t current_row = 0;
+  thrust::device_vector<bst_float> row_d(kCols);
+  thrust::device_vector<bst_float> row_result_d(kCols);
+  std::vector<bst_float> row(kCols);
+  std::vector<bst_float> row_result(kCols);
+  for (auto& page : dmat->GetBatches<EllpackPage>(param)) {
+    auto impl = page.Impl();
+    EXPECT_EQ(impl->matrix.base_rowid, current_row);
+
+    for (size_t i = 0; i < impl->Size(); i++) {
+      dh::LaunchN(0, kCols, ReadRowFunction(impl->matrix, current_row, row_d.data().get()));
+      thrust::copy(row_d.begin(), row_d.end(), row.begin());
+
+      dh::LaunchN(0, kCols, ReadRowFunction(result.matrix, current_row, row_result_d.data().get()));
+      thrust::copy(row_result_d.begin(), row_result_d.end(), row_result.begin());
+
+      EXPECT_EQ(row, row_result);
+      current_row++;
+    }
+  }
+}
+
+TEST(EllpackPage, Compact) {
+  constexpr size_t kRows = 16;
+  constexpr size_t kCols = 2;
+  constexpr size_t kPageSize = 1;
+  constexpr size_t kCompactedRows = 8;
+
+  // Create a DMatrix with multiple batches.
+  dmlc::TemporaryDirectory tmpdir;
+  std::unique_ptr<DMatrix>
+      dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
+  BatchParam param{0, 256, 0, kPageSize};
+  auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
+
+  // Create an empty result page.
+  EllpackPageImpl result(0, page->matrix.info, kCompactedRows);
+
+  // Compact batch pages into the result page.
+  std::vector<size_t> row_indexes_h {
+    SIZE_MAX, 0, 1, 2, SIZE_MAX, 3, SIZE_MAX, 4, 5, SIZE_MAX, 6, SIZE_MAX, 7, SIZE_MAX, SIZE_MAX,
+    SIZE_MAX};
+  thrust::device_vector<size_t> row_indexes_d = row_indexes_h;
+  common::Span<size_t> row_indexes_span(row_indexes_d.data().get(), kRows);
+  for (auto& batch : dmat->GetBatches<EllpackPage>(param)) {
+    result.Compact(0, batch.Impl(), row_indexes_span);
+  }
+
+  size_t current_row = 0;
+  thrust::device_vector<bst_float> row_d(kCols);
+  thrust::device_vector<bst_float> row_result_d(kCols);
+  std::vector<bst_float> row(kCols);
+  std::vector<bst_float> row_result(kCols);
+  for (auto& page : dmat->GetBatches<EllpackPage>(param)) {
+    auto impl = page.Impl();
+    EXPECT_EQ(impl->matrix.base_rowid, current_row);
+
+    for (size_t i = 0; i < impl->Size(); i++) {
+      size_t compacted_row = row_indexes_h[current_row];
+      if (compacted_row == SIZE_MAX) {
+        current_row++;
+        continue;
+      }
+
+      dh::LaunchN(0, kCols, ReadRowFunction(impl->matrix, current_row, row_d.data().get()));
+      thrust::copy(row_d.begin(), row_d.end(), row.begin());
+
+      dh::LaunchN(0, kCols,
+                  ReadRowFunction(result.matrix, compacted_row, row_result_d.data().get()));
+      thrust::copy(row_result_d.begin(), row_result_d.end(), row_result.begin());
+
+      EXPECT_EQ(row, row_result);
+      current_row++;
+    }
+  }
+}
+
 }  // namespace xgboost

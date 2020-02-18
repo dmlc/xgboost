@@ -181,8 +181,7 @@ class Transform {
    * \param func    A callable object, accepting a size_t thread index,
    *                  followed by a set of Span classes.
    * \param range   Range object specifying parallel threads index range.
-   * \param devices GPUSet specifying GPUs to use, when compiling for CPU,
-   *                  this should be GPUSet::Empty().
+   * \param device  Specify GPU to use.
    * \param shard Whether Shard for HostDeviceVector is needed.
    */
   template <typename Functor>

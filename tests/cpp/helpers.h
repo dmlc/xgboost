@@ -16,16 +16,13 @@
 
 #include <dmlc/filesystem.h>
 #include <xgboost/base.h>
-#include <xgboost/objective.h>
-#include <xgboost/metric.h>
 #include <xgboost/json.h>
-#include <xgboost/predictor.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/c_api.h>
-#include <xgboost/learner.h>
 
 #include "../../src/common/common.h"
 #include "../../src/common/hist_util.h"
+#include "../../src/gbm/gbtree_model.h"
 #if defined(__CUDACC__)
 #include "../../src/data/ellpack_page.cuh"
 #endif
@@ -41,6 +38,12 @@
 #else
 #define GPUIDX -1
 #endif
+
+namespace xgboost {
+class ObjFunction;
+class Metric;
+struct LearnerModelParam;
+}
 
 bool FileExists(const std::string& filename);
 
@@ -206,7 +209,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
     size_t n_rows, size_t n_cols, size_t page_size, bool deterministic,
     const dmlc::TemporaryDirectory& tempdir = dmlc::TemporaryDirectory());
 
-gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param);
+gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, size_t n_classes = 1);
 
 std::unique_ptr<GradientBooster> CreateTrainedGBM(
     std::string name, Args kwargs, size_t kRows, size_t kCols,
@@ -219,6 +222,19 @@ inline GenericParameter CreateEmptyGenericParam(int gpu_id) {
     {"gpu_id", std::to_string(gpu_id)}};
   tparam.Init(args);
   return tparam;
+}
+
+inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows) {
+  xgboost::SimpleLCG gen;
+  xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
+  std::vector<GradientPair> h_gpair(n_rows);
+  for (auto &gpair : h_gpair) {
+    bst_float grad = dist(&gen);
+    bst_float hess = dist(&gen);
+    gpair = GradientPair(grad, hess);
+  }
+  HostDeviceVector<GradientPair> gpair(h_gpair);
+  return gpair;
 }
 
 #if defined(__CUDACC__)

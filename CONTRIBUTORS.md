@@ -16,8 +16,8 @@ The Project Management Committee(PMC) consists group of active committers that m
   - Nan is a software engineer in Uber. He contributed mostly in JVM packages.
 * [Jiaming Yuan](https://github.com/trivialfis)
   - Jiaming contributed to the GPU algorithms. He has also introduced new abstractions to improve the quality of the C++ codebase.
-* [Hyunsu Cho](http://hyunsu-cho.io/), Amazon AI
-  - Hyunsu is an applied scientist in Amazon AI. He is the maintainer of the XGBoost Python package. He also manages the Jenkins continuous integration system (https://xgboost-ci.net/). He is the initial author of the CPU 'hist' updater.   
+* [Hyunsu Cho](http://hyunsu-cho.io/), NVIDIA
+  - Hyunsu is the maintainer of the XGBoost Python package. He also manages the Jenkins continuous integration system (https://xgboost-ci.net/). He is the initial author of the CPU 'hist' updater.
 * [Rory Mitchell](https://github.com/RAMitchell), University of Waikato
   - Rory is a Ph.D. student at University of Waikato. He is the original creator of the GPU training algorithms. He improved the CMake build system and continuous integration. 
 * [Hongliang Liu](https://github.com/phunterlau)

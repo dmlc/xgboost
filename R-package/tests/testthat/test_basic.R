@@ -324,3 +324,13 @@ test_that("colsample_bytree works", {
   # in the 100 trees
   expect_gte(nrow(xgb.importance(model = bst)), 30)
 })
+
+test_that("Configuration works", {
+  bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
+                 eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic",
+                 eval_metric = 'error', eval_metric = 'auc', eval_metric = "logloss")
+  config <- xgb.config(bst)
+  xgb.config(bst) <- config
+  reloaded_config <- xgb.config(bst)
+  expect_equal(config, reloaded_config);
+})
