@@ -98,11 +98,13 @@ EllpackPageSourceImpl::EllpackPageSourceImpl(DMatrix* dmat,
   WriteEllpackPages(dmat, cache_info);
   monitor_.StopCuda("WriteEllpackPages");
 
-  source_.reset(new ExternalMemoryPrefetcher<EllpackPage>(cache_info_, kPageType_));
+  source_.reset(new ExternalMemoryPrefetcher<EllpackPage>(
+      ParseCacheInfo(cache_info_, kPageType_)));
 }
 
 void EllpackPageSourceImpl::BeforeFirst() {
-  source_.reset(new ExternalMemoryPrefetcher<EllpackPage>(cache_info_, kPageType_));
+  source_.reset(new ExternalMemoryPrefetcher<EllpackPage>(
+      ParseCacheInfo(cache_info_, kPageType_)));
   source_->BeforeFirst();
 }
 
