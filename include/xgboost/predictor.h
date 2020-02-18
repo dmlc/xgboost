@@ -1,5 +1,5 @@
 /*!
- * Copyright by Contributors
+ * Copyright 2017-2020 by Contributors
  * \file predictor.h
  * \brief Interface of predictor,
  *  performs predictions for a gradient booster.
@@ -32,47 +32,83 @@ namespace xgboost {
  * \brief Contains pointer to input matrix and associated cached predictions.
  */
 struct PredictionCacheEntry {
-  std::shared_ptr<DMatrix> data;
+  // A storage for caching prediction values
   HostDeviceVector<bst_float> predictions;
+  // The version of current cache, corresponding number of layers of trees
+  uint32_t version;
+  // A weak pointer for checking whether the DMatrix object has expired.
+  std::weak_ptr< DMatrix > ref;
+
+  PredictionCacheEntry() : version { 0 } {}
+  /* \brief Update the cache entry by number of versions.
+   *
+   * \param v Added versions.
+   */
+  void Update(uint32_t v) {
+    version += v;
+  }
+};
+
+/* \brief A container for managed prediction caches.
+ */
+class PredictionContainer {
+  std::unordered_map<DMatrix *, PredictionCacheEntry> container_;
+  void ClearExpiredEntries();
+
+ public:
+  PredictionContainer() = default;
+  /* \brief Add a new DMatrix to the cache, at the same time this function will clear out
+   *        all expired caches by checking the `std::weak_ptr`.  Caching an existing
+   *        DMatrix won't renew it.
+   *
+   *  Passing in a `shared_ptr` is critical here.  First to create a `weak_ptr` inside the
+   *  entry this shared pointer is necessary.  More importantly, the life time of this
+   *  cache is tied to the shared pointer.
+   *
+   *  Another way to make a safe cache is create a proxy to this entry, with anther shared
+   *  pointer defined inside, and pass this proxy around instead of the real entry.  But
+   *  seems to be too messy.  In XGBoost, functions like `UpdateOneIter` will have
+   *  (memory) safe access to the DMatrix as long as it's passed in as a `shared_ptr`.
+   *
+   * \param m shared pointer to the DMatrix that needs to be cached.
+   * \param device Which device should the cache be allocated on.  Pass
+   *               GenericParameter::kCpuId for CPU or positive integer for GPU id.
+   *
+   * \return the cache entry for passed in DMatrix, either an existing cache or newly
+   *         created.
+   */
+  PredictionCacheEntry& Cache(std::shared_ptr<DMatrix> m, int32_t device);
+  /* \brief Get a prediction cache entry.  This entry must be already allocated by `Cache`
+   *        method.  Otherwise a dmlc::Error is thrown.
+   *
+   * \param m pointer to the DMatrix.
+   * \return The prediction cache for passed in DMatrix.
+   */
+  PredictionCacheEntry& Entry(DMatrix* m);
+  /* \brief Get a const reference to the underlying hash map.  Clear expired caches before
+   *        returning.
+   */
+  decltype(container_) const& Container();
 };
 
 /**
  * \class Predictor
  *
- * \brief Performs prediction on individual training instances or batches of
- * instances for GBTree. The predictor also manages a prediction cache
- * associated with input matrices. If possible, it will use previously
- * calculated predictions instead of calculating new predictions.
- *        Prediction functions all take a GBTreeModel and a DMatrix as input and
- * output a vector of predictions. The predictor does not modify any state of
- * the model itself.
+ * \brief Performs prediction on individual training instances or batches of instances for
+ *        GBTree. Prediction functions all take a GBTreeModel and a DMatrix as input and
+ *        output a vector of predictions. The predictor does not modify any state of the
+ *        model itself.
  */
-
 class Predictor {
  protected:
   /*
    * \brief Runtime parameters.
    */
   GenericParameter const* generic_param_;
-  /**
-   * \brief Map of matrices and associated cached predictions to facilitate
-   * storing and looking up predictions.
-   */
-  std::shared_ptr<std::unordered_map<DMatrix*, PredictionCacheEntry>> cache_;
-
-  std::unordered_map<DMatrix*, PredictionCacheEntry>::iterator FindCache(DMatrix const* dmat) {
-    auto cache_emtry = std::find_if(
-        cache_->begin(), cache_->end(),
-        [dmat](std::pair<DMatrix *, PredictionCacheEntry const &> const &kv) {
-          return kv.second.data.get() == dmat;
-        });
-    return cache_emtry;
-  }
 
  public:
-  Predictor(GenericParameter const* generic_param,
-            std::shared_ptr<std::unordered_map<DMatrix*, PredictionCacheEntry>> cache) :
-      generic_param_{generic_param}, cache_{cache} {}
+  explicit Predictor(GenericParameter const* generic_param) :
+      generic_param_{generic_param} {}
   virtual ~Predictor() = default;
 
   /**
@@ -91,37 +127,13 @@ class Predictor {
    * \param           model       The model to predict from.
    * \param           tree_begin  The tree begin index.
    * \param           ntree_limit (Optional) The ntree limit. 0 means do not
-   * limit trees.
+   *                              limit trees.
    */
-
-  virtual void PredictBatch(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
+  virtual void PredictBatch(DMatrix* dmat, PredictionCacheEntry* out_preds,
                             const gbm::GBTreeModel& model, int tree_begin,
-                            unsigned ntree_limit = 0) = 0;
+                            uint32_t const ntree_limit = 0) = 0;
 
   /**
-   * \fn  virtual void Predictor::UpdatePredictionCache( const gbm::GBTreeModel
-   * &model, std::vector<std::unique_ptr<TreeUpdater> >* updaters, int
-   * num_new_trees) = 0;
-   *
-   * \brief Update the internal prediction cache using newly added trees. Will
-   * use the tree updater to do this if possible. Should be called as a part of
-   * the tree boosting process to facilitate the look up of predictions
-   * at a later time.
-   *
-   * \param           model         The model.
-   * \param [in,out]  updaters      The updater sequence for gradient boosting.
-   * \param           num_new_trees Number of new trees.
-   */
-
-  virtual void UpdatePredictionCache(
-      const gbm::GBTreeModel& model,
-      std::vector<std::unique_ptr<TreeUpdater>>* updaters,
-      int num_new_trees) = 0;
-
-  /**
-   * \fn  virtual void Predictor::PredictInstance( const SparsePage::Inst&
-   * inst, std::vector<bst_float>* out_preds, const gbm::GBTreeModel& model,
-   *
    * \brief online prediction function, predict score for one instance at a time
    * NOTE: use the batch prediction interface if possible, batch prediction is
    * usually more efficient than online prediction This function is NOT
@@ -197,11 +209,9 @@ class Predictor {
    *
    * \param name           Name of the predictor.
    * \param generic_param  Pointer to runtime parameters.
-   * \param cache          Pointer to prediction cache.
    */
   static Predictor* Create(
-      std::string const& name, GenericParameter const* generic_param,
-      std::shared_ptr<std::unordered_map<DMatrix*, PredictionCacheEntry>> cache);
+      std::string const& name, GenericParameter const* generic_param);
 };
 
 /*!
@@ -209,9 +219,7 @@ class Predictor {
  */
 struct PredictorReg
     : public dmlc::FunctionRegEntryBase<
-  PredictorReg, std::function<Predictor*(
-      GenericParameter const*,
-      std::shared_ptr<std::unordered_map<DMatrix*, PredictionCacheEntry>>)>> {};
+  PredictorReg, std::function<Predictor*(GenericParameter const*)>> {};
 
 #define XGBOOST_REGISTER_PREDICTOR(UniqueId, Name)      \
   static DMLC_ATTRIBUTE_UNUSED ::xgboost::PredictorReg& \

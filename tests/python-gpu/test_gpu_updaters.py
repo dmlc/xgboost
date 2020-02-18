@@ -13,7 +13,7 @@ def assert_gpu_results(cpu_results, gpu_results):
     for cpu_res, gpu_res in zip(cpu_results, gpu_results):
         # Check final eval result roughly equivalent
         assert np.allclose(cpu_res["eval"][-1],
-                           gpu_res["eval"][-1], 1e-2, 1e-2)
+                           gpu_res["eval"][-1], 1e-1, 1e-1)
 
 
 datasets = ["Boston", "Cancer", "Digits", "Sparse regression",
@@ -23,7 +23,7 @@ test_param = parameter_combinations({
     'gpu_id': [0],
     'max_depth': [2, 8],
     'max_leaves': [255, 4],
-    'max_bin': [2, 256],
+    'max_bin': [4, 256],
     'grow_policy': ['lossguide'],
     'single_precision_histogram': [True],
     'min_child_weight': [0],

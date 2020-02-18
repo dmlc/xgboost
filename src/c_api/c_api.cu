@@ -3,7 +3,6 @@
 #include "xgboost/data.h"
 #include "xgboost/c_api.h"
 #include "c_api_error.h"
-#include "../data/simple_csr_source.h"
 #include "../data/device_adapter.cuh"
 
 namespace xgboost {

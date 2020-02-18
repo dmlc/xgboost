@@ -445,14 +445,6 @@ class DMatrix {
   virtual float GetColDensity(size_t cidx) = 0;
   /*! \brief virtual destructor */
   virtual ~DMatrix() = default;
-  /*!
-   * \brief Save DMatrix to local file.
-   *  The saved file only works for non-sharded dataset(single machine training).
-   *  This API is deprecated and dis-encouraged to use.
-   * \param fname The file name to be saved.
-   * \return The created DMatrix.
-   */
-  virtual void SaveToLocalFile(const std::string& fname);
 
   /*! \brief Whether the matrix is dense. */
   bool IsDense() const {
@@ -474,16 +466,6 @@ class DMatrix {
                        bool load_row_split,
                        const std::string& file_format = "auto",
                        size_t page_size = kPageSize);
-
-  /*!
-   * \brief create a new DMatrix, by wrapping a row_iterator, and meta info.
-   * \param source The source iterator of the data, the create function takes ownership of the source.
-   * \param cache_prefix The path to prefix of temporary cache file of the DMatrix when used in external memory mode.
-   *     This can be nullptr for common cases, and in-memory mode will be used.
-   * \return a Created DMatrix.
-   */
-  static DMatrix* Create(std::unique_ptr<DataSource<SparsePage>>&& source,
-                         const std::string& cache_prefix = "");
 
   /**
    * \brief Creates a new DMatrix from an external data adapter.

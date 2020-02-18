@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2019 XGBoost contributors
+ * Copyright 2017-2020 XGBoost contributors
  */
 #pragma once
 #include <thrust/device_ptr.h>
@@ -9,7 +9,6 @@
 #include <thrust/system_error.h>
 #include <thrust/logical.h>
 
-#include <omp.h>
 #include <rabit/rabit.h>
 #include <cub/cub.cuh>
 #include <cub/util_allocator.cuh>
@@ -1264,6 +1263,26 @@ thrust::device_ptr<T const> tcbegin(xgboost::HostDeviceVector<T> const& vector) 
 template <typename T>
 thrust::device_ptr<T const> tcend(xgboost::HostDeviceVector<T> const& vector) {
   return tcbegin(vector) + vector.Size();
+}
+
+template <typename T>
+thrust::device_ptr<T> tbegin(xgboost::common::Span<T>& span) {  // NOLINT
+  return thrust::device_ptr<T>(span.data());
+}
+
+template <typename T>
+thrust::device_ptr<T> tend(xgboost::common::Span<T>& span) {  // // NOLINT
+  return tbegin(span) + span.size();
+}
+
+template <typename T>
+thrust::device_ptr<T const> tcbegin(xgboost::common::Span<T> const& span) {
+  return thrust::device_ptr<T const>(span.data());
+}
+
+template <typename T>
+thrust::device_ptr<T const> tcend(xgboost::common::Span<T> const& span) {
+  return tcbegin(span) + span.size();
 }
 
 template <typename FunctionT>

@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2019 by Contributors
+// Copyright (c) 2014-2020 by Contributors
 #include <dmlc/thread_local.h>
 #include <rabit/rabit.h>
 #include <rabit/c_api.h>
@@ -20,7 +20,6 @@
 #include "xgboost/json.h"
 
 #include "c_api_error.h"
-#include "../data/simple_csr_source.h"
 #include "../common/io.h"
 #include "../data/adapter.h"
 #include "../data/simple_dmatrix.h"
@@ -296,8 +295,6 @@ XGB_DLL int XGDMatrixSliceDMatrixEx(DMatrixHandle handle,
                                     xgboost::bst_ulong len,
                                     DMatrixHandle* out,
                                     int allow_groups) {
-  std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
-
   API_BEGIN();
   CHECK_HANDLE();
   if (!allow_groups) {
@@ -324,12 +321,16 @@ XGB_DLL int XGDMatrixFree(DMatrixHandle handle) {
   API_END();
 }
 
-XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle,
-                                const char* fname,
+XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle, const char* fname,
                                 int silent) {
   API_BEGIN();
   CHECK_HANDLE();
-  static_cast<std::shared_ptr<DMatrix>*>(handle)->get()->SaveToLocalFile(fname);
+  auto dmat = static_cast<std::shared_ptr<DMatrix>*>(handle)->get();
+  if (data::SimpleDMatrix* derived = dynamic_cast<data::SimpleDMatrix*>(dmat)) {
+    derived->SaveToLocalFile(fname);
+  } else {
+    LOG(FATAL) << "binary saving only supported by SimpleDMatrix";
+  }
   API_END();
 }
 
@@ -498,7 +499,7 @@ XGB_DLL int XGBoosterUpdateOneIter(BoosterHandle handle,
   auto *dtr =
       static_cast<std::shared_ptr<DMatrix>*>(dtrain);
 
-  bst->UpdateOneIter(iter, dtr->get());
+  bst->UpdateOneIter(iter, *dtr);
   API_END();
 }
 
@@ -519,7 +520,7 @@ XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle,
     tmp_gpair_h[i] = GradientPair(grad[i], hess[i]);
   }
 
-  bst->BoostOneIter(0, dtr->get(), &tmp_gpair);
+  bst->BoostOneIter(0, *dtr, &tmp_gpair);
   API_END();
 }
 
@@ -533,11 +534,11 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
   API_BEGIN();
   CHECK_HANDLE();
   auto* bst = static_cast<Learner*>(handle);
-  std::vector<DMatrix*> data_sets;
+  std::vector<std::shared_ptr<DMatrix>> data_sets;
   std::vector<std::string> data_names;
 
   for (xgboost::bst_ulong i = 0; i < len; ++i) {
-    data_sets.push_back(static_cast<std::shared_ptr<DMatrix>*>(dmats[i])->get());
+    data_sets.push_back(*static_cast<std::shared_ptr<DMatrix>*>(dmats[i]));
     data_names.emplace_back(evnames[i]);
   }
 
@@ -560,7 +561,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
   auto *bst = static_cast<Learner*>(handle);
   HostDeviceVector<bst_float> tmp_preds;
   bst->Predict(
-      static_cast<std::shared_ptr<DMatrix>*>(dmat)->get(),
+      *static_cast<std::shared_ptr<DMatrix>*>(dmat),
       (option_mask & 1) != 0,
       &tmp_preds, ntree_limit,
       static_cast<bool>(training),

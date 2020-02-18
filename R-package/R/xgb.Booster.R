@@ -139,6 +139,8 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @param reshape whether to reshape the vector of predictions to a matrix form when there are several
 #'        prediction outputs per case. This option has no effect when either of predleaf, predcontrib,
 #'        or predinteraction flags is TRUE.
+#' @param training whether is the prediction result used for training.  For dart booster,
+#'        training predicting will perform dropout.
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
 #'
 #' @details
@@ -498,6 +500,35 @@ xgb.attributes <- function(object) {
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
     object$raw <- xgb.save.raw(object$handle)
   }
+  object
+}
+
+#' Accessors for model parameters as JSON string.
+#'
+#' @param object Object of class \code{xgb.Booster}
+#' @param value A JSON string.
+#'
+#' @examples
+#' data(agaricus.train, package='xgboost')
+#' train <- agaricus.train
+#'
+#' bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
+#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+#' config <- xgb.config(bst)
+#'
+#' @rdname xgb.config
+#' @export
+xgb.config <- function(object) {
+  handle <- xgb.get.handle(object)
+  .Call(XGBoosterSaveJsonConfig_R, handle);
+}
+
+#' @rdname xgb.config
+#' @export
+`xgb.config<-` <- function(object, value) {
+  handle <- xgb.get.handle(object)
+  .Call(XGBoosterLoadJsonConfig_R, handle, value)
+  object$raw <- xgb.Booster.complete(object)
   object
 }
 

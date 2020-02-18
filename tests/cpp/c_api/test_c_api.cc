@@ -1,4 +1,6 @@
-// Copyright (c) 2019 by Contributors
+/*!
+ * Copyright 2019-2020 XGBoost contributors
+ */
 #include <gtest/gtest.h>
 #include <xgboost/version_config.h>
 #include <xgboost/c_api.h>
@@ -92,7 +94,7 @@ TEST(c_api, ConfigIO) {
   std::shared_ptr<Learner> learner { Learner::Create(mat) };
 
   BoosterHandle handle = learner.get();
-  learner->UpdateOneIter(0, p_dmat.get());
+  learner->UpdateOneIter(0, p_dmat);
 
   char const* out[1];
   bst_ulong len {0};
@@ -127,7 +129,7 @@ TEST(c_api, JsonModelIO) {
 
   std::shared_ptr<Learner> learner { Learner::Create(mat) };
 
-  learner->UpdateOneIter(0, p_dmat.get());
+  learner->UpdateOneIter(0, p_dmat);
   BoosterHandle handle = learner.get();
 
   std::string modelfile_0 = tempdir.path + "/model_0.json";

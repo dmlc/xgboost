@@ -187,41 +187,5 @@ XGBOOST_DEVICE inline int MaxNodesDepth(int depth) {
   return (1 << (depth + 1)) - 1;
 }
 
-/*
- * Random
- */
-struct BernoulliRng {
-  float p;
-  uint32_t seed;
-
-  XGBOOST_DEVICE BernoulliRng(float p, size_t seed_) : p(p) {
-    seed = static_cast<uint32_t>(seed_);
-  }
-
-  XGBOOST_DEVICE bool operator()(const int i) const {
-    thrust::default_random_engine rng(seed);
-    thrust::uniform_real_distribution<float> dist;
-    rng.discard(i);
-    return dist(rng) <= p;
-  }
-};
-
-// Set gradient pair to 0 with p = 1 - subsample
-inline void SubsampleGradientPair(int device_idx,
-                                  common::Span<GradientPair> d_gpair,
-                                  float subsample, int offset = 0) {
-  if (subsample == 1.0) {
-    return;
-  }
-
-  BernoulliRng rng(subsample, common::GlobalRandom()());
-
-  dh::LaunchN(device_idx, d_gpair.size(), [=] XGBOOST_DEVICE(int i) {
-    if (!rng(i + offset)) {
-      d_gpair[i] = GradientPair();
-    }
-  });
-}
-
 }  // namespace tree
 }  // namespace xgboost

@@ -490,6 +490,13 @@ def test_kwargs():
     assert clf.get_params()['n_estimators'] == 1000
 
 
+def test_kwargs_error():
+    params = {'updater': 'grow_gpu_hist', 'subsample': .5, 'n_jobs': -1}
+    with pytest.raises(TypeError):
+        clf = xgb.XGBClassifier(n_jobs=1000, **params)
+        assert isinstance(clf, xgb.XGBClassifier)
+
+
 def test_kwargs_grid_search():
     from sklearn.model_selection import GridSearchCV
     from sklearn import datasets
@@ -510,19 +517,23 @@ def test_kwargs_grid_search():
     assert len(means) == len(set(means))
 
 
-def test_kwargs_error():
-    params = {'updater': 'grow_gpu_hist', 'subsample': .5, 'n_jobs': -1}
-    with pytest.raises(TypeError):
-        clf = xgb.XGBClassifier(n_jobs=1000, **params)
-        assert isinstance(clf, xgb.XGBClassifier)
-
-
 def test_sklearn_clone():
     from sklearn.base import clone
 
     clf = xgb.XGBClassifier(n_jobs=2)
     clf.n_jobs = -1
     clone(clf)
+
+
+def test_sklearn_get_default_params():
+    from sklearn.datasets import load_digits
+    digits_2class = load_digits(2)
+    X = digits_2class['data']
+    y = digits_2class['target']
+    cls = xgb.XGBClassifier()
+    assert cls.get_params()['base_score'] is None
+    cls.fit(X[:4, ...], y[:4, ...])
+    assert cls.get_params()['base_score'] is not None
 
 
 def test_validation_weights_xgbmodel():

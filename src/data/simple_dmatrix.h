@@ -10,27 +10,21 @@
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 
-#include <algorithm>
 #include <memory>
-#include <limits>
-#include <utility>
-#include <vector>
+#include <string>
 
-#include "simple_csr_source.h"
-#include "../common/group_data.h"
-#include "../common/math.h"
-#include "adapter.h"
 
 namespace xgboost {
 namespace data {
 // Used for single batch data.
 class SimpleDMatrix : public DMatrix {
  public:
-  explicit SimpleDMatrix(std::unique_ptr<DataSource<SparsePage>>&& source)
-      : source_(std::move(source)) {}
-
   template <typename AdapterT>
   explicit SimpleDMatrix(AdapterT* adapter, float missing, int nthread);
+
+  explicit SimpleDMatrix(dmlc::Stream* in_stream);
+
+  void SaveToLocalFile(const std::string& fname);
 
   MetaInfo& Info() override;
 
@@ -40,15 +34,17 @@ class SimpleDMatrix : public DMatrix {
 
   bool SingleColBlock() const override;
 
+  /*! \brief magic number used to identify SimpleDMatrix binary files */
+  static const int kMagic = 0xffffab01;
+
  private:
   BatchSet<SparsePage> GetRowBatches() override;
   BatchSet<CSCPage> GetColumnBatches() override;
   BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
   BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
 
-  // source data pointer.
-  std::unique_ptr<DataSource<SparsePage>> source_;
-
+  MetaInfo info;
+  SparsePage sparse_page_;  // Primary storage type
   std::unique_ptr<CSCPage> column_page_;
   std::unique_ptr<SortedCSCPage> sorted_column_page_;
   std::unique_ptr<EllpackPage> ellpack_page_;
