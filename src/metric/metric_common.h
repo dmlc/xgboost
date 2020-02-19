@@ -7,6 +7,9 @@
 
 #include "../common/common.h"
 
+#include <utility>
+#include <vector>
+
 namespace {
 
 using PredIndPair = std::pair<xgboost::bst_float, unsigned>;

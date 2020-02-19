@@ -4,10 +4,12 @@
  * \brief prediction rank based metrics.
  * \author Kailong Chen, Tianqi Chen
  */
-#include <cmath>
-#include <vector>
 #include <rabit/rabit.h>
 #include <dmlc/registry.h>
+
+#include <cmath>
+#include <vector>
+
 #include <xgboost/metric.h>
 #include <xgboost/host_device_vector.h>
 #include "../common/math.h"
@@ -25,7 +27,7 @@ namespace metric {
 DMLC_REGISTRY_FILE_TAG(rank_metric_gpu);
 #endif
 
-struct EvalRankConfig {
+class EvalRankConfig {
  public:
   unsigned topn_{std::numeric_limits<unsigned>::max()};
   std::string name_;
@@ -79,7 +81,7 @@ struct EvalRankList : public Metric, public EvalRankConfig {
         for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
           rec.emplace_back(h_preds[j], static_cast<int>(labels[j]));
         }
-        sum_metric += EvalMetricT::EvalMetric(rec, *this);
+        sum_metric += EvalMetricT::EvalMetric(&rec, *this);
       }
     }
 
@@ -194,8 +196,9 @@ struct EvalPrecision {
   }
 #endif
 
-  static bst_float EvalMetric(PredIndPairContainer &rec,
+  static bst_float EvalMetric(PredIndPairContainer *recptr,
                               const EvalRankConfig &ecfg) {
+    PredIndPairContainer &rec(*recptr);
     // calculate Precision
     std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
     unsigned nhit = 0;
@@ -229,7 +232,8 @@ struct EvalNDCG {
                          // The order in which labels have to be accessed. The order is determined
                          // by sorting the predictions or the labels for the entire dataset
                          const uint32_t *dlabels_sort_order,
-                         dh::caching_device_vector<float> &dcgs) {
+                         dh::caching_device_vector<float> *dcgptr) {
+    dh::caching_device_vector<float> &dcgs(*dcgptr);
     // Group info on device
     const auto *dgroups = pred_sorter.GetGroupsPtr();
     const auto ngroups = pred_sorter.GetNumGroups();
@@ -269,11 +273,11 @@ struct EvalNDCG {
     uint32_t ngroups = pred_sorter.GetNumGroups();
 
     dh::caching_device_vector<float> idcg(ngroups, 0);
-    ComputeDCG(pred_sorter, dlabels, ecfg, segment_label_sorter.GetOriginalPositionsPtr(), idcg);
+    ComputeDCG(pred_sorter, dlabels, ecfg, segment_label_sorter.GetOriginalPositionsPtr(), &idcg);
 
     // Compute the DCG values next
     dh::caching_device_vector<float> dcg(ngroups, 0);
-    ComputeDCG(pred_sorter, dlabels, ecfg, pred_sorter.GetOriginalPositionsPtr(), dcg);
+    ComputeDCG(pred_sorter, dlabels, ecfg, pred_sorter.GetOriginalPositionsPtr(), &dcg);
 
     float *ddcg = dcg.data().get();
     float *didcg = idcg.data().get();
@@ -294,8 +298,9 @@ struct EvalNDCG {
     return thrust::reduce(thrust::cuda::par(alloc), dcg.begin(), dcg.end());
   }
 #endif
-   static bst_float EvalMetric(PredIndPairContainer &rec,
+   static bst_float EvalMetric(PredIndPairContainer *recptr,
                                const EvalRankConfig &ecfg) { // NOLINT(*)
+    PredIndPairContainer &rec(*recptr);
     std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
     bst_float dcg = CalcDCG(rec, ecfg);
     std::stable_sort(rec.begin(), rec.end(), common::CmpSecond);
@@ -386,8 +391,9 @@ struct EvalMAP {
     return thrust::reduce(thrust::cuda::par(alloc), sumap.begin(), sumap.end());
   }
 #endif
-   static bst_float EvalMetric(PredIndPairContainer &rec,
-                              const EvalRankConfig &ecfg) {
+   static bst_float EvalMetric(PredIndPairContainer *recptr,
+                               const EvalRankConfig &ecfg) {
+    PredIndPairContainer &rec(*recptr);
     std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
     unsigned nhits = 0;
     double sumap = 0.0;
@@ -538,7 +544,7 @@ struct EvalAuc : public Metric {
     } else {
 #endif
       if (!auc_cpu_) {
-        auc_cpu_.reset(xgboost::Metric::Create("auc-cpu", NULL));
+        auc_cpu_.reset(xgboost::Metric::Create("auc-cpu", nullptr));
       }
       return auc_cpu_->Eval(preds, info, distributed);
 #if defined(__CUDACC__)
@@ -566,8 +572,8 @@ struct EvalAucPR : public Metric {
    public:
     // The precision type to be computed
     enum class PrecisionType {
-      POSITIVE,
-      NEGATIVE
+      kPositive,
+      kNegative
     };
 
     XGBOOST_DEVICE ComputeItemPrecision(PrecisionType ptype,
@@ -582,7 +588,7 @@ struct EvalAucPR : public Metric {
       // For ranking task, weights are per-group
       // For binary classification task, weights are per-instance
       const auto wt = dweights_ == nullptr ? 1.0f : dweights_[ngroups_ == 1 ? idx : dgidxs_[idx]];
-      return wt * (ptype_ == PrecisionType::POSITIVE ? dlabels_[idx] : (1.0f - dlabels_[idx]));
+      return wt * (ptype_ == PrecisionType::kPositive ? dlabels_[idx] : (1.0f - dlabels_[idx]));
     }
 
    private:
@@ -630,7 +636,7 @@ struct EvalAucPR : public Metric {
     dh::XGBCachingDeviceAllocator<char> alloc;
 
     // Compute each elements positive precision value and reduce them across groups concurrently.
-    ComputeItemPrecision pos_prec_functor(ComputeItemPrecision::PrecisionType::POSITIVE,
+    ComputeItemPrecision pos_prec_functor(ComputeItemPrecision::PrecisionType::kPositive,
                                           ngroups, dweights, dgroup_idx, dlabels);
     auto end_range =
       thrust::reduce_by_key(thrust::cuda::par(alloc),
@@ -645,7 +651,7 @@ struct EvalAucPR : public Metric {
     CHECK(end_range.second - total_pos.begin() == total_pos.size());
 
     // Compute each elements negative precision value and reduce them across groups concurrently.
-    ComputeItemPrecision neg_prec_functor(ComputeItemPrecision::PrecisionType::NEGATIVE,
+    ComputeItemPrecision neg_prec_functor(ComputeItemPrecision::PrecisionType::kNegative,
                                           ngroups, dweights, dgroup_idx, dlabels);
     end_range =
       thrust::reduce_by_key(thrust::cuda::par(alloc),
@@ -763,7 +769,7 @@ struct EvalAucPR : public Metric {
     } else {
 #endif
       if (!aucpr_cpu_) {
-        aucpr_cpu_.reset(xgboost::Metric::Create("aucpr-cpu", NULL));
+        aucpr_cpu_.reset(xgboost::Metric::Create("aucpr-cpu", nullptr));
       }
       return aucpr_cpu_->Eval(preds, info, distributed);
 #if defined(__CUDACC__)

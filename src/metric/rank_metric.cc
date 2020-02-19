@@ -3,9 +3,11 @@
  */
 // Include the metrics that aren't accelerated on the GPU here, with the rest in rank_metric.cu
 
-#include <vector>
 #include <rabit/rabit.h>
 #include <dmlc/registry.h>
+
+#include <vector>
+
 #include <xgboost/metric.h>
 #include "../common/math.h"
 #include "../common/timer.h"
@@ -57,7 +59,7 @@ class PerGroupWeightPolicy {
     return info.GetWeight(group_id);
   }
 };
-}
+}  // end of anonymous namespace
 
 namespace xgboost {
 namespace metric {
@@ -222,7 +224,7 @@ struct EvalAucCpu : public Metric {
     const auto& labels = info.labels_.ConstHostVector();
     const std::vector<bst_float>& h_preds = preds.ConstHostVector();
 
-    #pragma omp parallel reduction(+:sum_auc,auc_error) if (ngroups > 1)
+    #pragma omp parallel reduction(+:sum_auc, auc_error) if (ngroups > 1)
     {
       // Each thread works on a distinct group and sorts the predictions in that group
       PredIndPairContainer rec;
@@ -232,12 +234,15 @@ struct EvalAucCpu : public Metric {
         // the predictions array based on the current group
         rec.resize(gptr[group_id + 1] - gptr[group_id]);
         #pragma omp parallel for schedule(static) if (!omp_in_parallel())
-        for (unsigned j = gptr[group_id]; j < gptr[group_id + 1]; ++j) {
+        for (bst_omp_uint j = gptr[group_id]; j < gptr[group_id + 1]; ++j) {
           rec[j - gptr[group_id]] = {h_preds[j], j};
         }
 
-        if (omp_in_parallel()) std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
-        else XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
+        if (omp_in_parallel()) {
+          std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
+        } else {
+          XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
+        }
 
         // calculate AUC
         double sum_pospair = 0.0;
@@ -327,7 +332,7 @@ struct EvalAucPRCpu : public Metric {
     const auto& h_labels = info.labels_.ConstHostVector();
     const std::vector<bst_float>& h_preds = preds.ConstHostVector();
 
-    #pragma omp parallel reduction(+:sum_auc,auc_error) if (ngroups > 1)
+    #pragma omp parallel reduction(+:sum_auc, auc_error) if (ngroups > 1)
     {
       // Each thread works on a distinct group and sorts the predictions in that group
       PredIndPairContainer rec;
@@ -338,17 +343,20 @@ struct EvalAucPRCpu : public Metric {
         // Same thread can work on multiple groups one after another; hence, resize
         // the predictions array based on the current group
         rec.resize(gptr[group_id + 1] - gptr[group_id]);
-        #pragma omp parallel for schedule(static) reduction(+:total_pos,total_neg) \
+        #pragma omp parallel for schedule(static) reduction(+:total_pos, total_neg) \
           if (!omp_in_parallel())
-        for (unsigned j = gptr[group_id]; j < gptr[group_id + 1]; ++j) {
+        for (bst_omp_uint j = gptr[group_id]; j < gptr[group_id + 1]; ++j) {
           const bst_float wt = WeightPolicy::GetWeightOfInstance(info, j, group_id);
           total_pos += wt * h_labels[j];
           total_neg += wt * (1.0f - h_labels[j]);
           rec[j - gptr[group_id]] = {h_preds[j], j};
         }
 
-        if (omp_in_parallel()) std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
-        else XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
+        if (omp_in_parallel()) {
+          std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
+        } else {
+          XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
+        }
 
         // we need pos > 0 && neg > 0
         if (total_pos <= 0.0 || total_neg <= 0.0) {
@@ -422,7 +430,7 @@ struct EvalAucPRCpu : public Metric {
 
   const char *Name() const override { return "aucpr-cpu"; }
 };
-} // end of namespace internal
+}  // end of namespace internal
 
 XGBOOST_REGISTER_METRIC(AucCpu, "auc-cpu")
 .describe("Internal AUC metric computation on CPU for classification and rank.")
@@ -439,8 +447,8 @@ XGBOOST_REGISTER_METRIC(AMS, "ams")
 XGBOOST_REGISTER_METRIC(Cox, "cox-nloglik")
 .describe("Negative log partial likelihood of Cox proportioanl hazards model.")
 .set_body([](const char* param) { return new EvalCox(); });
-} // end of metric namespace
-} // end of xgboost namespace
+}  // end of metric namespace
+}  // end of xgboost namespace
 
 #if !defined(XGBOOST_USE_CUDA)
 #include "rank_metric.cu"
