@@ -45,7 +45,7 @@ class EllpackPageSourceImpl : public DataSource<EllpackPage> {
   dh::BulkAllocator ba_;
   /*! \brief The EllpackInfo, with the underlying GPU memory shared by all pages. */
   EllpackInfo ellpack_info_;
-  std::unique_ptr<SparsePageSource<EllpackPage>> source_;
+  std::unique_ptr<ExternalMemoryPrefetcher<EllpackPage>> source_;
   std::string cache_info_;
 };
 
@@ -98,11 +98,13 @@ EllpackPageSourceImpl::EllpackPageSourceImpl(DMatrix* dmat,
   WriteEllpackPages(dmat, cache_info);
   monitor_.StopCuda("WriteEllpackPages");
 
-  source_.reset(new SparsePageSource<EllpackPage>(cache_info_, kPageType_));
+  source_.reset(new ExternalMemoryPrefetcher<EllpackPage>(
+      ParseCacheInfo(cache_info_, kPageType_)));
 }
 
 void EllpackPageSourceImpl::BeforeFirst() {
-  source_.reset(new SparsePageSource<EllpackPage>(cache_info_, kPageType_));
+  source_.reset(new ExternalMemoryPrefetcher<EllpackPage>(
+      ParseCacheInfo(cache_info_, kPageType_)));
   source_->BeforeFirst();
 }
 
