@@ -27,6 +27,7 @@
 #include "../common/common.h"
 #include "../common/random.h"
 #include "../common/timer.h"
+#include "../data/sparse_page_dmatrix.h"
 
 namespace xgboost {
 namespace gbm {
@@ -130,7 +131,7 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
       "Tree method is automatically selected to be 'approx' "
       "for distributed training.";
     tparam_.tree_method = TreeMethod::kApprox;
-  } else if (!fmat->SingleColBlock()) {
+  } else if (dynamic_cast<data::SparsePageDMatrix*>(fmat)) {
     LOG(WARNING) << "Tree method is automatically set to 'approx' "
                     "since external-memory data matrix is used.";
     tparam_.tree_method = TreeMethod::kApprox;

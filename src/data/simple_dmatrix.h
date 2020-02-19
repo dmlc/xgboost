@@ -30,10 +30,6 @@ class SimpleDMatrix : public DMatrix {
 
   const MetaInfo& Info() const override;
 
-  float GetColDensity(size_t cidx) override;
-
-  bool SingleColBlock() const override;
-
   /*! \brief magic number used to identify SimpleDMatrix binary files */
   static const int kMagic = 0xffffab01;
 

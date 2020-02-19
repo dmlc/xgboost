@@ -14,6 +14,7 @@
 #include "../common/device_helpers.cuh"
 #include "../common/timer.h"
 #include "./param.h"
+#include "../data/sparse_page_dmatrix.h"
 
 namespace xgboost {
 namespace linear {
@@ -58,10 +59,14 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
 
     num_row_ = static_cast<size_t>(p_fmat->Info().num_row_);
 
-    CHECK(p_fmat->SingleColBlock());
-    SparsePage const& batch = *(p_fmat->GetBatches<CSCPage>().begin());
+    SparsePage const &batch = *p_fmat->GetBatches<CSCPage>().begin();
+    CHECK(!dynamic_cast<data::SparsePageDMatrix *>(p_fmat))
+        << "External memory not supported";
 
-    if ( IsEmpty() ) { return; }
+    if (IsEmpty()) {
+      return;
+    }
+
     dh::safe_cuda(cudaSetDevice(learner_param_->gpu_id));
     // The begin and end indices for the section of each column associated with
     // this device

@@ -47,9 +47,6 @@ TEST(SparsePageDMatrix, ColAccess) {
   xgboost::DMatrix * dmat = xgboost::DMatrix::Load(
     tmp_file + "#" + tmp_file + ".cache", true, false);
 
-  EXPECT_EQ(dmat->GetColDensity(0), 1);
-  EXPECT_EQ(dmat->GetColDensity(1), 0.5);
-
   // Loop over the batches and assert the data is as expected
   for (auto const& col_batch : dmat->GetBatches<xgboost::SortedCSCPage>()) {
     EXPECT_EQ(col_batch.Size(), dmat->Info().num_col_);

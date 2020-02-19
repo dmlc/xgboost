@@ -16,21 +16,6 @@ MetaInfo& SimpleDMatrix::Info() { return info; }
 
 const MetaInfo& SimpleDMatrix::Info() const { return info; }
 
-float SimpleDMatrix::GetColDensity(size_t cidx) {
-  size_t column_size = 0;
-  // Use whatever version of column batches already exists
-  if (sorted_column_page_) {
-    auto batch = this->GetBatches<SortedCSCPage>();
-    column_size = (*batch.begin())[cidx].size();
-  } else {
-    auto batch = this->GetBatches<CSCPage>();
-    column_size = (*batch.begin())[cidx].size();
-  }
-
-  size_t nmiss = this->Info().num_row_ - column_size;
-  return 1.0f - (static_cast<float>(nmiss)) / this->Info().num_row_;
-}
-
 BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
   // since csr is the default data structure so `source_` is always available.
   auto begin_iter = BatchIterator<SparsePage>(
@@ -71,8 +56,6 @@ BatchSet<EllpackPage> SimpleDMatrix::GetEllpackBatches(const BatchParam& param) 
       BatchIterator<EllpackPage>(new SimpleBatchIteratorImpl<EllpackPage>(ellpack_page_.get()));
   return BatchSet<EllpackPage>(begin_iter);
 }
-
-bool SimpleDMatrix::SingleColBlock() const { return true; }
 
 template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
