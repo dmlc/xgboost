@@ -48,10 +48,12 @@ Metric* Metric::Create(const std::string& name, GenericParameter const* tparam) 
 
 namespace xgboost {
 namespace metric {
-
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(elementwise_metric);
 DMLC_REGISTRY_LINK_TAG(multiclass_metric);
 DMLC_REGISTRY_LINK_TAG(rank_metric);
+#ifdef XGBOOST_USE_CUDA
+DMLC_REGISTRY_LINK_TAG(rank_metric_gpu);
+#endif
 }  // namespace metric
 }  // namespace xgboost

@@ -7,6 +7,13 @@
 
 #include "../common/common.h"
 
+namespace {
+
+using PredIndPair = std::pair<xgboost::bst_float, unsigned>;
+using PredIndPairContainer = std::vector<PredIndPair>;
+
+}  // anonymous namespace
+
 namespace xgboost {
 namespace metric {
 

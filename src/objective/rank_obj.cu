@@ -48,172 +48,6 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
 };
 
 #if defined(__CUDACC__)
-// This type sorts an array which is divided into multiple groups. The sorting is influenced
-// by the function object 'Comparator'
-template <typename T>
-class SegmentSorter {
- private:
-  // Items sorted within the group
-  dh::caching_device_vector<T> ditems_;
-
-  // Original position of the items before they are sorted descendingly within its groups
-  dh::caching_device_vector<uint32_t> doriginal_pos_;
-
-  // Segments within the original list that delineates the different groups
-  dh::caching_device_vector<uint32_t> group_segments_;
-
-  // Need this on the device as it is used in the kernels
-  dh::caching_device_vector<uint32_t> dgroups_;       // Group information on device
-
-  // Where did the item that was originally present at position 'x' move to after they are sorted
-  dh::caching_device_vector<uint32_t> dindexable_sorted_pos_;
-
-  // Initialize everything but the segments
-  void Init(uint32_t num_elems) {
-    ditems_.resize(num_elems);
-
-    doriginal_pos_.resize(num_elems);
-    thrust::sequence(doriginal_pos_.begin(), doriginal_pos_.end());
-  }
-
-  // Initialize all with group info
-  void Init(const std::vector<uint32_t> &groups) {
-    uint32_t num_elems = groups.back();
-    this->Init(num_elems);
-    this->CreateGroupSegments(groups);
-  }
-
- public:
-  // This needs to be public due to device lambda
-  void CreateGroupSegments(const std::vector<uint32_t> &groups) {
-    uint32_t num_elems = groups.back();
-    group_segments_.resize(num_elems);
-
-    dgroups_ = groups;
-
-    // Define the segments by assigning a group ID to each element
-    const uint32_t *dgroups = dgroups_.data().get();
-    uint32_t ngroups = dgroups_.size();
-    auto ComputeGroupIDLambda = [=] __device__(uint32_t idx) {
-      return dh::UpperBound(dgroups, ngroups, idx) - 1;
-    };  // NOLINT
-
-    thrust::transform(thrust::make_counting_iterator(static_cast<uint32_t>(0)),
-                      thrust::make_counting_iterator(num_elems),
-                      group_segments_.begin(),
-                      ComputeGroupIDLambda);
-  }
-
-  // Accessors that returns device pointer
-  inline const T *GetItemsPtr() const { return ditems_.data().get(); }
-  inline uint32_t GetNumItems() const { return ditems_.size(); }
-  inline const dh::caching_device_vector<T> &GetItems() const {
-    return ditems_;
-  }
-
-  inline const uint32_t *GetOriginalPositionsPtr() const { return doriginal_pos_.data().get(); }
-  inline const dh::caching_device_vector<uint32_t> &GetOriginalPositions() const {
-    return doriginal_pos_;
-  }
-
-  inline const dh::caching_device_vector<uint32_t> &GetGroupSegments() const {
-    return group_segments_;
-  }
-
-  inline uint32_t GetNumGroups() const { return dgroups_.size() - 1; }
-  inline const uint32_t *GetGroupsPtr() const { return dgroups_.data().get(); }
-  inline const dh::caching_device_vector<uint32_t> &GetGroups() const { return dgroups_; }
-
-  inline const dh::caching_device_vector<uint32_t> &GetIndexableSortedPositions() const {
-    return dindexable_sorted_pos_;
-  }
-
-  // Sort an array that is divided into multiple groups. The array is sorted within each group.
-  // This version provides the group information that is on the host.
-  // The array is sorted based on an adaptable binary predicate. By default a stateless predicate
-  // is used.
-  template <typename Comparator = thrust::greater<T>>
-  void SortItems(const T *ditems, uint32_t item_size, const std::vector<uint32_t> &groups,
-                 const Comparator &comp = Comparator()) {
-    this->Init(groups);
-    this->SortItems(ditems, item_size, group_segments_, comp);
-  }
-
-  // Sort an array that is divided into multiple groups. The array is sorted within each group.
-  // This version provides the group information that is on the device.
-  // The array is sorted based on an adaptable binary predicate. By default a stateless predicate
-  // is used.
-  template <typename Comparator = thrust::greater<T>>
-  void SortItems(const T *ditems, uint32_t item_size,
-                 const dh::caching_device_vector<uint32_t> &group_segments,
-                 const Comparator &comp = Comparator()) {
-    this->Init(item_size);
-
-    // Sort the items that are grouped. We would like to avoid using predicates to perform the sort,
-    // as thrust resorts to using a merge sort as opposed to a much much faster radix sort
-    // when comparators are used. Hence, the following algorithm is used. This is done so that
-    // we can grab the appropriate related values from the original list later, after the
-    // items are sorted.
-    //
-    // Here is the internal representation:
-    // dgroups_:          [ 0, 3, 5, 8, 10 ]
-    // group_segments_:   0 0 0 | 1 1 | 2 2 2 | 3 3
-    // doriginal_pos_:    0 1 2 | 3 4 | 5 6 7 | 8 9
-    // ditems_:           1 0 1 | 2 1 | 1 3 3 | 4 4 (from original items)
-    //
-    // Sort the items first and make a note of the original positions in doriginal_pos_
-    // based on the sort
-    // ditems_:           4 4 3 3 2 1 1 1 1 0
-    // doriginal_pos_:    8 9 6 7 3 0 2 4 5 1
-    // NOTE: This consumes space, but is much faster than some of the other approaches - sorting
-    //       in kernel, sorting using predicates etc.
-
-    ditems_.assign(thrust::device_ptr<const T>(ditems),
-                   thrust::device_ptr<const T>(ditems) + item_size);
-
-    // Allocator to be used by sort for managing space overhead while sorting
-    dh::XGBCachingDeviceAllocator<char> alloc;
-
-    thrust::stable_sort_by_key(thrust::cuda::par(alloc),
-                               ditems_.begin(), ditems_.end(),
-                               doriginal_pos_.begin(), comp);
-
-    // Next, gather the segments based on the doriginal_pos_. This is to reflect the
-    // holisitic item sort order on the segments
-    // group_segments_c_:   3 3 2 2 1 0 0 1 2 0
-    // doriginal_pos_:      8 9 6 7 3 0 2 4 5 1 (stays the same)
-    dh::caching_device_vector<uint32_t> group_segments_c(group_segments);
-    thrust::gather(doriginal_pos_.begin(), doriginal_pos_.end(),
-                   group_segments.begin(), group_segments_c.begin());
-
-    // Now, sort the group segments so that you may bring the items within the group together,
-    // in the process also noting the relative changes to the doriginal_pos_ while that happens
-    // group_segments_c_:   0 0 0 1 1 2 2 2 3 3
-    // doriginal_pos_:      0 2 1 3 4 6 7 5 8 9
-    thrust::stable_sort_by_key(thrust::cuda::par(alloc),
-                               group_segments_c.begin(), group_segments_c.end(),
-                               doriginal_pos_.begin(), thrust::less<uint32_t>());
-
-    // Finally, gather the original items based on doriginal_pos_ to sort the input and
-    // to store them in ditems_
-    // doriginal_pos_:      0 2 1 3 4 6 7 5 8 9  (stays the same)
-    // ditems_:             1 1 0 2 1 3 3 1 4 4  (from unsorted items - ditems)
-    thrust::gather(doriginal_pos_.begin(), doriginal_pos_.end(),
-                   thrust::device_ptr<const T>(ditems), ditems_.begin());
-  }
-
-  // Determine where an item that was originally present at position 'x' has been relocated to
-  // after a sort. Creation of such an index has to be explicitly requested after a sort
-  void CreateIndexableSortedPositions() {
-    dindexable_sorted_pos_.resize(GetNumItems());
-    thrust::scatter(thrust::make_counting_iterator(static_cast<uint32_t>(0)),
-                    thrust::make_counting_iterator(GetNumItems()),  // Rearrange indices...
-                    // ...based on this map
-                    thrust::device_ptr<const uint32_t>(GetOriginalPositionsPtr()),
-                    dindexable_sorted_pos_.begin());  // Write results into this
-  }
-};
-
 // Helper functions
 
 template <typename T>
@@ -283,7 +117,7 @@ class PairwiseLambdaWeightComputer {
 #if defined(__CUDACC__)
   PairwiseLambdaWeightComputer(const bst_float *dpreds,
                                const bst_float *dlabels,
-                               const SegmentSorter<float> &segment_label_sorter) {}
+                               const dh::SegmentSorter<float> &segment_label_sorter) {}
 
   class PairwiseLambdaWeightMultiplier {
    public:
@@ -302,8 +136,8 @@ class PairwiseLambdaWeightComputer {
 #if defined(__CUDACC__)
 class BaseLambdaWeightMultiplier {
  public:
-  BaseLambdaWeightMultiplier(const SegmentSorter<float> &segment_label_sorter,
-                             const SegmentSorter<float> &segment_pred_sorter)
+  BaseLambdaWeightMultiplier(const dh::SegmentSorter<float> &segment_label_sorter,
+                             const dh::SegmentSorter<float> &segment_pred_sorter)
     : dsorted_labels_(segment_label_sorter.GetItemsPtr()),
       dorig_pos_(segment_label_sorter.GetOriginalPositionsPtr()),
       dgroups_(segment_label_sorter.GetGroupsPtr()),
@@ -351,7 +185,7 @@ class BaseLambdaWeightMultiplier {
 class IndexablePredictionSorter {
  public:
   IndexablePredictionSorter(const bst_float *dpreds,
-                            const SegmentSorter<float> &segment_label_sorter) {
+                            const dh::SegmentSorter<float> &segment_label_sorter) {
     // Sort the predictions first
     segment_pred_sorter_.SortItems(dpreds, segment_label_sorter.GetNumItems(),
                                    segment_label_sorter.GetGroupSegments());
@@ -360,12 +194,12 @@ class IndexablePredictionSorter {
     segment_pred_sorter_.CreateIndexableSortedPositions();
   }
 
-  inline const SegmentSorter<float> &GetPredictionSorter() const {
+  inline const dh::SegmentSorter<float> &GetPredictionSorter() const {
     return segment_pred_sorter_;
   }
 
  private:
-  SegmentSorter<float> segment_pred_sorter_;  // For sorting the predictions
+  dh::SegmentSorter<float> segment_pred_sorter_;  // For sorting the predictions
 };
 #endif
 
@@ -401,7 +235,7 @@ class NDCGLambdaWeightComputer
   // Type containing device pointers that can be cheaply copied on the kernel
   class NDCGLambdaWeightMultiplier : public BaseLambdaWeightMultiplier {
    public:
-    NDCGLambdaWeightMultiplier(const SegmentSorter<float> &segment_label_sorter,
+    NDCGLambdaWeightMultiplier(const dh::SegmentSorter<float> &segment_label_sorter,
                                const NDCGLambdaWeightComputer &lwc)
       : BaseLambdaWeightMultiplier(segment_label_sorter, lwc.GetPredictionSorter()),
         dgroup_dcg_ptr_(lwc.GetGroupDcgs().data().get()) {}
@@ -432,15 +266,19 @@ class NDCGLambdaWeightComputer
 
   NDCGLambdaWeightComputer(const bst_float *dpreds,
                            const bst_float *dlabels,
-                           const SegmentSorter<float> &segment_label_sorter)
+                           const dh::SegmentSorter<float> &segment_label_sorter)
     : IndexablePredictionSorter(dpreds, segment_label_sorter),
       dgroup_dcg_(segment_label_sorter.GetNumGroups(), 0.0f),
       weight_multiplier_(segment_label_sorter, *this) {
     const auto &group_segments = segment_label_sorter.GetGroupSegments();
 
+    // Allocator to be used for managing space overhead while performing transformed reductions
+    dh::XGBCachingDeviceAllocator<char> alloc;
+
     // Compute each elements DCG values and reduce them across groups concurrently.
     auto end_range =
-      thrust::reduce_by_key(group_segments.begin(), group_segments.end(),
+      thrust::reduce_by_key(thrust::cuda::par(alloc),
+                            group_segments.begin(), group_segments.end(),
                             thrust::make_transform_iterator(
                               // The indices need not be sequential within a group, as we care only
                               // about the sum of items DCG values within a group
@@ -664,7 +502,7 @@ class MAPLambdaWeightComputer
 #if defined(__CUDACC__)
   MAPLambdaWeightComputer(const bst_float *dpreds,
                           const bst_float *dlabels,
-                          const SegmentSorter<float> &segment_label_sorter)
+                          const dh::SegmentSorter<float> &segment_label_sorter)
     : IndexablePredictionSorter(dpreds, segment_label_sorter),
       dmap_stats_(segment_label_sorter.GetNumItems(), MAPStats()),
       weight_multiplier_(segment_label_sorter, *this) {
@@ -672,7 +510,7 @@ class MAPLambdaWeightComputer
   }
 
   void CreateMAPStats(const bst_float *dlabels,
-                      const SegmentSorter<float> &segment_label_sorter) {
+                      const dh::SegmentSorter<float> &segment_label_sorter) {
     // For each group, go through the sorted prediction positions, and look up its corresponding
     // label from the unsorted labels (from the original label list)
 
@@ -746,7 +584,7 @@ class MAPLambdaWeightComputer
   // Type containing device pointers that can be cheaply copied on the kernel
   class MAPLambdaWeightMultiplier : public BaseLambdaWeightMultiplier {
    public:
-    MAPLambdaWeightMultiplier(const SegmentSorter<float> &segment_label_sorter,
+    MAPLambdaWeightMultiplier(const dh::SegmentSorter<float> &segment_label_sorter,
                               const MAPLambdaWeightComputer &lwc)
       : BaseLambdaWeightMultiplier(segment_label_sorter, lwc.GetPredictionSorter()),
         dmap_stats_ptr_(lwc.GetMapStats().data().get()) {}
@@ -785,7 +623,7 @@ class MAPLambdaWeightComputer
 };
 
 #if defined(__CUDACC__)
-class SortedLabelList : SegmentSorter<float> {
+class SortedLabelList : dh::SegmentSorter<float> {
  private:
   const LambdaRankParam &param_;                      // Objective configuration
 

@@ -5,15 +5,14 @@
 namespace xgboost {
 
 template <typename T = uint32_t, typename Comparator = thrust::greater<T>>
-std::unique_ptr<xgboost::obj::SegmentSorter<T>>
+std::unique_ptr<dh::SegmentSorter<T>>
 RankSegmentSorterTestImpl(const std::vector<uint32_t> &group_indices,
                           const std::vector<T> &hlabels,
                           const std::vector<T> &expected_sorted_hlabels,
                           const std::vector<uint32_t> &expected_orig_pos
                           ) {
-  std::unique_ptr<xgboost::obj::SegmentSorter<T>> seg_sorter_ptr(
-    new xgboost::obj::SegmentSorter<T>);
-  xgboost::obj::SegmentSorter<T> &seg_sorter(*seg_sorter_ptr);
+  std::unique_ptr<dh::SegmentSorter<T>> seg_sorter_ptr(new dh::SegmentSorter<T>);
+  dh::SegmentSorter<T> &seg_sorter(*seg_sorter_ptr);
 
   // Create a bunch of unsorted labels on the device and sort it via the segment sorter
   dh::device_vector<T> dlabels(hlabels);
