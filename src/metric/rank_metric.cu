@@ -7,11 +7,12 @@
 #include <rabit/rabit.h>
 #include <dmlc/registry.h>
 
+#include <xgboost/metric.h>
+#include <xgboost/host_device_vector.h>
+
 #include <cmath>
 #include <vector>
 
-#include <xgboost/metric.h>
-#include <xgboost/host_device_vector.h>
 #include "../common/math.h"
 #include "metric_common.h"
 
@@ -27,11 +28,11 @@ namespace metric {
 DMLC_REGISTRY_FILE_TAG(rank_metric_gpu);
 #endif
 
-class EvalRankConfig {
+struct EvalRankConfig {
  public:
-  unsigned topn_{std::numeric_limits<unsigned>::max()};
-  std::string name_;
-  bool minus_{false};
+  unsigned topn{std::numeric_limits<unsigned>::max()};
+  std::string name;
+  bool minus{false};
 };
 
 /*! \brief Evaluate rank list */
@@ -130,25 +131,25 @@ struct EvalRankList : public Metric, public EvalRankConfig {
   }
 
   const char* Name() const override {
-    return name_.c_str();
+    return name.c_str();
   }
 
   explicit EvalRankList(const char* name, const char* param) {
     using namespace std;  // NOLINT(*)
     if (param != nullptr) {
       std::ostringstream os;
-      if (sscanf(param, "%u[-]?", &topn_) == 1) {
+      if (sscanf(param, "%u[-]?", &topn) == 1) {
         os << name << '@' << param;
-        name_ = os.str();
+        this->name = os.str();
       } else {
         os << name << param;
-        name_ = os.str();
+        this->name = os.str();
       }
       if (param[strlen(param) - 1] == '-') {
-        minus_ = true;
+        minus = true;
       }
     } else {
-      name_ = name;
+      this->name = name;
     }
   }
 };
@@ -184,7 +185,7 @@ struct EvalPrecision {
       const auto group_idx = dgroup_idx[idx];
       const auto group_begin = dgroups[group_idx];
       const auto ridx = idx - group_begin;
-      if (ridx < ecfg.topn_ && DetermineNonTrivialLabelLambda(idx)) {
+      if (ridx < ecfg.topn && DetermineNonTrivialLabelLambda(idx)) {
         atomicAdd(&dhits[group_idx], 1);
       }
     });
@@ -192,7 +193,7 @@ struct EvalPrecision {
     // Allocator to be used for managing space overhead while performing reductions
     dh::XGBCachingDeviceAllocator<char> alloc;
     return static_cast<bst_float>(thrust::reduce(thrust::cuda::par(alloc),
-                                                 hits.begin(), hits.end())) / ecfg.topn_;
+                                                 hits.begin(), hits.end())) / ecfg.topn;
   }
 #endif
 
@@ -202,10 +203,10 @@ struct EvalPrecision {
     // calculate Precision
     std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
     unsigned nhit = 0;
-    for (size_t j = 0; j < rec.size() && j < ecfg.topn_; ++j) {
+    for (size_t j = 0; j < rec.size() && j < ecfg.topn; ++j) {
       nhit += (rec[j].second != 0);
     }
-    return static_cast<bst_float>(nhit) / ecfg.topn_;
+    return static_cast<bst_float>(nhit) / ecfg.topn;
   }
 };
 
@@ -215,7 +216,7 @@ struct EvalNDCG {
   static bst_float CalcDCG(const PredIndPairContainer &rec,
                            const EvalRankConfig &ecfg) {
     double sumdcg = 0.0;
-    for (size_t i = 0; i < rec.size() && i < ecfg.topn_; ++i) {
+    for (size_t i = 0; i < rec.size() && i < ecfg.topn; ++i) {
       const unsigned rel = rec[i].second;
       if (rel != 0) {
         sumdcg += ((1 << rel) - 1) / std::log2(i + 2.0);
@@ -257,7 +258,7 @@ struct EvalNDCG {
       const auto group_begin = dgroups[group_idx];
       const auto ridx = idx - group_begin;
       auto label = DetermineNonTrivialLabelLambda(idx);
-      if (ridx < ecfg.topn_ && label) {
+      if (ridx < ecfg.topn && label) {
         atomicAdd(&ddcgs[group_idx], ((1 << label) - 1) / std::log2(ridx + 2.0));
       }
     });
@@ -287,7 +288,7 @@ struct EvalNDCG {
     // Compute the group's DCG and reduce it across all groups
     dh::LaunchN(device_id, ngroups, nullptr, [=] __device__(uint32_t gidx) {
       if (didcg[gidx] == 0.0f) {
-        ddcg[gidx] = (ecfg.minus_) ? 0.0f : 1.0f;
+        ddcg[gidx] = (ecfg.minus) ? 0.0f : 1.0f;
       } else {
         ddcg[gidx] /= didcg[gidx];
       }
@@ -298,15 +299,15 @@ struct EvalNDCG {
     return thrust::reduce(thrust::cuda::par(alloc), dcg.begin(), dcg.end());
   }
 #endif
-   static bst_float EvalMetric(PredIndPairContainer *recptr,
-                               const EvalRankConfig &ecfg) { // NOLINT(*)
+  static bst_float EvalMetric(PredIndPairContainer *recptr,
+                              const EvalRankConfig &ecfg) { // NOLINT(*)
     PredIndPairContainer &rec(*recptr);
     std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
     bst_float dcg = CalcDCG(rec, ecfg);
     std::stable_sort(rec.begin(), rec.end(), common::CmpSecond);
     bst_float idcg = CalcDCG(rec, ecfg);
     if (idcg == 0.0f) {
-      if (ecfg.minus_) {
+      if (ecfg.minus) {
         return 0.0f;
       } else {
         return 1.0f;
@@ -367,7 +368,7 @@ struct EvalMAP {
         const auto group_idx = dgroup_idx[idx];
         const auto group_begin = dgroups[group_idx];
         const auto ridx = idx - group_begin;
-        if (ridx < ecfg.topn_) {
+        if (ridx < ecfg.topn) {
           atomicAdd(&dsumap[group_idx],
                     static_cast<bst_float>(dhits[idx]) / (ridx + 1));
         }
@@ -380,7 +381,7 @@ struct EvalMAP {
       if (nhits != 0) {
         dsumap[gidx] /= nhits;
       } else {
-        if (ecfg.minus_) {
+        if (ecfg.minus) {
           dsumap[gidx] = 0;
         } else {
           dsumap[gidx] = 1;
@@ -391,8 +392,8 @@ struct EvalMAP {
     return thrust::reduce(thrust::cuda::par(alloc), sumap.begin(), sumap.end());
   }
 #endif
-   static bst_float EvalMetric(PredIndPairContainer *recptr,
-                               const EvalRankConfig &ecfg) {
+  static bst_float EvalMetric(PredIndPairContainer *recptr,
+                              const EvalRankConfig &ecfg) {
     PredIndPairContainer &rec(*recptr);
     std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
     unsigned nhits = 0;
@@ -400,7 +401,7 @@ struct EvalMAP {
     for (size_t i = 0; i < rec.size(); ++i) {
       if (rec[i].second != 0) {
         nhits += 1;
-        if (i < ecfg.topn_) {
+        if (i < ecfg.topn) {
           sumap += static_cast<bst_float>(nhits) / (i + 1);
         }
       }
@@ -409,7 +410,7 @@ struct EvalMAP {
       sumap /= nhits;
       return static_cast<bst_float>(sumap);
     } else {
-      if (ecfg.minus_) {
+      if (ecfg.minus) {
         return 0.0f;
       } else {
         return 1.0f;

@@ -5,10 +5,10 @@
 #ifndef XGBOOST_METRIC_METRIC_COMMON_H_
 #define XGBOOST_METRIC_METRIC_COMMON_H_
 
-#include "../common/common.h"
-
 #include <utility>
 #include <vector>
+
+#include "../common/common.h"
 
 namespace {
 

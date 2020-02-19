@@ -6,9 +6,10 @@
 #include <rabit/rabit.h>
 #include <dmlc/registry.h>
 
+#include <xgboost/metric.h>
+
 #include <vector>
 
-#include <xgboost/metric.h>
 #include "../common/math.h"
 #include "../common/timer.h"
 #include "metric_common.h"
@@ -344,7 +345,7 @@ struct EvalAucPRCpu : public Metric {
         // the predictions array based on the current group
         rec.resize(gptr[group_id + 1] - gptr[group_id]);
         #pragma omp parallel for schedule(static) reduction(+:total_pos, total_neg) \
-          if (!omp_in_parallel())
+          if (!omp_in_parallel())  // NOLINT
         for (bst_omp_uint j = gptr[group_id]; j < gptr[group_id + 1]; ++j) {
           const bst_float wt = WeightPolicy::GetWeightOfInstance(info, j, group_id);
           total_pos += wt * h_labels[j];
@@ -447,8 +448,8 @@ XGBOOST_REGISTER_METRIC(AMS, "ams")
 XGBOOST_REGISTER_METRIC(Cox, "cox-nloglik")
 .describe("Negative log partial likelihood of Cox proportioanl hazards model.")
 .set_body([](const char* param) { return new EvalCox(); });
-}  // end of metric namespace
-}  // end of xgboost namespace
+}  // namespace metric
+}  // namespace xgboost
 
 #if !defined(XGBOOST_USE_CUDA)
 #include "rank_metric.cu"
