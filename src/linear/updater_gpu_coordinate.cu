@@ -59,9 +59,8 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
 
     num_row_ = static_cast<size_t>(p_fmat->Info().num_row_);
 
-    SparsePage const &batch = *p_fmat->GetBatches<CSCPage>().begin();
-    CHECK(!dynamic_cast<data::SparsePageDMatrix *>(p_fmat))
-        << "External memory not supported";
+    CHECK(p_fmat->SingleColBlock());
+    SparsePage const& batch = *(p_fmat->GetBatches<CSCPage>().begin());
 
     if (IsEmpty()) {
       return;

@@ -30,6 +30,8 @@ class SimpleDMatrix : public DMatrix {
 
   const MetaInfo& Info() const override;
 
+  bool SingleColBlock() const override { return true; }
+
   /*! \brief magic number used to identify SimpleDMatrix binary files */
   static const int kMagic = 0xffffab01;
 

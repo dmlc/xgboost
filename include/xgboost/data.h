@@ -438,6 +438,9 @@ class DMatrix {
    */
   template<typename T>
   BatchSet<T> GetBatches(const BatchParam& param = {});
+  // the following are column meta data, should be able to answer them fast.
+  /*! \return Whether the data columns single column block. */
+  virtual bool SingleColBlock() const = 0;
   /*! \brief virtual destructor */
   virtual ~DMatrix() = default;
 
