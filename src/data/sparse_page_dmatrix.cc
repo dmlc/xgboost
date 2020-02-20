@@ -23,58 +23,24 @@ const MetaInfo& SparsePageDMatrix::Info() const {
   return row_source_->info;
 }
 
-template<typename S, typename T>
-class SparseBatchIteratorImpl : public BatchIteratorImpl<T> {
- public:
-  explicit SparseBatchIteratorImpl(S* source) : source_(source) {
-    CHECK(source_ != nullptr);
-  }
-  T& operator*() override { return source_->Value(); }
-  const T& operator*() const override { return source_->Value(); }
-  void operator++() override { at_end_ = !source_->Next(); }
-  bool AtEnd() const override { return at_end_; }
-
- private:
-  S* source_{nullptr};
-  bool at_end_{ false };
-};
-
 BatchSet<SparsePage> SparsePageDMatrix::GetRowBatches() {
-  auto cast = dynamic_cast<SparsePageSource<SparsePage>*>(row_source_.get());
-  CHECK(cast);
-  cast->BeforeFirst();
-  cast->Next();
-  auto begin_iter = BatchIterator<SparsePage>(
-      new SparseBatchIteratorImpl<SparsePageSource<SparsePage>, SparsePage>(cast));
-  return BatchSet<SparsePage>(begin_iter);
+  return row_source_->GetBatchSet();
 }
 
 BatchSet<CSCPage> SparsePageDMatrix::GetColumnBatches() {
   // Lazily instantiate
   if (!column_source_) {
-    SparsePageSource<SparsePage>::CreateColumnPage(this, cache_info_, false);
-    column_source_.reset(new SparsePageSource<CSCPage>(cache_info_, ".col.page"));
+    column_source_.reset(new CSCPageSource(this, cache_info_));
   }
-  column_source_->BeforeFirst();
-  column_source_->Next();
-  auto begin_iter = BatchIterator<CSCPage>(
-      new SparseBatchIteratorImpl<SparsePageSource<CSCPage>, CSCPage>(column_source_.get()));
-  return BatchSet<CSCPage>(begin_iter);
+  return column_source_->GetBatchSet();
 }
 
 BatchSet<SortedCSCPage> SparsePageDMatrix::GetSortedColumnBatches() {
   // Lazily instantiate
   if (!sorted_column_source_) {
-    SparsePageSource<SparsePage>::CreateColumnPage(this, cache_info_, true);
-    sorted_column_source_.reset(
-        new SparsePageSource<SortedCSCPage>(cache_info_, ".sorted.col.page"));
+    sorted_column_source_.reset(new SortedCSCPageSource(this, cache_info_));
   }
-  sorted_column_source_->BeforeFirst();
-  sorted_column_source_->Next();
-  auto begin_iter = BatchIterator<SortedCSCPage>(
-      new SparseBatchIteratorImpl<SparsePageSource<SortedCSCPage>, SortedCSCPage>(
-          sorted_column_source_.get()));
-  return BatchSet<SortedCSCPage>(begin_iter);
+  return sorted_column_source_->GetBatchSet();
 }
 
 BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(const BatchParam& param) {
