@@ -88,6 +88,16 @@ Parameters for Tree Booster
   - Subsample ratio of the training instances. Setting it to 0.5 means that XGBoost would randomly sample half of the training data prior to growing trees. and this will prevent overfitting. Subsampling will occur once in every boosting iteration.
   - range: (0,1]
 
+* ``sampling_method`` [default= ``uniform``]
+
+  - The method to use to sample the training instances.
+  - ``uniform``: each training instance has an equal probability of being selected. Typically set
+    ``subsample`` >= 0.5 for good results.
+  - ``gradient_based``: the selection probability for each training instance is proportional to the
+    *regularized absolute value* of gradients (more specifically, :math:`\sqrt{g^2+\lambda h^2}`).
+    ``subsample`` may be set to as low as 0.1 without loss of model accuracy. Note that this
+    sampling method is only supported when ``tree_method`` is set to ``gpu_hist``.
+
 * ``colsample_bytree``, ``colsample_bylevel``, ``colsample_bynode`` [default=1]
 
   - This is a family of parameters for subsampling of columns.
