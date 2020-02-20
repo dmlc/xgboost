@@ -66,8 +66,8 @@ TEST(GPUPredictor, EllpackBasic) {
 }
 
 TEST(GPUPredictor, EllpackTraining) {
-  size_t constexpr rows { 128 };
-  TestTrainingPrediction(rows, "gpu_hist");
+  size_t constexpr kRows { 128 };
+  TestTrainingPrediction(kRows, "gpu_hist");
 }
 
 TEST(GPUPredictor, ExternalMemoryTest) {
