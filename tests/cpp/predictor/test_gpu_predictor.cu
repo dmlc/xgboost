@@ -57,12 +57,17 @@ TEST(GPUPredictor, Basic) {
   }
 }
 
-TEST(GPUPredictor, Ellpack) {
+TEST(GPUPredictor, EllpackBasic) {
   for (size_t bins = 2; bins < 258; bins += 16) {
     size_t rows = bins * 16;
-    TestApproximatedPrediction<EllpackPage>("gpu_predictor", rows, bins);
-    TestApproximatedPrediction<EllpackPage>("gpu_predictor", bins, bins);
+    TestPredictionFromGradientIndex<EllpackPage>("gpu_predictor", rows, bins);
+    TestPredictionFromGradientIndex<EllpackPage>("gpu_predictor", bins, bins);
   }
+}
+
+TEST(GPUPredictor, EllpackTraining) {
+  size_t constexpr rows { 128 };
+  TestTrainingPrediction(rows, "gpu_hist");
 }
 
 TEST(GPUPredictor, ExternalMemoryTest) {

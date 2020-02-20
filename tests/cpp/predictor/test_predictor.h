@@ -8,7 +8,7 @@
 
 namespace xgboost {
 template <typename Page>
-void TestApproximatedPrediction(std::string name, size_t rows, int32_t bins) {
+void TestPredictionFromGradientIndex(std::string name, size_t rows, int32_t bins) {
   constexpr size_t kCols { 8 }, kClasses { 3 };
 
   LearnerModelParam param;
@@ -62,6 +62,9 @@ void TestApproximatedPrediction(std::string name, size_t rows, int32_t bins) {
     delete pp_dmat;
   }
 }
+
+void TestTrainingPrediction(size_t rows, std::string tree_method);
+
 }  // namespace xgboost
 
 #endif  // XGBOOST_TEST_PREDICTOR_H_
