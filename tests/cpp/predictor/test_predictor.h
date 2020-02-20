@@ -1,7 +1,6 @@
 #ifndef XGBOOST_TEST_PREDICTOR_H_
 #define XGBOOST_TEST_PREDICTOR_H_
 
-#include <bits/stdint-intn.h>
 #include <xgboost/predictor.h>
 #include <string>
 #include <cstddef>
