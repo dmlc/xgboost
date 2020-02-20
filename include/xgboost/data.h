@@ -168,12 +168,19 @@ struct BatchParam {
   /*! \brief The GPU device to use. */
   int gpu_id;
   /*! \brief Maximum number of bins per feature for histograms. */
-  int max_bin;
+  int max_bin { 0 };
   /*! \brief Number of rows in a GPU batch, used for finding quantiles on GPU. */
   int gpu_batch_nrows;
   /*! \brief Page size for external memory mode. */
   size_t gpu_page_size;
-
+  BatchParam() = default;
+  BatchParam(int32_t device, int32_t max_bin, int32_t gpu_batch_nrows,
+             size_t gpu_page_size = 0) :
+      gpu_id{device},
+      max_bin{max_bin},
+      gpu_batch_nrows{gpu_batch_nrows},
+      gpu_page_size{gpu_page_size}
+  {}
   inline bool operator!=(const BatchParam& other) const {
     return gpu_id != other.gpu_id ||
         max_bin != other.max_bin ||
@@ -438,6 +445,9 @@ class DMatrix {
    */
   template<typename T>
   BatchSet<T> GetBatches(const BatchParam& param = {});
+  template <typename T>
+  bool PageExists() const;
+
   // the following are column meta data, should be able to answer them fast.
   /*! \return Whether the data columns single column block. */
   virtual bool SingleColBlock() const = 0;
@@ -493,11 +503,24 @@ class DMatrix {
   virtual BatchSet<CSCPage> GetColumnBatches() = 0;
   virtual BatchSet<SortedCSCPage> GetSortedColumnBatches() = 0;
   virtual BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) = 0;
+
+  virtual bool EllpackExists() const = 0;
+  virtual bool SparsePageExists() const = 0;
 };
 
 template<>
 inline BatchSet<SparsePage> DMatrix::GetBatches(const BatchParam&) {
   return GetRowBatches();
+}
+
+template<>
+inline bool DMatrix::PageExists<EllpackPage>() const {
+  return this->EllpackExists();
+}
+
+template<>
+inline bool DMatrix::PageExists<SparsePage>() const {
+  return this->SparsePageExists();
 }
 
 template<>

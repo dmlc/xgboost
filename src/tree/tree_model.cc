@@ -792,7 +792,7 @@ void RegTree::CalculateContributionsApprox(const RegTree::FVec &feat,
   bst_node_t nid = 0;
   while (!(*this)[nid].IsLeaf()) {
     split_index = (*this)[nid].SplitIndex();
-    nid = this->GetNext(nid, feat.Fvalue(split_index), feat.IsMissing(split_index));
+    nid = this->GetNext(nid, feat.GetFvalue(split_index), feat.IsMissing(split_index));
     bst_float new_value = this->node_mean_values_[nid];
     // update feature weight
     out_contribs[split_index] += new_value - node_value;
@@ -924,7 +924,7 @@ void RegTree::TreeShap(const RegTree::FVec &feat, bst_float *phi,
     unsigned hot_index = 0;
     if (feat.IsMissing(split_index)) {
       hot_index = node.DefaultChild();
-    } else if (feat.Fvalue(split_index) < node.SplitCond()) {
+    } else if (feat.GetFvalue(split_index) < node.SplitCond()) {
       hot_index = node.LeftChild();
     } else {
       hot_index = node.RightChild();

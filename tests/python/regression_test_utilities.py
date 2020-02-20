@@ -25,6 +25,13 @@ class Dataset:
             self.w = None
         self.use_external_memory = use_external_memory
 
+    def __str__(self):
+        return f'name: {self.name}\nobjective:{self.objective}\n' + \
+               f'externam memory:f{self.use_external_memory}'
+
+    def __repr__(self):
+        return self.__str__()
+
 
 def get_boston():
     data = datasets.load_boston()

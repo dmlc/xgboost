@@ -76,6 +76,9 @@ struct EllpackInfo {
   size_t NumSymbols() const {
     return n_bins + 1;
   }
+  size_t NumFeatures() const {
+    return min_fvalue.size();
+  }
 };
 
 /** \brief Struct for accessing and manipulating an ellpack matrix on the
@@ -89,7 +92,7 @@ struct EllpackMatrix {
 
   // Get a matrix element, uses binary search for look up Return NaN if missing
   // Given a row index and a feature index, returns the corresponding cut value
-  __device__ bst_float GetElement(size_t ridx, size_t fidx) const {
+  __device__ int32_t GetBinIndex(size_t ridx, size_t fidx) const {
     ridx -= base_rowid;
     auto row_begin = info.row_stride * ridx;
     auto row_end = row_begin + info.row_stride;
@@ -103,6 +106,10 @@ struct EllpackMatrix {
                              info.feature_segments[fidx],
                              info.feature_segments[fidx + 1]);
     }
+    return gidx;
+  }
+  __device__ bst_float GetFvalue(size_t ridx, size_t fidx) const {
+    auto gidx = GetBinIndex(ridx, fidx);
     if (gidx == -1) {
       return nan("");
     }

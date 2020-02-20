@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2020 by Contributors
  * \file sparse_page_dmatrix.cc
  * \brief The external memory version of Page Iterator.
  * \author Tianqi Chen
@@ -47,7 +47,7 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(const BatchParam& par
   CHECK_GE(param.gpu_id, 0);
   CHECK_GE(param.max_bin, 2);
   // Lazily instantiate
-  if (!ellpack_source_ || batch_param_ != param) {
+  if (!ellpack_source_ || (batch_param_ != param && param != BatchParam{})) {
     ellpack_source_.reset(new EllpackPageSource(this, cache_info_, param));
     batch_param_ = param;
   }

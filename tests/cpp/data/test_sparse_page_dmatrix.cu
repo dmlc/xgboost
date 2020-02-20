@@ -86,7 +86,7 @@ struct ReadRowFunction {
       : matrix(std::move(matrix)), row(row), row_data_d(row_data_d) {}
 
   __device__ void operator()(size_t col) {
-    auto value = matrix.GetElement(row, col);
+    auto value = matrix.GetFvalue(row, col);
     if (isnan(value)) {
       value = -1;
     }

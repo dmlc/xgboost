@@ -105,7 +105,7 @@ class RegTree : public Model {
   /*! \brief tree node */
   class Node {
    public:
-    Node()  {
+    XGBOOST_DEVICE Node()  {
       // assert compact alignment
       static_assert(sizeof(Node) == 4 * sizeof(int) + sizeof(Info),
                     "Node: 64 bit align");
@@ -422,7 +422,7 @@ class RegTree : public Model {
      * \param i feature index.
      * \return the i-th feature value
      */
-    bst_float Fvalue(size_t i) const;
+    bst_float GetFvalue(size_t i) const;
     /*!
      * \brief check whether i-th entry is missing
      * \param i feature index.
@@ -565,7 +565,7 @@ inline size_t RegTree::FVec::Size() const {
   return data_.size();
 }
 
-inline bst_float RegTree::FVec::Fvalue(size_t i) const {
+inline bst_float RegTree::FVec::GetFvalue(size_t i) const {
   return data_[i].fvalue;
 }
 
@@ -577,7 +577,7 @@ inline int RegTree::GetLeafIndex(const RegTree::FVec& feat) const {
   bst_node_t nid = 0;
   while (!(*this)[nid].IsLeaf()) {
     unsigned split_index = (*this)[nid].SplitIndex();
-    nid = this->GetNext(nid, feat.Fvalue(split_index), feat.IsMissing(split_index));
+    nid = this->GetNext(nid, feat.GetFvalue(split_index), feat.IsMissing(split_index));
   }
   return nid;
 }
