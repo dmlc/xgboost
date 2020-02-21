@@ -69,8 +69,10 @@ class TreePruner: public TreeUpdater {
     int pid = tree[nid].Parent();
     RTreeNodeStat const &s = tree.Stat(pid);
     // Only prune when both child are leaf.
-    bool balanced = tree[tree[pid].LeftChild()].IsLeaf() &&
-                    tree[tree[pid].RightChild()].IsLeaf();
+    auto left = tree[pid].LeftChild();
+    auto right = tree[pid].RightChild();
+    bool balanced = left != RegTree::kInvalidNodeId && tree[left].IsLeaf() &&
+                    right != RegTree::kInvalidNodeId && tree[right].IsLeaf();
     if (balanced && param_.NeedPrune(s.loss_chg, depth)) {
       // need to be pruned
       tree.ChangeToLeaf(pid, param_.learning_rate * s.base_weight);
