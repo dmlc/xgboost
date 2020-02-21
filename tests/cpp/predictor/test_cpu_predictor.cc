@@ -6,7 +6,9 @@
 #include <xgboost/predictor.h>
 
 #include "../helpers.h"
+#include "test_predictor.h"
 #include "../../../src/gbm/gbtree_model.h"
+#include "../../../src/data/adapter.h"
 
 namespace xgboost {
 TEST(CpuPredictor, Basic) {
@@ -136,6 +138,29 @@ TEST(CpuPredictor, ExternalMemory) {
     } else {
       ASSERT_EQ(contri, 0);
     }
+  }
+}
+
+TEST(CpuPredictor, InplacePredict) {
+  bst_row_t constexpr kRows{128};
+  bst_feature_t constexpr kCols{64};
+  auto gen = RandomDataGenerator{kRows, kCols, 0.5}.Device(-1);
+  {
+    HostDeviceVector<float> data;
+    gen.GenerateDense(&data);
+    ASSERT_EQ(data.Size(), kRows * kCols);
+    data::DenseAdapter x{data.HostPointer(), kRows, kCols};
+    TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
+  }
+
+  {
+    HostDeviceVector<float> data;
+    HostDeviceVector<bst_row_t> rptrs;
+    HostDeviceVector<bst_feature_t> columns;
+    gen.GenerateCSR(&data, &rptrs, &columns);
+    data::CSRAdapter x(rptrs.HostPointer(), columns.HostPointer(),
+                       data.HostPointer(), kRows, data.Size(), kCols);
+    TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
   }
 }
 }  // namespace xgboost

@@ -8,6 +8,7 @@
 #ifndef XGBOOST_LEARNER_H_
 #define XGBOOST_LEARNER_H_
 
+#include <dmlc/any.h>
 #include <rabit/rabit.h>
 #include <xgboost/base.h>
 #include <xgboost/feature_map.h>
@@ -119,6 +120,21 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
                        bool pred_contribs = false,
                        bool approx_contribs = false,
                        bool pred_interactions = false) = 0;
+
+  /*!
+   * \brief Inplace prediction.
+   *
+   * \param          x           A type erased data adapter.
+   * \param          type        Prediction type.
+   * \param          missing     Missing value in the data.
+   * \param [in,out] out_preds   Pointer to output prediction vector.
+   * \param          layer_begin (Optional) Begining of boosted tree layer used for prediction.
+   * \param          layer_end   (Optional) End of booster layer. 0 means do not limit trees.
+   */
+  virtual void InplacePredict(dmlc::any const& x, std::string const& type,
+                              float missing,
+                              HostDeviceVector<bst_float> **out_preds,
+                              uint32_t layer_begin = 0, uint32_t layer_end = 0) = 0;
 
   void LoadModel(Json const& in) override = 0;
   void SaveModel(Json* out) const override = 0;

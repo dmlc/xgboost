@@ -177,9 +177,8 @@ void RandomDataGenerator::GenerateDense(HostDeviceVector<float> *out) const {
   }
 }
 
-void RandomDataGenerator::GenerateArrayInterface(
-    HostDeviceVector<float> *storage, std::string *out) const {
-  CHECK(out);
+Json RandomDataGenerator::ArrayInterfaceImpl(HostDeviceVector<float> *storage,
+                                             size_t rows, size_t cols) const {
   this->GenerateDense(storage);
   Json array_interface {Object()};
   array_interface["data"] = std::vector<Json>(2);
@@ -187,13 +186,37 @@ void RandomDataGenerator::GenerateArrayInterface(
   array_interface["data"][1] = Boolean(false);
 
   array_interface["shape"] = std::vector<Json>(2);
-  array_interface["shape"][0] = rows_;
-  array_interface["shape"][1] = cols_;
+  array_interface["shape"][0] = rows;
+  array_interface["shape"][1] = cols;
 
   array_interface["typestr"] = String("<f4");
   array_interface["version"] = 1;
+  return array_interface;
+}
 
-  Json::Dump(array_interface, out);
+std::string RandomDataGenerator::GenerateArrayInterface(
+    HostDeviceVector<float> *storage) const {
+  auto array_interface = this->ArrayInterfaceImpl(storage, rows_, cols_);
+  std::string out;
+  Json::Dump(array_interface, &out);
+  return out;
+}
+
+
+
+std::string RandomDataGenerator::GenerateColumnarArrayInterface(
+    std::vector<HostDeviceVector<float>> *data) const {
+  CHECK(data);
+  CHECK_EQ(data->size(), cols_);
+  auto& storage = *data;
+  Json arr { Array() };
+  for (size_t i = 0; i < cols_; ++i) {
+    auto column = this->ArrayInterfaceImpl(&storage[i], rows_, 1);
+    get<Array>(arr).emplace_back(column);
+  }
+  std::string out;
+  Json::Dump(arr, &out);
+  return out;
 }
 
 void RandomDataGenerator::GenerateCSR(

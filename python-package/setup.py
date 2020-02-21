@@ -86,7 +86,7 @@ class CMakeExtension(Extension):  # pylint: disable=too-few-public-methods
         super().__init__(name=name, sources=[])
 
 
-class BuildExt(build_ext.build_ext):
+class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
     '''Custom build_ext command using CMake.'''
 
     logger = logging.getLogger('XGBoost build_ext')

@@ -1,16 +1,17 @@
 /*!
  * Copyright 2017-2020 XGBoost contributors
  */
+#include <gtest/gtest.h>
 #include <dmlc/filesystem.h>
 #include <xgboost/c_api.h>
 #include <xgboost/predictor.h>
 #include <xgboost/logging.h>
 #include <xgboost/learner.h>
-
 #include <string>
-#include "gtest/gtest.h"
+
 #include "../helpers.h"
 #include "../../../src/gbm/gbtree_model.h"
+#include "../../../src/data/device_adapter.cuh"
 #include "test_predictor.h"
 
 namespace xgboost {
@@ -104,5 +105,43 @@ TEST(GPUPredictor, ExternalMemoryTest) {
     }
   }
 }
+
+TEST(GPUPredictor, InplacePredictCupy) {
+  size_t constexpr kRows{128}, kCols{64};
+  RandomDataGenerator gen(kRows, kCols, 0.5);
+  gen.Device(0);
+  HostDeviceVector<float> data;
+  std::string interface_str = gen.GenerateArrayInterface(&data);
+  data::CupyAdapter x{interface_str};
+  TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 0);
+}
+
+TEST(GPUPredictor, InplacePredictCuDF) {
+  size_t constexpr kRows{128}, kCols{64};
+  RandomDataGenerator gen(kRows, kCols, 0.5);
+  gen.Device(0);
+  std::vector<HostDeviceVector<float>> storage(kCols);
+  auto interface_str = gen.GenerateColumnarArrayInterface(&storage);
+  data::CudfAdapter x {interface_str};
+  TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 0);
+}
+
+TEST(GPUPredictor, MGPU_InplacePredict) {
+  int32_t n_gpus = xgboost::common::AllVisibleGPUs();
+  if (n_gpus <= 1) {
+    LOG(WARNING) << "GPUPredictor.MGPU_InplacePredict is skipped.";
+    return;
+  }
+  size_t constexpr kRows{128}, kCols{64};
+  RandomDataGenerator gen(kRows, kCols, 0.5);
+  gen.Device(1);
+  HostDeviceVector<float> data;
+  std::string interface_str = gen.GenerateArrayInterface(&data);
+  data::CupyAdapter x{interface_str};
+  TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 1);
+  EXPECT_THROW(TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 0),
+               dmlc::Error);
+}
+
 }  // namespace predictor
 }  // namespace xgboost

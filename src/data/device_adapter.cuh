@@ -52,6 +52,13 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
                       : std::numeric_limits<float>::quiet_NaN();
     return COOTuple(row_idx, column_idx, value);
   }
+  __device__ float GetValue(size_t ridx, bst_feature_t fidx) const {
+    auto const& column = columns_[fidx];
+    float value = column.valid.Data() == nullptr || column.valid.Check(ridx)
+                      ? column.GetElement(ridx)
+                      : std::numeric_limits<float>::quiet_NaN();
+    return value;
+  }
 
  private:
   common::Span<ArrayInterface> columns_;
@@ -129,6 +136,7 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
     for (auto& json_col : json_columns) {
       auto column = ArrayInterface(get<Object const>(json_col));
       columns.push_back(column);
+      CHECK_EQ(column.num_cols, 1);
       column_ptr.emplace_back(column_ptr.back() + column.num_rows);
       num_rows_ = std::max(num_rows_, size_t(column.num_rows));
       CHECK_EQ(device_idx_, dh::CudaGetPointerDevice(column.data))

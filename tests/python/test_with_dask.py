@@ -63,7 +63,13 @@ def test_from_dask_dataframe():
             from_df = prediction.compute()
 
             assert isinstance(prediction, dd.Series)
+            assert np.all(prediction.compute().values == from_dmatrix)
             assert np.all(from_dmatrix == from_df.to_numpy())
+
+            series_predictions = xgb.dask.inplace_predict(client, booster, X)
+            assert isinstance(series_predictions, dd.Series)
+            np.testing.assert_allclose(series_predictions.compute().values,
+                                       from_dmatrix)
 
 
 def test_from_dask_array():

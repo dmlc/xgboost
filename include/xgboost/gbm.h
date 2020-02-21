@@ -9,6 +9,7 @@
 #define XGBOOST_GBM_H_
 
 #include <dmlc/registry.h>
+#include <dmlc/any.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
@@ -92,6 +93,22 @@ class GradientBooster : public Model, public Configurable {
                             PredictionCacheEntry* out_preds,
                             bool training,
                             unsigned ntree_limit = 0) = 0;
+
+  /*!
+   * \brief Inplace prediction.
+   *
+   * \param           x                      A type erased data adapter.
+   * \param           missing                Missing value in the data.
+   * \param [in,out]  out_preds              The output preds.
+   * \param           layer_begin (Optional) Begining of boosted tree layer used for prediction.
+   * \param           layer_end   (Optional) End of booster layer. 0 means do not limit trees.
+   */
+  virtual void InplacePredict(dmlc::any const &x, float missing,
+                              PredictionCacheEntry *out_preds,
+                              uint32_t layer_begin = 0,
+                              uint32_t layer_end = 0) const {
+    LOG(FATAL) << "Inplace predict is not supported by current booster.";
+  }
   /*!
    * \brief online prediction function, predict score for one instance at a time
    *  NOTE: use the batch prediction interface if possible, batch prediction is usually
