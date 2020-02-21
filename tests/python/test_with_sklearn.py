@@ -34,8 +34,8 @@ def test_binary_classification():
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for cls in (xgb.XGBClassifier, xgb.XGBRFClassifier):
         for train_index, test_index in kf.split(X, y):
-            clf = cls(random_state=42, eval_metric=['auc', 'logloss'])
-            xgb_model = clf.fit(X[train_index], y[train_index])
+            clf = cls(random_state=42)
+            xgb_model = clf.fit(X[train_index], y[train_index], eval_metric=['auc', 'logloss'])
             preds = xgb_model.predict(X[test_index])
             labels = y[test_index]
             err = sum(1 for i in range(len(preds))
