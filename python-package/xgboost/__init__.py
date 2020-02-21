@@ -23,7 +23,7 @@ except ImportError:
 
 if sys.version_info[:2] == (3, 5):
     warnings.warn(
-        'Python 3.5 support is deprecated and XGBoost will require Python 3.6+ in the near future. ' +
+        'Python 3.5 support is deprecated; XGBoost will require Python 3.6+ in the near future. ' +
         'Consider upgrading to Python 3.6+.',
         FutureWarning)
 
