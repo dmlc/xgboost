@@ -64,7 +64,9 @@ The external memory mode naturally works on distributed version, you can simply 
 XGBoost will cache the data to the local position. When you run on YARN, the current folder is temporary
 so that you can directly use ``dtrain.cache`` to cache to current folder.
 
-**********
-Usage Note
-**********
+***********
+Limitations
+***********
+* The ``hist`` tree method hasn't been tested thoroughly with external memory support (see
+  `this issue <https://github.com/dmlc/xgboost/issues/4093>`_).
 * OSX is not tested.
