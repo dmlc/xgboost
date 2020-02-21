@@ -220,8 +220,9 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   }
 
   /*! \brief given the loss change, whether we need to invoke pruning */
-  inline bool NeedPrune(double loss_chg, int depth) const {
-    return loss_chg < this->min_split_loss || depth > max_depth;
+  bool NeedPrune(double loss_chg, int depth) const {
+    return loss_chg < this->min_split_loss ||
+           (this->max_depth != 0 && depth > this->max_depth);
   }
   /*! \brief maximum sketch size */
   inline unsigned MaxSketchSize() const {
