@@ -25,6 +25,19 @@ class Dataset:
             self.w = None
         self.use_external_memory = use_external_memory
 
+    def __str__(self):
+        a = 'name: {name}\nobjective:{objective}, metric:{metric}, '.format(
+            name=self.name,
+            objective=self.objective,
+            metric=self.metric)
+        b = 'external memory:{use_external_memory}\n'.format(
+            use_external_memory=self.use_external_memory
+        )
+        return a + b
+
+    def __repr__(self):
+        return self.__str__()
+
 
 def get_boston():
     data = datasets.load_boston()

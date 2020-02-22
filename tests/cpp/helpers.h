@@ -21,7 +21,6 @@
 #include <xgboost/c_api.h>
 
 #include "../../src/common/common.h"
-#include "../../src/common/hist_util.h"
 #include "../../src/gbm/gbtree_model.h"
 #if defined(__CUDACC__)
 #include "../../src/data/ellpack_page.cuh"

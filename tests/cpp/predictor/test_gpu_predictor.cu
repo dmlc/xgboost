@@ -11,11 +11,12 @@
 #include "gtest/gtest.h"
 #include "../helpers.h"
 #include "../../../src/gbm/gbtree_model.h"
+#include "test_predictor.h"
 
 namespace xgboost {
 namespace predictor {
 
-TEST(GpuPredictor, Basic) {
+TEST(GPUPredictor, Basic) {
   auto cpu_lparam = CreateEmptyGenericParam(-1);
   auto gpu_lparam = CreateEmptyGenericParam(0);
 
@@ -56,7 +57,20 @@ TEST(GpuPredictor, Basic) {
   }
 }
 
-TEST(gpu_predictor, ExternalMemoryTest) {
+TEST(GPUPredictor, EllpackBasic) {
+  for (size_t bins = 2; bins < 258; bins += 16) {
+    size_t rows = bins * 16;
+    TestPredictionFromGradientIndex<EllpackPage>("gpu_predictor", rows, bins);
+    TestPredictionFromGradientIndex<EllpackPage>("gpu_predictor", bins, bins);
+  }
+}
+
+TEST(GPUPredictor, EllpackTraining) {
+  size_t constexpr kRows { 128 };
+  TestTrainingPrediction(kRows, "gpu_hist");
+}
+
+TEST(GPUPredictor, ExternalMemoryTest) {
   auto lparam = CreateEmptyGenericParam(0);
   std::unique_ptr<Predictor> gpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
