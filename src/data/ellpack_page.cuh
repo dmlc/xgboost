@@ -9,9 +9,11 @@
 
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
-#include "../common/hist_util.h"
 
 namespace xgboost {
+namespace common {
+class HistogramCuts;
+}
 
 // Find a gidx value for a given feature otherwise return -1 if not found
 __forceinline__ __device__ int BinarySearchRow(

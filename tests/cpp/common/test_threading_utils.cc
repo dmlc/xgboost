@@ -1,11 +1,28 @@
-#include <cstddef>
+/*!
+ * Copyright 2020 by Contributors
+ */
 #include <gtest/gtest.h>
+#include <dmlc/omp.h>
 
 #include "../../../src/common/column_matrix.h"
 #include "../../../src/common/threading_utils.h"
+#include "xgboost/base.h"
 
 namespace xgboost {
 namespace common {
+
+class ThreadingContextForTest {
+  omp_ulong threads_;
+
+ public:
+  explicit ThreadingContextForTest(omp_ulong threads) {
+    threads_ = omp_get_max_threads();
+    omp_set_num_threads(threads);
+  }
+  ~ThreadingContextForTest() {
+    omp_set_num_threads(threads_);
+  }
+};
 
 TEST(CreateBlockedSpace2d, Test) {
   constexpr size_t kDim1 = 5;
@@ -31,6 +48,13 @@ TEST(ParallelFor2d, Test) {
   constexpr size_t kDim1 = 100;
   constexpr size_t kDim2 = 15;
   constexpr size_t kGrainSize = 2;
+#if defined(_OPENMP)
+  constexpr omp_ulong kThreads = 4;
+#else  // defined(_OPENMP)
+  constexpr omp_ulong kThreads = 1;
+#endif // defined(_OPENMP)
+
+  auto ctx { ThreadingContextForTest(kThreads) };
 
   // working space is matrix of size (kDim1 x kDim2)
   std::vector<int> matrix(kDim1 * kDim2, 0);
@@ -38,7 +62,7 @@ TEST(ParallelFor2d, Test) {
       return kDim2;
   }, kGrainSize);
 
-  ParallelFor2d(space, 4, [&](size_t i, Range1d r) {
+  ParallelFor2d(space, kThreads, [&](size_t i, Range1d r) {
     for (auto j = r.begin(); j < r.end(); ++j) {
       matrix[i*kDim2 + j] += 1;
     }
@@ -52,7 +76,13 @@ TEST(ParallelFor2d, Test) {
 TEST(ParallelFor2dNonUniform, Test) {
   constexpr size_t kDim1 = 5;
   constexpr size_t kGrainSize = 256;
+#if defined(_OPENMP)
+  constexpr omp_ulong kThreads = 4;
+#else  // defined(_OPENMP)
+  constexpr omp_ulong kThreads = 1;
+#endif // defined(_OPENMP)
 
+  auto ctx { ThreadingContextForTest(kThreads) };
   // here are quite non-uniform distribution in space
   // but ParallelFor2d should split them by blocks with max size = kGrainSize
   // and process in balanced manner (optimal performance)
@@ -66,7 +96,7 @@ TEST(ParallelFor2dNonUniform, Test) {
     working_space[i].resize(dim2[i], 0);
   }
 
-  ParallelFor2d(space, 4, [&](size_t i, Range1d r) {
+  ParallelFor2d(space, kThreads, [&](size_t i, Range1d r) {
     for (auto j = r.begin(); j < r.end(); ++j) {
       working_space[i][j] += 1;
     }

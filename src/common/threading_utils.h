@@ -1,13 +1,15 @@
 /*!
- * Copyright 2015-2019 by Contributors
- * \file common.h
+ * Copyright 2020 by Contributors
+ * \file threading_utils.h
  * \brief Threading utilities
  */
 #ifndef XGBOOST_COMMON_THREADING_UTILS_H_
 #define XGBOOST_COMMON_THREADING_UTILS_H_
 
+#include <dmlc/omp.h>
 #include <vector>
 #include <algorithm>
+#include "xgboost/logging.h"
 
 namespace xgboost {
 namespace common {
@@ -110,12 +112,11 @@ class BlockedSpace2d {
 template<typename Func>
 void ParallelFor2d(const BlockedSpace2d& space, const int nthreads, Func func) {
   const size_t num_blocks_in_space = space.Size();
-
-  #pragma omp parallel num_threads(nthreads)
+  CHECK_GE(omp_get_max_threads(), nthreads);
+#pragma omp parallel num_threads(nthreads)
   {
-    size_t tid = omp_get_thread_num();
     size_t chunck_size = num_blocks_in_space / nthreads + !!(num_blocks_in_space % nthreads);
-
+    auto tid = omp_get_thread_num();
     size_t begin = chunck_size * tid;
     size_t end   = std::min(begin + chunck_size, num_blocks_in_space);
     for (auto i = begin; i < end; i++) {

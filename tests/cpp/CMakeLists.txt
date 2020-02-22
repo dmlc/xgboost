@@ -55,7 +55,6 @@ if (MSVC)
     $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/utf-8>
   )
 endif (MSVC)
-
 target_include_directories(testxgboost
   PRIVATE
   ${GTEST_INCLUDE_DIRS}
@@ -66,11 +65,19 @@ set_target_properties(
   testxgboost PROPERTIES
   CXX_STANDARD 11
   CXX_STANDARD_REQUIRED ON)
-target_link_libraries(testxgboost
+if (USE_OPENMP)
+  target_link_libraries(testxgboost
   PRIVATE
   ${GTEST_LIBRARIES}
   ${LINKED_LIBRARIES_PRIVATE}
   OpenMP::OpenMP_CXX)
+else (USE_OPENMP)
+  target_link_libraries(testxgboost
+  PRIVATE
+  ${GTEST_LIBRARIES}
+  ${LINKED_LIBRARIES_PRIVATE})
+endif (USE_OPENMP)
+
 target_compile_definitions(testxgboost PRIVATE ${XGBOOST_DEFINITIONS})
 set_output_directory(testxgboost ${xgboost_BINARY_DIR})
 

@@ -81,6 +81,9 @@ if (USE_SANITIZER)
   enable_sanitizers("${ENABLED_SANITIZERS}")
 endif (USE_SANITIZER)
 
+find_package(Threads REQUIRED)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+
 if (USE_CUDA)
   SET(USE_OPENMP ON CACHE BOOL "CUDA requires OpenMP" FORCE)
   # `export CXX=' is ignored by CMake CUDA.
@@ -139,7 +142,9 @@ target_include_directories(xgboost
   INTERFACE
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
-target_link_libraries(xgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
+target_link_libraries(xgboost PRIVATE
+  ${LINKED_LIBRARIES_PRIVATE}
+  Threads::Threads)
 
 # This creates its own shared library `xgboost4j'.
 if (JVM_BINDINGS)
@@ -148,6 +153,7 @@ endif (JVM_BINDINGS)
 #-- End shared library
 
 #-- CLI for xgboost
+find_package(Threads REQUIRED)
 add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc ${XGBOOST_OBJ_SOURCES})
 
 target_include_directories(runxgboost
@@ -155,7 +161,7 @@ target_include_directories(runxgboost
   ${xgboost_SOURCE_DIR}/include
   ${xgboost_SOURCE_DIR}/dmlc-core/include
   ${xgboost_SOURCE_DIR}/rabit/include)
-target_link_libraries(runxgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
+target_link_libraries(runxgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE} ${CMAKE_THREAD_LIBS_INIT})
 set_target_properties(
   runxgboost PROPERTIES
   OUTPUT_NAME xgboost

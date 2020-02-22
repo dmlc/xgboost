@@ -6,8 +6,9 @@
 #ifndef XGBOOST_DATA_SPARSE_PAGE_WRITER_H_
 #define XGBOOST_DATA_SPARSE_PAGE_WRITER_H_
 
-#include <xgboost/data.h>
+#include <dmlc/concurrency.h>
 #include <dmlc/io.h>
+
 #include <vector>
 #include <algorithm>
 #include <cstring>

@@ -14,6 +14,7 @@
 #include <random>
 #include <cinttypes>
 
+#include "dmlc/omp.h"
 #include "helpers.h"
 #include "xgboost/c_api.h"
 
@@ -190,7 +191,11 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
     batch_count++;
     row_count += batch.Size();
   }
-  EXPECT_GE(batch_count, 2);
+
+  size_t threads = omp_get_max_threads();
+  if (threads != 1) {
+    EXPECT_GE(batch_count, 2);
+  }
   EXPECT_EQ(row_count, dmat->Info().num_row_);
 
   return dmat;
