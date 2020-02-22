@@ -38,7 +38,7 @@ def _train_internal(params, dtrain,
 
     _params = dict(params) if isinstance(params, list) else params
 
-    if 'num_parallel_tree' in _params and params[
+    if 'num_parallel_tree' in _params and _params[
             'num_parallel_tree'] is not None:
         num_parallel_tree = _params['num_parallel_tree']
         nboost //= num_parallel_tree
