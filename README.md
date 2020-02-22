@@ -27,7 +27,7 @@ License
 Contribute to XGBoost
 ---------------------
 XGBoost has been developed and used by a group of active community members. Your help is very valuable to make the package better for everyone.
-Checkout the [Community Page](https://xgboost.ai/community)
+Checkout the [Community Page](https://xgboost.ai/community).
 
 Reference
 ---------
