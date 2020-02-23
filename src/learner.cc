@@ -20,6 +20,7 @@
 
 #include "xgboost/base.h"
 #include "xgboost/data.h"
+#include "xgboost/model.h"
 #include "xgboost/predictor.h"
 #include "xgboost/feature_map.h"
 #include "xgboost/gbm.h"
@@ -54,10 +55,6 @@ enum class DataSplitMode : int {
 DECLARE_FIELD_ENUM_CLASS(xgboost::DataSplitMode);
 
 namespace xgboost {
-// implementation of base learner.
-bool Learner::AllowLazyCheckPoint() const {
-  return gbm_->AllowLazyCheckPoint();
-}
 
 Learner::~Learner() = default;
 
@@ -193,60 +190,118 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 
+
 using XGBAPIThreadLocalStore =
     dmlc::ThreadLocalStore<std::map<Learner const *, XGBAPIThreadLocalEntry>>;
 
-/*!
- * \brief learner that performs gradient boosting for a specific objective
- * function. It does training and prediction.
- */
-class LearnerImpl : public Learner {
+struct LearnerAttributs {
+  static std::string const kEvalMetric;  // NOLINT
+
+  PredictionContainer cache;
+  bool need_configuration { true };
+  std::map<std::string, std::string> cfg;
+  // Stores information like best-iteration for early stopping.
+  std::map<std::string, std::string> attributes;
+  common::Monitor monitor;
+  LearnerModelParamLegacy mparam;
+  LearnerModelParam learner_model_param;
+  LearnerTrainParam tparam;
+  std::vector<std::string> metric_names;
+  GenericParameter generic_parameters;
+
+  /*! \brief objective function */
+  std::unique_ptr<ObjFunction> obj;
+  /*! \brief The gradient booster used by the model*/
+  std::unique_ptr<GradientBooster> gbm;
+  /*! \brief The evaluation metrics used to evaluate the model. */
+  std::vector<std::unique_ptr<Metric> > metrics;
+
+  void SetParam(const std::string& key, const std::string& value) {
+    this->need_configuration = true;
+    if (key == kEvalMetric) {
+      if (std::find(metric_names.cbegin(), metric_names.cend(),
+                    value) == metric_names.cend()) {
+        metric_names.emplace_back(value);
+      }
+    } else {
+      cfg[key] = value;
+    }
+  }
+  // Short hand for setting multiple parameters
+  void SetParams(std::vector<std::pair<std::string, std::string>> const& args) {
+    for (auto const& kv : args) {
+      this->SetParam(kv.first, kv.second);
+    }
+  }
+
+  void SetAttr(const std::string& key, const std::string& value) {
+    attributes[key] = value;
+    mparam.contain_extra_attrs = 1;
+  }
+
+  bool GetAttr(const std::string& key, std::string* out) const {
+    auto it = attributes.find(key);
+    if (it == attributes.end()) return false;
+    *out = it->second;
+    return true;
+  }
+
+  bool DelAttr(const std::string& key) {
+    auto it = attributes.find(key);
+    if (it == attributes.end()) { return false; }
+    attributes.erase(it);
+    return true;
+  }
+
+  std::vector<std::string> GetAttrNames() const {
+    std::vector<std::string> out;
+    for (auto const& kv : attributes) {
+      out.emplace_back(kv.first);
+    }
+    return out;
+  }
+
+  const std::map<std::string, std::string>& GetConfigurationArguments() const {
+    return cfg;
+  }
+};
+
+std::string const LearnerAttributs::kEvalMetric {"eval_metric"};  // NOLINT
+
+
+class LearnerConfiguration {
  public:
-  explicit LearnerImpl(std::vector<std::shared_ptr<DMatrix> > cache)
-      : need_configuration_{true} {
-    monitor_.Init("Learner");
-    for (std::shared_ptr<DMatrix> const& d : cache) {
-      cache_.Cache(d, GenericParameter::kCpuId);
-    }
-  }
-  ~LearnerImpl() override {
-    auto local_map = XGBAPIThreadLocalStore::Get();
-    if (local_map->find(this) != local_map->cend()) {
-      local_map->erase(this);
-    }
-  }
-  // Configuration before data is known.
-  void Configure() override {
-    if (!this->need_configuration_) { return; }
+  void Configure(LearnerAttributs* attr) {
+    if (!attr->need_configuration) { return; }
 
-    monitor_.Start("Configure");
-    auto old_tparam = tparam_;
-    Args args = {cfg_.cbegin(), cfg_.cend()};
+    attr->monitor.Start("Configure");
+    auto old_tparam = attr->tparam;
+    Args args = {attr->cfg.cbegin(), attr->cfg.cend()};
 
-    tparam_.UpdateAllowUnknown(args);
-    auto mparam_backup = mparam_;
-    mparam_.UpdateAllowUnknown(args);
-    generic_parameters_.UpdateAllowUnknown(args);
-    generic_parameters_.CheckDeprecated();
+    attr->tparam.UpdateAllowUnknown(args);
+    auto mparam_backup = attr->mparam;
+    attr->mparam.UpdateAllowUnknown(args);
+    attr->generic_parameters.UpdateAllowUnknown(args);
+    attr->generic_parameters.CheckDeprecated();
 
     ConsoleLogger::Configure(args);
-    if (generic_parameters_.nthread != 0) {
-      omp_set_num_threads(generic_parameters_.nthread);
+    if (attr->generic_parameters.nthread != 0) {
+      omp_set_num_threads(attr->generic_parameters.nthread);
     }
 
     // add additional parameters
     // These are cosntraints that need to be satisfied.
-    if (tparam_.dsplit == DataSplitMode::kAuto && rabit::IsDistributed()) {
-      tparam_.dsplit = DataSplitMode::kRow;
+    if (attr->tparam.dsplit == DataSplitMode::kAuto && rabit::IsDistributed()) {
+      attr->tparam.dsplit = DataSplitMode::kRow;
     }
 
     // set seed only before the model is initialized
-    common::GlobalRandom().seed(generic_parameters_.seed);
+    common::GlobalRandom().seed(attr->generic_parameters.seed);
 
     // must precede configure gbm since num_features is required for gbm
-    this->ConfigureNumFeatures();
-    args = {cfg_.cbegin(), cfg_.cend()};  // renew
-    this->ConfigureObjective(old_tparam, &args);
+    this->ConfigureNumFeatures(attr);
+    args = {attr->cfg.cbegin(), attr->cfg.cend()};  // renew
+    this->ConfigureObjective(old_tparam, &args, attr);
 
     // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
     // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
@@ -260,28 +315,97 @@ class LearnerImpl : public Learner {
     // - model loaded from new binary or JSON.
     // - model is created from scratch.
     // - model is configured second time due to change of parameter
-    if (!learner_model_param_.Initialized() || mparam_.base_score != mparam_backup.base_score) {
-      learner_model_param_ = LearnerModelParam(mparam_,
-                                               obj_->ProbToMargin(mparam_.base_score));
+    if (!attr->learner_model_param.Initialized() ||
+        attr->mparam.base_score != mparam_backup.base_score) {
+      attr->learner_model_param = LearnerModelParam(
+          attr->mparam,
+          attr->obj->ProbToMargin(attr->mparam.base_score));
     }
 
-    this->ConfigureGBM(old_tparam, args);
-    generic_parameters_.ConfigureGpuId(this->gbm_->UseGPU());
+    this->ConfigureGBM(old_tparam, args, attr);
+    attr->generic_parameters.ConfigureGpuId(attr->gbm->UseGPU());
 
-    this->ConfigureMetrics(args);
+    this->ConfigureMetrics(args, attr);
 
-    this->need_configuration_ = false;
-    if (generic_parameters_.validate_parameters) {
-      this->ValidateParameters();
+    attr->need_configuration = false;
+    if (attr->generic_parameters.validate_parameters) {
+      this->ValidateParameters(attr);
     }
 
     // FIXME(trivialfis): Clear the cache once binary IO is gone.
-    monitor_.Stop("Configure");
+    attr->monitor.Stop("Configure");
   }
 
-  void ValidateParameters() {
+  void LoadConfig(Json const& in, LearnerAttributs* attr) {
+    CHECK(IsA<Object>(in));
+    Version::Load(in, true);
+
+    auto const& learner_parameters = get<Object>(in["learner"]);
+    fromJson(learner_parameters.at("learner_train_param"), &attr->tparam);
+
+    auto const& gradient_booster = learner_parameters.at("gradient_booster");
+
+    auto const& objective_fn = learner_parameters.at("objective");
+    if (!attr->obj) {
+      attr->obj.reset(ObjFunction::Create(attr->tparam.objective, &attr->generic_parameters));
+    }
+    attr->obj->LoadConfig(objective_fn);
+
+    attr->tparam.booster = get<String>(gradient_booster["name"]);
+    if (!attr->gbm) {
+      attr->gbm.reset(GradientBooster::Create(attr->tparam.booster,
+                                               &attr->generic_parameters, &attr->learner_model_param));
+    }
+    attr->gbm->LoadConfig(gradient_booster);
+
+    auto const& j_metrics = learner_parameters.at("metrics");
+    auto n_metrics = get<Array const>(j_metrics).size();
+    attr->metric_names.resize(n_metrics);
+    attr->metrics.resize(n_metrics);
+    for (size_t i = 0; i < n_metrics; ++i) {
+      attr->metric_names[i]= get<String>(j_metrics[i]);
+      attr->metrics[i] = std::unique_ptr<Metric>(
+          Metric::Create(attr->metric_names[i], &attr->generic_parameters));
+    }
+
+    fromJson(learner_parameters.at("generic_param"), &attr->generic_parameters);
+    // make sure the GPU ID is valid in new environment before start running configure.
+    attr->generic_parameters.ConfigureGpuId(false);
+
+    attr->need_configuration = true;
+  }
+
+  void SaveConfig(Json* p_out, LearnerAttributs const* attr) const {
+    CHECK(!attr->need_configuration) << "Call Configure before saving model.";
+    Version::Save(p_out);
+    Json& out { *p_out };
+    // parameters
+    out["learner"] = Object();
+    auto& learner_parameters = out["learner"];
+
+    learner_parameters["learner_train_param"] = toJson(attr->tparam);
+    learner_parameters["learner_model_param"] = attr->mparam.ToJson();
+    learner_parameters["gradient_booster"] = Object();
+    auto& gradient_booster = learner_parameters["gradient_booster"];
+    attr->gbm->SaveConfig(&gradient_booster);
+
+    learner_parameters["objective"] = Object();
+    auto& objective_fn = learner_parameters["objective"];
+    attr->obj->SaveConfig(&objective_fn);
+
+    std::vector<Json> metrics(attr->metrics.size());
+    for (size_t i = 0; i < attr->metrics.size(); ++i) {
+      metrics[i] = String(attr->metrics[i]->Name());
+    }
+    learner_parameters["metrics"] = Array(std::move(metrics));
+
+    learner_parameters["generic_param"] = toJson(attr->generic_parameters);
+  }
+
+ private:
+  void ValidateParameters(LearnerAttributs const* attr) {
     Json config { Object() };
-    this->SaveConfig(&config);
+    this->SaveConfig(&config, attr);
     std::stack<Json> stack;
     stack.push(config);
     std::string const postfix{"_param"};
@@ -311,14 +435,14 @@ class LearnerImpl : public Learner {
       }
     }
 
-    keys.emplace_back(kEvalMetric);
+    keys.emplace_back(LearnerAttributs::kEvalMetric);
     keys.emplace_back("verbosity");
     keys.emplace_back("num_output_group");
 
     std::sort(keys.begin(), keys.end());
 
     std::vector<std::string> provided;
-    for (auto const &kv : cfg_) {
+    for (auto const &kv : attr->cfg) {
       // FIXME(trivialfis): Make eval_metric a training parameter.
       provided.push_back(kv.first);
     }
@@ -345,49 +469,122 @@ class LearnerImpl : public Learner {
     }
   }
 
-  void CheckDataSplitMode() {
-    if (rabit::IsDistributed()) {
-      CHECK(tparam_.dsplit != DataSplitMode::kAuto)
-        << "Precondition violated; dsplit cannot be 'auto' in distributed mode";
-      if (tparam_.dsplit == DataSplitMode::kCol) {
-        // 'distcol' updater hidden until it becomes functional again
-        // See discussion at https://github.com/dmlc/xgboost/issues/1832
-        LOG(FATAL) << "Column-wise data split is currently not supported.";
-      }
+  void ConfigureNumFeatures(LearnerAttributs* attr) {
+    // estimate feature bound
+    // TODO(hcho3): Change num_feature to 64-bit integer
+    unsigned num_feature = 0;
+    for (auto & matrix : attr->cache.Container()) {
+      CHECK(matrix.first);
+      CHECK(!matrix.second.ref.expired());
+      const uint64_t num_col = matrix.first->Info().num_col_;
+      CHECK_LE(num_col, static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
+          << "Unfortunately, XGBoost does not support data matrices with "
+          << std::numeric_limits<unsigned>::max() << " features or greater";
+      num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
     }
+    // run allreduce on num_feature to find the maximum value
+    rabit::Allreduce<rabit::op::Max>(&num_feature, 1, nullptr, nullptr, "num_feature");
+    if (num_feature > attr->mparam.num_feature) {
+      attr->mparam.num_feature = num_feature;
+    }
+    CHECK_NE(attr->mparam.num_feature, 0)
+        << "0 feature is supplied.  Are you using raw Booster interface?";
+    // Remove these once binary IO is gone.
+    attr->cfg["num_feature"] = common::ToString(attr->mparam.num_feature);
+    attr->cfg["num_class"] = common::ToString(attr->mparam.num_class);
   }
 
-  void LoadModel(Json const& in) override {
+  void ConfigureGBM(LearnerTrainParam const &old, Args const &args,
+                    LearnerAttributs *attr) const {
+    if (attr->gbm == nullptr || old.booster != attr->tparam.booster) {
+      attr->gbm.reset(GradientBooster::Create(attr->tparam.booster,
+                                               &attr->generic_parameters,
+                                               &attr->learner_model_param));
+    }
+    attr->gbm->Configure(args);
+  }
+
+  void ConfigureObjective(LearnerTrainParam const& old, Args* p_args,
+                          LearnerAttributs *attr) {
+    // Once binary IO is gone, NONE of these config is useful.
+    if (attr->cfg.find("num_class") != attr->cfg.cend() && attr->cfg.at("num_class") != "0" &&
+        attr->tparam.objective != "multi:softprob") {
+      attr->cfg["num_output_group"] = attr->cfg["num_class"];
+      if (atoi(attr->cfg["num_class"].c_str()) > 1 &&
+          attr->cfg.count("objective") == 0) {
+        attr->tparam.objective = "multi:softmax";
+      }
+    }
+
+    if (attr->cfg.find("max_delta_step") == attr->cfg.cend() &&
+        attr->cfg.find("objective") != attr->cfg.cend() &&
+        attr->tparam.objective == "count:poisson") {
+      // max_delta_step is a duplicated parameter in Poisson regression and tree param.
+      // Rename one of them once binary IO is gone.
+      attr->cfg["max_delta_step"] = kMaxDeltaStepDefaultValue;
+    }
+    if (attr->obj == nullptr || attr->tparam.objective != old.objective) {
+      attr->obj.reset(ObjFunction::Create(attr->tparam.objective, &attr->generic_parameters));
+    }
+    auto& args = *p_args;
+    args = {attr->cfg.cbegin(), attr->cfg.cend()};  // renew
+    attr->obj->Configure(args);
+  }
+
+  void ConfigureMetrics(Args const& args, LearnerAttributs *attr) {
+    for (auto const& name : attr->metric_names) {
+      auto DupCheck = [&name](std::unique_ptr<Metric> const& m) {
+                        return m->Name() != name;
+                      };
+      if (std::all_of(attr->metrics.begin(), attr->metrics.end(), DupCheck)) {
+        attr->metrics.emplace_back(std::unique_ptr<Metric>(
+            Metric::Create(name, &attr->generic_parameters)));
+        attr->mparam.contain_eval_metrics = 1;
+      }
+    }
+    for (auto& p_metric : attr->metrics) {
+      p_metric->Configure(args);
+    }
+  }
+};
+
+class LearnerIO {
+ private:
+  std::set<std::string> saved_configs_ = {"num_round"};
+
+ public:
+  void LoadModel(Json const& in, LearnerAttributs* attr) {
     CHECK(IsA<Object>(in));
     Version::Load(in, false);
     auto const& learner = get<Object>(in["learner"]);
-    mparam_.FromJson(learner.at("learner_model_param"));
+    attr->mparam.FromJson(learner.at("learner_model_param"));
 
     auto const& objective_fn = learner.at("objective");
 
     std::string name = get<String>(objective_fn["name"]);
-    tparam_.UpdateAllowUnknown(Args{{"objective", name}});
-    obj_.reset(ObjFunction::Create(name, &generic_parameters_));
-    obj_->LoadConfig(objective_fn);
+    attr->tparam.UpdateAllowUnknown(Args{{"objective", name}});
+    attr->obj.reset(ObjFunction::Create(name, &attr->generic_parameters));
+    attr->obj->LoadConfig(objective_fn);
 
     auto const& gradient_booster = learner.at("gradient_booster");
     name = get<String>(gradient_booster["name"]);
-    tparam_.UpdateAllowUnknown(Args{{"booster", name}});
-    gbm_.reset(GradientBooster::Create(tparam_.booster,
-                                       &generic_parameters_, &learner_model_param_));
-    gbm_->LoadModel(gradient_booster);
+    attr->tparam.UpdateAllowUnknown(Args{{"booster", name}});
+    attr->gbm.reset(GradientBooster::Create(attr->tparam.booster,
+                                             &attr->generic_parameters,
+                                             &attr->learner_model_param));
+    attr->gbm->LoadModel(gradient_booster);
 
     auto const& j_attributes = get<Object const>(learner.at("attributes"));
-    attributes_.clear();
+    attr->attributes.clear();
     for (auto const& kv : j_attributes) {
-      attributes_[kv.first] = get<String const>(kv.second);
+      attr->attributes[kv.first] = get<String const>(kv.second);
     }
 
-    this->need_configuration_ = true;
+    attr->need_configuration = true;
   }
 
-  void SaveModel(Json* p_out) const override {
-    CHECK(!this->need_configuration_) << "Call Configure before saving model.";
+  void SaveModel(Json* p_out, LearnerAttributs const* attr) const {
+    CHECK(!attr->need_configuration) << "Call Configure before saving model.";
 
     Version::Save(p_out);
     Json& out { *p_out };
@@ -395,91 +592,24 @@ class LearnerImpl : public Learner {
     out["learner"] = Object();
     auto& learner = out["learner"];
 
-    learner["learner_model_param"] = mparam_.ToJson();
+    learner["learner_model_param"] = attr->mparam.ToJson();
     learner["gradient_booster"] = Object();
     auto& gradient_booster = learner["gradient_booster"];
-    gbm_->SaveModel(&gradient_booster);
+    attr->gbm->SaveModel(&gradient_booster);
 
     learner["objective"] = Object();
     auto& objective_fn = learner["objective"];
-    obj_->SaveConfig(&objective_fn);
+    attr->obj->SaveConfig(&objective_fn);
 
     learner["attributes"] = Object();
-    for (auto const& kv : attributes_) {
+    for (auto const& kv : attr->attributes) {
       learner["attributes"][kv.first] = String(kv.second);
     }
   }
-
-  void LoadConfig(Json const& in) override {
-    CHECK(IsA<Object>(in));
-    Version::Load(in, true);
-
-    auto const& learner_parameters = get<Object>(in["learner"]);
-    fromJson(learner_parameters.at("learner_train_param"), &tparam_);
-
-    auto const& gradient_booster = learner_parameters.at("gradient_booster");
-
-    auto const& objective_fn = learner_parameters.at("objective");
-    if (!obj_) {
-      obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
-    }
-    obj_->LoadConfig(objective_fn);
-
-    tparam_.booster = get<String>(gradient_booster["name"]);
-    if (!gbm_) {
-      gbm_.reset(GradientBooster::Create(tparam_.booster,
-                                         &generic_parameters_, &learner_model_param_));
-    }
-    gbm_->LoadConfig(gradient_booster);
-
-    auto const& j_metrics = learner_parameters.at("metrics");
-    auto n_metrics = get<Array const>(j_metrics).size();
-    metric_names_.resize(n_metrics);
-    metrics_.resize(n_metrics);
-    for (size_t i = 0; i < n_metrics; ++i) {
-      metric_names_[i]= get<String>(j_metrics[i]);
-      metrics_[i] = std::unique_ptr<Metric>(
-          Metric::Create(metric_names_[i], &generic_parameters_));
-    }
-
-    fromJson(learner_parameters.at("generic_param"), &generic_parameters_);
-    // make sure the GPU ID is valid in new environment before start running configure.
-    generic_parameters_.ConfigureGpuId(false);
-
-    this->need_configuration_ = true;
-  }
-
-  void SaveConfig(Json* p_out) const override {
-    CHECK(!this->need_configuration_) << "Call Configure before saving model.";
-    Version::Save(p_out);
-    Json& out { *p_out };
-    // parameters
-    out["learner"] = Object();
-    auto& learner_parameters = out["learner"];
-
-    learner_parameters["learner_train_param"] = toJson(tparam_);
-    learner_parameters["learner_model_param"] = mparam_.ToJson();
-    learner_parameters["gradient_booster"] = Object();
-    auto& gradient_booster = learner_parameters["gradient_booster"];
-    gbm_->SaveConfig(&gradient_booster);
-
-    learner_parameters["objective"] = Object();
-    auto& objective_fn = learner_parameters["objective"];
-    obj_->SaveConfig(&objective_fn);
-
-    std::vector<Json> metrics(metrics_.size());
-    for (size_t i = 0; i < metrics_.size(); ++i) {
-      metrics[i] = String(metrics_[i]->Name());
-    }
-    learner_parameters["metrics"] = Array(std::move(metrics));
-
-    learner_parameters["generic_param"] = toJson(generic_parameters_);
-  }
-
   // About to be deprecated by JSON format
-  void LoadModel(dmlc::Stream* fi) override {
-    generic_parameters_.UpdateAllowUnknown(Args{});
-    tparam_.Init(std::vector<std::pair<std::string, std::string>>{});
+  void LoadModel(dmlc::Stream* fi, LearnerAttributs* attr) {
+    attr->generic_parameters.UpdateAllowUnknown(Args{});
+    attr->tparam.Init(std::vector<std::pair<std::string, std::string>>{});
     // TODO(tqchen) mark deprecation of old format.
     common::PeekableInStream fp(fi);
 
@@ -500,69 +630,69 @@ class LearnerImpl : public Learner {
       std::string buffer;
       json_stream.Take(&buffer);
       auto model = Json::Load({buffer.c_str(), buffer.size()});
-      this->LoadModel(model);
+      this->LoadModel(model, attr);
       return;
     }
     // use the peekable reader.
     fi = &fp;
     // read parameter
-    CHECK_EQ(fi->Read(&mparam_, sizeof(mparam_)), sizeof(mparam_))
+    CHECK_EQ(fi->Read(&attr->mparam, sizeof(attr->mparam)), sizeof(attr->mparam))
         << "BoostLearner: wrong model format";
 
-    CHECK(fi->Read(&tparam_.objective)) << "BoostLearner: wrong model format";
-    CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
+    CHECK(fi->Read(&attr->tparam.objective)) << "BoostLearner: wrong model format";
+    CHECK(fi->Read(&attr->tparam.booster)) << "BoostLearner: wrong model format";
 
-    obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
-    gbm_.reset(GradientBooster::Create(tparam_.booster, &generic_parameters_,
-                                       &learner_model_param_));
-    gbm_->Load(fi);
-    if (mparam_.contain_extra_attrs != 0) {
-      std::vector<std::pair<std::string, std::string> > attr;
-      fi->Read(&attr);
-      for (auto& kv : attr) {
+    attr->obj.reset(ObjFunction::Create(attr->tparam.objective, &attr->generic_parameters));
+    attr->gbm.reset(GradientBooster::Create(attr->tparam.booster, &attr->generic_parameters,
+                                             &attr->learner_model_param));
+    attr->gbm->Load(fi);
+    if (attr->mparam.contain_extra_attrs != 0) {
+      std::vector<std::pair<std::string, std::string> > _attr;
+      fi->Read(&_attr);
+      for (auto& kv : _attr) {
         const std::string prefix = "SAVED_PARAM_";
         if (kv.first.find(prefix) == 0) {
           const std::string saved_param = kv.first.substr(prefix.length());
           if (saved_configs_.find(saved_param) != saved_configs_.end()) {
-            cfg_[saved_param] = kv.second;
+            attr->cfg[saved_param] = kv.second;
           }
         }
       }
-      attributes_ = std::map<std::string, std::string>(attr.begin(), attr.end());
+      attr->attributes = std::map<std::string, std::string>(_attr.begin(), _attr.end());
     }
     bool warn_old_model { false };
-    if (attributes_.find("count_poisson_max_delta_step") != attributes_.cend()) {
+    if (attr->attributes.find("count_poisson_max_delta_step") != attr->attributes.cend()) {
       // Loading model from < 1.0.0, objective is not saved.
-      cfg_["max_delta_step"] = attributes_.at("count_poisson_max_delta_step");
-      attributes_.erase("count_poisson_max_delta_step");
+      attr->cfg["max_delta_step"] = attr->attributes.at("count_poisson_max_delta_step");
+      attr->attributes.erase("count_poisson_max_delta_step");
       warn_old_model = true;
     } else {
       warn_old_model = false;
     }
 
-    if (mparam_.major_version >= 1) {
-      learner_model_param_ = LearnerModelParam(mparam_,
-                                               obj_->ProbToMargin(mparam_.base_score));
+    if (attr->mparam.major_version >= 1) {
+      attr->learner_model_param = LearnerModelParam(
+          attr->mparam, attr->obj->ProbToMargin(attr->mparam.base_score));
     } else {
       // Before 1.0.0, base_score is saved as a transformed value, and there's no version
       // attribute in the saved model.
-      learner_model_param_ = LearnerModelParam(mparam_, mparam_.base_score);
+      attr->learner_model_param = LearnerModelParam(attr->mparam, attr->mparam.base_score);
       warn_old_model = true;
     }
-    if (attributes_.find("objective") != attributes_.cend()) {
-      auto obj_str = attributes_.at("objective");
+    if (attr->attributes.find("objective") != attr->attributes.cend()) {
+      auto obj_str = attr->attributes.at("objective");
       auto j_obj = Json::Load({obj_str.c_str(), obj_str.size()});
-      obj_->LoadConfig(j_obj);
-      attributes_.erase("objective");
+      attr->obj->LoadConfig(j_obj);
+      attr->attributes.erase("objective");
     } else {
       warn_old_model = true;
     }
-    if (attributes_.find("metrics") != attributes_.cend()) {
-      auto metrics_str = attributes_.at("metrics");
+    if (attr->attributes.find("metrics") != attr->attributes.cend()) {
+      auto metrics_str = attr->attributes.at("metrics");
       std::vector<std::string> names { common::Split(metrics_str, ';') };
-      attributes_.erase("metrics");
+      attr->attributes.erase("metrics");
       for (auto const& n : names) {
-        this->SetParam(kEvalMetric, n);
+        attr->SetParam(attr->kEvalMetric, n);
       }
     }
 
@@ -572,21 +702,20 @@ class LearnerImpl : public Learner {
     }
 
     // Renew the version.
-    mparam_.major_version = std::get<0>(Version::Self());
-    mparam_.minor_version = std::get<1>(Version::Self());
+    attr->mparam.major_version = std::get<0>(Version::Self());
+    attr->mparam.minor_version = std::get<1>(Version::Self());
 
-    cfg_["num_class"] = common::ToString(mparam_.num_class);
-    cfg_["num_feature"] = common::ToString(mparam_.num_feature);
+    attr->cfg["num_class"] = common::ToString(attr->mparam.num_class);
+    attr->cfg["num_feature"] = common::ToString(attr->mparam.num_feature);
 
-    auto n = tparam_.__DICT__();
-    cfg_.insert(n.cbegin(), n.cend());
+    auto n = attr->tparam.__DICT__();
+    attr->cfg.insert(n.cbegin(), n.cend());
 
     // copy dsplit from config since it will not run again during restore
-    if (tparam_.dsplit == DataSplitMode::kAuto && rabit::IsDistributed()) {
-      tparam_.dsplit = DataSplitMode::kRow;
+    if (attr->tparam.dsplit == DataSplitMode::kAuto && rabit::IsDistributed()) {
+      attr->tparam.dsplit = DataSplitMode::kRow;
     }
-
-    this->Configure();
+    attr->need_configuration = true;
   }
 
   // Save model into binary format.  The code is about to be deprecated by more robust
@@ -594,22 +723,22 @@ class LearnerImpl : public Learner {
   // `enable_experimental_json_serialization` as user might enable this flag for pickle
   // while still want a binary output.  As we are progressing at replacing the binary
   // format, there's no need to put too much effort on it.
-  void SaveModel(dmlc::Stream* fo) const override {
-    LearnerModelParamLegacy mparam = mparam_;  // make a copy to potentially modify
+  void SaveModel(dmlc::Stream* fo, LearnerAttributs const* attr) const {
+    LearnerModelParamLegacy mparam = attr->mparam;  // make a copy to potentially modify
     std::vector<std::pair<std::string, std::string> > extra_attr;
     mparam.contain_extra_attrs = 1;
 
     {
       std::vector<std::string> saved_params;
       // check if rabit_bootstrap_cache were set to non zero before adding to checkpoint
-      if (cfg_.find("rabit_bootstrap_cache") != cfg_.end() &&
-        (cfg_.find("rabit_bootstrap_cache"))->second != "0") {
+      if (attr->cfg.find("rabit_bootstrap_cache") != attr->cfg.end() &&
+        (attr->cfg.find("rabit_bootstrap_cache"))->second != "0") {
         std::copy(saved_configs_.begin(), saved_configs_.end(),
                   std::back_inserter(saved_params));
       }
       for (const auto& key : saved_params) {
-        auto it = cfg_.find(key);
-        if (it != cfg_.end()) {
+        auto it = attr->cfg.find(key);
+        if (it != attr->cfg.end()) {
           mparam.contain_extra_attrs = 1;
           extra_attr.emplace_back("SAVED_PARAM_" + key, it->second);
         }
@@ -618,7 +747,7 @@ class LearnerImpl : public Learner {
     {
       // Similar to JSON model IO, we save the objective.
       Json j_obj { Object() };
-      obj_->SaveConfig(&j_obj);
+      attr->obj->SaveConfig(&j_obj);
       std::string obj_doc;
       Json::Dump(j_obj, &obj_doc);
       extra_attr.emplace_back("objective", obj_doc);
@@ -627,28 +756,64 @@ class LearnerImpl : public Learner {
     // Remove this part once they are ported to use actual serialization methods.
     if (mparam.contain_eval_metrics != 0) {
       std::stringstream os;
-      for (auto& ev : metrics_) {
+      for (auto& ev : attr->metrics) {
         os << ev->Name() << ";";
       }
       extra_attr.emplace_back("metrics", os.str());
     }
 
     fo->Write(&mparam, sizeof(LearnerModelParamLegacy));
-    fo->Write(tparam_.objective);
-    fo->Write(tparam_.booster);
-    gbm_->Save(fo);
+    fo->Write(attr->tparam.objective);
+    fo->Write(attr->tparam.booster);
+    attr->gbm->Save(fo);
     if (mparam.contain_extra_attrs != 0) {
-      std::map<std::string, std::string> attr(attributes_);
+      std::map<std::string, std::string> _attr(attr->attributes);
       for (const auto& kv : extra_attr) {
-        attr[kv.first] = kv.second;
+        _attr[kv.first] = kv.second;
       }
       fo->Write(std::vector<std::pair<std::string, std::string>>(
-          attr.begin(), attr.end()));
+          _attr.begin(), _attr.end()));
+    }
+  }
+};
+
+/*!
+ * \brief learner that performs gradient boosting for a specific objective
+ * function. It does training and prediction.
+ */
+class LearnerImpl : public Learner {
+ public:
+  explicit LearnerImpl(std::vector<std::shared_ptr<DMatrix> > cache) {
+    attr_.monitor.Init("Learner");
+    for (std::shared_ptr<DMatrix> const& d : cache) {
+      attr_.cache.Cache(d, GenericParameter::kCpuId);
     }
   }
 
+  void Configure() override {
+    this->cfg_.Configure(&attr_);
+  }
+  void LoadModel(dmlc::Stream* fi) override {
+    this->io_.LoadModel(fi, &attr_);
+  }
+  void LoadModel(Json const& in) override {
+    this->io_.LoadModel(in, &attr_);
+  }
+  void SaveModel(dmlc::Stream* fo) const override {
+    this->io_.SaveModel(fo, &attr_);
+  }
+  void SaveModel(Json* p_out) const override {
+    this->io_.SaveModel(p_out, &attr_);
+  }
+  void SaveConfig(Json* p_out) const override {
+    this->cfg_.SaveConfig(p_out, &attr_);
+  }
+  void LoadConfig(Json const& in) override {
+    this->cfg_.LoadConfig(in, &attr_);
+  }
+
   void Save(dmlc::Stream* fo) const override {
-    if (generic_parameters_.enable_experimental_json_serialization) {
+    if (attr_.generic_parameters.enable_experimental_json_serialization) {
       Json memory_snapshot{Object()};
       memory_snapshot["Model"] = Object();
       auto &model = memory_snapshot["Model"];
@@ -722,135 +887,99 @@ class LearnerImpl : public Learner {
     }
   }
 
+  // Configuration before data is known.
+  void CheckDataSplitMode() {
+    if (rabit::IsDistributed()) {
+      CHECK(attr_.tparam.dsplit != DataSplitMode::kAuto)
+        << "Precondition violated; dsplit cannot be 'auto' in distributed mode";
+      if (attr_.tparam.dsplit == DataSplitMode::kCol) {
+        // 'distcol' updater hidden until it becomes functional again
+        // See discussion at https://github.com/dmlc/xgboost/issues/1832
+        LOG(FATAL) << "Column-wise data split is currently not supported.";
+      }
+    }
+  }
+
   std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                      bool with_stats,
                                      std::string format) const override {
-    CHECK(!this->need_configuration_)
+    CHECK(!attr_.need_configuration)
         << "The model hasn't been built yet.  Are you using raw Booster interface?";
-    return gbm_->DumpModel(fmap, with_stats, format);
+    return attr_.gbm->DumpModel(fmap, with_stats, format);
   }
 
   void UpdateOneIter(int iter, std::shared_ptr<DMatrix> train) override {
-    monitor_.Start("UpdateOneIter");
+    attr_.monitor.Start("UpdateOneIter");
     TrainingObserver::Instance().Update(iter);
     this->Configure();
-    if (generic_parameters_.seed_per_iteration || rabit::IsDistributed()) {
-      common::GlobalRandom().seed(generic_parameters_.seed * kRandSeedMagic + iter);
+    if (attr_.generic_parameters.seed_per_iteration || rabit::IsDistributed()) {
+      common::GlobalRandom().seed(attr_.generic_parameters.seed * kRandSeedMagic + iter);
     }
     this->CheckDataSplitMode();
     this->ValidateDMatrix(train.get());
 
-    auto& predt = this->cache_.Cache(train, generic_parameters_.gpu_id);
+    auto& predt = attr_.cache.Cache(train, attr_.generic_parameters.gpu_id);
 
-    monitor_.Start("PredictRaw");
+    attr_.monitor.Start("PredictRaw");
     this->PredictRaw(train.get(), &predt, true);
-    TrainingObserver::Instance().Observe(predt.predictions, "Predictions");
-    monitor_.Stop("PredictRaw");
+    attr_.monitor.Stop("PredictRaw");
 
-    monitor_.Start("GetGradient");
-    obj_->GetGradient(predt.predictions, train->Info(), iter, &gpair_);
-    monitor_.Stop("GetGradient");
+    attr_.monitor.Start("GetGradient");
+    attr_.obj->GetGradient(predt.predictions, train->Info(), iter, &gpair_);
+    attr_.monitor.Stop("GetGradient");
     TrainingObserver::Instance().Observe(gpair_, "Gradients");
 
-    gbm_->DoBoost(train.get(), &gpair_, &predt);
-    monitor_.Stop("UpdateOneIter");
+    attr_.gbm->DoBoost(train.get(), &gpair_, &predt);
+    attr_.monitor.Stop("UpdateOneIter");
   }
 
   void BoostOneIter(int iter, std::shared_ptr<DMatrix> train,
                     HostDeviceVector<GradientPair>* in_gpair) override {
-    monitor_.Start("BoostOneIter");
+    attr_.monitor.Start("BoostOneIter");
     this->Configure();
-    if (generic_parameters_.seed_per_iteration || rabit::IsDistributed()) {
-      common::GlobalRandom().seed(generic_parameters_.seed * kRandSeedMagic + iter);
+    if (attr_.generic_parameters.seed_per_iteration || rabit::IsDistributed()) {
+      common::GlobalRandom().seed(attr_.generic_parameters.seed * kRandSeedMagic + iter);
     }
     this->CheckDataSplitMode();
     this->ValidateDMatrix(train.get());
-    this->cache_.Cache(train, generic_parameters_.gpu_id);
+    attr_.cache.Cache(train, attr_.generic_parameters.gpu_id);
 
-    gbm_->DoBoost(train.get(), in_gpair, &cache_.Entry(train.get()));
-    monitor_.Stop("BoostOneIter");
+    attr_.gbm->DoBoost(train.get(), in_gpair, &attr_.cache.Entry(train.get()));
+    attr_.monitor.Stop("BoostOneIter");
   }
 
   std::string EvalOneIter(int iter,
                           const std::vector<std::shared_ptr<DMatrix>>& data_sets,
                           const std::vector<std::string>& data_names) override {
-    monitor_.Start("EvalOneIter");
+    attr_.monitor.Start("EvalOneIter");
     this->Configure();
 
     std::ostringstream os;
     os << '[' << iter << ']' << std::setiosflags(std::ios::fixed);
-    if (metrics_.size() == 0 && tparam_.disable_default_eval_metric <= 0) {
-      metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(), &generic_parameters_));
-      metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
+    if (attr_.metrics.size() == 0 && attr_.tparam.disable_default_eval_metric <= 0) {
+      attr_.metrics.emplace_back(
+          Metric::Create(attr_.obj->DefaultEvalMetric(), &attr_.generic_parameters));
+      attr_.metrics.back()->Configure({attr_.cfg.begin(), attr_.cfg.end()});
     }
     for (size_t i = 0; i < data_sets.size(); ++i) {
       std::shared_ptr<DMatrix> m = data_sets[i];
-      auto &predt = this->cache_.Cache(m, generic_parameters_.gpu_id);
+      auto &predt = attr_.cache.Cache(m, attr_.generic_parameters.gpu_id);
       this->ValidateDMatrix(m.get());
       this->PredictRaw(m.get(), &predt, false);
 
-      auto &out = output_predictions_.Cache(m, generic_parameters_.gpu_id).predictions;
+      auto &out = output_predictions_.Cache(m, attr_.generic_parameters.gpu_id).predictions;
       out.Resize(predt.predictions.Size());
       out.Copy(predt.predictions);
 
-      obj_->EvalTransform(&out);
-      for (auto& ev : metrics_) {
+      attr_.obj->EvalTransform(&out);
+      for (auto& ev : attr_.metrics) {
         os << '\t' << data_names[i] << '-' << ev->Name() << ':'
-           << ev->Eval(out, m->Info(), tparam_.dsplit == DataSplitMode::kRow);
+           << ev->Eval(out, m->Info(), attr_.tparam.dsplit == DataSplitMode::kRow);
       }
     }
 
-    monitor_.Stop("EvalOneIter");
+    attr_.monitor.Stop("EvalOneIter");
     return os.str();
-  }
-
-  void SetParam(const std::string& key, const std::string& value) override {
-    this->need_configuration_ = true;
-    if (key == kEvalMetric) {
-      if (std::find(metric_names_.cbegin(), metric_names_.cend(),
-                    value) == metric_names_.cend()) {
-        metric_names_.emplace_back(value);
-      }
-    } else {
-      cfg_[key] = value;
-    }
-  }
-  // Short hand for setting multiple parameters
-  void SetParams(std::vector<std::pair<std::string, std::string>> const& args) override {
-    for (auto const& kv : args) {
-      this->SetParam(kv.first, kv.second);
-    }
-  }
-
-  void SetAttr(const std::string& key, const std::string& value) override {
-    attributes_[key] = value;
-    mparam_.contain_extra_attrs = 1;
-  }
-
-  bool GetAttr(const std::string& key, std::string* out) const override {
-    auto it = attributes_.find(key);
-    if (it == attributes_.end()) return false;
-    *out = it->second;
-    return true;
-  }
-
-  bool DelAttr(const std::string& key) override {
-    auto it = attributes_.find(key);
-    if (it == attributes_.end()) { return false; }
-    attributes_.erase(it);
-    return true;
-  }
-
-  std::vector<std::string> GetAttrNames() const override {
-    std::vector<std::string> out;
-    for (auto const& kv : attributes_) {
-      out.emplace_back(kv.first);
-    }
-    return out;
-  }
-
-  GenericParameter const& GetGenericParameter() const override {
-    return generic_parameters_;
   }
 
   void Predict(std::shared_ptr<DMatrix> data, bool output_margin,
@@ -864,30 +993,40 @@ class LearnerImpl : public Learner {
     this->Configure();
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
     if (pred_contribs) {
-      gbm_->PredictContribution(data.get(), &out_preds->HostVector(), ntree_limit, approx_contribs);
+      attr_.gbm->PredictContribution(data.get(), &out_preds->HostVector(),
+                                     ntree_limit, approx_contribs);
     } else if (pred_interactions) {
-      gbm_->PredictInteractionContributions(data.get(), &out_preds->HostVector(), ntree_limit,
-                                            approx_contribs);
+      attr_.gbm->PredictInteractionContributions(
+          data.get(), &out_preds->HostVector(), ntree_limit, approx_contribs);
     } else if (pred_leaf) {
-      gbm_->PredictLeaf(data.get(), &out_preds->HostVector(), ntree_limit);
+      attr_.gbm->PredictLeaf(data.get(), &out_preds->HostVector(), ntree_limit);
     } else {
-      auto& prediction = cache_.Cache(data, generic_parameters_.gpu_id);
+      auto& prediction = attr_.cache.Cache(data, attr_.generic_parameters.gpu_id);
       this->PredictRaw(data.get(), &prediction, training, ntree_limit);
       // Copy the prediction cache to output prediction. out_preds comes from C API
-      out_preds->SetDevice(generic_parameters_.gpu_id);
+      out_preds->SetDevice(attr_.generic_parameters.gpu_id);
       out_preds->Resize(prediction.predictions.Size());
       out_preds->Copy(prediction.predictions);
       if (!output_margin) {
-        obj_->PredTransform(out_preds);
+        attr_.obj->PredTransform(out_preds);
       }
     }
   }
 
+
   XGBAPIThreadLocalEntry& GetThreadLocal() const override {
     return (*XGBAPIThreadLocalStore::Get())[this];
   }
+
   const std::map<std::string, std::string>& GetConfigurationArguments() const override {
-    return cfg_;
+    return attr_.GetConfigurationArguments();
+  }
+
+  GenericParameter const& GetGenericParameter() const override {
+    return attr_.generic_parameters;
+  }
+  bool AllowLazyCheckPoint() const override {
+    return attr_.gbm->AllowLazyCheckPoint();
   }
 
  protected:
@@ -902,83 +1041,9 @@ class LearnerImpl : public Learner {
   void PredictRaw(DMatrix* data, PredictionCacheEntry* out_preds,
                   bool training,
                   unsigned ntree_limit = 0) const {
-    CHECK(gbm_ != nullptr) << "Predict must happen after Load or configuration";
+    CHECK(attr_.gbm != nullptr) << "Predict must happen after Load or configuration";
     this->ValidateDMatrix(data);
-    gbm_->PredictBatch(data, out_preds, training, ntree_limit);
-  }
-
-  void ConfigureObjective(LearnerTrainParam const& old, Args* p_args) {
-    // Once binary IO is gone, NONE of these config is useful.
-    if (cfg_.find("num_class") != cfg_.cend() && cfg_.at("num_class") != "0" &&
-        tparam_.objective != "multi:softprob") {
-      cfg_["num_output_group"] = cfg_["num_class"];
-      if (atoi(cfg_["num_class"].c_str()) > 1 && cfg_.count("objective") == 0) {
-        tparam_.objective = "multi:softmax";
-      }
-    }
-
-    if (cfg_.find("max_delta_step") == cfg_.cend() &&
-        cfg_.find("objective") != cfg_.cend() &&
-        tparam_.objective == "count:poisson") {
-      // max_delta_step is a duplicated parameter in Poisson regression and tree param.
-      // Rename one of them once binary IO is gone.
-      cfg_["max_delta_step"] = kMaxDeltaStepDefaultValue;
-    }
-    if (obj_ == nullptr || tparam_.objective != old.objective) {
-      obj_.reset(ObjFunction::Create(tparam_.objective, &generic_parameters_));
-    }
-    auto& args = *p_args;
-    args = {cfg_.cbegin(), cfg_.cend()};  // renew
-    obj_->Configure(args);
-  }
-
-  void ConfigureMetrics(Args const& args) {
-    for (auto const& name : metric_names_) {
-      auto DupCheck = [&name](std::unique_ptr<Metric> const& m) {
-                        return m->Name() != name;
-                      };
-      if (std::all_of(metrics_.begin(), metrics_.end(), DupCheck)) {
-        metrics_.emplace_back(std::unique_ptr<Metric>(Metric::Create(name, &generic_parameters_)));
-        mparam_.contain_eval_metrics = 1;
-      }
-    }
-    for (auto& p_metric : metrics_) {
-      p_metric->Configure(args);
-    }
-  }
-
-  void ConfigureGBM(LearnerTrainParam const& old, Args const& args) {
-    if (gbm_ == nullptr || old.booster != tparam_.booster) {
-      gbm_.reset(GradientBooster::Create(tparam_.booster, &generic_parameters_,
-                                         &learner_model_param_));
-    }
-    gbm_->Configure(args);
-  }
-
-  // set number of features correctly.
-  void ConfigureNumFeatures() {
-    // estimate feature bound
-    // TODO(hcho3): Change num_feature to 64-bit integer
-    unsigned num_feature = 0;
-    for (auto & matrix : cache_.Container()) {
-      CHECK(matrix.first);
-      CHECK(!matrix.second.ref.expired());
-      const uint64_t num_col = matrix.first->Info().num_col_;
-      CHECK_LE(num_col, static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
-          << "Unfortunately, XGBoost does not support data matrices with "
-          << std::numeric_limits<unsigned>::max() << " features or greater";
-      num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
-    }
-    // run allreduce on num_feature to find the maximum value
-    rabit::Allreduce<rabit::op::Max>(&num_feature, 1, nullptr, nullptr, "num_feature");
-    if (num_feature > mparam_.num_feature) {
-      mparam_.num_feature = num_feature;
-    }
-    CHECK_NE(mparam_.num_feature, 0)
-        << "0 feature is supplied.  Are you using raw Booster interface?";
-    // Remove these once binary IO is gone.
-    cfg_["num_feature"] = common::ToString(mparam_.num_feature);
-    cfg_["num_class"] = common::ToString(mparam_.num_class);
+    attr_.gbm->PredictBatch(data, out_preds, training, ntree_limit);
   }
 
   void ValidateDMatrix(DMatrix* p_fmat) const {
@@ -994,59 +1059,41 @@ class LearnerImpl : public Learner {
     }
 
     auto const row_based_split = [this]() {
-      return tparam_.dsplit == DataSplitMode::kRow ||
-             tparam_.dsplit == DataSplitMode::kAuto;
+      return attr_.tparam.dsplit == DataSplitMode::kRow ||
+             attr_.tparam.dsplit == DataSplitMode::kAuto;
     };
     bool const valid_features =
         !row_based_split() ||
-        (learner_model_param_.num_feature == p_fmat->Info().num_col_);
+        (attr_.learner_model_param.num_feature == p_fmat->Info().num_col_);
     std::string const msg {
       "Number of columns does not match number of features in booster."
     };
-    if (generic_parameters_.validate_features) {
-      CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_) << msg;
+    if (attr_.generic_parameters.validate_features) {
+      CHECK_EQ(attr_.learner_model_param.num_feature, p_fmat->Info().num_col_) << msg;
     } else if (!valid_features) {
       // Remove this and make the equality check fatal once spark can fix all failing tests.
       LOG(WARNING) << msg << " "
                    << "Columns: " << p_fmat->Info().num_col_ << " "
-                   << "Features: " << learner_model_param_.num_feature;
+                   << "Features: " << attr_.learner_model_param.num_feature;
     }
   }
 
-  // model parameter
-  LearnerModelParamLegacy mparam_;
-  LearnerModelParam learner_model_param_;
-  LearnerTrainParam tparam_;
+ private:
+  LearnerAttributs attr_;
+  LearnerConfiguration cfg_;
+  LearnerIO io_;
+  /*! \brief random number transformation seed. */
+  static int32_t constexpr kRandSeedMagic = 127;
+  // gradient pairs
+  HostDeviceVector<GradientPair> gpair_;
   // Used to identify the offset of JSON string when
   // `enable_experimental_json_serialization' is set to false.  Will be removed once JSON
   // takes over.
   std::string const serialisation_header_ { u8"CONFIG-offset:" };
-  // User provided configurations
-  std::map<std::string, std::string> cfg_;
-  // Stores information like best-iteration for early stopping.
-  std::map<std::string, std::string> attributes_;
-  std::vector<std::string> metric_names_;
-  static std::string const kEvalMetric;  // NOLINT
-  // gradient pairs
-  HostDeviceVector<GradientPair> gpair_;
-  bool need_configuration_;
-
- private:
-  /*! \brief random number transformation seed. */
-  static int32_t constexpr kRandSeedMagic = 127;
-  // internal cached dmatrix for prediction.
-  PredictionContainer cache_;
   /*! \brief Temporary storage to prediction.  Useful for storing data transformed by
    *  objective function */
   PredictionContainer output_predictions_;
-
-  common::Monitor monitor_;
-
-  /*! \brief (Deprecated) saved config keys used to restore failed worker */
-  std::set<std::string> saved_configs_ = {"num_round"};
 };
-
-std::string const LearnerImpl::kEvalMetric {"eval_metric"};  // NOLINT
 
 constexpr int32_t LearnerImpl::kRandSeedMagic;
 

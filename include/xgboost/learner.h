@@ -173,7 +173,7 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
   /*!
    * \return whether the model allow lazy checkpoint in rabit.
    */
-  bool AllowLazyCheckPoint() const;
+  virtual bool AllowLazyCheckPoint() const = 0;
   /*!
    * \brief dump the model in the requested format
    * \param fmap feature map that may help give interpretations of feature
@@ -199,16 +199,6 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
    * \return Key-value pairs representing configuration arguments
    */
   virtual const std::map<std::string, std::string>& GetConfigurationArguments() const = 0;
-
- protected:
-  /*! \brief objective function */
-  std::unique_ptr<ObjFunction> obj_;
-  /*! \brief The gradient booster used by the model*/
-  std::unique_ptr<GradientBooster> gbm_;
-  /*! \brief The evaluation metrics used to evaluate the model. */
-  std::vector<std::unique_ptr<Metric> > metrics_;
-  /*! \brief Training parameter. */
-  GenericParameter generic_parameters_;
 };
 
 struct LearnerModelParamLegacy;
