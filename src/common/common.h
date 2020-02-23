@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2018 by Contributors
+ * Copyright 2015-2020 by Contributors
  * \file common.h
  * \brief Common utilities
  */

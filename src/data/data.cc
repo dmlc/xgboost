@@ -16,6 +16,7 @@
 #include "../common/io.h"
 #include "../common/math.h"
 #include "../common/version.h"
+#include "../common/math.h"
 #include "../common/group_data.h"
 #include "../data/adapter.h"
 

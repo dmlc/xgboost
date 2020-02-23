@@ -3,6 +3,8 @@
  */
 #include <dmlc/omp.h>
 
+#include "xgboost/base.h"
+#include "xgboost/data.h"
 #include "xgboost/predictor.h"
 #include "xgboost/tree_model.h"
 #include "xgboost/tree_updater.h"
@@ -10,11 +12,22 @@
 #include "xgboost/host_device_vector.h"
 
 #include "../gbm/gbtree_model.h"
+#include "../data/gradient_index_source.h"
+#include "../common/math.h"
 
 namespace xgboost {
 namespace predictor {
 
 DMLC_REGISTRY_FILE_TAG(cpu_predictor);
+
+bst_node_t GetLeafIndex(RegTree const& tree, const RegTree::FVec& feat) {
+  bst_node_t nid = 0;
+  while (!tree[nid].IsLeaf()) {
+    unsigned split_index = tree[nid].SplitIndex();
+    nid = tree.GetNext(nid, feat.GetFvalue(split_index), feat.IsMissing(split_index));
+  }
+  return nid;
+}
 
 class CPUPredictor : public Predictor {
  protected:
@@ -27,7 +40,7 @@ class CPUPredictor : public Predictor {
     p_feats->Fill(inst);
     for (size_t i = tree_begin; i < tree_end; ++i) {
       if (tree_info[i] == bst_group) {
-        int tid = trees[i]->GetLeafIndex(*p_feats);
+        bst_node_t tid = GetLeafIndex(*trees[i], *p_feats);
         psum += (*trees[i])[tid].LeafValue();
       }
     }
@@ -99,6 +112,42 @@ class CPUPredictor : public Predictor {
                               &feats, tree_begin, tree_end);
         }
       }
+    }
+  }
+
+  void HostPredictInternal(DMatrix *p_fmat, std::vector<bst_float> *out_preds,
+                           gbm::GBTreeModel const &model, int32_t tree_begin,
+                           int32_t tree_end) {
+    std::vector<RegTree::FVec> thread_temp(omp_get_max_threads());
+    for (auto& f : thread_temp) {
+      f.Init(p_fmat->Info().num_col_);
+    }
+
+    if (p_fmat->PageExists<GradientIndexPage>()) {
+      for (auto const& page : p_fmat->GetBatches<GradientIndexPage>()) {
+
+#pragma omp parallel for
+        for (bst_row_t r = 0; r < page.Size(); ++r) {
+          RegTree::FVec& features = thread_temp[omp_get_thread_num()];
+          std::vector<Entry> features_storage;
+          for (bst_feature_t c = 0; c < page.NumFeatures(); ++c) {
+            float f = page.GetFvalue(r, c);
+            if (!common::CheckNAN(f)) {
+              features_storage.emplace_back(Entry{c, f});
+            }
+          }
+          auto inst = common::Span<Entry>{features_storage};
+          auto const num_group = model.learner_model_param_->num_output_group;
+          for (bst_group_t gid = 0; gid < num_group; ++gid) {
+            bst_row_t offset = r * num_group + gid;
+            auto p = this->PredValue(inst, model.trees, model.tree_info, gid,
+                                     &features, tree_begin, tree_end);
+            (*out_preds)[offset] += p;
+          }
+        }
+      }
+    } else {
+      this->PredInternal(p_fmat, out_preds, model, tree_begin, tree_end);
     }
   }
 
@@ -175,9 +224,9 @@ class CPUPredictor : public Predictor {
     CHECK_LE(beg_version, end_version);
 
     if (beg_version < end_version) {
-      this->PredInternal(dmat, &out_preds->HostVector(), model,
-                         beg_version * output_groups,
-                         end_version * output_groups);
+      this->HostPredictInternal(dmat, &out_preds->HostVector(), model,
+                                beg_version * output_groups,
+                                end_version * output_groups);
     }
 
     // delta means {size of forest} * {number of newly accumulated layers}

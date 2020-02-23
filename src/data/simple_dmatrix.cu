@@ -5,11 +5,13 @@
 #include <thrust/copy.h>
 #include <thrust/execution_policy.h>
 #include <thrust/sort.h>
-#include <xgboost/data.h>
-#include "../common/random.h"
-#include "./simple_dmatrix.h"
-#include "../common/math.h"
+
+#include "xgboost/data.h"
+#include "xgboost/span.h"
+#include "simple_dmatrix.h"
 #include "device_adapter.cuh"
+
+#include "../common/math.h"
 
 namespace xgboost {
 namespace data {
@@ -127,8 +129,8 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   sparse_page_.offset.Resize(adapter->NumRows() + 1);
   auto s_offset = sparse_page_.offset.DeviceSpan();
   CountRowOffsets(batch, s_offset, adapter->DeviceIdx(), missing);
-  info.num_nonzero_ = sparse_page_.offset.HostVector().back();
-  sparse_page_.data.Resize(info.num_nonzero_);
+  info_.num_nonzero_ = sparse_page_.offset.HostVector().back();
+  sparse_page_.data.Resize(info_.num_nonzero_);
   if (adapter->IsRowMajor()) {
     CopyDataRowMajor(adapter, sparse_page_.data.DeviceSpan(),
                         adapter->DeviceIdx(), missing, s_offset);
@@ -139,10 +141,10 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   // Sync
   sparse_page_.data.HostVector();
 
-  info.num_col_ = adapter->NumColumns();
-  info.num_row_ = adapter->NumRows();
+  info_.num_col_ = adapter->NumColumns();
+  info_.num_row_ = adapter->NumRows();
   // Synchronise worker columns
-  rabit::Allreduce<rabit::op::Max>(&info.num_col_, 1);
+  rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
 }
 
 template SimpleDMatrix::SimpleDMatrix(CudfAdapter* adapter, float missing,

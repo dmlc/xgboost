@@ -77,7 +77,7 @@ void TestTrainingPrediction(size_t rows, std::string tree_method) {
   train("gpu_predictor", &predictions_1);
 
   for (size_t i = 0; i < rows; ++i) {
-    EXPECT_NEAR(predictions_1.ConstHostVector()[i],
+    ASSERT_NEAR(predictions_1.ConstHostVector()[i],
                 predictions_0.ConstHostVector()[i], kRtEps);
   }
 }

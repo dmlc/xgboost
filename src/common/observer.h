@@ -16,7 +16,7 @@
 #include "xgboost/base.h"
 #include "xgboost/tree_model.h"
 
-#if defined(XGBOOST_STRICT_R_MODE)
+#if defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE != 0
 #define OBSERVER_PRINT LOG(INFO)
 #define OBSERVER_ENDL ""
 #define OBSERVER_NEWLINE ""

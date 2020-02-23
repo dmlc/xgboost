@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2015-2020 by Contributors
  * \file simple_dmatrix.h
  * \brief In-memory version of DMatrix.
  * \author Tianqi Chen
@@ -13,8 +13,8 @@
 #include <memory>
 #include <string>
 
-
 namespace xgboost {
+
 namespace data {
 // Used for single batch data.
 class SimpleDMatrix : public DMatrix {
@@ -42,12 +42,15 @@ class SimpleDMatrix : public DMatrix {
   BatchSet<CSCPage> GetColumnBatches() override;
   BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
   BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
+  BatchSet<GradientIndexPage> GetGradientIndexBatches(const BatchParam& param) override;
 
-  MetaInfo info;
+  MetaInfo info_;
   SparsePage sparse_page_;  // Primary storage type
   std::unique_ptr<CSCPage> column_page_;
   std::unique_ptr<SortedCSCPage> sorted_column_page_;
   std::unique_ptr<EllpackPage> ellpack_page_;
+
+  std::shared_ptr<GradientIndexPage> gradient_index_page_;
   BatchParam batch_param_;
 
   bool EllpackExists() const override {
@@ -56,7 +59,11 @@ class SimpleDMatrix : public DMatrix {
   bool SparsePageExists() const override {
     return true;
   }
+  bool GradientIndexPageExists() const override {
+    return static_cast<bool>(gradient_index_page_);
+  }
 };
+
 }  // namespace data
 }  // namespace xgboost
 #endif  // XGBOOST_DATA_SIMPLE_DMATRIX_H_

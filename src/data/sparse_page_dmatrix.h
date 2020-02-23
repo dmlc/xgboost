@@ -16,6 +16,7 @@
 
 #include "ellpack_page_source.h"
 #include "sparse_page_source.h"
+#include "gradient_index_source.h"
 
 namespace xgboost {
 namespace data {
@@ -46,12 +47,14 @@ class SparsePageDMatrix : public DMatrix {
   BatchSet<CSCPage> GetColumnBatches() override;
   BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
   BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
+  BatchSet<GradientIndexPage> GetGradientIndexBatches(const BatchParam& param) override;
 
   // source data pointers.
   std::unique_ptr<SparsePageSource> row_source_;
   std::unique_ptr<CSCPageSource> column_source_;
   std::unique_ptr<SortedCSCPageSource> sorted_column_source_;
   std::unique_ptr<EllpackPageSource> ellpack_source_;
+  std::unique_ptr<GradientIndexSource> gradient_index_source_;
   // saved batch param
   BatchParam batch_param_;
   // the cache prefix
@@ -64,6 +67,9 @@ class SparsePageDMatrix : public DMatrix {
   }
   bool SparsePageExists() const override {
     return static_cast<bool>(row_source_);
+  }
+  bool GradientIndexPageExists() const override {
+    return static_cast<bool>(gradient_index_source_);
   }
 };
 }  // namespace data

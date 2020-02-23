@@ -9,6 +9,8 @@
 #include <vector>
 #include <algorithm>
 
+#include "xgboost/logging.h"
+
 namespace xgboost {
 namespace common {
 

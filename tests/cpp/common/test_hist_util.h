@@ -1,6 +1,10 @@
 #pragma once
+#include <cstddef>
+#include <random>
+#include <fstream>
 #include <gtest/gtest.h>
 #include <dmlc/filesystem.h>
+
 #include <random>
 #include <vector>
 #include <string>
@@ -84,7 +88,7 @@ inline void TestBinDistribution(const HistogramCuts& cuts, int column_idx,
   // First and last bin can have smaller
   for (auto& kv : counts) {
     EXPECT_LE(std::abs(counts[kv.first] - expected_num_elements),
-             allowable_error );
+              allowable_error);
   }
 }
 
@@ -95,7 +99,7 @@ inline void TestRank(const std::vector<float>& cuts,
   float eps = 0.05;
   // Ignore the last cut, its special
   size_t j = 0;
-  for (auto i = 0; i < cuts.size() - 1; i++) {
+  for (size_t i = 0; i < cuts.size() - 1; i++) {
     int expected_rank = ((i+1) * sorted_x.size()) / cuts.size();
     while (cuts[i] > sorted_x[j]) {
       j++;
@@ -108,7 +112,7 @@ inline void TestRank(const std::vector<float>& cuts,
 
 inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
                            const std::vector<float>& column,
-                     int num_bins) {
+                           size_t num_bins) {
   std::vector<float> sorted_column(column);
   std::sort(sorted_column.begin(), sorted_column.end());
 

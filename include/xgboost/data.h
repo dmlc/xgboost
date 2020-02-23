@@ -348,6 +348,8 @@ class EllpackPage {
   std::unique_ptr<EllpackPageImpl> impl_;
 };
 
+struct GradientIndexPage;
+
 template<typename T>
 class BatchIteratorImpl {
  public:
@@ -503,8 +505,10 @@ class DMatrix {
   virtual BatchSet<CSCPage> GetColumnBatches() = 0;
   virtual BatchSet<SortedCSCPage> GetSortedColumnBatches() = 0;
   virtual BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) = 0;
+  virtual BatchSet<GradientIndexPage> GetGradientIndexBatches(const BatchParam& param) = 0;
 
   virtual bool EllpackExists() const = 0;
+  virtual bool GradientIndexPageExists() const = 0;
   virtual bool SparsePageExists() const = 0;
 };
 
@@ -516,6 +520,11 @@ inline BatchSet<SparsePage> DMatrix::GetBatches(const BatchParam&) {
 template<>
 inline bool DMatrix::PageExists<EllpackPage>() const {
   return this->EllpackExists();
+}
+
+template<>
+inline bool DMatrix::PageExists<GradientIndexPage>() const {
+  return this->GradientIndexPageExists();
 }
 
 template<>
@@ -536,6 +545,11 @@ inline BatchSet<SortedCSCPage> DMatrix::GetBatches(const BatchParam&) {
 template<>
 inline BatchSet<EllpackPage> DMatrix::GetBatches(const BatchParam& param) {
   return GetEllpackBatches(param);
+}
+
+template<>
+inline BatchSet<GradientIndexPage> DMatrix::GetBatches(const BatchParam& param) {
+  return GetGradientIndexBatches(param);
 }
 }  // namespace xgboost
 

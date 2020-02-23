@@ -7,10 +7,11 @@
 #include <dmlc/base.h>
 #include <dmlc/timer.h>
 
+#include "xgboost/data.h"
 #if DMLC_ENABLE_STD_THREAD
-#include "./sparse_page_dmatrix.h"
-
-#include "./simple_batch_iterator.h"
+#include "sparse_page_dmatrix.h"
+#include "gradient_index_source.h"
+#include "simple_batch_iterator.h"
 
 namespace xgboost {
 namespace data {
@@ -56,6 +57,19 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(const BatchParam& par
   auto begin_iter = BatchIterator<EllpackPage>(
       new SparseBatchIteratorImpl<EllpackPageSource, EllpackPage>(ellpack_source_.get()));
   return BatchSet<EllpackPage>(begin_iter);
+}
+
+BatchSet<GradientIndexPage> SparsePageDMatrix::GetGradientIndexBatches(const BatchParam& param) {
+  if (!gradient_index_source_ || batch_param_ != param) {
+    gradient_index_source_.reset(new GradientIndexSource(this, param));
+    batch_param_ = param;
+  }
+  gradient_index_source_->BeforeFirst();
+  gradient_index_source_->Next();
+  auto begin_iter = BatchIterator<GradientIndexPage>(
+      new SparseBatchIteratorImpl<GradientIndexSource, GradientIndexPage>(
+          gradient_index_source_.get()));
+  return BatchSet<GradientIndexPage>(begin_iter);
 }
 
 float SparsePageDMatrix::GetColDensity(size_t cidx) {

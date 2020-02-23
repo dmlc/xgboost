@@ -25,18 +25,18 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, int32_t bins
   gbm::GBTreeModel model = CreateTestModel(&param, kClasses);
 
   {
-    auto pp_ellpack = CreateDMatrix(rows, kCols, 0);
-    auto p_ellpack = *pp_ellpack;
+    auto pp_sketch = CreateDMatrix(rows, kCols, 0);
+    auto p_sketch = *pp_sketch;
     // Use same number of bins as rows.
     for (auto const &page DMLC_ATTRIBUTE_UNUSED :
-         p_ellpack->GetBatches<Page>({0, static_cast<int32_t>(bins), 0})) {
+         p_sketch->GetBatches<Page>({0, static_cast<int32_t>(bins), 0})) {
     }
 
     auto pp_precise = CreateDMatrix(rows, kCols, 0);
     auto p_precise = *pp_precise;
 
     PredictionCacheEntry approx_out_predictions;
-    predictor->PredictBatch(p_ellpack.get(), &approx_out_predictions, model, 0);
+    predictor->PredictBatch(p_sketch.get(), &approx_out_predictions, model, 0);
 
     PredictionCacheEntry precise_out_predictions;
     predictor->PredictBatch(p_precise.get(), &precise_out_predictions, model, 0);
@@ -47,7 +47,7 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, int32_t bins
     }
 
     delete pp_precise;
-    delete pp_ellpack;
+    delete pp_sketch;
   }
 
   {
@@ -64,7 +64,6 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, int32_t bins
 }
 
 void TestTrainingPrediction(size_t rows, std::string tree_method);
-
 }  // namespace xgboost
 
 #endif  // XGBOOST_TEST_PREDICTOR_H_

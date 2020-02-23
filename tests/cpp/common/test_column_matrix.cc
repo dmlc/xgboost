@@ -1,7 +1,7 @@
 #include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
 
-#include "../../../src/common/column_matrix.h"
+#include "../../../src/data/gradient_index_source.h"
 #include "../helpers.h"
 
 
@@ -10,7 +10,7 @@ namespace common {
 
 TEST(DenseColumn, Test) {
   auto dmat = CreateDMatrix(100, 10, 0.0);
-  GHistIndexMatrix gmat;
+  GradientIndexPage gmat;
   gmat.Init((*dmat).get(), 256);
   ColumnMatrix column_matrix;
   column_matrix.Init(gmat, 0.2);
@@ -27,7 +27,7 @@ TEST(DenseColumn, Test) {
 
 TEST(SparseColumn, Test) {
   auto dmat = CreateDMatrix(100, 1, 0.85);
-  GHistIndexMatrix gmat;
+  GradientIndexPage gmat;
   gmat.Init((*dmat).get(), 256);
   ColumnMatrix column_matrix;
   column_matrix.Init(gmat, 0.5);
@@ -42,7 +42,7 @@ TEST(SparseColumn, Test) {
 
 TEST(DenseColumnWithMissing, Test) {
   auto dmat = CreateDMatrix(100, 1, 0.5);
-  GHistIndexMatrix gmat;
+  GradientIndexPage gmat;
   gmat.Init((*dmat).get(), 256);
   ColumnMatrix column_matrix;
   column_matrix.Init(gmat, 0.2);
@@ -55,13 +55,13 @@ TEST(DenseColumnWithMissing, Test) {
   delete dmat;
 }
 
-void TestGHistIndexMatrixCreation(size_t nthreads) {
+void TestGradientIndexPageCreation(size_t nthreads) {
   dmlc::TemporaryDirectory tmpdir;
   std::string filename = tmpdir.path + "/big.libsvm";
   /* This should create multiple sparse pages */
   std::unique_ptr<DMatrix> dmat{ CreateSparsePageDMatrix(1024, 1024, filename) };
   omp_set_num_threads(nthreads);
-  GHistIndexMatrix gmat;
+  GradientIndexPage gmat;
   gmat.Init(dmat.get(), 256);
 }
 
@@ -69,9 +69,9 @@ TEST(HistIndexCreationWithExternalMemory, Test) {
   // Vary the number of threads to make sure that the last batch
   // is distributed properly to the available number of threads
   // in the thread pool
-  TestGHistIndexMatrixCreation(20);
-  TestGHistIndexMatrixCreation(30);
-  TestGHistIndexMatrixCreation(40);
+  TestGradientIndexPageCreation(20);
+  TestGradientIndexPageCreation(30);
+  TestGradientIndexPageCreation(40);
 }
 }  // namespace common
 }  // namespace xgboost
