@@ -26,11 +26,17 @@ void EllpackPage::SetBaseRowId(size_t row_id) {
   LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but "
                 "EllpackPage is required";
 }
+<<<<<<< HEAD
 
 size_t EllpackPage::Size() const {
   LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but "
                 "EllpackPage is required";
   return 0;
+=======
+size_t EllpackPage::Size() const {
+  LOG(FATAL) << "Internal Error: XGBoost is not compiled with CUDA but "
+                "EllpackPage is required";
+>>>>>>> Lint
 }
 
 }  // namespace xgboost

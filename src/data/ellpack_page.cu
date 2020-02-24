@@ -74,7 +74,6 @@ EllpackPageImpl::EllpackPageImpl(int device, common::HistogramCuts cuts,
   monitor_.StartCuda("InitCompressedData");
   InitCompressedData(device);
   monitor_.StopCuda("InitCompressedData");
-  // InitDevice();
 }
 
 size_t GetRowStride(DMatrix* dmat) {
@@ -102,12 +101,7 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param)
   monitor_.StartCuda("Quantiles");
   // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
   row_stride = GetRowStride(dmat);
-<<<<<<< HEAD
   cuts_ = common::DeviceSketch(param.gpu_id, dmat, param.max_bin);
-=======
-  cuts_ = common::DeviceSketch(param.gpu_id, dmat, param.max_bin,
-                                   param.gpu_batch_nrows);
->>>>>>> Rebase
   monitor_.StopCuda("Quantiles");
 
   monitor_.StartCuda("InitCompressedData");
@@ -294,7 +288,6 @@ size_t EllpackPageImpl::MemCostBytes(size_t num_rows, size_t row_stride,
 
 EllpackDeviceAccessor EllpackPageImpl::GetDeviceAccessor(int device) const {
   gidx_buffer.SetDevice(device);
-<<<<<<< HEAD
   return EllpackDeviceAccessor(
       device, cuts_, is_dense, row_stride, base_rowid, n_rows,
       common::CompressedIterator<uint32_t>(gidx_buffer.ConstDevicePointer(),
@@ -305,18 +298,6 @@ EllpackPageImpl::EllpackPageImpl(int device, common::HistogramCuts cuts,
                                  const SparsePage& page, bool is_dense,
                                  size_t row_stride)
     : cuts_(std::move(cuts)),
-=======
-  return EllpackDeviceAccessor(device, cuts_, is_dense, row_stride, base_rowid,
-                               n_rows,
-                               common::CompressedIterator<uint32_t>(
-                                   gidx_buffer.ConstDevicePointer(), NumSymbols()));
-}
-
-EllpackPageImpl::EllpackPageImpl(int device, const common::HistogramCuts& cuts,
-                                 const SparsePage& page, bool is_dense,
-                                 size_t row_stride)
-    : cuts_(cuts),
->>>>>>> Rebase
       is_dense(is_dense),
       n_rows(page.Size()),
       row_stride(row_stride) {
