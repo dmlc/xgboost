@@ -27,7 +27,6 @@
 #include "../common/common.h"
 #include "../common/random.h"
 #include "../common/timer.h"
-#include "../data/sparse_page_dmatrix.h"
 
 namespace xgboost {
 namespace gbm {

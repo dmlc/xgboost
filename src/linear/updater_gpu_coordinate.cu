@@ -14,7 +14,6 @@
 #include "../common/device_helpers.cuh"
 #include "../common/timer.h"
 #include "./param.h"
-#include "../data/sparse_page_dmatrix.h"
 
 namespace xgboost {
 namespace linear {
