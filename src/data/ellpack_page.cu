@@ -61,17 +61,19 @@ __global__ void CompressBinEllpackKernel(
 }
 
 // Construct an ELLPACK matrix with the given number of empty rows.
-EllpackPageImpl::EllpackPageImpl(int device, const common::HistogramCuts& cuts,
+EllpackPageImpl::EllpackPageImpl(int device, common::HistogramCuts cuts,
                                  bool is_dense, size_t row_stride,
                                  size_t n_rows)
-    : is_dense(is_dense), cuts_(cuts), row_stride(row_stride), n_rows(n_rows) {
+    : is_dense(is_dense),
+      cuts_(std::move(cuts)),
+      row_stride(row_stride),
+      n_rows(n_rows) {
   monitor_.Init("ellpack_page");
   dh::safe_cuda(cudaSetDevice(device));
 
   monitor_.StartCuda("InitCompressedData");
   InitCompressedData(device);
   monitor_.StopCuda("InitCompressedData");
-  // InitDevice();
 }
 
 size_t GetRowStride(DMatrix* dmat) {
@@ -287,16 +289,16 @@ size_t EllpackPageImpl::MemCostBytes(size_t num_rows, size_t row_stride,
 
 EllpackDeviceAccessor EllpackPageImpl::GetDeviceAccessor(int device) const {
   gidx_buffer.SetDevice(device);
-  return EllpackDeviceAccessor(device, cuts_, is_dense, row_stride, base_rowid,
-                               n_rows,
-                               common::CompressedIterator<uint32_t>(
-                                   gidx_buffer.ConstDevicePointer(), NumSymbols()));
+  return EllpackDeviceAccessor(
+      device, cuts_, is_dense, row_stride, base_rowid, n_rows,
+      common::CompressedIterator<uint32_t>(gidx_buffer.ConstDevicePointer(),
+                                           NumSymbols()));
 }
 
-EllpackPageImpl::EllpackPageImpl(int device, const common::HistogramCuts& cuts,
+EllpackPageImpl::EllpackPageImpl(int device, common::HistogramCuts cuts,
                                  const SparsePage& page, bool is_dense,
                                  size_t row_stride)
-    : cuts_(cuts),
+    : cuts_(std::move(cuts)),
       is_dense(is_dense),
       n_rows(page.Size()),
       row_stride(row_stride) {

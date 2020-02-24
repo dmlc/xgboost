@@ -131,10 +131,10 @@ class EllpackPageImpl {
    * This is used in the sampling case. The ELLPACK page is constructed from an existing EllpackInfo
    * and the given number of rows.
    */
-  EllpackPageImpl(int device, const common::HistogramCuts& cuts, bool is_dense,
+  EllpackPageImpl(int device, common::HistogramCuts cuts, bool is_dense,
                   size_t row_stride, size_t n_rows);
 
-  EllpackPageImpl(int device, const common::HistogramCuts& cuts,
+  EllpackPageImpl(int device, common::HistogramCuts cuts,
                   const SparsePage& page,
                   bool is_dense,size_t row_stride);
 
@@ -173,7 +173,7 @@ class EllpackPageImpl {
   }
 
   /*! \return Estimation of memory cost of this page. */
-  static size_t EllpackPageImpl::MemCostBytes(size_t num_rows, size_t row_stride, const common::HistogramCuts&cuts) ;
+  static size_t MemCostBytes(size_t num_rows, size_t row_stride, const common::HistogramCuts&cuts) ;
 
 
   /*! \brief Return the total number of symbols (total number of bins plus 1 for
