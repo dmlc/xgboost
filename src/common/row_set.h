@@ -30,7 +30,7 @@ class RowSetCollection {
          = default;
     Elem(const size_t* begin,
          const size_t* end,
-         int node_id)
+         int node_id = -1)
         : begin(begin), end(end), node_id(node_id) {}
 
     inline size_t Size() const {
@@ -149,28 +149,24 @@ class PartitionBuilder {
     }
   }
 
-  size_t* GetLeftBuffer(int nid, size_t begin, size_t end) {
+  common::Span<size_t> GetLeftBuffer(int nid, size_t begin, size_t end) {
     const size_t task_idx = GetTaskIdx(nid, begin);
-    CHECK_LE(task_idx, mem_blocks_.size());
-    return mem_blocks_[task_idx].left();
+    return { mem_blocks_.at(task_idx).left(), end - begin };
   }
 
-  size_t* GetRightBuffer(int nid, size_t begin, size_t end) {
+  common::Span<size_t> GetRightBuffer(int nid, size_t begin, size_t end) {
     const size_t task_idx = GetTaskIdx(nid, begin);
-    CHECK_LE(task_idx, mem_blocks_.size());
-    return mem_blocks_[task_idx].right();
+    return { mem_blocks_.at(task_idx).right(), end - begin };
   }
 
   void SetNLeftElems(int nid, size_t begin, size_t end, size_t n_left) {
     size_t task_idx = GetTaskIdx(nid, begin);
-    CHECK_LE(task_idx, mem_blocks_.size());
-    mem_blocks_[task_idx].n_left = n_left;
+    mem_blocks_.at(task_idx).n_left = n_left;
   }
 
   void SetNRightElems(int nid, size_t begin, size_t end, size_t n_right) {
     size_t task_idx = GetTaskIdx(nid, begin);
-    CHECK_LE(task_idx, mem_blocks_.size());
-    mem_blocks_[task_idx].n_right = n_right;
+    mem_blocks_.at(task_idx).n_right = n_right;
   }
 
 

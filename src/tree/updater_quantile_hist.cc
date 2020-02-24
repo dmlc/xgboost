@@ -773,91 +773,99 @@ void QuantileHistMaker::Builder::EvaluateSplits(const std::vector<ExpandEntry>& 
   builder_monitor_.Stop("EvaluateSplits");
 }
 
+// split row indexes (rid_span) to 2 parts (left_part, right_part) depending
+// on comparison of indexes values (idx_span) and split point (split_cond)
+// Handle dense columns
+// Analog of std::stable_partition, but in no-inplace manner
 template <bool default_left>
 inline std::pair<size_t, size_t> PartitionDenseKernel(
-    const size_t *rid, const uint32_t *idx,
-    const uint32_t offset, const int32_t split_cond,
-    const size_t istart, const size_t iend, size_t *p_left,
-    size_t *p_right) {
-  size_t ileft = 0;
-  size_t iright = 0;
+      common::Span<const size_t> rid_span, common::Span<const uint32_t> idx_span,
+      const int32_t split_cond, const uint32_t offset,
+      common::Span<size_t> left_part, common::Span<size_t> right_part) {
+  const uint32_t* idx = idx_span.data();
+  size_t* p_left_part = left_part.data();
+  size_t* p_right_part = right_part.data();
+  size_t nleft_elems = 0;
+  size_t nright_elems = 0;
 
-  const uint32_t max_val = std::numeric_limits<uint32_t>::max();
+  const uint32_t missing_val = std::numeric_limits<uint32_t>::max();
 
-  for (size_t i = istart; i < iend; i++) {
-    if (idx[rid[i]] == max_val) {
+  for (auto rid : rid_span) {
+    if (idx[rid] == missing_val) {
       if (default_left) {
-        p_left[ileft++] = rid[i];
+        p_left_part[nleft_elems++] = rid;
       } else {
-        p_right[iright++] = rid[i];
+        p_right_part[nright_elems++] = rid;
       }
     } else {
-      if (static_cast<int32_t>(idx[rid[i]] + offset) <= split_cond) {
-        p_left[ileft++] = rid[i];
+      if (static_cast<int32_t>(idx[rid] + offset) <= split_cond) {
+        p_left_part[nleft_elems++] = rid;
       } else {
-        p_right[iright++] = rid[i];
+        p_right_part[nright_elems++] = rid;
       }
     }
   }
 
-  return { ileft, iright };
+  return {nleft_elems, nright_elems};
 }
 
+// Split row indexes (rid_span) to 2 parts (left_part, right_part) depending
+// on comparison of indexes values (idx_span) and split point (split_cond).
+// Handle sparse columns
 template<bool default_left>
-inline std::pair<size_t, size_t> PartitionSparseKernel(const size_t* rid,
-    const uint32_t* idx, const uint32_t offset, const int32_t split_cond,
-    const size_t istart, const size_t iend, size_t* p_left, size_t* p_right,
-    bst_uint lower_bound, bst_uint upper_bound, const Column& column) {
+inline std::pair<size_t, size_t> PartitionSparseKernel(
+      common::Span<const size_t> rid_span, const int32_t split_cond, const Column& column,
+      common::Span<size_t> left_part, common::Span<size_t> right_part) {
+  size_t* p_left_part  = left_part.data();
+  size_t* p_right_part = right_part.data();
 
-  size_t ileft = 0;
-  size_t iright = 0;
+  size_t nleft_elems = 0;
+  size_t nright_elems = 0;
 
-  if (istart < iend) {  // ensure that [istart, iend) is nonempty range
-    // search first nonzero row with index >= rowset[istart]
+  if (rid_span.size()) {  // ensure that rid_span is nonempty range
+    // search first nonzero row with index >= rid_span.front()
     const size_t* p = std::lower_bound(column.GetRowData(),
                                        column.GetRowData() + column.Size(),
-                                       rid[istart]);
+                                       rid_span.front());
 
-    if (p != column.GetRowData() + column.Size() && *p <= rid[iend - 1]) {
+    if (p != column.GetRowData() + column.Size() && *p <= rid_span.back()) {
       size_t cursor = p - column.GetRowData();
 
-      for (size_t i = istart; i < iend; ++i) {
+      for (auto rid : rid_span) {
         while (cursor < column.Size()
-               && column.GetRowIdx(cursor) < rid[i]
-               && column.GetRowIdx(cursor) <= rid[iend - 1]) {
+               && column.GetRowIdx(cursor) < rid
+               && column.GetRowIdx(cursor) <= rid_span.back()) {
           ++cursor;
         }
-        if (cursor < column.Size() && column.GetRowIdx(cursor) == rid[i]) {
+        if (cursor < column.Size() && column.GetRowIdx(cursor) == rid) {
           const uint32_t rbin = column.GetFeatureBinIdx(cursor);
           if (static_cast<int32_t>(rbin + column.GetBaseIdx()) <= split_cond) {
-            p_left[ileft++] = rid[i];
+            p_left_part[nleft_elems++] = rid;
           } else {
-            p_right[iright++] = rid[i];
+            p_right_part[nright_elems++] = rid;
           }
           ++cursor;
         } else {
           // missing value
           if (default_left) {
-            p_left[ileft++] = rid[i];
+            p_left_part[nleft_elems++] = rid;
           } else {
-            p_right[iright++] = rid[i];
+            p_right_part[nright_elems++] = rid;
           }
         }
       }
-    } else {  // all rows in [istart, iend) have missing values
+    } else {  // all rows in rid_span have missing values
       if (default_left) {
-        for (size_t i = istart; i < iend; ++i) {
-          p_left[ileft++] = rid[i];
-        }
+        std::copy(rid_span.begin(), rid_span.end(), p_left_part);
+        nleft_elems = rid_span.size();
       } else {
-        for (size_t i = istart; i < iend; ++i) {
-          p_right[iright++] = rid[i];
-        }
+        std::copy(rid_span.begin(), rid_span.end(), p_right_part);
+        nright_elems = rid_span.size();
       }
     }
   }
 
-  return {ileft, iright};
+  return {nleft_elems, nright_elems};
 }
 
 void QuantileHistMaker::Builder::PartitionKernel(
@@ -865,37 +873,32 @@ void QuantileHistMaker::Builder::PartitionKernel(
     const int32_t split_cond, const ColumnMatrix& column_matrix,
     const GHistIndexMatrix& gmat, const RegTree& tree) {
   const size_t* rid = row_set_collection_[nid].begin;
-  size_t* p_left = partition_builder_.GetLeftBuffer(node_in_set, range.begin(), range.end());
-  size_t* p_right = partition_builder_.GetRightBuffer(node_in_set, range.begin(), range.end());
-
+  common::Span<const size_t> rid_span(rid + range.begin(), rid + range.end());
+  common::Span<size_t> left  = partition_builder_.GetLeftBuffer(node_in_set,
+                                                                range.begin(), range.end());
+  common::Span<size_t> right = partition_builder_.GetRightBuffer(node_in_set,
+                                                                 range.begin(), range.end());
   const bst_uint fid = tree[nid].SplitIndex();
   const bool default_left = tree[nid].DefaultLeft();
   const auto column = column_matrix.GetColumn(fid);
-  const uint32_t* idx = column.GetFeatureBinIdxPtr();
   const uint32_t offset = column.GetBaseIdx();
+  common::Span<const uint32_t> idx_spin = column.GetFeatureBinIdxPtr();
 
   std::pair<size_t, size_t> child_nodes_sizes;
 
   if (column.GetType() == xgboost::common::kDenseColumn) {
     if (default_left) {
-      child_nodes_sizes = PartitionDenseKernel<true>(rid, idx, offset, split_cond,
-                                                     range.begin(), range.end(), p_left, p_right);
+      child_nodes_sizes = PartitionDenseKernel<true>(
+                            rid_span, idx_spin, split_cond, offset, left, right);
     } else {
-      child_nodes_sizes = PartitionDenseKernel<false>(rid, idx, offset, split_cond,
-                                                      range.begin(), range.end(), p_left, p_right);
+      child_nodes_sizes = PartitionDenseKernel<false>(
+                            rid_span, idx_spin, split_cond, offset, left, right);
     }
   } else {
-    const uint32_t lower_bound = gmat.cut.Ptrs()[fid];
-    const uint32_t upper_bound = gmat.cut.Ptrs()[fid + 1];
-
     if (default_left) {
-      child_nodes_sizes = PartitionSparseKernel<true>(
-          rid, idx, offset, split_cond,
-          range.begin(), range.end(), p_left, p_right, lower_bound, upper_bound, column);
+      child_nodes_sizes = PartitionSparseKernel<true>(rid_span, split_cond, column, left, right);
     } else {
-      child_nodes_sizes = PartitionSparseKernel<false>(
-          rid, idx, offset, split_cond,
-          range.begin(), range.end(), p_left, p_right, lower_bound, upper_bound, column);
+      child_nodes_sizes = PartitionSparseKernel<false>(rid_span, split_cond, column, left, right);
     }
   }
 
