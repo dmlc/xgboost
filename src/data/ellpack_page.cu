@@ -31,8 +31,8 @@ __global__ void CompressBinEllpackKernel(
     common::CompressedByteT* __restrict__ buffer,  // gidx_buffer
     const size_t* __restrict__ row_ptrs,           // row offset of input data
     const Entry* __restrict__ entries,      // One batch of input data
-    const float* __restrict__ cuts,         // HistogramCuts::cut
-    const uint32_t* __restrict__ cut_rows,  // HistogramCuts::row_ptrs
+    const float* __restrict__ cuts,         // HistogramCuts::cut_values_
+    const uint32_t* __restrict__ cut_rows,  // HistogramCuts::cut_ptrs_
     size_t base_row,                        // batch_row_begin
     size_t n_rows,
     size_t row_stride,

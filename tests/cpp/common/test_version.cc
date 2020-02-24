@@ -54,7 +54,7 @@ TEST(Version, Basic) {
 
   ptr = 0;
   v = std::stoi(str, &ptr);
-  ASSERT_EQ(v, XGBOOST_VER_MINOR) << "patch: " << v;;
+  ASSERT_EQ(v, XGBOOST_VER_PATCH) << "patch: " << v;;
 
   str = str.substr(ptr);
   ASSERT_EQ(str.size(), 0);

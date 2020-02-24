@@ -48,6 +48,14 @@ class SimpleDMatrix : public DMatrix {
   std::unique_ptr<CSCPage> column_page_;
   std::unique_ptr<SortedCSCPage> sorted_column_page_;
   std::unique_ptr<EllpackPage> ellpack_page_;
+  BatchParam batch_param_;
+
+  bool EllpackExists() const override {
+    return static_cast<bool>(ellpack_page_);
+  }
+  bool SparsePageExists() const override {
+    return true;
+  }
 };
 }  // namespace data
 }  // namespace xgboost

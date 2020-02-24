@@ -688,7 +688,7 @@ struct GPUHistMakerDevice {
         [=] __device__(bst_uint ridx) {
           // given a row index, returns the node id it belongs to
           bst_float cut_value =
-              d_matrix.GetElement(ridx, split_node.SplitIndex());
+              d_matrix.GetFvalue(ridx, split_node.SplitIndex());
           // Missing value
           int new_position = 0;
           if (isnan(cut_value)) {
@@ -737,7 +737,7 @@ struct GPUHistMakerDevice {
       auto node = d_nodes[position];
 
       while (!node.IsLeaf()) {
-        bst_float element = d_matrix.GetElement(row_id, node.SplitIndex());
+        bst_float element = d_matrix.GetFvalue(row_id, node.SplitIndex());
         // Missing value
         if (isnan(element)) {
           position = node.DefaultChild();
