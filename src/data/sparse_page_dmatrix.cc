@@ -58,28 +58,6 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(const BatchParam& par
   return BatchSet<EllpackPage>(begin_iter);
 }
 
-float SparsePageDMatrix::GetColDensity(size_t cidx) {
-  // Finds densities if we don't already have them
-  if (col_density_.empty()) {
-    std::vector<size_t> column_size(this->Info().num_col_);
-    for (const auto &batch : this->GetBatches<CSCPage>()) {
-      for (auto i = 0u; i < batch.Size(); i++) {
-        column_size[i] += batch[i].size();
-      }
-    }
-    col_density_.resize(column_size.size());
-    for (auto i = 0u; i < col_density_.size(); i++) {
-      size_t nmiss = this->Info().num_row_ - column_size[i];
-      col_density_[i] =
-          1.0f - (static_cast<float>(nmiss)) / this->Info().num_row_;
-    }
-  }
-  return col_density_.at(cidx);
-}
-
-bool SparsePageDMatrix::SingleColBlock() const {
-  return false;
-}
 }  // namespace data
 }  // namespace xgboost
 #endif  // DMLC_ENABLE_STD_THREAD

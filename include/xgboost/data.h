@@ -451,8 +451,6 @@ class DMatrix {
   // the following are column meta data, should be able to answer them fast.
   /*! \return Whether the data columns single column block. */
   virtual bool SingleColBlock() const = 0;
-  /*! \brief get column density */
-  virtual float GetColDensity(size_t cidx) = 0;
   /*! \brief virtual destructor */
   virtual ~DMatrix() = default;
 
