@@ -1,18 +1,24 @@
 // Copyright (c) 2019 by Contributors
 #include <gtest/gtest.h>
+#include <type_traits>
+#include <utility>
 #include <xgboost/data.h>
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/simple_dmatrix.h"
 #include "../../../src/common/timer.h"
 #include "../helpers.h"
-using namespace xgboost;  // NOLINT
-TEST(adapter, CSRAdapter) {
+
+#include "xgboost/base.h"
+#include "xgboost/c_api.h"
+
+namespace xgboost {
+TEST(Adapter, CSRAdapter) {
   int n = 2;
   std::vector<float> data = {1, 2, 3, 4, 5};
   std::vector<unsigned> feature_idx = {0, 1, 0, 1, 1};
   std::vector<size_t> row_ptr = {0, 2, 4, 5};
   data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(),
-                     row_ptr.size() - 1, data.size(), n);
+                           row_ptr.size() - 1, data.size(), n);
   adapter.Next();
   auto & batch = adapter.Value();
   auto line0 = batch.GetLine(0);
@@ -28,7 +34,7 @@ TEST(adapter, CSRAdapter) {
   EXPECT_EQ(line2 .GetElement(0).column_idx, 1);
 }
 
-TEST(adapter, CSCAdapterColsMoreThanRows) {
+TEST(Adapter, CSCAdapterColsMoreThanRows) {
   std::vector<float> data = {1, 2, 3, 4, 5, 6, 7, 8};
   std::vector<unsigned> row_idx = {0, 1, 0, 1, 0, 1, 0, 1};
   std::vector<size_t> col_ptr = {0, 2, 4, 6, 8};
@@ -88,3 +94,67 @@ TEST(c_api, DMatrixSliceAdapterFromSimpleDMatrix) {
 
   delete pp_dmat;
 }
+
+// A mock for JVM data iterator.
+class DataIterForTest {
+  std::vector<float> data_ {1, 2, 3, 4, 5};
+  std::vector<std::remove_pointer<decltype(std::declval<XGBoostBatchCSR>().index)>::type>
+      feature_idx_ {0, 1, 0, 1, 1};
+  std::vector<std::remove_pointer<decltype(std::declval<XGBoostBatchCSR>().offset)>::type>
+      row_ptr_ {0, 2, 4, 5};
+  size_t iter_ {0};
+
+ public:
+  size_t static constexpr kCols { 13 };  // Test for having some missing columns
+
+  XGBoostBatchCSR Next() {
+    for (auto& v : data_) {
+      v += iter_;
+    }
+    XGBoostBatchCSR batch;
+    batch.columns = 2;
+    batch.offset = dmlc::BeginPtr(row_ptr_);
+    batch.index = dmlc::BeginPtr(feature_idx_);
+    batch.value = dmlc::BeginPtr(data_);
+    batch.size = 3;
+
+    batch.label = nullptr;
+    batch.weight = nullptr;
+
+    iter_++;
+
+    return batch;
+  }
+  size_t Iter() const { return iter_; }
+};
+
+size_t constexpr DataIterForTest::kCols;
+
+int SetDataNextForTest(DataIterHandle data_handle,
+                       XGBCallbackSetData *set_function,
+                       DataHolderHandle set_function_handle) {
+  size_t constexpr kIters { 2 };
+  auto iter = static_cast<DataIterForTest *>(data_handle);
+  if (iter->Iter() < kIters) {
+    auto batch = iter->Next();
+    batch.columns = DataIterForTest::kCols;
+    set_function(set_function_handle, batch);
+    return 1;
+  } else {
+    return 0;  // stoping condition
+  }
+}
+
+TEST(Adapter, IteratorAdaper) {
+  DataIterForTest iter;
+  data::IteratorAdapter adapter{&iter, SetDataNextForTest};
+  constexpr size_t kRows { 6 };
+
+  std::unique_ptr<DMatrix> data {
+    DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)
+  };
+  ASSERT_EQ(data->Info().num_col_, DataIterForTest::kCols);
+  ASSERT_EQ(data->Info().num_row_, kRows);
+}
+
+}  // namespace xgboost

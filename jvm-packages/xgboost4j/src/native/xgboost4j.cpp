@@ -12,7 +12,9 @@
   limitations under the License.
 */
 
+#include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <rabit/c_api.h>
 #include <xgboost/c_api.h>
 #include <xgboost/base.h>
@@ -88,9 +90,10 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
       jintArray jindex = (jintArray)jenv->GetObjectField(
           batch, jenv->GetFieldID(batchClass, "featureIndex", "[I"));
       jfloatArray jvalue = (jfloatArray)jenv->GetObjectField(
-        batch, jenv->GetFieldID(batchClass, "featureValue", "[F"));
+          batch, jenv->GetFieldID(batchClass, "featureValue", "[F"));
       XGBoostBatchCSR cbatch;
       cbatch.size = jenv->GetArrayLength(joffset) - 1;
+      cbatch.columns = std::numeric_limits<size_t>::max();
       cbatch.offset = reinterpret_cast<jlong *>(
           jenv->GetLongArrayElements(joffset, 0));
       if (jlabel != nullptr) {

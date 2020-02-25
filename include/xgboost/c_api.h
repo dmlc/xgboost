@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2015 by Contributors
+ * Copyright (c) 2015~2020 by Contributors
  * \file c_api.h
  * \author Tianqi Chen
  * \brief C API of XGBoost, used for interfacing to other languages.
@@ -40,6 +40,8 @@ typedef void *DataHolderHandle;  // NOLINT(*)
 typedef struct {  // NOLINT(*)
   /*! \brief number of rows in the minibatch */
   size_t size;
+  /* \brief number of columns in the minibatch. */
+  size_t columns;
   /*! \brief row pointer to the rows in the data */
 #ifdef __APPLE__
   /* Necessary as Java on MacOS defines jlong as long int
