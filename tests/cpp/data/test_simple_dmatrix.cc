@@ -5,6 +5,7 @@
 
 #include "../../../src/data/adapter.h"
 #include "../helpers.h"
+#include "xgboost/base.h"
 
 using namespace xgboost;  // NOLINT
 
@@ -185,10 +186,8 @@ TEST(SimpleDMatrix, FromFile) {
   CreateBigTestData(filename, 3 * 5);
   std::unique_ptr<dmlc::Parser<uint32_t>> parser(
       dmlc::Parser<uint32_t>::Create(filename.c_str(), 0, 1, "auto"));
-  data::FileAdapter adapter(parser.get());
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           1);
-  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+
+  auto verify_batch = [](SparsePage const &batch) {
     EXPECT_EQ(batch.Size(), 5);
     EXPECT_EQ(batch.offset.HostVector(),
               std::vector<bst_row_t>({0, 3, 6, 9, 12, 15}));
@@ -205,6 +204,16 @@ TEST(SimpleDMatrix, FromFile) {
         EXPECT_EQ(batch[i][2].index, 4);
       }
     }
+  };
+
+  constexpr bst_feature_t kCols = 5;
+  data::FileAdapter adapter(parser.get());
+  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
+                           1);
+  ASSERT_EQ(dmat.Info().num_col_, kCols);
+
+  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+    verify_batch(batch);
   }
 }
 

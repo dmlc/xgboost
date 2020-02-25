@@ -463,6 +463,9 @@ template DMatrix* DMatrix::Create<data::FileAdapter>(
 template DMatrix* DMatrix::Create<data::DMatrixSliceAdapter>(
     data::DMatrixSliceAdapter* adapter, float missing, int nthread,
     const std::string& cache_prefix, size_t page_size);
+template DMatrix* DMatrix::Create<data::IteratorAdapter>(
+    data::IteratorAdapter* adapter, float missing, int nthread,
+    const std::string& cache_prefix, size_t page_size);
 
 SparsePage SparsePage::GetTranspose(int num_columns) const {
   SparsePage transpose;
@@ -544,15 +547,15 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     int tid = omp_get_thread_num();
     auto line = batch.GetLine(i);
     for (auto j = 0ull; j < line.Size(); j++) {
-      auto element = line.GetElement(j);
+      data::COOTuple element = line.GetElement(j);
       max_columns =
           std::max(max_columns, static_cast<uint64_t>(element.column_idx + 1));
       if (!common::CheckNAN(element.value) && element.value != missing) {
-        size_t key = element.row_idx -
-                     base_rowid;  // Adapter row index is absolute, here we want
-                                  // it relative to current page
+        size_t key = element.row_idx - base_rowid;
+        // Adapter row index is absolute, here we want it relative to
+        // current page
         CHECK_GE(key,  builder_base_row_offset);
-        builder.AddBudget(element.row_idx - base_rowid, tid);
+        builder.AddBudget(key, tid);
       }
     }
   }
