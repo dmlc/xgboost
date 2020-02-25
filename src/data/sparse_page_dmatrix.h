@@ -37,9 +37,7 @@ class SparsePageDMatrix : public DMatrix {
 
   const MetaInfo& Info() const override;
 
-  float GetColDensity(size_t cidx) override;
-
-  bool SingleColBlock() const override;
+  bool SingleColBlock() const override { return false; }
 
  private:
   BatchSet<SparsePage> GetRowBatches() override;

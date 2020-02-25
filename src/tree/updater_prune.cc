@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2020 by Contributors
  * \file updater_prune.cc
  * \brief prune a tree given the statistics
  * \author Tianqi Chen
@@ -10,6 +10,7 @@
 #include <string>
 #include <memory>
 
+#include "xgboost/base.h"
 #include "xgboost/json.h"
 #include "./param.h"
 #include "../common/io.h"
@@ -52,7 +53,7 @@ class TreePruner: public TreeUpdater {
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
     for (auto tree : trees) {
-      this->DoPrune(*tree);
+      this->DoPrune(tree);
     }
     param_.learning_rate = lr;
     syncher_->Update(gpair, p_fmat, trees);
@@ -60,12 +61,20 @@ class TreePruner: public TreeUpdater {
 
  private:
   // try to prune off current leaf
-  inline int TryPruneLeaf(RegTree &tree, int nid, int depth, int npruned) { // NOLINT(*)
-    if (tree[nid].IsRoot()) return npruned;
-    int pid = tree[nid].Parent();
-    RTreeNodeStat &s = tree.Stat(pid);
-    ++s.leaf_child_cnt;
-    if (s.leaf_child_cnt >= 2 && param_.NeedPrune(s.loss_chg, depth - 1)) {
+  bst_node_t TryPruneLeaf(RegTree &tree, int nid, int depth, int npruned) { // NOLINT(*)
+    CHECK(tree[nid].IsLeaf());
+    if (tree[nid].IsRoot()) {
+      return npruned;
+    }
+    bst_node_t pid = tree[nid].Parent();
+    CHECK(!tree[pid].IsLeaf());
+    RTreeNodeStat const &s = tree.Stat(pid);
+    // Only prune when both child are leaf.
+    auto left = tree[pid].LeftChild();
+    auto right = tree[pid].RightChild();
+    bool balanced = tree[left].IsLeaf() &&
+                    right != RegTree::kInvalidNodeId && tree[right].IsLeaf();
+    if (balanced && param_.NeedPrune(s.loss_chg, depth)) {
       // need to be pruned
       tree.ChangeToLeaf(pid, param_.learning_rate * s.base_weight);
       // tail recursion
@@ -75,14 +84,11 @@ class TreePruner: public TreeUpdater {
     }
   }
   /*! \brief do pruning of a tree */
-  inline void DoPrune(RegTree &tree) { // NOLINT(*)
-    int npruned = 0;
-    // initialize auxiliary statistics
+  void DoPrune(RegTree* p_tree) {
+    auto& tree = *p_tree;
+    bst_node_t npruned = 0;
     for (int nid = 0; nid < tree.param.num_nodes; ++nid) {
-      tree.Stat(nid).leaf_child_cnt = 0;
-    }
-    for (int nid = 0; nid < tree.param.num_nodes; ++nid) {
-      if (tree[nid].IsLeaf()) {
+      if (tree[nid].IsLeaf() && !tree[nid].IsDeleted()) {
         npruned = this->TryPruneLeaf(tree, nid, tree.GetDepth(nid), npruned);
       }
     }

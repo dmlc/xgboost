@@ -61,7 +61,10 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     CHECK(p_fmat->SingleColBlock());
     SparsePage const& batch = *(p_fmat->GetBatches<CSCPage>().begin());
 
-    if ( IsEmpty() ) { return; }
+    if (IsEmpty()) {
+      return;
+    }
+
     dh::safe_cuda(cudaSetDevice(learner_param_->gpu_id));
     // The begin and end indices for the section of each column associated with
     // this device

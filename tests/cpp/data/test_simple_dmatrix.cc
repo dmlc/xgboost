@@ -51,9 +51,6 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   CreateSimpleTestData(tmp_file);
   xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file, true, false);
 
-  // Sorted column access
-  EXPECT_EQ(dmat->GetColDensity(0), 1);
-  EXPECT_EQ(dmat->GetColDensity(1), 0.5);
   ASSERT_TRUE(dmat->SingleColBlock());
 
   // Loop over the batches and assert the data is as expected

@@ -1,33 +1,34 @@
 /*!
  * Copyright 2018-2019 by Contributors
  */
-#include "../helpers.h"
+#include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/tree_updater.h>
+#include <xgboost/learner.h>
 #include <gtest/gtest.h>
 #include <vector>
 #include <string>
 #include <memory>
 
+#include "../helpers.h"
+
 namespace xgboost {
 namespace tree {
 
 TEST(Updater, Prune) {
-  int constexpr kNCols = 16;
+  int constexpr kCols = 16;
 
   std::vector<std::pair<std::string, std::string>> cfg;
-  cfg.emplace_back(std::pair<std::string, std::string>(
-      "num_feature", std::to_string(kNCols)));
+  cfg.emplace_back(std::pair<std::string, std::string>("num_feature",
+                                                       std::to_string(kCols)));
   cfg.emplace_back(std::pair<std::string, std::string>(
       "min_split_loss", "10"));
-  cfg.emplace_back(std::pair<std::string, std::string>(
-      "silent", "1"));
 
   // These data are just place holders.
   HostDeviceVector<GradientPair> gpair =
       { {0.50f, 0.25f}, {0.50f, 0.25f}, {0.50f, 0.25f}, {0.50f, 0.25f},
         {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f} };
-  auto dmat = CreateDMatrix(32, 16, 0.4, 3);
+  auto dmat = CreateDMatrix(32, kCols, 0.4, 3);
 
   auto lparam = CreateEmptyGenericParam(GPUIDX);
 
@@ -57,8 +58,29 @@ TEST(Updater, Prune) {
 
   ASSERT_EQ(tree.NumExtraNodes(), 2);
 
+  // Test depth
+  // loss_chg > min_split_loss
+  tree.ExpandNode(tree[0].LeftChild(),
+                  0, 0.5f, true, 0.3, 0.4, 0.5,
+                  /*loss_chg=*/18.0f, 0.0f);
+  tree.ExpandNode(tree[0].RightChild(),
+                  0, 0.5f, true, 0.3, 0.4, 0.5,
+                  /*loss_chg=*/19.0f, 0.0f);
+  cfg.emplace_back(std::make_pair("max_depth", "1"));
+  pruner->Configure(cfg);
+  pruner->Update(&gpair, dmat->get(), trees);
+
+  ASSERT_EQ(tree.NumExtraNodes(), 2);
+
+  tree.ExpandNode(tree[0].LeftChild(),
+                  0, 0.5f, true, 0.3, 0.4, 0.5,
+                  /*loss_chg=*/18.0f, 0.0f);
+  cfg.emplace_back(std::make_pair("min_split_loss", "0"));
+  pruner->Configure(cfg);
+  pruner->Update(&gpair, dmat->get(), trees);
+  ASSERT_EQ(tree.NumExtraNodes(), 2);
+
   delete dmat;
 }
-
 }  // namespace tree
 }  // namespace xgboost
