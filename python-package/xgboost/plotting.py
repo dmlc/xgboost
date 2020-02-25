@@ -68,7 +68,9 @@ def plot_importance(booster, ax=None, height=0.2,
         raise ValueError('tree must be Booster, XGBModel or dict instance')
 
     if not importance:
-        raise ValueError('Booster.get_score() results in empty')
+        raise ValueError(
+            'Booster.get_score() results in empty.  ' +
+            'This maybe caused by having all trees as decision dumps.')
 
     tuples = [(k, importance[k]) for k in importance]
     if max_num_features is not None:

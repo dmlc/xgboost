@@ -223,9 +223,10 @@ inline GenericParameter CreateEmptyGenericParam(int gpu_id) {
   return tparam;
 }
 
-inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows) {
+inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows,
+                                                              float lower= 0.0f, float upper = 1.0f) {
   xgboost::SimpleLCG gen;
-  xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
+  xgboost::SimpleRealUniformDistribution<bst_float> dist(lower, upper);
   std::vector<GradientPair> h_gpair(n_rows);
   for (auto &gpair : h_gpair) {
     bst_float grad = dist(&gen);
@@ -287,6 +288,5 @@ inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
   return page;
 }
 #endif
-
 }  // namespace xgboost
 #endif
