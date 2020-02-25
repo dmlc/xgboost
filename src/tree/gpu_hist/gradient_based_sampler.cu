@@ -299,16 +299,9 @@ GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(common::Span<Gra
 
   // Create a new ELLPACK page with empty rows.
   page_.reset();  // Release the device memory first before reallocating
-<<<<<<< HEAD
   page_.reset(new EllpackPageImpl(batch_param_.gpu_id, original_page_->cuts_,
                                   original_page_->is_dense,
                                   original_page_->row_stride, sample_rows));
-=======
-  page_.reset(
-      new EllpackPageImpl(batch_param_.gpu_id, original_page_->cuts_,
-                          original_page_->is_dense, original_page_->row_stride,
-                          original_page_->n_rows));
->>>>>>> Rebase
 
   // Compact the ELLPACK pages into the single sample page.
   thrust::fill(dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
