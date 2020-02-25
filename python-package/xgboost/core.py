@@ -19,9 +19,9 @@ import scipy.sparse
 
 from .compat import (
     STRING_TYPES, DataFrame, MultiIndex, Int64Index, py_str,
-    PANDAS_INSTALLED, DataTable,
-    CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_MultiIndex,
-    os_fspath, os_PathLike)
+    PANDAS_INSTALLED, CUDF_INSTALLED,
+    CUDF_DataFrame, CUDF_Series, CUDF_MultiIndex,
+    os_fspath, os_PathLike, lazy_isinstance)
 from .libpath import find_lib_path
 
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
@@ -319,7 +319,8 @@ DT_TYPE_MAPPER2 = {'bool': 'i', 'int': 'int', 'real': 'float'}
 def _maybe_dt_data(data, feature_names, feature_types,
                    meta=None, meta_type=None):
     """Validate feature names and types if data table"""
-    if not isinstance(data, DataTable):
+    if (not lazy_isinstance(data, 'datatable', 'Frame') and
+            not lazy_isinstance(data, 'datatable', 'DataTable')):
         return data, feature_names, feature_types
 
     if meta and data.shape[1] > 1:
@@ -470,7 +471,7 @@ class DMatrix(object):
             self._init_from_csc(data)
         elif isinstance(data, np.ndarray):
             self._init_from_npy2d(data, missing, nthread)
-        elif isinstance(data, DataTable):
+        elif lazy_isinstance(data, 'datatable', 'Frame'):
             self._init_from_dt(data, nthread)
         elif hasattr(data, "__cuda_array_interface__"):
             self._init_from_array_interface(data, missing, nthread)
