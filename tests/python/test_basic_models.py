@@ -300,6 +300,13 @@ class TestModels(unittest.TestCase):
         assert float(config['learner']['objective'][
             'reg_loss_param']['scale_pos_weight']) == 0.5
 
+        buf = bst.save_raw()
+        from_raw = xgb.Booster()
+        from_raw.load_model(buf)
+
+        buf_from_raw = from_raw.save_raw()
+        assert buf == buf_from_raw
+
     def test_model_json_io(self):
         loc = locale.getpreferredencoding(False)
         model_path = 'test_model_json_io.json'
