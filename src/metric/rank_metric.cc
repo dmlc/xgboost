@@ -1,7 +1,22 @@
 /*!
- * Copyright 2019 XGBoost contributors
+ * Copyright 2020 XGBoost contributors
  */
-// Include the metrics that aren't accelerated on the GPU here, with the rest in rank_metric.cu
+// When device ordinal is present, we would want to build the metrics on the GPU. It is possible
+// for a valid device ordinal to be specified even when xgboost isn't built for GPUs (as it is a
+// config parameter). To accommodate these scenarios, the following is done for the metrics
+// accelarated on the GPU.
+// - An internal GPU registry holds all the GPU metric types (defined in the .cu file)
+// - An instance of the appropriate gpu metric type is created when a device ordinal is present
+// - If the creation is successful, the metric computation is done on the device
+// - else, it falls back on the CPU
+// - The GPU metric types are *only* registered when xgboost is built for GPUs
+//
+// This is done for 2 reasons:
+// - Clear separation of CPU and GPU logic
+// - Sorting datasets containing large number of rows is (much) faster when parallel sort
+//   semantics is used on the CPU. The __gnu_parallel/concurrency primitives needed to perform
+//   this cannot be used when the translation unit is compiled using the 'nvcc' compiler (as the
+//   corresponding headers that brings in those function declaration can't be included with CUDA).
 
 #include <rabit/rabit.h>
 #include <dmlc/registry.h>
@@ -183,41 +198,202 @@ struct EvalCox : public Metric {
   }
 };
 
-// This internal metric computation type is used to compute the AUC(PR) metrics on CPU. This
-// isn't meant to be used externally and thus enclosed within the internal namespace.
-//
-// The AUC(PR) metric type registered in rank_metric.cu decides and delegates which type is to
-// be used for AUC(PR) metric computation on the GPU/CPU. The reason for splitting the
-// functionality across the two files is the following:
-// Sorting datasets containing large number of rows is (much) faster when parallel sort semantics
-// is used on the CPU. The __gnu_parallel/concurrency primitives needed to perform this cannot be
-// used when the translation unit is compiled using the 'nvcc' compiler (as the corresponding
-// headers that brings in those function declaration can't be included with CUDA).
-// Thus, this is moved to a separate (non CUDA) file which can then use those primitives when
-// built using the standard C++ compiler. Hence, non-GPU builds and GPU builds that trains on
-// CPU will use this facility.
-// The CUDA file has the logic to compute this metric on the GPU will use it when a valid device
-// ordinal is specified. When one isn't provided, it will delegate the responsibility to this type.
-// The way it does that is by looking up the metrics registry at *runtime* for this type with a
-// specific key - auc-cpu or aucpr-cpu.
-// Note: It doesn't resolve this type during the construction of the EvalAuc or EvalAucPR that
-// is used to drive the AUC(PR) metrics computation on CPU/GPU. This is because, the order of
-// registration of the metric types into the metrics registry isn't deterministic; this internal
-// type may or may not be present when EvalAuc or EvalAucPR is getting constructed. Hence, the
-// resolution of the AUC metric computation type on the CPU is deferred until runtime.
-namespace internal {
-/*! \brief Area Under Curve, for both classification and rank computed on CPU */
-struct EvalAucCpu : public Metric {
+/*! \brief Evaluate rank list */
+struct EvalRank : public Metric, public EvalRankConfig {
  private:
+  // This is used to compute the ranking metrics on the GPU - for training jobs that run on the GPU.
+  std::unique_ptr<xgboost::Metric> rank_gpu_;
+  bool check_gpu_metric_{true};
+
+ protected:
+  virtual double EvalGroup(PredIndPairContainer *recptr) = 0;
+
+ public:
+  // Template method pattern
+  bst_float Eval(const HostDeviceVector<bst_float> &preds,
+                 const MetaInfo &info,
+                 bool distributed) override {
+    CHECK_EQ(preds.Size(), info.labels_.Size())
+        << "label size predict size not match";
+
+    // quick consistency when group is not available
+    std::vector<unsigned> tgptr(2, 0);
+    tgptr[1] = static_cast<unsigned>(preds.Size());
+    const std::vector<unsigned> &gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
+
+    CHECK_NE(gptr.size(), 0U) << "must specify group when constructing rank file";
+    CHECK_EQ(gptr.back(), preds.Size())
+        << "EvalRank: group structure must match number of prediction";
+
+    const auto ngroups = static_cast<bst_omp_uint>(gptr.size() - 1);
+    // sum statistics
+    double sum_metric = 0.0f;
+
+    auto device = tparam_->gpu_id;
+    if (tparam_->gpu_id >= 0) {
+      // This may or may not be a GPU build; hence, check and see if we have the GPU metric
+      // registered in the internal registry
+      if (check_gpu_metric_) {
+        check_gpu_metric_ = false;
+        rank_gpu_.reset(GPUMetric::CreateGPUMetric(this->Name(), tparam_));
+      }
+
+      if (rank_gpu_) {
+        sum_metric = rank_gpu_->Eval(preds, info, distributed);
+      }
+    }
+
+    if (!rank_gpu_) {
+      const auto& labels = info.labels_.ConstHostVector();
+      const std::vector<bst_float>& h_preds = preds.ConstHostVector();
+
+      #pragma omp parallel reduction(+:sum_metric)
+      {
+        // each thread takes a local rec
+        PredIndPairContainer rec;
+        #pragma omp for schedule(static)
+        for (bst_omp_uint k = 0; k < ngroups; ++k) {
+          rec.clear();
+          for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
+            rec.emplace_back(h_preds[j], static_cast<int>(labels[j]));
+          }
+          sum_metric += this->EvalGroup(&rec);
+        }
+      }
+    }
+
+    if (distributed) {
+      bst_float dat[2];
+      dat[0] = static_cast<bst_float>(sum_metric);
+      dat[1] = static_cast<bst_float>(ngroups);
+      // approximately estimate the metric using mean
+      rabit::Allreduce<rabit::op::Sum>(dat, 2);
+      return dat[0] / dat[1];
+    } else {
+      return static_cast<bst_float>(sum_metric) / ngroups;
+    }
+  }
+
+  const char* Name() const override {
+    return name.c_str();
+  }
+
+  explicit EvalRank(const char* name, const char* param) {
+    using namespace std;  // NOLINT(*)
+
+    if (param != nullptr) {
+      std::ostringstream os;
+      if (sscanf(param, "%u[-]?", &topn) == 1) {
+        os << name << '@' << param;
+        this->name = os.str();
+      } else {
+        os << name << param;
+        this->name = os.str();
+      }
+      if (param[strlen(param) - 1] == '-') {
+        minus = true;
+      }
+    } else {
+      this->name = name;
+    }
+  }
+};
+
+/*! \brief Precision at N, for both classification and rank */
+struct EvalPrecision : public EvalRank {
+ public:
+  explicit EvalPrecision(const char* name, const char* param) : EvalRank(name, param) {}
+
+  double EvalGroup(PredIndPairContainer *recptr) override {
+    PredIndPairContainer &rec(*recptr);
+    // calculate Precision
+    std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
+    unsigned nhit = 0;
+    for (size_t j = 0; j < rec.size() && j < this->topn; ++j) {
+      nhit += (rec[j].second != 0);
+    }
+    return static_cast<double>(nhit) / this->topn;
+  }
+};
+
+/*! \brief NDCG: Normalized Discounted Cumulative Gain at N */
+struct EvalNDCG : public EvalRank {
+ private:
+  double CalcDCG(const PredIndPairContainer &rec) {
+    double sumdcg = 0.0;
+    for (size_t i = 0; i < rec.size() && i < this->topn; ++i) {
+      const unsigned rel = rec[i].second;
+      if (rel != 0) {
+        sumdcg += ((1 << rel) - 1) / std::log2(i + 2.0);
+      }
+    }
+    return sumdcg;
+  }
+
+ public:
+  explicit EvalNDCG(const char* name, const char* param) : EvalRank(name, param) {}
+
+  double EvalGroup(PredIndPairContainer *recptr) override {
+    PredIndPairContainer &rec(*recptr);
+    std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
+    double dcg = CalcDCG(rec);
+    std::stable_sort(rec.begin(), rec.end(), common::CmpSecond);
+    double idcg = CalcDCG(rec);
+    if (idcg == 0.0f) {
+      if (this->minus) {
+        return 0.0f;
+      } else {
+        return 1.0f;
+      }
+    }
+    return dcg/idcg;
+  }
+};
+
+/*! \brief Mean Average Precision at N, for both classification and rank */
+struct EvalMAP : public EvalRank {
+ public:
+  explicit EvalMAP(const char* name, const char* param) : EvalRank(name, param) {}
+
+  double EvalGroup(PredIndPairContainer *recptr) override {
+    PredIndPairContainer &rec(*recptr);
+    std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
+    unsigned nhits = 0;
+    double sumap = 0.0;
+    for (size_t i = 0; i < rec.size(); ++i) {
+      if (rec[i].second != 0) {
+        nhits += 1;
+        if (i < this->topn) {
+          sumap += static_cast<double>(nhits) / (i + 1);
+        }
+      }
+    }
+    if (nhits != 0) {
+      sumap /= nhits;
+      return sumap;
+    } else {
+      if (this->minus) {
+        return 0.0f;
+      } else {
+        return 1.0f;
+      }
+    }
+  }
+};
+
+/*! \brief Area Under Curve, for both classification and rank computed on CPU */
+struct EvalAuc : public Metric {
+ private:
+  // This is used to compute the AUC metrics on the GPU - for ranking tasks and
+  // for training jobs that run on the GPU.
+  std::unique_ptr<xgboost::Metric> auc_gpu_;
+  bool check_gpu_metric_{true};
+
   template <typename WeightPolicy>
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
-                 bool distributed) {
-    // All sanity is done by the caller
-    std::vector<unsigned> tgptr(2, 0);
-    tgptr[1] = static_cast<unsigned>(info.labels_.Size());
-    const std::vector<unsigned> &gptr = info.group_ptr_.empty() ? tgptr : info.group_ptr_;
-
+                 bool distributed,
+                 const std::vector<unsigned> &gptr) {
     const auto ngroups = static_cast<bst_omp_uint>(gptr.size() - 1);
     // sum of all AUC's across all query groups
     double sum_auc = 0.0;
@@ -294,36 +470,62 @@ struct EvalAucCpu : public Metric {
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
                  bool distributed) override {
+    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
+    CHECK_EQ(preds.Size(), info.labels_.Size())
+        << "label size predict size not match";
+    std::vector<unsigned> tgptr(2, 0);
+    tgptr[1] = static_cast<unsigned>(info.labels_.Size());
+
+    const std::vector<unsigned> &gptr = info.group_ptr_.empty() ? tgptr : info.group_ptr_;
+    CHECK_EQ(gptr.back(), info.labels_.Size())
+        << "EvalAuc: group structure must match number of prediction";
+
     // For ranking task, weights are per-group
     // For binary classification task, weights are per-instance
     const bool is_ranking_task =
       !info.group_ptr_.empty() && info.weights_.Size() != info.num_row_;
+
+    // Check if we have a GPU assignment; else, revert back to CPU
+    auto device = tparam_->gpu_id;
+    if (device >= 0 && is_ranking_task) {
+      // This may or may not be a GPU build; hence, check and see if we have the GPU metric
+      // registered in the internal registry
+      if (check_gpu_metric_) {
+        check_gpu_metric_ = false;
+        auc_gpu_.reset(GPUMetric::CreateGPUMetric(this->Name(), tparam_));
+      }
+
+      if (auc_gpu_) {
+        return auc_gpu_->Eval(preds, info, distributed);
+      }
+    }
+
     if (is_ranking_task) {
-      return Eval<PerGroupWeightPolicy>(preds, info, distributed);
+      return Eval<PerGroupWeightPolicy>(preds, info, distributed, gptr);
     } else {
-      return Eval<PerInstanceWeightPolicy>(preds, info, distributed);
+      return Eval<PerInstanceWeightPolicy>(preds, info, distributed, gptr);
     }
   }
 
-  const char *Name() const override { return "auc-cpu"; }
+  const char *Name() const override { return "auc"; }
 };
 
 /*! \brief Area Under PR Curve, for both classification and rank computed on CPU */
-struct EvalAucPRCpu : public Metric {
+struct EvalAucPR : public Metric {
   // implementation of AUC-PR for weighted data
   // translated from PRROC R Package
   // see https://doi.org/10.1371/journal.pone.0092209
  private:
+  // This is used to compute the AUC metrics on the GPU - for ranking tasks and
+  // for training jobs that run on the GPU.
+  std::unique_ptr<xgboost::Metric> aucpr_gpu_;
+  bool check_gpu_metric_{true};
+
   template <typename WeightPolicy>
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
-                 bool distributed) {
-    // All sanity is done by the caller
-    std::vector<unsigned> tgptr(2, 0);
-    tgptr[1] = static_cast<unsigned>(info.labels_.Size());
-    const std::vector<unsigned> &gptr =
-        info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
-
+                 bool distributed,
+                 const std::vector<unsigned> &gptr) {
     const auto ngroups = static_cast<bst_omp_uint>(gptr.size() - 1);
 
     // sum of all AUC's across all query groups
@@ -418,28 +620,53 @@ struct EvalAucPRCpu : public Metric {
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
                  bool distributed) override {
+    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
+    CHECK_EQ(preds.Size(), info.labels_.Size())
+        << "label size predict size not match";
+    std::vector<unsigned> tgptr(2, 0);
+    tgptr[1] = static_cast<unsigned>(info.labels_.Size());
+
+    const std::vector<unsigned> &gptr = info.group_ptr_.empty() ? tgptr : info.group_ptr_;
+    CHECK_EQ(gptr.back(), info.labels_.Size())
+        << "EvalAucPR: group structure must match number of prediction";
+
     // For ranking task, weights are per-group
     // For binary classification task, weights are per-instance
     const bool is_ranking_task =
       !info.group_ptr_.empty() && info.weights_.Size() != info.num_row_;
+
+    // Check if we have a GPU assignment; else, revert back to CPU
+    auto device = tparam_->gpu_id;
+    if (device >= 0 && is_ranking_task) {
+      // This may or may not be a GPU build; hence, check and see if we have the GPU metric
+      // registered in the internal registry
+      if (check_gpu_metric_) {
+        check_gpu_metric_ = false;
+        aucpr_gpu_.reset(GPUMetric::CreateGPUMetric(this->Name(), tparam_));
+      }
+
+      if (aucpr_gpu_) {
+        return aucpr_gpu_->Eval(preds, info, distributed);
+      }
+    }
+
     if (is_ranking_task) {
-      return Eval<PerGroupWeightPolicy>(preds, info, distributed);
+      return Eval<PerGroupWeightPolicy>(preds, info, distributed, gptr);
     } else {
-      return Eval<PerInstanceWeightPolicy>(preds, info, distributed);
+      return Eval<PerInstanceWeightPolicy>(preds, info, distributed, gptr);
     }
   }
 
-  const char *Name() const override { return "aucpr-cpu"; }
+  const char *Name() const override { return "aucpr"; }
 };
-}  // end of namespace internal
 
-XGBOOST_REGISTER_METRIC(AucCpu, "auc-cpu")
-.describe("Internal AUC metric computation on CPU for classification and rank.")
-.set_body([](const char* param) { return new internal::EvalAucCpu(); });
+XGBOOST_REGISTER_METRIC(Auc, "auc")
+.describe("AUC metric computation for classification and rank.")
+.set_body([](const char* param) { return new EvalAuc(); });
 
-XGBOOST_REGISTER_METRIC(AucPRCpu, "aucpr-cpu")
-.describe("Internal Area under PR curve computation on CPU for both classification and rank.")
-.set_body([](const char* param) { return new internal::EvalAucPRCpu(); });
+XGBOOST_REGISTER_METRIC(AucPR, "aucpr")
+.describe("Area under PR curve computation for both classification and rank.")
+.set_body([](const char* param) { return new EvalAucPR(); });
 
 XGBOOST_REGISTER_METRIC(AMS, "ams")
 .describe("AMS metric for higgs.")
@@ -448,9 +675,17 @@ XGBOOST_REGISTER_METRIC(AMS, "ams")
 XGBOOST_REGISTER_METRIC(Cox, "cox-nloglik")
 .describe("Negative log partial likelihood of Cox proportioanl hazards model.")
 .set_body([](const char* param) { return new EvalCox(); });
+
+XGBOOST_REGISTER_METRIC(Precision, "pre")
+.describe("precision@k for rank.")
+.set_body([](const char* param) { return new EvalPrecision("pre", param); });
+
+XGBOOST_REGISTER_METRIC(NDCG, "ndcg")
+.describe("ndcg@k for rank.")
+.set_body([](const char* param) { return new EvalNDCG("ndcg", param); });
+
+XGBOOST_REGISTER_METRIC(MAP, "map")
+.describe("map@k for rank.")
+.set_body([](const char* param) { return new EvalMAP("map", param); });
 }  // namespace metric
 }  // namespace xgboost
-
-#if !defined(XGBOOST_USE_CUDA)
-#include "rank_metric.cu"
-#endif  // !defined(XGBOOST_USE_CUDA)

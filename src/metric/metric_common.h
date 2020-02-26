@@ -18,7 +18,52 @@ using PredIndPairContainer = std::vector<PredIndPair>;
 }  // anonymous namespace
 
 namespace xgboost {
+// This creates a GPU metric instance dynamically and adds it to the GPU metric registry, if not
+// present already. This is created when there is a device ordinal present and if xgboost
+// is compiled with CUDA support
+struct GPUMetric : Metric {
+  static Metric *CreateGPUMetric(const std::string& name, GenericParameter const* tparam);
+};
+
+/*!
+ * \brief Internal registry entries for GPU Metric factory functions.
+ *  The additional parameter const char* param gives the value after @, can be null.
+ *  For example, metric map@3, then: param == "3".
+ */
+struct MetricGPUReg
+    : public dmlc::FunctionRegEntryBase<MetricGPUReg,
+                                        std::function<Metric * (const char*)> > {
+};
+
+/*!
+ * \brief Macro to register metric computed on GPU.
+ *
+ * \code
+ * // example of registering a objective ndcg@k
+ * XGBOOST_REGISTER_GPU_METRIC(NDCG_GPU, "ndcg")
+ * .describe("NDCG metric computer on GPU.")
+ * .set_body([](const char* param) {
+ *     int at_k = atoi(param);
+ *     return new NDCG(at_k);
+ *   });
+ * \endcode
+ */
+
+// Note: Metric names registered in the GPU registry should follow this convention:
+// - GPU metric types should be registered with the same name as the non GPU metric types
+#define XGBOOST_REGISTER_GPU_METRIC(UniqueId, Name)                         \
+  ::xgboost::MetricGPUReg&  __make_ ## MetricGPUReg ## _ ## UniqueId ## __ =  \
+      ::dmlc::Registry< ::xgboost::MetricGPUReg>::Get()->__REGISTER__(Name)
+
 namespace metric {
+
+// Ranking config to be used on device and host
+struct EvalRankConfig {
+ public:
+  unsigned topn{std::numeric_limits<unsigned>::max()};
+  std::string name;
+  bool minus{false};
+};
 
 class PackedReduceResult {
   double residue_sum_;

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2020 by Contributors
  * \file rank_metric.cc
  * \brief prediction rank based metrics.
  * \author Kailong Chen, Tianqi Chen
@@ -16,10 +16,8 @@
 #include "../common/math.h"
 #include "metric_common.h"
 
-#if defined(__CUDACC__)
 #include <thrust/iterator/discard_iterator.h>
 #include "../common/device_helpers.cuh"
-#endif
 
 namespace xgboost {
 namespace metric {
@@ -28,21 +26,18 @@ namespace metric {
 DMLC_REGISTRY_FILE_TAG(rank_metric_gpu);
 #endif
 
-struct EvalRankConfig {
- public:
-  unsigned topn{std::numeric_limits<unsigned>::max()};
-  std::string name;
-  bool minus{false};
-};
-
-/*! \brief Evaluate rank list */
+/*! \brief Evaluate rank list on GPU */
 template <typename EvalMetricT>
-struct EvalRankList : public Metric, public EvalRankConfig {
- private:
-#if defined(__CUDACC__)
-  bst_float EvalRankOnGPU(const HostDeviceVector<bst_float> &preds,
-                          const MetaInfo &info,
-                          const std::vector<unsigned> &gptr) {
+struct EvalRankGpu : public Metric, public EvalRankConfig {
+ public:
+  bst_float Eval(const HostDeviceVector<bst_float> &preds,
+                 const MetaInfo &info,
+                 bool distributed) override {
+    // Sanity check is done by the caller
+    std::vector<unsigned> tgptr(2, 0);
+    tgptr[1] = static_cast<unsigned>(preds.Size());
+    const std::vector<unsigned> &gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
+
     const auto ngroups = static_cast<bst_omp_uint>(gptr.size() - 1);
 
     auto device = tparam_->gpu_id;
@@ -61,84 +56,16 @@ struct EvalRankList : public Metric, public EvalRankConfig {
     // Compute individual group metric and sum them up
     return EvalMetricT::EvalMetric(segment_pred_sorter, dlabels, *this);
   }
-#endif
-  bst_float EvalRankOnCPU(const HostDeviceVector<bst_float> &preds,
-                          const MetaInfo &info,
-                          const std::vector<unsigned> &gptr) {
-    const auto ngroups = static_cast<bst_omp_uint>(gptr.size() - 1);
-
-    const auto& labels = info.labels_.ConstHostVector();
-    const std::vector<bst_float>& h_preds = preds.ConstHostVector();
-    // sum statistics
-    double sum_metric = 0.0f;
-
-    #pragma omp parallel reduction(+:sum_metric)
-    {
-      // each thread takes a local rec
-      PredIndPairContainer rec;
-      #pragma omp for schedule(static)
-      for (bst_omp_uint k = 0; k < ngroups; ++k) {
-        rec.clear();
-        for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
-          rec.emplace_back(h_preds[j], static_cast<int>(labels[j]));
-        }
-        sum_metric += EvalMetricT::EvalMetric(&rec, *this);
-      }
-    }
-
-    return sum_metric;
-  }
-
- public:
-  bst_float Eval(const HostDeviceVector<bst_float> &preds,
-                 const MetaInfo &info,
-                 bool distributed) override {
-    CHECK_EQ(preds.Size(), info.labels_.Size())
-        << "label size predict size not match";
-    // quick consistency when group is not available
-    std::vector<unsigned> tgptr(2, 0);
-    tgptr[1] = static_cast<unsigned>(preds.Size());
-    const std::vector<unsigned> &gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
-    CHECK_NE(gptr.size(), 0U) << "must specify group when constructing rank file";
-    CHECK_EQ(gptr.back(), preds.Size())
-        << "EvalRanklist: group structure must match number of prediction";
-    const auto ngroups = static_cast<bst_omp_uint>(gptr.size() - 1);
-    // sum statistics
-    double sum_metric = 0.0f;
-
-#if defined(__CUDACC__)
-    // Check if we have a GPU assignment; else, revert back to CPU
-    auto device = tparam_->gpu_id;
-    if (device >= 0) {
-      sum_metric = this->EvalRankOnGPU(preds, info, gptr);
-    } else {
-#endif
-      sum_metric = this->EvalRankOnCPU(preds, info, gptr);
-#if defined(__CUDACC__)
-    }
-#endif
-
-    if (distributed) {
-      bst_float dat[2];
-      dat[0] = static_cast<bst_float>(sum_metric);
-      dat[1] = static_cast<bst_float>(ngroups);
-      // approximately estimate the metric using mean
-      rabit::Allreduce<rabit::op::Sum>(dat, 2);
-      return dat[0] / dat[1];
-    } else {
-      return static_cast<bst_float>(sum_metric) / ngroups;
-    }
-  }
 
   const char* Name() const override {
     return name.c_str();
   }
 
-  explicit EvalRankList(const char* name, const char* param) {
+  explicit EvalRankGpu(const char* name, const char* param) {
     using namespace std;  // NOLINT(*)
     if (param != nullptr) {
       std::ostringstream os;
-      if (sscanf(param, "%u[-]?", &topn) == 1) {
+      if (sscanf(param, "%u[-]?", &this->topn) == 1) {
         os << name << '@' << param;
         this->name = os.str();
       } else {
@@ -146,7 +73,7 @@ struct EvalRankList : public Metric, public EvalRankConfig {
         this->name = os.str();
       }
       if (param[strlen(param) - 1] == '-') {
-        minus = true;
+        this->minus = true;
       }
     } else {
       this->name = name;
@@ -155,10 +82,10 @@ struct EvalRankList : public Metric, public EvalRankConfig {
 };
 
 /*! \brief Precision at N, for both classification and rank */
-struct EvalPrecision {
+struct EvalPrecisionGpu {
  public:
-#if defined(__CUDACC__)
-  static double EvalMetric(const dh::SegmentSorter<float> &pred_sorter, const float *dlabels,
+  static double EvalMetric(const dh::SegmentSorter<float> &pred_sorter,
+                           const float *dlabels,
                            const EvalRankConfig &ecfg) {
     // Group info on device
     const auto *dgroups = pred_sorter.GetGroupsPtr();
@@ -192,49 +119,22 @@ struct EvalPrecision {
 
     // Allocator to be used for managing space overhead while performing reductions
     dh::XGBCachingDeviceAllocator<char> alloc;
-    return static_cast<bst_float>(thrust::reduce(thrust::cuda::par(alloc),
-                                                 hits.begin(), hits.end())) / ecfg.topn;
-  }
-#endif
-
-  static bst_float EvalMetric(PredIndPairContainer *recptr,
-                              const EvalRankConfig &ecfg) {
-    PredIndPairContainer &rec(*recptr);
-    // calculate Precision
-    std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
-    unsigned nhit = 0;
-    for (size_t j = 0; j < rec.size() && j < ecfg.topn; ++j) {
-      nhit += (rec[j].second != 0);
-    }
-    return static_cast<bst_float>(nhit) / ecfg.topn;
+    return static_cast<double>(thrust::reduce(thrust::cuda::par(alloc),
+                                              hits.begin(), hits.end())) / ecfg.topn;
   }
 };
 
 /*! \brief NDCG: Normalized Discounted Cumulative Gain at N */
-struct EvalNDCG {
- private:
-  static bst_float CalcDCG(const PredIndPairContainer &rec,
-                           const EvalRankConfig &ecfg) {
-    double sumdcg = 0.0;
-    for (size_t i = 0; i < rec.size() && i < ecfg.topn; ++i) {
-      const unsigned rel = rec[i].second;
-      if (rel != 0) {
-        sumdcg += ((1 << rel) - 1) / std::log2(i + 2.0);
-      }
-    }
-    return sumdcg;
-  }
-
+struct EvalNDCGGpu {
  public:
-#if defined(__CUDACC__)
   static void ComputeDCG(const dh::SegmentSorter<float> &pred_sorter,
                          const float *dlabels,
                          const EvalRankConfig &ecfg,
                          // The order in which labels have to be accessed. The order is determined
                          // by sorting the predictions or the labels for the entire dataset
                          const uint32_t *dlabels_sort_order,
-                         dh::caching_device_vector<float> *dcgptr) {
-    dh::caching_device_vector<float> &dcgs(*dcgptr);
+                         dh::caching_device_vector<double> *dcgptr) {
+    dh::caching_device_vector<double> &dcgs(*dcgptr);
     // Group info on device
     const auto *dgroups = pred_sorter.GetGroupsPtr();
     const auto ngroups = pred_sorter.GetNumGroups();
@@ -264,7 +164,8 @@ struct EvalNDCG {
     });
   }
 
-  static double EvalMetric(const dh::SegmentSorter<float> &pred_sorter, const float *dlabels,
+  static double EvalMetric(const dh::SegmentSorter<float> &pred_sorter,
+                           const float *dlabels,
                            const EvalRankConfig &ecfg) {
     // Sort the labels and compute IDCG
     dh::SegmentSorter<float> segment_label_sorter;
@@ -273,15 +174,15 @@ struct EvalNDCG {
 
     uint32_t ngroups = pred_sorter.GetNumGroups();
 
-    dh::caching_device_vector<float> idcg(ngroups, 0);
+    dh::caching_device_vector<double> idcg(ngroups, 0);
     ComputeDCG(pred_sorter, dlabels, ecfg, segment_label_sorter.GetOriginalPositionsPtr(), &idcg);
 
     // Compute the DCG values next
-    dh::caching_device_vector<float> dcg(ngroups, 0);
+    dh::caching_device_vector<double> dcg(ngroups, 0);
     ComputeDCG(pred_sorter, dlabels, ecfg, pred_sorter.GetOriginalPositionsPtr(), &dcg);
 
-    float *ddcg = dcg.data().get();
-    float *didcg = idcg.data().get();
+    double *ddcg = dcg.data().get();
+    double *didcg = idcg.data().get();
 
     int device_id = -1;
     dh::safe_cuda(cudaGetDevice(&device_id));
@@ -298,30 +199,13 @@ struct EvalNDCG {
     dh::XGBCachingDeviceAllocator<char> alloc;
     return thrust::reduce(thrust::cuda::par(alloc), dcg.begin(), dcg.end());
   }
-#endif
-  static bst_float EvalMetric(PredIndPairContainer *recptr,
-                              const EvalRankConfig &ecfg) { // NOLINT(*)
-    PredIndPairContainer &rec(*recptr);
-    std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
-    bst_float dcg = CalcDCG(rec, ecfg);
-    std::stable_sort(rec.begin(), rec.end(), common::CmpSecond);
-    bst_float idcg = CalcDCG(rec, ecfg);
-    if (idcg == 0.0f) {
-      if (ecfg.minus) {
-        return 0.0f;
-      } else {
-        return 1.0f;
-      }
-    }
-    return dcg/idcg;
-  }
 };
 
 /*! \brief Mean Average Precision at N, for both classification and rank */
-struct EvalMAP {
+struct EvalMAPGpu {
  public:
-#if defined(__CUDACC__)
-  static double EvalMetric(const dh::SegmentSorter<float> &pred_sorter, const float *dlabels,
+  static double EvalMetric(const dh::SegmentSorter<float> &pred_sorter,
+                           const float *dlabels,
                            const EvalRankConfig &ecfg) {
     // Group info on device
     const auto *dgroups = pred_sorter.GetGroupsPtr();
@@ -370,7 +254,7 @@ struct EvalMAP {
         const auto ridx = idx - group_begin;
         if (ridx < ecfg.topn) {
           atomicAdd(&dsumap[group_idx],
-                    static_cast<bst_float>(dhits[idx]) / (ridx + 1));
+                    static_cast<double>(dhits[idx]) / (ridx + 1));
         }
       }
     });
@@ -391,48 +275,19 @@ struct EvalMAP {
 
     return thrust::reduce(thrust::cuda::par(alloc), sumap.begin(), sumap.end());
   }
-#endif
-  static bst_float EvalMetric(PredIndPairContainer *recptr,
-                              const EvalRankConfig &ecfg) {
-    PredIndPairContainer &rec(*recptr);
-    std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
-    unsigned nhits = 0;
-    double sumap = 0.0;
-    for (size_t i = 0; i < rec.size(); ++i) {
-      if (rec[i].second != 0) {
-        nhits += 1;
-        if (i < ecfg.topn) {
-          sumap += static_cast<bst_float>(nhits) / (i + 1);
-        }
-      }
-    }
-    if (nhits != 0) {
-      sumap /= nhits;
-      return static_cast<bst_float>(sumap);
-    } else {
-      if (ecfg.minus) {
-        return 0.0f;
-      } else {
-        return 1.0f;
-      }
-    }
-  }
 };
 
-/*! \brief Area Under Curve, for both classification and rank */
-struct EvalAuc : public Metric {
- private:
-  // This is used to compute the AUC metrics on the CPU - for non-ranking tasks and
-  // for training jobs that are run on the CPU. See rank_metric.cc for the need to split
-  // them in two places.
-  std::unique_ptr<xgboost::Metric> auc_cpu_;
-
+/*! \brief Area Under Curve metric computation for ranking datasets */
+struct EvalAucGpu : public Metric {
  public:
-#if defined(__CUDACC__)
-  bst_float EvalAucOnGPU(const HostDeviceVector<bst_float> &preds,
-                         const MetaInfo &info,
-                         const std::vector<unsigned> &gptr,
-                         bool distributed) {
+  bst_float Eval(const HostDeviceVector<bst_float> &preds,
+                 const MetaInfo &info,
+                 bool distributed) override {
+    // Sanity check is done by the caller
+    std::vector<unsigned> tgptr(2, 0);
+    tgptr[1] = static_cast<unsigned>(info.labels_.Size());
+    const std::vector<unsigned> &gptr = info.group_ptr_.empty() ? tgptr : info.group_ptr_;
+
     auto device = tparam_->gpu_id;
     dh::safe_cuda(cudaSetDevice(device));
 
@@ -517,57 +372,15 @@ struct EvalAuc : public Metric {
       << "AUC: the dataset only contains pos or neg samples";
     return dat[0] / dat[1];
   }
-#endif
-
-  bst_float Eval(const HostDeviceVector<bst_float> &preds,
-                 const MetaInfo &info,
-                 bool distributed) override {
-    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds.Size(), info.labels_.Size())
-        << "label size predict size not match";
-    std::vector<unsigned> tgptr(2, 0);
-    tgptr[1] = static_cast<unsigned>(info.labels_.Size());
-
-    const std::vector<unsigned> &gptr = info.group_ptr_.empty() ? tgptr : info.group_ptr_;
-    CHECK_EQ(gptr.back(), info.labels_.Size())
-        << "EvalAuc: group structure must match number of prediction";
-
-    // For ranking task, weights are per-group
-    // For binary classification task, weights are per-instance
-    const bool is_ranking_task =
-      !info.group_ptr_.empty() && info.weights_.Size() != info.num_row_;
-
-#if defined(__CUDACC__)
-    // Check if we have a GPU assignment; else, revert back to CPU
-    auto device = tparam_->gpu_id;
-    if (device >= 0 && is_ranking_task) {
-      return this->EvalAucOnGPU(preds, info, gptr, distributed);
-    } else {
-#endif
-      if (!auc_cpu_) {
-        auc_cpu_.reset(xgboost::Metric::Create("auc-cpu", nullptr));
-      }
-      return auc_cpu_->Eval(preds, info, distributed);
-#if defined(__CUDACC__)
-    }
-#endif
-  }
 
   const char* Name() const override {
     return "auc";
   }
 };
 
-/*! \brief Area Under PR Curve, for both classification and rank */
-struct EvalAucPR : public Metric {
- private:
-  // This is used to compute the AUC PR metrics on the CPU - for non-ranking tasks and
-  // for training jobs that are run on the CPU. See rank_metric.cc for the need to split
-  // them in two places.
-  std::unique_ptr<xgboost::Metric> aucpr_cpu_;
-
+/*! \brief Area Under PR Curve metric computation for ranking datasets */
+struct EvalAucPRGpu : public Metric {
  public:
-#if defined(__CUDACC__)
   // This function object computes the item's positive/negative precision value
   class ComputeItemPrecision : public thrust::unary_function<uint32_t, float> {
    public:
@@ -600,10 +413,14 @@ struct EvalAucPR : public Metric {
     const float *dlabels_;  // Unsorted labels in the dataset
   };
 
-  bst_float EvalAucPROnGPU(const HostDeviceVector<bst_float> &preds,
-                           const MetaInfo &info,
-                           const std::vector<unsigned> &gptr,
-                           bool distributed) {
+  bst_float Eval(const HostDeviceVector<bst_float> &preds,
+                 const MetaInfo &info,
+                 bool distributed) override {
+    // Sanity check is done by the caller
+    std::vector<unsigned> tgptr(2, 0);
+    tgptr[1] = static_cast<unsigned>(info.labels_.Size());
+    const std::vector<unsigned> &gptr = info.group_ptr_.empty() ? tgptr : info.group_ptr_;
+
     auto device = tparam_->gpu_id;
     dh::safe_cuda(cudaSetDevice(device));
 
@@ -742,65 +559,30 @@ struct EvalAucPR : public Metric {
     CHECK_LE(dat[0], dat[1]) << "AUC-PR: AUC > 1.0";
     return dat[0] / dat[1];
   }
-#endif
-
-  bst_float Eval(const HostDeviceVector<bst_float> &preds,
-                 const MetaInfo &info,
-                 bool distributed) override {
-    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
-    CHECK_EQ(preds.Size(), info.labels_.Size())
-        << "label size predict size not match";
-    std::vector<unsigned> tgptr(2, 0);
-    tgptr[1] = static_cast<unsigned>(info.labels_.Size());
-
-    const std::vector<unsigned> &gptr = info.group_ptr_.empty() ? tgptr : info.group_ptr_;
-    CHECK_EQ(gptr.back(), info.labels_.Size())
-        << "EvalAucPR: group structure must match number of prediction";
-
-    // For ranking task, weights are per-group
-    // For binary classification task, weights are per-instance
-    const bool is_ranking_task =
-      !info.group_ptr_.empty() && info.weights_.Size() != info.num_row_;
-
-#if defined(__CUDACC__)
-    // Check if we have a GPU assignment; else, revert back to CPU
-    auto device = tparam_->gpu_id;
-    if (device >= 0 && is_ranking_task) {
-      return this->EvalAucPROnGPU(preds, info, gptr, distributed);
-    } else {
-#endif
-      if (!aucpr_cpu_) {
-        aucpr_cpu_.reset(xgboost::Metric::Create("aucpr-cpu", nullptr));
-      }
-      return aucpr_cpu_->Eval(preds, info, distributed);
-#if defined(__CUDACC__)
-    }
-#endif
-  }
 
   const char* Name() const override {
     return "aucpr";
   }
 };
 
-XGBOOST_REGISTER_METRIC(Auc, "auc")
-.describe("Area under curve for both classification and rank.")
-.set_body([](const char* param) { return new EvalAuc(); });
+XGBOOST_REGISTER_GPU_METRIC(AucGpu, "auc")
+.describe("Area under curve for rank computed on GPU.")
+.set_body([](const char* param) { return new EvalAucGpu(); });
 
-XGBOOST_REGISTER_METRIC(AucPR, "aucpr")
-.describe("Area under PR curve for both classification and rank.")
-.set_body([](const char* param) { return new EvalAucPR(); });
+XGBOOST_REGISTER_GPU_METRIC(AucPRGpu, "aucpr")
+.describe("Area under PR curve for rank computed on GPU.")
+.set_body([](const char* param) { return new EvalAucPRGpu(); });
 
-XGBOOST_REGISTER_METRIC(Precision, "pre")
-.describe("precision@k for rank.")
-.set_body([](const char* param) { return new EvalRankList<EvalPrecision>("pre", param); });
+XGBOOST_REGISTER_GPU_METRIC(PrecisionGpu, "pre")
+.describe("precision@k for rank computed on GPU.")
+.set_body([](const char* param) { return new EvalRankGpu<EvalPrecisionGpu>("pre", param); });
 
-XGBOOST_REGISTER_METRIC(NDCG, "ndcg")
-.describe("ndcg@k for rank.")
-.set_body([](const char* param) { return new EvalRankList<EvalNDCG>("ndcg", param); });
+XGBOOST_REGISTER_GPU_METRIC(NDCGGpu, "ndcg")
+.describe("ndcg@k for rank computed on GPU.")
+.set_body([](const char* param) { return new EvalRankGpu<EvalNDCGGpu>("ndcg", param); });
 
-XGBOOST_REGISTER_METRIC(MAP, "map")
-.describe("map@k for rank.")
-.set_body([](const char* param) { return new EvalRankList<EvalMAP>("map", param); });
+XGBOOST_REGISTER_GPU_METRIC(MAPGpu, "map")
+.describe("map@k for rank computed on GPU.")
+.set_body([](const char* param) { return new EvalRankGpu<EvalMAPGpu>("map", param); });
 }  // namespace metric
 }  // namespace xgboost
