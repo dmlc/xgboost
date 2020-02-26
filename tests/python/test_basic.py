@@ -35,6 +35,11 @@ def captured_output():
 
 
 class TestBasic(unittest.TestCase):
+    def test_compat(self):
+        from xgboost.compat import lazy_isinstance
+        a = np.array([1, 2, 3])
+        assert lazy_isinstance(a, 'numpy', 'ndarray')
+        assert not lazy_isinstance(a, 'numpy', 'dataframe')
 
     def test_basic(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')

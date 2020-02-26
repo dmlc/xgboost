@@ -1,5 +1,5 @@
 # coding: utf-8
-from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED, DT_INSTALLED
+from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
 from xgboost.compat import CUDF_INSTALLED, DASK_INSTALLED
 
 
@@ -19,7 +19,9 @@ def no_pandas():
 
 
 def no_dt():
-    return {'condition': not DT_INSTALLED,
+    import importlib.util
+    spec = importlib.util.find_spec('datatable')
+    return {'condition': spec is None,
             'reason': 'Datatable is not installed.'}
 
 
