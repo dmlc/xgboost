@@ -19,9 +19,9 @@ import scipy.sparse
 
 from .compat import (
     STRING_TYPES, DataFrame, MultiIndex, Int64Index, py_str,
-    PANDAS_INSTALLED, DataTable,
-    CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_MultiIndex,
-    os_fspath, os_PathLike)
+    PANDAS_INSTALLED, CUDF_INSTALLED,
+    CUDF_DataFrame, CUDF_Series, CUDF_MultiIndex,
+    os_fspath, os_PathLike, lazy_isinstance)
 from .libpath import find_lib_path
 
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
@@ -319,7 +319,8 @@ DT_TYPE_MAPPER2 = {'bool': 'i', 'int': 'int', 'real': 'float'}
 def _maybe_dt_data(data, feature_names, feature_types,
                    meta=None, meta_type=None):
     """Validate feature names and types if data table"""
-    if not isinstance(data, DataTable):
+    if (not lazy_isinstance(data, 'datatable', 'Frame') and
+            not lazy_isinstance(data, 'datatable', 'DataTable')):
         return data, feature_names, feature_types
 
     if meta and data.shape[1] > 1:
@@ -470,7 +471,7 @@ class DMatrix(object):
             self._init_from_csc(data)
         elif isinstance(data, np.ndarray):
             self._init_from_npy2d(data, missing, nthread)
-        elif isinstance(data, DataTable):
+        elif lazy_isinstance(data, 'datatable', 'Frame'):
             self._init_from_dt(data, nthread)
         elif hasattr(data, "__cuda_array_interface__"):
             self._init_from_array_interface(data, missing, nthread)
@@ -1052,7 +1053,7 @@ class Booster(object):
             _check_call(
                 _LIB.XGBoosterUnserializeFromBuffer(self.handle, ptr, length))
             self.__dict__.update(state)
-        elif isinstance(model_file, (STRING_TYPES, os_PathLike)):
+        elif isinstance(model_file, (STRING_TYPES, os_PathLike, bytearray)):
             self.load_model(model_file)
         elif model_file is None:
             pass
@@ -1512,7 +1513,8 @@ class Booster(object):
         return ctypes2buffer(cptr, length.value)
 
     def load_model(self, fname):
-        """Load the model from a file, local or as URI.
+        """Load the model from a file or bytearray. Path to file can be local
+        or as an URI.
 
         The model is loaded from an XGBoost format which is universal among the
         various XGBoost interfaces. Auxiliary attributes of the Python Booster
@@ -1530,6 +1532,12 @@ class Booster(object):
             # from URL.
             _check_call(_LIB.XGBoosterLoadModel(
                 self.handle, c_str(os_fspath(fname))))
+        elif isinstance(fname, bytearray):
+            buf = fname
+            length = c_bst_ulong(len(buf))
+            ptr = (ctypes.c_char * len(buf)).from_buffer(buf)
+            _check_call(_LIB.XGBoosterLoadModelFromBuffer(self.handle, ptr,
+                                                          length))
         else:
             raise TypeError('Unknown file type: ', fname)
 

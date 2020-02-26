@@ -79,6 +79,14 @@ else:
 # END NUMPY PATHLIB ATTRIBUTION
 ###############################################################################
 
+
+def lazy_isinstance(instance, module, name):
+    '''Use string representation to identify a type.'''
+    module = type(instance).__module__ == module
+    name = type(instance).__name__ == name
+    return module and name
+
+
 # pandas
 try:
     from pandas import DataFrame, Series
@@ -94,27 +102,6 @@ except ImportError:
     Series = object
     pandas_concat = None
     PANDAS_INSTALLED = False
-
-# dt
-try:
-    # Workaround for #4473, compatibility with dask
-    if sys.__stdin__ is not None and sys.__stdin__.closed:
-        sys.__stdin__ = None
-    import datatable
-
-    if hasattr(datatable, "Frame"):
-        DataTable = datatable.Frame
-    else:
-        DataTable = datatable.DataTable
-    DT_INSTALLED = True
-except ImportError:
-
-    # pylint: disable=too-few-public-methods
-    class DataTable(object):
-        """ dummy for datatable.DataTable """
-
-    DT_INSTALLED = False
-
 
 # cudf
 try:
