@@ -8,16 +8,15 @@
 #include <dmlc/registry.h>
 
 #include <xgboost/metric.h>
+#include <xgboost/host_device_vector.h>
+#include <thrust/iterator/discard_iterator.h>
 
 #include <cmath>
 #include <vector>
 
-#include "../common/math.h"
 #include "metric_common.h"
 
-#include <xgboost/host_device_vector.h>
-
-#include <thrust/iterator/discard_iterator.h>
+#include "../common/math.h"
 #include "../common/device_helpers.cuh"
 
 namespace xgboost {
