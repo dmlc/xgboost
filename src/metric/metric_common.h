@@ -7,6 +7,8 @@
 
 #include <utility>
 #include <vector>
+#include <limits>
+#include <string>
 
 #include "../common/common.h"
 

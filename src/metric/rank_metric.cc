@@ -229,7 +229,6 @@ struct EvalRank : public Metric, public EvalRankConfig {
     // sum statistics
     double sum_metric = 0.0f;
 
-    auto device = tparam_->gpu_id;
     if (tparam_->gpu_id >= 0) {
       // This may or may not be a GPU build; hence, check and see if we have the GPU metric
       // registered in the internal registry
@@ -486,8 +485,7 @@ struct EvalAuc : public Metric {
       !info.group_ptr_.empty() && info.weights_.Size() != info.num_row_;
 
     // Check if we have a GPU assignment; else, revert back to CPU
-    auto device = tparam_->gpu_id;
-    if (device >= 0 && is_ranking_task) {
+    if (tparam_->gpu_id >= 0 && is_ranking_task) {
       // This may or may not be a GPU build; hence, check and see if we have the GPU metric
       // registered in the internal registry
       if (check_gpu_metric_) {
@@ -636,8 +634,7 @@ struct EvalAucPR : public Metric {
       !info.group_ptr_.empty() && info.weights_.Size() != info.num_row_;
 
     // Check if we have a GPU assignment; else, revert back to CPU
-    auto device = tparam_->gpu_id;
-    if (device >= 0 && is_ranking_task) {
+    if (tparam_->gpu_id >= 0 && is_ranking_task) {
       // This may or may not be a GPU build; hence, check and see if we have the GPU metric
       // registered in the internal registry
       if (check_gpu_metric_) {
