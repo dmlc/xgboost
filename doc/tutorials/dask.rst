@@ -42,7 +42,7 @@ illustrates the basic usage:
                           dtrain,
                           num_boost_round=4, evals=[(dtrain, 'train')])
 
-Here we first create a cluster in signle-node mode wtih ``distributed.LocalCluster``, then
+Here we first create a cluster in single-node mode wtih ``distributed.LocalCluster``, then
 connect a ``client`` to this cluster, setting up environment for later computation.
 Similar to non-distributed interface, we create a ``DMatrix`` object and pass it to
 ``train`` along with some other parameters.  Except in dask interface, client is an extra
