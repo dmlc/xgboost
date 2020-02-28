@@ -40,9 +40,9 @@ void VerifySampling(size_t page_size,
     EXPECT_EQ(sample.page->matrix.n_rows, kRows);
     EXPECT_EQ(sample.gpair.size(), kRows);
   } else {
-    EXPECT_NEAR(sample.sample_rows, sample_rows, kRows * 0.012f);
-    EXPECT_NEAR(sample.page->matrix.n_rows, sample_rows, kRows * 0.012f);
-    EXPECT_NEAR(sample.gpair.size(), sample_rows, kRows * 0.012f);
+    EXPECT_NEAR(sample.sample_rows, sample_rows, kRows * 0.016f);
+    EXPECT_NEAR(sample.page->matrix.n_rows, sample_rows, kRows * 0.016f);
+    EXPECT_NEAR(sample.gpair.size(), sample_rows, kRows * 0.016f);
   }
 
   GradientPair sum_sampled_gpair{};
