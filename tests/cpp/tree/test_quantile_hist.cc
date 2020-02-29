@@ -213,7 +213,7 @@ class QuantileHistMock : public QuantileHistMaker {
       /* Now compare against result given by EvaluateSplit() */
       ExpandEntry node(ExpandEntry::kRootNid, ExpandEntry::kEmptyNid,
           tree.GetDepth(0), snode_[0].best.loss_chg, 0);
-      RealImpl::EvaluateSplit({node}, gmat, hist_, *(*dmat), tree);
+      RealImpl::EvaluateSplits({node}, gmat, hist_, tree);
       ASSERT_EQ(snode_[0].best.SplitIndex(), best_split_feature);
       ASSERT_EQ(snode_[0].best.split_value, gmat.cut.Values()[best_split_threshold]);
 
