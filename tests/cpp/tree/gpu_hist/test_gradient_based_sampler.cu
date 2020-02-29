@@ -40,9 +40,9 @@ void VerifySampling(size_t page_size,
     EXPECT_EQ(sample.page->matrix.n_rows, kRows);
     EXPECT_EQ(sample.gpair.size(), kRows);
   } else {
-    EXPECT_NEAR(sample.sample_rows, sample_rows, kRows * 0.012f);
-    EXPECT_NEAR(sample.page->matrix.n_rows, sample_rows, kRows * 0.012f);
-    EXPECT_NEAR(sample.gpair.size(), sample_rows, kRows * 0.012f);
+    EXPECT_NEAR(sample.sample_rows, sample_rows, kRows * 0.016f);
+    EXPECT_NEAR(sample.page->matrix.n_rows, sample_rows, kRows * 0.016f);
+    EXPECT_NEAR(sample.gpair.size(), sample_rows, kRows * 0.016f);
   }
 
   GradientPair sum_sampled_gpair{};
@@ -52,11 +52,11 @@ void VerifySampling(size_t page_size,
     sum_sampled_gpair += gp;
   }
   if (check_sum) {
-    EXPECT_NEAR(sum_gpair.GetGrad(), sum_sampled_gpair.GetGrad(), 0.02f * kRows);
-    EXPECT_NEAR(sum_gpair.GetHess(), sum_sampled_gpair.GetHess(), 0.02f * kRows);
+    EXPECT_NEAR(sum_gpair.GetGrad(), sum_sampled_gpair.GetGrad(), 0.03f * kRows);
+    EXPECT_NEAR(sum_gpair.GetHess(), sum_sampled_gpair.GetHess(), 0.03f * kRows);
   } else {
-    EXPECT_NEAR(sum_gpair.GetGrad() / kRows, sum_sampled_gpair.GetGrad() / sample_rows, 0.02f);
-    EXPECT_NEAR(sum_gpair.GetHess() / kRows, sum_sampled_gpair.GetHess() / sample_rows, 0.02f);
+    EXPECT_NEAR(sum_gpair.GetGrad() / kRows, sum_sampled_gpair.GetGrad() / sample_rows, 0.03f);
+    EXPECT_NEAR(sum_gpair.GetHess() / kRows, sum_sampled_gpair.GetHess() / sample_rows, 0.03f);
   }
 }
 
