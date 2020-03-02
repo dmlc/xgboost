@@ -121,11 +121,13 @@ void CheckRankingObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
 xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
                                  xgboost::HostDeviceVector<xgboost::bst_float> preds,
                                  std::vector<xgboost::bst_float> labels,
-                                 std::vector<xgboost::bst_float> weights) {
+                                 std::vector<xgboost::bst_float> weights,
+                                 std::vector<xgboost::bst_uint> groups) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
   info.labels_.HostVector() = labels;
   info.weights_.HostVector() = weights;
+  info.group_ptr_ = groups;
 
   return metric->Eval(preds, info, false);
 }

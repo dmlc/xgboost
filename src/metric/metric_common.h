@@ -5,10 +5,30 @@
 #ifndef XGBOOST_METRIC_METRIC_COMMON_H_
 #define XGBOOST_METRIC_METRIC_COMMON_H_
 
+#include <utility>
+#include <vector>
+#include <limits>
+#include <string>
+
 #include "../common/common.h"
+
+namespace {
+
+using PredIndPair = std::pair<xgboost::bst_float, unsigned>;
+using PredIndPairContainer = std::vector<PredIndPair>;
+
+}  // anonymous namespace
 
 namespace xgboost {
 namespace metric {
+
+// Ranking config to be used on device and host
+struct EvalRankConfig {
+ public:
+  unsigned topn{std::numeric_limits<unsigned>::max()};
+  std::string name;
+  bool minus{false};
+};
 
 class PackedReduceResult {
   double residue_sum_;
