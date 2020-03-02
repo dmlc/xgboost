@@ -32,7 +32,6 @@ HistogramCuts GetHostCuts(AdapterT *adapter, int num_bins, float missing) {
   builder.Build(&dmat, num_bins);
   return cuts;
 }
-
 TEST(hist_util, DeviceSketch) {
   int num_rows = 5;
   int num_columns = 1;
@@ -74,7 +73,7 @@ TEST(hist_util, DeviceSketchDeterminism) {
       auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
       auto dmat = GetDMatrixFromData(x, n, 1);
       auto cuts = DeviceSketch(0, dmat.get(), num_bins, 0);
-      ValidateCuts(cuts, x, n, 1, num_bins);
+      ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
 }
@@ -88,7 +87,7 @@ TEST(hist_util, DeviceSketchMultipleColumns) {
     auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
     for (auto num_bins : bin_sizes) {
       auto cuts = DeviceSketch(0, dmat.get(), num_bins, 0);
-      ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
+      ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
 }
@@ -102,7 +101,7 @@ TEST(hist_util, DeviceSketchBatches) {
     auto x = GenerateRandom(num_rows, num_columns);
     auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
     auto cuts = DeviceSketch(0, dmat.get(), num_bins, batch_size);
-    ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
+    ValidateCuts(cuts, dmat.get(), num_bins);
   }
 }
 
@@ -117,7 +116,7 @@ TEST(hist_util, DeviceSketchMultipleColumnsExternal) {
         GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, 100, temp);
     for (auto num_bins : bin_sizes) {
       auto cuts = DeviceSketch(0, dmat.get(), num_bins, 0);
-      ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
+      ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
 }
@@ -152,11 +151,12 @@ TEST(hist_util, AdapterDeviceSketch)
   for (auto n : sizes) {
     for (auto num_categories : categorical_sizes) {
       auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
+      auto dmat = GetDMatrixFromData(x, n, 1);
       auto x_device = thrust::device_vector<float>(x);
       auto adapter = AdapterFromData(x_device, n, 1);
       auto cuts = AdapterDeviceSketch(&adapter, num_bins,
                                       std::numeric_limits<float>::quiet_NaN());
-      ValidateCuts(cuts, x, n, 1, num_bins);
+      ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
 }
@@ -167,12 +167,13 @@ TEST(hist_util, AdapterDeviceSketchMultipleColumns) {
   int num_columns = 5;
   for (auto num_rows : sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
+    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
     auto x_device = thrust::device_vector<float>(x);
     for (auto num_bins : bin_sizes) {
       auto adapter = AdapterFromData(x_device, num_rows, num_columns);
       auto cuts = AdapterDeviceSketch(&adapter, num_bins,
                                       std::numeric_limits<float>::quiet_NaN());
-      ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
+      ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
 }
@@ -183,12 +184,13 @@ TEST(hist_util, AdapterDeviceSketchBatches) {
   int num_columns = 5;
   for (auto batch_size : batch_sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
+    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
     auto x_device = thrust::device_vector<float>(x);
     auto adapter = AdapterFromData(x_device, num_rows, num_columns);
     auto cuts = AdapterDeviceSketch(&adapter, num_bins,
                                     std::numeric_limits<float>::quiet_NaN(),
                                     batch_size);
-    ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
+    ValidateCuts(cuts, dmat.get(), num_bins);
   }
 }
 
