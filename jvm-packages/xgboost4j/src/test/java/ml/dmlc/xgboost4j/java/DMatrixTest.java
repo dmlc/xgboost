@@ -45,7 +45,7 @@ public class DMatrixTest {
     java.util.List<LabeledPoint> blist = new java.util.LinkedList<LabeledPoint>();
     for (int i = 0; i < nrep; ++i) {
       LabeledPoint p = new LabeledPoint(
-              0.1f + i, new int[]{0, 2, 3}, new float[]{3, 4, 5});
+              0.1f + i, 4, new int[]{0, 2, 3}, new float[]{3, 4, 5});
       blist.add(p);
       labelall.add(p.label());
     }
@@ -54,6 +54,30 @@ public class DMatrixTest {
     float[] labels = dmat.getLabel();
     for (int i = 0; i < labels.length; ++i) {
       TestCase.assertTrue(labelall.get(i) == labels[i]);
+    }
+  }
+
+  @Test
+  public void testCreateFromDataIteratorWithDiffFeatureSize() throws XGBoostError {
+    //create DMatrix from DataIterator
+
+    java.util.ArrayList<Float> labelall = new java.util.ArrayList<Float>();
+    int nrep = 3000;
+    java.util.List<LabeledPoint> blist = new java.util.LinkedList<LabeledPoint>();
+    int featureSize = 4;
+    for (int i = 0; i < nrep; ++i) {
+      if (i % 10 == 1) {
+        featureSize = 5;
+      }
+      LabeledPoint p = new LabeledPoint(
+        0.1f + i, featureSize, new int[]{0, 2, 3}, new float[]{3, 4, 5});
+      blist.add(p);
+      labelall.add(p.label());
+    }
+    try {
+      DMatrix dmat = new DMatrix(blist.iterator(), null);
+    } catch (XGBoostError e) {
+
     }
   }
 

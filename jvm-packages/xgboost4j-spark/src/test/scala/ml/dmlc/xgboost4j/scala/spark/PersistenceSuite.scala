@@ -19,13 +19,12 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.io.File
 import java.util.Arrays
 
-import scala.io.Source
-
 import ml.dmlc.xgboost4j.scala.DMatrix
-import scala.util.Random
 
+import scala.util.Random
 import org.apache.spark.ml.feature._
 import org.apache.spark.ml.{Pipeline, PipelineModel}
+import org.apache.spark.sql.functions._
 import org.scalatest.FunSuite
 
 class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
@@ -138,12 +137,21 @@ class PersistenceSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     val modelPath = getClass.getResource("/model/0.82/model").getPath
     val model = XGBoostClassificationModel.read.load(modelPath)
     val r = new Random(0)
-    val df = ss.createDataFrame(Seq.fill(100)(r.nextInt(2)).map(i => (i, i))).
+    var df = ss.createDataFrame(Seq.fill(100)(r.nextInt(2)).map(i => (i, i))).
       toDF("feature", "label")
+    // since 0.82/model has 251 features and xgboost has enabled column check since 1.0.0
+    // we must ensure column number should be same with model's
+    for (x <- 1 to 250) {
+      df = df.withColumn(s"feature_${x}", lit(1))
+    }
     val assembler = new VectorAssembler()
       .setInputCols(df.columns.filter(!_.contains("label")))
       .setOutputCol("features")
-    model.transform(assembler.transform(df)).show()
+    df = assembler.transform(df)
+    for (x <- 1 to 250) {
+      df = df.drop(s"feature_${x}")
+    }
+    model.transform(df).show()
   }
 }
 
