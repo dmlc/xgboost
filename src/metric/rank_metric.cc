@@ -89,20 +89,20 @@ struct EvalAMS : public Metric {
     using namespace std;  // NOLINT(*)
 
     const auto ndata = static_cast<bst_omp_uint>(info.labels_.Size());
-    std::vector<std::pair<bst_float, unsigned> > rec(ndata);
+    PredIndPairContainer rec(ndata);
 
-    const std::vector<bst_float>& h_preds = preds.HostVector();
-#pragma omp parallel for schedule(static)
+    const auto &h_preds = preds.ConstHostVector();
+    #pragma omp parallel for schedule(static)
     for (bst_omp_uint i = 0; i < ndata; ++i) {
       rec[i] = std::make_pair(h_preds[i], i);
     }
-    std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
+    XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
     auto ntop = static_cast<unsigned>(ratio_ * ndata);
     if (ntop == 0) ntop = ndata;
     const double br = 10.0;
     unsigned thresindex = 0;
     double s_tp = 0.0, b_fp = 0.0, tams = 0.0;
-    const auto& labels = info.labels_.HostVector();
+    const auto& labels = info.labels_.ConstHostVector();
     for (unsigned i = 0; i < static_cast<unsigned>(ndata-1) && i < ntop; ++i) {
       const unsigned ridx = rec[i].second;
       const bst_float wt = info.GetWeight(ridx);
@@ -150,7 +150,7 @@ struct EvalAuc : public Metric {
     double sum_auc = 0.0;
     int auc_error = 0;
     const auto& labels = info.labels_.ConstHostVector();
-    const std::vector<bst_float>& h_preds = preds.ConstHostVector();
+    const auto &h_preds = preds.ConstHostVector();
 
     #pragma omp parallel reduction(+:sum_auc, auc_error) if (ngroups > 1)
     {
@@ -227,7 +227,7 @@ struct EvalAuc : public Metric {
     std::vector<unsigned> tgptr(2, 0);
     tgptr[1] = static_cast<unsigned>(info.labels_.Size());
 
-    const std::vector<unsigned> &gptr = info.group_ptr_.empty() ? tgptr : info.group_ptr_;
+    const auto &gptr = info.group_ptr_.empty() ? tgptr : info.group_ptr_;
     CHECK_EQ(gptr.back(), info.labels_.Size())
         << "EvalAuc: group structure must match number of prediction";
 
@@ -258,7 +258,7 @@ struct EvalRank : public Metric, public EvalRankConfig {
     // quick consistency when group is not available
     std::vector<unsigned> tgptr(2, 0);
     tgptr[1] = static_cast<unsigned>(preds.Size());
-    const std::vector<unsigned> &gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
+    const auto &gptr = info.group_ptr_.size() == 0 ? tgptr : info.group_ptr_;
 
     CHECK_NE(gptr.size(), 0U) << "must specify group when constructing rank file";
     CHECK_EQ(gptr.back(), preds.Size())
@@ -268,8 +268,8 @@ struct EvalRank : public Metric, public EvalRankConfig {
     // sum statistics
     double sum_metric = 0.0f;
 
-    const auto& labels = info.labels_.ConstHostVector();
-    const std::vector<bst_float>& h_preds = preds.ConstHostVector();
+    const auto &labels = info.labels_.ConstHostVector();
+    const auto &h_preds = preds.ConstHostVector();
 
     #pragma omp parallel reduction(+:sum_metric)
     {
@@ -418,12 +418,12 @@ struct EvalCox : public Metric {
     using namespace std;  // NOLINT(*)
 
     const auto ndata = static_cast<bst_omp_uint>(info.labels_.Size());
-    const std::vector<size_t> &label_order = info.LabelAbsSort();
+    const auto &label_order = info.LabelAbsSort();
 
     // pre-compute a sum for the denominator
     double exp_p_sum = 0;  // we use double because we might need the precision with large datasets
 
-    const std::vector<bst_float>& h_preds = preds.HostVector();
+    const auto &h_preds = preds.ConstHostVector();
     for (omp_ulong i = 0; i < ndata; ++i) {
       exp_p_sum += h_preds[i];
     }
@@ -431,7 +431,7 @@ struct EvalCox : public Metric {
     double out = 0;
     double accumulated_sum = 0;
     bst_omp_uint num_events = 0;
-    const auto& labels = info.labels_.HostVector();
+    const auto& labels = info.labels_.ConstHostVector();
     for (bst_omp_uint i = 0; i < ndata; ++i) {
       const size_t ind = label_order[i];
       const auto label = labels[ind];
@@ -473,8 +473,8 @@ struct EvalAucPR : public Metric {
     double sum_auc = 0.0;
     int auc_error = 0;
 
-    const auto& h_labels = info.labels_.ConstHostVector();
-    const std::vector<bst_float>& h_preds = preds.ConstHostVector();
+    const auto &h_labels = info.labels_.ConstHostVector();
+    const auto &h_preds = preds.ConstHostVector();
 
     #pragma omp parallel reduction(+:sum_auc, auc_error) if (ngroups > 1)
     {
@@ -567,7 +567,7 @@ struct EvalAucPR : public Metric {
     std::vector<unsigned> tgptr(2, 0);
     tgptr[1] = static_cast<unsigned>(info.labels_.Size());
 
-    const std::vector<unsigned> &gptr = info.group_ptr_.empty() ? tgptr : info.group_ptr_;
+    const auto &gptr = info.group_ptr_.empty() ? tgptr : info.group_ptr_;
     CHECK_EQ(gptr.back(), info.labels_.Size())
         << "EvalAucPR: group structure must match number of prediction";
 
