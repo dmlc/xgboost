@@ -18,6 +18,8 @@ namespace metric {
 // Ranking config to be used on device and host
 struct EvalRankConfig {
  public:
+  // Parsed from metric name, the top-n number of instances within a group after
+  // ranking to use for evaluation.
   unsigned topn{std::numeric_limits<unsigned>::max()};
   std::string name;
   bool minus{false};
