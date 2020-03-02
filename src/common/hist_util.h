@@ -209,6 +209,115 @@ HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
                                   float missing,
                                   size_t sketch_batch_num_elements = 0);
 
+
+enum BinBounds
+{
+  POWER_OF_TWO_8 = 0,
+  POWER_OF_TWO_16,
+  POWER_OF_TWO_32,
+};
+
+struct Index
+{
+  Index(): binBound_(POWER_OF_TWO_8), p_(1)
+  {
+    setBinBound(binBound_);
+  }
+/*  ~Index()
+  {
+    if(data_)
+    {
+      char* delete_ptr = static_cast<char*>(data_);
+      delete [] delete_ptr;
+    }
+    if(disp_)
+      delete [] disp_;
+    data_ = nullptr;
+    disp_ = nullptr;
+  }*/
+  Index(const Index& i) = delete;
+  Index& operator=(Index i) = delete;
+  Index(Index&& i) = delete;
+  Index& operator=(Index&& i) = delete;
+  uint32_t operator[](size_t i) const
+  {
+    return func_(data_ptr_, i) + disp_ptr_[i%p_];
+  }
+  void setBinBound(BinBounds binBound)
+  {
+    binBound_ = binBound;
+    switch(binBound)
+    {
+      case POWER_OF_TWO_8:
+        func_ = &getValueFromUint8;
+        break;
+      case POWER_OF_TWO_16:
+        func_ = &getValueFromUint16;
+        break;
+      case POWER_OF_TWO_32:
+        func_ = &getValueFromUint32;
+        break;
+      default:
+        CHECK(binBound == POWER_OF_TWO_8 || binBound == POWER_OF_TWO_16 || binBound == POWER_OF_TWO_32);
+    }
+  }
+  void setDispSize(size_t p)
+  {
+    p_ = p;
+  }
+  BinBounds getBinBound() const
+  {
+    return binBound_;
+  }
+  template<typename T>
+  T* data() const
+  {
+    return static_cast<T*>(data_ptr_);
+  }
+  uint32_t* disp() const
+  {
+    return disp_ptr_;
+  }
+  size_t dispSize() const
+  {
+    return disp_.size();
+  }
+  void resize(const size_t nBytesData, const size_t nDisps)
+  {
+    //data_ = aligned_alloc(64, nBytesData);
+    //disp_ = (uint32_t*)aligned_alloc(64, sizeof(uint32_t)*nDisps);
+    data_.resize(nBytesData);
+    disp_.resize(nDisps);
+    data_ptr_ = (void*)(data_.data());
+    disp_ptr_ = disp_.data();
+  }
+  private:
+
+  static uint32_t getValueFromUint8(void *t, size_t i)
+  {
+    return ((uint8_t*)t)[i];
+  }
+  static uint32_t getValueFromUint16(void* t, size_t i)
+  {
+    return ((uint16_t*)t)[i];
+  }
+  static uint32_t getValueFromUint32(void* t, size_t i)
+  {
+    return ((uint32_t*)t)[i];
+  }
+
+  typedef uint32_t (*Func)(void*, size_t);
+
+    std::vector<uint8_t> data_;
+    std::vector<uint32_t> disp_;
+    void* data_ptr_;
+    uint32_t* disp_ptr_;
+    size_t p_;
+    BinBounds binBound_;
+    Func func_;
+};
+
+
 /*!
  * \brief preprocessed global index matrix, in CSR format
  *
@@ -219,19 +328,17 @@ struct GHistIndexMatrix {
   /*! \brief row pointer to rows by element position */
   std::vector<size_t> row_ptr;
   /*! \brief The index data */
-  std::vector<uint32_t> index;
+  Index index;
   /*! \brief hit count of each index */
   std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */
   HistogramCuts cut;
   // Create a global histogram matrix, given cut
   void Init(DMatrix* p_fmat, int max_num_bins);
-  // get i-th row
-  inline GHistIndexRow operator[](size_t i) const {
-    return {&index[0] + row_ptr[i],
-            static_cast<GHistIndexRow::index_type>(
-                row_ptr[i + 1] - row_ptr[i])};
-  }
+
+  template<typename T>
+  void setIndexData(T* const index_data, size_t batch_threads, const SparsePage& batch, size_t rbegin, uint32_t* disps, size_t nbins);
+
   inline void GetFeatureCounts(size_t* counts) const {
     auto nfeature = cut.Ptrs().size() - 1;
     for (unsigned fid = 0; fid < nfeature; ++fid) {

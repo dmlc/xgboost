@@ -212,6 +212,7 @@ class QuantileHistMaker: public TreeUpdater {
                         const HistCollection& hist,
                         RegTree* p_tree);
 
+    template <typename T>
     void PartitionKernel(const size_t node_in_set, const size_t nid, common::Range1d range,
                          const int32_t split_cond,
                          const ColumnMatrix& column_matrix, const GHistIndexMatrix& gmat,

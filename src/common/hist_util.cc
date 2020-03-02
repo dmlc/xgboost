@@ -29,6 +29,27 @@
 namespace xgboost {
 namespace common {
 
+template<typename T>
+void GHistIndexMatrix::setIndexData(T* const index_data, size_t batch_threads, const SparsePage& batch, size_t rbegin, uint32_t* disps, size_t nbins)
+{
+  #pragma omp parallel for num_threads(batch_threads) schedule(static)
+    for (omp_ulong i = 0; i < batch.Size(); ++i) {
+      const int tid = omp_get_thread_num();\
+      size_t ibegin = row_ptr[rbegin + i];
+      size_t iend = row_ptr[rbegin + i + 1];
+      SparsePage::Inst inst = batch[i];
+      CHECK_EQ(ibegin + inst.size(), iend);
+      for (bst_uint j = 0; j < inst.size(); ++j) {
+        uint32_t idx = cut.SearchBin(inst[j]);
+        index_data[ibegin + j] = (T)(idx - disps[j]);
+        ++hit_count_tloc_[tid * nbins + idx];
+      }
+    }
+}
+template void GHistIndexMatrix::setIndexData(uint8_t* const, size_t batch_threads, const SparsePage& batch, size_t rbegin, uint32_t* disps, size_t nbins);
+template void GHistIndexMatrix::setIndexData(uint16_t* const, size_t batch_threads, const SparsePage& batch, size_t rbegin, uint32_t* disps, size_t nbins);
+template void GHistIndexMatrix::setIndexData(uint32_t* const, size_t batch_threads, const SparsePage& batch, size_t rbegin, uint32_t* disps, size_t nbins);
+
 HistogramCuts::HistogramCuts() {
   monitor_.Init(__FUNCTION__);
   cut_ptrs_.HostVector().emplace_back(0);
@@ -285,11 +306,18 @@ void DenseCuts::Build(DMatrix* p_fmat, uint32_t max_num_bins) {
             // move to next group
             group_ind++;
           }
-          for (auto const& entry : inst) {
+/*          for (auto const& entry : inst) {
             if (entry.index >= begin && entry.index < end) {
               size_t w_idx = use_group ? group_ind : ridx;
               sketchs[entry.index].Push(entry.fvalue, info.GetWeight(w_idx));
             }
+          }*/
+          size_t w_idx = use_group ? group_ind : ridx;
+          auto w = info.GetWeight(w_idx);
+          auto data = inst.data();
+          for(size_t ii = begin; ii < end; ii++)
+          {
+            sketchs[ii].Push(data[ii].fvalue, w);
           }
         }
       }
@@ -422,11 +450,29 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       }
     }
 
-    index.resize(row_ptr[rbegin + batch.Size()]);
+//    index.resize(row_ptr[rbegin + batch.Size()]);
+    const size_t n_disps = cut.Ptrs().size() - 1;
+    if(max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max()))
+    {
+      index.setBinBound(POWER_OF_TWO_8);
+      index.resize((sizeof(uint8_t)) * row_ptr[rbegin + batch.Size()], n_disps);
+    }
+    else if(max_num_bins - 1 > static_cast<int>(std::numeric_limits<uint8_t>::max()) && 
+            max_num_bins - 1<= static_cast<int>(std::numeric_limits<uint16_t>::max()))
+    {
+      index.setBinBound(POWER_OF_TWO_16);
+      index.resize((sizeof(uint16_t)) * row_ptr[rbegin + batch.Size()], n_disps);
+    }
+    else
+    {
+      index.setBinBound(POWER_OF_TWO_32);
+      index.resize((sizeof(uint32_t)) * row_ptr[rbegin + batch.Size()], n_disps);
+    }
+
 
     CHECK_GT(cut.Values().size(), 0U);
 
-    #pragma omp parallel for num_threads(batch_threads) schedule(static)
+/*    #pragma omp parallel for num_threads(batch_threads) schedule(static)
     for (omp_ulong i = 0; i < batch.Size(); ++i) { // NOLINT(*)
       const int tid = omp_get_thread_num();
       size_t ibegin = row_ptr[rbegin + i];
@@ -437,10 +483,40 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
       for (bst_uint j = 0; j < inst.size(); ++j) {
         uint32_t idx = cut.SearchBin(inst[j]);
 
-        index[ibegin + j] = idx;
+        index[ibegin + j] = idx - cut.Ptrs()[j];
         ++hit_count_tloc_[tid * nbins + idx];
       }
-      std::sort(index.begin() + ibegin, index.begin() + iend);
+      //std::sort(index.begin() + ibegin, index.begin() + iend);
+    }
+*/
+    uint32_t* disps = index.disp();
+    index.setDispSize(n_disps);
+    if(max_num_bins <= 65536)
+    {
+      for(size_t i = 0; i < n_disps; ++i)
+      {
+        disps[i] = cut.Ptrs()[i];
+      }
+    }
+    else
+    {
+      for(size_t i = 0; i < n_disps; ++i)
+      {
+        disps[i] = 0;
+      }
+    }
+
+    switch(index.getBinBound())
+    {
+        case POWER_OF_TWO_8:
+          setIndexData(index.data<uint8_t>(), batch_threads, batch, rbegin, disps, nbins);
+          break;
+        case POWER_OF_TWO_16:
+          setIndexData(index.data<uint16_t>(), batch_threads, batch, rbegin, disps, nbins);
+          break;
+        case POWER_OF_TWO_32:
+          setIndexData(index.data<uint32_t>(), batch_threads, batch, rbegin, disps, nbins);
+          break;
     }
 
     #pragma omp parallel for num_threads(nthread) schedule(static)
@@ -456,8 +532,9 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
   }
 }
 
+template <typename T>
 static size_t GetConflictCount(const std::vector<bool>& mark,
-                               const Column& column,
+                               const Column<T>& column,
                                size_t max_cnt) {
   size_t ret = 0;
   if (column.GetType() == xgboost::common::kDenseColumn) {
@@ -482,8 +559,9 @@ static size_t GetConflictCount(const std::vector<bool>& mark,
   return ret;
 }
 
+template <typename T>
 inline void
-MarkUsed(std::vector<bool>* p_mark, const Column& column) {
+MarkUsed(std::vector<bool>* p_mark, const Column<T>& column) {
   std::vector<bool>& mark = *p_mark;
   if (column.GetType() == xgboost::common::kDenseColumn) {
     for (size_t i = 0; i < column.Size(); ++i) {
@@ -517,7 +595,7 @@ FindGroups(const std::vector<unsigned>& feature_list,
     = static_cast<size_t>(param.max_conflict_rate * nrow);
 
   for (auto fid : feature_list) {
-    const Column& column = colmat.GetColumn(fid);
+//    const Column<uint8_t>& column = colmat.GetColumn<uint8_t>(fid);
 
     const size_t cur_fid_nnz = feature_nnz[fid];
     bool need_new_group = true;
@@ -535,32 +613,95 @@ FindGroups(const std::vector<unsigned>& feature_list,
     }
 
     // examine each candidate group: is it okay to insert fid?
-    for (auto gid : search_groups) {
-      const size_t rest_max_cnt = max_conflict_cnt - group_conflict_cnt[gid];
-      const size_t cnt = GetConflictCount(conflict_marks[gid], column, rest_max_cnt);
-      if (cnt <= rest_max_cnt) {
-        need_new_group = false;
-        groups[gid].push_back(fid);
-        group_conflict_cnt[gid] += cnt;
-        group_nnz[gid] += cur_fid_nnz - cnt;
-        MarkUsed(&conflict_marks[gid], column);
-        break;
-      }
-    }
 
-    // create new group if necessary
-    if (need_new_group) {
-      groups.emplace_back();
-      groups.back().push_back(fid);
-      group_conflict_cnt.push_back(0);
-      conflict_marks.emplace_back(nrow, false);
-      MarkUsed(&conflict_marks.back(), column);
-      group_nnz.emplace_back(cur_fid_nnz);
-    }
+      if(colmat.GetTypeSize() == 1)
+      {
+        const Column<uint8_t>& column1 = colmat.GetColumn<uint8_t>(fid);
+        // examine each candidate group: is it okay to insert fid?
+        for (auto gid : search_groups) {
+          const size_t rest_max_cnt = max_conflict_cnt - group_conflict_cnt[gid];
+          const size_t cnt = GetConflictCount(conflict_marks[gid], column1, rest_max_cnt);
+          if (cnt <= rest_max_cnt) {
+            need_new_group = false;
+            groups[gid].push_back(fid);
+            group_conflict_cnt[gid] += cnt;
+            group_nnz[gid] += cur_fid_nnz - cnt;
+            MarkUsed(&conflict_marks[gid], column1);
+            break;
+          }
+        }
+        // create new group if necessary
+        if (need_new_group) {
+          groups.emplace_back();
+          groups.back().push_back(fid);
+          group_conflict_cnt.push_back(0);
+          conflict_marks.emplace_back(nrow, false);
+          MarkUsed(&conflict_marks.back(), column1);
+          group_nnz.emplace_back(cur_fid_nnz);
+        }
+      }
+      if(colmat.GetTypeSize() == 2)
+      {
+        const Column<uint16_t>& column2 = colmat.GetColumn<uint16_t>(fid);
+        // examine each candidate group: is it okay to insert fid?
+        for (auto gid : search_groups) {
+          const size_t rest_max_cnt = max_conflict_cnt - group_conflict_cnt[gid];
+          const size_t cnt = GetConflictCount(conflict_marks[gid], column2, rest_max_cnt);
+          if (cnt <= rest_max_cnt) {
+            need_new_group = false;
+            groups[gid].push_back(fid);
+            group_conflict_cnt[gid] += cnt;
+            group_nnz[gid] += cur_fid_nnz - cnt;
+            MarkUsed(&conflict_marks[gid], column2);
+            break;
+          }
+        }
+        // create new group if necessary
+        if (need_new_group) {
+          groups.emplace_back();
+          groups.back().push_back(fid);
+          group_conflict_cnt.push_back(0);
+          conflict_marks.emplace_back(nrow, false);
+          MarkUsed(&conflict_marks.back(), column2);
+          group_nnz.emplace_back(cur_fid_nnz);
+        }
+      }
+      if(colmat.GetTypeSize() == 4)
+      {
+        const Column<uint32_t>& column4 = colmat.GetColumn<uint32_t>(fid);
+        // examine each candidate group: is it okay to insert fid?
+        for (auto gid : search_groups) {
+          const size_t rest_max_cnt = max_conflict_cnt - group_conflict_cnt[gid];
+          const size_t cnt = GetConflictCount(conflict_marks[gid], column4, rest_max_cnt);
+          if (cnt <= rest_max_cnt) {
+            need_new_group = false;
+            groups[gid].push_back(fid);
+            group_conflict_cnt[gid] += cnt;
+            group_nnz[gid] += cur_fid_nnz - cnt;
+            MarkUsed(&conflict_marks[gid], column4);
+            break;
+          }
+        }
+        // create new group if necessary
+        if (need_new_group) {
+          groups.emplace_back();
+          groups.back().push_back(fid);
+          group_conflict_cnt.push_back(0);
+          conflict_marks.emplace_back(nrow, false);
+          MarkUsed(&conflict_marks.back(), column4);
+          group_nnz.emplace_back(cur_fid_nnz);
+        }
+      }
   }
 
   return groups;
 }
+
+/*template <typename T>
+inline void SetGroup(const size_t max_conflict_cnt, std::vector<size_t>& search_groups,
+  std::vector<size_t>& group_conflict_cnt, std::vector<std::vector<bool>>& conflict_marks ...)
+{
+}*/
 
 inline std::vector<std::vector<unsigned>>
 FastFeatureGrouping(const GHistIndexMatrix& gmat,
@@ -733,9 +874,9 @@ struct Prefetch {
  public:
   static constexpr size_t kCacheLineSize = 64;
   static constexpr size_t kPrefetchOffset = 10;
-  static constexpr size_t kPrefetchStep =
+/*  static constexpr size_t kPrefetchStep =
       kCacheLineSize / sizeof(decltype(GHistIndexMatrix::index)::value_type);
-
+*/
  private:
   static constexpr size_t kNoPrefetchSize =
       kPrefetchOffset + kCacheLineSize /
@@ -749,7 +890,13 @@ struct Prefetch {
 
 constexpr size_t Prefetch::kNoPrefetchSize;
 
-template<typename FPType, bool do_prefetch>
+template <typename T>
+size_t getPrefetchStep()
+{
+  return Prefetch::kCacheLineSize / sizeof(T);
+}
+
+template<typename FPType, bool do_prefetch, typename T>
 void BuildHistDenseKernel(const std::vector<GradientPair>& gpair,
                           const RowSetCollection::Elem row_indices,
                           const GHistIndexMatrix& gmat,
@@ -758,9 +905,10 @@ void BuildHistDenseKernel(const std::vector<GradientPair>& gpair,
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
   const float* pgh = reinterpret_cast<const float*>(gpair.data());
-  const uint32_t* gradient_index = gmat.index.data();
+  const T* gradient_index = gmat.index.data<T>();
+  const uint32_t* disp = gmat.index.disp();
   FPType* hist_data = reinterpret_cast<FPType*>(hist.data());
-
+  const size_t prefetch_step = getPrefetchStep<T>();
   const uint32_t two {2};  // Each element from 'gpair' and 'hist' contains
                            // 2 FP values: gradient and hessian.
                            // So we need to multiply each row-index/bin-index by 2
@@ -775,13 +923,13 @@ void BuildHistDenseKernel(const std::vector<GradientPair>& gpair,
 
       PREFETCH_READ_T0(pgh + two * rid[i + Prefetch::kPrefetchOffset]);
       for (size_t j = icol_start_prefetch; j < icol_start_prefetch + n_features;
-           j += Prefetch::kPrefetchStep) {
+           j += prefetch_step) {
         PREFETCH_READ_T0(gradient_index + j);
       }
     }
-
+    size_t jd = 0;
     for (size_t j = icol_start; j < icol_start + n_features; ++j) {
-      const uint32_t idx_bin = two * gradient_index[j];
+      const uint32_t idx_bin = two * ((uint32_t)(gradient_index[j]) + disp[jd++]);
 
       hist_data[idx_bin]   += pgh[idx_gh];
       hist_data[idx_bin+1] += pgh[idx_gh+1];
@@ -789,7 +937,7 @@ void BuildHistDenseKernel(const std::vector<GradientPair>& gpair,
   }
 }
 
-template<typename FPType, bool do_prefetch>
+template<typename FPType, bool do_prefetch, typename T>
 void BuildHistSparseKernel(const std::vector<GradientPair>& gpair,
                            const RowSetCollection::Elem row_indices,
                            const GHistIndexMatrix& gmat,
@@ -797,10 +945,12 @@ void BuildHistSparseKernel(const std::vector<GradientPair>& gpair,
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
   const float* pgh = reinterpret_cast<const float*>(gpair.data());
-  const uint32_t* gradient_index = gmat.index.data();
+  const T* gradient_index = gmat.index.data<T>();
+  const uint32_t* disp = gmat.index.disp();
+  const size_t nfeatures = gmat.index.dispSize();
   const size_t* row_ptr =  gmat.row_ptr.data();
   FPType* hist_data = reinterpret_cast<FPType*>(hist.data());
-
+  const size_t prefetch_step = getPrefetchStep<T>();
   const uint32_t two {2};  // Each element from 'gpair' and 'hist' contains
                            // 2 FP values: gradient and hessian.
                            // So we need to multiply each row-index/bin-index by 2
@@ -816,13 +966,13 @@ void BuildHistSparseKernel(const std::vector<GradientPair>& gpair,
       const size_t icol_end_prefect = row_ptr[rid[i+Prefetch::kPrefetchOffset]+1];
 
       PREFETCH_READ_T0(pgh + two * rid[i + Prefetch::kPrefetchOffset]);
-      for (size_t j = icol_start_prftch; j < icol_end_prefect; j+=Prefetch::kPrefetchStep) {
+      for (size_t j = icol_start_prftch; j < icol_end_prefect; j+=prefetch_step) {
         PREFETCH_READ_T0(gradient_index + j);
       }
     }
-
+    size_t jd = 0;
     for (size_t j = icol_start; j < icol_end; ++j) {
-      const uint32_t idx_bin = two * gradient_index[j];
+      const uint32_t idx_bin = two * ((uint32_t)(gradient_index[j]) + disp[jd/nfeatures]);
       hist_data[idx_bin]   += pgh[idx_gh];
       hist_data[idx_bin+1] += pgh[idx_gh+1];
     }
@@ -836,9 +986,31 @@ void BuildHistKernel(const std::vector<GradientPair>& gpair,
   if (row_indices.Size() && isDense) {
     const size_t* row_ptr =  gmat.row_ptr.data();
     const size_t n_features = row_ptr[row_indices.begin[0]+1] - row_ptr[row_indices.begin[0]];
-    BuildHistDenseKernel<FPType, do_prefetch>(gpair, row_indices, gmat, n_features, hist);
+    switch(gmat.index.getBinBound())
+    {
+      case POWER_OF_TWO_8:
+        BuildHistDenseKernel<FPType, do_prefetch, uint8_t>(gpair, row_indices, gmat, n_features, hist);
+        break;
+      case POWER_OF_TWO_16:
+        BuildHistDenseKernel<FPType, do_prefetch, uint16_t>(gpair, row_indices, gmat, n_features, hist);
+        break;
+      case POWER_OF_TWO_32:
+        BuildHistDenseKernel<FPType, do_prefetch, uint32_t>(gpair, row_indices, gmat, n_features, hist);
+        break;
+    }
   } else {
-    BuildHistSparseKernel<FPType, do_prefetch>(gpair, row_indices, gmat, hist);
+    switch(gmat.index.getBinBound())
+    {
+      case POWER_OF_TWO_8:
+        BuildHistSparseKernel<FPType, do_prefetch, uint8_t>(gpair, row_indices, gmat, hist);
+        break;
+      case POWER_OF_TWO_16:
+        BuildHistSparseKernel<FPType, do_prefetch, uint16_t>(gpair, row_indices, gmat, hist);
+        break;
+      case POWER_OF_TWO_32:
+        BuildHistSparseKernel<FPType, do_prefetch, uint32_t>(gpair, row_indices, gmat, hist);
+        break;
+    }
   }
 }
 
@@ -875,7 +1047,7 @@ void GHistBuilder::BuildBlockHist(const std::vector<GradientPair>& gpair,
   const size_t nblock = gmatb.GetNumBlock();
   const size_t nrows = row_indices.end - row_indices.begin;
   const size_t rest = nrows % kUnroll;
-
+printf("\nBuildBlockHist!!!\n");
 #if defined(_OPENMP)
   const auto nthread = static_cast<bst_omp_uint>(this->nthread_);  // NOLINT
 #endif  // defined(_OPENMP)
