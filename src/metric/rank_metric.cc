@@ -17,6 +17,9 @@
 
 namespace {
 
+using PredIndPair = std::pair<xgboost::bst_float, uint32_t>;
+using PredIndPairContainer = std::vector<PredIndPair>;
+
 /*
  * Adapter to access instance weights.
  *
@@ -496,17 +499,18 @@ struct EvalAucPR : public Metric {
           rec[j - gptr[group_id]] = {h_preds[j], j};
         }
 
+        // we need pos > 0 && neg > 0
+        if (total_pos <= 0.0 || total_neg <= 0.0) {
+          auc_error += 1;
+          continue;
+        }
+
         if (omp_in_parallel()) {
           std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
         } else {
           XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
         }
 
-        // we need pos > 0 && neg > 0
-        if (total_pos <= 0.0 || total_neg <= 0.0) {
-          auc_error += 1;
-          continue;
-        }
         // calculate AUC
         double tp = 0.0, prevtp = 0.0, fp = 0.0, prevfp = 0.0, h = 0.0, a = 0.0, b = 0.0;
         for (size_t j = 0; j < rec.size(); ++j) {
