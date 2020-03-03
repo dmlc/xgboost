@@ -203,10 +203,10 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat,
 
     std::vector<float> sorted_column(col.size());
     std::vector<float> sorted_weights(col.size(), 1.0);
-    for (auto i = 0ull; i < col.size(); i++) {
-      sorted_column[i] = col[index[i]];
+    for (auto j = 0ull; j < col.size(); j++) {
+      sorted_column[j] = col[index[j]];
       if (w.size() == col.size()) {
-        sorted_weights[i] = w[index[i]];
+        sorted_weights[j] = w[index[j]];
       }
     }
 

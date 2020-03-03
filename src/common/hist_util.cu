@@ -48,8 +48,7 @@ struct SketchContainer {
   SketchContainer(int max_bin, size_t num_columns, size_t num_rows) {
     // Initialize Sketches for this dmatrix
     sketches_.resize(num_columns);
-#pragma omp parallel for default(none) shared(max_bin) \
-    schedule(static) if (num_columns > kOmpNumColsParallelizeLimit)  // NOLINT
+#pragma omp parallel for schedule(static) if (num_columns > kOmpNumColsParallelizeLimit)  // NOLINT
     for (int icol = 0; icol < num_columns; ++icol) {                 // NOLINT
       sketches_[icol].Init(num_rows, 1.0 / (8 * max_bin));
     }
@@ -67,7 +66,7 @@ struct SketchContainer {
   void Push(size_t entries_per_column,
             const thrust::host_vector<SketchEntry>& entries,
             const thrust::host_vector<size_t>& column_scan) {
-#pragma omp parallel for default(none) schedule(static) if (sketches_.size() > SketchContainer::kOmpNumColsParallelizeLimit)  // NOLINT
+#pragma omp parallel for schedule(static) if (sketches_.size() > SketchContainer::kOmpNumColsParallelizeLimit)  // NOLINT
     for (int icol = 0; icol < sketches_.size(); ++icol) {
       size_t column_size = column_scan[icol + 1] - column_scan[icol];
       if (column_size == 0) continue;
@@ -136,7 +135,7 @@ void ExtractCuts(int device, Span<SketchEntry> cuts,
     size_t column_size =
         column_sizes_scan[column_idx + 1] - column_sizes_scan[column_idx];
     size_t num_available_cuts =
-        std::min(size_t(num_cuts_per_feature), column_size);
+        min(size_t(num_cuts_per_feature), column_size);
     size_t cut_idx = idx % num_cuts_per_feature;
     if (cut_idx >= num_available_cuts) return;
 
@@ -169,7 +168,7 @@ void ExtractWeightedCuts(int device, Span<SketchEntry> cuts,
     size_t column_size =
         column_sizes_scan[column_idx + 1] - column_sizes_scan[column_idx];
     size_t num_available_cuts =
-        std::min(size_t(num_cuts_per_feature), column_size);
+        min(size_t(num_cuts_per_feature), column_size);
     size_t cut_idx = idx % num_cuts_per_feature;
     if (cut_idx >= num_available_cuts) return;
 
@@ -197,7 +196,7 @@ void ExtractWeightedCuts(int device, Span<SketchEntry> cuts,
                                        column_weights.end(), rank) -
                    column_weights.begin() - 1;
       sample_idx =
-          std::max(0llu, std::min(sample_idx, column_entries.size() - 1));
+          max(size_t(0), min(sample_idx, column_entries.size() - 1));
     }
     // repeated values will be filtered out on the CPU
     bst_float rmin = sample_idx > 0 ? column_weights[sample_idx - 1] : 0;
@@ -312,7 +311,7 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
     size_t batch_nnz = batch.data.ConstHostVector().size();
     for (auto begin = 0ull; begin < batch_nnz;
          begin += sketch_batch_num_elements) {
-      size_t end = std::min(batch_nnz, begin + sketch_batch_num_elements);
+      size_t end = std::min(batch_nnz, size_t(begin + sketch_batch_num_elements));
       if (dmat->Info().weights_.Size() > 0) {
         ProcessWeightedBatch(
             device, batch, dmat->Info().weights_.ConstDeviceSpan(), begin, end,
@@ -377,7 +376,7 @@ void ProcessBatch(AdapterT* adapter, size_t begin, size_t end, float missing,
   auto d_column_sizes_scan = column_sizes_scan.data().get();
   IsValidFunctor is_valid(missing);
   dh::LaunchN(adapter->DeviceIdx(), end - begin, [=] __device__(size_t idx) {
-    auto& e = batch_iter[begin + idx];
+    auto e = batch_iter[begin + idx];
     if (is_valid(e)) {
       atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
                     &d_column_sizes_scan[e.column_idx]),
@@ -438,7 +437,7 @@ HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
   }
   for (auto begin = 0ull; begin < batch.Size();
        begin += sketch_batch_num_elements) {
-    size_t end = std::min(batch.Size(), begin + sketch_batch_num_elements);
+    size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
     ProcessBatch(adapter, begin, end, missing, &sketch_container, num_cuts);
   }
 
