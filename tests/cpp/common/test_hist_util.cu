@@ -81,10 +81,26 @@ TEST(hist_util, DeviceSketchDeterminism) {
 TEST(hist_util, DeviceSketchMultipleColumns) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
-  int num_columns = 2;
+  int num_columns = 5;
   for (auto num_rows : sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
     auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
+    for (auto num_bins : bin_sizes) {
+      auto cuts = DeviceSketch(0, dmat.get(), num_bins, 0);
+      ValidateCuts(cuts, dmat.get(), num_bins);
+    }
+  }
+
+}
+
+TEST(hist_util, DeviceSketchMultipleColumnsWeights) {
+  int bin_sizes[] = {2, 16, 256, 512};
+  int sizes[] = {100, 1000, 1500};
+  int num_columns = 5;
+  for (auto num_rows : sizes) {
+    auto x = GenerateRandom(num_rows, num_columns);
+    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
+    dmat->Info().weights_.HostVector() = GenerateRandomWeights(num_rows);
     for (auto num_bins : bin_sizes) {
       auto cuts = DeviceSketch(0, dmat.get(), num_bins, 0);
       ValidateCuts(cuts, dmat.get(), num_bins);
@@ -108,7 +124,7 @@ TEST(hist_util, DeviceSketchBatches) {
 TEST(hist_util, DeviceSketchMultipleColumnsExternal) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
-  int num_columns = 2;
+  int num_columns =5;
   for (auto num_rows : sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
     dmlc::TemporaryDirectory temp;
@@ -120,7 +136,6 @@ TEST(hist_util, DeviceSketchMultipleColumnsExternal) {
     }
   }
 }
-
 
 TEST(hist_util, AdapterDeviceSketch)
 {

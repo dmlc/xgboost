@@ -120,7 +120,8 @@ inline void TestBinDistribution(const HistogramCuts& cuts, int column_idx,
   // Test sketch quantiles against the real quantiles
   // Not a very strict test
 inline void TestRank(const std::vector<float>& cuts,
-              const std::vector<float>& sorted_x,const std::vector<float >&sorted_weights) {
+                     const std::vector<float>& sorted_x,
+                     const std::vector<float>& sorted_weights) {
   double eps = 0.05;
   auto total_weight =
       std::accumulate(sorted_weights.begin(), sorted_weights.end(), 0.0);

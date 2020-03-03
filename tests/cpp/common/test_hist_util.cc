@@ -267,10 +267,8 @@ TEST(hist_util, DenseCutsAccuracyTest) {
 }
 
 TEST(hist_util, DenseCutsAccuracyTestWeights) {
-  //int bin_sizes[] = {2, 16, 256, 512};
-  //int sizes[] = {100, 1000, 1500};
-  int bin_sizes[] = {2};
-  int sizes[] = {100};
+  int bin_sizes[] = {2, 16, 256, 512};
+  int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
   for (auto num_rows : sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
