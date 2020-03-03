@@ -158,12 +158,11 @@ struct EvalAMS : public Metric {
 
 /*! \brief Area Under Curve, for both classification and rank computed on CPU */
 struct EvalAuc : public Metric {
- public:
+ private:
   // This is used to compute the AUC metrics on the GPU - for ranking tasks and
   // for training jobs that run on the GPU.
   std::unique_ptr<xgboost::Metric> auc_gpu_;
 
- private:
   template <typename WeightPolicy>
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
