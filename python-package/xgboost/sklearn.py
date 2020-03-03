@@ -111,7 +111,7 @@ __model_doc = '''
         Used for boosting random forest.
     monotone_constraints : str
         Constraint of variable monotonicity.  See tutorial for more
-        information.c
+        information.
     interaction_constraints : str
         Constraints for interaction representing permitted interactions.  The
         constraints must be specified in the form of a nest list, e.g. [[0, 1],
