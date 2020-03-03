@@ -206,9 +206,9 @@ void SparseCuts::Concat(
   size_t min_vals_tail = 0;
 
   for (uint32_t t = 0; t < nthreads; ++t) {
-  auto &thread_min_vals = cuts[t]->p_cuts_->min_vals_.HostVector();
-  auto &thread_cuts = cuts[t]->p_cuts_->cut_values_.HostVector();
-  auto &thread_ptrs = cuts[t]->p_cuts_->cut_ptrs_.HostVector();
+    auto& thread_min_vals = cuts[t]->p_cuts_->min_vals_.HostVector();
+    auto& thread_cuts = cuts[t]->p_cuts_->cut_values_.HostVector();
+    auto& thread_ptrs = cuts[t]->p_cuts_->cut_ptrs_.HostVector();
 
     // concat csc pointers.
     size_t const old_ptr_size = local_ptrs.size();
