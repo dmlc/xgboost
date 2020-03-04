@@ -76,6 +76,20 @@ void TestDeviceSketch(bool use_external_memory) {
     ASSERT_LT(fabs(hmat_cpu.Values()[i] - hmat_gpu.Values()[i]), eps * nrows);
   }
 
+  // Determinstic
+  size_t constexpr kRounds { 100 };
+  for (size_t r = 0; r < kRounds; ++r) {
+    HistogramCuts new_sketch;
+    DeviceSketch(device, max_bin, gpu_batch_nrows, dmat->get(), &new_sketch);
+    ASSERT_EQ(hmat_gpu.Values().size(), new_sketch.Values().size());
+    for (size_t i = 0; i < hmat_gpu.Values().size(); ++i) {
+      ASSERT_EQ(hmat_gpu.Values()[i], new_sketch.Values()[i]);
+    }
+    for (size_t i = 0; i < hmat_gpu.MinValues().size(); ++i) {
+      ASSERT_EQ(hmat_gpu.MinValues()[i], new_sketch.MinValues()[i]);
+    }
+  }
+
   delete dmat;
 }
 

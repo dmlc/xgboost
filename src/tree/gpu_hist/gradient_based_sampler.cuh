@@ -25,6 +25,7 @@ class SamplingStrategy {
  public:
   /*! \brief Sample from a DMatrix based on the given gradient pairs. */
   virtual GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) = 0;
+  virtual ~SamplingStrategy() = default;
 };
 
 /*! \brief No sampling in in-memory mode. */
