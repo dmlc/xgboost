@@ -65,7 +65,7 @@ This release marks a major milestone for the XGBoost project.
 * All core logic of XGBoost is written in C++, so XGBoost4J-Spark internally uses the C++ code via Java Native Interface (JNI). #4560 adds a proper error handling for any errors or exceptions arising from the C++ code, so that the XGBoost Spark application can be torn down in an orderly fashion.
 
 ### XGBoost4J-Spark: Refine method to count the number of alive cores  (#4858)
-* The `SparkParallelismTracker` class ensures that sufficient number of executore cores are alive. To that end, it is important to query the number of alive cores reliably.
+* The `SparkParallelismTracker` class ensures that sufficient number of executor cores are alive. To that end, it is important to query the number of alive cores reliably.
 
 ### XGBoost4J: Add `BigDenseMatrix` to store more than `Integer.MAX_VALUE` elements (#4383)
 
