@@ -32,6 +32,7 @@ This release marks a major milestone for the XGBoost project.
 * [cuDF](https://github.com/rapidsai/cudf) is a data frame library for loading and processing tabular data on NVIDIA GPUs. It provides a Pandas-like API.
 * [cuPy](https://github.com/cupy/cupy) implements a NumPy-compatible multi-dimensional array on NVIDIA GPUs.
 * Now users can keep the data on the GPU memory throughout the end-to-end data pipeline, obviating the need for copying data between the main memory and GPU memory.
+* XGBoost can accept any data structure that exposes `__array_interface__` signature, opening way to support other columar formats that are compatible with Apache Arrow.
 
 ### [Feature interaction constraint](https://xgboost.readthedocs.io/en/release_1.0.0/tutorials/feature_interaction_constraint.html) is now available with `approx` and `gpu_hist` algorithms (#4534, #4587, #4596, #5034).
 
@@ -85,9 +86,9 @@ This release marks a major milestone for the XGBoost project.
 * We now provide a robust method to save and load scikit-learn related attributes (#5245). Previously, we used Python pickle to save Python attributes related to `XGBClassifier`, `XGBRegressor`, and `XGBRanker` objects. The attributes are necessary to properly interact with scikit-learn. See #4639 for more details. The use of pickling hampered interoperability, as a pickle from one machine may not necessarily work on another machine. Starting with this release, we use an alternative method to serialize the scikit-learn related attributes. The use of Python pickle is now discouraged (#5236, #5281).
 
 ### Parameter validation: detection of unused or incorrect parameters (#4553, #4577, #4738, #4801, #4961, #5101, #5157, #5167, #5256)
-* Mis-spelled training parameter is a common user mistake. In previous versions of XGBoost, mis-spelled parameters were silently ignored. Starting with 1.0.0 release, XGBoost will produce a warning message if there is any unused training parameters.
+* Mis-spelled training parameter is a common user mistake. In previous versions of XGBoost, mis-spelled parameters were silently ignored. Starting with 1.0.0 release, XGBoost will produce a warning message if there is any unused training parameters. Currently, parameter validation is available to R users and Python XGBoost API users. We are working to extend its support to scikit-learn users.
 * Configuration steps now have well-defined semantics (#4542, #4738), so we know exactly where and how the internal configurable parameters are changed.
-* The user can now use `get_params()` function to inspect all training parameters. This is helpful for debugging model performance.
+* The user can now use `save_config()` function to inspect all (used) training parameters. This is helpful for debugging model performance.
 
 ### Allow individual workers to recover from faults (#4808, #4966)
 * Status quo: if a worker fails, all workers are shut down and restarted, and learning resumes from the last checkpoint. This involves requesting resources from the scheduler (e.g. Spark) and shuffling all the data again from scratch. Both of these operations can be quite costly and block training for extended periods of time, especially if the training data is big and the number of worker nodes is in the hundreds.
@@ -107,6 +108,7 @@ This release marks a major milestone for the XGBoost project.
 ### Major refactoring of the `DMatrix` class (#4686, #4744, #4748, #5044, #5092, #5108, #5188, #5198)
 * Goal 1: improve performance and reduce memory consumption. Right now, if the user trains a model with a NumPy array as training data, the array gets copies 2-3 times before training begins. We'd like to reduce duplication of the data matrix.
 * Goal 2: Expose a common interface to external data, unify the way DMatrix objects are constructed and simplify the process of adding new external data sources. This work is essential for ingesting cuPy arrays.
+* Goal 3: Handle missing values consistently.
 * RFC: #4354, Roadmap: #5143
 * This work is also relevant to external memory support on GPUs.
 
@@ -123,6 +125,11 @@ This release marks a major milestone for the XGBoost project.
 * ``learning_rates`` parameter in Python (#5155). Use the callback API instead.
 * ``num_roots`` (#5059, #5165), since the current training code always uses a single root node.
 * GPU-specific objectives (#4690), such as `gpu:reg:linear`. Use objectives without `gpu:` prefix; GPU will be used automatically if your machine has one.
+
+### Breaking: the C API function `XGBoosterPredict()` now asks for an extra parameter `training`.
+
+### Breaking: We now use CMake exclusively to build XGBoost. `Makefile` is being sunset.
+* Exception: the R package uses Autotools, as the CRAN ecosystem did not yet adopt CMake widely.
 
 ### Performance improvements
 * Smarter choice of histogram construction for distributed `gpu_hist` (#4519)
@@ -162,6 +169,7 @@ This release marks a major milestone for the XGBoost project.
 * C++ exceptions should not crash OpenMP loops (#4960)
 * Fix `usegpu` flag in DART. (#4984)
 * Run training with empty `DMatrix` (#4990, #5159)
+* Ensure that no two processes can use the same GPU (#4990)
 * Fix repeated split and 0 cover nodes (#5010)
 * Reset histogram hit counter between multiple data batches (#5035)
 * Fix `feature_name` crated from int64index dataframe. (#5081)
