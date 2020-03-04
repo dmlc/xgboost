@@ -3,6 +3,7 @@ ARG CMAKE_VERSION=3.12
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
+SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 
 # Install all basic requirements
 RUN \
@@ -19,10 +20,16 @@ ENV PATH=/opt/python/bin:$PATH
 
 ENV GOSU_VERSION 1.10
 
-# Install Python packages
+# Create new Conda environment with Python 3.5
+RUN conda create -n py35 python=3.5 && \
+    source activate py35 && \
+    pip install numpy pytest scipy scikit-learn pandas matplotlib wheel kubernetes urllib3 graphviz && \
+    source deactivate
+
+# Install Python packages in default env
 RUN \
     pip install pyyaml cpplint pylint astroid sphinx numpy scipy pandas matplotlib sh \
-    		recommonmark guzzle_sphinx_theme mock breathe matplotlib graphviz \
+    		recommonmark guzzle_sphinx_theme mock breathe graphviz \
 		pytest scikit-learn wheel kubernetes urllib3 jsonschema boto3 && \
     pip install https://h2o-release.s3.amazonaws.com/datatable/stable/datatable-0.7.0/datatable-0.7.0-cp37-cp37m-linux_x86_64.whl && \
     pip install "dask[complete]"
