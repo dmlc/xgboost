@@ -19,7 +19,7 @@ contributors = set()
 reviewers = set()
 
 for line in git.log(f'{from_commit}..{to_commit}', '--pretty=format:%s', '--reverse'):
-    m = re.search('\(#([0-9]+)\)', line.rstrip())
+    m = re.search('\(#([0-9]+)\)$', line.rstrip())
     if m:
         pr_id = m.group(1)
         print(f'PR #{pr_id}')

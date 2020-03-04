@@ -16,12 +16,12 @@
 #include "xgboost/base.h"
 #include "xgboost/tree_model.h"
 
-#if defined(XGBOOST_STRICT_R_MODE)
+#if defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
 #define OBSERVER_PRINT LOG(INFO)
 #define OBSERVER_ENDL ""
 #define OBSERVER_NEWLINE ""
 #else
-#define OBSERVER_PRINT std::cout
+#define OBSERVER_PRINT std::cout << std::setprecision(17)
 #define OBSERVER_ENDL std::endl
 #define OBSERVER_NEWLINE "\n"
 #endif  // defined(XGBOOST_STRICT_R_MODE)

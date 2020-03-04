@@ -734,6 +734,7 @@ class LearnerImpl : public Learner {
 
     monitor_.Start("PredictRaw");
     this->PredictRaw(train.get(), &predt, true);
+    TrainingObserver::Instance().Observe(predt.predictions, "Predictions");
     monitor_.Stop("PredictRaw");
 
     monitor_.Start("GetGradient");

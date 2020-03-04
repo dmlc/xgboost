@@ -1682,7 +1682,6 @@ class Booster(object):
         if importance_type == 'weight':
             # do a simpler tree dump to save time
             trees = self.get_dump(fmap, with_stats=False)
-
             fmap = {}
             for tree in trees:
                 for line in tree.split('\n'):

@@ -230,6 +230,20 @@ Parameters for Tree Booster
     list is a group of indices of features that are allowed to interact with each other.
     See tutorial for more information
 
+Additional parameters for `gpu_hist` tree method
+================================================
+
+* ``single_precision_histogram``, [default=``false``]
+
+  - Use single precision to build histograms.  See document for GPU support for more details.
+
+* ``deterministic_histogram``, [default=``true``]
+
+  - Build histogram on GPU deterministically.  Histogram building is not deterministic due
+    to the non-associative aspect of floating point summation.  We employ a pre-rounding
+    routine to mitigate the issue, which may lead to slightly lower accuracy.  Set to
+    ``false`` to disable it.
+
 Additional parameters for Dart Booster (``booster=dart``)
 =========================================================
 

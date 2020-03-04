@@ -21,6 +21,7 @@ Here are guidelines for contributing to various aspect of the XGBoost project:
   :maxdepth: 2
 
   Community Guideline <community>
+  donate
   coding_guide
   unit_tests
   Docs and Examples <docs>
