@@ -54,7 +54,7 @@ def run(command, **kwargs):
 def cp(source, target):
     source = normpath(source)
     target = normpath(target)
-    print("cp {0} {1}".format(source, target))
+    print(f"cp {source} {target}")
     shutil.copy(source, target)
 
 
@@ -88,7 +88,7 @@ if __name__ == "__main__":
             else:
                 maybe_parallel_build = ""
 
-            args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
+            args = [f"-D{k}:BOOL={v}" for k, v in CONFIG.items()]
 
             # if enviorment set rabit_mock
             if os.getenv("RABIT_MOCK", None) is not None:
@@ -117,8 +117,8 @@ if __name__ == "__main__":
     print("copying train/test files")
     maybe_makedirs("xgboost4j-spark/src/test/resources")
     with cd("../demo/regression"):
-        run("{} mapfeat.py".format(sys.executable))
-        run("{} mknfold.py machine.txt 1".format(sys.executable))
+        run(f"{sys.executable} mapfeat.py")
+        run(f"{sys.executable} mknfold.py machine.txt 1")
 
     for file in glob.glob("../demo/regression/machine.txt.t*"):
         cp(file, "xgboost4j-spark/src/test/resources")

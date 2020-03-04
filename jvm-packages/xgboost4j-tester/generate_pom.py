@@ -203,7 +203,7 @@ pom_template = """
 
 if __name__ == '__main__':
   if len(sys.argv) != 7:
-    print('Usage: {} [xgboost4j version] [maven compiler source level] [maven compiler target level] [spark version] [scala version] [scala binary version]'.format(sys.argv[0]))
+    print(f'Usage: {sys.argv[0]} [xgboost4j version] [maven compiler source level] [maven compiler target level] [spark version] [scala version] [scala binary version]')
     sys.exit(1)
   with open('pom.xml', 'w') as f:
     print(pom_template.format(xgboost4j_version=sys.argv[1],
