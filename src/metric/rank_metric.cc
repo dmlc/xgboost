@@ -308,13 +308,16 @@ struct EvalRank : public Metric, public EvalRankConfig {
     double sum_metric = 0.0f;
 
     // Check and see if we have the GPU metric registered in the internal registry
-    if (tparam_->gpu_id >= 0 && !rank_gpu_) {
-      rank_gpu_.reset(GPUMetric::CreateGPUMetric(this->Name(), tparam_));
+    if (tparam_->gpu_id >= 0) {
+      if (!rank_gpu_) {
+        rank_gpu_.reset(GPUMetric::CreateGPUMetric(this->Name(), tparam_));
+      }
+      if (rank_gpu_) {
+        sum_metric = rank_gpu_->Eval(preds, info, distributed);
+      }
     }
 
-    if (rank_gpu_) {
-      sum_metric = rank_gpu_->Eval(preds, info, distributed);
-    } else {
+    if (!rank_gpu_ || tparam_->gpu_id < 0) {
       const auto &labels = info.labels_.ConstHostVector();
       const auto &h_preds = preds.ConstHostVector();
 
