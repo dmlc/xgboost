@@ -27,4 +27,4 @@ num_round = 4
 bst = xgb.train(param, dtrain, num_round, watchlist)
 preds = bst.predict(dtest)
 labels = dtest.get_label()
-print('error=%f' % (sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))))
+print(f'error={sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))}')

@@ -40,7 +40,7 @@ for k, v in res:
     else:
         lb = 'b'
     # change output rank order to follow Kaggle convention
-    fo.write('%s,%d,%s\n' % ( k,  len(rorder)+1-rorder[k], lb ) )
+    fo.write(f'{k},{len(rorder)+1-rorder[k]},{lb}\n')
     ntot += 1
 fo.close()
 

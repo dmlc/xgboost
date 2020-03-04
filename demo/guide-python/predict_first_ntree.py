@@ -16,5 +16,5 @@ label = dtest.get_label()
 ypred1 = bst.predict(dtest, ntree_limit=1)
 # by default, we predict using all the trees
 ypred2 = bst.predict(dtest)
-print('error of ypred1=%f' % (np.sum((ypred1 > 0.5) != label) / float(len(label))))
-print('error of ypred2=%f' % (np.sum((ypred2 > 0.5) != label) / float(len(label))))
+print(f'error of ypred1={np.sum((ypred1 > 0.5) != label) / float(len(label))}')
+print(f'error of ypred2={np.sum((ypred2 > 0.5) != label) / float(len(label))}')

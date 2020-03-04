@@ -38,7 +38,7 @@ bst = xgb.train(param, xg_train, num_round, watchlist)
 # get prediction
 pred = bst.predict(xg_test)
 error_rate = np.sum(pred != test_Y) / test_Y.shape[0]
-print('Test error using softmax = {}'.format(error_rate))
+print(f'Test error using softmax = {error_rate}')
 
 # do the same thing again, but output probabilities
 param['objective'] = 'multi:softprob'
@@ -48,4 +48,4 @@ bst = xgb.train(param, xg_train, num_round, watchlist)
 pred_prob = bst.predict(xg_test).reshape(test_Y.shape[0], 6)
 pred_label = np.argmax(pred_prob, axis=1)
 error_rate = np.sum(pred_label != test_Y) / test_Y.shape[0]
-print('Test error using softprob = {}'.format(error_rate))
+print(f'Test error using softprob = {error_rate}')

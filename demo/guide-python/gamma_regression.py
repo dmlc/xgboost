@@ -22,4 +22,4 @@ num_round = 30
 bst = xgb.train(param, dtrain, num_round, watchlist)
 preds = bst.predict(dtest)
 labels = dtest.get_label()
-print('test deviance=%f' % (2 * np.sum((labels - preds) / preds - np.log(labels) + np.log(preds))))
+print(f'test deviance={2 * np.sum((labels - preds) / preds - np.log(labels) + np.log(preds))}')

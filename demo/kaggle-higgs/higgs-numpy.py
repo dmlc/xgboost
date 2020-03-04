@@ -22,7 +22,7 @@ sum_wpos = sum( weight[i] for i in range(len(label)) if label[i] == 1.0  )
 sum_wneg = sum( weight[i] for i in range(len(label)) if label[i] == 0.0  )
 
 # print weight statistics
-print ('weight statistics: wpos=%g, wneg=%g, ratio=%g' % ( sum_wpos, sum_wneg, sum_wneg/sum_wpos ))
+print (f'weight statistics: wpos={sum_wpos}, wneg={sum_wneg}, ratio={sum_wneg/sum_wpos}')
 
 # construct xgboost.DMatrix from numpy array, treat -999.0 as missing value
 xgmat = xgb.DMatrix( data, label=label, missing = -999.0, weight=weight )

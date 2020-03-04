@@ -33,10 +33,10 @@ print(evals_result['validation_0']['logloss'])
 print('')
 print('Access metrics through a loop:')
 for e_name, e_mtrs in evals_result.items():
-    print('- {}'.format(e_name))
+    print(f'- {e_name}')
     for e_mtr_name, e_mtr_vals in e_mtrs.items():
-        print('   - {}'.format(e_mtr_name))
-        print('      - {}'.format(e_mtr_vals))
+        print(f'   - {e_mtr_name}')
+        print(f'      - {e_mtr_vals}')
  
 print('')
 print('Access complete dict:')

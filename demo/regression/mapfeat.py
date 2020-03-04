@@ -24,8 +24,8 @@ fo = open('featmap.txt', 'w')
 names = ['vendor','MYCT', 'MMIN', 'MMAX', 'CACH', 'CHMIN', 'CHMAX', 'PRP', 'ERP' ];
 
 for i in range(0,6):
-    fo.write( '%d\t%s\tint\n' % (i, names[i+1]))
+    fo.write( f'{i}\t{names[i+1]}\tint\n')
 
 for v, k in sorted( fmap.items(), key = lambda x:x[1] ):
-    fo.write( '%d\tvendor=%s\ti\n' % (k, v))
+    fo.write( f'{k}\tvendor={v}\ti\n')
 fo.close()

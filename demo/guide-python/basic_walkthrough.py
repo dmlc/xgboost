@@ -20,7 +20,7 @@ bst = xgb.train(param, dtrain, num_round, watchlist)
 # this is prediction
 preds = bst.predict(dtest)
 labels = dtest.get_label()
-print('error=%f' % (sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))))
+print(f'error={sum(1 for i in range(len(preds)) if int(preds[i] > 0.5) != labels[i]) / float(len(preds))}')
 bst.save_model('0001.model')
 # dump model
 bst.dump_model('dump.raw.txt')

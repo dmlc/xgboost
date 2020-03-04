@@ -30,11 +30,11 @@ gpu_res = {} # Store accuracy result
 tmp = time.time()
 # Train model
 xgb.train(param, dtrain, num_round, evals=[(dtest, 'test')], evals_result=gpu_res)
-print("GPU Training Time: %s seconds" % (str(time.time() - tmp)))
+print(f"GPU Training Time: {str(time.time() - tmp)} seconds")
 
 # Repeat for CPU algorithm
 tmp = time.time()
 param['tree_method'] = 'hist'
 cpu_res = {}
 xgb.train(param, dtrain, num_round, evals=[(dtest, 'test')], evals_result=cpu_res)
-print("CPU Training Time: %s seconds" % (str(time.time() - tmp)))
+print(f"CPU Training Time: {str(time.time() - tmp)} seconds")

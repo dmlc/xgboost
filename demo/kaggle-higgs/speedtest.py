@@ -22,7 +22,7 @@ sum_wpos = sum( weight[i] for i in range(len(label)) if label[i] == 1.0  )
 sum_wneg = sum( weight[i] for i in range(len(label)) if label[i] == 0.0  )
 
 # print weight statistics
-print ('weight statistics: wpos=%g, wneg=%g, ratio=%g' % ( sum_wpos, sum_wneg, sum_wneg/sum_wpos ))
+print (f'weight statistics: wpos={sum_wpos}, wneg={sum_wneg}, ratio={sum_wneg/sum_wpos}')
 
 # construct xgboost.DMatrix from numpy array, treat -999.0 as missing value
 xgmat = xgb.DMatrix( data, label=label, missing = -999.0, weight=weight )
@@ -49,7 +49,7 @@ print ("training GBM from sklearn")
 tmp = time.time()
 gbm = GradientBoostingClassifier(n_estimators=num_round, max_depth=6, verbose=2)
 gbm.fit(data, label)
-print ("sklearn.GBM costs: %s seconds" % str(time.time() - tmp))
+print (f"sklearn.GBM costs: {str(time.time() - tmp)} seconds")
 #raw_input()
 print ("training xgboost")
 threads = [1, 2, 4, 16]
@@ -58,6 +58,6 @@ for i in threads:
     tmp = time.time()
     plst = param.items()+[('eval_metric', 'ams@0.15')]
     bst = xgb.train( plst, xgmat, num_round, watchlist );
-    print ("XGBoost with %d thread costs: %s seconds" % (i, str(time.time() - tmp)))
+    print(f"XGBoost with {i} thread costs: {str(time.time() - tmp)} seconds")
 
 print ('finish training')
