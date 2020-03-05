@@ -158,9 +158,12 @@ class QuantileHistMaker: public TreeUpdater {
                           const GHistIndexMatrix& gmat,
                           const GHistIndexBlockMatrix& gmatb,
                           GHistRow hist) {
+//      std::cout  << "\n_____QuantileHistMaker::Builder::BuildHist\n";
       if (param_.enable_feature_grouping > 0) {
+//        std::cout << "\n ??? WTF ??? \n";
         hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
+//        std::cout << "\n####QuantileHistMaker::Builder::hist_builder_.BuildHist\n";
         hist_builder_.BuildHist(gpair, row_indices, gmat, hist, data_layout_ != kSparseData);
       }
     }

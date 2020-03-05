@@ -78,8 +78,9 @@ class QuantileHistMock : public QuantileHistMaker {
           ASSERT_EQ(gmat.row_ptr[rid] + inst.size(), gmat.row_ptr[rid + 1]);
           for (size_t j = 0; j < inst.size(); ++j) {
             // Each entry of GHistIndexMatrix represents a bin ID
-            const size_t bin_id = gmat.index[gmat_row_offset + j];
             const size_t fid = inst[j].index;
+            const size_t bin_id = gmat.index[gmat_row_offset + j];
+
             // The bin ID must correspond to correct feature
             ASSERT_GE(bin_id, gmat.cut.Ptrs()[fid]);
             ASSERT_LT(bin_id, gmat.cut.Ptrs()[fid + 1]);

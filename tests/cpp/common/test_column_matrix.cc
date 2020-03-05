@@ -15,10 +15,10 @@ TEST(DenseColumn, Test) {
   ColumnMatrix column_matrix;
   column_matrix.Init(gmat, 0.2);
 
-  for (auto i = 0ull; i < dmat->Info().num_row_; i++) {
-    for (auto j = 0ull; j < dmat->Info().num_col_; j++) {
-        auto col = column_matrix.GetColumn(j);
-        ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
+  for (auto i = 0ull; i < (*dmat)->Info().num_row_; i++) {
+    for (auto j = 0ull; j < (*dmat)->Info().num_col_; j++) {
+        auto col = column_matrix.GetColumn<uint8_t>(j);
+        ASSERT_EQ(gmat.index[i * (*dmat)->Info().num_col_ + j],
                   col.GetGlobalBinIdx(i));
     }
   }
@@ -30,7 +30,7 @@ TEST(SparseColumn, Test) {
   gmat.Init(dmat.get(), 256);
   ColumnMatrix column_matrix;
   column_matrix.Init(gmat, 0.5);
-  auto col = column_matrix.GetColumn(0);
+  auto col = column_matrix.GetColumn<uint32_t>(0);
   ASSERT_EQ(col.Size(), gmat.index.size());
   for (auto i = 0ull; i < col.Size(); i++) {
     ASSERT_EQ(gmat.index[gmat.row_ptr[col.GetRowIdx(i)]],
@@ -44,10 +44,10 @@ TEST(DenseColumnWithMissing, Test) {
   gmat.Init(dmat.get(), 256);
   ColumnMatrix column_matrix;
   column_matrix.Init(gmat, 0.2);
-  auto col = column_matrix.GetColumn(0);
+  auto col = column_matrix.GetColumn<uint32_t>(0);
   for (auto i = 0ull; i < col.Size(); i++) {
     if (col.IsMissing(i)) continue;
-    EXPECT_EQ(gmat.index[gmat.row_ptr[col.GetRowIdx(i)]],
+    EXPECT_EQ(gmat.index.data<uint32_t>()[gmat.row_ptr[col.GetRowIdx(i)]],
               col.GetGlobalBinIdx(i));
   }
 }
