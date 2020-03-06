@@ -210,9 +210,9 @@ class LearnerImpl : public Learner {
     }
   }
   ~LearnerImpl() override {
-    auto& local_map = GetThreadLocalMap();
-    if (local_map.find(this) != local_map.cend()) {
-      local_map.erase(this);
+    auto local_map = XGBAPIThreadLocalStore::Get();
+    if (local_map->find(this) != local_map->cend()) {
+      local_map->erase(this);
     }
   }
   // Configuration before data is known.
@@ -884,17 +884,13 @@ class LearnerImpl : public Learner {
   }
 
   XGBAPIThreadLocalEntry& GetThreadLocal() const override {
-    return this->GetThreadLocalMap()[this];
+    return (*XGBAPIThreadLocalStore::Get())[this];
   }
   const std::map<std::string, std::string>& GetConfigurationArguments() const override {
     return cfg_;
   }
 
  protected:
-  std::map<Learner const *, XGBAPIThreadLocalEntry>& GetThreadLocalMap() const {
-    auto& local_map = *XGBAPIThreadLocalStore::Get();
-    return local_map;
-  }
   /*!
    * \brief get un-transformed prediction
    * \param data training data matrix
