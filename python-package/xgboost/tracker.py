@@ -62,7 +62,7 @@ class SlaveEntry(object):
         self.sock = slave
         self.host = get_some_ip(s_addr[0])
         magic = slave.recvint()
-        assert magic == kMagic, 'invalid magic number=%d from %s' % (magic, self.host)
+        assert magic == kMagic, f'invalid magic number={magic} from {self.host}'
         slave.sendint(kMagic)
         self.rank = slave.recvint()
         self.world_size = slave.recvint()

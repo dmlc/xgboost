@@ -423,8 +423,8 @@ class XGBModel(XGBModelBase):
                 self.classes_ = np.array(v)
                 continue
             if k == 'type' and type(self).__name__ != v:
-                msg = 'Current model type: {}, '.format(type(self).__name__) + \
-                      'type of model in file: {}'.format(v)
+                msg = f'Current model type: {type(self).__name__}, ' + \
+                      f'type of model in file: {v}'
                 raise TypeError(msg)
             if k == 'type':
                 continue
@@ -510,7 +510,7 @@ class XGBModel(XGBModelBase):
                 DMatrix(eval_set[i][0], label=eval_set[i][1], missing=self.missing,
                         weight=sample_weight_eval_set[i], nthread=self.n_jobs)
                 for i in range(len(eval_set)))
-            evals = list(zip(evals, ["validation_{}".format(i) for i in
+            evals = list(zip(evals, [f"validation_{i}" for i in
                                      range(len(evals))]))
         else:
             evals = ()
@@ -675,8 +675,8 @@ class XGBModel(XGBModelBase):
         """
         if getattr(self, 'booster', None) is not None and self.booster not in {
                 'gbtree', 'dart'}:
-            raise AttributeError('Feature importance is not defined for Booster type {}'
-                                 .format(self.booster))
+            raise AttributeError(
+                f'Feature importance is not defined for Booster type {self.booster}')
         b = self.get_booster()
         score = b.get_score(importance_type=self.importance_type)
         all_features = [score.get(f, 0.) for f in b.feature_names]
@@ -699,8 +699,8 @@ class XGBModel(XGBModelBase):
         coef_ : array of shape ``[n_features]`` or ``[n_classes, n_features]``
         """
         if getattr(self, 'booster', None) is not None and self.booster != 'gblinear':
-            raise AttributeError('Coefficients are not defined for Booster type {}'
-                                 .format(self.booster))
+            raise AttributeError(
+                f'Coefficients are not defined for Booster type {self.booster}')
         b = self.get_booster()
         coef = np.array(json.loads(b.get_dump(dump_format='json')[0])['weight'])
         # Logic for multiclass classification
@@ -728,8 +728,8 @@ class XGBModel(XGBModelBase):
         intercept_ : array of shape ``(1,)`` or ``[n_classes]``
         """
         if getattr(self, 'booster', None) is not None and self.booster != 'gblinear':
-            raise AttributeError('Intercept (bias) is not defined for Booster type {}'
-                                 .format(self.booster))
+            raise AttributeError(
+                f'Intercept (bias) is not defined for Booster type {self.booster}')
         b = self.get_booster()
         return np.array(json.loads(b.get_dump(dump_format='json')[0])['bias'])
 
@@ -788,7 +788,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                 for i in range(len(eval_set))
             )
             nevals = len(evals)
-            eval_names = ["validation_{}".format(i) for i in range(nevals)]
+            eval_names = [f"validation_{i}" for i in range(nevals)]
             evals = list(zip(evals, eval_names))
         else:
             evals = ()
@@ -1199,7 +1199,7 @@ class XGBRanker(XGBModel):
                                 nthread=self.n_jobs)
                      for i in range(len(eval_set))]
             nevals = len(evals)
-            eval_names = ["eval_{}".format(i) for i in range(nevals)]
+            eval_names = [f"eval_{i}" for i in range(nevals)]
             evals = list(zip(evals, eval_names))
         else:
             evals = ()

@@ -18,11 +18,11 @@ def _get_callback_context(env):
 def _fmt_metric(value, show_stdv=True):
     """format metric string"""
     if len(value) == 2:
-        return '{0}:{1:.5f}'.format(value[0], value[1])
+        return f'{value[0]}:{value[1]:.5f}'
     if len(value) == 3:
         if show_stdv:
-            return  '{0}:{1:.5f}+{2:.5f}'.format(value[0], value[1], value[2])
-        return '{0}:{1:.5f}'.format(value[0], value[1])
+            return  f'{value[0]}:{value[1]:.5f}+{value[2]:.5f}'
+        return f'{value[0]}:{value[1]:.5f}'
     raise ValueError("wrong metric value")
 
 
@@ -52,7 +52,7 @@ def print_evaluation(period=1, show_stdv=True):
         i = env.iteration
         if i % period == 0 or i + 1 == env.begin_iteration or i + 1 == env.end_iteration:
             msg = '\t'.join([_fmt_metric(x, show_stdv) for x in env.evaluation_result_list])
-            rabit.tracker_print('[%d]\t%s\n' % (i, msg))
+            rabit.tracker_print(f'[{i}]\t{msg}\n')
     return callback
 
 
@@ -184,9 +184,9 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
         if not env.evaluation_result_list:
             raise ValueError('For early stopping you need at least one set in evals.')
         if len(env.evaluation_result_list) > 1 and verbose:
-            msg = ("Multiple eval metrics have been passed: "
-                   "'{0}' will be used for early stopping.\n\n")
-            rabit.tracker_print(msg.format(env.evaluation_result_list[-1][0]))
+            msg = (f"Multiple eval metrics have been passed: "
+                   f"'{env.evaluation_result_list[-1][0]}' will be used for early stopping.\n\n")
+            rabit.tracker_print(msg)
         maximize_metrics = ('auc', 'aucpr', 'map', 'ndcg')
         maximize_at_n_metrics = ('auc@', 'aucpr@', 'map@', 'ndcg@')
         maximize_score = maximize
@@ -200,8 +200,11 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
             maximize_score = True
 
         if verbose and env.rank == 0:
-            msg = "Will train until {} hasn't improved in {} rounds.\n"
-            rabit.tracker_print(msg.format(metric_label, stopping_rounds))
+            msg =(
+                f"Will train until {metric_label} "
+                f"hasn't improved in {stopping_rounds} rounds.\n"
+            )
+            rabit.tracker_print(msg)
 
         state['maximize_score'] = maximize_score
         state['best_iteration'] = 0
@@ -231,9 +234,9 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
         maximize_score = state['maximize_score']
         if (maximize_score and score > best_score) or \
                 (not maximize_score and score < best_score):
-            msg = '[%d]\t%s' % (
-                env.iteration,
-                '\t'.join([_fmt_metric(x) for x in env.evaluation_result_list]))
+            msg_result = '\t'.join([_fmt_metric(x)
+                                    for x in env.evaluation_result_list])
+            msg = f'[{env.iteration}]\t{msg_result}'
             state['best_msg'] = msg
             state['best_score'] = score
             state['best_iteration'] = env.iteration
@@ -245,7 +248,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
         elif env.iteration - best_iteration >= stopping_rounds:
             best_msg = state['best_msg']
             if verbose and env.rank == 0:
-                msg = "Stopping. Best iteration:\n{}\n\n"
-                rabit.tracker_print(msg.format(best_msg))
+                msg = f"Stopping. Best iteration:\n{best_msg}\n\n"
+                rabit.tracker_print(msg)
             raise EarlyStopException(best_iteration)
     return callback

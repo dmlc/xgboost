@@ -159,8 +159,7 @@ class DaskDMatrix:
 
         if len(data.shape) != 2:
             raise ValueError(
-                'Expecting 2 dimensional input, got: {shape}'.format(
-                    shape=data.shape))
+                f'Expecting 2 dimensional input, got: {data.shape}')
 
         if not isinstance(data, (dd.DataFrame, da.Array)):
             raise TypeError(_expect((dd.DataFrame, da.Array), type(data)))
@@ -180,12 +179,9 @@ class DaskDMatrix:
         '''Obtain references to local data.'''
 
         def inconsistent(left, left_name, right, right_name):
-            msg = 'Partitions between {a_name} and {b_name} are not ' \
-                'consistent: {a_len} != {b_len}.  ' \
-                'Please try to repartition/rechunk your data.'.format(
-                    a_name=left_name, b_name=right_name, a_len=len(left),
-                    b_len=len(right)
-                )
+            msg = (f'Partitions between {left_name} and {right_name} are not ' + 
+                f'consistent: {len(left)} != {len(right)}.  ' + 
+                'Please try to repartition/rechunk your data.')
             return msg
 
         def check_columns(parts):
@@ -283,10 +279,8 @@ class DaskDMatrix:
 
         '''
         if worker.address not in set(self.worker_map.keys()):
-            msg = 'worker {address} has an empty DMatrix.  ' \
-                'All workers associated with this DMatrix: {workers}'.format(
-                    address=worker.address,
-                    workers=set(self.worker_map.keys()))
+            msg = (f'worker {worker.address} has an empty DMatrix.  ' +
+                f'All workers associated with this DMatrix: {set(self.worker_map.keys())}')
             logging.warning(msg)
             d = DMatrix(numpy.empty((0, 0)),
                         feature_names=self._feature_names,
@@ -325,7 +319,7 @@ class DaskDMatrix:
 
             c = shape[1]
             assert cols in (0, c), 'Shape between partitions are not the' \
-                ' same. Got: {left} and {right}'.format(left=c, right=cols)
+                f' same. Got: {c} and {cols}'
             cols = c
         return (rows, cols)
 
@@ -523,7 +517,7 @@ def _evaluation_matrices(client, validation_set, sample_weights):
             w = (sample_weights[i]
                  if sample_weights is not None else None)
             dmat = DaskDMatrix(client=client, data=e[0], label=e[1], weight=w)
-            evals.append((dmat, 'validation_{}'.format(i)))
+            evals.append((dmat, f'validation_{i}'))
     else:
         evals = None
     return evals

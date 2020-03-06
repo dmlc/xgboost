@@ -173,7 +173,7 @@ def allreduce(data, op, prepare_fun=None):
     if buf.base is data.base:
         buf = buf.copy()
     if buf.dtype not in DTYPE_ENUM__:
-        raise Exception('data type %s not supported' % str(buf.dtype))
+        raise Exception(f'data type {str(buf.dtype)} not supported')
     if prepare_fun is None:
         _LIB.RabitAllreduce(buf.ctypes.data_as(ctypes.c_void_p),
                             buf.size, DTYPE_ENUM__[buf.dtype],

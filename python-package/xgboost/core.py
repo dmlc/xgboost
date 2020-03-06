@@ -119,7 +119,7 @@ def _expect(expectations, got):
 
 def _log_callback(msg):
     """Redirect logs from native library into Python console"""
-    print("{0:s}".format(py_str(msg)))
+    print(f"{py_str(msg):s}")
 
 
 def _get_log_callback_func():
@@ -156,13 +156,13 @@ def _load_lib():
     if not lib_success:
         libname = os.path.basename(lib_paths[0])
         raise XGBoostError(
-            'XGBoost Library ({}) could not be loaded.\n'.format(libname) +
+            f'XGBoost Library ({libname}) could not be loaded.\n' +
             'Likely causes:\n' +
             '  * OpenMP runtime is not installed ' +
             '(vcomp140.dll or libgomp-1.dll for Windows, ' +
             'libgomp.so for UNIX-like OSes)\n' +
             '  * You are running 32-bit Python on a 64-bit OS\n' +
-            'Error message(s): {}\n'.format(os_error_list))
+            f'Error message(s): {os_error_list}\n')
     lib.XGBGetLastError.restype = ctypes.c_char_p
     lib.callback = _get_log_callback_func()
     if lib.XGBRegisterLogCallback(lib.callback) != 0:
@@ -196,11 +196,11 @@ def ctypes2numpy(cptr, length, dtype):
         np.uint32: ctypes.c_uint,
     }
     if dtype not in NUMPY_TO_CTYPES_MAPPING:
-        raise RuntimeError('Supported types: {}'.format(
-            NUMPY_TO_CTYPES_MAPPING.keys()))
+        raise RuntimeError(
+            f'Supported types: {NUMPY_TO_CTYPES_MAPPING.keys()}')
     ctype = NUMPY_TO_CTYPES_MAPPING[dtype]
     if not isinstance(cptr, ctypes.POINTER(ctype)):
-        raise RuntimeError('expected {} pointer'.format(ctype))
+        raise RuntimeError(f'expected {ctype} pointer')
     res = np.zeros(length, dtype=dtype)
     if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):
         raise RuntimeError('memmove failed')
@@ -278,8 +278,7 @@ def _maybe_pandas_data(data, feature_names, feature_types,
 
     if meta and len(data.columns) > 1:
         raise ValueError(
-            'DataFrame for {meta} cannot have multiple columns'.format(
-                meta=meta))
+            f'DataFrame for {meta} cannot have multiple columns')
 
     dtype = meta_type if meta_type else 'float'
     data = data.values.astype(dtype)
@@ -483,7 +482,7 @@ class DMatrix(object):
                 self._init_from_csr(csr)
             except Exception:
                 raise TypeError('can not initialize DMatrix from'
-                                ' {}'.format(type(data).__name__))
+                                f' {type(data).__name__}')
 
         if label is not None:
             self.set_label(label)
@@ -498,8 +497,8 @@ class DMatrix(object):
     def _init_from_csr(self, csr):
         """Initialize data from a CSR matrix."""
         if len(csr.indices) != len(csr.data):
-            raise ValueError('length mismatch: {} vs {}'.format(
-                len(csr.indices), len(csr.data)))
+            raise ValueError(
+                f'length mismatch: {len(csr.indices)} vs {len(csr.data)}')
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromCSREx(
             c_array(ctypes.c_size_t, csr.indptr),
@@ -514,8 +513,8 @@ class DMatrix(object):
     def _init_from_csc(self, csc):
         """Initialize data from a CSC matrix."""
         if len(csc.indices) != len(csc.data):
-            raise ValueError('length mismatch: {} vs {}'.format(
-                len(csc.indices), len(csc.data)))
+            raise ValueError(
+                f'length mismatch: {len(csc.indices)} vs {len(csc.data)}')
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromCSCEx(
             c_array(ctypes.c_size_t, csc.indptr),
@@ -913,7 +912,7 @@ class DMatrix(object):
         feature_names : list or None
         """
         if self._feature_names is None:
-            self._feature_names = ['f{0}'.format(i)
+            self._feature_names = [f'f{i}'
                                    for i in range(self.num_col())]
         return self._feature_names
 
@@ -1025,7 +1024,8 @@ class Booster(object):
         """
         for d in cache:
             if not isinstance(d, DMatrix):
-                raise TypeError('invalid cache item: {}'.format(type(d).__name__), cache)
+                raise TypeError(
+                    f'invalid cache item: {type(d).__name__}', cache)
             self._validate_features(d)
 
         dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
@@ -1239,8 +1239,7 @@ class Booster(object):
 
         """
         if not isinstance(dtrain, DMatrix):
-            raise TypeError('invalid training matrix: {}'.format(
-                type(dtrain).__name__))
+            raise TypeError(f'invalid training matrix: {type(dtrain).__name__}')
         self._validate_features(dtrain)
 
         if fobj is None:
@@ -1268,9 +1267,11 @@ class Booster(object):
 
         """
         if len(grad) != len(hess):
-            raise ValueError('grad / hess length mismatch: {} / {}'.format(len(grad), len(hess)))
+            raise ValueError(
+                f'grad / hess length mismatch: {len(grad)} / {len(hess)}')
         if not isinstance(dtrain, DMatrix):
-            raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
+            raise TypeError(
+                f'invalid training matrix: {type(dtrain).__name__}')
         self._validate_features(dtrain)
 
         _check_call(_LIB.XGBoosterBoostOneIter(self.handle, dtrain.handle,
@@ -1298,11 +1299,11 @@ class Booster(object):
         """
         for d in evals:
             if not isinstance(d[0], DMatrix):
-                raise TypeError('expected DMatrix, got {}'.format(
-                    type(d[0]).__name__))
+                raise TypeError(
+                    f'expected DMatrix, got {type(d[0]).__name__}')
             if not isinstance(d[1], STRING_TYPES):
-                raise TypeError('expected string, got {}'.format(
-                    type(d[1]).__name__))
+                raise TypeError(
+                    f'expected string, got {type(d[1]).__name__}')
             self._validate_features(d[0])
 
         dmats = c_array(ctypes.c_void_p, [d[0].handle for d in evals])
@@ -1319,10 +1320,10 @@ class Booster(object):
                 feval_ret = feval(self.predict(dmat, training=False), dmat)
                 if isinstance(feval_ret, list):
                     for name, val in feval_ret:
-                        res += '\t%s-%s:%f' % (evname, name, val)
+                        res += f'\t{evname}-{name}:{val}'
                 else:
                     name, val = feval_ret
-                    res += '\t%s-%s:%f' % (evname, name, val)
+                    res += f'\t{evname}-{name}:{val}'
         return res
 
     def eval(self, data, name='eval', iteration=0):
@@ -1570,7 +1571,7 @@ class Booster(object):
             fout.write('\n]')
         else:
             for i, _ in enumerate(ret):
-                fout.write('booster[{}]:\n'.format(i))
+                fout.write(f'booster[{i}]:\n')
                 fout.write(ret[i])
         if need_close:
             fout.close()
@@ -1612,7 +1613,7 @@ class Booster(object):
                 ctypes.byref(sarr)))
         else:
             if fmap != '' and not os.path.exists(fmap):
-                raise ValueError("No such file: {0}".format(fmap))
+                raise ValueError(f"No such file: {fmap}")
             _check_call(_LIB.XGBoosterDumpModelEx(self.handle,
                                                   c_str(fmap),
                                                   ctypes.c_int(with_stats),
@@ -1669,14 +1670,14 @@ class Booster(object):
         """
         fmap = os_fspath(fmap)
         if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
-            raise ValueError('Feature importance is not defined for Booster type {}'
-                             .format(self.booster))
+            raise ValueError(
+                f'Feature importance is not defined for Booster type {self.booster}')
 
         allowed_importance_types = ['weight', 'gain', 'cover', 'total_gain', 'total_cover']
         if importance_type not in allowed_importance_types:
-            msg = ("importance_type mismatch, got '{}', expected one of " +
+            msg = (f"importance_type mismatch, got '{importance_type}', expected one of " +
                    repr(allowed_importance_types))
-            raise ValueError(msg.format(importance_type))
+            raise ValueError(msg)
 
         # if it's weight, then omap stores the number of missing values
         if importance_type == 'weight':
@@ -1766,8 +1767,8 @@ class Booster(object):
                              'Install pandas before calling again.'))
 
         if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
-            raise ValueError('This method is not defined for Booster type {}'
-                             .format(self.booster))
+            raise ValueError(
+                f'This method is not defined for Booster type {self.booster}')
 
         tree_ids = []
         node_ids = []
@@ -1847,7 +1848,7 @@ class Booster(object):
                 dat_missing = set(self.feature_names) - set(data.feature_names)
                 my_missing = set(data.feature_names) - set(self.feature_names)
 
-                msg = 'feature_names mismatch: {0} {1}'
+                msg = f'feature_names mismatch: {self.feature_names} {data.feature_names}'
 
                 if dat_missing:
                     msg += ('\nexpected ' + ', '.join(
@@ -1857,8 +1858,7 @@ class Booster(object):
                     msg += ('\ntraining data did not have the following fields: ' +
                             ', '.join(str(s) for s in my_missing))
 
-                raise ValueError(msg.format(self.feature_names,
-                                            data.feature_names))
+                raise ValueError(msg)
 
     def get_split_value_histogram(self, feature, fmap='', bins=None,
                                   as_pandas=True):
