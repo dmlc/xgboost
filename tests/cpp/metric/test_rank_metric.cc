@@ -3,6 +3,7 @@
 
 #include "../helpers.h"
 
+#if !defined(__CUDACC__)
 TEST(Metric, AMS) {
   auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   EXPECT_ANY_THROW(xgboost::Metric::Create("ams", &tparam));
@@ -21,8 +22,9 @@ TEST(Metric, AMS) {
 
   delete metric;
 }
+#endif
 
-TEST(Metric, AUC) {
+TEST(Metric, DeclareUnifiedTest(AUC)) {
   auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("auc", &tparam);
   ASSERT_STREQ(metric->Name(), "auc");
@@ -60,7 +62,7 @@ TEST(Metric, AUC) {
   delete metric;
 }
 
-TEST(Metric, AUCPR) {
+TEST(Metric, DeclareUnifiedTest(AUCPR)) {
   auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric *metric = xgboost::Metric::Create("aucpr", &tparam);
   ASSERT_STREQ(metric->Name(), "aucpr");
@@ -112,7 +114,7 @@ TEST(Metric, AUCPR) {
 }
 
 
-TEST(Metric, Precision) {
+TEST(Metric, DeclareUnifiedTest(Precision)) {
   // When the limit for precision is not given, it takes the limit at
   // std::numeric_limits<unsigned>::max(); hence all values are very small
   // NOTE(AbdealiJK): Maybe this should be fixed to be num_row by default.
@@ -139,7 +141,7 @@ TEST(Metric, Precision) {
   delete metric;
 }
 
-TEST(Metric, NDCG) {
+TEST(Metric, DeclareUnifiedTest(NDCG)) {
   auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("ndcg", &tparam);
   ASSERT_STREQ(metric->Name(), "ndcg");
@@ -197,7 +199,7 @@ TEST(Metric, NDCG) {
   delete metric;
 }
 
-TEST(Metric, MAP) {
+TEST(Metric, DeclareUnifiedTest(MAP)) {
   auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("map", &tparam);
   ASSERT_STREQ(metric->Name(), "map");

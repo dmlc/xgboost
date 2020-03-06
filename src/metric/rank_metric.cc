@@ -1,9 +1,25 @@
 /*!
- * Copyright 2015 by Contributors
- * \file rank_metric.cc
- * \brief prediction rank based metrics.
- * \author Kailong Chen, Tianqi Chen
+ * Copyright 2020 XGBoost contributors
  */
+// When device ordinal is present, we would want to build the metrics on the GPU. It is *not*
+// possible for a valid device ordinal to be present for non GPU builds. However, it is possible
+// for an invalid device ordinal to be specified in GPU builds - to train/predict and/or compute
+// the metrics on CPU. To accommodate these scenarios, the following is done for the metrics
+// accelarated on the GPU.
+// - An internal GPU registry holds all the GPU metric types (defined in the .cu file)
+// - An instance of the appropriate gpu metric type is created when a device ordinal is present
+// - If the creation is successful, the metric computation is done on the device
+// - else, it falls back on the CPU
+// - The GPU metric types are *only* registered when xgboost is built for GPUs
+//
+// This is done for 2 reasons:
+// - Clear separation of CPU and GPU logic
+// - Sorting datasets containing large number of rows is (much) faster when parallel sort
+//   semantics is used on the CPU. The __gnu_parallel/concurrency primitives needed to perform
+//   this cannot be used when the translation unit is compiled using the 'nvcc' compiler (as the
+//   corresponding headers that brings in those function declaration can't be included with CUDA).
+//   This precludes the CPU and GPU logic to coexist inside a .cu file
+
 #include <rabit/rabit.h>
 #include <xgboost/metric.h>
 #include <dmlc/registry.h>
@@ -143,6 +159,10 @@ struct EvalAMS : public Metric {
 /*! \brief Area Under Curve, for both classification and rank computed on CPU */
 struct EvalAuc : public Metric {
  private:
+  // This is used to compute the AUC metrics on the GPU - for ranking tasks and
+  // for training jobs that run on the GPU.
+  std::unique_ptr<xgboost::Metric> auc_gpu_;
+
   template <typename WeightPolicy>
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
@@ -239,6 +259,18 @@ struct EvalAuc : public Metric {
     const bool is_ranking_task =
       !info.group_ptr_.empty() && info.weights_.Size() != info.num_row_;
 
+    // Check if we have a GPU assignment; else, revert back to CPU
+    if (tparam_->gpu_id >= 0 && is_ranking_task) {
+      if (!auc_gpu_) {
+        // Check and see if we have the GPU metric registered in the internal registry
+        auc_gpu_.reset(GPUMetric::CreateGPUMetric(this->Name(), tparam_));
+      }
+
+      if (auc_gpu_) {
+        return auc_gpu_->Eval(preds, info, distributed);
+      }
+    }
+
     if (is_ranking_task) {
       return Eval<PerGroupWeightPolicy>(preds, info, distributed, gptr);
     } else {
@@ -251,6 +283,10 @@ struct EvalAuc : public Metric {
 
 /*! \brief Evaluate rank list */
 struct EvalRank : public Metric, public EvalRankConfig {
+ private:
+  // This is used to compute the ranking metrics on the GPU - for training jobs that run on the GPU.
+  std::unique_ptr<xgboost::Metric> rank_gpu_;
+
  public:
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
@@ -271,20 +307,32 @@ struct EvalRank : public Metric, public EvalRankConfig {
     // sum statistics
     double sum_metric = 0.0f;
 
-    const auto &labels = info.labels_.ConstHostVector();
-    const auto &h_preds = preds.ConstHostVector();
+    // Check and see if we have the GPU metric registered in the internal registry
+    if (tparam_->gpu_id >= 0) {
+      if (!rank_gpu_) {
+        rank_gpu_.reset(GPUMetric::CreateGPUMetric(this->Name(), tparam_));
+      }
+      if (rank_gpu_) {
+        sum_metric = rank_gpu_->Eval(preds, info, distributed);
+      }
+    }
 
-    #pragma omp parallel reduction(+:sum_metric)
-    {
-      // each thread takes a local rec
-      PredIndPairContainer rec;
-      #pragma omp for schedule(static)
-      for (bst_omp_uint k = 0; k < ngroups; ++k) {
-        rec.clear();
-        for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
-          rec.emplace_back(h_preds[j], static_cast<int>(labels[j]));
+    if (!rank_gpu_ || tparam_->gpu_id < 0) {
+      const auto &labels = info.labels_.ConstHostVector();
+      const auto &h_preds = preds.ConstHostVector();
+
+      #pragma omp parallel reduction(+:sum_metric)
+      {
+        // each thread takes a local rec
+        PredIndPairContainer rec;
+        #pragma omp for schedule(static)
+        for (bst_omp_uint k = 0; k < ngroups; ++k) {
+          rec.clear();
+          for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
+            rec.emplace_back(h_preds[j], static_cast<int>(labels[j]));
+          }
+          sum_metric += this->EvalGroup(&rec);
         }
-        sum_metric += this->EvalGroup(&rec);
       }
     }
 
@@ -465,6 +513,10 @@ struct EvalAucPR : public Metric {
   // translated from PRROC R Package
   // see https://doi.org/10.1371/journal.pone.0092209
  private:
+  // This is used to compute the AUCPR metrics on the GPU - for ranking tasks and
+  // for training jobs that run on the GPU.
+  std::unique_ptr<xgboost::Metric> aucpr_gpu_;
+
   template <typename WeightPolicy>
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
@@ -579,6 +631,18 @@ struct EvalAucPR : public Metric {
     // For binary classification task, weights are per-instance
     const bool is_ranking_task =
       !info.group_ptr_.empty() && info.weights_.Size() != info.num_row_;
+
+    // Check if we have a GPU assignment; else, revert back to CPU
+    if (tparam_->gpu_id >= 0 && is_ranking_task) {
+      if (!aucpr_gpu_) {
+        // Check and see if we have the GPU metric registered in the internal registry
+        aucpr_gpu_.reset(GPUMetric::CreateGPUMetric(this->Name(), tparam_));
+      }
+
+      if (aucpr_gpu_) {
+        return aucpr_gpu_->Eval(preds, info, distributed);
+      }
+    }
 
     if (is_ranking_task) {
       return Eval<PerGroupWeightPolicy>(preds, info, distributed, gptr);
