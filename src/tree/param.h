@@ -272,7 +272,7 @@ XGBOOST_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p,
 
 // calculate the cost of loss function
 template <typename TrainingParams, typename T>
-XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess) {
+XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T const& sum_grad, T const& sum_hess) {
   if (sum_hess < p.min_child_weight) {
     return T(0.0);
   }
@@ -295,8 +295,8 @@ XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess
 }
 
 template <typename TrainingParams,
-          typename StatT, typename T = decltype(StatT().GetHess())>
-XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, StatT stat) {
+          typename StatT, typename T = typename std::remove_reference< decltype(StatT().GetHess()) >::type>
+XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, StatT const& stat) {
   return CalcGain(p, stat.GetGrad(), stat.GetHess());
 }
 
@@ -453,6 +453,7 @@ struct SplitEntryContainer {
       return false;
     }
   }
+
   /*!
    * \brief update the split entry, replace it if e is better
    * \param new_loss_chg loss reduction of new candidate

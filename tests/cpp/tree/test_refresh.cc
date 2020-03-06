@@ -32,22 +32,23 @@ TEST(Updater, Refresh) {
   auto lparam = CreateEmptyGenericParam(GPUIDX);
   tree.param.UpdateAllowUnknown(cfg);
   std::vector<RegTree*> trees {&tree};
-  std::unique_ptr<TreeUpdater> refresher(TreeUpdater::Create("refresh", &lparam));
+  LearnerModelParam mparam;
+  std::unique_ptr<TreeUpdater> refresher(TreeUpdater::Create("refresh", &lparam, &mparam));
 
   tree.ExpandNode(0, 2, 0.2f, false, 0.0, 0.2f, 0.8f, 0.0f, 0.0f,
                   /*left_sum=*/0.0f, /*right_sum=*/0.0f);
   int cleft = tree[0].LeftChild();
   int cright = tree[0].RightChild();
 
-  tree.Stat(cleft).base_weight = 1.2;
-  tree.Stat(cright).base_weight = 1.3;
+  tree.Stat(cleft).base_weight = 1.2f;
+  tree.Stat(cright).base_weight = 1.3f;
 
   refresher->Configure(cfg);
   refresher->Update(&gpair, p_dmat.get(), trees);
 
   bst_float constexpr kEps = 1e-6;
-  ASSERT_NEAR(-0.183392, tree[cright].LeafValue(), kEps);
-  ASSERT_NEAR(-0.224489, tree.Stat(0).loss_chg, kEps);
+  ASSERT_NEAR(-0.183392f, tree.LeafValue(cright), kEps);
+  ASSERT_NEAR(-0.224489f, tree.Stat(0).loss_chg, kEps);
   ASSERT_NEAR(0, tree.Stat(cleft).loss_chg, kEps);
   ASSERT_NEAR(0, tree.Stat(1).loss_chg, kEps);
   ASSERT_NEAR(0, tree.Stat(2).loss_chg, kEps);

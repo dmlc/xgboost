@@ -118,9 +118,12 @@ __model_doc = '''
         [2, 3, 4]], where each inner list is a group of indices of features
         that are allowed to interact with each other.  See tutorial for more
         information
-    importance_type: string, default "gain"
+    importance_type : str, default "gain"
         The feature importance type for the feature_importances\\_ property:
         either "gain", "weight", "cover", "total_gain" or "total_cover".
+    tree_type : str, default 'single'
+        Either "single" or "multi".  Used for different type of
+        multi-target regression.
 
     \\*\\*kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of
@@ -210,7 +213,7 @@ class XGBModel(XGBModelBase):
                  missing=np.nan, num_parallel_tree=None,
                  monotone_constraints=None, interaction_constraints=None,
                  importance_type="gain", gpu_id=None,
-                 validate_parameters=None, **kwargs):
+                 validate_parameters=None, output_type=None, **kwargs):
         if not SKLEARN_INSTALLED:
             raise XGBoostError(
                 'sklearn needs to be installed in order to use this module')
@@ -242,6 +245,7 @@ class XGBModel(XGBModelBase):
         self.interaction_constraints = interaction_constraints
         self.importance_type = importance_type
         self.gpu_id = gpu_id
+        self.output_type = output_type
         self.validate_parameters = validate_parameters
 
     def _more_tags(self):
@@ -1023,7 +1027,7 @@ class XGBRFClassifier(XGBClassifier):
 
 
 @xgboost_model_doc(
-    "Implementation of the scikit-learn API for XGBoost regression.",
+    "scikit-learn API for XGBoost regression.",
     ['estimators', 'model', 'objective'])
 class XGBRegressor(XGBModel, XGBRegressorBase):
     # pylint: disable=missing-docstring

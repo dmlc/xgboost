@@ -25,21 +25,28 @@ namespace predictor {
 
 DMLC_REGISTRY_FILE_TAG(cpu_predictor);
 
-bst_float PredValue(const SparsePage::Inst &inst,
-                    const std::vector<std::unique_ptr<RegTree>> &trees,
-                    const std::vector<int> &tree_info, int bst_group,
-                    RegTree::FVec *p_feats, unsigned tree_begin,
-                    unsigned tree_end) {
-  bst_float psum = 0.0f;
-  p_feats->Fill(inst);
-  for (size_t i = tree_begin; i < tree_end; ++i) {
-    if (tree_info[i] == bst_group) {
-      int tid = trees[i]->GetLeafIndex(*p_feats);
-      psum += (*trees[i])[tid].LeafValue();
+int GetNext(std::unique_ptr<RegTree> const& tree,
+            int pid, bst_float fvalue, bool is_unknown) {
+  bst_float split_value = (*tree)[pid].SplitCond();
+  if (is_unknown) {
+    return (*tree)[pid].DefaultChild();
+  } else {
+    if (fvalue < split_value) {
+      return (*tree)[pid].LeftChild();
+    } else {
+      return (*tree)[pid].RightChild();
     }
   }
-  p_feats->Drop(inst);
-  return psum;
+}
+
+int GetLeafIndex(std::unique_ptr<RegTree> const& tree,
+                 const RegTree::FVec& feat) {
+  bst_node_t nid = 0;
+  while (!(*tree)[nid].IsLeaf()) {
+    unsigned split_index = (*tree)[nid].SplitIndex();
+    nid = GetNext(tree, nid, feat.GetFvalue(split_index), feat.IsMissing(split_index));
+  }
+  return nid;
 }
 
 template <size_t kUnrollLen = 8>
@@ -100,6 +107,23 @@ class AdapterView {
 
   bst_row_t const static base_rowid = 0;  // NOLINT
 };
+
+bst_float PredValue(const SparsePage::Inst &inst,
+                    const std::vector<std::unique_ptr<RegTree>> &trees,
+                    const std::vector<int> &tree_info, int bst_group,
+                    RegTree::FVec *p_feats, unsigned tree_begin,
+                    unsigned tree_end) {
+  bst_float psum = 0.0f;
+  p_feats->Fill(inst);
+  for (size_t i = tree_begin; i < tree_end; ++i) {
+    if (tree_info[i] == bst_group) {
+      int tid = trees[i]->GetLeafIndex(*p_feats);
+      psum += (*trees[i]).LeafValue(tid);
+    }
+  }
+  p_feats->Drop(inst);
+  return psum;
+}
 
 template <typename DataView>
 void PredictBatchKernel(DataView batch, std::vector<bst_float> *out_preds,
@@ -163,6 +187,53 @@ class CPUPredictor : public Predictor {
     }
   }
 
+  void
+  PredictVectorValue(const SparsePage::Inst &inst,
+                     const std::vector<std::unique_ptr<RegTree>> &trees,
+                     RegTree::FVec *p_feats,
+                     unsigned tree_begin, unsigned tree_end, common::Span<float> out) {
+    CHECK_EQ(out.size(), trees[0]->LeafSize());
+    p_feats->Fill(inst);
+    for (size_t i = tree_begin; i < tree_end; ++i) {
+      // no group id for vector leaf.
+      auto const& tree = trees[i];
+      int tid = GetLeafIndex(tree, *p_feats);
+      auto vl = tree->VectorLeafValue(tid);
+      for (size_t j = 0; j < out.size(); ++j) {
+        out[j] += vl[j];
+      }
+    }
+    p_feats->Drop(inst);
+  }
+
+  void PredictVectorInternal(SparsePage const& page, gbm::GBTreeModel const &model,
+                             std::vector<bst_float> *out_preds,
+                             uint32_t tree_begin, uint32_t tree_end) {
+    std::lock_guard<std::mutex> guard(lock_);
+    const int threads = omp_get_max_threads();
+    InitThreadTemp(threads, model.learner_model_param->num_feature, &this->thread_temp_);
+    page.data.HostVector();
+    page.offset.HostVector();
+    dmlc::OMPException omp_handler;
+    size_t targets = model.learner_model_param->num_targets;
+#pragma omp parallel for
+    for (omp_ulong i = 0; i < page.Size(); ++i) {
+      omp_handler.Run(
+          [this, &page, &model, tree_begin, tree_end, out_preds,
+           targets](omp_ulong i) {
+            auto inst = page[i];
+            const int tid = omp_get_thread_num();
+            RegTree::FVec &feats = thread_temp_[tid];
+            size_t offset = targets * i;
+            auto out = common::Span<float>(*out_preds).subspan(offset, targets);
+            this->PredictVectorValue(inst, model.trees, &feats, tree_begin,
+                                     tree_end, out);
+          },
+          i);
+    }
+    omp_handler.Rethrow();
+  }
+
   void PredictDMatrix(DMatrix *p_fmat, std::vector<bst_float> *out_preds,
                       gbm::GBTreeModel const &model, int32_t tree_begin,
                       int32_t tree_end) {
@@ -182,29 +253,19 @@ class CPUPredictor : public Predictor {
                           HostDeviceVector<bst_float>* out_preds,
                           const gbm::GBTreeModel& model) const {
     CHECK_NE(model.learner_model_param->num_output_group, 0);
-    size_t n = model.learner_model_param->num_output_group * info.num_row_;
+    size_t n = std::max(model.learner_model_param->num_targets,
+                        model.learner_model_param->num_output_group) *
+               info.num_row_;
     const auto& base_margin = info.base_margin_.HostVector();
-    out_preds->Resize(n);
     std::vector<bst_float>& out_preds_h = out_preds->HostVector();
-    if (base_margin.size() == n) {
-      CHECK_EQ(out_preds->Size(), n);
-      std::copy(base_margin.begin(), base_margin.end(), out_preds_h.begin());
+    // size_t const out_size = info.labels_cols * n;
+    out_preds_h.resize(n);
+
+    if (base_margin.size() != 0) {
+      CHECK_EQ(base_margin.size(), out_preds_h.size())
+          << "Size of base margin must equal to length of prediction.";
+      std::copy(base_margin.cbegin(), base_margin.cend(), out_preds_h.begin());
     } else {
-      if (!base_margin.empty()) {
-        std::ostringstream oss;
-        oss << "Ignoring the base margin, since it has incorrect length. "
-            << "The base margin must be an array of length ";
-        if (model.learner_model_param->num_output_group > 1) {
-          oss << "[num_class] * [number of data points], i.e. "
-              << model.learner_model_param->num_output_group << " * " << info.num_row_
-              << " = " << n << ". ";
-        } else {
-          oss << "[number of data points], i.e. " << info.num_row_ << ". ";
-        }
-        oss << "Instead, all data points will use "
-            << "base_score = " << model.learner_model_param->base_score;
-        LOG(WARNING) << oss.str();
-      }
       std::fill(out_preds_h.begin(), out_preds_h.end(),
                 model.learner_model_param->base_score);
     }
@@ -251,9 +312,18 @@ class CPUPredictor : public Predictor {
     CHECK_LE(beg_version, end_version);
 
     if (beg_version < end_version) {
-      this->PredictDMatrix(dmat, &out_preds->HostVector(), model,
-                           beg_version * output_groups,
-                           end_version * output_groups);
+      if (model.trees.front()->Kind() == RegTree::kMulti) {
+        CHECK_EQ(output_groups, 1);
+        for (auto const& page : dmat->GetBatches<SparsePage>()) {
+          this->PredictVectorInternal(page, model, &out_preds->HostVector(),
+                                      beg_version * output_groups,
+                                      end_version * output_groups);
+        }
+      } else {
+        this->PredictDMatrix(dmat, &out_preds->HostVector(), model,
+                             beg_version * output_groups,
+                             end_version * output_groups);
+      }
     }
 
     // delta means {size of forest} * {number of newly accumulated layers}
@@ -262,7 +332,8 @@ class CPUPredictor : public Predictor {
     predts->Update(delta);
 
     CHECK(out_preds->Size() == output_groups * dmat->Info().num_row_ ||
-          out_preds->Size() == dmat->Info().num_row_);
+          out_preds->Size() ==
+              model.learner_model_param->num_targets * dmat->Info().num_row_);
   }
 
   template <typename Adapter>
@@ -315,6 +386,11 @@ class CPUPredictor : public Predictor {
     }
     out_preds->resize(model.learner_model_param->num_output_group *
                       (model.param.size_leaf_vector + 1));
+    if (model.trees.size() == 0) {
+      return;
+    }
+    out_preds->resize(model.learner_model_param->num_output_group *
+                      (model.trees.front()->LeafSize() + 1));
     // loop over output groups
     for (uint32_t gid = 0; gid < model.learner_model_param->num_output_group; ++gid) {
       (*out_preds)[gid] = PredValue(inst, model.trees, model.tree_info, gid,

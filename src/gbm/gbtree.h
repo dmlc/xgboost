@@ -71,6 +71,8 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
   PredictorType predictor;
   // tree construction method
   TreeMethod tree_method;
+  /*! \brief size of leaf vector needed in tree */
+  RegTree::TreeKind tree_type;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GBTreeTrainParam) {
     DMLC_DECLARE_FIELD(num_parallel_tree)
@@ -79,7 +81,7 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
         .describe("Number of parallel trees constructed during each iteration."\
                   " This option is used to support boosted random forest.");
     DMLC_DECLARE_FIELD(updater_seq)
-        .set_default("grow_colmaker,prune")
+        .set_default("grow_colmaker")
         .describe("Tree updater sequence.");
     DMLC_DECLARE_FIELD(process_type)
         .set_default(TreeProcessType::kDefault)
@@ -102,6 +104,11 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
         .add_enum("hist",      TreeMethod::kHist)
         .add_enum("gpu_hist",  TreeMethod::kGPUHist)
         .describe("Choice of tree construction method.");
+    DMLC_DECLARE_FIELD(tree_type)
+        .add_enum("single", RegTree::TreeKind::kSingle)
+        .add_enum("multi", RegTree::TreeKind::kMulti)
+        .set_default(RegTree::TreeKind::kSingle)
+        .describe("Type of tree.");
   }
 };
 

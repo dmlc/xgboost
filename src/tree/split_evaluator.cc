@@ -245,6 +245,7 @@ class MonotonicConstraint final : public SplitEvaluator {
     lower_[leftid] = lower_.at(nodeid);
     lower_[rightid] = lower_.at(nodeid);
 
+    // when value is lesser than split_cond, data is assigned to left.
     if (constraint < 0) {
       lower_[leftid] = mid;
       upper_[rightid] = mid;

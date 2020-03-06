@@ -489,7 +489,9 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
 
 TEST(GpuHist, ConfigIO) {
   GenericParameter generic_param(CreateEmptyGenericParam(0));
-  std::unique_ptr<TreeUpdater> updater {TreeUpdater::Create("grow_gpu_hist", &generic_param) };
+  LearnerModelParam mparam;
+  std::unique_ptr<TreeUpdater> updater {TreeUpdater::Create("grow_gpu_hist",
+                                                            &generic_param, &mparam) };
   updater->Configure(Args{});
 
   Json j_updater { Object() };

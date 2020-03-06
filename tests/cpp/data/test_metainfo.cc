@@ -39,6 +39,26 @@ TEST(MetaInfo, GetSet) {
   ASSERT_EQ(info.group_ptr_.size(), 0);
 }
 
+TEST(MetaInfo, SetLabels) {
+  size_t constexpr kRows { 128 };
+  size_t constexpr kCols { 128 };
+  xgboost::HostDeviceVector<float> labels;
+  std::string arr =
+      xgboost::RandomDataGenerator{kRows, kCols, 0}.GenerateArrayInterface(
+          &labels, true);
+  xgboost::MetaInfo info;
+  info.SetInfo("label", arr, xgboost::GenericParameter::kCpuId);
+  ASSERT_EQ(info.labels_.Size(), labels.Size());
+  ASSERT_EQ(info.labels_cols, kCols);
+  ASSERT_EQ(info.labels_rows, kRows);
+  for (size_t i = 0; i < kRows; ++i) {
+    for (size_t j = 0; j < kCols; ++j) {
+      ASSERT_EQ(labels.HostVector()[i * kCols + j],
+                info.labels_.HostVector()[i * kCols + j]);
+    }
+  }
+}
+
 TEST(MetaInfo, SaveLoadBinary) {
   xgboost::MetaInfo info;
   uint64_t constexpr kRows { 64 }, kCols { 32 };

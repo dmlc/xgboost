@@ -40,7 +40,7 @@ DMLC_REGISTER_PARAMETER(CPUHistMakerTrainParam);
 void QuantileHistMaker::Configure(const Args& args) {
   // initialize pruner
   if (!pruner_) {
-    pruner_.reset(TreeUpdater::Create("prune", tparam_));
+    pruner_.reset(TreeUpdater::Create("prune", tparam_, mparam_));
   }
   pruner_->Configure(args);
   param_.UpdateAllowUnknown(args);
@@ -663,7 +663,7 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
         }
         CHECK((*p_last_tree_)[nid].IsLeaf());
       }
-      leaf_value = (*p_last_tree_)[nid].LeafValue();
+      leaf_value = p_last_tree_->LeafValue(nid);
 
       for (const size_t* it = rowset.begin + r.begin(); it < rowset.begin + r.end(); ++it) {
         out_preds[*it] += leaf_value;
@@ -1360,17 +1360,17 @@ XGBOOST_REGISTER_TREE_UPDATER(FastHistMaker, "grow_fast_histmaker")
 .describe("(Deprecated, use grow_quantile_histmaker instead.)"
           " Grow tree using quantized histogram.")
 .set_body(
-    []() {
+    [](GenericParameter const* tparam, LearnerModelParam const* mparam) {
       LOG(WARNING) << "grow_fast_histmaker is deprecated, "
                    << "use grow_quantile_histmaker instead.";
-      return new QuantileHistMaker();
+      return new QuantileHistMaker(mparam);
     });
 
 XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMaker, "grow_quantile_histmaker")
 .describe("Grow tree using quantized histogram.")
 .set_body(
-    []() {
-      return new QuantileHistMaker();
+    [](GenericParameter const* tparam, LearnerModelParam const* mparam) {
+      return new QuantileHistMaker(mparam);
     });
 
 }  // namespace tree

@@ -218,12 +218,13 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
 }
 
 XGB_DLL int XGDMatrixSetInfoFromInterface(DMatrixHandle handle,
-                                          char const* field,
-                                          char const* interface_c_str) {
+                                          char const *field,
+                                          char const *interface_c_str,
+                                          int32_t device) {
   API_BEGIN();
   CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo(field, interface_c_str);
+      ->get()->Info().SetInfo(field, interface_c_str, device);
   API_END();
 }
 

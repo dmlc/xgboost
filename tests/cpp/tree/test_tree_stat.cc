@@ -22,8 +22,9 @@ class UpdaterTreeStatTest : public ::testing::Test {
 
   void RunTest(std::string updater) {
     auto tparam = CreateEmptyGenericParam(0);
+    LearnerModelParam mparam;
     auto up = std::unique_ptr<TreeUpdater>{
-        TreeUpdater::Create(updater, &tparam)};
+        TreeUpdater::Create(updater, &tparam, &mparam)};
     up->Configure(Args{});
     RegTree tree;
     tree.param.num_feature = kCols;

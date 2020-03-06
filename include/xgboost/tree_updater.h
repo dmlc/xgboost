@@ -30,7 +30,7 @@ class Json;
  */
 class TreeUpdater : public Configurable {
  protected:
-  GenericParameter const* tparam_;
+  GenericParameter const* tparam_ { nullptr };
 
  public:
   /*! \brief virtual destructor */
@@ -82,16 +82,18 @@ class TreeUpdater : public Configurable {
    * \param name Name of the tree updater.
    * \param tparam A global runtime parameter
    */
-  static TreeUpdater* Create(const std::string& name, GenericParameter const* tparam);
+  static TreeUpdater* Create(const std::string& name, GenericParameter const* tparam,
+                             LearnerModelParam const* mparam);
 };
 
 /*!
  * \brief Registry entry for tree updater.
  */
 struct TreeUpdaterReg
-    : public dmlc::FunctionRegEntryBase<TreeUpdaterReg,
-                                        std::function<TreeUpdater* ()> > {
-};
+    : public dmlc::FunctionRegEntryBase<
+          TreeUpdaterReg,
+          std::function<TreeUpdater *(GenericParameter const *tparam,
+                                      LearnerModelParam const *mparam)>> {};
 
 /*!
  * \brief Macro to register tree updater.

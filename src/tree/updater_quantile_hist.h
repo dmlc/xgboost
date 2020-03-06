@@ -110,7 +110,7 @@ struct CPUHistMakerTrainParam
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
-  QuantileHistMaker() {
+  explicit QuantileHistMaker(LearnerModelParam const* mparam) : mparam_{mparam} {
     updater_monitor_.Init("QuantileHistMaker");
   }
   void Configure(const Args& args) override;
@@ -155,6 +155,7 @@ class QuantileHistMaker: public TreeUpdater {
   CPUHistMakerTrainParam hist_maker_param_;
   // training parameter
   TrainParam param_;
+  LearnerModelParam const* mparam_;
   // quantized data matrix
   GHistIndexMatrix gmat_;
   // (optional) data matrix with feature grouping

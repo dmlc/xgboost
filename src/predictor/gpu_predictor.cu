@@ -175,7 +175,7 @@ __device__ float GetLeafWeight(bst_uint ridx, const RegTree::Node* tree,
       }
     }
   }
-  return n.LeafValue();
+  return n.SinlgeLeafValue();
 }
 
 template <typename Loader, typename Data>
