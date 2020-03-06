@@ -206,7 +206,9 @@ class LearnerImpl : public Learner {
     }
   }
   ~LearnerImpl() override {
-    local_map.erase(this);
+    if (local_map.find(this) != local_map.cend()) {
+      local_map.erase(this);
+    }
   }
   // Configuration before data is known.
   void Configure() override {
