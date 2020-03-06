@@ -89,14 +89,13 @@ if __name__ == "__main__":
                 maybe_parallel_build = ""
 
             args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
-            args.append('-DCMAKE_BUILD_TYPE=Debug')
 
             # if enviorment set rabit_mock
             if os.getenv("RABIT_MOCK", None) is not None:
                 args.append("-DRABIT_MOCK:BOOL=ON")
 
             run("cmake .. " + " ".join(args) + maybe_generator)
-            run("cmake --build . --config Debug" + maybe_parallel_build)
+            run("cmake --build . --config Release" + maybe_parallel_build)
 
         with cd("demo/regression"):
             run(sys.executable + " mapfeat.py")
