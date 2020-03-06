@@ -433,7 +433,6 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
   CHECK_HANDLE();
   auto *learner = static_cast<Learner*>(handle);
   auto& entry = learner->GetThreadLocal().prediction_entry;
-  HostDeviceVector<bst_float> tmp_preds;
   learner->Predict(
       *static_cast<std::shared_ptr<DMatrix>*>(dmat),
       (option_mask & 1) != 0,
