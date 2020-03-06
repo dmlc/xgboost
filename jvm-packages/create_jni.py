@@ -20,7 +20,6 @@ CONFIG = {
     "USE_S3": "OFF",
 
     "USE_CUDA": "OFF",
-    'CMAKE_BUILD_TYPE': 'Debug',
     "JVM_BINDINGS": "ON"
 }
 
@@ -90,6 +89,7 @@ if __name__ == "__main__":
                 maybe_parallel_build = ""
 
             args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
+            args.append('-DCMAKE_BUILD_TYPE=Debug')
 
             # if enviorment set rabit_mock
             if os.getenv("RABIT_MOCK", None) is not None:

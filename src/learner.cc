@@ -206,6 +206,7 @@ class LearnerImpl : public Learner {
     }
   }
   ~LearnerImpl() override {
+    auto& local_map = GetThreadLocalMap();
     if (local_map.find(this) != local_map.cend()) {
       local_map.erase(this);
     }
@@ -879,13 +880,17 @@ class LearnerImpl : public Learner {
   }
 
   XGBAPIThreadLocalEntry& GetThreadLocal() const override {
-    return local_map[this];
+    return this->GetThreadLocalMap()[this];
   }
   const std::map<std::string, std::string>& GetConfigurationArguments() const override {
     return cfg_;
   }
 
  protected:
+  std::map<LearnerImpl const *, XGBAPIThreadLocalEntry>& GetThreadLocalMap() const {
+    thread_local std::map<LearnerImpl const *, XGBAPIThreadLocalEntry> local_map;
+    return local_map;
+  }
   /*!
    * \brief get un-transformed prediction
    * \param data training data matrix
@@ -1025,7 +1030,6 @@ class LearnerImpl : public Learner {
   // gradient pairs
   HostDeviceVector<GradientPair> gpair_;
   bool need_configuration_;
-  static thread_local std::map<LearnerImpl const *, XGBAPIThreadLocalEntry> local_map;
 
  private:
   /*! \brief random number transformation seed. */
@@ -1045,8 +1049,6 @@ class LearnerImpl : public Learner {
 std::string const LearnerImpl::kEvalMetric {"eval_metric"};  // NOLINT
 
 constexpr int32_t LearnerImpl::kRandSeedMagic;
-
-thread_local std::map<LearnerImpl const *, XGBAPIThreadLocalEntry> LearnerImpl::local_map;
 
 Learner* Learner::Create(
     const std::vector<std::shared_ptr<DMatrix> >& cache_data) {
