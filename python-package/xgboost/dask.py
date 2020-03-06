@@ -179,9 +179,9 @@ class DaskDMatrix:
         '''Obtain references to local data.'''
 
         def inconsistent(left, left_name, right, right_name):
-            msg = (f'Partitions between {left_name} and {right_name} are not ' + 
-                f'consistent: {len(left)} != {len(right)}.  ' + 
-                'Please try to repartition/rechunk your data.')
+            msg = (f'Partitions between {left_name} and {right_name} are not ' +
+                   f'consistent: {len(left)} != {len(right)}.  ' +
+                   'Please try to repartition/rechunk your data.')
             return msg
 
         def check_columns(parts):
@@ -280,7 +280,7 @@ class DaskDMatrix:
         '''
         if worker.address not in set(self.worker_map.keys()):
             msg = (f'worker {worker.address} has an empty DMatrix.  ' +
-                f'All workers associated with this DMatrix: {set(self.worker_map.keys())}')
+                   f'All workers associated with this DMatrix: {set(self.worker_map.keys())}')
             logging.warning(msg)
             d = DMatrix(numpy.empty((0, 0)),
                         feature_names=self._feature_names,

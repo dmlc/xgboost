@@ -200,7 +200,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
             maximize_score = True
 
         if verbose and env.rank == 0:
-            msg =(
+            msg = (
                 f"Will train until {metric_label} "
                 f"hasn't improved in {stopping_rounds} rounds.\n"
             )

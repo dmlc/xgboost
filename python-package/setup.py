@@ -131,7 +131,7 @@ class BuildExt(build_ext.build_ext):
             self.logger.info('Found shared library, skipping build.')
             return
 
-        self.logger.info(f'Building from source. {libxgboost}')
+        self.logger.info('Building from source. %s', libxgboost)
         if not os.path.exists(build_dir):
             os.mkdir(build_dir)
         if shutil.which('ninja'):
@@ -146,7 +146,7 @@ class BuildExt(build_ext.build_ext):
                 try:
                     self.build(src_dir, build_dir, vs)
                     self.logger.info(
-                        f'{vs} is used for building Windows distribution.')
+                        '%s is used for building Windows distribution.', vs)
                     break
                 except subprocess.CalledProcessError:
                     continue
@@ -216,7 +216,7 @@ class InstallLib(install_lib.install_lib):
         else:
             # The library is built by setup.py
             src = os.path.join(build_dir, libxgboost_path)
-        self.logger.info(f'Installing shared library: {src}')
+        self.logger.info('Installing shared library: %s', src)
         dst, _ = self.copy_file(src, dst)
         outfiles.append(dst)
         return outfiles
