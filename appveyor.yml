@@ -2,23 +2,11 @@ environment:
     R_ARCH: x64
     USE_RTOOLS: true
     matrix:
-        - target: msvc
-          ver: 2015
-          generator: "Visual Studio 14 2015 Win64"
-          configuration: Debug
-        - target: msvc
-          ver: 2015
-          generator: "Visual Studio 14 2015 Win64"
-          configuration: Release
-        - target: mingw
-          generator: "Unix Makefiles"
         - target: jvm
-        - target: rmsvc
-          ver: 2015
-          generator: "Visual Studio 14 2015 Win64"
-          configuration: Release
+          configuration: Debug
         - target: rmingw
           generator: "Unix Makefiles"
+          configuration: Debug
 
 #matrix:
 #    fast_finish: true
