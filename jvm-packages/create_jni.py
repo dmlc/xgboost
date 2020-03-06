@@ -20,6 +20,7 @@ CONFIG = {
     "USE_S3": "OFF",
 
     "USE_CUDA": "OFF",
+    'CMAKE_BUILD_TYPE': 'Debug',
     "JVM_BINDINGS": "ON"
 }
 
@@ -95,7 +96,7 @@ if __name__ == "__main__":
                 args.append("-DRABIT_MOCK:BOOL=ON")
 
             run("cmake .. " + " ".join(args) + maybe_generator)
-            run("cmake --build . --config Release" + maybe_parallel_build)
+            run("cmake --build . --config Debug" + maybe_parallel_build)
 
         with cd("demo/regression"):
             run(sys.executable + " mapfeat.py")
