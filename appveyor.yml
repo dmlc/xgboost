@@ -94,7 +94,7 @@ build_script:
         cmake .. -G"%generator%" -DCMAKE_CONFIGURATION_TYPES="Release" -DR_LIB=ON &&
         cmake --build . --target install --config Release
       )
-    - if /i "%target%" == "jvm" cd jvm-packages && mvn -e -X test -pl :xgboost4j_2.12
+    - if /i "%target%" == "jvm" cd jvm-packages && mvn test -pl :xgboost4j_2.12
 
 test_script:
     - cd %APPVEYOR_BUILD_FOLDER%
