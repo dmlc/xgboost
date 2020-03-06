@@ -205,6 +205,9 @@ class LearnerImpl : public Learner {
       cache_.Cache(d, GenericParameter::kCpuId);
     }
   }
+  ~LearnerImpl() override {
+    local_map.erase(this);
+  }
   // Configuration before data is known.
   void Configure() override {
     if (!this->need_configuration_) { return; }
@@ -873,6 +876,9 @@ class LearnerImpl : public Learner {
     }
   }
 
+  XGBAPIThreadLocalEntry& GetThreadLocal() const override {
+    return local_map[this];
+  }
   const std::map<std::string, std::string>& GetConfigurationArguments() const override {
     return cfg_;
   }
@@ -1017,6 +1023,7 @@ class LearnerImpl : public Learner {
   // gradient pairs
   HostDeviceVector<GradientPair> gpair_;
   bool need_configuration_;
+  static thread_local std::map<LearnerImpl const *, XGBAPIThreadLocalEntry> local_map;
 
  private:
   /*! \brief random number transformation seed. */
@@ -1036,6 +1043,8 @@ class LearnerImpl : public Learner {
 std::string const LearnerImpl::kEvalMetric {"eval_metric"};  // NOLINT
 
 constexpr int32_t LearnerImpl::kRandSeedMagic;
+
+thread_local std::map<LearnerImpl const *, XGBAPIThreadLocalEntry> LearnerImpl::local_map;
 
 Learner* Learner::Create(
     const std::vector<std::shared_ptr<DMatrix> >& cache_data) {
