@@ -46,6 +46,7 @@ option(USE_AZURE "Build with AZURE support" OFF)
 option(USE_S3 "Build with S3 support" OFF)
 ## Sanitizers
 option(USE_SANITIZER "Use santizer flags" OFF)
+option(BUILD_STATIC_LIB "Build static library" OFF)
 option(SANITIZER_PATH "Path to sanitizes.")
 set(ENABLED_SANITIZERS "address" "leak" CACHE STRING
   "Semicolon separated list of sanitizer names. E.g 'address;leak'. Supported sanitizers are
@@ -133,13 +134,23 @@ add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
 set(XGBOOST_OBJ_SOURCES "${XGBOOST_OBJ_SOURCES};$<TARGET_OBJECTS:objxgboost>")
 
-#-- Shared library
-add_library(xgboost SHARED ${XGBOOST_OBJ_SOURCES})
-target_include_directories(xgboost
-  INTERFACE
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
-target_link_libraries(xgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
+if (BUILD_STATIC_LIB)
+    #-- Static library
+    add_library(xgboost STATIC ${XGBOOST_OBJ_SOURCES})
+  target_include_directories(xgboost
+    INTERFACE
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
+  target_link_libraries(xgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
+else()
+  #-- Shared library
+  add_library(xgboost SHARED ${XGBOOST_OBJ_SOURCES})
+  target_include_directories(xgboost
+    INTERFACE
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
+  target_link_libraries(xgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
+endif (BUILD_STATIC_LIB)
 
 # This creates its own shared library `xgboost4j'.
 if (JVM_BINDINGS)
