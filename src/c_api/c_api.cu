@@ -1,11 +1,12 @@
-// Copyright (c) 2014-2019 by Contributors
-
+// Copyright (c) 2019-2020 by Contributors
 #include "xgboost/data.h"
 #include "xgboost/c_api.h"
+#include "xgboost/learner.h"
 #include "c_api_error.h"
 #include "../data/device_adapter.cuh"
 
-namespace xgboost {
+using namespace xgboost;  // NOLINT
+
 XGB_DLL int XGDMatrixCreateFromArrayInterfaceColumns(char const* c_json_strs,
                                                      bst_float missing,
                                                      int nthread,
@@ -28,5 +29,3 @@ XGB_DLL int XGDMatrixCreateFromArrayInterface(char const* c_json_strs,
       new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
   API_END();
 }
-
-}  // namespace xgboost

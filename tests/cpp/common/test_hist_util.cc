@@ -261,7 +261,25 @@ TEST(hist_util, DenseCutsAccuracyTest) {
       HistogramCuts cuts;
       DenseCuts dense(&cuts);
       dense.Build(dmat.get(), num_bins);
-      ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
+      ValidateCuts(cuts, dmat.get(), num_bins);
+    }
+  }
+}
+
+TEST(hist_util, DenseCutsAccuracyTestWeights) {
+  int bin_sizes[] = {2, 16, 256, 512};
+  int sizes[] = {100, 1000, 1500};
+  int num_columns = 5;
+  for (auto num_rows : sizes) {
+    auto x = GenerateRandom(num_rows, num_columns);
+    auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
+    auto w = GenerateRandomWeights(num_rows);
+    dmat->Info().weights_.HostVector() = w;
+    for (auto num_bins : bin_sizes) {
+      HistogramCuts cuts;
+      DenseCuts dense(&cuts);
+      dense.Build(dmat.get(), num_bins);
+      ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
 }
@@ -279,7 +297,7 @@ TEST(hist_util, DenseCutsExternalMemory) {
       HistogramCuts cuts;
       DenseCuts dense(&cuts);
       dense.Build(dmat.get(), num_bins);
-      ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
+      ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
 }
@@ -295,7 +313,7 @@ TEST(hist_util, SparseCutsAccuracyTest) {
       HistogramCuts cuts;
       SparseCuts sparse(&cuts);
       sparse.Build(dmat.get(), num_bins);
-      ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
+      ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
 }
@@ -335,7 +353,7 @@ TEST(hist_util, SparseCutsExternalMemory) {
       HistogramCuts cuts;
       SparseCuts dense(&cuts);
       dense.Build(dmat.get(), num_bins);
-      ValidateCuts(cuts, x, num_rows, num_columns, num_bins);
+      ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
 }
