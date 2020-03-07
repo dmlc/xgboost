@@ -71,6 +71,7 @@ namespace data {
 constexpr size_t kAdapterUnknownSize = std::numeric_limits<size_t >::max();
 
 struct COOTuple {
+  COOTuple() = default;
   XGBOOST_DEVICE COOTuple(size_t row_idx, size_t column_idx, float value)
       : row_idx(row_idx), column_idx(column_idx), value(value) {}
 
