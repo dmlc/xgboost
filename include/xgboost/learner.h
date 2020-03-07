@@ -11,6 +11,7 @@
 #include <rabit/rabit.h>
 #include <xgboost/base.h>
 #include <xgboost/feature_map.h>
+#include <xgboost/predictor.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
@@ -28,6 +29,22 @@ class GradientBooster;
 class ObjFunction;
 class DMatrix;
 class Json;
+
+/*! \brief entry to to easily hold returning information */
+struct XGBAPIThreadLocalEntry {
+  /*! \brief result holder for returning string */
+  std::string ret_str;
+  /*! \brief result holder for returning strings */
+  std::vector<std::string> ret_vec_str;
+  /*! \brief result holder for returning string pointers */
+  std::vector<const char *> ret_vec_charp;
+  /*! \brief returning float vector. */
+  std::vector<bst_float> ret_vec_float;
+  /*! \brief temp variable of gradient pairs. */
+  std::vector<GradientPair> tmp_gpair;
+  PredictionCacheEntry prediction_entry;
+};
+
 
 /*!
  * \brief Learner class that does training and prediction.
@@ -167,6 +184,8 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
   virtual std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                              bool with_stats,
                                              std::string format) const = 0;
+
+  virtual XGBAPIThreadLocalEntry& GetThreadLocal() const = 0;
   /*!
    * \brief Create a new instance of learner.
    * \param cache_data The matrix to cache the prediction.

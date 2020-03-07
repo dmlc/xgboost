@@ -6,6 +6,7 @@
  */
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
+#include <dmlc/thread_local.h>
 
 #include <algorithm>
 #include <iomanip>
@@ -192,6 +193,9 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 
+using XGBAPIThreadLocalStore =
+    dmlc::ThreadLocalStore<std::map<Learner const *, XGBAPIThreadLocalEntry>>;
+
 /*!
  * \brief learner that performs gradient boosting for a specific objective
  * function. It does training and prediction.
@@ -203,6 +207,12 @@ class LearnerImpl : public Learner {
     monitor_.Init("Learner");
     for (std::shared_ptr<DMatrix> const& d : cache) {
       cache_.Cache(d, GenericParameter::kCpuId);
+    }
+  }
+  ~LearnerImpl() override {
+    auto local_map = XGBAPIThreadLocalStore::Get();
+    if (local_map->find(this) != local_map->cend()) {
+      local_map->erase(this);
     }
   }
   // Configuration before data is known.
@@ -873,6 +883,9 @@ class LearnerImpl : public Learner {
     }
   }
 
+  XGBAPIThreadLocalEntry& GetThreadLocal() const override {
+    return (*XGBAPIThreadLocalStore::Get())[this];
+  }
   const std::map<std::string, std::string>& GetConfigurationArguments() const override {
     return cfg_;
   }

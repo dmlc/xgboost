@@ -1,5 +1,4 @@
 // Copyright (c) 2014-2020 by Contributors
-#include <dmlc/thread_local.h>
 #include <rabit/rabit.h>
 #include <rabit/c_api.h>
 
@@ -26,20 +25,6 @@
 
 using namespace xgboost; // NOLINT(*);
 
-/*! \brief entry to to easily hold returning information */
-struct XGBAPIThreadLocalEntry {
-  /*! \brief result holder for returning string */
-  std::string ret_str;
-  /*! \brief result holder for returning strings */
-  std::vector<std::string> ret_vec_str;
-  /*! \brief result holder for returning string pointers */
-  std::vector<const char *> ret_vec_charp;
-  /*! \brief returning float vector. */
-  std::vector<bst_float> ret_vec_float;
-  /*! \brief temp variable of gradient pairs. */
-  std::vector<GradientPair> tmp_gpair;
-};
-
 XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch) {
   if (major) {
     *major = XGBOOST_VER_MAJOR;
@@ -51,9 +36,6 @@ XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch) {
     *patch = XGBOOST_VER_PATCH;
   }
 }
-
-// define the threadlocal store.
-using XGBAPIThreadLocalStore = dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry>;
 
 int XGBRegisterLogCallback(void (*callback)(const char*)) {
   API_BEGIN();
@@ -102,16 +84,16 @@ XGB_DLL int XGDMatrixCreateFromArrayInterfaceColumns(char const* c_json_strs,
                                                      int nthread,
                                                      DMatrixHandle* out) {
   API_BEGIN();
-  LOG(FATAL) << "Xgboost not compiled with cuda";
+  LOG(FATAL) << "XGBoost not compiled with CUDA";
   API_END();
 }
 
 XGB_DLL int XGDMatrixCreateFromArrayInterface(char const* c_json_strs,
-                                                     bst_float missing,
-                                                     int nthread,
-                                                     DMatrixHandle* out) {
+                                              bst_float missing,
+                                              int nthread,
+                                              DMatrixHandle* out) {
   API_BEGIN();
-  LOG(FATAL) << "Xgboost not compiled with cuda";
+  LOG(FATAL) << "XGBoost not compiled with CUDA";
   API_END();
 }
 
@@ -375,7 +357,7 @@ XGB_DLL int XGBoosterSaveJsonConfig(BoosterHandle handle,
   auto* learner = static_cast<Learner*>(handle);
   learner->Configure();
   learner->SaveConfig(&config);
-  std::string& raw_str = XGBAPIThreadLocalStore::Get()->ret_str;
+  std::string& raw_str = learner->GetThreadLocal().ret_str;
   Json::Dump(config, &raw_str);
   *out_str = raw_str.c_str();
   *out_len = static_cast<xgboost::bst_ulong>(raw_str.length());
@@ -422,10 +404,11 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
                                  const char* evnames[],
                                  xgboost::bst_ulong len,
                                  const char** out_str) {
-  std::string& eval_str = XGBAPIThreadLocalStore::Get()->ret_str;
   API_BEGIN();
   CHECK_HANDLE();
   auto* bst = static_cast<Learner*>(handle);
+  std::string& eval_str = bst->GetThreadLocal().ret_str;
+
   std::vector<std::shared_ptr<DMatrix>> data_sets;
   std::vector<std::string> data_names;
 
@@ -446,24 +429,21 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              int32_t training,
                              xgboost::bst_ulong *len,
                              const bst_float **out_result) {
-  std::vector<bst_float>& preds =
-      XGBAPIThreadLocalStore::Get()->ret_vec_float;
   API_BEGIN();
   CHECK_HANDLE();
-  auto *bst = static_cast<Learner*>(handle);
-  HostDeviceVector<bst_float> tmp_preds;
-  bst->Predict(
+  auto *learner = static_cast<Learner*>(handle);
+  auto& entry = learner->GetThreadLocal().prediction_entry;
+  learner->Predict(
       *static_cast<std::shared_ptr<DMatrix>*>(dmat),
       (option_mask & 1) != 0,
-      &tmp_preds, ntree_limit,
+      &entry.predictions, ntree_limit,
       static_cast<bool>(training),
       (option_mask & 2) != 0,
       (option_mask & 4) != 0,
       (option_mask & 8) != 0,
       (option_mask & 16) != 0);
-  preds = tmp_preds.HostVector();
-  *out_result = dmlc::BeginPtr(preds);
-  *len = static_cast<xgboost::bst_ulong>(preds.size());
+  *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
+  *len = static_cast<xgboost::bst_ulong>(entry.predictions.Size());
   API_END();
 }
 
@@ -515,13 +495,14 @@ XGB_DLL int XGBoosterLoadModelFromBuffer(BoosterHandle handle,
 XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle,
                                  xgboost::bst_ulong* out_len,
                                  const char** out_dptr) {
-  std::string& raw_str = XGBAPIThreadLocalStore::Get()->ret_str;
-  raw_str.resize(0);
-
   API_BEGIN();
   CHECK_HANDLE();
-  common::MemoryBufferStream fo(&raw_str);
   auto *learner = static_cast<Learner*>(handle);
+  std::string& raw_str = learner->GetThreadLocal().ret_str;
+  raw_str.resize(0);
+
+  common::MemoryBufferStream fo(&raw_str);
+
   learner->Configure();
   learner->SaveModel(&fo);
   *out_dptr = dmlc::BeginPtr(raw_str);
@@ -534,13 +515,12 @@ XGB_DLL int XGBoosterGetModelRaw(BoosterHandle handle,
 XGB_DLL int XGBoosterSerializeToBuffer(BoosterHandle handle,
                                        xgboost::bst_ulong *out_len,
                                        const char **out_dptr) {
-  std::string &raw_str = XGBAPIThreadLocalStore::Get()->ret_str;
-  raw_str.resize(0);
-
   API_BEGIN();
   CHECK_HANDLE();
-  common::MemoryBufferStream fo(&raw_str);
   auto *learner = static_cast<Learner*>(handle);
+  std::string &raw_str = learner->GetThreadLocal().ret_str;
+  raw_str.resize(0);
+  common::MemoryBufferStream fo(&raw_str);
   learner->Configure();
   learner->Save(&fo);
   *out_dptr = dmlc::BeginPtr(raw_str);
@@ -583,16 +563,13 @@ XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle) {
   API_END();
 }
 
-inline void XGBoostDumpModelImpl(
-    BoosterHandle handle,
-    const FeatureMap& fmap,
-    int with_stats,
-    const char *format,
-    xgboost::bst_ulong* len,
-    const char*** out_models) {
-  std::vector<std::string>& str_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_str;
-  std::vector<const char*>& charp_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_charp;
+inline void XGBoostDumpModelImpl(BoosterHandle handle, const FeatureMap &fmap,
+                                 int with_stats, const char *format,
+                                 xgboost::bst_ulong *len,
+                                 const char ***out_models) {
   auto *bst = static_cast<Learner*>(handle);
+  std::vector<std::string>& str_vecs = bst->GetThreadLocal().ret_vec_str;
+  std::vector<const char*>& charp_vecs = bst->GetThreadLocal().ret_vec_charp;
   bst->Configure();
   str_vecs = bst->DumpModel(fmap, with_stats != 0, format);
   charp_vecs.resize(str_vecs.size());
@@ -608,7 +585,10 @@ XGB_DLL int XGBoosterDumpModel(BoosterHandle handle,
                                int with_stats,
                                xgboost::bst_ulong* len,
                                const char*** out_models) {
+  API_BEGIN();
+  CHECK_HANDLE();
   return XGBoosterDumpModelEx(handle, fmap, with_stats, "text", len, out_models);
+  API_END();
 }
 
 XGB_DLL int XGBoosterDumpModelEx(BoosterHandle handle,
@@ -664,7 +644,7 @@ XGB_DLL int XGBoosterGetAttr(BoosterHandle handle,
                      const char** out,
                      int* success) {
   auto* bst = static_cast<Learner*>(handle);
-  std::string& ret_str = XGBAPIThreadLocalStore::Get()->ret_str;
+  std::string& ret_str = bst->GetThreadLocal().ret_str;
   API_BEGIN();
   CHECK_HANDLE();
   if (bst->GetAttr(key, &ret_str)) {
@@ -680,9 +660,9 @@ XGB_DLL int XGBoosterGetAttr(BoosterHandle handle,
 XGB_DLL int XGBoosterSetAttr(BoosterHandle handle,
                              const char* key,
                              const char* value) {
-  auto* bst = static_cast<Learner*>(handle);
   API_BEGIN();
   CHECK_HANDLE();
+  auto* bst = static_cast<Learner*>(handle);
   if (value == nullptr) {
     bst->DelAttr(key);
   } else {
@@ -694,12 +674,13 @@ XGB_DLL int XGBoosterSetAttr(BoosterHandle handle,
 XGB_DLL int XGBoosterGetAttrNames(BoosterHandle handle,
                                   xgboost::bst_ulong* out_len,
                                   const char*** out) {
-  std::vector<std::string>& str_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_str;
-  std::vector<const char*>& charp_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_charp;
-  auto *bst = static_cast<Learner*>(handle);
   API_BEGIN();
   CHECK_HANDLE();
-  str_vecs = bst->GetAttrNames();
+  auto *learner = static_cast<Learner *>(handle);
+  std::vector<std::string> &str_vecs = learner->GetThreadLocal().ret_vec_str;
+  std::vector<const char *> &charp_vecs =
+      learner->GetThreadLocal().ret_vec_charp;
+  str_vecs = learner->GetAttrNames();
   charp_vecs.resize(str_vecs.size());
   for (size_t i = 0; i < str_vecs.size(); ++i) {
     charp_vecs[i] = str_vecs[i].c_str();
