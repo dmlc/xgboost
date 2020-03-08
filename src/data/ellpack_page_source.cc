@@ -15,31 +15,6 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
                 "XGBoost is not compiled with CUDA but EllpackPageSource is required";
 }
 
-void EllpackPageSource::BeforeFirst() {
-  LOG(FATAL) << "Internal Error: "
-                "XGBoost is not compiled with CUDA but EllpackPageSource is required";
-}
-
-bool EllpackPageSource::Next() {
-  LOG(FATAL) << "Internal Error: "
-                "XGBoost is not compiled with CUDA but EllpackPageSource is required";
-  return false;
-}
-
-EllpackPage& EllpackPageSource::Value() {
-  LOG(FATAL) << "Internal Error: "
-                "XGBoost is not compiled with CUDA but EllpackPageSource is required";
-  EllpackPage* page { nullptr };
-  return *page;
-}
-
-const EllpackPage& EllpackPageSource::Value() const {
-  LOG(FATAL) << "Internal Error: "
-                "XGBoost is not compiled with CUDA but EllpackPageSource is required";
-  EllpackPage* page { nullptr };
-  return *page;
-}
-
 }  // namespace data
 }  // namespace xgboost
 

@@ -181,13 +181,13 @@ class CompressedIterator {
   typedef value_type reference;             // NOLINT
 
  private:
-  CompressedByteT *buffer_;
+  const CompressedByteT *buffer_;
   size_t symbol_bits_;
   size_t offset_;
 
  public:
   CompressedIterator() : buffer_(nullptr), symbol_bits_(0), offset_(0) {}
-  CompressedIterator(CompressedByteT *buffer, size_t num_symbols)
+  CompressedIterator(const CompressedByteT *buffer, size_t num_symbols)
       : buffer_(buffer), offset_(0) {
     symbol_bits_ = detail::SymbolBits(num_symbols);
   }
