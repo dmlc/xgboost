@@ -48,6 +48,10 @@ struct EllpackDeviceAccessor {
   bool is_dense;
   /*! \brief Row length for ELLPack, equal to number of features. */
   size_t row_stride;
+<<<<<<< HEAD
+=======
+  //EllpackInfo info;
+>>>>>>> Rebase
   size_t base_rowid{};
   size_t n_rows{};
   common::CompressedIterator<uint32_t> gidx_iter;
