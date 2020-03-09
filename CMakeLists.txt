@@ -23,6 +23,7 @@ set_default_configuration_release()
 #-- Options
 option(BUILD_C_DOC "Build documentation for C APIs using Doxygen." OFF)
 option(USE_OPENMP "Build with OpenMP support." ON)
+option(BUILD_SHARED_LIBS "Build shared libraries (.dll/.so)" ON)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
