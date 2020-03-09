@@ -10,7 +10,7 @@
 #include "array_interface.h"
 #include "../common/device_helpers.cuh"
 #include "device_adapter.cuh"
-#include "simple_dmatrix.h"
+#include "device_dmatrix.h"
 
 namespace xgboost {
 
@@ -75,7 +75,7 @@ DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
   CHECK_EQ(cache_prefix.size(), 0)
       << "Device memory construction is not currently supported with external "
          "memory.";
-  return new data::SimpleDMatrix(adapter, missing, nthread);
+  return new data::DeviceDMatrix(adapter, missing, nthread);
 }
 
 template DMatrix* DMatrix::Create<data::CudfAdapter>(
