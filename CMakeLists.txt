@@ -46,7 +46,6 @@ option(USE_AZURE "Build with AZURE support" OFF)
 option(USE_S3 "Build with S3 support" OFF)
 ## Sanitizers
 option(USE_SANITIZER "Use santizer flags" OFF)
-option(BUILD_STATIC_LIB "Build static library" OFF)
 option(SANITIZER_PATH "Path to sanitizes.")
 set(ENABLED_SANITIZERS "address" "leak" CACHE STRING
   "Semicolon separated list of sanitizer names. E.g 'address;leak'. Supported sanitizers are
