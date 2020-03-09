@@ -134,23 +134,13 @@ add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
 set(XGBOOST_OBJ_SOURCES "${XGBOOST_OBJ_SOURCES};$<TARGET_OBJECTS:objxgboost>")
 
-if (BUILD_STATIC_LIB)
-    #-- Static library
-    add_library(xgboost STATIC ${XGBOOST_OBJ_SOURCES})
-  target_include_directories(xgboost
-    INTERFACE
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
-  target_link_libraries(xgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
-else()
-  #-- Shared library
-  add_library(xgboost SHARED ${XGBOOST_OBJ_SOURCES})
-  target_include_directories(xgboost
-    INTERFACE
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
-  target_link_libraries(xgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
-endif (BUILD_STATIC_LIB)
+#-- library
+add_library(xgboost ${XGBOOST_OBJ_SOURCES})
+target_include_directories(xgboost
+  INTERFACE
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
+target_link_libraries(xgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
 
 # This creates its own shared library `xgboost4j'.
 if (JVM_BINDINGS)
