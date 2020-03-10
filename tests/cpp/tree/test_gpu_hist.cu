@@ -97,12 +97,8 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   }
   gpair.SetDevice(0);
 
-  thrust::host_vector<common::CompressedByteT> h_gidx_buffer (page->gidx_buffer.size());
+  thrust::host_vector<common::CompressedByteT> h_gidx_buffer (page->gidx_buffer.HostVector());
 
-  common::CompressedByteT* d_gidx_buffer_ptr = page->gidx_buffer.data();
-  dh::safe_cuda(cudaMemcpy(h_gidx_buffer.data(), d_gidx_buffer_ptr,
-                           sizeof(common::CompressedByteT) * page->gidx_buffer.size(),
-                           cudaMemcpyDeviceToHost));
 
   maker.row_partitioner.reset(new RowPartitioner(0, kNRows));
   maker.hist.AllocateHistogram(0);
@@ -196,15 +192,10 @@ TEST(GpuHist, EvaluateSplits) {
   auto cmat = GetHostCutMatrix();
 
   // Copy cut matrix to device.
-  maker.ba.Allocate(0,
-                    &(page->matrix.info.feature_segments), cmat.Ptrs().size(),
-                    &(page->matrix.info.min_fvalue), cmat.MinValues().size(),
-                    &(page->matrix.info.gidx_fvalue_map), 24,
-                    &(maker.monotone_constraints), kNCols);
-  dh::CopyVectorToDeviceSpan(page->matrix.info.feature_segments, cmat.Ptrs());
-  dh::CopyVectorToDeviceSpan(page->matrix.info.gidx_fvalue_map, cmat.Values());
-  dh::CopyVectorToDeviceSpan(maker.monotone_constraints, param.monotone_constraints);
-  dh::CopyVectorToDeviceSpan(page->matrix.info.min_fvalue, cmat.MinValues());
+  page->cuts_ = cmat;
+  maker.ba.Allocate(0, &(maker.monotone_constraints), kNCols);
+  dh::CopyVectorToDeviceSpan(maker.monotone_constraints,
+                             param.monotone_constraints);
 
   // Initialize GPUHistMakerDevice::hist
   maker.hist.Init(0, (max_bins - 1) * kNCols);
@@ -274,15 +265,13 @@ void TestHistogramIndexImpl() {
   // Extract the device maker from the histogram makers and from that its compressed
   // histogram index
   const auto &maker = hist_maker.maker;
-  std::vector<common::CompressedByteT> h_gidx_buffer(maker->page->gidx_buffer.size());
-  dh::CopyDeviceSpanToVector(&h_gidx_buffer, maker->page->gidx_buffer);
+  std::vector<common::CompressedByteT> h_gidx_buffer(maker->page->gidx_buffer.HostVector());
 
   const auto &maker_ext = hist_maker_ext.maker;
-  std::vector<common::CompressedByteT> h_gidx_buffer_ext(maker_ext->page->gidx_buffer.size());
-  dh::CopyDeviceSpanToVector(&h_gidx_buffer_ext, maker_ext->page->gidx_buffer);
+  std::vector<common::CompressedByteT> h_gidx_buffer_ext(maker_ext->page->gidx_buffer.HostVector());
 
-  ASSERT_EQ(maker->page->matrix.info.n_bins, maker_ext->page->matrix.info.n_bins);
-  ASSERT_EQ(maker->page->gidx_buffer.size(), maker_ext->page->gidx_buffer.size());
+  ASSERT_EQ(maker->page->cuts_.TotalBins(), maker_ext->page->cuts_.TotalBins());
+  ASSERT_EQ(maker->page->gidx_buffer.Size(), maker_ext->page->gidx_buffer.Size());
 
 }
 

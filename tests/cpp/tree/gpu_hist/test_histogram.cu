@@ -27,7 +27,7 @@ void TestDeterminsticHistogram() {
     gpair.SetDevice(0);
 
     auto rounding = CreateRoundingFactor<Gradient>(gpair.DeviceSpan());
-    BuildGradientHistogram(page->matrix, gpair.DeviceSpan(), ridx,
+    BuildGradientHistogram(page->GetDeviceAccessor(0), gpair.DeviceSpan(), ridx,
                            d_histogram, rounding, true);
 
     for (size_t i = 0; i < kRounds; ++i) {
@@ -35,7 +35,7 @@ void TestDeterminsticHistogram() {
       auto d_histogram = dh::ToSpan(new_histogram);
 
       auto rounding = CreateRoundingFactor<Gradient>(gpair.DeviceSpan());
-      BuildGradientHistogram(page->matrix, gpair.DeviceSpan(), ridx,
+      BuildGradientHistogram(page->GetDeviceAccessor(0), gpair.DeviceSpan(), ridx,
                              d_histogram, rounding, true);
 
       for (size_t j = 0; j < new_histogram.size(); ++j) {
@@ -50,7 +50,7 @@ void TestDeterminsticHistogram() {
       auto gpair = GenerateRandomGradients(kRows, kLower, kUpper);
       gpair.SetDevice(0);
       dh::device_vector<Gradient> baseline(kBins * kCols);
-      BuildGradientHistogram(page->matrix, gpair.DeviceSpan(), ridx,
+      BuildGradientHistogram(page->GetDeviceAccessor(0), gpair.DeviceSpan(), ridx,
                              dh::ToSpan(baseline), rounding, true);
       for (size_t i = 0; i < baseline.size(); ++i) {
         EXPECT_NEAR(((Gradient)baseline[i]).GetGrad(), ((Gradient)histogram[i]).GetGrad(),

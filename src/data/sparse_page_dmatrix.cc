@@ -51,11 +51,7 @@ BatchSet<EllpackPage> SparsePageDMatrix::GetEllpackBatches(const BatchParam& par
     ellpack_source_.reset(new EllpackPageSource(this, cache_info_, param));
     batch_param_ = param;
   }
-  ellpack_source_->BeforeFirst();
-  ellpack_source_->Next();
-  auto begin_iter = BatchIterator<EllpackPage>(
-      new SparseBatchIteratorImpl<EllpackPageSource, EllpackPage>(ellpack_source_.get()));
-  return BatchSet<EllpackPage>(begin_iter);
+  return ellpack_source_->GetBatchSet();
 }
 
 }  // namespace data
