@@ -790,6 +790,12 @@ class LearnerImpl : public Learner {
       attr_.cache.Cache(d, GenericParameter::kCpuId);
     }
   }
+  ~LearnerImpl() override {
+    auto local_map = XGBAPIThreadLocalStore::Get();
+    if (local_map->find(this) != local_map->end()) {
+      local_map->erase(this);
+    }
+  }
 
   void Configure() override {
     this->cfg_.Configure(&attr_);
@@ -1013,7 +1019,6 @@ class LearnerImpl : public Learner {
       }
     }
   }
-
 
   XGBAPIThreadLocalEntry& GetThreadLocal() const override {
     return (*XGBAPIThreadLocalStore::Get())[this];
