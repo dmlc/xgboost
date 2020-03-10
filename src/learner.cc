@@ -354,7 +354,8 @@ class LearnerConfiguration {
     attr->tparam.booster = get<String>(gradient_booster["name"]);
     if (!attr->gbm) {
       attr->gbm.reset(GradientBooster::Create(attr->tparam.booster,
-                                               &attr->generic_parameters, &attr->learner_model_param));
+                                              &attr->generic_parameters,
+                                              &attr->learner_model_param));
     }
     attr->gbm->LoadConfig(gradient_booster);
 
@@ -1027,6 +1028,21 @@ class LearnerImpl : public Learner {
   }
   bool AllowLazyCheckPoint() const override {
     return attr_.gbm->AllowLazyCheckPoint();
+  }
+
+  void SetParams(Args const& args) override { return attr_.SetParams(args); }
+  void SetParam(const std::string &key, const std::string &value) override {
+    attr_.SetParam(key, value);
+  }
+  void SetAttr(const std::string &key, const std::string &value) override {
+    return attr_.SetAttr(key, value);
+  }
+  bool GetAttr(const std::string &key, std::string *out) const override {
+    return attr_.GetAttr(key, out);
+  }
+  bool DelAttr(const std::string &key) override { return attr_.DelAttr(key); }
+  std::vector<std::string> GetAttrNames() const override {
+    return attr_.GetAttrNames();
   }
 
  protected:
