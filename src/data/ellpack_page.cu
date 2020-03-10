@@ -78,20 +78,6 @@ EllpackPageImpl::EllpackPageImpl(int device, EllpackInfo info, size_t n_rows) {
   monitor_.StopCuda("InitCompressedData");
 }
 
-size_t GetRowStride(DMatrix* dmat) {
-  if (dmat->IsDense()) return dmat->Info().num_col_;
-
-  size_t row_stride = 0;
-  for (const auto& batch : dmat->GetBatches<SparsePage>()) {
-    const auto& row_offset = batch.offset.ConstHostVector();
-    for (auto i = 1ull; i < row_offset.size(); i++) {
-      row_stride = std::max(
-        row_stride, static_cast<size_t>(row_offset[i] - row_offset[i - 1]));
-    }
-  }
-  return row_stride;
-}
-
 // Construct an ELLPACK matrix in memory.
 EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
   monitor_.Init("ellpack_page");
@@ -101,13 +87,13 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param) {
 
   monitor_.StartCuda("Quantiles");
   // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
-  size_t row_stride = GetRowStride(dmat);
-  auto cuts = common::DeviceSketch(param.gpu_id, dmat, param.max_bin,
-                                   param.gpu_batch_nrows);
+  common::HistogramCuts hmat;
+  size_t row_stride =
+      common::DeviceSketch(param.gpu_id, param.max_bin, param.gpu_batch_nrows, dmat, &hmat);
   monitor_.StopCuda("Quantiles");
 
   monitor_.StartCuda("InitEllpackInfo");
-  InitInfo(param.gpu_id, dmat->IsDense(), row_stride, cuts);
+  InitInfo(param.gpu_id, dmat->IsDense(), row_stride, hmat);
   monitor_.StopCuda("InitEllpackInfo");
 
   monitor_.StartCuda("InitCompressedData");

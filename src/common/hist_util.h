@@ -179,14 +179,16 @@ class DenseCuts  : public CutsBuilder {
   void Build(DMatrix* p_fmat, uint32_t max_num_bins) override;
 };
 
-
-HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
-                           size_t sketch_batch_num_elements = 10000000);
-
-template <typename AdapterT>
-HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
-                                  float missing,
-                                  size_t sketch_batch_num_elements = 10000000);
+// FIXME(trivialfis): Merge this into generic cut builder.
+/*! \brief Builds the cut matrix on the GPU.
+ *
+ *  \return The row stride across the entire dataset.
+ */
+size_t DeviceSketch(int device,
+                    int max_bin,
+                    int gpu_batch_nrows,
+                    DMatrix* dmat,
+                    HistogramCuts* hmat);
 
 /*!
  * \brief preprocessed global index matrix, in CSR format

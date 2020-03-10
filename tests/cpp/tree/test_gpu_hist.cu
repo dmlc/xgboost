@@ -284,6 +284,7 @@ void TestHistogramIndexImpl() {
   ASSERT_EQ(maker->page->matrix.info.n_bins, maker_ext->page->matrix.info.n_bins);
   ASSERT_EQ(maker->page->gidx_buffer.size(), maker_ext->page->gidx_buffer.size());
 
+  ASSERT_EQ(h_gidx_buffer, h_gidx_buffer_ext);
 }
 
 TEST(GpuHist, TestHistogramIndex) {
