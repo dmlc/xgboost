@@ -312,7 +312,7 @@ class LearnerConfiguration {
     // must precede configure gbm since num_features is required for gbm
     this->ConfigureNumFeatures(attr);
     args = {attr->cfg.cbegin(), attr->cfg.cend()};  // renew
-    this->ConfigureObjective(old_tparam, &args, attr);
+    this->ConfigureObjective(attr, old_tparam, &args);
 
     // Before 1.0.0, we save `base_score` into binary as a transformed value by objective.
     // After 1.0.0 we save the value provided by user and keep it immutable instead.  To
@@ -333,10 +333,10 @@ class LearnerConfiguration {
           attr->obj->ProbToMargin(attr->mparam.base_score));
     }
 
-    this->ConfigureGBM(old_tparam, args, attr);
+    this->ConfigureGBM(attr, old_tparam, args);
     attr->generic_parameters.ConfigureGpuId(attr->gbm->UseGPU());
 
-    this->ConfigureMetrics(args, attr);
+    this->ConfigureMetrics(attr, args);
 
     attr->need_configuration = false;
     if (attr->generic_parameters.validate_parameters) {
@@ -347,7 +347,7 @@ class LearnerConfiguration {
     attr->monitor.Stop("Configure");
   }
 
-  void LoadConfig(Json const& in, LearnerAttributes* attr) {
+  void LoadConfig(LearnerAttributes* attr, Json const& in) {
     CHECK(IsA<Object>(in));
     Version::Load(in, true);
 
@@ -387,7 +387,7 @@ class LearnerConfiguration {
     attr->need_configuration = true;
   }
 
-  void SaveConfig(Json* p_out, LearnerAttributes const* attr) const {
+  void SaveConfig(LearnerAttributes const* attr, Json* p_out) const {
     CHECK(!attr->need_configuration) << "Call Configure before saving model.";
     Version::Save(p_out);
     Json& out { *p_out };
@@ -417,7 +417,7 @@ class LearnerConfiguration {
  private:
   void ValidateParameters(LearnerAttributes const* attr) {
     Json config { Object() };
-    this->SaveConfig(&config, attr);
+    this->SaveConfig(attr, &config);
     std::stack<Json> stack;
     stack.push(config);
     std::string const postfix{"_param"};
@@ -506,8 +506,8 @@ class LearnerConfiguration {
     attr->cfg["num_class"] = common::ToString(attr->mparam.num_class);
   }
 
-  void ConfigureGBM(LearnerTrainParam const &old, Args const &args,
-                    LearnerAttributes *attr) const {
+  void ConfigureGBM(LearnerAttributes *attr,
+                    LearnerTrainParam const &old, Args const &args) const {
     if (attr->gbm == nullptr || old.booster != attr->tparam.booster) {
       attr->gbm.reset(GradientBooster::Create(attr->tparam.booster,
                                                &attr->generic_parameters,
@@ -516,8 +516,8 @@ class LearnerConfiguration {
     attr->gbm->Configure(args);
   }
 
-  void ConfigureObjective(LearnerTrainParam const& old, Args* p_args,
-                          LearnerAttributes *attr) {
+  void ConfigureObjective(LearnerAttributes *attr,
+                          LearnerTrainParam const& old, Args* p_args) {
     // Once binary IO is gone, NONE of these config is useful.
     if (attr->cfg.find("num_class") != attr->cfg.cend() && attr->cfg.at("num_class") != "0" &&
         attr->tparam.objective != "multi:softprob") {
@@ -543,7 +543,7 @@ class LearnerConfiguration {
     attr->obj->Configure(args);
   }
 
-  void ConfigureMetrics(Args const& args, LearnerAttributes *attr) {
+  void ConfigureMetrics(LearnerAttributes *attr, Args const& args) {
     for (auto const& name : attr->metric_names) {
       auto DupCheck = [&name](std::unique_ptr<Metric> const& m) {
                         return m->Name() != name;
@@ -566,7 +566,7 @@ class LearnerIO {
   std::set<std::string> saved_configs_ = {"num_round"};
 
  public:
-  void LoadModel(Json const& in, LearnerAttributes* attr) {
+  void LoadModel(LearnerAttributes* attr, Json const& in) {
     CHECK(IsA<Object>(in));
     Version::Load(in, false);
     auto const& learner = get<Object>(in["learner"]);
@@ -596,7 +596,7 @@ class LearnerIO {
     attr->need_configuration = true;
   }
 
-  void SaveModel(Json* p_out, LearnerAttributes const* attr) const {
+  void SaveModel(LearnerAttributes const* attr, Json* p_out) const {
     CHECK(!attr->need_configuration) << "Call Configure before saving model.";
 
     Version::Save(p_out);
@@ -620,7 +620,7 @@ class LearnerIO {
     }
   }
   // About to be deprecated by JSON format
-  void LoadModel(dmlc::Stream* fi, LearnerAttributes* attr) {
+  void LoadModel(LearnerAttributes* attr, dmlc::Stream* fi) {
     attr->generic_parameters.UpdateAllowUnknown(Args{});
     attr->tparam.Init(std::vector<std::pair<std::string, std::string>>{});
     // TODO(tqchen) mark deprecation of old format.
@@ -643,7 +643,7 @@ class LearnerIO {
       std::string buffer;
       json_stream.Take(&buffer);
       auto model = Json::Load({buffer.c_str(), buffer.size()});
-      this->LoadModel(model, attr);
+      this->LoadModel(attr, model);
       return;
     }
     // use the peekable reader.
@@ -736,7 +736,7 @@ class LearnerIO {
   // `enable_experimental_json_serialization` as user might enable this flag for pickle
   // while still want a binary output.  As we are progressing at replacing the binary
   // format, there's no need to put too much effort on it.
-  void SaveModel(dmlc::Stream* fo, LearnerAttributes const* attr) const {
+  void SaveModel(LearnerAttributes const* attr, dmlc::Stream* fo) const {
     LearnerModelParamLegacy mparam = attr->mparam;  // make a copy to potentially modify
     std::vector<std::pair<std::string, std::string> > extra_attr;
     mparam.contain_extra_attrs = 1;
@@ -815,22 +815,22 @@ class LearnerImpl : public Learner {
     this->cfg_.Configure(&attr_);
   }
   void LoadModel(dmlc::Stream* fi) override {
-    this->io_.LoadModel(fi, &attr_);
+    this->io_.LoadModel(&attr_, fi);
   }
   void LoadModel(Json const& in) override {
-    this->io_.LoadModel(in, &attr_);
+    this->io_.LoadModel(&attr_, in);
   }
   void SaveModel(dmlc::Stream* fo) const override {
-    this->io_.SaveModel(fo, &attr_);
+    this->io_.SaveModel(&attr_, fo);
   }
   void SaveModel(Json* p_out) const override {
-    this->io_.SaveModel(p_out, &attr_);
+    this->io_.SaveModel(&attr_, p_out);
   }
   void SaveConfig(Json* p_out) const override {
-    this->cfg_.SaveConfig(p_out, &attr_);
+    this->cfg_.SaveConfig(&attr_, p_out);
   }
   void LoadConfig(Json const& in) override {
-    this->cfg_.LoadConfig(in, &attr_);
+    this->cfg_.LoadConfig(&attr_, in);
   }
 
   // Full serialization, including model and configuration.
