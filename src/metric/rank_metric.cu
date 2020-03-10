@@ -277,6 +277,31 @@ struct EvalMAPGpu {
 /*! \brief Area Under Curve metric computation for ranking datasets */
 struct EvalAucGpu : public Metric {
  public:
+  // This function object computes the positive precision pair for each prediction group
+  class ComputePosPair : public thrust::unary_function<uint32_t, double> {
+   public:
+    XGBOOST_DEVICE ComputePosPair(const double *pred_group_pos_precision,
+                                  const double *pred_group_neg_precision,
+                                  const double *pred_group_incr_precision)
+      : pred_group_pos_precision_(pred_group_pos_precision),
+        pred_group_neg_precision_(pred_group_neg_precision),
+        pred_group_incr_precision_(pred_group_incr_precision) {}
+
+    // Compute positive precision pair for the prediction group at 'idx'
+    __device__ __forceinline__ double operator()(uint32_t idx) const {
+        return pred_group_neg_precision_[idx] *
+               (pred_group_incr_precision_[idx] + pred_group_pos_precision_[idx] * 0.5);
+    }
+
+   private:
+    // Accumulated positive precision for the prediction group
+    const double *pred_group_pos_precision_{nullptr};
+    // Accumulated negative precision for the prediction group
+    const double *pred_group_neg_precision_{nullptr};
+    // Incremental positive precision for the prediction group
+    const double *pred_group_incr_precision_{nullptr};
+  };
+
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
                  bool distributed) override {
@@ -296,7 +321,7 @@ struct EvalAucGpu : public Metric {
     auto dlabels = info.labels_.ConstDevicePointer();
     auto dweights = info.weights_.ConstDevicePointer();
 
-    // Sort all the predictions
+    // Sort all the predictions (from one or more groups)
     dh::SegmentSorter<float> segment_pred_sorter;
     segment_pred_sorter.SortItems(dpreds, preds.Size(), gptr);
 
@@ -307,60 +332,146 @@ struct EvalAucGpu : public Metric {
     const auto &dgroups = segment_pred_sorter.GetGroupsSpan();
     uint32_t ngroups = segment_pred_sorter.GetNumGroups();
 
-    // AUC sum for each group
-    dh::caching_device_vector<double> sum_auc(ngroups, 0);
-    // AUC error across all groups
-    dh::caching_device_vector<int> auc_error(1, 0);
-    auto *dsum_auc = sum_auc.data().get();
-    auto *dauc_error = auc_error.data().get();
+    // Final values
+    double hsum_auc = 0.0;
+    unsigned hauc_error = 0;
 
     int device_id = -1;
     dh::safe_cuda(cudaGetDevice(&device_id));
-    // For each group item compute the aggregated precision
-    dh::LaunchN<1, 32>(device_id, ngroups, nullptr, [=] __device__(uint32_t gidx) {
-      double sum_pospair = 0.0, sum_npos = 0.0, sum_nneg = 0.0, buf_pos = 0.0, buf_neg = 0.0;
-
-      for (auto i = dgroups[gidx]; i < dgroups[gidx + 1]; ++i) {
-        const auto ctr = dlabels[dpreds_orig_pos[i]];
-        // Keep bucketing predictions in same bucket
-        if (i != dgroups[gidx] && dsorted_preds[i] != dsorted_preds[i - 1]) {
-          sum_pospair += buf_neg * (sum_npos + buf_pos * 0.5);
-          sum_npos += buf_pos;
-          sum_nneg += buf_neg;
-          buf_neg = buf_pos = 0.0f;
-        }
-        // For ranking task, weights are per-group
-        // For binary classification task, weights are per-instance
-        const auto wt = dweights == nullptr ? 1.0f
-                                            : dweights[ngroups == 1 ? dpreds_orig_pos[i] : gidx];
-        buf_pos += ctr * wt;
-        buf_neg += (1.0f - ctr) * wt;
-      }
-      sum_pospair += buf_neg * (sum_npos + buf_pos * 0.5);
-      sum_npos += buf_pos;
-      sum_nneg += buf_neg;
-
-      // Check weird conditions
-      if (sum_npos <= 0.0 || sum_nneg <= 0.0) {
-        atomicAdd(dauc_error, 1);
-      } else {
-        // This is the AUC
-        dsum_auc[gidx] = sum_pospair / (sum_npos * sum_nneg);
-      }
-    });
 
     // Allocator to be used for managing space overhead while performing reductions
     dh::XGBCachingDeviceAllocator<char> alloc;
-    const auto hsum_auc = thrust::reduce(thrust::cuda::par(alloc), sum_auc.begin(), sum_auc.end());
-    const auto hauc_error = auc_error.back();  // Copy it back to host
+
+    if (ngroups == 1) {
+      const auto nitems = segment_pred_sorter.GetNumItems();
+
+      // First, segment all the predictions in the group. This is required so that we can
+      // aggregate the positive and negative precisions within that prediction group
+      dh::caching_device_vector<unsigned> dpred_segs(nitems, 0);
+      auto *pred_seg_arr = dpred_segs.data().get();
+      // This is for getting the next segment number
+      dh::caching_device_vector<unsigned> seg_idx(1, 0);
+      auto *seg_idx_ptr = seg_idx.data().get();
+
+      dh::caching_device_vector<double> dbuf_pos(nitems, 0);
+      dh::caching_device_vector<double> dbuf_neg(nitems, 0);
+      auto *buf_pos_arr = dbuf_pos.data().get();
+      auto *buf_neg_arr = dbuf_neg.data().get();
+
+      dh::LaunchN(device_id, nitems, nullptr, [=] __device__(int idx) {
+        auto ctr = dlabels[dpreds_orig_pos[idx]];
+        // For ranking task, weights are per-group
+        // For binary classification task, weights are per-instance
+        const auto wt = dweights == nullptr ? 1.0f : dweights[dpreds_orig_pos[idx]];
+        buf_pos_arr[idx] = ctr * wt;
+        buf_neg_arr[idx] = (1.0f - ctr) * wt;
+        if (idx == nitems - 1 || dsorted_preds[idx] != dsorted_preds[idx + 1]) {
+          auto new_seg_idx = atomicAdd(seg_idx_ptr, 1);
+          ++new_seg_idx;  // As it is the old value; we want the last segment to have unique value
+          auto pred_val = dsorted_preds[idx];
+          do {
+            pred_seg_arr[idx] = new_seg_idx;
+            idx--;
+          } while (idx >= 0 && dsorted_preds[idx] == pred_val);
+        }
+      });
+
+      // Next, accumulate the positive and negative precisions for every prediction group
+      dh::caching_device_vector<double> sum_dbuf_pos(nitems, 0);
+      auto itr = thrust::reduce_by_key(thrust::cuda::par(alloc),
+                                       dpred_segs.begin(), dpred_segs.end(),  // Segmented by this
+                                       dbuf_pos.begin(),  // Individual precisions
+                                       thrust::make_discard_iterator(),  // Ignore unique segments
+                                       sum_dbuf_pos.begin());  // Write accumulated results here
+      auto nunique_preds = itr.second - sum_dbuf_pos.begin();
+      sum_dbuf_pos.resize(nunique_preds);
+
+      dh::caching_device_vector<double> sum_dbuf_neg(nunique_preds, 0);
+      itr = thrust::reduce_by_key(thrust::cuda::par(alloc),
+                                  dpred_segs.begin(), dpred_segs.end(),
+                                  dbuf_neg.begin(),
+                                  thrust::make_discard_iterator(),
+                                  sum_dbuf_neg.begin());
+      CHECK(itr.second - sum_dbuf_neg.begin() == nunique_preds);
+
+      // Find incremental sum for the positive precisions that is then used to
+      // compute incremental positive precision pair
+      dh::caching_device_vector<double> sum_npos(nunique_preds + 1, 0);
+      thrust::inclusive_scan(thrust::cuda::par(alloc),
+                             sum_dbuf_pos.begin(), sum_dbuf_pos.end(),
+                             sum_npos.begin() + 1);
+
+      dh::caching_device_vector<double> sum_nneg(nunique_preds, 0);
+      thrust::inclusive_scan(thrust::cuda::par(alloc),
+                             sum_dbuf_neg.begin(), sum_dbuf_neg.end(),
+                             sum_nneg.begin());
+
+      if (sum_npos.back() <= 0.0 || sum_npos.back() <= 0.0) {
+        hauc_error = 1;
+      } else {
+        dh::caching_device_vector<double> sum_pospair(nunique_preds, 0);
+        // Finally, compute the positive precision pair
+        thrust::transform(thrust::make_counting_iterator(static_cast<uint32_t>(0)),
+                          thrust::make_counting_iterator(static_cast<uint32_t>(nunique_preds)),
+                          sum_pospair.begin(),
+                          ComputePosPair(sum_dbuf_pos.data().get(),
+                                         sum_dbuf_neg.data().get(),
+                                         sum_npos.data().get()));
+        hsum_auc = thrust::reduce(thrust::cuda::par(alloc),
+                                  sum_pospair.begin(), sum_pospair.end())
+                     / (sum_npos.back() * sum_nneg.back());
+      }
+    } else {
+      // AUC sum for each group
+      dh::caching_device_vector<double> sum_auc(ngroups, 0);
+      // AUC error across all groups
+      dh::caching_device_vector<int> auc_error(1, 0);
+      auto *dsum_auc = sum_auc.data().get();
+      auto *dauc_error = auc_error.data().get();
+
+      // For each group item compute the aggregated precision
+      dh::LaunchN<1, 32>(device_id, ngroups, nullptr, [=] __device__(uint32_t gidx) {
+        double sum_pospair = 0.0, sum_npos = 0.0, sum_nneg = 0.0, buf_pos = 0.0, buf_neg = 0.0;
+
+        for (auto i = dgroups[gidx]; i < dgroups[gidx + 1]; ++i) {
+          const auto ctr = dlabels[dpreds_orig_pos[i]];
+          // Keep bucketing predictions in same bucket
+          if (i != dgroups[gidx] && dsorted_preds[i] != dsorted_preds[i - 1]) {
+            sum_pospair += buf_neg * (sum_npos + buf_pos * 0.5);
+            sum_npos += buf_pos;
+            sum_nneg += buf_neg;
+            buf_neg = buf_pos = 0.0f;
+          }
+          // For ranking task, weights are per-group
+          // For binary classification task, weights are per-instance
+          const auto wt = dweights == nullptr ? 1.0f : dweights[gidx];
+          buf_pos += ctr * wt;
+          buf_neg += (1.0f - ctr) * wt;
+        }
+        sum_pospair += buf_neg * (sum_npos + buf_pos * 0.5);
+        sum_npos += buf_pos;
+        sum_nneg += buf_neg;
+
+        // Check weird conditions
+        if (sum_npos <= 0.0 || sum_nneg <= 0.0) {
+          atomicAdd(dauc_error, 1);
+        } else {
+          // This is the AUC
+          dsum_auc[gidx] = sum_pospair / (sum_npos * sum_nneg);
+        }
+      });
+
+      hsum_auc = thrust::reduce(thrust::cuda::par(alloc), sum_auc.begin(), sum_auc.end());
+      hauc_error = auc_error.back();  // Copy it back to host
+    }
 
     // Report average AUC across all groups
     // In distributed mode, workers which only contains pos or neg samples
     // will be ignored when aggregate AUC.
     bst_float dat[2] = {0.0f, 0.0f};
-    if (hauc_error < static_cast<int>(ngroups)) {
+    if (hauc_error < ngroups) {
       dat[0] = static_cast<bst_float>(hsum_auc);
-      dat[1] = static_cast<bst_float>(static_cast<int>(ngroups) - hauc_error);
+      dat[1] = static_cast<bst_float>(ngroups - hauc_error);
     }
     if (distributed) {
       rabit::Allreduce<rabit::op::Sum>(dat, 2);

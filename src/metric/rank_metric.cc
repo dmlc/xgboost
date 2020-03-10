@@ -260,7 +260,7 @@ struct EvalAuc : public Metric {
       !info.group_ptr_.empty() && info.weights_.Size() != info.num_row_;
 
     // Check if we have a GPU assignment; else, revert back to CPU
-    if (tparam_->gpu_id >= 0 && is_ranking_task) {
+    if (tparam_->gpu_id >= 0) {
       if (!auc_gpu_) {
         // Check and see if we have the GPU metric registered in the internal registry
         auc_gpu_.reset(GPUMetric::CreateGPUMetric(this->Name(), tparam_));
