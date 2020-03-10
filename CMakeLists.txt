@@ -23,6 +23,7 @@ set_default_configuration_release()
 #-- Options
 option(BUILD_C_DOC "Build documentation for C APIs using Doxygen." OFF)
 option(USE_OPENMP "Build with OpenMP support." ON)
+option(BUILD_STATIC_LIB "Build static library" OFF)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -133,8 +134,12 @@ add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
 set(XGBOOST_OBJ_SOURCES "${XGBOOST_OBJ_SOURCES};$<TARGET_OBJECTS:objxgboost>")
 
-#-- Shared library
-add_library(xgboost SHARED ${XGBOOST_OBJ_SOURCES})
+#-- library
+if (BUILD_STATIC_LIB)
+    add_library(xgboost STATIC ${XGBOOST_OBJ_SOURCES})
+else()
+    add_library(xgboost SHARED ${XGBOOST_OBJ_SOURCES})
+endif(BUILD_STATIC_LIB)
 target_include_directories(xgboost
   INTERFACE
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
