@@ -194,7 +194,7 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
 using XGBAPIThreadLocalStore =
     dmlc::ThreadLocalStore<std::map<Learner const *, XGBAPIThreadLocalEntry>>;
 
-struct LearnerAttributs {
+struct LearnerAttributes {
   static std::string const kEvalMetric;  // NOLINT
 
   PredictionContainer cache;
@@ -266,12 +266,12 @@ struct LearnerAttributs {
   }
 };
 
-std::string const LearnerAttributs::kEvalMetric {"eval_metric"};  // NOLINT
+std::string const LearnerAttributes::kEvalMetric {"eval_metric"};  // NOLINT
 
 
 class LearnerConfiguration {
  public:
-  void Configure(LearnerAttributs* attr) {
+  void Configure(LearnerAttributes* attr) {
     if (!attr->need_configuration) { return; }
 
     attr->monitor.Start("Configure");
@@ -336,7 +336,7 @@ class LearnerConfiguration {
     attr->monitor.Stop("Configure");
   }
 
-  void LoadConfig(Json const& in, LearnerAttributs* attr) {
+  void LoadConfig(Json const& in, LearnerAttributes* attr) {
     CHECK(IsA<Object>(in));
     Version::Load(in, true);
 
@@ -376,7 +376,7 @@ class LearnerConfiguration {
     attr->need_configuration = true;
   }
 
-  void SaveConfig(Json* p_out, LearnerAttributs const* attr) const {
+  void SaveConfig(Json* p_out, LearnerAttributes const* attr) const {
     CHECK(!attr->need_configuration) << "Call Configure before saving model.";
     Version::Save(p_out);
     Json& out { *p_out };
@@ -404,7 +404,7 @@ class LearnerConfiguration {
   }
 
  private:
-  void ValidateParameters(LearnerAttributs const* attr) {
+  void ValidateParameters(LearnerAttributes const* attr) {
     Json config { Object() };
     this->SaveConfig(&config, attr);
     std::stack<Json> stack;
@@ -436,7 +436,7 @@ class LearnerConfiguration {
       }
     }
 
-    keys.emplace_back(LearnerAttributs::kEvalMetric);
+    keys.emplace_back(LearnerAttributes::kEvalMetric);
     keys.emplace_back("verbosity");
     keys.emplace_back("num_output_group");
 
@@ -470,7 +470,7 @@ class LearnerConfiguration {
     }
   }
 
-  void ConfigureNumFeatures(LearnerAttributs* attr) {
+  void ConfigureNumFeatures(LearnerAttributes* attr) {
     // estimate feature bound
     // TODO(hcho3): Change num_feature to 64-bit integer
     unsigned num_feature = 0;
@@ -496,7 +496,7 @@ class LearnerConfiguration {
   }
 
   void ConfigureGBM(LearnerTrainParam const &old, Args const &args,
-                    LearnerAttributs *attr) const {
+                    LearnerAttributes *attr) const {
     if (attr->gbm == nullptr || old.booster != attr->tparam.booster) {
       attr->gbm.reset(GradientBooster::Create(attr->tparam.booster,
                                                &attr->generic_parameters,
@@ -506,7 +506,7 @@ class LearnerConfiguration {
   }
 
   void ConfigureObjective(LearnerTrainParam const& old, Args* p_args,
-                          LearnerAttributs *attr) {
+                          LearnerAttributes *attr) {
     // Once binary IO is gone, NONE of these config is useful.
     if (attr->cfg.find("num_class") != attr->cfg.cend() && attr->cfg.at("num_class") != "0" &&
         attr->tparam.objective != "multi:softprob") {
@@ -532,7 +532,7 @@ class LearnerConfiguration {
     attr->obj->Configure(args);
   }
 
-  void ConfigureMetrics(Args const& args, LearnerAttributs *attr) {
+  void ConfigureMetrics(Args const& args, LearnerAttributes *attr) {
     for (auto const& name : attr->metric_names) {
       auto DupCheck = [&name](std::unique_ptr<Metric> const& m) {
                         return m->Name() != name;
@@ -554,7 +554,7 @@ class LearnerIO {
   std::set<std::string> saved_configs_ = {"num_round"};
 
  public:
-  void LoadModel(Json const& in, LearnerAttributs* attr) {
+  void LoadModel(Json const& in, LearnerAttributes* attr) {
     CHECK(IsA<Object>(in));
     Version::Load(in, false);
     auto const& learner = get<Object>(in["learner"]);
@@ -584,7 +584,7 @@ class LearnerIO {
     attr->need_configuration = true;
   }
 
-  void SaveModel(Json* p_out, LearnerAttributs const* attr) const {
+  void SaveModel(Json* p_out, LearnerAttributes const* attr) const {
     CHECK(!attr->need_configuration) << "Call Configure before saving model.";
 
     Version::Save(p_out);
@@ -608,7 +608,7 @@ class LearnerIO {
     }
   }
   // About to be deprecated by JSON format
-  void LoadModel(dmlc::Stream* fi, LearnerAttributs* attr) {
+  void LoadModel(dmlc::Stream* fi, LearnerAttributes* attr) {
     attr->generic_parameters.UpdateAllowUnknown(Args{});
     attr->tparam.Init(std::vector<std::pair<std::string, std::string>>{});
     // TODO(tqchen) mark deprecation of old format.
@@ -724,7 +724,7 @@ class LearnerIO {
   // `enable_experimental_json_serialization` as user might enable this flag for pickle
   // while still want a binary output.  As we are progressing at replacing the binary
   // format, there's no need to put too much effort on it.
-  void SaveModel(dmlc::Stream* fo, LearnerAttributs const* attr) const {
+  void SaveModel(dmlc::Stream* fo, LearnerAttributes const* attr) const {
     LearnerModelParamLegacy mparam = attr->mparam;  // make a copy to potentially modify
     std::vector<std::pair<std::string, std::string> > extra_attr;
     mparam.contain_extra_attrs = 1;
@@ -1100,7 +1100,7 @@ class LearnerImpl : public Learner {
   }
 
  private:
-  LearnerAttributs attr_;
+  LearnerAttributes attr_;
   LearnerConfiguration cfg_;
   LearnerIO io_;
   /*! \brief random number transformation seed. */
