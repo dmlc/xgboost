@@ -195,18 +195,28 @@ using XGBAPIThreadLocalStore =
     dmlc::ThreadLocalStore<std::map<Learner const *, XGBAPIThreadLocalEntry>>;
 
 struct LearnerAttributes {
+  /*! \brief Constant string identifying a passed in parameter is a metric name. */
   static std::string const kEvalMetric;  // NOLINT
-
+  /*! \brief A global storage for internal prediction. */
   PredictionContainer cache;
+  /*! \brief Whether the learner is configured. */
   bool need_configuration { true };
+  /*! \brief A cache for user provided parameters. */
   std::map<std::string, std::string> cfg;
-  // Stores information like best-iteration for early stopping.
+  /*! \brief Stores information like best-iteration for early stopping. */
   std::map<std::string, std::string> attributes;
+  /*! \brief Monitor for Learner functions. */
   common::Monitor monitor;
+  /*! \brief An user interface parameter which can stores the untransformed
+   * global bias. */
   LearnerModelParamLegacy mparam;
+  /*! \brief The actual model parameter passed around XGBoost. */
   LearnerModelParam learner_model_param;
+  /*! \brief Training parameter. */
   LearnerTrainParam tparam;
+  /*! \brief Names of specified metrics. */
   std::vector<std::string> metric_names;
+  /*! \brief Runtime environment related parameters. */
   GenericParameter generic_parameters;
 
   /*! \brief objective function */
@@ -269,6 +279,7 @@ struct LearnerAttributes {
 std::string const LearnerAttributes::kEvalMetric {"eval_metric"};  // NOLINT
 
 
+/* \brief A class doing all the configuration for Learner. */
 class LearnerConfiguration {
  public:
   void Configure(LearnerAttributes* attr) {
@@ -549,6 +560,7 @@ class LearnerConfiguration {
   }
 };
 
+/* \brief A class handling basic model serialization. */
 class LearnerIO {
  private:
   std::set<std::string> saved_configs_ = {"num_round"};
@@ -780,7 +792,7 @@ class LearnerIO {
 
 /*!
  * \brief learner that performs gradient boosting for a specific objective
- * function. It does training and prediction.
+ * function. It does training, prediction and evaluation.
  */
 class LearnerImpl : public Learner {
  public:
@@ -791,6 +803,8 @@ class LearnerImpl : public Learner {
     }
   }
   ~LearnerImpl() override {
+    // Removes the cache for this Learner, so all static GPU vector can be cleared up
+    // before the global CUDA context is released.
     auto local_map = XGBAPIThreadLocalStore::Get();
     if (local_map->find(this) != local_map->end()) {
       local_map->erase(this);
@@ -819,6 +833,7 @@ class LearnerImpl : public Learner {
     this->cfg_.LoadConfig(in, &attr_);
   }
 
+  // Full serialization, including model and configuration.
   void Save(dmlc::Stream* fo) const override {
     if (attr_.generic_parameters.enable_experimental_json_serialization) {
       Json memory_snapshot{Object()};
@@ -894,7 +909,6 @@ class LearnerImpl : public Learner {
     }
   }
 
-  // Configuration before data is known.
   void CheckDataSplitMode() {
     if (rabit::IsDistributed()) {
       CHECK(attr_.tparam.dsplit != DataSplitMode::kAuto)
@@ -1040,7 +1054,7 @@ class LearnerImpl : public Learner {
     attr_.SetParam(key, value);
   }
   void SetAttr(const std::string &key, const std::string &value) override {
-    return attr_.SetAttr(key, value);
+    attr_.SetAttr(key, value);
   }
   bool GetAttr(const std::string &key, std::string *out) const override {
     return attr_.GetAttr(key, out);
@@ -1052,12 +1066,12 @@ class LearnerImpl : public Learner {
 
  protected:
   /*!
-   * \brief get un-transformed prediction
+   * \brief get un-transformed prediction.
    * \param data training data matrix
    * \param out_preds output vector that stores the prediction
+   * \param training allow dropout when the DART booster is being used
    * \param ntree_limit limit number of trees used for boosted tree
    *   predictor, when it equals 0, this means we are using all the trees
-   * \param training allow dropout when the DART booster is being used
    */
   void PredictRaw(DMatrix* data, PredictionCacheEntry* out_preds,
                   bool training,
