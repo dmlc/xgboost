@@ -406,7 +406,7 @@ struct EvalAucGpu : public Metric {
                              sum_dbuf_neg.begin(), sum_dbuf_neg.end(),
                              sum_nneg.begin());
 
-      if (sum_npos.back() <= 0.0 || sum_npos.back() <= 0.0) {
+      if (sum_npos.back() <= 0.0 || sum_nneg.back() <= 0.0) {
         hauc_error = 1;
       } else {
         dh::caching_device_vector<double> sum_pospair(nunique_preds, 0);

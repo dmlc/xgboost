@@ -35,6 +35,7 @@ TEST(Metric, DeclareUnifiedTest(AUC)) {
               0.5f, 0.001f);
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}));
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 0}, {0, 0}));
+  EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {1, 1}));
 
   // AUC with instance weights
   EXPECT_NEAR(GetMetricEval(metric,
@@ -58,6 +59,10 @@ TEST(Metric, DeclareUnifiedTest(AUC)) {
                             {1, 2},
                             {0, 2, 5}),
               0.4741f, 0.001f);
+
+  // AUC metric for grouped datasets - exception scenarios
+  EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1, 2}, {0, 0, 0}, {}, {0, 2, 3}));
+  EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1, 2}, {1, 1, 1}, {}, {0, 2, 3}));
 
   delete metric;
 }
