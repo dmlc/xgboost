@@ -32,8 +32,8 @@ static const int kPadding = 4;  // Assign padding so we can read slightly off
                                // the beginning of the array
 
 // The number of bits required to represent a given unsigned range
-static size_t SymbolBits(size_t num_symbols) {
-  auto bits = std::ceil(std::log2(num_symbols));
+inline XGBOOST_DEVICE size_t SymbolBits(size_t num_symbols) {
+  auto bits = std::ceil(log2(double(num_symbols)));
   return std::max(static_cast<size_t>(bits), size_t(1));
 }
 }  // namespace detail
@@ -50,13 +50,10 @@ static size_t SymbolBits(size_t num_symbols) {
  */
 
 class CompressedBufferWriter {
- private:
   size_t symbol_bits_;
-  size_t offset_;
 
  public:
-  explicit CompressedBufferWriter(size_t num_symbols) : offset_(0) {
-    symbol_bits_ = detail::SymbolBits(num_symbols);
+  XGBOOST_DEVICE explicit CompressedBufferWriter(size_t num_symbols):symbol_bits_(detail::SymbolBits(num_symbols))  {
   }
 
   /**
@@ -159,18 +156,15 @@ class CompressedBufferWriter {
   }
 };
 
-template <typename T>
-
 /**
- * \class CompressedIterator
- *
- * \brief Read symbols from a bit compressed memory buffer. Usable on device and
- * host.
+ * \brief Read symbols from a bit compressed memory buffer. Usable on device and host.
  *
  * \author  Rory
  * \date  7/9/2017
+ *
+ * \tparam  T Generic type parameter.
  */
-
+template <typename T>
 class CompressedIterator {
  public:
   // Type definitions for thrust

@@ -356,13 +356,6 @@ struct IsValidFunctor : public thrust::unary_function<Entry, bool> {
   }
 };
 
-// Thrust version of this function causes error on Windows
-template <typename ReturnT, typename IterT, typename FuncT>
-thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIterator(
-  IterT iter, FuncT func) {
-  return thrust::transform_iterator<FuncT, IterT, ReturnT>(iter, func);
-}
-
 template <typename AdapterT>
 void ProcessBatch(AdapterT* adapter, size_t begin, size_t end, float missing,
                   SketchContainer* sketch_container, int num_cuts) {
@@ -372,10 +365,10 @@ void ProcessBatch(AdapterT* adapter, size_t begin, size_t end, float missing,
   auto &batch = adapter->Value();
   // Enforce single batch
   CHECK(!adapter->Next());
-  auto batch_iter = MakeTransformIterator<data::COOTuple>(
+  auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
     thrust::make_counting_iterator(0llu),
     [=] __device__(size_t idx) { return batch.GetElement(idx); });
-  auto entry_iter = MakeTransformIterator<Entry>(
+  auto entry_iter = dh::MakeTransformIterator<Entry>(
       thrust::make_counting_iterator(0llu), [=] __device__(size_t idx) {
         return Entry(batch.GetElement(idx).column_idx,
                      batch.GetElement(idx).value);
