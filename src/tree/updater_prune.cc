@@ -44,6 +44,9 @@ class TreePruner: public TreeUpdater {
     auto& out = *p_out;
     out["train_param"] = toJson(param_);
   }
+  bool CanModifyTree() const override {
+    return true;
+  }
 
   // update the tree, do pruning
   void Update(HostDeviceVector<GradientPair> *gpair,

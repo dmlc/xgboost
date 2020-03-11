@@ -51,6 +51,22 @@ TEST(GBTree, SelectTreeMethod) {
 #endif  // XGBOOST_USE_CUDA
 }
 
+TEST(GBTree, WrongUpdater) {
+  size_t constexpr kRows = 17;
+  size_t constexpr kCols = 15;
+
+  auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
+  std::shared_ptr<DMatrix> p_dmat {*pp_dmat};
+
+  p_dmat->Info().labels_.Resize(kRows);
+
+  auto learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
+  // Hist can not be used for updating tree.
+  learner->SetParams(Args{{"tree_method", "hist"}, {"process_type", "update"}});
+  ASSERT_THROW(learner->UpdateOneIter(0, p_dmat), dmlc::Error);
+  delete pp_dmat;
+}
+
 #ifdef XGBOOST_USE_CUDA
 TEST(GBTree, ChoosePredictor) {
   size_t constexpr kRows = 17;
