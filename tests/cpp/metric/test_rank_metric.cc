@@ -87,6 +87,7 @@ TEST(Metric, DeclareUnifiedTest(AUCPR)) {
               0.2769199f, 0.001f);
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}));
   EXPECT_ANY_THROW(GetMetricEval(metric, {0, 0}, {0, 0}));
+  EXPECT_ANY_THROW(GetMetricEval(metric, {0, 0}, {1, 1}));
 
   // AUCPR with instance weights
   EXPECT_NEAR(GetMetricEval(
@@ -114,6 +115,13 @@ TEST(Metric, DeclareUnifiedTest(AUCPR)) {
                   {1, 2, 7, 4, 5, 2.2f, 3.2f, 5, 6, 1, 2, 1.1f, 3.2f, 4.5f},  // weights
                   {0, 2, 5, 9, 14}),  // group info
               0.8150615f, 0.001f);
+
+  // Exception scenarios for grouped datasets
+  EXPECT_ANY_THROW(GetMetricEval(metric,
+                                 {0, 0.1f, 0.3f, 0.5f, 0.7f},
+                                 {1, 1, 0, 0, 0},
+                                 {},
+                                 {0, 2, 5}));
 
   delete metric;
 }
