@@ -97,9 +97,11 @@ struct SparsePageLoader {
 };
 
 struct EllpackLoader {
-  EllpackMatrix const& matrix;
-  XGBOOST_DEVICE EllpackLoader(EllpackMatrix const& m, bool use_shared, bst_feature_t num_features,
-                               bst_row_t num_rows, size_t entry_start) : matrix{m} {}
+  EllpackDeviceAccessor const& matrix;
+  XGBOOST_DEVICE EllpackLoader(EllpackDeviceAccessor const& m, bool use_shared,
+                               bst_feature_t num_features, bst_row_t num_rows,
+                               size_t entry_start)
+      : matrix{m} {}
   __device__ __forceinline__ float GetFvalue(int ridx, int fidx) const {
     auto gidx = matrix.GetBinIndex(ridx, fidx);
     if (gidx == -1) {
@@ -107,10 +109,10 @@ struct EllpackLoader {
     }
     // The gradient index needs to be shifted by one as min values are not included in the
     // cuts.
-    if (gidx == matrix.info.feature_segments[fidx]) {
-      return matrix.info.min_fvalue[fidx];
+    if (gidx == matrix.feature_segments[fidx]) {
+      return matrix.min_fvalue[fidx];
     }
-    return matrix.info.gidx_fvalue_map[gidx - 1];
+    return matrix.gidx_fvalue_map[gidx - 1];
   }
 };
 
@@ -217,7 +219,7 @@ class GPUPredictor : public xgboost::Predictor {
         this->tree_begin_, this->tree_end_, num_features, num_rows,
         entry_start, use_shared, this->num_group_);
   }
-  void PredictInternal(EllpackMatrix const& batch, HostDeviceVector<bst_float>* out_preds,
+  void PredictInternal(EllpackDeviceAccessor const& batch, HostDeviceVector<bst_float>* out_preds,
                        size_t batch_offset) {
     const uint32_t BLOCK_THREADS = 256;
     size_t num_rows = batch.n_rows;
@@ -226,11 +228,11 @@ class GPUPredictor : public xgboost::Predictor {
     bool use_shared = false;
     size_t entry_start = 0;
     dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS} (
-        PredictKernel<EllpackLoader, EllpackMatrix>,
+        PredictKernel<EllpackLoader, EllpackDeviceAccessor>,
         batch,
         dh::ToSpan(nodes_), out_preds->DeviceSpan().subspan(batch_offset),
         dh::ToSpan(tree_segments_), dh::ToSpan(tree_group_),
-        this->tree_begin_, this->tree_end_, batch.info.NumFeatures(), num_rows,
+        this->tree_begin_, this->tree_end_, batch.NumFeatures(), num_rows,
         entry_start, use_shared, this->num_group_);
   }
 
@@ -269,8 +271,10 @@ class GPUPredictor : public xgboost::Predictor {
     if (dmat->PageExists<EllpackPage>()) {
       size_t batch_offset = 0;
       for (auto const& page : dmat->GetBatches<EllpackPage>()) {
-        this->PredictInternal(page.Impl()->matrix, out_preds, batch_offset);
-        batch_offset += page.Impl()->matrix.n_rows;
+        this->PredictInternal(
+            page.Impl()->GetDeviceAccessor(generic_param_->gpu_id), out_preds,
+            batch_offset);
+        batch_offset += page.Impl()->n_rows;
       }
     } else {
       size_t batch_offset = 0;

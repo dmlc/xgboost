@@ -10,19 +10,17 @@
 #include <string>
 
 #include "../common/timer.h"
+#include "../common/hist_util.h"
+#include "sparse_page_source.h"
 
 namespace xgboost {
 namespace data {
 
-class EllpackPageSourceImpl;
-
 /*!
  * \brief External memory data source for ELLPACK format.
  *
- * This class uses the PImpl idiom (https://en.cppreference.com/w/cpp/language/pimpl) to avoid
- * including CUDA-specific implementation details in the header.
  */
-class EllpackPageSource : public DataSource<EllpackPage> {
+class EllpackPageSource {
  public:
   /*!
    * \brief Create source from cache files the cache_prefix.
@@ -32,19 +30,33 @@ class EllpackPageSource : public DataSource<EllpackPage> {
                              const std::string& cache_info,
                              const BatchParam& param) noexcept(false);
 
-  /*! \brief destructor */
-  ~EllpackPageSource() override = default;
+  BatchSet<EllpackPage> GetBatchSet() {
+    auto begin_iter = BatchIterator<EllpackPage>(
+        new SparseBatchIteratorImpl<ExternalMemoryPrefetcher<EllpackPage>,
+                                    EllpackPage>(external_prefetcher_.get()));
+    return BatchSet<EllpackPage>(begin_iter);
+  }
 
-  void BeforeFirst() override;
-  bool Next() override;
-  EllpackPage& Value();
-  const EllpackPage& Value() const override;
-
-  const EllpackPageSourceImpl* Impl() const { return impl_.get(); }
-  EllpackPageSourceImpl* Impl() { return impl_.get(); }
+  ~EllpackPageSource() {
+    external_prefetcher_.reset();
+    for (auto file : cache_info_.name_shards) {
+      TryDeleteCacheFile(file);
+    }
+  }
 
  private:
-  std::shared_ptr<EllpackPageSourceImpl> impl_;
+  void WriteEllpackPages(int device, DMatrix* dmat,
+                         const common::HistogramCuts& cuts,
+                         const std::string& cache_info,
+                         size_t row_stride) const;
+
+  /*! \brief The page type string for ELLPACK. */
+  const std::string kPageType_{".ellpack.page"};
+
+  size_t page_size_{DMatrix::kPageSize};
+  common::Monitor monitor_;
+  std::unique_ptr<ExternalMemoryPrefetcher<EllpackPage>> external_prefetcher_;
+  CacheInfo cache_info_;
 };
 
 }  // namespace data

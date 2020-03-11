@@ -244,13 +244,13 @@ class HistogramCutsWrapper : public common::HistogramCuts {
  public:
   using SuperT = common::HistogramCuts;
   void SetValues(std::vector<float> cuts) {
-    SuperT::cut_values_ = std::move(cuts);
+    SuperT::cut_values_.HostVector() = std::move(cuts);
   }
   void SetPtrs(std::vector<uint32_t> ptrs) {
-    SuperT::cut_ptrs_ = std::move(ptrs);
+    SuperT::cut_ptrs_.HostVector() = std::move(ptrs);
   }
   void SetMins(std::vector<float> mins) {
-    SuperT::min_vals_ = std::move(mins);
+    SuperT::min_vals_.HostVector() = std::move(mins);
   }
 };
 }  //  anonymous namespace
@@ -279,10 +279,8 @@ inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
     row_stride = std::max(row_stride, offset_vec[i] - offset_vec[i-1]);
   }
 
-  auto page = std::unique_ptr<EllpackPageImpl>(new EllpackPageImpl(dmat->get(), {0, 256, 0}));
-  page->InitInfo(0, (*dmat)->IsDense(), row_stride, cmat);
-  page->InitCompressedData(0, n_rows);
-  page->CreateHistIndices(0, batch, RowStateOnDevice(batch.Size(), batch.Size()));
+  auto page = std::unique_ptr<EllpackPageImpl>(
+      new EllpackPageImpl(0, cmat, batch, (*dmat)->IsDense(), row_stride));
 
   delete dmat;
 

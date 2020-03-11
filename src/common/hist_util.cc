@@ -31,7 +31,7 @@ namespace common {
 
 HistogramCuts::HistogramCuts() {
   monitor_.Init(__FUNCTION__);
-  cut_ptrs_.emplace_back(0);
+  cut_ptrs_.HostVector().emplace_back(0);
 }
 
 // Dispatch to specific builder.
@@ -52,7 +52,7 @@ void HistogramCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
     DenseCuts cuts(this);
     cuts.Build(dmat, max_num_bins);
   }
-  LOG(INFO) << "Total number of hist bins: " << cut_ptrs_.back();
+  LOG(INFO) << "Total number of hist bins: " << cut_ptrs_.HostVector().back();
 }
 
 bool CutsBuilder::UseGroup(DMatrix* dmat) {
@@ -75,7 +75,10 @@ void SparseCuts::SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
 
   // Data groups, used in ranking.
   std::vector<bst_uint> const& group_ptr = info.group_ptr_;
-  p_cuts_->min_vals_.resize(end_col - beg_col, 0);
+  auto &local_min_vals = p_cuts_->min_vals_.HostVector();
+  auto &local_cuts = p_cuts_->cut_values_.HostVector();
+  auto &local_ptrs = p_cuts_->cut_ptrs_.HostVector();
+  local_min_vals.resize(end_col - beg_col, 0);
 
   for (uint32_t col_id = beg_col; col_id < page.Size() && col_id < end_col; ++col_id) {
     // Using a local variable makes things easier, but at the cost of memory trashing.
@@ -85,7 +88,7 @@ void SparseCuts::SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
                                      max_num_bins);
     if (n_bins == 0) {
       // cut_ptrs_ is initialized with a zero, so there's always an element at the back
-      p_cuts_->cut_ptrs_.emplace_back(p_cuts_->cut_ptrs_.back());
+      local_ptrs.emplace_back(local_ptrs.back());
       continue;
     }
 
@@ -112,17 +115,17 @@ void SparseCuts::SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
     // Can be use data[1] as the min values so that we don't need to
     // store another array?
     float mval = summary.data[0].value;
-    p_cuts_->min_vals_[col_id - beg_col]  = mval - (fabs(mval) + 1e-5);
+    local_min_vals[col_id - beg_col]  = mval - (fabs(mval) + 1e-5);
 
     this->AddCutPoint(summary, max_num_bins);
 
     bst_float cpt = (summary.size > 0) ?
                     summary.data[summary.size - 1].value :
-                    p_cuts_->min_vals_[col_id - beg_col];
+                    local_min_vals[col_id - beg_col];
     cpt += fabs(cpt) + 1e-5;
-    p_cuts_->cut_values_.emplace_back(cpt);
+    local_cuts.emplace_back(cpt);
 
-    p_cuts_->cut_ptrs_.emplace_back(p_cuts_->cut_values_.size());
+    local_ptrs.emplace_back(local_cuts.size());
   }
 }
 
@@ -196,33 +199,40 @@ void SparseCuts::Concat(
     std::vector<std::unique_ptr<SparseCuts>> const& cuts, uint32_t n_cols) {
   monitor_.Start(__FUNCTION__);
   uint32_t nthreads = omp_get_max_threads();
-  p_cuts_->min_vals_.resize(n_cols, std::numeric_limits<float>::max());
+  auto &local_min_vals = p_cuts_->min_vals_.HostVector();
+  auto &local_cuts = p_cuts_->cut_values_.HostVector();
+  auto &local_ptrs = p_cuts_->cut_ptrs_.HostVector();
+  local_min_vals.resize(n_cols, std::numeric_limits<float>::max());
   size_t min_vals_tail = 0;
 
   for (uint32_t t = 0; t < nthreads; ++t) {
+    auto& thread_min_vals = cuts[t]->p_cuts_->min_vals_.HostVector();
+    auto& thread_cuts = cuts[t]->p_cuts_->cut_values_.HostVector();
+    auto& thread_ptrs = cuts[t]->p_cuts_->cut_ptrs_.HostVector();
+
     // concat csc pointers.
-    size_t const old_ptr_size = p_cuts_->cut_ptrs_.size();
-    p_cuts_->cut_ptrs_.resize(
-        cuts[t]->p_cuts_->cut_ptrs_.size() + p_cuts_->cut_ptrs_.size() - 1);
-    size_t const new_icp_size = p_cuts_->cut_ptrs_.size();
-    auto tail = p_cuts_->cut_ptrs_[old_ptr_size-1];
+    size_t const old_ptr_size = local_ptrs.size();
+    local_ptrs.resize(
+        thread_ptrs.size() + local_ptrs.size() - 1);
+    size_t const new_icp_size = local_ptrs.size();
+    auto tail = local_ptrs[old_ptr_size-1];
     for (size_t j = old_ptr_size; j < new_icp_size; ++j) {
-      p_cuts_->cut_ptrs_[j] = tail + cuts[t]->p_cuts_->cut_ptrs_[j-old_ptr_size+1];
+      local_ptrs[j] = tail + thread_ptrs[j-old_ptr_size+1];
     }
     // concat csc values
-    size_t const old_iv_size = p_cuts_->cut_values_.size();
-    p_cuts_->cut_values_.resize(
-        cuts[t]->p_cuts_->cut_values_.size() + p_cuts_->cut_values_.size());
-    size_t const new_iv_size = p_cuts_->cut_values_.size();
+    size_t const old_iv_size = local_cuts.size();
+    local_cuts.resize(
+        thread_cuts.size() + local_cuts.size());
+    size_t const new_iv_size = local_cuts.size();
     for (size_t j = old_iv_size; j < new_iv_size; ++j) {
-      p_cuts_->cut_values_[j] = cuts[t]->p_cuts_->cut_values_[j-old_iv_size];
+      local_cuts[j] = thread_cuts[j-old_iv_size];
     }
     // merge min values
-    for (size_t j = 0; j < cuts[t]->p_cuts_->min_vals_.size(); ++j) {
-      p_cuts_->min_vals_.at(min_vals_tail + j) =
-          std::min(p_cuts_->min_vals_.at(min_vals_tail + j), cuts.at(t)->p_cuts_->min_vals_.at(j));
+    for (size_t j = 0; j < thread_min_vals.size(); ++j) {
+       local_min_vals.at(min_vals_tail + j) =
+          std::min(local_min_vals.at(min_vals_tail + j), thread_min_vals.at(j));
     }
-    min_vals_tail += cuts[t]->p_cuts_->min_vals_.size();
+    min_vals_tail += thread_min_vals.size();
   }
   monitor_.Stop(__FUNCTION__);
 }
@@ -323,27 +333,27 @@ void DenseCuts::Init
   // TODO(chenqin): rabit failure recovery assumes no boostrap onetime call after loadcheckpoint
   // we need to move this allreduce before loadcheckpoint call in future
   sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
-  p_cuts_->min_vals_.resize(sketchs.size());
+  p_cuts_->min_vals_.HostVector().resize(sketchs.size());
 
   for (size_t fid = 0; fid < summary_array.size(); ++fid) {
     WQSketch::SummaryContainer a;
     a.Reserve(max_num_bins + 1);
     a.SetPrune(summary_array[fid], max_num_bins + 1);
     const bst_float mval = a.data[0].value;
-    p_cuts_->min_vals_[fid] = mval - (fabs(mval) + 1e-5);
+    p_cuts_->min_vals_.HostVector()[fid] = mval - (fabs(mval) + 1e-5);
     AddCutPoint(a, max_num_bins);
     // push a value that is greater than anything
     const bst_float cpt
-      = (a.size > 0) ? a.data[a.size - 1].value : p_cuts_->min_vals_[fid];
+      = (a.size > 0) ? a.data[a.size - 1].value : p_cuts_->min_vals_.HostVector()[fid];
     // this must be bigger than last value in a scale
     const bst_float last = cpt + (fabs(cpt) + 1e-5);
-    p_cuts_->cut_values_.push_back(last);
+    p_cuts_->cut_values_.HostVector().push_back(last);
 
     // Ensure that every feature gets at least one quantile point
-    CHECK_LE(p_cuts_->cut_values_.size(), std::numeric_limits<uint32_t>::max());
-    auto cut_size = static_cast<uint32_t>(p_cuts_->cut_values_.size());
-    CHECK_GT(cut_size, p_cuts_->cut_ptrs_.back());
-    p_cuts_->cut_ptrs_.push_back(cut_size);
+    CHECK_LE(p_cuts_->cut_values_.HostVector().size(), std::numeric_limits<uint32_t>::max());
+    auto cut_size = static_cast<uint32_t>(p_cuts_->cut_values_.HostVector().size());
+    CHECK_GT(cut_size, p_cuts_->cut_ptrs_.HostVector().back());
+    p_cuts_->cut_ptrs_.HostVector().push_back(cut_size);
   }
   monitor_.Stop(__func__);
 }
