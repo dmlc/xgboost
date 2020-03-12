@@ -321,6 +321,13 @@ class RegTree : public Model {
     return nodes_ == b.nodes_ && stats_ == b.stats_ &&
            deleted_nodes_ == b.deleted_nodes_ && param == b.param;
   }
+  /*!
+   * \brief Compares whether 2 trees are equal from a user's perspective.  The equality
+   *        compares only non-deleted nodes.
+   *
+   * \parm b The other tree.
+   */
+  bool Equal(const RegTree& b) const;
 
   /**
    * \brief Expands a leaf node into two additional leaf nodes.

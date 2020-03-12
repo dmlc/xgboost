@@ -225,8 +225,6 @@ TEST(Tree, JsonIO) {
   tree.ExpandNode(0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
   Json j_tree{Object()};
   tree.SaveModel(&j_tree);
-  std::stringstream ss;
-  Json::Dump(j_tree, &ss);
 
   auto tparam = j_tree["tree_param"];
   ASSERT_EQ(get<String>(tparam["num_feature"]), "0");
@@ -243,6 +241,23 @@ TEST(Tree, JsonIO) {
   RegTree loaded_tree;
   loaded_tree.LoadModel(j_tree);
   ASSERT_EQ(loaded_tree.param.num_nodes, 3);
+
+  ASSERT_TRUE(loaded_tree == tree);
+
+  auto left = tree[0].LeftChild();
+  auto right = tree[0].RightChild();
+  tree.ExpandNode(left, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+  tree.ExpandNode(right, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+  tree.SaveModel(&j_tree);
+
+  tree.ChangeToLeaf(1, 1.0f);
+  ASSERT_EQ(tree[1].LeftChild(), -1);
+  ASSERT_EQ(tree[1].RightChild(), -1);
+  tree.SaveModel(&j_tree);
+  loaded_tree.LoadModel(j_tree);
+  ASSERT_EQ(loaded_tree[1].LeftChild(), -1);
+  ASSERT_EQ(loaded_tree[1].RightChild(), -1);
+  ASSERT_TRUE(tree.Equal(loaded_tree));
 }
 
 }  // namespace xgboost
