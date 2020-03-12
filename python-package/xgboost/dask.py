@@ -47,10 +47,14 @@ from .sklearn import xgboost_model_doc
 LOGGER = logging.getLogger('[xgboost.dask]')
 
 
-def _start_tracker(host, n_workers):
+def _start_tracker(host, port, n_workers):
     """Start Rabit tracker """
     env = {'DMLC_NUM_WORKER': n_workers}
-    rabit_context = RabitTracker(hostIP=host, nslave=n_workers)
+    if port:
+        rabit_context = RabitTracker(hostIP=host, port=port, port_end=port+1,
+                                     nslave=n_workers)
+    else:
+        rabit_context = RabitTracker(hostIP=host, nslave=n_workers)
     env.update(rabit_context.slave_envs())
 
     rabit_context.start(n_workers)
@@ -356,13 +360,21 @@ class DaskDMatrix:
             cols = c
         return (rows, cols)
 
-
-def _get_rabit_args(worker_map, client):
+from distributed import Client
+def _get_rabit_args(worker_map, client: Client, host_ip=None, port=None):
     '''Get rabit context arguments from data distribution in DaskDMatrix.'''
-    host = distributed_comm.get_address_host(client.scheduler.address)
+    msg = 'Please provide both IP and port'
+    assert (host_ip and port) or (host_ip is None and port is None), msg
 
-    env = client.run_on_scheduler(_start_tracker, host.strip('/:'),
-                                  len(worker_map))
+    if host_ip:
+        LOGGER.info('Running tracker on: %s, %s', host_ip, str(port))
+        env = client.run_on_scheduler(_start_tracker, host_ip, port,
+                                      len(worker_map))
+    else:
+        host = distributed_comm.get_address_host(client.scheduler.address)
+        LOGGER.info('Running tracker on: %s', host.strip('/:'))
+        env = client.run_on_scheduler(_start_tracker, host.strip('/:'), port,
+                                      len(worker_map))
     rabit_args = [('%s=%s' % item).encode() for item in env.items()]
     return rabit_args
 
@@ -373,7 +385,8 @@ def _get_rabit_args(worker_map, client):
 # evaluation history is instead returned.
 
 
-def train(client, params, dtrain, *args, evals=(), **kwargs):
+def train(client, params, dtrain, *args, evals=(), tracker_ip=None,
+          tracker_port=None, **kwargs):
     '''Train XGBoost model.
 
     .. versionadded:: 1.0.0
@@ -383,6 +396,19 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
     client: dask.distributed.Client
         Specify the dask client used for training.  Use default client
         returned from dask if it's set to None.
+
+    tracker_ip:
+        Address for rabit tracker that runs on dask scheduler.  Use
+        `client.scheduler.address` if unspecified.
+
+      .. versionadded:: 1.2.0
+
+    tracker_port:
+        Port for the tracker.  Search for available ports automatically if
+        unspecified.
+
+      .. versionadded:: 1.2.0
+
     \\*\\*kwargs:
         Other parameters are the same as `xgboost.train` except for
         `evals_result`, which is returned as part of function return value
@@ -410,7 +436,7 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
 
     workers = list(_get_client_workers(client).keys())
 
-    rabit_args = _get_rabit_args(workers, client)
+    rabit_args = _get_rabit_args(workers, client, tracker_ip, tracker_port)
 
     def dispatched_train(worker_addr):
         '''Perform training on a single worker.'''

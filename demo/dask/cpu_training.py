@@ -3,10 +3,12 @@ from xgboost.dask import DaskDMatrix
 from dask.distributed import Client
 from dask.distributed import LocalCluster
 from dask import array as da
+import logging
 
 
 def main(client):
     # generate some random data for demonstration
+    logging.basicConfig(level=logging.INFO)
     m = 100000
     n = 100
     X = da.random.random(size=(m, n), chunks=100)

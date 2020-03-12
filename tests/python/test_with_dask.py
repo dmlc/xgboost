@@ -15,6 +15,7 @@ try:
     import dask.dataframe as dd
     import dask.array as da
     from xgboost.dask import DaskDMatrix
+    from dask.distributed import comm
 except ImportError:
     LocalCluster = None
     Client = None
@@ -286,3 +287,26 @@ def test_empty_dmatrix_approx():
         with Client(cluster) as client:
             parameters = {'tree_method': 'approx'}
             run_empty_dmatrix(client, parameters)
+
+
+def test_explicit_rabit_tracker():
+    with LocalCluster() as cluster:
+        with Client(cluster) as client:
+            X, y = generate_array()
+            host = comm.get_address_host(client.scheduler.address)
+            port = 9091
+            dtrain = xgb.dask.DaskDMatrix(client, X, y)
+
+            out = xgb.dask.train(client, {'tree_method': 'hist'}, dtrain,
+                                 tracker_ip=host, tracker_port=port)
+            prediction = xgb.dask.predict(client, out, dtrain)
+            assert prediction.shape[0] == kRows
+
+            assert isinstance(prediction, da.Array)
+            prediction = prediction.compute()
+
+            booster = out['booster']
+            single_node_predt = booster.predict(
+                xgb.DMatrix(X.compute())
+            )
+            np.testing.assert_allclose(prediction, single_node_predt)

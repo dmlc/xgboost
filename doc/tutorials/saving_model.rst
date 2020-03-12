@@ -121,7 +121,7 @@ or in R:
 
 Will print out something similiar to (not actual output as it's too long for demonstration):
 
-.. code-block:: json
+.. code-block:: js
 
     {
       "Learner": {
@@ -201,7 +201,7 @@ Difference between saving model and dumping model
 XGBoost has a function called ``dump_model`` in Booster object, which lets you to export
 the model in a readable format like ``text``, ``json`` or ``dot`` (graphviz).  The primary
 use case for it is for model interpretation or visualization, and is not supposed to be
-loaded back to XGBoost.  The JSON version has a `schema
+loaded back to XGBoost.  The JSON version has a `Schema
 <https://github.com/dmlc/xgboost/blob/master/doc/dump.schema>`_.  See next section for
 more info.
 

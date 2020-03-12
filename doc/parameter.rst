@@ -226,7 +226,7 @@ Parameters for Tree Booster
     See tutorial for more information
 
 Additional parameters for `hist` and 'gpu_hist' tree method
-================================================
+===========================================================
 
 * ``single_precision_histogram``, [default=``false``]
 
