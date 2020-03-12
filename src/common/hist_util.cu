@@ -221,10 +221,9 @@ void ExtractWeightedCuts(int device, Span<SketchEntry> cuts,
 void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
                   SketchContainer* sketch_container, int num_cuts,
                   size_t num_columns) {
-  dh::XGBCachingDeviceAllocator<char> caching_alloc;
-  dh::XGBDeviceAllocator<char> alloc;
+  dh::XGBCachingDeviceAllocator<char> alloc;
   const auto& host_data = page.data.ConstHostVector();
-  dh::device_vector<Entry> sorted_entries(host_data.begin() + begin,
+  dh::caching_device_vector<Entry> sorted_entries(host_data.begin() + begin,
                                           host_data.begin() + end);
   thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
                sorted_entries.end(), EntryCompareOp());
@@ -235,7 +234,7 @@ void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
                      num_columns);
   thrust::host_vector<size_t> host_column_sizes_scan(column_sizes_scan);
 
-  dh::device_vector<SketchEntry> cuts(num_columns * num_cuts);
+  dh::caching_device_vector<SketchEntry> cuts(num_columns * num_cuts);
   ExtractCuts(device, {cuts.data().get(), cuts.size()}, num_cuts,
               {sorted_entries.data().get(), sorted_entries.size()},
               {column_sizes_scan.data().get(), column_sizes_scan.size()});
@@ -249,13 +248,13 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
                           Span<const float> weights, size_t begin, size_t end,
                           SketchContainer* sketch_container, int num_cuts,
                           size_t num_columns) {
-  dh::XGBCachingDeviceAllocator<char> caching_alloc;
+  dh::XGBCachingDeviceAllocator<char> alloc;
   const auto& host_data = page.data.ConstHostVector();
-  dh::device_vector<Entry> sorted_entries(host_data.begin() + begin,
+  dh::caching_device_vector<Entry> sorted_entries(host_data.begin() + begin,
                                           host_data.begin() + end);
 
   // Binary search to assign weights to each element
-  dh::device_vector<float> temp_weights(sorted_entries.size());
+  dh::caching_device_vector<float> temp_weights(sorted_entries.size());
   auto d_temp_weights = temp_weights.data().get();
   page.offset.SetDevice(device);
   auto row_ptrs = page.offset.ConstDeviceSpan();
@@ -269,12 +268,12 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
   });
 
   // Sort
-  thrust::sort_by_key(thrust::cuda::par(caching_alloc), sorted_entries.begin(),
+  thrust::sort_by_key(thrust::cuda::par(alloc), sorted_entries.begin(),
                       sorted_entries.end(), temp_weights.begin(),
                       EntryCompareOp());
 
   // Scan weights
-  thrust::inclusive_scan_by_key(thrust::cuda::par(caching_alloc),
+  thrust::inclusive_scan_by_key(thrust::cuda::par(alloc),
                                 sorted_entries.begin(), sorted_entries.end(),
                                 temp_weights.begin(), temp_weights.begin(),
                                 [=] __device__(const Entry& a, const Entry& b) {
@@ -401,7 +400,7 @@ void ProcessBatch(AdapterT* adapter, size_t begin, size_t end, float missing,
   size_t num_valid = host_column_sizes_scan.back();
 
   // Copy current subset of valid elements into temporary storage and sort
-  dh::device_vector<Entry> sorted_entries(num_valid);
+  dh::caching_device_vector<Entry> sorted_entries(num_valid);
   thrust::copy_if(thrust::cuda::par(alloc), entry_iter + begin,
                   entry_iter + end, sorted_entries.begin(), is_valid);
   thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
