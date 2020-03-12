@@ -6,7 +6,6 @@
 
 
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
 
 #include "xgboost/c_api.h"
 
@@ -20,6 +19,7 @@
 #include "../../../src/common/math.h"
 #include "../../../src/data/simple_dmatrix.h"
 #include "test_hist_util.h"
+#include "../../../include/xgboost/logging.h"
 
 namespace xgboost {
 namespace common {
@@ -39,7 +39,7 @@ TEST(hist_util, DeviceSketch) {
   std::vector<float> x = {1.0, 2.0, 3.0, 4.0, 5.0};
   auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
 
-  auto device_cuts = DeviceSketch(0, dmat.get(), num_bins, 0);
+  auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
   HistogramCuts host_cuts;
   DenseCuts builder(&host_cuts);
   builder.Build(dmat.get(), num_bins);
@@ -47,6 +47,58 @@ TEST(hist_util, DeviceSketch) {
   EXPECT_EQ(device_cuts.Values(), host_cuts.Values());
   EXPECT_EQ(device_cuts.Ptrs(), host_cuts.Ptrs());
   EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
+}
+
+// Duplicate this function from hist_util.cu so we don't have to expose it in
+// header
+size_t RequiredSampleCutsTest(int max_bins, size_t num_rows) {
+  constexpr int kFactor = 8;
+  double eps = 1.0 / (kFactor * max_bins);
+  size_t dummy_nlevel;
+  size_t num_cuts;
+  WQuantileSketch<bst_float, bst_float>::LimitSizeLevel(
+    num_rows, eps, &dummy_nlevel, &num_cuts);
+  return std::min(num_cuts, num_rows);
+}
+
+TEST(hist_util, DeviceSketchMemory) {
+  int num_columns = 100;
+  int num_rows = 1000;
+  int num_bins = 256;
+  auto x = GenerateRandom(num_rows, num_columns);
+  auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
+
+  ConsoleLogger::Configure({{"verbosity", "3"}});
+  auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
+  ConsoleLogger::Configure({{"verbosity", "0"}});
+
+  size_t bytes_num_elements = num_rows * num_columns*sizeof(Entry);
+  size_t bytes_cuts = RequiredSampleCutsTest(num_bins, num_rows) * num_columns *
+                      sizeof(DenseCuts::WQSketch::Entry);
+  size_t bytes_constant = 1000;
+  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(),
+            bytes_num_elements + bytes_cuts + bytes_constant);
+}
+
+TEST(hist_util, DeviceSketchMemoryWeights) {
+  int num_columns = 100;
+  int num_rows = 1000;
+  int num_bins = 256;
+  auto x = GenerateRandom(num_rows, num_columns);
+  auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
+  dmat->Info().weights_.HostVector() = GenerateRandomWeights(num_rows);
+
+  dh::GlobalMemoryLogger().Clear();
+  ConsoleLogger::Configure({{"verbosity", "3"}});
+  auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
+  ConsoleLogger::Configure({{"verbosity", "0"}});
+
+  size_t bytes_num_elements =
+      num_rows * num_columns * (sizeof(Entry) + sizeof(float));
+  size_t bytes_cuts = RequiredSampleCutsTest(num_bins, num_rows) * num_columns *
+                      sizeof(DenseCuts::WQSketch::Entry);
+  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(),
+            size_t((bytes_num_elements + bytes_cuts) * 1.05));
 }
 
 TEST(hist_util, DeviceSketchDeterminism) {
@@ -72,7 +124,7 @@ TEST(hist_util, DeviceSketchDeterminism) {
     for (auto num_categories : categorical_sizes) {
       auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
       auto dmat = GetDMatrixFromData(x, n, 1);
-      auto cuts = DeviceSketch(0, dmat.get(), num_bins, 0);
+      auto cuts = DeviceSketch(0, dmat.get(), num_bins);
       ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
@@ -86,7 +138,7 @@ TEST(hist_util, DeviceSketchMultipleColumns) {
     auto x = GenerateRandom(num_rows, num_columns);
     auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
     for (auto num_bins : bin_sizes) {
-      auto cuts = DeviceSketch(0, dmat.get(), num_bins, 0);
+      auto cuts = DeviceSketch(0, dmat.get(), num_bins);
       ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
@@ -102,7 +154,7 @@ TEST(hist_util, DeviceSketchMultipleColumnsWeights) {
     auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
     dmat->Info().weights_.HostVector() = GenerateRandomWeights(num_rows);
     for (auto num_bins : bin_sizes) {
-      auto cuts = DeviceSketch(0, dmat.get(), num_bins, 0);
+      auto cuts = DeviceSketch(0, dmat.get(), num_bins);
       ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
@@ -131,7 +183,7 @@ TEST(hist_util, DeviceSketchMultipleColumnsExternal) {
     auto dmat =
         GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, 100, temp);
     for (auto num_bins : bin_sizes) {
-      auto cuts = DeviceSketch(0, dmat.get(), num_bins, 0);
+      auto cuts = DeviceSketch(0, dmat.get(), num_bins);
       ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
@@ -157,6 +209,29 @@ TEST(hist_util, AdapterDeviceSketch)
   EXPECT_EQ(device_cuts.Values(), host_cuts.Values());
   EXPECT_EQ(device_cuts.Ptrs(), host_cuts.Ptrs());
   EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
+}
+
+TEST(hist_util, AdapterDeviceSketchMemory) {
+  int num_columns = 100;
+  int num_rows = 1000;
+  int num_bins = 256;
+  auto x = GenerateRandom(num_rows, num_columns);
+  auto x_device = thrust::device_vector<float>(x);
+  auto adapter = AdapterFromData(x_device, num_rows, num_columns);
+
+  dh::GlobalMemoryLogger().Clear();
+  ConsoleLogger::Configure({{"verbosity", "3"}});
+  auto cuts = AdapterDeviceSketch(&adapter, num_bins,
+                                  std::numeric_limits<float>::quiet_NaN());
+  ConsoleLogger::Configure({{"verbosity", "0"}});
+
+  size_t bytes_num_elements = num_rows * num_columns * sizeof(Entry);
+  size_t bytes_num_columns = (num_columns + 1) * sizeof(size_t);
+  size_t bytes_cuts = RequiredSampleCutsTest(num_bins, num_rows) * num_columns *
+                      sizeof(DenseCuts::WQSketch::Entry);
+  size_t bytes_constant = 1000;
+  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(),
+      bytes_num_elements + bytes_cuts + bytes_num_columns + bytes_constant);
 }
 
  TEST(hist_util, AdapterDeviceSketchCategorical) {

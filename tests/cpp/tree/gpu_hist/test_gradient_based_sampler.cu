@@ -27,7 +27,7 @@ void VerifySampling(size_t page_size,
   }
   gpair.SetDevice(0);
 
-  BatchParam param{0, 256, 0, page_size};
+  BatchParam param{0, 256, page_size};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
   if (page_size != 0) {
     EXPECT_NE(page->n_rows, kRows);
@@ -82,7 +82,7 @@ TEST(GradientBasedSampler, NoSampling_ExternalMemory) {
   auto gpair = GenerateRandomGradients(kRows);
   gpair.SetDevice(0);
 
-  BatchParam param{0, 256, 0, kPageSize};
+  BatchParam param{0, 256, kPageSize};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
   EXPECT_NE(page->n_rows, kRows);
 

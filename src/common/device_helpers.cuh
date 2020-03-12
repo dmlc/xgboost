@@ -378,6 +378,11 @@ public:
   {
     return stats_.peak_allocated_bytes;
   }
+  void Clear()
+  {
+    stats_ = DeviceStats();
+  }
+
   void Log() {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
       return;
