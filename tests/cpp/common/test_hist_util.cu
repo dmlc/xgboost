@@ -68,6 +68,7 @@ TEST(hist_util, DeviceSketchMemory) {
   auto x = GenerateRandom(num_rows, num_columns);
   auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
 
+  dh::GlobalMemoryLogger().Clear();
   ConsoleLogger::Configure({{"verbosity", "3"}});
   auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
   ConsoleLogger::Configure({{"verbosity", "0"}});
