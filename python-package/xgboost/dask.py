@@ -589,7 +589,8 @@ class DaskXGBRegressor(DaskScikitLearnBase):
             y,
             sample_weights=None,
             eval_set=None,
-            sample_weight_eval_set=None):
+            sample_weight_eval_set=None,
+            verbose=True):
         _assert_dask_support()
         dtrain = DaskDMatrix(client=self.client,
                              data=X, label=y, weight=sample_weights)
@@ -599,7 +600,7 @@ class DaskXGBRegressor(DaskScikitLearnBase):
 
         results = train(self.client, params, dtrain,
                         num_boost_round=self.get_num_boosting_rounds(),
-                        evals=evals)
+                        evals=evals, verbose_eval=verbose)
         # pylint: disable=attribute-defined-outside-init
         self._Booster = results['booster']
         # pylint: disable=attribute-defined-outside-init
@@ -627,7 +628,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             y,
             sample_weights=None,
             eval_set=None,
-            sample_weight_eval_set=None):
+            sample_weight_eval_set=None,
+            verbose=True):
         _assert_dask_support()
         dtrain = DaskDMatrix(client=self.client,
                              data=X, label=y, weight=sample_weights)
@@ -650,7 +652,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
                                      eval_set, sample_weight_eval_set)
         results = train(self.client, params, dtrain,
                         num_boost_round=self.get_num_boosting_rounds(),
-                        evals=evals)
+                        evals=evals, verbose_eval=verbose)
         self._Booster = results['booster']
         # pylint: disable=attribute-defined-outside-init
         self.evals_result_ = results['history']
