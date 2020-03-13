@@ -540,7 +540,8 @@ class DaskScikitLearnBase(XGBModel):
             y,
             sample_weights=None,
             eval_set=None,
-            sample_weight_eval_set=None):
+            sample_weight_eval_set=None,
+            verbose=True):
         '''Fit the regressor.
 
         Parameters
@@ -557,7 +558,10 @@ class DaskScikitLearnBase(XGBModel):
             Validation metrics will help us track the performance of the model.
         sample_weight_eval_set : list, optional
             A list of the form [L_1, L_2, ..., L_n], where each L_i is a list
-            of group weights on the i-th validation set.'''
+            of group weights on the i-th validation set.
+        verbose : bool
+            If `verbose` and an evaluation set is used, writes the evaluation
+            metric measured on the validation set to stderr.'''
         raise NotImplementedError
 
     def predict(self, data):  # pylint: disable=arguments-differ
@@ -589,7 +593,8 @@ class DaskXGBRegressor(DaskScikitLearnBase):
             y,
             sample_weights=None,
             eval_set=None,
-            sample_weight_eval_set=None):
+            sample_weight_eval_set=None,
+            verbose=True):
         _assert_dask_support()
         dtrain = DaskDMatrix(client=self.client,
                              data=X, label=y, weight=sample_weights)
@@ -599,7 +604,7 @@ class DaskXGBRegressor(DaskScikitLearnBase):
 
         results = train(self.client, params, dtrain,
                         num_boost_round=self.get_num_boosting_rounds(),
-                        evals=evals)
+                        evals=evals, verbose_eval=verbose)
         # pylint: disable=attribute-defined-outside-init
         self._Booster = results['booster']
         # pylint: disable=attribute-defined-outside-init
@@ -627,7 +632,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             y,
             sample_weights=None,
             eval_set=None,
-            sample_weight_eval_set=None):
+            sample_weight_eval_set=None,
+            verbose=True):
         _assert_dask_support()
         dtrain = DaskDMatrix(client=self.client,
                              data=X, label=y, weight=sample_weights)
@@ -650,7 +656,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
                                      eval_set, sample_weight_eval_set)
         results = train(self.client, params, dtrain,
                         num_boost_round=self.get_num_boosting_rounds(),
-                        evals=evals)
+                        evals=evals, verbose_eval=verbose)
         self._Booster = results['booster']
         # pylint: disable=attribute-defined-outside-init
         self.evals_result_ = results['history']
