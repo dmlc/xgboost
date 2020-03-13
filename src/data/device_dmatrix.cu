@@ -131,8 +131,8 @@ void CopyDataRowMajor(const AdapterBatchT& batch, EllpackPageImpl*dst,
       WriteCompressedEllpackFunctor<AdapterBatchT>, decltype(discard)>
       out(discard, functor);
   dh::XGBCachingDeviceAllocator<char> alloc;
-  thrust::inclusive_scan(
-      thrust::cuda::par(alloc), key_value_index_iter, key_value_index_iter + batch.Size(), out,
+  thrust::inclusive_scan(thrust::cuda::par(alloc), key_value_index_iter,
+                         key_value_index_iter + batch.Size(), out,
                          [=] __device__(Tuple a, Tuple b) {
                            // Key equal
                            if (a.get<0>() == b.get<0>()) {
@@ -142,10 +142,60 @@ void CopyDataRowMajor(const AdapterBatchT& batch, EllpackPageImpl*dst,
                            // Not equal
                            return b;
                          });
+}
 
-  // Write the null values
+template <typename AdapterT, typename AdapterBatchT>
+void CopyDataColumnMajor(AdapterT* adapter, const AdapterBatchT& batch,
+                         EllpackPageImpl* dst, float missing) {
+  // Step 1: Get the sizes of the input columns
+  dh::caching_device_vector<size_t> column_sizes(adapter->NumColumns(), 0);
+  auto d_column_sizes = column_sizes.data().get();
+  // Populate column sizes
+  dh::LaunchN(adapter->DeviceIdx(), batch.Size(), [=] __device__(size_t idx) {
+    const auto& e = batch.GetElement(idx);
+    atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
+      &d_column_sizes[e.column_idx]),
+      static_cast<unsigned long long>(1));  // NOLINT
+  });
+
+  thrust::host_vector<size_t> host_column_sizes = column_sizes;
+
+  // Step 2: Iterate over columns, place elements in correct row, increment
+  // temporary row pointers
+  dh::caching_device_vector<size_t> temp_row_ptr(adapter->NumRows(), 0);
+  auto d_temp_row_ptr = temp_row_ptr.data().get();
   auto row_stride = dst->row_stride;
-  dh::LaunchN(device_idx, row_stride*dst->n_rows, [=] __device__(size_t idx)
+  size_t begin = 0;
+  auto device_accessor = dst->GetDeviceAccessor(adapter->DeviceIdx());
+  common::CompressedBufferWriter writer(device_accessor.NumSymbols());
+  auto d_compressed_buffer = dst->gidx_buffer.DevicePointer();
+  IsValidFunctor is_valid(missing);
+  for (auto size : host_column_sizes) {
+    size_t end = begin + size;
+    dh::LaunchN(adapter->DeviceIdx(), end - begin, [=] __device__(size_t idx) {
+      auto writer_non_const =
+        writer;  // For some reason this variable gets captured as const 
+      const auto& e = batch.GetElement(idx + begin);
+      if (!is_valid(e)) return;
+      size_t output_position = e.row_idx * row_stride + d_temp_row_ptr[e.row_idx];
+      auto bin_idx = device_accessor.SearchBin(e.value, e.column_idx);
+      writer_non_const.AtomicWriteSymbol(d_compressed_buffer, bin_idx, output_position);
+      d_temp_row_ptr[e.row_idx] += 1;
+    });
+
+    begin = end;
+  }
+}
+
+void WriteNullValues(EllpackPageImpl*dst,
+                      int device_idx, common::Span<size_t> row_counts)
+{
+   // Write the null values
+  auto device_accessor = dst->GetDeviceAccessor(device_idx);
+  common::CompressedBufferWriter writer(device_accessor.NumSymbols());
+  auto d_compressed_buffer = dst->gidx_buffer.DevicePointer();
+  auto row_stride = dst->row_stride;
+  dh::LaunchN(device_idx, row_stride * dst->n_rows, [=] __device__(size_t idx)
   {
     auto writer_non_const =
         writer;  // For some reason this variable gets captured as const 
@@ -157,8 +207,8 @@ void CopyDataRowMajor(const AdapterBatchT& batch, EllpackPageImpl*dst,
                                          device_accessor.NullValue(), idx);
     }
   });
-}
 
+} 
 // Does not currently support metainfo as no on-device data source contains this
 // Current implementation assumes a single batch. More batches can
 // be supported in future. Does not currently support inferring row/column size
@@ -170,11 +220,13 @@ DeviceDMatrix::DeviceDMatrix(AdapterT* adapter, float missing, int nthread) {
   dh::caching_device_vector<size_t> row_counts(adapter->NumRows() + 1,
                                                       0);
   common::Span<size_t > row_counts_span( row_counts.data().get(),row_counts.size() );
-  // TODO: are these offsets actually needed? or just the stride
   size_t row_stride =
       GetRowCounts(batch, row_counts_span, adapter->DeviceIdx(), missing);
 
-  info.num_nonzero_ = row_counts.back();// Device to host copy
+  dh::XGBCachingDeviceAllocator<char> alloc;
+  info.num_nonzero_ = thrust::reduce(thrust::cuda::par(alloc),
+                                     row_counts.begin(),
+                                     row_counts.end());
   info.num_col_ = adapter->NumColumns();
   info.num_row_ = adapter->NumRows();
   ellpack_page_.reset(new EllpackPage());
@@ -184,7 +236,12 @@ DeviceDMatrix::DeviceDMatrix(AdapterT* adapter, float missing, int nthread) {
   if (adapter->IsRowMajor()) {
     CopyDataRowMajor(batch, ellpack_page_->Impl(), adapter->DeviceIdx(),
                      missing, row_counts_span);
+  } else {
+    CopyDataColumnMajor(adapter, batch, ellpack_page_->Impl(), missing);
   }
+
+  WriteNullValues(ellpack_page_->Impl(), adapter->DeviceIdx(),
+    row_counts_span);
 
   // Synchronise worker columns
   rabit::Allreduce<rabit::op::Max>(&info.num_col_, 1);
