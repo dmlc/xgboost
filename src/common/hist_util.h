@@ -217,27 +217,19 @@ enum BinBounds {
 };
 
 struct Index {
-  Index(): binBound_(POWER_OF_TWO_8), p_(1) {
+  Index(): binBound_(POWER_OF_TWO_8), p_(1), disp_ptr_(nullptr) {
     setBinBound(binBound_);
   }
-/*  ~Index()
-  {
-    if(data_)
-    {
-      char* delete_ptr = static_cast<char*>(data_);
-      delete [] delete_ptr;
-    }
-    if(disp_)
-      delete [] disp_;
-    data_ = nullptr;
-    disp_ = nullptr;
-  }*/
   Index(const Index& i) = delete;
   Index& operator=(Index i) = delete;
   Index(Index&& i) = delete;
   Index& operator=(Index&& i) = delete;
   uint32_t operator[](size_t i) const {
-    return func_(data_ptr_, i) + disp_ptr_[i%p_];
+    if (disp_ptr_ != nullptr) {
+      return func_(data_ptr_, i) + disp_ptr_[i%p_];
+    } else {
+      return func_(data_ptr_, i);
+    }
   }
   void setBinBound(BinBounds binBound) {
     binBound_ = binBound;
@@ -257,9 +249,6 @@ struct Index {
               binBound == POWER_OF_TWO_32);
     }
   }
-  void setDispSize(size_t p) {
-    p_ = p;
-  }
   BinBounds getBinBound() const {
     return binBound_;
   }
@@ -276,11 +265,14 @@ struct Index {
   size_t size() const {
     return data_.size() / (1 << binBound_);
   }
-  void resize(const size_t nBytesData, const size_t nDisps) {
+  void resize(const size_t nBytesData) {
     data_.resize(nBytesData);
-    disp_.resize(nDisps);
     data_ptr_ = reinterpret_cast<void*>(data_.data());
+  }
+  void resizeDisp(const size_t nDisps) {
+    disp_.resize(nDisps);
     disp_ptr_ = disp_.data();
+    p_ = nDisps;
   }
   std::vector<uint8_t>::const_iterator begin() const {
     return data_.begin();
@@ -327,12 +319,16 @@ struct GHistIndexMatrix {
   std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */
   HistogramCuts cut;
+  DMatrix* p_fmat_;
+  size_t max_num_bins_;
   // Create a global histogram matrix, given cut
   void Init(DMatrix* p_fmat, int max_num_bins);
 
   template<typename T>
   void SetIndexData(T* const index_data, size_t batch_threads, const SparsePage& batch,
                     size_t rbegin, const uint32_t* disps, size_t nbins);
+  void SetIndexData(uint32_t* const index_data, size_t batch_threads, const SparsePage& batch,
+                    size_t rbegin, size_t nbins);
 
   inline void GetFeatureCounts(size_t* counts) const {
     auto nfeature = cut.Ptrs().size() - 1;

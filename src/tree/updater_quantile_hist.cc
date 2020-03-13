@@ -30,7 +30,6 @@
 #include "../common/column_matrix.h"
 #include "../common/threading_utils.h"
 
-
 namespace xgboost {
 namespace tree {
 
@@ -211,17 +210,6 @@ void QuantileHistMaker::Builder::BuildLocalHistograms(
     BuildHist(gpair_h, rid_set, gmat, gmatb, hist_buffer_.GetInitializedHist(tid, nid_in_set));
   });
 
-/*std::cout  << "\ngpair_h!!!\n";
-for(size_t i = 0; i < gpair_h.size(); i++)
-  std::cout << gpair_h[i] << "   ";
-std::cout << "\n";*/
-
-/*std::cout << "\nBuildLocalHistograms row_set_collection_: \n";
-for(size_t i = 0; i < row_set_collection_.row_indices_.size(); i++)
-{
-  std::cout << row_set_collection_.row_indices_[i] << "   ";
-}
-std::cout << "\n";*/
   builder_monitor_.Stop("BuildLocalHistograms");
 }
 
@@ -791,17 +779,16 @@ template <bool default_left, typename BinIdxType>
 inline std::pair<size_t, size_t> PartitionDenseKernel(
       common::Span<const size_t> rid_span, common::Span<const BinIdxType> idx_span,
       const int32_t split_cond, const int32_t offset,
-      common::Span<size_t> left_part, common::Span<size_t> right_part) {
+      common::Span<size_t> left_part, common::Span<size_t> right_part,
+      const std::vector<bool>* missing_val_flag, const size_t disp) {
   const BinIdxType* idx = idx_span.data();
   size_t* p_left_part = left_part.data();
   size_t* p_right_part = right_part.data();
   size_t nleft_elems = 0;
   size_t nright_elems = 0;
 
-  const BinIdxType missing_val = std::numeric_limits<BinIdxType>::max();
-
   for (auto rid : rid_span) {
-    if (idx[rid] == missing_val) {
+    if ((*missing_val_flag)[disp + rid]) {
       if (default_left) {
         p_left_part[nleft_elems++] = rid;
       } else {
@@ -881,8 +868,7 @@ inline std::pair<size_t, size_t> PartitionSparseKernel(
 template <typename BinIdxType>
 void QuantileHistMaker::Builder::PartitionKernel(
     const size_t node_in_set, const size_t nid, common::Range1d range,
-    const int32_t split_cond, const ColumnMatrix& column_matrix,
-    const GHistIndexMatrix& gmat, const RegTree& tree) {
+    const int32_t split_cond, const ColumnMatrix& column_matrix, const RegTree& tree) {
   const size_t* rid = row_set_collection_[nid].begin;
   common::Span<const size_t> rid_span(rid + range.begin(), rid + range.end());
   common::Span<size_t> left  = partition_builder_.GetLeftBuffer(node_in_set,
@@ -894,17 +880,20 @@ void QuantileHistMaker::Builder::PartitionKernel(
   const auto column = column_matrix.GetColumn<BinIdxType>(fid);
 
   const int32_t offset = column.GetBaseIdx();
+  const std::vector<bool>* missing_val_flag = column.missing_flags_;
   common::Span<const BinIdxType> idx_span = column.GetFeatureBinIdxPtr();
-
+  const size_t disp = column.disp_;
   std::pair<size_t, size_t> child_nodes_sizes;
 
   if (column.GetType() == xgboost::common::kDenseColumn) {
     if (default_left) {
       child_nodes_sizes = PartitionDenseKernel<true>(
-                            rid_span, idx_span, split_cond, offset, left, right);
+                            rid_span, idx_span, split_cond, offset, left,
+                            right, missing_val_flag, disp);
     } else {
       child_nodes_sizes = PartitionDenseKernel<false>(
-                            rid_span, idx_span, split_cond, offset, left, right);
+                            rid_span, idx_span, split_cond, offset, left,
+                            right, missing_val_flag, disp);
     }
   } else {
     if (default_left) {
@@ -994,18 +983,18 @@ void QuantileHistMaker::Builder::ApplySplit(const std::vector<ExpandEntry> nodes
   // Store results in intermediate buffers from partition_builder_
   common::ParallelFor2d(space, this->nthread_, [&](size_t node_in_set, common::Range1d r) {
     const int32_t nid = nodes[node_in_set].nid;
-    switch (gmat.index.getBinBound()) {
-      case common::POWER_OF_TWO_8:
+      switch (column_matrix.GetTypeSize()) {
+      case 1:
         PartitionKernel<uint8_t>(node_in_set, nid, r,
-                  split_conditions[node_in_set], column_matrix, gmat, *p_tree);
+                  split_conditions[node_in_set], column_matrix, *p_tree);
         break;
-      case common::POWER_OF_TWO_16:
+      case 2:
         PartitionKernel<uint16_t>(node_in_set, nid, r,
-                  split_conditions[node_in_set], column_matrix, gmat, *p_tree);
+                  split_conditions[node_in_set], column_matrix, *p_tree);
         break;
-      case common::POWER_OF_TWO_32:
+      case 4:
         PartitionKernel<uint32_t>(node_in_set, nid, r,
-                  split_conditions[node_in_set], column_matrix, gmat, *p_tree);
+                  split_conditions[node_in_set], column_matrix, *p_tree);
         break;
     }
     });
