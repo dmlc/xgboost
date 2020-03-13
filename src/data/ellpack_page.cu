@@ -204,29 +204,22 @@ void EllpackPageImpl::Compact(int device, EllpackPageImpl* page,
   monitor_.StopCuda("Compact");
 }
 
-  // Needs to be a public function due to device lambda
-void WriteNullBuffer(int device, EllpackPageImpl* impl) {
-  size_t num_symbols = impl->NumSymbols();
+// Initialize the buffer to stored compressed features.
+void EllpackPageImpl::InitCompressedData(int device) {
+  size_t num_symbols = NumSymbols();
 
   // Required buffer size for storing data matrix in ELLPack format.
   size_t compressed_size_bytes =
-      common::CompressedBufferWriter::CalculateBufferSize(
-          impl->row_stride * impl->n_rows, num_symbols);
-  impl->gidx_buffer.SetDevice(device);
-  impl->gidx_buffer.Resize(compressed_size_bytes, 0);
-  auto d_buffer = impl->gidx_buffer.DevicePointer();
-  // Initialise the buffer to null value
-  auto accessor = impl->GetDeviceAccessor(device);
-  dh::LaunchN(device, impl->n_rows * impl->row_stride,
-              [=] __device__(size_t idx) {
-                common::CompressedBufferWriter writer(accessor.NumSymbols());
-                writer.AtomicWriteSymbol(d_buffer, accessor.NullValue(), idx);
-              });
-}
-
-// Initialize the buffer to stored compressed features.
-void EllpackPageImpl::InitCompressedData(int device) {
-  WriteNullBuffer(device, this);
+    common::CompressedBufferWriter::CalculateBufferSize(row_stride * n_rows,
+      num_symbols);
+  gidx_buffer.SetDevice(device);
+  // Don't call fill unnecessarily
+  if (gidx_buffer.Size() == 0) {
+    gidx_buffer.Resize(compressed_size_bytes, 0);
+  } else {
+    gidx_buffer.Resize(compressed_size_bytes, 0);
+    thrust::fill(dh::tbegin(gidx_buffer), dh::tend(gidx_buffer), 0);
+  }
 }
 
 // Compress a CSR page into ELLPACK.

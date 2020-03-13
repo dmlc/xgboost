@@ -37,7 +37,7 @@ struct IsValidFunctor : public thrust::unary_function<Entry, bool> {
 
 // Returns maximum row length
 template <typename AdapterBatchT>
-size_t CountRowOffsets(const AdapterBatchT& batch, common::Span<size_t> offset,
+size_t GetRowCounts(const AdapterBatchT& batch, common::Span<size_t> offset,
                      int device_idx, float missing) {
   IsValidFunctor is_valid(missing);
   // Count elements per row
@@ -55,76 +55,8 @@ size_t CountRowOffsets(const AdapterBatchT& batch, common::Span<size_t> offset,
       thrust::device_pointer_cast(offset.data()) + offset.size(),
                      size_t(0),
                      thrust::maximum<size_t>());
-
-  thrust::exclusive_scan(thrust::cuda::par(alloc),
-      thrust::device_pointer_cast(offset.data()),
-      thrust::device_pointer_cast(offset.data() + offset.size()),
-      thrust::device_pointer_cast(offset.data()));
   return row_stride;
 }
-template <typename FunctionT>
-class LauncherItr {
-public:
-  int idx;
-  XGBOOST_DEVICE LauncherItr() : idx(0) {}
-  XGBOOST_DEVICE LauncherItr(int idx) : idx(idx){}
-  XGBOOST_DEVICE LauncherItr &operator=(int output) {
-    FunctionT f;
-    f(idx, output);
-    return *this;
-  }
-};
-
-/**
-* \brief Thrust compatible iterator type - discards algorithm output and launches device lambda
-*        with the index of the output and the algorithm output as arguments.
-*
-* \author  Rory
-* \date  7/9/2017
-*
-* \tparam  FunctionT Type of the function t.
-*/
-template <typename FunctionT>
-class DiscardLambdaItr {
-public:
-  // Required iterator traits
-  using self_type = DiscardLambdaItr<FunctionT>;  // NOLINT
-  using difference_type = ptrdiff_t;   // NOLINT
-  using value_type = void;       // NOLINT
-  using pointer = value_type *;  // NOLINT
-  using reference = LauncherItr<FunctionT>;  // NOLINT
-  using iterator_category = typename thrust::detail::iterator_facade_category<
-    thrust::any_system_tag, thrust::random_access_traversal_tag, value_type,
-    reference>::type;  // NOLINT
-private:
-  difference_type offset_;
-public:
-  XGBOOST_DEVICE explicit DiscardLambdaItr() : offset_(0){}
-  XGBOOST_DEVICE explicit DiscardLambdaItr(size_t offset) : offset_(offset){}
-  XGBOOST_DEVICE self_type operator+(const int &b) const {
-    return self_type(offset_ + b);
-  }
-  XGBOOST_DEVICE self_type operator++() {
-    offset_++;
-    return *this;
-  }
-  XGBOOST_DEVICE self_type operator++(int) {
-    self_type retval = *this;
-    offset_++;
-    return retval;
-  }
-  XGBOOST_DEVICE self_type &operator+=(const int &b) {
-    offset_ += b;
-    return *this;
-  }
-  XGBOOST_DEVICE reference operator*() const {
-    return LauncherItr<FunctionT>(offset_);
-  }
-  XGBOOST_DEVICE reference operator[](int idx) {
-    self_type offset = (*this) + idx;
-    return *offset;
-  }
-};
 
   template <typename AdapterBatchT>
 struct WriteCompressedEllpackFunctor
@@ -149,7 +81,8 @@ struct WriteCompressedEllpackFunctor
   {
     auto e = batch.GetElement(out.get<2>());
     if (is_valid(e)) {
-      size_t output_position = accessor.row_stride * e.row_idx + out.get<1>() - 1;
+      // -1 because the scan is inclusive
+      size_t output_position = accessor.row_stride * e.row_idx + out.get<1>() - 1; 
       auto bin_idx = accessor.SearchBin(e.value, e.column_idx);
       writer.AtomicWriteSymbol(d_buffer, bin_idx, output_position);
     }
@@ -162,7 +95,10 @@ struct WriteCompressedEllpackFunctor
 // to remove missing data
 template <typename AdapterBatchT>
 void CopyDataRowMajor(const AdapterBatchT& batch, EllpackPageImpl*dst,
-                      int device_idx, float missing) {
+                      int device_idx, float missing,common::Span<size_t> row_counts) {
+  // Some witchcraft happens here
+  // The goal is to copy valid elements out of the input to an ellpack matrix with a given row stride, using no extra working memory
+  // Standard stream compaction needs to be modified to do this, so we manually define a segmented stream compaction via operators on an inclusive scan. The output of this inclusive scan is fed to a custom function which works out the correct output position
   auto counting = thrust::make_counting_iterator(0llu);
   IsValidFunctor is_valid(missing);
   auto key_iter = dh::MakeTransformIterator<size_t >(counting,[=]__device__ (size_t idx)
@@ -177,12 +113,17 @@ void CopyDataRowMajor(const AdapterBatchT& batch, EllpackPageImpl*dst,
   });
 
   auto key_value_index_iter = thrust::make_zip_iterator(thrust::make_tuple(key_iter, value_iter, counting));
+
+  // Tuple[0] = The row index of the input, used as a key to define segments
+  // Tuple[1] = Scanned flags of valid elements for each row
+  // Tuple[2] = The index in the input data
   using Tuple = thrust::tuple<size_t , size_t , size_t >;
 
   auto device_accessor = dst->GetDeviceAccessor(device_idx);
   common::CompressedBufferWriter writer(device_accessor.NumSymbols());
   auto d_compressed_buffer = dst->gidx_buffer.DevicePointer();
 
+  // We redirect the scan output into this functor to do the actual writing
   WriteCompressedEllpackFunctor<AdapterBatchT> functor(d_compressed_buffer, writer,
                                         batch, device_accessor, is_valid);
   thrust::discard_iterator<size_t> discard;
@@ -201,41 +142,39 @@ void CopyDataRowMajor(const AdapterBatchT& batch, EllpackPageImpl*dst,
                            // Not equal
                            return b;
                          });
+
+  // Write the null values
+  auto row_stride = dst->row_stride;
+  dh::LaunchN(device_idx, row_stride*dst->n_rows, [=] __device__(size_t idx)
+  {
+    auto writer_non_const =
+        writer;  // For some reason this variable gets captured as const 
+    size_t row_idx = idx / row_stride;
+    size_t row_offset = idx % row_stride;
+    if (row_offset >= row_counts[row_idx])
+    {
+      writer_non_const.AtomicWriteSymbol(d_compressed_buffer,
+                                         device_accessor.NullValue(), idx);
+    }
+  });
 }
 
-//void RedirectScan() {
-//  int n = 5;
-//  thrust::device_vector<int> x(n, 2);
-//  auto counting = thrust::make_counting_iterator(0llu);
-//  using Tuple = thrust::tuple<size_t , size_t >;
-//  auto zip = thrust::make_zip_iterator(thrust::make_tuple(x.begin(), counting));
-//  thrust::discard_iterator<int > discard;
-//  thrust::transform_output_iterator<Functor,decltype(discard)> out(discard,Functor());
-//  thrust::inclusive_scan(thrust::device, zip, zip + x.size(), out,[=]__device__ (Tuple a ,Tuple b)
-//  {
-//    b.get<0>() +=a.get<0>();
-//    //b.get<1>() = b.get<1>() + 1;
-//    return b;
-//  });
-//}
-//
 // Does not currently support metainfo as no on-device data source contains this
 // Current implementation assumes a single batch. More batches can
 // be supported in future. Does not currently support inferring row/column size
   template <typename AdapterT>
 DeviceDMatrix::DeviceDMatrix(AdapterT* adapter, float missing, int nthread) {
-  //RedirectScan();
   common::HistogramCuts cuts = common::AdapterDeviceSketch(adapter, 256, missing);
   auto & batch = adapter->Value();
   // Work out how many valid entries we have in each row
-  dh::caching_device_vector<size_t> row_ptr(adapter->NumRows() + 1,
+  dh::caching_device_vector<size_t> row_counts(adapter->NumRows() + 1,
                                                       0);
-  common::Span<size_t > row_ptr_span( row_ptr.data().get(),row_ptr.size() );
+  common::Span<size_t > row_counts_span( row_counts.data().get(),row_counts.size() );
   // TODO: are these offsets actually needed? or just the stride
   size_t row_stride =
-      CountRowOffsets(batch, row_ptr_span, adapter->DeviceIdx(), missing);
+      GetRowCounts(batch, row_counts_span, adapter->DeviceIdx(), missing);
 
-  info.num_nonzero_ = row_ptr.back();// Device to host copy
+  info.num_nonzero_ = row_counts.back();// Device to host copy
   info.num_col_ = adapter->NumColumns();
   info.num_row_ = adapter->NumRows();
   ellpack_page_.reset(new EllpackPage());
@@ -243,7 +182,8 @@ DeviceDMatrix::DeviceDMatrix(AdapterT* adapter, float missing, int nthread) {
       EllpackPageImpl(adapter->DeviceIdx(), cuts, this->IsDense(), row_stride,
                       adapter->NumRows());
   if (adapter->IsRowMajor()) {
-    CopyDataRowMajor(batch, ellpack_page_->Impl(), adapter->DeviceIdx(), missing);
+    CopyDataRowMajor(batch, ellpack_page_->Impl(), adapter->DeviceIdx(),
+                     missing, row_counts_span);
   }
 
   // Synchronise worker columns

@@ -119,7 +119,7 @@ struct EllpackDeviceAccessor {
   }
   /*! \brief Return the total number of symbols (total number of bins plus 1 for
    * not found). */
-  size_t NumSymbols() const { return gidx_fvalue_map.size() + 1; }
+  XGBOOST_DEVICE size_t NumSymbols() const { return gidx_fvalue_map.size() + 1; }
 
   size_t NullValue() const { return gidx_fvalue_map.size(); }
 
