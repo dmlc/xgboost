@@ -30,22 +30,13 @@ def main(client):
     history = output['history']
 
     # you can pass output directly into `predict` too.
-    prediction = xgb.dask.predict(client, bst, dtrain).compute()
-
-    inplace_prediction = xgb.dask.inplace_predict(
-        client, bst, X).compute()
-
-    single_predt = bst.predict(xgb.DMatrix(X.compute()))
-
-    import numpy
-    numpy.testing.assert_allclose(inplace_prediction, prediction)
-    numpy.testing.assert_allclose(inplace_prediction, single_predt)
+    prediction = xgb.dask.predict(client, bst, dtrain)
     print('Evaluation history:', history)
     return prediction
 
 
 if __name__ == '__main__':
     # or use other clusters for scaling
-    with LocalCluster(n_workers=7, threads_per_worker=12) as cluster:
+    with LocalCluster(n_workers=7, threads_per_worker=1) as cluster:
         with Client(cluster) as client:
             main(client)
