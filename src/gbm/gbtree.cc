@@ -273,6 +273,12 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
       new_trees.push_back(ptr.get());
       ret->push_back(std::move(ptr));
     } else if (tparam_.process_type == TreeProcessType::kUpdate) {
+      for (auto const& up : updaters_) {
+        CHECK(up->CanModifyTree())
+          << "Updater: `" << up->Name() << "` "
+          << "can not be used to modify existing trees. "
+          << "Set `process_type` to `default` if you want to build new trees.";
+      }
       CHECK_LT(model_.trees.size(), model_.trees_to_update.size());
       // move an existing tree from trees_to_update
       auto t = std::move(model_.trees_to_update[model_.trees.size() +

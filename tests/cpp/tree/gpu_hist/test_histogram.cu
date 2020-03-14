@@ -13,7 +13,7 @@ void TestDeterminsticHistogram() {
 
   auto pp_m = CreateDMatrix(kRows, kCols, 0.5);
   auto& matrix = **pp_m;
-  BatchParam batch_param{0, static_cast<int32_t>(kBins), 0, 0};
+  BatchParam batch_param{0, static_cast<int32_t>(kBins), 0};
 
   for (auto const& batch : matrix.GetBatches<EllpackPage>(batch_param)) {
     auto* page = batch.Impl();

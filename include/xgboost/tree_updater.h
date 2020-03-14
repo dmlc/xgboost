@@ -40,6 +40,13 @@ class TreeUpdater : public Configurable {
    * \param args arguments to the objective function.
    */
   virtual void Configure(const Args& args) = 0;
+  /*! \brief Whether this updater can be used for updating existing trees.
+   *
+   *  Some updaters are used for building new trees (like `hist`), while some others are
+   *  used for modifying existing trees (like `prune`).  Return true if it can modify
+   *  existing trees.
+   */
+  virtual bool CanModifyTree() const { return false; }
   /*!
    * \brief perform update to the tree models
    * \param gpair the gradient pair statistics of the data

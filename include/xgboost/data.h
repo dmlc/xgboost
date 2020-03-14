@@ -168,24 +168,15 @@ struct BatchParam {
   /*! \brief The GPU device to use. */
   int gpu_id;
   /*! \brief Maximum number of bins per feature for histograms. */
-  int max_bin { 0 };
-  /*! \brief Number of rows in a GPU batch, used for finding quantiles on GPU. */
-  int gpu_batch_nrows;
+  int max_bin{0};
   /*! \brief Page size for external memory mode. */
   size_t gpu_page_size;
   BatchParam() = default;
-  BatchParam(int32_t device, int32_t max_bin, int32_t gpu_batch_nrows,
-             size_t gpu_page_size = 0) :
-      gpu_id{device},
-      max_bin{max_bin},
-      gpu_batch_nrows{gpu_batch_nrows},
-      gpu_page_size{gpu_page_size}
-  {}
+  BatchParam(int32_t device, int32_t max_bin, size_t gpu_page_size = 0)
+      : gpu_id{device}, max_bin{max_bin}, gpu_page_size{gpu_page_size} {}
   inline bool operator!=(const BatchParam& other) const {
-    return gpu_id != other.gpu_id ||
-        max_bin != other.max_bin ||
-        gpu_batch_nrows != other.gpu_batch_nrows ||
-        gpu_page_size != other.gpu_page_size;
+    return gpu_id != other.gpu_id || max_bin != other.max_bin ||
+           gpu_page_size != other.gpu_page_size;
   }
 };
 

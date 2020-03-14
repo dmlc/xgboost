@@ -33,7 +33,7 @@ TEST(SparsePageDMatrix, MultipleEllpackPages) {
   // Loop over the batches and count the records
   int64_t batch_count = 0;
   int64_t row_count = 0;
-  for (const auto& batch : dmat->GetBatches<EllpackPage>({0, 256, 0, 7UL})) {
+  for (const auto& batch : dmat->GetBatches<EllpackPage>({0, 256, 7UL})) {
     EXPECT_LT(batch.Size(), dmat->Info().num_row_);
     batch_count++;
     row_count += batch.Size();
@@ -57,7 +57,7 @@ TEST(SparsePageDMatrix, EllpackPageContent) {
   std::unique_ptr<DMatrix>
       dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
 
-  BatchParam param{0, 2, 0, 0};
+  BatchParam param{0, 2, 0};
   auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
   EXPECT_EQ(impl->base_rowid, 0);
   EXPECT_EQ(impl->n_rows, kRows);
@@ -107,7 +107,7 @@ TEST(SparsePageDMatrix, MultipleEllpackPageContent) {
   std::unique_ptr<DMatrix>
       dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
 
-  BatchParam param{0, kMaxBins, 0, kPageSize};
+  BatchParam param{0, kMaxBins, kPageSize};
   auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
   EXPECT_EQ(impl->base_rowid, 0);
   EXPECT_EQ(impl->n_rows, kRows);
@@ -148,7 +148,7 @@ TEST(SparsePageDMatrix, EllpackPageMultipleLoops) {
   std::unique_ptr<DMatrix>
       dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
 
-  BatchParam param{0, kMaxBins, 0, kPageSize};
+  BatchParam param{0, kMaxBins, kPageSize};
   auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
   size_t current_row = 0;

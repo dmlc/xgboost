@@ -36,6 +36,9 @@ class TreeRefresher: public TreeUpdater {
   char const* Name() const override {
     return "refresh";
   }
+  bool CanModifyTree() const override {
+    return true;
+  }
   // update the tree, do pruning
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix *p_fmat,
