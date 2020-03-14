@@ -74,6 +74,11 @@ def test_from_dask_array():
             # force prediction to be computed
             prediction = prediction.compute()
 
+            single_node_predt = result['booster'].predict(
+                xgb.DMatrix(X.compute())
+            )
+            np.testing.assert_allclose(prediction, single_node_predt)
+
 
 def test_dask_regressor():
     with LocalCluster(n_workers=5) as cluster:
