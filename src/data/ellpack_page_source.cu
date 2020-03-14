@@ -45,8 +45,7 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
 
   monitor_.StartCuda("Quantiles");
   size_t row_stride = GetRowStride(dmat);
-  auto cuts = common::DeviceSketch(param.gpu_id, dmat, param.max_bin,
-                                   param.gpu_batch_nrows);
+  auto cuts = common::DeviceSketch(param.gpu_id, dmat, param.max_bin);
   monitor_.StopCuda("Quantiles");
 
   monitor_.StartCuda("WriteEllpackPages");

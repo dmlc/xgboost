@@ -44,8 +44,6 @@ struct GPUHistMakerTrainParam
     : public XGBoostParameter<GPUHistMakerTrainParam> {
   bool single_precision_histogram;
   bool deterministic_histogram;
-  // number of rows in a single GPU batch
-  int gpu_batch_nrows;
   bool debug_synchronize;
   // declare parameters
   DMLC_DECLARE_PARAMETER(GPUHistMakerTrainParam) {
@@ -53,11 +51,6 @@ struct GPUHistMakerTrainParam
         "Use single precision to build histograms.");
     DMLC_DECLARE_FIELD(deterministic_histogram).set_default(true).describe(
         "Pre-round the gradient for obtaining deterministic gradient histogram.");
-    DMLC_DECLARE_FIELD(gpu_batch_nrows)
-        .set_lower_bound(-1)
-        .set_default(0)
-        .describe("Number of rows in a GPU batch, used for finding quantiles on GPU; "
-                  "-1 to use all rows assignted to a GPU, and 0 to auto-deduce");
     DMLC_DECLARE_FIELD(debug_synchronize).set_default(false).describe(
         "Check if all distributed tree are identical after tree construction.");
   }
@@ -1018,7 +1011,6 @@ class GPUHistMakerSpecialised {
     BatchParam batch_param{
       device_,
       param_.max_bin,
-      hist_maker_param_.gpu_batch_nrows,
       generic_param_->gpu_page_size
     };
     auto page = (*dmat->GetBatches<EllpackPage>(batch_param).begin()).Impl();

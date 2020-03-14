@@ -378,6 +378,11 @@ public:
   {
     return stats_.peak_allocated_bytes;
   }
+  void Clear()
+  {
+    stats_ = DeviceStats();
+  }
+
   void Log() {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
       return;
@@ -475,7 +480,8 @@ struct XGBCachingDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
 template <typename T>
 using XGBDeviceAllocator = detail::XGBDefaultDeviceAllocatorImpl<T>;
 /*! Be careful that the initialization constructor is a no-op, which means calling
- *  `vec.resize(n, 1)` won't initialize the memory region to 1. */
+ *  `vec.resize(n)` won't initialize the memory region to 0. Instead use
+ * `vec.resize(n, 0)`*/
 template <typename T>
 using XGBCachingDeviceAllocator = detail::XGBCachingDeviceAllocatorImpl<T>;
 /** \brief Specialisation of thrust device vector using custom allocator. */

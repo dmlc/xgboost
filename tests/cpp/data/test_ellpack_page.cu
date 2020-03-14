@@ -14,10 +14,10 @@
 namespace xgboost {
 
 TEST(EllpackPage, EmptyDMatrix) {
-  constexpr int kNRows = 0, kNCols = 0, kMaxBin = 256, kGpuBatchNRows = 64;
+  constexpr int kNRows = 0, kNCols = 0, kMaxBin = 256;
   constexpr float kSparsity = 0;
   auto dmat = *CreateDMatrix(kNRows, kNCols, kSparsity);
-  auto& page = *dmat->GetBatches<EllpackPage>({0, kMaxBin, kGpuBatchNRows}).begin();
+  auto& page = *dmat->GetBatches<EllpackPage>({0, kMaxBin}).begin();
   auto impl = page.Impl();
   ASSERT_EQ(impl->row_stride, 0);
   ASSERT_EQ(impl->cuts_.TotalBins(), 0);
@@ -101,7 +101,7 @@ TEST(EllpackPage, Copy) {
   dmlc::TemporaryDirectory tmpdir;
   std::unique_ptr<DMatrix>
       dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  BatchParam param{0, 256, 0, kPageSize};
+  BatchParam param{0, 256, kPageSize};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
   // Create an empty result page.
@@ -147,7 +147,7 @@ TEST(EllpackPage, Compact) {
   dmlc::TemporaryDirectory tmpdir;
   std::unique_ptr<DMatrix>
       dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  BatchParam param{0, 256, 0, kPageSize};
+  BatchParam param{0, 256, kPageSize};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
   // Create an empty result page.
