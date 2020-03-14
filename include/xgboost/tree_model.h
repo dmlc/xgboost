@@ -65,6 +65,7 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
     DMLC_DECLARE_FIELD(num_nodes).set_lower_bound(1).set_default(1);
     DMLC_DECLARE_FIELD(num_feature)
         .describe("Number of features used in tree construction.");
+    DMLC_DECLARE_FIELD(num_deleted);
     DMLC_DECLARE_FIELD(size_leaf_vector).set_lower_bound(0).set_default(0)
         .describe("Size of leaf vector, reserved for vector tree");
   }
@@ -114,6 +115,7 @@ class RegTree : public Model {
     Node(int32_t cleft, int32_t cright, int32_t parent,
          uint32_t split_ind, float split_cond, bool default_left) :
         parent_{parent}, cleft_{cleft}, cright_{cright} {
+      this->SetParent(parent_);
       this->SetSplit(split_ind, split_cond, default_left);
     }
 
@@ -319,6 +321,13 @@ class RegTree : public Model {
     return nodes_ == b.nodes_ && stats_ == b.stats_ &&
            deleted_nodes_ == b.deleted_nodes_ && param == b.param;
   }
+  /*!
+   * \brief Compares whether 2 trees are equal from a user's perspective.  The equality
+   *        compares only non-deleted nodes.
+   *
+   * \parm b The other tree.
+   */
+  bool Equal(const RegTree& b) const;
 
   /**
    * \brief Expands a leaf node into two additional leaf nodes.
