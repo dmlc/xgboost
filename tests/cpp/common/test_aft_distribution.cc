@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) by Contributors 2019
+ * Copyright (c) by Contributors 2020
  */
 #include <gtest/gtest.h>
 #include <memory>
@@ -12,7 +12,6 @@ namespace xgboost {
 namespace common {
 
 TEST(AFTDistribution, AFTDistributionGeneric) {
-  // Enumerate 4000 grid points in range [-2, 2]
   // Assert d/dx CDF = PDF, d/dx PDF = GradPDF, d/dx GradPDF = HessPDF
   // Do this for every distribution type
   for (auto type : {AFTDistributionType::kNormal, AFTDistributionType::kLogistic,
@@ -21,6 +20,8 @@ TEST(AFTDistribution, AFTDistributionGeneric) {
     double integral_of_pdf = dist->CDF(-2.0);
     double integral_of_grad_pdf = dist->PDF(-2.0);
     double integral_of_hess_pdf = dist->GradPDF(-2.0);
+    // Perform numerical differentiation and integration
+    // Enumerate 4000 grid points in range [-2, 2]
     for (int i = 0; i <= 4000; ++i) {
       const double x = static_cast<double>(i) / 1000.0 - 2.0;
       // Numerical differentiation (p. 246, Numerical Analysis 2nd ed. by Timothy Sauer)
