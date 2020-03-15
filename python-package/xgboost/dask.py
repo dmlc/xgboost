@@ -139,9 +139,6 @@ class DaskDMatrix:
 
     '''
 
-    _feature_names = None
-    _feature_types = None
-
     def __init__(self,
                  client,
                  data,
