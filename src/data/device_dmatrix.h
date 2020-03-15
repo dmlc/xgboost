@@ -12,8 +12,8 @@
 #include <memory>
 
 #include "adapter.h"
-#include "simple_dmatrix.h"
 #include "simple_batch_iterator.h"
+#include "simple_dmatrix.h"
 
 namespace xgboost {
 namespace data {
@@ -22,7 +22,7 @@ class DeviceDMatrix : public DMatrix {
  public:
   template <typename AdapterT>
   explicit DeviceDMatrix(AdapterT* adapter, float missing, int nthread);
-  
+
   MetaInfo& Info() override { return info; }
 
   const MetaInfo& Info() const override { return info; }
@@ -31,19 +31,17 @@ class DeviceDMatrix : public DMatrix {
 
   bool EllpackExists() const override { return true; }
   bool SparsePageExists() const override { return false; }
+
  private:
-  BatchSet<SparsePage> GetRowBatches() override
-  {
+  BatchSet<SparsePage> GetRowBatches() override {
     LOG(FATAL) << "Not implemented.";
     return BatchSet<SparsePage>(BatchIterator<SparsePage>(nullptr));
   }
-  BatchSet<CSCPage> GetColumnBatches()override
-  {
+  BatchSet<CSCPage> GetColumnBatches() override {
     LOG(FATAL) << "Not implemented.";
     return BatchSet<CSCPage>(BatchIterator<CSCPage>(nullptr));
   }
-  BatchSet<SortedCSCPage> GetSortedColumnBatches()override
-  {
+  BatchSet<SortedCSCPage> GetSortedColumnBatches() override {
     LOG(FATAL) << "Not implemented.";
     return BatchSet<SortedCSCPage>(BatchIterator<SortedCSCPage>(nullptr));
   }
@@ -59,4 +57,4 @@ class DeviceDMatrix : public DMatrix {
 };
 }  // namespace data
 }  // namespace xgboost
-#endif // XGBOOST_DATA_DEVICE_DMATRIX_H_
+#endif  // XGBOOST_DATA_DEVICE_DMATRIX_H_

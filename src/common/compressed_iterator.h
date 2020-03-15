@@ -33,7 +33,7 @@ static const int kPadding = 4;  // Assign padding so we can read slightly off
 
 // The number of bits required to represent a given unsigned range
 inline XGBOOST_DEVICE size_t SymbolBits(size_t num_symbols) {
-  auto bits = std::ceil(log2(double(num_symbols)));
+  auto bits = std::ceil(log2(static_cast<double>(num_symbols)));
   return std::max(static_cast<size_t>(bits), size_t(1));
 }
 }  // namespace detail
@@ -53,8 +53,8 @@ class CompressedBufferWriter {
   size_t symbol_bits_;
 
  public:
-  XGBOOST_DEVICE explicit CompressedBufferWriter(size_t num_symbols):symbol_bits_(detail::SymbolBits(num_symbols))  {
-  }
+  XGBOOST_DEVICE explicit CompressedBufferWriter(size_t num_symbols)
+      : symbol_bits_(detail::SymbolBits(num_symbols)) {}
 
   /**
    * \fn  static size_t CompressedBufferWriter::CalculateBufferSize(int

@@ -1021,13 +1021,12 @@ class DeviceDMatrix(DMatrix):
             print(type(data))
             raise ValueError('Only cupy/cudf currently supported for DeviceDMatrix')
 
-
-        super().__init__(data,label=label,weight=weight, base_margin=base_margin,
-                 missing=missing,
-                 silent=silent,
-                 feature_names=feature_names,
-                 feature_types=feature_types,
-                 nthread=nthread)
+        super().__init__(data, label=label, weight=weight, base_margin=base_margin,
+                         missing=missing,
+                         silent=silent,
+                         feature_names=feature_names,
+                         feature_types=feature_types,
+                         nthread=nthread)
 
     def _init_from_array_interface(self, data, missing, nthread):
         """Initialize DMatrix from cupy ndarray."""

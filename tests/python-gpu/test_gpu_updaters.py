@@ -40,6 +40,7 @@ class TestGPU(unittest.TestCase):
             cpu_results = run_suite(param, select_datasets=datasets)
             assert_gpu_results(cpu_results, gpu_results)
 
+    @pytest.mark.skipif(**tm.no_cupy())
     def test_gpu_hist_device_dmatrix(self):
         # Cannot vary max_bin yet
         device_dmatrix_test_param = parameter_combinations({
