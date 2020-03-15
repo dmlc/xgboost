@@ -28,20 +28,15 @@ DMLC_REGISTRY_FILE_TAG(survival_metric);
 /*! \brief Negative log likelihood of Accelerated Failure Time model */
 struct EvalAFT : public Metric {
  public:
-  explicit EvalAFT(const char* param) {
-    CHECK(param != nullptr) << error_msg_;
-    name_ = std::string(param);
+  explicit EvalAFT(const char* param) {}
 
-    // Split name_ using ',' as delimiter
-    // Example: "normal,1.0" will be split into "normal" and "1.0"
-    auto pos = name_.find(",");
-    CHECK_NE(pos, std::string::npos) << error_msg_;
-    std::string dist = name_.substr(0, pos);
-    std::string sigma = name_.substr(pos + 1, std::string::npos);
-    std::vector<std::pair<std::string, std::string>> kwargs
-      = { {"aft_noise_distribution", dist}, {"aft_sigma", sigma} };
-    param_.Init(kwargs);
-
+  virtual void Configure(
+    const std::vector<std::pair<std::string, std::string> >& args) override {
+    LOG(INFO) << "Configuring AFT metric";
+    param_.Init(args);
+    for (const auto& kv : param_.__DICT__()) {
+      LOG(INFO) << kv.first << ": " << kv.second;
+    }
     loss_.reset(new AFTLoss(param_.aft_noise_distribution));
   }
 
@@ -86,15 +81,10 @@ struct EvalAFT : public Metric {
   }
 
   const char* Name() const override {
-    return name_.c_str();
+    return "aft-nloglik";
   }
 
  private:
-  std::string name_;
-  const char* error_msg_ =
-    "AFT must be in form aft-nloglik@[noise-distribution],[sigma] "
-    "where [noise-distribution] is one of 'normal', 'logistic', or 'weibull'; "
-    "and [sigma] is a positive number";
   AFTParam param_;
   std::unique_ptr<AFTLoss> loss_;
 };
