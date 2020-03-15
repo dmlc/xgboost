@@ -86,7 +86,7 @@ class AFTObj : public ObjFunction {
   }
 
   const char* DefaultEvalMetric() const override {
-    return "aft_obj";
+    return "aft-nloglik";
   }
 
   void SaveConfig(Json* p_out) const override {

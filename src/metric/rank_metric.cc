@@ -8,6 +8,7 @@
 #include <xgboost/metric.h>
 #include <dmlc/registry.h>
 #include <cmath>
+
 #include <vector>
 
 #include "xgboost/host_device_vector.h"

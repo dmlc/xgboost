@@ -197,20 +197,6 @@ struct EvalRowLogLoss {
   }
 };
 
-struct EvalRowMyLoss {
-  char const *Name() const {
-    return "aft-nloglik";
-  }
-
-  XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
-    bst_float diff = pred - label > 0.5*(label - pred)?  pred - label:0.5*(label - pred);
-    return diff * diff;
-  }
-  static bst_float GetFinal(bst_float esum, bst_float wsum) {
-    return esum / wsum;
-  }
-};
-
 struct EvalError {
   explicit EvalError(const char* param) {
     if (param != nullptr) {
