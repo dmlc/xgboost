@@ -24,20 +24,20 @@ def run_benchmark(args):
             raise ValueError("Wrong rows")
     except:
 
-        print("Generating dataset: {} rows * {} columns".format(args.rows, args.columns))
-        print("{}/{} test/train split".format(args.test_size, 1.0 - args.test_size))
+        print(f"Generating dataset: {args.rows} rows * {args.columns} columns")
+        print(f"{args.test_size}/{1.0 - args.test_size} test/train split")
         tmp = time.time()
         X, y = make_classification(args.rows, n_features=args.columns, n_redundant=0, n_informative=args.columns, n_repeated=0, random_state=7)
         if args.sparsity < 1.0:
            X = np.array([[np.nan if rng.uniform(0, 1) < args.sparsity else x for x in x_row] for x_row in X])
 
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=args.test_size, random_state=7)
-        print ("Generate Time: %s seconds" % (str(time.time() - tmp)))
+        print(f"Generate Time: {str(time.time() - tmp)} seconds")
         tmp = time.time()
-        print ("DMatrix Start")
+        print("DMatrix Start")
         dtrain = xgb.DMatrix(X_train, y_train)
         dtest = xgb.DMatrix(X_test, y_test, nthread=-1)
-        print ("DMatrix Time: %s seconds" % (str(time.time() - tmp)))
+        print(f"DMatrix Time: {str(time.time() - tmp)} seconds")
 
         dtest.save_binary('dtest.dm')
         dtrain.save_binary('dtrain.dm')
@@ -47,10 +47,10 @@ def run_benchmark(args):
         param.update(ast.literal_eval(args.params))
 
     param['updater'] = args.updater
-    print("Training with '%s'" % param['updater'])
+    print(f"Training with '{param['updater']}'")
     tmp = time.time()
     xgb.train(param, dtrain, args.iterations, evals=[(dtrain,"train")], early_stopping_rounds = args.columns)
-    print ("Train Time: %s seconds" % (str(time.time() - tmp)))
+    print(f"Train Time: {str(time.time() - tmp)} seconds")
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--updater', default='coord_descent')

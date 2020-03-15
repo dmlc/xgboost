@@ -13,33 +13,32 @@ RNG = np.random.RandomState(2019)
 
 def generate_data(args):
     """Generates the data."""
-    print("Generating dataset: {} rows * {} columns".format(args.rows, args.columns))
-    print("Sparsity {}".format(args.sparsity))
-    print("{}/{} train/test split".format(1.0 - args.test_size, args.test_size))
+    print(f"Generating dataset: {args.rows} rows * {args.columns} columns")
+    print(f"Sparsity {args.sparsity}")
+    print(f"{1.0 - args.test_size}/{args.test_size} train/test split")
 
     tmp = time.time()
     n_informative = args.columns * 7 // 10
     n_redundant = args.columns // 10
     n_repeated = args.columns // 10
-    print("n_informative: {}, n_redundant: {}, n_repeated: {}".format(n_informative, n_redundant,
-                                                                      n_repeated))
+    print(f"n_informative: {n_informative}, n_redundant: {n_redundant}, n_repeated: {n_repeated}")
     x, y = make_classification(n_samples=args.rows, n_features=args.columns,
                                n_informative=n_informative, n_redundant=n_redundant,
                                n_repeated=n_repeated, shuffle=False, random_state=RNG)
-    print("Generate Time: {} seconds".format(time.time() - tmp))
+    print(f"Generate Time: {time.time() - tmp} seconds")
 
     tmp = time.time()
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=args.test_size,
                                                         random_state=RNG, shuffle=False)
-    print("Train/Test Split Time: {} seconds".format(time.time() - tmp))
+    print(f"Train/Test Split Time: {time.time() - tmp} seconds")
 
     tmp = time.time()
     write_file('train.libsvm', x_train, y_train, args.sparsity)
-    print("Write Train Time: {} seconds".format(time.time() - tmp))
+    print(f"Write Train Time: {time.time() - tmp} seconds")
 
     tmp = time.time()
     write_file('test.libsvm', x_test, y_test, args.sparsity)
-    print("Write Test Time: {} seconds".format(time.time() - tmp))
+    print(f"Write Test Time: {time.time() - tmp} seconds")
 
 
 def write_file(filename, x_data, y_data, sparsity):

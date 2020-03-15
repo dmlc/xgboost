@@ -26,26 +26,26 @@ def run_test(name, params_fun):
     bst = xgb.train(params, dtrain, n_rounds, watchlist, early_stopping_rounds=2)
 
     # Have each worker save its model
-    model_name = "test.model.%s.%d" % (name, rank)
+    model_name = f"test.model.{name}.{rank}"
     bst.dump_model(model_name, with_stats=True)
     time.sleep(2)
     xgb.rabit.tracker_print("Finished training\n")
 
     if (rank == 0):
         for i in range(0, world):
-            model_name_root = "test.model.%s.%d" % (name, i)
+            model_name_root = f"test.model.{name}.{i}"
             for j in range(0, world):
                 if i == j:
                     continue
                 with open(model_name_root, 'r') as model_root:
                     contents_root = model_root.read()
-                    model_name_rank = "test.model.%s.%d" % (name, j)
+                    model_name_rank = f"test.model.{name}.{j}"
                     with open(model_name_rank, 'r') as model_rank:
                         contents_rank = model_rank.read()
                         if contents_root != contents_rank:
                             raise Exception(
-                                ('Worker models diverged: test.model.%s.%d '
-                                 'differs from test.model.%s.%d') % (name, i, name, j))
+                                (f'Worker models diverged: test.model.{name}.{i} '
+                                 f'differs from test.model.{name}.{j}'))
 
     xgb.rabit.finalize()
 
@@ -86,4 +86,4 @@ def wrap_rf(params_fun):
 params_rf_1x4 = wrap_rf(params_basic_1x4)
 
 test_name = sys.argv[1]
-run_test(test_name, globals()['params_%s' % test_name])
+run_test(test_name, globals()[f'params_{test_name}'])

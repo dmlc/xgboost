@@ -99,7 +99,7 @@ class TestEarlyStopping(unittest.TestCase):
             result = xgb.cv(params, dm, num_boost_round=1000, nfold=5, stratified=True,
                             metrics=m, early_stopping_rounds=20, seed=42)
             num_iteration_history.append(len(result))
-            df = result['test-{}-mean'.format(m[-1])]
+            df = result[f'test-{m[-1]}-mean']
             # When early stopping is invoked, the last metric should be as best it can be.
             if m[-1] == 'auc':
                 assert np.all(df <= df.iloc[-1])

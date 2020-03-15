@@ -100,9 +100,12 @@ class TestRanking(unittest.TestCase):
                              evals=watchlist, evals_result=evals_result)
         cpu_map_metric = evals_result['train'][metric_name][-1]
 
-        print("{0} gpu {1} metric {2}".format(rank_objective, metric_name, gpu_map_metric))
-        print("{0} cpu {1} metric {2}".format(rank_objective, metric_name, cpu_map_metric))
-        print("gpu best score {0} cpu best score {1}".format(bst.best_score, bstc.best_score))
+        print(
+            f"{rank_objective} gpu {metric_name} metric {gpu_map_metric}")
+        print(
+            f"{rank_objective} cpu {metric_name} metric {cpu_map_metric}")
+        print(
+            f"gpu best score {bst.best_score} cpu best score {bstc.best_score}")
         assert np.allclose(gpu_map_metric, cpu_map_metric, tolerance, tolerance)
         assert np.allclose(bst.best_score, bstc.best_score, tolerance, tolerance)
 

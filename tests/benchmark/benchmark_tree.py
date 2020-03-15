@@ -23,8 +23,8 @@ def run_benchmark(args):
                 and dtrain.num_row() == args.rows * (1 - args.test_size)):
             raise ValueError("Wrong rows")
     except:
-        print("Generating dataset: {} rows * {} columns".format(args.rows, args.columns))
-        print("{}/{} test/train split".format(args.test_size, 1.0 - args.test_size))
+        print(f"Generating dataset: {args.rows} rows * {args.columns} columns")
+        print(f"{args.test_size}/{1.0 - args.test_size} test/train split")
         tmp = time.time()
         X = RNG.rand(args.rows, args.columns)
         y = RNG.randint(0, 2, args.rows)
@@ -38,14 +38,14 @@ def run_benchmark(args):
         X_test = X[-test_rows:, :]
         y_train = y[:train_rows]
         y_test = y[-test_rows:]
-        print("Generate Time: %s seconds" % (str(time.time() - tmp)))
+        print(f"Generate Time: {str(time.time() - tmp)} seconds")
         del X, y
 
         tmp = time.time()
         print("DMatrix Start")
         dtrain = xgb.DMatrix(X_train, y_train, nthread=-1)
         dtest = xgb.DMatrix(X_test, y_test, nthread=-1)
-        print("DMatrix Time: %s seconds" % (str(time.time() - tmp)))
+        print(f"DMatrix Time: {str(time.time() - tmp)} seconds")
         del X_train, y_train, X_test, y_test
 
         dtest.save_binary('dtest.dm')
@@ -56,10 +56,10 @@ def run_benchmark(args):
         param.update(ast.literal_eval(args.params))
 
     param['tree_method'] = args.tree_method
-    print("Training with '%s'" % param['tree_method'])
+    print(f"Training with '{param['tree_method']}'")
     tmp = time.time()
     xgb.train(param, dtrain, args.iterations, evals=[(dtest, "test")])
-    print("Train Time: %s seconds" % (str(time.time() - tmp)))
+    print(f"Train Time: {str(time.time() - tmp)} seconds")
 
 
 def main():
