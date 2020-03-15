@@ -101,7 +101,7 @@ def train_dataset(dataset, param_in, num_rounds=10, scale_features=False, DMatri
                    delimiter=',')
         dtrain = DMatrixT('tmptmp_1234.csv?format=csv&label_column=0#tmptmp_',
                              weight=dataset.w)
-    if DMatrixT is xgb.DeviceDMatrix:
+    elif DMatrixT is xgb.DeviceDMatrix:
         import cupy as cp
         dtrain = DMatrixT(cp.array(X), dataset.y, weight=dataset.w)
     else:

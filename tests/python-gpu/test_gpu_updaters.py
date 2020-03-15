@@ -41,15 +41,25 @@ class TestGPU(unittest.TestCase):
             assert_gpu_results(cpu_results, gpu_results)
 
     def test_gpu_hist_device_dmatrix(self):
-        for param in test_param:
-            device_dmatrix_datasets = ["Boston", "Cancer", "Digits"]
+        # Cannot vary max_bin yet
+        device_dmatrix_test_param = parameter_combinations({
+            'gpu_id': [0],
+            'max_depth': [2, 8],
+            'max_leaves': [255, 4],
+            'max_bin': [256],
+            'grow_policy': ['lossguide'],
+            'single_precision_histogram': [True],
+            'min_child_weight': [0],
+            'lambda': [0]})
+        # DeviceDMatrix does not currently accept sparse formats
+        device_dmatrix_datasets = ["Boston", "Cancer", "Digits"]
+        for param in device_dmatrix_test_param:
             param['tree_method'] = 'gpu_hist'
-            gpu_results = run_suite(param, select_datasets=device_dmatrix_datasets,
-                                    DMatrixT=xgb.DeviceDMatrix)
-            assert_results_non_increasing(gpu_results, 1e-2)
-            param['tree_method'] = 'hist'
-            cpu_results = run_suite(param, select_datasets=device_dmatrix_datasets)
-            assert_gpu_results(cpu_results, gpu_results)
+            gpu_results_device_dmatrix = run_suite(param, select_datasets=device_dmatrix_datasets,
+                                                   DMatrixT=xgb.DeviceDMatrix)
+            assert_results_non_increasing(gpu_results_device_dmatrix, 1e-2)
+            gpu_results = run_suite(param, select_datasets=device_dmatrix_datasets)
+            assert_gpu_results(gpu_results, gpu_results_device_dmatrix)
 
     # NOTE(rongou): Because the `Boston` dataset is too small, this only tests external memory mode
     # with a single page. To test multiple pages, set DMatrix::kPageSize to, say, 1024.
