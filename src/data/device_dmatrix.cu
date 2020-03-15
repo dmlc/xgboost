@@ -13,7 +13,6 @@
 #include <thrust/iterator/transform_output_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
 #include "adapter.h"
-#include "simple_dmatrix.h"
 #include "device_dmatrix.h"
 #include "device_adapter.cuh"
 #include "ellpack_page.cuh"

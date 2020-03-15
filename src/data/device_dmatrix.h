@@ -32,7 +32,7 @@ class DeviceDMatrix : public DMatrix {
   bool EllpackExists() const override { return true; }
   bool SparsePageExists() const override { return false; }
  private:
-  BatchSet<SparsePage> GetRowBatches()override
+  BatchSet<SparsePage> GetRowBatches() override
   {
     LOG(FATAL) << "Not implemented.";
     return BatchSet<SparsePage>(BatchIterator<SparsePage>(nullptr));

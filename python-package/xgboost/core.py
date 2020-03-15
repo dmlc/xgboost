@@ -1001,6 +1001,31 @@ class DMatrix(object):
         self._feature_types = feature_types
 
 
+class DeviceDMatrix(DMatrix):
+    """Device memory Data Matrix used in XGBoost.
+
+    DMatrix is a internal data structure that used by XGBoost
+    which is optimized for both memory efficiency and training speed.
+    You can construct DeviceDMatrix from cupy/cu.f
+    """
+
+    def _init_from_array_interface(self, data, missing, nthread):
+        """Initialize DMatrix from cupy ndarray."""
+        interface = data.__cuda_array_interface__
+        if 'mask' in interface:
+            interface['mask'] = interface['mask'].__cuda_array_interface__
+        interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
+
+        handle = ctypes.c_void_p()
+        missing = missing if missing is not None else np.nan
+        nthread = nthread if nthread is not None else 1
+        _check_call(
+            _LIB.XGDeviceDMatrixCreateFromArrayInterface(
+                interface_str,
+                ctypes.c_float(missing), ctypes.c_int(nthread),
+                ctypes.byref(handle)))
+        self.handle = handle
+
 class Booster(object):
     # pylint: disable=too-many-public-methods
     """A Booster of XGBoost.

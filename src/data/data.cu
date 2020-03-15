@@ -75,7 +75,7 @@ DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
   CHECK_EQ(cache_prefix.size(), 0)
       << "Device memory construction is not currently supported with external "
          "memory.";
-  return new data::DeviceDMatrix(adapter, missing, nthread);
+  return new data::SimpleDMatrix(adapter, missing, nthread);
 }
 
 template DMatrix* DMatrix::Create<data::CudfAdapter>(
