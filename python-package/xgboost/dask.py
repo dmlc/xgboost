@@ -69,6 +69,9 @@ class RabitContext:
     '''A context controling rabit initialization and finalization.'''
     def __init__(self, args):
         self.args = args
+        worker = distributed_get_worker()
+        self.args.append(
+            ('DMLC_TASK_ID=[xgboost.dask]:' + str(worker.address)).encode())
 
     def __enter__(self):
         rabit.init(self.args)
