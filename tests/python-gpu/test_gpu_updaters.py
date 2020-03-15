@@ -2,7 +2,7 @@ import numpy as np
 import sys
 import unittest
 import pytest
-import xgboost
+import xgboost as xgb
 
 sys.path.append("tests/python")
 from regression_test_utilities import run_suite, parameter_combinations, \
@@ -40,6 +40,17 @@ class TestGPU(unittest.TestCase):
             cpu_results = run_suite(param, select_datasets=datasets)
             assert_gpu_results(cpu_results, gpu_results)
 
+    def test_gpu_hist_device_dmatrix(self):
+        for param in test_param:
+            device_dmatrix_datasets = ["Boston", "Cancer", "Digits"]
+            param['tree_method'] = 'gpu_hist'
+            gpu_results = run_suite(param, select_datasets=device_dmatrix_datasets,
+                                    DMatrixT=xgb.DeviceDMatrix)
+            assert_results_non_increasing(gpu_results, 1e-2)
+            param['tree_method'] = 'hist'
+            cpu_results = run_suite(param, select_datasets=device_dmatrix_datasets)
+            assert_gpu_results(cpu_results, gpu_results)
+
     # NOTE(rongou): Because the `Boston` dataset is too small, this only tests external memory mode
     # with a single page. To test multiple pages, set DMatrix::kPageSize to, say, 1024.
     def test_external_memory(self):
@@ -61,20 +72,20 @@ class TestGPU(unittest.TestCase):
         X = np.empty((kRows, kCols))
         y = np.empty((kRows))
 
-        dtrain = xgboost.DMatrix(X, y)
+        dtrain = xgb.DMatrix(X, y)
 
-        bst = xgboost.train({'verbosity': 2,
-                             'tree_method': 'gpu_hist',
-                             'gpu_id': 0},
-                            dtrain,
-                            verbose_eval=True,
-                            num_boost_round=6,
-                            evals=[(dtrain, 'Train')])
+        bst = xgb.train({'verbosity': 2,
+                         'tree_method': 'gpu_hist',
+                         'gpu_id': 0},
+                        dtrain,
+                        verbose_eval=True,
+                        num_boost_round=6,
+                        evals=[(dtrain, 'Train')])
 
         kRows = 100
         X = np.random.randn(kRows, kCols)
 
-        dtest = xgboost.DMatrix(X)
+        dtest = xgb.DMatrix(X)
         predictions = bst.predict(dtest)
         np.testing.assert_allclose(predictions, 0.5, 1e-6)
 

@@ -1006,8 +1006,28 @@ class DeviceDMatrix(DMatrix):
 
     DMatrix is a internal data structure that used by XGBoost
     which is optimized for both memory efficiency and training speed.
-    You can construct DeviceDMatrix from cupy/cu.f
+    You can construct DeviceDMatrix from cupy/cudf
     """
+
+    def __init__(self, data, label=None, weight=None, base_margin=None,
+                 missing=None,
+                 silent=False,
+                 feature_names=None,
+                 feature_types=None,
+                 nthread=None):
+
+        if not (hasattr(data, "__cuda_array_interface__") or (
+                CUDF_INSTALLED and isinstance(data, CUDF_DataFrame))):
+            print(type(data))
+            raise ValueError('Only cupy/cudf currently supported for DeviceDMatrix')
+
+
+        super().__init__(data,label=label,weight=weight, base_margin=base_margin,
+                 missing=missing,
+                 silent=silent,
+                 feature_names=feature_names,
+                 feature_types=feature_types,
+                 nthread=nthread)
 
     def _init_from_array_interface(self, data, missing, nthread):
         """Initialize DMatrix from cupy ndarray."""
