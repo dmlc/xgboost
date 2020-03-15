@@ -22,7 +22,6 @@ def main(client):
     # evaluation metrics.
     output = xgb.dask.train(client,
                             {'verbosity': 2,
-                             'nthread': 1,
                              # Golden line for GPU training
                              'tree_method': 'gpu_hist'},
                             dtrain,
@@ -41,6 +40,6 @@ if __name__ == '__main__':
     # `LocalCUDACluster` is used for assigning GPU to XGBoost processes.  Here
     # `n_workers` represents the number of GPUs since we use one GPU per worker
     # process.
-    with LocalCUDACluster(n_workers=2, threads_per_worker=1) as cluster:
+    with LocalCUDACluster(n_workers=2, threads_per_worker=4) as cluster:
         with Client(cluster) as client:
             main(client)
