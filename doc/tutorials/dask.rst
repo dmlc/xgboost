@@ -37,7 +37,6 @@ illustrates the basic usage:
 
   output = xgb.dask.train(client,
                           {'verbosity': 2,
-                           'nthread': 1,
                            'tree_method': 'hist'},
                           dtrain,
                           num_boost_round=4, evals=[(dtrain, 'train')])
@@ -76,6 +75,32 @@ Another set of API is a Scikit-Learn wrapper, which mimics the stateful Scikit-L
 interface with ``DaskXGBClassifier`` and ``DaskXGBRegressor``.  See ``xgboost/demo/dask``
 for more examples.
 
+*******
+Threads
+*******
+
+XGBoost has built in support for parallel computation through threads by the setting
+``nthread`` parameter (``n_jobs`` for scikit-learn).  If these parameters are set, they
+will override the configuration in Dask.  For example:
+
+.. code-block:: python
+
+  with LocalCluster(n_workers=7, threads_per_worker=4) as cluster:
+
+There are 4 threads allocated for each dask worker.  Then by default XGBoost will use 4
+threads in each process for both training and prediction.  But if ``nthread`` parameter is
+set:
+
+.. code-block:: python
+
+  output = xgb.dask.train(client,
+                          {'verbosity': 1,
+                           'nthread': 8,
+                           'tree_method': 'hist'},
+                          dtrain,
+                          num_boost_round=4, evals=[(dtrain, 'train')])
+
+XGBoost will use 8 threads in each training process.
 
 *****************************************************************************
 Why is the initialization of ``DaskDMatrix``  so slow and throws weird errors
