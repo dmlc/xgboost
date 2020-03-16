@@ -12,8 +12,6 @@
 #include <vector>
 #include "hist_util.h"
 
-uint64_t get_time();
-
 namespace xgboost {
 namespace common {
 
@@ -31,13 +29,15 @@ class Column {
  public:
   Column(ColumnType type, const T* index, uint32_t index_base,
          const size_t* row_ind, size_t len,
-         const std::vector<bool>* missing_flags, const size_t disp)
+         const std::vector<bool>* missing_flags,
+         const size_t missing_flags_offset)
       : type_(type),
         index_(index),
         index_base_(index_base),
         row_ind_(row_ind),
         len_(len),
-        missing_flags_(missing_flags), disp_(disp) {}
+        missing_flags_(missing_flags),
+        missing_flags_offset_(missing_flags_offset) {}
   size_t Size() const { return len_; }
   uint32_t GetGlobalBinIdx(size_t idx) const { return index_base_ + (uint32_t)(index_[idx]); }
   T GetFeatureBinIdx(size_t idx) const { return index_[idx]; }
@@ -51,13 +51,13 @@ class Column {
     // but low level structure is not safe anyway.
     return type_ == ColumnType::kDenseColumn ? idx : row_ind_[idx];// NOLINT
   }
-  inline bool IsMissing(size_t idx) const {
-    return (*missing_flags_)[disp_ + idx] == true;
+  bool IsMissing(size_t idx) const {
+    return (*missing_flags_)[missing_flags_offset_ + idx] == true;
   }
   const size_t* GetRowData() const { return row_ind_; }
 
   const std::vector<bool>* missing_flags_;
-  const size_t disp_;
+  const size_t missing_flags_offset_;
 
  private:
   ColumnType type_;
@@ -146,13 +146,13 @@ class ColumnMatrix {
 
     if (all_dense) {
       switch (gmat.index.getBinBound()) {
-        case POWER_OF_TWO_8:
+        case UINT8_BINS_TYPE:
           SetIndexAllDense(gmat.index.data<uint8_t>(), gmat, nrow, nfeature, noMissingValues);
           break;
-        case POWER_OF_TWO_16:
+        case UINT16_BINS_TYPE:
           SetIndexAllDense(gmat.index.data<uint16_t>(), gmat, nrow, nfeature, noMissingValues);
           break;
-        case POWER_OF_TWO_32:
+        case UINT32_BINS_TYPE:
           SetIndexAllDense(gmat.index.data<uint32_t>(), gmat, nrow, nfeature, noMissingValues);
           break;
       }
@@ -202,7 +202,7 @@ class ColumnMatrix {
         }
       }
     } else {
-      size_t rbegin = 0;
+      size_t rbegin = 0;  // to handle rows in all batches
       for (const auto &batch : gmat.p_fmat_->GetBatches<SparsePage>()) {
         for (size_t rid = 0; rid < batch.Size(); ++rid) {
           SparsePage::Inst inst = batch[rid];
@@ -240,11 +240,11 @@ class ColumnMatrix {
         size_t fid = 0;
         SparsePage::Inst inst = batch[rid];
         CHECK_EQ(ibegin + inst.size(), iend);
-        size_t jp = 0;
-        for (size_t i = ibegin; i < iend; ++i, ++jp) {
+        size_t j = 0;
+        for (size_t i = ibegin; i < iend; ++i, ++j) {
           const uint32_t bin_id = index[i];
 
-          fid = inst[jp].index;
+          fid = inst[j].index;
           if (type_[fid] == kDenseColumn) {
             T* begin = &local_index[boundary_[fid].index_begin];
             begin[rid + rbegin] = bin_id - index_base_[fid];

@@ -481,14 +481,14 @@ this->p_fmat_ = p_fmat;
 
     const size_t n_disps = cut.Ptrs().size() - 1;
     if ((max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) && isDense) {
-      index.setBinBound(POWER_OF_TWO_8);
+      index.setBinBound(UINT8_BINS_TYPE);
       index.resize((sizeof(uint8_t)) * row_ptr[rbegin + batch.Size()]);
     } else if ((max_num_bins - 1 > static_cast<int>(std::numeric_limits<uint8_t>::max())  &&
             max_num_bins - 1<= static_cast<int>(std::numeric_limits<uint16_t>::max())) && isDense) {
-      index.setBinBound(POWER_OF_TWO_16);
+      index.setBinBound(UINT16_BINS_TYPE);
       index.resize((sizeof(uint16_t)) * row_ptr[rbegin + batch.Size()]);
     } else {
-      index.setBinBound(POWER_OF_TWO_32);
+      index.setBinBound(UINT32_BINS_TYPE);
       index.resize((sizeof(uint32_t)) * row_ptr[rbegin + batch.Size()]);
     }
 
@@ -506,13 +506,13 @@ this->p_fmat_ = p_fmat;
 
     if (isDense) {
       switch (index.getBinBound()) {
-          case POWER_OF_TWO_8:
+          case UINT8_BINS_TYPE:
             SetIndexData(index.data<uint8_t>(), batch_threads, batch, rbegin, disps, nbins);
             break;
-          case POWER_OF_TWO_16:
+          case UINT16_BINS_TYPE:
             SetIndexData(index.data<uint16_t>(), batch_threads, batch, rbegin, disps, nbins);
             break;
-          case POWER_OF_TWO_32:
+          case UINT32_BINS_TYPE:
             SetIndexData(index.data<uint32_t>(), batch_threads, batch, rbegin, disps, nbins);
             break;
       }
@@ -956,15 +956,15 @@ void BuildHistKernel(const std::vector<GradientPair>& gpair,
                      const GHistIndexMatrix& gmat, const bool isDense, GHistRow hist) {
   const bool is_dense = row_indices.Size() && isDense;
   switch (gmat.index.getBinBound()) {
-    case POWER_OF_TWO_8:
+    case UINT8_BINS_TYPE:
       BuildHistDispatchKernel<FPType, do_prefetch, uint8_t>(gpair, row_indices,
                                                             gmat, hist, is_dense);
       break;
-    case POWER_OF_TWO_16:
+    case UINT16_BINS_TYPE:
       BuildHistDispatchKernel<FPType, do_prefetch, uint16_t>(gpair, row_indices,
                                                              gmat, hist, is_dense);
       break;
-    case POWER_OF_TWO_32:
+    case UINT32_BINS_TYPE:
       BuildHistDispatchKernel<FPType, do_prefetch, uint32_t>(gpair, row_indices,
                                                              gmat, hist, is_dense);
       break;

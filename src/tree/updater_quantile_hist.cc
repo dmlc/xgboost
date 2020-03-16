@@ -882,7 +882,7 @@ void QuantileHistMaker::Builder::PartitionKernel(
   const int32_t offset = column.GetBaseIdx();
   const std::vector<bool>* missing_val_flag = column.missing_flags_;
   common::Span<const BinIdxType> idx_span = column.GetFeatureBinIdxPtr();
-  const size_t disp = column.disp_;
+  const size_t disp = column.missing_flags_offset_;
   std::pair<size_t, size_t> child_nodes_sizes;
 
   if (column.GetType() == xgboost::common::kDenseColumn) {
