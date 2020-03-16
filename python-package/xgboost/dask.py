@@ -422,10 +422,12 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
             local_param = params.copy()  # just to be consistent
             msg = 'Overriding `nthreads` defined in dask worker.'
             if 'nthread' in local_param.keys() and \
+               local_param['nthread'] is not None and \
                local_param['nthread'] != worker.nthreads:
                 msg += '`nthread` is specified.  ' + msg
                 LOGGER.warning(msg)
             elif 'n_jobs' in local_param.keys() and \
+                 local_param['n_jobs'] is not None and \
                  local_param['n_jobs'] != worker.nthreads:
                 msg = '`n_jobs` is specified.  ' + msg
                 LOGGER.warning(msg)
