@@ -55,17 +55,16 @@ class AFTObj : public ObjFunction {
       << "yhat is too big";
     const omp_ulong nsize = static_cast<omp_ulong>(yhat.size());
     double first_order_grad;
-    double second_order_grad;
 
     #pragma omp parallel for schedule(static)
     for (omp_ulong i = 0; i < nsize; ++i) {
       // If weights are empty, data is unweighted so we use 1.0 everywhere
-      double w = is_null_weight ? 1.0 : weights[i];
-      first_order_grad = loss_->Gradient(std::log(y_lower[i]), std::log(y_higher[i]),
+      const double w = is_null_weight ? 1.0 : weights[i];
+      const double grad = loss_->Gradient(y_lower[i], y_higher[i],
+                                          yhat[i], param_.aft_loss_distribution_scale);
+      const double hess = loss_->Hessian(y_lower[i], y_higher[i],
                                          yhat[i], param_.aft_loss_distribution_scale);
-      second_order_grad = loss_->Hessian(std::log(y_lower[i]), std::log(y_higher[i]),
-                                         yhat[i], param_.aft_loss_distribution_scale);
-      gpair[i] = GradientPair(first_order_grad * w, second_order_grad * w);
+      gpair[i] = GradientPair(grad * w, hess * w);
     }
   }
 

@@ -92,9 +92,9 @@ class AFTLoss {
   }
 
  public:
-  double Loss(double y_lower, double y_higher, double y_pred, double sigma);
-  double Gradient(double y_lower, double y_higher, double y_pred, double sigma);
-  double Hessian(double y_lower, double y_higher, double y_pred, double sigma);
+  double Loss(double y_lower, double y_upper, double y_pred, double sigma);
+  double Gradient(double y_lower, double y_upper, double y_pred, double sigma);
+  double Hessian(double y_lower, double y_upper, double y_pred, double sigma);
 };
 
 }  // namespace common

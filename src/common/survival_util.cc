@@ -141,25 +141,28 @@ double AFTExtreme::HessPDF(double z) {
 }
 
 
-double AFTLoss::Loss(double y_lower, double y_higher, double y_pred, double sigma) {
+double AFTLoss::Loss(double y_lower, double y_upper, double y_pred, double sigma) {
   double pdf;
   double cdf_u, cdf_l, z_u, z_l;
   double cost;
-  if (y_lower == y_higher) {  // uncensored
-    z_l = (y_lower - y_pred) / sigma;
+
+  const double log_y_lower = std::log(y_lower);
+  const double log_y_upper = std::log(y_upper);
+  if (y_lower == y_upper) {  // uncensored
+    z_l = (log_y_lower - y_pred) / sigma;
     pdf = dist_->PDF(z_l);
     cost = -std::log(pdf / (sigma * y_lower));
   } else {  // censored; now check what type of censorship we have
-    if (std::isinf(y_higher)) {  // right-censored
+    if (std::isinf(y_upper)) {  // right-censored
       cdf_u = 1;
     } else {  // left-censored or interval-censored
-      z_u = (y_higher - y_pred) / sigma;
+      z_u = (log_y_upper - y_pred) / sigma;
       cdf_u = dist_->CDF(z_u);
     }
     if (std::isinf(y_lower)) {  // left-censored
       cdf_l = 0;
     } else {  // right-censored or interval-censored
-      z_l = (y_lower - y_pred) / sigma;
+      z_l = (log_y_lower - y_pred) / sigma;
       cdf_l = dist_->CDF(z_l);
     }
     cost = -std::log(cdf_u - cdf_l);
@@ -167,7 +170,7 @@ double AFTLoss::Loss(double y_lower, double y_higher, double y_pred, double sigm
   return cost;
 }
 
-double AFTLoss::Gradient(double y_lower, double y_higher, double y_pred, double sigma) {
+double AFTLoss::Gradient(double y_lower, double y_upper, double y_pred, double sigma) {
   double pdf_l;
   double pdf_u;
   double pdf;
@@ -180,17 +183,19 @@ double AFTLoss::Gradient(double y_lower, double y_higher, double y_pred, double 
   double gradient;
   const double eps = 1e-12f;
 
-  if (y_lower == y_higher) {  // uncensored
-    z = (y_lower - y_pred) / sigma;
+  const double log_y_lower = std::log(y_lower);
+  const double log_y_upper = std::log(y_upper);
+  if (y_lower == y_upper) {  // uncensored
+    z = (log_y_lower - y_pred) / sigma;
     pdf = dist_->PDF(z);
     grad = dist_->GradPDF(z);
     gradient = grad / (sigma * pdf);
   } else {  // censored; now check what type of censorship we have
-    if (std::isinf(y_higher)) {  // right-censored
+    if (std::isinf(y_upper)) {  // right-censored
       pdf_u = 0;
       cdf_u = 1;
     } else {  // interval-censored or left-censored
-      z_u = (y_higher - y_pred) / sigma;
+      z_u = (log_y_upper - y_pred) / sigma;
       pdf_u = dist_->PDF(z_u);
       cdf_u = dist_->CDF(z_u);
     }
@@ -198,7 +203,7 @@ double AFTLoss::Gradient(double y_lower, double y_higher, double y_pred, double 
       pdf_l = 0;
       cdf_l = 0;
     } else {  // interval-censored or right-censored
-      z_l = (y_lower - y_pred) / sigma;
+      z_l = (log_y_lower - y_pred) / sigma;
       pdf_l = dist_->PDF(z_l);
       cdf_l = dist_->CDF(z_l);
     }
@@ -208,7 +213,7 @@ double AFTLoss::Gradient(double y_lower, double y_higher, double y_pred, double 
   return gradient;
 }
 
-double AFTLoss::Hessian(double y_lower, double y_higher, double y_pred, double sigma) {
+double AFTLoss::Hessian(double y_lower, double y_upper, double y_pred, double sigma) {
   double z;
   double z_u;
   double z_l;
@@ -232,19 +237,21 @@ double AFTLoss::Hessian(double y_lower, double y_higher, double y_pred, double s
   double hess_dist;
   const double eps = 1e-12f;
 
-  if (y_lower == y_higher) {  // uncensored
-    z = (y_lower - y_pred) / sigma;
+  const double log_y_lower = std::log(y_lower);
+  const double log_y_upper = std::log(y_upper);
+  if (y_lower == y_upper) {  // uncensored
+    z = (log_y_lower - y_pred) / sigma;
     pdf = dist_->PDF(z);
     grad = dist_->GradPDF(z);
     hess_dist = dist_->HessPDF(z);
     hessian = -(pdf * hess_dist - std::pow(grad, 2)) / (std::pow(sigma, 2) * std::pow(pdf, 2));
   } else {  // censored; now check what type of censorship we have
-    if (std::isinf(y_higher)) {  // right-censored
+    if (std::isinf(y_upper)) {  // right-censored
       pdf_u = 0;
       cdf_u = 1;
       grad_u = 0;
     } else {  // interval-censored or left-censored
-      z_u = (y_higher - y_pred) / sigma;
+      z_u = (log_y_upper - y_pred) / sigma;
       pdf_u = dist_->PDF(z_u);
       cdf_u = dist_->CDF(z_u);
       grad_u = dist_->GradPDF(z_u);
@@ -254,7 +261,7 @@ double AFTLoss::Hessian(double y_lower, double y_higher, double y_pred, double s
       cdf_l = 0;
       grad_l = 0;
     } else {  // interval-censored or right-censored
-      z_l = (y_lower - y_pred) / sigma;
+      z_l = (log_y_lower - y_pred) / sigma;
       pdf_l = dist_->PDF(z_l);
       cdf_l = dist_->CDF(z_l);
       grad_l = dist_->GradPDF(z_l);
