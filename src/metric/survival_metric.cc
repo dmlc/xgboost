@@ -14,6 +14,8 @@
 #include <vector>
 #include <limits>
 
+#include "xgboost/json.h"
+
 #include "../common/math.h"
 #include "../common/survival_util.h"
 
@@ -30,14 +32,19 @@ struct EvalAFT : public Metric {
  public:
   explicit EvalAFT(const char* param) {}
 
-  virtual void Configure(
-    const std::vector<std::pair<std::string, std::string> >& args) override {
-    LOG(INFO) << "Configuring AFT metric";
-    param_.Init(args);
-    for (const auto& kv : param_.__DICT__()) {
-      LOG(INFO) << kv.first << ": " << kv.second;
-    }
+  void Configure(const Args& args) override {
+    param_.UpdateAllowUnknown(args);
     loss_.reset(new AFTLoss(param_.aft_noise_distribution));
+  }
+
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["name"] = String(this->Name());
+    out["aft_loss_param"] = toJson(param_);
+  }
+
+  void LoadConfig(Json const& in) override {
+    fromJson(in["aft_loss_param"], &param_);
   }
 
   bst_float Eval(const HostDeviceVector<bst_float> &preds,

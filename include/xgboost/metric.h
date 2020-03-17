@@ -41,14 +41,14 @@ class Metric : public Configurable {
    * override this function to maintain internal configuration
    * \param in JSON object containing the configuration
    */
-  virtual void LoadConfig(Json const& in) {};
+  virtual void LoadConfig(Json const& in) {}
   /*!
    * \brief Save configuration to JSON object
    * By default, metric has no internal configuration;
    * override this function to maintain internal configuration
    * \param out pointer to output JSON object
    */
-  virtual void SaveConfig(Json* out) const {};
+  virtual void SaveConfig(Json* out) const {}
 
   /*!
    * \brief evaluate a specific metric
