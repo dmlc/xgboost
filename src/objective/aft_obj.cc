@@ -32,7 +32,7 @@ class AFTObj : public ObjFunction {
  public:
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.UpdateAllowUnknown(args);
-    loss_.reset(new AFTLoss(param_.aft_noise_distribution));
+    loss_.reset(new AFTLoss(param_.aft_loss_distribution));
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
@@ -62,9 +62,9 @@ class AFTObj : public ObjFunction {
       // If weights are empty, data is unweighted so we use 1.0 everywhere
       double w = is_null_weight ? 1.0 : weights[i];
       first_order_grad = loss_->Gradient(std::log(y_lower[i]), std::log(y_higher[i]),
-                                         yhat[i], param_.aft_sigma);
+                                         yhat[i], param_.aft_loss_distribution_scale);
       second_order_grad = loss_->Hessian(std::log(y_lower[i]), std::log(y_higher[i]),
-                                         yhat[i], param_.aft_sigma);
+                                         yhat[i], param_.aft_loss_distribution_scale);
       gpair[i] = GradientPair(first_order_grad * w, second_order_grad * w);
     }
   }
@@ -97,7 +97,7 @@ class AFTObj : public ObjFunction {
 
   void LoadConfig(Json const& in) override {
     fromJson(in["aft_survival_param"], &param_);
-    loss_.reset(new AFTLoss(param_.aft_noise_distribution));
+    loss_.reset(new AFTLoss(param_.aft_loss_distribution));
   }
 
  private:

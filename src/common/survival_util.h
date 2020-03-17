@@ -31,17 +31,17 @@ namespace common {
 const double kPI = 3.14159265358979323846;
 
 struct AFTParam : public XGBoostParameter<AFTParam> {
-  AFTDistributionType aft_noise_distribution;
-  float aft_sigma;
+  AFTDistributionType aft_loss_distribution;
+  float aft_loss_distribution_scale;
   DMLC_DECLARE_PARAMETER(AFTParam) {
-    DMLC_DECLARE_FIELD(aft_noise_distribution)
+    DMLC_DECLARE_FIELD(aft_loss_distribution)
         .set_default(AFTDistributionType::kNormal)
         .add_enum("normal", AFTDistributionType::kNormal)
         .add_enum("logistic", AFTDistributionType::kLogistic)
         .add_enum("extreme", AFTDistributionType::kExtreme)
         .describe("Choice of distribution for the noise term in "
                   "Accelerated Failure Time model");
-    DMLC_DECLARE_FIELD(aft_sigma)
+    DMLC_DECLARE_FIELD(aft_loss_distribution_scale)
         .set_default(1.0f)
         .describe("Scaling factor used to scale the distribution in "
                   "Accelerated Failure Time model");

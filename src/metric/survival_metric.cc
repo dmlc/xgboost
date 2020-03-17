@@ -34,7 +34,7 @@ struct EvalAFT : public Metric {
 
   void Configure(const Args& args) override {
     param_.UpdateAllowUnknown(args);
-    loss_.reset(new AFTLoss(param_.aft_noise_distribution));
+    loss_.reset(new AFTLoss(param_.aft_loss_distribution));
   }
 
   void SaveConfig(Json* p_out) const override {
@@ -75,7 +75,7 @@ struct EvalAFT : public Metric {
       // If weights are empty, data is unweighted so we use 1.0 everywhere
       double w = is_null_weight ? 1.0 : weights[i];
       double loss = loss_->Loss(std::log(y_lower[i]), std::log(y_higher[i]),
-                                yhat[i], param_.aft_sigma);
+                                yhat[i], param_.aft_loss_distribution_scale);
       nloglik_sum += loss;
       weight_sum += w;
     }
