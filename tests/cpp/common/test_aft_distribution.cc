@@ -59,9 +59,12 @@ TEST(AFTDistribution, AFTNormal) {
 TEST(AFTDistribution, AFTLogistic) {
   std::unique_ptr<AFTDistribution> dist(AFTDistribution::Create(AFTDistributionType::kLogistic));
 
+  /**
+   * Enforce known properties of the logistic distribution.
+   * (https://en.wikipedia.org/wiki/Logistic_distribution)
+   **/
+
   // Enumerate 4000 grid points in range [-2, 2]
-  // Check known properties of logistic distribution
-  // (https://en.wikipedia.org/wiki/Logistic_distribution)
   for (int i = 0; i <= 4000; ++i) {
     const double x = static_cast<double>(i) / 1000.0 - 2.0;
     // PDF = 1/4 * sech(x/2)**2
