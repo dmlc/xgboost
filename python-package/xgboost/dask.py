@@ -452,7 +452,7 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
     return list(filter(lambda ret: ret is not None, results))[0]
 
 
-def predict(client, model, data, *args):
+def predict(client, model, data, missing=numpy.nan, *args):
     '''Run prediction with a trained booster.
 
     .. note::
@@ -468,6 +468,9 @@ def predict(client, model, data, *args):
         The trained model.
     data: DaskDMatrix/dask.dataframe.DataFrame/dask.array.Array
         Input data used for prediction.
+    missing: float
+        Used when input data is not DaskDMatrix.  Specify the value
+        considered as missing.
 
     Returns
     -------
@@ -487,9 +490,10 @@ def predict(client, model, data, *args):
         raise TypeError(_expect([DaskDMatrix, da.Array, dd.DataFrame],
                                 type(data)))
 
-    def mapped_predict(x, is_df):
+    def mapped_predict(partition, is_df):
         import pandas as pd
-        m = DMatrix(x)
+        worker = distributed_get_worker()
+        m = DMatrix(partition, missing=missing, nthread=worker.nthreads)
         predt = booster.predict(m, validate_features=False)
         if is_df:
             predt = pd.DataFrame(predt, columns=['prediction'])
@@ -498,7 +502,7 @@ def predict(client, model, data, *args):
     if isinstance(data, da.Array):
         predictions = data.map_blocks(mapped_predict, False, drop_axis=1)
         return predictions
-    elif isinstance(data, dd.DataFrame):
+    if isinstance(data, dd.DataFrame):
         import dask
         predictions = data.map_partitions(
             mapped_predict, True,
@@ -509,10 +513,6 @@ def predict(client, model, data, *args):
     worker_map = data.worker_map
     client = _xgb_get_client(client)
 
-    missing = data.missing
-    feature_names = data.feature_names
-    feature_types = data.feature_types
-
     def dispatched_predict(worker_id):
         '''Perform prediction on each worker.'''
         LOGGER.info('Predicting on %d', worker_id)
@@ -522,9 +522,9 @@ def predict(client, model, data, *args):
         booster.set_param({'nthread': worker.nthreads})
         for part, order in list_of_parts:
             local_x = DMatrix(part,
-                              feature_names=feature_names,
-                              feature_types=feature_types,
-                              missing=missing,
+                              feature_names=data.feature_names,
+                              feature_types=data.feature_types,
+                              missing=data.missing,
                               nthread=worker.nthreads)
             predt = booster.predict(data=local_x,
                                     validate_features=local_x.num_row() != 0,
