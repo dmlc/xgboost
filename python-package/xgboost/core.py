@@ -246,12 +246,13 @@ def _has_cuda_array_interface(data):
 def _maybe_pandas_data(data, feature_names, feature_types,
                        meta=None, meta_type=None):
     """Extract internal data from pd.DataFrame for DMatrix data"""
-
     if not (PANDAS_INSTALLED and isinstance(data, DataFrame)):
         return data, feature_names, feature_types
+    from pandas.api.types import is_sparse
 
     data_dtypes = data.dtypes
-    if not all(dtype.name in PANDAS_DTYPE_MAPPER for dtype in data_dtypes):
+    if not all(dtype.name in PANDAS_DTYPE_MAPPER or is_sparse(dtype)
+               for dtype in data_dtypes):
         bad_fields = [
             str(data.columns[i]) for i, dtype in enumerate(data_dtypes)
             if dtype.name not in PANDAS_DTYPE_MAPPER
@@ -272,9 +273,12 @@ def _maybe_pandas_data(data, feature_names, feature_types,
             feature_names = data.columns.format()
 
     if feature_types is None and meta is None:
-        feature_types = [
-            PANDAS_DTYPE_MAPPER[dtype.name] for dtype in data_dtypes
-        ]
+        feature_types = []
+        for dtype in data_dtypes:
+            if is_sparse(dtype):
+                feature_types.append(PANDAS_DTYPE_MAPPER[dtype._dtype.name])
+            else:
+                feature_types.append(PANDAS_DTYPE_MAPPER[dtype.name])
 
     if meta and len(data.columns) > 1:
         raise ValueError(
