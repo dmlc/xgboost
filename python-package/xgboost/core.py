@@ -276,7 +276,7 @@ def _maybe_pandas_data(data, feature_names, feature_types,
         feature_types = []
         for dtype in data_dtypes:
             if is_sparse(dtype):
-                feature_types.append(PANDAS_DTYPE_MAPPER[dtype._dtype.name])
+                feature_types.append(PANDAS_DTYPE_MAPPER[dtype.subtype.name])
             else:
                 feature_types.append(PANDAS_DTYPE_MAPPER[dtype.name])
 
