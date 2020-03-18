@@ -103,6 +103,9 @@ def concat(value):
 
 def _xgb_get_client(client):
     '''Simple wrapper around testing None.'''
+    if not isinstance(client, (type(get_client()), type(None))):
+        raise TypeError(
+            _expect([type(get_client()), type(None)], type(client)))
     ret = get_client() if client is None else client
     return ret
 
@@ -110,12 +113,6 @@ def _xgb_get_client(client):
 def _get_client_workers(client):
     workers = client.scheduler_info()['workers']
     return workers
-
-
-def _assert_client(client):
-    if not isinstance(client, (type(get_client()), type(None))):
-        raise TypeError(
-            _expect([type(get_client()), type(None)], type(client)))
 
 
 class DaskDMatrix:
@@ -155,7 +152,7 @@ class DaskDMatrix:
                  feature_names=None,
                  feature_types=None):
         _assert_dask_support()
-        _assert_client(client)
+        client = _xgb_get_client(client)
 
         self.feature_names = feature_names
         self.feature_types = feature_types
@@ -177,7 +174,6 @@ class DaskDMatrix:
         self.has_label = label is not None
         self.has_weights = weight is not None
 
-        client = _xgb_get_client(client)
         client.sync(self.map_local_data, client, data, label, weight)
 
     async def map_local_data(self, client, data, label=None, weights=None):
@@ -391,13 +387,12 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
 
     '''
     _assert_dask_support()
-    _assert_client(client)
+    client = _xgb_get_client(client)
     if 'evals_result' in kwargs.keys():
         raise ValueError(
             'evals_result is not supported in dask interface.',
             'The evaluation history is returned as result of training.')
 
-    client = _xgb_get_client(client)
     workers = list(_get_client_workers(client).keys())
 
     rabit_args = _get_rabit_args(workers, client)
@@ -452,7 +447,7 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
     return list(filter(lambda ret: ret is not None, results))[0]
 
 
-def predict(client, model, data, missing=numpy.nan, *args):
+def predict(client, model, data, *args, missing=numpy.nan):
     '''Run prediction with a trained booster.
 
     .. note::
@@ -478,7 +473,7 @@ def predict(client, model, data, missing=numpy.nan, *args):
 
     '''
     _assert_dask_support()
-    _assert_client(client)
+    client = _xgb_get_client(client)
     if isinstance(model, Booster):
         booster = model
     elif isinstance(model, dict):
@@ -489,12 +484,10 @@ def predict(client, model, data, missing=numpy.nan, *args):
         raise TypeError(_expect([DaskDMatrix, da.Array, dd.DataFrame],
                                 type(data)))
 
-    client = _xgb_get_client(client)
-
     def mapped_predict(partition, is_df):
         worker = distributed_get_worker()
         m = DMatrix(partition, missing=missing, nthread=worker.nthreads)
-        predt = booster.predict(m, validate_features=False)
+        predt = booster.predict(m, *args, validate_features=False)
         if is_df:
             predt = DataFrame(predt, columns=['prediction'])
         return predt
@@ -545,8 +538,7 @@ def predict(client, model, data, missing=numpy.nan, *args):
         list_of_parts = data.get_worker_x_ordered(worker)
         shapes = []
         for part, order in list_of_parts:
-            s = part.shape
-            shapes.append((s, order))
+            shapes.append((part.shape, order))
         return shapes
 
     def map_function(func):
