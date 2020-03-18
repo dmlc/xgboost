@@ -466,12 +466,12 @@ def predict(client, model, data, *args):
         returned from dask if it's set to None.
     model: A Booster or a dictionary returned by `xgboost.dask.train`.
         The trained model.
-    data: DaskDMatrix
+    data: DaskDMatrix/dask.dataframe.DataFrame/dask.array.Array
         Input data used for prediction.
 
     Returns
     -------
-    prediction: dask.array.Array
+    prediction: dask.array.Array/dask.dataframe.Series
 
     '''
     _assert_dask_support()
@@ -483,9 +483,29 @@ def predict(client, model, data, *args):
     else:
         raise TypeError(_expect([Booster, dict], type(model)))
 
-    if not isinstance(data, DaskDMatrix):
-        raise TypeError(_expect([DaskDMatrix], type(data)))
+    if not isinstance(data, (DaskDMatrix, da.Array, dd.DataFrame)):
+        raise TypeError(_expect([DaskDMatrix, da.Array, dd.DataFrame],
+                                type(data)))
 
+    def mapped_predict(x, is_df):
+        import pandas as pd
+        m = DMatrix(x)
+        predt = booster.predict(m, validate_features=False)
+        if is_df:
+            predt = pd.DataFrame(predt, columns=['prediction'])
+        return predt
+
+    if isinstance(data, da.Array):
+        predictions = data.map_blocks(mapped_predict, False, drop_axis=1)
+        return predictions
+    elif isinstance(data, dd.DataFrame):
+        import dask
+        predictions = data.map_partitions(
+            mapped_predict, True,
+            meta=dask.dataframe.utils.make_meta({'prediction': 'f4'}))
+        return predictions.iloc[:, 0]
+
+    # Prediction on dask DMatrix.
     worker_map = data.worker_map
     client = _xgb_get_client(client)
 
