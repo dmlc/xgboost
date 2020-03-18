@@ -50,10 +50,10 @@ function(create_rlib_for_msvc)
       \nDo you have Rtools installed with its MinGW's bin/ in PATH?")
   endif()  
   # extract symbols from R.dll into R.def and R.lib import library
-  execute_process(COMMAND gendef
+  execute_process(COMMAND ${GENDEF_EXE}
     "-" "${LIBR_LIB_DIR}/R.dll"
     OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/R.def")
-  execute_process(COMMAND dlltool
+  execute_process(COMMAND ${DLLTOOL_EXE}
     "--input-def" "${CMAKE_CURRENT_BINARY_DIR}/R.def"
     "--output-lib" "${CMAKE_CURRENT_BINARY_DIR}/R.lib")
 endfunction(create_rlib_for_msvc)
