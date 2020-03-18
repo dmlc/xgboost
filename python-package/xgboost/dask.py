@@ -485,33 +485,38 @@ def predict(client, model, data, missing=numpy.nan, *args):
         booster = model['booster']
     else:
         raise TypeError(_expect([Booster, dict], type(model)))
-
     if not isinstance(data, (DaskDMatrix, da.Array, dd.DataFrame)):
         raise TypeError(_expect([DaskDMatrix, da.Array, dd.DataFrame],
                                 type(data)))
 
+    client = _xgb_get_client(client)
+
     def mapped_predict(partition, is_df):
-        import pandas as pd
         worker = distributed_get_worker()
         m = DMatrix(partition, missing=missing, nthread=worker.nthreads)
         predt = booster.predict(m, validate_features=False)
         if is_df:
-            predt = pd.DataFrame(predt, columns=['prediction'])
+            predt = DataFrame(predt, columns=['prediction'])
         return predt
 
     if isinstance(data, da.Array):
-        predictions = data.map_blocks(mapped_predict, False, drop_axis=1)
+        predictions = client.submit(
+            da.map_blocks,
+            mapped_predict, data, False, drop_axis=1,
+            dtype=numpy.float32
+        ).result()
         return predictions
     if isinstance(data, dd.DataFrame):
         import dask
-        predictions = data.map_partitions(
-            mapped_predict, True,
-            meta=dask.dataframe.utils.make_meta({'prediction': 'f4'}))
+        predictions = client.submit(
+            dd.map_partitions,
+            mapped_predict, data, True,
+            meta=dask.dataframe.utils.make_meta({'prediction': 'f4'})
+        ).result()
         return predictions.iloc[:, 0]
 
     # Prediction on dask DMatrix.
     worker_map = data.worker_map
-    client = _xgb_get_client(client)
 
     def dispatched_predict(worker_id):
         '''Perform prediction on each worker.'''
