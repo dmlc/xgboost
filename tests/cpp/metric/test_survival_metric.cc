@@ -15,6 +15,41 @@
 namespace xgboost {
 namespace common {
 
+/**
+  * Reference values obtained from
+  * https://github.com/avinashbarnwal/GSOC-2019/blob/master/AFT/R/combined_assignment.R
+  **/
+
+TEST(Metric, AFTNegLogLik) {
+  auto lparam = CreateEmptyGenericParam(-1);  // currently AFT metric is CPU only
+
+  /**
+   * Test aggregate output from the AFT metric over a small test data set.
+   * This is unlike AFTLoss.* tests, which verify metric values over individual data points.
+   **/
+  MetaInfo info;
+  info.num_row_ = 4;
+  info.labels_lower_bound_.HostVector()
+    = { 100.0f, -std::numeric_limits<bst_float>::infinity(), 60.0f, 16.0f };
+  info.labels_upper_bound_.HostVector()
+    = { 100.0f, 20.0f, std::numeric_limits<bst_float>::infinity(), 200.0f };
+  info.weights_.HostVector() = std::vector<bst_float>();
+  HostDeviceVector<bst_float> preds(4, std::log(64));
+
+  struct TestCase {
+    const char* dist_type;
+    bst_float reference_value;
+  };
+  for (const auto& test_case : std::vector<TestCase>{ {"normal", 2.1508f}, {"logistic", 2.1804f},
+                                                      {"extreme", 2.0706f} }) {
+    std::unique_ptr<Metric> metric(Metric::Create("aft-nloglik", &lparam));
+    metric->Configure({ {"aft_loss_distribution", test_case.dist_type},
+                        {"aft_loss_distribution_scale", "1.0"} });
+    ASSERT_NEAR(metric->Eval(preds, info, false), test_case.reference_value, 1e-4);
+  }
+}
+
+// Test configuration of AFT metric
 TEST(AFTNegLogLikMetric, Configuration) {
   auto lparam = CreateEmptyGenericParam(-1);  // currently AFT metric is CPU only
   std::unique_ptr<Metric> metric(Metric::Create("aft-nloglik", &lparam));
@@ -29,8 +64,7 @@ TEST(AFTNegLogLikMetric, Configuration) {
 }
 
 /**
- * Reference values obtained from
- * https://github.com/avinashbarnwal/GSOC-2019/blob/master/AFT/R/combined_assignment.R
+ * AFTLoss.* tests verify metric values over individual data points.
  **/
 
 // Generate prediction value ranging from 2**1 to 2**15, using grid points in log scale
