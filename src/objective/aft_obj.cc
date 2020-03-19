@@ -91,11 +91,11 @@ class AFTObj : public ObjFunction {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String("aft:survival");
-    out["aft_survival_param"] = toJson(param_);
+    out["aft_loss_param"] = toJson(param_);
   }
 
   void LoadConfig(Json const& in) override {
-    fromJson(in["aft_survival_param"], &param_);
+    fromJson(in["aft_loss_param"], &param_);
     loss_.reset(new AFTLoss(param_.aft_loss_distribution));
   }
 
