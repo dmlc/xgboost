@@ -84,7 +84,8 @@ def get_weights_regression(min_weight, max_weight):
     return X, y, w
 
 
-def train_dataset(dataset, param_in, num_rounds=10, scale_features=False, DMatrixT=xgb.DMatrix):
+def train_dataset(dataset, param_in, num_rounds=10, scale_features=False, DMatrixT=xgb.DMatrix,
+                  dmatrix_params={}):
     param = param_in.copy()
     param["objective"] = dataset.objective
     if dataset.objective == "multi:softmax":
@@ -101,11 +102,11 @@ def train_dataset(dataset, param_in, num_rounds=10, scale_features=False, DMatri
                    delimiter=',')
         dtrain = DMatrixT('tmptmp_1234.csv?format=csv&label_column=0#tmptmp_',
                              weight=dataset.w)
-    elif DMatrixT is xgb.DeviceDMatrix:
+    elif DMatrixT is xgb.DeviceQuantileDMatrix:
         import cupy as cp
-        dtrain = DMatrixT(cp.array(X), dataset.y, weight=dataset.w)
+        dtrain = DMatrixT(cp.array(X), dataset.y, weight=dataset.w, **dmatrix_params)
     else:
-        dtrain = DMatrixT(X, dataset.y, weight=dataset.w)
+        dtrain = DMatrixT(X, dataset.y, weight=dataset.w, **dmatrix_params)
 
     print("Training on dataset: " + dataset.name, file=sys.stderr)
     print("Using parameters: " + str(param), file=sys.stderr)
@@ -142,7 +143,8 @@ def parameter_combinations(variable_param):
     return result
 
 
-def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False, DMatrixT=xgb.DMatrix):
+def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False,
+              DMatrixT=xgb.DMatrix, dmatrix_params={}):
     """
     Run the given parameters on a range of datasets. Objective and eval metric will be automatically set
     """
@@ -166,7 +168,7 @@ def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False, 
         if select_datasets is None or d.name in select_datasets:
             results.append(
                 train_dataset(d, param, num_rounds=num_rounds, scale_features=scale_features,
-                              DMatrixT=DMatrixT))
+                              DMatrixT=DMatrixT, dmatrix_params=dmatrix_params))
     return results
 
 

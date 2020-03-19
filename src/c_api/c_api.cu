@@ -31,25 +31,24 @@ XGB_DLL int XGDMatrixCreateFromArrayInterface(char const* c_json_strs,
   API_END();
 }
 
-XGB_DLL int XGDeviceDMatrixCreateFromArrayInterfaceColumns(char const* c_json_strs,
-  bst_float missing,
-  int nthread,
+XGB_DLL int XGDeviceQuantileDMatrixCreateFromArrayInterfaceColumns(char const* c_json_strs,
+  bst_float missing, int nthread, int max_bin,
   DMatrixHandle* out) {
   API_BEGIN();
   std::string json_str{c_json_strs};
   data::CudfAdapter adapter(json_str);
   *out =
-    new std::shared_ptr<DMatrix>(new data::DeviceDMatrix(&adapter, missing, nthread));
+    new std::shared_ptr<DMatrix>(new data::DeviceDMatrix(&adapter, missing, nthread, max_bin));
   API_END();
 }
 
-XGB_DLL int XGDeviceDMatrixCreateFromArrayInterface(char const* c_json_strs,
-  bst_float missing, int nthread,
+XGB_DLL int XGDeviceQuantileDMatrixCreateFromArrayInterface(char const* c_json_strs,
+  bst_float missing, int nthread, int max_bin,
   DMatrixHandle* out) {
   API_BEGIN();
   std::string json_str{c_json_strs};
   data::CupyAdapter adapter(json_str);
   *out =
-    new std::shared_ptr<DMatrix>(new data::DeviceDMatrix(&adapter, missing, nthread));
+    new std::shared_ptr<DMatrix>(new data::DeviceDMatrix(&adapter, missing, nthread, max_bin));
   API_END();
 }

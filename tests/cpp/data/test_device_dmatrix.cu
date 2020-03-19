@@ -23,7 +23,7 @@ TEST(DeviceDMatrix, RowMajor) {
   auto adapter = common::AdapterFromData(x_device, num_rows, num_columns);
 
   data::DeviceDMatrix dmat(&adapter,
-                                  std::numeric_limits<float>::quiet_NaN(), 1);
+                                  std::numeric_limits<float>::quiet_NaN(), 1, 256);
 
   auto &batch = *dmat.GetBatches<EllpackPage>({0, 256, 0}).begin();
   auto impl = batch.Impl();
@@ -51,7 +51,7 @@ TEST(DeviceDMatrix, RowMajorMissing) {
   auto x_device = thrust::device_vector<float>(x);
   auto adapter = common::AdapterFromData(x_device, num_rows, num_columns);
 
-  data::DeviceDMatrix dmat(&adapter, kMissing, 1);
+  data::DeviceDMatrix dmat(&adapter, kMissing, 1, 256);
 
   auto &batch = *dmat.GetBatches<EllpackPage>({0, 256, 0}).begin();
   auto impl = batch.Impl();
@@ -84,7 +84,7 @@ TEST(DeviceDMatrix, ColumnMajor) {
 
   data::CudfAdapter adapter(str);
   data::DeviceDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           -1);
+                           -1, 256);
   auto &batch = *dmat.GetBatches<EllpackPage>({0, 256, 0}).begin();
   auto impl = batch.Impl();
   common::CompressedIterator<uint32_t> iterator(

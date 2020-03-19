@@ -21,7 +21,7 @@ namespace data {
 class DeviceDMatrix : public DMatrix {
  public:
   template <typename AdapterT>
-  explicit DeviceDMatrix(AdapterT* adapter, float missing, int nthread);
+  explicit DeviceDMatrix(AdapterT* adapter, float missing, int nthread, int max_bin);
 
   MetaInfo& Info() override { return info; }
 

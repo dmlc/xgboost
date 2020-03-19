@@ -211,9 +211,9 @@ void WriteNullValues(EllpackPageImpl* dst, int device_idx,
 // Current implementation assumes a single batch. More batches can
 // be supported in future. Does not currently support inferring row/column size
 template <typename AdapterT>
-DeviceDMatrix::DeviceDMatrix(AdapterT* adapter, float missing, int nthread) {
+DeviceDMatrix::DeviceDMatrix(AdapterT* adapter, float missing, int nthread, int max_bin) {
   common::HistogramCuts cuts =
-      common::AdapterDeviceSketch(adapter, 256, missing);
+      common::AdapterDeviceSketch(adapter, max_bin, missing);
   auto& batch = adapter->Value();
   // Work out how many valid entries we have in each row
   dh::caching_device_vector<size_t> row_counts(adapter->NumRows() + 1, 0);
@@ -244,8 +244,8 @@ DeviceDMatrix::DeviceDMatrix(AdapterT* adapter, float missing, int nthread) {
   rabit::Allreduce<rabit::op::Max>(&info.num_col_, 1);
 }
 template DeviceDMatrix::DeviceDMatrix(CudfAdapter* adapter, float missing,
-                                      int nthread);
+                                      int nthread, int max_bin);
 template DeviceDMatrix::DeviceDMatrix(CupyAdapter* adapter, float missing,
-                                      int nthread);
+                                      int nthread, int max_bin);
 }  // namespace data
 }  // namespace xgboost

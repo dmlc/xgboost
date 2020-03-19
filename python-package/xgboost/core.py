@@ -1014,8 +1014,8 @@ class DeviceQuantileDMatrix(DMatrix):
                  silent=False,
                  feature_names=None,
                  feature_types=None,
-                 nthread=None):
-
+                 nthread=None, max_bin=256):
+        self.max_bin = max_bin
         if not (hasattr(data, "__cuda_array_interface__") or (
                 CUDF_INSTALLED and isinstance(data, CUDF_DataFrame))):
             print(type(data))
@@ -1028,6 +1028,25 @@ class DeviceQuantileDMatrix(DMatrix):
                          feature_types=feature_types,
                          nthread=nthread)
 
+    def _init_from_array_interface_columns(self, df, missing, nthread):
+        """Initialize DMatrix from columnar memory format."""
+        interfaces = []
+        for col in df:
+            interface = df[col].__cuda_array_interface__
+            if 'mask' in interface:
+                interface['mask'] = interface['mask'].__cuda_array_interface__
+            interfaces.append(interface)
+        handle = ctypes.c_void_p()
+        missing = missing if missing is not None else np.nan
+        nthread = nthread if nthread is not None else 1
+        interfaces_str = bytes(json.dumps(interfaces, indent=2), 'utf-8')
+        _check_call(
+            _LIB.XGDeviceQuantileDMatrixCreateFromArrayInterfaceColumns(
+                interfaces_str,
+                ctypes.c_float(missing), ctypes.c_int(nthread),
+                ctypes.c_int(self.max_bin), ctypes.byref(handle)))
+        self.handle = handle
+
     def _init_from_array_interface(self, data, missing, nthread):
         """Initialize DMatrix from cupy ndarray."""
         interface = data.__cuda_array_interface__
@@ -1039,10 +1058,10 @@ class DeviceQuantileDMatrix(DMatrix):
         missing = missing if missing is not None else np.nan
         nthread = nthread if nthread is not None else 1
         _check_call(
-            _LIB.XGDeviceDMatrixCreateFromArrayInterface(
+            _LIB.XGDeviceQuantileDMatrixCreateFromArrayInterface(
                 interface_str,
                 ctypes.c_float(missing), ctypes.c_int(nthread),
-                ctypes.byref(handle)))
+                ctypes.c_int(self.max_bin), ctypes.byref(handle)))
         self.handle = handle
 
 class Booster(object):
