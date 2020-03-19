@@ -1001,7 +1001,7 @@ class DMatrix(object):
         self._feature_types = feature_types
 
 
-class DeviceDMatrix(DMatrix):
+class DeviceQuantileDMatrix(DMatrix):
     """Device memory Data Matrix used in XGBoost.
 
     DMatrix is a internal data structure that used by XGBoost

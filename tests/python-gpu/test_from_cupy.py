@@ -72,7 +72,7 @@ def _test_cupy_metainfo(DMatrixT):
     import cupy as cp
     n = 100
     X = np.random.random((n, 2))
-    dmat_cupy = DMatrixT(X)
+    dmat_cupy = DMatrixT(cp.array(X))
     dmat = xgb.DMatrix(X)
     floats = np.random.random(n)
     uints = np.array([4, 2, 8]).astype("uint32")
@@ -105,11 +105,11 @@ Arrow specification.'''
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_device_dmat_from_cupy(self):
-        _test_from_cupy(xgb.DeviceDMatrix)
+        _test_from_cupy(xgb.DeviceQuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_cupy_training_device_dmat(self):
-        _test_cupy_training(xgb.DeviceDMatrix)
+        _test_cupy_training(xgb.DeviceQuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_cupy_training_simple_dmat(self):
@@ -121,4 +121,4 @@ Arrow specification.'''
 
     @pytest.mark.skipif(**tm.no_cupy())
     def test_cupy_metainfo_device_dmat(self):
-        _test_cupy_metainfo(xgb.DeviceDMatrix)
+        _test_cupy_metainfo(xgb.DeviceQuantileDMatrix)

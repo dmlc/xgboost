@@ -153,7 +153,7 @@ Arrow specification.'''
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_device_dmatrix_from_cudf(self):
-        _test_from_cudf(xgb.DeviceDMatrix)
+        _test_from_cudf(xgb.DeviceQuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_cudf_training_simple_dmatrix(self):
@@ -161,7 +161,7 @@ Arrow specification.'''
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_cudf_training_device_dmatrix(self):
-        _test_cudf_training(xgb.DeviceDMatrix)
+        _test_cudf_training(xgb.DeviceQuantileDMatrix)
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_cudf_metainfo_simple_dmatrix(self):
@@ -169,4 +169,4 @@ Arrow specification.'''
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_cudf_metainfo_device_dmatrix(self):
-        _test_cudf_metainfo(xgb.DeviceDMatrix)
+        _test_cudf_metainfo(xgb.DeviceQuantileDMatrix)

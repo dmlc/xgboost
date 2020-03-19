@@ -8,7 +8,7 @@ import os
 import sys
 import warnings
 
-from .core import DMatrix, DeviceDMatrix, Booster
+from .core import DMatrix, DeviceQuantileDMatrix, Booster
 from .training import train, cv
 from . import rabit  # noqa
 from . import tracker  # noqa
@@ -32,7 +32,7 @@ VERSION_FILE = os.path.join(os.path.dirname(__file__), 'VERSION')
 with open(VERSION_FILE) as f:
     __version__ = f.read().strip()
 
-__all__ = ['DMatrix', 'DeviceDMatrix', 'Booster',
+__all__ = ['DMatrix', 'DeviceQuantileDMatrix', 'Booster',
            'train', 'cv',
            'RabitTracker',
            'XGBModel', 'XGBClassifier', 'XGBRegressor', 'XGBRanker',

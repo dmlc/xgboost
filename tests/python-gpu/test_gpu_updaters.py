@@ -5,6 +5,7 @@ import pytest
 import xgboost as xgb
 
 sys.path.append("tests/python")
+import testing as tm
 from regression_test_utilities import run_suite, parameter_combinations, \
     assert_results_non_increasing
 
