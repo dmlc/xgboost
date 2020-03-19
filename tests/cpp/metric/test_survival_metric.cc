@@ -45,7 +45,7 @@ TEST(Metric, AFTNegLogLik) {
     std::unique_ptr<Metric> metric(Metric::Create("aft-nloglik", &lparam));
     metric->Configure({ {"aft_loss_distribution", test_case.dist_type},
                         {"aft_loss_distribution_scale", "1.0"} });
-    ASSERT_NEAR(metric->Eval(preds, info, false), test_case.reference_value, 1e-4);
+    EXPECT_NEAR(metric->Eval(preds, info, false), test_case.reference_value, 1e-4);
   }
 }
 
@@ -59,8 +59,8 @@ TEST(AFTNegLogLikMetric, Configuration) {
   Json j_obj{ Object() };
   metric->SaveConfig(&j_obj);
   auto aft_param_json = j_obj["aft_loss_param"];
-  ASSERT_EQ(get<String>(aft_param_json["aft_loss_distribution"]), "normal");
-  ASSERT_EQ(get<String>(aft_param_json["aft_loss_distribution_scale"]), "10");
+  EXPECT_EQ(get<String>(aft_param_json["aft_loss_distribution"]), "normal");
+  EXPECT_EQ(get<String>(aft_param_json["aft_loss_distribution_scale"]), "10");
 }
 
 /**
@@ -83,7 +83,7 @@ static inline void CheckLossOverGridPoints(
       = std::pow(2.0, i * (log_y_high - log_y_low) / (num_point - 1) + log_y_low);
     const double loss_val
       = loss->Loss(true_label_lower_bound, true_label_upper_bound, std::log(y_pred), 1.0);
-    ASSERT_NEAR(loss_val, reference_values[i], 1e-4);
+    EXPECT_NEAR(loss_val, reference_values[i], 1e-4);
   }
 }
 
