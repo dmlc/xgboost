@@ -401,8 +401,8 @@ GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
       (f_dmat->PageExists<EllpackPage>() ||
       (*(f_dmat->GetBatches<SparsePage>().begin())).data.DeviceCanRead());
 
-  // Use GPU Predictor if data is already on device.
-  if (on_device) {
+  // Use GPU Predictor if data is already on device and gpu_id is set.
+  if (on_device && generic_param_->gpu_id >= 0) {
 #if defined(XGBOOST_USE_CUDA)
     CHECK(gpu_predictor_);
     return gpu_predictor_;
