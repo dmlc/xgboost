@@ -207,6 +207,7 @@ double AFTLoss::Gradient(double y_lower, double y_upper, double y_pred, double s
       pdf_l = dist_->PDF(z_l);
       cdf_l = dist_->CDF(z_l);
     }
+    // Regularize the denominator with eps, so that gradient doesn't get too big
     gradient = (pdf_u - pdf_l) / (sigma * std::max(cdf_u - cdf_l, eps));
   }
 
@@ -269,6 +270,7 @@ double AFTLoss::Hessian(double y_lower, double y_upper, double y_pred, double si
     cdf_diff = cdf_u - cdf_l;
     pdf_diff = pdf_u - pdf_l;
     grad_diff = grad_u - grad_l;
+    // Regularize the denominator with eps, so that gradient doesn't get too big
     cdf_diff_thresh = std::max(cdf_diff, eps);
     numerator = -(cdf_diff * grad_diff - pdf_diff * pdf_diff);
     sqrt_denominator = sigma * cdf_diff_thresh;

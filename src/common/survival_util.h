@@ -14,7 +14,7 @@
 namespace xgboost {
 namespace common {
 
-// Choice of distribution for the noise term in AFT
+/*! \brief Enum encoding possible choices of probability distribution for the noise term in AFT */
 enum class AFTDistributionType : int {
   kNormal = 0, kLogistic = 1, kExtreme = 2
 };
@@ -30,8 +30,11 @@ namespace common {
 // Constant PI
 const double kPI = 3.14159265358979323846;
 
+/*! \brief Parameter structure for AFT loss and metric */
 struct AFTParam : public XGBoostParameter<AFTParam> {
+  /*! \brief Choice of probability distribution for the noise term in AFT */
   AFTDistributionType aft_loss_distribution;
+  /*! \brief Scaling factor to be applied to the distribution */
   float aft_loss_distribution_scale;
   DMLC_DECLARE_PARAMETER(AFTParam) {
     DMLC_DECLARE_FIELD(aft_loss_distribution)
@@ -82,18 +85,44 @@ class AFTExtreme : public AFTDistribution {
   double HessPDF(double z) override;
 };
 
+/*! \brief The AFT loss function */
 class AFTLoss {
  private:
   std::unique_ptr<AFTDistribution> dist_;
 
  public:
+  /*!
+   * \brief Constructor for AFT loss function
+   * \param dist Choice of probability distribution for the noise term in AFT
+   */
   explicit AFTLoss(AFTDistributionType dist) {
     dist_.reset(AFTDistribution::Create(dist));
   }
 
  public:
+  /*!
+   * \brief Compute the AFT loss
+   * \param y_lower Lower bound for the true label
+   * \param y_upper Upper bound for the true label
+   * \param y_pred Predicted label
+   * \param sigma Scaling factor to be applied to the distribution of the noise term
+   */
   double Loss(double y_lower, double y_upper, double y_pred, double sigma);
+  /*!
+   * \brief Compute the gradient of the AFT loss
+   * \param y_lower Lower bound for the true label
+   * \param y_upper Upper bound for the true label
+   * \param y_pred Predicted label
+   * \param sigma Scaling factor to be applied to the distribution of the noise term
+   */
   double Gradient(double y_lower, double y_upper, double y_pred, double sigma);
+  /*!
+   * \brief Compute the hessian of the AFT loss
+   * \param y_lower Lower bound for the true label
+   * \param y_upper Upper bound for the true label
+   * \param y_pred Predicted label
+   * \param sigma Scaling factor to be applied to the distribution of the noise term
+   */
   double Hessian(double y_lower, double y_upper, double y_pred, double sigma);
 };
 

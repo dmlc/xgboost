@@ -71,6 +71,7 @@ class AFTObj : public ObjFunction {
   }
 
   void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
+    // Trees give us a prediction in log scale, so exponentiate
     std::vector<bst_float> &preds = io_preds->HostVector();
     const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
     #pragma omp parallel for default(none) firstprivate(ndata) shared(preds)
@@ -80,6 +81,7 @@ class AFTObj : public ObjFunction {
   }
 
   void EvalTransform(HostDeviceVector<bst_float> *io_preds) override {
+    // do nothing here, since the AFT metric expects untransformed prediction score
   }
 
   bst_float ProbToMargin(bst_float base_score) const override {
