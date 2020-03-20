@@ -303,7 +303,7 @@ struct EvalAucGpu : public Metric {
   };
 
   template <typename T>
-  void ReleaseMemory(dh::caching_device_vector<T> &vec) {
+  void ReleaseMemory(dh::caching_device_vector<T> &vec) {  // NOLINT
     dh::caching_device_vector<T>().swap(vec);
   }
 
