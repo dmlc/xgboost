@@ -53,6 +53,8 @@ endif (USE_CUDA)
 if (MSVC)
   target_compile_options(testxgboost PRIVATE
     $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/utf-8>
+    -D_CRT_SECURE_NO_WARNINGS
+    -D_CRT_SECURE_NO_DEPRECATE
   )
 endif (MSVC)
 

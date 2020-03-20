@@ -111,6 +111,14 @@ set_target_properties(dmlc PROPERTIES
   CXX_STANDARD_REQUIRED ON
   POSITION_INDEPENDENT_CODE ON)
 list(APPEND LINKED_LIBRARIES_PRIVATE dmlc)
+if (MSVC)
+  target_compile_options(dmlc PRIVATE
+                         -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
+  if (TARGET dmlc_unit_tests)
+    target_compile_options(dmlc_unit_tests PRIVATE
+                           -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
+  endif (TARGET dmlc_unit_tests)
+endif (MSVC)
 
 # rabit
 set(RABIT_BUILD_DMLC OFF)
@@ -120,8 +128,16 @@ add_subdirectory(rabit)
 
 if (RABIT_MOCK)
   list(APPEND LINKED_LIBRARIES_PRIVATE rabit_mock_static)
+  if (MSVC)
+    target_compile_options(rabit_mock_static PRIVATE
+                           -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
+  endif (MSVC)
 else()
   list(APPEND LINKED_LIBRARIES_PRIVATE rabit)
+  if (MSVC)
+    target_compile_options(rabit PRIVATE
+                           -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
+  endif (MSVC)
 endif(RABIT_MOCK)
 
 # Exports some R specific definitions and objects
