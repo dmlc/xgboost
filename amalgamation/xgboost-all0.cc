@@ -47,7 +47,7 @@
 #include "../src/data/sparse_page_dmatrix.cc"
 #endif
 
-// tress
+// trees
 #include "../src/tree/param.cc"
 #include "../src/tree/split_evaluator.cc"
 #include "../src/tree/tree_model.cc"
@@ -76,6 +76,7 @@
 #include "../src/common/json.cc"
 #include "../src/common/io.cc"
 #include "../src/common/survival_util.cc"
+#include "../src/common/probability_distribution.cc"
 #include "../src/common/version.cc"
 
 // c_api
