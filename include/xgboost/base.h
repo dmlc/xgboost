@@ -69,6 +69,10 @@
 #define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
 #endif  // GLIBC VERSION
 
+#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
+#define _CRT_SECURE_NO_WARNINGS
+#endif  //  defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
+
 #if defined(__GNUC__)
 #define XGBOOST_EXPECT(cond, ret)  __builtin_expect((cond), (ret))
 #else
