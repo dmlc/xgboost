@@ -104,3 +104,28 @@ TEST(DeviceDMatrix, ColumnMajor) {
   EXPECT_EQ(dmat.Info().num_nonzero_, kRows*2);
 
 }
+
+// Test equivalence with simple DMatrix
+TEST(DeviceDMatrix, Equivalent) {
+  int bin_sizes[] = {2, 16, 256, 512};
+  int sizes[] = {100, 1000, 1500};
+  int num_columns = 5;
+  for (auto num_rows : sizes) {
+    auto x = common::GenerateRandom(num_rows, num_columns);
+    for (auto num_bins : bin_sizes) {
+      auto dmat = common::GetDMatrixFromData(x, num_rows, num_columns);
+      auto x_device = thrust::device_vector<float>(x);
+      auto adapter = common::AdapterFromData(x_device, num_rows, num_columns);
+      data::DeviceDMatrix device_dmat(
+          &adapter, std::numeric_limits<float>::quiet_NaN(), 1, num_bins);
+
+      const auto &batch = *dmat->GetBatches<EllpackPage>({0, num_bins}).begin();
+      const auto &device_dmat_batch =
+          *device_dmat.GetBatches<EllpackPage>({0, num_bins}).begin();
+
+      ASSERT_EQ(batch.Impl()->cuts_.Values(), device_dmat_batch.Impl()->cuts_.Values());
+      ASSERT_EQ(batch.Impl()->gidx_buffer.HostVector(),
+                device_dmat_batch.Impl()->gidx_buffer.HostVector());
+    }
+  }
+}
