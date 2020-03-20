@@ -20,7 +20,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <map>
 
 namespace xgboost {
 // forward declare dmatrix.
