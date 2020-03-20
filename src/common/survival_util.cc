@@ -8,7 +8,7 @@
 
 #include <dmlc/registry.h>
 #include <algorithm>
-#include <cstdlib>
+#include <cmath>
 #include "survival_util.h"
 
 /*
@@ -22,124 +22,6 @@ namespace xgboost {
 namespace common {
 
 DMLC_REGISTER_PARAMETER(AFTParam);
-
-AFTDistribution* AFTDistribution::Create(AFTDistributionType dist) {
-  switch (dist) {
-    case AFTDistributionType::kNormal:
-      return new AFTNormal;
-    case AFTDistributionType::kLogistic:
-      return new AFTLogistic;
-    case AFTDistributionType::kExtreme:
-      return new AFTExtreme;
-    default:
-      LOG(FATAL) << "Unknown distribution";
-  }
-  return nullptr;
-}
-
-double AFTNormal::PDF(double z) {
-  double pdf;
-  pdf = std::exp(-z * z / 2) / std::sqrt(2 * kPI);
-  return pdf;
-}
-
-double AFTNormal::CDF(double z) {
-  double cdf;
-  cdf = 0.5 * (1 + std::erf(z / std::sqrt(2)));
-  return cdf;
-}
-
-double AFTNormal::GradPDF(double z) {
-  double pdf;
-  double grad;
-  pdf = this->PDF(z);
-  grad = -1 * z * pdf;
-  return grad;
-}
-
-double AFTNormal::HessPDF(double z) {
-  double pdf;
-  double hess;
-  pdf = this->PDF(z);
-  hess = (z * z - 1) * pdf;
-  return hess;
-}
-
-double AFTLogistic::PDF(double z) {
-  double pdf;
-  double e_z;
-  double sqrt_denominator;
-  e_z = std::exp(z);
-  sqrt_denominator = 1 + e_z;
-  pdf = e_z / (sqrt_denominator * sqrt_denominator);
-  return pdf;
-}
-
-double AFTLogistic::CDF(double z) {
-  double cdf;
-  double e_z;
-  e_z = std::exp(z);
-  cdf = e_z / (1 + e_z);
-  return cdf;
-}
-
-double AFTLogistic::GradPDF(double z) {
-  double pdf;
-  double grad;
-  double e_z;
-  pdf = this->PDF(z);
-  e_z = std::exp(z);
-  grad = pdf * (1 - e_z) / (1 + e_z);
-  return grad;
-}
-
-double AFTLogistic::HessPDF(double z) {
-  double pdf;
-  double hess;
-  double w;
-  pdf = this->PDF(z);
-  w = std::exp(z);
-  hess = pdf * (w * w - 4 * w + 1) / ((1 + w) * (1 + w));
-  return hess;
-}
-
-double AFTExtreme::PDF(double z) {
-  double pdf;
-  double w;
-  w = std::exp(z);
-  pdf = w * std::exp(-w);
-  return pdf;
-}
-
-double AFTExtreme::CDF(double z) {
-  double cdf;
-  double w;
-  w = std::exp(z);
-  cdf = 1 - std::exp(-w);
-  return cdf;
-}
-
-double AFTExtreme::GradPDF(double z) {
-  double pdf;
-  double w;
-  double grad;
-
-  pdf = this->PDF(z);
-  w = std::exp(z);
-  grad = (1 - w) * pdf;
-  return grad;
-}
-
-double AFTExtreme::HessPDF(double z) {
-  double pdf;
-  double w;
-  double hess;
-  pdf = this->PDF(z);
-  w = std::exp(z);
-  hess = (w * w - 3 * w + 1) * pdf;
-  return hess;
-}
-
 
 double AFTLoss::Loss(double y_lower, double y_upper, double y_pred, double sigma) {
   double pdf;

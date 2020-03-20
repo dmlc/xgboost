@@ -6,17 +6,17 @@
 #include <cmath>
 
 #include "xgboost/logging.h"
-#include "../../../src/common/survival_util.h"
+#include "../../../src/common/probability_distribution.h"
 
 namespace xgboost {
 namespace common {
 
-TEST(AFTDistribution, AFTDistributionGeneric) {
+TEST(ProbabilityDistribution, DistributionGeneric) {
   // Assert d/dx CDF = PDF, d/dx PDF = GradPDF, d/dx GradPDF = HessPDF
   // Do this for every distribution type
-  for (auto type : {AFTDistributionType::kNormal, AFTDistributionType::kLogistic,
-                    AFTDistributionType::kExtreme}) {
-    std::unique_ptr<AFTDistribution> dist(AFTDistribution::Create(type));
+  for (auto type : {ProbabilityDistributionType::kNormal, ProbabilityDistributionType::kLogistic,
+                    ProbabilityDistributionType::kExtreme}) {
+    std::unique_ptr<ProbabilityDistribution> dist{ ProbabilityDistribution::Create(type) };
     double integral_of_pdf = dist->CDF(-2.0);
     double integral_of_grad_pdf = dist->PDF(-2.0);
     double integral_of_hess_pdf = dist->GradPDF(-2.0);
@@ -27,7 +27,8 @@ TEST(AFTDistribution, AFTDistributionGeneric) {
       // Numerical differentiation (p. 246, Numerical Analysis 2nd ed. by Timothy Sauer)
       EXPECT_NEAR((dist->CDF(x + 1e-5) - dist->CDF(x - 1e-5)) / 2e-5, dist->PDF(x), 6e-11);
       EXPECT_NEAR((dist->PDF(x + 1e-5) - dist->PDF(x - 1e-5)) / 2e-5, dist->GradPDF(x), 6e-11);
-      EXPECT_NEAR((dist->GradPDF(x + 1e-5) - dist->GradPDF(x - 1e-5)) / 2e-5, dist->HessPDF(x), 6e-11);
+      EXPECT_NEAR((dist->GradPDF(x + 1e-5) - dist->GradPDF(x - 1e-5)) / 2e-5,
+                  dist->HessPDF(x), 6e-11);
       // Numerical integration using Trapezoid Rule (p. 257, Sauer)
       integral_of_pdf += 5e-4 * (dist->PDF(x - 1e-3) + dist->PDF(x));
       integral_of_grad_pdf += 5e-4 * (dist->GradPDF(x - 1e-3) + dist->GradPDF(x));
@@ -39,8 +40,10 @@ TEST(AFTDistribution, AFTDistributionGeneric) {
   }
 }
 
-TEST(AFTDistribution, AFTNormal) {
-  std::unique_ptr<AFTDistribution> dist(AFTDistribution::Create(AFTDistributionType::kNormal));
+TEST(ProbabilityDistribution, NormalDist) {
+  std::unique_ptr<ProbabilityDistribution> dist{
+    ProbabilityDistribution::Create(ProbabilityDistributionType::kNormal)
+  };
 
   // "Three-sigma rule" (https://en.wikipedia.org/wiki/68–95–99.7_rule)
   //   68% of values are within 1 standard deviation away from the mean
@@ -56,8 +59,10 @@ TEST(AFTDistribution, AFTNormal) {
   EXPECT_NEAR(dist->CDF(4.0) - dist->CDF(-4.0), 0.9999, 0.00005);
 }
 
-TEST(AFTDistribution, AFTLogistic) {
-  std::unique_ptr<AFTDistribution> dist(AFTDistribution::Create(AFTDistributionType::kLogistic));
+TEST(ProbabilityDistribution, LogisticDist) {
+  std::unique_ptr<ProbabilityDistribution> dist{
+    ProbabilityDistribution::Create(ProbabilityDistributionType::kLogistic)
+  };
 
   /**
    * Enforce known properties of the logistic distribution.
@@ -75,8 +80,10 @@ TEST(AFTDistribution, AFTLogistic) {
   }
 }
 
-TEST(AFTDistribution, AFTExtreme) {
-  std::unique_ptr<AFTDistribution> dist(AFTDistribution::Create(AFTDistributionType::kExtreme));
+TEST(ProbabilityDistribution, ExtremeDist) {
+  std::unique_ptr<ProbabilityDistribution> dist{
+    ProbabilityDistribution::Create(ProbabilityDistributionType::kExtreme)
+  };
   const double kEulerMascheroni = 0.57721566490153286060651209008240243104215933593992;
     // https://en.wikipedia.org/wiki/Euler–Mascheroni_constant
   const double kPI = 3.14159265358979323846264338327950288419716939937510;

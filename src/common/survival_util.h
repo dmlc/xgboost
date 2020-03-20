@@ -10,38 +10,25 @@
 
 #include <xgboost/parameter.h>
 #include <memory>
+#include "probability_distribution.h"
+
+DECLARE_FIELD_ENUM_CLASS(xgboost::common::ProbabilityDistributionType);
 
 namespace xgboost {
 namespace common {
-
-/*! \brief Enum encoding possible choices of probability distribution for the noise term in AFT */
-enum class AFTDistributionType : int {
-  kNormal = 0, kLogistic = 1, kExtreme = 2
-};
-
-}  // namespace common
-}  // namespace xgboost
-
-DECLARE_FIELD_ENUM_CLASS(xgboost::common::AFTDistributionType);
-
-namespace xgboost {
-namespace common {
-
-// Constant PI
-const double kPI = 3.14159265358979323846;
 
 /*! \brief Parameter structure for AFT loss and metric */
 struct AFTParam : public XGBoostParameter<AFTParam> {
   /*! \brief Choice of probability distribution for the noise term in AFT */
-  AFTDistributionType aft_loss_distribution;
+  ProbabilityDistributionType aft_loss_distribution;
   /*! \brief Scaling factor to be applied to the distribution */
   float aft_loss_distribution_scale;
   DMLC_DECLARE_PARAMETER(AFTParam) {
     DMLC_DECLARE_FIELD(aft_loss_distribution)
-        .set_default(AFTDistributionType::kNormal)
-        .add_enum("normal", AFTDistributionType::kNormal)
-        .add_enum("logistic", AFTDistributionType::kLogistic)
-        .add_enum("extreme", AFTDistributionType::kExtreme)
+        .set_default(ProbabilityDistributionType::kNormal)
+        .add_enum("normal", ProbabilityDistributionType::kNormal)
+        .add_enum("logistic", ProbabilityDistributionType::kLogistic)
+        .add_enum("extreme", ProbabilityDistributionType::kExtreme)
         .describe("Choice of distribution for the noise term in "
                   "Accelerated Failure Time model");
     DMLC_DECLARE_FIELD(aft_loss_distribution_scale)
@@ -51,52 +38,18 @@ struct AFTParam : public XGBoostParameter<AFTParam> {
   }
 };
 
-class AFTDistribution {
- public:
-  virtual double PDF(double z) = 0;
-  virtual double CDF(double z) = 0;
-  virtual double GradPDF(double z) = 0;
-  virtual double HessPDF(double z) = 0;
-
-  static AFTDistribution* Create(AFTDistributionType dist);
-};
-
-class AFTNormal : public AFTDistribution {
- public:
-  double PDF(double z) override;
-  double CDF(double z) override;
-  double GradPDF(double z) override;
-  double HessPDF(double z) override;
-};
-
-class AFTLogistic : public AFTDistribution {
- public:
-  double PDF(double z) override;
-  double CDF(double z) override;
-  double GradPDF(double z) override;
-  double HessPDF(double z) override;
-};
-
-class AFTExtreme : public AFTDistribution {
- public:
-  double PDF(double z) override;
-  double CDF(double z) override;
-  double GradPDF(double z) override;
-  double HessPDF(double z) override;
-};
-
 /*! \brief The AFT loss function */
 class AFTLoss {
  private:
-  std::unique_ptr<AFTDistribution> dist_;
+  std::unique_ptr<ProbabilityDistribution> dist_;
 
  public:
   /*!
    * \brief Constructor for AFT loss function
    * \param dist Choice of probability distribution for the noise term in AFT
    */
-  explicit AFTLoss(AFTDistributionType dist) {
-    dist_.reset(AFTDistribution::Create(dist));
+  explicit AFTLoss(ProbabilityDistributionType dist) {
+    dist_.reset(ProbabilityDistribution::Create(dist));
   }
 
  public:
