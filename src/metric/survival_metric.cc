@@ -58,9 +58,6 @@ struct EvalAFT : public Metric {
     CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
 
     /* Compute negative log likelihood for each data point and compute weighted average */
-    double nloglik_sum = 0.0;
-    double weight_sum = 0.0;
-
     const auto& yhat = preds.HostVector();
     const auto& y_lower = info.labels_lower_bound_.HostVector();
     const auto& y_higher = info.labels_upper_bound_.HostVector();
@@ -71,6 +68,8 @@ struct EvalAFT : public Metric {
       << "yhat is too big";
     const omp_ulong nsize = static_cast<omp_ulong>(yhat.size());
 
+    double nloglik_sum = 0.0;
+    double weight_sum = 0.0;
     #pragma omp parallel for default(none) \
      firstprivate(nsize, is_null_weight, aft_loss_distribution_scale) \
      shared(weights, y_lower, y_higher, yhat) reduction(+:nloglik_sum,weight_sum)
