@@ -131,8 +131,14 @@ Basic functionalities including training and generating predictions for regressi
 classification are implemented.  But there are still some other limitations we haven't
 addressed yet.
 
-- Label encoding for Scikit-Learn classifier.
-- Ranking
+- Label encoding for Scikit-Learn classifier may not be supported.  Meaning that user need
+  to encode their training labels into discrete values first.
+- Ranking is not supported right now.
+- Empty worker is not well supported by classifier.  If the training hangs for classifier
+  with a warning about empty DMatrix, please consider balancing your data first.  But
+  regressor works fine with empty DMatrix.
 - Callback functions are not tested.
-- To use cross validation one needs to explicitly train different models instead of using
-  a functional API like ``xgboost.cv``.
+- Only ``GridSearchCV`` from ``scikit-learn`` is supported for dask interface.  Meaning
+  that we can distribute data among workers but have to train one model at a time.  If you
+  want to scale up grid searching with model parallelism by ``dask-ml``, please consider
+  using normal ``scikit-learn`` interface like `xgboost.XGBRegressor` for now.

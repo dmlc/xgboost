@@ -572,7 +572,7 @@ def predict(client, model, data, *args, missing=numpy.nan):
     return predictions
 
 
-def _evaluation_matrices(client, validation_set, sample_weights):
+def _evaluation_matrices(client, validation_set, sample_weights, missing):
     '''
     Parameters
     ----------
@@ -597,7 +597,8 @@ def _evaluation_matrices(client, validation_set, sample_weights):
         for i, e in enumerate(validation_set):
             w = (sample_weights[i]
                  if sample_weights is not None else None)
-            dmat = DaskDMatrix(client=client, data=e[0], label=e[1], weight=w)
+            dmat = DaskDMatrix(client=client, data=e[0], label=e[1], weight=w,
+                               missing=missing)
             evals.append((dmat, 'validation_{}'.format(i)))
     else:
         evals = None
@@ -672,10 +673,12 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             verbose=True):
         _assert_dask_support()
         dtrain = DaskDMatrix(client=self.client,
-                             data=X, label=y, weight=sample_weights)
+                             data=X, label=y, weight=sample_weights,
+                             missing=self.missing)
         params = self.get_xgb_params()
         evals = _evaluation_matrices(self.client,
-                                     eval_set, sample_weight_eval_set)
+                                     eval_set, sample_weight_eval_set,
+                                     self.missing)
 
         results = train(self.client, params, dtrain,
                         num_boost_round=self.get_num_boosting_rounds(),
@@ -688,7 +691,8 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
 
     def predict(self, data):  # pylint: disable=arguments-differ
         _assert_dask_support()
-        test_dmatrix = DaskDMatrix(client=self.client, data=data)
+        test_dmatrix = DaskDMatrix(client=self.client, data=data,
+                                   missing=self.missing)
         pred_probs = predict(client=self.client,
                              model=self.get_booster(), data=test_dmatrix)
         return pred_probs
@@ -711,7 +715,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             verbose=True):
         _assert_dask_support()
         dtrain = DaskDMatrix(client=self.client,
-                             data=X, label=y, weight=sample_weights)
+                             data=X, label=y, weight=sample_weights,
+                             missing=self.missing)
         params = self.get_xgb_params()
 
         # pylint: disable=attribute-defined-outside-init
@@ -728,7 +733,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             params["objective"] = "binary:logistic"
 
         evals = _evaluation_matrices(self.client,
-                                     eval_set, sample_weight_eval_set)
+                                     eval_set, sample_weight_eval_set,
+                                     self.missing)
         results = train(self.client, params, dtrain,
                         num_boost_round=self.get_num_boosting_rounds(),
                         evals=evals, verbose_eval=verbose)
@@ -739,7 +745,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 
     def predict(self, data):  # pylint: disable=arguments-differ
         _assert_dask_support()
-        test_dmatrix = DaskDMatrix(client=self.client, data=data)
+        test_dmatrix = DaskDMatrix(client=self.client, data=data,
+                                   missing=self.missing)
         pred_probs = predict(client=self.client,
                              model=self.get_booster(), data=test_dmatrix)
         return pred_probs
