@@ -60,7 +60,7 @@ struct EvalAFT : public Metric {
     /* Compute negative log likelihood for each data point and compute weighted average */
     const auto& yhat = preds.HostVector();
     const auto& y_lower = info.labels_lower_bound_.HostVector();
-    const auto& y_higher = info.labels_upper_bound_.HostVector();
+    const auto& y_upper = info.labels_upper_bound_.HostVector();
     const auto& weights = info.weights_.HostVector();
     const bool is_null_weight = weights.empty();
     const float aft_loss_distribution_scale = param_.aft_loss_distribution_scale;
@@ -72,12 +72,12 @@ struct EvalAFT : public Metric {
     double weight_sum = 0.0;
     #pragma omp parallel for default(none) \
      firstprivate(nsize, is_null_weight, aft_loss_distribution_scale) \
-     shared(weights, y_lower, y_higher, yhat) reduction(+:nloglik_sum,weight_sum)
+     shared(weights, y_lower, y_upper, yhat) reduction(+:nloglik_sum,weight_sum)
     for (omp_ulong i = 0; i < nsize; ++i) {
       // If weights are empty, data is unweighted so we use 1.0 everywhere
       const double w = is_null_weight ? 1.0 : weights[i];
       const double loss
-        = loss_->Loss(y_lower[i], y_higher[i], yhat[i], aft_loss_distribution_scale);
+        = loss_->Loss(y_lower[i], y_upper[i], yhat[i], aft_loss_distribution_scale);
       nloglik_sum += loss;
       weight_sum += w;
     }

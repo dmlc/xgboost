@@ -26,12 +26,14 @@ DMLC_REGISTER_PARAMETER(AFTParam);
 double AFTLoss::Loss(double y_lower, double y_upper, double y_pred, double sigma) {
   const double log_y_lower = std::log(y_lower);
   const double log_y_upper = std::log(y_upper);
+  const double eps = 1e-12;
   double cost;
 
   if (y_lower == y_upper) {  // uncensored
     const double z = (log_y_lower - y_pred) / sigma;
     const double pdf = dist_->PDF(z);
-    cost = -std::log(pdf / (sigma * y_lower));
+    // Regularize the denominator with eps, to avoid INF or NAN
+    cost = -std::log(std::max(pdf / (sigma * y_lower), eps));
   } else {  // censored; now check what type of censorship we have
     double z_u, z_l, cdf_u, cdf_l;
     if (std::isinf(y_upper)) {  // right-censored
@@ -46,7 +48,8 @@ double AFTLoss::Loss(double y_lower, double y_upper, double y_pred, double sigma
       z_l = (log_y_lower - y_pred) / sigma;
       cdf_l = dist_->CDF(z_l);
     }
-    cost = -std::log(cdf_u - cdf_l);
+    // Regularize the denominator with eps, to avoid INF or NAN
+    cost = -std::log(std::max(cdf_u - cdf_l, eps));
   }
 
   return cost;
@@ -56,12 +59,14 @@ double AFTLoss::Gradient(double y_lower, double y_upper, double y_pred, double s
   const double log_y_lower = std::log(y_lower);
   const double log_y_upper = std::log(y_upper);
   double gradient;
+  const double eps = 1e-12;
 
   if (y_lower == y_upper) {  // uncensored
     const double z = (log_y_lower - y_pred) / sigma;
     const double pdf = dist_->PDF(z);
     const double grad_pdf = dist_->GradPDF(z);
-    gradient = grad_pdf / (sigma * pdf);
+    // Regularize the denominator with eps, so that gradient doesn't get too big
+    gradient = grad_pdf / (sigma * std::max(pdf, eps));
   } else {  // censored; now check what type of censorship we have
     double z_u, z_l, pdf_u, pdf_l, cdf_u, cdf_l;
     if (std::isinf(y_upper)) {  // right-censored
@@ -81,7 +86,6 @@ double AFTLoss::Gradient(double y_lower, double y_upper, double y_pred, double s
       cdf_l = dist_->CDF(z_l);
     }
     // Regularize the denominator with eps, so that gradient doesn't get too big
-    const double eps = 1e-12;
     gradient = (pdf_u - pdf_l) / (sigma * std::max(cdf_u - cdf_l, eps));
   }
 
@@ -91,6 +95,7 @@ double AFTLoss::Gradient(double y_lower, double y_upper, double y_pred, double s
 double AFTLoss::Hessian(double y_lower, double y_upper, double y_pred, double sigma) {
   const double log_y_lower = std::log(y_lower);
   const double log_y_upper = std::log(y_upper);
+  const double eps = 1e-12;
   double hessian;
 
   if (y_lower == y_upper) {  // uncensored
@@ -98,7 +103,9 @@ double AFTLoss::Hessian(double y_lower, double y_upper, double y_pred, double si
     const double pdf = dist_->PDF(z);
     const double grad_pdf = dist_->GradPDF(z);
     const double hess_pdf = dist_->HessPDF(z);
-    hessian = -(pdf * hess_pdf - std::pow(grad_pdf, 2)) / (std::pow(sigma, 2) * std::pow(pdf, 2));
+    // Regularize the denominator with eps, so that gradient doesn't get too big
+    hessian = -(pdf * hess_pdf - std::pow(grad_pdf, 2))
+              / (std::pow(sigma, 2) * std::pow(std::max(pdf, eps), 2));
   } else {  // censored; now check what type of censorship we have
     double z_u, z_l, grad_pdf_u, grad_pdf_l, pdf_u, pdf_l, cdf_u, cdf_l;
     if (std::isinf(y_upper)) {  // right-censored
@@ -125,7 +132,6 @@ double AFTLoss::Hessian(double y_lower, double y_upper, double y_pred, double si
     const double pdf_diff = pdf_u - pdf_l;
     const double grad_diff = grad_pdf_u - grad_pdf_l;
     // Regularize the denominator with eps, so that gradient doesn't get too big
-    const double eps = 1e-12;
     const double cdf_diff_thresh = std::max(cdf_diff, eps);
     const double numerator = -(cdf_diff * grad_diff - pdf_diff * pdf_diff);
     const double sqrt_denominator = sigma * cdf_diff_thresh;

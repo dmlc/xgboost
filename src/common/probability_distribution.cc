@@ -49,35 +49,37 @@ double NormalDist::HessPDF(double z) {
 }
 
 double LogisticDist::PDF(double z) {
-  const double e_z = std::exp(z);
-  const double sqrt_denominator = 1 + e_z;
-  const double pdf = e_z / (sqrt_denominator * sqrt_denominator);
+  const double w = std::exp(z);
+  const double sqrt_denominator = 1 + w;
+  const double pdf
+    = (std::isinf(w) || std::isinf(w * w)) ? 0.0 : (w / (sqrt_denominator * sqrt_denominator));
   return pdf;
 }
 
 double LogisticDist::CDF(double z) {
-  const double e_z = std::exp(z);
-  const double cdf = e_z / (1 + e_z);
+  const double w = std::exp(z);
+  const double cdf = std::isinf(w) ? 1.0 : (w / (1 + w));
   return cdf;
 }
 
 double LogisticDist::GradPDF(double z) {
   const double pdf = this->PDF(z);
-  const double e_z = std::exp(z);
-  const double grad = pdf * (1 - e_z) / (1 + e_z);
+  const double w = std::exp(z);
+  const double grad = std::isinf(w) ? 0.0 : pdf * (1 - w) / (1 + w);
   return grad;
 }
 
 double LogisticDist::HessPDF(double z) {
   const double pdf = this->PDF(z);
   const double w = std::exp(z);
-  const double hess = pdf * (w * w - 4 * w + 1) / ((1 + w) * (1 + w));
+  const double hess
+    = (std::isinf(w) || std::isinf(w * w)) ? 0.0 : pdf * (w * w - 4 * w + 1) / ((1 + w) * (1 + w));
   return hess;
 }
 
 double ExtremeDist::PDF(double z) {
   const double w = std::exp(z);
-  const double pdf = w * std::exp(-w);
+  const double pdf = std::isinf(w) ? 0.0 : (w * std::exp(-w));
   return pdf;
 }
 
@@ -90,14 +92,14 @@ double ExtremeDist::CDF(double z) {
 double ExtremeDist::GradPDF(double z) {
   const double pdf = this->PDF(z);
   const double w = std::exp(z);
-  const double grad = (1 - w) * pdf;
+  const double grad = std::isinf(w) ? 0.0 : ((1 - w) * pdf);
   return grad;
 }
 
 double ExtremeDist::HessPDF(double z) {
   const double pdf = this->PDF(z);
   const double w = std::exp(z);
-  const double hess = (w * w - 3 * w + 1) * pdf;
+  const double hess = (std::isinf(w) || std::isinf(w * w)) ? 0.0 : ((w * w - 3 * w + 1) * pdf);
   return hess;
 }
 
