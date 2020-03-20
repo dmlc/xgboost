@@ -11,13 +11,19 @@
 namespace xgboost {
 namespace common {
 
+namespace probability_constant {
+
+/*! \brief Constant PI */
+const double kPI = 3.14159265358979323846;
+/*! \brief The Euler-Mascheroni_constant */
+const double kEulerMascheroni = 0.57721566490153286060651209008240243104215933593992;
+
+}  // namespace probability_constant
+
 /*! \brief Enum encoding possible choices of probability distribution */
 enum class ProbabilityDistributionType : int {
   kNormal = 0, kLogistic = 1, kExtreme = 2
 };
-
-/*! \brief Constant PI */
-const double kPI = 3.14159265358979323846;
 
 /*! \brief Interface for a probability distribution */
 class ProbabilityDistribution {

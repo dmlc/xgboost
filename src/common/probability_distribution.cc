@@ -28,7 +28,7 @@ ProbabilityDistribution* ProbabilityDistribution::Create(ProbabilityDistribution
 
 double NormalDist::PDF(double z) {
   double pdf;
-  pdf = std::exp(-z * z / 2) / std::sqrt(2 * kPI);
+  pdf = std::exp(-z * z / 2) / std::sqrt(2 * probability_constant::kPI);
   return pdf;
 }
 

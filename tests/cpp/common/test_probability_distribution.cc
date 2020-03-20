@@ -84,9 +84,6 @@ TEST(ProbabilityDistribution, ExtremeDist) {
   std::unique_ptr<ProbabilityDistribution> dist{
     ProbabilityDistribution::Create(ProbabilityDistributionType::kExtreme)
   };
-  const double kEulerMascheroni = 0.57721566490153286060651209008240243104215933593992;
-    // https://en.wikipedia.org/wiki/Euler–Mascheroni_constant
-  const double kPI = 3.14159265358979323846264338327950288419716939937510;
 
   /**
    * Enforce known properties of the extreme distribution (also known as Gumbel distribution).
@@ -104,7 +101,7 @@ TEST(ProbabilityDistribution, ExtremeDist) {
     // Numerical integration using Trapezoid Rule (p. 257, Sauer)
     mean += 5e-4 * ((x - 1e-3) * dist->PDF(x - 1e-3) + x * dist->PDF(x));
   }
-  EXPECT_NEAR(mean, -kEulerMascheroni, 1e-7);
+  EXPECT_NEAR(mean, -probability_constant::kEulerMascheroni, 1e-7);
 
   // Enumerate 25000 grid points in range [-20, 5].
   // Compute the variance of the distribution using numerical integration.
@@ -117,7 +114,7 @@ TEST(ProbabilityDistribution, ExtremeDist) {
     variance += 5e-4 * ((x - 1e-3 - mean) * (x - 1e-3 - mean) * dist->PDF(x - 1e-3)
                         + (x - mean) * (x - mean) * dist->PDF(x));
   }
-  EXPECT_NEAR(variance, kPI * kPI / 6.0, 1e-6);
+  EXPECT_NEAR(variance, probability_constant::kPI * probability_constant::kPI / 6.0, 1e-6);
 }
 
 } // namespace common
