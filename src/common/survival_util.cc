@@ -181,7 +181,7 @@ double AFTLoss::Gradient(double y_lower, double y_upper, double y_pred, double s
   double cdf_u;
   double cdf_l;
   double gradient;
-  const double eps = 1e-12f;
+  const double eps = 1e-12;
 
   const double log_y_lower = std::log(y_lower);
   const double log_y_upper = std::log(y_upper);
@@ -235,7 +235,7 @@ double AFTLoss::Hessian(double y_lower, double y_upper, double y_pred, double si
   double denominator;
   double hessian;
   double hess_dist;
-  const double eps = 1e-12f;
+  const double eps = 1e-12;
 
   const double log_y_lower = std::log(y_lower);
   const double log_y_upper = std::log(y_upper);

@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include <memory>
 #include <vector>
+#include <string>
 #include <limits>
 #include <cmath>
 
@@ -16,9 +17,9 @@ namespace xgboost {
 namespace common {
 
 /**
-  * Reference values obtained from
-  * https://github.com/avinashbarnwal/GSOC-2019/blob/master/AFT/R/combined_assignment.R
-  **/
+ * Reference values obtained from
+ * https://github.com/avinashbarnwal/GSOC-2019/blob/master/AFT/R/combined_assignment.R
+ **/
 
 TEST(Metric, AFTNegLogLik) {
   auto lparam = CreateEmptyGenericParam(-1);  // currently AFT metric is CPU only
@@ -37,7 +38,7 @@ TEST(Metric, AFTNegLogLik) {
   HostDeviceVector<bst_float> preds(4, std::log(64));
 
   struct TestCase {
-    const char* dist_type;
+    std::string dist_type;
     bst_float reference_value;
   };
   for (const auto& test_case : std::vector<TestCase>{ {"normal", 2.1508f}, {"logistic", 2.1804f},
@@ -78,6 +79,7 @@ static inline void CheckLossOverGridPoints(
   const double log_y_low = 1.0;
   const double log_y_high = 15.0;
   std::unique_ptr<AFTLoss> loss(new AFTLoss(dist_type));
+  CHECK_EQ(num_point, reference_values.size());
   for (int i = 0; i < num_point; ++i) {
     const double y_pred
       = std::pow(2.0, i * (log_y_high - log_y_low) / (num_point - 1) + log_y_low);
