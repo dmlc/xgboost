@@ -45,7 +45,7 @@ class AFTObj : public ObjFunction {
 
     const auto& yhat = preds.HostVector();
     const auto& y_lower = info.labels_lower_bound_.HostVector();
-    const auto& y_higher = info.labels_upper_bound_.HostVector();
+    const auto& y_upper = info.labels_upper_bound_.HostVector();
     const auto& weights = info.weights_.HostVector();
     const bool is_null_weight = weights.empty();
 
@@ -54,16 +54,18 @@ class AFTObj : public ObjFunction {
     CHECK_LE(yhat.size(), static_cast<size_t>(std::numeric_limits<omp_ulong>::max()))
       << "yhat is too big";
     const omp_ulong nsize = static_cast<omp_ulong>(yhat.size());
-    double first_order_grad;
+    const float aft_loss_distribution_scale = param_.aft_loss_distribution_scale;
 
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel for default(none) \
+      firstprivate(nsize, is_null_weight, aft_loss_distribution_scale) \
+      shared(weights, y_lower, y_upper, yhat, gpair)
     for (omp_ulong i = 0; i < nsize; ++i) {
       // If weights are empty, data is unweighted so we use 1.0 everywhere
       const double w = is_null_weight ? 1.0 : weights[i];
-      const double grad = loss_->Gradient(y_lower[i], y_higher[i],
-                                          yhat[i], param_.aft_loss_distribution_scale);
-      const double hess = loss_->Hessian(y_lower[i], y_higher[i],
-                                         yhat[i], param_.aft_loss_distribution_scale);
+      const double grad = loss_->Gradient(y_lower[i], y_upper[i],
+                                          yhat[i], aft_loss_distribution_scale);
+      const double hess = loss_->Hessian(y_lower[i], y_upper[i],
+                                         yhat[i], aft_loss_distribution_scale);
       gpair[i] = GradientPair(grad * w, hess * w);
     }
   }
@@ -71,7 +73,7 @@ class AFTObj : public ObjFunction {
   void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
     std::vector<bst_float> &preds = io_preds->HostVector();
     const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel for default(none) firstprivate(ndata) shared(preds)
     for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
       preds[j] = std::exp(preds[j]);
     }
