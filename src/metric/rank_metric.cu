@@ -302,6 +302,11 @@ struct EvalAucGpu : public Metric {
     const double *pred_group_incr_precision_{nullptr};
   };
 
+  template <typename T>
+  void ReleaseMemory(dh::caching_device_vector<T> &vec) {
+    dh::caching_device_vector<T>().swap(vec);
+  }
+
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
                  bool distributed) override {
@@ -367,7 +372,6 @@ struct EvalAucGpu : public Metric {
         buf_neg_arr[idx] = (1.0f - ctr) * wt;
         if (idx == nitems - 1 || dsorted_preds[idx] != dsorted_preds[idx + 1]) {
           auto new_seg_idx = atomicAdd(seg_idx_ptr, 1);
-          ++new_seg_idx;  // As it is the old value; we want the last segment to have unique value
           auto pred_val = dsorted_preds[idx];
           do {
             pred_seg_arr[idx] = new_seg_idx;
@@ -376,15 +380,18 @@ struct EvalAucGpu : public Metric {
         }
       });
 
+      auto nunique_preds = seg_idx.back();
+      ReleaseMemory(seg_idx);
+
       // Next, accumulate the positive and negative precisions for every prediction group
-      dh::caching_device_vector<double> sum_dbuf_pos(nitems, 0);
+      dh::caching_device_vector<double> sum_dbuf_pos(nunique_preds, 0);
       auto itr = thrust::reduce_by_key(thrust::cuda::par(alloc),
                                        dpred_segs.begin(), dpred_segs.end(),  // Segmented by this
                                        dbuf_pos.begin(),  // Individual precisions
                                        thrust::make_discard_iterator(),  // Ignore unique segments
                                        sum_dbuf_pos.begin());  // Write accumulated results here
-      auto nunique_preds = itr.second - sum_dbuf_pos.begin();
-      sum_dbuf_pos.resize(nunique_preds);
+      ReleaseMemory(dbuf_pos);
+      CHECK(itr.second - sum_dbuf_pos.begin() == nunique_preds);
 
       dh::caching_device_vector<double> sum_dbuf_neg(nunique_preds, 0);
       itr = thrust::reduce_by_key(thrust::cuda::par(alloc),
@@ -392,7 +399,16 @@ struct EvalAucGpu : public Metric {
                                   dbuf_neg.begin(),
                                   thrust::make_discard_iterator(),
                                   sum_dbuf_neg.begin());
+      ReleaseMemory(dbuf_neg);
+      ReleaseMemory(dpred_segs);
       CHECK(itr.second - sum_dbuf_neg.begin() == nunique_preds);
+
+      dh::caching_device_vector<double> sum_nneg(nunique_preds, 0);
+      thrust::inclusive_scan(thrust::cuda::par(alloc),
+                             sum_dbuf_neg.begin(), sum_dbuf_neg.end(),
+                             sum_nneg.begin());
+      double sum_neg_prec_val = sum_nneg.back();
+      ReleaseMemory(sum_nneg);
 
       // Find incremental sum for the positive precisions that is then used to
       // compute incremental positive precision pair
@@ -400,13 +416,9 @@ struct EvalAucGpu : public Metric {
       thrust::inclusive_scan(thrust::cuda::par(alloc),
                              sum_dbuf_pos.begin(), sum_dbuf_pos.end(),
                              sum_npos.begin() + 1);
+      double sum_pos_prec_val = sum_npos.back();
 
-      dh::caching_device_vector<double> sum_nneg(nunique_preds, 0);
-      thrust::inclusive_scan(thrust::cuda::par(alloc),
-                             sum_dbuf_neg.begin(), sum_dbuf_neg.end(),
-                             sum_nneg.begin());
-
-      if (sum_npos.back() <= 0.0 || sum_nneg.back() <= 0.0) {
+      if (sum_pos_prec_val <= 0.0 || sum_neg_prec_val <= 0.0) {
         hauc_error = 1;
       } else {
         dh::caching_device_vector<double> sum_pospair(nunique_preds, 0);
@@ -417,9 +429,12 @@ struct EvalAucGpu : public Metric {
                           ComputePosPair(sum_dbuf_pos.data().get(),
                                          sum_dbuf_neg.data().get(),
                                          sum_npos.data().get()));
+        ReleaseMemory(sum_dbuf_pos);
+        ReleaseMemory(sum_dbuf_neg);
+        ReleaseMemory(sum_npos);
         hsum_auc = thrust::reduce(thrust::cuda::par(alloc),
                                   sum_pospair.begin(), sum_pospair.end())
-                     / (sum_npos.back() * sum_nneg.back());
+                     / (sum_pos_prec_val * sum_neg_prec_val);
       }
     } else {
       // AUC sum for each group
