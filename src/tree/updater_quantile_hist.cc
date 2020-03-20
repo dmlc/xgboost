@@ -776,19 +776,18 @@ void QuantileHistMaker::Builder::EvaluateSplits(const std::vector<ExpandEntry>& 
 // Handle dense columns
 // Analog of std::stable_partition, but in no-inplace manner
 template <bool default_left, typename BinIdxType>
-inline std::pair<size_t, size_t> PartitionDenseKernel(
-      common::Span<const size_t> rid_span, common::Span<const BinIdxType> idx_span,
-      const int32_t split_cond, const int32_t offset,
-      common::Span<size_t> left_part, common::Span<size_t> right_part,
-      const std::vector<bool>* missing_val_flag, const size_t disp) {
-  const BinIdxType* idx = idx_span.data();
+inline std::pair<size_t, size_t> PartitionDenseKernel(const Column<BinIdxType>& column,
+      common::Span<const size_t> rid_span, const int32_t split_cond,
+      common::Span<size_t> left_part, common::Span<size_t> right_part) {
+  const int32_t offset = column.GetBaseIdx();
+  const BinIdxType* idx = column.GetFeatureBinIdxPtr().data();
   size_t* p_left_part = left_part.data();
   size_t* p_right_part = right_part.data();
   size_t nleft_elems = 0;
   size_t nright_elems = 0;
 
   for (auto rid : rid_span) {
-    if ((*missing_val_flag)[disp + rid]) {
+    if (column.IsMissing(rid)) {
       if (default_left) {
         p_left_part[nleft_elems++] = rid;
       } else {
@@ -879,21 +878,13 @@ void QuantileHistMaker::Builder::PartitionKernel(
   const bool default_left = tree[nid].DefaultLeft();
   const auto column = column_matrix.GetColumn<BinIdxType>(fid);
 
-  const int32_t offset = column.GetBaseIdx();
-  const std::vector<bool>* missing_val_flag = column.missing_flags_;
-  common::Span<const BinIdxType> idx_span = column.GetFeatureBinIdxPtr();
-  const size_t disp = column.missing_flags_offset_;
   std::pair<size_t, size_t> child_nodes_sizes;
 
   if (column.GetType() == xgboost::common::kDenseColumn) {
     if (default_left) {
-      child_nodes_sizes = PartitionDenseKernel<true>(
-                            rid_span, idx_span, split_cond, offset, left,
-                            right, missing_val_flag, disp);
+      child_nodes_sizes = PartitionDenseKernel<true>(column, rid_span, split_cond, left, right);
     } else {
-      child_nodes_sizes = PartitionDenseKernel<false>(
-                            rid_span, idx_span, split_cond, offset, left,
-                            right, missing_val_flag, disp);
+      child_nodes_sizes = PartitionDenseKernel<false>(column, rid_span, split_cond, left, right);
     }
   } else {
     if (default_left) {

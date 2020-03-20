@@ -217,7 +217,7 @@ enum BinBounds {
 };
 
 struct Index {
-  Index(): binBound_(UINT8_BINS_TYPE), p_(1), disp_ptr_(nullptr) {
+  Index(): binBound_(UINT8_BINS_TYPE), p_(1), offset_ptr_(nullptr) {
     setBinBound(binBound_);
   }
   Index(const Index& i) = delete;
@@ -225,8 +225,8 @@ struct Index {
   Index(Index&& i) = delete;
   Index& operator=(Index&& i) = delete;
   uint32_t operator[](size_t i) const {
-    if (disp_ptr_ != nullptr) {
-      return func_(data_ptr_, i) + disp_ptr_[i%p_];
+    if (offset_ptr_ != nullptr) {
+      return func_(data_ptr_, i) + offset_ptr_[i%p_];
     } else {
       return func_(data_ptr_, i);
     }
@@ -256,11 +256,11 @@ struct Index {
   T* data() const {
     return static_cast<T*>(data_ptr_);
   }
-  uint32_t* disp() const {
-    return disp_ptr_;
+  uint32_t* offset() const {
+    return offset_ptr_;
   }
-  size_t dispSize() const {
-    return disp_.size();
+  size_t offsetSize() const {
+    return offset_.size();
   }
   size_t size() const {
     return data_.size() / (1 << binBound_);
@@ -269,9 +269,9 @@ struct Index {
     data_.resize(nBytesData);
     data_ptr_ = reinterpret_cast<void*>(data_.data());
   }
-  void resizeDisp(const size_t nDisps) {
-    disp_.resize(nDisps);
-    disp_ptr_ = disp_.data();
+  void resizeOffset(const size_t nDisps) {
+    offset_.resize(nDisps);
+    offset_ptr_ = offset_.data();
     p_ = nDisps;
   }
   std::vector<uint8_t>::const_iterator begin() const {
@@ -295,9 +295,9 @@ struct Index {
   typedef uint32_t (*Func)(void*, size_t);
 
   std::vector<uint8_t> data_;
-  std::vector<uint32_t> disp_;
+  std::vector<uint32_t> offset_;  // size of this field is equal to number of features
   void* data_ptr_;
-  uint32_t* disp_ptr_;
+  uint32_t* offset_ptr_;
   size_t p_;
   BinBounds binBound_;
   Func func_;
@@ -324,11 +324,11 @@ struct GHistIndexMatrix {
   // Create a global histogram matrix, given cut
   void Init(DMatrix* p_fmat, int max_num_bins);
 
-  template<typename T>
-  void SetIndexData(T* const index_data, size_t batch_threads, const SparsePage& batch,
-                    size_t rbegin, const uint32_t* disps, size_t nbins);
-  void SetIndexData(uint32_t* const index_data, size_t batch_threads, const SparsePage& batch,
-                    size_t rbegin, size_t nbins);
+  template<typename BinIdxType>
+  void SetIndexData(BinIdxType* const index_data, size_t batch_threads, const SparsePage& batch,
+                    size_t rbegin, const uint32_t* offsets, size_t nbins);
+  void SetIndexDataWithoutOffset(uint32_t* const index_data, size_t batch_threads,
+                                 const SparsePage& batch, size_t rbegin, size_t nbins);
 
   inline void GetFeatureCounts(size_t* counts) const {
     auto nfeature = cut.Ptrs().size() - 1;

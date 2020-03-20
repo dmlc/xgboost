@@ -9,28 +9,43 @@ namespace xgboost {
 namespace common {
 
 TEST(DenseColumn, Test) {
-  auto dmat = RandomDataGenerator(100, 10, 0.0).GenerateDMatix();
-  GHistIndexMatrix gmat;
-  gmat.Init(dmat.get(), 256);
-  ColumnMatrix column_matrix;
-  column_matrix.Init(gmat, 0.2);
+  size_t max_num_bins[] = {256, 65536, 65537};
+  for (size_t max_num_bin : max_num_bins) {
+    auto dmat = RandomDataGenerator(100, 10, 0.0).GenerateDMatix();
+    GHistIndexMatrix gmat;
+    gmat.Init(dmat.get(), max_num_bin);
+    ColumnMatrix column_matrix;
+    column_matrix.Init(gmat, 0.2);
 
-  for (auto i = 0ull; i < (*dmat)->Info().num_row_; i++) {
-    for (auto j = 0ull; j < (*dmat)->Info().num_col_; j++) {
-        auto col = column_matrix.GetColumn<uint8_t>(j);
-        ASSERT_EQ(gmat.index[i * (*dmat)->Info().num_col_ + j],
-                  col.GetGlobalBinIdx(i));
+    for (auto i = 0ull; i < dmat->Info().num_row_; i++) {
+      for (auto j = 0ull; j < dmat->Info().num_col_; j++) {
+          switch (column_matrix.GetTypeSize()) {
+            case sizeof(uint8_t): {
+                auto col = column_matrix.GetColumn<uint8_t>(j);
+                ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
+                          col.GetGlobalBinIdx(i));
+              }
+              break;
+            case sizeof(uint16_t): {
+                auto col = column_matrix.GetColumn<uint16_t>(j);
+                ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
+                          col.GetGlobalBinIdx(i));
+              }
+              break;
+            case sizeof(uint32_t): {
+                auto col = column_matrix.GetColumn<uint32_t>(j);
+                ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
+                          col.GetGlobalBinIdx(i));
+              }
+              break;
+        }
+      }
     }
   }
 }
 
-TEST(SparseColumn, Test) {
-  auto dmat = RandomDataGenerator(100, 1, 0.85).GenerateDMatix();
-  GHistIndexMatrix gmat;
-  gmat.Init(dmat.get(), 256);
-  ColumnMatrix column_matrix;
-  column_matrix.Init(gmat, 0.5);
-  auto col = column_matrix.GetColumn<uint8_t>(0);
+template<typename BinIdxType>
+inline void CheckSparseColumn(const Column<BinIdxType>& col, const GHistIndexMatrix& gmat) {
   ASSERT_EQ(col.Size(), gmat.index.size());
   for (auto i = 0ull; i < col.Size(); i++) {
     ASSERT_EQ(gmat.index[gmat.row_ptr[col.GetRowIdx(i)]],
@@ -38,17 +53,63 @@ TEST(SparseColumn, Test) {
   }
 }
 
-TEST(DenseColumnWithMissing, Test) {
-  auto dmat = RandomDataGenerator(100, 1, 0.5).GenerateDMatix();
-  GHistIndexMatrix gmat;
-  gmat.Init(dmat.get(), 256);
-  ColumnMatrix column_matrix;
-  column_matrix.Init(gmat, 0.2);
-  auto col = column_matrix.GetColumn<uint8_t>(0);
+TEST(SparseColumn, Test) {
+  size_t max_num_bins[] = {256, 65536, 65537};
+  for (size_t max_num_bin : max_num_bins) {
+    auto dmat = RandomDataGenerator(100, 1, 0.85).GenerateDMatix();
+    GHistIndexMatrix gmat;
+    gmat.Init(dmat.get(), max_num_bin);
+    ColumnMatrix column_matrix;
+    column_matrix.Init(gmat, 0.5);
+    switch (column_matrix.GetTypeSize()) {
+      case sizeof(uint8_t): {
+          auto col = column_matrix.GetColumn<uint8_t>(0);
+          CheckSparseColumn(col, gmat);
+        }
+        break;
+      case sizeof(uint16_t): {
+          auto col = column_matrix.GetColumn<uint16_t>(0);
+          CheckSparseColumn(col, gmat);
+        }
+        break;
+      case sizeof(uint32_t): {
+          auto col = column_matrix.GetColumn<uint32_t>(0);
+          CheckSparseColumn(col, gmat);
+        }
+        break;
+    }
+  }
+}
+
+template<typename BinIdxType>
+inline void CheckColumWithMissingValue(const Column<BinIdxType>& col,
+                                       const GHistIndexMatrix& gmat) {
   for (auto i = 0ull; i < col.Size(); i++) {
     if (col.IsMissing(i)) continue;
     EXPECT_EQ(gmat.index[gmat.row_ptr[col.GetRowIdx(i)]],
               col.GetGlobalBinIdx(i));
+  }
+}
+
+TEST(DenseColumnWithMissing, Test) {
+  size_t max_num_bins[] = {256, 65536, 65537};
+  for (size_t max_num_bin : max_num_bins) {
+    auto dmat = RandomDataGenerator(100, 1, 0.5).GenerateDMatix();
+    GHistIndexMatrix gmat;
+    gmat.Init(dmat.get(), max_num_bin);
+    ColumnMatrix column_matrix;
+    column_matrix.Init(gmat, 0.2);
+    switch (column_matrix.GetTypeSize()) {
+      case sizeof(uint8_t):
+        CheckColumWithMissingValue(column_matrix.GetColumn<uint8_t>(0), gmat);
+        break;
+      case sizeof(uint16_t):
+        CheckColumWithMissingValue(column_matrix.GetColumn<uint16_t>(0), gmat);
+        break;
+      case sizeof(uint32_t):
+        CheckColumWithMissingValue(column_matrix.GetColumn<uint32_t>(0), gmat);
+        break;
+    }
   }
 }
 
