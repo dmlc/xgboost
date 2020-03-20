@@ -19,16 +19,43 @@ enum class ProbabilityDistributionType : int {
 /*! \brief Constant PI */
 const double kPI = 3.14159265358979323846;
 
+/*! \brief Interface for a probability distribution */
 class ProbabilityDistribution {
  public:
+  /*!
+   * \brief Evaluate Probability Density Function (PDF) at a particular point
+   * \param z point at which to evaluate PDF
+   * \return Value of PDF evaluated
+   */
   virtual double PDF(double z) = 0;
+  /*!
+   * \brief Evaluate Cumulative Distribution Function (CDF) at a particular point
+   * \param z point at which to evaluate CDF
+   * \return Value of CDF evaluated
+   */
   virtual double CDF(double z) = 0;
+  /*!
+   * \brief Evaluate first derivative of PDF at a particular point
+   * \param z point at which to evaluate first derivative of PDF
+   * \return Value of first derivative of PDF evaluated
+   */
   virtual double GradPDF(double z) = 0;
+  /*!
+   * \brief Evaluate second derivative of PDF at a particular point
+   * \param z point at which to evaluate second derivative of PDF
+   * \return Value of second derivative of PDF evaluated
+   */
   virtual double HessPDF(double z) = 0;
 
+  /*!
+   * \brief Factory function to instantiate a new probability distribution object
+   * \param dist kind of probability distribution
+   * \return Reference to the newly created probability distribution object
+   */
   static ProbabilityDistribution* Create(ProbabilityDistributionType dist);
 };
 
+/*! \brief The (standard) normal distribution */
 class NormalDist : public ProbabilityDistribution {
  public:
   double PDF(double z) override;
@@ -37,6 +64,7 @@ class NormalDist : public ProbabilityDistribution {
   double HessPDF(double z) override;
 };
 
+/*! \brief The (standard) logistic distribution */
 class LogisticDist : public ProbabilityDistribution {
  public:
   double PDF(double z) override;
@@ -45,6 +73,7 @@ class LogisticDist : public ProbabilityDistribution {
   double HessPDF(double z) override;
 };
 
+/*! \brief The extreme distribution, also known as the Gumbel (minimum) distribution */
 class ExtremeDist : public ProbabilityDistribution {
  public:
   double PDF(double z) override;
