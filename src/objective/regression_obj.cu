@@ -58,8 +58,9 @@ class RegLossObj : public ObjFunction {
       LOG(WARNING) << "Label set is empty.";
     }
     CHECK_EQ(preds.Size(), info.labels_.Size())
-        << "labels are not correctly provided"
-        << "preds.size=" << preds.Size() << ", label.size=" << info.labels_.Size();
+        << " " << "labels are not correctly provided"
+        << "preds.size=" << preds.Size() << ", label.size=" << info.labels_.Size() << ", "
+        << "Loss: " << Loss::Name();
     size_t const ndata = preds.Size();
     out_gpair->Resize(ndata);
     auto device = tparam_->gpu_id;

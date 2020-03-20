@@ -14,6 +14,7 @@
 #include <limits>
 #include <cmath>
 #include <iomanip>
+#include <stack>
 
 #include "param.h"
 #include "../common/common.h"
@@ -618,6 +619,32 @@ std::string RegTree::DumpModel(const FeatureMap& fmap,
   return result;
 }
 
+bool RegTree::Equal(const RegTree& b) const {
+  if (NumExtraNodes() != b.NumExtraNodes()) {
+    return false;
+  }
+
+  std::stack<bst_node_t> nodes;
+  nodes.push(0);
+  auto& self = *this;
+  while (!nodes.empty()) {
+    auto nid = nodes.top();
+    nodes.pop();
+    if (!(self.nodes_.at(nid) == b.nodes_.at(nid))) {
+      return false;
+    }
+    auto left = self[nid].LeftChild();
+    auto right = self[nid].RightChild();
+    if (left != RegTree::kInvalidNodeId) {
+      nodes.push(left);
+    }
+    if (right != RegTree::kInvalidNodeId) {
+      nodes.push(right);
+    }
+  }
+  return true;
+}
+
 void RegTree::Load(dmlc::Stream* fi) {
   CHECK_EQ(fi->Read(&param, sizeof(TreeParam)), sizeof(TreeParam));
   nodes_.resize(param.num_nodes);
@@ -673,6 +700,9 @@ void RegTree::LoadModel(Json const& in) {
   auto const& default_left = get<Array const>(in["default_left"]);
   CHECK_EQ(default_left.size(), n_nodes);
 
+  stats_.clear();
+  nodes_.clear();
+
   stats_.resize(n_nodes);
   nodes_.resize(n_nodes);
   for (int32_t i = 0; i < n_nodes; ++i) {
@@ -692,12 +722,18 @@ void RegTree::LoadModel(Json const& in) {
     n = Node{left, right, parent, ind, cond, dft_left};
   }
 
-
-  deleted_nodes_.resize(0);
+  deleted_nodes_.clear();
   for (bst_node_t i = 1; i < param.num_nodes; ++i) {
     if (nodes_[i].IsDeleted()) {
       deleted_nodes_.push_back(i);
     }
+  }
+
+  auto& self = *this;
+  for (auto nid = 1; nid < n_nodes; ++nid) {
+    auto parent = self[nid].Parent();
+    CHECK_NE(parent, RegTree::kInvalidNodeId);
+    self[nid].SetParent(self[nid].Parent(), self[parent].LeftChild() == nid);
   }
   CHECK_EQ(static_cast<bst_node_t>(deleted_nodes_.size()), param.num_deleted);
 }
@@ -792,7 +828,7 @@ void RegTree::CalculateContributionsApprox(const RegTree::FVec &feat,
   bst_node_t nid = 0;
   while (!(*this)[nid].IsLeaf()) {
     split_index = (*this)[nid].SplitIndex();
-    nid = this->GetNext(nid, feat.Fvalue(split_index), feat.IsMissing(split_index));
+    nid = this->GetNext(nid, feat.GetFvalue(split_index), feat.IsMissing(split_index));
     bst_float new_value = this->node_mean_values_[nid];
     // update feature weight
     out_contribs[split_index] += new_value - node_value;
@@ -924,7 +960,7 @@ void RegTree::TreeShap(const RegTree::FVec &feat, bst_float *phi,
     unsigned hot_index = 0;
     if (feat.IsMissing(split_index)) {
       hot_index = node.DefaultChild();
-    } else if (feat.Fvalue(split_index) < node.SplitCond()) {
+    } else if (feat.GetFvalue(split_index) < node.SplitCond()) {
       hot_index = node.LeftChild();
     } else {
       hot_index = node.RightChild();

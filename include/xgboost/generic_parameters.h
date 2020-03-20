@@ -1,6 +1,6 @@
 /*!
  * Copyright 2014-2019 by Contributors
- * \file learner.cc
+ * \file generic_parameters.h
  */
 #ifndef XGBOOST_GENERIC_PARAMETERS_H_
 #define XGBOOST_GENERIC_PARAMETERS_H_

@@ -605,6 +605,10 @@ TEST_F(MultiClassesSerializationTest, GPU_Hist) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", std::to_string(kClasses)},
+                            // Somehow rebuilding the cache can generate slightly
+                            // different result (1e-7) with CPU predictor for some
+                            // entries.
+                            {"predictor", "gpu_predictor"},
                             {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "gpu_hist"}},
                            fmap_, *pp_dmat_);

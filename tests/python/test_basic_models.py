@@ -5,6 +5,7 @@ import os
 import json
 import testing as tm
 import pytest
+import locale
 
 dpath = 'demo/data/'
 dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
@@ -299,7 +300,15 @@ class TestModels(unittest.TestCase):
         assert float(config['learner']['objective'][
             'reg_loss_param']['scale_pos_weight']) == 0.5
 
+        buf = bst.save_raw()
+        from_raw = xgb.Booster()
+        from_raw.load_model(buf)
+
+        buf_from_raw = from_raw.save_raw()
+        assert buf == buf_from_raw
+
     def test_model_json_io(self):
+        loc = locale.getpreferredencoding(False)
         model_path = 'test_model_json_io.json'
         parameters = {'tree_method': 'hist', 'booster': 'gbtree'}
         j_model = json_model(model_path, parameters)
@@ -313,6 +322,7 @@ class TestModels(unittest.TestCase):
         assert isinstance(j_model['learner'], dict)
 
         os.remove(model_path)
+        assert locale.getpreferredencoding(False) == loc
 
     @pytest.mark.skipif(**tm.no_json_schema())
     def test_json_schema(self):

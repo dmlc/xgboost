@@ -91,6 +91,16 @@ struct DeviceSplitCandidate {
     }
   }
   XGBOOST_DEVICE bool IsValid() const { return loss_chg > 0.0f; }
+
+  friend std::ostream& operator<<(std::ostream& os, DeviceSplitCandidate const& c) {
+    os << "loss_chg:" << c.loss_chg << ", "
+       << "dir: " << c.dir << ", "
+       << "findex: " << c.findex << ", "
+       << "fvalue: " << c.fvalue << ", "
+       << "left sum: " << c.left_sum << ", "
+       << "right sum: " << c.right_sum << std::endl;
+    return os;
+  }
 };
 
 struct DeviceSplitCandidateReduceOp {
@@ -186,6 +196,5 @@ struct SumCallbackOp {
 XGBOOST_DEVICE inline int MaxNodesDepth(int depth) {
   return (1 << (depth + 1)) - 1;
 }
-
 }  // namespace tree
 }  // namespace xgboost

@@ -19,11 +19,12 @@ rng = np.random.RandomState(1994)
 
 @contextmanager
 def captured_output():
-    """
-    Reassign stdout temporarily in order to test printed statements
-    Taken from: https://stackoverflow.com/questions/4219717/how-to-assert-output-with-nosetest-unittest-in-python
+    """Reassign stdout temporarily in order to test printed statements
+    Taken from:
+    https://stackoverflow.com/questions/4219717/how-to-assert-output-with-nosetest-unittest-in-python
 
     Also works for pytest.
+
     """
     new_out, new_err = StringIO(), StringIO()
     old_out, old_err = sys.stdout, sys.stderr
@@ -35,6 +36,11 @@ def captured_output():
 
 
 class TestBasic(unittest.TestCase):
+    def test_compat(self):
+        from xgboost.compat import lazy_isinstance
+        a = np.array([1, 2, 3])
+        assert lazy_isinstance(a, 'numpy', 'ndarray')
+        assert not lazy_isinstance(a, 'numpy', 'dataframe')
 
     def test_basic(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
@@ -42,10 +48,17 @@ class TestBasic(unittest.TestCase):
         param = {'max_depth': 2, 'eta': 1,
                  'objective': 'binary:logistic'}
         # specify validations set to watch performance
-        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
+        watchlist = [(dtrain, 'train')]
         num_round = 2
-        bst = xgb.train(param, dtrain, num_round, watchlist)
-        # this is prediction
+        bst = xgb.train(param, dtrain, num_round, watchlist, verbose_eval=True)
+
+        preds = bst.predict(dtrain)
+        labels = dtrain.get_label()
+        err = sum(1 for i in range(len(preds))
+                  if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+        # error must be smaller than 10%
+        assert err < 0.1
+
         preds = bst.predict(dtest)
         labels = dtest.get_label()
         err = sum(1 for i in range(len(preds))

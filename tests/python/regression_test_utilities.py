@@ -25,6 +25,19 @@ class Dataset:
             self.w = None
         self.use_external_memory = use_external_memory
 
+    def __str__(self):
+        a = 'name: {name}\nobjective:{objective}, metric:{metric}, '.format(
+            name=self.name,
+            objective=self.objective,
+            metric=self.metric)
+        b = 'external memory:{use_external_memory}\n'.format(
+            use_external_memory=self.use_external_memory
+        )
+        return a + b
+
+    def __repr__(self):
+        return self.__str__()
+
 
 def get_boston():
     data = datasets.load_boston()
@@ -132,8 +145,8 @@ def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False):
     """
     datasets = [
         Dataset("Boston", get_boston, "reg:squarederror", "rmse"),
-        Dataset("Digits", get_digits, "multi:softmax", "merror"),
-        Dataset("Cancer", get_cancer, "binary:logistic", "error"),
+        Dataset("Digits", get_digits, "multi:softmax", "mlogloss"),
+        Dataset("Cancer", get_cancer, "binary:logistic", "logloss"),
         Dataset("Sparse regression", get_sparse, "reg:squarederror", "rmse"),
         Dataset("Sparse regression with weights", get_sparse_weights,
                 "reg:squarederror", "rmse", has_weights=True),

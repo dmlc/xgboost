@@ -195,12 +195,22 @@
   "properties": {
     "version": {
       "type": "array",
-      "const": [
-        1,
-        0,
-        0
+      "items": [
+        {
+          "type": "number",
+          "const": 1
+        },
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "number",
+          "minimum": 0
+        }
       ],
-      "additionalItems": false
+      "minItems": 3,
+      "maxItems": 3
     },
     "learner": {
       "type": "object",

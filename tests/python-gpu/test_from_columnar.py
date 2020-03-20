@@ -99,7 +99,7 @@ Arrow specification.'''
         evals_result_cudf = {}
         dtrain_cudf = xgb.DMatrix(df.from_pandas(X), df.from_pandas(y), weight=cudf_weights,
                                   base_margin=cudf_base_margin)
-        params = {'gpu_id': 0, 'nthread': 1}
+        params = {'gpu_id': 0}
         xgb.train(params, dtrain_cudf, evals=[(dtrain_cudf, "train")],
                   evals_result=evals_result_cudf)
         evals_result_np = {}

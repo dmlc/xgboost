@@ -88,6 +88,17 @@ Parameters for Tree Booster
   - Subsample ratio of the training instances. Setting it to 0.5 means that XGBoost would randomly sample half of the training data prior to growing trees. and this will prevent overfitting. Subsampling will occur once in every boosting iteration.
   - range: (0,1]
 
+* ``sampling_method`` [default= ``uniform``]
+
+  - The method to use to sample the training instances.
+  - ``uniform``: each training instance has an equal probability of being selected. Typically set
+    ``subsample`` >= 0.5 for good results.
+  - ``gradient_based``: the selection probability for each training instance is proportional to the
+    *regularized absolute value* of gradients (more specifically, :math:`\sqrt{g^2+\lambda h^2}`).
+    ``subsample`` may be set to as low as 0.1 without loss of model accuracy. Note that this
+    sampling method is only supported when ``tree_method`` is set to ``gpu_hist``; other tree
+    methods only support ``uniform`` sampling.
+
 * ``colsample_bytree``, ``colsample_bylevel``, ``colsample_bynode`` [default=1]
 
   - This is a family of parameters for subsampling of columns.
@@ -218,6 +229,20 @@ Parameters for Tree Booster
     be specified in the form of a nest list, e.g. ``[[0, 1], [2, 3, 4]]``, where each inner
     list is a group of indices of features that are allowed to interact with each other.
     See tutorial for more information
+
+Additional parameters for `gpu_hist` tree method
+================================================
+
+* ``single_precision_histogram``, [default=``false``]
+
+  - Use single precision to build histograms.  See document for GPU support for more details.
+
+* ``deterministic_histogram``, [default=``true``]
+
+  - Build histogram on GPU deterministically.  Histogram building is not deterministic due
+    to the non-associative aspect of floating point summation.  We employ a pre-rounding
+    routine to mitigate the issue, which may lead to slightly lower accuracy.  Set to
+    ``false`` to disable it.
 
 Additional parameters for Dart Booster (``booster=dart``)
 =========================================================

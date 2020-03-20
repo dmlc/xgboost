@@ -16,16 +16,12 @@
 
 #include <dmlc/filesystem.h>
 #include <xgboost/base.h>
-#include <xgboost/objective.h>
-#include <xgboost/metric.h>
 #include <xgboost/json.h>
-#include <xgboost/predictor.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/c_api.h>
-#include <xgboost/learner.h>
 
 #include "../../src/common/common.h"
-#include "../../src/common/hist_util.h"
+#include "../../src/gbm/gbtree_model.h"
 #if defined(__CUDACC__)
 #include "../../src/data/ellpack_page.cuh"
 #endif
@@ -41,6 +37,12 @@
 #else
 #define GPUIDX -1
 #endif
+
+namespace xgboost {
+class ObjFunction;
+class Metric;
+struct LearnerModelParam;
+}
 
 bool FileExists(const std::string& filename);
 
@@ -79,7 +81,8 @@ xgboost::bst_float GetMetricEval(
   xgboost::Metric * metric,
   xgboost::HostDeviceVector<xgboost::bst_float> preds,
   std::vector<xgboost::bst_float> labels,
-  std::vector<xgboost::bst_float> weights = std::vector<xgboost::bst_float> ());
+  std::vector<xgboost::bst_float> weights = std::vector<xgboost::bst_float>(),
+  std::vector<xgboost::bst_uint> groups = std::vector<xgboost::bst_uint>());
 
 namespace xgboost {
 bool IsNear(std::vector<xgboost::bst_float>::const_iterator _beg1,
@@ -206,7 +209,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
     size_t n_rows, size_t n_cols, size_t page_size, bool deterministic,
     const dmlc::TemporaryDirectory& tempdir = dmlc::TemporaryDirectory());
 
-gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param);
+gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, size_t n_classes = 1);
 
 std::unique_ptr<GradientBooster> CreateTrainedGBM(
     std::string name, Args kwargs, size_t kRows, size_t kCols,
@@ -221,9 +224,10 @@ inline GenericParameter CreateEmptyGenericParam(int gpu_id) {
   return tparam;
 }
 
-inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows) {
+inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows,
+                                                              float lower= 0.0f, float upper = 1.0f) {
   xgboost::SimpleLCG gen;
-  xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
+  xgboost::SimpleRealUniformDistribution<bst_float> dist(lower, upper);
   std::vector<GradientPair> h_gpair(n_rows);
   for (auto &gpair : h_gpair) {
     bst_float grad = dist(&gen);
@@ -240,13 +244,13 @@ class HistogramCutsWrapper : public common::HistogramCuts {
  public:
   using SuperT = common::HistogramCuts;
   void SetValues(std::vector<float> cuts) {
-    SuperT::cut_values_ = std::move(cuts);
+    SuperT::cut_values_.HostVector() = std::move(cuts);
   }
   void SetPtrs(std::vector<uint32_t> ptrs) {
-    SuperT::cut_ptrs_ = std::move(ptrs);
+    SuperT::cut_ptrs_.HostVector() = std::move(ptrs);
   }
   void SetMins(std::vector<float> mins) {
-    SuperT::min_vals_ = std::move(mins);
+    SuperT::min_vals_.HostVector() = std::move(mins);
   }
 };
 }  //  anonymous namespace
@@ -275,16 +279,13 @@ inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
     row_stride = std::max(row_stride, offset_vec[i] - offset_vec[i-1]);
   }
 
-  auto page = std::unique_ptr<EllpackPageImpl>(new EllpackPageImpl(dmat->get(), {0, 256, 0}));
-  page->InitInfo(0, (*dmat)->IsDense(), row_stride, cmat);
-  page->InitCompressedData(0, n_rows);
-  page->CreateHistIndices(0, batch, RowStateOnDevice(batch.Size(), batch.Size()));
+  auto page = std::unique_ptr<EllpackPageImpl>(
+      new EllpackPageImpl(0, cmat, batch, (*dmat)->IsDense(), row_stride));
 
   delete dmat;
 
   return page;
 }
 #endif
-
 }  // namespace xgboost
 #endif

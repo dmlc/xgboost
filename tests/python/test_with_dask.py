@@ -3,6 +3,7 @@ import pytest
 import xgboost as xgb
 import sys
 import numpy as np
+import json
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -56,11 +57,17 @@ def test_from_dask_dataframe():
                 xgb.dask.train(
                     client, {}, dtrain, num_boost_round=2, evals_result={})
             # force prediction to be computed
-            prediction = prediction.compute()
+            from_dmatrix = prediction.compute()
+
+            prediction = xgb.dask.predict(client, model=booster, data=X)
+            from_df = prediction.compute()
+
+            assert isinstance(prediction, dd.Series)
+            assert np.all(from_dmatrix == from_df.to_numpy())
 
 
 def test_from_dask_array():
-    with LocalCluster(n_workers=5) as cluster:
+    with LocalCluster(n_workers=5, threads_per_worker=5) as cluster:
         with Client(cluster) as client:
             X, y = generate_array()
             dtrain = DaskDMatrix(client, X, y)
@@ -73,6 +80,21 @@ def test_from_dask_array():
             assert isinstance(prediction, da.Array)
             # force prediction to be computed
             prediction = prediction.compute()
+
+            booster = result['booster']
+            single_node_predt = booster.predict(
+                xgb.DMatrix(X.compute())
+            )
+            np.testing.assert_allclose(prediction, single_node_predt)
+
+            config = json.loads(booster.save_config())
+            assert int(config['learner']['generic_param']['nthread']) == 5
+
+            from_arr = xgb.dask.predict(
+                client, model=booster, data=X)
+
+            assert isinstance(from_arr, da.Array)
+            assert np.all(single_node_predt == from_arr.compute())
 
 
 def test_dask_regressor():
@@ -133,6 +155,25 @@ def test_dask_classifier():
 
             assert prediction.ndim == 1
             assert prediction.shape[0] == kRows
+
+
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_sklearn_grid_search():
+    from sklearn.model_selection import GridSearchCV
+    with LocalCluster(n_workers=4) as cluster:
+        with Client(cluster) as client:
+            X, y = generate_array()
+            reg = xgb.dask.DaskXGBRegressor(learning_rate=0.1,
+                                            tree_method='hist')
+            reg.client = client
+            model = GridSearchCV(reg, {'max_depth': [2, 4],
+                                       'n_estimators': [5, 10]},
+                                 cv=2, verbose=1, iid=True)
+            model.fit(X, y)
+            # Expect unique results for each parameter value This confirms
+            # sklearn is able to successfully update the parameter
+            means = model.cv_results_['mean_test_score']
+            assert len(means) == len(set(means))
 
 
 def run_empty_dmatrix(client, parameters):

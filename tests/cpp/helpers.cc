@@ -1,8 +1,11 @@
 /*!
- * Copyright 2016-2019 XGBoost contributors
+ * Copyright 2016-2020 XGBoost contributors
  */
 #include <dmlc/filesystem.h>
 #include <xgboost/logging.h>
+#include <xgboost/objective.h>
+#include <xgboost/metric.h>
+#include <xgboost/learner.h>
 #include <xgboost/gbm.h>
 #include <xgboost/json.h>
 #include <gtest/gtest.h>
@@ -14,8 +17,8 @@
 #include "helpers.h"
 #include "xgboost/c_api.h"
 
-#include "../../src/data/simple_csr_source.h"
 #include "../../src/gbm/gbtree_model.h"
+#include "xgboost/predictor.h"
 
 bool FileExists(const std::string& filename) {
   struct stat st;
@@ -118,11 +121,13 @@ void CheckRankingObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
 xgboost::bst_float GetMetricEval(xgboost::Metric * metric,
                                  xgboost::HostDeviceVector<xgboost::bst_float> preds,
                                  std::vector<xgboost::bst_float> labels,
-                                 std::vector<xgboost::bst_float> weights) {
+                                 std::vector<xgboost::bst_float> weights,
+                                 std::vector<xgboost::bst_uint> groups) {
   xgboost::MetaInfo info;
   info.num_row_ = labels.size();
   info.labels_.HostVector() = labels;
   info.weights_.HostVector() = weights;
+  info.group_ptr_ = groups;
 
   return metric->Eval(preds, info, false);
 }
@@ -228,17 +233,23 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
     std::stringstream row_data;
     size_t j = 0;
     if (rem_cols > 0) {
-       for (; j < std::min(static_cast<size_t>(rem_cols), cols_per_row); ++j) {
-         row_data << label(*gen) << " " << (col_idx+j) << ":" << (col_idx+j+1)*10*i;
-       }
-       rem_cols -= cols_per_row;
+      for (; j < std::min(static_cast<size_t>(rem_cols), cols_per_row); ++j) {
+        row_data << label(*gen) << " " << (col_idx + j) << ":"
+                 << (col_idx + j + 1) * 10 * i;
+      }
+      rem_cols -= cols_per_row;
     } else {
-       // Take some random number of colums in [1, n_cols] and slot them here
-       size_t ncols = dis(*gen);
-       for (; j < ncols; ++j) {
-         size_t fid = (col_idx+j) % n_cols;
-         row_data << label(*gen) << " " << fid << ":" << (fid+1)*10*i;
-       }
+      // Take some random number of colums in [1, n_cols] and slot them here
+      std::vector<size_t> random_columns;
+      size_t ncols = dis(*gen);
+      for (; j < ncols; ++j) {
+        size_t fid = (col_idx + j) % n_cols;
+        random_columns.push_back(fid);
+      }
+      std::sort(random_columns.begin(), random_columns.end());
+      for (auto fid : random_columns) {
+        row_data << label(*gen) << " " << fid << ":" << (fid + 1) * 10 * i;
+      }
     }
     col_idx += j;
 
@@ -246,26 +257,28 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
   }
   fo.close();
 
-  std::unique_ptr<DMatrix> dmat(DMatrix::Load(
-    tmp_file + "#" + tmp_file + ".cache", true, false, "auto", page_size));
-  EXPECT_TRUE(FileExists(tmp_file + ".cache.row.page"));
-
-  if (!page_size) {
-    std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource);
-    source->CopyFrom(dmat.get());
-    return std::unique_ptr<DMatrix>(DMatrix::Create(std::move(source)));
-  } else {
-    return dmat;
+  std::string uri = tmp_file;
+  if (page_size > 0) {
+    uri += "#" + tmp_file + ".cache";
   }
+  std::unique_ptr<DMatrix> dmat(
+      DMatrix::Load(uri, true, false, "auto", page_size));
+  return dmat;
 }
 
-gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param) {
-  std::vector<std::unique_ptr<RegTree>> trees;
-  trees.push_back(std::unique_ptr<RegTree>(new RegTree));
-  (*trees.back())[0].SetLeaf(1.5f);
-  (*trees.back()).Stat(0).sum_hess = 1.0f;
+gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, size_t n_classes) {
   gbm::GBTreeModel model(param);
-  model.CommitModel(std::move(trees), 0);
+
+  for (size_t i = 0; i < n_classes; ++i) {
+    std::vector<std::unique_ptr<RegTree>> trees;
+    trees.push_back(std::unique_ptr<RegTree>(new RegTree));
+    if (i == 0) {
+      (*trees.back())[0].SetLeaf(1.5f);
+      (*trees.back()).Stat(0).sum_hess = 1.0f;
+    }
+    model.CommitModel(std::move(trees), i);
+  }
+
   return model;
 }
 
@@ -273,8 +286,9 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
     std::string name, Args kwargs, size_t kRows, size_t kCols,
     LearnerModelParam const* learner_model_param,
     GenericParameter const* generic_param) {
+  auto caches = std::make_shared< PredictionContainer >();;
   std::unique_ptr<GradientBooster> gbm {
-    GradientBooster::Create(name, generic_param, learner_model_param, {})};
+    GradientBooster::Create(name, generic_param, learner_model_param)};
   gbm->Configure(kwargs);
   auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
   auto p_dmat = *pp_dmat;
@@ -291,7 +305,9 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
     h_gpair[i] = {static_cast<float>(i), 1};
   }
 
-  gbm->DoBoost(p_dmat.get(), &gpair, nullptr);
+  PredictionCacheEntry predts;
+
+  gbm->DoBoost(p_dmat.get(), &gpair, &predts);
 
   delete pp_dmat;
   return gbm;

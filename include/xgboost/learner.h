@@ -11,6 +11,7 @@
 #include <rabit/rabit.h>
 #include <xgboost/base.h>
 #include <xgboost/feature_map.h>
+#include <xgboost/predictor.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
@@ -28,6 +29,22 @@ class GradientBooster;
 class ObjFunction;
 class DMatrix;
 class Json;
+
+/*! \brief entry to to easily hold returning information */
+struct XGBAPIThreadLocalEntry {
+  /*! \brief result holder for returning string */
+  std::string ret_str;
+  /*! \brief result holder for returning strings */
+  std::vector<std::string> ret_vec_str;
+  /*! \brief result holder for returning string pointers */
+  std::vector<const char *> ret_vec_charp;
+  /*! \brief returning float vector. */
+  std::vector<bst_float> ret_vec_float;
+  /*! \brief temp variable of gradient pairs. */
+  std::vector<GradientPair> tmp_gpair;
+  PredictionCacheEntry prediction_entry;
+};
+
 
 /*!
  * \brief Learner class that does training and prediction.
@@ -87,6 +104,7 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
    * \param out_preds output vector that stores the prediction
    * \param ntree_limit limit number of trees used for boosted tree
    *   predictor, when it equals 0, this means we are using all the trees
+   * \param training Whether the prediction result is used for training
    * \param pred_leaf whether to only predict the leaf index of each tree in a boosted tree predictor
    * \param pred_contribs whether to only predict the feature contributions
    * \param approx_contribs whether to approximate the feature contributions for speed
@@ -166,6 +184,8 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
   virtual std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                              bool with_stats,
                                              std::string format) const = 0;
+
+  virtual XGBAPIThreadLocalEntry& GetThreadLocal() const = 0;
   /*!
    * \brief Create a new instance of learner.
    * \param cache_data The matrix to cache the prediction.

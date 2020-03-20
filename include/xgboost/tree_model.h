@@ -65,6 +65,7 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
     DMLC_DECLARE_FIELD(num_nodes).set_lower_bound(1).set_default(1);
     DMLC_DECLARE_FIELD(num_feature)
         .describe("Number of features used in tree construction.");
+    DMLC_DECLARE_FIELD(num_deleted);
     DMLC_DECLARE_FIELD(size_leaf_vector).set_lower_bound(0).set_default(0)
         .describe("Size of leaf vector, reserved for vector tree");
   }
@@ -99,13 +100,14 @@ struct RTreeNodeStat {
  */
 class RegTree : public Model {
  public:
-  /*! \brief auxiliary statistics of node to help tree building */
   using SplitCondT = bst_float;
   static constexpr int32_t kInvalidNodeId {-1};
+  static constexpr uint32_t kDeletedNodeMarker = std::numeric_limits<uint32_t>::max();
+
   /*! \brief tree node */
   class Node {
    public:
-    Node()  {
+    XGBOOST_DEVICE Node()  {
       // assert compact alignment
       static_assert(sizeof(Node) == 4 * sizeof(int) + sizeof(Info),
                     "Node: 64 bit align");
@@ -113,6 +115,7 @@ class RegTree : public Model {
     Node(int32_t cleft, int32_t cright, int32_t parent,
          uint32_t split_ind, float split_cond, bool default_left) :
         parent_{parent}, cleft_{cleft}, cright_{cright} {
+      this->SetParent(parent_);
       this->SetSplit(split_ind, split_cond, default_left);
     }
 
@@ -158,7 +161,7 @@ class RegTree : public Model {
     }
     /*! \brief whether this node is deleted */
     XGBOOST_DEVICE bool IsDeleted() const {
-      return sindex_ == std::numeric_limits<unsigned>::max();
+      return sindex_ == kDeletedNodeMarker;
     }
     /*! \brief whether current node is root */
     XGBOOST_DEVICE bool IsRoot() const { return parent_ == kInvalidNodeId; }
@@ -201,7 +204,7 @@ class RegTree : public Model {
     }
     /*! \brief mark that this node is deleted */
     XGBOOST_DEVICE void MarkDelete() {
-      this->sindex_ = std::numeric_limits<unsigned>::max();
+      this->sindex_ = kDeletedNodeMarker;
     }
     /*! \brief Reuse this deleted node. */
     XGBOOST_DEVICE void Reuse() {
@@ -318,6 +321,13 @@ class RegTree : public Model {
     return nodes_ == b.nodes_ && stats_ == b.stats_ &&
            deleted_nodes_ == b.deleted_nodes_ && param == b.param;
   }
+  /*!
+   * \brief Compares whether 2 trees are equal from a user's perspective.  The equality
+   *        compares only non-deleted nodes.
+   *
+   * \parm b The other tree.
+   */
+  bool Equal(const RegTree& b) const;
 
   /**
    * \brief Expands a leaf node into two additional leaf nodes.
@@ -422,7 +432,7 @@ class RegTree : public Model {
      * \param i feature index.
      * \return the i-th feature value
      */
-    bst_float Fvalue(size_t i) const;
+    bst_float GetFvalue(size_t i) const;
     /*!
      * \brief check whether i-th entry is missing
      * \param i feature index.
@@ -534,6 +544,13 @@ class RegTree : public Model {
   // delete a tree node, keep the parent field to allow trace back
   void DeleteNode(int nid) {
     CHECK_GE(nid, 1);
+    auto pid = (*this)[nid].Parent();
+    if (nid == (*this)[pid].LeftChild()) {
+      (*this)[pid].SetLeftChild(kInvalidNodeId);
+    } else {
+      (*this)[pid].SetRightChild(kInvalidNodeId);
+    }
+
     deleted_nodes_.push_back(nid);
     nodes_[nid].MarkDelete();
     ++param.num_deleted;
@@ -548,16 +565,20 @@ inline void RegTree::FVec::Init(size_t size) {
 }
 
 inline void RegTree::FVec::Fill(const SparsePage::Inst& inst) {
-  for (bst_uint i = 0; i < inst.size(); ++i) {
-    if (inst[i].index >= data_.size()) continue;
-    data_[inst[i].index].fvalue = inst[i].fvalue;
+  for (auto const& entry : inst) {
+    if (entry.index >= data_.size()) {
+      continue;
+    }
+    data_[entry.index].fvalue = entry.fvalue;
   }
 }
 
 inline void RegTree::FVec::Drop(const SparsePage::Inst& inst) {
-  for (bst_uint i = 0; i < inst.size(); ++i) {
-    if (inst[i].index >= data_.size()) continue;
-    data_[inst[i].index].flag = -1;
+  for (auto const& entry : inst) {
+    if (entry.index >= data_.size()) {
+      continue;
+    }
+    data_[entry.index].flag = -1;
   }
 }
 
@@ -565,7 +586,7 @@ inline size_t RegTree::FVec::Size() const {
   return data_.size();
 }
 
-inline bst_float RegTree::FVec::Fvalue(size_t i) const {
+inline bst_float RegTree::FVec::GetFvalue(size_t i) const {
   return data_[i].fvalue;
 }
 
@@ -577,7 +598,7 @@ inline int RegTree::GetLeafIndex(const RegTree::FVec& feat) const {
   bst_node_t nid = 0;
   while (!(*this)[nid].IsLeaf()) {
     unsigned split_index = (*this)[nid].SplitIndex();
-    nid = this->GetNext(nid, feat.Fvalue(split_index), feat.IsMissing(split_index));
+    nid = this->GetNext(nid, feat.GetFvalue(split_index), feat.IsMissing(split_index));
   }
   return nid;
 }

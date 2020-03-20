@@ -111,7 +111,7 @@ __model_doc = '''
         Used for boosting random forest.
     monotone_constraints : str
         Constraint of variable monotonicity.  See tutorial for more
-        information.c
+        information.
     interaction_constraints : str
         Constraints for interaction representing permitted interactions.  The
         constraints must be specified in the form of a nest list, e.g. [[0, 1],
@@ -423,8 +423,8 @@ class XGBModel(XGBModelBase):
                 self.classes_ = np.array(v)
                 continue
             if k == 'type' and type(self).__name__ != v:
-                msg = f'Current model type: {type(self).__name__}, ' + \
-                    f'type of model in file: {v}'
+                msg = 'Current model type: {}, '.format(type(self).__name__) + \
+                      'type of model in file: {}'.format(v)
                 raise TypeError(msg)
             if k == 'type':
                 continue

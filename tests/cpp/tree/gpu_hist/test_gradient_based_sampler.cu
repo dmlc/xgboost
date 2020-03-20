@@ -3,6 +3,7 @@
 #include "../../../../src/data/ellpack_page.cuh"
 #include "../../../../src/tree/gpu_hist/gradient_based_sampler.cuh"
 #include "../../helpers.h"
+#include "dmlc/filesystem.h"
 
 namespace xgboost {
 namespace tree {
@@ -26,10 +27,10 @@ void VerifySampling(size_t page_size,
   }
   gpair.SetDevice(0);
 
-  BatchParam param{0, 256, 0, page_size};
+  BatchParam param{0, 256, page_size};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
   if (page_size != 0) {
-    EXPECT_NE(page->matrix.n_rows, kRows);
+    EXPECT_NE(page->n_rows, kRows);
   }
 
   GradientBasedSampler sampler(page, kRows, param, subsample, sampling_method);
@@ -37,12 +38,12 @@ void VerifySampling(size_t page_size,
 
   if (fixed_size_sampling) {
     EXPECT_EQ(sample.sample_rows, kRows);
-    EXPECT_EQ(sample.page->matrix.n_rows, kRows);
+    EXPECT_EQ(sample.page->n_rows, kRows);
     EXPECT_EQ(sample.gpair.size(), kRows);
   } else {
-    EXPECT_NEAR(sample.sample_rows, sample_rows, kRows * 0.012f);
-    EXPECT_NEAR(sample.page->matrix.n_rows, sample_rows, kRows * 0.012f);
-    EXPECT_NEAR(sample.gpair.size(), sample_rows, kRows * 0.012f);
+    EXPECT_NEAR(sample.sample_rows, sample_rows, kRows * 0.016);
+    EXPECT_NEAR(sample.page->n_rows, sample_rows, kRows * 0.016f);
+    EXPECT_NEAR(sample.gpair.size(), sample_rows, kRows * 0.016f);
   }
 
   GradientPair sum_sampled_gpair{};
@@ -52,11 +53,11 @@ void VerifySampling(size_t page_size,
     sum_sampled_gpair += gp;
   }
   if (check_sum) {
-    EXPECT_NEAR(sum_gpair.GetGrad(), sum_sampled_gpair.GetGrad(), 0.02f * kRows);
-    EXPECT_NEAR(sum_gpair.GetHess(), sum_sampled_gpair.GetHess(), 0.02f * kRows);
+    EXPECT_NEAR(sum_gpair.GetGrad(), sum_sampled_gpair.GetGrad(), 0.03f * kRows);
+    EXPECT_NEAR(sum_gpair.GetHess(), sum_sampled_gpair.GetHess(), 0.03f * kRows);
   } else {
-    EXPECT_NEAR(sum_gpair.GetGrad() / kRows, sum_sampled_gpair.GetGrad() / sample_rows, 0.02f);
-    EXPECT_NEAR(sum_gpair.GetHess() / kRows, sum_sampled_gpair.GetHess() / sample_rows, 0.02f);
+    EXPECT_NEAR(sum_gpair.GetGrad() / kRows, sum_sampled_gpair.GetGrad() / sample_rows, 0.03f);
+    EXPECT_NEAR(sum_gpair.GetHess() / kRows, sum_sampled_gpair.GetHess() / sample_rows, 0.03f);
   }
 }
 
@@ -81,9 +82,9 @@ TEST(GradientBasedSampler, NoSampling_ExternalMemory) {
   auto gpair = GenerateRandomGradients(kRows);
   gpair.SetDevice(0);
 
-  BatchParam param{0, 256, 0, kPageSize};
+  BatchParam param{0, 256, kPageSize};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
-  EXPECT_NE(page->matrix.n_rows, kRows);
+  EXPECT_NE(page->n_rows, kRows);
 
   GradientBasedSampler sampler(page, kRows, param, kSubsample, TrainParam::kUniform);
   auto sample = sampler.Sample(gpair.DeviceSpan(), dmat.get());
@@ -91,21 +92,19 @@ TEST(GradientBasedSampler, NoSampling_ExternalMemory) {
   EXPECT_EQ(sample.sample_rows, kRows);
   EXPECT_EQ(sample.gpair.size(), gpair.Size());
   EXPECT_EQ(sample.gpair.data(), gpair.DevicePointer());
-  EXPECT_EQ(sampled_page->matrix.n_rows, kRows);
+  EXPECT_EQ(sampled_page->n_rows, kRows);
 
-  std::vector<common::CompressedByteT> buffer(sampled_page->gidx_buffer.size());
-  dh::CopyDeviceSpanToVector(&buffer, sampled_page->gidx_buffer);
+  std::vector<common::CompressedByteT> buffer(sampled_page->gidx_buffer.HostVector());
   common::CompressedIterator<common::CompressedByteT>
-      ci(buffer.data(), sampled_page->matrix.info.NumSymbols());
+      ci(buffer.data(), sampled_page->NumSymbols());
 
   size_t offset = 0;
   for (auto& batch : dmat->GetBatches<EllpackPage>(param)) {
     auto page = batch.Impl();
-    std::vector<common::CompressedByteT> page_buffer(page->gidx_buffer.size());
-    dh::CopyDeviceSpanToVector(&page_buffer, page->gidx_buffer);
+    std::vector<common::CompressedByteT> page_buffer(page->gidx_buffer.HostVector());
     common::CompressedIterator<common::CompressedByteT>
-        page_ci(page_buffer.data(), page->matrix.info.NumSymbols());
-    size_t num_elements = page->matrix.n_rows * page->matrix.info.row_stride;
+        page_ci(page_buffer.data(), page->NumSymbols());
+    size_t num_elements = page->n_rows * page->row_stride;
     for (size_t i = 0; i < num_elements; i++) {
       EXPECT_EQ(ci[i + offset], page_ci[i]);
     }

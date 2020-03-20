@@ -53,7 +53,7 @@ def assert_classification_result(results):
                               r["param"]["objective"] != "reg:squarederror"]
     for res in classification_results:
         # Check accuracy  is reasonable
-        assert res["eval"][-1] < 0.5, (res["dataset"].name, res["eval"][-1])
+        assert res["eval"][-1] < 2.0, (res["dataset"].name, res["eval"][-1])
 
 
 class TestLinear(unittest.TestCase):

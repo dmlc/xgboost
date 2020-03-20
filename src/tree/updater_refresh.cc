@@ -36,6 +36,9 @@ class TreeRefresher: public TreeUpdater {
   char const* Name() const override {
     return "refresh";
   }
+  bool CanModifyTree() const override {
+    return true;
+  }
   // update the tree, do pruning
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix *p_fmat,
@@ -119,7 +122,7 @@ class TreeRefresher: public TreeUpdater {
     // tranverse tree
     while (!tree[pid].IsLeaf()) {
       unsigned split_index = tree[pid].SplitIndex();
-      pid = tree.GetNext(pid, feat.Fvalue(split_index), feat.IsMissing(split_index));
+      pid = tree.GetNext(pid, feat.GetFvalue(split_index), feat.IsMissing(split_index));
       gstats[pid].Add(gpair[ridx]);
     }
   }

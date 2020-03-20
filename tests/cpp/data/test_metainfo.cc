@@ -4,7 +4,6 @@
 #include <xgboost/data.h>
 #include <string>
 #include <memory>
-#include "../../../src/data/simple_csr_source.h"
 #include "../../../src/common/version.h"
 
 #include "../helpers.h"

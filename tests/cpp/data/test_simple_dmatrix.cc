@@ -5,6 +5,7 @@
 
 #include "../../../src/data/adapter.h"
 #include "../helpers.h"
+#include "xgboost/base.h"
 
 using namespace xgboost;  // NOLINT
 
@@ -51,9 +52,6 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   CreateSimpleTestData(tmp_file);
   xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file, true, false);
 
-  // Sorted column access
-  EXPECT_EQ(dmat->GetColDensity(0), 1);
-  EXPECT_EQ(dmat->GetColDensity(1), 0.5);
   ASSERT_TRUE(dmat->SingleColBlock());
 
   // Loop over the batches and assert the data is as expected
@@ -188,10 +186,8 @@ TEST(SimpleDMatrix, FromFile) {
   CreateBigTestData(filename, 3 * 5);
   std::unique_ptr<dmlc::Parser<uint32_t>> parser(
       dmlc::Parser<uint32_t>::Create(filename.c_str(), 0, 1, "auto"));
-  data::FileAdapter adapter(parser.get());
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           1);
-  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+
+  auto verify_batch = [](SparsePage const &batch) {
     EXPECT_EQ(batch.Size(), 5);
     EXPECT_EQ(batch.offset.HostVector(),
               std::vector<bst_row_t>({0, 3, 6, 9, 12, 15}));
@@ -208,6 +204,16 @@ TEST(SimpleDMatrix, FromFile) {
         EXPECT_EQ(batch[i][2].index, 4);
       }
     }
+  };
+
+  constexpr bst_feature_t kCols = 5;
+  data::FileAdapter adapter(parser.get());
+  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
+                           1);
+  ASSERT_EQ(dmat.Info().num_col_, kCols);
+
+  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+    verify_batch(batch);
   }
 }
 
@@ -254,3 +260,33 @@ TEST(SimpleDMatrix, Slice) {
 
   delete pp_dmat;
 };
+
+TEST(SimpleDMatrix, SaveLoadBinary) {
+  dmlc::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  CreateSimpleTestData(tmp_file);
+  xgboost::DMatrix * dmat = xgboost::DMatrix::Load(tmp_file, true, false);
+  data::SimpleDMatrix *simple_dmat = dynamic_cast<data::SimpleDMatrix*>(dmat);
+
+  const std::string tmp_binfile = tempdir.path + "/csr_source.binary";
+  simple_dmat->SaveToLocalFile(tmp_binfile);
+  xgboost::DMatrix * dmat_read = xgboost::DMatrix::Load(tmp_binfile, true, false);
+
+  EXPECT_EQ(dmat->Info().num_col_, dmat_read->Info().num_col_);
+  EXPECT_EQ(dmat->Info().num_row_, dmat_read->Info().num_row_);
+  EXPECT_EQ(dmat->Info().num_row_, dmat_read->Info().num_row_);
+
+  // Test we have non-empty batch
+  EXPECT_EQ(dmat->GetBatches<xgboost::SparsePage>().begin().AtEnd(), false);
+
+  auto row_iter = dmat->GetBatches<xgboost::SparsePage>().begin();
+  auto row_iter_read = dmat_read->GetBatches<xgboost::SparsePage>().begin();
+  // Test the data read into the first row
+  auto first_row = (*row_iter)[0];
+  auto first_row_read = (*row_iter_read)[0];
+  EXPECT_EQ(first_row.size(), first_row_read.size());
+  EXPECT_EQ(first_row[2].index, first_row_read[2].index);
+  EXPECT_EQ(first_row[2].fvalue, first_row_read[2].fvalue);
+  delete dmat;
+  delete dmat_read;
+}

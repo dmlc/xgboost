@@ -68,8 +68,9 @@ class Metric : public Configurable {
   /*!
    * \brief create a metric according to name.
    * \param name name of the metric.
-   *  name can be in form metric[@]param
-   *  and the name will be matched in the registry.
+   *        name can be in form metric[@]param and the name will be matched in the
+   *        registry.
+   * \param tparam A global generic parameter
    * \return the created metric.
    */
   static Metric* Create(const std::string& name, GenericParameter const* tparam);

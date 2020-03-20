@@ -8,7 +8,9 @@
 #include <thrust/system/cuda/error.h>
 #include <thrust/system_error.h>
 #include <thrust/logical.h>
+#include <thrust/gather.h>
 
+#include <omp.h>
 #include <rabit/rabit.h>
 #include <cub/cub.cuh>
 #include <cub/util_allocator.cuh>
@@ -376,6 +378,11 @@ public:
   {
     return stats_.peak_allocated_bytes;
   }
+  void Clear()
+  {
+    stats_ = DeviceStats();
+  }
+
   void Log() {
     if (!xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug))
       return;
@@ -473,7 +480,8 @@ struct XGBCachingDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
 template <typename T>
 using XGBDeviceAllocator = detail::XGBDefaultDeviceAllocatorImpl<T>;
 /*! Be careful that the initialization constructor is a no-op, which means calling
- *  `vec.resize(n, 1)` won't initialize the memory region to 1. */
+ *  `vec.resize(n)` won't initialize the memory region to 0. Instead use
+ * `vec.resize(n, 0)`*/
 template <typename T>
 using XGBCachingDeviceAllocator = detail::XGBCachingDeviceAllocatorImpl<T>;
 /** \brief Specialisation of thrust device vector using custom allocator. */
@@ -1284,6 +1292,175 @@ template <typename T>
 thrust::device_ptr<T const> tcend(xgboost::common::Span<T> const& span) {
   return tcbegin(span) + span.size();
 }
+
+// This type sorts an array which is divided into multiple groups. The sorting is influenced
+// by the function object 'Comparator'
+template <typename T>
+class SegmentSorter {
+ private:
+  // Items sorted within the group
+  caching_device_vector<T> ditems_;
+
+  // Original position of the items before they are sorted descendingly within its groups
+  caching_device_vector<uint32_t> doriginal_pos_;
+
+  // Segments within the original list that delineates the different groups
+  caching_device_vector<uint32_t> group_segments_;
+
+  // Need this on the device as it is used in the kernels
+  caching_device_vector<uint32_t> dgroups_;       // Group information on device
+
+  // Where did the item that was originally present at position 'x' move to after they are sorted
+  caching_device_vector<uint32_t> dindexable_sorted_pos_;
+
+  // Initialize everything but the segments
+  void Init(uint32_t num_elems) {
+    ditems_.resize(num_elems);
+
+    doriginal_pos_.resize(num_elems);
+    thrust::sequence(doriginal_pos_.begin(), doriginal_pos_.end());
+  }
+
+  // Initialize all with group info
+  void Init(const std::vector<uint32_t> &groups) {
+    uint32_t num_elems = groups.back();
+    this->Init(num_elems);
+    this->CreateGroupSegments(groups);
+  }
+
+ public:
+  // This needs to be public due to device lambda
+  void CreateGroupSegments(const std::vector<uint32_t> &groups) {
+    uint32_t num_elems = groups.back();
+    group_segments_.resize(num_elems, 0);
+
+    dgroups_ = groups;
+
+    if (GetNumGroups() == 1) return;  // There are no segments; hence, no need to compute them
+
+    // Define the segments by assigning a group ID to each element
+    const uint32_t *dgroups = dgroups_.data().get();
+    uint32_t ngroups = dgroups_.size();
+    auto ComputeGroupIDLambda = [=] __device__(uint32_t idx) {
+      return dh::UpperBound(dgroups, ngroups, idx) - 1;
+    };  // NOLINT
+
+    thrust::transform(thrust::make_counting_iterator(static_cast<uint32_t>(0)),
+                      thrust::make_counting_iterator(num_elems),
+                      group_segments_.begin(),
+                      ComputeGroupIDLambda);
+  }
+
+  // Accessors that returns device pointer
+  inline uint32_t GetNumItems() const { return ditems_.size(); }
+  inline const xgboost::common::Span<const T> GetItemsSpan() const {
+    return { ditems_.data().get(), ditems_.size() };
+  }
+
+  inline const xgboost::common::Span<const uint32_t> GetOriginalPositionsSpan() const {
+    return { doriginal_pos_.data().get(), doriginal_pos_.size() };
+  }
+
+  inline const xgboost::common::Span<const uint32_t> GetGroupSegmentsSpan() const {
+    return { group_segments_.data().get(), group_segments_.size() };
+  }
+
+  inline uint32_t GetNumGroups() const { return dgroups_.size() - 1; }
+  inline const xgboost::common::Span<const uint32_t> GetGroupsSpan() const {
+    return { dgroups_.data().get(), dgroups_.size() };
+  }
+
+  inline const xgboost::common::Span<const uint32_t> GetIndexableSortedPositionsSpan() const {
+    return { dindexable_sorted_pos_.data().get(), dindexable_sorted_pos_.size() };
+  }
+
+  // Sort an array that is divided into multiple groups. The array is sorted within each group.
+  // This version provides the group information that is on the host.
+  // The array is sorted based on an adaptable binary predicate. By default a stateless predicate
+  // is used.
+  template <typename Comparator = thrust::greater<T>>
+  void SortItems(const T *ditems, uint32_t item_size, const std::vector<uint32_t> &groups,
+                 const Comparator &comp = Comparator()) {
+    this->Init(groups);
+    this->SortItems(ditems, item_size, this->GetGroupSegmentsSpan(), comp);
+  }
+
+  // Sort an array that is divided into multiple groups. The array is sorted within each group.
+  // This version provides the group information that is on the device.
+  // The array is sorted based on an adaptable binary predicate. By default a stateless predicate
+  // is used.
+  template <typename Comparator = thrust::greater<T>>
+  void SortItems(const T *ditems, uint32_t item_size,
+                 const xgboost::common::Span<const uint32_t> &group_segments,
+                 const Comparator &comp = Comparator()) {
+    this->Init(item_size);
+
+    // Sort the items that are grouped. We would like to avoid using predicates to perform the sort,
+    // as thrust resorts to using a merge sort as opposed to a much much faster radix sort
+    // when comparators are used. Hence, the following algorithm is used. This is done so that
+    // we can grab the appropriate related values from the original list later, after the
+    // items are sorted.
+    //
+    // Here is the internal representation:
+    // dgroups_:          [ 0, 3, 5, 8, 10 ]
+    // group_segments_:   0 0 0 | 1 1 | 2 2 2 | 3 3
+    // doriginal_pos_:    0 1 2 | 3 4 | 5 6 7 | 8 9
+    // ditems_:           1 0 1 | 2 1 | 1 3 3 | 4 4 (from original items)
+    //
+    // Sort the items first and make a note of the original positions in doriginal_pos_
+    // based on the sort
+    // ditems_:           4 4 3 3 2 1 1 1 1 0
+    // doriginal_pos_:    8 9 6 7 3 0 2 4 5 1
+    // NOTE: This consumes space, but is much faster than some of the other approaches - sorting
+    //       in kernel, sorting using predicates etc.
+
+    ditems_.assign(thrust::device_ptr<const T>(ditems),
+                   thrust::device_ptr<const T>(ditems) + item_size);
+
+    // Allocator to be used by sort for managing space overhead while sorting
+    dh::XGBCachingDeviceAllocator<char> alloc;
+
+    thrust::stable_sort_by_key(thrust::cuda::par(alloc),
+                               ditems_.begin(), ditems_.end(),
+                               doriginal_pos_.begin(), comp);
+
+    if (GetNumGroups() == 1) return;  // The entire array is sorted, as it isn't segmented
+
+    // Next, gather the segments based on the doriginal_pos_. This is to reflect the
+    // holisitic item sort order on the segments
+    // group_segments_c_:   3 3 2 2 1 0 0 1 2 0
+    // doriginal_pos_:      8 9 6 7 3 0 2 4 5 1 (stays the same)
+    caching_device_vector<uint32_t> group_segments_c(item_size);
+    thrust::gather(doriginal_pos_.begin(), doriginal_pos_.end(),
+                   dh::tcbegin(group_segments), group_segments_c.begin());
+
+    // Now, sort the group segments so that you may bring the items within the group together,
+    // in the process also noting the relative changes to the doriginal_pos_ while that happens
+    // group_segments_c_:   0 0 0 1 1 2 2 2 3 3
+    // doriginal_pos_:      0 2 1 3 4 6 7 5 8 9
+    thrust::stable_sort_by_key(thrust::cuda::par(alloc),
+                               group_segments_c.begin(), group_segments_c.end(),
+                               doriginal_pos_.begin(), thrust::less<uint32_t>());
+
+    // Finally, gather the original items based on doriginal_pos_ to sort the input and
+    // to store them in ditems_
+    // doriginal_pos_:      0 2 1 3 4 6 7 5 8 9  (stays the same)
+    // ditems_:             1 1 0 2 1 3 3 1 4 4  (from unsorted items - ditems)
+    thrust::gather(doriginal_pos_.begin(), doriginal_pos_.end(),
+                   thrust::device_ptr<const T>(ditems), ditems_.begin());
+  }
+
+  // Determine where an item that was originally present at position 'x' has been relocated to
+  // after a sort. Creation of such an index has to be explicitly requested after a sort
+  void CreateIndexableSortedPositions() {
+    dindexable_sorted_pos_.resize(GetNumItems());
+    thrust::scatter(thrust::make_counting_iterator(static_cast<uint32_t>(0)),
+                    thrust::make_counting_iterator(GetNumItems()),  // Rearrange indices...
+                    // ...based on this map
+                    dh::tcbegin(GetOriginalPositionsSpan()),
+                    dindexable_sorted_pos_.begin());  // Write results into this
+  }
+};
 
 template <typename FunctionT>
 class LauncherItr {

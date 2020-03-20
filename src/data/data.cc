@@ -12,9 +12,9 @@
 #include "xgboost/version_config.h"
 #include "sparse_page_writer.h"
 #include "simple_dmatrix.h"
-#include "simple_csr_source.h"
 
 #include "../common/io.h"
+#include "../common/math.h"
 #include "../common/version.h"
 #include "../common/group_data.h"
 #include "../data/adapter.h"
@@ -354,10 +354,8 @@ DMatrix* DMatrix::Load(const std::string& uri,
     if (fi != nullptr) {
       common::PeekableInStream is(fi.get());
       if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic) &&
-        magic == data::SimpleCSRSource::kMagic) {
-        std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
-        source->LoadBinary(&is);
-        DMatrix* dmat = DMatrix::Create(std::move(source), cache_file);
+        magic == data::SimpleDMatrix::kMagic) {
+        DMatrix* dmat = new data::SimpleDMatrix(&is);
         if (!silent) {
           LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
             << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
@@ -430,13 +428,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
 }
 
 
-void DMatrix::SaveToLocalFile(const std::string& fname) {
-  data::SimpleCSRSource source;
-  source.CopyFrom(this);
-  std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
-  source.SaveBinary(fo.get());
-}
-
+/*
 DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
                          const std::string& cache_prefix) {
   if (cache_prefix.length() == 0) {
@@ -452,6 +444,7 @@ DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
 #endif  // DMLC_ENABLE_STD_THREAD
   }
 }
+*/
 
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
@@ -487,6 +480,9 @@ template DMatrix* DMatrix::Create<data::FileAdapter>(
     const std::string& cache_prefix, size_t page_size);
 template DMatrix* DMatrix::Create<data::DMatrixSliceAdapter>(
     data::DMatrixSliceAdapter* adapter, float missing, int nthread,
+    const std::string& cache_prefix, size_t page_size);
+template DMatrix* DMatrix::Create<data::IteratorAdapter>(
+    data::IteratorAdapter* adapter, float missing, int nthread,
     const std::string& cache_prefix, size_t page_size);
 
 SparsePage SparsePage::GetTranspose(int num_columns) const {
@@ -569,15 +565,15 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     int tid = omp_get_thread_num();
     auto line = batch.GetLine(i);
     for (auto j = 0ull; j < line.Size(); j++) {
-      auto element = line.GetElement(j);
+      data::COOTuple element = line.GetElement(j);
       max_columns =
           std::max(max_columns, static_cast<uint64_t>(element.column_idx + 1));
       if (!common::CheckNAN(element.value) && element.value != missing) {
-        size_t key = element.row_idx -
-                     base_rowid;  // Adapter row index is absolute, here we want
-                                  // it relative to current page
+        size_t key = element.row_idx - base_rowid;
+        // Adapter row index is absolute, here we want it relative to
+        // current page
         CHECK_GE(key,  builder_base_row_offset);
-        builder.AddBudget(element.row_idx - base_rowid, tid);
+        builder.AddBudget(key, tid);
       }
     }
   }

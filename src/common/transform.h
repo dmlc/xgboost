@@ -105,6 +105,17 @@ class Transform {
       return Span<T const> {_vec->ConstHostPointer(),
             static_cast<typename Span<T>::index_type>(_vec->Size())};
     }
+    // Recursive sync host
+    template <typename T>
+    void SyncHost(const HostDeviceVector<T> *_vector) const {
+      _vector->ConstHostPointer();
+    }
+    template <typename Head, typename... Rest>
+    void SyncHost(const HostDeviceVector<Head> *_vector,
+                  const HostDeviceVector<Rest> *... _vectors) const {
+      _vector->ConstHostPointer();
+      SyncHost(_vectors...);
+    }
     // Recursive unpack for Shard.
     template <typename T>
     void UnpackShard(int device, const HostDeviceVector<T> *vector) const {
@@ -154,6 +165,7 @@ class Transform {
     void LaunchCPU(Functor func, HDV*... vectors) const {
       omp_ulong end = static_cast<omp_ulong>(*(range_.end()));
       dmlc::OMPException omp_exc;
+      SyncHost(vectors...);
 #pragma omp parallel for schedule(static)
       for (omp_ulong idx = 0; idx < end; ++idx) {
         omp_exc.Run(func, idx, UnpackHDV(vectors)...);
@@ -181,8 +193,7 @@ class Transform {
    * \param func    A callable object, accepting a size_t thread index,
    *                  followed by a set of Span classes.
    * \param range   Range object specifying parallel threads index range.
-   * \param devices GPUSet specifying GPUs to use, when compiling for CPU,
-   *                  this should be GPUSet::Empty().
+   * \param device  Specify GPU to use.
    * \param shard Whether Shard for HostDeviceVector is needed.
    */
   template <typename Functor>

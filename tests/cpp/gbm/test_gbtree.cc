@@ -10,6 +10,7 @@
 #include "xgboost/learner.h"
 #include "../helpers.h"
 #include "../../../src/gbm/gbtree.h"
+#include "xgboost/predictor.h"
 
 namespace xgboost {
 TEST(GBTree, SelectTreeMethod) {
@@ -22,9 +23,8 @@ TEST(GBTree, SelectTreeMethod) {
   mparam.num_feature = kCols;
   mparam.num_output_group = 1;
 
-  std::vector<std::shared_ptr<DMatrix> > caches;
   std::unique_ptr<GradientBooster> p_gbm {
-    GradientBooster::Create("gbtree", &generic_param, &mparam, caches)};
+    GradientBooster::Create("gbtree", &generic_param, &mparam)};
   auto& gbtree = dynamic_cast<gbm::GBTree&> (*p_gbm);
 
   // Test if `tree_method` can be set
@@ -49,6 +49,22 @@ TEST(GBTree, SelectTreeMethod) {
   gbtree.Configure({{"booster", "dart"}, {"tree_method", "gpu_hist"}});
   ASSERT_EQ(tparam.updater_seq, "grow_gpu_hist");
 #endif  // XGBOOST_USE_CUDA
+}
+
+TEST(GBTree, WrongUpdater) {
+  size_t constexpr kRows = 17;
+  size_t constexpr kCols = 15;
+
+  auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
+  std::shared_ptr<DMatrix> p_dmat {*pp_dmat};
+
+  p_dmat->Info().labels_.Resize(kRows);
+
+  auto learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
+  // Hist can not be used for updating tree.
+  learner->SetParams(Args{{"tree_method", "hist"}, {"process_type", "update"}});
+  ASSERT_THROW(learner->UpdateOneIter(0, p_dmat), dmlc::Error);
+  delete pp_dmat;
 }
 
 #ifdef XGBOOST_USE_CUDA
