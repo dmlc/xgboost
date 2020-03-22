@@ -663,7 +663,11 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
  * \brief fill a histogram by zeroes
  */
 void InitilizeHistByZeroes(GHistRow hist, size_t begin, size_t end) {
+#if defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
+  std::fill(hist.begin() + begin, hist.begin() + end, tree::GradStats());
+#else  // defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
   memset(hist.data() + begin, '\0', (end-begin)*sizeof(tree::GradStats));
+#endif  // defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
 }
 
 /*!

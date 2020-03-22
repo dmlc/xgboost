@@ -15,15 +15,15 @@
 #include "xgboost/base.h"
 #include "xgboost/tree_model.h"
 
-#if defined(XGBOOST_STRICT_R_MODE)
+#if defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
 #define OBSERVER_PRINT LOG(INFO)
 #define OBSERVER_ENDL ""
 #define OBSERVER_NEWLINE ""
-#else
+#else  // defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
 #define OBSERVER_PRINT std::cout
 #define OBSERVER_ENDL std::endl
 #define OBSERVER_NEWLINE "\n"
-#endif  // defined(XGBOOST_STRICT_R_MODE)
+#endif  // defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
 
 namespace xgboost {
 /*\brief  An observer for logging internal data structures.
