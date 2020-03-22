@@ -92,8 +92,7 @@ struct WriteCompressedEllpackFunctor {
 // to remove missing data
 template <typename AdapterBatchT>
 void CopyDataRowMajor(const AdapterBatchT& batch, EllpackPageImpl* dst,
-                      int device_idx, float missing,
-                      common::Span<size_t> row_counts) {
+                      int device_idx, float missing) {
   // Some witchcraft happens here
   // The goal is to copy valid elements out of the input to an ellpack matrix
   // with a given row stride, using no extra working memory Standard stream
@@ -207,6 +206,7 @@ void WriteNullValues(EllpackPageImpl* dst, int device_idx,
     }
   });
 }
+
 // Does not currently support metainfo as no on-device data source contains this
 // Current implementation assumes a single batch. More batches can
 // be supported in future. Does not currently support inferring row/column size
@@ -233,7 +233,7 @@ DeviceDMatrix::DeviceDMatrix(AdapterT* adapter, float missing, int nthread, int 
                       adapter->NumRows());
   if (adapter->IsRowMajor()) {
     CopyDataRowMajor(batch, ellpack_page_->Impl(), adapter->DeviceIdx(),
-                     missing, row_counts_span);
+                     missing);
   } else {
     CopyDataColumnMajor(adapter, batch, ellpack_page_->Impl(), missing);
   }

@@ -95,11 +95,10 @@ struct EllpackDeviceAccessor {
   __device__ uint32_t SearchBin(float value, size_t column_id) const {
     auto beg = feature_segments[column_id];
     auto end = feature_segments[column_id + 1];
-    auto values = gidx_fvalue_map.data();
     auto it =
-        thrust::upper_bound(thrust::seq, values + beg, values + end, value);
-    uint32_t idx = it - values;
-    if (idx == gidx_fvalue_map.size()) {
+        thrust::upper_bound(thrust::seq, gidx_fvalue_map.cbegin()+ beg, gidx_fvalue_map.cbegin() + end, value);
+    uint32_t idx = it - gidx_fvalue_map.cbegin();
+    if (idx == end) {
       idx -= 1;
     }
     return idx;
