@@ -81,5 +81,8 @@ namespace metric {
 DMLC_REGISTRY_LINK_TAG(elementwise_metric);
 DMLC_REGISTRY_LINK_TAG(multiclass_metric);
 DMLC_REGISTRY_LINK_TAG(rank_metric);
+#ifdef XGBOOST_USE_CUDA
+DMLC_REGISTRY_LINK_TAG(rank_metric_gpu);
+#endif
 }  // namespace metric
 }  // namespace xgboost
