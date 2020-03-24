@@ -974,18 +974,20 @@ void QuantileHistMaker::Builder::ApplySplit(const std::vector<ExpandEntry> nodes
   common::ParallelFor2d(space, this->nthread_, [&](size_t node_in_set, common::Range1d r) {
     const int32_t nid = nodes[node_in_set].nid;
       switch (column_matrix.GetTypeSize()) {
-      case 1:
+      case sizeof(uint8_t):
         PartitionKernel<uint8_t>(node_in_set, nid, r,
                   split_conditions[node_in_set], column_matrix, *p_tree);
         break;
-      case 2:
+      case sizeof(uint16_t):
         PartitionKernel<uint16_t>(node_in_set, nid, r,
                   split_conditions[node_in_set], column_matrix, *p_tree);
         break;
-      case 4:
+      case sizeof(uint32_t):
         PartitionKernel<uint32_t>(node_in_set, nid, r,
                   split_conditions[node_in_set], column_matrix, *p_tree);
         break;
+      default:
+        CHECK(false);  // no default behavior
     }
     });
 

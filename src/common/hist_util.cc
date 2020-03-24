@@ -525,10 +525,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
             SetIndexData(index.data<uint32_t>(), batch_threads, batch, rbegin, offsets, nbins);
             break;
           default:
-            BinBounds curent_bound = index.getBinBound();
-            CHECK(curent_bound == UINT8_BINS_TYPE ||
-                  curent_bound == UINT16_BINS_TYPE ||
-                  curent_bound == UINT32_BINS_TYPE);
+            CHECK(false);  // no default behavior
       }
     /* For sparse DMatrix we have to store index of feature for each bin
        in index field to chose right offset. So offset is nullptr and index is not reduced */
@@ -677,10 +674,7 @@ FindGroups(const std::vector<unsigned>& feature_list,
                  &group_conflict_cnt, &conflict_marks, &groups, &group_nnz, cur_fid_nnz, nrow);
         break;
       default:
-        size_t curent_type_size = colmat.GetTypeSize();
-        CHECK(curent_type_size == UINT8_BINS_TYPE ||
-              curent_type_size == UINT16_BINS_TYPE ||
-              curent_type_size == UINT32_BINS_TYPE);
+        CHECK(false);  // no default behavior
     }
   }
   return groups;
@@ -991,6 +985,8 @@ void BuildHistKernel(const std::vector<GradientPair>& gpair,
       BuildHistDispatchKernel<FPType, do_prefetch, uint32_t>(gpair, row_indices,
                                                              gmat, hist, is_dense);
       break;
+    default:
+      CHECK(false);  // no default behavior
   }
 }
 
