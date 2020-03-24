@@ -44,7 +44,7 @@ case "$suite" in
   cudf)
     source activate cudf_test
     install_xgboost
-    pytest -v -s --fulltrace -m "not mgpu" tests/python-gpu/test_from_columnar.py tests/python-gpu/test_from_cupy.py
+    pytest -v -s --fulltrace -m "not mgpu" tests/python-gpu/test_from_cudf.py tests/python-gpu/test_from_cupy.py
     ;;
 
   cpu)

@@ -1002,10 +1002,13 @@ class DMatrix(object):
 
 
 class DeviceQuantileDMatrix(DMatrix):
-    """Device memory Data Matrix used in XGBoost.
+    """Device memory Data Matrix used in XGBoost for training with tree_method='gpu_hist'. Do not
+    use this for test/validation tasks as some information may be lost in quantisation. This
+    DMatrix is primarily designed to save memory in training and avoids intermediate steps,
+    directly creating a compressed representation for training without allocating additional
+    memory. Implementation does not currently consider weights in quantisation process(unlike
+    DMatrix).
 
-    DMatrix is a internal data structure that used by XGBoost
-    which is optimized for both memory efficiency and training speed.
     You can construct DeviceDMatrix from cupy/cudf
     """
 
@@ -1018,7 +1021,6 @@ class DeviceQuantileDMatrix(DMatrix):
         self.max_bin = max_bin
         if not (hasattr(data, "__cuda_array_interface__") or (
                 CUDF_INSTALLED and isinstance(data, CUDF_DataFrame))):
-            print(type(data))
             raise ValueError('Only cupy/cudf currently supported for DeviceDMatrix')
 
         super().__init__(data, label=label, weight=weight, base_margin=base_margin,
