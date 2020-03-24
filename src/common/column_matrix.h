@@ -15,7 +15,7 @@
 namespace xgboost {
 namespace common {
 
-
+class ColumnMatrix;
 /*! \brief column type */
 enum ColumnType {
   kDenseColumn,
@@ -26,47 +26,53 @@ enum ColumnType {
     bin id is stored as index[i] + index_base.
     Different types of column index for each column allow
     to reduce the memory usage. */
-template <typename T>
+template <typename BinIdxType>
 class Column {
  public:
-  Column(ColumnType type, const T* index, uint32_t index_base,
-         const size_t* row_ind, size_t len,
-         const std::vector<bool>& missing_flags,
-         const size_t missing_flags_offset)
+  Column(ColumnType type, common::Span<const BinIdxType> index,
+         uint32_t index_base, const size_t* row_ind,
+         const std::vector<bool>::const_iterator missing_flags)
       : type_(type),
         index_(index),
         index_base_(index_base),
         row_ind_(row_ind),
-        len_(len),
-        missing_flags_(missing_flags),
-        missing_flags_offset_(missing_flags_offset) {}
-  size_t Size() const { return len_; }
+        missing_flags_(missing_flags) {}
+
+  // column.GetGlobalBinIdx(idx) == column.GetFeatureBinIdx(idx) + column.GetBaseIdx(idx)
   uint32_t GetGlobalBinIdx(size_t idx) const { return index_base_ + (uint32_t)(index_[idx]); }
-  T GetFeatureBinIdx(size_t idx) const { return index_[idx]; }
-  common::Span<const T> GetFeatureBinIdxPtr() const { return { index_, len_ }; }
-  // column.GetFeatureBinIdx(idx) + column.GetBaseIdx(idx) ==
-  // column.GetGlobalBinIdx(idx)
+
+  BinIdxType GetFeatureBinIdx(size_t idx) const { return index_[idx]; }
+
   uint32_t GetBaseIdx() const { return index_base_; }
-  ColumnType GetType() const { return type_; }
+
+  common::Span<const BinIdxType> GetFeatureBinIdxPtr() const { return index_; }
+
+  const size_t* GetRowData() const { return row_ind_; }
+
   size_t GetRowIdx(size_t idx) const {
     // clang-tidy worries that row_ind_ might be a nullptr, which is possible,
     // but low level structure is not safe anyway.
     return type_ == ColumnType::kDenseColumn ? idx : row_ind_[idx];// NOLINT
   }
-  bool IsMissing(size_t idx) const {
-    return missing_flags_[missing_flags_offset_ + idx];
-  }
-  const size_t* GetRowData() const { return row_ind_; }
 
-  const std::vector<bool>& missing_flags_;
-  const size_t missing_flags_offset_;
+  ColumnType GetType() const { return type_; }
+
+  bool IsMissing(size_t idx) const { return missing_flags_[idx]; }
+
+  /* returns number of elements in column */
+  size_t Size() const { return index_.size(); }
 
  private:
+  /* type of column */
   ColumnType type_;
-  const T* index_;
+  /* bin indexes in range [0, std::numeric_limits<uint32_t>::max() - 1] */
+  common::Span<const BinIdxType> index_;
+  /* bin index offset for specific feature */
   uint32_t index_base_;
+  /* row_ind_ is nullptr for dense columns */
   const size_t* row_ind_;
-  const size_t len_;
+  /* flags for missing values in dense columns */
+  std::vector<bool>::const_iterator missing_flags_;
 };
 
 /*! \brief a collection of columns, with support for construction from
@@ -128,7 +134,6 @@ class ColumnMatrix {
     // store least bin id for each feature
     index_base_ = const_cast<uint32_t*>(gmat.cut.Ptrs().data());
 
-    // pre-fill index_ for dense columns
     const bool noMissingValues = gmat.row_ptr[nrow] == nrow * nfeature;
 
     if (noMissingValues) {
@@ -137,6 +142,7 @@ class ColumnMatrix {
       missing_flags_.resize(feature_offsets_[nfeature], true);
     }
 
+    // pre-fill index_ for dense columns
     if (all_dense) {
       switch (gmat.index.getBinBound()) {
         case UINT8_BINS_TYPE:
@@ -186,16 +192,22 @@ class ColumnMatrix {
     }
   }
 
-  /* Fetch an individual column. This code should be used with XGBOOST_TYPE_SWITCH
+  /* Fetch an individual column. This code should be used with type swith
      to determine type of bin id's */
-  template <typename T>
-  inline Column<T> GetColumn(unsigned fid) const {
-    Column<T> c(type_[fid],
-                reinterpret_cast<const T*>(&index_[feature_offsets_[fid] * type_size_]),
-                index_base_[fid], (type_[fid] == ColumnType::kSparseColumn ?
-                &row_ind_[feature_offsets_[fid]] : nullptr),
-                feature_offsets_[fid + 1] - feature_offsets_[fid],
-                missing_flags_, feature_offsets_[fid]);
+  template <typename BinIdxType>
+  inline Column<BinIdxType> GetColumn(unsigned fid) const {
+    CHECK_EQ(sizeof(BinIdxType), type_size_);
+
+    const size_t feature_offset = feature_offsets_[fid];  // to get right place for certain feature
+    const size_t column_size = feature_offsets_[fid + 1] - feature_offset;
+    std::vector<bool>::const_iterator column_iterator = missing_flags_.begin();
+    advance(column_iterator, feature_offset);  // increment iterator to right position
+    common::Span<const BinIdxType> bin_index = {reinterpret_cast<const BinIdxType*>(
+                                                &index_[feature_offset * type_size_]), column_size};
+    const size_t* row_index = (type_[fid] == ColumnType::kSparseColumn ?
+                               &row_ind_[feature_offset] : nullptr);
+
+    Column<BinIdxType> c(type_[fid], bin_index, index_base_[fid], row_index, column_iterator);
     return c;
   }
 

@@ -556,7 +556,7 @@ static size_t GetConflictCount(const std::vector<bool>& mark,
   size_t ret = 0;
   if (column.GetType() == xgboost::common::kDenseColumn) {
     for (size_t i = 0; i < column.Size(); ++i) {
-      if (column.GetFeatureBinIdx(i) != std::numeric_limits<uint32_t>::max() && mark[i]) {
+      if ((!column.IsMissing(i)) && mark[i]) {
         ++ret;
         if (ret > max_cnt) {
           return max_cnt + 1;
@@ -582,7 +582,7 @@ MarkUsed(std::vector<bool>* p_mark, const Column<BinIdxType>& column) {
   std::vector<bool>& mark = *p_mark;
   if (column.GetType() == xgboost::common::kDenseColumn) {
     for (size_t i = 0; i < column.Size(); ++i) {
-      if (column.GetFeatureBinIdx(i) != std::numeric_limits<uint32_t>::max()) {
+      if (!column.IsMissing(i)) {
         mark[i] = true;
       }
     }

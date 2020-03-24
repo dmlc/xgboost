@@ -817,25 +817,24 @@ inline std::pair<size_t, size_t> PartitionSparseKernel(
 
   size_t nleft_elems = 0;
   size_t nright_elems = 0;
-
+  const size_t* row_data = column.GetRowData();
+  const size_t column_size = column.Size();
   if (rid_span.size()) {  // ensure that rid_span is nonempty range
     // search first nonzero row with index >= rid_span.front()
-    const size_t* p = std::lower_bound(column.GetRowData(),
-                                       column.GetRowData() + column.Size(),
+    const size_t* p = std::lower_bound(row_data, row_data + column_size,
                                        rid_span.front());
 
-    if (p != column.GetRowData() + column.Size() && *p <= rid_span.back()) {
-      size_t cursor = p - column.GetRowData();
+    if (p != row_data + column_size && *p <= rid_span.back()) {
+      size_t cursor = p - row_data;
 
       for (auto rid : rid_span) {
-        while (cursor < column.Size()
+        while (cursor < column_size
                && column.GetRowIdx(cursor) < rid
                && column.GetRowIdx(cursor) <= rid_span.back()) {
           ++cursor;
         }
-        if (cursor < column.Size() && column.GetRowIdx(cursor) == rid) {
-          const uint32_t rbin = column.GetFeatureBinIdx(cursor);
-          if (static_cast<int32_t>(rbin + column.GetBaseIdx()) <= split_cond) {
+        if (cursor < column_size && column.GetRowIdx(cursor) == rid) {
+          if (static_cast<int32_t>(column.GetGlobalBinIdx(cursor)) <= split_cond) {
             p_left_part[nleft_elems++] = rid;
           } else {
             p_right_part[nright_elems++] = rid;
