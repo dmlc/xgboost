@@ -117,14 +117,16 @@ std::string LoadSequentialFile(std::string fname) {
   size_t f_size_bytes = fs.st_size;
   buffer.resize(f_size_bytes + 1);
   int32_t fd = open(fname.c_str(), O_RDONLY);
+#if defined(__linux__)
   posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif  // defined(__linux__)
   ssize_t bytes_read = read(fd, &buffer[0], f_size_bytes);
   if (bytes_read < 0) {
     close(fd);
     ReadErr();
   }
   close(fd);
-#else
+#else  // defined(__unix__)
   FILE *f = fopen(fname.c_str(), "r");
   if (f == NULL) {
     std::string msg;
