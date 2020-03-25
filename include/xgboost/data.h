@@ -39,7 +39,7 @@ enum class DataType : uint8_t {
 class MetaInfo {
  public:
   /*! \brief number of data fields in MetaInfo */
-  static constexpr uint64_t kNumField = 7;
+  static constexpr uint64_t kNumField = 9;
 
   /*! \brief number of rows in the data */
   uint64_t num_row_{0};
@@ -62,6 +62,14 @@ class MetaInfo {
    * can be used to specify initial prediction to boost from.
    */
   HostDeviceVector<bst_float> base_margin_;
+  /*!
+   * \brief lower bound of the label, to be used for survival analysis (censored regression)
+   */
+  HostDeviceVector<bst_float> labels_lower_bound_;
+  /*!
+   * \brief upper bound of the label, to be used for survival analysis (censored regression)
+   */
+  HostDeviceVector<bst_float> labels_upper_bound_;
 
   /*! \brief default constructor */
   MetaInfo()  = default;

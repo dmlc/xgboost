@@ -14,6 +14,7 @@
 #include "../src/metric/elementwise_metric.cc"
 #include "../src/metric/multiclass_metric.cc"
 #include "../src/metric/rank_metric.cc"
+#include "../src/metric/survival_metric.cc"
 
 // objectives
 #include "../src/objective/objective.cc"
@@ -21,6 +22,7 @@
 #include "../src/objective/multiclass_obj.cc"
 #include "../src/objective/rank_obj.cc"
 #include "../src/objective/hinge.cc"
+#include "../src/objective/aft_obj.cc"
 
 // gbms
 #include "../src/gbm/gbm.cc"
@@ -44,7 +46,7 @@
 #include "../src/data/sparse_page_dmatrix.cc"
 #endif
 
-// tress
+// trees
 #include "../src/tree/param.cc"
 #include "../src/tree/split_evaluator.cc"
 #include "../src/tree/tree_model.cc"
@@ -72,6 +74,8 @@
 #include "../src/common/hist_util.cc"
 #include "../src/common/json.cc"
 #include "../src/common/io.cc"
+#include "../src/common/survival_util.cc"
+#include "../src/common/probability_distribution.cc"
 #include "../src/common/version.cc"
 
 // c_api

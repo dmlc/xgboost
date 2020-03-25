@@ -265,6 +265,10 @@ XGB_DLL int XGDMatrixGetFloatInfo(const DMatrixHandle handle,
     vec = &info.weights_.HostVector();
   } else if (!std::strcmp(field, "base_margin")) {
     vec = &info.base_margin_.HostVector();
+  } else if (!std::strcmp(field, "label_lower_bound")) {
+    vec = &info.labels_lower_bound_.HostVector();
+  } else if (!std::strcmp(field, "label_upper_bound")) {
+    vec = &info.labels_upper_bound_.HostVector();
   } else {
     LOG(FATAL) << "Unknown float field name " << field;
   }
@@ -284,8 +288,7 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
   if (!std::strcmp(field, "group_ptr")) {
     vec = &info.group_ptr_;
   } else {
-    LOG(FATAL) << "Unknown comp uint field name " << field
-      << " with comparison " << std::strcmp(field, "group_ptr");
+    LOG(FATAL) << "Unknown uint field name " << field;
   }
   *out_len = static_cast<xgboost::bst_ulong>(vec->size());
   *out_dptr = dmlc::BeginPtr(*vec);
