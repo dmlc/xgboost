@@ -94,7 +94,7 @@ class AFTObj : public ObjFunction {
 
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["name"] = String("aft:survival");
+    out["name"] = String("survival:aft");
     out["aft_loss_param"] = toJson(param_);
   }
 
@@ -109,7 +109,7 @@ class AFTObj : public ObjFunction {
 };
 
 // register the objective functions
-XGBOOST_REGISTER_OBJECTIVE(AFTObj, "aft:survival")
+XGBOOST_REGISTER_OBJECTIVE(AFTObj, "survival:aft")
 .describe("AFT loss function")
 .set_body([]() { return new AFTObj(); });
 

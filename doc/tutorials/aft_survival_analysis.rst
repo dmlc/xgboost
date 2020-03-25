@@ -110,7 +110,7 @@ Now we are ready to invoke the training API:
 
 .. code-block:: python
 
-  params = {'objective': 'aft:survival',
+  params = {'objective': 'survival:aft',
             'eval_metric': 'aft-nloglik',
             'aft_loss_distribution': 'normal',
             'aft_loss_distribution_scale': 1.20,
@@ -118,7 +118,7 @@ Now we are ready to invoke the training API:
   bst = xgb.train(params, dtrain, num_boost_round=5,
                   evals=[(dtrain, 'train'), (dvalid, 'valid')])
 
-We set ``objective`` parameter to ``aft:survival`` and ``eval_metric`` to ``aft-nloglik``, so that the log likelihood for the AFT model would be maximized. (XGBoost will actually minimize the negative log likelihood, hence the name ``aft-nloglik``.)
+We set ``objective`` parameter to ``survival:aft`` and ``eval_metric`` to ``aft-nloglik``, so that the log likelihood for the AFT model would be maximized. (XGBoost will actually minimize the negative log likelihood, hence the name ``aft-nloglik``.)
 
 The parameter ``aft_loss_distribution`` corresponds to the distribution of the :math:`Z` term in the AFT model, and ``aft_loss_distribution_scale`` corresponds to the scaling factor :math:`\sigma`.
 

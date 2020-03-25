@@ -29,7 +29,7 @@ dvalid.set_float_info('label_upper_bound', y_upper_bound[valid_index])
 
 # Train gradient boosted trees using AFT loss and metric
 params = {'verbosity': 0,
-          'objective': 'aft:survival',
+          'objective': 'survival:aft',
           'eval_metric': 'aft-nloglik',
           'tree_method': 'hist',
           'learning_rate': 0.05,
