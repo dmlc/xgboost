@@ -15,7 +15,7 @@ TEST(GrowHistMaker, InteractionConstraint) {
   GenericParameter param;
   param.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
 
-  auto p_dmat = RandomDataGenerator{kRows, kCols, 0.6}.Seed(3).GenerateDMatix();
+  auto p_dmat = RandomDataGenerator{kRows, kCols, 0.6f}.Seed(3).GenerateDMatix();
 
   HostDeviceVector<GradientPair> gradients (kRows);
   std::vector<GradientPair>& h_gradients = gradients.HostVector();
