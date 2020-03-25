@@ -8,7 +8,7 @@ import xgboost as xgb
 
 # The Veterans' Administration Lung Cancer Trial
 # The Statistical Analysis of Failure Time Data by Kalbfleisch J. and Prentice R (1980)
-df = pd.read_csv('veterans_lung_cancer.csv')
+df = pd.read_csv('../data/veterans_lung_cancer.csv')
 print('Training data:')
 print(df)
 
