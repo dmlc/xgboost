@@ -144,7 +144,7 @@ class SimpleRealUniformDistribution {
                   "Result type must be floating point.");
     long double const r = (static_cast<long double>(rng->Max())
                            - static_cast<long double>(rng->Min())) + 1.0L;
-    size_t const log2r = std::log(r) / std::log(2.0L);
+    auto const log2r = static_cast<size_t>(std::log(r) / std::log(2.0L));
     size_t m = std::max<size_t>(1UL, (Bits + log2r - 1UL) / log2r);
     ResultT sum_value = 0, r_k = 1;
 
@@ -172,7 +172,7 @@ class SimpleRealUniformDistribution {
 // Generate in-memory random data without using DMatrix.
 class RandomDataGenerator {
   bst_row_t rows_;
-  bst_feature_t cols_;
+  size_t cols_;
   float sparsity_;
 
   float lower_;
@@ -182,7 +182,7 @@ class RandomDataGenerator {
   int32_t seed_;
 
  public:
-  RandomDataGenerator(bst_row_t rows, bst_feature_t cols, float sparsity)
+  RandomDataGenerator(bst_row_t rows, size_t cols, float sparsity)
       : rows_{rows}, cols_{cols}, sparsity_{sparsity}, lower_{0.0f}, upper_{1.0f},
         device_{-1}, seed_{0} {}
 
