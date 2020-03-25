@@ -28,7 +28,8 @@ TEST(Updater, Prune) {
   HostDeviceVector<GradientPair> gpair =
       { {0.50f, 0.25f}, {0.50f, 0.25f}, {0.50f, 0.25f}, {0.50f, 0.25f},
         {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f} };
-  auto dmat = CreateDMatrix(32, kCols, 0.4, 3);
+  std::shared_ptr<DMatrix> p_dmat {
+    RandomDataGenerator{32, 10, 0}.GenerateDMatix() };
 
   auto lparam = CreateEmptyGenericParam(GPUIDX);
 
@@ -42,19 +43,19 @@ TEST(Updater, Prune) {
 
   // loss_chg < min_split_loss;
   tree.ExpandNode(0, 0, 0, true, 0.0f, 0.3f, 0.4f, 0.0f, 0.0f);
-  pruner->Update(&gpair, dmat->get(), trees);
+  pruner->Update(&gpair, p_dmat.get(), trees);
 
   ASSERT_EQ(tree.NumExtraNodes(), 0);
 
   // loss_chg > min_split_loss;
   tree.ExpandNode(0, 0, 0, true, 0.0f, 0.3f, 0.4f, 11.0f, 0.0f);
-  pruner->Update(&gpair, dmat->get(), trees);
+  pruner->Update(&gpair, p_dmat.get(), trees);
 
   ASSERT_EQ(tree.NumExtraNodes(), 2);
 
   // loss_chg == min_split_loss;
   tree.Stat(0).loss_chg = 10;
-  pruner->Update(&gpair, dmat->get(), trees);
+  pruner->Update(&gpair, p_dmat.get(), trees);
 
   ASSERT_EQ(tree.NumExtraNodes(), 2);
 
@@ -68,7 +69,7 @@ TEST(Updater, Prune) {
                   /*loss_chg=*/19.0f, 0.0f);
   cfg.emplace_back(std::make_pair("max_depth", "1"));
   pruner->Configure(cfg);
-  pruner->Update(&gpair, dmat->get(), trees);
+  pruner->Update(&gpair, p_dmat.get(), trees);
 
   ASSERT_EQ(tree.NumExtraNodes(), 2);
 
@@ -77,10 +78,8 @@ TEST(Updater, Prune) {
                   /*loss_chg=*/18.0f, 0.0f);
   cfg.emplace_back(std::make_pair("min_split_loss", "0"));
   pruner->Configure(cfg);
-  pruner->Update(&gpair, dmat->get(), trees);
+  pruner->Update(&gpair, p_dmat.get(), trees);
   ASSERT_EQ(tree.NumExtraNodes(), 2);
-
-  delete dmat;
 }
 }  // namespace tree
 }  // namespace xgboost

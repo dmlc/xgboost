@@ -15,8 +15,7 @@ TEST(GrowHistMaker, InteractionConstraint) {
   GenericParameter param;
   param.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
 
-  auto pp_dmat = CreateDMatrix(kRows, kCols, 0.6, 3);
-  auto p_dmat = *pp_dmat;
+  auto p_dmat = RandomDataGenerator{kRows, kCols, 0.6}.Seed(3).GenerateDMatix();
 
   HostDeviceVector<GradientPair> gradients (kRows);
   std::vector<GradientPair>& h_gradients = gradients.HostVector();
@@ -62,7 +61,6 @@ TEST(GrowHistMaker, InteractionConstraint) {
     ASSERT_NE(tree[tree[0].LeftChild()].SplitIndex(), 0);
     ASSERT_NE(tree[tree[0].RightChild()].SplitIndex(), 0);
   }
-  delete pp_dmat;
 }
 
 }  // namespace tree

@@ -128,8 +128,7 @@ TEST(CutsBuilder, SearchGroupInd) {
   size_t constexpr kRows = 17;
   size_t constexpr kCols = 15;
 
-  auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
-  std::shared_ptr<DMatrix> p_mat {*pp_dmat};
+  auto p_mat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
 
   std::vector<bst_int> group(kNumGroups);
   group[0] = 2;
@@ -149,8 +148,6 @@ TEST(CutsBuilder, SearchGroupInd) {
   ASSERT_EQ(group_ind, 2);
 
   EXPECT_ANY_THROW(CutsBuilder::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 17));
-
-  delete pp_dmat;
 }
 
 TEST(SparseCuts, SingleThreadedBuild) {
@@ -158,8 +155,7 @@ TEST(SparseCuts, SingleThreadedBuild) {
   size_t constexpr kCols = 31;
   size_t constexpr kBins = 256;
 
-  auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
-  std::shared_ptr<DMatrix> p_fmat {*pp_dmat};
+  auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
 
   common::GHistIndexMatrix hmat;
   hmat.Init(p_fmat.get(), kBins);
@@ -173,8 +169,6 @@ TEST(SparseCuts, SingleThreadedBuild) {
   ASSERT_EQ(hmat.cut.Ptrs(), cuts.Ptrs());
   ASSERT_EQ(hmat.cut.Values(), cuts.Values());
   ASSERT_EQ(hmat.cut.MinValues(), cuts.MinValues());
-
-  delete pp_dmat;
 }
 
 TEST(SparseCuts, MultiThreadedBuild) {
@@ -212,17 +206,13 @@ TEST(SparseCuts, MultiThreadedBuild) {
       };
 
   {
-    auto pp_mat = CreateDMatrix(kRows, kCols, 0);
-    DMatrix* p_fmat = (*pp_mat).get();
-    Compare(p_fmat);
-    delete pp_mat;
+    auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
+    Compare(p_fmat.get());
   }
 
   {
-    auto pp_mat = CreateDMatrix(kRows, kCols, 0.0001);
-    DMatrix* p_fmat = (*pp_mat).get();
-    Compare(p_fmat);
-    delete pp_mat;
+    auto p_fmat = RandomDataGenerator(kRows, kCols, 0.0001).GenerateDMatix();
+    Compare(p_fmat.get());
   }
 
   omp_set_num_threads(ori_nthreads);

@@ -30,7 +30,7 @@ TEST(GPUPredictor, Basic) {
 
   for (size_t i = 1; i < 33; i *= 2) {
     int n_row = i, n_col = i;
-    auto dmat = CreateDMatrix(n_row, n_col, 0);
+    auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatix();
 
     LearnerModelParam param;
     param.num_feature = n_col;
@@ -43,9 +43,9 @@ TEST(GPUPredictor, Basic) {
     PredictionCacheEntry gpu_out_predictions;
     PredictionCacheEntry cpu_out_predictions;
 
-    gpu_predictor->PredictBatch((*dmat).get(), &gpu_out_predictions, model, 0);
+    gpu_predictor->PredictBatch(dmat.get(), &gpu_out_predictions, model, 0);
     ASSERT_EQ(model.trees.size(), gpu_out_predictions.version);
-    cpu_predictor->PredictBatch((*dmat).get(), &cpu_out_predictions, model, 0);
+    cpu_predictor->PredictBatch(dmat.get(), &cpu_out_predictions, model, 0);
 
     std::vector<float>& gpu_out_predictions_h = gpu_out_predictions.predictions.HostVector();
     std::vector<float>& cpu_out_predictions_h = cpu_out_predictions.predictions.HostVector();
@@ -53,7 +53,6 @@ TEST(GPUPredictor, Basic) {
     for (int j = 0; j < gpu_out_predictions.predictions.Size(); j++) {
       ASSERT_NEAR(gpu_out_predictions_h[j], cpu_out_predictions_h[j], abs_tolerance);
     }
-    delete dmat;
   }
 }
 

@@ -128,7 +128,7 @@ inline void TestRank(const std::vector<float>& cuts,
   // Ignore the last cut, its special
   double sum_weight = 0.0;
   size_t j = 0;
-  for (auto i = 0; i < cuts.size() - 1; i++) {
+  for (size_t i = 0; i < cuts.size() - 1; i++) {
     while (cuts[i] > sorted_x[j]) {
       sum_weight += sorted_weights[j];
       j++;
@@ -142,7 +142,7 @@ inline void TestRank(const std::vector<float>& cuts,
 inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
                            const std::vector<float>& sorted_column,
                            const std::vector<float>& sorted_weights,
-                     int num_bins) {
+                           size_t num_bins) {
 
   // Check the endpoints are correct
   EXPECT_LT(cuts.MinValues()[column_idx], sorted_column.front());

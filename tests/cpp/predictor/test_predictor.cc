@@ -21,11 +21,9 @@ TEST(Predictor, PredictionCache) {
   DMatrix* m;
   // Add a cache that is immediately expired.
   auto add_cache = [&]() {
-    auto *pp_dmat = CreateDMatrix(kRows, kCols, 0);
-    auto p_dmat = *pp_dmat;
+    auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
     container.Cache(p_dmat, GenericParameter::kCpuId);
     m = p_dmat.get();
-    delete pp_dmat;
   };
 
   add_cache();
@@ -42,8 +40,7 @@ void TestTrainingPrediction(size_t rows, std::string tree_method) {
 
   std::unique_ptr<Learner> learner;
   auto train = [&](std::string predictor, HostDeviceVector<float>* out) {
-    auto pp_m = CreateDMatrix(rows, kCols, 0);
-    auto p_m = *pp_m;
+    auto p_m = RandomDataGenerator(rows, kCols, 0).GenerateDMatix();
 
     auto &h_label = p_m->Info().labels_.HostVector();
     h_label.resize(rows);
@@ -64,7 +61,6 @@ void TestTrainingPrediction(size_t rows, std::string tree_method) {
       learner->UpdateOneIter(i, p_m);
     }
     learner->Predict(p_m, false, out);
-    delete pp_m;
   };
   // Alternate the predictor, CPU predictor can not use ellpack while GPU predictor can
   // not use CPU histogram index.  So it's guaranteed one of the following is not

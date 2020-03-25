@@ -220,8 +220,7 @@ TEST(SimpleDMatrix, FromFile) {
 TEST(SimpleDMatrix, Slice) {
   const int kRows = 6;
   const int kCols = 2;
-  auto pp_dmat = CreateDMatrix(kRows, kCols, 1.0);
-  auto p_dmat = *pp_dmat;
+  auto p_dmat = RandomDataGenerator(kRows, kCols, 1.0).GenerateDMatix();
   auto &labels = p_dmat->Info().labels_.HostVector();
   auto &weights = p_dmat->Info().weights_.HostVector();
   auto &base_margin = p_dmat->Info().base_margin_.HostVector();
@@ -257,8 +256,6 @@ TEST(SimpleDMatrix, Slice) {
       EXPECT_EQ(old_inst[j], new_inst[j]);
     }
   }
-
-  delete pp_dmat;
 };
 
 TEST(SimpleDMatrix, SaveLoadBinary) {
