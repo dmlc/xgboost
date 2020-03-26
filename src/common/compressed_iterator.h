@@ -75,11 +75,16 @@ class CompressedBufferWriter {
    * \return  The calculated buffer size.
    */
   static size_t CalculateBufferSize(size_t num_elements, size_t num_symbols) {
-    const int bits_per_byte = 8;
+    constexpr int kBitsPerByte = 8;
     size_t compressed_size = static_cast<size_t>(std::ceil(
         static_cast<double>(detail::SymbolBits(num_symbols) * num_elements) /
-        bits_per_byte));
-    return compressed_size + detail::kPadding;
+        kBitsPerByte));
+    // Handle atomicOr where input must be unsigned int, hence 4 bytes aligned.
+    size_t ret =
+        std::ceil(static_cast<double>(compressed_size + detail::kPadding) /
+                  static_cast<double>(sizeof(unsigned int))) *
+        sizeof(unsigned int);
+    return ret;
   }
 
   template <typename T>
