@@ -82,8 +82,7 @@ TEST(c_api, Version) {
 
 TEST(c_api, ConfigIO) {
   size_t constexpr kRows = 10;
-  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
-  auto p_dmat = *pp_dmat;
+  auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatix();
   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
   std::vector<bst_float> labels(kRows);
   for (size_t i = 0; i < labels.size(); ++i) {
@@ -110,16 +109,13 @@ TEST(c_api, ConfigIO) {
   auto config_1 = Json::Load({config_str_1.c_str(), config_str_1.size()});
 
   ASSERT_EQ(config_0, config_1);
-
-  delete pp_dmat;
 }
 
 TEST(c_api, JsonModelIO) {
   size_t constexpr kRows = 10;
   dmlc::TemporaryDirectory tempdir;
 
-  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
-  auto p_dmat = *pp_dmat;
+  auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatix();
   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
   std::vector<bst_float> labels(kRows);
   for (size_t i = 0; i < labels.size(); ++i) {
@@ -144,6 +140,5 @@ TEST(c_api, JsonModelIO) {
 
   ASSERT_EQ(model_str_0.front(), '{');
   ASSERT_EQ(model_str_0, model_str_1);
-  delete pp_dmat;
 }
 }  // namespace xgboost

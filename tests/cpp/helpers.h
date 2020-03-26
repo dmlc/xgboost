@@ -144,7 +144,7 @@ class SimpleRealUniformDistribution {
                   "Result type must be floating point.");
     long double const r = (static_cast<long double>(rng->Max())
                            - static_cast<long double>(rng->Min())) + 1.0L;
-    size_t const log2r = std::log(r) / std::log(2.0L);
+    auto const log2r = static_cast<size_t>(std::log(r) / std::log(2.0L));
     size_t m = std::max<size_t>(1UL, (Bits + log2r - 1UL) / log2r);
     ResultT sum_value = 0, r_k = 1;
 
@@ -169,20 +169,49 @@ class SimpleRealUniformDistribution {
   }
 };
 
-/**
- * \fn  std::shared_ptr<xgboost::DMatrix> CreateDMatrix(int rows, int columns, float sparsity, int seed);
- *
- * \brief Creates dmatrix with uniform random data between 0-1.
- *
- * \param rows      The rows.
- * \param columns   The columns.
- * \param sparsity  The sparsity.
- * \param seed      The seed.
- *
- * \return  The new d matrix.
- */
-std::shared_ptr<xgboost::DMatrix> *CreateDMatrix(int rows, int columns,
-                                                 float sparsity, int seed = 0);
+// Generate in-memory random data without using DMatrix.
+class RandomDataGenerator {
+  bst_row_t rows_;
+  size_t cols_;
+  float sparsity_;
+
+  float lower_;
+  float upper_;
+
+  int32_t device_;
+  int32_t seed_;
+
+ public:
+  RandomDataGenerator(bst_row_t rows, size_t cols, float sparsity)
+      : rows_{rows}, cols_{cols}, sparsity_{sparsity}, lower_{0.0f}, upper_{1.0f},
+        device_{-1}, seed_{0} {}
+
+  RandomDataGenerator &Lower(float v) {
+    lower_ = v;
+    return *this;
+  }
+  RandomDataGenerator& Upper(float v) {
+    upper_ = v;
+    return *this;
+  }
+  RandomDataGenerator& Device(int32_t d) {
+    device_ = d;
+    return *this;
+  }
+  RandomDataGenerator& Seed(int32_t s) {
+    seed_ = s;
+    return *this;
+  }
+
+  void GenerateDense(HostDeviceVector<float>* out) const;
+  void GenerateArrayInterface(HostDeviceVector<float>* storage, std::string* out) const;
+  void GenerateCSR(HostDeviceVector<float>* value, HostDeviceVector<bst_row_t>* row_ptr,
+                   HostDeviceVector<bst_feature_t>* columns) const;
+
+  std::shared_ptr<DMatrix> GenerateDMatix(bool with_label = false,
+                                          bool float_label = true,
+                                          size_t classes = 1) const;
+};
 
 std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
     size_t n_entries, size_t page_size, std::string tmp_file);
@@ -257,8 +286,8 @@ class HistogramCutsWrapper : public common::HistogramCuts {
 
 inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
     int n_rows, int n_cols, bst_float sparsity= 0) {
-  auto dmat = CreateDMatrix(n_rows, n_cols, sparsity, 3);
-  const SparsePage& batch = *(*dmat)->GetBatches<xgboost::SparsePage>().begin();
+  auto dmat = RandomDataGenerator(n_rows, n_cols, sparsity).Seed(3).GenerateDMatix();
+  const SparsePage& batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
 
   HistogramCutsWrapper cmat;
   cmat.SetPtrs({0, 3, 6, 9, 12, 15, 18, 21, 24});
@@ -280,9 +309,7 @@ inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
   }
 
   auto page = std::unique_ptr<EllpackPageImpl>(
-      new EllpackPageImpl(0, cmat, batch, (*dmat)->IsDense(), row_stride));
-
-  delete dmat;
+      new EllpackPageImpl(0, cmat, batch, dmat->IsDense(), row_stride));
 
   return page;
 }

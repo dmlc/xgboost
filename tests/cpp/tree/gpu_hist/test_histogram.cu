@@ -11,11 +11,10 @@ void TestDeterminsticHistogram() {
   size_t constexpr kBins = 24, kCols = 8, kRows = 32768, kRounds = 16;
   float constexpr kLower = -1e-2, kUpper = 1e2;
 
-  auto pp_m = CreateDMatrix(kRows, kCols, 0.5);
-  auto& matrix = **pp_m;
+  auto matrix = RandomDataGenerator(kRows, kCols, 0.5).GenerateDMatix();
   BatchParam batch_param{0, static_cast<int32_t>(kBins), 0};
 
-  for (auto const& batch : matrix.GetBatches<EllpackPage>(batch_param)) {
+  for (auto const& batch : matrix->GetBatches<EllpackPage>(batch_param)) {
     auto* page = batch.Impl();
 
     tree::RowPartitioner row_partitioner(0, kRows);
@@ -58,7 +57,6 @@ void TestDeterminsticHistogram() {
       }
     }
   }
-  delete pp_m;
 }
 
 TEST(Histogram, GPUDeterminstic) {

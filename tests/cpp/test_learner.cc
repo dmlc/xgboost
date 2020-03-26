@@ -16,12 +16,10 @@ namespace xgboost {
 TEST(Learner, Basic) {
   using Arg = std::pair<std::string, std::string>;
   auto args = {Arg("tree_method", "exact")};
-  auto mat_ptr = CreateDMatrix(10, 10, 0);
-  std::vector<std::shared_ptr<xgboost::DMatrix>> mat = {*mat_ptr};
-  auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
+  auto mat_ptr = RandomDataGenerator{10, 10, 0.0f}.GenerateDMatix();
+  auto learner = std::unique_ptr<Learner>(Learner::Create({mat_ptr}));
   learner->SetParams(args);
 
-  delete mat_ptr;
 
   auto major = XGBOOST_VER_MAJOR;
   auto minor = XGBOOST_VER_MINOR;
@@ -36,8 +34,7 @@ TEST(Learner, ParameterValidation) {
   ConsoleLogger::Configure({{"verbosity", "2"}});
   size_t constexpr kRows = 1;
   size_t constexpr kCols = 1;
-  auto pp_mat = CreateDMatrix(kRows, kCols, 0);
-  auto& p_mat = *pp_mat;
+  auto p_mat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatix();
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
   learner->SetParam("validate_parameters", "1");
@@ -50,17 +47,16 @@ TEST(Learner, ParameterValidation) {
   std::string output = testing::internal::GetCapturedStderr();
 
   ASSERT_TRUE(output.find("Parameters: { Knock Knock, Silence }") != std::string::npos);
-  delete pp_mat;
 }
 
 TEST(Learner, CheckGroup) {
   using Arg = std::pair<std::string, std::string>;
   size_t constexpr kNumGroups = 4;
   size_t constexpr kNumRows = 17;
-  size_t constexpr kNumCols = 15;
+  bst_feature_t constexpr kNumCols = 15;
 
-  auto pp_mat = CreateDMatrix(kNumRows, kNumCols, 0);
-  auto& p_mat = *pp_mat;
+  std::shared_ptr<DMatrix> p_mat{
+      RandomDataGenerator{kNumRows, kNumCols, 0.0f}.GenerateDMatix()};
   std::vector<bst_float> weight(kNumGroups);
   std::vector<bst_int> group(kNumGroups);
   group[0] = 2;
@@ -88,8 +84,6 @@ TEST(Learner, CheckGroup) {
   group[4] = 1;
   p_mat->Info().SetInfo("group", group.data(), DataType::kUInt32, kNumGroups+1);
   EXPECT_ANY_THROW(learner->UpdateOneIter(0, p_mat));
-
-  delete pp_mat;
 }
 
 TEST(Learner, SLOW_CheckMultiBatch) {
@@ -142,8 +136,8 @@ TEST(Learner, JsonModelIO) {
   size_t constexpr kRows = 8;
   int32_t constexpr kIters = 4;
 
-  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
-  std::shared_ptr<DMatrix> p_dmat {*pp_dmat};
+  std::shared_ptr<DMatrix> p_dmat{
+    RandomDataGenerator{kRows, 10, 0}.GenerateDMatix()};
   p_dmat->Info().labels_.Resize(kRows);
   CHECK_NE(p_dmat->Info().num_col_, 0);
 
@@ -180,15 +174,12 @@ TEST(Learner, JsonModelIO) {
     ASSERT_EQ(get<Object>(out["learner"]["attributes"]).size(), 1);
     ASSERT_EQ(out, new_in);
   }
-
-  delete pp_dmat;
 }
 
 TEST(Learner, BinaryModelIO) {
   size_t constexpr kRows = 8;
   int32_t constexpr kIters = 4;
-  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
-  std::shared_ptr<DMatrix> p_dmat {*pp_dmat};
+  auto p_dmat = RandomDataGenerator{kRows, 10, 0}.GenerateDMatix();
   p_dmat->Info().labels_.Resize(kRows);
 
   std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
@@ -215,8 +206,6 @@ TEST(Learner, BinaryModelIO) {
   Json::Dump(config, &config_str);
   ASSERT_NE(config_str.find("rmsle"), std::string::npos);
   ASSERT_EQ(config_str.find("WARNING"), std::string::npos);
-
-  delete pp_dmat;
 }
 
 #if defined(XGBOOST_USE_CUDA)
@@ -224,8 +213,7 @@ TEST(Learner, BinaryModelIO) {
 TEST(Learner, GPUConfiguration) {
   using Arg = std::pair<std::string, std::string>;
   size_t constexpr kRows = 10;
-  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
-  auto p_dmat = *pp_dmat;
+  auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatix();
   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
   std::vector<bst_float> labels(kRows);
   for (size_t i = 0; i < labels.size(); ++i) {
@@ -270,8 +258,6 @@ TEST(Learner, GPUConfiguration) {
     learner->UpdateOneIter(0, p_dmat);
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
   }
-
-  delete pp_dmat;
 }
 #endif  // defined(XGBOOST_USE_CUDA)
 }  // namespace xgboost

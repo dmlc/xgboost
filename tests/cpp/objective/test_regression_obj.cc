@@ -259,14 +259,14 @@ TEST(Objective, CPU_vs_CUDA) {
 
   constexpr size_t kRows = 400;
   constexpr size_t kCols = 100;
-  auto ppdmat = CreateDMatrix(kRows, kCols, 0, 0);
+  auto pdmat = RandomDataGenerator(kRows, kCols, 0).Seed(0).GenerateDMatix();
   HostDeviceVector<float> preds;
   preds.Resize(kRows);
   auto& h_preds = preds.HostVector();
   for (size_t i = 0; i < h_preds.size(); ++i) {
     h_preds[i] = static_cast<float>(i);
   }
-  auto& info = (*ppdmat)->Info();
+  auto& info = pdmat->Info();
 
   info.labels_.Resize(kRows);
   auto& h_labels = info.labels_.HostVector();
@@ -297,7 +297,6 @@ TEST(Objective, CPU_vs_CUDA) {
   ASSERT_NEAR(sgrad, 0.0f, kRtEps);
   ASSERT_NEAR(shess, 0.0f, kRtEps);
 
-  delete ppdmat;
   delete obj;
 }
 #endif

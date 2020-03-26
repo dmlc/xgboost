@@ -68,8 +68,7 @@ TEST(Adapter, CSCAdapterColsMoreThanRows) {
 }
 
 TEST(c_api, DMatrixSliceAdapterFromSimpleDMatrix) {
-  auto pp_dmat = CreateDMatrix(6, 2, 1.0);
-  auto p_dmat = *pp_dmat;
+  auto p_dmat = RandomDataGenerator(6, 2, 1.0).GenerateDMatix();
 
   std::vector<int> ridx_set = {1, 3, 5};
   data::DMatrixSliceAdapter adapter(p_dmat.get(),
@@ -91,8 +90,6 @@ TEST(c_api, DMatrixSliceAdapterFromSimpleDMatrix) {
       }
     }
   }
-
-  delete pp_dmat;
 }
 
 // A mock for JVM data iterator.

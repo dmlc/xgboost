@@ -55,8 +55,7 @@ TEST(GBTree, WrongUpdater) {
   size_t constexpr kRows = 17;
   size_t constexpr kCols = 15;
 
-  auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
-  std::shared_ptr<DMatrix> p_dmat {*pp_dmat};
+  auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
 
   p_dmat->Info().labels_.Resize(kRows);
 
@@ -64,7 +63,6 @@ TEST(GBTree, WrongUpdater) {
   // Hist can not be used for updating tree.
   learner->SetParams(Args{{"tree_method", "hist"}, {"process_type", "update"}});
   ASSERT_THROW(learner->UpdateOneIter(0, p_dmat), dmlc::Error);
-  delete pp_dmat;
 }
 
 #ifdef XGBOOST_USE_CUDA
@@ -72,8 +70,7 @@ TEST(GBTree, ChoosePredictor) {
   size_t constexpr kRows = 17;
   size_t constexpr kCols = 15;
 
-  auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
-  std::shared_ptr<DMatrix> p_dmat {*pp_dmat};
+  auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
 
   auto& data = (*(p_dmat->GetBatches<SparsePage>().begin())).data;
   p_dmat->Info().labels_.Resize(kRows);
@@ -117,8 +114,6 @@ TEST(GBTree, ChoosePredictor) {
   }
   // data is not pulled back into host
   ASSERT_FALSE(data.HostCanWrite());
-
-  delete pp_dmat;
 }
 #endif  // XGBOOST_USE_CUDA
 
@@ -200,8 +195,7 @@ TEST(Dart, JsonIO) {
 TEST(Dart, Prediction) {
   size_t constexpr kRows = 16, kCols = 10;
 
-  auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
-  auto& p_mat = *pp_dmat;
+  auto p_mat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
 
   std::vector<bst_float> labels (kRows);
   for (size_t i = 0; i < kRows; ++i) {
@@ -230,7 +224,5 @@ TEST(Dart, Prediction) {
     // Inference doesn't drop tree.
     ASSERT_GT(std::abs(h_predts_training[i] - h_predts_inference[i]), kRtEps);
   }
-
-  delete pp_dmat;
 }
 }  // namespace xgboost

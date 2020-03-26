@@ -15,8 +15,7 @@ TEST(Linear, Shotgun) {
   size_t constexpr kRows = 10;
   size_t constexpr kCols = 10;
 
-  auto pp_dmat = xgboost::CreateDMatrix(kRows, kCols, 0);
-  auto p_fmat {*pp_dmat};
+  auto p_fmat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
 
   auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   LearnerModelParam mparam;
@@ -42,8 +41,6 @@ TEST(Linear, Shotgun) {
         xgboost::LinearUpdater::Create("shotgun", &lparam));
     EXPECT_ANY_THROW(updater->Configure({{"feature_selector", "random"}}));
   }
-
-  delete pp_dmat;
 }
 
 TEST(Shotgun, JsonIO) {
@@ -54,8 +51,7 @@ TEST(Linear, coordinate) {
   size_t constexpr kRows = 10;
   size_t constexpr kCols = 10;
 
-  auto pp_dmat = xgboost::CreateDMatrix(kRows, kCols, 0);
-  auto p_fmat {*pp_dmat};
+  auto p_fmat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
 
   auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   LearnerModelParam mparam;
@@ -73,8 +69,6 @@ TEST(Linear, coordinate) {
   updater->Update(&gpair, p_fmat.get(), &model, gpair.Size());
 
   ASSERT_EQ(model.bias()[0], 5.0f);
-
-  delete pp_dmat;
 }
 
 TEST(Coordinate, JsonIO){
