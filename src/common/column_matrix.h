@@ -38,7 +38,6 @@ class Column {
         row_ind_(row_ind),
         missing_flags_(missing_flags) {}
 
-  // column.GetGlobalBinIdx(idx) == column.GetFeatureBinIdx(idx) + column.GetBaseIdx(idx)
   uint32_t GetGlobalBinIdx(size_t idx) const { return index_base_ + (uint32_t)(index_[idx]); }
 
   BinIdxType GetFeatureBinIdx(size_t idx) const { return index_[idx]; }
