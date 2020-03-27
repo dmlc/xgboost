@@ -9,7 +9,9 @@ namespace xgboost {
 namespace common {
 
 TEST(DenseColumn, Test) {
-  size_t max_num_bins[] = {256, 65536, 65537};
+  uint64_t max_num_bins[] = {static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
+                          static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
+                          static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2};
   for (size_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 10, 0.0).GenerateDMatix();
     GHistIndexMatrix gmat;
@@ -20,22 +22,22 @@ TEST(DenseColumn, Test) {
     for (auto i = 0ull; i < dmat->Info().num_row_; i++) {
       for (auto j = 0ull; j < dmat->Info().num_col_; j++) {
           switch (column_matrix.GetTypeSize()) {
-            case sizeof(uint8_t): {
+            case UINT8_BINS_TYPE_SIZE: {
                 auto col = column_matrix.GetColumn<uint8_t>(j);
                 ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
-                          col.GetGlobalBinIdx(i));
+                          (*col.get()).GetGlobalBinIdx(i));
               }
               break;
-            case sizeof(uint16_t): {
+            case UINT16_BINS_TYPE_SIZE: {
                 auto col = column_matrix.GetColumn<uint16_t>(j);
                 ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
-                          col.GetGlobalBinIdx(i));
+                          (*col.get()).GetGlobalBinIdx(i));
               }
               break;
-            case sizeof(uint32_t): {
+            case UINT32_BINS_TYPE_SIZE: {
                 auto col = column_matrix.GetColumn<uint32_t>(j);
                 ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
-                          col.GetGlobalBinIdx(i));
+                          (*col.get()).GetGlobalBinIdx(i));
               }
               break;
         }
@@ -45,7 +47,8 @@ TEST(DenseColumn, Test) {
 }
 
 template<typename BinIdxType>
-inline void CheckSparseColumn(const Column<BinIdxType>& col, const GHistIndexMatrix& gmat) {
+inline void CheckSparseColumn(const Column<BinIdxType>& col_input, const GHistIndexMatrix& gmat) {
+  const SparseColumn<BinIdxType>& col = static_cast<const SparseColumn<BinIdxType>& >(col_input);
   ASSERT_EQ(col.Size(), gmat.index.size());
   for (auto i = 0ull; i < col.Size(); i++) {
     ASSERT_EQ(gmat.index[gmat.row_ptr[col.GetRowIdx(i)]],
@@ -54,7 +57,9 @@ inline void CheckSparseColumn(const Column<BinIdxType>& col, const GHistIndexMat
 }
 
 TEST(SparseColumn, Test) {
-  size_t max_num_bins[] = {256, 65536, 65537};
+  uint64_t max_num_bins[] = {static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
+                          static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
+                          static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2};
   for (size_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 1, 0.85).GenerateDMatix();
     GHistIndexMatrix gmat;
@@ -62,19 +67,19 @@ TEST(SparseColumn, Test) {
     ColumnMatrix column_matrix;
     column_matrix.Init(gmat, 0.5);
     switch (column_matrix.GetTypeSize()) {
-      case sizeof(uint8_t): {
+      case UINT8_BINS_TYPE_SIZE: {
           auto col = column_matrix.GetColumn<uint8_t>(0);
-          CheckSparseColumn(col, gmat);
+          CheckSparseColumn(*col.get(), gmat);
         }
         break;
-      case sizeof(uint16_t): {
+      case UINT16_BINS_TYPE_SIZE: {
           auto col = column_matrix.GetColumn<uint16_t>(0);
-          CheckSparseColumn(col, gmat);
+          CheckSparseColumn(*col.get(), gmat);
         }
         break;
-      case sizeof(uint32_t): {
+      case UINT32_BINS_TYPE_SIZE: {
           auto col = column_matrix.GetColumn<uint32_t>(0);
-          CheckSparseColumn(col, gmat);
+          CheckSparseColumn(*col.get(), gmat);
         }
         break;
     }
@@ -82,17 +87,20 @@ TEST(SparseColumn, Test) {
 }
 
 template<typename BinIdxType>
-inline void CheckColumWithMissingValue(const Column<BinIdxType>& col,
+inline void CheckColumWithMissingValue(const Column<BinIdxType>& col_input,
                                        const GHistIndexMatrix& gmat) {
+  const DenseColumn<BinIdxType>& col = static_cast<const DenseColumn<BinIdxType>& >(col_input);
   for (auto i = 0ull; i < col.Size(); i++) {
     if (col.IsMissing(i)) continue;
-    EXPECT_EQ(gmat.index[gmat.row_ptr[col.GetRowIdx(i)]],
+    EXPECT_EQ(gmat.index[gmat.row_ptr[i]],
               col.GetGlobalBinIdx(i));
   }
 }
 
 TEST(DenseColumnWithMissing, Test) {
-  size_t max_num_bins[] = {256, 65536, 65537};
+  uint64_t max_num_bins[] = { static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
+                              static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
+                              static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2 };
   for (size_t max_num_bin : max_num_bins) {
     auto dmat = RandomDataGenerator(100, 1, 0.5).GenerateDMatix();
     GHistIndexMatrix gmat;
@@ -100,14 +108,20 @@ TEST(DenseColumnWithMissing, Test) {
     ColumnMatrix column_matrix;
     column_matrix.Init(gmat, 0.2);
     switch (column_matrix.GetTypeSize()) {
-      case sizeof(uint8_t):
-        CheckColumWithMissingValue(column_matrix.GetColumn<uint8_t>(0), gmat);
+      case UINT8_BINS_TYPE_SIZE: {
+          auto col = column_matrix.GetColumn<uint8_t>(0);
+          CheckColumWithMissingValue(*col.get(), gmat);
+        }
         break;
-      case sizeof(uint16_t):
-        CheckColumWithMissingValue(column_matrix.GetColumn<uint16_t>(0), gmat);
+      case UINT16_BINS_TYPE_SIZE: {
+          auto col = column_matrix.GetColumn<uint16_t>(0);
+          CheckColumWithMissingValue(*col.get(), gmat);
+        }
         break;
-      case sizeof(uint32_t):
-        CheckColumWithMissingValue(column_matrix.GetColumn<uint32_t>(0), gmat);
+      case UINT32_BINS_TYPE_SIZE: {
+          auto col = column_matrix.GetColumn<uint32_t>(0);
+          CheckColumWithMissingValue(*col.get(), gmat);
+        }
         break;
     }
   }

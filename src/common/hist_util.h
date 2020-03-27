@@ -210,15 +210,15 @@ HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
                                   size_t sketch_batch_num_elements = 0);
 
 
-enum BinBounds {
-  UINT8_BINS_TYPE = 0,
-  UINT16_BINS_TYPE,
-  UINT32_BINS_TYPE,
+enum BinTypeSize {
+  UINT8_BINS_TYPE_SIZE  = 1,
+  UINT16_BINS_TYPE_SIZE = 2,
+  UINT32_BINS_TYPE_SIZE = 4
 };
 
 struct Index {
-  Index(): binBound_(UINT8_BINS_TYPE), p_(1), offset_ptr_(nullptr) {
-    setBinBound(binBound_);
+  Index(): binTypeSize_(UINT8_BINS_TYPE_SIZE), p_(1), offset_ptr_(nullptr) {
+    setBinTypeSize(binTypeSize_);
   }
   Index(const Index& i) = delete;
   Index& operator=(Index i) = delete;
@@ -231,26 +231,26 @@ struct Index {
       return func_(data_ptr_, i);
     }
   }
-  void setBinBound(BinBounds binBound) {
-    binBound_ = binBound;
-    switch (binBound) {
-      case UINT8_BINS_TYPE:
+  void setBinTypeSize(BinTypeSize binTypeSize) {
+    binTypeSize_ = binTypeSize;
+    switch (binTypeSize) {
+      case UINT8_BINS_TYPE_SIZE:
         func_ = &getValueFromUint8;
         break;
-      case UINT16_BINS_TYPE:
+      case UINT16_BINS_TYPE_SIZE:
         func_ = &getValueFromUint16;
         break;
-      case UINT32_BINS_TYPE:
+      case UINT32_BINS_TYPE_SIZE:
         func_ = &getValueFromUint32;
         break;
       default:
-        CHECK(binBound == UINT8_BINS_TYPE  ||
-              binBound == UINT16_BINS_TYPE ||
-              binBound == UINT32_BINS_TYPE);
+        CHECK(binTypeSize == UINT8_BINS_TYPE_SIZE  ||
+              binTypeSize == UINT16_BINS_TYPE_SIZE ||
+              binTypeSize == UINT32_BINS_TYPE_SIZE);
     }
   }
-  BinBounds getBinBound() const {
-    return binBound_;
+  BinTypeSize getBinTypeSize() const {
+    return binTypeSize_;
   }
   template<typename T>
   T* data() const {
@@ -263,7 +263,7 @@ struct Index {
     return offset_.size();
   }
   size_t size() const {
-    return data_.size() / (1 << binBound_);
+    return data_.size() / (binTypeSize_);
   }
   void resize(const size_t nBytesData) {
     data_.resize(nBytesData);
@@ -299,7 +299,7 @@ struct Index {
   void* data_ptr_;
   uint32_t* offset_ptr_;
   size_t p_;
-  BinBounds binBound_;
+  BinTypeSize binTypeSize_;
   Func func_;
 };
 
@@ -325,10 +325,19 @@ struct GHistIndexMatrix {
   void Init(DMatrix* p_fmat, int max_num_bins);
 
   template<typename BinIdxType>
-  void SetIndexData(BinIdxType* const index_data, size_t batch_threads, const SparsePage& batch,
-                    size_t rbegin, const uint32_t* offsets, size_t nbins);
-  void SetIndexDataWithoutOffset(uint32_t* const index_data, size_t batch_threads,
-                                 const SparsePage& batch, size_t rbegin, size_t nbins);
+  void SetIndexDataForDense(common::Span<BinIdxType> index_data_span,
+                    size_t batch_threads, const SparsePage& batch,
+                    size_t rbegin, common::Span<const uint32_t> offsets_span,
+                    size_t nbins);
+
+  // specific method for sparse data as no posibility to reduce allocated memory
+  void SetIndexDataForSparse(common::Span<uint32_t> index_data_span,
+                             size_t batch_threads, const SparsePage& batch,
+                             size_t rbegin, size_t nbins);
+
+  void ResizeIndex(const size_t rbegin, const SparsePage& batch,
+                   const size_t n_offsets, const size_t n_index,
+                   const bool isDense);
 
   inline void GetFeatureCounts(size_t* counts) const {
     auto nfeature = cut.Ptrs().size() - 1;

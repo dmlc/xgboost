@@ -349,12 +349,12 @@ TEST(hist_util, SparseCutsExternalMemory) {
 }
 
 TEST(hist_util, IndexBinBound) {
-  uint64_t bin_sizes[] = {static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
-                          static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
-                          static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2};
-  BinBounds expected_bin_bounds[] = {UINT8_BINS_TYPE,
-                                     UINT16_BINS_TYPE,
-                                     UINT32_BINS_TYPE};
+  uint64_t bin_sizes[] = { static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
+                           static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
+                           static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2 };
+  BinTypeSize expected_bin_type_sizes[] = {UINT8_BINS_TYPE_SIZE,
+                                           UINT16_BINS_TYPE_SIZE,
+                                           UINT32_BINS_TYPE_SIZE};
   size_t constexpr kRows = 100;
   size_t constexpr kCols = 10;
 
@@ -365,17 +365,17 @@ TEST(hist_util, IndexBinBound) {
     common::GHistIndexMatrix hmat;
     hmat.Init(p_fmat.get(), max_bin);
     EXPECT_EQ(hmat.index.size(), kRows*kCols);
-    EXPECT_EQ(expected_bin_bounds[bin_id++], hmat.index.getBinBound());
+    EXPECT_EQ(expected_bin_type_sizes[bin_id++], hmat.index.getBinTypeSize());
   }
 }
 
 TEST(hist_util, SparseIndexBinBound) {
-  uint64_t bin_sizes[] = {static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
-                          static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
-                          static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2};
-  BinBounds expected_bin_bounds[] = {UINT32_BINS_TYPE,
-                                     UINT32_BINS_TYPE,
-                                     UINT32_BINS_TYPE};
+  uint64_t bin_sizes[] = { static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
+                           static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
+                           static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2 };
+  BinTypeSize expected_bin_type_sizes[] = { UINT32_BINS_TYPE_SIZE,
+                                            UINT32_BINS_TYPE_SIZE,
+                                            UINT32_BINS_TYPE_SIZE };
   size_t constexpr kRows = 100;
   size_t constexpr kCols = 10;
 
@@ -384,7 +384,7 @@ TEST(hist_util, SparseIndexBinBound) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0.2).GenerateDMatix();
     common::GHistIndexMatrix hmat;
     hmat.Init(p_fmat.get(), max_bin);
-    EXPECT_EQ(expected_bin_bounds[bin_id++], hmat.index.getBinBound());
+    EXPECT_EQ(expected_bin_type_sizes[bin_id++], hmat.index.getBinTypeSize());
   }
 }
 
@@ -397,9 +397,9 @@ void CheckIndexData(T* data_ptr, uint32_t* offsets,
 }
 
 TEST(hist_util, IndexBinData) {
-  uint64_t constexpr kBinSizes[] = {static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
-                                    static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
-                                    static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2};
+  uint64_t constexpr kBinSizes[] = { static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
+                                     static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
+                                     static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2 };
   size_t constexpr kRows = 100;
   size_t constexpr kCols = 10;
 
@@ -428,9 +428,9 @@ TEST(hist_util, IndexBinData) {
 }
 
 TEST(hist_util, SparseIndexBinData) {
-  uint64_t bin_sizes[] = {static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
-                          static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
-                          static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2};
+  uint64_t bin_sizes[] = { static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
+                           static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
+                           static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2 };
   size_t constexpr kRows = 100;
   size_t constexpr kCols = 10;
 

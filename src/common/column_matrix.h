@@ -10,6 +10,7 @@
 
 #include <limits>
 #include <vector>
+#include <memory>
 #include "hist_util.h"
 
 namespace xgboost {
@@ -29,34 +30,22 @@ enum ColumnType {
 template <typename BinIdxType>
 class Column {
  public:
-  Column(ColumnType type, common::Span<const BinIdxType> index,
-         uint32_t index_base, const size_t* row_ind,
-         const std::vector<bool>::const_iterator missing_flags)
+  Column(ColumnType type, common::Span<const BinIdxType> index, const uint32_t index_base)
       : type_(type),
         index_(index),
-        index_base_(index_base),
-        row_ind_(row_ind),
-        missing_flags_(missing_flags) {}
+        index_base_(index_base) {}
 
-  uint32_t GetGlobalBinIdx(size_t idx) const { return index_base_ + (uint32_t)(index_[idx]); }
+  uint32_t GetGlobalBinIdx(size_t idx) const {
+    return index_base_ + static_cast<uint32_t>(index_[idx]);
+  }
 
   BinIdxType GetFeatureBinIdx(size_t idx) const { return index_[idx]; }
 
-  uint32_t GetBaseIdx() const { return index_base_; }
+  const uint32_t GetBaseIdx() const { return index_base_; }
 
   common::Span<const BinIdxType> GetFeatureBinIdxPtr() const { return index_; }
 
-  const size_t* GetRowData() const { return row_ind_; }
-
-  size_t GetRowIdx(size_t idx) const {
-    // clang-tidy worries that row_ind_ might be a nullptr, which is possible,
-    // but low level structure is not safe anyway.
-    return type_ == ColumnType::kDenseColumn ? idx : row_ind_[idx];// NOLINT
-  }
-
   ColumnType GetType() const { return type_; }
-
-  bool IsMissing(size_t idx) const { return missing_flags_[idx]; }
 
   /* returns number of elements in column */
   size_t Size() const { return index_.size(); }
@@ -64,12 +53,41 @@ class Column {
  private:
   /* type of column */
   ColumnType type_;
-  /* bin indexes in range [0, std::numeric_limits<uint32_t>::max() - 1] */
+  /* bin indexes in range [0, max_bins - 1] */
   common::Span<const BinIdxType> index_;
   /* bin index offset for specific feature */
-  uint32_t index_base_;
-  /* row_ind_ is nullptr for dense columns */
-  const size_t* row_ind_;
+  const uint32_t index_base_;
+};
+
+template <typename BinIdxType>
+class SparseColumn: public Column<BinIdxType> {
+ public:
+  SparseColumn(ColumnType type, common::Span<const BinIdxType> index,
+              uint32_t index_base, common::Span<const size_t> row_ind)
+      : Column<BinIdxType>(type, index, index_base),
+        row_ind_(row_ind) {}
+
+  const size_t* GetRowData() const { return row_ind_.data(); }
+
+  size_t GetRowIdx(size_t idx) const {
+    return row_ind_.data()[idx];
+  }
+
+ private:
+  /* indexes of rows */
+  common::Span<const size_t> row_ind_;
+};
+
+template <typename BinIdxType>
+class DenseColumn: public Column<BinIdxType> {
+ public:
+  DenseColumn(ColumnType type, common::Span<const BinIdxType> index,
+              uint32_t index_base,
+              const std::vector<bool>::const_iterator missing_flags)
+      : Column<BinIdxType>(type, index, index_base),
+        missing_flags_(missing_flags) {}
+  bool IsMissing(size_t idx) const { return missing_flags_[idx]; }
+ private:
   /* flags for missing values in dense columns */
   std::vector<bool>::const_iterator missing_flags_;
 };
@@ -125,7 +143,7 @@ class ColumnMatrix {
 
     SetTypeSize(gmat.max_num_bins_);
 
-    index_.resize(feature_offsets_[nfeature] * type_size_, 0);
+    index_.resize(feature_offsets_[nfeature] * bins_type_size_, 0);
     if (!all_dense) {
       row_ind_.resize(feature_offsets_[nfeature]);
     }
@@ -133,7 +151,7 @@ class ColumnMatrix {
     // store least bin id for each feature
     index_base_ = const_cast<uint32_t*>(gmat.cut.Ptrs().data());
 
-    const bool noMissingValues = gmat.row_ptr[nrow] == nrow * nfeature;
+    const bool noMissingValues = NoMissingValues(gmat.row_ptr[nrow], nrow, nfeature);
 
     if (noMissingValues) {
       missing_flags_.resize(feature_offsets_[nfeature], false);
@@ -143,39 +161,25 @@ class ColumnMatrix {
 
     // pre-fill index_ for dense columns
     if (all_dense) {
-      switch (gmat.index.getBinBound()) {
-        case UINT8_BINS_TYPE:
+      BinTypeSize gmat_bin_size = gmat.index.getBinTypeSize();
+      if (gmat_bin_size == UINT8_BINS_TYPE_SIZE) {
           SetIndexAllDense(gmat.index.data<uint8_t>(), gmat, nrow, nfeature, noMissingValues);
-          break;
-        case UINT16_BINS_TYPE:
+      } else if (gmat_bin_size == UINT16_BINS_TYPE_SIZE) {
           SetIndexAllDense(gmat.index.data<uint16_t>(), gmat, nrow, nfeature, noMissingValues);
-          break;
-        case UINT32_BINS_TYPE:
+      } else {
+          CHECK_EQ(gmat_bin_size, UINT32_BINS_TYPE_SIZE);
           SetIndexAllDense(gmat.index.data<uint32_t>(), gmat, nrow, nfeature, noMissingValues);
-          break;
-        default:
-            BinBounds curent_bound = gmat.index.getBinBound();
-            CHECK(curent_bound == UINT8_BINS_TYPE ||
-                  curent_bound == UINT16_BINS_TYPE ||
-                  curent_bound == UINT32_BINS_TYPE);
       }
-    /* For sparse DMatrix gmat.index.getBinBound() returns always UINT32_BINS_TYPE
+    /* For sparse DMatrix gmat.index.getBinTypeSize() returns always UINT32_BINS_TYPE_SIZE
        but for ColumnMatrix we still have a chance to reduce the memory consumption */
     } else {
-      switch (type_size_) {
-        case sizeof(uint8_t):
+      if (bins_type_size_ == UINT8_BINS_TYPE_SIZE) {
           SetIndex<uint8_t>(gmat.index.data<uint32_t>(), gmat, nrow, nfeature);
-          break;
-        case sizeof(uint16_t):
+      } else if (bins_type_size_ == UINT16_BINS_TYPE_SIZE) {
           SetIndex<uint16_t>(gmat.index.data<uint32_t>(), gmat, nrow, nfeature);
-          break;
-        case sizeof(uint32_t):
+      } else {
+          CHECK_EQ(bins_type_size_, UINT32_BINS_TYPE_SIZE);
           SetIndex<uint32_t>(gmat.index.data<uint32_t>(), gmat, nrow, nfeature);
-          break;
-      default:
-        CHECK(type_size_ == UINT8_BINS_TYPE ||
-              type_size_ == UINT16_BINS_TYPE ||
-              type_size_ == UINT32_BINS_TYPE);
       }
     }
   }
@@ -183,31 +187,36 @@ class ColumnMatrix {
   /* Set the number of bytes based on numeric limit of maximum number of bins provided by user */
   void SetTypeSize(size_t max_num_bins) {
     if ( (max_num_bins - 1) <= static_cast<int>(std::numeric_limits<uint8_t>::max()) ) {
-      type_size_ = sizeof(uint8_t);
+      bins_type_size_ = UINT8_BINS_TYPE_SIZE;
     } else if ((max_num_bins - 1) <= static_cast<int>(std::numeric_limits<uint16_t>::max())) {
-      type_size_ = sizeof(uint16_t);
+      bins_type_size_ = UINT16_BINS_TYPE_SIZE;
     } else {
-      type_size_ = sizeof(uint32_t);
+      bins_type_size_ = UINT32_BINS_TYPE_SIZE;
     }
   }
 
   /* Fetch an individual column. This code should be used with type swith
      to determine type of bin id's */
   template <typename BinIdxType>
-  inline Column<BinIdxType> GetColumn(unsigned fid) const {
-    CHECK_EQ(sizeof(BinIdxType), type_size_);
+  std::unique_ptr<const Column<BinIdxType> > GetColumn(unsigned fid) const {
+    CHECK_EQ(sizeof(BinIdxType), bins_type_size_);
 
     const size_t feature_offset = feature_offsets_[fid];  // to get right place for certain feature
     const size_t column_size = feature_offsets_[fid + 1] - feature_offset;
-    std::vector<bool>::const_iterator column_iterator = missing_flags_.begin();
-    advance(column_iterator, feature_offset);  // increment iterator to right position
-    common::Span<const BinIdxType> bin_index = {reinterpret_cast<const BinIdxType*>(
-                                                &index_[feature_offset * type_size_]), column_size};
-    const size_t* row_index = (type_[fid] == ColumnType::kSparseColumn ?
-                               &row_ind_[feature_offset] : nullptr);
-
-    Column<BinIdxType> c(type_[fid], bin_index, index_base_[fid], row_index, column_iterator);
-    return c;
+    common::Span<const BinIdxType> bin_index = { reinterpret_cast<const BinIdxType*>(
+                                                 &index_[feature_offset * bins_type_size_]),
+                                                 column_size };
+    std::unique_ptr<const Column<BinIdxType> > res;
+    if (type_[fid] == ColumnType::kDenseColumn) {
+      std::vector<bool>::const_iterator column_iterator = missing_flags_.begin();
+      advance(column_iterator, feature_offset);  // increment iterator to right position
+      res.reset(new DenseColumn<BinIdxType>(type_[fid], bin_index, index_base_[fid],
+                                            column_iterator));
+    } else {
+      res.reset(new SparseColumn<BinIdxType>(type_[fid], bin_index, index_base_[fid],
+                                       {&row_ind_[feature_offset], column_size}));
+    }
+    return res;
   }
 
   template<typename T>
@@ -300,12 +309,16 @@ class ColumnMatrix {
       rbegin += batch.Size();
     }
   }
-  const size_t GetTypeSize() const {
-    return type_size_;
+  const BinTypeSize GetTypeSize() const {
+    return bins_type_size_;
+  }
+  const bool NoMissingValues(const size_t n_elements,
+                             const size_t n_row, const size_t n_features) {
+    return n_elements == n_features * n_row;
   }
 
  private:
-  std::vector<uint8_t> index_;  // index_: may store smaller integers; needs padding
+  std::vector<uint8_t> index_;
 
   std::vector<size_t> feature_counts_;
   std::vector<ColumnType> type_;
@@ -316,7 +329,7 @@ class ColumnMatrix {
   // index_base_[fid]: least bin id for feature fid
   uint32_t* index_base_;
   std::vector<bool> missing_flags_;
-  uint32_t type_size_;
+  BinTypeSize bins_type_size_;
 };
 
 }  // namespace common

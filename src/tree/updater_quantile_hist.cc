@@ -776,7 +776,7 @@ void QuantileHistMaker::Builder::EvaluateSplits(const std::vector<ExpandEntry>& 
 // Handle dense columns
 // Analog of std::stable_partition, but in no-inplace manner
 template <bool default_left, typename BinIdxType>
-inline std::pair<size_t, size_t> PartitionDenseKernel(const Column<BinIdxType>& column,
+inline std::pair<size_t, size_t> PartitionDenseKernel(const common::DenseColumn<BinIdxType>& column,
       common::Span<const size_t> rid_span, const int32_t split_cond,
       common::Span<size_t> left_part, common::Span<size_t> right_part) {
   const int32_t offset = column.GetBaseIdx();
@@ -810,7 +810,7 @@ inline std::pair<size_t, size_t> PartitionDenseKernel(const Column<BinIdxType>& 
 template<bool default_left, typename BinIdxType>
 inline std::pair<size_t, size_t> PartitionSparseKernel(
   common::Span<const size_t> rid_span, const int32_t split_cond,
-  const Column<BinIdxType>& column, common::Span<size_t> left_part,
+  const common::SparseColumn<BinIdxType>& column, common::Span<size_t> left_part,
   common::Span<size_t> right_part) {
   size_t* p_left_part  = left_part.data();
   size_t* p_right_part = right_part.data();
@@ -875,17 +875,21 @@ void QuantileHistMaker::Builder::PartitionKernel(
                                                                  range.begin(), range.end());
   const bst_uint fid = tree[nid].SplitIndex();
   const bool default_left = tree[nid].DefaultLeft();
-  const auto column = column_matrix.GetColumn<BinIdxType>(fid);
+  const auto column_ptr = column_matrix.GetColumn<BinIdxType>(fid);
 
   std::pair<size_t, size_t> child_nodes_sizes;
 
-  if (column.GetType() == xgboost::common::kDenseColumn) {
+  if (column_ptr->GetType() == xgboost::common::kDenseColumn) {
+    const common::DenseColumn<BinIdxType>& column =
+          static_cast<const common::DenseColumn<BinIdxType>& >(*(column_ptr.get()));
     if (default_left) {
       child_nodes_sizes = PartitionDenseKernel<true>(column, rid_span, split_cond, left, right);
     } else {
       child_nodes_sizes = PartitionDenseKernel<false>(column, rid_span, split_cond, left, right);
     }
   } else {
+    const common::SparseColumn<BinIdxType>& column
+      = static_cast<const common::SparseColumn<BinIdxType>& >(*(column_ptr.get()));
     if (default_left) {
       child_nodes_sizes = PartitionSparseKernel<true>(rid_span, split_cond, column, left, right);
     } else {
@@ -974,15 +978,15 @@ void QuantileHistMaker::Builder::ApplySplit(const std::vector<ExpandEntry> nodes
   common::ParallelFor2d(space, this->nthread_, [&](size_t node_in_set, common::Range1d r) {
     const int32_t nid = nodes[node_in_set].nid;
       switch (column_matrix.GetTypeSize()) {
-      case sizeof(uint8_t):
+      case common::UINT8_BINS_TYPE_SIZE:
         PartitionKernel<uint8_t>(node_in_set, nid, r,
                   split_conditions[node_in_set], column_matrix, *p_tree);
         break;
-      case sizeof(uint16_t):
+      case common::UINT16_BINS_TYPE_SIZE:
         PartitionKernel<uint16_t>(node_in_set, nid, r,
                   split_conditions[node_in_set], column_matrix, *p_tree);
         break;
-      case sizeof(uint32_t):
+      case common::UINT32_BINS_TYPE_SIZE:
         PartitionKernel<uint32_t>(node_in_set, nid, r,
                   split_conditions[node_in_set], column_matrix, *p_tree);
         break;
