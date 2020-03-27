@@ -287,6 +287,18 @@ def _maybe_pandas_data(data, feature_names, feature_types,
     return data, feature_names, feature_types
 
 
+def _cudf_array_interfaces(df):
+    '''Extract CuDF __cuda_array_interface__'''
+    interfaces = []
+    for col in df:
+        interface = df[col].__cuda_array_interface__
+        if 'mask' in interface:
+            interface['mask'] = interface['mask'].__cuda_array_interface__
+        interfaces.append(interface)
+    interfaces_str = bytes(json.dumps(interfaces, indent=2), 'utf-8')
+    return interfaces_str
+
+
 def _maybe_cudf_dataframe(data, feature_names, feature_types):
     """Extract internal data from cudf.DataFrame for DMatrix data."""
     if not (CUDF_INSTALLED and isinstance(data,
@@ -592,16 +604,10 @@ class DMatrix(object):
 
     def _init_from_array_interface_columns(self, df, missing, nthread):
         """Initialize DMatrix from columnar memory format."""
-        interfaces = []
-        for col in df:
-            interface = df[col].__cuda_array_interface__
-            if 'mask' in interface:
-                interface['mask'] = interface['mask'].__cuda_array_interface__
-            interfaces.append(interface)
+        interfaces_str = _cudf_array_interfaces(df)
         handle = ctypes.c_void_p()
         missing = missing if missing is not None else np.nan
         nthread = nthread if nthread is not None else 1
-        interfaces_str = bytes(json.dumps(interfaces, indent=2), 'utf-8')
         _check_call(
             _LIB.XGDMatrixCreateFromArrayInterfaceColumns(
                 interfaces_str,
@@ -1032,16 +1038,10 @@ class DeviceQuantileDMatrix(DMatrix):
 
     def _init_from_array_interface_columns(self, df, missing, nthread):
         """Initialize DMatrix from columnar memory format."""
-        interfaces = []
-        for col in df:
-            interface = df[col].__cuda_array_interface__
-            if 'mask' in interface:
-                interface['mask'] = interface['mask'].__cuda_array_interface__
-            interfaces.append(interface)
+        interfaces_str = _cudf_array_interfaces(df)
         handle = ctypes.c_void_p()
         missing = missing if missing is not None else np.nan
         nthread = nthread if nthread is not None else 1
-        interfaces_str = bytes(json.dumps(interfaces, indent=2), 'utf-8')
         _check_call(
             _LIB.XGDeviceQuantileDMatrixCreateFromArrayInterfaceColumns(
                 interfaces_str,

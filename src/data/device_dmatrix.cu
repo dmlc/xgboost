@@ -12,7 +12,6 @@
 #include <memory>
 #include <utility>
 #include "../common/hist_util.h"
-#include "../common/math.h"
 #include "adapter.h"
 #include "device_adapter.cuh"
 #include "ellpack_page.cuh"
@@ -20,18 +19,6 @@
 
 namespace xgboost {
 namespace data {
-
-struct IsValidFunctor : public thrust::unary_function<Entry, bool> {
-  explicit IsValidFunctor(float missing) : missing(missing) {}
-
-  float missing;
-  __device__ bool operator()(const data::COOTuple& e) const {
-    if (common::CheckNAN(e.value) || e.value == missing) {
-      return false;
-    }
-    return true;
-  }
-};
 
 // Returns maximum row length
 template <typename AdapterBatchT>

@@ -338,24 +338,6 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
   return cuts;
 }
 
-struct IsValidFunctor : public thrust::unary_function<Entry, bool> {
-  explicit IsValidFunctor(float missing) : missing(missing) {}
-
-  float missing;
-  __device__ bool operator()(const data::COOTuple& e) const {
-    if (common::CheckNAN(e.value) || e.value == missing) {
-      return false;
-    }
-    return true;
-  }
-  __device__ bool operator()(const Entry& e) const {
-    if (common::CheckNAN(e.fvalue) || e.fvalue == missing) {
-      return false;
-    }
-    return true;
-  }
-};
-
 template <typename AdapterT>
 void ProcessBatch(AdapterT* adapter, size_t begin, size_t end, float missing,
                   SketchContainer* sketch_container, int num_cuts) {
@@ -378,7 +360,7 @@ void ProcessBatch(AdapterT* adapter, size_t begin, size_t end, float missing,
                                                       0);
 
   auto d_column_sizes_scan = column_sizes_scan.data().get();
-  IsValidFunctor is_valid(missing);
+  data::IsValidFunctor is_valid(missing);
   dh::LaunchN(adapter->DeviceIdx(), end - begin, [=] __device__(size_t idx) {
     auto e = batch_iter[begin + idx];
     if (is_valid(e)) {
