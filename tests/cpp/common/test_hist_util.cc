@@ -360,13 +360,12 @@ TEST(hist_util, IndexBinBound) {
 
   size_t bin_id = 0;
   for (auto max_bin : bin_sizes) {
-    auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
-    std::shared_ptr<DMatrix> p_fmat {*pp_dmat};
+    auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
+
     common::GHistIndexMatrix hmat;
     hmat.Init(p_fmat.get(), max_bin);
     EXPECT_EQ(hmat.index.size(), kRows*kCols);
     EXPECT_EQ(expected_bin_bounds[bin_id++], hmat.index.getBinBound());
-    delete pp_dmat;
   }
 }
 
@@ -382,12 +381,10 @@ TEST(hist_util, SparseIndexBinBound) {
 
   size_t bin_id = 0;
   for (auto max_bin : bin_sizes) {
-    auto pp_dmat = CreateDMatrix(kRows, kCols, 0.2);
-    std::shared_ptr<DMatrix> p_fmat {*pp_dmat};
+    auto p_fmat = RandomDataGenerator(kRows, kCols, 0.2).GenerateDMatix();
     common::GHistIndexMatrix hmat;
     hmat.Init(p_fmat.get(), max_bin);
     EXPECT_EQ(expected_bin_bounds[bin_id++], hmat.index.getBinBound());
-    delete pp_dmat;
   }
 }
 
@@ -408,8 +405,7 @@ TEST(hist_util, IndexBinData) {
 
   size_t bin_id = 0;
   for (auto max_bin : kBinSizes) {
-    auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
-    std::shared_ptr<DMatrix> p_fmat {*pp_dmat};
+    auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
     common::GHistIndexMatrix hmat;
     hmat.Init(p_fmat.get(), max_bin);
     uint32_t* offsets = hmat.index.offset();
@@ -428,7 +424,6 @@ TEST(hist_util, IndexBinData) {
                        offsets, hmat, kCols);
         break;
     }
-    delete pp_dmat;
   }
 }
 
@@ -441,8 +436,7 @@ TEST(hist_util, SparseIndexBinData) {
 
   size_t bin_id = 0;
   for (auto max_bin : bin_sizes) {
-    auto pp_dmat = CreateDMatrix(kRows, kCols, 0.2);
-    std::shared_ptr<DMatrix> p_fmat {*pp_dmat};
+    auto p_fmat = RandomDataGenerator(kRows, kCols, 0.2).GenerateDMatix();
     common::GHistIndexMatrix hmat;
     hmat.Init(p_fmat.get(), max_bin);
     EXPECT_EQ(hmat.index.offset(), nullptr);
@@ -451,7 +445,6 @@ TEST(hist_util, SparseIndexBinData) {
     for (size_t i = 0; i < hmat.index.size(); ++i) {
       EXPECT_EQ(data_ptr[i], hmat.index[i]);
     }
-    delete pp_dmat;
   }
 }
 

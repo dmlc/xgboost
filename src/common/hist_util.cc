@@ -1002,6 +1002,7 @@ void GHistBuilder::BuildHist(const std::vector<GradientPair>& gpair,
   const bool contiguousBlock = (row_indices.begin[nrows - 1] - row_indices.begin[0]) == (nrows - 1);
 
   if (contiguousBlock) {
+    // contiguous memory access, built-in HW prefetching is enough
     BuildHistKernel<FPType, false>(gpair, row_indices, gmat, isDense, hist);
   } else {
     const RowSetCollection::Elem span1(row_indices.begin, row_indices.end - no_prefetch_size);
