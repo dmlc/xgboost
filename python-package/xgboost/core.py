@@ -1621,6 +1621,8 @@ class Booster(object):
 
         length = c_bst_ulong()
         preds = ctypes.POINTER(ctypes.c_float)()
+        iteration_range = (ctypes.c_uint(iteration_range[0]),
+                           ctypes.c_uint(iteration_range[1]))
 
         # once caching is supported, we can pass id(data) as cache id.
         if isinstance(data, DataFrame):
