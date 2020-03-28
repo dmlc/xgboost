@@ -103,12 +103,12 @@ else()
     )
     # ask R for the include dir
     execute_process(
-      COMMAND ${LIBR_EXECUTABLE} "--slave" "--no-save" "-e" "cat(R.home('include'))"
+      COMMAND ${LIBR_EXECUTABLE} "--slave" "--vanilla" "-e" "cat(R.home('include'))"
       OUTPUT_VARIABLE LIBR_INCLUDE_DIRS
     )
     # ask R for the lib dir
     execute_process(
-      COMMAND ${LIBR_EXECUTABLE} "--slave" "--no-save" "-e" "cat(R.home('lib'))"
+      COMMAND ${LIBR_EXECUTABLE} "--slave" "--vanilla" "-e" "cat(R.home('lib'))"
       OUTPUT_VARIABLE LIBR_LIB_DIR
     )
 
