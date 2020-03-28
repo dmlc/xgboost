@@ -10,6 +10,7 @@
 #include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
+#include <thrust/binary_search.h>
 
 namespace xgboost {
 
@@ -90,6 +91,19 @@ struct EllpackDeviceAccessor {
     }
     return gidx;
   }
+
+  __device__ uint32_t SearchBin(float value, size_t column_id) const {
+    auto beg = feature_segments[column_id];
+    auto end = feature_segments[column_id + 1];
+    auto it =
+        thrust::upper_bound(thrust::seq, gidx_fvalue_map.cbegin()+ beg, gidx_fvalue_map.cbegin() + end, value);
+    uint32_t idx = it - gidx_fvalue_map.cbegin();
+    if (idx == end) {
+      idx -= 1;
+    }
+    return idx;
+  }
+
   __device__ bst_float GetFvalue(size_t ridx, size_t fidx) const {
     auto gidx = GetBinIndex(ridx, fidx);
     if (gidx == -1) {
@@ -104,7 +118,7 @@ struct EllpackDeviceAccessor {
   }
   /*! \brief Return the total number of symbols (total number of bins plus 1 for
    * not found). */
-  size_t NumSymbols() const { return gidx_fvalue_map.size() + 1; }
+  XGBOOST_DEVICE size_t NumSymbols() const { return gidx_fvalue_map.size() + 1; }
 
   size_t NullValue() const { return gidx_fvalue_map.size(); }
 

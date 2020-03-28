@@ -291,6 +291,18 @@ def _maybe_pandas_data(data, feature_names, feature_types,
     return data, feature_names, feature_types
 
 
+def _cudf_array_interfaces(df):
+    '''Extract CuDF __cuda_array_interface__'''
+    interfaces = []
+    for col in df:
+        interface = df[col].__cuda_array_interface__
+        if 'mask' in interface:
+            interface['mask'] = interface['mask'].__cuda_array_interface__
+        interfaces.append(interface)
+    interfaces_str = bytes(json.dumps(interfaces, indent=2), 'utf-8')
+    return interfaces_str
+
+
 def _maybe_cudf_dataframe(data, feature_names, feature_types):
     """Extract internal data from cudf.DataFrame for DMatrix data."""
     if not (CUDF_INSTALLED and isinstance(data,
@@ -596,16 +608,10 @@ class DMatrix(object):
 
     def _init_from_array_interface_columns(self, df, missing, nthread):
         """Initialize DMatrix from columnar memory format."""
-        interfaces = []
-        for col in df:
-            interface = df[col].__cuda_array_interface__
-            if 'mask' in interface:
-                interface['mask'] = interface['mask'].__cuda_array_interface__
-            interfaces.append(interface)
+        interfaces_str = _cudf_array_interfaces(df)
         handle = ctypes.c_void_p()
         missing = missing if missing is not None else np.nan
         nthread = nthread if nthread is not None else 1
-        interfaces_str = bytes(json.dumps(interfaces, indent=2), 'utf-8')
         _check_call(
             _LIB.XGDMatrixCreateFromArrayInterfaceColumns(
                 interfaces_str,
@@ -1004,6 +1010,65 @@ class DMatrix(object):
                 raise ValueError('All feature_names must be {int, float, i, q}')
         self._feature_types = feature_types
 
+
+class DeviceQuantileDMatrix(DMatrix):
+    """Device memory Data Matrix used in XGBoost for training with tree_method='gpu_hist'. Do not
+    use this for test/validation tasks as some information may be lost in quantisation. This
+    DMatrix is primarily designed to save memory in training and avoids intermediate steps,
+    directly creating a compressed representation for training without allocating additional
+    memory. Implementation does not currently consider weights in quantisation process(unlike
+    DMatrix).
+
+    You can construct DeviceDMatrix from cupy/cudf
+    """
+
+    def __init__(self, data, label=None, weight=None, base_margin=None,
+                 missing=None,
+                 silent=False,
+                 feature_names=None,
+                 feature_types=None,
+                 nthread=None, max_bin=256):
+        self.max_bin = max_bin
+        if not (hasattr(data, "__cuda_array_interface__") or (
+                CUDF_INSTALLED and isinstance(data, CUDF_DataFrame))):
+            raise ValueError('Only cupy/cudf currently supported for DeviceDMatrix')
+
+        super().__init__(data, label=label, weight=weight, base_margin=base_margin,
+                         missing=missing,
+                         silent=silent,
+                         feature_names=feature_names,
+                         feature_types=feature_types,
+                         nthread=nthread)
+
+    def _init_from_array_interface_columns(self, df, missing, nthread):
+        """Initialize DMatrix from columnar memory format."""
+        interfaces_str = _cudf_array_interfaces(df)
+        handle = ctypes.c_void_p()
+        missing = missing if missing is not None else np.nan
+        nthread = nthread if nthread is not None else 1
+        _check_call(
+            _LIB.XGDeviceQuantileDMatrixCreateFromArrayInterfaceColumns(
+                interfaces_str,
+                ctypes.c_float(missing), ctypes.c_int(nthread),
+                ctypes.c_int(self.max_bin), ctypes.byref(handle)))
+        self.handle = handle
+
+    def _init_from_array_interface(self, data, missing, nthread):
+        """Initialize DMatrix from cupy ndarray."""
+        interface = data.__cuda_array_interface__
+        if 'mask' in interface:
+            interface['mask'] = interface['mask'].__cuda_array_interface__
+        interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
+
+        handle = ctypes.c_void_p()
+        missing = missing if missing is not None else np.nan
+        nthread = nthread if nthread is not None else 1
+        _check_call(
+            _LIB.XGDeviceQuantileDMatrixCreateFromArrayInterface(
+                interface_str,
+                ctypes.c_float(missing), ctypes.c_int(nthread),
+                ctypes.c_int(self.max_bin), ctypes.byref(handle)))
+        self.handle = handle
 
 class Booster(object):
     # pylint: disable=too-many-public-methods

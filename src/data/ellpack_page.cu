@@ -210,8 +210,8 @@ void EllpackPageImpl::InitCompressedData(int device) {
 
   // Required buffer size for storing data matrix in ELLPack format.
   size_t compressed_size_bytes =
-      common::CompressedBufferWriter::CalculateBufferSize(row_stride * n_rows,
-                                                          num_symbols);
+    common::CompressedBufferWriter::CalculateBufferSize(row_stride * n_rows,
+      num_symbols);
   gidx_buffer.SetDevice(device);
   // Don't call fill unnecessarily
   if (gidx_buffer.Size() == 0) {

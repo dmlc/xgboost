@@ -105,10 +105,10 @@ class HistogramCuts {
     auto end = cut_ptrs_.ConstHostVector().at(column_id + 1);
     const auto &values = cut_values_.ConstHostVector();
     auto it = std::upper_bound(values.cbegin() + beg, values.cbegin() + end, value);
-    if (it == values.cend()) {
-      it = values.cend() - 1;
-    }
     BinIdx idx = it - values.cbegin();
+    if (idx == end) {
+      idx -= 1;
+    }
     return idx;
   }
 

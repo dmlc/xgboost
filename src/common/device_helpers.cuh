@@ -1540,4 +1540,12 @@ DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
             static_cast<typename OutputGradientT::ValueT>(gpair.GetHess()));
 }
 
+
+// Thrust version of this function causes error on Windows
+template <typename ReturnT, typename IterT, typename FuncT>
+thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIterator(
+  IterT iter, FuncT func) {
+  return thrust::transform_iterator<FuncT, IterT, ReturnT>(iter, func);
+}
+
 }  // namespace dh

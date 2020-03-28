@@ -338,31 +338,6 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
   return cuts;
 }
 
-struct IsValidFunctor : public thrust::unary_function<Entry, bool> {
-  explicit IsValidFunctor(float missing) : missing(missing) {}
-
-  float missing;
-  __device__ bool operator()(const data::COOTuple& e) const {
-    if (common::CheckNAN(e.value) || e.value == missing) {
-      return false;
-    }
-    return true;
-  }
-  __device__ bool operator()(const Entry& e) const {
-    if (common::CheckNAN(e.fvalue) || e.fvalue == missing) {
-      return false;
-    }
-    return true;
-  }
-};
-
-// Thrust version of this function causes error on Windows
-template <typename ReturnT, typename IterT, typename FuncT>
-thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIterator(
-  IterT iter, FuncT func) {
-  return thrust::transform_iterator<FuncT, IterT, ReturnT>(iter, func);
-}
-
 template <typename AdapterT>
 void ProcessBatch(AdapterT* adapter, size_t begin, size_t end, float missing,
                   SketchContainer* sketch_container, int num_cuts) {
@@ -372,10 +347,10 @@ void ProcessBatch(AdapterT* adapter, size_t begin, size_t end, float missing,
   auto &batch = adapter->Value();
   // Enforce single batch
   CHECK(!adapter->Next());
-  auto batch_iter = MakeTransformIterator<data::COOTuple>(
+  auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
     thrust::make_counting_iterator(0llu),
     [=] __device__(size_t idx) { return batch.GetElement(idx); });
-  auto entry_iter = MakeTransformIterator<Entry>(
+  auto entry_iter = dh::MakeTransformIterator<Entry>(
       thrust::make_counting_iterator(0llu), [=] __device__(size_t idx) {
         return Entry(batch.GetElement(idx).column_idx,
                      batch.GetElement(idx).value);
@@ -385,7 +360,7 @@ void ProcessBatch(AdapterT* adapter, size_t begin, size_t end, float missing,
                                                       0);
 
   auto d_column_sizes_scan = column_sizes_scan.data().get();
-  IsValidFunctor is_valid(missing);
+  data::IsValidFunctor is_valid(missing);
   dh::LaunchN(adapter->DeviceIdx(), end - begin, [=] __device__(size_t idx) {
     auto e = batch_iter[begin + idx];
     if (is_valid(e)) {
