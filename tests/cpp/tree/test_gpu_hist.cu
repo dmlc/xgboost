@@ -1,6 +1,7 @@
 /*!
  * Copyright 2017-2020 XGBoost contributors
  */
+#include <gtest/gtest.h>
 #include <thrust/device_vector.h>
 #include <dmlc/filesystem.h>
 #include <xgboost/base.h>
@@ -9,7 +10,7 @@
 #include <vector>
 
 #include "../helpers.h"
-#include "gtest/gtest.h"
+#include "../histogram_helpers.h"
 
 #include "xgboost/json.h"
 #include "../../../src/data/sparse_page_source.h"

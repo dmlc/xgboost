@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "../helpers.h"
+#include "../histogram_helpers.h"
 #include "gtest/gtest.h"
 
 #include "../../../src/common/hist_util.h"
