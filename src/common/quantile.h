@@ -710,7 +710,7 @@ class QuantileSketchTemplate {
     // check invariant
     size_t n = (1ULL << nlevel);
     CHECK(n * limit_size >= maxn) << "invalid init parameter";
-    CHECK(nlevel <= std::max(1, static_cast<int>(limit_size * eps)))
+    CHECK(nlevel <= std::max(static_cast<size_t>(1), static_cast<size_t>(limit_size * eps)))
         << "invalid init parameter";
   }
 

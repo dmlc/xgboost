@@ -427,25 +427,6 @@ DMatrix* DMatrix::Load(const std::string& uri,
   return dmat;
 }
 
-
-/*
-DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
-                         const std::string& cache_prefix) {
-  if (cache_prefix.length() == 0) {
-    // Data split mode is fixed to be row right now.
-    rabit::Allreduce<rabit::op::Max>(&source->info.num_col_, 1);
-    return new data::SimpleDMatrix(std::move(source));
-  } else {
-#if DMLC_ENABLE_STD_THREAD
-    return new data::SparsePageDMatrix(std::move(source), cache_prefix);
-#else
-    LOG(FATAL) << "External memory is not enabled in mingw";
-    return nullptr;
-#endif  // DMLC_ENABLE_STD_THREAD
-  }
-}
-*/
-
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
                          const std::string& cache_prefix,  size_t page_size ) {

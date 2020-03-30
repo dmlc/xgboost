@@ -297,9 +297,9 @@ struct Index {
   std::vector<uint8_t> data_;
   std::vector<uint32_t> offset_;  // size of this field is equal to number of features
   void* data_ptr_;
-  uint32_t* offset_ptr_;
-  size_t p_;
   BinTypeSize binTypeSize_;
+  size_t p_;
+  uint32_t* offset_ptr_;
   Func func_;
 };
 

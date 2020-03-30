@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <algorithm>
 
+#include "common.h"
+
 #ifdef __CUDACC__
 #include "device_helpers.cuh"
 #endif  // __CUDACC__
@@ -29,12 +31,12 @@ inline void ClearBit(CompressedByteT *byte, int bit_idx) {
   *byte &= ~(1 << bit_idx);
 }
 static const int kPadding = 4;  // Assign padding so we can read slightly off
-                               // the beginning of the array
+                                // the beginning of the array
 
 // The number of bits required to represent a given unsigned range
 inline XGBOOST_DEVICE size_t SymbolBits(size_t num_symbols) {
   auto bits = std::ceil(log2(static_cast<double>(num_symbols)));
-  return std::max(static_cast<size_t>(bits), size_t(1));
+  return common::Max(static_cast<size_t>(bits), size_t(1));
 }
 }  // namespace detail
 

@@ -403,7 +403,6 @@ TEST(hist_util, IndexBinData) {
   size_t constexpr kRows = 100;
   size_t constexpr kCols = 10;
 
-  size_t bin_id = 0;
   for (auto max_bin : kBinSizes) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
     common::GHistIndexMatrix hmat;
@@ -434,7 +433,6 @@ TEST(hist_util, SparseIndexBinData) {
   size_t constexpr kRows = 100;
   size_t constexpr kCols = 10;
 
-  size_t bin_id = 0;
   for (auto max_bin : bin_sizes) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0.2).GenerateDMatix();
     common::GHistIndexMatrix hmat;

@@ -64,6 +64,11 @@ inline std::vector<std::string> Split(const std::string& s, char delim) {
   return ret;
 }
 
+template <typename T>
+XGBOOST_DEVICE T Max(T a, T b) {
+  return a < b ? b : a;
+}
+
 // simple routine to convert any data to string
 template<typename T>
 inline std::string ToString(const T& data) {
