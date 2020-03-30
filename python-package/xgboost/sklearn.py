@@ -965,7 +965,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         return preds
 
-    def predict_proba(self, data, ntree_limit=None, pred_leaf=False, pred_contribs=False, approx_contribs=False, validate_features=True,
+    def predict_proba(self, data, output_margin=False, ntree_limit=None, pred_leaf=False, pred_contribs=False, approx_contribs=False, validate_features=True,
                       base_margin=None):
         """
         Predict the probability of each `data` example being of a given class.
@@ -980,6 +980,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         ----------
         data : DMatrix
             The dmatrix storing the input.
+        output_margin : bool
+            Whether to output the raw untransformed margin value.
         ntree_limit : int
             Limit number of trees in the prediction; defaults to best_ntree_limit if defined
             (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
