@@ -181,6 +181,9 @@ class RandomDataGenerator {
   int32_t device_;
   int32_t seed_;
 
+  Json ArrayInterfaceImpl(HostDeviceVector<float> *storage, size_t rows,
+                          size_t cols) const;
+
  public:
   RandomDataGenerator(bst_row_t rows, size_t cols, float sparsity)
       : rows_{rows}, cols_{cols}, sparsity_{sparsity}, lower_{0.0f}, upper_{1.0f},
@@ -204,7 +207,9 @@ class RandomDataGenerator {
   }
 
   void GenerateDense(HostDeviceVector<float>* out) const;
-  void GenerateArrayInterface(HostDeviceVector<float>* storage, std::string* out) const;
+  std::string GenerateArrayInterface(HostDeviceVector<float>* storage) const;
+  std::string GenerateColumnarArrayInterface(
+      std::vector<HostDeviceVector<float>> *data) const;
   void GenerateCSR(HostDeviceVector<float>* value, HostDeviceVector<bst_row_t>* row_ptr,
                    HostDeviceVector<bst_feature_t>* columns) const;
 

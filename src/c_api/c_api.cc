@@ -12,6 +12,7 @@
 
 #include "xgboost/base.h"
 #include "xgboost/data.h"
+#include "xgboost/host_device_vector.h"
 #include "xgboost/learner.h"
 #include "xgboost/c_api.h"
 #include "xgboost/logging.h"
@@ -449,6 +450,95 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
   *len = static_cast<xgboost::bst_ulong>(entry.predictions.Size());
   API_END();
 }
+
+// A hidden API as cache id is not being supported yet.
+XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, float *values,
+                                      xgboost::bst_ulong n_rows,
+                                      xgboost::bst_ulong n_cols,
+                                      float missing,
+                                      unsigned iteration_begin,
+                                      unsigned iteration_end,
+                                      char const* c_type,
+                                      xgboost::bst_ulong cache_id,
+                                      xgboost::bst_ulong *out_len,
+                                      const float **out_result) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  CHECK_EQ(cache_id, 0) << "Cache ID is not supported yet";
+  auto *learner = static_cast<xgboost::Learner *>(handle);
+
+  auto x = xgboost::data::DenseAdapter(values, n_rows, n_cols);
+  HostDeviceVector<float>* p_predt { nullptr };
+  std::string type { c_type };
+  learner->InplacePredict(x, type, missing, &p_predt);
+  CHECK(p_predt);
+
+  *out_result = dmlc::BeginPtr(p_predt->HostVector());
+  *out_len = static_cast<xgboost::bst_ulong>(p_predt->Size());
+  API_END();
+}
+
+// A hidden API as cache id is not being supported yet.
+XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle,
+                                    const size_t* indptr,
+                                    const unsigned* indices,
+                                    const bst_float* data,
+                                    size_t nindptr,
+                                    size_t nelem,
+                                    size_t num_col,
+                                    float missing,
+                                    unsigned iteration_begin,
+                                    unsigned iteration_end,
+                                    char const *c_type,
+                                    xgboost::bst_ulong cache_id,
+                                    xgboost::bst_ulong *out_len,
+                                    const float **out_result) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  CHECK_EQ(cache_id, 0) << "Cache ID is not supported yet";
+  auto *learner = static_cast<xgboost::Learner *>(handle);
+
+  auto x = data::CSRAdapter(indptr, indices, data, nindptr - 1, nelem, num_col);
+  HostDeviceVector<float>* p_predt { nullptr };
+  std::string type { c_type };
+  learner->InplacePredict(x, type, missing, &p_predt);
+  CHECK(p_predt);
+
+  *out_result = dmlc::BeginPtr(p_predt->HostVector());
+  *out_len = static_cast<xgboost::bst_ulong>(p_predt->Size());
+  API_END();
+}
+
+#if !defined(XGBOOST_USE_CUDA)
+XGB_DLL int XGBoosterPredictFromArrayInterfaceColumns(BoosterHandle handle,
+                                                      char const* c_json_strs,
+                                                      float missing,
+                                                      unsigned iteration_begin,
+                                                      unsigned iteration_end,
+                                                      char const* c_type,
+                                                      xgboost::bst_ulong cache_id,
+                                                      xgboost::bst_ulong *out_len,
+                                                      float const** out_result) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  LOG(FATAL) << "XGBoost not compiled with CUDA.";
+  API_END();
+}
+XGB_DLL int XGBoosterPredictFromArrayInterface(BoosterHandle handle,
+                                               char const* c_json_strs,
+                                               float missing,
+                                               unsigned iteration_begin,
+                                               unsigned iteration_end,
+                                               char const* c_type,
+                                               xgboost::bst_ulong cache_id,
+                                               xgboost::bst_ulong *out_len,
+                                               const float **out_result) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  LOG(FATAL) << "XGBoost not compiled with CUDA.";
+  API_END();
+}
+#endif  // !defined(XGBOOST_USE_CUDA)
 
 XGB_DLL int XGBoosterLoadModel(BoosterHandle handle, const char* fname) {
   API_BEGIN();

@@ -58,6 +58,9 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, int32_t bins
 
 void TestTrainingPrediction(size_t rows, std::string tree_method);
 
+void TestInplacePrediction(dmlc::any x, std::string predictor,
+                           bst_row_t rows, bst_feature_t cols,
+                           int32_t device = -1);
 }  // namespace xgboost
 
 #endif  // XGBOOST_TEST_PREDICTOR_H_

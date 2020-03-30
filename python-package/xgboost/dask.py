@@ -26,6 +26,7 @@ from .compat import da, dd, delayed, get_client
 from .compat import sparse, scipy_sparse
 from .compat import PANDAS_INSTALLED, DataFrame, Series, pandas_concat
 from .compat import CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_concat
+from .compat import lazy_isinstance
 
 from .core import DMatrix, Booster, _expect
 from .training import train as worker_train
@@ -86,7 +87,7 @@ class RabitContext:
         LOGGER.debug('--------------- rabit say bye ------------------')
 
 
-def concat(value):
+def concat(value):              # pylint: disable=too-many-return-statements
     '''To be replaced with dask builtin.'''
     if isinstance(value[0], numpy.ndarray):
         return numpy.concatenate(value, axis=0)
@@ -98,6 +99,9 @@ def concat(value):
         return pandas_concat(value, axis=0)
     if CUDF_INSTALLED and isinstance(value[0], (CUDF_DataFrame, CUDF_Series)):
         return CUDF_concat(value, axis=0)
+    if lazy_isinstance(value[0], 'cupy.core.core', 'ndarray'):
+        import cupy             # pylint: disable=import-error
+        return cupy.concatenate(value, axis=0)
     return dd.multi.concat(list(value), axis=0)
 
 
@@ -370,8 +374,9 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
         Specify the dask client used for training.  Use default client
         returned from dask if it's set to None.
     \\*\\*kwargs:
-        Other parameters are the same as `xgboost.train` except for `evals_result`,
-        which is returned as part of function return value instead of argument.
+        Other parameters are the same as `xgboost.train` except for
+        `evals_result`, which is returned as part of function return value
+        instead of argument.
 
     Returns
     -------
@@ -500,11 +505,10 @@ def predict(client, model, data, *args, missing=numpy.nan):
         ).result()
         return predictions
     if isinstance(data, dd.DataFrame):
-        import dask
         predictions = client.submit(
             dd.map_partitions,
             mapped_predict, data, True,
-            meta=dask.dataframe.utils.make_meta({'prediction': 'f4'})
+            meta=dd.utils.make_meta({'prediction': 'f4'})
         ).result()
         return predictions.iloc[:, 0]
 
@@ -570,6 +574,79 @@ def predict(client, model, data, *args, missing=numpy.nan):
                                       dtype=numpy.float32))
     predictions = da.concatenate(arrays, axis=0)
     return predictions
+
+
+def inplace_predict(client, model, data,
+                    iteration_range=(0, 0),
+                    predict_type='value',
+                    missing=numpy.nan):
+    '''Inplace prediction.
+
+    Parameters
+    ----------
+    client: dask.distributed.Client
+        Specify the dask client used for training.  Use default client
+        returned from dask if it's set to None.
+    model: Booster/dict
+        The trained model.
+    iteration_range: tuple
+        Specify the range of trees used for prediction.
+    predict_type: str
+        * 'value': Normal prediction result.
+        * 'margin': Output the raw untransformed margin value.
+    missing: float
+        Value in the input data which needs to be present as a missing
+        value. If None, defaults to np.nan.
+    Returns
+    -------
+    prediction: dask.array.Array
+    '''
+    _assert_dask_support()
+    client = _xgb_get_client(client)
+    if isinstance(model, Booster):
+        booster = model
+    elif isinstance(model, dict):
+        booster = model['booster']
+    else:
+        raise TypeError(_expect([Booster, dict], type(model)))
+    if not isinstance(data, (da.Array, dd.DataFrame)):
+        raise TypeError(_expect([da.Array, dd.DataFrame], type(data)))
+
+    def mapped_predict(data, is_df):
+        worker = distributed_get_worker()
+        booster.set_param({'nthread': worker.nthreads})
+        prediction = booster.inplace_predict(
+            data,
+            iteration_range=iteration_range,
+            predict_type=predict_type,
+            missing=missing)
+        if is_df:
+            if lazy_isinstance(data, 'cudf.core.dataframe', 'DataFrame'):
+                import cudf     # pylint: disable=import-error
+                # There's an error with cudf saying `concat_cudf` got an
+                # expected argument `ignore_index`. So this is not yet working.
+                prediction = cudf.DataFrame({'prediction': prediction},
+                                            dtype=numpy.float32)
+            else:
+                # If it's  from pandas, the partition is a numpy array
+                prediction = DataFrame(prediction, columns=['prediction'],
+                                       dtype=numpy.float32)
+        return prediction
+
+    if isinstance(data, da.Array):
+        predictions = client.submit(
+            da.map_blocks,
+            mapped_predict, data, False, drop_axis=1,
+            dtype=numpy.float32
+        ).result()
+        return predictions
+    if isinstance(data, dd.DataFrame):
+        predictions = client.submit(
+            dd.map_partitions,
+            mapped_predict, data, True,
+            meta=dd.utils.make_meta({'prediction': 'f4'})
+        ).result()
+        return predictions.iloc[:, 0]
 
 
 def _evaluation_matrices(client, validation_set, sample_weights, missing):

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2019 by Contributors
+ * Copyright 2014-2020 by Contributors
  * \file gbtree.cc
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
@@ -16,6 +16,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/logging.h"
 #include "xgboost/gbm.h"
@@ -202,6 +203,22 @@ class GBTree : public GradientBooster {
                     PredictionCacheEntry* out_preds,
                     bool training,
                     unsigned ntree_limit) override;
+
+  void InplacePredict(dmlc::any const &x, float missing,
+                      PredictionCacheEntry *out_preds,
+                      uint32_t layer_begin = 0,
+                      unsigned layer_end = 0) const override {
+    CHECK(configured_);
+    // From here on, layer becomes concrete trees.
+    bst_group_t groups = model_.learner_model_param_->num_output_group;
+    uint32_t tree_begin = layer_begin * groups * tparam_.num_parallel_tree;
+    uint32_t tree_end = layer_end * groups * tparam_.num_parallel_tree;
+    if (tree_end == 0 || tree_end > model_.trees.size()) {
+      tree_end = static_cast<uint32_t>(model_.trees.size());
+    }
+    this->GetPredictor()->InplacePredict(x, model_, missing, out_preds,
+                                         tree_begin, tree_end);
+  }
 
   void PredictInstance(const SparsePage::Inst& inst,
                        std::vector<bst_float>* out_preds,
