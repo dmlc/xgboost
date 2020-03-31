@@ -93,9 +93,9 @@ namespace common {
     if (XGBOOST_EXPECT(!(cond), false)) {                                      \
       fprintf(stderr, "[xgboost] Condition %s failed.\n", #cond);              \
       std::terminate();                                                        \
-    };                                                                         \
+    }                                                                          \
   } while (0);
-#endif // __CUDA_ARCH__
+#endif  // __CUDA_ARCH__
 
 namespace detail {
 /*!
