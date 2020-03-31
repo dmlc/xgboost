@@ -29,11 +29,13 @@
 #ifndef XGBOOST_SPAN_H_
 #define XGBOOST_SPAN_H_
 
-#include <xgboost/logging.h>  // CHECK
+#include <xgboost/base.h>
 
 #include <cinttypes>          // size_t
-#include <numeric>            // numeric_limits
+#include <limits>             // numeric_limits
+#include <iterator>
 #include <type_traits>
+#include <cstdio>
 
 /*!
  * The version number 1910 is picked up from GSL.
@@ -69,27 +71,31 @@ namespace xgboost {
 namespace common {
 
 // Usual logging facility is not available inside device code.
-// TODO(trivialfis): Make dmlc check more generic.
 // assert is not supported in mac as of CUDA 10.0
-#define KERNEL_CHECK(cond)                                      \
-  do {                                                          \
-    if (!(cond)) {                                              \
-      printf("\nKernel error:\n"                                \
-             "In: %s: %d\n"                                     \
-             "\t%s\n\tExpecting: %s\n"                          \
-             "\tBlock: [%d, %d, %d], Thread: [%d, %d, %d]\n\n", \
-             __FILE__, __LINE__, __PRETTY_FUNCTION__, #cond,    \
-             blockIdx.x, blockIdx.y, blockIdx.z,                \
-             threadIdx.x, threadIdx.y, threadIdx.z);            \
-      asm("trap;");                                             \
-    }                                                           \
+#define KERNEL_CHECK(cond)                                                     \
+  do {                                                                         \
+    if (!(cond)) {                                                             \
+      printf("\nKernel error:\n"                                               \
+             "In: %s: %d\n"                                                    \
+             "\t%s\n\tExpecting: %s\n"                                         \
+             "\tBlock: [%d, %d, %d], Thread: [%d, %d, %d]\n\n",                \
+             __FILE__, __LINE__, __PRETTY_FUNCTION__, #cond, blockIdx.x,       \
+             blockIdx.y, blockIdx.z, threadIdx.x, threadIdx.y, threadIdx.z);   \
+      asm("trap;");                                                            \
+    }                                                                          \
   } while (0);
 
 #ifdef __CUDA_ARCH__
 #define SPAN_CHECK KERNEL_CHECK
 #else
-#define SPAN_CHECK CHECK  // check from dmlc
-#endif  // __CUDA_ARCH__
+#define SPAN_CHECK(cond)                                                       \
+  do {                                                                         \
+    if (XGBOOST_EXPECT(!(cond), false)) {                                      \
+      fprintf(stderr, "[xgboost] Condition %s failed.\n", #cond);              \
+      std::terminate();                                                        \
+    };                                                                         \
+  } while (0);
+#endif // __CUDA_ARCH__
 
 namespace detail {
 /*!
