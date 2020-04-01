@@ -96,7 +96,7 @@ namespace common {
       std::terminate();                                                        \
     }                                                                          \
   } while (0);
-#endif // __CUDA_ARCH__
+#endif  // __CUDA_ARCH__
 
 namespace detail {
 /*!
