@@ -14,6 +14,9 @@ Core Data Structure
     :members:
     :show-inheritance:
 
+.. autoclass:: xgboost.DeviceQuantileDMatrix
+    :show-inheritance:
+
 .. autoclass:: xgboost.Booster
     :members:
     :show-inheritance:
