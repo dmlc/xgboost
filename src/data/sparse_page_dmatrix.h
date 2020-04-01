@@ -30,7 +30,6 @@ class SparsePageDMatrix : public DMatrix {
     row_source_.reset(new data::SparsePageSource(adapter, missing, nthread,
                                                  cache_prefix, page_size));
   }
-  // Set number of threads but keep old value so we can reset it after
   ~SparsePageDMatrix() override = default;
 
   MetaInfo& Info() override;
