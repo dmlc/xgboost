@@ -4,8 +4,10 @@
 \name{agaricus.test}
 \alias{agaricus.test}
 \title{Test part from Mushroom Data Set}
-\format{A list containing a label vector, and a dgCMatrix object with 1611
-rows and 126 variables}
+\format{
+A list containing a label vector, and a dgCMatrix object with 1611
+rows and 126 variables
+}
 \usage{
 data(agaricus.test)
 }
