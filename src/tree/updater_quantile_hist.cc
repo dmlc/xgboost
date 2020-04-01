@@ -565,7 +565,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     }
     hist_builder_ = GHistBuilder(this->nthread_, nbins);
 
-    std::vector<size_t>& row_indices = row_set_collection_.row_indices_;
+    std::vector<size_t>& row_indices = *row_set_collection_.Data();
     row_indices.resize(info.num_row_);
     auto* p_row_indices = row_indices.data();
     // mark subsample and build list of member rows
@@ -978,15 +978,15 @@ void QuantileHistMaker::Builder::ApplySplit(const std::vector<ExpandEntry> nodes
   common::ParallelFor2d(space, this->nthread_, [&](size_t node_in_set, common::Range1d r) {
     const int32_t nid = nodes[node_in_set].nid;
       switch (column_matrix.GetTypeSize()) {
-      case common::UINT8_BINS_TYPE_SIZE:
+      case common::kUint8BinsTypeSize:
         PartitionKernel<uint8_t>(node_in_set, nid, r,
                   split_conditions[node_in_set], column_matrix, *p_tree);
         break;
-      case common::UINT16_BINS_TYPE_SIZE:
+      case common::kUint16BinsTypeSize:
         PartitionKernel<uint16_t>(node_in_set, nid, r,
                   split_conditions[node_in_set], column_matrix, *p_tree);
         break;
-      case common::UINT32_BINS_TYPE_SIZE:
+      case common::kUint32BinsTypeSize:
         PartitionKernel<uint32_t>(node_in_set, nid, r,
                   split_conditions[node_in_set], column_matrix, *p_tree);
         break;

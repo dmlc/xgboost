@@ -15,13 +15,13 @@ namespace common {
 
 void Monitor::Start(std::string const &name) {
   if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
-    statistics_map[name].timer.Start();
+    statistics_map_[name].timer.Start();
   }
 }
 
 void Monitor::Stop(const std::string &name) {
   if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
-    auto &stats = statistics_map[name];
+    auto &stats = statistics_map_[name];
     stats.timer.Stop();
     stats.count++;
   }
@@ -40,7 +40,7 @@ std::vector<Monitor::StatMap> Monitor::CollectFromOtherRanks() const {
   j_statistic["statistic"] = Object();
 
   auto& statistic = j_statistic["statistic"];
-  for (auto const& kv : statistics_map) {
+  for (auto const& kv : statistics_map_) {
     statistic[kv.first] = Object();
     auto& j_pair = statistic[kv.first];
     j_pair["count"] = Integer(kv.second.count);
@@ -105,7 +105,7 @@ void Monitor::Print() const {
     auto world = this->CollectFromOtherRanks();
     // rank zero is in charge of printing
     if (rabit::GetRank() == 0) {
-      LOG(CONSOLE) << "======== Monitor: " << label << " ========";
+      LOG(CONSOLE) << "======== Monitor: " << label_ << " ========";
       for (size_t i = 0; i < world.size(); ++i) {
         LOG(CONSOLE) << "From rank: " << i << ": " << std::endl;
         auto const& statistic = world[i];
@@ -114,12 +114,12 @@ void Monitor::Print() const {
     }
   } else {
     StatMap stat_map;
-    for (auto const& kv : statistics_map) {
+    for (auto const& kv : statistics_map_) {
       stat_map[kv.first] = std::make_pair(
           kv.second.count, std::chrono::duration_cast<std::chrono::microseconds>(
               kv.second.timer.elapsed).count());
     }
-    LOG(CONSOLE) << "======== Monitor: " << label << " ========";
+    LOG(CONSOLE) << "======== Monitor: " << label_ << " ========";
     this->PrintStatistics(stat_map);
   }
 }

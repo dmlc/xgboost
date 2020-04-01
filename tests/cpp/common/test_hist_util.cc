@@ -352,9 +352,9 @@ TEST(hist_util, IndexBinBound) {
   uint64_t bin_sizes[] = { static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
                            static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
                            static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2 };
-  BinTypeSize expected_bin_type_sizes[] = {UINT8_BINS_TYPE_SIZE,
-                                           UINT16_BINS_TYPE_SIZE,
-                                           UINT32_BINS_TYPE_SIZE};
+  BinTypeSize expected_bin_type_sizes[] = {kUint8BinsTypeSize,
+                                           kUint16BinsTypeSize,
+                                           kUint32BinsTypeSize};
   size_t constexpr kRows = 100;
   size_t constexpr kCols = 10;
 
@@ -364,8 +364,8 @@ TEST(hist_util, IndexBinBound) {
 
     common::GHistIndexMatrix hmat;
     hmat.Init(p_fmat.get(), max_bin);
-    EXPECT_EQ(hmat.index.size(), kRows*kCols);
-    EXPECT_EQ(expected_bin_type_sizes[bin_id++], hmat.index.getBinTypeSize());
+    EXPECT_EQ(hmat.index.Size(), kRows*kCols);
+    EXPECT_EQ(expected_bin_type_sizes[bin_id++], hmat.index.GetBinTypeSize());
   }
 }
 
@@ -373,9 +373,9 @@ TEST(hist_util, SparseIndexBinBound) {
   uint64_t bin_sizes[] = { static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
                            static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
                            static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2 };
-  BinTypeSize expected_bin_type_sizes[] = { UINT32_BINS_TYPE_SIZE,
-                                            UINT32_BINS_TYPE_SIZE,
-                                            UINT32_BINS_TYPE_SIZE };
+  BinTypeSize expected_bin_type_sizes[] = { kUint32BinsTypeSize,
+                                            kUint32BinsTypeSize,
+                                            kUint32BinsTypeSize };
   size_t constexpr kRows = 100;
   size_t constexpr kCols = 10;
 
@@ -384,14 +384,14 @@ TEST(hist_util, SparseIndexBinBound) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0.2).GenerateDMatix();
     common::GHistIndexMatrix hmat;
     hmat.Init(p_fmat.get(), max_bin);
-    EXPECT_EQ(expected_bin_type_sizes[bin_id++], hmat.index.getBinTypeSize());
+    EXPECT_EQ(expected_bin_type_sizes[bin_id++], hmat.index.GetBinTypeSize());
   }
 }
 
 template <typename T>
 void CheckIndexData(T* data_ptr, uint32_t* offsets,
                     const common::GHistIndexMatrix& hmat, size_t n_cols) {
-  for (size_t i = 0; i < hmat.index.size(); ++i) {
+  for (size_t i = 0; i < hmat.index.Size(); ++i) {
     EXPECT_EQ(data_ptr[i] + offsets[i % n_cols], hmat.index[i]);
   }
 }
@@ -407,8 +407,8 @@ TEST(hist_util, IndexBinData) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
     common::GHistIndexMatrix hmat;
     hmat.Init(p_fmat.get(), max_bin);
-    uint32_t* offsets = hmat.index.offset();
-    EXPECT_EQ(hmat.index.size(), kRows*kCols);
+    uint32_t* offsets = hmat.index.Offset();
+    EXPECT_EQ(hmat.index.Size(), kRows*kCols);
     switch (max_bin) {
       case kBinSizes[0]:
         CheckIndexData(hmat.index.data<uint8_t>(),
@@ -437,10 +437,10 @@ TEST(hist_util, SparseIndexBinData) {
     auto p_fmat = RandomDataGenerator(kRows, kCols, 0.2).GenerateDMatix();
     common::GHistIndexMatrix hmat;
     hmat.Init(p_fmat.get(), max_bin);
-    EXPECT_EQ(hmat.index.offset(), nullptr);
+    EXPECT_EQ(hmat.index.Offset(), nullptr);
 
     uint32_t* data_ptr = hmat.index.data<uint32_t>();
-    for (size_t i = 0; i < hmat.index.size(); ++i) {
+    for (size_t i = 0; i < hmat.index.Size(); ++i) {
       EXPECT_EQ(data_ptr[i], hmat.index[i]);
     }
   }

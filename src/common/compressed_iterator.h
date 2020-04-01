@@ -112,7 +112,7 @@ class CompressedBufferWriter {
     size_t ibyte_start = ibit_start / 8, ibyte_end = ibit_end / 8;
 
     symbol <<= 7 - ibit_end % 8;
-    for (ptrdiff_t ibyte = ibyte_end; ibyte >= (ptrdiff_t)ibyte_start; --ibyte) {
+    for (ptrdiff_t ibyte = ibyte_end; ibyte >= static_cast<ptrdiff_t>(ibyte_start); --ibyte) {
       dh::AtomicOrByte(reinterpret_cast<unsigned int*>(buffer + detail::kPadding),
                        ibyte, symbol & 0xff);
       symbol >>= 8;
@@ -182,14 +182,14 @@ class CompressedIterator {
   typedef value_type reference;             // NOLINT
 
  private:
-  const CompressedByteT *buffer_;
-  size_t symbol_bits_;
-  size_t offset_;
+  const CompressedByteT *buffer_ {nullptr};
+  size_t symbol_bits_ {0};
+  size_t offset_ {0};
 
  public:
-  CompressedIterator() : buffer_(nullptr), symbol_bits_(0), offset_(0) {}
+  CompressedIterator() = default;
   CompressedIterator(const CompressedByteT *buffer, size_t num_symbols)
-      : buffer_(buffer), offset_(0) {
+      : buffer_(buffer) {
     symbol_bits_ = detail::SymbolBits(num_symbols);
   }
 

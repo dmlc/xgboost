@@ -89,6 +89,8 @@ class RowSetCollection {
     const size_t* end = dmlc::BeginPtr(row_indices_) + row_indices_.size();
     elem_of_each_node_.emplace_back(Elem(begin, end, 0));
   }
+
+  std::vector<size_t>* Data() { return &row_indices_; };
   // split rowset into two
   inline void AddSplit(unsigned node_id,
                        unsigned left_node_id,
@@ -116,10 +118,9 @@ class RowSetCollection {
     elem_of_each_node_[node_id] = Elem(nullptr, nullptr, -1);
   }
 
+ private:
   // stores the row indexes in the set
   std::vector<size_t> row_indices_;
-
- private:
   // vector: node_id -> elements
   std::vector<Elem> elem_of_each_node_;
 };
@@ -151,12 +152,12 @@ class PartitionBuilder {
 
   common::Span<size_t> GetLeftBuffer(int nid, size_t begin, size_t end) {
     const size_t task_idx = GetTaskIdx(nid, begin);
-    return { mem_blocks_.at(task_idx).left(), end - begin };
+    return { mem_blocks_.at(task_idx).Left(), end - begin };
   }
 
   common::Span<size_t> GetRightBuffer(int nid, size_t begin, size_t end) {
     const size_t task_idx = GetTaskIdx(nid, begin);
-    return { mem_blocks_.at(task_idx).right(), end - begin };
+    return { mem_blocks_.at(task_idx).Right(), end - begin };
   }
 
   void SetNLeftElems(int nid, size_t begin, size_t end, size_t n_left) {
@@ -202,8 +203,8 @@ class PartitionBuilder {
     size_t* left_result  = rows_indexes + mem_blocks_[task_idx].n_offset_left;
     size_t* right_result = rows_indexes + mem_blocks_[task_idx].n_offset_right;
 
-    const size_t* left = mem_blocks_[task_idx].left();
-    const size_t* right = mem_blocks_[task_idx].right();
+    const size_t* left = mem_blocks_[task_idx].Left();
+    const size_t* right = mem_blocks_[task_idx].Right();
 
     std::copy_n(left, mem_blocks_[task_idx].n_left, left_result);
     std::copy_n(right, mem_blocks_[task_idx].n_right, right_result);
@@ -221,11 +222,11 @@ class PartitionBuilder {
     size_t n_offset_left;
     size_t n_offset_right;
 
-    size_t* left() {
+    size_t* Left() {
       return &left_data_[0];
     }
 
-    size_t* right() {
+    size_t* Right() {
       return &right_data_[0];
     }
    private:

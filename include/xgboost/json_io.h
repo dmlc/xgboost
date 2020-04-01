@@ -38,10 +38,11 @@ class JsonReader {
       std::numeric_limits<double>::max_digits10 + 1;
 
   struct SourceLocation {
-    size_t pos_;  // current position in raw_str_
+   private:
+    size_t pos_ { 0 };  // current position in raw_str_
 
    public:
-    SourceLocation() : pos_(0) {}
+    SourceLocation() = default;
     size_t  Pos()  const { return pos_; }
 
     SourceLocation& Forward() {

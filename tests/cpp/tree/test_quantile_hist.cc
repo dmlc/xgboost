@@ -73,7 +73,7 @@ class QuantileHistMock : public QuantileHistMaker {
           const size_t rid = batch.base_rowid + i;
           ASSERT_LT(rid, num_row);
           const size_t gmat_row_offset = gmat.row_ptr[rid];
-          ASSERT_LT(gmat_row_offset, gmat.index.size());
+          ASSERT_LT(gmat_row_offset, gmat.index.Size());
           SparsePage::Inst inst = batch[i];
           ASSERT_EQ(gmat.row_ptr[rid] + inst.size(), gmat.row_ptr[rid + 1]);
           for (size_t j = 0; j < inst.size(); ++j) {

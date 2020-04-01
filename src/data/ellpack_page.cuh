@@ -120,7 +120,7 @@ struct EllpackDeviceAccessor {
    * not found). */
   XGBOOST_DEVICE size_t NumSymbols() const { return gidx_fvalue_map.size() + 1; }
 
-  size_t NullValue() const { return gidx_fvalue_map.size(); }
+  XGBOOST_DEVICE size_t NullValue() const { return gidx_fvalue_map.size(); }
 
   XGBOOST_DEVICE size_t NumBins() const { return gidx_fvalue_map.size(); }
 

@@ -34,7 +34,7 @@ class TreeUpdater : public Configurable {
 
  public:
   /*! \brief virtual destructor */
-  virtual ~TreeUpdater() = default;
+  ~TreeUpdater() override = default;
   /*!
    * \brief Initialize the updater with given arguments.
    * \param args arguments to the objective function.

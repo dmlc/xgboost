@@ -118,7 +118,7 @@ class Range {
     XGBOOST_DEVICE explicit Iterator(DifferenceType start, DifferenceType step) :
         i_{start}, step_{step} {}
 
-   public:
+   private:
     int64_t i_;
     DifferenceType step_ = 1;
   };

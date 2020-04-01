@@ -46,12 +46,12 @@ template <typename AdapterBatchT>
 struct WriteCompressedEllpackFunctor {
   WriteCompressedEllpackFunctor(common::CompressedByteT* buffer,
                                 const common::CompressedBufferWriter& writer,
-                                const AdapterBatchT& batch,
+                                AdapterBatchT batch,
                                 EllpackDeviceAccessor accessor,
                                 const IsValidFunctor& is_valid)
       : d_buffer(buffer),
         writer(writer),
-        batch(batch),
+        batch(std::move(batch)),
         accessor(std::move(accessor)),
         is_valid(is_valid) {}
 
@@ -210,10 +210,10 @@ DeviceDMatrix::DeviceDMatrix(AdapterT* adapter, float missing, int nthread, int 
       GetRowCounts(batch, row_counts_span, adapter->DeviceIdx(), missing);
 
   dh::XGBCachingDeviceAllocator<char> alloc;
-  info.num_nonzero_ = thrust::reduce(thrust::cuda::par(alloc),
+  info_.num_nonzero_ = thrust::reduce(thrust::cuda::par(alloc),
                                      row_counts.begin(), row_counts.end());
-  info.num_col_ = adapter->NumColumns();
-  info.num_row_ = adapter->NumRows();
+  info_.num_col_ = adapter->NumColumns();
+  info_.num_row_ = adapter->NumRows();
   ellpack_page_.reset(new EllpackPage());
   *ellpack_page_->Impl() =
       EllpackPageImpl(adapter->DeviceIdx(), cuts, this->IsDense(), row_stride,
@@ -228,7 +228,7 @@ DeviceDMatrix::DeviceDMatrix(AdapterT* adapter, float missing, int nthread, int 
   WriteNullValues(ellpack_page_->Impl(), adapter->DeviceIdx(), row_counts_span);
 
   // Synchronise worker columns
-  rabit::Allreduce<rabit::op::Max>(&info.num_col_, 1);
+  rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
 }
 template DeviceDMatrix::DeviceDMatrix(CudfAdapter* adapter, float missing,
                                       int nthread, int max_bin);

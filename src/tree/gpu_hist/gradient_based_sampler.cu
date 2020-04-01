@@ -201,7 +201,6 @@ GradientBasedSample ExternalMemoryUniformSampling::Sample(common::Span<GradientP
 
   // Count the sampled rows.
   size_t sample_rows = thrust::count_if(dh::tbegin(gpair), dh::tend(gpair), IsNonZero());
-  size_t n_rows = dmat->Info().num_row_;
 
   // Compact gradient pairs.
   gpair_.resize(sample_rows);

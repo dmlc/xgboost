@@ -44,13 +44,13 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    fromJson(config.at("linear_train_param"), &tparam_);
-    fromJson(config.at("coordinate_param"), &coord_param_);
+    FromJson(config.at("linear_train_param"), &tparam_);
+    FromJson(config.at("coordinate_param"), &coord_param_);
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["linear_train_param"] = toJson(tparam_);
-    out["coordinate_param"] = toJson(coord_param_);
+    out["linear_train_param"] = ToJson(tparam_);
+    out["coordinate_param"] = ToJson(coord_param_);
   }
 
   void LazyInitDevice(DMatrix *p_fmat, const LearnerModelParam &model_param) {
@@ -103,7 +103,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
               gbm::GBLinearModel *model, double sum_instance_weight) override {
     tparam_.DenormalizePenalties(sum_instance_weight);
     monitor_.Start("LazyInitDevice");
-    this->LazyInitDevice(p_fmat, *(model->learner_model_param_));
+    this->LazyInitDevice(p_fmat, *(model->learner_model_param));
     monitor_.Stop("LazyInitDevice");
 
     monitor_.Start("UpdateGpair");
@@ -122,9 +122,9 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
                      tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm,
                      coord_param_.top_k);
     monitor_.Start("UpdateFeature");
-    for (auto group_idx = 0; group_idx < model->learner_model_param_->num_output_group;
+    for (auto group_idx = 0; group_idx < model->learner_model_param->num_output_group;
          ++group_idx) {
-      for (auto i = 0U; i < model->learner_model_param_->num_feature; i++) {
+      for (auto i = 0U; i < model->learner_model_param->num_feature; i++) {
         auto fidx = selector_->NextFeature(
             i, *model, group_idx, in_gpair->ConstHostVector(), p_fmat,
             tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm);
@@ -136,21 +136,21 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
   }
 
   void UpdateBias(DMatrix *p_fmat, gbm::GBLinearModel *model) {
-    for (int group_idx = 0; group_idx < model->learner_model_param_->num_output_group;
+    for (int group_idx = 0; group_idx < model->learner_model_param->num_output_group;
          ++group_idx) {
       // Get gradient
       auto grad = GradientPair(0, 0);
       if (learner_param_->gpu_id >= 0) {
-        grad = GetBiasGradient(group_idx, model->learner_model_param_->num_output_group);
+        grad = GetBiasGradient(group_idx, model->learner_model_param->num_output_group);
       }
       auto dbias = static_cast<float>(
           tparam_.learning_rate *
               CoordinateDeltaBias(grad.GetGrad(), grad.GetHess()));
-      model->bias()[group_idx] += dbias;
+      model->Bias()[group_idx] += dbias;
 
       // Update residual
       if (learner_param_->gpu_id >= 0) {
-        UpdateBiasResidual(dbias, group_idx, model->learner_model_param_->num_output_group);
+        UpdateBiasResidual(dbias, group_idx, model->learner_model_param->num_output_group);
       }
     }
   }
@@ -162,7 +162,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     // Get gradient
     auto grad = GradientPair(0, 0);
     if (learner_param_->gpu_id >= 0) {
-      grad = GetGradient(group_idx, model->learner_model_param_->num_output_group, fidx);
+      grad = GetGradient(group_idx, model->learner_model_param->num_output_group, fidx);
     }
     auto dw = static_cast<float>(tparam_.learning_rate *
                                  CoordinateDelta(grad.GetGrad(), grad.GetHess(),
@@ -171,7 +171,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     w += dw;
 
     if (learner_param_->gpu_id >= 0) {
-      UpdateResidual(dw, group_idx, model->learner_model_param_->num_output_group, fidx);
+      UpdateResidual(dw, group_idx, model->learner_model_param->num_output_group, fidx);
     }
   }
 
@@ -186,7 +186,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
         counting, f);
     auto perm = thrust::make_permutation_iterator(gpair_.data(), skip);
 
-    return dh::SumReduction(temp_, perm, num_row_);
+    return dh::SumReduction(&temp_, perm, num_row_);
   }
 
   // This needs to be public because of the __device__ lambda.
@@ -214,7 +214,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     };  // NOLINT
     thrust::transform_iterator<decltype(f), decltype(counting), GradientPair>
         multiply_iterator(counting, f);
-    return dh::SumReduction(temp_, multiply_iterator, col_size);
+    return dh::SumReduction(&temp_, multiply_iterator, col_size);
   }
 
   // This needs to be public because of the __device__ lambda.

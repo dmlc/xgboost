@@ -12,9 +12,9 @@
 
 namespace xgboost {
 namespace data {
-MetaInfo& SimpleDMatrix::Info() { return info; }
+MetaInfo& SimpleDMatrix::Info() { return info_; }
 
-const MetaInfo& SimpleDMatrix::Info() const { return info; }
+const MetaInfo& SimpleDMatrix::Info() const { return info_; }
 
 BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
   // since csr is the default data structure so `source_` is always available.
@@ -26,7 +26,7 @@ BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
 BatchSet<CSCPage> SimpleDMatrix::GetColumnBatches() {
   // column page doesn't exist, generate it
   if (!column_page_) {
-    column_page_.reset(new CSCPage(sparse_page_.GetTranspose(info.num_col_)));
+    column_page_.reset(new CSCPage(sparse_page_.GetTranspose(info_.num_col_)));
   }
   auto begin_iter =
       BatchIterator<CSCPage>(new SimpleBatchIteratorImpl<CSCPage>(column_page_.get()));
@@ -37,7 +37,7 @@ BatchSet<SortedCSCPage> SimpleDMatrix::GetSortedColumnBatches() {
   // Sorted column page doesn't exist, generate it
   if (!sorted_column_page_) {
     sorted_column_page_.reset(
-        new SortedCSCPage(sparse_page_.GetTranspose(info.num_col_)));
+        new SortedCSCPage(sparse_page_.GetTranspose(info_.num_col_)));
     sorted_column_page_->SortRows();
   }
   auto begin_iter = BatchIterator<SortedCSCPage>(
@@ -85,17 +85,17 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
     inferred_num_columns = std::max(batch_max_columns, inferred_num_columns);
     // Append meta information if available
     if (batch.Labels() != nullptr) {
-      auto& labels = info.labels_.HostVector();
+      auto& labels = info_.labels_.HostVector();
       labels.insert(labels.end(), batch.Labels(),
                     batch.Labels() + batch.Size());
     }
     if (batch.Weights() != nullptr) {
-      auto& weights = info.weights_.HostVector();
+      auto& weights = info_.weights_.HostVector();
       weights.insert(weights.end(), batch.Weights(),
                      batch.Weights() + batch.Size());
     }
     if (batch.BaseMargin() != nullptr) {
-      auto& base_margin = info.base_margin_.HostVector();
+      auto& base_margin = info_.base_margin_.HostVector();
       base_margin.insert(base_margin.end(), batch.BaseMargin(),
                      batch.BaseMargin() + batch.Size());
     }
@@ -105,7 +105,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
       for (size_t i = 0; i < batch.Size(); ++i) {
         const uint64_t cur_group_id = batch.Qid()[i];
         if (last_group_id == default_max || last_group_id != cur_group_id) {
-          info.group_ptr_.push_back(group_size);
+          info_.group_ptr_.push_back(group_size);
         }
         last_group_id = cur_group_id;
         ++group_size;
@@ -114,22 +114,22 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   }
 
   if (last_group_id != default_max) {
-    if (group_size > info.group_ptr_.back()) {
-      info.group_ptr_.push_back(group_size);
+    if (group_size > info_.group_ptr_.back()) {
+      info_.group_ptr_.push_back(group_size);
     }
   }
 
   // Deal with empty rows/columns if necessary
   if (adapter->NumColumns() == kAdapterUnknownSize) {
-    info.num_col_ = inferred_num_columns;
+    info_.num_col_ = inferred_num_columns;
   } else {
-    info.num_col_ = adapter->NumColumns();
+    info_.num_col_ = adapter->NumColumns();
   }
   // Synchronise worker columns
-  rabit::Allreduce<rabit::op::Max>(&info.num_col_, 1);
+  rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
 
   if (adapter->NumRows() == kAdapterUnknownSize) {
-    info.num_row_ = offset_vec.size() - 1;
+    info_.num_row_ = offset_vec.size() - 1;
   } else {
     if (offset_vec.empty()) {
       offset_vec.emplace_back(0);
@@ -138,9 +138,9 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
     while (offset_vec.size() - 1 < adapter->NumRows()) {
       offset_vec.emplace_back(offset_vec.back());
     }
-    info.num_row_ = adapter->NumRows();
+    info_.num_row_ = adapter->NumRows();
   }
-  info.num_nonzero_ = data_vec.size();
+  info_.num_nonzero_ = data_vec.size();
   omp_set_num_threads(nthread_original);
 }
 
@@ -149,7 +149,7 @@ SimpleDMatrix::SimpleDMatrix(dmlc::Stream* in_stream) {
   CHECK(in_stream->Read(&tmagic, sizeof(tmagic)) == sizeof(tmagic))
       << "invalid input file format";
   CHECK_EQ(tmagic, kMagic) << "invalid format, magic number mismatch";
-  info.LoadBinary(in_stream);
+  info_.LoadBinary(in_stream);
   in_stream->Read(&sparse_page_.offset.HostVector());
   in_stream->Read(&sparse_page_.data.HostVector());
 }
@@ -158,7 +158,7 @@ void SimpleDMatrix::SaveToLocalFile(const std::string& fname) {
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
     int tmagic = kMagic;
     fo->Write(&tmagic, sizeof(tmagic));
-    info.SaveBinary(fo.get());
+    info_.SaveBinary(fo.get());
     fo->Write(sparse_page_.offset.HostVector());
     fo->Write(sparse_page_.data.HostVector());
 }

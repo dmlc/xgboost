@@ -958,7 +958,7 @@ inline void GPUHistMakerDevice<GradientSumT>::InitHistogram() {
 template <typename GradientSumT>
 class GPUHistMakerSpecialised {
  public:
-  GPUHistMakerSpecialised() : initialised_{false}, p_last_fmat_{nullptr} {}
+  GPUHistMakerSpecialised() = default;
   void Configure(const Args& args, GenericParameter const* generic_param) {
     param_.UpdateAllowUnknown(args);
     generic_param_ = generic_param;
@@ -1002,7 +1002,7 @@ class GPUHistMakerSpecialised {
     device_ = generic_param_->gpu_id;
     CHECK_GE(device_, 0) << "Must have at least one device";
     info_ = &dmat->Info();
-    reducer_.Init({device_});
+    reducer_.Init({device_});  // NOLINT
 
     // Synchronise the column sampling seed
     uint32_t column_sampling_seed = common::GlobalRandom()();
@@ -1083,14 +1083,14 @@ class GPUHistMakerSpecialised {
   std::unique_ptr<GPUHistMakerDevice<GradientSumT>> maker;  // NOLINT
 
  private:
-  bool initialised_;
+  bool initialised_ { false };
 
   GPUHistMakerTrainParam hist_maker_param_;
   GenericParameter const* generic_param_;
 
   dh::AllReducer reducer_;
 
-  DMatrix* p_last_fmat_;
+  DMatrix* p_last_fmat_ { nullptr };
   int device_{-1};
 
   common::Monitor monitor_;
@@ -1123,22 +1123,22 @@ class GPUHistMaker : public TreeUpdater {
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    fromJson(config.at("gpu_hist_train_param"), &this->hist_maker_param_);
+    FromJson(config.at("gpu_hist_train_param"), &this->hist_maker_param_);
     if (hist_maker_param_.single_precision_histogram) {
       float_maker_.reset(new GPUHistMakerSpecialised<GradientPair>());
-      fromJson(config.at("train_param"), &float_maker_->param_);
+      FromJson(config.at("train_param"), &float_maker_->param_);
     } else {
       double_maker_.reset(new GPUHistMakerSpecialised<GradientPairPrecise>());
-      fromJson(config.at("train_param"), &double_maker_->param_);
+      FromJson(config.at("train_param"), &double_maker_->param_);
     }
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["gpu_hist_train_param"] = toJson(hist_maker_param_);
+    out["gpu_hist_train_param"] = ToJson(hist_maker_param_);
     if (hist_maker_param_.single_precision_histogram) {
-      out["train_param"] = toJson(float_maker_->param_);
+      out["train_param"] = ToJson(float_maker_->param_);
     } else {
-      out["train_param"] = toJson(double_maker_->param_);
+      out["train_param"] = ToJson(double_maker_->param_);
     }
   }
 

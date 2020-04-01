@@ -138,18 +138,18 @@ void RowPartitioner::SortPositionAndCopy(const Segment& segment,
       common::Span<bst_node_t>(position.Current() + segment.begin,
                                   segment.Size()),
       // position_out
-      common::Span<bst_node_t>(position.other() + segment.begin,
-                                  segment.Size()),
+      common::Span<bst_node_t>(position.Other() + segment.begin,
+                               segment.Size()),
       // row index in
       common::Span<RowIndexT>(ridx.Current() + segment.begin, segment.Size()),
       // row index out
-      common::Span<RowIndexT>(ridx.other() + segment.begin, segment.Size()),
+      common::Span<RowIndexT>(ridx.Other() + segment.begin, segment.Size()),
       left_nidx, right_nidx, d_left_count, stream);
   // Copy back key/value
   const auto d_position_current = position.Current() + segment.begin;
-  const auto d_position_other = position.other() + segment.begin;
+  const auto d_position_other = position.Other() + segment.begin;
   const auto d_ridx_current = ridx.Current() + segment.begin;
-  const auto d_ridx_other = ridx.other() + segment.begin;
+  const auto d_ridx_other = ridx.Other() + segment.begin;
   dh::LaunchN(device_idx, segment.Size(), stream, [=] __device__(size_t idx) {
     d_position_current[idx] = d_position_other[idx];
     d_ridx_current[idx] = d_ridx_other[idx];

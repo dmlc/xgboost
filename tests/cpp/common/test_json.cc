@@ -262,7 +262,7 @@ TEST(Json, Indexing) {
   Json j {Json::Load(&reader)};
   auto& value_1 = j["model_parameter"];
   auto& value = value_1["base_score"];
-  std::string result = Cast<JsonString>(&value.GetValue())->getString();
+  std::string result = Cast<JsonString>(&value.GetValue())->GetString();
 
   ASSERT_EQ(result, "0.5");
 }

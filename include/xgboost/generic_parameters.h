@@ -89,7 +89,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
 
  private:
   // number of devices to use (deprecated).
-  int n_gpus {0};
+  int n_gpus {0};  // NOLINT
 };
 }  // namespace xgboost
 

@@ -64,13 +64,13 @@ class ColMaker: public TreeUpdater {
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    fromJson(config.at("train_param"), &this->param_);
-    fromJson(config.at("colmaker_train_param"), &this->colmaker_param_);
+    FromJson(config.at("train_param"), &this->param_);
+    FromJson(config.at("colmaker_train_param"), &this->colmaker_param_);
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["train_param"] = toJson(param_);
-    out["colmaker_train_param"] = toJson(colmaker_param_);
+    out["train_param"] = ToJson(param_);
+    out["colmaker_train_param"] = ToJson(colmaker_param_);
   }
 
   char const* Name() const override {
@@ -134,23 +134,23 @@ class ColMaker: public TreeUpdater {
     /*! \brief statistics of data */
     GradStats stats;
     /*! \brief last feature value scanned */
-    bst_float last_fvalue;
+    bst_float last_fvalue { 0 };
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
-    ThreadEntry() : last_fvalue{0} {}
+    ThreadEntry() = default;
   };
   struct NodeEntry {
     /*! \brief statics for node entry */
     GradStats stats;
     /*! \brief loss of this node, without split */
-    bst_float root_gain;
+    bst_float root_gain { 0.0f };
     /*! \brief weight calculated related to current data */
-    bst_float weight;
+    bst_float weight { 0.0f };
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
-    NodeEntry() : root_gain{0.0f}, weight{0.0f} {}
+    NodeEntry() = default;
   };
   // actual builder that runs the algorithm
   class Builder {

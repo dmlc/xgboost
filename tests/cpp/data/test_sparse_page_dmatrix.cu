@@ -149,7 +149,6 @@ TEST(SparsePageDMatrix, EllpackPageMultipleLoops) {
       dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
 
   BatchParam param{0, kMaxBins, kPageSize};
-  auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
   size_t current_row = 0;
   for (auto& page : dmat_ext->GetBatches<EllpackPage>(param)) {
