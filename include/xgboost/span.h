@@ -92,10 +92,11 @@ namespace common {
   do {                                                                         \
     if (XGBOOST_EXPECT(!(cond), false)) {                                      \
       fprintf(stderr, "[xgboost] Condition %s failed.\n", #cond);              \
+      fflush(stderr);  /* It seems stderr on Windows is beffered? */           \
       std::terminate();                                                        \
     }                                                                          \
   } while (0);
-#endif  // __CUDA_ARCH__
+#endif // __CUDA_ARCH__
 
 namespace detail {
 /*!
