@@ -1098,6 +1098,7 @@ class DeviceQuantileDMatrix(DMatrix):
                 ctypes.c_int(self.max_bin), ctypes.byref(handle)))
         self.handle = handle
 
+
 class Booster(object):
     # pylint: disable=too-many-public-methods
     """A Booster of XGBoost.
@@ -1129,10 +1130,12 @@ class Booster(object):
         self.handle = ctypes.c_void_p()
         _check_call(_LIB.XGBoosterCreate(dmats, c_bst_ulong(len(cache)),
                                          ctypes.byref(self.handle)))
+        params = params or {}
+        if isinstance(params, list):
+            params.append(('validate_parameters', True))
+        else:
+            params['validate_parameters'] = True
 
-        if isinstance(params, dict) and \
-            'validate_parameters' not in params.keys():
-            params['validate_parameters'] = 1
         self.set_param(params or {})
         if (params is not None) and ('booster' in params):
             self.booster = params['booster']
