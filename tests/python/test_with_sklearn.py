@@ -788,7 +788,7 @@ def test_constraint_parameters():
 
 
 def test_parameter_validation():
-    reg = xgb.XGBRegressor(foo='bar')
+    reg = xgb.XGBRegressor(foo='bar', verbosity=1)
     X = np.random.randn(10, 10)
     y = np.random.randn(10)
     with captured_output() as (out, err):
@@ -798,7 +798,7 @@ def test_parameter_validation():
     assert output.find('foo') != -1
 
     reg = xgb.XGBRegressor(n_estimators=2, missing=3,
-                           importance_type='gain')
+                           importance_type='gain', verbosity=1)
     X = np.random.randn(10, 10)
     y = np.random.randn(10)
     with captured_output() as (out, err):
