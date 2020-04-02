@@ -37,13 +37,9 @@ class BaseLogger {
 
 // Parsing both silent and debug_verbose is to provide backward compatibility.
 struct ConsoleLoggerParam : public XGBoostParameter<ConsoleLoggerParam> {
-  bool silent;  // deprecated.
   int verbosity;
 
   DMLC_DECLARE_PARAMETER(ConsoleLoggerParam) {
-    DMLC_DECLARE_FIELD(silent)
-        .set_default(false)
-        .describe("Do not print information during training.");
     DMLC_DECLARE_FIELD(verbosity)
         .set_range(0, 3)
         .set_default(1)  // shows only warning

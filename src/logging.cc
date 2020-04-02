@@ -53,12 +53,6 @@ bool ConsoleLogger::ShouldLog(LogVerbosity verbosity) {
 
 void ConsoleLogger::Configure(Args const& args) {
   param_.UpdateAllowUnknown(args);
-  // Deprecated, but when trying to display deprecation message some R
-  // tests trying to catch stdout will fail.
-  if (param_.silent) {
-    global_verbosity_ = LogVerbosity::kSilent;
-    return;
-  }
   switch (param_.verbosity) {
     case 0:
       global_verbosity_ = LogVerbosity::kSilent;

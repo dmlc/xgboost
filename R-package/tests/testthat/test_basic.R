@@ -314,7 +314,7 @@ test_that("colsample_bytree works", {
   watchlist <- list(train = dtrain, eval = dtest)
    # Use colsample_bytree = 0.01, so that roughly one out of 100 features is
   # chosen for each tree
-  param <- list(max_depth = 2, eta = 0, silent = 1, nthread = 2,
+  param <- list(max_depth = 2, eta = 0, verbsoity = 0, nthread = 2,
                 colsample_bytree = 0.01, objective = "binary:logistic",
                 eval_metric = "auc")
    set.seed(2)
