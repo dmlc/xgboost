@@ -350,7 +350,7 @@ struct EvalEWiseBase : public Metric {
   }
 
  private:
-  Policy policy_ {};
+  Policy policy_;
   ElementWiseMetricsReduction<Policy> reducer_{policy_};
 };
 

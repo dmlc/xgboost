@@ -66,7 +66,7 @@ class PackedReduceResult {
   double weights_sum_ { 0 };
 
  public:
-  XGBOOST_DEVICE PackedReduceResult() : residue_sum_{0}, weights_sum_{0} {}  // NOLINT
+  XGBOOST_DEVICE PackedReduceResult() {}  // NOLINT
   XGBOOST_DEVICE PackedReduceResult(double residue, double weight)
       : residue_sum_{residue}, weights_sum_{weight} {}
 

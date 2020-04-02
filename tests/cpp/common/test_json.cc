@@ -406,7 +406,7 @@ TEST(Json, WrongCasts) {
   }
 }
 
-TEST(Json, Int_vs_Float) {
+TEST(Json, IntVSFloat) {
   // If integer is parsed as float, calling `get<Integer>()' will throw.
   {
     std::string str = R"json(

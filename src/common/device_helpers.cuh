@@ -868,7 +868,7 @@ template <typename FunctionT, typename SegmentIterT, typename OffsetT>
 void SparseTransformLbs(int device_idx, dh::CubMemory *temp_memory,
                         OffsetT count, SegmentIterT segments,
                         OffsetT num_segments, FunctionT f) {
-  typedef typename cub::CubVector<OffsetT, 2>::Type CoordinateT;
+  using CoordinateT = typename cub::CubVector<OffsetT, 2>::Type;
   dh::safe_cuda(cudaSetDevice(device_idx));
   const int BLOCK_THREADS = 256;
   const int ITEMS_PER_THREAD = 1;

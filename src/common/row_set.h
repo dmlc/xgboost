@@ -90,7 +90,7 @@ class RowSetCollection {
     elem_of_each_node_.emplace_back(Elem(begin, end, 0));
   }
 
-  std::vector<size_t>* Data() { return &row_indices_; };
+  std::vector<size_t>* Data() { return &row_indices_; }
   // split rowset into two
   inline void AddSplit(unsigned node_id,
                        unsigned left_node_id,

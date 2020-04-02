@@ -137,7 +137,7 @@ class SpanIterator {
     IsConst, const ElementType, ElementType>::type&;
   using pointer = typename std::add_pointer<reference>::type;     // NOLINT
 
-  XGBOOST_DEVICE constexpr SpanIterator() : span_{nullptr}, index_{0} {}  // NOLINT
+  constexpr SpanIterator() = default;
 
   XGBOOST_DEVICE constexpr SpanIterator(
       const SpanType* _span,
@@ -410,8 +410,7 @@ class Span {
   using const_reverse_iterator = const detail::SpanIterator<Span<T, Extent>, true>;  // NOLINT
 
   // constructors
-
-  XGBOOST_DEVICE constexpr Span() __span_noexcept : size_(0), data_(nullptr) {} // NOLINT
+  constexpr Span() __span_noexcept = default;
 
   XGBOOST_DEVICE Span(pointer _ptr, index_type _count) :
       size_(_count), data_(_ptr) {

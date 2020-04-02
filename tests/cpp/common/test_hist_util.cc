@@ -218,7 +218,7 @@ TEST(SparseCuts, MultiThreadedBuild) {
   omp_set_num_threads(ori_nthreads);
 }
 
-TEST(hist_util, DenseCutsCategorical) {
+TEST(HistUtil, DenseCutsCategorical) {
    int categorical_sizes[] = {2, 6, 8, 12};
    int num_bins = 256;
    int sizes[] = {25, 100, 1000};
@@ -240,7 +240,7 @@ TEST(hist_util, DenseCutsCategorical) {
    }
 }
 
-TEST(hist_util, DenseCutsAccuracyTest) {
+TEST(HistUtil, DenseCutsAccuracyTest) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
@@ -256,7 +256,7 @@ TEST(hist_util, DenseCutsAccuracyTest) {
   }
 }
 
-TEST(hist_util, DenseCutsAccuracyTestWeights) {
+TEST(HistUtil, DenseCutsAccuracyTestWeights) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
@@ -274,7 +274,7 @@ TEST(hist_util, DenseCutsAccuracyTestWeights) {
   }
 }
 
-TEST(hist_util, DenseCutsExternalMemory) {
+TEST(HistUtil, DenseCutsExternalMemory) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
@@ -292,7 +292,7 @@ TEST(hist_util, DenseCutsExternalMemory) {
   }
 }
 
-TEST(hist_util, SparseCutsAccuracyTest) {
+TEST(HistUtil, SparseCutsAccuracyTest) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
@@ -308,7 +308,7 @@ TEST(hist_util, SparseCutsAccuracyTest) {
   }
 }
 
-TEST(hist_util, SparseCutsCategorical) {
+TEST(HistUtil, SparseCutsCategorical) {
   int categorical_sizes[] = {2, 6, 8, 12};
   int num_bins = 256;
   int sizes[] = {25, 100, 1000};
@@ -330,7 +330,7 @@ TEST(hist_util, SparseCutsCategorical) {
   }
 }
 
-TEST(hist_util, SparseCutsExternalMemory) {
+TEST(HistUtil, SparseCutsExternalMemory) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
@@ -348,7 +348,7 @@ TEST(hist_util, SparseCutsExternalMemory) {
   }
 }
 
-TEST(hist_util, IndexBinBound) {
+TEST(HistUtil, IndexBinBound) {
   uint64_t bin_sizes[] = { static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
                            static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
                            static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2 };
@@ -369,7 +369,7 @@ TEST(hist_util, IndexBinBound) {
   }
 }
 
-TEST(hist_util, SparseIndexBinBound) {
+TEST(HistUtil, SparseIndexBinBound) {
   uint64_t bin_sizes[] = { static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
                            static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
                            static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2 };
@@ -396,7 +396,7 @@ void CheckIndexData(T* data_ptr, uint32_t* offsets,
   }
 }
 
-TEST(hist_util, IndexBinData) {
+TEST(HistUtil, IndexBinData) {
   uint64_t constexpr kBinSizes[] = { static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
                                      static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
                                      static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2 };
@@ -426,7 +426,7 @@ TEST(hist_util, IndexBinData) {
   }
 }
 
-TEST(hist_util, SparseIndexBinData) {
+TEST(HistUtil, SparseIndexBinData) {
   uint64_t bin_sizes[] = { static_cast<uint64_t>(std::numeric_limits<uint8_t>::max()) + 1,
                            static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
                            static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2 };

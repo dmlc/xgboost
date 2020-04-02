@@ -133,8 +133,9 @@ class Transform {
     template <typename std::enable_if<CompiledWithCuda>::type* = nullptr,
               typename... HDV>
     void LaunchCUDA(Functor _func, HDV*... _vectors) const {
-      if (shard_)
+      if (shard_) {
         UnpackShard(device_, _vectors...);
+      }
 
       size_t range_size = *range_.end() - *range_.begin();
 

@@ -628,7 +628,7 @@ struct GPUHistMakerDevice {
     auto d_node_hist_histogram = hist.GetNodeHistogram(nidx_histogram);
     auto d_node_hist_subtraction = hist.GetNodeHistogram(nidx_subtraction);
 
-    dh::LaunchN(device_id, page->cuts_.TotalBins(), [=] __device__(size_t idx) {
+    dh::LaunchN(device_id, page->Cuts().TotalBins(), [=] __device__(size_t idx) {
       d_node_hist_subtraction[idx] =
           d_node_hist_parent[idx] - d_node_hist_histogram[idx];
     });
@@ -756,7 +756,7 @@ struct GPUHistMakerDevice {
     reducer->AllReduceSum(
         reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
         reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-        page->cuts_.TotalBins() * (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
+        page->Cuts().TotalBins() * (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
     reducer->Synchronize();
 
     monitor.StopCuda("AllReduce");
@@ -945,14 +945,14 @@ inline void GPUHistMakerDevice<GradientSumT>::InitHistogram() {
   // check if we can use shared memory for building histograms
   // (assuming atleast we need 2 CTAs per SM to maintain decent latency
   // hiding)
-  auto histogram_size = sizeof(GradientSumT) * page->cuts_.TotalBins();
+  auto histogram_size = sizeof(GradientSumT) * page->Cuts().TotalBins();
   auto max_smem = dh::MaxSharedMemory(device_id);
   if (histogram_size <= max_smem) {
     use_shared_memory_histograms = true;
   }
 
   // Init histogram
-  hist.Init(device_id, page->cuts_.TotalBins());
+  hist.Init(device_id, page->Cuts().TotalBins());
 }
 
 template <typename GradientSumT>

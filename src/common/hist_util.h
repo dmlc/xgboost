@@ -293,14 +293,14 @@ struct Index {
     return reinterpret_cast<uint32_t*>(t)[i];
   }
 
-  using Func = uint32_t (*)(void* ,size_t);
+  using Func = uint32_t (*)(void*, size_t);
 
   std::vector<uint8_t> data_;
   std::vector<uint32_t> offset_;  // size of this field is equal to number of features
   void* data_ptr_;
-  BinTypeSize binTypeSize_;
-  size_t p_;
-  uint32_t* offset_ptr_;
+  BinTypeSize binTypeSize_ {kUint8BinsTypeSize};
+  size_t p_ {1};
+  uint32_t* offset_ptr_ {nullptr};
   Func func_;
 };
 

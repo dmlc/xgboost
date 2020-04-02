@@ -32,7 +32,7 @@ HistogramCuts GetHostCuts(AdapterT *adapter, int num_bins, float missing) {
   builder.Build(&dmat, num_bins);
   return cuts;
 }
-TEST(hist_util, DeviceSketch) {
+TEST(HistUtil, DeviceSketch) {
   int num_rows = 5;
   int num_columns = 1;
   int num_bins = 4;
@@ -61,7 +61,7 @@ size_t RequiredSampleCutsTest(int max_bins, size_t num_rows) {
   return std::min(num_cuts, num_rows);
 }
 
-TEST(hist_util, DeviceSketchMemory) {
+TEST(HistUtil, DeviceSketchMemory) {
   int num_columns = 100;
   int num_rows = 1000;
   int num_bins = 256;
@@ -81,7 +81,7 @@ TEST(hist_util, DeviceSketchMemory) {
             bytes_num_elements + bytes_cuts + bytes_constant);
 }
 
-TEST(hist_util, DeviceSketchMemoryWeights) {
+TEST(HistUtil, DeviceSketchMemoryWeights) {
   int num_columns = 100;
   int num_rows = 1000;
   int num_bins = 256;
@@ -102,7 +102,7 @@ TEST(hist_util, DeviceSketchMemoryWeights) {
             size_t((bytes_num_elements + bytes_cuts) * 1.05));
 }
 
-TEST(hist_util, DeviceSketchDeterminism) {
+TEST(HistUtil, DeviceSketchDeterminism) {
   int num_rows = 500;
   int num_columns = 5;
   int num_bins = 256;
@@ -117,7 +117,7 @@ TEST(hist_util, DeviceSketchDeterminism) {
   }
 }
 
- TEST(hist_util, DeviceSketchCategorical) {
+ TEST(HistUtil, DeviceSketchCategorical) {
   int categorical_sizes[] = {2, 6, 8, 12};
   int num_bins = 256;
   int sizes[] = {25, 100, 1000};
@@ -131,7 +131,7 @@ TEST(hist_util, DeviceSketchDeterminism) {
   }
 }
 
-TEST(hist_util, DeviceSketchMultipleColumns) {
+TEST(HistUtil, DeviceSketchMultipleColumns) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
@@ -146,7 +146,7 @@ TEST(hist_util, DeviceSketchMultipleColumns) {
 
 }
 
-TEST(hist_util, DeviceSketchMultipleColumnsWeights) {
+TEST(HistUtil, DeviceSketchMultipleColumnsWeights) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
@@ -161,7 +161,7 @@ TEST(hist_util, DeviceSketchMultipleColumnsWeights) {
   }
 }
 
-TEST(hist_util, DeviceSketchBatches) {
+TEST(HistUtil, DeviceSketchBatches) {
   int num_bins = 256;
   int num_rows = 5000;
   int batch_sizes[] = {0, 100, 1500, 6000};
@@ -174,7 +174,7 @@ TEST(hist_util, DeviceSketchBatches) {
   }
 }
 
-TEST(hist_util, DeviceSketchMultipleColumnsExternal) {
+TEST(HistUtil, DeviceSketchMultipleColumnsExternal) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns =5;
@@ -190,7 +190,7 @@ TEST(hist_util, DeviceSketchMultipleColumnsExternal) {
   }
 }
 
-TEST(hist_util, AdapterDeviceSketch)
+TEST(HistUtil, AdapterDeviceSketch)
 {
   int rows = 5;
   int cols = 1;
@@ -212,7 +212,7 @@ TEST(hist_util, AdapterDeviceSketch)
   EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 
-TEST(hist_util, AdapterDeviceSketchMemory) {
+TEST(HistUtil, AdapterDeviceSketchMemory) {
   int num_columns = 100;
   int num_rows = 1000;
   int num_bins = 256;
@@ -235,7 +235,7 @@ TEST(hist_util, AdapterDeviceSketchMemory) {
       bytes_num_elements + bytes_cuts + bytes_num_columns + bytes_constant);
 }
 
- TEST(hist_util, AdapterDeviceSketchCategorical) {
+ TEST(HistUtil, AdapterDeviceSketchCategorical) {
   int categorical_sizes[] = {2, 6, 8, 12};
   int num_bins = 256;
   int sizes[] = {25, 100, 1000};
@@ -252,7 +252,7 @@ TEST(hist_util, AdapterDeviceSketchMemory) {
   }
 }
 
-TEST(hist_util, AdapterDeviceSketchMultipleColumns) {
+TEST(HistUtil, AdapterDeviceSketchMultipleColumns) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
@@ -268,7 +268,7 @@ TEST(hist_util, AdapterDeviceSketchMultipleColumns) {
     }
   }
 }
-TEST(hist_util, AdapterDeviceSketchBatches) {
+TEST(HistUtil, AdapterDeviceSketchBatches) {
   int num_bins = 256;
   int num_rows = 5000;
   int batch_sizes[] = {0, 100, 1500, 6000};
@@ -287,7 +287,7 @@ TEST(hist_util, AdapterDeviceSketchBatches) {
 
 // Check sketching from adapter or DMatrix results in the same answer
 // Consistency here is useful for testing and user experience
-TEST(hist_util, SketchingEquivalent) {
+TEST(HistUtil, SketchingEquivalent) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns = 5;

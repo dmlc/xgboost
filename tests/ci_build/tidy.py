@@ -17,7 +17,10 @@ def call(args):
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
     error_msg = completed.stdout.decode('utf-8')
-    matched = re.search('(src|tests|include)/.*warning:', error_msg,
+    # `workspace` is a name used in Jenkins CI.  Normally we should keep the
+    # dir as `xgboost`.
+    matched = re.search('(workspace|xgboost)/.*(src|tests|include)/.*warning:',
+                        error_msg,
                         re.MULTILINE)
     if matched is None:
         return_code = 0
@@ -211,8 +214,6 @@ class ClangTidy(object):
             for i, (process_status, tidy_status, msg) in enumerate(results):
                 # Don't enforce clang-tidy to pass for now due to namespace
                 # for cub in thrust is not correct.
-                if process_status != 0:
-                    print('Command returned an error. Ignoring.', all_files[i])
                 if tidy_status == 1:
                     passed = False
                     print(BAR, '\n'
@@ -221,7 +222,8 @@ class ClangTidy(object):
                           'Message:\n', msg,
                           BAR, '\n')
         if not passed:
-            print('Please correct clang-tidy warnings.')
+            print('Errors in `thrust` namespace can be safely ignored.',
+                  'Please address rest of the clang-tidy warnings.')
         return passed
 
 
@@ -266,7 +268,8 @@ right keywords?
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run clang-tidy.')
     parser.add_argument('--cpp', type=int, default=1)
-    parser.add_argument('--tidy-version', type=int, default=None)
+    parser.add_argument('--tidy-version', type=int, default=None,
+                        help='Specify the version of preferred clang-tidy.')
     parser.add_argument('--cuda', type=int, default=1)
     parser.add_argument('--use-dmlc-gtest', type=int, default=1,
                         help='Whether to use gtest bundled in dmlc-core.')

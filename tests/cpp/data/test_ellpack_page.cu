@@ -21,7 +21,7 @@ TEST(EllpackPage, EmptyDMatrix) {
   auto& page = *dmat->GetBatches<EllpackPage>({0, kMaxBin}).begin();
   auto impl = page.Impl();
   ASSERT_EQ(impl->row_stride, 0);
-  ASSERT_EQ(impl->cuts_.TotalBins(), 0);
+  ASSERT_EQ(impl->Cuts().TotalBins(), 0);
   ASSERT_EQ(impl->gidx_buffer.Size(), 4);
 }
 
@@ -106,7 +106,7 @@ TEST(EllpackPage, Copy) {
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
   // Create an empty result page.
-  EllpackPageImpl result(0, page->cuts_, page->is_dense, page->row_stride,
+  EllpackPageImpl result(0, page->Cuts(), page->is_dense, page->row_stride,
                          kRows);
 
   // Copy batch pages into the result page.
@@ -152,7 +152,7 @@ TEST(EllpackPage, Compact) {
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
   // Create an empty result page.
-  EllpackPageImpl result(0, page->cuts_, page->is_dense, page->row_stride,
+  EllpackPageImpl result(0, page->Cuts(), page->is_dense, page->row_stride,
                          kCompactedRows);
 
   // Compact batch pages into the result page.
