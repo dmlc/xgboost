@@ -267,7 +267,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   }
 
   # evaluation printing callback
-  params <- c(params, list(silent = ifelse(verbose > 1, 0, 1)))
+  params <- c(params)
   print_every_n <- max( as.integer(print_every_n), 1L)
   if (!has.callbacks(callbacks, 'cb.print.evaluation') &&
       verbose) {
