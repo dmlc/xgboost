@@ -9,6 +9,8 @@ import pytest
 import unittest
 import json
 
+from test_basic import captured_output
+
 rng = np.random.RandomState(1994)
 
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
@@ -265,7 +267,7 @@ def test_parameter_tuning():
     xgb_model = xgb.XGBRegressor(learning_rate=0.1)
     clf = GridSearchCV(xgb_model, {'max_depth': [2, 4, 6],
                                    'n_estimators': [50, 100, 200]},
-                       cv=3, verbose=1, iid=True)
+                       cv=3, verbose=1)
     clf.fit(X, y)
     assert clf.best_score_ < 0.7
     assert clf.best_params_ == {'n_estimators': 100, 'max_depth': 4}
@@ -783,6 +785,27 @@ def test_constraint_parameters():
     config = json.loads(reg.get_booster().save_config())
     assert config['learner']['gradient_booster']['updater']['grow_colmaker'][
         'train_param']['interaction_constraints'] == '[[0, 1], [2, 3, 4]]'
+
+
+def test_parameter_validation():
+    reg = xgb.XGBRegressor(foo='bar', verbosity=1)
+    X = np.random.randn(10, 10)
+    y = np.random.randn(10)
+    with captured_output() as (out, err):
+        reg.fit(X, y)
+        output = out.getvalue().strip()
+
+    assert output.find('foo') != -1
+
+    reg = xgb.XGBRegressor(n_estimators=2, missing=3,
+                           importance_type='gain', verbosity=1)
+    X = np.random.randn(10, 10)
+    y = np.random.randn(10)
+    with captured_output() as (out, err):
+        reg.fit(X, y)
+        output = out.getvalue().strip()
+
+    assert len(output) == 0
 
 
 class TestBoostFromPrediction(unittest.TestCase):
