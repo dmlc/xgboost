@@ -161,16 +161,21 @@ double AFTLoss::Loss(double y_lower, double y_upper, double y_pred, double sigma
 double AFTLoss::Gradient(double y_lower, double y_upper, double y_pred, double sigma) {
   const double log_y_lower = std::log(y_lower);
   const double log_y_upper = std::log(y_upper);
-  double gradient;
+  double numerator, denominator, gradient;  // numerator and denominator of gradient
+  CensoringType censor_type;
+  bool z_sign;  // sign of z-score
 
   if (y_lower == y_upper) {  // uncensored
     const double z = (log_y_lower - y_pred) / sigma;
     const double pdf = dist_->PDF(z);
     const double grad_pdf = dist_->GradPDF(z);
-    gradient = grad_pdf / (sigma * pdf);
+    censor_type = CensoringType::kUncensored;
+    numerator = grad_pdf;
+    denominator = sigma * pdf;
+    z_sign = (z > 0);
   } else {  // censored; now check what type of censorship we have
     double z_u = 0.0, z_l = 0.0, pdf_u, pdf_l, cdf_u, cdf_l;
-    CensoringType censor_type = CensoringType::kIntervalCensored;
+    censor_type = CensoringType::kIntervalCensored;
     if (std::isinf(y_upper)) {  // right-censored
       pdf_u = 0;
       cdf_u = 1;
@@ -189,13 +194,13 @@ double AFTLoss::Gradient(double y_lower, double y_upper, double y_pred, double s
       pdf_l = dist_->PDF(z_l);
       cdf_l = dist_->CDF(z_l);
     }
-
-    const double numerator = pdf_u - pdf_l;
-    const double denominator = sigma * (cdf_u - cdf_l);
-    gradient = numerator / denominator;
-    if (denominator < kEps && (std::isnan(gradient) || std::isinf(gradient))) {
-      gradient = GetLimitAtInfPred(dist_type_, censor_type, (z_u > 0 || z_l > 0), sigma).gradient;
-    }
+    z_sign = (z_u > 0 || z_l > 0);
+    numerator = pdf_u - pdf_l;
+    denominator = sigma * (cdf_u - cdf_l);
+  }
+  gradient = numerator / denominator;
+  if (denominator < kEps && (std::isnan(gradient) || std::isinf(gradient))) {
+    gradient = GetLimitAtInfPred(dist_type_, censor_type, z_sign, sigma).gradient;
   }
 
   return Clip(gradient, kMinGradient, kMaxGradient);
@@ -204,18 +209,22 @@ double AFTLoss::Gradient(double y_lower, double y_upper, double y_pred, double s
 double AFTLoss::Hessian(double y_lower, double y_upper, double y_pred, double sigma) {
   const double log_y_lower = std::log(y_lower);
   const double log_y_upper = std::log(y_upper);
-  double hessian;
+  double numerator, denominator, hessian;  // numerator and denominator of hessian
+  CensoringType censor_type;
+  bool z_sign;  // sign of z-score
 
   if (y_lower == y_upper) {  // uncensored
     const double z = (log_y_lower - y_pred) / sigma;
     const double pdf = dist_->PDF(z);
     const double grad_pdf = dist_->GradPDF(z);
     const double hess_pdf = dist_->HessPDF(z);
-    hessian = -(pdf * hess_pdf - grad_pdf * grad_pdf)
-              / (sigma * sigma * pdf * pdf);
+    censor_type = CensoringType::kUncensored;
+    numerator = -(pdf * hess_pdf - grad_pdf * grad_pdf);
+    denominator = sigma * sigma * pdf * pdf;
+    z_sign = (z > 0);
   } else {  // censored; now check what type of censorship we have
     double z_u = 0.0, z_l = 0.0, grad_pdf_u, grad_pdf_l, pdf_u, pdf_l, cdf_u, cdf_l;
-    CensoringType censor_type = CensoringType::kIntervalCensored;
+    censor_type = CensoringType::kIntervalCensored;
     if (std::isinf(y_upper)) {  // right-censored
       pdf_u = 0;
       cdf_u = 1;
@@ -241,14 +250,14 @@ double AFTLoss::Hessian(double y_lower, double y_upper, double y_pred, double si
     const double cdf_diff = cdf_u - cdf_l;
     const double pdf_diff = pdf_u - pdf_l;
     const double grad_diff = grad_pdf_u - grad_pdf_l;
-    const double numerator = -(cdf_diff * grad_diff - pdf_diff * pdf_diff);
     const double sqrt_denominator = sigma * cdf_diff;
-    const double denominator = sqrt_denominator * sqrt_denominator;
-
-    hessian = numerator / denominator;
-    if (denominator < kEps && (std::isnan(hessian) || std::isinf(hessian))) {
-      hessian = GetLimitAtInfPred(dist_type_, censor_type, (z_u > 0 || z_l > 0), sigma).hessian;
-    }
+    z_sign = (z_u > 0 || z_l > 0);
+    numerator = -(cdf_diff * grad_diff - pdf_diff * pdf_diff);
+    denominator = sqrt_denominator * sqrt_denominator;
+  }
+  hessian = numerator / denominator;
+  if (denominator < kEps && (std::isnan(hessian) || std::isinf(hessian))) {
+    hessian = GetLimitAtInfPred(dist_type_, censor_type, z_sign, sigma).hessian;
   }
 
   return Clip(hessian, kMinHessian, kMaxHessian);
