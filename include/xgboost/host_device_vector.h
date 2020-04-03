@@ -105,6 +105,9 @@ class HostDeviceVector {
   const T* DevicePointer() const { return ConstDevicePointer(); }
 
   T* HostPointer() { return HostVector().data(); }
+  common::Span<T> HostSpan() { return common::Span<T>{HostVector()}; }
+  common::Span<T const> HostSpan() const { return common::Span<T const>{HostVector()}; }
+  common::Span<T const> ConstHostSpan() const { return HostSpan(); }
   const T* ConstHostPointer() const { return ConstHostVector().data(); }
   const T* HostPointer() const { return ConstHostPointer(); }
 
