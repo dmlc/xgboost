@@ -663,7 +663,6 @@ inline void XGBoostDumpModelImpl(BoosterHandle handle, const FeatureMap &fmap,
   auto *bst = static_cast<Learner*>(handle);
   std::vector<std::string>& str_vecs = bst->GetThreadLocal().ret_vec_str;
   std::vector<const char*>& charp_vecs = bst->GetThreadLocal().ret_vec_charp;
-  bst->Configure();
   str_vecs = bst->DumpModel(fmap, with_stats != 0, format);
   charp_vecs.resize(str_vecs.size());
   for (size_t i = 0; i < str_vecs.size(); ++i) {
