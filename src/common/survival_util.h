@@ -42,15 +42,16 @@ struct AFTParam : public XGBoostParameter<AFTParam> {
 class AFTLoss {
  private:
   std::unique_ptr<ProbabilityDistribution> dist_;
+  ProbabilityDistributionType dist_type_;
 
  public:
   /*!
    * \brief Constructor for AFT loss function
-   * \param dist Choice of probability distribution for the noise term in AFT
+   * \param dist_type Choice of probability distribution for the noise term in AFT
    */
-  explicit AFTLoss(ProbabilityDistributionType dist) {
-    dist_.reset(ProbabilityDistribution::Create(dist));
-  }
+  explicit AFTLoss(ProbabilityDistributionType dist_type)
+    : dist_(ProbabilityDistribution::Create(dist_type)),
+      dist_type_(dist_type) {}
 
  public:
   /*!

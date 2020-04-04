@@ -85,6 +85,6 @@ def test_aft_survival_demo_data():
         # AFT metric (negative log likelihood) improve monotonically
         assert all(p >= q for p, q in zip(nloglik_rec[dist], nloglik_rec[dist][:1]))
     # For this data, normal distribution works the best
-    assert nloglik_rec['normal'][-1] < 5.0
-    assert nloglik_rec['logistic'][-1] > 5.0
-    assert nloglik_rec['extreme'][-1] > 5.0
+    assert nloglik_rec['normal'][-1] < 4.9
+    assert nloglik_rec['logistic'][-1] > 4.9
+    assert nloglik_rec['extreme'][-1] > 4.9
