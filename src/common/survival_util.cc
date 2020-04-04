@@ -47,68 +47,65 @@ enum class CensoringType : uint8_t {
   kUncensored, kRightCensored, kLeftCensored, kIntervalCensored
 };
 
-struct GradHessPair {
-  double gradient;
-  double hessian;
-};
+using xgboost::GradientPairPrecise;
 
-inline GradHessPair GetLimitAtInfPred(ProbabilityDistributionType dist_type,
-                                      CensoringType censor_type,
-                                      double sign, double sigma) {
+inline GradientPairPrecise GetLimitAtInfPred(ProbabilityDistributionType dist_type,
+                                             CensoringType censor_type,
+                                             double sign, double sigma) {
   switch (censor_type) {
   case CensoringType::kUncensored:
     switch (dist_type) {
     case ProbabilityDistributionType::kNormal:
-      return sign ? GradHessPair{ kMinGradient, 1.0 / (sigma * sigma) }
-                  : GradHessPair{ kMaxGradient, 1.0 / (sigma * sigma) };
+      return sign ? GradientPairPrecise{ kMinGradient, 1.0 / (sigma * sigma) }
+                  : GradientPairPrecise{ kMaxGradient, 1.0 / (sigma * sigma) };
     case ProbabilityDistributionType::kLogistic:
-      return sign ? GradHessPair{ -1.0 / sigma, kMinHessian }
-                  : GradHessPair{ 1.0 / sigma, kMinHessian };
+      return sign ? GradientPairPrecise{ -1.0 / sigma, kMinHessian }
+                  : GradientPairPrecise{ 1.0 / sigma, kMinHessian };
     case ProbabilityDistributionType::kExtreme:
-      return sign ? GradHessPair{ kMinGradient, kMaxHessian }
-                  : GradHessPair{ 1.0 / sigma, kMinHessian };
+      return sign ? GradientPairPrecise{ kMinGradient, kMaxHessian }
+                  : GradientPairPrecise{ 1.0 / sigma, kMinHessian };
     default:
       LOG(FATAL) << "Unknown distribution type";
     }
   case CensoringType::kRightCensored:
     switch (dist_type) {
     case ProbabilityDistributionType::kNormal:
-      return sign ? GradHessPair{ kMinGradient, 1.0 / (sigma * sigma) }
-                  : GradHessPair{ 0.0, kMinHessian };
+      return sign ? GradientPairPrecise{ kMinGradient, 1.0 / (sigma * sigma) }
+                  : GradientPairPrecise{ 0.0, kMinHessian };
     case ProbabilityDistributionType::kLogistic:
-      return sign ? GradHessPair{ -1.0 / sigma, kMinHessian }
-                  : GradHessPair{ 0.0, kMinHessian };
+      return sign ? GradientPairPrecise{ -1.0 / sigma, kMinHessian }
+                  : GradientPairPrecise{ 0.0, kMinHessian };
     case ProbabilityDistributionType::kExtreme:
-      return sign ? GradHessPair{ kMinGradient, kMaxHessian }
-                  : GradHessPair{ 0.0, kMinHessian };
+      return sign ? GradientPairPrecise{ kMinGradient, kMaxHessian }
+                  : GradientPairPrecise{ 0.0, kMinHessian };
     default:
       LOG(FATAL) << "Unknown distribution type";
     }
   case CensoringType::kLeftCensored:
     switch (dist_type) {
     case ProbabilityDistributionType::kNormal:
-      return sign ? GradHessPair{ 0.0, kMinHessian }
-                  : GradHessPair{ kMaxGradient, 1.0 / (sigma * sigma) };
+      return sign ? GradientPairPrecise{ 0.0, kMinHessian }
+                  : GradientPairPrecise{ kMaxGradient, 1.0 / (sigma * sigma) };
     case ProbabilityDistributionType::kLogistic:
-      return sign ? GradHessPair{ 0.0, kMinHessian }
-                  : GradHessPair{ 1.0 / sigma, kMinHessian };
+      return sign ? GradientPairPrecise{ 0.0, kMinHessian }
+                  : GradientPairPrecise{ 1.0 / sigma, kMinHessian };
     case ProbabilityDistributionType::kExtreme:
-      return sign ? GradHessPair{ 0.0, kMinHessian }
-                  : GradHessPair{ 1.0 / sigma, kMinHessian };
+      return sign ? GradientPairPrecise{ 0.0, kMinHessian }
+                  : GradientPairPrecise{ 1.0 / sigma, kMinHessian };
     default:
       LOG(FATAL) << "Unknown distribution type";
     }
   case CensoringType::kIntervalCensored:
     switch (dist_type) {
     case ProbabilityDistributionType::kNormal:
-      return sign ? GradHessPair{ kMinGradient, 1.0 / (sigma * sigma) }
-                  : GradHessPair{ kMaxGradient, 1.0 / (sigma * sigma) };
+      return sign ? GradientPairPrecise{ kMinGradient, 1.0 / (sigma * sigma) }
+                  : GradientPairPrecise{ kMaxGradient, 1.0 / (sigma * sigma) };
     case ProbabilityDistributionType::kLogistic:
-      return sign ? GradHessPair{ -1.0 / sigma, kMinHessian }
-                  : GradHessPair{ 1.0 / sigma, kMinHessian };
+      return sign ? GradientPairPrecise{ -1.0 / sigma, kMinHessian }
+                  : GradientPairPrecise{ 1.0 / sigma, kMinHessian };
     case ProbabilityDistributionType::kExtreme:
-      return sign ? GradHessPair{ kMinGradient, kMaxHessian }
-                  : GradHessPair{ 1.0 / sigma, kMinHessian };
+      return sign ? GradientPairPrecise{ kMinGradient, kMaxHessian }
+                  : GradientPairPrecise{ 1.0 / sigma, kMinHessian };
     default:
       LOG(FATAL) << "Unknown distribution type";
     }
@@ -200,7 +197,7 @@ double AFTLoss::Gradient(double y_lower, double y_upper, double y_pred, double s
   }
   gradient = numerator / denominator;
   if (denominator < kEps && (std::isnan(gradient) || std::isinf(gradient))) {
-    gradient = GetLimitAtInfPred(dist_type_, censor_type, z_sign, sigma).gradient;
+    gradient = GetLimitAtInfPred(dist_type_, censor_type, z_sign, sigma).GetGrad();
   }
 
   return Clip(gradient, kMinGradient, kMaxGradient);
@@ -257,7 +254,7 @@ double AFTLoss::Hessian(double y_lower, double y_upper, double y_pred, double si
   }
   hessian = numerator / denominator;
   if (denominator < kEps && (std::isnan(hessian) || std::isinf(hessian))) {
-    hessian = GetLimitAtInfPred(dist_type_, censor_type, z_sign, sigma).hessian;
+    hessian = GetLimitAtInfPred(dist_type_, censor_type, z_sign, sigma).GetHess();
   }
 
   return Clip(hessian, kMinHessian, kMaxHessian);
