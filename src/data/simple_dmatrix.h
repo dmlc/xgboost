@@ -42,7 +42,7 @@ class SimpleDMatrix : public DMatrix {
   BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
   BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
 
-  MetaInfo info;
+  MetaInfo info_;
   SparsePage sparse_page_;  // Primary storage type
   std::unique_ptr<CSCPage> column_page_;
   std::unique_ptr<SortedCSCPage> sorted_column_page_;

@@ -69,7 +69,7 @@ TEST(GradientBasedSampler, NoSampling) {
 }
 
 // In external mode, when not sampling, we concatenate the pages together.
-TEST(GradientBasedSampler, NoSampling_ExternalMemory) {
+TEST(GradientBasedSampler, NoSamplingExternalMemory) {
   constexpr size_t kRows = 2048;
   constexpr size_t kCols = 1;
   constexpr float kSubsample = 1.0f;
@@ -121,7 +121,7 @@ TEST(GradientBasedSampler, UniformSampling) {
   VerifySampling(kPageSize, kSubsample, kSamplingMethod, kFixedSizeSampling, kCheckSum);
 }
 
-TEST(GradientBasedSampler, UniformSampling_ExternalMemory) {
+TEST(GradientBasedSampler, UniformSamplingExternalMemory) {
   constexpr size_t kPageSize = 1024;
   constexpr float kSubsample = 0.5;
   constexpr int kSamplingMethod = TrainParam::kUniform;
@@ -137,7 +137,7 @@ TEST(GradientBasedSampler, GradientBasedSampling) {
   VerifySampling(kPageSize, kSubsample, kSamplingMethod);
 }
 
-TEST(GradientBasedSampler, GradientBasedSampling_ExternalMemory) {
+TEST(GradientBasedSampler, GradientBasedSamplingExternalMemory) {
   constexpr size_t kPageSize = 1024;
   constexpr float kSubsample = 0.8;
   constexpr int kSamplingMethod = TrainParam::kGradientBased;

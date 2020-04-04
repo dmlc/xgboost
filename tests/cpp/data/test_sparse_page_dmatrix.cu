@@ -63,14 +63,14 @@ TEST(SparsePageDMatrix, EllpackPageContent) {
   EXPECT_EQ(impl->n_rows, kRows);
   EXPECT_FALSE(impl->is_dense);
   EXPECT_EQ(impl->row_stride, 2);
-  EXPECT_EQ(impl->cuts_.TotalBins(), 4);
+  EXPECT_EQ(impl->Cuts().TotalBins(), 4);
 
   auto impl_ext = (*dmat_ext->GetBatches<EllpackPage>(param).begin()).Impl();
   EXPECT_EQ(impl_ext->base_rowid, 0);
   EXPECT_EQ(impl_ext->n_rows, kRows);
   EXPECT_FALSE(impl_ext->is_dense);
   EXPECT_EQ(impl_ext->row_stride, 2);
-  EXPECT_EQ(impl_ext->cuts_.TotalBins(), 4);
+  EXPECT_EQ(impl_ext->Cuts().TotalBins(), 4);
 
   std::vector<common::CompressedByteT> buffer(impl->gidx_buffer.HostVector());
   std::vector<common::CompressedByteT> buffer_ext(impl_ext->gidx_buffer.HostVector());
@@ -149,7 +149,6 @@ TEST(SparsePageDMatrix, EllpackPageMultipleLoops) {
       dmat_ext(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
 
   BatchParam param{0, kMaxBins, kPageSize};
-  auto impl = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
   size_t current_row = 0;
   for (auto& page : dmat_ext->GetBatches<EllpackPage>(param)) {

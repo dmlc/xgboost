@@ -186,7 +186,7 @@ void GBTree::DoBoost(DMatrix* p_fmat,
                      HostDeviceVector<GradientPair>* in_gpair,
                      PredictionCacheEntry* predt) {
   std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
-  const int ngroup = model_.learner_model_param_->num_output_group;
+  const int ngroup = model_.learner_model_param->num_output_group;
   ConfigureWithKnownData(this->cfg_, p_fmat);
   monitor_.Start("BoostNewTrees");
   CHECK_NE(ngroup, 0);
@@ -300,17 +300,17 @@ void GBTree::CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& ne
                          PredictionCacheEntry* predts) {
   monitor_.Start("CommitModel");
   int num_new_trees = 0;
-  for (uint32_t gid = 0; gid < model_.learner_model_param_->num_output_group; ++gid) {
+  for (uint32_t gid = 0; gid < model_.learner_model_param->num_output_group; ++gid) {
     num_new_trees += new_trees[gid].size();
     model_.CommitModel(std::move(new_trees[gid]), gid);
   }
   auto* out = &predts->predictions;
-  if (model_.learner_model_param_->num_output_group == 1 &&
+  if (model_.learner_model_param->num_output_group == 1 &&
       updaters_.size() > 0 &&
       num_new_trees == 1 &&
       out->Size() > 0 &&
       updaters_.back()->UpdatePredictionCache(m, out)) {
-    auto delta = num_new_trees / model_.learner_model_param_->num_output_group;
+    auto delta = num_new_trees / model_.learner_model_param->num_output_group;
     predts->Update(delta);
   }
   monitor_.Stop("CommitModel");
@@ -318,7 +318,7 @@ void GBTree::CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& ne
 
 void GBTree::LoadConfig(Json const& in) {
   CHECK_EQ(get<String>(in["name"]), "gbtree");
-  fromJson(in["gbtree_train_param"], &tparam_);
+  FromJson(in["gbtree_train_param"], &tparam_);
   int32_t const n_gpus = xgboost::common::AllVisibleGPUs();
   if (n_gpus == 0 && tparam_.predictor == PredictorType::kGPUPredictor) {
     LOG(WARNING)
@@ -347,7 +347,7 @@ void GBTree::LoadConfig(Json const& in) {
 void GBTree::SaveConfig(Json* p_out) const {
   auto& out = *p_out;
   out["name"] = String("gbtree");
-  out["gbtree_train_param"] = toJson(tparam_);
+  out["gbtree_train_param"] = ToJson(tparam_);
   out["updater"] = Object();
 
   auto& j_updaters = out["updater"];
@@ -495,7 +495,7 @@ class Dart : public GBTree {
     CHECK_EQ(get<String>(in["name"]), "dart");
     auto const& gbtree = in["gbtree"];
     GBTree::LoadConfig(gbtree);
-    fromJson(in["dart_train_param"], &dparam_);
+    FromJson(in["dart_train_param"], &dparam_);
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
@@ -503,7 +503,7 @@ class Dart : public GBTree {
     out["gbtree"] = Object();
     auto& gbtree = out["gbtree"];
     GBTree::SaveConfig(&gbtree);
-    out["dart_train_param"] = toJson(dparam_);
+    out["dart_train_param"] = ToJson(dparam_);
   }
 
   void PredictBatch(DMatrix* p_fmat,
@@ -511,7 +511,7 @@ class Dart : public GBTree {
                     bool training,
                     unsigned ntree_limit) override {
     DropTrees(training);
-    int num_group = model_.learner_model_param_->num_output_group;
+    int num_group = model_.learner_model_param->num_output_group;
     ntree_limit *= num_group;
     if (ntree_limit == 0 || ntree_limit > model_.trees.size()) {
       ntree_limit = static_cast<unsigned>(model_.trees.size());
@@ -525,7 +525,7 @@ class Dart : public GBTree {
       std::copy(base_margin.begin(), base_margin.end(), out_preds.begin());
     } else {
       std::fill(out_preds.begin(), out_preds.end(),
-                model_.learner_model_param_->base_score);
+                model_.learner_model_param->base_score);
     }
     const int nthread = omp_get_max_threads();
     InitThreadTemp(nthread);
@@ -538,18 +538,18 @@ class Dart : public GBTree {
     DropTrees(false);
     if (thread_temp_.size() == 0) {
       thread_temp_.resize(1, RegTree::FVec());
-      thread_temp_[0].Init(model_.learner_model_param_->num_feature);
+      thread_temp_[0].Init(model_.learner_model_param->num_feature);
     }
-    out_preds->resize(model_.learner_model_param_->num_output_group);
-    ntree_limit *= model_.learner_model_param_->num_output_group;
+    out_preds->resize(model_.learner_model_param->num_output_group);
+    ntree_limit *= model_.learner_model_param->num_output_group;
     if (ntree_limit == 0 || ntree_limit > model_.trees.size()) {
       ntree_limit = static_cast<unsigned>(model_.trees.size());
     }
     // loop over output groups
-    for (uint32_t gid = 0; gid < model_.learner_model_param_->num_output_group; ++gid) {
+    for (uint32_t gid = 0; gid < model_.learner_model_param->num_output_group; ++gid) {
       (*out_preds)[gid] =
           PredValue(inst, gid, &thread_temp_[0], 0, ntree_limit) +
-          model_.learner_model_param_->base_score;
+          model_.learner_model_param->base_score;
     }
   }
 
@@ -582,7 +582,7 @@ class Dart : public GBTree {
       int num_group,
       unsigned tree_begin,
       unsigned tree_end) {
-    CHECK_EQ(num_group, model_.learner_model_param_->num_output_group);
+    CHECK_EQ(num_group, model_.learner_model_param->num_output_group);
     std::vector<bst_float>& preds = *out_preds;
     CHECK_EQ(model_.param.size_leaf_vector, 0)
         << "size_leaf_vector is enforced to 0 so far";
@@ -635,7 +635,7 @@ class Dart : public GBTree {
               DMatrix* m,
               PredictionCacheEntry* predts) override {
     int num_new_trees = 0;
-    for (uint32_t gid = 0; gid < model_.learner_model_param_->num_output_group; ++gid) {
+    for (uint32_t gid = 0; gid < model_.learner_model_param->num_output_group; ++gid) {
       num_new_trees += new_trees[gid].size();
       model_.CommitModel(std::move(new_trees[gid]), gid);
     }
@@ -752,7 +752,7 @@ class Dart : public GBTree {
     if (prev_thread_temp_size < nthread) {
       thread_temp_.resize(nthread, RegTree::FVec());
       for (int i = prev_thread_temp_size; i < nthread; ++i) {
-        thread_temp_[i].Init(model_.learner_model_param_->num_feature);
+        thread_temp_[i].Init(model_.learner_model_param->num_feature);
       }
     }
   }

@@ -234,13 +234,13 @@ struct LearnerModelParamLegacy;
  */
 struct LearnerModelParam {
   /* \brief global bias */
-  bst_float base_score;
+  bst_float base_score { 0.5f };
   /* \brief number of features  */
-  uint32_t num_feature;
+  uint32_t num_feature { 0 };
   /* \brief number of classes, if it is multi-class classification  */
-  uint32_t num_output_group;
+  uint32_t num_output_group { 0 };
 
-  LearnerModelParam() : base_score {0.5}, num_feature{0}, num_output_group{0} {}
+  LearnerModelParam() = default;
   // As the old `LearnerModelParamLegacy` is still used by binary IO, we keep
   // this one as an immutable copy.
   LearnerModelParam(LearnerModelParamLegacy const& user_param, float base_margin);

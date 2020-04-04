@@ -105,8 +105,9 @@ namespace detail {
  *   represent ptrdiff_t, which is just int64_t. So we make it determinstic
  *   here.
  */
-using ptrdiff_t = typename std::conditional<std::is_same<std::ptrdiff_t, std::int64_t>::value,
-                                            std::ptrdiff_t, std::int64_t>::type;
+using ptrdiff_t = typename std::conditional<  // NOLINT
+    std::is_same<std::ptrdiff_t, std::int64_t>::value,
+    std::ptrdiff_t, std::int64_t>::type;
 }  // namespace detail
 
 #if defined(_MSC_VER) && _MSC_VER < 1910
@@ -136,7 +137,7 @@ class SpanIterator {
     IsConst, const ElementType, ElementType>::type&;
   using pointer = typename std::add_pointer<reference>::type;     // NOLINT
 
-  XGBOOST_DEVICE constexpr SpanIterator() : span_{nullptr}, index_{0} {}
+  constexpr SpanIterator() = default;
 
   XGBOOST_DEVICE constexpr SpanIterator(
       const SpanType* _span,
@@ -243,8 +244,8 @@ class SpanIterator {
   }
 
  protected:
-  const SpanType *span_;
-  typename SpanType::index_type index_;
+  const SpanType *span_ { nullptr };
+  typename SpanType::index_type index_ { 0 };
 };
 
 
@@ -409,8 +410,7 @@ class Span {
   using const_reverse_iterator = const detail::SpanIterator<Span<T, Extent>, true>;  // NOLINT
 
   // constructors
-
-  XGBOOST_DEVICE constexpr Span() __span_noexcept : size_(0), data_(nullptr) {}
+  constexpr Span() __span_noexcept = default;
 
   XGBOOST_DEVICE Span(pointer _ptr, index_type _count) :
       size_(_count), data_(_ptr) {
@@ -503,11 +503,11 @@ class Span {
 
   // element access
 
-  XGBOOST_DEVICE reference front() const {
+  XGBOOST_DEVICE reference front() const {  // NOLINT
     return (*this)[0];
   }
 
-  XGBOOST_DEVICE reference back() const {
+  XGBOOST_DEVICE reference back() const {  // NOLINT
     return (*this)[size() - 1];
   }
 
@@ -587,8 +587,8 @@ class Span {
   }
 
  private:
-  index_type size_;
-  pointer data_;
+  index_type size_ { 0 };
+  pointer data_ { nullptr };
 };
 
 template <class T, std::size_t X, class U, std::size_t Y>

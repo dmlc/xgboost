@@ -107,7 +107,7 @@ void PredictBatchKernel(DataView batch, std::vector<bst_float> *out_preds,
                         int32_t tree_end,
                         std::vector<RegTree::FVec> *p_thread_temp) {
   auto& thread_temp = *p_thread_temp;
-  int32_t const num_group = model.learner_model_param_->num_output_group;
+  int32_t const num_group = model.learner_model_param->num_output_group;
 
   std::vector<bst_float> &preds = *out_preds;
   CHECK_EQ(model.param.size_leaf_vector, 0)
@@ -168,10 +168,10 @@ class CPUPredictor : public Predictor {
                       int32_t tree_end) {
     std::lock_guard<std::mutex> guard(lock_);
     const int threads = omp_get_max_threads();
-    InitThreadTemp(threads, model.learner_model_param_->num_feature, &this->thread_temp_);
+    InitThreadTemp(threads, model.learner_model_param->num_feature, &this->thread_temp_);
     for (auto const& batch : p_fmat->GetBatches<SparsePage>()) {
       CHECK_EQ(out_preds->size(),
-               p_fmat->Info().num_row_ * model.learner_model_param_->num_output_group);
+               p_fmat->Info().num_row_ * model.learner_model_param->num_output_group);
       size_t constexpr kUnroll = 8;
       PredictBatchKernel(SparsePageView<kUnroll>{&batch}, out_preds, model, tree_begin,
                          tree_end, &thread_temp_);
@@ -181,8 +181,8 @@ class CPUPredictor : public Predictor {
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
                           const gbm::GBTreeModel& model) const {
-    CHECK_NE(model.learner_model_param_->num_output_group, 0);
-    size_t n = model.learner_model_param_->num_output_group * info.num_row_;
+    CHECK_NE(model.learner_model_param->num_output_group, 0);
+    size_t n = model.learner_model_param->num_output_group * info.num_row_;
     const auto& base_margin = info.base_margin_.HostVector();
     out_preds->Resize(n);
     std::vector<bst_float>& out_preds_h = out_preds->HostVector();
@@ -194,19 +194,19 @@ class CPUPredictor : public Predictor {
         std::ostringstream oss;
         oss << "Ignoring the base margin, since it has incorrect length. "
             << "The base margin must be an array of length ";
-        if (model.learner_model_param_->num_output_group > 1) {
+        if (model.learner_model_param->num_output_group > 1) {
           oss << "[num_class] * [number of data points], i.e. "
-              << model.learner_model_param_->num_output_group << " * " << info.num_row_
+              << model.learner_model_param->num_output_group << " * " << info.num_row_
               << " = " << n << ". ";
         } else {
           oss << "[number of data points], i.e. " << info.num_row_ << ". ";
         }
         oss << "Instead, all data points will use "
-            << "base_score = " << model.learner_model_param_->base_score;
+            << "base_score = " << model.learner_model_param->base_score;
         LOG(WARNING) << oss.str();
       }
       std::fill(out_preds_h.begin(), out_preds_h.end(),
-                model.learner_model_param_->base_score);
+                model.learner_model_param->base_score);
     }
   }
 
@@ -231,7 +231,7 @@ class CPUPredictor : public Predictor {
       this->InitOutPredictions(dmat->Info(), out_preds, model);
     }
 
-    uint32_t const output_groups =  model.learner_model_param_->num_output_group;
+    uint32_t const output_groups =  model.learner_model_param->num_output_group;
     CHECK_NE(output_groups, 0);
     // Right now we just assume ntree_limit provided by users means number of tree layers
     // in the context of multi-output model
@@ -272,7 +272,7 @@ class CPUPredictor : public Predictor {
                                 uint32_t tree_begin, uint32_t tree_end) const {
     auto threads = omp_get_max_threads();
     auto m = dmlc::get<Adapter>(x);
-    CHECK_EQ(m.NumColumns(), model.learner_model_param_->num_feature)
+    CHECK_EQ(m.NumColumns(), model.learner_model_param->num_feature)
         << "Number of columns in data must equal to trained model.";
     MetaInfo info;
     info.num_col_ = m.NumColumns();
@@ -281,7 +281,7 @@ class CPUPredictor : public Predictor {
     std::vector<Entry> workspace(info.num_col_ * 8 * threads);
     auto &predictions = out_preds->predictions.HostVector();
     std::vector<RegTree::FVec> thread_temp;
-    InitThreadTemp(threads, model.learner_model_param_->num_feature, &thread_temp);
+    InitThreadTemp(threads, model.learner_model_param->num_feature, &thread_temp);
     size_t constexpr kUnroll = 8;
     PredictBatchKernel(AdapterView<Adapter, kUnroll>(
                            &m, missing, common::Span<Entry>{workspace}),
@@ -307,29 +307,29 @@ class CPUPredictor : public Predictor {
                        const gbm::GBTreeModel& model, unsigned ntree_limit) override {
     if (thread_temp_.size() == 0) {
       thread_temp_.resize(1, RegTree::FVec());
-      thread_temp_[0].Init(model.learner_model_param_->num_feature);
+      thread_temp_[0].Init(model.learner_model_param->num_feature);
     }
-    ntree_limit *= model.learner_model_param_->num_output_group;
+    ntree_limit *= model.learner_model_param->num_output_group;
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }
-    out_preds->resize(model.learner_model_param_->num_output_group *
+    out_preds->resize(model.learner_model_param->num_output_group *
                       (model.param.size_leaf_vector + 1));
     // loop over output groups
-    for (uint32_t gid = 0; gid < model.learner_model_param_->num_output_group; ++gid) {
+    for (uint32_t gid = 0; gid < model.learner_model_param->num_output_group; ++gid) {
       (*out_preds)[gid] = PredValue(inst, model.trees, model.tree_info, gid,
                                     &thread_temp_[0], 0, ntree_limit) +
-                          model.learner_model_param_->base_score;
+                          model.learner_model_param->base_score;
     }
   }
 
   void PredictLeaf(DMatrix* p_fmat, std::vector<bst_float>* out_preds,
                    const gbm::GBTreeModel& model, unsigned ntree_limit) override {
     const int nthread = omp_get_max_threads();
-    InitThreadTemp(nthread, model.learner_model_param_->num_feature, &this->thread_temp_);
+    InitThreadTemp(nthread, model.learner_model_param->num_feature, &this->thread_temp_);
     const MetaInfo& info = p_fmat->Info();
     // number of valid trees
-    ntree_limit *= model.learner_model_param_->num_output_group;
+    ntree_limit *= model.learner_model_param->num_output_group;
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }
@@ -360,20 +360,20 @@ class CPUPredictor : public Predictor {
                            bool approximate, int condition,
                            unsigned condition_feature) override {
     const int nthread = omp_get_max_threads();
-    InitThreadTemp(nthread,  model.learner_model_param_->num_feature, &this->thread_temp_);
+    InitThreadTemp(nthread,  model.learner_model_param->num_feature, &this->thread_temp_);
     const MetaInfo& info = p_fmat->Info();
     // number of valid trees
-    ntree_limit *= model.learner_model_param_->num_output_group;
+    ntree_limit *= model.learner_model_param->num_output_group;
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }
-    const int ngroup = model.learner_model_param_->num_output_group;
+    const int ngroup = model.learner_model_param->num_output_group;
     CHECK_NE(ngroup, 0);
-    size_t const ncolumns = model.learner_model_param_->num_feature + 1;
+    size_t const ncolumns = model.learner_model_param->num_feature + 1;
     CHECK_NE(ncolumns, 0);
     // allocate space for (number of features + bias) times the number of rows
     std::vector<bst_float>& contribs = *out_contribs;
-    contribs.resize(info.num_row_ * ncolumns * model.learner_model_param_->num_output_group);
+    contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->num_output_group);
     // make sure contributions is zeroed, we could be reusing a previously
     // allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
@@ -418,7 +418,7 @@ class CPUPredictor : public Predictor {
           if (base_margin.size() != 0) {
             p_contribs[ncolumns - 1] += base_margin[row_idx * ngroup + gid];
           } else {
-            p_contribs[ncolumns - 1] += model.learner_model_param_->base_score;
+            p_contribs[ncolumns - 1] += model.learner_model_param->base_score;
           }
         }
       }
@@ -430,8 +430,8 @@ class CPUPredictor : public Predictor {
                                        std::vector<bst_float>* tree_weights,
                                        bool approximate) override {
     const MetaInfo& info = p_fmat->Info();
-    const int ngroup = model.learner_model_param_->num_output_group;
-    size_t const ncolumns = model.learner_model_param_->num_feature;
+    const int ngroup = model.learner_model_param->num_output_group;
+    size_t const ncolumns = model.learner_model_param->num_feature;
     const unsigned row_chunk = ngroup * (ncolumns + 1) * (ncolumns + 1);
     const unsigned mrow_chunk = (ncolumns + 1) * (ncolumns + 1);
     const unsigned crow_chunk = ngroup * (ncolumns + 1);

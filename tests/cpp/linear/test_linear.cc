@@ -33,7 +33,7 @@ TEST(Linear, Shotgun) {
     model.LazyInitModel();
     updater->Update(&gpair, p_fmat.get(), &model, gpair.Size());
 
-    ASSERT_EQ(model.bias()[0], 5.0f);
+    ASSERT_EQ(model.Bias()[0], 5.0f);
 
   }
   {
@@ -68,7 +68,7 @@ TEST(Linear, coordinate) {
   model.LazyInitModel();
   updater->Update(&gpair, p_fmat.get(), &model, gpair.Size());
 
-  ASSERT_EQ(model.bias()[0], 5.0f);
+  ASSERT_EQ(model.Bias()[0], 5.0f);
 }
 
 TEST(Coordinate, JsonIO){

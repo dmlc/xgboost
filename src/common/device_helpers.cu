@@ -37,7 +37,7 @@ void AllReducer::Init(int _device_ordinal) {
 #ifdef XGBOOST_USE_NCCL
   LOG(DEBUG) << "Running nccl init on: " << __CUDACC_VER_MAJOR__ << "." << __CUDACC_VER_MINOR__;
 
-  device_ordinal = _device_ordinal;
+  device_ordinal_ = _device_ordinal;
   int32_t const rank = rabit::GetRank();
 
 #if __CUDACC_VER_MAJOR__ > 9
@@ -46,7 +46,7 @@ void AllReducer::Init(int _device_ordinal) {
   std::vector<uint64_t> uuids(world * kUuidLength, 0);
   auto s_uuid = xgboost::common::Span<uint64_t>{uuids.data(), uuids.size()};
   auto s_this_uuid = s_uuid.subspan(rank * kUuidLength, kUuidLength);
-  GetCudaUUID(world, rank, device_ordinal, s_this_uuid);
+  GetCudaUUID(world, rank, device_ordinal_, s_this_uuid);
 
   // No allgather yet.
   rabit::Allreduce<rabit::op::Sum, uint64_t>(uuids.data(), uuids.size());
@@ -66,10 +66,10 @@ void AllReducer::Init(int _device_ordinal) {
       << "device is not supported";
 #endif  // __CUDACC_VER_MAJOR__ > 9
 
-  id = GetUniqueId();
-  dh::safe_cuda(cudaSetDevice(device_ordinal));
-  dh::safe_nccl(ncclCommInitRank(&comm, rabit::GetWorldSize(), id, rank));
-  safe_cuda(cudaStreamCreate(&stream));
+  id_ = GetUniqueId();
+  dh::safe_cuda(cudaSetDevice(device_ordinal_));
+  dh::safe_nccl(ncclCommInitRank(&comm_, rabit::GetWorldSize(), id_, rank));
+  safe_cuda(cudaStreamCreate(&stream_));
   initialised_ = true;
 #else
   if (rabit::IsDistributed()) {
@@ -81,8 +81,8 @@ void AllReducer::Init(int _device_ordinal) {
 AllReducer::~AllReducer() {
 #ifdef XGBOOST_USE_NCCL
   if (initialised_) {
-    dh::safe_cuda(cudaStreamDestroy(stream));
-    ncclCommDestroy(comm);
+    dh::safe_cuda(cudaStreamDestroy(stream_));
+    ncclCommDestroy(comm_);
   }
   if (xgboost::ConsoleLogger::ShouldLog(xgboost::ConsoleLogger::LV::kDebug)) {
     LOG(CONSOLE) << "======== NCCL Statistics========";

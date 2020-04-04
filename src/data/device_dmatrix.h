@@ -23,9 +23,9 @@ class DeviceDMatrix : public DMatrix {
   template <typename AdapterT>
   explicit DeviceDMatrix(AdapterT* adapter, float missing, int nthread, int max_bin);
 
-  MetaInfo& Info() override { return info; }
+  MetaInfo& Info() override { return info_; }
 
-  const MetaInfo& Info() const override { return info; }
+  const MetaInfo& Info() const override { return info_; }
 
   bool SingleColBlock() const override { return true; }
 
@@ -51,7 +51,7 @@ class DeviceDMatrix : public DMatrix {
     return BatchSet<EllpackPage>(begin_iter);
   }
 
-  MetaInfo info;
+  MetaInfo info_;
   // source data pointer.
   std::unique_ptr<EllpackPage> ellpack_page_;
 };

@@ -319,9 +319,9 @@ XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, GpairT sum_grad)
 /*! \brief core statistics used for tree construction */
 struct XGBOOST_ALIGNAS(16) GradStats {
   /*! \brief sum gradient statistics */
-  double sum_grad;
+  double sum_grad { 0 };
   /*! \brief sum hessian statistics */
-  double sum_hess;
+  double sum_hess { 0 };
 
  public:
   XGBOOST_DEVICE double GetGrad() const { return sum_grad; }
@@ -332,7 +332,7 @@ struct XGBOOST_ALIGNAS(16) GradStats {
     return os;
   }
 
-  XGBOOST_DEVICE GradStats() : sum_grad{0}, sum_hess{0} {
+  XGBOOST_DEVICE GradStats() {
     static_assert(sizeof(GradStats) == 16,
                   "Size of GradStats is not 16 bytes.");
   }

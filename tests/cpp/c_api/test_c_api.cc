@@ -11,7 +11,7 @@
 #include "../../../src/common/io.h"
 
 
-TEST(c_api, XGDMatrixCreateFromMatDT) {
+TEST(CAPI, XGDMatrixCreateFromMatDT) {
   std::vector<int> col0 = {0, -1, 3};
   std::vector<float> col1 = {-4.0f, 2.0f, 0.0f};
   const char *col0_type = "int32";
@@ -38,7 +38,7 @@ TEST(c_api, XGDMatrixCreateFromMatDT) {
   delete dmat;
 }
 
-TEST(c_api, XGDMatrixCreateFromMat_omp) {
+TEST(CAPI, XGDMatrixCreateFromMatOmp) {
   std::vector<int> num_rows = {100, 11374, 15000};
   for (auto row : num_rows) {
     int num_cols = 50;
@@ -74,13 +74,13 @@ TEST(c_api, XGDMatrixCreateFromMat_omp) {
 
 namespace xgboost {
 
-TEST(c_api, Version) {
+TEST(CAPI, Version) {
   int patch {0};
   XGBoostVersion(NULL, NULL, &patch);  // NOLINT
   ASSERT_EQ(patch, XGBOOST_VER_PATCH);
 }
 
-TEST(c_api, ConfigIO) {
+TEST(CAPI, ConfigIO) {
   size_t constexpr kRows = 10;
   auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatix();
   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
@@ -111,7 +111,7 @@ TEST(c_api, ConfigIO) {
   ASSERT_EQ(config_0, config_1);
 }
 
-TEST(c_api, JsonModelIO) {
+TEST(CAPI, JsonModelIO) {
   size_t constexpr kRows = 10;
   dmlc::TemporaryDirectory tempdir;
 

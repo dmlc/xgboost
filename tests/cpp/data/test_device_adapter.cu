@@ -50,6 +50,6 @@ void TestCudfAdapter()
   });
 }
 
-TEST(device_adapter, CudfAdapter) {
+TEST(DeviceAdapter, CudfAdapter) {
   TestCudfAdapter();
 }

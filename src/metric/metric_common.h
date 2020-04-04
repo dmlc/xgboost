@@ -62,11 +62,11 @@ struct EvalRankConfig {
 };
 
 class PackedReduceResult {
-  double residue_sum_;
-  double weights_sum_;
+  double residue_sum_ { 0 };
+  double weights_sum_ { 0 };
 
  public:
-  XGBOOST_DEVICE PackedReduceResult() : residue_sum_{0}, weights_sum_{0} {}
+  XGBOOST_DEVICE PackedReduceResult() {}  // NOLINT
   XGBOOST_DEVICE PackedReduceResult(double residue, double weight)
       : residue_sum_{residue}, weights_sum_{weight} {}
 

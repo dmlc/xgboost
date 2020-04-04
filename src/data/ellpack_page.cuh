@@ -120,7 +120,7 @@ struct EllpackDeviceAccessor {
    * not found). */
   XGBOOST_DEVICE size_t NumSymbols() const { return gidx_fvalue_map.size() + 1; }
 
-  size_t NullValue() const { return gidx_fvalue_map.size(); }
+  XGBOOST_DEVICE size_t NullValue() const { return gidx_fvalue_map.size(); }
 
   XGBOOST_DEVICE size_t NumBins() const { return gidx_fvalue_map.size(); }
 
@@ -185,6 +185,9 @@ class EllpackPageImpl {
     base_rowid = row_id;
   }
 
+  common::HistogramCuts& Cuts() { return cuts_; }
+  common::HistogramCuts const& Cuts() const { return cuts_; }
+
   /*! \return Estimation of memory cost of this page. */
   static size_t MemCostBytes(size_t num_rows, size_t row_stride, const common::HistogramCuts&cuts) ;
 
@@ -220,8 +223,9 @@ public:
   size_t n_rows{};
   /*! \brief global index of histogram, which is stored in ELLPack format. */
   HostDeviceVector<common::CompressedByteT> gidx_buffer;
+
+ private:
   common::HistogramCuts cuts_;
-private:
   common::Monitor monitor_;
 };
 

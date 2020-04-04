@@ -73,7 +73,7 @@ class QuantileHistMock : public QuantileHistMaker {
           const size_t rid = batch.base_rowid + i;
           ASSERT_LT(rid, num_row);
           const size_t gmat_row_offset = gmat.row_ptr[rid];
-          ASSERT_LT(gmat_row_offset, gmat.index.size());
+          ASSERT_LT(gmat_row_offset, gmat.index.Size());
           SparsePage::Inst inst = batch[i];
           ASSERT_EQ(gmat.row_ptr[rid] + inst.size(), gmat.row_ptr[rid + 1]);
           for (size_t j = 0; j < inst.size(); ++j) {
@@ -285,14 +285,14 @@ class QuantileHistMock : public QuantileHistMaker {
   }
 };
 
-TEST(Updater, QuantileHist_InitData) {
+TEST(QuantileHist, InitData) {
   std::vector<std::pair<std::string, std::string>> cfg
       {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())}};
   QuantileHistMock maker(cfg);
   maker.TestInitData();
 }
 
-TEST(Updater, QuantileHist_BuildHist) {
+TEST(QuantileHist, BuildHist) {
   // Don't enable feature grouping
   std::vector<std::pair<std::string, std::string>> cfg
       {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())},
@@ -301,7 +301,7 @@ TEST(Updater, QuantileHist_BuildHist) {
   maker.TestBuildHist();
 }
 
-TEST(Updater, QuantileHist_EvalSplits) {
+TEST(QuantileHist, EvalSplits) {
   std::vector<std::pair<std::string, std::string>> cfg
       {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())},
        {"split_evaluator", "elastic_net"},

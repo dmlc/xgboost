@@ -81,13 +81,13 @@ class SketchMaker: public BaseMaker {
   // statistics needed in the gradient calculation
   struct SKStats {
     /*! \brief sum of all positive gradient */
-    double pos_grad;
+    double pos_grad { 0 };
     /*! \brief sum of all negative gradient */
-    double neg_grad;
+    double neg_grad { 0 };
     /*! \brief sum of hessian statistics */
-    double sum_hess;
+    double sum_hess { 0 };
 
-    SKStats() : pos_grad{0}, neg_grad{0}, sum_hess{0} {}
+    SKStats() = default;
 
     // accumulate statistics
     void Add(const GradientPair& gpair) {

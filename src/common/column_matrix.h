@@ -141,7 +141,7 @@ class ColumnMatrix {
       feature_offsets_[fid] = accum_index_;
     }
 
-    SetTypeSize(gmat.max_num_bins_);
+    SetTypeSize(gmat.max_num_bins);
 
     index_.resize(feature_offsets_[nfeature] * bins_type_size_, 0);
     if (!all_dense) {
@@ -161,24 +161,24 @@ class ColumnMatrix {
 
     // pre-fill index_ for dense columns
     if (all_dense) {
-      BinTypeSize gmat_bin_size = gmat.index.getBinTypeSize();
-      if (gmat_bin_size == UINT8_BINS_TYPE_SIZE) {
+      BinTypeSize gmat_bin_size = gmat.index.GetBinTypeSize();
+      if (gmat_bin_size == kUint8BinsTypeSize) {
           SetIndexAllDense(gmat.index.data<uint8_t>(), gmat, nrow, nfeature, noMissingValues);
-      } else if (gmat_bin_size == UINT16_BINS_TYPE_SIZE) {
+      } else if (gmat_bin_size == kUint16BinsTypeSize) {
           SetIndexAllDense(gmat.index.data<uint16_t>(), gmat, nrow, nfeature, noMissingValues);
       } else {
-          CHECK_EQ(gmat_bin_size, UINT32_BINS_TYPE_SIZE);
+          CHECK_EQ(gmat_bin_size, kUint32BinsTypeSize);
           SetIndexAllDense(gmat.index.data<uint32_t>(), gmat, nrow, nfeature, noMissingValues);
       }
-    /* For sparse DMatrix gmat.index.getBinTypeSize() returns always UINT32_BINS_TYPE_SIZE
+    /* For sparse DMatrix gmat.index.getBinTypeSize() returns always kUint32BinsTypeSize
        but for ColumnMatrix we still have a chance to reduce the memory consumption */
     } else {
-      if (bins_type_size_ == UINT8_BINS_TYPE_SIZE) {
+      if (bins_type_size_ == kUint8BinsTypeSize) {
           SetIndex<uint8_t>(gmat.index.data<uint32_t>(), gmat, nrow, nfeature);
-      } else if (bins_type_size_ == UINT16_BINS_TYPE_SIZE) {
+      } else if (bins_type_size_ == kUint16BinsTypeSize) {
           SetIndex<uint16_t>(gmat.index.data<uint32_t>(), gmat, nrow, nfeature);
       } else {
-          CHECK_EQ(bins_type_size_, UINT32_BINS_TYPE_SIZE);
+          CHECK_EQ(bins_type_size_, kUint32BinsTypeSize);
           SetIndex<uint32_t>(gmat.index.data<uint32_t>(), gmat, nrow, nfeature);
       }
     }
@@ -187,11 +187,11 @@ class ColumnMatrix {
   /* Set the number of bytes based on numeric limit of maximum number of bins provided by user */
   void SetTypeSize(size_t max_num_bins) {
     if ( (max_num_bins - 1) <= static_cast<int>(std::numeric_limits<uint8_t>::max()) ) {
-      bins_type_size_ = UINT8_BINS_TYPE_SIZE;
+      bins_type_size_ = kUint8BinsTypeSize;
     } else if ((max_num_bins - 1) <= static_cast<int>(std::numeric_limits<uint16_t>::max())) {
-      bins_type_size_ = UINT16_BINS_TYPE_SIZE;
+      bins_type_size_ = kUint16BinsTypeSize;
     } else {
-      bins_type_size_ = UINT32_BINS_TYPE_SIZE;
+      bins_type_size_ = kUint32BinsTypeSize;
     }
   }
 
@@ -227,7 +227,7 @@ class ColumnMatrix {
     /* missing values make sense only for column with type kDenseColumn,
        and if no missing values were observed it could be handled much faster. */
     if (noMissingValues) {
-      const int32_t nthread = omp_get_max_threads();
+      const int32_t nthread = omp_get_max_threads();  // NOLINT
       #pragma omp parallel for num_threads(nthread)
       for (omp_ulong rid = 0; rid < nrow; ++rid) {
         const size_t ibegin = rid*nfeature;
@@ -241,7 +241,7 @@ class ColumnMatrix {
     } else {
       /* to handle rows in all batches, sum of all batch sizes equal to gmat.row_ptr.size() - 1 */
       size_t rbegin = 0;
-      for (const auto &batch : gmat.p_fmat_->GetBatches<SparsePage>()) {
+      for (const auto &batch : gmat.p_fmat->GetBatches<SparsePage>()) {
         const xgboost::Entry* data_ptr = batch.data.HostVector().data();
         const std::vector<bst_row_t>& offset_vec = batch.offset.HostVector();
         const size_t batch_size = batch.Size();
@@ -276,7 +276,7 @@ class ColumnMatrix {
 
     T* local_index = reinterpret_cast<T*>(&index_[0]);
     size_t rbegin = 0;
-    for (const auto &batch : gmat.p_fmat_->GetBatches<SparsePage>()) {
+    for (const auto &batch : gmat.p_fmat->GetBatches<SparsePage>()) {
       const xgboost::Entry* data_ptr = batch.data.HostVector().data();
       const std::vector<bst_row_t>& offset_vec = batch.offset.HostVector();
       const size_t batch_size = batch.Size();

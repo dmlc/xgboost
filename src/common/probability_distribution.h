@@ -59,6 +59,7 @@ class ProbabilityDistribution {
    * \return Reference to the newly created probability distribution object
    */
   static ProbabilityDistribution* Create(ProbabilityDistributionType dist);
+  virtual ~ProbabilityDistribution() = default;
 };
 
 /*! \brief The (standard) normal distribution */

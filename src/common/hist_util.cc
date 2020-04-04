@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2019 by Contributors
+ * Copyright 2017-2020 by Contributors
  * \file hist_util.cc
  */
 #include <dmlc/timer.h>
@@ -11,10 +11,10 @@
 
 #include "xgboost/base.h"
 #include "../common/common.h"
-#include "./hist_util.h"
-#include "./random.h"
-#include "./column_matrix.h"
-#include "./quantile.h"
+#include "hist_util.h"
+#include "random.h"
+#include "column_matrix.h"
+#include "quantile.h"
 #include "./../tree/updater_quantile_hist.h"
 
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
@@ -99,16 +99,16 @@ void GHistIndexMatrix::SetIndexDataForSparse(common::Span<uint32_t> index_data_s
 void GHistIndexMatrix::ResizeIndex(const size_t rbegin, const SparsePage& batch,
                                    const size_t n_offsets, const size_t n_index,
                                    const bool isDense) {
-  if ((max_num_bins_ - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) && isDense) {
-    index.setBinTypeSize(UINT8_BINS_TYPE_SIZE);
-    index.resize((sizeof(uint8_t)) * n_index);
-  } else if ((max_num_bins_ - 1 > static_cast<int>(std::numeric_limits<uint8_t>::max())  &&
-    max_num_bins_ - 1 <= static_cast<int>(std::numeric_limits<uint16_t>::max())) && isDense) {
-    index.setBinTypeSize(UINT16_BINS_TYPE_SIZE);
-    index.resize((sizeof(uint16_t)) * n_index);
+  if ((max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) && isDense) {
+    index.SetBinTypeSize(kUint8BinsTypeSize);
+    index.Resize((sizeof(uint8_t)) * n_index);
+  } else if ((max_num_bins - 1 > static_cast<int>(std::numeric_limits<uint8_t>::max())  &&
+    max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint16_t>::max())) && isDense) {
+    index.SetBinTypeSize(kUint16BinsTypeSize);
+    index.Resize((sizeof(uint16_t)) * n_index);
   } else {
-    index.setBinTypeSize(UINT32_BINS_TYPE_SIZE);
-    index.resize((sizeof(uint32_t)) * n_index);
+    index.SetBinTypeSize(kUint32BinsTypeSize);
+    index.Resize((sizeof(uint32_t)) * n_index);
   }
 }
 
@@ -449,15 +449,15 @@ void DenseCuts::Init
   monitor_.Stop(__func__);
 }
 
-void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
-  cut.Build(p_fmat, max_num_bins);
-  max_num_bins_ = max_num_bins;
+void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
+  cut.Build(p_fmat, max_bins);
+  max_num_bins = max_bins;
   const int32_t nthread = omp_get_max_threads();
   const uint32_t nbins = cut.Ptrs().back();
   hit_count.resize(nbins, 0);
   hit_count_tloc_.resize(nthread * nbins, 0);
 
-  this->p_fmat_ = p_fmat;
+  this->p_fmat = p_fmat;
   size_t new_size = 1;
   for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
     new_size += batch.Size();
@@ -524,24 +524,24 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_num_bins) {
 
     uint32_t* offsets = nullptr;
     if (isDense) {
-      index.resizeOffset(n_offsets);
-      offsets = index.offset();
+      index.ResizeOffset(n_offsets);
+      offsets = index.Offset();
       for (size_t i = 0; i < n_offsets; ++i) {
         offsets[i] = cut.Ptrs()[i];
       }
     }
 
     if (isDense) {
-      BinTypeSize curent_bin_size = index.getBinTypeSize();
+      BinTypeSize curent_bin_size = index.GetBinTypeSize();
       common::Span<const uint32_t> offsets_span = {offsets, n_offsets};
-      if (curent_bin_size == UINT8_BINS_TYPE_SIZE) {
+      if (curent_bin_size == kUint8BinsTypeSize) {
           common::Span<uint8_t> index_data_span = {index.data<uint8_t>(), n_index};
           SetIndexDataForDense(index_data_span, batch_threads, batch, rbegin, offsets_span, nbins);
-      } else if (curent_bin_size == UINT16_BINS_TYPE_SIZE) {
+      } else if (curent_bin_size == kUint16BinsTypeSize) {
           common::Span<uint16_t> index_data_span = {index.data<uint16_t>(), n_index};
           SetIndexDataForDense(index_data_span, batch_threads, batch, rbegin, offsets_span, nbins);
       } else {
-          CHECK_EQ(curent_bin_size, UINT32_BINS_TYPE_SIZE);
+          CHECK_EQ(curent_bin_size, kUint32BinsTypeSize);
           common::Span<uint32_t> index_data_span = {index.data<uint32_t>(), n_index};
           SetIndexDataForDense(index_data_span, batch_threads, batch, rbegin, offsets_span, nbins);
       }
@@ -689,16 +689,16 @@ FindGroups(const std::vector<unsigned>& feature_list,
     }
 
     BinTypeSize bins_type_size = colmat.GetTypeSize();
-    if (bins_type_size == UINT8_BINS_TYPE_SIZE) {
+    if (bins_type_size == kUint8BinsTypeSize) {
         const auto column = colmat.GetColumn<uint8_t>(fid);
         SetGroup(fid, *(column.get()), max_conflict_cnt, search_groups,
                  &group_conflict_cnt, &conflict_marks, &groups, &group_nnz, cur_fid_nnz, nrow);
-    } else if (bins_type_size == UINT16_BINS_TYPE_SIZE) {
+    } else if (bins_type_size == kUint16BinsTypeSize) {
         const auto column = colmat.GetColumn<uint16_t>(fid);
         SetGroup(fid, *(column.get()), max_conflict_cnt, search_groups,
                  &group_conflict_cnt, &conflict_marks, &groups, &group_nnz, cur_fid_nnz, nrow);
     } else {
-        CHECK_EQ(bins_type_size, UINT32_BINS_TYPE_SIZE);
+        CHECK_EQ(bins_type_size, kUint32BinsTypeSize);
         const auto column = colmat.GetColumn<uint32_t>(fid);
         SetGroup(fid, *(column.get()), max_conflict_cnt, search_groups,
                  &group_conflict_cnt, &conflict_marks, &groups, &group_nnz, cur_fid_nnz, nrow);
@@ -909,7 +909,7 @@ void BuildHistDenseKernel(const std::vector<GradientPair>& gpair,
   const size_t* rid = row_indices.begin;
   const float* pgh = reinterpret_cast<const float*>(gpair.data());
   const BinIdxType* gradient_index = gmat.index.data<BinIdxType>();
-  const uint32_t* offsets = gmat.index.offset();
+  const uint32_t* offsets = gmat.index.Offset();
   FPType* hist_data = reinterpret_cast<FPType*>(hist.data());
   const uint32_t two {2};  // Each element from 'gpair' and 'hist' contains
                            // 2 FP values: gradient and hessian.
@@ -1000,16 +1000,16 @@ void BuildHistKernel(const std::vector<GradientPair>& gpair,
                      const RowSetCollection::Elem row_indices,
                      const GHistIndexMatrix& gmat, const bool isDense, GHistRow hist) {
   const bool is_dense = row_indices.Size() && isDense;
-  switch (gmat.index.getBinTypeSize()) {
-    case UINT8_BINS_TYPE_SIZE:
+  switch (gmat.index.GetBinTypeSize()) {
+    case kUint8BinsTypeSize:
       BuildHistDispatchKernel<FPType, do_prefetch, uint8_t>(gpair, row_indices,
                                                             gmat, hist, is_dense);
       break;
-    case UINT16_BINS_TYPE_SIZE:
+    case kUint16BinsTypeSize:
       BuildHistDispatchKernel<FPType, do_prefetch, uint16_t>(gpair, row_indices,
                                                              gmat, hist, is_dense);
       break;
-    case UINT32_BINS_TYPE_SIZE:
+    case kUint32BinsTypeSize:
       BuildHistDispatchKernel<FPType, do_prefetch, uint32_t>(gpair, row_indices,
                                                              gmat, hist, is_dense);
       break;

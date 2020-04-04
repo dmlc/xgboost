@@ -40,8 +40,8 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
                    common::Span<size_t> column_ptr, size_t num_elements)
       : columns_(columns),
         column_ptr_(column_ptr),
-        num_elements(num_elements) {}
-  size_t Size() const { return num_elements; }
+        num_elements_(num_elements) {}
+  size_t Size() const { return num_elements_; }
   __device__ COOTuple GetElement(size_t idx) const {
     size_t column_idx =
         dh::UpperBound(column_ptr_.data(), column_ptr_.size(), idx) - 1;
@@ -50,7 +50,7 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
     float value = column.valid.Data() == nullptr || column.valid.Check(row_idx)
                       ? column.GetElement(row_idx)
                       : std::numeric_limits<float>::quiet_NaN();
-    return COOTuple(row_idx, column_idx, value);
+    return {row_idx, column_idx, value};
   }
   __device__ float GetValue(size_t ridx, bst_feature_t fidx) const {
     auto const& column = columns_[fidx];
@@ -63,7 +63,7 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
  private:
   common::Span<ArrayInterface> columns_;
   common::Span<size_t> column_ptr_;
-  size_t num_elements;
+  size_t num_elements_;
 };
 
 /*!
@@ -146,10 +146,10 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
     }
     columns_ = columns;
     column_ptr_ = column_ptr;
-    batch = CudfAdapterBatch(dh::ToSpan(columns_), dh::ToSpan(column_ptr_),
+    batch_ = CudfAdapterBatch(dh::ToSpan(columns_), dh::ToSpan(column_ptr_),
                              column_ptr.back());
   }
-  const CudfAdapterBatch& Value() const override { return batch; }
+  const CudfAdapterBatch& Value() const override { return batch_; }
 
   size_t NumRows() const { return num_rows_; }
   size_t NumColumns() const { return columns_.size(); }
@@ -159,7 +159,7 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
   bool IsRowMajor() { return false; }
 
  private:
-  CudfAdapterBatch batch;
+  CudfAdapterBatch batch_;
   dh::device_vector<ArrayInterface> columns_;
   dh::device_vector<size_t> column_ptr_;  // Exclusive scan of column sizes
   size_t num_rows_{0};
@@ -169,8 +169,8 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
 class CupyAdapterBatch : public detail::NoMetaInfo {
  public:
   CupyAdapterBatch() = default;
-  CupyAdapterBatch(ArrayInterface array_interface)
-      : array_interface_(array_interface) {}
+  explicit CupyAdapterBatch(ArrayInterface array_interface)
+    : array_interface_(std::move(array_interface)) {}
   size_t Size() const {
     return array_interface_.num_rows * array_interface_.num_cols;
   }
@@ -181,7 +181,7 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
                           array_interface_.valid.Check(row_idx)
                       ? array_interface_.GetElement(idx)
                       : std::numeric_limits<float>::quiet_NaN();
-    return COOTuple(row_idx, column_idx, value);
+    return {row_idx, column_idx, value};
   }
 
  private:
@@ -193,22 +193,22 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
   explicit CupyAdapter(std::string cuda_interface_str) {
     Json json_array_interface =
         Json::Load({cuda_interface_str.c_str(), cuda_interface_str.size()});
-    array_interface = ArrayInterface(get<Object const>(json_array_interface));
-    device_idx_ = dh::CudaGetPointerDevice(array_interface.data);
+    array_interface_ = ArrayInterface(get<Object const>(json_array_interface));
+    device_idx_ = dh::CudaGetPointerDevice(array_interface_.data);
     CHECK_NE(device_idx_, -1);
-    batch = CupyAdapterBatch(array_interface);
+    batch_ = CupyAdapterBatch(array_interface_);
   }
-  const CupyAdapterBatch& Value() const override { return batch; }
+  const CupyAdapterBatch& Value() const override { return batch_; }
 
-  size_t NumRows() const { return array_interface.num_rows; }
-  size_t NumColumns() const { return array_interface.num_cols; }
+  size_t NumRows() const { return array_interface_.num_rows; }
+  size_t NumColumns() const { return array_interface_.num_cols; }
   size_t DeviceIdx() const { return device_idx_; }
 
   bool IsRowMajor() { return true; }
 
  private:
-  ArrayInterface array_interface;
-  CupyAdapterBatch batch;
+  ArrayInterface array_interface_;
+  CupyAdapterBatch batch_;
   int device_idx_;
 };
 

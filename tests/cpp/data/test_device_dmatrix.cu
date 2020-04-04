@@ -32,7 +32,7 @@ TEST(DeviceDMatrix, RowMajor) {
   for(auto i = 0ull; i < x.size(); i++)
   {
     int column_idx = i % num_columns;
-    EXPECT_EQ(impl->cuts_.SearchBin(x[i], column_idx), iterator[i]);
+    EXPECT_EQ(impl->Cuts().SearchBin(x[i], column_idx), iterator[i]);
   }
   EXPECT_EQ(dmat.Info().num_col_, num_columns);
   EXPECT_EQ(dmat.Info().num_row_, num_rows);
@@ -93,9 +93,9 @@ TEST(DeviceDMatrix, ColumnMajor) {
   for (auto i = 0ull; i < kRows; i++) {
     for (auto j = 0ull; j < columns.size(); j++) {
       if (j == 0) {
-        EXPECT_EQ(iterator[i * 2 + j], impl->cuts_.SearchBin(d_data_0[i], j));
+        EXPECT_EQ(iterator[i * 2 + j], impl->Cuts().SearchBin(d_data_0[i], j));
       } else {
-        EXPECT_EQ(iterator[i * 2 + j], impl->cuts_.SearchBin(d_data_1[i], j));
+        EXPECT_EQ(iterator[i * 2 + j], impl->Cuts().SearchBin(d_data_1[i], j));
       }
     }
   }
@@ -123,7 +123,7 @@ TEST(DeviceDMatrix, Equivalent) {
       const auto &device_dmat_batch =
           *device_dmat.GetBatches<EllpackPage>({0, num_bins}).begin();
 
-      ASSERT_EQ(batch.Impl()->cuts_.Values(), device_dmat_batch.Impl()->cuts_.Values());
+      ASSERT_EQ(batch.Impl()->Cuts().Values(), device_dmat_batch.Impl()->Cuts().Values());
       ASSERT_EQ(batch.Impl()->gidx_buffer.HostVector(),
                 device_dmat_batch.Impl()->gidx_buffer.HostVector());
     }

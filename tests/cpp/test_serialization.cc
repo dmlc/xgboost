@@ -254,7 +254,7 @@ TEST_F(SerializationTest, Hist) {
                            fmap_, p_dmat_);
 }
 
-TEST_F(SerializationTest, CPU_CoordDescent) {
+TEST_F(SerializationTest, CPUCoordDescent) {
   TestLearnerSerialization({{"booster", "gblinear"},
                             {"seed", "0"},
                             {"nthread", "1"},
@@ -264,7 +264,7 @@ TEST_F(SerializationTest, CPU_CoordDescent) {
 }
 
 #if defined(XGBOOST_USE_CUDA)
-TEST_F(SerializationTest, GPU_Hist) {
+TEST_F(SerializationTest, GPUHist) {
   TestLearnerSerialization({{"booster", "gbtree"},
                             {"seed", "0"},
                             {"enable_experimental_json_serialization", "1"},
@@ -338,7 +338,7 @@ TEST_F(SerializationTest, ConfigurationCount) {
   xgboost::ConsoleLogger::Configure({{"verbosity", "2"}});
 }
 
-TEST_F(SerializationTest, GPU_CoordDescent) {
+TEST_F(SerializationTest, GPUCoordDescent) {
   TestLearnerSerialization({{"booster", "gblinear"},
                             {"seed", "0"},
                             {"nthread", "1"},
@@ -431,7 +431,7 @@ TEST_F(LogitSerializationTest, Hist) {
                            fmap_, p_dmat_);
 }
 
-TEST_F(LogitSerializationTest, CPU_CoordDescent) {
+TEST_F(LogitSerializationTest, CPUCoordDescent) {
   TestLearnerSerialization({{"booster", "gblinear"},
                             {"seed", "0"},
                             {"nthread", "1"},
@@ -441,7 +441,7 @@ TEST_F(LogitSerializationTest, CPU_CoordDescent) {
 }
 
 #if defined(XGBOOST_USE_CUDA)
-TEST_F(LogitSerializationTest, GPU_Hist) {
+TEST_F(LogitSerializationTest, GPUHist) {
   TestLearnerSerialization({{"booster", "gbtree"},
                             {"objective", "binary:logistic"},
                             {"seed", "0"},
@@ -471,7 +471,7 @@ TEST_F(LogitSerializationTest, GPU_Hist) {
                            fmap_, p_dmat_);
 }
 
-TEST_F(LogitSerializationTest, GPU_CoordDescent) {
+TEST_F(LogitSerializationTest, GPUCoordDescent) {
   TestLearnerSerialization({{"booster", "gblinear"},
                             {"objective", "binary:logistic"},
                             {"seed", "0"},
@@ -586,7 +586,7 @@ TEST_F(MultiClassesSerializationTest, Hist) {
                            fmap_, p_dmat_);
 }
 
-TEST_F(MultiClassesSerializationTest, CPU_CoordDescent) {
+TEST_F(MultiClassesSerializationTest, CPUCoordDescent) {
   TestLearnerSerialization({{"booster", "gblinear"},
                             {"seed", "0"},
                             {"nthread", "1"},
@@ -596,7 +596,7 @@ TEST_F(MultiClassesSerializationTest, CPU_CoordDescent) {
 }
 
 #if defined(XGBOOST_USE_CUDA)
-TEST_F(MultiClassesSerializationTest, GPU_Hist) {
+TEST_F(MultiClassesSerializationTest, GPUHist) {
   TestLearnerSerialization({{"booster", "gbtree"},
                             {"num_class", std::to_string(kClasses)},
                             {"seed", "0"},
@@ -632,7 +632,7 @@ TEST_F(MultiClassesSerializationTest, GPU_Hist) {
                            fmap_, p_dmat_);
 }
 
-TEST_F(MultiClassesSerializationTest, GPU_CoordDescent) {
+TEST_F(MultiClassesSerializationTest, GPUCoordDescent) {
   TestLearnerSerialization({{"booster", "gblinear"},
                             {"num_class", std::to_string(kClasses)},
                             {"seed", "0"},

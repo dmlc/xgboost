@@ -126,7 +126,7 @@ TEST(GPUPredictor, InplacePredictCuDF) {
   TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 0);
 }
 
-TEST(GPUPredictor, MGPU_InplacePredict) {
+TEST(GPUPredictor, MGPU_InplacePredict) {  // NOLINT
   int32_t n_gpus = xgboost::common::AllVisibleGPUs();
   if (n_gpus <= 1) {
     LOG(WARNING) << "GPUPredictor.MGPU_InplacePredict is skipped.";

@@ -55,14 +55,14 @@ void TestLbs() {
   }
 }
 
-TEST(cub_lbs, Test) {
+TEST(CubLBS, Test) {
   TestLbs();
 }
 
-TEST(sumReduce, Test) {
+TEST(SumReduce, Test) {
   thrust::device_vector<float> data(100, 1.0f);
   dh::CubMemory temp;
-  auto sum = dh::SumReduction(temp, dh::Raw(data), data.size());
+  auto sum = dh::SumReduction(&temp, dh::Raw(data), data.size());
   ASSERT_NEAR(sum, 100.0f, 1e-5);
 }
 
@@ -81,7 +81,7 @@ void TestAllocator() {
 }
 
 // Define the test in a function so we can use device lambda
-TEST(bulkAllocator, Test) {
+TEST(BulkAllocator, Test) {
   TestAllocator();
 }
 

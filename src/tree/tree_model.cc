@@ -87,7 +87,7 @@ class TreeGenerator {
     auto const split_index = tree[nid].SplitIndex();
     std::string result;
     if (split_index < fmap_.Size()) {
-      switch (fmap_.type(split_index)) {
+      switch (fmap_.TypeOf(split_index)) {
         case FeatureMap::kIndicator: {
           result = this->Indicator(tree, nid, depth);
           break;
@@ -536,7 +536,7 @@ class GraphvizGenerator : public TreeGenerator {
         "    {nid} [ label=\"{fname}{<}{cond}\" {params}]\n";
 
     // Indicator only has fname.
-    bool has_less = (split >= fmap_.Size()) || fmap_.type(split) != FeatureMap::kIndicator;
+    bool has_less = (split >= fmap_.Size()) || fmap_.TypeOf(split) != FeatureMap::kIndicator;
     std::string result = SuperT::Match(kNodeTemplate, {
         {"{nid}",    std::to_string(nid)},
         {"{fname}",  split < fmap_.Size() ? fmap_.Name(split) :
@@ -674,7 +674,7 @@ void RegTree::Save(dmlc::Stream* fo) const {
 }
 
 void RegTree::LoadModel(Json const& in) {
-  fromJson(in["tree_param"], &param);
+  FromJson(in["tree_param"], &param);
   auto n_nodes = param.num_nodes;
   CHECK_NE(n_nodes, 0);
   // stats
@@ -742,7 +742,7 @@ void RegTree::SaveModel(Json* p_out) const {
   auto& out = *p_out;
   CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
   CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
-  out["tree_param"] = toJson(param);
+  out["tree_param"] = ToJson(param);
   CHECK_EQ(get<String>(out["tree_param"]["num_nodes"]), std::to_string(param.num_nodes));
   using I = Integer::Int;
   auto n_nodes = param.num_nodes;

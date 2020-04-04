@@ -22,19 +22,19 @@ TEST(DenseColumn, Test) {
     for (auto i = 0ull; i < dmat->Info().num_row_; i++) {
       for (auto j = 0ull; j < dmat->Info().num_col_; j++) {
           switch (column_matrix.GetTypeSize()) {
-            case UINT8_BINS_TYPE_SIZE: {
+            case kUint8BinsTypeSize: {
                 auto col = column_matrix.GetColumn<uint8_t>(j);
                 ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
                           (*col.get()).GetGlobalBinIdx(i));
               }
               break;
-            case UINT16_BINS_TYPE_SIZE: {
+            case kUint16BinsTypeSize: {
                 auto col = column_matrix.GetColumn<uint16_t>(j);
                 ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
                           (*col.get()).GetGlobalBinIdx(i));
               }
               break;
-            case UINT32_BINS_TYPE_SIZE: {
+            case kUint32BinsTypeSize: {
                 auto col = column_matrix.GetColumn<uint32_t>(j);
                 ASSERT_EQ(gmat.index[i * dmat->Info().num_col_ + j],
                           (*col.get()).GetGlobalBinIdx(i));
@@ -49,7 +49,7 @@ TEST(DenseColumn, Test) {
 template<typename BinIdxType>
 inline void CheckSparseColumn(const Column<BinIdxType>& col_input, const GHistIndexMatrix& gmat) {
   const SparseColumn<BinIdxType>& col = static_cast<const SparseColumn<BinIdxType>& >(col_input);
-  ASSERT_EQ(col.Size(), gmat.index.size());
+  ASSERT_EQ(col.Size(), gmat.index.Size());
   for (auto i = 0ull; i < col.Size(); i++) {
     ASSERT_EQ(gmat.index[gmat.row_ptr[col.GetRowIdx(i)]],
               col.GetGlobalBinIdx(i));
@@ -67,17 +67,17 @@ TEST(SparseColumn, Test) {
     ColumnMatrix column_matrix;
     column_matrix.Init(gmat, 0.5);
     switch (column_matrix.GetTypeSize()) {
-      case UINT8_BINS_TYPE_SIZE: {
+      case kUint8BinsTypeSize: {
           auto col = column_matrix.GetColumn<uint8_t>(0);
           CheckSparseColumn(*col.get(), gmat);
         }
         break;
-      case UINT16_BINS_TYPE_SIZE: {
+      case kUint16BinsTypeSize: {
           auto col = column_matrix.GetColumn<uint16_t>(0);
           CheckSparseColumn(*col.get(), gmat);
         }
         break;
-      case UINT32_BINS_TYPE_SIZE: {
+      case kUint32BinsTypeSize: {
           auto col = column_matrix.GetColumn<uint32_t>(0);
           CheckSparseColumn(*col.get(), gmat);
         }
@@ -108,17 +108,17 @@ TEST(DenseColumnWithMissing, Test) {
     ColumnMatrix column_matrix;
     column_matrix.Init(gmat, 0.2);
     switch (column_matrix.GetTypeSize()) {
-      case UINT8_BINS_TYPE_SIZE: {
+      case kUint8BinsTypeSize: {
           auto col = column_matrix.GetColumn<uint8_t>(0);
           CheckColumWithMissingValue(*col.get(), gmat);
         }
         break;
-      case UINT16_BINS_TYPE_SIZE: {
+      case kUint16BinsTypeSize: {
           auto col = column_matrix.GetColumn<uint16_t>(0);
           CheckColumWithMissingValue(*col.get(), gmat);
         }
         break;
-      case UINT32_BINS_TYPE_SIZE: {
+      case kUint32BinsTypeSize: {
           auto col = column_matrix.GetColumn<uint32_t>(0);
           CheckColumWithMissingValue(*col.get(), gmat);
         }

@@ -65,8 +65,8 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
 
 struct GBTreeModel : public Model {
  public:
-  explicit GBTreeModel(LearnerModelParam const* learner_model_param) :
-      learner_model_param_{learner_model_param} {}
+  explicit GBTreeModel(LearnerModelParam const* learner_model) :
+      learner_model_param{learner_model} {}
   void Configure(const Args& cfg) {
     // initialize model parameters if not yet been initialized.
     if (trees.size() == 0) {
@@ -109,7 +109,7 @@ struct GBTreeModel : public Model {
   }
 
   // base margin
-  LearnerModelParam const* learner_model_param_;
+  LearnerModelParam const* learner_model_param;
   // model parameter
   GBTreeModelParam param;
   /*! \brief vector of trees stored in the model */

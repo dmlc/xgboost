@@ -36,11 +36,11 @@ struct PredictionCacheEntry {
   // A storage for caching prediction values
   HostDeviceVector<bst_float> predictions;
   // The version of current cache, corresponding number of layers of trees
-  uint32_t version;
+  uint32_t version { 0 };
   // A weak pointer for checking whether the DMatrix object has expired.
   std::weak_ptr< DMatrix > ref;
 
-  PredictionCacheEntry() : version { 0 } {}
+  PredictionCacheEntry() = default;
   /* \brief Update the cache entry by number of versions.
    *
    * \param v Added versions.

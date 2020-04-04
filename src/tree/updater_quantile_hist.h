@@ -81,7 +81,7 @@ using xgboost::common::Column;
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
-  QuantileHistMaker() {}
+  QuantileHistMaker() = default;
   void Configure(const Args& args) override;
 
   void Update(HostDeviceVector<GradientPair>* gpair,
@@ -93,11 +93,11 @@ class QuantileHistMaker: public TreeUpdater {
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    fromJson(config.at("train_param"), &this->param_);
+    FromJson(config.at("train_param"), &this->param_);
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["train_param"] = toJson(param_);
+    out["train_param"] = ToJson(param_);
   }
 
   char const* Name() const override {
@@ -141,7 +141,8 @@ class QuantileHistMaker: public TreeUpdater {
                      FeatureInteractionConstraintHost int_constraints_,
                      DMatrix const* fmat)
       : param_(param), pruner_(std::move(pruner)),
-        spliteval_(std::move(spliteval)), interaction_constraints_{int_constraints_},
+        spliteval_(std::move(spliteval)),
+        interaction_constraints_{std::move(int_constraints_)},
         p_last_tree_(nullptr), p_last_fmat_(fmat) {
       builder_monitor_.Init("Quantile::Builder");
     }

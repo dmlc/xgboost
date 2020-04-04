@@ -7,14 +7,19 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install all basic requirements
 RUN \
     apt-get update && \
-    apt-get install -y tar unzip wget git build-essential python3 python3-pip llvm-7 clang-tidy-7 clang-7 && \
+    apt-get install -y tar unzip wget git build-essential python3 python3-pip software-properties-common \
+                       apt-transport-https ca-certificates gnupg-agent && \
+    wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
+    add-apt-repository -u 'deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main' && \
+    apt-get update && \
+    apt-get install -y llvm-10 clang-tidy-10 clang-10 && \
     wget -nv -nc https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.12.0-Linux-x86_64.sh --skip-license --prefix=/usr
 
 # Set default clang-tidy version
 RUN \
-    update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-7 100 && \
-    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-7 100
+    update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-10 100 && \
+    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-10 100
 
 # Install Python packages
 RUN \

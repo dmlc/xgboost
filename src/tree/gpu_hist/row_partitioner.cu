@@ -64,54 +64,55 @@ void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
   cub::DeviceScan::ExclusiveSum(temp_storage.data().get(), temp_storage_bytes,
                                 in_itr, out_itr, position.size(), stream);
 }
+
 RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
-    : device_idx(device_idx) {
-  dh::safe_cuda(cudaSetDevice(device_idx));
-  ridx_a.resize(num_rows);
-  ridx_b.resize(num_rows);
-  position_a.resize(num_rows);
-  position_b.resize(num_rows);
-  ridx = dh::DoubleBuffer<RowIndexT>{&ridx_a, &ridx_b};
-  position = dh::DoubleBuffer<bst_node_t>{&position_a, &position_b};
-  ridx_segments.emplace_back(Segment(0, num_rows));
+    : device_idx_(device_idx) {
+  dh::safe_cuda(cudaSetDevice(device_idx_));
+  ridx_a_.resize(num_rows);
+  ridx_b_.resize(num_rows);
+  position_a_.resize(num_rows);
+  position_b_.resize(num_rows);
+  ridx_ = dh::DoubleBuffer<RowIndexT>{&ridx_a_, &ridx_b_};
+  position_ = dh::DoubleBuffer<bst_node_t>{&position_a_, &position_b_};
+  ridx_segments_.emplace_back(Segment(0, num_rows));
 
   thrust::sequence(
-      thrust::device_pointer_cast(ridx.CurrentSpan().data()),
-      thrust::device_pointer_cast(ridx.CurrentSpan().data() + ridx.Size()));
+      thrust::device_pointer_cast(ridx_.CurrentSpan().data()),
+      thrust::device_pointer_cast(ridx_.CurrentSpan().data() + ridx_.Size()));
   thrust::fill(
-      thrust::device_pointer_cast(position.Current()),
-      thrust::device_pointer_cast(position.Current() + position.Size()), 0);
-  left_counts.resize(256);
-  thrust::fill(left_counts.begin(), left_counts.end(), 0);
-  streams.resize(2);
-  for (auto& stream : streams) {
+      thrust::device_pointer_cast(position_.Current()),
+      thrust::device_pointer_cast(position_.Current() + position_.Size()), 0);
+  left_counts_.resize(256);
+  thrust::fill(left_counts_.begin(), left_counts_.end(), 0);
+  streams_.resize(2);
+  for (auto& stream : streams_) {
     dh::safe_cuda(cudaStreamCreate(&stream));
   }
 }
 RowPartitioner::~RowPartitioner() {
-  dh::safe_cuda(cudaSetDevice(device_idx));
-  for (auto& stream : streams) {
+  dh::safe_cuda(cudaSetDevice(device_idx_));
+  for (auto& stream : streams_) {
     dh::safe_cuda(cudaStreamDestroy(stream));
   }
 }
 
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(
     bst_node_t nidx) {
-  auto segment = ridx_segments.at(nidx);
+  auto segment = ridx_segments_.at(nidx);
   // Return empty span here as a valid result
   // Will error if we try to construct a span from a pointer with size 0
   if (segment.Size() == 0) {
     return common::Span<const RowPartitioner::RowIndexT>();
   }
-  return ridx.CurrentSpan().subspan(segment.begin, segment.Size());
+  return ridx_.CurrentSpan().subspan(segment.begin, segment.Size());
 }
 
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows() {
-  return ridx.CurrentSpan();
+  return ridx_.CurrentSpan();
 }
 
 common::Span<const bst_node_t> RowPartitioner::GetPosition() {
-  return position.CurrentSpan();
+  return position_.CurrentSpan();
 }
 std::vector<RowPartitioner::RowIndexT> RowPartitioner::GetRowsHost(
     bst_node_t nidx) {
@@ -135,22 +136,22 @@ void RowPartitioner::SortPositionAndCopy(const Segment& segment,
                                          cudaStream_t stream) {
   SortPosition(
       // position_in
-      common::Span<bst_node_t>(position.Current() + segment.begin,
+      common::Span<bst_node_t>(position_.Current() + segment.begin,
                                   segment.Size()),
       // position_out
-      common::Span<bst_node_t>(position.other() + segment.begin,
-                                  segment.Size()),
+      common::Span<bst_node_t>(position_.Other() + segment.begin,
+                               segment.Size()),
       // row index in
-      common::Span<RowIndexT>(ridx.Current() + segment.begin, segment.Size()),
+      common::Span<RowIndexT>(ridx_.Current() + segment.begin, segment.Size()),
       // row index out
-      common::Span<RowIndexT>(ridx.other() + segment.begin, segment.Size()),
+      common::Span<RowIndexT>(ridx_.Other() + segment.begin, segment.Size()),
       left_nidx, right_nidx, d_left_count, stream);
   // Copy back key/value
-  const auto d_position_current = position.Current() + segment.begin;
-  const auto d_position_other = position.other() + segment.begin;
-  const auto d_ridx_current = ridx.Current() + segment.begin;
-  const auto d_ridx_other = ridx.other() + segment.begin;
-  dh::LaunchN(device_idx, segment.Size(), stream, [=] __device__(size_t idx) {
+  const auto d_position_current = position_.Current() + segment.begin;
+  const auto d_position_other = position_.Other() + segment.begin;
+  const auto d_ridx_current = ridx_.Current() + segment.begin;
+  const auto d_ridx_other = ridx_.Other() + segment.begin;
+  dh::LaunchN(device_idx_, segment.Size(), stream, [=] __device__(size_t idx) {
     d_position_current[idx] = d_position_other[idx];
     d_ridx_current[idx] = d_ridx_other[idx];
   });

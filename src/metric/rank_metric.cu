@@ -135,7 +135,6 @@ struct EvalNDCGGpu {
     dh::caching_device_vector<double> &dcgs(*dcgptr);
     // Group info on device
     const auto &dgroups = pred_sorter.GetGroupsSpan();
-    const auto ngroups = pred_sorter.GetNumGroups();
     const auto &dgroup_idx = pred_sorter.GetGroupSegmentsSpan();
 
     // First, determine non zero labels in the dataset individually

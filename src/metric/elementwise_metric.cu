@@ -319,7 +319,7 @@ struct EvalTweedieNLogLik {
  */
 template<typename Policy>
 struct EvalEWiseBase : public Metric {
-  EvalEWiseBase() : policy_{}, reducer_{policy_} {}
+  EvalEWiseBase() = default;
   explicit EvalEWiseBase(char const* policy_param) :
     policy_{policy_param}, reducer_{policy_} {}
 
@@ -351,8 +351,7 @@ struct EvalEWiseBase : public Metric {
 
  private:
   Policy policy_;
-
-  ElementWiseMetricsReduction<Policy> reducer_;
+  ElementWiseMetricsReduction<Policy> reducer_{policy_};
 };
 
 XGBOOST_REGISTER_METRIC(RMSE, "rmse")

@@ -40,11 +40,11 @@ class BaseMaker: public TreeUpdater {
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    fromJson(config.at("train_param"), &this->param_);
+    FromJson(config.at("train_param"), &this->param_);
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["train_param"] = toJson(param_);
+    out["train_param"] = ToJson(param_);
   }
 
  protected:

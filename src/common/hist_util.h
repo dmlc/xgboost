@@ -45,9 +45,10 @@ class HistogramCuts {
   common::Monitor monitor_;
 
  public:
-  HostDeviceVector<bst_float> cut_values_;
-  HostDeviceVector<uint32_t> cut_ptrs_;
-  HostDeviceVector<float> min_vals_;  // storing minimum value in a sketch set.
+  HostDeviceVector<bst_float> cut_values_;  // NOLINT
+  HostDeviceVector<uint32_t> cut_ptrs_;     // NOLINT
+  // storing minimum value in a sketch set.
+  HostDeviceVector<float> min_vals_;  // NOLINT
 
   HistogramCuts();
   HistogramCuts(HistogramCuts const& that) {
@@ -211,14 +212,14 @@ HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
 
 
 enum BinTypeSize {
-  UINT8_BINS_TYPE_SIZE  = 1,
-  UINT16_BINS_TYPE_SIZE = 2,
-  UINT32_BINS_TYPE_SIZE = 4
+  kUint8BinsTypeSize  = 1,
+  kUint16BinsTypeSize = 2,
+  kUint32BinsTypeSize = 4
 };
 
 struct Index {
-  Index(): binTypeSize_(UINT8_BINS_TYPE_SIZE), p_(1), offset_ptr_(nullptr) {
-    setBinTypeSize(binTypeSize_);
+  Index() {
+    SetBinTypeSize(binTypeSize_);
   }
   Index(const Index& i) = delete;
   Index& operator=(Index i) = delete;
@@ -231,75 +232,75 @@ struct Index {
       return func_(data_ptr_, i);
     }
   }
-  void setBinTypeSize(BinTypeSize binTypeSize) {
+  void SetBinTypeSize(BinTypeSize binTypeSize) {
     binTypeSize_ = binTypeSize;
     switch (binTypeSize) {
-      case UINT8_BINS_TYPE_SIZE:
-        func_ = &getValueFromUint8;
+      case kUint8BinsTypeSize:
+        func_ = &GetValueFromUint8;
         break;
-      case UINT16_BINS_TYPE_SIZE:
-        func_ = &getValueFromUint16;
+      case kUint16BinsTypeSize:
+        func_ = &GetValueFromUint16;
         break;
-      case UINT32_BINS_TYPE_SIZE:
-        func_ = &getValueFromUint32;
+      case kUint32BinsTypeSize:
+        func_ = &GetValueFromUint32;
         break;
       default:
-        CHECK(binTypeSize == UINT8_BINS_TYPE_SIZE  ||
-              binTypeSize == UINT16_BINS_TYPE_SIZE ||
-              binTypeSize == UINT32_BINS_TYPE_SIZE);
+        CHECK(binTypeSize == kUint8BinsTypeSize  ||
+              binTypeSize == kUint16BinsTypeSize ||
+              binTypeSize == kUint32BinsTypeSize);
     }
   }
-  BinTypeSize getBinTypeSize() const {
+  BinTypeSize GetBinTypeSize() const {
     return binTypeSize_;
   }
   template<typename T>
-  T* data() const {
+  T* data() const {  // NOLINT
     return static_cast<T*>(data_ptr_);
   }
-  uint32_t* offset() const {
+  uint32_t* Offset() const {
     return offset_ptr_;
   }
-  size_t offsetSize() const {
+  size_t OffsetSize() const {
     return offset_.size();
   }
-  size_t size() const {
+  size_t Size() const {
     return data_.size() / (binTypeSize_);
   }
-  void resize(const size_t nBytesData) {
+  void Resize(const size_t nBytesData) {
     data_.resize(nBytesData);
     data_ptr_ = reinterpret_cast<void*>(data_.data());
   }
-  void resizeOffset(const size_t nDisps) {
+  void ResizeOffset(const size_t nDisps) {
     offset_.resize(nDisps);
     offset_ptr_ = offset_.data();
     p_ = nDisps;
   }
-  std::vector<uint8_t>::const_iterator begin() const {
+  std::vector<uint8_t>::const_iterator begin() const {  // NOLINT
     return data_.begin();
   }
-  std::vector<uint8_t>::const_iterator end() const {
+  std::vector<uint8_t>::const_iterator end() const {  // NOLINT
     return data_.end();
   }
 
  private:
-  static uint32_t getValueFromUint8(void *t, size_t i) {
+  static uint32_t GetValueFromUint8(void *t, size_t i) {
     return reinterpret_cast<uint8_t*>(t)[i];
   }
-  static uint32_t getValueFromUint16(void* t, size_t i) {
+  static uint32_t GetValueFromUint16(void* t, size_t i) {
     return reinterpret_cast<uint16_t*>(t)[i];
   }
-  static uint32_t getValueFromUint32(void* t, size_t i) {
+  static uint32_t GetValueFromUint32(void* t, size_t i) {
     return reinterpret_cast<uint32_t*>(t)[i];
   }
 
-  typedef uint32_t (*Func)(void*, size_t);
+  using Func = uint32_t (*)(void*, size_t);
 
   std::vector<uint8_t> data_;
   std::vector<uint32_t> offset_;  // size of this field is equal to number of features
   void* data_ptr_;
-  BinTypeSize binTypeSize_;
-  size_t p_;
-  uint32_t* offset_ptr_;
+  BinTypeSize binTypeSize_ {kUint8BinsTypeSize};
+  size_t p_ {1};
+  uint32_t* offset_ptr_ {nullptr};
   Func func_;
 };
 
@@ -319,8 +320,8 @@ struct GHistIndexMatrix {
   std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */
   HistogramCuts cut;
-  DMatrix* p_fmat_;
-  size_t max_num_bins_;
+  DMatrix* p_fmat;
+  size_t max_num_bins;
   // Create a global histogram matrix, given cut
   void Init(DMatrix* p_fmat, int max_num_bins);
 
@@ -668,7 +669,7 @@ class ParallelGHistBuilder {
  */
 class GHistBuilder {
  public:
-  GHistBuilder() : nthread_{0}, nbins_{0} {}
+  GHistBuilder() = default;
   GHistBuilder(size_t nthread, uint32_t nbins) : nthread_{nthread}, nbins_{nbins} {}
 
   // construct a histogram via histogram aggregation
@@ -691,9 +692,9 @@ class GHistBuilder {
 
  private:
   /*! \brief number of threads for parallel computation */
-  size_t nthread_;
+  size_t nthread_ { 0 };
   /*! \brief number of all bins over all features */
-  uint32_t nbins_;
+  uint32_t nbins_ { 0 };
 };
 
 

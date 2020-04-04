@@ -67,7 +67,7 @@ TEST(Adapter, CSCAdapterColsMoreThanRows) {
   EXPECT_EQ(inst[3].index, 3);
 }
 
-TEST(c_api, DMatrixSliceAdapterFromSimpleDMatrix) {
+TEST(CAPI, DMatrixSliceAdapterFromSimpleDMatrix) {
   auto p_dmat = RandomDataGenerator(6, 2, 1.0).GenerateDMatix();
 
   std::vector<int> ridx_set = {1, 3, 5};

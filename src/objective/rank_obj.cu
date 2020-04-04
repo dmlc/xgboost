@@ -552,16 +552,15 @@ class MAPLambdaWeightComputer
     const auto *dhits_arr = dhits.data().get();
     // Group info on device
     const auto &dgroups = segment_label_sorter.GetGroupsSpan();
-    uint32_t ngroups = segment_label_sorter.GetNumGroups();
     auto ComputeItemPrecisionLambda = [=] __device__(uint32_t idx) {
       if (unsorted_labels[pred_original_pos[idx]] > 0.0f) {
         auto idx_within_group = (idx - dgroups[group_segments[idx]]) + 1;
-        return MAPStats(static_cast<float>(dhits_arr[idx]) / idx_within_group,
+        return MAPStats{static_cast<float>(dhits_arr[idx]) / idx_within_group,
                         static_cast<float>(dhits_arr[idx] - 1) / idx_within_group,
                         static_cast<float>(dhits_arr[idx] + 1) / idx_within_group,
-                        1.0f);
+                        1.0f};
       }
-      return MAPStats();
+      return MAPStats{};
     };  // NOLINT
 
     thrust::transform(thrust::make_counting_iterator(static_cast<uint32_t>(0)),
@@ -784,14 +783,11 @@ class LambdaRankObj : public ObjFunction {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String(LambdaWeightComputerT::Name());
-    out["lambda_rank_param"] = Object();
-    for (auto const& kv : param_.__DICT__()) {
-      out["lambda_rank_param"][kv.first] = kv.second;
-    }
+    out["lambda_rank_param"] = ToJson(param_);
   }
 
   void LoadConfig(Json const& in) override {
-    fromJson(in["lambda_rank_param"], &param_);
+    FromJson(in["lambda_rank_param"], &param_);
   }
 
  private:

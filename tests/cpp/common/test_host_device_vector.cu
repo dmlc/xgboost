@@ -176,7 +176,7 @@ TEST(HostDeviceVector, Span) {
   ASSERT_TRUE(vec.HostCanWrite());
 }
 
-TEST(HostDeviceVector, MGPU_Basic) {
+TEST(HostDeviceVector, MGPU_Basic) {  // NOLINT
   if (AllVisibleGPUs() < 2) {
     LOG(WARNING) << "Not testing in multi-gpu environment.";
     return;

@@ -628,7 +628,7 @@ struct GPUHistMakerDevice {
     auto d_node_hist_histogram = hist.GetNodeHistogram(nidx_histogram);
     auto d_node_hist_subtraction = hist.GetNodeHistogram(nidx_subtraction);
 
-    dh::LaunchN(device_id, page->cuts_.TotalBins(), [=] __device__(size_t idx) {
+    dh::LaunchN(device_id, page->Cuts().TotalBins(), [=] __device__(size_t idx) {
       d_node_hist_subtraction[idx] =
           d_node_hist_parent[idx] - d_node_hist_histogram[idx];
     });
@@ -756,7 +756,7 @@ struct GPUHistMakerDevice {
     reducer->AllReduceSum(
         reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
         reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
-        page->cuts_.TotalBins() * (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
+        page->Cuts().TotalBins() * (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
     reducer->Synchronize();
 
     monitor.StopCuda("AllReduce");
@@ -945,20 +945,20 @@ inline void GPUHistMakerDevice<GradientSumT>::InitHistogram() {
   // check if we can use shared memory for building histograms
   // (assuming atleast we need 2 CTAs per SM to maintain decent latency
   // hiding)
-  auto histogram_size = sizeof(GradientSumT) * page->cuts_.TotalBins();
+  auto histogram_size = sizeof(GradientSumT) * page->Cuts().TotalBins();
   auto max_smem = dh::MaxSharedMemory(device_id);
   if (histogram_size <= max_smem) {
     use_shared_memory_histograms = true;
   }
 
   // Init histogram
-  hist.Init(device_id, page->cuts_.TotalBins());
+  hist.Init(device_id, page->Cuts().TotalBins());
 }
 
 template <typename GradientSumT>
 class GPUHistMakerSpecialised {
  public:
-  GPUHistMakerSpecialised() : initialised_{false}, p_last_fmat_{nullptr} {}
+  GPUHistMakerSpecialised() = default;
   void Configure(const Args& args, GenericParameter const* generic_param) {
     param_.UpdateAllowUnknown(args);
     generic_param_ = generic_param;
@@ -1002,7 +1002,7 @@ class GPUHistMakerSpecialised {
     device_ = generic_param_->gpu_id;
     CHECK_GE(device_, 0) << "Must have at least one device";
     info_ = &dmat->Info();
-    reducer_.Init({device_});
+    reducer_.Init({device_});  // NOLINT
 
     // Synchronise the column sampling seed
     uint32_t column_sampling_seed = common::GlobalRandom()();
@@ -1083,14 +1083,14 @@ class GPUHistMakerSpecialised {
   std::unique_ptr<GPUHistMakerDevice<GradientSumT>> maker;  // NOLINT
 
  private:
-  bool initialised_;
+  bool initialised_ { false };
 
   GPUHistMakerTrainParam hist_maker_param_;
   GenericParameter const* generic_param_;
 
   dh::AllReducer reducer_;
 
-  DMatrix* p_last_fmat_;
+  DMatrix* p_last_fmat_ { nullptr };
   int device_{-1};
 
   common::Monitor monitor_;
@@ -1123,22 +1123,22 @@ class GPUHistMaker : public TreeUpdater {
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    fromJson(config.at("gpu_hist_train_param"), &this->hist_maker_param_);
+    FromJson(config.at("gpu_hist_train_param"), &this->hist_maker_param_);
     if (hist_maker_param_.single_precision_histogram) {
       float_maker_.reset(new GPUHistMakerSpecialised<GradientPair>());
-      fromJson(config.at("train_param"), &float_maker_->param_);
+      FromJson(config.at("train_param"), &float_maker_->param_);
     } else {
       double_maker_.reset(new GPUHistMakerSpecialised<GradientPairPrecise>());
-      fromJson(config.at("train_param"), &double_maker_->param_);
+      FromJson(config.at("train_param"), &double_maker_->param_);
     }
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["gpu_hist_train_param"] = toJson(hist_maker_param_);
+    out["gpu_hist_train_param"] = ToJson(hist_maker_param_);
     if (hist_maker_param_.single_precision_histogram) {
-      out["train_param"] = toJson(float_maker_->param_);
+      out["train_param"] = ToJson(float_maker_->param_);
     } else {
-      out["train_param"] = toJson(double_maker_->param_);
+      out["train_param"] = ToJson(double_maker_->param_);
     }
   }
 

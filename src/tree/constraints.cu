@@ -128,7 +128,7 @@ void FeatureInteractionConstraint::Configure(
   s_sets_ptr_ = dh::ToSpan(d_sets_ptr_);
 
   d_feature_buffer_storage_.resize(LBitField64::ComputeStorageSize(n_features));
-  feature_buffer_ = dh::ToSpan(d_feature_buffer_storage_);
+  feature_buffer_ = LBitField64{dh::ToSpan(d_feature_buffer_storage_)};
 
   // --- Initialize result buffers.
   output_buffer_bits_storage_.resize(LBitField64::ComputeStorageSize(n_features));

@@ -300,7 +300,7 @@ class LearnerConfiguration : public Learner {
     Version::Load(in, true);
 
     auto const& learner_parameters = get<Object>(in["learner"]);
-    fromJson(learner_parameters.at("learner_train_param"), &tparam_);
+    FromJson(learner_parameters.at("learner_train_param"), &tparam_);
 
     auto const& gradient_booster = learner_parameters.at("gradient_booster");
 
@@ -327,7 +327,7 @@ class LearnerConfiguration : public Learner {
           Metric::Create(metric_names_[i], &generic_parameters_));
     }
 
-    fromJson(learner_parameters.at("generic_param"), &generic_parameters_);
+    FromJson(learner_parameters.at("generic_param"), &generic_parameters_);
     // make sure the GPU ID is valid in new environment before start running configure.
     generic_parameters_.ConfigureGpuId(false);
 
@@ -342,7 +342,7 @@ class LearnerConfiguration : public Learner {
     out["learner"] = Object();
     auto& learner_parameters = out["learner"];
 
-    learner_parameters["learner_train_param"] = toJson(tparam_);
+    learner_parameters["learner_train_param"] = ToJson(tparam_);
     learner_parameters["learner_model_param"] = mparam_.ToJson();
     learner_parameters["gradient_booster"] = Object();
     auto& gradient_booster = learner_parameters["gradient_booster"];
@@ -358,7 +358,7 @@ class LearnerConfiguration : public Learner {
     }
     learner_parameters["metrics"] = Array(std::move(metrics));
 
-    learner_parameters["generic_param"] = toJson(generic_parameters_);
+    learner_parameters["generic_param"] = ToJson(generic_parameters_);
   }
 
   void SetParam(const std::string& key, const std::string& value) override {

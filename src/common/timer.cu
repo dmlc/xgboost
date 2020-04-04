@@ -16,7 +16,7 @@ namespace common {
 
 void Monitor::StartCuda(const std::string& name) {
   if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
-    auto &stats = statistics_map[name];
+    auto &stats = statistics_map_[name];
     stats.timer.Start();
 #if defined(XGBOOST_USE_NVTX)
     stats.nvtx_id = nvtxRangeStartA(name.c_str());
@@ -26,7 +26,7 @@ void Monitor::StartCuda(const std::string& name) {
 
 void Monitor::StopCuda(const std::string& name) {
   if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
-    auto &stats = statistics_map[name];
+    auto &stats = statistics_map_[name];
     stats.timer.Stop();
     stats.count++;
 #if defined(XGBOOST_USE_NVTX)

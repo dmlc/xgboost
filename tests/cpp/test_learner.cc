@@ -86,7 +86,7 @@ TEST(Learner, CheckGroup) {
   EXPECT_ANY_THROW(learner->UpdateOneIter(0, p_mat));
 }
 
-TEST(Learner, SLOW_CheckMultiBatch) {
+TEST(Learner, SLOW_CheckMultiBatch) {  // NOLINT
   // Create sufficiently large data to make two row pages
   dmlc::TemporaryDirectory tempdir;
   const std::string tmp_file = tempdir.path + "/big.libsvm";

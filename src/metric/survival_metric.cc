@@ -40,11 +40,11 @@ struct EvalAFT : public Metric {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String(this->Name());
-    out["aft_loss_param"] = toJson(param_);
+    out["aft_loss_param"] = ToJson(param_);
   }
 
   void LoadConfig(Json const& in) override {
-    fromJson(in["aft_loss_param"], &param_);
+    FromJson(in["aft_loss_param"], &param_);
   }
 
   bst_float Eval(const HostDeviceVector<bst_float> &preds,

@@ -193,7 +193,7 @@ TEST(GpuHist, EvaluateSplits) {
   auto cmat = GetHostCutMatrix();
 
   // Copy cut matrix to device.
-  page->cuts_ = cmat;
+  page->Cuts() = cmat;
   maker.ba.Allocate(0, &(maker.monotone_constraints), kNCols);
   dh::CopyVectorToDeviceSpan(maker.monotone_constraints,
                              param.monotone_constraints);
@@ -271,7 +271,7 @@ void TestHistogramIndexImpl() {
   const auto &maker_ext = hist_maker_ext.maker;
   std::vector<common::CompressedByteT> h_gidx_buffer_ext(maker_ext->page->gidx_buffer.HostVector());
 
-  ASSERT_EQ(maker->page->cuts_.TotalBins(), maker_ext->page->cuts_.TotalBins());
+  ASSERT_EQ(maker->page->Cuts().TotalBins(), maker_ext->page->Cuts().TotalBins());
   ASSERT_EQ(maker->page->gidx_buffer.Size(), maker_ext->page->gidx_buffer.Size());
 
 }
@@ -498,7 +498,7 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   }
 }
 
-TEST(GpuHist, Config_IO) {
+TEST(GpuHist, ConfigIO) {
   GenericParameter generic_param(CreateEmptyGenericParam(0));
   std::unique_ptr<TreeUpdater> updater {TreeUpdater::Create("grow_gpu_hist", &generic_param) };
   updater->Configure(Args{});

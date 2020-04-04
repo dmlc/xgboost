@@ -30,7 +30,7 @@ TEST(Linear, GPUCoordinate) {
   model.LazyInitModel();
   updater->Update(&gpair, mat.get(), &model, gpair.Size());
 
-  ASSERT_EQ(model.bias()[0], 5.0f);
+  ASSERT_EQ(model.Bias()[0], 5.0f);
 }
 
 TEST(GPUCoordinate, JsonIO) {

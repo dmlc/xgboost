@@ -267,7 +267,7 @@ class DeviceModel {
                                   cudaMemcpyHostToDevice));
     this->tree_beg_ = tree_begin;
     this->tree_end_ = tree_end;
-    this->num_group = model.learner_model_param_->num_output_group;
+    this->num_group = model.learner_model_param->num_output_group;
   }
 
   void Init(const gbm::GBTreeModel& model, size_t tree_begin, size_t tree_end, int32_t gpu_id) {
@@ -359,9 +359,9 @@ class GPUPredictor : public xgboost::Predictor {
     } else {
       size_t batch_offset = 0;
       for (auto &batch : dmat->GetBatches<SparsePage>()) {
-        this->PredictInternal(batch, model.learner_model_param_->num_feature,
+        this->PredictInternal(batch, model.learner_model_param->num_feature,
                               out_preds, batch_offset);
-        batch_offset += batch.Size() * model.learner_model_param_->num_output_group;
+        batch_offset += batch.Size() * model.learner_model_param->num_output_group;
       }
     }
   }
@@ -396,7 +396,7 @@ class GPUPredictor : public xgboost::Predictor {
       this->InitOutPredictions(dmat->Info(), out_preds, model);
     }
 
-    uint32_t const output_groups =  model.learner_model_param_->num_output_group;
+    uint32_t const output_groups =  model.learner_model_param->num_output_group;
     CHECK_NE(output_groups, 0);
 
     uint32_t real_ntree_limit = ntree_limit * output_groups;
@@ -434,12 +434,12 @@ class GPUPredictor : public xgboost::Predictor {
                                 PredictionCacheEntry *out_preds,
                                 uint32_t tree_begin, uint32_t tree_end) const {
     auto max_shared_memory_bytes = dh::MaxSharedMemory(this->generic_param_->gpu_id);
-    uint32_t const output_groups =  model.learner_model_param_->num_output_group;
+    uint32_t const output_groups =  model.learner_model_param->num_output_group;
     DeviceModel d_model;
     d_model.Init(model, tree_begin, tree_end, this->generic_param_->gpu_id);
 
     auto m = dmlc::get<Adapter>(x);
-    CHECK_EQ(m.NumColumns(), model.learner_model_param_->num_feature)
+    CHECK_EQ(m.NumColumns(), model.learner_model_param->num_feature)
         << "Number of columns in data must equal to trained model.";
     CHECK_EQ(this->generic_param_->gpu_id, m.DeviceIdx())
         << "XGBoost is running on device: " << this->generic_param_->gpu_id << ", "
@@ -473,7 +473,6 @@ class GPUPredictor : public xgboost::Predictor {
   void InplacePredict(dmlc::any const &x, const gbm::GBTreeModel &model,
                       float missing, PredictionCacheEntry *out_preds,
                       uint32_t tree_begin, unsigned tree_end) const override {
-    auto max_shared_memory_bytes = dh::MaxSharedMemory(this->generic_param_->gpu_id);
     if (x.type() == typeid(data::CupyAdapter)) {
       this->DispatchedInplacePredict<data::CupyAdapter, CuPyAdapterLoader, data::CupyAdapterBatch>(
           x, model, missing, out_preds, tree_begin, tree_end);
@@ -489,7 +488,7 @@ class GPUPredictor : public xgboost::Predictor {
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
                           const gbm::GBTreeModel& model) const {
-    size_t n_classes = model.learner_model_param_->num_output_group;
+    size_t n_classes = model.learner_model_param->num_output_group;
     size_t n = n_classes * info.num_row_;
     const HostDeviceVector<bst_float>& base_margin = info.base_margin_;
     out_preds->SetDevice(generic_param_->gpu_id);
@@ -498,7 +497,7 @@ class GPUPredictor : public xgboost::Predictor {
       CHECK_EQ(base_margin.Size(), n);
       out_preds->Copy(base_margin);
     } else {
-      out_preds->Fill(model.learner_model_param_->base_score);
+      out_preds->Fill(model.learner_model_param->base_score);
     }
   }
 
