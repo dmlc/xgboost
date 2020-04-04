@@ -897,9 +897,8 @@ class LearnerImpl : public LearnerIO {
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                      bool with_stats,
-                                     std::string format) const override {
-    CHECK(!this->need_configuration_)
-        << "The model hasn't been built yet.  Are you using raw Booster interface?";
+                                     std::string format) override {
+    this->Configure();
     return gbm_->DumpModel(fmap, with_stats, format);
   }
 
