@@ -32,10 +32,6 @@ inline static void RobustTestSuite(ProbabilityDistributionType dist_type,
 }
 
 TEST(AFTLoss, RobustGradientPair) {  // Ensure that INF and NAN don't show up in gradient pair
-  const double y_lower = 16.0;
-  const double y_upper = 200.0;
-  const double sigma = 2.0;
-
   RobustTestSuite(ProbabilityDistributionType::kNormal, 16.0, 200.0, 2.0);
   RobustTestSuite(ProbabilityDistributionType::kLogistic, 16.0, 200.0, 2.0);
   RobustTestSuite(ProbabilityDistributionType::kExtreme, 16.0, 200.0, 2.0);
