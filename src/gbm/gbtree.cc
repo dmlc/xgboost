@@ -40,11 +40,6 @@ void GBTree::Configure(const Args& cfg) {
 
   model_.Configure(cfg);
 
-  // for the 'update' process_type, move trees into trees_to_update
-  if (tparam_.process_type == TreeProcessType::kUpdate) {
-    model_.InitTreesToUpdate();
-  }
-
   // configure predictors
   if (!cpu_predictor_) {
     cpu_predictor_ = std::unique_ptr<Predictor>(
@@ -111,6 +106,10 @@ void GBTree::ConfigureWithKnownData(Args const& cfg, DMatrix* fmat) {
     LOG(DEBUG) << "Using updaters: " << tparam_.updater_seq;
     this->updaters_.clear();
     this->InitUpdater(cfg);
+  }
+  // for the 'update' process_type, move trees into trees_to_update
+  if (tparam_.process_type == TreeProcessType::kUpdate) {
+    model_.InitTreesToUpdate();
   }
 }
 
