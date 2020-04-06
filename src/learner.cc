@@ -731,6 +731,12 @@ class LearnerIO : public LearnerConfiguration {
       tparam_.dsplit = DataSplitMode::kRow;
     }
 
+    // Do not load "process_type":"update", this causes all trees to be removed
+    // from the model on configuration
+    if (cfg_.find("process_type") == cfg_.end()) {
+      cfg_["process_type"] = "default";
+    }
+
     this->Configure();
   }
 
