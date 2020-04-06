@@ -40,6 +40,8 @@ Supported parameters
 +================================+==============+
 | ``subsample``                  | |tick|       |
 +--------------------------------+--------------+
+| ``sampling_method``            | |tick|       |
++--------------------------------+--------------+
 | ``colsample_bytree``           | |tick|       |
 +--------------------------------+--------------+
 | ``colsample_bylevel``          | |tick|       |
@@ -211,6 +213,7 @@ Working memory is allocated inside the algorithm proportional to the number of r
 
 The quantile finding algorithm also uses some amount of working device memory. It is able to operate in batches, but is not currently well optimised for sparse data.
 
+If you are getting out-of-memory errors on a big dataset, try the `external memory version <../tutorials/external_memory.html>`_.
 
 Developer notes
 ===============
