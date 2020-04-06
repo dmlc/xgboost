@@ -243,6 +243,7 @@ class CPUPredictor : public Predictor {
     uint32_t const end_version = (tree_begin + real_ntree_limit) / output_groups;
     // When users have provided ntree_limit, end_version can be lesser, cache is violated
     if (predts->version > end_version) {
+      CHECK_NE(ntree_limit, 0);
       this->InitOutPredictions(dmat->Info(), out_preds, model);
       predts->version = 0;
     }
