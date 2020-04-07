@@ -75,11 +75,13 @@ public class DMatrixTest {
       blist.add(p);
       labelall.add(p.label());
     }
+    boolean success = true;
     try {
       DMatrix dmat = new DMatrix(blist.iterator(), null);
     } catch (XGBoostError e) {
-
+      success = false;
     }
+    TestCase.assertTrue(success == false);
   }
 
   @Test
