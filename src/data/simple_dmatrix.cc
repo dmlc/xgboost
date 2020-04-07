@@ -125,6 +125,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   } else {
     info_.num_col_ = adapter->NumColumns();
   }
+
   // Synchronise worker columns
   rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
 

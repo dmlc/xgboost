@@ -1063,19 +1063,9 @@ class LearnerImpl : public LearnerIO {
       return tparam_.dsplit == DataSplitMode::kRow ||
              tparam_.dsplit == DataSplitMode::kAuto;
     };
-    bool const valid_features =
-        !row_based_split() ||
-        (learner_model_param_.num_feature == p_fmat->Info().num_col_);
-    std::string const msg {
-      "Number of columns does not match number of features in booster."
-    };
-    if (generic_parameters_.validate_features) {
-      CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_) << msg;
-    } else if (!valid_features) {
-      // Remove this and make the equality check fatal once spark can fix all failing tests.
-      LOG(WARNING) << msg << " "
-                   << "Columns: " << p_fmat->Info().num_col_ << " "
-                   << "Features: " << learner_model_param_.num_feature;
+    if (row_based_split()) {
+      CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_)
+          << "Number of columns does not match number of features in booster.";
     }
   }
 
