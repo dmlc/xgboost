@@ -207,7 +207,7 @@ struct WQSummary {
       // find first i such that  d < (rmax[i+1] + rmin[i+1]) / 2
       while (i < src.size - 1
              && dx2 >= src.data[i + 1].rmax + src.data[i + 1].rmin) ++i;
-      CHECK(i != src.size - 1);
+      if (i == src.size - 1) break;
       if (dx2 < src.data[i].RMinNext() + src.data[i + 1].RMaxPrev()) {
         if (i != lastidx) {
           data[size++] = src.data[i]; lastidx = i;
