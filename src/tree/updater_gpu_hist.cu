@@ -926,13 +926,7 @@ struct GPUHistMakerDevice {
 
 template <typename GradientSumT>
 inline void GPUHistMakerDevice<GradientSumT>::InitHistogram() {
-  CHECK(!(param.max_leaves == 0 && param.max_depth == 0))
-      << "Max leaves and max depth cannot both be unconstrained for "
-      "gpu_hist.";
-
-  int max_nodes =
-      param.max_leaves > 0 ? param.max_leaves * 2 : MaxNodesDepth(param.max_depth);
-
+  bst_node_t max_nodes { param.MaxNodes() };
   ba.Allocate(device_id,
               &prediction_cache, n_rows,
               &node_sum_gradients_d, max_nodes,
