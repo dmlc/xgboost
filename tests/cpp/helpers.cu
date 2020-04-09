@@ -14,4 +14,4 @@ std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDeviceDMatrix(bool with_la
           std::numeric_limits<float>::quiet_NaN(), 1, 256}};
   return m;
 }
-}
+}  // namespace xgboost
