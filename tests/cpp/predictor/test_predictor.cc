@@ -51,7 +51,6 @@ void TestTrainingPrediction(size_t rows, std::string tree_method,
     learner.reset(Learner::Create({}));
     learner->SetParam("tree_method", tree_method);
     learner->SetParam("objective", "multi:softprob");
-    // learner->SetParam("predictor", predictor);
     learner->SetParam("num_feature", std::to_string(kCols));
     learner->SetParam("num_class", std::to_string(kClasses));
     learner->Configure();
