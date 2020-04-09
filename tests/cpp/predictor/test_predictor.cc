@@ -33,15 +33,14 @@ TEST(Predictor, PredictionCache) {
 }
 
 // Only run this test when CUDA is enabled.
-void TestTrainingPrediction(size_t rows, std::string tree_method) {
+void TestTrainingPrediction(size_t rows, std::string tree_method,
+                            std::shared_ptr<DMatrix> p_m) {
   size_t constexpr kCols = 16;
   size_t constexpr kClasses = 3;
   size_t constexpr kIters = 3;
 
   std::unique_ptr<Learner> learner;
   auto train = [&](std::string predictor, HostDeviceVector<float>* out) {
-    auto p_m = RandomDataGenerator(rows, kCols, 0).GenerateDMatix();
-
     auto &h_label = p_m->Info().labels_.HostVector();
     h_label.resize(rows);
 

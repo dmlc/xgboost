@@ -58,16 +58,25 @@ TEST(GPUPredictor, Basic) {
 }
 
 TEST(GPUPredictor, EllpackBasic) {
+  size_t constexpr kCols {8};
   for (size_t bins = 2; bins < 258; bins += 16) {
     size_t rows = bins * 16;
-    TestPredictionFromGradientIndex<EllpackPage>("gpu_predictor", rows, bins);
-    TestPredictionFromGradientIndex<EllpackPage>("gpu_predictor", bins, bins);
+    auto p_m = RandomDataGenerator{rows, kCols, 1.0}
+         .Bins(bins)
+         .Device(0)
+         .GenerateDeviceDMatrix(true);
+    TestPredictionFromGradientIndex<EllpackPage>("gpu_predictor", rows, kCols, p_m);
+    TestPredictionFromGradientIndex<EllpackPage>("gpu_predictor", bins, kCols, p_m);
   }
 }
 
 TEST(GPUPredictor, EllpackTraining) {
-  size_t constexpr kRows { 128 };
-  TestTrainingPrediction(kRows, "gpu_hist");
+  size_t constexpr kRows { 128 }, kCols { 16 }, kBins { 64 };
+  auto p_m = RandomDataGenerator{kRows, kCols, 1.0}
+       .Bins(kBins)
+       .Device(0)
+       .GenerateDeviceDMatrix(true);
+  TestTrainingPrediction(kRows, "gpu_hist", p_m);
 }
 
 TEST(GPUPredictor, ExternalMemoryTest) {
