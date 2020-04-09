@@ -67,6 +67,7 @@ TEST(GBTree, WrongUpdater) {
 
 #ifdef XGBOOST_USE_CUDA
 TEST(GBTree, ChoosePredictor) {
+  // The test ensures data don't get pulled into device.
   size_t constexpr kRows = 17;
   size_t constexpr kCols = 15;
 
