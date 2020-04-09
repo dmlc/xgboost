@@ -263,7 +263,8 @@ void QuantileHistMaker::Builder::AddSplitsToTree(
           spliteval_->ComputeWeight(nid, e.best.right_sum) * param_.learning_rate;
       p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
                          e.best.DefaultLeft(), e.weight, left_leaf_weight,
-                         right_leaf_weight, e.best.loss_chg, e.stats.sum_hess);
+                         right_leaf_weight, e.best.loss_chg, e.stats.sum_hess,
+                         e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
 
       int left_id = (*p_tree)[nid].LeftChild();
       int right_id = (*p_tree)[nid].RightChild();
@@ -410,7 +411,8 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
           spliteval_->ComputeWeight(nid, e.best.right_sum) * param_.learning_rate;
       p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
                          e.best.DefaultLeft(), e.weight, left_leaf_weight,
-                         right_leaf_weight, e.best.loss_chg, e.stats.sum_hess);
+                         right_leaf_weight, e.best.loss_chg, e.stats.sum_hess,
+                         e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
 
       this->ApplySplit({candidate}, gmat, column_matrix, hist_, p_tree);
 
