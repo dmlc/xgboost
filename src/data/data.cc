@@ -293,7 +293,7 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
 
 #if !defined(XGBOOST_USE_CUDA)
 void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
-  LOG(FATAL) << "XGBoost version is not compiled with GPU support";
+  common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 

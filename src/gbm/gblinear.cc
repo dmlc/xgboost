@@ -22,6 +22,7 @@
 
 #include "gblinear_model.h"
 #include "../common/timer.h"
+#include "../common/common.h"
 
 namespace xgboost {
 namespace gbm {
@@ -68,7 +69,7 @@ class GBLinear : public GradientBooster {
     updater_->Configure(cfg);
     monitor_.Init("GBLinear");
     if (param_.updater == "gpu_coord_descent") {
-      this->AssertGPUSupport();
+      common::AssertGPUSupport();
     }
   }
 

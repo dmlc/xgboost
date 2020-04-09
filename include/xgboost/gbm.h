@@ -181,12 +181,6 @@ class GradientBooster : public Model, public Configurable {
       const std::string& name,
       GenericParameter const* generic_param,
       LearnerModelParam const* learner_model_param);
-
-  static void AssertGPUSupport() {
-#ifndef XGBOOST_USE_CUDA
-    LOG(FATAL) << "XGBoost version not compiled with GPU support.";
-#endif  // XGBOOST_USE_CUDA
-  }
 };
 
 /*!
