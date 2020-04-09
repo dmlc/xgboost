@@ -307,7 +307,7 @@ class XGBModel(XGBModelBase):
                 np.iinfo(np.int32).max)
 
         def parse_parameter(value):
-            for t in (int, float):
+            for t in (int, float, str):
                 try:
                     ret = t(value)
                     return ret
@@ -678,10 +678,10 @@ class XGBModel(XGBModelBase):
         feature_importances_ : array of shape ``[n_features]``
 
         """
-        if getattr(self, 'booster', None) is not None and self.booster not in {
-                'gbtree', 'dart'}:
-            raise AttributeError('Feature importance is not defined for Booster type {}'
-                                 .format(self.booster))
+        if self.get_params()['booster'] not in {'gbtree', 'dart'}:
+            raise AttributeError(
+                'Feature importance is not defined for Booster type {}'
+                .format(self.booster))
         b = self.get_booster()
         score = b.get_score(importance_type=self.importance_type)
         all_features = [score.get(f, 0.) for f in b.feature_names]
@@ -703,11 +703,13 @@ class XGBModel(XGBModelBase):
         -------
         coef_ : array of shape ``[n_features]`` or ``[n_classes, n_features]``
         """
-        if getattr(self, 'booster', None) is not None and self.booster != 'gblinear':
-            raise AttributeError('Coefficients are not defined for Booster type {}'
-                                 .format(self.booster))
+        if self.get_params()['booster'] != 'gblinear':
+            raise AttributeError(
+                'Coefficients are not defined for Booster type {}'
+                .format(self.booster))
         b = self.get_booster()
-        coef = np.array(json.loads(b.get_dump(dump_format='json')[0])['weight'])
+        coef = np.array(json.loads(
+            b.get_dump(dump_format='json')[0])['weight'])
         # Logic for multiclass classification
         n_classes = getattr(self, 'n_classes_', None)
         if n_classes is not None:
@@ -732,9 +734,10 @@ class XGBModel(XGBModelBase):
         -------
         intercept_ : array of shape ``(1,)`` or ``[n_classes]``
         """
-        if getattr(self, 'booster', None) is not None and self.booster != 'gblinear':
-            raise AttributeError('Intercept (bias) is not defined for Booster type {}'
-                                 .format(self.booster))
+        if self.get_params()['booster'] != 'gblinear':
+            raise AttributeError(
+                'Intercept (bias) is not defined for Booster type {}'
+                .format(self.booster))
         b = self.get_booster()
         return np.array(json.loads(b.get_dump(dump_format='json')[0])['bias'])
 
