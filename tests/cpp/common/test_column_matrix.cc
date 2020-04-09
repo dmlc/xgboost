@@ -13,7 +13,7 @@ TEST(DenseColumn, Test) {
                           static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
                           static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2};
   for (size_t max_num_bin : max_num_bins) {
-    auto dmat = RandomDataGenerator(100, 10, 0.0).GenerateDMatix();
+    auto dmat = RandomDataGenerator(100, 10, 0.0).GenerateDMatrix();
     GHistIndexMatrix gmat;
     gmat.Init(dmat.get(), max_num_bin);
     ColumnMatrix column_matrix;
@@ -61,7 +61,7 @@ TEST(SparseColumn, Test) {
                           static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
                           static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2};
   for (size_t max_num_bin : max_num_bins) {
-    auto dmat = RandomDataGenerator(100, 1, 0.85).GenerateDMatix();
+    auto dmat = RandomDataGenerator(100, 1, 0.85).GenerateDMatrix();
     GHistIndexMatrix gmat;
     gmat.Init(dmat.get(), max_num_bin);
     ColumnMatrix column_matrix;
@@ -102,7 +102,7 @@ TEST(DenseColumnWithMissing, Test) {
                               static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 1,
                               static_cast<uint64_t>(std::numeric_limits<uint16_t>::max()) + 2 };
   for (size_t max_num_bin : max_num_bins) {
-    auto dmat = RandomDataGenerator(100, 1, 0.5).GenerateDMatix();
+    auto dmat = RandomDataGenerator(100, 1, 0.5).GenerateDMatrix();
     GHistIndexMatrix gmat;
     gmat.Init(dmat.get(), max_num_bin);
     ColumnMatrix column_matrix;

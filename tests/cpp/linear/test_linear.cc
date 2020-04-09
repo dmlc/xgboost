@@ -15,7 +15,7 @@ TEST(Linear, Shotgun) {
   size_t constexpr kRows = 10;
   size_t constexpr kCols = 10;
 
-  auto p_fmat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
+  auto p_fmat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   LearnerModelParam mparam;
@@ -51,7 +51,7 @@ TEST(Linear, coordinate) {
   size_t constexpr kRows = 10;
   size_t constexpr kCols = 10;
 
-  auto p_fmat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
+  auto p_fmat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   LearnerModelParam mparam;

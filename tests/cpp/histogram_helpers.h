@@ -22,7 +22,7 @@ class HistogramCutsWrapper : public common::HistogramCuts {
 
 inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
     int n_rows, int n_cols, bst_float sparsity= 0) {
-  auto dmat = RandomDataGenerator(n_rows, n_cols, sparsity).Seed(3).GenerateDMatix();
+  auto dmat = RandomDataGenerator(n_rows, n_cols, sparsity).Seed(3).GenerateDMatrix();
   const SparsePage& batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
 
   HistogramCutsWrapper cmat;

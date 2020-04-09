@@ -139,7 +139,7 @@ class QuantileHistMock : public QuantileHistMaker {
           { {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {2.27f, 0.28f},
             {0.27f, 0.29f}, {0.37f, 0.39f}, {-0.47f, 0.49f}, {0.57f, 0.59f} };
       size_t constexpr kMaxBins = 4;
-      auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatix();
+      auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatrix();
       // dense, no missing values
 
       common::GHistIndexMatrix gmat;
@@ -238,7 +238,7 @@ class QuantileHistMock : public QuantileHistMaker {
       cfg_{args} {
     QuantileHistMaker::Configure(args);
     spliteval_->Init(&param_);
-    dmat_ = RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatix();
+    dmat_ = RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
     builder_.reset(
         new BuilderMock(
             param_,

@@ -216,9 +216,9 @@ class RandomDataGenerator {
   void GenerateCSR(HostDeviceVector<float>* value, HostDeviceVector<bst_row_t>* row_ptr,
                    HostDeviceVector<bst_feature_t>* columns) const;
 
-  std::shared_ptr<DMatrix> GenerateDMatix(bool with_label = false,
-                                          bool float_label = true,
-                                          size_t classes = 1) const;
+  std::shared_ptr<DMatrix> GenerateDMatrix(bool with_label = false,
+                                           bool float_label = true,
+                                           size_t classes = 1) const;
 #if defined(XGBOOST_USE_CUDA)
   std::shared_ptr<DMatrix> GenerateDeviceDMatrix(bool with_label = false,
                                                  bool float_label = true,

@@ -128,7 +128,7 @@ TEST(CutsBuilder, SearchGroupInd) {
   size_t constexpr kRows = 17;
   size_t constexpr kCols = 15;
 
-  auto p_mat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
+  auto p_mat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   std::vector<bst_int> group(kNumGroups);
   group[0] = 2;
@@ -155,7 +155,7 @@ TEST(SparseCuts, SingleThreadedBuild) {
   size_t constexpr kCols = 31;
   size_t constexpr kBins = 256;
 
-  auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
+  auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   common::GHistIndexMatrix hmat;
   hmat.Init(p_fmat.get(), kBins);
@@ -206,12 +206,12 @@ TEST(SparseCuts, MultiThreadedBuild) {
       };
 
   {
-    auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
+    auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
     Compare(p_fmat.get());
   }
 
   {
-    auto p_fmat = RandomDataGenerator(kRows, kCols, 0.0001).GenerateDMatix();
+    auto p_fmat = RandomDataGenerator(kRows, kCols, 0.0001).GenerateDMatrix();
     Compare(p_fmat.get());
   }
 
@@ -360,7 +360,7 @@ TEST(HistUtil, IndexBinBound) {
 
   size_t bin_id = 0;
   for (auto max_bin : bin_sizes) {
-    auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
+    auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
     common::GHistIndexMatrix hmat;
     hmat.Init(p_fmat.get(), max_bin);
@@ -381,7 +381,7 @@ TEST(HistUtil, SparseIndexBinBound) {
 
   size_t bin_id = 0;
   for (auto max_bin : bin_sizes) {
-    auto p_fmat = RandomDataGenerator(kRows, kCols, 0.2).GenerateDMatix();
+    auto p_fmat = RandomDataGenerator(kRows, kCols, 0.2).GenerateDMatrix();
     common::GHistIndexMatrix hmat;
     hmat.Init(p_fmat.get(), max_bin);
     EXPECT_EQ(expected_bin_type_sizes[bin_id++], hmat.index.GetBinTypeSize());
@@ -404,7 +404,7 @@ TEST(HistUtil, IndexBinData) {
   size_t constexpr kCols = 10;
 
   for (auto max_bin : kBinSizes) {
-    auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
+    auto p_fmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
     common::GHistIndexMatrix hmat;
     hmat.Init(p_fmat.get(), max_bin);
     uint32_t* offsets = hmat.index.Offset();
@@ -434,7 +434,7 @@ TEST(HistUtil, SparseIndexBinData) {
   size_t constexpr kCols = 10;
 
   for (auto max_bin : bin_sizes) {
-    auto p_fmat = RandomDataGenerator(kRows, kCols, 0.2).GenerateDMatix();
+    auto p_fmat = RandomDataGenerator(kRows, kCols, 0.2).GenerateDMatrix();
     common::GHistIndexMatrix hmat;
     hmat.Init(p_fmat.get(), max_bin);
     EXPECT_EQ(hmat.index.Offset(), nullptr);

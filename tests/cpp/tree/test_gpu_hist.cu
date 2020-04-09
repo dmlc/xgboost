@@ -314,7 +314,7 @@ TEST(GpuHist, MinSplitLoss) {
   constexpr size_t kRows = 32;
   constexpr size_t kCols = 16;
   constexpr float kSparsity = 0.6;
-  auto dmat = RandomDataGenerator(kRows, kCols, kSparsity).Seed(3).GenerateDMatix();
+  auto dmat = RandomDataGenerator(kRows, kCols, kSparsity).Seed(3).GenerateDMatrix();
   auto gpair = GenerateRandomGradients(kRows);
 
   {

@@ -82,7 +82,7 @@ TEST(CAPI, Version) {
 
 TEST(CAPI, ConfigIO) {
   size_t constexpr kRows = 10;
-  auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatix();
+  auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatrix();
   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
   std::vector<bst_float> labels(kRows);
   for (size_t i = 0; i < labels.size(); ++i) {
@@ -115,7 +115,7 @@ TEST(CAPI, JsonModelIO) {
   size_t constexpr kRows = 10;
   dmlc::TemporaryDirectory tempdir;
 
-  auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatix();
+  auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatrix();
   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
   std::vector<bst_float> labels(kRows);
   for (size_t i = 0; i < labels.size(); ++i) {

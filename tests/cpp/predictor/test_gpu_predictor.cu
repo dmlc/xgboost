@@ -31,7 +31,7 @@ TEST(GPUPredictor, Basic) {
 
   for (size_t i = 1; i < 33; i *= 2) {
     int n_row = i, n_col = i;
-    auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatix();
+    auto dmat = RandomDataGenerator(n_row, n_col, 0).GenerateDMatrix();
 
     LearnerModelParam param;
     param.num_feature = n_col;
@@ -61,7 +61,7 @@ TEST(GPUPredictor, EllpackBasic) {
   size_t constexpr kCols {8};
   for (size_t bins = 2; bins < 258; bins += 16) {
     size_t rows = bins * 16;
-    auto p_m = RandomDataGenerator{rows, kCols, 1.0}
+    auto p_m = RandomDataGenerator{rows, kCols, 0.0}
          .Bins(bins)
          .Device(0)
          .GenerateDeviceDMatrix(true);
@@ -72,11 +72,19 @@ TEST(GPUPredictor, EllpackBasic) {
 
 TEST(GPUPredictor, EllpackTraining) {
   size_t constexpr kRows { 128 }, kCols { 16 }, kBins { 64 };
-  auto p_m = RandomDataGenerator{kRows, kCols, 1.0}
+  auto p_ellpack = RandomDataGenerator{kRows, kCols, 0.0}
        .Bins(kBins)
        .Device(0)
        .GenerateDeviceDMatrix(true);
-  TestTrainingPrediction(kRows, "gpu_hist", p_m);
+  std::vector<HostDeviceVector<float>> storage(kCols);
+  auto columnar = RandomDataGenerator{kRows, kCols, 0.0}
+       .Device(0)
+       .GenerateColumnarArrayInterface(&storage);
+  auto adapter = data::CudfAdapter(columnar);
+  std::shared_ptr<DMatrix> p_full {
+    DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)
+  };
+  TestTrainingPrediction(kRows, "gpu_hist", p_full, p_ellpack);
 }
 
 TEST(GPUPredictor, ExternalMemoryTest) {

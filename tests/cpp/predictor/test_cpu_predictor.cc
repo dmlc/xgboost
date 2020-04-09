@@ -26,7 +26,7 @@ TEST(CpuPredictor, Basic) {
 
   gbm::GBTreeModel model = CreateTestModel(&param);
 
-  auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
+  auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   // Test predict batch
   PredictionCacheEntry out_predictions;

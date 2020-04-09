@@ -7,7 +7,7 @@ namespace xgboost {
 TEST(RandomDataGenerator, DMatrix) {
   size_t constexpr kRows { 16 }, kCols { 32 };
   float constexpr kSparsity { 0.4f };
-  auto p_dmatrix = RandomDataGenerator{kRows, kCols, kSparsity}.GenerateDMatix();
+  auto p_dmatrix = RandomDataGenerator{kRows, kCols, kSparsity}.GenerateDMatrix();
 
   HostDeviceVector<float> csr_value;
   HostDeviceVector<bst_row_t> csr_rptr;

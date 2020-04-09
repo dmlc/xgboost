@@ -156,7 +156,7 @@ class SerializationTest : public ::testing::Test {
  protected:
   ~SerializationTest() override = default;
   void SetUp() override {
-    p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatix();
+    p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatrix();
 
     p_dmat_->Info().labels_.Resize(kRows);
     auto &h_labels = p_dmat_->Info().labels_.HostVector();
@@ -352,7 +352,7 @@ TEST_F(SerializationTest, GPUCoordDescent) {
 class LogitSerializationTest : public SerializationTest {
  protected:
   void SetUp() override {
-    p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatix();
+    p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatrix();
 
     std::shared_ptr<DMatrix> p_dmat{p_dmat_};
     p_dmat->Info().labels_.Resize(kRows);
@@ -487,7 +487,7 @@ class MultiClassesSerializationTest : public SerializationTest {
   size_t constexpr static kClasses = 4;
 
   void SetUp() override {
-    p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatix();
+    p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatrix();
 
     std::shared_ptr<DMatrix> p_dmat{p_dmat_};
     p_dmat->Info().labels_.Resize(kRows);

@@ -26,7 +26,7 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, size_t cols,
   gbm::GBTreeModel model = CreateTestModel(&param, kClasses);
 
   {
-    auto p_precise = RandomDataGenerator(rows, cols, 0).GenerateDMatix();
+    auto p_precise = RandomDataGenerator(rows, cols, 0).GenerateDMatrix();
 
     PredictionCacheEntry approx_out_predictions;
     predictor->PredictBatch(p_hist.get(), &approx_out_predictions, model, 0);
@@ -44,15 +44,17 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, size_t cols,
     // Predictor should never try to create the histogram index by itself.  As only
     // histogram index from training data is valid and predictor doesn't known which
     // matrix is used for training.
-    auto p_dmat = RandomDataGenerator(rows, cols, 0).GenerateDMatix();
+    auto p_dmat = RandomDataGenerator(rows, cols, 0).GenerateDMatrix();
     PredictionCacheEntry precise_out_predictions;
     predictor->PredictBatch(p_dmat.get(), &precise_out_predictions, model, 0);
     ASSERT_FALSE(p_dmat->PageExists<Page>());
   }
 }
 
+// p_full and p_hist should come from the same data set.
 void TestTrainingPrediction(size_t rows, std::string tree_method,
-                            std::shared_ptr<DMatrix> p_m);
+                            std::shared_ptr<DMatrix> p_full,
+                            std::shared_ptr<DMatrix> p_hist);
 
 void TestInplacePrediction(dmlc::any x, std::string predictor,
                            bst_row_t rows, bst_feature_t cols,

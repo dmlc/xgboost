@@ -12,7 +12,7 @@ TEST(Linear, GPUCoordinate) {
   size_t constexpr kRows = 10;
   size_t constexpr kCols = 10;
 
-  auto mat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
+  auto mat = xgboost::RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
   auto lparam = CreateEmptyGenericParam(GPUIDX);
 
   LearnerModelParam mparam;
