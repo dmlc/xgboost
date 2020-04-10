@@ -1787,6 +1787,10 @@ class Booster(object):
             raise TypeError('Unknown file type: ', fname)
 
     def num_boosted_rounds(self):
+        '''Get number of boosted rounds.  For gblinear this is reset to 0 after
+        serializing the model.
+
+        '''
         rounds = ctypes.c_int()
         assert self.handle is not None
         _check_call(_LIB.XGBoosterBoostedRounds(
