@@ -814,7 +814,8 @@ struct GPUHistMakerDevice {
     tree.ExpandNode(candidate.nid, candidate.split.findex,
                     candidate.split.fvalue, candidate.split.dir == kLeftDir,
                     base_weight, left_weight, right_weight,
-                    candidate.split.loss_chg, parent_sum.sum_hess);
+                    candidate.split.loss_chg, parent_sum.sum_hess,
+                    left_stats.GetHess(), right_stats.GetHess());
     // Set up child constraints
     node_value_constraints.resize(tree.GetNodes().size());
     node_value_constraints[candidate.nid].SetChild(

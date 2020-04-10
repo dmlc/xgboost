@@ -607,6 +607,8 @@ XGBOOST_REGISTER_TREE_IO(GraphvizGenerator, "dot")
             return new GraphvizGenerator(fmap, attrs, with_stats);
           });
 
+constexpr bst_node_t RegTree::kRoot;
+
 std::string RegTree::DumpModel(const FeatureMap& fmap,
                                bool with_stats,
                                std::string format) const {
@@ -623,26 +625,40 @@ bool RegTree::Equal(const RegTree& b) const {
   if (NumExtraNodes() != b.NumExtraNodes()) {
     return false;
   }
-
-  std::stack<bst_node_t> nodes;
-  nodes.push(0);
-  auto& self = *this;
-  while (!nodes.empty()) {
-    auto nid = nodes.top();
-    nodes.pop();
-    if (!(self.nodes_.at(nid) == b.nodes_.at(nid))) {
+  auto const& self = *this;
+  bool ret { true };
+  this->WalkTree([&self, &b, &ret](bst_node_t nidx) {
+    if (!(self.nodes_.at(nidx) == b.nodes_.at(nidx))) {
+      ret = false;
       return false;
     }
-    auto left = self[nid].LeftChild();
-    auto right = self[nid].RightChild();
-    if (left != RegTree::kInvalidNodeId) {
-      nodes.push(left);
-    }
-    if (right != RegTree::kInvalidNodeId) {
-      nodes.push(right);
-    }
-  }
-  return true;
+    return true;
+  });
+  return ret;
+}
+
+bst_node_t RegTree::GetNumLeaves() const {
+  bst_node_t leaves { 0 };
+  auto const& self = *this;
+  this->WalkTree([&leaves, &self](bst_node_t nidx) {
+                   if (self[nidx].IsLeaf()) {
+                     leaves++;
+                   }
+                   return true;
+                 });
+  return leaves;
+}
+
+bst_node_t RegTree::GetNumSplitNodes() const {
+  bst_node_t splits { 0 };
+  auto const& self = *this;
+  this->WalkTree([&splits, &self](bst_node_t nidx) {
+                   if (!self[nidx].IsLeaf()) {
+                     splits++;
+                   }
+                   return true;
+                 });
+  return splits;
 }
 
 void RegTree::Load(dmlc::Stream* fi) {
