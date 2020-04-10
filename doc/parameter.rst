@@ -30,7 +30,7 @@ General Parameters
     is displayed as warning message.  If there's unexpected behaviour, please try to
     increase value of verbosity.
 
-* ``validate_parameters`` [default to false, except for Python ``train`` function]
+* ``validate_parameters`` [default to false, except for Python interface]
 
   - When set to True, XGBoost will perform validation of input parameters to check whether
     a parameter is used or not.  The feature is still experimental.  It's expected to have
