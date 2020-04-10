@@ -55,7 +55,7 @@ TEST(GBTree, WrongUpdater) {
   size_t constexpr kRows = 17;
   size_t constexpr kCols = 15;
 
-  auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
+  auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   p_dmat->Info().labels_.Resize(kRows);
 
@@ -67,10 +67,11 @@ TEST(GBTree, WrongUpdater) {
 
 #ifdef XGBOOST_USE_CUDA
 TEST(GBTree, ChoosePredictor) {
+  // The test ensures data don't get pulled into device.
   size_t constexpr kRows = 17;
   size_t constexpr kCols = 15;
 
-  auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
+  auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   auto& data = (*(p_dmat->GetBatches<SparsePage>().begin())).data;
   p_dmat->Info().labels_.Resize(kRows);
@@ -195,7 +196,7 @@ TEST(Dart, JsonIO) {
 TEST(Dart, Prediction) {
   size_t constexpr kRows = 16, kCols = 10;
 
-  auto p_mat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
+  auto p_mat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   std::vector<bst_float> labels (kRows);
   for (size_t i = 0; i < kRows; ++i) {

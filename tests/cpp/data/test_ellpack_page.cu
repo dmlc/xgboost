@@ -17,7 +17,7 @@ namespace xgboost {
 TEST(EllpackPage, EmptyDMatrix) {
   constexpr int kNRows = 0, kNCols = 0, kMaxBin = 256;
   constexpr float kSparsity = 0;
-  auto dmat = RandomDataGenerator(kNRows, kNCols, kSparsity).GenerateDMatix();
+  auto dmat = RandomDataGenerator(kNRows, kNCols, kSparsity).GenerateDMatrix();
   auto& page = *dmat->GetBatches<EllpackPage>({0, kMaxBin}).begin();
   auto impl = page.Impl();
   ASSERT_EQ(impl->row_stride, 0);

@@ -178,13 +178,15 @@ class RandomDataGenerator {
   int32_t device_;
   int32_t seed_;
 
+  size_t bins_;
+
   Json ArrayInterfaceImpl(HostDeviceVector<float> *storage, size_t rows,
                           size_t cols) const;
 
  public:
   RandomDataGenerator(bst_row_t rows, size_t cols, float sparsity)
       : rows_{rows}, cols_{cols}, sparsity_{sparsity}, lower_{0.0f}, upper_{1.0f},
-        device_{-1}, seed_{0} {}
+        device_{-1}, seed_{0}, bins_{0} {}
 
   RandomDataGenerator &Lower(float v) {
     lower_ = v;
@@ -202,6 +204,10 @@ class RandomDataGenerator {
     seed_ = s;
     return *this;
   }
+  RandomDataGenerator& Bins(size_t b) {
+    bins_ = b;
+    return *this;
+  }
 
   void GenerateDense(HostDeviceVector<float>* out) const;
   std::string GenerateArrayInterface(HostDeviceVector<float>* storage) const;
@@ -210,9 +216,14 @@ class RandomDataGenerator {
   void GenerateCSR(HostDeviceVector<float>* value, HostDeviceVector<bst_row_t>* row_ptr,
                    HostDeviceVector<bst_feature_t>* columns) const;
 
-  std::shared_ptr<DMatrix> GenerateDMatix(bool with_label = false,
-                                          bool float_label = true,
-                                          size_t classes = 1) const;
+  std::shared_ptr<DMatrix> GenerateDMatrix(bool with_label = false,
+                                           bool float_label = true,
+                                           size_t classes = 1) const;
+#if defined(XGBOOST_USE_CUDA)
+  std::shared_ptr<DMatrix> GenerateDeviceDMatrix(bool with_label = false,
+                                                 bool float_label = true,
+                                                 size_t classes = 1);
+#endif
 };
 
 std::unique_ptr<DMatrix> CreateSparsePageDMatrix(

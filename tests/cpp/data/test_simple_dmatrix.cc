@@ -220,7 +220,7 @@ TEST(SimpleDMatrix, FromFile) {
 TEST(SimpleDMatrix, Slice) {
   const int kRows = 6;
   const int kCols = 2;
-  auto p_dmat = RandomDataGenerator(kRows, kCols, 1.0).GenerateDMatix();
+  auto p_dmat = RandomDataGenerator(kRows, kCols, 1.0).GenerateDMatrix();
   auto &labels = p_dmat->Info().labels_.HostVector();
   auto &weights = p_dmat->Info().weights_.HostVector();
   auto &base_margin = p_dmat->Info().base_margin_.HostVector();

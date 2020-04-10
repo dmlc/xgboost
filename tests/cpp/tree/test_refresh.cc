@@ -22,7 +22,7 @@ TEST(Updater, Refresh) {
       { {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f},
         {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f} };
   std::shared_ptr<DMatrix> p_dmat{
-    RandomDataGenerator{kRows, kCols, 0.4f}.Seed(3).GenerateDMatix()};
+    RandomDataGenerator{kRows, kCols, 0.4f}.Seed(3).GenerateDMatrix()};
   std::vector<std::pair<std::string, std::string>> cfg{
       {"reg_alpha", "0.0"},
       {"num_feature", std::to_string(kCols)},

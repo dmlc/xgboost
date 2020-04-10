@@ -260,8 +260,8 @@ void RandomDataGenerator::GenerateCSR(
 }
 
 std::shared_ptr<DMatrix>
-RandomDataGenerator::GenerateDMatix(bool with_label, bool float_label,
-                                    size_t classes) const {
+RandomDataGenerator::GenerateDMatrix(bool with_label, bool float_label,
+                                     size_t classes) const {
   HostDeviceVector<float> data;
   HostDeviceVector<bst_row_t> rptrs;
   HostDeviceVector<bst_feature_t> columns;
@@ -399,7 +399,7 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
   std::unique_ptr<GradientBooster> gbm {
     GradientBooster::Create(name, generic_param, learner_model_param)};
   gbm->Configure(kwargs);
-  auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatix();
+  auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   std::vector<float> labels(kRows);
   for (size_t i = 0; i < kRows; ++i) {

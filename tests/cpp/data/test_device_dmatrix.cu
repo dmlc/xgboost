@@ -23,7 +23,7 @@ TEST(DeviceDMatrix, RowMajor) {
   auto adapter = common::AdapterFromData(x_device, num_rows, num_columns);
 
   data::DeviceDMatrix dmat(&adapter,
-                                  std::numeric_limits<float>::quiet_NaN(), 1, 256);
+                           std::numeric_limits<float>::quiet_NaN(), 1, 256);
 
   auto &batch = *dmat.GetBatches<EllpackPage>({0, 256, 0}).begin();
   auto impl = batch.Impl();
@@ -60,7 +60,7 @@ TEST(DeviceDMatrix, RowMajorMissing) {
   EXPECT_EQ(iterator[1], impl->GetDeviceAccessor(0).NullValue());
   EXPECT_EQ(iterator[5], impl->GetDeviceAccessor(0).NullValue());
   // null values get placed after valid values in a row
-  EXPECT_EQ(iterator[7], impl->GetDeviceAccessor(0).NullValue()); 
+  EXPECT_EQ(iterator[7], impl->GetDeviceAccessor(0).NullValue());
   EXPECT_EQ(dmat.Info().num_col_, num_columns);
   EXPECT_EQ(dmat.Info().num_row_, num_rows);
   EXPECT_EQ(dmat.Info().num_nonzero_, num_rows*num_columns-3);

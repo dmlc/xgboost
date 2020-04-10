@@ -68,7 +68,7 @@ TEST(Adapter, CSCAdapterColsMoreThanRows) {
 }
 
 TEST(CAPI, DMatrixSliceAdapterFromSimpleDMatrix) {
-  auto p_dmat = RandomDataGenerator(6, 2, 1.0).GenerateDMatix();
+  auto p_dmat = RandomDataGenerator(6, 2, 1.0).GenerateDMatrix();
 
   std::vector<int> ridx_set = {1, 3, 5};
   data::DMatrixSliceAdapter adapter(p_dmat.get(),

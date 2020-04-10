@@ -16,7 +16,7 @@ namespace xgboost {
 TEST(Learner, Basic) {
   using Arg = std::pair<std::string, std::string>;
   auto args = {Arg("tree_method", "exact")};
-  auto mat_ptr = RandomDataGenerator{10, 10, 0.0f}.GenerateDMatix();
+  auto mat_ptr = RandomDataGenerator{10, 10, 0.0f}.GenerateDMatrix();
   auto learner = std::unique_ptr<Learner>(Learner::Create({mat_ptr}));
   learner->SetParams(args);
 
@@ -34,7 +34,7 @@ TEST(Learner, ParameterValidation) {
   ConsoleLogger::Configure({{"verbosity", "2"}});
   size_t constexpr kRows = 1;
   size_t constexpr kCols = 1;
-  auto p_mat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatix();
+  auto p_mat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
   learner->SetParam("validate_parameters", "1");
@@ -56,7 +56,7 @@ TEST(Learner, CheckGroup) {
   bst_feature_t constexpr kNumCols = 15;
 
   std::shared_ptr<DMatrix> p_mat{
-      RandomDataGenerator{kNumRows, kNumCols, 0.0f}.GenerateDMatix()};
+      RandomDataGenerator{kNumRows, kNumCols, 0.0f}.GenerateDMatrix()};
   std::vector<bst_float> weight(kNumGroups);
   std::vector<bst_int> group(kNumGroups);
   group[0] = 2;
@@ -137,7 +137,7 @@ TEST(Learner, JsonModelIO) {
   int32_t constexpr kIters = 4;
 
   std::shared_ptr<DMatrix> p_dmat{
-    RandomDataGenerator{kRows, 10, 0}.GenerateDMatix()};
+    RandomDataGenerator{kRows, 10, 0}.GenerateDMatrix()};
   p_dmat->Info().labels_.Resize(kRows);
   CHECK_NE(p_dmat->Info().num_col_, 0);
 
@@ -179,7 +179,7 @@ TEST(Learner, JsonModelIO) {
 TEST(Learner, BinaryModelIO) {
   size_t constexpr kRows = 8;
   int32_t constexpr kIters = 4;
-  auto p_dmat = RandomDataGenerator{kRows, 10, 0}.GenerateDMatix();
+  auto p_dmat = RandomDataGenerator{kRows, 10, 0}.GenerateDMatrix();
   p_dmat->Info().labels_.Resize(kRows);
 
   std::unique_ptr<Learner> learner{Learner::Create({p_dmat})};
@@ -213,7 +213,7 @@ TEST(Learner, BinaryModelIO) {
 TEST(Learner, GPUConfiguration) {
   using Arg = std::pair<std::string, std::string>;
   size_t constexpr kRows = 10;
-  auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatix();
+  auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatrix();
   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
   std::vector<bst_float> labels(kRows);
   for (size_t i = 0; i < labels.size(); ++i) {

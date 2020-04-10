@@ -348,20 +348,20 @@ class GPUPredictor : public xgboost::Predictor {
     model_.Init(model, tree_begin, tree_end, generic_param_->gpu_id);
     out_preds->SetDevice(generic_param_->gpu_id);
 
-    if (dmat->PageExists<EllpackPage>()) {
+    if (dmat->PageExists<SparsePage>()) {
+      size_t batch_offset = 0;
+      for (auto &batch : dmat->GetBatches<SparsePage>()) {
+        this->PredictInternal(batch, model.learner_model_param->num_feature,
+                              out_preds, batch_offset);
+        batch_offset += batch.Size() * model.learner_model_param->num_output_group;
+      }
+    } else {
       size_t batch_offset = 0;
       for (auto const& page : dmat->GetBatches<EllpackPage>()) {
         this->PredictInternal(
             page.Impl()->GetDeviceAccessor(generic_param_->gpu_id), out_preds,
             batch_offset);
         batch_offset += page.Impl()->n_rows;
-      }
-    } else {
-      size_t batch_offset = 0;
-      for (auto &batch : dmat->GetBatches<SparsePage>()) {
-        this->PredictInternal(batch, model.learner_model_param->num_feature,
-                              out_preds, batch_offset);
-        batch_offset += batch.Size() * model.learner_model_param->num_output_group;
       }
     }
   }

@@ -29,7 +29,7 @@ TEST(Updater, Prune) {
       { {0.50f, 0.25f}, {0.50f, 0.25f}, {0.50f, 0.25f}, {0.50f, 0.25f},
         {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f}, {0.25f, 0.24f} };
   std::shared_ptr<DMatrix> p_dmat {
-    RandomDataGenerator{32, 10, 0}.GenerateDMatix() };
+    RandomDataGenerator{32, 10, 0}.GenerateDMatrix() };
 
   auto lparam = CreateEmptyGenericParam(GPUIDX);
 

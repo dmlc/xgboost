@@ -85,7 +85,7 @@ XGB_DLL int XGDMatrixCreateFromArrayInterfaceColumns(char const* c_json_strs,
                                                      int nthread,
                                                      DMatrixHandle* out) {
   API_BEGIN();
-  LOG(FATAL) << "XGBoost not compiled with CUDA";
+  common::AssertGPUSupport();
   API_END();
 }
 
@@ -94,7 +94,7 @@ XGB_DLL int XGDMatrixCreateFromArrayInterface(char const* c_json_strs,
                                               int nthread,
                                               DMatrixHandle* out) {
   API_BEGIN();
-  LOG(FATAL) << "XGBoost not compiled with CUDA";
+  common::AssertGPUSupport();
   API_END();
 }
 
@@ -521,7 +521,7 @@ XGB_DLL int XGBoosterPredictFromArrayInterfaceColumns(BoosterHandle handle,
                                                       float const** out_result) {
   API_BEGIN();
   CHECK_HANDLE();
-  LOG(FATAL) << "XGBoost not compiled with CUDA.";
+  common::AssertGPUSupport();
   API_END();
 }
 XGB_DLL int XGBoosterPredictFromArrayInterface(BoosterHandle handle,
@@ -535,7 +535,7 @@ XGB_DLL int XGBoosterPredictFromArrayInterface(BoosterHandle handle,
                                                const float **out_result) {
   API_BEGIN();
   CHECK_HANDLE();
-  LOG(FATAL) << "XGBoost not compiled with CUDA.";
+  common::AssertGPUSupport();
   API_END();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)

@@ -259,7 +259,7 @@ TEST(Objective, CPU_vs_CUDA) {
 
   constexpr size_t kRows = 400;
   constexpr size_t kCols = 100;
-  auto pdmat = RandomDataGenerator(kRows, kCols, 0).Seed(0).GenerateDMatix();
+  auto pdmat = RandomDataGenerator(kRows, kCols, 0).Seed(0).GenerateDMatrix();
   HostDeviceVector<float> preds;
   preds.Resize(kRows);
   auto& h_preds = preds.HostVector();

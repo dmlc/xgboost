@@ -147,6 +147,13 @@ class Range {
 };
 
 int AllVisibleGPUs();
+
+inline void AssertGPUSupport() {
+#ifndef XGBOOST_USE_CUDA
+    LOG(FATAL) << "XGBoost version not compiled with GPU support.";
+#endif  // XGBOOST_USE_CUDA
+}
+
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_COMMON_H_
