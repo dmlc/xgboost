@@ -126,7 +126,7 @@ class GBLinear : public GradientBooster {
     if (!this->CheckConvergence()) {
       updater_->Update(in_gpair, p_fmat, &model_, sum_instance_weight_);
     }
-    model_.num_boosted_rounds ++;
+    model_.num_boosted_rounds++;
     monitor_.Stop("DoBoost");
   }
 
