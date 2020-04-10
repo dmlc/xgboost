@@ -193,6 +193,19 @@ def test_feature_importances_gain():
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
+def test_select_feature():
+    from sklearn.datasets import load_digits
+    from sklearn.feature_selection import SelectFromModel
+    digits = load_digits(2)
+    y = digits['target']
+    X = digits['data']
+    cls = xgb.XGBClassifier()
+    cls.fit(X, y)
+    selector = SelectFromModel(cls, prefit=True, max_features=1)
+    X_selected = selector.transform(X)
+    assert X_selected.shape[1] == 1
+
+
 def test_num_parallel_tree():
     from sklearn.datasets import load_boston
     reg = xgb.XGBRegressor(n_estimators=4, num_parallel_tree=4,
