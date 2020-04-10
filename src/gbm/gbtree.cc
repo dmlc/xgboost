@@ -267,6 +267,11 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
   // create the trees
   for (int i = 0; i < tparam_.num_parallel_tree; ++i) {
     if (tparam_.process_type == TreeProcessType::kDefault) {
+      CHECK(!updaters_.front()->CanModifyTree())
+          << "Updater: `" << updaters_.front()->Name() << "` "
+          << "can not be used to create new trees. "
+          << "Set `process_type` to `update` if you want to update existing "
+             "trees.";
       // create new tree
       std::unique_ptr<RegTree> ptr(new RegTree());
       ptr->param.UpdateAllowUnknown(this->cfg_);

@@ -63,6 +63,10 @@ TEST(GBTree, WrongUpdater) {
   // Hist can not be used for updating tree.
   learner->SetParams(Args{{"tree_method", "hist"}, {"process_type", "update"}});
   ASSERT_THROW(learner->UpdateOneIter(0, p_dmat), dmlc::Error);
+  // Prune can not be used for learning new tree.
+  learner->SetParams(
+      Args{{"tree_method", "prune"}, {"process_type", "default"}});
+  ASSERT_THROW(learner->UpdateOneIter(0, p_dmat), dmlc::Error);
 }
 
 #ifdef XGBOOST_USE_CUDA
