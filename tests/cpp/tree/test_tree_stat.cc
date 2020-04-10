@@ -14,7 +14,7 @@ class UpdaterTreeStatTest : public ::testing::Test {
 
  protected:
   void SetUp() override {
-    p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatix(true);
+    p_dmat_ = RandomDataGenerator(kRows, kCols, .5f).GenerateDMatrix(true);
     auto g = GenerateRandomGradients(kRows);
     gpairs_.Resize(kRows);
     gpairs_.Copy(g);
