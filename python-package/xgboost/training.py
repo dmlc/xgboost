@@ -2,6 +2,7 @@
 # pylint: disable=too-many-locals, too-many-arguments, invalid-name
 # pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
+import json
 import numpy as np
 from .core import Booster, STRING_TYPES, XGBoostError, CallbackEnv
 from .core import EarlyStopException
@@ -28,7 +29,6 @@ def _train_internal(params, dtrain,
             params += [('eval_metric', eval_metric)]
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
-    num_parallel_tree = 1
 
     if xgb_model is not None:
         bst = Booster(params, [dtrain] + [d[0] for d in evals],
@@ -96,6 +96,8 @@ def _train_internal(params, dtrain,
         bst.best_iteration = int(bst.attr('best_iteration'))
     else:
         bst.best_iteration = bst.num_boosted_rounds()
+    num_parallel_tree = int(json.loads(bst.save_config())['learner'][
+        'gradient_booster']['gbtree_train_param']['num_parallel_tree'])
     bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
     return bst
 
