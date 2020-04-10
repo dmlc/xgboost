@@ -195,8 +195,7 @@ class GBTree : public GradientBooster {
   void LoadModel(Json const& in) override;
 
   bool AllowLazyCheckPoint() const override {
-    return model_.learner_model_param->num_output_group == 1 ||
-        tparam_.updater_seq.find("distcol") != std::string::npos;
+    return model_.learner_model_param->num_output_group == 1;
   }
 
   void PredictBatch(DMatrix* p_fmat,
