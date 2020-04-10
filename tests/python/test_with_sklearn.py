@@ -64,6 +64,8 @@ def test_multiclass_classification():
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
+        assert (xgb_model.get_booster().num_boosted_rounds() ==
+                xgb_model.n_estimators)
         preds = xgb_model.predict(X[test_index])
         # test other params in XGBClassifier().fit
         preds2 = xgb_model.predict(X[test_index], output_margin=True,
