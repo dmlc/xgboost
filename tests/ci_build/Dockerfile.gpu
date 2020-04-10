@@ -18,7 +18,7 @@ ENV PATH=/opt/python/bin:$PATH
 RUN \
     pip install numpy pytest scipy scikit-learn pandas matplotlib wheel kubernetes urllib3 graphviz && \
     pip install "dask[complete]" && \
-    conda install -c rapidsai -c nvidia -c numba -c conda-forge -c anaconda dask-cuda
+    conda install -c rapidsai -c nvidia -c numba -c conda-forge -c anaconda dask-cuda cudf dask-cudf
 
 ENV GOSU_VERSION 1.10
 
