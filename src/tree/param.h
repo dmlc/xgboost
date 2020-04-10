@@ -230,6 +230,20 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
     CHECK_GT(ret, 0U);
     return ret;
   }
+
+  bst_node_t MaxNodes() const {
+    if (this->max_depth == 0 && this->max_leaves == 0) {
+      LOG(FATAL) << "Max leaves and max depth cannot both be unconstrained.";
+    }
+    bst_node_t n_nodes{0};
+    if (this->max_leaves > 0) {
+      n_nodes = this->max_leaves * 2 - 1;
+    } else {
+      n_nodes = (1 << (this->max_depth + 1)) - 1;
+    }
+    CHECK_NE(n_nodes, 0);
+    return n_nodes;
+  }
 };
 
 /*! \brief Loss functions */

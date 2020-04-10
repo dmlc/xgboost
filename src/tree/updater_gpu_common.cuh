@@ -178,10 +178,5 @@ struct SumCallbackOp {
     return old_prefix;
   }
 };
-
-// Total number of nodes in tree, given depth
-XGBOOST_DEVICE inline int MaxNodesDepth(int depth) {
-  return (1 << (depth + 1)) - 1;
-}
 }  // namespace tree
 }  // namespace xgboost

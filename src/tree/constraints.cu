@@ -53,16 +53,7 @@ void FeatureInteractionConstraint::Configure(
   }
 
   // --- Initialize allowed features attached to nodes.
-  if (param.max_depth == 0 && param.max_leaves == 0) {
-    LOG(FATAL) << "Max leaves and max depth cannot both be unconstrained for gpu_hist.";
-  }
-  int32_t n_nodes {0};
-  if (param.max_depth != 0) {
-    n_nodes = std::pow(2, param.max_depth + 1);
-  } else {
-    n_nodes = param.max_leaves * 2 - 1;
-  }
-  CHECK_NE(n_nodes, 0);
+  int32_t n_nodes { param.MaxNodes() };
   node_constraints_.resize(n_nodes);
   node_constraints_storage_.resize(n_nodes);
   for (auto& n : node_constraints_storage_) {
