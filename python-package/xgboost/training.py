@@ -96,8 +96,11 @@ def _train_internal(params, dtrain,
         bst.best_iteration = int(bst.attr('best_iteration'))
     else:
         bst.best_iteration = bst.num_boosted_rounds()
-    num_parallel_tree = int(json.loads(bst.save_config())['learner'][
-        'gradient_booster']['gbtree_train_param']['num_parallel_tree'])
+    try:
+        num_parallel_tree = int(json.loads(bst.save_config())['learner'][
+            'gradient_booster']['gbtree_train_param']['num_parallel_tree'])
+    except KeyError:            # gblinear
+        num_parallel_tree = 1
     bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
     return bst
 
