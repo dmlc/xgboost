@@ -157,7 +157,6 @@ Parameters for Tree Booster
   - A comma separated string defining the sequence of tree updaters to run, providing a modular way to construct and to modify the trees. This is an advanced parameter that is usually set automatically, depending on some other parameters. However, it could be also set explicitly by a user. The following updaters exist:
 
     - ``grow_colmaker``: non-distributed column-based construction of trees.
-    - ``distcol``: distributed tree construction with column-based data splitting mode.
     - ``grow_histmaker``: distributed tree construction with row-based data splitting based on global proposal of histogram counting.
     - ``grow_local_histmaker``: based on local histogram counting.
     - ``grow_skmaker``: uses the approximate sketching algorithm.

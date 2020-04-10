@@ -888,8 +888,6 @@ class LearnerImpl : public LearnerIO {
       CHECK(tparam_.dsplit != DataSplitMode::kAuto)
         << "Precondition violated; dsplit cannot be 'auto' in distributed mode";
       if (tparam_.dsplit == DataSplitMode::kCol) {
-        // 'distcol' updater hidden until it becomes functional again
-        // See discussion at https://github.com/dmlc/xgboost/issues/1832
         LOG(FATAL) << "Column-wise data split is currently not supported.";
       }
     }
