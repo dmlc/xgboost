@@ -127,7 +127,9 @@ endif(RABIT_MOCK)
 foreach(lib rabit rabit_base rabit_empty rabit_mock rabit_mock_static)
   # Explicitly link dmlc to rabit, so that configured header (build_config.h)
   # from dmlc is correctly applied to rabit.
-  target_link_libraries(${lib} dmlc)
+  if (TARGET ${lib})
+    target_link_libraries(${lib} dmlc)
+  endif (TARGET ${lib})
 endforeach()
 
 # Exports some R specific definitions and objects
