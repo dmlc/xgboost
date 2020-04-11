@@ -22,15 +22,6 @@ ifndef MAKE_OK
 endif
 $(warning MAKE [$(MAKE)] - $(if $(MAKE_OK),checked OK,PROBLEM))
 
-ifeq ($(OS), Windows_NT)
-	UNAME="Windows"
-else
-	UNAME=$(shell uname)
-endif
-
-ifeq ($(USE_OPENMP), 0)
-	export NO_OPENMP = 1
-endif
 include $(DMLC_CORE)/make/dmlc.mk
 
 # set compiler defaults for OSX versus *nix
