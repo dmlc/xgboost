@@ -116,6 +116,10 @@ clean_all: clean
 	cd $(DMLC_CORE); "$(MAKE)" clean; cd $(ROOTDIR)
 	cd $(RABIT); "$(MAKE)" clean; cd $(ROOTDIR)
 
+# create pip source dist (sdist) pack for PyPI
+pippack: clean_all
+	cd python-package; python setup.py sdist; mv dist/*.tar.gz ..; cd ..
+
 # Script to make a clean installable R package.
 Rpack: clean_all
 	rm -rf xgboost xgboost*.tar.gz

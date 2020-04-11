@@ -173,27 +173,6 @@ This specifies an out of source build using the Visual Studio 64 bit generator. 
 
 After the build process successfully ends, you will find a ``xgboost.dll`` library file inside ``./lib/`` folder.
 
-Compile XGBoost using MinGW
----------------------------
-After installing `Git for Windows <https://git-for-windows.github.io/>`_, you should have a shortcut named ``Git Bash``. You should run all subsequent steps in ``Git Bash``.
-
-In MinGW, ``make`` command comes with the name ``mingw32-make``. You can add the following line into the ``.bashrc`` file:
-
-.. code-block:: bash
-
-  alias make='mingw32-make'
-
-(On 64-bit Windows, you should get `MinGW64 <https://sourceforge.net/projects/mingw-w64/>`_ instead.) Make sure
-that the path to MinGW is in the system PATH.
-
-To build with MinGW, type:
-
-.. code-block:: bash
-
-  cp make/mingw64.mk config.mk; make -j4
-
-See :ref:`mingw_python` for buildilng XGBoost for Python.
-
 .. _build_gpu_support:
 
 Building with GPU support
@@ -252,8 +231,8 @@ To speed up compilation, run multiple jobs in parallel by appending option ``-- 
 Makefiles
 =========
 
-It's only used for submitting R CRAN package and creating shorthands for running linters,
-performing packaging tasks etc.  So the remaining makefiles are legacy.
+It's only used for creating shorthands for running linters, performing packaging tasks
+etc.  So the remaining makefiles are legacy.
 
 Python Package Installation
 ===========================
