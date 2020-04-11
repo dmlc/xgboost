@@ -5,20 +5,34 @@ xgb.Booster.handle <- function(params = list(), cachelist = list(), modelfile = 
       !all(vapply(cachelist, inherits, logical(1), what = 'xgb.DMatrix'))) {
     stop("cachelist must be a list of xgb.DMatrix objects")
   }
-
-  handle <- .Call(XGBoosterCreate_R, cachelist)
+  ## Load existing model, dispatch for on disk model file and in memory buffer
   if (!is.null(modelfile)) {
     if (typeof(modelfile) == "character") {
+      ## A filename
+      handle <- .Call(XGBoosterCreate_R, cachelist)
       .Call(XGBoosterLoadModel_R, handle, modelfile[1])
+      class(handle) <- "xgb.Booster.handle"
+      if (length(params) > 0) {
+        xgb.parameters(handle) <- params
+      }
+      return(handle)
     } else if (typeof(modelfile) == "raw") {
-      .Call(XGBoosterLoadModelFromRaw_R, handle, modelfile)
+      ## A memory buffer
+      bst <- xgb.unserialize(modelfile)
+      xgb.parameters(bst) <- params
+      return (bst)
     } else if (inherits(modelfile, "xgb.Booster")) {
+      ## A booster object
       bst <- xgb.Booster.complete(modelfile, saveraw = TRUE)
-      .Call(XGBoosterLoadModelFromRaw_R, handle, bst$raw)
+      bst <- xgb.unserialize(bst$raw)
+      xgb.parameters(bst) <- params
+      return (bst)
     } else {
       stop("modelfile must be either character filename, or raw booster dump, or xgb.Booster object")
     }
   }
+  ## Create new model
+  handle <- .Call(XGBoosterCreate_R, cachelist)
   class(handle) <- "xgb.Booster.handle"
   if (length(params) > 0) {
     xgb.parameters(handle) <- params
@@ -113,8 +127,9 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
   if (is.null.handle(object$handle)) {
     object$handle <- xgb.Booster.handle(modelfile = object$raw)
   } else {
-    if (is.null(object$raw) && saveraw)
-      object$raw <- xgb.save.raw(object$handle)
+    if (is.null(object$raw) && saveraw) {
+      object$raw <- xgb.serialize(object$handle)
+    }
   }
   return(object)
 }
@@ -399,7 +414,7 @@ predict.xgb.Booster.handle <- function(object, ...) {
 #' That would only matter if attributes need to be set many times.
 #' Note, however, that when feeding a handle of an \code{xgb.Booster} object to the attribute setters,
 #' the raw model cache of an \code{xgb.Booster} object would not be automatically updated,
-#' and it would be user's responsibility to call \code{xgb.save.raw} to update it.
+#' and it would be user's responsibility to call \code{xgb.serialize} to update it.
 #'
 #' The \code{xgb.attributes<-} setter either updates the existing or adds one or several attributes,
 #' but it doesn't delete the other existing attributes.
@@ -458,7 +473,7 @@ xgb.attr <- function(object, name) {
   }
   .Call(XGBoosterSetAttr_R, handle, as.character(name[1]), value)
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
-    object$raw <- xgb.save.raw(object$handle)
+    object$raw <- xgb.serialize(object$handle)
   }
   object
 }
@@ -498,7 +513,7 @@ xgb.attributes <- function(object) {
     .Call(XGBoosterSetAttr_R, handle, names(a[i]), a[[i]])
   }
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
-    object$raw <- xgb.save.raw(object$handle)
+    object$raw <- xgb.serialize(object$handle)
   }
   object
 }
@@ -528,7 +543,8 @@ xgb.config <- function(object) {
 `xgb.config<-` <- function(object, value) {
   handle <- xgb.get.handle(object)
   .Call(XGBoosterLoadJsonConfig_R, handle, value)
-  object$raw <- xgb.Booster.complete(object)
+  object$raw <- NULL  # force renew the raw buffer
+  object <- xgb.Booster.complete(object)
   object
 }
 
@@ -568,7 +584,7 @@ xgb.config <- function(object) {
     .Call(XGBoosterSetParam_R, handle, names(p[i]), p[[i]])
   }
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
-    object$raw <- xgb.save.raw(object$handle)
+    object$raw <- xgb.serialize(object$handle)
   }
   object
 }
