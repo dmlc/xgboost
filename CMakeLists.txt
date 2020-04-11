@@ -1,8 +1,9 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.13)
 project(xgboost LANGUAGES CXX C VERSION 1.1.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
+cmake_policy(SET CMP0079 NEW)
 
 if ((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUAL 3.13))
   cmake_policy(SET CMP0077 NEW)
@@ -123,6 +124,11 @@ if (RABIT_MOCK)
 else()
   list(APPEND LINKED_LIBRARIES_PRIVATE rabit)
 endif(RABIT_MOCK)
+foreach(lib rabit rabit_base rabit_empty rabit_mock rabit_mock_static)
+  # Explicitly link dmlc to rabit, so that configured header (build_config.h)
+  # from dmlc is correctly applied to rabit.
+  target_link_libraries(${lib} dmlc)
+endforeach()
 
 # Exports some R specific definitions and objects
 if (R_LIB)
@@ -132,6 +138,7 @@ endif (R_LIB)
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
+target_link_libraries(objxgboost PUBLIC dmlc)
 set(XGBOOST_OBJ_SOURCES "${XGBOOST_OBJ_SOURCES};$<TARGET_OBJECTS:objxgboost>")
 
 #-- library
