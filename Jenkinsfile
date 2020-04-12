@@ -88,7 +88,6 @@ pipeline {
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '2.4.3') },
             'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
             'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') },
-            'test-r-3.4.4': { TestR(use_r35: false) },
             'test-r-3.5.3': { TestR(use_r35: true) }
           ])
         }
@@ -176,17 +175,21 @@ def BuildCPU() {
     def container_type = "cpu"
     def docker_binary = "docker"
     sh """
+    ${dockerRun} ${container_type} ${docker_binary} rm -fv dmlc-core/include/dmlc/build_config_default.h
+      # This step is not necessary, but here we include it, to ensure that DMLC_CORE_USE_CMAKE flag is correctly propagated
+      # We want to make sure that we use the configured header build/dmlc/build_config.h instead of include/dmlc/build_config_default.h.
+      # See discussion at https://github.com/dmlc/xgboost/issues/5510
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh
     ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
     """
     // Sanitizer test
     def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer -e ASAN_OPTIONS=symbolize=1 -e UBSAN_OPTIONS=print_stacktrace=1:log_path=ubsan_error.log --cap-add SYS_PTRACE'"
-    def docker_args = "--build-arg CMAKE_VERSION=3.12"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address;leak;undefined" \
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address;leak;undefined" \
       -DCMAKE_BUILD_TYPE=Debug -DSANITIZER_PATH=/usr/lib/x86_64-linux-gnu/
     ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
     """
+
     deleteDir()
   }
 }

@@ -20,8 +20,8 @@ RUN \
     wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
     bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python && \
     # CMake
-    wget -nv -nc https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.12.0-Linux-x86_64.sh --skip-license --prefix=/usr
+    wget -nv -nc https://cmake.org/files/v3.13/cmake-3.13.0-Linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.13.0-Linux-x86_64.sh --skip-license --prefix=/usr
 
 # NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
 RUN \
