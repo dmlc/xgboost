@@ -135,7 +135,7 @@ An object of class \code{xgb.cv.synchronous} with the following elements:
         (only available with early stopping).
   \item \code{pred} CV prediction values available when \code{prediction} is set.
         It is either vector or matrix (see \code{\link{cb.cv.predict}}).
-  \item \code{models} a liost of the CV folds' models. It is only available with the explicit
+  \item \code{models} a list of the CV folds' models. It is only available with the explicit
         setting of the \code{cb.cv.predict(save_models = TRUE)} callback.
 }
 }
