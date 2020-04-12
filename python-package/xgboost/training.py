@@ -101,7 +101,7 @@ def _train_internal(params, dtrain,
             num_boost_round, feval, evals_result, callbacks,
             show_stdv=False, cvfolds=None)
 
-    callbacks.before_training(bst)
+    bst = callbacks.before_training(bst)
     for i in range(start_iteration, num_boost_round):
         if callbacks.before_iteration(bst, i, dtrain, evals):
             break
@@ -123,7 +123,7 @@ def _train_internal(params, dtrain,
         bst.save_rabit_checkpoint()
         version += 1
 
-    callbacks.after_training(bst)
+    bst = callbacks.after_training(bst)
 
     if evals_result is not None and is_new_callback:
         evals_result.update(callbacks.history)

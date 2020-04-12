@@ -118,7 +118,7 @@ TEST(Learner, Configuration) {
 
     // eval_metric is not part of configuration
     auto attr_names = learner->GetConfigurationArguments();
-    ASSERT_EQ(attr_names.size(), 1);
+    ASSERT_EQ(attr_names.size(), 1ul);
     ASSERT_EQ(attr_names.find(emetric), attr_names.cend());
     ASSERT_EQ(attr_names.at("foo"), "bar");
   }
@@ -127,7 +127,7 @@ TEST(Learner, Configuration) {
     std::unique_ptr<Learner> learner { Learner::Create({nullptr}) };
     learner->SetParams({{"foo", "bar"}, {emetric, "auc"}, {emetric, "entropy"}, {emetric, "KL"}});
     auto attr_names = learner->GetConfigurationArguments();
-    ASSERT_EQ(attr_names.size(), 1);
+    ASSERT_EQ(attr_names.size(), 1ul);
     ASSERT_EQ(attr_names.at("foo"), "bar");
   }
 }
@@ -181,7 +181,7 @@ TEST(Learner, JsonModelIO) {
     learner->SaveModel(&new_in);
 
     ASSERT_TRUE(IsA<Object>(out["learner"]["attributes"]));
-    ASSERT_EQ(get<Object>(out["learner"]["attributes"]).size(), 1);
+    ASSERT_EQ(get<Object>(out["learner"]["attributes"]).size(), 1ul);
     ASSERT_EQ(out, new_in);
   }
 }
@@ -333,5 +333,4 @@ TEST(Learner, Seed) {
   ASSERT_EQ(std::to_string(seed),
             get<String>(config["learner"]["generic_param"]["seed"]));
 }
-
 }  // namespace xgboost
