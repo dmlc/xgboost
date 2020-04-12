@@ -582,6 +582,8 @@ def inplace_predict(client, model, data,
                     missing=numpy.nan):
     '''Inplace prediction.
 
+    .. versionadded:: 1.1.0
+
     Parameters
     ----------
     client: dask.distributed.Client
