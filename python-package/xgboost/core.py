@@ -1048,6 +1048,9 @@ class DeviceQuantileDMatrix(DMatrix):
     quantisation.
 
     You can construct DeviceQuantileDMatrix from cupy/cudf/dlpack.
+
+    .. versionadded:: 1.1.0
+
     """
 
     def __init__(self, data, label=None, weight=None, base_margin=None,
