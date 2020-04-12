@@ -1218,11 +1218,7 @@ class Booster(object):
         return self.__deepcopy__(None)
 
     def __deepcopy__(self, _):
-        '''Return a copy of booster.  Caches for DMatrix are not copied so continue
-        training on copied booster will result in lower performance and
-        slightly different result.
-
-        '''
+        '''Return a copy of booster.'''
         return Booster(model_file=self)
 
     def copy(self):
