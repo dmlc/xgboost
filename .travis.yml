@@ -42,6 +42,13 @@ addons:
       - wget
       - r
     update: true
+  apt:
+    sources:
+      - sourceline: 'deb https://apt.kitware.com/ubuntu/ bionic main'
+        key_url: 'https://apt.kitware.com/keys/kitware-archive-latest.asc'
+    packages:
+      - cmake
+    update: true
 
 before_install:
   - source tests/travis/travis_setup_env.sh
