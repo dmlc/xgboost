@@ -730,6 +730,17 @@ XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle) {
   API_END();
 }
 
+XGB_DLL int XGBoosterSlice(BoosterHandle handle, unsigned begin_layer,
+                           unsigned end_layer, BoosterHandle *out) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  std::shared_ptr<Learner> p_out;
+  auto* learner = static_cast<Learner*>(handle);
+  learner->Slice(begin_layer, end_layer, &p_out);
+  CHECK(p_out);
+  API_END();
+}
+
 inline void XGBoostDumpModelImpl(BoosterHandle handle, const FeatureMap &fmap,
                                  int with_stats, const char *format,
                                  xgboost::bst_ulong *len,

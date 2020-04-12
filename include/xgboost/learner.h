@@ -195,6 +195,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \return whether the model allow lazy checkpoint in rabit.
    */
   bool AllowLazyCheckPoint() const;
+  virtual void Slice(size_t begin_layer, size_t end_layer, std::shared_ptr<Learner>* out) = 0;
   /*!
    * \brief dump the model in the requested format
    * \param fmap feature map that may help give interpretations of feature
