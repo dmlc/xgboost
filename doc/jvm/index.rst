@@ -8,7 +8,7 @@ XGBoost JVM Package
   <img alt="Build Status" src="https://travis-ci.org/dmlc/xgboost.svg?branch=master">
   </a>
   <a href="https://github.com/dmlc/xgboost/blob/master/LICENSE">
-  <img alt="GitHub license" src="http://dmlc.github.io/img/apache2.svg">
+  <img alt="GitHub license" src="https://dmlc.github.io/img/apache2.svg">
   </a>
 
 You have found the XGBoost JVM Package!
@@ -67,7 +67,7 @@ For the latest release version number, please check `here <https://github.com/dm
 
 .. note:: Using Maven repository hosted by the XGBoost project
 
-  There may be some delay until a new release becomes available to Maven Central. If you would like to access the latest release immediately, add the Maven repositoryhosted by the XGBoost project:
+  There may be some delay until a new release becomes available to Maven Central. If you would like to access the latest release immediately, add the Maven repository hosted by the XGBoost project:
 
   .. code-block:: xml
     :caption: Maven
@@ -138,6 +138,8 @@ Then add XGBoost4J as a dependency:
 Look up the ``version`` field in `pom.xml <https://github.com/dmlc/xgboost/blob/master/jvm-packages/pom.xml>`_ to get the correct version number.
 
 The SNAPSHOT JARs are hosted by the XGBoost project. Every commit in the ``master`` branch will automatically trigger generation of a new SNAPSHOT JAR. You can control how often Maven should upgrade your SNAPSHOT installation by specifying ``updatePolicy``. See `here <http://maven.apache.org/pom.html#Repositories>`_ for details.
+
+You can browse the file listing of the Maven repository at https://s3-us-west-2.amazonaws.com/xgboost-maven-repo/list.html.
 
 .. note:: Windows not supported by published JARs
 
