@@ -541,44 +541,26 @@ struct GPUHistMakerDevice {
     // Work out cub temporary memory requirement
     GPUTrainingParam gpu_param(param);
     DeviceSplitCandidateReduceOp op(gpu_param);
-    size_t temp_storage_bytes = 0;
-    DeviceSplitCandidate*dummy = nullptr;
-    cub::DeviceReduce::Reduce(
-        nullptr, temp_storage_bytes, dummy,
-        dummy, num_columns, op,
-        DeviceSplitCandidate());
-    // size in terms of DeviceSplitCandidate
-    size_t cub_memory_size =
-      std::ceil(static_cast<double>(temp_storage_bytes) /
-        sizeof(DeviceSplitCandidate));
 
-    // Allocate enough temporary memory
-    // Result for each nidx
-    // + intermediate result for each column
-    // + cub reduce memory
-    auto temp_span = temp_memory.GetSpan<DeviceSplitCandidate>(
-        nidxs.size() + nidxs.size() * num_columns +cub_memory_size*nidxs.size());
-    auto d_result_all = temp_span.subspan(0, nidxs.size());
-    auto d_split_candidates_all =
-        temp_span.subspan(d_result_all.size(), nidxs.size() * num_columns);
-    auto d_cub_memory_all =
-        temp_span.subspan(d_result_all.size() + d_split_candidates_all.size(),
-                          cub_memory_size * nidxs.size());
+    dh::caching_device_vector<DeviceSplitCandidate> d_result_all(nidxs.size());
+    dh::caching_device_vector<DeviceSplitCandidate> split_candidates_all(nidxs.size()*num_columns);
 
     auto& streams = this->GetStreams(nidxs.size());
     for (auto i = 0ull; i < nidxs.size(); i++) {
       auto nidx = nidxs[i];
       auto p_feature_set = column_sampler.GetFeatureSet(tree.GetDepth(nidx));
       p_feature_set->SetDevice(device_id);
-      common::Span<bst_feature_t> d_sampled_features = p_feature_set->DeviceSpan();
+      common::Span<bst_feature_t> d_sampled_features =
+          p_feature_set->DeviceSpan();
       common::Span<bst_feature_t> d_feature_set =
           interaction_constraints.Query(d_sampled_features, nidx);
-      auto d_split_candidates =
-          d_split_candidates_all.subspan(i * num_columns, d_feature_set.size());
+      common::Span<DeviceSplitCandidate> d_split_candidates(
+          split_candidates_all.data().get() + i * num_columns,
+          d_feature_set.size());
 
       DeviceNodeStats node(node_sum_gradients[nidx], nidx, param);
 
-      auto d_result = d_result_all.subspan(i, 1);
+      common::Span<DeviceSplitCandidate> d_result(d_result_all.data().get() + i, 1);
       if (d_feature_set.empty()) {
         // Acting as a device side constructor for DeviceSplitCandidate.
         // DeviceSplitCandidate::IsValid is false so that ApplySplit can reject this
@@ -599,16 +581,19 @@ struct GPUHistMakerDevice {
           monotone_constraints);
 
       // Reduce over features to find best feature
-      auto d_cub_memory =
-          d_cub_memory_all.subspan(i * cub_memory_size, cub_memory_size);
-      size_t cub_bytes = d_cub_memory.size() * sizeof(DeviceSplitCandidate);
-      cub::DeviceReduce::Reduce(reinterpret_cast<void*>(d_cub_memory.data()),
+      size_t cub_bytes = 0;
+      cub::DeviceReduce::Reduce(nullptr,
+                                cub_bytes, d_split_candidates.data(),
+                                d_result.data(), d_split_candidates.size(), op,
+                                DeviceSplitCandidate(), streams[i]);
+      dh::caching_device_vector<char> cub_temp(cub_bytes);
+      cub::DeviceReduce::Reduce(reinterpret_cast<void*>(cub_temp.data().get()),
                                 cub_bytes, d_split_candidates.data(),
                                 d_result.data(), d_split_candidates.size(), op,
                                 DeviceSplitCandidate(), streams[i]);
     }
 
-    dh::safe_cuda(cudaMemcpy(result_all.data(), d_result_all.data(),
+    dh::safe_cuda(cudaMemcpy(result_all.data(), d_result_all.data().get(),
                              sizeof(DeviceSplitCandidate) * d_result_all.size(),
                              cudaMemcpyDeviceToHost));
     return std::vector<DeviceSplitCandidate>(result_all.begin(), result_all.end());
