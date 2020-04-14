@@ -209,18 +209,22 @@ def ctypes2numpy(cptr, length, dtype):
 
 def ctypes2cupy(cptr, length, dtype):
     """Convert a ctypes pointer array to a cupy array."""
-    import cupy                 # pylint: disable=import-error
+    # pylint: disable=import-error
+    import cupy
+    from cupy.cuda.memory import MemoryPointer
+    from cupy.cuda.memory import UnownedMemory
     addr = ctypes.cast(cptr, ctypes.c_void_p).value
     # pylint: disable=c-extension-no-member,no-member
     device = cupy.cuda.runtime.pointerGetAttributes(addr).device
-    mem = cupy.zeros(length.value, dtype=dtype, order='C')
+    # The owner field is just used to keep the memory alive with ref count.  As
+    # unowned's life time is scoped within this function we don't need that.
+    unownd = UnownedMemory(
+        addr, length.value * ctypes.sizeof(ctypes.c_float), owner=None)
+    memptr = MemoryPointer(unownd, 0)
+    mem = cupy.ndarray((length.value, ), dtype=np.float32, memptr=memptr)
     assert mem.device.id == device
-    assert mem.flags.c_contiguous
-    cupy.cuda.runtime.memcpy(
-        mem.__cuda_array_interface__['data'][0], addr,
-        length.value * ctypes.sizeof(ctypes.c_float),
-        cupy.cuda.runtime.memcpyDeviceToDevice)
-    return mem
+    arr = cupy.array(mem, copy=True)
+    return arr
 
 
 def ctypes2buffer(cptr, length):
