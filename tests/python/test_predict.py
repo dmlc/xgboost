@@ -12,10 +12,10 @@ def run_threaded_predict(X, rows, predict_func):
     per_thread = 20
     with ThreadPoolExecutor(max_workers=10) as e:
         for i in range(0, rows, int(rows / per_thread)):
-            try:
+            if hasattr(X, 'iloc'):
+                predictor = X.iloc[i:i+per_thread, :]
+            else:
                 predictor = X[i:i+per_thread, ...]
-            except TypeError:
-                predictor = X.iloc[i:i+per_thread, ...]
             f = e.submit(predict_func, predictor)
             results.append(f)
 
