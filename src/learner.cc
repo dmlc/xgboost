@@ -653,9 +653,6 @@ class LearnerIO : public LearnerConfiguration {
     // read parameter
     CHECK_EQ(fi->Read(&mparam_, sizeof(mparam_)), sizeof(mparam_))
         << "BoostLearner: wrong model format";
-    if (mparam_.base_score + std::numeric_limits<float>::epsilon() == 2.81467e+23) {
-      mparam_.base_score += std::numeric_limits<float>::epsilon();
-    }
 
     CHECK(fi->Read(&tparam_.objective)) << "BoostLearner: wrong model format";
     CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
@@ -780,11 +777,6 @@ class LearnerIO : public LearnerConfiguration {
       }
       extra_attr.emplace_back("metrics", os.str());
     }
-    if (mparam.base_score == 2.81467e+23) {
-      // The magic number the collides with "binf";
-      mparam.base_score -= std::numeric_limits<float>::epsilon();
-    }
-
     std::string header {"binf"};
     fo->Write(header.data(), 4);
     fo->Write(&mparam, sizeof(LearnerModelParamLegacy));
