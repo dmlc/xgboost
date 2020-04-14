@@ -16,6 +16,7 @@ Contents
 - [Tutorials](#tutorials)
 - [Usecases](#usecases)
 - [Tools using XGBoost](#tools-using-xgboost)
+- [Integrations with 3rd party software](#integrations-with-3rd-party-software)
 - [Awards](#awards)
 - [Windows Binaries](#windows-binaries)
 
@@ -114,6 +115,7 @@ Please send pull requests if you find ones that are missing here.
 - [Complete Guide to Parameter Tuning in XGBoost](http://www.analyticsvidhya.com/blog/2016/03/complete-guide-parameter-tuning-xgboost-with-codes-python/) by Aarshay Jain
 - [Practical XGBoost in Python online course](http://education.parrotprediction.teachable.com/courses/practical-xgboost-in-python) by Parrot Prediction
 - [Spark and XGBoost using Scala](http://www.elenacuoco.com/2016/10/10/scala-spark-xgboost-classification/) by Elena Cuoco
+
 ## Usecases
 If you have particular usecase of xgboost that you would like to highlight.
 Send a PR to add a one sentence description:)
@@ -126,13 +128,16 @@ Send a PR to add a one sentence description:)
 - [Hanjing Su](https://www.52cs.org) from Tencent data platform team: "We use distributed XGBoost for click through prediction in wechat shopping and lookalikes. The problems involve hundreds millions of users and thousands of features. XGBoost is cleanly designed and can be easily integrated into our production environment, reducing our cost in developments."
 - [CNevd](https://github.com/CNevd) from autohome.com ad platform team: "Distributed XGBoost is used for click through rate prediction in our display advertising, XGBoost is highly efficient and flexible and can be easily used on our distributed platform, our ctr made a great improvement with hundred millions samples and millions features due to this awesome XGBoost"
 
-
-
 ## Tools using XGBoost
 
 - [BayesBoost](https://github.com/mpearmain/BayesBoost) - Bayesian Optimization using xgboost and sklearn API
 - [gp_xgboost_gridsearch](https://github.com/vatsan/gp_xgboost_gridsearch) - In-database parallel grid-search for XGBoost on [Greenplum](https://github.com/greenplum-db/gpdb) using PL/Python
 - [tpot](https://github.com/rhiever/tpot) - A Python tool that automatically creates and optimizes machine learning pipelines using genetic programming.
+
+## Integrations with 3rd party software
+Open source integrations with XGBoost:
+* [Neptune.ai](http://neptune.ai/) - Experiment management and collaboration tool for ML/DL/RL specialists. Integration has a form of the [XGBoost callback](https://docs.neptune.ai/integrations/xgboost.html) that automatically logs training and evaluation metrics, as well as saved model (booster), feature importance chart and visualized trees.
+* [Optuna](https://optuna.org/) - An open source hyperparameter optimization framework to automate hyperparameter search. Optuna integrates with XGBoost in the [XGBoostPruningCallback](https://optuna.readthedocs.io/en/stable/reference/integration.html#optuna.integration.XGBoostPruningCallback) that let users easily prune unpromising trials.
 
 ## Awards
 - [John Chambers Award](http://stat-computing.org/awards/jmc/winners.html) - 2016 Winner: XGBoost R Package, by Tong He (Simon Fraser University) and Tianqi Chen (University of Washington)
