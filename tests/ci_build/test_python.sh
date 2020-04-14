@@ -47,7 +47,8 @@ case "$suite" in
     install_xgboost
     pytest -v -s -rxXs --fulltrace -m "not mgpu" \
            tests/python-gpu/test_from_cudf.py tests/python-gpu/test_from_cupy.py \
-	   tests/python-gpu/test_gpu_with_dask.py::TestDistributedGPU::test_dask_dataframe
+	   tests/python-gpu/test_gpu_predict.py::TestGPUPredict::test_inplace_predict_cupy \
+	   tests/python-gpu/test_gpu_predict.py::TestGPUPredict::test_inplace_predict_cudf
     ;;
 
   cpu)
