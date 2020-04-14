@@ -19,3 +19,10 @@ fi
 if [ ${TASK} == "cmake_test" ] && [ ${TRAVIS_OS_NAME} == "osx" ]; then
     sudo softwareupdate -i "Command Line Tools (macOS High Sierra version 10.13) for Xcode-9.3"
 fi
+
+if [ ${TASK} == "python_sdist_test" ] && [ ${TRAVIS_OS_NAME} == "linux" ]; then
+    wget https://github.com/Kitware/CMake/releases/download/v3.17.1/cmake-3.17.1-Linux-x86_64.sh
+    sudo bash cmake-3.17.1-Linux-x86_64.sh --prefix=/usr/local --skip-license
+    sudo rm -rf /usr/local/cmake-3.12.4  # Remove existing CMake
+    cmake --version
+fi

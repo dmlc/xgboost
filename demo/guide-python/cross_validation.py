@@ -45,7 +45,7 @@ xgb.cv(param, dtrain, num_round, nfold=5,
 # you can also do cross validation with customized loss function
 # See custom_objective.py
 ##
-print('running cross validation, with cutomsized loss function')
+print('running cross validation, with customized loss function')
 def logregobj(preds, dtrain):
     labels = dtrain.get_label()
     preds = 1.0 / (1.0 + np.exp(-preds))

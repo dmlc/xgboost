@@ -8,7 +8,11 @@ if you are interested in contributing.
 Build XGBoost with Distributed Filesystem Support
 -------------------------------------------------
 To use distributed xgboost, you only need to turn the options on to build
-with distributed filesystems(HDFS or S3) in ```xgboost/make/config.mk```.
+with distributed filesystems(HDFS or S3) in cmake.
+
+```
+cmake <path/to/xgboost> -DUSE_HDFS=ON -DUSE_S3=ON -DUSE_AZURE=ON
+```
 
 
 Step by Step Tutorial on AWS

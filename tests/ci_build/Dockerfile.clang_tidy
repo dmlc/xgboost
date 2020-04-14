@@ -13,8 +13,8 @@ RUN \
     add-apt-repository -u 'deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main' && \
     apt-get update && \
     apt-get install -y llvm-10 clang-tidy-10 clang-10 && \
-    wget -nv -nc https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.12.0-Linux-x86_64.sh --skip-license --prefix=/usr
+    wget -nv -nc https://cmake.org/files/v3.13/cmake-3.13.0-Linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.13.0-Linux-x86_64.sh --skip-license --prefix=/usr
 
 # Set default clang-tidy version
 RUN \
