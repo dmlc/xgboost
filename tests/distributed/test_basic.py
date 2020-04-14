@@ -20,9 +20,8 @@ num_round = 20
 bst = xgb.train(param, dtrain, num_round, watchlist, early_stopping_rounds=2)
 
 # Save the model, only ask process 0 to save the model.
-if xgb.rabit.get_rank() == 0:
-    bst.save_model("test.model")
-    xgb.rabit.tracker_print("Finished training\n")
+bst.save_model("test.model{}".format(xgb.rabit.get_rank()))
+xgb.rabit.tracker_print("Finished training\n")
 
 # Notify the tracker all training has been successful
 # This is only needed in distributed training.

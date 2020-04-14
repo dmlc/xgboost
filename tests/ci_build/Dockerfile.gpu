@@ -9,16 +9,16 @@ RUN \
     apt-get update && \
     apt-get install -y wget unzip bzip2 libgomp1 build-essential && \
     # Python
-    wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
-    bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python
+    wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash Miniconda3.sh -b -p /opt/python
 
 ENV PATH=/opt/python/bin:$PATH
 
 # Install Python packages
 RUN \
-    pip install numpy pytest scipy scikit-learn pandas matplotlib wheel kubernetes urllib3 graphviz && \
-    pip install "dask[complete]" && \
-    conda install -c rapidsai -c conda-forge -c anaconda dask-cuda
+    conda create -n gpu_test -c rapidsai -c nvidia -c conda-forge -c defaults \
+        python=3.7 cudatoolkit=$CUDA_VERSION dask dask-cuda numpy pytest scipy \
+        scikit-learn pandas matplotlib wheel kubernetes urllib3 graphviz
 
 ENV GOSU_VERSION 1.10
 

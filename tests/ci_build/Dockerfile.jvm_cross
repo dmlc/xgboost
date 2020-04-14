@@ -13,8 +13,8 @@ RUN \
     apt-get update && \
     apt-get install -y tar unzip wget openjdk-$JDK_VERSION-jdk libgomp1 && \
     # Python
-    wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
-    bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python && \
+    wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash Miniconda3.sh -b -p /opt/python && \
     /opt/python/bin/pip install awscli && \
     # Maven
     wget https://archive.apache.org/dist/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz && \

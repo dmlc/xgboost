@@ -4,8 +4,10 @@
 \name{agaricus.train}
 \alias{agaricus.train}
 \title{Training part from Mushroom Data Set}
-\format{A list containing a label vector, and a dgCMatrix object with 6513
-rows and 127 variables}
+\format{
+A list containing a label vector, and a dgCMatrix object with 6513
+rows and 127 variables
+}
 \usage{
 data(agaricus.train)
 }
