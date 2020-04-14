@@ -101,6 +101,11 @@ def concat(value):              # pylint: disable=too-many-return-statements
         return CUDF_concat(value, axis=0)
     if lazy_isinstance(value[0], 'cupy.core.core', 'ndarray'):
         import cupy             # pylint: disable=import-error
+        # pylint: disable=c-extension-no-member,no-member
+        d = cupy.cuda.runtime.getDevice()
+        for v in value:
+            d_v = v.device.id
+            assert d_v == d, 'Concatenating arrays on different devices.'
         return cupy.concatenate(value, axis=0)
     return dd.multi.concat(list(value), axis=0)
 

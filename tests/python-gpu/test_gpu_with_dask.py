@@ -58,6 +58,7 @@ class TestDistributedGPU(unittest.TestCase):
 
                 single_node = out['booster'].predict(
                     xgboost.DMatrix(X.compute()))
+
                 cupy.testing.assert_allclose(single_node, predictions)
                 cupy.testing.assert_allclose(single_node, series_predictions)
 
@@ -82,8 +83,12 @@ class TestDistributedGPU(unittest.TestCase):
                 single_node = out['booster'].predict(
                     xgboost.DMatrix(X.compute()))
                 np.testing.assert_allclose(single_node, from_dmatrix)
+                device = cupy.cuda.runtime.getDevice()
+                assert device == inplace_predictions.device.id
+                single_node = cupy.array(single_node)
+                assert device == single_node.device.id
                 cupy.testing.assert_allclose(
-                    cupy.array(single_node),
+                    single_node,
                     inplace_predictions)
 
 

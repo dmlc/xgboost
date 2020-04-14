@@ -210,9 +210,12 @@ def ctypes2numpy(cptr, length, dtype):
 def ctypes2cupy(cptr, length, dtype):
     """Convert a ctypes pointer array to a cupy array."""
     import cupy                 # pylint: disable=import-error
-    mem = cupy.zeros(length.value, dtype=dtype, order='C')
     addr = ctypes.cast(cptr, ctypes.c_void_p).value
     # pylint: disable=c-extension-no-member,no-member
+    device = cupy.cuda.runtime.pointerGetAttributes(addr).device
+    mem = cupy.zeros(length.value, dtype=dtype, order='C')
+    assert mem.device.id == device
+    assert mem.flags.c_contiguous
     cupy.cuda.runtime.memcpy(
         mem.__cuda_array_interface__['data'][0], addr,
         length.value * ctypes.sizeof(ctypes.c_float),
