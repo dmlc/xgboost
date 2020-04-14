@@ -62,6 +62,7 @@ class TestGPUPredict(unittest.TestCase):
 
     # Test case for a bug where multiple batch predictions made on a
     # test set produce incorrect results
+    @pytest.mark.skipif(**tm.no_sklearn())
     def test_multi_predict(self):
         from sklearn.datasets import make_regression
         from sklearn.model_selection import train_test_split
@@ -89,6 +90,7 @@ class TestGPUPredict(unittest.TestCase):
         assert np.allclose(predict0, predict1)
         assert np.allclose(predict0, cpu_predict)
 
+    @pytest.mark.skipif(**tm.no_sklearn())
     def test_sklearn(self):
         m, n = 15000, 14
         tr_size = 2500
