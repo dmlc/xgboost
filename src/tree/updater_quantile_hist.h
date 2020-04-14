@@ -202,6 +202,9 @@ class QuantileHistMaker: public TreeUpdater {
                   const DMatrix& fmat,
                   const RegTree& tree);
 
+    void InitSampling(const std::vector<GradientPair>& gpair,
+                      const DMatrix& fmat, std::vector<size_t>* row_indices);
+
     void EvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
                         const GHistIndexMatrix& gmat,
                         const HistCollection& hist,
