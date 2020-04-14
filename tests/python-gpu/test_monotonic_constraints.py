@@ -35,7 +35,6 @@ def assert_constraint(constraint, tree_method):
         assert non_increasing(pred)
 
 
-@pytest.mark.gpu
 class TestMonotonicConstraints(unittest.TestCase):
     def test_exact(self):
         assert_constraint(1, 'exact')

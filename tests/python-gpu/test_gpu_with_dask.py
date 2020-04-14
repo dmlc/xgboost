@@ -27,6 +27,7 @@ class TestDistributedGPU(unittest.TestCase):
     @pytest.mark.skipif(**tm.no_cudf())
     @pytest.mark.skipif(**tm.no_dask_cudf())
     @pytest.mark.skipif(**tm.no_dask_cuda())
+    @pytest.mark.mgpu
     def test_dask_dataframe(self):
         with LocalCUDACluster() as cluster:
             with Client(cluster) as client:
@@ -61,6 +62,7 @@ class TestDistributedGPU(unittest.TestCase):
                 cupy.testing.assert_allclose(single_node, series_predictions)
 
     @pytest.mark.skipif(**tm.no_cupy())
+    @pytest.mark.mgpu
     def test_dask_array(self):
         with LocalCUDACluster() as cluster:
             with Client(cluster) as client:
