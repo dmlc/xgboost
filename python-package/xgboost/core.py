@@ -213,15 +213,25 @@ def ctypes2cupy(cptr, length, dtype):
     import cupy
     from cupy.cuda.memory import MemoryPointer
     from cupy.cuda.memory import UnownedMemory
+    CUPY_TO_CTYPES_MAPPING = {
+        cupy.float32: ctypes.c_float,
+        cupy.uint32: ctypes.c_uint
+    }
+    if dtype not in CUPY_TO_CTYPES_MAPPING.keys():
+        raise RuntimeError('Supported types: {}'.format(
+            CUPY_TO_CTYPES_MAPPING.keys()
+        ))
     addr = ctypes.cast(cptr, ctypes.c_void_p).value
     # pylint: disable=c-extension-no-member,no-member
     device = cupy.cuda.runtime.pointerGetAttributes(addr).device
     # The owner field is just used to keep the memory alive with ref count.  As
     # unowned's life time is scoped within this function we don't need that.
     unownd = UnownedMemory(
-        addr, length.value * ctypes.sizeof(ctypes.c_float), owner=None)
+        addr, length.value * ctypes.sizeof(CUPY_TO_CTYPES_MAPPING[dtype]),
+        owner=None)
     memptr = MemoryPointer(unownd, 0)
-    mem = cupy.ndarray((length.value, ), dtype=np.float32, memptr=memptr)
+    # pylint: disable=unexpected-keyword-arg
+    mem = cupy.ndarray((length.value, ), dtype=dtype, memptr=memptr)
     assert mem.device.id == device
     arr = cupy.array(mem, copy=True)
     return arr
