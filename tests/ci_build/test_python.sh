@@ -28,11 +28,13 @@ function install_xgboost {
 # Run specified test suite
 case "$suite" in
   gpu)
+    source activate gpu_test
     install_xgboost
     pytest -v -s --fulltrace -m "not mgpu" tests/python-gpu
     ;;
 
   mgpu)
+    source activate gpu_test
     install_xgboost
     pytest -v -s --fulltrace -m "mgpu" tests/python-gpu
     cd tests/distributed
