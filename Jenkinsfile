@@ -94,6 +94,17 @@ pipeline {
         milestone ordinal: 4
       }
     }
+    stage('Jenkins Linux: Deploy') {
+      agent none
+      steps {
+        script {
+          parallel ([
+            'deploy-jvm-packages': { DeployJVMPackages(spark_version: '2.4.3') }
+          ])
+        }
+        milestone ordinal: 5
+      }
+    }
   }
 }
 
@@ -380,6 +391,21 @@ def TestR(args) {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_test_rpkg.sh || tests/ci_build/print_r_stacktrace.sh
     """
+    deleteDir()
+  }
+}
+
+def DeployJVMPackages(args) {
+  node('linux && cpu') {
+    unstash name: 'srcs'
+    if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
+      echo 'Deploying to xgboost-maven-repo S3 repo...'
+      def container_type = "jvm"
+      def docker_binary = "docker"
+      sh """
+      ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/deploy_jvm_packages.sh ${args.spark_version}
+      """
+    }
     deleteDir()
   }
 }
