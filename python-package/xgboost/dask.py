@@ -126,6 +126,8 @@ class DaskDMatrix:
     the input data explicitly if you want to see actual computation of
     constructing `DaskDMatrix`.
 
+    .. versionadded:: 1.0.0
+
     Parameters
     ----------
     client: dask.distributed.Client
@@ -368,6 +370,8 @@ def _get_rabit_args(worker_map, client):
 def train(client, params, dtrain, *args, evals=(), **kwargs):
     '''Train XGBoost model.
 
+    .. versionadded:: 1.0.0
+
     Parameters
     ----------
     client: dask.distributed.Client
@@ -458,6 +462,8 @@ def predict(client, model, data, *args, missing=numpy.nan):
     .. note::
 
         Only default prediction mode is supported right now.
+
+    .. versionadded:: 1.0.0
 
     Parameters
     ----------
@@ -581,6 +587,8 @@ def inplace_predict(client, model, data,
                     predict_type='value',
                     missing=numpy.nan):
     '''Inplace prediction.
+
+    .. versionadded:: 1.1.0
 
     Parameters
     ----------

@@ -1048,6 +1048,9 @@ class DeviceQuantileDMatrix(DMatrix):
     quantisation.
 
     You can construct DeviceQuantileDMatrix from cupy/cudf/dlpack.
+
+    .. versionadded:: 1.1.0
+
     """
 
     def __init__(self, data, label=None, weight=None, base_margin=None,
@@ -1197,7 +1200,10 @@ class Booster(object):
 
     def save_config(self):
         '''Output internal parameter configuration of Booster as a JSON
-        string.'''
+        string.
+
+        .. versionadded:: 1.0.0
+        '''
         json_string = ctypes.c_char_p()
         length = c_bst_ulong()
         _check_call(_LIB.XGBoosterSaveJsonConfig(
@@ -1208,7 +1214,10 @@ class Booster(object):
         return json_string
 
     def load_config(self, config):
-        '''Load configuration returned by `save_config`.'''
+        '''Load configuration returned by `save_config`.
+
+        .. versionadded:: 1.0.0
+        '''
         assert isinstance(config, str)
         _check_call(_LIB.XGBoosterLoadJsonConfig(
             self.handle,
@@ -1218,11 +1227,7 @@ class Booster(object):
         return self.__deepcopy__(None)
 
     def __deepcopy__(self, _):
-        '''Return a copy of booster.  Caches for DMatrix are not copied so continue
-        training on copied booster will result in lower performance and
-        slightly different result.
-
-        '''
+        '''Return a copy of booster.'''
         return Booster(model_file=self)
 
     def copy(self):
@@ -1517,6 +1522,8 @@ class Booster(object):
             Whether the prediction value is used for training.  This can effect
             `dart` booster, which performs dropouts during training iterations.
 
+            .. versionadded:: 1.0.0
+
         .. note:: Using ``predict()`` with DART booster
 
           If the booster object is DART type, ``predict()`` will not perform
@@ -1600,6 +1607,8 @@ class Booster(object):
 
             booster.set_param({'predictor': 'cpu_predictor})
             booster.inplace_predict(numpy_array)
+
+        .. versionadded:: 1.1.0
 
         Parameters
         ----------
