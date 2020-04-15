@@ -24,37 +24,33 @@ namespace tree {
 
 TEST(GpuHist, DeviceHistogram) {
   // Ensures that node allocates correctly after reaching `kStopGrowingSize`.
-  dh::SaveCudaContext{
-    [&]() {
-      dh::safe_cuda(cudaSetDevice(0));
-      constexpr size_t kNBins = 128;
-      constexpr size_t kNNodes = 4;
-      constexpr size_t kStopGrowing = kNNodes * kNBins * 2u;
-      DeviceHistogram<GradientPairPrecise, kStopGrowing> histogram;
-      histogram.Init(0, kNBins);
-      for (size_t i = 0; i < kNNodes; ++i) {
-        histogram.AllocateHistogram(i);
-      }
-      histogram.Reset();
-      ASSERT_EQ(histogram.Data().size(), kStopGrowing);
+  dh::safe_cuda(cudaSetDevice(0));
+  constexpr size_t kNBins = 128;
+  constexpr size_t kNNodes = 4;
+  constexpr size_t kStopGrowing = kNNodes * kNBins * 2u;
+  DeviceHistogram<GradientPairPrecise, kStopGrowing> histogram;
+  histogram.Init(0, kNBins);
+  for (size_t i = 0; i < kNNodes; ++i) {
+    histogram.AllocateHistogram(i);
+  }
+  histogram.Reset();
+  ASSERT_EQ(histogram.Data().size(), kStopGrowing);
 
-      // Use allocated memory but do not erase nidx_map.
-      for (size_t i = 0; i < kNNodes; ++i) {
-        histogram.AllocateHistogram(i);
-      }
-      for (size_t i = 0; i < kNNodes; ++i) {
-        ASSERT_TRUE(histogram.HistogramExists(i));
-      }
+  // Use allocated memory but do not erase nidx_map.
+  for (size_t i = 0; i < kNNodes; ++i) {
+    histogram.AllocateHistogram(i);
+  }
+  for (size_t i = 0; i < kNNodes; ++i) {
+    ASSERT_TRUE(histogram.HistogramExists(i));
+  }
 
-      // Erase existing nidx_map.
-      for (size_t i = kNNodes; i < kNNodes * 2; ++i) {
-        histogram.AllocateHistogram(i);
-      }
-      for (size_t i = 0; i < kNNodes; ++i) {
-        ASSERT_FALSE(histogram.HistogramExists(i));
-      }
-    }
-  };
+  // Erase existing nidx_map.
+  for (size_t i = kNNodes; i < kNNodes * 2; ++i) {
+    histogram.AllocateHistogram(i);
+  }
+  for (size_t i = 0; i < kNNodes; ++i) {
+    ASSERT_FALSE(histogram.HistogramExists(i));
+  }
 }
 
 std::vector<GradientPairPrecise> GetHostHistGpair() {
@@ -187,16 +183,14 @@ TEST(GpuHist, EvaluateSplits) {
   GPUHistMakerDevice<GradientPairPrecise>
       maker(0, page.get(), kNRows, param, kNCols, kNCols, true, batch_param);
   // Initialize GPUHistMakerDevice::node_sum_gradients
-  maker.node_sum_gradients = {{6.4f, 12.8f}};
+  maker.host_node_sum_gradients = {{6.4f, 12.8f}};
 
   // Initialize GPUHistMakerDevice::cut
   auto cmat = GetHostCutMatrix();
 
   // Copy cut matrix to device.
   page->Cuts() = cmat;
-  maker.ba.Allocate(0, &(maker.monotone_constraints), kNCols);
-  dh::CopyVectorToDeviceSpan(maker.monotone_constraints,
-                             param.monotone_constraints);
+  maker.monotone_constraints = param.monotone_constraints;
 
   // Initialize GPUHistMakerDevice::hist
   maker.hist.Init(0, (max_bins - 1) * kNCols);
