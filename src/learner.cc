@@ -777,7 +777,8 @@ class LearnerIO : public LearnerConfiguration {
       }
       extra_attr.emplace_back("metrics", os.str());
     }
-
+    std::string header {"binf"};
+    fo->Write(header.data(), 4);
     fo->Write(&mparam, sizeof(LearnerModelParamLegacy));
     fo->Write(tparam_.objective);
     fo->Write(tparam_.booster);
