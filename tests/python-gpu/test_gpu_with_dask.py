@@ -27,6 +27,7 @@ class TestDistributedGPU(unittest.TestCase):
     @pytest.mark.skipif(**tm.no_cudf())
     @pytest.mark.skipif(**tm.no_dask_cudf())
     @pytest.mark.skipif(**tm.no_dask_cuda())
+    @pytest.mark.mgpu
     def test_dask_dataframe(self):
         with LocalCUDACluster() as cluster:
             with Client(cluster) as client:
@@ -51,18 +52,18 @@ class TestDistributedGPU(unittest.TestCase):
                 predictions = dxgb.predict(client, out, dtrain).compute()
                 assert isinstance(predictions, np.ndarray)
 
-                # There's an error with cudf saying `concat_cudf` got an
-                # expected argument `ignore_index`.  So the test here is just
-                # place holder.
-
-                # series_predictions = dxgb.inplace_predict(client, out, X)
-                # assert isinstance(series_predictions, dd.Series)
+                series_predictions = dxgb.inplace_predict(client, out, X)
+                assert isinstance(series_predictions, dd.Series)
+                series_predictions = series_predictions.compute()
 
                 single_node = out['booster'].predict(
                     xgboost.DMatrix(X.compute()))
+
                 cupy.testing.assert_allclose(single_node, predictions)
+                cupy.testing.assert_allclose(single_node, series_predictions)
 
     @pytest.mark.skipif(**tm.no_cupy())
+    @pytest.mark.mgpu
     def test_dask_array(self):
         with LocalCUDACluster() as cluster:
             with Client(cluster) as client:
@@ -82,8 +83,12 @@ class TestDistributedGPU(unittest.TestCase):
                 single_node = out['booster'].predict(
                     xgboost.DMatrix(X.compute()))
                 np.testing.assert_allclose(single_node, from_dmatrix)
+                device = cupy.cuda.runtime.getDevice()
+                assert device == inplace_predictions.device.id
+                single_node = cupy.array(single_node)
+                assert device == single_node.device.id
                 cupy.testing.assert_allclose(
-                    cupy.array(single_node),
+                    single_node,
                     inplace_predictions)
 
 

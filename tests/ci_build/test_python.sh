@@ -28,23 +28,33 @@ function install_xgboost {
 # Run specified test suite
 case "$suite" in
   gpu)
+    source activate gpu_test
     install_xgboost
-    pytest -v -s --fulltrace -m "not mgpu" tests/python-gpu
+    pytest -v -s -rxXs --fulltrace -m "not mgpu" tests/python-gpu
     ;;
 
   mgpu)
+    source activate gpu_test
     install_xgboost
-    pytest -v -s --fulltrace -m "mgpu" tests/python-gpu
+    pytest -v -s -rxXs --fulltrace -m "mgpu" tests/python-gpu
+
     cd tests/distributed
     ./runtests-gpu.sh
     cd -
-    pytest -v -s --fulltrace -m "mgpu" tests/python-gpu/test_gpu_with_dask.py
     ;;
 
   cudf)
     source activate cudf_test
     install_xgboost
-    pytest -v -s --fulltrace -m "not mgpu" tests/python-gpu/test_from_cudf.py tests/python-gpu/test_from_cupy.py
+    pytest -v -s -rxXs --fulltrace -m "not mgpu" \
+           tests/python-gpu/test_from_cudf.py tests/python-gpu/test_from_cupy.py \
+	   tests/python-gpu/test_gpu_prediction.py
+    ;;
+
+  mgpu-cudf)
+    source activate cudf_test
+    install_xgboost
+    pytest -v -s -rxXs --fulltrace -m "mgpu" tests/python-gpu/test_gpu_with_dask.py
     ;;
 
   cpu)

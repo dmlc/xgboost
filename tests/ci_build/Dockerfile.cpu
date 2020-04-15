@@ -12,8 +12,8 @@ RUN \
     wget -nv -nc https://cmake.org/files/v3.13/cmake-3.13.0-Linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.13.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
     # Python
-    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
-    bash Miniconda3-latest-Linux-x86_64.sh -b -p /opt/python
+    wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash Miniconda3.sh -b -p /opt/python
 
 ENV PATH=/opt/python/bin:$PATH
 

@@ -101,6 +101,11 @@ def concat(value):              # pylint: disable=too-many-return-statements
         return CUDF_concat(value, axis=0)
     if lazy_isinstance(value[0], 'cupy.core.core', 'ndarray'):
         import cupy             # pylint: disable=import-error
+        # pylint: disable=c-extension-no-member,no-member
+        d = cupy.cuda.runtime.getDevice()
+        for v in value:
+            d_v = v.device.id
+            assert d_v == d, 'Concatenating arrays on different devices.'
         return cupy.concatenate(value, axis=0)
     return dd.multi.concat(list(value), axis=0)
 
@@ -631,8 +636,6 @@ def inplace_predict(client, model, data,
         if is_df:
             if lazy_isinstance(data, 'cudf.core.dataframe', 'DataFrame'):
                 import cudf     # pylint: disable=import-error
-                # There's an error with cudf saying `concat_cudf` got an
-                # expected argument `ignore_index`. So this is not yet working.
                 prediction = cudf.DataFrame({'prediction': prediction},
                                             dtype=numpy.float32)
             else:
