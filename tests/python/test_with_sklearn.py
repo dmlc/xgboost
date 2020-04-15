@@ -746,6 +746,7 @@ def test_RFECV():
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='neg_log_loss')
     rfecv.fit(X, y)
 
+    X[0:4, :] = np.nan          # verify scikit_learn doesn't throw with nan
     reg = xgb.XGBRegressor()
     rfecv = RFECV(estimator=reg)
     rfecv.fit(X, y)
