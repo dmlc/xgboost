@@ -38,10 +38,6 @@ case "$suite" in
     install_xgboost
     pytest -v -s -rxXs --fulltrace -m "mgpu" tests/python-gpu
 
-    source activate cudf_test
-    install_xgboost
-    pytest -v -s -rxXs --fulltrace -m "mgpu" tests/python-gpu/test_gpu_with_dask.py::test_dask_dataframe tests/python-gpu/test_gpu_with_dask.py::test_dask_array
-
     cd tests/distributed
     ./runtests-gpu.sh
     cd -
@@ -53,6 +49,13 @@ case "$suite" in
     pytest -v -s -rxXs --fulltrace -m "not mgpu" \
            tests/python-gpu/test_from_cudf.py tests/python-gpu/test_from_cupy.py \
 	   tests/python-gpu/test_gpu_prediction.py
+    ;;
+
+  mgpu-cudf)
+    source activate cudf_test
+    install_xgboost
+    pytest -v -s -rxXs --fulltrace -m "mgpu" tests/python-gpu/test_gpu_with_dask.py::test_dask_dataframe \
+          tests/python-gpu/test_gpu_with_dask.py::test_dask_array
     ;;
 
   cpu)
