@@ -54,8 +54,7 @@ case "$suite" in
   mgpu-cudf)
     source activate cudf_test
     install_xgboost
-    pytest -v -s -rxXs --fulltrace -m "mgpu" tests/python-gpu/test_gpu_with_dask.py::test_dask_dataframe \
-          tests/python-gpu/test_gpu_with_dask.py::test_dask_array
+    pytest -v -s -rxXs --fulltrace -m "mgpu" tests/python-gpu/test_gpu_with_dask.py
     ;;
 
   cpu)
