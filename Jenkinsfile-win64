@@ -96,6 +96,7 @@ def BuildWin64() {
     s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
     echo 'Stashing C++ test executable (testxgboost)...'
     stash name: 'xgboost_cpp_tests', includes: 'build/testxgboost.exe'
+    stash name: 'xgboost_cli', includes: 'xgboost.exe'
     deleteDir()
   }
 }
@@ -104,6 +105,7 @@ def TestWin64CPU() {
   node('win64 && cpu') {
     unstash name: 'srcs'
     unstash name: 'xgboost_whl'
+    unstash name: 'xgboost_cli'
     echo "Test Win64 CPU"
     echo "Installing Python wheel..."
     bat "conda activate && (python -m pip uninstall -y xgboost || cd .)"
