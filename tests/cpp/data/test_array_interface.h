@@ -23,7 +23,7 @@ Json GenerateDenseColumn(std::string const& typestr, size_t kRows,
   d_data.resize(kRows);
   thrust::sequence(thrust::device, d_data.begin(), d_data.end(), 0.0f, 2.0f);
 
-  auto p_d_data = dh::Raw(d_data);
+  auto p_d_data = d_data.data().get();
 
   std::vector<Json> j_data {
     Json(Integer(reinterpret_cast<Integer::Int>(p_d_data))),
@@ -49,7 +49,7 @@ Json GenerateSparseColumn(std::string const& typestr, size_t kRows,
     d_data[i] = i * 2.0;
   }
 
-  auto p_d_data = dh::Raw(d_data);
+  auto p_d_data = d_data.data().get();
 
   std::vector<Json> j_data {
     Json(Integer(reinterpret_cast<Integer::Int>(p_d_data))),

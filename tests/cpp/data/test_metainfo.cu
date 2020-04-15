@@ -25,7 +25,7 @@ std::string PrepareData(std::string typestr, thrust::device_vector<T>* out, cons
   column["version"] = Integer(static_cast<Integer::Int>(1));
   column["typestr"] = String(typestr);
 
-  auto p_d_data = dh::Raw(d_data);
+  auto p_d_data = d_data.data().get();
   std::vector<Json> j_data {
         Json(Integer(reinterpret_cast<Integer::Int>(p_d_data))),
         Json(Boolean(false))};
