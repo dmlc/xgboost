@@ -201,6 +201,7 @@ def BuildCPU() {
     ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
     """
 
+    stash name: 'xgboost_cli', includes: 'xgboost'
     deleteDir()
   }
 }
@@ -282,6 +283,7 @@ def TestPythonCPU() {
   node('linux && cpu') {
     unstash name: 'xgboost_whl_cuda9'
     unstash name: 'srcs'
+    unstash name: 'xgboost_cli'
     echo "Test Python CPU"
     def container_type = "cpu"
     def docker_binary = "docker"
