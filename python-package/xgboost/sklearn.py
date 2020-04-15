@@ -244,6 +244,10 @@ class XGBModel(XGBModelBase):
         self.gpu_id = gpu_id
         self.validate_parameters = validate_parameters
 
+    def _more_tags(self):
+        '''Tags used for scikit-learn data validation.'''
+        return {'allow_nan': True}
+
     def get_booster(self):
         """Get the underlying xgboost Booster of this model.
 

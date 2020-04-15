@@ -746,6 +746,15 @@ def test_RFECV():
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='neg_log_loss')
     rfecv.fit(X, y)
 
+    reg = xgb.XGBRegressor()
+    rfecv = RFECV(estimator=reg)
+    rfecv.fit(X, y)
+
+    cls = xgb.XGBClassifier()
+    rfecv = RFECV(estimator=cls, step=1, cv=3,
+                  scoring='neg_mean_squared_error')
+    rfecv.fit(X, y)
+
 
 def test_XGBClassifier_resume():
     from sklearn.datasets import load_breast_cancer
