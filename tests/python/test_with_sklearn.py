@@ -596,6 +596,17 @@ def test_validation_weights_xgbmodel():
     assert all((logloss_with_weights[i] != logloss_without_weights[i]
                 for i in [0, 1]))
 
+    with pytest.raises(AssertionError):
+        # length of eval set and sample weight doesn't match.
+        clf.fit(X_train, y_train, sample_weight=weights_train,
+                eval_set=[(X_train, y_train), (X_test, y_test)],
+                sample_weight_eval_set=[weights_train])
+
+    with pytest.raises(AssertionError):
+        cls = xgb.XGBClassifier()
+        cls.fit(X_train, y_train, sample_weight=weights_train,
+                eval_set=[(X_train, y_train), (X_test, y_test)],
+                sample_weight_eval_set=[weights_train])
 
 def test_validation_weights_xgbclassifier():
     from sklearn.datasets import make_hastie_10_2
