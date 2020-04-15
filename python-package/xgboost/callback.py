@@ -210,8 +210,8 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
         else:
             state['best_score'] = float('inf')
         msg = '[%d]\t%s' % (
-              env.iteration,
-              '\t'.join([_fmt_metric(x) for x in env.evaluation_result_list]))
+            env.iteration,
+            '\t'.join([_fmt_metric(x) for x in env.evaluation_result_list]))
         state['best_msg'] = msg
 
         if bst is not None:
