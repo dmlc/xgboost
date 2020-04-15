@@ -135,7 +135,7 @@ def TestWin64GPU(args) {
     bat """
     conda activate && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"
     """
-    echo "Install Python dependencies..."
+    echo "Installing Python dependencies..."
     bat """
      conda activate && conda upgrade scikit-learn pandas numpy
     """
