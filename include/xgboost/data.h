@@ -92,6 +92,11 @@ class MetaInfo {
     return *this;
   }
 
+  /*!
+   * \brief Validate all metainfo.
+   */
+  void Validate() const;
+
   MetaInfo Slice(common::Span<int32_t const> ridxs) const;
   /*!
    * \brief Get weight of each instances.

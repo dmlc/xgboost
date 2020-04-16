@@ -1048,15 +1048,7 @@ class LearnerImpl : public LearnerIO {
 
   void ValidateDMatrix(DMatrix* p_fmat) const {
     MetaInfo const& info = p_fmat->Info();
-    auto const& weights = info.weights_;
-    if (info.group_ptr_.size() != 0 && weights.Size() != 0) {
-      CHECK(weights.Size() == info.group_ptr_.size() - 1)
-          << "\n"
-          << "weights size: " << weights.Size()            << ", "
-          << "groups size: "  << info.group_ptr_.size() -1 << ", "
-          << "num rows: "     << p_fmat->Info().num_row_   << "\n"
-          << "Number of weights should be equal to number of groups in ranking task.";
-    }
+    info.Validate();
 
     auto const row_based_split = [this]() {
       return tparam_.dsplit == DataSplitMode::kRow ||

@@ -338,6 +338,45 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
   }
 }
 
+void MetaInfo::Validate() const {
+  if (group_ptr_.size() != 0 && weights_.Size() != 0) {
+    CHECK_EQ(group_ptr_.size(), weights_.Size() + 1)
+        << "Size of weights must equal to number of groups when ranking "
+           "group is used.";
+    return;
+  }
+  if (group_ptr_.size() != 0) {
+    CHECK_EQ(group_ptr_.back(), num_row_)
+        << "Invalid group structure.  Number of rows obtained from groups "
+           "doesn't equal to actual number of rows given by data.";
+  }
+  if (weights_.Size() != 0) {
+    CHECK_EQ(weights_.Size(), num_row_)
+        << "Size of weights must equal to number of rows.";
+    return;
+  }
+  if (labels_.Size() != 0) {
+    CHECK_EQ(labels_.Size(), num_row_)
+        << "Size of labels must equal to number of rows.";
+    return;
+  }
+  if (labels_lower_bound_.Size() != 0) {
+    CHECK_EQ(labels_lower_bound_.Size(), num_row_)
+        << "Size of label_lower_bound must equal to number of rows.";
+    return;
+  }
+  if (labels_upper_bound_.Size() != 0) {
+    CHECK_EQ(labels_upper_bound_.Size(), num_row_)
+        << "Size of label_upper_bound must equal to number of rows.";
+    return;
+  }
+  CHECK_LE(num_nonzero_, num_col_ * num_row_);
+  if (base_margin_.Size() != 0) {
+    CHECK_EQ(base_margin_.Size() % num_row_, 0)
+        << "Size of base margin must be a multiple of number of rows.";
+  }
+}
+
 #if !defined(XGBOOST_USE_CUDA)
 void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   common::AssertGPUSupport();
