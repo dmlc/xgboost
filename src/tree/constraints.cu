@@ -30,14 +30,11 @@ void FeatureInteractionConstraintDevice::Configure(
     return;
   }
   // --- Parse interaction constraints
-  std::istringstream iss(param.interaction_constraints);
-  dmlc::JSONReader reader(&iss);
   // Interaction constraints parsed from string parameter.  After
   // parsing, this looks like {{0, 1, 2}, {2, 3 ,4}}.
   std::vector<std::vector<bst_feature_t>> h_feature_constraints;
   try {
     ParseInteractionConstraint(param.interaction_constraints, &h_feature_constraints);
-    // reader.Read(&h_feature_constraints);
   } catch (dmlc::Error const& e) {
     LOG(FATAL) << "Failed to parse feature interaction constraint:\n"
                << param.interaction_constraints << "\n"

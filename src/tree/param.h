@@ -489,7 +489,9 @@ using SplitEntry = SplitEntryContainer<GradStats>;
  * \brief Parse the interaction constraints from string.
  * \param constraint_str String storing the interfaction constraints:
  *
- *    "[[1, 2], [3, 4]""
+ *  Example input string:
+ *
+ *    "[[1, 2], [3, 4]]""
  *
  * \param p_out Pointer to output
  */

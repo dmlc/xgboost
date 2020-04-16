@@ -28,8 +28,8 @@ void FeatureInteractionConstraintHost::Reset() {
   if (!enabled_) {
     return;
   }
-  // Read std::vector<std::vector<bst_uint>> first and then
-  //   convert to std::vector<std::unordered_set<bst_uint>>
+  // Read std::vector<std::vector<bst_feature_t>> first and then
+  //   convert to std::vector<std::unordered_set<bst_feature_t>>
   std::vector<std::vector<bst_feature_t>> tmp;
   try {
     ParseInteractionConstraint(this->interaction_constraint_str_, &tmp);
