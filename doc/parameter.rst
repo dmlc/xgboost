@@ -351,6 +351,9 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
   - ``survival:cox``: Cox regression for right censored survival time data (negative values are considered right censored).
     Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function ``h(t) = h0(t) * HR``).
+  - ``survival:aft``: Accelerated failure time model for censored survival time data.
+    See :doc:`/tutorials/aft_survival_analysis` for details.
+  - ``aft_loss_distribution``: Probabilty Density Function used by ``survival:aft`` and ``aft-nloglik`` metric.
   - ``multi:softmax``: set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes)
   - ``multi:softprob``: same as softmax, but output a vector of ``ndata * nclass``, which can be further reshaped to ``ndata * nclass`` matrix. The result contains predicted probability of each data point belonging to each class.
   - ``rank:pairwise``: Use LambdaMART to perform pairwise ranking where the pairwise loss is minimized
@@ -389,6 +392,8 @@ Specify the learning task and the corresponding learning objective. The objectiv
     - ``cox-nloglik``: negative partial log-likelihood for Cox proportional hazards regression
     - ``gamma-deviance``: residual deviance for gamma regression
     - ``tweedie-nloglik``: negative log-likelihood for Tweedie regression (at a specified value of the ``tweedie_variance_power`` parameter)
+    - ``aft-nloglik``: Negative log likelihood of Accelerated Failure Time model.
+      See :doc:`/tutorials/aft_survival_analysis` for details.
 
 * ``seed`` [default=0]
 
