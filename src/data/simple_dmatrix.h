@@ -19,6 +19,7 @@ namespace data {
 // Used for single batch data.
 class SimpleDMatrix : public DMatrix {
  public:
+  SimpleDMatrix() = default;
   template <typename AdapterT>
   explicit SimpleDMatrix(AdapterT* adapter, float missing, int nthread);
 
@@ -32,6 +33,7 @@ class SimpleDMatrix : public DMatrix {
   const MetaInfo& Info() const override;
 
   bool SingleColBlock() const override { return true; }
+  DMatrix* Slice(common::Span<int32_t const> ridxs) override;
 
   /*! \brief magic number used to identify SimpleDMatrix binary files */
   static const int kMagic = 0xffffab01;

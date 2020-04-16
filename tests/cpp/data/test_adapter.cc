@@ -67,31 +67,6 @@ TEST(Adapter, CSCAdapterColsMoreThanRows) {
   EXPECT_EQ(inst[3].index, 3);
 }
 
-TEST(CAPI, DMatrixSliceAdapterFromSimpleDMatrix) {
-  auto p_dmat = RandomDataGenerator(6, 2, 1.0).GenerateDMatrix();
-
-  std::vector<int> ridx_set = {1, 3, 5};
-  data::DMatrixSliceAdapter adapter(p_dmat.get(),
-                                    {ridx_set.data(), ridx_set.size()});
-  EXPECT_EQ(adapter.NumRows(), ridx_set.size());
-
-  adapter.BeforeFirst();
-  for (auto &batch : p_dmat->GetBatches<SparsePage>()) {
-    adapter.Next();
-    auto &adapter_batch = adapter.Value();
-    for (auto i = 0ull; i < adapter_batch.Size(); i++) {
-      auto inst = batch[ridx_set[i]];
-      auto line = adapter_batch.GetLine(i);
-      ASSERT_EQ(inst.size(), line.Size());
-      for (auto j = 0ull; j < line.Size(); j++) {
-        EXPECT_EQ(inst[j].fvalue, line.GetElement(j).value);
-        EXPECT_EQ(inst[j].index, line.GetElement(j).column_idx);
-        EXPECT_EQ(i, line.GetElement(j).row_idx);
-      }
-    }
-  }
-}
-
 // A mock for JVM data iterator.
 class DataIterForTest {
   std::vector<float> data_ {1, 2, 3, 4, 5};

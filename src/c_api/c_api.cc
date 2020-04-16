@@ -181,11 +181,7 @@ XGB_DLL int XGDMatrixSliceDMatrixEx(DMatrixHandle handle,
         << "slice does not support group structure";
   }
   DMatrix* dmat = static_cast<std::shared_ptr<DMatrix>*>(handle)->get();
-  CHECK(dynamic_cast<data::SimpleDMatrix*>(dmat))
-      << "Slice only supported for SimpleDMatrix currently.";
-  data::DMatrixSliceAdapter adapter(dmat, {idxset, static_cast<size_t>(len)});
-  *out = new std::shared_ptr<DMatrix>(
-      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1));
+  *out = new std::shared_ptr<DMatrix>(dmat->Slice({idxset, len}));
   API_END();
 }
 

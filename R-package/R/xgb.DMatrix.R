@@ -188,9 +188,10 @@ getinfo <- function(object, ...) UseMethod("getinfo")
 getinfo.xgb.DMatrix <- function(object, name, ...) {
   if (typeof(name) != "character" ||
       length(name) != 1 ||
-      !name %in% c('label', 'weight', 'base_margin', 'nrow')) {
+      !name %in% c('label', 'weight', 'base_margin', 'nrow',
+                   'label_lower_bound', 'label_upper_bound')) {
     stop("getinfo: name must be one of the following\n",
-         "    'label', 'weight', 'base_margin', 'nrow'")
+         "    'label', 'weight', 'base_margin', 'nrow', 'label_lower_bound', 'label_upper_bound'")
   }
   if (name != "nrow"){
     ret <- .Call(XGDMatrixGetInfo_R, object, name)
