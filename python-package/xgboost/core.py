@@ -498,8 +498,8 @@ class DMatrix(object):
         feature_types : list, optional
             Set types for features.
         nthread : integer, optional
-            Number of threads to use for loading data from numpy array. If -1,
-            uses maximum threads available on the system.
+            Number of threads to use for loading data when parallelization is
+            applicable. If -1, uses maximum threads available on the system.
 
         """
         # force into void_p, mac need to pass things in as void_p
@@ -518,7 +518,8 @@ class DMatrix(object):
         data, feature_names, feature_types = _convert_dataframes(
             data, feature_names, feature_types
         )
-        missing = np.nan if missing is None else missing
+        missing = missing if missing is not None else np.nan
+        nthread = nthread if nthread is not None else 1
 
         if isinstance(data, (STRING_TYPES, os_PathLike)):
             handle = ctypes.c_void_p()
@@ -609,15 +610,13 @@ class DMatrix(object):
         # explicitly tell np.array to try and avoid copying)
         data = np.array(mat.reshape(mat.size), copy=False, dtype=np.float32)
         handle = ctypes.c_void_p()
-        missing = missing if missing is not None else np.nan
-        nthread = nthread if nthread is not None else 1
         _check_call(_LIB.XGDMatrixCreateFromMat_omp(
             data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
             c_bst_ulong(mat.shape[0]),
             c_bst_ulong(mat.shape[1]),
             ctypes.c_float(missing),
             ctypes.byref(handle),
-            c_bst_ulong(nthread)))
+            ctypes.c_int(nthread)))
         self.handle = handle
 
     def _init_from_dt(self, data, nthread):
@@ -648,19 +647,18 @@ class DMatrix(object):
             c_bst_ulong(data.shape[0]),
             c_bst_ulong(data.shape[1]),
             ctypes.byref(handle),
-            nthread))
+            ctypes.c_int(nthread)))
         self.handle = handle
 
     def _init_from_array_interface_columns(self, df, missing, nthread):
         """Initialize DMatrix from columnar memory format."""
         interfaces_str = _cudf_array_interfaces(df)
         handle = ctypes.c_void_p()
-        missing = missing if missing is not None else np.nan
-        nthread = nthread if nthread is not None else 1
         _check_call(
             _LIB.XGDMatrixCreateFromArrayInterfaceColumns(
                 interfaces_str,
-                ctypes.c_float(missing), ctypes.c_int(nthread),
+                ctypes.c_float(missing),
+                ctypes.c_int(nthread),
                 ctypes.byref(handle)))
         self.handle = handle
 
@@ -672,12 +670,11 @@ class DMatrix(object):
         interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
 
         handle = ctypes.c_void_p()
-        missing = missing if missing is not None else np.nan
-        nthread = nthread if nthread is not None else 1
         _check_call(
             _LIB.XGDMatrixCreateFromArrayInterface(
                 interface_str,
-                ctypes.c_float(missing), ctypes.c_int(nthread),
+                ctypes.c_float(missing),
+                ctypes.c_int(nthread),
                 ctypes.byref(handle)))
         self.handle = handle
 
