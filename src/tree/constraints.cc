@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "xgboost/span.h"
+#include "xgboost/json.h"
 #include "constraints.h"
 #include "param.h"
 
@@ -27,15 +28,12 @@ void FeatureInteractionConstraintHost::Reset() {
   if (!enabled_) {
     return;
   }
-  // Parse interaction constraints
-  std::istringstream iss(this->interaction_constraint_str_);
-  dmlc::JSONReader reader(&iss);
   // Read std::vector<std::vector<bst_uint>> first and then
   //   convert to std::vector<std::unordered_set<bst_uint>>
-  std::vector<std::vector<bst_uint>> tmp;
+  std::vector<std::vector<bst_feature_t>> tmp;
   try {
-    reader.Read(&tmp);
-  } catch (dmlc::Error const& e) {
+    ParseInteractionConstraint(this->interaction_constraint_str_, &tmp);
+  } catch (dmlc::Error const &e) {
     LOG(FATAL) << "Failed to parse feature interaction constraint:\n"
                << this->interaction_constraint_str_ << "\n"
                << "With error:\n" << e.what();

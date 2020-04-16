@@ -5,6 +5,7 @@
 #include <vector>
 #include <utility>
 
+#include "xgboost/json.h"
 #include "param.h"
 
 namespace std {
@@ -79,3 +80,28 @@ std::istream &operator>>(std::istream &is, std::vector<int> &t) {
   return is;
 }
 }  // namespace std
+
+namespace xgboost {
+void ParseInteractionConstraint(
+    std::string const &constraint_str,
+    std::vector<std::vector<bst_feature_t>> *p_out) {
+  auto &out = *p_out;
+  auto j_inc = Json::Load({constraint_str.c_str(), constraint_str.size()});
+  auto const &all = get<Array>(j_inc);
+  out.resize(all.size());
+  for (size_t i = 0; i < all.size(); ++i) {
+    auto const &set = get<Array const>(all[i]);
+    for (auto const &v : set) {
+      if (IsA<Integer>(v)) {
+        uint32_t u = static_cast<uint32_t const>(get<Integer const>(v));
+        out[i].emplace_back(u);
+      } else if (IsA<Number>(v)) {
+        double d = get<Number const>(v);
+        CHECK_EQ(std::floor(d), d)
+            << "Found floating point number in interaction constraints";
+        out[i].emplace_back(static_cast<uint32_t const>(d));
+      }
+    }
+  }
+}
+}  // namespace xgboost

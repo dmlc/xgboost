@@ -7,9 +7,7 @@
 #include <thrust/iterator/counting_iterator.h>
 
 #include <algorithm>
-#include <bitset>
 #include <string>
-#include <sstream>
 #include <set>
 
 #include "xgboost/logging.h"
@@ -18,14 +16,13 @@
 #include "param.h"
 #include "../common/device_helpers.cuh"
 
-
 namespace xgboost {
 
-size_t FeatureInteractionConstraint::Features() const {
+size_t FeatureInteractionConstraintDevice::Features() const {
   return d_sets_ptr_.size() - 1;
 }
 
-void FeatureInteractionConstraint::Configure(
+void FeatureInteractionConstraintDevice::Configure(
     tree::TrainParam const& param, int32_t const n_features) {
   has_constraint_ = true;
   if (param.interaction_constraints.length() == 0) {
@@ -37,9 +34,10 @@ void FeatureInteractionConstraint::Configure(
   dmlc::JSONReader reader(&iss);
   // Interaction constraints parsed from string parameter.  After
   // parsing, this looks like {{0, 1, 2}, {2, 3 ,4}}.
-  std::vector<std::vector<int32_t>> h_feature_constraints;
+  std::vector<std::vector<bst_feature_t>> h_feature_constraints;
   try {
-    reader.Read(&h_feature_constraints);
+    ParseInteractionConstraint(param.interaction_constraints, &h_feature_constraints);
+    // reader.Read(&h_feature_constraints);
   } catch (dmlc::Error const& e) {
     LOG(FATAL) << "Failed to parse feature interaction constraint:\n"
                << param.interaction_constraints << "\n"
@@ -68,13 +66,13 @@ void FeatureInteractionConstraint::Configure(
 
   // Represent constraints as CSR format, flatten is the value vector,
   // ptr is row_ptr vector in CSR.
-  std::vector<int32_t> h_feature_constraints_flatten;
+  std::vector<uint32_t> h_feature_constraints_flatten;
   for (auto const& constraints : h_feature_constraints) {
-    for (int32_t c : constraints) {
+    for (uint32_t c : constraints) {
       h_feature_constraints_flatten.emplace_back(c);
     }
   }
-  std::vector<int32_t> h_feature_constraints_ptr;
+  std::vector<size_t> h_feature_constraints_ptr;
   size_t n_features_in_constraints = 0;
   h_feature_constraints_ptr.emplace_back(n_features_in_constraints);
   for (auto const& v : h_feature_constraints) {
@@ -130,13 +128,13 @@ void FeatureInteractionConstraint::Configure(
   s_result_buffer_ = dh::ToSpan(result_buffer_);
 }
 
-FeatureInteractionConstraint::FeatureInteractionConstraint(
+FeatureInteractionConstraintDevice::FeatureInteractionConstraintDevice(
     tree::TrainParam const& param, int32_t const n_features) :
     has_constraint_{true}, n_sets_{0} {
   this->Configure(param, n_features);
 }
 
-void FeatureInteractionConstraint::Reset() {
+void FeatureInteractionConstraintDevice::Reset() {
   for (auto& node : node_constraints_storage_) {
     thrust::fill(node.begin(), node.end(), 0);
   }
@@ -153,7 +151,7 @@ __global__ void ClearBuffersKernel(
   }
 }
 
-void FeatureInteractionConstraint::ClearBuffers() {
+void FeatureInteractionConstraintDevice::ClearBuffers() {
   CHECK_EQ(output_buffer_bits_.Size(), input_buffer_bits_.Size());
   CHECK_LE(feature_buffer_.Size(), output_buffer_bits_.Size());
   uint32_t constexpr kBlockThreads = 256;
@@ -164,7 +162,7 @@ void FeatureInteractionConstraint::ClearBuffers() {
       output_buffer_bits_, input_buffer_bits_);
 }
 
-common::Span<bst_feature_t> FeatureInteractionConstraint::QueryNode(int32_t node_id) {
+common::Span<bst_feature_t> FeatureInteractionConstraintDevice::QueryNode(int32_t node_id) {
   if (!has_constraint_) { return {}; }
   CHECK_LT(node_id, s_node_constraints_.size());
 
@@ -203,7 +201,7 @@ __global__ void QueryFeatureListKernel(LBitField64 node_constraints,
   result_buffer_output &= result_buffer_input;
 }
 
-common::Span<bst_feature_t> FeatureInteractionConstraint::Query(
+common::Span<bst_feature_t> FeatureInteractionConstraintDevice::Query(
     common::Span<bst_feature_t> feature_list, int32_t nid) {
   if (!has_constraint_ || nid == 0) {
     return feature_list;
@@ -250,8 +248,8 @@ __global__ void RestoreFeatureListFromSetsKernel(
     LBitField64 feature_buffer,
 
     bst_feature_t fid,
-    common::Span<int32_t> feature_interactions,
-    common::Span<int32_t> feature_interactions_ptr,  // of size n interaction set + 1
+    common::Span<bst_feature_t> feature_interactions,
+    common::Span<size_t> feature_interactions_ptr,  // of size n interaction set + 1
 
     common::Span<bst_feature_t> interactions_list,
     common::Span<size_t> interactions_list_ptr) {
@@ -302,7 +300,7 @@ __global__ void InteractionConstraintSplitKernel(LBitField64 feature,
   }
 }
 
-void FeatureInteractionConstraint::Split(
+void FeatureInteractionConstraintDevice::Split(
     bst_node_t node_id, bst_feature_t feature_id, bst_node_t left_id, bst_node_t right_id) {
   if (!has_constraint_) { return; }
   CHECK_NE(node_id, left_id)
