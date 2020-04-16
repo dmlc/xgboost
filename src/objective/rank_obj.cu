@@ -52,14 +52,18 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
 
 template <typename T>
 XGBOOST_DEVICE __forceinline__ uint32_t
-CountNumItemsToTheLeftOf(const T * __restrict__ items, uint32_t n, T v) {
-  return dh::LowerBound(items, n, v, thrust::greater<T>());
+CountNumItemsToTheLeftOf(const T *__restrict__ items, uint32_t n, T v) {
+  return thrust::lower_bound(thrust::seq, items, items + n, v,
+                             thrust::greater<T>()) -
+         items;
 }
 
 template <typename T>
 XGBOOST_DEVICE __forceinline__ uint32_t
-CountNumItemsToTheRightOf(const T * __restrict__ items, uint32_t n, T v) {
-  return n - dh::UpperBound(items, n, v, thrust::greater<T>());
+CountNumItemsToTheRightOf(const T *__restrict__ items, uint32_t n, T v) {
+  return n - (thrust::upper_bound(thrust::seq, items, items + n, v,
+                                  thrust::greater<T>()) -
+              items);
 }
 #endif
 
@@ -671,7 +675,10 @@ class SortedLabelList : dh::SegmentSorter<float> {
     dh::LaunchN(device_id, niter, nullptr, [=] __device__(uint32_t idx) {
       // First, determine the group 'idx' belongs to
       uint32_t item_idx = idx % total_items;
-      uint32_t group_idx = dh::UpperBound(dgroups.data(), ngroups, item_idx);
+      uint32_t group_idx =
+          thrust::upper_bound(thrust::seq, dgroups.begin(),
+                              dgroups.begin() + ngroups, item_idx) -
+          dgroups.begin();
       // Span of this group within the larger labels/predictions sorted tuple
       uint32_t group_begin = dgroups[group_idx - 1];
       uint32_t group_end = dgroups[group_idx];

@@ -44,7 +44,7 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
   size_t Size() const { return num_elements_; }
   __device__ COOTuple GetElement(size_t idx) const {
     size_t column_idx =
-        dh::UpperBound(column_ptr_.data(), column_ptr_.size(), idx) - 1;
+        thrust::upper_bound(thrust::seq,column_ptr_.begin(), column_ptr_.end(), idx) - column_ptr_.begin() - 1;
     auto& column = columns_[column_idx];
     size_t row_idx = idx - column_ptr_[column_idx];
     float value = column.valid.Data() == nullptr || column.valid.Check(row_idx)

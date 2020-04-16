@@ -49,7 +49,9 @@ __global__ void CompressBinEllpackKernel(
     int ncuts = cut_rows[feature + 1] - cut_rows[feature];
     // Assigning the bin in current entry.
     // S.t.: fvalue < feature_cuts[bin]
-    bin = dh::UpperBound(feature_cuts, ncuts, fvalue);
+    bin = thrust::upper_bound(thrust::seq, feature_cuts, feature_cuts + ncuts,
+                              fvalue) -
+          feature_cuts;
     if (bin >= ncuts) {
       bin = ncuts - 1;
     }
