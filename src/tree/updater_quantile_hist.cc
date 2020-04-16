@@ -308,7 +308,46 @@ void QuantileHistMaker::Builder::SplitSiblings(const std::vector<ExpandEntry>& n
   for (auto const& entry : nodes) {
     int nid = entry.nid;
     RegTree::Node &node = (*p_tree)[nid];
-    if (rabit::IsDistributed()) {
+
+
+
+//    size_t node_sizes[2] = { row_set_collection_[left_id ].Size(),
+//                             row_set_collection_[right_id].Size() };
+//
+//    if (rabit::IsDistributed()) {
+//      // compute amount of samples in each dtree node accross all distributed workers
+//      rabit::Allreduce<rabit::op::Sum>(&node_sizes[0], 2);
+//    }
+
+
+if(node.IsRoot())
+{
+  small_siblings->push_back(entry);
+}
+else
+{
+  const int32_t left_id = (*p_tree)[node.Parent()].LeftChild();
+  const int32_t right_id = (*p_tree)[node.Parent()].RightChild();
+  size_t node_sizes[2] = { row_set_collection_[left_id ].Size(),
+                           row_set_collection_[right_id].Size() };
+  if (rabit::IsDistributed()) {
+    // compute amount of samples in each dtree node accross all distributed workers
+    rabit::Allreduce<rabit::op::Sum>(&node_sizes[0], 2);
+  }
+  if(nid == left_id && node_sizes[0] < node_sizes[1])
+  {
+    small_siblings->push_back(entry);
+  }
+  else if(nid == right_id && node_sizes[1] <= node_sizes[0])
+  {
+    small_siblings->push_back(entry);
+  }
+  else
+  {
+    big_siblings->push_back(entry);
+  }
+}
+/*    if (rabit::IsDistributed()) {
       if (node.IsRoot() || node.IsLeftChild()) {
         small_siblings->push_back(entry);
       } else {
@@ -328,7 +367,7 @@ void QuantileHistMaker::Builder::SplitSiblings(const std::vector<ExpandEntry>& n
       } else {
         big_siblings->push_back(entry);
       }
-    }
+    }*/
   }
 }
 
