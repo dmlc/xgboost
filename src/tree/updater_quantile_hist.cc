@@ -118,17 +118,37 @@ void QuantileHistMaker::Builder::SyncHistograms(
       auto parent_hist = hist_[(*p_tree)[entry.nid].Parent()];
       auto sibling_hist = hist_[entry.sibling_nid];
 
-      SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
+//      SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
+      SubtractionHist(this_hist, parent_hist, sibling_hist, r.begin(), r.end());
     }
   });
 
   if (isDistributed) {
+
+
     this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
+  common::BlockedSpace2d space2(nodes_for_subtraction_trick_.size(), [&](size_t node) {
+    return nbins;
+  }, 1024);
+
+  common::ParallelFor2d(space2, this->nthread_, [&](size_t node, common::Range1d r) {
+    const auto entry = nodes_for_subtraction_trick_[node];
+    auto this_hist = hist_[entry.nid];
+
+    if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
+      auto parent_hist = hist_[(*p_tree)[entry.nid].Parent()];
+      auto sibling_hist = hist_[entry.sibling_nid];
+
+      SubtractionHist(this_hist, parent_hist, sibling_hist, r.begin(), r.end());
+    }
+  });
+
+
     // use Subtraction Trick
-    for (auto const& node : nodes_for_subtraction_trick_) {
+/*    for (auto const& node : nodes_for_subtraction_trick_) {
       SubtractionTrick(hist_[node.nid], hist_[node.sibling_nid],
                        hist_[(*p_tree)[node.nid].Parent()]);
-    }
+    }*/
   }
 
   builder_monitor_.Stop("SyncHistograms");
