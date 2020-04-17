@@ -319,9 +319,9 @@ class DeviceHistogram {
   }
 
   void Reset() {
-    dh::safe_cuda(cudaMemsetAsync(
-        data_.data().get(), 0,
-        data_.size() * sizeof(typename decltype(data_)::value_type)));
+    auto d_data = data_.data().get();
+      dh::LaunchN(device_id_, data_.size(),
+                  [=] __device__(size_t idx) { d_data[idx] = 0.0f; });
     nidx_map_.clear();
   }
   bool HistogramExists(int nidx) const {
@@ -349,23 +349,27 @@ class DeviceHistogram {
         // no need to remove old node, just insert the new one.
         nidx_map_[nidx] = used_size;
         // memset histogram size in bytes
-        dh::safe_cuda(cudaMemsetAsync(data_.data().get() + used_size, 0,
-                                      n_bins_ * sizeof(GradientSumT)));
       } else {
         std::pair<int, size_t> old_entry = *nidx_map_.begin();
         nidx_map_.erase(old_entry.first);
-        dh::safe_cuda(cudaMemsetAsync(data_.data().get() + old_entry.second, 0,
-                                      n_bins_ * sizeof(GradientSumT)));
         nidx_map_[nidx] = old_entry.second;
       }
+      // Zero recycled memory
+      auto d_data = data_.data().get() + nidx_map_[nidx];
+      dh::LaunchN(device_id_, n_bins_ * 2,
+                  [=] __device__(size_t idx) { d_data[idx] = 0.0f; });
     } else {
       // Append new node histogram
       nidx_map_[nidx] = used_size;
-      size_t new_required_memory = std::max(data_.size() * 2, HistogramSize());
-      if (data_.size() < new_required_memory) {
+      // Check there is enough memory for another histogram node
+      if (data_.size() < new_used_size + HistogramSize()) {
+        size_t new_required_memory =
+            std::max(data_.size() * 2, HistogramSize());
         data_.resize(new_required_memory);
       }
     }
+
+    CHECK_GE(data_.size(), nidx_map_.size() * HistogramSize());
   }
 
   /**
