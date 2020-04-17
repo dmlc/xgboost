@@ -731,7 +731,7 @@ class LearnerIO : public LearnerConfiguration {
       tparam_.dsplit = DataSplitMode::kRow;
     }
 
-    this->Configure();
+    this->need_configuration_ = true;
   }
 
   // Save model into binary format.  The code is about to be deprecated by more robust
