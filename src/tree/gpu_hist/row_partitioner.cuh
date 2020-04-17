@@ -108,7 +108,6 @@ class RowPartitioner {
   template <typename UpdatePositionOpT>
   void UpdatePosition(bst_node_t nidx, bst_node_t left_nidx,
                       bst_node_t right_nidx, UpdatePositionOpT op) {
-    dh::safe_cuda(cudaSetDevice(device_idx_));
     Segment segment = ridx_segments_.at(nidx);  // rows belongs to node nidx
     auto d_ridx = ridx_.CurrentSpan();
     auto d_position = position_.CurrentSpan();

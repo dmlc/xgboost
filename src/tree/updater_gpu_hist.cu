@@ -2,9 +2,6 @@
  * Copyright 2017-2020 XGBoost contributors
  */
 #include <thrust/copy.h>
-#include <thrust/functional.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <thrust/reduce.h>
 #include <xgboost/tree_updater.h>
 #include <algorithm>
@@ -20,8 +17,6 @@
 #include "xgboost/span.h"
 #include "xgboost/json.h"
 
-#include "../common/common.h"
-#include "../common/compressed_iterator.h"
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
 #include "../common/timer.h"
@@ -348,7 +343,6 @@ class DeviceHistogram {
     // Number of items currently used in data
     const size_t used_size = nidx_map_.size() * HistogramSize();
     const size_t new_used_size = used_size + HistogramSize();
-    dh::safe_cuda(cudaSetDevice(device_id_));
     if (data_.size() >= kStopGrowingSize) {
       // Recycle histogram memory
       if (new_used_size <= data_.size()) {
@@ -428,7 +422,6 @@ struct GPUHistMakerDevice {
 
   GradientSumT histogram_rounding;
 
-  dh::CubMemory temp_memory;
   dh::PinnedMemory pinned_memory;
 
   std::vector<cudaStream_t> streams{};
@@ -531,15 +524,14 @@ struct GPUHistMakerDevice {
   std::vector<DeviceSplitCandidate> EvaluateSplits(
       std::vector<int> nidxs, const RegTree& tree,
       size_t num_columns) {
-    dh::safe_cuda(cudaSetDevice(device_id));
     auto result_all = pinned_memory.GetSpan<DeviceSplitCandidate>(nidxs.size());
 
     // Work out cub temporary memory requirement
     GPUTrainingParam gpu_param(param);
     DeviceSplitCandidateReduceOp op(gpu_param);
 
-    dh::caching_device_vector<DeviceSplitCandidate> d_result_all(nidxs.size());
-    dh::caching_device_vector<DeviceSplitCandidate> split_candidates_all(nidxs.size()*num_columns);
+    dh::TemporaryArray<DeviceSplitCandidate> d_result_all(nidxs.size());
+    dh::TemporaryArray<DeviceSplitCandidate> split_candidates_all(nidxs.size()*num_columns);
 
     auto& streams = this->GetStreams(nidxs.size());
     for (auto i = 0ull; i < nidxs.size(); i++) {
@@ -582,7 +574,7 @@ struct GPUHistMakerDevice {
                                 cub_bytes, d_split_candidates.data(),
                                 d_result.data(), d_split_candidates.size(), op,
                                 DeviceSplitCandidate(), streams[i]);
-      dh::caching_device_vector<char> cub_temp(cub_bytes);
+      dh::TemporaryArray<char> cub_temp(cub_bytes);
       cub::DeviceReduce::Reduce(reinterpret_cast<void*>(cub_temp.data().get()),
                                 cub_bytes, d_split_candidates.data(),
                                 d_result.data(), d_split_candidates.size(), op,
@@ -651,9 +643,8 @@ struct GPUHistMakerDevice {
   // instances to their final leaf. This information is used later to update the
   // prediction cache
   void FinalisePosition(RegTree const* p_tree, DMatrix* p_fmat) {
-    const auto d_nodes =
-        temp_memory.GetSpan<RegTree::Node>(p_tree->GetNodes().size());
-    dh::safe_cuda(cudaMemcpy(d_nodes.data(), p_tree->GetNodes().data(),
+    dh::TemporaryArray<RegTree::Node> d_nodes(p_tree->GetNodes().size());
+    dh::safe_cuda(cudaMemcpy(d_nodes.data().get(), p_tree->GetNodes().data(),
                              d_nodes.size() * sizeof(RegTree::Node),
                              cudaMemcpyHostToDevice));
 
@@ -662,10 +653,10 @@ struct GPUHistMakerDevice {
       row_partitioner.reset(new RowPartitioner(device_id, p_fmat->Info().num_row_));
     }
     if (page->n_rows == p_fmat->Info().num_row_) {
-      FinalisePositionInPage(page, d_nodes);
+      FinalisePositionInPage(page, dh::ToSpan(d_nodes));
     } else {
       for (auto& batch : p_fmat->GetBatches<EllpackPage>(batch_param)) {
-        FinalisePositionInPage(batch.Impl(), d_nodes);
+        FinalisePositionInPage(batch.Impl(), dh::ToSpan(d_nodes));
       }
     }
   }

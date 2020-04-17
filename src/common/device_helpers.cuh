@@ -209,7 +209,6 @@ inline void LaunchN(int device_idx, size_t n, cudaStream_t stream, L lambda) {
   if (n == 0) {
     return;
   }
-  safe_cuda(cudaSetDevice(device_idx));
   const int GRID_SIZE =
       static_cast<int>(xgboost::common::DivRoundUp(n, ITEMS_PER_THREAD * BLOCK_THREADS));
   LaunchNKernel<<<GRID_SIZE, BLOCK_THREADS, 0, stream>>>(  // NOLINT
@@ -368,6 +367,7 @@ struct XGBCachingDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
      GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
      GetGlobalCachingAllocator().DeviceFree(ptr.get());
    }
+
   __host__ __device__
     void construct(T *)  // NOLINT
   {
@@ -390,6 +390,24 @@ template <typename T>
 using device_vector = thrust::device_vector<T,  XGBDeviceAllocator<T>>;  // NOLINT
 template <typename T>
 using caching_device_vector = thrust::device_vector<T,  XGBCachingDeviceAllocator<T>>;  // NOLINT
+
+// Faster to instantiate than caching_device_vector and invokes no synchronisation
+// Use this where vector functionality (e.g. resize) is not required
+template <typename T>
+class TemporaryArray {
+ public:
+  using AllocT = XGBCachingDeviceAllocator<T>;
+  using value_type = T;
+  TemporaryArray(size_t n) : size_(n) { ptr_ = AllocT().allocate(n); }
+  ~TemporaryArray() { AllocT().deallocate(ptr_, this->size()); }
+
+  thrust::device_ptr<T> data() { return ptr_; }
+  size_t size() { return size_; }
+
+ private:
+  thrust::device_ptr<T> ptr_;
+  size_t size_;
+};
 
 /**
  * \brief A double buffer, useful for algorithms like sort.
@@ -474,57 +492,6 @@ struct PinnedMemory {
   }
 };
 
-// Keep track of cub library device allocation
-struct CubMemory {
-  void *d_temp_storage { nullptr };
-  size_t temp_storage_bytes { 0 };
-
-  // Thrust
-  using value_type = char;  // NOLINT
-
-  CubMemory() = default;
-
-  ~CubMemory() { Free(); }
-
-  template <typename T>
-  xgboost::common::Span<T> GetSpan(size_t size) {
-    this->LazyAllocate(size * sizeof(T));
-    return xgboost::common::Span<T>(static_cast<T*>(d_temp_storage), size);
-  }
-
-  void Free() {
-    if (this->IsAllocated()) {
-      XGBDeviceAllocator<uint8_t> allocator;
-      allocator.deallocate(thrust::device_ptr<uint8_t>(static_cast<uint8_t *>(d_temp_storage)),
-                           temp_storage_bytes);
-      d_temp_storage = nullptr;
-      temp_storage_bytes = 0;
-    }
-  }
-
-  void LazyAllocate(size_t num_bytes) {
-    if (num_bytes > temp_storage_bytes) {
-      Free();
-      XGBDeviceAllocator<uint8_t> allocator;
-      d_temp_storage = static_cast<void *>(allocator.allocate(num_bytes).get());
-      temp_storage_bytes = num_bytes;
-    }
-  }
-  // Thrust
-  char *allocate(std::ptrdiff_t num_bytes) {  // NOLINT
-    LazyAllocate(num_bytes);
-    return reinterpret_cast<char *>(d_temp_storage);
-  }
-
-  // Thrust
-  void deallocate(char *ptr, size_t n) {  // NOLINT
-
-    // Do nothing
-  }
-
-  bool IsAllocated() { return d_temp_storage != nullptr; }
-};
-
 /*
  *  Utility functions
  */
@@ -532,26 +499,24 @@ struct CubMemory {
 /**
 * @brief Helper function to perform device-wide sum-reduction, returns to the
 * host
-* @param tmp_mem cub temporary memory info
 * @param in the input array to be reduced
 * @param nVals number of elements in the input array
 */
 template <typename T>
-typename std::iterator_traits<T>::value_type SumReduction(
-    dh::CubMemory* tmp_mem, T in, int nVals) {
+typename std::iterator_traits<T>::value_type SumReduction(T in, int nVals) {
   using ValueT = typename std::iterator_traits<T>::value_type;
   size_t tmpSize {0};
   ValueT *dummy_out = nullptr;
   dh::safe_cuda(cub::DeviceReduce::Sum(nullptr, tmpSize, in, dummy_out, nVals));
-  // Allocate small extra memory for the return value
-  tmp_mem->LazyAllocate(tmpSize + sizeof(ValueT));
-  auto ptr = reinterpret_cast<ValueT *>(tmp_mem->d_temp_storage) + 1;
+
+  TemporaryArray<char> temp(tmpSize + sizeof(ValueT));
+  auto ptr = reinterpret_cast<ValueT *>(temp.data().get()) + 1;
   dh::safe_cuda(cub::DeviceReduce::Sum(
       reinterpret_cast<void *>(ptr), tmpSize, in,
-      reinterpret_cast<ValueT *>(tmp_mem->d_temp_storage),
+      reinterpret_cast<ValueT *>(temp.data().get()),
       nVals));
   ValueT sum;
-  dh::safe_cuda(cudaMemcpy(&sum, tmp_mem->d_temp_storage, sizeof(ValueT),
+  dh::safe_cuda(cudaMemcpy(&sum, temp.data().get(), sizeof(ValueT),
                            cudaMemcpyDeviceToHost));
   return sum;
 }
