@@ -127,6 +127,7 @@ void QuantileHistMaker::Builder::SyncHistograms(
 
 
     this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
+
   common::BlockedSpace2d space2(nodes_for_subtraction_trick_.size(), [&](size_t node) {
     return nbins;
   }, 1024);
@@ -325,6 +326,7 @@ void QuantileHistMaker::Builder::SplitSiblings(const std::vector<ExpandEntry>& n
                    std::vector<ExpandEntry>* small_siblings,
                    std::vector<ExpandEntry>* big_siblings,
                    RegTree *p_tree) {
+  builder_monitor_.Start("SplitSiblings");
   for (auto const& entry : nodes) {
     int nid = entry.nid;
     RegTree::Node &node = (*p_tree)[nid];
@@ -389,6 +391,7 @@ else
       }
     }*/
   }
+  builder_monitor_.Stop("SplitSiblings");
 }
 
 void QuantileHistMaker::Builder::ExpandWithDepthWise(
