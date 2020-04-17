@@ -719,7 +719,7 @@ def test_RFECV():
     # Regression
     X, y = load_boston(return_X_y=True)
     bst = xgb.XGBClassifier(booster='gblinear', learning_rate=0.1,
-                            n_estimators=10, n_jobs=1,
+                            n_estimators=10,
                             objective='reg:squarederror',
                             random_state=0, verbosity=0)
     rfecv = RFECV(
@@ -729,7 +729,7 @@ def test_RFECV():
     # Binary classification
     X, y = load_breast_cancer(return_X_y=True)
     bst = xgb.XGBClassifier(booster='gblinear', learning_rate=0.1,
-                            n_estimators=10, n_jobs=1,
+                            n_estimators=10,
                             objective='binary:logistic',
                             random_state=0, verbosity=0)
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='roc_auc')
@@ -739,11 +739,21 @@ def test_RFECV():
     X, y = load_iris(return_X_y=True)
     bst = xgb.XGBClassifier(base_score=0.4, booster='gblinear',
                             learning_rate=0.1,
-                            n_estimators=10, n_jobs=1,
+                            n_estimators=10,
                             objective='multi:softprob',
                             random_state=0, reg_alpha=0.001, reg_lambda=0.01,
                             scale_pos_weight=0.5, verbosity=0)
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='neg_log_loss')
+    rfecv.fit(X, y)
+
+    X[0:4, :] = np.nan          # verify scikit_learn doesn't throw with nan
+    reg = xgb.XGBRegressor()
+    rfecv = RFECV(estimator=reg)
+    rfecv.fit(X, y)
+
+    cls = xgb.XGBClassifier()
+    rfecv = RFECV(estimator=cls, step=1, cv=3,
+                  scoring='neg_mean_squared_error')
     rfecv.fit(X, y)
 
 

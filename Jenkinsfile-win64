@@ -112,6 +112,10 @@ def TestWin64CPU() {
     bat """
     conda activate && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"
     """
+    echo "Installing Python dependencies..."
+    bat """
+     conda activate && conda upgrade scikit-learn pandas numpy
+    """
     echo "Running Python tests..."
     bat "conda activate && python -m pytest -v -s --fulltrace tests\\python"
     bat "conda activate && python -m pip uninstall -y xgboost"
@@ -132,6 +136,10 @@ def TestWin64GPU(args) {
     bat "conda activate && (python -m pip uninstall -y xgboost || cd .)"
     bat """
     conda activate && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"
+    """
+    echo "Installing Python dependencies..."
+    bat """
+     conda activate && conda upgrade scikit-learn pandas numpy
     """
     echo "Running Python tests..."
     bat """
