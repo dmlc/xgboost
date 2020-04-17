@@ -15,12 +15,12 @@
 namespace xgboost {
 namespace {
 
-struct FConstraintWrapper : public FeatureInteractionConstraint {
+struct FConstraintWrapper : public FeatureInteractionConstraintDevice {
   common::Span<LBitField64> GetNodeConstraints() {
-    return FeatureInteractionConstraint::s_node_constraints_;
+    return FeatureInteractionConstraintDevice::s_node_constraints_;
   }
   FConstraintWrapper(tree::TrainParam param, bst_feature_t n_features) :
-      FeatureInteractionConstraint(param, n_features) {}
+      FeatureInteractionConstraintDevice(param, n_features) {}
 
   dh::device_vector<bst_feature_t> const& GetDSets() const {
     return d_sets_;

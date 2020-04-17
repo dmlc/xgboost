@@ -483,8 +483,21 @@ struct SplitEntryContainer {
 };
 
 using SplitEntry = SplitEntryContainer<GradStats>;
-
 }  // namespace tree
+
+/*
+ * \brief Parse the interaction constraints from string.
+ * \param constraint_str String storing the interfaction constraints:
+ *
+ *  Example input string:
+ *
+ *    "[[1, 2], [3, 4]]""
+ *
+ * \param p_out Pointer to output
+ */
+void ParseInteractionConstraint(
+    std::string const &constraint_str,
+    std::vector<std::vector<xgboost::bst_feature_t>> *p_out);
 }  // namespace xgboost
 
 // define string serializer for vector, to get the arguments

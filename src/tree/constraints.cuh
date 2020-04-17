@@ -88,18 +88,18 @@ struct ValueConstraint {
 };
 
 // Feature interaction constraints built for GPU Hist updater.
-struct FeatureInteractionConstraint {
+struct FeatureInteractionConstraintDevice {
  protected:
   // Whether interaction constraint is used.
   bool has_constraint_;
   // n interaction sets.
-  int32_t n_sets_;
+  size_t n_sets_;
 
   // The parsed feature interaction constraints as CSR.
-  dh::device_vector<int32_t> d_fconstraints_;
-  common::Span<int32_t> s_fconstraints_;
-  dh::device_vector<int32_t> d_fconstraints_ptr_;
-  common::Span<int32_t> s_fconstraints_ptr_;
+  dh::device_vector<bst_feature_t> d_fconstraints_;
+  common::Span<bst_feature_t> s_fconstraints_;
+  dh::device_vector<size_t> d_fconstraints_ptr_;
+  common::Span<size_t> s_fconstraints_ptr_;
   /* Interaction sets for each feature as CSR.  For an input like:
    * [[0, 1], [1, 2]], this will have values:
    *
@@ -141,11 +141,11 @@ struct FeatureInteractionConstraint {
 
  public:
   size_t Features() const;
-  FeatureInteractionConstraint() = default;
+  FeatureInteractionConstraintDevice() = default;
   void Configure(tree::TrainParam const& param, int32_t const n_features);
-  FeatureInteractionConstraint(tree::TrainParam const& param, int32_t const n_features);
-  FeatureInteractionConstraint(FeatureInteractionConstraint const& that) = default;
-  FeatureInteractionConstraint(FeatureInteractionConstraint&& that) = default;
+  FeatureInteractionConstraintDevice(tree::TrainParam const& param, int32_t const n_features);
+  FeatureInteractionConstraintDevice(FeatureInteractionConstraintDevice const& that) = default;
+  FeatureInteractionConstraintDevice(FeatureInteractionConstraintDevice&& that) = default;
   /*! \brief Reset before constructing a new tree. */
   void Reset();
   /*! \brief Return a list of features given node id */

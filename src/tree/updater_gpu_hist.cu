@@ -436,7 +436,7 @@ struct GPUHistMakerDevice {
   common::Monitor monitor;
   std::vector<ValueConstraint> node_value_constraints;
   common::ColumnSampler column_sampler;
-  FeatureInteractionConstraint interaction_constraints;
+  FeatureInteractionConstraintDevice interaction_constraints;
 
   using ExpandQueue =
       std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
