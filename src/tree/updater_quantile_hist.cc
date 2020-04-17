@@ -117,9 +117,9 @@ void QuantileHistMaker::Builder::SyncHistograms(
     if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1 && !isDistributed) {
       auto parent_hist = hist_[(*p_tree)[entry.nid].Parent()];
       auto sibling_hist = hist_[entry.sibling_nid];
-
-//      SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
-      SubtractionHist(this_hist, parent_hist, sibling_hist, r.begin(), r.end());
+//std::cout << "\n---------------------------SubtractionHist---------------------------\n";
+      SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
+      //SubtractionHist(this_hist, parent_hist, sibling_hist, r.begin(), r.end());
     }
   });
 
