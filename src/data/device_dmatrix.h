@@ -31,6 +31,10 @@ class DeviceDMatrix : public DMatrix {
 
   bool EllpackExists() const override { return true; }
   bool SparsePageExists() const override { return false; }
+  DMatrix *Slice(common::Span<int32_t const> ridxs) override {
+    LOG(FATAL) << "Slicing DMatrix is not supported for Device DMatrix.";
+    return nullptr;
+  }
 
  private:
   BatchSet<SparsePage> GetRowBatches() override {

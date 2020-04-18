@@ -73,6 +73,8 @@ class MetaInfo {
 
   /*! \brief default constructor */
   MetaInfo()  = default;
+  MetaInfo(MetaInfo&& that) = default;
+  MetaInfo& operator=(MetaInfo&& that) = default;
   MetaInfo& operator=(MetaInfo const& that) {
     this->num_row_ = that.num_row_;
     this->num_col_ = that.num_col_;
@@ -89,6 +91,8 @@ class MetaInfo {
     this->base_margin_.Copy(that.base_margin_);
     return *this;
   }
+
+  MetaInfo Slice(common::Span<int32_t const> ridxs) const;
   /*!
    * \brief Get weight of each instances.
    * \param i Instance index.
@@ -491,7 +495,7 @@ class DMatrix {
                          const std::string& cache_prefix = "",
                          size_t page_size = kPageSize);
 
-
+  virtual DMatrix* Slice(common::Span<int32_t const> ridxs) = 0;
   /*! \brief page size 32 MB */
   static const size_t kPageSize = 32UL << 20UL;
 
