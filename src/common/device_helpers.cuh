@@ -397,12 +397,12 @@ template <typename T>
 class TemporaryArray {
  public:
   using AllocT = XGBCachingDeviceAllocator<T>;
-  using value_type = T;
-  TemporaryArray(size_t n) : size_(n) { ptr_ = AllocT().allocate(n); }
+  using value_type = T;  // NOLINT
+  explicit TemporaryArray(size_t n) : size_(n) { ptr_ = AllocT().allocate(n); }
   ~TemporaryArray() { AllocT().deallocate(ptr_, this->size()); }
 
-  thrust::device_ptr<T> data() { return ptr_; }
-  size_t size() { return size_; }
+  thrust::device_ptr<T> data() { return ptr_; }  // NOLINT
+  size_t size() { return size_; }  // NOLINT
 
  private:
   thrust::device_ptr<T> ptr_;
