@@ -10,8 +10,7 @@
 
 TEST(SumReduce, Test) {
   thrust::device_vector<float> data(100, 1.0f);
-  dh::CubMemory temp;
-  auto sum = dh::SumReduction(&temp, data.data().get(), data.size());
+  auto sum = dh::SumReduction(data.data().get(), data.size());
   ASSERT_NEAR(sum, 100.0f, 1e-5);
 }
 

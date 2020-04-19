@@ -185,7 +185,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
         counting, f);
     auto perm = thrust::make_permutation_iterator(gpair_.data(), skip);
 
-    return dh::SumReduction(&temp_, perm, num_row_);
+    return dh::SumReduction(perm, num_row_);
   }
 
   // This needs to be public because of the __device__ lambda.
@@ -213,7 +213,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     };  // NOLINT
     thrust::transform_iterator<decltype(f), decltype(counting), GradientPair>
         multiply_iterator(counting, f);
-    return dh::SumReduction(&temp_, multiply_iterator, col_size);
+    return dh::SumReduction(multiply_iterator, col_size);
   }
 
   // This needs to be public because of the __device__ lambda.
@@ -249,7 +249,6 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
   std::vector<size_t> row_ptr_;
   dh::device_vector<xgboost::Entry> data_;
   dh::caching_device_vector<GradientPair> gpair_;
-  dh::CubMemory temp_;
   size_t num_row_;
 };
 
