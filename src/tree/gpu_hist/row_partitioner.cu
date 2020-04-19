@@ -63,7 +63,7 @@ struct WriteResultsFunctor {
 // Change the value type of thrust discard iterator so we can use it with cub
 class DiscardOverload : public thrust::discard_iterator<IndexFlagTuple> {
  public:
-  using value_type = IndexFlagTuple;
+  using value_type = IndexFlagTuple;  // NOLINT
 };
 
 // Implement partitioning via single scan operation using transform output to
