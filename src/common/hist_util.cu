@@ -47,8 +47,7 @@ struct SketchContainer {
   SketchContainer(int max_bin, size_t num_columns, size_t num_rows) {
     // Initialize Sketches for this dmatrix
     sketches_.resize(num_columns);
-#pragma omp parallel for schedule(static) \
-  if (num_columns > kOmpNumColsParallelizeLimit)
+#pragma omp parallel for schedule(static) if (num_columns > kOmpNumColsParallelizeLimit)  // NOLINT
     for (int icol = 0; icol < num_columns; ++icol) {                 // NOLINT
       sketches_[icol].Init(num_rows, 1.0 / (8 * max_bin));
     }
@@ -66,8 +65,7 @@ struct SketchContainer {
   void Push(size_t entries_per_column,
             const thrust::host_vector<SketchEntry>& entries,
             const thrust::host_vector<size_t>& column_scan) {
-#pragma omp parallel for schedule(static) \
-  if (sketches_.size() > SketchContainer::kOmpNumColsParallelizeLimit)
+#pragma omp parallel for schedule(static) if (sketches_.size() > SketchContainer::kOmpNumColsParallelizeLimit)  // NOLINT
     for (int icol = 0; icol < sketches_.size(); ++icol) {
       size_t column_size = column_scan[icol + 1] - column_scan[icol];
       if (column_size == 0) continue;
@@ -325,18 +323,6 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
 
   // add cuts into sketches
   thrust::host_vector<SketchEntry> host_cuts(cuts);
-  for (size_t i = 0; i < host_cuts.size() - num_cuts_per_feature; i += num_cuts_per_feature) {
-    auto beg = i;
-    auto end = i + num_cuts_per_feature;
-    CHECK_EQ(end - beg, num_cuts_per_feature);
-    // std::cout << "\ncolumn: " << i / num_cuts_per_feature << std::endl;
-    // for (size_t j = beg; j < end; ++j) {
-    //   std::cout << "rmin: " << host_cuts[j].rmin << ", "
-    //             << "rmax: " << host_cuts[j].rmax << ", "
-    //             << "wmin: " << host_cuts[j].wmin << ", "
-    //             << "val: " << host_cuts[j].value << std::endl;
-    // }
-  }
   sketch_container->Push(num_cuts_per_feature, host_cuts, host_column_sizes_scan);
 }
 
