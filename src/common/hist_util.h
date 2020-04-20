@@ -127,11 +127,11 @@ class HistogramCuts {
 class CutsBuilder {
  public:
   using WQSketch = common::WQuantileSketch<bst_float, bst_float>;
+  /* \brief return whether group for ranking is used. */
+  static bool UseGroup(DMatrix* dmat);
 
  protected:
   HistogramCuts* p_cuts_;
-  /* \brief return whether group for ranking is used. */
-  static bool UseGroup(DMatrix* dmat);
 
  public:
   explicit CutsBuilder(HistogramCuts* p_cuts) : p_cuts_{p_cuts} {}

@@ -9,6 +9,11 @@
 #include "../../../src/data/simple_dmatrix.h"
 #include "../../../src/data/adapter.h"
 
+#ifdef __CUDACC__
+#include <xgboost/json.h>
+#include "../../../src/data/device_adapter.cuh"
+#endif  // __CUDACC__
+
 // Some helper functions used to test both GPU and CPU algorithms
 //
 namespace xgboost {
@@ -69,11 +74,11 @@ inline std::vector<float> GenerateRandomCategoricalSingleColumn(int n,
   return x;
 }
 
-inline std::shared_ptr<data::SimpleDMatrix> GetDMatrixFromData(const std::vector<float>& x, int num_rows, int num_columns) {
+inline std::shared_ptr<data::SimpleDMatrix>
+GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns) {
   data::DenseAdapter adapter(x.data(), num_rows, num_columns);
   return std::shared_ptr<data::SimpleDMatrix>(new data::SimpleDMatrix(
-      &adapter, std::numeric_limits<float>::quiet_NaN(),
-                             1));
+      &adapter, std::numeric_limits<float>::quiet_NaN(), 1));
 }
 
 inline std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
@@ -96,8 +101,9 @@ inline std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
 }
 
 // Test that elements are approximately equally distributed among bins
-inline void TestBinDistribution(const HistogramCuts& cuts, int column_idx,
-                                const std::vector<float>& sorted_column,const std::vector<float >&sorted_weights,
+inline void TestBinDistribution(const HistogramCuts &cuts, int column_idx,
+                                const std::vector<float> &sorted_column,
+                                const std::vector<float> &sorted_weights,
                                 int num_bins) {
   std::map<int, int> bin_weights;
   for (auto i = 0ull; i < sorted_column.size(); i++) {
@@ -113,29 +119,29 @@ inline void TestBinDistribution(const HistogramCuts& cuts, int column_idx,
   // First and last bin can have smaller
   for (auto& kv : bin_weights) {
     EXPECT_LE(std::abs(bin_weights[kv.first] - expected_bin_weight),
-             allowable_error );
+              allowable_error);
   }
 }
 
-  // Test sketch quantiles against the real quantiles
-  // Not a very strict test
-inline void TestRank(const std::vector<float>& cuts,
-                     const std::vector<float>& sorted_x,
-                     const std::vector<float>& sorted_weights) {
+// Test sketch quantiles against the real quantiles Not a very strict
+// test
+inline void TestRank(const std::vector<float> &column_cuts,
+                     const std::vector<float> &sorted_x,
+                     const std::vector<float> &sorted_weights) {
   double eps = 0.05;
   auto total_weight =
       std::accumulate(sorted_weights.begin(), sorted_weights.end(), 0.0);
   // Ignore the last cut, its special
   double sum_weight = 0.0;
   size_t j = 0;
-  for (size_t i = 0; i < cuts.size() - 1; i++) {
-    while (cuts[i] > sorted_x[j]) {
+  for (size_t i = 0; i < column_cuts.size() - 1; i++) {
+    while (column_cuts[i] > sorted_x[j]) {
       sum_weight += sorted_weights[j];
       j++;
     }
-    double expected_rank = ((i + 1) * total_weight) / cuts.size();
-    double acceptable_error = std::max(2.0, total_weight * eps);
-    ASSERT_LE(std::abs(expected_rank - sum_weight), acceptable_error);
+    double expected_rank = ((i + 1) * total_weight) / column_cuts.size();
+    double acceptable_error = std::max(2.9, total_weight * eps);
+    EXPECT_LE(std::abs(expected_rank - sum_weight), acceptable_error);
   }
 }
 
@@ -167,15 +173,14 @@ inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
       ASSERT_EQ(cuts.SearchBin(v, column_idx), cuts.Ptrs()[column_idx] + i);
       i++;
     }
-  }
-  else {
+  } else {
     int num_cuts_column = cuts.Ptrs()[column_idx + 1] - cuts.Ptrs()[column_idx];
     std::vector<float> column_cuts(num_cuts_column);
     std::copy(cuts.Values().begin() + cuts.Ptrs()[column_idx],
       cuts.Values().begin() + cuts.Ptrs()[column_idx + 1],
       column_cuts.begin());
-    TestBinDistribution(cuts, column_idx, sorted_column,sorted_weights, num_bins);
-    TestRank(column_cuts, sorted_column,sorted_weights);
+    TestBinDistribution(cuts, column_idx, sorted_column, sorted_weights, num_bins);
+    TestRank(column_cuts, sorted_column, sorted_weights);
   }
 }
 
@@ -196,10 +201,8 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat,
     const auto& w = dmat->Info().weights_.HostVector();
     std::vector<size_t > index(col.size());
     std::iota(index.begin(), index.end(), 0);
-    std::sort(index.begin(), index.end(),[=](size_t a,size_t b)
-    {
-      return col[a] < col[b];
-    });
+    std::sort(index.begin(), index.end(),
+              [=](size_t a, size_t b) { return col[a] < col[b]; });
 
     std::vector<float> sorted_column(col.size());
     std::vector<float> sorted_weights(col.size(), 1.0);

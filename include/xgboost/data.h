@@ -87,10 +87,22 @@ class MetaInfo {
 
     this->weights_.Resize(that.weights_.Size());
     this->weights_.Copy(that.weights_);
+
     this->base_margin_.Resize(that.base_margin_.Size());
     this->base_margin_.Copy(that.base_margin_);
+
+    this->labels_lower_bound_.Resize(that.labels_lower_bound_.Size());
+    this->labels_lower_bound_.Copy(that.labels_lower_bound_);
+
+    this->labels_upper_bound_.Resize(that.labels_upper_bound_.Size());
+    this->labels_upper_bound_.Copy(that.labels_upper_bound_);
     return *this;
   }
+
+  /*!
+   * \brief Validate all metainfo.
+   */
+  void Validate() const;
 
   MetaInfo Slice(common::Span<int32_t const> ridxs) const;
   /*!
