@@ -140,7 +140,7 @@ inline void TestRank(const std::vector<float> &column_cuts,
       j++;
     }
     double expected_rank = ((i + 1) * total_weight) / column_cuts.size();
-    double acceptable_error = std::max(3.0, total_weight * eps);
+    double acceptable_error = std::max(2.9, total_weight * eps);
     EXPECT_LE(std::abs(expected_rank - sum_weight), acceptable_error);
   }
 }

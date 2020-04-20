@@ -196,7 +196,7 @@ void ExtractWeightedCuts(int device,
     if (cut_idx == 0) {
       // First cut
       sample_idx = 0;
-    } else if (cut_idx % num_available_cuts == 0) {
+    } else if (cut_idx == num_available_cuts) {
       // Last cut
       sample_idx = column_entries.size() - 1;
     } else if (num_available_cuts == column_size) {
@@ -348,8 +348,8 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
   for (const auto& batch : dmat->GetBatches<SparsePage>()) {
     size_t batch_nnz = batch.data.Size();
     auto const& info = dmat->Info();
-    dh::caching_device_vector<uint32_t> groups(info.group_ptr_.size());
-    thrust::copy(info.group_ptr_.cbegin(), info.group_ptr_.cend(), groups.begin());
+    dh::caching_device_vector<uint32_t> groups(info.group_ptr_.cbegin(),
+                                               info.group_ptr_.cend());
     for (auto begin = 0ull; begin < batch_nnz; begin += sketch_batch_num_elements) {
       size_t end = std::min(batch_nnz, size_t(begin + sketch_batch_num_elements));
       if (has_weights) {
