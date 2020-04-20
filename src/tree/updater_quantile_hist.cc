@@ -326,7 +326,35 @@ void QuantileHistMaker::Builder::SplitSiblings(const std::vector<ExpandEntry>& n
                    std::vector<ExpandEntry>* small_siblings,
                    std::vector<ExpandEntry>* big_siblings,
                    RegTree *p_tree) {
+
   builder_monitor_.Start("SplitSiblings");
+
+  const size_t size = nodes.size();
+  //std::cout << "-------------------------size: " << size << "-------------------------\n";
+  std::vector<size_t> node_sizes1(size * 2);
+  //size_t* node_sizes1 = new size_t[2];
+  //size_t node_sizes1[/*size * */256*2];
+  size_t ii = 0;
+  for (size_t i = 0; i < nodes.size(); i++) {
+    int nid = nodes[i].nid;
+    RegTree::Node &node = (*p_tree)[nid];
+if(!node.IsRoot())
+{
+    const int32_t left_id = (*p_tree)[node.Parent()].LeftChild();
+    const int32_t right_id = (*p_tree)[node.Parent()].RightChild();
+    node_sizes1[ii] = row_set_collection_[left_id ].Size();
+    node_sizes1[ii + 1] =                       row_set_collection_[right_id].Size();
+    //node_sizes[ii] = row_set_collection_[left_id ].Size();
+    //node_sizes[ii + 1] = row_set_collection_[right_id ].Size();
+    ii += 2;
+}
+  }
+  if(rabit::IsDistributed())
+  {
+   rabit::Allreduce<rabit::op::Sum>(&node_sizes1[0], size * 2);
+  }
+//CHECK_EQ(size*2,i);
+
   for (auto const& entry : nodes) {
     int nid = entry.nid;
     RegTree::Node &node = (*p_tree)[nid];
@@ -486,15 +514,18 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
       ExpandEntry right_node(cright, cleft, p_tree->GetDepth(cright),
                             0.0f, timestamp++);
 
+      size_t node_sizes[2] = { row_set_collection_[cleft].Size(),
+                               row_set_collection_[cright].Size() };
       if (rabit::IsDistributed()) {
-        // in distributed mode, we need to keep consistent across workers
+        rabit::Allreduce<rabit::op::Sum>(&node_sizes[0], 2);
+      }
+      if(node_sizes[0] < node_sizes[1])
+      {
         BuildHistogramsLossGuide(left_node, gmat, gmatb, p_tree, gpair_h);
-      } else {
-        if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
-          BuildHistogramsLossGuide(left_node, gmat, gmatb, p_tree, gpair_h);
-        } else {
-          BuildHistogramsLossGuide(right_node, gmat, gmatb, p_tree, gpair_h);
-        }
+      }
+      else
+      {
+        BuildHistogramsLossGuide(right_node, gmat, gmatb, p_tree, gpair_h);
       }
 
       this->InitNewNode(cleft, gmat, gpair_h, *p_fmat, *p_tree);
