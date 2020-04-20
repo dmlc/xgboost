@@ -1,5 +1,7 @@
 import os
 import subprocess
+import sys
+import pytest
 
 
 CURRENT_DIR = os.path.dirname(__file__)
@@ -22,6 +24,9 @@ def test_custom_multiclass_objective():
 
 
 def test_custom_rmsle_objective():
+    major, minor = sys.version_info[:2]
+    if minor < 6:
+        pytest.skip('Skipping RMLSE test due to Python version being too low.')
     script = os.path.join(DEMO_DIR, 'custom_rmsle.py')
     cmd = ['python', script, '--plot=0']
     subprocess.check_call(cmd)
