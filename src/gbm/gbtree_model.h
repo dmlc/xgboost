@@ -99,9 +99,9 @@ struct GBTreeModel : public Model {
       std::stringstream fo("");
       fo.precision(20);
       fo << "Version 0.1.0\n"
-         << "num_output_group: " << learner_model_param_->num_output_group << "\n"
-         << "base_margin: " << learner_model_param_->base_score << "\n";
-      if (learner_model_param_->num_output_group > 1) {
+         << "num_output_group: " << learner_model_param->num_output_group << "\n"
+         << "base_margin: " << learner_model_param->base_score << "\n";
+      if (learner_model_param->num_output_group > 1) {
         fo << "tree_info: [";
         for (size_t i = 0; i < tree_info.size(); ++i) {
           if (i != 0) fo << ",";

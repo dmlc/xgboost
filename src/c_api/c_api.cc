@@ -792,8 +792,8 @@ XGB_DLL int XGBoosterGetFeatureInteractions(BoosterHandle handle,
   API_BEGIN();
   Learner* bst = static_cast<Learner*>(handle);
   bst->Configure();
-  std::vector<std::string>& str_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_str;
-  std::vector<const char*>& charp_vecs = XGBAPIThreadLocalStore::Get()->ret_vec_charp;
+  std::vector<std::string>& str_vecs = dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry>::Get()->ret_vec_str;
+  std::vector<const char*>& charp_vecs = dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry>::Get()->ret_vec_charp;
   str_vecs = xgbfi::GetFeatureInteractions(*bst,
                                            max_fi_depth,
                                            max_tree_depth,

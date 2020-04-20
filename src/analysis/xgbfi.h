@@ -2,7 +2,7 @@
 * Copyright 2017 by Contributors
 * \file xgbfi.h
 * \brief xgb feature interactions (xgbfi)
-* \author Mathias Müller (Far0n)
+* \author Mathias Mï¿½ller (Far0n)
 */
 #ifndef XGBOOST_ANALYSIS_XGBFI_H_
 #define XGBOOST_ANALYSIS_XGBFI_H_
@@ -24,7 +24,7 @@ namespace xgbfi {
 * \param nthread number of threads to use
 * \return vector of strings formated like "F1|F2|..;stat1;stat2;.."
 */
-std::vector<std::string> GetFeatureInteractions(const xgboost::Learner& learner,
+std::vector<std::string> GetFeatureInteractions(xgboost::Learner& learner,
                                                 int max_fi_depth,
                                                 int max_tree_depth,
                                                 int max_deepening,

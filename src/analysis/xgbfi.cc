@@ -535,7 +535,7 @@ void XgbModel::CollectFeatureInteractions(XgbTreePtr tree, InteractionPath* cfi,
 }
 
 
-std::vector<std::string> GetFeatureInteractions(const xgboost::Learner& learner,
+std::vector<std::string> GetFeatureInteractions(xgboost::Learner& learner,
   int max_fi_depth, int max_tree_depth, int max_deepening, int ntrees, const char* fmap,
   int nthread) {
 
