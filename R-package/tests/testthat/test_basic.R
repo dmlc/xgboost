@@ -68,7 +68,6 @@ test_that("dart prediction works", {
                                    one_drop = TRUE,
                                    nthread = 1,
                                    tree_method= "exact",
-                                   verbosity = 3,
                                    objective = "reg:squarederror"
                                  ),
                                 data = dtrain,
@@ -324,15 +323,15 @@ test_that("colsample_bytree works", {
   test_y <- as.numeric(rowSums(test_x) > 0)
   colnames(train_x) <- paste0("Feature_", sprintf("%03d", 1:100))
   colnames(test_x) <- paste0("Feature_", sprintf("%03d", 1:100))
-   dtrain <- xgb.DMatrix(train_x, label = train_y)
+  dtrain <- xgb.DMatrix(train_x, label = train_y)
   dtest <- xgb.DMatrix(test_x, label = test_y)
   watchlist <- list(train = dtrain, eval = dtest)
-   # Use colsample_bytree = 0.01, so that roughly one out of 100 features is
-  # chosen for each tree
-  param <- list(max_depth = 2, eta = 0, verbosity = 0, nthread = 2,
+  ## Use colsample_bytree = 0.01, so that roughly one out of 100 features is chosen for
+  ## each tree
+  param <- list(max_depth = 2, eta = 0, nthread = 2,
                 colsample_bytree = 0.01, objective = "binary:logistic",
                 eval_metric = "auc")
-   set.seed(2)
+  set.seed(2)
   bst <- xgb.train(param, dtrain, nrounds = 100, watchlist, verbose = 0)
   xgb.importance(model = bst)
   # If colsample_bytree works properly, a variety of features should be used
