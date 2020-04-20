@@ -58,3 +58,20 @@ test_that("custom objective using DMatrix attr works", {
   bst <- xgb.train(param, dtrain, num_round, watchlist)
   expect_equal(class(bst), "xgb.Booster")
 })
+
+test_that("custom objective with multi-class works", {
+  data = as.matrix(iris[, -5])
+  label =  as.numeric(iris$Species) - 1
+  dtrain <- xgb.DMatrix(data = data, label = label)
+  nclasses <- 3
+
+  fake_softprob <- function(preds, dtrain) {
+    expect_true(all(matrix(preds) == 0.5))
+    grad <- rnorm(dim(as.matrix(preds))[1])
+    expect_equal(dim(data)[1] * nclasses, dim(as.matrix(preds))[1])
+    hess <- rnorm(dim(as.matrix(preds))[1])
+    return (list(grad = grad, hess = hess))
+  }
+  param$objective = fake_softprob
+  bst <- xgb.train(param, dtrain, 1, num_class=nclasses)
+})

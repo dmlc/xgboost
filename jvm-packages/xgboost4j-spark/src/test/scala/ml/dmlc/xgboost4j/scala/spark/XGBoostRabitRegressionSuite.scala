@@ -69,8 +69,7 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
 
   test("test regression prediction parity w/o ring reduce") {
     val training = buildDataFrame(Regression.train)
-    val testDM = new DMatrix(Regression.test.iterator, null)
-    val testDF = buildDataFrame(Classification.test)
+    val testDF = buildDataFrame(Regression.test)
     val xgbSettings = Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
       "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
     val model1 = new XGBoostRegressor(xgbSettings).fit(training)

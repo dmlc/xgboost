@@ -37,12 +37,11 @@ illustrates the basic usage:
 
   output = xgb.dask.train(client,
                           {'verbosity': 2,
-                           'nthread': 1,
                            'tree_method': 'hist'},
                           dtrain,
                           num_boost_round=4, evals=[(dtrain, 'train')])
 
-Here we first create a cluster in signle-node mode wtih ``distributed.LocalCluster``, then
+Here we first create a cluster in single-node mode wtih ``distributed.LocalCluster``, then
 connect a ``client`` to this cluster, setting up environment for later computation.
 Similar to non-distributed interface, we create a ``DMatrix`` object and pass it to
 ``train`` along with some other parameters.  Except in dask interface, client is an extra
@@ -76,6 +75,32 @@ Another set of API is a Scikit-Learn wrapper, which mimics the stateful Scikit-L
 interface with ``DaskXGBClassifier`` and ``DaskXGBRegressor``.  See ``xgboost/demo/dask``
 for more examples.
 
+*******
+Threads
+*******
+
+XGBoost has built in support for parallel computation through threads by the setting
+``nthread`` parameter (``n_jobs`` for scikit-learn).  If these parameters are set, they
+will override the configuration in Dask.  For example:
+
+.. code-block:: python
+
+  with LocalCluster(n_workers=7, threads_per_worker=4) as cluster:
+
+There are 4 threads allocated for each dask worker.  Then by default XGBoost will use 4
+threads in each process for both training and prediction.  But if ``nthread`` parameter is
+set:
+
+.. code-block:: python
+
+  output = xgb.dask.train(client,
+                          {'verbosity': 1,
+                           'nthread': 8,
+                           'tree_method': 'hist'},
+                          dtrain,
+                          num_boost_round=4, evals=[(dtrain, 'train')])
+
+XGBoost will use 8 threads in each training process.
 
 *****************************************************************************
 Why is the initialization of ``DaskDMatrix``  so slow and throws weird errors
@@ -106,8 +131,14 @@ Basic functionalities including training and generating predictions for regressi
 classification are implemented.  But there are still some other limitations we haven't
 addressed yet.
 
-- Label encoding for Scikit-Learn classifier.
-- Ranking
+- Label encoding for Scikit-Learn classifier may not be supported.  Meaning that user need
+  to encode their training labels into discrete values first.
+- Ranking is not supported right now.
+- Empty worker is not well supported by classifier.  If the training hangs for classifier
+  with a warning about empty DMatrix, please consider balancing your data first.  But
+  regressor works fine with empty DMatrix.
 - Callback functions are not tested.
-- To use cross validation one needs to explicitly train different models instead of using
-  a functional API like ``xgboost.cv``.
+- Only ``GridSearchCV`` from ``scikit-learn`` is supported for dask interface.  Meaning
+  that we can distribute data among workers but have to train one model at a time.  If you
+  want to scale up grid searching with model parallelism by ``dask-ml``, please consider
+  using normal ``scikit-learn`` interface like `xgboost.XGBRegressor` for now.

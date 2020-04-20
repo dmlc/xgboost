@@ -1,11 +1,3 @@
-ifndef config
-ifneq ("$(wildcard ./config.mk)","")
-	config = config.mk
-else
-	config = make/config.mk
-endif
-endif
-
 ifndef DMLC_CORE
 	DMLC_CORE = dmlc-core
 endif
@@ -30,16 +22,6 @@ ifndef MAKE_OK
 endif
 $(warning MAKE [$(MAKE)] - $(if $(MAKE_OK),checked OK,PROBLEM))
 
-ifeq ($(OS), Windows_NT)
-	UNAME="Windows"
-else
-	UNAME=$(shell uname)
-endif
-
-include $(config)
-ifeq ($(USE_OPENMP), 0)
-	export NO_OPENMP = 1
-endif
 include $(DMLC_CORE)/make/dmlc.mk
 
 # set compiler defaults for OSX versus *nix
@@ -62,75 +44,21 @@ export CXX = g++
 endif
 endif
 
-export LDFLAGS= -pthread -lm $(ADD_LDFLAGS) $(DMLC_LDFLAGS)
 export CFLAGS= -DDMLC_LOG_CUSTOMIZE=1 -std=c++11 -Wall -Wno-unknown-pragmas -Iinclude $(ADD_CFLAGS)
 CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include -I$(GTEST_PATH)/include
-#java include path
-export JAVAINCFLAGS = -I${JAVA_HOME}/include -I./java
 
 ifeq ($(TEST_COVER), 1)
 	CFLAGS += -g -O0 -fprofile-arcs -ftest-coverage
 else
 	CFLAGS += -O3 -funroll-loops
-ifeq ($(USE_SSE), 1)
-	CFLAGS += -msse2
-endif
 endif
 
 ifndef LINT_LANG
 	LINT_LANG= "all"
 endif
 
-ifeq ($(UNAME), Windows)
-	XGBOOST_DYLIB = lib/xgboost.dll
-	JAVAINCFLAGS += -I${JAVA_HOME}/include/win32
-else
-ifeq ($(UNAME), Darwin)
-	XGBOOST_DYLIB = lib/libxgboost.dylib
-	CFLAGS += -fPIC
-else
-	XGBOOST_DYLIB = lib/libxgboost.so
-	CFLAGS += -fPIC
-endif
-endif
-
-ifeq ($(UNAME), Linux)
-	LDFLAGS += -lrt
-	JAVAINCFLAGS += -I${JAVA_HOME}/include/linux
-endif
-
-ifeq ($(UNAME), Darwin)
-	JAVAINCFLAGS += -I${JAVA_HOME}/include/darwin
-endif
-
-OPENMP_FLAGS =
-ifeq ($(USE_OPENMP), 1)
-	OPENMP_FLAGS = -fopenmp
-else
-	OPENMP_FLAGS = -DDISABLE_OPENMP
-endif
-CFLAGS += $(OPENMP_FLAGS)
-
 # specify tensor path
-.PHONY: clean all lint clean_all doxygen rcpplint pypack Rpack Rbuild Rcheck java pylint
-
-all: lib/libxgboost.a $(XGBOOST_DYLIB) xgboost
-
-$(DMLC_CORE)/libdmlc.a: $(wildcard $(DMLC_CORE)/src/*.cc $(DMLC_CORE)/src/*/*.cc)
-	+ cd $(DMLC_CORE); "$(MAKE)" libdmlc.a config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
-
-$(RABIT)/lib/$(LIB_RABIT): $(wildcard $(RABIT)/src/*.cc)
-	+ cd $(RABIT); "$(MAKE)" lib/$(LIB_RABIT) USE_SSE=$(USE_SSE); cd $(ROOTDIR)
-
-jvm: jvm-packages/lib/libxgboost4j.so
-
-SRC = $(wildcard src/*.cc src/*/*.cc)
-ALL_OBJ = $(patsubst src/%.cc, build/%.o, $(SRC))
-AMALGA_OBJ = amalgamation/xgboost-all0.o
-LIB_DEP = $(DMLC_CORE)/libdmlc.a $(RABIT)/lib/$(LIB_RABIT)
-ALL_DEP = $(filter-out build/cli_main.o, $(ALL_OBJ)) $(LIB_DEP)
-CLI_OBJ = build/cli_main.o
-include tests/cpp/xgboost_test.mk
+.PHONY: clean all lint clean_all doxygen rcpplint pypack Rpack Rbuild Rcheck
 
 build/%.o: src/%.cc
 	@mkdir -p $(@D)
@@ -141,27 +69,6 @@ build/%.o: src/%.cc
 amalgamation/xgboost-all0.o: amalgamation/xgboost-all0.cc
 	$(CXX) -c $(CFLAGS) $< -o $@
 
-# Equivalent to lib/libxgboost_all.so
-lib/libxgboost_all.so: $(AMALGA_OBJ) $(LIB_DEP)
-	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %.a, $^) $(LDFLAGS)
-
-lib/libxgboost.a: $(ALL_DEP)
-	@mkdir -p $(@D)
-	ar crv $@ $(filter %.o, $?)
-
-lib/xgboost.dll lib/libxgboost.so lib/libxgboost.dylib: $(ALL_DEP)
-	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o %a,  $^) $(LDFLAGS)
-
-jvm-packages/lib/libxgboost4j.so: jvm-packages/xgboost4j/src/native/xgboost4j.cpp $(ALL_DEP)
-	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) $(JAVAINCFLAGS) -shared -o $@ $(filter %.cpp %.o %.a, $^) $(LDFLAGS)
-
-
-xgboost: $(CLI_OBJ) $(ALL_DEP)
-	$(CXX) $(CFLAGS) -o $@  $(filter %.o %.a, $^)  $(LDFLAGS)
-
 rcpplint:
 	python3 dmlc-core/scripts/lint.py xgboost ${LINT_LANG} R-package/src
 
@@ -171,16 +78,6 @@ lint: rcpplint
 	  python-package/xgboost/make python-package/xgboost/rabit \
 	  python-package/xgboost/src --pylint-rc ${PWD}/python-package/.pylintrc xgboost \
 	  ${LINT_LANG} include src python-package
-
-pylint:
-	flake8 --ignore E501 python-package
-	flake8 --ignore E501 tests/python
-
-test: $(ALL_TEST)
-	$(ALL_TEST)
-
-check: test
-	./tests/cpp/xgboost_test
 
 ifeq ($(TEST_COVER), 1)
 cover: check
@@ -202,38 +99,9 @@ clean_all: clean
 	cd $(DMLC_CORE); "$(MAKE)" clean; cd $(ROOTDIR)
 	cd $(RABIT); "$(MAKE)" clean; cd $(ROOTDIR)
 
-doxygen:
-	doxygen doc/Doxyfile
-
-# create standalone python tar file.
-pypack: ${XGBOOST_DYLIB}
-	cp ${XGBOOST_DYLIB} python-package/xgboost
-	cd python-package; tar cf xgboost.tar xgboost; cd ..
-
 # create pip source dist (sdist) pack for PyPI
 pippack: clean_all
-	rm -rf xgboost-python
-# remove symlinked directories in python-package/xgboost
-	rm -rf python-package/xgboost/lib
-	rm -rf python-package/xgboost/dmlc-core
-	rm -rf python-package/xgboost/include
-	rm -rf python-package/xgboost/make
-	rm -rf python-package/xgboost/rabit
-	rm -rf python-package/xgboost/src
-	cp -r python-package xgboost-python
-	cp -r CMakeLists.txt xgboost-python/xgboost/
-	cp -r cmake xgboost-python/xgboost/
-	cp -r plugin xgboost-python/xgboost/
-	cp -r make xgboost-python/xgboost/
-	cp -r src xgboost-python/xgboost/
-	cp -r tests xgboost-python/xgboost/
-	cp -r include xgboost-python/xgboost/
-	cp -r dmlc-core xgboost-python/xgboost/
-	cp -r rabit xgboost-python/xgboost/
-# Use setup_pip.py instead of setup.py
-	mv xgboost-python/setup_pip.py xgboost-python/setup.py
-# Build sdist tarball
-	cd xgboost-python; python setup.py sdist; mv dist/*.tar.gz ..; cd ..
+	cd python-package; python setup.py sdist; mv dist/*.tar.gz ..; cd ..
 
 # Script to make a clean installable R package.
 Rpack: clean_all
@@ -254,9 +122,9 @@ Rpack: clean_all
 	cp -r dmlc-core/include xgboost/src/dmlc-core/include
 	cp -r dmlc-core/src xgboost/src/dmlc-core/src
 	cp ./LICENSE xgboost
-	# Modify PKGROOT in Makevars.in
+# Modify PKGROOT in Makevars.in
 	cat R-package/src/Makevars.in|sed '2s/.*/PKGROOT=./' > xgboost/src/Makevars.in
-	# Configure Makevars.win (Windows-specific Makevars, likely using MinGW)
+# Configure Makevars.win (Windows-specific Makevars, likely using MinGW)
 	cp xgboost/src/Makevars.in xgboost/src/Makevars.win
 	cat xgboost/src/Makevars.in| sed '3s/.*/ENABLE_STD_THREAD=0/' > xgboost/src/Makevars.win
 	sed -i -e 's/@OPENMP_CXXFLAGS@/$$\(SHLIB_OPENMP_CXXFLAGS\)/g' xgboost/src/Makevars.win

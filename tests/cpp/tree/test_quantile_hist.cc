@@ -73,7 +73,7 @@ class QuantileHistMock : public QuantileHistMaker {
           const size_t rid = batch.base_rowid + i;
           ASSERT_LT(rid, num_row);
           const size_t gmat_row_offset = gmat.row_ptr[rid];
-          ASSERT_LT(gmat_row_offset, gmat.index.size());
+          ASSERT_LT(gmat_row_offset, gmat.index.Size());
           SparsePage::Inst inst = batch[i];
           ASSERT_EQ(gmat.row_ptr[rid] + inst.size(), gmat.row_ptr[rid + 1]);
           for (size_t j = 0; j < inst.size(); ++j) {
@@ -95,6 +95,31 @@ class QuantileHistMock : public QuantileHistMaker {
         }
       }
     }
+
+    void TestInitDataSampling(const GHistIndexMatrix& gmat,
+                      const std::vector<GradientPair>& gpair,
+                      DMatrix* p_fmat,
+                      const RegTree& tree) {
+      const size_t nthreads = omp_get_num_threads();
+      // save state of global rng engine
+      auto initial_rnd = common::GlobalRandom();
+      RealImpl::InitData(gmat, gpair, *p_fmat, tree);
+      std::vector<size_t> row_indices_initial = *row_set_collection_.Data();
+
+      for (size_t i_nthreads = 1; i_nthreads < 4; ++i_nthreads) {
+        omp_set_num_threads(i_nthreads);
+        // return initial state of global rng engine
+        common::GlobalRandom() = initial_rnd;
+        RealImpl::InitData(gmat, gpair, *p_fmat, tree);
+        std::vector<size_t>& row_indices = *row_set_collection_.Data();
+        ASSERT_EQ(row_indices_initial.size(), row_indices.size());
+        for (size_t i = 0; i < row_indices_initial.size(); ++i) {
+          ASSERT_EQ(row_indices_initial[i], row_indices[i]);
+        }
+      }
+      omp_set_num_threads(nthreads);
+    }
+
 
     void TestBuildHist(int nid,
                        const GHistIndexMatrix& gmat,
@@ -139,23 +164,23 @@ class QuantileHistMock : public QuantileHistMaker {
           { {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {2.27f, 0.28f},
             {0.27f, 0.29f}, {0.37f, 0.39f}, {-0.47f, 0.49f}, {0.57f, 0.59f} };
       size_t constexpr kMaxBins = 4;
-      auto dmat = CreateDMatrix(kNRows, kNCols, 0, 3);
+      auto dmat = RandomDataGenerator(kNRows, kNCols, 0).Seed(3).GenerateDMatrix();
       // dense, no missing values
 
       common::GHistIndexMatrix gmat;
-      gmat.Init((*dmat).get(), kMaxBins);
+      gmat.Init(dmat.get(), kMaxBins);
 
-      RealImpl::InitData(gmat, row_gpairs, *(*dmat), tree);
+      RealImpl::InitData(gmat, row_gpairs, *dmat, tree);
       hist_.AddHistRow(0);
 
       BuildHist(row_gpairs, row_set_collection_[0],
                 gmat, quantile_index_block, hist_[0]);
 
-      RealImpl::InitNewNode(0, gmat, row_gpairs, *(*dmat), tree);
+      RealImpl::InitNewNode(0, gmat, row_gpairs, *dmat, tree);
 
       /* Compute correct split (best_split) using the computed histogram */
-      const size_t num_row = dmat->get()->Info().num_row_;
-      const size_t num_feature = dmat->get()->Info().num_col_;
+      const size_t num_row = dmat->Info().num_row_;
+      const size_t num_feature = dmat->Info().num_col_;
       CHECK_EQ(num_row, row_gpairs.size());
       // Compute total gradient for all data points
       GradientPairPrecise total_gpair;
@@ -213,11 +238,9 @@ class QuantileHistMock : public QuantileHistMaker {
       /* Now compare against result given by EvaluateSplit() */
       ExpandEntry node(ExpandEntry::kRootNid, ExpandEntry::kEmptyNid,
           tree.GetDepth(0), snode_[0].best.loss_chg, 0);
-      RealImpl::EvaluateSplit({node}, gmat, hist_, *(*dmat), tree);
+      RealImpl::EvaluateSplits({node}, gmat, hist_, tree);
       ASSERT_EQ(snode_[0].best.SplitIndex(), best_split_feature);
       ASSERT_EQ(snode_[0].best.split_value, gmat.cut.Values()[best_split_threshold]);
-
-      delete dmat;
     }
 
     void TestEvaluateSplitParallel(const GHistIndexBlockMatrix &quantile_index_block,
@@ -230,7 +253,7 @@ class QuantileHistMock : public QuantileHistMaker {
   };
 
   int static constexpr kNRows = 8, kNCols = 16;
-  std::shared_ptr<xgboost::DMatrix> *dmat_;
+  std::shared_ptr<xgboost::DMatrix> dmat_;
   const std::vector<std::pair<std::string, std::string> > cfg_;
   std::shared_ptr<BuilderMock> builder_;
 
@@ -240,23 +263,23 @@ class QuantileHistMock : public QuantileHistMaker {
       cfg_{args} {
     QuantileHistMaker::Configure(args);
     spliteval_->Init(&param_);
-    dmat_ = CreateDMatrix(kNRows, kNCols, 0.8, 3);
+    dmat_ = RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
     builder_.reset(
         new BuilderMock(
             param_,
             std::move(pruner_),
             std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone()),
             int_constraint_,
-            dmat_->get()));
+            dmat_.get()));
   }
-  ~QuantileHistMock() override { delete dmat_; }
+  ~QuantileHistMock() override = default;
 
   static size_t GetNumColumns() { return kNCols; }
 
   void TestInitData() {
     size_t constexpr kMaxBins = 4;
     common::GHistIndexMatrix gmat;
-    gmat.Init((*dmat_).get(), kMaxBins);
+    gmat.Init(dmat_.get(), kMaxBins);
 
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);
@@ -265,18 +288,32 @@ class QuantileHistMock : public QuantileHistMaker {
         { {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f},
           {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f} };
 
-    builder_->TestInitData(gmat, gpair, dmat_->get(), tree);
+    builder_->TestInitData(gmat, gpair, dmat_.get(), tree);
   }
 
+  void TestInitDataSampling() {
+    size_t constexpr kMaxBins = 4;
+    common::GHistIndexMatrix gmat;
+    gmat.Init(dmat_.get(), kMaxBins);
+
+    RegTree tree = RegTree();
+    tree.param.UpdateAllowUnknown(cfg_);
+
+    std::vector<GradientPair> gpair =
+        { {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f},
+          {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f} };
+
+    builder_->TestInitDataSampling(gmat, gpair, dmat_.get(), tree);
+  }
   void TestBuildHist() {
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);
 
     size_t constexpr kMaxBins = 4;
     common::GHistIndexMatrix gmat;
-    gmat.Init((*dmat_).get(), kMaxBins);
+    gmat.Init(dmat_.get(), kMaxBins);
 
-    builder_->TestBuildHist(0, gmat, *(*dmat_).get(), tree);
+    builder_->TestBuildHist(0, gmat, *dmat_, tree);
   }
 
   void TestEvaluateSplit() {
@@ -287,14 +324,23 @@ class QuantileHistMock : public QuantileHistMaker {
   }
 };
 
-TEST(Updater, QuantileHist_InitData) {
+TEST(QuantileHist, InitData) {
   std::vector<std::pair<std::string, std::string>> cfg
       {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())}};
   QuantileHistMock maker(cfg);
   maker.TestInitData();
 }
 
-TEST(Updater, QuantileHist_BuildHist) {
+TEST(QuantileHist, InitDataSampling) {
+  const float subsample = 0.5;
+  std::vector<std::pair<std::string, std::string>> cfg
+      {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())},
+       {"subsample", std::to_string(subsample)}};
+  QuantileHistMock maker(cfg);
+  maker.TestInitDataSampling();
+}
+
+TEST(QuantileHist, BuildHist) {
   // Don't enable feature grouping
   std::vector<std::pair<std::string, std::string>> cfg
       {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())},
@@ -303,7 +349,7 @@ TEST(Updater, QuantileHist_BuildHist) {
   maker.TestBuildHist();
 }
 
-TEST(Updater, QuantileHist_EvalSplits) {
+TEST(QuantileHist, EvalSplits) {
   std::vector<std::pair<std::string, std::string>> cfg
       {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())},
        {"split_evaluator", "elastic_net"},

@@ -26,7 +26,7 @@ Algorithms
 +-----------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | tree_method           | Description                                                                                                                                                           |
 +=======================+=======================================================================================================================================================================+
-| gpu_hist              | Equivalent to the XGBoost fast histogram algorithm. Much faster and uses considerably less memory. NOTE: Will run very slowly on GPUs older than Pascal architecture. |
+| gpu_hist              | Equivalent to the XGBoost fast histogram algorithm. Much faster and uses considerably less memory. NOTE: May run very slowly on GPUs older than Pascal architecture.  |
 +-----------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
 Supported parameters
@@ -40,6 +40,8 @@ Supported parameters
 +================================+==============+
 | ``subsample``                  | |tick|       |
 +--------------------------------+--------------+
+| ``sampling_method``            | |tick|       |
++--------------------------------+--------------+
 | ``colsample_bytree``           | |tick|       |
 +--------------------------------+--------------+
 | ``colsample_bylevel``          | |tick|       |
@@ -49,8 +51,6 @@ Supported parameters
 | ``gamma``                      | |tick|       |
 +--------------------------------+--------------+
 | ``gpu_id``                     | |tick|       |
-+--------------------------------+--------------+
-| ``n_gpus`` (deprecated)        | |tick|       |
 +--------------------------------+--------------+
 | ``predictor``                  | |tick|       |
 +--------------------------------+--------------+
@@ -84,10 +84,6 @@ The GPU algorithms currently work with CLI, Python and R packages. See :doc:`/bu
 
   XGBRegressor(tree_method='gpu_hist', gpu_id=0)
 
-
-Single Node Multi-GPU
-=====================
-.. note:: Single node multi-GPU training with `n_gpus` parameter is deprecated after 0.90.  Please use distributed GPU training with one process per GPU.
 
 Multi-node Multi-GPU Training
 =============================
@@ -128,11 +124,11 @@ Most of the objective functions implemented in XGBoost can be run on GPU.  Follo
 +--------------------+-------------+
 | survival:cox       | |cross|     |
 +--------------------+-------------+
-| rank:pairwise      | |cross|     |
+| rank:pairwise      | |tick|      |
 +--------------------+-------------+
-| rank:ndcg          | |cross|     |
+| rank:ndcg          | |tick|      |
 +--------------------+-------------+
-| rank:map           | |cross|     |
+| rank:map           | |tick|      |
 +--------------------+-------------+
 
 Objective will run on GPU if GPU updater (``gpu_hist``), otherwise they will run on CPU by
@@ -160,13 +156,13 @@ Following table shows current support status for evaluation metrics on the GPU.
 +-----------------+-------------+
 | mlogloss        | |tick|      |
 +-----------------+-------------+
-| auc             | |cross|     |
+| auc             | |tick|      |
 +-----------------+-------------+
 | aucpr           | |cross|     |
 +-----------------+-------------+
-| ndcg            | |cross|     |
+| ndcg            | |tick|      |
 +-----------------+-------------+
-| map             | |cross|     |
+| map             | |tick|      |
 +-----------------+-------------+
 | poisson-nloglik | |tick|      |
 +-----------------+-------------+
@@ -188,21 +184,18 @@ You can run benchmarks on synthetic data for binary classification:
 
 .. code-block:: bash
 
-  python tests/benchmark/benchmark.py
+  python tests/benchmark/benchmark_tree.py --tree_method=gpu_hist
+  python tests/benchmark/benchmark_tree.py --tree_method=hist
 
-Training time time on 1,000,000 rows x 50 columns with 500 boosting iterations and 0.25/0.75 test/train split on i7-6700K CPU @ 4.00GHz and Pascal Titan X yields the following results:
+Training time on 1,000,000 rows x 50 columns of random data with 500 boosting iterations and 0.25/0.75 test/train split with AMD Ryzen 7 2700 8 core @3.20GHz and Nvidia 1080ti yields the following results:
 
 +--------------+----------+
 | tree_method  | Time (s) |
 +==============+==========+
-| gpu_hist     | 13.87    |
+| gpu_hist     | 12.57    |
 +--------------+----------+
-| hist         | 63.55    |
+| hist         | 36.01    |
 +--------------+----------+
-| exact        | 1082.20  |
-+--------------+----------+
-
-See `GPU Accelerated XGBoost <https://xgboost.ai/2016/12/14/GPU-accelerated-xgboost.html>`_ and `Updates to the XGBoost GPU algorithms <https://xgboost.ai/2018/07/04/gpu-xgboost-update.html>`_ for additional performance benchmarks of the ``gpu_hist`` tree method.
 
 Memory usage
 ============
@@ -220,6 +213,7 @@ Working memory is allocated inside the algorithm proportional to the number of r
 
 The quantile finding algorithm also uses some amount of working device memory. It is able to operate in batches, but is not currently well optimised for sparse data.
 
+If you are getting out-of-memory errors on a big dataset, try the `external memory version <../tutorials/external_memory.html>`_.
 
 Developer notes
 ===============
@@ -241,8 +235,10 @@ Many thanks to the following contributors (alphabetical order):
 * Jonathan C. McKinney
 * Matthew Jones
 * Philip Cho
+* Rong Ou
 * Rory Mitchell
 * Shankara Rao Thejaswi Nanditale
+* Sriram Chandramouli
 * Vinay Deshpande
 
 Please report bugs to the XGBoost issues list: https://github.com/dmlc/xgboost/issues.  For general questions please visit our user form: https://discuss.xgboost.ai/.

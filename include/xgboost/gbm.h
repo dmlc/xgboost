@@ -1,5 +1,5 @@
 /*!
- * Copyright by Contributors
+ * Copyright 2014-2020 by Contributors
  * \file gbm.h
  * \brief Interface of gradient booster,
  *  that learns through gradient statistics.
@@ -9,6 +9,7 @@
 #define XGBOOST_GBM_H_
 
 #include <dmlc/registry.h>
+#include <dmlc/any.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <xgboost/host_device_vector.h>
@@ -18,6 +19,7 @@
 #include <utility>
 #include <string>
 #include <functional>
+#include <unordered_map>
 #include <memory>
 #include "./model_visitor.h"
 
@@ -29,6 +31,8 @@ class ObjFunction;
 
 struct GenericParameter;
 struct LearnerModelParam;
+struct PredictionCacheEntry;
+class PredictionContainer;
 
 /*!
  * \brief interface of gradient boosting model.
@@ -39,7 +43,7 @@ class GradientBooster : public Model, public Configurable {
 
  public:
   /*! \brief virtual destructor */
-  virtual ~GradientBooster() = default;
+  ~GradientBooster() override = default;
   /*!
    * \brief Set the configuration of gradient boosting.
    *  User must call configure once before InitModel and Training.
@@ -69,24 +73,43 @@ class GradientBooster : public Model, public Configurable {
    * \brief perform update to the model(boosting)
    * \param p_fmat feature matrix that provide access to features
    * \param in_gpair address of the gradient pair statistics of the data
-   * \param obj The objective function, optional, can be nullptr when use customized version
+   * \param prediction The output prediction cache entry that needs to be updated.
    * the booster may change content of gpair
    */
-  virtual void DoBoost(DMatrix* p_fmat,
-                       HostDeviceVector<GradientPair>* in_gpair,
-                       ObjFunction* obj = nullptr) = 0;
+  virtual void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
+                       PredictionCacheEntry *prediction) = 0;
 
   /*!
    * \brief generate predictions for given feature matrix
    * \param dmat feature matrix
    * \param out_preds output vector to hold the predictions
-   * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
-   *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
+   * \param training Whether the prediction value is used for training.  For dart booster
+   *                 drop out is performed during training.
+   * \param ntree_limit limit the number of trees used in prediction,
+   *                    when it equals 0, this means we do not limit
+   *                    number of trees, this parameter is only valid
+   *                    for gbtree, but not for gblinear
    */
   virtual void PredictBatch(DMatrix* dmat,
-                            HostDeviceVector<bst_float>* out_preds,
+                            PredictionCacheEntry* out_preds,
                             bool training,
                             unsigned ntree_limit = 0) = 0;
+
+  /*!
+   * \brief Inplace prediction.
+   *
+   * \param           x                      A type erased data adapter.
+   * \param           missing                Missing value in the data.
+   * \param [in,out]  out_preds              The output preds.
+   * \param           layer_begin (Optional) Begining of boosted tree layer used for prediction.
+   * \param           layer_end   (Optional) End of booster layer. 0 means do not limit trees.
+   */
+  virtual void InplacePredict(dmlc::any const &x, float missing,
+                              PredictionCacheEntry *out_preds,
+                              uint32_t layer_begin = 0,
+                              uint32_t layer_end = 0) const {
+    LOG(FATAL) << "Inplace predict is not supported by current booster.";
+  }
   /*!
    * \brief online prediction function, predict score for one instance at a time
    *  NOTE: use the batch prediction interface if possible, batch prediction is usually
@@ -160,20 +183,12 @@ class GradientBooster : public Model, public Configurable {
    * \param name name of gradient booster
    * \param generic_param Pointer to runtime parameters
    * \param learner_model_param pointer to global model parameters
-   * \param cache_mats The cache data matrix of the Booster.
    * \return The created booster.
    */
   static GradientBooster* Create(
       const std::string& name,
       GenericParameter const* generic_param,
-      LearnerModelParam const* learner_model_param,
-      const std::vector<std::shared_ptr<DMatrix> >& cache_mats);
-
-  static void AssertGPUSupport() {
-#ifndef XGBOOST_USE_CUDA
-    LOG(FATAL) << "XGBoost version not compiled with GPU support.";
-#endif  // XGBOOST_USE_CUDA
-  }
+      LearnerModelParam const* learner_model_param);
 };
 
 /*!
@@ -182,8 +197,7 @@ class GradientBooster : public Model, public Configurable {
 struct GradientBoosterReg
     : public dmlc::FunctionRegEntryBase<
   GradientBoosterReg,
-  std::function<GradientBooster* (const std::vector<std::shared_ptr<DMatrix> > &cached_mats,
-                                  LearnerModelParam const* learner_model_param)> > {
+  std::function<GradientBooster* (LearnerModelParam const* learner_model_param)> > {
 };
 
 /*!

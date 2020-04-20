@@ -39,32 +39,42 @@ enum class DataType : uint8_t {
 class MetaInfo {
  public:
   /*! \brief number of data fields in MetaInfo */
-  static constexpr uint64_t kNumField = 7;
+  static constexpr uint64_t kNumField = 9;
 
   /*! \brief number of rows in the data */
-  uint64_t num_row_{0};
+  uint64_t num_row_{0};  // NOLINT
   /*! \brief number of columns in the data */
-  uint64_t num_col_{0};
+  uint64_t num_col_{0};  // NOLINT
   /*! \brief number of nonzero entries in the data */
-  uint64_t num_nonzero_{0};
+  uint64_t num_nonzero_{0};  // NOLINT
   /*! \brief label of each instance */
-  HostDeviceVector<bst_float> labels_;
+  HostDeviceVector<bst_float> labels_;  // NOLINT
   /*!
    * \brief the index of begin and end of a group
    *  needed when the learning task is ranking.
    */
-  std::vector<bst_group_t> group_ptr_;
+  std::vector<bst_group_t> group_ptr_;  // NOLINT
   /*! \brief weights of each instance, optional */
-  HostDeviceVector<bst_float> weights_;
+  HostDeviceVector<bst_float> weights_;  // NOLINT
   /*!
    * \brief initialized margins,
    * if specified, xgboost will start from this init margin
    * can be used to specify initial prediction to boost from.
    */
-  HostDeviceVector<bst_float> base_margin_;
+  HostDeviceVector<bst_float> base_margin_;  // NOLINT
+  /*!
+   * \brief lower bound of the label, to be used for survival analysis (censored regression)
+   */
+  HostDeviceVector<bst_float> labels_lower_bound_;  // NOLINT
+  /*!
+   * \brief upper bound of the label, to be used for survival analysis (censored regression)
+   */
+  HostDeviceVector<bst_float> labels_upper_bound_;  // NOLINT
 
   /*! \brief default constructor */
   MetaInfo()  = default;
+  MetaInfo(MetaInfo&& that) = default;
+  MetaInfo& operator=(MetaInfo&& that) = default;
   MetaInfo& operator=(MetaInfo const& that) {
     this->num_row_ = that.num_row_;
     this->num_col_ = that.num_col_;
@@ -77,10 +87,24 @@ class MetaInfo {
 
     this->weights_.Resize(that.weights_.Size());
     this->weights_.Copy(that.weights_);
+
     this->base_margin_.Resize(that.base_margin_.Size());
     this->base_margin_.Copy(that.base_margin_);
+
+    this->labels_lower_bound_.Resize(that.labels_lower_bound_.Size());
+    this->labels_lower_bound_.Copy(that.labels_lower_bound_);
+
+    this->labels_upper_bound_.Resize(that.labels_upper_bound_.Size());
+    this->labels_upper_bound_.Copy(that.labels_upper_bound_);
     return *this;
   }
+
+  /*!
+   * \brief Validate all metainfo.
+   */
+  void Validate() const;
+
+  MetaInfo Slice(common::Span<int32_t const> ridxs) const;
   /*!
    * \brief Get weight of each instances.
    * \param i Instance index.
@@ -168,17 +192,15 @@ struct BatchParam {
   /*! \brief The GPU device to use. */
   int gpu_id;
   /*! \brief Maximum number of bins per feature for histograms. */
-  int max_bin;
-  /*! \brief Number of rows in a GPU batch, used for finding quantiles on GPU. */
-  int gpu_batch_nrows;
+  int max_bin{0};
   /*! \brief Page size for external memory mode. */
   size_t gpu_page_size;
-
+  BatchParam() = default;
+  BatchParam(int32_t device, int32_t max_bin, size_t gpu_page_size = 0)
+      : gpu_id{device}, max_bin{max_bin}, gpu_page_size{gpu_page_size} {}
   inline bool operator!=(const BatchParam& other) const {
-    return gpu_id != other.gpu_id ||
-        max_bin != other.max_bin ||
-        gpu_batch_nrows != other.gpu_batch_nrows ||
-        gpu_page_size != other.gpu_page_size;
+    return gpu_id != other.gpu_id || max_bin != other.max_bin ||
+           gpu_page_size != other.gpu_page_size;
   }
 };
 
@@ -354,7 +376,7 @@ class BatchIteratorImpl {
 template<typename T>
 class BatchIterator {
  public:
-  using iterator_category = std::forward_iterator_tag;
+  using iterator_category = std::forward_iterator_tag;  // NOLINT
   explicit BatchIterator(BatchIteratorImpl<T>* impl) { impl_.reset(impl); }
 
   void operator++() {
@@ -389,9 +411,9 @@ class BatchIterator {
 template<typename T>
 class BatchSet {
  public:
-  explicit BatchSet(BatchIterator<T> begin_iter) : begin_iter_(begin_iter) {}
-  BatchIterator<T> begin() { return begin_iter_; }
-  BatchIterator<T> end() { return BatchIterator<T>(nullptr); }
+  explicit BatchSet(BatchIterator<T> begin_iter) : begin_iter_(std::move(begin_iter)) {}
+  BatchIterator<T> begin() { return begin_iter_; }  // NOLINT
+  BatchIterator<T> end() { return BatchIterator<T>(nullptr); }  // NOLINT
 
  private:
   BatchIterator<T> begin_iter_;
@@ -438,21 +460,14 @@ class DMatrix {
    */
   template<typename T>
   BatchSet<T> GetBatches(const BatchParam& param = {});
+  template <typename T>
+  bool PageExists() const;
+
   // the following are column meta data, should be able to answer them fast.
   /*! \return Whether the data columns single column block. */
   virtual bool SingleColBlock() const = 0;
-  /*! \brief get column density */
-  virtual float GetColDensity(size_t cidx) = 0;
   /*! \brief virtual destructor */
   virtual ~DMatrix() = default;
-  /*!
-   * \brief Save DMatrix to local file.
-   *  The saved file only works for non-sharded dataset(single machine training).
-   *  This API is deprecated and dis-encouraged to use.
-   * \param fname The file name to be saved.
-   * \return The created DMatrix.
-   */
-  virtual void SaveToLocalFile(const std::string& fname);
 
   /*! \brief Whether the matrix is dense. */
   bool IsDense() const {
@@ -475,16 +490,6 @@ class DMatrix {
                        const std::string& file_format = "auto",
                        size_t page_size = kPageSize);
 
-  /*!
-   * \brief create a new DMatrix, by wrapping a row_iterator, and meta info.
-   * \param source The source iterator of the data, the create function takes ownership of the source.
-   * \param cache_prefix The path to prefix of temporary cache file of the DMatrix when used in external memory mode.
-   *     This can be nullptr for common cases, and in-memory mode will be used.
-   * \return a Created DMatrix.
-   */
-  static DMatrix* Create(std::unique_ptr<DataSource<SparsePage>>&& source,
-                         const std::string& cache_prefix = "");
-
   /**
    * \brief Creates a new DMatrix from an external data adapter.
    *
@@ -502,7 +507,7 @@ class DMatrix {
                          const std::string& cache_prefix = "",
                          size_t page_size = kPageSize);
 
-
+  virtual DMatrix* Slice(common::Span<int32_t const> ridxs) = 0;
   /*! \brief page size 32 MB */
   static const size_t kPageSize = 32UL << 20UL;
 
@@ -511,11 +516,24 @@ class DMatrix {
   virtual BatchSet<CSCPage> GetColumnBatches() = 0;
   virtual BatchSet<SortedCSCPage> GetSortedColumnBatches() = 0;
   virtual BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) = 0;
+
+  virtual bool EllpackExists() const = 0;
+  virtual bool SparsePageExists() const = 0;
 };
 
 template<>
 inline BatchSet<SparsePage> DMatrix::GetBatches(const BatchParam&) {
   return GetRowBatches();
+}
+
+template<>
+inline bool DMatrix::PageExists<EllpackPage>() const {
+  return this->EllpackExists();
+}
+
+template<>
+inline bool DMatrix::PageExists<SparsePage>() const {
+  return this->SparsePageExists();
 }
 
 template<>

@@ -1,18 +1,26 @@
 /*!
- *  Copyright (c) 2019 by Contributors
+ *  Copyright (c) 2019~2020 by Contributors
  * \file adapter.h
  */
 #ifndef XGBOOST_DATA_ADAPTER_H_
 #define XGBOOST_DATA_ADAPTER_H_
 #include <dmlc/data.h>
+
+#include <cstddef>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "xgboost/logging.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
+#include "xgboost/span.h"
+#include "xgboost/c_api.h"
+
+#include "../c_api/c_api_error.h"
 
 namespace xgboost {
 namespace data {
@@ -63,6 +71,7 @@ namespace data {
 constexpr size_t kAdapterUnknownSize = std::numeric_limits<size_t >::max();
 
 struct COOTuple {
+  COOTuple() = default;
   XGBOOST_DEVICE COOTuple(size_t row_idx, size_t column_idx, float value)
       : row_idx(row_idx), column_idx(column_idx), value(value) {}
 
@@ -418,7 +427,7 @@ class FileAdapterBatch {
  public:
   class Line {
    public:
-    Line(size_t row_idx, const uint32_t* feature_idx, const float* value,
+    Line(size_t row_idx, const uint32_t *feature_idx, const float *value,
          size_t size)
         : row_idx_(row_idx),
           feature_idx_(feature_idx),
@@ -485,91 +494,110 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
   dmlc::Parser<uint32_t>* parser_;
 };
 
-class DMatrixSliceAdapterBatch {
+/*! \brief Data iterator that takes callback to return data, used in JVM package for
+ *  accepting data iterator. */
+class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
  public:
-  // Fetch metainfo values according to sliced rows
-  template <typename T>
-  std::vector<T> Gather(const std::vector<T>& in) {
-    if (in.empty()) return {};
+  IteratorAdapter(DataIterHandle data_handle,
+                  XGBCallbackDataIterNext* next_callback)
+      :  columns_{data::kAdapterUnknownSize}, row_offset_{0},
+         at_first_(true),
+         data_handle_(data_handle), next_callback_(next_callback) {}
 
-    std::vector<T> out(this->Size());
-    for (auto i = 0ull; i < this->Size(); i++) {
-      out[i] = in[ridx_set[i]];
-    }
-    return out;
-  }
-  DMatrixSliceAdapterBatch(const SparsePage& batch, DMatrix* dmat,
-                           common::Span<const int> ridx_set)
-      : batch(batch), ridx_set(ridx_set) {
-    batch_labels = this->Gather(dmat->Info().labels_.HostVector());
-    batch_weights = this->Gather(dmat->Info().weights_.HostVector());
-    batch_base_margin = this->Gather(dmat->Info().base_margin_.HostVector());
+  // override functions
+  void BeforeFirst() override {
+    CHECK(at_first_) << "Cannot reset IteratorAdapter";
   }
 
-  class Line {
-   public:
-    Line(const SparsePage::Inst& inst, size_t row_idx)
-        : inst_(inst), row_idx_(row_idx) {}
-
-    size_t Size() { return inst_.size(); }
-    COOTuple GetElement(size_t idx) {
-      return COOTuple{row_idx_, inst_[idx].index, inst_[idx].fvalue};
+  bool Next() override {
+    if ((*next_callback_)(
+            data_handle_,
+            [](void *handle, XGBoostBatchCSR batch) -> int {
+              API_BEGIN();
+              static_cast<IteratorAdapter *>(handle)->SetData(batch);
+              API_END();
+            },
+            this) != 0) {
+      at_first_ = false;
+      return true;
+    } else {
+      return false;
     }
-
-   private:
-    SparsePage::Inst inst_;
-    size_t row_idx_;
-  };
-  Line GetLine(size_t idx) const { return Line(batch[ridx_set[idx]], idx); }
-  const float* Labels() const {
-    if (batch_labels.empty()) {
-      return nullptr;
-    }
-    return batch_labels.data();
-  }
-  const float* Weights() const {
-    if (batch_weights.empty()) {
-      return nullptr;
-    }
-    return batch_weights.data();
-  }
-  const uint64_t* Qid() const { return nullptr; }
-  const float* BaseMargin() const {
-    if (batch_base_margin.empty()) {
-      return nullptr;
-    }
-    return batch_base_margin.data();
   }
 
-  size_t Size() const { return ridx_set.size(); }
-  const SparsePage& batch;
-  common::Span<const int> ridx_set;
-  std::vector<float> batch_labels;
-  std::vector<float> batch_weights;
-  std::vector<float> batch_base_margin;
-};
+  FileAdapterBatch const& Value() const override {
+    return *batch_.get();
+  }
 
-// Group pointer is not exposed
-// This is because external bindings currently manipulate the group values
-// manually when slicing This could potentially be moved to internal C++ code if
-// needed
+  // callback to set the data
+  void SetData(const XGBoostBatchCSR& batch) {
+    offset_.clear();
+    label_.clear();
+    weight_.clear();
+    index_.clear();
+    value_.clear();
+    offset_.insert(offset_.end(), batch.offset, batch.offset + batch.size + 1);
 
-class DMatrixSliceAdapter
-    : public detail::SingleBatchDataIter<DMatrixSliceAdapterBatch> {
- public:
-  DMatrixSliceAdapter(DMatrix* dmat, common::Span<const int> ridx_set)
-      : dmat_(dmat),
-        ridx_set_(ridx_set),
-        batch_(*dmat_->GetBatches<SparsePage>().begin(), dmat_, ridx_set) {}
-  const DMatrixSliceAdapterBatch& Value() const override { return batch_; }
-  // Indicates a number of rows/columns must be inferred
-  size_t NumRows() const { return ridx_set_.size(); }
-  size_t NumColumns() const { return dmat_->Info().num_col_; }
+    if (batch.label != nullptr) {
+      label_.insert(label_.end(), batch.label, batch.label + batch.size);
+    }
+    if (batch.weight != nullptr) {
+      weight_.insert(weight_.end(), batch.weight, batch.weight + batch.size);
+    }
+    if (batch.index != nullptr) {
+      index_.insert(index_.end(), batch.index + offset_[0],
+                    batch.index + offset_.back());
+    }
+    if (batch.value != nullptr) {
+      value_.insert(value_.end(), batch.value + offset_[0],
+                    batch.value + offset_.back());
+    }
+    if (offset_[0] != 0) {
+      size_t base = offset_[0];
+      for (size_t &item : offset_) {
+        item -= base;
+      }
+    }
+    CHECK(columns_ == data::kAdapterUnknownSize || columns_ == batch.columns)
+        << "Number of columns between batches changed from " << columns_
+        << " to " << batch.columns;
+
+    columns_ = batch.columns;
+    block_.size = batch.size;
+
+    block_.offset = dmlc::BeginPtr(offset_);
+    block_.label = dmlc::BeginPtr(label_);
+    block_.weight = dmlc::BeginPtr(weight_);
+    block_.qid = nullptr;
+    block_.field = nullptr;
+    block_.index = dmlc::BeginPtr(index_);
+    block_.value = dmlc::BeginPtr(value_);
+
+    batch_.reset(new FileAdapterBatch(&block_, row_offset_));
+    row_offset_ += offset_.size() - 1;
+  }
+
+  size_t NumColumns() const { return columns_; }
+  size_t NumRows() const { return kAdapterUnknownSize; }
 
  private:
-  DMatrix* dmat_;
-  common::Span<const int> ridx_set_;
-  DMatrixSliceAdapterBatch batch_;
+  std::vector<size_t> offset_;
+  std::vector<dmlc::real_t> label_;
+  std::vector<dmlc::real_t> weight_;
+  std::vector<uint32_t> index_;
+  std::vector<dmlc::real_t> value_;
+
+  size_t columns_;
+  size_t row_offset_;
+  // at the beinning.
+  bool at_first_;
+  // handle to the iterator,
+  DataIterHandle data_handle_;
+  // call back to get the data.
+  XGBCallbackDataIterNext *next_callback_;
+  // internal Rowblock
+  dmlc::RowBlock<uint32_t> block_;
+  std::unique_ptr<FileAdapterBatch> batch_;
 };
 };  // namespace data
 }  // namespace xgboost

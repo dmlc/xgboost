@@ -1,6 +1,6 @@
 /*!
  * Copyright 2014-2019 by Contributors
- * \file learner.cc
+ * \file generic_parameters.h
  */
 #ifndef XGBOOST_GENERIC_PARAMETERS_H_
 #define XGBOOST_GENERIC_PARAMETERS_H_
@@ -29,7 +29,6 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   size_t gpu_page_size;
   bool enable_experimental_json_serialization {false};
   bool validate_parameters {false};
-  bool validate_features {true};
 
   void CheckDeprecated() {
     if (this->n_gpus != 0) {
@@ -75,9 +74,6 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
     DMLC_DECLARE_FIELD(validate_parameters)
         .set_default(false)
         .describe("Enable checking whether parameters are used or not.");
-    DMLC_DECLARE_FIELD(validate_features)
-        .set_default(false)
-        .describe("Enable validating input DMatrix.");
     DMLC_DECLARE_FIELD(n_gpus)
         .set_default(0)
         .set_range(0, 1)
@@ -89,7 +85,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
 
  private:
   // number of devices to use (deprecated).
-  int n_gpus {0};
+  int n_gpus {0};  // NOLINT
 };
 }  // namespace xgboost
 

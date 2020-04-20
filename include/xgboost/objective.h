@@ -28,7 +28,7 @@ class ObjFunction : public Configurable {
 
  public:
   /*! \brief virtual destructor */
-  virtual ~ObjFunction() = default;
+  ~ObjFunction() override = default;
   /*!
    * \brief Configure the objective with the specified parameters.
    * \param args arguments to the objective function.

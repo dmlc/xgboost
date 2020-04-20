@@ -40,11 +40,11 @@ class BaseMaker: public TreeUpdater {
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    fromJson(config.at("train_param"), &this->param_);
+    FromJson(config.at("train_param"), &this->param_);
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["train_param"] = toJson(param_);
+    out["train_param"] = ToJson(param_);
   }
 
  protected:
@@ -148,6 +148,9 @@ class BaseMaker: public TreeUpdater {
       }
       // mark subsample
       if (param_.subsample < 1.0f) {
+        CHECK_EQ(param_.sampling_method, TrainParam::kUniform)
+          << "Only uniform sampling is supported, "
+          << "gradient-based sampling is only support by GPU Hist.";
         std::bernoulli_distribution coin_flip(param_.subsample);
         auto& rnd = common::GlobalRandom();
         for (size_t i = 0; i < position_.size(); ++i) {

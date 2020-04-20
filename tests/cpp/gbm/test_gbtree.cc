@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2019-2020 XGBoost contributors
+ */
 #include <gtest/gtest.h>
 #include <dmlc/filesystem.h>
 #include <xgboost/generic_parameters.h>
@@ -7,6 +10,7 @@
 #include "xgboost/learner.h"
 #include "../helpers.h"
 #include "../../../src/gbm/gbtree.h"
+#include "xgboost/predictor.h"
 
 namespace xgboost {
 TEST(GBTree, SelectTreeMethod) {
@@ -19,9 +23,8 @@ TEST(GBTree, SelectTreeMethod) {
   mparam.num_feature = kCols;
   mparam.num_output_group = 1;
 
-  std::vector<std::shared_ptr<DMatrix> > caches;
   std::unique_ptr<GradientBooster> p_gbm {
-    GradientBooster::Create("gbtree", &generic_param, &mparam, caches)};
+    GradientBooster::Create("gbtree", &generic_param, &mparam)};
   auto& gbtree = dynamic_cast<gbm::GBTree&> (*p_gbm);
 
   // Test if `tree_method` can be set
@@ -48,13 +51,31 @@ TEST(GBTree, SelectTreeMethod) {
 #endif  // XGBOOST_USE_CUDA
 }
 
-#ifdef XGBOOST_USE_CUDA
-TEST(GBTree, ChoosePredictor) {
+TEST(GBTree, WrongUpdater) {
   size_t constexpr kRows = 17;
   size_t constexpr kCols = 15;
 
-  auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
-  std::shared_ptr<DMatrix> p_dmat {*pp_dmat};
+  auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
+
+  p_dmat->Info().labels_.Resize(kRows);
+
+  auto learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
+  // Hist can not be used for updating tree.
+  learner->SetParams(Args{{"tree_method", "hist"}, {"process_type", "update"}});
+  ASSERT_THROW(learner->UpdateOneIter(0, p_dmat), dmlc::Error);
+  // Prune can not be used for learning new tree.
+  learner->SetParams(
+      Args{{"tree_method", "prune"}, {"process_type", "default"}});
+  ASSERT_THROW(learner->UpdateOneIter(0, p_dmat), dmlc::Error);
+}
+
+#ifdef XGBOOST_USE_CUDA
+TEST(GBTree, ChoosePredictor) {
+  // The test ensures data don't get pulled into device.
+  size_t constexpr kRows = 17;
+  size_t constexpr kCols = 15;
+
+  auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   auto& data = (*(p_dmat->GetBatches<SparsePage>().begin())).data;
   p_dmat->Info().labels_.Resize(kRows);
@@ -62,7 +83,7 @@ TEST(GBTree, ChoosePredictor) {
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
   learner->SetParams(Args{{"tree_method", "gpu_hist"}, {"gpu_id", "0"}});
   for (size_t i = 0; i < 4; ++i) {
-    learner->UpdateOneIter(i, p_dmat.get());
+    learner->UpdateOneIter(i, p_dmat);
   }
   ASSERT_TRUE(data.HostCanWrite());
   dmlc::TemporaryDirectory tempdir;
@@ -81,7 +102,7 @@ TEST(GBTree, ChoosePredictor) {
   }
   learner->SetParams(Args{{"tree_method", "gpu_hist"}, {"gpu_id", "0"}});
   for (size_t i = 0; i < 4; ++i) {
-    learner->UpdateOneIter(i, p_dmat.get());
+    learner->UpdateOneIter(i, p_dmat);
   }
   ASSERT_TRUE(data.HostCanWrite());
 
@@ -94,12 +115,10 @@ TEST(GBTree, ChoosePredictor) {
   learner = std::unique_ptr<Learner>(Learner::Create({p_dmat}));
   learner->SetParams(Args{{"tree_method", "gpu_hist"}, {"gpu_id", "0"}});
   for (size_t i = 0; i < 4; ++i) {
-    learner->UpdateOneIter(i, p_dmat.get());
+    learner->UpdateOneIter(i, p_dmat);
   }
   // data is not pulled back into host
   ASSERT_FALSE(data.HostCanWrite());
-
-  delete pp_dmat;
 }
 #endif  // XGBOOST_USE_CUDA
 
@@ -181,8 +200,7 @@ TEST(Dart, JsonIO) {
 TEST(Dart, Prediction) {
   size_t constexpr kRows = 16, kCols = 10;
 
-  auto pp_dmat = CreateDMatrix(kRows, kCols, 0);
-  auto& p_mat = *pp_dmat;
+  auto p_mat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   std::vector<bst_float> labels (kRows);
   for (size_t i = 0; i < kRows; ++i) {
@@ -196,13 +214,13 @@ TEST(Dart, Prediction) {
   learner->Configure();
 
   for (size_t i = 0; i < 16; ++i) {
-    learner->UpdateOneIter(i, p_mat.get());
+    learner->UpdateOneIter(i, p_mat);
   }
 
   HostDeviceVector<float> predts_training;
-  learner->Predict(p_mat.get(), false, &predts_training, 0, true);
+  learner->Predict(p_mat, false, &predts_training, 0, true);
   HostDeviceVector<float> predts_inference;
-  learner->Predict(p_mat.get(), false, &predts_inference, 0, false);
+  learner->Predict(p_mat, false, &predts_inference, 0, false);
 
   auto& h_predts_training = predts_training.ConstHostVector();
   auto& h_predts_inference = predts_inference.ConstHostVector();
@@ -211,7 +229,5 @@ TEST(Dart, Prediction) {
     // Inference doesn't drop tree.
     ASSERT_GT(std::abs(h_predts_training[i] - h_predts_inference[i]), kRtEps);
   }
-
-  delete pp_dmat;
 }
 }  // namespace xgboost

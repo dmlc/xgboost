@@ -1,8 +1,10 @@
 // Copyright by Contributors
 #include <dmlc/filesystem.h>
 #include <xgboost/data.h>
-#include "../../../src/data/simple_dmatrix.h"
 
+#include <array>
+#include "xgboost/base.h"
+#include "../../../src/data/simple_dmatrix.h"
 #include "../../../src/data/adapter.h"
 #include "../helpers.h"
 
@@ -51,9 +53,6 @@ TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   CreateSimpleTestData(tmp_file);
   xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file, true, false);
 
-  // Sorted column access
-  EXPECT_EQ(dmat->GetColDensity(0), 1);
-  EXPECT_EQ(dmat->GetColDensity(1), 0.5);
   ASSERT_TRUE(dmat->SingleColBlock());
 
   // Loop over the batches and assert the data is as expected
@@ -74,32 +73,32 @@ TEST(SimpleDMatrix, Empty) {
 
   data::CSRAdapter csr_adapter(row_ptr.data(), feature_idx.data(), data.data(),
                                0, 0, 0);
-  data::SimpleDMatrix dmat(&csr_adapter,
-                           std::numeric_limits<float>::quiet_NaN(), 1);
-  CHECK_EQ(dmat.Info().num_nonzero_, 0);
-  CHECK_EQ(dmat.Info().num_row_, 0);
-  CHECK_EQ(dmat.Info().num_col_, 0);
-  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+  std::unique_ptr<data::SimpleDMatrix> dmat(new data::SimpleDMatrix(
+      &csr_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
+  CHECK_EQ(dmat->Info().num_nonzero_, 0);
+  CHECK_EQ(dmat->Info().num_row_, 0);
+  CHECK_EQ(dmat->Info().num_col_, 0);
+  for (auto &batch : dmat->GetBatches<SparsePage>()) {
     CHECK_EQ(batch.Size(), 0);
   }
 
   data::DenseAdapter dense_adapter(nullptr, 0, 0);
-  dmat = data::SimpleDMatrix(&dense_adapter,
-                             std::numeric_limits<float>::quiet_NaN(), 1);
-  CHECK_EQ(dmat.Info().num_nonzero_, 0);
-  CHECK_EQ(dmat.Info().num_row_, 0);
-  CHECK_EQ(dmat.Info().num_col_, 0);
-  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+  dmat.reset( new data::SimpleDMatrix(&dense_adapter,
+                                      std::numeric_limits<float>::quiet_NaN(), 1) );
+  CHECK_EQ(dmat->Info().num_nonzero_, 0);
+  CHECK_EQ(dmat->Info().num_row_, 0);
+  CHECK_EQ(dmat->Info().num_col_, 0);
+  for (auto &batch : dmat->GetBatches<SparsePage>()) {
     CHECK_EQ(batch.Size(), 0);
   }
 
   data::CSCAdapter csc_adapter(nullptr, nullptr, nullptr, 0, 0);
-  dmat = data::SimpleDMatrix(&csc_adapter,
-                             std::numeric_limits<float>::quiet_NaN(), 1);
-  CHECK_EQ(dmat.Info().num_nonzero_, 0);
-  CHECK_EQ(dmat.Info().num_row_, 0);
-  CHECK_EQ(dmat.Info().num_col_, 0);
-  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+  dmat.reset(new data::SimpleDMatrix(
+      &csc_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
+  CHECK_EQ(dmat->Info().num_nonzero_, 0);
+  CHECK_EQ(dmat->Info().num_row_, 0);
+  CHECK_EQ(dmat->Info().num_col_, 0);
+  for (auto &batch : dmat->GetBatches<SparsePage>()) {
     CHECK_EQ(batch.Size(), 0);
   }
 }
@@ -111,11 +110,11 @@ TEST(SimpleDMatrix, MissingData) {
 
   data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2,
                            3, 2);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           1);
-  CHECK_EQ(dmat.Info().num_nonzero_, 2);
-  dmat = data::SimpleDMatrix(&adapter, 1.0, 1);
-  CHECK_EQ(dmat.Info().num_nonzero_, 1);
+  std::unique_ptr<data::SimpleDMatrix> dmat{new data::SimpleDMatrix{
+      &adapter, std::numeric_limits<float>::quiet_NaN(), 1}};
+  CHECK_EQ(dmat->Info().num_nonzero_, 2);
+  dmat.reset(new data::SimpleDMatrix(&adapter, 1.0, 1));
+  CHECK_EQ(dmat->Info().num_nonzero_, 1);
 }
 
 TEST(SimpleDMatrix, EmptyRow) {
@@ -188,10 +187,8 @@ TEST(SimpleDMatrix, FromFile) {
   CreateBigTestData(filename, 3 * 5);
   std::unique_ptr<dmlc::Parser<uint32_t>> parser(
       dmlc::Parser<uint32_t>::Create(filename.c_str(), 0, 1, "auto"));
-  data::FileAdapter adapter(parser.get());
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           1);
-  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+
+  auto verify_batch = [](SparsePage const &batch) {
     EXPECT_EQ(batch.Size(), 5);
     EXPECT_EQ(batch.offset.HostVector(),
               std::vector<bst_row_t>({0, 3, 6, 9, 12, 15}));
@@ -208,49 +205,105 @@ TEST(SimpleDMatrix, FromFile) {
         EXPECT_EQ(batch[i][2].index, 4);
       }
     }
+  };
+
+  constexpr bst_feature_t kCols = 5;
+  data::FileAdapter adapter(parser.get());
+  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
+                           1);
+  ASSERT_EQ(dmat.Info().num_col_, kCols);
+
+  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+    verify_batch(batch);
   }
 }
 
 TEST(SimpleDMatrix, Slice) {
-  const int kRows = 6;
-  const int kCols = 2;
-  auto pp_dmat = CreateDMatrix(kRows, kCols, 1.0);
-  auto p_dmat = *pp_dmat;
-  auto &labels = p_dmat->Info().labels_.HostVector();
-  auto &weights = p_dmat->Info().weights_.HostVector();
-  auto &base_margin = p_dmat->Info().base_margin_.HostVector();
+  size_t constexpr kRows {16};
+  size_t constexpr kCols {8};
+  size_t constexpr kClasses {3};
+  auto p_m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true);
+  auto& weights = p_m->Info().weights_.HostVector();
   weights.resize(kRows);
-  labels.resize(kRows);
-  base_margin.resize(kRows);
-  std::iota(labels.begin(), labels.end(), 0);
-  std::iota(weights.begin(), weights.end(), 0);
-  std::iota(base_margin.begin(), base_margin.end(), 0);
+  std::iota(weights.begin(), weights.end(), 0.0f);
 
-  std::vector<int> ridx_set = {1, 3, 5};
-  data::DMatrixSliceAdapter adapter(p_dmat.get(),
-                                    {ridx_set.data(), ridx_set.size()});
-  EXPECT_EQ(adapter.NumRows(), ridx_set.size());
-  data::SimpleDMatrix new_dmat(&adapter,
-                               std::numeric_limits<float>::quiet_NaN(), 1);
+  auto& lower = p_m->Info().labels_lower_bound_.HostVector();
+  auto& upper = p_m->Info().labels_upper_bound_.HostVector();
+  lower.resize(kRows);
+  upper.resize(kRows);
 
-  EXPECT_EQ(new_dmat.Info().num_row_, ridx_set.size());
+  std::iota(lower.begin(), lower.end(), 0.0f);
+  std::iota(upper.begin(), upper.end(), 1.0f);
 
-  auto &old_batch = *p_dmat->GetBatches<SparsePage>().begin();
-  auto &new_batch = *new_dmat.GetBatches<SparsePage>().begin();
-  for (auto i = 0ull; i < ridx_set.size(); i++) {
-    EXPECT_EQ(new_dmat.Info().labels_.HostVector()[i],
-              p_dmat->Info().labels_.HostVector()[ridx_set[i]]);
-    EXPECT_EQ(new_dmat.Info().weights_.HostVector()[i],
-              p_dmat->Info().weights_.HostVector()[ridx_set[i]]);
-    EXPECT_EQ(new_dmat.Info().base_margin_.HostVector()[i],
-              p_dmat->Info().base_margin_.HostVector()[ridx_set[i]]);
-    auto old_inst = old_batch[ridx_set[i]];
-    auto new_inst = new_batch[i];
-    ASSERT_EQ(old_inst.size(), new_inst.size());
-    for (auto j = 0ull; j < old_inst.size(); j++) {
-      EXPECT_EQ(old_inst[j], new_inst[j]);
+  auto& margin = p_m->Info().base_margin_.HostVector();
+  margin.resize(kRows * kClasses);
+
+  std::array<int32_t, 3> ridxs {1, 3, 5};
+  std::unique_ptr<DMatrix> out { p_m->Slice(ridxs) };
+  ASSERT_EQ(out->Info().labels_.Size(), ridxs.size());
+  ASSERT_EQ(out->Info().labels_lower_bound_.Size(), ridxs.size());
+  ASSERT_EQ(out->Info().labels_upper_bound_.Size(), ridxs.size());
+  ASSERT_EQ(out->Info().base_margin_.Size(), ridxs.size() * kClasses);
+
+  for (auto const& in_page : p_m->GetBatches<SparsePage>()) {
+    for (auto const &out_page : out->GetBatches<SparsePage>()) {
+      for (size_t i = 0; i < ridxs.size(); ++i) {
+        auto ridx = ridxs[i];
+        auto out_inst = out_page[i];
+        auto in_inst = in_page[ridx];
+        ASSERT_EQ(out_inst.size(), in_inst.size()) << i;
+        for (size_t j = 0; j < in_inst.size(); ++j) {
+          ASSERT_EQ(in_inst[j].fvalue, out_inst[j].fvalue);
+          ASSERT_EQ(in_inst[j].index, out_inst[j].index);
+        }
+
+        ASSERT_EQ(p_m->Info().labels_lower_bound_.HostVector().at(ridx),
+                  out->Info().labels_lower_bound_.HostVector().at(i));
+        ASSERT_EQ(p_m->Info().labels_upper_bound_.HostVector().at(ridx),
+                  out->Info().labels_upper_bound_.HostVector().at(i));
+        ASSERT_EQ(p_m->Info().weights_.HostVector().at(ridx),
+                  out->Info().weights_.HostVector().at(i));
+
+        auto& out_margin = out->Info().base_margin_.HostVector();
+        for (size_t j = 0; j < kClasses; ++j) {
+          auto in_beg = ridx * kClasses;
+          ASSERT_EQ(out_margin.at(i * kClasses + j), margin.at(in_beg + j));
+        }
+      }
     }
   }
 
-  delete pp_dmat;
-};
+  ASSERT_EQ(out->Info().num_col_, out->Info().num_col_);
+  ASSERT_EQ(out->Info().num_row_, ridxs.size());
+  ASSERT_EQ(out->Info().num_nonzero_, ridxs.size() * kCols);  // dense
+}
+
+TEST(SimpleDMatrix, SaveLoadBinary) {
+  dmlc::TemporaryDirectory tempdir;
+  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  CreateSimpleTestData(tmp_file);
+  xgboost::DMatrix * dmat = xgboost::DMatrix::Load(tmp_file, true, false);
+  data::SimpleDMatrix *simple_dmat = dynamic_cast<data::SimpleDMatrix*>(dmat);
+
+  const std::string tmp_binfile = tempdir.path + "/csr_source.binary";
+  simple_dmat->SaveToLocalFile(tmp_binfile);
+  xgboost::DMatrix * dmat_read = xgboost::DMatrix::Load(tmp_binfile, true, false);
+
+  EXPECT_EQ(dmat->Info().num_col_, dmat_read->Info().num_col_);
+  EXPECT_EQ(dmat->Info().num_row_, dmat_read->Info().num_row_);
+  EXPECT_EQ(dmat->Info().num_row_, dmat_read->Info().num_row_);
+
+  // Test we have non-empty batch
+  EXPECT_EQ(dmat->GetBatches<xgboost::SparsePage>().begin().AtEnd(), false);
+
+  auto row_iter = dmat->GetBatches<xgboost::SparsePage>().begin();
+  auto row_iter_read = dmat_read->GetBatches<xgboost::SparsePage>().begin();
+  // Test the data read into the first row
+  auto first_row = (*row_iter)[0];
+  auto first_row_read = (*row_iter_read)[0];
+  EXPECT_EQ(first_row.size(), first_row_read.size());
+  EXPECT_EQ(first_row[2].index, first_row_read[2].index);
+  EXPECT_EQ(first_row[2].fvalue, first_row_read[2].fvalue);
+  delete dmat;
+  delete dmat_read;
+}

@@ -207,6 +207,36 @@ def ctypes2numpy(cptr, length, dtype):
     return res
 
 
+def ctypes2cupy(cptr, length, dtype):
+    """Convert a ctypes pointer array to a cupy array."""
+    # pylint: disable=import-error
+    import cupy
+    from cupy.cuda.memory import MemoryPointer
+    from cupy.cuda.memory import UnownedMemory
+    CUPY_TO_CTYPES_MAPPING = {
+        cupy.float32: ctypes.c_float,
+        cupy.uint32: ctypes.c_uint
+    }
+    if dtype not in CUPY_TO_CTYPES_MAPPING.keys():
+        raise RuntimeError('Supported types: {}'.format(
+            CUPY_TO_CTYPES_MAPPING.keys()
+        ))
+    addr = ctypes.cast(cptr, ctypes.c_void_p).value
+    # pylint: disable=c-extension-no-member,no-member
+    device = cupy.cuda.runtime.pointerGetAttributes(addr).device
+    # The owner field is just used to keep the memory alive with ref count.  As
+    # unowned's life time is scoped within this function we don't need that.
+    unownd = UnownedMemory(
+        addr, length.value * ctypes.sizeof(CUPY_TO_CTYPES_MAPPING[dtype]),
+        owner=None)
+    memptr = MemoryPointer(unownd, 0)
+    # pylint: disable=unexpected-keyword-arg
+    mem = cupy.ndarray((length.value, ), dtype=dtype, memptr=memptr)
+    assert mem.device.id == device
+    arr = cupy.array(mem, copy=True)
+    return arr
+
+
 def ctypes2buffer(cptr, length):
     """Convert ctypes pointer to buffer type."""
     if not isinstance(cptr, ctypes.POINTER(ctypes.c_char)):
@@ -246,12 +276,13 @@ def _has_cuda_array_interface(data):
 def _maybe_pandas_data(data, feature_names, feature_types,
                        meta=None, meta_type=None):
     """Extract internal data from pd.DataFrame for DMatrix data"""
-
     if not (PANDAS_INSTALLED and isinstance(data, DataFrame)):
         return data, feature_names, feature_types
+    from pandas.api.types import is_sparse
 
     data_dtypes = data.dtypes
-    if not all(dtype.name in PANDAS_DTYPE_MAPPER for dtype in data_dtypes):
+    if not all(dtype.name in PANDAS_DTYPE_MAPPER or is_sparse(dtype)
+               for dtype in data_dtypes):
         bad_fields = [
             str(data.columns[i]) for i, dtype in enumerate(data_dtypes)
             if dtype.name not in PANDAS_DTYPE_MAPPER
@@ -272,9 +303,12 @@ def _maybe_pandas_data(data, feature_names, feature_types,
             feature_names = data.columns.format()
 
     if feature_types is None and meta is None:
-        feature_types = [
-            PANDAS_DTYPE_MAPPER[dtype.name] for dtype in data_dtypes
-        ]
+        feature_types = []
+        for dtype in data_dtypes:
+            if is_sparse(dtype):
+                feature_types.append(PANDAS_DTYPE_MAPPER[dtype.subtype.name])
+            else:
+                feature_types.append(PANDAS_DTYPE_MAPPER[dtype.name])
 
     if meta and len(data.columns) > 1:
         raise ValueError(
@@ -285,6 +319,18 @@ def _maybe_pandas_data(data, feature_names, feature_types,
     data = data.values.astype(dtype)
 
     return data, feature_names, feature_types
+
+
+def _cudf_array_interfaces(df):
+    '''Extract CuDF __cuda_array_interface__'''
+    interfaces = []
+    for col in df:
+        interface = df[col].__cuda_array_interface__
+        if 'mask' in interface:
+            interface['mask'] = interface['mask'].__cuda_array_interface__
+        interfaces.append(interface)
+    interfaces_str = bytes(json.dumps(interfaces, indent=2), 'utf-8')
+    return interfaces_str
 
 
 def _maybe_cudf_dataframe(data, feature_names, feature_types):
@@ -352,6 +398,17 @@ def _maybe_dt_data(data, feature_names, feature_types,
 
     return data, feature_names, feature_types
 
+def _is_dlpack(x):
+    return 'PyCapsule' in str(type(x)) and "dltensor" in str(x)
+
+# Just convert dlpack into cupy (zero copy)
+def _maybe_dlpack_data(data, feature_names, feature_types):
+    if not _is_dlpack(data):
+        return data, feature_names, feature_types
+    from cupy import fromDlpack # pylint: disable=E0401
+    data = fromDlpack(data)
+    return data, feature_names, feature_types
+
 
 def _convert_dataframes(data, feature_names, feature_types,
                         meta=None, meta_type=None):
@@ -368,6 +425,9 @@ def _convert_dataframes(data, feature_names, feature_types,
                                                         meta_type)
 
     data, feature_names, feature_types = _maybe_cudf_dataframe(
+        data, feature_names, feature_types)
+
+    data, feature_names, feature_types = _maybe_dlpack_data(
         data, feature_names, feature_types)
 
     return data, feature_names, feature_types
@@ -410,7 +470,7 @@ class DMatrix(object):
         """Parameters
         ----------
         data : os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/
-               dt.Frame/cudf.DataFrame/cupy.array
+               dt.Frame/cudf.DataFrame/cupy.array/dlpack
             Data source of DMatrix.
             When data is string or os.PathLike type, it represents the path
             libsvm format txt file, csv file (by specifying uri parameter
@@ -438,8 +498,8 @@ class DMatrix(object):
         feature_types : list, optional
             Set types for features.
         nthread : integer, optional
-            Number of threads to use for loading data from numpy array. If -1,
-            uses maximum threads available on the system.
+            Number of threads to use for loading data when parallelization is
+            applicable. If -1, uses maximum threads available on the system.
 
         """
         # force into void_p, mac need to pass things in as void_p
@@ -458,6 +518,8 @@ class DMatrix(object):
         data, feature_names, feature_types = _convert_dataframes(
             data, feature_names, feature_types
         )
+        missing = missing if missing is not None else np.nan
+        nthread = nthread if nthread is not None else 1
 
         if isinstance(data, (STRING_TYPES, os_PathLike)):
             handle = ctypes.c_void_p()
@@ -548,15 +610,13 @@ class DMatrix(object):
         # explicitly tell np.array to try and avoid copying)
         data = np.array(mat.reshape(mat.size), copy=False, dtype=np.float32)
         handle = ctypes.c_void_p()
-        missing = missing if missing is not None else np.nan
-        nthread = nthread if nthread is not None else 1
         _check_call(_LIB.XGDMatrixCreateFromMat_omp(
             data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
             c_bst_ulong(mat.shape[0]),
             c_bst_ulong(mat.shape[1]),
             ctypes.c_float(missing),
             ctypes.byref(handle),
-            c_bst_ulong(nthread)))
+            ctypes.c_int(nthread)))
         self.handle = handle
 
     def _init_from_dt(self, data, nthread):
@@ -587,25 +647,18 @@ class DMatrix(object):
             c_bst_ulong(data.shape[0]),
             c_bst_ulong(data.shape[1]),
             ctypes.byref(handle),
-            nthread))
+            ctypes.c_int(nthread)))
         self.handle = handle
 
     def _init_from_array_interface_columns(self, df, missing, nthread):
         """Initialize DMatrix from columnar memory format."""
-        interfaces = []
-        for col in df:
-            interface = df[col].__cuda_array_interface__
-            if 'mask' in interface:
-                interface['mask'] = interface['mask'].__cuda_array_interface__
-            interfaces.append(interface)
+        interfaces_str = _cudf_array_interfaces(df)
         handle = ctypes.c_void_p()
-        missing = missing if missing is not None else np.nan
-        nthread = nthread if nthread is not None else 1
-        interfaces_str = bytes(json.dumps(interfaces, indent=2), 'utf-8')
         _check_call(
             _LIB.XGDMatrixCreateFromArrayInterfaceColumns(
                 interfaces_str,
-                ctypes.c_float(missing), ctypes.c_int(nthread),
+                ctypes.c_float(missing),
+                ctypes.c_int(nthread),
                 ctypes.byref(handle)))
         self.handle = handle
 
@@ -617,12 +670,11 @@ class DMatrix(object):
         interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
 
         handle = ctypes.c_void_p()
-        missing = missing if missing is not None else np.nan
-        nthread = nthread if nthread is not None else 1
         _check_call(
             _LIB.XGDMatrixCreateFromArrayInterface(
                 interface_str,
-                ctypes.c_float(missing), ctypes.c_int(nthread),
+                ctypes.c_float(missing),
+                ctypes.c_int(nthread),
                 ctypes.byref(handle)))
         self.handle = handle
 
@@ -1004,6 +1056,69 @@ class DMatrix(object):
         self._feature_types = feature_types
 
 
+class DeviceQuantileDMatrix(DMatrix):
+    """Device memory Data Matrix used in XGBoost for training with tree_method='gpu_hist'. Do not
+    use this for test/validation tasks as some information may be lost in quantisation. This
+    DMatrix is primarily designed to save memory in training from device memory inputs by
+    avoiding intermediate storage. Implementation does not currently consider weights in
+    quantisation process(unlike DMatrix). Set max_bin to control the number of bins during
+    quantisation.
+
+    You can construct DeviceQuantileDMatrix from cupy/cudf/dlpack.
+
+    .. versionadded:: 1.1.0
+
+    """
+
+    def __init__(self, data, label=None, weight=None, base_margin=None,
+                 missing=None,
+                 silent=False,
+                 feature_names=None,
+                 feature_types=None,
+                 nthread=None, max_bin=256):
+        self.max_bin = max_bin
+        if not (hasattr(data, "__cuda_array_interface__") or (
+                CUDF_INSTALLED and isinstance(data, CUDF_DataFrame)) or _is_dlpack(data)):
+            raise ValueError('Only cupy/cudf/dlpack currently supported for DeviceQuantileDMatrix')
+
+        super().__init__(data, label=label, weight=weight, base_margin=base_margin,
+                         missing=missing,
+                         silent=silent,
+                         feature_names=feature_names,
+                         feature_types=feature_types,
+                         nthread=nthread)
+
+    def _init_from_array_interface_columns(self, df, missing, nthread):
+        """Initialize DMatrix from columnar memory format."""
+        interfaces_str = _cudf_array_interfaces(df)
+        handle = ctypes.c_void_p()
+        missing = missing if missing is not None else np.nan
+        nthread = nthread if nthread is not None else 1
+        _check_call(
+            _LIB.XGDeviceQuantileDMatrixCreateFromArrayInterfaceColumns(
+                interfaces_str,
+                ctypes.c_float(missing), ctypes.c_int(nthread),
+                ctypes.c_int(self.max_bin), ctypes.byref(handle)))
+        self.handle = handle
+
+    def _init_from_array_interface(self, data, missing, nthread):
+        """Initialize DMatrix from cupy ndarray."""
+        interface = data.__cuda_array_interface__
+        if 'mask' in interface:
+            interface['mask'] = interface['mask'].__cuda_array_interface__
+        interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
+
+        handle = ctypes.c_void_p()
+        missing = missing if missing is not None else np.nan
+        nthread = nthread if nthread is not None else 1
+        _check_call(
+            _LIB.XGDeviceQuantileDMatrixCreateFromArrayInterface(
+                interface_str,
+                ctypes.c_float(missing), ctypes.c_int(nthread),
+                ctypes.c_int(self.max_bin), ctypes.byref(handle)))
+        self.handle = handle
+
+
 class Booster(object):
     # pylint: disable=too-many-public-methods
     """A Booster of XGBoost.
@@ -1035,10 +1150,12 @@ class Booster(object):
         self.handle = ctypes.c_void_p()
         _check_call(_LIB.XGBoosterCreate(dmats, c_bst_ulong(len(cache)),
                                          ctypes.byref(self.handle)))
+        params = params or {}
+        if isinstance(params, list):
+            params.append(('validate_parameters', True))
+        else:
+            params['validate_parameters'] = True
 
-        if isinstance(params, dict) and \
-            'validate_parameters' not in params.keys():
-            params['validate_parameters'] = 1
         self.set_param(params or {})
         if (params is not None) and ('booster' in params):
             self.booster = params['booster']
@@ -1100,7 +1217,10 @@ class Booster(object):
 
     def save_config(self):
         '''Output internal parameter configuration of Booster as a JSON
-        string.'''
+        string.
+
+        .. versionadded:: 1.0.0
+        '''
         json_string = ctypes.c_char_p()
         length = c_bst_ulong()
         _check_call(_LIB.XGBoosterSaveJsonConfig(
@@ -1111,7 +1231,10 @@ class Booster(object):
         return json_string
 
     def load_config(self, config):
-        '''Load configuration returned by `save_config`.'''
+        '''Load configuration returned by `save_config`.
+
+        .. versionadded:: 1.0.0
+        '''
         assert isinstance(config, str)
         _check_call(_LIB.XGBoosterLoadJsonConfig(
             self.handle,
@@ -1121,11 +1244,7 @@ class Booster(object):
         return self.__deepcopy__(None)
 
     def __deepcopy__(self, _):
-        '''Return a copy of booster.  Caches for DMatrix are not copied so continue
-        training on copied booster will result in lower performance and
-        slightly different result.
-
-        '''
+        '''Return a copy of booster.'''
         return Booster(model_file=self)
 
     def copy(self):
@@ -1251,7 +1370,7 @@ class Booster(object):
                                                     ctypes.c_int(iteration),
                                                     dtrain.handle))
         else:
-            pred = self.predict(dtrain, training=True)
+            pred = self.predict(dtrain, output_margin=True, training=True)
             grad, hess = fobj(pred, dtrain)
             self.boost(dtrain, grad, hess)
 
@@ -1362,12 +1481,17 @@ class Booster(object):
                 training=False):
         """Predict with data.
 
-        .. note:: This function is not thread safe.
+        .. note:: This function is not thread safe except for ``gbtree``
+                  booster.
 
-          For each booster object, predict can only be called from one thread.
-          If you want to run prediction using multiple thread, call
-          ``bst.copy()`` to make copies of model object and then call
-          ``predict()``.
+          For ``gbtree`` booster, the thread safety is guaranteed by locks.
+          For lock free prediction use ``inplace_predict`` instead.  Also, the
+          safety does not hold when used in conjunction with other methods.
+
+          When using booster other than ``gbtree``, predict can only be called
+          from one thread.  If you want to run prediction using multiple
+          thread, call ``bst.copy()`` to make copies of model object and then
+          call ``predict()``.
 
         Parameters
         ----------
@@ -1414,6 +1538,8 @@ class Booster(object):
         training : bool
             Whether the prediction value is used for training.  This can effect
             `dart` booster, which performs dropouts during training iterations.
+
+            .. versionadded:: 1.0.0
 
         .. note:: Using ``predict()`` with DART booster
 
@@ -1480,6 +1606,148 @@ class Booster(object):
             else:
                 preds = preds.reshape(nrow, chunk_size)
         return preds
+
+    def inplace_predict(self, data, iteration_range=(0, 0),
+                        predict_type='value', missing=np.nan):
+        '''Run prediction in-place, Unlike ``predict`` method, inplace prediction does
+        not cache the prediction result.
+
+        Calling only ``inplace_predict`` in multiple threads is safe and lock
+        free.  But the safety does not hold when used in conjunction with other
+        methods. E.g. you can't train the booster in one thread and perform
+        prediction in the other.
+
+        .. code-block:: python
+
+            booster.set_param({'predictor': 'gpu_predictor'})
+            booster.inplace_predict(cupy_array)
+
+            booster.set_param({'predictor': 'cpu_predictor})
+            booster.inplace_predict(numpy_array)
+
+        .. versionadded:: 1.1.0
+
+        Parameters
+        ----------
+        data : numpy.ndarray/scipy.sparse.csr_matrix/cupy.ndarray/
+               cudf.DataFrame/pd.DataFrame
+            The input data, must not be a view for numpy array.  Set
+            ``predictor`` to ``gpu_predictor`` for running prediction on CuPy
+            array or CuDF DataFrame.
+        iteration_range : tuple
+            Specifies which layer of trees are used in prediction.  For
+            example, if a random forest is trained with 100 rounds.  Specifying
+            `iteration_range=(10, 20)`, then only the forests built during [10,
+            20) (open set) rounds are used in this prediction.
+        predict_type : str
+            * `value` Output model prediction values.
+            * `margin` Output the raw untransformed margin value.
+        missing : float
+            Value in the input data which needs to be present as a missing
+            value.
+
+        Returns
+        -------
+        prediction : numpy.ndarray/cupy.ndarray
+            The prediction result.  When input data is on GPU, prediction
+            result is stored in a cupy array.
+
+        '''
+
+        def reshape_output(predt, rows):
+            '''Reshape for multi-output prediction.'''
+            if predt.size != rows and predt.size % rows == 0:
+                cols = int(predt.size / rows)
+                predt = predt.reshape(rows, cols)
+                return predt
+            return predt
+
+        length = c_bst_ulong()
+        preds = ctypes.POINTER(ctypes.c_float)()
+        iteration_range = (ctypes.c_uint(iteration_range[0]),
+                           ctypes.c_uint(iteration_range[1]))
+
+        # once caching is supported, we can pass id(data) as cache id.
+        if isinstance(data, DataFrame):
+            data = data.values
+        if isinstance(data, np.ndarray):
+            assert data.flags.c_contiguous
+            arr = np.array(data.reshape(data.size), copy=False,
+                           dtype=np.float32)
+            _check_call(_LIB.XGBoosterPredictFromDense(
+                self.handle,
+                arr.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+                c_bst_ulong(data.shape[0]),
+                c_bst_ulong(data.shape[1]),
+                ctypes.c_float(missing),
+                iteration_range[0],
+                iteration_range[1],
+                c_str(predict_type),
+                c_bst_ulong(0),
+                ctypes.byref(length),
+                ctypes.byref(preds)
+            ))
+            preds = ctypes2numpy(preds, length.value, np.float32)
+            rows = data.shape[0]
+            return reshape_output(preds, rows)
+        if isinstance(data, scipy.sparse.csr_matrix):
+            csr = data
+            _check_call(_LIB.XGBoosterPredictFromCSR(
+                self.handle,
+                c_array(ctypes.c_size_t, csr.indptr),
+                c_array(ctypes.c_uint, csr.indices),
+                c_array(ctypes.c_float, csr.data),
+                ctypes.c_size_t(len(csr.indptr)),
+                ctypes.c_size_t(len(csr.data)),
+                ctypes.c_size_t(csr.shape[1]),
+                ctypes.c_float(missing),
+                iteration_range[0],
+                iteration_range[1],
+                c_str(predict_type),
+                c_bst_ulong(0),
+                ctypes.byref(length),
+                ctypes.byref(preds)))
+            preds = ctypes2numpy(preds, length.value, np.float32)
+            rows = data.shape[0]
+            return reshape_output(preds, rows)
+        if lazy_isinstance(data, 'cupy.core.core', 'ndarray'):
+            assert data.flags.c_contiguous
+            interface = data.__cuda_array_interface__
+            if 'mask' in interface:
+                interface['mask'] = interface['mask'].__cuda_array_interface__
+            interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
+            _check_call(_LIB.XGBoosterPredictFromArrayInterface(
+                self.handle,
+                interface_str,
+                ctypes.c_float(missing),
+                iteration_range[0],
+                iteration_range[1],
+                c_str(predict_type),
+                c_bst_ulong(0),
+                ctypes.byref(length),
+                ctypes.byref(preds)))
+            mem = ctypes2cupy(preds, length, np.float32)
+            rows = data.shape[0]
+            return reshape_output(mem, rows)
+        if lazy_isinstance(data, 'cudf.core.dataframe', 'DataFrame'):
+            interfaces_str = _cudf_array_interfaces(data)
+            _check_call(_LIB.XGBoosterPredictFromArrayInterfaceColumns(
+                self.handle,
+                interfaces_str,
+                ctypes.c_float(missing),
+                iteration_range[0],
+                iteration_range[1],
+                c_str(predict_type),
+                c_bst_ulong(0),
+                ctypes.byref(length),
+                ctypes.byref(preds)))
+            mem = ctypes2cupy(preds, length, np.float32)
+            rows = data.shape[0]
+            predt = reshape_output(mem, rows)
+            return predt
+
+        raise TypeError('Data type:' + str(type(data)) +
+                        ' not supported by inplace prediction.')
 
     def save_model(self, fname):
         """Save the model to a file.
@@ -1685,7 +1953,6 @@ class Booster(object):
         if importance_type == 'weight':
             # do a simpler tree dump to save time
             trees = self.get_dump(fmap, with_stats=False)
-
             fmap = {}
             for tree in trees:
                 for line in tree.split('\n'):

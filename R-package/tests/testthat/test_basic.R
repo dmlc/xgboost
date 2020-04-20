@@ -219,6 +219,21 @@ test_that("training continuation works", {
   expect_equal(dim(bst2$evaluation_log), c(2, 2))
 })
 
+test_that("model serialization works", {
+  out_path <- "model_serialization"
+  dtrain <- xgb.DMatrix(train$data, label = train$label)
+  watchlist = list(train=dtrain)
+  param <- list(objective = "binary:logistic")
+  booster <- xgb.train(param, dtrain, nrounds = 4, watchlist)
+  raw <- xgb.serialize(booster)
+  saveRDS(raw, out_path)
+  raw <- readRDS(out_path)
+
+  loaded <- xgb.unserialize(raw)
+  raw_from_loaded <- xgb.serialize(loaded)
+  expect_equal(raw, raw_from_loaded)
+  file.remove(out_path)
+})
 
 test_that("xgb.cv works", {
   set.seed(11)
@@ -314,7 +329,7 @@ test_that("colsample_bytree works", {
   watchlist <- list(train = dtrain, eval = dtest)
    # Use colsample_bytree = 0.01, so that roughly one out of 100 features is
   # chosen for each tree
-  param <- list(max_depth = 2, eta = 0, silent = 1, nthread = 2,
+  param <- list(max_depth = 2, eta = 0, verbosity = 0, nthread = 2,
                 colsample_bytree = 0.01, objective = "binary:logistic",
                 eval_metric = "auc")
    set.seed(2)
@@ -323,4 +338,14 @@ test_that("colsample_bytree works", {
   # If colsample_bytree works properly, a variety of features should be used
   # in the 100 trees
   expect_gte(nrow(xgb.importance(model = bst)), 30)
+})
+
+test_that("Configuration works", {
+  bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
+                 eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic",
+                 eval_metric = 'error', eval_metric = 'auc', eval_metric = "logloss")
+  config <- xgb.config(bst)
+  xgb.config(bst) <- config
+  reloaded_config <- xgb.config(bst)
+  expect_equal(config, reloaded_config);
 })

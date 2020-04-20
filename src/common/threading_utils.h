@@ -9,6 +9,8 @@
 #include <vector>
 #include <algorithm>
 
+#include "xgboost/logging.h"
+
 namespace xgboost {
 namespace common {
 
@@ -20,11 +22,11 @@ class Range1d {
     CHECK_LT(begin, end);
   }
 
-  size_t begin() {
+  size_t begin() const {  // NOLINT
     return begin_;
   }
 
-  size_t end() {
+  size_t end() const {  // NOLINT
     return end_;
   }
 
@@ -108,10 +110,12 @@ class BlockedSpace2d {
 
 // Wrapper to implement nested parallelism with simple omp parallel for
 template<typename Func>
-void ParallelFor2d(const BlockedSpace2d& space, const int nthreads, Func func) {
+void ParallelFor2d(const BlockedSpace2d& space, int nthreads, Func func) {
   const size_t num_blocks_in_space = space.Size();
+  nthreads = std::min(nthreads, omp_get_max_threads());
+  nthreads = std::max(nthreads, 1);
 
-  #pragma omp parallel num_threads(nthreads)
+#pragma omp parallel num_threads(nthreads)
   {
     size_t tid = omp_get_thread_num();
     size_t chunck_size = num_blocks_in_space / nthreads + !!(num_blocks_in_space % nthreads);

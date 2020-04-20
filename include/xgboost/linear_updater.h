@@ -33,7 +33,7 @@ class LinearUpdater : public Configurable {
 
  public:
   /*! \brief virtual destructor */
-  virtual ~LinearUpdater() = default;
+  ~LinearUpdater() override = default;
   /*!
    * \brief Initialize the updater with given arguments.
    * \param args arguments to the objective function.

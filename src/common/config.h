@@ -29,8 +29,8 @@ class ConfigParser {
    * \brief Constructor for INI-style configuration parser
    * \param path path to configuration file
    */
-  explicit ConfigParser(const std::string& path)
-      : path_(path),
+  explicit ConfigParser(const std::string path)
+      : path_(std::move(path)),
       line_comment_regex_("^#"),
       key_regex_(R"rx(^([^#"'=\r\n\t ]+)[\t ]*=)rx"),
       key_regex_escaped_(R"rx(^(["'])([^"'=\r\n]+)\1[\t ]*=)rx"),
@@ -58,12 +58,12 @@ class ConfigParser {
   std::string NormalizeConfigEOL(std::string const& config_str) {
     std::string result;
     std::stringstream ss(config_str);
-    for (size_t i = 0; i < config_str.size(); ++i) {
-      if (config_str[i] == '\r') {
+    for (auto c : config_str) {
+      if (c == '\r') {
         result.push_back('\n');
         continue;
       }
-      result.push_back(config_str[i]);
+      result.push_back(c);
     }
     return result;
   }

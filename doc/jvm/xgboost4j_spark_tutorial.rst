@@ -27,39 +27,7 @@ Build an ML Application with XGBoost4J-Spark
 Refer to XGBoost4J-Spark Dependency
 ===================================
 
-Before we go into the tour of how to use XGBoost4J-Spark, we would bring a brief introduction about how to build a machine learning application with XGBoost4J-Spark. The first thing you need to do is to refer to the dependency in Maven Central.
-
-You can add the following dependency in your ``pom.xml``.
-
-.. code-block:: xml
-
-  <dependency>
-    <groupId>ml.dmlc</groupId>
-    <artifactId>xgboost4j-spark</artifactId>
-    <version>latest_version_num</version>
-  </dependency>
-
-For the latest release version number, please check `here <https://github.com/dmlc/xgboost/releases>`_.
-
-We also publish some functionalities which would be included in the coming release in the form of snapshot version. To access these functionalities, you can add dependency to the snapshot artifacts. We publish snapshot version in github-based repo, so you can add the following repo in ``pom.xml``:
-
-.. code-block:: xml
-
-  <repository>
-    <id>XGBoost4J-Spark Snapshot Repo</id>
-    <name>XGBoost4J-Spark Snapshot Repo</name>
-    <url>https://raw.githubusercontent.com/CodingCat/xgboost/maven-repo/</url>
-  </repository>
-
-and then refer to the snapshot dependency by adding:
-
-.. code-block:: xml
-
-  <dependency>
-      <groupId>ml.dmlc</groupId>
-      <artifactId>xgboost4j-spark</artifactId>
-      <version>next_version_num-SNAPSHOT</version>
-  </dependency>
+Before we go into the tour of how to use XGBoost4J-Spark, you should first consult :ref:`Installation from Maven repository <install_jvm_packages>` in order to add XGBoost4J-Spark as a dependency for your project. We provide both stable releases and snapshots.
 
 .. note:: XGBoost4J-Spark requires Apache Spark 2.4+
 

@@ -59,13 +59,6 @@ class ElementWiseMetricsReduction {
 
 #if defined(XGBOOST_USE_CUDA)
 
-  ~ElementWiseMetricsReduction() {
-    if (device_ >= 0) {
-      dh::safe_cuda(cudaSetDevice(device_));
-      allocator_.Free();
-    }
-  }
-
   PackedReduceResult DeviceReduceMetrics(
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,
@@ -83,8 +76,9 @@ class ElementWiseMetricsReduction {
 
     auto d_policy = policy_;
 
+    dh::XGBCachingDeviceAllocator<char> alloc;
     PackedReduceResult result = thrust::transform_reduce(
-        thrust::cuda::par(allocator_),
+        thrust::cuda::par(alloc),
         begin, end,
         [=] XGBOOST_DEVICE(size_t idx) {
           bst_float weight = is_null_weight ? 1.0f : s_weights[idx];
@@ -130,7 +124,6 @@ class ElementWiseMetricsReduction {
   EvalRow policy_;
 #if defined(XGBOOST_USE_CUDA)
   int device_{-1};
-  dh::CubMemory allocator_;
 #endif  // defined(XGBOOST_USE_CUDA)
 };
 
@@ -319,7 +312,7 @@ struct EvalTweedieNLogLik {
  */
 template<typename Policy>
 struct EvalEWiseBase : public Metric {
-  EvalEWiseBase() : policy_{}, reducer_{policy_} {}
+  EvalEWiseBase() = default;
   explicit EvalEWiseBase(char const* policy_param) :
     policy_{policy_param}, reducer_{policy_} {}
 
@@ -351,8 +344,7 @@ struct EvalEWiseBase : public Metric {
 
  private:
   Policy policy_;
-
-  ElementWiseMetricsReduction<Policy> reducer_;
+  ElementWiseMetricsReduction<Policy> reducer_{policy_};
 };
 
 XGBOOST_REGISTER_METRIC(RMSE, "rmse")

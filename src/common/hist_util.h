@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017 by Contributors
+ * Copyright 2017-2020 by Contributors
  * \file hist_util.h
  * \brief Utility for fast histogram aggregation
  * \author Philip Cho, Tianqi Chen
@@ -25,75 +25,6 @@
 
 namespace xgboost {
 namespace common {
-
-/*
- * \brief A thin wrapper around dynamically allocated C-style array.
- * Make sure to call resize() before use.
- */
-template<typename T>
-struct SimpleArray {
-  ~SimpleArray() {
-    std::free(ptr_);
-    ptr_ = nullptr;
-  }
-
-  void resize(size_t n) {
-    T* ptr = static_cast<T*>(std::malloc(n * sizeof(T)));
-    CHECK(ptr) << "Failed to allocate memory";
-    if (ptr_) {
-      std::memcpy(ptr, ptr_, n_ * sizeof(T));
-      std::free(ptr_);
-    }
-    ptr_ = ptr;
-    n_ = n;
-  }
-
-  T& operator[](size_t idx) {
-    return ptr_[idx];
-  }
-
-  T& operator[](size_t idx) const {
-    return ptr_[idx];
-  }
-
-  size_t size() const {
-    return n_;
-  }
-
-  T back() const {
-    return ptr_[n_-1];
-  }
-
-  T* data() {
-    return ptr_;
-  }
-
-  const T* data() const {
-    return ptr_;
-  }
-
-
-  T* begin() {
-    return ptr_;
-  }
-
-  const T* begin() const {
-    return ptr_;
-  }
-
-  T* end() {
-    return ptr_ + n_;
-  }
-
-  const T* end() const {
-    return ptr_ + n_;
-  }
-
- private:
-  T* ptr_ = nullptr;
-  size_t n_ = 0;
-};
-
 /*!
  * \brief A single row in global histogram index.
  *  Directly represent the global index in the histogram entry.
@@ -101,6 +32,7 @@ struct SimpleArray {
 using GHistIndexRow = Span<uint32_t const>;
 
 // A CSC matrix representing histogram cuts, used in CPU quantile hist.
+// The cut values represent upper bounds of bins containing approximately equal numbers of elements
 class HistogramCuts {
   // Using friends to avoid creating a virtual class, since HistogramCuts is used as value
   // object in many places.
@@ -112,17 +44,36 @@ class HistogramCuts {
   using BinIdx = uint32_t;
   common::Monitor monitor_;
 
-  std::vector<bst_float> cut_values_;
-  std::vector<uint32_t> cut_ptrs_;
-  std::vector<float> min_vals_;  // storing minimum value in a sketch set.
-
  public:
+  HostDeviceVector<bst_float> cut_values_;  // NOLINT
+  HostDeviceVector<uint32_t> cut_ptrs_;     // NOLINT
+  // storing minimum value in a sketch set.
+  HostDeviceVector<float> min_vals_;  // NOLINT
+
   HistogramCuts();
-  HistogramCuts(HistogramCuts const& that) = delete;
+  HistogramCuts(HistogramCuts const& that) {
+    cut_values_.Resize(that.cut_values_.Size());
+    cut_ptrs_.Resize(that.cut_ptrs_.Size());
+    min_vals_.Resize(that.min_vals_.Size());
+    cut_values_.Copy(that.cut_values_);
+    cut_ptrs_.Copy(that.cut_ptrs_);
+    min_vals_.Copy(that.min_vals_);
+  }
+
   HistogramCuts(HistogramCuts&& that) noexcept(true) {
     *this = std::forward<HistogramCuts&&>(that);
   }
-  HistogramCuts& operator=(HistogramCuts const& that) = delete;
+
+  HistogramCuts& operator=(HistogramCuts const& that) {
+    cut_values_.Resize(that.cut_values_.Size());
+    cut_ptrs_.Resize(that.cut_ptrs_.Size());
+    min_vals_.Resize(that.min_vals_.Size());
+    cut_values_.Copy(that.cut_values_);
+    cut_ptrs_.Copy(that.cut_ptrs_);
+    min_vals_.Copy(that.min_vals_);
+    return *this;
+  }
+
   HistogramCuts& operator=(HistogramCuts&& that) noexcept(true) {
     monitor_ = std::move(that.monitor_);
     cut_ptrs_ = std::move(that.cut_ptrs_);
@@ -135,30 +86,34 @@ class HistogramCuts {
   void Build(DMatrix* dmat, uint32_t const max_num_bins);
   /* \brief How many bins a feature has. */
   uint32_t FeatureBins(uint32_t feature) const {
-    return cut_ptrs_.at(feature+1) - cut_ptrs_[feature];
+    return cut_ptrs_.ConstHostVector().at(feature + 1) -
+           cut_ptrs_.ConstHostVector()[feature];
   }
 
   // Getters.  Cuts should be of no use after building histogram indices, but currently
   // it's deeply linked with quantile_hist, gpu sketcher and gpu_hist.  So we preserve
   // these for now.
-  std::vector<uint32_t> const& Ptrs()      const { return cut_ptrs_;   }
-  std::vector<float>    const& Values()    const { return cut_values_; }
-  std::vector<float>    const& MinValues() const { return min_vals_;   }
+  std::vector<uint32_t> const& Ptrs()      const { return cut_ptrs_.ConstHostVector();   }
+  std::vector<float>    const& Values()    const { return cut_values_.ConstHostVector(); }
+  std::vector<float>    const& MinValues() const { return min_vals_.ConstHostVector();   }
 
-  size_t TotalBins() const { return cut_ptrs_.back(); }
+  size_t TotalBins() const { return cut_ptrs_.ConstHostVector().back(); }
 
-  BinIdx SearchBin(float value, uint32_t column_id) {
-    auto beg = cut_ptrs_.at(column_id);
-    auto end = cut_ptrs_.at(column_id + 1);
-    auto it = std::upper_bound(cut_values_.cbegin() + beg, cut_values_.cbegin() + end, value);
-    if (it == cut_values_.cend()) {
-      it = cut_values_.cend() - 1;
+  // Return the index of a cut point that is strictly greater than the input
+  // value, or the last available index if none exists
+  BinIdx SearchBin(float value, uint32_t column_id) const {
+    auto beg = cut_ptrs_.ConstHostVector().at(column_id);
+    auto end = cut_ptrs_.ConstHostVector().at(column_id + 1);
+    const auto &values = cut_values_.ConstHostVector();
+    auto it = std::upper_bound(values.cbegin() + beg, values.cbegin() + end, value);
+    BinIdx idx = it - values.cbegin();
+    if (idx == end) {
+      idx -= 1;
     }
-    BinIdx idx = it - cut_values_.cbegin();
     return idx;
   }
 
-  BinIdx SearchBin(Entry const& e) {
+  BinIdx SearchBin(Entry const& e) const {
     return SearchBin(e.fvalue, e.index);
   }
 };
@@ -171,12 +126,12 @@ class HistogramCuts {
  */
 class CutsBuilder {
  public:
-  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
+  using WQSketch = common::WQuantileSketch<bst_float, bst_float>;
+  /* \brief return whether group for ranking is used. */
+  static bool UseGroup(DMatrix* dmat);
 
  protected:
   HistogramCuts* p_cuts_;
-  /* \brief return whether group for ranking is used. */
-  static bool UseGroup(DMatrix* dmat);
 
  public:
   explicit CutsBuilder(HistogramCuts* p_cuts) : p_cuts_{p_cuts} {}
@@ -195,21 +150,12 @@ class CutsBuilder {
     return group_ind;
   }
 
-  void AddCutPoint(WXQSketch::SummaryContainer const& summary) {
-    if (summary.size > 1 && summary.size <= 16) {
-      /* specialized code categorial / ordinal data -- use midpoints */
-      for (size_t i = 1; i < summary.size; ++i) {
-        bst_float cpt = (summary.data[i].value + summary.data[i - 1].value) / 2.0f;
-        if (i == 1 || cpt > p_cuts_->cut_values_.back()) {
-          p_cuts_->cut_values_.push_back(cpt);
-        }
-      }
-    } else {
-      for (size_t i = 2; i < summary.size; ++i) {
-        bst_float cpt = summary.data[i - 1].value;
-        if (i == 2 || cpt > p_cuts_->cut_values_.back()) {
-          p_cuts_->cut_values_.push_back(cpt);
-        }
+  void AddCutPoint(WQSketch::SummaryContainer const& summary, int max_bin) {
+    size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
+    for (size_t i = 1; i < required_cuts; ++i) {
+      bst_float cpt = summary.data[i].value;
+      if (i == 1 || cpt > p_cuts_->cut_values_.ConstHostVector().back()) {
+        p_cuts_->cut_values_.HostVector().push_back(cpt);
       }
     }
   }
@@ -250,43 +196,150 @@ class DenseCuts  : public CutsBuilder {
       CutsBuilder(container) {
     monitor_.Init(__FUNCTION__);
   }
-  void Init(std::vector<WXQSketch>* sketchs, uint32_t max_num_bins);
+  void Init(std::vector<WQSketch>* sketchs, uint32_t max_num_bins, size_t max_rows);
   void Build(DMatrix* p_fmat, uint32_t max_num_bins) override;
 };
 
-// FIXME(trivialfis): Merge this into generic cut builder.
-/*! \brief Builds the cut matrix on the GPU.
- *
- *  \return The row stride across the entire dataset.
- */
-size_t DeviceSketch(int device,
-                    int max_bin,
-                    int gpu_batch_nrows,
-                    DMatrix* dmat,
-                    HistogramCuts* hmat);
+// sketch_batch_num_elements 0 means autodetect. Only modify this for testing.
+HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
+                           size_t sketch_batch_num_elements = 0);
+
+// sketch_batch_num_elements 0 means autodetect. Only modify this for testing.
+template <typename AdapterT>
+HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
+                                  float missing,
+                                  size_t sketch_batch_num_elements = 0);
+
+
+enum BinTypeSize {
+  kUint8BinsTypeSize  = 1,
+  kUint16BinsTypeSize = 2,
+  kUint32BinsTypeSize = 4
+};
+
+struct Index {
+  Index() {
+    SetBinTypeSize(binTypeSize_);
+  }
+  Index(const Index& i) = delete;
+  Index& operator=(Index i) = delete;
+  Index(Index&& i) = delete;
+  Index& operator=(Index&& i) = delete;
+  uint32_t operator[](size_t i) const {
+    if (offset_ptr_ != nullptr) {
+      return func_(data_ptr_, i) + offset_ptr_[i%p_];
+    } else {
+      return func_(data_ptr_, i);
+    }
+  }
+  void SetBinTypeSize(BinTypeSize binTypeSize) {
+    binTypeSize_ = binTypeSize;
+    switch (binTypeSize) {
+      case kUint8BinsTypeSize:
+        func_ = &GetValueFromUint8;
+        break;
+      case kUint16BinsTypeSize:
+        func_ = &GetValueFromUint16;
+        break;
+      case kUint32BinsTypeSize:
+        func_ = &GetValueFromUint32;
+        break;
+      default:
+        CHECK(binTypeSize == kUint8BinsTypeSize  ||
+              binTypeSize == kUint16BinsTypeSize ||
+              binTypeSize == kUint32BinsTypeSize);
+    }
+  }
+  BinTypeSize GetBinTypeSize() const {
+    return binTypeSize_;
+  }
+  template<typename T>
+  T* data() const {  // NOLINT
+    return static_cast<T*>(data_ptr_);
+  }
+  uint32_t* Offset() const {
+    return offset_ptr_;
+  }
+  size_t OffsetSize() const {
+    return offset_.size();
+  }
+  size_t Size() const {
+    return data_.size() / (binTypeSize_);
+  }
+  void Resize(const size_t nBytesData) {
+    data_.resize(nBytesData);
+    data_ptr_ = reinterpret_cast<void*>(data_.data());
+  }
+  void ResizeOffset(const size_t nDisps) {
+    offset_.resize(nDisps);
+    offset_ptr_ = offset_.data();
+    p_ = nDisps;
+  }
+  std::vector<uint8_t>::const_iterator begin() const {  // NOLINT
+    return data_.begin();
+  }
+  std::vector<uint8_t>::const_iterator end() const {  // NOLINT
+    return data_.end();
+  }
+
+ private:
+  static uint32_t GetValueFromUint8(void *t, size_t i) {
+    return reinterpret_cast<uint8_t*>(t)[i];
+  }
+  static uint32_t GetValueFromUint16(void* t, size_t i) {
+    return reinterpret_cast<uint16_t*>(t)[i];
+  }
+  static uint32_t GetValueFromUint32(void* t, size_t i) {
+    return reinterpret_cast<uint32_t*>(t)[i];
+  }
+
+  using Func = uint32_t (*)(void*, size_t);
+
+  std::vector<uint8_t> data_;
+  std::vector<uint32_t> offset_;  // size of this field is equal to number of features
+  void* data_ptr_;
+  BinTypeSize binTypeSize_ {kUint8BinsTypeSize};
+  size_t p_ {1};
+  uint32_t* offset_ptr_ {nullptr};
+  Func func_;
+};
+
 
 /*!
  * \brief preprocessed global index matrix, in CSR format
- *  Transform floating values to integer index in histogram
- *  This is a global histogram index.
+ *
+ *  Transform floating values to integer index in histogram This is a global histogram
+ *  index for CPU histogram.  On GPU ellpack page is used.
  */
 struct GHistIndexMatrix {
   /*! \brief row pointer to rows by element position */
   std::vector<size_t> row_ptr;
   /*! \brief The index data */
-  std::vector<uint32_t> index;
+  Index index;
   /*! \brief hit count of each index */
   std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */
   HistogramCuts cut;
+  DMatrix* p_fmat;
+  size_t max_num_bins;
   // Create a global histogram matrix, given cut
   void Init(DMatrix* p_fmat, int max_num_bins);
-  // get i-th row
-  inline GHistIndexRow operator[](size_t i) const {
-    return {&index[0] + row_ptr[i],
-            static_cast<GHistIndexRow::index_type>(
-                row_ptr[i + 1] - row_ptr[i])};
-  }
+
+  template<typename BinIdxType>
+  void SetIndexDataForDense(common::Span<BinIdxType> index_data_span,
+                    size_t batch_threads, const SparsePage& batch,
+                    size_t rbegin, common::Span<const uint32_t> offsets_span,
+                    size_t nbins);
+
+  // specific method for sparse data as no posibility to reduce allocated memory
+  void SetIndexDataForSparse(common::Span<uint32_t> index_data_span,
+                             size_t batch_threads, const SparsePage& batch,
+                             size_t rbegin, size_t nbins);
+
+  void ResizeIndex(const size_t rbegin, const SparsePage& batch,
+                   const size_t n_offsets, const size_t n_index,
+                   const bool isDense);
+
   inline void GetFeatureCounts(size_t* counts) const {
     auto nfeature = cut.Ptrs().size() - 1;
     for (unsigned fid = 0; fid < nfeature; ++fid) {
@@ -297,9 +350,13 @@ struct GHistIndexMatrix {
       }
     }
   }
+  inline bool IsDense() const {
+    return isDense_;
+  }
 
  private:
   std::vector<size_t> hit_count_tloc_;
+  bool isDense_;
 };
 
 struct GHistIndexBlock {
@@ -612,17 +669,15 @@ class ParallelGHistBuilder {
  */
 class GHistBuilder {
  public:
-  // initialize builder
-  inline void Init(size_t nthread, uint32_t nbins) {
-    nthread_ = nthread;
-    nbins_ = nbins;
-  }
+  GHistBuilder() = default;
+  GHistBuilder(size_t nthread, uint32_t nbins) : nthread_{nthread}, nbins_{nbins} {}
 
   // construct a histogram via histogram aggregation
   void BuildHist(const std::vector<GradientPair>& gpair,
                  const RowSetCollection::Elem row_indices,
                  const GHistIndexMatrix& gmat,
-                 GHistRow hist);
+                 GHistRow hist,
+                 bool isDense);
   // same, with feature grouping
   void BuildBlockHist(const std::vector<GradientPair>& gpair,
                       const RowSetCollection::Elem row_indices,
@@ -631,15 +686,15 @@ class GHistBuilder {
   // construct a histogram via subtraction trick
   void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent);
 
-  uint32_t GetNumBins() {
+  uint32_t GetNumBins() const {
       return nbins_;
   }
 
  private:
   /*! \brief number of threads for parallel computation */
-  size_t nthread_;
+  size_t nthread_ { 0 };
   /*! \brief number of all bins over all features */
-  uint32_t nbins_;
+  uint32_t nbins_ { 0 };
 };
 
 

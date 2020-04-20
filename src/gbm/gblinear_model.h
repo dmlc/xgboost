@@ -43,25 +43,26 @@ struct DeprecatedGBLinearModelParam : public dmlc::Parameter<DeprecatedGBLinearM
 class GBLinearModel : public Model {
  private:
   // Deprecated in 1.0.0
-  DeprecatedGBLinearModelParam param;
+  DeprecatedGBLinearModelParam param_;
 
  public:
-  LearnerModelParam const* learner_model_param_;
+  LearnerModelParam const* learner_model_param;
 
  public:
   explicit GBLinearModel(LearnerModelParam const* learner_model_param) :
-      learner_model_param_ {learner_model_param} {}
+      learner_model_param {learner_model_param} {}
   void Configure(Args const &cfg) { }
 
   // weight for each of feature, bias is the last one
   std::vector<bst_float> weight;
   // initialize the model parameter
   inline void LazyInitModel() {
-    if (!weight.empty())
+    if (!weight.empty()) {
       return;
+    }
     // bias is the last weight
-    weight.resize((learner_model_param_->num_feature + 1) *
-                  learner_model_param_->num_output_group);
+    weight.resize((learner_model_param->num_feature + 1) *
+                  learner_model_param->num_output_group);
     std::fill(weight.begin(), weight.end(), 0.0f);
   }
 
@@ -70,52 +71,54 @@ class GBLinearModel : public Model {
 
   // save the model to file
   void Save(dmlc::Stream *fo) const {
-    fo->Write(&param, sizeof(param));
+    fo->Write(&param_, sizeof(param_));
     fo->Write(weight);
   }
   // load model from file
   void Load(dmlc::Stream *fi) {
-    CHECK_EQ(fi->Read(&param, sizeof(param)), sizeof(param));
+    CHECK_EQ(fi->Read(&param_, sizeof(param_)), sizeof(param_));
     fi->Read(&weight);
   }
 
   // model bias
-  inline bst_float *bias() {
-    return &weight[learner_model_param_->num_feature *
-                   learner_model_param_->num_output_group];
+  inline bst_float *Bias() {
+    return &weight[learner_model_param->num_feature *
+                   learner_model_param->num_output_group];
   }
-  inline const bst_float *bias() const {
-    return &weight[learner_model_param_->num_feature *
-                   learner_model_param_->num_output_group];
+  inline const bst_float *Bias() const {
+    return &weight[learner_model_param->num_feature *
+                   learner_model_param->num_output_group];
   }
   // get i-th weight
   inline bst_float *operator[](size_t i) {
-    return &weight[i * learner_model_param_->num_output_group];
+    return &weight[i * learner_model_param->num_output_group];
   }
   inline const bst_float *operator[](size_t i) const {
-    return &weight[i * learner_model_param_->num_output_group];
+    return &weight[i * learner_model_param->num_output_group];
   }
 
   std::vector<std::string> DumpModel(const FeatureMap &fmap, bool with_stats,
                                      std::string format) const {
-    const int ngroup = learner_model_param_->num_output_group;
-    const unsigned nfeature = learner_model_param_->num_feature;
+    const int ngroup = learner_model_param->num_output_group;
+    const unsigned nfeature = learner_model_param->num_feature;
 
     std::stringstream fo("");
     if (format == "json") {
       fo << "  { \"bias\": [" << std::endl;
       for (int gid = 0; gid < ngroup; ++gid) {
-        if (gid != 0)
+        if (gid != 0) {
           fo << "," << std::endl;
-        fo << "      " << this->bias()[gid];
+        }
+        fo << "      " << this->Bias()[gid];
       }
       fo << std::endl
          << "    ]," << std::endl
          << "    \"weight\": [" << std::endl;
       for (unsigned i = 0; i < nfeature; ++i) {
         for (int gid = 0; gid < ngroup; ++gid) {
-          if (i != 0 || gid != 0)
+          if (i != 0 || gid != 0) {
             fo << "," << std::endl;
+          }
           fo << "      " << (*this)[i][gid];
         }
       }
@@ -123,7 +126,7 @@ class GBLinearModel : public Model {
     } else {
       fo << "bias:\n";
       for (int gid = 0; gid < ngroup; ++gid) {
-        fo << this->bias()[gid] << std::endl;
+        fo << this->Bias()[gid] << std::endl;
       }
       fo << "weight:\n";
       for (unsigned i = 0; i < nfeature; ++i) {

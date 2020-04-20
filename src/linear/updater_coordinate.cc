@@ -36,26 +36,26 @@ class CoordinateUpdater : public LinearUpdater {
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    fromJson(config.at("linear_train_param"), &tparam_);
-    fromJson(config.at("coordinate_param"), &cparam_);
+    FromJson(config.at("linear_train_param"), &tparam_);
+    FromJson(config.at("coordinate_param"), &cparam_);
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["linear_train_param"] = toJson(tparam_);
-    out["coordinate_param"] = toJson(cparam_);
+    out["linear_train_param"] = ToJson(tparam_);
+    out["coordinate_param"] = ToJson(cparam_);
   }
 
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
     tparam_.DenormalizePenalties(sum_instance_weight);
-    const int ngroup = model->learner_model_param_->num_output_group;
+    const int ngroup = model->learner_model_param->num_output_group;
     // update bias
     for (int group_idx = 0; group_idx < ngroup; ++group_idx) {
       auto grad = GetBiasGradientParallel(group_idx, ngroup,
                                           in_gpair->ConstHostVector(), p_fmat);
       auto dbias = static_cast<float>(tparam_.learning_rate *
                                       CoordinateDeltaBias(grad.first, grad.second));
-      model->bias()[group_idx] += dbias;
+      model->Bias()[group_idx] += dbias;
       UpdateBiasResidualParallel(group_idx, ngroup,
                                  dbias, &in_gpair->HostVector(), p_fmat);
     }
@@ -65,7 +65,7 @@ class CoordinateUpdater : public LinearUpdater {
                     tparam_.reg_lambda_denorm, cparam_.top_k);
     // update weights
     for (int group_idx = 0; group_idx < ngroup; ++group_idx) {
-      for (unsigned i = 0U; i < model->learner_model_param_->num_feature; i++) {
+      for (unsigned i = 0U; i < model->learner_model_param->num_feature; i++) {
         int fidx = selector_->NextFeature
           (i, *model, group_idx, in_gpair->ConstHostVector(), p_fmat,
            tparam_.reg_alpha_denorm, tparam_.reg_lambda_denorm);
@@ -78,7 +78,7 @@ class CoordinateUpdater : public LinearUpdater {
 
   inline void UpdateFeature(int fidx, int group_idx, std::vector<GradientPair> *in_gpair,
                             DMatrix *p_fmat, gbm::GBLinearModel *model) {
-    const int ngroup = model->learner_model_param_->num_output_group;
+    const int ngroup = model->learner_model_param->num_output_group;
     bst_float &w = (*model)[fidx][group_idx];
     auto gradient =
         GetGradientParallel(group_idx, ngroup, fidx, *in_gpair, p_fmat);

@@ -16,19 +16,13 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
-import java.nio.file.Files
-
 import scala.util.Random
-
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import ml.dmlc.xgboost4j.scala.DMatrix
-import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
-import org.apache.hadoop.fs.{FileSystem, Path}
-
-import org.apache.spark.TaskContext
+import org.apache.spark.{TaskContext}
 import org.scalatest.FunSuite
-
 import org.apache.spark.ml.feature.VectorAssembler
+import org.apache.spark.sql.functions.lit
 
 class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
 
@@ -350,12 +344,21 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     val modelPath = getClass.getResource("/model/0.82/model").getPath
     val model = XGBoostClassificationModel.read.load(modelPath)
     val r = new Random(0)
-    val df = ss.createDataFrame(Seq.fill(100000)(1).map(i => (i, i))).
+    var df = ss.createDataFrame(Seq.fill(100000)(1).map(i => (i, i))).
       toDF("feature", "label").repartition(5)
+    // 0.82/model was trained with 251 features. and transform will throw exception
+    // if feature size of data is not equal to 251
+    for (x <- 1 to 250) {
+      df = df.withColumn(s"feature_${x}", lit(1))
+    }
     val assembler = new VectorAssembler()
       .setInputCols(df.columns.filter(!_.contains("label")))
       .setOutputCol("features")
-    val df1 = model.transform(assembler.transform(df)).withColumnRenamed(
+    df = assembler.transform(df)
+    for (x <- 1 to 250) {
+      df = df.drop(s"feature_${x}")
+    }
+    val df1 = model.transform(df).withColumnRenamed(
       "prediction", "prediction1").withColumnRenamed(
       "rawPrediction", "rawPrediction1").withColumnRenamed(
       "probability", "probability1")
@@ -363,4 +366,5 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     df1.collect()
     df2.collect()
   }
+
 }

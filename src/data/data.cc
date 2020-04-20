@@ -12,9 +12,9 @@
 #include "xgboost/version_config.h"
 #include "sparse_page_writer.h"
 #include "simple_dmatrix.h"
-#include "simple_csr_source.h"
 
 #include "../common/io.h"
+#include "../common/math.h"
 #include "../common/version.h"
 #include "../common/group_data.h"
 #include "../data/adapter.h"
@@ -133,15 +133,17 @@ void MetaInfo::Clear() {
 /*
  * Binary serialization format for MetaInfo:
  *
- * | name        | type     | is_scalar | num_row | num_col | value           |
- * |-------------+----------+-----------+---------+---------+-----------------|
- * | num_row     | kUInt64  | True      | NA      |      NA | ${num_row_}     |
- * | num_col     | kUInt64  | True      | NA      |      NA | ${num_col_}     |
- * | num_nonzero | kUInt64  | True      | NA      |      NA | ${num_nonzero_} |
- * | labels      | kFloat32 | False     | ${size} |       1 | ${labels_}      |
- * | group_ptr   | kUInt32  | False     | ${size} |       1 | ${group_ptr_}   |
- * | weights     | kFloat32 | False     | ${size} |       1 | ${weights_}     |
- * | base_margin | kFloat32 | False     | ${size} |       1 | ${base_margin_} |
+ * | name               | type     | is_scalar | num_row | num_col | value                   |
+ * |--------------------+----------+-----------+---------+---------+-------------------------|
+ * | num_row            | kUInt64  | True      | NA      |      NA | ${num_row_}             |
+ * | num_col            | kUInt64  | True      | NA      |      NA | ${num_col_}             |
+ * | num_nonzero        | kUInt64  | True      | NA      |      NA | ${num_nonzero_}         |
+ * | labels             | kFloat32 | False     | ${size} |       1 | ${labels_}              |
+ * | group_ptr          | kUInt32  | False     | ${size} |       1 | ${group_ptr_}           |
+ * | weights            | kFloat32 | False     | ${size} |       1 | ${weights_}             |
+ * | base_margin        | kFloat32 | False     | ${size} |       1 | ${base_margin_}         |
+ * | labels_lower_bound | kFloat32 | False     | ${size} |       1 | ${labels_lower_bound__} |
+ * | labels_upper_bound | kFloat32 | False     | ${size} |       1 | ${labels_upper_bound__} |
  *
  * Note that the scalar fields (is_scalar=True) will have num_row and num_col missing.
  * Also notice the difference between the saved name and the name used in `SetInfo':
@@ -164,6 +166,10 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
                   {weights_.Size(), 1}, weights_); ++field_cnt;
   SaveVectorField(fo, u8"base_margin", DataType::kFloat32,
                   {base_margin_.Size(), 1}, base_margin_); ++field_cnt;
+  SaveVectorField(fo, u8"labels_lower_bound", DataType::kFloat32,
+                  {labels_lower_bound_.Size(), 1}, labels_lower_bound_); ++field_cnt;
+  SaveVectorField(fo, u8"labels_upper_bound", DataType::kFloat32,
+                  {labels_upper_bound_.Size(), 1}, labels_upper_bound_); ++field_cnt;
 
   CHECK_EQ(field_cnt, kNumField) << "Wrong number of fields";
 }
@@ -195,6 +201,55 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   LoadVectorField(fi, u8"group_ptr", DataType::kUInt32, &group_ptr_);
   LoadVectorField(fi, u8"weights", DataType::kFloat32, &weights_);
   LoadVectorField(fi, u8"base_margin", DataType::kFloat32, &base_margin_);
+  LoadVectorField(fi, u8"labels_lower_bound", DataType::kFloat32, &labels_lower_bound_);
+  LoadVectorField(fi, u8"labels_upper_bound", DataType::kFloat32, &labels_upper_bound_);
+}
+
+template <typename T>
+std::vector<T> Gather(const std::vector<T> &in, common::Span<int const> ridxs, size_t stride = 1) {
+  if (in.empty()) {
+    return {};
+  }
+  auto size = ridxs.size();
+  std::vector<T> out(size * stride);
+  for (auto i = 0ull; i < size; i++) {
+    auto ridx = ridxs[i];
+    for (size_t j = 0; j < stride; ++j) {
+      out[i * stride +j] = in[ridx * stride + j];
+    }
+  }
+  return out;
+}
+
+MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
+  MetaInfo out;
+  out.num_row_ = ridxs.size();
+  out.num_col_ = this->num_col_;
+  // Groups is maintained by a higher level Python function.  We should aim at deprecating
+  // the slice function.
+  out.labels_.HostVector() = Gather(this->labels_.HostVector(), ridxs);
+  out.labels_upper_bound_.HostVector() =
+      Gather(this->labels_upper_bound_.HostVector(), ridxs);
+  out.labels_lower_bound_.HostVector() =
+      Gather(this->labels_lower_bound_.HostVector(), ridxs);
+  // weights
+  if (this->weights_.Size() + 1 == this->group_ptr_.size()) {
+    auto& h_weights =  out.weights_.HostVector();
+    // Assuming all groups are available.
+    out.weights_.HostVector() = h_weights;
+  } else {
+    out.weights_.HostVector() = Gather(this->weights_.HostVector(), ridxs);
+  }
+
+  if (this->base_margin_.Size() != this->num_row_) {
+    CHECK_EQ(this->base_margin_.Size() % this->num_row_, 0)
+        << "Incorrect size of base margin vector.";
+    size_t stride = this->base_margin_.Size() / this->num_row_;
+    out.base_margin_.HostVector() = Gather(this->base_margin_.HostVector(), ridxs, stride);
+  } else {
+    out.base_margin_.HostVector() = Gather(this->base_margin_.HostVector(), ridxs);
+  }
+  return out;
 }
 
 // try to load group information from file, if exists
@@ -268,14 +323,63 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     for (size_t i = 1; i < group_ptr_.size(); ++i) {
       group_ptr_[i] = group_ptr_[i - 1] + group_ptr_[i];
     }
+  } else if (!std::strcmp(key, "label_lower_bound")) {
+    auto& labels = labels_lower_bound_.HostVector();
+    labels.resize(num);
+    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
+                       std::copy(cast_dptr, cast_dptr + num, labels.begin()));
+  } else if (!std::strcmp(key, "label_upper_bound")) {
+    auto& labels = labels_upper_bound_.HostVector();
+    labels.resize(num);
+    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
+                       std::copy(cast_dptr, cast_dptr + num, labels.begin()));
   } else {
-    LOG(FATAL) << "Unknown metainfo: " << key;
+    LOG(FATAL) << "Unknown key for MetaInfo: " << key;
+  }
+}
+
+void MetaInfo::Validate() const {
+  if (group_ptr_.size() != 0 && weights_.Size() != 0) {
+    CHECK_EQ(group_ptr_.size(), weights_.Size() + 1)
+        << "Size of weights must equal to number of groups when ranking "
+           "group is used.";
+    return;
+  }
+  if (group_ptr_.size() != 0) {
+    CHECK_EQ(group_ptr_.back(), num_row_)
+        << "Invalid group structure.  Number of rows obtained from groups "
+           "doesn't equal to actual number of rows given by data.";
+  }
+  if (weights_.Size() != 0) {
+    CHECK_EQ(weights_.Size(), num_row_)
+        << "Size of weights must equal to number of rows.";
+    return;
+  }
+  if (labels_.Size() != 0) {
+    CHECK_EQ(labels_.Size(), num_row_)
+        << "Size of labels must equal to number of rows.";
+    return;
+  }
+  if (labels_lower_bound_.Size() != 0) {
+    CHECK_EQ(labels_lower_bound_.Size(), num_row_)
+        << "Size of label_lower_bound must equal to number of rows.";
+    return;
+  }
+  if (labels_upper_bound_.Size() != 0) {
+    CHECK_EQ(labels_upper_bound_.Size(), num_row_)
+        << "Size of label_upper_bound must equal to number of rows.";
+    return;
+  }
+  CHECK_LE(num_nonzero_, num_col_ * num_row_);
+  if (base_margin_.Size() != 0) {
+    CHECK_EQ(base_margin_.Size() % num_row_, 0)
+        << "Size of base margin must be a multiple of number of rows.";
   }
 }
 
 #if !defined(XGBOOST_USE_CUDA)
 void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
-  LOG(FATAL) << "XGBoost version is not compiled with GPU support";
+  common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
 
@@ -336,10 +440,8 @@ DMatrix* DMatrix::Load(const std::string& uri,
     if (fi != nullptr) {
       common::PeekableInStream is(fi.get());
       if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic) &&
-        magic == data::SimpleCSRSource::kMagic) {
-        std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
-        source->LoadBinary(&is);
-        DMatrix* dmat = DMatrix::Create(std::move(source), cache_file);
+        magic == data::SimpleDMatrix::kMagic) {
+        DMatrix* dmat = new data::SimpleDMatrix(&is);
         if (!silent) {
           LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
             << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
@@ -411,30 +513,6 @@ DMatrix* DMatrix::Load(const std::string& uri,
   return dmat;
 }
 
-
-void DMatrix::SaveToLocalFile(const std::string& fname) {
-  data::SimpleCSRSource source;
-  source.CopyFrom(this);
-  std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
-  source.SaveBinary(fo.get());
-}
-
-DMatrix* DMatrix::Create(std::unique_ptr<DataSource<SparsePage>>&& source,
-                         const std::string& cache_prefix) {
-  if (cache_prefix.length() == 0) {
-    // Data split mode is fixed to be row right now.
-    rabit::Allreduce<rabit::op::Max>(&source->info.num_col_, 1);
-    return new data::SimpleDMatrix(std::move(source));
-  } else {
-#if DMLC_ENABLE_STD_THREAD
-    return new data::SparsePageDMatrix(std::move(source), cache_prefix);
-#else
-    LOG(FATAL) << "External memory is not enabled in mingw";
-    return nullptr;
-#endif  // DMLC_ENABLE_STD_THREAD
-  }
-}
-
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
                          const std::string& cache_prefix,  size_t page_size ) {
@@ -467,8 +545,8 @@ template DMatrix* DMatrix::Create<data::DataTableAdapter>(
 template DMatrix* DMatrix::Create<data::FileAdapter>(
     data::FileAdapter* adapter, float missing, int nthread,
     const std::string& cache_prefix, size_t page_size);
-template DMatrix* DMatrix::Create<data::DMatrixSliceAdapter>(
-    data::DMatrixSliceAdapter* adapter, float missing, int nthread,
+template DMatrix* DMatrix::Create<data::IteratorAdapter>(
+    data::IteratorAdapter* adapter, float missing, int nthread,
     const std::string& cache_prefix, size_t page_size);
 
 SparsePage SparsePage::GetTranspose(int num_columns) const {
@@ -551,15 +629,15 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     int tid = omp_get_thread_num();
     auto line = batch.GetLine(i);
     for (auto j = 0ull; j < line.Size(); j++) {
-      auto element = line.GetElement(j);
+      data::COOTuple element = line.GetElement(j);
       max_columns =
           std::max(max_columns, static_cast<uint64_t>(element.column_idx + 1));
       if (!common::CheckNAN(element.value) && element.value != missing) {
-        size_t key = element.row_idx -
-                     base_rowid;  // Adapter row index is absolute, here we want
-                                  // it relative to current page
+        size_t key = element.row_idx - base_rowid;
+        // Adapter row index is absolute, here we want it relative to
+        // current page
         CHECK_GE(key,  builder_base_row_offset);
-        builder.AddBudget(element.row_idx - base_rowid, tid);
+        builder.AddBudget(key, tid);
       }
     }
   }

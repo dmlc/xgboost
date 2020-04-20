@@ -105,6 +105,9 @@ class HostDeviceVector {
   const T* DevicePointer() const { return ConstDevicePointer(); }
 
   T* HostPointer() { return HostVector().data(); }
+  common::Span<T> HostSpan() { return common::Span<T>{HostVector()}; }
+  common::Span<T const> HostSpan() const { return common::Span<T const>{HostVector()}; }
+  common::Span<T const> ConstHostSpan() const { return HostSpan(); }
   const T* ConstHostPointer() const { return ConstHostVector().data(); }
   const T* HostPointer() const { return ConstHostPointer(); }
 
@@ -127,7 +130,7 @@ class HostDeviceVector {
 
   void Resize(size_t new_size, T v = T());
 
-  using value_type = T;
+  using value_type = T;  // NOLINT
 
  private:
   HostDeviceVectorImpl<T>* impl_;

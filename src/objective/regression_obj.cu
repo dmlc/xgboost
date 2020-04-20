@@ -58,8 +58,9 @@ class RegLossObj : public ObjFunction {
       LOG(WARNING) << "Label set is empty.";
     }
     CHECK_EQ(preds.Size(), info.labels_.Size())
-        << "labels are not correctly provided"
-        << "preds.size=" << preds.Size() << ", label.size=" << info.labels_.Size();
+        << " " << "labels are not correctly provided"
+        << "preds.size=" << preds.Size() << ", label.size=" << info.labels_.Size() << ", "
+        << "Loss: " << Loss::Name();
     size_t const ndata = preds.Size();
     out_gpair->Resize(ndata);
     auto device = tparam_->gpu_id;
@@ -125,11 +126,11 @@ class RegLossObj : public ObjFunction {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String(Loss::Name());
-    out["reg_loss_param"] = toJson(param_);
+    out["reg_loss_param"] = ToJson(param_);
   }
 
   void LoadConfig(Json const& in) override {
-    fromJson(in["reg_loss_param"], &param_);
+    FromJson(in["reg_loss_param"], &param_);
   }
 
  protected:
@@ -252,11 +253,11 @@ class PoissonRegression : public ObjFunction {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String("count:poisson");
-    out["poisson_regression_param"] = toJson(param_);
+    out["poisson_regression_param"] = ToJson(param_);
   }
 
   void LoadConfig(Json const& in) override {
-    fromJson(in["poisson_regression_param"], &param_);
+    FromJson(in["poisson_regression_param"], &param_);
   }
 
  private:
@@ -545,10 +546,10 @@ class TweedieRegression : public ObjFunction {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String("reg:tweedie");
-    out["tweedie_regression_param"] = toJson(param_);
+    out["tweedie_regression_param"] = ToJson(param_);
   }
   void LoadConfig(Json const& in) override {
-    fromJson(in["tweedie_regression_param"], &param_);
+    FromJson(in["tweedie_regression_param"], &param_);
   }
 
  private:

@@ -3,6 +3,7 @@ import pytest
 import xgboost as xgb
 import sys
 import numpy as np
+import json
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -56,11 +57,23 @@ def test_from_dask_dataframe():
                 xgb.dask.train(
                     client, {}, dtrain, num_boost_round=2, evals_result={})
             # force prediction to be computed
-            prediction = prediction.compute()
+            from_dmatrix = prediction.compute()
+
+            prediction = xgb.dask.predict(client, model=booster, data=X)
+            from_df = prediction.compute()
+
+            assert isinstance(prediction, dd.Series)
+            assert np.all(prediction.compute().values == from_dmatrix)
+            assert np.all(from_dmatrix == from_df.to_numpy())
+
+            series_predictions = xgb.dask.inplace_predict(client, booster, X)
+            assert isinstance(series_predictions, dd.Series)
+            np.testing.assert_allclose(series_predictions.compute().values,
+                                       from_dmatrix)
 
 
 def test_from_dask_array():
-    with LocalCluster(n_workers=5) as cluster:
+    with LocalCluster(n_workers=5, threads_per_worker=5) as cluster:
         with Client(cluster) as client:
             X, y = generate_array()
             dtrain = DaskDMatrix(client, X, y)
@@ -73,6 +86,73 @@ def test_from_dask_array():
             assert isinstance(prediction, da.Array)
             # force prediction to be computed
             prediction = prediction.compute()
+
+            booster = result['booster']
+            single_node_predt = booster.predict(
+                xgb.DMatrix(X.compute())
+            )
+            np.testing.assert_allclose(prediction, single_node_predt)
+
+            config = json.loads(booster.save_config())
+            assert int(config['learner']['generic_param']['nthread']) == 5
+
+            from_arr = xgb.dask.predict(
+                client, model=booster, data=X)
+
+            assert isinstance(from_arr, da.Array)
+            assert np.all(single_node_predt == from_arr.compute())
+
+
+def test_dask_missing_value_reg():
+    with LocalCluster(n_workers=5) as cluster:
+        with Client(cluster) as client:
+            X_0 = np.ones((20 // 2, kCols))
+            X_1 = np.zeros((20 // 2, kCols))
+            X = np.concatenate([X_0, X_1], axis=0)
+            np.random.shuffle(X)
+            X = da.from_array(X)
+            X = X.rechunk(20, 1)
+            y = da.random.randint(0, 3, size=20)
+            y.rechunk(20)
+            regressor = xgb.dask.DaskXGBRegressor(verbosity=1, n_estimators=2,
+                                                  missing=0.0)
+            regressor.client = client
+            regressor.set_params(tree_method='hist')
+            regressor.fit(X, y, eval_set=[(X, y)])
+            dd_predt = regressor.predict(X).compute()
+
+            np_X = X.compute()
+            np_predt = regressor.get_booster().predict(
+                xgb.DMatrix(np_X, missing=0.0))
+            np.testing.assert_allclose(np_predt, dd_predt)
+
+
+def test_dask_missing_value_cls():
+    # Multi-class doesn't handle empty DMatrix well.  So we use lesser workers.
+    with LocalCluster(n_workers=2) as cluster:
+        with Client(cluster) as client:
+            X_0 = np.ones((kRows // 2, kCols))
+            X_1 = np.zeros((kRows // 2, kCols))
+            X = np.concatenate([X_0, X_1], axis=0)
+            np.random.shuffle(X)
+            X = da.from_array(X)
+            X = X.rechunk(20, None)
+            y = da.random.randint(0, 3, size=kRows)
+            y = y.rechunk(20, 1)
+            cls = xgb.dask.DaskXGBClassifier(verbosity=1, n_estimators=2,
+                                             tree_method='hist',
+                                             missing=0.0)
+            cls.client = client
+            cls.fit(X, y, eval_set=[(X, y)])
+            dd_predt = cls.predict(X).compute()
+
+            np_X = X.compute()
+            np_predt = cls.get_booster().predict(
+                xgb.DMatrix(np_X, missing=0.0))
+            np.testing.assert_allclose(np_predt, dd_predt)
+
+            cls = xgb.dask.DaskXGBClassifier()
+            assert hasattr(cls, 'missing')
 
 
 def test_dask_regressor():
@@ -133,6 +213,25 @@ def test_dask_classifier():
 
             assert prediction.ndim == 1
             assert prediction.shape[0] == kRows
+
+
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_sklearn_grid_search():
+    from sklearn.model_selection import GridSearchCV
+    with LocalCluster(n_workers=4) as cluster:
+        with Client(cluster) as client:
+            X, y = generate_array()
+            reg = xgb.dask.DaskXGBRegressor(learning_rate=0.1,
+                                            tree_method='hist')
+            reg.client = client
+            model = GridSearchCV(reg, {'max_depth': [2, 4],
+                                       'n_estimators': [5, 10]},
+                                 cv=2, verbose=1, iid=True)
+            model.fit(X, y)
+            # Expect unique results for each parameter value This confirms
+            # sklearn is able to successfully update the parameter
+            means = model.cv_results_['mean_test_score']
+            assert len(means) == len(set(means))
 
 
 def run_empty_dmatrix(client, parameters):

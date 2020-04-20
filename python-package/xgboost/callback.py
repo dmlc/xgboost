@@ -212,7 +212,10 @@ def early_stop(stopping_rounds, threshold=None, limit=None, maximize=False, verb
             state['best_score'] = float('-inf')
         else:
             state['best_score'] = float('inf')
-        state['best_msg'] = "Never found better model"
+        msg = '[%d]\t%s' % (
+            env.iteration,
+            '\t'.join([_fmt_metric(x) for x in env.evaluation_result_list]))
+        state['best_msg'] = msg
 
         if bst is not None:
             if bst.attr('best_score') is not None:

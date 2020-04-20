@@ -1,17 +1,20 @@
-// Copyright by Contributors
+/*!
+ * Copyright 2017-2020 XGBoost contributors
+ */
 #include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
 
 #include "../helpers.h"
+#include "test_predictor.h"
 #include "../../../src/gbm/gbtree_model.h"
+#include "../../../src/data/adapter.h"
 
 namespace xgboost {
 TEST(CpuPredictor, Basic) {
   auto lparam = CreateEmptyGenericParam(GPUIDX);
-  auto cache = std::make_shared<std::unordered_map<DMatrix*, PredictionCacheEntry>>();
   std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam, cache));
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
 
   int kRows = 5;
   int kCols = 5;
@@ -23,18 +26,19 @@ TEST(CpuPredictor, Basic) {
 
   gbm::GBTreeModel model = CreateTestModel(&param);
 
-  auto dmat = CreateDMatrix(kRows, kCols, 0);
+  auto dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
 
   // Test predict batch
-  HostDeviceVector<float> out_predictions;
-  cpu_predictor->PredictBatch((*dmat).get(), &out_predictions, model, 0);
-  std::vector<float>& out_predictions_h = out_predictions.HostVector();
-  for (size_t i = 0; i < out_predictions.Size(); i++) {
+  PredictionCacheEntry out_predictions;
+  cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
+  ASSERT_EQ(model.trees.size(), out_predictions.version);
+  std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
+  for (size_t i = 0; i < out_predictions.predictions.Size(); i++) {
     ASSERT_EQ(out_predictions_h[i], 1.5);
   }
 
   // Test predict instance
-  auto &batch = *(*dmat)->GetBatches<xgboost::SparsePage>().begin();
+  auto const &batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
   for (size_t i = 0; i < batch.Size(); i++) {
     std::vector<float> instance_out_predictions;
     cpu_predictor->PredictInstance(batch[i], &instance_out_predictions, model);
@@ -43,14 +47,14 @@ TEST(CpuPredictor, Basic) {
 
   // Test predict leaf
   std::vector<float> leaf_out_predictions;
-  cpu_predictor->PredictLeaf((*dmat).get(), &leaf_out_predictions, model);
+  cpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model);
   for (auto v : leaf_out_predictions) {
     ASSERT_EQ(v, 0);
   }
 
   // Test predict contribution
   std::vector<float> out_contribution;
-  cpu_predictor->PredictContribution((*dmat).get(), &out_contribution, model);
+  cpu_predictor->PredictContribution(dmat.get(), &out_contribution, model);
   ASSERT_EQ(out_contribution.size(), kRows * (kCols + 1));
   for (size_t i = 0; i < out_contribution.size(); ++i) {
     auto const& contri = out_contribution[i];
@@ -62,7 +66,7 @@ TEST(CpuPredictor, Basic) {
     }
   }
   // Test predict contribution (approximate method)
-  cpu_predictor->PredictContribution((*dmat).get(), &out_contribution, model, 0, nullptr, true);
+  cpu_predictor->PredictContribution(dmat.get(), &out_contribution, model, 0, nullptr, true);
   for (size_t i = 0; i < out_contribution.size(); ++i) {
     auto const& contri = out_contribution[i];
     // shift 1 for bias, as test tree is a decision dump, only global bias is filled with LeafValue().
@@ -72,8 +76,6 @@ TEST(CpuPredictor, Basic) {
       ASSERT_EQ(contri, 0);
     }
   }
-
-  delete dmat;
 }
 
 TEST(CpuPredictor, ExternalMemory) {
@@ -81,10 +83,9 @@ TEST(CpuPredictor, ExternalMemory) {
   std::string filename = tmpdir.path + "/big.libsvm";
   std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64, filename);
   auto lparam = CreateEmptyGenericParam(GPUIDX);
-  auto cache = std::make_shared<std::unordered_map<DMatrix*, PredictionCacheEntry>>();
 
   std::unique_ptr<Predictor> cpu_predictor =
-      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam, cache));
+      std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
 
   LearnerModelParam param;
   param.base_score = 0;
@@ -94,10 +95,10 @@ TEST(CpuPredictor, ExternalMemory) {
   gbm::GBTreeModel model = CreateTestModel(&param);
 
   // Test predict batch
-  HostDeviceVector<float> out_predictions;
+  PredictionCacheEntry out_predictions;
   cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
-  std::vector<float> &out_predictions_h = out_predictions.HostVector();
-  ASSERT_EQ(out_predictions.Size(), dmat->Info().num_row_);
+  std::vector<float> &out_predictions_h = out_predictions.predictions.HostVector();
+  ASSERT_EQ(out_predictions.predictions.Size(), dmat->Info().num_row_);
   for (const auto& v : out_predictions_h) {
     ASSERT_EQ(v, 1.5);
   }
@@ -137,6 +138,29 @@ TEST(CpuPredictor, ExternalMemory) {
     } else {
       ASSERT_EQ(contri, 0);
     }
+  }
+}
+
+TEST(CpuPredictor, InplacePredict) {
+  bst_row_t constexpr kRows{128};
+  bst_feature_t constexpr kCols{64};
+  auto gen = RandomDataGenerator{kRows, kCols, 0.5}.Device(-1);
+  {
+    HostDeviceVector<float> data;
+    gen.GenerateDense(&data);
+    ASSERT_EQ(data.Size(), kRows * kCols);
+    data::DenseAdapter x{data.HostPointer(), kRows, kCols};
+    TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
+  }
+
+  {
+    HostDeviceVector<float> data;
+    HostDeviceVector<bst_row_t> rptrs;
+    HostDeviceVector<bst_feature_t> columns;
+    gen.GenerateCSR(&data, &rptrs, &columns);
+    data::CSRAdapter x(rptrs.HostPointer(), columns.HostPointer(),
+                       data.HostPointer(), kRows, data.Size(), kCols);
+    TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
   }
 }
 }  // namespace xgboost

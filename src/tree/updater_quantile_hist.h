@@ -81,7 +81,7 @@ using xgboost::common::Column;
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
-  QuantileHistMaker() {}
+  QuantileHistMaker() = default;
   void Configure(const Args& args) override;
 
   void Update(HostDeviceVector<GradientPair>* gpair,
@@ -93,11 +93,11 @@ class QuantileHistMaker: public TreeUpdater {
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    fromJson(config.at("train_param"), &this->param_);
+    FromJson(config.at("train_param"), &this->param_);
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["train_param"] = toJson(param_);
+    out["train_param"] = ToJson(param_);
   }
 
   char const* Name() const override {
@@ -141,7 +141,8 @@ class QuantileHistMaker: public TreeUpdater {
                      FeatureInteractionConstraintHost int_constraints_,
                      DMatrix const* fmat)
       : param_(param), pruner_(std::move(pruner)),
-        spliteval_(std::move(spliteval)), interaction_constraints_{int_constraints_},
+        spliteval_(std::move(spliteval)),
+        interaction_constraints_{std::move(int_constraints_)},
         p_last_tree_(nullptr), p_last_fmat_(fmat) {
       builder_monitor_.Init("Quantile::Builder");
     }
@@ -161,7 +162,7 @@ class QuantileHistMaker: public TreeUpdater {
       if (param_.enable_feature_grouping > 0) {
         hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
-        hist_builder_.BuildHist(gpair, row_indices, gmat, hist);
+        hist_builder_.BuildHist(gpair, row_indices, gmat, hist, data_layout_ != kSparseData);
       }
     }
 
@@ -186,6 +187,13 @@ class QuantileHistMaker: public TreeUpdater {
       unsigned timestamp;
       ExpandEntry(int nid, int sibling_nid, int depth, bst_float loss_chg, unsigned tstmp):
         nid(nid), sibling_nid(sibling_nid), depth(depth), loss_chg(loss_chg), timestamp(tstmp) {}
+
+      bool IsValid(TrainParam const& param, int32_t num_leaves) const {
+        bool ret = loss_chg <= kRtEps ||
+                   (param.max_depth > 0 && this->depth == param.max_depth) ||
+                   (param.max_leaves > 0 && num_leaves == param.max_leaves);
+        return ret;
+      }
     };
 
     // initialize temp data structure
@@ -194,34 +202,30 @@ class QuantileHistMaker: public TreeUpdater {
                   const DMatrix& fmat,
                   const RegTree& tree);
 
-    void EvaluateSplit(const std::vector<ExpandEntry>& nodes_set,
-                       const GHistIndexMatrix& gmat,
-                       const HistCollection& hist,
-                       const DMatrix& fmat,
-                       const RegTree& tree);
+    void InitSampling(const std::vector<GradientPair>& gpair,
+                      const DMatrix& fmat, std::vector<size_t>* row_indices);
 
-    void ApplySplit(int nid,
-                    const GHistIndexMatrix& gmat,
-                    const ColumnMatrix& column_matrix,
-                    const HistCollection& hist,
-                    const DMatrix& fmat,
-                    RegTree* p_tree);
+    void EvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
+                        const GHistIndexMatrix& gmat,
+                        const HistCollection& hist,
+                        const RegTree& tree);
 
-    void ApplySplitDenseData(const RowSetCollection::Elem rowset,
-                             const GHistIndexMatrix& gmat,
-                             std::vector<RowSetCollection::Split>* p_row_split_tloc,
-                             const Column& column,
-                             bst_int split_cond,
-                             bool default_left);
+    void ApplySplit(std::vector<ExpandEntry> nodes,
+                        const GHistIndexMatrix& gmat,
+                        const ColumnMatrix& column_matrix,
+                        const HistCollection& hist,
+                        RegTree* p_tree);
 
-    void ApplySplitSparseData(const RowSetCollection::Elem rowset,
-                              const GHistIndexMatrix& gmat,
-                              std::vector<RowSetCollection::Split>* p_row_split_tloc,
-                              const Column& column,
-                              bst_uint lower_bound,
-                              bst_uint upper_bound,
-                              bst_int split_cond,
-                              bool default_left);
+    template <typename BinIdxType>
+    void PartitionKernel(const size_t node_in_set, const size_t nid, common::Range1d range,
+                         const int32_t split_cond,
+                         const ColumnMatrix& column_matrix, const RegTree& tree);
+
+    void AddSplitsToRowSet(const std::vector<ExpandEntry>& nodes, RegTree* p_tree);
+
+
+    void FindSplitConditions(const std::vector<ExpandEntry>& nodes, const RegTree& tree,
+                             const GHistIndexMatrix& gmat, std::vector<int32_t>* split_conditions);
 
     void InitNewNode(int nid,
                      const GHistIndexMatrix& gmat,
@@ -232,15 +236,10 @@ class QuantileHistMaker: public TreeUpdater {
     // Enumerate the split values of specific feature
     // Returns the sum of gradients corresponding to the data points that contains a non-missing
     // value for the particular feature fid.
-    template<int d_step>
-    GradStats EnumerateSplit(
-                        const GHistIndexMatrix& gmat,
-                        const GHistRow& hist,
-                        const NodeEntry& snode,
-                        const MetaInfo& info,
-                        SplitEntry* p_best,
-                        bst_uint fid,
-                        bst_uint nodeID);
+    template <int d_step>
+    GradStats EnumerateSplit(const GHistIndexMatrix &gmat, const GHistRow &hist,
+                             const NodeEntry &snode, SplitEntry *p_best,
+                             bst_uint fid, bst_uint nodeID) const;
 
     // if sum of statistics for non-missing values in the node
     // is equal to sum of statistics for all values:
@@ -286,14 +285,22 @@ class QuantileHistMaker: public TreeUpdater {
                         RegTree *p_tree,
                         const std::vector<GradientPair> &gpair_h);
 
-    void EvaluateSplits(const GHistIndexMatrix &gmat,
-                        const ColumnMatrix &column_matrix,
-                        DMatrix *p_fmat,
-                        RegTree *p_tree,
-                        int *num_leaves,
-                        int depth,
-                        unsigned *timestamp,
-                        std::vector<ExpandEntry> *temp_qexpand_depth);
+    void EvaluateAndApplySplits(const GHistIndexMatrix &gmat,
+                                const ColumnMatrix &column_matrix,
+                                RegTree *p_tree,
+                                int *num_leaves,
+                                int depth,
+                                unsigned *timestamp,
+                                std::vector<ExpandEntry> *temp_qexpand_depth);
+
+    void AddSplitsToTree(
+              const GHistIndexMatrix &gmat,
+              RegTree *p_tree,
+              int *num_leaves,
+              int depth,
+              unsigned *timestamp,
+              std::vector<ExpandEntry>* nodes_for_apply_split,
+              std::vector<ExpandEntry>* temp_qexpand_depth);
 
     void ExpandWithLossGuide(const GHistIndexMatrix& gmat,
                              const GHistIndexBlockMatrix& gmatb,
@@ -334,6 +341,9 @@ class QuantileHistMaker: public TreeUpdater {
     std::unique_ptr<TreeUpdater> pruner_;
     std::unique_ptr<SplitEvaluator> spliteval_;
     FeatureInteractionConstraintHost interaction_constraints_;
+
+    static constexpr size_t kPartitionBlockSize = 2048;
+    common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
 
     // back pointers to tree and data matrix
     const RegTree* p_last_tree_;

@@ -8,7 +8,7 @@
 namespace xgboost {
 namespace common {
 
-TEST(group_data, ParallelGroupBuilder) {
+TEST(GroupData, ParallelGroupBuilder) {
   std::vector<size_t> offsets;
   std::vector<Entry> data;
   ParallelGroupBuilder<Entry, size_t> builder(&offsets, &data);

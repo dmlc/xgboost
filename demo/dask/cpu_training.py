@@ -22,7 +22,6 @@ def main(client):
     # evaluation metrics.
     output = xgb.dask.train(client,
                             {'verbosity': 1,
-                             'nthread': 1,
                              'tree_method': 'hist'},
                             dtrain,
                             num_boost_round=4, evals=[(dtrain, 'train')])
@@ -37,6 +36,6 @@ def main(client):
 
 if __name__ == '__main__':
     # or use other clusters for scaling
-    with LocalCluster(n_workers=7, threads_per_worker=1) as cluster:
+    with LocalCluster(n_workers=7, threads_per_worker=4) as cluster:
         with Client(cluster) as client:
             main(client)

@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2015 by Contributors
+ * Copyright (c) 2015~2020 by Contributors
  * \file c_api.h
  * \author Tianqi Chen
  * \brief C API of XGBoost, used for interfacing to other languages.
@@ -40,6 +40,8 @@ typedef void *DataHolderHandle;  // NOLINT(*)
 typedef struct {  // NOLINT(*)
   /*! \brief number of rows in the minibatch */
   size_t size;
+  /* \brief number of columns in the minibatch. */
+  size_t columns;
   /*! \brief row pointer to the rows in the data */
 #ifdef __APPLE__
   /* Necessary as Java on MacOS defines jlong as long int
@@ -531,6 +533,7 @@ XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle);
  *        notice.
  *
  * \param handle handle to Booster object.
+ * \param out_len length of output string
  * \param out_str A valid pointer to array of characters.  The characters array is
  *                allocated and managed by XGBoost, while pointer to that array needs to
  *                be managed by caller.

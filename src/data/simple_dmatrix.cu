@@ -13,20 +13,15 @@
 namespace xgboost {
 namespace data {
 
-XGBOOST_DEVICE bool IsValid(float value, float missing) {
-  if (common::CheckNAN(value) || value == missing) {
-    return false;
-  }
-  return true;
-}
 
 template <typename AdapterBatchT>
 void CountRowOffsets(const AdapterBatchT& batch, common::Span<bst_row_t> offset,
                      int device_idx, float missing) {
+  IsValidFunctor is_valid(missing);
   // Count elements per row
   dh::LaunchN(device_idx, batch.Size(), [=] __device__(size_t idx) {
     auto element = batch.GetElement(idx);
-    if (IsValid(element.value, missing)) {
+    if (is_valid(element)) {
       atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
                     &offset[element.row_idx]),
                 static_cast<unsigned long long>(1));  // NOLINT
@@ -65,11 +60,12 @@ void CopyDataColumnMajor(AdapterT* adapter, common::Span<Entry> data,
       thrust::device_pointer_cast(row_ptr.data() + row_ptr.size()));
   auto d_temp_row_ptr = temp_row_ptr.data().get();
   size_t begin = 0;
+  IsValidFunctor is_valid(missing);
   for (auto size : host_column_sizes) {
     size_t end = begin + size;
     dh::LaunchN(device_idx, end - begin, [=] __device__(size_t idx) {
       const auto& e = batch.GetElement(idx + begin);
-      if (!IsValid(e.value, missing)) return;
+      if (!is_valid(e)) return;
       data[d_temp_row_ptr[e.row_idx]] = Entry(e.column_idx, e.value);
       d_temp_row_ptr[e.row_idx] += 1;
     });
@@ -77,15 +73,6 @@ void CopyDataColumnMajor(AdapterT* adapter, common::Span<Entry> data,
     begin = end;
   }
 }
-
-struct IsValidFunctor : public thrust::unary_function<Entry, bool> {
-  explicit IsValidFunctor(float missing) : missing(missing) {}
-
-  float missing;
-  __device__ bool operator()(const Entry& x) const {
-    return IsValid(x.fvalue, missing);
-  }
-};
 
 // Here the data is already correctly ordered and simply needs to be compacted
 // to remove missing data
@@ -112,38 +99,34 @@ void CopyDataRowMajor(AdapterT* adapter, common::Span<Entry> data,
 // be supported in future. Does not currently support inferring row/column size
 template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
-  source_.reset(new SimpleCSRSource());
-  SimpleCSRSource& mat = *reinterpret_cast<SimpleCSRSource*>(source_.get());
   CHECK(adapter->NumRows() != kAdapterUnknownSize);
   CHECK(adapter->NumColumns() != kAdapterUnknownSize);
 
   adapter->BeforeFirst();
   adapter->Next();
   auto& batch = adapter->Value();
-  mat.page_.offset.SetDevice(adapter->DeviceIdx());
-  mat.page_.data.SetDevice(adapter->DeviceIdx());
+  sparse_page_.offset.SetDevice(adapter->DeviceIdx());
+  sparse_page_.data.SetDevice(adapter->DeviceIdx());
 
   // Enforce single batch
   CHECK(!adapter->Next());
-  mat.page_.offset.Resize(adapter->NumRows() + 1);
-  auto s_offset = mat.page_.offset.DeviceSpan();
+  sparse_page_.offset.Resize(adapter->NumRows() + 1);
+  auto s_offset = sparse_page_.offset.DeviceSpan();
   CountRowOffsets(batch, s_offset, adapter->DeviceIdx(), missing);
-  mat.info.num_nonzero_ = mat.page_.offset.HostVector().back();
-  mat.page_.data.Resize(mat.info.num_nonzero_);
+  info_.num_nonzero_ = sparse_page_.offset.HostVector().back();
+  sparse_page_.data.Resize(info_.num_nonzero_);
   if (adapter->IsRowMajor()) {
-    CopyDataRowMajor(adapter, mat.page_.data.DeviceSpan(),
+    CopyDataRowMajor(adapter, sparse_page_.data.DeviceSpan(),
                         adapter->DeviceIdx(), missing, s_offset);
   } else {
-    CopyDataColumnMajor(adapter, mat.page_.data.DeviceSpan(),
+    CopyDataColumnMajor(adapter, sparse_page_.data.DeviceSpan(),
                         adapter->DeviceIdx(), missing, s_offset);
   }
-  // Sync
-  mat.page_.data.HostVector();
 
-  mat.info.num_col_ = adapter->NumColumns();
-  mat.info.num_row_ = adapter->NumRows();
+  info_.num_col_ = adapter->NumColumns();
+  info_.num_row_ = adapter->NumRows();
   // Synchronise worker columns
-  rabit::Allreduce<rabit::op::Max>(&mat.info.num_col_, 1);
+  rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
 }
 
 template SimpleDMatrix::SimpleDMatrix(CudfAdapter* adapter, float missing,

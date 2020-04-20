@@ -249,7 +249,8 @@ class HistMaker: public BaseMaker {
         p_tree->ExpandNode(nid, best.SplitIndex(), best.split_value,
                            best.DefaultLeft(), base_weight, left_leaf_weight,
                            right_leaf_weight, best.loss_chg,
-                           node_sum.sum_hess);
+                           node_sum.sum_hess,
+                           best.left_sum.GetHess(), best.right_sum.GetHess());
         GradStats right_sum;
         right_sum.SetSubstract(node_sum, left_sum[wid]);
         auto left_child = (*p_tree)[nid].LeftChild();

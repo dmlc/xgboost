@@ -15,12 +15,12 @@
 namespace xgboost {
 namespace {
 
-struct FConstraintWrapper : public FeatureInteractionConstraint {
+struct FConstraintWrapper : public FeatureInteractionConstraintDevice {
   common::Span<LBitField64> GetNodeConstraints() {
-    return FeatureInteractionConstraint::s_node_constraints_;
+    return FeatureInteractionConstraintDevice::s_node_constraints_;
   }
   FConstraintWrapper(tree::TrainParam param, bst_feature_t n_features) :
-      FeatureInteractionConstraint(param, n_features) {}
+      FeatureInteractionConstraintDevice(param, n_features) {}
 
   dh::device_vector<bst_feature_t> const& GetDSets() const {
     return d_sets_;
@@ -45,13 +45,13 @@ tree::TrainParam GetParameter() {
 }
 
 void CompareBitField(LBitField64 d_field, std::set<uint32_t> positions) {
-  std::vector<LBitField64::value_type> h_field_storage(d_field.bits_.size());
-  thrust::copy(thrust::device_ptr<LBitField64::value_type>(d_field.bits_.data()),
+  std::vector<LBitField64::value_type> h_field_storage(d_field.Bits().size());
+  thrust::copy(thrust::device_ptr<LBitField64::value_type>(d_field.Bits().data()),
                thrust::device_ptr<LBitField64::value_type>(
-                   d_field.bits_.data() + d_field.bits_.size()),
+                   d_field.Bits().data() + d_field.Bits().size()),
                h_field_storage.data());
-  LBitField64 h_field;
-  h_field.bits_ = {h_field_storage.data(), h_field_storage.data() + h_field_storage.size()};
+  LBitField64 h_field{ {h_field_storage.data(),
+                        h_field_storage.data() + h_field_storage.size()} };
 
   for (size_t i = 0; i < h_field.Size(); ++i) {
     if (positions.find(i) != positions.cend()) {
@@ -73,13 +73,14 @@ TEST(GPUFeatureInteractionConstraint, Init) {
     ASSERT_EQ(constraints.Features(), kFeatures);
     common::Span<LBitField64> s_nodes_constraints = constraints.GetNodeConstraints();
     for (LBitField64 const& d_node : s_nodes_constraints) {
-      std::vector<LBitField64::value_type> h_node_storage(d_node.bits_.size());
-      thrust::copy(thrust::device_ptr<LBitField64::value_type>(d_node.bits_.data()),
-                   thrust::device_ptr<LBitField64::value_type>(
-                       d_node.bits_.data() + d_node.bits_.size()),
+      std::vector<LBitField64::value_type> h_node_storage(d_node.Bits().size());
+      thrust::copy(thrust::device_ptr<LBitField64::value_type const>(d_node.Bits().data()),
+                   thrust::device_ptr<LBitField64::value_type const>(
+                       d_node.Bits().data() + d_node.Bits().size()),
                    h_node_storage.data());
-      LBitField64 h_node;
-      h_node.bits_ = {h_node_storage.data(), h_node_storage.data() +  h_node_storage.size()};
+      LBitField64 h_node {
+        {h_node_storage.data(), h_node_storage.data() +  h_node_storage.size()}
+      };
       // no feature is attached to node.
       for (size_t i = 0; i < h_node.Size(); ++i) {
         ASSERT_FALSE(h_node.Check(i));
@@ -133,7 +134,7 @@ TEST(GPUFeatureInteractionConstraint, Split) {
     constraints.Split(0, /*feature_id=*/1, 1, 2);
     for (size_t nid = 0; nid < 3; ++nid) {
       d_node[nid] = constraints.GetNodeConstraints()[nid];
-      ASSERT_EQ(d_node[nid].bits_.size(), 1);
+      ASSERT_EQ(d_node[nid].Bits().size(), 1);
       CompareBitField(d_node[nid], {1, 2});
     }
   }

@@ -70,9 +70,8 @@ watchlist  = [(dtrain,'train')]
 num_round = 2
 bst = xgb.train(param, dtrain, num_round, watchlist)
 
-if xgb.rabit.get_rank() == 0:
-  bst.save_model("test_issue3402.model")
-  xgb.rabit.tracker_print("Finished training\n")
+bst.save_model("test_issue3402.model{}".format(xgb.rabit.get_rank()))
+xgb.rabit.tracker_print("Finished training\n")
 
 # Notify the tracker all training has been successful
 # This is only needed in distributed training.
