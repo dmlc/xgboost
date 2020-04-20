@@ -17,6 +17,7 @@ def _train_internal(params, dtrain,
     """internal training function"""
     callbacks = [] if callbacks is None else callbacks
     evals = list(evals)
+    params = params.copy()
     if isinstance(params, dict) \
             and 'eval_metric' in params \
             and isinstance(params['eval_metric'], list):
