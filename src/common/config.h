@@ -7,8 +7,6 @@
 #ifndef XGBOOST_COMMON_CONFIG_H_
 #define XGBOOST_COMMON_CONFIG_H_
 
-#include <xgboost/logging.h>
-#include <cstdio>
 #include <string>
 #include <fstream>
 #include <istream>
@@ -17,6 +15,8 @@
 #include <regex>
 #include <iterator>
 #include <utility>
+
+#include "xgboost/logging.h"
 
 namespace xgboost {
 namespace common {

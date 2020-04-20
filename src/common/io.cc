@@ -1,18 +1,47 @@
 /*!
- * Copyright (c) by XGBoost Contributors 2019
+ * Copyright (c) by XGBoost Contributors 2019-2020
  */
-#if defined(__unix__)
+#define XGBOOST_IS_UNIX()                       \
+  defined(__unix__) || defined(unix) || defined(__unix) || defined(__APPLE__)
+
+#if XGBOOST_IS_UNIX()
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#endif  // defined(__unix__)
+#include <sys/stat.h>
+#endif  // XGBOOST_IS_UNIX()
+
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <utility>
 
 #include "xgboost/logging.h"
 #include "io.h"
+
+#ifndef S_ISDIR
+
+#ifdef _MSC_VER
+#include  <io.h>
+// from: https://www.linuxquestions.org/questions/programming-9/porting-to-win32-429334/
+#define XGBOOST_S_ISDIR(mode)  (((mode) & _S_IFMT) == _S_IFDIR)
+#endif  // _MSC_VER
+
+#else
+
+#define XGBOOST_S_ISDIR(mode)  S_ISDIR((mode))
+#endif  // S_ISDIR
+
+namespace {
+int Access(char const* path, int type) {
+#if defined(_MSC_VER)
+  return _access(path, type);
+#else
+  return access(path, type);
+#endif  // defined(_MSC_VER)
+}
+}  // anonymous namespace
 
 namespace xgboost {
 namespace common {
@@ -108,7 +137,9 @@ std::string LoadSequentialFile(std::string fname) {
                  };
 
   std::string buffer;
-#if defined(__unix__)
+  CHECK(CanReadFile(fname.c_str()))
+      << "Failed to read file: " << fname;
+#if XGBOOST_IS_UNIX()
   struct stat fs;
   if (stat(fname.c_str(), &fs) != 0) {
     OpenErr();
@@ -137,10 +168,18 @@ std::string LoadSequentialFile(std::string fname) {
   buffer.resize(fsize + 1);
   fread(&buffer[0], 1, fsize, f);
   fclose(f);
-#endif  // defined(__unix__)
+#endif  // XGBOOST_IS_UNIX()
   buffer.back() = '\0';
   return buffer;
 }
 
+bool CanReadFile(std::string const& path) {
+  struct stat path_stat;
+  stat(path.c_str(), &path_stat);
+  return Access(path.c_str(), 0) == 0 && !XGBOOST_S_ISDIR(path_stat.st_mode);
+}
 }  // namespace common
 }  // namespace xgboost
+
+#undef XGBOOST_S_ISDIR
+#undef XGBOOST_IS_UNIX
