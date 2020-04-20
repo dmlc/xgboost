@@ -189,12 +189,7 @@ struct EvalAuc : public Metric {
           rec[j - gptr[group_id]] = {h_preds[j], j};
         }
 
-        if (omp_in_parallel()) {
-          std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
-        } else {
-          XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
-        }
-
+        XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
         // calculate AUC
         double sum_pospair = 0.0;
         double sum_npos = 0.0, sum_nneg = 0.0, buf_pos = 0.0, buf_neg = 0.0;
@@ -557,11 +552,7 @@ struct EvalAucPR : public Metric {
           continue;
         }
 
-        if (omp_in_parallel()) {
-          std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
-        } else {
-          XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
-        }
+        XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
 
         // calculate AUC
         double tp = 0.0, prevtp = 0.0, fp = 0.0, prevfp = 0.0, h = 0.0, a = 0.0, b = 0.0;

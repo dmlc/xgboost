@@ -38,7 +38,10 @@ TEST(ParallelFor2d, Test) {
       return kDim2;
   }, kGrainSize);
 
-  ParallelFor2d(space, 4, [&](size_t i, Range1d r) {
+  auto old = omp_get_max_threads();
+  omp_set_num_threads(4);
+
+  ParallelFor2d(space, omp_get_max_threads(), [&](size_t i, Range1d r) {
     for (auto j = r.begin(); j < r.end(); ++j) {
       matrix[i*kDim2 + j] += 1;
     }
@@ -47,11 +50,16 @@ TEST(ParallelFor2d, Test) {
   for (size_t i = 0; i < kDim1 * kDim2; i++) {
     ASSERT_EQ(matrix[i], 1);
   }
+
+  omp_set_num_threads(old);
 }
 
 TEST(ParallelFor2dNonUniform, Test) {
   constexpr size_t kDim1 = 5;
   constexpr size_t kGrainSize = 256;
+
+  auto old = omp_get_max_threads();
+  omp_set_num_threads(4);
 
   // here are quite non-uniform distribution in space
   // but ParallelFor2d should split them by blocks with max size = kGrainSize
@@ -66,7 +74,7 @@ TEST(ParallelFor2dNonUniform, Test) {
     working_space[i].resize(dim2[i], 0);
   }
 
-  ParallelFor2d(space, 4, [&](size_t i, Range1d r) {
+  ParallelFor2d(space, omp_get_max_threads(), [&](size_t i, Range1d r) {
     for (auto j = r.begin(); j < r.end(); ++j) {
       working_space[i][j] += 1;
     }
@@ -77,6 +85,8 @@ TEST(ParallelFor2dNonUniform, Test) {
       ASSERT_EQ(working_space[i][j], 1);
     }
   }
+
+  omp_set_num_threads(old);
 }
 
 }  // namespace common

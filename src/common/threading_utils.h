@@ -112,8 +112,9 @@ class BlockedSpace2d {
 template<typename Func>
 void ParallelFor2d(const BlockedSpace2d& space, const int nthreads, Func func) {
   const size_t num_blocks_in_space = space.Size();
+  CHECK_LE(nthreads, omp_get_max_threads());
 
-  #pragma omp parallel num_threads(nthreads)
+#pragma omp parallel num_threads(nthreads)
   {
     size_t tid = omp_get_thread_num();
     size_t chunck_size = num_blocks_in_space / nthreads + !!(num_blocks_in_space % nthreads);
