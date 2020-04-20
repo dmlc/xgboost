@@ -227,8 +227,7 @@ class ColumnMatrix {
     /* missing values make sense only for column with type kDenseColumn,
        and if no missing values were observed it could be handled much faster. */
     if (noMissingValues) {
-      const int32_t nthread = omp_get_max_threads();  // NOLINT
-      #pragma omp parallel for num_threads(nthread)
+#pragma omp parallel for num_threads(omp_get_max_threads())
       for (omp_ulong rid = 0; rid < nrow; ++rid) {
         const size_t ibegin = rid*nfeature;
         const size_t iend = (rid+1)*nfeature;

@@ -301,9 +301,12 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
     batch_count++;
     row_count += batch.Size();
   }
+#if defined(_OPENMP)
   EXPECT_GE(batch_count, 2);
   EXPECT_EQ(row_count, dmat->Info().num_row_);
-
+#else
+#warning "External memory doesn't work with Non-OpenMP build "
+#endif  // defined(_OPENMP)
   return dmat;
 }
 

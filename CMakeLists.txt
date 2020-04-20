@@ -95,6 +95,8 @@ if (USE_CUDA)
   message(STATUS "CUDA GEN_CODE: ${GEN_CODE}")
 endif (USE_CUDA)
 
+find_package(Threads REQUIRED)
+
 if (USE_OPENMP)
   if (APPLE)
     # Require CMake 3.16+ on Mac OSX, as previous versions of CMake had trouble locating
@@ -128,7 +130,7 @@ foreach(lib rabit rabit_base rabit_empty rabit_mock rabit_mock_static)
   # Explicitly link dmlc to rabit, so that configured header (build_config.h)
   # from dmlc is correctly applied to rabit.
   if (TARGET ${lib})
-    target_link_libraries(${lib} dmlc)
+    target_link_libraries(${lib} dmlc ${CMAKE_THREAD_LIBS_INIT})
   endif (TARGET ${lib})
 endforeach()
 
@@ -138,6 +140,7 @@ if (R_LIB)
 endif (R_LIB)
 
 # core xgboost
+list(APPEND LINKED_LIBRARIES_PRIVATE Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
 add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
 target_link_libraries(objxgboost PUBLIC dmlc)

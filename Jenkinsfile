@@ -63,6 +63,7 @@ pipeline {
           parallel ([
             'build-cpu': { BuildCPU() },
             'build-cpu-rabit-mock': { BuildCPUMock() },
+            'build-cpu-non-omp': { BuildCPUNonOmp() },
             'build-gpu-cuda9.0': { BuildCUDA(cuda_version: '9.0') },
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
             'build-gpu-cuda10.1': { BuildCUDA(cuda_version: '10.1') },
@@ -215,12 +216,28 @@ def BuildCPUMock() {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_mock_cmake.sh
     """
-     echo 'Stashing rabit C++ test executable (xgboost)...'
+    echo 'Stashing rabit C++ test executable (xgboost)...'
     stash name: 'xgboost_rabit_tests', includes: 'xgboost'
     deleteDir()
   }
 }
 
+def BuildCPUNonOmp() {
+  node('linux && cpu') {
+    unstash name: 'srcs'
+    echo "Build CPU without OpenMP"
+    def container_type = "cpu"
+    def docker_binary = "docker"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh -DUSE_OPENMP=OFF
+    """
+    echo "Running Non-OpenMP C++ test..."
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
+    """
+    deleteDir()
+  }
+}
 
 def BuildCUDA(args) {
   node('linux && cpu') {
@@ -259,7 +276,7 @@ def BuildJVMPackages(args) {
     ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_jvm_packages.sh ${args.spark_version}
     """
     echo 'Stashing XGBoost4J JAR...'
-    stash name: 'xgboost4j_jar', includes: 'jvm-packages/xgboost4j/target/*.jar,jvm-packages/xgboost4j-spark/target/*.jar,jvm-packages/xgboost4j-example/target/*.jar'
+    stash name: 'xgboost4j_jar', includes: "jvm-packages/xgboost4j/target/*.jar,jvm-packages/xgboost4j-spark/target/*.jar,jvm-packages/xgboost4j-example/target/*.jar"
     deleteDir()
   }
 }
