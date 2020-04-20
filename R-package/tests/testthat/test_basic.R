@@ -35,6 +35,40 @@ test_that("train and predict binary classification", {
   expect_lt(abs(err_pred1 - err_log), 10e-6)
 })
 
+test_that("parameter validation works", {
+  p <- list(foo = "bar")
+  nrounds = 1
+  set.seed(1994)
+
+  d <- cbind(
+    x1 = rnorm(10),
+    x2 = rnorm(10),
+    x3 = rnorm(10))
+  y <- d[,"x1"] + d[,"x2"]^2 +
+    ifelse(d[,"x3"] > .5, d[,"x3"]^2, 2^d[,"x3"]) +
+    rnorm(10)
+  dtrain <- xgb.DMatrix(data=d, info = list(label=y))
+
+  correct <- function() {
+    params <- list(max_depth = 2, booster = "dart",
+                   rate_drop = 0.5, one_drop = TRUE,
+                   objective = "reg:squarederror")
+    xgb.train(params = params, data = dtrain, nrounds = nrounds)
+  }
+  expect_silent(correct())
+  incorrect <- function() {
+    params <- list(max_depth = 2, booster = "dart",
+                   rate_drop = 0.5, one_drop = TRUE,
+                   objective = "reg:squarederror",
+                   foo = "bar", bar = "foo")
+    output <- capture.output(
+      xgb.train(params = params, data = dtrain, nrounds = nrounds))
+    print(output)
+  }
+  expect_output(incorrect(), "bar, foo")
+})
+
+
 test_that("dart prediction works", {
   nrounds = 32
   set.seed(1994)
