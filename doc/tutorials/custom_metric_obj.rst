@@ -14,7 +14,7 @@ concepts should be readily applicable to other language bindings.
    * The customized functions defined here are only applicable to single node training.
      Distributed environment requires syncing with ``xgboost.rabit``, the interface is
      subject to change hence beyond the scope of this tutorial.
-   * We also plan to re-design the interface for multi-classes objective in the future.
+   * We also plan to improve the interface for multi-classes objective in the future.
 
 In the following sections, we will provide a step by step walk through of implementing
 ``Squared Log Error(SLE)`` objective function:
@@ -136,3 +136,12 @@ Notice that the parameter ``disable_default_eval_metric`` is used to suppress th
 in XGBoost.
 
 For fully reproducible source code and comparison plots, see `custom_rmsle.py <https://github.com/dmlc/xgboost/tree/master/demo/guide-python/custom_rmsle.py>`_.
+
+
+******************************
+Multi-class objective function
+******************************
+
+A similiar demo for multi-class objective funtion is also available, see
+`demo/guide-python/custom_softmax.py <https://github.com/dmlc/xgboost/tree/master/demo/guide-python/custom_rmsle.py>`_
+for details.
