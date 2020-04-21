@@ -291,8 +291,10 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     callbacks <- add.cb(callbacks, cb.early.stop(early_stopping_rounds,
                                                  maximize = maximize, verbose = verbose))
   }
+
   # Sort the callbacks into categories
   cb <- categorize.callbacks(callbacks)
+  params['validate_parameters'] <- TRUE
   if (!is.null(params[['seed']])) {
     warning("xgb.train: `seed` is ignored in R package.  Use `set.seed()` instead.")
   }
