@@ -133,7 +133,8 @@ Most of the objective functions implemented in XGBoost can be run on GPU.  Follo
 
 Objective will run on GPU if GPU updater (``gpu_hist``), otherwise they will run on CPU by
 default.  For unsupported objectives XGBoost will fall back to using CPU implementation by
-default.
+default.  Note that when using GPU ranking objective, the result is not deterministic due
+to the non-associative aspect of floating point summation.
 
 Metric functions
 ===================
