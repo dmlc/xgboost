@@ -44,7 +44,7 @@ libxgboostp2cpu-only:
 	mkdir -p build && cd build && cmake .. -DUSE_CUDA=OFF -DCMAKE_BUILD_TYPE=RELWITHDEBINFO && make -j`nproc`
 
 libxgboostp3:
-	cd python-package && rm -rf dist && python setup.py sdist bdist_wheel
+	cd python-package && rm -rf dist && python setup.py bdist_wheel
 
 
 .PHONY: build/VERSION.txt
