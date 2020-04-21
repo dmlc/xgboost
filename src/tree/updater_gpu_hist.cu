@@ -422,7 +422,6 @@ struct GPUHistMakerDevice {
 
   TrainParam param;
   bool deterministic_histogram;
-  bool use_shared_memory_histograms {false};
 
   GradientSumT histogram_rounding;
 
@@ -596,7 +595,7 @@ struct GPUHistMakerDevice {
     auto d_node_hist = hist.GetNodeHistogram(nidx);
     auto d_ridx = row_partitioner->GetRows(nidx);
     BuildGradientHistogram(page->GetDeviceAccessor(device_id), gpair, d_ridx, d_node_hist,
-                           histogram_rounding, use_shared_memory_histograms);
+                           histogram_rounding);
   }
 
   void SubtractionTrick(int nidx_parent, int nidx_histogram,
@@ -909,15 +908,6 @@ inline void GPUHistMakerDevice<GradientSumT>::InitHistogram() {
   }
   host_node_sum_gradients.resize(param.MaxNodes());
   node_sum_gradients.resize(param.MaxNodes());
-
-  // check if we can use shared memory for building histograms
-  // (assuming atleast we need 2 CTAs per SM to maintain decent latency
-  // hiding)
-  auto histogram_size = sizeof(GradientSumT) * page->Cuts().TotalBins();
-  auto max_smem = dh::MaxSharedMemory(device_id);
-  if (histogram_size <= max_smem) {
-    use_shared_memory_histograms = true;
-  }
 
   // Init histogram
   hist.Init(device_id, page->Cuts().TotalBins());
