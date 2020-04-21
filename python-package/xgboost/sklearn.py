@@ -296,10 +296,6 @@ class XGBModel(XGBModelBase):
         # 2. Return whatever in `**kwargs`.
         # 3. Merge them.
         params = super().get_params(deep)
-        if hasattr(self, '__copy__'):
-            warnings.warn('Calling __copy__ on Scikit-Learn wrapper, ' +
-                          'which may disable data cache and result in ' +
-                          'lower performance.')
         cp = copy.copy(self)
         cp.__class__ = cp.__class__.__bases__[0]
         params.update(cp.__class__.get_params(cp, deep))
