@@ -87,7 +87,6 @@ inline std::string FileExtension(std::string const& fname) {
   }
 }
 
-bool CanReadFile(std::string const& path);
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_IO_H_

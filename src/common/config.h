@@ -41,9 +41,15 @@ class ConfigParser {
   std::string LoadConfigFile(const std::string& path) {
     std::ifstream fin(path, std::ios_base::in | std::ios_base::binary);
     CHECK(fin) << "Failed to open: " << path;
-    std::string content{std::istreambuf_iterator<char>(fin),
-                        std::istreambuf_iterator<char>()};
-    return content;
+    try {
+      std::string content{std::istreambuf_iterator<char>(fin),
+                          std::istreambuf_iterator<char>()};
+      return content;
+    } catch (std::ios_base::failure const &e) {
+      LOG(FATAL) << "Failed to read: \"" << path << "\"\n"
+                 << e.what();
+    }
+    return "";
   }
 
   /*!

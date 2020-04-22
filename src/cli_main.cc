@@ -441,11 +441,6 @@ class CLI {
 
     rabit::Init(argc, argv);
     std::string config_path = argv[1];
-    if (!common::CanReadFile(config_path)) {
-      std::cerr << "Failed to open config file: \"" << argv[1] << "\"\n"
-                << CliHelp();
-      exit(1);
-    }
 
     common::ConfigParser cp(config_path);
     auto cfg = cp.Parse();

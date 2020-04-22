@@ -39,13 +39,5 @@ TEST(IO, FixedSizeStream) {
     ASSERT_EQ(huge_buffer, out_buffer);
   }
 }
-
-TEST(IO, CanReadFile) {
-  // Non-exist file.
-  ASSERT_FALSE(CanReadFile("foo"));
-  // Can't read directory
-  ASSERT_FALSE(CanReadFile("./"));
-  ASSERT_TRUE(CanReadFile(__FILE__));
-}
 }  // namespace common
 }  // namespace xgboost
