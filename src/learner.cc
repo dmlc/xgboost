@@ -494,6 +494,17 @@ class LearnerConfiguration : public Learner {
           << std::numeric_limits<unsigned>::max() << " features or greater";
       num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
     }
+
+    try {
+      // try run allreduce on num_feature to find the maximum value
+      rabit::Allreduce<rabit::op::Max>(&num_feature, 1, nullptr, nullptr,
+                                       "num_feature");
+    } catch (...) {
+      LOG(WARNING)
+          << "AllReduce call in learner configuration failed. Distributed code "
+             "should configure all workers synchronously.";
+    }
+
     if (num_feature > mparam_.num_feature) {
       mparam_.num_feature = num_feature;
     }
