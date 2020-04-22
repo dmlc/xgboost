@@ -21,9 +21,10 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
-#include "./common/common.h"
-#include "./common/config.h"
+#include "common/common.h"
+#include "common/config.h"
 #include "common/io.h"
+#include "common/version.h"
 
 namespace xgboost {
 enum CLITask {
@@ -155,7 +156,7 @@ constexpr char const* const CLIParam::kNull;
 DMLC_REGISTER_PARAMETER(CLIParam);
 
 std::string CliHelp() {
-  return "Use xgboost -h for showing help message.\n";
+  return "Use xgboost -h for showing help information.\n";
 }
 
 void CLIError(dmlc::Error const& e) {
@@ -168,7 +169,11 @@ void CLIError(dmlc::Error const& e) {
 class CLI {
   CLIParam param_;
   std::unique_ptr<Learner> learner_;
-  bool print_help_ { false };
+  enum Print {
+    kNone,
+    kVersion,
+    kHelp
+  } print_info_ {kNone};
 
   int ResetLearner(std::vector<std::shared_ptr<DMatrix>> const& matrics) {
     learner_.reset(Learner::Create(matrics));
@@ -371,12 +376,16 @@ class CLI {
   }
 
   void PrintHelp() const {
-    std::cout << "Usage: xgboost [ -h ] [ config file ] [ arguments ]" << std::endl;
+    std::cout << "Usage: xgboost [ -h ] [ -V ] [ config file ] [ arguments ]" << std::endl;
     std::stringstream ss;
     ss << R"(
   Options and arguments:
+
     -h, --help
        Print this message.
+
+    -V, --version
+       Print XGBoost version.
 
     arguments
        Extra parameters that are not specified in config file, see below.
@@ -404,6 +413,7 @@ class CLI {
     ss << R"(
   Example:  train.conf
 
+    # General parameters
     booster = gbtree
     objective = reg:squarederror
     eta = 1.0
@@ -412,6 +422,7 @@ class CLI {
     min_child_weight = 0
     max_depth = 3
 
+    # Training arguments for CLI.
     num_round = 2
     save_period = 0
     data = "demo/data/agaricus.txt.train?format=libsvm"
@@ -420,6 +431,11 @@ class CLI {
   See demo/ directory in XGBoost for more examples.
 )";
     std::cout << ss.str() << std::endl;
+  }
+
+  void PrintVersion() const {
+    auto ver = Version::String(Version::Self());
+    std::cout << "XGBoost: " << ver << std::endl;
   }
 
  public:
@@ -431,11 +447,14 @@ class CLI {
     for (int i = 0; i < argc; ++i) {
       std::string str {argv[i]};
       if (str == "-h" || str == "--help") {
-        print_help_ = true;
+        print_info_ = kHelp;
+        break;
+      } else if (str == "-V" || str == "--version") {
+        print_info_ = kVersion;
         break;
       }
     }
-    if (print_help_) {
+    if (print_info_ != kNone) {
       return;
     }
 
@@ -456,10 +475,19 @@ class CLI {
   }
 
   int Run() {
-    if (print_help_) {
+    switch (this->print_info_) {
+    case kNone:
+      break;
+    case kVersion: {
+      this->PrintVersion();
+      return 0;
+    }
+    case kHelp: {
       this->PrintHelp();
       return 0;
     }
+    }
+
     try {
       switch (param_.task) {
       case kTrain:

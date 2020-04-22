@@ -116,6 +116,15 @@ eval[test] = {data_path}
         assert error_msg.find('Usage') != -1
         assert error_msg.find('eval[NAME]') != -1
 
+        completed = subprocess.run([exe, '-V'], stdout=subprocess.PIPE)
+        msg = completed.stdout.decode('utf-8')
+        assert msg.find('XGBoost') != -1
+        v = xgboost.__version__
+        if v.find('SNAPSHOT') != -1:
+            assert msg.split(':')[1].strip() == v.split('-')[0]
+        else:
+            assert msg.split(':')[1].strip() == v
+
     def test_cli_model_json(self):
         exe = self.get_exe()
         data_path = "{root}/demo/data/agaricus.txt.train?format=libsvm".format(
