@@ -482,31 +482,26 @@ class LearnerConfiguration : public Learner {
   }
 
   void ConfigureNumFeatures() {
-    // estimate feature bound
-    // TODO(hcho3): Change num_feature to 64-bit integer
-    unsigned num_feature = 0;
-    for (auto & matrix : cache_.Container()) {
-      CHECK(matrix.first);
-      CHECK(!matrix.second.ref.expired());
-      const uint64_t num_col = matrix.first->Info().num_col_;
-      CHECK_LE(num_col, static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
-          << "Unfortunately, XGBoost does not support data matrices with "
-          << std::numeric_limits<unsigned>::max() << " features or greater";
-      num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
-    }
+    // Compute number of global features if parameter not already set
+    if (mparam_.num_feature == 0) {
+      // TODO(hcho3): Change num_feature to 64-bit integer
+      unsigned num_feature = 0;
+      for (auto& matrix : cache_.Container()) {
+        CHECK(matrix.first);
+        CHECK(!matrix.second.ref.expired());
+        const uint64_t num_col = matrix.first->Info().num_col_;
+        CHECK_LE(num_col,
+                 static_cast<uint64_t>(std::numeric_limits<unsigned>::max()))
+            << "Unfortunately, XGBoost does not support data matrices with "
+            << std::numeric_limits<unsigned>::max() << " features or greater";
+        num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
+      }
 
-    try {
-      // try run allreduce on num_feature to find the maximum value
       rabit::Allreduce<rabit::op::Max>(&num_feature, 1, nullptr, nullptr,
                                        "num_feature");
-    } catch (...) {
-      LOG(WARNING)
-          << "AllReduce call in learner configuration failed. Distributed code "
-             "should configure all workers synchronously.";
-    }
-
-    if (num_feature > mparam_.num_feature) {
-      mparam_.num_feature = num_feature;
+      if (num_feature > mparam_.num_feature) {
+        mparam_.num_feature = num_feature;
+      }
     }
     CHECK_NE(mparam_.num_feature, 0)
         << "0 feature is supplied.  Are you using raw Booster interface?";
