@@ -17,6 +17,7 @@
 package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.java.XGBoostError
+import org.apache.spark.SparkException
 import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.ml.linalg.Vectors
 import org.apache.spark.sql.DataFrame
@@ -118,9 +119,10 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
     val inputDF = vectorAssembler.transform(testDF).select("features", "label")
     val paramMap = List("eta" -> "1", "max_depth" -> "2",
       "objective" -> "binary:logistic", "missing" -> -1.0f, "num_workers" -> 1).toMap
-    intercept[XGBoostError] {
+    val thrown = intercept[SparkException] {
       new XGBoostClassifier(paramMap).fit(inputDF)
     }
+    assert(thrown.getCause.isInstanceOf[XGBoostError])
   }
 
   test("specify a non-zero missing value and meet a Sparse vector we should" +
@@ -145,9 +147,10 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
     inputDF.show()
     val paramMap = List("eta" -> "1", "max_depth" -> "2",
       "objective" -> "binary:logistic", "missing" -> -1.0f, "num_workers" -> 1).toMap
-    intercept[XGBoostError] {
+    val thrown = intercept[SparkException] {
       new XGBoostClassifier(paramMap).fit(inputDF)
     }
+    assert(thrown.getCause.isInstanceOf[XGBoostError])
   }
 
   test("specify a non-zero missing value but set allow_non_zero_missing " +
