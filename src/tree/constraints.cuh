@@ -28,8 +28,8 @@ struct ValueConstraint {
   inline static void Init(tree::TrainParam *param, unsigned num_feature) {
     param->monotone_constraints.resize(num_feature, 0);
   }
-  template <typename ParamT>
-  XGBOOST_DEVICE inline double CalcWeight(const ParamT &param, tree::GradStats stats) const {
+  template <typename ParamT, typename GpairT>
+  XGBOOST_DEVICE inline double CalcWeight(const ParamT &param, GpairT stats) const {
     double w = xgboost::tree::CalcWeight(param, stats);
     if (w < lower_bound) {
       return lower_bound;
@@ -63,9 +63,9 @@ struct ValueConstraint {
       return wleft >= wright ? gain : negative_infinity;
     }
   }
-
-  inline void SetChild(const tree::TrainParam &param, bst_uint split_index,
-                       tree::GradStats left, tree::GradStats right, ValueConstraint *cleft,
+  template <typename GpairT>
+  void SetChild(const tree::TrainParam &param, bst_uint split_index,
+                       GpairT left, GpairT right, ValueConstraint *cleft,
                        ValueConstraint *cright) {
     int c = param.monotone_constraints.at(split_index);
     *cleft = *this;

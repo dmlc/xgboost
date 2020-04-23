@@ -82,8 +82,6 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   BatchParam batch_param{};
   GPUHistMakerDevice<GradientSumT> maker(0, page.get(), kNRows, param, kNCols, kNCols,
                                          true, batch_param);
-  maker.InitHistogram();
-
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
   HostDeviceVector<GradientPair> gpair(kNRows);
