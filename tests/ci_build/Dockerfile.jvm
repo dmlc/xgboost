@@ -25,9 +25,9 @@ RUN \
     ln -s /opt/apache-maven-3.6.1/ /opt/maven
 
 ENV PATH=/opt/python/bin:/opt/maven/bin:$PATH
-ENV CC=/opt/rh/devtoolset-6/root/usr/bin/gcc
-ENV CXX=/opt/rh/devtoolset-6/root/usr/bin/c++
-ENV CPP=/opt/rh/devtoolset-6/root/usr/bin/cpp
+ENV CC=/opt/rh/devtoolset-4/root/usr/bin/gcc
+ENV CXX=/opt/rh/devtoolset-4/root/usr/bin/c++
+ENV CPP=/opt/rh/devtoolset-4/root/usr/bin/cpp
 
 # Install Python packages
 RUN \
