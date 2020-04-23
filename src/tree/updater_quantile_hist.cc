@@ -57,7 +57,6 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
   if (dmat != p_last_dmat_ || is_gmat_initialized_ == false) {
     gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
     column_matrix_.Init(gmat_, param_.sparse_threshold);
-
     if (param_.enable_feature_grouping > 0) {
       gmatb_.Init(gmat_, column_matrix_, param_);
     }
@@ -80,6 +79,7 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
   for (auto tree : trees) {
     builder_->Update(gmat_, gmatb_, column_matrix_, gpair, dmat, tree);
   }
+
   param_.learning_rate = lr;
 
   p_last_dmat_ = dmat;
@@ -114,42 +114,28 @@ void QuantileHistMaker::Builder::SyncHistograms(
     // Merging histograms from each thread into once
     hist_buffer_.ReduceHist(node, r.begin(), r.end());
 
+    // Store posible parent node
+    auto this_local = phist_local_[entry.nid];
+    CopyHist(this_local, this_hist, r.begin(), r.end());
+
     if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1 && !isDistributed) {
       auto parent_hist = hist_[(*p_tree)[entry.nid].Parent()];
       auto sibling_hist = hist_[entry.sibling_nid];
-//std::cout << "\n---------------------------SubtractionHist---------------------------\n";
       SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
-      //SubtractionHist(this_hist, parent_hist, sibling_hist, r.begin(), r.end());
-    }
-  });
-
-  if (isDistributed) {
-
-
-    this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
-
-  common::BlockedSpace2d space2(nodes_for_subtraction_trick_.size(), [&](size_t node) {
-    return nbins;
-  }, 1024);
-
-  common::ParallelFor2d(space2, this->nthread_, [&](size_t node, common::Range1d r) {
-    const auto entry = nodes_for_subtraction_trick_[node];
-    auto this_hist = hist_[entry.nid];
-
-    if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
-      auto parent_hist = hist_[(*p_tree)[entry.nid].Parent()];
+    } else if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
       auto sibling_hist = hist_[entry.sibling_nid];
-
-      SubtractionHist(this_hist, parent_hist, sibling_hist, r.begin(), r.end());
+      auto parent_hist = phist_local_[(*p_tree)[entry.nid].Parent()];
+      SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
+      // Store posible parent node
+      auto sibling_local = phist_local_[entry.sibling_nid];
+      CopyHist(sibling_local, sibling_hist, r.begin(), r.end());
     }
   });
-
-
-    // use Subtraction Trick
-/*    for (auto const& node : nodes_for_subtraction_trick_) {
-      SubtractionTrick(hist_[node.nid], hist_[node.sibling_nid],
-                       hist_[(*p_tree)[node.nid].Parent()]);
-    }*/
+  if (isDistributed) {
+    builder_monitor_.Start("SyncHistograms:histred_.Allreduce");
+    int m =  nodes_for_explicit_hist_build_.size() + nodes_for_subtraction_trick_.size();
+    this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * m);
+    builder_monitor_.Stop("SyncHistograms:histred_.Allreduce");
   }
 
   builder_monitor_.Stop("SyncHistograms");
@@ -181,17 +167,28 @@ void QuantileHistMaker::Builder::BuildHistogramsLossGuide(
 
 void QuantileHistMaker::Builder::AddHistRows(int *starting_index, int *sync_count) {
   builder_monitor_.Start("AddHistRows");
-
-  for (auto const& entry : nodes_for_explicit_hist_build_) {
-    int nid = entry.nid;
+  int rank = rabit::GetRank();
+  std::vector<size_t> merged_hist(nodes_for_explicit_hist_build_.size() +
+                                  nodes_for_subtraction_trick_.size());
+  for (size_t i = 0; i < nodes_for_explicit_hist_build_.size(); ++i) {
+    merged_hist[i] = nodes_for_explicit_hist_build_[i].nid;
+  }
+  for (size_t i = 0; i < nodes_for_subtraction_trick_.size(); ++i) {
+    merged_hist[nodes_for_explicit_hist_build_.size() + i] =
+    nodes_for_subtraction_trick_[i].nid;
+  }
+  std::sort(merged_hist.begin(), merged_hist.end());
+  for (auto const& nid : merged_hist) {
     hist_.AddHistRow(nid);
-    (*starting_index) = std::min(nid, (*starting_index));
   }
-  (*sync_count) = nodes_for_explicit_hist_build_.size();
+  if (rabit::IsDistributed()) {
+    for (auto const& nid : merged_hist) {
+      phist_local_.AddHistRow(nid);
+    }
+  }
 
-  for (auto const& node : nodes_for_subtraction_trick_) {
-    hist_.AddHistRow(node.nid);
-  }
+  (*starting_index) = merged_hist[0];
+  (*sync_count) = merged_hist.size();
 
   builder_monitor_.Stop("AddHistRows");
 }
@@ -205,6 +202,7 @@ void QuantileHistMaker::Builder::BuildLocalHistograms(
   builder_monitor_.Start("BuildLocalHistograms");
 
   const size_t n_nodes = nodes_for_explicit_hist_build_.size();
+
   // create space of size (# rows in each node)
   common::BlockedSpace2d space(n_nodes, [&](size_t node) {
     const int32_t nid = nodes_for_explicit_hist_build_[node].nid;
@@ -326,98 +324,26 @@ void QuantileHistMaker::Builder::SplitSiblings(const std::vector<ExpandEntry>& n
                    std::vector<ExpandEntry>* small_siblings,
                    std::vector<ExpandEntry>* big_siblings,
                    RegTree *p_tree) {
-
   builder_monitor_.Start("SplitSiblings");
-
-  const size_t size = nodes.size();
-  //std::cout << "-------------------------size: " << size << "-------------------------\n";
-  std::vector<size_t> node_sizes1(size * 2);
-  //size_t* node_sizes1 = new size_t[2];
-  //size_t node_sizes1[/*size * */256*2];
-  size_t ii = 0;
-  for (size_t i = 0; i < nodes.size(); i++) {
-    int nid = nodes[i].nid;
-    RegTree::Node &node = (*p_tree)[nid];
-if(!node.IsRoot())
-{
-    const int32_t left_id = (*p_tree)[node.Parent()].LeftChild();
-    const int32_t right_id = (*p_tree)[node.Parent()].RightChild();
-    node_sizes1[ii] = row_set_collection_[left_id ].Size();
-    node_sizes1[ii + 1] =                       row_set_collection_[right_id].Size();
-    //node_sizes[ii] = row_set_collection_[left_id ].Size();
-    //node_sizes[ii + 1] = row_set_collection_[right_id ].Size();
-    ii += 2;
-}
-  }
-  if(rabit::IsDistributed())
-  {
-   rabit::Allreduce<rabit::op::Sum>(&node_sizes1[0], size * 2);
-  }
-//CHECK_EQ(size*2,i);
-
   for (auto const& entry : nodes) {
     int nid = entry.nid;
     RegTree::Node &node = (*p_tree)[nid];
-
-
-
-//    size_t node_sizes[2] = { row_set_collection_[left_id ].Size(),
-//                             row_set_collection_[right_id].Size() };
-//
-//    if (rabit::IsDistributed()) {
-//      // compute amount of samples in each dtree node accross all distributed workers
-//      rabit::Allreduce<rabit::op::Sum>(&node_sizes[0], 2);
-//    }
-
-
-if(node.IsRoot())
-{
-  small_siblings->push_back(entry);
-}
-else
-{
-  const int32_t left_id = (*p_tree)[node.Parent()].LeftChild();
-  const int32_t right_id = (*p_tree)[node.Parent()].RightChild();
-  size_t node_sizes[2] = { row_set_collection_[left_id ].Size(),
-                           row_set_collection_[right_id].Size() };
-  if (rabit::IsDistributed()) {
-    // compute amount of samples in each dtree node accross all distributed workers
-    rabit::Allreduce<rabit::op::Sum>(&node_sizes[0], 2);
-  }
-  if(nid == left_id && node_sizes[0] < node_sizes[1])
-  {
-    small_siblings->push_back(entry);
-  }
-  else if(nid == right_id && node_sizes[1] <= node_sizes[0])
-  {
-    small_siblings->push_back(entry);
-  }
-  else
-  {
-    big_siblings->push_back(entry);
-  }
-}
-/*    if (rabit::IsDistributed()) {
-      if (node.IsRoot() || node.IsLeftChild()) {
-        small_siblings->push_back(entry);
-      } else {
-        big_siblings->push_back(entry);
-      }
+    if (node.IsRoot()) {
+      small_siblings->push_back(entry);
     } else {
-      if (!node.IsRoot() && node.IsLeftChild() &&
-          (row_set_collection_[nid].Size() <
-           row_set_collection_[(*p_tree)[node.Parent()].RightChild()].Size())) {
+      const int32_t left_id = (*p_tree)[node.Parent()].LeftChild();
+      const int32_t right_id = (*p_tree)[node.Parent()].RightChild();
+      size_t node_sizes[2] = { row_set_collection_[left_id ].Size(),
+                               row_set_collection_[right_id].Size() };
+
+      if (nid == left_id && node_sizes[0] < node_sizes[1]) {
         small_siblings->push_back(entry);
-      } else if (!node.IsRoot() && !node.IsLeftChild() &&
-                 (row_set_collection_[nid].Size() <=
-                  row_set_collection_[(*p_tree)[node.Parent()].LeftChild()].Size())) {
-        small_siblings->push_back(entry);
-      } else if (node.IsRoot()) {
+      } else if (nid == right_id && node_sizes[1] <= node_sizes[0]) {
         small_siblings->push_back(entry);
       } else {
         big_siblings->push_back(entry);
       }
-    }*/
+    }
   }
   builder_monitor_.Stop("SplitSiblings");
 }
@@ -440,17 +366,18 @@ void QuantileHistMaker::Builder::ExpandWithDepthWise(
     int starting_index = std::numeric_limits<int>::max();
     int sync_count = 0;
     std::vector<ExpandEntry> temp_qexpand_depth;
-
+int rank = rabit::GetRank();
     SplitSiblings(qexpand_depth_wise_, &nodes_for_explicit_hist_build_,
                   &nodes_for_subtraction_trick_, p_tree);
     AddHistRows(&starting_index, &sync_count);
 
     BuildLocalHistograms(gmat, gmatb, p_tree, gpair_h);
     SyncHistograms(starting_index, sync_count, p_tree);
-
     BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
+
     EvaluateAndApplySplits(gmat, column_matrix, p_tree, &num_leaves, depth, &timestamp,
                    &temp_qexpand_depth);
+
     // clean up
     qexpand_depth_wise_.clear();
     nodes_for_subtraction_trick_.clear();
@@ -471,7 +398,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
     DMatrix* p_fmat,
     RegTree* p_tree,
     const std::vector<GradientPair>& gpair_h) {
-
+  builder_monitor_.Start("ExpandWithLossGuide");
   unsigned timestamp = 0;
   int num_leaves = 0;
 
@@ -516,15 +443,9 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
 
       size_t node_sizes[2] = { row_set_collection_[cleft].Size(),
                                row_set_collection_[cright].Size() };
-      if (rabit::IsDistributed()) {
-        rabit::Allreduce<rabit::op::Sum>(&node_sizes[0], 2);
-      }
-      if(node_sizes[0] < node_sizes[1])
-      {
+      if (node_sizes[0] < node_sizes[1]) {
         BuildHistogramsLossGuide(left_node, gmat, gmatb, p_tree, gpair_h);
-      }
-      else
-      {
+      } else {
         BuildHistogramsLossGuide(right_node, gmat, gmatb, p_tree, gpair_h);
       }
 
@@ -545,6 +466,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
       ++num_leaves;  // give two and take one, as parent is no longer a leaf
     }
   }
+  builder_monitor_.Stop("ExpandWithLossGuide");
 }
 
 void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
@@ -561,21 +483,29 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
   interaction_constraints_.Reset();
 
   this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
-
+  builder_monitor_.Start("UpdateInternal_1");
   if (param_.grow_policy == TrainParam::kLossGuide) {
     ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
   } else {
     ExpandWithDepthWise(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
   }
+  builder_monitor_.Stop("UpdateInternal_1");
 
+  builder_monitor_.Start("UpdateInternal_2");
   for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
     p_tree->Stat(nid).loss_chg = snode_[nid].best.loss_chg;
     p_tree->Stat(nid).base_weight = snode_[nid].weight;
     p_tree->Stat(nid).sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
   }
+  builder_monitor_.Stop("UpdateInternal_2");
 
+    int rank = rabit::GetRank();
+    if (rank == 3) {
+  builder_monitor_.Start("UpdateInternal_3");}
   pruner_->Update(gpair, p_fmat, std::vector<RegTree*>{p_tree});
-
+    if (rank == 3) {
+  builder_monitor_.Stop("UpdateInternal_3");
+}
   builder_monitor_.Stop("Update");
 }
 
@@ -708,6 +638,7 @@ void QuantileHistMaker::Builder::InitData(const GHistIndexMatrix& gmat,
     // initialize histogram collection
     uint32_t nbins = gmat.cut.Ptrs().back();
     hist_.Init(nbins);
+    phist_local_.Init(nbins);
     hist_buffer_.Init(nbins);
 
     // initialize histogram builder
@@ -1119,18 +1050,15 @@ void QuantileHistMaker::Builder::ApplySplit(const std::vector<ExpandEntry> nodes
                                             const HistCollection& hist,
                                             RegTree* p_tree) {
   builder_monitor_.Start("ApplySplit");
-
   // 1. Find split condition for each split
   const size_t n_nodes = nodes.size();
   std::vector<int32_t> split_conditions;
   FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
-
   // 2.1 Create a blocked space of size SUM(samples in each node)
   common::BlockedSpace2d space(n_nodes, [&](size_t node_in_set) {
     int32_t nid = nodes[node_in_set].nid;
     return row_set_collection_[nid].Size();
   }, kPartitionBlockSize);
-
   // 2.2 Initialize the partition builder
   // allocate buffers for storage intermediate results by each thread
   partition_builder_.Init(space.Size(), n_nodes, [&](size_t node_in_set) {
@@ -1139,7 +1067,6 @@ void QuantileHistMaker::Builder::ApplySplit(const std::vector<ExpandEntry> nodes
     const size_t n_tasks = size / kPartitionBlockSize + !!(size % kPartitionBlockSize);
     return n_tasks;
   });
-
   // 2.3 Split elements of row_set_collection_ to left and right child-nodes for each node
   // Store results in intermediate buffers from partition_builder_
   common::ParallelFor2d(space, this->nthread_, [&](size_t node_in_set, common::Range1d r) {
@@ -1161,7 +1088,6 @@ void QuantileHistMaker::Builder::ApplySplit(const std::vector<ExpandEntry> nodes
         CHECK(false);  // no default behavior
     }
     });
-
   // 3. Compute offsets to copy blocks of row-indexes
   // from partition_builder_ to row_set_collection_
   partition_builder_.CalculateRowOffsets();
@@ -1173,10 +1099,8 @@ void QuantileHistMaker::Builder::ApplySplit(const std::vector<ExpandEntry> nodes
     partition_builder_.MergeToArray(node_in_set, r.begin(),
         const_cast<size_t*>(row_set_collection_[nid].begin));
   });
-
   // 5. Add info about splits into row_set_collection_
   AddSplitsToRowSet(nodes, p_tree);
-
   builder_monitor_.Stop("ApplySplit");
 }
 

@@ -331,6 +331,9 @@ class QuantileHistMaker: public TreeUpdater {
     std::vector<NodeEntry> snode_;
     /*! \brief culmulative histogram of gradients. */
     HistCollection hist_;
+    /*! \brief culmulative local parent histogram of gradients. */
+    HistCollection phist_local_;
+
     /*! \brief feature with least # of bins. to be used for dense specialization
                of InitNewNode() */
     uint32_t fid_least_bins_;
