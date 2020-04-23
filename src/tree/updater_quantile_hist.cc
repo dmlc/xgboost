@@ -167,7 +167,6 @@ void QuantileHistMaker::Builder::BuildHistogramsLossGuide(
 
 void QuantileHistMaker::Builder::AddHistRows(int *starting_index, int *sync_count) {
   builder_monitor_.Start("AddHistRows");
-  int rank = rabit::GetRank();
   std::vector<size_t> merged_hist(nodes_for_explicit_hist_build_.size() +
                                   nodes_for_subtraction_trick_.size());
   for (size_t i = 0; i < nodes_for_explicit_hist_build_.size(); ++i) {
@@ -366,7 +365,6 @@ void QuantileHistMaker::Builder::ExpandWithDepthWise(
     int starting_index = std::numeric_limits<int>::max();
     int sync_count = 0;
     std::vector<ExpandEntry> temp_qexpand_depth;
-int rank = rabit::GetRank();
     SplitSiblings(qexpand_depth_wise_, &nodes_for_explicit_hist_build_,
                   &nodes_for_subtraction_trick_, p_tree);
     AddHistRows(&starting_index, &sync_count);
@@ -483,29 +481,19 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
   interaction_constraints_.Reset();
 
   this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
-  builder_monitor_.Start("UpdateInternal_1");
   if (param_.grow_policy == TrainParam::kLossGuide) {
     ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
   } else {
     ExpandWithDepthWise(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
   }
-  builder_monitor_.Stop("UpdateInternal_1");
 
-  builder_monitor_.Start("UpdateInternal_2");
   for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
     p_tree->Stat(nid).loss_chg = snode_[nid].best.loss_chg;
     p_tree->Stat(nid).base_weight = snode_[nid].weight;
     p_tree->Stat(nid).sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
   }
-  builder_monitor_.Stop("UpdateInternal_2");
-
-    int rank = rabit::GetRank();
-    if (rank == 3) {
-  builder_monitor_.Start("UpdateInternal_3");}
   pruner_->Update(gpair, p_fmat, std::vector<RegTree*>{p_tree});
-    if (rank == 3) {
-  builder_monitor_.Stop("UpdateInternal_3");
-}
+
   builder_monitor_.Stop("Update");
 }
 
