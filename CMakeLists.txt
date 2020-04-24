@@ -4,6 +4,7 @@ include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
 cmake_policy(SET CMP0079 NEW)
+cmake_policy(SET CMP0063 NEW)
 
 if ((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUAL 3.13))
   cmake_policy(SET CMP0077 NEW)
@@ -36,6 +37,7 @@ option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
 option(RABIT_MOCK "Build rabit with mock" OFF)
+option(HIDE_CXX_SYMBOLS "Build shared library and hide all C++ symbols" OFF)
 ## CUDA
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
@@ -131,6 +133,9 @@ foreach(lib rabit rabit_base rabit_empty rabit_mock rabit_mock_static)
   # from dmlc is correctly applied to rabit.
   if (TARGET ${lib})
     target_link_libraries(${lib} dmlc ${CMAKE_THREAD_LIBS_INIT})
+    if (HIDE_CXX_SYMBOLS)  # Hide all C++ symbols from Rabit
+      set_target_properties(${lib} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+    endif (HIDE_CXX_SYMBOLS)
   endif (TARGET ${lib})
 endforeach()
 
@@ -148,10 +153,17 @@ set(XGBOOST_OBJ_SOURCES "${XGBOOST_OBJ_SOURCES};$<TARGET_OBJECTS:objxgboost>")
 
 #-- library
 if (BUILD_STATIC_LIB)
-    add_library(xgboost STATIC ${XGBOOST_OBJ_SOURCES})
-else()
-    add_library(xgboost SHARED ${XGBOOST_OBJ_SOURCES})
-endif(BUILD_STATIC_LIB)
+  add_library(xgboost STATIC ${XGBOOST_OBJ_SOURCES})
+else (BUILD_STATIC_LIB)
+  add_library(xgboost SHARED ${XGBOOST_OBJ_SOURCES})
+endif (BUILD_STATIC_LIB)
+
+#-- Hide all C++ symbols
+if (HIDE_CXX_SYMBOLS)
+  set_target_properties(objxgboost PROPERTIES CXX_VISIBILITY_PRESET hidden)
+  set_target_properties(xgboost PROPERTIES CXX_VISIBILITY_PRESET hidden)
+endif (HIDE_CXX_SYMBOLS)
+
 target_include_directories(xgboost
   INTERFACE
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
