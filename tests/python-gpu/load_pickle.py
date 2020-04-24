@@ -2,10 +2,16 @@
 `test_gpu_with_dask.py`'''
 import unittest
 import os
+import numpy as np
 import xgboost as xgb
 import json
+import pytest
+import sys
 
 from test_gpu_pickling import build_dataset, model_path, load_pickle
+
+sys.path.append("tests/python")
+import test_basic as tb
 
 
 class TestLoadPickle(unittest.TestCase):
@@ -49,3 +55,16 @@ class TestLoadPickle(unittest.TestCase):
         test_x = xgb.DMatrix(x)
         res = bst.predict(test_x)
         assert len(res) == 10
+
+    def test_training_on_cpu_only_env(self):
+        assert os.environ['CUDA_VISIBLE_DEVICES'] == '-1'
+        print('RUnning')
+        rng = np.random.RandomState(1994)
+        X = rng.randn(10, 10)
+        y = rng.randn(10)
+        with tb.captured_output() as (out, err):
+            # Test no thrust exception is thrown
+            with pytest.raises(xgb.core.XGBoostError):
+                xgb.train({'tree_method': 'gpu_hist'}, xgb.DMatrix(X, y))
+
+            assert out.getvalue().find('No visible GPU is found') != -1
