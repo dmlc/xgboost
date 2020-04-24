@@ -141,4 +141,11 @@ TEST(CAPI, JsonModelIO) {
   ASSERT_EQ(model_str_0.front(), '{');
   ASSERT_EQ(model_str_0, model_str_1);
 }
+
+TEST(CAPI, CatchDMLCError) {
+  DMatrixHandle out;
+  ASSERT_EQ(XGDMatrixCreateFromFile("foo", 0, &out), -1);
+  EXPECT_THROW({ dmlc::Stream::Create("foo", "r"); },  dmlc::Error);
+}
+
 }  // namespace xgboost
