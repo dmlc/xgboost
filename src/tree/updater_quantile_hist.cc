@@ -102,40 +102,82 @@ void QuantileHistMaker::Builder::SyncHistograms(
   builder_monitor_.Start("SyncHistograms");
 
   const bool isDistributed = rabit::IsDistributed();
-
   const size_t nbins = hist_builder_.GetNumBins();
-  common::BlockedSpace2d space(nodes_for_explicit_hist_build_.size(), [&](size_t node) {
-    return nbins;
-  }, 1024);
+  if (!isDistributed) {
+    common::BlockedSpace2d space(nodes_for_explicit_hist_build_.size(), [&](size_t node) {
+      return nbins;
+    }, 1024);
 
-  common::ParallelFor2d(space, this->nthread_, [&](size_t node, common::Range1d r) {
-    const auto entry = nodes_for_explicit_hist_build_[node];
-    auto this_hist = hist_[entry.nid];
-    // Merging histograms from each thread into once
-    hist_buffer_.ReduceHist(node, r.begin(), r.end());
+    common::ParallelFor2d(space, this->nthread_, [&](size_t node, common::Range1d r) {
+      const auto entry = nodes_for_explicit_hist_build_[node];
+      auto this_hist = hist_[entry.nid];
+      // Merging histograms from each thread into once
+      hist_buffer_.ReduceHist(node, r.begin(), r.end());
 
-    // Store posible parent node
-    auto this_local = phist_local_[entry.nid];
-    CopyHist(this_local, this_hist, r.begin(), r.end());
+      if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1 /*&& !isDistributed*/) {
+        auto parent_hist = hist_[(*p_tree)[entry.nid].Parent()];
+        auto sibling_hist = hist_[entry.sibling_nid];
+        SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
+      }
+    });
+  } else {
+    common::BlockedSpace2d space(nodes_for_explicit_hist_build_.size(), [&](size_t node) {
+      return nbins;
+    }, 1024);
 
-    if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1 && !isDistributed) {
-      auto parent_hist = hist_[(*p_tree)[entry.nid].Parent()];
-      auto sibling_hist = hist_[entry.sibling_nid];
-      SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
-    } else if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
-      auto sibling_hist = hist_[entry.sibling_nid];
-      auto parent_hist = phist_local_[(*p_tree)[entry.nid].Parent()];
-      SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
+    common::ParallelFor2d(space, this->nthread_, [&](size_t node, common::Range1d r) {
+      const auto entry = nodes_for_explicit_hist_build_[node];
+      auto this_hist = hist_[entry.nid];
+      // Merging histograms from each thread into once
+      hist_buffer_.ReduceHist(node, r.begin(), r.end());
+
       // Store posible parent node
-      auto sibling_local = phist_local_[entry.sibling_nid];
-      CopyHist(sibling_local, sibling_hist, r.begin(), r.end());
-    }
-  });
-  if (isDistributed) {
+      auto this_local = phist_local_[entry.nid];
+      CopyHist(this_local, this_hist, r.begin(), r.end());
+
+      if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
+        auto sibling_hist = hist_[entry.sibling_nid];
+        auto parent_hist = phist_local_[(*p_tree)[entry.nid].Parent()];
+        SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
+        // Store posible parent node
+        auto sibling_local = phist_local_[entry.sibling_nid];
+        CopyHist(sibling_local, sibling_hist, r.begin(), r.end());
+      }
+    });
+
     builder_monitor_.Start("SyncHistograms:histred_.Allreduce");
-    int m =  nodes_for_explicit_hist_build_.size() + nodes_for_subtraction_trick_.size();
-    this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * m);
+    this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
     builder_monitor_.Stop("SyncHistograms:histred_.Allreduce");
+
+    common::ParallelFor2d(space, this->nthread_, [&](size_t node, common::Range1d r) {
+      const auto entry = nodes_for_explicit_hist_build_[node];
+      if (!((*p_tree)[entry.nid].IsLeftChild())) {
+        auto this_hist = hist_[entry.nid];
+
+        if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
+          auto parent_hist = hist_[(*p_tree)[entry.nid].Parent()];
+          auto sibling_hist = hist_[entry.sibling_nid];
+          SubtractionHist(this_hist, parent_hist, sibling_hist, r.begin(), r.end());
+        }
+      }
+    });
+
+    common::BlockedSpace2d space2(nodes_for_subtraction_trick_.size(), [&](size_t node) {
+      return nbins;
+    }, 1024);
+
+    common::ParallelFor2d(space2, this->nthread_, [&](size_t node, common::Range1d r) {
+      const auto entry = nodes_for_subtraction_trick_[node];
+      if (!((*p_tree)[entry.nid].IsLeftChild())) {
+        auto this_hist = hist_[entry.nid];
+
+        if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
+          auto parent_hist = hist_[(*p_tree)[entry.nid].Parent()];
+          auto sibling_hist = hist_[entry.sibling_nid];
+          SubtractionHist(this_hist, parent_hist, sibling_hist, r.begin(), r.end());
+        }
+      }
+    });
   }
 
   builder_monitor_.Stop("SyncHistograms");
@@ -159,15 +201,17 @@ void QuantileHistMaker::Builder::BuildHistogramsLossGuide(
   int starting_index = std::numeric_limits<int>::max();
   int sync_count = 0;
 
-  AddHistRows(&starting_index, &sync_count);
+  AddHistRows(&starting_index, &sync_count, p_tree);
   BuildLocalHistograms(gmat, gmatb, p_tree, gpair_h);
   SyncHistograms(starting_index, sync_count, p_tree);
 }
 
 
-void QuantileHistMaker::Builder::AddHistRows(int *starting_index, int *sync_count) {
+void QuantileHistMaker::Builder::AddHistRows(int *starting_index, int *sync_count,
+                                             RegTree *p_tree) {
   builder_monitor_.Start("AddHistRows");
-  std::vector<size_t> merged_hist(nodes_for_explicit_hist_build_.size() +
+
+  std::vector<int> merged_hist(nodes_for_explicit_hist_build_.size() +
                                   nodes_for_subtraction_trick_.size());
   for (size_t i = 0; i < nodes_for_explicit_hist_build_.size(); ++i) {
     merged_hist[i] = nodes_for_explicit_hist_build_[i].nid;
@@ -177,18 +221,31 @@ void QuantileHistMaker::Builder::AddHistRows(int *starting_index, int *sync_coun
     nodes_for_subtraction_trick_[i].nid;
   }
   std::sort(merged_hist.begin(), merged_hist.end());
+  int n_left = 0;
   for (auto const& nid : merged_hist) {
-    hist_.AddHistRow(nid);
+    if ((*p_tree)[nid].IsLeftChild()) {
+      hist_.AddHistRow(nid);
+      (*starting_index) = std::min(nid, (*starting_index));
+      n_left++;
+      if (rabit::IsDistributed()) {
+        phist_local_.AddHistRow(nid);
+      }
+    }
   }
-  if (rabit::IsDistributed()) {
-    for (auto const& nid : merged_hist) {
-      phist_local_.AddHistRow(nid);
+  for (auto const& nid : merged_hist) {
+    if (!((*p_tree)[nid].IsLeftChild())) {
+      hist_.AddHistRow(nid);
+      if (rabit::IsDistributed()) {
+        phist_local_.AddHistRow(nid);
+      }
     }
   }
 
-  (*starting_index) = merged_hist[0];
-  (*sync_count) = merged_hist.size();
-
+  (*sync_count) = merged_hist.size() / 2;
+  if (*sync_count == 0) {
+    (*sync_count) = 1;
+  }
+  CHECK_EQ(n_left, (*sync_count));
   builder_monitor_.Stop("AddHistRows");
 }
 
@@ -367,7 +424,7 @@ void QuantileHistMaker::Builder::ExpandWithDepthWise(
     std::vector<ExpandEntry> temp_qexpand_depth;
     SplitSiblings(qexpand_depth_wise_, &nodes_for_explicit_hist_build_,
                   &nodes_for_subtraction_trick_, p_tree);
-    AddHistRows(&starting_index, &sync_count);
+    AddHistRows(&starting_index, &sync_count, p_tree);
 
     BuildLocalHistograms(gmat, gmatb, p_tree, gpair_h);
     SyncHistograms(starting_index, sync_count, p_tree);

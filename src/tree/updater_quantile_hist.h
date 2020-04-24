@@ -259,7 +259,7 @@ class QuantileHistMaker: public TreeUpdater {
                               RegTree *p_tree,
                               const std::vector<GradientPair> &gpair_h);
 
-    void AddHistRows(int *starting_index, int *sync_count);
+    void AddHistRows(int *starting_index, int *sync_count, RegTree *p_tree);
 
     void BuildHistogramsLossGuide(
                         ExpandEntry entry,
