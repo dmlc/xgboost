@@ -18,7 +18,7 @@
 #if defined(_MSC_VER) || defined(_WIN32)
 #define RABIT_DLL RABIT_EXTERN_C __declspec(dllexport)
 #else
-#define RABIT_DLL RABIT_EXTERN_C
+#define RABIT_DLL RABIT_EXTERN_C __attribute__ ((visibility ("default")))
 #endif  // defined(_MSC_VER) || defined(_WIN32)
 
 /*! \brief rabit unsigned long type */
