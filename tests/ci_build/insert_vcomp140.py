@@ -10,7 +10,7 @@ if len(sys.argv) != 2:
 vcomp140_path = 'C:\\Windows\\System32\\vcomp140.dll'
 
 for wheel_path in sorted(glob.glob(sys.argv[1])):
-    m = re.search(r'xgboost-(.*)-py2.py3', wheel_path)
+    m = re.search(r'xgboost-(.*)-py3', wheel_path)
     assert m
     version = m.group(1)
 
