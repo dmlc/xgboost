@@ -85,9 +85,11 @@ namespace common {
     }                                                                          \
   } while (0);
 
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__)
 #define SPAN_CHECK KERNEL_CHECK
-#else
+#elif defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1  // R package
+#define SPAN_CHECK CHECK  // check from dmlc
+#else  // not CUDA, not R
 #define SPAN_CHECK(cond)                                                       \
   do {                                                                         \
     if (XGBOOST_EXPECT(!(cond), false)) {                                      \
