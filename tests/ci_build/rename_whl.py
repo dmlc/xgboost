@@ -21,8 +21,6 @@ whl_path = sys.argv[1]
 commit_id = sys.argv[2]
 platform_tag = sys.argv[3]
 
-assert platform_tag in ['manylinux1_x86_64', 'manylinux2010_x86_64', 'win_amd64']
-
 dirname, basename = os.path.dirname(whl_path), os.path.basename(whl_path)
 
 with cd(dirname):
