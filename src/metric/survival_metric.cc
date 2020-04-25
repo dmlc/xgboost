@@ -70,8 +70,7 @@ struct EvalAFT : public Metric {
 
     double nloglik_sum = 0.0;
     double weight_sum = 0.0;
-    #pragma omp parallel for default(none) \
-     firstprivate(nsize, is_null_weight, aft_loss_distribution_scale) \
+    #pragma omp parallel for \
      shared(weights, y_lower, y_upper, yhat) reduction(+:nloglik_sum, weight_sum)
     for (omp_ulong i = 0; i < nsize; ++i) {
       // If weights are empty, data is unweighted so we use 1.0 everywhere

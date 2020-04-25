@@ -56,8 +56,7 @@ class AFTObj : public ObjFunction {
     const omp_ulong nsize = static_cast<omp_ulong>(yhat.size());
     const float aft_loss_distribution_scale = param_.aft_loss_distribution_scale;
 
-    #pragma omp parallel for default(none) \
-      firstprivate(nsize, is_null_weight, aft_loss_distribution_scale) \
+    #pragma omp parallel for \
       shared(weights, y_lower, y_upper, yhat, gpair)
     for (omp_ulong i = 0; i < nsize; ++i) {
       // If weights are empty, data is unweighted so we use 1.0 everywhere
@@ -74,7 +73,7 @@ class AFTObj : public ObjFunction {
     // Trees give us a prediction in log scale, so exponentiate
     std::vector<bst_float> &preds = io_preds->HostVector();
     const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
-    #pragma omp parallel for default(none) firstprivate(ndata) shared(preds)
+    #pragma omp parallel for shared(preds)
     for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
       preds[j] = std::exp(preds[j]);
     }
