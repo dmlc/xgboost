@@ -58,7 +58,7 @@ if [ ${TASK} == "python_test" ]; then
             S3_DEST="s3://xgboost-nightly-builds/${TRAVIS_BRANCH}/"
         fi
     fi
-    python -m awscli s3 cp python-package/dist/*.whl "${S3_DEST}" || true
+    python -m awscli s3 cp python-package/dist/*.whl "${S3_DEST}" --acl public-read || true
 fi
 
 if [ ${TASK} == "java_test" ]; then
