@@ -136,3 +136,14 @@ Arrow specification.'''
         n = 100
         X = cp.random.random((n, 2))
         xgb.DeviceQuantileDMatrix(X.toDlpack())
+
+    @pytest.mark.skipif(**tm.no_cupy())
+    @pytest.mark.mgpu
+    def test_specified_device(self):
+        import cupy as cp
+        cp.cuda.runtime.setDevice(0)
+        dtrain = dmatrix_from_cupy(
+            np.float32, xgb.DeviceQuantileDMatrix, np.nan)
+        with pytest.raises(xgb.core.XGBoostError):
+            xgb.train({'tree_method': 'gpu_hist', 'gpu_id': 1},
+                      dtrain, num_boost_round=10)

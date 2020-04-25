@@ -99,6 +99,7 @@ void CopyDataRowMajor(AdapterT* adapter, common::Span<Entry> data,
 // be supported in future. Does not currently support inferring row/column size
 template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
+  dh::safe_cuda(cudaSetDevice(adapter->DeviceIdx()));
   CHECK(adapter->NumRows() != kAdapterUnknownSize);
   CHECK(adapter->NumColumns() != kAdapterUnknownSize);
 
