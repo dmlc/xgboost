@@ -121,6 +121,7 @@ class TestGPUPredict(unittest.TestCase):
     @pytest.mark.skipif(**tm.no_cupy())
     def test_inplace_predict_cupy(self):
         import cupy as cp
+        cp.cuda.runtime.setDevice(0)
         rows = 1000
         cols = 10
         cp_rng = cp.random.RandomState(1994)
