@@ -418,12 +418,14 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
  *          4:output feature contributions to individual predictions
  * \param ntree_limit limit number of trees used for prediction, this is only valid for boosted trees
  *    when the parameter is set to 0, we will use all the trees
- * \param training_dart_use_dropout Whether the prediction value is used for training under DART.
- *    For most use cases, set it to 0. Set this parameter to 1 only if ALL of the following
- *    conditions hold:
- *    1) you are writing a training loop (inference doesn't apply);
- *    2) you are using DART;
- *    3) you are using a customized objective function.
+ * \param training Whether the prediction function is used as part of a training loop.
+ *    1. If you are running prediction to obtain a metric (not gradient pairs), set training=False.
+ *    2. When should you set training=true?
+ *       Normally, you don't need to use XGBoosterPredict() in your training loop, since you are
+ *       probably using XGBoosterUpdateOneIter(), which calls XGBoosterPredict() internally. The one
+ *       case you should use XGBoosterPredict() in your training loop is when you wrote a customized
+ *       objective. In this case, call XGBoosterPredict() with training=true and then invoke your
+ *       customized objective fobj(predicted_label, true_label) to obtain the gradient pairs.
  * \param out_len used to store length of returning result
  * \param out_result used to set a pointer to array
  * \return 0 when success, -1 when failure happens
@@ -432,7 +434,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              DMatrixHandle dmat,
                              int option_mask,
                              unsigned ntree_limit,
-                             int training_dart_use_dropout,
+                             int training,
                              bst_ulong *out_len,
                              const float **out_result);
 /*
