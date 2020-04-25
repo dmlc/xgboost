@@ -419,15 +419,11 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
  * \param ntree_limit limit number of trees used for prediction, this is only valid for boosted trees
  *    when the parameter is set to 0, we will use all the trees
  * \param training_dart_use_dropout Whether the prediction value is used for training under DART.
- *        If you are not using DART, just set it to 0 and ignore rest of this discussion.
- *        Setting training_dart_use_dropout=1 will cause the prediction function to perform 
- *        dropout, evaluating only a subset of the trees in the ensemble. Setting it to 0 will 
- *        evaluate all trees.
- *        XGBoosterPredict() is used in two places:
- *	  a) When you are training a tree ensemble. Here, you want to perform dropout.
- *        b) When you are done training and now would like to evaluate the model on a new dataset.
- *           In this second case, you do not want dropout.
- *	  Are you using XGBoosterPredict() after you are done training your model? Then set training=0 (false).
+ *    For most use cases, set it to 0. Set this parameter to 1 only if ALL of the following
+ *    conditions hold:
+ *    1) you are writing a training loop (inference doesn't apply);
+ *    2) you are using DART;
+ *    3) you are using a customized objective function.
  * \param out_len used to store length of returning result
  * \param out_result used to set a pointer to array
  * \return 0 when success, -1 when failure happens
