@@ -17,10 +17,12 @@
 #include "xgboost/span.h"
 #include "xgboost/json.h"
 
+#include "../common/io.h"
 #include "../common/device_helpers.cuh"
 #include "../common/hist_util.h"
 #include "../common/timer.h"
 #include "../data/ellpack_page.cuh"
+
 #include "param.h"
 #include "updater_gpu_common.cuh"
 #include "constraints.cuh"

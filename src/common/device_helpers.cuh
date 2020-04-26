@@ -30,7 +30,6 @@
 
 #ifdef XGBOOST_USE_NCCL
 #include "nccl.h"
-#include "../common/io.h"
 #endif
 
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600 || defined(__clang__)

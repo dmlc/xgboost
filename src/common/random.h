@@ -18,7 +18,6 @@
 #include <random>
 
 #include "xgboost/host_device_vector.h"
-#include "io.h"
 
 namespace xgboost {
 namespace common {

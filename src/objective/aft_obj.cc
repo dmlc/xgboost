@@ -114,5 +114,3 @@ XGBOOST_REGISTER_OBJECTIVE(AFTObj, "survival:aft")
 
 }  // namespace obj
 }  // namespace xgboost
-
-
