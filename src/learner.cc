@@ -187,8 +187,13 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
   // raw model), number of available GPUs could be different.  Wrap around it.
   int32_t n_gpus = common::AllVisibleGPUs();
   if (n_gpus == 0) {
+    if (gpu_id != kCpuId) {
+      LOG(WARNING) << "No visible GPU is found, setting `gpu_id` to -1";
+    }
     this->UpdateAllowUnknown(Args{{"gpu_id", std::to_string(kCpuId)}});
   } else if (gpu_id != kCpuId && gpu_id >= n_gpus) {
+    LOG(WARNING) << "Only " << n_gpus
+                 << " GPUs are visible, setting `gpu_id` to " << gpu_id % n_gpus;
     this->UpdateAllowUnknown(Args{{"gpu_id", std::to_string(gpu_id % n_gpus)}});
   }
 #else
