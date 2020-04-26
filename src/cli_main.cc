@@ -175,8 +175,8 @@ class CLI {
     kHelp
   } print_info_ {kNone};
 
-  int ResetLearner(std::vector<std::shared_ptr<DMatrix>> const& matrics) {
-    learner_.reset(Learner::Create(matrics));
+  int ResetLearner(std::vector<std::shared_ptr<DMatrix>> const &matrices) {
+    learner_.reset(Learner::Create(matrices));
     int version = rabit::LoadCheckPoint(learner_.get());
     if (version == 0) {
       if (param_.model_in != CLIParam::kNull) {
