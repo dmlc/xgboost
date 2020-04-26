@@ -148,7 +148,7 @@ HistogramCutsWrapper GetHostCutMatrix () {
 }
 
 // TODO(trivialfis): This test is over simplified.
-TEST(GpuHist, EvaluateSplits) {
+TEST(GpuHist, EvaluateRootSplit) {
   constexpr int kNRows = 16;
   constexpr int kNCols = 8;
 
@@ -156,16 +156,16 @@ TEST(GpuHist, EvaluateSplits) {
 
   std::vector<std::pair<std::string, std::string>> args {
     {"max_depth", "1"},
-    {"max_leaves", "0"},
+  {"max_leaves", "0"},
 
-    // Disable all other parameters.
-    {"colsample_bynode", "1"},
-    {"colsample_bylevel", "1"},
-    {"colsample_bytree", "1"},
-    {"min_child_weight", "0.01"},
-    {"reg_alpha", "0"},
-    {"reg_lambda", "0"},
-    {"max_delta_step", "0"}
+  // Disable all other parameters.
+  {"colsample_bynode", "1"},
+  {"colsample_bylevel", "1"},
+  {"colsample_bytree", "1"},
+  {"min_child_weight", "0.01"},
+  {"reg_alpha", "0"},
+  {"reg_lambda", "0"},
+  {"max_delta_step", "0"}
   };
   param.Init(args);
   for (size_t i = 0; i < kNCols; ++i) {
@@ -178,9 +178,9 @@ TEST(GpuHist, EvaluateSplits) {
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
   GPUHistMakerDevice<GradientPairPrecise>
-      maker(0, page.get(), kNRows, param, kNCols, kNCols, true, batch_param);
+    maker(0, page.get(), kNRows, param, kNCols, kNCols, true, batch_param);
   // Initialize GPUHistMakerDevice::node_sum_gradients
-  maker.host_node_sum_gradients = {{6.4f, 12.8f}};
+  maker.host_node_sum_gradients = {};
 
   // Initialize GPUHistMakerDevice::cut
   auto cmat = GetHostCutMatrix();
@@ -203,13 +203,13 @@ TEST(GpuHist, EvaluateSplits) {
 
   ASSERT_EQ(maker.hist.Data().size(), hist.size());
   thrust::copy(hist.begin(), hist.end(),
-               maker.hist.Data().begin());
+    maker.hist.Data().begin());
 
   maker.column_sampler.Init(kNCols,
-                            param.colsample_bynode,
-                            param.colsample_bylevel,
-                            param.colsample_bytree,
-                            false);
+    param.colsample_bynode,
+    param.colsample_bylevel,
+    param.colsample_bytree,
+    false);
 
   RegTree tree;
   MetaInfo info;
@@ -220,12 +220,10 @@ TEST(GpuHist, EvaluateSplits) {
   maker.node_value_constraints[0].lower_bound = -1.0;
   maker.node_value_constraints[0].upper_bound = 1.0;
 
-  std::vector<DeviceSplitCandidate> res = maker.EvaluateSplits({0, 0 }, tree, kNCols);
+  DeviceSplitCandidate res = maker.EvaluateRootSplit({6.4f, 12.8f});
 
-  ASSERT_EQ(res[0].findex, 7);
-  ASSERT_EQ(res[1].findex, 7);
-  ASSERT_NEAR(res[0].fvalue, 0.26, xgboost::kRtEps);
-  ASSERT_NEAR(res[1].fvalue, 0.26, xgboost::kRtEps);
+  ASSERT_EQ(res.findex, 7);
+  ASSERT_NEAR(res.fvalue, 0.26, xgboost::kRtEps);
 }
 
 void TestHistogramIndexImpl() {
