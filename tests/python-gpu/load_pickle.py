@@ -58,7 +58,6 @@ class TestLoadPickle(unittest.TestCase):
 
     def test_training_on_cpu_only_env(self):
         assert os.environ['CUDA_VISIBLE_DEVICES'] == '-1'
-        print('RUnning')
         rng = np.random.RandomState(1994)
         X = rng.randn(10, 10)
         y = rng.randn(10)
