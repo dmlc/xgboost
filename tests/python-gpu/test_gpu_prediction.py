@@ -4,6 +4,7 @@ import pytest
 
 import numpy as np
 import xgboost as xgb
+
 sys.path.append("tests/python")
 import testing as tm
 from test_predict import run_threaded_predict  # noqa
@@ -34,12 +35,13 @@ class TestGPUPredict(unittest.TestCase):
                 param = {
                     "objective": "binary:logistic",
                     "predictor": "gpu_predictor",
-                    'eval_metric': 'auc',
-                    'tree_method': 'gpu_hist'
+                    'eval_metric': 'logloss',
+                    'tree_method': 'gpu_hist',
+                    'max_depth': 1
                 }
                 bst = xgb.train(param, dtrain, iterations, evals=watchlist,
                                 evals_result=res)
-                assert self.non_decreasing(res["train"]["auc"])
+                assert self.non_increasing(res["train"]["logloss"])
                 gpu_pred_train = bst.predict(dtrain, output_margin=True)
                 gpu_pred_test = bst.predict(dtest, output_margin=True)
                 gpu_pred_val = bst.predict(dval, output_margin=True)
@@ -57,8 +59,8 @@ class TestGPUPredict(unittest.TestCase):
                 np.testing.assert_allclose(cpu_pred_test, gpu_pred_test,
                                            rtol=1e-6)
 
-    def non_decreasing(self, L):
-        return all((x - y) < 0.001 for x, y in zip(L, L[1:]))
+    def non_increasing(self, L):
+        return all((y - x) < 0.001 for x, y in zip(L, L[1:]))
 
     # Test case for a bug where multiple batch predictions made on a
     # test set produce incorrect results

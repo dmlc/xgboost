@@ -649,8 +649,9 @@ struct GPUHistMakerDevice {
     this->AllReduceHist(kRootNIdx, reducer);
 
     // Remember root stats
-    p_tree->Stat(kRootNIdx).sum_hess = node_sum_gradients[kRootNIdx].GetHess();
-    auto weight = CalcWeight(param, node_sum_gradients[kRootNIdx]);
+    node_sum_gradients[kRootNIdx] = root_sum;
+    p_tree->Stat(kRootNIdx).sum_hess = root_sum.GetHess();
+    auto weight = CalcWeight(param, root_sum);
     p_tree->Stat(kRootNIdx).base_weight = weight;
     (*p_tree)[kRootNIdx].SetLeaf(param.learning_rate * weight);
 
