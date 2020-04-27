@@ -228,15 +228,13 @@ struct GPUHistMakerDevice {
   std::unique_ptr<RowPartitioner> row_partitioner;
   DeviceHistogram<GradientSumT> hist{};
 
-  /*! \brief Gradient pair for each row. */
   common::Span<GradientPair> gpair;
 
   dh::caching_device_vector<int> monotone_constraints;
   dh::caching_device_vector<bst_float> prediction_cache;
 
   /*! \brief Sum gradient for each node. */
-  std::vector<GradientPair> host_node_sum_gradients;
-  dh::caching_device_vector<GradientPair> node_sum_gradients;
+  std::vector<GradientPair> node_sum_gradients;
 
   TrainParam param;
   bool deterministic_histogram;
@@ -278,7 +276,6 @@ struct GPUHistMakerDevice {
       // Copy assigning an empty vector causes an exception in MSVC debug builds
       monotone_constraints = param.monotone_constraints;
     }
-    host_node_sum_gradients.resize(param.MaxNodes());
     node_sum_gradients.resize(param.MaxNodes());
 
     // Init histogram
@@ -324,7 +321,7 @@ struct GPUHistMakerDevice {
       param.colsample_bylevel, param.colsample_bytree);
     dh::safe_cuda(cudaSetDevice(device_id));
     this->interaction_constraints.Reset();
-    std::fill(host_node_sum_gradients.begin(), host_node_sum_gradients.end(),
+    std::fill(node_sum_gradients.begin(), node_sum_gradients.end(),
               GradientPair());
 
     auto sample = sampler->Sample(dh_gpair->DeviceSpan(), dmat);
@@ -343,17 +340,14 @@ struct GPUHistMakerDevice {
   }
 
 
-  DeviceSplitCandidate EvaluateRootSplit(GradientPair root_sum)
-  {
+  DeviceSplitCandidate EvaluateRootSplit(GradientPair root_sum) {
     int nidx = 0;
     dh::TemporaryArray<DeviceSplitCandidate> splits_out(1);
     GPUTrainingParam gpu_param(param);
-    auto sampled_features =
-        column_sampler.GetFeatureSet(0);
+    auto sampled_features = column_sampler.GetFeatureSet(0);
     sampled_features->SetDevice(device_id);
     common::Span<bst_feature_t> feature_set =
-        interaction_constraints.Query(sampled_features->DeviceSpan(),
-                                      nidx);
+        interaction_constraints.Query(sampled_features->DeviceSpan(), nidx);
     auto matrix = page->GetDeviceAccessor(device_id);
     EvaluateSplitInputs<GradientSumT> inputs{
         nidx,
@@ -374,9 +368,9 @@ struct GPUHistMakerDevice {
     return result.front();
   }
 
-  std::vector<DeviceSplitCandidate> EvaluateLeftRightSplits(ExpandEntry candidate,int left_nidx,
-                                                   int right_nidx,
-                                                   const RegTree& tree) {
+  std::vector<DeviceSplitCandidate> EvaluateLeftRightSplits(
+      ExpandEntry candidate, int left_nidx, int right_nidx,
+      const RegTree& tree) {
     dh::TemporaryArray<DeviceSplitCandidate> splits_out(2);
     GPUTrainingParam gpu_param(param);
     auto left_sampled_features =
@@ -400,7 +394,7 @@ struct GPUHistMakerDevice {
                                            left_feature_set,
                                            matrix.feature_segments,
                                            matrix.gidx_fvalue_map,
-        matrix.min_fvalue,
+                                           matrix.min_fvalue,
                                            hist.GetNodeHistogram(left_nidx),
                                            node_value_constraints[left_nidx],
                                            dh::ToSpan(monotone_constraints)};
@@ -536,13 +530,14 @@ struct GPUHistMakerDevice {
     }
 
     CalcWeightTrainParam param_d(param);
+    dh::TemporaryArray<GradientPair> device_node_sum_gradients(node_sum_gradients.size());
 
     dh::safe_cuda(
-        cudaMemcpyAsync(node_sum_gradients.data().get(), host_node_sum_gradients.data(),
-                        sizeof(GradientPair) * host_node_sum_gradients.size(),
+        cudaMemcpyAsync(device_node_sum_gradients.data().get(), node_sum_gradients.data(),
+                        sizeof(GradientPair) * node_sum_gradients.size(),
                         cudaMemcpyHostToDevice));
     auto d_position = row_partitioner->GetPosition();
-    auto d_node_sum_gradients = node_sum_gradients.data().get();
+    auto d_node_sum_gradients = device_node_sum_gradients.data().get();
     auto d_prediction_cache = prediction_cache.data().get();
 
     dh::LaunchN(
@@ -629,9 +624,9 @@ struct GPUHistMakerDevice {
         candidate.split.right_sum,
         &node_value_constraints[tree[candidate.nid].LeftChild()],
         &node_value_constraints[tree[candidate.nid].RightChild()]);
-    host_node_sum_gradients[tree[candidate.nid].LeftChild()] =
+    node_sum_gradients[tree[candidate.nid].LeftChild()] =
         candidate.split.left_sum;
-    host_node_sum_gradients[tree[candidate.nid].RightChild()] =
+    node_sum_gradients[tree[candidate.nid].RightChild()] =
         candidate.split.right_sum;
 
     interaction_constraints.Split(
@@ -640,29 +635,22 @@ struct GPUHistMakerDevice {
                                   tree[candidate.nid].RightChild());
   }
 
-  void InitRoot(RegTree* p_tree, dh::AllReducer* reducer, int64_t num_columns) {
+  void InitRoot(RegTree* p_tree, dh::AllReducer* reducer) {
     constexpr bst_node_t kRootNIdx = 0;
     dh::XGBCachingDeviceAllocator<char> alloc;
     GradientPair root_sum = thrust::reduce(
         thrust::cuda::par(alloc),
         thrust::device_ptr<GradientPair const>(gpair.data()),
         thrust::device_ptr<GradientPair const>(gpair.data() + gpair.size()));
-    dh::safe_cuda(cudaMemcpyAsync(node_sum_gradients.data().get(), &root_sum, sizeof(root_sum),
-                                  cudaMemcpyHostToDevice));
-    reducer->AllReduceSum(
-        reinterpret_cast<float*>(node_sum_gradients.data().get()),
-        reinterpret_cast<float*>(node_sum_gradients.data().get()), 2);
-    reducer->Synchronize();
-    dh::safe_cuda(cudaMemcpyAsync(host_node_sum_gradients.data(),
-                                  node_sum_gradients.data().get(), sizeof(GradientPair),
-                                  cudaMemcpyDeviceToHost));
+    rabit::Allreduce<rabit::op::Sum, float>(reinterpret_cast<float*>(&root_sum),
+                                            2);
 
     this->BuildHist(kRootNIdx);
     this->AllReduceHist(kRootNIdx, reducer);
 
     // Remember root stats
-    p_tree->Stat(kRootNIdx).sum_hess = host_node_sum_gradients[kRootNIdx].GetHess();
-    auto weight = CalcWeight(param, host_node_sum_gradients[kRootNIdx]);
+    p_tree->Stat(kRootNIdx).sum_hess = node_sum_gradients[kRootNIdx].GetHess();
+    auto weight = CalcWeight(param, node_sum_gradients[kRootNIdx]);
     p_tree->Stat(kRootNIdx).base_weight = weight;
     (*p_tree)[kRootNIdx].SetLeaf(param.learning_rate * weight);
 
@@ -684,7 +672,7 @@ struct GPUHistMakerDevice {
     monitor.StopCuda("Reset");
 
     monitor.StartCuda("InitRoot");
-    this->InitRoot(p_tree, reducer, p_fmat->Info().num_col_);
+    this->InitRoot(p_tree, reducer);
     monitor.StopCuda("InitRoot");
 
     auto timestamp = qexpand->size();

@@ -4,12 +4,13 @@
 #ifndef EVALUATE_SPLITS_CUH_
 #define EVALUATE_SPLITS_CUH_
 #include <xgboost/span.h>
+#include "../../data/ellpack_page.cuh"
 #include "../constraints.cuh"
 #include "../updater_gpu_common.cuh"
-#include "../../data/ellpack_page.cuh"
 
 namespace xgboost {
 namespace tree {
+
 template <typename GradientSumT>
 struct EvaluateSplitInputs {
   int nidx;
@@ -25,10 +26,11 @@ struct EvaluateSplitInputs {
 };
 template <typename GradientSumT>
 void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
-                    EvaluateSplitInputs<GradientSumT> left, EvaluateSplitInputs<GradientSumT> right);
+                    EvaluateSplitInputs<GradientSumT> left,
+                    EvaluateSplitInputs<GradientSumT> right);
 template <typename GradientSumT>
 void EvaluateSingleSplit(common::Span<DeviceSplitCandidate> out_split,
-  EvaluateSplitInputs<GradientSumT> input);
+                         EvaluateSplitInputs<GradientSumT> input);
 }  // namespace tree
 }  // namespace xgboost
 
