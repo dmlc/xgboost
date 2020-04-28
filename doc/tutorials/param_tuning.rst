@@ -58,3 +58,8 @@ This can affect the training of XGBoost model, and there are two ways to improve
 
   - In such a case, you cannot re-balance the dataset
   - Set parameter ``max_delta_step`` to a finite number (say 1) to help convergence
+
+**************************
+Automated Parameter Tuning
+**************************
+Automated tuning of parameters can be done with hyperparameter optimization libraries, like `Optuna <https://optuna.org>`_.
