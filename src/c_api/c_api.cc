@@ -23,6 +23,7 @@
 #include "../common/io.h"
 #include "../data/adapter.h"
 #include "../data/simple_dmatrix.h"
+#include "../data/iterative_device_dmatrix.h"
 
 using namespace xgboost; // NOLINT(*);
 
@@ -38,16 +39,16 @@ XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch) {
   }
 }
 
-int XGBRegisterLogCallback(void (*callback)(const char*)) {
+XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
   API_BEGIN();
   LogCallbackRegistry* registry = LogCallbackRegistryStore::Get();
   registry->Register(callback);
   API_END();
 }
 
-int XGDMatrixCreateFromFile(const char *fname,
-                            int silent,
-                            DMatrixHandle *out) {
+XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
+                                    int silent,
+                                    DMatrixHandle *out) {
   API_BEGIN();
   bool load_row_split = false;
   if (rabit::IsDistributed()) {
@@ -76,6 +77,20 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
         1, scache
     )
   };
+  API_END();
+}
+
+XGB_DLL int XGDMatrixFromCudaArrayInterfaceIterator(DataIterResetCallback* reset,
+                                                    CudaArrayInterfaceNextCallback* next,
+                                                    float missing,
+                                                    int nthread, int max_bin,
+                                                    int device,
+                                                    DataIterHandle *iter,
+                                                    DMatrixHandle *out) {
+  API_BEGIN();
+  auto adapter = data::CudaArrayInterfaceCallbackAdapter(reset, next, iter, device);
+  *out = new std::shared_ptr<DMatrix>{
+      new data::IterativeDeviceDMatrix(&adapter, missing, nthread, max_bin)};
   API_END();
 }
 

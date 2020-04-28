@@ -21,6 +21,7 @@
 #include "xgboost/c_api.h"
 
 #include "../c_api/c_api_error.h"
+#include "array_interface.h"
 
 namespace xgboost {
 namespace data {
@@ -125,7 +126,7 @@ class CSRAdapterBatch : public detail::NoMetaInfo {
           values_(values) {}
 
     size_t Size() const { return size_; }
-    COOTuple GetElement(size_t idx) const {
+     COOTuple GetElement(size_t idx) const {
       return COOTuple{row_idx_, feature_idx_[idx], values_[idx]};
     }
 
@@ -178,6 +179,7 @@ class CSRAdapter : public detail::SingleBatchDataIter<CSRAdapterBatch> {
 
 class DenseAdapterBatch : public detail::NoMetaInfo {
  public:
+  DenseAdapterBatch() = default;
   DenseAdapterBatch(const float* values, size_t num_rows, size_t num_features)
       : values_(values),
         num_rows_(num_rows),
@@ -204,6 +206,10 @@ class DenseAdapterBatch : public detail::NoMetaInfo {
   size_t Size() const { return num_rows_; }
   const Line GetLine(size_t idx) const {
     return Line(values_ + idx * num_features_, num_features_, idx);
+  }
+  XGBOOST_DEVICE const COOTuple GetElement(size_t idx) const {
+    return COOTuple{idx / num_features_, idx % num_features_,
+                    *(values_ + idx / num_features_ + idx % num_features_)};
   }
 
  private:
@@ -512,7 +518,7 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
   bool Next() override {
     if ((*next_callback_)(
             data_handle_,
-            [](void *handle, XGBoostBatchCSR batch) -> int {
+            [] (void *handle, XGBoostBatchCSR batch) -> int {
               API_BEGIN();
               static_cast<IteratorAdapter *>(handle)->SetData(batch);
               API_END();
@@ -591,14 +597,123 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
   size_t row_offset_;
   // at the beinning.
   bool at_first_;
-  // handle to the iterator,
+  // handle to the external iterator, can be a java iterator.
   DataIterHandle data_handle_;
-  // call back to get the data.
+  // call back to get the data, one example is a callback function defined in jvm package.
   XGBCallbackDataIterNext *next_callback_;
   // internal Rowblock
   dmlc::RowBlock<uint32_t> block_;
   std::unique_ptr<FileAdapterBatch> batch_;
 };
-};  // namespace data
+
+template <typename NextCallback, typename SetData, typename Batch>
+class CallBackAdapter : public dmlc::DataIter<Batch> {
+ protected:
+  Batch batch_;
+  size_t rows_ { kAdapterUnknownSize };
+
+ private:
+  DataIterResetCallback* reset_callback_;
+  NextCallback* next_callback_;
+  SetData* set_data_;
+
+ public:
+  CallBackAdapter(DataIterResetCallback* reset, NextCallback* next, SetData* set_data)
+      : reset_callback_{reset}, next_callback_{next}, set_data_{set_data} {
+    CHECK(reset_callback_);
+    CHECK(next_callback_);
+  }
+  void AccumulateRows() {
+    this->BeforeFirst();
+    rows_ = 0;
+    while (this->Next()) {
+      rows_ += this->Value().NumRows();
+    }
+    // reset
+    this->BeforeFirst();
+  }
+
+  void BeforeFirst() override {
+    reset_callback_();
+  }
+  virtual size_t NumRows() const { return rows_; }
+  bool Next() override { return next_callback_(set_data_); }
+  const Batch &Value() const override { return batch_; }
+  Batch &Value() { return batch_; }
+};
+
+class CupyAdapterBatch : public detail::NoMetaInfo {
+ public:
+  CupyAdapterBatch() = default;
+  explicit CupyAdapterBatch(ArrayInterface array_interface)
+    : array_interface_(std::move(array_interface)) {}
+  size_t Size() const {
+    return array_interface_.num_rows * array_interface_.num_cols;
+  }
+  size_t NumRows() const { return array_interface_.num_rows; }
+
+  XGBOOST_DEVICE COOTuple GetElement(size_t idx) const {
+    size_t column_idx = idx % array_interface_.num_cols;
+    size_t row_idx = idx / array_interface_.num_cols;
+    float value = array_interface_.valid.Data() == nullptr ||
+                          array_interface_.valid.Check(row_idx)
+                      ? array_interface_.GetElement(idx)
+                      : std::numeric_limits<float>::quiet_NaN();
+    return {row_idx, column_idx, value};
+  }
+
+ private:
+  ArrayInterface array_interface_;
+};
+
+class CudaArrayInterfaceCallbackAdapter
+    : public CallBackAdapter<CudaArrayInterfaceNextCallback,
+                             CudaArrayInterfaceCallBackSetData,
+                             CupyAdapterBatch> {
+
+ public:
+  CudaArrayInterfaceCallbackAdapter(DataIterResetCallback *reset,
+                                    CudaArrayInterfaceNextCallback *next,
+                                    DataIterHandle *iter, int device)
+      : CallBackAdapter<
+            CudaArrayInterfaceNextCallback, CudaArrayInterfaceCallBackSetData,
+            CupyAdapterBatch>{reset, next,
+                              [](DataIterHandle handle,
+                                 char const *interface) -> int {
+                                API_BEGIN()
+                                static_cast<
+                                    CudaArrayInterfaceCallbackAdapter *>(handle)
+                                    ->SetData(interface);
+                                API_END()
+                              }},
+        device_{device} {
+    *iter = this;
+    this->AccumulateRows();
+  }
+
+  void SetData(char const* c_interface) {
+    std::string interface_str = c_interface;
+    Json json_array_interface =
+        Json::Load({interface_str.c_str(), interface_str.size()});
+    ArrayInterface interface{get<Object const>(json_array_interface)};
+    this->batch_ = CupyAdapterBatch(interface);
+    this->cols_ = interface.num_cols;
+  }
+
+  bool IsRowMajor() const { return true; }
+  size_t NumColumns() const { return cols_; }
+  int DeviceIdx() const { return device_; }
+
+ private:
+  int device_ { -1 };
+  size_t cols_ { kAdapterUnknownSize };
+};
+
+#define DEFINE_DEVICE_ADAPTER(__func)                                          \
+  __func(::xgboost::data::CudfAdapter);                                        \
+  __func(::xgboost::data::CudaArrayInterfaceCallbackAdapter);                  \
+  __func(::xgboost::data::CupyAdapter);
+
+}  // namespace data
 }  // namespace xgboost
 #endif  // XGBOOST_DATA_ADAPTER_H_

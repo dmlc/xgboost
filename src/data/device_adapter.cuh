@@ -166,28 +166,6 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
   int device_idx_;
 };
 
-class CupyAdapterBatch : public detail::NoMetaInfo {
- public:
-  CupyAdapterBatch() = default;
-  explicit CupyAdapterBatch(ArrayInterface array_interface)
-    : array_interface_(std::move(array_interface)) {}
-  size_t Size() const {
-    return array_interface_.num_rows * array_interface_.num_cols;
-  }
-  __device__ COOTuple GetElement(size_t idx) const {
-    size_t column_idx = idx % array_interface_.num_cols;
-    size_t row_idx = idx / array_interface_.num_cols;
-    float value = array_interface_.valid.Data() == nullptr ||
-                          array_interface_.valid.Check(row_idx)
-                      ? array_interface_.GetElement(idx)
-                      : std::numeric_limits<float>::quiet_NaN();
-    return {row_idx, column_idx, value};
-  }
-
- private:
-  ArrayInterface array_interface_;
-};
-
 class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
  public:
   explicit CupyAdapter(std::string cuda_interface_str) {
@@ -212,6 +190,27 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
   int device_idx_;
 };
 
+// Returns maximum row length
+template <typename AdapterBatchT>
+size_t GetRowCounts(const AdapterBatchT& batch, common::Span<size_t> offset,
+                    int device_idx, float missing) {
+  IsValidFunctor is_valid(missing);
+  // Count elements per row
+  dh::LaunchN(device_idx, batch.Size(), [=] __device__(size_t idx) {
+    auto element = batch.GetElement(idx);
+    if (is_valid(element)) {
+      atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
+                    &offset[element.row_idx]),
+                static_cast<unsigned long long>(1));  // NOLINT
+    }
+  });
+  dh::XGBCachingDeviceAllocator<char> alloc;
+  size_t row_stride = thrust::reduce(
+      thrust::cuda::par(alloc), thrust::device_pointer_cast(offset.data()),
+      thrust::device_pointer_cast(offset.data()) + offset.size(), size_t(0),
+      thrust::maximum<size_t>());
+  return row_stride;
+}
 };  // namespace data
 }  // namespace xgboost
 #endif  // XGBOOST_DATA_DEVICE_ADAPTER_H_

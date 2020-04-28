@@ -356,6 +356,12 @@ class DaskDMatrix:
         return (rows, cols)
 
 
+class DeviceQuantileDMatrix(DaskDMatrix):
+    def __init__(self):
+        ''''''
+        super().__init__()
+
+
 def _get_rabit_args(worker_map, client):
     '''Get rabit context arguments from data distribution in DaskDMatrix.'''
     host = distributed_comm.get_address_host(client.scheduler.address)

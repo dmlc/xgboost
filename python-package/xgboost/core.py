@@ -451,6 +451,17 @@ def _maybe_np_slice(data, dtype=np.float32):
     return data
 
 
+class DataIter:
+    def __init__(self):
+        self.cxx_handle = ctypes.c_void_p()
+
+    def reset(self):
+        pass
+
+    def next(self, func):
+        pass
+
+
 class DMatrix(object):
     """Data Matrix used in XGBoost.
 
@@ -528,6 +539,26 @@ class DMatrix(object):
                                                      ctypes.c_int(silent),
                                                      ctypes.byref(handle)))
             self.handle = handle
+        if isinstance(data, DataIter):
+            handle = ctypes.c_void_p()
+            reset_factory = ctypes.CFUNCTYPE(None)
+            reset_callback = reset_factory(data.reset)
+            next_factory = ctypes.CFUNCTYPE(
+                ctypes.c_int,
+                ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p,
+                                 ctypes.c_char_p))
+            next_callback = next_factory(data.next)
+            _check_call(_LIB.XGDMatrixFromCudaArrayInterfaceIterator(
+                reset_callback,
+                next_callback,
+                ctypes.c_float(missing),
+                ctypes.c_int(nthread),
+                ctypes.c_int(256),
+                ctypes.c_int(0),
+                ctypes.byref(data.cxx_handle),
+                ctypes.byref(handle)
+            ))
+            self.handle = handle
         elif isinstance(data, scipy.sparse.csr_matrix):
             self._init_from_csr(data)
         elif isinstance(data, scipy.sparse.csc_matrix):
@@ -557,6 +588,7 @@ class DMatrix(object):
 
         self.feature_names = feature_names
         self.feature_types = feature_types
+        print('After construction', type(self.handle))
 
     def _init_from_csr(self, csr):
         """Initialize data from a CSR matrix."""

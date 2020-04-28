@@ -338,6 +338,12 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
   }
 }
 
+void MetaInfo::Append(MetaInfo const& that) {
+  this->labels_.HostVector().insert(this->labels_.HostVector().end(),
+                                    that.labels_.HostVector().begin(),
+                                    that.labels_.HostVector().end());
+}
+
 void MetaInfo::Validate(int32_t device) const {
   if (group_ptr_.size() != 0 && weights_.Size() != 0) {
     CHECK_EQ(group_ptr_.size(), weights_.Size() + 1)
@@ -529,7 +535,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
 
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix,  size_t page_size ) {
+                         const std::string& cache_prefix,  size_t page_size) {
   if (cache_prefix.length() == 0) {
     // Data split mode is fixed to be row right now.
     return new data::SimpleDMatrix(adapter, missing, nthread);

@@ -13,20 +13,6 @@
 namespace xgboost {
 namespace data {
 
-size_t GetRowStride(DMatrix* dmat) {
-  if (dmat->IsDense()) return dmat->Info().num_col_;
-
-  size_t row_stride = 0;
-  for (const auto& batch : dmat->GetBatches<SparsePage>()) {
-    const auto& row_offset = batch.offset.ConstHostVector();
-    for (auto i = 1ull; i < row_offset.size(); i++) {
-      row_stride = std::max(
-          row_stride, static_cast<size_t>(row_offset[i] - row_offset[i - 1]));
-    }
-  }
-  return row_stride;
-}
-
 // Build the quantile sketch across the whole input data, then use the histogram cuts to compress
 // each CSR page, and write the accumulated ELLPACK pages to disk.
 EllpackPageSource::EllpackPageSource(DMatrix* dmat,

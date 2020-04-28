@@ -127,15 +127,16 @@ inline void CheckCacheFileExists(const std::string& file) {
   }
 }
 
-  /**
-   * \brief Given a set of cache files and page type, this object iterates over batches using prefetching for improved performance. Not thread safe.
-   *
-   * \tparam  PageT Type of the page t.
-   */
-  template <typename PageT>
+/**
+ * \brief Given a set of cache files and page type, this object iterates over batches
+ * using prefetching for improved performance. Not thread safe.
+ *
+ * \tparam  PageT Type of the page t.
+ */
+template <typename PageT>
 class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
  public:
-    explicit ExternalMemoryPrefetcher(const CacheInfo& info) noexcept(false)
+  explicit ExternalMemoryPrefetcher(const CacheInfo& info) noexcept(false)
       : base_rowid_(0), page_(nullptr), clock_ptr_(0) {
     // read in the info files
     CHECK_NE(info.name_shards.size(), 0U);

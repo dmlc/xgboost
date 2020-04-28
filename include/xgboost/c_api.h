@@ -95,6 +95,24 @@ XGB_EXTERN_C typedef int XGBCallbackDataIterNext(  // NOLINT(*)
     DataHolderHandle set_function_handle);
 
 /*!
+ * \brief Callback function for reseting external iterator
+ */
+XGB_EXTERN_C typedef void DataIterResetCallback();  // NOLINT(*)
+
+/*!
+ * \brief Callback function defined in XGBoost core used for accepting data.
+ */
+XGB_EXTERN_C typedef int CudaArrayInterfaceCallBackSetData(  // NOLINT(*)
+    DataIterHandle handle,
+    char const* interface);
+
+/*!
+ * \brief Callback function for yielding the next value of data iterator.
+ */
+XGB_EXTERN_C typedef int CudaArrayInterfaceNextCallback( // NOLINT(*)
+    CudaArrayInterfaceCallBackSetData);
+
+/*!
  * \brief get string message of the last error
  *
  *  all function in this file will return 0 when success

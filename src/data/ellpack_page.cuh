@@ -159,6 +159,17 @@ class EllpackPageImpl {
    */
   explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
 
+  template <typename AdapterT>
+  explicit EllpackPageImpl(AdapterT* adapter, float missing, bool is_dense, int nthread,
+                           int max_bin,
+                           common::Span<size_t> row_counts_span,
+                           size_t row_stride);
+  template <typename AdapterBatch>
+  explicit EllpackPageImpl(AdapterBatch batch, float missing, int device, bool is_dense, int nthread,
+                           bool is_row_major,
+                           common::Span<size_t> row_counts_span,
+                           size_t row_stride, size_t n_rows, common::HistogramCuts cuts);
+
   /*! \brief Copy the elements of the given ELLPACK page into this page.
    *
    * @param device The GPU device to use.
@@ -229,6 +240,19 @@ public:
   common::Monitor monitor_;
 };
 
+inline size_t GetRowStride(DMatrix* dmat) {
+  if (dmat->IsDense()) return dmat->Info().num_col_;
+
+  size_t row_stride = 0;
+  for (const auto& batch : dmat->GetBatches<SparsePage>()) {
+    const auto& row_offset = batch.offset.ConstHostVector();
+    for (auto i = 1ull; i < row_offset.size(); i++) {
+      row_stride = std::max(
+        row_stride, static_cast<size_t>(row_offset[i] - row_offset[i - 1]));
+    }
+  }
+  return row_stride;
+}
 }  // namespace xgboost
 
 #endif  // XGBOOST_DATA_ELLPACK_PAGE_H_
