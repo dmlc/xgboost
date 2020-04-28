@@ -451,7 +451,73 @@ def _maybe_np_slice(data, dtype=np.float32):
     return data
 
 
-class DMatrix(object):
+class DataIter:
+    '''The interface for user defined data iterator'''
+    def __init__(self):
+        proxy_handle = ctypes.c_void_p()
+        _check_call(_LIB.XGProxyDMatrixCreate(ctypes.byref(proxy_handle)))
+        self._handle = DMatrix(proxy_handle)
+
+    @property
+    def proxy(self):
+        '''Handler of DMatrix proxy.'''
+        return self._handle
+
+    def reset_wrapper(self, this):  # pylint: disable=unused-argument
+        '''A wrapper for user defined `reset` function.'''
+        self.reset()
+
+    def next_wrapper(self, this):  # pylint: disable=unused-argument
+        '''A wrapper for user defined `next` function.
+
+        `this` is not used in Python.  ctypes can handle `self` of a Python
+        member function automatically when converting a it to c function
+        pointer.
+
+        '''
+        def data_handle(data, label=None, weight=None, base_margin=None,
+                        group=None,
+                        label_lower_bound=None, label_upper_bound=None):
+            if lazy_isinstance(data, 'cudf.core.dataframe', 'DataFrame'):
+                self.proxy.set_data_from_cuda_columnar(data)
+            elif lazy_isinstance(data, 'cupy.core.core', 'ndarray'):
+                self.proxy.set_data_from_cuda_interface(data)
+            else:
+                raise TypeError(
+                    'Value type is not supported for data iterator:' +
+                    str(type(self._handle)))
+            self.proxy.set_info(label=label, weight=weight,
+                                base_margin=base_margin,
+                                group=group,
+                                label_lower_bound=label_lower_bound,
+                                label_upper_bound=label_upper_bound)
+
+        ret = self.next(data_handle)  # pylint: disable=not-callable
+        return ret
+
+    def reset(self):
+        '''Reset the data iterator.  Prototype for user defined function.'''
+        raise NotImplementedError()
+
+    def next(self, input_data):
+        '''Set the next batch of data.
+
+        Parameters
+        ----------
+
+        data_handle: callable
+            A function with same data fields like `data`, `label` with
+            `xgboost.DMatrix`.
+
+        Returns
+        -------
+        0 if there's no more batch, otherwise 1.
+
+        '''
+        raise NotImplementedError()
+
+
+class DMatrix:
     """Data Matrix used in XGBoost.
 
     DMatrix is a internal data structure that used by XGBoost
@@ -463,6 +529,9 @@ class DMatrix(object):
     _feature_types = None
 
     def __init__(self, data, label=None, weight=None, base_margin=None,
+                 group=None,
+                 label_lower_bound=None,
+                 label_upper_bound=None,
                  missing=None,
                  silent=False,
                  feature_names=None,
@@ -503,16 +572,6 @@ class DMatrix(object):
             applicable. If -1, uses maximum threads available on the system.
 
         """
-        # force into void_p, mac need to pass things in as void_p
-        if data is None:
-            self.handle = None
-
-            if feature_names is not None:
-                self._feature_names = feature_names
-            if feature_types is not None:
-                self._feature_types = feature_types
-            return
-
         if isinstance(data, list):
             raise TypeError('Input data can not be a list.')
 
@@ -522,11 +581,41 @@ class DMatrix(object):
         missing = missing if missing is not None else np.nan
         nthread = nthread if nthread is not None else 1
 
-        if isinstance(data, (STRING_TYPES, os_PathLike)):
+        if data is None:
+            self.handle = None
+
+            if feature_names is not None:
+                self._feature_names = feature_names
+            if feature_types is not None:
+                self._feature_types = feature_types
+            return
+        if isinstance(data, ctypes.c_void_p):
+            self.handle = data
+        elif isinstance(data, (STRING_TYPES, os_PathLike)):
             handle = ctypes.c_void_p()
             _check_call(_LIB.XGDMatrixCreateFromFile(c_str(os_fspath(data)),
                                                      ctypes.c_int(silent),
                                                      ctypes.byref(handle)))
+            self.handle = handle
+        elif isinstance(data, DataIter):
+            reset_factory = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+            reset_callback = reset_factory(data.reset_wrapper)
+            next_factory = ctypes.CFUNCTYPE(
+                ctypes.c_int,
+                ctypes.c_void_p,
+            )
+            next_callback = next_factory(data.next_wrapper)
+            handle = ctypes.c_void_p()
+            _check_call(_LIB.XGDMatrixCreateFromCallback(
+                None,
+                data.proxy.handle,
+                reset_callback,
+                next_callback,
+                ctypes.c_float(missing),
+                ctypes.c_int(nthread),
+                ctypes.c_int(256),
+                ctypes.byref(handle)
+            ))
             self.handle = handle
         elif isinstance(data, scipy.sparse.csr_matrix):
             self._init_from_csr(data)
@@ -548,15 +637,32 @@ class DMatrix(object):
                 raise TypeError('can not initialize DMatrix from'
                                 ' {}'.format(type(data).__name__))
 
+        self.set_info(label=label, weight=weight, base_margin=base_margin,
+                      group=group,
+                      label_lower_bound=label_lower_bound,
+                      label_upper_bound=label_upper_bound)
+
+        self.feature_names = feature_names
+        self.feature_types = feature_types
+
+    def set_info(self,
+                 label=None, weight=None, base_margin=None,
+                 group=None,
+                 label_lower_bound=None,
+                 label_upper_bound=None):
+        '''Set meta info for DMatrix.'''
         if label is not None:
             self.set_label(label)
         if weight is not None:
             self.set_weight(weight)
         if base_margin is not None:
             self.set_base_margin(base_margin)
-
-        self.feature_names = feature_names
-        self.feature_types = feature_types
+        if group is not None:
+            self.set_group(group)
+        if label_lower_bound is not None:
+            self.set_float_info('label_lower_bound', label_lower_bound)
+        if label_upper_bound is not None:
+            self.set_float_info('label_upper_bound', label_upper_bound)
 
     def _init_from_csr(self, csr):
         """Initialize data from a CSR matrix."""
@@ -662,6 +768,27 @@ class DMatrix(object):
                 ctypes.c_int(nthread),
                 ctypes.byref(handle)))
         self.handle = handle
+
+    def set_data_from_cuda_interface(self, data):
+        '''Set data from CUDA array interface.'''
+        interface = data.__cuda_array_interface__
+        interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
+        _check_call(
+            _LIB.XGDMatrixSetDataCudaArrayInterface(
+                self.handle,
+                interface_str
+            )
+        )
+
+    def set_data_from_cuda_columnar(self, data):
+        '''Set data from CUDA columnar format.1'''
+        interfaces_str = _cudf_array_interfaces(data)
+        _check_call(
+            _LIB.XGDMatrixSetDataCudaColumnar(
+                self.handle,
+                interfaces_str
+            )
+        )
 
     def _init_from_array_interface(self, data, missing, nthread):
         """Initialize DMatrix from cupy ndarray."""
@@ -796,9 +923,10 @@ class DMatrix(object):
 
         interface = bytes(json.dumps([data.__cuda_array_interface__],
                                      indent=2), 'utf-8')
-        _check_call(_LIB.XGDMatrixSetInfoFromInterface(self.handle,
-                                                       c_str(field),
-                                                       interface))
+        _check_call(_LIB.XGDMatrixSetInfoFromInterface(
+            self.handle,
+            c_str(field),
+            interface))
 
     def save_binary(self, fname, silent=True):
         """Save DMatrix to an XGBoost buffer.  Saved binary can be later loaded
@@ -1076,10 +1204,13 @@ class DeviceQuantileDMatrix(DMatrix):
                  nthread=None, max_bin=256):
         self.max_bin = max_bin
         if not (hasattr(data, "__cuda_array_interface__") or (
-                CUDF_INSTALLED and isinstance(data, CUDF_DataFrame)) or _is_dlpack(data)):
-            raise ValueError('Only cupy/cudf/dlpack currently supported for DeviceQuantileDMatrix')
+                CUDF_INSTALLED and isinstance(data, CUDF_DataFrame)) or
+                _is_dlpack(data)):
+            raise ValueError('Only cupy/cudf/dlpack currently supported for ' +
+                             'DeviceQuantileDMatrix')
 
-        super().__init__(data, label=label, weight=weight, base_margin=base_margin,
+        super().__init__(data, label=label, weight=weight,
+                         base_margin=base_margin,
                          missing=missing,
                          silent=silent,
                          feature_names=feature_names,

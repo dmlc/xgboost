@@ -18,6 +18,7 @@
 #include "../common/version.h"
 #include "../common/group_data.h"
 #include "../data/adapter.h"
+#include "../data/iterative_device_dmatrix.h"
 
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
@@ -342,6 +343,38 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
   }
 }
 
+void MetaInfo::Append(MetaInfo const& that) {
+  this->num_row_ += that.num_row_;
+  if (this->num_col_ != 0) {
+    CHECK_EQ(this->num_col_, that.num_col_)
+        << "Number of columns must be consistent across batches.";
+  }
+  this->num_col_ = that.num_col_;
+
+  auto append = [](HostDeviceVector<float> *lhs,
+                   HostDeviceVector<float> const &rhs) {
+    lhs->HostVector().insert(lhs->HostVector().end(), rhs.HostVector().begin(),
+                             rhs.HostVector().end());
+  };
+  append(&this->labels_, that.labels_);
+  append(&this->weights_, that.weights_);
+  append(&this->labels_lower_bound_, that.labels_lower_bound_);
+  append(&this->labels_upper_bound_, that.labels_upper_bound_);
+  append(&this->base_margin_, that.base_margin_);
+
+  if (this->group_ptr_.size() == 0) {
+    this->group_ptr_ = that.group_ptr_;
+  } else {
+    CHECK_NE(that.group_ptr_.size(), 0);
+    auto group_ptr = that.group_ptr_;
+    for (size_t i = 1; i < group_ptr.size(); ++i) {
+      group_ptr[i] += this->group_ptr_.back();
+    }
+    this->group_ptr_.insert(this->group_ptr_.end(), group_ptr.begin() + 1,
+                            group_ptr.end());
+  }
+}
+
 void MetaInfo::Validate(int32_t device) const {
   if (group_ptr_.size() != 0 && weights_.Size() != 0) {
     CHECK_EQ(group_ptr_.size(), weights_.Size() + 1)
@@ -531,9 +564,21 @@ DMatrix* DMatrix::Load(const std::string& uri,
   return dmat;
 }
 
+DMatrix *DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy,
+                         DataIterResetCallback *reset, XGDMatrixCallbackNext *next,
+                         float missing, int nthread, int max_bin) {
+#if defined(XGBOOST_USE_CUDA)
+  return new data::IterativeDeviceDMatrix(iter, proxy, reset, next, missing, nthread,
+                                          max_bin);
+#else
+  common::AssertGPUSupport();
+  return nullptr;
+#endif
+}
+
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix,  size_t page_size ) {
+                         const std::string& cache_prefix,  size_t page_size) {
   if (cache_prefix.length() == 0) {
     // Data split mode is fixed to be row right now.
     return new data::SimpleDMatrix(adapter, missing, nthread);

@@ -21,6 +21,7 @@
 #include "xgboost/c_api.h"
 
 #include "../c_api/c_api_error.h"
+#include "array_interface.h"
 
 namespace xgboost {
 namespace data {
@@ -125,7 +126,7 @@ class CSRAdapterBatch : public detail::NoMetaInfo {
           values_(values) {}
 
     size_t Size() const { return size_; }
-    COOTuple GetElement(size_t idx) const {
+     COOTuple GetElement(size_t idx) const {
       return COOTuple{row_idx_, feature_idx_[idx], values_[idx]};
     }
 
@@ -178,6 +179,7 @@ class CSRAdapter : public detail::SingleBatchDataIter<CSRAdapterBatch> {
 
 class DenseAdapterBatch : public detail::NoMetaInfo {
  public:
+  DenseAdapterBatch() = default;
   DenseAdapterBatch(const float* values, size_t num_rows, size_t num_features)
       : values_(values),
         num_rows_(num_rows),
@@ -512,7 +514,7 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
   bool Next() override {
     if ((*next_callback_)(
             data_handle_,
-            [](void *handle, XGBoostBatchCSR batch) -> int {
+            [] (void *handle, XGBoostBatchCSR batch) -> int {
               API_BEGIN();
               static_cast<IteratorAdapter *>(handle)->SetData(batch);
               API_END();
@@ -591,14 +593,103 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
   size_t row_offset_;
   // at the beinning.
   bool at_first_;
-  // handle to the iterator,
+  // handle to the external iterator, can be a java iterator.
   DataIterHandle data_handle_;
-  // call back to get the data.
+  // call back to get the data, one example is a callback function defined in jvm package.
   XGBCallbackDataIterNext *next_callback_;
   // internal Rowblock
   dmlc::RowBlock<uint32_t> block_;
   std::unique_ptr<FileAdapterBatch> batch_;
 };
-};  // namespace data
+
+class CudfAdapterBatch : public detail::NoMetaInfo {
+ public:
+  CudfAdapterBatch() = default;
+  CudfAdapterBatch(common::Span<ArrayInterface> columns, size_t num_elements)
+      : columns_(columns),
+        num_elements_(num_elements) {}
+  size_t Size() const { return num_elements_; }
+  XGBOOST_DEVICE COOTuple GetElement(size_t idx) const {
+    size_t column_idx = idx / NumRows();
+    auto& column = columns_[column_idx];
+    size_t row_idx = idx % NumRows();
+    float value = column.valid.Data() == nullptr || column.valid.Check(row_idx)
+                      ? column.GetElement(row_idx)
+                      : std::numeric_limits<float>::quiet_NaN();
+    return {row_idx, column_idx, value};
+  }
+  XGBOOST_DEVICE float GetValue(size_t ridx, bst_feature_t fidx) const {
+    auto const& column = columns_[fidx];
+    float value = column.valid.Data() == nullptr || column.valid.Check(ridx)
+                      ? column.GetElement(ridx)
+                      : std::numeric_limits<float>::quiet_NaN();
+    return value;
+  }
+
+  XGBOOST_DEVICE size_t NumRows() const {
+    return num_elements_ / columns_.size();
+  }
+  XGBOOST_DEVICE size_t NumCols() const {
+    return columns_.size();
+  }
+  XGBOOST_DEVICE bool IsRowMajor() const { return false; }
+
+ private:
+  common::Span<ArrayInterface> columns_;
+  size_t num_elements_;
+};
+
+class CupyAdapterBatch {
+ public:
+  CupyAdapterBatch() = default;
+  explicit CupyAdapterBatch(ArrayInterface array_interface, MetaInfo const* info = nullptr)
+      : info_{info}, array_interface_(std::move(array_interface)) {}
+  size_t Size() const {
+    return array_interface_.num_rows * array_interface_.num_cols;
+  }
+  size_t NumRows() const { return array_interface_.num_rows; }
+  size_t NumCols() const { return array_interface_.num_cols; }
+  bool IsRowMajor() const { return true; }
+
+  XGBOOST_DEVICE COOTuple GetElement(size_t idx) const {
+    size_t column_idx = idx % array_interface_.num_cols;
+    size_t row_idx = idx / array_interface_.num_cols;
+    float value = array_interface_.valid.Data() == nullptr ||
+                          array_interface_.valid.Check(row_idx)
+                      ? array_interface_.GetElement(idx)
+                      : std::numeric_limits<float>::quiet_NaN();
+    return {row_idx, column_idx, value};
+  }
+
+  const float* Labels() const {
+    if (info_ && info_->labels_.Size() > 0) {
+      return info_->labels_.ConstHostPointer();
+    }
+    return nullptr;
+  }
+  const float* Weights() const {
+    if (info_ && info_->weights_.Size() > 0) {
+      return info_->weights_.ConstHostPointer();
+    }
+    return nullptr;
+  }
+  const uint64_t* Qid() const { return nullptr; }
+  const float* BaseMargin() const {
+    if (info_ && info_->base_margin_.Size() > 0) {
+      return info_->base_margin_.ConstHostPointer();
+    }
+    return nullptr;
+  }
+
+ private:
+  MetaInfo const* info_;
+  ArrayInterface array_interface_;
+};
+
+#define DEFINE_DEVICE_ADAPTER(__func)                                          \
+  __func(::xgboost::data::CudfAdapter);                                        \
+  __func(::xgboost::data::CupyAdapter);
+
+}  // namespace data
 }  // namespace xgboost
 #endif  // XGBOOST_DATA_ADAPTER_H_

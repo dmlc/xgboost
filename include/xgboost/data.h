@@ -12,6 +12,7 @@
 #include <dmlc/serializer.h>
 #include <rabit/rabit.h>
 #include <xgboost/base.h>
+#include <xgboost/c_api.h>
 #include <xgboost/span.h>
 #include <xgboost/host_device_vector.h>
 
@@ -157,6 +158,8 @@ class MetaInfo {
    *        Right now only 1 column is permitted.
    */
   void SetInfo(const char* key, std::string const& interface_str);
+
+  void Append(MetaInfo const& that);
 
  private:
   /*! \brief argsort of labels */
@@ -431,6 +434,13 @@ class DMatrix {
   DMatrix()  = default;
   /*! \brief meta information of the dataset */
   virtual MetaInfo& Info() = 0;
+  virtual void SetInfo(const char *key, const void *dptr, DataType dtype,
+                       size_t num) {
+    this->Info().SetInfo(key, dptr, dtype, num);
+  }
+  virtual void SetInfo(const char* key, std::string const& interface_str) {
+    this->Info().SetInfo(key, interface_str);
+  }
   /*! \brief meta information of the dataset */
   virtual const MetaInfo& Info() const = 0;
   /**
@@ -485,7 +495,12 @@ class DMatrix {
                          const std::string& cache_prefix = "",
                          size_t page_size = kPageSize);
 
-  virtual DMatrix* Slice(common::Span<int32_t const> ridxs) = 0;
+  static DMatrix *Create(DataIterHandle iter, DMatrixHandle proxy,
+                         DataIterResetCallback *reset,
+                         XGDMatrixCallbackNext *next, float missing,
+                         int nthread, int max_bin);
+
+      virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
   /*! \brief page size 32 MB */
   static const size_t kPageSize = 32UL << 20UL;
 

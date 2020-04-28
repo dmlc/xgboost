@@ -36,7 +36,6 @@ class DeviceDMatrix : public DMatrix {
     return nullptr;
   }
 
- private:
   BatchSet<SparsePage> GetRowBatches() override {
     LOG(FATAL) << "Not implemented.";
     return BatchSet<SparsePage>(BatchIterator<SparsePage>(nullptr));
@@ -55,6 +54,7 @@ class DeviceDMatrix : public DMatrix {
     return BatchSet<EllpackPage>(begin_iter);
   }
 
+ private:
   MetaInfo info_;
   // source data pointer.
   std::unique_ptr<EllpackPage> ellpack_page_;

@@ -68,7 +68,7 @@ TEST(Adapter, CSCAdapterColsMoreThanRows) {
 }
 
 // A mock for JVM data iterator.
-class DataIterForTest {
+class CSRIterForTest {
   std::vector<float> data_ {1, 2, 3, 4, 5};
   std::vector<std::remove_pointer<decltype(std::declval<XGBoostBatchCSR>().index)>::type>
       feature_idx_ {0, 1, 0, 1, 1};
@@ -100,16 +100,16 @@ class DataIterForTest {
   size_t Iter() const { return iter_; }
 };
 
-size_t constexpr DataIterForTest::kCols;
+size_t constexpr CSRIterForTest::kCols;
 
-int SetDataNextForTest(DataIterHandle data_handle,
-                       XGBCallbackSetData *set_function,
-                       DataHolderHandle set_function_handle) {
+int CSRSetDataNextForTest(DataIterHandle data_handle,
+                          XGBCallbackSetData *set_function,
+                          DataHolderHandle set_function_handle) {
   size_t constexpr kIters { 2 };
-  auto iter = static_cast<DataIterForTest *>(data_handle);
+  auto iter = static_cast<CSRIterForTest *>(data_handle);
   if (iter->Iter() < kIters) {
     auto batch = iter->Next();
-    batch.columns = DataIterForTest::kCols;
+    batch.columns = CSRIterForTest::kCols;
     set_function(set_function_handle, batch);
     return 1;
   } else {
@@ -118,15 +118,14 @@ int SetDataNextForTest(DataIterHandle data_handle,
 }
 
 TEST(Adapter, IteratorAdaper) {
-  DataIterForTest iter;
-  data::IteratorAdapter adapter{&iter, SetDataNextForTest};
+  CSRIterForTest iter;
+  data::IteratorAdapter adapter{&iter, CSRSetDataNextForTest};
   constexpr size_t kRows { 6 };
 
   std::unique_ptr<DMatrix> data {
     DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)
   };
-  ASSERT_EQ(data->Info().num_col_, DataIterForTest::kCols);
+  ASSERT_EQ(data->Info().num_col_, CSRIterForTest::kCols);
   ASSERT_EQ(data->Info().num_row_, kRows);
 }
-
 }  // namespace xgboost

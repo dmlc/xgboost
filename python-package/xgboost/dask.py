@@ -14,6 +14,7 @@ https://github.com/dask/dask-xgboost
 import platform
 import logging
 from collections import defaultdict
+from collections.abc import Sequence
 from threading import Thread
 
 import numpy
@@ -28,7 +29,7 @@ from .compat import PANDAS_INSTALLED, DataFrame, Series, pandas_concat
 from .compat import CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_concat
 from .compat import lazy_isinstance
 
-from .core import DMatrix, Booster, _expect
+from .core import DMatrix, Booster, _expect, DataIter
 from .training import train as worker_train
 from .tracker import RabitTracker
 from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase
@@ -158,8 +159,12 @@ class DaskDMatrix:
                  client,
                  data,
                  label=None,
-                 missing=None,
                  weight=None,
+                 base_margin=None,
+                 group=None,
+                 label_lower_bound=None,
+                 label_upper_bound=None,
+                 missing=None,
                  feature_names=None,
                  feature_types=None):
         _assert_dask_support()
@@ -168,6 +173,12 @@ class DaskDMatrix:
         self.feature_names = feature_names
         self.feature_types = feature_types
         self.missing = missing
+
+        assert group is None, '`group` is supported yet.'
+        assert label_lower_bound is None, \
+            '`label_lower_bound` is not supported yet'
+        assert label_upper_bound is None, \
+            '`label_upper_bound` is not supported yet'
 
         if len(data.shape) != 2:
             raise ValueError(
@@ -184,6 +195,9 @@ class DaskDMatrix:
         self.worker_map = None
         self.has_label = label is not None
         self.has_weights = weight is not None
+        self.has_margin = base_margin is not None
+        self.has_lower_bound = label_lower_bound is not None
+        self.has_upper_bound = label_upper_bound is not None
 
         client.sync(self.map_local_data, client, data, label, weight)
 
@@ -354,6 +368,118 @@ class DaskDMatrix:
                 ' same. Got: {left} and {right}'.format(left=c, right=cols)
             cols = c
         return (rows, cols)
+
+
+class DaskPartitionIter(DataIter):
+    '''A data iterator for `DaskDeviceQuantileDMatrix`.
+
+    '''
+    def __init__(self, data, label=None, weight=None, base_margin=None,
+                 label_lower_bound=None, label_upper_bound=None):
+        '''Generate some random data for demostration.
+
+        Actual data can be anything that is currently supported by XGBoost.
+        '''
+        self._data = data
+        self._labels = label
+        self._weights = weight
+        self._base_margin = base_margin
+        self._label_lower_bound = label_lower_bound
+        self._label_upper_bound = label_upper_bound
+
+        assert isinstance(self._data, Sequence)
+
+        types = (Sequence, type(None))
+        assert isinstance(self._labels, types)
+        assert isinstance(self._weights, types)
+        assert isinstance(self._base_margin, types)
+        assert isinstance(self._label_lower_bound, types)
+        assert isinstance(self._label_upper_bound, types)
+
+        self._iter = 0             # set iterator to 0
+        super().__init__()
+
+    def data(self):
+        '''Utility function for obtaining current batch of data.'''
+        return self._data[self._iter]
+
+    def labels(self):
+        '''Utility function for obtaining current batch of label.'''
+        if self._labels is not None:
+            return self._labels[self._iter]
+        return None
+
+    def weights(self):
+        '''Utility function for obtaining current batch of label.'''
+        if self._weights is not None:
+            return self._weights[self._iter]
+        return None
+
+    def base_margins(self):
+        '''Utility function for obtaining current batch of base_margin.'''
+        if self._base_margin is not None:
+            return self._base_margin[self._iter]
+        return None
+
+    def label_lower_bounds(self):
+        '''Utility function for obtaining current batch of label_lower_bound.
+
+        '''
+        if self._label_lower_bound is not None:
+            return self._label_lower_bound[self._iter]
+        return None
+
+    def label_upper_bounds(self):
+        '''Utility function for obtaining current batch of label_upper_bound.
+
+        '''
+        if self._label_upper_bound is not None:
+            return self._label_upper_bound[self._iter]
+        return None
+
+    def reset(self):
+        '''Reset the iterator'''
+        self._iter = 0
+
+    def next(self, input_data):
+        '''Yield next batch of data'''
+        if self._iter == len(self._data):
+            # Return 0 when there's no more batch.
+            return 0
+        input_data(data=self.data(), label=self.labels(),
+                   weight=self.weights(), group=None,
+                   label_lower_bound=self.label_lower_bounds(),
+                   label_upper_bound=self.label_upper_bounds())
+        self._iter += 1
+        return 1
+
+
+class DaskDeviceQuantileDMatrix(DaskDMatrix):
+    '''Specialized data type for `gpu_hist` tree method.'''
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def get_worker_data(self, worker):
+        if worker.address not in set(self.worker_map.keys()):
+            msg = 'worker {address} has an empty DMatrix.  ' \
+                'All workers associated with this DMatrix: {workers}'.format(
+                    address=worker.address,
+                    workers=set(self.worker_map.keys()))
+            LOGGER.warning(msg)
+            d = DMatrix(numpy.empty((0, 0)),
+                        feature_names=self.feature_names,
+                        feature_types=self.feature_types)
+            return d
+
+        data, labels, weights = self.get_worker_parts(worker)
+        it = DaskPartitionIter(data=data, label=labels, weight=weights)
+
+        dmatrix = DMatrix(it,
+                          missing=self.missing,
+                          feature_names=self.feature_names,
+                          feature_types=self.feature_types,
+                          nthread=worker.nthreads)
+        return dmatrix
 
 
 def _get_rabit_args(worker_map, client):

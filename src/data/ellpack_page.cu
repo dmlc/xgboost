@@ -1,11 +1,11 @@
 /*!
- * Copyright 2019 XGBoost contributors
+ * Copyright 2019-2020 XGBoost contributors
  */
 
 #include <xgboost/data.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_output_iterator.h>
-#include "../common/hist_util.h"
+#include "../common/quantile.cuh"
 #include "../common/random.h"
 #include "./ellpack_page.cuh"
 #include "device_adapter.cuh"
@@ -209,14 +209,15 @@ void CopyDataRowMajor(const AdapterBatchT& batch, EllpackPageImpl* dst,
                          });
 }
 
-template <typename AdapterT, typename AdapterBatchT>
-void CopyDataColumnMajor(AdapterT* adapter, const AdapterBatchT& batch,
+template <typename AdapterBatchT>
+void CopyDataColumnMajor(const AdapterBatchT& batch,
+                         bst_row_t num_rows, bst_feature_t num_columns, int device_id,
                          EllpackPageImpl* dst, float missing) {
   // Step 1: Get the sizes of the input columns
-  dh::caching_device_vector<size_t> column_sizes(adapter->NumColumns(), 0);
+  dh::caching_device_vector<size_t> column_sizes(num_columns, 0);
   auto d_column_sizes = column_sizes.data().get();
   // Populate column sizes
-  dh::LaunchN(adapter->DeviceIdx(), batch.Size(), [=] __device__(size_t idx) {
+  dh::LaunchN(device_id, batch.Size(), [=] __device__(size_t idx) {
       const auto& e = batch.GetElement(idx);
       atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
           &d_column_sizes[e.column_idx]),
@@ -227,17 +228,17 @@ void CopyDataColumnMajor(AdapterT* adapter, const AdapterBatchT& batch,
 
   // Step 2: Iterate over columns, place elements in correct row, increment
   // temporary row pointers
-  dh::caching_device_vector<size_t> temp_row_ptr(adapter->NumRows(), 0);
+  dh::caching_device_vector<size_t> temp_row_ptr(num_rows, 0);
   auto d_temp_row_ptr = temp_row_ptr.data().get();
   auto row_stride = dst->row_stride;
   size_t begin = 0;
-  auto device_accessor = dst->GetDeviceAccessor(adapter->DeviceIdx());
+  auto device_accessor = dst->GetDeviceAccessor(device_id);
   common::CompressedBufferWriter writer(device_accessor.NumSymbols());
   auto d_compressed_buffer = dst->gidx_buffer.DevicePointer();
   data::IsValidFunctor is_valid(missing);
   for (auto size : host_column_sizes) {
     size_t end = begin + size;
-    dh::LaunchN(adapter->DeviceIdx(), end - begin, [=] __device__(size_t idx) {
+    dh::LaunchN(device_id, end - begin, [=] __device__(size_t idx) {
         auto writer_non_const =
             writer;  // For some reason this variable gets captured as const
         const auto& e = batch.GetElement(idx + begin);
@@ -272,7 +273,6 @@ void WriteNullValues(EllpackPageImpl* dst, int device_idx,
       }
     });
 }
-
 template <typename AdapterT>
 EllpackPageImpl::EllpackPageImpl(AdapterT* adapter, float missing, bool is_dense, int nthread,
                                  int max_bin, common::Span<size_t> row_counts_span,
@@ -287,7 +287,8 @@ EllpackPageImpl::EllpackPageImpl(AdapterT* adapter, float missing, bool is_dense
   if (adapter->IsRowMajor()) {
     CopyDataRowMajor(batch, this, adapter->DeviceIdx(), missing);
   } else {
-    CopyDataColumnMajor(adapter, batch, this, missing);
+    CopyDataColumnMajor(batch, adapter->NumRows(), adapter->NumColumns(),
+                        adapter->DeviceIdx(), this, missing);
   }
 
   WriteNullValues(this, adapter->DeviceIdx(), row_counts_span);
@@ -301,6 +302,36 @@ EllpackPageImpl::EllpackPageImpl(AdapterT* adapter, float missing, bool is_dense
 
 ELLPACK_SPECIALIZATION(data::CudfAdapter)
 ELLPACK_SPECIALIZATION(data::CupyAdapter)
+
+
+template <typename AdapterBatch>
+EllpackPageImpl::EllpackPageImpl(AdapterBatch batch, float missing, int device,
+                                 bool is_dense, int nthread, bool is_row_major,
+                                 common::Span<size_t> row_counts_span,
+                                 size_t row_stride, size_t n_rows, size_t n_cols,
+                                 common::HistogramCuts cuts) {
+  dh::safe_cuda(cudaSetDevice(device));
+
+  *this = EllpackPageImpl(device, cuts, is_dense, row_stride, n_rows);
+  if (is_row_major) {
+    CopyDataRowMajor(batch, this, device, missing);
+  } else {
+    CopyDataColumnMajor(batch, n_rows, n_cols, device, this, missing);
+  }
+  WriteNullValues(this, device, row_counts_span);
+}
+
+#define ELLPACK_BATCH_SPECIALIZE(__BATCH_T)                             \
+  template EllpackPageImpl::EllpackPageImpl(                            \
+      __BATCH_T batch, float missing, int device,                       \
+      bool is_dense, int nthread,                                       \
+      bool is_row_major,                                                \
+      common::Span<size_t> row_counts_span,                             \
+      size_t row_stride, size_t n_rows, size_t n_cols,                  \
+      common::HistogramCuts cuts);
+
+ELLPACK_BATCH_SPECIALIZE(data::CudfAdapterBatch)
+ELLPACK_BATCH_SPECIALIZE(data::CupyAdapterBatch)
 
 // A functor that copies the data from one EllpackPage to another.
 struct CopyPage {
@@ -329,6 +360,10 @@ size_t EllpackPageImpl::Copy(int device, EllpackPageImpl* page, size_t offset) {
   CHECK_EQ(row_stride, page->row_stride);
   CHECK_EQ(NumSymbols(), page->NumSymbols());
   CHECK_GE(n_rows * row_stride, offset + num_elements);
+  if (page == this) {
+    LOG(FATAL) << "Concatenating the same Ellpack.";
+    return this->n_rows * this->row_stride;
+  }
   gidx_buffer.SetDevice(device);
   page->gidx_buffer.SetDevice(device);
   dh::LaunchN(device, num_elements, CopyPage(this, page, offset));

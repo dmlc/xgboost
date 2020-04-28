@@ -92,7 +92,8 @@ def _test_cudf_training(DMatrixT):
     cudf_base_margin = df.from_pandas(pd.DataFrame(base_margin))
 
     evals_result_cudf = {}
-    dtrain_cudf = DMatrixT(df.from_pandas(X), df.from_pandas(y), weight=cudf_weights,
+    dtrain_cudf = DMatrixT(df.from_pandas(X), df.from_pandas(y),
+                           weight=cudf_weights,
                            base_margin=cudf_base_margin)
     params = {'gpu_id': 0, 'tree_method': 'gpu_hist'}
     xgb.train(params, dtrain_cudf, evals=[(dtrain_cudf, "train")],
@@ -101,7 +102,8 @@ def _test_cudf_training(DMatrixT):
     dtrain_np = xgb.DMatrix(X, y, weight=weights, base_margin=base_margin)
     xgb.train(params, dtrain_np, evals=[(dtrain_np, "train")],
               evals_result=evals_result_np)
-    assert np.array_equal(evals_result_cudf["train"]["rmse"], evals_result_np["train"]["rmse"])
+    assert np.array_equal(evals_result_cudf["train"]["rmse"],
+                          evals_result_np["train"]["rmse"])
 
 
 def _test_cudf_metainfo(DMatrixT):
@@ -125,22 +127,29 @@ def _test_cudf_metainfo(DMatrixT):
     dmat_cudf.set_interface_info('group', cudf_uints)
 
     # Test setting info with cudf DataFrame
-    assert np.array_equal(dmat.get_float_info('weight'), dmat_cudf.get_float_info('weight'))
-    assert np.array_equal(dmat.get_float_info('label'), dmat_cudf.get_float_info('label'))
+    assert np.array_equal(dmat.get_float_info('weight'),
+                          dmat_cudf.get_float_info('weight'))
+    assert np.array_equal(dmat.get_float_info('label'),
+                          dmat_cudf.get_float_info('label'))
     assert np.array_equal(dmat.get_float_info('base_margin'),
                           dmat_cudf.get_float_info('base_margin'))
-    assert np.array_equal(dmat.get_uint_info('group_ptr'), dmat_cudf.get_uint_info('group_ptr'))
+    assert np.array_equal(dmat.get_uint_info('group_ptr'),
+                          dmat_cudf.get_uint_info('group_ptr'))
 
     # Test setting info with cudf Series
     dmat_cudf.set_interface_info('weight', cudf_floats[cudf_floats.columns[0]])
     dmat_cudf.set_interface_info('label', cudf_floats[cudf_floats.columns[0]])
-    dmat_cudf.set_interface_info('base_margin', cudf_floats[cudf_floats.columns[0]])
+    dmat_cudf.set_interface_info('base_margin',
+                                 cudf_floats[cudf_floats.columns[0]])
     dmat_cudf.set_interface_info('group', cudf_uints[cudf_uints.columns[0]])
-    assert np.array_equal(dmat.get_float_info('weight'), dmat_cudf.get_float_info('weight'))
-    assert np.array_equal(dmat.get_float_info('label'), dmat_cudf.get_float_info('label'))
+    assert np.array_equal(dmat.get_float_info('weight'),
+                          dmat_cudf.get_float_info('weight'))
+    assert np.array_equal(dmat.get_float_info('label'),
+                          dmat_cudf.get_float_info('label'))
     assert np.array_equal(dmat.get_float_info('base_margin'),
                           dmat_cudf.get_float_info('base_margin'))
-    assert np.array_equal(dmat.get_uint_info('group_ptr'), dmat_cudf.get_uint_info('group_ptr'))
+    assert np.array_equal(dmat.get_uint_info('group_ptr'),
+                          dmat_cudf.get_uint_info('group_ptr'))
 
 
 class TestFromColumnar:
@@ -170,3 +179,81 @@ Arrow specification.'''
     @pytest.mark.skipif(**tm.no_cudf())
     def test_cudf_metainfo_device_dmatrix(self):
         _test_cudf_metainfo(xgb.DeviceQuantileDMatrix)
+
+
+class IterForDMatixDemo(xgb.core.DataIter):
+    '''A data iterator for XGBoost DMatrix.
+
+    `reset` and `next` are required for any data iterator, other functions here
+    are utilites for demonstration's purpose.
+
+    '''
+    COLS = 64
+    ROWS_PER_BATCH = 100            # data is splited by rows
+    BATCHES = 16
+
+    def __init__(self):
+        '''Generate some random data for demostration.
+
+        Actual data can be anything that is currently supported by XGBoost.
+        '''
+        import cudf
+        self.rows = self.ROWS_PER_BATCH
+        self.cols = self.COLS
+        rng = np.random.RandomState(1994)
+        self._data = [
+            cudf.DataFrame(
+                {'a': rng.randn(self.ROWS_PER_BATCH),
+                 'b': rng.randn(self.ROWS_PER_BATCH)})] * self.BATCHES
+        self._labels = [rng.randn(self.rows)] * self.BATCHES
+
+        self.it = 0             # set iterator to 0
+        super().__init__()
+
+    def as_array(self):
+        import cudf
+        return cudf.concat(self._data)
+
+    def as_array_labels(self):
+        return np.concatenate(self._labels)
+
+    def data(self):
+        '''Utility function for obtaining current batch of data.'''
+        return self._data[self.it]
+
+    def labels(self):
+        '''Utility function for obtaining current batch of label.'''
+        return self._labels[self.it]
+
+    def reset(self):
+        '''Reset the iterator'''
+        self.it = 0
+
+    def next(self, input_data):
+        '''Yield next batch of data'''
+        if self.it == len(self._data):
+            # Return 0 when there's no more batch.
+            return 0
+        input_data(data=self.data(), label=self.labels())
+        self.it += 1
+        return 1
+
+
+@pytest.mark.skipif(**tm.no_cudf())
+def test_from_cudf_iter():
+    rounds = 100
+    it = IterForDMatixDemo()
+
+    # Use iterator
+    m = xgb.DMatrix(it)
+    reg_with_it = xgb.train({'tree_method': 'gpu_hist'}, m,
+                            num_boost_round=rounds)
+    predict_with_it = reg_with_it.predict(m)
+
+    # Without using iterator
+    m = xgb.DMatrix(it.as_array(), it.as_array_labels())
+    reg = xgb.train({'tree_method': 'gpu_hist'}, m,
+                    num_boost_round=rounds)
+    predict = reg.predict(m)
+
+    np.testing.assert_allclose(predict_with_it, predict)

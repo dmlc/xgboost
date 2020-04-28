@@ -149,7 +149,7 @@ class EllpackPageImpl {
 
   EllpackPageImpl(int device, common::HistogramCuts cuts,
                   const SparsePage& page,
-                  bool is_dense,size_t row_stride);
+                  bool is_dense, size_t row_stride);
 
   /*!
    * \brief Constructor from an existing DMatrix.
@@ -161,8 +161,17 @@ class EllpackPageImpl {
 
   template <typename AdapterT>
   explicit EllpackPageImpl(AdapterT* adapter, float missing, bool is_dense, int nthread,
-                           int max_bin, common::Span<size_t> row_counts_span,
+                           int max_bin,
+                           common::Span<size_t> row_counts_span,
                            size_t row_stride);
+
+  template <typename AdapterBatch>
+  explicit EllpackPageImpl(AdapterBatch batch, float missing, int device, bool is_dense, int nthread,
+                           bool is_row_major,
+                           common::Span<size_t> row_counts_span,
+                           size_t row_stride, size_t n_rows, size_t n_cols,
+                           common::HistogramCuts cuts);
+
   /*! \brief Copy the elements of the given ELLPACK page into this page.
    *
    * @param device The GPU device to use.

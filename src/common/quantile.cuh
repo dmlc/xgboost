@@ -1,7 +1,3 @@
-/*!
- * Copyright 2018 XGBoost contributors
- */
-
 #include <xgboost/logging.h>
 
 #include <thrust/copy.h>
@@ -25,7 +21,6 @@
 #include "math.h"  // NOLINT
 #include "quantile.h"
 #include "xgboost/host_device_vector.h"
-
 
 namespace xgboost {
 namespace common {
@@ -99,6 +94,7 @@ struct EntryCompareOp {
 
 // Compute number of sample cuts needed on local node to maintain accuracy
 // We take more cuts than needed and then reduce them later
+inline
 size_t RequiredSampleCuts(int max_bins, size_t num_rows) {
   constexpr int kFactor = 8;
   double eps = 1.0 / (kFactor * max_bins);
@@ -111,6 +107,7 @@ size_t RequiredSampleCuts(int max_bins, size_t num_rows) {
 
 
 // Count the entries in each column and exclusive scan
+inline
 void GetColumnSizesScan(int device,
                         dh::caching_device_vector<size_t>* column_sizes_scan,
                         Span<const Entry> entries, size_t num_columns) {
@@ -138,6 +135,7 @@ void GetColumnSizesScan(int device,
  * \param column_sizes_scan     Describes the boundaries of column segments in
  * sorted data
  */
+inline
 void ExtractCuts(int device,
                  size_t num_cuts_per_feature,
                  Span<Entry const> sorted_data,
@@ -171,6 +169,7 @@ void ExtractCuts(int device,
  * \param weights_scan          Inclusive scan of weights for each entry in sorted_data.
  * \param column_sizes_scan     Describes the boundaries of column segments in sorted data.
  */
+inline
 void ExtractWeightedCuts(int device,
                          size_t num_cuts_per_feature,
                          Span<Entry> sorted_data,
@@ -223,9 +222,9 @@ void ExtractWeightedCuts(int device,
   });
 }
 
-void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
-                  SketchContainer* sketch_container, int num_cuts,
-                  size_t num_columns) {
+inline void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
+                         SketchContainer* sketch_container, int num_cuts,
+                         size_t num_columns) {
   dh::XGBCachingDeviceAllocator<char> alloc;
   const auto& host_data = page.data.ConstHostVector();
   dh::caching_device_vector<Entry> sorted_entries(host_data.begin() + begin,
@@ -250,11 +249,11 @@ void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
   sketch_container->Push(num_cuts, host_cuts, host_column_sizes_scan);
 }
 
-void ProcessWeightedBatch(int device, const SparsePage& page,
-                          Span<const float> weights, size_t begin, size_t end,
-                          SketchContainer* sketch_container, int num_cuts_per_feature,
-                          size_t num_columns,
-                          bool is_ranking, Span<bst_group_t const> d_group_ptr) {
+inline void ProcessWeightedBatch(int device, const SparsePage& page,
+                                 Span<const float> weights, size_t begin, size_t end,
+                                 SketchContainer* sketch_container, int num_cuts_per_feature,
+                                 size_t num_columns,
+                                 bool is_ranking, Span<bst_group_t const> d_group_ptr) {
   dh::XGBCachingDeviceAllocator<char> alloc;
   const auto& host_data = page.data.ConstHostVector();
   dh::caching_device_vector<Entry> sorted_entries(host_data.begin() + begin,
@@ -326,8 +325,8 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
   sketch_container->Push(num_cuts_per_feature, host_cuts, host_column_sizes_scan);
 }
 
-HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
-                           size_t sketch_batch_num_elements) {
+inline HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
+                                  size_t sketch_batch_num_elements = 0) {
   // Configure batch size based on available memory
   bool has_weights = dmat->Info().weights_.Size() > 0;
   size_t num_cuts_per_feature = RequiredSampleCuts(max_bins, dmat->Info().num_row_);
@@ -371,15 +370,30 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
   return cuts;
 }
 
-template <typename AdapterT>
-void ProcessBatch(AdapterT* adapter, size_t begin, size_t end, float missing,
-                  SketchContainer* sketch_container, int num_cuts) {
+template <typename Iter>
+void GetColumnSizesScan(int device, size_t num_columns,
+                        Iter batch_iter, data::IsValidFunctor is_valid,
+                        size_t begin, size_t end,
+                        dh::caching_device_vector<size_t>* column_sizes_scan) {
   dh::XGBCachingDeviceAllocator<char> alloc;
-  adapter->BeforeFirst();
-  adapter->Next();
-  auto &batch = adapter->Value();
-  // Enforce single batch
-  CHECK(!adapter->Next());
+  column_sizes_scan->resize(num_columns + 1, 0);
+  auto d_column_sizes_scan = column_sizes_scan->data().get();
+  dh::LaunchN(device, end - begin, [=] __device__(size_t idx) {
+    auto e = batch_iter[begin + idx];
+    if (is_valid(e)) {
+      atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
+                    &d_column_sizes_scan[e.column_idx]),
+                static_cast<unsigned long long>(1));  // NOLINT
+    }
+  });
+  thrust::exclusive_scan(thrust::cuda::par(alloc), column_sizes_scan->begin(),
+                         column_sizes_scan->end(), column_sizes_scan->begin());
+}
+
+template <typename AdapterBatch>
+void ProcessBatch(AdapterBatch const& batch, int device, size_t columns,
+                  size_t begin, size_t end, float missing,
+                  SketchContainer* sketch_container, int num_cuts) {
   auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
     thrust::make_counting_iterator(0llu),
     [=] __device__(size_t idx) { return batch.GetElement(idx); });
@@ -388,35 +402,27 @@ void ProcessBatch(AdapterT* adapter, size_t begin, size_t end, float missing,
         return Entry(batch.GetElement(idx).column_idx,
                      batch.GetElement(idx).value);
       });
-  // Work out how many valid entries we have in each column
-  dh::caching_device_vector<size_t> column_sizes_scan(adapter->NumColumns() + 1,
-                                                      0);
-
-  auto d_column_sizes_scan = column_sizes_scan.data().get();
   data::IsValidFunctor is_valid(missing);
-  dh::LaunchN(adapter->DeviceIdx(), end - begin, [=] __device__(size_t idx) {
-    auto e = batch_iter[begin + idx];
-    if (is_valid(e)) {
-      atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
-                    &d_column_sizes_scan[e.column_idx]),
-                static_cast<unsigned long long>(1));  // NOLINT
-    }
-  });
-  thrust::exclusive_scan(thrust::cuda::par(alloc), column_sizes_scan.begin(),
-                         column_sizes_scan.end(), column_sizes_scan.begin());
+  // Work out how many valid entries we have in each column
+  dh::caching_device_vector<size_t> column_sizes_scan;
+  GetColumnSizesScan(device, columns,
+                     batch_iter, is_valid,
+                     begin, end,
+                     &column_sizes_scan);
   thrust::host_vector<size_t> host_column_sizes_scan(column_sizes_scan);
   size_t num_valid = host_column_sizes_scan.back();
 
   // Copy current subset of valid elements into temporary storage and sort
   dh::caching_device_vector<Entry> sorted_entries(num_valid);
+  dh::XGBCachingDeviceAllocator<char> alloc;
   thrust::copy_if(thrust::cuda::par(alloc), entry_iter + begin,
                   entry_iter + end, sorted_entries.begin(), is_valid);
   thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
                sorted_entries.end(), EntryCompareOp());
 
   // Extract the cuts from all columns concurrently
-  dh::caching_device_vector<SketchEntry> cuts(adapter->NumColumns() * num_cuts);
-  ExtractCuts(adapter->DeviceIdx(), num_cuts,
+  dh::caching_device_vector<SketchEntry> cuts(columns * num_cuts);
+  ExtractCuts(device, num_cuts,
               dh::ToSpan(sorted_entries),
               dh::ToSpan(column_sizes_scan),
               dh::ToSpan(cuts));
@@ -426,51 +432,70 @@ void ProcessBatch(AdapterT* adapter, size_t begin, size_t end, float missing,
   sketch_container->Push(num_cuts, host_cuts, host_column_sizes_scan);
 }
 
-template <typename AdapterT>
-HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
-                                  float missing,
-                                  size_t sketch_batch_num_elements) {
-  size_t num_cuts = RequiredSampleCuts(num_bins, adapter->NumRows());
+template <typename AdapterBatch>
+size_t SketchBatchNumElements(AdapterBatch batch, size_t sketch_batch_num_elements,
+                              size_t columns, int device,
+                              size_t num_cuts) {
   if (sketch_batch_num_elements == 0) {
     int bytes_per_element = 16;
-    size_t bytes_cuts = num_cuts * adapter->NumColumns() * sizeof(SketchEntry);
-    size_t bytes_num_columns = (adapter->NumColumns() + 1) * sizeof(size_t);
+    size_t bytes_cuts = num_cuts * columns * sizeof(SketchEntry);
+    size_t bytes_num_columns = (columns + 1) * sizeof(size_t);
     // use up to 80% of available space
-    sketch_batch_num_elements = (dh::AvailableMemory(adapter->DeviceIdx()) -
+    sketch_batch_num_elements = (dh::AvailableMemory(device) -
                                  bytes_cuts - bytes_num_columns) *
                                 0.8 / bytes_per_element;
   }
+  return sketch_batch_num_elements;
+}
 
-  CHECK(adapter->NumRows() != data::kAdapterUnknownSize);
-  CHECK(adapter->NumColumns() != data::kAdapterUnknownSize);
-
+template <typename AdapterT>
+HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
+                                  float missing,
+                                  size_t sketch_batch_num_elements = 0) {
   adapter->BeforeFirst();
-  adapter->Next();
-  auto& batch = adapter->Value();
 
-  // Enforce single batch
-  CHECK(!adapter->Next());
+  CHECK(adapter->NumColumns() != data::kAdapterUnknownSize);
+  CHECK(adapter->NumRows() != data::kAdapterUnknownSize);
+
+  size_t num_cuts = RequiredSampleCuts(num_bins, adapter->NumRows());
 
   HistogramCuts cuts;
   DenseCuts dense_cuts(&cuts);
   SketchContainer sketch_container(num_bins, adapter->NumColumns(),
                                    adapter->NumRows());
 
-  for (auto begin = 0ull; begin < batch.Size();
-       begin += sketch_batch_num_elements) {
-    size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
-    ProcessBatch(adapter, begin, end, missing, &sketch_container, num_cuts);
+  while (adapter->Next()) {
+    auto batch = adapter->Value();
+    sketch_batch_num_elements = SketchBatchNumElements(
+        batch, sketch_batch_num_elements,
+        adapter->NumColumns(), adapter->DeviceIdx(), num_cuts);
+    for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
+      size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
+      auto& batch = adapter->Value();
+      ProcessBatch(batch, adapter->DeviceIdx(), adapter->NumColumns(),
+                   begin, end, missing, &sketch_container, num_cuts);
+    }
   }
 
   dense_cuts.Init(&sketch_container.sketches_, num_bins, adapter->NumRows());
   return cuts;
 }
 
-template HistogramCuts AdapterDeviceSketch(data::CudfAdapter* adapter,
-                                           int num_bins, float missing,
-                                           size_t sketch_batch_size);
-template HistogramCuts AdapterDeviceSketch(data::CupyAdapter* adapter,
-                                           int num_bins, float missing,
-                                           size_t sketch_batch_size);
+template <typename Batch>
+void AdapterDeviceSketch(Batch batch, int num_bins,
+                         float missing,
+                         size_t num_rows, size_t num_cols, int device,
+                         SketchContainer* sketch_container,
+                         size_t sketch_batch_num_elements = 0) {
+  size_t num_cuts = RequiredSampleCuts(num_bins, num_rows);
+  sketch_batch_num_elements = SketchBatchNumElements(
+      batch, sketch_batch_num_elements,
+      num_cols, device, num_cuts);
+  for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
+    size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
+    ProcessBatch(batch, device, num_cols,
+                 begin, end, missing, sketch_container, num_cuts);
+  }
+}
 }  // namespace common
 }  // namespace xgboost

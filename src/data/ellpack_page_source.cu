@@ -7,6 +7,7 @@
 #include "../common/hist_util.h"
 
 #include "ellpack_page.cuh"
+#include "../common/quantile.cuh"
 #include "ellpack_page_source.h"
 #include "sparse_page_source.h"
 

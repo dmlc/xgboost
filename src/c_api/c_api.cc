@@ -23,6 +23,7 @@
 #include "../common/io.h"
 #include "../data/adapter.h"
 #include "../data/simple_dmatrix.h"
+#include "../data/proxy_dmatrix.h"
 
 using namespace xgboost; // NOLINT(*);
 
@@ -38,16 +39,16 @@ XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch) {
   }
 }
 
-int XGBRegisterLogCallback(void (*callback)(const char*)) {
+XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
   API_BEGIN();
   LogCallbackRegistry* registry = LogCallbackRegistryStore::Get();
   registry->Register(callback);
   API_END();
 }
 
-int XGDMatrixCreateFromFile(const char *fname,
-                            int silent,
-                            DMatrixHandle *out) {
+XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
+                                    int silent,
+                                    DMatrixHandle *out) {
   API_BEGIN();
   bool load_row_split = false;
   if (rabit::IsDistributed()) {
@@ -60,7 +61,7 @@ int XGDMatrixCreateFromFile(const char *fname,
 }
 
 XGB_DLL int XGDMatrixCreateFromDataIter(
-    void *data_handle,                  // a Java interator
+    void *data_handle,                  // a Java iterator
     XGBCallbackDataIterNext *callback,  // C++ callback defined in xgboost4j.cpp
     const char *cache_info, DMatrixHandle *out) {
   API_BEGIN();
@@ -158,6 +159,52 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
   API_END();
 }
 
+// Create from data iterator
+XGB_DLL int XGProxyDMatrixCreate(DMatrixHandle* out) {
+  API_BEGIN();
+  *out = new std::shared_ptr<xgboost::DMatrix>(new xgboost::data::DMatrixProxy);;
+  API_END();
+}
+
+XGB_DLL int XGDMatrixSetDataCudaArrayInterface(DMatrixHandle handle,
+                                               char const* interface) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
+  CHECK(p_m);
+  auto m =   static_cast<xgboost::data::DMatrixProxy*>(p_m->get());
+  CHECK(m) << "Current DMatrix type does not support set data.";
+  m->SetData(interface);
+  API_END();
+}
+
+XGB_DLL int XGDMatrixSetDataCudaColumnar(DMatrixHandle handle,
+                                         char const* interface) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto p_m = static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
+  CHECK(p_m);
+  auto m =   static_cast<xgboost::data::DMatrixProxy*>(p_m->get());
+  CHECK(m) << "Current DMatrix type does not support set data.";
+  m->SetData(interface);
+  API_END();
+}
+
+XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter,
+                                        DMatrixHandle proxy,
+                                        DataIterResetCallback *reset,
+                                        XGDMatrixCallbackNext *next,
+                                        float missing,
+                                        int nthread,
+                                        int max_bin,
+                                        DMatrixHandle *out) {
+  API_BEGIN();
+  *out = new std::shared_ptr<xgboost::DMatrix>{
+    xgboost::DMatrix::Create(iter, proxy, reset, next, missing, nthread, max_bin)};
+  API_END();
+}
+// End Create from data iterator
+
 XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
                                   const int* idxset,
                                   xgboost::bst_ulong len,
@@ -212,7 +259,7 @@ XGB_DLL int XGDMatrixSetFloatInfo(DMatrixHandle handle,
   API_BEGIN();
   CHECK_HANDLE();
   static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo(field, info, xgboost::DataType::kFloat32, len);
+      ->get()->SetInfo(field, info, xgboost::DataType::kFloat32, len);
   API_END();
 }
 
@@ -221,8 +268,10 @@ XGB_DLL int XGDMatrixSetInfoFromInterface(DMatrixHandle handle,
                                           char const* interface_c_str) {
   API_BEGIN();
   CHECK_HANDLE();
-  static_cast<std::shared_ptr<DMatrix>*>(handle)
-      ->get()->Info().SetInfo(field, interface_c_str);
+  auto m = static_cast<std::shared_ptr<DMatrix>*>(handle);
+  CHECK(m);
+  CHECK(m->get());
+  m->get()->SetInfo(field, interface_c_str);
   API_END();
 }
 

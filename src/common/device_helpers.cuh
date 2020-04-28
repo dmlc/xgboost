@@ -331,6 +331,11 @@ inline void DebugSyncDevice(std::string file="", int32_t line = -1) {
   safe_cuda(cudaGetLastError());
 }
 
+inline void DebugCheckError() {
+  safe_cuda(cudaDeviceSynchronize());
+  safe_cuda(cudaGetLastError());
+}
+
 namespace detail {
 /**
  * \brief Default memory allocator, uses cudaMalloc/Free and logs allocations if verbose.

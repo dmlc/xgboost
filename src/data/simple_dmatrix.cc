@@ -118,7 +118,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
     if (batch.BaseMargin() != nullptr) {
       auto& base_margin = info_.base_margin_.HostVector();
       base_margin.insert(base_margin.end(), batch.BaseMargin(),
-                     batch.BaseMargin() + batch.Size());
+                         batch.BaseMargin() + batch.Size());
     }
     if (batch.Qid() != nullptr) {
       qids.insert(qids.end(), batch.Qid(), batch.Qid() + batch.Size());
