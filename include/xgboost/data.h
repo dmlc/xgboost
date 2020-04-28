@@ -566,8 +566,7 @@ struct Handler<xgboost::Entry> {
   }
 
   inline static bool Read(Stream* strm, xgboost::Entry* data) {
-    strm->Read(&data->index);
-    strm->Read(&data->fvalue);
+    return strm->Read(&data->index) && strm->Read(&data->fvalue);
   }
 };
 
