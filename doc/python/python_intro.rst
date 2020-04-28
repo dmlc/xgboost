@@ -136,6 +136,8 @@ XGBoost can use either a list of pairs or a dictionary to set :doc:`parameters <
 
     evallist = [(dtest, 'eval'), (dtrain, 'train')]
 
+Automated tuning of parameters can be done with hyperparameter optimization libraries, like `Optuna <https://optuna.org>`_.
+
 Training
 --------
 
