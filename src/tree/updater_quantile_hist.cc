@@ -55,11 +55,13 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
                                DMatrix *dmat,
                                const std::vector<RegTree *> &trees) {
   if (dmat != p_last_dmat_ || is_gmat_initialized_ == false) {
+    updater_monitor_.Start("GmatInitialization");
     gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
     column_matrix_.Init(gmat_, param_.sparse_threshold);
     if (param_.enable_feature_grouping > 0) {
       gmatb_.Init(gmat_, column_matrix_, param_);
     }
+    updater_monitor_.Stop("GmatInitialization");
     // A proper solution is puting cut matrix in DMatrix, see:
     // https://github.com/dmlc/xgboost/issues/5143
     is_gmat_initialized_ = true;
@@ -145,9 +147,9 @@ void QuantileHistMaker::Builder::SyncHistograms(
       }
     });
 
-    builder_monitor_.Start("SyncHistograms:histred_.Allreduce");
+    builder_monitor_.Start("SyncHistogramsAllreduce");
     this->histred_.Allreduce(hist_[starting_index].data(), hist_builder_.GetNumBins() * sync_count);
-    builder_monitor_.Stop("SyncHistograms:histred_.Allreduce");
+    builder_monitor_.Stop("SyncHistogramsAllreduce");
 
     common::ParallelFor2d(space, this->nthread_, [&](size_t node, common::Range1d r) {
       const auto entry = nodes_for_explicit_hist_build_[node];
@@ -389,12 +391,12 @@ void QuantileHistMaker::Builder::SplitSiblings(const std::vector<ExpandEntry>& n
     } else {
       const int32_t left_id = (*p_tree)[node.Parent()].LeftChild();
       const int32_t right_id = (*p_tree)[node.Parent()].RightChild();
-      size_t node_sizes[2] = { row_set_collection_[left_id ].Size(),
-                               row_set_collection_[right_id].Size() };
 
-      if (nid == left_id && node_sizes[0] < node_sizes[1]) {
+      if (nid == left_id && row_set_collection_[left_id ].Size() <
+                            row_set_collection_[right_id].Size()) {
         small_siblings->push_back(entry);
-      } else if (nid == right_id && node_sizes[1] <= node_sizes[0]) {
+      } else if (nid == right_id && row_set_collection_[right_id].Size() <=
+                                    row_set_collection_[left_id ].Size()) {
         small_siblings->push_back(entry);
       } else {
         big_siblings->push_back(entry);
@@ -496,9 +498,7 @@ void QuantileHistMaker::Builder::ExpandWithLossGuide(
       ExpandEntry right_node(cright, cleft, p_tree->GetDepth(cright),
                             0.0f, timestamp++);
 
-      size_t node_sizes[2] = { row_set_collection_[cleft].Size(),
-                               row_set_collection_[cright].Size() };
-      if (node_sizes[0] < node_sizes[1]) {
+      if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
         BuildHistogramsLossGuide(left_node, gmat, gmatb, p_tree, gpair_h);
       } else {
         BuildHistogramsLossGuide(right_node, gmat, gmatb, p_tree, gpair_h);
@@ -549,7 +549,9 @@ void QuantileHistMaker::Builder::Update(const GHistIndexMatrix& gmat,
     p_tree->Stat(nid).base_weight = snode_[nid].weight;
     p_tree->Stat(nid).sum_hess = static_cast<float>(snode_[nid].stats.sum_hess);
   }
+  builder_monitor_.Start("PrunerUpdate");
   pruner_->Update(gpair, p_fmat, std::vector<RegTree*>{p_tree});
+  builder_monitor_.Stop("PrunerUpdate");
 
   builder_monitor_.Stop("Update");
 }

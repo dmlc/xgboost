@@ -81,7 +81,9 @@ using xgboost::common::Column;
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
-  QuantileHistMaker() = default;
+  QuantileHistMaker() {
+    updater_monitor_.Init("Quantile");
+  }
   void Configure(const Args& args) override;
 
   void Update(HostDeviceVector<GradientPair>* gpair,
@@ -371,7 +373,7 @@ class QuantileHistMaker: public TreeUpdater {
     common::ParallelGHistBuilder hist_buffer_;
     rabit::Reducer<GradStats, GradStats::Reduce> histred_;
   };
-
+  common::Monitor updater_monitor_;
   std::unique_ptr<Builder> builder_;
   std::unique_ptr<TreeUpdater> pruner_;
   std::unique_ptr<SplitEvaluator> spliteval_;
