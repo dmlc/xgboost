@@ -195,7 +195,7 @@ __global__ void EvaluateSplitsKernel(
 
 __device__ DeviceSplitCandidate operator+(const DeviceSplitCandidate& a,
                                           const DeviceSplitCandidate& b) {
-  return a.loss_chg > b.loss_chg ? a : b;
+  return b.loss_chg > a.loss_chg ? b : a;
 }
 
 template <typename GradientSumT>
