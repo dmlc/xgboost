@@ -684,6 +684,19 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   return max_columns;
 }
 
+template uint64_t SparsePage::Push<data::DenseAdapterBatch>(
+	const data::DenseAdapterBatch& batch, float missing, int nthread);
+template uint64_t SparsePage::Push<data::CSRAdapterBatch>(
+	const data::CSRAdapterBatch& batch, float missing, int nthread);
+template uint64_t SparsePage::Push<data::CSCAdapterBatch>(
+	const data::CSCAdapterBatch& batch, float missing, int nthread);
+template uint64_t SparsePage::Push<data::DataTableAdapterBatch>(
+	const data::DataTableAdapterBatch& batch, float missing, int nthread);
+template uint64_t SparsePage::Push<data::FileAdapterBatch>(
+	const data::FileAdapterBatch& batch, float missing, int nthread);
+template uint64_t SparsePage::Push<data::DMatrixSliceAdapterBatch>(
+	const data::DMatrixSliceAdapterBatch& batch, float missing, int nthread);
+
 void SparsePage::PushCSC(const SparsePage &batch) {
   std::vector<xgboost::Entry>& self_data = data.HostVector();
   std::vector<bst_row_t>& self_offset = offset.HostVector();
