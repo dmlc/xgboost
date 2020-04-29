@@ -7,3 +7,8 @@ if (PLUGIN_DENSE_PARSER)
   set(PLUGINS_SOURCES ${PLUGINS_SOURCES}
     ${xgboost_SOURCE_DIR}/plugin/dense_parser/dense_libsvm.cc PARENT_SCOPE)
 endif (PLUGIN_DENSE_PARSER)
+
+if (PLUGIN_UPDATER_SYCL)
+  set(PLUGINS_SOURCES ${PLUGINS_SOURCES}
+    ${xgboost_SOURCE_DIR}/plugin/updater_sycl/regression_obj_sycl.cc PARENT_SCOPE)
+endif (PLUGIN_UPDATER_SYCL)
