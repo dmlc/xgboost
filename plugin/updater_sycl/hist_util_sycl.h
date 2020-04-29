@@ -285,6 +285,39 @@ class ParallelGHistBuilderSycl {
   std::map<std::pair<size_t, size_t>, size_t> tid_nid_to_hist_;
 };
 
+/*!
+ * \brief builder for histograms of gradient statistics
+ */
+class GHistBuilder {
+ public:
+  GHistBuilderSycl() = default;
+  GHistBuilderSycl(size_t nthread, uint32_t nbins) : nthread_{nthread}, nbins_{nbins} {}
+
+  // construct a histogram via histogram aggregation
+  void BuildHist(const std::vector<GradientPair>& gpair,
+                 const RowSetCollection::Elem row_indices,
+                 const GHistIndexMatrix& gmat,
+                 GHistRowSycl hist,
+                 bool isDense);
+  // same, with feature grouping
+  void BuildBlockHist(const std::vector<GradientPair>& gpair,
+                      const RowSetCollection::Elem row_indices,
+                      const GHistIndexBlockMatrix& gmatb,
+                      GHistRowSycl hist);
+  // construct a histogram via subtraction trick
+  void SubtractionTrick(GHistRowSycl self, GHistRowSycl sibling, GHistRowSycl parent);
+
+  uint32_t GetNumBins() const {
+      return nbins_;
+  }
+
+ private:
+  /*! \brief number of threads for parallel computation */
+  size_t nthread_ { 0 };
+  /*! \brief number of all bins over all features */
+  uint32_t nbins_ { 0 };
+};
+
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_HIST_UTIL_SYCL_H_
