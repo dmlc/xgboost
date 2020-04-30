@@ -616,22 +616,25 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
  * environment (next_callback_), another is defined by subclass of `CallBackAdapter`
  * (set_data_);
  */
-template <typename NextCallback, typename SetData, typename Batch>
+template <typename NextCallback, typename SetData, typename SetInfo, typename Batch>
 class CallBackAdapter : public dmlc::DataIter<Batch> {
  protected:
   Batch batch_;
+  MetaInfo info_;
   size_t rows_ { kAdapterUnknownSize };
 
  private:
   DataIterResetCallback* reset_callback_;
   NextCallback* next_callback_;
   SetData* set_data_;
+  SetInfo* set_info_;
   DataIterHandle iter_;  // A handler to external data iterator.
 
  public:
-  CallBackAdapter(DataIterResetCallback* reset, NextCallback* next, SetData* set_data,
-                  DataIterHandle iter)
-      : reset_callback_{reset}, next_callback_{next}, set_data_{set_data}, iter_{iter} {
+  CallBackAdapter(DataIterResetCallback *reset, NextCallback *next,
+                  SetData *set_data, SetInfo *set_info, DataIterHandle iter)
+      : reset_callback_{reset}, next_callback_{next}, set_data_{set_data},
+        set_info_{set_info}, iter_{iter} {
     CHECK(reset_callback_);
     CHECK(next_callback_);
   }
@@ -649,7 +652,7 @@ class CallBackAdapter : public dmlc::DataIter<Batch> {
     reset_callback_(iter_);
   }
   virtual size_t NumRows() const { return rows_; }
-  bool Next() override { return next_callback_(iter_, set_data_); }
+  bool Next() override { return next_callback_(iter_, set_data_, set_info_); }
   const Batch &Value() const override { return batch_; }
   Batch &Value() { return batch_; }
 };
@@ -681,6 +684,7 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
 class CudaArrayInterfaceCallbackAdapter
     : public CallBackAdapter<CudaArrayInterfaceNextCallback,
                              CudaArrayInterfaceCallBackSetData,
+                             CudaArrayInterfaceCallBackSetInfo,
                              CupyAdapterBatch> {
 
  public:
@@ -688,17 +692,22 @@ class CudaArrayInterfaceCallbackAdapter
                                     CudaArrayInterfaceNextCallback *next,
                                     DataIterHandle iter, int device,
                                     DataHolderHandle *holder)
-      : CallBackAdapter<
-            CudaArrayInterfaceNextCallback, CudaArrayInterfaceCallBackSetData,
-            CupyAdapterBatch>{reset, next,
-                              [](DataHolderHandle self,
-                                 char const *interface) -> int {
-                                API_BEGIN()
-                                static_cast<
-                                    CudaArrayInterfaceCallbackAdapter *>(self)
-                                    ->SetData(interface);
-                                API_END()
-                              }, iter},
+      : CallBackAdapter{
+            reset, next,
+            [](DataHolderHandle self, char const *interface) -> int {
+              API_BEGIN()
+              static_cast<CudaArrayInterfaceCallbackAdapter *>(self)->SetData(
+                  interface);
+              API_END()
+            },
+            [](DataHolderHandle self, char const *key,
+               char const *interface) -> int {
+              API_BEGIN()
+              static_cast<CudaArrayInterfaceCallbackAdapter *>(self)
+                  ->SetMetaInfo(key, interface);
+              API_END()
+            },
+            iter},
         device_{device} {
     *holder = this;
     this->AccumulateRows();
@@ -715,6 +724,10 @@ class CudaArrayInterfaceCallbackAdapter
           << "Number of columns must be consistent across all batches.";
     }
     this->cols_ = interface.num_cols;
+  }
+
+  void SetMetaInfo(char const* key, char const* interface) {
+    this->info_.SetInfo(key, interface);
   }
 
   bool IsRowMajor() const { return true; }

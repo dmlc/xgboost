@@ -127,11 +127,17 @@ XGB_EXTERN_C typedef int CudaArrayInterfaceCallBackSetData(  // NOLINT(*)
     DataHolderHandle handle,
     char const* interface);
 
+XGB_EXTERN_C typedef int CudaArrayInterfaceCallBackSetInfo(  // NOLINT(*)
+    DataHolderHandle handle,
+    char const* key,
+    char const* interface);
+
 /*!
  * \brief Callback function for yielding the next value of data iterator.
  */
 XGB_EXTERN_C typedef int CudaArrayInterfaceNextCallback( // NOLINT(*)
-    DataIterHandle iter, CudaArrayInterfaceCallBackSetData);
+    DataIterHandle iter, CudaArrayInterfaceCallBackSetData,
+    CudaArrayInterfaceCallBackSetInfo);
 
 /*!
  * \brief get string message of the last error

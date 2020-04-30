@@ -168,9 +168,10 @@ void Reset(DataIterHandle iter) {
 }
 
 int CudaArrayIterNextForTest(DataIterHandle iter,
-                             CudaArrayInterfaceCallBackSetData set) {
+                             CudaArrayInterfaceCallBackSetData set_data,
+                             CudaArrayInterfaceCallBackSetInfo set_info) {
   std::string interface;
-  auto code = static_cast<CudaArrayIterForTest*>(iter)->Next(set);
+  auto code = static_cast<CudaArrayIterForTest*>(iter)->Next(set_data);
   return code;
 }
 

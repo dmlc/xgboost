@@ -547,7 +547,9 @@ class DMatrix:
                 ctypes.c_int,
                 ctypes.c_void_p,
                 ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p,
-                                 ctypes.c_char_p))
+                                 ctypes.c_char_p),
+                ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p,
+                                 ctypes.c_char_p, ctypes.c_char_p))
             next_callback = next_factory(data.next)
             _check_call(_LIB.XGDMatrixFromCudaArrayInterfaceIterator(
                 reset_callback,
