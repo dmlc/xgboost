@@ -606,6 +606,16 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
   std::unique_ptr<FileAdapterBatch> batch_;
 };
 
+/*
+ * Using Python as an example.
+ *
+ * 0. CallBackAdapter::Next calls a Python function next_callback_,
+ * 1. next_callback_ calls a C++ function set_data_
+ *
+ * So in order to get the iterator work, there are 2 callbacks, on is defined in external
+ * environment (next_callback_), another is defined by subclass of `CallBackAdapter`
+ * (set_data_);
+ */
 template <typename NextCallback, typename SetData, typename Batch>
 class CallBackAdapter : public dmlc::DataIter<Batch> {
  protected:
@@ -678,11 +688,11 @@ class CudaArrayInterfaceCallbackAdapter
       : CallBackAdapter<
             CudaArrayInterfaceNextCallback, CudaArrayInterfaceCallBackSetData,
             CupyAdapterBatch>{reset, next,
-                              [](DataIterHandle handle,
+                              [](DataIterHandle self,
                                  char const *interface) -> int {
                                 API_BEGIN()
                                 static_cast<
-                                    CudaArrayInterfaceCallbackAdapter *>(handle)
+                                    CudaArrayInterfaceCallbackAdapter *>(self)
                                     ->SetData(interface);
                                 API_END()
                               }},
