@@ -34,6 +34,191 @@ namespace common {
 using GHistIndexRow = Span<uint32_t const>;
 using GHistRowSycl = Span<tree::GradStats>; // Span containing USM pointer
 
+struct IndexSycl {
+  IndexSycl() : data_size_(0), data_(nullptr), offset_size_(0), offset_(nullptr) {
+    SetBinTypeSize(binTypeSize_);
+  }
+  IndexSycl(const IndexSycl& i) = delete;
+  IndexSycl& operator=(IndexSycl i) = delete;
+  IndexSycl(IndexSycl&& i) = delete;
+  IndexSycl& operator=(IndexSycl&& i) = delete;
+  uint32_t operator[](size_t i) const {
+    if (offset_ != nullptr) {
+      return func_(data_, i) + offset_[i%p_];
+    } else {
+      return func_(data_, i);
+    }
+  }
+  void SetBinTypeSize(BinTypeSize binTypeSize) {
+    binTypeSize_ = binTypeSize;
+    switch (binTypeSize) {
+      case kUint8BinsTypeSize:
+        func_ = &GetValueFromUint8;
+        break;
+      case kUint16BinsTypeSize:
+        func_ = &GetValueFromUint16;
+        break;
+      case kUint32BinsTypeSize:
+        func_ = &GetValueFromUint32;
+        break;
+      default:
+        CHECK(binTypeSize == kUint8BinsTypeSize  ||
+              binTypeSize == kUint16BinsTypeSize ||
+              binTypeSize == kUint32BinsTypeSize);
+    }
+  }
+  BinTypeSize GetBinTypeSize() const {
+    return binTypeSize_;
+  }
+  template<typename T>
+  T* data() const {  // NOLINT
+    return static_cast<T*>(data_);
+  }
+  uint32_t* Offset() const {
+    return offset_;
+  }
+  size_t OffsetSize() const {
+    return offset_size_;
+  }
+  size_t Size() const {
+    return data_size_ / (binTypeSize_);
+  }
+  void Resize(const size_t nBytesData) {
+    if (data_)
+    {
+    	cl::sycl::free((uint8_t*)data_, qu_);
+    }
+    data_ = (void*)cl::sycl::malloc_device<uint8_t>(nBytesData, qu_);
+    data_size_ = nBytesData;
+  }
+  void ResizeOffset(const size_t nDisps) {
+    if (offset_)
+    {
+    	cl::sycl::free(offset_, qu_);
+    }
+    offset_ = cl::sycl::malloc_device<uint32_t>(nDisps, qu_);
+    offset_size_ = nDisps;
+    p_ = nDisps;
+  }
+  uint8_t* begin() const {  // NOLINT
+    return reinterpret_cast<uint8_t*>(data_);
+  }
+  uint8_t* end() const {  // NOLINT
+    return reinterpret_cast<uint8_t*>(data_) + data_size_;
+  }
+
+  void setQueue(cl::sycl::queue qu) {
+  	qu_ = qu;
+  }
+
+ private:
+  static uint32_t GetValueFromUint8(void *t, size_t i) {
+    return reinterpret_cast<uint8_t*>(t)[i];
+  }
+  static uint32_t GetValueFromUint16(void* t, size_t i) {
+    return reinterpret_cast<uint16_t*>(t)[i];
+  }
+  static uint32_t GetValueFromUint32(void* t, size_t i) {
+    return reinterpret_cast<uint32_t*>(t)[i];
+  }
+
+  using Func = uint32_t (*)(void*, size_t);
+
+  size_t data_size_;
+  void* data_;
+  size_t offset_size_;
+  uint32_t* offset_;  // size of this field is equal to number of features
+  BinTypeSize binTypeSize_ {kUint8BinsTypeSize};
+  size_t p_ {1};
+  Func func_;
+
+  cl::sycl::queue qu_;
+};
+
+
+/*!
+ * \brief preprocessed global index matrix, in CSR format
+ *
+ *  Transform floating values to integer index in histogram This is a global histogram
+ *  index for CPU histogram.  On GPU ellpack page is used.
+ */
+struct GHistIndexMatrixSycl {
+  /*! \brief row pointer to rows by element position */
+  std::vector<size_t> row_ptr;
+  /*! \brief The index data */
+  IndexSycl index;
+  /*! \brief hit count of each index */
+  std::vector<size_t> hit_count;
+  /*! \brief The corresponding cuts */
+  HistogramCuts cut;
+  DMatrix* p_fmat;
+  size_t max_num_bins;
+  // Create a global histogram matrix, given cut
+  void Init(cl::sycl::queue qu, DMatrix* p_fmat, int max_num_bins);
+
+  template<typename BinIdxType>
+  void SetIndexDataForDense(common::Span<BinIdxType> index_data_span,
+                    size_t batch_threads, const SparsePage& batch,
+                    size_t rbegin, common::Span<const uint32_t> offsets_span,
+                    size_t nbins);
+
+  // specific method for sparse data as no posibility to reduce allocated memory
+  void SetIndexDataForSparse(common::Span<uint32_t> index_data_span,
+                             size_t batch_threads, const SparsePage& batch,
+                             size_t rbegin, size_t nbins);
+
+  void ResizeIndex(const size_t rbegin, const SparsePage& batch,
+                   const size_t n_offsets, const size_t n_index,
+                   const bool isDense);
+
+  inline void GetFeatureCounts(size_t* counts) const {
+    auto nfeature = cut.Ptrs().size() - 1;
+    for (unsigned fid = 0; fid < nfeature; ++fid) {
+      auto ibegin = cut.Ptrs()[fid];
+      auto iend = cut.Ptrs()[fid + 1];
+      for (auto i = ibegin; i < iend; ++i) {
+        counts[fid] += hit_count[i];
+      }
+    }
+  }
+  inline bool IsDense() const {
+    return isDense_;
+  }
+
+ private:
+  std::vector<size_t> hit_count_tloc_;
+  bool isDense_;
+};
+
+class ColumnMatrixSycl;
+
+class GHistIndexBlockMatrixSycl {
+ public:
+  void Init(const GHistIndexMatrixSycl& gmat,
+            const ColumnMatrixSycl& colmat,
+            const tree::TrainParam& param);
+
+  inline GHistIndexBlock operator[](size_t i) const {
+    return {blocks_[i].row_ptr_begin, blocks_[i].index_begin};
+  }
+
+  inline size_t GetNumBlock() const {
+    return blocks_.size();
+  }
+
+ private:
+  std::vector<size_t> row_ptr_;
+  std::vector<uint32_t> index_;
+  const HistogramCuts* cut_;
+  struct Block {
+    const size_t* row_ptr_begin;
+    const size_t* row_ptr_end;
+    const uint32_t* index_begin;
+    const uint32_t* index_end;
+  };
+  std::vector<Block> blocks_;
+};
+
 /*!
  * \brief histogram of gradient statistics for multiple nodes
  */
@@ -151,6 +336,29 @@ class ParallelGHistBuilderSycl {
     std::fill(hist_was_used_.begin(), hist_was_used_.end(), static_cast<int>(false));
   }
 
+  // Add new elements if needed, mark all hists as unused
+  // targeted_hists - already allocated hists which should contain final results after Reduce() call
+  void Reset(cl::sycl::queue qu, size_t nodes, const std::vector<GHistRowSycl>& targeted_hists) {
+    hist_buffer_.Init(qu, nbins_);
+    tid_nid_to_hist_.clear();
+    hist_memory_.clear();
+    threads_to_nids_map_.clear();
+
+    targeted_hists_ = targeted_hists;
+
+    CHECK_EQ(nodes, targeted_hists.size());
+
+    nodes_    = nodes;
+    nthreads_ = 1;
+
+    MatchThreadsToNodes();
+    AllocateAdditionalHistograms();
+    MatchNodeNidPairToHist();
+
+    hist_was_used_.resize(nodes_);
+    std::fill(hist_was_used_.begin(), hist_was_used_.end(), static_cast<int>(false));
+  }
+
   // Get specified hist, initialize hist by zeros if it wasn't used before
   GHistRowSycl GetInitializedHist(size_t tid, size_t nid) {
     CHECK_LT(nid, nodes_);
@@ -207,6 +415,14 @@ class ParallelGHistBuilderSycl {
           threads_to_nids_map_[tid * nodes_ + nid] = true;
         }
       }
+    }
+  }
+
+  void MatchThreadsToNodes() {
+    threads_to_nids_map_.resize(nodes_);
+
+    for (size_t nid = 0; nid < nodes_; ++nid) {
+      threads_to_nids_map_[nid] = true;
     }
   }
 
@@ -288,21 +504,21 @@ class ParallelGHistBuilderSycl {
 /*!
  * \brief builder for histograms of gradient statistics
  */
-class GHistBuilder {
+class GHistBuilderSycl {
  public:
   GHistBuilderSycl() = default;
-  GHistBuilderSycl(size_t nthread, uint32_t nbins) : nthread_{nthread}, nbins_{nbins} {}
+  GHistBuilderSycl(cl::sycl::queue qu, size_t nthread, uint32_t nbins) : qu_{qu}, nthread_{nthread}, nbins_{nbins} {}
 
   // construct a histogram via histogram aggregation
   void BuildHist(const std::vector<GradientPair>& gpair,
                  const RowSetCollection::Elem row_indices,
-                 const GHistIndexMatrix& gmat,
+                 const GHistIndexMatrixSycl& gmat,
                  GHistRowSycl hist,
                  bool isDense);
   // same, with feature grouping
   void BuildBlockHist(const std::vector<GradientPair>& gpair,
                       const RowSetCollection::Elem row_indices,
-                      const GHistIndexBlockMatrix& gmatb,
+                      const GHistIndexBlockMatrixSycl& gmatb,
                       GHistRowSycl hist);
   // construct a histogram via subtraction trick
   void SubtractionTrick(GHistRowSycl self, GHistRowSycl sibling, GHistRowSycl parent);
@@ -316,6 +532,8 @@ class GHistBuilder {
   size_t nthread_ { 0 };
   /*! \brief number of all bins over all features */
   uint32_t nbins_ { 0 };
+
+  cl::sycl::queue qu_;
 };
 
 }  // namespace common

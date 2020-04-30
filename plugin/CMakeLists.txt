@@ -10,5 +10,7 @@ endif (PLUGIN_DENSE_PARSER)
 
 if (PLUGIN_UPDATER_SYCL)
   set(PLUGINS_SOURCES ${PLUGINS_SOURCES}
-    ${xgboost_SOURCE_DIR}/plugin/updater_sycl/regression_obj_sycl.cc PARENT_SCOPE)
+    ${xgboost_SOURCE_DIR}/plugin/updater_sycl/regression_obj_sycl.cc
+    ${xgboost_SOURCE_DIR}/plugin/updater_sycl/hist_util_sycl.cc
+    ${xgboost_SOURCE_DIR}/plugin/updater_sycl/updater_quantile_hist_sycl.cc PARENT_SCOPE)
 endif (PLUGIN_UPDATER_SYCL)
