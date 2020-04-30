@@ -458,7 +458,7 @@ class DataIter:
     def reset(self):
         pass
 
-    def next(self, func):
+    def next(self, void, func):
         pass
 
 
@@ -541,10 +541,11 @@ class DMatrix:
             self.handle = handle
         if isinstance(data, DataIter):
             handle = ctypes.c_void_p()
-            reset_factory = ctypes.CFUNCTYPE(None)
+            reset_factory = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
             reset_callback = reset_factory(data.reset)
             next_factory = ctypes.CFUNCTYPE(
                 ctypes.c_int,
+                ctypes.c_void_p,
                 ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p,
                                  ctypes.c_char_p))
             next_callback = next_factory(data.next)
@@ -555,6 +556,7 @@ class DMatrix:
                 ctypes.c_int(nthread),
                 ctypes.c_int(256),
                 ctypes.c_int(0),
+                None,
                 ctypes.byref(data.cxx_handle),
                 ctypes.byref(handle)
             ))

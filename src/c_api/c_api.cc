@@ -61,7 +61,7 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
 }
 
 XGB_DLL int XGDMatrixCreateFromDataIter(
-    void *data_handle,                  // a Java interator
+    void *data_handle,                  // a Java iterator
     XGBCallbackDataIterNext *callback,  // C++ callback defined in xgboost4j.cpp
     const char *cache_info, DMatrixHandle *out) {
   API_BEGIN();
@@ -85,10 +85,12 @@ XGB_DLL int XGDMatrixFromCudaArrayInterfaceIterator(DataIterResetCallback* reset
                                                     float missing,
                                                     int nthread, int max_bin,
                                                     int device,
-                                                    DataIterHandle *iter,
+                                                    DataIterHandle iter,
+                                                    DataHolderHandle *holder,
                                                     DMatrixHandle *out) {
   API_BEGIN();
-  auto adapter = data::CudaArrayInterfaceCallbackAdapter(reset, next, iter, device);
+  auto adapter = data::CudaArrayInterfaceCallbackAdapter(reset, next, iter,
+                                                         device, holder);
   *out = new std::shared_ptr<DMatrix>{
       new data::IterativeDeviceDMatrix(&adapter, missing, nthread, max_bin)};
   API_END();

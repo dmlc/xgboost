@@ -626,10 +626,12 @@ class CallBackAdapter : public dmlc::DataIter<Batch> {
   DataIterResetCallback* reset_callback_;
   NextCallback* next_callback_;
   SetData* set_data_;
+  DataIterHandle iter_;  // A handler to external data iterator.
 
  public:
-  CallBackAdapter(DataIterResetCallback* reset, NextCallback* next, SetData* set_data)
-      : reset_callback_{reset}, next_callback_{next}, set_data_{set_data} {
+  CallBackAdapter(DataIterResetCallback* reset, NextCallback* next, SetData* set_data,
+                  DataIterHandle iter)
+      : reset_callback_{reset}, next_callback_{next}, set_data_{set_data}, iter_{iter} {
     CHECK(reset_callback_);
     CHECK(next_callback_);
   }
@@ -644,10 +646,10 @@ class CallBackAdapter : public dmlc::DataIter<Batch> {
   }
 
   void BeforeFirst() override {
-    reset_callback_();
+    reset_callback_(iter_);
   }
   virtual size_t NumRows() const { return rows_; }
-  bool Next() override { return next_callback_(set_data_); }
+  bool Next() override { return next_callback_(iter_, set_data_); }
   const Batch &Value() const override { return batch_; }
   Batch &Value() { return batch_; }
 };
@@ -684,20 +686,21 @@ class CudaArrayInterfaceCallbackAdapter
  public:
   CudaArrayInterfaceCallbackAdapter(DataIterResetCallback *reset,
                                     CudaArrayInterfaceNextCallback *next,
-                                    DataIterHandle *iter, int device)
+                                    DataIterHandle iter, int device,
+                                    DataHolderHandle *holder)
       : CallBackAdapter<
             CudaArrayInterfaceNextCallback, CudaArrayInterfaceCallBackSetData,
             CupyAdapterBatch>{reset, next,
-                              [](DataIterHandle self,
+                              [](DataHolderHandle self,
                                  char const *interface) -> int {
                                 API_BEGIN()
                                 static_cast<
                                     CudaArrayInterfaceCallbackAdapter *>(self)
                                     ->SetData(interface);
                                 API_END()
-                              }},
+                              }, iter},
         device_{device} {
-    *iter = this;
+    *holder = this;
     this->AccumulateRows();
   }
 

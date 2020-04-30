@@ -31,7 +31,7 @@ typedef uint64_t bst_ulong;  // NOLINT(*)
 typedef void *DMatrixHandle;  // NOLINT(*)
 /*! \brief handle to Booster */
 typedef void *BoosterHandle;  // NOLINT(*)
-/*! \brief handle to a data iterator */
+/*! \brief handle to a external data iterator */
 typedef void *DataIterHandle;  // NOLINT(*)
 /*! \brief handle to a internal data holder. */
 typedef void *DataHolderHandle;  // NOLINT(*)
@@ -94,23 +94,44 @@ XGB_EXTERN_C typedef int XGBCallbackDataIterNext(  // NOLINT(*)
     DataIterHandle data_handle, XGBCallbackSetData *set_function,
     DataHolderHandle set_function_handle);
 
+
+/* Introduction to using data callback with Device DMatrix.
+ *
+ * XGBoost GPU Hist supports building a device DMatrix by batch to reduce memory usage.
+ * The feature is enabled by callback functions.  It's a cool feature that helps avoiding
+ * concentenating data partitions, but at a cost of complexity.  The basic idea is:
+ *
+ * - Register 2 callback functions in XGBoost, 1 for yielding the next batch of data (
+ *   `next` function), another for reseting the iterator to initial state (`reset`
+ *   function).
+ *
+ * - In turn, XGBoost will pass another callback function defined inside XGBoost into the
+ *   `next` function as an argument to obtain the data. (`set data` function.)
+ *
+ * There's a handle for each side, `DataHodlerHandle` means XGBoost, it's used with the
+ * `set data` function defined in XGBoost.  While `DataIterHandle` is a handle of client
+ * object, used with `next` and `reset` functions.  For example, if your `next` and
+ * `reset` functions are both a C++ class member function, then you need to pass the
+ * `this` pointer as a `DataIterHandle` for XGBoost to invoke these 2 functions.
+ */
+
 /*!
  * \brief Callback function for reseting external iterator
  */
-XGB_EXTERN_C typedef void DataIterResetCallback();  // NOLINT(*)
+XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle);  // NOLINT(*)
 
 /*!
  * \brief Callback function defined in XGBoost core used for accepting data.
  */
 XGB_EXTERN_C typedef int CudaArrayInterfaceCallBackSetData(  // NOLINT(*)
-    DataIterHandle handle,
+    DataHolderHandle handle,
     char const* interface);
 
 /*!
  * \brief Callback function for yielding the next value of data iterator.
  */
 XGB_EXTERN_C typedef int CudaArrayInterfaceNextCallback( // NOLINT(*)
-    CudaArrayInterfaceCallBackSetData);
+    DataIterHandle iter, CudaArrayInterfaceCallBackSetData);
 
 /*!
  * \brief get string message of the last error

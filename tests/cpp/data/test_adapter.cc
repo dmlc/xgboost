@@ -68,7 +68,7 @@ TEST(Adapter, CSCAdapterColsMoreThanRows) {
 }
 
 // A mock for JVM data iterator.
-class DataIterForTest {
+class CSRIterForTest {
   std::vector<float> data_ {1, 2, 3, 4, 5};
   std::vector<std::remove_pointer<decltype(std::declval<XGBoostBatchCSR>().index)>::type>
       feature_idx_ {0, 1, 0, 1, 1};
@@ -100,16 +100,16 @@ class DataIterForTest {
   size_t Iter() const { return iter_; }
 };
 
-size_t constexpr DataIterForTest::kCols;
+size_t constexpr CSRIterForTest::kCols;
 
-int SetDataNextForTest(DataIterHandle data_handle,
-                       XGBCallbackSetData *set_function,
-                       DataHolderHandle set_function_handle) {
+int CSRSetDataNextForTest(DataIterHandle data_handle,
+                          XGBCallbackSetData *set_function,
+                          DataHolderHandle set_function_handle) {
   size_t constexpr kIters { 2 };
-  auto iter = static_cast<DataIterForTest *>(data_handle);
+  auto iter = static_cast<CSRIterForTest *>(data_handle);
   if (iter->Iter() < kIters) {
     auto batch = iter->Next();
-    batch.columns = DataIterForTest::kCols;
+    batch.columns = CSRIterForTest::kCols;
     set_function(set_function_handle, batch);
     return 1;
   } else {
@@ -118,15 +118,68 @@ int SetDataNextForTest(DataIterHandle data_handle,
 }
 
 TEST(Adapter, IteratorAdaper) {
-  DataIterForTest iter;
-  data::IteratorAdapter adapter{&iter, SetDataNextForTest};
+  CSRIterForTest iter;
+  data::IteratorAdapter adapter{&iter, CSRSetDataNextForTest};
   constexpr size_t kRows { 6 };
 
   std::unique_ptr<DMatrix> data {
     DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)
   };
-  ASSERT_EQ(data->Info().num_col_, DataIterForTest::kCols);
+  ASSERT_EQ(data->Info().num_col_, CSRIterForTest::kCols);
   ASSERT_EQ(data->Info().num_row_, kRows);
+}
+
+class CudaArrayIterForTest {
+  std::vector< std::string > arrays_;
+  std::vector< HostDeviceVector<float> > storages_;
+  size_t it_ { 0 };
+  DataHolderHandle* adapter_;
+
+ public:
+  static constexpr size_t kRows = 128;
+  static constexpr size_t kCols = 64;
+  static constexpr size_t kParts = 4;
+
+  explicit CudaArrayIterForTest(DataHolderHandle* adapter) : adapter_{adapter} {
+    size_t rows_per_partition = kRows / kParts;
+    auto rng = RandomDataGenerator{rows_per_partition, kCols, 0}.Device(0);
+    storages_.resize(kParts);
+    for (size_t i = 0; i < kParts; ++i) {
+      arrays_.emplace_back(rng.GenerateArrayInterface(&storages_[i]));
+    }
+  }
+
+  int Next(CudaArrayInterfaceCallBackSetData set) {
+    if (it_ == kParts) {
+      return false;
+    } else {
+      auto interface = arrays_[it_];
+      set(*adapter_, interface.c_str());
+      it_++;
+      return true;
+    }
+  }
+
+  void Reset() { it_ = 0; }
+};
+
+void Reset(DataIterHandle iter) {
+  static_cast<CudaArrayIterForTest*>(iter)->Reset();
+}
+
+int CudaArrayIterNextForTest(DataIterHandle iter,
+                             CudaArrayInterfaceCallBackSetData set) {
+  std::string interface;
+  auto code = static_cast<CudaArrayIterForTest*>(iter)->Next(set);
+  return code;
+}
+
+TEST(Adapter, CudaArrayCallbackAdapter) {
+  DataHolderHandle holder;
+  CudaArrayIterForTest iter{&holder};
+
+  data::CudaArrayInterfaceCallbackAdapter adapter(
+      Reset, CudaArrayIterNextForTest, &iter, 0, &holder);
 }
 
 }  // namespace xgboost
