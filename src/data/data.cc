@@ -339,9 +339,30 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
 }
 
 void MetaInfo::Append(MetaInfo const& that) {
-  this->labels_.HostVector().insert(this->labels_.HostVector().end(),
-                                    that.labels_.HostVector().begin(),
-                                    that.labels_.HostVector().end());
+  this->num_row_ += that.num_row_;
+
+  auto append = [](HostDeviceVector<float> *lhs,
+                   HostDeviceVector<float> const &rhs) {
+    lhs->HostVector().insert(lhs->HostVector().end(), rhs.HostVector().begin(),
+                             rhs.HostVector().end());
+  };
+  append(&this->labels_, that.labels_);
+  append(&this->weights_, that.weights_);
+  append(&this->labels_lower_bound_, that.labels_lower_bound_);
+  append(&this->labels_upper_bound_, that.labels_upper_bound_);
+  append(&this->base_margin_, that.base_margin_);
+
+  if (this->group_ptr_.size() == 0) {
+    this->group_ptr_ = that.group_ptr_;
+  } else {
+    CHECK_NE(that.group_ptr_.size(), 0);
+    auto group_ptr = that.group_ptr_;
+    for (size_t i = 1; i < group_ptr.size(); ++i) {
+      group_ptr[i] += this->group_ptr_.back();
+    }
+    this->group_ptr_.insert(this->group_ptr_.end(), group_ptr.begin() + 1,
+                            group_ptr.end());
+  }
 }
 
 void MetaInfo::Validate(int32_t device) const {
