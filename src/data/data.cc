@@ -37,7 +37,7 @@ template <typename T>
 void SaveScalarField(dmlc::Stream *strm, const std::string &name,
                      xgboost::DataType type, const T &field) {
   strm->Write(name);
-  strm->Write(type);
+  strm->Write(static_cast<uint8_t>(type));
   strm->Write(true);  // is_scalar=True
   strm->Write(field);
 }
@@ -47,7 +47,7 @@ void SaveVectorField(dmlc::Stream *strm, const std::string &name,
                      xgboost::DataType type, std::pair<uint64_t, uint64_t> shape,
                      const std::vector<T>& field) {
   strm->Write(name);
-  strm->Write(type);
+  strm->Write(static_cast<uint8_t>(type));
   strm->Write(false);  // is_scalar=False
   strm->Write(shape.first);
   strm->Write(shape.second);
@@ -71,7 +71,9 @@ void LoadScalarField(dmlc::Stream* strm, const std::string& expected_name,
   CHECK(strm->Read(&name)) << invalid;
   CHECK_EQ(name, expected_name)
       << invalid << " Expected field: " << expected_name << ", got: " << name;
-  CHECK(strm->Read(&type)) << invalid;
+  uint8_t type_val;
+  CHECK(strm->Read(&type_val)) << invalid;
+  type = static_cast<xgboost::DataType>(type_val);
   CHECK(type == expected_type)
       << invalid << "Expected field of type: " << static_cast<int>(expected_type) << ", "
       << "got field type: " << static_cast<int>(type);
@@ -91,7 +93,9 @@ void LoadVectorField(dmlc::Stream* strm, const std::string& expected_name,
   CHECK(strm->Read(&name)) << invalid;
   CHECK_EQ(name, expected_name)
     << invalid << " Expected field: " << expected_name << ", got: " << name;
-  CHECK(strm->Read(&type)) << invalid;
+  uint8_t type_val;
+  CHECK(strm->Read(&type_val)) << invalid;
+  type = static_cast<xgboost::DataType>(type_val);
   CHECK(type == expected_type)
     << invalid << "Expected field of type: " << static_cast<int>(expected_type) << ", "
     << "got field type: " << static_cast<int>(type);

@@ -9,6 +9,7 @@
 
 #include <dmlc/base.h>
 #include <dmlc/data.h>
+#include <dmlc/serializer.h>
 #include <rabit/rabit.h>
 #include <xgboost/base.h>
 #include <xgboost/span.h>
@@ -554,5 +555,21 @@ inline BatchSet<EllpackPage> DMatrix::GetBatches(const BatchParam& param) {
 
 namespace dmlc {
 DMLC_DECLARE_TRAITS(is_pod, xgboost::Entry, true);
-}
+
+namespace serializer {
+
+template <>
+struct Handler<xgboost::Entry> {
+  inline static void Write(Stream* strm, const xgboost::Entry& data) {
+    strm->Write(data.index);
+    strm->Write(data.fvalue);
+  }
+
+  inline static bool Read(Stream* strm, xgboost::Entry* data) {
+    return strm->Read(&data->index) && strm->Read(&data->fvalue);
+  }
+};
+
+}  // namespace serializer
+}  // namespace dmlc
 #endif  // XGBOOST_DATA_H_
