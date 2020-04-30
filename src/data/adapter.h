@@ -710,6 +710,10 @@ class CudaArrayInterfaceCallbackAdapter
         Json::Load({interface_str.c_str(), interface_str.size()});
     ArrayInterface interface{get<Object const>(json_array_interface)};
     this->batch_ = CupyAdapterBatch(interface);
+    if (this->cols_ != kAdapterUnknownSize) {
+      CHECK_EQ(this->cols_, interface.num_cols)
+          << "Number of columns must be consistent across all batches.";
+    }
     this->cols_ = interface.num_cols;
   }
 
