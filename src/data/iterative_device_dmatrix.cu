@@ -32,6 +32,8 @@ IterativeDeviceDMatrix::IterativeDeviceDMatrix(Adapter* adapter, float missing,
                         cuts);
 
     MetaInfo info;
+    info.num_row_ = batch.NumRows();
+    info.num_col_ = adapter->NumColumns();
     if (batch.Labels() != nullptr) {
       info.SetInfo("label", batch.Labels(), DataType::kFloat32, batch.Size());
     }

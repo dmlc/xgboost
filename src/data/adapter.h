@@ -657,11 +657,11 @@ class CallBackAdapter : public dmlc::DataIter<Batch> {
   Batch &Value() { return batch_; }
 };
 
-class CupyAdapterBatch : public detail::NoMetaInfo {
+class CupyAdapterBatch {
  public:
   CupyAdapterBatch() = default;
-  explicit CupyAdapterBatch(ArrayInterface array_interface)
-    : array_interface_(std::move(array_interface)) {}
+  explicit CupyAdapterBatch(ArrayInterface array_interface, MetaInfo const* info = nullptr)
+      : info_{info}, array_interface_(std::move(array_interface)) {}
   size_t Size() const {
     return array_interface_.num_rows * array_interface_.num_cols;
   }
@@ -677,7 +677,28 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
     return {row_idx, column_idx, value};
   }
 
+  const float* Labels() const {
+    if (info_ && info_->labels_.Size() > 0) {
+      return info_->labels_.ConstHostPointer();
+    }
+    return nullptr;
+  }
+  const float* Weights() const {
+    if (info_ && info_->weights_.Size() > 0) {
+      return info_->weights_.ConstHostPointer();
+    }
+    return nullptr;
+  }
+  const uint64_t* Qid() const { return nullptr; }
+  const float* BaseMargin() const {
+    if (info_ && info_->base_margin_.Size() > 0) {
+      return info_->base_margin_.ConstHostPointer();
+    }
+    return nullptr;
+  }
+
  private:
+  MetaInfo const* info_;
   ArrayInterface array_interface_;
 };
 
@@ -718,7 +739,7 @@ class CudaArrayInterfaceCallbackAdapter
     Json json_array_interface =
         Json::Load({interface_str.c_str(), interface_str.size()});
     ArrayInterface interface{get<Object const>(json_array_interface)};
-    this->batch_ = CupyAdapterBatch(interface);
+    this->batch_ = CupyAdapterBatch{interface, &this->info_};
     if (this->cols_ != kAdapterUnknownSize) {
       CHECK_EQ(this->cols_, interface.num_cols)
           << "Number of columns must be consistent across all batches.";
@@ -727,6 +748,7 @@ class CudaArrayInterfaceCallbackAdapter
   }
 
   void SetMetaInfo(char const* key, char const* interface) {
+    this->info_ = MetaInfo();
     this->info_.SetInfo(key, interface);
   }
 

@@ -455,6 +455,10 @@ class DataIter:
     def __init__(self):
         self.cxx_handle = ctypes.c_void_p()
 
+    def set_info_interface(self, field, interface, func):
+        interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
+        func(self.cxx_handle, c_str(field), interface_str)
+
     def reset(self):
         pass
 
@@ -966,6 +970,9 @@ class DMatrix:
         _check_call(_LIB.XGDMatrixNumCol(self.handle,
                                          ctypes.byref(ret)))
         return ret.value
+
+    def __str__(self):
+        return f'DMatrix ({self.num_row()}, {self.num_col()})'
 
     def slice(self, rindex, allow_groups=False):
         """Slice the DMatrix and return a new DMatrix that only contains `rindex`.

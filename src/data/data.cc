@@ -340,6 +340,11 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
 
 void MetaInfo::Append(MetaInfo const& that) {
   this->num_row_ += that.num_row_;
+  if (this->num_col_ != 0) {
+    CHECK_EQ(this->num_col_, that.num_col_)
+        << "Number of columns must be consistent across batches.";
+  }
+  this->num_col_ = that.num_col_;
 
   auto append = [](HostDeviceVector<float> *lhs,
                    HostDeviceVector<float> const &rhs) {
