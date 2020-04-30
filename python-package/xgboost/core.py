@@ -462,7 +462,7 @@ class DataIter:
         pass
 
 
-class DMatrix(object):
+class DMatrix:
     """Data Matrix used in XGBoost.
 
     DMatrix is a internal data structure that used by XGBoost
@@ -588,7 +588,6 @@ class DMatrix(object):
 
         self.feature_names = feature_names
         self.feature_types = feature_types
-        print('After construction', type(self.handle))
 
     def _init_from_csr(self, csr):
         """Initialize data from a CSR matrix."""
