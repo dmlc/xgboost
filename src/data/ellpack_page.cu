@@ -266,10 +266,6 @@ void WriteNullValues(EllpackPageImpl* dst, int device_idx,
           writer;  // For some reason this variable gets captured as const
       size_t row_idx = idx / row_stride;
       size_t row_offset = idx % row_stride;
-      assert(row_idx < row_counts.size());
-      if (row_idx >= row_counts.size()) {
-        printf("row_counts: %lld, idx: %lld\n", row_counts.size(), row_idx);
-      }
       if (row_offset >= row_counts[row_idx]) {
         writer_non_const.AtomicWriteSymbol(d_compressed_buffer,
                                            device_accessor.NullValue(), idx);
