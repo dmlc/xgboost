@@ -22,7 +22,6 @@ import java.nio.file.Files
 import scala.collection.{AbstractIterator, mutable}
 import scala.util.Random
 import scala.collection.JavaConverters._
-
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
@@ -32,9 +31,9 @@ import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.FileSystem
-
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext, TaskFailedListener}
+import org.apache.spark.{SparkContext, SparkException, TaskContext, TaskFailedListener}
+import org.apache.spark.scheduler.BarrierJobSlotsNumberCheckFailed
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.storage.StorageLevel
 
@@ -447,7 +446,7 @@ object XGBoost extends Serializable {
       prevBooster: Booster,
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
     if (evalSetsMap.isEmpty) {
-      trainingData.mapPartitions(labeledPoints => {
+      trainingData.barrier().mapPartitions(labeledPoints => {
         val watches = Watches.buildWatches(xgbExecutionParams,
           processMissingValues(labeledPoints, xgbExecutionParams.missing,
             xgbExecutionParams.allowNonZeroForMissing),
@@ -456,7 +455,7 @@ object XGBoost extends Serializable {
           xgbExecutionParams.eval, prevBooster)
       }).cache()
     } else {
-      coPartitionNoGroupSets(trainingData, evalSetsMap, xgbExecutionParams.numWorkers).
+      coPartitionNoGroupSets(trainingData, evalSetsMap, xgbExecutionParams.numWorkers).barrier().
         mapPartitions {
           nameAndLabeledPointSets =>
             val watches = Watches.buildWatches(
@@ -478,7 +477,7 @@ object XGBoost extends Serializable {
       prevBooster: Booster,
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
     if (evalSetsMap.isEmpty) {
-      trainingData.mapPartitions(labeledPointGroups => {
+      trainingData.barrier().mapPartitions(labeledPointGroups => {
         val watches = Watches.buildWatchesWithGroup(xgbExecutionParam,
           processMissingValuesWithGroup(labeledPointGroups, xgbExecutionParam.missing,
             xgbExecutionParam.allowNonZeroForMissing),
@@ -487,7 +486,8 @@ object XGBoost extends Serializable {
           xgbExecutionParam.obj, xgbExecutionParam.eval, prevBooster)
       }).cache()
     } else {
-      coPartitionGroupSets(trainingData, evalSetsMap, xgbExecutionParam.numWorkers).mapPartitions(
+      coPartitionGroupSets(trainingData, evalSetsMap, xgbExecutionParam.numWorkers)
+        .barrier().mapPartitions(
         labeledPointGroupSets => {
           val watches = Watches.buildWatchesWithGroup(
             labeledPointGroupSets.map {
@@ -548,9 +548,6 @@ object XGBoost extends Serializable {
       // Train for every ${savingRound} rounds and save the partially completed booster
       val tracker = startTracker(xgbExecParams.numWorkers, xgbExecParams.trackerConf)
       val (booster, metrics) = try {
-        val parallelismTracker = new SparkParallelismTracker(sc,
-          xgbExecParams.timeoutRequestWorkers,
-          xgbExecParams.numWorkers)
         val rabitEnv = tracker.getWorkerEnvs
         val boostersAndMetrics = if (hasGroup) {
           trainForRanking(transformedTrainingData.left.get, xgbExecParams, rabitEnv, prevBooster,
@@ -559,18 +556,14 @@ object XGBoost extends Serializable {
           trainForNonRanking(transformedTrainingData.right.get, xgbExecParams, rabitEnv,
             prevBooster, evalSetsMap)
         }
-        val sparkJobThread = new Thread() {
-          override def run() {
-            // force the job
-            boostersAndMetrics.foreachPartition(() => _)
-          }
-        }
-        sparkJobThread.setUncaughtExceptionHandler(tracker)
-        sparkJobThread.start()
-        val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
+        boostersAndMetrics.foreachPartition(() => _)
+        val trackerReturnVal = tracker.waitFor(0L)
         logger.info(s"Rabit returns with exit code $trackerReturnVal")
-        val (booster, metrics) = postTrackerReturnProcessing(trackerReturnVal,
-          boostersAndMetrics, sparkJobThread)
+        if (trackerReturnVal != 0) {
+          throw new XGBoostError("XGBoostModel training failed.")
+        }
+        val (booster, metrics) = boostersAndMetrics.first()
+        boostersAndMetrics.unpersist(false)
         (booster, metrics)
       } finally {
         tracker.stop()
