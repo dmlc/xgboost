@@ -21,7 +21,6 @@ import java.nio.file.Files
 
 import scala.collection.{AbstractIterator, mutable}
 import scala.util.Random
-import scala.collection.JavaConverters._
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
@@ -32,8 +31,7 @@ import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkContext, SparkException, TaskContext, TaskFailedListener}
-import org.apache.spark.scheduler.BarrierJobSlotsNumberCheckFailed
+import org.apache.spark.{SparkContext, TaskContext}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.storage.StorageLevel
 
