@@ -18,8 +18,6 @@ package ml.dmlc.xgboost4j.scala.spark
 
 import ml.dmlc.xgboost4j.java.{Rabit, XGBoostError}
 import ml.dmlc.xgboost4j.scala.{Booster, DMatrix}
-import org.apache.spark.TaskFailedListener
-import org.apache.spark.SparkException
 import scala.collection.JavaConverters._
 import org.apache.spark.sql._
 import org.scalatest.FunSuite
@@ -91,9 +89,6 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
   }
 
   test("test rabit timeout fail handle") {
-    // disable spark kill listener to verify if rabit_timeout take effect and kill tasks
-    TaskFailedListener.killerStarted = true
-
     val training = buildDataFrame(Classification.train)
     // mock rank 0 failure during 8th allreduce synchronization
     Rabit.mockList = Array("0,8,0,0").toList.asJava
