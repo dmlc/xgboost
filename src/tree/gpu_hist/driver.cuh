@@ -15,9 +15,8 @@ struct ExpandEntry {
   int depth;
   DeviceSplitCandidate split;
   ExpandEntry() = default;
-  ExpandEntry(int nid, int depth, DeviceSplitCandidate split
-              )
-      : nid(nid), depth(depth), split(std::move(split)){}
+  XGBOOST_DEVICE ExpandEntry(int nid, int depth, DeviceSplitCandidate split)
+      : nid(nid), depth(depth), split(std::move(split)) {}
   bool IsValid(const TrainParam& param, int num_leaves) const {
     if (split.loss_chg <= kRtEps) return false;
     if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0) {
@@ -72,14 +71,14 @@ class Driver {
 
  public:
   explicit Driver(TrainParam::TreeGrowPolicy policy)
-      : policy(policy),
-        queue(policy == TrainParam::kDepthWise ? DepthWise : LossGuide) {}
+      : policy_(policy),
+        queue_(policy == TrainParam::kDepthWise ? DepthWise : LossGuide) {}
   template <typename EntryIterT>
   void Push(EntryIterT begin,EntryIterT end) {
     for (auto it = begin; it != end; ++it) {
       const ExpandEntry& e = *it;
       if (e.split.loss_chg > kRtEps) {
-        queue.push(e);
+        queue_.push(e);
       }
     }
   }
@@ -90,30 +89,30 @@ class Driver {
   // This set has no dependencies between entries so they may be expanded in
   // parallel or asynchronously
   std::vector<ExpandEntry> Pop() {
-    if (queue.empty()) return {};
+    if (queue_.empty()) return {};
     // Return a single entry for loss guided mode
-    if (policy == TrainParam::kLossGuide) {
-      ExpandEntry e = queue.top();
-      queue.pop();
+    if (policy_ == TrainParam::kLossGuide) {
+      ExpandEntry e = queue_.top();
+      queue_.pop();
       return {e};
     }
     // Return nodes on same level for depth wise
     std::vector<ExpandEntry> result;
-    ExpandEntry e = queue.top();
+    ExpandEntry e = queue_.top();
     int level = e.depth;
-    while (e.depth == level && !queue.empty()) {
-      queue.pop();
+    while (e.depth == level && !queue_.empty()) {
+      queue_.pop();
       result.emplace_back(e);
-      if (!queue.empty()) {
-        e = queue.top();
+      if (!queue_.empty()) {
+        e = queue_.top();
       }
     }
     return result;
   }
 
  private:
-  TrainParam::TreeGrowPolicy policy;
-  ExpandQueue queue;
+  TrainParam::TreeGrowPolicy policy_;
+  ExpandQueue queue_;
 };
 }  // namespace tree
 }  // namespace xgboost
