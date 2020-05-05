@@ -40,7 +40,7 @@ class UpdaterTreeStatTest : public ::testing::Test {
 };
 
 #if defined(XGBOOST_USE_CUDA)
-TEST_F(UpdaterTreeStatTest, GPUHist) {
+TEST_F(UpdaterTreeStatTest, GpuHist) {
   this->RunTest("grow_gpu_hist");
 }
 #endif  // defined(XGBOOST_USE_CUDA)

@@ -264,7 +264,7 @@ TEST_F(SerializationTest, CPUCoordDescent) {
 }
 
 #if defined(XGBOOST_USE_CUDA)
-TEST_F(SerializationTest, GPUHist) {
+TEST_F(SerializationTest, GpuHist) {
   TestLearnerSerialization({{"booster", "gbtree"},
                             {"seed", "0"},
                             {"enable_experimental_json_serialization", "1"},
@@ -441,7 +441,7 @@ TEST_F(LogitSerializationTest, CPUCoordDescent) {
 }
 
 #if defined(XGBOOST_USE_CUDA)
-TEST_F(LogitSerializationTest, GPUHist) {
+TEST_F(LogitSerializationTest, GpuHist) {
   TestLearnerSerialization({{"booster", "gbtree"},
                             {"objective", "binary:logistic"},
                             {"seed", "0"},
@@ -596,7 +596,7 @@ TEST_F(MultiClassesSerializationTest, CPUCoordDescent) {
 }
 
 #if defined(XGBOOST_USE_CUDA)
-TEST_F(MultiClassesSerializationTest, GPUHist) {
+TEST_F(MultiClassesSerializationTest, GpuHist) {
   TestLearnerSerialization({{"booster", "gbtree"},
                             {"num_class", std::to_string(kClasses)},
                             {"seed", "0"},
