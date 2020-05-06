@@ -10,6 +10,7 @@ except ImportError:
 import numpy as np
 import xgboost as xgb
 import unittest
+import pytest
 import json
 from pathlib import Path
 
@@ -242,6 +243,23 @@ class TestBasic(unittest.TestCase):
         solution = ('[array([5., 8.], dtype=float32), array([23., 43., 11.],' +
                     ' dtype=float32)]')
         assert output == solution
+
+    def test_large_seed(self):
+        """Seeds exceeding bounds for int32 should throw error"""
+        data = np.random.randn(100, 2)
+        target = np.array([0, 1] * 50)
+        features = ['Feature1', 'Feature2']
+        dm = xgb.DMatrix(data, label=target, feature_names=features)
+
+        params = {'objective': 'binary:logistic',
+                  'eval_metric': 'logloss',
+                  'eta': 0.3,
+                  'max_depth': 1}
+        params['seed'] = 10000000000
+        with pytest.raises(ValueError, match=r'Parameter seed is too large.*'):
+            bst = xgb.train(params, dm, num_boost_round=1)
+        params['seed'] = 1000
+        bst = xgb.train(params, dm, num_boost_round=1)  # should not throw
 
 
 class TestBasicPathLike(unittest.TestCase):
