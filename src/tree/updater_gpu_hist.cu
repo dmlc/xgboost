@@ -631,7 +631,9 @@ struct GPUHistMakerDevice {
     // The set of leaves that can be expanded asynchronously
     auto expand_set = driver.Pop();
     while (!expand_set.empty()) {
-      auto new_candidates = pinned.GetSpan<ExpandEntry>(expand_set.size() * 2);
+      auto new_candidates =
+          pinned.GetSpan<ExpandEntry>(expand_set.size() * 2, ExpandEntry());
+
       for (auto i = 0ull; i < expand_set.size(); i++) {
         auto candidate = expand_set.at(i);
         if (!candidate.IsValid(param, num_leaves)) {
