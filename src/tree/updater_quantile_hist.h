@@ -82,7 +82,7 @@ using xgboost::common::Column;
 class QuantileHistMaker: public TreeUpdater {
  public:
   QuantileHistMaker() {
-    updater_monitor_.Init("Quantile");
+    updater_monitor_.Init("QuantileHistMaker");
   }
   void Configure(const Args& args) override;
 
@@ -281,6 +281,9 @@ class QuantileHistMaker: public TreeUpdater {
     void SyncHistograms(int starting_index,
                         int sync_count,
                         RegTree *p_tree);
+    void ParallelSubtractionHist(const common::BlockedSpace2d& space,
+                                 const std::vector<ExpandEntry>& nodes,
+                                 const RegTree * p_tree);
 
     void BuildNodeStats(const GHistIndexMatrix &gmat,
                         DMatrix *p_fmat,
@@ -334,7 +337,7 @@ class QuantileHistMaker: public TreeUpdater {
     /*! \brief culmulative histogram of gradients. */
     HistCollection hist_;
     /*! \brief culmulative local parent histogram of gradients. */
-    HistCollection phist_local_;
+    HistCollection hist_local_worker_;
 
     /*! \brief feature with least # of bins. to be used for dense specialization
                of InitNewNode() */
