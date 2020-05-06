@@ -314,7 +314,7 @@ class NDCGLambdaWeightComputer
       for (size_t i = 0; i < sorted_list.size(); ++i) {
         labels[i] = sorted_list[i].label;
       }
-      std::stable_sort(labels.begin(), labels.end(), std::greater<bst_float>());
+      std::stable_sort(labels.begin(), labels.end(), std::greater<>());
       IDCG = ComputeGroupDCGWeight(&labels[0], labels.size());
     }
     if (IDCG == 0.0) {

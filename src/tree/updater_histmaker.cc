@@ -698,8 +698,7 @@ class GlobalProposalHistMaker: public CQHistMaker {
       this->SetDefaultPostion(p_fmat, tree);
       this->work_set_.insert(this->work_set_.end(), this->fsplit_set_.begin(),
                              this->fsplit_set_.end());
-      XGBOOST_PARALLEL_SORT(this->work_set_.begin(), this->work_set_.end(),
-                            std::less<decltype(this->work_set_)::value_type>{});
+      XGBOOST_PARALLEL_SORT(this->work_set_.begin(), this->work_set_.end(), std::less<>{});
       this->work_set_.resize(
           std::unique(this->work_set_.begin(), this->work_set_.end()) - this->work_set_.begin());
 
