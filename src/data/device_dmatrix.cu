@@ -53,6 +53,7 @@ DeviceDMatrix::DeviceDMatrix(AdapterT* adapter, float missing, int nthread, int 
   template DeviceDMatrix::DeviceDMatrix(__ADAPTER_T* adapter, float missing, \
                                         int nthread, int max_bin);
 
-DEFINE_DEVICE_ADAPTER(DEVICE_DMARIX_SPECIALIZATION)
+DEVICE_DMARIX_SPECIALIZATION(CudfAdapter);
+DEVICE_DMARIX_SPECIALIZATION(CupyAdapter);
 }  // namespace data
 }  // namespace xgboost

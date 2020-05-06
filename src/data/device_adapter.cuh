@@ -233,10 +233,6 @@ size_t GetRowCounts(const AdapterBatchT& batch, common::Span<size_t> offset,
       thrust::maximum<size_t>());
   return row_stride;
 }
-
-#define DEFINE_DEVICE_ADAPTER(__func)                                          \
-  __func(::xgboost::data::CudfAdapter);                                        \
-  __func(::xgboost::data::CupyAdapter);
 };  // namespace data
 }  // namespace xgboost
 #endif  // XGBOOST_DATA_DEVICE_ADAPTER_H_

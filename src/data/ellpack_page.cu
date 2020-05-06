@@ -299,7 +299,8 @@ EllpackPageImpl::EllpackPageImpl(AdapterT* adapter, float missing, bool is_dense
       common::Span<size_t> row_counts_span,                             \
       size_t row_stride);
 
-DEFINE_DEVICE_ADAPTER(ELLPACK_SPECIALIZATION)
+ELLPACK_SPECIALIZATION(data::CudfAdapter)
+ELLPACK_SPECIALIZATION(data::CupyAdapter)
 
 // A functor that copies the data from one EllpackPage to another.
 struct CopyPage {
