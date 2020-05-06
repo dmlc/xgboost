@@ -421,32 +421,7 @@ class BatchSet {
 };
 
 /*!
- * \brief This is data structure that user can pass to DMatrix::Create
- *  to create a DMatrix for training, user can create this data structure
- *  for customized Data Loading on single machine.
- *
- *  On distributed setting, usually an customized dmlc::Parser is needed instead.
- */
-template<typename T>
-class DataSource : public dmlc::DataIter<T> {
- public:
-  /*!
-   * \brief Meta information about the dataset
-   * The subclass need to be able to load this correctly from data.
-   */
-  MetaInfo info;
-};
-
-/*!
  * \brief Internal data structured used by XGBoost during training.
- *  There are two ways to create a customized DMatrix that reads in user defined-format.
- *
- *  - Provide a dmlc::Parser and pass into the DMatrix::Create
- *  - Alternatively, if data can be represented by an URL, define a new dmlc::Parser and register by
- *    DMLC_REGISTER_DATA_PARSER;
- *      - This works best for user defined data input source, such as data-base, filesystem.
- *  - Provide a DataSource, that can be passed to DMatrix::Create
- *      This can be used to re-use inmemory data structure into DMatrix.
  */
 class DMatrix {
  public:
