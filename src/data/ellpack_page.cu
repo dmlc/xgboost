@@ -77,9 +77,9 @@ EllpackPageImpl::EllpackPageImpl(int device, common::HistogramCuts cuts,
   monitor_.Init("ellpack_page");
   dh::safe_cuda(cudaSetDevice(device));
 
-  monitor_.StartCuda("InitCompressedData");
-  this->InitCompressedData(device);
-  monitor_.StopCuda("InitCompressedData");
+  monitor_.Start("InitCompressedData");
+  InitCompressedData(device);
+  monitor_.Stop("InitCompressedData");
 }
 
 EllpackPageImpl::EllpackPageImpl(int device, common::HistogramCuts cuts,
@@ -101,21 +101,21 @@ EllpackPageImpl::EllpackPageImpl(DMatrix* dmat, const BatchParam& param)
 
   n_rows = dmat->Info().num_row_;
 
-  monitor_.StartCuda("Quantiles");
+  monitor_.Start("Quantiles");
   // Create the quantile sketches for the dmatrix and initialize HistogramCuts.
   row_stride = GetRowStride(dmat);
   cuts_ = common::DeviceSketch(param.gpu_id, dmat, param.max_bin);
-  monitor_.StopCuda("Quantiles");
+  monitor_.Stop("Quantiles");
 
-  monitor_.StartCuda("InitCompressedData");
+  monitor_.Start("InitCompressedData");
   InitCompressedData(param.gpu_id);
-  monitor_.StopCuda("InitCompressedData");
+  monitor_.Stop("InitCompressedData");
 
-  monitor_.StartCuda("BinningCompression");
+  monitor_.Start("BinningCompression");
   for (const auto& batch : dmat->GetBatches<SparsePage>()) {
     CreateHistIndices(param.gpu_id, batch);
   }
-  monitor_.StopCuda("BinningCompression");
+  monitor_.Stop("BinningCompression");
 }
 
 template <typename AdapterBatchT>
@@ -324,7 +324,7 @@ struct CopyPage {
 
 // Copy the data from the given EllpackPage to the current page.
 size_t EllpackPageImpl::Copy(int device, EllpackPageImpl* page, size_t offset) {
-  monitor_.StartCuda("Copy");
+  monitor_.Start("Copy");
   size_t num_elements = page->n_rows * page->row_stride;
   CHECK_EQ(row_stride, page->row_stride);
   CHECK_EQ(NumSymbols(), page->NumSymbols());
@@ -332,7 +332,7 @@ size_t EllpackPageImpl::Copy(int device, EllpackPageImpl* page, size_t offset) {
   gidx_buffer.SetDevice(device);
   page->gidx_buffer.SetDevice(device);
   dh::LaunchN(device, num_elements, CopyPage(this, page, offset));
-  monitor_.StopCuda("Copy");
+  monitor_.Stop("Copy");
   return num_elements;
 }
 
@@ -381,14 +381,14 @@ struct CompactPage {
 // Compacts the data from the given EllpackPage into the current page.
 void EllpackPageImpl::Compact(int device, EllpackPageImpl* page,
                               common::Span<size_t> row_indexes) {
-  monitor_.StartCuda("Compact");
+  monitor_.Start("Compact");
   CHECK_EQ(row_stride, page->row_stride);
   CHECK_EQ(NumSymbols(), page->NumSymbols());
   CHECK_LE(page->base_rowid + page->n_rows, row_indexes.size());
   gidx_buffer.SetDevice(device);
   page->gidx_buffer.SetDevice(device);
   dh::LaunchN(device, page->n_rows, CompactPage(this, page, row_indexes));
-  monitor_.StopCuda("Compact");
+  monitor_.Stop("Compact");
 }
 
 // Initialize the buffer to stored compressed features.

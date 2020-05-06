@@ -10,12 +10,21 @@
 #include "timer.h"
 #include "xgboost/json.h"
 
+#if defined(XGBOOST_USE_NVTX)
+#include <nvToolsExt.h>
+#endif  // defined(XGBOOST_USE_NVTX)
+
 namespace xgboost {
 namespace common {
 
 void Monitor::Start(std::string const &name) {
   if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
-    statistics_map_[name].timer.Start();
+    auto &stats = statistics_map_[name];
+    stats.timer.Start();
+#if defined(XGBOOST_USE_NVTX)
+    std::string nvtx_name = label_ + "::" + name;
+    stats.nvtx_id = nvtxRangeStartA(nvtx_name.c_str());
+#endif  // defined(XGBOOST_USE_NVTX)
   }
 }
 
@@ -24,6 +33,9 @@ void Monitor::Stop(const std::string &name) {
     auto &stats = statistics_map_[name];
     stats.timer.Stop();
     stats.count++;
+#if defined(XGBOOST_USE_NVTX)
+    nvtxRangeEnd(stats.nvtx_id);
+#endif  // defined(XGBOOST_USE_NVTX)
   }
 }
 

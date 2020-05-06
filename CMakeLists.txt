@@ -158,6 +158,10 @@ else (BUILD_STATIC_LIB)
   add_library(xgboost SHARED ${XGBOOST_OBJ_SOURCES})
 endif (BUILD_STATIC_LIB)
 
+if (USE_NVTX)
+  enable_nvtx(xgboost)
+endif (USE_NVTX)
+
 #-- Hide all C++ symbols
 if (HIDE_CXX_SYMBOLS)
   set_target_properties(objxgboost PROPERTIES CXX_VISIBILITY_PRESET hidden)
@@ -178,6 +182,9 @@ endif (JVM_BINDINGS)
 
 #-- CLI for xgboost
 add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc ${XGBOOST_OBJ_SOURCES})
+if (USE_NVTX)
+  enable_nvtx(runxgboost)
+endif (USE_NVTX)
 
 target_include_directories(runxgboost
   PRIVATE

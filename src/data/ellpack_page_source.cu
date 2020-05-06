@@ -29,14 +29,14 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
   monitor_.Init("ellpack_page_source");
   dh::safe_cuda(cudaSetDevice(param.gpu_id));
 
-  monitor_.StartCuda("Quantiles");
+  monitor_.Start("Quantiles");
   size_t row_stride = GetRowStride(dmat);
   auto cuts = common::DeviceSketch(param.gpu_id, dmat, param.max_bin);
-  monitor_.StopCuda("Quantiles");
+  monitor_.Stop("Quantiles");
 
-  monitor_.StartCuda("WriteEllpackPages");
+  monitor_.Start("WriteEllpackPages");
   WriteEllpackPages(param.gpu_id, dmat, cuts, cache_info, row_stride);
-  monitor_.StopCuda("WriteEllpackPages");
+  monitor_.Stop("WriteEllpackPages");
 
   external_prefetcher_.reset(
       new ExternalMemoryPrefetcher<EllpackPage>(cache_info_));
