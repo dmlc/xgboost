@@ -557,7 +557,7 @@ struct GPUHistMakerDevice {
   }
 
   void AllReduceHist(int nidx, dh::AllReducer* reducer) {
-    monitor.StartCuda("AllReduce");
+    monitor.Start("AllReduce");
     auto d_node_hist = hist.GetNodeHistogram(nidx).data();
     reducer->AllReduceSum(
         reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
@@ -565,7 +565,7 @@ struct GPUHistMakerDevice {
         page->Cuts().TotalBins() * (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
     reducer->Synchronize();
 
-    monitor.StopCuda("AllReduce");
+    monitor.Stop("AllReduce");
   }
 
   /**
@@ -670,13 +670,13 @@ struct GPUHistMakerDevice {
                   RegTree* p_tree, dh::AllReducer* reducer) {
     auto& tree = *p_tree;
 
-    monitor.StartCuda("Reset");
+    monitor.Start("Reset");
     this->Reset(gpair_all, p_fmat, p_fmat->Info().num_col_);
-    monitor.StopCuda("Reset");
+    monitor.Stop("Reset");
 
-    monitor.StartCuda("InitRoot");
+    monitor.Start("InitRoot");
     this->InitRoot(p_tree, reducer);
-    monitor.StopCuda("InitRoot");
+    monitor.Stop("InitRoot");
 
     auto timestamp = qexpand->size();
     auto num_leaves = 1;
@@ -696,19 +696,19 @@ struct GPUHistMakerDevice {
       // Only create child entries if needed
       if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
                                     num_leaves)) {
-        monitor.StartCuda("UpdatePosition");
+        monitor.Start("UpdatePosition");
         this->UpdatePosition(candidate.nid, (*p_tree)[candidate.nid]);
-        monitor.StopCuda("UpdatePosition");
+        monitor.Stop("UpdatePosition");
 
-        monitor.StartCuda("BuildHist");
+        monitor.Start("BuildHist");
         this->BuildHistLeftRight(candidate, left_child_nidx, right_child_nidx, reducer);
-        monitor.StopCuda("BuildHist");
+        monitor.Stop("BuildHist");
 
-        monitor.StartCuda("EvaluateSplits");
+        monitor.Start("EvaluateSplits");
         auto splits = this->EvaluateLeftRightSplits(candidate, left_child_nidx,
                                                    right_child_nidx,
                                            *p_tree);
-        monitor.StopCuda("EvaluateSplits");
+        monitor.Stop("EvaluateSplits");
 
         qexpand->push(ExpandEntry(left_child_nidx,
                                    tree.GetDepth(left_child_nidx), splits.at(0),
@@ -719,9 +719,9 @@ struct GPUHistMakerDevice {
       }
     }
 
-    monitor.StartCuda("FinalisePosition");
+    monitor.Start("FinalisePosition");
     this->FinalisePosition(p_tree, p_fmat);
-    monitor.StopCuda("FinalisePosition");
+    monitor.Stop("FinalisePosition");
   }
 };
 
@@ -744,7 +744,7 @@ class GPUHistMakerSpecialised {
 
   void Update(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
               const std::vector<RegTree*>& trees) {
-    monitor_.StartCuda("Update");
+    monitor_.Start("Update");
 
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
@@ -765,7 +765,7 @@ class GPUHistMakerSpecialised {
     }
 
     param_.learning_rate = lr;
-    monitor_.StopCuda("Update");
+    monitor_.Stop("Update");
   }
 
   void InitDataOnce(DMatrix* dmat) {
@@ -800,9 +800,9 @@ class GPUHistMakerSpecialised {
 
   void InitData(DMatrix* dmat) {
     if (!initialised_) {
-      monitor_.StartCuda("InitDataOnce");
+      monitor_.Start("InitDataOnce");
       this->InitDataOnce(dmat);
-      monitor_.StopCuda("InitDataOnce");
+      monitor_.Stop("InitDataOnce");
     }
   }
 
@@ -823,9 +823,9 @@ class GPUHistMakerSpecialised {
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat,
                   RegTree* p_tree) {
-    monitor_.StartCuda("InitData");
+    monitor_.Start("InitData");
     this->InitData(p_fmat);
-    monitor_.StopCuda("InitData");
+    monitor_.Stop("InitData");
 
     gpair->SetDevice(device_);
     maker->UpdateTree(gpair, p_fmat, p_tree, &reducer_);
@@ -835,10 +835,10 @@ class GPUHistMakerSpecialised {
     if (maker == nullptr || p_last_fmat_ == nullptr || p_last_fmat_ != data) {
       return false;
     }
-    monitor_.StartCuda("UpdatePredictionCache");
+    monitor_.Start("UpdatePredictionCache");
     p_out_preds->SetDevice(device_);
     maker->UpdatePredictionCache(p_out_preds->DevicePointer());
-    monitor_.StopCuda("UpdatePredictionCache");
+    monitor_.Stop("UpdatePredictionCache");
     return true;
   }
 

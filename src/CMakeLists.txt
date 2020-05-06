@@ -25,8 +25,7 @@ if (USE_CUDA)
   endif (USE_NCCL)
 
   if (USE_NVTX)
-    target_include_directories(objxgboost PRIVATE "${NVTX_HEADER_DIR}")
-    target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_NVTX=1)
+    enable_nvtx(objxgboost)
   endif (USE_NVTX)
 
   target_compile_options(objxgboost PRIVATE

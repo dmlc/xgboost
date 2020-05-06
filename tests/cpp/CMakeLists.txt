@@ -40,9 +40,9 @@ if (USE_CUDA)
   endif (USE_NCCL)
 
   if (USE_NVTX)
-    target_include_directories(testxgboost PRIVATE "${NVTX_HEADER_DIR}")
-    target_compile_definitions(testxgboost PRIVATE -DXGBOOST_USE_NVTX=1)
+    enable_nvtx(testxgboost)
   endif (USE_NVTX)
+
   if (MSVC)
     target_compile_options(testxgboost PRIVATE
       $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>
