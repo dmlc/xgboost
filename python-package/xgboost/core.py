@@ -1340,6 +1340,11 @@ class Booster(object):
         elif isinstance(params, STRING_TYPES) and value is not None:
             params = [(params, value)]
         for key, val in params:
+            if key in ['seed', 'random_state']:
+                info = np.iinfo(np.int32)
+                if val > info.max or val < info.min:
+                    raise ValueError('Parameter {} is too large.'.format(key) +
+                            'It must be in range [{}, {}].'.format(info.min, info.max))
             if val is not None:
                 _check_call(_LIB.XGBoosterSetParam(self.handle, c_str(key),
                                                    c_str(str(val))))
