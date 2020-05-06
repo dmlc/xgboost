@@ -212,6 +212,27 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
   int device_idx_;
 };
 
+// Returns maximum row length
+template <typename AdapterBatchT>
+size_t GetRowCounts(const AdapterBatchT& batch, common::Span<size_t> offset,
+                    int device_idx, float missing) {
+  IsValidFunctor is_valid(missing);
+  // Count elements per row
+  dh::LaunchN(device_idx, batch.Size(), [=] __device__(size_t idx) {
+    auto element = batch.GetElement(idx);
+    if (is_valid(element)) {
+      atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
+                    &offset[element.row_idx]),
+                static_cast<unsigned long long>(1));  // NOLINT
+    }
+  });
+  dh::XGBCachingDeviceAllocator<char> alloc;
+  size_t row_stride = thrust::reduce(
+      thrust::cuda::par(alloc), thrust::device_pointer_cast(offset.data()),
+      thrust::device_pointer_cast(offset.data()) + offset.size(), size_t(0),
+      thrust::maximum<size_t>());
+  return row_stride;
+}
 };  // namespace data
 }  // namespace xgboost
 #endif  // XGBOOST_DATA_DEVICE_ADAPTER_H_

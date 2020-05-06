@@ -351,6 +351,8 @@ class EllpackPage {
   /*! \brief Destructor. */
   ~EllpackPage();
 
+  EllpackPage(EllpackPage&& that);
+
   /*! \return Number of instances in the page. */
   size_t Size() const;
 
