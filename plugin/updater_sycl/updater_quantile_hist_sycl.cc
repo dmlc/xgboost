@@ -19,6 +19,7 @@
 
 #include "xgboost/logging.h"
 #include "xgboost/tree_updater.h"
+#include "xgboost/generic_parameters.h"
 
 #include "../../src/tree/constraints.h"
 #include "../../src/tree/param.h"
@@ -37,8 +38,54 @@ namespace tree {
 DMLC_REGISTRY_FILE_TAG(updater_quantile_hist_sycl);
 
 void QuantileHistMakerSycl::Configure(const Args& args) {
-  cl::sycl::gpu_selector selector;
-  qu_ = cl::sycl::queue(selector);
+  QuantileHistMakerParamSycl sycl_param;
+  sycl_param.UpdateAllowUnknown(args);
+
+  bool is_cpu = false;
+  std::vector<cl::sycl::device> devices = cl::sycl::device::get_devices();
+  if (sycl_param.device_id != QuantileHistMakerParamSycl::kDefaultId) {
+  	int n_devices = (int)devices.size();
+  	CHECK_LT(sycl_param.device_id, n_devices);
+  	is_cpu = devices[sycl_param.device_id].is_cpu() | devices[sycl_param.device_id].is_host();
+  }
+  LOG(INFO) << "device_id = " << sycl_param.device_id << ", is_cpu = " << int(is_cpu);
+
+  if (is_cpu)
+  {
+    updater_backend_.reset(TreeUpdater::Create("grow_quantile_histmaker", tparam_));
+    updater_backend_->Configure(args);
+  }
+  else
+  {
+    updater_backend_.reset(TreeUpdater::Create("grow_quantile_histmaker_sycl_gpu", tparam_));
+    updater_backend_->Configure(args);
+  }
+}
+
+void QuantileHistMakerSycl::Update(HostDeviceVector<GradientPair> *gpair,
+                               DMatrix *dmat,
+                               const std::vector<RegTree *> &trees) {
+	updater_backend_->Update(gpair, dmat, trees);
+}
+
+bool QuantileHistMakerSycl::UpdatePredictionCache(
+    const DMatrix* data,
+    HostDeviceVector<bst_float>* out_preds) {
+  return updater_backend_->UpdatePredictionCache(data, out_preds);
+}
+
+void GPUQuantileHistMakerSycl::Configure(const Args& args) {
+  QuantileHistMakerParamSycl sycl_param;
+  sycl_param.UpdateAllowUnknown(args);
+
+  std::vector<cl::sycl::device> devices = cl::sycl::device::get_devices();
+
+  if (sycl_param.device_id != QuantileHistMakerParamSycl::kDefaultId) {
+  	qu_ = cl::sycl::queue(devices[sycl_param.device_id]);
+  } else {	
+    cl::sycl::gpu_selector selector;
+    qu_ = cl::sycl::queue(selector);
+  }
 
   // initialize pruner
   if (!pruner_) {
@@ -55,7 +102,7 @@ void QuantileHistMakerSycl::Configure(const Args& args) {
   spliteval_->Init(&param_);
 }
 
-void QuantileHistMakerSycl::Update(HostDeviceVector<GradientPair> *gpair,
+void GPUQuantileHistMakerSycl::Update(HostDeviceVector<GradientPair> *gpair,
                                DMatrix *dmat,
                                const std::vector<RegTree *> &trees) {
   if (dmat != p_last_dmat_ || is_gmat_initialized_ == false) {
@@ -90,7 +137,7 @@ void QuantileHistMakerSycl::Update(HostDeviceVector<GradientPair> *gpair,
   p_last_dmat_ = dmat;
 }
 
-bool QuantileHistMakerSycl::UpdatePredictionCache(
+bool GPUQuantileHistMakerSycl::UpdatePredictionCache(
     const DMatrix* data,
     HostDeviceVector<bst_float>* out_preds) {
   if (!builder_ || param_.subsample < 1.0f) {
@@ -100,7 +147,7 @@ bool QuantileHistMakerSycl::UpdatePredictionCache(
   }
 }
 
-void QuantileHistMakerSycl::Builder::SyncHistograms(
+void GPUQuantileHistMakerSycl::Builder::SyncHistograms(
     int starting_index,
     int sync_count,
     RegTree *p_tree) {
@@ -135,7 +182,7 @@ void QuantileHistMakerSycl::Builder::SyncHistograms(
   builder_monitor_.Stop("SyncHistogramsSycl");
 }
 
-void QuantileHistMakerSycl::Builder::BuildHistogramsLossGuide(
+void GPUQuantileHistMakerSycl::Builder::BuildHistogramsLossGuide(
                         ExpandEntry entry,
                         const GHistIndexMatrixSycl &gmat,
                         const GHistIndexBlockMatrixSycl &gmatb,
@@ -159,7 +206,7 @@ void QuantileHistMakerSycl::Builder::BuildHistogramsLossGuide(
 }
 
 
-void QuantileHistMakerSycl::Builder::AddHistRows(int *starting_index, int *sync_count) {
+void GPUQuantileHistMakerSycl::Builder::AddHistRows(int *starting_index, int *sync_count) {
   builder_monitor_.Start("AddHistRows");
 
   for (auto const& entry : nodes_for_explicit_hist_build_) {
@@ -177,7 +224,7 @@ void QuantileHistMakerSycl::Builder::AddHistRows(int *starting_index, int *sync_
 }
 
 
-void QuantileHistMakerSycl::Builder::BuildLocalHistograms(
+void GPUQuantileHistMakerSycl::Builder::BuildLocalHistograms(
     const GHistIndexMatrixSycl &gmat,
     const GHistIndexBlockMatrixSycl &gmatb,
     RegTree *p_tree,
@@ -204,7 +251,7 @@ void QuantileHistMakerSycl::Builder::BuildLocalHistograms(
 }
 
 
-void QuantileHistMakerSycl::Builder::BuildNodeStats(
+void GPUQuantileHistMakerSycl::Builder::BuildNodeStats(
     const GHistIndexMatrixSycl &gmat,
     DMatrix *p_fmat,
     RegTree *p_tree,
@@ -228,7 +275,7 @@ void QuantileHistMakerSycl::Builder::BuildNodeStats(
   builder_monitor_.Stop("BuildNodeStats");
 }
 
-void QuantileHistMakerSycl::Builder::AddSplitsToTree(
+void GPUQuantileHistMakerSycl::Builder::AddSplitsToTree(
           const GHistIndexMatrixSycl &gmat,
           RegTree *p_tree,
           int *num_leaves,
@@ -269,7 +316,7 @@ void QuantileHistMakerSycl::Builder::AddSplitsToTree(
 }
 
 
-void QuantileHistMakerSycl::Builder::EvaluateAndApplySplits(
+void GPUQuantileHistMakerSycl::Builder::EvaluateAndApplySplits(
     const GHistIndexMatrixSycl &gmat,
     const ColumnMatrixSycl &column_matrix,
     RegTree *p_tree,
@@ -291,7 +338,7 @@ void QuantileHistMakerSycl::Builder::EvaluateAndApplySplits(
 // Exception: in distributed setting, we always build the histogram for the left child node
 //    and use 'Subtraction Trick' to built the histogram for the right child node.
 //    This ensures that the workers operate on the same set of tree nodes.
-void QuantileHistMakerSycl::Builder::SplitSiblings(const std::vector<ExpandEntry>& nodes,
+void GPUQuantileHistMakerSycl::Builder::SplitSiblings(const std::vector<ExpandEntry>& nodes,
                    std::vector<ExpandEntry>* small_siblings,
                    std::vector<ExpandEntry>* big_siblings,
                    RegTree *p_tree) {
@@ -322,7 +369,7 @@ void QuantileHistMakerSycl::Builder::SplitSiblings(const std::vector<ExpandEntry
   }
 }
 
-void QuantileHistMakerSycl::Builder::ExpandWithDepthWise(
+void GPUQuantileHistMakerSycl::Builder::ExpandWithDepthWise(
   const GHistIndexMatrixSycl &gmat,
   const GHistIndexBlockMatrixSycl &gmatb,
   const ColumnMatrixSycl &column_matrix,
@@ -364,7 +411,7 @@ void QuantileHistMakerSycl::Builder::ExpandWithDepthWise(
   }
 }
 
-void QuantileHistMakerSycl::Builder::ExpandWithLossGuide(
+void GPUQuantileHistMakerSycl::Builder::ExpandWithLossGuide(
     const GHistIndexMatrixSycl& gmat,
     const GHistIndexBlockMatrixSycl& gmatb,
     const ColumnMatrixSycl& column_matrix,
@@ -444,7 +491,7 @@ void QuantileHistMakerSycl::Builder::ExpandWithLossGuide(
   }
 }
 
-void QuantileHistMakerSycl::Builder::Update(const GHistIndexMatrixSycl& gmat,
+void GPUQuantileHistMakerSycl::Builder::Update(const GHistIndexMatrixSycl& gmat,
                                         const GHistIndexBlockMatrixSycl& gmatb,
                                         const ColumnMatrixSycl& column_matrix,
                                         HostDeviceVector<GradientPair>* gpair,
@@ -476,7 +523,7 @@ void QuantileHistMakerSycl::Builder::Update(const GHistIndexMatrixSycl& gmat,
   builder_monitor_.Stop("Update");
 }
 
-bool QuantileHistMakerSycl::Builder::UpdatePredictionCache(
+bool GPUQuantileHistMakerSycl::Builder::UpdatePredictionCache(
     const DMatrix* data,
     HostDeviceVector<bst_float>* p_out_preds) {
   // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
@@ -526,7 +573,7 @@ bool QuantileHistMakerSycl::Builder::UpdatePredictionCache(
   return true;
 }
 
-void QuantileHistMakerSycl::Builder::InitData(const GHistIndexMatrixSycl& gmat,
+void GPUQuantileHistMakerSycl::Builder::InitData(const GHistIndexMatrixSycl& gmat,
                                           const std::vector<GradientPair>& gpair,
                                           const DMatrix& fmat,
                                           const RegTree& tree) {
@@ -693,7 +740,7 @@ void QuantileHistMakerSycl::Builder::InitData(const GHistIndexMatrixSycl& gmat,
 // is equal to sum of statistics for all values:
 // then - there are no missing values
 // else - there are missing values
-bool QuantileHistMakerSycl::Builder::SplitContainsMissingValues(const GradStats e,
+bool GPUQuantileHistMakerSycl::Builder::SplitContainsMissingValues(const GradStats e,
                                                             const NodeEntry& snode) {
   if (e.GetGrad() == snode.stats.GetGrad() && e.GetHess() == snode.stats.GetHess()) {
     return false;
@@ -703,7 +750,7 @@ bool QuantileHistMakerSycl::Builder::SplitContainsMissingValues(const GradStats 
 }
 
 // nodes_set - set of nodes to be processed in parallel
-void QuantileHistMakerSycl::Builder::EvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
+void GPUQuantileHistMakerSycl::Builder::EvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
                                                const GHistIndexMatrixSycl& gmat,
                                                const HistCollectionSycl& hist,
                                                const RegTree& tree) {
@@ -856,7 +903,7 @@ inline std::pair<size_t, size_t> PartitionSparseKernel(
 }
 
 template <typename BinIdxType>
-void QuantileHistMakerSycl::Builder::PartitionKernel(
+void GPUQuantileHistMakerSycl::Builder::PartitionKernel(
     const size_t node_in_set, const size_t nid, common::Range1d range,
     const int32_t split_cond, const ColumnMatrixSycl& column_matrix, const RegTree& tree) {
   const size_t* rid = row_set_collection_[nid].begin;
@@ -897,7 +944,7 @@ void QuantileHistMakerSycl::Builder::PartitionKernel(
 }
 
 
-void QuantileHistMakerSycl::Builder::FindSplitConditions(const std::vector<ExpandEntry>& nodes,
+void GPUQuantileHistMakerSycl::Builder::FindSplitConditions(const std::vector<ExpandEntry>& nodes,
                                                      const RegTree& tree,
                                                      const GHistIndexMatrixSycl& gmat,
                                                      std::vector<int32_t>* split_conditions) {
@@ -924,7 +971,7 @@ void QuantileHistMakerSycl::Builder::FindSplitConditions(const std::vector<Expan
   }
 }
 
-void QuantileHistMakerSycl::Builder::AddSplitsToRowSet(const std::vector<ExpandEntry>& nodes,
+void GPUQuantileHistMakerSycl::Builder::AddSplitsToRowSet(const std::vector<ExpandEntry>& nodes,
                                                    RegTree* p_tree) {
   const size_t n_nodes = nodes.size();
   for (size_t i = 0; i < n_nodes; ++i) {
@@ -938,7 +985,7 @@ void QuantileHistMakerSycl::Builder::AddSplitsToRowSet(const std::vector<ExpandE
 }
 
 
-void QuantileHistMakerSycl::Builder::ApplySplit(const std::vector<ExpandEntry> nodes,
+void GPUQuantileHistMakerSycl::Builder::ApplySplit(const std::vector<ExpandEntry> nodes,
                                             const GHistIndexMatrixSycl& gmat,
                                             const ColumnMatrixSycl& column_matrix,
                                             const HistCollectionSycl& hist,
@@ -1005,7 +1052,7 @@ void QuantileHistMakerSycl::Builder::ApplySplit(const std::vector<ExpandEntry> n
   builder_monitor_.Stop("ApplySplit");
 }
 
-void QuantileHistMakerSycl::Builder::InitNewNode(int nid,
+void GPUQuantileHistMakerSycl::Builder::InitNewNode(int nid,
                                              const GHistIndexMatrixSycl& gmat,
                                              const std::vector<GradientPair>& gpair,
                                              const DMatrix& fmat,
@@ -1061,7 +1108,7 @@ void QuantileHistMakerSycl::Builder::InitNewNode(int nid,
 // Returns the sum of gradients corresponding to the data points that contains a non-missing value
 // for the particular feature fid.
 template <int d_step>
-GradStats QuantileHistMakerSycl::Builder::EnumerateSplit(
+GradStats GPUQuantileHistMakerSycl::Builder::EnumerateSplit(
     const GHistIndexMatrixSycl &gmat, const GHistRowSycl &hist, const NodeEntry &snode,
     SplitEntry *p_best, bst_uint fid, bst_uint nodeID) const {
   CHECK(d_step == +1 || d_step == -1);
@@ -1131,12 +1178,19 @@ GradStats QuantileHistMakerSycl::Builder::EnumerateSplit(
 
   return e;
 }
-
-XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMakerSyclSycl, "grow_quantile_histmaker_sycl")
+     
+XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMakerSycl, "grow_quantile_histmaker_sycl")
 .describe("Grow tree using quantized histogram with dpc++.")
 .set_body(
     []() {
       return new QuantileHistMakerSycl();
+    });
+     
+XGBOOST_REGISTER_TREE_UPDATER(GPUQuantileHistMakerSycl, "grow_quantile_histmaker_sycl_gpu")
+.describe("Grow tree using quantized histogram with dpc++ on GPU.")
+.set_body(
+    []() {
+      return new GPUQuantileHistMakerSycl();
     });
 
 }  // namespace tree

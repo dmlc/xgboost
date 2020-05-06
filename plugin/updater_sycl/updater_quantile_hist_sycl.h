@@ -43,10 +43,72 @@ using xgboost::common::GHistIndexBlockMatrixSycl;
 using xgboost::common::ColumnMatrixSycl;
 using xgboost::common::GHistRowSycl;
 
-/*! \brief construct a tree using quantized feature values with DPC++ backend */
+struct QuantileHistMakerParamSycl
+    : public XGBoostParameter<QuantileHistMakerParamSycl> {
+  static int32_t constexpr kDefaultId = -1;
+
+  int device_id;
+  // declare parameters
+  DMLC_DECLARE_PARAMETER(QuantileHistMakerParamSycl) {
+    DMLC_DECLARE_FIELD(device_id)
+        .set_lower_bound(-1)
+        .set_default(kDefaultId)
+        .describe("DPC++ device id for execution, default device is gpu");
+  }
+};
+
+DMLC_REGISTER_PARAMETER(QuantileHistMakerParamSycl);
+
+/*! \brief construct a tree using quantized feature values with DPC++ interface */
 class QuantileHistMakerSycl: public TreeUpdater {
  public:
   QuantileHistMakerSycl() = default;
+  void Configure(const Args& args) override;
+
+  void Update(HostDeviceVector<GradientPair>* gpair,
+              DMatrix* dmat,
+              const std::vector<RegTree*>& trees) override;
+
+  bool UpdatePredictionCache(const DMatrix* data,
+                             HostDeviceVector<bst_float>* out_preds) override;
+
+  void LoadConfig(Json const& in) override {
+  	if (updater_backend_) {
+  	  updater_backend_->LoadConfig(in);
+  	} else {
+      auto const& config = get<Object const>(in);
+      FromJson(config.at("train_param"), &this->param_);
+    }
+  }
+
+  void SaveConfig(Json* p_out) const override {
+  	if (updater_backend_) {
+  	  updater_backend_->SaveConfig(p_out);
+  	} else {
+      auto& out = *p_out;
+      out["train_param"] = ToJson(param_);
+    }
+  }
+
+  char const* Name() const override {
+    if (updater_backend_) {
+    	return updater_backend_->Name();
+    } else {
+        return "grow_quantile_histmaker_sycl";
+    }
+  }
+
+ protected:
+  // training parameter
+  TrainParam param_;
+
+  std::unique_ptr<TreeUpdater> updater_backend_;
+};
+
+/*! \brief construct a tree using quantized feature values with DPC++ backend on GPU*/
+class GPUQuantileHistMakerSycl: public TreeUpdater {
+ public:
+  GPUQuantileHistMakerSycl() = default;
   void Configure(const Args& args) override;
 
   void Update(HostDeviceVector<GradientPair>* gpair,
@@ -66,7 +128,7 @@ class QuantileHistMakerSycl: public TreeUpdater {
   }
 
   char const* Name() const override {
-    return "grow_quantile_histmaker_sycl";
+    return "grow_quantile_histmaker_sycl_gpu";
   }
 
  protected:
