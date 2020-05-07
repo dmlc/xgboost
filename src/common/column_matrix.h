@@ -152,6 +152,7 @@ class ColumnMatrix {
     index_base_ = const_cast<uint32_t*>(gmat.cut.Ptrs().data());
 
     const bool noMissingValues = NoMissingValues(gmat.row_ptr[nrow], nrow, nfeature);
+    any_missing_ = !noMissingValues;
 
     if (noMissingValues) {
       missing_flags_.resize(feature_offsets_[nfeature], false);
@@ -311,9 +312,16 @@ class ColumnMatrix {
   const BinTypeSize GetTypeSize() const {
     return bins_type_size_;
   }
+
+  // This is just an utility function
   const bool NoMissingValues(const size_t n_elements,
                              const size_t n_row, const size_t n_features) {
     return n_elements == n_features * n_row;
+  }
+
+  // And this returns part of state
+  const bool AnyMissing() const {
+    return any_missing_;
   }
 
  private:
@@ -329,6 +337,7 @@ class ColumnMatrix {
   uint32_t* index_base_;
   std::vector<bool> missing_flags_;
   BinTypeSize bins_type_size_;
+  bool any_missing_;
 };
 
 }  // namespace common
