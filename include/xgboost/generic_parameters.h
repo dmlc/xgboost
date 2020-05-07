@@ -17,7 +17,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
 
  public:
   // stored random seed
-  int seed;
+  int64_t seed;
   // whether seed the PRNG each iteration
   bool seed_per_iteration;
   // number of threads to use if OpenMP is enabled
