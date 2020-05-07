@@ -61,6 +61,7 @@ class RowPartitioner {
   dh::caching_device_vector<int64_t>
       left_counts_;  // Useful to keep a bunch of zeroed memory for sort position
   std::vector<cudaStream_t> streams_;
+  dh::PinnedMemory pinned_;
 
  public:
   RowPartitioner(int device_idx, size_t num_rows);
@@ -129,12 +130,12 @@ class RowPartitioner {
       d_position[idx] = new_position;
     });
     // Overlap device to host memory copy (left_count) with sort
-    int64_t left_count;
+    int64_t &left_count = pinned_.GetSpan<int64_t>(1)[0];
     dh::safe_cuda(cudaMemcpyAsync(&left_count, d_left_count, sizeof(int64_t),
                                   cudaMemcpyDeviceToHost, streams_[0]));
 
-    SortPositionAndCopy(segment, left_nidx, right_nidx, d_left_count,
-                        streams_[1]);
+    SortPositionAndCopy(segment, left_nidx, right_nidx, d_left_count, streams_[1]
+                        );
 
     dh::safe_cuda(cudaStreamSynchronize(streams_[0]));
     CHECK_LE(left_count, segment.Size());

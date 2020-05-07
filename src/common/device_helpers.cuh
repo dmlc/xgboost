@@ -503,6 +503,15 @@ struct PinnedMemory {
     return xgboost::common::Span<T>(static_cast<T *>(temp_storage), size);
   }
 
+  template <typename T>
+  xgboost::common::Span<T> GetSpan(size_t size, T init) {
+    auto result = this->GetSpan<T>(size);
+    for (auto &e : result) {
+      e = init;
+    }
+    return result;
+  }
+
   void Free() {
     if (temp_storage != nullptr) {
       safe_cuda(cudaFreeHost(temp_storage));
