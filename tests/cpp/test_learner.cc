@@ -260,4 +260,26 @@ TEST(Learner, GPUConfiguration) {
   }
 }
 #endif  // defined(XGBOOST_USE_CUDA)
+
+TEST(Learner, Seed) {
+  auto m = RandomDataGenerator{10, 10, 0}.GenerateDMatrix();
+  std::unique_ptr<Learner> learner {
+    Learner::Create({m})
+  };
+  auto seed = std::numeric_limits<int64_t>::max();
+  learner->SetParam("seed", std::to_string(seed));
+  learner->Configure();
+  Json config { Object() };
+  learner->SaveConfig(&config);
+  ASSERT_EQ(std::to_string(seed),
+            get<String>(config["learner"]["generic_param"]["seed"]));
+
+  seed = std::numeric_limits<int64_t>::min();
+  learner->SetParam("seed", std::to_string(seed));
+  learner->Configure();
+  learner->SaveConfig(&config);
+  ASSERT_EQ(std::to_string(seed),
+            get<String>(config["learner"]["generic_param"]["seed"]));
+}
+
 }  // namespace xgboost
