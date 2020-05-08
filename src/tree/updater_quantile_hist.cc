@@ -929,6 +929,7 @@ void QuantileHistMaker::Builder::PartitionKernel(
     const size_t node_in_set, const size_t nid, common::Range1d range,
     const int32_t split_cond, const ColumnMatrix& column_matrix, const RegTree& tree) {
   const size_t* rid = row_set_collection_[nid].begin;
+
   common::Span<const size_t> rid_span(rid + range.begin(), rid + range.end());
   common::Span<size_t> left  = partition_builder_.GetLeftBuffer(node_in_set,
                                                                 range.begin(), range.end());
@@ -945,15 +946,19 @@ void QuantileHistMaker::Builder::PartitionKernel(
           static_cast<const common::DenseColumn<BinIdxType>& >(*(column_ptr.get()));
     if (default_left) {
       if (column_matrix.AnyMissing()) {
-        child_nodes_sizes = PartitionDenseKernel<true, true>(column, rid_span, split_cond, left, right); 
+        child_nodes_sizes = PartitionDenseKernel<true, true>(column, rid_span, split_cond,
+                                                             left, right);
       } else {
-        child_nodes_sizes = PartitionDenseKernel<true, false>(column, rid_span, split_cond, left, right);
+        child_nodes_sizes = PartitionDenseKernel<true, false>(column, rid_span, split_cond,
+                                                              left, right);
       }
     } else {
       if (column_matrix.AnyMissing()) {
-        child_nodes_sizes = PartitionDenseKernel<false, true>(column, rid_span, split_cond, left, right); 
+        child_nodes_sizes = PartitionDenseKernel<false, true>(column, rid_span, split_cond,
+                                                              left, right);
       } else {
-        child_nodes_sizes = PartitionDenseKernel<false, false>(column, rid_span, split_cond, left, right);
+        child_nodes_sizes = PartitionDenseKernel<false, false>(column, rid_span, split_cond,
+                                                               left, right);
       }
     }
   } else {

@@ -250,6 +250,71 @@ class QuantileHistMock : public QuantileHistMaker {
       omp_set_num_threads(1);
     }
 
+    void TestApplySplit(const GHistIndexBlockMatrix& quantile_index_block,
+                        RegTree& tree) {
+      std::vector<GradientPair> row_gpairs =
+          { {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {2.27f, 0.28f},
+            {0.27f, 0.29f}, {0.37f, 0.39f}, {-0.47f, 0.49f}, {0.57f, 0.59f} };
+      size_t constexpr kMaxBins = 4;
+
+      // try out different sparsity to get different number of missing values
+      for (double sparsity = 0.0; sparsity < 0.25; sparsity += 0.1) {
+        // kNRows samples with kNCols features
+        auto dmat = RandomDataGenerator(kNRows, kNCols, sparsity).Seed(3).GenerateDMatrix();
+
+        common::GHistIndexMatrix gmat;
+        gmat.Init(dmat.get(), kMaxBins);
+        ColumnMatrix cm;
+
+        // treat everything as dense, as this is what we intend to test here
+        cm.Init(gmat, 0.0);
+        RealImpl::InitData(gmat, row_gpairs, *dmat, tree);
+        hist_.AddHistRow(0);
+
+        RealImpl::InitNewNode(0, gmat, row_gpairs, *dmat, tree);
+
+        const size_t num_row = dmat->Info().num_row_;
+        // split by feature 0
+        const size_t bin_id_min = gmat.cut.Ptrs()[0];
+        const size_t bin_id_max = gmat.cut.Ptrs()[1];
+
+        // attempt to split at different bins
+        for (size_t split = 0; split < 4; split++) {
+          size_t left_cnt = 0, right_cnt = 0;
+
+          // manually compute how many samples go left or right
+          for (size_t rid = 0; rid < num_row; ++rid) {
+            for (size_t offset = gmat.row_ptr[rid]; offset < gmat.row_ptr[rid + 1]; ++offset) {
+              const size_t bin_id = gmat.index[offset];
+              if (bin_id >= bin_id_min && bin_id < bin_id_max) {
+                if (bin_id <= split) {
+                  left_cnt ++;
+                } else {
+                  right_cnt ++;
+                }
+              }
+            }
+          }
+
+          // if any were missing due to sparsity, we add them to the left or to the right
+          size_t missing = kNRows - left_cnt - right_cnt;
+          if (tree[0].DefaultLeft()) {
+            left_cnt += missing;
+          } else {
+            right_cnt += missing;
+          }
+
+          // have one node with kNRows (=8 at the moment) rows, just one task
+          RealImpl::partition_builder_.Init(1, 1, [&](size_t node_in_set) {
+            return 1;
+          });
+          RealImpl::PartitionKernel<uint8_t>(0, 0, common::Range1d(0, kNRows), split, cm, tree);
+          RealImpl::partition_builder_.CalculateRowOffsets();
+          ASSERT_EQ(RealImpl::partition_builder_.GetNLeftElems(0), left_cnt);
+          ASSERT_EQ(RealImpl::partition_builder_.GetNRightElems(0), right_cnt);
+        }
+      }
+    }
   };
 
   int static constexpr kNRows = 8, kNCols = 16;
@@ -322,6 +387,13 @@ class QuantileHistMock : public QuantileHistMaker {
 
     builder_->TestEvaluateSplit(gmatb_, tree);
   }
+
+  void TestApplySplit() {
+    RegTree tree = RegTree();
+    tree.param.UpdateAllowUnknown(cfg_);
+
+    builder_->TestApplySplit(gmatb_, tree);
+  }
 };
 
 TEST(QuantileHist, InitData) {
@@ -357,6 +429,16 @@ TEST(QuantileHist, EvalSplits) {
        {"min_child_weight", "0"}};
   QuantileHistMock maker(cfg);
   maker.TestEvaluateSplit();
+}
+
+TEST(QuantileHist, ApplySplit) {
+  std::vector<std::pair<std::string, std::string>> cfg
+      {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())},
+       {"split_evaluator", "elastic_net"},
+       {"reg_lambda", "0"}, {"reg_alpha", "0"}, {"max_delta_step", "0"},
+       {"min_child_weight", "0"}};
+  QuantileHistMock maker(cfg);
+  maker.TestApplySplit();
 }
 
 }  // namespace tree
