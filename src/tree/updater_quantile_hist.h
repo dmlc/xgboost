@@ -78,6 +78,8 @@ using xgboost::common::GHistBuilder;
 using xgboost::common::ColumnMatrix;
 using xgboost::common::Column;
 
+class HistSynchronizer;
+class HistRowsAdder;
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
@@ -107,6 +109,12 @@ class QuantileHistMaker: public TreeUpdater {
   }
 
  protected:
+  friend class HistSynchronizer;
+  friend class BatchHistSynchronizer;
+  friend class DistributedHistSynchronizer;
+  friend class HistRowsAdder;
+  friend class BatchHistRowsAdder;
+  friend class DistributedHistRowsAdder;
   // training parameter
   TrainParam param_;
   // quantized data matrix
@@ -176,8 +184,16 @@ class QuantileHistMaker: public TreeUpdater {
 
     bool UpdatePredictionCache(const DMatrix* data,
                                HostDeviceVector<bst_float>* p_out_preds);
+    void SetHistSynchronizer(HistSynchronizer* sync);
+    void SetHistRowsAdder(HistRowsAdder* adder);
 
    protected:
+    friend class HistSynchronizer;
+    friend class BatchHistSynchronizer;
+    friend class DistributedHistSynchronizer;
+    friend class HistRowsAdder;
+    friend class BatchHistRowsAdder;
+    friend class DistributedHistRowsAdder;
     /* tree growing policies */
     struct ExpandEntry {
       static const int kRootNid  = 0;
@@ -261,8 +277,6 @@ class QuantileHistMaker: public TreeUpdater {
                               RegTree *p_tree,
                               const std::vector<GradientPair> &gpair_h);
 
-    void AddHistRows(int *starting_index, int *sync_count, RegTree *p_tree);
-
     void BuildHistogramsLossGuide(
                         ExpandEntry entry,
                         const GHistIndexMatrix &gmat,
@@ -278,9 +292,6 @@ class QuantileHistMaker: public TreeUpdater {
                    std::vector<ExpandEntry>* big_siblings,
                    RegTree *p_tree);
 
-    void SyncHistograms(int starting_index,
-                        int sync_count,
-                        RegTree *p_tree);
     void ParallelSubtractionHist(const common::BlockedSpace2d& space,
                                  const std::vector<ExpandEntry>& nodes,
                                  const RegTree * p_tree);
@@ -321,7 +332,6 @@ class QuantileHistMaker: public TreeUpdater {
         return lhs.loss_chg < rhs.loss_chg;  // favor large loss_chg
       }
     }
-
     //  --data fields--
     const TrainParam& param_;
     // number of omp thread used during training
@@ -338,7 +348,6 @@ class QuantileHistMaker: public TreeUpdater {
     HistCollection hist_;
     /*! \brief culmulative local parent histogram of gradients. */
     HistCollection hist_local_worker_;
-
     /*! \brief feature with least # of bins. to be used for dense specialization
                of InitNewNode() */
     uint32_t fid_least_bins_;
@@ -375,6 +384,8 @@ class QuantileHistMaker: public TreeUpdater {
     common::Monitor builder_monitor_;
     common::ParallelGHistBuilder hist_buffer_;
     rabit::Reducer<GradStats, GradStats::Reduce> histred_;
+    std::unique_ptr<HistSynchronizer> hist_synchronizer_;
+    std::unique_ptr<HistRowsAdder> hist_rows_adder_;
   };
   common::Monitor updater_monitor_;
   std::unique_ptr<Builder> builder_;
@@ -382,6 +393,63 @@ class QuantileHistMaker: public TreeUpdater {
   std::unique_ptr<SplitEvaluator> spliteval_;
   FeatureInteractionConstraintHost int_constraint_;
 };
+
+class HistSynchronizer {
+ public:
+  explicit HistSynchronizer(QuantileHistMaker::Builder* builder) : builder_(builder) {}
+  virtual void SyncHistograms(int starting_index,
+                              int sync_count,
+                              RegTree *p_tree) = 0;
+
+ protected:
+  QuantileHistMaker::Builder* builder_;
+};
+
+class BatchHistSynchronizer: public HistSynchronizer {
+ public:
+  explicit BatchHistSynchronizer(QuantileHistMaker::Builder* builder): HistSynchronizer(builder) {}
+
+  virtual void SyncHistograms(int starting_index,
+                              int sync_count,
+                              RegTree *p_tree);
+};
+
+class DistributedHistSynchronizer: public HistSynchronizer {
+ public:
+  explicit DistributedHistSynchronizer(QuantileHistMaker::Builder* builder):
+                                       HistSynchronizer(builder) {}
+
+  virtual void SyncHistograms(int starting_index,
+                              int sync_count,
+                              RegTree *p_tree);
+  void ParallelSubtractionHist(const common::BlockedSpace2d& space,
+                               const std::vector<QuantileHistMaker::Builder::ExpandEntry>& nodes,
+                               const RegTree * p_tree);
+};
+
+class HistRowsAdder {
+ public:
+  explicit HistRowsAdder(QuantileHistMaker::Builder* builder) : builder_(builder) {}
+  virtual void AddHistRows(int *starting_index, int *sync_count, RegTree *p_tree) = 0;
+
+ protected:
+  QuantileHistMaker::Builder* builder_;
+};
+
+class BatchHistRowsAdder: public HistRowsAdder {
+ public:
+  explicit BatchHistRowsAdder(QuantileHistMaker::Builder* builder) : HistRowsAdder(builder) {}
+
+  void AddHistRows(int *starting_index, int *sync_count, RegTree *p_tree);
+};
+
+class DistributedHistRowsAdder: public HistRowsAdder {
+ public:
+  explicit DistributedHistRowsAdder(QuantileHistMaker::Builder* builder) : HistRowsAdder(builder) {}
+
+  void AddHistRows(int *starting_index, int *sync_count, RegTree *p_tree);
+};
+
 
 }  // namespace tree
 }  // namespace xgboost
