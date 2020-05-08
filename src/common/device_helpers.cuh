@@ -100,7 +100,7 @@ inline size_t TotalMemory(int device_idx) {
 }
 
 /**
- * \fn  inline int max_shared_memory(int device_idx)
+ * \fn  inline int MaxSharedMemory(int device_idx)
  *
  * \brief Maximum shared memory per block on this device.
  *
@@ -108,9 +108,28 @@ inline size_t TotalMemory(int device_idx) {
  */
 
 inline size_t MaxSharedMemory(int device_idx) {
-  cudaDeviceProp prop;
-  dh::safe_cuda(cudaGetDeviceProperties(&prop, device_idx));
-  return prop.sharedMemPerBlock;
+  int max_shared_memory = 0;
+  dh::safe_cuda(cudaDeviceGetAttribute
+                (&max_shared_memory, cudaDevAttrMaxSharedMemoryPerBlock,
+                 device_idx));
+  return size_t(max_shared_memory);
+}
+
+/**
+ * \fn  inline int MaxSharedMemoryOptin(int device_idx)
+ *
+ * \brief Maximum dynamic shared memory per thread block on this device
+     that can be opted into when using cudaFuncSetAttribute().
+ *
+ * \param device_idx  Zero-based index of the device.
+ */
+
+inline size_t MaxSharedMemoryOptin(int device_idx) {
+  int max_shared_memory = 0;
+  dh::safe_cuda(cudaDeviceGetAttribute
+                (&max_shared_memory, cudaDevAttrMaxSharedMemoryPerBlockOptin,
+                 device_idx));
+  return size_t(max_shared_memory);
 }
 
 inline void CheckComputeCapability() {

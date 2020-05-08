@@ -37,7 +37,7 @@ template <typename T>
 void SaveScalarField(dmlc::Stream *strm, const std::string &name,
                      xgboost::DataType type, const T &field) {
   strm->Write(name);
-  strm->Write(type);
+  strm->Write(static_cast<uint8_t>(type));
   strm->Write(true);  // is_scalar=True
   strm->Write(field);
 }
@@ -47,7 +47,7 @@ void SaveVectorField(dmlc::Stream *strm, const std::string &name,
                      xgboost::DataType type, std::pair<uint64_t, uint64_t> shape,
                      const std::vector<T>& field) {
   strm->Write(name);
-  strm->Write(type);
+  strm->Write(static_cast<uint8_t>(type));
   strm->Write(false);  // is_scalar=False
   strm->Write(shape.first);
   strm->Write(shape.second);
@@ -71,7 +71,9 @@ void LoadScalarField(dmlc::Stream* strm, const std::string& expected_name,
   CHECK(strm->Read(&name)) << invalid;
   CHECK_EQ(name, expected_name)
       << invalid << " Expected field: " << expected_name << ", got: " << name;
-  CHECK(strm->Read(&type)) << invalid;
+  uint8_t type_val;
+  CHECK(strm->Read(&type_val)) << invalid;
+  type = static_cast<xgboost::DataType>(type_val);
   CHECK(type == expected_type)
       << invalid << "Expected field of type: " << static_cast<int>(expected_type) << ", "
       << "got field type: " << static_cast<int>(type);
@@ -91,7 +93,9 @@ void LoadVectorField(dmlc::Stream* strm, const std::string& expected_name,
   CHECK(strm->Read(&name)) << invalid;
   CHECK_EQ(name, expected_name)
     << invalid << " Expected field: " << expected_name << ", got: " << name;
-  CHECK(strm->Read(&type)) << invalid;
+  uint8_t type_val;
+  CHECK(strm->Read(&type_val)) << invalid;
+  type = static_cast<xgboost::DataType>(type_val);
   CHECK(type == expected_type)
     << invalid << "Expected field of type: " << static_cast<int>(expected_type) << ", "
     << "got field type: " << static_cast<int>(type);
@@ -338,7 +342,7 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
   }
 }
 
-void MetaInfo::Validate() const {
+void MetaInfo::Validate(int32_t device) const {
   if (group_ptr_.size() != 0 && weights_.Size() != 0) {
     CHECK_EQ(group_ptr_.size(), weights_.Size() + 1)
         << "Size of weights must equal to number of groups when ranking "
@@ -350,30 +354,44 @@ void MetaInfo::Validate() const {
         << "Invalid group structure.  Number of rows obtained from groups "
            "doesn't equal to actual number of rows given by data.";
   }
+  auto check_device = [device](HostDeviceVector<float> const &v) {
+    CHECK(v.DeviceIdx() == GenericParameter::kCpuId ||
+          device  == GenericParameter::kCpuId ||
+          v.DeviceIdx() == device)
+        << "Data is resided on a different device than `gpu_id`. "
+        << "Device that data is on: " << v.DeviceIdx() << ", "
+        << "`gpu_id` for XGBoost: " << device;
+  };
+
   if (weights_.Size() != 0) {
     CHECK_EQ(weights_.Size(), num_row_)
         << "Size of weights must equal to number of rows.";
+    check_device(weights_);
     return;
   }
   if (labels_.Size() != 0) {
     CHECK_EQ(labels_.Size(), num_row_)
         << "Size of labels must equal to number of rows.";
+    check_device(labels_);
     return;
   }
   if (labels_lower_bound_.Size() != 0) {
     CHECK_EQ(labels_lower_bound_.Size(), num_row_)
         << "Size of label_lower_bound must equal to number of rows.";
+    check_device(labels_lower_bound_);
     return;
   }
   if (labels_upper_bound_.Size() != 0) {
     CHECK_EQ(labels_upper_bound_.Size(), num_row_)
         << "Size of label_upper_bound must equal to number of rows.";
+    check_device(labels_upper_bound_);
     return;
   }
   CHECK_LE(num_nonzero_, num_col_ * num_row_);
   if (base_margin_.Size() != 0) {
     CHECK_EQ(base_margin_.Size() % num_row_, 0)
         << "Size of base margin must be a multiple of number of rows.";
+    check_device(base_margin_);
   }
 }
 

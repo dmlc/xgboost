@@ -21,8 +21,6 @@ whl_path = sys.argv[1]
 commit_id = sys.argv[2]
 platform_tag = sys.argv[3]
 
-assert platform_tag in ['manylinux1_x86_64', 'win_amd64']
-
 dirname, basename = os.path.dirname(whl_path), os.path.basename(whl_path)
 
 with cd(dirname):
@@ -32,6 +30,6 @@ with cd(dirname):
                 'version': tokens[1],
                 'commit_id': commit_id,
                 'platform_tag': platform_tag}
-    new_name = '{pkg_name}-{version}+{commit_id}-py2.py3-none-{platform_tag}.whl'.format(**keywords)
+    new_name = '{pkg_name}-{version}+{commit_id}-py3-none-{platform_tag}.whl'.format(**keywords)
     print('Renaming {} to {}...'.format(basename, new_name))
     os.rename(basename, new_name)

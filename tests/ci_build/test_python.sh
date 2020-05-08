@@ -7,6 +7,7 @@ suite=$1
 # Install XGBoost Python package
 function install_xgboost {
   wheel_found=0
+  pip install --upgrade pip --user
   for file in python-package/dist/*.whl
   do
     if [ -e "${file}" ]

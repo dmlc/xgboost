@@ -222,6 +222,15 @@ test_that("early stopping xgb.train works", {
                       early_stopping_rounds = 3, maximize = FALSE, verbose = 0)
   )
   expect_equal(bst$evaluation_log, bst0$evaluation_log)
+
+  xgb.save(bst, "model.bin")
+  loaded <- xgb.load("model.bin")
+
+  expect_false(is.null(loaded$best_iteration))
+  expect_equal(loaded$best_iteration, bst$best_ntreelimit)
+  expect_equal(loaded$best_ntreelimit, bst$best_ntreelimit)
+
+  file.remove("model.bin")
 })
 
 test_that("early stopping using a specific metric works", {

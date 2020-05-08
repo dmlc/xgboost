@@ -3,7 +3,7 @@ FROM nvidia/cuda:$CUDA_VERSION-devel-centos6
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
-ENV DEVTOOLSET_URL_ROOT http://mirror.centos.org/centos/6/sclo/x86_64/rh/devtoolset-4
+ENV DEVTOOLSET_URL_ROOT http://vault.centos.org/6.9/sclo/x86_64/rh/devtoolset-4/
 
 # Install all basic requirements
 RUN \

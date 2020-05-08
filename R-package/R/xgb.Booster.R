@@ -131,6 +131,25 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
       object$raw <- xgb.serialize(object$handle)
     }
   }
+
+  attrs <- xgb.attributes(object)
+  if (!is.null(attrs$best_ntreelimit)) {
+    object$best_ntreelimit <- as.integer(attrs$best_ntreelimit)
+  }
+  if (!is.null(attrs$best_iteration)) {
+    ## Convert from 0 based back to 1 based.
+    object$best_iteration <- as.integer(attrs$best_iteration) + 1
+  }
+  if (!is.null(attrs$best_score)) {
+    object$best_score <- as.numeric(attrs$best_score)
+  }
+  if (!is.null(attrs$best_msg)) {
+    object$best_msg <- attrs$best_msg
+  }
+  if (!is.null(attrs$niter)) {
+    object$niter <- as.integer(attrs$niter)
+  }
+
   return(object)
 }
 

@@ -1,1 +1,5 @@
+<<<<<<< HEAD
 @xgboost_VERSION_MAJOR@.@xgboost_VERSION_MINOR@.@xgboost_VERSION_PATCH@
+=======
+@xgboost_VERSION_MAJOR@.@xgboost_VERSION_MINOR@.@xgboost_VERSION_PATCH@rc2
+>>>>>>> upstream/release_1.1.0

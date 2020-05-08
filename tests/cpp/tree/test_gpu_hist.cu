@@ -101,7 +101,6 @@ void TestBuildHist(GPUHistBuilderBase<GradientSumT>& builder) {
   maker.hist.AllocateHistogram(0);
   maker.gpair = gpair.DeviceSpan();
 
-  maker.use_shared_memory_histograms = use_shared_memory_histograms;
   maker.BuildHist(0);
   DeviceHistogram<GradientSumT> d_hist = maker.hist;
 

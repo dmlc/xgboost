@@ -428,7 +428,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              DMatrixHandle dmat,
                              int option_mask,
                              unsigned ntree_limit,
-                             int32_t training,
+                             int training,
                              xgboost::bst_ulong *len,
                              const bst_float **out_result) {
   API_BEGIN();

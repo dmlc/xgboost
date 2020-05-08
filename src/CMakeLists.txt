@@ -39,6 +39,12 @@ if (USE_CUDA)
     )
   endif (MSVC)
 
+  if (HIDE_CXX_SYMBOLS)
+    target_compile_options(objxgboost PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fvisibility=hidden>
+    )
+  endif (HIDE_CXX_SYMBOLS)
+
   set_target_properties(objxgboost PROPERTIES
     CUDA_SEPARABLE_COMPILATION OFF)
 else (USE_CUDA)
