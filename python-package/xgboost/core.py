@@ -1,7 +1,7 @@
 # coding: utf-8
 # pylint: disable=too-many-arguments, too-many-branches, invalid-name
 # pylint: disable=too-many-branches, too-many-lines, too-many-locals
-# pylint: disable=too-many-public-methods
+# pylint: disable=too-many-public-methods, too-many-function-args
 """Core XGBoost Library."""
 import collections
 # pylint: disable=no-name-in-module,import-error
