@@ -6,7 +6,7 @@
 
     <groupId>ml.dmlc</groupId>
     <artifactId>xgboost-jvm_2.12</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>XGBoost JVM Package</name>
     <description>JVM Package for XGBoost</description>
@@ -34,8 +34,8 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <flink.version>1.7.2</flink.version>
-        <spark.version>2.4.3</spark.version>
-        <scala.version>2.12.8</scala.version>
+        <spark.version>3.0.0</spark.version>
+        <scala.version>2.12.10</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
         <hadoop.version>2.7.3</hadoop.version>
     </properties>
@@ -45,6 +45,11 @@
             <name>central maven</name>
             <url>https://repo1.maven.org/maven2</url>
         </repository>
+      <repository>
+        <id>ASF_spark</id>
+        <name>ASF spark</name>
+        <url>https://repository.apache.org/content/repositories/orgapachespark-1341</url>
+      </repository>
     </repositories>
     <modules>
         <module>xgboost4j</module>
@@ -346,9 +351,9 @@
     </reporting>
     <dependencies>
         <dependency>
-            <groupId>com.esotericsoftware.kryo</groupId>
+            <groupId>com.esotericsoftware</groupId>
             <artifactId>kryo</artifactId>
-            <version>2.22</version>
+            <version>4.0.2</version>
         </dependency>
         <dependency>
             <groupId>org.scala-lang</groupId>
