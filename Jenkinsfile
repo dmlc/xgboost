@@ -64,7 +64,7 @@ pipeline {
             'build-cpu': { BuildCPU() },
             'build-cpu-rabit-mock': { BuildCPUMock() },
             'build-cpu-non-omp': { BuildCPUNonOmp() },
-            'build-gpu-cuda9.0': { BuildCUDA(cuda_version: '9.0') },
+            'build-gpu-cuda9.0': { BuildCUDA(cuda_version: '9.2') },
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
             'build-gpu-cuda10.1': { BuildCUDA(cuda_version: '10.1') },
             'build-jvm-packages': { BuildJVMPackages(spark_version: '2.4.3') },
@@ -251,8 +251,8 @@ def BuildCUDA(args) {
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python3 tests/ci_build/rename_whl.py python-package/dist/*.whl ${commit_id} manylinux2010_x86_64
     """
-    // Stash wheel for CUDA 9.0 target
-    if (args.cuda_version == '9.0') {
+    // Stash wheel for CUDA 9.2 target
+    if (args.cuda_version == '9.2') {
       echo 'Stashing Python wheel...'
       stash name: 'xgboost_whl_cuda9', includes: 'python-package/dist/*.whl'
       path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
