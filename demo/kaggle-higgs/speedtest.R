@@ -36,6 +36,7 @@ for (i in 1:length(threads)){
                   "bst:max_depth" = 6,
                   "eval_metric" = "auc",
                   "eval_metric" = "ams@0.15",
+                  "silent" = 1,
                   "nthread" = thread)
     watchlist <- list("train" = xgmat)
     nrounds = 120

@@ -21,6 +21,7 @@ param <- list("objective" = "binary:logitraw",
               "bst:max_depth" = 6,
               "eval_metric" = "auc",
               "eval_metric" = "ams@0.15",
+              "silent" = 1,
               "nthread" = 16)
 watchlist <- list("train" = xgmat)
 nrounds = 120
@@ -29,3 +30,4 @@ bst = xgb.train(param, xgmat, nrounds, watchlist );
 # save out model
 xgb.save(bst, "higgs.model")
 print ('finish training')
+
