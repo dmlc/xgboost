@@ -1,10 +1,12 @@
 #!/usr/bin/python
+import os
 import numpy as np
 import xgboost as xgb
 
-### load data in do training
-dtrain = xgb.DMatrix('../data/agaricus.txt.train')
-param = {'max_depth':2, 'eta':1, 'silent':1, 'objective':'binary:logistic'}
+# load data in do training
+CURRENT_DIR = os.path.dirname(__file__)
+dtrain = xgb.DMatrix(os.path.join(CURRENT_DIR, '../data/agaricus.txt.train'))
+param = {'max_depth':2, 'eta':1, 'objective':'binary:logistic'}
 num_round = 2
 
 print('running cross validation')
@@ -56,7 +58,7 @@ def evalerror(preds, dtrain):
     labels = dtrain.get_label()
     return 'error', float(sum(labels != (preds > 0.0))) / len(labels)
 
-param = {'max_depth':2, 'eta':1, 'silent':1}
+param = {'max_depth':2, 'eta':1}
 # train with customized objective
 xgb.cv(param, dtrain, num_round, nfold=5, seed=0,
        obj=logregobj, feval=evalerror)

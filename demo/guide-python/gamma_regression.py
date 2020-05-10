@@ -12,7 +12,7 @@ dtest = xgb.DMatrix(data[4741:6773, 0:34], data[4741:6773, 34])
 
 # for gamma regression, we need to set the objective to 'reg:gamma', it also suggests
 # to set the base_score to a value between 1 to 5 if the number of iteration is small
-param = {'silent':1, 'objective':'reg:gamma', 'booster':'gbtree', 'base_score':3}
+param = {'objective':'reg:gamma', 'booster':'gbtree', 'base_score':3}
 
 # the rest of settings are the same
 watchlist = [(dtest, 'eval'), (dtrain, 'train')]
