@@ -47,7 +47,7 @@ class TestGPUBasicModels(unittest.TestCase):
         y = np.random.randint(0, kClasses, size=kRows) * 1e4
 
         model_0, model_1 = self.run_cls(X, y, True)
-        assert hash(model_0) == hash(model_1)
+        assert model_0 == model_1
 
         model_0, model_1 = self.run_cls(X, y, False)
-        assert hash(model_0) != hash(model_1)
+        assert model_0 != model_1
