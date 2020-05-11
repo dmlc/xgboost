@@ -234,7 +234,7 @@ void DistributedHistRowsAdder::AddHistRows(int *starting_index, int *sync_count,
       builder_->hist_local_worker_.AddHistRow(nid);
     }
   }
-  (*sync_count) = std::min(1, n_left);
+  (*sync_count) = std::max(1, n_left);
   builder_->builder_monitor_.Stop("AddHistRows");
 }
 
