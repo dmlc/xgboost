@@ -1,4 +1,3 @@
-#!/usr/bin/python
 import xgboost as xgb
 import numpy as np
 
