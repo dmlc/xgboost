@@ -1,24 +1,24 @@
 /*!
  * Copyright 2017-2020 by Contributors
- * \file column_matrix.h
+ * \file column_matrix_oneapi.h
  * \brief Utility for fast column-wise access
  */
 
-#ifndef XGBOOST_COMMON_COLUMN_MATRIX_SYCL_H_
-#define XGBOOST_COMMON_COLUMN_MATRIX_SYCL_H_
+#ifndef XGBOOST_COMMON_COLUMN_MATRIX_ONEAPI_H_
+#define XGBOOST_COMMON_COLUMN_MATRIX_ONEAPI_H_
 
 #include <limits>
 #include <vector>
 #include <memory>
 #include "../../src/common/column_matrix.h"
-#include "hist_util_sycl.h"
+#include "hist_util_oneapi.h"
 
 namespace xgboost {
 namespace common {
 
 /*! \brief a collection of columns, with support for construction from
-    GHistIndexMatrixSycl. */
-class ColumnMatrixSycl {
+    GHistIndexMatrixOneAPI. */
+class ColumnMatrixOneAPI {
  public:
   // get number of features
   inline bst_uint GetNumFeature() const {
@@ -26,7 +26,7 @@ class ColumnMatrixSycl {
   }
 
   // construct column matrix from GHistIndexMatrix
-  inline void Init(const GHistIndexMatrixSycl& gmat,
+  inline void Init(const GHistIndexMatrixOneAPI& gmat,
                    double  sparse_threshold) {
     const int32_t nfeature = static_cast<int32_t>(gmat.cut.Ptrs().size() - 1);
     const size_t nrow = gmat.row_ptr.size() - 1;
@@ -144,7 +144,7 @@ class ColumnMatrixSycl {
   }
 
   template<typename T>
-  inline void SetIndexAllDense(T* index, const GHistIndexMatrixSycl& gmat,  const size_t nrow,
+  inline void SetIndexAllDense(T* index, const GHistIndexMatrixOneAPI& gmat,  const size_t nrow,
                                const size_t nfeature,  const bool noMissingValues) {
     T* local_index = reinterpret_cast<T*>(&index_[0]);
 
@@ -192,7 +192,7 @@ class ColumnMatrixSycl {
   }
 
   template<typename T>
-  inline void SetIndex(uint32_t* index, const GHistIndexMatrixSycl& gmat,
+  inline void SetIndex(uint32_t* index, const GHistIndexMatrixOneAPI& gmat,
                        const size_t nrow, const size_t nfeature) {
     std::vector<size_t> num_nonzeros;
     num_nonzeros.resize(nfeature);
@@ -258,4 +258,4 @@ class ColumnMatrixSycl {
 
 }  // namespace common
 }  // namespace xgboost
-#endif  // XGBOOST_COMMON_COLUMN_MATRIX_SYCL_H_
+#endif  // XGBOOST_COMMON_COLUMN_MATRIX_ONEAPI_H_

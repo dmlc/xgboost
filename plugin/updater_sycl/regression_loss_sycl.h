@@ -1,8 +1,8 @@
 /*!
- * Copyright 2017-2019 XGBoost contributors
+ * Copyright 2017-2020 XGBoost contributors
  */
-#ifndef XGBOOST_OBJECTIVE_REGRESSION_LOSS_SYCL_H_
-#define XGBOOST_OBJECTIVE_REGRESSION_LOSS_SYCL_H_
+#ifndef XGBOOST_OBJECTIVE_REGRESSION_LOSS_ONEAPI_H_
+#define XGBOOST_OBJECTIVE_REGRESSION_LOSS_ONEAPI_H_
 
 #include <dmlc/omp.h>
 #include <xgboost/logging.h>
@@ -14,7 +14,7 @@ namespace obj {
 
 // common regressions
 // linear regression
-struct LinearSquareLossSycl {
+struct LinearSquareLossOneAPI {
   static bst_float PredTransform(bst_float x) { return x; }
   static bool CheckLabel(bst_float x) { return true; }
   static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
@@ -27,11 +27,11 @@ struct LinearSquareLossSycl {
   static const char* LabelErrorMsg() { return ""; }
   static const char* DefaultEvalMetric() { return "rmse"; }
 
-  static const char* Name() { return "reg:squarederror_sycl"; }
+  static const char* Name() { return "reg:squarederror_oneapi"; }
 };
 
 // TODO: DPC++ does not support std math inside offloaded kernels
-struct SquaredLogErrorSycl {
+struct SquaredLogErrorOneAPI {
   static bst_float PredTransform(bst_float x) { return x; }
   static bool CheckLabel(bst_float label) {
     return label > -1;
@@ -53,11 +53,11 @@ struct SquaredLogErrorSycl {
   }
   static const char* DefaultEvalMetric() { return "rmsle"; }
 
-  static const char* Name() { return "reg:squaredlogerror_sycl"; }
+  static const char* Name() { return "reg:squaredlogerror_oneapi"; }
 };
 
 // logistic loss for probability regression task
-struct LogisticRegressionSycl {
+struct LogisticRegressionOneAPI {
   // duplication is necessary, as __device__ specifier
   // cannot be made conditional on template parameter
   static bst_float PredTransform(bst_float x) { return common::Sigmoid(x); }
@@ -88,17 +88,17 @@ struct LogisticRegressionSycl {
   }
   static const char* DefaultEvalMetric() { return "rmse"; }
 
-  static const char* Name() { return "reg:logistic_sycl"; }
+  static const char* Name() { return "reg:logistic_oneapi"; }
 };
 
 // logistic loss for binary classification task
-struct LogisticClassificationSycl : public LogisticRegressionSycl {
+struct LogisticClassificationOneAPI : public LogisticRegressionOneAPI {
   static const char* DefaultEvalMetric() { return "error"; }
-  static const char* Name() { return "binary:logistic_sycl"; }
+  static const char* Name() { return "binary:logistic_oneapi"; }
 };
 
 // logistic loss, but predict un-transformed margin
-struct LogisticRawSycl : public LogisticRegressionSycl {
+struct LogisticRawOneAPI : public LogisticRegressionOneAPI {
   // duplication is necessary, as __device__ specifier
   // cannot be made conditional on template parameter
   static bst_float PredTransform(bst_float x) { return x; }
@@ -126,10 +126,10 @@ struct LogisticRawSycl : public LogisticRegressionSycl {
   }
   static const char* DefaultEvalMetric() { return "auc"; }
 
-  static const char* Name() { return "binary:logitraw_sycl"; }
+  static const char* Name() { return "binary:logitraw_oneapi"; }
 };
 
 }  // namespace obj
 }  // namespace xgboost
 
-#endif  // XGBOOST_OBJECTIVE_REGRESSION_LOSS_SYCL_H_
+#endif  // XGBOOST_OBJECTIVE_REGRESSION_LOSS_ONEAPI_H_

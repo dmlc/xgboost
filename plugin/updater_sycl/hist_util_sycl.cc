@@ -1,6 +1,6 @@
 /*!
- * Copyright 2017-2019 by Contributors
- * \file hist_util.cc
+ * Copyright 2017-2020 by Contributors
+ * \file hist_util_oneapi.cc
  */
 #include <dmlc/timer.h>
 #include <dmlc/omp.h>
@@ -10,8 +10,8 @@
 #include <vector>
 
 #include "xgboost/base.h"
-#include "column_matrix_sycl.h"
-#include "./hist_util_sycl.h"
+#include "column_matrix_oneapi.h"
+#include "./hist_util_oneapi.h"
 #include "./../../src/tree/updater_quantile_hist.h"
 
 #include "CL/sycl.hpp"
@@ -29,7 +29,7 @@ namespace xgboost {
 namespace common {
 
 template<typename BinIdxType>
-void GHistIndexMatrixSycl::SetIndexDataForDense(common::Span<BinIdxType> index_data_span,
+void GHistIndexMatrixOneAPI::SetIndexDataForDense(common::Span<BinIdxType> index_data_span,
                                                 size_t batch_threads, const SparsePage& batch,
                                                 size_t rbegin, common::Span<const uint32_t> offsets_span,
                                                 size_t nbins) {
@@ -54,23 +54,23 @@ void GHistIndexMatrixSycl::SetIndexDataForDense(common::Span<BinIdxType> index_d
       }
     }
 }
-template void GHistIndexMatrixSycl::SetIndexDataForDense(common::Span<uint8_t> index_data_span,
+template void GHistIndexMatrixOneAPI::SetIndexDataForDense(common::Span<uint8_t> index_data_span,
                                                          size_t batch_threads, const SparsePage& batch,
                                                          size_t rbegin,
                                                          common::Span<const uint32_t> offsets_span,
                                                          size_t nbins);
-template void GHistIndexMatrixSycl::SetIndexDataForDense(common::Span<uint16_t> index_data_span,
+template void GHistIndexMatrixOneAPI::SetIndexDataForDense(common::Span<uint16_t> index_data_span,
                                                          size_t batch_threads, const SparsePage& batch,
                                                          size_t rbegin,
                                                          common::Span<const uint32_t> offsets_span,
                                                          size_t nbins);
-template void GHistIndexMatrixSycl::SetIndexDataForDense(common::Span<uint32_t> index_data_span,
+template void GHistIndexMatrixOneAPI::SetIndexDataForDense(common::Span<uint32_t> index_data_span,
                                                          size_t batch_threads, const SparsePage& batch,
                                                          size_t rbegin,
                                                          common::Span<const uint32_t> offsets_span,
                                                          size_t nbins);
 
-void GHistIndexMatrixSycl::SetIndexDataForSparse(common::Span<uint32_t> index_data_span,
+void GHistIndexMatrixOneAPI::SetIndexDataForSparse(common::Span<uint32_t> index_data_span,
                                                  size_t batch_threads,
                                                  const SparsePage& batch, size_t rbegin,
                                                  size_t nbins) {
@@ -95,7 +95,7 @@ void GHistIndexMatrixSycl::SetIndexDataForSparse(common::Span<uint32_t> index_da
     }
 }
 
-void GHistIndexMatrixSycl::ResizeIndex(const size_t rbegin, const SparsePage& batch,
+void GHistIndexMatrixOneAPI::ResizeIndex(const size_t rbegin, const SparsePage& batch,
                                        const size_t n_offsets, const size_t n_index,
                                        const bool isDense) {
   if ((max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) && isDense) {
@@ -111,7 +111,7 @@ void GHistIndexMatrixSycl::ResizeIndex(const size_t rbegin, const SparsePage& ba
   }
 }
 
-void GHistIndexMatrixSycl::Init(cl::sycl::queue qu, DMatrix* p_fmat, int max_bins) {
+void GHistIndexMatrixOneAPI::Init(cl::sycl::queue qu, DMatrix* p_fmat, int max_bins) {
   cut.Build(p_fmat, max_bins);
   max_num_bins = max_bins;
   const int32_t nthread = omp_get_max_threads();
@@ -322,7 +322,7 @@ inline void SetGroup(const unsigned fid, const Column<BinIdxType>& column,
 inline std::vector<std::vector<unsigned>>
 FindGroups(const std::vector<unsigned>& feature_list,
            const std::vector<size_t>& feature_nnz,
-           const ColumnMatrixSycl& colmat,
+           const ColumnMatrixOneAPI& colmat,
            size_t nrow,
            const tree::TrainParam& param) {
   /* Goal: Bundle features together that has little or no "overlap", i.e.
@@ -372,8 +372,8 @@ FindGroups(const std::vector<unsigned>& feature_list,
 }
 
 inline std::vector<std::vector<unsigned>>
-FastFeatureGrouping(const GHistIndexMatrixSycl& gmat,
-                    const ColumnMatrixSycl& colmat,
+FastFeatureGrouping(const GHistIndexMatrixOneAPI& gmat,
+                    const ColumnMatrixOneAPI& colmat,
                     const tree::TrainParam& param) {
   const size_t nrow = gmat.row_ptr.size() - 1;
   const size_t nfeature = gmat.cut.Ptrs().size() - 1;
@@ -426,8 +426,8 @@ FastFeatureGrouping(const GHistIndexMatrixSycl& gmat,
   return groups;
 }
 
-void GHistIndexBlockMatrixSycl::Init(const GHistIndexMatrixSycl& gmat,
-                                     const ColumnMatrixSycl& colmat,
+void GHistIndexBlockMatrixOneAPI::Init(const GHistIndexMatrixOneAPI& gmat,
+                                     const ColumnMatrixOneAPI& colmat,
                                      const tree::TrainParam& param) {
   cut_ = &gmat.cut;
 
@@ -491,7 +491,7 @@ void GHistIndexBlockMatrixSycl::Init(const GHistIndexMatrixSycl& gmat,
   }
 }
 
-void IncrementHistSycl(cl::sycl::queue qu, GHistRowSycl dst, const GHistRowSycl add, size_t begin, size_t end) {
+void IncrementHistOneAPI(cl::sycl::queue qu, GHistRowOneAPI dst, const GHistRowOneAPI add, size_t begin, size_t end) {
   using FPType = decltype(tree::GradStats::sum_grad);
   FPType* pdst = reinterpret_cast<FPType*>(dst.data());
   const FPType* padd = reinterpret_cast<const FPType*>(add.data());
@@ -503,7 +503,7 @@ void IncrementHistSycl(cl::sycl::queue qu, GHistRowSycl dst, const GHistRowSycl 
   }).wait();
 }
 
-void CopyHistSycl(cl::sycl::queue qu, GHistRowSycl dst, const GHistRowSycl src, size_t begin, size_t end) {
+void CopyHistOneAPI(cl::sycl::queue qu, GHistRowOneAPI dst, const GHistRowOneAPI src, size_t begin, size_t end) {
   using FPType = decltype(tree::GradStats::sum_grad);
   FPType* pdst = reinterpret_cast<FPType*>(dst.data());
   const FPType* psrc = reinterpret_cast<const FPType*>(src.data());
@@ -516,7 +516,7 @@ void CopyHistSycl(cl::sycl::queue qu, GHistRowSycl dst, const GHistRowSycl src, 
 }
 
 
-void SubtractionHistSycl(cl::sycl::queue qu, GHistRowSycl dst, const GHistRowSycl src1, const GHistRowSycl src2,
+void SubtractionHistOneAPI(cl::sycl::queue qu, GHistRowOneAPI dst, const GHistRowOneAPI src1, const GHistRowOneAPI src2,
                      size_t begin, size_t end) {
   using FPType = decltype(tree::GradStats::sum_grad);
   FPType* pdst = reinterpret_cast<FPType*>(dst.data());
@@ -538,7 +538,7 @@ struct Prefetch {
  private:
   static constexpr size_t kNoPrefetchSize =
       kPrefetchOffset + kCacheLineSize /
-      sizeof(decltype(GHistIndexMatrixSycl::row_ptr)::value_type);
+      sizeof(decltype(GHistIndexMatrixOneAPI::row_ptr)::value_type);
 
  public:
   static size_t NoPrefetchSize(size_t rows) {
@@ -554,9 +554,9 @@ struct Prefetch {
 template<typename FPType, bool do_prefetch, typename BinIdxType>
 void BuildHistDenseKernel(const std::vector<GradientPair>& gpair,
                           const RowSetCollection::Elem row_indices,
-                          const GHistIndexMatrixSycl& gmat,
+                          const GHistIndexMatrixOneAPI& gmat,
                           const size_t n_features,
-                          GHistRowSycl hist) {
+                          GHistRowOneAPI hist) {
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
   const float* pgh = reinterpret_cast<const float*>(gpair.data());
@@ -595,8 +595,8 @@ void BuildHistDenseKernel(const std::vector<GradientPair>& gpair,
 template<typename FPType, bool do_prefetch>
 void BuildHistSparseKernel(const std::vector<GradientPair>& gpair,
                            const RowSetCollection::Elem row_indices,
-                           const GHistIndexMatrixSycl& gmat,
-                           GHistRowSycl hist) {
+                           const GHistIndexMatrixOneAPI& gmat,
+                           GHistRowOneAPI hist) {
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
   const float* pgh = reinterpret_cast<const float*>(gpair.data());
@@ -635,7 +635,7 @@ void BuildHistSparseKernel(const std::vector<GradientPair>& gpair,
 template<typename FPType, bool do_prefetch, typename BinIdxType>
 void BuildHistDispatchKernel(const std::vector<GradientPair>& gpair,
                      const RowSetCollection::Elem row_indices,
-                     const GHistIndexMatrixSycl& gmat, GHistRowSycl hist, bool isDense) {
+                     const GHistIndexMatrixOneAPI& gmat, GHistRowOneAPI hist, bool isDense) {
   if (isDense) {
     const size_t* row_ptr =  gmat.row_ptr.data();
     const size_t n_features = row_ptr[row_indices.begin[0]+1] - row_ptr[row_indices.begin[0]];
@@ -650,7 +650,7 @@ void BuildHistDispatchKernel(const std::vector<GradientPair>& gpair,
 template<typename FPType, bool do_prefetch>
 void BuildHistKernel(const std::vector<GradientPair>& gpair,
                      const RowSetCollection::Elem row_indices,
-                     const GHistIndexMatrixSycl& gmat, const bool isDense, GHistRowSycl hist) {
+                     const GHistIndexMatrixOneAPI& gmat, const bool isDense, GHistRowOneAPI hist) {
   const bool is_dense = row_indices.Size() && isDense;
   switch (gmat.index.GetBinTypeSize()) {
     case kUint8BinsTypeSize:
@@ -670,10 +670,10 @@ void BuildHistKernel(const std::vector<GradientPair>& gpair,
   }
 }
 
-void GHistBuilderSycl::BuildHist(const std::vector<GradientPair>& gpair,
+void GHistBuilderOneAPI::BuildHist(const std::vector<GradientPair>& gpair,
                              const RowSetCollection::Elem row_indices,
-                             const GHistIndexMatrixSycl& gmat,
-                             GHistRowSycl hist,
+                             const GHistIndexMatrixOneAPI& gmat,
+                             GHistRowOneAPI hist,
                              bool isDense) {
   using FPType = decltype(tree::GradStats::sum_grad);
   const size_t nrows = row_indices.Size();
@@ -695,10 +695,10 @@ void GHistBuilderSycl::BuildHist(const std::vector<GradientPair>& gpair,
   }
 }
 
-void GHistBuilderSycl::BuildBlockHist(const std::vector<GradientPair>& gpair,
+void GHistBuilderOneAPI::BuildBlockHist(const std::vector<GradientPair>& gpair,
                                   const RowSetCollection::Elem row_indices,
-                                  const GHistIndexBlockMatrixSycl& gmatb,
-                                  GHistRowSycl hist) {
+                                  const GHistIndexBlockMatrixOneAPI& gmatb,
+                                  GHistRowOneAPI hist) {
   constexpr int kUnroll = 8;  // loop unrolling factor
   const size_t nblock = gmatb.GetNumBlock();
   const size_t nrows = row_indices.end - row_indices.begin;
@@ -744,12 +744,12 @@ void GHistBuilderSycl::BuildBlockHist(const std::vector<GradientPair>& gpair,
   }
 }
 
-void GHistBuilderSycl::SubtractionTrick(GHistRowSycl self, GHistRowSycl sibling, GHistRowSycl parent) {
+void GHistBuilderOneAPI::SubtractionTrick(GHistRowOneAPI self, GHistRowOneAPI sibling, GHistRowOneAPI parent) {
   const size_t size = self.size();
   CHECK_EQ(sibling.size(), size);
   CHECK_EQ(parent.size(), size);
 
-  SubtractionHistSycl(qu_, self, parent, sibling, 0, size);
+  SubtractionHistOneAPI(qu_, self, parent, sibling, 0, size);
 }
 
 }  // namespace common

@@ -12,31 +12,31 @@
 
 #include "../../src/common/transform.h"
 #include "../../src/common/common.h"
-#include "./regression_loss_sycl.h"
+#include "./regression_loss_oneapi.h"
 
 #include "CL/sycl.hpp"
 
 namespace xgboost {
 namespace obj {
 
-DMLC_REGISTRY_FILE_TAG(regression_obj_sycl);
+DMLC_REGISTRY_FILE_TAG(regression_obj_oneapi);
 
-struct RegLossParamSycl : public XGBoostParameter<RegLossParamSycl> {
+struct RegLossParamOneAPI : public XGBoostParameter<RegLossParamOneAPI> {
   float scale_pos_weight;
   // declare parameters
-  DMLC_DECLARE_PARAMETER(RegLossParamSycl) {
+  DMLC_DECLARE_PARAMETER(RegLossParamOneAPI) {
     DMLC_DECLARE_FIELD(scale_pos_weight).set_default(1.0f).set_lower_bound(0.0f)
       .describe("Scale the weight of positive examples by this factor");
   }
 };
 
 template<typename Loss>
-class RegLossObjSycl : public ObjFunction {
+class RegLossObjOneAPI : public ObjFunction {
  protected:
   HostDeviceVector<int> label_correct_;
 
  public:
-  RegLossObjSycl() = default;
+  RegLossObjOneAPI() = default;
 
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.UpdateAllowUnknown(args);
@@ -147,36 +147,36 @@ class RegLossObjSycl : public ObjFunction {
   }
 
  protected:
-  RegLossParamSycl param_;
+  RegLossParamOneAPI param_;
 
   cl::sycl::queue qu_;
 };
 
 // register the objective functions
-DMLC_REGISTER_PARAMETER(RegLossParamSycl);
+DMLC_REGISTER_PARAMETER(RegLossParamOneAPI);
 
-XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegressionSycl, LinearSquareLossSycl::Name())
+XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegressionOneAPI, LinearSquareLossOneAPI::Name())
 .describe("Regression with squared error with DPC++ backend.")
-.set_body([]() { return new RegLossObjSycl<LinearSquareLossSycl>(); });
+.set_body([]() { return new RegLossObjOneAPI<LinearSquareLossOneAPI>(); });
 
 // TODO: Find a way to dispatch names of DPC++ kernels with various template parameters of loss function
 /*
-XGBOOST_REGISTER_OBJECTIVE(SquareLogErrorSycl, SquaredLogErrorSycl::Name())
+XGBOOST_REGISTER_OBJECTIVE(SquareLogErrorOneAPI, SquaredLogErrorOneAPI::Name())
 .describe("Regression with root mean squared logarithmic error with DPC++ backend.")
-.set_body([]() { return new RegLossObjSycl<SquaredLogErrorSycl>(); });
+.set_body([]() { return new RegLossObjOneAPI<SquaredLogErrorOneAPI>(); });
 
-XGBOOST_REGISTER_OBJECTIVE(LogisticRegressionSycl, LogisticRegressionSycl::Name())
+XGBOOST_REGISTER_OBJECTIVE(LogisticRegressionOneAPI, LogisticRegressionOneAPI::Name())
 .describe("Logistic regression for probability regression task with DPC++ backend.")
-.set_body([]() { return new RegLossObjSycl<LogisticRegressionSycl>(); });
+.set_body([]() { return new RegLossObjOneAPI<LogisticRegressionOneAPI>(); });
 
-XGBOOST_REGISTER_OBJECTIVE(LogisticClassificationSycl, LogisticClassificationSycl::Name())
+XGBOOST_REGISTER_OBJECTIVE(LogisticClassificationOneAPI, LogisticClassificationOneAPI::Name())
 .describe("Logistic regression for binary classification task with DPC++ backend.")
-.set_body([]() { return new RegLossObjSycl<LogisticClassificationSycl>(); });
+.set_body([]() { return new RegLossObjOneAPI<LogisticClassificationOneAPI>(); });
 
-XGBOOST_REGISTER_OBJECTIVE(LogisticRawSycl, LogisticRawSycl::Name())
+XGBOOST_REGISTER_OBJECTIVE(LogisticRawOneAPI, LogisticRawOneAPI::Name())
 .describe("Logistic regression for classification, output score "
           "before logistic transformation with DPC++ backend.")
-.set_body([]() { return new RegLossObjSycl<LogisticRawSycl>(); });
+.set_body([]() { return new RegLossObjOneAPI<LogisticRawOneAPI>(); });
 */
 
 }  // namespace obj

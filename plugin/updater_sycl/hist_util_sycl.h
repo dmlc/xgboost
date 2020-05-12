@@ -1,11 +1,9 @@
 /*!
  * Copyright 2017-2020 by Contributors
- * \file hist_util.h
- * \brief Utility for fast histogram aggregation
- * \author Philip Cho, Tianqi Chen
+ * \file hist_uti_oneapi.h
  */
-#ifndef XGBOOST_COMMON_HIST_UTIL_SYCL_H_
-#define XGBOOST_COMMON_HIST_UTIL_SYCL_H_
+#ifndef XGBOOST_COMMON_HIST_UTIL_ONEAPI_H_
+#define XGBOOST_COMMON_HIST_UTIL_ONEAPI_H_
 
 #include <xgboost/data.h>
 #include <xgboost/generic_parameters.h>
@@ -32,16 +30,16 @@ namespace common {
  *  Directly represent the global index in the histogram entry.
  */
 using GHistIndexRow = Span<uint32_t const>;
-using GHistRowSycl = Span<tree::GradStats>; // Span containing USM pointer
+using GHistRowOneAPI = Span<tree::GradStats>; // Span containing USM pointer
 
-struct IndexSycl {
-  IndexSycl() : data_size_(0), data_(nullptr), offset_size_(0), offset_(nullptr) {
+struct IndexOneAPI {
+  IndexOneAPI() : data_size_(0), data_(nullptr), offset_size_(0), offset_(nullptr) {
     SetBinTypeSize(binTypeSize_);
   }
-  IndexSycl(const IndexSycl& i) = delete;
-  IndexSycl& operator=(IndexSycl i) = delete;
-  IndexSycl(IndexSycl&& i) = delete;
-  IndexSycl& operator=(IndexSycl&& i) = delete;
+  IndexOneAPI(const IndexOneAPI& i) = delete;
+  IndexOneAPI& operator=(IndexOneAPI i) = delete;
+  IndexOneAPI(IndexOneAPI&& i) = delete;
+  IndexOneAPI& operator=(IndexOneAPI&& i) = delete;
   uint32_t operator[](size_t i) const {
     if (offset_ != nullptr) {
       return func_(data_, i) + offset_[i%p_];
@@ -142,11 +140,11 @@ struct IndexSycl {
  *  Transform floating values to integer index in histogram This is a global histogram
  *  index for CPU histogram.  On GPU ellpack page is used.
  */
-struct GHistIndexMatrixSycl {
+struct GHistIndexMatrixOneAPI {
   /*! \brief row pointer to rows by element position */
   std::vector<size_t> row_ptr;
   /*! \brief The index data */
-  IndexSycl index;
+  IndexOneAPI index;
   /*! \brief hit count of each index */
   std::vector<size_t> hit_count;
   /*! \brief The corresponding cuts */
@@ -190,12 +188,12 @@ struct GHistIndexMatrixSycl {
   bool isDense_;
 };
 
-class ColumnMatrixSycl;
+class ColumnMatrixOneAPI;
 
-class GHistIndexBlockMatrixSycl {
+class GHistIndexBlockMatrixOneAPI {
  public:
-  void Init(const GHistIndexMatrixSycl& gmat,
-            const ColumnMatrixSycl& colmat,
+  void Init(const GHistIndexMatrixOneAPI& gmat,
+            const ColumnMatrixOneAPI& colmat,
             const tree::TrainParam& param);
 
   inline GHistIndexBlock operator[](size_t i) const {
@@ -222,9 +220,9 @@ class GHistIndexBlockMatrixSycl {
 /*!
  * \brief histogram of gradient statistics for multiple nodes
  */
-class HistCollectionSycl {
+class HistCollectionOneAPI {
  public:
-  ~HistCollectionSycl() {
+  ~HistCollectionOneAPI() {
     for (size_t i = 0; i < data_.size(); i++) {
       if (data_[i]) {
         cl::sycl::free(data_[i], qu_);
@@ -232,7 +230,7 @@ class HistCollectionSycl {
     }
   }
   // access histogram for i-th node
-  GHistRowSycl operator[](bst_uint nid) const {
+  GHistRowOneAPI operator[](bst_uint nid) const {
     tree::GradStats* missed_ptr = nullptr;
     CHECK_NE(data_[nid], missed_ptr);
     tree::GradStats* ptr = data_[nid];
@@ -285,17 +283,17 @@ class HistCollectionSycl {
 /*!
  * \brief Increment hist as dst += add in range [begin, end)
  */
-void IncrementHistSycl(cl::sycl::queue qu, GHistRowSycl dst, const GHistRowSycl add, size_t begin, size_t end);
+void IncrementHistOneAPI(cl::sycl::queue qu, GHistRowOneAPI dst, const GHistRowOneAPI add, size_t begin, size_t end);
 
 /*!
  * \brief Copy hist from src to dst in range [begin, end)
  */
-void CopyHistSycl(cl::sycl::queue qu, GHistRowSycl dst, const GHistRowSycl src, size_t begin, size_t end);
+void CopyHistOneAPI(cl::sycl::queue qu, GHistRowOneAPI dst, const GHistRowOneAPI src, size_t begin, size_t end);
 
 /*!
  * \brief Compute Subtraction: dst = src1 - src2 in range [begin, end)
  */
-void SubtractionHistSycl(cl::sycl::queue qu, GHistRowSycl dst, const GHistRowSycl src1, const GHistRowSycl src2,
+void SubtractionHistOneAPI(cl::sycl::queue qu, GHistRowOneAPI dst, const GHistRowOneAPI src1, const GHistRowOneAPI src2,
                      size_t begin, size_t end);
 
 /*!
@@ -303,7 +301,7 @@ void SubtractionHistSycl(cl::sycl::queue qu, GHistRowSycl dst, const GHistRowSyc
  * Supports processing multiple tree-nodes for nested parallelism
  * Able to reduce histograms across threads in efficient way
  */
-class ParallelGHistBuilderSycl {
+class ParallelGHistBuilderOneAPI {
  public:
   void Init(cl::sycl::queue qu, size_t nbins) {
     if (nbins != nbins_) {
@@ -315,7 +313,7 @@ class ParallelGHistBuilderSycl {
   // Add new elements if needed, mark all hists as unused
   // targeted_hists - already allocated hists which should contain final results after Reduce() call
   void Reset(cl::sycl::queue qu, size_t nthreads, size_t nodes, const BlockedSpace2d& space,
-             const std::vector<GHistRowSycl>& targeted_hists) {
+             const std::vector<GHistRowOneAPI>& targeted_hists) {
     hist_buffer_.Init(qu, nbins_);
     tid_nid_to_hist_.clear();
     hist_memory_.clear();
@@ -338,7 +336,7 @@ class ParallelGHistBuilderSycl {
 
   // Add new elements if needed, mark all hists as unused
   // targeted_hists - already allocated hists which should contain final results after Reduce() call
-  void Reset(cl::sycl::queue qu, size_t nodes, const std::vector<GHistRowSycl>& targeted_hists) {
+  void Reset(cl::sycl::queue qu, size_t nodes, const std::vector<GHistRowOneAPI>& targeted_hists) {
     hist_buffer_.Init(qu, nbins_);
     tid_nid_to_hist_.clear();
     hist_memory_.clear();
@@ -360,12 +358,12 @@ class ParallelGHistBuilderSycl {
   }
 
   // Get specified hist, initialize hist by zeros if it wasn't used before
-  GHistRowSycl GetInitializedHist(size_t tid, size_t nid) {
+  GHistRowOneAPI GetInitializedHist(size_t tid, size_t nid) {
     CHECK_LT(nid, nodes_);
     CHECK_LT(tid, nthreads_);
 
     size_t idx = tid_nid_to_hist_.at({tid, nid});
-    GHistRowSycl hist = hist_memory_[idx];
+    GHistRowOneAPI hist = hist_memory_[idx];
 
     if (!hist_was_used_[tid * nodes_ + nid]) {
       InitilizeHistByZeroes(hist, 0, hist.size());
@@ -375,21 +373,21 @@ class ParallelGHistBuilderSycl {
     return hist;
   }
 
-  void ReduceHistSycl(cl::sycl::queue qu, size_t nid, size_t begin, size_t end) {
+  void ReduceHistOneAPI(cl::sycl::queue qu, size_t nid, size_t begin, size_t end) {
     CHECK_GT(end, begin);
     CHECK_LT(nid, nodes_);
 
-    GHistRowSycl dst = targeted_hists_[nid];
+    GHistRowOneAPI dst = targeted_hists_[nid];
 
     bool is_updated = false;
     for (size_t tid = 0; tid < nthreads_; ++tid) {
       if (hist_was_used_[tid * nodes_ + nid]) {
         is_updated = true;
         const size_t idx = tid_nid_to_hist_.at({tid, nid});
-        GHistRowSycl src = hist_memory_[idx];
+        GHistRowOneAPI src = hist_memory_[idx];
 
         if (dst.data() != src.data()) {
-          IncrementHistSycl(qu, dst, src, begin, end);
+          IncrementHistOneAPI(qu, dst, src, begin, end);
         }
       }
     }
@@ -483,7 +481,7 @@ class ParallelGHistBuilderSycl {
   /*! \brief number of nodes which will be processed in parallel  */
   size_t nodes_ = 0;
   /*! \brief Buffer for additional histograms for Parallel processing  */
-  HistCollectionSycl hist_buffer_;
+  HistCollectionOneAPI hist_buffer_;
   /*!
    * \brief Marks which hists were used, it means that they should be merged.
    * Contains only {true or false} values
@@ -494,9 +492,9 @@ class ParallelGHistBuilderSycl {
   /*! \brief Buffer for additional histograms for Parallel processing  */
   std::vector<bool> threads_to_nids_map_;
   /*! \brief Contains histograms for final results  */
-  std::vector<GHistRowSycl> targeted_hists_;
+  std::vector<GHistRowOneAPI> targeted_hists_;
   /*! \brief Allocated memory for histograms used for construction  */
-  std::vector<GHistRowSycl> hist_memory_;
+  std::vector<GHistRowOneAPI> hist_memory_;
   /*! \brief map pair {tid, nid} to index of allocated histogram from hist_memory_  */
   std::map<std::pair<size_t, size_t>, size_t> tid_nid_to_hist_;
 };
@@ -504,24 +502,24 @@ class ParallelGHistBuilderSycl {
 /*!
  * \brief builder for histograms of gradient statistics
  */
-class GHistBuilderSycl {
+class GHistBuilderOneAPI {
  public:
-  GHistBuilderSycl() = default;
-  GHistBuilderSycl(cl::sycl::queue qu, size_t nthread, uint32_t nbins) : qu_{qu}, nthread_{nthread}, nbins_{nbins} {}
+  GHistBuilderOneAPI() = default;
+  GHistBuilderOneAPI(cl::sycl::queue qu, size_t nthread, uint32_t nbins) : qu_{qu}, nthread_{nthread}, nbins_{nbins} {}
 
   // construct a histogram via histogram aggregation
   void BuildHist(const std::vector<GradientPair>& gpair,
                  const RowSetCollection::Elem row_indices,
-                 const GHistIndexMatrixSycl& gmat,
-                 GHistRowSycl hist,
+                 const GHistIndexMatrixOneAPI& gmat,
+                 GHistRowOneAPI hist,
                  bool isDense);
   // same, with feature grouping
   void BuildBlockHist(const std::vector<GradientPair>& gpair,
                       const RowSetCollection::Elem row_indices,
-                      const GHistIndexBlockMatrixSycl& gmatb,
-                      GHistRowSycl hist);
+                      const GHistIndexBlockMatrixOneAPI& gmatb,
+                      GHistRowOneAPI hist);
   // construct a histogram via subtraction trick
-  void SubtractionTrick(GHistRowSycl self, GHistRowSycl sibling, GHistRowSycl parent);
+  void SubtractionTrick(GHistRowOneAPI self, GHistRowOneAPI sibling, GHistRowOneAPI parent);
 
   uint32_t GetNumBins() const {
       return nbins_;
@@ -538,4 +536,4 @@ class GHistBuilderSycl {
 
 }  // namespace common
 }  // namespace xgboost
-#endif  // XGBOOST_COMMON_HIST_UTIL_SYCL_H_
+#endif  // XGBOOST_COMMON_HIST_UTIL_ONEAPI_H_
