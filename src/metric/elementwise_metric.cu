@@ -190,9 +190,9 @@ struct EvalRowLogLoss {
   }
 };
 
-struct EvalRowPHE {
+struct EvalRowMPHE {
   char const *Name() const {
-    return "phe";
+    return "mphe";
   }
   XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
     bst_float diff = label - pred;

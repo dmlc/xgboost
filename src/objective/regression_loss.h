@@ -122,7 +122,7 @@ struct PseudoHuberError {
     return "";
   }
   static const char* DefaultEvalMetric() {
-    return "phe";
+    return "mphe";
   }
   static const char* Name() {
     return "reg:pseudohubererror";

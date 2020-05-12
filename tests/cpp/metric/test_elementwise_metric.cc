@@ -44,6 +44,18 @@ TEST(Metric, DeclareUnifiedTest(MAE)) {
   delete metric;
 }
 
+TEST(Metric, DeclareUnifiedTest(MPHE)) {
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+  xgboost::Metric * metric = xgboost::Metric::Create("mphe", &lparam);
+  metric->Configure({});
+  ASSERT_STREQ(metric->Name(), "mphe");
+  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 0, 1e-10);
+  EXPECT_NEAR(GetMetricEval(metric,
+                            {0.1f, 0.9f, 0.1f, 0.9f},
+                            {  0,   0,   1,   1}), 0.17517f, 1e-4);
+  delete metric;
+}
+
 TEST(Metric, DeclareUnifiedTest(LogLoss)) {
   auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric * metric = xgboost::Metric::Create("logloss", &lparam);
