@@ -1,6 +1,7 @@
 """
 Demo for survival analysis (regression) using Accelerated Failure Time (AFT) model
 """
+import os
 from sklearn.model_selection import ShuffleSplit
 import pandas as pd
 import numpy as np
@@ -8,7 +9,8 @@ import xgboost as xgb
 
 # The Veterans' Administration Lung Cancer Trial
 # The Statistical Analysis of Failure Time Data by Kalbfleisch J. and Prentice R (1980)
-df = pd.read_csv('../data/veterans_lung_cancer.csv')
+CURRENT_DIR = os.path.dirname(__file__)
+df = pd.read_csv(os.path.join(CURRENT_DIR, '../data/veterans_lung_cancer.csv'))
 print('Training data:')
 print(df)
 
@@ -39,7 +41,7 @@ params = {'verbosity': 0,
           'lambda': 0.01,
           'alpha': 0.02}
 bst = xgb.train(params, dtrain, num_boost_round=10000,
-                evals=[(dtrain, 'train'), (dvalid, 'valid')], 
+                evals=[(dtrain, 'train'), (dvalid, 'valid')],
                 early_stopping_rounds=50)
 
 # Run prediction on the validation set
