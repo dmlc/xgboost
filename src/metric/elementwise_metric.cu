@@ -372,9 +372,9 @@ XGBOOST_REGISTER_METRIC(MAE, "mae")
 .describe("Mean absolute error.")
 .set_body([](const char* param) { return new EvalEWiseBase<EvalRowMAE>(); });
 
-XGBOOST_REGISTER_METRIC(PHE, "phe")
-.describe("Pseudo Huber error.")
-.set_body([](const char* param) { return new EvalEWiseBase<EvalRowPHE>(); });
+XGBOOST_REGISTER_METRIC(MPHE, "mphe")
+.describe("Mean pseudo Huber error.")
+.set_body([](const char* param) { return new EvalEWiseBase<EvalRowMPHE>(); });
 
 XGBOOST_REGISTER_METRIC(LogLoss, "logloss")
 .describe("Negative loglikelihood for logistic regression.")
