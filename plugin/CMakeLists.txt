@@ -8,9 +8,9 @@ if (PLUGIN_DENSE_PARSER)
     ${xgboost_SOURCE_DIR}/plugin/dense_parser/dense_libsvm.cc PARENT_SCOPE)
 endif (PLUGIN_DENSE_PARSER)
 
-if (PLUGIN_UPDATER_SYCL)
+if (PLUGIN_UPDATER_ONEAPI)
   set(PLUGINS_SOURCES ${PLUGINS_SOURCES}
-    ${xgboost_SOURCE_DIR}/plugin/updater_sycl/regression_obj_sycl.cc
-    ${xgboost_SOURCE_DIR}/plugin/updater_sycl/hist_util_sycl.cc
-    ${xgboost_SOURCE_DIR}/plugin/updater_sycl/updater_quantile_hist_sycl.cc PARENT_SCOPE)
-endif (PLUGIN_UPDATER_SYCL)
+    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/regression_obj_oneapi.cc
+    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/hist_util_oneapi.cc
+    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/updater_quantile_hist_oneapi.cc PARENT_SCOPE)
+endif (PLUGIN_UPDATER_ONEAPI)
