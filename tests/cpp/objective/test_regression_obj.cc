@@ -67,13 +67,13 @@ TEST(Objective, DeclareUnifiedTest(PseudoHuber)) {
                    {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},  // pred
                    {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // labels
                    {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // weights
-                   {-0.668965f, -0.64695f, -0.514496f, -0.196116f, 0.514496f}, // out_grad
+                   {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f}, // out_grad
                    { 0.410660f,  0.476140f,  0.630510f,  0.9428660f, 0.630510f}); // out_hess
   CheckObjFunction(obj,
                    {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},  // pred
                    {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // labels
                    {},                              // empty weights
-                   {-0.668965f, -0.64695f, -0.514496f, -0.196116f, 0.514496f}, // out_grad
+                   {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f}, // out_grad
                    { 0.410660f,  0.476140f,  0.630510f,  0.9428660f, 0.630510f}); // out_hess
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"mphe"});
 }
