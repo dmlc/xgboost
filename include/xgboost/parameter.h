@@ -1,6 +1,6 @@
 /*!
  * Copyright 2018 by Contributors
- * \file enum_class_param.h
+ * \file parameter.h
  * \brief macro for using C++11 enum class as DMLC parameter
  * \author Hyunsu Philip Cho
  */
@@ -99,6 +99,7 @@ struct XGBoostParameter : public dmlc::Parameter<Type> {
       return unknown;
     }
   }
+  bool GetInitialised() const { return static_cast<bool>(this->initialised_); }
 };
 }  // namespace xgboost
 

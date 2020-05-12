@@ -28,7 +28,7 @@ NVL <- function(x, val) {
 # Merges booster params with whatever is provided in ...
 # plus runs some checks
 check.booster.params <- function(params, ...) {
-  if (typeof(params) != "list")
+  if (!identical(class(params), "list"))
     stop("params must be a list")
 
   # in R interface, allow for '.' instead of '_' in parameter names
@@ -78,7 +78,7 @@ check.booster.params <- function(params, ...) {
   if (!is.null(params[['interaction_constraints']]) &&
       typeof(params[['interaction_constraints']]) != "character"){
     # check input class
-    if (class(params[['interaction_constraints']]) != 'list') stop('interaction_constraints should be class list')
+    if (!identical(class(params[['interaction_constraints']]),'list')) stop('interaction_constraints should be class list')
     if (!all(unique(sapply(params[['interaction_constraints']], class)) %in% c('numeric','integer'))) {
       stop('interaction_constraints should be a list of numeric/integer vectors')
     }
@@ -145,7 +145,7 @@ xgb.iter.update <- function(booster_handle, dtrain, iter, obj = NULL) {
   if (is.null(obj)) {
     .Call(XGBoosterUpdateOneIter_R, booster_handle, as.integer(iter), dtrain)
   } else {
-    pred <- predict(booster_handle, dtrain)
+    pred <- predict(booster_handle, dtrain, outputmargin = TRUE, training = TRUE)
     gpair <- obj(pred, dtrain)
     .Call(XGBoosterBoostOneIter_R, booster_handle, dtrain, gpair$grad, gpair$hess)
   }

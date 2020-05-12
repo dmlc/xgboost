@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import glob
 import itertools as it
 import numpy as np
@@ -26,6 +24,19 @@ class Dataset:
             self.X, self.y = get_dataset()
             self.w = None
         self.use_external_memory = use_external_memory
+
+    def __str__(self):
+        a = 'name: {name}\nobjective:{objective}, metric:{metric}, '.format(
+            name=self.name,
+            objective=self.objective,
+            metric=self.metric)
+        b = 'external memory:{use_external_memory}\n'.format(
+            use_external_memory=self.use_external_memory
+        )
+        return a + b
+
+    def __repr__(self):
+        return self.__str__()
 
 
 def get_boston():
@@ -67,12 +78,14 @@ def get_weights_regression(min_weight, max_weight):
     n = 10000
     sparsity = 0.25
     X, y = datasets.make_regression(n, random_state=rng)
-    X = np.array([[np.nan if rng.uniform(0, 1) < sparsity else x for x in x_row] for x_row in X])
+    X = np.array([[np.nan if rng.uniform(0, 1) < sparsity else x
+                   for x in x_row] for x_row in X])
     w = np.array([rng.uniform(min_weight, max_weight) for i in range(n)])
     return X, y, w
 
 
-def train_dataset(dataset, param_in, num_rounds=10, scale_features=False):
+def train_dataset(dataset, param_in, num_rounds=10, scale_features=False, DMatrixT=xgb.DMatrix,
+                  dmatrix_params={}):
     param = param_in.copy()
     param["objective"] = dataset.objective
     if dataset.objective == "multi:softmax":
@@ -87,10 +100,13 @@ def train_dataset(dataset, param_in, num_rounds=10, scale_features=False):
     if dataset.use_external_memory:
         np.savetxt('tmptmp_1234.csv', np.hstack((dataset.y.reshape(len(dataset.y), 1), X)),
                    delimiter=',')
-        dtrain = xgb.DMatrix('tmptmp_1234.csv?format=csv&label_column=0#tmptmp_',
+        dtrain = DMatrixT('tmptmp_1234.csv?format=csv&label_column=0#tmptmp_',
                              weight=dataset.w)
+    elif DMatrixT is xgb.DeviceQuantileDMatrix:
+        import cupy as cp
+        dtrain = DMatrixT(cp.array(X), dataset.y, weight=dataset.w, **dmatrix_params)
     else:
-        dtrain = xgb.DMatrix(X, dataset.y, weight=dataset.w)
+        dtrain = DMatrixT(X, dataset.y, weight=dataset.w, **dmatrix_params)
 
     print("Training on dataset: " + dataset.name, file=sys.stderr)
     print("Using parameters: " + str(param), file=sys.stderr)
@@ -127,14 +143,15 @@ def parameter_combinations(variable_param):
     return result
 
 
-def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False):
+def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False,
+              DMatrixT=xgb.DMatrix, dmatrix_params={}):
     """
     Run the given parameters on a range of datasets. Objective and eval metric will be automatically set
     """
     datasets = [
         Dataset("Boston", get_boston, "reg:squarederror", "rmse"),
-        Dataset("Digits", get_digits, "multi:softmax", "merror"),
-        Dataset("Cancer", get_cancer, "binary:logistic", "error"),
+        Dataset("Digits", get_digits, "multi:softmax", "mlogloss"),
+        Dataset("Cancer", get_cancer, "binary:logistic", "logloss"),
         Dataset("Sparse regression", get_sparse, "reg:squarederror", "rmse"),
         Dataset("Sparse regression with weights", get_sparse_weights,
                 "reg:squarederror", "rmse", has_weights=True),
@@ -150,7 +167,8 @@ def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False):
     for d in datasets:
         if select_datasets is None or d.name in select_datasets:
             results.append(
-                train_dataset(d, param, num_rounds=num_rounds, scale_features=scale_features))
+                train_dataset(d, param, num_rounds=num_rounds, scale_features=scale_features,
+                              DMatrixT=DMatrixT, dmatrix_params=dmatrix_params))
     return results
 
 

@@ -18,7 +18,6 @@
 #include <random>
 
 #include "xgboost/host_device_vector.h"
-#include "io.h"
 
 namespace xgboost {
 namespace common {
@@ -85,20 +84,20 @@ GlobalRandomEngine& GlobalRandom(); // NOLINT(*)
  */
 
 class ColumnSampler {
-  std::shared_ptr<HostDeviceVector<int>> feature_set_tree_;
-  std::map<int, std::shared_ptr<HostDeviceVector<int>>> feature_set_level_;
+  std::shared_ptr<HostDeviceVector<bst_feature_t>> feature_set_tree_;
+  std::map<int, std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_set_level_;
   float colsample_bylevel_{1.0f};
   float colsample_bytree_{1.0f};
   float colsample_bynode_{1.0f};
   GlobalRandomEngine rng_;
 
-  std::shared_ptr<HostDeviceVector<int>> ColSample(
-      std::shared_ptr<HostDeviceVector<int>> p_features, float colsample) {
+  std::shared_ptr<HostDeviceVector<bst_feature_t>> ColSample(
+      std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features, float colsample) {
     if (colsample == 1.0f) return p_features;
     const auto& features = p_features->HostVector();
     CHECK_GT(features.size(), 0);
     int n = std::max(1, static_cast<int>(colsample * features.size()));
-    auto p_new_features = std::make_shared<HostDeviceVector<int>>();
+    auto p_new_features = std::make_shared<HostDeviceVector<bst_feature_t>>();
     auto& new_features = *p_new_features;
     new_features.Resize(features.size());
     std::copy(features.begin(), features.end(),
@@ -147,7 +146,7 @@ class ColumnSampler {
     colsample_bynode_ = colsample_bynode;
 
     if (feature_set_tree_ == nullptr) {
-      feature_set_tree_ = std::make_shared<HostDeviceVector<int>>();
+      feature_set_tree_ = std::make_shared<HostDeviceVector<bst_feature_t>>();
     }
     Reset();
 
@@ -178,7 +177,7 @@ class ColumnSampler {
    * construction of each tree node, and must be called the same number of times in each
    * process and with the same parameters to return the same feature set across processes.
    */
-  std::shared_ptr<HostDeviceVector<int>> GetFeatureSet(int depth) {
+  std::shared_ptr<HostDeviceVector<bst_feature_t>> GetFeatureSet(int depth) {
     if (colsample_bylevel_ == 1.0f && colsample_bynode_ == 1.0f) {
       return feature_set_tree_;
     }

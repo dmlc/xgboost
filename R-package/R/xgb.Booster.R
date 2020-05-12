@@ -5,20 +5,34 @@ xgb.Booster.handle <- function(params = list(), cachelist = list(), modelfile = 
       !all(vapply(cachelist, inherits, logical(1), what = 'xgb.DMatrix'))) {
     stop("cachelist must be a list of xgb.DMatrix objects")
   }
-
-  handle <- .Call(XGBoosterCreate_R, cachelist)
+  ## Load existing model, dispatch for on disk model file and in memory buffer
   if (!is.null(modelfile)) {
     if (typeof(modelfile) == "character") {
+      ## A filename
+      handle <- .Call(XGBoosterCreate_R, cachelist)
       .Call(XGBoosterLoadModel_R, handle, modelfile[1])
+      class(handle) <- "xgb.Booster.handle"
+      if (length(params) > 0) {
+        xgb.parameters(handle) <- params
+      }
+      return(handle)
     } else if (typeof(modelfile) == "raw") {
-      .Call(XGBoosterLoadModelFromRaw_R, handle, modelfile)
+      ## A memory buffer
+      bst <- xgb.unserialize(modelfile)
+      xgb.parameters(bst) <- params
+      return (bst)
     } else if (inherits(modelfile, "xgb.Booster")) {
+      ## A booster object
       bst <- xgb.Booster.complete(modelfile, saveraw = TRUE)
-      .Call(XGBoosterLoadModelFromRaw_R, handle, bst$raw)
+      bst <- xgb.unserialize(bst$raw)
+      xgb.parameters(bst) <- params
+      return (bst)
     } else {
       stop("modelfile must be either character filename, or raw booster dump, or xgb.Booster object")
     }
   }
+  ## Create new model
+  handle <- .Call(XGBoosterCreate_R, cachelist)
   class(handle) <- "xgb.Booster.handle"
   if (length(params) > 0) {
     xgb.parameters(handle) <- params
@@ -113,9 +127,29 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
   if (is.null.handle(object$handle)) {
     object$handle <- xgb.Booster.handle(modelfile = object$raw)
   } else {
-    if (is.null(object$raw) && saveraw)
-      object$raw <- xgb.save.raw(object$handle)
+    if (is.null(object$raw) && saveraw) {
+      object$raw <- xgb.serialize(object$handle)
+    }
   }
+
+  attrs <- xgb.attributes(object)
+  if (!is.null(attrs$best_ntreelimit)) {
+    object$best_ntreelimit <- as.integer(attrs$best_ntreelimit)
+  }
+  if (!is.null(attrs$best_iteration)) {
+    ## Convert from 0 based back to 1 based.
+    object$best_iteration <- as.integer(attrs$best_iteration) + 1
+  }
+  if (!is.null(attrs$best_score)) {
+    object$best_score <- as.numeric(attrs$best_score)
+  }
+  if (!is.null(attrs$best_msg)) {
+    object$best_msg <- attrs$best_msg
+  }
+  if (!is.null(attrs$niter)) {
+    object$niter <- as.integer(attrs$niter)
+  }
+
   return(object)
 }
 
@@ -139,6 +173,8 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @param reshape whether to reshape the vector of predictions to a matrix form when there are several
 #'        prediction outputs per case. This option has no effect when either of predleaf, predcontrib,
 #'        or predinteraction flags is TRUE.
+#' @param training whether is the prediction result used for training.  For dart booster,
+#'        training predicting will perform dropout.
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
 #'
 #' @details
@@ -288,7 +324,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @export
 predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FALSE, ntreelimit = NULL,
                                 predleaf = FALSE, predcontrib = FALSE, approxcontrib = FALSE, predinteraction = FALSE,
-                                reshape = FALSE, ...) {
+                                reshape = FALSE, training = FALSE, ...) {
 
   object <- xgb.Booster.complete(object, saveraw = FALSE)
   if (!inherits(newdata, "xgb.DMatrix"))
@@ -307,7 +343,8 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   option <- 0L + 1L * as.logical(outputmargin) + 2L * as.logical(predleaf) + 4L * as.logical(predcontrib) +
     8L * as.logical(approxcontrib) + 16L * as.logical(predinteraction)
 
-  ret <- .Call(XGBoosterPredict_R, object$handle, newdata, option[1], as.integer(ntreelimit))
+  ret <- .Call(XGBoosterPredict_R, object$handle, newdata, option[1],
+               as.integer(ntreelimit), as.integer(training))
 
   n_ret <- length(ret)
   n_row <- nrow(newdata)
@@ -396,7 +433,7 @@ predict.xgb.Booster.handle <- function(object, ...) {
 #' That would only matter if attributes need to be set many times.
 #' Note, however, that when feeding a handle of an \code{xgb.Booster} object to the attribute setters,
 #' the raw model cache of an \code{xgb.Booster} object would not be automatically updated,
-#' and it would be user's responsibility to call \code{xgb.save.raw} to update it.
+#' and it would be user's responsibility to call \code{xgb.serialize} to update it.
 #'
 #' The \code{xgb.attributes<-} setter either updates the existing or adds one or several attributes,
 #' but it doesn't delete the other existing attributes.
@@ -455,7 +492,7 @@ xgb.attr <- function(object, name) {
   }
   .Call(XGBoosterSetAttr_R, handle, as.character(name[1]), value)
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
-    object$raw <- xgb.save.raw(object$handle)
+    object$raw <- xgb.serialize(object$handle)
   }
   object
 }
@@ -495,8 +532,38 @@ xgb.attributes <- function(object) {
     .Call(XGBoosterSetAttr_R, handle, names(a[i]), a[[i]])
   }
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
-    object$raw <- xgb.save.raw(object$handle)
+    object$raw <- xgb.serialize(object$handle)
   }
+  object
+}
+
+#' Accessors for model parameters as JSON string.
+#'
+#' @param object Object of class \code{xgb.Booster}
+#' @param value A JSON string.
+#'
+#' @examples
+#' data(agaricus.train, package='xgboost')
+#' train <- agaricus.train
+#'
+#' bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
+#'                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+#' config <- xgb.config(bst)
+#'
+#' @rdname xgb.config
+#' @export
+xgb.config <- function(object) {
+  handle <- xgb.get.handle(object)
+  .Call(XGBoosterSaveJsonConfig_R, handle);
+}
+
+#' @rdname xgb.config
+#' @export
+`xgb.config<-` <- function(object, value) {
+  handle <- xgb.get.handle(object)
+  .Call(XGBoosterLoadJsonConfig_R, handle, value)
+  object$raw <- NULL  # force renew the raw buffer
+  object <- xgb.Booster.complete(object)
   object
 }
 
@@ -536,7 +603,7 @@ xgb.attributes <- function(object) {
     .Call(XGBoosterSetParam_R, handle, names(p[i]), p[[i]])
   }
   if (is(object, 'xgb.Booster') && !is.null(object$raw)) {
-    object$raw <- xgb.save.raw(object$handle)
+    object$raw <- xgb.serialize(object$handle)
   }
   object
 }

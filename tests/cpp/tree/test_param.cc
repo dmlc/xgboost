@@ -74,6 +74,12 @@ TEST(Param, VectorStreamRead) {
   ss << "(3,2,1";
   ss >> vals_in;
   EXPECT_NE(vals_in, vals);
+
+  vals_in.clear(); ss.flush(); ss.clear(); ss.str("");
+  vals_in.emplace_back(3);
+  ss << "( )";
+  ss >> vals_in;
+  ASSERT_TRUE(ss.good());
 }
 
 TEST(Param, SplitEntry) {

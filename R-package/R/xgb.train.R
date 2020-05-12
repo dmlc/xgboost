@@ -267,7 +267,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   }
 
   # evaluation printing callback
-  params <- c(params, list(silent = ifelse(verbose > 1, 0, 1)))
+  params <- c(params)
   print_every_n <- max( as.integer(print_every_n), 1L)
   if (!has.callbacks(callbacks, 'cb.print.evaluation') &&
       verbose) {
@@ -291,8 +291,13 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
     callbacks <- add.cb(callbacks, cb.early.stop(early_stopping_rounds,
                                                  maximize = maximize, verbose = verbose))
   }
+
   # Sort the callbacks into categories
   cb <- categorize.callbacks(callbacks)
+  params['validate_parameters'] <- TRUE
+  if (!is.null(params[['seed']])) {
+    warning("xgb.train: `seed` is ignored in R package.  Use `set.seed()` instead.")
+  }
 
   # The tree updating process would need slightly different handling
   is_update <- NVL(params[['process_type']], '.') == 'update'

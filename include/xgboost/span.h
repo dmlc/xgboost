@@ -29,11 +29,14 @@
 #ifndef XGBOOST_SPAN_H_
 #define XGBOOST_SPAN_H_
 
-#include <xgboost/logging.h>  // CHECK
+#include <xgboost/base.h>
+#include <xgboost/logging.h>
 
 #include <cinttypes>          // size_t
-#include <numeric>            // numeric_limits
+#include <limits>             // numeric_limits
+#include <iterator>
 #include <type_traits>
+#include <cstdio>
 
 /*!
  * The version number 1910 is picked up from GSL.
@@ -69,26 +72,33 @@ namespace xgboost {
 namespace common {
 
 // Usual logging facility is not available inside device code.
-// TODO(trivialfis): Make dmlc check more generic.
 // assert is not supported in mac as of CUDA 10.0
-#define KERNEL_CHECK(cond)                                      \
-  do {                                                          \
-    if (!(cond)) {                                              \
-      printf("\nKernel error:\n"                                \
-             "In: %s: %d\n"                                     \
-             "\t%s\n\tExpecting: %s\n"                          \
-             "\tBlock: [%d, %d, %d], Thread: [%d, %d, %d]\n\n", \
-             __FILE__, __LINE__, __PRETTY_FUNCTION__, #cond,    \
-             blockIdx.x, blockIdx.y, blockIdx.z,                \
-             threadIdx.x, threadIdx.y, threadIdx.z);            \
-      asm("trap;");                                             \
-    }                                                           \
+#define KERNEL_CHECK(cond)                                                     \
+  do {                                                                         \
+    if (!(cond)) {                                                             \
+      printf("\nKernel error:\n"                                               \
+             "In: %s: %d\n"                                                    \
+             "\t%s\n\tExpecting: %s\n"                                         \
+             "\tBlock: [%d, %d, %d], Thread: [%d, %d, %d]\n\n",                \
+             __FILE__, __LINE__, __PRETTY_FUNCTION__, #cond, blockIdx.x,       \
+             blockIdx.y, blockIdx.z, threadIdx.x, threadIdx.y, threadIdx.z);   \
+      asm("trap;");                                                            \
+    }                                                                          \
   } while (0);
 
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__)
 #define SPAN_CHECK KERNEL_CHECK
-#else
+#elif defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1  // R package
 #define SPAN_CHECK CHECK  // check from dmlc
+#else  // not CUDA, not R
+#define SPAN_CHECK(cond)                                                       \
+  do {                                                                         \
+    if (XGBOOST_EXPECT(!(cond), false)) {                                      \
+      fprintf(stderr, "[xgboost] Condition %s failed.\n", #cond);              \
+      fflush(stderr);  /* It seems stderr on Windows is beffered? */           \
+      std::terminate();                                                        \
+    }                                                                          \
+  } while (0);
 #endif  // __CUDA_ARCH__
 
 namespace detail {
@@ -98,8 +108,9 @@ namespace detail {
  *   represent ptrdiff_t, which is just int64_t. So we make it determinstic
  *   here.
  */
-using ptrdiff_t = typename std::conditional<std::is_same<std::ptrdiff_t, std::int64_t>::value,
-                                            std::ptrdiff_t, std::int64_t>::type;
+using ptrdiff_t = typename std::conditional<  // NOLINT
+    std::is_same<std::ptrdiff_t, std::int64_t>::value,
+    std::ptrdiff_t, std::int64_t>::type;
 }  // namespace detail
 
 #if defined(_MSC_VER) && _MSC_VER < 1910
@@ -129,7 +140,7 @@ class SpanIterator {
     IsConst, const ElementType, ElementType>::type&;
   using pointer = typename std::add_pointer<reference>::type;     // NOLINT
 
-  XGBOOST_DEVICE constexpr SpanIterator() : span_{nullptr}, index_{0} {}
+  constexpr SpanIterator() = default;
 
   XGBOOST_DEVICE constexpr SpanIterator(
       const SpanType* _span,
@@ -236,8 +247,8 @@ class SpanIterator {
   }
 
  protected:
-  const SpanType *span_;
-  typename SpanType::index_type index_;
+  const SpanType *span_ { nullptr };
+  typename SpanType::index_type index_ { 0 };
 };
 
 
@@ -402,8 +413,7 @@ class Span {
   using const_reverse_iterator = const detail::SpanIterator<Span<T, Extent>, true>;  // NOLINT
 
   // constructors
-
-  XGBOOST_DEVICE constexpr Span() __span_noexcept : size_(0), data_(nullptr) {}
+  constexpr Span() __span_noexcept = default;
 
   XGBOOST_DEVICE Span(pointer _ptr, index_type _count) :
       size_(_count), data_(_ptr) {
@@ -422,24 +432,27 @@ class Span {
 
   template <class Container,
             class = typename std::enable_if<
-              !std::is_const<element_type>::value && !detail::IsSpan<Container>::value &&
+              !std::is_const<element_type>::value &&
+              !detail::IsSpan<Container>::value &&
+              std::is_convertible<typename Container::pointer, pointer>::value &&
               std::is_convertible<typename Container::pointer,
-                                  pointer>::value &&
-              std::is_convertible<
-                typename Container::pointer,
-                decltype(std::declval<Container>().data())>::value>>
-  XGBOOST_DEVICE Span(Container& _cont) :  // NOLINT
-      size_(_cont.size()), data_(_cont.data()) {}
+                                  decltype(std::declval<Container>().data())>::value>::type>
+  Span(Container& _cont) :  // NOLINT
+      size_(_cont.size()), data_(_cont.data()) {
+    static_assert(!detail::IsSpan<Container>::value, "Wrong constructor of Span is called.");
+  }
 
   template <class Container,
             class = typename std::enable_if<
-              std::is_const<element_type>::value && !detail::IsSpan<Container>::value &&
+              std::is_const<element_type>::value &&
+              !detail::IsSpan<Container>::value &&
               std::is_convertible<typename Container::pointer, pointer>::value &&
-              std::is_convertible<
-                typename Container::pointer,
-                decltype(std::declval<Container>().data())>::value>>
-  XGBOOST_DEVICE Span(const Container& _cont) : size_(_cont.size()),  // NOLINT
-                                                data_(_cont.data()) {}
+              std::is_convertible<typename Container::pointer,
+                                  decltype(std::declval<Container>().data())>::value>::type>
+  Span(const Container& _cont) : size_(_cont.size()),  // NOLINT
+                                 data_(_cont.data()) {
+    static_assert(!detail::IsSpan<Container>::value, "Wrong constructor of Span is called.");
+  }
 
   template <class U, std::size_t OtherExtent,
             class = typename std::enable_if<
@@ -493,11 +506,11 @@ class Span {
 
   // element access
 
-  XGBOOST_DEVICE reference front() const {
+  XGBOOST_DEVICE reference front() const {  // NOLINT
     return (*this)[0];
   }
 
-  XGBOOST_DEVICE reference back() const {
+  XGBOOST_DEVICE reference back() const {  // NOLINT
     return (*this)[size() - 1];
   }
 
@@ -577,8 +590,8 @@ class Span {
   }
 
  private:
-  index_type size_;
-  pointer data_;
+  index_type size_ { 0 };
+  pointer data_ { nullptr };
 };
 
 template <class T, std::size_t X, class U, std::size_t Y>

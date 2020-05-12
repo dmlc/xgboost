@@ -60,6 +60,7 @@ void PlusOne(HostDeviceVector<int> *v) {
   SetDevice(device);
   thrust::transform(dh::tcbegin(*v), dh::tcend(*v), dh::tbegin(*v),
                     [=]__device__(unsigned int a){ return a + 1; });
+  ASSERT_TRUE(v->DeviceCanWrite());
 }
 
 void CheckDevice(HostDeviceVector<int>* v,
@@ -125,7 +126,8 @@ TEST(HostDeviceVector, Copy) {
     // a separate scope to ensure that v1 is gone before further checks
     HostDeviceVector<int> v1;
     InitHostDeviceVector(n, device, &v1);
-    v = v1;
+    v.Resize(v1.Size());
+    v.Copy(v1);
   }
   CheckDevice(&v, n, 0, GPUAccess::kRead);
   PlusOne(&v);
@@ -163,9 +165,18 @@ TEST(HostDeviceVector, Span) {
   auto const_span = vec.ConstDeviceSpan();
   ASSERT_EQ(vec.Size(), const_span.size());
   ASSERT_EQ(vec.ConstDevicePointer(), const_span.data());
+
+  auto h_span = vec.ConstHostSpan();
+  ASSERT_TRUE(vec.HostCanRead());
+  ASSERT_FALSE(vec.HostCanWrite());
+  ASSERT_EQ(h_span.size(), vec.Size());
+  ASSERT_EQ(h_span.data(), vec.ConstHostPointer());
+
+  h_span = vec.HostSpan();
+  ASSERT_TRUE(vec.HostCanWrite());
 }
 
-TEST(HostDeviceVector, MGPU_Basic) {
+TEST(HostDeviceVector, MGPU_Basic) {  // NOLINT
   if (AllVisibleGPUs() < 2) {
     LOG(WARNING) << "Not testing in multi-gpu environment.";
     return;

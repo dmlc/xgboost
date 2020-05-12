@@ -27,7 +27,7 @@ TEST(BitField, StorageSize) {
   ASSERT_EQ(2, size);
 }
 
-TEST(BitField, GPU_Set) {
+TEST(BitField, GPUSet) {
   dh::device_vector<LBitField64::value_type> storage;
   uint32_t constexpr kBits = 128;
   storage.resize(128);
@@ -49,7 +49,7 @@ __global__ void TestOrKernel(LBitField64 lhs, LBitField64 rhs) {
   lhs |= rhs;
 }
 
-TEST(BitField, GPU_And) {
+TEST(BitField, GPUAnd) {
   uint32_t constexpr kBits = 128;
   dh::device_vector<LBitField64::value_type> lhs_storage(kBits);
   dh::device_vector<LBitField64::value_type> rhs_storage(kBits);

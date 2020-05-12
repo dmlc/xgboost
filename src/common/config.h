@@ -7,8 +7,6 @@
 #ifndef XGBOOST_COMMON_CONFIG_H_
 #define XGBOOST_COMMON_CONFIG_H_
 
-#include <xgboost/logging.h>
-#include <cstdio>
 #include <string>
 #include <fstream>
 #include <istream>
@@ -17,6 +15,8 @@
 #include <regex>
 #include <iterator>
 #include <utility>
+
+#include "xgboost/logging.h"
 
 namespace xgboost {
 namespace common {
@@ -29,21 +29,27 @@ class ConfigParser {
    * \brief Constructor for INI-style configuration parser
    * \param path path to configuration file
    */
-  explicit ConfigParser(const std::string& path)
-      : path_(path),
+  explicit ConfigParser(const std::string path)
+      : path_(std::move(path)),
       line_comment_regex_("^#"),
       key_regex_(R"rx(^([^#"'=\r\n\t ]+)[\t ]*=)rx"),
       key_regex_escaped_(R"rx(^(["'])([^"'=\r\n]+)\1[\t ]*=)rx"),
-      value_regex_(R"rx(^([^#"'=\r\n\t ]+)[\t ]*(?:#.*){0,1}$)rx"),
-      value_regex_escaped_(R"rx(^(["'])([^"'=\r\n]+)\1[\t ]*(?:#.*){0,1}$)rx")
+      value_regex_(R"rx(^([^#"'\r\n\t ]+)[\t ]*(?:#.*){0,1}$)rx"),
+      value_regex_escaped_(R"rx(^(["'])([^"'\r\n]+)\1[\t ]*(?:#.*){0,1}$)rx")
   {}
 
   std::string LoadConfigFile(const std::string& path) {
     std::ifstream fin(path, std::ios_base::in | std::ios_base::binary);
-    CHECK(fin) << "Failed to open: " << path;
-    std::string content{std::istreambuf_iterator<char>(fin),
-                        std::istreambuf_iterator<char>()};
-    return content;
+    CHECK(fin) << "Failed to open config file: \"" << path << "\"";
+    try {
+      std::string content{std::istreambuf_iterator<char>(fin),
+                          std::istreambuf_iterator<char>()};
+      return content;
+    } catch (std::ios_base::failure const &e) {
+      LOG(FATAL) << "Failed to read config file: \"" << path << "\"\n"
+                 << e.what();
+    }
+    return "";
   }
 
   /*!
@@ -58,12 +64,12 @@ class ConfigParser {
   std::string NormalizeConfigEOL(std::string const& config_str) {
     std::string result;
     std::stringstream ss(config_str);
-    for (size_t i = 0; i < config_str.size(); ++i) {
-      if (config_str[i] == '\r') {
+    for (auto c : config_str) {
+      if (c == '\r') {
         result.push_back('\n');
         continue;
       }
-      result.push_back(config_str[i]);
+      result.push_back(c);
     }
     return result;
   }

@@ -9,15 +9,19 @@
 
 #include <rabit/rabit.h>
 
-#include <xgboost/base.h>
-#include <xgboost/tree_updater.h>
+
 #include <vector>
 #include <algorithm>
 #include <string>
 #include <limits>
 #include <utility>
 
-#include "./param.h"
+#include "xgboost/base.h"
+#include "xgboost/json.h"
+#include "xgboost/tree_updater.h"
+#include "param.h"
+#include "constraints.h"
+
 #include "../common/io.h"
 #include "../common/random.h"
 #include "../common/quantile.h"
@@ -31,7 +35,16 @@ namespace tree {
 class BaseMaker: public TreeUpdater {
  public:
   void Configure(const Args& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
+  }
+
+  void LoadConfig(Json const& in) override {
+    auto const& config = get<Object const>(in);
+    FromJson(config.at("train_param"), &this->param_);
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["train_param"] = ToJson(param_);
   }
 
  protected:
@@ -75,11 +88,12 @@ class BaseMaker: public TreeUpdater {
         return 2;
       }
     }
-    inline bst_float MaxValue(bst_uint fid) const {
+    bst_float MaxValue(bst_uint fid) const {
       return fminmax_[fid *2 + 1];
     }
-    inline void SampleCol(float p, std::vector<bst_uint> *p_findex) const {
-      std::vector<bst_uint> &findex = *p_findex;
+
+    void SampleCol(float p, std::vector<bst_feature_t> *p_findex) const {
+      std::vector<bst_feature_t> &findex = *p_findex;
       findex.clear();
       for (size_t i = 0; i < fminmax_.size(); i += 2) {
         const auto fid = static_cast<bst_uint>(i / 2);
@@ -124,27 +138,19 @@ class BaseMaker: public TreeUpdater {
   inline void InitData(const std::vector<GradientPair> &gpair,
                        const DMatrix &fmat,
                        const RegTree &tree) {
-    CHECK_EQ(tree.param.num_nodes, tree.param.num_roots)
-        << "TreeMaker: can only grow new tree";
-    const std::vector<unsigned> &root_index =  fmat.Info().root_index_;
     {
       // setup position
       position_.resize(gpair.size());
-      if (root_index.size() == 0) {
-        std::fill(position_.begin(), position_.end(), 0);
-      } else {
-        for (size_t i = 0; i < position_.size(); ++i) {
-          position_[i] = root_index[i];
-          CHECK_LT(root_index[i], (unsigned)tree.param.num_roots)
-              << "root index exceed setting";
-        }
-      }
+      std::fill(position_.begin(), position_.end(), 0);
       // mark delete for the deleted datas
       for (size_t i = 0; i < position_.size(); ++i) {
         if (gpair[i].GetHess() < 0.0f) position_[i] = ~position_[i];
       }
       // mark subsample
       if (param_.subsample < 1.0f) {
+        CHECK_EQ(param_.sampling_method, TrainParam::kUniform)
+          << "Only uniform sampling is supported, "
+          << "gradient-based sampling is only support by GPU Hist.";
         std::bernoulli_distribution coin_flip(param_.subsample);
         auto& rnd = common::GlobalRandom();
         for (size_t i = 0; i < position_.size(); ++i) {
@@ -156,11 +162,10 @@ class BaseMaker: public TreeUpdater {
     {
       // expand query
       qexpand_.reserve(256); qexpand_.clear();
-      for (int i = 0; i < tree.param.num_roots; ++i) {
-        qexpand_.push_back(i);
-      }
+      qexpand_.push_back(0);
       this->UpdateNode2WorkIndex(tree);
     }
+    this->interaction_constraints_.Configure(param_, fmat.Info().num_col_);
   }
   /*! \brief update queue expand add in new leaves */
   inline void UpdateQueueExpand(const RegTree &tree) {
@@ -215,7 +220,7 @@ class BaseMaker: public TreeUpdater {
     // so that they are ignored in future statistics collection
     const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
 
-    #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
     for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
       const int nid = this->DecodePosition(ridx);
       if (tree[nid].IsLeaf()) {
@@ -461,6 +466,8 @@ class BaseMaker: public TreeUpdater {
    *   see also Decode/EncodePosition
    */
   std::vector<int> position_;
+
+  FeatureInteractionConstraintHost interaction_constraints_;
 
  private:
   inline void UpdateNode2WorkIndex(const RegTree &tree) {

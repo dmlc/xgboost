@@ -16,6 +16,8 @@
 #include <utility>
 #include <vector>
 
+#include "param.h"
+
 #define ROOT_PARENT_ID (-1 & ((1U << 31) - 1))
 
 namespace xgboost {
@@ -32,7 +34,7 @@ class SplitEvaluator {
   virtual ~SplitEvaluator() = default;
 
   // Used to initialise any regularisation hyperparameters provided by the user
-  virtual void Init(const Args& args);
+  virtual void Init(const TrainParam* param);
 
   // Resets the SplitEvaluator to the state it was in after the Init was called
   virtual void Reset();
@@ -68,11 +70,6 @@ class SplitEvaluator {
                         bst_uint featureid,
                         bst_float leftweight,
                         bst_float rightweight);
-
-  // Check whether a given feature is feasible for a given node.
-  // Use this function to narrow the search space for split candidates
-  virtual bool CheckFeatureConstraint(bst_uint nodeid,
-                                      bst_uint featureid) const = 0;
 };
 
 struct SplitEvaluatorReg

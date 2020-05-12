@@ -14,18 +14,13 @@
 
 #include <gtest/gtest.h>
 
+#include <dmlc/filesystem.h>
 #include <xgboost/base.h>
-#include <xgboost/objective.h>
-#include <xgboost/metric.h>
 #include <xgboost/json.h>
-#include <xgboost/predictor.h>
 #include <xgboost/generic_parameters.h>
 
 #include "../../src/common/common.h"
-#include "../../src/common/hist_util.h"
-#if defined(__CUDACC__)
-#include "../../src/data/ellpack_page.cuh"
-#endif
+#include "../../src/gbm/gbtree_model.h"
 
 #if defined(__CUDACC__)
 #define DeclareUnifiedTest(name) GPU ## name
@@ -38,6 +33,13 @@
 #else
 #define GPUIDX -1
 #endif
+
+namespace xgboost {
+class ObjFunction;
+class Metric;
+struct LearnerModelParam;
+class GradientBooster;
+}
 
 bool FileExists(const std::string& filename);
 
@@ -76,7 +78,8 @@ xgboost::bst_float GetMetricEval(
   xgboost::Metric * metric,
   xgboost::HostDeviceVector<xgboost::bst_float> preds,
   std::vector<xgboost::bst_float> labels,
-  std::vector<xgboost::bst_float> weights = std::vector<xgboost::bst_float> ());
+  std::vector<xgboost::bst_float> weights = std::vector<xgboost::bst_float>(),
+  std::vector<xgboost::bst_uint> groups = std::vector<xgboost::bst_uint>());
 
 namespace xgboost {
 bool IsNear(std::vector<xgboost::bst_float>::const_iterator _beg1,
@@ -138,7 +141,7 @@ class SimpleRealUniformDistribution {
                   "Result type must be floating point.");
     long double const r = (static_cast<long double>(rng->Max())
                            - static_cast<long double>(rng->Min())) + 1.0L;
-    size_t const log2r = std::log(r) / std::log(2.0L);
+    auto const log2r = static_cast<size_t>(std::log(r) / std::log(2.0L));
     size_t m = std::max<size_t>(1UL, (Bits + log2r - 1UL) / log2r);
     ResultT sum_value = 0, r_k = 1;
 
@@ -163,20 +166,65 @@ class SimpleRealUniformDistribution {
   }
 };
 
-/**
- * \fn  std::shared_ptr<xgboost::DMatrix> CreateDMatrix(int rows, int columns, float sparsity, int seed);
- *
- * \brief Creates dmatrix with uniform random data between 0-1.
- *
- * \param rows      The rows.
- * \param columns   The columns.
- * \param sparsity  The sparsity.
- * \param seed      The seed.
- *
- * \return  The new d matrix.
- */
-std::shared_ptr<xgboost::DMatrix> *CreateDMatrix(int rows, int columns,
-                                                 float sparsity, int seed = 0);
+// Generate in-memory random data without using DMatrix.
+class RandomDataGenerator {
+  bst_row_t rows_;
+  size_t cols_;
+  float sparsity_;
+
+  float lower_;
+  float upper_;
+
+  int32_t device_;
+  int32_t seed_;
+
+  size_t bins_;
+
+  Json ArrayInterfaceImpl(HostDeviceVector<float> *storage, size_t rows,
+                          size_t cols) const;
+
+ public:
+  RandomDataGenerator(bst_row_t rows, size_t cols, float sparsity)
+      : rows_{rows}, cols_{cols}, sparsity_{sparsity}, lower_{0.0f}, upper_{1.0f},
+        device_{-1}, seed_{0}, bins_{0} {}
+
+  RandomDataGenerator &Lower(float v) {
+    lower_ = v;
+    return *this;
+  }
+  RandomDataGenerator& Upper(float v) {
+    upper_ = v;
+    return *this;
+  }
+  RandomDataGenerator& Device(int32_t d) {
+    device_ = d;
+    return *this;
+  }
+  RandomDataGenerator& Seed(int32_t s) {
+    seed_ = s;
+    return *this;
+  }
+  RandomDataGenerator& Bins(size_t b) {
+    bins_ = b;
+    return *this;
+  }
+
+  void GenerateDense(HostDeviceVector<float>* out) const;
+  std::string GenerateArrayInterface(HostDeviceVector<float>* storage) const;
+  std::string GenerateColumnarArrayInterface(
+      std::vector<HostDeviceVector<float>> *data) const;
+  void GenerateCSR(HostDeviceVector<float>* value, HostDeviceVector<bst_row_t>* row_ptr,
+                   HostDeviceVector<bst_feature_t>* columns) const;
+
+  std::shared_ptr<DMatrix> GenerateDMatrix(bool with_label = false,
+                                           bool float_label = true,
+                                           size_t classes = 1) const;
+#if defined(XGBOOST_USE_CUDA)
+  std::shared_ptr<DMatrix> GenerateDeviceDMatrix(bool with_label = false,
+                                                 bool float_label = true,
+                                                 size_t classes = 1);
+#endif
+};
 
 std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
     size_t n_entries, size_t page_size, std::string tmp_file);
@@ -199,10 +247,16 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
  *
  * \return The new dmatrix.
  */
-std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(size_t n_rows, size_t n_cols,
-                                                       size_t page_size, bool deterministic);
+std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
+    size_t n_rows, size_t n_cols, size_t page_size, bool deterministic,
+    const dmlc::TemporaryDirectory& tempdir = dmlc::TemporaryDirectory());
 
-gbm::GBTreeModel CreateTestModel();
+gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, size_t n_classes = 1);
+
+std::unique_ptr<GradientBooster> CreateTrainedGBM(
+    std::string name, Args kwargs, size_t kRows, size_t kCols,
+    LearnerModelParam const* learner_model_param,
+    GenericParameter const* generic_param);
 
 inline GenericParameter CreateEmptyGenericParam(int gpu_id) {
   xgboost::GenericParameter tparam;
@@ -212,58 +266,18 @@ inline GenericParameter CreateEmptyGenericParam(int gpu_id) {
   return tparam;
 }
 
-#if defined(__CUDACC__)
-namespace {
-class HistogramCutsWrapper : public common::HistogramCuts {
- public:
-  using SuperT = common::HistogramCuts;
-  void SetValues(std::vector<float> cuts) {
-    SuperT::cut_values_ = std::move(cuts);
+inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_rows,
+                                                              float lower= 0.0f, float upper = 1.0f) {
+  xgboost::SimpleLCG gen;
+  xgboost::SimpleRealUniformDistribution<bst_float> dist(lower, upper);
+  std::vector<GradientPair> h_gpair(n_rows);
+  for (auto &gpair : h_gpair) {
+    bst_float grad = dist(&gen);
+    bst_float hess = dist(&gen);
+    gpair = GradientPair(grad, hess);
   }
-  void SetPtrs(std::vector<uint32_t> ptrs) {
-    SuperT::cut_ptrs_ = std::move(ptrs);
-  }
-  void SetMins(std::vector<float> mins) {
-    SuperT::min_vals_ = std::move(mins);
-  }
-};
-}  //  anonymous namespace
-
-inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
-    int n_rows, int n_cols, bst_float sparsity= 0) {
-  auto dmat = CreateDMatrix(n_rows, n_cols, sparsity, 3);
-  const SparsePage& batch = *(*dmat)->GetBatches<xgboost::SparsePage>().begin();
-
-  HistogramCutsWrapper cmat;
-  cmat.SetPtrs({0, 3, 6, 9, 12, 15, 18, 21, 24});
-  // 24 cut fields, 3 cut fields for each feature (column).
-  cmat.SetValues({0.30f, 0.67f, 1.64f,
-          0.32f, 0.77f, 1.95f,
-          0.29f, 0.70f, 1.80f,
-          0.32f, 0.75f, 1.85f,
-          0.18f, 0.59f, 1.69f,
-          0.25f, 0.74f, 2.00f,
-          0.26f, 0.74f, 1.98f,
-          0.26f, 0.71f, 1.83f});
-  cmat.SetMins({0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f});
-
-  auto is_dense = (*dmat)->Info().num_nonzero_ ==
-                  (*dmat)->Info().num_row_ * (*dmat)->Info().num_col_;
-  size_t row_stride = 0;
-  const auto &offset_vec = batch.offset.ConstHostVector();
-  for (size_t i = 1; i < offset_vec.size(); ++i) {
-    row_stride = std::max(row_stride, offset_vec[i] - offset_vec[i-1]);
-  }
-
-  auto page = std::unique_ptr<EllpackPageImpl>(new EllpackPageImpl(dmat->get()));
-  page->InitCompressedData(0, cmat, row_stride, is_dense);
-  page->CreateHistIndices(0, batch, RowStateOnDevice(batch.Size(), batch.Size()));
-
-  delete dmat;
-
-  return page;
+  HostDeviceVector<GradientPair> gpair(h_gpair);
+  return gpair;
 }
-#endif
-
 }  // namespace xgboost
 #endif

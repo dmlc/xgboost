@@ -87,6 +87,6 @@ accuracy.after <- sum((predict(bst, new.dtest) >= 0.5) == agaricus.test$label) /
 
 # Here the accuracy was already good and is now perfect.
 cat(paste("The accuracy was", accuracy.before, "before adding leaf features and it is now",
-          accuracy.after, "!\\n"))
+          accuracy.after, "!\n"))
 
 }

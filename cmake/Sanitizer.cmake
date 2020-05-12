@@ -4,24 +4,29 @@
 #  enable_sanitizers("address;leak")
 
 # Add flags
-macro(enable_sanitizer santizer)
-  if(${santizer} MATCHES "address")
+macro(enable_sanitizer sanitizer)
+  if(${sanitizer} MATCHES "address")
     find_package(ASan REQUIRED)
     set(SAN_COMPILE_FLAGS "${SAN_COMPILE_FLAGS} -fsanitize=address")
     link_libraries(${ASan_LIBRARY})
 
-  elseif(${santizer} MATCHES "thread")
+  elseif(${sanitizer} MATCHES "thread")
     find_package(TSan REQUIRED)
     set(SAN_COMPILE_FLAGS "${SAN_COMPILE_FLAGS} -fsanitize=thread")
     link_libraries(${TSan_LIBRARY})
 
-  elseif(${santizer} MATCHES "leak")
+  elseif(${sanitizer} MATCHES "leak")
     find_package(LSan REQUIRED)
     set(SAN_COMPILE_FLAGS "${SAN_COMPILE_FLAGS} -fsanitize=leak")
     link_libraries(${LSan_LIBRARY})
 
+  elseif(${sanitizer} MATCHES "undefined")
+    find_package(UBSan REQUIRED)
+    set(SAN_COMPILE_FLAGS "${SAN_COMPILE_FLAGS} -fsanitize=undefined -fno-sanitize-recover=undefined")
+    link_libraries(${UBSan_LIBRARY})
+
   else()
-    message(FATAL_ERROR "Santizer ${santizer} not supported.")
+    message(FATAL_ERROR "Santizer ${sanitizer} not supported.")
   endif()
 endmacro()
 

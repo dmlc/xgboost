@@ -1,0 +1,446 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "gbtree": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "const": "gbtree"
+        },
+        "model": {
+          "type": "object",
+          "properties": {
+            "gbtree_model_param": {
+              "$ref": "#/definitions/gbtree_model_param"
+            },
+            "trees": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "tree_param": {
+                    "type": "object",
+                    "properties": {
+                      "num_nodes": {
+                        "type": "string"
+                      },
+                      "size_leaf_vector": {
+                        "type": "string"
+                      },
+                      "num_feature": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "num_nodes",
+                      "num_feature",
+                      "size_leaf_vector"
+                    ]
+                  },
+                  "id": {
+                    "type": "integer"
+                  },
+                  "loss_changes": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "sum_hessian": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "base_weights": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "leaf_child_counts": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "left_children": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "right_children": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "parents": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "split_indices": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "split_conditions": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "default_left": {
+                    "type": "array",
+                    "items": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "required": [
+                  "tree_param",
+                  "loss_changes",
+                  "sum_hessian",
+                  "base_weights",
+                  "leaf_child_counts",
+                  "left_children",
+                  "right_children",
+                  "parents",
+                  "split_indices",
+                  "split_conditions",
+                  "default_left"
+                ]
+              }
+            },
+            "tree_info": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          },
+          "required": [
+            "gbtree_model_param",
+            "trees",
+            "tree_info"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "model"
+      ]
+    },
+    "gbtree_model_param": {
+      "type": "object",
+      "properties": {
+        "num_trees": {
+          "type": "string"
+        },
+        "size_leaf_vector": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "num_trees",
+        "size_leaf_vector"
+      ]
+    },
+    "tree_param": {
+      "type": "object",
+      "properties": {
+        "num_nodes": {
+          "type": "string"
+        },
+        "size_leaf_vector": {
+          "type": "string"
+        },
+        "num_feature": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "num_nodes",
+        "num_feature",
+        "size_leaf_vector"
+      ]
+    },
+    "reg_loss_param": {
+      "type": "object",
+      "properties": {
+        "scale_pos_weight": {
+          "type": "string"
+        }
+      }
+    },
+    "softmax_multiclass_param": {
+      "type": "object",
+      "properties": {
+        "num_class": { "type": "string" }
+      }
+    },
+    "lambda_rank_param": {
+      "type": "object",
+      "properties": {
+        "num_pairsample": { "type": "string" },
+        "fix_list_weight": { "type": "string" }
+      }
+    }
+  },
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "array",
+      "items": [
+        {
+          "type": "number",
+          "const": 1
+        },
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "number",
+          "minimum": 0
+        }
+      ],
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "learner": {
+      "type": "object",
+      "properties": {
+        "gradient_booster": {
+          "oneOf": [
+            {
+              "$ref": "#/definitions/gbtree"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "gblinear" },
+                "model": {
+                  "type": "object",
+                  "properties": {
+                    "weights": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "dart" },
+                "gbtree": {
+                  "$ref": "#/definitions/gbtree"
+                },
+                "weight_drop": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "gbtree",
+                "weight_drop"
+              ]
+            }
+          ]
+        },
+
+        "objective": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "reg:squarederror" },
+                "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
+              },
+              "required": [
+                "name",
+                "reg_loss_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "reg:squaredlogerror" },
+                "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
+              },
+              "required": [
+                "name",
+                "reg_loss_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "reg:logistic" },
+                "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
+              },
+              "required": [
+                "name",
+                "reg_loss_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "binary:logistic" },
+                "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
+              },
+              "required": [
+                "name",
+                "reg_loss_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "binary:logitraw" },
+                "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
+              },
+              "required": [
+                "name",
+                "reg_loss_param"
+              ]
+            },
+
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "count:poisson" },
+                "poisson_regression_param": {
+                  "type": "object",
+                  "properties": {
+                    "max_delta_step": { "type": "string" }
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "poisson_regression_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "reg:tweedie" },
+                "tweedie_regression_param": {
+                  "type": "object",
+                  "properties": {
+                    "tweedie_variance_power": { "type": "string" }
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "tweedie_regression_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "survival:cox" }
+              },
+              "required": [ "name" ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "reg:gamma" }
+              },
+              "required": [ "name" ]
+            },
+
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "multi:softprob" },
+                "softmax_multiclass_param": { "$ref": "#/definitions/softmax_multiclass_param"}
+              },
+              "required": [
+                "name",
+                "softmax_multiclass_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "multi:softmax" },
+                "softmax_multiclass_param": { "$ref": "#/definitions/softmax_multiclass_param"}
+              },
+              "required": [
+                "name",
+                "softmax_multiclass_param"
+              ]
+            },
+
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "rank:pairwise" },
+                "lambda_rank_param": { "$ref": "#/definitions/lambda_rank_param"}
+              },
+              "required": [
+                "name",
+                "lambda_rank_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "rank:ndcg" },
+                "lambda_rank_param": { "$ref": "#/definitions/lambda_rank_param"}
+              },
+              "required": [
+                "name",
+                "lambda_rank_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "rank:map" },
+                "lambda_rank_param": { "$ref": "#/definitions/lambda_rank_param"}
+              },
+              "required": [
+                "name",
+                "lambda_rank_param"
+              ]
+            }
+          ]
+        },
+
+        "learner_model_param": {
+          "type": "object",
+          "properties": {
+            "base_score": { "type": "string" },
+            "num_class": { "type": "string" },
+            "num_feature": { "type": "string" }
+          }
+        }
+      },
+      "required": [
+        "gradient_booster",
+        "objective"
+      ]
+    }
+  },
+  "required": [
+    "version",
+    "learner"
+  ]
+}

@@ -14,6 +14,7 @@
 #include <xgboost/tree_model.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
+#include <xgboost/model.h>
 
 #include <functional>
 #include <vector>
@@ -21,21 +22,31 @@
 #include <string>
 
 namespace xgboost {
+
+class Json;
+
 /*!
  * \brief interface of tree update module, that performs update of a tree.
  */
-class TreeUpdater {
+class TreeUpdater : public Configurable {
  protected:
   GenericParameter const* tparam_;
 
  public:
   /*! \brief virtual destructor */
-  virtual ~TreeUpdater() = default;
+  ~TreeUpdater() override = default;
   /*!
    * \brief Initialize the updater with given arguments.
    * \param args arguments to the objective function.
    */
   virtual void Configure(const Args& args) = 0;
+  /*! \brief Whether this updater can be used for updating existing trees.
+   *
+   *  Some updaters are used for building new trees (like `hist`), while some others are
+   *  used for modifying existing trees (like `prune`).  Return true if it can modify
+   *  existing trees.
+   */
+  virtual bool CanModifyTree() const { return false; }
   /*!
    * \brief perform update to the tree models
    * \param gpair the gradient pair statistics of the data
@@ -69,6 +80,7 @@ class TreeUpdater {
   /*!
    * \brief Create a tree updater given name
    * \param name Name of the tree updater.
+   * \param tparam A global runtime parameter
    */
   static TreeUpdater* Create(const std::string& name, GenericParameter const* tparam);
 };

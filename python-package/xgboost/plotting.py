@@ -68,7 +68,9 @@ def plot_importance(booster, ax=None, height=0.2,
         raise ValueError('tree must be Booster, XGBModel or dict instance')
 
     if not importance:
-        raise ValueError('Booster.get_score() results in empty')
+        raise ValueError(
+            'Booster.get_score() results in empty.  ' +
+            'This maybe caused by having all trees as decision dumps.')
 
     tuples = [(k, importance[k]) for k in importance]
     if max_num_features is not None:
@@ -136,26 +138,26 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
         Edge color when meets the node condition.
     no_color : str, default '#FF0000'
         Edge color when doesn't meet the node condition.
-    condition_node_params : dict (optional)
+    condition_node_params : dict, optional
         Condition node configuration for for graphviz.  Example:
 
         .. code-block:: python
 
-        {'shape': 'box',
-         'style': 'filled,rounded',
-         'fillcolor': '#78bceb'}
+            {'shape': 'box',
+             'style': 'filled,rounded',
+             'fillcolor': '#78bceb'}
 
-    leaf_node_params : dict (optional)
+    leaf_node_params : dict, optional
         Leaf node configuration for graphviz. Example:
 
         .. code-block:: python
 
-        {'shape': 'box',
-         'style': 'filled',
-         'fillcolor': '#e48038'}
+            {'shape': 'box',
+             'style': 'filled',
+             'fillcolor': '#e48038'}
 
-    kwargs : Other keywords passed to graphviz graph_attr, E.g.:
-        ``graph [ {key} = {value} ]``
+    \\*\\*kwargs: dict, optional
+        Other keywords passed to graphviz graph_attr, e.g. ``graph [ {key} = {value} ]``
 
     Returns
     -------

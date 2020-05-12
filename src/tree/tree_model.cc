@@ -8,12 +8,16 @@
 
 #include <xgboost/tree_model.h>
 #include <xgboost/logging.h>
+#include <xgboost/json.h>
+
 #include <sstream>
 #include <limits>
 #include <cmath>
 #include <iomanip>
+#include <stack>
 
 #include "param.h"
+#include "../common/common.h"
 
 namespace xgboost {
 // register tree parameter
@@ -83,7 +87,7 @@ class TreeGenerator {
     auto const split_index = tree[nid].SplitIndex();
     std::string result;
     if (split_index < fmap_.Size()) {
-      switch (fmap_.type(split_index)) {
+      switch (fmap_.TypeOf(split_index)) {
         case FeatureMap::kIndicator: {
           result = this->Indicator(tree, nid, depth);
           break;
@@ -423,7 +427,7 @@ XGBOOST_REGISTER_TREE_IO(JsonGenerator, "json")
             return new JsonGenerator(fmap, attrs, with_stats);
           });
 
-struct GraphvizParam : public dmlc::Parameter<GraphvizParam> {
+struct GraphvizParam : public XGBoostParameter<GraphvizParam> {
   std::string yes_color;
   std::string no_color;
   std::string rankdir;
@@ -462,7 +466,7 @@ class GraphvizGenerator : public TreeGenerator {
  public:
   GraphvizGenerator(FeatureMap const& fmap, std::string const& attrs, bool with_stats) :
       TreeGenerator(fmap, with_stats) {
-    param_.InitAllowUnknown(std::map<std::string, std::string>{});
+    param_.UpdateAllowUnknown(std::map<std::string, std::string>{});
     using KwArg = std::map<std::string, std::map<std::string, std::string>>;
     KwArg kwargs;
     if (attrs.length() != 0) {
@@ -532,7 +536,7 @@ class GraphvizGenerator : public TreeGenerator {
         "    {nid} [ label=\"{fname}{<}{cond}\" {params}]\n";
 
     // Indicator only has fname.
-    bool has_less = (split >= fmap_.Size()) || fmap_.type(split) != FeatureMap::kIndicator;
+    bool has_less = (split >= fmap_.Size()) || fmap_.TypeOf(split) != FeatureMap::kIndicator;
     std::string result = SuperT::Match(kNodeTemplate, {
         {"{nid}",    std::to_string(nid)},
         {"{fname}",  split < fmap_.Size() ? fmap_.Name(split) :
@@ -603,21 +607,61 @@ XGBOOST_REGISTER_TREE_IO(GraphvizGenerator, "dot")
             return new GraphvizGenerator(fmap, attrs, with_stats);
           });
 
+constexpr bst_node_t RegTree::kRoot;
+
 std::string RegTree::DumpModel(const FeatureMap& fmap,
                                bool with_stats,
                                std::string format) const {
   std::unique_ptr<TreeGenerator> builder {
     TreeGenerator::Create(format, fmap, with_stats)
   };
-  for (int32_t i = 0; i < param.num_roots; ++i) {
-    builder->BuildTree(*this);
-  }
+  builder->BuildTree(*this);
 
   std::string result = builder->Str();
   return result;
 }
 
-void RegTree::LoadModel(dmlc::Stream* fi) {
+bool RegTree::Equal(const RegTree& b) const {
+  if (NumExtraNodes() != b.NumExtraNodes()) {
+    return false;
+  }
+  auto const& self = *this;
+  bool ret { true };
+  this->WalkTree([&self, &b, &ret](bst_node_t nidx) {
+    if (!(self.nodes_.at(nidx) == b.nodes_.at(nidx))) {
+      ret = false;
+      return false;
+    }
+    return true;
+  });
+  return ret;
+}
+
+bst_node_t RegTree::GetNumLeaves() const {
+  bst_node_t leaves { 0 };
+  auto const& self = *this;
+  this->WalkTree([&leaves, &self](bst_node_t nidx) {
+                   if (self[nidx].IsLeaf()) {
+                     leaves++;
+                   }
+                   return true;
+                 });
+  return leaves;
+}
+
+bst_node_t RegTree::GetNumSplitNodes() const {
+  bst_node_t splits { 0 };
+  auto const& self = *this;
+  this->WalkTree([&splits, &self](bst_node_t nidx) {
+                   if (!self[nidx].IsLeaf()) {
+                     splits++;
+                   }
+                   return true;
+                 });
+  return splits;
+}
+
+void RegTree::Load(dmlc::Stream* fi) {
   CHECK_EQ(fi->Read(&param, sizeof(TreeParam)), sizeof(TreeParam));
   nodes_.resize(param.num_nodes);
   stats_.resize(param.num_nodes);
@@ -628,22 +672,138 @@ void RegTree::LoadModel(dmlc::Stream* fi) {
            sizeof(RTreeNodeStat) * stats_.size());
   // chg deleted nodes
   deleted_nodes_.resize(0);
-  for (int i = param.num_roots; i < param.num_nodes; ++i) {
-    if (nodes_[i].IsDeleted()) deleted_nodes_.push_back(i);
+  for (int i = 1; i < param.num_nodes; ++i) {
+    if (nodes_[i].IsDeleted()) {
+      deleted_nodes_.push_back(i);
+    }
   }
   CHECK_EQ(static_cast<int>(deleted_nodes_.size()), param.num_deleted);
 }
-/*!
-   * \brief save model to stream
-   * \param fo output stream
-   */
-void RegTree::SaveModel(dmlc::Stream* fo) const {
+void RegTree::Save(dmlc::Stream* fo) const {
   CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
   CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
   fo->Write(&param, sizeof(TreeParam));
+  CHECK_EQ(param.deprecated_num_roots, 1);
   CHECK_NE(param.num_nodes, 0);
   fo->Write(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size());
   fo->Write(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * nodes_.size());
+}
+
+void RegTree::LoadModel(Json const& in) {
+  FromJson(in["tree_param"], &param);
+  auto n_nodes = param.num_nodes;
+  CHECK_NE(n_nodes, 0);
+  // stats
+  auto const& loss_changes = get<Array const>(in["loss_changes"]);
+  CHECK_EQ(loss_changes.size(), n_nodes);
+  auto const& sum_hessian = get<Array const>(in["sum_hessian"]);
+  CHECK_EQ(sum_hessian.size(), n_nodes);
+  auto const& base_weights = get<Array const>(in["base_weights"]);
+  CHECK_EQ(base_weights.size(), n_nodes);
+  auto const& leaf_child_counts = get<Array const>(in["leaf_child_counts"]);
+  CHECK_EQ(leaf_child_counts.size(), n_nodes);
+  // nodes
+  auto const& lefts = get<Array const>(in["left_children"]);
+  CHECK_EQ(lefts.size(), n_nodes);
+  auto const& rights = get<Array const>(in["right_children"]);
+  CHECK_EQ(rights.size(), n_nodes);
+  auto const& parents = get<Array const>(in["parents"]);
+  CHECK_EQ(parents.size(), n_nodes);
+  auto const& indices = get<Array const>(in["split_indices"]);
+  CHECK_EQ(indices.size(), n_nodes);
+  auto const& conds = get<Array const>(in["split_conditions"]);
+  CHECK_EQ(conds.size(), n_nodes);
+  auto const& default_left = get<Array const>(in["default_left"]);
+  CHECK_EQ(default_left.size(), n_nodes);
+
+  stats_.clear();
+  nodes_.clear();
+
+  stats_.resize(n_nodes);
+  nodes_.resize(n_nodes);
+  for (int32_t i = 0; i < n_nodes; ++i) {
+    auto& s = stats_[i];
+    s.loss_chg = get<Number const>(loss_changes[i]);
+    s.sum_hess = get<Number const>(sum_hessian[i]);
+    s.base_weight = get<Number const>(base_weights[i]);
+    s.leaf_child_cnt = get<Integer const>(leaf_child_counts[i]);
+
+    auto& n = nodes_[i];
+    bst_node_t left = get<Integer const>(lefts[i]);
+    bst_node_t right = get<Integer const>(rights[i]);
+    bst_node_t parent = get<Integer const>(parents[i]);
+    bst_feature_t ind = get<Integer const>(indices[i]);
+    float cond { get<Number const>(conds[i]) };
+    bool dft_left { get<Boolean const>(default_left[i]) };
+    n = Node{left, right, parent, ind, cond, dft_left};
+  }
+
+  deleted_nodes_.clear();
+  for (bst_node_t i = 1; i < param.num_nodes; ++i) {
+    if (nodes_[i].IsDeleted()) {
+      deleted_nodes_.push_back(i);
+    }
+  }
+
+  auto& self = *this;
+  for (auto nid = 1; nid < n_nodes; ++nid) {
+    auto parent = self[nid].Parent();
+    CHECK_NE(parent, RegTree::kInvalidNodeId);
+    self[nid].SetParent(self[nid].Parent(), self[parent].LeftChild() == nid);
+  }
+  CHECK_EQ(static_cast<bst_node_t>(deleted_nodes_.size()), param.num_deleted);
+}
+
+void RegTree::SaveModel(Json* p_out) const {
+  auto& out = *p_out;
+  CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
+  CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
+  out["tree_param"] = ToJson(param);
+  CHECK_EQ(get<String>(out["tree_param"]["num_nodes"]), std::to_string(param.num_nodes));
+  using I = Integer::Int;
+  auto n_nodes = param.num_nodes;
+
+  // stats
+  std::vector<Json> loss_changes(n_nodes);
+  std::vector<Json> sum_hessian(n_nodes);
+  std::vector<Json> base_weights(n_nodes);
+  std::vector<Json> leaf_child_counts(n_nodes);
+
+  // nodes
+  std::vector<Json> lefts(n_nodes);
+  std::vector<Json> rights(n_nodes);
+  std::vector<Json> parents(n_nodes);
+  std::vector<Json> indices(n_nodes);
+  std::vector<Json> conds(n_nodes);
+  std::vector<Json> default_left(n_nodes);
+
+  for (int32_t i = 0; i < n_nodes; ++i) {
+    auto const& s = stats_[i];
+    loss_changes[i] = s.loss_chg;
+    sum_hessian[i] = s.sum_hess;
+    base_weights[i] = s.base_weight;
+    leaf_child_counts[i] = static_cast<I>(s.leaf_child_cnt);
+
+    auto const& n = nodes_[i];
+    lefts[i] = static_cast<I>(n.LeftChild());
+    rights[i] = static_cast<I>(n.RightChild());
+    parents[i] = static_cast<I>(n.Parent());
+    indices[i] = static_cast<I>(n.SplitIndex());
+    conds[i] = n.SplitCond();
+    default_left[i] = n.DefaultLeft();
+  }
+
+  out["loss_changes"] = std::move(loss_changes);
+  out["sum_hessian"] = std::move(sum_hessian);
+  out["base_weights"] = std::move(base_weights);
+  out["leaf_child_counts"] = std::move(leaf_child_counts);
+
+  out["left_children"] = std::move(lefts);
+  out["right_children"] = std::move(rights);
+  out["parents"] = std::move(parents);
+  out["split_indices"] = std::move(indices);
+  out["split_conditions"] = std::move(conds);
+  out["default_left"] = std::move(default_left);
 }
 
 void RegTree::FillNodeMeanValues() {
@@ -652,9 +812,7 @@ void RegTree::FillNodeMeanValues() {
     return;
   }
   this->node_mean_values_.resize(num_nodes);
-  for (int root_id = 0; root_id < param.num_roots; ++root_id) {
-    this->FillNodeMeanValue(root_id);
-  }
+  this->FillNodeMeanValue(0);
 }
 
 bst_float RegTree::FillNodeMeanValue(int nid) {
@@ -672,28 +830,27 @@ bst_float RegTree::FillNodeMeanValue(int nid) {
 }
 
 void RegTree::CalculateContributionsApprox(const RegTree::FVec &feat,
-                                           unsigned root_id,
                                            bst_float *out_contribs) const {
   CHECK_GT(this->node_mean_values_.size(), 0U);
   // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
   unsigned split_index = 0;
-  auto pid = static_cast<int>(root_id);
   // update bias value
-  bst_float node_value = this->node_mean_values_[pid];
+  bst_float node_value = this->node_mean_values_[0];
   out_contribs[feat.Size()] += node_value;
-  if ((*this)[pid].IsLeaf()) {
+  if ((*this)[0].IsLeaf()) {
     // nothing to do anymore
     return;
   }
-  while (!(*this)[pid].IsLeaf()) {
-    split_index = (*this)[pid].SplitIndex();
-    pid = this->GetNext(pid, feat.Fvalue(split_index), feat.IsMissing(split_index));
-    bst_float new_value = this->node_mean_values_[pid];
+  bst_node_t nid = 0;
+  while (!(*this)[nid].IsLeaf()) {
+    split_index = (*this)[nid].SplitIndex();
+    nid = this->GetNext(nid, feat.GetFvalue(split_index), feat.IsMissing(split_index));
+    bst_float new_value = this->node_mean_values_[nid];
     // update feature weight
     out_contribs[split_index] += new_value - node_value;
     node_value = new_value;
   }
-  bst_float leaf_value = (*this)[pid].LeafValue();
+  bst_float leaf_value = (*this)[nid].LeafValue();
   // update leaf feature weight
   out_contribs[split_index] += leaf_value - node_value;
 }
@@ -819,7 +976,7 @@ void RegTree::TreeShap(const RegTree::FVec &feat, bst_float *phi,
     unsigned hot_index = 0;
     if (feat.IsMissing(split_index)) {
       hot_index = node.DefaultChild();
-    } else if (feat.Fvalue(split_index) < node.SplitCond()) {
+    } else if (feat.GetFvalue(split_index) < node.SplitCond()) {
       hot_index = node.LeftChild();
     } else {
       hot_index = node.RightChild();
@@ -868,21 +1025,20 @@ void RegTree::TreeShap(const RegTree::FVec &feat, bst_float *phi,
 }
 
 void RegTree::CalculateContributions(const RegTree::FVec &feat,
-                                     unsigned root_id, bst_float *out_contribs,
+                                     bst_float *out_contribs,
                                      int condition,
                                      unsigned condition_feature) const {
   // find the expected value of the tree's predictions
   if (condition == 0) {
-    bst_float node_value = this->node_mean_values_[static_cast<int>(root_id)];
+    bst_float node_value = this->node_mean_values_[0];
     out_contribs[feat.Size()] += node_value;
   }
 
   // Preallocate space for the unique path data
-  const int maxd = this->MaxDepth(root_id) + 2;
-  auto *unique_path_data = new PathElement[(maxd * (maxd + 1)) / 2];
+  const int maxd = this->MaxDepth(0) + 2;
+  std::vector<PathElement> unique_path_data((maxd * (maxd + 1)) / 2);
 
-  TreeShap(feat, out_contribs, root_id, 0, unique_path_data,
+  TreeShap(feat, out_contribs, 0, 0, unique_path_data.data(),
            1, 1, -1, condition, condition_feature, 1);
-  delete[] unique_path_data;
 }
 }  // namespace xgboost

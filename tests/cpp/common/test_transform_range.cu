@@ -5,7 +5,7 @@
 namespace xgboost {
 namespace common {
 
-TEST(Transform, MGPU_SpecifiedGpuId) {
+TEST(Transform, MGPU_SpecifiedGpuId) {  // NOLINT
   if (AllVisibleGPUs() < 2) {
     LOG(WARNING) << "Not testing in multi-gpu environment.";
     return;

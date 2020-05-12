@@ -7,6 +7,7 @@
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
 [![CRAN Status Badge](http://www.r-pkg.org/badges/version/xgboost)](http://cran.r-project.org/web/packages/xgboost)
 [![PyPI version](https://badge.fury.io/py/xgboost.svg)](https://pypi.python.org/pypi/xgboost/)
+[![Optuna](https://img.shields.io/badge/Optuna-integrated-blue)](https://optuna.org)
 
 [Community](https://xgboost.ai/community) |
 [Documentation](https://xgboost.readthedocs.org) |
@@ -26,7 +27,7 @@ License
 Contribute to XGBoost
 ---------------------
 XGBoost has been developed and used by a group of active community members. Your help is very valuable to make the package better for everyone.
-Checkout the [Community Page](https://xgboost.ai/community)
+Checkout the [Community Page](https://xgboost.ai/community).
 
 Reference
 ---------

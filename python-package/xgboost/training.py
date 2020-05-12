@@ -2,11 +2,9 @@
 # pylint: disable=too-many-locals, too-many-arguments, invalid-name
 # pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
-from __future__ import absolute_import
-
-import warnings
 import numpy as np
-from .core import Booster, STRING_TYPES, XGBoostError, CallbackEnv, EarlyStopException
+from .core import Booster, STRING_TYPES, XGBoostError, CallbackEnv
+from .core import EarlyStopException
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
 from . import rabit
 from . import callback
@@ -19,6 +17,7 @@ def _train_internal(params, dtrain,
     """internal training function"""
     callbacks = [] if callbacks is None else callbacks
     evals = list(evals)
+    params = params.copy()
     if isinstance(params, dict) \
             and 'eval_metric' in params \
             and isinstance(params['eval_metric'], list):
@@ -34,17 +33,17 @@ def _train_internal(params, dtrain,
     num_parallel_tree = 1
 
     if xgb_model is not None:
-        if not isinstance(xgb_model, STRING_TYPES):
-            xgb_model = xgb_model.save_raw()
-        bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
+        bst = Booster(params, [dtrain] + [d[0] for d in evals],
+                      model_file=xgb_model)
         nboost = len(bst.get_dump())
 
     _params = dict(params) if isinstance(params, list) else params
 
-    if 'num_parallel_tree' in _params:
+    if 'num_parallel_tree' in _params and _params[
+            'num_parallel_tree'] is not None:
         num_parallel_tree = _params['num_parallel_tree']
         nboost //= num_parallel_tree
-    if 'num_class' in _params:
+    if 'num_class' in _params and _params['num_class'] is not None:
         nboost //= _params['num_class']
 
     # Distributed code: Load the checkpoint from rabit.
@@ -55,9 +54,11 @@ def _train_internal(params, dtrain,
     nboost += start_iteration
 
     callbacks_before_iter = [
-        cb for cb in callbacks if cb.__dict__.get('before_iteration', False)]
+        cb for cb in callbacks
+        if cb.__dict__.get('before_iteration', False)]
     callbacks_after_iter = [
-        cb for cb in callbacks if not cb.__dict__.get('before_iteration', False)]
+        cb for cb in callbacks
+        if not cb.__dict__.get('before_iteration', False)]
 
     for i in range(start_iteration, num_boost_round):
         for cb in callbacks_before_iter:
@@ -109,12 +110,14 @@ def _train_internal(params, dtrain,
     else:
         bst.best_iteration = nboost - 1
     bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
-    return bst
+
+    # Copy to serialise and unserialise booster to reset state and free training memory
+    return bst.copy()
 
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
           maximize=False, early_stopping_rounds=None, evals_result=None,
-          verbose_eval=True, xgb_model=None, callbacks=None, learning_rates=None):
+          verbose_eval=True, xgb_model=None, callbacks=None):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
 
@@ -170,11 +173,6 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         / the boosting stage found by using **early_stopping_rounds** is also printed.
         Example: with ``verbose_eval=4`` and at least one item in **evals**, an evaluation metric
         is printed every 4 boosting stages, instead of every boosting stage.
-    learning_rates: list or function (deprecated - use callback API instead)
-        List of learning rate for each boosting round
-        or a customized function that calculates eta in terms of
-        current number of round and the total number of boosting round (e.g. yields
-        learning rate decay)
     xgb_model : file name of stored xgb model or 'Booster' instance
         Xgb model to be loaded before training (allows training continuation).
     callbacks : list of callback functions
@@ -206,11 +204,6 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
                                              verbose=bool(verbose_eval)))
     if evals_result is not None:
         callbacks.append(callback.record_evaluation(evals_result))
-
-    if learning_rates is not None:
-        warnings.warn("learning_rates parameter is deprecated - use callback API instead",
-                      DeprecationWarning)
-        callbacks.append(callback.reset_learning_rate(learning_rates))
 
     return _train_internal(params, dtrain,
                            num_boost_round=num_boost_round,
@@ -486,9 +479,11 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
             callbacks.append(callback.print_evaluation(verbose_eval, show_stdv=show_stdv))
 
     callbacks_before_iter = [
-        cb for cb in callbacks if cb.__dict__.get('before_iteration', False)]
+        cb for cb in callbacks if
+        cb.__dict__.get('before_iteration', False)]
     callbacks_after_iter = [
-        cb for cb in callbacks if not cb.__dict__.get('before_iteration', False)]
+        cb for cb in callbacks if
+        not cb.__dict__.get('before_iteration', False)]
 
     for i in range(num_boost_round):
         for cb in callbacks_before_iter:

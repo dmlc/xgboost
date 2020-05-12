@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014 by Contributors
+ * Copyright 2014-2019 by Contributors
  * \file objective.h
  * \brief interface of objective function used by xgboost.
  * \author Tianqi Chen, Kailong Chen
@@ -28,7 +28,7 @@ class ObjFunction : public Configurable {
 
  public:
   /*! \brief virtual destructor */
-  virtual ~ObjFunction() = default;
+  ~ObjFunction() override = default;
   /*!
    * \brief Configure the objective with the specified parameters.
    * \param args arguments to the objective function.

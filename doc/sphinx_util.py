@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Helper utilty function for customization."""
+"""Helper utility function for customization."""
 import sys
 import os
 import docutils

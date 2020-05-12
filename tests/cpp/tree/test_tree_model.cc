@@ -3,6 +3,7 @@
 #include <xgboost/tree_model.h>
 #include "../helpers.h"
 #include "dmlc/filesystem.h"
+#include "xgboost/json_io.h"
 
 namespace xgboost {
 // Manually construct tree in binary format
@@ -77,7 +78,7 @@ TEST(Tree, Load) {
   std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(tmp_file.c_str(), "r"));
 
   xgboost::RegTree tree;
-  tree.LoadModel(fi.get());
+  tree.Load(fi.get());
   EXPECT_EQ(tree.GetDepth(1), 1);
   EXPECT_EQ(tree[0].SplitCond(), 0.5f);
   EXPECT_EQ(tree[0].SplitIndex(), 5);
@@ -87,13 +88,13 @@ TEST(Tree, Load) {
 
 TEST(Tree, AllocateNode) {
   RegTree tree;
-  tree.ExpandNode(
-      0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+  tree.ExpandNode(0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
   tree.CollapseToLeaf(0, 0);
   ASSERT_EQ(tree.NumExtraNodes(), 0);
 
-  tree.ExpandNode(
-      0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+  tree.ExpandNode(0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
   ASSERT_EQ(tree.NumExtraNodes(), 2);
 
   auto& nodes = tree.GetNodes();
@@ -106,18 +107,18 @@ RegTree ConstructTree() {
   RegTree tree;
   tree.ExpandNode(
       /*nid=*/0, /*split_index=*/0, /*split_value=*/0.0f,
-      /*default_left=*/true,
-      0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+      /*default_left=*/true, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, /*left_sum=*/0.0f,
+      /*right_sum=*/0.0f);
   auto left = tree[0].LeftChild();
   auto right = tree[0].RightChild();
   tree.ExpandNode(
       /*nid=*/left, /*split_index=*/1, /*split_value=*/1.0f,
-      /*default_left=*/false,
-      0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+      /*default_left=*/false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, /*left_sum=*/0.0f,
+      /*right_sum=*/0.0f);
   tree.ExpandNode(
       /*nid=*/right, /*split_index=*/2, /*split_value=*/2.0f,
-      /*default_left=*/false,
-      0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+      /*default_left=*/false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, /*left_sum=*/0.0f,
+      /*right_sum=*/0.0f);
   return tree;
 }
 
@@ -218,4 +219,48 @@ TEST(Tree, DumpDot) {
   str = tree.DumpModel(fmap, true, R"(dot:{"graph_attrs": {"bgcolor": "#FFFF00"}})");
   ASSERT_NE(str.find(R"(graph [ bgcolor="#FFFF00" ])"), std::string::npos);
 }
+
+TEST(Tree, JsonIO) {
+  RegTree tree;
+  tree.ExpandNode(0, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
+  Json j_tree{Object()};
+  tree.SaveModel(&j_tree);
+
+  auto tparam = j_tree["tree_param"];
+  ASSERT_EQ(get<String>(tparam["num_feature"]), "0");
+  ASSERT_EQ(get<String>(tparam["num_nodes"]), "3");
+  ASSERT_EQ(get<String>(tparam["size_leaf_vector"]), "0");
+
+  ASSERT_EQ(get<Array const>(j_tree["left_children"]).size(), 3);
+  ASSERT_EQ(get<Array const>(j_tree["right_children"]).size(), 3);
+  ASSERT_EQ(get<Array const>(j_tree["parents"]).size(), 3);
+  ASSERT_EQ(get<Array const>(j_tree["split_indices"]).size(), 3);
+  ASSERT_EQ(get<Array const>(j_tree["split_conditions"]).size(), 3);
+  ASSERT_EQ(get<Array const>(j_tree["default_left"]).size(), 3);
+
+  RegTree loaded_tree;
+  loaded_tree.LoadModel(j_tree);
+  ASSERT_EQ(loaded_tree.param.num_nodes, 3);
+
+  ASSERT_TRUE(loaded_tree == tree);
+
+  auto left = tree[0].LeftChild();
+  auto right = tree[0].RightChild();
+  tree.ExpandNode(left, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
+  tree.ExpandNode(right, 0, 0.0f, false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                  /*left_sum=*/0.0f, /*right_sum=*/0.0f);
+  tree.SaveModel(&j_tree);
+
+  tree.ChangeToLeaf(1, 1.0f);
+  ASSERT_EQ(tree[1].LeftChild(), -1);
+  ASSERT_EQ(tree[1].RightChild(), -1);
+  tree.SaveModel(&j_tree);
+  loaded_tree.LoadModel(j_tree);
+  ASSERT_EQ(loaded_tree[1].LeftChild(), -1);
+  ASSERT_EQ(loaded_tree[1].RightChild(), -1);
+  ASSERT_TRUE(tree.Equal(loaded_tree));
+}
+
 }  // namespace xgboost

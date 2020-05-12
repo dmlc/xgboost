@@ -3,6 +3,8 @@
  * \file elementwise_metric.cc
  * \brief evaluation metrics for elementwise binary or regression.
  * \author Kailong Chen, Tianqi Chen
+ *
+ *  The expressions like wsum == 0 ? esum : esum / wsum is used to handle empty dataset.
  */
 #include <rabit/rabit.h>
 #include <xgboost/metric.h>
@@ -57,13 +59,6 @@ class ElementWiseMetricsReduction {
 
 #if defined(XGBOOST_USE_CUDA)
 
-  ~ElementWiseMetricsReduction() {
-    if (device_ >= 0) {
-      dh::safe_cuda(cudaSetDevice(device_));
-      allocator_.Free();
-    }
-  }
-
   PackedReduceResult DeviceReduceMetrics(
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,
@@ -81,8 +76,9 @@ class ElementWiseMetricsReduction {
 
     auto d_policy = policy_;
 
+    dh::XGBCachingDeviceAllocator<char> alloc;
     PackedReduceResult result = thrust::transform_reduce(
-        thrust::cuda::par(allocator_),
+        thrust::cuda::par(alloc),
         begin, end,
         [=] XGBOOST_DEVICE(size_t idx) {
           bst_float weight = is_null_weight ? 1.0f : s_weights[idx];
@@ -128,7 +124,6 @@ class ElementWiseMetricsReduction {
   EvalRow policy_;
 #if defined(XGBOOST_USE_CUDA)
   int device_{-1};
-  dh::CubMemory allocator_;
 #endif  // defined(XGBOOST_USE_CUDA)
 };
 
@@ -142,7 +137,7 @@ struct EvalRowRMSE {
     return diff * diff;
   }
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
-    return std::sqrt(esum / wsum);
+    return wsum == 0 ? std::sqrt(esum) : std::sqrt(esum / wsum);
   }
 };
 
@@ -150,12 +145,13 @@ struct EvalRowRMSLE {
   char const* Name() const {
     return "rmsle";
   }
+
   XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
     bst_float diff = std::log1p(label) - std::log1p(pred);
     return diff * diff;
   }
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
-    return std::sqrt(esum / wsum);
+    return wsum == 0 ? std::sqrt(esum) : std::sqrt(esum / wsum);
   }
 };
 
@@ -168,7 +164,7 @@ struct EvalRowMAE {
     return std::abs(label - pred);
   }
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
-    return esum / wsum;
+    return wsum == 0 ? esum : esum / wsum;
   }
 };
 
@@ -190,7 +186,7 @@ struct EvalRowLogLoss {
   }
 
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
-    return esum / wsum;
+    return wsum == 0 ? esum : esum / wsum;
   }
 };
 
@@ -225,7 +221,7 @@ struct EvalError {
   }
 
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
-    return esum / wsum;
+    return wsum == 0 ? esum : esum / wsum;
   }
 
  private:
@@ -245,7 +241,7 @@ struct EvalPoissonNegLogLik {
   }
 
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
-    return esum / wsum;
+    return wsum == 0 ? esum : esum / wsum;
   }
 };
 
@@ -278,7 +274,7 @@ struct EvalGammaNLogLik {
     return -((y * theta - b) / a + c);
   }
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
-    return esum / wsum;
+    return wsum == 0 ? esum : esum / wsum;
   }
 };
 
@@ -304,7 +300,7 @@ struct EvalTweedieNLogLik {
     return -a + b;
   }
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
-    return esum / wsum;
+    return wsum == 0 ? esum : esum / wsum;
   }
 
  protected:
@@ -316,24 +312,26 @@ struct EvalTweedieNLogLik {
  */
 template<typename Policy>
 struct EvalEWiseBase : public Metric {
-  EvalEWiseBase() : policy_{}, reducer_{policy_} {}
+  EvalEWiseBase() = default;
   explicit EvalEWiseBase(char const* policy_param) :
     policy_{policy_param}, reducer_{policy_} {}
 
   bst_float Eval(const HostDeviceVector<bst_float>& preds,
                  const MetaInfo& info,
                  bool distributed) override {
-    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
+    if (info.labels_.Size() == 0) {
+      LOG(WARNING) << "label set is empty";
+    }
     CHECK_EQ(preds.Size(), info.labels_.Size())
         << "label and prediction size not match, "
         << "hint: use merror or mlogloss for multi-class classification";
-    const auto ndata = static_cast<omp_ulong>(info.labels_.Size());
     int device = tparam_->gpu_id;
 
     auto result =
         reducer_.Reduce(*tparam_, device, info.weights_, info.labels_, preds);
 
     double dat[2] { result.Residue(), result.Weights() };
+
     if (distributed) {
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
     }
@@ -346,8 +344,7 @@ struct EvalEWiseBase : public Metric {
 
  private:
   Policy policy_;
-
-  ElementWiseMetricsReduction<Policy> reducer_;
+  ElementWiseMetricsReduction<Policy> reducer_{policy_};
 };
 
 XGBOOST_REGISTER_METRIC(RMSE, "rmse")

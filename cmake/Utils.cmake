@@ -58,9 +58,18 @@ function(set_output_directory target dir)
 		RUNTIME_OUTPUT_DIRECTORY ${dir}
 		RUNTIME_OUTPUT_DIRECTORY_DEBUG ${dir}
 		RUNTIME_OUTPUT_DIRECTORY_RELEASE ${dir}
+		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
+		RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${dir}
 		LIBRARY_OUTPUT_DIRECTORY ${dir}
 		LIBRARY_OUTPUT_DIRECTORY_DEBUG ${dir}
 		LIBRARY_OUTPUT_DIRECTORY_RELEASE ${dir}
+		LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
+		LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL ${dir}
+		ARCHIVE_OUTPUT_DIRECTORY ${dir}
+		ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${dir}
+		ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${dir}
+		ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
+		ARCHIVE_OUTPUT_DIRECTORY_MINSIZEREL ${dir}
 	)
 endfunction(set_output_directory)
 
@@ -111,7 +120,7 @@ DESTINATION \"${build_dir}/bak\")")
 
   install(CODE "file(REMOVE_RECURSE \"${build_dir}/R-package\")")
   install(
-    DIRECTORY "${PROJECT_SOURCE_DIR}/R-package"
+    DIRECTORY "${xgboost_SOURCE_DIR}/R-package"
     DESTINATION "${build_dir}"
     REGEX "src/*" EXCLUDE
     REGEX "R-package/configure" EXCLUDE
@@ -132,3 +141,10 @@ DESTINATION \"${build_dir}/bak\")")
   install(CODE "file(RENAME \"${build_dir}/bak/cmake_install.cmake\"
  \"${build_dir}/R-package/cmake_install.cmake\")")
 endfunction(setup_rpackage_install_target)
+
+macro(enable_nvtx target)
+  find_package(NVTX REQUIRED)
+  target_include_directories(${target} PRIVATE "${NVTX_INCLUDE_DIR}")
+  target_link_libraries(${target} PRIVATE "${NVTX_LIBRARY}")
+  target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
+endmacro()

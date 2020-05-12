@@ -8,6 +8,7 @@
 #include <xgboost/data.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
+#include <xgboost/model.h>
 
 #include <functional>
 #include <string>
@@ -17,6 +18,8 @@
 
 namespace xgboost {
 
+class Json;
+
 namespace gbm {
 class GBLinearModel;
 }  // namespace gbm
@@ -24,13 +27,13 @@ class GBLinearModel;
 /*!
  * \brief interface of linear updater
  */
-class LinearUpdater {
+class LinearUpdater : public Configurable {
  protected:
   GenericParameter const* learner_param_;
 
  public:
   /*! \brief virtual destructor */
-  virtual ~LinearUpdater() = default;
+  ~LinearUpdater() override = default;
   /*!
    * \brief Initialize the updater with given arguments.
    * \param args arguments to the objective function.

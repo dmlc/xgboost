@@ -21,7 +21,7 @@ class FixedPrecisionStreamContainer : public std::basic_stringstream<
   char, std::char_traits<char>, Allocator> {
  public:
   FixedPrecisionStreamContainer() {
-    this->precision(std::numeric_limits<Number::Float>::max_digits10);
+    this->precision(std::numeric_limits<double>::max_digits10);
     this->imbue(std::locale("C"));
     this->setf(std::ios::scientific);
   }
@@ -38,10 +38,11 @@ class JsonReader {
       std::numeric_limits<double>::max_digits10 + 1;
 
   struct SourceLocation {
-    size_t pos_;  // current position in raw_str_
+   private:
+    size_t pos_ { 0 };  // current position in raw_str_
 
    public:
-    SourceLocation() : pos_(0) {}
+    SourceLocation() = default;
     size_t  Pos()  const { return pos_; }
 
     SourceLocation& Forward() {

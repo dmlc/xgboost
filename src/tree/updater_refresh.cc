@@ -10,6 +10,7 @@
 #include <vector>
 #include <limits>
 
+#include "xgboost/json.h"
 #include "./param.h"
 #include "../common/io.h"
 
@@ -22,10 +23,21 @@ DMLC_REGISTRY_FILE_TAG(updater_refresh);
 class TreeRefresher: public TreeUpdater {
  public:
   void Configure(const Args& args) override {
-    param_.InitAllowUnknown(args);
+    param_.UpdateAllowUnknown(args);
+  }
+  void LoadConfig(Json const& in) override {
+    auto const& config = get<Object const>(in);
+    FromJson(config.at("train_param"), &this->param_);
+  }
+  void SaveConfig(Json* p_out) const override {
+    auto& out = *p_out;
+    out["train_param"] = ToJson(param_);
   }
   char const* Name() const override {
     return "refresh";
+  }
+  bool CanModifyTree() const override {
+    return true;
   }
   // update the tree, do pruning
   void Update(HostDeviceVector<GradientPair> *gpair,
@@ -90,9 +102,7 @@ class TreeRefresher: public TreeUpdater {
     param_.learning_rate = lr / trees.size();
     int offset = 0;
     for (auto tree : trees) {
-      for (int rid = 0; rid < tree->param.num_roots; ++rid) {
-        this->Refresh(dmlc::BeginPtr(stemp[0]) + offset, rid, tree);
-      }
+      this->Refresh(dmlc::BeginPtr(stemp[0]) + offset, 0, tree);
       offset += tree->param.num_nodes;
     }
     // set learning rate back
@@ -107,12 +117,12 @@ class TreeRefresher: public TreeUpdater {
                               const bst_uint ridx,
                               GradStats *gstats) {
     // start from groups that belongs to current data
-    auto pid = static_cast<int>(info.GetRoot(ridx));
+    auto pid = 0;
     gstats[pid].Add(gpair[ridx]);
     // tranverse tree
     while (!tree[pid].IsLeaf()) {
       unsigned split_index = tree[pid].SplitIndex();
-      pid = tree.GetNext(pid, feat.Fvalue(split_index), feat.IsMissing(split_index));
+      pid = tree.GetNext(pid, feat.GetFvalue(split_index), feat.IsMissing(split_index));
       gstats[pid].Add(gpair[ridx]);
     }
   }

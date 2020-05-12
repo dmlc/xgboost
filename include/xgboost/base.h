@@ -84,18 +84,45 @@
 #define XGBOOST_DEVICE
 #endif  // defined (__CUDA__) || defined(__NVCC__)
 
+// These check are for Makefile.
+#if !defined(XGBOOST_MM_PREFETCH_PRESENT) && !defined(XGBOOST_BUILTIN_PREFETCH_PRESENT)
+/* default logic for software pre-fetching */
+#if (defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_AMD64))) || defined(__INTEL_COMPILER)
+// Enable _mm_prefetch for Intel compiler and MSVC+x86
+  #define XGBOOST_MM_PREFETCH_PRESENT
+  #define XGBOOST_BUILTIN_PREFETCH_PRESENT
+#elif defined(__GNUC__)
+// Enable __builtin_prefetch for GCC
+#define XGBOOST_BUILTIN_PREFETCH_PRESENT
+#endif  // GUARDS
+
+#endif  // !defined(XGBOOST_MM_PREFETCH_PRESENT) && !defined()
+
 /*! \brief namespace of xgboost*/
 namespace xgboost {
-/*!
- * \brief unsigned integer type used in boost,
- *  used for feature index and row index.
- */
+
+/*! \brief unsigned integer type used for feature index. */
 using bst_uint = uint32_t;  // NOLINT
+/*! \brief integer type. */
 using bst_int = int32_t;    // NOLINT
-/*! \brief long integers */
-typedef uint64_t bst_ulong;  // NOLINT(*)
+/*! \brief unsigned long integers */
+using bst_ulong = uint64_t;  // NOLINT
 /*! \brief float type, used for storing statistics */
 using bst_float = float;  // NOLINT
+
+/*! \brief Type for data column (feature) index. */
+using bst_feature_t = uint32_t;  // NOLINT
+/*! \brief Type for data row index.
+ *
+ * Be careful `std::size_t' is implementation-defined.  Meaning that the binary
+ * representation of DMatrix might not be portable across platform.  Booster model should
+ * be portable as parameters are floating points.
+ */
+using bst_row_t = std::size_t;   // NOLINT
+/*! \brief Type for tree node index. */
+using bst_node_t = int32_t;      // NOLINT
+/*! \brief Type for ranking group index. */
+using bst_group_t = uint32_t;    // NOLINT
 
 namespace detail {
 /*! \brief Implementation of gradient statistics pair. Template specialisation
@@ -108,15 +135,15 @@ class GradientPairInternal {
   /*! \brief second order gradient statistics */
   T hess_;
 
-  XGBOOST_DEVICE void SetGrad(float g) { grad_ = g; }
-  XGBOOST_DEVICE void SetHess(float h) { hess_ = h; }
+  XGBOOST_DEVICE void SetGrad(T g) { grad_ = g; }
+  XGBOOST_DEVICE void SetHess(T h) { hess_ = h; }
 
  public:
   using ValueT = T;
 
   XGBOOST_DEVICE GradientPairInternal() : grad_(0), hess_(0) {}
 
-  XGBOOST_DEVICE GradientPairInternal(float grad, float hess) {
+  XGBOOST_DEVICE GradientPairInternal(T grad, T hess) {
     SetGrad(grad);
     SetHess(hess);
   }
@@ -133,8 +160,8 @@ class GradientPairInternal {
     SetHess(g.GetHess());
   }
 
-  XGBOOST_DEVICE float GetGrad() const { return grad_; }
-  XGBOOST_DEVICE float GetHess() const { return hess_; }
+  XGBOOST_DEVICE T GetGrad() const { return grad_; }
+  XGBOOST_DEVICE T GetHess() const { return hess_; }
 
   XGBOOST_DEVICE GradientPairInternal<T> &operator+=(
       const GradientPairInternal<T> &rhs) {
@@ -166,6 +193,36 @@ class GradientPairInternal {
     return g;
   }
 
+  XGBOOST_DEVICE GradientPairInternal<T> &operator*=(float multiplier) {
+    grad_ *= multiplier;
+    hess_ *= multiplier;
+    return *this;
+  }
+
+  XGBOOST_DEVICE GradientPairInternal<T> operator*(float multiplier) const {
+    GradientPairInternal<T> g;
+    g.grad_ = grad_ * multiplier;
+    g.hess_ = hess_ * multiplier;
+    return g;
+  }
+
+  XGBOOST_DEVICE GradientPairInternal<T> &operator/=(float divisor) {
+    grad_ /= divisor;
+    hess_ /= divisor;
+    return *this;
+  }
+
+  XGBOOST_DEVICE GradientPairInternal<T> operator/(float divisor) const {
+    GradientPairInternal<T> g;
+    g.grad_ = grad_ / divisor;
+    g.hess_ = hess_ / divisor;
+    return g;
+  }
+
+  XGBOOST_DEVICE bool operator==(const GradientPairInternal<T> &rhs) const {
+    return grad_ == rhs.grad_ && hess_ == rhs.hess_;
+  }
+
   XGBOOST_DEVICE explicit GradientPairInternal(int value) {
     *this = GradientPairInternal<T>(static_cast<float>(value),
                                   static_cast<float>(value));
@@ -177,24 +234,6 @@ class GradientPairInternal {
     return os;
   }
 };
-
-template<>
-inline XGBOOST_DEVICE float GradientPairInternal<int64_t>::GetGrad() const {
-  return grad_ * 1e-4f;
-}
-template<>
-inline XGBOOST_DEVICE float GradientPairInternal<int64_t>::GetHess() const {
-  return hess_ * 1e-4f;
-}
-template<>
-inline XGBOOST_DEVICE void GradientPairInternal<int64_t>::SetGrad(float g) {
-  grad_ = static_cast<int64_t>(std::round(g * 1e4));
-}
-template<>
-inline XGBOOST_DEVICE void GradientPairInternal<int64_t>::SetHess(float h) {
-  hess_ = static_cast<int64_t>(std::round(h * 1e4));
-}
-
 }  // namespace detail
 
 /*! \brief gradient statistics pair usually needed in gradient boosting */
@@ -203,20 +242,17 @@ using GradientPair = detail::GradientPairInternal<float>;
 /*! \brief High precision gradient statistics pair */
 using GradientPairPrecise = detail::GradientPairInternal<double>;
 
-/*! \brief High precision gradient statistics pair with integer backed
- * storage. Operators are associative where floating point versions are not
- * associative. */
-using GradientPairInteger = detail::GradientPairInternal<int64_t>;
-
 using Args = std::vector<std::pair<std::string, std::string> >;
 
 /*! \brief small eps gap for minimum split decision. */
-const bst_float kRtEps = 1e-6f;
+constexpr bst_float kRtEps = 1e-6f;
 
 /*! \brief define unsigned long for openmp loop */
 using omp_ulong = dmlc::omp_ulong;  // NOLINT
 /*! \brief define unsigned int for openmp loop */
 using bst_omp_uint = dmlc::omp_uint;  // NOLINT
+/*! \brief Type used for representing version number in binary form.*/
+using XGBoostVersionT = int32_t;
 
 /*!
  * \brief define compatible keywords in g++
@@ -229,8 +265,5 @@ using bst_omp_uint = dmlc::omp_uint;  // NOLINT
 #endif  // __GNUC__ == 4 && __GNUC_MINOR__ < 8
 #endif  // DMLC_USE_CXX11 && defined(__GNUC__) && !defined(__clang_version__)
 }  // namespace xgboost
-
-/* Always keep this #include at the bottom of xgboost/base.h */
-#include <xgboost/build_config.h>
 
 #endif  // XGBOOST_BASE_H_

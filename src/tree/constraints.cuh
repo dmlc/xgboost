@@ -28,8 +28,8 @@ struct ValueConstraint {
   inline static void Init(tree::TrainParam *param, unsigned num_feature) {
     param->monotone_constraints.resize(num_feature, 0);
   }
-  template <typename ParamT>
-  XGBOOST_DEVICE inline double CalcWeight(const ParamT &param, tree::GradStats stats) const {
+  template <typename ParamT, typename GpairT>
+  XGBOOST_DEVICE inline double CalcWeight(const ParamT &param, GpairT stats) const {
     double w = xgboost::tree::CalcWeight(param, stats);
     if (w < lower_bound) {
       return lower_bound;
@@ -63,9 +63,9 @@ struct ValueConstraint {
       return wleft >= wright ? gain : negative_infinity;
     }
   }
-
-  inline void SetChild(const tree::TrainParam &param, bst_uint split_index,
-                       tree::GradStats left, tree::GradStats right, ValueConstraint *cleft,
+  template <typename GpairT>
+  void SetChild(const tree::TrainParam &param, bst_uint split_index,
+                       GpairT left, GpairT right, ValueConstraint *cleft,
                        ValueConstraint *cright) {
     int c = param.monotone_constraints.at(split_index);
     *cleft = *this;
@@ -88,18 +88,18 @@ struct ValueConstraint {
 };
 
 // Feature interaction constraints built for GPU Hist updater.
-struct FeatureInteractionConstraint {
+struct FeatureInteractionConstraintDevice {
  protected:
   // Whether interaction constraint is used.
   bool has_constraint_;
   // n interaction sets.
-  int32_t n_sets_;
+  size_t n_sets_;
 
   // The parsed feature interaction constraints as CSR.
-  dh::device_vector<int32_t> d_fconstraints_;
-  common::Span<int32_t> s_fconstraints_;
-  dh::device_vector<int32_t> d_fconstraints_ptr_;
-  common::Span<int32_t> s_fconstraints_ptr_;
+  dh::device_vector<bst_feature_t> d_fconstraints_;
+  common::Span<bst_feature_t> s_fconstraints_;
+  dh::device_vector<size_t> d_fconstraints_ptr_;
+  common::Span<size_t> s_fconstraints_ptr_;
   /* Interaction sets for each feature as CSR.  For an input like:
    * [[0, 1], [1, 2]], this will have values:
    *
@@ -108,10 +108,10 @@ struct FeatureInteractionConstraint {
    *
    * d_sets_ptr_:                        |0, 1, 3, 4|
    */
-  dh::device_vector<int32_t> d_sets_;
-  common::Span<int32_t> s_sets_;
-  dh::device_vector<int32_t> d_sets_ptr_;
-  common::Span<int32_t> s_sets_ptr_;
+  dh::device_vector<bst_feature_t> d_sets_;
+  common::Span<bst_feature_t> s_sets_;
+  dh::device_vector<size_t> d_sets_ptr_;
+  common::Span<size_t> s_sets_ptr_;
 
   // Allowed features attached to each node, have n_nodes bitfields,
   // each of size n_features.
@@ -120,8 +120,8 @@ struct FeatureInteractionConstraint {
   common::Span<LBitField64> s_node_constraints_;
 
   // buffer storing return feature list from Query, of size n_features.
-  dh::device_vector<int32_t> result_buffer_;
-  common::Span<int32_t> s_result_buffer_;
+  dh::device_vector<bst_feature_t> result_buffer_;
+  common::Span<bst_feature_t> s_result_buffer_;
 
   // Temp buffers, one bit for each possible feature.
   dh::device_vector<LBitField64::value_type> output_buffer_bits_storage_;
@@ -141,15 +141,15 @@ struct FeatureInteractionConstraint {
 
  public:
   size_t Features() const;
-  FeatureInteractionConstraint() = default;
+  FeatureInteractionConstraintDevice() = default;
   void Configure(tree::TrainParam const& param, int32_t const n_features);
-  FeatureInteractionConstraint(tree::TrainParam const& param, int32_t const n_features);
-  FeatureInteractionConstraint(FeatureInteractionConstraint const& that) = default;
-  FeatureInteractionConstraint(FeatureInteractionConstraint&& that) = default;
+  FeatureInteractionConstraintDevice(tree::TrainParam const& param, int32_t const n_features);
+  FeatureInteractionConstraintDevice(FeatureInteractionConstraintDevice const& that) = default;
+  FeatureInteractionConstraintDevice(FeatureInteractionConstraintDevice&& that) = default;
   /*! \brief Reset before constructing a new tree. */
   void Reset();
   /*! \brief Return a list of features given node id */
-  common::Span<int32_t> QueryNode(int32_t nid);
+  common::Span<bst_feature_t> QueryNode(int32_t nid);
   /*!
    * \brief Return a list of selected features from given feature_list and node id.
    *
@@ -159,9 +159,9 @@ struct FeatureInteractionConstraint {
    * \return A list of features picked from `feature_list' that conform to constraints in
    * node.
    */
-  common::Span<int32_t> Query(common::Span<int32_t> feature_list, int32_t nid);
+  common::Span<bst_feature_t> Query(common::Span<bst_feature_t> feature_list, int32_t nid);
   /*! \brief Apply split for node_id. */
-  void Split(int32_t node_id, int32_t feature_id, int32_t left_id, int32_t right_id);
+  void Split(bst_node_t node_id, bst_feature_t feature_id, bst_node_t left_id, bst_node_t right_id);
 };
 
 }      // namespace xgboost

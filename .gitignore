@@ -17,7 +17,7 @@
 *.tar.gz
 *conf
 *buffer
-*model
+*.model
 *pyc
 *.train
 *.test
@@ -65,7 +65,6 @@ nb-configuration*
 .pydevproject
 .settings/
 build
-config.mk
 /xgboost
 *.data
 build_plugin
@@ -101,3 +100,6 @@ R-package/src/Makevars
 .idea
 *.iml
 /cmake-build-debug/
+
+# GDB
+.gdb_history

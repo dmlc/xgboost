@@ -7,8 +7,8 @@ require(vcd, quietly = TRUE)
 
 float_tolerance = 5e-6
 
-# disable some tests for Win32
-win32_flag = .Platform$OS.type == "windows" && .Machine$sizeof.pointer != 8
+# disable some tests for 32-bit environment
+flag_32bit = .Machine$sizeof.pointer != 8
 
 set.seed(1982)
 data(Arthritis)
@@ -44,7 +44,7 @@ mbst.GLM <- xgboost(data = as.matrix(iris[, -5]), label = mlabel, verbose = 0,
 
 
 test_that("xgb.dump works", {
-  if (!win32_flag)
+  if (!flag_32bit)
     expect_length(xgb.dump(bst.Tree), 200)
   dump_file = file.path(tempdir(), 'xgb.model.dump')
   expect_true(xgb.dump(bst.Tree, dump_file, with_stats = T))
@@ -54,7 +54,7 @@ test_that("xgb.dump works", {
   # JSON format
   dmp <- xgb.dump(bst.Tree, dump_format = "json")
   expect_length(dmp, 1)
-  if (!win32_flag)
+  if (!flag_32bit)
     expect_length(grep('nodeid', strsplit(dmp, '\n')[[1]]), 188)
 })
 
@@ -142,6 +142,44 @@ test_that("predict feature contributions works", {
   }
 })
 
+test_that("SHAPs sum to predictions, with or without DART", {
+  d <- cbind(
+    x1 = rnorm(100),
+    x2 = rnorm(100),
+    x3 = rnorm(100))
+  y <- d[,"x1"] + d[,"x2"]^2 +
+    ifelse(d[,"x3"] > .5, d[,"x3"]^2, 2^d[,"x3"]) +
+    rnorm(100)
+  nrounds <- 30
+
+  for (booster in list("gbtree", "dart")) {
+    fit <- xgboost(
+      params = c(
+        list(
+          booster = booster,
+          objective = "reg:squarederror",
+          eval_metric = "rmse"),
+        if (booster == "dart")
+          list(rate_drop = .01, one_drop = T)),
+      data = d,
+      label = y,
+      nrounds = nrounds)
+
+    pr <- function(...)
+      predict(fit, newdata = d, ...)
+    pred <- pr()
+    shap <- pr(predcontrib = T)
+    shapi <- pr(predinteraction = T)
+    tol = 1e-5
+
+    expect_equal(rowSums(shap), pred, tol = tol)
+    expect_equal(apply(shapi, 1, sum), pred, tol = tol)
+    for (i in 1 : nrow(d))
+      for (f in list(rowSums, colSums))
+        expect_equal(f(shapi[i,,]), shap[i,], tol = tol)
+  }
+})
+
 test_that("xgb-attribute functionality", {
   val <- "my attribute value"
   list.val <- list(my_attr=val, a=123, b='ok')
@@ -218,7 +256,7 @@ test_that("xgb.model.dt.tree works with and without feature names", {
   names.dt.trees <- c("Tree", "Node", "ID", "Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover")
   dt.tree <- xgb.model.dt.tree(feature_names = feature.names, model = bst.Tree)
   expect_equal(names.dt.trees, names(dt.tree))
-  if (!win32_flag)
+  if (!flag_32bit)
     expect_equal(dim(dt.tree), c(188, 10))
   expect_output(str(dt.tree), 'Feature.*\\"Age\\"')
 
@@ -245,7 +283,7 @@ test_that("xgb.model.dt.tree throws error for gblinear", {
 
 test_that("xgb.importance works with and without feature names", {
   importance.Tree <- xgb.importance(feature_names = feature.names, model = bst.Tree)
-  if (!win32_flag)
+  if (!flag_32bit)
     expect_equal(dim(importance.Tree), c(7, 4))
   expect_equal(colnames(importance.Tree), c("Feature", "Gain", "Cover", "Frequency"))
   expect_output(str(importance.Tree), 'Feature.*\\"Age\\"')

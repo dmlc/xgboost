@@ -148,8 +148,10 @@ XGB_DLL SEXP XGBoosterEvalOneIter_R(SEXP handle, SEXP iter, SEXP dmats, SEXP evn
  * \param dmat data matrix
  * \param option_mask output_margin:1 predict_leaf:2
  * \param ntree_limit limit number of trees used in prediction
+ * \param training Whether the prediction value is used for training.
  */
-XGB_DLL SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP option_mask, SEXP ntree_limit);
+XGB_DLL SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP option_mask,
+                                SEXP ntree_limit, SEXP training);
 /*!
  * \brief load model from existing file
  * \param handle handle
@@ -177,8 +179,38 @@ XGB_DLL SEXP XGBoosterLoadModelFromRaw_R(SEXP handle, SEXP raw);
  * \brief save model into R's raw array
  * \param handle handle
  * \return raw array
-   */
+ */
 XGB_DLL SEXP XGBoosterModelToRaw_R(SEXP handle);
+
+/*!
+ * \brief Save internal parameters as a JSON string
+ * \param handle handle
+ * \return JSON string
+ */
+
+XGB_DLL SEXP XGBoosterSaveJsonConfig_R(SEXP handle);
+/*!
+ * \brief Load the JSON string returnd by XGBoosterSaveJsonConfig_R
+ * \param handle handle
+ * \param value JSON string
+ * \return R_NilValue
+ */
+XGB_DLL SEXP XGBoosterLoadJsonConfig_R(SEXP handle, SEXP value);
+
+/*!
+  * \brief Memory snapshot based serialization method.  Saves everything states
+  *        into buffer.
+  * \param handle handle to booster
+  */
+XGB_DLL SEXP XGBoosterSerializeToBuffer_R(SEXP handle);
+
+/*!
+ * \brief Memory snapshot based serialization method.  Loads the buffer returned
+ *        from `XGBoosterSerializeToBuffer'.
+ * \param handle handle to booster
+ * \return raw byte array
+ */
+XGB_DLL SEXP XGBoosterUnserializeFromBuffer_R(SEXP handle, SEXP raw);
 
 /*!
  * \brief dump model into a string

@@ -56,8 +56,8 @@ __forceinline__ __device__ BitFieldAtomicType AtomicAnd(BitFieldAtomicType* addr
  */
 template <typename VT, typename Direction>
 struct BitFieldContainer {
-  using value_type = VT;
-  using pointer = value_type*;
+  using value_type = VT;  // NOLINT
+  using pointer = value_type*;  // NOLINT
 
   static value_type constexpr kValueSize = sizeof(value_type) * 8;
   static value_type constexpr kOne = 1;  // force correct type.
@@ -67,6 +67,7 @@ struct BitFieldContainer {
     value_type bit_pos {0};
   };
 
+ private:
   common::Span<value_type> bits_;
   static_assert(!std::is_signed<VT>::value, "Must use unsiged type as underlying storage.");
 
@@ -82,8 +83,11 @@ struct BitFieldContainer {
 
  public:
   BitFieldContainer() = default;
-  XGBOOST_DEVICE BitFieldContainer(common::Span<value_type> bits) : bits_{bits} {}
+  XGBOOST_DEVICE explicit BitFieldContainer(common::Span<value_type> bits) : bits_{bits} {}
   XGBOOST_DEVICE BitFieldContainer(BitFieldContainer const& other) : bits_{other.bits_} {}
+
+  common::Span<value_type>       Bits()       { return bits_; }
+  common::Span<value_type const> Bits() const { return bits_; }
 
   /*\brief Compute the size of needed memory allocation.  The returned value is in terms
    *       of number of elements with `BitFieldContainer::value_type'.
@@ -190,7 +194,7 @@ template <typename VT>
 struct LBitsPolicy : public BitFieldContainer<VT, LBitsPolicy<VT>> {
   using Container = BitFieldContainer<VT, LBitsPolicy<VT>>;
   using Pos = typename Container::Pos;
-  using value_type = typename Container::value_type;
+  using value_type = typename Container::value_type;  // NOLINT
 
   XGBOOST_DEVICE static Pos Shift(Pos pos) {
     pos.bit_pos = Container::kValueSize - pos.bit_pos - Container::kOne;
@@ -204,7 +208,7 @@ template <typename VT>
 struct RBitsPolicy : public BitFieldContainer<VT, RBitsPolicy<VT>> {
   using Container = BitFieldContainer<VT, RBitsPolicy<VT>>;
   using Pos = typename Container::Pos;
-  using value_type = typename Container::value_type;
+  using value_type = typename Container::value_type;  // NOLINT
 
   XGBOOST_DEVICE static Pos Shift(Pos pos) {
     return pos;

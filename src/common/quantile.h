@@ -207,7 +207,7 @@ struct WQSummary {
       // find first i such that  d < (rmax[i+1] + rmin[i+1]) / 2
       while (i < src.size - 1
              && dx2 >= src.data[i + 1].rmax + src.data[i + 1].rmin) ++i;
-      CHECK(i != src.size - 1);
+      if (i == src.size - 1) break;
       if (dx2 < src.data[i].RMinNext() + src.data[i + 1].RMaxPrev()) {
         if (i != lastidx) {
           data[size++] = src.data[i]; lastidx = i;
@@ -702,6 +702,7 @@ class QuantileSketchTemplate {
     nlevel = 1;
     while (true) {
       limit_size = static_cast<size_t>(ceil(nlevel / eps)) + 1;
+      limit_size = std::min(maxn, limit_size);
       size_t n = (1ULL << nlevel);
       if (n * limit_size >= maxn) break;
       ++nlevel;
@@ -709,7 +710,8 @@ class QuantileSketchTemplate {
     // check invariant
     size_t n = (1ULL << nlevel);
     CHECK(n * limit_size >= maxn) << "invalid init parameter";
-    CHECK(nlevel <= limit_size * eps) << "invalid init parameter";
+    CHECK(nlevel <= std::max(static_cast<size_t>(1), static_cast<size_t>(limit_size * eps)))
+        << "invalid init parameter";
   }
 
   /*!

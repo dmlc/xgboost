@@ -1,30 +1,37 @@
 FROM ubuntu:18.04
-ARG CMAKE_VERSION=3.3
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
+SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 
 # Install all basic requirements
 RUN \
     apt-get update && \
     apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libasan2 libidn11 && \
     # CMake
-    wget -nv -nc https://cmake.org/files/v$CMAKE_VERSION/cmake-$CMAKE_VERSION.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-$CMAKE_VERSION.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
+    wget -nv -nc https://cmake.org/files/v3.13/cmake-3.13.0-Linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.13.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
     # Python
-    wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
-    bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python
+    wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash Miniconda3.sh -b -p /opt/python
 
 ENV PATH=/opt/python/bin:$PATH
 
 ENV GOSU_VERSION 1.10
 
-# Install Python packages
+# Create new Conda environment with Python 3.5
+RUN conda create -n py35 python=3.5 && \
+    source activate py35 && \
+    pip install numpy pytest scipy scikit-learn pandas matplotlib wheel kubernetes urllib3 graphviz && \
+    source deactivate
+
+# Install Python packages in default env
 RUN \
-    pip install pyyaml cpplint pylint astroid sphinx numpy scipy pandas matplotlib sh recommonmark guzzle_sphinx_theme mock \
-                breathe matplotlib graphviz pytest scikit-learn wheel kubernetes urllib3 && \
+    pip install pyyaml cpplint pylint astroid sphinx numpy scipy pandas matplotlib sh \
+    		recommonmark guzzle_sphinx_theme mock breathe graphviz \
+		pytest scikit-learn wheel kubernetes urllib3 jsonschema boto3 && \
     pip install https://h2o-release.s3.amazonaws.com/datatable/stable/datatable-0.7.0/datatable-0.7.0-cp37-cp37m-linux_x86_64.whl && \
-    pip install "dask[complete]==2.0.0"
+    pip install "dask[complete]"
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \

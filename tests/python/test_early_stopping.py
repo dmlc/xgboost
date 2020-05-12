@@ -22,17 +22,17 @@ class TestEarlyStopping(unittest.TestCase):
         y = digits['target']
         X_train, X_test, y_train, y_test = train_test_split(X, y,
                                                             random_state=0)
-        clf1 = xgb.XGBClassifier()
+        clf1 = xgb.XGBClassifier(learning_rate=0.1)
         clf1.fit(X_train, y_train, early_stopping_rounds=5, eval_metric="auc",
                  eval_set=[(X_test, y_test)])
-        clf2 = xgb.XGBClassifier()
+        clf2 = xgb.XGBClassifier(learning_rate=0.1)
         clf2.fit(X_train, y_train, early_stopping_rounds=4, eval_metric="auc",
                  eval_set=[(X_test, y_test)])
         # should be the same
         assert clf1.best_score == clf2.best_score
         assert clf1.best_score != 1
         # check overfit
-        clf3 = xgb.XGBClassifier()
+        clf3 = xgb.XGBClassifier(learning_rate=0.1)
         clf3.fit(X_train, y_train, early_stopping_rounds=10, eval_metric="auc",
                  eval_set=[(X_test, y_test)])
         assert clf3.best_score == 1

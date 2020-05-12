@@ -5,16 +5,18 @@
  * \author Tianqi Chen
  */
 #include <dmlc/omp.h>
-#include <dmlc/parameter.h>
-#include <xgboost/data.h>
-#include <xgboost/logging.h>
-#include <xgboost/objective.h>
+
 #include <vector>
 #include <algorithm>
 #include <limits>
 #include <utility>
 
+#include "xgboost/parameter.h"
+#include "xgboost/data.h"
+#include "xgboost/logging.h"
+#include "xgboost/objective.h"
 #include "xgboost/json.h"
+
 #include "../common/common.h"
 #include "../common/math.h"
 #include "../common/transform.h"
@@ -71,6 +73,11 @@ class SoftmaxMultiClassObj : public ObjFunction {
     label_correct_.Fill(1);
 
     const bool is_null_weight = info.weights_.Size() == 0;
+    if (!is_null_weight) {
+      CHECK_EQ(info.weights_.Size(), ndata)
+          << "Number of weights should be equal to number of data points.";
+    }
+
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t idx,
                            common::Span<GradientPair> gpair,
@@ -163,11 +170,11 @@ class SoftmaxMultiClassObj : public ObjFunction {
     } else {
       out["name"] = String("multi:softmax");
     }
-    out["softmax_multiclass_param"] = toJson(param_);
+    out["softmax_multiclass_param"] = ToJson(param_);
   }
 
   void LoadConfig(Json const& in) override {
-    fromJson(in["softmax_multiclass_param"], &param_);
+    FromJson(in["softmax_multiclass_param"], &param_);
   }
 
  private:

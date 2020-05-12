@@ -54,17 +54,24 @@ class RegLossObj : public ObjFunction {
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
-    CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
+    if (info.labels_.Size() == 0U) {
+      LOG(WARNING) << "Label set is empty.";
+    }
     CHECK_EQ(preds.Size(), info.labels_.Size())
-        << "labels are not correctly provided"
-        << "preds.size=" << preds.Size() << ", label.size=" << info.labels_.Size();
-    size_t ndata = preds.Size();
+        << " " << "labels are not correctly provided"
+        << "preds.size=" << preds.Size() << ", label.size=" << info.labels_.Size() << ", "
+        << "Loss: " << Loss::Name();
+    size_t const ndata = preds.Size();
     out_gpair->Resize(ndata);
     auto device = tparam_->gpu_id;
     label_correct_.Resize(1);
     label_correct_.Fill(1);
 
     bool is_null_weight = info.weights_.Size() == 0;
+    if (!is_null_weight) {
+      CHECK_EQ(info.weights_.Size(), ndata)
+          << "Number of weights should be equal to number of data points.";
+    }
     auto scale_pos_weight = param_.scale_pos_weight;
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t _idx,
@@ -119,11 +126,11 @@ class RegLossObj : public ObjFunction {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String(Loss::Name());
-    out["reg_loss_param"] = toJson(param_);
+    out["reg_loss_param"] = ToJson(param_);
   }
 
   void LoadConfig(Json const& in) override {
-    fromJson(in["reg_loss_param"], &param_);
+    FromJson(in["reg_loss_param"], &param_);
   }
 
  protected:
@@ -186,13 +193,17 @@ class PoissonRegression : public ObjFunction {
                    HostDeviceVector<GradientPair> *out_gpair) override {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
     CHECK_EQ(preds.Size(), info.labels_.Size()) << "labels are not correctly provided";
-    size_t ndata = preds.Size();
+    size_t const ndata = preds.Size();
     out_gpair->Resize(ndata);
     auto device = tparam_->gpu_id;
     label_correct_.Resize(1);
     label_correct_.Fill(1);
 
     bool is_null_weight = info.weights_.Size() == 0;
+    if (!is_null_weight) {
+      CHECK_EQ(info.weights_.Size(), ndata)
+          << "Number of weights should be equal to number of data points.";
+    }
     bst_float max_delta_step = param_.max_delta_step;
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t _idx,
@@ -242,11 +253,11 @@ class PoissonRegression : public ObjFunction {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String("count:poisson");
-    out["poisson_regression_param"] = toJson(param_);
+    out["poisson_regression_param"] = ToJson(param_);
   }
 
   void LoadConfig(Json const& in) override {
-    fromJson(in["poisson_regression_param"], &param_);
+    FromJson(in["poisson_regression_param"], &param_);
   }
 
  private:
@@ -280,6 +291,11 @@ class CoxRegression : public ObjFunction {
     const std::vector<size_t> &label_order = info.LabelAbsSort();
 
     const omp_ulong ndata = static_cast<omp_ulong>(preds_h.size()); // NOLINT(*)
+    const bool is_null_weight = info.weights_.Size() == 0;
+    if (!is_null_weight) {
+      CHECK_EQ(info.weights_.Size(), ndata)
+          << "Number of weights should be equal to number of data points.";
+    }
 
     // pre-compute a sum
     double exp_p_sum = 0;  // we use double because we might need the precision with large datasets
@@ -375,6 +391,10 @@ class GammaRegression : public ObjFunction {
     label_correct_.Fill(1);
 
     const bool is_null_weight = info.weights_.Size() == 0;
+    if (!is_null_weight) {
+      CHECK_EQ(info.weights_.Size(), ndata)
+          << "Number of weights should be equal to number of data points.";
+    }
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t _idx,
                            common::Span<int> _label_correct,
@@ -469,6 +489,11 @@ class TweedieRegression : public ObjFunction {
     label_correct_.Fill(1);
 
     const bool is_null_weight = info.weights_.Size() == 0;
+    if (!is_null_weight) {
+      CHECK_EQ(info.weights_.Size(), ndata)
+          << "Number of weights should be equal to number of data points.";
+    }
+
     const float rho = param_.tweedie_variance_power;
     common::Transform<>::Init(
         [=] XGBOOST_DEVICE(size_t _idx,
@@ -521,10 +546,10 @@ class TweedieRegression : public ObjFunction {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String("reg:tweedie");
-    out["tweedie_regression_param"] = toJson(param_);
+    out["tweedie_regression_param"] = ToJson(param_);
   }
   void LoadConfig(Json const& in) override {
-    fromJson(in["tweedie_regression_param"], &param_);
+    FromJson(in["tweedie_regression_param"], &param_);
   }
 
  private:

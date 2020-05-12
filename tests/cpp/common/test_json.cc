@@ -226,6 +226,10 @@ TEST(Json, EmptyObject) {
   std::stringstream iss(str);
   auto json = Json::Load(StringView{str.c_str(), str.size()});
   ASSERT_TRUE(IsA<Object>(json["statistic"]));
+
+  str = R"json({"Config": {},"Model": {}})json"; // NOLINT
+  json = Json::Load(StringView{str.c_str(), str.size()});
+  ASSERT_TRUE(IsA<Object>(json["Model"]));
 }
 
 TEST(Json, EmptyArray) {
@@ -258,7 +262,7 @@ TEST(Json, Indexing) {
   Json j {Json::Load(&reader)};
   auto& value_1 = j["model_parameter"];
   auto& value = value_1["base_score"];
-  std::string result = Cast<JsonString>(&value.GetValue())->getString();
+  std::string result = Cast<JsonString>(&value.GetValue())->GetString();
 
   ASSERT_EQ(result, "0.5");
 }
@@ -402,7 +406,7 @@ TEST(Json, WrongCasts) {
   }
 }
 
-TEST(Json, Int_vs_Float) {
+TEST(Json, IntVSFloat) {
   // If integer is parsed as float, calling `get<Integer>()' will throw.
   {
     std::string str = R"json(

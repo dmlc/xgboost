@@ -15,12 +15,16 @@
  */
 package ml.dmlc.xgboost4j.java;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.*;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 
 /**
  * trainer for xgboost
@@ -108,35 +112,34 @@ public class XGBoost {
     return train(dtrain, params, round, watches, metrics, obj, eval, earlyStoppingRound, null);
   }
 
-  /**
-   * Train a booster given parameters.
-   *
-   * @param dtrain  Data to be trained.
-   * @param params  Parameters.
-   * @param round   Number of boosting iterations.
-   * @param watches a group of items to be evaluated during training, this allows user to watch
-   *                performance on the validation set.
-   * @param metrics array containing the evaluation metrics for each matrix in watches for each
-   *                iteration
-   * @param earlyStoppingRounds if non-zero, training would be stopped
-   *                           after a specified number of consecutive
-   *                           goes to the unexpected direction in any evaluation metric.
-   * @param obj     customized objective
-   * @param eval    customized evaluation
-   * @param booster train from scratch if set to null; train from an existing booster if not null.
-   * @return The trained booster.
-   */
-  public static Booster train(
-          DMatrix dtrain,
-          Map<String, Object> params,
-          int round,
-          Map<String, DMatrix> watches,
-          float[][] metrics,
-          IObjective obj,
-          IEvaluation eval,
-          int earlyStoppingRounds,
-          Booster booster) throws XGBoostError {
+  private static void saveCheckpoint(
+          Booster booster,
+          int iter,
+          Set<Integer> checkpointIterations,
+          ExternalCheckpointManager ecm) throws XGBoostError {
+    try {
+      if (checkpointIterations.contains(iter)) {
+        ecm.updateCheckpoint(booster);
+      }
+    } catch (Exception e) {
+      logger.error("failed to save checkpoint in XGBoost4J at iteration " + iter, e);
+      throw new XGBoostError("failed to save checkpoint in XGBoost4J at iteration" + iter, e);
+    }
+  }
 
+  public static Booster trainAndSaveCheckpoint(
+      DMatrix dtrain,
+      Map<String, Object> params,
+      int numRounds,
+      Map<String, DMatrix> watches,
+      float[][] metrics,
+      IObjective obj,
+      IEvaluation eval,
+      int earlyStoppingRounds,
+      Booster booster,
+      int checkpointInterval,
+      String checkpointPath,
+      FileSystem fs) throws XGBoostError, IOException {
     //collect eval matrixs
     String[] evalNames;
     DMatrix[] evalMats;
@@ -144,6 +147,11 @@ public class XGBoost {
     int bestIteration;
     List<String> names = new ArrayList<String>();
     List<DMatrix> mats = new ArrayList<DMatrix>();
+    Set<Integer> checkpointIterations = new HashSet<>();
+    ExternalCheckpointManager ecm = null;
+    if (checkpointPath != null) {
+      ecm = new ExternalCheckpointManager(checkpointPath, fs);
+    }
 
     for (Map.Entry<String, DMatrix> evalEntry : watches.entrySet()) {
       names.add(evalEntry.getKey());
@@ -158,7 +166,7 @@ public class XGBoost {
       bestScore = Float.MAX_VALUE;
     }
     bestIteration = 0;
-    metrics = metrics == null ? new float[evalNames.length][round] : metrics;
+    metrics = metrics == null ? new float[evalNames.length][numRounds] : metrics;
 
     //collect all data matrixs
     DMatrix[] allMats;
@@ -181,14 +189,19 @@ public class XGBoost {
       booster.setParams(params);
     }
 
-    //begin to train
-    for (int iter = booster.getVersion() / 2; iter < round; iter++) {
+    if (ecm != null) {
+      checkpointIterations = new HashSet<>(ecm.getCheckpointRounds(checkpointInterval, numRounds));
+    }
+
+    // begin to train
+    for (int iter = booster.getVersion() / 2; iter < numRounds; iter++) {
       if (booster.getVersion() % 2 == 0) {
         if (obj != null) {
           booster.update(dtrain, obj);
         } else {
           booster.update(dtrain, iter);
         }
+        saveCheckpoint(booster, iter, checkpointIterations, ecm);
         booster.saveRabitCheckpoint();
       }
 
@@ -224,7 +237,7 @@ public class XGBoost {
           if (shouldEarlyStop(earlyStoppingRounds, iter, bestIteration)) {
             Rabit.trackerPrint(String.format(
                     "early stopping after %d rounds away from the best iteration",
-                        earlyStoppingRounds));
+                    earlyStoppingRounds));
             break;
           }
         }
@@ -237,6 +250,44 @@ public class XGBoost {
       booster.saveRabitCheckpoint();
     }
     return booster;
+  }
+
+  /**
+   * Train a booster given parameters.
+   *
+   * @param dtrain  Data to be trained.
+   * @param params  Parameters.
+   * @param round   Number of boosting iterations.
+   * @param watches a group of items to be evaluated during training, this allows user to watch
+   *                performance on the validation set.
+   * @param metrics array containing the evaluation metrics for each matrix in watches for each
+   *                iteration
+   * @param earlyStoppingRounds if non-zero, training would be stopped
+   *                           after a specified number of consecutive
+   *                           goes to the unexpected direction in any evaluation metric.
+   * @param obj     customized objective
+   * @param eval    customized evaluation
+   * @param booster train from scratch if set to null; train from an existing booster if not null.
+   * @return The trained booster.
+   */
+  public static Booster train(
+          DMatrix dtrain,
+          Map<String, Object> params,
+          int round,
+          Map<String, DMatrix> watches,
+          float[][] metrics,
+          IObjective obj,
+          IEvaluation eval,
+          int earlyStoppingRounds,
+          Booster booster) throws XGBoostError {
+    try {
+      return trainAndSaveCheckpoint(dtrain, params, round, watches, metrics, obj, eval,
+              earlyStoppingRounds, booster,
+              -1, null, null);
+    } catch (IOException e) {
+      logger.error("training failed in xgboost4j", e);
+      throw new XGBoostError("training failed in xgboost4j ", e);
+    }
   }
 
   private static Integer tryGetIntFromObject(Object o) {
