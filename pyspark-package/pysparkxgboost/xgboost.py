@@ -13,9 +13,101 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import re
+
+from pyspark.ml.param import Params
+from pyspark.ml.util import JavaMLWritable
+from pyspark.ml.wrapper import JavaModel, JavaEstimator
+
+from sparkxgb.util import XGBoostReadable
+from pyspark.ml.util import JavaMLReadable, JavaMLReader
 from pyspark import keyword_only
 
-from sparkxgb.common import XGboostEstimator, XGboostModel
+class ParamGettersSetters(Params):
+    """
+    Mixin class used to generate the setters/getters for all params.
+    """
+
+    def _create_param_getters_and_setters(self):
+        for param in self.params:
+            param_name = param.name
+            fg_attr = "get" + re.sub(r"(?:^|_)(.)", lambda m: m.group(1).upper(), param_name)
+            fs_attr = "set" + re.sub(r"(?:^|_)(.)", lambda m: m.group(1).upper(), param_name)
+            # Generates getter and setter only if not exists
+            try:
+                getattr(self, fg_attr)
+            except AttributeError:
+                setattr(self, fg_attr, self._get_param_value(param_name))
+            try:
+                getattr(self, fs_attr)
+            except AttributeError:
+                setattr(self, fs_attr, self._set_param_value(param_name))
+
+    def _get_param_value(self, param_name):
+        def r():
+            try:
+                return self.getOrDefault(param_name)
+            except KeyError:
+                return None
+        return r
+
+    def _set_param_value(self, param_name):
+        def r(v):
+            self.set(self.getParam(param_name), v)
+            return self
+        return r
+
+
+class XGboostEstimator(JavaEstimator, XGBoostReadable, JavaMLWritable, ParamGettersSetters):
+    """
+    Mixin class for XGBoost estimators, like XGBoostClassifier and XGBoostRegressor.
+    """
+
+    def __init__(self, classname):
+        super(XGboostEstimator, self).__init__()
+        self.__class__._java_class_name = classname
+        self._java_obj = self._new_java_obj(classname, self.uid)
+        self._create_params_from_java()
+        self._create_param_getters_and_setters()
+
+
+class XGboostModel(JavaModel, XGBoostReadable, JavaMLWritable, ParamGettersSetters):
+    """
+    Mixin class for XGBoost models, like XGBoostClassificationModel and XGBoostRegressionModel.
+    """
+
+    def __init__(self, classname, java_model=None):
+        super(XGboostModel, self).__init__(java_model=java_model)
+        if classname and not java_model:
+            self.__class__._java_class_name = classname
+            self._java_obj = self._new_java_obj(classname, self.uid)
+        if java_model is not None:
+            self._transfer_params_from_java()
+        self._create_param_getters_and_setters()
+
+
+class XGBoostReadable(JavaMLReadable):
+    """
+    Mixin class that provides a read() method for XGBoostReader.
+    """
+
+    @classmethod
+    def read(cls):
+        """Returns an XGBoostReader instance for this class."""
+        return XGBoostReader(cls)
+
+
+class XGBoostReader(JavaMLReader):
+    """
+    A reader mixin class for XGBoost objects.
+    """
+
+    @classmethod
+    def _java_loader_class(cls, clazz):
+        if hasattr(clazz, '_java_class_name') and clazz._java_class_name is not None:
+            return clazz._java_class_name
+        else:
+            return JavaMLReader._java_loader_class(clazz)
 
 
 class XGBoostClassifier(XGboostEstimator):

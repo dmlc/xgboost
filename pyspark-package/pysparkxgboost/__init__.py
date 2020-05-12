@@ -13,8 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from sparkxgb import xgboost
-from sparkxgb.xgboost import XGBoostClassifier, XGBoostRegressor, XGBoostClassificationModel, XGBoostRegressionModel
+
+from .xgboost import XGBoostClassifier, XGBoostRegressor, \
+    XGBoostClassificationModel, XGBoostRegressionModel
+from pyspark.ml import classification, regression
 
 __all__ = ["XGBoostClassifier", "XGBoostRegressor", "XGBoostClassificationModel", "XGBoostRegressionModel"]
 __version__ = "0.90"
+
+classification.XGBoostClassifier = XGBoostClassifier
+classification.XGBoostClassificationModel = XGBoostClassificationModel
+
+regression.XGBoostRegressor = XGBoostRegressor
+regression.XGBoostRegressionModel = XGBoostRegressionModel
+
+
+
+
