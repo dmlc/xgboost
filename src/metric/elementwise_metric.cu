@@ -373,7 +373,7 @@ XGBOOST_REGISTER_METRIC(MAE, "mae")
 .set_body([](const char* param) { return new EvalEWiseBase<EvalRowMAE>(); });
 
 XGBOOST_REGISTER_METRIC(MPHE, "mphe")
-.describe("Mean pseudo Huber error.")
+.describe("Mean Pseudo Huber error.")
 .set_body([](const char* param) { return new EvalEWiseBase<EvalRowMPHE>(); });
 
 XGBOOST_REGISTER_METRIC(LogLoss, "logloss")
