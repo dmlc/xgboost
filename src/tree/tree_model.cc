@@ -337,8 +337,9 @@ class JsonGenerator : public TreeGenerator {
     return result;
   }
 
-  std::string SplitNodeImpl(RegTree const& tree, int32_t nid,
-                            std::string const& template_str, std::string cond, uint32_t depth) const {
+  std::string SplitNodeImpl(RegTree const &tree, int32_t nid,
+                            std::string const &template_str, std::string cond,
+                            uint32_t depth) const {
     auto split_index = tree[nid].SplitIndex();
     std::string const result = SuperT::Match(
         template_str,
