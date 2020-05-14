@@ -223,5 +223,10 @@ template SimpleDMatrix::SimpleDMatrix(
     IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>
         *adapter,
     float missing, int nthread);
+
+#if defined(XGBOOST_BUILD_ARROW_SUPPORT)
+template SimpleDMatrix::SimpleDMatrix(ArrowAdapter* adapter, float missing,
+                                     int nthread);
+#endif
 }  // namespace data
 }  // namespace xgboost

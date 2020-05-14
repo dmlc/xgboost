@@ -25,6 +25,7 @@ set_default_configuration_release()
 #-- Options
 option(BUILD_C_DOC "Build documentation for C APIs using Doxygen." OFF)
 option(USE_OPENMP "Build with OpenMP support." ON)
+option(USE_ARROW "Build with Arrow support." OFF)
 option(BUILD_STATIC_LIB "Build static library" OFF)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
@@ -228,6 +229,7 @@ endif (USE_NVTX)
 
 target_include_directories(runxgboost
   PRIVATE
+  ${ARROW_INCLUDE_DIR}
   ${xgboost_SOURCE_DIR}/include
   ${xgboost_SOURCE_DIR}/dmlc-core/include
   ${xgboost_SOURCE_DIR}/rabit/include)

@@ -103,6 +103,17 @@ if (XGBOOST_BUILTIN_PREFETCH_PRESENT)
     -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
 endif (XGBOOST_BUILTIN_PREFETCH_PRESENT)
 
+if (USE_ARROW)
+  find_package(Python COMPONENTS Interpreter Development REQUIRED)
+  find_package(Arrow REQUIRED)
+  target_include_directories(objxgboost PRIVATE
+                              ${ARROW_INCLUDE_DIR}
+                              ${PYARROW_INCLUDE_DIR}
+                              ${Python_INCLUDE_DIRS})
+  target_compile_definitions(objxgboost PRIVATE -DXGBOOST_BUILD_ARROW_SUPPORT=1)
+  list(APPEND SRC_LIBS ${ARROW_SHARED_LIB} ${PYARROW_SHARED_LIB} ${Python_LIBRARIES})
+endif (USE_ARROW)
+
 find_package(Threads REQUIRED)
 target_link_libraries(objxgboost PUBLIC Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
 

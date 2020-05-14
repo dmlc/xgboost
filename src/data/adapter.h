@@ -14,6 +14,10 @@
 #include <utility>
 #include <vector>
 
+#if defined(XGBOOST_BUILD_ARROW_SUPPORT)
+#include <arrow/api.h>
+#endif
+
 #include "xgboost/logging.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
@@ -293,6 +297,71 @@ class CSCAdapter : public detail::SingleBatchDataIter<CSCAdapterBatch> {
   size_t num_rows_;
   size_t num_columns_;
 };
+
+#if defined(XGBOOST_BUILD_ARROW_SUPPORT)
+class ArrowAdapterBatch : public detail::NoMetaInfo {
+public:
+  ArrowAdapterBatch(const std::shared_ptr<arrow::Table>& data,
+                    xgboost::bst_row_t num_rows,
+                    xgboost::bst_feature_t num_cols)
+      : data_(data), num_rows_(num_rows), num_columns_(num_cols) {}
+
+private:
+  struct Chunk {
+    xgboost::bst_feature_t column_idx;
+    xgboost::bst_row_t row_start;
+    xgboost::bst_row_t row_end;
+    std::shared_ptr<arrow::DoubleArray> values;
+
+    Chunk(xgboost::bst_feature_t col,
+          xgboost::bst_row_t start,
+          xgboost::bst_row_t end,
+          const std::shared_ptr<arrow::DoubleArray>& chunk)
+      : column_idx(col), row_start(start), row_end(end), values(chunk) {}
+  };
+
+public:
+  xgboost::bst_row_t Size() const { return num_rows_; }
+  xgboost::bst_feature_t NumColumns() const { return num_columns_; }
+  std::vector<Chunk> GetChunks() const {
+    std::vector<Chunk> cvec;
+    for (xgboost::bst_feature_t col = 0; col < num_columns_; ++col) {
+      xgboost::bst_row_t start = 0;
+      xgboost::bst_row_t end = 0;
+      for (auto& chunk : data_->column(col)->chunks()) {
+        end += chunk->length();
+        cvec.emplace_back(
+          col, start, end, std::static_pointer_cast<arrow::DoubleArray>(chunk)
+        );
+        start = end;
+      }
+    }
+    return cvec;
+  }
+
+private:
+  std::shared_ptr<arrow::Table> data_;
+  xgboost::bst_row_t num_rows_;
+  xgboost::bst_feature_t num_columns_;
+};
+
+class ArrowAdapter : public detail::SingleBatchDataIter<ArrowAdapterBatch> {
+public:
+  ArrowAdapter(const std::shared_ptr<arrow::Table>& table,
+               xgboost::bst_row_t num_rows,
+               xgboost::bst_feature_t num_cols)
+      : batch_(table, num_rows, num_cols),
+        num_rows_(num_rows), num_columns_(num_cols) {}
+  const ArrowAdapterBatch& Value() const override { return batch_; }
+  xgboost::bst_row_t NumRows() const { return num_rows_; }
+  xgboost::bst_feature_t NumColumns() const { return num_columns_; }
+
+private:
+  ArrowAdapterBatch batch_;
+  xgboost::bst_row_t num_rows_;
+  xgboost::bst_feature_t num_columns_;
+};
+#endif
 
 class DataTableAdapterBatch : public detail::NoMetaInfo {
  public:

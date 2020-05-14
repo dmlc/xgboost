@@ -204,6 +204,23 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
   API_END();
 }
 
+#if defined(XGBOOST_BUILD_ARROW_SUPPORT)
+XGB_DLL int XGDMatrixCreateFromArrowTable(PyObject* data,
+                                          bst_ulong nrow,
+                                          bst_ulong ncol,
+                                          DMatrixHandle* out,
+                                          int nthread) {
+  API_BEGIN();
+  CHECK(arrow::py::is_table(data)) << "Data is not valid Arrow table";
+  std::shared_ptr<arrow::Table> table;
+  CHECK(arrow::py::unwrap_table(data, &table).ok());
+  data::ArrowAdapter adapter(table, nrow, ncol);
+  *out = new std::shared_ptr<DMatrix>(
+      DMatrix::Create(&adapter, std::nan(""), nthread));
+  API_END();
+}
+#endif
+
 XGB_DLL int XGDMatrixSliceDMatrix(DMatrixHandle handle,
                                   const int* idxset,
                                   xgboost::bst_ulong len,

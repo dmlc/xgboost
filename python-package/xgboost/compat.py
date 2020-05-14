@@ -198,3 +198,14 @@ except ImportError:
     sparse = False
     scipy_sparse = False
     SCIPY_INSTALLED = False
+
+# pyarrow
+try:
+    from pyarrow import Table as ArrowTable
+    from pyarrow import ChunkedArray as ArrowChunkedArray
+
+    PYARROW_INSTALLED = True
+except ImportError:
+
+    PYARROW_INSTALLED = False
+
