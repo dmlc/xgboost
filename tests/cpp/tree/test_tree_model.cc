@@ -151,6 +151,10 @@ TEST(Tree, DumpJson) {
 
   str = tree.DumpModel(fmap, false, "json");
   ASSERT_EQ(str.find("cover"), std::string::npos);
+
+
+  auto j_tree = Json::Load({str.c_str(), str.size()});
+  ASSERT_EQ(get<Array>(j_tree["children"]).size(), 2);
 }
 
 TEST(Tree, DumpText) {
