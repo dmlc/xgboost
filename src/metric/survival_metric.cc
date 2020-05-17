@@ -27,6 +27,55 @@ namespace metric {
 // tag the this file, used by force static link later.
 DMLC_REGISTRY_FILE_TAG(survival_metric);
 
+struct EvalIntervalRegressionAccuracy : public Metric {
+ public:
+  explicit EvalIntervalRegressionAccuracy(const char* param) {}
+
+  bst_float Eval(const HostDeviceVector<bst_float> &preds,
+                 const MetaInfo &info,
+                 bool distributed) override {
+    CHECK_NE(info.labels_lower_bound_.Size(), 0U)
+      << "y_lower cannot be empty";
+    CHECK_NE(info.labels_upper_bound_.Size(), 0U)
+      << "y_higher cannot be empty";
+    CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
+    CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
+
+    const auto& yhat = preds.HostVector();
+    const auto& y_lower = info.labels_lower_bound_.HostVector();
+    const auto& y_upper = info.labels_upper_bound_.HostVector();
+    const auto& weights = info.weights_.HostVector();
+    const bool is_null_weight = weights.empty();
+    CHECK_LE(yhat.size(), static_cast<size_t>(std::numeric_limits<omp_ulong>::max()))
+      << "yhat is too big";
+    const omp_ulong nsize = static_cast<omp_ulong>(yhat.size());
+
+    double acc_sum = 0.0;
+    double weight_sum = 0.0;
+    #pragma omp parallel for \
+      firstprivate(nsize, is_null_weight) shared(weights, y_lower, y_upper, yhat) \
+      reduction(+:acc_sum, weight_sum)
+    for (omp_ulong i = 0; i < nsize; ++i) {
+      const double pred = std::exp(yhat[i]);
+      const double w = is_null_weight ? 1.0 : weights[i];
+      if (pred >= y_lower[i] && pred <= y_upper[i]) {
+        acc_sum += 1.0;
+      }
+      weight_sum += w;  
+    }
+
+    double dat[2]{acc_sum, weight_sum};
+    if (distributed) {
+      rabit::Allreduce<rabit::op::Sum>(dat, 2);
+    }
+    return static_cast<bst_float>(dat[0] / dat[1]);
+  }
+
+  const char* Name() const override {
+    return "interval-regression-accuracy";
+  }
+};
+
 /*! \brief Negative log likelihood of Accelerated Failure Time model */
 struct EvalAFT : public Metric {
  public:
@@ -100,6 +149,10 @@ struct EvalAFT : public Metric {
 XGBOOST_REGISTER_METRIC(AFT, "aft-nloglik")
 .describe("Negative log likelihood of Accelerated Failure Time model.")
 .set_body([](const char* param) { return new EvalAFT(param); });
+
+XGBOOST_REGISTER_METRIC(IntervalRegressionAccuracy, "interval-regression-accuracy")
+.describe("")
+.set_body([](const char* param) { return new EvalIntervalRegressionAccuracy(param); });
 
 }  // namespace metric
 }  // namespace xgboost
