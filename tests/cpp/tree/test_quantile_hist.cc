@@ -140,7 +140,7 @@ class QuantileHistMock : public QuantileHistMaker {
       nodes_for_subtraction_trick_.emplace_back(5, 6, tree->GetDepth(5), 0.0f, 0);
       nodes_for_subtraction_trick_.emplace_back(6, 5, tree->GetDepth(6), 0.0f, 0);
 
-      hist_rows_adder_->AddHistRows(&starting_index, &sync_count, tree);
+      hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
       ASSERT_EQ(sync_count, 2);
       ASSERT_EQ(starting_index, 3);
 
@@ -166,7 +166,7 @@ class QuantileHistMock : public QuantileHistMaker {
       nodes_for_subtraction_trick_.clear();
       // level 0
       nodes_for_explicit_hist_build_.emplace_back(0, -1, tree->GetDepth(0), 0.0f, 0);
-      hist_rows_adder_->AddHistRows(&starting_index, &sync_count, tree);
+      hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
       tree->ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
 
       nodes_for_explicit_hist_build_.clear();
@@ -176,7 +176,7 @@ class QuantileHistMock : public QuantileHistMaker {
                                                 tree->GetDepth(1), 0.0f, 0);
       nodes_for_subtraction_trick_.emplace_back((*tree)[0].RightChild(), (*tree)[0].LeftChild(),
                                               tree->GetDepth(2), 0.0f, 0);
-      hist_rows_adder_->AddHistRows(&starting_index, &sync_count, tree);
+      hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
       tree->ExpandNode((*tree)[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
       tree->ExpandNode((*tree)[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
 
@@ -187,7 +187,7 @@ class QuantileHistMock : public QuantileHistMaker {
       nodes_for_subtraction_trick_.emplace_back(4, 3, tree->GetDepth(4), 0.0f, 0);
       nodes_for_explicit_hist_build_.emplace_back(5, 6, tree->GetDepth(5), 0.0f, 0);
       nodes_for_subtraction_trick_.emplace_back(6, 5, tree->GetDepth(6), 0.0f, 0);
-      hist_rows_adder_->AddHistRows(&starting_index, &sync_count, tree);
+      hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
 
       const size_t n_nodes = nodes_for_explicit_hist_build_.size();
       ASSERT_EQ(n_nodes, 2);
@@ -233,7 +233,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
       hist_buffer_.Reset(1, n_nodes, space, target_hists);
       // sync hist
-      hist_synchronizer_->SyncHistograms(starting_index, sync_count, tree);
+      hist_synchronizer_->SyncHistograms(this, starting_index, sync_count, tree);
 
       auto check_hist = [] (const GHistRow parent, const GHistRow left,
                             const GHistRow right, size_t begin, size_t end) {
@@ -479,11 +479,11 @@ class QuantileHistMock : public QuantileHistMaker {
             int_constraint_,
             dmat_.get()));
     if (batch) {
-      builder_->SetHistSynchronizer(new BatchHistSynchronizer(builder_.get()));
-      builder_->SetHistRowsAdder(new BatchHistRowsAdder(builder_.get()));
+      builder_->SetHistSynchronizer(new BatchHistSynchronizer());
+      builder_->SetHistRowsAdder(new BatchHistRowsAdder());
     } else {
-      builder_->SetHistSynchronizer(new DistributedHistSynchronizer(builder_.get()));
-      builder_->SetHistRowsAdder(new DistributedHistRowsAdder(builder_.get()));
+      builder_->SetHistSynchronizer(new DistributedHistSynchronizer());
+      builder_->SetHistRowsAdder(new DistributedHistRowsAdder());
     }
   }
   ~QuantileHistMock() override = default;

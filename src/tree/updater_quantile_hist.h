@@ -396,64 +396,47 @@ class QuantileHistMaker: public TreeUpdater {
 
 class HistSynchronizer {
  public:
-  explicit HistSynchronizer(QuantileHistMaker::Builder* builder) : builder_(builder) {}
-  virtual void SyncHistograms(int starting_index,
+  virtual void SyncHistograms(QuantileHistMaker::Builder* builder,
+                              int starting_index,
                               int sync_count,
                               RegTree *p_tree) = 0;
-  virtual ~HistSynchronizer() {
-    builder_ = nullptr;
-  }
-
- protected:
-  QuantileHistMaker::Builder* builder_;
 };
 
 class BatchHistSynchronizer: public HistSynchronizer {
  public:
-  explicit BatchHistSynchronizer(QuantileHistMaker::Builder* builder): HistSynchronizer(builder) {}
-
-  void SyncHistograms(int starting_index,
-                              int sync_count,
-                              RegTree *p_tree) override;
+  void SyncHistograms(QuantileHistMaker::Builder* builder,
+                      int starting_index,
+                      int sync_count,
+                      RegTree *p_tree) override;
 };
 
 class DistributedHistSynchronizer: public HistSynchronizer {
  public:
-  explicit DistributedHistSynchronizer(QuantileHistMaker::Builder* builder):
-                                       HistSynchronizer(builder) {}
+  void SyncHistograms(QuantileHistMaker::Builder* builder_,
+                      int starting_index, int sync_count, RegTree *p_tree) override;
 
-  void SyncHistograms(int starting_index,
-                              int sync_count,
-                              RegTree *p_tree) override;
-  void ParallelSubtractionHist(const common::BlockedSpace2d& space,
+  void ParallelSubtractionHist(QuantileHistMaker::Builder* builder,
+                               const common::BlockedSpace2d& space,
                                const std::vector<QuantileHistMaker::Builder::ExpandEntry>& nodes,
                                const RegTree * p_tree);
 };
 
 class HistRowsAdder {
  public:
-  explicit HistRowsAdder(QuantileHistMaker::Builder* builder) : builder_(builder) {}
-  virtual void AddHistRows(int *starting_index, int *sync_count, RegTree *p_tree) = 0;
-  virtual ~HistRowsAdder() {
-    builder_ = nullptr;
-  }
-
- protected:
-  QuantileHistMaker::Builder* builder_;
+  virtual void AddHistRows(QuantileHistMaker::Builder* builder,
+                           int *starting_index, int *sync_count, RegTree *p_tree) = 0;
 };
 
 class BatchHistRowsAdder: public HistRowsAdder {
  public:
-  explicit BatchHistRowsAdder(QuantileHistMaker::Builder* builder) : HistRowsAdder(builder) {}
-
-  void AddHistRows(int *starting_index, int *sync_count, RegTree *p_tree) override;
+  void AddHistRows(QuantileHistMaker::Builder* builder,
+                   int *starting_index, int *sync_count, RegTree *p_tree) override;
 };
 
 class DistributedHistRowsAdder: public HistRowsAdder {
  public:
-  explicit DistributedHistRowsAdder(QuantileHistMaker::Builder* builder) : HistRowsAdder(builder) {}
-
-  void AddHistRows(int *starting_index, int *sync_count, RegTree *p_tree) override;
+  void AddHistRows(QuantileHistMaker::Builder* builder,
+                   int *starting_index, int *sync_count, RegTree *p_tree) override;
 };
 
 
