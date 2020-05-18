@@ -1,0 +1,55 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "definitions": {
+        "split_node": {
+            "type": "object",
+            "properties": {
+                "nodeid": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "depth": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "yes": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "no": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "split": {
+                    "type": "string"
+                },
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "oneOf": [
+                            {"$ref": "#/definitions/split_node"},
+                            {"$ref": "#/definitions/leaf_node"}
+                        ]
+                    },
+                    "maxItems": 2
+                }
+            },
+            "required": ["nodeid", "depth", "yes", "no", "split", "children"]
+        },
+        "leaf_node": {
+            "type": "object",
+            "properties": {
+                "nodeid": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "leaf": {
+                    "type": "number"
+                }
+            },
+            "required": ["nodeid", "leaf"]
+        }
+    },
+    "type": "object",
+    "$ref": "#/definitions/split_node"
+}

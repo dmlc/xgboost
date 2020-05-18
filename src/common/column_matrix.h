@@ -82,14 +82,16 @@ template <typename BinIdxType>
 class DenseColumn: public Column<BinIdxType> {
  public:
   DenseColumn(ColumnType type, common::Span<const BinIdxType> index,
-              uint32_t index_base,
-              const std::vector<bool>::const_iterator missing_flags)
+              uint32_t index_base, const std::vector<bool>& missing_flags,
+              size_t feature_offset)
       : Column<BinIdxType>(type, index, index_base),
-        missing_flags_(missing_flags) {}
-  bool IsMissing(size_t idx) const { return missing_flags_[idx]; }
+        missing_flags_(missing_flags),
+        feature_offset_(feature_offset) {}
+  bool IsMissing(size_t idx) const { return missing_flags_[feature_offset_ + idx]; }
  private:
   /* flags for missing values in dense columns */
-  std::vector<bool>::const_iterator missing_flags_;
+  const std::vector<bool>& missing_flags_;
+  size_t feature_offset_;
 };
 
 /*! \brief a collection of columns, with support for construction from
@@ -208,10 +210,8 @@ class ColumnMatrix {
                                                  column_size };
     std::unique_ptr<const Column<BinIdxType> > res;
     if (type_[fid] == ColumnType::kDenseColumn) {
-      std::vector<bool>::const_iterator column_iterator = missing_flags_.begin();
-      advance(column_iterator, feature_offset);  // increment iterator to right position
       res.reset(new DenseColumn<BinIdxType>(type_[fid], bin_index, index_base_[fid],
-                                            column_iterator));
+                                             missing_flags_, feature_offset));
     } else {
       res.reset(new SparseColumn<BinIdxType>(type_[fid], bin_index, index_base_[fid],
                                        {&row_ind_[feature_offset], column_size}));
