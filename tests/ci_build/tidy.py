@@ -124,8 +124,8 @@ class ClangTidy(object):
                 if pos != -1:
                     converted_components.append(
                         '--cuda-gpu-arch=sm_' + capability)
-            elif components[i].find('--std=c++11') != -1:
-                converted_components.append('-std=c++11')
+            elif components[i].find('--std=c++14') != -1:
+                converted_components.append('-std=c++14')
             elif components[i].startswith('-isystem='):
                 converted_components.extend(components[i].split('='))
             else:
