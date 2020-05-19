@@ -231,6 +231,9 @@ class ArrayInterfaceHandler {
 class ArrayInterface {
  public:
   ArrayInterface() = default;
+  explicit ArrayInterface(std::string const& str) {
+    auto jinterface = Json::Load({str.c_str(), str.size()});
+  }
   explicit ArrayInterface(std::map<std::string, Json> const& column) {
     ArrayInterfaceHandler::Validate(column);
     data = ArrayInterfaceHandler::GetPtrFromArrayData<void*>(column);

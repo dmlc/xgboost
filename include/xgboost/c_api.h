@@ -301,7 +301,7 @@ XGB_DLL int XGDMatrixCreateFromCallback(DataIterHandle iter,
  * \brief Set data on a DMatrix proxy.
  *
  * \param handle a DMatrix proxy created by XGProxyDMatrixCreate
- * \param interface string for CUDA array interface.
+ * \param interface Null terminated string for CUDA array interface.
  */
 XGB_DLL int XGDMatrixSetDataCudaArrayInterface(
     DMatrixHandle handle,

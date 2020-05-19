@@ -24,6 +24,8 @@
 #include <vector>
 #include <string>
 
+#include "../../../../src/data/array_interface.h"
+
 #define JVM_CHECK_CALL(__expr)                                                 \
   {                                                                            \
     int __errcode = (__expr);                                                  \
@@ -43,12 +45,14 @@ void setHandle(JNIEnv *jenv, jlongArray jhandle, void* handle) {
   jenv->SetLongArrayRegion(jhandle, 0, 1, &out);
 }
 
-// global JVM
-static JavaVM* global_jvm = nullptr;
+JavaVM*& GlobalJvm() {
+  static JavaVM* vm;
+  return vm;
+}
 
 // overrides JNI on load
 jint JNI_OnLoad(JavaVM *vm, void *reserved) {
-  global_jvm = vm;
+  GlobalJvm() = vm;
   return JNI_VERSION_1_6;
 }
 
@@ -58,9 +62,9 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
     DataHolderHandle set_function_handle) {
   jobject jiter = static_cast<jobject>(data_handle);
   JNIEnv* jenv;
-  int jni_status = global_jvm->GetEnv((void **)&jenv, JNI_VERSION_1_6);
+  int jni_status = GlobalJvm()->GetEnv((void **)&jenv, JNI_VERSION_1_6);
   if (jni_status == JNI_EDETACHED) {
-    global_jvm->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
+    GlobalJvm()->AttachCurrentThread(reinterpret_cast<void **>(&jenv), nullptr);
   } else {
     CHECK(jni_status == JNI_OK);
   }
@@ -148,13 +152,13 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
     jenv->DeleteLocalRef(iterClass);
     // only detach if it is a async call.
     if (jni_status == JNI_EDETACHED) {
-      global_jvm->DetachCurrentThread();
+      GlobalJvm()->DetachCurrentThread();
     }
     return ret_value;
-  } catch(dmlc::Error e) {
+  } catch(dmlc::Error const& e) {
     // only detach if it is a async call.
     if (jni_status == JNI_EDETACHED) {
-      global_jvm->DetachCurrentThread();
+      GlobalJvm()->DetachCurrentThread();
     }
     LOG(FATAL) << e.what();
     return -1;
@@ -952,3 +956,61 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitAllreduce
 
   return 0;
 }
+
+jint XGDeviceQuantileDMatrixCreateFromCallbackImpl(JNIEnv *jenv, jclass jcls,
+                                                   jobject jiter,
+                                                   jfloat jmissing,
+                                                   jint jmax_bin, jint jnthread,
+                                                   jlongArray jout);
+
+JNIEXPORT jint JNICALL
+Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDeviceQuantileDMatrixCreateFromCallback( // NOLINT
+    JNIEnv *jenv, jclass jcls, jobject jiter, jfloat jmissing, jint jmax_bin,
+    jint jnthread, jlongArray jout) {
+  return XGDeviceQuantileDMatrixCreateFromCallbackImpl(
+      jenv, jcls, jiter, jmissing, jmax_bin, jnthread, jout);
+}
+
+extern int XGDeviceQuantileDMatrixCreateFromArrayInterfaceColumns(
+    char const *c_json_strs, float missing, int nthread, int max_bin,
+    DMatrixHandle *out);
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixCreateFromArrayInterfaceColumns
+ * Signature: (Ljava/lang/String;FI[J)I
+ */
+JNIEXPORT jint JNICALL
+Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixCreateFromArrayInterfaceColumns(
+    JNIEnv *jenv, jclass jcls, jstring jjson_columns, jint jmax_bin,
+    jfloat jmissing, jint jnthread, jlongArray jout) {
+  DMatrixHandle result;
+  const char* cjson_columns = jenv->GetStringUTFChars(jjson_columns, nullptr);
+  int ret = XGDeviceQuantileDMatrixCreateFromArrayInterfaceColumns(
+      cjson_columns, jmissing, jnthread, jmax_bin, &result);
+  JVM_CHECK_CALL(ret);
+  if (cjson_columns) {
+    jenv->ReleaseStringUTFChars(jjson_columns, cjson_columns);
+  }
+  setHandle(jenv, jout, result);
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixSetInfoFromInterface
+ * Signature: (JLjava/lang/String;Ljava/lang/String;)I
+ */
+// JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSetInfoFromInterface
+//     (JNIEnv *jenv, jclass jcls, jlong jhandle, jstring jfield, jstring jjson_columns) {
+//   DMatrixHandle handle = (DMatrixHandle) jhandle;
+//   const char* field = jenv->GetStringUTFChars(jfield, 0);
+//   const char* cjson_columns = jenv->GetStringUTFChars(jjson_columns, 0);
+
+//   int ret = XGDMatrixSetInfoFromInterface(handle, field, cjson_columns);
+//   JVM_CHECK_CALL(ret);
+//   //release
+//   if (field) jenv->ReleaseStringUTFChars(jfield, field);
+//   if (cjson_columns) jenv->ReleaseStringUTFChars(jjson_columns, cjson_columns);
+//   return ret;
+// }
