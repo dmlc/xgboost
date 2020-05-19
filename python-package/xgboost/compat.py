@@ -206,6 +206,6 @@ try:
 
     PYARROW_INSTALLED = True
 except ImportError:
-
+    ArrowTable = object
+    ArrowChunkedArray = object
     PYARROW_INSTALLED = False
-

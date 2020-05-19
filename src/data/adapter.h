@@ -300,13 +300,13 @@ class CSCAdapter : public detail::SingleBatchDataIter<CSCAdapterBatch> {
 
 #if defined(XGBOOST_BUILD_ARROW_SUPPORT)
 class ArrowAdapterBatch : public detail::NoMetaInfo {
-public:
+ public:
   ArrowAdapterBatch(const std::shared_ptr<arrow::Table>& data,
                     xgboost::bst_row_t num_rows,
                     xgboost::bst_feature_t num_cols)
       : data_(data), num_rows_(num_rows), num_columns_(num_cols) {}
 
-private:
+ private:
   struct Chunk {
     xgboost::bst_feature_t column_idx;
     xgboost::bst_row_t row_start;
@@ -320,7 +320,7 @@ private:
       : column_idx(col), row_start(start), row_end(end), values(chunk) {}
   };
 
-public:
+ public:
   xgboost::bst_row_t Size() const { return num_rows_; }
   xgboost::bst_feature_t NumColumns() const { return num_columns_; }
   std::vector<Chunk> GetChunks() const {
@@ -331,15 +331,14 @@ public:
       for (auto& chunk : data_->column(col)->chunks()) {
         end += chunk->length();
         cvec.emplace_back(
-          col, start, end, std::static_pointer_cast<arrow::DoubleArray>(chunk)
-        );
+          col, start, end, std::static_pointer_cast<arrow::DoubleArray>(chunk));
         start = end;
       }
     }
     return cvec;
   }
 
-private:
+ private:
   std::shared_ptr<arrow::Table> data_;
   xgboost::bst_row_t num_rows_;
   xgboost::bst_feature_t num_columns_;
@@ -356,7 +355,7 @@ public:
   xgboost::bst_row_t NumRows() const { return num_rows_; }
   xgboost::bst_feature_t NumColumns() const { return num_columns_; }
 
-private:
+ private:
   ArrowAdapterBatch batch_;
   xgboost::bst_row_t num_rows_;
   xgboost::bst_feature_t num_columns_;
