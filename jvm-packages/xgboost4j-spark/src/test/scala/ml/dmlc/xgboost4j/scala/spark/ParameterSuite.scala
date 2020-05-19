@@ -23,6 +23,16 @@ import org.apache.spark.ml.param.ParamMap
 
 class ParameterSuite extends FunSuite with PerTest with BeforeAndAfterAll {
 
+  test("XGBoost default objective parameter") {
+    val xgbParamMap: Map[String, Any] = Map.empty
+    // from xgboost params to spark params
+    val classifier = new XGBoostClassifier(xgbParamMap)
+    assert(classifier.getObjective === "binary:logistic")
+
+    val regressor = new XGBoostRegressor(xgbParamMap)
+    assert(regressor.getObjective === "reg:squarederror")
+  }
+
   test("XGBoost and Spark parameters synchronize correctly") {
     val xgbParamMap = Map("eta" -> "1", "objective" -> "binary:logistic",
       "objective_type" -> "classification")

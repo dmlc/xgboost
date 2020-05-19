@@ -20,8 +20,8 @@ import ml.dmlc.xgboost4j.scala.spark.params._
 
 import org.apache.spark.ml.param.shared.HasWeightCol
 
-private[spark] sealed trait XGBoostEstimatorCommon extends GeneralParams with LearningTaskParams
-  with BoosterParams with RabitParams with ParamMapFuncs with NonParamVariables {
+private[spark] sealed trait XGBoostEstimatorCommon extends GeneralParams with BoosterParams
+  with RabitParams with ParamMapFuncs with NonParamVariables {
 
   def needDeterministicRepartitioning: Boolean = {
     getCheckpointPath != null && getCheckpointPath.nonEmpty && getCheckpointInterval > 0
@@ -30,8 +30,8 @@ private[spark] sealed trait XGBoostEstimatorCommon extends GeneralParams with Le
 
 private[spark] trait XGBoostClassifierParams extends HasWeightCol with HasBaseMarginCol
   with HasNumClass with HasLeafPredictionCol with HasContribPredictionCol
-  with XGBoostEstimatorCommon
+  with ClassificationLearningTaskParams with XGBoostEstimatorCommon
 
 private[spark] trait XGBoostRegressorParams extends HasBaseMarginCol with HasWeightCol
   with HasGroupCol with HasLeafPredictionCol with HasContribPredictionCol
-  with XGBoostEstimatorCommon
+  with RegressionLearningTaskParams with XGBoostEstimatorCommon

@@ -105,8 +105,17 @@ private[spark] trait LearningTaskParams extends Params {
 
   final def getMaximizeEvaluationMetrics: Boolean = $(maximizeEvaluationMetrics)
 
-  setDefault(objective -> "reg:squarederror", baseScore -> 0.5,
-    trainTestRatio -> 1.0, numEarlyStoppingRounds -> 0, cacheTrainingSet -> false)
+  setDefault(baseScore -> 0.5, trainTestRatio -> 1.0, numEarlyStoppingRounds -> 0,
+    cacheTrainingSet -> false)
+}
+
+
+private[spark] trait ClassificationLearningTaskParams extends LearningTaskParams {
+  setDefault(objective -> "binary:logistic")
+}
+
+private[spark] trait RegressionLearningTaskParams extends LearningTaskParams {
+  setDefault(objective -> "reg:squarederror")
 }
 
 private[spark] object LearningTaskParams {
