@@ -345,7 +345,7 @@ class ArrowAdapterBatch : public detail::NoMetaInfo {
 };
 
 class ArrowAdapter : public detail::SingleBatchDataIter<ArrowAdapterBatch> {
-public:
+ public:
   ArrowAdapter(const std::shared_ptr<arrow::Table>& table,
                xgboost::bst_row_t num_rows,
                xgboost::bst_feature_t num_cols)
