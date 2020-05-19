@@ -220,38 +220,38 @@ struct WriteWrapper : public Serializable {
 }  // namespace c_api
 }  // namespace rabit
 
-bool RabitInit(int argc, char *argv[]) {
+RABIT_DLL bool RabitInit(int argc, char *argv[]) {
   return rabit::Init(argc, argv);
 }
 
-bool RabitFinalize() {
+RABIT_DLL bool RabitFinalize() {
   return rabit::Finalize();
 }
 
-int RabitGetRingPrevRank() {
+RABIT_DLL int RabitGetRingPrevRank() {
   return rabit::GetRingPrevRank();
 }
 
-int RabitGetRank() {
+RABIT_DLL int RabitGetRank() {
   return rabit::GetRank();
 }
 
-int RabitGetWorldSize() {
+RABIT_DLL int RabitGetWorldSize() {
   return rabit::GetWorldSize();
 }
 
-int RabitIsDistributed() {
+RABIT_DLL int RabitIsDistributed() {
   return rabit::IsDistributed();
 }
 
-void RabitTrackerPrint(const char *msg) {
+RABIT_DLL void RabitTrackerPrint(const char *msg) {
   std::string m(msg);
   rabit::TrackerPrint(m);
 }
 
-void RabitGetProcessorName(char *out_name,
-                           rbt_ulong *out_len,
-                           rbt_ulong max_len) {
+RABIT_DLL void RabitGetProcessorName(char *out_name,
+                                     rbt_ulong *out_len,
+                                     rbt_ulong max_len) {
   std::string s = rabit::GetProcessorName();
   if (s.length() > max_len) {
     s.resize(max_len - 1);
@@ -260,17 +260,14 @@ void RabitGetProcessorName(char *out_name,
   *out_len = static_cast<rbt_ulong>(s.length());
 }
 
-void RabitBroadcast(void *sendrecv_data,
-                    rbt_ulong size, int root) {
+RABIT_DLL void RabitBroadcast(void *sendrecv_data,
+                              rbt_ulong size, int root) {
   rabit::Broadcast(sendrecv_data, size, root);
 }
 
-void RabitAllgather(void *sendrecvbuf_,
-                        size_t total_size,
-                        size_t beginIndex,
-                        size_t size_node_slice,
-                        size_t size_prev_slice,
-                        int enum_dtype) {
+RABIT_DLL void RabitAllgather(void *sendrecvbuf_, size_t total_size,
+                              size_t beginIndex, size_t size_node_slice,
+                              size_t size_prev_slice, int enum_dtype) {
   rabit::c_api::Allgather(sendrecvbuf_,
                           total_size,
                           beginIndex,
@@ -279,13 +276,9 @@ void RabitAllgather(void *sendrecvbuf_,
                           static_cast<rabit::engine::mpi::DataType>(enum_dtype));
 }
 
-
-void RabitAllreduce(void *sendrecvbuf,
-                    size_t count,
-                    int enum_dtype,
-                    int enum_op,
-                    void (*prepare_fun)(void *arg),
-                    void *prepare_arg) {
+RABIT_DLL void RabitAllreduce(void *sendrecvbuf, size_t count, int enum_dtype,
+                              int enum_op, void (*prepare_fun)(void *arg),
+                              void *prepare_arg) {
   rabit::c_api::Allreduce
       (sendrecvbuf, count,
        static_cast<rabit::engine::mpi::DataType>(enum_dtype),
@@ -293,10 +286,10 @@ void RabitAllreduce(void *sendrecvbuf,
        prepare_fun, prepare_arg);
 }
 
-int RabitLoadCheckPoint(char **out_global_model,
-                        rbt_ulong *out_global_len,
-                        char **out_local_model,
-                        rbt_ulong *out_local_len) {
+RABIT_DLL int RabitLoadCheckPoint(char **out_global_model,
+                                  rbt_ulong *out_global_len,
+                                  char **out_local_model,
+                                  rbt_ulong *out_local_len) {
   // NOTE: this function is not thread-safe
   using rabit::BeginPtr;
   using namespace rabit::c_api; // NOLINT(*)
@@ -321,10 +314,8 @@ int RabitLoadCheckPoint(char **out_global_model,
   return version;
 }
 
-void RabitCheckPoint(const char *global_model,
-                     rbt_ulong global_len,
-                     const char *local_model,
-                     rbt_ulong local_len) {
+RABIT_DLL void RabitCheckPoint(const char *global_model, rbt_ulong global_len,
+                               const char *local_model, rbt_ulong local_len) {
   using namespace rabit::c_api; // NOLINT(*)
   WriteWrapper sg(global_model, global_len);
   WriteWrapper sl(local_model, local_len);
@@ -335,10 +326,10 @@ void RabitCheckPoint(const char *global_model,
   }
 }
 
-int RabitVersionNumber() {
+RABIT_DLL int RabitVersionNumber() {
   return rabit::VersionNumber();
 }
 
-int RabitLinkTag() {
+RABIT_DLL int RabitLinkTag() {
   return 0;
 }
