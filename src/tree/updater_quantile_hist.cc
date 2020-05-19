@@ -826,7 +826,7 @@ void QuantileHistMaker::Builder::EvaluateSplits(const std::vector<ExpandEntry>& 
 // on comparison of indexes values (idx_span) and split point (split_cond)
 // Handle dense columns
 // Analog of std::stable_partition, but in no-inplace manner
-template <bool default_left, typename BinIdxType>
+template <bool default_left, bool any_missing, typename BinIdxType>
 inline std::pair<size_t, size_t> PartitionDenseKernel(const common::DenseColumn<BinIdxType>& column,
       common::Span<const size_t> rid_span, const int32_t split_cond,
       common::Span<size_t> left_part, common::Span<size_t> right_part) {
@@ -837,14 +837,24 @@ inline std::pair<size_t, size_t> PartitionDenseKernel(const common::DenseColumn<
   size_t nleft_elems = 0;
   size_t nright_elems = 0;
 
-  for (auto rid : rid_span) {
-    if (column.IsMissing(rid)) {
-      if (default_left) {
-        p_left_part[nleft_elems++] = rid;
+  if (any_missing) {
+    for (auto rid : rid_span) {
+      if (column.IsMissing(rid)) {
+        if (default_left) {
+          p_left_part[nleft_elems++] = rid;
+        } else {
+          p_right_part[nright_elems++] = rid;
+        }
       } else {
-        p_right_part[nright_elems++] = rid;
+        if ((static_cast<int32_t>(idx[rid]) + offset) <= split_cond) {
+          p_left_part[nleft_elems++] = rid;
+        } else {
+          p_right_part[nright_elems++] = rid;
+        }
       }
-    } else {
+    }
+  } else {
+    for (auto rid : rid_span)  {
       if ((static_cast<int32_t>(idx[rid]) + offset) <= split_cond) {
         p_left_part[nleft_elems++] = rid;
       } else {
@@ -919,6 +929,7 @@ void QuantileHistMaker::Builder::PartitionKernel(
     const size_t node_in_set, const size_t nid, common::Range1d range,
     const int32_t split_cond, const ColumnMatrix& column_matrix, const RegTree& tree) {
   const size_t* rid = row_set_collection_[nid].begin;
+
   common::Span<const size_t> rid_span(rid + range.begin(), rid + range.end());
   common::Span<size_t> left  = partition_builder_.GetLeftBuffer(node_in_set,
                                                                 range.begin(), range.end());
@@ -934,9 +945,21 @@ void QuantileHistMaker::Builder::PartitionKernel(
     const common::DenseColumn<BinIdxType>& column =
           static_cast<const common::DenseColumn<BinIdxType>& >(*(column_ptr.get()));
     if (default_left) {
-      child_nodes_sizes = PartitionDenseKernel<true>(column, rid_span, split_cond, left, right);
+      if (column_matrix.AnyMissing()) {
+        child_nodes_sizes = PartitionDenseKernel<true, true>(column, rid_span, split_cond,
+                                                             left, right);
+      } else {
+        child_nodes_sizes = PartitionDenseKernel<true, false>(column, rid_span, split_cond,
+                                                              left, right);
+      }
     } else {
-      child_nodes_sizes = PartitionDenseKernel<false>(column, rid_span, split_cond, left, right);
+      if (column_matrix.AnyMissing()) {
+        child_nodes_sizes = PartitionDenseKernel<false, true>(column, rid_span, split_cond,
+                                                              left, right);
+      } else {
+        child_nodes_sizes = PartitionDenseKernel<false, false>(column, rid_span, split_cond,
+                                                               left, right);
+      }
     }
   } else {
     const common::SparseColumn<BinIdxType>& column

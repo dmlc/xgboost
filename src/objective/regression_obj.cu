@@ -152,6 +152,10 @@ XGBOOST_REGISTER_OBJECTIVE(LogisticRegression, LogisticRegression::Name())
 .describe("Logistic regression for probability regression task.")
 .set_body([]() { return new RegLossObj<LogisticRegression>(); });
 
+XGBOOST_REGISTER_OBJECTIVE(PseudoHuberError, PseudoHuberError::Name())
+.describe("Regression Pseudo Huber error.")
+.set_body([]() { return new RegLossObj<PseudoHuberError>(); });
+
 XGBOOST_REGISTER_OBJECTIVE(LogisticClassification, LogisticClassification::Name())
 .describe("Logistic regression for binary classification task.")
 .set_body([]() { return new RegLossObj<LogisticClassification>(); });

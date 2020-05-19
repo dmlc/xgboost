@@ -1,4 +1,4 @@
-#!/usr/bin/python
+import os
 import numpy as np
 import xgboost as xgb
 ###
@@ -6,13 +6,14 @@ import xgboost as xgb
 #
 print('start running example to used customized objective function')
 
-dtrain = xgb.DMatrix('../data/agaricus.txt.train')
-dtest = xgb.DMatrix('../data/agaricus.txt.test')
+CURRENT_DIR = os.path.dirname(__file__)
+dtrain = xgb.DMatrix(os.path.join(CURRENT_DIR, '../data/agaricus.txt.train'))
+dtest = xgb.DMatrix(os.path.join(CURRENT_DIR, '../data/agaricus.txt.test'))
 
 # note: for customized objective function, we leave objective as default
 # note: what we are getting is margin value in prediction
 # you must know what you are doing
-param = {'max_depth': 2, 'eta': 1, 'silent': 1}
+param = {'max_depth': 2, 'eta': 1}
 watchlist = [(dtest, 'eval'), (dtrain, 'train')]
 num_round = 2
 

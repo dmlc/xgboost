@@ -1,15 +1,17 @@
-#!/usr/bin/python
+import os
 import xgboost as xgb
 
-dtrain = xgb.DMatrix('../data/agaricus.txt.train')
-dtest = xgb.DMatrix('../data/agaricus.txt.test')
+
+CURRENT_DIR = os.path.dirname(__file__)
+dtrain = xgb.DMatrix(os.path.join(CURRENT_DIR, '../data/agaricus.txt.train'))
+dtest = xgb.DMatrix(os.path.join(CURRENT_DIR, '../data/agaricus.txt.test'))
 watchlist = [(dtest, 'eval'), (dtrain, 'train')]
 ###
 # advanced: start from a initial base prediction
 #
 print('start running example to start from a initial prediction')
 # specify parameters via map, definition are same as c++ version
-param = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic'}
+param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
 # train xgboost for 1 round
 bst = xgb.train(param, dtrain, 1, watchlist)
 # Note: we need the margin value instead of transformed prediction in
