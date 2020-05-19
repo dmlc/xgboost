@@ -151,7 +151,7 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
       global_jvm->DetachCurrentThread();
     }
     return ret_value;
-  } catch(dmlc::Error e) {
+  } catch(dmlc::Error const& e) {
     // only detach if it is a async call.
     if (jni_status == JNI_EDETACHED) {
       global_jvm->DetachCurrentThread();
