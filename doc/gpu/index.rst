@@ -227,6 +227,8 @@ References
 
 `Nvidia Parallel Forall: Gradient Boosting, Decision Trees and XGBoost with CUDA <https://devblogs.nvidia.com/parallelforall/gradient-boosting-decision-trees-xgboost-cuda/>`_
 
+`Out-of-Core GPU Gradient Boosting <https://arxiv.org/abs/2005.09148>`_
+
 Contributors
 ============
 Many thanks to the following contributors (alphabetical order):
