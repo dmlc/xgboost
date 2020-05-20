@@ -370,6 +370,7 @@ class DMatrix:
         self.feature_types = feature_types
 
     def get_data_handler(self, data, meta=None, meta_type=None):
+        '''Get data handler for this DMatrix class.'''
         from .data import get_dmatrix_data_handler
         handler = get_dmatrix_data_handler(
             data, self.missing, self.nthread, self.silent, meta, meta_type)
@@ -780,7 +781,7 @@ class DeviceQuantileDMatrix(DMatrix):
                          feature_types=feature_types,
                          nthread=nthread)
 
-    def get_data_handler(self, data):
+    def get_data_handler(self, data, meta=None, meta_type=None):
         from .data import get_device_quantile_dmatrix_data_handler
         return get_device_quantile_dmatrix_data_handler(
             data, self.max_bin, self.missing, self.nthread, self.silent)

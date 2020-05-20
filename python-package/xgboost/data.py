@@ -1,40 +1,21 @@
-import scipy
+# pylint: disable=too-many-arguments, no-self-use
+'''Data dispatching for DMatrix.'''
 import ctypes
 import abc
 import json
 import warnings
+
 import numpy as np
+import scipy
+
 from .core import c_array, _LIB, _check_call, c_str, _cudf_array_interfaces
 from .compat import lazy_isinstance, STRING_TYPES, os_fspath, os_PathLike
 
-c_bst_ulong = ctypes.c_uint64
+c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
 
-
-# Notes:
-# Existing handler functions:
-# - csr
-# - csc
-# - numpy array
-#   + 1d
-#   + 2d
-#   + slice
-# - pandas
-#   + SparseArray
-#   + MultiIndex
-#   + DataFrame
-#   + Series
-# - cudf
-#   + MultiIndex
-#   + Dataframe
-#   + Series
-# - dt
-# - dlpack
-# - cupy
-
-# To be added:
-# - Arrow
 
 class DataHandler(abc.ABC):
+    '''Base class for various data handler.'''
     def __init__(self, missing, nthread, silent, meta=None, meta_type=None):
         self.missing = missing
         self.nthread = nthread
@@ -43,9 +24,11 @@ class DataHandler(abc.ABC):
         self.meta = meta
         self.meta_type = meta_type
 
-    def _warn_unused_missing(self):
-        if self.missing != np.nan:
-            warnings.warn('`missing` is not used for current input data type.')
+    def _warn_unused_missing(self, data):
+        if not (np.isnan(np.nan) or None):
+            warnings.warn(
+                '`missing` is not used for current input data type:' +
+                str(type(data)))
 
     def transform(self, data):
         '''Optional method for transforming data before being accepted by
@@ -57,25 +40,37 @@ class DataHandler(abc.ABC):
 
 
 class DMatrixDataManager:
+    '''The registry class for various data handler.'''
     def __init__(self):
         self.__data_handlers = {}
         self.__data_handlers_dly = []
 
     def register_handler(self, module, name, handler):
+        '''Register a data handler handling specfic type of data.'''
         self.__data_handlers['.'.join([module, name])] = handler
 
     def register_handler_dly(self, func, handler):
+        '''Register a data handler that handles an opaque type of data.
+
+        Parameters
+        ----------
+        func : callable
+            A function with a single parameter `data`.  It should return True
+            if the handler can handle this data, otherwise returns False.
+        handler : xgboost.data.DataHandler
+            The handler class that is a subclass of `DataHandler`.
+        '''
         self.__data_handlers_dly.append((func, handler))
 
     def get_handler(self, data):
+        '''Get a handler of `data`, returns None if handler not found.'''
         module, name = type(data).__module__, type(data).__name__
         if '.'.join([module, name]) in self.__data_handlers.keys():
             handler = self.__data_handlers['.'.join([module, name])]
             return handler
-        else:
-            for f, handler in self.__data_handlers_dly:
-                if f(data):
-                    return handler
+        for f, handler in self.__data_handlers_dly:
+            if f(data):
+                return handler
         return None
 
 
@@ -83,8 +78,9 @@ __dmatrix_registry = DMatrixDataManager()
 
 
 class FileHandler(DataHandler):
+    '''Handler of path like input.'''
     def handle_input(self, data, feature_names, feature_types):
-        self._warn_unused_missing()
+        self._warn_unused_missing(data)
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromFile(c_str(os_fspath(data)),
                                                  ctypes.c_int(self.silent),
@@ -98,12 +94,13 @@ __dmatrix_registry.register_handler_dly(
 
 
 class CSRHandler(DataHandler):
+    '''Handler of `scipy.sparse.csr.csr_matrix`.'''
     def handle_input(self, data, feature_names, feature_types):
         '''Initialize data from a CSR matrix.'''
         if len(data.indices) != len(data.data):
             raise ValueError('length mismatch: {} vs {}'.format(
                 len(data.indices), len(data.data)))
-        self._warn_unused_missing()
+        self._warn_unused_missing(data)
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromCSREx(
             c_array(ctypes.c_size_t, data.indptr),
@@ -121,19 +118,20 @@ __dmatrix_registry.register_handler(
 
 
 class CSCHandler(DataHandler):
-    def handle_input(self, csc, feature_names, feature_types):
-        if len(csc.indices) != len(csc.data):
+    '''Handler of `scipy.sparse.csc.csc_matrix`.'''
+    def handle_input(self, data, feature_names, feature_types):
+        if len(data.indices) != len(data.data):
             raise ValueError('length mismatch: {} vs {}'.format(
-                len(csc.indices), len(csc.data)))
-        self._warn_unused_missing()
+                len(data.indices), len(data.data)))
+        self._warn_unused_missing(data)
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromCSCEx(
-            c_array(ctypes.c_size_t, csc.indptr),
-            c_array(ctypes.c_uint, csc.indices),
-            c_array(ctypes.c_float, csc.data),
-            ctypes.c_size_t(len(csc.indptr)),
-            ctypes.c_size_t(len(csc.data)),
-            ctypes.c_size_t(csc.shape[0]),
+            c_array(ctypes.c_size_t, data.indptr),
+            c_array(ctypes.c_uint, data.indices),
+            c_array(ctypes.c_float, data.data),
+            ctypes.c_size_t(len(data.indptr)),
+            ctypes.c_size_t(len(data.data)),
+            ctypes.c_size_t(data.shape[0]),
             ctypes.byref(handle)))
         return handle, feature_names, feature_types
 
@@ -143,10 +141,10 @@ __dmatrix_registry.register_handler(
 
 
 class NumpyHandler(DataHandler):
+    '''Handler of `numpy.ndarray`.'''
     def _maybe_np_slice(self, data, dtype):
         '''Handle numpy slice.  This can be removed if we use __array_interface__.
         '''
-        import numpy as np
         try:
             if not data.flags.c_contiguous:
                 warnings.warn(
@@ -163,33 +161,32 @@ class NumpyHandler(DataHandler):
     def transform(self, data):
         return self._maybe_np_slice(data, self.meta_type), None, None
 
-    def handle_input(self, mat, feature_names, feature_types):
+    def handle_input(self, data, feature_names, feature_types):
         """Initialize data from a 2-D numpy matrix.
 
-        If ``mat`` does not have ``order='C'`` (aka row-major) or is
+        If ``data`` does not have ``order='C'`` (aka row-major) or is
         not contiguous, a temporary copy will be made.
 
-        If ``mat`` does not have ``dtype=numpy.float32``, a temporary copy will
-        be made.
+        If ``data`` does not have ``dtype=numpy.float32``, a temporary copy
+        will be made.
 
         So there could be as many as two temporary data copies; be mindful of
         input layout and type if memory use is a concern.
 
         """
-        if len(mat.shape) != 2:
+        if len(data.shape) != 2:
             raise ValueError('Expecting 2 dimensional numpy.ndarray, got: ',
-                             mat.shape)
-        import numpy as np
+                             data.shape)
         # flatten the array by rows and ensure it is float32.  we try to avoid
         # data copies if possible (reshape returns a view when possible and we
         # explicitly tell np.array to try and avoid copying)
-        data = np.array(mat.reshape(mat.size), copy=False, dtype=np.float32)
+        data = np.array(data.reshape(data.size), copy=False, dtype=np.float32)
         data = self._maybe_np_slice(data, np.float32)
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromMat_omp(
             data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
-            c_bst_ulong(mat.shape[0]),
-            c_bst_ulong(mat.shape[1]),
+            c_bst_ulong(data.shape[0]),
+            c_bst_ulong(data.shape[1]),
             ctypes.c_float(self.missing),
             ctypes.byref(handle),
             ctypes.c_int(self.nthread)))
@@ -200,7 +197,8 @@ __dmatrix_registry.register_handler('numpy', 'ndarray', NumpyHandler)
 
 
 class PandasHandler(NumpyHandler):
-    PANDAS_DTYPE_MAPPER = {
+    '''Handler of data structures defined by `pandas`.'''
+    pandas_dtype_mapper = {
         'int8': 'int',
         'int16': 'int',
         'int32': 'int',
@@ -222,11 +220,11 @@ class PandasHandler(NumpyHandler):
         from pandas import MultiIndex, Int64Index
 
         data_dtypes = data.dtypes
-        if not all(dtype.name in self.PANDAS_DTYPE_MAPPER or is_sparse(dtype)
+        if not all(dtype.name in self.pandas_dtype_mapper or is_sparse(dtype)
                    for dtype in data_dtypes):
             bad_fields = [
                 str(data.columns[i]) for i, dtype in enumerate(data_dtypes)
-                if dtype.name not in self.PANDAS_DTYPE_MAPPER
+                if dtype.name not in self.pandas_dtype_mapper
             ]
 
             msg = """DataFrame.dtypes for data must be int, float or bool.
@@ -247,10 +245,10 @@ class PandasHandler(NumpyHandler):
             feature_types = []
             for dtype in data_dtypes:
                 if is_sparse(dtype):
-                    feature_types.append(self.PANDAS_DTYPE_MAPPER[
+                    feature_types.append(self.pandas_dtype_mapper[
                         dtype.subtype.name])
                 else:
-                    feature_types.append(self.PANDAS_DTYPE_MAPPER[dtype.name])
+                    feature_types.append(self.pandas_dtype_mapper[dtype.name])
 
         if meta and len(data.columns) > 1:
             raise ValueError(
@@ -277,13 +275,13 @@ __dmatrix_registry.register_handler(
 
 
 class DTHandler(DataHandler):
-    DT_TYPE_MAPPER = {'bool': 'bool', 'int': 'int', 'real': 'float'}
-    DT_TYPE_MAPPER2 = {'bool': 'i', 'int': 'int', 'real': 'float'}
+    '''Handler of datatable.'''
+    dt_type_mapper = {'bool': 'bool', 'int': 'int', 'real': 'float'}
+    dt_type_mapper2 = {'bool': 'i', 'int': 'int', 'real': 'float'}
 
     def _maybe_dt_data(self, data, feature_names, feature_types,
                        meta=None, meta_type=None):
         """Validate feature names and types if data table"""
-        import numpy as np
         if meta and data.shape[1] > 1:
             raise ValueError(
                 'DataTable for label or weight cannot have multiple columns')
@@ -296,7 +294,7 @@ class DTHandler(DataHandler):
         data_types_names = tuple(lt.name for lt in data.ltypes)
         bad_fields = [data.names[i]
                       for i, type_name in enumerate(data_types_names)
-                      if type_name not in self.DT_TYPE_MAPPER]
+                      if type_name not in self.dt_type_mapper]
         if bad_fields:
             msg = """DataFrame.types for data must be int, float or bool.
                     Did not expect the data types in fields """
@@ -309,7 +307,7 @@ class DTHandler(DataHandler):
             if feature_types is not None:
                 raise ValueError(
                     'DataTable has own feature types, cannot pass them in.')
-            feature_types = np.vectorize(self.DT_TYPE_MAPPER2.get)(
+            feature_types = np.vectorize(self.dt_type_mapper2.get)(
                 data_types_names)
 
         return data, feature_names, feature_types
@@ -341,7 +339,7 @@ class DTHandler(DataHandler):
             feature_type_strings[icol] = ctypes.c_char_p(
                 data.stypes[icol].name.encode('utf-8'))
 
-        self._warn_unused_missing()
+        self._warn_unused_missing(data)
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromDT(
             ptrs, feature_type_strings,
@@ -356,7 +354,8 @@ __dmatrix_registry.register_handler('datatable', 'Frame', DTHandler)
 __dmatrix_registry.register_handler('datatable', 'DataTable', DTHandler)
 
 
-class ArrayInterfaceHandler(DataHandler):
+class CudaArrayInterfaceHandler(DataHandler):
+    '''Handler of data with `__cuda_array_interface__` (cupy.ndarray).'''
     def handle_input(self, data, feature_names, feature_types):
         """Initialize DMatrix from cupy ndarray."""
         interface = data.__cuda_array_interface__
@@ -375,10 +374,11 @@ class ArrayInterfaceHandler(DataHandler):
 
 
 __dmatrix_registry.register_handler('cupy.core.core', 'ndarray',
-                                    ArrayInterfaceHandler)
+                                    CudaArrayInterfaceHandler)
 
 
 class CudaColumnarHandler(DataHandler):
+    '''Handler of CUDA based columnar data. (cudf.DataFrame)'''
     def _maybe_cudf_dataframe(self, data, feature_names, feature_types):
         """Extract internal data from cudf.DataFrame for DMatrix data."""
         if feature_names is None:
@@ -397,7 +397,7 @@ class CudaColumnarHandler(DataHandler):
                 dtypes = [data.dtype]
             else:
                 dtypes = data.dtypes
-            feature_types = [PandasHandler.PANDAS_DTYPE_MAPPER[d.name]
+            feature_types = [PandasHandler.pandas_dtype_mapper[d.name]
                              for d in dtypes]
         return data, feature_names, feature_types
 
@@ -425,7 +425,8 @@ __dmatrix_registry.register_handler('cudf.core.series', 'Series',
                                     CudaColumnarHandler)
 
 
-class DLPackHandler(ArrayInterfaceHandler):
+class DLPackHandler(CudaArrayInterfaceHandler):
+    '''Handler of `dlpack`.'''
     def _maybe_dlpack_data(self, data, feature_names, feature_types):
         from cupy import fromDlpack  # pylint: disable=E0401
         data = fromDlpack(data)
@@ -448,6 +449,30 @@ __dmatrix_registry.register_handler_dly(
 
 def get_dmatrix_data_handler(data, missing, nthread, silent,
                              meta=None, meta_type=None):
+    '''Get a handler of `data` for DMatrix.
+
+    .. versionadded:: 1.2.0
+
+    Parameters
+    ----------
+    data : any
+        The input data.
+    missing : float
+        Same as `missing` for DMatrix.
+    nthread : int
+        Same as `nthread` for DMatrix.
+    silent : boolean
+        Same as `silent` for DMatrix.
+    meta : str
+        Field name of meta data, like `label`.  Used only for getting handler
+        for meta info.
+    meta_type : str/np.dtype
+        Type of meta data.
+
+    Returns
+    -------
+    handler : DataHandler
+    '''
     handler = __dmatrix_registry.get_handler(data)
     if handler is None:
         warnings.warn(
@@ -462,21 +487,22 @@ def get_dmatrix_data_handler(data, missing, nthread, silent,
 
 
 class DeviceQuantileDMatrixDataHandler(DataHandler):
+    '''Base class of data handler for `DeviceQuantileDMatrix`.'''
     def __init__(self, max_bin, missing, nthread, silent,
                  meta=None, meta_type=None):
         self.max_bin = max_bin
-        self.missing = missing
-        self.nthread = nthread
-        self.silent = silent
-
-        self.meta = meta
-        self.meta_type = meta_type
+        super().__init__(missing, nthread, silent, meta, meta_type)
 
 
 __device_quantile_dmatrix_registry = DMatrixDataManager()
 
 
-class DeviceQuantileArrayInterfaceHandler(DeviceQuantileDMatrixDataHandler):
+class DeviceQuantileCudaArrayInterfaceHandler(
+        DeviceQuantileDMatrixDataHandler):
+    '''Handler of data with `__cuda_array_interface__`, for
+    `DeviceQuantileDMatrix`.
+
+    '''
     def handle_input(self, data, feature_names, feature_types):
         """Initialize DMatrix from cupy ndarray."""
         interface = data.__cuda_array_interface__
@@ -494,11 +520,12 @@ class DeviceQuantileArrayInterfaceHandler(DeviceQuantileDMatrixDataHandler):
 
 
 __device_quantile_dmatrix_registry.register_handler(
-    'cupy.core.core', 'ndarray', DeviceQuantileArrayInterfaceHandler)
+    'cupy.core.core', 'ndarray', DeviceQuantileCudaArrayInterfaceHandler)
 
 
 class DeviceQuantileCudaColumnarHandler(DeviceQuantileDMatrixDataHandler,
                                         CudaColumnarHandler):
+    '''Handler of CUDA based columnar data, for `DeviceQuantileDMatrix`.'''
     def __init__(self, max_bin, missing, nthread, silent,
                  meta=None, meta_type=None):
         super().__init__(
@@ -526,11 +553,12 @@ __device_quantile_dmatrix_registry.register_handler(
     'cudf.core.series', 'Series', DeviceQuantileCudaColumnarHandler)
 
 
-class DeviceQuantileDLPackHandler(DeviceQuantileArrayInterfaceHandler,
+class DeviceQuantileDLPackHandler(DeviceQuantileCudaArrayInterfaceHandler,
                                   DLPackHandler):
+    '''Handler of `dlpack`, for `DeviceQuantileDMatrix`.'''
     def __init__(self, max_bin, missing, nthread, silent,
                  meta=None, meta_type=None):
-        super(DeviceQuantileArrayInterfaceHandler, self).__init__(
+        super().__init__(
             max_bin=max_bin, missing=missing, nthread=nthread, silent=silent,
             meta=meta, meta_type=meta_type
         )
@@ -549,6 +577,12 @@ __device_quantile_dmatrix_registry.register_handler_dly(
 
 def get_device_quantile_dmatrix_data_handler(
         data, max_bin, missing, nthread, silent):
+    '''Get data handler for `DeviceQuantileDMatrix`. Similar to
+    `get_dmatrix_data_handler`.
+
+    .. versionadded:: 1.2.0
+
+    '''
     handler = __device_quantile_dmatrix_registry.get_handler(
         data)
     assert handler, f'Current data type {type(data)} is not supported' + \
