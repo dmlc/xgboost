@@ -243,6 +243,17 @@ __dmatrix_registry.register_handler_opaque(
     lambda x: hasattr(x, '__array__'), NumpyHandler)
 
 
+class ListHandler(NumpyHandler):
+    def handle_input(self, data, feature_names, feature_types):
+        assert self.meta is None, 'List input data is not supported for X'
+        data = np.array(data)
+        return super().handle_input(data, feature_names, feature_types)
+
+
+__dmatrix_registry.register_handler('builtins', 'list', NumpyHandler)
+__dmatrix_registry.register_handler('builtins', 'tuple', NumpyHandler)
+
+
 class PandasHandler(NumpyHandler):
     '''Handler of data structures defined by `pandas`.'''
     pandas_dtype_mapper = {

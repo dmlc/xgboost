@@ -352,6 +352,15 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             applicable. If -1, uses maximum threads available on the system.
 
         """
+        if isinstance(data, list):
+            raise TypeError('Input data can not be a list.')
+
+        self.missing = missing if missing is not None else np.nan
+        self.nthread = nthread if nthread is not None else 1
+        self.silent = silent
+
+        # FIXME(trvialfis): `None` seems only happens in xgboost builtin cv
+        # method. Eliminate it
         # force into void_p, mac need to pass things in as void_p
         if data is None:
             self.handle = None
@@ -361,16 +370,6 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             if feature_types is not None:
                 self._feature_types = feature_types
             return
-
-        if isinstance(data, list):
-            raise TypeError('Input data can not be a list.')
-
-        missing = missing if missing is not None else np.nan
-        nthread = nthread if nthread is not None else 1
-
-        self.missing = missing
-        self.nthread = nthread
-        self.silent = silent
 
         handler = self.get_data_handler(data)
         if handler is None:
