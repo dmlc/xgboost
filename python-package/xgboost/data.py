@@ -532,8 +532,8 @@ def get_device_quantile_dmatrix_data_handler(
     '''
     handler = __device_quantile_dmatrix_registry.get_handler(
         data)
-    assert handler, f'Current data type {type(data)} is not supported' + \
-        ' for DeviceQuantileDMatrix'
+    assert handler, 'Current data type ' + str(type(data)) +\
+        ' is not supported for DeviceQuantileDMatrix'
     return handler(max_bin, missing, nthread, silent)
 
 

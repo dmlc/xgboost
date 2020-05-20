@@ -270,7 +270,8 @@ def _convert_unknown_data(data, meta=None, meta_type=None):
     else:
         import warnings
         warnings.warn(
-            f'Unknown data type {type(data)}, coverting it to csr_matrix')
+            'Unknown data type: ' + str(type(data)) +
+            ', coverting it to csr_matrix')
         try:
             data = scipy.sparse.csr_matrix(data)
         except Exception:
