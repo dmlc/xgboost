@@ -30,6 +30,13 @@ class DataHandler(abc.ABC):
                 '`missing` is not used for current input data type:' +
                 str(type(data)))
 
+    def check_complex(self, data):
+        '''Test whether data is complex using `dtype` attribute.'''
+        complex_dtypes = (np.complex128, np.complex64,
+                          np.cfloat, np.cdouble, np.clongdouble)
+        if hasattr(data, 'dtype') and data.dtype in complex_dtypes:
+            raise ValueError('Complex data not supported')
+
     def transform(self, data):
         '''Optional method for transforming data before being accepted by
         other XGBoost API.'''
@@ -207,7 +214,11 @@ class NumpyHandler(DataHandler):
         return data
 
     def transform(self, data):
-        return self._maybe_np_slice(data, self.meta_type), None, None
+        data = self._maybe_np_slice(data, self.meta_type)
+        flatten = np.array(data.reshape(data.size), copy=False,
+                           dtype=np.float32)
+        self.check_complex(data)
+        return flatten, None, None
 
     def handle_input(self, data, feature_names, feature_types):
         """Initialize data from a 2-D numpy matrix.
@@ -222,6 +233,8 @@ class NumpyHandler(DataHandler):
         input layout and type if memory use is a concern.
 
         """
+        if not isinstance(data, np.ndarray) and hasattr(data, '__array__'):
+            data = np.array(data, copy=False)
         if len(data.shape) != 2:
             raise ValueError('Expecting 2 dimensional numpy.ndarray, got: ',
                              data.shape)
@@ -231,6 +244,7 @@ class NumpyHandler(DataHandler):
         flatten = np.array(data.reshape(data.size), copy=False,
                            dtype=np.float32)
         flatten = self._maybe_np_slice(flatten, np.float32)
+        self.check_complex(data)
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromMat_omp(
             flatten.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
@@ -244,6 +258,8 @@ class NumpyHandler(DataHandler):
 
 __dmatrix_registry.register_handler('numpy', 'ndarray', NumpyHandler)
 __dmatrix_registry.register_handler('numpy', 'matrix', NumpyHandler)
+__dmatrix_registry.register_handler_opaque(
+    lambda x: hasattr(x, '__array__'), NumpyHandler)
 
 
 class PandasHandler(NumpyHandler):
@@ -537,6 +553,11 @@ class DeviceQuantileCudaArrayInterfaceHandler(
     '''
     def handle_input(self, data, feature_names, feature_types):
         """Initialize DMatrix from cupy ndarray."""
+        if not hasattr(data, '__cuda_array_interface__') and hasattr(
+                data, '__array__'):
+            import cupy
+            data = cupy.array(data, copy=False)
+
         interface = data.__cuda_array_interface__
         if 'mask' in interface:
             interface['mask'] = interface['mask'].__cuda_array_interface__
@@ -553,6 +574,8 @@ class DeviceQuantileCudaArrayInterfaceHandler(
 
 __device_quantile_dmatrix_registry.register_handler(
     'cupy.core.core', 'ndarray', DeviceQuantileCudaArrayInterfaceHandler)
+__device_quantile_dmatrix_registry.register_handler_opaque(
+    lambda x: hasattr(x, '__array__'), NumpyHandler)
 
 
 class DeviceQuantileCudaColumnarHandler(DeviceQuantileDMatrixDataHandler,

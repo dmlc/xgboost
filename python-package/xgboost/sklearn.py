@@ -246,7 +246,7 @@ class XGBModel(XGBModelBase):
 
     def _more_tags(self):
         '''Tags used for scikit-learn data validation.'''
-        return {'allow_nan': True}
+        return {'allow_nan': True, 'no_validation': True}
 
     def get_booster(self):
         """Get the underlying xgboost Booster of this model.
@@ -258,7 +258,8 @@ class XGBModel(XGBModelBase):
         booster : a xgboost booster of underlying model
         """
         if not hasattr(self, '_Booster'):
-            raise XGBoostError('need to call fit or load_model beforehand')
+            from sklearn.exceptions import NotFittedError
+            raise NotFittedError('need to call fit or load_model beforehand')
         return self._Booster
 
     def set_params(self, **params):
@@ -332,7 +333,7 @@ class XGBModel(XGBModelBase):
             for k, v in internal.items():
                 if k in params.keys() and params[k] is None:
                     params[k] = parse_parameter(v)
-        except XGBoostError:
+        except ValueError:
             pass
         return params
 
@@ -536,12 +537,16 @@ class XGBModel(XGBModelBase):
             else:
                 params.update({'eval_metric': eval_metric})
 
-        self._Booster = train(params, train_dmatrix,
-                              self.get_num_boosting_rounds(), evals=evals,
-                              early_stopping_rounds=early_stopping_rounds,
-                              evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose, xgb_model=xgb_model,
-                              callbacks=callbacks)
+        try:
+            self._Booster = train(params, train_dmatrix,
+                                  self.get_num_boosting_rounds(), evals=evals,
+                                  early_stopping_rounds=early_stopping_rounds,
+                                  evals_result=evals_result,
+                                  obj=obj, feval=feval,
+                                  verbose_eval=verbose, xgb_model=xgb_model,
+                                  callbacks=callbacks)
+        except XGBoostError as e:
+            raise ValueError(e)
 
         if evals_result:
             for val in evals_result.items():
@@ -1225,13 +1230,16 @@ class XGBRanker(XGBModel):
                     'Custom evaluation metric is not yet supported for XGBRanker.')
             params.update({'eval_metric': eval_metric})
 
-        self._Booster = train(params, train_dmatrix,
-                              self.n_estimators,
-                              early_stopping_rounds=early_stopping_rounds,
-                              evals=evals,
-                              evals_result=evals_result, feval=feval,
-                              verbose_eval=verbose, xgb_model=xgb_model,
-                              callbacks=callbacks)
+        try:
+            self._Booster = train(params, train_dmatrix,
+                                  self.n_estimators,
+                                  early_stopping_rounds=early_stopping_rounds,
+                                  evals=evals,
+                                  evals_result=evals_result, feval=feval,
+                                  verbose_eval=verbose, xgb_model=xgb_model,
+                                  callbacks=callbacks)
+        except XGBoostError as e:
+            raise ValueError(e)
 
         self.objective = params["objective"]
 
