@@ -214,11 +214,7 @@ class NumpyHandler(DataHandler):
         return data
 
     def transform(self, data):
-        data = self._maybe_np_slice(data, self.meta_type)
-        flatten = np.array(data.reshape(data.size), copy=False,
-                           dtype=np.float32)
-        self.check_complex(data)
-        return flatten, None, None
+        return self._maybe_np_slice(data, self.meta_type), None, None
 
     def handle_input(self, data, feature_names, feature_types):
         """Initialize data from a 2-D numpy matrix.
