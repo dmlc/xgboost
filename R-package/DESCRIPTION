@@ -64,4 +64,4 @@ Imports:
     magrittr (>= 1.5),
     stringi (>= 0.5.2)
 RoxygenNote: 7.1.0
-SystemRequirements: GNU make, C++11
+SystemRequirements: GNU make, C++14
