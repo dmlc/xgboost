@@ -52,7 +52,7 @@ class DataHandler(abc.ABC):
     def transform(self, data):
         '''Optional method for transforming data before being accepted by
         other XGBoost API.'''
-        pass
+        return data, None, None
 
     def handle_input(self, data, feature_names, feature_types):
         '''Abstract method for handling different data input.'''
@@ -158,6 +158,9 @@ class NumpyHandler(DataHandler):
             data = np.array(data, copy=False, dtype=dtype)
         return data
 
+    def transform(self, data):
+        return self._maybe_np_slice(data, self.meta_type), None, None
+
     def handle_input(self, mat, feature_names, feature_types):
         """Initialize data from a 2-D numpy matrix.
 
@@ -194,7 +197,7 @@ class NumpyHandler(DataHandler):
 DMatrixDataManager.register_handler('numpy', 'ndarray', NumpyHandler)
 
 
-class PandasHandler(DataHandler):
+class PandasHandler(NumpyHandler):
     PANDAS_DTYPE_MAPPER = {
         'int8': 'int',
         'int16': 'int',
@@ -257,9 +260,14 @@ class PandasHandler(DataHandler):
 
         return data, feature_names, feature_types
 
+    def transform(self, data):
+        return self._maybe_pandas_data(data, None, None, self.meta,
+                                       self.meta_type)
+
     def handle_input(self, data, feature_names, feature_types):
-        return self._maybe_pandas_data(data, feature_names, feature_types,
-                                       self.meta, self.meta_type)
+        data, feature_names, feature_types = self._maybe_pandas_data(
+            data, feature_names, feature_types, self.meta, self.meta_type)
+        super().handle_input(data, feature_names, feature_types)
 
 
 DMatrixDataManager.register_handler(
@@ -303,6 +311,9 @@ class DTHandler(DataHandler):
                 data_types_names)
 
         return data, feature_names, feature_types
+
+    def transform(self, data):
+        return self._maybe_dt_data(data, None, None, self.meta, self.meta_type)
 
     def handle_input(self, data, feature_names, feature_types):
         data, feature_names, feature_types = self._maybe_dt_data(
@@ -387,6 +398,9 @@ class CudaColumnarHandler(DataHandler):
                              for d in dtypes]
         return data, feature_names, feature_types
 
+    def transform(self, data):
+        return self._maybe_cudf_dataframe(data, None, None)
+
     def handle_input(self, data, feature_names, feature_types):
         """Initialize DMatrix from columnar memory format."""
         data, feature_names, feature_types = self._maybe_cudf_dataframe(
@@ -411,6 +425,9 @@ class DLPackHandler(ArrayInterfaceHandler):
         from cupy import fromDlpack  # pylint: disable=E0401
         data = fromDlpack(data)
         return data, feature_names, feature_types
+
+    def transform(self, data):
+        return self._maybe_dlpack_data(data, None, None)
 
     def handle_input(self, data, feature_names, feature_types):
         data, feature_names, feature_types = self._maybe_dlpack_data(
@@ -524,11 +541,6 @@ class DeviceQuantileDLPackHandler(DeviceQuantileArrayInterfaceHandler,
             max_bin=max_bin, missing=missing, nthread=nthread, silent=silent,
             meta=meta, meta_type=meta_type
         )
-
-    def _maybe_dlpack_data(self, data, feature_names, feature_types):
-        from cupy import fromDlpack  # pylint: disable=E0401
-        data = fromDlpack(data)
-        return data, feature_names, feature_types
 
     def handle_input(self, data, feature_names, feature_types):
         data, feature_names, feature_types = self._maybe_dlpack_data(

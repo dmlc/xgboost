@@ -11,16 +11,15 @@ import ctypes
 import os
 import re
 import sys
-import warnings
 import json
 
 import numpy as np
 import scipy.sparse
 
 from .compat import (
-    STRING_TYPES, DataFrame, MultiIndex, Int64Index, py_str,
+    STRING_TYPES, DataFrame, py_str,
     PANDAS_INSTALLED, CUDF_INSTALLED,
-    CUDF_DataFrame, CUDF_Series, CUDF_MultiIndex,
+    CUDF_DataFrame,
     os_fspath, os_PathLike, lazy_isinstance)
 from .libpath import find_lib_path
 
@@ -262,64 +261,10 @@ def c_array(ctype, values):
     return (ctype * len(values))(*values)
 
 
-PANDAS_DTYPE_MAPPER = {'int8': 'int', 'int16': 'int', 'int32': 'int', 'int64':
-                       'int', 'uint8': 'int', 'uint16': 'int', 'uint32': 'int',
-                       'uint64': 'int', 'float16': 'float', 'float32': 'float',
-                       'float64': 'float', 'bool': 'i'}
-
-
 # Either object has cuda array interface or contains columns with interfaces
 def _has_cuda_array_interface(data):
     return hasattr(data, '__cuda_array_interface__') or (
         CUDF_INSTALLED and isinstance(data, CUDF_DataFrame))
-
-
-def _maybe_pandas_data(data, feature_names, feature_types,
-                       meta=None, meta_type=None):
-    """Extract internal data from pd.DataFrame for DMatrix data"""
-    if not (PANDAS_INSTALLED and isinstance(data, DataFrame)):
-        return data, feature_names, feature_types
-    from pandas.api.types import is_sparse
-
-    data_dtypes = data.dtypes
-    if not all(dtype.name in PANDAS_DTYPE_MAPPER or is_sparse(dtype)
-               for dtype in data_dtypes):
-        bad_fields = [
-            str(data.columns[i]) for i, dtype in enumerate(data_dtypes)
-            if dtype.name not in PANDAS_DTYPE_MAPPER
-        ]
-
-        msg = """DataFrame.dtypes for data must be int, float or bool.
-                Did not expect the data types in fields """
-        raise ValueError(msg + ', '.join(bad_fields))
-
-    if feature_names is None and meta is None:
-        if isinstance(data.columns, MultiIndex):
-            feature_names = [
-                ' '.join([str(x) for x in i]) for i in data.columns
-            ]
-        elif isinstance(data.columns, Int64Index):
-            feature_names = list(map(str, data.columns))
-        else:
-            feature_names = data.columns.format()
-
-    if feature_types is None and meta is None:
-        feature_types = []
-        for dtype in data_dtypes:
-            if is_sparse(dtype):
-                feature_types.append(PANDAS_DTYPE_MAPPER[dtype.subtype.name])
-            else:
-                feature_types.append(PANDAS_DTYPE_MAPPER[dtype.name])
-
-    if meta and len(data.columns) > 1:
-        raise ValueError(
-            'DataFrame for {meta} cannot have multiple columns'.format(
-                meta=meta))
-
-    dtype = meta_type if meta_type else 'float'
-    data = data.values.astype(dtype)
-
-    return data, feature_names, feature_types
 
 
 def _cudf_array_interfaces(df):
@@ -332,123 +277,6 @@ def _cudf_array_interfaces(df):
         interfaces.append(interface)
     interfaces_str = bytes(json.dumps(interfaces, indent=2), 'utf-8')
     return interfaces_str
-
-
-def _maybe_cudf_dataframe(data, feature_names, feature_types):
-    """Extract internal data from cudf.DataFrame for DMatrix data."""
-    if not (CUDF_INSTALLED and isinstance(data,
-                                          (CUDF_DataFrame, CUDF_Series))):
-        return data, feature_names, feature_types
-    if feature_names is None:
-        if isinstance(data, CUDF_Series):
-            feature_names = [data.name]
-        elif isinstance(data.columns, CUDF_MultiIndex):
-            feature_names = [
-                ' '.join([str(x) for x in i])
-                for i in data.columns
-            ]
-        else:
-            feature_names = data.columns.format()
-    if feature_types is None:
-        if isinstance(data, CUDF_Series):
-            dtypes = [data.dtype]
-        else:
-            dtypes = data.dtypes
-        feature_types = [PANDAS_DTYPE_MAPPER[d.name] for d in dtypes]
-    return data, feature_names, feature_types
-
-
-DT_TYPE_MAPPER = {'bool': 'bool', 'int': 'int', 'real': 'float'}
-
-DT_TYPE_MAPPER2 = {'bool': 'i', 'int': 'int', 'real': 'float'}
-
-
-def _maybe_dt_data(data, feature_names, feature_types,
-                   meta=None, meta_type=None):
-    """Validate feature names and types if data table"""
-    if (not lazy_isinstance(data, 'datatable', 'Frame') and
-            not lazy_isinstance(data, 'datatable', 'DataTable')):
-        return data, feature_names, feature_types
-
-    if meta and data.shape[1] > 1:
-        raise ValueError(
-            'DataTable for label or weight cannot have multiple columns')
-    if meta:
-        # below requires new dt version
-        # extract first column
-        data = data.to_numpy()[:, 0].astype(meta_type)
-        return data, None, None
-
-    data_types_names = tuple(lt.name for lt in data.ltypes)
-    bad_fields = [data.names[i]
-                  for i, type_name in enumerate(data_types_names)
-                  if type_name not in DT_TYPE_MAPPER]
-    if bad_fields:
-        msg = """DataFrame.types for data must be int, float or bool.
-                Did not expect the data types in fields """
-        raise ValueError(msg + ', '.join(bad_fields))
-
-    if feature_names is None and meta is None:
-        feature_names = data.names
-
-        # always return stypes for dt ingestion
-        if feature_types is not None:
-            raise ValueError(
-                'DataTable has own feature types, cannot pass them in.')
-        feature_types = np.vectorize(DT_TYPE_MAPPER2.get)(data_types_names)
-
-    return data, feature_names, feature_types
-
-def _is_dlpack(x):
-    return 'PyCapsule' in str(type(x)) and "dltensor" in str(x)
-
-# Just convert dlpack into cupy (zero copy)
-def _maybe_dlpack_data(data, feature_names, feature_types):
-    if not _is_dlpack(data):
-        return data, feature_names, feature_types
-    from cupy import fromDlpack # pylint: disable=E0401
-    data = fromDlpack(data)
-    return data, feature_names, feature_types
-
-
-def _convert_dataframes(data, feature_names, feature_types,
-                        meta=None, meta_type=None):
-    data, feature_names, feature_types = _maybe_pandas_data(data,
-                                                            feature_names,
-                                                            feature_types,
-                                                            meta,
-                                                            meta_type)
-
-    data, feature_names, feature_types = _maybe_dt_data(data,
-                                                        feature_names,
-                                                        feature_types,
-                                                        meta,
-                                                        meta_type)
-
-    data, feature_names, feature_types = _maybe_cudf_dataframe(
-        data, feature_names, feature_types)
-
-    data, feature_names, feature_types = _maybe_dlpack_data(
-        data, feature_names, feature_types)
-
-    return data, feature_names, feature_types
-
-
-def _maybe_np_slice(data, dtype=np.float32):
-    '''Handle numpy slice.  This can be removed if we use __array_interface__.
-    '''
-    try:
-        if not data.flags.c_contiguous:
-            warnings.warn(
-                "Use subset (sliced data) of np.ndarray is not recommended " +
-                "because it will generate extra copies and increase " +
-                "memory consumption")
-            data = np.array(data, copy=True, dtype=dtype)
-        else:
-            data = np.array(data, copy=False, dtype=dtype)
-    except AttributeError:
-        data = np.array(data, copy=False, dtype=dtype)
-    return data
 
 
 class DMatrix:
@@ -602,7 +430,8 @@ class DMatrix:
         data: numpy array
             The array of data to be set
         """
-        data, _, _ = _convert_dataframes(data, None, None, field, 'float')
+        data, _, _ = self.get_data_handler(
+            data, field, np.float32).transform(data)
         if isinstance(data, np.ndarray):
             self.set_float_info_npy2d(field, data)
             return
@@ -624,7 +453,8 @@ class DMatrix:
         data: numpy array
             The array of data to be set
         """
-        data = _maybe_np_slice(data, np.float32)
+        data, _, _ = self.get_data_handler(
+            data, field, np.float32).transform(data)
         c_data = data.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
                                                c_str(field),
@@ -642,9 +472,8 @@ class DMatrix:
         data: numpy array
             The array of data to be set
         """
-        data = _maybe_np_slice(data, np.uint32)
-        data, _, _ = _convert_dataframes(data, None, None, field, 'uint32')
-        data = np.array(data, copy=False, dtype=ctypes.c_uint)
+        data, _, _ = self.get_data_handler(
+            data, field, 'uint32').transform(data)
         _check_call(_LIB.XGDMatrixSetUIntInfo(self.handle,
                                               c_str(field),
                                               c_array(ctypes.c_uint, data),
