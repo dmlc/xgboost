@@ -75,7 +75,7 @@ class DMatrixDataManager:
         return None
 
 
-__dmatrix_registry = DMatrixDataManager()
+__dmatrix_registry = DMatrixDataManager()  # pylint: disable=invalid-name
 
 
 def get_dmatrix_data_handler(data, missing, nthread, silent,
@@ -488,7 +488,7 @@ __dmatrix_registry.register_handler_opaque(
     DLPackHandler)
 
 
-class DeviceQuantileDMatrixDataHandler(DataHandler):
+class DeviceQuantileDMatrixDataHandler(DataHandler):  # pylint: disable=abstract-method
     '''Base class of data handler for `DeviceQuantileDMatrix`.'''
     def __init__(self, max_bin, missing, nthread, silent,
                  meta=None, meta_type=None):
@@ -496,7 +496,7 @@ class DeviceQuantileDMatrixDataHandler(DataHandler):
         super().__init__(missing, nthread, silent, meta, meta_type)
 
 
-__device_quantile_dmatrix_registry = DMatrixDataManager()
+__device_quantile_dmatrix_registry = DMatrixDataManager()  # pylint: disable=invalid-name
 
 
 def get_device_quantile_dmatrix_data_handler(
