@@ -270,11 +270,14 @@ def _has_cuda_array_interface(data):
 def _cudf_array_interfaces(df):
     '''Extract CuDF __cuda_array_interface__'''
     interfaces = []
-    for col in df:
-        interface = df[col].__cuda_array_interface__
-        if 'mask' in interface:
-            interface['mask'] = interface['mask'].__cuda_array_interface__
-        interfaces.append(interface)
+    if lazy_isinstance(df, 'cudf.core.series', 'Series'):
+        interfaces.append(df.__cuda_array_interface__)
+    else:
+        for col in df:
+            interface = df[col].__cuda_array_interface__
+            if 'mask' in interface:
+                interface['mask'] = interface['mask'].__cuda_array_interface__
+            interfaces.append(interface)
     interfaces_str = bytes(json.dumps(interfaces, indent=2), 'utf-8')
     return interfaces_str
 
@@ -430,11 +433,11 @@ class DMatrix:
         data: numpy array
             The array of data to be set
         """
-        data, _, _ = self.get_data_handler(
-            data, field, np.float32).transform(data)
         if isinstance(data, np.ndarray):
             self.set_float_info_npy2d(field, data)
             return
+        data, _, _ = self.get_data_handler(
+            data, field, np.float32).transform(data)
         c_data = c_array(ctypes.c_float, data)
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
                                                c_str(field),

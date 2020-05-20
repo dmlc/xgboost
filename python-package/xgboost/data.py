@@ -3,7 +3,8 @@ import ctypes
 import abc
 import json
 import warnings
-from .core import c_array, _LIB, _check_call, c_str
+import numpy as np
+from .core import c_array, _LIB, _check_call, c_str, _cudf_array_interfaces
 from .compat import lazy_isinstance, STRING_TYPES, os_fspath, os_PathLike
 
 c_bst_ulong = ctypes.c_uint64
@@ -18,27 +19,20 @@ c_bst_ulong = ctypes.c_uint64
 #   + 2d
 #   + slice
 # - pandas
+#   + SparseArray
+#   + MultiIndex
+#   + DataFrame
+#   + Series
 # - cudf
-#   + dataframe
-#   + series
+#   + MultiIndex
+#   + Dataframe
+#   + Series
 # - dt
-# - dl-pack
+# - dlpack
 # - cupy
 
 # To be added:
 # - Arrow
-
-def _cudf_array_interfaces(df):
-    '''Extract CuDF __cuda_array_interface__'''
-    interfaces = []
-    for col in df:
-        interface = df[col].__cuda_array_interface__
-        if 'mask' in interface:
-            interface['mask'] = interface['mask'].__cuda_array_interface__
-        interfaces.append(interface)
-    interfaces_str = bytes(json.dumps(interfaces, indent=2), 'utf-8')
-    return interfaces_str
-
 
 class DataHandler(abc.ABC):
     def __init__(self, missing, nthread, silent, meta=None, meta_type=None):
@@ -48,6 +42,10 @@ class DataHandler(abc.ABC):
 
         self.meta = meta
         self.meta_type = meta_type
+
+    def _warn_unused_missing(self):
+        if self.missing != np.nan:
+            warnings.warn('`missing` is not used for current input data type.')
 
     def transform(self, data):
         '''Optional method for transforming data before being accepted by
@@ -86,6 +84,7 @@ __dmatrix_registry = DMatrixDataManager()
 
 class FileHandler(DataHandler):
     def handle_input(self, data, feature_names, feature_types):
+        self._warn_unused_missing()
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromFile(c_str(os_fspath(data)),
                                                  ctypes.c_int(self.silent),
@@ -104,6 +103,7 @@ class CSRHandler(DataHandler):
         if len(data.indices) != len(data.data):
             raise ValueError('length mismatch: {} vs {}'.format(
                 len(data.indices), len(data.data)))
+        self._warn_unused_missing()
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromCSREx(
             c_array(ctypes.c_size_t, data.indptr),
@@ -125,6 +125,7 @@ class CSCHandler(DataHandler):
         if len(csc.indices) != len(csc.data):
             raise ValueError('length mismatch: {} vs {}'.format(
                 len(csc.indices), len(csc.data)))
+        self._warn_unused_missing()
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromCSCEx(
             c_array(ctypes.c_size_t, csc.indptr),
@@ -268,7 +269,7 @@ class PandasHandler(NumpyHandler):
     def handle_input(self, data, feature_names, feature_types):
         data, feature_names, feature_types = self._maybe_pandas_data(
             data, feature_names, feature_types, self.meta, self.meta_type)
-        super().handle_input(data, feature_names, feature_types)
+        return super().handle_input(data, feature_names, feature_types)
 
 
 __dmatrix_registry.register_handler(
@@ -340,6 +341,7 @@ class DTHandler(DataHandler):
             feature_type_strings[icol] = ctypes.c_char_p(
                 data.stypes[icol].name.encode('utf-8'))
 
+        self._warn_unused_missing()
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromDT(
             ptrs, feature_type_strings,
@@ -377,7 +379,7 @@ __dmatrix_registry.register_handler('cupy.core.core', 'ndarray',
 
 
 class CudaColumnarHandler(DataHandler):
-    def _maybe_cudf_dataframe(data, feature_names, feature_types):
+    def _maybe_cudf_dataframe(self, data, feature_names, feature_types):
         """Extract internal data from cudf.DataFrame for DMatrix data."""
         if feature_names is None:
             if lazy_isinstance(data, 'cudf.core.series', 'Series'):
@@ -405,7 +407,7 @@ class CudaColumnarHandler(DataHandler):
     def handle_input(self, data, feature_names, feature_types):
         """Initialize DMatrix from columnar memory format."""
         data, feature_names, feature_types = self._maybe_cudf_dataframe(
-            data, feature_names, feature_types, self.meta, self.meta_type)
+            data, feature_names, feature_types)
         interfaces_str = _cudf_array_interfaces(data)
         handle = ctypes.c_void_p()
         _check_call(
@@ -418,6 +420,8 @@ class CudaColumnarHandler(DataHandler):
 
 
 __dmatrix_registry.register_handler('cudf.core.dataframe', 'DataFrame',
+                                    CudaColumnarHandler)
+__dmatrix_registry.register_handler('cudf.core.series', 'Series',
                                     CudaColumnarHandler)
 
 
@@ -493,11 +497,19 @@ __device_quantile_dmatrix_registry.register_handler(
     'cupy.core.core', 'ndarray', DeviceQuantileArrayInterfaceHandler)
 
 
-class DeviceQuantileCudaColumnarHandler(CudaColumnarHandler):
+class DeviceQuantileCudaColumnarHandler(DeviceQuantileDMatrixDataHandler,
+                                        CudaColumnarHandler):
+    def __init__(self, max_bin, missing, nthread, silent,
+                 meta=None, meta_type=None):
+        super().__init__(
+            max_bin=max_bin, missing=missing, nthread=nthread, silent=silent,
+            meta=meta, meta_type=meta_type
+        )
+
     def handle_input(self, data, feature_names, feature_types):
         """Initialize Quantile Device DMatrix from columnar memory format."""
         data, feature_names, feature_types = self._maybe_cudf_dataframe(
-            data, feature_names, feature_types, self.meta, self.meta_type)
+            data, feature_names, feature_types)
         interfaces_str = _cudf_array_interfaces(data)
         handle = ctypes.c_void_p()
         _check_call(
@@ -510,6 +522,8 @@ class DeviceQuantileCudaColumnarHandler(CudaColumnarHandler):
 
 __device_quantile_dmatrix_registry.register_handler(
     'cudf.core.dataframe', 'DataFrame', DeviceQuantileCudaColumnarHandler)
+__device_quantile_dmatrix_registry.register_handler(
+    'cudf.core.series', 'Series', DeviceQuantileCudaColumnarHandler)
 
 
 class DeviceQuantileDLPackHandler(DeviceQuantileArrayInterfaceHandler,
@@ -536,5 +550,7 @@ __device_quantile_dmatrix_registry.register_handler_dly(
 def get_device_quantile_dmatrix_data_handler(
         data, max_bin, missing, nthread, silent):
     handler = __device_quantile_dmatrix_registry.get_handler(
-        data)(max_bin, missing, nthread, silent)
-    return handler
+        data)
+    assert handler, f'Current data type {type(data)} is not supported' + \
+        ' for DeviceQuantileDMatrix'
+    return handler(max_bin, missing, nthread, silent)
