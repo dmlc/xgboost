@@ -2,12 +2,15 @@
 #'
 #' The cross validation function of xgboost
 #'
-#' @param params the list of parameters. Commonly used ones are:
+#' @param params the list of parameters. The complete list of parameters is 
+#'   available in the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}. Below
+#'   is a shorter summary:
 #' \itemize{
 #'   \item \code{objective} objective function, common ones are
 #'   \itemize{
-#'     \item \code{reg:squarederror} Regression with squared loss
-#'     \item \code{binary:logistic} logistic regression for classification
+#'     \item \code{reg:squarederror} Regression with squared loss.
+#'     \item \code{binary:logistic} logistic regression for classification.
+#'     \item See \code{\link[=xgb.train]{xgb.train}()} for complete list of objectives.
 #'   }
 #'   \item \code{eta} step size of each boosting step
 #'   \item \code{max_depth} maximum depth of the tree
