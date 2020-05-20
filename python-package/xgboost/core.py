@@ -451,7 +451,7 @@ def _maybe_np_slice(data, dtype=np.float32):
     return data
 
 
-class DMatrix(object):
+class DMatrix:
     """Data Matrix used in XGBoost.
 
     DMatrix is a internal data structure that used by XGBoost
@@ -516,37 +516,17 @@ class DMatrix(object):
         if isinstance(data, list):
             raise TypeError('Input data can not be a list.')
 
-        data, feature_names, feature_types = _convert_dataframes(
-            data, feature_names, feature_types
-        )
         missing = missing if missing is not None else np.nan
         nthread = nthread if nthread is not None else 1
 
-        if isinstance(data, (STRING_TYPES, os_PathLike)):
-            handle = ctypes.c_void_p()
-            _check_call(_LIB.XGDMatrixCreateFromFile(c_str(os_fspath(data)),
-                                                     ctypes.c_int(silent),
-                                                     ctypes.byref(handle)))
-            self.handle = handle
-        elif isinstance(data, scipy.sparse.csr_matrix):
-            self._init_from_csr(data)
-        elif isinstance(data, scipy.sparse.csc_matrix):
-            self._init_from_csc(data)
-        elif isinstance(data, np.ndarray):
-            self._init_from_npy2d(data, missing, nthread)
-        elif lazy_isinstance(data, 'datatable', 'Frame'):
-            self._init_from_dt(data, nthread)
-        elif hasattr(data, "__cuda_array_interface__"):
-            self._init_from_array_interface(data, missing, nthread)
-        elif CUDF_INSTALLED and isinstance(data, CUDF_DataFrame):
-            self._init_from_array_interface_columns(data, missing, nthread)
-        else:
-            try:
-                csr = scipy.sparse.csr_matrix(data)
-                self._init_from_csr(csr)
-            except Exception:
-                raise TypeError('can not initialize DMatrix from'
-                                ' {}'.format(type(data).__name__))
+        self.missing = missing
+        self.nthread = nthread
+        self.silent = silent
+
+        handler = self.get_data_handler(data)
+        self.handle, feature_names, feature_types = handler.handle_input(
+            data, feature_names, feature_types)
+        assert self.handle
 
         if label is not None:
             self.set_label(label)
@@ -558,126 +538,11 @@ class DMatrix(object):
         self.feature_names = feature_names
         self.feature_types = feature_types
 
-    def _init_from_csr(self, csr):
-        """Initialize data from a CSR matrix."""
-        if len(csr.indices) != len(csr.data):
-            raise ValueError('length mismatch: {} vs {}'.format(
-                len(csr.indices), len(csr.data)))
-        handle = ctypes.c_void_p()
-        _check_call(_LIB.XGDMatrixCreateFromCSREx(
-            c_array(ctypes.c_size_t, csr.indptr),
-            c_array(ctypes.c_uint, csr.indices),
-            c_array(ctypes.c_float, csr.data),
-            ctypes.c_size_t(len(csr.indptr)),
-            ctypes.c_size_t(len(csr.data)),
-            ctypes.c_size_t(csr.shape[1]),
-            ctypes.byref(handle)))
-        self.handle = handle
-
-    def _init_from_csc(self, csc):
-        """Initialize data from a CSC matrix."""
-        if len(csc.indices) != len(csc.data):
-            raise ValueError('length mismatch: {} vs {}'.format(
-                len(csc.indices), len(csc.data)))
-        handle = ctypes.c_void_p()
-        _check_call(_LIB.XGDMatrixCreateFromCSCEx(
-            c_array(ctypes.c_size_t, csc.indptr),
-            c_array(ctypes.c_uint, csc.indices),
-            c_array(ctypes.c_float, csc.data),
-            ctypes.c_size_t(len(csc.indptr)),
-            ctypes.c_size_t(len(csc.data)),
-            ctypes.c_size_t(csc.shape[0]),
-            ctypes.byref(handle)))
-        self.handle = handle
-
-    def _init_from_npy2d(self, mat, missing, nthread):
-        """Initialize data from a 2-D numpy matrix.
-
-        If ``mat`` does not have ``order='C'`` (aka row-major) or is
-        not contiguous, a temporary copy will be made.
-
-        If ``mat`` does not have ``dtype=numpy.float32``, a temporary copy will
-        be made.
-
-        So there could be as many as two temporary data copies; be mindful of
-        input layout and type if memory use is a concern.
-
-        """
-        if len(mat.shape) != 2:
-            raise ValueError('Expecting 2 dimensional numpy.ndarray, got: ',
-                             mat.shape)
-        # flatten the array by rows and ensure it is float32.  we try to avoid
-        # data copies if possible (reshape returns a view when possible and we
-        # explicitly tell np.array to try and avoid copying)
-        data = np.array(mat.reshape(mat.size), copy=False, dtype=np.float32)
-        handle = ctypes.c_void_p()
-        _check_call(_LIB.XGDMatrixCreateFromMat_omp(
-            data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
-            c_bst_ulong(mat.shape[0]),
-            c_bst_ulong(mat.shape[1]),
-            ctypes.c_float(missing),
-            ctypes.byref(handle),
-            ctypes.c_int(nthread)))
-        self.handle = handle
-
-    def _init_from_dt(self, data, nthread):
-        """Initialize data from a datatable Frame."""
-        ptrs = (ctypes.c_void_p * data.ncols)()
-        if hasattr(data, "internal") and hasattr(data.internal, "column"):
-            # datatable>0.8.0
-            for icol in range(data.ncols):
-                col = data.internal.column(icol)
-                ptr = col.data_pointer
-                ptrs[icol] = ctypes.c_void_p(ptr)
-        else:
-            # datatable<=0.8.0
-            from datatable.internal import \
-                frame_column_data_r  # pylint: disable=no-name-in-module,import-error
-            for icol in range(data.ncols):
-                ptrs[icol] = frame_column_data_r(data, icol)
-
-        # always return stypes for dt ingestion
-        feature_type_strings = (ctypes.c_char_p * data.ncols)()
-        for icol in range(data.ncols):
-            feature_type_strings[icol] = ctypes.c_char_p(
-                data.stypes[icol].name.encode('utf-8'))
-
-        handle = ctypes.c_void_p()
-        _check_call(_LIB.XGDMatrixCreateFromDT(
-            ptrs, feature_type_strings,
-            c_bst_ulong(data.shape[0]),
-            c_bst_ulong(data.shape[1]),
-            ctypes.byref(handle),
-            ctypes.c_int(nthread)))
-        self.handle = handle
-
-    def _init_from_array_interface_columns(self, df, missing, nthread):
-        """Initialize DMatrix from columnar memory format."""
-        interfaces_str = _cudf_array_interfaces(df)
-        handle = ctypes.c_void_p()
-        _check_call(
-            _LIB.XGDMatrixCreateFromArrayInterfaceColumns(
-                interfaces_str,
-                ctypes.c_float(missing),
-                ctypes.c_int(nthread),
-                ctypes.byref(handle)))
-        self.handle = handle
-
-    def _init_from_array_interface(self, data, missing, nthread):
-        """Initialize DMatrix from cupy ndarray."""
-        interface = data.__cuda_array_interface__
-        if 'mask' in interface:
-            interface['mask'] = interface['mask'].__cuda_array_interface__
-        interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
-
-        handle = ctypes.c_void_p()
-        _check_call(
-            _LIB.XGDMatrixCreateFromArrayInterface(
-                interface_str,
-                ctypes.c_float(missing),
-                ctypes.c_int(nthread),
-                ctypes.byref(handle)))
-        self.handle = handle
+    def get_data_handler(self, data, meta=None, meta_type=None):
+        from .data import get_dmatrix_data_handler
+        handler = get_dmatrix_data_handler(
+            data, self.missing, self.nthread, self.silent, meta, meta_type)
+        return handler
 
     def __del__(self):
         if hasattr(self, "handle") and self.handle:
@@ -1075,46 +940,18 @@ class DeviceQuantileDMatrix(DMatrix):
                  feature_types=None,
                  nthread=None, max_bin=256):
         self.max_bin = max_bin
-        if not (hasattr(data, "__cuda_array_interface__") or (
-                CUDF_INSTALLED and isinstance(data, CUDF_DataFrame)) or _is_dlpack(data)):
-            raise ValueError('Only cupy/cudf/dlpack currently supported for DeviceQuantileDMatrix')
-
-        super().__init__(data, label=label, weight=weight, base_margin=base_margin,
+        super().__init__(data, label=label, weight=weight,
+                         base_margin=base_margin,
                          missing=missing,
                          silent=silent,
                          feature_names=feature_names,
                          feature_types=feature_types,
                          nthread=nthread)
 
-    def _init_from_array_interface_columns(self, df, missing, nthread):
-        """Initialize DMatrix from columnar memory format."""
-        interfaces_str = _cudf_array_interfaces(df)
-        handle = ctypes.c_void_p()
-        missing = missing if missing is not None else np.nan
-        nthread = nthread if nthread is not None else 1
-        _check_call(
-            _LIB.XGDeviceQuantileDMatrixCreateFromArrayInterfaceColumns(
-                interfaces_str,
-                ctypes.c_float(missing), ctypes.c_int(nthread),
-                ctypes.c_int(self.max_bin), ctypes.byref(handle)))
-        self.handle = handle
-
-    def _init_from_array_interface(self, data, missing, nthread):
-        """Initialize DMatrix from cupy ndarray."""
-        interface = data.__cuda_array_interface__
-        if 'mask' in interface:
-            interface['mask'] = interface['mask'].__cuda_array_interface__
-        interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
-
-        handle = ctypes.c_void_p()
-        missing = missing if missing is not None else np.nan
-        nthread = nthread if nthread is not None else 1
-        _check_call(
-            _LIB.XGDeviceQuantileDMatrixCreateFromArrayInterface(
-                interface_str,
-                ctypes.c_float(missing), ctypes.c_int(nthread),
-                ctypes.c_int(self.max_bin), ctypes.byref(handle)))
-        self.handle = handle
+    def get_data_handler(self, data):
+        from .data import get_device_quantile_dmatrix_data_handler
+        return get_device_quantile_dmatrix_data_handler(
+            data, self.max_bin, self.missing, self.nthread, self.silent)
 
 
 class Booster(object):
