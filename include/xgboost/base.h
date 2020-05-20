@@ -141,6 +141,15 @@ class GradientPairInternal {
  public:
   using ValueT = T;
 
+  inline void Add(const ValueT& grad, const ValueT& hess) {
+    grad_ += grad;
+    hess_ += hess;
+  }
+
+  inline static void Reduce(GradientPairInternal<T>& a, const GradientPairInternal<T>& b) { // NOLINT(*)
+    a += b;
+  }
+
   XGBOOST_DEVICE GradientPairInternal() : grad_(0), hess_(0) {}
 
   XGBOOST_DEVICE GradientPairInternal(T grad, T hess) {
