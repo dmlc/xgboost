@@ -14,7 +14,7 @@
 #include "xgboost/json.h"
 #include "./param.h"
 #include "../common/io.h"
-
+#include "../common/timer.h"
 namespace xgboost {
 namespace tree {
 
@@ -25,6 +25,7 @@ class TreePruner: public TreeUpdater {
  public:
   TreePruner() {
     syncher_.reset(TreeUpdater::Create("sync", tparam_));
+    pruner_monitor_.Init("TreePruner");
   }
   char const* Name() const override {
     return "prune";
@@ -52,6 +53,7 @@ class TreePruner: public TreeUpdater {
   void Update(HostDeviceVector<GradientPair> *gpair,
               DMatrix *p_fmat,
               const std::vector<RegTree*> &trees) override {
+    pruner_monitor_.Start("PrunerUpdate");
     // rescale learning rate according to size of trees
     float lr = param_.learning_rate;
     param_.learning_rate = lr / trees.size();
@@ -60,6 +62,7 @@ class TreePruner: public TreeUpdater {
     }
     param_.learning_rate = lr;
     syncher_->Update(gpair, p_fmat, trees);
+    pruner_monitor_.Stop("PrunerUpdate");
   }
 
  private:
@@ -105,6 +108,7 @@ class TreePruner: public TreeUpdater {
   std::unique_ptr<TreeUpdater> syncher_;
   // training parameter
   TrainParam param_;
+  common::Monitor pruner_monitor_;
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(TreePruner, "prune")
