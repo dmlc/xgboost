@@ -59,18 +59,16 @@ class DataHandler(abc.ABC):
 
 
 class DMatrixDataManager:
-    __data_handlers = {}
-    __data_handlers_dly = []
+    def __init__(self):
+        self.__data_handlers = {}
+        self.__data_handlers_dly = []
 
-    @classmethod
-    def register_handler(cls, module, name, handler):
-        cls.__data_handlers['.'.join([module, name])] = handler
+    def register_handler(self, module, name, handler):
+        self.__data_handlers['.'.join([module, name])] = handler
 
-    @classmethod
-    def register_handler_dly(cls, func, handler):
-        cls.__data_handlers_dly.append((func, handler))
+    def register_handler_dly(self, func, handler):
+        self.__data_handlers_dly.append((func, handler))
 
-    @classmethod
     def get_handler(self, data):
         module, name = type(data).__module__, type(data).__name__
         if '.'.join([module, name]) in self.__data_handlers.keys():
@@ -83,6 +81,9 @@ class DMatrixDataManager:
         return None
 
 
+__dmatrix_registry = DMatrixDataManager()
+
+
 class FileHandler(DataHandler):
     def handle_input(self, data, feature_names, feature_types):
         handle = ctypes.c_void_p()
@@ -92,7 +93,7 @@ class FileHandler(DataHandler):
         return handle, feature_names, feature_types
 
 
-DMatrixDataManager.register_handler_dly(
+__dmatrix_registry.register_handler_dly(
     lambda data: isinstance(data, (STRING_TYPES, os_PathLike)),
     FileHandler)
 
@@ -115,7 +116,7 @@ class CSRHandler(DataHandler):
         return handle, feature_names, feature_types
 
 
-DMatrixDataManager.register_handler(
+__dmatrix_registry.register_handler(
     'scipy.sparse.csr', 'csr_matrix', CSRHandler)
 
 
@@ -136,7 +137,7 @@ class CSCHandler(DataHandler):
         return handle, feature_names, feature_types
 
 
-DMatrixDataManager.register_handler(
+__dmatrix_registry.register_handler(
     'scipy.sparse.csc', 'csc_matrix', CSCHandler)
 
 
@@ -194,7 +195,7 @@ class NumpyHandler(DataHandler):
         return handle, feature_names, feature_types
 
 
-DMatrixDataManager.register_handler('numpy', 'ndarray', NumpyHandler)
+__dmatrix_registry.register_handler('numpy', 'ndarray', NumpyHandler)
 
 
 class PandasHandler(NumpyHandler):
@@ -270,7 +271,7 @@ class PandasHandler(NumpyHandler):
         super().handle_input(data, feature_names, feature_types)
 
 
-DMatrixDataManager.register_handler(
+__dmatrix_registry.register_handler(
     'pandas.core.frame', 'DataFrame', PandasHandler)
 
 
@@ -349,8 +350,8 @@ class DTHandler(DataHandler):
         return handle, feature_names, feature_types
 
 
-DMatrixDataManager.register_handler('datatable', 'Frame', DTHandler)
-DMatrixDataManager.register_handler('datatable', 'DataTable', DTHandler)
+__dmatrix_registry.register_handler('datatable', 'Frame', DTHandler)
+__dmatrix_registry.register_handler('datatable', 'DataTable', DTHandler)
 
 
 class ArrayInterfaceHandler(DataHandler):
@@ -371,7 +372,7 @@ class ArrayInterfaceHandler(DataHandler):
         return handle, feature_names, feature_types
 
 
-DMatrixDataManager.register_handler('cupy.core.core', 'ndarray',
+__dmatrix_registry.register_handler('cupy.core.core', 'ndarray',
                                     ArrayInterfaceHandler)
 
 
@@ -416,7 +417,7 @@ class CudaColumnarHandler(DataHandler):
         return handle, feature_names, feature_types
 
 
-DMatrixDataManager.register_handler('cudf.core.dataframe', 'DataFrame',
+__dmatrix_registry.register_handler('cudf.core.dataframe', 'DataFrame',
                                     CudaColumnarHandler)
 
 
@@ -436,20 +437,20 @@ class DLPackHandler(ArrayInterfaceHandler):
             data, feature_names, feature_types)
 
 
-DMatrixDataManager.register_handler_dly(
+__dmatrix_registry.register_handler_dly(
     lambda x: 'PyCapsule' in str(type(x)) and "dltensor" in str(x),
     DLPackHandler)
 
 
 def get_dmatrix_data_handler(data, missing, nthread, silent,
                              meta=None, meta_type=None):
-    handler = DMatrixDataManager.get_handler(data)
+    handler = __dmatrix_registry.get_handler(data)
     if handler is None:
         warnings.warn(
             f'Unknown data type {type(data)}, coverting it to csr_matrix')
         try:
             data = scipy.sparse.csr_matrix(data)
-            handler = DMatrixDataManager.get_handler(data)
+            handler = __dmatrix_registry.get_handler(data)
         except Exception:
             raise TypeError('Can not initialize DMatrix from'
                             ' {}'.format(type(data).__name__))
@@ -468,29 +469,7 @@ class DeviceQuantileDMatrixDataHandler(DataHandler):
         self.meta_type = meta_type
 
 
-class DeviceQuantileDMatrixDataManager(DataHandler):
-    __data_handlers = {}
-    __data_handlers_dly = []
-
-    @classmethod
-    def register_handler(cls, module, name, handler):
-        cls.__data_handlers['.'.join([module, name])] = handler
-
-    @classmethod
-    def register_handler_dly(cls, func, handler):
-        cls.__data_handlers_dly.append((func, handler))
-
-    @classmethod
-    def get_handler(self, data):
-        module, name = type(data).__module__, type(data).__name__
-        if '.'.join([module, name]) in self.__data_handlers.keys():
-            handler = self.__data_handlers['.'.join([module, name])]
-            return handler
-        else:
-            for f, handler in self.__data_handlers_dly:
-                if f(data):
-                    return handler
-        return None
+__device_quantile_dmatrix_registry = DMatrixDataManager()
 
 
 class DeviceQuantileArrayInterfaceHandler(DeviceQuantileDMatrixDataHandler):
@@ -510,7 +489,7 @@ class DeviceQuantileArrayInterfaceHandler(DeviceQuantileDMatrixDataHandler):
         return handle, feature_names, feature_types
 
 
-DeviceQuantileDMatrixDataManager.register_handler(
+__device_quantile_dmatrix_registry.register_handler(
     'cupy.core.core', 'ndarray', DeviceQuantileArrayInterfaceHandler)
 
 
@@ -529,7 +508,7 @@ class DeviceQuantileCudaColumnarHandler(CudaColumnarHandler):
         return handle, feature_names, feature_types
 
 
-DeviceQuantileDMatrixDataManager.register_handler(
+__device_quantile_dmatrix_registry.register_handler(
     'cudf.core.dataframe', 'DataFrame', DeviceQuantileCudaColumnarHandler)
 
 
@@ -549,13 +528,13 @@ class DeviceQuantileDLPackHandler(DeviceQuantileArrayInterfaceHandler,
             data, feature_names, feature_types)
 
 
-DeviceQuantileDMatrixDataManager.register_handler_dly(
+__device_quantile_dmatrix_registry.register_handler_dly(
     lambda x: 'PyCapsule' in str(type(x)) and "dltensor" in str(x),
     DeviceQuantileDLPackHandler)
 
 
 def get_device_quantile_dmatrix_data_handler(
         data, max_bin, missing, nthread, silent):
-    handler = DeviceQuantileDMatrixDataManager.get_handler(
+    handler = __device_quantile_dmatrix_registry.get_handler(
         data)(max_bin, missing, nthread, silent)
     return handler
