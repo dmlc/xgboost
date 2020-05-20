@@ -67,7 +67,8 @@ class TestPandas(unittest.TestCase):
         # 0  1    1    0    0
         # 1  2    0    1    0
         # 2  3    0    0    1
-        result, _, _ = xgb.core._maybe_pandas_data(dummies, None, None)
+        pandas_handler = xgb.data.PandasHandler(np.nan, 0, False)
+        result, _, _ = pandas_handler._maybe_pandas_data(dummies, None, None)
         exp = np.array([[1., 1., 0., 0.],
                         [2., 0., 1., 0.],
                         [3., 0., 0., 1.]])
@@ -113,12 +114,12 @@ class TestPandas(unittest.TestCase):
         import pandas as pd
         rows = 100
         X = pd.DataFrame(
-            {"A": pd.SparseArray(np.random.randint(0, 10, size=rows)),
-             "B": pd.SparseArray(np.random.randn(rows)),
-             "C": pd.SparseArray(np.random.permutation(
+            {"A": pd.arrays.SparseArray(np.random.randint(0, 10, size=rows)),
+             "B": pd.arrays.SparseArray(np.random.randn(rows)),
+             "C": pd.arrays.SparseArray(np.random.permutation(
                  [True, False] * (rows // 2)))}
         )
-        y = pd.Series(pd.SparseArray(np.random.randn(rows)))
+        y = pd.Series(pd.arrays.SparseArray(np.random.randn(rows)))
         dtrain = xgb.DMatrix(X, y)
         booster = xgb.train({}, dtrain, num_boost_round=4)
         predt_sparse = booster.predict(xgb.DMatrix(X))
@@ -128,17 +129,18 @@ class TestPandas(unittest.TestCase):
     def test_pandas_label(self):
         # label must be a single column
         df = pd.DataFrame({'A': ['X', 'Y', 'Z'], 'B': [1, 2, 3]})
-        self.assertRaises(ValueError, xgb.core._maybe_pandas_data, df,
+        pandas_handler = xgb.data.PandasHandler(np.nan, 0, False)
+        self.assertRaises(ValueError, pandas_handler._maybe_pandas_data, df,
                           None, None, 'label', 'float')
 
         # label must be supported dtype
         df = pd.DataFrame({'A': np.array(['a', 'b', 'c'], dtype=object)})
-        self.assertRaises(ValueError, xgb.core._maybe_pandas_data, df,
+        self.assertRaises(ValueError, pandas_handler._maybe_pandas_data, df,
                           None, None, 'label', 'float')
 
         df = pd.DataFrame({'A': np.array([1, 2, 3], dtype=int)})
-        result, _, _ = xgb.core._maybe_pandas_data(df, None, None,
-                                                   'label', 'float')
+        result, _, _ = pandas_handler._maybe_pandas_data(df, None, None,
+                                                         'label', 'float')
         np.testing.assert_array_equal(result, np.array([[1.], [2.], [3.]],
                                                        dtype=float))
         dm = xgb.DMatrix(np.random.randn(3, 2), label=df)

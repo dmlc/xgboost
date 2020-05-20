@@ -106,14 +106,22 @@ def get_dmatrix_data_handler(data, missing, nthread, silent,
     '''
     handler = __dmatrix_registry.get_handler(data)
     if handler is None:
-        warnings.warn(
-            f'Unknown data type {type(data)}, coverting it to csr_matrix')
-        try:
-            data = scipy.sparse.csr_matrix(data)
-            handler = __dmatrix_registry.get_handler(data)
-        except Exception:
-            raise TypeError('Can not initialize DMatrix from'
-                            ' {}'.format(type(data).__name__))
+        if meta is not None:
+            try:
+                data = np.array(data)
+                handler = __dmatrix_registry.get_handler(data)
+            except Exception:
+                raise TypeError('Can not handle data from {}'.format(
+                    type(data).__name__))
+        else:
+            warnings.warn(
+                f'Unknown data type {type(data)}, coverting it to csr_matrix')
+            try:
+                data = scipy.sparse.csr_matrix(data)
+                handler = __dmatrix_registry.get_handler(data)
+            except Exception:
+                raise TypeError('Can not initialize DMatrix from'
+                                ' {}'.format(type(data).__name__))
     return handler(missing, nthread, silent, meta, meta_type)
 
 
@@ -235,6 +243,7 @@ class NumpyHandler(DataHandler):
 
 
 __dmatrix_registry.register_handler('numpy', 'ndarray', NumpyHandler)
+__dmatrix_registry.register_handler('numpy', 'matrix', NumpyHandler)
 
 
 class PandasHandler(NumpyHandler):
@@ -257,6 +266,10 @@ class PandasHandler(NumpyHandler):
     def _maybe_pandas_data(self, data, feature_names, feature_types,
                            meta=None, meta_type=None):
         """Extract internal data from pd.DataFrame for DMatrix data"""
+        if lazy_isinstance(data, 'pandas.core.series', 'Series'):
+            dtype = meta_type if meta_type else 'float'
+            return data.values.astype(dtype), feature_names, feature_types
+
         from pandas.api.types import is_sparse
         from pandas import MultiIndex, Int64Index
 
@@ -313,6 +326,8 @@ class PandasHandler(NumpyHandler):
 
 __dmatrix_registry.register_handler(
     'pandas.core.frame', 'DataFrame', PandasHandler)
+__dmatrix_registry.register_handler(
+    'pandas.core.series', 'Series', PandasHandler)
 
 
 class DTHandler(DataHandler):

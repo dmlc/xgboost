@@ -14,7 +14,7 @@ from sklearn.datasets import load_iris, load_digits, load_boston
 rng = np.random.RandomState(31337)
 
 print("Zeros and Ones from the Digits dataset: binary classification")
-digits = load_digits(2)
+digits = load_digits(n_class=2)
 y = digits['target']
 X = digits['data']
 kf = KFold(n_splits=2, shuffle=True, random_state=rng)
