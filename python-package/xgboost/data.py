@@ -6,7 +6,6 @@ import json
 import warnings
 
 import numpy as np
-import scipy
 
 from .core import c_array, _LIB, _check_call, c_str, _cudf_array_interfaces
 from .compat import lazy_isinstance, STRING_TYPES, os_fspath, os_PathLike
@@ -244,6 +243,7 @@ __dmatrix_registry.register_handler_opaque(
 
 
 class ListHandler(NumpyHandler):
+    '''Handler of builtin list and tuple'''
     def handle_input(self, data, feature_names, feature_types):
         assert self.meta is None, 'List input data is not supported for X'
         data = np.array(data)

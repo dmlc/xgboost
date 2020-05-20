@@ -359,8 +359,6 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         self.nthread = nthread if nthread is not None else 1
         self.silent = silent
 
-        # FIXME(trvialfis): `None` seems only happens in xgboost builtin cv
-        # method. Eliminate it
         # force into void_p, mac need to pass things in as void_p
         if data is None:
             self.handle = None
