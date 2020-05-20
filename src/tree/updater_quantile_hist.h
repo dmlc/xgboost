@@ -141,7 +141,16 @@ class QuantileHistMaker: public TreeUpdater {
   template <typename GradientSumT>
   friend class HistSynchronizer;
   template <typename GradientSumT>
+  friend class BatchHistSynchronizer;
+  template <typename GradientSumT>
+  friend class DistributedHistSynchronizer;
+
+  template <typename GradientSumT>
   friend class HistRowsAdder;
+  template <typename GradientSumT>
+  friend class BatchHistRowsAdder;
+  template <typename GradientSumT>
+  friend class DistributedHistRowsAdder;
 
   CPUHistMakerTrainParam hist_maker_param_;
   // training parameter
@@ -467,7 +476,7 @@ template <typename GradientSumT>
 class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
  public:
   using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-  typedef typename BuilderT::ExpandEntry ExpandEntryT;
+  using ExpandEntryT = typename BuilderT::ExpandEntry;
 
   void SyncHistograms(BuilderT* builder, int starting_index,
                       int sync_count, RegTree *p_tree) override;
