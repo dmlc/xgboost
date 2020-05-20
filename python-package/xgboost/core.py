@@ -282,7 +282,7 @@ def _cudf_array_interfaces(df):
     return interfaces_str
 
 
-class DMatrix:
+class DMatrix:                  # pylint: disable=too-many-instance-attributes
     """Data Matrix used in XGBoost.
 
     DMatrix is a internal data structure that used by XGBoost
@@ -357,7 +357,7 @@ class DMatrix:
         handler = self.get_data_handler(data)
         self.handle, feature_names, feature_types = handler.handle_input(
             data, feature_names, feature_types)
-        assert self.handle
+        assert self.handle, 'Failed to construct a DMatrix.'
 
         if label is not None:
             self.set_label(label)
@@ -1137,6 +1137,7 @@ class Booster(object):
         self._validate_features(data)
         return self.eval_set([(data, name)], iteration)
 
+    # pylint: disable=too-many-function-args
     def predict(self,
                 data,
                 output_margin=False,

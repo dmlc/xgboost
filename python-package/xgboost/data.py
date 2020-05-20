@@ -35,6 +35,7 @@ class DataHandler(abc.ABC):
         other XGBoost API.'''
         return data, None, None
 
+    @abc.abstractmethod
     def handle_input(self, data, feature_names, feature_types):
         '''Abstract method for handling different data input.'''
 
@@ -49,8 +50,8 @@ class DMatrixDataManager:
         '''Register a data handler handling specfic type of data.'''
         self.__data_handlers['.'.join([module, name])] = handler
 
-    def register_handler_dly(self, func, handler):
-        '''Register a data handler that handles an opaque type of data.
+    def register_handler_opaque(self, func, handler):
+        '''Register a data handler that handles data with opaque type.
 
         Parameters
         ----------
@@ -88,7 +89,7 @@ class FileHandler(DataHandler):
         return handle, feature_names, feature_types
 
 
-__dmatrix_registry.register_handler_dly(
+__dmatrix_registry.register_handler_opaque(
     lambda data: isinstance(data, (STRING_TYPES, os_PathLike)),
     FileHandler)
 
@@ -164,11 +165,11 @@ class NumpyHandler(DataHandler):
     def handle_input(self, data, feature_names, feature_types):
         """Initialize data from a 2-D numpy matrix.
 
-        If ``data`` does not have ``order='C'`` (aka row-major) or is
+        If ``mat`` does not have ``order='C'`` (aka row-major) or is
         not contiguous, a temporary copy will be made.
 
-        If ``data`` does not have ``dtype=numpy.float32``, a temporary copy
-        will be made.
+        If ``mat`` does not have ``dtype=numpy.float32``, a temporary copy will
+        be made.
 
         So there could be as many as two temporary data copies; be mindful of
         input layout and type if memory use is a concern.
@@ -180,11 +181,12 @@ class NumpyHandler(DataHandler):
         # flatten the array by rows and ensure it is float32.  we try to avoid
         # data copies if possible (reshape returns a view when possible and we
         # explicitly tell np.array to try and avoid copying)
-        data = np.array(data.reshape(data.size), copy=False, dtype=np.float32)
-        data = self._maybe_np_slice(data, np.float32)
+        flatten = np.array(data.reshape(data.size), copy=False,
+                           dtype=np.float32)
+        flatten = self._maybe_np_slice(flatten, np.float32)
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromMat_omp(
-            data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
+            flatten.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
             c_bst_ulong(data.shape[0]),
             c_bst_ulong(data.shape[1]),
             ctypes.c_float(self.missing),
@@ -442,7 +444,7 @@ class DLPackHandler(CudaArrayInterfaceHandler):
             data, feature_names, feature_types)
 
 
-__dmatrix_registry.register_handler_dly(
+__dmatrix_registry.register_handler_opaque(
     lambda x: 'PyCapsule' in str(type(x)) and "dltensor" in str(x),
     DLPackHandler)
 
@@ -570,7 +572,7 @@ class DeviceQuantileDLPackHandler(DeviceQuantileCudaArrayInterfaceHandler,
             data, feature_names, feature_types)
 
 
-__device_quantile_dmatrix_registry.register_handler_dly(
+__device_quantile_dmatrix_registry.register_handler_opaque(
     lambda x: 'PyCapsule' in str(type(x)) and "dltensor" in str(x),
     DeviceQuantileDLPackHandler)
 
