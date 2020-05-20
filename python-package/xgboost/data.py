@@ -113,22 +113,7 @@ def get_dmatrix_data_handler(data, missing, nthread, silent,
     '''
     handler = __dmatrix_registry.get_handler(data)
     if handler is None:
-        if meta is not None:
-            try:
-                data = np.array(data)
-                handler = __dmatrix_registry.get_handler(data)
-            except Exception:
-                raise TypeError('Can not handle data from {}'.format(
-                    type(data).__name__))
-        else:
-            warnings.warn(
-                f'Unknown data type {type(data)}, coverting it to csr_matrix')
-            try:
-                data = scipy.sparse.csr_matrix(data)
-                handler = __dmatrix_registry.get_handler(data)
-            except Exception:
-                raise TypeError('Can not initialize DMatrix from'
-                                ' {}'.format(type(data).__name__))
+        return None
     return handler(missing, nthread, silent, meta, meta_type)
 
 

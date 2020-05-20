@@ -260,6 +260,25 @@ def c_array(ctype, values):
     return (ctype * len(values))(*values)
 
 
+def _convert_unknown_data(data, meta=None, meta_type=None):
+    if meta is not None:
+        try:
+            data = np.array(data, dtype=meta_type)
+        except Exception:
+            raise TypeError('Can not handle data from {}'.format(
+                type(data).__name__))
+    else:
+        import warnings
+        warnings.warn(
+            f'Unknown data type {type(data)}, coverting it to csr_matrix')
+        try:
+            data = scipy.sparse.csr_matrix(data)
+        except Exception:
+            raise TypeError('Can not initialize DMatrix from'
+                            ' {}'.format(type(data).__name__))
+    return data
+
+
 # Either object has cuda array interface or contains columns with interfaces
 def _has_cuda_array_interface(data):
     return hasattr(data, '__cuda_array_interface__') or (
@@ -354,6 +373,9 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         self.silent = silent
 
         handler = self.get_data_handler(data)
+        if handler is None:
+            data = _convert_unknown_data(data, None)
+            handler = self.get_data_handler(data)
         self.handle, feature_names, feature_types = handler.handle_input(
             data, feature_names, feature_types)
         assert self.handle, 'Failed to construct a DMatrix.'
@@ -436,8 +458,11 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         if isinstance(data, np.ndarray):
             self.set_float_info_npy2d(field, data)
             return
-        data, _, _ = self.get_data_handler(
-            data, field, np.float32).transform(data)
+        handler = self.get_data_handler(data, field, np.float32)
+        if handler is None:
+            data = _convert_unknown_data(data, field, np.float32)
+            handler = self.get_data_handler(data, field, np.float32)
+        data, _, _ = handler.transform(data)
         c_data = c_array(ctypes.c_float, data)
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
                                                c_str(field),
