@@ -547,7 +547,7 @@ class DeviceQuantileCudaArrayInterfaceHandler(
         """Initialize DMatrix from cupy ndarray."""
         if not hasattr(data, '__cuda_array_interface__') and hasattr(
                 data, '__array__'):
-            import cupy
+            import cupy         # pylint: disable=import-error
             data = cupy.array(data, copy=False)
 
         interface = data.__cuda_array_interface__
@@ -568,6 +568,8 @@ __device_quantile_dmatrix_registry.register_handler(
     'cupy.core.core', 'ndarray', DeviceQuantileCudaArrayInterfaceHandler)
 __device_quantile_dmatrix_registry.register_handler_opaque(
     lambda x: hasattr(x, '__array__'), NumpyHandler)
+__device_quantile_dmatrix_registry.register_handler_opaque(
+    lambda x: hasattr(x, '__cuda_array_interface__'), NumpyHandler)
 
 
 class DeviceQuantileCudaColumnarHandler(DeviceQuantileDMatrixDataHandler,
