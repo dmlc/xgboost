@@ -35,6 +35,8 @@ class Column {
         index_(index),
         index_base_(index_base) {}
 
+  virtual ~Column() = default;
+
   uint32_t GetGlobalBinIdx(size_t idx) const {
     return index_base_ + static_cast<uint32_t>(index_[idx]);
   }
