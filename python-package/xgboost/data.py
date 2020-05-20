@@ -78,6 +78,45 @@ class DMatrixDataManager:
 __dmatrix_registry = DMatrixDataManager()
 
 
+def get_dmatrix_data_handler(data, missing, nthread, silent,
+                             meta=None, meta_type=None):
+    '''Get a handler of `data` for DMatrix.
+
+    .. versionadded:: 1.2.0
+
+    Parameters
+    ----------
+    data : any
+        The input data.
+    missing : float
+        Same as `missing` for DMatrix.
+    nthread : int
+        Same as `nthread` for DMatrix.
+    silent : boolean
+        Same as `silent` for DMatrix.
+    meta : str
+        Field name of meta data, like `label`.  Used only for getting handler
+        for meta info.
+    meta_type : str/np.dtype
+        Type of meta data.
+
+    Returns
+    -------
+    handler : DataHandler
+    '''
+    handler = __dmatrix_registry.get_handler(data)
+    if handler is None:
+        warnings.warn(
+            f'Unknown data type {type(data)}, coverting it to csr_matrix')
+        try:
+            data = scipy.sparse.csr_matrix(data)
+            handler = __dmatrix_registry.get_handler(data)
+        except Exception:
+            raise TypeError('Can not initialize DMatrix from'
+                            ' {}'.format(type(data).__name__))
+    return handler(missing, nthread, silent, meta, meta_type)
+
+
 class FileHandler(DataHandler):
     '''Handler of path like input.'''
     def handle_input(self, data, feature_names, feature_types):
@@ -449,45 +488,6 @@ __dmatrix_registry.register_handler_opaque(
     DLPackHandler)
 
 
-def get_dmatrix_data_handler(data, missing, nthread, silent,
-                             meta=None, meta_type=None):
-    '''Get a handler of `data` for DMatrix.
-
-    .. versionadded:: 1.2.0
-
-    Parameters
-    ----------
-    data : any
-        The input data.
-    missing : float
-        Same as `missing` for DMatrix.
-    nthread : int
-        Same as `nthread` for DMatrix.
-    silent : boolean
-        Same as `silent` for DMatrix.
-    meta : str
-        Field name of meta data, like `label`.  Used only for getting handler
-        for meta info.
-    meta_type : str/np.dtype
-        Type of meta data.
-
-    Returns
-    -------
-    handler : DataHandler
-    '''
-    handler = __dmatrix_registry.get_handler(data)
-    if handler is None:
-        warnings.warn(
-            f'Unknown data type {type(data)}, coverting it to csr_matrix')
-        try:
-            data = scipy.sparse.csr_matrix(data)
-            handler = __dmatrix_registry.get_handler(data)
-        except Exception:
-            raise TypeError('Can not initialize DMatrix from'
-                            ' {}'.format(type(data).__name__))
-    return handler(missing, nthread, silent, meta, meta_type)
-
-
 class DeviceQuantileDMatrixDataHandler(DataHandler):
     '''Base class of data handler for `DeviceQuantileDMatrix`.'''
     def __init__(self, max_bin, missing, nthread, silent,
@@ -497,6 +497,21 @@ class DeviceQuantileDMatrixDataHandler(DataHandler):
 
 
 __device_quantile_dmatrix_registry = DMatrixDataManager()
+
+
+def get_device_quantile_dmatrix_data_handler(
+        data, max_bin, missing, nthread, silent):
+    '''Get data handler for `DeviceQuantileDMatrix`. Similar to
+    `get_dmatrix_data_handler`.
+
+    .. versionadded:: 1.2.0
+
+    '''
+    handler = __device_quantile_dmatrix_registry.get_handler(
+        data)
+    assert handler, f'Current data type {type(data)} is not supported' + \
+        ' for DeviceQuantileDMatrix'
+    return handler(max_bin, missing, nthread, silent)
 
 
 class DeviceQuantileCudaArrayInterfaceHandler(
@@ -575,18 +590,3 @@ class DeviceQuantileDLPackHandler(DeviceQuantileCudaArrayInterfaceHandler,
 __device_quantile_dmatrix_registry.register_handler_opaque(
     lambda x: 'PyCapsule' in str(type(x)) and "dltensor" in str(x),
     DeviceQuantileDLPackHandler)
-
-
-def get_device_quantile_dmatrix_data_handler(
-        data, max_bin, missing, nthread, silent):
-    '''Get data handler for `DeviceQuantileDMatrix`. Similar to
-    `get_dmatrix_data_handler`.
-
-    .. versionadded:: 1.2.0
-
-    '''
-    handler = __device_quantile_dmatrix_registry.get_handler(
-        data)
-    assert handler, f'Current data type {type(data)} is not supported' + \
-        ' for DeviceQuantileDMatrix'
-    return handler(max_bin, missing, nthread, silent)
