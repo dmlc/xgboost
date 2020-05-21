@@ -14,7 +14,7 @@ target_include_directories(xgboost4j
 set_output_directory(xgboost4j ${PROJECT_SOURCE_DIR}/lib)
 set_target_properties(
   xgboost4j PROPERTIES
-  CXX_STANDARD 11
+  CXX_STANDARD 14
   CXX_STANDARD_REQUIRED ON)
 target_link_libraries(xgboost4j
   PRIVATE

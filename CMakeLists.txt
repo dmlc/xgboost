@@ -112,7 +112,7 @@ endif (USE_OPENMP)
 msvc_use_static_runtime()
 add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
 set_target_properties(dmlc PROPERTIES
-  CXX_STANDARD 11
+  CXX_STANDARD 14
   CXX_STANDARD_REQUIRED ON
   POSITION_INDEPENDENT_CODE ON)
 list(APPEND LINKED_LIBRARIES_PRIVATE dmlc)
@@ -195,7 +195,7 @@ target_link_libraries(runxgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
 set_target_properties(
   runxgboost PROPERTIES
   OUTPUT_NAME xgboost
-  CXX_STANDARD 11
+  CXX_STANDARD 14
   CXX_STANDARD_REQUIRED ON)
 #-- End CLI for xgboost
 

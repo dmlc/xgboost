@@ -14,7 +14,6 @@ if (USE_CUDA)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
     $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>
-    $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CUDA>>:--std=c++11>
     $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>)
 
   if (USE_NCCL)
@@ -45,6 +44,8 @@ if (USE_CUDA)
   endif (HIDE_CXX_SYMBOLS)
 
   set_target_properties(objxgboost PROPERTIES
+    CUDA_STANDARD 14
+    CUDA_STANDARD_REQUIRED ON
     CUDA_SEPARABLE_COMPILATION OFF)
 else (USE_CUDA)
   add_library(objxgboost OBJECT ${CPU_SOURCES} ${PLUGINS_SOURCES})
@@ -71,7 +72,7 @@ endif (MSVC)
 
 set_target_properties(objxgboost PROPERTIES
   POSITION_INDEPENDENT_CODE ON
-  CXX_STANDARD 11
+  CXX_STANDARD 14
   CXX_STANDARD_REQUIRED ON)
 target_compile_definitions(objxgboost
   PRIVATE
