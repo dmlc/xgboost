@@ -1238,7 +1238,6 @@ void QuantileHistMaker::Builder<GradientSumT>::InitNewNode(int nid,
   }
 
   {
-    auto& stats = snode_[nid].stats;
     GHistRowT hist = hist_[nid];
     GradientPairT grad_stat;
     if (tree[nid].IsRoot()) {

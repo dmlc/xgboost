@@ -460,6 +460,7 @@ class HistSynchronizer {
                               int starting_index,
                               int sync_count,
                               RegTree *p_tree) = 0;
+  virtual ~HistSynchronizer() {}
 };
 
 template <typename GradientSumT>
@@ -491,8 +492,10 @@ template <typename GradientSumT>
 class HistRowsAdder {
  public:
   using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
+
   virtual void AddHistRows(BuilderT* builder, int *starting_index,
                            int *sync_count, RegTree *p_tree) = 0;
+  virtual ~HistRowsAdder() {}
 };
 
 template <typename GradientSumT>

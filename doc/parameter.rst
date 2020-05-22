@@ -225,7 +225,7 @@ Parameters for Tree Booster
     list is a group of indices of features that are allowed to interact with each other.
     See tutorial for more information
 
-Additional parameters for `hist` tree method
+Additional parameters for `hist` and 'gpu_hist' tree method
 ================================================
 
 * ``single_precision_histogram``, [default=``false``]
