@@ -537,16 +537,13 @@ class XGBModel(XGBModelBase):
             else:
                 params.update({'eval_metric': eval_metric})
 
-        try:
-            self._Booster = train(params, train_dmatrix,
-                                  self.get_num_boosting_rounds(), evals=evals,
-                                  early_stopping_rounds=early_stopping_rounds,
-                                  evals_result=evals_result,
-                                  obj=obj, feval=feval,
-                                  verbose_eval=verbose, xgb_model=xgb_model,
-                                  callbacks=callbacks)
-        except XGBoostError as e:
-            raise ValueError(e)
+        self._Booster = train(params, train_dmatrix,
+                              self.get_num_boosting_rounds(), evals=evals,
+                              early_stopping_rounds=early_stopping_rounds,
+                              evals_result=evals_result,
+                              obj=obj, feval=feval,
+                              verbose_eval=verbose, xgb_model=xgb_model,
+                              callbacks=callbacks)
 
         if evals_result:
             for val in evals_result.items():
@@ -1230,16 +1227,13 @@ class XGBRanker(XGBModel):
                     'Custom evaluation metric is not yet supported for XGBRanker.')
             params.update({'eval_metric': eval_metric})
 
-        try:
-            self._Booster = train(params, train_dmatrix,
-                                  self.n_estimators,
-                                  early_stopping_rounds=early_stopping_rounds,
-                                  evals=evals,
-                                  evals_result=evals_result, feval=feval,
-                                  verbose_eval=verbose, xgb_model=xgb_model,
-                                  callbacks=callbacks)
-        except XGBoostError as e:
-            raise ValueError(e)
+        self._Booster = train(params, train_dmatrix,
+                              self.n_estimators,
+                              early_stopping_rounds=early_stopping_rounds,
+                              evals=evals,
+                              evals_result=evals_result, feval=feval,
+                              verbose_eval=verbose, xgb_model=xgb_model,
+                              callbacks=callbacks)
 
         self.objective = params["objective"]
 
