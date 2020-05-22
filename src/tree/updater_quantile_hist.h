@@ -460,7 +460,7 @@ class HistSynchronizer {
                               int starting_index,
                               int sync_count,
                               RegTree *p_tree) = 0;
-  virtual ~HistSynchronizer() {}
+  virtual ~HistSynchronizer() = default;
 };
 
 template <typename GradientSumT>
@@ -495,7 +495,7 @@ class HistRowsAdder {
 
   virtual void AddHistRows(BuilderT* builder, int *starting_index,
                            int *sync_count, RegTree *p_tree) = 0;
-  virtual ~HistRowsAdder() {}
+  virtual ~HistRowsAdder() = default;
 };
 
 template <typename GradientSumT>
