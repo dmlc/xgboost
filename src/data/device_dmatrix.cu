@@ -24,8 +24,6 @@ namespace data {
 // be supported in future. Does not currently support inferring row/column size
 template <typename AdapterT>
 DeviceDMatrix::DeviceDMatrix(AdapterT* adapter, float missing, int nthread, int max_bin) {
-  common::HistogramCuts cuts =
-      common::AdapterDeviceSketch(adapter, max_bin, missing);
   dh::safe_cuda(cudaSetDevice(adapter->DeviceIdx()));
   auto& batch = adapter->Value();
   // Work out how many valid entries we have in each row
