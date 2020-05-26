@@ -17,8 +17,7 @@ import scipy.sparse
 
 from .compat import (
     STRING_TYPES, DataFrame, py_str,
-    PANDAS_INSTALLED, CUDF_INSTALLED,
-    CUDF_DataFrame,
+    PANDAS_INSTALLED,
     os_fspath, os_PathLike, lazy_isinstance)
 from .libpath import find_lib_path
 
@@ -282,8 +281,8 @@ def _convert_unknown_data(data, meta=None, meta_type=None):
 
 # Either object has cuda array interface or contains columns with interfaces
 def _has_cuda_array_interface(data):
-    return hasattr(data, '__cuda_array_interface__') or (
-        CUDF_INSTALLED and isinstance(data, CUDF_DataFrame))
+    return hasattr(data, '__cuda_array_interface__') or \
+        lazy_isinstance(data, 'cudf.core.dataframe', 'DataFrame')
 
 
 def _cudf_array_interfaces(df):
@@ -508,7 +507,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
     def set_interface_info(self, field, data):
         """Set info type property into DMatrix."""
         # If we are passed a dataframe, extract the series
-        if CUDF_INSTALLED and isinstance(data, CUDF_DataFrame):
+        if lazy_isinstance(data, 'cudf.core.dataframe', 'DataFrame'):
             if len(data.columns) != 1:
                 raise ValueError(
                     'Expecting meta-info to contain a single column')

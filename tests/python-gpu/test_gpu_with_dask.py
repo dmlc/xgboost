@@ -44,10 +44,10 @@ class TestDistributedGPU(unittest.TestCase):
                 out = dxgb.train(client, {'tree_method': 'gpu_hist'},
                                  dtrain=dtrain,
                                  evals=[(dtrain, 'X')],
-                                 num_boost_round=2)
+                                 num_boost_round=4)
 
                 assert isinstance(out['booster'], dxgb.Booster)
-                assert len(out['history']['X']['rmse']) == 2
+                assert len(out['history']['X']['rmse']) == 4
 
                 predictions = dxgb.predict(client, out, dtrain).compute()
                 assert isinstance(predictions, np.ndarray)
@@ -61,6 +61,20 @@ class TestDistributedGPU(unittest.TestCase):
 
                 cupy.testing.assert_allclose(single_node, predictions)
                 cupy.testing.assert_allclose(single_node, series_predictions)
+
+                predt = dxgb.predict(client, out, X)
+                assert isinstance(predt, dd.Series)
+
+                def is_df(part):
+                    assert isinstance(part, cudf.DataFrame), part
+                    return part
+
+                predt.map_partitions(
+                    is_df,
+                    meta=dd.utils.make_meta({'prediction': 'f4'}))
+
+                cupy.testing.assert_allclose(
+                    predt.values.compute(), single_node)
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.mgpu

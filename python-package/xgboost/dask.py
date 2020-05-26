@@ -25,7 +25,7 @@ from .compat import distributed_get_worker, distributed_wait, distributed_comm
 from .compat import da, dd, delayed, get_client
 from .compat import sparse, scipy_sparse
 from .compat import PANDAS_INSTALLED, DataFrame, Series, pandas_concat
-from .compat import CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_concat
+from .compat import CUDF_concat
 from .compat import lazy_isinstance
 
 from .core import DMatrix, Booster, _expect
@@ -97,7 +97,8 @@ def concat(value):              # pylint: disable=too-many-return-statements
         return sparse.concatenate(value, axis=0)
     if PANDAS_INSTALLED and isinstance(value[0], (DataFrame, Series)):
         return pandas_concat(value, axis=0)
-    if CUDF_INSTALLED and isinstance(value[0], (CUDF_DataFrame, CUDF_Series)):
+    if lazy_isinstance(value[0], 'cudf.core.dataframe', 'DataFrame') or \
+       lazy_isinstance(value[0], 'cudf.core.series', 'Series'):
         return CUDF_concat(value, axis=0)
     if lazy_isinstance(value[0], 'cupy.core.core', 'ndarray'):
         import cupy             # pylint: disable=import-error
@@ -505,7 +506,11 @@ def predict(client, model, data, *args, missing=numpy.nan):
         m = DMatrix(partition, missing=missing, nthread=worker.nthreads)
         predt = booster.predict(m, *args, validate_features=False)
         if is_df:
-            predt = DataFrame(predt, columns=['prediction'])
+            if lazy_isinstance(partition, 'cudf', 'core.dataframe.DataFrame'):
+                import cudf
+                predt = cudf.DataFrame(predt, columns=['prediction'])
+            else:
+                predt = DataFrame(predt, columns=['prediction'])
         return predt
 
     if isinstance(data, da.Array):
