@@ -26,7 +26,7 @@ from .libpath import find_lib_path
 c_bst_ulong = ctypes.c_uint64
 
 
-class XGBoostError(Exception):
+class XGBoostError(ValueError):
     """Error thrown by xgboost trainer."""
 
 
