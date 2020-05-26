@@ -407,7 +407,7 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
 
     def dispatched_train(worker_addr):
         '''Perform training on a single worker.'''
-        LOGGER.info(f'Training on {worker_addr}')
+        LOGGER.info('Training on %s', str(worker_addr))
         worker = distributed_get_worker()
         with RabitContext(rabit_args):
             local_dtrain = dtrain.get_worker_data(worker)
@@ -522,7 +522,7 @@ def predict(client, model, data, *args, missing=numpy.nan):
 
     def dispatched_predict(worker_id):
         '''Perform prediction on each worker.'''
-        LOGGER.info(f'Predicting on {worker_id}')
+        LOGGER.info('Predicting on %d', worker_id)
         worker = distributed_get_worker()
         list_of_parts = data.get_worker_x_ordered(worker)
         predictions = []
@@ -542,7 +542,7 @@ def predict(client, model, data, *args, missing=numpy.nan):
 
     def dispatched_get_shape(worker_id):
         '''Get shape of data in each worker.'''
-        LOGGER.info(f'Trying to get data shape on {worker_id}')
+        LOGGER.info('Trying to get data shape on %d', worker_id)
         worker = distributed_get_worker()
         list_of_parts = data.get_worker_x_ordered(worker)
         shapes = []
