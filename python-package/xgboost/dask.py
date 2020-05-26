@@ -477,6 +477,8 @@ def _direct_predict_impl(client, data, predict_fn):
             meta=dd.utils.make_meta({'prediction': 'f4'})
         ).result()
         return predictions.iloc[:, 0]
+    raise TypeError('data of type: ' + str(type(data)) +
+                    ' is not supported by direct prediction')
 
 
 def predict(client, model, data, *args, missing=numpy.nan):
