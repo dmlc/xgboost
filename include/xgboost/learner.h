@@ -8,9 +8,11 @@
 #ifndef XGBOOST_LEARNER_H_
 #define XGBOOST_LEARNER_H_
 
+#include <dmlc/any.h>
 #include <rabit/rabit.h>
 #include <xgboost/base.h>
 #include <xgboost/feature_map.h>
+#include <xgboost/predictor.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
@@ -28,6 +30,22 @@ class GradientBooster;
 class ObjFunction;
 class DMatrix;
 class Json;
+
+/*! \brief entry to to easily hold returning information */
+struct XGBAPIThreadLocalEntry {
+  /*! \brief result holder for returning string */
+  std::string ret_str;
+  /*! \brief result holder for returning strings */
+  std::vector<std::string> ret_vec_str;
+  /*! \brief result holder for returning string pointers */
+  std::vector<const char *> ret_vec_charp;
+  /*! \brief returning float vector. */
+  std::vector<bst_float> ret_vec_float;
+  /*! \brief temp variable of gradient pairs. */
+  std::vector<GradientPair> tmp_gpair;
+  PredictionCacheEntry prediction_entry;
+};
+
 
 /*!
  * \brief Learner class that does training and prediction.
@@ -103,6 +121,21 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
                        bool approx_contribs = false,
                        bool pred_interactions = false) = 0;
 
+  /*!
+   * \brief Inplace prediction.
+   *
+   * \param          x           A type erased data adapter.
+   * \param          type        Prediction type.
+   * \param          missing     Missing value in the data.
+   * \param [in,out] out_preds   Pointer to output prediction vector.
+   * \param          layer_begin (Optional) Begining of boosted tree layer used for prediction.
+   * \param          layer_end   (Optional) End of booster layer. 0 means do not limit trees.
+   */
+  virtual void InplacePredict(dmlc::any const& x, std::string const& type,
+                              float missing,
+                              HostDeviceVector<bst_float> **out_preds,
+                              uint32_t layer_begin = 0, uint32_t layer_end = 0) = 0;
+
   void LoadModel(Json const& in) override = 0;
   void SaveModel(Json* out) const override = 0;
 
@@ -166,7 +199,9 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
    */
   virtual std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                              bool with_stats,
-                                             std::string format) const = 0;
+                                             std::string format) = 0;
+
+  virtual XGBAPIThreadLocalEntry& GetThreadLocal() const = 0;
   /*!
    * \brief Create a new instance of learner.
    * \param cache_data The matrix to cache the prediction.
@@ -199,13 +234,13 @@ struct LearnerModelParamLegacy;
  */
 struct LearnerModelParam {
   /* \brief global bias */
-  bst_float base_score;
+  bst_float base_score { 0.5f };
   /* \brief number of features  */
-  uint32_t num_feature;
+  uint32_t num_feature { 0 };
   /* \brief number of classes, if it is multi-class classification  */
-  uint32_t num_output_group;
+  uint32_t num_output_group { 0 };
 
-  LearnerModelParam() : base_score {0.5}, num_feature{0}, num_output_group{0} {}
+  LearnerModelParam() = default;
   // As the old `LearnerModelParamLegacy` is still used by binary IO, we keep
   // this one as an immutable copy.
   LearnerModelParam(LearnerModelParamLegacy const& user_param, float base_margin);

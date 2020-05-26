@@ -73,13 +73,12 @@ class ExternalMemoryUniformSampling : public SamplingStrategy {
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:
-  dh::BulkAllocator ba_;
   EllpackPageImpl* original_page_;
   BatchParam batch_param_;
   float subsample_;
   std::unique_ptr<EllpackPageImpl> page_;
   dh::device_vector<GradientPair> gpair_{};
-  common::Span<size_t> sample_row_index_;
+  dh::caching_device_vector<size_t> sample_row_index_;
 };
 
 /*! \brief Gradient-based sampling in in-memory mode.. */
@@ -94,9 +93,8 @@ class GradientBasedSampling : public SamplingStrategy {
  private:
   EllpackPageImpl* page_;
   float subsample_;
-  dh::BulkAllocator ba_;
-  common::Span<float> threshold_;
-  common::Span<float> grad_sum_;
+  dh::caching_device_vector<float> threshold_;
+  dh::caching_device_vector<float> grad_sum_;
 };
 
 /*! \brief Gradient-based sampling in external memory mode.. */
@@ -109,15 +107,14 @@ class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
   GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
 
  private:
-  dh::BulkAllocator ba_;
   EllpackPageImpl* original_page_;
   BatchParam batch_param_;
   float subsample_;
-  common::Span<float> threshold_;
-  common::Span<float> grad_sum_;
+  dh::caching_device_vector<float> threshold_;
+  dh::caching_device_vector<float> grad_sum_;
   std::unique_ptr<EllpackPageImpl> page_;
   dh::device_vector<GradientPair> gpair_;
-  common::Span<size_t> sample_row_index_;
+  dh::caching_device_vector<size_t> sample_row_index_;
 };
 
 /*! \brief Draw a sample of rows from a DMatrix.

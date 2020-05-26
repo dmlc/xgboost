@@ -91,9 +91,11 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
           batch, jenv->GetFieldID(batchClass, "featureIndex", "[I"));
       jfloatArray jvalue = (jfloatArray)jenv->GetObjectField(
           batch, jenv->GetFieldID(batchClass, "featureValue", "[F"));
+      jint jcols = jenv->GetIntField(
+          batch, jenv->GetFieldID(batchClass, "featureCols", "I"));
       XGBoostBatchCSR cbatch;
       cbatch.size = jenv->GetArrayLength(joffset) - 1;
-      cbatch.columns = std::numeric_limits<size_t>::max();
+      cbatch.columns = jcols;
       cbatch.offset = reinterpret_cast<jlong *>(
           jenv->GetLongArrayElements(joffset, 0));
       if (jlabel != nullptr) {
@@ -149,7 +151,7 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
       global_jvm->DetachCurrentThread();
     }
     return ret_value;
-  } catch(dmlc::Error e) {
+  } catch(dmlc::Error const& e) {
     // only detach if it is a async call.
     if (jni_status == JNI_EDETACHED) {
       global_jvm->DetachCurrentThread();

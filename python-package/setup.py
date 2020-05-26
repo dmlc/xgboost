@@ -14,11 +14,14 @@ from setuptools.command import build_ext, sdist, install_lib, install
 CURRENT_DIR = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, CURRENT_DIR)
 
+# Options only effect `python setup.py install`, building `bdist_wheel`
+# requires using CMake directly.
 USER_OPTIONS = {
     'use-openmp': (None, 'Build with OpenMP support.', 1),
     'use-cuda':   (None, 'Build with GPU acceleration.', 0),
     'use-nccl':   (None, 'Build with NCCL to enable distributed GPU support.', 0),
     'build-with-shared-nccl': (None, 'Build with shared NCCL library.', 0),
+    'hide-cxx-symbols':       (None, 'Hide all C++ symbols during build.', 1),
     'use-hdfs':   (None, 'Build with HDFS support', 0),
     'use-azure':  (None, 'Build with AZURE support.', 0),
     'use-s3':     (None, 'Build with S3 support', 0),
@@ -86,7 +89,7 @@ class CMakeExtension(Extension):  # pylint: disable=too-few-public-methods
         super().__init__(name=name, sources=[])
 
 
-class BuildExt(build_ext.build_ext):
+class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
     '''Custom build_ext command using CMake.'''
 
     logger = logging.getLogger('XGBoost build_ext')
@@ -103,6 +106,7 @@ class BuildExt(build_ext.build_ext):
             if k == 'USE_OPENMP' and use_omp == 0:
                 continue
 
+        self.logger.info('Run CMake command: %s', str(cmake_cmd))
         subprocess.check_call(cmake_cmd, cwd=build_dir)
 
         if system() != 'Windows':
@@ -236,6 +240,7 @@ class Install(install.install):  # pylint: disable=too-many-instance-attributes
         self.use_cuda = 0
         self.use_nccl = 0
         self.build_with_shared_nccl = 0
+        self.hide_cxx_symbols = 1
 
         self.use_hdfs = 0
         self.use_azure = 0

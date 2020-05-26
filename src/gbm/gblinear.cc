@@ -22,6 +22,7 @@
 
 #include "gblinear_model.h"
 #include "../common/timer.h"
+#include "../common/common.h"
 
 namespace xgboost {
 namespace gbm {
@@ -53,8 +54,8 @@ class GBLinear : public GradientBooster {
  public:
   explicit GBLinear(LearnerModelParam const* learner_model_param)
       : learner_model_param_{learner_model_param},
-        model_{learner_model_param_},
-        previous_model_{learner_model_param_},
+        model_{learner_model_param},
+        previous_model_{learner_model_param},
         sum_instance_weight_(0),
         sum_weight_complete_(false),
         is_converged_(false) {}
@@ -68,7 +69,7 @@ class GBLinear : public GradientBooster {
     updater_->Configure(cfg);
     monitor_.Init("GBLinear");
     if (param_.updater == "gpu_coord_descent") {
-      this->AssertGPUSupport();
+      common::AssertGPUSupport();
     }
   }
 
@@ -95,14 +96,14 @@ class GBLinear : public GradientBooster {
 
   void LoadConfig(Json const& in) override {
     CHECK_EQ(get<String>(in["name"]), "gblinear");
-    fromJson(in["gblinear_train_param"], &param_);
+    FromJson(in["gblinear_train_param"], &param_);
     updater_.reset(LinearUpdater::Create(param_.updater, generic_param_));
     this->updater_->LoadConfig(in["updater"]);
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String{"gblinear"};
-    out["gblinear_train_param"] = toJson(param_);
+    out["gblinear_train_param"] = ToJson(param_);
 
     out["updater"] = Object();
     auto& j_updater = out["updater"];
@@ -140,7 +141,7 @@ class GBLinear : public GradientBooster {
   void PredictInstance(const SparsePage::Inst &inst,
                        std::vector<bst_float> *out_preds,
                        unsigned ntree_limit) override {
-    const int ngroup = model_.learner_model_param_->num_output_group;
+    const int ngroup = model_.learner_model_param->num_output_group;
     for (int gid = 0; gid < ngroup; ++gid) {
       this->Pred(inst, dmlc::BeginPtr(*out_preds), gid,
                  learner_model_param_->base_score);
@@ -161,8 +162,8 @@ class GBLinear : public GradientBooster {
     CHECK_EQ(ntree_limit, 0U)
         << "GBLinear::PredictContribution: ntrees is only valid for gbtree predictor";
     const auto& base_margin = p_fmat->Info().base_margin_.ConstHostVector();
-    const int ngroup = model_.learner_model_param_->num_output_group;
-    const size_t ncolumns = model_.learner_model_param_->num_feature + 1;
+    const int ngroup = model_.learner_model_param->num_output_group;
+    const size_t ncolumns = model_.learner_model_param->num_feature + 1;
     // allocate space for (#features + bias) times #groups times #rows
     std::vector<bst_float>& contribs = *out_contribs;
     contribs.resize(p_fmat->Info().num_row_ * ncolumns * ngroup);
@@ -181,11 +182,11 @@ class GBLinear : public GradientBooster {
           bst_float *p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
           // calculate linear terms' contributions
           for (auto& ins : inst) {
-            if (ins.index >= model_.learner_model_param_->num_feature) continue;
+            if (ins.index >= model_.learner_model_param->num_feature) continue;
             p_contribs[ins.index] = ins.fvalue * model_[ins.index][gid];
           }
           // add base margin to BIAS
-          p_contribs[ncolumns - 1] = model_.bias()[gid] +
+          p_contribs[ncolumns - 1] = model_.Bias()[gid] +
             ((base_margin.size() != 0) ? base_margin[row_idx * ngroup + gid] :
                                          learner_model_param_->base_score);
         }
@@ -199,10 +200,10 @@ class GBLinear : public GradientBooster {
     std::vector<bst_float>& contribs = *out_contribs;
 
     // linear models have no interaction effects
-    const size_t nelements = model_.learner_model_param_->num_feature *
-                             model_.learner_model_param_->num_feature;
+    const size_t nelements = model_.learner_model_param->num_feature *
+                             model_.learner_model_param->num_feature;
     contribs.resize(p_fmat->Info().num_row_ * nelements *
-                    model_.learner_model_param_->num_output_group);
+                    model_.learner_model_param->num_output_group);
     std::fill(contribs.begin(), contribs.end(), 0);
   }
 
@@ -228,7 +229,7 @@ class GBLinear : public GradientBooster {
     std::vector<bst_float> &preds = *out_preds;
     const auto& base_margin = p_fmat->Info().base_margin_.ConstHostVector();
     // start collecting the prediction
-    const int ngroup = model_.learner_model_param_->num_output_group;
+    const int ngroup = model_.learner_model_param->num_output_group;
     preds.resize(p_fmat->Info().num_row_ * ngroup);
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       // output convention: nrow * k, where nrow is number of rows
@@ -283,9 +284,9 @@ class GBLinear : public GradientBooster {
 
   void Pred(const SparsePage::Inst &inst, bst_float *preds, int gid,
             bst_float base) {
-    bst_float psum = model_.bias()[gid] + base;
+    bst_float psum = model_.Bias()[gid] + base;
     for (const auto& ins : inst) {
-      if (ins.index >= model_.learner_model_param_->num_feature) continue;
+      if (ins.index >= model_.learner_model_param->num_feature) continue;
       psum += ins.fvalue * model_[ins.index][gid];
     }
     preds[gid] = psum;

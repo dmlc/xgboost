@@ -141,3 +141,25 @@ TEST(MetaInfo, LoadQid) {
     CHECK(batch.data.HostVector() == expected_data);
   }
 }
+
+TEST(MetaInfo, Validate) {
+  xgboost::MetaInfo info;
+  info.num_row_ = 10;
+  info.num_nonzero_ = 12;
+  info.num_col_ = 3;
+  std::vector<xgboost::bst_group_t> groups (11);
+  info.SetInfo("group", groups.data(), xgboost::DataType::kUInt32, 11);
+  EXPECT_THROW(info.Validate(0), dmlc::Error);
+
+  std::vector<float> labels(info.num_row_ + 1);
+  info.SetInfo("label", labels.data(), xgboost::DataType::kFloat32, info.num_row_ + 1);
+  EXPECT_THROW(info.Validate(0), dmlc::Error);
+
+#if defined(XGBOOST_USE_CUDA)
+  info.group_ptr_.clear();
+  labels.resize(info.num_row_);
+  info.SetInfo("label", labels.data(), xgboost::DataType::kFloat32, info.num_row_);
+  info.labels_.SetDevice(0);
+  EXPECT_THROW(info.Validate(1), dmlc::Error);
+#endif  // defined(XGBOOST_USE_CUDA)
+}

@@ -55,6 +55,29 @@ TEST(Objective, DeclareUnifiedTest(SquaredLog)) {
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"rmsle"});
 }
 
+TEST(Objective, DeclareUnifiedTest(PseudoHuber)) {
+  GenericParameter tparam = CreateEmptyGenericParam(GPUIDX);
+  std::vector<std::pair<std::string, std::string>> args;
+
+  std::unique_ptr<ObjFunction> obj { ObjFunction::Create("reg:pseudohubererror", &tparam) };
+  obj->Configure(args);
+  CheckConfigReload(obj, "reg:pseudohubererror");
+
+  CheckObjFunction(obj,
+                   {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},  // pred
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // labels
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // weights
+                   {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f}, // out_grad
+                   { 0.410660f,  0.476140f,  0.630510f,  0.9428660f, 0.630510f}); // out_hess
+  CheckObjFunction(obj,
+                   {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},  // pred
+                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // labels
+                   {},                              // empty weights
+                   {-0.668965f, -0.624695f, -0.514496f, -0.196116f, 0.514496f}, // out_grad
+                   { 0.410660f,  0.476140f,  0.630510f,  0.9428660f, 0.630510f}); // out_hess
+  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"mphe"});
+}
+
 TEST(Objective, DeclareUnifiedTest(LogisticRegressionGPair)) {
   GenericParameter tparam = CreateEmptyGenericParam(GPUIDX);
   std::vector<std::pair<std::string, std::string>> args;
@@ -259,14 +282,14 @@ TEST(Objective, CPU_vs_CUDA) {
 
   constexpr size_t kRows = 400;
   constexpr size_t kCols = 100;
-  auto ppdmat = CreateDMatrix(kRows, kCols, 0, 0);
+  auto pdmat = RandomDataGenerator(kRows, kCols, 0).Seed(0).GenerateDMatrix();
   HostDeviceVector<float> preds;
   preds.Resize(kRows);
   auto& h_preds = preds.HostVector();
   for (size_t i = 0; i < h_preds.size(); ++i) {
     h_preds[i] = static_cast<float>(i);
   }
-  auto& info = (*ppdmat)->Info();
+  auto& info = pdmat->Info();
 
   info.labels_.Resize(kRows);
   auto& h_labels = info.labels_.HostVector();
@@ -297,7 +320,6 @@ TEST(Objective, CPU_vs_CUDA) {
   ASSERT_NEAR(sgrad, 0.0f, kRtEps);
   ASSERT_NEAR(shess, 0.0f, kRtEps);
 
-  delete ppdmat;
   delete obj;
 }
 #endif

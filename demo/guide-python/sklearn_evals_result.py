@@ -20,7 +20,7 @@ clf = xgb.XGBModel(**param_dist)
 # Or you can use: clf = xgb.XGBClassifier(**param_dist)
 
 clf.fit(X_train, y_train,
-        eval_set=[(X_train, y_train), (X_test, y_test)], 
+        eval_set=[(X_train, y_train), (X_test, y_test)],
         eval_metric='logloss',
         verbose=True)
 
@@ -37,7 +37,7 @@ for e_name, e_mtrs in evals_result.items():
     for e_mtr_name, e_mtr_vals in e_mtrs.items():
         print(f'   - {e_mtr_name}')
         print(f'      - {e_mtr_vals}')
- 
+
 print('')
 print('Access complete dict:')
 print(evals_result)

@@ -9,6 +9,8 @@ import pytest
 import unittest
 import json
 
+from test_basic import captured_output
+
 rng = np.random.RandomState(1994)
 
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
@@ -191,6 +193,19 @@ def test_feature_importances_gain():
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
+def test_select_feature():
+    from sklearn.datasets import load_digits
+    from sklearn.feature_selection import SelectFromModel
+    digits = load_digits(2)
+    y = digits['target']
+    X = digits['data']
+    cls = xgb.XGBClassifier()
+    cls.fit(X, y)
+    selector = SelectFromModel(cls, prefit=True, max_features=1)
+    X_selected = selector.transform(X)
+    assert X_selected.shape[1] == 1
+
+
 def test_num_parallel_tree():
     from sklearn.datasets import load_boston
     reg = xgb.XGBRegressor(n_estimators=4, num_parallel_tree=4,
@@ -265,7 +280,7 @@ def test_parameter_tuning():
     xgb_model = xgb.XGBRegressor(learning_rate=0.1)
     clf = GridSearchCV(xgb_model, {'max_depth': [2, 4, 6],
                                    'n_estimators': [50, 100, 200]},
-                       cv=3, verbose=1, iid=True)
+                       cv=3, verbose=1)
     clf.fit(X, y)
     assert clf.best_score_ < 0.7
     assert clf.best_params_ == {'n_estimators': 100, 'max_depth': 4}
@@ -581,6 +596,17 @@ def test_validation_weights_xgbmodel():
     assert all((logloss_with_weights[i] != logloss_without_weights[i]
                 for i in [0, 1]))
 
+    with pytest.raises(AssertionError):
+        # length of eval set and sample weight doesn't match.
+        clf.fit(X_train, y_train, sample_weight=weights_train,
+                eval_set=[(X_train, y_train), (X_test, y_test)],
+                sample_weight_eval_set=[weights_train])
+
+    with pytest.raises(AssertionError):
+        cls = xgb.XGBClassifier()
+        cls.fit(X_train, y_train, sample_weight=weights_train,
+                eval_set=[(X_train, y_train), (X_test, y_test)],
+                sample_weight_eval_set=[weights_train])
 
 def test_validation_weights_xgbclassifier():
     from sklearn.datasets import make_hastie_10_2
@@ -704,7 +730,7 @@ def test_RFECV():
     # Regression
     X, y = load_boston(return_X_y=True)
     bst = xgb.XGBClassifier(booster='gblinear', learning_rate=0.1,
-                            n_estimators=10, n_jobs=1,
+                            n_estimators=10,
                             objective='reg:squarederror',
                             random_state=0, verbosity=0)
     rfecv = RFECV(
@@ -714,7 +740,7 @@ def test_RFECV():
     # Binary classification
     X, y = load_breast_cancer(return_X_y=True)
     bst = xgb.XGBClassifier(booster='gblinear', learning_rate=0.1,
-                            n_estimators=10, n_jobs=1,
+                            n_estimators=10,
                             objective='binary:logistic',
                             random_state=0, verbosity=0)
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='roc_auc')
@@ -724,11 +750,21 @@ def test_RFECV():
     X, y = load_iris(return_X_y=True)
     bst = xgb.XGBClassifier(base_score=0.4, booster='gblinear',
                             learning_rate=0.1,
-                            n_estimators=10, n_jobs=1,
+                            n_estimators=10,
                             objective='multi:softprob',
                             random_state=0, reg_alpha=0.001, reg_lambda=0.01,
                             scale_pos_weight=0.5, verbosity=0)
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='neg_log_loss')
+    rfecv.fit(X, y)
+
+    X[0:4, :] = np.nan          # verify scikit_learn doesn't throw with nan
+    reg = xgb.XGBRegressor()
+    rfecv = RFECV(estimator=reg)
+    rfecv.fit(X, y)
+
+    cls = xgb.XGBClassifier()
+    rfecv = RFECV(estimator=cls, step=1, cv=3,
+                  scoring='neg_mean_squared_error')
     rfecv.fit(X, y)
 
 
@@ -783,6 +819,27 @@ def test_constraint_parameters():
     config = json.loads(reg.get_booster().save_config())
     assert config['learner']['gradient_booster']['updater']['grow_colmaker'][
         'train_param']['interaction_constraints'] == '[[0, 1], [2, 3, 4]]'
+
+
+def test_parameter_validation():
+    reg = xgb.XGBRegressor(foo='bar', verbosity=1)
+    X = np.random.randn(10, 10)
+    y = np.random.randn(10)
+    with captured_output() as (out, err):
+        reg.fit(X, y)
+        output = out.getvalue().strip()
+
+    assert output.find('foo') != -1
+
+    reg = xgb.XGBRegressor(n_estimators=2, missing=3,
+                           importance_type='gain', verbosity=1)
+    X = np.random.randn(10, 10)
+    y = np.random.randn(10)
+    with captured_output() as (out, err):
+        reg.fit(X, y)
+        output = out.getvalue().strip()
+
+    assert len(output) == 0
 
 
 class TestBoostFromPrediction(unittest.TestCase):

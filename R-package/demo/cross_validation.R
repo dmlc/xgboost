@@ -6,7 +6,7 @@ dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
 dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
 
 nrounds <- 2
-param <- list(max_depth=2, eta=1, silent=1, nthread=2, objective='binary:logistic')
+param <- list(max_depth=2, eta=1, nthread=2, objective='binary:logistic')
 
 cat('running cross validation\n')
 # do cross validation, this will print result out as
@@ -40,7 +40,7 @@ evalerror <- function(preds, dtrain) {
   return(list(metric = "error", value = err))
 }
 
-param <- list(max_depth=2, eta=1, silent=1,
+param <- list(max_depth=2, eta=1,
               objective = logregobj, eval_metric = evalerror)
 # train with customized objective
 xgb.cv(params = param, data = dtrain, nrounds = nrounds, nfold = 5)

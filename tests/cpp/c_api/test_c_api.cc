@@ -11,7 +11,7 @@
 #include "../../../src/common/io.h"
 
 
-TEST(c_api, XGDMatrixCreateFromMatDT) {
+TEST(CAPI, XGDMatrixCreateFromMatDT) {
   std::vector<int> col0 = {0, -1, 3};
   std::vector<float> col1 = {-4.0f, 2.0f, 0.0f};
   const char *col0_type = "int32";
@@ -38,7 +38,7 @@ TEST(c_api, XGDMatrixCreateFromMatDT) {
   delete dmat;
 }
 
-TEST(c_api, XGDMatrixCreateFromMat_omp) {
+TEST(CAPI, XGDMatrixCreateFromMatOmp) {
   std::vector<int> num_rows = {100, 11374, 15000};
   for (auto row : num_rows) {
     int num_cols = 50;
@@ -74,16 +74,15 @@ TEST(c_api, XGDMatrixCreateFromMat_omp) {
 
 namespace xgboost {
 
-TEST(c_api, Version) {
+TEST(CAPI, Version) {
   int patch {0};
   XGBoostVersion(NULL, NULL, &patch);  // NOLINT
   ASSERT_EQ(patch, XGBOOST_VER_PATCH);
 }
 
-TEST(c_api, ConfigIO) {
+TEST(CAPI, ConfigIO) {
   size_t constexpr kRows = 10;
-  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
-  auto p_dmat = *pp_dmat;
+  auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatrix();
   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
   std::vector<bst_float> labels(kRows);
   for (size_t i = 0; i < labels.size(); ++i) {
@@ -110,16 +109,13 @@ TEST(c_api, ConfigIO) {
   auto config_1 = Json::Load({config_str_1.c_str(), config_str_1.size()});
 
   ASSERT_EQ(config_0, config_1);
-
-  delete pp_dmat;
 }
 
-TEST(c_api, JsonModelIO) {
+TEST(CAPI, JsonModelIO) {
   size_t constexpr kRows = 10;
   dmlc::TemporaryDirectory tempdir;
 
-  auto pp_dmat = CreateDMatrix(kRows, 10, 0);
-  auto p_dmat = *pp_dmat;
+  auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatrix();
   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
   std::vector<bst_float> labels(kRows);
   for (size_t i = 0; i < labels.size(); ++i) {
@@ -144,6 +140,12 @@ TEST(c_api, JsonModelIO) {
 
   ASSERT_EQ(model_str_0.front(), '{');
   ASSERT_EQ(model_str_0, model_str_1);
-  delete pp_dmat;
 }
+
+TEST(CAPI, CatchDMLCError) {
+  DMatrixHandle out;
+  ASSERT_EQ(XGDMatrixCreateFromFile("foo", 0, &out), -1);
+  EXPECT_THROW({ dmlc::Stream::Create("foo", "r"); },  dmlc::Error);
+}
+
 }  // namespace xgboost

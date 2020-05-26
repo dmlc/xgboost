@@ -8,6 +8,8 @@
 #include <cstddef>
 #include <algorithm>
 
+#include "common.h"
+
 #ifdef __CUDACC__
 #include "device_helpers.cuh"
 #endif  // __CUDACC__
@@ -29,12 +31,12 @@ inline void ClearBit(CompressedByteT *byte, int bit_idx) {
   *byte &= ~(1 << bit_idx);
 }
 static const int kPadding = 4;  // Assign padding so we can read slightly off
-                               // the beginning of the array
+                                // the beginning of the array
 
 // The number of bits required to represent a given unsigned range
-static size_t SymbolBits(size_t num_symbols) {
-  auto bits = std::ceil(std::log2(num_symbols));
-  return std::max(static_cast<size_t>(bits), size_t(1));
+inline XGBOOST_DEVICE size_t SymbolBits(size_t num_symbols) {
+  auto bits = std::ceil(log2(static_cast<double>(num_symbols)));
+  return common::Max(static_cast<size_t>(bits), size_t(1));
 }
 }  // namespace detail
 
@@ -50,14 +52,11 @@ static size_t SymbolBits(size_t num_symbols) {
  */
 
 class CompressedBufferWriter {
- private:
   size_t symbol_bits_;
-  size_t offset_;
 
  public:
-  explicit CompressedBufferWriter(size_t num_symbols) : offset_(0) {
-    symbol_bits_ = detail::SymbolBits(num_symbols);
-  }
+  XGBOOST_DEVICE explicit CompressedBufferWriter(size_t num_symbols)
+      : symbol_bits_(detail::SymbolBits(num_symbols)) {}
 
   /**
    * \fn  static size_t CompressedBufferWriter::CalculateBufferSize(int
@@ -75,11 +74,16 @@ class CompressedBufferWriter {
    * \return  The calculated buffer size.
    */
   static size_t CalculateBufferSize(size_t num_elements, size_t num_symbols) {
-    const int bits_per_byte = 8;
+    constexpr int kBitsPerByte = 8;
     size_t compressed_size = static_cast<size_t>(std::ceil(
         static_cast<double>(detail::SymbolBits(num_symbols) * num_elements) /
-        bits_per_byte));
-    return compressed_size + detail::kPadding;
+        kBitsPerByte));
+    // Handle atomicOr where input must be unsigned int, hence 4 bytes aligned.
+    size_t ret =
+        std::ceil(static_cast<double>(compressed_size + detail::kPadding) /
+                  static_cast<double>(sizeof(unsigned int))) *
+        sizeof(unsigned int);
+    return ret;
   }
 
   template <typename T>
@@ -108,7 +112,7 @@ class CompressedBufferWriter {
     size_t ibyte_start = ibit_start / 8, ibyte_end = ibit_end / 8;
 
     symbol <<= 7 - ibit_end % 8;
-    for (ptrdiff_t ibyte = ibyte_end; ibyte >= (ptrdiff_t)ibyte_start; --ibyte) {
+    for (ptrdiff_t ibyte = ibyte_end; ibyte >= static_cast<ptrdiff_t>(ibyte_start); --ibyte) {
       dh::AtomicOrByte(reinterpret_cast<unsigned int*>(buffer + detail::kPadding),
                        ibyte, symbol & 0xff);
       symbol >>= 8;
@@ -159,18 +163,15 @@ class CompressedBufferWriter {
   }
 };
 
-template <typename T>
-
 /**
- * \class CompressedIterator
- *
- * \brief Read symbols from a bit compressed memory buffer. Usable on device and
- * host.
+ * \brief Read symbols from a bit compressed memory buffer. Usable on device and host.
  *
  * \author  Rory
  * \date  7/9/2017
+ *
+ * \tparam  T Generic type parameter.
  */
-
+template <typename T>
 class CompressedIterator {
  public:
   // Type definitions for thrust
@@ -181,14 +182,14 @@ class CompressedIterator {
   typedef value_type reference;             // NOLINT
 
  private:
-  CompressedByteT *buffer_;
-  size_t symbol_bits_;
-  size_t offset_;
+  const CompressedByteT *buffer_ {nullptr};
+  size_t symbol_bits_ {0};
+  size_t offset_ {0};
 
  public:
-  CompressedIterator() : buffer_(nullptr), symbol_bits_(0), offset_(0) {}
-  CompressedIterator(CompressedByteT *buffer, size_t num_symbols)
-      : buffer_(buffer), offset_(0) {
+  CompressedIterator() = default;
+  CompressedIterator(const CompressedByteT *buffer, size_t num_symbols)
+      : buffer_(buffer) {
     symbol_bits_ = detail::SymbolBits(num_symbols);
   }
 

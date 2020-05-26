@@ -249,7 +249,8 @@ class HistMaker: public BaseMaker {
         p_tree->ExpandNode(nid, best.SplitIndex(), best.split_value,
                            best.DefaultLeft(), base_weight, left_leaf_weight,
                            right_leaf_weight, best.loss_chg,
-                           node_sum.sum_hess);
+                           node_sum.sum_hess,
+                           best.left_sum.GetHess(), best.right_sum.GetHess());
         GradStats right_sum;
         right_sum.SetSubstract(node_sum, left_sum[wid]);
         auto left_child = (*p_tree)[nid].LeftChild();
@@ -698,7 +699,7 @@ class GlobalProposalHistMaker: public CQHistMaker {
       this->work_set_.insert(this->work_set_.end(), this->fsplit_set_.begin(),
                              this->fsplit_set_.end());
       XGBOOST_PARALLEL_SORT(this->work_set_.begin(), this->work_set_.end(),
-                            std::less<decltype(this->work_set_)::value_type>{});
+                            std::less<>{});
       this->work_set_.resize(
           std::unique(this->work_set_.begin(), this->work_set_.end()) - this->work_set_.begin());
 

@@ -19,10 +19,12 @@ namespace data {
 // Used for single batch data.
 class SimpleDMatrix : public DMatrix {
  public:
+  SimpleDMatrix() = default;
   template <typename AdapterT>
   explicit SimpleDMatrix(AdapterT* adapter, float missing, int nthread);
 
   explicit SimpleDMatrix(dmlc::Stream* in_stream);
+  ~SimpleDMatrix() override = default;
 
   void SaveToLocalFile(const std::string& fname);
 
@@ -31,6 +33,7 @@ class SimpleDMatrix : public DMatrix {
   const MetaInfo& Info() const override;
 
   bool SingleColBlock() const override { return true; }
+  DMatrix* Slice(common::Span<int32_t const> ridxs) override;
 
   /*! \brief magic number used to identify SimpleDMatrix binary files */
   static const int kMagic = 0xffffab01;
@@ -41,7 +44,7 @@ class SimpleDMatrix : public DMatrix {
   BatchSet<SortedCSCPage> GetSortedColumnBatches() override;
   BatchSet<EllpackPage> GetEllpackBatches(const BatchParam& param) override;
 
-  MetaInfo info;
+  MetaInfo info_;
   SparsePage sparse_page_;  // Primary storage type
   std::unique_ptr<CSCPage> column_page_;
   std::unique_ptr<SortedCSCPage> sorted_column_page_;

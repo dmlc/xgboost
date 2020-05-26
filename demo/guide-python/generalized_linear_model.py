@@ -1,16 +1,17 @@
-#!/usr/bin/python
+import os
 import xgboost as xgb
 ##
 #  this script demonstrate how to fit generalized linear model in xgboost
 #  basically, we are using linear model, instead of tree for our boosters
 ##
-dtrain = xgb.DMatrix('../data/agaricus.txt.train')
-dtest = xgb.DMatrix('../data/agaricus.txt.test')
+CURRENT_DIR = os.path.dirname(__file__)
+dtrain = xgb.DMatrix(os.path.join(CURRENT_DIR, '../data/agaricus.txt.train'))
+dtest = xgb.DMatrix(os.path.join(CURRENT_DIR, '../data/agaricus.txt.test'))
 # change booster to gblinear, so that we are fitting a linear model
 # alpha is the L1 regularizer
 # lambda is the L2 regularizer
 # you can also set lambda_bias which is L2 regularizer on the bias term
-param = {'silent':1, 'objective':'binary:logistic', 'booster':'gblinear',
+param = {'objective':'binary:logistic', 'booster':'gblinear',
          'alpha': 0.0001, 'lambda': 1}
 
 # normally, you do not need to set eta (step_size)

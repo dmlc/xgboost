@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "../helpers.h"
+#include "../histogram_helpers.h"
 #include "gtest/gtest.h"
 
 #include "../../../src/common/hist_util.h"
@@ -14,28 +15,24 @@
 namespace xgboost {
 
 TEST(EllpackPage, EmptyDMatrix) {
-  constexpr int kNRows = 0, kNCols = 0, kMaxBin = 256, kGpuBatchNRows = 64;
+  constexpr int kNRows = 0, kNCols = 0, kMaxBin = 256;
   constexpr float kSparsity = 0;
-  auto dmat = *CreateDMatrix(kNRows, kNCols, kSparsity);
-  auto& page = *dmat->GetBatches<EllpackPage>({0, kMaxBin, kGpuBatchNRows}).begin();
+  auto dmat = RandomDataGenerator(kNRows, kNCols, kSparsity).GenerateDMatrix();
+  auto& page = *dmat->GetBatches<EllpackPage>({0, kMaxBin}).begin();
   auto impl = page.Impl();
-  ASSERT_EQ(impl->matrix.info.feature_segments.size(), 1);
-  ASSERT_EQ(impl->matrix.info.min_fvalue.size(), 0);
-  ASSERT_EQ(impl->matrix.info.gidx_fvalue_map.size(), 0);
-  ASSERT_EQ(impl->matrix.info.row_stride, 0);
-  ASSERT_EQ(impl->matrix.info.n_bins, 0);
-  ASSERT_EQ(impl->gidx_buffer.size(), 4);
+  ASSERT_EQ(impl->row_stride, 0);
+  ASSERT_EQ(impl->Cuts().TotalBins(), 0);
+  ASSERT_EQ(impl->gidx_buffer.Size(), 4);
 }
 
 TEST(EllpackPage, BuildGidxDense) {
   int constexpr kNRows = 16, kNCols = 8;
   auto page = BuildEllpackPage(kNRows, kNCols);
 
-  std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.size());
-  dh::CopyDeviceSpanToVector(&h_gidx_buffer, page->gidx_buffer);
-  common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
+  std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.HostVector());
+  common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), page->NumSymbols());
 
-  ASSERT_EQ(page->matrix.info.row_stride, kNCols);
+  ASSERT_EQ(page->row_stride, kNCols);
 
   std::vector<uint32_t> solution = {
     0, 3, 8,  9, 14, 17, 20, 21,
@@ -64,11 +61,10 @@ TEST(EllpackPage, BuildGidxSparse) {
   int constexpr kNRows = 16, kNCols = 8;
   auto page = BuildEllpackPage(kNRows, kNCols, 0.9f);
 
-  std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.size());
-  dh::CopyDeviceSpanToVector(&h_gidx_buffer, page->gidx_buffer);
+  std::vector<common::CompressedByteT> h_gidx_buffer(page->gidx_buffer.HostVector());
   common::CompressedIterator<uint32_t> gidx(h_gidx_buffer.data(), 25);
 
-  ASSERT_LE(page->matrix.info.row_stride, 3);
+  ASSERT_LE(page->row_stride, 3);
 
   // row_stride = 3, 16 rows, 48 entries for ELLPack
   std::vector<uint32_t> solution = {
@@ -76,16 +72,16 @@ TEST(EllpackPage, BuildGidxSparse) {
     24, 24, 24, 24, 24,  5, 24, 24,  0, 16, 24, 15, 24, 24, 24, 24,
     24,  7, 14, 16,  4, 24, 24, 24, 24, 24,  9, 24, 24,  1, 24, 24
   };
-  for (size_t i = 0; i < kNRows * page->matrix.info.row_stride; ++i) {
+  for (size_t i = 0; i < kNRows * page->row_stride; ++i) {
     ASSERT_EQ(solution[i], gidx[i]);
   }
 }
 
 struct ReadRowFunction {
-  EllpackMatrix matrix;
+  EllpackDeviceAccessor matrix;
   int row;
   bst_float* row_data_d;
-  ReadRowFunction(EllpackMatrix matrix, int row, bst_float* row_data_d)
+  ReadRowFunction(EllpackDeviceAccessor matrix, int row, bst_float* row_data_d)
       : matrix(std::move(matrix)), row(row), row_data_d(row_data_d) {}
 
   __device__ void operator()(size_t col) {
@@ -106,11 +102,12 @@ TEST(EllpackPage, Copy) {
   dmlc::TemporaryDirectory tmpdir;
   std::unique_ptr<DMatrix>
       dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  BatchParam param{0, 256, 0, kPageSize};
+  BatchParam param{0, 256, kPageSize};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
   // Create an empty result page.
-  EllpackPageImpl result(0, page->matrix.info, kRows);
+  EllpackPageImpl result(0, page->Cuts(), page->is_dense, page->row_stride,
+                         kRows);
 
   // Copy batch pages into the result page.
   size_t offset = 0;
@@ -126,13 +123,13 @@ TEST(EllpackPage, Copy) {
   std::vector<bst_float> row_result(kCols);
   for (auto& page : dmat->GetBatches<EllpackPage>(param)) {
     auto impl = page.Impl();
-    EXPECT_EQ(impl->matrix.base_rowid, current_row);
+    EXPECT_EQ(impl->base_rowid, current_row);
 
     for (size_t i = 0; i < impl->Size(); i++) {
-      dh::LaunchN(0, kCols, ReadRowFunction(impl->matrix, current_row, row_d.data().get()));
+      dh::LaunchN(0, kCols, ReadRowFunction(impl->GetDeviceAccessor(0), current_row, row_d.data().get()));
       thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
-      dh::LaunchN(0, kCols, ReadRowFunction(result.matrix, current_row, row_result_d.data().get()));
+      dh::LaunchN(0, kCols, ReadRowFunction(result.GetDeviceAccessor(0), current_row, row_result_d.data().get()));
       thrust::copy(row_result_d.begin(), row_result_d.end(), row_result.begin());
 
       EXPECT_EQ(row, row_result);
@@ -151,11 +148,12 @@ TEST(EllpackPage, Compact) {
   dmlc::TemporaryDirectory tmpdir;
   std::unique_ptr<DMatrix>
       dmat(CreateSparsePageDMatrixWithRC(kRows, kCols, kPageSize, true, tmpdir));
-  BatchParam param{0, 256, 0, kPageSize};
+  BatchParam param{0, 256, kPageSize};
   auto page = (*dmat->GetBatches<EllpackPage>(param).begin()).Impl();
 
   // Create an empty result page.
-  EllpackPageImpl result(0, page->matrix.info, kCompactedRows);
+  EllpackPageImpl result(0, page->Cuts(), page->is_dense, page->row_stride,
+                         kCompactedRows);
 
   // Compact batch pages into the result page.
   std::vector<size_t> row_indexes_h {
@@ -174,7 +172,7 @@ TEST(EllpackPage, Compact) {
   std::vector<bst_float> row_result(kCols);
   for (auto& page : dmat->GetBatches<EllpackPage>(param)) {
     auto impl = page.Impl();
-    EXPECT_EQ(impl->matrix.base_rowid, current_row);
+    EXPECT_EQ(impl->base_rowid, current_row);
 
     for (size_t i = 0; i < impl->Size(); i++) {
       size_t compacted_row = row_indexes_h[current_row];
@@ -183,11 +181,12 @@ TEST(EllpackPage, Compact) {
         continue;
       }
 
-      dh::LaunchN(0, kCols, ReadRowFunction(impl->matrix, current_row, row_d.data().get()));
+      dh::LaunchN(0, kCols, ReadRowFunction(impl->GetDeviceAccessor(0), current_row, row_d.data().get()));
+      dh::safe_cuda (cudaDeviceSynchronize());
       thrust::copy(row_d.begin(), row_d.end(), row.begin());
 
       dh::LaunchN(0, kCols,
-                  ReadRowFunction(result.matrix, compacted_row, row_result_d.data().get()));
+                  ReadRowFunction(result.GetDeviceAccessor(0), compacted_row, row_result_d.data().get()));
       thrust::copy(row_result_d.begin(), row_result_d.end(), row_result.begin());
 
       EXPECT_EQ(row, row_result);

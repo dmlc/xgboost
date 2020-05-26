@@ -8,7 +8,7 @@ label  = train[:,32]
 data   = train[:,1:31]
 weight = train[:,31]
 dtrain = xgb.DMatrix( data, label=label, missing = -999.0, weight=weight )
-param = {'max_depth':6, 'eta':0.1, 'silent':1, 'objective':'binary:logitraw', 'nthread':4}
+param = {'max_depth':6, 'eta':0.1, 'objective':'binary:logitraw', 'nthread':4}
 num_round = 120
 
 print ('running cross validation, with preprocessing function')

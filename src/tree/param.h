@@ -230,6 +230,20 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
     CHECK_GT(ret, 0U);
     return ret;
   }
+
+  bst_node_t MaxNodes() const {
+    if (this->max_depth == 0 && this->max_leaves == 0) {
+      LOG(FATAL) << "Max leaves and max depth cannot both be unconstrained.";
+    }
+    bst_node_t n_nodes{0};
+    if (this->max_leaves > 0) {
+      n_nodes = this->max_leaves * 2 - 1;
+    } else {
+      n_nodes = (1 << (this->max_depth + 1)) - 1;
+    }
+    CHECK_NE(n_nodes, 0);
+    return n_nodes;
+  }
 };
 
 /*! \brief Loss functions */
@@ -286,19 +300,6 @@ XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, StatT stat) {
   return CalcGain(p, stat.GetGrad(), stat.GetHess());
 }
 
-// calculate cost of loss function with four statistics
-template <typename TrainingParams, typename T>
-XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess,
-                                 T test_grad, T test_hess) {
-  T w = CalcWeight(sum_grad, sum_hess);
-  T ret = CalcGainGivenWeight(p, test_grad, test_hess);
-  if (p.reg_alpha == 0.0f) {
-    return ret;
-  } else {
-    return ret + p.reg_alpha * std::abs(w);
-  }
-}
-
 // calculate weight given the statistics
 template <typename TrainingParams, typename T>
 XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
@@ -332,15 +333,20 @@ XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, GpairT sum_grad)
 /*! \brief core statistics used for tree construction */
 struct XGBOOST_ALIGNAS(16) GradStats {
   /*! \brief sum gradient statistics */
-  double sum_grad;
+  double sum_grad { 0 };
   /*! \brief sum hessian statistics */
-  double sum_hess;
+  double sum_hess { 0 };
 
  public:
   XGBOOST_DEVICE double GetGrad() const { return sum_grad; }
   XGBOOST_DEVICE double GetHess() const { return sum_hess; }
 
-  XGBOOST_DEVICE GradStats() : sum_grad{0}, sum_hess{0} {
+  friend std::ostream& operator<<(std::ostream& os, GradStats s) {
+    os << s.GetGrad() << "/" << s.GetHess();
+    return os;
+  }
+
+  XGBOOST_DEVICE GradStats() {
     static_assert(sizeof(GradStats) == 16,
                   "Size of GradStats is not 16 bytes.");
   }
@@ -383,28 +389,42 @@ struct XGBOOST_ALIGNAS(16) GradStats {
  * \brief statistics that is helpful to store
  *   and represent a split solution for the tree
  */
-struct SplitEntry {
+template<typename GradientT>
+struct SplitEntryContainer {
   /*! \brief loss change after split this node */
   bst_float loss_chg {0.0f};
   /*! \brief split index */
-  unsigned sindex{0};
+  bst_feature_t sindex{0};
   bst_float split_value{0.0f};
-  GradStats left_sum;
-  GradStats right_sum;
 
-  /*! \brief constructor */
-  SplitEntry()  = default;
+  GradientT left_sum;
+  GradientT right_sum;
+
+  SplitEntryContainer() = default;
+
+  friend std::ostream& operator<<(std::ostream& os, SplitEntryContainer const& s) {
+    os << "loss_chg: " << s.loss_chg << ", "
+       << "split index: " << s.SplitIndex() << ", "
+       << "split value: " << s.split_value << ", "
+       << "left_sum: " << s.left_sum << ", "
+       << "right_sum: " << s.right_sum;
+    return os;
+  }
+  /*!\return feature index to split on */
+  bst_feature_t SplitIndex() const { return sindex & ((1U << 31) - 1U); }
+  /*!\return whether missing value goes to left branch */
+  bool DefaultLeft() const { return (sindex >> 31) != 0; }
   /*!
-   * \brief decides whether we can replace current entry with the given
-   * statistics
-   *   This function gives better priority to lower index when loss_chg ==
-   * new_loss_chg.
+   * \brief decides whether we can replace current entry with the given statistics
+   *
+   *   This function gives better priority to lower index when loss_chg == new_loss_chg.
    *   Not the best way, but helps to give consistent result during multi-thread
-   * execution.
+   *   execution.
+   *
    * \param new_loss_chg the loss reduction get through the split
    * \param split_index the feature index where the split is on
    */
-  inline bool NeedReplace(bst_float new_loss_chg, unsigned split_index) const {
+  bool NeedReplace(bst_float new_loss_chg, unsigned split_index) const {
     if (this->SplitIndex() <= split_index) {
       return new_loss_chg > this->loss_chg;
     } else {
@@ -416,7 +436,7 @@ struct SplitEntry {
    * \param e candidate split solution
    * \return whether the proposed split is better and can replace current split
    */
-  inline bool Update(const SplitEntry &e) {
+  inline bool Update(const SplitEntryContainer &e) {
     if (this->NeedReplace(e.loss_chg, e.SplitIndex())) {
       this->loss_chg = e.loss_chg;
       this->sindex = e.sindex;
@@ -436,9 +456,10 @@ struct SplitEntry {
    * \param default_left whether the missing value goes to left
    * \return whether the proposed split is better and can replace current split
    */
-  inline bool Update(bst_float new_loss_chg, unsigned split_index,
-                     bst_float new_split_value, bool default_left,
-                     const GradStats &left_sum, const GradStats &right_sum) {
+  bool Update(bst_float new_loss_chg, unsigned split_index,
+              bst_float new_split_value, bool default_left,
+              const GradientT &left_sum,
+              const GradientT &right_sum) {
     if (this->NeedReplace(new_loss_chg, split_index)) {
       this->loss_chg = new_loss_chg;
       if (default_left) {
@@ -453,18 +474,30 @@ struct SplitEntry {
       return false;
     }
   }
+
   /*! \brief same as update, used by AllReduce*/
-  inline static void Reduce(SplitEntry &dst, // NOLINT(*)
-                            const SplitEntry &src) { // NOLINT(*)
+  inline static void Reduce(SplitEntryContainer &dst,         // NOLINT(*)
+                            const SplitEntryContainer &src) { // NOLINT(*)
     dst.Update(src);
   }
-  /*!\return feature index to split on */
-  inline unsigned SplitIndex() const { return sindex & ((1U << 31) - 1U); }
-  /*!\return whether missing value goes to left branch */
-  inline bool DefaultLeft() const { return (sindex >> 31) != 0; }
 };
 
+using SplitEntry = SplitEntryContainer<GradStats>;
 }  // namespace tree
+
+/*
+ * \brief Parse the interaction constraints from string.
+ * \param constraint_str String storing the interfaction constraints:
+ *
+ *  Example input string:
+ *
+ *    "[[1, 2], [3, 4]]""
+ *
+ * \param p_out Pointer to output
+ */
+void ParseInteractionConstraint(
+    std::string const &constraint_str,
+    std::vector<std::vector<xgboost::bst_feature_t>> *p_out);
 }  // namespace xgboost
 
 // define string serializer for vector, to get the arguments

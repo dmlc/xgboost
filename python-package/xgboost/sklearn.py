@@ -210,7 +210,7 @@ class XGBModel(XGBModelBase):
                  missing=np.nan, num_parallel_tree=None,
                  monotone_constraints=None, interaction_constraints=None,
                  importance_type="gain", gpu_id=None,
-                 validate_parameters=False, **kwargs):
+                 validate_parameters=None, **kwargs):
         if not SKLEARN_INSTALLED:
             raise XGBoostError(
                 'sklearn needs to be installed in order to use this module')
@@ -242,10 +242,11 @@ class XGBModel(XGBModelBase):
         self.interaction_constraints = interaction_constraints
         self.importance_type = importance_type
         self.gpu_id = gpu_id
-        # Parameter validation is not working with Scikit-Learn interface, as
-        # it passes all paraemters into XGBoost core, whether they are used or
-        # not.
         self.validate_parameters = validate_parameters
+
+    def _more_tags(self):
+        '''Tags used for scikit-learn data validation.'''
+        return {'allow_nan': True, 'no_validation': True}
 
     def get_booster(self):
         """Get the underlying xgboost Booster of this model.
@@ -257,7 +258,8 @@ class XGBModel(XGBModelBase):
         booster : a xgboost booster of underlying model
         """
         if not hasattr(self, '_Booster'):
-            raise XGBoostError('need to call fit or load_model beforehand')
+            from sklearn.exceptions import NotFittedError
+            raise NotFittedError('need to call fit or load_model beforehand')
         return self._Booster
 
     def set_params(self, **params):
@@ -295,10 +297,6 @@ class XGBModel(XGBModelBase):
         # 2. Return whatever in `**kwargs`.
         # 3. Merge them.
         params = super().get_params(deep)
-        if hasattr(self, '__copy__'):
-            warnings.warn('Calling __copy__ on Scikit-Learn wrapper, ' +
-                          'which may disable data cache and result in ' +
-                          'lower performance.')
         cp = copy.copy(self)
         cp.__class__ = cp.__class__.__bases__[0]
         params.update(cp.__class__.get_params(cp, deep))
@@ -310,7 +308,7 @@ class XGBModel(XGBModelBase):
                 np.iinfo(np.int32).max)
 
         def parse_parameter(value):
-            for t in (int, float):
+            for t in (int, float, str):
                 try:
                     ret = t(value)
                     return ret
@@ -335,14 +333,21 @@ class XGBModel(XGBModelBase):
             for k, v in internal.items():
                 if k in params.keys() and params[k] is None:
                     params[k] = parse_parameter(v)
-        except XGBoostError:
+        except ValueError:
             pass
         return params
 
     def get_xgb_params(self):
-        """Get xgboost type parameters."""
-        xgb_params = self.get_params()
-        return xgb_params
+        """Get xgboost specific parameters."""
+        params = self.get_params()
+        # Parameters that should not go into native learner.
+        wrapper_specific = {
+            'importance_type', 'kwargs', 'missing', 'n_estimators'}
+        filtered = dict()
+        for k, v in params.items():
+            if k not in wrapper_specific:
+                filtered[k] = v
+        return filtered
 
     def get_num_boosting_rounds(self):
         """Gets the number of xgboost boosting rounds."""
@@ -506,6 +511,8 @@ class XGBModel(XGBModelBase):
                 raise TypeError('Unexpected input type for `eval_set`')
             if sample_weight_eval_set is None:
                 sample_weight_eval_set = [None] * len(eval_set)
+            else:
+                assert len(eval_set) == len(sample_weight_eval_set)
             evals = list(
                 DMatrix(eval_set[i][0], label=eval_set[i][1], missing=self.missing,
                         weight=sample_weight_eval_set[i], nthread=self.n_jobs)
@@ -533,14 +540,16 @@ class XGBModel(XGBModelBase):
         self._Booster = train(params, train_dmatrix,
                               self.get_num_boosting_rounds(), evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
-                              evals_result=evals_result, obj=obj, feval=feval,
+                              evals_result=evals_result,
+                              obj=obj, feval=feval,
                               verbose_eval=verbose, xgb_model=xgb_model,
                               callbacks=callbacks)
 
         if evals_result:
             for val in evals_result.items():
                 evals_result_key = list(val[1].keys())[0]
-                evals_result[val[0]][evals_result_key] = val[1][evals_result_key]
+                evals_result[val[0]][evals_result_key] = val[1][
+                    evals_result_key]
             self.evals_result_ = evals_result
 
         if early_stopping_rounds is not None:
@@ -673,11 +682,10 @@ class XGBModel(XGBModelBase):
         feature_importances_ : array of shape ``[n_features]``
 
         """
-        if getattr(self, 'booster', None) is not None and self.booster not in {
-                'gbtree', 'dart'}:
+        if self.get_params()['booster'] not in {'gbtree', 'dart'}:
             raise AttributeError(
                 f'Feature importance is not defined for Booster type {self.booster}')
-        b = self.get_booster()
+:       b = self.get_booster()
         score = b.get_score(importance_type=self.importance_type)
         all_features = [score.get(f, 0.) for f in b.feature_names]
         all_features = np.array(all_features, dtype=np.float32)
@@ -698,11 +706,12 @@ class XGBModel(XGBModelBase):
         -------
         coef_ : array of shape ``[n_features]`` or ``[n_classes, n_features]``
         """
-        if getattr(self, 'booster', None) is not None and self.booster != 'gblinear':
+        if self.get_params()['booster'] != 'gblinear':
             raise AttributeError(
                 f'Coefficients are not defined for Booster type {self.booster}')
         b = self.get_booster()
-        coef = np.array(json.loads(b.get_dump(dump_format='json')[0])['weight'])
+        coef = np.array(json.loads(
+            b.get_dump(dump_format='json')[0])['weight'])
         # Logic for multiclass classification
         n_classes = getattr(self, 'n_classes_', None)
         if n_classes is not None:
@@ -727,7 +736,7 @@ class XGBModel(XGBModelBase):
         -------
         intercept_ : array of shape ``(1,)`` or ``[n_classes]``
         """
-        if getattr(self, 'booster', None) is not None and self.booster != 'gblinear':
+        if self.get_params()['booster'] != 'gblinear':
             raise AttributeError(
                 f'Intercept (bias) is not defined for Booster type {self.booster}')
         b = self.get_booster()
@@ -780,6 +789,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         if eval_set is not None:
             if sample_weight_eval_set is None:
                 sample_weight_eval_set = [None] * len(eval_set)
+            else:
+                assert len(sample_weight_eval_set) == len(eval_set)
             evals = list(
                 DMatrix(eval_set[i][0],
                         label=self._le.transform(eval_set[i][1]),

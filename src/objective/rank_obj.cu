@@ -52,14 +52,18 @@ struct LambdaRankParam : public XGBoostParameter<LambdaRankParam> {
 
 template <typename T>
 XGBOOST_DEVICE __forceinline__ uint32_t
-CountNumItemsToTheLeftOf(const T * __restrict__ items, uint32_t n, T v) {
-  return dh::LowerBound(items, n, v, thrust::greater<T>());
+CountNumItemsToTheLeftOf(const T *__restrict__ items, uint32_t n, T v) {
+  return thrust::lower_bound(thrust::seq, items, items + n, v,
+                             thrust::greater<T>()) -
+         items;
 }
 
 template <typename T>
 XGBOOST_DEVICE __forceinline__ uint32_t
-CountNumItemsToTheRightOf(const T * __restrict__ items, uint32_t n, T v) {
-  return n - dh::UpperBound(items, n, v, thrust::greater<T>());
+CountNumItemsToTheRightOf(const T *__restrict__ items, uint32_t n, T v) {
+  return n - (thrust::upper_bound(thrust::seq, items, items + n, v,
+                                  thrust::greater<T>()) -
+              items);
 }
 #endif
 
@@ -310,7 +314,7 @@ class NDCGLambdaWeightComputer
       for (size_t i = 0; i < sorted_list.size(); ++i) {
         labels[i] = sorted_list[i].label;
       }
-      std::stable_sort(labels.begin(), labels.end(), std::greater<bst_float>());
+      std::stable_sort(labels.begin(), labels.end(), std::greater<>());
       IDCG = ComputeGroupDCGWeight(&labels[0], labels.size());
     }
     if (IDCG == 0.0) {
@@ -552,16 +556,15 @@ class MAPLambdaWeightComputer
     const auto *dhits_arr = dhits.data().get();
     // Group info on device
     const auto &dgroups = segment_label_sorter.GetGroupsSpan();
-    uint32_t ngroups = segment_label_sorter.GetNumGroups();
     auto ComputeItemPrecisionLambda = [=] __device__(uint32_t idx) {
       if (unsorted_labels[pred_original_pos[idx]] > 0.0f) {
         auto idx_within_group = (idx - dgroups[group_segments[idx]]) + 1;
-        return MAPStats(static_cast<float>(dhits_arr[idx]) / idx_within_group,
+        return MAPStats{static_cast<float>(dhits_arr[idx]) / idx_within_group,
                         static_cast<float>(dhits_arr[idx] - 1) / idx_within_group,
                         static_cast<float>(dhits_arr[idx] + 1) / idx_within_group,
-                        1.0f);
+                        1.0f};
       }
-      return MAPStats();
+      return MAPStats{};
     };  // NOLINT
 
     thrust::transform(thrust::make_counting_iterator(static_cast<uint32_t>(0)),
@@ -672,7 +675,10 @@ class SortedLabelList : dh::SegmentSorter<float> {
     dh::LaunchN(device_id, niter, nullptr, [=] __device__(uint32_t idx) {
       // First, determine the group 'idx' belongs to
       uint32_t item_idx = idx % total_items;
-      uint32_t group_idx = dh::UpperBound(dgroups.data(), ngroups, item_idx);
+      uint32_t group_idx =
+          thrust::upper_bound(thrust::seq, dgroups.begin(),
+                              dgroups.begin() + ngroups, item_idx) -
+          dgroups.begin();
       // Span of this group within the larger labels/predictions sorted tuple
       uint32_t group_begin = dgroups[group_idx - 1];
       uint32_t group_end = dgroups[group_idx];
@@ -784,14 +790,11 @@ class LambdaRankObj : public ObjFunction {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String(LambdaWeightComputerT::Name());
-    out["lambda_rank_param"] = Object();
-    for (auto const& kv : param_.__DICT__()) {
-      out["lambda_rank_param"][kv.first] = kv.second;
-    }
+    out["lambda_rank_param"] = ToJson(param_);
   }
 
   void LoadConfig(Json const& in) override {
-    fromJson(in["lambda_rank_param"], &param_);
+    FromJson(in["lambda_rank_param"], &param_);
   }
 
  private:

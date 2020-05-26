@@ -27,7 +27,7 @@
 #include "../common/common.h"
 #include <xgboost/data.h>
 
-namespace {
+namespace detail {
 
 // Split a cache info string with delimiter ':'
 // If cache info string contains drive letter (e.g. C:), exclude it before splitting
@@ -46,7 +46,7 @@ GetCacheShards(const std::string& cache_info) {
   return xgboost::common::Split(cache_info, ':');
 }
 
-}  // anonymous namespace
+}  // namespace detail
 
 namespace xgboost {
 namespace data {
@@ -100,7 +100,7 @@ struct CacheInfo {
 
 inline CacheInfo ParseCacheInfo(const std::string& cache_info, const std::string& page_type) {
   CacheInfo info;
-  std::vector<std::string> cache_shards = GetCacheShards(cache_info);
+  std::vector<std::string> cache_shards = ::detail::GetCacheShards(cache_info);
   CHECK_NE(cache_shards.size(), 0U);
   // read in the info files.
   info.name_info = cache_shards[0];
@@ -127,15 +127,16 @@ inline void CheckCacheFileExists(const std::string& file) {
   }
 }
 
-  /**
-   * \brief Given a set of cache files and page type, this object iterates over batches using prefetching for improved performance. Not thread safe.
-   *
-   * \tparam  PageT Type of the page t.
-   */
-  template <typename PageT>
+/**
+ * \brief Given a set of cache files and page type, this object iterates over batches
+ * using prefetching for improved performance. Not thread safe.
+ *
+ * \tparam  PageT Type of the page t.
+ */
+template <typename PageT>
 class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
  public:
-    explicit ExternalMemoryPrefetcher(const CacheInfo& info) noexcept(false)
+  explicit ExternalMemoryPrefetcher(const CacheInfo& info) noexcept(false)
       : base_rowid_(0), page_(nullptr), clock_ptr_(0) {
     // read in the info files
     CHECK_NE(info.name_shards.size(), 0U);

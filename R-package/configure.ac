@@ -1,6 +1,6 @@
 ### configure.ac					-*- Autoconf -*-
 
-AC_PREREQ(2.62)
+AC_PREREQ(2.69)
 
 AC_INIT([xgboost],[0.6-3],[],[xgboost],[])
 
@@ -29,11 +29,11 @@ fi
 if test `uname -s` = "Darwin"
 then
   OPENMP_CXXFLAGS='-Xclang -fopenmp'
-  OPENMP_LIB='/usr/local/lib/libomp.dylib'
+  OPENMP_LIB='-lomp'
   ac_pkg_openmp=no
   AC_MSG_CHECKING([whether OpenMP will work in a package])
   AC_LANG_CONFTEST([AC_LANG_PROGRAM([[#include <omp.h>]], [[ return (omp_get_max_threads() <= 1); ]])])
-  ${CC} -o conftest conftest.c /usr/local/lib/libomp.dylib -Xclang -fopenmp 2>/dev/null && ./conftest && ac_pkg_openmp=yes
+  ${CC} -o conftest conftest.c ${OPENMP_LIB} ${OPENMP_CXXFLAGS} 2>/dev/null && ./conftest && ac_pkg_openmp=yes
   AC_MSG_RESULT([${ac_pkg_openmp}])
   if test "${ac_pkg_openmp}" = no; then
     OPENMP_CXXFLAGS=''

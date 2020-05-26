@@ -25,18 +25,18 @@ class ShotgunUpdater : public LinearUpdater {
   }
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    fromJson(config.at("linear_train_param"), &param_);
+    FromJson(config.at("linear_train_param"), &param_);
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["linear_train_param"] = toJson(param_);
+    out["linear_train_param"] = ToJson(param_);
   }
 
   void Update(HostDeviceVector<GradientPair> *in_gpair, DMatrix *p_fmat,
               gbm::GBLinearModel *model, double sum_instance_weight) override {
     auto &gpair = in_gpair->HostVector();
     param_.DenormalizePenalties(sum_instance_weight);
-    const int ngroup = model->learner_model_param_->num_output_group;
+    const int ngroup = model->learner_model_param->num_output_group;
 
     // update bias
     for (int gid = 0; gid < ngroup; ++gid) {
@@ -44,7 +44,7 @@ class ShotgunUpdater : public LinearUpdater {
                                           in_gpair->ConstHostVector(), p_fmat);
       auto dbias = static_cast<bst_float>(param_.learning_rate *
                                CoordinateDeltaBias(grad.first, grad.second));
-      model->bias()[gid] += dbias;
+      model->Bias()[gid] += dbias;
       UpdateBiasResidualParallel(gid, ngroup, dbias, &in_gpair->HostVector(), p_fmat);
     }
 

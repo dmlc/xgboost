@@ -16,6 +16,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <mutex>
 
 // Forward declarations
 namespace xgboost {
@@ -35,11 +36,11 @@ struct PredictionCacheEntry {
   // A storage for caching prediction values
   HostDeviceVector<bst_float> predictions;
   // The version of current cache, corresponding number of layers of trees
-  uint32_t version;
+  uint32_t version { 0 };
   // A weak pointer for checking whether the DMatrix object has expired.
   std::weak_ptr< DMatrix > ref;
 
-  PredictionCacheEntry() : version { 0 } {}
+  PredictionCacheEntry() = default;
   /* \brief Update the cache entry by number of versions.
    *
    * \param v Added versions.
@@ -54,6 +55,7 @@ struct PredictionCacheEntry {
 class PredictionContainer {
   std::unordered_map<DMatrix *, PredictionCacheEntry> container_;
   void ClearExpiredEntries();
+  std::mutex cache_lock_;
 
  public:
   PredictionContainer() = default;
@@ -133,6 +135,18 @@ class Predictor {
                             const gbm::GBTreeModel& model, int tree_begin,
                             uint32_t const ntree_limit = 0) = 0;
 
+  /**
+   * \brief Inplace prediction.
+   * \param           x                      Type erased data adapter.
+   * \param           model                  The model to predict from.
+   * \param           missing                Missing value in the data.
+   * \param [in,out]  out_preds              The output preds.
+   * \param           tree_begin (Optional) Begining of boosted trees used for prediction.
+   * \param           tree_end   (Optional) End of booster trees. 0 means do not limit trees.
+   */
+  virtual void InplacePredict(dmlc::any const &x, const gbm::GBTreeModel &model,
+                              float missing, PredictionCacheEntry *out_preds,
+                              uint32_t tree_begin = 0, uint32_t tree_end = 0) const = 0;
   /**
    * \brief online prediction function, predict score for one instance at a time
    * NOTE: use the batch prediction interface if possible, batch prediction is

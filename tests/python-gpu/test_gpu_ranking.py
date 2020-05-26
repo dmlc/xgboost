@@ -1,13 +1,12 @@
 import numpy as np
-from scipy.sparse import csr_matrix
 import xgboost
 import os
-import math
 import unittest
 import itertools
 import shutil
 import urllib.request
 import zipfile
+
 
 class TestRanking(unittest.TestCase):
     @classmethod
@@ -22,7 +21,7 @@ class TestRanking(unittest.TestCase):
         target = cls.dpath + '/MQ2008.zip'
 
         if os.path.exists(cls.dpath) and os.path.exists(target):
-            print ("Skipping dataset download...")
+            print("Skipping dataset download...")
         else:
             urllib.request.urlretrieve(url=src, filename=target)
             with zipfile.ZipFile(target, 'r') as f:
@@ -50,17 +49,30 @@ class TestRanking(unittest.TestCase):
         cls.qid_test = qid_test
         cls.qid_valid = qid_valid
 
+        def setup_weighted(x, y, groups):
+            # Setup weighted data
+            data = xgboost.DMatrix(x, y)
+            groups_segment = [len(list(items))
+                              for _key, items in itertools.groupby(groups)]
+            data.set_group(groups_segment)
+            n_groups = len(groups_segment)
+            weights = np.ones((n_groups,))
+            data.set_weight(weights)
+            return data
+
+        cls.dtrain_w = setup_weighted(x_train, y_train, qid_train)
+        cls.dtest_w = setup_weighted(x_test, y_test, qid_test)
+        cls.dvalid_w = setup_weighted(x_valid, y_valid, qid_valid)
+
         # model training parameters
         cls.params = {'booster': 'gbtree',
                       'tree_method': 'gpu_hist',
                       'gpu_id': 0,
-                      'predictor': 'gpu_predictor'
-                     }
+                      'predictor': 'gpu_predictor'}
         cls.cpu_params = {'booster': 'gbtree',
                           'tree_method': 'hist',
                           'gpu_id': -1,
-                          'predictor': 'cpu_predictor'
-                         }
+                          'predictor': 'cpu_predictor'}
 
     @classmethod
     def tearDownClass(cls):
@@ -81,33 +93,46 @@ class TestRanking(unittest.TestCase):
         # specify validations set to watch performance
         watchlist = [(cls.dtest, 'eval'), (cls.dtrain, 'train')]
 
-        num_trees=2500
-        check_metric_improvement_rounds=10
+        num_trees = 2500
+        check_metric_improvement_rounds = 10
 
         evals_result = {}
         cls.params['objective'] = rank_objective
         cls.params['eval_metric'] = metric_name
-        bst = xgboost.train(cls.params, cls.dtrain, num_boost_round=num_trees,
-                            early_stopping_rounds=check_metric_improvement_rounds,
-                            evals=watchlist, evals_result=evals_result)
+        bst = xgboost.train(
+            cls.params, cls.dtrain, num_boost_round=num_trees,
+            early_stopping_rounds=check_metric_improvement_rounds,
+            evals=watchlist, evals_result=evals_result)
         gpu_map_metric = evals_result['train'][metric_name][-1]
 
         evals_result = {}
         cls.cpu_params['objective'] = rank_objective
         cls.cpu_params['eval_metric'] = metric_name
-        bstc = xgboost.train(cls.cpu_params, cls.dtrain, num_boost_round=num_trees,
-                             early_stopping_rounds=check_metric_improvement_rounds,
-                             evals=watchlist, evals_result=evals_result)
+        bstc = xgboost.train(
+            cls.cpu_params, cls.dtrain, num_boost_round=num_trees,
+            early_stopping_rounds=check_metric_improvement_rounds,
+            evals=watchlist, evals_result=evals_result)
         cpu_map_metric = evals_result['train'][metric_name][-1]
 
-        print(
-            f"{rank_objective} gpu {metric_name} metric {gpu_map_metric}")
-        print(
-            f"{rank_objective} cpu {metric_name} metric {cpu_map_metric}")
-        print(
-            f"gpu best score {bst.best_score} cpu best score {bstc.best_score}")
-        assert np.allclose(gpu_map_metric, cpu_map_metric, tolerance, tolerance)
-        assert np.allclose(bst.best_score, bstc.best_score, tolerance, tolerance)
+        assert np.allclose(gpu_map_metric, cpu_map_metric, tolerance,
+                           tolerance)
+        assert np.allclose(bst.best_score, bstc.best_score, tolerance,
+                           tolerance)
+
+        evals_result_weighted = {}
+        watchlist = [(cls.dtest_w, 'eval'), (cls.dtrain_w, 'train')]
+        bst_w = xgboost.train(
+            cls.params, cls.dtrain_w, num_boost_round=num_trees,
+            early_stopping_rounds=check_metric_improvement_rounds,
+            evals=watchlist, evals_result=evals_result_weighted)
+        weighted_metric = evals_result_weighted['train'][metric_name][-1]
+        # GPU Ranking is not deterministic due to `AtomicAddGpair`,
+        # remove tolerance once the issue is resolved.
+        # https://github.com/dmlc/xgboost/issues/5561
+        assert np.allclose(bst_w.best_score, bst.best_score,
+                           tolerance, tolerance)
+        assert np.allclose(weighted_metric, gpu_map_metric,
+                           tolerance, tolerance)
 
     def test_training_rank_pairwise_map_metric(self):
         """

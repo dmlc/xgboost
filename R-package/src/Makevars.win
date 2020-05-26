@@ -15,7 +15,7 @@ xgblib:
 	cp -r ../../include .
 	cp -r ../../amalgamation .
 
-CXX_STD = CXX11
+CXX_STD = CXX14
 
 XGB_RFLAGS = -DXGBOOST_STRICT_R_MODE=1 -DDMLC_LOG_BEFORE_THROW=0\
            -DDMLC_ENABLE_STD_THREAD=$(ENABLE_STD_THREAD) -DDMLC_DISABLE_STDIN=1\

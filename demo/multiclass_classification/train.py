@@ -28,7 +28,6 @@ param['objective'] = 'multi:softmax'
 # scale weight of positive examples
 param['eta'] = 0.1
 param['max_depth'] = 6
-param['silent'] = 1
 param['nthread'] = 4
 param['num_class'] = 6
 

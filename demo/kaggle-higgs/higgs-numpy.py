@@ -37,7 +37,6 @@ param['scale_pos_weight'] = sum_wneg/sum_wpos
 param['eta'] = 0.1
 param['max_depth'] = 6
 param['eval_metric'] = 'auc'
-param['silent'] = 1
 param['nthread'] = 16
 
 # you can directly throw param in, though we want to watch multiple metrics here

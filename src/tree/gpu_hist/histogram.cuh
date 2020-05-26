@@ -18,11 +18,11 @@ DEV_INLINE T TruncateWithRoundingFactor(T const rounding_factor, float const x) 
 }
 
 template <typename GradientSumT>
-void BuildGradientHistogram(EllpackMatrix const& matrix,
+void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
                             common::Span<GradientPair const> gpair,
                             common::Span<const uint32_t> ridx,
                             common::Span<GradientSumT> histogram,
-                            GradientSumT rounding, bool shared);
+                            GradientSumT rounding);
 }  // namespace tree
 }  // namespace xgboost
 

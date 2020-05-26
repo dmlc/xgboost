@@ -78,10 +78,14 @@ using xgboost::common::GHistBuilder;
 using xgboost::common::ColumnMatrix;
 using xgboost::common::Column;
 
+class HistSynchronizer;
+class HistRowsAdder;
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
-  QuantileHistMaker() {}
+  QuantileHistMaker() {
+    updater_monitor_.Init("QuantileHistMaker");
+  }
   void Configure(const Args& args) override;
 
   void Update(HostDeviceVector<GradientPair>* gpair,
@@ -93,11 +97,11 @@ class QuantileHistMaker: public TreeUpdater {
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
-    fromJson(config.at("train_param"), &this->param_);
+    FromJson(config.at("train_param"), &this->param_);
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
-    out["train_param"] = toJson(param_);
+    out["train_param"] = ToJson(param_);
   }
 
   char const* Name() const override {
@@ -105,6 +109,12 @@ class QuantileHistMaker: public TreeUpdater {
   }
 
  protected:
+  friend class HistSynchronizer;
+  friend class BatchHistSynchronizer;
+  friend class DistributedHistSynchronizer;
+  friend class HistRowsAdder;
+  friend class BatchHistRowsAdder;
+  friend class DistributedHistRowsAdder;
   // training parameter
   TrainParam param_;
   // quantized data matrix
@@ -141,7 +151,8 @@ class QuantileHistMaker: public TreeUpdater {
                      FeatureInteractionConstraintHost int_constraints_,
                      DMatrix const* fmat)
       : param_(param), pruner_(std::move(pruner)),
-        spliteval_(std::move(spliteval)), interaction_constraints_{int_constraints_},
+        spliteval_(std::move(spliteval)),
+        interaction_constraints_{std::move(int_constraints_)},
         p_last_tree_(nullptr), p_last_fmat_(fmat) {
       builder_monitor_.Init("Quantile::Builder");
     }
@@ -173,8 +184,16 @@ class QuantileHistMaker: public TreeUpdater {
 
     bool UpdatePredictionCache(const DMatrix* data,
                                HostDeviceVector<bst_float>* p_out_preds);
+    void SetHistSynchronizer(HistSynchronizer* sync);
+    void SetHistRowsAdder(HistRowsAdder* adder);
 
    protected:
+    friend class HistSynchronizer;
+    friend class BatchHistSynchronizer;
+    friend class DistributedHistSynchronizer;
+    friend class HistRowsAdder;
+    friend class BatchHistRowsAdder;
+    friend class DistributedHistRowsAdder;
     /* tree growing policies */
     struct ExpandEntry {
       static const int kRootNid  = 0;
@@ -201,6 +220,9 @@ class QuantileHistMaker: public TreeUpdater {
                   const DMatrix& fmat,
                   const RegTree& tree);
 
+    void InitSampling(const std::vector<GradientPair>& gpair,
+                      const DMatrix& fmat, std::vector<size_t>* row_indices);
+
     void EvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
                         const GHistIndexMatrix& gmat,
                         const HistCollection& hist,
@@ -212,10 +234,10 @@ class QuantileHistMaker: public TreeUpdater {
                         const HistCollection& hist,
                         RegTree* p_tree);
 
+    template <typename BinIdxType>
     void PartitionKernel(const size_t node_in_set, const size_t nid, common::Range1d range,
                          const int32_t split_cond,
-                         const ColumnMatrix& column_matrix, const GHistIndexMatrix& gmat,
-                         const RegTree& tree);
+                         const ColumnMatrix& column_matrix, const RegTree& tree);
 
     void AddSplitsToRowSet(const std::vector<ExpandEntry>& nodes, RegTree* p_tree);
 
@@ -255,8 +277,6 @@ class QuantileHistMaker: public TreeUpdater {
                               RegTree *p_tree,
                               const std::vector<GradientPair> &gpair_h);
 
-    void AddHistRows(int *starting_index, int *sync_count);
-
     void BuildHistogramsLossGuide(
                         ExpandEntry entry,
                         const GHistIndexMatrix &gmat,
@@ -272,9 +292,9 @@ class QuantileHistMaker: public TreeUpdater {
                    std::vector<ExpandEntry>* big_siblings,
                    RegTree *p_tree);
 
-    void SyncHistograms(int starting_index,
-                        int sync_count,
-                        RegTree *p_tree);
+    void ParallelSubtractionHist(const common::BlockedSpace2d& space,
+                                 const std::vector<ExpandEntry>& nodes,
+                                 const RegTree * p_tree);
 
     void BuildNodeStats(const GHistIndexMatrix &gmat,
                         DMatrix *p_fmat,
@@ -312,7 +332,6 @@ class QuantileHistMaker: public TreeUpdater {
         return lhs.loss_chg < rhs.loss_chg;  // favor large loss_chg
       }
     }
-
     //  --data fields--
     const TrainParam& param_;
     // number of omp thread used during training
@@ -327,6 +346,8 @@ class QuantileHistMaker: public TreeUpdater {
     std::vector<NodeEntry> snode_;
     /*! \brief culmulative histogram of gradients. */
     HistCollection hist_;
+    /*! \brief culmulative local parent histogram of gradients. */
+    HistCollection hist_local_worker_;
     /*! \brief feature with least # of bins. to be used for dense specialization
                of InitNewNode() */
     uint32_t fid_least_bins_;
@@ -363,13 +384,61 @@ class QuantileHistMaker: public TreeUpdater {
     common::Monitor builder_monitor_;
     common::ParallelGHistBuilder hist_buffer_;
     rabit::Reducer<GradStats, GradStats::Reduce> histred_;
+    std::unique_ptr<HistSynchronizer> hist_synchronizer_;
+    std::unique_ptr<HistRowsAdder> hist_rows_adder_;
   };
-
+  common::Monitor updater_monitor_;
   std::unique_ptr<Builder> builder_;
   std::unique_ptr<TreeUpdater> pruner_;
   std::unique_ptr<SplitEvaluator> spliteval_;
   FeatureInteractionConstraintHost int_constraint_;
 };
+
+class HistSynchronizer {
+ public:
+  virtual void SyncHistograms(QuantileHistMaker::Builder* builder,
+                              int starting_index,
+                              int sync_count,
+                              RegTree *p_tree) = 0;
+};
+
+class BatchHistSynchronizer: public HistSynchronizer {
+ public:
+  void SyncHistograms(QuantileHistMaker::Builder* builder,
+                      int starting_index,
+                      int sync_count,
+                      RegTree *p_tree) override;
+};
+
+class DistributedHistSynchronizer: public HistSynchronizer {
+ public:
+  void SyncHistograms(QuantileHistMaker::Builder* builder_,
+                      int starting_index, int sync_count, RegTree *p_tree) override;
+
+  void ParallelSubtractionHist(QuantileHistMaker::Builder* builder,
+                               const common::BlockedSpace2d& space,
+                               const std::vector<QuantileHistMaker::Builder::ExpandEntry>& nodes,
+                               const RegTree * p_tree);
+};
+
+class HistRowsAdder {
+ public:
+  virtual void AddHistRows(QuantileHistMaker::Builder* builder,
+                           int *starting_index, int *sync_count, RegTree *p_tree) = 0;
+};
+
+class BatchHistRowsAdder: public HistRowsAdder {
+ public:
+  void AddHistRows(QuantileHistMaker::Builder* builder,
+                   int *starting_index, int *sync_count, RegTree *p_tree) override;
+};
+
+class DistributedHistRowsAdder: public HistRowsAdder {
+ public:
+  void AddHistRows(QuantileHistMaker::Builder* builder,
+                   int *starting_index, int *sync_count, RegTree *p_tree) override;
+};
+
 
 }  // namespace tree
 }  // namespace xgboost

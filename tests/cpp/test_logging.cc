@@ -41,19 +41,11 @@ TEST(Logging, Basic) {
   output = testing::internal::GetCapturedStderr();
   ASSERT_EQ(output.size(), 0);
 
-  args["silent"] = "True";
-  ConsoleLogger::Configure({args.cbegin(), args.cend()});
-  testing::internal::CaptureStderr();
-  LOG(INFO) << "Test silent parameter.";
-  output = testing::internal::GetCapturedStderr();
-  ASSERT_EQ(output.length(), 0);
-
   testing::internal::CaptureStderr();
   LOG(CONSOLE) << "Test Log Console";  // ignore global setting.
   output = testing::internal::GetCapturedStderr();
   ASSERT_NE(output.find("Test Log Console"), std::string::npos);
 
-  args["silent"] = "False";
   args["verbosity"] = "2";  // restore
   ConsoleLogger::Configure({args.cbegin(), args.cend()});
 }

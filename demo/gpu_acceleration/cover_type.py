@@ -1,5 +1,4 @@
 import xgboost as xgb
-import numpy as np
 from sklearn.datasets import fetch_covtype
 from sklearn.model_selection import train_test_split
 import time

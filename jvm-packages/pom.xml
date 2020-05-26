@@ -205,6 +205,29 @@
                 </plugins>
             </build>
         </profile>
+        <profile>
+            <id>release-to-s3</id>
+            <distributionManagement>
+                <snapshotRepository>
+                    <id>maven-s3-snapshot-repo</id>
+                    <url>s3://xgboost-maven-repo/snapshot</url>
+                </snapshotRepository>
+                <repository>
+                    <id>maven-s3-release-repo</id>
+                    <url>s3://xgboost-maven-repo/release</url>
+                </repository>
+            </distributionManagement>
+            <repositories>
+                <repository>
+                    <id>maven-s3-snapshot-repo</id>
+                    <url>https://s3.amazonaws.com/xgboost-maven-repo/snapshot</url>
+                </repository>
+                <repository>
+                    <id>maven-s3-release-repo</id>
+                    <url>https://s3.amazonaws.com/xgboost-maven-repo/release</url>
+                </repository>
+            </repositories>
+        </profile>
     </profiles>
     <distributionManagement>
         <snapshotRepository>
@@ -324,6 +347,13 @@
                 </executions>
             </plugin>
         </plugins>
+        <extensions>
+            <extension>
+                <groupId>org.kuali.maven.wagons</groupId>
+                <artifactId>maven-s3-wagon</artifactId>
+                <version>1.2.1</version>
+            </extension>
+        </extensions>
     </build>
     <reporting>
         <plugins>

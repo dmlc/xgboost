@@ -41,7 +41,7 @@ struct ArrayInterfaceErrors {
   static char const* Version() {
     return "Only version 1 of `__cuda_array_interface__' is supported.";
   }
-  static char const* ofType(std::string const& type) {
+  static char const* OfType(std::string const& type) {
     static std::string str;
     str.clear();
     str += " should be of ";
@@ -229,9 +229,6 @@ class ArrayInterfaceHandler {
 
 // A view over __array_interface__
 class ArrayInterface {
-  using mask_type = unsigned char;
-  using index_type = int32_t;
-
  public:
   ArrayInterface() = default;
   explicit ArrayInterface(std::map<std::string, Json> const& column) {

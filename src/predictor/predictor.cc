@@ -2,8 +2,9 @@
  * Copyright 2017-2020 by Contributors
  */
 #include <dmlc/registry.h>
-#include <xgboost/predictor.h>
+#include <mutex>
 
+#include "xgboost/predictor.h"
 #include "xgboost/data.h"
 #include "xgboost/generic_parameters.h"
 
@@ -25,6 +26,7 @@ void PredictionContainer::ClearExpiredEntries() {
 }
 
 PredictionCacheEntry &PredictionContainer::Cache(std::shared_ptr<DMatrix> m, int32_t device) {
+  std::lock_guard<std::mutex> guard { cache_lock_ };
   this->ClearExpiredEntries();
   container_[m.get()].ref = m;
   if (device != GenericParameter::kCpuId) {

@@ -30,7 +30,6 @@ class SparsePageDMatrix : public DMatrix {
     row_source_.reset(new data::SparsePageSource(adapter, missing, nthread,
                                                  cache_prefix, page_size));
   }
-  // Set number of threads but keep old value so we can reset it after
   ~SparsePageDMatrix() override = default;
 
   MetaInfo& Info() override;
@@ -38,6 +37,10 @@ class SparsePageDMatrix : public DMatrix {
   const MetaInfo& Info() const override;
 
   bool SingleColBlock() const override { return false; }
+  DMatrix *Slice(common::Span<int32_t const> ridxs) override {
+    LOG(FATAL) << "Slicing DMatrix is not supported for external memory.";
+    return nullptr;
+  }
 
  private:
   BatchSet<SparsePage> GetRowBatches() override;

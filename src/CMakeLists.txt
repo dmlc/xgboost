@@ -14,7 +14,6 @@ if (USE_CUDA)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
     $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>
-    $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CUDA>>:--std=c++11>
     $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>)
 
   if (USE_NCCL)
@@ -25,8 +24,7 @@ if (USE_CUDA)
   endif (USE_NCCL)
 
   if (USE_NVTX)
-    target_include_directories(objxgboost PRIVATE "${NVTX_HEADER_DIR}")
-    target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_NVTX=1)
+    enable_nvtx(objxgboost)
   endif (USE_NVTX)
 
   target_compile_options(objxgboost PRIVATE
@@ -39,7 +37,15 @@ if (USE_CUDA)
     )
   endif (MSVC)
 
+  if (HIDE_CXX_SYMBOLS)
+    target_compile_options(objxgboost PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fvisibility=hidden>
+    )
+  endif (HIDE_CXX_SYMBOLS)
+
   set_target_properties(objxgboost PROPERTIES
+    CUDA_STANDARD 14
+    CUDA_STANDARD_REQUIRED ON
     CUDA_SEPARABLE_COMPILATION OFF)
 else (USE_CUDA)
   add_library(objxgboost OBJECT ${CPU_SOURCES} ${PLUGINS_SOURCES})
@@ -66,7 +72,7 @@ endif (MSVC)
 
 set_target_properties(objxgboost PROPERTIES
   POSITION_INDEPENDENT_CODE ON
-  CXX_STANDARD 11
+  CXX_STANDARD 14
   CXX_STANDARD_REQUIRED ON)
 target_compile_definitions(objxgboost
   PRIVATE
@@ -88,12 +94,15 @@ if (XGBOOST_BUILTIN_PREFETCH_PRESENT)
     -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
 endif (XGBOOST_BUILTIN_PREFETCH_PRESENT)
 
+find_package(Threads REQUIRED)
+list(APPEND SRC_LIBS Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
+
 if (USE_OPENMP OR USE_CUDA)  # CUDA requires OpenMP
   find_package(OpenMP REQUIRED)
   list(APPEND SRC_LIBS OpenMP::OpenMP_CXX)
-  set(LINKED_LIBRARIES_PRIVATE "${LINKED_LIBRARIES_PRIVATE};${SRC_LIBS}" PARENT_SCOPE)
   target_link_libraries(objxgboost PRIVATE OpenMP::OpenMP_CXX)
 endif (USE_OPENMP OR USE_CUDA)
+set(LINKED_LIBRARIES_PRIVATE "${LINKED_LIBRARIES_PRIVATE};${SRC_LIBS}" PARENT_SCOPE)
 
 # For MSVC: Call msvc_use_static_runtime() once again to completely
 # replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462

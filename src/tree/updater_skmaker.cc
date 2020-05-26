@@ -81,13 +81,13 @@ class SketchMaker: public BaseMaker {
   // statistics needed in the gradient calculation
   struct SKStats {
     /*! \brief sum of all positive gradient */
-    double pos_grad;
+    double pos_grad { 0 };
     /*! \brief sum of all negative gradient */
-    double neg_grad;
+    double neg_grad { 0 };
     /*! \brief sum of hessian statistics */
-    double sum_hess;
+    double sum_hess { 0 };
 
-    SKStats() : pos_grad{0}, neg_grad{0}, sum_hess{0} {}
+    SKStats() = default;
 
     // accumulate statistics
     void Add(const GradientPair& gpair) {
@@ -289,7 +289,8 @@ class SketchMaker: public BaseMaker {
         p_tree->ExpandNode(nid, best.SplitIndex(), best.split_value,
                            best.DefaultLeft(), base_weight, left_leaf_weight,
                            right_leaf_weight, best.loss_chg,
-                           node_stats_[nid].sum_hess);
+                           node_stats_[nid].sum_hess,
+                           best.left_sum.GetHess(), best.right_sum.GetHess());
       } else {
         (*p_tree)[nid].SetLeaf(p_tree->Stat(nid).base_weight * param_.learning_rate);
       }

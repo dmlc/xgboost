@@ -170,11 +170,11 @@ class SoftmaxMultiClassObj : public ObjFunction {
     } else {
       out["name"] = String("multi:softmax");
     }
-    out["softmax_multiclass_param"] = toJson(param_);
+    out["softmax_multiclass_param"] = ToJson(param_);
   }
 
   void LoadConfig(Json const& in) override {
-    fromJson(in["softmax_multiclass_param"], &param_);
+    FromJson(in["softmax_multiclass_param"], &param_);
   }
 
  private:

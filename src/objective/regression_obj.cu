@@ -126,11 +126,11 @@ class RegLossObj : public ObjFunction {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String(Loss::Name());
-    out["reg_loss_param"] = toJson(param_);
+    out["reg_loss_param"] = ToJson(param_);
   }
 
   void LoadConfig(Json const& in) override {
-    fromJson(in["reg_loss_param"], &param_);
+    FromJson(in["reg_loss_param"], &param_);
   }
 
  protected:
@@ -151,6 +151,10 @@ XGBOOST_REGISTER_OBJECTIVE(SquareLogError, SquaredLogError::Name())
 XGBOOST_REGISTER_OBJECTIVE(LogisticRegression, LogisticRegression::Name())
 .describe("Logistic regression for probability regression task.")
 .set_body([]() { return new RegLossObj<LogisticRegression>(); });
+
+XGBOOST_REGISTER_OBJECTIVE(PseudoHuberError, PseudoHuberError::Name())
+.describe("Regression Pseudo Huber error.")
+.set_body([]() { return new RegLossObj<PseudoHuberError>(); });
 
 XGBOOST_REGISTER_OBJECTIVE(LogisticClassification, LogisticClassification::Name())
 .describe("Logistic regression for binary classification task.")
@@ -253,11 +257,11 @@ class PoissonRegression : public ObjFunction {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String("count:poisson");
-    out["poisson_regression_param"] = toJson(param_);
+    out["poisson_regression_param"] = ToJson(param_);
   }
 
   void LoadConfig(Json const& in) override {
-    fromJson(in["poisson_regression_param"], &param_);
+    FromJson(in["poisson_regression_param"], &param_);
   }
 
  private:
@@ -546,10 +550,10 @@ class TweedieRegression : public ObjFunction {
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String("reg:tweedie");
-    out["tweedie_regression_param"] = toJson(param_);
+    out["tweedie_regression_param"] = ToJson(param_);
   }
   void LoadConfig(Json const& in) override {
-    fromJson(in["tweedie_regression_param"], &param_);
+    FromJson(in["tweedie_regression_param"], &param_);
   }
 
  private:

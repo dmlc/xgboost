@@ -1,12 +1,12 @@
-from __future__ import print_function
-
+import sys
 import numpy as np
-from sklearn.datasets import make_regression
 
 import unittest
 import pytest
 
 import xgboost as xgb
+sys.path.append("tests/python")
+import testing as tm
 
 rng = np.random.RandomState(1994)
 
@@ -20,6 +20,7 @@ def non_increasing(L):
 
 
 def assert_constraint(constraint, tree_method):
+    from sklearn.datasets import make_regression
     n = 1000
     X, y = make_regression(n, random_state=rng, n_features=1, n_informative=1)
     dtrain = xgb.DMatrix(X, y)
@@ -35,12 +36,13 @@ def assert_constraint(constraint, tree_method):
         assert non_increasing(pred)
 
 
-@pytest.mark.gpu
 class TestMonotonicConstraints(unittest.TestCase):
+    @pytest.mark.skipif(**tm.no_sklearn())
     def test_exact(self):
         assert_constraint(1, 'exact')
         assert_constraint(-1, 'exact')
 
+    @pytest.mark.skipif(**tm.no_sklearn())
     def test_gpu_hist(self):
         assert_constraint(1, 'gpu_hist')
         assert_constraint(-1, 'gpu_hist')

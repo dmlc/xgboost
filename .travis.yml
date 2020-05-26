@@ -6,7 +6,7 @@ os:
   - linux
   - osx
 
-osx_image: xcode10.3
+osx_image: xcode10.1
 dist: bionic
 
 # Use Build Matrix to do lint and build seperately
@@ -20,6 +20,10 @@ env:
     - TASK=java_test
     # cmake test
     - TASK=cmake_test
+
+  global:
+    - secure: "PR16i9F8QtNwn99C5NDp8nptAS+97xwDtXEJJfEiEVhxPaaRkOp0MPWhogCaK0Eclxk1TqkgWbdXFknwGycX620AzZWa/A1K3gAs+GrpzqhnPMuoBJ0Z9qxXTbSJvCyvMbYwVrjaxc/zWqdMU8waWz8A7iqKGKs/SqbQ3rO6v7c="
+    - secure: "dAGAjBokqm/0nVoLMofQni/fWIBcYSmdq4XvCBX1ZAMDsWnuOfz/4XCY6h2lEI1rVHZQ+UdZkc9PioOHGPZh5BnvE49/xVVWr9c4/61lrDOlkD01ZjSAeoV0fAZq+93V/wPl4QV+MM+Sem9hNNzFSbN5VsQLAiWCSapWsLdKzqA="
 
 matrix:
   exclude:
@@ -44,7 +48,7 @@ addons:
     update: true
 
 before_install:
-  - source dmlc-core/scripts/travis/travis_setup_env.sh
+  - source tests/travis/travis_setup_env.sh
   - if [ "${TASK}" != "python_sdist_test" ]; then export PYTHONPATH=${PYTHONPATH}:${PWD}/python-package; fi
   - echo "MAVEN_OPTS='-Xmx2g -XX:MaxPermSize=1024m -XX:ReservedCodeCacheSize=512m -Dorg.slf4j.simpleLogger.defaultLogLevel=error'" > ~/.mavenrc
 
@@ -60,7 +64,7 @@ cache:
     - ${HOME}/.cache/pip
 
 before_cache:
-  - dmlc-core/scripts/travis/travis_before_cache.sh
+  - tests/travis/travis_before_cache.sh
 
 after_failure:
   - tests/travis/travis_after_failure.sh

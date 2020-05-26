@@ -20,7 +20,7 @@
 #if defined(_MSC_VER) || defined(_WIN32)
 #define XGB_DLL XGB_EXTERN_C __declspec(dllexport)
 #else
-#define XGB_DLL XGB_EXTERN_C
+#define XGB_DLL XGB_EXTERN_C __attribute__ ((visibility ("default")))
 #endif  // defined(_MSC_VER) || defined(_WIN32)
 
 // manually define unsigned long
@@ -418,7 +418,14 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
  *          4:output feature contributions to individual predictions
  * \param ntree_limit limit number of trees used for prediction, this is only valid for boosted trees
  *    when the parameter is set to 0, we will use all the trees
- * \param training Whether the prediction value is used for training.
+ * \param training Whether the prediction function is used as part of a training loop.
+ *    Prediction can be run in 2 scenarios:
+ *    1. Given data matrix X, obtain prediction y_pred from the model.
+ *    2. Obtain the prediction for computing gradients. For example, DART booster performs dropout
+ *       during training, and the prediction result will be different from the one obtained by normal
+ *       inference step due to dropped trees.
+ *    Set training=false for the first scenario. Set training=true for the second scenario.
+ *    The second scenario applies when you are defining a custom objective function.
  * \param out_len used to store length of returning result
  * \param out_result used to set a pointer to array
  * \return 0 when success, -1 when failure happens

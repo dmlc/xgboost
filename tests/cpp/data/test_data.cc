@@ -125,5 +125,4 @@ TEST(DMatrix, Uri) {
   ASSERT_EQ(dmat->Info().num_col_, kCols);
   ASSERT_EQ(dmat->Info().num_row_, kRows);
 }
-
 }  // namespace xgboost
