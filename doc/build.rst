@@ -14,7 +14,7 @@ Installation Guide
     pip3 install xgboost
 
   * The binary wheel will support GPU algorithms (`gpu_hist`) on machines with NVIDIA GPUs. Please note that **training with multiple GPUs is only supported for Linux platform**. See :doc:`gpu/index`.
-  * Currently, we provide binary wheels for 64-bit Linux and Windows.
+  * Currently, we provide binary wheels for 64-bit Linux, macOS and Windows.
   * Nightly builds are available. You can now run
 
     .. code-block:: bash
