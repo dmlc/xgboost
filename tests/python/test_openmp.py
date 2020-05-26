@@ -36,7 +36,7 @@ class TestOMP(unittest.TestCase):
                     assert auc == auc2
                     assert np.array_equal(pred, pred2)
                 except Exception as e:
-                    print('-------test %s failed, num_trial: %d-------' % (title, i))
+                    print(f'-------test {title} failed, num_trial: {i}-------')
                     raise e
                 auc, pred = auc2, pred2
             return auc, pred

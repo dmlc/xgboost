@@ -106,7 +106,7 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
             if k == 'USE_OPENMP' and use_omp == 0:
                 continue
 
-        self.logger.info('Run CMake command: %s', str(cmake_cmd))
+        self.logger.info(f'Run CMake command: {cmake_cmd}')
         subprocess.check_call(cmake_cmd, cwd=build_dir)
 
         if system() != 'Windows':
@@ -135,7 +135,7 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
             self.logger.info('Found shared library, skipping build.')
             return
 
-        self.logger.info('Building from source. %s', libxgboost)
+        self.logger.info(f'Building from source. {libxgboost}')
         if not os.path.exists(build_dir):
             os.mkdir(build_dir)
         if shutil.which('ninja'):
@@ -149,8 +149,7 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
                        '-GVisual Studio 14 2015', '-GMinGW Makefiles'):
                 try:
                     self.build(src_dir, build_dir, vs)
-                    self.logger.info(
-                        '%s is used for building Windows distribution.', vs)
+                    self.logger.info(f'{vs} is used for building Windows distribution.')
                     break
                 except subprocess.CalledProcessError:
                     continue
@@ -220,7 +219,7 @@ class InstallLib(install_lib.install_lib):
         else:
             # The library is built by setup.py
             src = os.path.join(build_dir, libxgboost_path)
-        self.logger.info('Installing shared library: %s', src)
+        self.logger.info(f'Installing shared library: {src}')
         dst, _ = self.copy_file(src, dst)
         outfiles.append(dst)
         return outfiles

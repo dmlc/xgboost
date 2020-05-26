@@ -1,31 +1,27 @@
 #!/usr/bin/python
 
-fo = open( 'machine.txt', 'w' )
-cnt = 6
-fmap = {}
-for l in open( 'machine.data' ):
-    arr = l.split(',')
-    fo.write(arr[8])
-    for i in range( 0,6 ):
-        fo.write( ' %d:%s' %(i,arr[i+2]) )
+with open('machine.data', 'r') as fi, open('machine.txt', 'w') as fo:
+    cnt = 6
+    fmap = {}
+    for l in fi:
+        arr = l.split(',')
+        print(arr[8], file=fo, end='')
+        for i in range(6):
+            print(f' {i:d}:{arr[i + 2]:s}', file=fo, end='')
 
-    if arr[0] not in fmap:
-        fmap[arr[0]] = cnt
-        cnt += 1
+        if arr[0] not in fmap:
+            fmap[arr[0]] = cnt
+            cnt += 1
 
-    fo.write( ' %d:1' % fmap[arr[0]] )
-    fo.write('\n')
-
-fo.close()
+        print(f' {fmap[arr[0]]:d}:1', file=fo)
 
 # create feature map for machine data
-fo = open('featmap.txt', 'w')
-# list from machine.names
-names = ['vendor','MYCT', 'MMIN', 'MMAX', 'CACH', 'CHMIN', 'CHMAX', 'PRP', 'ERP' ];
+with open('featmap.txt', 'w') as fo:
+    # list from machine.names
+    names = ['vendor', 'MYCT', 'MMIN', 'MMAX', 'CACH', 'CHMIN', 'CHMAX', 'PRP', 'ERP']
 
-for i in range(0,6):
-    fo.write( f'{i}\t{names[i+1]}\tint\n')
+    for i in range(6):
+        print(f'{i}\t{names[i+1]}\tint', file=fo)
 
-for v, k in sorted( fmap.items(), key = lambda x:x[1] ):
-    fo.write( f'{k}\tvendor={v}\ti\n')
-fo.close()
+    for v, k in sorted(fmap.items(), key=lambda x: x[1]):
+        print(f'{k}\tvendor={v}\ti', file=fo)

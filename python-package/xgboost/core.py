@@ -217,9 +217,7 @@ def ctypes2cupy(cptr, length, dtype):
         cupy.uint32: ctypes.c_uint
     }
     if dtype not in CUPY_TO_CTYPES_MAPPING.keys():
-        raise RuntimeError('Supported types: {}'.format(
-            CUPY_TO_CTYPES_MAPPING.keys()
-        ))
+        raise RuntimeError(f'Supported types: {CUPY_TO_CTYPES_MAPPING.keys()}')
     addr = ctypes.cast(cptr, ctypes.c_void_p).value
     # pylint: disable=c-extension-no-member,no-member
     device = cupy.cuda.runtime.pointerGetAttributes(addr).device
@@ -265,8 +263,7 @@ def _convert_unknown_data(data, meta=None, meta_type=None):
         try:
             data = np.array(data, dtype=meta_type)
         except Exception:
-            raise TypeError('Can not handle data from {}'.format(
-                type(data).__name__))
+            raise TypeError(f'Can not handle data from {type(data).__name__}')
     else:
         import warnings
         warnings.warn(
@@ -275,8 +272,7 @@ def _convert_unknown_data(data, meta=None, meta_type=None):
         try:
             data = scipy.sparse.csr_matrix(data)
         except Exception:
-            raise TypeError('Can not initialize DMatrix from'
-                            ' {}'.format(type(data).__name__))
+            raise TypeError(f'Can not initialize DMatrix from {type(data).__name__}')
     return data
 
 

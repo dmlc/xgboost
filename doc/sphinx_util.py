@@ -13,4 +13,4 @@ if not os.path.exists('web-data'):
 else:
   subprocess.call('cd web-data; git pull', shell=True)
 
-sys.stderr.write('READTHEDOCS=%s\n' % (READTHEDOCS_BUILD))
+sys.stderr.write(f'READTHEDOCS={READTHEDOCS_BUILD}\n')

@@ -137,8 +137,7 @@ class CSRHandler(DataHandler):
     def handle_input(self, data, feature_names, feature_types):
         '''Initialize data from a CSR matrix.'''
         if len(data.indices) != len(data.data):
-            raise ValueError('length mismatch: {} vs {}'.format(
-                len(data.indices), len(data.data)))
+            raise ValueError(f'length mismatch: {len(data.indices)} vs {len(data.data)}')
         self._warn_unused_missing(data)
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromCSREx(
@@ -160,8 +159,7 @@ class CSCHandler(DataHandler):
     '''Handler of `scipy.sparse.csc.csc_matrix`.'''
     def handle_input(self, data, feature_names, feature_types):
         if len(data.indices) != len(data.data):
-            raise ValueError('length mismatch: {} vs {}'.format(
-                len(data.indices), len(data.data)))
+            raise ValueError(f'length mismatch: {len(data.indices)} vs {len(data.data)}')
         self._warn_unused_missing(data)
         handle = ctypes.c_void_p()
         _check_call(_LIB.XGDMatrixCreateFromCSCEx(
@@ -313,9 +311,7 @@ class PandasHandler(NumpyHandler):
                     feature_types.append(self.pandas_dtype_mapper[dtype.name])
 
         if meta and len(data.columns) > 1:
-            raise ValueError(
-                'DataFrame for {meta} cannot have multiple columns'.format(
-                    meta=meta))
+            raise ValueError(f'DataFrame for {meta} cannot have multiple columns')
 
         dtype = meta_type if meta_type else 'float'
         data = data.values.astype(dtype)

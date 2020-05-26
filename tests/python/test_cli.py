@@ -42,8 +42,7 @@ eval[test] = {data_path}
         return exe
 
     def test_cli_model(self):
-        data_path = "{root}/demo/data/agaricus.txt.train?format=libsvm".format(
-            root=self.project_root)
+        data_path = f'{self.project_root}/demo/data/agaricus.txt.train?format=libsvm'
         exe = self.get_exe()
         seed = 1994
 
@@ -127,8 +126,7 @@ eval[test] = {data_path}
 
     def test_cli_model_json(self):
         exe = self.get_exe()
-        data_path = "{root}/demo/data/agaricus.txt.train?format=libsvm".format(
-            root=self.project_root)
+        data_path = f'{self.project_root}/demo/data/agaricus.txt.train?format=libsvm'
         seed = 1994
 
         with tempfile.TemporaryDirectory() as tmpdir:

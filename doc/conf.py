@@ -31,25 +31,19 @@ if git_branch is None:
             git.branch('-r', '--contains', 'HEAD')).rstrip('\n').split('\n')
     ]
     git_branch = [x for x in git_branch if 'HEAD' not in x]
-print('git_branch = {}'.format(git_branch[0]))
+print(f'git_branch = {git_branch[0]}')
 try:
     filename, _ = urllib.request.urlretrieve(
-        'https://s3-us-west-2.amazonaws.com/xgboost-docs/{}.tar.bz2'.format(
-            git_branch[0]))
-    call(
-        'if [ -d tmp ]; then rm -rf tmp; fi; mkdir -p tmp/jvm; cd tmp/jvm; tar xvf {}'
-        .format(filename),
-        shell=True)
+        f'https://s3-us-west-2.amazonaws.com/xgboost-docs/{git_branch[0]}.tar.bz2')
+    call(f'if [ -d tmp ]; then rm -rf tmp; fi; mkdir -p tmp/jvm; cd tmp/jvm; tar xvf {filename}',
+         shell=True)
 except HTTPError:
     print('JVM doc not found. Skipping...')
 try:
     filename, _ = urllib.request.urlretrieve(
-        'https://s3-us-west-2.amazonaws.com/xgboost-docs/doxygen/{}.tar.bz2'.
-        format(git_branch[0]))
-    call(
-        'mkdir -p tmp/dev; cd tmp/dev; tar xvf {}; mv doc_doxygen/html/* .; rm -rf doc_doxygen'
-        .format(filename),
-        shell=True)
+        f'https://s3-us-west-2.amazonaws.com/xgboost-docs/doxygen/{git_branch[0]}.tar.bz2')
+    call((f'mkdir -p tmp/dev; cd tmp/dev; tar xvf {filename}; ' +
+          'mv doc_doxygen/html/* .; rm -rf doc_doxygen'), shell=True)
 except HTTPError:
     print('C API doc not found. Skipping...')
 
@@ -70,9 +64,9 @@ for mod_name in MOCK_MODULES:
 # -- General configuration ------------------------------------------------
 
 # General information about the project.
-project = u'xgboost'
-author = u'%s developers' % project
-copyright = u'2020, %s' % author
+project = 'xgboost'
+author = f'{project} developers'
+copyright = '2020, {author}'
 github_doc_root = 'https://github.com/dmlc/xgboost/tree/master/doc/'
 
 os.environ['XGBOOST_BUILD_DOC'] = '1'
@@ -201,7 +195,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, '%s.tex' % project, project,
+  (master_doc, f'{project}.tex', project,
    author, 'manual'),
 ]
 

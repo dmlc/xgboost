@@ -63,7 +63,7 @@ def plot_intermediate_model_callback(env):
     plot_censored_labels(X, y_lower, y_upper)
     y_pred_grid_pts = env.model.predict(xgb.DMatrix(grid_pts))
     plt.plot(grid_pts, y_pred_grid_pts, 'r-', label='XGBoost AFT model', linewidth=4)
-    plt.title('Iteration {}'.format(env.iteration), x=0.5, y=0.8)
+    plt.title(f'Iteration {env.iteration}', x=0.5, y=0.8)
     plt.xlim((0.8, 5.2))
     plt.ylim((1 if np.min(y_pred) < 6 else 6, 200))
     plt.yscale('log')
