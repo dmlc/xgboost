@@ -8,15 +8,24 @@
 #ifndef XGBOOST_COMMON_PROBABILITY_DISTRIBUTION_H_
 #define XGBOOST_COMMON_PROBABILITY_DISTRIBUTION_H_
 
+#ifndef __CUDACC__
+#include <cmath>
+namespace {
+
+using namespace std;  // access math functions in host code without std:: prefix
+
+}  // anonymous namespace
+#endif  // __CUDACC__
+
 namespace xgboost {
 namespace common {
 
 namespace probability_constant {
 
 /*! \brief Constant PI */
-const double kPI = 3.14159265358979323846;
+constexpr double kPI = 3.14159265358979323846;
 /*! \brief The Euler-Mascheroni_constant */
-const double kEulerMascheroni = 0.57721566490153286060651209008240243104215933593992;
+constexpr double kEulerMascheroni = 0.57721566490153286060651209008240243104215933593992;
 
 }  // namespace probability_constant
 
@@ -28,12 +37,12 @@ enum class ProbabilityDistributionType : int {
 struct NormalDistribution {
   XGBOOST_DEVICE inline static
   double PDF(double z) {
-    return std::exp(-z * z / 2.0) / std::sqrt(2.0 * probability_constant::kPI);
+    return exp(-z * z / 2.0) / sqrt(2.0 * probability_constant::kPI);
   }
 
   XGBOOST_DEVICE inline static
   double CDF(double z) {
-    return 0.5 * (1 + std::erf(z / std::sqrt(2.0)));
+    return 0.5 * (1 + erf(z / sqrt(2.0)));
   }
 
   XGBOOST_DEVICE inline static
@@ -55,9 +64,9 @@ struct NormalDistribution {
 struct LogisticDistribution {
   XGBOOST_DEVICE inline static
   double PDF(double z) {
-    const double w = std::exp(z);
+    const double w = exp(z);
     const double sqrt_denominator = 1 + w;
-    if (std::isinf(w) || std::isinf(w * w)) {
+    if (isinf(w) || isinf(w * w)) {
       return 0.0;
     } else {
       return w / (sqrt_denominator * sqrt_denominator);
@@ -66,20 +75,20 @@ struct LogisticDistribution {
 
   XGBOOST_DEVICE inline static
   double CDF(double z) {
-    const double w = std::exp(z);
-    return std::isinf(w) ? 1.0 : (w / (1 + w));
+    const double w = exp(z);
+    return isinf(w) ? 1.0 : (w / (1 + w));
   }
 
   XGBOOST_DEVICE inline static
   double GradPDF(double z) {
-    const double w = std::exp(z);
-    return std::isinf(w) ? 0.0 : (PDF(z) * (1 - w) / (1 + w));
+    const double w = exp(z);
+    return isinf(w) ? 0.0 : (PDF(z) * (1 - w) / (1 + w));
   }
 
   XGBOOST_DEVICE inline static
   double HessPDF(double z) {
-    const double w = std::exp(z);
-    if (std::isinf(w) || std::isinf(w * w)) {
+    const double w = exp(z);
+    if (isinf(w) || isinf(w * w)) {
       return 0.0;
     } else {
       return PDF(z) * (w * w - 4 * w + 1) / ((1 + w) * (1 + w));
@@ -95,26 +104,26 @@ struct LogisticDistribution {
 struct ExtremeDistribution {
   XGBOOST_DEVICE inline static
   double PDF(double z) {
-    const double w = std::exp(z);
-    return std::isinf(w) ? 0.0 : (w * std::exp(-w));
+    const double w = exp(z);
+    return isinf(w) ? 0.0 : (w * exp(-w));
   }
 
   XGBOOST_DEVICE inline static
   double CDF(double z) {
-    const double w = std::exp(z);
-    return 1 - std::exp(-w);
+    const double w = exp(z);
+    return 1 - exp(-w);
   }
 
   XGBOOST_DEVICE inline static
   double GradPDF(double z) {
-    const double w = std::exp(z);
-    return std::isinf(w) ? 0.0 : ((1 - w) * PDF(z));
+    const double w = exp(z);
+    return isinf(w) ? 0.0 : ((1 - w) * PDF(z));
   }
 
   XGBOOST_DEVICE inline static
   double HessPDF(double z) {
-    const double w = std::exp(z);
-    if (std::isinf(w) || std::isinf(w * w)) {
+    const double w = exp(z);
+    if (isinf(w) || isinf(w * w)) {
       return 0.0;
     } else {
       return (w * w - 3 * w + 1) * PDF(z);

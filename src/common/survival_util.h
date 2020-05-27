@@ -8,6 +8,15 @@
 #ifndef XGBOOST_COMMON_SURVIVAL_UTIL_H_
 #define XGBOOST_COMMON_SURVIVAL_UTIL_H_
 
+#ifndef __CUDACC__
+#include <cmath>
+namespace {
+
+  using namespace std;  // access math functions in host code without std:: prefix
+
+}  // anonymous namespace
+#endif  // __CUDACC__
+
 /*
 - Formulas are motivated from document -
   http://members.cbio.mines-paristech.fr/~thocking/survival.pdf
@@ -53,15 +62,6 @@ inline double Clip(double x, double x_min, double x_max) {
   return x;
 }
 
-XGBOOST_DEVICE
-inline double Max(double a, double b) {
-#if defined (__CUDA__) || defined(__NVCC__)
-  return max(a, b);
-#else
-  return std::max(a, b);
-#endif
-}
-
 template<typename Distribution>
 XGBOOST_DEVICE inline double
 GetLimitGradAtInfPred(CensoringType censor_type, bool sign, double sigma);
@@ -98,8 +98,8 @@ template<typename Distribution>
 struct AFTLoss {
   XGBOOST_DEVICE inline static
   double Loss(double y_lower, double y_upper, double y_pred, double sigma) {
-    const double log_y_lower = std::log(y_lower);
-    const double log_y_upper = std::log(y_upper);
+    const double log_y_lower = log(y_lower);
+    const double log_y_upper = log(y_upper);
 
     double cost;
 
@@ -107,10 +107,10 @@ struct AFTLoss {
       const double z = (log_y_lower - y_pred) / sigma;
       const double pdf = Distribution::PDF(z);
       // Regularize the denominator with eps, to avoid INF or NAN
-      cost = -std::log(aft::Max(pdf / (sigma * y_lower), aft::kEps));
+      cost = -log(fmax(pdf / (sigma * y_lower), aft::kEps));
     } else {  // censored; now check what type of censorship we have
       double z_u, z_l, cdf_u, cdf_l;
-      if (std::isinf(y_upper)) {  // right-censored
+      if (isinf(y_upper)) {  // right-censored
         cdf_u = 1;
       } else {  // left-censored or interval-censored
         z_u = (log_y_upper - y_pred) / sigma;
@@ -123,7 +123,7 @@ struct AFTLoss {
         cdf_l = Distribution::CDF(z_l);
       }
       // Regularize the denominator with eps, to avoid INF or NAN
-      cost = -std::log(aft::Max(cdf_u - cdf_l, aft::kEps));
+      cost = -log(fmax(cdf_u - cdf_l, aft::kEps));
     }
 
     return cost;
@@ -131,8 +131,8 @@ struct AFTLoss {
 
   XGBOOST_DEVICE inline static
   double Gradient(double y_lower, double y_upper, double y_pred, double sigma) {
-    const double log_y_lower = std::log(y_lower);
-    const double log_y_upper = std::log(y_upper);
+    const double log_y_lower = log(y_lower);
+    const double log_y_upper = log(y_upper);
     double numerator, denominator, gradient;  // numerator and denominator of gradient
     CensoringType censor_type;
     bool z_sign;  // sign of z-score
@@ -148,7 +148,7 @@ struct AFTLoss {
     } else {  // censored; now check what type of censorship we have
       double z_u = 0.0, z_l = 0.0, pdf_u, pdf_l, cdf_u, cdf_l;
       censor_type = CensoringType::kIntervalCensored;
-      if (std::isinf(y_upper)) {  // right-censored
+      if (isinf(y_upper)) {  // right-censored
         pdf_u = 0;
         cdf_u = 1;
         censor_type = CensoringType::kRightCensored;
@@ -171,7 +171,7 @@ struct AFTLoss {
       denominator = sigma * (cdf_u - cdf_l);
     }
     gradient = numerator / denominator;
-    if (denominator < aft::kEps && (std::isnan(gradient) || std::isinf(gradient))) {
+    if (denominator < aft::kEps && (isnan(gradient) || isinf(gradient))) {
       gradient = aft::GetLimitGradAtInfPred<Distribution>(censor_type, z_sign, sigma);
     }
 
@@ -180,8 +180,8 @@ struct AFTLoss {
 
   XGBOOST_DEVICE inline static
   double Hessian(double y_lower, double y_upper, double y_pred, double sigma) {
-    const double log_y_lower = std::log(y_lower);
-    const double log_y_upper = std::log(y_upper);
+    const double log_y_lower = log(y_lower);
+    const double log_y_upper = log(y_upper);
     double numerator, denominator, hessian;  // numerator and denominator of hessian
     CensoringType censor_type;
     bool z_sign;  // sign of z-score
@@ -198,7 +198,7 @@ struct AFTLoss {
     } else {  // censored; now check what type of censorship we have
       double z_u = 0.0, z_l = 0.0, grad_pdf_u, grad_pdf_l, pdf_u, pdf_l, cdf_u, cdf_l;
       censor_type = CensoringType::kIntervalCensored;
-      if (std::isinf(y_upper)) {  // right-censored
+      if (isinf(y_upper)) {  // right-censored
         pdf_u = 0;
         cdf_u = 1;
         grad_pdf_u = 0;
@@ -229,7 +229,7 @@ struct AFTLoss {
       denominator = sqrt_denominator * sqrt_denominator;
     }
     hessian = numerator / denominator;
-    if (denominator < aft::kEps && (std::isnan(hessian) || std::isinf(hessian))) {
+    if (denominator < aft::kEps && (isnan(hessian) || isinf(hessian))) {
       hessian = aft::GetLimitHessAtInfPred<Distribution>(censor_type, z_sign, sigma);
     }
 
@@ -252,7 +252,7 @@ GetLimitGradAtInfPred<NormalDistribution>(CensoringType censor_type, bool sign, 
   case CensoringType::kIntervalCensored:
     return sign ? kMinGradient : kMaxGradient;
   }
-  return std::nan("");
+  return nan("");
 }
 
 template <>
@@ -268,7 +268,7 @@ GetLimitHessAtInfPred<NormalDistribution>(CensoringType censor_type, bool sign, 
   case CensoringType::kIntervalCensored:
     return 1.0 / (sigma * sigma);
   }
-  return std::nan("");
+  return nan("");
 }
 
 template <>
@@ -284,7 +284,7 @@ GetLimitGradAtInfPred<LogisticDistribution>(CensoringType censor_type, bool sign
   case CensoringType::kIntervalCensored:
     return sign ? (-1.0 / sigma) : (1.0 / sigma);
   }
-  return std::nan("");
+  return nan("");
 }
 
 template <>
@@ -297,7 +297,7 @@ GetLimitHessAtInfPred<LogisticDistribution>(CensoringType censor_type, bool sign
   case CensoringType::kIntervalCensored:
     return kMinHessian;
   }
-  return std::nan("");
+  return nan("");
 }
 
 template <>
@@ -313,7 +313,7 @@ GetLimitGradAtInfPred<ExtremeDistribution>(CensoringType censor_type, bool sign,
   case CensoringType::kIntervalCensored:
     return sign ? kMinGradient : (1.0 / sigma);
   }
-  return std::nan("");
+  return nan("");
 }
 
 template <>
@@ -328,7 +328,7 @@ GetLimitHessAtInfPred<ExtremeDistribution>(CensoringType censor_type, bool sign,
   case CensoringType::kIntervalCensored:
     return sign ? kMaxHessian : kMinHessian;
   }
-  return std::nan("");
+  return nan("");
 }
 
 }  // namespace aft
