@@ -8,17 +8,19 @@
 #ifndef XGBOOST_COMMON_PROBABILITY_DISTRIBUTION_H_
 #define XGBOOST_COMMON_PROBABILITY_DISTRIBUTION_H_
 
-#ifndef __CUDACC__
 #include <cmath>
-namespace {
-
-using namespace std;  // access math functions in host code without std:: prefix
-
-}  // anonymous namespace
-#endif  // __CUDACC__
 
 namespace xgboost {
 namespace common {
+
+#ifndef __CUDACC__
+
+using std::exp;
+using std::sqrt;
+using std::isinf;
+using std::isnan;
+
+#endif  // __CUDACC__
 
 namespace probability_constant {
 

@@ -8,15 +8,6 @@
 #ifndef XGBOOST_COMMON_SURVIVAL_UTIL_H_
 #define XGBOOST_COMMON_SURVIVAL_UTIL_H_
 
-#ifndef __CUDACC__
-#include <cmath>
-namespace {
-
-  using namespace std;  // access math functions in host code without std:: prefix
-
-}  // anonymous namespace
-#endif  // __CUDACC__
-
 /*
 - Formulas are motivated from document -
   http://members.cbio.mines-paristech.fr/~thocking/survival.pdf
@@ -33,6 +24,13 @@ DECLARE_FIELD_ENUM_CLASS(xgboost::common::ProbabilityDistributionType);
 
 namespace xgboost {
 namespace common {
+
+#ifndef __CUDACC__
+
+using std::log;
+using std::fmax;
+
+#endif  // __CUDACC__
 
 enum class CensoringType : uint8_t {
   kUncensored, kRightCensored, kLeftCensored, kIntervalCensored
