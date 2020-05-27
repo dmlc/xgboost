@@ -116,7 +116,7 @@ struct AFTLoss {
         z_u = (log_y_upper - y_pred) / sigma;
         cdf_u = Distribution::CDF(z_u);
       }
-      if (std::isinf(y_lower)) {  // left-censored
+      if (y_lower <= 0.0) {  // left-censored
         cdf_l = 0;
       } else {  // right-censored or interval-censored
         z_l = (log_y_lower - y_pred) / sigma;
@@ -157,7 +157,7 @@ struct AFTLoss {
         pdf_u = Distribution::PDF(z_u);
         cdf_u = Distribution::CDF(z_u);
       }
-      if (std::isinf(y_lower)) {  // left-censored
+      if (y_lower <= 0.0) {  // left-censored
         pdf_l = 0;
         cdf_l = 0;
         censor_type = CensoringType::kLeftCensored;
@@ -209,7 +209,7 @@ struct AFTLoss {
         cdf_u = Distribution::CDF(z_u);
         grad_pdf_u = Distribution::GradPDF(z_u);
       }
-      if (std::isinf(y_lower)) {  // left-censored
+      if (y_lower <= 0.0) {  // left-censored
         pdf_l = 0;
         cdf_l = 0;
         grad_pdf_l = 0;

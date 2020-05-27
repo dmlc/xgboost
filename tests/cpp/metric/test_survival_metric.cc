@@ -13,56 +13,18 @@
 #include "../helpers.h"
 #include "../../../src/common/survival_util.h"
 
+// CUDA conditional compile trick.
+#include "test_survival_metric.cu"
+
 namespace xgboost {
 namespace common {
+
+/** Tests for Survival metrics that should run only on CPU **/
 
 /**
  * Reference values obtained from
  * https://github.com/avinashbarnwal/GSOC-2019/blob/master/AFT/R/combined_assignment.R
  **/
-
-TEST(Metric, AFTNegLogLik) {
-  auto lparam = CreateEmptyGenericParam(-1);  // currently AFT metric is CPU only
-
-  /**
-   * Test aggregate output from the AFT metric over a small test data set.
-   * This is unlike AFTLoss.* tests, which verify metric values over individual data points.
-   **/
-  MetaInfo info;
-  info.num_row_ = 4;
-  info.labels_lower_bound_.HostVector()
-    = { 100.0f, -std::numeric_limits<bst_float>::infinity(), 60.0f, 16.0f };
-  info.labels_upper_bound_.HostVector()
-    = { 100.0f, 20.0f, std::numeric_limits<bst_float>::infinity(), 200.0f };
-  info.weights_.HostVector() = std::vector<bst_float>();
-  HostDeviceVector<bst_float> preds(4, std::log(64));
-
-  struct TestCase {
-    std::string dist_type;
-    bst_float reference_value;
-  };
-  for (const auto& test_case : std::vector<TestCase>{ {"normal", 2.1508f}, {"logistic", 2.1804f},
-                                                      {"extreme", 2.0706f} }) {
-    std::unique_ptr<Metric> metric(Metric::Create("aft-nloglik", &lparam));
-    metric->Configure({ {"aft_loss_distribution", test_case.dist_type},
-                        {"aft_loss_distribution_scale", "1.0"} });
-    EXPECT_NEAR(metric->Eval(preds, info, false), test_case.reference_value, 1e-4);
-  }
-}
-
-// Test configuration of AFT metric
-TEST(AFTNegLogLikMetric, Configuration) {
-  auto lparam = CreateEmptyGenericParam(-1);  // currently AFT metric is CPU only
-  std::unique_ptr<Metric> metric(Metric::Create("aft-nloglik", &lparam));
-  metric->Configure({{"aft_loss_distribution", "normal"}, {"aft_loss_distribution_scale", "10"}});
-
-  // Configuration round-trip test
-  Json j_obj{ Object() };
-  metric->SaveConfig(&j_obj);
-  auto aft_param_json = j_obj["aft_loss_param"];
-  EXPECT_EQ(get<String>(aft_param_json["aft_loss_distribution"]), "normal");
-  EXPECT_EQ(get<String>(aft_param_json["aft_loss_distribution_scale"]), "10");
-}
 
 /**
  * AFTLoss.* tests verify metric values over individual data points.
@@ -106,7 +68,7 @@ TEST(AFTLoss, Uncensored) {
 
 TEST(AFTLoss, LeftCensored) {
   // Given label (-inf, 20], compute the AFT loss for various prediction values
-  const double true_label_lower_bound = -std::numeric_limits<double>::infinity();
+  const double true_label_lower_bound = 0.0;
   const double true_label_upper_bound = 20.0;
 
   CheckLossOverGridPoints<NormalDistribution>(true_label_lower_bound, true_label_upper_bound,
@@ -140,7 +102,7 @@ TEST(AFTLoss, IntervalCensored) {
   // Given label [16, 200], compute the AFT loss for various prediction values
   const double true_label_lower_bound = 16.0;
   const double true_label_upper_bound = 200.0;
-  
+
   CheckLossOverGridPoints<NormalDistribution>(true_label_lower_bound, true_label_upper_bound,
     { 3.9746, 2.8415, 1.9319, 1.2342, 0.7335, 0.4121, 0.2536, 0.2470, 0.3919, 0.6982, 1.1825,
       1.8622, 2.7526, 3.8656, 5.2102, 6.7928, 8.6183, 10.6901, 13.0108, 15.5826 });
