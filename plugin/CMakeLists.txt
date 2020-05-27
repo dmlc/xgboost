@@ -11,6 +11,7 @@ endif (PLUGIN_DENSE_PARSER)
 if (PLUGIN_UPDATER_ONEAPI)
   set(PLUGINS_SOURCES ${PLUGINS_SOURCES}
     ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/regression_obj_oneapi.cc
+    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/predictor_oneapi.cc
     ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/hist_util_oneapi.cc
     ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/updater_quantile_hist_oneapi.cc PARENT_SCOPE)
 endif (PLUGIN_UPDATER_ONEAPI)
