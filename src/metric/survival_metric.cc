@@ -63,7 +63,7 @@ struct EvalIntervalRegressionAccuracy : public Metric {
       if (pred >= y_lower[i] && pred <= y_upper[i]) {
         acc_sum += 1.0;
       }
-      weight_sum += w;  
+      weight_sum += w;
     }
 
     double dat[2]{acc_sum, weight_sum};

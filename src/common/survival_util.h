@@ -17,6 +17,7 @@
 
 #include <xgboost/parameter.h>
 #include <memory>
+#include <algorithm>
 #include "probability_distribution.h"
 
 DECLARE_FIELD_ENUM_CLASS(xgboost::common::ProbabilityDistributionType);
