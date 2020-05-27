@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019 by Contributors
+ * Copyright 2019-2020 by Contributors
  * \file survival_util.cc
  * \brief Utility functions, useful for implementing objective and metric functions for survival
  *        analysis

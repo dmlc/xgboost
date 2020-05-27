@@ -1,6 +1,6 @@
 /*!
- * Copyright 2019 by Contributors
- * \file survival_metric.cc
+ * Copyright 2019-2020 by Contributors
+ * \file survival_metric.cu
  * \brief Metrics for survival analysis
  * \author Avinash Barnwal, Hyunsu Cho and Toby Hocking
  */

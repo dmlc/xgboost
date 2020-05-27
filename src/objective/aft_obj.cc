@@ -1,7 +1,7 @@
 /*!
- * Copyright 2015 by Contributors
- * \file rank.cc
- * \brief Definition of aft loss.
+ * Copyright 2019-2020 by Contributors
+ * \file aft_obj.cc
+ * \brief Definition of AFT loss for survival analysis.
  */
 
 #include <dmlc/omp.h>

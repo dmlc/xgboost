@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 by Contributors
+ * Copyright 2019-2020 by Contributors
  * \file probability_distribution.h
  * \brief Implementation of a few useful probability distributions
  * \author Avinash Barnwal and Hyunsu Cho
