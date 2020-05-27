@@ -19,12 +19,6 @@ ENV PATH=/opt/python/bin:$PATH
 
 ENV GOSU_VERSION 1.10
 
-# Create new Conda environment with Python 3.5
-RUN conda create -n py35 python=3.5 && \
-    source activate py35 && \
-    pip install numpy pytest scipy scikit-learn pandas matplotlib wheel kubernetes urllib3 graphviz && \
-    source deactivate
-
 # Install Python packages in default env
 RUN \
     pip install pyyaml cpplint pylint astroid sphinx numpy scipy pandas matplotlib sh \
