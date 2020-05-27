@@ -25,68 +25,106 @@ enum class ProbabilityDistributionType : int {
   kNormal = 0, kLogistic = 1, kExtreme = 2
 };
 
-/*! \brief Interface for a probability distribution */
-class ProbabilityDistribution {
- public:
-  /*!
-   * \brief Evaluate Probability Density Function (PDF) at a particular point
-   * \param z point at which to evaluate PDF
-   * \return Value of PDF evaluated
-   */
-  virtual double PDF(double z) = 0;
-  /*!
-   * \brief Evaluate Cumulative Distribution Function (CDF) at a particular point
-   * \param z point at which to evaluate CDF
-   * \return Value of CDF evaluated
-   */
-  virtual double CDF(double z) = 0;
-  /*!
-   * \brief Evaluate first derivative of PDF at a particular point
-   * \param z point at which to evaluate first derivative of PDF
-   * \return Value of first derivative of PDF evaluated
-   */
-  virtual double GradPDF(double z) = 0;
-  /*!
-   * \brief Evaluate second derivative of PDF at a particular point
-   * \param z point at which to evaluate second derivative of PDF
-   * \return Value of second derivative of PDF evaluated
-   */
-  virtual double HessPDF(double z) = 0;
+struct NormalDistribution {
+  XGBOOST_DEVICE inline static
+  double PDF(double z) {
+    return std::exp(-z * z / 2.0) / std::sqrt(2.0 * probability_constant::kPI);
+  }
 
-  /*!
-   * \brief Factory function to instantiate a new probability distribution object
-   * \param dist kind of probability distribution
-   * \return Reference to the newly created probability distribution object
-   */
-  static ProbabilityDistribution* Create(ProbabilityDistributionType dist);
-  virtual ~ProbabilityDistribution() = default;
+  XGBOOST_DEVICE inline static
+  double CDF(double z) {
+    return 0.5 * (1 + std::erf(z / std::sqrt(2.0)));
+  }
+
+  XGBOOST_DEVICE inline static
+  double GradPDF(double z) {
+    return -z * PDF(z);
+  }
+
+  XGBOOST_DEVICE inline static
+  double HessPDF(double z) {
+    return (z * z - 1.0) * PDF(z);
+  }
+
+  XGBOOST_DEVICE inline static
+  ProbabilityDistributionType Type() {
+    return ProbabilityDistributionType::kNormal;
+  }
 };
 
-/*! \brief The (standard) normal distribution */
-class NormalDist : public ProbabilityDistribution {
- public:
-  double PDF(double z) override;
-  double CDF(double z) override;
-  double GradPDF(double z) override;
-  double HessPDF(double z) override;
+struct LogisticDistribution {
+  XGBOOST_DEVICE inline static
+  double PDF(double z) {
+    const double w = std::exp(z);
+    const double sqrt_denominator = 1 + w;
+    if (std::isinf(w) || std::isinf(w * w)) {
+      return 0.0;
+    } else {
+      return w / (sqrt_denominator * sqrt_denominator);
+    }
+  }
+
+  XGBOOST_DEVICE inline static
+  double CDF(double z) {
+    const double w = std::exp(z);
+    return std::isinf(w) ? 1.0 : (w / (1 + w));
+  }
+
+  XGBOOST_DEVICE inline static
+  double GradPDF(double z) {
+    const double w = std::exp(z);
+    return std::isinf(w) ? 0.0 : (PDF(z) * (1 - w) / (1 + w));
+  }
+
+  XGBOOST_DEVICE inline static
+  double HessPDF(double z) {
+    const double w = std::exp(z);
+    if (std::isinf(w) || std::isinf(w * w)) {
+      return 0.0;
+    } else {
+      return PDF(z) * (w * w - 4 * w + 1) / ((1 + w) * (1 + w));
+    }
+  }
+
+  XGBOOST_DEVICE inline static
+  ProbabilityDistributionType Type() {
+    return ProbabilityDistributionType::kLogistic;
+  }
 };
 
-/*! \brief The (standard) logistic distribution */
-class LogisticDist : public ProbabilityDistribution {
- public:
-  double PDF(double z) override;
-  double CDF(double z) override;
-  double GradPDF(double z) override;
-  double HessPDF(double z) override;
-};
+struct ExtremeDistribution {
+  XGBOOST_DEVICE inline static
+  double PDF(double z) {
+    const double w = std::exp(z);
+    return std::isinf(w) ? 0.0 : (w * std::exp(-w));
+  }
 
-/*! \brief The extreme distribution, also known as the Gumbel (minimum) distribution */
-class ExtremeDist : public ProbabilityDistribution {
- public:
-  double PDF(double z) override;
-  double CDF(double z) override;
-  double GradPDF(double z) override;
-  double HessPDF(double z) override;
+  XGBOOST_DEVICE inline static
+  double CDF(double z) {
+    const double w = std::exp(z);
+    return 1 - std::exp(-w);
+  }
+
+  XGBOOST_DEVICE inline static
+  double GradPDF(double z) {
+    const double w = std::exp(z);
+    return std::isinf(w) ? 0.0 : ((1 - w) * PDF(z));
+  }
+
+  XGBOOST_DEVICE inline static
+  double HessPDF(double z) {
+    const double w = std::exp(z);
+    if (std::isinf(w) || std::isinf(w * w)) {
+      return 0.0;
+    } else {
+      return (w * w - 3 * w + 1) * PDF(z);
+    }
+  }
+
+  XGBOOST_DEVICE inline static
+  ProbabilityDistributionType Type() {
+    return ProbabilityDistributionType::kExtreme;
+  }
 };
 
 }  // namespace common

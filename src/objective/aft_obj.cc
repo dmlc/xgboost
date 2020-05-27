@@ -21,7 +21,9 @@
 #include "../common/survival_util.h"
 
 using AFTParam = xgboost::common::AFTParam;
-using AFTLoss = xgboost::common::AFTLoss;
+using ProbabilityDistributionType = xgboost::common::ProbabilityDistributionType;
+template <typename Distribution>
+using AFTLoss = xgboost::common::AFTLoss<Distribution>;
 
 namespace xgboost {
 namespace obj {
@@ -32,7 +34,26 @@ class AFTObj : public ObjFunction {
  public:
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.UpdateAllowUnknown(args);
-    loss_.reset(new AFTLoss(param_.aft_loss_distribution));
+  }
+
+  template <typename Distribution>
+  void GetGradientImpl(
+      const std::vector<float>& weights, const std::vector<float>& y_lower,
+      const std::vector<float>& y_upper, const std::vector<float>& yhat,
+      omp_ulong nsize, bool is_null_weight, double aft_loss_distribution_scale,
+      std::vector<GradientPair>* out_gpair
+    ) {
+    std::vector<GradientPair>& gpair = *out_gpair;
+    #pragma omp parallel for shared(weights, y_lower, y_upper, yhat, gpair)
+    for (omp_ulong i = 0; i < nsize; ++i) {
+      // If weights are empty, data is unweighted so we use 1.0 everywhere
+      const double w = is_null_weight ? 1.0 : weights[i];
+      const double grad = AFTLoss<Distribution>::Gradient(y_lower[i], y_upper[i],
+                                                          yhat[i], aft_loss_distribution_scale);
+      const double hess = AFTLoss<Distribution>::Hessian(y_lower[i], y_upper[i],
+                                                         yhat[i], aft_loss_distribution_scale);
+      gpair[i] = GradientPair(grad * w, hess * w);
+    }
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
@@ -56,16 +77,24 @@ class AFTObj : public ObjFunction {
     const omp_ulong nsize = static_cast<omp_ulong>(yhat.size());
     const float aft_loss_distribution_scale = param_.aft_loss_distribution_scale;
 
-    #pragma omp parallel for \
-      shared(weights, y_lower, y_upper, yhat, gpair)
-    for (omp_ulong i = 0; i < nsize; ++i) {
-      // If weights are empty, data is unweighted so we use 1.0 everywhere
-      const double w = is_null_weight ? 1.0 : weights[i];
-      const double grad = loss_->Gradient(y_lower[i], y_upper[i],
-                                          yhat[i], aft_loss_distribution_scale);
-      const double hess = loss_->Hessian(y_lower[i], y_upper[i],
-                                         yhat[i], aft_loss_distribution_scale);
-      gpair[i] = GradientPair(grad * w, hess * w);
+    switch (param_.aft_loss_distribution) {
+    case ProbabilityDistributionType::kNormal:
+      GetGradientImpl<common::NormalDistribution>(weights, y_lower, y_upper, yhat, nsize,
+                                                  is_null_weight, aft_loss_distribution_scale,
+                                                  &gpair);
+      break;
+    case ProbabilityDistributionType::kLogistic:
+      GetGradientImpl<common::LogisticDistribution>(weights, y_lower, y_upper, yhat, nsize,
+                                                    is_null_weight, aft_loss_distribution_scale,
+                                                    &gpair);
+      break;
+    case ProbabilityDistributionType::kExtreme:
+      GetGradientImpl<common::ExtremeDistribution>(weights, y_lower, y_upper, yhat, nsize,
+                                                   is_null_weight, aft_loss_distribution_scale,
+                                                   &gpair);
+      break;
+    default:
+      LOG(FATAL) << "Unrecognized probability distribution type";
     }
   }
 
@@ -99,12 +128,10 @@ class AFTObj : public ObjFunction {
 
   void LoadConfig(Json const& in) override {
     FromJson(in["aft_loss_param"], &param_);
-    loss_.reset(new AFTLoss(param_.aft_loss_distribution));
   }
 
  private:
   AFTParam param_;
-  std::unique_ptr<AFTLoss> loss_;
 };
 
 // register the objective functions
