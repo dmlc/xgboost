@@ -157,9 +157,8 @@ class GradientPairInternal {
     SetHess(hess);
   }
 
-  // Copy constructor if of same value type
-  XGBOOST_DEVICE GradientPairInternal(const GradientPairInternal<T> &g)
-      : grad_(g.grad_), hess_(g.hess_) {}  // NOLINT
+  // Copy constructor if of same value type, marked as default to be trivially_copyable
+  XGBOOST_DEVICE GradientPairInternal(const GradientPairInternal<T> &g) = default;
 
   // Copy constructor if different value type - use getters and setters to
   // perform conversion
