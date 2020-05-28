@@ -15,8 +15,8 @@
 namespace xgboost {
 namespace common {
 
-TEST(Objective, AFTObjConfiguration) {
-  auto lparam = CreateEmptyGenericParam(-1);  // currently AFT objective is CPU only
+TEST(Objective, DeclareUnifiedTest(AFTObjConfiguration)) {
+  auto lparam = CreateEmptyGenericParam(GPUIDX);
   std::unique_ptr<ObjFunction> objective(ObjFunction::Create("survival:aft", &lparam));
   objective->Configure({ {"aft_loss_distribution", "logistic"},
                           {"aft_loss_distribution_scale", "5"} });
@@ -76,8 +76,8 @@ static inline void CheckGPairOverGridPoints(
   }
 }
 
-TEST(Objective, AFTObjGPairUncensoredLabels) {
-  auto lparam = CreateEmptyGenericParam(-1);  // currently AFT objective is CPU only
+TEST(Objective, DeclareUnifiedTest(AFTObjGPairUncensoredLabels)) {
+  auto lparam = CreateEmptyGenericParam(GPUIDX);
   std::unique_ptr<ObjFunction> obj(ObjFunction::Create("survival:aft", &lparam));
 
   CheckGPairOverGridPoints(obj.get(), 100.0f, 100.0f, "normal",
@@ -100,8 +100,8 @@ TEST(Objective, AFTObjGPairUncensoredLabels) {
       0.3026f, 0.1816f, 0.1090f, 0.0654f, 0.0392f, 0.0235f, 0.0141f, 0.0085f, 0.0051f, 0.0031f });
 }
 
-TEST(Objective, AFTObjGPairLeftCensoredLabels) {
-  auto lparam = CreateEmptyGenericParam(-1);  // currently AFT objective is CPU only
+TEST(Objective, DeclareUnifiedTest(AFTObjGPairLeftCensoredLabels)) {
+  auto lparam = CreateEmptyGenericParam(GPUIDX);
   std::unique_ptr<ObjFunction> obj(ObjFunction::Create("survival:aft", &lparam));
 
   CheckGPairOverGridPoints(obj.get(), 0.0f, 20.0f, "normal",
@@ -121,8 +121,8 @@ TEST(Objective, AFTObjGPairLeftCensoredLabels) {
       0.0296f, 0.0179f, 0.0108f, 0.0065f, 0.0039f, 0.0024f, 0.0014f, 0.0008f, 0.0005f, 0.0003f });
 }
 
-TEST(Objective, AFTObjGPairRightCensoredLabels) {
-  auto lparam = CreateEmptyGenericParam(-1);  // currently AFT objective is CPU only
+TEST(Objective, DeclareUnifiedTest(AFTObjGPairRightCensoredLabels)) {
+  auto lparam = CreateEmptyGenericParam(GPUIDX);
   std::unique_ptr<ObjFunction> obj(ObjFunction::Create("survival:aft", &lparam));
 
   CheckGPairOverGridPoints(obj.get(), 60.0f, std::numeric_limits<float>::infinity(), "normal",
@@ -145,8 +145,8 @@ TEST(Objective, AFTObjGPairRightCensoredLabels) {
       0.1816f, 0.1089f, 0.0654f, 0.0392f, 0.0235f, 0.0141f, 0.0085f, 0.0051f, 0.0031f, 0.0018f });
 }
 
-TEST(Objective, AFTObjGPairIntervalCensoredLabels) {
-  auto lparam = CreateEmptyGenericParam(-1);  // currently AFT objective is CPU only
+TEST(Objective, DeclareUnifiedTest(AFTObjGPairIntervalCensoredLabels)) {
+  auto lparam = CreateEmptyGenericParam(GPUIDX);
   std::unique_ptr<ObjFunction> obj(ObjFunction::Create("survival:aft", &lparam));
 
   CheckGPairOverGridPoints(obj.get(), 16.0f, 200.0f, "normal",

@@ -12,10 +12,12 @@
 #include <memory>
 #include <utility>
 
+#include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
+#include "xgboost/parameter.h"
+#include "xgboost/span.h"
 
-#include "../common/math.h"
-#include "../common/random.h"
+#include "../common/transform.h"
 #include "../common/survival_util.h"
 
 using AFTParam = xgboost::common::AFTParam;
@@ -26,6 +28,10 @@ using AFTLoss = xgboost::common::AFTLoss<Distribution>;
 namespace xgboost {
 namespace obj {
 
+#if defined(XGBOOST_USE_CUDA)
+DMLC_REGISTRY_FILE_TAG(aft_obj_gpu);
+#endif  // defined(XGBOOST_USE_CUDA)
+
 class AFTObj : public ObjFunction {
  public:
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
@@ -33,75 +39,77 @@ class AFTObj : public ObjFunction {
   }
 
   template <typename Distribution>
-  void GetGradientImpl(
-      const std::vector<float>& weights, const std::vector<float>& y_lower,
-      const std::vector<float>& y_upper, const std::vector<float>& yhat,
-      omp_ulong nsize, bool is_null_weight, double aft_loss_distribution_scale,
-      std::vector<GradientPair>* out_gpair
-  ) {
-    std::vector<GradientPair>& gpair = *out_gpair;
-#pragma omp parallel for shared(weights, y_lower, y_upper, yhat, gpair)
-    for (omp_ulong i = 0; i < nsize; ++i) {
-      // If weights are empty, data is unweighted so we use 1.0 everywhere
-      const double w = is_null_weight ? 1.0 : weights[i];
-      const double grad = AFTLoss<Distribution>::Gradient(y_lower[i], y_upper[i],
-                                                          yhat[i], aft_loss_distribution_scale);
-      const double hess = AFTLoss<Distribution>::Hessian(y_lower[i], y_upper[i],
-                                                         yhat[i], aft_loss_distribution_scale);
-      gpair[i] = GradientPair(grad * w, hess * w);
-    }
+  void GetGradientImpl(const HostDeviceVector<bst_float> &preds,
+                       const MetaInfo &info,
+                       HostDeviceVector<GradientPair> *out_gpair,
+                       size_t ndata, int device, bool is_null_weight,
+                       float aft_loss_distribution_scale) {
+    common::Transform<>::Init(
+        [=] XGBOOST_DEVICE(size_t _idx,
+        common::Span<GradientPair> _out_gpair,
+        common::Span<const bst_float> _preds,
+        common::Span<const bst_float> _labels_lower_bound,
+        common::Span<const bst_float> _labels_upper_bound,
+        common::Span<const bst_float> _weights) {
+      const double pred = static_cast<double>(_preds[_idx]);
+      const double label_lower_bound = static_cast<double>(_labels_lower_bound[_idx]);
+      const double label_upper_bound = static_cast<double>(_labels_upper_bound[_idx]);
+      const float grad = static_cast<float>(
+          AFTLoss<Distribution>::Gradient(label_lower_bound, label_upper_bound,
+                                          pred, aft_loss_distribution_scale));
+      const float hess = static_cast<float>(
+          AFTLoss<Distribution>::Hessian(label_lower_bound, label_upper_bound,
+                                         pred, aft_loss_distribution_scale));
+      const bst_float w = is_null_weight ? 1.0f : _weights[_idx];
+      _out_gpair[_idx] = GradientPair(grad * w, hess * w);
+    },
+    common::Range{0, static_cast<int64_t>(ndata)}, device).Eval(
+        out_gpair, &preds, &info.labels_lower_bound_, &info.labels_upper_bound_,
+        &info.weights_);
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo& info,
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
-    /* Boilerplate */
-    CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
-    CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
-
-    const auto& yhat = preds.HostVector();
-    const auto& y_lower = info.labels_lower_bound_.HostVector();
-    const auto& y_upper = info.labels_upper_bound_.HostVector();
-    const auto& weights = info.weights_.HostVector();
-    const bool is_null_weight = weights.empty();
-
-    out_gpair->Resize(yhat.size());
-    std::vector<GradientPair>& gpair = out_gpair->HostVector();
-    CHECK_LE(yhat.size(), static_cast<size_t>(std::numeric_limits<omp_ulong>::max()))
-      << "yhat is too big";
-    const omp_ulong nsize = static_cast<omp_ulong>(yhat.size());
+    const size_t ndata = preds.Size();
+    CHECK_EQ(info.labels_lower_bound_.Size(), ndata);
+    CHECK_EQ(info.labels_upper_bound_.Size(), ndata);
+    out_gpair->Resize(ndata);
+    const int device = tparam_->gpu_id;
     const float aft_loss_distribution_scale = param_.aft_loss_distribution_scale;
+    const bool is_null_weight = info.weights_.Size() == 0;
+    if (!is_null_weight) {
+      CHECK_EQ(info.weights_.Size(), ndata)
+        << "Number of weights should be equal to number of data points.";
+    }
 
     switch (param_.aft_loss_distribution) {
-    case ProbabilityDistributionType::kNormal:
-      GetGradientImpl<common::NormalDistribution>(weights, y_lower, y_upper, yhat, nsize,
-                                                  is_null_weight, aft_loss_distribution_scale,
-                                                  &gpair);
+    case common::ProbabilityDistributionType::kNormal:
+      GetGradientImpl<common::NormalDistribution>(preds, info, out_gpair, ndata, device,
+                                                  is_null_weight, aft_loss_distribution_scale);
       break;
-    case ProbabilityDistributionType::kLogistic:
-      GetGradientImpl<common::LogisticDistribution>(weights, y_lower, y_upper, yhat, nsize,
-                                                    is_null_weight, aft_loss_distribution_scale,
-                                                    &gpair);
+    case common::ProbabilityDistributionType::kLogistic:
+      GetGradientImpl<common::LogisticDistribution>(preds, info, out_gpair, ndata, device,
+                                                    is_null_weight, aft_loss_distribution_scale);
       break;
-    case ProbabilityDistributionType::kExtreme:
-      GetGradientImpl<common::ExtremeDistribution>(weights, y_lower, y_upper, yhat, nsize,
-                                                   is_null_weight, aft_loss_distribution_scale,
-                                                   &gpair);
+    case common::ProbabilityDistributionType::kExtreme:
+      GetGradientImpl<common::ExtremeDistribution>(preds, info, out_gpair, ndata, device,
+                                                   is_null_weight, aft_loss_distribution_scale);
       break;
     default:
-      LOG(FATAL) << "Unrecognized probability distribution type";
+      LOG(FATAL) << "Unrecognized distribution";
     }
   }
 
   void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
     // Trees give us a prediction in log scale, so exponentiate
-    std::vector<bst_float> &preds = io_preds->HostVector();
-    const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
-#pragma omp parallel for shared(preds)
-    for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
-      preds[j] = std::exp(preds[j]);
-    }
+    common::Transform<>::Init(
+        [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
+      _preds[_idx] = exp(_preds[_idx]);
+    }, common::Range{0, static_cast<int64_t>(io_preds->Size())},
+        tparam_->gpu_id)
+    .Eval(io_preds);
   }
 
   void EvalTransform(HostDeviceVector<bst_float> *io_preds) override {
