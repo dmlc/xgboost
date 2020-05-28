@@ -35,7 +35,7 @@ There are four kinds of censoring:
 
 * **Uncensored**: the label is not censored and given as a single number.
 * **Right-censored**: the label is of form :math:`[a, +\infty)`, where :math:`a` is the lower bound.
-* **Left-censored**: the label is of form :math:`(-\infty, b]`, where :math:`b` is the upper bound.
+* **Left-censored**: the label is of form :math:`[0, b]`, where :math:`b` is the upper bound.
 * **Interval-censored**: the label is of form :math:`[a, b]`, where :math:`a` and :math:`b` are the lower and upper bounds, respectively.
 
 Right-censoring is the most commonly used.
@@ -83,7 +83,7 @@ Censoring type    Interval form        Lower bound finite? Upper bound finite?
 ================= ==================== =================== ===================
 Uncensored        :math:`[a, a]`       |tick|              |tick|
 Right-censored    :math:`[a, +\infty)` |tick|              |cross|
-Left-censored     :math:`(-\infty, b]` |cross|             |tick|
+Left-censored     :math:`[0, b]`       |tick|              |tick|
 Interval-censored :math:`[a, b]`       |tick|              |tick|
 ================= ==================== =================== ===================
 
@@ -102,7 +102,7 @@ Collect the lower bound numbers in one array (let's call it ``y_lower_bound``) a
   # Associate ranged labels with the data matrix.
   # This example shows each kind of censored labels.
   #                         uncensored    right     left  interval
-  y_lower_bound = np.array([      2.0,     3.0, -np.inf,     4.0])
+  y_lower_bound = np.array([      2.0,     3.0,     0.0,     4.0])
   y_upper_bound = np.array([      2.0, +np.inf,     4.0,     5.0])
   dtrain.set_float_info('label_lower_bound', y_lower_bound)
   dtrain.set_float_info('label_upper_bound', y_upper_bound)
@@ -120,7 +120,7 @@ Collect the lower bound numbers in one array (let's call it ``y_lower_bound``) a
   # Associate ranged labels with the data matrix.
   # This example shows each kind of censored labels.
   #                   uncensored  right  left  interval
-  y_lower_bound <- c(        2.,    3., -Inf,       4.)
+  y_lower_bound <- c(        2.,    3.,   0.,       4.)
   y_upper_bound <- c(        2.,  +Inf,   4.,       5.)
   setinfo(dtrain, 'label_lower_bound', y_lower_bound)
   setinfo(dtrain, 'label_upper_bound', y_upper_bound)
@@ -136,7 +136,7 @@ Now we are ready to invoke the training API:
             'aft_loss_distribution_scale': 1.20,
             'tree_method': 'hist', 'learning_rate': 0.05, 'max_depth': 2}
   bst = xgb.train(params, dtrain, num_boost_round=5,
-                  evals=[(dtrain, 'train'), (dvalid, 'valid')])
+                  evals=[(dtrain, 'train')])
 
 .. code-block:: r
   :caption: R
