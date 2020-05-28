@@ -235,7 +235,7 @@ struct EvalEWiseSurvivalBase : public Metric {
 };
 
 // This class exists because we want to perform dispatch according to the distribution type at
-// configuration time, not at run-time.
+// configuration time, not at prediction time.
 struct AFTNLogLikDispatcher : public Metric {
   const char* Name() const override {
     return "aft-nloglik";
@@ -261,9 +261,13 @@ struct AFTNLogLikDispatcher : public Metric {
       metric_.reset(new EvalEWiseSurvivalBase<EvalAFTNLogLik<common::ExtremeDistribution>>());
       break;
     default:
-      LOG(FATAL) << "Unknown probability distributon";
+      LOG(FATAL) << "Unknown probability distribution";
     }
     Args new_args{args};
+    // tparam_ doesn't get propagated to the inner metric object because we didn't use
+    // Metric::Create(). I don't think it's a good idea to pollute the metric registry with
+    // specialized versions of the AFT metric, so as a work-around, manually pass the GPU ID
+    // into the inner metric via configuration.
     new_args.emplace_back("gpu_id", std::to_string(tparam_->gpu_id));
     metric_->Configure(new_args);
   }
