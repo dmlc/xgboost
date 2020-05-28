@@ -42,6 +42,28 @@ TEST(Metric, DeclareUnifiedTest(AFTNegLogLik)) {
   }
 }
 
+TEST(Metric, DeclareUnifiedTest(IntervalRegressionAccuracy)) {
+  auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
+
+  MetaInfo info;
+  info.num_row_ = 4;
+  info.labels_lower_bound_.HostVector() = { 20.0f, 0.0f, 60.0f, 16.0f };
+  info.labels_upper_bound_.HostVector() = { 80.0f, 20.0f, 80.0f, 200.0f };
+  info.weights_.HostVector() = std::vector<bst_float>();
+  HostDeviceVector<bst_float> preds(4, 60.0f);
+
+  std::unique_ptr<Metric> metric(Metric::Create("interval-regression-accuracy", &lparam));
+  EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.75f);
+  info.labels_lower_bound_.HostVector()[2] = 70.0f;
+  EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.50f);
+  info.labels_upper_bound_.HostVector()[2] = std::numeric_limits<bst_float>::infinity();
+  EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.50f);
+  info.labels_upper_bound_.HostVector()[3] = std::numeric_limits<bst_float>::infinity();
+  EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.50f);
+  info.labels_lower_bound_.HostVector()[0] = 70.0f;
+  EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.25f);
+}
+
 // Test configuration of AFT metric
 TEST(AFTNegLogLikMetric, DeclareUnifiedTest(Configuration)) {
   auto lparam = xgboost::CreateEmptyGenericParam(GPUIDX);

@@ -2,142 +2,20 @@
  * Copyright 2019-2020 by Contributors
  * \file aft_obj.cc
  * \brief Definition of AFT loss for survival analysis.
+ * \author Avinash Barnwal, Hyunsu Cho and Toby Hocking
  */
 
-#include <dmlc/omp.h>
-#include <xgboost/logging.h>
-#include <xgboost/objective.h>
-#include <vector>
-#include <limits>
-#include <algorithm>
-#include <memory>
-#include <utility>
-#include <cmath>
+// Dummy file to keep the CUDA conditional compile trick.
 
-#include "xgboost/json.h"
-
-#include "../common/math.h"
-#include "../common/random.h"
-#include "../common/survival_util.h"
-
-using AFTParam = xgboost::common::AFTParam;
-using ProbabilityDistributionType = xgboost::common::ProbabilityDistributionType;
-template <typename Distribution>
-using AFTLoss = xgboost::common::AFTLoss<Distribution>;
-
+#include <dmlc/registry.h>
 namespace xgboost {
 namespace obj {
 
 DMLC_REGISTRY_FILE_TAG(aft_obj);
 
-class AFTObj : public ObjFunction {
- public:
-  void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
-    param_.UpdateAllowUnknown(args);
-  }
-
-  template <typename Distribution>
-  void GetGradientImpl(
-      const std::vector<float>& weights, const std::vector<float>& y_lower,
-      const std::vector<float>& y_upper, const std::vector<float>& yhat,
-      omp_ulong nsize, bool is_null_weight, double aft_loss_distribution_scale,
-      std::vector<GradientPair>* out_gpair
-    ) {
-    std::vector<GradientPair>& gpair = *out_gpair;
-    #pragma omp parallel for shared(weights, y_lower, y_upper, yhat, gpair)
-    for (omp_ulong i = 0; i < nsize; ++i) {
-      // If weights are empty, data is unweighted so we use 1.0 everywhere
-      const double w = is_null_weight ? 1.0 : weights[i];
-      const double grad = AFTLoss<Distribution>::Gradient(y_lower[i], y_upper[i],
-                                                          yhat[i], aft_loss_distribution_scale);
-      const double hess = AFTLoss<Distribution>::Hessian(y_lower[i], y_upper[i],
-                                                         yhat[i], aft_loss_distribution_scale);
-      gpair[i] = GradientPair(grad * w, hess * w);
-    }
-  }
-
-  void GetGradient(const HostDeviceVector<bst_float>& preds,
-                   const MetaInfo& info,
-                   int iter,
-                   HostDeviceVector<GradientPair>* out_gpair) override {
-    /* Boilerplate */
-    CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
-    CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
-
-    const auto& yhat = preds.HostVector();
-    const auto& y_lower = info.labels_lower_bound_.HostVector();
-    const auto& y_upper = info.labels_upper_bound_.HostVector();
-    const auto& weights = info.weights_.HostVector();
-    const bool is_null_weight = weights.empty();
-
-    out_gpair->Resize(yhat.size());
-    std::vector<GradientPair>& gpair = out_gpair->HostVector();
-    CHECK_LE(yhat.size(), static_cast<size_t>(std::numeric_limits<omp_ulong>::max()))
-      << "yhat is too big";
-    const omp_ulong nsize = static_cast<omp_ulong>(yhat.size());
-    const float aft_loss_distribution_scale = param_.aft_loss_distribution_scale;
-
-    switch (param_.aft_loss_distribution) {
-    case ProbabilityDistributionType::kNormal:
-      GetGradientImpl<common::NormalDistribution>(weights, y_lower, y_upper, yhat, nsize,
-                                                  is_null_weight, aft_loss_distribution_scale,
-                                                  &gpair);
-      break;
-    case ProbabilityDistributionType::kLogistic:
-      GetGradientImpl<common::LogisticDistribution>(weights, y_lower, y_upper, yhat, nsize,
-                                                    is_null_weight, aft_loss_distribution_scale,
-                                                    &gpair);
-      break;
-    case ProbabilityDistributionType::kExtreme:
-      GetGradientImpl<common::ExtremeDistribution>(weights, y_lower, y_upper, yhat, nsize,
-                                                   is_null_weight, aft_loss_distribution_scale,
-                                                   &gpair);
-      break;
-    default:
-      LOG(FATAL) << "Unrecognized probability distribution type";
-    }
-  }
-
-  void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
-    // Trees give us a prediction in log scale, so exponentiate
-    std::vector<bst_float> &preds = io_preds->HostVector();
-    const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
-    #pragma omp parallel for shared(preds)
-    for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
-      preds[j] = std::exp(preds[j]);
-    }
-  }
-
-  void EvalTransform(HostDeviceVector<bst_float> *io_preds) override {
-    // do nothing here, since the AFT metric expects untransformed prediction score
-  }
-
-  bst_float ProbToMargin(bst_float base_score) const override {
-    return std::log(base_score);
-  }
-
-  const char* DefaultEvalMetric() const override {
-    return "aft-nloglik";
-  }
-
-  void SaveConfig(Json* p_out) const override {
-    auto& out = *p_out;
-    out["name"] = String("survival:aft");
-    out["aft_loss_param"] = ToJson(param_);
-  }
-
-  void LoadConfig(Json const& in) override {
-    FromJson(in["aft_loss_param"], &param_);
-  }
-
- private:
-  AFTParam param_;
-};
-
-// register the objective functions
-XGBOOST_REGISTER_OBJECTIVE(AFTObj, "survival:aft")
-.describe("AFT loss function")
-.set_body([]() { return new AFTObj(); });
-
 }  // namespace obj
 }  // namespace xgboost
+
+#ifndef XGBOOST_USE_CUDA
+#include "aft_obj.cu"
+#endif  // XGBOOST_USE_CUDA
