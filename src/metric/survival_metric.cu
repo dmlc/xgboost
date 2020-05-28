@@ -9,10 +9,8 @@
 #include <xgboost/metric.h>
 #include <xgboost/host_device_vector.h>
 #include <dmlc/registry.h>
-#include <cmath>
 #include <memory>
 #include <vector>
-#include <limits>
 
 #include "xgboost/json.h"
 
