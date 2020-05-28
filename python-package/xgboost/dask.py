@@ -25,7 +25,7 @@ from .compat import distributed_get_worker, distributed_wait, distributed_comm
 from .compat import da, dd, delayed, get_client
 from .compat import sparse, scipy_sparse
 from .compat import PANDAS_INSTALLED, DataFrame, Series, pandas_concat
-from .compat import CUDF_INSTALLED, CUDF_DataFrame, CUDF_Series, CUDF_concat
+from .compat import CUDF_concat
 from .compat import lazy_isinstance
 
 from .core import DMatrix, Booster, _expect
@@ -97,7 +97,8 @@ def concat(value):              # pylint: disable=too-many-return-statements
         return sparse.concatenate(value, axis=0)
     if PANDAS_INSTALLED and isinstance(value[0], (DataFrame, Series)):
         return pandas_concat(value, axis=0)
-    if CUDF_INSTALLED and isinstance(value[0], (CUDF_DataFrame, CUDF_Series)):
+    if lazy_isinstance(value[0], 'cudf.core.dataframe', 'DataFrame') or \
+       lazy_isinstance(value[0], 'cudf.core.series', 'Series'):
         return CUDF_concat(value, axis=0)
     if lazy_isinstance(value[0], 'cupy.core.core', 'ndarray'):
         import cupy             # pylint: disable=import-error
@@ -461,6 +462,25 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
     return list(filter(lambda ret: ret is not None, results))[0]
 
 
+def _direct_predict_impl(client, data, predict_fn):
+    if isinstance(data, da.Array):
+        predictions = client.submit(
+            da.map_blocks,
+            predict_fn, data, False, drop_axis=1,
+            dtype=numpy.float32
+        ).result()
+        return predictions
+    if isinstance(data, dd.DataFrame):
+        predictions = client.submit(
+            dd.map_partitions,
+            predict_fn, data, True,
+            meta=dd.utils.make_meta({'prediction': 'f4'})
+        ).result()
+        return predictions.iloc[:, 0]
+    raise TypeError('data of type: ' + str(type(data)) +
+                    ' is not supported by direct prediction')
+
+
 def predict(client, model, data, *args, missing=numpy.nan):
     '''Run prediction with a trained booster.
 
@@ -502,26 +522,19 @@ def predict(client, model, data, *args, missing=numpy.nan):
 
     def mapped_predict(partition, is_df):
         worker = distributed_get_worker()
+        booster.set_param({'nthread': worker.nthreads})
         m = DMatrix(partition, missing=missing, nthread=worker.nthreads)
         predt = booster.predict(m, *args, validate_features=False)
         if is_df:
-            predt = DataFrame(predt, columns=['prediction'])
+            if lazy_isinstance(partition, 'cudf', 'core.dataframe.DataFrame'):
+                import cudf     # pylint: disable=import-error
+                predt = cudf.DataFrame(predt, columns=['prediction'])
+            else:
+                predt = DataFrame(predt, columns=['prediction'])
         return predt
 
-    if isinstance(data, da.Array):
-        predictions = client.submit(
-            da.map_blocks,
-            mapped_predict, data, False, drop_axis=1,
-            dtype=numpy.float32
-        ).result()
-        return predictions
-    if isinstance(data, dd.DataFrame):
-        predictions = client.submit(
-            dd.map_partitions,
-            mapped_predict, data, True,
-            meta=dd.utils.make_meta({'prediction': 'f4'})
-        ).result()
-        return predictions.iloc[:, 0]
+    if isinstance(data, (da.Array, dd.DataFrame)):
+        return _direct_predict_impl(client, data, mapped_predict)
 
     # Prediction on dask DMatrix.
     worker_map = data.worker_map
@@ -644,20 +657,7 @@ def inplace_predict(client, model, data,
                                        dtype=numpy.float32)
         return prediction
 
-    if isinstance(data, da.Array):
-        predictions = client.submit(
-            da.map_blocks,
-            mapped_predict, data, False, drop_axis=1,
-            dtype=numpy.float32
-        ).result()
-        return predictions
-    if isinstance(data, dd.DataFrame):
-        predictions = client.submit(
-            dd.map_partitions,
-            mapped_predict, data, True,
-            meta=dd.utils.make_meta({'prediction': 'f4'})
-        ).result()
-        return predictions.iloc[:, 0]
+    return _direct_predict_impl(client, data, mapped_predict)
 
 
 def _evaluation_matrices(client, validation_set, sample_weights, missing):

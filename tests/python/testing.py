@@ -1,6 +1,6 @@
 # coding: utf-8
 from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
-from xgboost.compat import CUDF_INSTALLED, DASK_INSTALLED
+from xgboost.compat import DASK_INSTALLED
 
 
 def no_sklearn():
@@ -46,6 +46,12 @@ def no_dask_cuda():
 
 
 def no_cudf():
+    try:
+        import cudf             # noqa
+        CUDF_INSTALLED = True
+    except ImportError:
+        CUDF_INSTALLED = False
+
     return {'condition': not CUDF_INSTALLED,
             'reason': 'CUDF is not installed'}
 
