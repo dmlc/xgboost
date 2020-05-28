@@ -65,14 +65,8 @@ case "$suite" in
     ./runtests.sh
     ;;
 
-  cpu-py35)
-    source activate py35
-    install_xgboost
-    pytest -v -s --fulltrace tests/python
-    ;;
-
   *)
-    echo "Usage: $0 {gpu|mgpu|cudf|cpu|cpu-py35}"
+    echo "Usage: $0 {gpu|mgpu|cudf|cpu}"
     exit 1
     ;;
 esac

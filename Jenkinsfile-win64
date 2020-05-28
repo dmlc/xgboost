@@ -28,7 +28,7 @@ pipeline {
       steps {
         script {
           parallel ([
-            'build-win64-cuda9.0': { BuildWin64() }
+            'build-win64-cuda10.0': { BuildWin64() }
           ])
         }
         milestone ordinal: 2
@@ -40,7 +40,6 @@ pipeline {
         script {
           parallel ([
             'test-win64-cpu': { TestWin64CPU() },
-            'test-win64-gpu-cuda9.0': { TestWin64GPU(cuda_target: 'cuda9') },
             'test-win64-gpu-cuda10.0': { TestWin64GPU(cuda_target: 'cuda10_0') },
             'test-win64-gpu-cuda10.1': { TestWin64GPU(cuda_target: 'cuda10_1') }
           ])
@@ -67,7 +66,7 @@ def checkoutSrcs() {
 }
 
 def BuildWin64() {
-  node('win64 && build') {
+  node('win64 && build && cuda10') {
     unstash name: 'srcs'
     echo "Building XGBoost for Windows AMD64 target..."
     bat "nvcc --version"

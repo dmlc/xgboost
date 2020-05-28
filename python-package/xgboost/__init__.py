@@ -22,12 +22,6 @@ try:
 except ImportError:
     pass
 
-if sys.version_info[:2] == (3, 5):
-    warnings.warn(
-        'Python 3.5 support is deprecated; XGBoost will require Python 3.6+ in the near future. ' +
-        'Consider upgrading to Python 3.6+.',
-        FutureWarning)
-
 VERSION_FILE = os.path.join(os.path.dirname(__file__), 'VERSION')
 with open(VERSION_FILE) as f:
     __version__ = f.read().strip()
