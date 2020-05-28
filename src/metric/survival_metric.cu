@@ -238,12 +238,13 @@ struct EvalEWiseSurvivalBase : public Metric {
 // configuration time, not at run-time.
 struct AFTNLogLikDispatcher : public Metric {
   const char* Name() const override {
-    return metric_->Name();
+    return "aft-nloglik";
   }
 
   bst_float Eval(const HostDeviceVector<bst_float>& preds,
                  const MetaInfo& info,
                  bool distributed) override {
+    CHECK(metric_) << "AFT metric must be configured first, with distribution type and scale";
     return metric_->Eval(preds, info, distributed);
   }
 
