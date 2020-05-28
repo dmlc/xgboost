@@ -154,7 +154,8 @@ struct EvalIntervalRegressionAccuracy {
   }
 
   XGBOOST_DEVICE double EvalRow(
-      double label_lower_bound, double label_upper_bound, double pred) const {
+      double label_lower_bound, double label_upper_bound, double log_pred) const {
+    const double pred = exp(log_pred);
     return (pred >= label_lower_bound && pred <= label_upper_bound) ? 1.0 : 0.0;
   }
 

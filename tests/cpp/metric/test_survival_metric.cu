@@ -2,9 +2,8 @@
  * Copyright (c) by Contributors 2020
  */
 #include <gtest/gtest.h>
-
+#include <cmath>
 #include "xgboost/metric.h"
-#include "xgboost/logging.h"
 #include "../helpers.h"
 #include "../../../src/common/survival_util.h"
 
@@ -50,7 +49,7 @@ TEST(Metric, DeclareUnifiedTest(IntervalRegressionAccuracy)) {
   info.labels_lower_bound_.HostVector() = { 20.0f, 0.0f, 60.0f, 16.0f };
   info.labels_upper_bound_.HostVector() = { 80.0f, 20.0f, 80.0f, 200.0f };
   info.weights_.HostVector() = std::vector<bst_float>();
-  HostDeviceVector<bst_float> preds(4, 60.0f);
+  HostDeviceVector<bst_float> preds(4, std::log(60.0f));
 
   std::unique_ptr<Metric> metric(Metric::Create("interval-regression-accuracy", &lparam));
   EXPECT_FLOAT_EQ(metric->Eval(preds, info, false), 0.75f);
