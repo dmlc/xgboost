@@ -511,7 +511,6 @@ struct GPUHistMakerDevice {
         reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
         reinterpret_cast<typename GradientSumT::ValueT*>(d_node_hist),
         page->Cuts().TotalBins() * (sizeof(GradientSumT) / sizeof(typename GradientSumT::ValueT)));
-    reducer->Synchronize();
 
     monitor.Stop("AllReduce");
   }

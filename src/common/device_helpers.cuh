@@ -428,36 +428,6 @@ class TemporaryArray {
 };
 
 /**
- * \brief A double buffer, useful for algorithms like sort.
- */
-template <typename T>
-class DoubleBuffer {
- public:
-  cub::DoubleBuffer<T> buff;
-  xgboost::common::Span<T> a, b;
-  DoubleBuffer() = default;
-  template <typename VectorT>
-  DoubleBuffer(VectorT *v1, VectorT *v2) {
-    a = xgboost::common::Span<T>(v1->data().get(), v1->size());
-    b = xgboost::common::Span<T>(v2->data().get(), v2->size());
-    buff = cub::DoubleBuffer<T>(a.data(), b.data());
-  }
-
-  size_t Size() const {
-    CHECK_EQ(a.size(), b.size());
-    return a.size();
-  }
-  cub::DoubleBuffer<T> &CubBuffer() { return buff; }
-
-  T *Current() { return buff.Current(); }
-  xgboost::common::Span<T> CurrentSpan() {
-    return xgboost::common::Span<T>{buff.Current(), Size()};
-  }
-
-  T *Other() { return buff.Alternate(); }
-};
-
-/**
  * \brief Copies device span to std::vector.
  *
  * \tparam  T Generic type parameter.
