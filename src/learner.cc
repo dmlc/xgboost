@@ -696,10 +696,9 @@ class LearnerIO : public LearnerConfiguration {
 
     if (mparam_.major_version < 1) {
       // Before 1.0.0, base_score is saved as a transformed value, and there's no version
-      // attribute in the saved model.
+      // attribute (saved a 0) in the saved model.
       std::string multi{"multi:"};
-      if (!std::equal(tparam_.objective.cbegin(), tparam_.objective.cend(),
-                      multi.begin())) {
+      if (!std::equal(multi.cbegin(), multi.cend(), tparam_.objective.cbegin())) {
         HostDeviceVector<float> t;
         t.HostVector().resize(1);
         t.HostVector().at(0) = mparam_.base_score;
