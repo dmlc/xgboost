@@ -169,7 +169,7 @@ public class RabitTracker implements IRabitTracker {
 
     if (startTrackerProcess()) {
       logger.debug("Tracker started, with env=" + envs.toString());
-      System.out.println("Tracker started, with env=" + envs.toString());
+//      System.out.println("Tracker started, with env=" + envs.toString());
       // also start a tracker logger
       Thread logger_thread = new Thread(new TrackerProcessLogger());
       logger_thread.setDaemon(true);
