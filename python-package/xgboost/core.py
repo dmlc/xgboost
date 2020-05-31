@@ -1588,7 +1588,7 @@ class Booster(object):
                 ngroup = int(chunk_size / ((data.num_col() + 1) *
                                            (data.num_col() + 1)))
                 if ngroup == 1:
-                    preds = preds.reshape(nrow,
+                    preds = preds.reshape(nrow,  # pylint: disable=too-many-function-args
                                           data.num_col() + 1,
                                           data.num_col() + 1)
                 else:
