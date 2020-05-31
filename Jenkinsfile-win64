@@ -67,7 +67,7 @@ def checkoutSrcs() {
 }
 
 def BuildWin64() {
-  node('win64 && build') {
+  node('win64 && build && cuda9') {
     unstash name: 'srcs'
     echo "Building XGBoost for Windows AMD64 target..."
     bat "nvcc --version"
