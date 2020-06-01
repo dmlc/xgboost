@@ -56,6 +56,11 @@ def get_world_size():
     return ret
 
 
+def is_distributed():
+    is_dist = _LIB.RabitIsDistributed()
+    return is_dist
+
+
 def tracker_print(msg):
     """Print message to the tracker.
 
@@ -141,6 +146,13 @@ DTYPE_ENUM__ = {
     np.dtype('float32'): 6,
     np.dtype('float64'): 7
 }
+
+
+class Op:
+    MAX = 0
+    MIN = 1
+    SUM = 2
+    OR = 3
 
 
 def allreduce(data, op, prepare_fun=None):
