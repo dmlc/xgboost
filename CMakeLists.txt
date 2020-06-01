@@ -229,7 +229,6 @@ endif (USE_NVTX)
 
 target_include_directories(runxgboost
   PRIVATE
-  ${ARROW_INCLUDE_DIR}
   ${xgboost_SOURCE_DIR}/include
   ${xgboost_SOURCE_DIR}/dmlc-core/include
   ${xgboost_SOURCE_DIR}/rabit/include)

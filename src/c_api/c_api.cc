@@ -208,15 +208,41 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data, const char** feature_stypes,
 XGB_DLL int XGDMatrixCreateFromArrowTable(PyObject* data,
                                           bst_ulong nrow,
                                           bst_ulong ncol,
+                                          const char* label_name,
+                                          float missing,
                                           DMatrixHandle* out,
                                           int nthread) {
   API_BEGIN();
   CHECK(arrow::py::is_table(data)) << "Data is not valid Arrow table";
+  // unwrap table
   std::shared_ptr<arrow::Table> table;
-  CHECK(arrow::py::unwrap_table(data, &table).ok());
-  data::ArrowAdapter adapter(table, nrow, ncol);
+  auto result = arrow::py::unwrap_table(data);
+  CHECK(result.ok()) << result.status();
+  table = result.ValueOrDie();
+  // check label
+  data::TableColumn label_col;
+  if (label_name && !std::string(label_name).empty()) {
+    auto label_idx = std::numeric_limits<bst_ulong>::max();
+    std::vector<std::string> col_names = table->ColumnNames();
+    for (auto i = 0; i < col_names.size(); ++i) {
+      if (col_names[i] == label_name) {
+        label_idx = i;
+        break;
+      }
+    }
+    CHECK(label_idx < col_names.size()) << "Invalid label name";
+    label_col = table->column(label_idx);
+    auto result = table->RemoveColumn(label_idx);
+    CHECK(result.ok()) << result.status();
+    table = result.ValueOrDie();
+    ncol--;
+  }
+  arrow::TableBatchReader treader{*table};
+  data::RecordBatches rb;
+  CHECK(treader.ReadAll(&rb).ok());
+  data::ArrowAdapter adapter(rb, label_col, nrow, ncol);
   *out = new std::shared_ptr<DMatrix>(
-      DMatrix::Create(&adapter, std::nan(""), nthread));
+      DMatrix::Create(&adapter, missing, nthread));
   API_END();
 }
 #endif

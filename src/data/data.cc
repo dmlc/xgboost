@@ -887,24 +887,37 @@ uint64_t SparsePage::Push(const data::ArrowAdapterBatch& batch, float missing, i
   if (nthread <= 0) nthread = nthreadmax;
   int nthread_original = omp_get_max_threads();
   omp_set_num_threads(nthread);
+  // data
   auto batch_num_rows = batch.Size();
   auto batch_num_cols = batch.NumColumns();
   auto& data_vec = data.HostVector();
   auto& offset_vec = offset.HostVector();
-  // data
   auto begin = this->Size();
-  data_vec.resize(begin + batch_num_rows * batch_num_cols);
-  auto chunks = batch.GetChunks();
+  data_vec.resize((begin + batch_num_rows) * batch_num_cols);
+  const data::RecordBatches& record_batches = batch.GetRecordBatches();
+  std::vector<size_t> rb_lengths, rb_offsets;
+  for(const auto& rb : record_batches) {
+    rb_lengths.push_back(rb->num_rows());
+  }
+  size_t k{};
+  std::transform(rb_lengths.begin(), rb_lengths.end(),
+            std::back_inserter(rb_offsets),
+            [&k](size_t len) { size_t ret = k; k += len; return ret; });
 #pragma omp parallel for schedule(static)
-  for (size_t i = 0; i < chunks.size(); ++i) {
-    for (xgboost::bst_row_t dst_row = chunks[i].row_start;
-         dst_row < chunks[i].row_end; ++dst_row) {
-      xgboost::bst_feature_t dst_col = chunks[i].column_idx;
-      data_vec[begin + dst_row * batch_num_cols + dst_col] =
-        xgboost::Entry{
-          dst_col,
-          static_cast<float>(chunks[i].values->Value(dst_row - chunks[i].row_start))
-        };
+  for (size_t i = 0; i < record_batches.size(); ++i) {
+    arrow::ArrayVector arrs_cast(batch_num_cols);
+    std::vector<const float*> raw_vals(batch_num_cols);
+    for (xgboost::bst_feature_t j = 0; j < batch_num_cols; ++j) {
+      arrs_cast[j] = data::ArrowAdapterBatch::CastArray<arrow::FloatType>(
+                            record_batches[i]->column(j), missing);
+      raw_vals[j] = std::static_pointer_cast<arrow::FloatArray>(arrs_cast[j])
+                            ->raw_values();
+    }
+    for (auto t = 0; t < rb_lengths[i]; ++t) {
+      xgboost::bst_row_t rid = begin + rb_offsets[i] + t;
+      for (xgboost::bst_feature_t j = 0; j < batch_num_cols; ++j) {
+        data_vec[rid * batch_num_cols + j] = Entry{j, raw_vals[j][t]};
+      }
     }
   }
   // offset

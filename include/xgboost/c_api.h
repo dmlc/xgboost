@@ -355,6 +355,8 @@ XGB_DLL int XGDeviceQuantileDMatrixSetDataCudaColumnar(
 XGB_DLL int XGDMatrixCreateFromArrowTable(PyObject* data,
                                           bst_ulong nrow,
                                           bst_ulong ncol,
+                                          const char* label_name,
+                                          float missing,
                                           DMatrixHandle* out,
                                           int nthread);
 #endif

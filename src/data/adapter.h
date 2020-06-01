@@ -299,57 +299,129 @@ class CSCAdapter : public detail::SingleBatchDataIter<CSCAdapterBatch> {
 };
 
 #if defined(XGBOOST_BUILD_ARROW_SUPPORT)
-class ArrowAdapterBatch : public detail::NoMetaInfo {
+using RecordBatches = std::vector<std::shared_ptr<arrow::RecordBatch>>;
+using TableColumn = std::shared_ptr<arrow::ChunkedArray>;
+
+#define DISPATCH_ARROW_ARRAY_CAST(TypeID, TypeName)                       \
+  case arrow::Type::TypeID: {                                             \
+    auto raw_values =                                                     \
+        std::static_pointer_cast<arrow::TypeName##Array>(arr)             \
+            ->raw_values();                                               \
+    arrow::NumericBuilder<T> builder;                                     \
+    builder.Resize(arr->length());                                        \
+    builder.AppendValues(raw_values, raw_values + arr->length());         \
+    CHECK(builder.Finish(&cast).ok());                                    \
+    if (fillna) {                                                         \
+      FillMissingInArray(cast, missing);                                  \
+    }                                                                     \
+    return cast;                                                          \
+  }                                                                       \
+
+class ArrowAdapterBatch {
  public:
-  ArrowAdapterBatch(const std::shared_ptr<arrow::Table>& data,
+  ArrowAdapterBatch(const RecordBatches& record_batches,
+                    const TableColumn& label_col,
                     xgboost::bst_row_t num_rows,
                     xgboost::bst_feature_t num_cols)
-      : data_(data), num_rows_(num_rows), num_columns_(num_cols) {}
-
- private:
-  struct Chunk {
-    xgboost::bst_feature_t column_idx;
-    xgboost::bst_row_t row_start;
-    xgboost::bst_row_t row_end;
-    std::shared_ptr<arrow::DoubleArray> values;
-
-    Chunk(xgboost::bst_feature_t col,
-          xgboost::bst_row_t start,
-          xgboost::bst_row_t end,
-          const std::shared_ptr<arrow::DoubleArray>& chunk)
-      : column_idx(col), row_start(start), row_end(end), values(chunk) {}
-  };
-
- public:
-  xgboost::bst_row_t Size() const { return num_rows_; }
-  xgboost::bst_feature_t NumColumns() const { return num_columns_; }
-  std::vector<Chunk> GetChunks() const {
-    std::vector<Chunk> cvec;
-    for (xgboost::bst_feature_t col = 0; col < num_columns_; ++col) {
-      xgboost::bst_row_t start = 0;
-      xgboost::bst_row_t end = 0;
-      for (auto& chunk : data_->column(col)->chunks()) {
-        end += chunk->length();
-        cvec.emplace_back(
-          col, start, end, std::static_pointer_cast<arrow::DoubleArray>(chunk));
-        start = end;
+      : data_(record_batches),
+        num_rows_(num_rows),
+        num_columns_(num_cols) {
+    if (label_col) {
+      labels_.resize(num_rows_);
+      arrow::ArrayVector arrs = label_col->chunks();
+      std::vector<size_t> chunk_lengths, chunk_offsets;
+      for (const auto& v : arrs) {
+        chunk_lengths.push_back(v->length());
+      }
+      size_t k{};
+      std::transform(chunk_lengths.begin(), chunk_lengths.end(),
+                std::back_inserter(chunk_offsets),
+                [&k](size_t len) { size_t ret = k; k += len; return ret; });
+#pragma omp parallel for
+      for (auto i = 0; i < arrs.size(); ++i) {
+        auto ptr = CastArray<arrow::FloatType>(arrs[i], 0, false)->raw_values();
+        std::move(ptr, ptr + chunk_lengths[i], &(labels_.data()[chunk_offsets[i]]));
       }
     }
-    return cvec;
+  }
+
+  xgboost::bst_row_t Size() const { return num_rows_; }
+
+  xgboost::bst_feature_t NumColumns() const { return num_columns_; }
+
+  const RecordBatches& GetRecordBatches() const { return data_; }
+
+  const float* Labels() const {
+    if (num_rows_ == 0 || labels_.empty()) {
+      return nullptr;
+    }
+    return labels_.data();
+  }
+
+  const float* Weights() const { return nullptr; }
+  const uint64_t* Qid() const { return nullptr; }
+  const float* BaseMargin() const { return nullptr; }
+
+  template<typename T>
+  static std::shared_ptr<arrow::NumericArray<T>> CastArray(
+      const std::shared_ptr<arrow::Array>& arr,
+      typename T::c_type missing,
+      bool fillna = true) {
+    std::shared_ptr<arrow::NumericArray<T>> cast;
+    if (arr->type_id() == T::type_id) {
+      std::shared_ptr<arrow::NumericArray<T>> cast =
+          std::static_pointer_cast<arrow::NumericArray<T>>(arr);
+      if (fillna) {
+        FillMissingInArray(cast, missing);
+      }
+      return cast;
+    }
+    switch (arr->type_id()) {
+      DISPATCH_ARROW_ARRAY_CAST(UINT8, UInt8);
+      DISPATCH_ARROW_ARRAY_CAST(UINT16, UInt16);
+      DISPATCH_ARROW_ARRAY_CAST(UINT32, UInt32);
+      DISPATCH_ARROW_ARRAY_CAST(UINT64, UInt64);
+      DISPATCH_ARROW_ARRAY_CAST(INT8, Int8);
+      DISPATCH_ARROW_ARRAY_CAST(INT16, Int16);
+      DISPATCH_ARROW_ARRAY_CAST(INT32, Int32);
+      DISPATCH_ARROW_ARRAY_CAST(INT64, Int64);
+      DISPATCH_ARROW_ARRAY_CAST(FLOAT, Float);
+      DISPATCH_ARROW_ARRAY_CAST(DOUBLE, Double);
+      default:
+        return nullptr;
+    }
   }
 
  private:
-  std::shared_ptr<arrow::Table> data_;
+  template<typename T>
+  static void FillMissingInArray(std::shared_ptr<arrow::NumericArray<T>> arr,
+                                 typename T::c_type missing) {
+    if (arr->null_count() == 0) {
+      return;
+    }
+    const uint8_t *nullmap = arr->null_bitmap_data();
+    typename T::c_type *mutable_data = reinterpret_cast<typename T::c_type*>(
+        arr->data()->buffers[1]->mutable_data());
+    for (size_t j = 0; j < arr->length(); ++j) {
+      if (!(nullmap[j / 8] & (1 << (j % 8)))) {
+        mutable_data[j] = missing;
+      }
+    }
+  }
+
+  RecordBatches data_;
   xgboost::bst_row_t num_rows_;
   xgboost::bst_feature_t num_columns_;
+  std::vector<float> labels_;
 };
 
 class ArrowAdapter : public detail::SingleBatchDataIter<ArrowAdapterBatch> {
  public:
-  ArrowAdapter(const std::shared_ptr<arrow::Table>& table,
+  ArrowAdapter(const RecordBatches& record_batches,
+               const TableColumn& label_col,
                xgboost::bst_row_t num_rows,
                xgboost::bst_feature_t num_cols)
-      : batch_(table, num_rows, num_cols),
+      : batch_(record_batches, label_col, num_rows, num_cols),
         num_rows_(num_rows), num_columns_(num_cols) {}
   const ArrowAdapterBatch& Value() const override { return batch_; }
   xgboost::bst_row_t NumRows() const { return num_rows_; }

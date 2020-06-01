@@ -51,6 +51,20 @@ if (USE_CUDA)
     CUDA_SEPARABLE_COMPILATION OFF)
 endif (USE_CUDA)
 
+if (USE_ARROW)
+  find_package(Arrow REQUIRED)
+  list(APPEND SRC_LIBS ${ARROW_SHARED_LIB})
+  find_package(ArrowPython REQUIRED)
+  list(APPEND SRC_LIBS ${ARROW_PYTHON_SHARED_LIB})
+  find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+  list(APPEND SRC_LIBS ${Python3_LIBRARIES})
+  target_include_directories(objxgboost PRIVATE
+                              ${ARROW_INCLUDE_DIR}
+                              ${ARROW_PYTHON_INCLUDE_DIR}
+                              ${Python3_INCLUDE_DIRS})
+  target_compile_definitions(objxgboost PRIVATE -DXGBOOST_BUILD_ARROW_SUPPORT=1)
+endif (USE_ARROW)
+
 target_include_directories(objxgboost
   PRIVATE
   ${xgboost_SOURCE_DIR}/include
@@ -102,17 +116,6 @@ if (XGBOOST_BUILTIN_PREFETCH_PRESENT)
     PRIVATE
     -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
 endif (XGBOOST_BUILTIN_PREFETCH_PRESENT)
-
-if (USE_ARROW)
-  find_package(Python COMPONENTS Interpreter Development REQUIRED)
-  find_package(Arrow REQUIRED)
-  target_include_directories(objxgboost PRIVATE
-                              ${ARROW_INCLUDE_DIR}
-                              ${PYARROW_INCLUDE_DIR}
-                              ${Python_INCLUDE_DIRS})
-  target_compile_definitions(objxgboost PRIVATE -DXGBOOST_BUILD_ARROW_SUPPORT=1)
-  list(APPEND SRC_LIBS ${ARROW_SHARED_LIB} ${PYARROW_SHARED_LIB} ${Python_LIBRARIES})
-endif (USE_ARROW)
 
 find_package(Threads REQUIRED)
 target_link_libraries(objxgboost PUBLIC Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
