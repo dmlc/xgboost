@@ -57,6 +57,7 @@ address, leak, undefined and thread.")
 ## Plugins
 option(PLUGIN_LZ4 "Build lz4 plugin" OFF)
 option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
+option(ADD_PKGCONFIG "Add xgboost.pc into system." ON)
 
 #-- Checks for building XGBoost
 if (USE_DEBUG_OUTPUT AND (NOT (CMAKE_BUILD_TYPE MATCHES Debug)))
@@ -297,3 +298,12 @@ endif (GOOGLE_TEST)
 # replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462
 # for issues caused by mixing of /MD and /MT flags
 msvc_use_static_runtime()
+
+# Add xgboost.pc
+if (ADD_PKGCONFIG)
+  CONFIGURE_FILE("xgboost.pc.in" "xgboost.pc" @ONLY)
+
+  install(
+    FILES ${CMAKE_BINARY_DIR}/xgboost.pc
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+endif (ADD_PKGCONFIG)
