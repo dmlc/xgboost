@@ -149,7 +149,7 @@ DTYPE_ENUM__ = {
 }
 
 
-class Op:
+class Op:                     # pylint: disable=too-few-public-methods
     '''Supported operations for rabit.'''
     MAX = 0
     MIN = 1
