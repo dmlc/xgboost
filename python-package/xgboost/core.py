@@ -4,7 +4,7 @@
 """Core XGBoost Library."""
 import collections
 # pylint: disable=no-name-in-module,import-error
-from collections.abc import Mapping  # Python 3
+from collections.abc import Mapping
 # pylint: enable=no-name-in-module,import-error
 import ctypes
 import os
@@ -834,6 +834,16 @@ class Booster(object):
             if not isinstance(d, DMatrix):
                 raise TypeError('invalid cache item: {}'.format(type(d).__name__), cache)
             self._validate_features(d)
+
+        if isinstance(params, dict) \
+                and 'eval_metric' in params \
+                and isinstance(params['eval_metric'], list):
+            params = dict((k, v) for k, v in params.items())
+            eval_metrics = params['eval_metric']
+            params.pop("eval_metric", None)
+            params = list(params.items())
+            for eval_metric in eval_metrics:
+                params += [('eval_metric', eval_metric)]
 
         dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
         self.handle = ctypes.c_void_p()

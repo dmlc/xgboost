@@ -1,4 +1,4 @@
-# pylint: disable=too-many-arguments, too-many-locals
+# pylint: disable=too-many-arguments, too-many-locals, too-many-lines
 """Dask extensions for distributed training. See
 https://xgboost.readthedocs.io/en/latest/tutorials/dask.html for simple
 tutorial.  Also xgboost/demo/dask for some examples.
@@ -28,8 +28,11 @@ from .compat import PANDAS_INSTALLED, DataFrame, Series, pandas_concat
 from .compat import CUDF_concat
 from .compat import lazy_isinstance
 
+from .callback import CallbackContainer
+from .callback import EarlyStopping as SingleNodeEarlyStopping
+from .callback import EvaluationMonitor as SingleNodeEvaluationMonitor
+
 from .core import DMatrix, Booster, _expect
-from .training import train as worker_train
 from .tracker import RabitTracker
 from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase
 from .sklearn import xgboost_model_doc
@@ -38,10 +41,15 @@ from .sklearn import xgboost_model_doc
 # not properly supported yet.
 #
 # TODOs:
-#   - Callback.
 #   - Label encoding.
 #   - CV
 #   - Ranking
+
+
+try:
+    from distributed import worker_client
+except ImportError:
+    worker_client = None
 
 
 LOGGER = logging.getLogger('[xgboost.dask]')
@@ -66,7 +74,7 @@ def _assert_dask_support():
             'Dask needs to be installed in order to use this module')
     if platform.system() == 'Windows':
         msg = 'Windows is not officially supported for dask/xgboost,'
-        msg += ' contribution are welcomed.'
+        msg += ' contributions are welcomed.'
         LOGGER.warning(msg)
 
 
@@ -136,7 +144,7 @@ class DaskDMatrix:
 
     Parameters
     ----------
-    client: dask.distributed.Client
+    client : dask.distributed.Client
         Specify the dask client used for training.  Use default client
         returned from dask if it's set to None.
     data : dask.array.Array/dask.dataframe.DataFrame
@@ -263,15 +271,35 @@ class DaskDMatrix:
 
         self.worker_map = worker_map
 
-    def get_worker_x_ordered(self, worker):
+    def get_worker_parts_ordered(self, worker, field):
+        '''Get data paritions with their origial order information
+
+        Parameters
+        ----------
+        worker : distributed.Worker
+        field : str
+          x, y or w
+
+        Returns
+        -------
+        list of parts with the form [(data, order), ...]
+        '''
         list_of_parts = self.worker_map[worker.address]
         client = get_client()
         list_of_parts_value = client.gather(list_of_parts)
         result = []
+        if self.has_label:
+            mapping = {'x': 0, 'y': 1, 'w': 2}
+        else:
+            mapping = {'x': 0, 'w': 1}
+
         for i, part in enumerate(list_of_parts):
-            result.append((list_of_parts_value[i][0],
+            result.append((list_of_parts_value[i][mapping[field]],
                            self.partition_order[part.key]))
         return result
+
+    def get_worker_x_ordered(self, worker):
+        return self.get_worker_parts_ordered(worker, 'x')
 
     def get_worker_parts(self, worker):
         '''Get mapped parts of data in each worker.'''
@@ -301,7 +329,7 @@ class DaskDMatrix:
 
           Parameters
           ----------
-          worker: The worker used as key to data.
+          worker : The worker used as key to data.
 
           Returns
           -------
@@ -366,6 +394,98 @@ def _get_rabit_args(worker_map, client):
     rabit_args = [('%s=%s' % item).encode() for item in env.items()]
     return rabit_args
 
+
+def _cache_data(model, data, data_id, worker):
+    '''Create a cache of DMatrix on booster.'''
+    assert isinstance(model, Booster)
+    assert isinstance(data, DaskDMatrix)
+    if not hasattr(model, 'data_cache'):
+        model.data_cache = {}
+        m = data.get_worker_data(worker)
+        model.data_cache[data_id] = m
+
+    if data_id not in model.data_cache:
+        m = data.get_worker_data(worker)
+        model.data_cache[data_id] = m
+
+
+def _uncache_data(model):
+    assert isinstance(model, Booster)
+    if hasattr(model, 'data_cache'):
+        del model.data_cache
+
+
+# pylint: disable=missing-class-docstring
+class EarlyStopping(SingleNodeEarlyStopping):
+    __doc__ = SingleNodeEarlyStopping.__doc__
+
+    def _make_dmatrix(self, data, label, weight, missing):
+        if not isinstance(data, DaskDMatrix):
+            assert label is not None
+            with worker_client() as client:
+                data = DaskDMatrix(
+                    client=client, data=data, label=label, weight=weight,
+                    missing=missing)
+        else:
+            assert label is None and weight is None and numpy.isnan(missing), (
+                'label, weight and missing are only used when input is not ' +
+                'a DaskDMatrix'
+            )
+        return data
+
+    def after_training(self, model):
+        super().after_training(model)
+        _uncache_data(model)
+
+    def after_iteration(self, model, epoch):
+        assert rabit.is_distributed()
+        worker = distributed_get_worker()
+        if hasattr(self, 'data'):
+            _cache_data(model, self.data, self.data_id, worker)
+            del self.data
+        if callable(self.metric) and rabit.get_rank() == 0:
+            with worker_client() as client:
+                predt = predict(client, model, self.data)
+                score = client.submit(self.metric, predt, self.label)
+                score = [(self.metric_name, score.compute())]
+        else:
+            score = model.eval(model.data_cache[self.data_id])
+            score = [s.split(':') for s in score.split()]
+            score = [(k, float(v)) for k, v in score[1:]]
+
+        return self._update_rounds(score, model, epoch)
+
+
+class EvaluationMonitor(SingleNodeEvaluationMonitor):
+    __doc__ = SingleNodeEvaluationMonitor.__doc__
+
+    def _make_dmatrix(self, data, label, weight, missing):
+        if not isinstance(data, DaskDMatrix):
+            assert label is not None
+            with worker_client() as client:
+                data = DaskDMatrix(client, data, label=label, weight=weight,
+                                   missing=missing)
+        else:
+            assert label is None and weight is None and numpy.isnan(missing), (
+                'label, weight and missing are only used when input is not ' +
+                'a DaskDMatrix'
+            )
+        return data
+
+    def after_training(self, model):
+        _uncache_data(model)
+
+    def after_iteration(self, model, epoch):
+        assert rabit.is_distributed()
+        worker = distributed_get_worker()
+        if hasattr(self, 'data'):
+            _cache_data(model, self.data, self.data_id, worker)
+            del self.data
+
+        score = model.eval(model.data_cache[self.data_id], self.name)
+        return self._update_history(score, epoch)
+
+
 # train and predict methods are supposed to be "functional", which meets the
 # dask paradigm.  But as a side effect, the `evals_result` in single-node API
 # is no longer supported since it mutates the input parameter, and it's not
@@ -373,7 +493,80 @@ def _get_rabit_args(worker_map, client):
 # evaluation history is instead returned.
 
 
-def train(client, params, dtrain, *args, evals=(), **kwargs):
+class _SingleNodeBooster:
+    '''A wrapper for xgboost.Booster'''
+    def __init__(self, parameters, cache, callbacks):
+        assert isinstance(parameters, dict)
+
+        worker = distributed_get_worker()
+        msg = 'Overriding `nthreads` defined in dask worker.'
+        if 'nthread' in parameters.keys() and \
+           parameters['nthread'] is not None and \
+           parameters['nthread'] != worker.nthreads:
+            msg += '`nthread` is specified.  ' + msg
+            LOGGER.warning(msg)
+        elif 'n_jobs' in parameters.keys() and \
+             parameters['n_jobs'] is not None and \
+             parameters['n_jobs'] != worker.nthreads:
+            msg = '`n_jobs` is specified.  ' + msg
+            LOGGER.warning(msg)
+        else:
+            parameters['nthread'] = worker.nthreads
+
+        m = cache.get_worker_data(worker)
+
+        self.parameters = parameters
+        self._booster = Booster(parameters, (m, ))
+        self.callback = CallbackContainer(callbacks)
+        self._booster.set_param(parameters)
+
+        self._booster.data_cache = {id(cache): m}
+
+        self.version = self.get_booster().load_rabit_checkpoint()
+        assert rabit.get_world_size() != 1 or self.version == 0
+
+    def update_one_iter(self, i, data_id):
+        '''Boost for one iteration.'''
+        if self.version % 2 == 0:
+            if self.callback.before_iteration(self.get_booster(), i):
+                return True
+            d = self.get_booster().data_cache[data_id]
+            self.get_booster().update(d, i)
+            self.get_booster().save_rabit_checkpoint()
+            self.version += 1
+
+        assert (rabit.get_world_size() == 1 or
+                self.version == rabit.version_number()), (
+                    self.version, rabit.version_number())
+
+        self.get_booster().save_rabit_checkpoint()
+        self.version += 1
+        return self.callback.after_iteration(self.get_booster(), i)
+
+    def get_booster(self):
+        '''Return the underlying booster object.'''
+        return self._booster
+
+
+def _make_monitors(metrics=None, evals=None):
+    if not evals:
+        return []
+
+    monitors = []
+    if metrics:
+        for metric in metrics:
+            for mat, name in evals:
+                m = EvaluationMonitor(mat, name, metric)
+                monitors.append(m)
+    else:
+        for mat, name in evals:
+            m = EvaluationMonitor(mat, name, None)
+            monitors.append(m)
+    return monitors
+
+
+def train(client, params, dtrain, num_boost_round=10, evals=(), callbacks=None,
+          **kwargs):
     '''Train XGBoost model.
 
     .. versionadded:: 1.0.0
@@ -402,7 +595,10 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
 
     '''
     _assert_dask_support()
-    client = _xgb_get_client(client)
+    assert callbacks is None or isinstance(callbacks, (list, tuple))
+
+    from distributed import Client
+    client: Client = _xgb_get_client(client)
     if 'evals_result' in kwargs.keys():
         raise ValueError(
             'evals_result is not supported in dask interface.',
@@ -412,52 +608,64 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
 
     rabit_args = _get_rabit_args(workers, client)
 
-    def dispatched_train(worker_addr):
+    def dispatched_train(worker_addr, params, dtrain, num_boost_round,
+                         rabit_args, callbacks):
         '''Perform training on a single worker.'''
         LOGGER.info('Training on %s', str(worker_addr))
         worker = distributed_get_worker()
         with RabitContext(rabit_args):
             local_dtrain = dtrain.get_worker_data(worker)
+            local_param = params.copy()  # just to be consistent
 
-            local_evals = []
-            if evals:
-                for mat, name in evals:
-                    if mat is dtrain:
-                        local_evals.append((local_dtrain, name))
-                        continue
-                    local_mat = mat.get_worker_data(worker)
-                    local_evals.append((local_mat, name))
+            booster = _SingleNodeBooster(local_param, dtrain, callbacks)
+            booster.callback.before_training(booster.get_booster())
+            data_id = id(dtrain)
+            for i in range(0, num_boost_round):
+                should_stop = booster.update_one_iter(i, data_id)
+                should_stop = numpy.array([1 if should_stop else 0])
+                # same as any
+                should_stop = rabit.allreduce(should_stop, rabit.Op.MAX)
+                if should_stop[0] != 0:
+                    break
+            booster.callback.after_training(booster.get_booster())
+            _uncache_data(booster.get_booster())
 
             local_history = {}
-            local_param = params.copy()  # just to be consistent
-            msg = 'Overriding `nthreads` defined in dask worker.'
-            if 'nthread' in local_param.keys() and \
-               local_param['nthread'] is not None and \
-               local_param['nthread'] != worker.nthreads:
-                msg += '`nthread` is specified.  ' + msg
-                LOGGER.warning(msg)
-            elif 'n_jobs' in local_param.keys() and \
-                 local_param['n_jobs'] is not None and \
-                 local_param['n_jobs'] != worker.nthreads:
-                msg = '`n_jobs` is specified.  ' + msg
-                LOGGER.warning(msg)
-            else:
-                local_param['nthread'] = worker.nthreads
-            bst = worker_train(params=local_param,
-                               dtrain=local_dtrain,
-                               *args,
-                               evals_result=local_history,
-                               evals=local_evals,
-                               **kwargs)
-            ret = {'booster': bst, 'history': local_history}
+            for c in callbacks:
+                if isinstance(c, EvaluationMonitor):
+                    local_history[c.name] = c.history
+
+            booster = booster.get_booster()
+            ret = {'booster': booster, 'history': local_history}
             if local_dtrain.num_row() == 0:
                 ret = None
             return ret
 
+    monitors = _make_monitors(params.get('metric', []), evals)
+    callbacks = [] if callbacks is None else callbacks
+    callbacks = list(callbacks)
+    # Weird bug happens in pytest, that extending the list with
+    # `callbacks.extend(monitors)` will put the resulting callbacks list into
+    # next test.  Specifically, callbacks created in the test
+    # `test_dask_missing_value_reg` appears in `test_dask_missing_value_cls` as
+    # the default value for callbacks of this train function (which should be
+    # an empty list).
+    #
+    # - pytest 5.4.1
+    # - dask[complete] 2.15.0
+    # - python 3.7.5
+    #
+    # Renaming with list addition seems to workaround it.
+    combined = callbacks + monitors
     futures = client.map(dispatched_train,
                          workers,
                          pure=False,
-                         workers=workers)
+                         workers=workers,
+                         params=params,
+                         dtrain=dtrain,
+                         num_boost_round=num_boost_round,
+                         rabit_args=rabit_args,
+                         callbacks=combined)
     results = client.gather(futures)
     return list(filter(lambda ret: ret is not None, results))[0]
 
@@ -768,7 +976,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
                                      eval_set, sample_weight_eval_set,
                                      self.missing)
 
-        results = train(self.client, params, dtrain,
+        results = train(client=self.client, params=params, dtrain=dtrain,
                         num_boost_round=self.get_num_boosting_rounds(),
                         evals=evals, verbose_eval=verbose)
         # pylint: disable=attribute-defined-outside-init
@@ -823,9 +1031,9 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         evals = _evaluation_matrices(self.client,
                                      eval_set, sample_weight_eval_set,
                                      self.missing)
-        results = train(self.client, params, dtrain,
+        results = train(client=self.client, params=params, dtrain=dtrain,
                         num_boost_round=self.get_num_boosting_rounds(),
-                        evals=evals, verbose_eval=verbose)
+                        evals=evals)
         self._Booster = results['booster']
         # pylint: disable=attribute-defined-outside-init
         self.evals_result_ = results['history']

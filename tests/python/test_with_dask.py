@@ -103,6 +103,7 @@ def test_from_dask_array():
             assert np.all(single_node_predt == from_arr.compute())
 
 
+@pytest.mark.skipif(**tm.no_sklearn())
 def test_dask_missing_value_reg():
     with LocalCluster(n_workers=5) as cluster:
         with Client(cluster) as client:
@@ -127,6 +128,7 @@ def test_dask_missing_value_reg():
             np.testing.assert_allclose(np_predt, dd_predt)
 
 
+@pytest.mark.skipif(**tm.no_sklearn())
 def test_dask_missing_value_cls():
     # Multi-class doesn't handle empty DMatrix well.  So we use lesser workers.
     with LocalCluster(n_workers=2) as cluster:
@@ -155,6 +157,7 @@ def test_dask_missing_value_cls():
             assert hasattr(cls, 'missing')
 
 
+@pytest.mark.skipif(**tm.no_sklearn())
 def test_dask_regressor():
     with LocalCluster(n_workers=5) as cluster:
         with Client(cluster) as client:
@@ -177,6 +180,7 @@ def test_dask_regressor():
             assert len(history['validation_0']['rmse']) == 2
 
 
+@pytest.mark.skipif(**tm.no_sklearn())
 def test_dask_classifier():
     with LocalCluster(n_workers=5) as cluster:
         with Client(cluster) as client:

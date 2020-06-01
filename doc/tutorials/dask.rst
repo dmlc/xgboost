@@ -75,6 +75,51 @@ Another set of API is a Scikit-Learn wrapper, which mimics the stateful Scikit-L
 interface with ``DaskXGBClassifier`` and ``DaskXGBRegressor``.  See ``xgboost/demo/dask``
 for more examples.
 
+******************
+Callback Functions
+******************
+
+In XGBoost 1.2, callback function is supported with dask interface.  If you are already
+familiar with XGBoost's old callback, don't rush, because we made some adjustments to the
+callback interface.  For an short introduction to XGBoost's new callback, see <TODO>.
+
+There are a few predefined callback functions for dask, which can be accessed in
+``xgboost.dask`` module.  Here's an illustration for using early stopping callback:
+
+.. code-block:: python
+
+  from xgboost.dask import DaskDMatrix, EarlyStopping
+
+  dtrain = xgb.dask.DaskDMatrix(client, X, y)
+  early_stop = EarlyStopping(dtrain, 'train', 'rmse', 3)
+  output = xgb.dask.train(client,
+                          params={'tree_method': 'gpu_hist'},
+                          dtrain=dtrain,
+                          num_boost_round=100,
+                          callbacks=[early_stop])
+
+
+In the above code snippet, we skipped the part for creating client and data for
+demonstration's purpose.  First we need to import the ``EarlyStopping`` class from the
+``xgboost.dask`` (not ``xgboost.callback`` which is for single node training).  Then we
+give it the data, name, metric and number of early stopping rounds.  Document for other
+parameters can be found in its doc string.  Lastly we put it as an argument for
+``callbacks``.
+
+The predefined functions might not be enougth for many use cases.  We can also define our
+own callback with ease using this interface.  The tutorial here focus on distributed
+aspect of callback function.  For general introduction to normal callback, see <TODO>.
+
+.. code-block:: python
+
+  from xgboost.dask import DaskDMatrix, TrainingCallback
+  from xgboost import rabit
+
+  class MyAwesomeCallback(TrainingCallback):
+    def __init__(self, data):
+      # TODO
+      raise NotImplementedError
+
 *******
 Threads
 *******
@@ -137,7 +182,6 @@ addressed yet.
 - Empty worker is not well supported by classifier.  If the training hangs for classifier
   with a warning about empty DMatrix, please consider balancing your data first.  But
   regressor works fine with empty DMatrix.
-- Callback functions are not tested.
 - Only ``GridSearchCV`` from ``scikit-learn`` is supported for dask interface.  Meaning
   that we can distribute data among workers but have to train one model at a time.  If you
   want to scale up grid searching with model parallelism by ``dask-ml``, please consider
