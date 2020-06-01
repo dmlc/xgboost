@@ -57,6 +57,7 @@ def get_world_size():
 
 
 def is_distributed():
+    '''If rabit is distributed.'''
     is_dist = _LIB.RabitIsDistributed()
     return is_dist
 
@@ -149,6 +150,7 @@ DTYPE_ENUM__ = {
 
 
 class Op:
+    '''Supported operations for rabit.'''
     MAX = 0
     MIN = 1
     SUM = 2
