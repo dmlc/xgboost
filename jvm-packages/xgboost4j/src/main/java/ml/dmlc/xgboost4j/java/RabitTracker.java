@@ -169,7 +169,7 @@ public class RabitTracker implements IRabitTracker {
 
     if (startTrackerProcess()) {
       logger.debug("Tracker started, with env=" + envs.toString());
-//      System.out.println("Tracker started, with env=" + envs.toString());
+
       // also start a tracker logger
       Thread logger_thread = new Thread(new TrackerProcessLogger());
       logger_thread.setDaemon(true);
@@ -198,8 +198,8 @@ public class RabitTracker implements IRabitTracker {
       return returnVal;
     } catch (InterruptedException e) {
       // we should not get here as RabitTracker is accessed in the main thread
-      e.printStackTrace();
-      logger.error("the RabitTracker thread is terminated unexpectedly");
+      
+      logger.error("the RabitTracker thread is terminated unexpectedly", e);
       return TrackerStatus.INTERRUPTED.getStatusCode();
     }
   }
