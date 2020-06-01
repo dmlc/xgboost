@@ -301,9 +301,9 @@ msvc_use_static_runtime()
 
 # Add xgboost.pc
 if (ADD_PKGCONFIG)
-  CONFIGURE_FILE("xgboost.pc.in" "xgboost.pc" @ONLY)
+  configure_file(${xgboost_SOURCE_DIR}/cmake/xgboost.pc.in ${xgboost_BINARY_DIR}/xgboost.pc @ONLY)
 
   install(
-    FILES ${CMAKE_BINARY_DIR}/xgboost.pc
+    FILES ${xgboost_BINARY_DIR}/xgboost.pc
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif (ADD_PKGCONFIG)
