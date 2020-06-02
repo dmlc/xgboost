@@ -311,10 +311,7 @@ using TableColumn = std::shared_ptr<arrow::ChunkedArray>;
     builder.Resize(arr->length());                                        \
     builder.AppendValues(raw_values, raw_values + arr->length());         \
     CHECK(builder.Finish(&cast).ok());                                    \
-    if (fillna) {                                                         \
-      FillMissingInArray(cast, missing);                                  \
-    }                                                                     \
-    return cast;                                                          \
+    break;                                                                \
   }                                                                       \
 
 class ArrowAdapterBatch {
@@ -369,46 +366,38 @@ class ArrowAdapterBatch {
       bool fillna = true) {
     std::shared_ptr<arrow::NumericArray<T>> cast;
     if (arr->type_id() == T::type_id) {
-      std::shared_ptr<arrow::NumericArray<T>> cast =
-          std::static_pointer_cast<arrow::NumericArray<T>>(arr);
-      if (fillna) {
-        FillMissingInArray(cast, missing);
+      cast = std::static_pointer_cast<arrow::NumericArray<T>>(arr);
+    } else {
+      switch (arr->type_id()) {
+        DISPATCH_ARROW_ARRAY_CAST(UINT8, UInt8);
+        DISPATCH_ARROW_ARRAY_CAST(UINT16, UInt16);
+        DISPATCH_ARROW_ARRAY_CAST(UINT32, UInt32);
+        DISPATCH_ARROW_ARRAY_CAST(UINT64, UInt64);
+        DISPATCH_ARROW_ARRAY_CAST(INT8, Int8);
+        DISPATCH_ARROW_ARRAY_CAST(INT16, Int16);
+        DISPATCH_ARROW_ARRAY_CAST(INT32, Int32);
+        DISPATCH_ARROW_ARRAY_CAST(INT64, Int64);
+        DISPATCH_ARROW_ARRAY_CAST(FLOAT, Float);
+        DISPATCH_ARROW_ARRAY_CAST(DOUBLE, Double);
+        default:
+          return nullptr;
       }
-      return cast;
     }
-    switch (arr->type_id()) {
-      DISPATCH_ARROW_ARRAY_CAST(UINT8, UInt8);
-      DISPATCH_ARROW_ARRAY_CAST(UINT16, UInt16);
-      DISPATCH_ARROW_ARRAY_CAST(UINT32, UInt32);
-      DISPATCH_ARROW_ARRAY_CAST(UINT64, UInt64);
-      DISPATCH_ARROW_ARRAY_CAST(INT8, Int8);
-      DISPATCH_ARROW_ARRAY_CAST(INT16, Int16);
-      DISPATCH_ARROW_ARRAY_CAST(INT32, Int32);
-      DISPATCH_ARROW_ARRAY_CAST(INT64, Int64);
-      DISPATCH_ARROW_ARRAY_CAST(FLOAT, Float);
-      DISPATCH_ARROW_ARRAY_CAST(DOUBLE, Double);
-      default:
-        return nullptr;
+    // fill missing values
+    if (arr->null_count() > 0 && fillna) {
+      const uint8_t *nullmap = arr->null_bitmap_data();
+      typename T::c_type *mutable_data = reinterpret_cast<typename T::c_type*>(
+          cast->data()->buffers[1]->mutable_data());
+      for (size_t j = 0; j < arr->length(); ++j) {
+        if (!(nullmap[j / 8] & (1 << (j % 8)))) {
+          mutable_data[j] = missing;
+        }
+      }
     }
+    return cast;
   }
 
  private:
-  template<typename T>
-  static void FillMissingInArray(std::shared_ptr<arrow::NumericArray<T>> arr,
-                                 typename T::c_type missing) {
-    if (arr->null_count() == 0) {
-      return;
-    }
-    const uint8_t *nullmap = arr->null_bitmap_data();
-    typename T::c_type *mutable_data = reinterpret_cast<typename T::c_type*>(
-        arr->data()->buffers[1]->mutable_data());
-    for (size_t j = 0; j < arr->length(); ++j) {
-      if (!(nullmap[j / 8] & (1 << (j % 8)))) {
-        mutable_data[j] = missing;
-      }
-    }
-  }
-
   RecordBatches data_;
   xgboost::bst_row_t num_rows_;
   xgboost::bst_feature_t num_columns_;
