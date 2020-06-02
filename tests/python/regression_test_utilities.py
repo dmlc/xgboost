@@ -59,7 +59,11 @@ def get_sparse():
     n = 5000
     sparsity = 0.75
     X, y = datasets.make_regression(n, random_state=rng)
-    X = np.array([[0.0 if rng.uniform(0, 1) < sparsity else x for x in x_row] for x_row in X])
+    flag = np.random.binomial(1, sparsity, X.shape)
+    for i in range(X.shape[0]):
+        for j in range(X.shape[1]):
+            if flag[i, j]:
+                X[i, j] = 0.0
     from scipy import sparse
     X = sparse.csr_matrix(X)
     return X, y
@@ -78,8 +82,11 @@ def get_weights_regression(min_weight, max_weight):
     n = 10000
     sparsity = 0.25
     X, y = datasets.make_regression(n, random_state=rng)
-    X = np.array([[np.nan if rng.uniform(0, 1) < sparsity else x
-                   for x in x_row] for x_row in X])
+    flag = np.random.binomial(1, sparsity, X.shape)
+    for i in range(X.shape[0]):
+        for j in range(X.shape[1]):
+            if flag[i, j]:
+                X[i, j] = np.nan
     w = np.array([rng.uniform(min_weight, max_weight) for i in range(n)])
     return X, y, w
 
@@ -101,7 +108,7 @@ def train_dataset(dataset, param_in, num_rounds=10, scale_features=False, DMatri
         np.savetxt('tmptmp_1234.csv', np.hstack((dataset.y.reshape(len(dataset.y), 1), X)),
                    delimiter=',')
         dtrain = DMatrixT('tmptmp_1234.csv?format=csv&label_column=0#tmptmp_',
-                             weight=dataset.w)
+                          weight=dataset.w)
     elif DMatrixT is xgb.DeviceQuantileDMatrix:
         import cupy as cp
         dtrain = DMatrixT(cp.array(X), dataset.y, weight=dataset.w, **dmatrix_params)
@@ -146,7 +153,8 @@ def parameter_combinations(variable_param):
 def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False,
               DMatrixT=xgb.DMatrix, dmatrix_params={}):
     """
-    Run the given parameters on a range of datasets. Objective and eval metric will be automatically set
+    Run the given parameters on a range of datasets. Objective and eval metric will be
+    automatically set
     """
     datasets = [
         Dataset("Boston", get_boston, "reg:squarederror", "rmse"),
