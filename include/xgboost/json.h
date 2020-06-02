@@ -4,15 +4,15 @@
 #ifndef XGBOOST_JSON_H_
 #define XGBOOST_JSON_H_
 
-#include <xgboost/logging.h>
-#include <xgboost/parameter.h>
-#include <string>
-
 #include <map>
 #include <memory>
 #include <vector>
 #include <functional>
 #include <utility>
+#include <string>
+
+#include <xgboost/logging.h>
+#include <xgboost/parameter.h>
 
 namespace xgboost {
 

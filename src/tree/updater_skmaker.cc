@@ -5,11 +5,12 @@
           a refresh is needed to make the statistics exactly correct
  * \author Tianqi Chen
  */
-#include <rabit/rabit.h>
-#include <xgboost/base.h>
-#include <xgboost/tree_updater.h>
 #include <vector>
 #include <algorithm>
+
+#include <rabit/rabit.h>
+#include "xgboost/base.h"
+#include "xgboost/tree_updater.h"
 
 #include "../common/quantile.h"
 #include "../common/group_data.h"

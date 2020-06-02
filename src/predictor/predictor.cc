@@ -1,9 +1,9 @@
 /*!
  * Copyright 2017-2020 by Contributors
  */
-#include <dmlc/registry.h>
 #include <mutex>
 
+#include <dmlc/registry.h>
 #include "xgboost/predictor.h"
 #include "xgboost/data.h"
 #include "xgboost/generic_parameters.h"

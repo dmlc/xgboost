@@ -4,6 +4,10 @@
  */
 #ifndef XGBOOST_GBM_GBTREE_MODEL_H_
 #define XGBOOST_GBM_GBTREE_MODEL_H_
+#include <memory>
+#include <utility>
+#include <string>
+#include <vector>
 
 #include <dmlc/parameter.h>
 #include <dmlc/io.h>
@@ -11,11 +15,6 @@
 #include <xgboost/tree_model.h>
 #include <xgboost/parameter.h>
 #include <xgboost/learner.h>
-
-#include <memory>
-#include <utility>
-#include <string>
-#include <vector>
 
 namespace xgboost {
 

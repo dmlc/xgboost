@@ -4,10 +4,10 @@
 #ifndef XGBOOST_COMMON_VERSION_H_
 #define XGBOOST_COMMON_VERSION_H_
 
-#include <dmlc/io.h>
 #include <string>
 #include <tuple>
 
+#include <dmlc/io.h>
 #include "xgboost/base.h"
 
 namespace xgboost {

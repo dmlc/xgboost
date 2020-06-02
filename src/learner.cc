@@ -4,10 +4,6 @@
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
  */
-#include <dmlc/io.h>
-#include <dmlc/parameter.h>
-#include <dmlc/thread_local.h>
-
 #include <atomic>
 #include <mutex>
 #include <algorithm>
@@ -20,7 +16,11 @@
 #include <utility>
 #include <vector>
 
-#include "dmlc/any.h"
+#include <dmlc/io.h>
+#include <dmlc/parameter.h>
+#include <dmlc/thread_local.h>
+#include <dmlc/any.h>
+
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/model.h"

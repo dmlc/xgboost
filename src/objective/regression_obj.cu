@@ -4,13 +4,13 @@
  * \brief Definition of single-value regression and classification objectives.
  * \author Tianqi Chen, Kailong Chen
  */
+#include <cmath>
+#include <memory>
+#include <vector>
 
 #include <dmlc/omp.h>
 #include <xgboost/logging.h>
 #include <xgboost/objective.h>
-#include <cmath>
-#include <memory>
-#include <vector>
 
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"

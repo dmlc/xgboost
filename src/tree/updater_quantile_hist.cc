@@ -4,9 +4,6 @@
  * \brief use quantized feature values to construct a tree
  * \author Philip Cho, Tianqi Checn, Egor Smirnov
  */
-#include <dmlc/timer.h>
-#include <rabit/rabit.h>
-
 #include <cmath>
 #include <memory>
 #include <vector>
@@ -17,6 +14,8 @@
 #include <string>
 #include <utility>
 
+#include <dmlc/timer.h>
+#include <rabit/rabit.h>
 #include "xgboost/logging.h"
 #include "xgboost/tree_updater.h"
 

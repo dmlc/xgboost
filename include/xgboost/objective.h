@@ -7,17 +7,17 @@
 #ifndef XGBOOST_OBJECTIVE_H_
 #define XGBOOST_OBJECTIVE_H_
 
+#include <vector>
+#include <utility>
+#include <string>
+#include <functional>
+
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <xgboost/model.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
-
-#include <vector>
-#include <utility>
-#include <string>
-#include <functional>
 
 namespace xgboost {
 

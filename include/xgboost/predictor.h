@@ -5,10 +5,6 @@
  *  performs predictions for a gradient booster.
  */
 #pragma once
-#include <xgboost/base.h>
-#include <xgboost/data.h>
-#include <xgboost/generic_parameters.h>
-#include <xgboost/host_device_vector.h>
 
 #include <functional>
 #include <memory>
@@ -17,6 +13,11 @@
 #include <utility>
 #include <vector>
 #include <mutex>
+
+#include <xgboost/base.h>
+#include <xgboost/data.h>
+#include <xgboost/generic_parameters.h>
+#include <xgboost/host_device_vector.h>
 
 // Forward declarations
 namespace xgboost {

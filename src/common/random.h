@@ -7,8 +7,6 @@
 #ifndef XGBOOST_COMMON_RANDOM_H_
 #define XGBOOST_COMMON_RANDOM_H_
 
-#include <rabit/rabit.h>
-#include <xgboost/logging.h>
 #include <algorithm>
 #include <vector>
 #include <limits>
@@ -17,6 +15,8 @@
 #include <numeric>
 #include <random>
 
+#include "rabit/rabit.h"
+#include "xgboost/logging.h"
 #include "xgboost/host_device_vector.h"
 
 namespace xgboost {

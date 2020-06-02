@@ -6,10 +6,11 @@
  *
  *  The expressions like wsum == 0 ? esum : esum / wsum is used to handle empty dataset.
  */
+#include <cmath>
+
 #include <rabit/rabit.h>
 #include <xgboost/metric.h>
 #include <dmlc/registry.h>
-#include <cmath>
 
 #include "metric_common.h"
 #include "../common/math.h"

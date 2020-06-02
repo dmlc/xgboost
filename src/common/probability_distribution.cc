@@ -4,9 +4,9 @@
  * \brief Implementation of a few useful probability distributions
  * \author Avinash Barnwal and Hyunsu Cho
  */
-
-#include <xgboost/logging.h>
 #include <cmath>
+
+#include "xgboost/logging.h"
 #include "probability_distribution.h"
 
 namespace xgboost {

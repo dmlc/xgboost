@@ -1,9 +1,6 @@
 /*!
  * Copyright 2017-2020 XGBoost contributors
  */
-#include <thrust/copy.h>
-#include <thrust/reduce.h>
-#include <xgboost/tree_updater.h>
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -12,6 +9,10 @@
 #include <utility>
 #include <vector>
 
+#include <thrust/copy.h>
+#include <thrust/reduce.h>
+
+#include "xgboost/tree_updater.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/parameter.h"
 #include "xgboost/span.h"

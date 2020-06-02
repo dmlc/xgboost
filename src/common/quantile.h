@@ -7,13 +7,14 @@
 #ifndef XGBOOST_COMMON_QUANTILE_H_
 #define XGBOOST_COMMON_QUANTILE_H_
 
-#include <dmlc/base.h>
-#include <xgboost/logging.h>
 #include <cmath>
 #include <vector>
 #include <cstring>
 #include <algorithm>
 #include <iostream>
+
+#include <dmlc/base.h>
+#include <xgboost/logging.h>
 
 namespace xgboost {
 namespace common {

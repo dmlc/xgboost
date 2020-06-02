@@ -1,14 +1,14 @@
 /*!
  * Copyright 2019 XGBoost contributors
  */
+#include <algorithm>
+#include <string>
+#include <set>
+
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
-
-#include <algorithm>
-#include <string>
-#include <set>
 
 #include "xgboost/logging.h"
 #include "xgboost/span.h"

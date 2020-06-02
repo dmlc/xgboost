@@ -6,8 +6,6 @@
 #ifndef XGBOOST_DATA_SPARSE_PAGE_WRITER_H_
 #define XGBOOST_DATA_SPARSE_PAGE_WRITER_H_
 
-#include <xgboost/data.h>
-#include <dmlc/io.h>
 #include <vector>
 #include <algorithm>
 #include <cstring>
@@ -16,9 +14,12 @@
 #include <memory>
 #include <functional>
 
+#include <xgboost/data.h>
+#include <dmlc/io.h>
+
 #if DMLC_ENABLE_STD_THREAD
 #include <dmlc/concurrency.h>
-#include <thread>
+#include <thread>  // NOLINT
 #endif  // DMLC_ENABLE_STD_THREAD
 
 namespace xgboost {
