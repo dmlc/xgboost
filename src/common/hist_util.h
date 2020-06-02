@@ -200,16 +200,6 @@ class DenseCuts  : public CutsBuilder {
   void Build(DMatrix* p_fmat, uint32_t max_num_bins) override;
 };
 
-// sketch_batch_num_elements 0 means autodetect. Only modify this for testing.
-HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
-                           size_t sketch_batch_num_elements = 0);
-
-// sketch_batch_num_elements 0 means autodetect. Only modify this for testing.
-template <typename AdapterT>
-HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
-                                  float missing,
-                                  size_t sketch_batch_num_elements = 0);
-
 
 enum BinTypeSize {
   kUint8BinsTypeSize  = 1,

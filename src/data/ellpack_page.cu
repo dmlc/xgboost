@@ -5,7 +5,7 @@
 #include <xgboost/data.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_output_iterator.h>
-#include "../common/hist_util.h"
+#include "../common/hist_util.cuh"
 #include "../common/random.h"
 #include "./ellpack_page.cuh"
 #include "device_adapter.cuh"
