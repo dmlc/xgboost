@@ -18,8 +18,6 @@
 #include <utility>
 #include <vector>
 
-#include "../data/adapter.h"
-#include "../data/device_adapter.cuh"
 #include "device_helpers.cuh"
 #include "hist_util.h"
 #include "hist_util.cuh"

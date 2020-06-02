@@ -2,6 +2,7 @@
 #define COMMON_HIST_UTIL_CUH_
 
 #include <thrust/host_vector.h>
+
 #include "hist_util.h"
 #include "device_helpers.cuh"
 #include "../data/device_adapter.cuh"
