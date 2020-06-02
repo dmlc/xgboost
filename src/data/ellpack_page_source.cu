@@ -4,7 +4,7 @@
 #include <memory>
 #include <utility>
 
-#include "../common/hist_util.h"
+#include "../common/hist_util.cuh"
 
 #include "ellpack_page.cuh"
 #include "ellpack_page_source.h"

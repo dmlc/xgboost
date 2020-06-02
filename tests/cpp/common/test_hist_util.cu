@@ -13,6 +13,7 @@
 #include "../data/test_array_interface.h"
 #include "../../../src/common/device_helpers.cuh"
 #include "../../../src/common/hist_util.h"
+#include "../../../src/common/hist_util.cuh"
 #include "../../../src/data/device_adapter.cuh"
 #include "../../../src/common/math.h"
 #include "../../../src/data/simple_dmatrix.h"
