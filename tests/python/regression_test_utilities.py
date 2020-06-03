@@ -4,6 +4,8 @@ import numpy as np
 import os
 import sys
 import xgboost as xgb
+from joblib import Memory
+memory = Memory('./cachedir', verbose=0)
 
 try:
     from sklearn import datasets
@@ -39,24 +41,28 @@ class Dataset:
         return self.__str__()
 
 
+@memory.cache
 def get_boston():
     data = datasets.load_boston()
     return data.data, data.target
 
 
+@memory.cache
 def get_digits():
     data = datasets.load_digits()
     return data.data, data.target
 
 
+@memory.cache
 def get_cancer():
     data = datasets.load_breast_cancer()
     return data.data, data.target
 
 
+@memory.cache
 def get_sparse():
     rng = np.random.RandomState(199)
-    n = 5000
+    n = 2000
     sparsity = 0.75
     X, y = datasets.make_regression(n, random_state=rng)
     flag = np.random.binomial(1, sparsity, X.shape)
@@ -77,17 +83,18 @@ def get_small_weights():
     return get_weights_regression(1e-6, 1e-5)
 
 
+@memory.cache
 def get_weights_regression(min_weight, max_weight):
-    rng = np.random.RandomState(199)
-    n = 10000
+    np.random.seed(199)
+    n = 2000
     sparsity = 0.25
-    X, y = datasets.make_regression(n, random_state=rng)
+    X, y = datasets.make_regression(n, random_state=199)
     flag = np.random.binomial(1, sparsity, X.shape)
     for i in range(X.shape[0]):
         for j in range(X.shape[1]):
             if flag[i, j]:
                 X[i, j] = np.nan
-    w = np.array([rng.uniform(min_weight, max_weight) for i in range(n)])
+    w = np.random.uniform(min_weight, max_weight, n)
     return X, y, w
 
 
@@ -111,7 +118,9 @@ def train_dataset(dataset, param_in, num_rounds=10, scale_features=False, DMatri
                           weight=dataset.w)
     elif DMatrixT is xgb.DeviceQuantileDMatrix:
         import cupy as cp
-        dtrain = DMatrixT(cp.array(X), cp.array(dataset.y), weight=None if dataset.w is None else cp.array(dataset.w), **dmatrix_params)
+        dtrain = DMatrixT(cp.array(X), cp.array(dataset.y),
+                          weight=None if dataset.w is None else cp.array(dataset.w),
+                          **dmatrix_params)
     else:
         dtrain = DMatrixT(X, dataset.y, weight=dataset.w, **dmatrix_params)
 
