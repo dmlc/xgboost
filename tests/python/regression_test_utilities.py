@@ -111,7 +111,7 @@ def train_dataset(dataset, param_in, num_rounds=10, scale_features=False, DMatri
                           weight=dataset.w)
     elif DMatrixT is xgb.DeviceQuantileDMatrix:
         import cupy as cp
-        dtrain = DMatrixT(cp.array(X), dataset.y, weight=dataset.w, **dmatrix_params)
+        dtrain = DMatrixT(cp.array(X), cp.array(dataset.y), weight=None if dataset.w is None else cp.array(dataset.w), **dmatrix_params)
     else:
         dtrain = DMatrixT(X, dataset.y, weight=dataset.w, **dmatrix_params)
 
