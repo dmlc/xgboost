@@ -109,6 +109,7 @@ class NoMetaInfo {
   const float* Weights() const { return nullptr; }
   const uint64_t* Qid() const { return nullptr; }
   const float* BaseMargin() const { return nullptr; }
+  virtual ~NoMetaInfo() = default;
 };
 
 };  // namespace detail
@@ -150,6 +151,8 @@ class CSRAdapterBatch : public detail::NoMetaInfo {
   }
   size_t Size() const { return num_rows_; }
 
+  ~CSRAdapterBatch() noexcept override = default;
+
  private:
   const size_t* row_ptr_;
   const unsigned* feature_idx_;
@@ -169,6 +172,7 @@ class CSRAdapter : public detail::SingleBatchDataIter<CSRAdapterBatch> {
   const CSRAdapterBatch& Value() const override { return batch_; }
   size_t NumRows() const { return num_rows_; }
   size_t NumColumns() const { return num_columns_; }
+  ~CSRAdapter() noexcept override = default;
 
  private:
   CSRAdapterBatch batch_;
@@ -205,6 +209,7 @@ class DenseAdapterBatch : public detail::NoMetaInfo {
   const Line GetLine(size_t idx) const {
     return Line(values_ + idx * num_features_, num_features_, idx);
   }
+  ~DenseAdapterBatch() noexcept override = default;
 
  private:
   const float* values_;
@@ -222,6 +227,7 @@ class DenseAdapter : public detail::SingleBatchDataIter<DenseAdapterBatch> {
 
   size_t NumRows() const { return num_rows_; }
   size_t NumColumns() const { return num_columns_; }
+  ~DenseAdapter() noexcept override = default;
 
  private:
   DenseAdapterBatch batch_;
