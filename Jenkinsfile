@@ -48,7 +48,6 @@ pipeline {
         script {
           parallel ([
             'clang-tidy': { ClangTidy() },
-            'lint': { Lint() },
             'sphinx-doc': { SphinxDoc() },
             'doxygen': { Doxygen() }
           ])
