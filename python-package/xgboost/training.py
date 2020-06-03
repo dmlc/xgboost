@@ -13,7 +13,9 @@ from . import callback
 def _train_internal(params, dtrain,
                     num_boost_round=10, evals=(),
                     obj=None, feval=None,
-                    xgb_model=None, callbacks=None):
+                    xgb_model=None, callbacks=None,
+                    evals_result=None, maximize=None,
+                    verbose_eval=None, early_stopping_rounds=None):
     """internal training function"""
     callbacks = [] if callbacks is None else callbacks
     evals = list(evals)
@@ -48,6 +50,19 @@ def _train_internal(params, dtrain,
         assert all(is_new_callback), "You can't mix two styles of callbacks."
         callbacks = callback.CallbackContainer(callbacks)
     else:
+        # Most of legacy advanced options becomes callbacks
+        if isinstance(verbose_eval, bool) and verbose_eval:
+            callbacks.append(callback.print_evaluation())
+        else:
+            if isinstance(verbose_eval, int):
+                callbacks.append(callback.print_evaluation(verbose_eval))
+
+        if early_stopping_rounds is not None:
+            callbacks.append(callback.early_stop(early_stopping_rounds,
+                                                 maximize=maximize,
+                                                 verbose=bool(verbose_eval)))
+        if evals_result is not None:
+            callbacks.append(callback.record_evaluation(evals_result))
         callbacks = callback.LegacyCallbacks(
             callbacks, start_iteration, num_boost_round, evals, feval)
 
@@ -81,16 +96,9 @@ def _train_internal(params, dtrain,
     else:
         bst.best_iteration = nboost - 1
     bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
-
-    evals_history = {}
-    if any(is_new_callback):
-        for c in callbacks:
-            if isinstance(c, callback.EvaluationMonitor):
-                evals_history[c.name] = c.history
-
     # Copy to serialise and unserialise booster to reset state and free
     # training memory
-    return bst.copy(), evals_history
+    return bst.copy()
 
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
@@ -167,29 +175,15 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     -------
     Booster : a trained booster model
     """
-    callbacks = [] if callbacks is None else callbacks
-
-    # Most of legacy advanced options becomes callbacks
-    if isinstance(verbose_eval, bool) and verbose_eval:
-        callbacks.append(callback.print_evaluation())
-    else:
-        if isinstance(verbose_eval, int):
-            callbacks.append(callback.print_evaluation(verbose_eval))
-
-    if early_stopping_rounds is not None:
-        callbacks.append(callback.early_stop(early_stopping_rounds,
-                                             maximize=maximize,
-                                             verbose=bool(verbose_eval)))
-    if evals_result is not None:
-        callbacks.append(callback.record_evaluation(evals_result))
-
-    bst, history = _train_internal(params, dtrain,
-                                   num_boost_round=num_boost_round,
-                                   evals=evals,
-                                   obj=obj, feval=feval,
-                                   xgb_model=xgb_model, callbacks=callbacks)
-    if evals_result is not None:
-        evals_result.update(history)
+    bst = _train_internal(params, dtrain,
+                          num_boost_round=num_boost_round,
+                          evals=evals,
+                          obj=obj, feval=feval,
+                          xgb_model=xgb_model, callbacks=callbacks,
+                          verbose_eval=verbose_eval,
+                          evals_result=evals_result,
+                          maximize=maximize,
+                          early_stopping_rounds=early_stopping_rounds)
     return bst
 
 

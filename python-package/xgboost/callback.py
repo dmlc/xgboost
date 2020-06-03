@@ -364,11 +364,11 @@ class EarlyStopping(TrainingCallback):
     name : str
         Name of data.
     metric : str/callable
-        Name of metric.
-    rounds : int
-        Early stopping rounds.
+        Name of metric.  Use the default metric if not specified.
     metric_name : str
         Name of metric, used when metric is a callable object.
+    rounds : int
+        Early stopping rounds.
     maximize : bool
         Whether to maximize evaluation metric.
     missing : float
@@ -378,8 +378,7 @@ class EarlyStopping(TrainingCallback):
     label
         Same as weight for DMatrix, used when input is not a DMatrix.
     '''
-    def __init__(self, data, name, metric, rounds,
-                 metric_name='metric',
+    def __init__(self, data, name, rounds, metric=None, metric_name='metric',
                  maximize=False, missing=numpy.nan, weight=None, label=None):
         self.data = self._make_dmatrix(data, label, weight, missing)
 
@@ -392,7 +391,10 @@ class EarlyStopping(TrainingCallback):
         self.name = name
         self.metric = metric
         self.rounds = rounds
-        self.metric_name = metric_name
+        if callable(self.metric):
+            self.metric_name = metric_name
+        else:
+            self.metric_name = self.metric
         self.maximize = maximize
 
         if self.maximize:
@@ -401,11 +403,12 @@ class EarlyStopping(TrainingCallback):
             self.improve_op = lambda x, y: x < y
 
         self.current_rounds = 0
+        self.best_scores = {}
         super().__init__()
 
     def _make_dmatrix(self, data, label, weight, missing):
         if not isinstance(data, DMatrix):
-            assert label is not None
+            assert label is not None, 'Label is required to construct DMatrix.'
             data = DMatrix(data, label=label, weight=weight, missing=missing)
         else:
             assert label is None and weight is None and numpy.isnan(missing), (
@@ -422,23 +425,38 @@ class EarlyStopping(TrainingCallback):
         model.best_iteration = self.rounds
         model.set_attr(best_iteration=str(self.rounds))
 
-    def _update_rounds(self, score, model, epoch):
-        if not self.history:
+    def _update_rounds(self, scores, model, epoch):
+        assert len(scores) == 1
+        score = scores[0]
+        metric, s = score[0], score[1]
+        if not self.history:    # First round
             self.current_rounds = 0
-            self.history[self.name] = [score]
-        elif not self.improve_op(score, self.history[self.name][-1]):
+            self.history[self.name] = {}
+            self.history[self.name][metric] = [s]
+            self.best_scores[self.name] = {}
+            self.best_scores[self.name][metric] = [s]
+        elif not self.improve_op(s, self.best_scores[self.name][metric][-1]):
+            # Not improved
+            self.history[self.name][metric].append(s)
             self.current_rounds += 1
         else:                   # Improved
-            self.history[self.name].append(score)
-            model.set_attr(best_score=self.history[-1],
-                           best_iteration=epoch)
+            self.history[self.name][metric].append(s)
+            self.best_scores[self.name][metric].append(s)
+            record = self.history[self.name][metric][-1]
+            model.set_attr(best_score=str(record),
+                           best_iteration=str(epoch))
+            self.current_rounds = 0  # reset
 
         if self.current_rounds >= self.rounds:
             return True
         return False
 
     def after_iteration(self, model, epoch):
-        assert not rabit.is_distributed()
+        assert not rabit.is_distributed(), '''
+Use distributed version instead.  For dask users:
+
+>>>  from xgboost.dask import EarlyStopping
+'''
         if callable(self.metric):
             predt = model.predict(self.data)
             score = self.metric(predt, self.label)

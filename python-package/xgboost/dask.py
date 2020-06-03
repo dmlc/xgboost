@@ -438,7 +438,11 @@ class EarlyStopping(SingleNodeEarlyStopping):
         _uncache_data(model)
 
     def after_iteration(self, model, epoch):
-        assert rabit.is_distributed()
+        assert rabit.is_distributed(), '''
+Use single node version instead:
+
+>>>  from xgboost.callback import EarlyStopping
+'''
         worker = distributed_get_worker()
         if hasattr(self, 'data'):
             _cache_data(model, self.data, self.data_id, worker)
