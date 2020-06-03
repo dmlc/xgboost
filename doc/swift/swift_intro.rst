@@ -3,224 +3,219 @@ Swift Package Introduction
 ###########################
 This document gives a basic walkthrough of xgboost swift package.
 
-**List of other Helpful Links**
 
-* `Swift example code collections <https://github.com/kongzii/SwiftXGBoost/tree/master/Examples>`_
+**List of other helpful links**
+
+* `Swift examples <https://github.com/kongzii/SwiftXGBoost/tree/master/Examples>`_
 * `Swift API Reference <https://kongzii.github.io/SwiftXGBoost/>`_
+
 
 Install XGBoost
 ---------------
-To install XGBoost, follow instructions at <https://github.com/kongzii/SwiftXGBoost#installation>.
+To install XGBoost, please follow instructions at `GitHub <https://github.com/kongzii/SwiftXGBoost#installation>`_.
+
 
 Include in your project
----------------
-SwiftXGBoost uses Swift Package Manager, simply add dependency in your Package.swift:
+-----------------------
+`SwiftXGBoost <https://github.com/kongzii/SwiftXGBoost>`_ uses `Swift Package Manager <https://swift.org/package-manager/>`_, to use it in your project, simply add it as a dependency in your Package.swift file:
 
-.package(url: "https://github.com/kongzii/SwiftXGBoost.git", from: "0.7.0")
+  .. code-block:: swift
+
+    .package(url: "https://github.com/kongzii/SwiftXGBoost.git", from: "0.7.0")
+
+
+Python compatibility
+--------------------
+With `PythonKit <https://github.com/pvieito/PythonKit>`_ package, you can import Python modules:
+
+.. code-block:: swift
+
+    let numpy = Python.import("numpy")
+    let pandas = Python.import("pandas")
+
+And use them in the same way as in Python:
+
+.. code-block:: swift
+
+    let dataFrame = pandas.read_csv("Examples/Data/veterans_lung_cancer.csv")
+
+And then use them with `SwiftXGBoost <https://github.com/kongzii/SwiftXGBoost>`_, 
+check `AftSurvival <https://github.com/kongzii/SwiftXGBoost/blob/master/Examples/AftSurvival/main.swift>`_ for a complete example.
+
+
+TensorFlow compatibility
+------------------------
+If you are using `S4TF toolchains <https://github.com/tensorflow/swift>`_, you can utilize tensors directly:
+
+.. code-block:: swift
+
+    let tensor = Tensor<Float>(shape: TensorShape([2, 3]), scalars: [1, 2, 3, 4, 5, 6])
+    let tensorData = try DMatrix(name: "tensorData", from: tensor)
+
 
 Data Interface
 --------------
-The XGBoost python module is able to load data from:
+The XGBoost swift package is currently able to load data from:
 
 - LibSVM text format file
 - Comma-separated values (CSV) file
 - NumPy 2D array
-- SciPy 2D sparse array
-- cuDF DataFrame
-- Pandas data frame, and
-- XGBoost binary buffer file.
+- `Swift for Tensorflow <https://www.tensorflow.org/swift/>`_  2D Tensor
+- XGBoost binary buffer file
 
-(See :doc:`/tutorials/input_format` for detailed description of text input format.)
+The data is stored in a `DMatrix <https://kongzii.github.io/SwiftXGBoost/Classes/DMatrix.html>`_ class.
 
-The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
+To load a libsvm text file into `DMatrix <https://kongzii.github.io/SwiftXGBoost/Classes/DMatrix.html>`_ class:
 
-* To load a libsvm text file or a XGBoost binary file into :py:class:`DMatrix <xgboost.DMatrix>`:
+  .. code-block:: swift
 
-  .. code-block:: python
+    let svmData = try DMatrix(name: "train", from: "Examples/Data/data.svm.txt", format: .libsvm)
 
-    dtrain = xgb.DMatrix('train.svm.txt')
-    dtest = xgb.DMatrix('test.svm.buffer')
+To load a CSV file into `DMatrix <https://kongzii.github.io/SwiftXGBoost/Classes/DMatrix.html>`_:
 
-* To load a CSV file into :py:class:`DMatrix <xgboost.DMatrix>`:
+  .. code-block:: swift
 
-  .. code-block:: python
+    # labelColumn specifies the index of the column containing the true label
+    let csvData = try DMatrix(name: "train", from: "Examples/Data/data.csv", format: .csv, labelColumn: 0)
 
-    # label_column specifies the index of the column containing the true label
-    dtrain = xgb.DMatrix('train.csv?format=csv&label_column=0')
-    dtest = xgb.DMatrix('test.csv?format=csv&label_column=0')
-
-  .. note:: Categorical features not supported
-
-    Note that XGBoost does not provide specialization for categorical features; if your data contains
-    categorical features, load it as a NumPy array first and then perform corresponding preprocessing steps like
-    `one-hot encoding <http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.OneHotEncoder.html>`_.
-
-  .. note:: Use Pandas to load CSV files with headers
+  .. note:: Use Pandas to load CSV files with headers.
 
     Currently, the DMLC data parser cannot parse CSV files with headers. Use Pandas (see below) to read CSV files with headers.
 
-* To load a NumPy array into :py:class:`DMatrix <xgboost.DMatrix>`:
+To load a NumPy array into `DMatrix <https://kongzii.github.io/SwiftXGBoost/Classes/DMatrix.html>`_:
 
-  .. code-block:: python
+  .. code-block:: swift
 
-    data = np.random.rand(5, 10)  # 5 entities, each contains 10 features
-    label = np.random.randint(2, size=5)  # binary target
-    dtrain = xgb.DMatrix(data, label=label)
+    let numpyData = try DMatrix(name: "train", from: numpy.random.rand(5, 10), label: numpy.random.randint(2, size: 5))
 
-* To load a :py:mod:`scipy.sparse` array into :py:class:`DMatrix <xgboost.DMatrix>`:
+To load a Pandas data frame into `DMatrix <https://kongzii.github.io/SwiftXGBoost/Classes/DMatrix.html>`_:
 
-  .. code-block:: python
+  .. code-block:: swift
 
-    csr = scipy.sparse.csr_matrix((dat, (row, col)))
-    dtrain = xgb.DMatrix(csr)
+    let pandasDataFrame = pandas.DataFrame(numpy.arange(12).reshape([4, 3]), columns: ["a", "b", "c"])
+    let pandasLabel = numpy.random.randint(2, size: 4)
+    let pandasData = try DMatrix(name: "data", from: pandasDataFrame.values, label: pandasLabel)
 
-* To load a Pandas data frame into :py:class:`DMatrix <xgboost.DMatrix>`:
+Saving `DMatrix <https://kongzii.github.io/SwiftXGBoost/Classes/DMatrix.html>`_ into an XGBoost binary file will make loading faster:
 
-  .. code-block:: python
+  .. code-block:: swift
 
-    data = pandas.DataFrame(np.arange(12).reshape((4,3)), columns=['a', 'b', 'c'])
-    label = pandas.DataFrame(np.random.randint(2, size=4))
-    dtrain = xgb.DMatrix(data, label=label)
+    try pandasData.save(to: "train.buffer")
 
-* Saving :py:class:`DMatrix <xgboost.DMatrix>` into a XGBoost binary file will make loading faster:
+Missing values can be replaced by a default value in the `DMatrix <https://kongzii.github.io/SwiftXGBoost/Classes/DMatrix.html>`_ constructor:
 
-  .. code-block:: python
+  .. code-block:: swift
 
-    dtrain = xgb.DMatrix('train.svm.txt')
-    dtrain.save_binary('train.buffer')
+    let dataWithMissingValues = try DMatrix(name: "data", from: pandasDataFrame.values, missingValue: 999.0)
 
-* Missing values can be replaced by a default value in the :py:class:`DMatrix <xgboost.DMatrix>` constructor:
+Various `float fields <https://kongzii.github.io/SwiftXGBoost/Enums/FloatField.html>`_  and `uint fields <https://kongzii.github.io/SwiftXGBoost/Enums/UIntField.html>`_ can be set when needed:
 
-  .. code-block:: python
+  .. code-block:: swift
 
-    dtrain = xgb.DMatrix(data, label=label, missing=-999.0)
+    try dataWithMissingValues.set(field: .weight, values: [Float](repeating: 1, count: try dataWithMissingValues.rowCount()))
 
-* Weights can be set when needed:
+And returned:
 
-  .. code-block:: python
+  .. code-block:: swift
 
-    w = np.random.rand(5, 1)
-    dtrain = xgb.DMatrix(data, label=label, missing=-999.0, weight=w)
-
-When performing ranking tasks, the number of weights should be equal
-to number of groups.
+    let labelsFromData = try pandasData.get(field: .label)
 
 
 Setting Parameters
 ------------------
-XGBoost can use either a list of pairs or a dictionary to set :doc:`parameters </parameter>`. For instance:
+Parameters for `Booster <https://kongzii.github.io/SwiftXGBoost/Classes/Booster.html>`_ can also be set.
 
-* Booster parameters
+Using the set method:
 
-  .. code-block:: python
+  .. code-block:: swift
 
-    param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic'}
-    param['nthread'] = 4
-    param['eval_metric'] = 'auc'
+    let firstBooster = try Booster()
+    try firstBooster.set(parameter: "tree_method", value: "hist")
 
-* You can also specify multiple eval metrics:
+Or as a list at initialization:
 
-  .. code-block:: python
+  .. code-block:: swift
 
-    param['eval_metric'] = ['auc', 'ams@0']
+    let parameters = [Parameter(name: "tree_method", value: "hist")]
+    let secondBooster = try Booster(parameters: parameters)
 
-    # alternatively:
-    # plst = param.items()
-    # plst += [('eval_metric', 'ams@0')]
-
-* Specify validations set to watch performance
-
-  .. code-block:: python
-
-    evallist = [(dtest, 'eval'), (dtrain, 'train')]
 
 Training
 --------
+Training a model requires a booster and a dataset.
 
-Training a model requires a parameter list and data set.
+.. code-block:: swift
 
-.. code-block:: python
+  let trainingData = try DMatrix(name: "train", from: "Examples/Data/data.csv", format: .csv, labelColumn: 0)
+  let boosterWithCachedData = try Booster(with: [trainingData])
+  try boosterWithCachedData.train(iterations: 100, trainingData: trainingData)
 
-  num_round = 10
-  bst = xgb.train(param, dtrain, num_round, evallist)
+After training, the model can be saved:
 
-After training, the model can be saved.
+.. code-block:: swift
 
-.. code-block:: python
+  try boosterWithCachedData.save(to: "0001.xgboost")
 
-  bst.save_model('0001.model')
+The model can also be dumped to a text:
 
-The model and its feature map can also be dumped to a text file.
+.. code-block:: swift
 
-.. code-block:: python
-
-  # dump model
-  bst.dump_model('dump.raw.txt')
-  # dump model with feature map
-  bst.dump_model('dump.raw.txt', 'featmap.txt')
+  let textModel = try boosterWithCachedData.dumped(format: .text)
 
 A saved model can be loaded as follows:
 
-.. code-block:: python
+.. code-block:: swift
 
-  bst = xgb.Booster({'nthread': 4})  # init model
-  bst.load_model('model.bin')  # load data
+  let loadedBooster = try Booster(from: "0001.xgboost")
 
-Methods including `update` and `boost` from `xgboost.Booster` are designed for
-internal usage only.  The wrapper function `xgboost.train` does some
-pre-configuration including setting up caches and some other parameters.
-
-Early Stopping
---------------
-If you have a validation set, you can use early stopping to find the optimal number of boosting rounds.
-Early stopping requires at least one set in ``evals``. If there's more than one, it will use the last.
-
-.. code-block:: python
-
-  train(..., evals=evals, early_stopping_rounds=10)
-
-The model will train until the validation score stops improving. Validation error needs to decrease at least every ``early_stopping_rounds`` to continue training.
-
-If early stopping occurs, the model will have three additional fields: ``bst.best_score``, ``bst.best_iteration`` and ``bst.best_ntree_limit``. Note that :py:meth:`xgboost.train` will return a model from the last iteration, not the best one.
-
-This works with both metrics to minimize (RMSE, log loss, etc.) and to maximize (MAP, NDCG, AUC). Note that if you specify more than one evaluation metric the last one in ``param['eval_metric']`` is used for early stopping.
 
 Prediction
 ----------
 A model that has been trained or loaded can perform predictions on data sets.
 
-.. code-block:: python
+From Numpy array:
 
-  # 7 entities, each contains 10 features
-  data = np.random.rand(7, 10)
-  dtest = xgb.DMatrix(data)
-  ypred = bst.predict(dtest)
+.. code-block:: swift
 
-If early stopping is enabled during training, you can get predictions from the best iteration with ``bst.best_ntree_limit``:
+  let testDataNumpy = try DMatrix(name: "test", from: numpy.random.rand(7, 12))
+  let predictionNumpy = try loadedBooster.predict(from: testDataNumpy)
 
-.. code-block:: python
+From Swift array:
 
-  ypred = bst.predict(dtest, ntree_limit=bst.best_ntree_limit)
+.. code-block:: swift
+
+  let testData = try DMatrix(name: "test", from: [69.0,60.0,7.0,0,0,0,1,1,0,1,0,0], shape: Shape(1, 12))
+  let prediction = try loadedBooster.predict(from: testData)
+
 
 Plotting
 --------
+You can also save the plot of importance into a file:
 
-You can use plotting module to plot importance and output tree.
+.. code-block:: swift
 
-To plot importance, use :py:meth:`xgboost.plot_importance`. This function requires ``matplotlib`` to be installed.
+  try boosterWithCachedData.saveImportanceGraph(to: "importance") // .png extension will be added
 
-.. code-block:: python
 
-  xgb.plot_importance(bst)
+C API
+--------
+Both `Booster <https://kongzii.github.io/SwiftXGBoost/Classes/Booster.html>`_ and `DMatrix <https://kongzii.github.io/SwiftXGBoost/Classes/DMatrix.html>`_ are exposing pointers to the underlying C.
 
-To plot the output tree via ``matplotlib``, use :py:meth:`xgboost.plot_tree`, specifying the ordinal number of the target tree. This function requires ``graphviz`` and ``matplotlib``.
+You can import a C-API library:
 
-.. code-block:: python
+.. code-block:: swift
 
-  xgb.plot_tree(bst, num_trees=2)
+  import CXGBoost
 
-When you use ``IPython``, you can use the :py:meth:`xgboost.to_graphviz` function, which converts the target tree to a ``graphviz`` instance. The ``graphviz`` instance is automatically rendered in ``IPython``.
+And use it directly in your Swift code:
 
-.. code-block:: python
+.. code-block:: swift
 
-  xgb.to_graphviz(bst, num_trees=2)
+  try safe { XGBoosterSaveModel(boosterWithCachedData.booster, "0002.xgboost") }
+
+`safe` is a helper function that will throw an error if C-API call fails.
+
+
+More
+--------
+For more details and examples, check out `GitHub repository <https://github.com/kongzii/SwiftXGBoost>`_.
