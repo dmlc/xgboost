@@ -65,7 +65,7 @@ def get_sparse():
     n = 2000
     sparsity = 0.75
     X, y = datasets.make_regression(n, random_state=rng)
-    flag = np.random.binomial(1, sparsity, X.shape)
+    flag = rng.binomial(1, sparsity, X.shape)
     for i in range(X.shape[0]):
         for j in range(X.shape[1]):
             if flag[i, j]:
@@ -85,16 +85,16 @@ def get_small_weights():
 
 @memory.cache
 def get_weights_regression(min_weight, max_weight):
-    np.random.seed(199)
+    rng = np.random.RandomState(199)
     n = 2000
     sparsity = 0.25
-    X, y = datasets.make_regression(n, random_state=199)
-    flag = np.random.binomial(1, sparsity, X.shape)
+    X, y = datasets.make_regression(n, random_state=rng)
+    flag = rng.binomial(1, sparsity, X.shape)
     for i in range(X.shape[0]):
         for j in range(X.shape[1]):
             if flag[i, j]:
                 X[i, j] = np.nan
-    w = np.random.uniform(min_weight, max_weight, n)
+    w = rng.uniform(min_weight, max_weight, n)
     return X, y, w
 
 
