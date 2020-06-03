@@ -407,7 +407,7 @@ Until now, all the learnings we have performed were based on boosting trees. **X
 
 
 ```r
-bst <- xgb.train(data=dtrain, booster = "gblinear", max.depth=2, nthread = 2, nrounds=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
+bst <- xgb.train(data=dtrain, booster = "gblinear", nthread = 2, nrounds=2, watchlist=watchlist, eval.metric = "error", eval.metric = "logloss", objective = "binary:logistic")
 ```
 
 ```
@@ -493,19 +493,19 @@ xgb.dump(bst, with_stats = T)
 ```
 
 ```
-##  [1] "booster[0]"                                                          
+##  [1] "booster[0]"
 ##  [2] "0:[f28<-1.00136e-05] yes=1,no=2,missing=1,gain=4000.53,cover=1628.25"
-##  [3] "1:[f55<-1.00136e-05] yes=3,no=4,missing=3,gain=1158.21,cover=924.5"  
-##  [4] "3:leaf=1.71218,cover=812"                                            
-##  [5] "4:leaf=-1.70044,cover=112.5"                                         
+##  [3] "1:[f55<-1.00136e-05] yes=3,no=4,missing=3,gain=1158.21,cover=924.5"
+##  [4] "3:leaf=1.71218,cover=812"
+##  [5] "4:leaf=-1.70044,cover=112.5"
 ##  [6] "2:[f108<-1.00136e-05] yes=5,no=6,missing=5,gain=198.174,cover=703.75"
-##  [7] "5:leaf=-1.94071,cover=690.5"                                         
-##  [8] "6:leaf=1.85965,cover=13.25"                                          
-##  [9] "booster[1]"                                                          
+##  [7] "5:leaf=-1.94071,cover=690.5"
+##  [8] "6:leaf=1.85965,cover=13.25"
+##  [9] "booster[1]"
 ## [10] "0:[f59<-1.00136e-05] yes=1,no=2,missing=1,gain=832.545,cover=788.852"
-## [11] "1:[f28<-1.00136e-05] yes=3,no=4,missing=3,gain=569.725,cover=768.39" 
-## [12] "3:leaf=0.784718,cover=458.937"                                       
-## [13] "4:leaf=-0.96853,cover=309.453"                                       
+## [11] "1:[f28<-1.00136e-05] yes=3,no=4,missing=3,gain=569.725,cover=768.39"
+## [12] "3:leaf=0.784718,cover=458.937"
+## [13] "4:leaf=-0.96853,cover=309.453"
 ## [14] "2:leaf=-6.23624,cover=20.4624"
 ```
 
