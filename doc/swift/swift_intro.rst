@@ -75,7 +75,7 @@ To load a CSV file into `DMatrix <https://kongzii.github.io/SwiftXGBoost/Classes
 
   .. code-block:: swift
 
-    # labelColumn specifies the index of the column containing the true label
+    // labelColumn specifies the index of the column containing the true label
     let csvData = try DMatrix(name: "train", from: "Examples/Data/data.csv", format: .csv, labelColumn: 0)
 
   .. note:: Use Pandas to load CSV files with headers.
