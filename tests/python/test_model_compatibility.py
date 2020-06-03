@@ -4,6 +4,7 @@ import generate_models as gm
 import json
 import zipfile
 import pytest
+import copy
 
 
 def run_model_param_check(config):
@@ -123,6 +124,9 @@ def test_model_compatibility():
         name = os.path.basename(path)
         if name.startswith('xgboost-'):
             booster = xgboost.Booster(model_file=path)
+            run_booster_check(booster, name)
+            # Do full serialization.
+            booster = copy.copy(booster)
             run_booster_check(booster, name)
         elif name.startswith('xgboost_scikit'):
             run_scikit_model_check(name, path)
