@@ -149,7 +149,7 @@ TEST(CpuPredictor, InplacePredict) {
     HostDeviceVector<float> data;
     gen.GenerateDense(&data);
     ASSERT_EQ(data.Size(), kRows * kCols);
-    data::DenseAdapter x{data.HostPointer(), kRows, kCols};
+    auto x = std::make_shared<data::DenseAdapter>(data.HostPointer(), kRows, kCols);
     TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
   }
 
@@ -158,8 +158,9 @@ TEST(CpuPredictor, InplacePredict) {
     HostDeviceVector<bst_row_t> rptrs;
     HostDeviceVector<bst_feature_t> columns;
     gen.GenerateCSR(&data, &rptrs, &columns);
-    data::CSRAdapter x(rptrs.HostPointer(), columns.HostPointer(),
-                       data.HostPointer(), kRows, data.Size(), kCols);
+    auto x = std::make_shared<data::CSRAdapter>(
+        rptrs.HostPointer(), columns.HostPointer(), data.HostPointer(), kRows,
+        data.Size(), kCols);
     TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
   }
 }
