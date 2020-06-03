@@ -380,12 +380,14 @@ class EarlyStopping(TrainingCallback):
     '''
     def __init__(self, data, name, rounds, metric=None, metric_name='metric',
                  maximize=False, missing=numpy.nan, weight=None, label=None):
-        self.data = self._make_dmatrix(data, label, weight, missing)
-
         if callable(metric):
+            self.data = data
             self.label = label
+            assert weight is None, 'Weight is not supported by custom metric'
         else:
+            self.data = self._make_dmatrix(data, label, weight, missing)
             self.label = None
+            self.weight = None
 
         self.data_id = id(self.data)
         self.name = name
@@ -458,8 +460,8 @@ Use distributed version instead.  For dask users:
 >>>  from xgboost.dask import EarlyStopping
 '''
         if callable(self.metric):
-            predt = model.predict(self.data)
-            score = self.metric(predt, self.label)
+            predt = model.inplace_predict(self.data)
+            score = self.metric(self.label, predt)
             score = [(self.metric_name, score)]
         else:
             score = model.eval(self.data)
