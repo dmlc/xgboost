@@ -1,14 +1,14 @@
 // Copyright (c) 2014 by Contributors
-#include <dmlc/logging.h>
-#include <dmlc/omp.h>
-#include <xgboost/c_api.h>
-
 #include <cstring>
 #include <cstdio>
 #include <vector>
 #include <string>
 #include <utility>
 #include <sstream>
+
+#include <dmlc/logging.h>
+#include <dmlc/omp.h>
+#include <xgboost/c_api.h>
 
 #include "xgboost_R.h"
 
