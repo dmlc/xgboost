@@ -29,14 +29,14 @@
 #ifndef XGBOOST_SPAN_H_
 #define XGBOOST_SPAN_H_
 
-#include <xgboost/base.h>
-#include <xgboost/logging.h>
-
 #include <cinttypes>          // size_t
 #include <limits>             // numeric_limits
 #include <iterator>
 #include <type_traits>
 #include <cstdio>
+
+#include <xgboost/base.h>
+#include <xgboost/logging.h>
 
 /*!
  * The version number 1910 is picked up from GSL.

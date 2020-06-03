@@ -3,18 +3,18 @@
  * \file tree_model.cc
  * \brief model structure for tree
  */
+#include <sstream>
+#include <limits>
+#include <cmath>
+#include <iomanip>
+#include <stack>
+
 #include <dmlc/registry.h>
 #include <dmlc/json.h>
 
 #include <xgboost/tree_model.h>
 #include <xgboost/logging.h>
 #include <xgboost/json.h>
-
-#include <sstream>
-#include <limits>
-#include <cmath>
-#include <iomanip>
-#include <stack>
 
 #include "param.h"
 #include "../common/common.h"

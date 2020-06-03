@@ -1,11 +1,12 @@
 /*!
  * Copyright 2020 by XGBoost Contributors
  */
-#include <thrust/reduce.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <algorithm>
 #include <ctgmath>
 #include <limits>
+
+#include <thrust/reduce.h>
+#include <thrust/iterator/transform_iterator.h>
 
 #include "xgboost/base.h"
 #include "row_partitioner.cuh"

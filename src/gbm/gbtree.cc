@@ -4,15 +4,15 @@
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
  */
-#include <dmlc/omp.h>
-#include <dmlc/parameter.h>
-
 #include <vector>
 #include <memory>
 #include <utility>
 #include <string>
 #include <limits>
 #include <algorithm>
+
+#include <dmlc/omp.h>
+#include <dmlc/parameter.h>
 
 #include "xgboost/data.h"
 #include "xgboost/gbm.h"

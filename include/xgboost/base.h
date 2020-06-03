@@ -6,13 +6,14 @@
 #ifndef XGBOOST_BASE_H_
 #define XGBOOST_BASE_H_
 
-#include <dmlc/base.h>
-#include <dmlc/omp.h>
 #include <cmath>
 #include <iostream>
 #include <vector>
 #include <string>
 #include <utility>
+
+#include <dmlc/base.h>
+#include <dmlc/omp.h>
 
 /*!
  * \brief string flag for R library, to leave hooks when needed.

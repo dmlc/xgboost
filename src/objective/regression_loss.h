@@ -3,10 +3,10 @@
  */
 #ifndef XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_
 #define XGBOOST_OBJECTIVE_REGRESSION_LOSS_H_
+#include <algorithm>
 
 #include <dmlc/omp.h>
 #include <xgboost/logging.h>
-#include <algorithm>
 #include "../common/math.h"
 
 namespace xgboost {

@@ -2,8 +2,11 @@
  * Copyright 2015-2020 by Contributors
  * \file data.cc
  */
-#include <dmlc/registry.h>
 #include <cstring>
+#include <vector>
+#include <string>
+
+#include <dmlc/registry.h>
 
 #include "dmlc/io.h"
 #include "xgboost/data.h"

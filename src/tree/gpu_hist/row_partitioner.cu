@@ -1,10 +1,12 @@
 /*!
  * Copyright 2017-2019 XGBoost contributors
  */
+#include <vector>
+
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_output_iterator.h>
 #include <thrust/sequence.h>
-#include <vector>
+
 #include "../../common/device_helpers.cuh"
 #include "row_partitioner.cuh"
 

@@ -6,15 +6,15 @@
 #ifndef XGBOOST_COMMON_COMMON_H_
 #define XGBOOST_COMMON_COMMON_H_
 
-#include <xgboost/base.h>
-#include <xgboost/logging.h>
-
 #include <exception>
 #include <limits>
 #include <type_traits>
 #include <vector>
 #include <string>
 #include <sstream>
+
+#include <xgboost/base.h>
+#include <xgboost/logging.h>
 
 #if defined(__CUDACC__)
 #include <thrust/system/cuda/error.h>

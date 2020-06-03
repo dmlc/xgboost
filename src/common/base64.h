@@ -8,10 +8,11 @@
 #ifndef XGBOOST_COMMON_BASE64_H_
 #define XGBOOST_COMMON_BASE64_H_
 
-#include <xgboost/logging.h>
 #include <cctype>
 #include <cstdio>
 #include <string>
+
+#include "xgboost/logging.h"
 #include "./io.h"
 
 namespace xgboost {

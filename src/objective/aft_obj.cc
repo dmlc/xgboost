@@ -3,16 +3,16 @@
  * \file rank.cc
  * \brief Definition of aft loss.
  */
-
-#include <dmlc/omp.h>
-#include <xgboost/logging.h>
-#include <xgboost/objective.h>
 #include <vector>
 #include <limits>
 #include <algorithm>
 #include <memory>
 #include <utility>
 #include <cmath>
+
+#include <dmlc/omp.h>
+#include <xgboost/logging.h>
+#include <xgboost/objective.h>
 
 #include "xgboost/json.h"
 

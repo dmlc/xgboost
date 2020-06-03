@@ -7,15 +7,13 @@
 #ifndef XGBOOST_TREE_UPDATER_BASEMAKER_INL_H_
 #define XGBOOST_TREE_UPDATER_BASEMAKER_INL_H_
 
-#include <rabit/rabit.h>
-
-
 #include <vector>
 #include <algorithm>
 #include <string>
 #include <limits>
 #include <utility>
 
+#include <rabit/rabit.h>
 #include "xgboost/base.h"
 #include "xgboost/json.h"
 #include "xgboost/tree_updater.h"

@@ -8,6 +8,11 @@
 #ifndef XGBOOST_TREE_UPDATER_H_
 #define XGBOOST_TREE_UPDATER_H_
 
+#include <functional>
+#include <vector>
+#include <utility>
+#include <string>
+
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
@@ -15,11 +20,6 @@
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
-
-#include <functional>
-#include <vector>
-#include <utility>
-#include <string>
 
 namespace xgboost {
 
