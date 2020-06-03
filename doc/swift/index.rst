@@ -1,8 +1,8 @@
 ######################
 XGBoost Swift Package
 ######################
-This page contains links to all the swift related documents on swift package.
-Package is located at <https://github.com/kongzii/SwiftXGBoost>.
+This page contains links to all the related documents on the swift package.
+The package is hosted at `github <https://github.com/kongzii/SwiftXGBoost>`_.
 
 ********
 Contents
