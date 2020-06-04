@@ -3,28 +3,57 @@ import unittest
 import pytest
 import xgboost as xgb
 import numpy as np
+from hypothesis import given, strategies, settings
 
-try:
-    from regression_test_utilities import run_suite, parameter_combinations, \
-        assert_results_non_increasing
-except ImportError:
-    None
+exact_parameter_strategy = strategies.fixed_dictionaries({
+    'nthread': strategies.integers(0, 4),
+    'max_depth': strategies.integers(1, 16),
+    'min_child_weight': strategies.floats(0.5, 2.0),
+    'alpha': strategies.floats(0.0, 2.0),
+    'lambda': strategies.floats(1e-5, 2.0),
+    'eta': strategies.floats(0.01, 1.0),
+    'gamma': strategies.floats(0.0, 2.0),
+    # TODO: Enabling sampling parameters results in flaky tests
+    # 'seed': strategies.integers(0, 10),
+    # 'subsample': strategies.floats(0.5, 1.0),
+    # 'colsample_bytree': strategies.floats(0.5, 1.0),
+    # 'colsample_bylevel': strategies.floats(0.5, 1.0),
+})
+
+hist_parameter_strategy = strategies.fixed_dictionaries({
+    'max_depth': strategies.integers(1, 16),
+    'max_leaves': strategies.integers(0, 1024),
+    'max_bin': strategies.integers(2, 512),
+    'grow_policy': strategies.sampled_from(['lossguide', 'depthwise']),
+}).filter(lambda x: (x['max_depth'] > 0 or x['max_leaves'] > 0) and (
+    x['max_depth'] > 0 or x['grow_policy'] == 'lossguide'))
+
+
+def train_result(param, dmat, num_rounds):
+    result = {}
+    xgb.train(param, dmat, num_rounds, [(dmat, 'train')], verbose_eval=False,
+              evals_result=result)
+    return result
 
 
 class TestUpdaters(unittest.TestCase):
-    @pytest.mark.skipif(**tm.no_sklearn())
-    def test_histmaker(self):
-        variable_param = {'updater': ['grow_histmaker'], 'max_depth': [2, 8]}
-        for param in parameter_combinations(variable_param):
-            result = run_suite(param)
-            assert_results_non_increasing(result, 1e-2)
+    @given(exact_parameter_strategy, strategies.integers(1, 20),
+           tm.dataset_strategy)
+    @settings(deadline=2000)
+    def test_colmaker(self, param, num_rounds, dataset):
+        param['updater'] = 'grow_colmaker'
+        param = dataset.set_params(param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)
+        assert tm.non_increasing(result['train'][dataset.metric])
 
-    @pytest.mark.skipif(**tm.no_sklearn())
-    def test_colmaker(self):
-        variable_param = {'updater': ['grow_colmaker'], 'max_depth': [2, 8]}
-        for param in parameter_combinations(variable_param):
-            result = run_suite(param)
-            assert_results_non_increasing(result, 1e-2)
+    @given(exact_parameter_strategy, strategies.integers(1, 20),
+           tm.dataset_strategy)
+    @settings(deadline=2000)
+    def test_histmaker(self, param, num_rounds, dataset):
+        param['updater'] = 'grow_histmaker'
+        param = dataset.set_params(param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)
+        assert tm.non_increasing(result['train'][dataset.metric], 1e-3)
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_pruner(self):
@@ -50,19 +79,17 @@ class TestUpdaters(unittest.TestCase):
         # Second prune should not change the tree
         assert after_prune == second_prune
 
-    @pytest.mark.skipif(**tm.no_sklearn())
-    def test_fast_histmaker(self):
-        variable_param = {'tree_method': ['hist'],
-                          'max_depth': [2, 8],
-                          'max_bin': [2, 256],
-                          'grow_policy': ['depthwise', 'lossguide'],
-                          'max_leaves': [64, 0],
-                          'verbosity': [0],
-                          'single_precision_histogram': [True, False]}
-        for param in parameter_combinations(variable_param):
-            result = run_suite(param)
-            assert_results_non_increasing(result, 1e-2)
+    @given(exact_parameter_strategy, hist_parameter_strategy, strategies.integers(1, 20),
+           tm.dataset_strategy)
+    @settings(deadline=2000)
+    def test_quantile_histmaker(self, param, hist_param, num_rounds, dataset):
+        param['updater'] = 'grow_quantile_histmaker'
+        param = dataset.set_params(param)
+        param.update(hist_param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)
+        assert tm.non_increasing(result['train'][dataset.metric], 1e-3)
 
+    def test_quantile_histmaker_categorical(self):
         # hist must be same as exact on all-categorial data
         dpath = 'demo/data/'
         ag_dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
