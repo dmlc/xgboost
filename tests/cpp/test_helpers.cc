@@ -55,8 +55,9 @@ TEST(RandomDataGenerator, GenerateArrayInterfaceBatch) {
   CHECK_EQ(batches.size(), kBatches);
 
   size_t rows = 0;
-  for (auto const& interface : batches) {
-    Json j_interface = Json::Load({interface.c_str(), interface.size()});
+  for (auto const &interface_str : batches) {
+    Json j_interface =
+        Json::Load({interface_str.c_str(), interface_str.size()});
     ArrayInterfaceHandler::Validate(get<Object const>(j_interface));
     CHECK_EQ(get<Integer>(j_interface["shape"][1]), kCols);
     rows += get<Integer>(j_interface["shape"][0]);
