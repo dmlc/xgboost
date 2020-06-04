@@ -1467,6 +1467,7 @@ class Booster(object):
         self._validate_features(data)
         return self.eval_set([(data, name)], iteration)
 
+    # pylint: disable=too-many-function-args
     def predict(self,
                 data,
                 output_margin=False,
