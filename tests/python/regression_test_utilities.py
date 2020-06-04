@@ -4,6 +4,8 @@ import numpy as np
 import os
 import sys
 import xgboost as xgb
+from joblib import Memory
+memory = Memory('./cachedir', verbose=0)
 
 try:
     from sklearn import datasets
@@ -39,27 +41,35 @@ class Dataset:
         return self.__str__()
 
 
+@memory.cache
 def get_boston():
     data = datasets.load_boston()
     return data.data, data.target
 
 
+@memory.cache
 def get_digits():
     data = datasets.load_digits()
     return data.data, data.target
 
 
+@memory.cache
 def get_cancer():
     data = datasets.load_breast_cancer()
     return data.data, data.target
 
 
+@memory.cache
 def get_sparse():
     rng = np.random.RandomState(199)
-    n = 5000
+    n = 2000
     sparsity = 0.75
     X, y = datasets.make_regression(n, random_state=rng)
-    X = np.array([[0.0 if rng.uniform(0, 1) < sparsity else x for x in x_row] for x_row in X])
+    flag = rng.binomial(1, sparsity, X.shape)
+    for i in range(X.shape[0]):
+        for j in range(X.shape[1]):
+            if flag[i, j]:
+                X[i, j] = 0.0
     from scipy import sparse
     X = sparse.csr_matrix(X)
     return X, y
@@ -73,14 +83,18 @@ def get_small_weights():
     return get_weights_regression(1e-6, 1e-5)
 
 
+@memory.cache
 def get_weights_regression(min_weight, max_weight):
     rng = np.random.RandomState(199)
-    n = 10000
+    n = 2000
     sparsity = 0.25
     X, y = datasets.make_regression(n, random_state=rng)
-    X = np.array([[np.nan if rng.uniform(0, 1) < sparsity else x
-                   for x in x_row] for x_row in X])
-    w = np.array([rng.uniform(min_weight, max_weight) for i in range(n)])
+    flag = rng.binomial(1, sparsity, X.shape)
+    for i in range(X.shape[0]):
+        for j in range(X.shape[1]):
+            if flag[i, j]:
+                X[i, j] = np.nan
+    w = rng.uniform(min_weight, max_weight, n)
     return X, y, w
 
 
@@ -101,10 +115,12 @@ def train_dataset(dataset, param_in, num_rounds=10, scale_features=False, DMatri
         np.savetxt('tmptmp_1234.csv', np.hstack((dataset.y.reshape(len(dataset.y), 1), X)),
                    delimiter=',')
         dtrain = DMatrixT('tmptmp_1234.csv?format=csv&label_column=0#tmptmp_',
-                             weight=dataset.w)
+                          weight=dataset.w)
     elif DMatrixT is xgb.DeviceQuantileDMatrix:
         import cupy as cp
-        dtrain = DMatrixT(cp.array(X), dataset.y, weight=dataset.w, **dmatrix_params)
+        dtrain = DMatrixT(cp.array(X), cp.array(dataset.y),
+                          weight=None if dataset.w is None else cp.array(dataset.w),
+                          **dmatrix_params)
     else:
         dtrain = DMatrixT(X, dataset.y, weight=dataset.w, **dmatrix_params)
 
@@ -146,7 +162,8 @@ def parameter_combinations(variable_param):
 def run_suite(param, num_rounds=10, select_datasets=None, scale_features=False,
               DMatrixT=xgb.DMatrix, dmatrix_params={}):
     """
-    Run the given parameters on a range of datasets. Objective and eval metric will be automatically set
+    Run the given parameters on a range of datasets. Objective and eval metric will be
+    automatically set
     """
     datasets = [
         Dataset("Boston", get_boston, "reg:squarederror", "rmse"),

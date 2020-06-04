@@ -47,6 +47,7 @@ class TestGPU(unittest.TestCase):
         device_dmatrix_datasets = ["Boston", "Cancer", "Digits"]
         for param in test_param:
             param['tree_method'] = 'gpu_hist'
+            
             gpu_results_device_dmatrix = run_suite(param, select_datasets=device_dmatrix_datasets,
                                                    DMatrixT=xgb.DeviceQuantileDMatrix,
                                                    dmatrix_params={'max_bin': param['max_bin']})
