@@ -54,6 +54,7 @@ void TestTrainingPrediction(size_t rows, size_t bins,
     learner->SetParam("objective", "multi:softprob");
     learner->SetParam("num_feature", std::to_string(kCols));
     learner->SetParam("num_class", std::to_string(kClasses));
+    learner->SetParam("max_bin", std::to_string(bins));
     learner->Configure();
 
     for (size_t i = 0; i < kIters; ++i) {

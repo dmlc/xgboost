@@ -230,6 +230,7 @@ class ArrayInterfaceHandler {
 
 // A view over __array_interface__
 class ArrayInterface {
+ private:
   void Initialize(std::map<std::string, Json> const &column,
                   bool allow_mask = true) {
     ArrayInterfaceHandler::Validate(column);
