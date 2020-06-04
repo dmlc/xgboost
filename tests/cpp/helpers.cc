@@ -233,7 +233,7 @@ RandomDataGenerator::GenerateArrayInterfaceBatch(
     return array_interface;
   };
 
-  auto interface = make_interface(0, rows_);
+  auto j_interface = make_interface(0, rows_);
   size_t offset = 0;
   for (size_t i = 0; i < batches - 1; ++i) {
     objects.emplace_back(make_interface(offset, rows_per_batch));
@@ -249,7 +249,7 @@ RandomDataGenerator::GenerateArrayInterfaceBatch(
   }
 
   std::string interface_str;
-  Json::Dump(interface, &interface_str);
+  Json::Dump(j_interface, &interface_str);
   return {result, interface_str};
 }
 
