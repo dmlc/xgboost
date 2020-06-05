@@ -13,6 +13,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <algorithm>
 
 #if defined(XGBOOST_BUILD_ARROW_SUPPORT)
 #include <arrow/api.h>

@@ -896,7 +896,7 @@ uint64_t SparsePage::Push(const data::ArrowAdapterBatch& batch, float missing, i
   data_vec.resize((begin + batch_num_rows) * batch_num_cols);
   const data::RecordBatches& record_batches = batch.GetRecordBatches();
   std::vector<size_t> rb_lengths, rb_offsets;
-  for(const auto& rb : record_batches) {
+  for (const auto& rb : record_batches) {
     rb_lengths.push_back(rb->num_rows());
   }
   size_t k{};
