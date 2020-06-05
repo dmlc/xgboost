@@ -177,10 +177,7 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
   __device__ COOTuple GetElement(size_t idx) const {
     size_t column_idx = idx % array_interface_.num_cols;
     size_t row_idx = idx / array_interface_.num_cols;
-    float value = array_interface_.valid.Data() == nullptr ||
-                          array_interface_.valid.Check(row_idx)
-                      ? array_interface_.GetElement(idx)
-                      : std::numeric_limits<float>::quiet_NaN();
+    float value = array_interface_.GetElement(idx);
     return {row_idx, column_idx, value};
   }
 
@@ -193,7 +190,7 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
   explicit CupyAdapter(std::string cuda_interface_str) {
     Json json_array_interface =
         Json::Load({cuda_interface_str.c_str(), cuda_interface_str.size()});
-    array_interface_ = ArrayInterface(get<Object const>(json_array_interface));
+    array_interface_ = ArrayInterface(get<Object const>(json_array_interface), false);
     device_idx_ = dh::CudaGetPointerDevice(array_interface_.data);
     CHECK_NE(device_idx_, -1);
     batch_ = CupyAdapterBatch(array_interface_);

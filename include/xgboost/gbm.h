@@ -8,19 +8,19 @@
 #ifndef XGBOOST_GBM_H_
 #define XGBOOST_GBM_H_
 
-#include <dmlc/registry.h>
-#include <dmlc/any.h>
-#include <xgboost/base.h>
-#include <xgboost/data.h>
-#include <xgboost/host_device_vector.h>
-#include <xgboost/model.h>
-
 #include <vector>
 #include <utility>
 #include <string>
 #include <functional>
 #include <unordered_map>
 #include <memory>
+
+#include <dmlc/registry.h>
+#include <dmlc/any.h>
+#include <xgboost/base.h>
+#include <xgboost/data.h>
+#include <xgboost/host_device_vector.h>
+#include <xgboost/model.h>
 
 namespace xgboost {
 

@@ -1,14 +1,15 @@
 /*!
  * Copyright 2015-2019 XGBoost contributors
  */
-#include <dmlc/omp.h>
-#include <dmlc/timer.h>
-#include <xgboost/logging.h>
-#include <xgboost/objective.h>
 #include <vector>
 #include <algorithm>
 #include <utility>
 
+#include <dmlc/omp.h>
+#include <dmlc/timer.h>
+
+#include "xgboost/logging.h"
+#include "xgboost/objective.h"
 #include "xgboost/json.h"
 #include "xgboost/parameter.h"
 

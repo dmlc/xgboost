@@ -5,9 +5,10 @@
 #ifndef XGBOOST_DATA_ELLPACK_PAGE_SOURCE_H_
 #define XGBOOST_DATA_ELLPACK_PAGE_SOURCE_H_
 
-#include <xgboost/data.h>
 #include <memory>
 #include <string>
+
+#include <xgboost/data.h>
 
 #include "../common/timer.h"
 #include "../common/hist_util.h"

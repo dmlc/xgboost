@@ -105,15 +105,8 @@ except ImportError:
 
 # cudf
 try:
-    from cudf import DataFrame as CUDF_DataFrame
-    from cudf import Series as CUDF_Series
     from cudf import concat as CUDF_concat
-    CUDF_INSTALLED = True
 except ImportError:
-    CUDF_DataFrame = object
-    CUDF_Series = object
-    CUDF_MultiIndex = object
-    CUDF_INSTALLED = False
     CUDF_concat = None
 
 # sklearn

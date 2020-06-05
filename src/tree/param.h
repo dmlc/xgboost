@@ -332,14 +332,15 @@ XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, GpairT sum_grad)
 
 /*! \brief core statistics used for tree construction */
 struct XGBOOST_ALIGNAS(16) GradStats {
+  using GradType = double;
   /*! \brief sum gradient statistics */
-  double sum_grad { 0 };
+  GradType sum_grad { 0 };
   /*! \brief sum hessian statistics */
-  double sum_hess { 0 };
+  GradType sum_hess { 0 };
 
  public:
-  XGBOOST_DEVICE double GetGrad() const { return sum_grad; }
-  XGBOOST_DEVICE double GetHess() const { return sum_hess; }
+  XGBOOST_DEVICE GradType GetGrad() const { return sum_grad; }
+  XGBOOST_DEVICE GradType GetHess() const { return sum_hess; }
 
   friend std::ostream& operator<<(std::ostream& os, GradStats s) {
     os << s.GetGrad() << "/" << s.GetHess();
@@ -354,7 +355,7 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   template <typename GpairT>
   XGBOOST_DEVICE explicit GradStats(const GpairT &sum)
       : sum_grad(sum.GetGrad()), sum_hess(sum.GetHess()) {}
-  explicit GradStats(const double grad, const double hess)
+  explicit GradStats(const GradType grad, const GradType hess)
       : sum_grad(grad), sum_hess(hess) {}
   /*!
    * \brief accumulate statistics
@@ -379,7 +380,7 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   /*! \return whether the statistics is not used yet */
   inline bool Empty() const { return sum_hess == 0.0; }
   /*! \brief add statistics to the data */
-  inline void Add(double grad, double hess) {
+  inline void Add(GradType grad, GradType hess) {
     sum_grad += grad;
     sum_hess += hess;
   }
@@ -425,7 +426,11 @@ struct SplitEntryContainer {
    * \param split_index the feature index where the split is on
    */
   bool NeedReplace(bst_float new_loss_chg, unsigned split_index) const {
-    if (this->SplitIndex() <= split_index) {
+    if (std::isinf(new_loss_chg)) {  // in some cases new_loss_chg can be NaN or Inf,
+                                         // for example when lambda = 0 & min_child_weight = 0
+                                         // skip value in this case
+      return false;
+    } else if (this->SplitIndex() <= split_index) {
       return new_loss_chg > this->loss_chg;
     } else {
       return !(this->loss_chg > new_loss_chg);

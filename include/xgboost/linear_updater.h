@@ -3,18 +3,17 @@
  */
 #pragma once
 
+#include <functional>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
 #include <xgboost/data.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
-
-#include <functional>
-#include <string>
-#include <utility>
-#include <vector>
-
 
 namespace xgboost {
 

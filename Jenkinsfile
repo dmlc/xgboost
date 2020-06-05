@@ -79,7 +79,6 @@ pipeline {
         script {
           parallel ([
             'test-python-cpu': { TestPythonCPU() },
-            'test-python-gpu-cuda9.0': { TestPythonGPU(cuda_version: '9.0') },
             'test-python-gpu-cuda10.0': { TestPythonGPU(cuda_version: '10.0') },
             'test-python-gpu-cuda10.1': { TestPythonGPU(cuda_version: '10.1') },
             'test-python-mgpu-cuda10.1': { TestPythonGPU(cuda_version: '10.1', multi_gpu: true) },

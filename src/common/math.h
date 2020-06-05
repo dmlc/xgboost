@@ -7,13 +7,13 @@
 #ifndef XGBOOST_COMMON_MATH_H_
 #define XGBOOST_COMMON_MATH_H_
 
-#include <xgboost/base.h>
-
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <utility>
 #include <vector>
+
+#include <xgboost/base.h>
 
 namespace xgboost {
 namespace common {

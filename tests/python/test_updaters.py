@@ -57,7 +57,8 @@ class TestUpdaters(unittest.TestCase):
                           'max_bin': [2, 256],
                           'grow_policy': ['depthwise', 'lossguide'],
                           'max_leaves': [64, 0],
-                          'verbosity': [0]}
+                          'verbosity': [0],
+                          'single_precision_histogram': [True, False]}
         for param in parameter_combinations(variable_param):
             result = run_suite(param)
             assert_results_non_increasing(result, 1e-2)

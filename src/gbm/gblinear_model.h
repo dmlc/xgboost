@@ -2,14 +2,14 @@
  * Copyright 2018-2019 by Contributors
  */
 #pragma once
-#include <dmlc/io.h>
-#include <dmlc/parameter.h>
-#include <xgboost/learner.h>
-
 #include <vector>
 #include <string>
 #include <cstring>
 
+#include <dmlc/io.h>
+#include <dmlc/parameter.h>
+
+#include <xgboost/learner.h>
 #include "xgboost/base.h"
 #include "xgboost/feature_map.h"
 #include "xgboost/model.h"

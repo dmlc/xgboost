@@ -1,11 +1,12 @@
 /*!
  * Copyright 2017-2020 by Contributors
  */
+#include <memory>
+
 #include <thrust/copy.h>
 #include <thrust/device_ptr.h>
 #include <thrust/device_vector.h>
 #include <thrust/fill.h>
-#include <memory>
 
 #include "xgboost/data.h"
 #include "xgboost/predictor.h"

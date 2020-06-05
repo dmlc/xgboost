@@ -1,14 +1,15 @@
 /*!
  * Copyright by Contributors 2019
  */
-#include <rabit/rabit.h>
 #include <algorithm>
 #include <type_traits>
 #include <utility>
 #include <vector>
 #include <sstream>
-#include "timer.h"
+
+#include <rabit/rabit.h>
 #include "xgboost/json.h"
+#include "timer.h"
 
 #if defined(XGBOOST_USE_NVTX)
 #include <nvToolsExt.h>

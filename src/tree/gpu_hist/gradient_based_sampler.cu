@@ -1,14 +1,15 @@
 /*!
  * Copyright 2019 by XGBoost Contributors
  */
+#include <algorithm>
+#include <limits>
+
 #include <thrust/functional.h>
 #include <thrust/random.h>
 #include <thrust/transform.h>
+
 #include <xgboost/host_device_vector.h>
 #include <xgboost/logging.h>
-
-#include <algorithm>
-#include <limits>
 
 #include "../../common/compressed_iterator.h"
 #include "../../common/random.h"

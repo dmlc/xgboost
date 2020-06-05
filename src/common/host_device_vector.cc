@@ -4,12 +4,12 @@
 #ifndef XGBOOST_USE_CUDA
 
 // dummy implementation of HostDeviceVector in case CUDA is not used
-
-#include <xgboost/base.h>
-#include <xgboost/data.h>
 #include <cstdint>
 #include <memory>
 #include <utility>
+
+#include "xgboost/base.h"
+#include "xgboost/data.h"
 #include "xgboost/host_device_vector.h"
 
 namespace xgboost {

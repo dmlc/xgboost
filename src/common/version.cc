@@ -1,11 +1,11 @@
 /*!
  * Copyright 2019 XGBoost contributors
  */
-#include <dmlc/io.h>
-
 #include <string>
 #include <tuple>
 #include <vector>
+
+#include <dmlc/io.h>
 
 #include "xgboost/logging.h"
 #include "xgboost/json.h"

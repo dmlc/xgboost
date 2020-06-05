@@ -5,10 +5,10 @@
 #ifndef XGBOOST_GENERIC_PARAMETERS_H_
 #define XGBOOST_GENERIC_PARAMETERS_H_
 
+#include <string>
+
 #include <xgboost/logging.h>
 #include <xgboost/parameter.h>
-
-#include <string>
 
 namespace xgboost {
 struct GenericParameter : public XGBoostParameter<GenericParameter> {

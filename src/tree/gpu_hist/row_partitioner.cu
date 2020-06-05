@@ -1,10 +1,12 @@
 /*!
  * Copyright 2017-2019 XGBoost contributors
  */
+#include <vector>
+
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_output_iterator.h>
 #include <thrust/sequence.h>
-#include <vector>
+
 #include "../../common/device_helpers.cuh"
 #include "row_partitioner.cuh"
 
@@ -93,26 +95,23 @@ void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
                                  position.size(), stream);
 }
 
-RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
-    : device_idx_(device_idx) {
-  dh::safe_cuda(cudaSetDevice(device_idx_));
-  ridx_a_.resize(num_rows);
-  ridx_b_.resize(num_rows);
-  position_a_.resize(num_rows);
-  position_b_.resize(num_rows);
-  ridx_ = dh::DoubleBuffer<RowIndexT>{&ridx_a_, &ridx_b_};
-  position_ = dh::DoubleBuffer<bst_node_t>{&position_a_, &position_b_};
-  ridx_segments_.emplace_back(Segment(0, num_rows));
+void Reset(int device_idx, common::Span<RowPartitioner::RowIndexT> ridx,
+           common::Span<bst_node_t> position) {
+  CHECK_EQ(ridx.size(), position.size());
+  dh::LaunchN(device_idx, ridx.size(), [=] __device__(size_t idx) {
+    ridx[idx] = idx;
+    position[idx] = 0;
+  });
+}
 
-  thrust::sequence(
-      thrust::device_pointer_cast(ridx_.CurrentSpan().data()),
-      thrust::device_pointer_cast(ridx_.CurrentSpan().data() + ridx_.Size()));
-  thrust::fill(
-      thrust::device_pointer_cast(position_.Current()),
-      thrust::device_pointer_cast(position_.Current() + position_.Size()), 0);
+RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
+    : device_idx_(device_idx), ridx_a_(num_rows), position_a_(num_rows) {
+  dh::safe_cuda(cudaSetDevice(device_idx_));
+  Reset(device_idx, dh::ToSpan(ridx_a_), dh::ToSpan(position_a_));
   left_counts_.resize(256);
   thrust::fill(left_counts_.begin(), left_counts_.end(), 0);
   streams_.resize(2);
+  ridx_segments_.emplace_back(Segment(0, num_rows));
   for (auto& stream : streams_) {
     dh::safe_cuda(cudaStreamCreate(&stream));
   }
@@ -132,15 +131,15 @@ common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows(
   if (segment.Size() == 0) {
     return common::Span<const RowPartitioner::RowIndexT>();
   }
-  return ridx_.CurrentSpan().subspan(segment.begin, segment.Size());
+  return dh::ToSpan(ridx_a_).subspan(segment.begin, segment.Size());
 }
 
 common::Span<const RowPartitioner::RowIndexT> RowPartitioner::GetRows() {
-  return ridx_.CurrentSpan();
+  return dh::ToSpan(ridx_a_);
 }
 
 common::Span<const bst_node_t> RowPartitioner::GetPosition() {
-  return position_.CurrentSpan();
+  return dh::ToSpan(position_a_);
 }
 std::vector<RowPartitioner::RowIndexT> RowPartitioner::GetRowsHost(
     bst_node_t nidx) {
@@ -162,23 +161,25 @@ void RowPartitioner::SortPositionAndCopy(const Segment& segment,
                                          bst_node_t right_nidx,
                                          int64_t* d_left_count,
                                          cudaStream_t stream) {
+  dh::TemporaryArray<bst_node_t> position_temp(position_a_.size());
+  dh::TemporaryArray<RowIndexT> ridx_temp(ridx_a_.size());
   SortPosition(
       // position_in
-      common::Span<bst_node_t>(position_.Current() + segment.begin,
+      common::Span<bst_node_t>(position_a_.data().get() + segment.begin,
                                segment.Size()),
       // position_out
-      common::Span<bst_node_t>(position_.Other() + segment.begin,
+      common::Span<bst_node_t>(position_temp.data().get() + segment.begin,
                                segment.Size()),
       // row index in
-      common::Span<RowIndexT>(ridx_.Current() + segment.begin, segment.Size()),
+      common::Span<RowIndexT>(ridx_a_.data().get() + segment.begin, segment.Size()),
       // row index out
-      common::Span<RowIndexT>(ridx_.Other() + segment.begin, segment.Size()),
+      common::Span<RowIndexT>(ridx_temp.data().get() + segment.begin, segment.Size()),
       left_nidx, right_nidx, d_left_count, stream);
   // Copy back key/value
-  const auto d_position_current = position_.Current() + segment.begin;
-  const auto d_position_other = position_.Other() + segment.begin;
-  const auto d_ridx_current = ridx_.Current() + segment.begin;
-  const auto d_ridx_other = ridx_.Other() + segment.begin;
+  const auto d_position_current = position_a_.data().get() + segment.begin;
+  const auto d_position_other = position_temp.data().get() + segment.begin;
+  const auto d_ridx_current = ridx_a_.data().get() + segment.begin;
+  const auto d_ridx_other = ridx_temp.data().get() + segment.begin;
   dh::LaunchN(device_idx_, segment.Size(), stream, [=] __device__(size_t idx) {
     d_position_current[idx] = d_position_other[idx];
     d_ridx_current[idx] = d_ridx_other[idx];

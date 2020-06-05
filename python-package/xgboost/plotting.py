@@ -10,7 +10,7 @@ from .sklearn import XGBModel
 
 def plot_importance(booster, ax=None, height=0.2,
                     xlim=None, ylim=None, title='Feature importance',
-                    xlabel='F score', ylabel='Features',
+                    xlabel='F score', ylabel='Features', fmap='',
                     importance_type='weight', max_num_features=None,
                     grid=True, show_values=True, **kwargs):
     """Plot importance based on fitted trees.
@@ -43,6 +43,8 @@ def plot_importance(booster, ax=None, height=0.2,
         X axis title label. To disable, pass None.
     ylabel : str, default "Features"
         Y axis title label. To disable, pass None.
+    fmap: str or os.PathLike (optional)
+        The name of feature map file.
     show_values : bool, default True
         Show values on plot. To disable, pass False.
     kwargs :
@@ -59,9 +61,9 @@ def plot_importance(booster, ax=None, height=0.2,
 
     if isinstance(booster, XGBModel):
         importance = booster.get_booster().get_score(
-            importance_type=importance_type)
+            importance_type=importance_type, fmap=fmap)
     elif isinstance(booster, Booster):
-        importance = booster.get_score(importance_type=importance_type)
+        importance = booster.get_score(importance_type=importance_type, fmap=fmap)
     elif isinstance(booster, dict):
         importance = booster
     else:

@@ -4,9 +4,10 @@
  * \brief evaluation metrics for multiclass classification.
  * \author Kailong Chen, Tianqi Chen
  */
-#include <rabit/rabit.h>
-#include <xgboost/metric.h>
 #include <cmath>
+
+#include <rabit/rabit.h>
+#include "xgboost/metric.h"
 
 #include "metric_common.h"
 #include "../common/math.h"

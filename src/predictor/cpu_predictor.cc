@@ -1,12 +1,12 @@
 /*!
  * Copyright by Contributors 2017-2020
  */
-#include <dmlc/omp.h>
-#include <dmlc/any.h>
-
 #include <cstddef>
 #include <limits>
 #include <mutex>
+
+#include <dmlc/omp.h>
+#include <dmlc/any.h>
 
 #include "xgboost/base.h"
 #include "xgboost/data.h"

@@ -46,18 +46,8 @@ class RowPartitioner {
    */
   /*! \brief Range of row index for each node, pointers into ridx below. */
   std::vector<Segment> ridx_segments_;
-  dh::caching_device_vector<RowIndexT> ridx_a_;
-  dh::caching_device_vector<RowIndexT> ridx_b_;
-  dh::caching_device_vector<bst_node_t> position_a_;
-  dh::caching_device_vector<bst_node_t> position_b_;
-  /*! \brief mapping for node id -> rows.
-   * This looks like:
-   * node id  |    1    |    2   |
-   * rows idx | 3, 5, 1 | 13, 31 |
-   */
-  dh::DoubleBuffer<RowIndexT> ridx_;
-  /*! \brief mapping for row -> node id. */
-  dh::DoubleBuffer<bst_node_t> position_;
+  dh::TemporaryArray<RowIndexT> ridx_a_;
+  dh::TemporaryArray<bst_node_t> position_a_;
   dh::caching_device_vector<int64_t>
       left_counts_;  // Useful to keep a bunch of zeroed memory for sort position
   std::vector<cudaStream_t> streams_;
@@ -110,8 +100,8 @@ class RowPartitioner {
   void UpdatePosition(bst_node_t nidx, bst_node_t left_nidx,
                       bst_node_t right_nidx, UpdatePositionOpT op) {
     Segment segment = ridx_segments_.at(nidx);  // rows belongs to node nidx
-    auto d_ridx = ridx_.CurrentSpan();
-    auto d_position = position_.CurrentSpan();
+    auto d_ridx = dh::ToSpan(ridx_a_);
+    auto d_position = dh::ToSpan(position_a_);
     if (left_counts_.size() <= nidx) {
       left_counts_.resize((nidx * 2) + 1);
       thrust::fill(left_counts_.begin(), left_counts_.end(), 0);
@@ -159,9 +149,9 @@ class RowPartitioner {
    */
   template <typename FinalisePositionOpT>
   void FinalisePosition(FinalisePositionOpT op) {
-    auto d_position = position_.Current();
-    const auto d_ridx = ridx_.Current();
-    dh::LaunchN(device_idx_, position_.Size(), [=] __device__(size_t idx) {
+    auto d_position = position_a_.data().get();
+    const auto d_ridx = ridx_a_.data().get();
+    dh::LaunchN(device_idx_, position_a_.size(), [=] __device__(size_t idx) {
       auto position = d_position[idx];
       RowIndexT ridx = d_ridx[idx];
       bst_node_t new_position = op(ridx, position);
