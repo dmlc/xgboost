@@ -208,7 +208,7 @@ struct Entry {
   /*! \brief feature value */
   bst_float fvalue;
   /*! \brief default constructor */
-  Entry() {}
+  Entry() {} // NOLINT: Allow empty default constructor for performance reasons
   /*!
    * \brief constructor with index and value
    * \param index The feature or row index.
