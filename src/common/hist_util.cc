@@ -140,6 +140,10 @@ void HistogramCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
 
 bool CutsBuilder::UseGroup(DMatrix* dmat) {
   auto& info = dmat->Info();
+  return CutsBuilder::UseGroup(info);
+}
+
+bool CutsBuilder::UseGroup(MetaInfo const& info) {
   size_t const num_groups = info.group_ptr_.size() == 0 ?
                             0 : info.group_ptr_.size() - 1;
   // Use group index for weights?

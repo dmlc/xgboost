@@ -192,6 +192,20 @@ TEST(HistUtil, DeviceSketchBatches) {
     auto cuts = DeviceSketch(0, dmat.get(), num_bins, batch_size);
     ValidateCuts(cuts, dmat.get(), num_bins);
   }
+
+  num_rows = 1000;
+  size_t batches = 16;
+  auto x = GenerateRandom(num_rows * batches, num_columns);
+  auto dmat = GetDMatrixFromData(x, num_rows * batches, num_columns);
+  auto cuts_with_batches = DeviceSketch(0, dmat.get(), num_bins, num_rows);
+  auto cuts = DeviceSketch(0, dmat.get(), num_bins, 0);
+
+  auto const& cut_values_batched = cuts_with_batches.Values();
+  auto const& cut_values = cuts.Values();
+  CHECK_EQ(cut_values.size(), cut_values_batched.size());
+  for (size_t i = 0; i < cut_values.size(); ++i) {
+    ASSERT_NEAR(cut_values_batched[i], cut_values[i], 1e5);
+  }
 }
 
 TEST(HistUtil, DeviceSketchMultipleColumnsExternal) {
@@ -209,6 +223,19 @@ TEST(HistUtil, DeviceSketchMultipleColumnsExternal) {
     }
   }
 }
+
+template <typename Adapter>
+void ValidateBatchedCuts(Adapter adapter, int num_bins, int num_columns, int num_rows,
+                         DMatrix* dmat) {
+  common::HistogramCuts batched_cuts;
+  SketchContainer sketch_container(num_bins, num_columns, num_rows);
+  AdapterDeviceSketch(adapter.Value(), num_bins, std::numeric_limits<float>::quiet_NaN(),
+                      0, &sketch_container);
+  common::DenseCuts dense_cuts(&batched_cuts);
+  dense_cuts.Init(&sketch_container.sketches_, num_bins, num_rows);
+  ValidateCuts(batched_cuts, dmat, num_bins);
+}
+
 
 TEST(HistUtil, AdapterDeviceSketch) {
   int rows = 5;
@@ -284,6 +311,7 @@ TEST(HistUtil, AdapterDeviceSketchMultipleColumns) {
       auto cuts = AdapterDeviceSketch(&adapter, num_bins,
                                       std::numeric_limits<float>::quiet_NaN());
       ValidateCuts(cuts, dmat.get(), num_bins);
+      ValidateBatchedCuts(adapter, num_bins, num_columns, num_rows, dmat.get());
     }
   }
 }
@@ -302,6 +330,7 @@ TEST(HistUtil, AdapterDeviceSketchBatches) {
                                     std::numeric_limits<float>::quiet_NaN(),
                                     batch_size);
     ValidateCuts(cuts, dmat.get(), num_bins);
+    ValidateBatchedCuts(adapter, num_bins, num_columns, num_rows, dmat.get());
   }
 }
 
@@ -323,6 +352,8 @@ TEST(HistUtil, SketchingEquivalent) {
       EXPECT_EQ(dmat_cuts.Values(), adapter_cuts.Values());
       EXPECT_EQ(dmat_cuts.Ptrs(), adapter_cuts.Ptrs());
       EXPECT_EQ(dmat_cuts.MinValues(), adapter_cuts.MinValues());
+
+      ValidateBatchedCuts(adapter, num_bins, num_columns, num_rows, dmat.get());
     }
   }
 }
@@ -330,7 +361,7 @@ TEST(HistUtil, SketchingEquivalent) {
 TEST(HistUtil, DeviceSketchFromGroupWeights) {
   size_t constexpr kRows = 3000, kCols = 200, kBins = 256;
   size_t constexpr kGroups = 10;
-  auto m = RandomDataGenerator {kRows, kCols, 0}.GenerateDMatrix();
+  auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
   auto& h_weights = m->Info().weights_.HostVector();
   h_weights.resize(kRows);
   std::fill(h_weights.begin(), h_weights.end(), 1.0f);
@@ -357,6 +388,71 @@ TEST(HistUtil, DeviceSketchFromGroupWeights) {
   for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
     ASSERT_EQ(cuts.Ptrs().at(i), weighted_cuts.Ptrs().at(i));
   }
+  ValidateCuts(weighted_cuts, m.get(), kBins);
+}
+
+void TestAdapterSketchFromWeights(bool with_group) {
+  size_t constexpr kRows = 300, kCols = 20, kBins = 256;
+  size_t constexpr kGroups = 10;
+  HostDeviceVector<float> storage;
+  std::string m =
+      RandomDataGenerator{kRows, kCols, 0}.Device(0).GenerateArrayInterface(
+          &storage);
+  MetaInfo info;
+  auto& h_weights = info.weights_.HostVector();
+  h_weights.resize(kRows);
+  std::fill(h_weights.begin(), h_weights.end(), 1.0f);
+
+  std::vector<bst_group_t> groups(kGroups);
+  if (with_group) {
+    for (size_t i = 0; i < kGroups; ++i) {
+      groups[i] = kRows / kGroups;
+    }
+    info.SetInfo("group", groups.data(), DataType::kUInt32, kGroups);
+  }
+
+  info.weights_.SetDevice(0);
+  info.num_row_ = kRows;
+  info.num_col_ = kCols;
+
+  data::CupyAdapter adapter(m);
+  auto const& batch = adapter.Value();
+  SketchContainer sketch_container(kBins, kCols, kRows);
+  AdapterDeviceSketchWeighted(adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
+                              0,
+                              &sketch_container);
+  common::HistogramCuts cuts;
+  common::DenseCuts dense_cuts(&cuts);
+  dense_cuts.Init(&sketch_container.sketches_, kBins, kRows);
+
+  auto dmat = GetDMatrixFromData(storage.HostVector(), kRows, kCols);
+  if (with_group) {
+    dmat->Info().SetInfo("group", groups.data(), DataType::kUInt32, kGroups);
+  }
+
+  dmat->Info().SetInfo("weight", h_weights.data(), DataType::kFloat32, h_weights.size());
+  dmat->Info().num_col_ = kCols;
+  dmat->Info().num_row_ = kRows;
+  ASSERT_EQ(cuts.Ptrs().size(), kCols + 1);
+  ValidateCuts(cuts, dmat.get(), kBins);
+
+  if (with_group) {
+    HistogramCuts non_weighted = DeviceSketch(0, dmat.get(), kBins, 0);
+    for (size_t i = 0; i < cuts.Values().size(); ++i) {
+      EXPECT_EQ(cuts.Values()[i], non_weighted.Values()[i]);
+    }
+    for (size_t i = 0; i < cuts.MinValues().size(); ++i) {
+      ASSERT_EQ(cuts.MinValues()[i], non_weighted.MinValues()[i]);
+    }
+    for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
+      ASSERT_EQ(cuts.Ptrs().at(i), non_weighted.Ptrs().at(i));
+    }
+  }
+}
+
+TEST(HistUtil, AdapterSketchFromWeights) {
+  TestAdapterSketchFromWeights(false);
+  TestAdapterSketchFromWeights(true);
 }
 }  // namespace common
 }  // namespace xgboost

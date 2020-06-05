@@ -151,7 +151,8 @@ inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
                            size_t num_bins) {
 
   // Check the endpoints are correct
-  EXPECT_LT(cuts.MinValues()[column_idx], sorted_column.front());
+  CHECK_GT(sorted_column.size(), 0);
+  EXPECT_LT(cuts.MinValues().at(column_idx), sorted_column.front());
   EXPECT_GT(cuts.Values()[cuts.Ptrs()[column_idx]], sorted_column.front());
   EXPECT_GE(cuts.Values()[cuts.Ptrs()[column_idx+1]-1], sorted_column.back());
 
@@ -189,6 +190,7 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat,
   // Collect data into columns
   std::vector<std::vector<float>> columns(dmat->Info().num_col_);
   for (auto& batch : dmat->GetBatches<SparsePage>()) {
+    CHECK_GT(batch.Size(), 0);
     for (auto i = 0ull; i < batch.Size(); i++) {
       for (auto e : batch[i]) {
         columns[e.index].push_back(e.fvalue);

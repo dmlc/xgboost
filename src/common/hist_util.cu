@@ -1,5 +1,5 @@
 /*!
- * Copyright 2018 XGBoost contributors
+ * Copyright 2018~2020 XGBoost contributors
  */
 
 #include <xgboost/logging.h>
@@ -29,23 +29,6 @@
 namespace xgboost {
 namespace common {
 // Count the entries in each column and exclusive scan
-void GetColumnSizesScan(int device,
-                        dh::caching_device_vector<size_t>* column_sizes_scan,
-                        Span<const Entry> entries, size_t num_columns) {
-  column_sizes_scan->resize(num_columns + 1, 0);
-  auto d_column_sizes_scan = column_sizes_scan->data().get();
-  auto d_entries = entries.data();
-  dh::LaunchN(device, entries.size(), [=] __device__(size_t idx) {
-    auto& e = d_entries[idx];
-    atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
-                  &d_column_sizes_scan[e.index]),
-              static_cast<unsigned long long>(1));  // NOLINT
-  });
-  dh::XGBCachingDeviceAllocator<char> alloc;
-  thrust::exclusive_scan(thrust::cuda::par(alloc), column_sizes_scan->begin(),
-                         column_sizes_scan->end(), column_sizes_scan->begin());
-}
-
 void ExtractCuts(int device,
                  size_t num_cuts_per_feature,
                  Span<Entry const> sorted_data,
@@ -158,6 +141,23 @@ void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
   sketch_container->Push(num_cuts, host_cuts, host_column_sizes_scan);
 }
 
+void SortByWeight(dh::XGBCachingDeviceAllocator<char>* alloc,
+                  dh::caching_device_vector<float>* weights,
+                  dh::caching_device_vector<Entry>* sorted_entries) {
+  // Sort both entries and wegihts.
+  thrust::sort_by_key(thrust::cuda::par(*alloc), sorted_entries->begin(),
+                      sorted_entries->end(), weights->begin(),
+                      EntryCompareOp());
+
+  // Scan weights
+  thrust::inclusive_scan_by_key(thrust::cuda::par(*alloc),
+                                sorted_entries->begin(), sorted_entries->end(),
+                                weights->begin(), weights->begin(),
+                                [=] __device__(const Entry& a, const Entry& b) {
+                                  return a.index == b.index;
+                                });
+}
+
 void ProcessWeightedBatch(int device, const SparsePage& page,
                           Span<const float> weights, size_t begin, size_t end,
                           SketchContainer* sketch_container, int num_cuts_per_feature,
@@ -201,19 +201,7 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
         d_temp_weights[idx] = weights[ridx + base_rowid];
       });
   }
-
-  // Sort both entries and wegihts.
-  thrust::sort_by_key(thrust::cuda::par(alloc), sorted_entries.begin(),
-                      sorted_entries.end(), temp_weights.begin(),
-                      EntryCompareOp());
-
-  // Scan weights
-  thrust::inclusive_scan_by_key(thrust::cuda::par(alloc),
-                                sorted_entries.begin(), sorted_entries.end(),
-                                temp_weights.begin(), temp_weights.begin(),
-                                [=] __device__(const Entry& a, const Entry& b) {
-                                  return a.index == b.index;
-                                });
+  SortByWeight(&alloc, &temp_weights, &sorted_entries);
 
   dh::caching_device_vector<size_t> column_sizes_scan;
   GetColumnSizesScan(device, &column_sizes_scan,

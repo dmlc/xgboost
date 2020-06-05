@@ -129,6 +129,7 @@ class CutsBuilder {
   using WQSketch = common::WQuantileSketch<bst_float, bst_float>;
   /* \brief return whether group for ranking is used. */
   static bool UseGroup(DMatrix* dmat);
+  static bool UseGroup(MetaInfo const& info);
 
  protected:
   HistogramCuts* p_cuts_;
