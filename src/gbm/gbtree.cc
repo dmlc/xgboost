@@ -47,7 +47,7 @@ void GBTree::Configure(const Args& cfg) {
 
   // configure predictors
   if (!cpu_predictor_) {
-  	if (tparam_.predictor == PredictorType::kPredictorOneAPI) {
+    if (tparam_.predictor == PredictorType::kPredictorOneAPI) {
       cpu_predictor_ = std::unique_ptr<Predictor>(
           Predictor::Create("predictor_oneapi", this->generic_param_));
     } else {
