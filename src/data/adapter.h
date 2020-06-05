@@ -169,7 +169,7 @@ class CSRAdapter : public detail::SingleBatchDataIter<CSRAdapterBatch> {
   const CSRAdapterBatch& Value() const override { return batch_; }
   size_t NumRows() const { return num_rows_; }
   size_t NumColumns() const { return num_columns_; }
-  ~CSRAdapter() noexcept(false) override = default;
+  ~CSRAdapter() noexcept override = default;
 
  private:
   CSRAdapterBatch batch_;
@@ -223,7 +223,7 @@ class DenseAdapter : public detail::SingleBatchDataIter<DenseAdapterBatch> {
 
   size_t NumRows() const { return num_rows_; }
   size_t NumColumns() const { return num_columns_; }
-  ~DenseAdapter() noexcept(false) override = default;
+  ~DenseAdapter() noexcept override = default;
 
  private:
   DenseAdapterBatch batch_;
