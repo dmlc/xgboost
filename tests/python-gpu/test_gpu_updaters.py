@@ -8,7 +8,7 @@ sys.path.append("tests/python")
 import testing as tm
 
 parameter_strategy = strategies.fixed_dictionaries({
-    'max_depth': strategies.integers(0, 16),
+    'max_depth': strategies.integers(0, 11),
     'max_leaves': strategies.integers(0, 1024),
     'max_bin': strategies.integers(2, 1024),
     'grow_policy': strategies.sampled_from(['lossguide', 'depthwise']),

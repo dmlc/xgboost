@@ -7,7 +7,7 @@ from hypothesis import given, strategies, settings
 
 exact_parameter_strategy = strategies.fixed_dictionaries({
     'nthread': strategies.integers(0, 4),
-    'max_depth': strategies.integers(1, 16),
+    'max_depth': strategies.integers(1, 11),
     'min_child_weight': strategies.floats(0.5, 2.0),
     'alpha': strategies.floats(0.0, 2.0),
     'lambda': strategies.floats(1e-5, 2.0),
@@ -21,7 +21,7 @@ exact_parameter_strategy = strategies.fixed_dictionaries({
 })
 
 hist_parameter_strategy = strategies.fixed_dictionaries({
-    'max_depth': strategies.integers(1, 16),
+    'max_depth': strategies.integers(1, 11),
     'max_leaves': strategies.integers(0, 1024),
     'max_bin': strategies.integers(2, 512),
     'grow_policy': strategies.sampled_from(['lossguide', 'depthwise']),
