@@ -8,7 +8,7 @@ from .core import Booster
 from .sklearn import XGBModel
 
 
-def plot_importance(booster, ax=None, height=0.2,
+def plot_importance(booster, ax=None, height=0.2, features_name=None,
                     xlim=None, ylim=None, title='Feature importance',
                     xlabel='F score', ylabel='Features', fmap='',
                     importance_type='weight', max_num_features=None,
@@ -74,7 +74,10 @@ def plot_importance(booster, ax=None, height=0.2,
             'Booster.get_score() results in empty.  ' +
             'This maybe caused by having all trees as decision dumps.')
 
-    tuples = [(k, importance[k]) for k in importance]
+    if features_name is not None:
+        tuples = [(features_name[int(k.split('f')[1])], importance[k]) for k in importance]
+    else:
+        tuples = [(k, importance[k]) for k in importance]
     if max_num_features is not None:
         # pylint: disable=invalid-unary-operand-type
         tuples = sorted(tuples, key=lambda x: x[1])[-max_num_features:]
