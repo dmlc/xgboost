@@ -463,8 +463,8 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, float *values,
   CHECK_EQ(cache_id, 0) << "Cache ID is not supported yet";
   auto *learner = static_cast<xgboost::Learner *>(handle);
 
-  auto x =
-      std::make_shared<xgboost::data::DenseAdapter>(values, n_rows, n_cols);
+  std::shared_ptr<xgboost::data::DenseAdapter> x{
+    new xgboost::data::DenseAdapter(values, n_rows, n_cols)};
   HostDeviceVector<float>* p_predt { nullptr };
   std::string type { c_type };
   learner->InplacePredict(x, type, missing, &p_predt);
@@ -495,8 +495,8 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle,
   CHECK_EQ(cache_id, 0) << "Cache ID is not supported yet";
   auto *learner = static_cast<xgboost::Learner *>(handle);
 
-  auto x = std::make_shared<data::CSRAdapter>(indptr, indices, data,
-                                              nindptr - 1, nelem, num_col);
+  std::shared_ptr<xgboost::data::CSRAdapter> x{
+    new xgboost::data::CSRAdapter(indptr, indices, data, nindptr - 1, nelem, num_col)};
   HostDeviceVector<float>* p_predt { nullptr };
   std::string type { c_type };
   learner->InplacePredict(x, type, missing, &p_predt);
