@@ -32,6 +32,8 @@ namespace common {
 using GHistIndexRow = Span<uint32_t const>;
 using GHistRowOneAPI = Span<tree::GradStats>; // Span containing USM pointer
 
+void InitilizeHistByZeroes(GHistRowOneAPI hist, size_t begin, size_t end);
+
 struct IndexOneAPI {
   IndexOneAPI() : data_size_(0), data_(nullptr), offset_size_(0), offset_(nullptr) {
     SetBinTypeSize(binTypeSize_);

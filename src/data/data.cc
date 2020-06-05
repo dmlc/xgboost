@@ -694,8 +694,6 @@ template uint64_t SparsePage::Push<data::DataTableAdapterBatch>(
 	const data::DataTableAdapterBatch& batch, float missing, int nthread);
 template uint64_t SparsePage::Push<data::FileAdapterBatch>(
 	const data::FileAdapterBatch& batch, float missing, int nthread);
-template uint64_t SparsePage::Push<data::DMatrixSliceAdapterBatch>(
-	const data::DMatrixSliceAdapterBatch& batch, float missing, int nthread);
 
 void SparsePage::PushCSC(const SparsePage &batch) {
   std::vector<xgboost::Entry>& self_data = data.HostVector();

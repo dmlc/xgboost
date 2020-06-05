@@ -25,7 +25,7 @@ class ColumnMatrixOneAPI {
     return static_cast<bst_uint>(type_.size());
   }
 
-  // construct column matrix from GHistIndexMatrix
+  // construct column matrix from GHistIndexMatrixOneAPI
   inline void Init(const GHistIndexMatrixOneAPI& gmat,
                    double  sparse_threshold) {
     const int32_t nfeature = static_cast<int32_t>(gmat.cut.Ptrs().size() - 1);
@@ -76,6 +76,7 @@ class ColumnMatrixOneAPI {
     index_base_ = const_cast<uint32_t*>(gmat.cut.Ptrs().data());
 
     const bool noMissingValues = NoMissingValues(gmat.row_ptr[nrow], nrow, nfeature);
+    any_missing_ = !noMissingValues;
 
     if (noMissingValues) {
       missing_flags_.resize(feature_offsets_[nfeature], false);
@@ -95,7 +96,7 @@ class ColumnMatrixOneAPI {
           SetIndexAllDense(gmat.index.data<uint32_t>(), gmat, nrow, nfeature, noMissingValues);
       }
     /* For sparse DMatrix gmat.index.getBinTypeSize() returns always kUint32BinsTypeSize
-       but for ColumnMatrix we still have a chance to reduce the memory consumption */
+       but for ColumnMatrixOneAPI we still have a chance to reduce the memory consumption */
     } else {
       if (bins_type_size_ == kUint8BinsTypeSize) {
           SetIndex<uint8_t>(gmat.index.data<uint32_t>(), gmat, nrow, nfeature);
@@ -132,10 +133,8 @@ class ColumnMatrixOneAPI {
                                                  column_size };
     std::unique_ptr<const Column<BinIdxType> > res;
     if (type_[fid] == ColumnType::kDenseColumn) {
-      std::vector<bool>::const_iterator column_iterator = missing_flags_.begin();
-      advance(column_iterator, feature_offset);  // increment iterator to right position
       res.reset(new DenseColumn<BinIdxType>(type_[fid], bin_index, index_base_[fid],
-                                            column_iterator));
+                                             missing_flags_, feature_offset));
     } else {
       res.reset(new SparseColumn<BinIdxType>(type_[fid], bin_index, index_base_[fid],
                                        {&row_ind_[feature_offset], column_size}));
@@ -151,8 +150,7 @@ class ColumnMatrixOneAPI {
     /* missing values make sense only for column with type kDenseColumn,
        and if no missing values were observed it could be handled much faster. */
     if (noMissingValues) {
-      const int32_t nthread = omp_get_max_threads();  // NOLINT
-      #pragma omp parallel for num_threads(nthread)
+#pragma omp parallel for num_threads(omp_get_max_threads())
       for (omp_ulong rid = 0; rid < nrow; ++rid) {
         const size_t ibegin = rid*nfeature;
         const size_t iend = (rid+1)*nfeature;
@@ -236,9 +234,16 @@ class ColumnMatrixOneAPI {
   const BinTypeSize GetTypeSize() const {
     return bins_type_size_;
   }
+
+  // This is just an utility function
   const bool NoMissingValues(const size_t n_elements,
                              const size_t n_row, const size_t n_features) {
     return n_elements == n_features * n_row;
+  }
+
+  // And this returns part of state
+  const bool AnyMissing() const {
+    return any_missing_;
   }
 
  private:
@@ -254,6 +259,7 @@ class ColumnMatrixOneAPI {
   uint32_t* index_base_;
   std::vector<bool> missing_flags_;
   BinTypeSize bins_type_size_;
+  bool any_missing_;
 };
 
 }  // namespace common

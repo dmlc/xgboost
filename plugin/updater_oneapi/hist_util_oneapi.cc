@@ -28,6 +28,16 @@
 namespace xgboost {
 namespace common {
 
+void InitilizeHistByZeroes(GHistRowOneAPI hist, size_t begin, size_t end) {
+#if defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
+  std::fill(hist.begin() + begin, hist.begin() + end,
+            tree::GradStats());
+#else  // defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
+  memset(hist.data() + begin, '\0', (end-begin)*
+         sizeof(tree::GradStats));
+#endif  // defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
+}
+
 template<typename BinIdxType>
 void GHistIndexMatrixOneAPI::SetIndexDataForDense(common::Span<BinIdxType> index_data_span,
                                                 size_t batch_threads, const SparsePage& batch,
