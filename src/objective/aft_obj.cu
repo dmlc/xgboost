@@ -5,8 +5,6 @@
  * \author Avinash Barnwal, Hyunsu Cho and Toby Hocking
  */
 
-#include <xgboost/logging.h>
-#include <xgboost/objective.h>
 #include <vector>
 #include <limits>
 #include <memory>
@@ -16,6 +14,8 @@
 #include "xgboost/json.h"
 #include "xgboost/parameter.h"
 #include "xgboost/span.h"
+#include "xgboost/logging.h"
+#include "xgboost/objective.h"
 
 #include "../common/transform.h"
 #include "../common/survival_util.h"

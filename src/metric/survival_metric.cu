@@ -5,14 +5,15 @@
  * \author Avinash Barnwal, Hyunsu Cho and Toby Hocking
  */
 
-#include <rabit/rabit.h>
-#include <xgboost/metric.h>
-#include <xgboost/host_device_vector.h>
-#include <dmlc/registry.h>
 #include <memory>
 #include <vector>
 
+#include <rabit/rabit.h>
+#include <dmlc/registry.h>
+
 #include "xgboost/json.h"
+#include "xgboost/metric.h"
+#include "xgboost/host_device_vector.h"
 
 #include "metric_common.h"
 #include "../common/math.h"
