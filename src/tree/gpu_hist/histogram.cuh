@@ -22,7 +22,9 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
                             common::Span<GradientPair const> gpair,
                             common::Span<const uint32_t> ridx,
                             common::Span<GradientSumT> histogram,
-                            GradientSumT rounding);
+                            GradientSumT rounding,
+                            int start_feature, int num_features,
+                            int start_bin, int num_bins);
 }  // namespace tree
 }  // namespace xgboost
 

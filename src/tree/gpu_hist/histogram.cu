@@ -108,27 +108,30 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
                                     const GradientPair* __restrict__ d_gpair,
                                     size_t n_elements,
                                     GradientSumT const rounding,
-                                    bool use_shared_memory_histograms) {
+                                    bool use_shared_memory_histograms,
+                                    int start_feature, int feature_stride,
+                                    int start_bin, int num_bins) {
   using T = typename GradientSumT::ValueT;
   extern __shared__ char smem[];
   GradientSumT* smem_arr = reinterpret_cast<GradientSumT*>(smem);  // NOLINT
   if (use_shared_memory_histograms) {
-    dh::BlockFill(smem_arr, matrix.NumBins(), GradientSumT());
+    dh::BlockFill(smem_arr, num_bins, GradientSumT());
     __syncthreads();
   }
   for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
-    int ridx = d_ridx[idx / matrix.row_stride];
+    int ridx = d_ridx[idx / feature_stride];
     int gidx =
-        matrix.gidx_iter[ridx * matrix.row_stride + idx % matrix.row_stride];
+      matrix.gidx_iter[ridx * matrix.row_stride + start_feature + idx % feature_stride];
     if (gidx != matrix.NumBins()) {
-      GradientSumT truncated {
+      GradientSumT truncated {        
         TruncateWithRoundingFactor<T>(rounding.GetGrad(), d_gpair[ridx].GetGrad()),
-        TruncateWithRoundingFactor<T>(rounding.GetHess(), d_gpair[ridx].GetHess()),
-      };
+          TruncateWithRoundingFactor<T>(rounding.GetHess(), d_gpair[ridx].GetHess()),
+          };
       // If we are not using shared memory, accumulate the values directly into
       // global memory
       GradientSumT* atomic_add_ptr =
-          use_shared_memory_histograms ? smem_arr : d_node_hist;
+        use_shared_memory_histograms ? smem_arr : d_node_hist;
+      gidx = use_shared_memory_histograms ? gidx - start_bin : gidx;
       dh::AtomicAddGpair(atomic_add_ptr + gidx, truncated);
     }
   }
@@ -136,12 +139,12 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
   if (use_shared_memory_histograms) {
     // Write shared memory back to global memory
     __syncthreads();
-    for (auto i : dh::BlockStrideRange(static_cast<size_t>(0), matrix.NumBins())) {
+    for (auto i : dh::BlockStrideRange(0, num_bins)) {
       GradientSumT truncated {
         TruncateWithRoundingFactor<T>(rounding.GetGrad(), smem_arr[i].GetGrad()),
-        TruncateWithRoundingFactor<T>(rounding.GetHess(), smem_arr[i].GetHess()),
-      };
-      dh::AtomicAddGpair(d_node_hist + i, truncated);
+          TruncateWithRoundingFactor<T>(rounding.GetHess(), smem_arr[i].GetHess()),
+          };
+      dh::AtomicAddGpair(d_node_hist + start_bin + i, truncated);
     }
   }
 }
@@ -151,12 +154,16 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
                             common::Span<GradientPair const> gpair,
                             common::Span<const uint32_t> d_ridx,
                             common::Span<GradientSumT> histogram,
-                            GradientSumT rounding) {
+                            GradientSumT rounding,
+                            int start_feature, int num_features,
+                            int start_bin, int num_bins) {
+  //std::cout << "matrix is " << (matrix.is_dense ? "dense" : "sparse") << std::endl;
+  //std::cout << "number of bins = " << matrix.NumBins() << std::endl;
   // decide whether to use shared memory
   int device = 0;
   dh::safe_cuda(cudaGetDevice(&device));
   int max_shared_memory = dh::MaxSharedMemoryOptin(device);
-  size_t smem_size = sizeof(GradientSumT) * matrix.NumBins();
+  size_t smem_size = sizeof(GradientSumT) * num_bins;
   bool shared = smem_size <= max_shared_memory;
   smem_size = shared ? smem_size : 0;
 
@@ -177,11 +184,21 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
                 (&n_blocks_per_mp, kernel, block_threads, smem_size));
   unsigned grid_size = n_blocks_per_mp * n_mps;
 
-  auto n_elements = d_ridx.size() * matrix.row_stride;
+  int feature_stride = matrix.is_dense ? num_features : matrix.row_stride;
+  auto n_elements = d_ridx.size() * feature_stride;
+  // std::cout << "start_feature = " << start_feature << std::endl;
+  // std::cout << "num_features = " << num_features << std::endl;
+  // std::cout << "feature_stride = " << feature_stride << std::endl;
+  // std::cout << "start_bin = " << start_bin << std::endl;
+  // std::cout << "num_bins = " << num_bins << std::endl;
+  // std::cout << "shared = " << shared << std::endl;
+  // std::cout << "n_elements = " << n_elements << std::endl;
+  
   dh::LaunchKernel {grid_size, block_threads, smem_size} (
       kernel, matrix, d_ridx, histogram.data(), gpair.data(), n_elements,
-      rounding, shared);
+      rounding, shared, start_feature, feature_stride, start_bin, num_bins);  
   dh::safe_cuda(cudaGetLastError());
+  //dh::safe_cuda(cudaDeviceSynchronize());
 }
 
 template void BuildGradientHistogram<GradientPair>(
@@ -189,14 +206,16 @@ template void BuildGradientHistogram<GradientPair>(
     common::Span<GradientPair const> gpair,
     common::Span<const uint32_t> ridx,
     common::Span<GradientPair> histogram,
-    GradientPair rounding);
+    GradientPair rounding,
+    int feature_start, int num_features, int bin_start, int num_bins);
 
 template void BuildGradientHistogram<GradientPairPrecise>(
     EllpackDeviceAccessor const& matrix,
     common::Span<GradientPair const> gpair,
     common::Span<const uint32_t> ridx,
     common::Span<GradientPairPrecise> histogram,
-    GradientPairPrecise rounding);
+    GradientPairPrecise rounding,
+    int feature_start, int num_features, int bin_start, int num_bins);
 
 }  // namespace tree
 }  // namespace xgboost

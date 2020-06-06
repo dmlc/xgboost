@@ -204,6 +204,9 @@ struct GPUHistMakerDevice {
 
   std::unique_ptr<GradientBasedSampler> sampler;
 
+  std::vector<int> bin_groups;
+  std::vector<int> feature_groups;
+
   GPUHistMakerDevice(int _device_id,
                      EllpackPageImpl* _page,
                      bst_uint _n_rows,
@@ -230,6 +233,7 @@ struct GPUHistMakerDevice {
     // Init histogram
     hist.Init(device_id, page->Cuts().TotalBins());
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(device_id));
+    InitFeatureGroups();
   }
 
   ~GPUHistMakerDevice() {  // NOLINT
@@ -237,6 +241,26 @@ struct GPUHistMakerDevice {
     for (auto& stream : streams) {
       dh::safe_cuda(cudaStreamDestroy(stream));
     }
+  }
+
+  void InitFeatureGroups() {
+    bin_groups.clear();
+    feature_groups.clear();
+    const std::vector<uint32_t>& cut_ptrs = page->Cuts().Ptrs();
+    // TODO(canonizer): determine this automatically based on GPU shared memory
+    int max_group_bins = 3072;
+    bin_groups.push_back(0);
+    feature_groups.push_back(0);
+    for (size_t i = 0; i < cut_ptrs.size(); ++i) {
+      int last_start = bin_groups.back();
+      // TODO(canonizer): handle > max_group_bins per feature
+      if (cut_ptrs[i] - last_start > max_group_bins) {
+        bin_groups.push_back(cut_ptrs[i - 1]);
+        feature_groups.push_back(i - 1);
+      }
+    }
+    bin_groups.push_back(cut_ptrs.back());
+    feature_groups.push_back(cut_ptrs.size() - 1);
   }
 
   // Get vector of at least n initialised streams
@@ -373,8 +397,29 @@ struct GPUHistMakerDevice {
     hist.AllocateHistogram(nidx);
     auto d_node_hist = hist.GetNodeHistogram(nidx);
     auto d_ridx = row_partitioner->GetRows(nidx);
-    BuildGradientHistogram(page->GetDeviceAccessor(device_id), gpair, d_ridx, d_node_hist,
-                           histogram_rounding);
+    bool use_feature_groups = page->is_dense;
+    //bool use_feature_groups = false;
+    if (use_feature_groups) {
+      // print groups
+      // std::cout << "feature_groups = { ";
+      // for (int i = 0; i < feature_groups.size(); ++i) std::cout << feature_groups[i] << " ";
+      // std::cout << "}" << std::endl;
+
+      // std::cout << "bin_groups = { ";
+      // for (int i = 0; i < bin_groups.size(); ++i) std::cout << bin_groups[i] << " ";
+      // std::cout << "}" << std::endl;
+
+      for (int i = 0; i < feature_groups.size() - 1; ++i) {
+        BuildGradientHistogram(page->GetDeviceAccessor(device_id), gpair, d_ridx, d_node_hist,
+                               histogram_rounding, feature_groups[i],
+                               feature_groups[i + 1] - feature_groups[i], bin_groups[i],
+                               bin_groups[i + 1] - bin_groups[i]);
+      }
+    } else {
+      BuildGradientHistogram(page->GetDeviceAccessor(device_id), gpair, d_ridx, d_node_hist,
+                             histogram_rounding, 0, page->Cuts().Ptrs().size() - 1,
+                             0, page->Cuts().TotalBins());
+    }
   }
 
   void SubtractionTrick(int nidx_parent, int nidx_histogram,
