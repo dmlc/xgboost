@@ -390,6 +390,25 @@ Thus, one has to run git to check out the code first:
 If all fails, try `Building the shared library`_ to see whether a problem is specific to R
 package or not.  Notice that the R package is installed by CMake directly.
 
+Installing the development version with Visual Studio
+-----------------------------------------------------
+
+On Windows, CMake with Visual C++ Build Tools (or Visual Studio) can be used to build the R package.
+
+While not required, this build can be faster if you install the R package ``processx`` with ``install.packages("processx")``.
+
+.. note::
+  If you are using ``Rtools`` 4.0 or later, you need to also add the ``/usr/bin/`` directory from ``Rtools`` to the ``PATH`` environment variable.
+
+Starting from the XGBoost directory, type:
+
+.. code-block:: bash
+
+  mkdir build
+  cd build
+  cmake .. -G"Visual Studio 16 2019" -A x64 -DR_LIB=ON
+  cmake --build . --target install --config Release
+
 .. _r_gpu_support:
 
 Installing R package with GPU support
