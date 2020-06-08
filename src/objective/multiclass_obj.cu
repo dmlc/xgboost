@@ -102,7 +102,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
             // Computation duplicated to avoid creating a cache.
             bst_float p = expf(point[k] - wmax) / static_cast<float>(wsum);
             const float eps = 1e-16f;
-            const bst_float h = fmax(2.0f * p * (1.0f - p) * wt, eps);
+            const bst_float h = fmax(p * (1.0f - p) * wt, eps);
             p = label == k ? p - 1.0f : p;
             gpair[idx * nclass + k] = GradientPair(p * wt, h);
           }
