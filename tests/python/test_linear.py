@@ -4,11 +4,11 @@ import xgboost as xgb
 
 parameter_strategy = strategies.fixed_dictionaries({
     'booster': strategies.just('gblinear'),
-    'eta': strategies.floats(0.01, 0.5),
+    'eta': strategies.floats(0.01, 0.25),
     'tolerance': strategies.floats(1e-5, 1e-2),
-    'nthread': strategies.integers(0, 4),
-    'alpha': strategies.floats(1e-5, 1.0),
-    'lambda': strategies.floats(1e-5, 1.0)
+    'nthread': strategies.integers(1, 4),
+    'alpha': strategies.floats(1e-5, 2.0),
+    'lambda': strategies.floats(1e-5, 2.0)
 })
 
 coord_strategy = strategies.fixed_dictionaries({
@@ -25,23 +25,25 @@ def train_result(param, dmat, num_rounds):
     return result
 
 
+# Loss is not guaranteed to always decrease because of regularisation parameters
+# We test a weaker condition that the loss has not increased between the first and last iteration
+# This only detects catastrophic training failure
 class TestLinear:
-    @given(parameter_strategy, strategies.integers(1, 50),
+    @given(parameter_strategy, strategies.integers(10, 50),
            tm.dataset_strategy, coord_strategy)
     @settings(deadline=2000)
     def test_coordinate(self, param, num_rounds, dataset, coord_param):
         param['updater'] = 'coord_descent'
         param.update(coord_param)
         param = dataset.set_params(param)
-        result = train_result(param, dataset.get_dmat(), num_rounds)
-        assert tm.non_increasing(result['train'][dataset.metric])
+        result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        assert tm.non_increasing([result[0], result[-1]])
 
-    @given(parameter_strategy, strategies.integers(1, 50),
+    @given(parameter_strategy, strategies.integers(10, 50),
            tm.dataset_strategy)
     @settings(deadline=2000)
     def test_shotgun(self, param, num_rounds, dataset):
         param['updater'] = 'shotgun'
         param = dataset.set_params(param)
-        result = train_result(param, dataset.get_dmat(), num_rounds)
-        note(result)
-        assert tm.non_increasing(result['train'][dataset.metric], 1e-2)
+        result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        assert tm.non_increasing([result[0], result[-1]])

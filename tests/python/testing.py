@@ -165,7 +165,7 @@ def get_sparse():
 
 
 _unweighted_datasets_strategy = strategies.sampled_from(
-    [TestDataset('boston', get_boston, 'reg:squarederror', 'logloss'),
+    [TestDataset('boston', get_boston, 'reg:squarederror', 'rmse'),
      TestDataset('digits', get_digits, 'multi:softmax', 'mlogloss'),
      TestDataset("cancer", get_cancer, "binary:logistic", "logloss"),
      TestDataset

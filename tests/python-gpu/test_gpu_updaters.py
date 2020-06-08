@@ -2,18 +2,23 @@ import numpy as np
 import sys
 import pytest
 import xgboost as xgb
-from hypothesis import given, strategies, assume, settings
+from hypothesis import given, strategies, assume, settings, note
 
 sys.path.append("tests/python")
 import testing as tm
 
 parameter_strategy = strategies.fixed_dictionaries({
     'max_depth': strategies.integers(0, 11),
-    'max_leaves': strategies.integers(0, 1024),
+    'max_leaves': strategies.integers(0, 256),
     'max_bin': strategies.integers(2, 1024),
     'grow_policy': strategies.sampled_from(['lossguide', 'depthwise']),
     'single_precision_histogram': strategies.booleans(),
     'min_child_weight': strategies.floats(0.5, 2.0),
+    'seed': strategies.integers(0, 10),
+    # We cannot enable subsampling as the training loss can increase
+    # 'subsample': strategies.floats(0.5, 1.0),
+    'colsample_bytree': strategies.floats(0.5, 1.0),
+    'colsample_bylevel': strategies.floats(0.5, 1.0),
 }).filter(lambda x: (x['max_depth'] > 0 or x['max_leaves'] > 0) and (
     x['max_depth'] > 0 or x['grow_policy'] == 'lossguide'))
 
@@ -26,7 +31,6 @@ def train_result(param, dmat, num_rounds):
 
 
 class TestGPUUpdaters:
-    @pytest.mark.gpu
     @given(parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
     @settings(deadline=2000)
@@ -34,9 +38,9 @@ class TestGPUUpdaters:
         param['tree_method'] = 'gpu_hist'
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
+        note(result)
         assert tm.non_increasing(result['train'][dataset.metric])
 
-    @pytest.mark.gpu
     @pytest.mark.skipif(**tm.no_cupy())
     @given(parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
@@ -47,12 +51,12 @@ class TestGPUUpdaters:
         param['tree_method'] = 'gpu_hist'
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_device_dmat(), num_rounds)
+        note(result)
         assert tm.non_increasing(result['train'][dataset.metric])
 
-    @pytest.mark.gpu
     @given(parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
-    @settings(deadline=2000)
+    @settings(deadline=None)
     def test_external_memory(self, param, num_rounds, dataset):
         # We cannot handle empty dataset yet
         assume(len(dataset.y) > 0)
@@ -64,7 +68,6 @@ class TestGPUUpdaters:
         assert np.allclose(external_result['train'][dataset.metric],
                            result['train'][dataset.metric])
 
-    @pytest.mark.gpu
     def test_empty_dmatrix_prediction(self):
         # FIXME(trivialfis): This should be done with all updaters
         kRows = 0
@@ -98,3 +101,4 @@ class TestGPUUpdaters:
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), 10)
         assert tm.non_increasing(result['train'][dataset.metric])
+

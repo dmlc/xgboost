@@ -3,21 +3,21 @@ import unittest
 import pytest
 import xgboost as xgb
 import numpy as np
-from hypothesis import given, strategies, settings
+from hypothesis import given, strategies, settings, note
 
 exact_parameter_strategy = strategies.fixed_dictionaries({
-    'nthread': strategies.integers(0, 4),
+    'nthread': strategies.integers(1, 4),
     'max_depth': strategies.integers(1, 11),
     'min_child_weight': strategies.floats(0.5, 2.0),
     'alpha': strategies.floats(0.0, 2.0),
     'lambda': strategies.floats(1e-5, 2.0),
-    'eta': strategies.floats(0.01, 1.0),
+    'eta': strategies.floats(0.01, 0.5),
     'gamma': strategies.floats(0.0, 2.0),
-    # TODO: Enabling sampling parameters results in flaky tests
-    # 'seed': strategies.integers(0, 10),
+    'seed': strategies.integers(0, 10),
+    # We cannot enable subsampling as the training loss can increase
     # 'subsample': strategies.floats(0.5, 1.0),
-    # 'colsample_bytree': strategies.floats(0.5, 1.0),
-    # 'colsample_bylevel': strategies.floats(0.5, 1.0),
+    'colsample_bytree': strategies.floats(0.5, 1.0),
+    'colsample_bylevel': strategies.floats(0.5, 1.0),
 })
 
 hist_parameter_strategy = strategies.fixed_dictionaries({
@@ -36,12 +36,12 @@ def train_result(param, dmat, num_rounds):
     return result
 
 
-class TestUpdaters(unittest.TestCase):
+class TestTreeMethod(unittest.TestCase):
     @given(exact_parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
     @settings(deadline=2000)
-    def test_colmaker(self, param, num_rounds, dataset):
-        param['updater'] = 'grow_colmaker'
+    def test_exact(self, param, num_rounds, dataset):
+        param['tree_method'] = 'exact'
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
         assert tm.non_increasing(result['train'][dataset.metric])
@@ -49,8 +49,8 @@ class TestUpdaters(unittest.TestCase):
     @given(exact_parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
     @settings(deadline=2000)
-    def test_histmaker(self, param, num_rounds, dataset):
-        param['updater'] = 'grow_histmaker'
+    def test_approx(self, param, num_rounds, dataset):
+        param['tree_method'] = 'approx'
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
         assert tm.non_increasing(result['train'][dataset.metric], 1e-3)
@@ -82,14 +82,15 @@ class TestUpdaters(unittest.TestCase):
     @given(exact_parameter_strategy, hist_parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
     @settings(deadline=2000)
-    def test_quantile_histmaker(self, param, hist_param, num_rounds, dataset):
-        param['updater'] = 'grow_quantile_histmaker'
+    def test_hist(self, param, hist_param, num_rounds, dataset):
+        param['tree_method'] = 'hist'
         param = dataset.set_params(param)
         param.update(hist_param)
         result = train_result(param, dataset.get_dmat(), num_rounds)
-        assert tm.non_increasing(result['train'][dataset.metric], 1e-3)
+        note(result)
+        assert tm.non_increasing(result['train'][dataset.metric])
 
-    def test_quantile_histmaker_categorical(self):
+    def test_hist_categorical(self):
         # hist must be same as exact on all-categorial data
         dpath = 'demo/data/'
         ag_dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
@@ -114,7 +115,7 @@ class TestUpdaters(unittest.TestCase):
         assert hist_res['test']['auc'] == exact_res['test']['auc']
 
     @pytest.mark.skipif(**tm.no_sklearn())
-    def test_fast_histmaker_degenerate_case(self):
+    def test_hist_degenerate_case(self):
         # Test a degenerate case where the quantile sketcher won't return any
         # quantile points for a particular feature (the second feature in
         # this example). Source: https://github.com/dmlc/xgboost/issues/2943
