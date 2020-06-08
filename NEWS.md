@@ -23,7 +23,7 @@ This file records the changes in xgboost library in reverse chronological order.
 
 ### Thread-safe, in-place prediction method (#5389, #5512)
 * Previously, the prediction method was not thread-safe (#5339). This release adds a new API function `inplace_predict()` that is thread-safe. It is now possible to serve concurrent requests for prediction using a shared model object.
-* It is now possible to compute prediction in-place for selected data formats (`numpy.ndarray` / `scipy.sparse.csr_matrix`/ `cupy.ndarray`) without creating a DMatrix object.
+* It is now possible to compute prediction in-place for selected data formats (`numpy.ndarray` / `scipy.sparse.csr_matrix` / `cupy.ndarray` / `cudf.DataFrame` / `pd.DataFrame`) without creating a `DMatrix` object.
 
 ### Addition of Accelerated Failure Time objective for survival analysis (#4763, #5473, #5486, #5552, #5553)
 * Survival analysis (regression) models the time it takes for an event of interest to occur. The target label is potentially censored, i.e. the label is a range rather than a single number. We added a new objective `survival:aft` to support survival analysis. Also added is the new API to specify the ranged labels. Check out [the tutorial](https://xgboost.readthedocs.io/en/release_1.1.0/tutorials/aft_survival_analysis.html) and the [demos](https://github.com/dmlc/xgboost/tree/release_1.1.0/demo/aft_survival).
@@ -137,7 +137,6 @@ Upgrading to latest pip allows us to depend on newer versions of system librarie
 
 ### Performance improvements
 * Wide dataset quantile performance improvement (#5306)
-* Use `scikit-learn` in extra dependencies (#5310)
 * Reduce memory usage of GPU-side data sketching (#5407)
 * Reduce span check overhead (#5464)
 * Serialise booster after training to free up GPU memory (#5484)
@@ -172,6 +171,7 @@ Upgrading to latest pip allows us to depend on newer versions of system librarie
 * Add C++ test coverage for data sketching (#5251)
 * Ignore gdb\_history (#5257)
 * Rewrite setup.py. (#5271, #5280)
+* Use `scikit-learn` in extra dependencies (#5310)
 * Add CMake option to build static library (#5397)
 * [R] changed FindLibR to take advantage of CMake cache (#5427)
 * [R] fixed inconsistency in R -e calls in FindLibR.cmake (#5438)
