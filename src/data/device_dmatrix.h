@@ -6,10 +6,10 @@
 #ifndef XGBOOST_DATA_DEVICE_DMATRIX_H_
 #define XGBOOST_DATA_DEVICE_DMATRIX_H_
 
-#include <memory>
-
 #include <xgboost/base.h>
 #include <xgboost/data.h>
+
+#include <memory>
 
 #include "adapter.h"
 #include "simple_batch_iterator.h"

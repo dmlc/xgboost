@@ -8,11 +8,10 @@
 #ifndef XGBOOST_PARAMETER_H_
 #define XGBOOST_PARAMETER_H_
 
-#include <string>
-#include <type_traits>
-
 #include <dmlc/parameter.h>
 #include <xgboost/base.h>
+#include <string>
+#include <type_traits>
 
 /*!
  * \brief Specialization of FieldEntry for enum class (backed by int)

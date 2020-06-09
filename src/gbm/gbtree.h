@@ -7,6 +7,8 @@
 #ifndef XGBOOST_GBM_GBTREE_H_
 #define XGBOOST_GBM_GBTREE_H_
 
+#include <dmlc/omp.h>
+
 #include <vector>
 #include <map>
 #include <memory>
@@ -14,7 +16,6 @@
 #include <string>
 #include <unordered_map>
 
-#include <dmlc/omp.h>
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/logging.h"

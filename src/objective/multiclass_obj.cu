@@ -4,12 +4,12 @@
  * \brief Definition of multi-class classification objectives.
  * \author Tianqi Chen
  */
+#include <dmlc/omp.h>
+
 #include <vector>
 #include <algorithm>
 #include <limits>
 #include <utility>
-
-#include <dmlc/omp.h>
 
 #include "xgboost/parameter.h"
 #include "xgboost/data.h"

@@ -7,14 +7,6 @@
 #ifndef XGBOOST_TREE_MODEL_H_
 #define XGBOOST_TREE_MODEL_H_
 
-#include <limits>
-#include <vector>
-#include <string>
-#include <cstring>
-#include <algorithm>
-#include <tuple>
-#include <stack>
-
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
 
@@ -23,6 +15,14 @@
 #include <xgboost/logging.h>
 #include <xgboost/feature_map.h>
 #include <xgboost/model.h>
+
+#include <limits>
+#include <vector>
+#include <string>
+#include <cstring>
+#include <algorithm>
+#include <tuple>
+#include <stack>
 
 namespace xgboost {
 

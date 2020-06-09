@@ -7,12 +7,12 @@
 #ifndef XGBOOST_FEATURE_MAP_H_
 #define XGBOOST_FEATURE_MAP_H_
 
+#include <xgboost/logging.h>
+
 #include <vector>
 #include <string>
 #include <cstring>
 #include <iostream>
-
-#include <xgboost/logging.h>
 
 namespace xgboost {
 /*!

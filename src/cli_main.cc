@@ -7,14 +7,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_DEPRECATE
 #define NOMINMAX
-
-#include <iomanip>
-#include <ctime>
-#include <string>
-#include <cstdio>
-#include <cstring>
-#include <vector>
-
 #include <dmlc/timer.h>
 
 #include <xgboost/learner.h>
@@ -23,6 +15,12 @@
 #include <xgboost/logging.h>
 #include <xgboost/parameter.h>
 
+#include <iomanip>
+#include <ctime>
+#include <string>
+#include <cstdio>
+#include <cstring>
+#include <vector>
 #include "common/common.h"
 #include "common/config.h"
 #include "common/io.h"

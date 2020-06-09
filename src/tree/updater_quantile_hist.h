@@ -7,6 +7,10 @@
 #ifndef XGBOOST_TREE_UPDATER_QUANTILE_HIST_H_
 #define XGBOOST_TREE_UPDATER_QUANTILE_HIST_H_
 
+#include <dmlc/timer.h>
+#include <rabit/rabit.h>
+#include <xgboost/tree_updater.h>
+
 #include <memory>
 #include <vector>
 #include <string>
@@ -15,13 +19,8 @@
 #include <unordered_map>
 #include <utility>
 
-#include <dmlc/timer.h>
-#include <rabit/rabit.h>
-
-#include "xgboost/tree_updater.h"
 #include "xgboost/data.h"
 #include "xgboost/json.h"
-
 #include "constraints.h"
 #include "./param.h"
 #include "./split_evaluator.h"

@@ -1,4 +1,7 @@
 // Copyright (c) 2014-2020 by Contributors
+#include <rabit/rabit.h>
+#include <rabit/c_api.h>
+
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -6,9 +9,6 @@
 #include <vector>
 #include <string>
 #include <memory>
-
-#include <rabit/rabit.h>
-#include <rabit/c_api.h>
 
 #include "xgboost/base.h"
 #include "xgboost/data.h"

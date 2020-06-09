@@ -7,15 +7,14 @@
 #ifndef XGBOOST_COMMON_HIST_UTIL_H_
 #define XGBOOST_COMMON_HIST_UTIL_H_
 
+#include <xgboost/data.h>
+#include <xgboost/generic_parameters.h>
 #include <limits>
 #include <vector>
 #include <algorithm>
 #include <memory>
 #include <utility>
 #include <map>
-
-#include "xgboost/data.h"
-#include "xgboost/generic_parameters.h"
 
 #include "row_set.h"
 #include "threading_utils.h"

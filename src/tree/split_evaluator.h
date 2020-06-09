@@ -7,14 +7,14 @@
 
 #ifndef XGBOOST_TREE_SPLIT_EVALUATOR_H_
 #define XGBOOST_TREE_SPLIT_EVALUATOR_H_
+
+#include <dmlc/registry.h>
+#include <xgboost/base.h>
 #include <functional>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <dmlc/registry.h>
-#include <xgboost/base.h>
 
 #include "param.h"
 

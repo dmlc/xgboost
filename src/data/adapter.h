@@ -4,6 +4,8 @@
  */
 #ifndef XGBOOST_DATA_ADAPTER_H_
 #define XGBOOST_DATA_ADAPTER_H_
+#include <dmlc/data.h>
+
 #include <cstddef>
 #include <functional>
 #include <limits>
@@ -11,8 +13,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <dmlc/data.h>
 
 #include "xgboost/logging.h"
 #include "xgboost/base.h"

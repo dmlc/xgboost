@@ -8,17 +8,17 @@
 #ifndef XGBOOST_LOGGING_H_
 #define XGBOOST_LOGGING_H_
 
-#include <sstream>
-#include <map>
-#include <string>
-#include <utility>
-#include <vector>
-
 #include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 
 #include <xgboost/base.h>
 #include <xgboost/parameter.h>
+
+#include <sstream>
+#include <map>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace xgboost {
 

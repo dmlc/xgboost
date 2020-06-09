@@ -3,6 +3,7 @@
  */
 #ifndef XGBOOST_JSON_IO_H_
 #define XGBOOST_JSON_IO_H_
+#include <xgboost/json.h>
 
 #include <memory>
 #include <string>
@@ -12,8 +13,6 @@
 #include <limits>
 #include <sstream>
 #include <locale>
-
-#include <xgboost/json.h>
 
 namespace xgboost {
 
