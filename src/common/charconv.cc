@@ -35,6 +35,21 @@
 #include "xgboost/logging.h"
 #include "charconv.h"
 
+/*
+ * We did some cleanup from the original implementation instead of doing line to line
+ * port.
+ *
+ * The basic concept of floating rounding is, for a floating point number, we need to
+ * convert base2 to base10.  During which we need to implement correct rounding.  Hence on
+ * base2 we have:
+ *
+ * {low, value, high}
+ *
+ * 3 values, representing round down, no rounding, and round up.  In the original
+ * implementation and paper, variables representing these 3 values are typically postfixed
+ * with m, r, p like {vr, vm, vp}.  Here we name them more verbosely.
+ */
+
 namespace xgboost {
 
 namespace {
@@ -245,10 +260,11 @@ constexpr uint64_t RyuPowLogUtils::kFloatPow5Split[47];
 
 class PowerBaseComputer {
  private:
-  static uint8_t ToDecimalBase(bool accept_bounds, uint32_t mmShift,
-                               MantissaInteval base2, MantissaInteval *base10,
-                               bool *vmIsTrailingZeros,
-                               bool *vrIsTrailingZeros) noexcept(true) {
+  static uint8_t
+  ToDecimalBase(bool accept_bounds, uint32_t mantissa_low_shift,
+                MantissaInteval base2, MantissaInteval *base10,
+                bool *mantissa_low_is_trailing_zeros,
+                bool *mantissa_out_is_trailing_zeros) noexcept(true) {
     uint8_t last_removed_digit = 0;
     if (base2.exponent >= 0) {
       const uint32_t q = RyuPowLogUtils::Log10Pow2(base2.exponent);
@@ -269,8 +285,9 @@ class PowerBaseComputer {
         // below. We could use q = X - 1 above, except that would require 33
         // bits for the result, and we've found that 32-bit arithmetic is
         // faster even on 64-bit machines.
-        const int32_t l = RyuPowLogUtils::kFloatPow5InvBitcount +
-                          RyuPowLogUtils::Pow5Bits(static_cast<int32_t>(q - 1)) - 1;
+        const int32_t l =
+            RyuPowLogUtils::kFloatPow5InvBitcount +
+            RyuPowLogUtils::Pow5Bits(static_cast<int32_t>(q - 1)) - 1;
         last_removed_digit = static_cast<uint8_t>(
             RyuPowLogUtils::MulPow5InvDivPow2(
                 base2.mantissa_correct, q - 1,
@@ -278,14 +295,14 @@ class PowerBaseComputer {
             10);
       }
       if (q <= 9) {
-        // The largest power of 5 that fits in 24 bits is 5^10, but q <= 9
-        // seems to be safe as well. Only one of mp, mv, and mm can be a
-        // multiple of 5, if any.
+        // The largest power of 5 that fits in 24 bits is 5^10, but q <= 9 seems to be
+        // safe as well. Only one of mantissa_high, mantissa_correct, and mantissa_low can
+        // be a multiple of 5, if any.
         if (base2.mantissa_correct % 5 == 0) {
-          *vrIsTrailingZeros =
+          *mantissa_out_is_trailing_zeros =
               RyuPowLogUtils::MultipleOfPowerOf5(base2.mantissa_correct, q);
         } else if (accept_bounds) {
-          *vmIsTrailingZeros =
+          *mantissa_low_is_trailing_zeros =
               RyuPowLogUtils::MultipleOfPowerOf5(base2.mantissa_low, q);
         } else {
           base10->mantissa_high -=
@@ -317,19 +334,21 @@ class PowerBaseComputer {
             10);
       }
       if (q <= 1) {
-        // {vr,vp,vm} is trailing zeros if {mv,mp,mm} has at least q trailing 0
-        // bits. mv = 4 * m2, so it always has at least two trailing 0 bits.
-        *vrIsTrailingZeros = true;
+        // {mantissa_out, mantissa_out_high, mantissa_out_low} is trailing zeros if
+        // {mantissa_correct,mantissa_high,mantissa_low} has at least q trailing 0
+        // bits.mantissa_correct = 4 * m2, so it always has at least two trailing 0 bits.
+        *mantissa_out_is_trailing_zeros = true;
         if (accept_bounds) {
-          // mm = mv - 1 - mmShift, so it has 1 trailing 0 bit iff mmShift
-          // == 1.
-          *vmIsTrailingZeros = mmShift == 1;
+          // mantissa_low = mantissa_correct - 1 - mantissa_low_shift, so it has 1
+          // trailing 0 bit iff mmShift == 1.
+          *mantissa_low_is_trailing_zeros = mantissa_low_shift == 1;
         } else {
-          // mp = mv + 2, so it always has at least one trailing 0 bit.
+          // mantissa_high = mantissa_correct + 2, so it always has at least one trailing
+          // 0 bit.
           --base10->mantissa_high;
         }
       } else if (q < 31) {
-        *vrIsTrailingZeros =
+        *mantissa_out_is_trailing_zeros =
             RyuPowLogUtils::MultipleOfPowerOf2(base2.mantissa_correct, q - 1);
       }
     }
@@ -341,18 +360,17 @@ class PowerBaseComputer {
    */
   static UnsignedFloatBase10
   ShortestRepresentation(bool mantissa_low_is_trailing_zeros,
-                         bool vrIsTrailingZeros,
-                         uint8_t last_removed_digit,
-                         bool const acceptBounds,
+                         bool mantissa_out_is_trailing_zeros,
+                         uint8_t last_removed_digit, bool const accept_bounds,
                          MantissaInteval base10) noexcept(true) {
     int32_t removed {0};
     uint32_t output {0};
 
-    if (mantissa_low_is_trailing_zeros || vrIsTrailingZeros) {
+    if (mantissa_low_is_trailing_zeros || mantissa_out_is_trailing_zeros) {
       // General case, which happens rarely (~4.0%).
       while (base10.mantissa_high / 10 > base10.mantissa_low / 10) {
         mantissa_low_is_trailing_zeros &= base10.mantissa_low % 10 == 0;
-        vrIsTrailingZeros &= last_removed_digit == 0;
+        mantissa_out_is_trailing_zeros &= last_removed_digit == 0;
         last_removed_digit = static_cast<uint8_t>(base10.mantissa_correct % 10);
         base10.mantissa_correct /= 10;
         base10.mantissa_high /= 10;
@@ -362,7 +380,7 @@ class PowerBaseComputer {
 
       if (mantissa_low_is_trailing_zeros) {
         while (base10.mantissa_low % 10 == 0) {
-          vrIsTrailingZeros &= last_removed_digit == 0;
+          mantissa_out_is_trailing_zeros &= last_removed_digit == 0;
           last_removed_digit = static_cast<uint8_t>(base10.mantissa_correct % 10);
           base10.mantissa_correct /= 10;
           base10.mantissa_high /= 10;
@@ -371,15 +389,16 @@ class PowerBaseComputer {
         }
       }
 
-      if (vrIsTrailingZeros && last_removed_digit == 5 &&
+      if (mantissa_out_is_trailing_zeros && last_removed_digit == 5 &&
           base10.mantissa_correct % 2 == 0) {
         // Round even if the exact number is .....50..0.
         last_removed_digit = 4;
       }
-      // We need to take vr + 1 if vr is outside bounds or we need to round up.
+      // We need to take mantissa_out + 1 if mantissa_out is outside bounds or we need to
+      // round up.
       output = base10.mantissa_correct +
                ((base10.mantissa_correct == base10.mantissa_low &&
-                 (!acceptBounds || !mantissa_low_is_trailing_zeros)) ||
+                 (!accept_bounds || !mantissa_low_is_trailing_zeros)) ||
                 last_removed_digit >= 5);
     } else {
       // Specialized for the common case (~96.0%). Percentages below are
@@ -393,7 +412,8 @@ class PowerBaseComputer {
         ++removed;
       }
 
-      // We need to take vr + 1 if vr is outside bounds or we need to round up.
+      // We need to take mantissa_out + 1 if mantissa_out is outside bounds or we need to
+      // round up.
       output = base10.mantissa_correct +
                (base10.mantissa_correct == base10.mantissa_low ||
                 last_removed_digit >= 5);
