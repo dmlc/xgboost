@@ -5,6 +5,7 @@
 #define XGBOOST_JSON_IO_H_
 #include <xgboost/json.h>
 
+#include <vector>
 #include <memory>
 #include <string>
 #include <cinttypes>
@@ -15,20 +16,6 @@
 #include <locale>
 
 namespace xgboost {
-
-template <typename Allocator>
-class FixedPrecisionStreamContainer : public std::basic_stringstream<
-  char, std::char_traits<char>, Allocator> {
- public:
-  FixedPrecisionStreamContainer() {
-    this->precision(std::numeric_limits<double>::max_digits10);
-    this->imbue(std::locale("C"));
-    this->setf(std::ios::scientific);
-  }
-};
-
-using FixedPrecisionStream = FixedPrecisionStreamContainer<std::allocator<char>>;
-
 /*
  * \brief A json reader, currently error checking and utf-8 is not fully supported.
  */
@@ -45,13 +32,11 @@ class JsonReader {
     SourceLocation() = default;
     size_t  Pos()  const { return pos_; }
 
-    SourceLocation& Forward() {
+    void Forward() {
       pos_++;
-      return *this;
     }
-    SourceLocation& Forward(uint32_t n) {
+    void Forward(uint32_t n) {
       pos_ += n;
-      return *this;
     }
   } cursor_;
 
@@ -82,8 +67,8 @@ class JsonReader {
     return GetNextChar();
   }
 
-  char GetChar(char c) {
-    char result = GetNextNonSpaceChar();
+  char GetConsecutiveChar(char c) {
+    char result = GetNextChar();
     if (result != c) { Expect(c, result); }
     return result;
   }
@@ -119,37 +104,15 @@ class JsonReader {
 
 class JsonWriter {
   static constexpr size_t kIndentSize = 2;
-  FixedPrecisionStream convertor_;
 
   size_t n_spaces_;
-  std::ostream* stream_;
-  bool pretty_;
+  std::vector<char>* stream_;
 
  public:
-  JsonWriter(std::ostream* stream, bool pretty) :
-      n_spaces_{0}, stream_{stream}, pretty_{pretty} {}
+  explicit JsonWriter(std::vector<char>* stream) :
+      n_spaces_{0}, stream_{stream} {}
 
   virtual ~JsonWriter() = default;
-
-  void NewLine() {
-    if (pretty_) {
-      *stream_ << u8"\n" << std::string(n_spaces_, ' ');
-    }
-  }
-
-  void BeginIndent() {
-    n_spaces_ += kIndentSize;
-  }
-  void EndIndent() {
-    n_spaces_ -= kIndentSize;
-  }
-
-  void Write(std::string str) {
-    *stream_ << str;
-  }
-  void Write(StringView str) {
-    stream_->write(str.c_str(), str.size());
-  }
 
   void Save(Json json);
 

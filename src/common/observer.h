@@ -53,7 +53,7 @@ class TrainingObserver {
     Json j_tree {Object()};
     tree.SaveModel(&j_tree);
     std::string str;
-    Json::Dump(j_tree, &str, true);
+    Json::Dump(j_tree, &str);
     OBSERVER_PRINT << str << OBSERVER_ENDL;
   }
   /*\brief Observe tree. */

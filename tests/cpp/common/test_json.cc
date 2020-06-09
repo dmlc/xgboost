@@ -146,22 +146,33 @@ TEST(Json, ParseNumber) {
   {
     std::string str = "31.8892";
     auto json = Json::Load(StringView{str.c_str(), str.size()});
-    ASSERT_NEAR(get<JsonNumber>(json), 31.8892f, kRtEps);
+    ASSERT_EQ(get<JsonNumber>(json), 31.8892f);
   }
   {
     std::string str = "-31.8892";
     auto json = Json::Load(StringView{str.c_str(), str.size()});
-    ASSERT_NEAR(get<JsonNumber>(json), -31.8892f, kRtEps);
+    ASSERT_EQ(get<JsonNumber>(json), -31.8892f);
   }
   {
     std::string str = "2e4";
     auto json = Json::Load(StringView{str.c_str(), str.size()});
-    ASSERT_NEAR(get<JsonNumber>(json), 2e4f, kRtEps);
+    ASSERT_EQ(get<JsonNumber>(json), 2e4f);
   }
   {
     std::string str = "2e-4";
     auto json = Json::Load(StringView{str.c_str(), str.size()});
-    ASSERT_NEAR(get<JsonNumber>(json), 2e-4f, kRtEps);
+    ASSERT_EQ(get<JsonNumber>(json), 2e-4f);
+  }
+  {
+    std::string str = "-2e-4";
+    auto json = Json::Load(StringView{str.c_str(), str.size()});
+    ASSERT_EQ(get<JsonNumber>(json), -2e-4f);
+  }
+  {
+    std::string str = "-0.0";
+    auto json = Json::Load(StringView{str.c_str(), str.size()});
+    ASSERT_TRUE(std::signbit(get<JsonNumber>(json)));
+    ASSERT_EQ(get<JsonNumber>(json), -0);
   }
 }
 
@@ -204,9 +215,9 @@ TEST(Json, ParseArray) {
 
 TEST(Json, Null) {
   Json json {JsonNull()};
-  std::stringstream ss;
+  std::string ss;
   Json::Dump(json, &ss);
-  ASSERT_EQ(ss.str(), "null");
+  ASSERT_EQ(ss, "null");
 
   std::string null_input {R"null({"key":  null })null"};
 
@@ -288,7 +299,7 @@ TEST(Json, AssigningObjects) {
     Json json_object { JsonObject() };
     auto str = JsonString("1");
     auto& k = json_object["1"];
-    k  = str;
+    k  = std::move(str);
     auto& m = json_object["1"];
     std::string value = get<JsonString>(m);
     ASSERT_EQ(value, "1");
@@ -365,15 +376,16 @@ TEST(Json, LoadDump) {
   dmlc::TemporaryDirectory tempdir;
   auto const& path = tempdir.path + "test_model_dump";
 
-  std::ofstream fout (path);
-  Json::Dump(origin, &fout);
-  fout.close();
+  std::string out;
+  Json::Dump(origin, &out);
+
+  std::ofstream fout(path);
+  fout << out;
 
   std::string new_buffer = common::LoadSequentialFile(path);
   Json load_back {Json::Load(StringView(new_buffer.c_str(), new_buffer.size()))};
 
-  ASSERT_EQ(load_back, origin) << ori_buffer << "\n\n---------------\n\n"
-                               << new_buffer;
+  ASSERT_EQ(load_back, origin);
 }
 
 // For now Json is quite ignorance about unicode.
@@ -383,10 +395,9 @@ TEST(Json, CopyUnicode) {
 )json";
   Json loaded {Json::Load(StringView{json_str.c_str(), json_str.size()})};
 
-  std::stringstream ss_1;
-  Json::Dump(loaded, &ss_1);
+  std::string dumped_string;
+  Json::Dump(loaded, &dumped_string);
 
-  std::string dumped_string = ss_1.str();
   ASSERT_NE(dumped_string.find("\\u20ac"), std::string::npos);
 }
 
@@ -403,6 +414,15 @@ TEST(Json, WrongCasts) {
     Json json = Json{ Object{std::map<std::string, Json>{
           {"key", Json{String{"value"}}}} } };
     ASSERT_ANY_THROW(get<Number>(json));
+  }
+}
+
+TEST(Json, Integer) {
+  for (int64_t i = 1; i < 10000; i *= 10) {
+    auto ten = Json{Integer{i}};
+    std::string str;
+    Json::Dump(ten, &str);
+    ASSERT_EQ(str, std::to_string(i));
   }
 }
 

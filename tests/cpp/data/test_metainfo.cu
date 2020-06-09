@@ -32,9 +32,8 @@ std::string PrepareData(std::string typestr, thrust::device_vector<T>* out, cons
   column["data"] = j_data;
   Json array(std::vector<Json>{column});
 
-  std::stringstream ss;
-  Json::Dump(array, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(array, &str);
 
   return str;
 }

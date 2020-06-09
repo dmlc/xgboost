@@ -248,9 +248,9 @@ TEST(HistUtil, AdapterDeviceSketch) {
   thrust::device_vector< float> data(rows*cols);
   auto json_array_interface = Generate2dArrayInterface(rows, cols, "<f4", &data);
   data = std::vector<float >{ 1.0,2.0,3.0,4.0,5.0 };
-  std::stringstream ss;
-  Json::Dump(json_array_interface, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(json_array_interface, &str);
+
   data::CupyAdapter adapter(str);
 
   auto device_cuts = AdapterDeviceSketch(&adapter, num_bins, missing);
