@@ -3,6 +3,206 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## v1.1.0 (2020.05.17)
+
+### Better performance on multi-core CPUs (#5244, #5334, #5522)
+* Poor performance scaling of the `hist` algorithm for multi-core CPUs has been under investigation (#3810). #5244 concludes the ongoing effort to improve performance scaling on multi-CPUs, in particular Intel CPUs. Roadmap: #5104
+* #5334 makes steps toward reducing memory consumption for the `hist` tree method on CPU.
+* #5522 optimizes random number generation for data sampling.
+
+### Deterministic GPU algorithm for regression and classification (#5361)
+* GPU algorithm for regression and classification tasks is now deterministic.
+* Roadmap: #5023. Currently only single-GPU training is deterministic. Distributed training with multiple GPUs is not yet deterministic.
+
+### Improve external memory support on GPUs (#5093, #5365)
+* Starting from 1.0.0 release, we added support for external memory on GPUs to enable training with larger datasets. Gradient-based sampling (#5093) speeds up the external memory algorithm by intelligently sampling a subset of the training data to copy into the GPU memory. [Learn more about out-of-core GPU gradient boosting.](https://arxiv.org/abs/2005.09148)
+* GPU-side data sketching now works with data from external memory (#5365).
+
+### Parameter validation: detection of unused or incorrect parameters (#5477, #5569, #5508)
+* Mis-spelled training parameter is a common user mistake. In previous versions of XGBoost, mis-spelled parameters were silently ignored. Starting with 1.0.0 release, XGBoost will produce a warning message if there is any unused training parameters. The 1.1.0 release makes parameter validation available to the scikit-learn interface (#5477) and the R binding (#5569).
+
+### Thread-safe, in-place prediction method (#5389, #5512)
+* Previously, the prediction method was not thread-safe (#5339). This release adds a new API function `inplace_predict()` that is thread-safe. It is now possible to serve concurrent requests for prediction using a shared model object.
+* It is now possible to compute prediction in-place for selected data formats (`numpy.ndarray` / `scipy.sparse.csr_matrix` / `cupy.ndarray` / `cudf.DataFrame` / `pd.DataFrame`) without creating a `DMatrix` object.
+
+### Addition of Accelerated Failure Time objective for survival analysis (#4763, #5473, #5486, #5552, #5553)
+* Survival analysis (regression) models the time it takes for an event of interest to occur. The target label is potentially censored, i.e. the label is a range rather than a single number. We added a new objective `survival:aft` to support survival analysis. Also added is the new API to specify the ranged labels. Check out [the tutorial](https://xgboost.readthedocs.io/en/release_1.1.0/tutorials/aft_survival_analysis.html) and the [demos](https://github.com/dmlc/xgboost/tree/release_1.1.0/demo/aft_survival).
+* GPU support is work in progress (#5714).
+
+### Improved installation experience on Mac OSX (#5597, #5602, #5606, #5701)
+* It only takes two commands to install the XGBoost Python package: `brew install libomp` followed by `pip install xgboost`. The installed XGBoost will use all CPU cores. Even better, starting with this release, we distribute pre-compiled binary wheels targeting Mac OSX. Now the install command `pip install xgboost` finishes instantly, as it no longer compiles the C++ source of XGBoost. The last three Mac versions (High Sierra, Mojave, Catalina) are supported.
+* R package: the 1.1.0 release fixes the error `Initializing libomp.dylib, but found libomp.dylib already initialized` (#5701)
+
+### Ranking metrics are now accelerated on GPUs (#5380, #5387, #5398)
+
+### GPU-side data matrix to ingest data directly from other GPU libraries (#5420, #5465)
+* Previously, data on GPU memory had to be copied back to the main memory before it could be used by XGBoost. Starting with 1.1.0 release, XGBoost provides a dedicated interface (`DeviceQuantileDMatrix`) so that it can ingest data from GPU memory directly. The result is that XGBoost interoperates better with GPU-accelerated data science libraries, such as cuDF, cuPy, and PyTorch.
+* Set device in device dmatrix. (#5596)
+
+### Robust model serialization with JSON (#5123, #5217)
+* We continue efforts from the 1.0.0 release to adopt JSON as the format to save and load models robustly. Refer to the release note for 1.0.0 to learn more.
+* It is now possible to store internal configuration of the trained model (`Booster`) object in R as a JSON string (#5123, #5217).
+
+### Improved integration with Dask
+* Pass through `verbose` parameter for dask fit (#5413)
+* Use `DMLC_TASK_ID`. (#5415)
+* Order the prediction result. (#5416)
+* Honor `nthreads` from dask worker. (#5414)
+* Enable grid searching with scikit-learn. (#5417)
+* Check non-equal when setting threads. (#5421)
+* Accept other inputs for prediction. (#5428)
+* Fix missing value for scikit-learn interface. (#5435)
+
+### XGBoost4J-Spark: Check number of columns in the data iterator (#5202, #5303)
+* Before, the native layer in XGBoost did not know the number of columns (features) ahead of time and had to guess the number of columns by counting the feature index when ingesting data. This method has a failure more in distributed setting: if the training data is highly sparse, some features may be completely missing in one or more worker partitions. Thus, one or more workers may deduce an incorrect data shape, leading to crashes or silently wrong models.
+* Enforce correct data shape by passing the number of columns explicitly from the JVM layer into the native layer.
+
+### Major refactoring of the `DMatrix` class
+* Continued from 1.0.0 release.
+* Remove update prediction cache from predictors. (#5312)
+* Predict on Ellpack. (#5327)
+* Partial rewrite EllpackPage (#5352)
+* Use ellpack for prediction only when sparsepage doesn't exist. (#5504)
+* RFC: #4354, Roadmap: #5143
+
+### Breaking: XGBoost Python package now requires Pip 19.0 and higher (#5589)
+* Your Linux machine may have an old version of Pip and may attempt to install a source package, leading to long installation time. This is because we are now using `manylinux2010` tag in the binary wheel release. Ensure you have Pip 19.0 or newer by running `python3 -m pip -V` to check the version. Upgrade Pip with command
+```
+python3 -m pip install --upgrade pip
+```
+Upgrading to latest pip allows us to depend on newer versions of system libraries. [TensorFlow](https://www.tensorflow.org/install/pip) also requires Pip 19.0+.
+
+### Breaking: GPU algorithm now requires CUDA 10.0 and higher (#5649)
+* CUDA 10.0 is necessary to make the GPU algorithm deterministic (#5361).
+
+### Breaking: `silent` parameter is now removed (#5476)
+* Please use `verbosity` instead.
+
+### Breaking: Set `output_margin` to True for custom objectives (#5564)
+* Now both R and Python interface custom objectives get un-transformed (raw) prediction outputs.
+
+### Breaking: `Makefile` is now removed. We use CMake exclusively to build XGBoost (#5513)
+* Exception: the R package uses Autotools, as the CRAN ecosystem did not yet adopt CMake widely.
+
+### Breaking: `distcol` updater is now removed (#5507)
+* The `distcol` updater has been long broken, and currently we lack resources to implement a working implementation from scratch.
+
+### Deprecation notices
+* **Python 3.5**. This release is the last release to support Python 3.5. The following release (1.2.0) will require Python 3.6.
+* **Scala 2.11**. Currently XGBoost4J supports Scala 2.11. However, if a future release of XGBoost adopts Spark 3, it will not support Scala 2.11, as Spark 3 requires Scala 2.12+. We do not yet know which XGBoost release will adopt Spark 3.
+
+### Known limitations
+* (Python package) When early stopping is activated with `early_stopping_rounds` at training time, the prediction method (`xgb.predict()`) behaves in a surprising way. If XGBoost runs for M rounds and chooses iteration N (N < M) as the best iteration, then the prediction method will use M trees by default. To use the best iteration (N trees), users will need to manually take the best iteration field `bst.best_iteration` and pass it as the `ntree_limit` argument to `xgb.predict()`. See #5209 and #4052 for additional context.
+* GPU ranking objective is currently not deterministic (#5561).
+* When training parameter `reg_lambda` is set to zero, some leaf nodes may be assigned a NaN value. (See [discussion](https://discuss.xgboost.ai/t/still-getting-unexplained-nans-new-replication-code/1383/9).) For now, please set `reg_lambda` to a nonzero value.
+
+### Community and Governance
+* The XGBoost Project Management Committee (PMC) is pleased to announce a new committer: Egor Smirnov (@SmirnovEgorRu). He has led a major initiative to improve the performance of XGBoost on multi-core CPUs.
+
+### Bug-fixes
+* Improved compatibility with scikit-learn (#5255, #5505, #5538)
+* Remove f-string, since it's not supported by Python 3.5 (#5330). Note that Python 3.5 support is deprecated and schedule to be dropped in the upcoming release (1.2.0).
+* Fix the pruner so that it doesn't prune the same branch twice (#5335)
+* Enforce only major version in JSON model schema (#5336). Any major revision of the model schema would bump up the major version.
+* Fix a small typo in sklearn.py that broke multiple eval metrics (#5341)
+* Restore loading model from a memory buffer (#5360)
+* Define lazy isinstance for Python compat (#5364)
+* [R] fixed uses of `class()` (#5426)
+* Force compressed buffer to be 4 bytes aligned, to keep cuda-memcheck happy (#5441)
+* Remove warning for calling host function (`std::max`) on a GPU device (#5453)
+* Fix uninitialized value bug in xgboost callback (#5463)
+* Fix model dump in CLI (#5485)
+* Fix out-of-bound array access in `WQSummary::SetPrune()` (#5493)
+* Ensure that configured `dmlc/build_config.h` is picked up by Rabit and XGBoost, to fix build on Alpine (#5514)
+* Fix a misspelled method, made in a git merge (#5509)
+* Fix a bug in binary model serialization (#5532)
+* Fix CLI model IO (#5535)
+* Don't use `uint` for threads (#5542)
+* Fix R interaction constraints to handle more than 100000 features (#5543)
+* [jvm-packages] XGBoost Spark should deal with NaN when parsing evaluation output (#5546)
+* GPU-side data sketching is now aware of query groups in learning-to-rank data (#5551)
+* Fix DMatrix slicing for newly added fields (#5552)
+* Fix configuration status with loading binary model (#5562)
+* Fix build when OpenMP is disabled (#5566)
+* R compatibility patches (#5577, #5600)
+* gpu\_hist performance fixes (#5558)
+* Don't set seed on CLI interface (#5563)
+* [R] When serializing model, preserve model attributes related to early stopping (#5573)
+* Avoid rabit calls in learner configuration (#5581)
+* Hide C++ symbols in libxgboost.so when building Python wheel (#5590). This fixes apache/incubator-tvm#4953.
+* Fix compilation on Mac OSX High Sierra (10.13) (#5597)
+* Fix build on big endian CPUs (#5617)
+* Resolve crash due to use of `vector<bool>::iterator` (#5642)
+* Validation JSON model dump using JSON schema (#5660)
+
+### Performance improvements
+* Wide dataset quantile performance improvement (#5306)
+* Reduce memory usage of GPU-side data sketching (#5407)
+* Reduce span check overhead (#5464)
+* Serialise booster after training to free up GPU memory (#5484)
+* Use the maximum amount of GPU shared memory available to speed up the histogram kernel (#5491)
+* Use non-synchronising scan in Thrust (#5560)
+* Use `cudaDeviceGetAttribute()` instead of `cudaGetDeviceProperties()` for speed (#5570)
+
+### API changes
+* Support importing data from a Pandas SparseArray (#5431)
+* `HostDeviceVector` (vector shared between CPU and GPU memory) now exposes `HostSpan` interface, to enable access on the CPU side with bound check (#5459)
+* Accept other gradient types for `SplitEntry` (#5467)
+
+### Usability Improvements, Documentation
+* Add `JVM_CHECK_CALL` to prevent C++ exceptions from leaking into the JVM layer (#5199)
+* Updated Windows build docs (#5283)
+* Update affiliation of @hcho3 (#5292)
+* Display Sponsor button, link to OpenCollective (#5325)
+* Update docs for GPU external memory (#5332)
+* Add link to GPU documentation (#5437)
+* Small updates to GPU documentation (#5483)
+* Edits on tutorial for XGBoost job on Kubernetes (#5487)
+* Add reference to GPU external memory (#5490)
+* Fix typos (#5346, #5371, #5384, #5399, #5482, #5515)
+* Update Python doc (#5517)
+* Add Neptune and Optuna to list of examples (#5528)
+* Raise error if the number of data weights doesn't match the number of data sets (#5540)
+* Add a note about GPU ranking (#5572)
+* Clarify meaning of `training` parameter in the C API function `XGBoosterPredict()` (#5604)
+* Better error handling for situations where existing trees cannot be modified (#5406, #5418). This feature is enabled when `process_type` is set to `update`.
+
+### Maintenance: testing, continuous integration, build system
+* Add C++ test coverage for data sketching (#5251)
+* Ignore gdb\_history (#5257)
+* Rewrite setup.py. (#5271, #5280)
+* Use `scikit-learn` in extra dependencies (#5310)
+* Add CMake option to build static library (#5397)
+* [R] changed FindLibR to take advantage of CMake cache (#5427)
+* [R] fixed inconsistency in R -e calls in FindLibR.cmake (#5438)
+* Refactor tests with data generator (#5439)
+* Resolve failing Travis CI (#5445)
+* Update dmlc-core. (#5466)
+* [CI] Use clang-tidy 10 (#5469)
+* De-duplicate code for checking maximum number of nodes (#5497)
+* [CI] Use Ubuntu 18.04 LTS in JVM CI, because 19.04 is EOL (#5537)
+* [jvm-packages] [CI] Create a Maven repository to host SNAPSHOT JARs (#5533)
+* [jvm-packages] [CI] Publish XGBoost4J JARs with Scala 2.11 and 2.12 (#5539)
+* [CI] Use Vault repository to re-gain access to devtoolset-4 (#5589)
+
+### Maintenance: Refactor code for legibility and maintainability
+* Move prediction cache to Learner (#5220, #5302)
+* Remove SimpleCSRSource (#5315)
+* Refactor SparsePageSource, delete cache files after use (#5321)
+* Remove unnecessary DMatrix methods (#5324)
+* Split up `LearnerImpl` (#5350)
+* Move segment sorter to common (#5378)
+* Move thread local entry into Learner (#5396)
+* Split up test helpers header (#5455)
+* Requires setting leaf stat when expanding tree (#5501)
+* Purge device\_helpers.cuh (#5534)
+* Use thrust functions instead of custom functions (#5544)
+
+### Acknowledgement
+**Contributors**: Nan Zhu (@CodingCat), Rory Mitchell (@RAMitchell), @ShvetsKS, Egor Smirnov (@SmirnovEgorRu), Andrew Kane (@ankane), Avinash Barnwal (@avinashbarnwal), Bart Broere (@bartbroere), Andy Adinets (@canonizer), Chen Qin (@chenqin), Daiki Katsuragawa (@daikikatsuragawa), David Díaz Vico (@daviddiazvico), Darius Kharazi (@dkharazi), Darby Payne (@dpayne), Jason E. Aten, Ph.D. (@glycerine), Philip Hyunsu Cho (@hcho3), James Lamb (@jameslamb), Jan Borchmann (@jborchma), Kamil A. Kaczmarek (@kamil-kaczmarek), Melissa Kohl (@mjkohl32), Nicolas Scozzaro (@nscozzaro), Paul Kaefer (@paulkaefer), Rong Ou (@rongou), Samrat Pandiri (@samratp), Sriram Chandramouli (@sriramch), Yuan Tang (@terrytangyuan), Jiaming Yuan (@trivialfis), Liang-Chi Hsieh (@viirya), Bobby Wang (@wbo4958), Zhang Zhang (@zhangzhang10),
+
+**Reviewers**: Nan Zhu (@CodingCat), @LeZhengThu, Rory Mitchell (@RAMitchell), @ShvetsKS, Egor Smirnov (@SmirnovEgorRu), Steve Bronder (@SteveBronder), Nikita Titov (@StrikerRUS), Andrew Kane (@ankane), Avinash Barnwal (@avinashbarnwal), @brydag, Andy Adinets (@canonizer), Chandra Shekhar Reddy (@chandrureddy), Chen Qin (@chenqin), Codecov (@codecov-io), David Díaz Vico (@daviddiazvico), Darby Payne (@dpayne), Jason E. Aten, Ph.D. (@glycerine), Philip Hyunsu Cho (@hcho3), James Lamb (@jameslamb), @johnny-cat, Mu Li (@mli), Mate Soos (@msoos), @rnyak, Rong Ou (@rongou), Sriram Chandramouli (@sriramch), Toby Dylan Hocking (@tdhock), Yuan Tang (@terrytangyuan), Oleksandr Pryimak (@trams), Jiaming Yuan (@trivialfis), Liang-Chi Hsieh (@viirya), Bobby Wang (@wbo4958),
+
 ## v1.0.0 (2020.02.19)
 This release marks a major milestone for the XGBoost project.
 
