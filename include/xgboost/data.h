@@ -208,7 +208,11 @@ struct Entry {
   /*! \brief feature value */
   bst_float fvalue;
   /*! \brief default constructor */
+#if defined(XGBOOST_BUILD_ARROW_SUPPORT)
   Entry() {} // NOLINT: Allow empty default constructor for performance reasons
+#else
+  Entry() = default;
+#endif
   /*!
    * \brief constructor with index and value
    * \param index The feature or row index.
