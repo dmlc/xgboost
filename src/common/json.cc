@@ -443,7 +443,9 @@ void JsonReader::Error(std::string msg) const {
   LOG(FATAL) << msg;
 }
 
+namespace {
 bool IsSpace(char c) { return c == ' ' || c == '\n' || c == '\r' || c == '\t'; }
+}  // anonymous namespace
 
 // Json class
 void JsonReader::SkipSpaces() {
@@ -576,13 +578,19 @@ Json JsonReader::ParseObject() {
   return Json(std::move(data));
 }
 
+#if defined(__linux__) && defined(__GNUC__)
+#define Exp10(val) exp10((val))
+#else
+#define Exp10(val) std::pow(10, (val))
+#endif
+
 inline double FastPath(double significand, int exp) {
   if (exp < -308) {
     return 0.0;
   } else if (exp >= 0) {
-    return significand * exp10(exp);
+    return significand * Exp10(exp);
   } else {
-    return significand / exp10(-exp);
+    return significand / Exp10(-exp);
   }
 }
 
@@ -598,7 +606,7 @@ inline double Strtod(double significand, int exp, char const *beg) {
   // http://www.exploringbinary.com/fast-path-decimal-to-floating-point-conversion/
   if (exp > 22 && exp < 22 + 16) {
     // Fast path cases in disguise
-    significand *= exp10(exp - 22);
+    significand *= Exp10(exp - 22);
     exp = 22;
   }
 
@@ -609,6 +617,8 @@ inline double Strtod(double significand, int exp, char const *beg) {
   result = std::strtod(beg, nullptr);
   return result;
 }
+
+#undef Exp10
 
 Json JsonReader::ParseNumber() {
   // Adopted from sajson with some simplifications and small optimizations.
