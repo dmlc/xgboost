@@ -52,7 +52,7 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
     return {row_idx, column_idx, value};
   }
 
-  XGBOOST_DEVICE bst_row_t NumRows() const { return num_elements_ / columns_.size(); }
+  XGBOOST_DEVICE bst_row_t NumRows() const { return num_rows_; }
   XGBOOST_DEVICE bst_row_t NumCols() const { return columns_.size(); }
 
  private:
