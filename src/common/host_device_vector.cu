@@ -1,11 +1,13 @@
 /*!
  * Copyright 2017 XGBoost contributors
  */
-#include <algorithm>
-#include <cstdint>
 
 #include <thrust/fill.h>
 #include <thrust/device_ptr.h>
+
+#include <algorithm>
+#include <cstdint>
+#include <mutex>
 
 #include "xgboost/data.h"
 #include "xgboost/host_device_vector.h"

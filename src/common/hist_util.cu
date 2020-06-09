@@ -1,10 +1,6 @@
 /*!
  * Copyright 2018 XGBoost contributors
  */
-#include <memory>
-#include <mutex>
-#include <utility>
-#include <vector>
 
 #include <xgboost/logging.h>
 
@@ -16,6 +12,11 @@
 #include <thrust/sort.h>
 #include <thrust/binary_search.h>
 #include <thrust/execution_policy.h>
+
+#include <memory>
+#include <mutex>
+#include <utility>
+#include <vector>
 
 #include "device_helpers.cuh"
 #include "hist_util.h"

@@ -3,11 +3,10 @@
  * \file gbm.cc
  * \brief Registry of gradient boosters.
  */
+#include <dmlc/registry.h>
 #include <string>
 #include <vector>
 #include <memory>
-
-#include <dmlc/registry.h>
 
 #include "xgboost/gbm.h"
 #include "xgboost/learner.h"

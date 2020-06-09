@@ -7,13 +7,6 @@
 #ifndef XGBOOST_DATA_H_
 #define XGBOOST_DATA_H_
 
-#include <memory>
-#include <numeric>
-#include <algorithm>
-#include <string>
-#include <utility>
-#include <vector>
-
 #include <dmlc/base.h>
 #include <dmlc/data.h>
 #include <dmlc/serializer.h>
@@ -21,6 +14,13 @@
 #include <xgboost/base.h>
 #include <xgboost/span.h>
 #include <xgboost/host_device_vector.h>
+
+#include <memory>
+#include <numeric>
+#include <algorithm>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace xgboost {
 // forward declare dmatrix.

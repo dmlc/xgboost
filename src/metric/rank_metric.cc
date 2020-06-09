@@ -19,15 +19,15 @@
 //   this cannot be used when the translation unit is compiled using the 'nvcc' compiler (as the
 //   corresponding headers that brings in those function declaration can't be included with CUDA).
 //   This precludes the CPU and GPU logic to coexist inside a .cu file
-#include <cmath>
-#include <vector>
 
 #include <rabit/rabit.h>
+#include <xgboost/metric.h>
 #include <dmlc/registry.h>
+#include <cmath>
 
-#include "xgboost/metric.h"
+#include <vector>
+
 #include "xgboost/host_device_vector.h"
-
 #include "../common/math.h"
 #include "metric_common.h"
 

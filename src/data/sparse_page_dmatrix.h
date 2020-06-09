@@ -7,13 +7,12 @@
 #ifndef XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
 #define XGBOOST_DATA_SPARSE_PAGE_DMATRIX_H_
 
+#include <xgboost/data.h>
 #include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include "xgboost/data.h"
 
 #include "ellpack_page_source.h"
 #include "sparse_page_source.h"

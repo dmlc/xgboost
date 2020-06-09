@@ -6,10 +6,9 @@
  * \author Avinash Barnwal, Hyunsu Cho and Toby Hocking
  */
 
+#include <dmlc/registry.h>
 #include <algorithm>
 #include <cmath>
-
-#include <dmlc/registry.h>
 #include "survival_util.h"
 
 /*
