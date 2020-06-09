@@ -247,8 +247,9 @@ struct GPUHistMakerDevice {
     bin_groups.clear();
     feature_groups.clear();
     const std::vector<uint32_t>& cut_ptrs = page->Cuts().Ptrs();
-    // TODO(canonizer): determine this automatically based on GPU shared memory
-    int max_group_bins = 3072;
+    
+    int max_group_bins = dh::MaxSharedMemoryOptin(device_id) / sizeof(GradientSumT);
+    
     bin_groups.push_back(0);
     feature_groups.push_back(0);
     for (size_t i = 0; i < cut_ptrs.size(); ++i) {
