@@ -1,0 +1,15 @@
+name: xgboost_docs
+dependencies:
+  - python
+  - pip
+  - pygraphviz
+  - sphinx
+  - recommonmark
+  - mock
+  - sh
+  - matplotlib
+  - pip:
+    - breathe
+    - guzzle_sphinx_theme
+    - pydot-ng
+    - graphviz
