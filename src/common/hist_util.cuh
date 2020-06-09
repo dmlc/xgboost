@@ -202,9 +202,9 @@ void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter,
 }
 
 template <typename AdapterBatch>
-void ProcessBatchSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
-                               size_t begin, size_t end, float missing,
-                               SketchContainer* sketch_container, int num_cuts) {
+void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
+                          size_t begin, size_t end, float missing,
+                          SketchContainer* sketch_container, int num_cuts) {
   // Copy current subset of valid elements into temporary storage and sort
   dh::caching_device_vector<Entry> sorted_entries;
   dh::caching_device_vector<size_t> column_sizes_scan;
@@ -344,8 +344,8 @@ HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
        begin += sketch_batch_num_elements) {
     size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
     auto const& batch = adapter->Value();
-    ProcessBatchSlidingWindow(batch, adapter->DeviceIdx(), adapter->NumColumns(),
-                              begin, end, missing, &sketch_container, num_cuts);
+    ProcessSlidingWindow(batch, adapter->DeviceIdx(), adapter->NumColumns(),
+                         begin, end, missing, &sketch_container, num_cuts);
   }
 
   dense_cuts.Init(&sketch_container.sketches_, num_bins, adapter->NumRows());
@@ -365,8 +365,8 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
       num_cols, device, num_cuts);
   for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
     size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
-    ProcessBatchSlidingWindow(batch, device, num_cols,
-                              begin, end, missing, sketch_container, num_cuts);
+    ProcessSlidingWindow(batch, device, num_cols,
+                         begin, end, missing, sketch_container, num_cuts);
   }
 }
 
