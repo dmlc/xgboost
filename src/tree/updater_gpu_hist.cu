@@ -282,6 +282,7 @@ struct GPUHistMakerDevice {
                               bin_groups_h.back() -
                               bin_groups_h[bin_groups_h.size() - 2]);
     //std::cout << "max_group_bins = " << max_group_bins << std::endl;
+    //std::cout << "num_groups = " << feature_groups_h.size() - 1 << std::endl;
   }
 
   // Get vector of at least n initialised streams

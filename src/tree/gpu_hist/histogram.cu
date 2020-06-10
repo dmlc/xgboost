@@ -193,7 +193,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   // among thread blocks
   //n_blocks_per_mp = common::DivRoundUp(n_blocks_per_mp, num_groups);
   unsigned grid_size = n_blocks_per_mp * n_mps;
-  grid_size = common::DivRoundUp(grid_size, common::DivRoundUp(num_groups, 8));
+  grid_size = common::DivRoundUp(grid_size, common::DivRoundUp(num_groups, 4));
   // int items_per_thread = 64;
   // int grid_size = common::DivRoundUp(d_ridx.size() * matrix.row_stride,
   //                                    block_threads * num_groups * items_per_thread);
