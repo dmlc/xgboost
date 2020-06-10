@@ -21,10 +21,10 @@ template <typename GradientSumT>
 void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
                             common::Span<GradientPair const> gpair,
                             common::Span<const uint32_t> ridx,
+                            common::Span<int const> feature_groups,
+                            common::Span<int const> bin_groups,
                             common::Span<GradientSumT> histogram,
-                            GradientSumT rounding,
-                            int start_feature, int num_features,
-                            int start_bin, int num_bins);
+                            GradientSumT rounding, int max_group_bins);
 }  // namespace tree
 }  // namespace xgboost
 

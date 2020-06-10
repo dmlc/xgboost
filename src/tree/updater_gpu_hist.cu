@@ -204,8 +204,9 @@ struct GPUHistMakerDevice {
 
   std::unique_ptr<GradientBasedSampler> sampler;
 
-  std::vector<int> bin_groups;
-  std::vector<int> feature_groups;
+  HostDeviceVector<int> bin_groups;
+  HostDeviceVector<int> feature_groups;
+  int max_group_bins;
 
   GPUHistMakerDevice(int _device_id,
                      EllpackPageImpl* _page,
@@ -244,24 +245,43 @@ struct GPUHistMakerDevice {
   }
 
   void InitFeatureGroups() {
-    bin_groups.clear();
-    feature_groups.clear();
+    bin_groups.SetDevice(device_id);
+    feature_groups.SetDevice(device_id);
+    std::vector<int>& bin_groups_h = bin_groups.HostVector();
+    std::vector<int>& feature_groups_h = feature_groups.HostVector();
+    bin_groups_h.push_back(0);
+    feature_groups_h.push_back(0);
+
+    bool use_feature_groups = page->is_dense;
+    //bool use_feature_groups = false;
+    if (!use_feature_groups) {
+      feature_groups_h.push_back(page->Cuts().Ptrs().size() - 1);
+      bin_groups_h.push_back(page->Cuts().TotalBins());
+      max_group_bins = page->Cuts().TotalBins();
+      return;
+    }
+      
     const std::vector<uint32_t>& cut_ptrs = page->Cuts().Ptrs();
     
-    int max_group_bins = dh::MaxSharedMemoryOptin(device_id) / sizeof(GradientSumT);
+    int max_shmem_bins = dh::MaxSharedMemoryOptin(device_id) / sizeof(GradientSumT);
+    max_group_bins = 0;
     
-    bin_groups.push_back(0);
-    feature_groups.push_back(0);
     for (size_t i = 0; i < cut_ptrs.size(); ++i) {
-      int last_start = bin_groups.back();
+      int last_start = bin_groups_h.back();
       // TODO(canonizer): handle > max_group_bins per feature
-      if (cut_ptrs[i] - last_start > max_group_bins) {
-        bin_groups.push_back(cut_ptrs[i - 1]);
-        feature_groups.push_back(i - 1);
+      if (cut_ptrs[i] - last_start > max_shmem_bins) {
+        bin_groups_h.push_back(cut_ptrs[i - 1]);
+        feature_groups_h.push_back(i - 1);
+        max_group_bins = std::max(max_group_bins, bin_groups_h.back() -
+                                  last_start);
       }
     }
-    bin_groups.push_back(cut_ptrs.back());
-    feature_groups.push_back(cut_ptrs.size() - 1);
+    bin_groups_h.push_back(cut_ptrs.back());
+    feature_groups_h.push_back(cut_ptrs.size() - 1);
+    max_group_bins = std::max(max_group_bins,
+                              bin_groups_h.back() -
+                              bin_groups_h[bin_groups_h.size() - 2]);
+    //std::cout << "max_group_bins = " << max_group_bins << std::endl;
   }
 
   // Get vector of at least n initialised streams
@@ -398,29 +418,20 @@ struct GPUHistMakerDevice {
     hist.AllocateHistogram(nidx);
     auto d_node_hist = hist.GetNodeHistogram(nidx);
     auto d_ridx = row_partitioner->GetRows(nidx);
-    bool use_feature_groups = page->is_dense;
-    //bool use_feature_groups = false;
-    if (use_feature_groups) {
-      // print groups
-      // std::cout << "feature_groups = { ";
-      // for (int i = 0; i < feature_groups.size(); ++i) std::cout << feature_groups[i] << " ";
-      // std::cout << "}" << std::endl;
+    // print groups
+    // std::cout << "feature_groups = { ";
+    // for (int i = 0; i < feature_groups.size(); ++i) std::cout << feature_groups[i] << " ";
+    // std::cout << "}" << std::endl;
 
-      // std::cout << "bin_groups = { ";
-      // for (int i = 0; i < bin_groups.size(); ++i) std::cout << bin_groups[i] << " ";
-      // std::cout << "}" << std::endl;
-
-      for (int i = 0; i < feature_groups.size() - 1; ++i) {
-        BuildGradientHistogram(page->GetDeviceAccessor(device_id), gpair, d_ridx, d_node_hist,
-                               histogram_rounding, feature_groups[i],
-                               feature_groups[i + 1] - feature_groups[i], bin_groups[i],
-                               bin_groups[i + 1] - bin_groups[i]);
-      }
-    } else {
-      BuildGradientHistogram(page->GetDeviceAccessor(device_id), gpair, d_ridx, d_node_hist,
-                             histogram_rounding, 0, page->Cuts().Ptrs().size() - 1,
-                             0, page->Cuts().TotalBins());
-    }
+    // std::cout << "bin_groups = { ";
+    // for (int i = 0; i < bin_groups.size(); ++i) std::cout << bin_groups[i] << " ";
+    // std::cout << "}" << std::endl;
+    // auto feature_groups_h = feature_groups.ConstHostSpan();
+    // auto bin_groups_h = bin_groups.ConstHostSpan();
+    //std::cout << "feature_groups_h.size() = " << feature_groups_h.size() << std::endl;
+    BuildGradientHistogram(page->GetDeviceAccessor(device_id), gpair, d_ridx,
+                           feature_groups.ConstDeviceSpan(), bin_groups.ConstDeviceSpan(),
+                           d_node_hist, histogram_rounding, max_group_bins);
   }
 
   void SubtractionTrick(int nidx_parent, int nidx_histogram,
