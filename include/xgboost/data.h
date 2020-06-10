@@ -187,7 +187,7 @@ struct Entry {
   /*! \brief feature value */
   bst_float fvalue;
   /*! \brief default constructor */
-  Entry() = default;
+  Entry(){};
   /*!
    * \brief constructor with index and value
    * \param index The feature or row index.
@@ -549,6 +549,11 @@ class DMatrix {
                          int max_bin);
 
   virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
+  virtual DMatrix* Combine(DMatrix* right, uint64_t total_size) {
+    CHECK(false) << " this type of DMatrix not supported";
+    return this;
+  }
+
   /*! \brief page size 32 MB */
   static const size_t kPageSize = 32UL << 20UL;
 

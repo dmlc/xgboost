@@ -199,6 +199,17 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   }
 
   /**
+   * Combine the DMatrix and return this DMatrix.
+   *
+   * @param rightDmatrix DMatrix to be merged
+   * @return this DMatrix
+   */
+  @throws(classOf[XGBoostError])
+  def combine(rightDMatrix: DMatrix, totalSize: Long): DMatrix = {
+    new DMatrix(jDMatrix.combine(rightDMatrix.jDMatrix, totalSize))
+  }
+
+  /**
    * get the row number of DMatrix
    *
    * @return number of rows

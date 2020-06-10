@@ -44,6 +44,27 @@ DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
   return out;
 }
 
+DMatrix* SimpleDMatrix::Combine(DMatrix* right, uint64_t total_size) {
+  SparsePage& out_page = this->sparse_page_;
+
+  for (auto const &page : right->GetBatches<SparsePage>()) {
+    out_page.data.HostVector().reserve(total_size);
+    out_page.offset.HostVector().reserve(total_size+1);
+    out_page.Push(page);
+  }
+  this->Info().num_row_ +=right->Info().num_row_;
+  CHECK_EQ(this->Info().num_col_, right->Info().num_col_)
+          << "Inconsistent num columns";
+  this->Info().num_nonzero_ = out_page.offset.HostVector().back();
+  Info().labels_.Append(right->Info().labels_);
+  Info().weights_.Append(right->Info().weights_);
+  Info().base_margin_.Append(right->Info().base_margin_);
+
+//groups not support yet.
+//
+  return this;
+}
+
 BatchSet<SparsePage> SimpleDMatrix::GetRowBatches() {
   // since csr is the default data structure so `source_` is always available.
   auto begin_iter = BatchIterator<SparsePage>(

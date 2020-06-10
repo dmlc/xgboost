@@ -292,6 +292,28 @@ public class DMatrix {
   }
 
   /**
+   * Combine Two DMatrix into one
+   *
+   * @return combined DMatrix
+   * @throws XGBoostError native error
+   */
+  public DMatrix combine(DMatrix dmx, long totalSize) throws XGBoostError {
+    long[] out = new long[1];
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCombineDMatrix(handle, dmx.handle, totalSize, out));
+    long sHandle = out[0];
+    System.out.println("xgbtck javacombin " + String.valueOf(handle)
+        + " " + String.valueOf(dmx.handle)
+        + " " + String.valueOf(sHandle));
+
+    DMatrix sMatrix = new DMatrix(sHandle);
+
+    // Release the right handler.
+    // dmx.dispose();
+
+    return sMatrix;
+  }
+
+  /**
    * get the row number of DMatrix
    *
    * @return number of rows
