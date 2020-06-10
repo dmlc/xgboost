@@ -47,6 +47,12 @@ TEST(Ryu, Subnormal) {
   TestRyu("NaN", NAN);
   TestRyu("Infinity", INFINITY);
   TestRyu("-Infinity", -INFINITY);
+
+  TestRyu("1E-45", std::numeric_limits<float>::denorm_min());
+}
+
+TEST(Ryu, Denormal) {
+  TestRyu("1E-45", std::numeric_limits<float>::denorm_min());
 }
 
 TEST(Ryu, SwitchToSubnormal) {
@@ -112,6 +118,9 @@ TEST(Ryu, Regression) {
   TestRyu("1.00014165E-36", 1.00014165E-36f);
   TestRyu("2E2", 200.0f);
   TestRyu("3.3554432E7", 3.3554432E7f);
+
+  static_assert(1.1920929E-7f == std::numeric_limits<float>::epsilon(), "");
+  TestRyu("1.1920929E-7", std::numeric_limits<float>::epsilon());
 }
 
 TEST(Ryu, LooksLikePow5) {

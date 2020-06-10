@@ -111,7 +111,7 @@ inline void IEEE754::Decode(float f, UnsignedFloatBase2 *uf, bool *signbit) {
   *signbit = std::signbit(f);
   uf->mantissa = bits & ((1u << kFloatMantissaBits) - 1);
   uf->exponent = (bits >> IEEE754::kFloatMantissaBits) &
-                 ((1u << IEEE754::kFloatExponentBits) - 1);
+                 ((1u << IEEE754::kFloatExponentBits) - 1);  // remove signbit
 }
 
 // Represents the interval of information-preserving outputs.
@@ -230,7 +230,9 @@ struct RyuPowLogUtils {
    */
   static uint32_t MulPow5divPow2(const uint32_t m, const uint32_t i,
                                  const int32_t j) noexcept(true) {
-    return MulShift(m, kFloatPow5Split[i], j);
+    // clang-tidy makes false assumption that can lead to i >= 47, which is impossible.
+    // Can be verified by enumerating all float32 values.
+    return MulShift(m, kFloatPow5Split[i], j);  // NOLINT
   }
 
   /*
@@ -261,8 +263,8 @@ constexpr uint64_t RyuPowLogUtils::kFloatPow5Split[47];
 class PowerBaseComputer {
  private:
   static uint8_t
-  ToDecimalBase(bool accept_bounds, uint32_t mantissa_low_shift,
-                MantissaInteval base2, MantissaInteval *base10,
+  ToDecimalBase(bool const accept_bounds, uint32_t const mantissa_low_shift,
+                MantissaInteval const base2, MantissaInteval *base10,
                 bool *mantissa_low_is_trailing_zeros,
                 bool *mantissa_out_is_trailing_zeros) noexcept(true) {
     uint8_t last_removed_digit = 0;
@@ -432,8 +434,16 @@ class PowerBaseComputer {
     uint32_t mantissa_base2;
     if (f.exponent == 0) {
       // We subtract 2 so that the bounds computation has 2 additional bits.
-      base2_range.exponent =
-          1 - IEEE754::kFloatBias - IEEE754::kFloatMantissaBits - 2;
+      base2_range.exponent = static_cast<int32_t>(1) -
+                             static_cast<int32_t>(IEEE754::kFloatBias) -
+                             static_cast<int32_t>(IEEE754::kFloatMantissaBits) -
+                             static_cast<int32_t>(2);
+      static_assert(static_cast<int32_t>(1) -
+                            static_cast<int32_t>(IEEE754::kFloatBias) -
+                            static_cast<int32_t>(IEEE754::kFloatMantissaBits) -
+                            static_cast<int32_t>(2) ==
+                        -151,
+                    "");
       mantissa_base2 = f.mantissa;
     } else {
       base2_range.exponent = static_cast<int32_t>(f.exponent) - IEEE754::kFloatBias -

@@ -380,6 +380,7 @@ TEST(Json, LoadDump) {
   Json::Dump(origin, &out);
 
   std::ofstream fout(path);
+  ASSERT_TRUE(fout);
   fout << out;
 
   std::string new_buffer = common::LoadSequentialFile(path);
