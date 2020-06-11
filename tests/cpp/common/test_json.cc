@@ -174,6 +174,19 @@ TEST(Json, ParseNumber) {
     ASSERT_TRUE(std::signbit(get<JsonNumber>(json)));
     ASSERT_EQ(get<JsonNumber>(json), -0);
   }
+  {
+    std::string str = "-5.37645816802978516e-01";
+    auto json = Json::Load(StringView{str.c_str(), str.size()});
+    ASSERT_TRUE(std::signbit(get<JsonNumber>(json)));
+    // Larger than fast path limit.
+    ASSERT_EQ(get<JsonNumber>(json), -5.37645816802978516e-01);
+  }
+  {
+    std::string str = "9.86623668670654297e+00";
+    auto json = Json::Load(StringView{str.c_str(), str.size()});
+    ASSERT_FALSE(std::signbit(get<JsonNumber>(json)));
+    ASSERT_EQ(get<JsonNumber>(json), 9.86623668670654297e+00);
+  }
 }
 
 TEST(Json, ParseArray) {
@@ -211,6 +224,20 @@ TEST(Json, ParseArray) {
   Json v0 = arr[0];
   ASSERT_EQ(get<Integer>(v0["depth"]), 3);
   ASSERT_NEAR(get<Number>(v0["gain"]), 10.4866, kRtEps);
+
+  {
+    std::string str = "[5.04713470458984375e+02,9.86623668670654297e+00,4.94847229003906250e+02,2.13924217224121094e+00,7.72699451446533203e+00,2.30380615234375000e+02,2.64466613769531250e+02]";
+    auto json = Json::Load(StringView{str.c_str(), str.size()});
+
+    auto const& vec = get<Array const>(json);
+    ASSERT_EQ(get<Number const>(vec[0]), 5.04713470458984375e+02);
+    ASSERT_EQ(get<Number const>(vec[1]), 9.86623668670654297e+00);
+    ASSERT_EQ(get<Number const>(vec[2]), 4.94847229003906250e+02);
+    ASSERT_EQ(get<Number const>(vec[3]), 2.13924217224121094e+00);
+    ASSERT_EQ(get<Number const>(vec[4]), 7.72699451446533203e+00);
+    ASSERT_EQ(get<Number const>(vec[5]), 2.30380615234375000e+02);
+    ASSERT_EQ(get<Number const>(vec[6]), 2.64466613769531250e+02);
+  }
 }
 
 TEST(Json, Null) {

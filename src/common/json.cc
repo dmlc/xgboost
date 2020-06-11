@@ -409,7 +409,7 @@ void JsonReader::Error(std::string msg) const {
   // just copy it.
   std::istringstream str_s(raw_str_.substr(0, raw_str_.size()));
 
-  msg += ", around character: " + std::to_string(cursor_.Pos());
+  msg += ", around character position: " + std::to_string(cursor_.Pos());
   msg += '\n';
 
   constexpr size_t kExtend = 8;
@@ -598,7 +598,7 @@ constexpr double FastPathLimit() {
   return static_cast<double>((static_cast<uint64_t>(1) << 53) - 1);
 }
 
-inline double Strtod(double significand, int exp, char const *beg) {
+inline double Strtod(double significand, int exp, char const *beg, bool* fast) {
   double result{std::numeric_limits<double>::quiet_NaN()};
   // The technique is picked up from rapidjson, they implemented a big integer
   // type for slow full precision, here we just use strtod for slow parsing.
@@ -608,12 +608,15 @@ inline double Strtod(double significand, int exp, char const *beg) {
     // Fast path cases in disguise
     significand *= Exp10(exp - 22);
     exp = 22;
+    *fast = true;
   }
 
   if (exp >= -22 && exp <= 22 && significand <= FastPathLimit()) {
     result = FastPath(significand, exp);
+    *fast = true;
     return result;
   }
+  *fast = false;
   result = std::strtod(beg, nullptr);
   return result;
 }
@@ -672,12 +675,8 @@ Json JsonReader::ParseNumber() {
     is_float = true;
 
     while (*p >= '0' && *p <= '9') {
-      if (i > FastPathLimit()) {
-        break;
-      } else {
-        i = i * 10 + (*p - '0');
-        exp_frac--;
-      }
+      i = i * 10 + (*p - '0');
+      exp_frac--;
       p++;
     }
   }
@@ -723,8 +722,9 @@ Json JsonReader::ParseNumber() {
   this->cursor_.Forward(moved);
 
   if (is_float) {
-    f = Strtod(i, exp + exp_frac, beg);
-    if (negative) {
+    bool fast { true };
+    f = Strtod(i, exp + exp_frac, beg, &fast);
+    if (negative && fast) {
       f = -f;
     }
     return Json(static_cast<Number::Float>(f));

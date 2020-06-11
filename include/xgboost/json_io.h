@@ -4,6 +4,7 @@
 #ifndef XGBOOST_JSON_IO_H_
 #define XGBOOST_JSON_IO_H_
 #include <xgboost/json.h>
+#include <xgboost/base.h>
 
 #include <vector>
 #include <memory>
@@ -69,7 +70,7 @@ class JsonReader {
 
   char GetConsecutiveChar(char c) {
     char result = GetNextChar();
-    if (result != c) { Expect(c, result); }
+    if (XGBOOST_EXPECT(result != c, false)) { Expect(c, result); }
     return result;
   }
 
