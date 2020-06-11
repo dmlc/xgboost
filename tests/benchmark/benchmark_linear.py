@@ -1,5 +1,5 @@
 #pylint: skip-file
-import sys, argparse
+import argparse
 import xgboost as xgb
 import numpy as np
 from sklearn.datasets import make_classification
