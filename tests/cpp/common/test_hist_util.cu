@@ -58,6 +58,15 @@ size_t RequiredSampleCutsTest(int max_bins, size_t num_rows) {
   return std::min(num_cuts, num_rows);
 }
 
+size_t BytesRequiredForTest(size_t num_rows, size_t num_columns, size_t num_bins,
+                            bool with_weights) {
+  size_t bytes_num_elements = BytesPerElement(with_weights) * num_rows * num_columns;
+  size_t bytes_cuts = RequiredSampleCutsTest(num_bins, num_rows) * num_columns *
+                      sizeof(DenseCuts::WQSketch::Entry);
+  // divide by 2 is because the memory quota used in sorting is reused for storing cuts.
+  return bytes_num_elements / 2 + bytes_cuts;
+}
+
 TEST(HistUtil, DeviceSketchMemory) {
   int num_columns = 100;
   int num_rows = 1000;
@@ -70,14 +79,10 @@ TEST(HistUtil, DeviceSketchMemory) {
   auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
   ConsoleLogger::Configure({{"verbosity", "0"}});
 
-  size_t bytes_num_elements = num_rows * num_columns * sizeof(Entry);
-  size_t bytes_cuts = RequiredSampleCutsTest(num_bins, num_rows) * num_columns *
-                      sizeof(DenseCuts::WQSketch::Entry);
+  size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, false);
   size_t bytes_constant = 1000;
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(),
-            bytes_num_elements + bytes_cuts + bytes_constant);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(),
-            bytes_num_elements + bytes_cuts);
+  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required + bytes_constant);
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
 }
 
 TEST(HistUtil, DeviceSketchMemoryWeights) {
@@ -93,14 +98,9 @@ TEST(HistUtil, DeviceSketchMemoryWeights) {
   auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
   ConsoleLogger::Configure({{"verbosity", "0"}});
 
-  size_t bytes_num_elements =
-      num_rows * num_columns * (sizeof(Entry) + sizeof(float));
-  size_t bytes_cuts = RequiredSampleCutsTest(num_bins, num_rows) * num_columns *
-                      sizeof(DenseCuts::WQSketch::Entry);
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(),
-            size_t((bytes_num_elements + bytes_cuts) * 1.05));
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(),
-            size_t((bytes_num_elements + bytes_cuts)));
+  size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, true);
+  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
 }
 
 TEST(HistUtil, DeviceSketchDeterminism) {
@@ -274,16 +274,10 @@ TEST(HistUtil, AdapterDeviceSketchMemory) {
   auto cuts = AdapterDeviceSketch(&adapter, num_bins,
                                   std::numeric_limits<float>::quiet_NaN());
   ConsoleLogger::Configure({{"verbosity", "0"}});
-
-  size_t bytes_num_elements = num_rows * num_columns * sizeof(Entry);
-  size_t bytes_num_columns = (num_columns + 1) * sizeof(size_t);
-  size_t bytes_cuts = RequiredSampleCutsTest(num_bins, num_rows) * num_columns *
-                      sizeof(DenseCuts::WQSketch::Entry);
   size_t bytes_constant = 1000;
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(),
-            bytes_num_elements + bytes_cuts + bytes_num_columns + bytes_constant);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(),
-            bytes_num_elements + bytes_cuts + bytes_num_columns);
+  size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, false);
+  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required + bytes_constant);
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
 }
 
 TEST(HistUtil, AdapterSketchBatchMemory) {
@@ -301,15 +295,10 @@ TEST(HistUtil, AdapterSketchBatchMemory) {
   AdapterDeviceSketch(adapter.Value(), num_bins, std::numeric_limits<float>::quiet_NaN(),
                       0, &sketch_container);
   ConsoleLogger::Configure({{"verbosity", "0"}});
-  size_t bytes_num_elements = num_rows * num_columns * sizeof(Entry);
-  size_t bytes_num_columns = (num_columns + 1) * sizeof(size_t);
-  size_t bytes_cuts = RequiredSampleCutsTest(num_bins, num_rows) * num_columns *
-                      sizeof(DenseCuts::WQSketch::Entry);
   size_t bytes_constant = 1000;
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(),
-            bytes_num_elements + bytes_cuts + bytes_num_columns + bytes_constant);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(),
-            bytes_num_elements + bytes_cuts + bytes_num_columns);
+  size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, false);
+  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required + bytes_constant);
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
 }
 
 TEST(HistUtil, AdapterSketchBatchWeightedMemory) {
@@ -332,14 +321,9 @@ TEST(HistUtil, AdapterSketchBatchWeightedMemory) {
                               std::numeric_limits<float>::quiet_NaN(), 0,
                               &sketch_container);
   ConsoleLogger::Configure({{"verbosity", "0"}});
-
-  size_t bytes_num_elements =
-      num_rows * num_columns * (sizeof(Entry) + sizeof(float));
-  size_t bytes_cuts = RequiredSampleCutsTest(num_bins, num_rows) * num_columns *
-                      sizeof(DenseCuts::WQSketch::Entry);
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(),
-            size_t((bytes_num_elements + bytes_cuts) * 1.05));
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), (bytes_num_elements + bytes_cuts));
+  size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, true);
+  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
 }
 
 TEST(HistUtil, AdapterDeviceSketchCategorical) {

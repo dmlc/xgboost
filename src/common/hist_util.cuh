@@ -137,12 +137,17 @@ void GetColumnSizesScan(int device, size_t num_columns,
                          column_sizes_scan->end(), column_sizes_scan->begin());
 }
 
+inline size_t BytesPerElement(bool has_weight) {
+  // Double the memory usage for sorting.  We need to assign weight for each element, so
+  // sizeof(float) is added to all elements.
+  return (has_weight ? sizeof(Entry) + sizeof(float) : sizeof(Entry)) * 2;
+}
+
 inline size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
                                      size_t columns, int device,
                                      size_t num_cuts, bool has_weight) {
   if (sketch_batch_num_elements == 0) {
-    // Double the memory usage for sorting.
-    size_t bytes_per_element = (has_weight ? sizeof(Entry) + sizeof(float) : sizeof(Entry)) * 2;
+    size_t bytes_per_element = BytesPerElement(has_weight);
     size_t bytes_cuts = num_cuts * columns * sizeof(SketchEntry);
     size_t bytes_num_columns = (columns + 1) * sizeof(size_t);
     // use up to 80% of available space
