@@ -52,6 +52,9 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
     return {row_idx, column_idx, value};
   }
 
+  XGBOOST_DEVICE bst_row_t NumRows() const { return num_rows_; }
+  XGBOOST_DEVICE bst_row_t NumCols() const { return columns_.size(); }
+
  private:
   common::Span<ArrayInterface> columns_;
   size_t num_rows_;
@@ -166,6 +169,9 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
     float value = array_interface_.GetElement(idx);
     return {row_idx, column_idx, value};
   }
+
+  XGBOOST_DEVICE bst_row_t NumRows() const { return array_interface_.num_rows; }
+  XGBOOST_DEVICE bst_row_t NumCols() const { return array_interface_.num_cols; }
 
  private:
   ArrayInterface array_interface_;
