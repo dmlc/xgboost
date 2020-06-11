@@ -136,12 +136,11 @@ void GetColumnSizesScan(int device, size_t num_columns,
                          column_sizes_scan->end(), column_sizes_scan->begin());
 }
 
-template <typename AdapterBatch>
-size_t SketchBatchNumElements(AdapterBatch batch, size_t sketch_batch_num_elements,
-                              size_t columns, int device,
-                              size_t num_cuts) {
+inline size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
+                                     size_t columns, int device,
+                                     size_t num_cuts, bool has_weight) {
   if (sketch_batch_num_elements == 0) {
-    int bytes_per_element = 16;
+    size_t bytes_per_element = has_weight ? 24 : 16;
     size_t bytes_cuts = num_cuts * columns * sizeof(SketchEntry);
     size_t bytes_num_columns = (columns + 1) * sizeof(size_t);
     // use up to 80% of available space
@@ -329,8 +328,8 @@ HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
   adapter->Next();
   auto& batch = adapter->Value();
   sketch_batch_num_elements = SketchBatchNumElements(
-      batch, sketch_batch_num_elements,
-      adapter->NumColumns(), adapter->DeviceIdx(), num_cuts);
+      sketch_batch_num_elements,
+      adapter->NumColumns(), adapter->DeviceIdx(), num_cuts, false);
 
   // Enforce single batch
   CHECK(!adapter->Next());
@@ -361,8 +360,8 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
   size_t num_cols = batch.NumCols();
   size_t num_cuts = RequiredSampleCuts(num_bins, num_rows);
   sketch_batch_num_elements = SketchBatchNumElements(
-      batch, sketch_batch_num_elements,
-      num_cols, device, num_cuts);
+      sketch_batch_num_elements,
+      num_cols, device, num_cuts, false);
   for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
     size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
     ProcessSlidingWindow(batch, device, num_cols,
@@ -381,8 +380,8 @@ void AdapterDeviceSketchWeighted(Batch batch, int num_bins,
   size_t num_cols = batch.NumCols();
   size_t num_cuts = RequiredSampleCuts(num_bins, num_rows);
   sketch_batch_num_elements = SketchBatchNumElements(
-      batch, sketch_batch_num_elements,
-      num_cols, device, num_cuts);
+      sketch_batch_num_elements,
+      num_cols, device, num_cuts, true);
   for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
     size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
     ProcessWeightedSlidingWindow(batch, info,
