@@ -1,8 +1,6 @@
 context("Code is of high quality and lint free")
 test_that("Code Lint", {
   skip_on_cran()
-  skip_on_travis()
-  skip_if_not_installed("lintr")
   my_linters <- list(
     absolute_paths_linter=lintr::absolute_paths_linter,
     assignment_linter=lintr::assignment_linter,
