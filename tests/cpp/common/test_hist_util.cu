@@ -71,12 +71,14 @@ TEST(HistUtil, DeviceSketchMemory) {
   auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
   ConsoleLogger::Configure({{"verbosity", "0"}});
 
-  size_t bytes_num_elements = num_rows * num_columns*sizeof(Entry);
+  size_t bytes_num_elements = num_rows * num_columns * sizeof(Entry);
   size_t bytes_cuts = RequiredSampleCutsTest(num_bins, num_rows) * num_columns *
                       sizeof(DenseCuts::WQSketch::Entry);
   size_t bytes_constant = 1000;
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(),
             bytes_num_elements + bytes_cuts + bytes_constant);
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(),
+            bytes_num_elements + bytes_cuts);
 }
 
 TEST(HistUtil, DeviceSketchMemoryWeights) {
@@ -98,6 +100,8 @@ TEST(HistUtil, DeviceSketchMemoryWeights) {
                       sizeof(DenseCuts::WQSketch::Entry);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(),
             size_t((bytes_num_elements + bytes_cuts) * 1.05));
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(),
+            size_t((bytes_num_elements + bytes_cuts)));
 }
 
 TEST(HistUtil, DeviceSketchDeterminism) {
@@ -278,7 +282,9 @@ TEST(HistUtil, AdapterDeviceSketchMemory) {
                       sizeof(DenseCuts::WQSketch::Entry);
   size_t bytes_constant = 1000;
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(),
-      bytes_num_elements + bytes_cuts + bytes_num_columns + bytes_constant);
+            bytes_num_elements + bytes_cuts + bytes_num_columns + bytes_constant);
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(),
+            bytes_num_elements + bytes_cuts + bytes_num_columns);
 }
 
 TEST(HistUtil, AdapterSketchBatchMemory) {
@@ -302,7 +308,9 @@ TEST(HistUtil, AdapterSketchBatchMemory) {
                       sizeof(DenseCuts::WQSketch::Entry);
   size_t bytes_constant = 1000;
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(),
-      bytes_num_elements + bytes_cuts + bytes_num_columns + bytes_constant);
+            bytes_num_elements + bytes_cuts + bytes_num_columns + bytes_constant);
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(),
+            bytes_num_elements + bytes_cuts + bytes_num_columns);
 }
 
 TEST(HistUtil, AdapterSketchBatchWeightedMemory) {
@@ -332,6 +340,7 @@ TEST(HistUtil, AdapterSketchBatchWeightedMemory) {
                       sizeof(DenseCuts::WQSketch::Entry);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(),
             size_t((bytes_num_elements + bytes_cuts) * 1.05));
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), (bytes_num_elements + bytes_cuts));
 }
 
 TEST(HistUtil, AdapterDeviceSketchCategorical) {

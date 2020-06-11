@@ -227,13 +227,9 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
   // Configure batch size based on available memory
   bool has_weights = dmat->Info().weights_.Size() > 0;
   size_t num_cuts_per_feature = RequiredSampleCuts(max_bins, dmat->Info().num_row_);
-  if (sketch_batch_num_elements == 0) {
-    int bytes_per_element = has_weights ? 24 : 16;
-    size_t bytes_cuts = num_cuts_per_feature * dmat->Info().num_col_ * sizeof(SketchEntry);
-    // use up to 80% of available space
-    sketch_batch_num_elements =
-        (dh::AvailableMemory(device) - bytes_cuts) * 0.8 / bytes_per_element;
-  }
+  sketch_batch_num_elements = SketchBatchNumElements(
+      sketch_batch_num_elements,
+      dmat->Info().num_col_, device, num_cuts_per_feature, has_weights);
 
   HistogramCuts cuts;
   DenseCuts dense_cuts(&cuts);
