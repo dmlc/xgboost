@@ -27,6 +27,7 @@ using SketchEntry = WQSketch::Entry;
 struct SketchContainer {
   std::vector<DenseCuts::WQSketch> sketches_;  // NOLINT
   static constexpr int kOmpNumColsParallelizeLimit = 1000;
+  static constexpr float kFactor = 8;
 
   SketchContainer(int max_bin, size_t num_columns, size_t num_rows) {
     // Initialize Sketches for this dmatrix
@@ -156,8 +157,7 @@ inline size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
 // Compute number of sample cuts needed on local node to maintain accuracy
 // We take more cuts than needed and then reduce them later
 inline size_t RequiredSampleCuts(int max_bins, size_t num_rows) {
-  constexpr int kFactor = 8;
-  double eps = 1.0 / (kFactor * max_bins);
+  double eps = 1.0 / (SketchContainer::kFactor * max_bins);
   size_t dummy_nlevel;
   size_t num_cuts;
   WQuantileSketch<bst_float, bst_float>::LimitSizeLevel(

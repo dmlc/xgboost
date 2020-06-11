@@ -28,6 +28,9 @@
 
 namespace xgboost {
 namespace common {
+
+constexpr float SketchContainer::kFactor;
+
 // Count the entries in each column and exclusive scan
 void ExtractCuts(int device,
                  size_t num_cuts_per_feature,

@@ -50,8 +50,7 @@ TEST(HistUtil, DeviceSketch) {
 // Duplicate this function from hist_util.cu so we don't have to expose it in
 // header
 size_t RequiredSampleCutsTest(int max_bins, size_t num_rows) {
-  constexpr int kFactor = 8;
-  double eps = 1.0 / (kFactor * max_bins);
+  double eps = 1.0 / (SketchContainer::kFactor * max_bins);
   size_t dummy_nlevel;
   size_t num_cuts;
   WQuantileSketch<bst_float, bst_float>::LimitSizeLevel(
