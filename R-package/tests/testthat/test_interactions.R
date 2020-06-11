@@ -107,7 +107,7 @@ test_that("SHAP contribution values are not NAN", {
 
   shaps <- as.data.frame(predict(fit,
     newdata = as.matrix(subset(d, fold == 1)[, ivs]),
-    predcontrib = T))
+    predcontrib = TRUE))
   result <- cbind(shaps, sum = rowSums(shaps), pred = predict(fit,
       newdata = as.matrix(subset(d, fold == 1)[, ivs])))
 
