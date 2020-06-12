@@ -38,16 +38,16 @@ XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch) {
   }
 }
 
-int XGBRegisterLogCallback(void (*callback)(const char*)) {
+XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
   API_BEGIN();
   LogCallbackRegistry* registry = LogCallbackRegistryStore::Get();
   registry->Register(callback);
   API_END();
 }
 
-int XGDMatrixCreateFromFile(const char *fname,
-                            int silent,
-                            DMatrixHandle *out) {
+XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
+                                    int silent,
+                                    DMatrixHandle *out) {
   API_BEGIN();
   bool load_row_split = false;
   if (rabit::IsDistributed()) {
@@ -60,7 +60,7 @@ int XGDMatrixCreateFromFile(const char *fname,
 }
 
 XGB_DLL int XGDMatrixCreateFromDataIter(
-    void *data_handle,                  // a Java interator
+    void *data_handle,                  // a Java iterator
     XGBCallbackDataIterNext *callback,  // C++ callback defined in xgboost4j.cpp
     const char *cache_info, DMatrixHandle *out) {
   API_BEGIN();
@@ -69,7 +69,8 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
   if (cache_info != nullptr) {
     scache = cache_info;
   }
-  xgboost::data::IteratorAdapter adapter(data_handle, callback);
+  xgboost::data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext,
+                                 XGBoostBatchCSR> adapter(data_handle, callback);
   *out = new std::shared_ptr<DMatrix> {
     DMatrix::Create(
         &adapter, std::numeric_limits<float>::quiet_NaN(),

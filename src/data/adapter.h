@@ -18,8 +18,8 @@
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/span.h"
-#include "xgboost/c_api.h"
 
+#include "array_interface.h"
 #include "../c_api/c_api_error.h"
 
 namespace xgboost {
@@ -496,6 +496,7 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
 
 /*! \brief Data iterator that takes callback to return data, used in JVM package for
  *  accepting data iterator. */
+template <typename DataIterHandle, typename XGBCallbackDataIterNext, typename XGBoostBatchCSR>
 class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
  public:
   IteratorAdapter(DataIterHandle data_handle,
