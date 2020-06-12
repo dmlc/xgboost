@@ -136,9 +136,6 @@ def test_stacking_regression():
     X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
     reg.fit(X_train, y_train).score(X_test, y_test)
 
-    # test number of input features
-    assert reg.n_features_in_ == 10
-
 
 def test_stacking_classification():
     from sklearn.model_selection import train_test_split
@@ -161,9 +158,6 @@ def test_stacking_classification():
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
     clf.fit(X_train, y_train).score(X_test, y_test)
-
-    # test number of input features
-    assert clf.n_features_in_ == 4
 
 
 @pytest.mark.skipif(**tm.no_pandas())
