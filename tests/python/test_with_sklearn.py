@@ -124,7 +124,8 @@ def test_stacking_regression():
 
     X, y = load_diabetes(return_X_y=True)
     estimators = [
-        ('gbm', xgb.XGBRegressor(objective='reg:squarederror')), ('lr', RidgeCV())
+        ('gbm', xgb.sklearn.XGBRegressor(objective='reg:squarederror')),
+        ('lr', RidgeCV())
     ]
     reg = StackingRegressor(
         estimators=estimators,
@@ -150,7 +151,7 @@ def test_stacking_classification():
 
     X, y = load_iris(return_X_y=True)
     estimators = [
-        ('gbm', xgb.XGBClassifier()),
+        ('gbm', xgb.sklearn.XGBClassifier()),
         ('svr', make_pipeline(StandardScaler(),
                               LinearSVC(random_state=42)))
     ]
