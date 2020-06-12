@@ -63,13 +63,13 @@ else:
         path_type = type(path)
         try:
             path_repr = path_type.__fspath__(path)
-        except AttributeError:
+        except AttributeError as e:
             if hasattr(path_type, '__fspath__'):
                 raise
             if issubclass(path_type, PurePath):
                 return _PurePath__fspath__(path)
             raise TypeError("expected str, bytes or os.PathLike object, "
-                            "not " + path_type.__name__)
+                            "not " + path_type.__name__) from e
         if isinstance(path_repr, (str, bytes)):
             return path_repr
         raise TypeError("expected {}.__fspath__() to return str or bytes, "
