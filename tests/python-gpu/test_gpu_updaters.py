@@ -64,9 +64,6 @@ class TestGPUUpdaters:
         param = dataset.set_params(param)
         external_result = train_result(param, dataset.get_external_dmat(), num_rounds)
         assert tm.non_increasing(external_result['train'][dataset.metric])
-        result = train_result(param, dataset.get_dmat(), num_rounds)
-        assert np.allclose(external_result['train'][dataset.metric],
-                           result['train'][dataset.metric])
 
     def test_empty_dmatrix_prediction(self):
         # FIXME(trivialfis): This should be done with all updaters
