@@ -411,7 +411,6 @@ TEST(Json, LoadDump) {
   fout << out << std::flush;
 
   std::string new_buffer = common::LoadSequentialFile(path);
-  ASSERT_EQ(ori_buffer, new_buffer);
 
   Json load_back {Json::Load(StringView(new_buffer.c_str(), new_buffer.size()))};
   ASSERT_EQ(load_back, origin);
