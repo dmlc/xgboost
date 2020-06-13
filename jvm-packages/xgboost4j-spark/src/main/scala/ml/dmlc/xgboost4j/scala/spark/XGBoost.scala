@@ -514,20 +514,22 @@ object XGBoost extends Serializable {
           partitionCoalescer = Some(new ExecutorInProcessCoalescePartitioner()))
 
       val reducedrdd = coalescedrdd.mapPartitions { iter =>
-          val totalsize = iter.foldLeft(Map("train" -> 0L, "test" -> 0L)) {
+          val matcharr = iter.toArray
+          val totalsize = matcharr.foldLeft(Map("train" -> 0L, "test" -> 0L)) {
            (l, r) =>
              val merged = l.toSeq ++ r.rowNumMap.toSeq
              merged.groupBy(_._1).mapValues(_.map(_._2).sum)
           }
           totalsize.foreach( iter => System.out.println("xgbtck reduce_total "
             + iter._1 + " " + iter._2 ))
-          Iterator( iter.reduce { (l, r) =>
+          Iterator( matcharr.reduce { (l, r) =>
             val rst = l.combine(r, totalsize)
             l.delete()
             r.delete()
             rst
             }
             )}.cache()
+
 //      reducedrdd.foreachPartition(() => _)
       watchrdd.unpersist()
 
