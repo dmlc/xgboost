@@ -7,7 +7,10 @@ easy management of distributed workers and excels handling large distributed dat
 workflows.  The implementation in XGBoost originates from `dask-xgboost
 <https://github.com/dask/dask-xgboost>`_ with some extended functionalities and a
 different interface.  Right now it is still under construction and may change (with proper
-warnings) in the future.
+warnings) in the future.  The tutorial here focus on basic usage of dask with CPU tree
+algorithm.  For an overview of GPU based training and internal working, see `A New,
+Official Dask API for XGBoost
+<https://medium.com/rapids-ai/a-new-official-dask-api-for-xgboost-e8b10f3d1eb7>`_.
 
 ************
 Requirements
