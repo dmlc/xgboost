@@ -412,6 +412,10 @@ void JsonReader::Error(std::string msg) const {
   msg += ", around character position: " + std::to_string(cursor_.Pos());
   msg += '\n';
 
+  if (cursor_.Pos() == 0) {
+    LOG(FATAL) << msg;
+  }
+
   constexpr size_t kExtend = 8;
   auto beg = static_cast<int64_t>(cursor_.Pos()) -
              static_cast<int64_t>(kExtend) < 0 ? 0 : cursor_.Pos() - kExtend;

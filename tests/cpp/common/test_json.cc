@@ -408,12 +408,52 @@ TEST(Json, LoadDump) {
 
   std::ofstream fout(path);
   ASSERT_TRUE(fout);
-  fout << out;
+  fout << out << std::flush;
 
   std::string new_buffer = common::LoadSequentialFile(path);
-  Json load_back {Json::Load(StringView(new_buffer.c_str(), new_buffer.size()))};
+  ASSERT_EQ(ori_buffer, new_buffer);
 
+  Json load_back {Json::Load(StringView(new_buffer.c_str(), new_buffer.size()))};
   ASSERT_EQ(load_back, origin);
+}
+
+TEST(Json, Invalid) {
+  {
+    std::string str = "}";
+    bool has_thrown = false;
+    try {
+      Json load{Json::Load(StringView(str.c_str(), str.size()))};
+    } catch (dmlc::Error const &e) {
+      std::string msg = e.what();
+      ASSERT_NE(msg.find("Unknown"), std::string::npos);
+      has_thrown = true;
+    };
+    ASSERT_TRUE(has_thrown);
+  }
+  {
+    std::string str = R"json({foo)json";
+    bool has_thrown = false;
+    try {
+      Json load{Json::Load(StringView(str.c_str(), str.size()))};
+    } catch (dmlc::Error const &e) {
+      std::string msg = e.what();
+      ASSERT_NE(msg.find("position: 1"), std::string::npos);
+      has_thrown = true;
+    };
+    ASSERT_TRUE(has_thrown);
+  }
+  {
+    std::string str = R"json({"foo")json";
+    bool has_thrown = false;
+    try {
+      Json load{Json::Load(StringView(str.c_str(), str.size()))};
+    } catch (dmlc::Error const &e) {
+      std::string msg = e.what();
+      ASSERT_NE(msg.find("EOF"), std::string::npos);
+      has_thrown = true;
+    };
+    ASSERT_TRUE(has_thrown);
+  }
 }
 
 // For now Json is quite ignorance about unicode.

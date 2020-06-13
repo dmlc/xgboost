@@ -81,7 +81,11 @@ class JsonReader {
     std::string msg = "Expecting: \"";
     msg += c;
     msg += "\", got: \"";
-    msg += std::string {got} + " \"";
+    if (got == -1) {
+      msg += "EOF\"";
+    } else {
+      msg += std::to_string(got) + " \"";
+    }
     Error(msg);
   }
 
