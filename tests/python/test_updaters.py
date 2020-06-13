@@ -39,7 +39,7 @@ def train_result(param, dmat, num_rounds):
 class TestTreeMethod(unittest.TestCase):
     @given(exact_parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
-    @settings(deadline=2000)
+    @settings(deadline=None)
     def test_exact(self, param, num_rounds, dataset):
         param['tree_method'] = 'exact'
         param = dataset.set_params(param)
@@ -48,7 +48,7 @@ class TestTreeMethod(unittest.TestCase):
 
     @given(exact_parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
-    @settings(deadline=2000)
+    @settings(deadline=None)
     def test_approx(self, param, num_rounds, dataset):
         param['tree_method'] = 'approx'
         param = dataset.set_params(param)
@@ -81,7 +81,7 @@ class TestTreeMethod(unittest.TestCase):
 
     @given(exact_parameter_strategy, hist_parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
-    @settings(deadline=2000)
+    @settings(deadline=None)
     def test_hist(self, param, hist_param, num_rounds, dataset):
         param['tree_method'] = 'hist'
         param = dataset.set_params(param)

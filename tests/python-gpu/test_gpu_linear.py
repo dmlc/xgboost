@@ -27,7 +27,7 @@ def train_result(param, dmat, num_rounds):
 class TestGPULinear:
     @given(parameter_strategy, strategies.integers(10, 50),
            tm.dataset_strategy)
-    @settings(deadline=2000)
+    @settings(deadline=None)
     def test_gpu_coordinate(self, param, num_rounds, dataset):
         assume(len(dataset.y) > 0)
         param['updater'] = 'gpu_coord_descent'

@@ -33,7 +33,7 @@ def train_result(param, dmat, num_rounds):
 class TestGPUUpdaters:
     @given(parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
-    @settings(deadline=2000)
+    @settings(deadline=None)
     def test_gpu_hist(self, param, num_rounds, dataset):
         param['tree_method'] = 'gpu_hist'
         param = dataset.set_params(param)
@@ -44,7 +44,7 @@ class TestGPUUpdaters:
     @pytest.mark.skipif(**tm.no_cupy())
     @given(parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
-    @settings(deadline=2000)
+    @settings(deadline=None)
     def test_gpu_hist_device_dmatrix(self, param, num_rounds, dataset):
         # We cannot handle empty dataset yet
         assume(len(dataset.y) > 0)
@@ -92,7 +92,7 @@ class TestGPUUpdaters:
 
     @pytest.mark.mgpu
     @given(tm.dataset_strategy)
-    @settings(deadline=2000, max_examples=10)
+    @settings(deadline=None, max_examples=10)
     def test_specified_gpu_id_gpu_update(self, dataset):
         param = {'tree_method': 'gpu_hist', 'gpu_id': 1}
         param = dataset.set_params(param)

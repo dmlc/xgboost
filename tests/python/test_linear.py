@@ -31,7 +31,7 @@ def train_result(param, dmat, num_rounds):
 class TestLinear:
     @given(parameter_strategy, strategies.integers(10, 50),
            tm.dataset_strategy, coord_strategy)
-    @settings(deadline=2000)
+    @settings(deadline=None)
     def test_coordinate(self, param, num_rounds, dataset, coord_param):
         param['updater'] = 'coord_descent'
         param.update(coord_param)
@@ -41,7 +41,7 @@ class TestLinear:
 
     @given(parameter_strategy, strategies.integers(10, 50),
            tm.dataset_strategy)
-    @settings(deadline=2000)
+    @settings(deadline=None)
     def test_shotgun(self, param, num_rounds, dataset):
         param['updater'] = 'shotgun'
         param = dataset.set_params(param)
