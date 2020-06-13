@@ -59,7 +59,9 @@ class HostDeviceVectorImpl {
     }
   }
 
-  size_t Size() const { return HostCanRead() ? data_h_.size() : data_d_->size(); }
+  size_t Size() const {
+    return HostCanRead() ? data_h_.size() : data_d_ ? data_d_->size() : 0;
+  }
 
   int DeviceIdx() const { return device_; }
 
