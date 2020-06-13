@@ -834,7 +834,6 @@ void SparsePage::Push(const SparsePage &batch) {
   offset_vec.resize(begin + batch.Size());
   std::transform(std::next(batch_offset_vec.begin()), batch_offset_vec.end(), &offset_vec[begin],
         [top](const size_t r) { return r+top;} );
-
 }
 
 template <typename AdapterBatchT>

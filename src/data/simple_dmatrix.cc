@@ -60,7 +60,7 @@ DMatrix* SimpleDMatrix::Combine(DMatrix* right, uint64_t total_size) {
   Info().weights_.Append(right->Info().weights_);
   Info().base_margin_.Append(right->Info().base_margin_);
 
-//groups not support yet.
+// groups not support yet.
 //
   return this;
 }
