@@ -35,6 +35,15 @@
 #include "xgboost/logging.h"
 #include "charconv.h"
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+namespace {
+inline int __builtin_clzll(unsigned long long x) {
+  return static_cast<int>(__lzcnt64(x));
+}
+}  // anonymous namespace
+#endif
+
 /*
  * We did some cleanup from the original implementation instead of doing line to line
  * port.
