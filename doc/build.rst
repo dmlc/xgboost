@@ -449,7 +449,7 @@ Open the Command Prompt and navigate to the XGBoost directory, and then run the 
   cd C:\path\to\xgboost
   mkdir build
   cd build
-  cmake .. -G"Visual Studio 16 2019" -A x64 -DR_LIB=ON -DR_VERSION=4.0.0
+  cmake .. -G"Visual Studio 16 2019" -A x64 -DUSE_CUDA=ON -DR_LIB=ON -DR_VERSION=4.0.0
   cmake --build . --target install --config Release
 
 If CMake can't find your R during the configuration step, you might provide the location of R to CMake like this: ``-DLIBR_HOME="C:\Program Files\R\R-4.0.0"``.
