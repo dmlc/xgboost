@@ -38,8 +38,8 @@
 #if defined(_MSC_VER)
 #include <intrin.h>
 namespace {
-inline int __builtin_clzll(unsigned long long x) {
-  return static_cast<int>(__lzcnt64(x));
+inline int32_t __builtin_clzll(uint64_t x) {
+  return static_cast<int32_t>(__lzcnt64(x));
 }
 }  // anonymous namespace
 #endif
