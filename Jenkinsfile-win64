@@ -138,7 +138,7 @@ def TestWin64GPU(args) {
     """
     echo "Installing Python dependencies..."
     bat """
-     conda activate && conda install -y cupy hypothesis && conda upgrade scikit-learn pandas numpy cupy hypothesis
+     conda activate && conda install -y hypothesis && conda upgrade scikit-learn pandas numpy hypothesis
     """
     echo "Running Python tests..."
     bat """
