@@ -73,6 +73,21 @@ inline to_chars_result to_chars(char *first, char *last, int64_t value) { // NOL
   }
   return ToCharsUnsignedImpl(first, last, unsigned_value);
 }
+
+struct from_chars_result {  // NOLINT
+  const char *ptr;
+  std::errc ec;
+};
+
+from_chars_result from_char_impl(const char *buffer, const int len,  // NOLINT
+                                 float *result);
+
+inline from_chars_result from_chars(const char *buffer, const char *end, // NOLINT
+                                    float &value) {  // NOLINT
+  from_chars_result res =
+      from_char_impl(buffer, std::distance(buffer, end), &value);
+  return res;
+}
 }  // namespace xgboost
 
 #endif   // XGBOOST_COMMON_CHARCONV_H_

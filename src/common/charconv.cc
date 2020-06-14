@@ -26,7 +26,7 @@
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.
  */
-
+#include <algorithm>
 #include <cassert>
 #include <cinttypes>
 #include <cstring>
@@ -82,12 +82,30 @@ struct UnsignedFloatBase10 {
   int32_t exponent;
 };
 
+template <typename To, typename From>
+To BitCast(From&& from) {
+  static_assert(sizeof(From) == sizeof(To), "Bit cast doesn't change output size.");
+  To t;
+  std::memcpy(&t, &from, sizeof(To));
+  return t;
+}
+
 struct IEEE754 {
   static constexpr uint32_t kFloatMantissaBits = 23;
   static constexpr uint32_t kFloatBias = 127;
   static constexpr uint32_t kFloatExponentBits = 8;
 
   static void Decode(float f, UnsignedFloatBase2* uf, bool* signbit);
+  static float Encode(UnsignedFloatBase2 const& uf, bool signbit);
+
+  static float Infinity(bool sign) {
+    uint32_t f =
+        ((static_cast<uint32_t>(sign))
+         << (IEEE754::kFloatExponentBits + IEEE754::kFloatMantissaBits)) |
+        (0xffu << IEEE754::kFloatMantissaBits);
+    float result = BitCast<float>(f);
+    return result;
+  }
 };
 
 struct UnsignedFloatBase2 {
@@ -105,13 +123,21 @@ struct UnsignedFloatBase2 {
 };
 
 inline void IEEE754::Decode(float f, UnsignedFloatBase2 *uf, bool *signbit) {
-  uint32_t bits;
-  std::memcpy(&bits, &f, sizeof(bits));
+  auto bits = BitCast<uint32_t>(f);
   // Decode bits into sign, mantissa, and exponent.
   *signbit = std::signbit(f);
   uf->mantissa = bits & ((1u << kFloatMantissaBits) - 1);
   uf->exponent = (bits >> IEEE754::kFloatMantissaBits) &
                  ((1u << IEEE754::kFloatExponentBits) - 1);  // remove signbit
+}
+
+inline float IEEE754::Encode(UnsignedFloatBase2 const &uf, bool signbit) {
+  uint32_t f =
+      ((((static_cast<uint32_t>(signbit)) << IEEE754::kFloatExponentBits) |
+        static_cast<uint32_t>(uf.exponent))
+       << IEEE754::kFloatMantissaBits) |
+      uf.mantissa;
+  return BitCast<float>(f);
 }
 
 // Represents the interval of information-preserving outputs.
@@ -130,7 +156,7 @@ struct RyuPowLogUtils {
   // 32 table instead of double full table.
   // f2s_full_table.h
   uint32_t constexpr static kFloatPow5InvBitcount = 59;
-  static constexpr uint64_t kFloatPow5InvSplit[31] = {
+  static constexpr uint64_t kFloatPow5InvSplit[55] = {
       576460752303423489u, 461168601842738791u, 368934881474191033u,
       295147905179352826u, 472236648286964522u, 377789318629571618u,
       302231454903657294u, 483570327845851670u, 386856262276681336u,
@@ -141,7 +167,15 @@ struct RyuPowLogUtils {
       340282366920938464u, 544451787073501542u, 435561429658801234u,
       348449143727040987u, 557518629963265579u, 446014903970612463u,
       356811923176489971u, 570899077082383953u, 456719261665907162u,
-      365375409332725730u};
+      365375409332725730u, 292300327466180584u, 467680523945888934u,
+      374144419156711148u, 299315535325368918u, 478904856520590269u,
+      383123885216472215u, 306499108173177772u, 490398573077084435u,
+      392318858461667548u, 313855086769334039u, 502168138830934462u,
+      401734511064747569u, 321387608851798056u, 514220174162876889u,
+      411376139330301511u, 329100911464241209u, 526561458342785934u,
+      421249166674228747u, 336999333339382998u, 539198933343012796u,
+      431359146674410237u, 345087317339528190u, 552139707743245103u,
+      441711766194596083u};
 
   uint32_t constexpr static kFloatPow5Bitcount = 61;
   static constexpr uint64_t kFloatPow5Split[47] = {
@@ -195,6 +229,19 @@ struct RyuPowLogUtils {
     return static_cast<uint32_t>(((e * 163391164108059ull) >> 46) + 1);
   }
 
+  static int32_t Log2Pow5(const int32_t e) {
+    // This approximation works up to the point that the multiplication
+    // overflows at e = 3529. If the multiplication were done in 64 bits, it
+    // would fail at 5^4004 which is just greater than 2^9297.
+    assert(e >= 0);
+    assert(e <= 3528);
+    return static_cast<int32_t>(((static_cast<uint32_t>(e)) * 1217359) >> 19);
+  }
+
+  static int32_t CeilLog2Pow5(const int32_t e) {
+    return RyuPowLogUtils::Log2Pow5(e) + 1;
+  }
+
   /*
    * \brief Multiply 32-bit and 64-bit -> 128 bit, then access the higher bits.
    */
@@ -235,6 +282,10 @@ struct RyuPowLogUtils {
     return MulShift(m, kFloatPow5Split[i], j);  // NOLINT
   }
 
+  static uint32_t FloorLog2(const uint64_t value) {
+    return 63 - __builtin_clzll(value);
+  }
+
   /*
    * \brief floor(e * log_10(2)).
    */
@@ -257,7 +308,7 @@ struct RyuPowLogUtils {
   }
 };
 
-constexpr uint64_t RyuPowLogUtils::kFloatPow5InvSplit[31];
+constexpr uint64_t RyuPowLogUtils::kFloatPow5InvSplit[55];
 constexpr uint64_t RyuPowLogUtils::kFloatPow5Split[47];
 
 class PowerBaseComputer {
@@ -678,5 +729,202 @@ to_chars_result ToCharsUnsignedImpl(char *first, char *last,
   ret.ptr = first + output_len;
   ret.ec = std::errc();
   return ret;
+}
+
+from_chars_result from_char_impl(const char *buffer, const int len, // NOLINT
+                                 float *result) {
+  if (len == 0) {
+    return {buffer, std::errc::invalid_argument};
+  }
+  int32_t m10digits = 0;
+  int32_t e10digits = 0;
+  int32_t dot_ind = len;
+  int32_t e_ind = len;
+  uint32_t mantissa_b10 = 0;
+  int32_t exp_b10 = 0;
+  bool signed_mantissa = false;
+  bool signed_exp = false;
+  int32_t i = 0;
+  if (buffer[i] == '-') {
+    signed_mantissa = true;
+    i++;
+  }
+  for (; i < len; i++) {
+    char c = buffer[i];
+    if (c == '.') {
+      if (dot_ind != len) {
+        return {buffer + i, std::errc::invalid_argument};
+      }
+      dot_ind = i;
+      continue;
+    }
+    if ((c < '0') || (c > '9')) {
+      break;
+    }
+    if (m10digits >= 9) {
+      return {buffer + i, std::errc::result_out_of_range};
+    }
+    mantissa_b10 = 10 * mantissa_b10 + (c - '0');
+    if (mantissa_b10 != 0) {
+      m10digits++;
+    }
+  }
+
+  if (i < len && ((buffer[i] == 'e') || (buffer[i] == 'E'))) {
+    e_ind = i;
+    i++;
+    if (i < len && ((buffer[i] == '-') || (buffer[i] == '+'))) {
+      signed_exp = buffer[i] == '-';
+      i++;
+    }
+    for (; i < len; i++) {
+      char c = buffer[i];
+      if ((c < '0') || (c > '9')) {
+        return {buffer + i, std::errc::invalid_argument};
+      }
+      if (e10digits > 3) {
+        return {buffer + i, std::errc::result_out_of_range};
+      }
+      exp_b10 = 10 * exp_b10 + (c - '0');
+      if (exp_b10 != 0) {
+        e10digits++;
+      }
+    }
+  }
+  if (i < len) {
+    return {buffer + i, std::errc::invalid_argument};
+  }
+  if (signed_exp) {
+    exp_b10 = -exp_b10;
+  }
+  exp_b10 -= dot_ind < e_ind ? e_ind - dot_ind - 1 : 0;
+  if (mantissa_b10 == 0) {
+    *result = signed_mantissa ? -0.0f : 0.0f;
+    return {};
+  }
+
+  if ((m10digits + exp_b10 <= -46) || (mantissa_b10 == 0)) {
+    // Number is less than 1e-46, which should be rounded down to 0; return
+    // +/-0.0.
+    uint32_t ieee =
+        (static_cast<uint32_t>(signed_mantissa))
+        << (IEEE754::kFloatExponentBits + IEEE754::kFloatMantissaBits);
+    *result = BitCast<float>(ieee);
+    return {};
+  }
+  if (m10digits + exp_b10 >= 40) {
+    // Number is larger than 1e+39, which should be rounded to +/-Infinity.
+    *result = IEEE754::Infinity(signed_mantissa);
+    return {};
+  }
+
+  // Convert to binary float m2 * 2^e2, while retaining information about
+  // whether the conversion was exact (trailingZeros).
+  int32_t exp_b2;
+  uint32_t mantissa_b2;
+  bool trailing_zeros;
+  if (exp_b10 >= 0) {
+    // The length of m * 10^e in bits is:
+    //   log2(m10 * 10^e10) = log2(m10) + e10 log2(10) = log2(m10) + e10 + e10 *
+    //   log2(5)
+    //
+    // We want to compute the IEEE754::kFloatMantissaBits + 1 top-most bits (+1 for the
+    // implicit leading one in IEEE format). We therefore choose a binary output
+    // exponent of
+    //   log2(m10 * 10^e10) - (IEEE754::kFloatMantissaBits + 1).
+    //
+    // We use floor(log2(5^e10)) so that we get at least this many bits; better
+    // to have an additional bit than to not have enough bits.
+    exp_b2 = RyuPowLogUtils::FloorLog2(mantissa_b10) + exp_b10 +
+             RyuPowLogUtils::Log2Pow5(exp_b10) -
+             (IEEE754::kFloatMantissaBits + 1);
+
+    // We now compute [m10 * 10^e10 / 2^e2] = [m10 * 5^e10 / 2^(e2-e10)].
+    // To that end, we use the RyuPowLogUtils::kFloatPow5Bitcount table.
+    int j = exp_b2 - exp_b10 - RyuPowLogUtils::CeilLog2Pow5(exp_b10) +
+            RyuPowLogUtils::kFloatPow5Bitcount;
+    assert(j >= 0);
+    mantissa_b2 = RyuPowLogUtils::MulPow5divPow2(mantissa_b10, exp_b10, j);
+
+    // We also compute if the result is exact, i.e.,
+    //   [m10 * 10^e10 / 2^e2] == m10 * 10^e10 / 2^e2.
+    // This can only be the case if 2^e2 divides m10 * 10^e10, which in turn
+    // requires that the largest power of 2 that divides m10 + e10 is greater
+    // than e2. If e2 is less than e10, then the result must be exact. Otherwise
+    // we use the existing multipleOfPowerOf2 function.
+    trailing_zeros =
+        exp_b2 < exp_b10 ||
+        (exp_b2 - exp_b10 < 32 &&
+         RyuPowLogUtils::MultipleOfPowerOf2(mantissa_b10, exp_b2 - exp_b10));
+  } else {
+    exp_b2 = RyuPowLogUtils::FloorLog2(mantissa_b10) + exp_b10 -
+             RyuPowLogUtils::CeilLog2Pow5(-exp_b10) -
+             (IEEE754::kFloatMantissaBits + 1);
+
+    // We now compute [m10 * 10^e10 / 2^e2] = [m10 / (5^(-e10) 2^(e2-e10))].
+    int j = exp_b2 - exp_b10 + RyuPowLogUtils::CeilLog2Pow5(-exp_b10) - 1 +
+            RyuPowLogUtils::kFloatPow5InvBitcount;
+    mantissa_b2 = RyuPowLogUtils::MulPow5InvDivPow2(mantissa_b10, -exp_b10, j);
+
+    // We also compute if the result is exact, i.e.,
+    //   [m10 / (5^(-e10) 2^(e2-e10))] == m10 / (5^(-e10) 2^(e2-e10))
+    //
+    // If e2-e10 >= 0, we need to check whether (5^(-e10) 2^(e2-e10)) divides
+    // m10, which is the case iff pow5(m10) >= -e10 AND pow2(m10) >= e2-e10.
+    //
+    // If e2-e10 < 0, we have actually computed [m10 * 2^(e10 e2) / 5^(-e10)]
+    // above, and we need to check whether 5^(-e10) divides (m10 * 2^(e10-e2)),
+    // which is the case iff pow5(m10 * 2^(e10-e2)) = pow5(m10) >= -e10.
+    trailing_zeros =
+        (exp_b2 < exp_b10 ||
+         (exp_b2 - exp_b10 < 32 && RyuPowLogUtils::MultipleOfPowerOf2(
+                                       mantissa_b10, exp_b2 - exp_b10))) &&
+        RyuPowLogUtils::MultipleOfPowerOf5(mantissa_b10, -exp_b10);
+  }
+
+  // Compute the final IEEE exponent.
+  uint32_t f_e2 =
+      std::max(static_cast<int32_t>(0),
+               static_cast<int32_t>(exp_b2 + IEEE754::kFloatBias +
+                                    RyuPowLogUtils::FloorLog2(mantissa_b2)));
+
+  if (f_e2 > 0xfe) {
+    // Final IEEE exponent is larger than the maximum representable; return
+    // +/-Infinity.
+    *result = IEEE754::Infinity(signed_mantissa);
+    return {};
+  }
+
+  // We need to figure out how much we need to shift m2. The tricky part is that
+  // we need to take the final IEEE exponent into account, so we need to reverse
+  // the bias and also special-case the value 0.
+  int32_t shift = (f_e2 == 0 ? 1 : f_e2) - exp_b2 - IEEE754::kFloatBias -
+                  IEEE754::kFloatMantissaBits;
+  assert(shift >= 0);
+
+  // We need to round up if the exact value is more than 0.5 above the value we
+  // computed. That's equivalent to checking if the last removed bit was 1 and
+  // either the value was not just trailing zeros or the result would otherwise
+  // be odd.
+  //
+  // We need to update trailingZeros given that we have the exact output
+  // exponent ieee_e2 now.
+  trailing_zeros &= (mantissa_b2 & ((1u << (shift - 1)) - 1)) == 0;
+  uint32_t lastRemovedBit = (mantissa_b2 >> (shift - 1)) & 1;
+  bool roundup = (lastRemovedBit != 0) &&
+                 (!trailing_zeros || (((mantissa_b2 >> shift) & 1) != 0));
+
+  uint32_t f_m2 = (mantissa_b2 >> shift) + roundup;
+  assert(f_m2 <= (1u << (IEEE754::kFloatMantissaBits + 1)));
+  f_m2 &= (1u << IEEE754::kFloatMantissaBits) - 1;
+  if (f_m2 == 0 && roundup) {
+    // Rounding up may overflow the mantissa.
+    // In this case we move a trailing zero of the mantissa into the exponent.
+    // Due to how the IEEE represents +/-Infinity, we don't need to check for
+    // overflow here.
+    f_e2++;
+  }
+  *result = IEEE754::Encode({f_m2, f_e2}, signed_mantissa);
+  return {};
 }
 }  // namespace xgboost

@@ -9,7 +9,9 @@
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
 #include "xgboost/json_io.h"
+#include "../helpers.h"
 #include "../../../src/common/io.h"
+#include "../../../src/common/charconv.h"
 
 namespace xgboost {
 
@@ -226,7 +228,10 @@ TEST(Json, ParseArray) {
   ASSERT_NEAR(get<Number>(v0["gain"]), 10.4866, kRtEps);
 
   {
-    std::string str = "[5.04713470458984375e+02,9.86623668670654297e+00,4.94847229003906250e+02,2.13924217224121094e+00,7.72699451446533203e+00,2.30380615234375000e+02,2.64466613769531250e+02]";
+    std::string str =
+        "[5.04713470458984375e+02,9.86623668670654297e+00,4.94847229003906250e+"
+        "02,2.13924217224121094e+00,7.72699451446533203e+00,2."
+        "30380615234375000e+02,2.64466613769531250e+02]";
     auto json = Json::Load(StringView{str.c_str(), str.size()});
 
     auto const& vec = get<Array const>(json);
@@ -517,6 +522,37 @@ TEST(Json, IntVSFloat) {
     auto array = get<Array>(obj["data"]);
     auto ptr = get<Integer>(array[0]);
     ASSERT_EQ(ptr, 2503595760);
+  }
+}
+
+TEST(Json, RoundTrip) {
+  uint32_t i = std::numeric_limits<uint32_t>::max() / 100 * 0;
+  SimpleLCG rng;
+  SimpleRealUniformDistribution<float> dist(1.0f, 2048.0f);
+
+  while (i <= std::numeric_limits<uint32_t>::max()) {
+    float f;
+    std::memcpy(&f, &i, sizeof(f));
+
+    Json jf { f };
+    std::string str;
+    Json::Dump(jf, &str);
+    auto loaded = Json::Load({str.c_str(), str.size()});
+    if (XGBOOST_EXPECT(std::isnan(f), false)) {
+      ASSERT_TRUE(std::isnan(get<Number const>(loaded)));
+    } else {
+      ASSERT_EQ(get<Number const>(loaded), get<Number const>(jf))
+          << std::setprecision(17) << "jf: " << get<Number const>(jf) << ", "
+          << "loaded: " << get<Number const>(loaded) << ", "
+          << "f:" << f << ", "
+          << "str: " << str << std::endl;
+    }
+
+    auto t = i;
+    i+= static_cast<uint32_t>(dist(&rng));
+    if (i < t) {
+      break;
+    }
   }
 }
 }  // namespace xgboost

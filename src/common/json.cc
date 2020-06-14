@@ -384,7 +384,7 @@ Json JsonReader::Parse() {
     } else if ( c == '[' ) {
       return ParseArray();
     } else if ( c == '-' || std::isdigit(c) ||
-                c == 'N' ) {
+                c == 'N' || c == 'I') {
       // For now we only accept `NaN`, not `nan` as the later violiates LR(1) with `null`.
       return ParseNumber();
     } else if ( c == '\"' ) {
@@ -413,7 +413,7 @@ void JsonReader::Error(std::string msg) const {
   msg += '\n';
 
   if (cursor_.Pos() == 0) {
-    LOG(FATAL) << msg;
+    LOG(FATAL) << msg << ", \"" << str_s.str() << " \"";
   }
 
   constexpr size_t kExtend = 8;
@@ -582,51 +582,6 @@ Json JsonReader::ParseObject() {
   return Json(std::move(data));
 }
 
-#if defined(__linux__) && defined(__GNUC__)
-#define Exp10(val) exp10((val))
-#else
-#define Exp10(val) std::pow(10, (val))
-#endif
-
-inline double FastPath(double significand, int exp) {
-  if (exp < -308) {
-    return 0.0;
-  } else if (exp >= 0) {
-    return significand * Exp10(exp);
-  } else {
-    return significand / Exp10(-exp);
-  }
-}
-
-constexpr double FastPathLimit() {
-  return static_cast<double>((static_cast<uint64_t>(1) << 53) - 1);
-}
-
-inline double Strtod(double significand, int exp, char const *beg, bool* fast) {
-  double result{std::numeric_limits<double>::quiet_NaN()};
-  // The technique is picked up from rapidjson, they implemented a big integer
-  // type for slow full precision, here we just use strtod for slow parsing.
-  // Fast path:
-  // http://www.exploringbinary.com/fast-path-decimal-to-floating-point-conversion/
-  if (exp > 22 && exp < 22 + 16) {
-    // Fast path cases in disguise
-    significand *= Exp10(exp - 22);
-    exp = 22;
-    *fast = true;
-  }
-
-  if (exp >= -22 && exp <= 22 && significand <= FastPathLimit()) {
-    result = FastPath(significand, exp);
-    *fast = true;
-    return result;
-  }
-  *fast = false;
-  result = std::strtod(beg, nullptr);
-  return result;
-}
-
-#undef Exp10
-
 Json JsonReader::ParseNumber() {
   // Adopted from sajson with some simplifications and small optimizations.
   char const* p = raw_str_.c_str() + cursor_.Pos();
@@ -657,10 +612,21 @@ Json JsonReader::ParseNumber() {
   }
   }
 
+  if (XGBOOST_EXPECT(*p == 'I', false)) {
+    cursor_.Forward(std::distance(beg, p));  // +/-
+    for (auto i : {'I', 'n', 'f', 'i', 'n', 'i', 't', 'y'}) {
+      GetConsecutiveChar(i);
+    }
+    auto f = std::numeric_limits<float>::infinity();
+    if (negative) {
+      f = -f;
+    }
+    return Json(static_cast<Number::Float>(f));
+  }
+
   bool is_float = false;
 
   int64_t i = 0;
-  double f = 0.0;
 
   if (*p == '0') {
     i = 0;
@@ -672,32 +638,22 @@ Json JsonReader::ParseNumber() {
     p++;
   }
 
-  int exp_frac{0};  // fraction of exponent
-
   if (*p == '.') {
     p++;
     is_float = true;
 
     while (*p >= '0' && *p <= '9') {
       i = i * 10 + (*p - '0');
-      exp_frac--;
       p++;
     }
   }
 
-  int exp{0};
-
   if (*p == 'E' || *p == 'e') {
     is_float = true;
-    bool negative_exp{false};
     p++;
 
     switch (*p) {
-    case '-': {
-      negative_exp = true;
-      p++;
-      break;
-    }
+    case '-':
     case '+': {
       p++;
       break;
@@ -707,18 +663,12 @@ Json JsonReader::ParseNumber() {
     }
 
     if (XGBOOST_EXPECT(*p >= '0' && *p <= '9', true)) {
-      exp = *p - '0';
       p++;
       while (*p >= '0' && *p <= '9') {
-        exp = exp * 10 + static_cast<int>(*p - '0');
         p++;
       }
     } else {
       Error("Expecting digit");
-    }
-
-    if (negative_exp) {
-      exp = -exp;
     }
   }
 
@@ -726,10 +676,11 @@ Json JsonReader::ParseNumber() {
   this->cursor_.Forward(moved);
 
   if (is_float) {
-    bool fast { true };
-    f = Strtod(i, exp + exp_frac, beg, &fast);
-    if (negative && fast) {
-      f = -f;
+    float f;
+    auto ret = from_chars(beg, p, f);
+    if (XGBOOST_EXPECT(ret.ec != std::errc(), false)) {
+      // Compatible with old format that generates very long mantissa from std stream.
+      f = std::strtof(beg, nullptr);
     }
     return Json(static_cast<Number::Float>(f));
   } else {

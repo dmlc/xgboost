@@ -26,6 +26,14 @@
 #include "../../../src/common/charconv.h"
 
 namespace xgboost {
+namespace {
+void TestInteger(char const* res, int64_t i) {
+  char result[xgboost::NumericLimits<float>::kMaxDigit10Len];
+  auto ret = to_chars(result, result + sizeof(result), i);
+  *ret.ptr = '\0';
+  EXPECT_STREQ(res, result);
+}
+
 static float Int32Bits2Float(uint32_t bits) {
   float f;
   memcpy(&f, &bits, sizeof(float));
@@ -38,6 +46,7 @@ void TestRyu(char const *res, float v) {
   *ret.ptr = '\0';
   EXPECT_STREQ(res, result);
 }
+}  // anonymous namespace
 
 TEST(Ryu, Subnormal) {
   TestRyu("0E0", 0.0f);
@@ -123,6 +132,24 @@ TEST(Ryu, Regression) {
   TestRyu("1.1920929E-7", std::numeric_limits<float>::epsilon());
 }
 
+TEST(Ryu, RoundTrip) {
+  float f = -1.1493590134238582e-40;
+  char result[NumericLimits<float>::kMaxDigit10Len] { 0 };
+  auto ret = to_chars(result, result + sizeof(result), f);
+  auto dis = std::distance(result, ret.ptr);
+  float back;
+  auto from_ret = from_chars(result, result + dis, back);
+  ASSERT_EQ(from_ret.ec, std::errc());
+  std::string str;
+  for (size_t i = 0; i < dis; ++i) {
+    str.push_back(result[i]);
+  }
+  ASSERT_EQ(f, back) << "str: " << str << "| "
+                     << std::setprecision(17)
+                     << "f: " << f << ", "
+                     << back;
+}
+
 TEST(Ryu, LooksLikePow5) {
   // These numbers have a mantissa that is the largest power of 5 that fits,
   // and an exponent that causes the computation for q to result in 10, which is a corner
@@ -142,6 +169,48 @@ TEST(Ryu, OutputLength) {
   TestRyu("1.234567E0", 1.234567f);
   TestRyu("1.2345678E0", 1.2345678f);
   TestRyu("1.23456735E-36", 1.23456735E-36f);
+}
+
+TEST(IntegerPrinting, Basic) {
+  TestInteger("0", 0);
+  auto str = std::to_string(std::numeric_limits<int64_t>::min());
+  TestInteger(str.c_str(), std::numeric_limits<int64_t>::min());
+  str = std::to_string(std::numeric_limits<int64_t>::max());
+  TestInteger(str.c_str(), std::numeric_limits<int64_t>::max());
+}
+
+void TestRyuParse(float f, std::string in) {
+  float res;
+  auto ret = from_chars(in.c_str(), in.c_str() + in.size(), res);
+  ASSERT_EQ(ret.ec, std::errc());
+  ASSERT_EQ(f, res);
+}
+
+TEST(Ryu, Basic) {
+  TestRyuParse(0.0f, "0");
+  TestRyuParse(-0.0f, "-0");
+  TestRyuParse(1.0f, "1");
+  TestRyuParse(-1.0f, "-1");
+  TestRyuParse(123456792.0f, "123456789");
+  TestRyuParse(299792448.0f, "299792458");
+}
+
+TEST(Ryu, MinMax) {
+  TestRyuParse(1e-45f, "1e-45");
+  TestRyuParse(FLT_MIN, "1.1754944e-38");
+  TestRyuParse(FLT_MAX, "3.4028235e+38");
+}
+
+TEST(Ryu, MantissaRoundingOverflow) {
+  TestRyuParse(1.0f, "0.999999999");
+  TestRyuParse(INFINITY, "3.4028236e+38");
+  TestRyuParse(1.1754944e-38f, "1.17549430e-38"); // FLT_MIN
+}
+
+TEST(Ryu, TrailingZeros) {
+  TestRyuParse(26843550.0f, "26843549.5");
+  TestRyuParse(50000004.0f, "50000002.5");
+  TestRyuParse(99999992.0f, "99999989.5");
 }
 
 }  // namespace xgboost
