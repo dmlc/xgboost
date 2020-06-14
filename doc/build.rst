@@ -49,19 +49,7 @@ Please refer to `Trouble Shooting`_ section first if you have any problem
 during installation. If the instructions do not work for you, please feel free
 to ask questions at `the user forum <https://discuss.xgboost.ai>`_.
 
-**Contents**
-
-* `Building the Shared Library`_
-
-  - `Building on Linux Distributions`_
-  - `Building on OSX`_
-  - `Building on Windows`_
-  - `Building with GPU support`_
-
-* `Python Package Installation`_
-* `R Package Installation`_
-* `Trouble Shooting`_
-* `Building the documentation`_
+.. contents:: Contents
 
 .. _build_shared_lib:
 
@@ -365,8 +353,8 @@ You can install XGBoost from CRAN just like any other R package:
 
    and then run ``install.packages("xgboost")``. Without OpenMP, XGBoost will only use a single CPU core, leading to suboptimal training speed.
 
-Installing the development version
-----------------------------------
+Installing the development version (Linux / Mac OSX)
+----------------------------------------------------
 
 Make sure you have installed git and a recent C++ compiler supporting C++11 (See above
 sections for requirements of building C++ core).
@@ -403,7 +391,9 @@ While not required, this build can be faster if you install the R package ``proc
   * If you are using R 4.x with RTools 4.0:
     - ``C:\rtools40\usr\bin``
     - ``C:\rtools40\mingw64\bin``
+
   * If you are using R 3.x with RTools 3.x:
+
     - ``C:\Rtools\bin``
     - ``C:\Rtools\mingw_64\bin``
 
@@ -444,9 +434,11 @@ On Windows, CMake with Visual Studio has to be used to build an R package with G
   If you are using Windows, make sure to include the right directories in the PATH environment variable.
 
   * If you are using R 4.x with RTools 4.0:
+
     - ``C:\rtools40\usr\bin``
     - ``C:\rtools40\mingw64\bin``
   * If you are using R 3.x with RTools 3.x:
+
     - ``C:\Rtools\bin``
     - ``C:\Rtools\mingw_64\bin``
 
