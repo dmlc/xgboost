@@ -23,7 +23,7 @@
 
 # Windows users might want to change this to their R version:
 if(NOT R_VERSION)
-  set(R_VERSION "3.4.1")
+  set(R_VERSION "4.0.0")
 endif()
 if(NOT R_ARCH)
   if("${CMAKE_SIZEOF_VOID_P}" STREQUAL "4")

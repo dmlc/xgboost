@@ -369,8 +369,7 @@ Installing the development version
 ----------------------------------
 
 Make sure you have installed git and a recent C++ compiler supporting C++11 (See above
-sections for requirements of building C++ core).  On Windows, Rtools must be installed,
-and its bin directory has to be added to ``PATH`` during the installation.
+sections for requirements of building C++ core).
 
 Due to the use of git-submodules, ``devtools::install_github`` can no longer be used to install the latest version of R package.
 Thus, one has to run git to check out the code first:
@@ -397,17 +396,27 @@ On Windows, CMake with Visual C++ Build Tools (or Visual Studio) can be used to 
 
 While not required, this build can be faster if you install the R package ``processx`` with ``install.packages("processx")``.
 
-.. note::
-  If you are using ``Rtools`` 4.0 or later, you need to also add the ``/usr/bin/`` directory from ``Rtools`` to the ``PATH`` environment variable.
+.. note:: Setting correct PATH environment variable on Windows
 
-Starting from the XGBoost directory, type:
+  If you are using Windows, make sure to include the right directories in the PATH environment variable.
+
+  * If you are using R 4.x with RTools 4.0:
+    - ``C:\rtools40\usr\bin``
+    - ``C:\rtools40\mingw64\bin``
+  * If you are using R 3.x with RTools 3.x:
+    - ``C:\Rtools\bin``
+    - ``C:\Rtools\mingw_64\bin``
+
+Open the Command Prompt and navigate to the XGBoost directory, and then run the following commands. Make sure to specify the correct R version.
 
 .. code-block:: bash
 
+  cd C:\path\to\xgboost
   mkdir build
   cd build
-  cmake .. -G"Visual Studio 16 2019" -A x64 -DR_LIB=ON
+  cmake .. -G"Visual Studio 16 2019" -A x64 -DR_LIB=ON -DR_VERSION=4.0.0
   cmake --build . --target install --config Release
+
 
 .. _r_gpu_support:
 
@@ -428,19 +437,30 @@ On Linux, starting from the XGBoost directory type:
 When default target is used, an R package shared library would be built in the ``build`` area.
 The ``install`` target, in addition, assembles the package files with this shared library under ``build/R-package`` and runs ``R CMD INSTALL``.
 
-On Windows, CMake with Visual C++ Build Tools (or Visual Studio) has to be used to build an R package with GPU support. Rtools must also be installed (perhaps, some other MinGW distributions with ``dlltool.exe`` would work, but that is not tested).
+On Windows, CMake with Visual Studio has to be used to build an R package with GPU support. Rtools must also be installed.
+
+.. note:: Setting correct PATH environment variable on Windows
+
+  If you are using Windows, make sure to include the right directories in the PATH environment variable.
+
+  * If you are using R 4.x with RTools 4.0:
+    - ``C:\rtools40\usr\bin``
+    - ``C:\rtools40\mingw64\bin``
+  * If you are using R 3.x with RTools 3.x:
+    - ``C:\Rtools\bin``
+    - ``C:\Rtools\mingw_64\bin``
+
+Open the Command Prompt and navigate to the XGBoost directory, and then run the following commands. Make sure to specify the correct R version.
 
 .. code-block:: bash
 
+  cd C:\path\to\xgboost
   mkdir build
   cd build
-  cmake .. -G"Visual Studio 14 2015 Win64" -DUSE_CUDA=ON -DR_LIB=ON
+  cmake .. -G"Visual Studio 16 2019" -A x64 -DR_LIB=ON -DR_VERSION=4.0.0
   cmake --build . --target install --config Release
 
-When ``--target xgboost`` is used, an R package DLL would be built under ``build/Release``.
-The ``--target install``, in addition, assembles the package files with this dll under ``build/R-package`` and runs ``R CMD INSTALL``.
-
-If cmake can't find your R during the configuration step, you might provide the location of its executable to cmake like this: ``-DLIBR_EXECUTABLE="C:/Program Files/R/R-3.4.1/bin/x64/R.exe"``.
+If CMake can't find your R during the configuration step, you might provide the location of R to CMake like this: ``-DLIBR_HOME="C:\Program Files\R\R-4.0.0"``.
 
 If on Windows you get a "permission denied" error when trying to write to ...Program Files/R/... during the package installation, create a ``.Rprofile`` file in your personal home directory (if you don't already have one in there), and add a line to it which specifies the location of your R packages user library, like the following:
 
