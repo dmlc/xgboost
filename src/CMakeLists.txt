@@ -51,6 +51,10 @@ else (USE_CUDA)
   add_library(objxgboost OBJECT ${CPU_SOURCES} ${PLUGINS_SOURCES})
 endif (USE_CUDA)
 
+if (PLUGIN_UPDATER_ONEAPI)
+  set_source_files_properties(${PLUGINS_SOURCES_ONEAPI} PROPERTIES COMPILE_FLAGS -fsycl)
+endif (PLUGIN_UPDATER_ONEAPI)
+
 target_include_directories(objxgboost
   PRIVATE
   ${xgboost_SOURCE_DIR}/include
