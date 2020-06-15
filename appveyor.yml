@@ -107,7 +107,7 @@ test_script:
       )
     # MSVC R package: run only the unit tests
     - if /i "%target%" == "rmsvc" (
-        cd build_rmsvc%ver%\R-package &&
+        cd R-package &&
         R.exe -q -e "library(testthat); setwd('tests'); source('testthat.R')"
       )
 

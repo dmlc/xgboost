@@ -93,6 +93,7 @@ metastore_db
 # files from R-package source install
 **/config.status
 R-package/src/Makevars
+*.lib
 
 # Visual Studio Code
 /.vscode/
