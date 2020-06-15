@@ -55,6 +55,14 @@ struct WQSummary {
     XGBOOST_DEVICE inline RType RMaxPrev() const {
       return rmax - wmin;
     }
+
+    friend std::ostream& operator<<(std::ostream& os, Entry const& e) {
+      os << "rmin: " << e.rmin << ", "
+         << "rmax: " << e.rmax << ", "
+         << "wmin: " << e.wmin << ", "
+         << "value: " << e.value;
+      return os;
+    }
   };
   /*! \brief input data queue before entering the summary */
   struct Queue {
@@ -184,14 +192,14 @@ struct WQSummary {
       }
     }
   }
+
   /*!
    * \brief set current summary to be pruned summary of src
    *        assume data field is already allocated to be at least maxsize
    * \param src source summary
    * \param maxsize size we can afford in the pruned sketch
    */
-
-  inline void SetPrune(const WQSummary &src, size_t maxsize) {
+  void SetPrune(const WQSummary &src, size_t maxsize) {
     if (src.size <= maxsize) {
       this->CopyFrom(src); return;
     }
@@ -454,6 +462,9 @@ struct WXQSummary : public WQSummary<DType, RType> {
  */
 template<typename DType, typename RType, class TSummary>
 class QuantileSketchTemplate {
+ public:
+  static float constexpr kFactor = 8.0;
+
  public:
   /*! \brief type of summary type */
   using Summary = TSummary;

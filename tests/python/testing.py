@@ -1,10 +1,12 @@
 # coding: utf-8
+import os
 from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
 from xgboost.compat import DASK_INSTALLED
 from hypothesis import strategies
 from hypothesis.extra.numpy import arrays
 from joblib import Memory
 from sklearn import datasets
+import tempfile
 import xgboost as xgb
 import numpy as np
 
@@ -123,10 +125,15 @@ class TestDataset:
         return xgb.DeviceQuantileDMatrix(X, y, w)
 
     def get_external_dmat(self):
-        np.savetxt('tmptmp_1234.csv', np.hstack((self.y.reshape(len(self.y), 1), self.X)),
-                   delimiter=',')
-        return xgb.DMatrix('tmptmp_1234.csv?format=csv&label_column=0#tmptmp_',
-                           weight=self.w)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, 'tmptmp_1234.csv')
+            np.savetxt(path,
+                       np.hstack((self.y.reshape(len(self.y), 1), self.X)),
+                       delimiter=',')
+            uri = path + '?format=csv&label_column=0#tmptmp_'
+            # The uri looks like:
+            # 'tmptmp_1234.csv?format=csv&label_column=0#tmptmp_'
+            return xgb.DMatrix(uri, weight=self.w)
 
     def __repr__(self):
         return self.name

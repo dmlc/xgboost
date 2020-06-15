@@ -205,10 +205,10 @@ class HostDeviceVectorImpl {
     // data is on the host
     LazyResizeDevice(data_h_.size());
     SetDevice();
-    dh::safe_cuda(cudaMemcpy(data_d_->data().get(),
-                             data_h_.data(),
-                             data_d_->size() * sizeof(T),
-                             cudaMemcpyHostToDevice));
+    dh::safe_cuda(cudaMemcpyAsync(data_d_->data().get(),
+                                  data_h_.data(),
+                                  data_d_->size() * sizeof(T),
+                                  cudaMemcpyHostToDevice));
     gpu_access_ = access;
   }
 

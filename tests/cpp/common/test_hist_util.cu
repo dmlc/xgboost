@@ -30,11 +30,12 @@ HistogramCuts GetHostCuts(AdapterT *adapter, int num_bins, float missing) {
   builder.Build(&dmat, num_bins);
   return cuts;
 }
+
 TEST(HistUtil, DeviceSketch) {
-  int num_rows = 5;
   int num_columns = 1;
   int num_bins = 4;
-  std::vector<float> x = {1.0, 2.0, 3.0, 4.0, 5.0};
+  std::vector<float> x = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 7.0f, -1.0f};
+  int num_rows = x.size();
   auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
 
   auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
@@ -47,26 +48,6 @@ TEST(HistUtil, DeviceSketch) {
   EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 
-// Duplicate this function from hist_util.cu so we don't have to expose it in
-// header
-size_t RequiredSampleCutsTest(int max_bins, size_t num_rows) {
-  double eps = 1.0 / (SketchContainer::kFactor * max_bins);
-  size_t dummy_nlevel;
-  size_t num_cuts;
-  WQuantileSketch<bst_float, bst_float>::LimitSizeLevel(
-    num_rows, eps, &dummy_nlevel, &num_cuts);
-  return std::min(num_cuts, num_rows);
-}
-
-size_t BytesRequiredForTest(size_t num_rows, size_t num_columns, size_t num_bins,
-                            bool with_weights) {
-  size_t bytes_num_elements = BytesPerElement(with_weights) * num_rows * num_columns;
-  size_t bytes_cuts = RequiredSampleCutsTest(num_bins, num_rows) * num_columns *
-                      sizeof(DenseCuts::WQSketch::Entry);
-  // divide by 2 is because the memory quota used in sorting is reused for storing cuts.
-  return bytes_num_elements / 2 + bytes_cuts;
-}
-
 TEST(HistUtil, DeviceSketchMemory) {
   int num_columns = 100;
   int num_rows = 1000;
@@ -77,15 +58,15 @@ TEST(HistUtil, DeviceSketchMemory) {
   dh::GlobalMemoryLogger().Clear();
   ConsoleLogger::Configure({{"verbosity", "3"}});
   auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
-  ConsoleLogger::Configure({{"verbosity", "0"}});
 
-  size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, false);
-  size_t bytes_constant = 1000;
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required + bytes_constant);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
+  size_t bytes_required = detail::RequiredMemory(
+      num_rows, num_columns, num_rows * num_columns, num_bins, false);
+  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
+  ConsoleLogger::Configure({{"verbosity", "0"}});
 }
 
-TEST(HistUtil, DeviceSketchMemoryWeights) {
+TEST(HistUtil, DeviceSketchWeightsMemory) {
   int num_columns = 100;
   int num_rows = 1000;
   int num_bins = 256;
@@ -98,7 +79,8 @@ TEST(HistUtil, DeviceSketchMemoryWeights) {
   auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
   ConsoleLogger::Configure({{"verbosity", "0"}});
 
-  size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, true);
+  size_t bytes_required = detail::RequiredMemory(
+      num_rows, num_columns, num_rows * num_columns, num_bins, true);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
 }
@@ -118,7 +100,7 @@ TEST(HistUtil, DeviceSketchDeterminism) {
   }
 }
 
- TEST(HistUtil, DeviceSketchCategorical) {
+TEST(HistUtil, DeviceSketchCategorical) {
   int categorical_sizes[] = {2, 6, 8, 12};
   int num_bins = 256;
   int sizes[] = {25, 100, 1000};
@@ -231,11 +213,10 @@ template <typename Adapter>
 void ValidateBatchedCuts(Adapter adapter, int num_bins, int num_columns, int num_rows,
                          DMatrix* dmat) {
   common::HistogramCuts batched_cuts;
-  SketchContainer sketch_container(num_bins, num_columns, num_rows);
+  SketchContainer sketch_container(num_bins, num_columns, num_rows, 0);
   AdapterDeviceSketch(adapter.Value(), num_bins, std::numeric_limits<float>::quiet_NaN(),
-                      0, &sketch_container);
-  common::DenseCuts dense_cuts(&batched_cuts);
-  dense_cuts.Init(&sketch_container.sketches_, num_bins, num_rows);
+                      &sketch_container);
+  sketch_container.MakeCuts(&batched_cuts);
   ValidateCuts(batched_cuts, dmat, num_bins);
 }
 
@@ -275,12 +256,13 @@ TEST(HistUtil, AdapterDeviceSketchMemory) {
                                   std::numeric_limits<float>::quiet_NaN());
   ConsoleLogger::Configure({{"verbosity", "0"}});
   size_t bytes_constant = 1000;
-  size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, false);
+  size_t bytes_required = detail::RequiredMemory(
+      num_rows, num_columns, num_rows * num_columns, num_bins, false);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required + bytes_constant);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
 }
 
-TEST(HistUtil, AdapterSketchBatchMemory) {
+TEST(HistUtil, AdapterSketchSlidingWindowMemory) {
   int num_columns = 100;
   int num_rows = 1000;
   int num_bins = 256;
@@ -291,17 +273,19 @@ TEST(HistUtil, AdapterSketchBatchMemory) {
   dh::GlobalMemoryLogger().Clear();
   ConsoleLogger::Configure({{"verbosity", "3"}});
   common::HistogramCuts batched_cuts;
-  SketchContainer sketch_container(num_bins, num_columns, num_rows);
+  SketchContainer sketch_container(num_bins, num_columns, num_rows, 0);
   AdapterDeviceSketch(adapter.Value(), num_bins, std::numeric_limits<float>::quiet_NaN(),
-                      0, &sketch_container);
+                      &sketch_container);
+  HistogramCuts cuts;
+  sketch_container.MakeCuts(&cuts);
+  size_t bytes_required = detail::RequiredMemory(
+      num_rows, num_columns, num_rows * num_columns, num_bins, false);
+  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
   ConsoleLogger::Configure({{"verbosity", "0"}});
-  size_t bytes_constant = 1000;
-  size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, false);
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required + bytes_constant);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
 }
 
-TEST(HistUtil, AdapterSketchBatchWeightedMemory) {
+TEST(HistUtil, AdapterSketchSlidingWindowWeightedMemory) {
   int num_columns = 100;
   int num_rows = 1000;
   int num_bins = 256;
@@ -316,12 +300,15 @@ TEST(HistUtil, AdapterSketchBatchWeightedMemory) {
   dh::GlobalMemoryLogger().Clear();
   ConsoleLogger::Configure({{"verbosity", "3"}});
   common::HistogramCuts batched_cuts;
-  SketchContainer sketch_container(num_bins, num_columns, num_rows);
+  SketchContainer sketch_container(num_bins, num_columns, num_rows, 0);
   AdapterDeviceSketchWeighted(adapter.Value(), num_bins, info,
-                              std::numeric_limits<float>::quiet_NaN(), 0,
+                              std::numeric_limits<float>::quiet_NaN(),
                               &sketch_container);
+  HistogramCuts cuts;
+  sketch_container.MakeCuts(&cuts);
   ConsoleLogger::Configure({{"verbosity", "0"}});
-  size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, true);
+  size_t bytes_required = detail::RequiredMemory(
+      num_rows, num_columns, num_rows * num_columns, num_bins, true);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
 }
@@ -462,13 +449,11 @@ void TestAdapterSketchFromWeights(bool with_group) {
 
   data::CupyAdapter adapter(m);
   auto const& batch = adapter.Value();
-  SketchContainer sketch_container(kBins, kCols, kRows);
+  SketchContainer sketch_container(kBins, kCols, kRows, 0);
   AdapterDeviceSketchWeighted(adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
-                              0,
                               &sketch_container);
   common::HistogramCuts cuts;
-  common::DenseCuts dense_cuts(&cuts);
-  dense_cuts.Init(&sketch_container.sketches_, kBins, kRows);
+  sketch_container.MakeCuts(&cuts);
 
   auto dmat = GetDMatrixFromData(storage.HostVector(), kRows, kCols);
   if (with_group) {
