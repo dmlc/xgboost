@@ -88,13 +88,13 @@ struct from_chars_result {  // NOLINT
   std::errc ec;
 };
 
-from_chars_result from_char_impl(const char *buffer, const int len,  // NOLINT
-                                 float *result);
+from_chars_result FromCharFloatImpl(const char *buffer, const int len,
+                                    float *result);
 
 inline from_chars_result from_chars(const char *buffer, const char *end, // NOLINT
                                     float &value) {  // NOLINT
   from_chars_result res =
-      from_char_impl(buffer, std::distance(buffer, end), &value);
+      FromCharFloatImpl(buffer, std::distance(buffer, end), &value);
   return res;
 }
 }  // namespace xgboost

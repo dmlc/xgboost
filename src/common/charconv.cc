@@ -745,8 +745,8 @@ to_chars_result ToCharsUnsignedImpl(char *first, char *last,
  * double table.  But here we optimize the table size with float table instead.  The
  * result is exactly the same.
  */
-from_chars_result from_char_impl(const char *buffer, const int len, // NOLINT
-                                 float *result) {
+from_chars_result FromCharFloatImpl(const char *buffer, const int len,
+                                    float *result) {
   if (len == 0) {
     return {buffer, std::errc::invalid_argument};
   }
