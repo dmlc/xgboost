@@ -1,5 +1,9 @@
 /*!
  * Copyright 2019 by XGBoost Contributors
+ *
+ * \brief Implement `std::to_chars` and `std::from_chars` for float.  Only base 10 with
+ *        scientific format is supported.  The implementation guarantees roundtrip
+ *        reproducibility.
  */
 #ifndef XGBOOST_COMMON_CHARCONV_H_
 #define XGBOOST_COMMON_CHARCONV_H_
@@ -36,7 +40,7 @@ template <> struct NumericLimits<int64_t> {
   // be represented), so we need +1 here.
   static constexpr size_t kToCharsSize =
       std::numeric_limits<int64_t>::digits10 +
-      3; // +1 for minus, +1 for digits10, +1 for '\0' just to be safe.
+      3;  // +1 for minus, +1 for digits10, +1 for '\0' just to be safe.
 };
 
 inline to_chars_result to_chars(char  *first, char *last, float value) {  // NOLINT

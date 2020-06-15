@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019 by XGBoost Contributors
+ * Copyright 2020 by XGBoost Contributors
  *
  * \brief An implemenation of Ryu algorithm:
  *
@@ -740,6 +740,11 @@ to_chars_result ToCharsUnsignedImpl(char *first, char *last,
   return ret;
 }
 
+/*
+ * The parsing is also part of ryu.  As of writing, the implementation in ryu uses full
+ * double table.  But here we optimize the table size with float table instead.  The
+ * result is exactly the same.
+ */
 from_chars_result from_char_impl(const char *buffer, const int len, // NOLINT
                                  float *result) {
   if (len == 0) {
