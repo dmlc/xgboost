@@ -61,7 +61,7 @@ class TestDistributedGPU(unittest.TestCase):
                     xgboost.DMatrix(X.compute()))
 
                 cp.testing.assert_allclose(single_node, predictions)
-                cp.testing.assert_allclose(single_node, series_predictions)
+                np.testing.assert_allclose(single_node, series_predictions.to_array())
 
                 predt = dxgb.predict(client, out, X)
                 assert isinstance(predt, dd.Series)
