@@ -251,24 +251,22 @@ struct GPUHistMakerDevice {
     std::vector<int>& feature_groups_h = feature_groups.HostVector();
     bin_groups_h.push_back(0);
     feature_groups_h.push_back(0);
-
-    bool use_feature_groups = page->is_dense;
-    //bool use_feature_groups = false;
-    if (!use_feature_groups) {
+    
+    // Don't use feature groups for sparse matrices
+    bool single_group = !page->is_dense;
+    if (single_group) {
       feature_groups_h.push_back(page->Cuts().Ptrs().size() - 1);
       bin_groups_h.push_back(page->Cuts().TotalBins());
       max_group_bins = page->Cuts().TotalBins();
       return;
     }
       
-    const std::vector<uint32_t>& cut_ptrs = page->Cuts().Ptrs();
-    
+    const std::vector<uint32_t>& cut_ptrs = page->Cuts().Ptrs();    
     int max_shmem_bins = dh::MaxSharedMemoryOptin(device_id) / sizeof(GradientSumT);
     max_group_bins = 0;
     
-    for (size_t i = 0; i < cut_ptrs.size(); ++i) {
+    for (size_t i = 2; i < cut_ptrs.size(); ++i) {
       int last_start = bin_groups_h.back();
-      // TODO(canonizer): handle > max_group_bins per feature
       if (cut_ptrs[i] - last_start > max_shmem_bins) {
         bin_groups_h.push_back(cut_ptrs[i - 1]);
         feature_groups_h.push_back(i - 1);
@@ -281,8 +279,6 @@ struct GPUHistMakerDevice {
     max_group_bins = std::max(max_group_bins,
                               bin_groups_h.back() -
                               bin_groups_h[bin_groups_h.size() - 2]);
-    //std::cout << "max_group_bins = " << max_group_bins << std::endl;
-    //std::cout << "num_groups = " << feature_groups_h.size() - 1 << std::endl;
   }
 
   // Get vector of at least n initialised streams
