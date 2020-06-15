@@ -886,7 +886,7 @@ DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
 
 // Thrust version of this function causes error on Windows
 template <typename ReturnT, typename IterT, typename FuncT>
-thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIterator(
+XGBOOST_DEVICE thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIterator(
   IterT iter, FuncT func) {
   return thrust::transform_iterator<FuncT, IterT, ReturnT>(iter, func);
 }

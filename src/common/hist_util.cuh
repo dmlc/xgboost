@@ -17,6 +17,22 @@ namespace common {
 using WQSketch = DenseCuts::WQSketch;
 using SketchEntry = WQSketch::Entry;
 
+inline void MakeFromSorted(Span<SketchEntry> entries,
+                           WQuantileSketch<bst_float, bst_float>::SummaryContainer* summary) {
+  auto data = entries.data();
+  SketchEntry *new_end =
+      thrust::unique(thrust::device, data, data + entries.size(),
+                     [] __device__(SketchEntry a, SketchEntry b) {
+                       return a.value == b.value;
+                     });
+  static_assert(std::is_trivially_copy_constructible<SketchEntry>::value, "");
+  static_assert(std::is_standard_layout<SketchEntry>::value, "");
+  summary->size = std::distance(data, new_end);
+  dh::safe_cuda(cudaMemcpy(
+      summary->data, entries.data(), sizeof(SketchEntry) * std::distance(data, new_end),
+      cudaMemcpyDeviceToHost));
+}
+
 /*!
  * \brief A container that holds the device sketches across all
  *  sparse page batches which are distributed to different devices.
@@ -48,7 +64,7 @@ struct SketchContainer {
    * have storage for.
    */
   void Push(size_t entries_per_column,
-            const thrust::host_vector<SketchEntry>& entries,
+            const common::Span<SketchEntry>& entries,
             const thrust::host_vector<size_t>& column_scan) {
 #pragma omp parallel for schedule(static) if (sketches_.size() > SketchContainer::kOmpNumColsParallelizeLimit)  // NOLINT
     for (int icol = 0; icol < sketches_.size(); ++icol) {
@@ -58,9 +74,8 @@ struct SketchContainer {
       size_t num_available_cuts =
           std::min(size_t(entries_per_column), column_size);
       summary.Reserve(num_available_cuts);
-      summary.MakeFromSorted(&entries[entries_per_column * icol],
-                             num_available_cuts);
-
+      MakeFromSorted(entries.subspan(entries_per_column * icol, num_available_cuts),
+                     &summary);
       sketches_[icol].PushSummary(summary);
     }
   }
@@ -233,8 +248,7 @@ void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
               dh::ToSpan(cuts));
 
   // Push cuts into sketches stored in host memory
-  thrust::host_vector<SketchEntry> host_cuts(cuts);
-  sketch_container->Push(num_cuts, host_cuts, host_column_sizes_scan);
+  sketch_container->Push(num_cuts, dh::ToSpan(cuts), host_column_sizes_scan);
 }
 
 void ExtractWeightedCuts(int device,
@@ -318,8 +332,7 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
                       dh::ToSpan(cuts));
 
   // add cuts into sketches
-  thrust::host_vector<SketchEntry> host_cuts(cuts);
-  sketch_container->Push(num_cuts_per_feature, host_cuts, host_column_sizes_scan);
+  sketch_container->Push(num_cuts_per_feature, dh::ToSpan(cuts), host_column_sizes_scan);
 }
 
 template <typename AdapterT>

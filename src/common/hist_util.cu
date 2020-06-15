@@ -140,8 +140,7 @@ void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
               dh::ToSpan(cuts));
 
   // add cuts into sketches
-  thrust::host_vector<SketchEntry> host_cuts(cuts);
-  sketch_container->Push(num_cuts, host_cuts, host_column_sizes_scan);
+  sketch_container->Push(num_cuts, dh::ToSpan(cuts), host_column_sizes_scan);
 }
 
 void SortByWeight(dh::XGBCachingDeviceAllocator<char>* alloc,
@@ -221,8 +220,7 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
                       dh::ToSpan(cuts));
 
   // add cuts into sketches
-  thrust::host_vector<SketchEntry> host_cuts(cuts);
-  sketch_container->Push(num_cuts_per_feature, host_cuts, host_column_sizes_scan);
+  sketch_container->Push(num_cuts_per_feature, dh::ToSpan(cuts), host_column_sizes_scan);
 }
 
 HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
