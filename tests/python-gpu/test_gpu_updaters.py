@@ -91,11 +91,10 @@ class TestGPUUpdaters:
         np.testing.assert_allclose(predictions, 0.5, 1e-6)
 
     @pytest.mark.mgpu
-    @given(tm.dataset_strategy)
+    @given(tm.dataset_strategy, strategies.integers(0, 10))
     @settings(deadline=None, max_examples=10)
-    def test_specified_gpu_id_gpu_update(self, dataset):
-        param = {'tree_method': 'gpu_hist', 'gpu_id': 1}
+    def test_specified_gpu_id_gpu_update(self, dataset, gpu_id):
+        param = {'tree_method': 'gpu_hist', 'gpu_id': gpu_id}
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), 10)
         assert tm.non_increasing(result['train'][dataset.metric])
-

@@ -7,8 +7,6 @@ parameter_strategy = strategies.fixed_dictionaries({
     'eta': strategies.floats(0.01, 0.25),
     'tolerance': strategies.floats(1e-5, 1e-2),
     'nthread': strategies.integers(1, 4),
-    'alpha': strategies.floats(1e-5, 2.0),
-    'lambda': strategies.floats(1e-5, 2.0)
 })
 
 coord_strategy = strategies.fixed_dictionaries({
@@ -25,15 +23,28 @@ def train_result(param, dmat, num_rounds):
     return result
 
 
-# Loss is not guaranteed to always decrease because of regularisation parameters
-# We test a weaker condition that the loss has not increased between the first and last iteration
-# This only detects catastrophic training failure
 class TestLinear:
     @given(parameter_strategy, strategies.integers(10, 50),
            tm.dataset_strategy, coord_strategy)
     @settings(deadline=None)
     def test_coordinate(self, param, num_rounds, dataset, coord_param):
         param['updater'] = 'coord_descent'
+        param.update(coord_param)
+        param = dataset.set_params(param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        assert tm.non_increasing(result)
+
+    # Loss is not guaranteed to always decrease because of regularisation parameters
+    # We test a weaker condition that the loss has not increased between the first and last
+    # iteration
+    @given(parameter_strategy, strategies.integers(10, 50),
+           tm.dataset_strategy, coord_strategy, strategies.floats(1e-5, 2.0),
+           strategies.floats(1e-5, 2.0))
+    @settings(deadline=None)
+    def test_coordinate_regularised(self, param, num_rounds, dataset, coord_param, alpha, lambd):
+        param['updater'] = 'coord_descent'
+        param['alpha'] = alpha
+        param['lambda'] = lambd
         param.update(coord_param)
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
@@ -44,6 +55,18 @@ class TestLinear:
     @settings(deadline=None)
     def test_shotgun(self, param, num_rounds, dataset):
         param['updater'] = 'shotgun'
+        param = dataset.set_params(param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        assert tm.non_increasing(result)
+
+    @given(parameter_strategy, strategies.integers(10, 50),
+           tm.dataset_strategy, strategies.floats(1e-5, 2.0),
+           strategies.floats(1e-5, 2.0))
+    @settings(deadline=None)
+    def test_shotgun_regularised(self, param, num_rounds, dataset, alpha, lambd):
+        param['updater'] = 'shotgun'
+        param['alpha'] = alpha
+        param['lambda'] = lambd
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
         assert tm.non_increasing([result[0], result[-1]])
