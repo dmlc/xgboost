@@ -263,9 +263,9 @@ def _convert_unknown_data(data, meta=None, meta_type=None):
     if meta is not None:
         try:
             data = np.array(data, dtype=meta_type)
-        except Exception:
+        except Exception as e:
             raise TypeError('Can not handle data from {}'.format(
-                type(data).__name__))
+                type(data).__name__)) from e
     else:
         import warnings
         warnings.warn(
@@ -273,9 +273,9 @@ def _convert_unknown_data(data, meta=None, meta_type=None):
             ', coverting it to csr_matrix')
         try:
             data = scipy.sparse.csr_matrix(data)
-        except Exception:
+        except Exception as e:
             raise TypeError('Can not initialize DMatrix from'
-                            ' {}'.format(type(data).__name__))
+                            ' {}'.format(type(data).__name__)) from e
     return data
 
 
