@@ -27,16 +27,21 @@ template <> struct NumericLimits<float> {
   // length of base10 digits that are necessary to uniquely represent all distinct values.
   // This value is used to represent the maximum length.  As sign bit occupies 1 character:
   // sign + len(str(2^24)) + decimal point + `E` + sign + len(str(2^8)) + '\0'
-  static constexpr size_t kMaxDigit10Len = 16;
+  static constexpr size_t kToCharsSize = 16;
 };
 
 template <> struct NumericLimits<int64_t> {
-  static constexpr size_t kDigit10 = 21;
+  // From llvm libcxx: numeric_limits::digits10 returns value less on 1 than desired for
+  // unsigned numbers.  For example, for 1-byte unsigned value digits10 is 2 (999 can not
+  // be represented), so we need +1 here.
+  static constexpr size_t kToCharsSize =
+      std::numeric_limits<int64_t>::digits10 +
+      3; // +1 for minus, +1 for digits10, +1 for '\0' just to be safe.
 };
 
 inline to_chars_result to_chars(char  *first, char *last, float value) {  // NOLINT
   if (XGBOOST_EXPECT(!(static_cast<size_t>(last - first) >=
-                       NumericLimits<float>::kMaxDigit10Len),
+                       NumericLimits<float>::kToCharsSize),
                      false)) {
     return {first, std::errc::value_too_large};
   }

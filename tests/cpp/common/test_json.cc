@@ -528,7 +528,7 @@ TEST(Json, IntVSFloat) {
 TEST(Json, RoundTrip) {
   uint32_t i = std::numeric_limits<uint32_t>::max() / 100 * 0;
   SimpleLCG rng;
-  SimpleRealUniformDistribution<float> dist(1.0f, 2048.0f);
+  SimpleRealUniformDistribution<float> dist(1.0f, 4096.0f);
 
   while (i <= std::numeric_limits<uint32_t>::max()) {
     float f;

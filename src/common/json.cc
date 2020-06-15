@@ -56,7 +56,7 @@ void JsonWriter::Visit(JsonObject const* obj) {
 }
 
 void JsonWriter::Visit(JsonNumber const* num) {
-  char number[NumericLimits<float>::kMaxDigit10Len];
+  char number[NumericLimits<float>::kToCharsSize];
   auto res = to_chars(number, number + sizeof(number), num->GetNumber());
   auto end = res.ptr;
   auto ori_size = stream_->size();
@@ -65,9 +65,9 @@ void JsonWriter::Visit(JsonNumber const* num) {
 }
 
 void JsonWriter::Visit(JsonInteger const* num) {
-  char i2s_buffer_[NumericLimits<int64_t>::kDigit10];
+  char i2s_buffer_[NumericLimits<int64_t>::kToCharsSize];
   auto i = num->GetInteger();
-  auto ret = to_chars(i2s_buffer_, i2s_buffer_ + NumericLimits<int64_t>::kDigit10, i);
+  auto ret = to_chars(i2s_buffer_, i2s_buffer_ + NumericLimits<int64_t>::kToCharsSize, i);
   auto end = ret.ptr;
   CHECK(ret.ec == std::errc());
   auto digits = std::distance(i2s_buffer_, end);

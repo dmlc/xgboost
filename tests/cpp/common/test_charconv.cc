@@ -28,7 +28,7 @@
 namespace xgboost {
 namespace {
 void TestInteger(char const* res, int64_t i) {
-  char result[xgboost::NumericLimits<int64_t>::kDigit10];
+  char result[xgboost::NumericLimits<int64_t>::kToCharsSize];
   auto ret = to_chars(result, result + sizeof(result), i);
   *ret.ptr = '\0';
   EXPECT_STREQ(res, result);
@@ -41,7 +41,7 @@ static float Int32Bits2Float(uint32_t bits) {
 }
 
 void TestRyu(char const *res, float v) {
-  char result[xgboost::NumericLimits<float>::kMaxDigit10Len];
+  char result[xgboost::NumericLimits<float>::kToCharsSize];
   auto ret = to_chars(result, result + sizeof(result), v);
   *ret.ptr = '\0';
   EXPECT_STREQ(res, result);
@@ -134,7 +134,7 @@ TEST(Ryu, Regression) {
 
 TEST(Ryu, RoundTrip) {
   float f = -1.1493590134238582e-40;
-  char result[NumericLimits<float>::kMaxDigit10Len] { 0 };
+  char result[NumericLimits<float>::kToCharsSize] { 0 };
   auto ret = to_chars(result, result + sizeof(result), f);
   size_t dis = std::distance(result, ret.ptr);
   float back;
@@ -144,10 +144,7 @@ TEST(Ryu, RoundTrip) {
   for (size_t i = 0; i < dis; ++i) {
     str.push_back(result[i]);
   }
-  ASSERT_EQ(f, back) << "str: " << str << "| "
-                     << std::setprecision(17)
-                     << "f: " << f << ", "
-                     << back;
+  ASSERT_EQ(f, back);
 }
 
 TEST(Ryu, LooksLikePow5) {
