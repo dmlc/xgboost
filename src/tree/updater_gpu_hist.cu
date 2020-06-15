@@ -415,17 +415,6 @@ struct GPUHistMakerDevice {
     hist.AllocateHistogram(nidx);
     auto d_node_hist = hist.GetNodeHistogram(nidx);
     auto d_ridx = row_partitioner->GetRows(nidx);
-    // print groups
-    // std::cout << "feature_groups = { ";
-    // for (int i = 0; i < feature_groups.size(); ++i) std::cout << feature_groups[i] << " ";
-    // std::cout << "}" << std::endl;
-
-    // std::cout << "bin_groups = { ";
-    // for (int i = 0; i < bin_groups.size(); ++i) std::cout << bin_groups[i] << " ";
-    // std::cout << "}" << std::endl;
-    // auto feature_groups_h = feature_groups.ConstHostSpan();
-    // auto bin_groups_h = bin_groups.ConstHostSpan();
-    //std::cout << "feature_groups_h.size() = " << feature_groups_h.size() << std::endl;
     BuildGradientHistogram(page->GetDeviceAccessor(device_id), gpair, d_ridx,
                            feature_groups.ConstDeviceSpan(), bin_groups.ConstDeviceSpan(),
                            d_node_hist, histogram_rounding, max_group_bins);

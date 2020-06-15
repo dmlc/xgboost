@@ -162,9 +162,6 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
                             common::Span<int const> bin_groups,
                             common::Span<GradientSumT> histogram,
                             GradientSumT rounding, int max_group_bins) {
-  //std::cout << "matrix is " << (matrix.is_dense ? "dense" : "sparse") << std::endl;
-  //std::cout << "number of bins = " << matrix.NumBins() << std::endl;
-  //std::cout << "max_group_bins = " << max_group_bins << std::endl;
   // decide whether to use shared memory
   int device = 0;
   dh::safe_cuda(cudaGetDevice(&device));
@@ -189,28 +186,15 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   int n_blocks_per_mp = 0;
   dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor
                 (&n_blocks_per_mp, kernel, block_threads, smem_size));
-  // TODO(canonizer): this is really a hack, find a better way to distribute the data
+  // TODO(canonizer): This is really a hack, find a better way to distribute the data
   // among thread blocks
-  //n_blocks_per_mp = common::DivRoundUp(n_blocks_per_mp, num_groups);
   unsigned grid_size = n_blocks_per_mp * n_mps;
   grid_size = common::DivRoundUp(grid_size, common::DivRoundUp(num_groups, 4));
-  // int items_per_thread = 64;
-  // int grid_size = common::DivRoundUp(d_ridx.size() * matrix.row_stride,
-  //                                    block_threads * num_groups * items_per_thread);
-
-  // std::cout << "start_feature = " << start_feature << std::endl;
-  // std::cout << "num_features = " << num_features << std::endl;
-  // std::cout << "feature_stride = " << feature_stride << std::endl;
-  // std::cout << "start_bin = " << start_bin << std::endl;
-  // std::cout << "num_bins = " << num_bins << std::endl;
-  // std::cout << "shared = " << shared << std::endl;
-  // std::cout << "n_elements = " << n_elements << std::endl;
   
   kernel<<<dim3(grid_size, num_groups), block_threads, smem_size>>>
     (matrix, d_ridx, histogram.data(), gpair.data(), feature_groups.data(), bin_groups.data(),
      rounding, shared);
   dh::safe_cuda(cudaGetLastError());
-  //dh::safe_cuda(cudaDeviceSynchronize());
 }
 
 template void BuildGradientHistogram<GradientPair>(
