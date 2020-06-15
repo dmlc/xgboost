@@ -28,7 +28,7 @@
 namespace xgboost {
 namespace {
 void TestInteger(char const* res, int64_t i) {
-  char result[xgboost::NumericLimits<float>::kMaxDigit10Len];
+  char result[xgboost::NumericLimits<int64_t>::kDigit10];
   auto ret = to_chars(result, result + sizeof(result), i);
   *ret.ptr = '\0';
   EXPECT_STREQ(res, result);
@@ -136,7 +136,7 @@ TEST(Ryu, RoundTrip) {
   float f = -1.1493590134238582e-40;
   char result[NumericLimits<float>::kMaxDigit10Len] { 0 };
   auto ret = to_chars(result, result + sizeof(result), f);
-  auto dis = std::distance(result, ret.ptr);
+  size_t dis = std::distance(result, ret.ptr);
   float back;
   auto from_ret = from_chars(result, result + dis, back);
   ASSERT_EQ(from_ret.ec, std::errc());

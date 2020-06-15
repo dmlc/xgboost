@@ -693,7 +693,7 @@ int32_t ToCharsFloatImpl(float f, char * const result) {
 // that value.  Other popular implementations can be found in RapidJson and libc++ (in
 // llvm-project), which uses the same general work flow with the same look up table, but
 // probably with better performance as they are more complicated.
-inline void ItoaUnsignedImpl(char *first, uint32_t length, uint64_t value) {
+void ItoaUnsignedImpl(char *first, uint32_t length, uint64_t value) {
   uint32_t position = length - 1;
   while (value >= Tens(2)) {
     auto const num = (value % Tens(2)) * 2;
