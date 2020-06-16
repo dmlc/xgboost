@@ -74,15 +74,15 @@ class RegLossObjOneAPI : public ObjFunction {
       CHECK_EQ(info.weights_.Size(), ndata)
           << "Number of weights should be equal to number of data points.";
 
-	  cl::sycl::buffer<bst_float, 1> weights_buf(info.weights_.HostPointer(), info.weights_.Size());
+      cl::sycl::buffer<bst_float, 1> weights_buf(info.weights_.HostPointer(), info.weights_.Size());
 
       qu_.submit([&](cl::sycl::handler& cgh) {
-      	auto preds_acc     = preds_buf.get_access<cl::sycl::access::mode::read>(cgh);
+        auto preds_acc     = preds_buf.get_access<cl::sycl::access::mode::read>(cgh);
         auto labels_acc    = labels_buf.get_access<cl::sycl::access::mode::read>(cgh);
         auto weights_acc   = weights_buf.get_access<cl::sycl::access::mode::read>(cgh);
         auto out_gpair_acc = out_gpair_buf.get_access<cl::sycl::access::mode::write>(cgh);
-      	cgh.parallel_for<class GetGradientWeights>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
-      	  int idx = pid[0];
+        cgh.parallel_for<class GetGradientWeights>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
+          int idx = pid[0];
           bst_float p = Loss::PredTransform(preds_acc[idx]);
           bst_float w = weights_acc[idx];
           bst_float label = labels_acc[idx];
@@ -91,15 +91,15 @@ class RegLossObjOneAPI : public ObjFunction {
           }
           out_gpair_acc[idx] = GradientPair(Loss::FirstOrderGradient(p, label) * w,
                                             Loss::SecondOrderGradient(p, label) * w);
-      	});
+        });
       }).wait();
     } else {
       qu_.submit([&](cl::sycl::handler& cgh) {
-      	auto preds_acc = preds_buf.get_access<cl::sycl::access::mode::read>(cgh);
+        auto preds_acc = preds_buf.get_access<cl::sycl::access::mode::read>(cgh);
         auto labels_acc = labels_buf.get_access<cl::sycl::access::mode::read>(cgh);
         auto out_gpair_acc = out_gpair_buf.get_access<cl::sycl::access::mode::write>(cgh);
-      	cgh.parallel_for<class GetGradientNoWeights>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
-      	  int idx = pid[0];
+        cgh.parallel_for<class GetGradientNoWeights>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
+          int idx = pid[0];
           bst_float p = Loss::PredTransform(preds_acc[idx]);
           bst_float w = 1.0f;
           bst_float label = labels_acc[idx];
@@ -108,7 +108,7 @@ class RegLossObjOneAPI : public ObjFunction {
           }
           out_gpair_acc[idx] = GradientPair(Loss::FirstOrderGradient(p, label) * w,
                                             Loss::SecondOrderGradient(p, label) * w);
-      	});
+        });
       }).wait();
     }
   }
@@ -119,7 +119,7 @@ class RegLossObjOneAPI : public ObjFunction {
   }
 
   void PredTransform(HostDeviceVector<float> *io_preds) override {
-  	size_t const ndata = io_preds->Size();
+    size_t const ndata = io_preds->Size();
 
     cl::sycl::buffer<bst_float, 1> io_preds_buf(io_preds->HostPointer(), io_preds->Size());
 
