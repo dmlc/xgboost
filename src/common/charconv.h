@@ -16,12 +16,24 @@
 #include "xgboost/logging.h"
 
 namespace xgboost {
-int32_t ToCharsFloatImpl(float f, char * const result);
 
 struct to_chars_result {  // NOLINT
   char* ptr;
   std::errc ec;
 };
+
+struct from_chars_result {  // NOLINT
+  const char *ptr;
+  std::errc ec;
+};
+
+namespace detail {
+int32_t ToCharsFloatImpl(float f, char * const result);
+to_chars_result ToCharsUnsignedImpl(char *first, char *last,
+                                    uint64_t const value);
+from_chars_result FromCharFloatImpl(const char *buffer, const int len,
+                                    float *result);
+}  // namespace detail
 
 template <typename T>
 struct NumericLimits;
@@ -49,7 +61,7 @@ inline to_chars_result to_chars(char  *first, char *last, float value) {  // NOL
                      false)) {
     return {first, std::errc::value_too_large};
   }
-  auto index = ToCharsFloatImpl(value, first);
+  auto index = detail::ToCharsFloatImpl(value, first);
   to_chars_result ret;
   ret.ptr = first + index;
 
@@ -61,9 +73,6 @@ inline to_chars_result to_chars(char  *first, char *last, float value) {  // NOL
   }
   return ret;
 }
-
-to_chars_result ToCharsUnsignedImpl(char *first, char *last,
-                                    uint64_t const value);
 
 inline to_chars_result to_chars(char *first, char *last, int64_t value) { // NOLINT
   if (XGBOOST_EXPECT(first == last, false)) {
@@ -80,21 +89,13 @@ inline to_chars_result to_chars(char *first, char *last, int64_t value) { // NOL
     std::advance(first, 1);
     unsigned_value = uint64_t(~value) + uint64_t(1);
   }
-  return ToCharsUnsignedImpl(first, last, unsigned_value);
+  return detail::ToCharsUnsignedImpl(first, last, unsigned_value);
 }
-
-struct from_chars_result {  // NOLINT
-  const char *ptr;
-  std::errc ec;
-};
-
-from_chars_result FromCharFloatImpl(const char *buffer, const int len,
-                                    float *result);
 
 inline from_chars_result from_chars(const char *buffer, const char *end, // NOLINT
                                     float &value) {  // NOLINT
   from_chars_result res =
-      FromCharFloatImpl(buffer, std::distance(buffer, end), &value);
+      detail::FromCharFloatImpl(buffer, std::distance(buffer, end), &value);
   return res;
 }
 }  // namespace xgboost

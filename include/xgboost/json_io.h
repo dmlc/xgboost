@@ -63,14 +63,17 @@ class JsonReader {
     return ch;
   }
 
+  /* \brief Skip spaces and consume next character. */
   char GetNextNonSpaceChar() {
     SkipSpaces();
     return GetNextChar();
   }
-
-  char GetConsecutiveChar(char c) {
+  /* \brief Consume next character without first skipping empty space, throw when the next
+   *        character is not the expected one.
+   */
+  char GetConsecutiveChar(char expected_char) {
     char result = GetNextChar();
-    if (XGBOOST_EXPECT(result != c, false)) { Expect(c, result); }
+    if (XGBOOST_EXPECT(result != expected_char, false)) { Expect(expected_char, result); }
     return result;
   }
 

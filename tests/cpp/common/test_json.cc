@@ -526,7 +526,7 @@ TEST(Json, IntVSFloat) {
 }
 
 TEST(Json, RoundTrip) {
-  uint32_t i = std::numeric_limits<uint32_t>::max() / 100 * 0;
+  uint32_t i = 0;
   SimpleLCG rng;
   SimpleRealUniformDistribution<float> dist(1.0f, 4096.0f);
 
@@ -541,11 +541,7 @@ TEST(Json, RoundTrip) {
     if (XGBOOST_EXPECT(std::isnan(f), false)) {
       ASSERT_TRUE(std::isnan(get<Number const>(loaded)));
     } else {
-      ASSERT_EQ(get<Number const>(loaded), get<Number const>(jf))
-          << std::setprecision(17) << "jf: " << get<Number const>(jf) << ", "
-          << "loaded: " << get<Number const>(loaded) << ", "
-          << "f:" << f << ", "
-          << "str: " << str << std::endl;
+      ASSERT_EQ(get<Number const>(loaded), f);
     }
 
     auto t = i;

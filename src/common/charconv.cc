@@ -60,8 +60,7 @@ inline int32_t __builtin_clzll(uint64_t x) {
  */
 
 namespace xgboost {
-
-namespace {
+namespace detail {
 static constexpr char kItoaLut[200] = {
     '0', '0', '0', '1', '0', '2', '0', '3', '0', '4', '0', '5', '0', '6', '0',
     '7', '0', '8', '0', '9', '1', '0', '1', '1', '1', '2', '1', '3', '1', '4',
@@ -79,8 +78,6 @@ static constexpr char kItoaLut[200] = {
     '7', '9', '8', '9', '9'};
 
 constexpr uint32_t Tens(uint32_t n) { return n == 1 ? 10 : (Tens(n - 1) * 10); }
-}  // anonymous namespace
-
 
 struct UnsignedFloatBase2;
 
@@ -941,4 +938,5 @@ from_chars_result FromCharFloatImpl(const char *buffer, const int len,
   *result = IEEE754::Encode({f_m2, f_e2}, signed_mantissa);
   return {};
 }
+}  // namespace detail
 }  // namespace xgboost
