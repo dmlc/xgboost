@@ -63,7 +63,7 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   auto const& j_arr = get<Array>(j_interface);
   CHECK_EQ(j_arr.size(), 1)
       << "MetaInfo: " << c_key << ". " << ArrayInterfaceErrors::Dimension(1);
-  ArrayInterface array_interface(interface_str);
+  ArrayInterface array_interface(get<Object const>(j_arr[0]));
   std::string key{c_key};
   CHECK(!array_interface.valid.Data())
       << "Meta info " << key << " should be dense, found validity mask";

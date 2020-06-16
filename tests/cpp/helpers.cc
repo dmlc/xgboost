@@ -182,13 +182,7 @@ Json RandomDataGenerator::ArrayInterfaceImpl(HostDeviceVector<float> *storage,
   this->GenerateDense(storage);
   Json array_interface {Object()};
   array_interface["data"] = std::vector<Json>(2);
-  if (storage->DeviceCanRead()) {
-    array_interface["data"][0] =
-        Integer(reinterpret_cast<int64_t>(storage->ConstDevicePointer()));
-  } else {
-    array_interface["data"][0] =
-        Integer(reinterpret_cast<int64_t>(storage->ConstHostPointer()));
-  }
+  array_interface["data"][0] = Integer(reinterpret_cast<int64_t>(storage->DevicePointer()));
   array_interface["data"][1] = Boolean(false);
 
   array_interface["shape"] = std::vector<Json>(2);
