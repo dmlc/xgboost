@@ -158,10 +158,10 @@ class TestGPUPredict(unittest.TestCase):
         rows = 1000
         cols = 10
         rng = np.random.RandomState(1994)
+        cp.cuda.runtime.setDevice(0)
         X = rng.randn(rows, cols)
         X = pd.DataFrame(X)
         y = rng.randn(rows)
-
         X = cudf.from_pandas(X)
 
         dtrain = xgb.DMatrix(X, y)

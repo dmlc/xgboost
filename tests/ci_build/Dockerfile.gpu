@@ -18,7 +18,7 @@ ENV PATH=/opt/python/bin:$PATH
 RUN \
     conda create -n gpu_test -c rapidsai -c nvidia -c conda-forge -c defaults \
         python=3.7 dask dask-cuda numpy pytest scipy  scikit-learn pandas \
-        matplotlib wheel python-kubernetes urllib3 graphviz
+        matplotlib wheel python-kubernetes urllib3 graphviz hypothesis
 
 ENV GOSU_VERSION 1.10
 
