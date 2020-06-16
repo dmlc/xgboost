@@ -107,7 +107,7 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
                                     GradientSumT* __restrict__ d_node_hist,
                                     const GradientPair* __restrict__ d_gpair,
                                     const int* feature_groups, const int* bin_groups,
-                                    GradientSumT const rounding,                                    
+                                    GradientSumT const rounding,
                                     bool use_shared_memory_histograms) {
   using T = typename GradientSumT::ValueT;
   extern __shared__ char smem[];
@@ -190,7 +190,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   // among thread blocks
   unsigned grid_size = n_blocks_per_mp * n_mps;
   grid_size = common::DivRoundUp(grid_size, common::DivRoundUp(num_groups, 4));
-  
+
   kernel<<<dim3(grid_size, num_groups), block_threads, smem_size>>>
     (matrix, d_ridx, histogram.data(), gpair.data(), feature_groups.data(), bin_groups.data(),
      rounding, shared);
@@ -202,7 +202,7 @@ template void BuildGradientHistogram<GradientPair>(
     common::Span<GradientPair const> gpair,
     common::Span<const uint32_t> ridx,
     common::Span<int const> feature_groups,
-    common::Span<int const> bin_groups,    
+    common::Span<int const> bin_groups,
     common::Span<GradientPair> histogram,
     GradientPair rounding, int max_group_bins);
 

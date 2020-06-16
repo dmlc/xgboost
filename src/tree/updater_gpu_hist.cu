@@ -251,7 +251,7 @@ struct GPUHistMakerDevice {
     std::vector<int>& feature_groups_h = feature_groups.HostVector();
     bin_groups_h.push_back(0);
     feature_groups_h.push_back(0);
-    
+
     // Don't use feature groups for sparse matrices
     bool single_group = !page->is_dense;
     if (single_group) {
@@ -260,11 +260,11 @@ struct GPUHistMakerDevice {
       max_group_bins = page->Cuts().TotalBins();
       return;
     }
-      
-    const std::vector<uint32_t>& cut_ptrs = page->Cuts().Ptrs();    
+
+    const std::vector<uint32_t>& cut_ptrs = page->Cuts().Ptrs();
     int max_shmem_bins = dh::MaxSharedMemoryOptin(device_id) / sizeof(GradientSumT);
     max_group_bins = 0;
-    
+
     for (size_t i = 2; i < cut_ptrs.size(); ++i) {
       int last_start = bin_groups_h.back();
       if (cut_ptrs[i] - last_start > max_shmem_bins) {
