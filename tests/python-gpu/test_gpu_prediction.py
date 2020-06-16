@@ -147,8 +147,10 @@ class TestGPUPredict(unittest.TestCase):
             copied_predt = cp.array(booster.predict(d))
             return cp.all(copied_predt == inplace_predt)
 
-        for i in range(10):
-            run_threaded_predict(X, rows, predict_dense)
+        # Don't do this on Windows, see issue #5793
+        if not sys.platform.startswith("win"):
+            for i in range(10):
+                run_threaded_predict(X, rows, predict_dense)
 
     @pytest.mark.skipif(**tm.no_cudf())
     def test_inplace_predict_cudf(self):
