@@ -56,6 +56,10 @@ if (USE_CUDA)
     CUDA_STANDARD_REQUIRED ON)
 endif (USE_CUDA)
 
+if (USE_ARROW)
+  enable_arrow(testxgboost)
+endif (USE_ARROW)
+
 if (MSVC)
   target_compile_options(testxgboost PRIVATE
     $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/utf-8>
