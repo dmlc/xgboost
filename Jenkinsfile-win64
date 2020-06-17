@@ -137,6 +137,7 @@ def TestWin64GPU(args) {
     conda activate && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"
     """
     echo "Installing Python dependencies..."
+    def cuda_short_ver = args.cuda_target.replaceAll('_', '')
     bat """
      conda activate && conda install -y hypothesis && conda upgrade scikit-learn pandas numpy hypothesis  && python -m pip install cupy-${cuda_short_ver}
     """
