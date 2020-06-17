@@ -9,7 +9,6 @@
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
 #include "xgboost/json_io.h"
-#include "xgboost/parameter.h"
 #include "../helpers.h"
 #include "../../../src/common/io.h"
 #include "../../../src/common/charconv.h"
@@ -526,8 +525,7 @@ TEST(Json, IntVSFloat) {
   }
 }
 
-template <typename JsonRoundTripTestPolicy>
-inline void JsonRoundTripTestImpl() {
+TEST(Json, RoundTrip) {
   uint32_t i = 0;
   SimpleLCG rng;
   SimpleRealUniformDistribution<float> dist(1.0f, 4096.0f);
@@ -547,33 +545,37 @@ inline void JsonRoundTripTestImpl() {
     }
 
     auto t = i;
-    i += JsonRoundTripTestPolicy::Next(dist, rng);
+    i += static_cast<uint32_t>(dist(&rng));
     if (i < t) {
       break;
     }
   }
 }
 
-struct ExhaustivePolicy {
-  template <typename T, typename U>
-  inline uint32_t static Next(T& dist, U& rng) {
-    return 1;
-  }
-};
+TEST(Json, DISABLED_RoundTripExhaustive) {
+  uint32_t i = 0;
+  SimpleLCG rng;
+  SimpleRealUniformDistribution<float> dist(1.0f, 4096.0f);
 
-struct SamplingPolicy {
-  template <typename T, typename U>
-  inline uint32_t static Next(T& dist, U& rng) {
-    return static_cast<uint32_t>(dist(&rng));
-  }
-};
+  while (i <= std::numeric_limits<uint32_t>::max()) {
+    float f;
+    std::memcpy(&f, &i, sizeof(f));
 
-TEST(Json, RoundTrip) {
-  int exhaustive_flag = dmlc::GetEnv("XGBOOST_JSON_ROUNDTRIP_EXHAUSTIVE_TEST", 0);
-  if (exhaustive_flag == 1) {
-    JsonRoundTripTestImpl<ExhaustivePolicy>();
-  } else {
-    JsonRoundTripTestImpl<SamplingPolicy>();
+    Json jf { f };
+    std::string str;
+    Json::Dump(jf, &str);
+    auto loaded = Json::Load({str.c_str(), str.size()});
+    if (XGBOOST_EXPECT(std::isnan(f), false)) {
+      ASSERT_TRUE(std::isnan(get<Number const>(loaded)));
+    } else {
+      ASSERT_EQ(get<Number const>(loaded), f);
+    }
+
+    auto t = i;
+    ++i;
+    if (i < t) {
+      break;
+    }
   }
 }
 }  // namespace xgboost
