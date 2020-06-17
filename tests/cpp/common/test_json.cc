@@ -553,8 +553,7 @@ TEST(Json, RoundTrip) {
 }
 
 TEST(Json, DISABLED_RoundTripExhaustive) {
-#pragma omp parallel for schedule(static)
-  for (uint32_t i = 0; i <= std::numeric_limits<uint32_t>::max(); ++i) {
+  auto test = [](uint32_t i) {
     float f;
     std::memcpy(&f, &i, sizeof(f));
 
@@ -567,6 +566,11 @@ TEST(Json, DISABLED_RoundTripExhaustive) {
     } else {
       EXPECT_EQ(get<Number const>(loaded), f);
     }
+  };
+#pragma omp parallel for schedule(static)
+  for (uint32_t i = 0; i < std::numeric_limits<uint32_t>::max(); ++i) {
+    test(i);
   }
+  test(std::numeric_limits<uint32_t>::max());
 }
 }  // namespace xgboost
