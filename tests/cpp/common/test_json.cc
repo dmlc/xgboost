@@ -554,9 +554,6 @@ TEST(Json, RoundTrip) {
 
 TEST(Json, DISABLED_RoundTripExhaustive) {
   uint32_t i = 0;
-  SimpleLCG rng;
-  SimpleRealUniformDistribution<float> dist(1.0f, 4096.0f);
-
   while (i <= std::numeric_limits<uint32_t>::max()) {
     float f;
     std::memcpy(&f, &i, sizeof(f));
