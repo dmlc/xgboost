@@ -220,6 +220,16 @@ class DMatrix private[scala](private[scala] val jDMatrix: JDMatrix) {
   }
 
   /**
+   * get the data vector size of DMatrix
+   *
+   * @return size of data vector
+   */
+  @throws(classOf[XGBoostError])
+  def dataVecSize: Long = {
+    jDMatrix.dataVecSize
+  }
+
+  /**
    * save DMatrix to filePath
    *
    * @param filePath file path

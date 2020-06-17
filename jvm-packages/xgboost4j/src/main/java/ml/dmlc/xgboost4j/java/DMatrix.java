@@ -326,6 +326,18 @@ public class DMatrix {
   }
 
   /**
+   * get the data vector size of DMatrix
+   *
+   * @return size of data vector
+   * @throws XGBoostError native error
+   */
+  public long dataVecSize() throws XGBoostError {
+    long[] size = new long[1];
+    XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixDataVecSize(handle, size));
+    return size[0];
+  }
+  
+  /**
    * save DMatrix to filePath
    */
   public void saveBinary(String filePath) {

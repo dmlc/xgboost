@@ -517,7 +517,7 @@ object XGBoost extends Serializable {
           val matcharr = iter.toArray
           val totalsize = matcharr.foldLeft(Map("train" -> 0L, "test" -> 0L)) {
            (l, r) =>
-             val merged = l.toSeq ++ r.rowNumMap.toSeq
+             val merged = l.toSeq ++ r.dataVecSizeMap.toSeq
              merged.groupBy(_._1).mapValues(_.map(_._2).sum)
           }
           totalsize.foreach( iter => System.out.println("xgbtck reduce_total "
@@ -795,8 +795,8 @@ private class Watches private(
     names.zip(datasets).toMap.filter { case (_, matrix) => matrix.rowNum > 0 }
   }
 
-  val rowNumMap: Map[String, Long] = {
-    toMap.map{ case (key, matrix) => (key, matrix.rowNum) }
+  val dataVecSizeMap: Map[String, Long] = {
+    toMap.map{ case (key, matrix) => (key, matrix.dataVecSize) }
   }
 
   val size: Int = toMap.size

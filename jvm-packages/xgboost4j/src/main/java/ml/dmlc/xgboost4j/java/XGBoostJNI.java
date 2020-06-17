@@ -87,6 +87,8 @@ class XGBoostJNI {
 
   public final static native int XGDMatrixNumRow(long handle, long[] row);
 
+  public final static native int XGDMatrixDataVecSize(long handle, long[] row);
+  
   public final static native int XGBoosterCreate(long[] handles, long[] out);
 
   public final static native int XGBoosterFree(long handle);

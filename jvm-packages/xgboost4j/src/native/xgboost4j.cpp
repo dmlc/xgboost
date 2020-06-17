@@ -476,6 +476,21 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixNumRow
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGDMatrixDataVecSize
+ * Signature: (J)J
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixDataVecSize
+  (JNIEnv *jenv, jclass jcls, jlong jhandle, jlongArray jout) {
+  DMatrixHandle handle = (DMatrixHandle) jhandle;
+  bst_ulong result[1];
+  int ret = (jint) XGDMatrixDataVecSize(handle, result);
+  JVM_CHECK_CALL(ret);
+  jenv->SetLongArrayRegion(jout, 0, 1, (const jlong *) result);
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    XGBoosterCreate
  * Signature: ([J)J
  */
