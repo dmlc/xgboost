@@ -73,6 +73,16 @@ def BuildWin64() {
     bat """
     mkdir build
     cd build
+    cmake .. -G"Visual Studio 15 2017 Win64" -DCMAKE_VERBOSE_MAKEFILE=ON -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON
+    cd build
+    "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\MSBuild\\15.0\\Bin\\MSBuild.exe" xgboost.sln /m /p:Configuration=Release /nodeReuse:false
+    """
+    echo 'Stashing C++ test executable (testxgboost)...'
+    stash name: 'xgboost_cpp_tests_cpu', includes: 'build/testxgboost.exe'
+    bat """
+    rd /s /q build
+    mkdir build
+    cd build
     cmake .. -G"Visual Studio 15 2017 Win64" -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON
     """
     bat """
@@ -104,8 +114,11 @@ def TestWin64CPU() {
   node('win64 && cpu') {
     unstash name: 'srcs'
     unstash name: 'xgboost_whl'
+    unstash name: 'xgboost_cpp_tests_cpu'
     unstash name: 'xgboost_cli'
     echo "Test Win64 CPU"
+    echo "Run brute-force test for JSON round-trip serialization"
+    bat "build\\testxgboost.exe --gtest_filter=Json.DISABLED_RoundTripExhaustive --gtest_also_run_disabled_tests"
     echo "Installing Python wheel..."
     bat "conda activate && (python -m pip uninstall -y xgboost || cd .)"
     bat """
