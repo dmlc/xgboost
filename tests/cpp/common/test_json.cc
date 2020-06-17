@@ -9,6 +9,7 @@
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
 #include "xgboost/json_io.h"
+#include "xgboost/parameter.h"
 #include "../helpers.h"
 #include "../../../src/common/io.h"
 #include "../../../src/common/charconv.h"
@@ -525,7 +526,8 @@ TEST(Json, IntVSFloat) {
   }
 }
 
-TEST(Json, RoundTrip) {
+template <typename JsonRoundTripTestPolicy>
+inline void JsonRoundTripTestImpl() {
   uint32_t i = 0;
   SimpleLCG rng;
   SimpleRealUniformDistribution<float> dist(1.0f, 4096.0f);
@@ -545,10 +547,33 @@ TEST(Json, RoundTrip) {
     }
 
     auto t = i;
-    i+= static_cast<uint32_t>(dist(&rng));
+    i += JsonRoundTripTestPolicy::Next(dist, rng);
     if (i < t) {
       break;
     }
+  }
+}
+
+struct ExhaustivePolicy {
+  template <typename T, typename U>
+  inline uint32_t static Next(T& dist, U& rng) {
+    return 1;
+  }
+};
+
+struct SamplingPolicy {
+  template <typename T, typename U>
+  inline uint32_t static Next(T& dist, U& rng) {
+    return static_cast<uint32_t>(dist(&rng));
+  }
+};
+
+TEST(Json, RoundTrip) {
+  int exhaustive_flag = dmlc::GetEnv("XGBOOST_JSON_ROUNDTRIP_EXHAUSTIVE_TEST", 0);
+  if (exhaustive_flag == 1) {
+    JsonRoundTripTestImpl<ExhaustivePolicy>();
+  } else {
+    JsonRoundTripTestImpl<SamplingPolicy>();
   }
 }
 }  // namespace xgboost
