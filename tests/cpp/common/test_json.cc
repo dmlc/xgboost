@@ -553,25 +553,19 @@ TEST(Json, RoundTrip) {
 }
 
 TEST(Json, DISABLED_RoundTripExhaustive) {
-  uint32_t i = 0;
-  while (i <= std::numeric_limits<uint32_t>::max()) {
+#pragma omp parallel for schedule(static)
+  for (uint32_t i = 0; i <= std::numeric_limits<uint32_t>::max(); ++i) {
     float f;
     std::memcpy(&f, &i, sizeof(f));
 
-    Json jf { f };
+    Json jf{f};
     std::string str;
     Json::Dump(jf, &str);
     auto loaded = Json::Load({str.c_str(), str.size()});
     if (XGBOOST_EXPECT(std::isnan(f), false)) {
-      ASSERT_TRUE(std::isnan(get<Number const>(loaded)));
+      EXPECT_TRUE(std::isnan(get<Number const>(loaded)));
     } else {
-      ASSERT_EQ(get<Number const>(loaded), f);
-    }
-
-    auto t = i;
-    ++i;
-    if (i < t) {
-      break;
+      EXPECT_EQ(get<Number const>(loaded), f);
     }
   }
 }
