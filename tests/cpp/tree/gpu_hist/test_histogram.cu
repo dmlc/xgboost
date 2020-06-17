@@ -26,7 +26,7 @@ void TestDeterminsticHistogram() {
     auto gpair = GenerateRandomGradients(kRows, kLower, kUpper);
     gpair.SetDevice(0);
     
-    HostDeviceVector<int> feature_groups{0, kCols};
+    HostDeviceVector<int> feature_groups{0, static_cast<int>(kCols)};
     feature_groups.SetDevice(0);
     
     HostDeviceVector<int> bin_groups{0, num_bins};
