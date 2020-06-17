@@ -18,8 +18,10 @@ add_executable(testxgboost ${TEST_SOURCES} ${XGBOOST_OBJ_SOURCES}
 if (USE_CUDA)
   # OpenMP is mandatory for CUDA
   find_package(OpenMP REQUIRED)
-  target_include_directories(testxgboost PRIVATE
-    ${xgboost_SOURCE_DIR}/cub/)
+  if (CUDA_VERSION_MAJOR LESS 11)
+    target_include_directories(testxgboost PRIVATE
+      ${xgboost_SOURCE_DIR}/cub/)
+  endif (CUDA_VERSION_MAJOR LESS 11)
   target_compile_options(testxgboost PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>

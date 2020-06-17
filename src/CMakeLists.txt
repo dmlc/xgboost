@@ -9,7 +9,9 @@ if (USE_CUDA)
   add_library(objxgboost OBJECT ${CPU_SOURCES} ${CUDA_SOURCES} ${PLUGINS_SOURCES})
   target_compile_definitions(objxgboost
     PRIVATE -DXGBOOST_USE_CUDA=1)
-  target_include_directories(objxgboost PRIVATE ${xgboost_SOURCE_DIR}/cub/)
+  if (CUDA_VERSION_MAJOR LESS 11)
+    target_include_directories(objxgboost PRIVATE ${xgboost_SOURCE_DIR}/cub/)
+  endif (CUDA_VERSION_MAJOR LESS 11)
   target_compile_options(objxgboost PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
