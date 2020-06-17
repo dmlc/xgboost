@@ -49,6 +49,7 @@ public class DMatrix {
     }
     // 32k as batch size
     int batchSize = 32 << 10;
+    // int batchSize = 719928/2;
     Iterator<DataBatch> batchIter = new DataBatch.BatchIterator(iter, batchSize);
     long[] out = new long[1];
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCreateFromDataIter(batchIter, cacheInfo, out));
@@ -336,7 +337,7 @@ public class DMatrix {
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixDataVecSize(handle, size));
     return size[0];
   }
-  
+
   /**
    * save DMatrix to filePath
    */

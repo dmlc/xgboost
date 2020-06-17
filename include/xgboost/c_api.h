@@ -569,6 +569,14 @@ XGB_DLL int XGDMatrixGetUIntInfo(const DMatrixHandle handle,
 XGB_DLL int XGDMatrixNumRow(DMatrixHandle handle,
                             bst_ulong *out);
 /*!
+ * \brief get data vector size.
+ * \param handle the handle to the DMatrix
+ * \param out The address to hold data vector size
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixDataVecSize(DMatrixHandle handle,
+                            bst_ulong *out);
+/*!
  * \brief get number of columns
  * \param handle the handle to the DMatrix
  * \param out The output of number of columns
