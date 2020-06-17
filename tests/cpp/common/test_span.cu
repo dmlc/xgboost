@@ -50,7 +50,7 @@ __global__ void TestFromOtherKernel(Span<float> span) {
   }
 }
 // Test converting different T
-  __global__ void TestFromOtherKernelConst(Span<float const, 16> span) {
+__global__ void TestFromOtherKernelConst(Span<float const, 16> span) {
   // don't get optimized out
   size_t idx = threadIdx.x + blockIdx.x * blockDim.x;
 

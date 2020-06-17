@@ -54,9 +54,8 @@ inline data::CupyAdapter AdapterFromData(const thrust::device_vector<float> &x,
   array_interface["data"] = j_data;
   array_interface["version"] = Integer(static_cast<Integer::Int>(1));
   array_interface["typestr"] = String("<f4");
-  std::stringstream ss;
-  Json::Dump(array_interface, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(array_interface, &str);
   return data::CupyAdapter(str);
 }
 #endif

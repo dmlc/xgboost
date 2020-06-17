@@ -22,9 +22,8 @@ TEST(SimpleDMatrix, FromColumnarDenseBasic) {
 
   Json column_arr{columns};
 
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(column_arr, &str);
 
   data::CudfAdapter adapter(str);
   data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
@@ -59,9 +58,8 @@ TEST(SimpleDMatrix, FromColumnarDense) {
 
   Json column_arr{columns};
 
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(column_arr, &str);
 
   // no missing value
   {
@@ -156,9 +154,9 @@ TEST(SimpleDMatrix, FromColumnarWithEmptyRows) {
   }
 
   Json column_arr{Array(v_columns)};
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(column_arr, &str);
+
   data::CudfAdapter adapter(str);
   data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
                            -1);
@@ -244,9 +242,8 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
 
   Json column_arr {Array(j_columns)};
 
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(column_arr, &str);
 
   {
     data::CudfAdapter adapter(str);
@@ -296,9 +293,8 @@ TEST(SimpleDMatrix, FromColumnarSparseBasic) {
 
   Json column_arr{columns};
 
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(column_arr, &str);
 
   data::CudfAdapter adapter(str);
   data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
@@ -324,9 +320,8 @@ TEST(SimpleDMatrix, FromCupy){
   int cols = 10;
   thrust::device_vector< float> data(rows*cols);
   auto json_array_interface = Generate2dArrayInterface(rows, cols, "<f4", &data);
-  std::stringstream ss;
-  Json::Dump(json_array_interface, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(json_array_interface, &str);
   data::CupyAdapter adapter(str);
   data::SimpleDMatrix dmat(&adapter, -1, 1);
   EXPECT_EQ(dmat.Info().num_col_, cols);
@@ -351,9 +346,8 @@ TEST(SimpleDMatrix, FromCupySparse){
   auto json_array_interface = Generate2dArrayInterface(rows, cols, "<f4", &data);
   data[1] = std::numeric_limits<float>::quiet_NaN();
   data[2] = std::numeric_limits<float>::quiet_NaN();
-  std::stringstream ss;
-  Json::Dump(json_array_interface, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(json_array_interface, &str);
   data::CupyAdapter adapter(str);
   data::SimpleDMatrix dmat(&adapter, -1, 1);
   EXPECT_EQ(dmat.Info().num_col_, cols);
