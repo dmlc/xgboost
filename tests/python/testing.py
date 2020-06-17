@@ -15,6 +15,8 @@ try:
 except ImportError:
     cp = None
 
+from xgboost.compat import PYARROW_INSTALLED
+
 memory = Memory('./cachedir', verbose=0)
 
 
@@ -221,3 +223,7 @@ def non_increasing(L, tolerance=1e-4):
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
 PROJECT_ROOT = os.path.normpath(
     os.path.join(CURDIR, os.path.pardir, os.path.pardir))
+
+def no_arrow():
+    return {'condition': not PYARROW_INSTALLED,
+            'reason': 'Pyarrow is not installed'}

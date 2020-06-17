@@ -52,7 +52,17 @@ if (USE_CUDA)
 endif (USE_CUDA)
 
 if (USE_ARROW)
-  enable_arrow(objxgboost)
+  find_package(Arrow REQUIRED)
+  list(APPEND SRC_LIBS ${ARROW_SHARED_LIB})
+  find_package(ArrowPython REQUIRED)
+  list(APPEND SRC_LIBS ${ARROW_PYTHON_SHARED_LIB})
+  find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+  list(APPEND SRC_LIBS ${Python3_LIBRARIES})
+  target_include_directories(objxgboost PRIVATE
+                              ${ARROW_INCLUDE_DIR}
+                              ${ARROW_PYTHON_INCLUDE_DIR}
+                              ${Python3_INCLUDE_DIRS})
+  target_compile_definitions(objxgboost PRIVATE -DXGBOOST_BUILD_ARROW_SUPPORT=1)
 endif (USE_ARROW)
 
 target_include_directories(objxgboost
