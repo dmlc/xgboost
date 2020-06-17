@@ -2,14 +2,12 @@
  * Copyright 2015-2020 by Contributors
  * \file data.cc
  */
-#include <cstring>
-#include <vector>
-#include <string>
-
 #include <dmlc/registry.h>
+#include <cstring>
 
 #include "dmlc/io.h"
 #include "xgboost/data.h"
+#include "xgboost/c_api.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/logging.h"
 #include "xgboost/version_config.h"
@@ -536,7 +534,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
 
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
-                         const std::string& cache_prefix,  size_t page_size ) {
+                         const std::string& cache_prefix,  size_t page_size) {
   if (cache_prefix.length() == 0) {
     // Data split mode is fixed to be row right now.
     return new data::SimpleDMatrix(adapter, missing, nthread);
@@ -566,9 +564,11 @@ template DMatrix* DMatrix::Create<data::DataTableAdapter>(
 template DMatrix* DMatrix::Create<data::FileAdapter>(
     data::FileAdapter* adapter, float missing, int nthread,
     const std::string& cache_prefix, size_t page_size);
-template DMatrix* DMatrix::Create<data::IteratorAdapter>(
-    data::IteratorAdapter* adapter, float missing, int nthread,
-    const std::string& cache_prefix, size_t page_size);
+template DMatrix *
+DMatrix::Create(data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext,
+                                      XGBoostBatchCSR> *adapter,
+                float missing, int nthread, const std::string &cache_prefix,
+                size_t page_size);
 
 SparsePage SparsePage::GetTranspose(int num_columns) const {
   SparsePage transpose;

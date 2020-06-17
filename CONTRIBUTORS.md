@@ -37,6 +37,8 @@ Committers are people who have made substantial contribution to the project and 
   - Sergei is a software engineer in Criteo. He contributed mostly in JVM packages.
 * [Scott Lundberg](http://scottlundberg.com/), University of Washington
   - Scott is a Ph.D. student at University of Washington. He is the creator of SHAP, a unified approach to explain the output of machine learning models such as decision tree ensembles. He also helps maintain the XGBoost Julia package.
+* [Egor Smirnov](https://github.com/SmirnovEgorRu), Intel
+  - Egor has led a major effort to improve the performance of XGBoost on multi-core CPUs.
 
 
 Become a Committer

@@ -97,7 +97,7 @@ bool IsNear(std::vector<xgboost::bst_float>::const_iterator _beg1,
 class SimpleLCG {
  private:
   using StateType = int64_t;
-  static StateType constexpr default_init_ = 3;
+  static StateType constexpr kDefaultInit = 3;
   static StateType constexpr default_alpha_ = 61;
   static StateType constexpr max_value_ = ((StateType)1 << 32) - 1;
 
@@ -105,11 +105,17 @@ class SimpleLCG {
   StateType const alpha_;
   StateType const mod_;
 
-  StateType const seed_;
+  StateType seed_;
 
  public:
-  SimpleLCG() : state_{default_init_},
+  SimpleLCG() : state_{kDefaultInit},
                 alpha_{default_alpha_}, mod_{max_value_}, seed_{state_}{}
+  SimpleLCG(SimpleLCG const& that) = default;
+  SimpleLCG(SimpleLCG&& that) = default;
+
+  void Seed(StateType seed) {
+    seed_ = seed;
+  }
   /*!
    * \brief Initialize SimpleLCG.
    *
@@ -118,9 +124,9 @@ class SimpleLCG {
    * \param alpha  multiplier
    * \param mod    modulo
    */
-  SimpleLCG(StateType state,
-            StateType alpha=default_alpha_, StateType mod=max_value_)
-      : state_{state == 0 ? default_init_ : state},
+  explicit SimpleLCG(StateType state,
+                     StateType alpha=default_alpha_, StateType mod=max_value_)
+      : state_{state == 0 ? kDefaultInit : state},
         alpha_{alpha}, mod_{mod} , seed_{state} {}
 
   StateType operator()();
@@ -131,8 +137,8 @@ class SimpleLCG {
 template <typename ResultT>
 class SimpleRealUniformDistribution {
  private:
-  ResultT const lower;
-  ResultT const upper;
+  ResultT const lower_;
+  ResultT const upper_;
 
   /*! \brief Over-simplified version of std::generate_canonical. */
   template <size_t Bits, typename GeneratorT>
@@ -156,13 +162,13 @@ class SimpleRealUniformDistribution {
 
  public:
   SimpleRealUniformDistribution(ResultT l, ResultT u) :
-      lower{l}, upper{u} {}
+      lower_{l}, upper_{u} {}
 
   template <typename GeneratorT>
   ResultT operator()(GeneratorT* rng) const {
     ResultT tmp = GenerateCanonical<std::numeric_limits<ResultT>::digits,
                                     GeneratorT>(rng);
-    return (tmp * (upper - lower)) + lower;
+    return (tmp * (upper_ - lower_)) + lower_;
   }
 };
 
@@ -177,6 +183,7 @@ class RandomDataGenerator {
 
   int32_t device_;
   int32_t seed_;
+  SimpleLCG lcg_;
 
   size_t bins_;
 
@@ -186,7 +193,7 @@ class RandomDataGenerator {
  public:
   RandomDataGenerator(bst_row_t rows, size_t cols, float sparsity)
       : rows_{rows}, cols_{cols}, sparsity_{sparsity}, lower_{0.0f}, upper_{1.0f},
-        device_{-1}, seed_{0}, bins_{0} {}
+        device_{-1}, seed_{0}, lcg_{seed_}, bins_{0} {}
 
   RandomDataGenerator &Lower(float v) {
     lower_ = v;
@@ -202,6 +209,7 @@ class RandomDataGenerator {
   }
   RandomDataGenerator& Seed(int32_t s) {
     seed_ = s;
+    lcg_.Seed(seed_);
     return *this;
   }
   RandomDataGenerator& Bins(size_t b) {
@@ -210,9 +218,26 @@ class RandomDataGenerator {
   }
 
   void GenerateDense(HostDeviceVector<float>* out) const;
+
   std::string GenerateArrayInterface(HostDeviceVector<float>* storage) const;
+
+  /*!
+   * \brief Generate batches of array interface stored in consecutive memory.
+   *
+   * \param storage The consecutive momory used to store the arrays.
+   * \param batches Number of batches.
+   *
+   * \return A vector storing JSON string representation of interface for each batch, and
+   *         a single JSON string representing the consecutive memory as a whole
+   *         (combining all the batches).
+   */
+  std::pair<std::vector<std::string>, std::string>
+  GenerateArrayInterfaceBatch(HostDeviceVector<float> *storage,
+                              size_t batches) const;
+
   std::string GenerateColumnarArrayInterface(
       std::vector<HostDeviceVector<float>> *data) const;
+
   void GenerateCSR(HostDeviceVector<float>* value, HostDeviceVector<bst_row_t>* row_ptr,
                    HostDeviceVector<bst_feature_t>* columns) const;
 

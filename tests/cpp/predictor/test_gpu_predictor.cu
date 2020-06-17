@@ -129,7 +129,7 @@ TEST(GPUPredictor, InplacePredictCupy) {
   gen.Device(0);
   HostDeviceVector<float> data;
   std::string interface_str = gen.GenerateArrayInterface(&data);
-  data::CupyAdapter x{interface_str};
+  auto x = std::make_shared<data::CupyAdapter>(interface_str);
   TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 0);
 }
 
@@ -139,7 +139,7 @@ TEST(GPUPredictor, InplacePredictCuDF) {
   gen.Device(0);
   std::vector<HostDeviceVector<float>> storage(kCols);
   auto interface_str = gen.GenerateColumnarArrayInterface(&storage);
-  data::CudfAdapter x {interface_str};
+  auto x = std::make_shared<data::CudfAdapter>(interface_str);
   TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 0);
 }
 
@@ -154,7 +154,7 @@ TEST(GPUPredictor, MGPU_InplacePredict) {  // NOLINT
   gen.Device(1);
   HostDeviceVector<float> data;
   std::string interface_str = gen.GenerateArrayInterface(&data);
-  data::CupyAdapter x{interface_str};
+  auto x = std::make_shared<data::CupyAdapter>(interface_str);
   TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 1);
   EXPECT_THROW(TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 0),
                dmlc::Error);

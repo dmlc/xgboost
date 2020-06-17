@@ -19,18 +19,18 @@ treeInteractions <- function(input_tree, input_max_depth){
     setorderv(parents_left, 'ID_merge')
     setorderv(parents_right, 'ID_merge')
 
-    trees <- merge(trees, parents_left, by='ID_merge', all.x=T)
+    trees <- merge(trees, parents_left, by='ID_merge', all.x=TRUE)
     trees[!is.na(i.id), c(paste0('parent_', i-1), paste0('parent_feat_', i-1)):=list(i.id, i.feature)]
     trees[, c('i.id','i.feature'):=NULL]
 
-    trees <- merge(trees, parents_right, by='ID_merge', all.x=T)
+    trees <- merge(trees, parents_right, by='ID_merge', all.x=TRUE)
     trees[!is.na(i.id), c(paste0('parent_', i-1), paste0('parent_feat_', i-1)):=list(i.id, i.feature)]
     trees[, c('i.id','i.feature'):=NULL]
   }
 
   # Extract nodes with interactions
   interaction_trees <- trees[!is.na(Split) & !is.na(parent_1), 
-                             c('Feature',paste0('parent_feat_',1:(input_max_depth-1))), with=F]
+                             c('Feature',paste0('parent_feat_',1:(input_max_depth-1))), with=FALSE]
   interaction_trees_split <- split(interaction_trees, 1:nrow(interaction_trees))
   interaction_list <- lapply(interaction_trees_split, as.character)
 
@@ -96,7 +96,7 @@ x1 <- sort(unique(x[['V1']]))
 for (i in 1:length(x1)){
   testdata <- copy(x[, -c('V1')])
   testdata[['V1']] <- x1[i]
-  testdata <- testdata[, paste0('V',1:10), with=F]
+  testdata <- testdata[, paste0('V',1:10), with=FALSE]
   pred <- predict(bst3, as.matrix(testdata))
   
   # Should not print out anything due to monotonic constraints

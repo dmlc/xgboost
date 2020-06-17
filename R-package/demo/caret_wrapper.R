@@ -9,7 +9,7 @@ require(e1071)
 # Load Arthritis dataset in memory.
 data(Arthritis)
 # Create a copy of the dataset with data.table package (data.table is 100% compliant with R dataframe but its syntax is a lot more consistent and its performance are really good).
-df <- data.table(Arthritis, keep.rownames = F)
+df <- data.table(Arthritis, keep.rownames = FALSE)
 
 # Let's add some new categorical features to see if it helps. Of course these feature are highly correlated to the Age feature. Usually it's not a good thing in ML, but Tree algorithms (including boosted trees) are able to select the best features, even in case of highly correlated features.
 # For the first feature we create groups of age by rounding the real age. Note that we transform it to factor (categorical data) so the algorithm treat them as independant values.

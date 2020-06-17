@@ -3,14 +3,15 @@
  */
 #ifndef XGBOOST_COMMON_TRANSFORM_H_
 #define XGBOOST_COMMON_TRANSFORM_H_
-#include <utility>
-#include <vector>
-#include <type_traits>  // enable_if
 
 #include <dmlc/omp.h>
 #include <dmlc/common.h>
 
-#include "xgboost/data.h"
+#include <xgboost/data.h>
+#include <utility>
+#include <vector>
+#include <type_traits>  // enable_if
+
 #include "xgboost/host_device_vector.h"
 #include "xgboost/span.h"
 

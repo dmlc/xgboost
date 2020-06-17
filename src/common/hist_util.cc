@@ -2,21 +2,19 @@
  * Copyright 2017-2020 by Contributors
  * \file hist_util.cc
  */
-#include <numeric>
-#include <vector>
-
 #include <dmlc/timer.h>
 #include <dmlc/omp.h>
 
 #include <rabit/rabit.h>
+#include <numeric>
+#include <vector>
 
 #include "xgboost/base.h"
+#include "../common/common.h"
 #include "hist_util.h"
 #include "random.h"
 #include "column_matrix.h"
 #include "quantile.h"
-
-#include "../common/common.h"
 #include "./../tree/updater_quantile_hist.h"
 
 #if defined(XGBOOST_MM_PREFETCH_PRESENT)
@@ -142,6 +140,10 @@ void HistogramCuts::Build(DMatrix* dmat, uint32_t const max_num_bins) {
 
 bool CutsBuilder::UseGroup(DMatrix* dmat) {
   auto& info = dmat->Info();
+  return CutsBuilder::UseGroup(info);
+}
+
+bool CutsBuilder::UseGroup(MetaInfo const& info) {
   size_t const num_groups = info.group_ptr_.size() == 0 ?
                             0 : info.group_ptr_.size() - 1;
   // Use group index for weights?

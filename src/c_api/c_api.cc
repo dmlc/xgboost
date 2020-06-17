@@ -1,4 +1,7 @@
 // Copyright (c) 2014-2020 by Contributors
+#include <rabit/rabit.h>
+#include <rabit/c_api.h>
+
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -6,9 +9,6 @@
 #include <vector>
 #include <string>
 #include <memory>
-
-#include <rabit/rabit.h>
-#include <rabit/c_api.h>
 
 #include "xgboost/base.h"
 #include "xgboost/data.h"
@@ -38,16 +38,16 @@ XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch) {
   }
 }
 
-int XGBRegisterLogCallback(void (*callback)(const char*)) {
+XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
   API_BEGIN();
   LogCallbackRegistry* registry = LogCallbackRegistryStore::Get();
   registry->Register(callback);
   API_END();
 }
 
-int XGDMatrixCreateFromFile(const char *fname,
-                            int silent,
-                            DMatrixHandle *out) {
+XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
+                                    int silent,
+                                    DMatrixHandle *out) {
   API_BEGIN();
   bool load_row_split = false;
   if (rabit::IsDistributed()) {
@@ -60,7 +60,7 @@ int XGDMatrixCreateFromFile(const char *fname,
 }
 
 XGB_DLL int XGDMatrixCreateFromDataIter(
-    void *data_handle,                  // a Java interator
+    void *data_handle,                  // a Java iterator
     XGBCallbackDataIterNext *callback,  // C++ callback defined in xgboost4j.cpp
     const char *cache_info, DMatrixHandle *out) {
   API_BEGIN();
@@ -69,7 +69,8 @@ XGB_DLL int XGDMatrixCreateFromDataIter(
   if (cache_info != nullptr) {
     scache = cache_info;
   }
-  xgboost::data::IteratorAdapter adapter(data_handle, callback);
+  xgboost::data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext,
+                                 XGBoostBatchCSR> adapter(data_handle, callback);
   *out = new std::shared_ptr<DMatrix> {
     DMatrix::Create(
         &adapter, std::numeric_limits<float>::quiet_NaN(),
@@ -463,7 +464,8 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, float *values,
   CHECK_EQ(cache_id, 0) << "Cache ID is not supported yet";
   auto *learner = static_cast<xgboost::Learner *>(handle);
 
-  auto x = xgboost::data::DenseAdapter(values, n_rows, n_cols);
+  std::shared_ptr<xgboost::data::DenseAdapter> x{
+    new xgboost::data::DenseAdapter(values, n_rows, n_cols)};
   HostDeviceVector<float>* p_predt { nullptr };
   std::string type { c_type };
   learner->InplacePredict(x, type, missing, &p_predt);
@@ -494,7 +496,8 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle,
   CHECK_EQ(cache_id, 0) << "Cache ID is not supported yet";
   auto *learner = static_cast<xgboost::Learner *>(handle);
 
-  auto x = data::CSRAdapter(indptr, indices, data, nindptr - 1, nelem, num_col);
+  std::shared_ptr<xgboost::data::CSRAdapter> x{
+    new xgboost::data::CSRAdapter(indptr, indices, data, nindptr - 1, nelem, num_col)};
   HostDeviceVector<float>* p_predt { nullptr };
   std::string type { c_type };
   learner->InplacePredict(x, type, missing, &p_predt);

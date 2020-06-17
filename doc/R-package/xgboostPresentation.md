@@ -489,7 +489,7 @@ You can dump the tree you learned using `xgb.dump` into a text file.
 
 
 ```r
-xgb.dump(bst, with_stats = T)
+xgb.dump(bst, with_stats = TRUE)
 ```
 
 ```

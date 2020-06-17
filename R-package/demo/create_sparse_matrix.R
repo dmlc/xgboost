@@ -19,7 +19,7 @@ if (!require(vcd)) {
 data(Arthritis)
 
 # create a copy of the dataset with data.table package (data.table is 100% compliant with R dataframe but its syntax is a lot more consistent and its performance are really good).
-df <- data.table(Arthritis, keep.rownames = F)
+df <- data.table(Arthritis, keep.rownames = FALSE)
 
 # Let's have a look to the data.table
 cat("Print the dataset\n")

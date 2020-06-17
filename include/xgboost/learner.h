@@ -8,12 +8,6 @@
 #ifndef XGBOOST_LEARNER_H_
 #define XGBOOST_LEARNER_H_
 
-#include <utility>
-#include <map>
-#include <memory>
-#include <string>
-#include <vector>
-
 #include <dmlc/any.h>
 #include <rabit/rabit.h>
 #include <xgboost/base.h>
@@ -22,6 +16,12 @@
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
+
+#include <utility>
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace xgboost {
 

@@ -1,8 +1,11 @@
 /*!
- * Copyright (c) by Contributors 2019
+ * Copyright (c) by XGBoost Contributors 2019-2020
  */
 #ifndef XGBOOST_JSON_H_
 #define XGBOOST_JSON_H_
+
+#include <xgboost/logging.h>
+#include <xgboost/parameter.h>
 
 #include <map>
 #include <memory>
@@ -10,9 +13,6 @@
 #include <functional>
 #include <utility>
 #include <string>
-
-#include <xgboost/logging.h>
-#include <xgboost/parameter.h>
 
 namespace xgboost {
 
@@ -331,13 +331,7 @@ class Json {
   static Json Load(StringView str);
   /*! \brief Pass your own JsonReader. */
   static Json Load(JsonReader* reader);
-  /*! \brief Dump json into stream. */
-  static void Dump(Json json, std::ostream* stream,
-                   bool pretty = ConsoleLogger::ShouldLog(
-                       ConsoleLogger::LogVerbosity::kDebug));
-  static void Dump(Json json, std::string* out,
-                   bool pretty = ConsoleLogger::ShouldLog(
-                       ConsoleLogger::LogVerbosity::kDebug));
+  static void Dump(Json json, std::string* out);
 
   Json() : ptr_{new JsonNull} {}
 

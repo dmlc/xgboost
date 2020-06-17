@@ -4,16 +4,16 @@
  * \brief Metrics for survival analysis
  * \author Avinash Barnwal, Hyunsu Cho and Toby Hocking
  */
+
+#include <rabit/rabit.h>
+#include <xgboost/metric.h>
+#include <xgboost/host_device_vector.h>
+#include <dmlc/registry.h>
 #include <cmath>
 #include <memory>
 #include <vector>
 #include <limits>
 
-#include <dmlc/registry.h>
-#include <rabit/rabit.h>
-
-#include "xgboost/metric.h"
-#include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
 
 #include "../common/math.h"

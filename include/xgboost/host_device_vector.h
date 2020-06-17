@@ -95,6 +95,7 @@ class HostDeviceVector {
   HostDeviceVector<T>& operator=(const HostDeviceVector<T>&) = delete;
   HostDeviceVector<T>& operator=(HostDeviceVector<T>&&);
 
+  bool Empty() const { return Size() == 0; }
   size_t Size() const;
   int DeviceIdx() const;
   common::Span<T> DeviceSpan();

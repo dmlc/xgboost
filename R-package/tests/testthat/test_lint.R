@@ -1,8 +1,6 @@
 context("Code is of high quality and lint free")
 test_that("Code Lint", {
   skip_on_cran()
-  skip_on_travis()
-  skip_if_not_installed("lintr")
   my_linters <- list(
     absolute_paths_linter=lintr::absolute_paths_linter,
     assignment_linter=lintr::assignment_linter,
@@ -21,7 +19,8 @@ test_that("Code Lint", {
     spaces_inside_linter=lintr::spaces_inside_linter,
     spaces_left_parentheses_linter=lintr::spaces_left_parentheses_linter,
     trailing_blank_lines_linter=lintr::trailing_blank_lines_linter,
-    trailing_whitespace_linter=lintr::trailing_whitespace_linter
+    trailing_whitespace_linter=lintr::trailing_whitespace_linter,
+    true_false=lintr::T_and_F_symbol_linter
   )
-  # lintr::expect_lint_free(linters=my_linters) # uncomment this if you want to check code quality
+  lintr::expect_lint_free(linters=my_linters) # uncomment this if you want to check code quality
 })

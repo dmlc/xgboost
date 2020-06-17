@@ -1,17 +1,14 @@
 // Copyright (c) 2014 by Contributors
-#include <cstring>
-#include <cstdio>
-#include <vector>
-#include <string>
-#include <utility>
-#include <sstream>
-
 #include <dmlc/logging.h>
 #include <dmlc/omp.h>
 #include <xgboost/c_api.h>
-
-#include "xgboost_R.h"
-
+#include <vector>
+#include <string>
+#include <utility>
+#include <cstring>
+#include <cstdio>
+#include <sstream>
+#include "./xgboost_R.h"
 
 /*!
  * \brief macro to annotate begin of api

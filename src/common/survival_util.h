@@ -8,9 +8,8 @@
 #ifndef XGBOOST_COMMON_SURVIVAL_UTIL_H_
 #define XGBOOST_COMMON_SURVIVAL_UTIL_H_
 
+#include <xgboost/parameter.h>
 #include <memory>
-
-#include "xgboost/parameter.h"
 #include "probability_distribution.h"
 
 DECLARE_FIELD_ENUM_CLASS(xgboost::common::ProbabilityDistributionType);

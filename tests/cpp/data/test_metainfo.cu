@@ -21,7 +21,7 @@ std::string PrepareData(std::string typestr, thrust::device_vector<T>* out, cons
 
   std::vector<Json> j_shape {Json(Integer(static_cast<Integer::Int>(kRows)))};
   column["shape"] = Array(j_shape);
-  column["strides"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(4)))});
+  column["strides"] = Array(std::vector<Json>{Json(Integer(static_cast<Integer::Int>(sizeof(T))))});
   column["version"] = Integer(static_cast<Integer::Int>(1));
   column["typestr"] = String(typestr);
 
@@ -32,9 +32,8 @@ std::string PrepareData(std::string typestr, thrust::device_vector<T>* out, cons
   column["data"] = j_data;
   Json array(std::vector<Json>{column});
 
-  std::stringstream ss;
-  Json::Dump(array, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(array, &str);
 
   return str;
 }
@@ -78,16 +77,32 @@ TEST(MetaInfo, FromInterface) {
 
 TEST(MetaInfo, Group) {
   cudaSetDevice(0);
-  thrust::device_vector<uint32_t> d_data;
-  std::string str = PrepareData<uint32_t>("<u4", &d_data);
 
   MetaInfo info;
 
-  info.SetInfo("group", str.c_str());
-  auto const& h_group = info.group_ptr_;
-  ASSERT_EQ(h_group.size(), d_data.size() + 1);
+  thrust::device_vector<uint32_t> d_uint;
+  std::string uint_str = PrepareData<uint32_t>("<u4", &d_uint);
+  info.SetInfo("group", uint_str.c_str());
+  auto& h_group = info.group_ptr_;
+  ASSERT_EQ(h_group.size(), d_uint.size() + 1);
   for (size_t i = 1; i < h_group.size(); ++i) {
-    ASSERT_EQ(h_group[i], d_data[i-1] + h_group[i-1]) << "i: " << i;
+    ASSERT_EQ(h_group[i], d_uint[i - 1] + h_group[i - 1]) << "i: " << i;
   }
+
+  thrust::device_vector<int64_t> d_int64;
+  std::string int_str = PrepareData<int64_t>("<i8", &d_int64);
+  info = MetaInfo();
+  info.SetInfo("group", int_str.c_str());
+  h_group = info.group_ptr_;
+  ASSERT_EQ(h_group.size(), d_uint.size() + 1);
+  for (size_t i = 1; i < h_group.size(); ++i) {
+    ASSERT_EQ(h_group[i], d_uint[i - 1] + h_group[i - 1]) << "i: " << i;
+  }
+
+  // Incorrect type
+  thrust::device_vector<float> d_float;
+  std::string float_str = PrepareData<float>("<f4", &d_float);
+  info = MetaInfo();
+  EXPECT_ANY_THROW(info.SetInfo("group", float_str.c_str()));
 }
 }  // namespace xgboost

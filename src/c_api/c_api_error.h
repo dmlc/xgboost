@@ -8,7 +8,6 @@
 
 #include <dmlc/base.h>
 #include <dmlc/logging.h>
-#include <xgboost/c_api.h>
 
 /*! \brief  macro to guard beginning and end section of all functions */
 #define API_BEGIN() try {

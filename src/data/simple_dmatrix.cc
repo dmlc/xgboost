@@ -4,8 +4,14 @@
  * \brief the input data structure for gradient boosting
  * \author Tianqi Chen
  */
-#include "./simple_dmatrix.h"
-#include <xgboost/data.h>
+#include <vector>
+#include <limits>
+#include <algorithm>
+
+#include "xgboost/data.h"
+#include "xgboost/c_api.h"
+
+#include "simple_dmatrix.h"
 #include "./simple_batch_iterator.h"
 #include "../common/random.h"
 #include "adapter.h"
@@ -195,7 +201,9 @@ template SimpleDMatrix::SimpleDMatrix(DataTableAdapter* adapter, float missing,
                                      int nthread);
 template SimpleDMatrix::SimpleDMatrix(FileAdapter* adapter, float missing,
                                      int nthread);
-template SimpleDMatrix::SimpleDMatrix(IteratorAdapter* adapter, float missing,
-                                     int nthread);
+template SimpleDMatrix::SimpleDMatrix(
+    IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>
+        *adapter,
+    float missing, int nthread);
 }  // namespace data
 }  // namespace xgboost

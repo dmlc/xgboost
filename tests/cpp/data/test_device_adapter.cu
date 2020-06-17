@@ -23,9 +23,8 @@ void TestCudfAdapter()
 
   Json column_arr {columns};
 
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(column_arr, &str);
 
   data::CudfAdapter adapter(str);
 
@@ -36,13 +35,12 @@ void TestCudfAdapter()
   EXPECT_NO_THROW({
     dh::LaunchN(0, batch.Size(), [=] __device__(size_t idx) {
       auto element = batch.GetElement(idx);
-      if (idx < kRowsA) {
+      KERNEL_CHECK(element.row_idx == idx / 2);
+      if (idx % 2 == 0) {
         KERNEL_CHECK(element.column_idx == 0);
-        KERNEL_CHECK(element.row_idx == idx);
         KERNEL_CHECK(element.value == element.row_idx * 2.0f);
       } else {
         KERNEL_CHECK(element.column_idx == 1);
-        KERNEL_CHECK(element.row_idx == idx - kRowsA);
         KERNEL_CHECK(element.value == element.row_idx * 2.0f);
       }
     });

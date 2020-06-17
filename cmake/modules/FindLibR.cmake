@@ -23,7 +23,7 @@
 
 # Windows users might want to change this to their R version:
 if(NOT R_VERSION)
-  set(R_VERSION "3.4.1")
+  set(R_VERSION "4.0.0")
 endif()
 if(NOT R_ARCH)
   if("${CMAKE_SIZEOF_VOID_P}" STREQUAL "4")
@@ -43,16 +43,26 @@ function(create_rlib_for_msvc)
   if(NOT EXISTS "${LIBR_LIB_DIR}")
     message(FATAL_ERROR "LIBR_LIB_DIR was not set!")
   endif()
-  find_program(GENDEF_EXE gendef)
   find_program(DLLTOOL_EXE dlltool)
-  if(NOT GENDEF_EXE OR NOT DLLTOOL_EXE)
-    message(FATAL_ERROR "\nEither gendef.exe or dlltool.exe not found!\
+  if(NOT DLLTOOL_EXE)
+    message(FATAL_ERROR "\ndlltool.exe not found!\
       \nDo you have Rtools installed with its MinGW's bin/ in PATH?")
-  endif()  
+  endif()
+
   # extract symbols from R.dll into R.def and R.lib import library
-  execute_process(COMMAND ${GENDEF_EXE}
-    "-" "${LIBR_LIB_DIR}/R.dll"
-    OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/R.def")
+  get_filename_component(
+    LIBR_RSCRIPT_EXECUTABLE_DIR
+    ${LIBR_EXECUTABLE}
+    DIRECTORY
+  )
+  set(LIBR_RSCRIPT_EXECUTABLE "${LIBR_RSCRIPT_EXECUTABLE_DIR}/Rscript")
+
+  execute_process(
+    COMMAND ${LIBR_RSCRIPT_EXECUTABLE}
+    "${CMAKE_CURRENT_BINARY_DIR}/../../R-package/inst/make-r-def.R"
+    "${LIBR_LIB_DIR}/R.dll" "${CMAKE_CURRENT_BINARY_DIR}/R.def"
+  )
+
   execute_process(COMMAND ${DLLTOOL_EXE}
     "--input-def" "${CMAKE_CURRENT_BINARY_DIR}/R.def"
     "--output-lib" "${CMAKE_CURRENT_BINARY_DIR}/R.lib")

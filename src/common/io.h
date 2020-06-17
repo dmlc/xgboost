@@ -7,11 +7,11 @@
 
 #ifndef XGBOOST_COMMON_IO_H_
 #define XGBOOST_COMMON_IO_H_
-#include <string>
-#include <cstring>
 
 #include <dmlc/io.h>
 #include <rabit/rabit.h>
+#include <string>
+#include <cstring>
 
 #include "common.h"
 

@@ -1,11 +1,13 @@
 /*!
  * Copyright 2017 XGBoost contributors
  */
-#include <algorithm>
-#include <cstdint>
 
 #include <thrust/fill.h>
 #include <thrust/device_ptr.h>
+
+#include <algorithm>
+#include <cstdint>
+#include <mutex>
 
 #include "xgboost/data.h"
 #include "xgboost/host_device_vector.h"
@@ -57,7 +59,9 @@ class HostDeviceVectorImpl {
     }
   }
 
-  size_t Size() const { return HostCanRead() ? data_h_.size() : data_d_->size(); }
+  size_t Size() const {
+    return HostCanRead() ? data_h_.size() : data_d_ ? data_d_->size() : 0;
+  }
 
   int DeviceIdx() const { return device_; }
 

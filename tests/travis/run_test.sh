@@ -39,7 +39,7 @@ if [ ${TASK} == "python_test" ]; then
     # Run unit tests
     cd ..
     python -m pip install graphviz pytest pytest-cov codecov
-    python -m pip install datatable
+    python -m pip install datatable hypothesis
     python -m pip install numpy scipy pandas matplotlib scikit-learn dask[complete]
     python -m pytest -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
     codecov
