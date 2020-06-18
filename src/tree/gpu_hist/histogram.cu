@@ -192,7 +192,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   unsigned grid_size = n_blocks_per_mp * n_mps;
   grid_size = common::DivRoundUp(grid_size, common::DivRoundUp(num_groups, 4));
 
-  dh::LaunchKernel{dim3(grid_size, num_groups), block_threads, smem_size}(
+  dh::LaunchKernel {dim3(grid_size, num_groups), block_threads, smem_size} (
       kernel,
       matrix, d_ridx, histogram.data(), gpair.data(), feature_groups.data(),
       bin_groups.data(), rounding, shared);
