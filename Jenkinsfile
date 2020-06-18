@@ -192,11 +192,6 @@ def BuildCPU() {
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh
     ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
     """
-    echo "Run brute-force test for JSON round-trip serialization"
-    sh """
-    ${dockerRun} ${container_type} ${docker_binary} build/testxgboost --gtest_filter=Json.DISABLED_RoundTripExhaustive \
-      --gtest_also_run_disabled_tests
-    """
     // Sanitizer test
     def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer -e ASAN_OPTIONS=symbolize=1 -e UBSAN_OPTIONS=print_stacktrace=1:log_path=ubsan_error.log --cap-add SYS_PTRACE'"
     sh """
