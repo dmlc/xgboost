@@ -144,10 +144,12 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
     // Write shared memory back to global memory
     __syncthreads();
     for (auto i : dh::BlockStrideRange(0, num_bins)) {
-      GradientSumT truncated {
-        TruncateWithRoundingFactor<T>(rounding.GetGrad(), smem_arr[i].GetGrad()),
-          TruncateWithRoundingFactor<T>(rounding.GetHess(), smem_arr[i].GetHess()),
-          };
+      GradientSumT truncated{
+          TruncateWithRoundingFactor<T>(rounding.GetGrad(),
+                                        smem_arr[i].GetGrad()),
+          TruncateWithRoundingFactor<T>(rounding.GetHess(),
+                                        smem_arr[i].GetHess()),
+      };
       dh::AtomicAddGpair(d_node_hist + start_bin + i, truncated);
     }
   }
@@ -190,9 +192,10 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   unsigned grid_size = n_blocks_per_mp * n_mps;
   grid_size = common::DivRoundUp(grid_size, common::DivRoundUp(num_groups, 4));
 
-  kernel<<<dim3(grid_size, num_groups), block_threads, smem_size>>>
-    (matrix, d_ridx, histogram.data(), gpair.data(), feature_groups.data(), bin_groups.data(),
-     rounding, shared);
+  dh::LaunchKernel{dim3(grid_size, num_groups), block_threads, smem_size}(
+      kernel,
+      matrix, d_ridx, histogram.data(), gpair.data(), feature_groups.data(),
+      bin_groups.data(), rounding, shared);
   dh::safe_cuda(cudaGetLastError());
 }
 
