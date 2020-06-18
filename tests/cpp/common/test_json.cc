@@ -545,10 +545,32 @@ TEST(Json, RoundTrip) {
     }
 
     auto t = i;
-    i+= static_cast<uint32_t>(dist(&rng));
+    i += static_cast<uint32_t>(dist(&rng));
     if (i < t) {
       break;
     }
+  }
+}
+
+TEST(Json, DISABLED_RoundTripExhaustive) {
+  auto test = [](uint32_t i) {
+    float f;
+    std::memcpy(&f, &i, sizeof(f));
+
+    Json jf{f};
+    std::string str;
+    Json::Dump(jf, &str);
+    auto loaded = Json::Load({str.c_str(), str.size()});
+    if (XGBOOST_EXPECT(std::isnan(f), false)) {
+      EXPECT_TRUE(std::isnan(get<Number const>(loaded)));
+    } else {
+      EXPECT_EQ(get<Number const>(loaded), f);
+    }
+  };
+  int64_t int32_max = static_cast<int64_t>(std::numeric_limits<uint32_t>::max());
+#pragma omp parallel for schedule(static)
+  for (int64_t i = 0; i <= int32_max; ++i) {
+    test(static_cast<uint32_t>(i));
   }
 }
 }  // namespace xgboost
