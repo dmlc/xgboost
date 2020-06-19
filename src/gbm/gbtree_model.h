@@ -62,18 +62,19 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
         .describe("Reserved option for vector tree.");
   }
 
-  void ByteSwap() {
-    this->num_trees 			= __builtin_bswap32(this->num_trees);
-    this->deprecated_num_roots 		= __builtin_bswap32(this->deprecated_num_roots);
-    this->deprecated_num_feature 	= __builtin_bswap32(this->deprecated_num_feature);
-    this->pad_32bit 			= __builtin_bswap32(this->pad_32bit);
-    this->deprecated_num_pbuffer 	= __builtin_bswap64(this->deprecated_num_pbuffer);
-    this->deprecated_num_output_group 	= __builtin_bswap32(this->deprecated_num_output_group);
-    this->size_leaf_vector 		= __builtin_bswap32(this->size_leaf_vector);
-
-    for (int i = 0; i < 32; i++) {
-         this->reserved[i] = __builtin_bswap32(this->reserved[i]);
-    }
+  // Swap byte order for all fields. Useful for transporting models between machines with different
+  // endianness (big endian vs little endian)
+  inline GBTreeModelParam ByteSwap() const {
+    GBTreeModelParam x = *this;
+    dmlc::ByteSwap(&x.num_trees, sizeof(x.num_trees), 1);
+    dmlc::ByteSwap(&x.deprecated_num_roots, sizeof(x.deprecated_num_roots), 1);
+    dmlc::ByteSwap(&x.deprecated_num_feature, sizeof(x.deprecated_num_feature), 1);
+    dmlc::ByteSwap(&x.pad_32bit, sizeof(x.pad_32bit), 1);
+    dmlc::ByteSwap(&x.deprecated_num_pbuffer, sizeof(x.deprecated_num_pbuffer), 1);
+    dmlc::ByteSwap(&x.deprecated_num_output_group, sizeof(x.deprecated_num_output_group), 1);
+    dmlc::ByteSwap(&x.size_leaf_vector, sizeof(x.size_leaf_vector), 1);
+    dmlc::ByteSwap(&x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
+    return x;
   }
 };
 

@@ -60,17 +60,18 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
     deprecated_num_roots = 1;
   }
 
-  void ByteSwap() {
-    this->deprecated_num_roots 		= __builtin_bswap32(this->deprecated_num_roots);
-    this->num_nodes 			        = __builtin_bswap32(this->num_nodes);
-    this->num_deleted 			      = __builtin_bswap32(this->num_deleted);
-    this->deprecated_max_depth 		= __builtin_bswap32(this->deprecated_max_depth);
-    this->num_feature 			      = __builtin_bswap32(this->num_feature);
-    this->size_leaf_vector 		    = __builtin_bswap32(this->size_leaf_vector);
-
-    for(int i = 0; i < 31; i++) {
-      this->reserved[i] = __builtin_bswap32(this->reserved[i]);
-    }
+  // Swap byte order for all fields. Useful for transporting models between machines with different
+  // endianness (big endian vs little endian)
+  inline TreeParam ByteSwap() const {
+    TreeParam x = *this;
+    dmlc::ByteSwap(&x.deprecated_num_roots, sizeof(x.deprecated_num_roots), 1);
+    dmlc::ByteSwap(&x.num_nodes, sizeof(x.num_nodes), 1);
+    dmlc::ByteSwap(&x.num_deleted, sizeof(x.num_deleted), 1);
+    dmlc::ByteSwap(&x.deprecated_max_depth, sizeof(x.deprecated_max_depth), 1);
+    dmlc::ByteSwap(&x.num_feature, sizeof(x.num_feature), 1);
+    dmlc::ByteSwap(&x.size_leaf_vector, sizeof(x.size_leaf_vector), 1);
+    dmlc::ByteSwap(&x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
+    return x;
   }
 
   // declare the parameters
@@ -111,25 +112,15 @@ struct RTreeNodeStat {
     return loss_chg == b.loss_chg && sum_hess == b.sum_hess &&
            base_weight == b.base_weight && leaf_child_cnt == b.leaf_child_cnt;
   }
-
-  float FloatByteSwap(float f) {
-      float ret;
-      char *floatToConvert = (char *)&f;
-      char *retFloat = (char *)&ret;
-
-      retFloat[0] = floatToConvert[3];
-      retFloat[1] = floatToConvert[2];
-      retFloat[2] = floatToConvert[1];
-      retFloat[3] = floatToConvert[0];
-
-      return ret;
-  }
-
-  void ByteSwap() {
-     this->loss_chg 		  = FloatByteSwap(this->loss_chg);
-     this->sum_hess 		  = FloatByteSwap(this->sum_hess);
-     this->base_weight 		= FloatByteSwap(this->base_weight);
-     this->leaf_child_cnt = __builtin_bswap32(this->leaf_child_cnt);
+  // Swap byte order for all fields. Useful for transporting models between machines with different
+  // endianness (big endian vs little endian)
+  inline RTreeNodeStat ByteSwap() const {
+    RTreeNodeStat x = *this;
+    dmlc::ByteSwap(&x.loss_chg, sizeof(x.loss_chg), 1);
+    dmlc::ByteSwap(&x.sum_hess, sizeof(x.sum_hess), 1);
+    dmlc::ByteSwap(&x.base_weight, sizeof(x.base_weight), 1);
+    dmlc::ByteSwap(&x.leaf_child_cnt, sizeof(x.leaf_child_cnt), 1);
+    return x;
   }
 };
 
@@ -261,31 +252,14 @@ class RegTree : public Model {
              info_.leaf_value == b.info_.leaf_value;
     }
 
-    float FloatByteSwap(float f) {
-      float ret;
-      char *floatToConvert = (char *)&f;
-      char *retFloat = (char *)&ret;
-
-      retFloat[0] = floatToConvert[3];
-      retFloat[1] = floatToConvert[2];
-      retFloat[2] = floatToConvert[1];
-      retFloat[3] = floatToConvert[0];
-
-      return ret;
-    }
-
-    void ByteSwap() {
-      this->parent_ 	= __builtin_bswap32(this->parent_);
-      this->cleft_ 	= __builtin_bswap32(this->cleft_);
-      this->cright_ 	= __builtin_bswap32(this->cright_);
-      this->sindex_ 	= __builtin_bswap32(this->sindex_);
-
-      Info tmp_info_ = this->info_;
-
-      *((char *)&this->info_) = *((char *)&tmp_info_ + 3);
-      *((char *)&this->info_ + 1) = *((char *)&tmp_info_ + 2);
-      *((char *)&this->info_ + 2) = *((char *)&tmp_info_ + 1);
-      *((char *)&this->info_ + 3) = *((char *)&tmp_info_);
+    inline Node ByteSwap() const {
+      Node x = *this;
+      dmlc::ByteSwap(&x.parent_, sizeof(x.parent_), 1);
+      dmlc::ByteSwap(&x.cleft_, sizeof(x.cleft_), 1);
+      dmlc::ByteSwap(&x.cright_, sizeof(x.cright_), 1);
+      dmlc::ByteSwap(&x.sindex_, sizeof(x.sindex_), 1);
+      dmlc::ByteSwap(&x.info_, sizeof(x.info_), 1);
+      return x;
     }
 
    private:

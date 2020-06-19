@@ -112,32 +112,17 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     m["num_class"] = get<String const>(j_param.at("num_class"));
     this->Init(m);
   }
-
-  float FloatByteSwap(float f) {
-    float ret;
-    char *floatToConvert = (char *)&f;
-    char *retFloat = (char *)&ret;
-
-    retFloat[0] = floatToConvert[3];
-    retFloat[1] = floatToConvert[2];
-    retFloat[2] = floatToConvert[1];
-    retFloat[3] = floatToConvert[0];
-
-    return ret;
-  }
-
-  void ByteSwap() {
-    this->base_score 		= FloatByteSwap(this->base_score);
-    this->num_feature 		= __builtin_bswap32(this->num_feature);
-    this->num_class 		= __builtin_bswap32(this->num_class);
-    this->contain_extra_attrs 	= __builtin_bswap32(this->contain_extra_attrs);
-    this->contain_eval_metrics 	= __builtin_bswap32(this->contain_eval_metrics);
-    this->major_version 	= __builtin_bswap32(this->major_version);
-    this->minor_version 	= __builtin_bswap32(this->minor_version);
-
-    for (int i = 0; i < 27; i++) {
-        this->reserved[i] = __builtin_bswap32(this->reserved[i]);
-    }
+  inline LearnerModelParamLegacy ByteSwap() const {
+    LearnerModelParamLegacy x = *this;
+    dmlc::ByteSwap(&x.base_score, sizeof(x.base_score), 1);
+    dmlc::ByteSwap(&x.num_feature, sizeof(x.num_feature), 1);
+    dmlc::ByteSwap(&x.num_class, sizeof(x.num_class), 1);
+    dmlc::ByteSwap(&x.contain_extra_attrs, sizeof(x.contain_extra_attrs), 1);
+    dmlc::ByteSwap(&x.contain_eval_metrics, sizeof(x.contain_eval_metrics), 1);
+    dmlc::ByteSwap(&x.major_version, sizeof(x.major_version), 1);
+    dmlc::ByteSwap(&x.minor_version, sizeof(x.minor_version), 1);
+    dmlc::ByteSwap(&x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
+    return x;
   }
 
   // declare parameters
@@ -690,11 +675,9 @@ class LearnerIO : public LearnerConfiguration {
     // read parameter
     CHECK_EQ(fi->Read(&mparam_, sizeof(mparam_)), sizeof(mparam_))
         << "BoostLearner: wrong model format";
-
-    if (DMLC_IO_NO_ENDIAN_SWAP == 0 ){
-      mparam_.ByteSwap();
+    if (!DMLC_IO_NO_ENDIAN_SWAP) {
+      mparam_ = mparam_.ByteSwap();
     }
-
     CHECK(fi->Read(&tparam_.objective)) << "BoostLearner: wrong model format";
     CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
 
@@ -828,13 +811,12 @@ class LearnerIO : public LearnerConfiguration {
     }
     std::string header {"binf"};
     fo->Write(header.data(), 4);
-
-    if (DMLC_IO_NO_ENDIAN_SWAP == 0) {
-      LearnerModelParamLegacy* mparam_ptr_ = const_cast<LearnerModelParamLegacy*>(&mparam_);
-      mparam_ptr_->ByteSwap();
+    if (DMLC_IO_NO_ENDIAN_SWAP) {
+      fo->Write(&mparam, sizeof(LearnerModelParamLegacy));
+    } else {
+      LearnerModelParamLegacy x = mparam.ByteSwap();
+      fo->Write(&x, sizeof(LearnerModelParamLegacy));
     }
-
-    fo->Write(&mparam, sizeof(LearnerModelParamLegacy));
     fo->Write(tparam_.objective);
     fo->Write(tparam_.booster);
     gbm_->Save(fo);
@@ -873,14 +855,13 @@ class LearnerIO : public LearnerConfiguration {
       // concatonate the model and config at final output, it's a temporary solution for
       // continuing support for binary model format
       fo->Write(&serialisation_header_[0], serialisation_header_.size());
-      
-      if (DMLC_IO_NO_ENDIAN_SWAP == 0) {
-        int64_t json_offset_ = __builtin_bswap64(json_offset);
-        fo->Write(&json_offset_, sizeof(json_offset_));
-      }else{
+      if (DMLC_IO_NO_ENDIAN_SWAP) {
         fo->Write(&json_offset, sizeof(json_offset));
+      } else {
+        auto x = json_offset;
+        dmlc::ByteSwap(&x, sizeof(x), 1);
+        fo->Write(&x, sizeof(json_offset));
       }
-
       fo->Write(&binary_buf[0], binary_buf.size());
       fo->Write(&config_str[0], config_str.size());
     }
@@ -917,11 +898,9 @@ class LearnerIO : public LearnerConfiguration {
 )doc";
       int64_t sz {-1};
       CHECK_EQ(fp.Read(&sz, sizeof(sz)), sizeof(sz));
-
-      if (DMLC_IO_NO_ENDIAN_SWAP == 0){
-        sz = __builtin_bswap64(sz);
+      if (!DMLC_IO_NO_ENDIAN_SWAP) {
+        dmlc::ByteSwap(&sz, sizeof(sz), 1);
       }
-
       CHECK_GT(sz, 0);
       size_t json_offset = static_cast<size_t>(sz);
       std::string buffer;
