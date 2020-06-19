@@ -664,7 +664,7 @@ bst_node_t RegTree::GetNumSplitNodes() const {
 
 void RegTree::Load(dmlc::Stream* fi) {
   CHECK_EQ(fi->Read(&param, sizeof(TreeParam)), sizeof(TreeParam));
-  if (!DMLC_IO_NO_ENDIAN_SWAP){
+  if (!DMLC_IO_NO_ENDIAN_SWAP) {
     param = param.ByteSwap();
   }
   nodes_.resize(param.num_nodes);
