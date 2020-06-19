@@ -702,7 +702,7 @@ void RegTree::Save(dmlc::Stream* fo) const {
   if (DMLC_IO_NO_ENDIAN_SWAP) {
     fo->Write(&param, sizeof(TreeParam));
   } else {
-    TreeParam x = param;
+    TreeParam x = param.ByteSwap();
     fo->Write(&x, sizeof(x));
   }
 
