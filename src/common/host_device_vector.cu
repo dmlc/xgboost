@@ -125,6 +125,25 @@ class HostDeviceVectorImpl {
     }
   }
 
+  void Extend(HostDeviceVectorImpl* other) {
+    auto ori_size = this->Size();
+    this->Resize(ori_size + other->Size(), T());
+    if (HostCanWrite() && other->HostCanRead()) {
+      auto& h_vec = this->HostVector();
+      auto& other_vec = other->HostVector();
+      CHECK_EQ(h_vec.size(), ori_size + other->Size());
+      std::copy(other_vec.cbegin(), other_vec.cend(), h_vec.begin() + ori_size);
+    } else {
+      auto ptr = other->ConstDevicePointer();
+      SetDevice();
+      CHECK_EQ(this->DeviceIdx(), other->DeviceIdx());
+      dh::safe_cuda(cudaMemcpyAsync(this->DevicePointer() + ori_size,
+                                    ptr,
+                                    other->Size() * sizeof(T),
+                                    cudaMemcpyDeviceToDevice));
+    }
+  }
+
   std::vector<T>& HostVector() {
     LazySyncHost(GPUAccess::kNone);
     return data_h_;
@@ -324,6 +343,11 @@ void HostDeviceVector<T>::Copy(const std::vector<T>& other) {
 template <typename T>
 void HostDeviceVector<T>::Copy(std::initializer_list<T> other) {
   impl_->Copy(other);
+}
+
+template <typename T>
+void HostDeviceVector<T>::Extend(HostDeviceVector const& other) {
+  impl_->Extend(other.impl_);
 }
 
 template <typename T>

@@ -137,6 +137,14 @@ void HostDeviceVector<T>::Copy(std::initializer_list<T> other) {
 }
 
 template <typename T>
+void HostDeviceVector<T>::Extend(HostDeviceVector const& other) {
+  auto ori_size = this->Size();
+  this->HostVector().resize(ori_size + other.Size());
+  std::copy(other.ConstHostVector().cbegin(), other.ConstHostVector().cend(),
+            this->HostVector().begin() + ori_size);
+}
+
+template <typename T>
 bool HostDeviceVector<T>::HostCanRead() const {
   return true;
 }

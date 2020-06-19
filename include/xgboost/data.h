@@ -158,6 +158,16 @@ class MetaInfo {
    */
   void SetInfo(const char* key, std::string const& interface_str);
 
+  /*
+   * \brief Extend with other MetaInfo.
+   *
+   * \param that The other MetaInfo object.
+   *
+   * \param accumulate_rows Whether rows need to be accumulated in this function.  If
+   *        client code knows number of rows in advance, set this parameter to false.
+   */
+  void Extend(MetaInfo const& that, bool accumulate_rows);
+
  private:
   /*! \brief argsort of labels */
   mutable std::vector<size_t> label_order_cache_;

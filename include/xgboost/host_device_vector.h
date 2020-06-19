@@ -51,6 +51,7 @@
 
 #include <initializer_list>
 #include <vector>
+#include <type_traits>
 
 #include "span.h"
 
@@ -83,6 +84,8 @@ enum GPUAccess {
 
 template <typename T>
 class HostDeviceVector {
+  static_assert(std::is_standard_layout<T>::value, "HostDeviceVector admits only POD types");
+
  public:
   explicit HostDeviceVector(size_t size = 0, T v = T(), int device = -1);
   HostDeviceVector(std::initializer_list<T> init, int device = -1);
@@ -116,6 +119,8 @@ class HostDeviceVector {
   void Copy(const HostDeviceVector<T>& other);
   void Copy(const std::vector<T>& other);
   void Copy(std::initializer_list<T> other);
+
+  void Extend(const HostDeviceVector<T>& other);
 
   std::vector<T>& HostVector();
   const std::vector<T>& ConstHostVector() const;
