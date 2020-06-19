@@ -73,7 +73,7 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
     dmlc::ByteSwap(&x.deprecated_num_pbuffer, sizeof(x.deprecated_num_pbuffer), 1);
     dmlc::ByteSwap(&x.deprecated_num_output_group, sizeof(x.deprecated_num_output_group), 1);
     dmlc::ByteSwap(&x.size_leaf_vector, sizeof(x.size_leaf_vector), 1);
-    dmlc::ByteSwap(&x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
+    dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
     return x;
   }
 };

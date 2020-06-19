@@ -121,7 +121,7 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     dmlc::ByteSwap(&x.contain_eval_metrics, sizeof(x.contain_eval_metrics), 1);
     dmlc::ByteSwap(&x.major_version, sizeof(x.major_version), 1);
     dmlc::ByteSwap(&x.minor_version, sizeof(x.minor_version), 1);
-    dmlc::ByteSwap(&x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
+    dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
     return x;
   }
 

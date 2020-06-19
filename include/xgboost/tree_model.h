@@ -70,7 +70,7 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
     dmlc::ByteSwap(&x.deprecated_max_depth, sizeof(x.deprecated_max_depth), 1);
     dmlc::ByteSwap(&x.num_feature, sizeof(x.num_feature), 1);
     dmlc::ByteSwap(&x.size_leaf_vector, sizeof(x.size_leaf_vector), 1);
-    dmlc::ByteSwap(&x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
+    dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
     return x;
   }
 
