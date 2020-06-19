@@ -61,6 +61,20 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
         .set_default(0)
         .describe("Reserved option for vector tree.");
   }
+
+  void ByteSwap() {
+    this->num_trees 			= __builtin_bswap32(this->num_trees);
+    this->deprecated_num_roots 		= __builtin_bswap32(this->deprecated_num_roots);
+    this->deprecated_num_feature 	= __builtin_bswap32(this->deprecated_num_feature);
+    this->pad_32bit 			= __builtin_bswap32(this->pad_32bit);
+    this->deprecated_num_pbuffer 	= __builtin_bswap64(this->deprecated_num_pbuffer);
+    this->deprecated_num_output_group 	= __builtin_bswap32(this->deprecated_num_output_group);
+    this->size_leaf_vector 		= __builtin_bswap32(this->size_leaf_vector);
+
+    for (int i = 0; i < 32; i++) {
+         this->reserved[i] = __builtin_bswap32(this->reserved[i]);
+    }
+  }
 };
 
 struct GBTreeModel : public Model {

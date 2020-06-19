@@ -59,6 +59,20 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
     num_nodes = 1;
     deprecated_num_roots = 1;
   }
+
+  void ByteSwap() {
+    this->deprecated_num_roots 		= __builtin_bswap32(this->deprecated_num_roots);
+    this->num_nodes 			        = __builtin_bswap32(this->num_nodes);
+    this->num_deleted 			      = __builtin_bswap32(this->num_deleted);
+    this->deprecated_max_depth 		= __builtin_bswap32(this->deprecated_max_depth);
+    this->num_feature 			      = __builtin_bswap32(this->num_feature);
+    this->size_leaf_vector 		    = __builtin_bswap32(this->size_leaf_vector);
+
+    for(int i = 0; i < 31; i++) {
+      this->reserved[i] = __builtin_bswap32(this->reserved[i]);
+    }
+  }
+
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TreeParam) {
     // only declare the parameters that can be set by the user.
@@ -96,6 +110,26 @@ struct RTreeNodeStat {
   bool operator==(const RTreeNodeStat& b) const {
     return loss_chg == b.loss_chg && sum_hess == b.sum_hess &&
            base_weight == b.base_weight && leaf_child_cnt == b.leaf_child_cnt;
+  }
+
+  float FloatByteSwap(float f) {
+      float ret;
+      char *floatToConvert = (char *)&f;
+      char *retFloat = (char *)&ret;
+
+      retFloat[0] = floatToConvert[3];
+      retFloat[1] = floatToConvert[2];
+      retFloat[2] = floatToConvert[1];
+      retFloat[3] = floatToConvert[0];
+
+      return ret;
+  }
+
+  void ByteSwap() {
+     this->loss_chg 		  = FloatByteSwap(this->loss_chg);
+     this->sum_hess 		  = FloatByteSwap(this->sum_hess);
+     this->base_weight 		= FloatByteSwap(this->base_weight);
+     this->leaf_child_cnt = __builtin_bswap32(this->leaf_child_cnt);
   }
 };
 
@@ -225,6 +259,33 @@ class RegTree : public Model {
       return parent_ == b.parent_ && cleft_ == b.cleft_ &&
              cright_ == b.cright_ && sindex_ == b.sindex_ &&
              info_.leaf_value == b.info_.leaf_value;
+    }
+
+    float FloatByteSwap(float f) {
+      float ret;
+      char *floatToConvert = (char *)&f;
+      char *retFloat = (char *)&ret;
+
+      retFloat[0] = floatToConvert[3];
+      retFloat[1] = floatToConvert[2];
+      retFloat[2] = floatToConvert[1];
+      retFloat[3] = floatToConvert[0];
+
+      return ret;
+    }
+
+    void ByteSwap() {
+      this->parent_ 	= __builtin_bswap32(this->parent_);
+      this->cleft_ 	= __builtin_bswap32(this->cleft_);
+      this->cright_ 	= __builtin_bswap32(this->cright_);
+      this->sindex_ 	= __builtin_bswap32(this->sindex_);
+
+      Info tmp_info_ = this->info_;
+
+      *((char *)&this->info_) = *((char *)&tmp_info_ + 3);
+      *((char *)&this->info_ + 1) = *((char *)&tmp_info_ + 2);
+      *((char *)&this->info_ + 2) = *((char *)&tmp_info_ + 1);
+      *((char *)&this->info_ + 3) = *((char *)&tmp_info_);
     }
 
    private:

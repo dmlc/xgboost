@@ -10,6 +10,12 @@ namespace gbm {
 
 void GBTreeModel::Save(dmlc::Stream* fo) const {
   CHECK_EQ(param.num_trees, static_cast<int32_t>(trees.size()));
+
+  if (DMLC_IO_NO_ENDIAN_SWAP == 0) {
+    GBTreeModelParam* param_ptr = const_cast<GBTreeModelParam*>(&param);
+    param_ptr->ByteSwap();
+  }
+
   fo->Write(&param, sizeof(param));
   for (const auto & tree : trees) {
     tree->Save(fo);
@@ -24,6 +30,11 @@ void GBTreeModel::Load(dmlc::Stream* fi) {
       << "GBTree: invalid model file";
   trees.clear();
   trees_to_update.clear();
+
+  if (DMLC_IO_NO_ENDIAN_SWAP == 0) {
+    param.ByteSwap();
+  }
+
   for (int32_t i = 0; i < param.num_trees; ++i) {
     std::unique_ptr<RegTree> ptr(new RegTree());
     ptr->Load(fi);
