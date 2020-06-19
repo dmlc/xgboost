@@ -453,7 +453,7 @@ TEST(Json, Invalid) {
       Json load{Json::Load(StringView(str.c_str(), str.size()))};
     } catch (dmlc::Error const &e) {
       std::string msg = e.what();
-      ASSERT_NE(msg.find("EOF"), std::string::npos);
+      ASSERT_NE(msg.find("EOF"), std::string::npos) << "msg = " << msg;
       has_thrown = true;
     };
     ASSERT_TRUE(has_thrown);
