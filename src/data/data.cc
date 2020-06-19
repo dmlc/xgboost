@@ -81,7 +81,7 @@ void LoadScalarField(dmlc::Stream* strm, const std::string& expected_name,
   CHECK(strm->Read(&is_scalar)) << invalid;
   CHECK(is_scalar)
     << invalid << "Expected field " << expected_name << " to be a scalar; got a vector";
-  CHECK(strm->Read(field, sizeof(T))) << invalid;
+  CHECK(strm->Read(field)) << invalid;
 }
 
 template <typename T>
