@@ -49,9 +49,9 @@ Version::TripletT Version::Load(dmlc::Stream* fi) {
     LOG(FATAL) << msg;
   }
 
-  CHECK_EQ(fi->Read(&major, sizeof(major)), sizeof(major)) << msg;
-  CHECK_EQ(fi->Read(&minor, sizeof(major)), sizeof(minor)) << msg;
-  CHECK_EQ(fi->Read(&patch, sizeof(major)), sizeof(patch)) << msg;
+  CHECK(fi->Read(&major)) << msg;
+  CHECK(fi->Read(&minor)) << msg;
+  CHECK(fi->Read(&patch)) << msg;
 
   return std::make_tuple(major, minor, patch);
 }
@@ -69,9 +69,9 @@ void Version::Save(dmlc::Stream* fo) {
   std::tie(major, minor, patch) = Self();
   std::string verstr { u8"version:" };
   fo->Write(&verstr[0], verstr.size());
-  fo->Write(&major, sizeof(major));
-  fo->Write(&minor, sizeof(minor));
-  fo->Write(&patch, sizeof(patch));
+  fo->Write(major);
+  fo->Write(minor);
+  fo->Write(patch);
 }
 
 std::string Version::String(TripletT const& version) {
