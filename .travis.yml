@@ -41,6 +41,9 @@ addons:
       - wget
       - r
     update: true
+  apt:
+    packages:
+      - snapd
 
 before_install:
   - source tests/travis/travis_setup_env.sh
