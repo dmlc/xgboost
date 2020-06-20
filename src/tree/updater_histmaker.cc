@@ -317,7 +317,7 @@ class CQHistMaker: public HistMaker {
     }
   };
   // sketch type used for this
-  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
+  using WQSketch = common::WQuantileSketch<bst_float, bst_float>;
   // initialize the work set of tree
   void InitWorkSet(DMatrix *p_fmat,
                    const RegTree &tree,
@@ -439,14 +439,14 @@ class CQHistMaker: public HistMaker {
         }
       }
       for (size_t i = 0; i < sketchs_.size(); ++i) {
-        common::WXQuantileSketch<bst_float, bst_float>::SummaryContainer out;
+        common::WQuantileSketch<bst_float, bst_float>::SummaryContainer out;
         sketchs_[i].GetSummary(&out);
         summary_array_[i].SetPrune(out, max_size);
       }
       CHECK_EQ(summary_array_.size(), sketchs_.size());
     }
     if (summary_array_.size() != 0) {
-      size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_size);
+      size_t nbytes = WQSketch::SummaryContainer::CalcMemCost(max_size);
       sreducer_.Allreduce(dmlc::BeginPtr(summary_array_), nbytes, summary_array_.size());
     }
     // now we get the final result of sketch, setup the cut
@@ -457,7 +457,8 @@ class CQHistMaker: public HistMaker {
       for (unsigned int i : fset) {
         int offset = feat2workindex_[i];
         if (offset >= 0) {
-          const WXQSketch::Summary &a = summary_array_[wid * work_set_size + offset];
+          const WQSketch::Summary &a =
+              summary_array_[wid * work_set_size + offset];
           for (size_t i = 1; i < a.size; ++i) {
             bst_float cpt = a.data[i].value - kRtEps;
             if (i == 1 || cpt > this->wspace_.cut.back()) {
@@ -630,11 +631,11 @@ class CQHistMaker: public HistMaker {
   // node statistics
   std::vector<GradStats> node_stats_;
   // summary array
-  std::vector<WXQSketch::SummaryContainer> summary_array_;
+  std::vector<WQSketch::SummaryContainer> summary_array_;
   // reducer for summary
-  rabit::SerializeReducer<WXQSketch::SummaryContainer> sreducer_;
+  rabit::SerializeReducer<WQSketch::SummaryContainer> sreducer_;
   // per node, per feature sketch
-  std::vector<common::WXQuantileSketch<bst_float, bst_float> > sketchs_;
+  std::vector<common::WQuantileSketch<bst_float, bst_float> > sketchs_;
 };
 
 // global proposal
