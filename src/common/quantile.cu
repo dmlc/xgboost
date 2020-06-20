@@ -43,7 +43,7 @@ __device__ SketchEntry BinarySearchQuery(Span<SketchEntry const> entries, float 
 }
 namespace {
 struct SketchUnique {
-  bool __device__ operator()(SketchEntry a, SketchEntry b) {
+  bool __device__ operator()(SketchEntry const& a, SketchEntry const& b) {
     return a.value == b.value;
   }
 };
@@ -362,10 +362,8 @@ void ConstructCutMatrix(DeviceQuantile const& summary, int max_bin, HistogramCut
 void DeviceQuantile::PushSorted(common::Span<SketchEntry> entries) {
   dh::caching_device_vector<SketchEntry> out;
   SketchEntry *new_end =
-      thrust::unique(thrust::device, entries.data(), entries.data() + entries.size(),
-                     [] __device__(SketchEntry a, SketchEntry b) {
-                       return a.value == b.value;
-                     });
+      thrust::unique(thrust::device, entries.data(),
+                     entries.data() + entries.size(), SketchUnique{});
   entries = entries.subspan(0, std::distance(entries.data(), new_end)) ;
 
   Merge(this->Data(), entries, &out);
@@ -421,6 +419,7 @@ void DeviceQuantile::SetMerge(std::vector<Span<SketchEntry const>> const& others
 void DeviceQuantile::MakeFromOthers(std::vector<DeviceQuantile> const& others) {
   this->comm_.Init(device_);
   std::vector<Span<SketchEntry const>> spans(others.size());
+  // We don't have k way merging, so iterate it through.
   for (size_t i = 0; i < others.size(); ++i) {
     spans[i] = Span<SketchEntry const>(others[i].data_.data().get(),
                                        others[i].data_.size());

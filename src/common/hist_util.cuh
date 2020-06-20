@@ -80,6 +80,8 @@ struct SketchContainer {
     }
   }
 
+  void MakeCuts(HistogramCuts* cuts) {}
+
   // Prevent copying/assigning/moving this as its internals can't be
   // assigned/copied/moved
   SketchContainer(const SketchContainer&) = delete;
