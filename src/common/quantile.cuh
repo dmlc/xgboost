@@ -17,14 +17,18 @@ class DeviceQuantile {
   dh::caching_device_vector<SketchEntry> data_;
   dh::AllReducer comm_;
   int32_t device_;
+  size_t window_;
 
   void SetMerge(std::vector<Span<SketchEntry const>> const& others);
 
  public:
+  DeviceQuantile(size_t window_size) : window_{window_size} {}
+
   void MakeFromSorted(Span<SketchEntry> entries, int32_t device);
   void MakeFromOthers(std::vector<DeviceQuantile> const& others);
   void Prune(size_t to);
   void AllReduce();
+  void PushSorted(common::Span<SketchEntry> entries);
   void MakeCuts(size_t max_rows, int max_bin, HistogramCuts* cuts);
 
   common::Span<SketchEntry const> Data() const {

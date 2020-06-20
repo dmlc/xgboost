@@ -359,6 +359,20 @@ void ConstructCutMatrix(DeviceQuantile const& summary, int max_bin, HistogramCut
   cuts->cut_ptrs_.HostVector().emplace_back(d_cut_values.size());
 }
 
+void DeviceQuantile::PushSorted(common::Span<SketchEntry> entries) {
+  dh::caching_device_vector<SketchEntry> out;
+  SketchEntry *new_end =
+      thrust::unique(thrust::device, entries.data(), entries.data() + entries.size(),
+                     [] __device__(SketchEntry a, SketchEntry b) {
+                       return a.value == b.value;
+                     });
+  entries = entries.subspan(0, std::distance(entries.data(), new_end)) ;
+
+  Merge(this->Data(), entries, &out);
+  this->data_ = std::move(out);
+  this->Prune(this->window_);
+}
+
 void DeviceQuantile::MakeCuts(size_t max_rows, int max_bin, HistogramCuts* cuts) {
   constexpr int kFactor = 8;
   size_t global_max_rows = max_rows;

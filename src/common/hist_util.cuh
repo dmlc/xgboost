@@ -7,7 +7,7 @@
 #include <thrust/host_vector.h>
 
 #include "hist_util.h"
-#include "threading_utils.h"
+#include "quantile.cuh"
 #include "device_helpers.cuh"
 #include "../data/device_adapter.cuh"
 
