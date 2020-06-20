@@ -7,6 +7,8 @@
 
 namespace xgboost {
 namespace common {
+
+class HistogramCuts;
 class DeviceQuantile {
  public:
   using SketchEntry = WQSummary<float, float>::Entry;
@@ -23,6 +25,7 @@ class DeviceQuantile {
   void MakeFromOthers(std::vector<DeviceQuantile> const& others);
   void Prune(size_t to);
   void AllReduce();
+  void MakeCuts(size_t max_rows, int max_bin, HistogramCuts* cuts);
 
   common::Span<SketchEntry const> Data() const {
     return Span<SketchEntry const>(this->data_.data().get(), this->data_.size());

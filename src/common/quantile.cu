@@ -49,8 +49,13 @@ struct SketchUnique {
 };
 }  // anonymous namespace
 
-void Prune(size_t to, common::Span<SketchEntry> entries, dh::caching_device_vector<SketchEntry>* out) {
+void PruneImpl(size_t to, common::Span<SketchEntry const> entries, dh::caching_device_vector<SketchEntry>* out) {
 
+}
+
+void DeviceQuantile::Prune(size_t to) {
+  dh::caching_device_vector<SketchEntry> out;
+  PruneImpl(to, this->Data(), &out);
 }
 
 template<typename DType, typename RType>
@@ -320,17 +325,19 @@ void ConstructCutMatrix(DeviceQuantile const& summary, int max_bin, HistogramCut
     }
     d_cut_values[idx + ori_size] = data[idx].value;
   });
+
+  cuts->cut_ptrs_.HostVector().emplace_back(d_cut_values.size());
 }
 
-void MakeCuts(DeviceQuantile* p_summary, size_t max_rows, int max_bin, HistogramCuts* cuts) {
+void DeviceQuantile::MakeCuts(size_t max_rows, int max_bin, HistogramCuts* cuts) {
   constexpr int kFactor = 8;
   size_t global_max_rows = max_rows;
   rabit::Allreduce<rabit::op::Sum>(&global_max_rows, 1);
   size_t intermediate_num_cuts =
       std::min(global_max_rows, static_cast<size_t>(max_bin * kFactor));
-  p_summary->Prune(intermediate_num_cuts);
-  p_summary->AllReduce();
-  ConstructCutMatrix(*p_summary, max_bin, cuts);
+  this->Prune(intermediate_num_cuts);
+  this->AllReduce();
+  ConstructCutMatrix(*this, max_bin, cuts);
 }
 
 void DeviceQuantile::MakeFromSorted(Span<SketchEntry> entries, int32_t device) {
