@@ -17,7 +17,7 @@ class DeviceQuantile {
   dh::caching_device_vector<SketchEntry> data_;
   dh::AllReducer comm_;
   int32_t device_;
-  size_t window_;
+  size_t window_;  // FIXME: A better name.
 
   void SetMerge(std::vector<Span<SketchEntry const>> const& others);
 

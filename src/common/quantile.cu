@@ -428,10 +428,14 @@ void DeviceQuantile::MakeFromOthers(std::vector<DeviceQuantile> const& others) {
 }
 
 void DeviceQuantile::AllReduce() {
+  size_t world = rabit::GetWorldSize();
+  if (world == 1) {
+    return;
+  }
+
   dh::caching_device_vector<char> recvbuf;
   comm_.AllGather(data_.data().get(), data_.size() * sizeof(SketchEntry), &recvbuf);
   auto s_recvbuf = dh::ToSpan(recvbuf);
-  size_t world = rabit::GetWorldSize();
   std::vector<Span<SketchEntry const>> allworkers;
   auto length_as_bytes = data_.size() * sizeof(SketchEntry);
 
