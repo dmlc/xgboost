@@ -569,6 +569,8 @@ class AllReducer {
 #endif
   }
 
+  void AllGather(void const* data, size_t length, dh::caching_device_vector<char>* recvbuf);
+
   /**
    * \brief Allreduce. Use in exactly the same way as NCCL but without needing
    * streams or comms.

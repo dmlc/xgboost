@@ -3,6 +3,7 @@
  */
 #include "xgboost/span.h"
 #include "quantile.h"
+#include "quantile.cuh"
 #include "hist_util.h"
 #include "device_helpers.cuh"
 #include "common.h"
@@ -96,28 +97,30 @@ void WQSummary<DType, RType>::SetPruneDevice(const WQSummary &src, size_t maxsiz
                                 cudaMemcpyDeviceToHost));
 }
 
-void CopyTo(WQSketch::Summary* out, WQSketch::Summary const& src) {
-  out->size = src.size;
-  dh::safe_cuda(cudaMemcpyAsync(out->data, src.data,
-                                out->size * sizeof(SketchEntry),
+void CopyTo(dh::caching_device_vector<SketchEntry> *out,
+            Span<SketchEntry const> src) {
+  out->resize(src.size());
+  dh::safe_cuda(cudaMemcpyAsync(out->data().get(), src.data(),
+                                out->size() * sizeof(SketchEntry),
                                 cudaMemcpyHostToDevice));
 }
 
-void Merge(const WQSketch::Summary &a, const WQSketch::Summary &b, WQSketch::Summary* out) {
-  if (a.size == 0) {
-    CopyTo(out, b);
+void Merge(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
+           dh::caching_device_vector<SketchEntry> *out) {
+  if (d_x.size() == 0) {
+    CopyTo(out, d_y);
     return;
   }
-  if (b.size == 0) {
-    CopyTo(out, a);
+  if (d_y.size() == 0) {
+    CopyTo(out, d_x);
     return;
   }
 
-  out->size = a.size + b.size;
+  out->resize(d_x.size() + d_y.size());
   auto a_key_it = dh::MakeTransformIterator<float>(
-      a.data, []__device__(SketchEntry const &e) { return e.value; });
+      d_x.data(), []__device__(SketchEntry const &e) { return e.value; });
   auto b_key_it = dh::MakeTransformIterator<float>(
-      b.data, []__device__(SketchEntry const &e) { return e.value; });
+      d_y.data(), []__device__(SketchEntry const &e) { return e.value; });
 
   thrust::constant_iterator<int32_t> a_ind_iter(0);
   thrust::constant_iterator<int32_t> b_ind_iter(1);
@@ -134,10 +137,10 @@ void Merge(const WQSketch::Summary &a, const WQSketch::Summary &b, WQSketch::Sum
   auto get_a = []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<0>(t); };
   auto get_b = []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<1>(t); };
 
-  dh::caching_device_vector<Tuple> merge_path(out->size);
+  dh::caching_device_vector<Tuple> merge_path(out->size());
   // Determine the merge path
-  thrust::merge_by_key(thrust::device, a_key_it, a_key_it + a.size, b_key_it,
-                       b_key_it + b.size, x_val_it, y_val_it,
+  thrust::merge_by_key(thrust::device, a_key_it, a_key_it + d_x.size(), b_key_it,
+                       b_key_it + d_y.size(), x_val_it, y_val_it,
                        thrust::make_discard_iterator(), merge_path.begin());
   // Compute the index for both a and b
   thrust::transform_exclusive_scan(
@@ -154,10 +157,7 @@ void Merge(const WQSketch::Summary &a, const WQSketch::Summary &b, WQSketch::Sum
       });
 
   auto d_merge_path = dh::ToSpan(merge_path);
-
-  auto d_x = Span<SketchEntry>{a.data, a.size};
-  auto d_y = Span<SketchEntry>{b.data, b.size};
-  auto d_out = Span<SketchEntry>{out->data, a.size + b.size};
+  auto d_out = Span<SketchEntry>{out->data().get(), d_x.size() + d_y.size()};
 
   dh::LaunchN(0, d_out.size(), [=] __device__(size_t idx) {
     int32_t a_ind, b_ind;
@@ -224,11 +224,15 @@ void WQSummary<DType, RType>::DeviceSetCombined(WQSummary const& a, WQSummary co
                                 b.size * sizeof(SketchEntry),
                                 cudaMemcpyHostToDevice));
 
-  Merge(sa, sb, this);
+  auto d_x = Span<SketchEntry>{sa.data, sa.size};
+  auto d_y = Span<SketchEntry>{sb.data, sb.size};
+  Merge(d_x, d_y, &out);
 
   this->data = cpu_data_ptr;
+  this->size = out.size();
   dh::safe_cuda(cudaMemcpyAsync(this->data, out.data().get(),
                                 out.size() * sizeof(SketchEntry),
+
                                 cudaMemcpyDeviceToHost));
 }
 
@@ -302,7 +306,76 @@ void WQSummary<DType, RType>::SetCombine(const WQSummary &sa, const WQSummary &s
 
 template class WQSummary<float, float>;
 
-// Sorting by weights.
-// https://stackoverflow.com/questions/17597346/sorting-small-arrays-by-key-in-cuda
+void ConstructCutMatrix(WQSketch::SummaryContainer const& summary, int max_bin, HistogramCuts* cuts) {
+  size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
+  size_t ori_size = cuts->cut_values_.Size();
+  cuts->cut_values_.Resize(ori_size + required_cuts);
+  auto d_cut_values = cuts->cut_values_.DeviceSpan();
+  auto data = Span<SketchEntry>{summary.data, summary.size};
+  dh::LaunchN(0, required_cuts - 1, [=] __device__(size_t idx) {
+    idx += 1;
+    d_cut_values[idx + ori_size] = data[idx].value;
+  });
+}
+
+void DeviceQuantile::MakeFromSorted(Span<SketchEntry> entries, int32_t device) {
+  this->device_ = device;
+  this->comm_.Init(device_);
+  auto data = entries.data();
+  SketchEntry *new_end =
+      thrust::unique(thrust::device, data, data + entries.size(),
+                     [] __device__(SketchEntry a, SketchEntry b) {
+                       return a.value == b.value;
+                     });
+  static_assert(std::is_trivially_copy_constructible<SketchEntry>::value, "");
+  static_assert(std::is_standard_layout<SketchEntry>::value, "");
+  data_.resize(std::distance(data, new_end));
+  dh::safe_cuda(cudaMemcpyAsync(
+      data_.data().get(), entries.data(), sizeof(SketchEntry) * std::distance(data, new_end),
+      cudaMemcpyDeviceToDevice));
+}
+
+void DeviceQuantile::SetMerge(std::vector<Span<SketchEntry const>> const& others) {
+  auto x = others.front();
+  dh::safe_cuda(cudaMemcpyAsync(this->data_.data().get(), x.data(),
+                                this->data_.size() * sizeof(SketchEntry),
+                                cudaMemcpyDeviceToDevice));
+  dh::caching_device_vector<SketchEntry> buffer;
+  for (size_t i = 1; i < others.size(); ++i) {
+    auto x = dh::ToSpan(this->data_);
+    auto const y = others[i];
+    Merge(x, y, &buffer);
+    this->data_.resize(buffer.size());
+    dh::safe_cuda(cudaMemcpyAsync(this->data_.data().get(), buffer.data().get(),
+                                  buffer.size() * sizeof(SketchEntry),
+                                  cudaMemcpyDeviceToDevice));
+  }
+}
+
+void DeviceQuantile::MakeFromOthers(std::vector<DeviceQuantile> const& others) {
+  this->comm_.Init(device_);
+  std::vector<Span<SketchEntry const>> spans(others.size());
+  for (size_t i = 0; i < others.size(); ++i) {
+    spans[i] = Span<SketchEntry const>(others[i].data_.data().get(),
+                                       others[i].data_.size());
+  }
+  this->SetMerge(spans);
+}
+
+void DeviceQuantile::AllReduce() {
+  dh::caching_device_vector<char> recvbuf;
+  comm_.AllGather(data_.data().get(), data_.size() * sizeof(SketchEntry), &recvbuf);
+  auto s_recvbuf = dh::ToSpan(recvbuf);
+  size_t world = rabit::GetWorldSize();
+  std::vector<Span<SketchEntry const>> allworkers;
+  auto length_as_bytes = data_.size() * sizeof(SketchEntry);
+
+  for (size_t i = 0; i < world; ++i) {
+    auto raw = s_recvbuf.subspan(i * length_as_bytes, length_as_bytes);
+    auto sketch = Span<SketchEntry>(reinterpret_cast<SketchEntry*>(raw.data()), data_.size());
+    allworkers.emplace_back(sketch);
+  }
+  this->SetMerge(allworkers);
+}
 }  // namespace common
 }  // namespace xgboost

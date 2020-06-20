@@ -78,6 +78,16 @@ void AllReducer::Init(int _device_ordinal) {
 #endif  // XGBOOST_USE_NCCL
 }
 
+void AllReducer::AllGather(void const* data, size_t length, dh::caching_device_vector<char>* recvbuf) {
+#ifdef XGBOOST_USE_NCCL
+  CHECK(initialised_);
+  dh::safe_cuda(cudaSetDevice(device_ordinal_));
+  size_t world = rabit::GetWorldSize();
+  recvbuf->resize(world * length);
+  dh::safe_nccl(ncclAllGather(data, recvbuf->data().get(), length, ncclChar, comm_, stream_));
+#endif  // XGBOOST_USE_NCCL
+}
+
 AllReducer::~AllReducer() {
 #ifdef XGBOOST_USE_NCCL
   if (initialised_) {
