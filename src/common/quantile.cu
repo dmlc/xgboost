@@ -12,8 +12,6 @@
 #include <thrust/transform_scan.h>
 #include <thrust/execution_policy.h>
 
-#include <fstream>
-
 namespace xgboost {
 namespace common {
 
@@ -164,8 +162,6 @@ void Merge(const WQSketch::Summary &a, const WQSketch::Summary &b, WQSketch::Sum
   dh::LaunchN(0, d_out.size(), [=] __device__(size_t idx) {
     int32_t a_ind, b_ind;
     thrust::tie(a_ind, b_ind) = d_merge_path[idx];
-    // a_ind = a_ind == 0 ? 0 : a_ind - 1;
-    // b_ind = b_ind == 0 ? 0 : b_ind - 1;
     // Handle trailing elements.
     assert(a_ind <= d_x.size());
     if (a_ind == d_x.size()){
@@ -239,13 +235,7 @@ void WQSummary<DType, RType>::DeviceSetCombined(WQSummary const& a, WQSummary co
 template<typename DType, typename RType>
 void WQSummary<DType, RType>::SetCombine(const WQSummary &sa, const WQSummary &sb) {
   this->DeviceSetCombined(sa, sb);
-  // return;
-  std::ofstream from_dev ("from_device_log");
-  from_dev << "From device sketching" << std::endl;
-  for (size_t i = 0; i < this->size; ++i) {
-    from_dev << this->data[i] << '\n';
-  }
-  from_dev << std::endl;
+  return;
 
   if (sa.size == 0) {
     this->CopyFrom(sb); return;
@@ -298,13 +288,6 @@ void WQSummary<DType, RType>::SetCombine(const WQSummary &sa, const WQSummary &s
   }
 
   this->size = dst - data;
-
-  std::ofstream from_host("from_host_log");
-  from_host << "From host sketching" << std::endl;
-  for (size_t i = 0; i < this->size; ++i) {
-    from_host << this->data[i] << '\n';
-  }
-  from_host << std::endl;
 
   const RType tol = 10;
   RType err_mingap, err_maxgap, err_wgap;
