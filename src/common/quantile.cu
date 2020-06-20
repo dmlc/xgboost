@@ -322,6 +322,17 @@ void ConstructCutMatrix(DeviceQuantile const& summary, int max_bin, HistogramCut
   });
 }
 
+void MakeCuts(DeviceQuantile* p_summary, size_t max_rows, int max_bin, HistogramCuts* cuts) {
+  constexpr int kFactor = 8;
+  size_t global_max_rows = max_rows;
+  rabit::Allreduce<rabit::op::Sum>(&global_max_rows, 1);
+  size_t intermediate_num_cuts =
+      std::min(global_max_rows, static_cast<size_t>(max_bin * kFactor));
+  p_summary->Prune(intermediate_num_cuts);
+  p_summary->AllReduce();
+  ConstructCutMatrix(*p_summary, max_bin, cuts);
+}
+
 void DeviceQuantile::MakeFromSorted(Span<SketchEntry> entries, int32_t device) {
   this->device_ = device;
   this->comm_.Init(device_);
