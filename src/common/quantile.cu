@@ -19,7 +19,7 @@ namespace common {
 using WQSketch = DenseCuts::WQSketch;
 using SketchEntry = WQSketch::Entry;
 
-__device__ SketchEntry BinarySearchQuery(Span<SketchEntry> entries, float rank) {
+__device__ SketchEntry BinarySearchQuery(Span<SketchEntry const> entries, float rank) {
   assert(entries.size() >= 2);
   rank *= 2;
   if (rank < entries.front().rmin + entries.front().rmax) {
@@ -49,13 +49,43 @@ struct SketchUnique {
 };
 }  // anonymous namespace
 
-void PruneImpl(size_t to, common::Span<SketchEntry const> entries, dh::caching_device_vector<SketchEntry>* out) {
-
+void PruneImpl(size_t to, common::Span<SketchEntry> entries, dh::caching_device_vector<SketchEntry>* p_out) {
+  auto& out = *p_out;
+  // Filter out duplicated values.
+  size_t unique_inputs = std::distance(
+      entries.data(),
+      thrust::unique(thrust::device, entries.data(),
+                     entries.data() + entries.size(), SketchUnique{}));
+  if (unique_inputs <= to) {
+    p_out->resize(unique_inputs);
+    dh::safe_cuda(cudaMemcpyAsync(p_out->data().get(), entries.data(),
+                                  sizeof(SketchEntry) * unique_inputs,
+                                  cudaMemcpyDeviceToHost));
+  }
+  entries = entries.subspan(0, unique_inputs);
+  out.resize(to);
+  auto d_out = dh::ToSpan(out);
+  dh::LaunchN(0, to - 2, [=] __device__(size_t tid) {
+    tid += 1;
+    float w = entries.back().rmin - entries.front().rmax;
+    auto budget = static_cast<float>(d_out.size());
+    assert(w != 0);
+    assert(budget != 0);
+    auto q = ((tid * w) / (to - 1) + entries.front().rmax);
+    d_out[tid] = BinarySearchQuery(entries, q);
+  });
+  dh::LaunchN(0, 1, [=]__device__(size_t tid) {
+      d_out.front() = entries.front();
+      d_out.back() = entries.back();
+  });
+  auto unique_end = thrust::unique(thrust::device, out.begin(), out.end(), SketchUnique{});
+  size_t n_uniques = std::distance(out.begin(), unique_end);
 }
 
 void DeviceQuantile::Prune(size_t to) {
   dh::caching_device_vector<SketchEntry> out;
   PruneImpl(to, this->Data(), &out);
+  this->data_ = std::move(out);
 }
 
 template<typename DType, typename RType>
