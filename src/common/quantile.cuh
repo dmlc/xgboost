@@ -24,7 +24,10 @@ class DeviceQuantile {
   void Prune(size_t to);
   void AllReduce();
 
-  common::Span<SketchEntry> Data() const {
+  common::Span<SketchEntry const> Data() const {
+    return Span<SketchEntry const>(this->data_.data().get(), this->data_.size());
+  }
+  common::Span<SketchEntry> Data() {
     return dh::ToSpan(this->data_);
   }
 };

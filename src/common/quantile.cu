@@ -305,14 +305,19 @@ void WQSummary<DType, RType>::SetCombine(const WQSummary &sa, const WQSummary &s
 
 template class WQSummary<float, float>;
 
-void ConstructCutMatrix(WQSketch::SummaryContainer const& summary, int max_bin, HistogramCuts* cuts) {
-  size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
+void ConstructCutMatrix(DeviceQuantile const& summary, int max_bin, HistogramCuts* cuts) {
+  size_t required_cuts = std::min(summary.Data().size(), static_cast<size_t>(max_bin));
   size_t ori_size = cuts->cut_values_.Size();
   cuts->cut_values_.Resize(ori_size + required_cuts);
   auto d_cut_values = cuts->cut_values_.DeviceSpan();
-  auto data = Span<SketchEntry>{summary.data, summary.size};
-  dh::LaunchN(0, required_cuts - 1, [=] __device__(size_t idx) {
-    idx += 1;
+  auto data = summary.Data();
+
+  auto d_min_vals = cuts->min_vals_.DeviceSpan();
+  dh::LaunchN(0, required_cuts, [=] __device__(size_t idx) {
+    if (idx == 0) {
+      d_min_vals[idx] = data[idx].value;
+      return;
+    }
     d_cut_values[idx + ori_size] = data[idx].value;
   });
 }
