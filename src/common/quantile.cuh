@@ -23,6 +23,10 @@ class DeviceQuantile {
   void MakeFromOthers(std::vector<DeviceQuantile> const& others);
   void Prune(size_t to);
   void AllReduce();
+
+  common::Span<SketchEntry> Data() const {
+    return dh::ToSpan(this->data_);
+  }
 };
 }  // namespace common
 }  // namespace xgboost

@@ -41,12 +41,17 @@ __device__ SketchEntry BinarySearchQuery(Span<SketchEntry> entries, float rank) 
     return entries[i+1];
   }
 }
-
-struct Comp {
-  bool __device__ operator()(SketchEntry const& x, SketchEntry const& y) {
-    return x.value <= y.value;
+namespace {
+struct SketchUnique {
+  bool __device__ operator()(SketchEntry a, SketchEntry b) {
+    return a.value == b.value;
   }
 };
+}  // anonymous namespace
+
+void Prune(size_t to, common::Span<SketchEntry> entries, dh::caching_device_vector<SketchEntry>* out) {
+
+}
 
 template<typename DType, typename RType>
 void WQSummary<DType, RType>::SetPruneDevice(const WQSummary &src, size_t maxsize) {
@@ -58,11 +63,9 @@ void WQSummary<DType, RType>::SetPruneDevice(const WQSummary &src, size_t maxsiz
                                 sizeof(SketchEntry) * src.size,
                                 cudaMemcpyHostToDevice));
   // Filter out duplicated values.
-  auto new_end = thrust::unique(thrust::device, in.begin(), in.end(),
-                                [] __device__(SketchEntry a, SketchEntry b) {
-                                  return a.value == b.value;
-                                });
-  size_t unique_inputs = std::distance(in.begin(), new_end);
+  size_t unique_inputs =
+      std::distance(in.begin(), thrust::unique(thrust::device, in.begin(),
+                                               in.end(), SketchUnique{}));
   if (unique_inputs <= maxsize) {
     dh::safe_cuda(cudaMemcpyAsync(this->data, in.data().get(),
                                   sizeof(SketchEntry) * unique_inputs,
@@ -86,10 +89,7 @@ void WQSummary<DType, RType>::SetPruneDevice(const WQSummary &src, size_t maxsiz
       d_out.front() = entries.front();
       d_out.back() = entries.back();
   });
-  auto unique_end = thrust::unique(thrust::device, out.begin(), out.end(),
-                 [] __device__(SketchEntry const &l, SketchEntry const &r) {
-                   return l.value == r.value;
-                 });
+  auto unique_end = thrust::unique(thrust::device, out.begin(), out.end(), SketchUnique{});
   size_t n_uniques = std::distance(out.begin(), unique_end);
   this->size = n_uniques;
   dh::safe_cuda(cudaMemcpyAsync(this->data, out.data().get(),
@@ -134,8 +134,8 @@ void Merge(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
 
   using Tuple = thrust::tuple<int32_t, int32_t>;
   auto get_ind = []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<1>(t); };
-  auto get_a = []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<0>(t); };
-  auto get_b = []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<1>(t); };
+  auto get_a =   []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<0>(t); };
+  auto get_b =   []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<1>(t); };
 
   dh::caching_device_vector<Tuple> merge_path(out->size());
   // Determine the merge path
@@ -232,7 +232,6 @@ void WQSummary<DType, RType>::DeviceSetCombined(WQSummary const& a, WQSummary co
   this->size = out.size();
   dh::safe_cuda(cudaMemcpyAsync(this->data, out.data().get(),
                                 out.size() * sizeof(SketchEntry),
-
                                 cudaMemcpyDeviceToHost));
 }
 
