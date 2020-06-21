@@ -279,6 +279,15 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
 
   for (size_t fid = 0; fid < sketches_.size(); ++fid) {
     sketches_[fid].Prune(num_bins_ + 1);
+
+    if (sketches_[fid].Data().size() == 0) {  // Empty column
+      p_cuts->min_vals_.HostVector().push_back(kRtEps);
+      p_cuts->cut_values_.HostVector().push_back(kRtEps);
+      auto cut_size = static_cast<uint32_t>(p_cuts->cut_values_.HostVector().size());
+      p_cuts->cut_ptrs_.HostVector().push_back(cut_size);
+      continue;
+    }
+
     std::vector<SketchEntry> entries(sketches_[fid].Data().size());
     dh::safe_cuda(
         cudaMemcpyAsync(entries.data(), sketches_[fid].Data().data(),
