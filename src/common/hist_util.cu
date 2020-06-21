@@ -284,6 +284,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
         cudaMemcpyAsync(entries.data(), sketches_[fid].Data().data(),
                         sketches_[fid].Data().size() * sizeof(SketchEntry),
                         cudaMemcpyDeviceToHost));
+    CHECK_GT(entries.size(), 0);
     const bst_float mval = entries[0].value;
     p_cuts->min_vals_.HostVector()[fid] = mval - (fabs(mval) + 1e-5);
     AddCutPoint(entries, num_bins_, p_cuts);
