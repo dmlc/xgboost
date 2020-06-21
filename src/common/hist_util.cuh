@@ -9,6 +9,7 @@
 #include "hist_util.h"
 #include "quantile.cuh"
 #include "device_helpers.cuh"
+#include "timer.h"
 #include "../data/device_adapter.cuh"
 
 namespace xgboost {
@@ -28,6 +29,7 @@ struct SketchContainer {
   std::vector<DeviceQuantile> sketches_;  // NOLINT
   static constexpr int kOmpNumColsParallelizeLimit = 1000;
   static constexpr float kFactor = 8;
+  Monitor timer;
 
  private:
   size_t num_rows_;
@@ -40,6 +42,7 @@ struct SketchContainer {
     for (size_t i = 0; i < num_columns; ++i) {
       sketches_.emplace_back(num_rows, 1.0 / (WQSketch::kFactor * max_bin),  device);
     }
+    timer.Init(__func__);
   }
 
   /**
@@ -54,6 +57,7 @@ struct SketchContainer {
   void Push(size_t entries_per_column,
             const common::Span<SketchEntry>& entries,
             const thrust::host_vector<size_t>& column_scan) {
+    timer.Start(__func__);
 #pragma omp parallel for schedule(static) if (sketches_.size() > SketchContainer::kOmpNumColsParallelizeLimit)  // NOLINT
     for (int icol = 0; icol < sketches_.size(); ++icol) {
       size_t column_size = column_scan[icol + 1] - column_scan[icol];
@@ -62,6 +66,7 @@ struct SketchContainer {
           std::min(size_t(entries_per_column), column_size);
       sketches_[icol].PushSorted(entries.subspan(entries_per_column * icol, num_available_cuts));
     }
+    timer.Stop(__func__);
   }
 
   void MakeCuts(HistogramCuts* cuts);

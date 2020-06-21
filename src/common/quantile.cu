@@ -90,9 +90,11 @@ void PruneImpl(size_t to, common::Span<SketchEntry> entries, dh::caching_device_
 }
 
 void DeviceQuantile::Prune(size_t to) {
+  monitor.Start(__func__);
   dh::caching_device_vector<SketchEntry> out;
   PruneImpl(to, dh::ToSpan(this->data_), &out);
   this->data_ = std::move(out);
+  monitor.Stop(__func__);
 }
 
 template<typename DType, typename RType>
@@ -281,6 +283,7 @@ void WQSummary<DType, RType>::DeviceSetCombined(WQSummary const& a, WQSummary co
 template class WQSummary<float, float>;
 
 void DeviceQuantile::PushSorted(common::Span<SketchEntry> entries) {
+  monitor.Start(__func__);
   dh::safe_cuda(cudaSetDevice(device_));
   dh::caching_device_vector<SketchEntry> out;
   SketchEntry *new_end =
@@ -291,6 +294,7 @@ void DeviceQuantile::PushSorted(common::Span<SketchEntry> entries) {
   MergeImpl(this->Data(), entries, &out);
   this->data_ = std::move(out);
   this->Prune(this->limit_size_);
+  monitor.Stop(__func__);
 }
 
 void DeviceQuantile::SetMerge(std::vector<Span<SketchEntry const>> const& others) {

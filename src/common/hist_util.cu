@@ -275,6 +275,7 @@ void AddCutPoint(std::vector<SketchEntry> const &summary, int max_bin,
 }
 
 void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
+  timer.Start(__func__);
   p_cuts->min_vals_.HostVector().resize(sketches_.size());
   size_t global_max_rows = num_rows_;
   rabit::Allreduce<rabit::op::Sum>(&global_max_rows, 1);
@@ -320,6 +321,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
     CHECK_GT(cut_size, p_cuts->cut_ptrs_.HostVector().back());
     p_cuts->cut_ptrs_.HostVector().push_back(cut_size);
   }
+  timer.Stop(__func__);
 }
 
 }  // namespace common

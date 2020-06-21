@@ -6,6 +6,7 @@
 #include "xgboost/span.h"
 #include "device_helpers.cuh"
 #include "quantile.h"
+#include "timer.h"
 
 namespace xgboost {
 namespace common {
@@ -20,6 +21,7 @@ class DeviceQuantile {
   std::unique_ptr<dh::AllReducer> comm_;
   int32_t device_;
   size_t limit_size_;
+  Monitor monitor;
 
   void SetMerge(std::vector<Span<SketchEntry const>> const& others);
 
@@ -34,6 +36,7 @@ class DeviceQuantile {
     size_t level;
     WQuantileSketch<float, float>::LimitSizeLevel(maxn, eps, &limit_size_, &level);
     limit_size_ *= level;  // ON GPU we don't have streaming algorithm.
+    monitor.Init(__func__);
   }
   /* \brief Merge a set of quantiles */
   void MakeFromOthers(std::vector<DeviceQuantile> const& others);
