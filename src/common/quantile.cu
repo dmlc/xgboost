@@ -254,7 +254,7 @@ void Merge(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
       // x_elem.
       float yprev_min = b_ind == 0 ? 0.0f : d_y[b_ind - 1].RMinNext();
       // rmin should equal to x_elem.rmin + x_elem.wmin.  But for implementation, the
-      // weight is stored in a separated field and compute the extend definition on the
+      // weight is stored in a separated field and compute the extended definition on the
       // fly when needed.
       d_out[idx] =
           SketchEntry{x_elem.rmin + yprev_min, x_elem.rmax + y_elem.RMaxPrev(),
