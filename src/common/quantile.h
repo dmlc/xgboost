@@ -201,9 +201,8 @@ struct WQSummary {
    * \param maxsize size we can afford in the pruned sketch
    */
   void SetPrune(const WQSummary &src, size_t maxsize) {
-    // this->SetPruneDevice(src, maxsize);
-    // return;
-
+    this->SetPruneDevice(src, maxsize);
+    return;
     if (src.size <= maxsize) {
       this->CopyFrom(src); return;
     }
@@ -242,9 +241,8 @@ struct WQSummary {
    * \param sb second input summary to be merged
    */
   void SetCombine(const WQSummary &sa, const WQSummary &sb) {
-    this->DeviceSetCombined(sa, sb);
-    return;
-
+    // this->DeviceSetCombined(sa, sb);
+    // return;
     if (sa.size == 0) {
       this->CopyFrom(sb);
       return;

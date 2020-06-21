@@ -57,13 +57,16 @@ void PruneImpl(size_t to, common::Span<SketchEntry> entries, dh::caching_device_
       entries.data(),
       thrust::unique(thrust::device, entries.data(),
                      entries.data() + entries.size(), SketchUnique{}));
+  CHECK_GE(to, 2);
   if (unique_inputs <= to) {
     p_out->resize(unique_inputs);
     dh::safe_cuda(cudaMemcpyAsync(p_out->data().get(), entries.data(),
                                   sizeof(SketchEntry) * unique_inputs,
                                   cudaMemcpyDeviceToHost));
+    return;
   }
   entries = entries.subspan(0, unique_inputs);
+
   out.resize(to);
   auto d_out = dh::ToSpan(out);
   // 1 thread for each output.  See A.4 for detail.
@@ -120,8 +123,8 @@ void CopyTo(dh::caching_device_vector<SketchEntry> *out,
 // summary does the output element come from) result by definition of merged rank.  So we
 // run it in 2 phrases to obtain the merge path and then customize the standard merge
 // algorithm.
-void Merge(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
-           dh::caching_device_vector<SketchEntry> *out) {
+void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
+               dh::caching_device_vector<SketchEntry> *out) {
   if (d_x.size() == 0) {
     CopyTo(out, d_y);
     return;
@@ -265,7 +268,7 @@ void WQSummary<DType, RType>::DeviceSetCombined(WQSummary const& a, WQSummary co
 
   auto d_x = Span<SketchEntry>{sa.data, sa.size};
   auto d_y = Span<SketchEntry>{sb.data, sb.size};
-  Merge(d_x, d_y, &out);
+  MergeImpl(d_x, d_y, &out);
 
   this->data = cpu_data_ptr;
   this->size = out.size();
@@ -281,9 +284,9 @@ void DeviceQuantile::PushSorted(common::Span<SketchEntry> entries) {
   SketchEntry *new_end =
       thrust::unique(thrust::device, entries.data(),
                      entries.data() + entries.size(), SketchUnique{});
-  entries = entries.subspan(0, std::distance(entries.data(), new_end)) ;
+  entries = entries.subspan(0, std::distance(entries.data(), new_end));
 
-  Merge(this->Data(), entries, &out);
+  MergeImpl(this->Data(), entries, &out);
   this->data_ = std::move(out);
   this->Prune(this->limit_size_);
 }
@@ -337,10 +340,11 @@ void DeviceQuantile::SetMerge(std::vector<Span<SketchEntry const>> const& others
                                 this->data_.size() * sizeof(SketchEntry),
                                 cudaMemcpyDeviceToDevice));
   dh::caching_device_vector<SketchEntry> buffer;
+  // We don't have k way merging, so iterate it through.
   for (size_t i = 1; i < others.size(); ++i) {
     auto x = dh::ToSpan(this->data_);
     auto const y = others[i];
-    Merge(x, y, &buffer);
+    MergeImpl(x, y, &buffer);
     this->data_.resize(buffer.size());
     dh::safe_cuda(cudaMemcpyAsync(this->data_.data().get(), buffer.data().get(),
                                   buffer.size() * sizeof(SketchEntry),
@@ -350,7 +354,6 @@ void DeviceQuantile::SetMerge(std::vector<Span<SketchEntry const>> const& others
 
 void DeviceQuantile::MakeFromOthers(std::vector<DeviceQuantile> const& others) {
   std::vector<Span<SketchEntry const>> spans(others.size());
-  // We don't have k way merging, so iterate it through.
   for (size_t i = 0; i < others.size(); ++i) {
     spans[i] = Span<SketchEntry const>(others[i].data_.data().get(),
                                        others[i].data_.size());
