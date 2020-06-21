@@ -415,7 +415,6 @@ void DeviceQuantile::MakeCuts(size_t max_rows, int max_bin, HistogramCuts* cuts)
 
 void DeviceQuantile::MakeFromSorted(Span<SketchEntry> entries, int32_t device) {
   this->device_ = device;
-  this->comm_.Init(device_);
   auto data = entries.data();
   SketchEntry *new_end =
       thrust::unique(thrust::device, data, data + entries.size(), SketchUnique{});
@@ -445,7 +444,6 @@ void DeviceQuantile::SetMerge(std::vector<Span<SketchEntry const>> const& others
 }
 
 void DeviceQuantile::MakeFromOthers(std::vector<DeviceQuantile> const& others) {
-  this->comm_.Init(device_);
   std::vector<Span<SketchEntry const>> spans(others.size());
   // We don't have k way merging, so iterate it through.
   for (size_t i = 0; i < others.size(); ++i) {
@@ -460,9 +458,13 @@ void DeviceQuantile::AllReduce() {
   if (world == 1) {
     return;
   }
+  if (!comm_) {
+    comm_ = std::make_unique<dh::AllReducer>();
+    comm_->Init(device_);
+  }
 
   dh::caching_device_vector<char> recvbuf;
-  comm_.AllGather(data_.data().get(), data_.size() * sizeof(SketchEntry), &recvbuf);
+  comm_->AllGather(data_.data().get(), data_.size() * sizeof(SketchEntry), &recvbuf);
   auto s_recvbuf = dh::ToSpan(recvbuf);
   std::vector<Span<SketchEntry const>> allworkers;
   auto length_as_bytes = data_.size() * sizeof(SketchEntry);

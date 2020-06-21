@@ -37,9 +37,9 @@ struct SketchContainer {
   SketchContainer(int max_bin, size_t num_columns, size_t num_rows, int32_t device = 0) :
       num_rows_{num_rows}, num_bins_{max_bin} {
     // Initialize Sketches for this dmatrix
-    sketches_.resize(
-        num_columns,
-        DeviceQuantile(num_rows, 1.0 / (WQSketch::kFactor * max_bin),  device));
+    for (size_t i = 0; i < num_columns; ++i) {
+      sketches_.emplace_back(num_rows, 1.0 / (WQSketch::kFactor * max_bin),  device);
+    }
   }
 
   /**

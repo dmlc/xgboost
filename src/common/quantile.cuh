@@ -1,7 +1,9 @@
 #ifndef XGBOOST_COMMON_QUANTILE_CUH_
 #define XGBOOST_COMMON_QUANTILE_CUH_
 
-#include <xgboost/span.h>
+#include <memory>
+
+#include "xgboost/span.h"
 #include "device_helpers.cuh"
 #include "quantile.h"
 
@@ -15,7 +17,7 @@ class DeviceQuantile {
 
  private:
   dh::caching_device_vector<SketchEntry> data_;
-  dh::AllReducer comm_;
+  std::unique_ptr<dh::AllReducer> comm_;
   int32_t device_;
   size_t limit_size_;
 
@@ -25,6 +27,9 @@ class DeviceQuantile {
   DeviceQuantile(size_t maxn, double eps, int32_t device) : device_{device} {
     size_t level;
     WQuantileSketch<float, float>::LimitSizeLevel(maxn, eps, &limit_size_, &level);
+    std::cout << "maxn: " << maxn << ", "
+              << "limit_size_: " << limit_size_ << ", "
+              << "level: " << level << std::endl;
     limit_size_ *= level;
   }
 
