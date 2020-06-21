@@ -64,11 +64,7 @@ struct SketchContainer {
     }
   }
 
-  void MakeCuts(HistogramCuts* cuts) {
-    for (auto& sketch : sketches_) {
-      sketch.MakeCuts(num_rows_, num_bins_, cuts);
-    }
-  }
+  void MakeCuts(HistogramCuts* cuts);
 
   // Prevent copying/assigning/moving this as its internals can't be
   // assigned/copied/moved

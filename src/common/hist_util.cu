@@ -262,5 +262,45 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
   sketch_container.MakeCuts(&cuts);
   return cuts;
 }
+
+void AddCutPoint(std::vector<SketchEntry> const &summary, int max_bin,
+                 HistogramCuts *p_cuts_) {
+  size_t required_cuts = std::min(summary.size(), static_cast<size_t>(max_bin));
+  for (size_t i = 1; i < required_cuts; ++i) {
+    bst_float cpt = summary[i].value;
+    if (i == 1 || cpt > p_cuts_->cut_values_.ConstHostVector().back()) {
+      p_cuts_->cut_values_.HostVector().push_back(cpt);
+    }
+  }
+}
+
+void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
+  p_cuts->min_vals_.HostVector().resize(sketches_.size());
+
+  for (size_t fid = 0; fid < sketches_.size(); ++fid) {
+    sketches_[fid].Prune(num_bins_ + 1);
+    std::vector<SketchEntry> entries(sketches_[fid].Data().size());
+    dh::safe_cuda(
+        cudaMemcpyAsync(entries.data(), sketches_[fid].Data().data(),
+                        sketches_[fid].Data().size() * sizeof(SketchEntry),
+                        cudaMemcpyDeviceToHost));
+    const bst_float mval = entries[0].value;
+    p_cuts->min_vals_.HostVector()[fid] = mval - (fabs(mval) + 1e-5);
+    AddCutPoint(entries, num_bins_, p_cuts);
+    // push a value that is greater than anything
+    const bst_float cpt
+        = (entries.size() > 0) ? entries.back().value : p_cuts->min_vals_.HostVector()[fid];
+    // this must be bigger than last value in a scale
+    const bst_float last = cpt + (fabs(cpt) + 1e-5);
+    p_cuts->cut_values_.HostVector().push_back(last);
+
+    // Ensure that every feature gets at least one quantile point
+    CHECK_LE(p_cuts->cut_values_.HostVector().size(), std::numeric_limits<uint32_t>::max());
+    auto cut_size = static_cast<uint32_t>(p_cuts->cut_values_.HostVector().size());
+    CHECK_GT(cut_size, p_cuts->cut_ptrs_.HostVector().back());
+    p_cuts->cut_ptrs_.HostVector().push_back(cut_size);
+  }
+}
+
 }  // namespace common
 }  // namespace xgboost

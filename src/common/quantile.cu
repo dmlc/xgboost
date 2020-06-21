@@ -396,21 +396,21 @@ void DeviceQuantile::MakeCuts(size_t max_rows, int max_bin, HistogramCuts* cuts)
   cuts->cut_values_.SetDevice(this->device_);
   size_t ori_size = cuts->cut_values_.Size();
   cuts->cut_values_.Resize(ori_size + required_cuts);
-  auto d_cut_values = cuts->cut_values_.DeviceSpan();
+  auto cut_values = cuts->cut_values_.HostVector();
   auto data = this->Data();
 
   cuts->min_vals_.SetDevice(this->device_);
   cuts->min_vals_.Resize(cuts->min_vals_.Size() + 1);
   auto d_min_vals = cuts->min_vals_.DeviceSpan();
-  dh::LaunchN(0, required_cuts, [=] __device__(size_t idx) {
-    if (idx == 0) {  // FIXME: WRONG!!
-      d_min_vals[idx] = data[idx].value;
-      return;
-    }
-    d_cut_values[idx + ori_size] = data[idx].value;
-  });
 
-  cuts->cut_ptrs_.HostVector().emplace_back(d_cut_values.size());
+  std::vector<SketchEntry> entries(this->Data().size());
+  thrust::copy(this->data_.begin(), this->data_.end(), entries.begin());
+  for (size_t i = 1; i < required_cuts; ++i) {
+    float cpt = entries[i].value;
+    if (i == 1 || cpt > cut_values.back()) {
+      cut_values.push_back(cpt);
+    }
+  }
 }
 
 void DeviceQuantile::MakeFromSorted(Span<SketchEntry> entries, int32_t device) {

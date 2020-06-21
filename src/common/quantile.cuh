@@ -27,9 +27,6 @@ class DeviceQuantile {
   DeviceQuantile(size_t maxn, double eps, int32_t device) : device_{device} {
     size_t level;
     WQuantileSketch<float, float>::LimitSizeLevel(maxn, eps, &limit_size_, &level);
-    std::cout << "maxn: " << maxn << ", "
-              << "limit_size_: " << limit_size_ << ", "
-              << "level: " << level << std::endl;
     limit_size_ *= level;
   }
 
