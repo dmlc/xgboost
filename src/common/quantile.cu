@@ -280,6 +280,7 @@ void WQSummary<DType, RType>::DeviceSetCombined(WQSummary const& a, WQSummary co
 template class WQSummary<float, float>;
 
 void DeviceQuantile::PushSorted(common::Span<SketchEntry> entries) {
+  dh::safe_cuda(cudaSetDevice(device_));
   dh::caching_device_vector<SketchEntry> out;
   SketchEntry *new_end =
       thrust::unique(thrust::device, entries.data(),
@@ -291,50 +292,8 @@ void DeviceQuantile::PushSorted(common::Span<SketchEntry> entries) {
   this->Prune(this->limit_size_);
 }
 
-void DeviceQuantile::MakeCuts(size_t max_rows, int max_bin, HistogramCuts* cuts) {
-  constexpr int kFactor = 8;
-  size_t global_max_rows = max_rows;
-  rabit::Allreduce<rabit::op::Sum>(&global_max_rows, 1);
-  size_t intermediate_num_cuts =
-      std::min(global_max_rows, static_cast<size_t>(max_bin * kFactor));
-  this->Prune(intermediate_num_cuts);
-  this->AllReduce();
-
-  size_t required_cuts = std::min(this->Data().size(), static_cast<size_t>(max_bin));
-  cuts->cut_values_.SetDevice(this->device_);
-  size_t ori_size = cuts->cut_values_.Size();
-  cuts->cut_values_.Resize(ori_size + required_cuts);
-  auto cut_values = cuts->cut_values_.HostVector();
-  auto data = this->Data();
-
-  cuts->min_vals_.SetDevice(this->device_);
-  cuts->min_vals_.Resize(cuts->min_vals_.Size() + 1);
-  auto d_min_vals = cuts->min_vals_.DeviceSpan();
-
-  std::vector<SketchEntry> entries(this->Data().size());
-  thrust::copy(this->data_.begin(), this->data_.end(), entries.begin());
-  for (size_t i = 1; i < required_cuts; ++i) {
-    float cpt = entries[i].value;
-    if (i == 1 || cpt > cut_values.back()) {
-      cut_values.push_back(cpt);
-    }
-  }
-}
-
-void DeviceQuantile::MakeFromSorted(Span<SketchEntry> entries, int32_t device) {
-  this->device_ = device;
-  auto data = entries.data();
-  SketchEntry *new_end =
-      thrust::unique(thrust::device, data, data + entries.size(), SketchUnique{});
-  static_assert(std::is_trivially_copy_constructible<SketchEntry>::value, "");
-  static_assert(std::is_standard_layout<SketchEntry>::value, "");
-  data_.resize(std::distance(data, new_end));
-  dh::safe_cuda(cudaMemcpyAsync(
-      data_.data().get(), entries.data(), sizeof(SketchEntry) * std::distance(data, new_end),
-      cudaMemcpyDeviceToDevice));
-}
-
 void DeviceQuantile::SetMerge(std::vector<Span<SketchEntry const>> const& others) {
+  dh::safe_cuda(cudaSetDevice(device_));
   auto x = others.front();
   dh::safe_cuda(cudaMemcpyAsync(this->data_.data().get(), x.data(),
                                 this->data_.size() * sizeof(SketchEntry),
@@ -353,6 +312,7 @@ void DeviceQuantile::SetMerge(std::vector<Span<SketchEntry const>> const& others
 }
 
 void DeviceQuantile::MakeFromOthers(std::vector<DeviceQuantile> const& others) {
+  dh::safe_cuda(cudaSetDevice(device_));
   std::vector<Span<SketchEntry const>> spans(others.size());
   for (size_t i = 0; i < others.size(); ++i) {
     spans[i] = Span<SketchEntry const>(others[i].data_.data().get(),
@@ -362,6 +322,7 @@ void DeviceQuantile::MakeFromOthers(std::vector<DeviceQuantile> const& others) {
 }
 
 void DeviceQuantile::AllReduce() {
+  dh::safe_cuda(cudaSetDevice(device_));
   size_t world = rabit::GetWorldSize();
   if (world == 1) {
     return;
