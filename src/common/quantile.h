@@ -193,7 +193,6 @@ struct WQSummary {
     }
   }
 
-  void SetPruneDevice(const WQSummary &src, size_t maxsize);
   /*!
    * \brief set current summary to be pruned summary of src
    *        assume data field is already allocated to be at least maxsize
@@ -201,8 +200,6 @@ struct WQSummary {
    * \param maxsize size we can afford in the pruned sketch
    */
   void SetPrune(const WQSummary &src, size_t maxsize) {
-    this->SetPruneDevice(src, maxsize);
-    return;
     if (src.size <= maxsize) {
       this->CopyFrom(src); return;
     }
@@ -234,15 +231,12 @@ struct WQSummary {
     }
   }
 
-  void DeviceSetCombined(WQSummary const& a, WQSummary const& b);
   /*!
    * \brief set current summary to be merged summary of sa and sb
    * \param sa first input summary to be merged
    * \param sb second input summary to be merged
    */
   void SetCombine(const WQSummary &sa, const WQSummary &sb) {
-    // this->DeviceSetCombined(sa, sb);
-    // return;
     if (sa.size == 0) {
       this->CopyFrom(sb);
       return;

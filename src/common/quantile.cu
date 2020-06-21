@@ -85,7 +85,7 @@ void PruneImpl(size_t to, common::Span<SketchEntry> entries,
     auto q = ((tid * w) / (to - 1) + entries.front().rmax);
     d_out[tid] = BinarySearchQuery(entries, q);
   });
-  dh::LaunchN(0, 1, stream, [=]__device__(size_t tid) {
+  dh::LaunchN(0, 1, stream, [=]__device__(size_t) {
       d_out.front() = entries.front();
       d_out.back() = entries.back();
   });
@@ -101,29 +101,12 @@ void DeviceQuantile::Prune(size_t to) {
   monitor.Stop(__func__);
 }
 
-template<typename DType, typename RType>
-void WQSummary<DType, RType>::SetPruneDevice(const WQSummary &src, size_t maxsize) {
-  if (src.size <= maxsize) {
-    this->CopyFrom(src); return;
-  }
-  dh::caching_device_vector<SketchEntry> in(src.size);
-  dh::safe_cuda(cudaMemcpyAsync(in.data().get(), src.data,
-                                sizeof(SketchEntry) * src.size,
-                                cudaMemcpyHostToDevice));
-  dh::caching_device_vector<SketchEntry> out(maxsize);
-  PruneImpl(maxsize, dh::ToSpan(in), &out);
-  this->size = out.size();
-  dh::safe_cuda(cudaMemcpyAsync(this->data, out.data().get(),
-                                sizeof(SketchEntry) * out.size(),
-                                cudaMemcpyDeviceToHost));
-}
-
 void CopyTo(dh::caching_device_vector<SketchEntry> *out,
             Span<SketchEntry const> src) {
   out->resize(src.size());
   dh::safe_cuda(cudaMemcpyAsync(out->data().get(), src.data(),
                                 out->size() * sizeof(SketchEntry),
-                                cudaMemcpyHostToDevice));
+                                cudaMemcpyDefault));
 }
 
 // Merge d_x and d_y into out.  Because the final output depends on predicate (which
@@ -252,40 +235,6 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
     }
   });
 }
-
-template<typename DType, typename RType>
-void WQSummary<DType, RType>::DeviceSetCombined(WQSummary const& a, WQSummary const& b) {
-  dh::caching_device_vector<SketchEntry> out(a.size + b.size);
-  dh::safe_cuda(cudaMemcpyAsync(out.data().get(), this->data,
-                                out.size() * sizeof(SketchEntry),
-                                cudaMemcpyHostToDevice));
-  auto cpu_data_ptr = this->data;
-  this->data = out.data().get();
-
-  dh::caching_device_vector<SketchEntry> a_data(a.size);
-  WQSketch::Summary sa(a_data.data().get(), a.size);
-  dh::safe_cuda(cudaMemcpyAsync(a_data.data().get(), a.data,
-                                a.size * sizeof(SketchEntry),
-                                cudaMemcpyHostToDevice));
-
-  dh::caching_device_vector<SketchEntry> b_data(b.size);
-  WQSketch::Summary sb(b_data.data().get(), b.size);
-  dh::safe_cuda(cudaMemcpyAsync(b_data.data().get(), b.data,
-                                b.size * sizeof(SketchEntry),
-                                cudaMemcpyHostToDevice));
-
-  auto d_x = Span<SketchEntry>{sa.data, sa.size};
-  auto d_y = Span<SketchEntry>{sb.data, sb.size};
-  MergeImpl(d_x, d_y, &out);
-
-  this->data = cpu_data_ptr;
-  this->size = out.size();
-  dh::safe_cuda(cudaMemcpyAsync(this->data, out.data().get(),
-                                out.size() * sizeof(SketchEntry),
-                                cudaMemcpyDeviceToHost));
-}
-
-template class WQSummary<float, float>;
 
 void DeviceQuantile::PushSorted(common::Span<SketchEntry> entries) {
   monitor.Start(__func__);
