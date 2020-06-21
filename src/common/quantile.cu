@@ -51,19 +51,24 @@ struct SketchUnique {
 };
 }  // anonymous namespace
 
-void PruneImpl(size_t to, common::Span<SketchEntry> entries, dh::caching_device_vector<SketchEntry>* p_out) {
+void PruneImpl(size_t to, common::Span<SketchEntry> entries,
+               dh::caching_device_vector<SketchEntry> *p_out,
+               cudaStream_t stream = nullptr) {
+  dh::XGBCachingDeviceAllocator<SketchEntry> alloc;
+
   auto& out = *p_out;
-  // Filter out duplicated values.
+  // Filter out duplicated values.  The unique call here really hurts performance when
+  // number of columns is large.
   size_t unique_inputs = std::distance(
       entries.data(),
-      thrust::unique(thrust::device, entries.data(),
+      thrust::unique(thrust::cuda::par(alloc).on(stream), entries.data(),
                      entries.data() + entries.size(), SketchUnique{}));
   CHECK_GE(to, 2);
   if (unique_inputs <= to) {
     p_out->resize(unique_inputs);
     dh::safe_cuda(cudaMemcpyAsync(p_out->data().get(), entries.data(),
                                   sizeof(SketchEntry) * unique_inputs,
-                                  cudaMemcpyDeviceToHost));
+                                  cudaMemcpyDeviceToDevice, stream));
     return;
   }
   entries = entries.subspan(0, unique_inputs);
@@ -71,7 +76,7 @@ void PruneImpl(size_t to, common::Span<SketchEntry> entries, dh::caching_device_
   out.resize(to);
   auto d_out = dh::ToSpan(out);
   // 1 thread for each output.  See A.4 for detail.
-  dh::LaunchN(0, to - 2, [=] __device__(size_t tid) {
+  dh::LaunchN(0, to - 2, stream, [=] __device__(size_t tid) {
     tid += 1;
     float w = entries.back().rmin - entries.front().rmax;
     auto budget = static_cast<float>(d_out.size());
@@ -80,20 +85,19 @@ void PruneImpl(size_t to, common::Span<SketchEntry> entries, dh::caching_device_
     auto q = ((tid * w) / (to - 1) + entries.front().rmax);
     d_out[tid] = BinarySearchQuery(entries, q);
   });
-  dh::LaunchN(0, 1, [=]__device__(size_t tid) {
+  dh::LaunchN(0, 1, stream, [=]__device__(size_t tid) {
       d_out.front() = entries.front();
       d_out.back() = entries.back();
   });
-  auto unique_end = thrust::unique(thrust::device, out.begin(), out.end(), SketchUnique{});
-  size_t n_uniques = std::distance(out.begin(), unique_end);
-  out.resize(n_uniques);
 }
 
 void DeviceQuantile::Prune(size_t to) {
   monitor.Start(__func__);
-  dh::caching_device_vector<SketchEntry> out;
-  PruneImpl(to, dh::ToSpan(this->data_), &out);
-  this->data_ = std::move(out);
+  if (to > this->Current().size()) {
+    return;
+  }
+  PruneImpl(to, dh::ToSpan(this->Current()), &(this->Other()), stream_);
+  this->Alternate();
   monitor.Stop(__func__);
 }
 
@@ -127,7 +131,7 @@ void CopyTo(dh::caching_device_vector<SketchEntry> *out,
 // run it in 2 phrases to obtain the merge path and then customize the standard merge
 // algorithm.
 void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
-               dh::caching_device_vector<SketchEntry> *out) {
+               dh::caching_device_vector<SketchEntry> *out, cudaStream_t stream = nullptr) {
   if (d_x.size() == 0) {
     CopyTo(out, d_y);
     return;
@@ -160,7 +164,8 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
 
   dh::caching_device_vector<Tuple> merge_path(out->size());
   // Determine the merge path
-  thrust::merge_by_key(thrust::device, a_key_it, a_key_it + d_x.size(), b_key_it,
+  thrust::merge_by_key(thrust::cuda::par.on(stream),
+                       a_key_it, a_key_it + d_x.size(), b_key_it,
                        b_key_it + d_y.size(), x_val_it, y_val_it,
                        thrust::make_discard_iterator(), merge_path.begin());
   // Compute the index for both a and b (which of the element in a and b are used in each
@@ -285,14 +290,13 @@ template class WQSummary<float, float>;
 void DeviceQuantile::PushSorted(common::Span<SketchEntry> entries) {
   monitor.Start(__func__);
   dh::safe_cuda(cudaSetDevice(device_));
-  dh::caching_device_vector<SketchEntry> out;
   SketchEntry *new_end =
       thrust::unique(thrust::device, entries.data(),
                      entries.data() + entries.size(), SketchUnique{});
   entries = entries.subspan(0, std::distance(entries.data(), new_end));
 
-  MergeImpl(this->Data(), entries, &out);
-  this->data_ = std::move(out);
+  MergeImpl(this->Data(), entries, &(this->Other()), stream_);
+  this->Alternate();
   this->Prune(this->limit_size_);
   monitor.Stop(__func__);
 }
@@ -305,8 +309,8 @@ void DeviceQuantile::SetMerge(std::vector<Span<SketchEntry const>> const& others
   for (size_t i = 1; i < others.size(); ++i) {
     auto const y = others[i];
     MergeImpl(x, y, &buffer);
-    std::swap(this->data_, buffer);  // move the result into data_.
-    x = dh::ToSpan(this->data_);     // update x to the latest sketch.
+    std::swap(this->Current(), buffer);  // move the result into data_.
+    x = dh::ToSpan(this->Current());     // update x to the latest sketch.
   }
 }
 
@@ -314,8 +318,8 @@ void DeviceQuantile::MakeFromOthers(std::vector<DeviceQuantile> const& others) {
   dh::safe_cuda(cudaSetDevice(device_));
   std::vector<Span<SketchEntry const>> spans(others.size());
   for (size_t i = 0; i < others.size(); ++i) {
-    spans[i] = Span<SketchEntry const>(others[i].data_.data().get(),
-                                       others[i].data_.size());
+    spans[i] = Span<SketchEntry const>(others[i].Current().data().get(),
+                                       others[i].Current().size());
   }
   this->SetMerge(spans);
 }
@@ -332,14 +336,16 @@ void DeviceQuantile::AllReduce() {
   }
 
   dh::caching_device_vector<char> recvbuf;
-  comm_->AllGather(data_.data().get(), data_.size() * sizeof(SketchEntry), &recvbuf);
+  comm_->AllGather(this->Current().data().get(),
+                   this->Current().size() * sizeof(SketchEntry), &recvbuf);
   auto s_recvbuf = dh::ToSpan(recvbuf);
   std::vector<Span<SketchEntry const>> allworkers;
-  auto length_as_bytes = data_.size() * sizeof(SketchEntry);
+  auto length_as_bytes = this->Current().size() * sizeof(SketchEntry);
 
   for (size_t i = 0; i < world; ++i) {
     auto raw = s_recvbuf.subspan(i * length_as_bytes, length_as_bytes);
-    auto sketch = Span<SketchEntry>(reinterpret_cast<SketchEntry*>(raw.data()), data_.size());
+    auto sketch = Span<SketchEntry>(reinterpret_cast<SketchEntry *>(raw.data()),
+                                    this->Current().size());
     allworkers.emplace_back(sketch);
   }
   this->SetMerge(allworkers);

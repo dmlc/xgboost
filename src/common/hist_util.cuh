@@ -27,6 +27,7 @@ using SketchEntry = WQSketch::Entry;
  */
 struct SketchContainer {
   std::vector<DeviceQuantile> sketches_;  // NOLINT
+  std::vector<cudaStream_t> streams_;
   static constexpr int kOmpNumColsParallelizeLimit = 1000;
   static constexpr float kFactor = 8;
   Monitor timer;
@@ -39,10 +40,17 @@ struct SketchContainer {
   SketchContainer(int max_bin, size_t num_columns, size_t num_rows, int32_t device = 0) :
       num_rows_{num_rows}, num_bins_{max_bin} {
     // Initialize Sketches for this dmatrix
+    streams_.resize(num_columns);
     for (size_t i = 0; i < num_columns; ++i) {
-      sketches_.emplace_back(num_rows, 1.0 / (WQSketch::kFactor * max_bin),  device);
+      dh::safe_cuda(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
+      sketches_.emplace_back(num_rows, 1.0 / (WQSketch::kFactor * max_bin), device, streams_[i]);
     }
     timer.Init(__func__);
+  }
+  ~SketchContainer() {
+    for (auto stream : streams_) {
+      dh::safe_cuda(cudaStreamDestroy(stream));
+    }
   }
 
   /**
