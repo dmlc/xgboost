@@ -175,6 +175,7 @@ void SparseCuts::SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
                                      max_num_bins);
     if (n_bins == 0) {
       // cut_ptrs_ is initialized with a zero, so there's always an element at the back
+      CHECK_GE(local_ptrs.size(), 1);
       local_ptrs.emplace_back(local_ptrs.back());
       continue;
     }
