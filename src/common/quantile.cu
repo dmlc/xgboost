@@ -19,6 +19,7 @@ namespace common {
 using WQSketch = DenseCuts::WQSketch;
 using SketchEntry = WQSketch::Entry;
 
+// Algorithm 4 in XGBoost's paper, using binary search to find i.
 __device__ SketchEntry BinarySearchQuery(Span<SketchEntry const> entries, float rank) {
   assert(entries.size() >= 2);
   rank *= 2;
@@ -65,6 +66,7 @@ void PruneImpl(size_t to, common::Span<SketchEntry> entries, dh::caching_device_
   entries = entries.subspan(0, unique_inputs);
   out.resize(to);
   auto d_out = dh::ToSpan(out);
+  // 1 thread for each output.  See A.4 for detail.
   dh::LaunchN(0, to - 2, [=] __device__(size_t tid) {
     tid += 1;
     float w = entries.back().rmin - entries.front().rmax;
@@ -118,6 +120,7 @@ void WQSummary<DType, RType>::SetPruneDevice(const WQSummary &src, size_t maxsiz
     assert(w != 0);
     assert(budget != 0);
     auto q = ((tid * w) / (maxsize - 1) + entries.front().rmax);
+    // 1 query for each of the output.
     d_out[tid] = BinarySearchQuery(entries, q);
   });
   dh::LaunchN(0, 1, [=]__device__(size_t tid) {
@@ -140,6 +143,10 @@ void CopyTo(dh::caching_device_vector<SketchEntry> *out,
                                 cudaMemcpyHostToDevice));
 }
 
+// Merge d_x and d_y into out.  Because the final output depends on predicate (which
+// summary does the output element come from) result by definition of merged rank.  So we
+// run it in 2 phrases to obtain the merge path and then customize the standard merge
+// algorithm.
 void Merge(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
            dh::caching_device_vector<SketchEntry> *out) {
   if (d_x.size() == 0) {
@@ -177,7 +184,13 @@ void Merge(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
   thrust::merge_by_key(thrust::device, a_key_it, a_key_it + d_x.size(), b_key_it,
                        b_key_it + d_y.size(), x_val_it, y_val_it,
                        thrust::make_discard_iterator(), merge_path.begin());
-  // Compute the index for both a and b
+  // Compute the index for both a and b (which of the element in a and b are used in each
+  // comparison).  Take output [(a_0, b_0), (a_0, b_1), ...] as an example, the comparison
+  // between (a_0, b_0) adds 1 step in the merge path.  Because b_0 is less than a_0 so
+  // this step is torward the end of b.  After the comparison, index of b is incremented
+  // by 1 from b_0 to b_1, and at the same time, b_0 is landed into output as the first
+  // element in merge result.  Here we use the merge path to compute index for both a and
+  // b along the merge path.  The output of this scan is a path showing each comparison.
   thrust::transform_exclusive_scan(
       thrust::device, merge_path.cbegin(), merge_path.cend(),
       merge_path.begin(),
@@ -200,6 +213,7 @@ void Merge(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
     // Handle trailing elements.
     assert(a_ind <= d_x.size());
     if (a_ind == d_x.size()){
+      // Trailing elements are from y because there's no more x to land.
       auto y_elem = d_y[b_ind];
       d_out[idx] = SketchEntry(y_elem.rmin + d_x.back().RMinNext(),
                                y_elem.rmax + d_x.back().rmax,
@@ -216,20 +230,37 @@ void Merge(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
     }
     auto y_elem = d_y[b_ind];
 
-    // Merge procedure.
+    /* Merge procedure.  See A.3 merge operation eq (26) ~ (28).  The trick to interpret
+       it is rewriting the symbols on both side of equality.  Take eq (26) as an example:
+       Expand it according to definition of extended rank then rewrite it into:
+
+       If $k_i$ is the $i$ element in output and \textbf{comes from $D_1$}:
+
+         r_\bar{D}(k_i) = r_{\bar{D_1}}(k_i) + w_{\bar{{D_1}}}(k_i) +
+                                          [r_{\bar{D_2}}(x_i) + w_{\bar{D_2}}(x_i)]
+
+         Where $x_i$ is the largest element in $D_2$ that's less than $k_i$.  $k_i$ can be
+         used in $D_1$ as it's since $k_i \in D_1$.  Other 2 equations can be applied
+         similarly with $k_i$ comes from different $D$.  just use different symbol on
+         different summary.
+    */
     assert(idx < d_out.size());
     if (x_elem.value == y_elem.value) {
       d_out[idx] =
           SketchEntry{x_elem.rmin + y_elem.rmin, x_elem.rmax + y_elem.rmax,
                       x_elem.wmin + y_elem.wmin, x_elem.value};
     } else if (x_elem.value < y_elem.value) {
-      // elem from x is landed
+      // elem from x is landed. yprev_min is the element in D_2 that's 1 rank less than
+      // x_elem.
       float yprev_min = b_ind == 0 ? 0.0f : d_y[b_ind - 1].RMinNext();
+      // rmin should equal to x_elem.rmin + x_elem.wmin.  But for implementation, the
+      // weight is stored in a separated field and compute the extend definition on the
+      // fly when needed.
       d_out[idx] =
           SketchEntry{x_elem.rmin + yprev_min, x_elem.rmax + y_elem.RMaxPrev(),
                       x_elem.wmin, x_elem.value};
     } else {
-      // elem from y is landed
+      // elem from y is landed.
       float xprev_min = a_ind == 0 ? 0.0f : d_x[a_ind - 1].RMinNext();
       d_out[idx] =
           SketchEntry{xprev_min + y_elem.rmin, x_elem.RMaxPrev() + y_elem.rmax,
