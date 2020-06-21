@@ -347,7 +347,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             Set names for features.
         feature_types : list, optional
             Set types for features.
-        nthread : integer, optional
+        nthread : integer, optional, default: 1
             Number of threads to use for loading data when parallelization is
             applicable. If -1, uses maximum threads available on the system.
 
