@@ -145,9 +145,10 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
   auto get_a =   []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<0>(t); };
   auto get_b =   []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<1>(t); };
 
+  dh::XGBCachingDeviceAllocator<Tuple> alloc;
   dh::caching_device_vector<Tuple> merge_path(out->size());
   // Determine the merge path
-  thrust::merge_by_key(thrust::cuda::par.on(stream),
+  thrust::merge_by_key(thrust::cuda::par(alloc).on(stream),
                        a_key_it, a_key_it + d_x.size(), b_key_it,
                        b_key_it + d_y.size(), x_val_it, y_val_it,
                        thrust::make_discard_iterator(), merge_path.begin());
@@ -159,7 +160,7 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
   // is landed into output as the first element in merge result.  The scan result is the
   // subscript of a and b.
   thrust::transform_exclusive_scan(
-      thrust::device, merge_path.cbegin(), merge_path.cend(),
+      thrust::cuda::par(alloc).on(stream), merge_path.cbegin(), merge_path.cend(),
       merge_path.begin(),
       [=] __device__(Tuple const &t) {
         auto ind = get_ind(t);  // == 0 if element is from a
@@ -174,7 +175,7 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
   auto d_merge_path = dh::ToSpan(merge_path);
   auto d_out = Span<SketchEntry>{out->data().get(), d_x.size() + d_y.size()};
 
-  dh::LaunchN(0, d_out.size(), [=] __device__(size_t idx) {
+  dh::LaunchN(0, d_out.size(), stream, [=] __device__(size_t idx) {
     int32_t a_ind, b_ind;
     thrust::tie(a_ind, b_ind) = d_merge_path[idx];
     // Handle trailing elements.
