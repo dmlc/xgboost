@@ -242,8 +242,8 @@ struct WQSummary {
    * \param sb second input summary to be merged
    */
   void SetCombine(const WQSummary &sa, const WQSummary &sb) {
-    // this->DeviceSetCombined(sa, sb);
-    // return;
+    this->DeviceSetCombined(sa, sb);
+    return;
 
     if (sa.size == 0) {
       this->CopyFrom(sb);

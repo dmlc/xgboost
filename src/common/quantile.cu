@@ -100,39 +100,11 @@ void WQSummary<DType, RType>::SetPruneDevice(const WQSummary &src, size_t maxsiz
   dh::safe_cuda(cudaMemcpyAsync(in.data().get(), src.data,
                                 sizeof(SketchEntry) * src.size,
                                 cudaMemcpyHostToDevice));
-  // Filter out duplicated values.
-  size_t unique_inputs =
-      std::distance(in.begin(), thrust::unique(thrust::device, in.begin(),
-                                               in.end(), SketchUnique{}));
-  if (unique_inputs <= maxsize) {
-    dh::safe_cuda(cudaMemcpyAsync(this->data, in.data().get(),
-                                  sizeof(SketchEntry) * unique_inputs,
-                                  cudaMemcpyDeviceToHost));
-    this->size = unique_inputs;
-  }
-  auto entries = common::Span<SketchEntry>{in.data().get(),
-                                           in.data().get() + unique_inputs};
   dh::caching_device_vector<SketchEntry> out(maxsize);
-  auto d_out = dh::ToSpan(out);
-  dh::LaunchN(0, maxsize - 2, [=] __device__(size_t tid) {
-    tid += 1;
-    float w = entries.back().rmin - entries.front().rmax;
-    auto budget = static_cast<float>(d_out.size());
-    assert(w != 0);
-    assert(budget != 0);
-    auto q = ((tid * w) / (maxsize - 1) + entries.front().rmax);
-    // 1 query for each of the output.
-    d_out[tid] = BinarySearchQuery(entries, q);
-  });
-  dh::LaunchN(0, 1, [=]__device__(size_t tid) {
-      d_out.front() = entries.front();
-      d_out.back() = entries.back();
-  });
-  auto unique_end = thrust::unique(thrust::device, out.begin(), out.end(), SketchUnique{});
-  size_t n_uniques = std::distance(out.begin(), unique_end);
-  this->size = n_uniques;
+  PruneImpl(maxsize, dh::ToSpan(in), &out);
+  this->size = out.size();
   dh::safe_cuda(cudaMemcpyAsync(this->data, out.data().get(),
-                                sizeof(SketchEntry) * n_uniques,
+                                sizeof(SketchEntry) * out.size(),
                                 cudaMemcpyDeviceToHost));
 }
 
