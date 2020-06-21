@@ -201,14 +201,9 @@ Difference between saving model and dumping model
 XGBoost has a function called ``dump_model`` in Booster object, which lets you to export
 the model in a readable format like ``text``, ``json`` or ``dot`` (graphviz).  The primary
 use case for it is for model interpretation or visualization, and is not supposed to be
-loaded back to XGBoost.
-
-************
-Future Plans
-************
-
-Right now using the JSON format incurs longer serialisation time, we have been working on
-optimizing the JSON implementation to close the gap between binary format and JSON format.
+loaded back to XGBoost.  The JSON version has a `schema
+<https://github.com/dmlc/xgboost/blob/master/doc/dump.schema>`_.  See next section for
+more info.
 
 ***********
 JSON Schema
@@ -224,3 +219,10 @@ leaf directly, instead it saves the weights as a separated array.
 
 .. include:: ../model.schema
    :code: json
+
+************
+Future Plans
+************
+
+Right now using the JSON format incurs longer serialisation time, we have been working on
+optimizing the JSON implementation to close the gap between binary format and JSON format.
