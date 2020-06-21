@@ -371,25 +371,6 @@ void WQSummary<DType, RType>::SetCombine(const WQSummary &sa, const WQSummary &s
 
 template class WQSummary<float, float>;
 
-void ConstructCutMatrix(DeviceQuantile const& summary, int max_bin, HistogramCuts* cuts) {
-  size_t required_cuts = std::min(summary.Data().size(), static_cast<size_t>(max_bin));
-  size_t ori_size = cuts->cut_values_.Size();
-  cuts->cut_values_.Resize(ori_size + required_cuts);
-  auto d_cut_values = cuts->cut_values_.DeviceSpan();
-  auto data = summary.Data();
-
-  auto d_min_vals = cuts->min_vals_.DeviceSpan();
-  dh::LaunchN(0, required_cuts, [=] __device__(size_t idx) {
-    if (idx == 0) {
-      d_min_vals[idx] = data[idx].value;
-      return;
-    }
-    d_cut_values[idx + ori_size] = data[idx].value;
-  });
-
-  cuts->cut_ptrs_.HostVector().emplace_back(d_cut_values.size());
-}
-
 void DeviceQuantile::PushSorted(common::Span<SketchEntry> entries) {
   dh::caching_device_vector<SketchEntry> out;
   SketchEntry *new_end =
@@ -399,7 +380,7 @@ void DeviceQuantile::PushSorted(common::Span<SketchEntry> entries) {
 
   Merge(this->Data(), entries, &out);
   this->data_ = std::move(out);
-  this->Prune(this->window_);
+  this->Prune(this->limit_size_);
 }
 
 void DeviceQuantile::MakeCuts(size_t max_rows, int max_bin, HistogramCuts* cuts) {
@@ -410,7 +391,26 @@ void DeviceQuantile::MakeCuts(size_t max_rows, int max_bin, HistogramCuts* cuts)
       std::min(global_max_rows, static_cast<size_t>(max_bin * kFactor));
   this->Prune(intermediate_num_cuts);
   this->AllReduce();
-  ConstructCutMatrix(*this, max_bin, cuts);
+
+  size_t required_cuts = std::min(this->Data().size(), static_cast<size_t>(max_bin));
+  cuts->cut_values_.SetDevice(this->device_);
+  size_t ori_size = cuts->cut_values_.Size();
+  cuts->cut_values_.Resize(ori_size + required_cuts);
+  auto d_cut_values = cuts->cut_values_.DeviceSpan();
+  auto data = this->Data();
+
+  cuts->min_vals_.SetDevice(this->device_);
+  cuts->min_vals_.Resize(cuts->min_vals_.Size() + 1);
+  auto d_min_vals = cuts->min_vals_.DeviceSpan();
+  dh::LaunchN(0, required_cuts, [=] __device__(size_t idx) {
+    if (idx == 0) {  // FIXME: WRONG!!
+      d_min_vals[idx] = data[idx].value;
+      return;
+    }
+    d_cut_values[idx + ori_size] = data[idx].value;
+  });
+
+  cuts->cut_ptrs_.HostVector().emplace_back(d_cut_values.size());
 }
 
 void DeviceQuantile::MakeFromSorted(Span<SketchEntry> entries, int32_t device) {
@@ -418,10 +418,7 @@ void DeviceQuantile::MakeFromSorted(Span<SketchEntry> entries, int32_t device) {
   this->comm_.Init(device_);
   auto data = entries.data();
   SketchEntry *new_end =
-      thrust::unique(thrust::device, data, data + entries.size(),
-                     [] __device__(SketchEntry a, SketchEntry b) {
-                       return a.value == b.value;
-                     });
+      thrust::unique(thrust::device, data, data + entries.size(), SketchUnique{});
   static_assert(std::is_trivially_copy_constructible<SketchEntry>::value, "");
   static_assert(std::is_standard_layout<SketchEntry>::value, "");
   data_.resize(std::distance(data, new_end));

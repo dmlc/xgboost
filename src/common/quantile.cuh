@@ -17,12 +17,16 @@ class DeviceQuantile {
   dh::caching_device_vector<SketchEntry> data_;
   dh::AllReducer comm_;
   int32_t device_;
-  size_t window_;  // FIXME: A better name.
+  size_t limit_size_;
 
   void SetMerge(std::vector<Span<SketchEntry const>> const& others);
 
  public:
-  DeviceQuantile(size_t window_size) : window_{window_size} {}
+  DeviceQuantile(size_t maxn, double eps, int32_t device) : device_{device} {
+    size_t level;
+    WQuantileSketch<float, float>::LimitSizeLevel(maxn, eps, &limit_size_, &level);
+    limit_size_ *= level;
+  }
 
   void MakeFromSorted(Span<SketchEntry> entries, int32_t device);
   void MakeFromOthers(std::vector<DeviceQuantile> const& others);

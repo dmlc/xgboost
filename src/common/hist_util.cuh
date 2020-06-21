@@ -17,22 +17,6 @@ namespace common {
 using WQSketch = DenseCuts::WQSketch;
 using SketchEntry = WQSketch::Entry;
 
-inline void MakeFromSorted(Span<SketchEntry> entries,
-                           WQuantileSketch<bst_float, bst_float>::SummaryContainer* summary) {
-  auto data = entries.data();
-  SketchEntry *new_end =
-      thrust::unique(thrust::device, data, data + entries.size(),
-                     [] __device__(SketchEntry a, SketchEntry b) {
-                       return a.value == b.value;
-                     });
-  static_assert(std::is_trivially_copy_constructible<SketchEntry>::value, "");
-  static_assert(std::is_standard_layout<SketchEntry>::value, "");
-  summary->size = std::distance(data, new_end);
-  dh::safe_cuda(cudaMemcpy(
-      summary->data, entries.data(), sizeof(SketchEntry) * std::distance(data, new_end),
-      cudaMemcpyDeviceToHost));
-}
-
 /*!
  * \brief A container that holds the device sketches across all
  *  sparse page batches which are distributed to different devices.
@@ -41,17 +25,21 @@ inline void MakeFromSorted(Span<SketchEntry> entries,
  *  across distinct rows.
  */
 struct SketchContainer {
-  std::vector<DenseCuts::WQSketch> sketches_;  // NOLINT
+  std::vector<DeviceQuantile> sketches_;  // NOLINT
   static constexpr int kOmpNumColsParallelizeLimit = 1000;
   static constexpr float kFactor = 8;
 
-  SketchContainer(int max_bin, size_t num_columns, size_t num_rows) {
+ private:
+  size_t num_rows_;
+  int32_t num_bins_;
+
+ public:
+  SketchContainer(int max_bin, size_t num_columns, size_t num_rows, int32_t device = 0) :
+      num_rows_{num_rows}, num_bins_{max_bin} {
     // Initialize Sketches for this dmatrix
-    sketches_.resize(num_columns);
-#pragma omp parallel for schedule(static) if (num_columns > kOmpNumColsParallelizeLimit)  // NOLINT
-    for (int icol = 0; icol < num_columns; ++icol) {                 // NOLINT
-      sketches_[icol].Init(num_rows, 1.0 / (8 * max_bin));
-    }
+    sketches_.resize(
+        num_columns,
+        DeviceQuantile(num_rows, 1.0 / (WQSketch::kFactor * max_bin),  device));
   }
 
   /**
@@ -70,17 +58,17 @@ struct SketchContainer {
     for (int icol = 0; icol < sketches_.size(); ++icol) {
       size_t column_size = column_scan[icol + 1] - column_scan[icol];
       if (column_size == 0) continue;
-      WQuantileSketch<bst_float, bst_float>::SummaryContainer summary;
       size_t num_available_cuts =
           std::min(size_t(entries_per_column), column_size);
-      summary.Reserve(num_available_cuts);
-      MakeFromSorted(entries.subspan(entries_per_column * icol, num_available_cuts),
-                     &summary);
-      sketches_[icol].PushSummary(summary);
+      sketches_[icol].PushSorted(entries.subspan(entries_per_column * icol, num_available_cuts));
     }
   }
 
-  void MakeCuts(HistogramCuts* cuts) {}
+  void MakeCuts(HistogramCuts* cuts) {
+    for (auto& sketch : sketches_) {
+      sketch.MakeCuts(num_rows_, num_bins_, cuts);
+    }
+  }
 
   // Prevent copying/assigning/moving this as its internals can't be
   // assigned/copied/moved
@@ -356,7 +344,6 @@ HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
   CHECK(!adapter->Next());
 
   HistogramCuts cuts;
-  DenseCuts dense_cuts(&cuts);
   SketchContainer sketch_container(num_bins, adapter->NumColumns(),
                                    adapter->NumRows());
 
@@ -368,7 +355,7 @@ HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
                          begin, end, missing, &sketch_container, num_cuts);
   }
 
-  dense_cuts.Init(&sketch_container.sketches_, num_bins, adapter->NumRows());
+  sketch_container.MakeCuts(&cuts);
   return cuts;
 }
 

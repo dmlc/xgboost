@@ -554,6 +554,9 @@ struct GKSummary {
 template<typename DType, typename RType, class TSummary>
 class QuantileSketchTemplate {
  public:
+  static float constexpr kFactor = 8.0;
+
+ public:
   /*! \brief type of summary type */
   using Summary = TSummary;
   /*! \brief the entry type */

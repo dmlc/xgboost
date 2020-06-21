@@ -234,8 +234,7 @@ void ValidateBatchedCuts(Adapter adapter, int num_bins, int num_columns, int num
   SketchContainer sketch_container(num_bins, num_columns, num_rows);
   AdapterDeviceSketch(adapter.Value(), num_bins, std::numeric_limits<float>::quiet_NaN(),
                       0, &sketch_container);
-  common::DenseCuts dense_cuts(&batched_cuts);
-  dense_cuts.Init(&sketch_container.sketches_, num_bins, num_rows);
+  sketch_container.MakeCuts(&batched_cuts);
   ValidateCuts(batched_cuts, dmat, num_bins);
 }
 
@@ -467,8 +466,7 @@ void TestAdapterSketchFromWeights(bool with_group) {
                               0,
                               &sketch_container);
   common::HistogramCuts cuts;
-  common::DenseCuts dense_cuts(&cuts);
-  dense_cuts.Init(&sketch_container.sketches_, kBins, kRows);
+  sketch_container.MakeCuts(&cuts);
 
   auto dmat = GetDMatrixFromData(storage.HostVector(), kRows, kCols);
   if (with_group) {
