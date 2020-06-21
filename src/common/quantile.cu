@@ -295,19 +295,13 @@ void DeviceQuantile::PushSorted(common::Span<SketchEntry> entries) {
 void DeviceQuantile::SetMerge(std::vector<Span<SketchEntry const>> const& others) {
   dh::safe_cuda(cudaSetDevice(device_));
   auto x = others.front();
-  dh::safe_cuda(cudaMemcpyAsync(this->data_.data().get(), x.data(),
-                                this->data_.size() * sizeof(SketchEntry),
-                                cudaMemcpyDeviceToDevice));
   dh::caching_device_vector<SketchEntry> buffer;
   // We don't have k way merging, so iterate it through.
   for (size_t i = 1; i < others.size(); ++i) {
-    auto x = dh::ToSpan(this->data_);
     auto const y = others[i];
     MergeImpl(x, y, &buffer);
-    this->data_.resize(buffer.size());
-    dh::safe_cuda(cudaMemcpyAsync(this->data_.data().get(), buffer.data().get(),
-                                  buffer.size() * sizeof(SketchEntry),
-                                  cudaMemcpyDeviceToDevice));
+    std::swap(this->data_, buffer);  // move the result into data_.
+    x = dh::ToSpan(this->data_);     // update x to the latest sketch.
   }
 }
 
