@@ -368,7 +368,7 @@ void DeviceQuantile::AllReduce() {
   }
   if (!comm_) {
     comm_ = std::make_unique<dh::AllReducer>();
-    comm_->Init(device_);
+    comm_->Init(device_, false);
   }
 
   dh::caching_device_vector<char> recvbuf;
@@ -383,6 +383,12 @@ void DeviceQuantile::AllReduce() {
     allworkers.emplace_back(sketch);
   }
   this->SetMerge(allworkers);
+}
+
+void DeviceQuantile::Synchronize() {
+  if (comm_) {
+    comm_->Synchronize();
+  }
 }
 }  // namespace common
 }  // namespace xgboost

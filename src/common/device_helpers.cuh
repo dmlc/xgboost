@@ -546,7 +546,7 @@ class AllReducer {
    *
    * \param device_ordinal The device ordinal.
    */
-  void Init(int _device_ordinal);
+  void Init(int _device_ordinal, bool blocking = true);
 
   ~AllReducer();
 

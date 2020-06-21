@@ -27,13 +27,14 @@ class DeviceQuantile {
   DeviceQuantile(size_t maxn, double eps, int32_t device) : device_{device} {
     size_t level;
     WQuantileSketch<float, float>::LimitSizeLevel(maxn, eps, &limit_size_, &level);
-    limit_size_ *= level;
+    limit_size_ *= level;  // ON GPU we don't have streaming algorithm.
   }
 
   void MakeFromSorted(Span<SketchEntry> entries, int32_t device);
   void MakeFromOthers(std::vector<DeviceQuantile> const& others);
   void Prune(size_t to);
   void AllReduce();
+  void Synchronize();
   void PushSorted(common::Span<SketchEntry> entries);
   void MakeCuts(size_t max_rows, int max_bin, HistogramCuts* cuts);
 
