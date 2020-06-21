@@ -276,8 +276,20 @@ void AddCutPoint(std::vector<SketchEntry> const &summary, int max_bin,
 
 void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   p_cuts->min_vals_.HostVector().resize(sketches_.size());
+  size_t global_max_rows = num_rows_;
+  rabit::Allreduce<rabit::op::Sum>(&global_max_rows, 1);
+  size_t intermediate_num_cuts =
+      std::min(global_max_rows, static_cast<size_t>(num_bins_ * kFactor));
+
+  for (auto& sketch : sketches_) {
+    sketch.Prune(intermediate_num_cuts);
+    sketch.AllReduce();
+    sketch.Prune(num_bins_ + 1);
+  }
 
   for (size_t fid = 0; fid < sketches_.size(); ++fid) {
+    sketches_[fid].Prune(intermediate_num_cuts);
+    sketches_[fid].AllReduce();
     sketches_[fid].Prune(num_bins_ + 1);
 
     if (sketches_[fid].Data().size() == 0) {  // Empty column
