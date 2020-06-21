@@ -82,6 +82,7 @@ void PruneImpl(size_t to, common::Span<SketchEntry> entries, dh::caching_device_
   });
   auto unique_end = thrust::unique(thrust::device, out.begin(), out.end(), SketchUnique{});
   size_t n_uniques = std::distance(out.begin(), unique_end);
+  out.resize(n_uniques);
 }
 
 void DeviceQuantile::Prune(size_t to) {
