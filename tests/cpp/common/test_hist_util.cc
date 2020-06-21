@@ -258,8 +258,8 @@ TEST(HistUtil, DenseCutsCategorical) {
 }
 
 TEST(HistUtil, DenseCutsAccuracyTest) {
-  int bin_sizes[] = {16};
-  int sizes[] = {100};
+  int bin_sizes[] = {2, 16, 256, 512};
+  int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
   for (auto num_rows : sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
