@@ -53,9 +53,6 @@ class DeviceQuantile {
   common::Span<SketchEntry const> Data() const {
     return Span<SketchEntry const>(this->data_.data().get(), this->data_.size());
   }
-  common::Span<SketchEntry> Data() {
-    return dh::ToSpan(this->data_);
-  }
 };
 }  // namespace common
 }  // namespace xgboost

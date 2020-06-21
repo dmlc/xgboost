@@ -1,17 +1,18 @@
 /*!
  * Copyright 2020 by XGBoost Contributors
  */
+#include <thrust/unique.h>
+#include <thrust/iterator/discard_iterator.h>
+#include <thrust/binary_search.h>
+#include <thrust/transform_scan.h>
+#include <thrust/execution_policy.h>
+
 #include "xgboost/span.h"
 #include "quantile.h"
 #include "quantile.cuh"
 #include "hist_util.h"
 #include "device_helpers.cuh"
 #include "common.h"
-#include <thrust/unique.h>
-#include <thrust/iterator/discard_iterator.h>
-#include <thrust/binary_search.h>
-#include <thrust/transform_scan.h>
-#include <thrust/execution_policy.h>
 
 namespace xgboost {
 namespace common {
@@ -90,7 +91,7 @@ void PruneImpl(size_t to, common::Span<SketchEntry> entries, dh::caching_device_
 
 void DeviceQuantile::Prune(size_t to) {
   dh::caching_device_vector<SketchEntry> out;
-  PruneImpl(to, this->Data(), &out);
+  PruneImpl(to, dh::ToSpan(this->data_), &out);
   this->data_ = std::move(out);
 }
 
@@ -161,12 +162,12 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
                        b_key_it + d_y.size(), x_val_it, y_val_it,
                        thrust::make_discard_iterator(), merge_path.begin());
   // Compute the index for both a and b (which of the element in a and b are used in each
-  // comparison).  Take output [(a_0, b_0), (a_0, b_1), ...] as an example, the comparison
-  // between (a_0, b_0) adds 1 step in the merge path.  Because b_0 is less than a_0 so
-  // this step is torward the end of b.  After the comparison, index of b is incremented
-  // by 1 from b_0 to b_1, and at the same time, b_0 is landed into output as the first
-  // element in merge result.  Here we use the merge path to compute index for both a and
-  // b along the merge path.  The output of this scan is a path showing each comparison.
+  // comparison) by scaning the binary merge path.  Take output [(a_0, b_0), (a_0, b_1),
+  // ...] as an example, the comparison between (a_0, b_0) adds 1 step in the merge path.
+  // Because b_0 is less than a_0 so this step is torward the end of b.  After the
+  // comparison, index of b is incremented by 1 from b_0 to b_1, and at the same time, b_0
+  // is landed into output as the first element in merge result.  The scan result is the
+  // subscript of a and b.
   thrust::transform_exclusive_scan(
       thrust::device, merge_path.cbegin(), merge_path.cend(),
       merge_path.begin(),
@@ -218,7 +219,7 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
          Where $x_i$ is the largest element in $D_2$ that's less than $k_i$.  $k_i$ can be
          used in $D_1$ as it's since $k_i \in D_1$.  Other 2 equations can be applied
          similarly with $k_i$ comes from different $D$.  just use different symbol on
-         different summary.
+         different source of summary.
     */
     assert(idx < d_out.size());
     if (x_elem.value == y_elem.value) {
@@ -227,11 +228,11 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
                       x_elem.wmin + y_elem.wmin, x_elem.value};
     } else if (x_elem.value < y_elem.value) {
       // elem from x is landed. yprev_min is the element in D_2 that's 1 rank less than
-      // x_elem.
+      // x_elem if we put x_elem in D_2.
       float yprev_min = b_ind == 0 ? 0.0f : d_y[b_ind - 1].RMinNext();
-      // rmin should equal to x_elem.rmin + x_elem.wmin.  But for implementation, the
-      // weight is stored in a separated field and compute the extended definition on the
-      // fly when needed.
+      // rmin should be equal to x_elem.rmin + x_elem.wmin + yprev_min.  But for
+      // implementation, the weight is stored in a separated field and we compute the
+      // extended definition on the fly when needed.
       d_out[idx] =
           SketchEntry{x_elem.rmin + yprev_min, x_elem.rmax + y_elem.RMaxPrev(),
                       x_elem.wmin, x_elem.value};
