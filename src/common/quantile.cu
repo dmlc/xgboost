@@ -49,6 +49,13 @@ struct SketchUnique {
     return a.value == b.value;
   }
 };
+
+
+struct IsSorted {
+  bool XGBOOST_DEVICE operator()(SketchEntry const& a, SketchEntry const& b) {
+    return a.value <= b.value;
+  }
+};
 }  // anonymous namespace
 
 void PruneImpl(size_t to, common::Span<SketchEntry> entries,
@@ -89,6 +96,25 @@ void PruneImpl(size_t to, common::Span<SketchEntry> entries,
       d_out.front() = entries.front();
       d_out.back() = entries.back();
   });
+
+  // if (!thrust::is_sorted(
+  //     thrust::cuda::par.on(stream), out.begin(), out.end(),
+  //     IsSorted{})) {
+
+  //   auto it = thrust::is_sorted_until(thrust::cuda::par.on(stream), out.begin(), out.end(),
+  //                                     IsSorted{});
+  //   std::cout << std::setprecision(19) << " it: " << it - out.begin() << ", "
+  //             << *(it - 1) << ", " << *it << ", "
+  //             << IsSorted{}(*(it - 1), *it) <<  std::endl;
+
+  //   for (size_t i = 1; i < out.size(); ++i) {
+  //     if (!(IsSorted{}(out[i-1], out[i]))) {
+  //       std::cout << std::setprecision(17) << out[i - 1] << " vs " << out[i] << ", ";
+  //     }
+  //   }
+  //   std::cout << std::endl;
+  //   LOG(FATAL) << "Not sorted";
+  // }
 }
 
 void DeviceQuantile::Prune(size_t to) {
@@ -136,22 +162,24 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
   // allocate memory for later use in scan
   auto place_holder = thrust::make_constant_iterator(-1);
   auto x_val_it =
-      thrust::make_zip_iterator(thrust::make_tuple(place_holder, a_ind_iter));
+      thrust::make_zip_iterator(thrust::make_tuple(place_holder, a_ind_iter, place_holder, place_holder));
   auto y_val_it =
-      thrust::make_zip_iterator(thrust::make_tuple(place_holder, b_ind_iter));
+      thrust::make_zip_iterator(thrust::make_tuple(place_holder, b_ind_iter, place_holder, place_holder));
 
-  using Tuple = thrust::tuple<int32_t, int32_t>;
+  using Tuple = thrust::tuple<uint32_t, uint32_t, uint32_t, uint32_t>;
   auto get_ind = []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<1>(t); };
   auto get_a =   []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<0>(t); };
   auto get_b =   []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<1>(t); };
 
   dh::XGBCachingDeviceAllocator<Tuple> alloc;
-  dh::caching_device_vector<Tuple> merge_path(out->size());
+  static_assert(sizeof(Tuple) == sizeof(SketchEntry), "");
+  // We reuse the memory for storing merge path.
+  common::Span<Tuple> merge_path{reinterpret_cast<Tuple *>(out->data().get()), out->size()};
   // Determine the merge path
   thrust::merge_by_key(thrust::cuda::par(alloc).on(stream),
                        a_key_it, a_key_it + d_x.size(), b_key_it,
                        b_key_it + d_y.size(), x_val_it, y_val_it,
-                       thrust::make_discard_iterator(), merge_path.begin());
+                       thrust::make_discard_iterator(), merge_path.data());
   // Compute the index for both a and b (which of the element in a and b are used in each
   // comparison) by scaning the binary merge path.  Take output [(a_0, b_0), (a_0, b_1),
   // ...] as an example, the comparison between (a_0, b_0) adds 1 step in the merge path.
@@ -160,24 +188,24 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
   // is landed into output as the first element in merge result.  The scan result is the
   // subscript of a and b.
   thrust::transform_exclusive_scan(
-      thrust::cuda::par(alloc).on(stream), merge_path.cbegin(), merge_path.cend(),
-      merge_path.begin(),
+      thrust::cuda::par(alloc).on(stream), merge_path.data(), merge_path.data() + merge_path.size(),
+      merge_path.data(),
       [=] __device__(Tuple const &t) {
         auto ind = get_ind(t);  // == 0 if element is from a
         // a_counter, b_counter
-        return thrust::make_tuple(!ind, ind);
+        return thrust::make_tuple(!ind, ind, 0, 0);
       },
-      thrust::make_tuple(0, 0),
+      thrust::make_tuple(0, 0, 0, 0),
       [=] __device__(Tuple const &l, Tuple const &r) {
-        return thrust::make_tuple(get_a(l) + get_a(r), get_b(l) + get_b(r));
+        return thrust::make_tuple(get_a(l) + get_a(r), get_b(l) + get_b(r), 0, 0);
       });
 
-  auto d_merge_path = dh::ToSpan(merge_path);
+  auto d_merge_path = merge_path;
   auto d_out = Span<SketchEntry>{out->data().get(), d_x.size() + d_y.size()};
 
   dh::LaunchN(0, d_out.size(), stream, [=] __device__(size_t idx) {
-    int32_t a_ind, b_ind;
-    thrust::tie(a_ind, b_ind) = d_merge_path[idx];
+    int32_t a_ind, b_ind, p_0, p_1;
+    thrust::tie(a_ind, b_ind, p_0, p_1) = d_merge_path[idx];
     // Handle trailing elements.
     assert(a_ind <= d_x.size());
     if (a_ind == d_x.size()){
