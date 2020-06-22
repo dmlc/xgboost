@@ -107,7 +107,6 @@ class TestDistributedGPU(unittest.TestCase):
                     single_node,
                     inplace_predictions)
 
-
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
     @pytest.mark.mgpu

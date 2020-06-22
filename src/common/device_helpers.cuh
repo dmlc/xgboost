@@ -529,7 +529,6 @@ class AllReducer {
   bool initialised_ {false};
   size_t allreduce_bytes_ {0};  // Keep statistics of the number of bytes communicated
   size_t allreduce_calls_ {0};  // Keep statistics of the number of reduce calls
-  std::vector<size_t> host_data_;  // Used for all reduce on host
 #ifdef XGBOOST_USE_NCCL
   ncclComm_t comm_;
   cudaStream_t stream_;
@@ -569,7 +568,8 @@ class AllReducer {
 #endif
   }
 
-  void AllGather(void const* data, size_t length, dh::caching_device_vector<char>* recvbuf);
+  void AllGather(void const* data, size_t length_bytes,
+                 std::vector<size_t>* segments, dh::caching_device_vector<char>* recvbuf);
 
   /**
    * \brief Allreduce. Use in exactly the same way as NCCL but without needing

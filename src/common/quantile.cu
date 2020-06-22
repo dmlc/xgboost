@@ -276,7 +276,7 @@ void DeviceQuantile::MakeFromOthers(std::vector<DeviceQuantile> const& others) {
 
 void DeviceQuantile::AllReduce() {
   dh::safe_cuda(cudaSetDevice(device_));
-  size_t world = rabit::GetWorldSize();
+  auto world = rabit::GetWorldSize();
   if (world == 1) {
     return;
   }
@@ -286,17 +286,20 @@ void DeviceQuantile::AllReduce() {
   }
 
   dh::caching_device_vector<char> recvbuf;
-  comm_->AllGather(this->Current().data().get(),
-                   this->Current().size() * sizeof(SketchEntry), &recvbuf);
+  std::vector<size_t> global_size;
+  comm_->AllGather(this->Data().data(), this->Data().size_bytes(), &global_size, &recvbuf);;
   auto s_recvbuf = dh::ToSpan(recvbuf);
-  std::vector<Span<SketchEntry const>> allworkers;
-  auto length_as_bytes = this->Current().size() * sizeof(SketchEntry);
 
-  for (size_t i = 0; i < world; ++i) {
-    auto raw = s_recvbuf.subspan(i * length_as_bytes, length_as_bytes);
+  std::vector<Span<SketchEntry const>> allworkers;
+
+  size_t offset = 0;
+  for (int32_t i = 0; i < world; ++i) {
+    size_t length_as_bytes = global_size[i];
+    auto raw = s_recvbuf.subspan(offset, length_as_bytes);
     auto sketch = Span<SketchEntry>(reinterpret_cast<SketchEntry *>(raw.data()),
-                                    this->Current().size());
+                                    length_as_bytes / sizeof(SketchEntry));
     allworkers.emplace_back(sketch);
+    offset += length_as_bytes;
   }
   this->SetMerge(allworkers);
 }

@@ -282,6 +282,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   size_t intermediate_num_cuts =
       std::min(global_max_rows, static_cast<size_t>(num_bins_ * kFactor));
 
+  // Prune according to global number of rows.
   for (auto& sketch : sketches_) {
     sketch.Prune(intermediate_num_cuts);
     sketch.AllReduce();
