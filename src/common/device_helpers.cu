@@ -96,15 +96,15 @@ void AllReducer::AllGather(void const *data, size_t length_bytes,
   recvbuf->resize(total_bytes);
 
   size_t offset = 0;
-  ncclGroupStart();
+  safe_nccl(ncclGroupStart());
   for (int32_t i = 0; i < world; ++i) {
     size_t as_bytes = segments->at(i);
-    dh::safe_nccl(
+    safe_nccl(
         ncclBroadcast(data, recvbuf->data().get() + offset,
                       as_bytes, ncclChar, i, comm_, stream_));
     offset += as_bytes;
   }
-  ncclGroupEnd();
+  safe_nccl(ncclGroupEnd());
 #endif  // XGBOOST_USE_NCCL
 }
 

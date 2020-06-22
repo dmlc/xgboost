@@ -568,6 +568,13 @@ class AllReducer {
 #endif
   }
 
+  /**
+   * \brief Allgather implemented as grouped calls to Broadcast.  This way we can accept
+   *        different size of data on different workers.
+   * \param length_bytes Size of input data in bytes.
+   * \param segments     Size of data on each worker.
+   * \param recvbuf      Buffer storing the result of data from all workers.
+   */
   void AllGather(void const* data, size_t length_bytes,
                  std::vector<size_t>* segments, dh::caching_device_vector<char>* recvbuf);
 
