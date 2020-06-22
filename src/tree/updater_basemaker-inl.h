@@ -376,7 +376,7 @@ class BaseMaker: public TreeUpdater {
     /*! \brief current size of sketch */
     double next_goal;
     // pointer to the sketch to put things in
-    common::WQuantileSketch<bst_float, bst_float> *sketch;
+    common::WXQuantileSketch<bst_float, bst_float> *sketch;
     // initialize the space
     inline void Init(unsigned max_size) {
       next_goal = -1.0f;
@@ -404,7 +404,7 @@ class BaseMaker: public TreeUpdater {
               last_fvalue > sketch->temp.data[sketch->temp.size-1].value) {
             // push to sketch
             sketch->temp.data[sketch->temp.size] =
-                common::WQuantileSketch<bst_float, bst_float>::
+                common::WXQuantileSketch<bst_float, bst_float>::
                 Entry(static_cast<bst_float>(rmin),
                       static_cast<bst_float>(rmax),
                       static_cast<bst_float>(wmin), last_fvalue);
@@ -442,7 +442,7 @@ class BaseMaker: public TreeUpdater {
             << ", stemp.size=" << sketch->temp.size;
         // push to sketch
         sketch->temp.data[sketch->temp.size] =
-            common::WQuantileSketch<bst_float, bst_float>::
+            common::WXQuantileSketch<bst_float, bst_float>::
             Entry(static_cast<bst_float>(rmin),
                   static_cast<bst_float>(rmax),
                   static_cast<bst_float>(wmin), last_fvalue);

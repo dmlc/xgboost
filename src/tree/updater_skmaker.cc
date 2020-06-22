@@ -75,7 +75,7 @@ class SketchMaker: public BaseMaker {
     }
   }
   // define the sketch we want to use
-  using WQSketch = common::WQuantileSketch<bst_float, bst_float>;
+  using WXQSketch = common::WXQuantileSketch<bst_float, bst_float>;
 
  private:
   // statistics needed in the gradient calculation
@@ -152,12 +152,12 @@ class SketchMaker: public BaseMaker {
     // synchronize sketch
     summary_array_.resize(sketchs_.size());
     for (size_t i = 0; i < sketchs_.size(); ++i) {
-      common::WQuantileSketch<bst_float, bst_float>::SummaryContainer out;
+      common::WXQuantileSketch<bst_float, bst_float>::SummaryContainer out;
       sketchs_[i].GetSummary(&out);
       summary_array_[i].Reserve(max_size);
       summary_array_[i].SetPrune(out, max_size);
     }
-    size_t nbytes = WQSketch::SummaryContainer::CalcMemCost(max_size);
+    size_t nbytes = WXQSketch::SummaryContainer::CalcMemCost(max_size);
     sketch_reducer_.Allreduce(dmlc::BeginPtr(summary_array_), nbytes, summary_array_.size());
   }
   // update sketch information in column fid
@@ -301,10 +301,11 @@ class SketchMaker: public BaseMaker {
     p_tree->Stat(nid).base_weight = static_cast<bst_float>(node_sum.CalcWeight(param_));
     p_tree->Stat(nid).sum_hess = static_cast<bst_float>(node_sum.sum_hess);
   }
-  inline void EnumerateSplit(const WQSketch::Summary &pos_grad,
-                             const WQSketch::Summary &neg_grad,
-                             const WQSketch::Summary &sum_hess,
-                             const SKStats &node_sum, bst_uint fid,
+  inline void EnumerateSplit(const WXQSketch::Summary &pos_grad,
+                             const WXQSketch::Summary &neg_grad,
+                             const WXQSketch::Summary &sum_hess,
+                             const SKStats &node_sum,
+                             bst_uint fid,
                              SplitEntry *best) {
     if (sum_hess.size == 0) return;
     double root_gain = node_sum.CalcGain(param_);
@@ -327,9 +328,9 @@ class SketchMaker: public BaseMaker {
     feat_sum.sum_hess = sum_hess.data[sum_hess.size - 1].rmax;
     size_t ipos = 0, ineg = 0, ihess = 0;
     for (size_t i = 1; i < fsplits.size(); ++i) {
-      WQSketch::Entry pos = pos_grad.Query(fsplits[i], ipos);
-      WQSketch::Entry neg = neg_grad.Query(fsplits[i], ineg);
-      WQSketch::Entry hess = sum_hess.Query(fsplits[i], ihess);
+      WXQSketch::Entry pos = pos_grad.Query(fsplits[i], ipos);
+      WXQSketch::Entry neg = neg_grad.Query(fsplits[i], ineg);
+      WXQSketch::Entry hess = sum_hess.Query(fsplits[i], ihess);
       SKStats s, c;
       s.pos_grad = 0.5f * (pos.rmin + pos.rmax - pos.wmin);
       s.neg_grad = 0.5f * (neg.rmin + neg.rmax - neg.wmin);
@@ -378,13 +379,13 @@ class SketchMaker: public BaseMaker {
   // node statistics
   std::vector<SKStats> node_stats_;
   // summary array
-  std::vector<WQSketch::SummaryContainer> summary_array_;
+  std::vector<WXQSketch::SummaryContainer> summary_array_;
   // reducer for summary
   rabit::Reducer<SKStats, SKStats::Reduce> stats_reducer_;
   // reducer for summary
-  rabit::SerializeReducer<WQSketch::SummaryContainer> sketch_reducer_;
+  rabit::SerializeReducer<WXQSketch::SummaryContainer> sketch_reducer_;
   // per node, per feature sketch
-  std::vector<common::WQuantileSketch<bst_float, bst_float> > sketchs_;
+  std::vector<common::WXQuantileSketch<bst_float, bst_float> > sketchs_;
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(SketchMaker, "grow_skmaker")

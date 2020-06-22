@@ -341,6 +341,110 @@ struct WQSummary {
   }
 };
 
+/*! \brief try to do efficient pruning */
+template<typename DType, typename RType>
+struct WXQSummary : public WQSummary<DType, RType> {
+  // redefine entry type
+  using Entry = typename WQSummary<DType, RType>::Entry;
+  // constructor
+  WXQSummary(Entry *data, size_t size)
+      : WQSummary<DType, RType>(data, size) {}
+  // check if the block is large chunk
+  inline static bool CheckLarge(const Entry &e, RType chunk) {
+    return  e.RMinNext() > e.RMaxPrev() + chunk;
+  }
+  // set prune
+  inline void SetPrune(const WQSummary<DType, RType> &src, size_t maxsize) {
+    if (src.size <= maxsize) {
+      this->CopyFrom(src); return;
+    }
+    RType begin = src.data[0].rmax;
+    // n is number of points exclude the min/max points
+    size_t n = maxsize - 2, nbig = 0;
+    // these is the range of data exclude the min/max point
+    RType range = src.data[src.size - 1].rmin - begin;
+    // prune off zero weights
+    if (range == 0.0f || maxsize <= 2) {
+      // special case, contain only two effective data pts
+      this->data[0] = src.data[0];
+      this->data[1] = src.data[src.size - 1];
+      this->size = 2;
+      return;
+    } else {
+      range = std::max(range, static_cast<RType>(1e-3f));
+    }
+    // Get a big enough chunk size, bigger than range / n
+    // (multiply by 2 is a safe factor)
+    const RType chunk = 2 * range / n;
+    // minimized range
+    RType mrange = 0;
+    {
+      // first scan, grab all the big chunk
+      // moving block index, exclude the two ends.
+      size_t bid = 0;
+      for (size_t i = 1; i < src.size - 1; ++i) {
+        // detect big chunk data point in the middle
+        // always save these data points.
+        if (CheckLarge(src.data[i], chunk)) {
+          if (bid != i - 1) {
+            // accumulate the range of the rest points
+            mrange += src.data[i].RMaxPrev() - src.data[bid].RMinNext();
+          }
+          bid = i; ++nbig;
+        }
+      }
+      if (bid != src.size - 2) {
+        mrange += src.data[src.size-1].RMaxPrev() - src.data[bid].RMinNext();
+      }
+    }
+    // assert: there cannot be more than n big data points
+    if (nbig >= n) {
+      // see what was the case
+      LOG(INFO) << " check quantile stats, nbig=" << nbig << ", n=" << n;
+      LOG(INFO) << " srcsize=" << src.size << ", maxsize=" << maxsize
+                << ", range=" << range << ", chunk=" << chunk;
+      src.Print();
+      CHECK(nbig < n) << "quantile: too many large chunk";
+    }
+    this->data[0] = src.data[0];
+    this->size = 1;
+    // The counter on the rest of points, to be selected equally from small chunks.
+    n = n - nbig;
+    // find the rest of point
+    size_t bid = 0, k = 1, lastidx = 0;
+    for (size_t end = 1; end < src.size; ++end) {
+      if (end == src.size - 1 || CheckLarge(src.data[end], chunk)) {
+        if (bid != end - 1) {
+          size_t i = bid;
+          RType maxdx2 = src.data[end].RMaxPrev() * 2;
+          for (; k < n; ++k) {
+            RType dx2 =  2 * ((k * mrange) / n + begin);
+            if (dx2 >= maxdx2) break;
+            while (i < end &&
+                   dx2 >= src.data[i + 1].rmax + src.data[i + 1].rmin) ++i;
+            if (i == end) break;
+            if (dx2 < src.data[i].RMinNext() + src.data[i + 1].RMaxPrev()) {
+              if (i != lastidx) {
+                this->data[this->size++] = src.data[i]; lastidx = i;
+              }
+            } else {
+              if (i + 1 != lastidx) {
+                this->data[this->size++] = src.data[i + 1]; lastidx = i + 1;
+              }
+            }
+          }
+        }
+        if (lastidx != end) {
+          this->data[this->size++] = src.data[end];
+          lastidx = end;
+        }
+        bid = end;
+        // shift base by the gap
+        begin += src.data[bid].RMinNext() - src.data[bid].RMaxPrev();
+      }
+    }
+  }
+};
 /*!
  * \brief template for all quantile sketch algorithm
  *        that uses merge/prune scheme
@@ -580,6 +684,16 @@ class QuantileSketchTemplate {
 template<typename DType, typename RType = unsigned>
 class WQuantileSketch :
       public QuantileSketchTemplate<DType, RType, WQSummary<DType, RType> > {
+};
+
+/*!
+ * \brief Quantile sketch use WXQSummary
+ * \tparam DType type of data content
+ * \tparam RType type of rank
+ */
+template<typename DType, typename RType = unsigned>
+class WXQuantileSketch :
+      public QuantileSketchTemplate<DType, RType, WXQSummary<DType, RType> > {
 };
 }  // namespace common
 }  // namespace xgboost
