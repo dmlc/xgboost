@@ -15,7 +15,6 @@ from subprocess import call
 from sh.contrib import git
 import urllib.request
 from urllib.error import HTTPError
-from recommonmark.parser import CommonMarkParser
 import sys
 import re
 import os
@@ -89,7 +88,8 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.mathjax',
     'sphinx.ext.intersphinx',
-    'breathe'
+    'breathe',
+    'recommonmark'
 ]
 
 graphviz_output_format = 'png'
@@ -103,10 +103,6 @@ breathe_default_project = "xgboost"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
-
-source_parsers = {
-  '.md': CommonMarkParser,
-}
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
