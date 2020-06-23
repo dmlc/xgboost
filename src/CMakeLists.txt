@@ -51,6 +51,12 @@ if (USE_CUDA)
     CUDA_SEPARABLE_COMPILATION OFF)
 endif (USE_CUDA)
 
+#-- DPC++ support
+if (PLUGIN_UPDATER_ONEAPI)
+  set_source_files_properties(${PLUGINS_SOURCES_ONEAPI} PROPERTIES COMPILE_FLAGS -fsycl)
+endif (PLUGIN_UPDATER_ONEAPI)
+#-- End of DPC++ support
+
 target_include_directories(objxgboost
   PRIVATE
   ${xgboost_SOURCE_DIR}/include

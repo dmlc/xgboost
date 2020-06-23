@@ -58,6 +58,8 @@ address, leak, undefined and thread.")
 ## Plugins
 option(PLUGIN_LZ4 "Build lz4 plugin" OFF)
 option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
+## TODO: 1. Add check if DPC++ compiler is used for building 
+option(PLUGIN_UPDATER_ONEAPI "DPC++ updater" OFF)
 option(ADD_PKGCONFIG "Add xgboost.pc into system." ON)
 
 #-- Checks for building XGBoost
@@ -229,6 +231,14 @@ set_target_properties(
   CXX_STANDARD 14
   CXX_STANDARD_REQUIRED ON)
 #-- End CLI for xgboost
+
+#-- DPC++ support
+if (PLUGIN_UPDATER_ONEAPI)
+  target_link_libraries(objxgboost PUBLIC -fsycl)
+  target_link_libraries(runxgboost PUBLIC -fsycl)
+  target_link_libraries(xgboost PUBLIC -fsycl)
+endif (PLUGIN_UPDATER_ONEAPI)
+#-- End of DPC++ support
 
 set_output_directory(runxgboost ${xgboost_SOURCE_DIR})
 set_output_directory(xgboost ${xgboost_SOURCE_DIR}/lib)
