@@ -46,19 +46,22 @@ __device__ SketchEntry BinarySearchQuery(Span<SketchEntry const> entries, float 
 }
 namespace {
 struct SketchUnique {
-  bool __device__ operator()(SketchEntry const& a, SketchEntry const& b) {
-    return a.value == b.value;
+  XGBOOST_DEVICE bool operator()(SketchEntry const& a, SketchEntry const& b) const {
+    return a.value - b.value == 0;
   }
 };
 
 
 struct IsSorted {
-  bool XGBOOST_DEVICE operator()(SketchEntry const& a, SketchEntry const& b) {
-    return a.value <= b.value;
+  bool XGBOOST_DEVICE operator()(SketchEntry const& a, SketchEntry const& b) const {
+    if (a.value == b.value) {
+      printf("%f, %f\n", a.value, b.value);
+    }
+    return a.value < b.value;
   }
-  bool XGBOOST_DEVICE operator()(float const& a, float const& b) {
-    return a <= b;
-  }
+  // bool XGBOOST_DEVICE operator()(float const& a, float const& b) const {
+  //   return a <= b;
+  // }
 };
 }  // anonymous namespace
 
@@ -92,25 +95,6 @@ void PruneImpl(size_t to, common::Span<SketchEntry> entries,
       d_out.front() = entries.front();
       d_out.back() = entries.back();
   });
-
-  // if (!thrust::is_sorted(
-  //     thrust::cuda::par.on(stream), out.begin(), out.end(),
-  //     IsSorted{})) {
-
-  //   auto it = thrust::is_sorted_until(thrust::cuda::par.on(stream), out.begin(), out.end(),
-  //                                     IsSorted{});
-  //   std::cout << std::setprecision(19) << " it: " << it - out.begin() << ", "
-  //             << *(it - 1) << ", " << *it << ", "
-  //             << IsSorted{}(*(it - 1), *it) <<  std::endl;
-
-  //   for (size_t i = 1; i < out.size(); ++i) {
-  //     if (!(IsSorted{}(out[i-1], out[i]))) {
-  //       std::cout << std::setprecision(17) << out[i - 1] << " vs " << out[i] << ", ";
-  //     }
-  //   }
-  //   std::cout << std::endl;
-  //   LOG(FATAL) << "Not sorted";
-  // }
 }
 
 void DeviceQuantile::Prune(size_t to) {
@@ -131,18 +115,20 @@ void CopyTo(Span<SketchEntry> out,
 }
 
 void PrintSorted(Span<SketchEntry const> d_y) {
+  return;
   if (!thrust::is_sorted(thrust::device, d_y.data(), d_y.data() + d_y.size(), IsSorted{})) {
     auto it = thrust::is_sorted_until(thrust::device, d_y.data(), d_y.data() + d_y.size(), IsSorted{});
     std::vector<SketchEntry> copied(d_y.size());
     dh::CopyDeviceSpanToVector(&copied, d_y);
     auto pos = it - d_y.data();
     for (size_t i = std::max(0l, pos - 5); i < std::min(pos + 5, decltype(pos)(d_y.size())); ++i) {
-      std::cout << std::setprecision(17) << copied[i] << std::endl;
+      std::cout << std::setprecision(30) << copied[i] << std::endl;
     }
-    std::cout << std::setprecision(17) << "Until: "
+    std::cout << std::setprecision(30) << "Until: "
               << " Pos: " << pos << ", " << copied.at(pos - 1) << " vs "
               << copied.at(pos) << ", IsSorted{}:"
-              << IsSorted{}(copied.at(pos - 1), copied.at(pos)) << std::endl;
+              << IsSorted{}(copied.at(pos - 1), copied.at(pos)) << ", "
+              << "SketchUnique:" << SketchUnique{}(copied.at(pos - 1), copied.at(pos)) << std::endl;
     LOG(FATAL) << "Unique not sorted, std "
                << std::is_sorted(copied.begin(), copied.end(), IsSorted{})
                << ", until: "
@@ -155,6 +141,7 @@ void PrintSorted(Span<SketchEntry const> d_y) {
 
 template <typename T>
 void PrintSpan(common::Span<T> x, std::string name) {
+  return;
   std::cout << name << std::endl;
   std::vector<T> copied(x.size());
   dh::CopyDeviceSpanToVector(&copied, x);
@@ -186,11 +173,6 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
 
   thrust::constant_iterator<int32_t> a_ind_iter(0);
   thrust::constant_iterator<int32_t> b_ind_iter(1);
-
-  // std::cout << "d_x" << std::endl;
-  // PrintSorted(d_x);
-  // std::cout << "d_y" << std::endl;
-  // PrintSorted(d_y);
 
   // allocate memory for later use in scan
   auto place_holder = thrust::make_constant_iterator(-1);
@@ -302,7 +284,7 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
 }
 
 void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
-               dh::caching_device_vector<SketchEntry> *out, cudaStream_t stream = nullptr) {
+               dh::device_vector<SketchEntry> *out, cudaStream_t stream = nullptr) {
   out->resize(d_x.size() + d_y.size());
   MergeImpl(d_x, d_y, Span<SketchEntry>(out->data().get(), out->size()), stream);
 }
@@ -324,7 +306,7 @@ void DeviceQuantile::PushSorted(common::Span<SketchEntry> entries) {
 void DeviceQuantile::SetMerge(std::vector<Span<SketchEntry const>> const& others) {
   dh::safe_cuda(cudaSetDevice(device_));
   auto x = others.front();
-  dh::caching_device_vector<SketchEntry> buffer;
+  dh::device_vector<SketchEntry> buffer;
   // We don't have k way merging, so iterate it through.
   for (size_t i = 1; i < others.size(); ++i) {
     auto const y = others[i];
@@ -404,33 +386,23 @@ size_t SketchContainer::Unique() {
   this->columns_ptr_.SetDevice(device_);
   Span<size_t> d_column_scan = this->columns_ptr_.DeviceSpan();
   CHECK_EQ(d_column_scan.size(), num_columns_ + 1);
-  PrintSpan(d_column_scan, "Before Unique");
-  Span<SketchEntry> entries = dh::ToSpan(this->Current());
-  this->Other().resize(entries.size());
-  std::cout << "entries.size():" << entries.size() << std::endl;
 
+  Span<SketchEntry> entries = dh::ToSpan(this->Current());
+
+  d_column_scan = this->columns_ptr_.DeviceSpan();
   size_t n_uniques = SegmentedUnique(
       d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
       entries.data(), entries.data() + entries.size(), d_column_scan.data(),
-      this->Other().begin(),
-      [] __device__(SketchEntry const &l, SketchEntry const &r) {
-        return l.value == r.value;
-      });
-
-  auto const& h_columns_ptr = columns_ptr_.ConstHostSpan();
+      entries.data(),
+      SketchUnique{});
+  CHECK(!this->columns_ptr_.HostCanRead());
+  auto const& h_columns_ptr = this->columns_ptr_.ConstHostSpan();
   CHECK_EQ(h_columns_ptr.size(), num_columns_ + 1);
-  std::cout << h_columns_ptr.size() << std::endl;
   CHECK_GT(h_columns_ptr.back(), 0);
   CHECK_LT(h_columns_ptr.back(), std::numeric_limits<bst_feature_t>::max());
-  std::cout << "num_columns_: " << num_columns_ << std::endl;
-  PrintSpan(d_column_scan, "After scan");
 
-  this->Other().resize(n_uniques);
-  for (size_t i = 0; i < num_columns_; ++i) {
-    std::cout << "Column: " << i << std::endl;
-    PrintSorted(this->Column(i));
-  }
-  this->Alternate();
+  this->Current().resize(n_uniques, SketchEntry{0, 0, 0, 0});
+  CHECK_EQ(h_columns_ptr.back(), n_uniques);
   return n_uniques;
 }
 
@@ -438,15 +410,26 @@ void SketchContainer::Prune(size_t to) {
   auto n_uniques = this->Unique();
   auto const& h_columns_ptr = this->columns_ptr_.HostSpan();
   CHECK_EQ(n_uniques, h_columns_ptr.back());
-  this->Other().resize(n_uniques);
-  for (size_t i = 0; i < h_columns_ptr.size() - 1; ++i) {
-    auto out = dh::ToSpan(this->Other());
-    auto column = out.subspan(h_columns_ptr[i], h_columns_ptr[i+1] - h_columns_ptr[i]);
-    CHECK_NE(column.size(), 0);
-    auto in = this->Column(i);
-    std::cout << "in.size(): " << in.size() << std::endl;
-    PruneImpl(to, in, column);
+
+  size_t to_total = 0;
+  std::vector<size_t> new_columns_ptr{to_total};
+  for (size_t i = 0; i < num_columns_; ++i) {
+    size_t length = this->Column(i).size();
+    length = std::min(length, to);
+    to_total += length;
+    new_columns_ptr.emplace_back(to_total);
   }
+  this->Other().resize(to_total, SketchEntry{0, 0, 0, 0});
+
+  for (size_t i = 0; i < num_columns_; ++i) {
+    auto out = dh::ToSpan(this->Other());
+    auto to_column =
+        out.subspan(new_columns_ptr[i], new_columns_ptr[i+1]-new_columns_ptr[i]);
+    CHECK_NE(to_column.size(), 0);
+    auto in_column = this->Column(i);
+    PruneImpl(to, in_column, to_column);
+  }
+  this->columns_ptr_.HostVector() = std::move(new_columns_ptr);
   this->Alternate();
   this->Unique();
 }
@@ -460,8 +443,7 @@ void SketchContainer::Merge(std::vector< Span<SketchEntry> > that) {
 
   if (this->Current().size() == 0) {
     CHECK_EQ(this->columns_ptr_.Size(), 0);
-    std::cout << "Merge copy: " << that.size() << std::endl;
-    this->Current().resize(total);
+    this->Current().resize(total, SketchEntry{0, 0, 0, 0});
     size_t offset = 0;
     columns_ptr_.HostVector().emplace_back(offset);
     for (auto c : that) {
@@ -478,20 +460,13 @@ void SketchContainer::Merge(std::vector< Span<SketchEntry> > that) {
   auto const& h_columns_ptr = columns_ptr_.ConstHostSpan();
   CHECK_EQ(h_columns_ptr.size(), that.size() + 1);
 
-  this->Other().resize(this->Current().size() + total);
+  this->Other().resize(this->Current().size() + total, SketchEntry{0, 0, 0, 0});
   size_t out_offset = 0;
   std::vector<size_t> new_columns_ptr{out_offset};
   for (size_t i = 0; i < num_columns_; ++i) {
     auto self_column = this->Column(i);
-    PrintSpan(self_column, "self_column");
     auto that_column = that[i];
-    PrintSpan(that_column, "that_column");
 
-    // auto n_uniques = thrust::unique(thrust::device, that_column.data(),
-    //                                 that_column.data() + that_column.size(),
-    //                                 SketchUnique{}) -
-    //                  that_column.data();
-    // that_column = that_column.subspan(0, n_uniques);
     auto out_size = self_column.size() + that_column.size();
     auto out = dh::ToSpan(this->Other()).subspan(out_offset, out_size);
     MergeImpl(self_column, that_column, out);

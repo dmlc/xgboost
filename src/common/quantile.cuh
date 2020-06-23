@@ -18,8 +18,8 @@ class DeviceQuantile {
   using SketchEntry = WQSummary<float, float>::Entry;
 
  private:
-  dh::caching_device_vector<SketchEntry> data_;
-  dh::caching_device_vector<SketchEntry> data_b_;
+  dh::device_vector<SketchEntry> data_;
+  dh::device_vector<SketchEntry> data_b_;
   bool current_buffer_ {true};
 
   std::unique_ptr<dh::AllReducer> comm_;
@@ -28,24 +28,24 @@ class DeviceQuantile {
   Monitor monitor;
   cudaStream_t stream_ { nullptr };
 
-  dh::caching_device_vector<SketchEntry>& Current() {
+  dh::device_vector<SketchEntry>& Current() {
     if (current_buffer_) {
       return data_;
     } else {
       return data_b_;
     }
   }
-  dh::caching_device_vector<SketchEntry>& Other() {
+  dh::device_vector<SketchEntry>& Other() {
     if (!current_buffer_) {
       return data_;
     } else {
       return data_b_;
     }
   }
-  dh::caching_device_vector<SketchEntry> const& Current() const {
+  dh::device_vector<SketchEntry> const& Current() const {
     return const_cast<DeviceQuantile*>(this)->Current();
   }
-  dh::caching_device_vector<SketchEntry> const& Other() const {
+  dh::device_vector<SketchEntry> const& Other() const {
     return const_cast<DeviceQuantile*>(this)->Other();
   }
 
@@ -114,30 +114,30 @@ struct SketchContainer {
   size_t limit_size_;
   int32_t device_;
 
-  dh::caching_device_vector<SketchEntry> entries_a_;
-  dh::caching_device_vector<SketchEntry> entries_b_;
+  dh::device_vector<SketchEntry> entries_a_;
+  dh::device_vector<SketchEntry> entries_b_;
   bool current_buffer_ {true};
 
   HostDeviceVector<size_t> columns_ptr_;
 
-  dh::caching_device_vector<SketchEntry>& Current() {
+  dh::device_vector<SketchEntry>& Current() {
     if (current_buffer_) {
       return entries_a_;
     } else {
       return entries_b_;
     }
   }
-  dh::caching_device_vector<SketchEntry>& Other() {
+  dh::device_vector<SketchEntry>& Other() {
     if (!current_buffer_) {
       return entries_a_;
     } else {
       return entries_b_;
     }
   }
-  dh::caching_device_vector<SketchEntry> const& Current() const {
+  dh::device_vector<SketchEntry> const& Current() const {
     return const_cast<SketchContainer*>(this)->Current();
   }
-  dh::caching_device_vector<SketchEntry> const& Other() const {
+  dh::device_vector<SketchEntry> const& Other() const {
     return const_cast<SketchContainer*>(this)->Other();
   }
   void Alternate() {
