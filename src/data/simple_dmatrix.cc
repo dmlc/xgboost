@@ -59,9 +59,12 @@ DMatrix* SimpleDMatrix::Combine(DMatrix* right, uint64_t total_size) {
   Info().labels_.Append(right->Info().labels_);
   Info().weights_.Append(right->Info().weights_);
   Info().base_margin_.Append(right->Info().base_margin_);
-
-// groups not support yet.
-//
+  // update group_ptr_
+  auto& right_grp = right->Info().group_ptr_;
+  std::vector<bst_group_t> gptr;
+  std::set_union(Info().group_ptr_.begin(), Info().group_ptr_.end(),
+                 right_grp.begin(), right_grp.end(), gptr.begin());
+  Info().group_ptr_.swap(gptr);
   return this;
 }
 
