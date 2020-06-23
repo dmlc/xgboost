@@ -89,6 +89,116 @@ class DeviceQuantile {
     return Span<SketchEntry const>(this->Current().data().get(), this->Current().size());
   }
 };
+
+using WQSketch = WQuantileSketch<bst_float, bst_float>;
+using SketchEntry = WQSketch::Entry;
+
+/*!
+ * \brief A container that holds the device sketches across all
+ *  sparse page batches which are distributed to different devices.
+ *  As sketches are aggregated by column, the mutex guards
+ *  multiple devices pushing sketch summary for the same column
+ *  across distinct rows.
+ */
+struct SketchContainer {
+  // std::vector<DeviceQuantile> sketches_;  // NOLINT
+  // std::vector<cudaStream_t> streams_;
+  // static constexpr int kOmpNumColsParallelizeLimit = 1000;
+  static constexpr float kFactor = 8;
+  Monitor timer;
+
+ private:
+  size_t num_rows_;
+  size_t num_columns_;
+  int32_t num_bins_;
+  size_t limit_size_;
+  int32_t device_;
+
+  dh::caching_device_vector<SketchEntry> entries_a_;
+  dh::caching_device_vector<SketchEntry> entries_b_;
+  bool current_buffer_ {true};
+
+  HostDeviceVector<size_t> columns_ptr_;
+
+  dh::caching_device_vector<SketchEntry>& Current() {
+    if (current_buffer_) {
+      return entries_a_;
+    } else {
+      return entries_b_;
+    }
+  }
+  dh::caching_device_vector<SketchEntry>& Other() {
+    if (!current_buffer_) {
+      return entries_a_;
+    } else {
+      return entries_b_;
+    }
+  }
+  dh::caching_device_vector<SketchEntry> const& Current() const {
+    return const_cast<SketchContainer*>(this)->Current();
+  }
+  dh::caching_device_vector<SketchEntry> const& Other() const {
+    return const_cast<SketchContainer*>(this)->Other();
+  }
+  void Alternate() {
+    current_buffer_ = !current_buffer_;
+  }
+
+  Span<SketchEntry> Column(size_t i) {
+    auto data = dh::ToSpan(this->Current());
+    auto h_ptr = columns_ptr_.ConstHostSpan();
+    auto c = data.subspan(h_ptr[i], h_ptr[i+1] - h_ptr[i]);
+    return c;
+  }
+
+ public:
+  SketchContainer(int max_bin, size_t num_columns, size_t num_rows, int32_t device = 0) :
+      num_rows_{num_rows}, num_columns_{num_columns}, num_bins_{max_bin}, device_{device} {
+    // Initialize Sketches for this dmatrix
+    // streams_.resize(num_columns);
+    auto eps = 1.0 / (WQSketch::kFactor * max_bin);
+    // for (size_t i = 0; i < num_columns; ++i) {
+    //   dh::safe_cuda(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
+    //   sketches_.emplace_back(num_rows, eps, device, streams_[i]);
+    // }
+    size_t level;
+    WQuantileSketch<float, float>::LimitSizeLevel(num_rows, eps, &limit_size_, &level);
+    limit_size_ *= level;  // ON GPU we don't have streaming algorithm.
+    timer.Init(__func__);
+  }
+  size_t Unique();
+  // ~SketchContainer() {
+  //   for (auto stream : streams_) {
+  //     dh::safe_cuda(cudaStreamDestroy(stream));
+  //   }
+  // }
+
+  /**
+   * \brief Pushes cuts to the sketches.
+   *
+   * \param entries_per_column  The entries per column.
+   * \param entries             Vector of cuts from all columns, length
+   * entries_per_column * num_columns. \param column_scan         Exclusive scan
+   * of column sizes. Used to detect cases where there are fewer entries than we
+   * have storage for.
+   */
+  void Push(size_t entries_per_column,
+            const common::Span<SketchEntry>& entries,
+            const thrust::host_vector<size_t>& column_scan);
+
+  void Prune(size_t to);
+
+  void Merge(Span<SketchEntry const> other, Span<size_t const> other_ptr);
+
+  void MakeCuts(HistogramCuts* cuts);
+
+  // Prevent copying/assigning/moving this as its internals can't be
+  // assigned/copied/moved
+  SketchContainer(const SketchContainer&) = delete;
+  SketchContainer(const SketchContainer&&) = delete;
+  SketchContainer& operator=(const SketchContainer&) = delete;
+  SketchContainer& operator=(const SketchContainer&&) = delete;
+};
 }  // namespace common
 }  // namespace xgboost
 

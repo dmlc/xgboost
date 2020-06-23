@@ -14,79 +14,6 @@
 
 namespace xgboost {
 namespace common {
-
-using WQSketch = DenseCuts::WQSketch;
-using SketchEntry = WQSketch::Entry;
-
-/*!
- * \brief A container that holds the device sketches across all
- *  sparse page batches which are distributed to different devices.
- *  As sketches are aggregated by column, the mutex guards
- *  multiple devices pushing sketch summary for the same column
- *  across distinct rows.
- */
-struct SketchContainer {
-  std::vector<DeviceQuantile> sketches_;  // NOLINT
-  std::vector<cudaStream_t> streams_;
-  static constexpr int kOmpNumColsParallelizeLimit = 1000;
-  static constexpr float kFactor = 8;
-  Monitor timer;
-
- private:
-  size_t num_rows_;
-  int32_t num_bins_;
-
- public:
-  SketchContainer(int max_bin, size_t num_columns, size_t num_rows, int32_t device = 0) :
-      num_rows_{num_rows}, num_bins_{max_bin} {
-    // Initialize Sketches for this dmatrix
-    streams_.resize(num_columns);
-    for (size_t i = 0; i < num_columns; ++i) {
-      dh::safe_cuda(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
-      sketches_.emplace_back(num_rows, 1.0 / (WQSketch::kFactor * max_bin), device, streams_[i]);
-    }
-    timer.Init(__func__);
-  }
-  ~SketchContainer() {
-    for (auto stream : streams_) {
-      dh::safe_cuda(cudaStreamDestroy(stream));
-    }
-  }
-
-  /**
-   * \brief Pushes cuts to the sketches.
-   *
-   * \param entries_per_column  The entries per column.
-   * \param entries             Vector of cuts from all columns, length
-   * entries_per_column * num_columns. \param column_scan         Exclusive scan
-   * of column sizes. Used to detect cases where there are fewer entries than we
-   * have storage for.
-   */
-  void Push(size_t entries_per_column,
-            const common::Span<SketchEntry>& entries,
-            const thrust::host_vector<size_t>& column_scan) {
-    timer.Start(__func__);
-#pragma omp parallel for schedule(static) if (sketches_.size() > SketchContainer::kOmpNumColsParallelizeLimit)  // NOLINT
-    for (int icol = 0; icol < sketches_.size(); ++icol) {
-      size_t column_size = column_scan[icol + 1] - column_scan[icol];
-      if (column_size == 0) continue;
-      size_t num_available_cuts =
-          std::min(size_t(entries_per_column), column_size);
-      sketches_[icol].PushSorted(entries.subspan(entries_per_column * icol, num_available_cuts));
-    }
-    timer.Stop(__func__);
-  }
-
-  void MakeCuts(HistogramCuts* cuts);
-
-  // Prevent copying/assigning/moving this as its internals can't be
-  // assigned/copied/moved
-  SketchContainer(const SketchContainer&) = delete;
-  SketchContainer(const SketchContainer&&) = delete;
-  SketchContainer& operator=(const SketchContainer&) = delete;
-  SketchContainer& operator=(const SketchContainer&&) = delete;
-};
-
 struct EntryCompareOp {
   __device__ bool operator()(const Entry& a, const Entry& b) {
     if (a.index == b.index) {
@@ -245,6 +172,7 @@ void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
               dh::ToSpan(sorted_entries),
               dh::ToSpan(column_sizes_scan),
               dh::ToSpan(cuts));
+  sorted_entries.clear();
 
   // Push cuts into sketches stored in host memory
   sketch_container->Push(num_cuts, dh::ToSpan(cuts), host_column_sizes_scan);
@@ -329,7 +257,7 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
                       dh::ToSpan(temp_weights),
                       dh::ToSpan(column_sizes_scan),
                       dh::ToSpan(cuts));
-
+  sorted_entries.clear();
   // add cuts into sketches
   sketch_container->Push(num_cuts_per_feature, dh::ToSpan(cuts), host_column_sizes_scan);
 }
