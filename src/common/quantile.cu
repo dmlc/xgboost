@@ -9,6 +9,7 @@
 
 #include "xgboost/span.h"
 #include "quantile.h"
+#include "segmented_uniques.cuh"
 #include "quantile.cuh"
 #include "hist_util.h"
 #include "device_helpers.cuh"
@@ -399,47 +400,6 @@ void SketchContainer::Push(size_t entries_per_column,
   timer.Stop(__func__);
 }
 
-template <typename KeyInIt, typename KeyOutIt, typename ValInIt,
-          typename ValOutIt, typename Comp>
-size_t
-SegmentedUnique(KeyInIt key_first, KeyInIt key_last, ValInIt val_first,
-                ValInIt val_last, KeyOutIt key_out, ValOutIt val_out,
-                Comp comp) {
-  using Key = thrust::pair<size_t, float>;
-  auto unique_key_it = dh::MakeTransformIterator<Key>(
-      thrust::make_counting_iterator(static_cast<size_t>(0)),
-      [=] __device__(size_t i) {
-        size_t column =
-            thrust::upper_bound(thrust::seq, key_first, key_last, i) - 1 -
-            key_first;
-        return thrust::make_pair(column, (val_first + i)->value);
-      });
-  size_t n_segments = key_last - key_first;
-  size_t n_inputs = std::distance(val_first, val_last);
-  dh::caching_device_vector<Key> keys(n_inputs);
-
-  auto uniques_ret = thrust::unique_by_key_copy(
-      thrust::device, unique_key_it, unique_key_it + n_inputs,
-      val_first, keys.begin(), val_out,
-      [=] __device__(Key const &l, Key const &r) {
-        if (l.first == r.first) {
-          return l.second == r.second;
-        }
-        return false;
-      });
-  auto n_uniques = uniques_ret.first - keys.begin();
-  auto encode_it = dh::MakeTransformIterator<size_t>(
-      keys.begin(), [] __device__(Key k) { return k.first; });
-  auto new_end = thrust::reduce_by_key(
-      thrust::device, encode_it, encode_it + n_uniques,
-      thrust::make_constant_iterator(1ul), thrust::make_discard_iterator(),
-      key_out);
-
-  thrust::exclusive_scan(thrust::device, key_out, key_out + n_segments, key_out,
-                         0);
-  return n_uniques;
-}
-
 size_t SketchContainer::Unique() {
   this->columns_ptr_.SetDevice(device_);
   Span<size_t> d_column_scan = this->columns_ptr_.DeviceSpan();
@@ -452,7 +412,10 @@ size_t SketchContainer::Unique() {
   size_t n_uniques = SegmentedUnique(
       d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
       entries.data(), entries.data() + entries.size(), d_column_scan.data(),
-      this->Other().begin(), thrust::equal_to<float>{});
+      this->Other().begin(),
+      [] __device__(SketchEntry const &l, SketchEntry const &r) {
+        return l.value == r.value;
+      });
 
   auto const& h_columns_ptr = columns_ptr_.ConstHostSpan();
   CHECK_EQ(h_columns_ptr.size(), num_columns_ + 1);

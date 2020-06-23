@@ -32,7 +32,7 @@ SegmentedUnique(KeyInIt key_first, KeyInIt key_last, ValInIt val_first,
       val_first, keys.begin(), val_out,
       [=] __device__(Key const &l, Key const &r) {
         if (l.first == r.first) {
-          return l.second == r.second;
+          return comp(l.second, r.second);
         }
         return false;
       });
