@@ -155,23 +155,13 @@ struct SketchContainer {
   SketchContainer(int max_bin, size_t num_columns, size_t num_rows, int32_t device = 0) :
       num_rows_{num_rows}, num_columns_{num_columns}, num_bins_{max_bin}, device_{device} {
     // Initialize Sketches for this dmatrix
-    // streams_.resize(num_columns);
     auto eps = 1.0 / (WQSketch::kFactor * max_bin);
-    // for (size_t i = 0; i < num_columns; ++i) {
-    //   dh::safe_cuda(cudaStreamCreateWithFlags(&streams_[i], cudaStreamNonBlocking));
-    //   sketches_.emplace_back(num_rows, eps, device, streams_[i]);
-    // }
     size_t level;
     WQuantileSketch<float, float>::LimitSizeLevel(num_rows, eps, &limit_size_, &level);
     limit_size_ *= level;  // ON GPU we don't have streaming algorithm.
     timer.Init(__func__);
   }
   size_t Unique();
-  // ~SketchContainer() {
-  //   for (auto stream : streams_) {
-  //     dh::safe_cuda(cudaStreamDestroy(stream));
-  //   }
-  // }
 
   /**
    * \brief Pushes cuts to the sketches.
