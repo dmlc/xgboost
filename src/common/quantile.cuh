@@ -188,7 +188,7 @@ struct SketchContainer {
 
   void Prune(size_t to);
 
-  void Merge(Span<SketchEntry const> other, Span<size_t const> other_ptr);
+  void Merge(std::vector< Span<SketchEntry> >other);
 
   void MakeCuts(HistogramCuts* cuts);
 

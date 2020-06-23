@@ -207,6 +207,9 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
       return;
     }
     auto x_elem = d_x[a_ind];
+    if (b_ind > d_y.size()) {
+      printf("b_ind: %d, d_y.size(): %lu\n", b_ind, d_y.size());
+    }
     assert(b_ind <= d_y.size());
     if (b_ind == d_y.size()) {
       d_out[idx] = SketchEntry(x_elem.rmin + d_y.back().RMinNext(),
@@ -338,38 +341,25 @@ void SketchContainer::Push(size_t entries_per_column,
                            const common::Span<SketchEntry>& entries,
                            const thrust::host_vector<size_t>& column_scan) {
   timer.Start(__func__);
-  std::vector<size_t> columns_ptr{0};
+  std::vector<Span<SketchEntry>> columns;
   for (size_t icol = 0; icol < num_columns_; ++icol) {
     size_t column_size = column_scan[icol + 1] - column_scan[icol];
     size_t num_available_cuts =
         std::min(size_t(entries_per_column), column_size);
-    columns_ptr.emplace_back(num_available_cuts);
+    CHECK_GT(column_size, 0);  // FIXME
+    // if (column_size == 0) continue;
+    columns.emplace_back(entries.subspan(entries_per_column * icol, num_available_cuts));
   }
-  std::partial_sum(columns_ptr.begin(), columns_ptr.end(), columns_ptr.begin());
-
-  std::cout << "Push columns ptr" << std::endl;
-  for (auto ptr : columns_ptr) {
-    std::cout << ptr << ", ";
-  }
-  std::cout << std::endl;
-  this->Merge(entries, this->columns_ptr_.HostSpan());
+  CHECK_EQ(columns.size(), num_columns_);
+  this->Merge(columns);
   this->Prune(limit_size_);
-
-// #pragma omp parallel for schedule(static) if (sketches_.size() > SketchContainer::kOmpNumColsParallelizeLimit)  // NOLINT
-//   for (int icol = 0; icol < sketches_.size(); ++icol) {
-//     size_t column_size = column_scan[icol + 1] - column_scan[icol];
-//     if (column_size == 0) continue;
-//     size_t num_available_cuts =
-//         std::min(size_t(entries_per_column), column_size);
-//     sketches_[icol].PushSorted(entries.subspan(entries_per_column * icol, num_available_cuts));
-//   }
 
   timer.Stop(__func__);
 }
 
 size_t SketchContainer::Unique() {
   this->columns_ptr_.SetDevice(device_);
-  std::cout << "Before prune" << std::endl;
+  std::cout << "Before Unique" << std::endl;
   for (auto ptr : this->columns_ptr_.HostVector()) {
     std::cout << ptr << ", ";
   }
@@ -438,7 +428,8 @@ size_t SketchContainer::Unique() {
 
 void SketchContainer::Prune(size_t to) {
   // Segmented unique
-  auto n_uniques = this->Unique();
+  // auto n_uniques = this->Unique();
+  size_t n_uniques = this->Current().size();
   auto const& h_columns_ptr = this->columns_ptr_.HostSpan();
   CHECK_EQ(n_uniques, h_columns_ptr.back());
   this->Other().resize(n_uniques);
@@ -453,28 +444,44 @@ void SketchContainer::Prune(size_t to) {
   this->Alternate();
 }
 
-void SketchContainer::Merge(Span<SketchEntry const> that,
-                            Span<size_t const> that_ptr) {
+void SketchContainer::Merge(std::vector< Span<SketchEntry> > that) {
+  CHECK_EQ(that.size(), this->num_columns_);
+  size_t total = 0;
+  for (auto s : that) {
+    total += s.size();
+  }
   if (this->Current().size() == 0) {
-    this->Current().resize(that.size());
-    thrust::copy(thrust::device, that.data(), that.data() + that.size(),
-                 this->Current().begin());
-    columns_ptr_.HostVector().resize(that_ptr.size());
-    std::copy(that_ptr.cbegin(), that_ptr.cend(), this->columns_ptr_.HostSpan().begin());
+    CHECK_EQ(this->columns_ptr_.Size(), 0);
+    std::cout << "Merge copy: " << that.size() << std::endl;
+    this->Current().resize(total);
+    size_t offset = 0;
+    columns_ptr_.HostVector().emplace_back(offset);
+    for (auto c : that) {
+      thrust::copy(thrust::device, c.data(), c.data() + c.size(),
+                   this->Current().begin() + offset);
+      offset += c.size();
+      columns_ptr_.HostVector().emplace_back(offset);
+    }
+
+    CHECK_EQ(columns_ptr_.Size(), num_columns_ + 1);
     return;
   }
 
   auto const& h_columns_ptr = columns_ptr_.ConstHostSpan();
-  this->Other().resize(this->Current().size() + that.size());
-  CHECK_EQ(h_columns_ptr.size(), that_ptr.size());
+  CHECK_EQ(h_columns_ptr.size(), that.size() + 1);
+
+  this->Other().resize(this->Current().size() + total);
   size_t out_offset = 0;
   std::vector<size_t> new_columns_ptr{out_offset};
-  for (size_t i = 0; i < h_columns_ptr.size() - 1; ++i) {
-    auto other_beg = that_ptr[i];
-    auto other_size = that_ptr[i + 1] - other_beg;
+  for (size_t i = 0; i < num_columns_; ++i) {
     auto self_column = this->Column(i);
-    auto that_column = that.subspan(other_beg, other_size);
-    auto out_size = self_column.size() + other_size;
+    auto that_column = that[i];
+    // auto n_uniques = thrust::unique(thrust::device, that_column.data(),
+    //                                 that_column.data() + that_column.size(),
+    //                                 SketchUnique{}) -
+    //                  that_column.data();
+    // that_column = that_column.subspan(0, n_uniques);
+    auto out_size = self_column.size() + that_column.size();
     auto out = dh::ToSpan(this->Other()).subspan(out_offset, out_size);
     MergeImpl(self_column, that_column, out);
     out_offset += out_size;
@@ -482,6 +489,8 @@ void SketchContainer::Merge(Span<SketchEntry const> that,
   }
   CHECK_EQ(this->columns_ptr_.Size(), new_columns_ptr.size());
   this->columns_ptr_.HostVector() = std::move(new_columns_ptr);
+  CHECK_EQ(this->columns_ptr_.Size(), num_columns_ + 1);
+  CHECK_EQ(this->columns_ptr_.HostVector().back(), this->Other().size());
   this->Alternate();
 }
 
