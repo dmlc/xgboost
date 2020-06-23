@@ -400,6 +400,7 @@ size_t SketchContainer::Unique() {
 }
 
 void SketchContainer::Prune(size_t to) {
+  timer.Start(__func__);
   auto n_uniques = this->Unique();
   // auto const& h_columns_ptr = this->columns_ptr_.ConstHostSpan();
   // CHECK_EQ(n_uniques, h_columns_ptr.back());
@@ -459,10 +460,11 @@ void SketchContainer::Prune(size_t to) {
   });
   this->columns_ptr_.HostVector() = new_columns_ptr.HostVector();
   this->Alternate();
-  this->Unique();
+  timer.Stop(__func__);
 }
 
 void SketchContainer::Merge(std::vector< Span<SketchEntry> > that) {
+  timer.Start(__func__);
   CHECK_EQ(that.size(), this->num_columns_);
   size_t total = 0;
   for (auto s : that) {
@@ -506,6 +508,7 @@ void SketchContainer::Merge(std::vector< Span<SketchEntry> > that) {
   CHECK_EQ(this->columns_ptr_.Size(), num_columns_ + 1);
   CHECK_EQ(this->columns_ptr_.HostVector().back(), this->Other().size());
   this->Alternate();
+  timer.Stop(__func__);
 }
 
 void AddCutPoint(std::vector<SketchEntry> const &summary, int max_bin,
