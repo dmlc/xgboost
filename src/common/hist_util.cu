@@ -127,14 +127,12 @@ void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
                                                   host_data.begin() + end);
   thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
                sorted_entries.end(), EntryCompareOp());
-  std::cout << "begin:" << begin << ", " << "end: " << end << std::endl;
 
   dh::caching_device_vector<size_t> column_sizes_scan;
   GetColumnSizesScan(device, &column_sizes_scan,
                      {sorted_entries.data().get(), sorted_entries.size()},
                      num_columns);
   thrust::host_vector<size_t> host_column_sizes_scan(column_sizes_scan);
-  std::cout << "num_columns * num_cuts: " << num_columns * num_cuts << std::endl;
   dh::caching_device_vector<SketchEntry> cuts(num_columns * num_cuts);
   ExtractCuts(device, num_cuts,
               dh::ToSpan(sorted_entries),
@@ -244,7 +242,6 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
     size_t batch_nnz = batch.data.Size();
     auto const& info = dmat->Info();
     for (auto begin = 0ull; begin < batch_nnz; begin += sketch_batch_num_elements) {
-      std::cout << "sketch_batch_num_elements: " << sketch_batch_num_elements << std::endl;
       size_t end = std::min(batch_nnz, size_t(begin + sketch_batch_num_elements));
       if (has_weights) {
         bool is_ranking = CutsBuilder::UseGroup(dmat);

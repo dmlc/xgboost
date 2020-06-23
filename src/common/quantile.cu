@@ -399,6 +399,15 @@ size_t SketchContainer::Unique() {
   return n_uniques;
 }
 
+template <typename T>
+size_t __device__ ColumnId(common::Span<T const> columns_ptr, size_t idx) {
+  size_t column_id =
+      thrust::upper_bound(thrust::seq, columns_ptr.begin(),
+                          columns_ptr.end(), idx) -
+      1 - columns_ptr.begin();
+  return column_id;
+}
+
 void SketchContainer::Prune(size_t to) {
   timer.Start(__func__);
   auto n_uniques = this->Unique();
@@ -421,11 +430,7 @@ void SketchContainer::Prune(size_t to) {
   auto out = dh::ToSpan(this->Other());
   auto in = dh::ToSpan(this->Current());
   dh::LaunchN(0, to_total, [=] __device__(size_t idx) {
-    size_t column_id =
-        thrust::upper_bound(thrust::seq, d_columns_ptr_out.begin(),
-                            d_columns_ptr_out.end(), idx) -
-        1 - d_columns_ptr_out.begin();
-    // size_t out_offset = d_columns_ptr_out[column_id];
+    size_t column_id = ColumnId(d_columns_ptr_out, idx);
     auto out_column = out.subspan(d_columns_ptr_out[column_id],
                                   d_columns_ptr_out[column_id + 1] -
                                       d_columns_ptr_out[column_id]);
@@ -524,7 +529,7 @@ void AddCutPoint(std::vector<SketchEntry> const &summary, int max_bin,
 
 void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   timer.Start(__func__);
-  p_cuts->min_vals_.HostVector().resize(num_columns_);
+  p_cuts->min_vals_.Resize(num_columns_);
   size_t global_max_rows = num_rows_;
   rabit::Allreduce<rabit::op::Sum>(&global_max_rows, 1);
   size_t intermediate_num_cuts =
@@ -537,40 +542,70 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   //   sketch.AllReduce();
   // }
   this->Prune(num_bins_ + 1);
-  for (size_t fid = 0; fid < num_columns_; ++fid) {
-    // sketches_[fid].Synchronize();
+  this->Unique();
 
-    if (this->Column(fid).size() == 0) {  // Empty column
-      p_cuts->min_vals_.HostVector().push_back(kRtEps);
-      p_cuts->cut_values_.HostVector().push_back(kRtEps);
-      auto cut_size = static_cast<uint32_t>(p_cuts->cut_values_.HostVector().size());
-      p_cuts->cut_ptrs_.HostVector().push_back(cut_size);
-      continue;
+  // Set up inputs
+  auto h_in_columns_ptr = this->columns_ptr_.ConstHostSpan();
+  auto d_in_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
+
+  p_cuts->min_vals_.SetDevice(device_);
+  auto d_min_values = p_cuts->min_vals_.DeviceSpan();
+  auto in_cut_values = dh::ToSpan(this->Current());
+
+  // Set up output ptr
+  p_cuts->cut_ptrs_.SetDevice(0);
+  auto& h_out_columns_ptr = p_cuts->cut_ptrs_.HostVector();
+  h_out_columns_ptr.clear();
+  h_out_columns_ptr.push_back(0);
+  for (size_t i = 0; i < num_columns_; ++i) {
+    h_out_columns_ptr.push_back(
+        std::min(std::max(1ul, this->Column(i).size()), static_cast<size_t>(num_bins_)));
+  }
+  CHECK_EQ(h_out_columns_ptr.size(), h_in_columns_ptr.size());
+  std::partial_sum(h_out_columns_ptr.begin(), h_out_columns_ptr.end(),
+                   h_out_columns_ptr.begin());
+  auto d_out_columns_ptr = p_cuts->cut_ptrs_.ConstDeviceSpan();
+
+  // Set up output cuts
+  size_t total_bins = h_out_columns_ptr.back();
+  p_cuts->cut_values_.SetDevice(device_);
+  p_cuts->cut_values_.Resize(total_bins);
+  auto out_cut_values = p_cuts->cut_values_.DeviceSpan();
+
+  // 1 thread for writing min value
+  dh::LaunchN(0, total_bins, [=] __device__(size_t idx) {
+    auto column_id = ColumnId(d_out_columns_ptr, idx);
+    auto in_column = in_cut_values.subspan(d_in_columns_ptr[column_id],
+                                           d_in_columns_ptr[column_id + 1] -
+                                               d_in_columns_ptr[column_id]);
+    auto out_column = out_cut_values.subspan(d_out_columns_ptr[column_id],
+                                             d_out_columns_ptr[column_id + 1] -
+                                                 d_out_columns_ptr[column_id]);
+    idx -= d_out_columns_ptr[column_id];
+    if (in_column.size() == 0) {
+      if (idx == 0) {
+        d_min_values[column_id] = kRtEps;
+        out_column[0] = kRtEps;
+        assert(out_column.size() == 1);
+      }
+      return;
     }
 
-    // sketches_[fid].Prune(num_bins_ + 1);
-    std::vector<SketchEntry> entries(this->Column(fid).size());
-    dh::safe_cuda(
-        cudaMemcpyAsync(entries.data(), this->Column(fid).data(),
-                        this->Column(fid).size_bytes(),
-                        cudaMemcpyDeviceToHost));
-    CHECK_GT(entries.size(), 0);
-    const bst_float mval = entries[0].value;
-    p_cuts->min_vals_.HostVector()[fid] = mval - (fabs(mval) + 1e-5);
-    AddCutPoint(entries, num_bins_, p_cuts);
-    // push a value that is greater than anything
-    const bst_float cpt
-        = (entries.size() > 0) ? entries.back().value : p_cuts->min_vals_.HostVector()[fid];
-    // this must be bigger than last value in a scale
-    const bst_float last = cpt + (fabs(cpt) + 1e-5);
-    p_cuts->cut_values_.HostVector().push_back(last);
-
-    // Ensure that every feature gets at least one quantile point
-    CHECK_LE(p_cuts->cut_values_.HostVector().size(), std::numeric_limits<uint32_t>::max());
-    auto cut_size = static_cast<uint32_t>(p_cuts->cut_values_.HostVector().size());
-    CHECK_GT(cut_size, p_cuts->cut_ptrs_.HostVector().back());
-    p_cuts->cut_ptrs_.HostVector().push_back(cut_size);
-  }
+    if (idx == 0) {
+      auto mval = in_column[idx].value;
+      d_min_values[column_id] = mval - (fabs(mval) + 1e-5);
+    }
+    // idx >= 1 && idx < out.size
+    if (idx == out_column.size() - 1) {
+      const bst_float cpt = in_column.back().value;
+      // this must be bigger than last value in a scale
+      const bst_float last = cpt + (fabs(cpt) + 1e-5);
+      out_column[idx] = last;
+      return;
+    }
+    assert(idx+1 < in_column.size());
+    out_column[idx] = in_column[idx+1].value;
+  });
   timer.Stop(__func__);
 }
 }  // namespace common
