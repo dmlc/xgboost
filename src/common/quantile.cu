@@ -489,11 +489,9 @@ void SketchContainer::Merge(std::vector< Span<SketchEntry> > that) {
     }
 
     CHECK_EQ(columns_ptr_.Size(), num_columns_ + 1);
+    timer.Stop(__func__);
     return;
   }
-
-  // auto const& h_columns_ptr = columns_ptr_.ConstHostSpan();
-  // CHECK_EQ(h_columns_ptr.size(), that.size() + 1);
 
   this->Other().resize(this->Current().size() + total, SketchEntry{0, 0, 0, 0});
   size_t out_offset = 0;
@@ -514,17 +512,6 @@ void SketchContainer::Merge(std::vector< Span<SketchEntry> > that) {
   CHECK_EQ(this->columns_ptr_.HostVector().back(), this->Other().size());
   this->Alternate();
   timer.Stop(__func__);
-}
-
-void AddCutPoint(std::vector<SketchEntry> const &summary, int max_bin,
-                 HistogramCuts *p_cuts_) {
-  size_t required_cuts = std::min(summary.size(), static_cast<size_t>(max_bin));
-  for (size_t i = 1; i < required_cuts; ++i) {
-    bst_float cpt = summary[i].value;
-    if (i == 1 || cpt > p_cuts_->cut_values_.ConstHostVector().back()) {
-      p_cuts_->cut_values_.HostVector().push_back(cpt);
-    }
-  }
 }
 
 void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
