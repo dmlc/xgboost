@@ -54,21 +54,14 @@ struct SketchUnique {
 
 struct IsSorted {
   bool XGBOOST_DEVICE operator()(SketchEntry const& a, SketchEntry const& b) const {
-    if (a.value == b.value) {
-      printf("%f, %f\n", a.value, b.value);
-    }
     return a.value < b.value;
   }
-  // bool XGBOOST_DEVICE operator()(float const& a, float const& b) const {
-  //   return a <= b;
-  // }
 };
 }  // anonymous namespace
 
 void PruneImpl(size_t to, common::Span<SketchEntry> entries,
                Span<SketchEntry> out,
                cudaStream_t stream = nullptr) {
-  dh::XGBCachingDeviceAllocator<SketchEntry> alloc;
   CHECK_GE(to, 2);
   if (entries.size() <= to) {
     dh::safe_cuda(cudaMemcpyAsync(out.data(), entries.data(),
@@ -396,40 +389,75 @@ size_t SketchContainer::Unique() {
       entries.data(),
       SketchUnique{});
   CHECK(!this->columns_ptr_.HostCanRead());
-  auto const& h_columns_ptr = this->columns_ptr_.ConstHostSpan();
-  CHECK_EQ(h_columns_ptr.size(), num_columns_ + 1);
-  CHECK_GT(h_columns_ptr.back(), 0);
-  CHECK_LT(h_columns_ptr.back(), std::numeric_limits<bst_feature_t>::max());
+  // auto const& h_columns_ptr = this->columns_ptr_.ConstHostSpan();
+  // CHECK_EQ(h_columns_ptr.size(), num_columns_ + 1);
+  // CHECK_GT(h_columns_ptr.back(), 0);
+  // CHECK_LT(h_columns_ptr.back(), std::numeric_limits<bst_feature_t>::max());
 
   this->Current().resize(n_uniques, SketchEntry{0, 0, 0, 0});
-  CHECK_EQ(h_columns_ptr.back(), n_uniques);
+  // CHECK_EQ(h_columns_ptr.back(), n_uniques);
   return n_uniques;
 }
 
 void SketchContainer::Prune(size_t to) {
   auto n_uniques = this->Unique();
-  auto const& h_columns_ptr = this->columns_ptr_.HostSpan();
-  CHECK_EQ(n_uniques, h_columns_ptr.back());
+  // auto const& h_columns_ptr = this->columns_ptr_.ConstHostSpan();
+  // CHECK_EQ(n_uniques, h_columns_ptr.back());
 
   size_t to_total = 0;
-  std::vector<size_t> new_columns_ptr{to_total};
+  HostDeviceVector<size_t> new_columns_ptr{to_total};
+  new_columns_ptr.SetDevice(device_);
   for (size_t i = 0; i < num_columns_; ++i) {
     size_t length = this->Column(i).size();
     length = std::min(length, to);
     to_total += length;
-    new_columns_ptr.emplace_back(to_total);
+    new_columns_ptr.HostVector().emplace_back(to_total);
   }
   this->Other().resize(to_total, SketchEntry{0, 0, 0, 0});
 
-  for (size_t i = 0; i < num_columns_; ++i) {
-    auto out = dh::ToSpan(this->Other());
-    auto to_column =
-        out.subspan(new_columns_ptr[i], new_columns_ptr[i+1]-new_columns_ptr[i]);
-    CHECK_NE(to_column.size(), 0);
-    auto in_column = this->Column(i);
-    PruneImpl(to, in_column, to_column);
-  }
-  this->columns_ptr_.HostVector() = std::move(new_columns_ptr);
+  auto d_columns_ptr_in = this->columns_ptr_.ConstDeviceSpan();
+  auto d_columns_ptr_out = new_columns_ptr.ConstDeviceSpan();
+  auto out = dh::ToSpan(this->Other());
+  auto in = dh::ToSpan(this->Current());
+  dh::LaunchN(0, to_total, [=] __device__(size_t idx) {
+    size_t column_id =
+        thrust::upper_bound(thrust::seq, d_columns_ptr_out.begin(),
+                            d_columns_ptr_out.end(), idx) -
+        1 - d_columns_ptr_out.begin();
+    // size_t out_offset = d_columns_ptr_out[column_id];
+    auto out_column = out.subspan(d_columns_ptr_out[column_id],
+                                  d_columns_ptr_out[column_id + 1] -
+                                      d_columns_ptr_out[column_id]);
+    auto in_column = in.subspan(d_columns_ptr_in[column_id],
+                                d_columns_ptr_in[column_id + 1] -
+                                    d_columns_ptr_in[column_id]);
+    idx -= d_columns_ptr_out[column_id];
+    // Just copy the output.
+    if (d_columns_ptr_in[column_id + 1] - d_columns_ptr_in[column_id] <= to) {
+      out_column[idx] = in_column[idx];
+      return;
+    }
+    // 1 thread for each output.  See A.4 for detail.
+    auto entries = in_column;
+    auto d_out = out_column;
+    if (idx == 0) {
+      d_out.front() = entries.front();
+      return;
+    }
+    if (idx == to - 1) {
+      d_out.back() = entries.back();
+      return;
+    }
+
+    float w = entries.back().rmin - entries.front().rmax;
+    auto budget = static_cast<float>(d_out.size());
+    assert(w != 0);
+    assert(budget != 0);
+    auto q = ((idx * w) / (to - 1) + entries.front().rmax);
+    assert(idx < d_out.size());
+    d_out[idx] = BinarySearchQuery(entries, q);
+  });
+  this->columns_ptr_.HostVector() = new_columns_ptr.HostVector();
   this->Alternate();
   this->Unique();
 }
@@ -457,8 +485,8 @@ void SketchContainer::Merge(std::vector< Span<SketchEntry> > that) {
     return;
   }
 
-  auto const& h_columns_ptr = columns_ptr_.ConstHostSpan();
-  CHECK_EQ(h_columns_ptr.size(), that.size() + 1);
+  // auto const& h_columns_ptr = columns_ptr_.ConstHostSpan();
+  // CHECK_EQ(h_columns_ptr.size(), that.size() + 1);
 
   this->Other().resize(this->Current().size() + total, SketchEntry{0, 0, 0, 0});
   size_t out_offset = 0;
