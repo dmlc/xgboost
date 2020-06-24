@@ -231,55 +231,6 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
   });
 }
 
-void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
-               dh::device_vector<SketchEntry> *out, cudaStream_t stream = nullptr) {
-  out->resize(d_x.size() + d_y.size());
-  MergeImpl(d_x, d_y, Span<SketchEntry>(out->data().get(), out->size()), stream);
-}
-
-void DeviceQuantile::SetMerge(std::vector<Span<SketchEntry const>> const& others) {
-  dh::safe_cuda(cudaSetDevice(device_));
-  auto x = others.front();
-  dh::device_vector<SketchEntry> buffer;
-  // We don't have k way merging, so iterate it through.
-  for (size_t i = 1; i < others.size(); ++i) {
-    auto const y = others[i];
-    MergeImpl(x, y, &buffer);
-    std::swap(this->Current(), buffer);  // move the result into data_.
-    x = dh::ToSpan(this->Current());     // update x to the latest sketch.
-  }
-}
-
-void DeviceQuantile::AllReduce() {
-  dh::safe_cuda(cudaSetDevice(device_));
-  auto world = rabit::GetWorldSize();
-  if (world == 1) {
-    return;
-  }
-  if (!comm_) {
-    comm_ = std::make_unique<dh::AllReducer>();
-    comm_->Init(device_, false);
-  }
-
-  dh::caching_device_vector<char> recvbuf;
-  std::vector<size_t> global_size;
-  comm_->AllGather(this->Data().data(), this->Data().size_bytes(), &global_size, &recvbuf);;
-  auto s_recvbuf = dh::ToSpan(recvbuf);
-
-  std::vector<Span<SketchEntry const>> allworkers;
-
-  size_t offset = 0;
-  for (int32_t i = 0; i < world; ++i) {
-    size_t length_as_bytes = global_size[i];
-    auto raw = s_recvbuf.subspan(offset, length_as_bytes);
-    auto sketch = Span<SketchEntry>(reinterpret_cast<SketchEntry *>(raw.data()),
-                                    length_as_bytes / sizeof(SketchEntry));
-    allworkers.emplace_back(sketch);
-    offset += length_as_bytes;
-  }
-  this->SetMerge(allworkers);
-}
-
 void SketchContainer::Push(size_t entries_per_column,
                            const common::Span<SketchEntry>& entries,
                            const thrust::host_vector<size_t>& column_scan) {
