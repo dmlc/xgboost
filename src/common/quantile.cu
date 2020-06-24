@@ -386,9 +386,10 @@ void SketchContainer::Push(size_t entries_per_column,
     auto s_columns_scan = dh::ToSpan(d_columns_scan);
     std::partial_sum(new_columns_ptr.begin(), new_columns_ptr.end(), new_columns_ptr.begin());
     this->Current().resize(new_columns_ptr.back());
+    dh::XGBCachingDeviceAllocator<char> alloc;
     size_t n =
         thrust::copy_if(
-            thrust::device, entries.data(), entries.data() + entries.size(),
+            thrust::cuda::par(alloc), entries.data(), entries.data() + entries.size(),
             thrust::make_counting_iterator(0ul), this->Current().begin(),
             [=] __device__(size_t i) {
               auto column_id = i / entries_per_column;
