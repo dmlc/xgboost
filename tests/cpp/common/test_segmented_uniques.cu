@@ -65,16 +65,17 @@ void TestSegmentedUniqueRegression(std::vector<SketchEntry> values, size_t n_dup
 
   thrust::device_vector<SketchEntry> d_values(values);
   thrust::device_vector<bst_feature_t> d_segments(segments);
+  thrust::device_vector<bst_feature_t> d_segments_out(segments.size());
 
   size_t n_uniques = SegmentedUnique(
       d_segments.data().get(), d_segments.data().get() + d_segments.size(), d_values.data().get(),
-      d_values.data().get() + d_values.size(), d_segments.data().get(), d_values.data().get(),
+      d_values.data().get() + d_values.size(), d_segments_out.data().get(), d_values.data().get(),
       SketchUnique{});
   ASSERT_EQ(n_uniques, values.size() - n_duplicated);
   ASSERT_TRUE(thrust::is_sorted(thrust::device, d_values.begin(),
                                 d_values.begin() + n_uniques, IsSorted{}));
-  ASSERT_EQ(segments[0], d_segments[0]);
-  ASSERT_EQ(segments[1], d_segments[1] + n_duplicated);
+  ASSERT_EQ(segments.at(0), d_segments_out[0]);
+  ASSERT_EQ(segments.at(1), d_segments_out[1] + n_duplicated);
 }
 
 
@@ -104,6 +105,10 @@ TEST(SegmentedUnique, Regression) {
                                     {3158, 3159, 1, 0.6256556510925293},
                                     {3159, 3160, 1, 0.62571090459823608},
                                     {3160, 3161, 1, 0.62577134370803833}};
+    TestSegmentedUniqueRegression(values, 0);
+  }
+  {
+    std::vector<SketchEntry> values;
     TestSegmentedUniqueRegression(values, 0);
   }
 }
