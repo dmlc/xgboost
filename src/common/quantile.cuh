@@ -34,10 +34,11 @@ struct SketchContainer {
   size_t limit_size_;
   int32_t device_;
 
+  // Double buffer as neither prune nor merge can be performed inplace.
   dh::device_vector<SketchEntry> entries_a_;
   dh::device_vector<SketchEntry> entries_b_;
   bool current_buffer_ {true};
-
+  // The container is just a CSC matrix.
   HostDeviceVector<bst_feature_t> columns_ptr_;
 
   dh::device_vector<SketchEntry>& Current() {
@@ -64,6 +65,7 @@ struct SketchContainer {
     current_buffer_ = !current_buffer_;
   }
 
+  // Get the span of one column.
   Span<SketchEntry> Column(size_t i) {
     auto data = dh::ToSpan(this->Current());
     auto h_ptr = columns_ptr_.ConstHostSpan();
@@ -72,6 +74,13 @@ struct SketchContainer {
   }
 
  public:
+  /* \breif GPU quantile structure, with sketch data for each columns.
+   *
+   * \param max_bin     Maximum number of bins per columns
+   * \param num_columns Total number of columns in dataset.
+   * \param num_rows    Total number of rows in known dataset (typically the rows in current worker).
+   * \param device      GPU ID.
+   */
   SketchContainer(int max_bin, size_t num_columns, size_t num_rows, int32_t device) :
       num_rows_{num_rows}, num_columns_{num_columns}, num_bins_{max_bin}, device_{device} {
     // Initialize Sketches for this dmatrix
@@ -83,6 +92,7 @@ struct SketchContainer {
     limit_size_ *= level;  // ON GPU we don't have streaming algorithm.
     timer.Init(__func__);
   }
+  /* \brief Removes all the duplicated elements in quantile structure. */
   size_t Unique();
 
   /**
@@ -97,6 +107,7 @@ struct SketchContainer {
   void Push(size_t entries_per_column,
             const common::Span<SketchEntry>& entries,
             const thrust::host_vector<size_t>& column_scan);
+  /* \brief Push a CSC structured cut matrix. */
   void Push(common::Span<size_t const> cuts_ptr,
             const common::Span<SketchEntry>& entries);
   /* \brief Prune the quantile structure.
@@ -105,12 +116,16 @@ struct SketchContainer {
    *           already less than `to`, then no operation is performed.
    */
   void Prune(size_t to);
-
+  /* \brief Merge another set of sketch.
+   * \param other columns of other.
+   */
   void Merge(std::vector< Span<SketchEntry> >other);
-  /* \brief Async merge quantiles from other GPU workers. */
+  /* \brief Merge quantiles from other GPU workers. */
   void AllReduce();
-
+  /* \brief Create the final histogram cut values. */
   void MakeCuts(HistogramCuts* cuts);
+
+  Span<SketchEntry const> Data() const { return dh::ToSpan(this->Current()); }
 
   // Prevent copying/assigning/moving this as its internals can't be
   // assigned/copied/moved

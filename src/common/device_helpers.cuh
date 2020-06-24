@@ -919,11 +919,15 @@ XGBOOST_DEVICE thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIt
   return thrust::transform_iterator<FuncT, IterT, ReturnT>(iter, func);
 }
 
+template <typename It>
+size_t __device__ SegmentId(It first, It last, size_t idx) {
+  size_t segment_id = thrust::upper_bound(thrust::seq, first, last, idx) -
+                      1 - first;
+  return segment_id;
+}
+
 template <typename T>
 size_t __device__ SegmentId(xgboost::common::Span<T> segments_ptr, size_t idx) {
-  size_t column_id = thrust::upper_bound(thrust::seq, segments_ptr.begin(),
-                                         segments_ptr.end(), idx) -
-                     1 - segments_ptr.begin();
-  return column_id;
+  return SegmentId(segments_ptr.cbegin(), segments_ptr.cend(), idx);
 }
 }  // namespace dh
