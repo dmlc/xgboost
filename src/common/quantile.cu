@@ -59,49 +59,7 @@ struct IsSorted {
 };
 }  // anonymous namespace
 
-void PruneImpl(size_t to, common::Span<SketchEntry> entries,
-               Span<SketchEntry> out,
-               cudaStream_t stream = nullptr) {
-  CHECK_GE(to, 2);
-  if (entries.size() <= to) {
-    dh::safe_cuda(cudaMemcpyAsync(out.data(), entries.data(),
-                                  entries.size_bytes(),
-                                  cudaMemcpyDeviceToDevice, stream));
-    return;
-  }
-  CHECK_GE(out.size(), to);
-
-  auto d_out = out;
-  // 1 thread for each output.  See A.4 for detail.
-  dh::LaunchN(0, to - 2, stream, [=] __device__(size_t tid) {
-    tid += 1;
-    float w = entries.back().rmin - entries.front().rmax;
-    auto budget = static_cast<float>(d_out.size());
-    assert(w != 0);
-    assert(budget != 0);
-    auto q = ((tid * w) / (to - 1) + entries.front().rmax);
-    assert(tid < d_out.size());
-    d_out[tid] = BinarySearchQuery(entries, q);
-  });
-  dh::LaunchN(0, 1, stream, [=]__device__(size_t) {
-      assert(d_out.size() >= 2);
-      d_out.front() = entries.front();
-      d_out.back() = entries.back();
-  });
-}
-
-void DeviceQuantile::Prune(size_t to) {
-  monitor.Start(__func__);
-  if (to > this->Current().size()) {
-    return;
-  }
-  // PruneImpl(to, dh::ToSpan(this->Current()), &(this->Other()), stream_);
-  this->Alternate();
-  monitor.Stop(__func__);
-}
-
-void CopyTo(Span<SketchEntry> out,
-            Span<SketchEntry const> src) {
+void CopyTo(Span<SketchEntry> out, Span<SketchEntry const> src) {
   dh::safe_cuda(cudaMemcpyAsync(out.data(), src.data(),
                                 out.size_bytes(),
                                 cudaMemcpyDefault));
@@ -279,20 +237,6 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
   MergeImpl(d_x, d_y, Span<SketchEntry>(out->data().get(), out->size()), stream);
 }
 
-void DeviceQuantile::PushSorted(common::Span<SketchEntry> entries) {
-  monitor.Start(__func__);
-  dh::safe_cuda(cudaSetDevice(device_));
-  SketchEntry *new_end =
-      thrust::unique(thrust::device, entries.data(),
-                     entries.data() + entries.size(), SketchUnique{});
-  entries = entries.subspan(0, std::distance(entries.data(), new_end));
-
-  MergeImpl(this->Data(), entries, &(this->Other()), stream_);
-  this->Alternate();
-  this->Prune(this->limit_size_);
-  monitor.Stop(__func__);
-}
-
 void DeviceQuantile::SetMerge(std::vector<Span<SketchEntry const>> const& others) {
   dh::safe_cuda(cudaSetDevice(device_));
   auto x = others.front();
@@ -304,16 +248,6 @@ void DeviceQuantile::SetMerge(std::vector<Span<SketchEntry const>> const& others
     std::swap(this->Current(), buffer);  // move the result into data_.
     x = dh::ToSpan(this->Current());     // update x to the latest sketch.
   }
-}
-
-void DeviceQuantile::MakeFromOthers(std::vector<DeviceQuantile> const& others) {
-  dh::safe_cuda(cudaSetDevice(device_));
-  std::vector<Span<SketchEntry const>> spans(others.size());
-  for (size_t i = 0; i < others.size(); ++i) {
-    spans[i] = Span<SketchEntry const>(others[i].Current().data().get(),
-                                       others[i].Current().size());
-  }
-  this->SetMerge(spans);
 }
 
 void DeviceQuantile::AllReduce() {
@@ -344,12 +278,6 @@ void DeviceQuantile::AllReduce() {
     offset += length_as_bytes;
   }
   this->SetMerge(allworkers);
-}
-
-void DeviceQuantile::Synchronize() {
-  if (comm_) {
-    comm_->Synchronize();
-  }
 }
 
 void SketchContainer::Push(size_t entries_per_column,
@@ -571,6 +499,7 @@ void SketchContainer::AllReduce() {
   dh::caching_device_vector<char> recvbuf;
   reducer_->AllGather(this->Current().data().get(), dh::ToSpan(this->Current()).size_bytes(),
                       &global_size, &recvbuf);
+  reducer_->Synchronize();
 
   auto s_recvbuf = dh::ToSpan(recvbuf);
   std::vector<Span<SketchEntry>> allworkers;

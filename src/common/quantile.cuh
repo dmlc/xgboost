@@ -69,21 +69,7 @@ class DeviceQuantile {
     limit_size_ *= level;  // ON GPU we don't have streaming algorithm.
     monitor.Init(__func__);
   }
-  /* \brief Merge a set of quantiles */
-  void MakeFromOthers(std::vector<DeviceQuantile> const& others);
-  /* \brief Prune the quantile structure.
-   *
-   * \param to The maximum size of pruned quantile.  If the size of quantile structure is
-   *           already less than `to`, then no operation is performed.
-   */
-  void Prune(size_t to);
-  /* \brief Async merge quantiles from other GPU workers. */
   void AllReduce();
-  /* \brief Sync the operations performed by AllReduce. */
-  void Synchronize();
-  /* \brief Push a sorted sequence into quantile. */
-  void PushSorted(common::Span<SketchEntry> entries);
-
   common::Span<SketchEntry const> Data() const {
     cudaStreamSynchronize(stream_);
     return Span<SketchEntry const>(this->Current().data().get(), this->Current().size());
@@ -178,11 +164,15 @@ struct SketchContainer {
             const thrust::host_vector<size_t>& column_scan);
   void Push(common::Span<size_t const> cuts_ptr,
             const common::Span<SketchEntry>& entries);
-
+  /* \brief Prune the quantile structure.
+   *
+   * \param to The maximum size of pruned quantile.  If the size of quantile structure is
+   *           already less than `to`, then no operation is performed.
+   */
   void Prune(size_t to);
 
   void Merge(std::vector< Span<SketchEntry> >other);
-
+  /* \brief Async merge quantiles from other GPU workers. */
   void AllReduce();
 
   void MakeCuts(HistogramCuts* cuts);
