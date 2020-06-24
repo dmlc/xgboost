@@ -540,7 +540,6 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   p_cuts->cut_values_.Resize(total_bins);
   auto out_cut_values = p_cuts->cut_values_.DeviceSpan();
 
-  // 1 thread for writing min value
   dh::LaunchN(0, total_bins, [=] __device__(size_t idx) {
     auto column_id = dh::SegmentId(d_out_columns_ptr, idx);
     auto in_column = in_cut_values.subspan(d_in_columns_ptr[column_id],

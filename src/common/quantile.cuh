@@ -23,9 +23,6 @@ using SketchEntry = WQSketch::Entry;
  *  across distinct rows.
  */
 struct SketchContainer {
-  // std::vector<DeviceQuantile> sketches_;  // NOLINT
-  // std::vector<cudaStream_t> streams_;
-  // static constexpr int kOmpNumColsParallelizeLimit = 1000;
   static constexpr float kFactor = 8;
   Monitor timer;
 
