@@ -273,7 +273,7 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
   HistogramCuts cuts;
   DenseCuts dense_cuts(&cuts);
   SketchContainer sketch_container(max_bins, dmat->Info().num_col_,
-                                   dmat->Info().num_row_);
+                                   dmat->Info().num_row_, device);
 
   dmat->Info().weights_.SetDevice(device);
   for (const auto& batch : dmat->GetBatches<SparsePage>()) {

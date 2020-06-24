@@ -75,12 +75,14 @@ struct SketchContainer {
   }
 
  public:
-  SketchContainer(int max_bin, size_t num_columns, size_t num_rows, int32_t device = 0) :
+  SketchContainer(int max_bin, size_t num_columns, size_t num_rows, int32_t device) :
       num_rows_{num_rows}, num_columns_{num_columns}, num_bins_{max_bin}, device_{device} {
     // Initialize Sketches for this dmatrix
     auto eps = 1.0 / (WQSketch::kFactor * max_bin);
     size_t level;
     WQuantileSketch<float, float>::LimitSizeLevel(num_rows, eps, &limit_size_, &level);
+    this->columns_ptr_.Resize(num_columns + 1);
+    this->columns_ptr_.SetDevice(device_);
     limit_size_ *= level;  // ON GPU we don't have streaming algorithm.
     timer.Init(__func__);
   }

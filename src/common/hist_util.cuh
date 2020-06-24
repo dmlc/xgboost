@@ -287,7 +287,7 @@ HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
 
   HistogramCuts cuts;
   SketchContainer sketch_container(num_bins, adapter->NumColumns(),
-                                   adapter->NumRows());
+                                   adapter->NumRows(), adapter->DeviceIdx());
 
   for (auto begin = 0ull; begin < batch.Size();
        begin += sketch_batch_num_elements) {
