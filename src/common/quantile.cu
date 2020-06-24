@@ -366,7 +366,7 @@ void SketchContainer::Push(size_t entries_per_column,
                            const thrust::host_vector<size_t>& column_scan) {
   timer.Start(__func__);
   std::vector<Span<SketchEntry>> columns;
-  std::vector<size_t> new_columns_ptr{0};
+  std::vector<bst_feature_t> new_columns_ptr{0};
   for (size_t icol = 0; icol < num_columns_; ++icol) {
     size_t column_size = column_scan[icol + 1] - column_scan[icol];
     size_t num_available_cuts =
@@ -377,7 +377,7 @@ void SketchContainer::Push(size_t entries_per_column,
     new_columns_ptr.emplace_back(num_available_cuts);
   }
   CHECK_EQ(entries.size(), entries_per_column * num_columns_);
-
+  timer.Start("CopyIntoQuantile");
   if (this->Current().size() == 0) {
     CHECK_EQ(this->columns_ptr_.Size(), 0);
     dh::device_vector<size_t> d_columns_scan(column_scan.size());
@@ -411,6 +411,7 @@ void SketchContainer::Push(size_t entries_per_column,
     CHECK_EQ(columns.size(), num_columns_);
     this->Merge(columns);
   }
+  timer.Stop("CopyIntoQuantile");
 
   this->Prune(limit_size_);
   timer.Stop(__func__);
@@ -419,26 +420,21 @@ void SketchContainer::Push(size_t entries_per_column,
 size_t SketchContainer::Unique() {
   timer.Start(__func__);
   this->columns_ptr_.SetDevice(device_);
-  Span<size_t> d_column_scan = this->columns_ptr_.DeviceSpan();
+  Span<bst_feature_t> d_column_scan = this->columns_ptr_.DeviceSpan();
   CHECK_EQ(d_column_scan.size(), num_columns_ + 1);
 
   Span<SketchEntry> entries = dh::ToSpan(this->Current());
+  HostDeviceVector<bst_feature_t> scan_out(d_column_scan.size());
+  scan_out.SetDevice(device_);
+  auto d_scan_out = scan_out.DeviceSpan();
 
   d_column_scan = this->columns_ptr_.DeviceSpan();
-  size_t bytes = 0;
-  SegmentedUnique(
-      nullptr, &bytes,
-      d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
-      entries.data(), entries.data() + entries.size(), d_column_scan.data(),
-      entries.data(),
-      SketchUnique{});
-  this->Other().resize(bytes / sizeof(SketchEntry));
   size_t n_uniques = SegmentedUnique(
-      this->Other().data().get(), &bytes,
       d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
-      entries.data(), entries.data() + entries.size(), d_column_scan.data(),
+      entries.data(), entries.data() + entries.size(), scan_out.DevicePointer(),
       entries.data(),
       SketchUnique{});
+  this->columns_ptr_.Copy(scan_out);
   CHECK(!this->columns_ptr_.HostCanRead());
 
   this->Current().resize(n_uniques, SketchEntry{0, 0, 0, 0});
@@ -450,8 +446,8 @@ void SketchContainer::Prune(size_t to) {
   timer.Start(__func__);
   auto n_uniques = this->Unique();
 
-  size_t to_total = 0;
-  HostDeviceVector<size_t> new_columns_ptr{to_total};
+  bst_feature_t to_total = 0;
+  HostDeviceVector<bst_feature_t> new_columns_ptr{to_total};
   new_columns_ptr.SetDevice(device_);
   for (size_t i = 0; i < num_columns_; ++i) {
     size_t length = this->Column(i).size();
@@ -531,8 +527,8 @@ void SketchContainer::Merge(std::vector< Span<SketchEntry> > that) {
   }
 
   this->Other().resize(this->Current().size() + total, SketchEntry{0, 0, 0, 0});
-  size_t out_offset = 0;
-  std::vector<size_t> new_columns_ptr{out_offset};
+  bst_feature_t out_offset = 0;
+  std::vector<bst_feature_t> new_columns_ptr{out_offset};
   for (size_t i = 0; i < num_columns_; ++i) {
     auto self_column = this->Column(i);
     auto that_column = that[i];

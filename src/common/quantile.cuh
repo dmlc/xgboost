@@ -118,7 +118,7 @@ struct SketchContainer {
   dh::device_vector<SketchEntry> entries_b_;
   bool current_buffer_ {true};
 
-  HostDeviceVector<size_t> columns_ptr_;
+  HostDeviceVector<bst_feature_t> columns_ptr_;
 
   dh::device_vector<SketchEntry>& Current() {
     if (current_buffer_) {

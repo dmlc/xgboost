@@ -172,7 +172,7 @@ void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
               dh::ToSpan(sorted_entries),
               dh::ToSpan(column_sizes_scan),
               dh::ToSpan(cuts));
-  sorted_entries.clear();
+  // sorted_entries.clear();
 
   // Push cuts into sketches stored in host memory
   sketch_container->Push(num_cuts, dh::ToSpan(cuts), host_column_sizes_scan);

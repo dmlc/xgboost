@@ -14,29 +14,38 @@
 #include <nvToolsExt.h>
 #endif  // defined(XGBOOST_USE_NVTX)
 
+size_t PeakCudaMemory(std::string name, bool start);
+
 namespace xgboost {
 namespace common {
 
 void Monitor::Start(std::string const &name) {
-  if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
+  // if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
+  //   auto &stats = statistics_map_[name];
+  //   stats.timer.Start();
+  // }
+  PeakCudaMemory(name, true);
+#if defined(XGBOOST_USE_NVTX)
     auto &stats = statistics_map_[name];
     stats.timer.Start();
-#if defined(XGBOOST_USE_NVTX)
     std::string nvtx_name = label_ + "::" + name;
     stats.nvtx_id = nvtxRangeStartA(nvtx_name.c_str());
 #endif  // defined(XGBOOST_USE_NVTX)
-  }
 }
 
 void Monitor::Stop(const std::string &name) {
-  if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
+  // if (ConsoleLogger::ShouldLog(ConsoleLogger::LV::kDebug)) {
+  //   auto &stats = statistics_map_[name];
+  //   stats.timer.Stop();
+  //   stats.count++;
+  // }
+  PeakCudaMemory(name, false);
+#if defined(XGBOOST_USE_NVTX)
     auto &stats = statistics_map_[name];
     stats.timer.Stop();
     stats.count++;
-#if defined(XGBOOST_USE_NVTX)
     nvtxRangeEnd(stats.nvtx_id);
 #endif  // defined(XGBOOST_USE_NVTX)
-  }
 }
 
 std::vector<Monitor::StatMap> Monitor::CollectFromOtherRanks() const {

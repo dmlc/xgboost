@@ -140,6 +140,9 @@ void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
               dh::ToSpan(cuts));
 
   // add cuts into sketches
+  sorted_entries.clear();
+  sorted_entries.shrink_to_fit();
+  CHECK_EQ(sorted_entries.capacity(), 0);
   sketch_container->Push(num_cuts, dh::ToSpan(cuts), host_column_sizes_scan);
 }
 

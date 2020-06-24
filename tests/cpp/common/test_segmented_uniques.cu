@@ -8,15 +8,15 @@ TEST(SegmentedUnique, Basic) {
   std::vector<size_t> segments{0, 3, 6};
 
   thrust::device_vector<float> d_values(values);
-  thrust::device_vector<size_t> d_segments{segments};
+  thrust::device_vector<xgboost::bst_feature_t> d_segments{segments};
 
-  thrust::device_vector<size_t> d_segs_out(d_segments.size());
+  thrust::device_vector<xgboost::bst_feature_t> d_segs_out(d_segments.size());
   thrust::device_vector<float> d_vals_out(d_values.size());
 
   size_t n_uniques = SegmentedUnique(
       d_segments.data().get(), d_segments.data().get() + d_segments.size(),
       d_values.data().get(), d_values.data().get() + d_values.size(),
-      d_segments.data().get(), d_vals_out.data().get(),
+      d_segs_out.data().get(), d_vals_out.data().get(),
       thrust::equal_to<float>{});
   CHECK_EQ(n_uniques, 5);
 
@@ -25,9 +25,9 @@ TEST(SegmentedUnique, Basic) {
     ASSERT_EQ(d_vals_out[i], values_sol[i]);
   }
 
-  std::vector<size_t> segments_sol{0, 3, 5};
+  std::vector<xgboost::bst_feature_t> segments_sol{0, 3, 5};
   for (size_t i = 0; i < d_segments.size(); ++i) {
-    ASSERT_EQ(segments_sol[i], d_segments[i]);
+    ASSERT_EQ(segments_sol[i], d_segs_out[i]);
   }
 
   d_segments[1] = 4;
@@ -35,7 +35,7 @@ TEST(SegmentedUnique, Basic) {
   n_uniques = SegmentedUnique(
       d_segments.data().get(), d_segments.data().get() + d_segments.size(),
       d_values.data().get(), d_values.data().get() + d_values.size(),
-      d_segments.data().get(), d_vals_out.data().get(),
+      d_segs_out.data().get(), d_vals_out.data().get(),
       thrust::equal_to<float>{});
   ASSERT_EQ(n_uniques, values.size());
   for (auto i = 0 ; i < values.size(); i ++) {
@@ -61,14 +61,14 @@ namespace xgboost {
 namespace common {
 
 void TestSegmentedUniqueRegression(std::vector<SketchEntry> values, size_t n_duplicated) {
-  std::vector<size_t> segments{0, values.size()};
+  std::vector<bst_feature_t> segments{0, static_cast<bst_feature_t>(values.size())};
 
   thrust::device_vector<SketchEntry> d_values(values);
-  thrust::device_vector<size_t> d_segments(segments);
+  thrust::device_vector<bst_feature_t> d_segments(segments);
 
   size_t n_uniques = SegmentedUnique(
-      d_segments.data(), d_segments.data() + d_segments.size(), d_values.data(),
-      d_values.data() + d_values.size(), d_segments.data(), d_values.data(),
+      d_segments.data().get(), d_segments.data().get() + d_segments.size(), d_values.data().get(),
+      d_values.data().get() + d_values.size(), d_segments.data().get(), d_values.data().get(),
       SketchUnique{});
   ASSERT_EQ(n_uniques, values.size() - n_duplicated);
   ASSERT_TRUE(thrust::is_sorted(thrust::device, d_values.begin(),
