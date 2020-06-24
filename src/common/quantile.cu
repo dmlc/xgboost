@@ -416,6 +416,7 @@ void SketchContainer::Push(size_t entries_per_column,
 }
 
 size_t SketchContainer::Unique() {
+  timer.Start(__func__);
   this->columns_ptr_.SetDevice(device_);
   Span<size_t> d_column_scan = this->columns_ptr_.DeviceSpan();
   CHECK_EQ(d_column_scan.size(), num_columns_ + 1);
@@ -440,6 +441,7 @@ size_t SketchContainer::Unique() {
   CHECK(!this->columns_ptr_.HostCanRead());
 
   this->Current().resize(n_uniques, SketchEntry{0, 0, 0, 0});
+  timer.Stop(__func__);
   return n_uniques;
 }
 
