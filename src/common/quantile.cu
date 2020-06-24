@@ -339,13 +339,17 @@ void SketchContainer::Push(size_t entries_per_column,
 void SketchContainer::Push(common::Span<size_t const> cuts_ptr,
                            const common::Span<SketchEntry>& entries) {
   timer.Start(__func__);
-  this->Current().resize(entries.size());
-  dh::safe_cuda(cudaMemcpyAsync(this->Current().data().get(),
-                                entries.data(), entries.size_bytes(),
-                                cudaMemcpyDeviceToHost));
-  auto& h_columns_ptr = this->columns_ptr_.HostVector();
-  h_columns_ptr.resize(cuts_ptr.size());
-  std::copy(cuts_ptr.cbegin(), cuts_ptr.cend(), h_columns_ptr.begin());
+  if(this->Current().size() == 0) {
+    this->Current().resize(entries.size());
+    dh::safe_cuda(cudaMemcpyAsync(this->Current().data().get(),
+                                  entries.data(), entries.size_bytes(),
+                                  cudaMemcpyDeviceToHost));
+    auto& h_columns_ptr = this->columns_ptr_.HostVector();
+    h_columns_ptr.resize(cuts_ptr.size());
+    std::copy(cuts_ptr.cbegin(), cuts_ptr.cend(), h_columns_ptr.begin());
+  } else {
+    LOG(FATAL) << "Not implemented";
+  }
   this->Prune(limit_size_);
   timer.Stop(__func__);
 }
@@ -495,17 +499,18 @@ void SketchContainer::AllReduce() {
   reducer_->AllGather(d_columns_ptr.data(), d_columns_ptr.size(), &gathered_ptrs);
   std::vector<bst_feature_t> h_gathered_ptrs (gathered_ptrs.size());
   thrust::copy(gathered_ptrs.begin(), gathered_ptrs.end(), h_gathered_ptrs.begin());
-  std::vector<size_t> global_size;
+  std::vector<size_t> recv_lengths;
   dh::caching_device_vector<char> recvbuf;
-  reducer_->AllGather(this->Current().data().get(), dh::ToSpan(this->Current()).size_bytes(),
-                      &global_size, &recvbuf);
+  reducer_->AllGather(this->Current().data().get(),
+                      dh::ToSpan(this->Current()).size_bytes(), &recv_lengths,
+                      &recvbuf);
   reducer_->Synchronize();
 
   auto s_recvbuf = dh::ToSpan(recvbuf);
   std::vector<Span<SketchEntry>> allworkers;
   size_t offset = 0;
   for (int32_t i = 0; i < world; ++i) {
-    size_t length_as_bytes = global_size[i];
+    size_t length_as_bytes = recv_lengths[i];
     auto raw = s_recvbuf.subspan(offset, length_as_bytes);
     auto sketch = Span<SketchEntry>(reinterpret_cast<SketchEntry *>(raw.data()),
                                     length_as_bytes / sizeof(SketchEntry));

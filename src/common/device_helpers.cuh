@@ -580,11 +580,13 @@ class AllReducer {
 
   void AllGather(uint32_t const* data, size_t length,
                  dh::caching_device_vector<uint32_t>* recvbuf) {
+#ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
     size_t world = rabit::GetWorldSize();
     recvbuf->resize(length * world);
     safe_nccl(ncclAllGather(data, recvbuf->data().get(), length, ncclUint32,
                             comm_, stream_));
+#endif  // XGBOOST_USE_NCCL
   }
 
   /**
