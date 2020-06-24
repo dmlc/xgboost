@@ -50,56 +50,12 @@ struct SketchUnique {
     return a.value - b.value == 0;
   }
 };
-
-
-struct IsSorted {
-  bool XGBOOST_DEVICE operator()(SketchEntry const& a, SketchEntry const& b) const {
-    return a.value < b.value;
-  }
-};
 }  // anonymous namespace
 
 void CopyTo(Span<SketchEntry> out, Span<SketchEntry const> src) {
   dh::safe_cuda(cudaMemcpyAsync(out.data(), src.data(),
                                 out.size_bytes(),
                                 cudaMemcpyDefault));
-}
-
-void PrintSorted(Span<SketchEntry const> d_y) {
-  return;
-  if (!thrust::is_sorted(thrust::device, d_y.data(), d_y.data() + d_y.size(), IsSorted{})) {
-    auto it = thrust::is_sorted_until(thrust::device, d_y.data(), d_y.data() + d_y.size(), IsSorted{});
-    std::vector<SketchEntry> copied(d_y.size());
-    dh::CopyDeviceSpanToVector(&copied, d_y);
-    auto pos = it - d_y.data();
-    for (size_t i = std::max(0l, pos - 5); i < std::min(pos + 5, decltype(pos)(d_y.size())); ++i) {
-      std::cout << std::setprecision(30) << copied[i] << std::endl;
-    }
-    std::cout << std::setprecision(30) << "Until: "
-              << " Pos: " << pos << ", " << copied.at(pos - 1) << " vs "
-              << copied.at(pos) << ", IsSorted{}:"
-              << IsSorted{}(copied.at(pos - 1), copied.at(pos)) << ", "
-              << "SketchUnique:" << SketchUnique{}(copied.at(pos - 1), copied.at(pos)) << std::endl;
-    LOG(FATAL) << "Unique not sorted, std "
-               << std::is_sorted(copied.begin(), copied.end(), IsSorted{})
-               << ", until: "
-               << std::distance(copied.cbegin(),
-                                std::is_sorted_until(copied.cbegin(),
-                                                     copied.cend(),
-                                                     IsSorted{}));
-  }
-}
-
-template <typename T>
-void PrintSpan(common::Span<T> x, std::string name) {
-  return;
-  std::cout << name << std::endl;
-  std::vector<T> copied(x.size());
-  dh::CopyDeviceSpanToVector(&copied, x);
-  for (auto v : copied) {
-    std::cout << v << "; ";
-  }
-  std::cout << std::endl;
 }
 
 // Merge d_x and d_y into out.  Because the final output depends on predicate (which
