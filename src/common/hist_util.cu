@@ -33,6 +33,27 @@ namespace common {
 constexpr float SketchContainer::kFactor;
 
 // Count the entries in each column and exclusive scan
+void ExtractCutsSparse(int device, common::Span<size_t const> cuts_ptr,
+                       Span<Entry const> sorted_data,
+                       Span<size_t const> column_sizes_scan,
+                       Span<SketchEntry> out_cuts) {
+  dh::LaunchN(device, out_cuts.size(), [=] __device__(size_t idx) {
+    // Each thread is responsible for obtaining one cut from the sorted input
+    // size_t column_idx = idx / num_cuts_per_feature;
+    size_t column_idx = dh::SegmentId(cuts_ptr, idx);
+    size_t column_size =
+        column_sizes_scan[column_idx + 1] - column_sizes_scan[column_idx];
+    size_t num_available_cuts = cuts_ptr[column_idx + 1] - cuts_ptr[column_idx];
+    size_t cut_idx = idx - cuts_ptr[column_idx];
+    Span<Entry const> column_entries =
+        sorted_data.subspan(column_sizes_scan[column_idx], column_size);
+    size_t rank = (column_entries.size() * cut_idx) /
+                  static_cast<float>(num_available_cuts);
+    out_cuts[idx] = WQSketch::Entry(rank, rank + 1, 1,
+                                    column_entries[rank].fvalue);
+  });
+}
+
 void ExtractCuts(int device,
                  size_t num_cuts_per_feature,
                  Span<Entry const> sorted_data,
@@ -133,17 +154,31 @@ void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
                      {sorted_entries.data().get(), sorted_entries.size()},
                      num_columns);
   thrust::host_vector<size_t> host_column_sizes_scan(column_sizes_scan);
-  dh::caching_device_vector<SketchEntry> cuts(num_columns * num_cuts);
-  ExtractCuts(device, num_cuts,
-              dh::ToSpan(sorted_entries),
-              dh::ToSpan(column_sizes_scan),
-              dh::ToSpan(cuts));
+
+  HostDeviceVector<size_t> cuts_ptr;
+  cuts_ptr.SetDevice(device);
+  auto& h_cuts_ptr = cuts_ptr.HostVector();
+  size_t offset = 0;
+  h_cuts_ptr.push_back(offset);
+  std::cout << "sorted_entries.size():" << sorted_entries.size() << std::endl;
+  for (size_t i = 1; i < host_column_sizes_scan.size(); ++i) {
+    offset +=
+        std::min(host_column_sizes_scan[i] - host_column_sizes_scan[i - 1],
+                 static_cast<size_t>(num_cuts));
+    h_cuts_ptr.push_back(offset);
+  }
+
+  auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
+  dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
+  CHECK_EQ(d_cuts_ptr.size(), column_sizes_scan.size());
+  ExtractCutsSparse(device, d_cuts_ptr, dh::ToSpan(sorted_entries),
+                    dh::ToSpan(column_sizes_scan), dh::ToSpan(cuts));
 
   // add cuts into sketches
   sorted_entries.clear();
   sorted_entries.shrink_to_fit();
   CHECK_EQ(sorted_entries.capacity(), 0);
-  sketch_container->Push(num_cuts, dh::ToSpan(cuts), host_column_sizes_scan);
+  sketch_container->Push(cuts_ptr.ConstHostSpan(), dh::ToSpan(cuts));
 }
 
 void SortByWeight(dh::XGBCachingDeviceAllocator<char>* alloc,

@@ -900,4 +900,11 @@ XGBOOST_DEVICE thrust::transform_iterator<FuncT, IterT, ReturnT> MakeTransformIt
   return thrust::transform_iterator<FuncT, IterT, ReturnT>(iter, func);
 }
 
+template <typename T>
+size_t __device__ SegmentId(xgboost::common::Span<T> segments_ptr, size_t idx) {
+  size_t column_id = thrust::upper_bound(thrust::seq, segments_ptr.begin(),
+                                         segments_ptr.end(), idx) -
+                     1 - segments_ptr.begin();
+  return column_id;
+}
 }  // namespace dh

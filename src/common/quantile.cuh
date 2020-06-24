@@ -175,6 +175,8 @@ struct SketchContainer {
   void Push(size_t entries_per_column,
             const common::Span<SketchEntry>& entries,
             const thrust::host_vector<size_t>& column_scan);
+  void Push(common::Span<size_t const> cuts_ptr,
+            const common::Span<SketchEntry>& entries);
 
   void Prune(size_t to);
 

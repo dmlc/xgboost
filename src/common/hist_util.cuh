@@ -89,8 +89,11 @@ inline size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
                                      size_t num_cuts, bool has_weight) {
   if (sketch_batch_num_elements == 0) {
     size_t bytes_per_element = BytesPerElement(has_weight);
-    size_t bytes_cuts = num_cuts * columns * sizeof(SketchEntry);
-    size_t bytes_num_columns = (columns + 1) * sizeof(size_t);
+    // One copy for storing sliding windows output, anther for storing in quantile
+    // structure.
+    size_t bytes_cuts = num_cuts * columns * sizeof(SketchEntry) * 2;
+    // One column ptr for input data and another for output cuts.
+    size_t bytes_num_columns = (columns + 1) * sizeof(size_t) * 3;
     // use up to 80% of available space
     sketch_batch_num_elements = (dh::AvailableMemory(device) -
                                  bytes_cuts - bytes_num_columns) *

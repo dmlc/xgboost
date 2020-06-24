@@ -352,15 +352,6 @@ void DeviceQuantile::Synchronize() {
   }
 }
 
-template <typename T>
-size_t __device__ ColumnId(common::Span<T> columns_ptr, size_t idx) {
-  size_t column_id =
-      thrust::upper_bound(thrust::seq, columns_ptr.begin(),
-                          columns_ptr.end(), idx) -
-      1 - columns_ptr.begin();
-  return column_id;
-}
-
 void SketchContainer::Push(size_t entries_per_column,
                            const common::Span<SketchEntry>& entries,
                            const thrust::host_vector<size_t>& column_scan) {
@@ -417,6 +408,19 @@ void SketchContainer::Push(size_t entries_per_column,
   timer.Stop(__func__);
 }
 
+void SketchContainer::Push(common::Span<size_t const> cuts_ptr,
+                           const common::Span<SketchEntry>& entries) {
+  timer.Start(__func__);
+  std::vector<Span<SketchEntry>> columns;
+  for (size_t i = 1; i < cuts_ptr.size(); ++i) {
+    auto column = entries.subspan(cuts_ptr[i-1], cuts_ptr[i] - cuts_ptr[i-1]);
+    columns.emplace_back(column);
+  }
+  this->Merge(columns);
+  this->Prune(limit_size_);
+  timer.Stop(__func__);
+}
+
 size_t SketchContainer::Unique() {
   timer.Start(__func__);
   this->columns_ptr_.SetDevice(device_);
@@ -462,7 +466,7 @@ void SketchContainer::Prune(size_t to) {
   auto out = dh::ToSpan(this->Other());
   auto in = dh::ToSpan(this->Current());
   dh::LaunchN(0, to_total, [=] __device__(size_t idx) {
-    size_t column_id = ColumnId(d_columns_ptr_out, idx);
+    size_t column_id = dh::SegmentId(d_columns_ptr_out, idx);
     auto out_column = out.subspan(d_columns_ptr_out[column_id],
                                   d_columns_ptr_out[column_id + 1] -
                                       d_columns_ptr_out[column_id]);
@@ -594,7 +598,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
 
   // 1 thread for writing min value
   dh::LaunchN(0, total_bins, [=] __device__(size_t idx) {
-    auto column_id = ColumnId(d_out_columns_ptr, idx);
+    auto column_id = dh::SegmentId(d_out_columns_ptr, idx);
     auto in_column = in_cut_values.subspan(d_in_columns_ptr[column_id],
                                            d_in_columns_ptr[column_id + 1] -
                                                d_in_columns_ptr[column_id]);
