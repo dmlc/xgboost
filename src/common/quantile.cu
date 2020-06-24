@@ -397,8 +397,10 @@ void SketchContainer::Merge(std::vector< Span<SketchEntry> > that) {
   }
 
   if (this->Current().size() == 0) {
-    CHECK_EQ(this->columns_ptr_.Size(), 0);
+    CHECK_EQ(this->columns_ptr_.HostVector().back(), 0);
     this->Current().resize(total, SketchEntry{0, 0, 0, 0});
+    columns_ptr_.HostVector().clear();
+
     size_t offset = 0;
     columns_ptr_.HostVector().emplace_back(offset);
     for (auto c : that) {
@@ -436,6 +438,7 @@ void SketchContainer::Merge(std::vector< Span<SketchEntry> > that) {
 }
 
 void SketchContainer::AllReduce() {
+  timer.Start(__func__);
   dh::safe_cuda(cudaSetDevice(device_));
   auto world = rabit::GetWorldSize();
   if (world == 1) {
@@ -443,13 +446,26 @@ void SketchContainer::AllReduce() {
   }
   if (!reducer_) {
     reducer_ = std::make_unique<dh::AllReducer>();
-    reducer_->Init(device_, false);
+    reducer_->Init(device_, true);
   }
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
-  dh::caching_device_vector<bst_feature_t> gathered_ptrs;
-  reducer_->AllGather(d_columns_ptr.data(), d_columns_ptr.size(), &gathered_ptrs);
+  dh::device_vector<bst_feature_t> gathered_ptrs;
+
+  // FIXME: Uneven number of columns.
+  CHECK_NE(d_columns_ptr.size(), 0);
+  size_t n = d_columns_ptr.size();
+  rabit::Allreduce<rabit::op::Max>(&n, 1);
+  CHECK_EQ(n, d_columns_ptr.size());
+
+  gathered_ptrs.resize(d_columns_ptr.size() * world, 0);
+  size_t rank = rabit::GetRank();
+  auto offset = rank * d_columns_ptr.size();
+  thrust::copy(thrust::device, d_columns_ptr.data(), d_columns_ptr.data() + d_columns_ptr.size(),
+               gathered_ptrs.begin() + offset);
+  reducer_->AllReduceSum(gathered_ptrs.data().get(), gathered_ptrs.data().get(), gathered_ptrs.size());
   std::vector<bst_feature_t> h_gathered_ptrs (gathered_ptrs.size());
   thrust::copy(gathered_ptrs.begin(), gathered_ptrs.end(), h_gathered_ptrs.begin());
+
   std::vector<size_t> recv_lengths;
   dh::caching_device_vector<char> recvbuf;
   reducer_->AllGather(this->Current().data().get(),
@@ -459,9 +475,9 @@ void SketchContainer::AllReduce() {
 
   auto s_recvbuf = dh::ToSpan(recvbuf);
   std::vector<Span<SketchEntry>> allworkers;
-  size_t offset = 0;
+  offset = 0;
   for (int32_t i = 0; i < world; ++i) {
-    size_t length_as_bytes = recv_lengths[i];
+    size_t length_as_bytes = recv_lengths.at(i);
     auto raw = s_recvbuf.subspan(offset, length_as_bytes);
     auto sketch = Span<SketchEntry>(reinterpret_cast<SketchEntry *>(raw.data()),
                                     length_as_bytes / sizeof(SketchEntry));
@@ -471,13 +487,17 @@ void SketchContainer::AllReduce() {
 
   for (size_t i = 0; i < allworkers.size(); ++i) {
     auto worker = allworkers[i];
-    auto worker_ptr = dh::ToSpan(gathered_ptrs).subspan(i * d_columns_ptr.size(), d_columns_ptr.size());
+    auto worker_ptr =
+        common::Span<bst_feature_t>(h_gathered_ptrs)
+            .subspan(i * d_columns_ptr.size(), d_columns_ptr.size());
+    CHECK_EQ(worker_ptr.back(), worker.size());
     std::vector<Span<SketchEntry>> columns;
     for (size_t j = 1; j < worker_ptr.size(); ++j) {
-      columns.emplace_back(worker.subspan(worker_ptr[j], worker_ptr[j] - worker_ptr[j-1]));
+      columns.emplace_back(worker.subspan(worker_ptr[j-1], worker_ptr[j] - worker_ptr[j-1]));
     }
     this->Merge(columns);
   }
+  timer.Stop(__func__);
 }
 
 void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {

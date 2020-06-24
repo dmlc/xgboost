@@ -91,6 +91,7 @@ void AllReducer::AllGather(void const *data, size_t length_bytes,
   size_t world = rabit::GetWorldSize();
   segments->clear();
   segments->resize(world, 0);
+  segments->at(rabit::GetRank()) = length_bytes;
   rabit::Allreduce<rabit::op::Max>(segments->data(), segments->size());
   auto total_bytes = std::accumulate(segments->cbegin(), segments->cend(), 0);
   recvbuf->resize(total_bytes);
