@@ -411,12 +411,13 @@ void SketchContainer::Push(size_t entries_per_column,
 void SketchContainer::Push(common::Span<size_t const> cuts_ptr,
                            const common::Span<SketchEntry>& entries) {
   timer.Start(__func__);
-  std::vector<Span<SketchEntry>> columns;
-  for (size_t i = 1; i < cuts_ptr.size(); ++i) {
-    auto column = entries.subspan(cuts_ptr[i-1], cuts_ptr[i] - cuts_ptr[i-1]);
-    columns.emplace_back(column);
-  }
-  this->Merge(columns);
+  this->Current().resize(entries.size());
+  dh::safe_cuda(cudaMemcpyAsync(this->Current().data().get(),
+                                entries.data(), entries.size_bytes(),
+                                cudaMemcpyDeviceToHost));
+  auto& h_columns_ptr = this->columns_ptr_.HostVector();
+  h_columns_ptr.resize(cuts_ptr.size());
+  std::copy(cuts_ptr.cbegin(), cuts_ptr.cend(), h_columns_ptr.begin());
   this->Prune(limit_size_);
   timer.Stop(__func__);
 }
@@ -551,6 +552,49 @@ void SketchContainer::Merge(std::vector< Span<SketchEntry> > that) {
   timer.Stop(__func__);
 }
 
+void SketchContainer::AllReduce() {
+  dh::safe_cuda(cudaSetDevice(device_));
+  auto world = rabit::GetWorldSize();
+  if (world == 1) {
+    return;
+  }
+  if (!reducer_) {
+    reducer_ = std::make_unique<dh::AllReducer>();
+    reducer_->Init(device_, false);
+  }
+  auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
+  dh::caching_device_vector<bst_feature_t> gathered_ptrs;
+  reducer_->AllGather(d_columns_ptr.data(), d_columns_ptr.size(), &gathered_ptrs);
+  std::vector<bst_feature_t> h_gathered_ptrs (gathered_ptrs.size());
+  thrust::copy(gathered_ptrs.begin(), gathered_ptrs.end(), h_gathered_ptrs.begin());
+  std::vector<size_t> global_size;
+  dh::caching_device_vector<char> recvbuf;
+  reducer_->AllGather(this->Current().data().get(), dh::ToSpan(this->Current()).size_bytes(),
+                      &global_size, &recvbuf);
+
+  auto s_recvbuf = dh::ToSpan(recvbuf);
+  std::vector<Span<SketchEntry>> allworkers;
+  size_t offset = 0;
+  for (int32_t i = 0; i < world; ++i) {
+    size_t length_as_bytes = global_size[i];
+    auto raw = s_recvbuf.subspan(offset, length_as_bytes);
+    auto sketch = Span<SketchEntry>(reinterpret_cast<SketchEntry *>(raw.data()),
+                                    length_as_bytes / sizeof(SketchEntry));
+    allworkers.emplace_back(sketch);
+    offset += length_as_bytes;
+  }
+
+  for (size_t i = 0; i < allworkers.size(); ++i) {
+    auto worker = allworkers[i];
+    auto worker_ptr = dh::ToSpan(gathered_ptrs).subspan(i * d_columns_ptr.size(), d_columns_ptr.size());
+    std::vector<Span<SketchEntry>> columns;
+    for (size_t j = 1; j < worker_ptr.size(); ++j) {
+      columns.emplace_back(worker.subspan(worker_ptr[j], worker_ptr[j] - worker_ptr[j-1]));
+    }
+    this->Merge(columns);
+  }
+}
+
 void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   timer.Start(__func__);
   p_cuts->min_vals_.Resize(num_columns_);
@@ -559,12 +603,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   size_t intermediate_num_cuts =
       std::min(global_max_rows, static_cast<size_t>(num_bins_ * kFactor));
   this->Prune(intermediate_num_cuts);
-
-  // Prune according to global number of rows.
-  // for (auto& sketch : sketches_) {
-  //   sketch.Prune(intermediate_num_cuts);
-  //   sketch.AllReduce();
-  // }
+  this->AllReduce();
   this->Prune(num_bins_ + 1);
   this->Unique();
 

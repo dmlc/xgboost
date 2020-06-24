@@ -578,6 +578,15 @@ class AllReducer {
   void AllGather(void const* data, size_t length_bytes,
                  std::vector<size_t>* segments, dh::caching_device_vector<char>* recvbuf);
 
+  void AllGather(uint32_t const* data, size_t length,
+                 dh::caching_device_vector<uint32_t>* recvbuf) {
+    CHECK(initialised_);
+    size_t world = rabit::GetWorldSize();
+    recvbuf->resize(length * world);
+    safe_nccl(ncclAllGather(data, recvbuf->data().get(), length, ncclUint32,
+                            comm_, stream_));
+  }
+
   /**
    * \brief Allreduce. Use in exactly the same way as NCCL but without needing
    * streams or comms.

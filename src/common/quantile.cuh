@@ -108,6 +108,7 @@ struct SketchContainer {
   Monitor timer;
 
  private:
+  std::unique_ptr<dh::AllReducer> reducer_;
   size_t num_rows_;
   size_t num_columns_;
   int32_t num_bins_;
@@ -181,6 +182,8 @@ struct SketchContainer {
   void Prune(size_t to);
 
   void Merge(std::vector< Span<SketchEntry> >other);
+
+  void AllReduce();
 
   void MakeCuts(HistogramCuts* cuts);
 
