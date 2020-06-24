@@ -172,7 +172,8 @@ void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
               dh::ToSpan(sorted_entries),
               dh::ToSpan(column_sizes_scan),
               dh::ToSpan(cuts));
-  // sorted_entries.clear();
+  sorted_entries.clear();
+  sorted_entries.shrink_to_fit();
 
   // Push cuts into sketches stored in host memory
   sketch_container->Push(num_cuts, dh::ToSpan(cuts), host_column_sizes_scan);
@@ -258,6 +259,7 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
                       dh::ToSpan(column_sizes_scan),
                       dh::ToSpan(cuts));
   sorted_entries.clear();
+  sorted_entries.shrink_to_fit();
   // add cuts into sketches
   sketch_container->Push(num_cuts_per_feature, dh::ToSpan(cuts), host_column_sizes_scan);
 }

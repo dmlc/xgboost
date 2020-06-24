@@ -44,7 +44,7 @@ void ExtractCuts(int device,
     size_t column_size =
         column_sizes_scan[column_idx + 1] - column_sizes_scan[column_idx];
     size_t num_available_cuts =
-        min(static_cast<size_t>(num_cuts_per_feature), column_size);
+        thrust::min(static_cast<size_t>(num_cuts_per_feature), column_size);
     size_t cut_idx = idx % num_cuts_per_feature;
     if (cut_idx >= num_available_cuts) return;
     Span<Entry const> column_entries =
