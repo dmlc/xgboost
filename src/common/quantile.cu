@@ -249,7 +249,7 @@ void SketchContainer::Push(size_t entries_per_column,
   CHECK_EQ(entries.size(), entries_per_column * num_columns_);
   timer.Start("CopyIntoQuantile");
   if (this->Current().size() == 0) {
-    CHECK_EQ(this->columns_ptr_.Size(), 0);
+    CHECK_EQ(this->columns_ptr_.HostVector().back(), 0);
     dh::device_vector<size_t> d_columns_scan(column_scan.size());
     thrust::copy(column_scan.begin(), column_scan.end(),
                  d_columns_scan.begin());
@@ -302,6 +302,7 @@ void SketchContainer::Push(common::Span<size_t const> cuts_ptr,
     LOG(FATAL) << "Not implemented";
   }
   this->Prune(limit_size_);
+  CHECK_NE(this->columns_ptr_.Size(), 0);
   timer.Stop(__func__);
 }
 
@@ -310,7 +311,6 @@ size_t SketchContainer::Unique() {
   this->columns_ptr_.SetDevice(device_);
   Span<bst_feature_t> d_column_scan = this->columns_ptr_.DeviceSpan();
   CHECK_EQ(d_column_scan.size(), num_columns_ + 1);
-
   Span<SketchEntry> entries = dh::ToSpan(this->Current());
   HostDeviceVector<bst_feature_t> scan_out(d_column_scan.size());
   scan_out.SetDevice(device_);
@@ -501,7 +501,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   auto in_cut_values = dh::ToSpan(this->Current());
 
   // Set up output ptr
-  p_cuts->cut_ptrs_.SetDevice(0);
+  p_cuts->cut_ptrs_.SetDevice(device_);
   auto& h_out_columns_ptr = p_cuts->cut_ptrs_.HostVector();
   h_out_columns_ptr.clear();
   h_out_columns_ptr.push_back(0);

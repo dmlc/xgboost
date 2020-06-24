@@ -160,7 +160,6 @@ void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
   auto& h_cuts_ptr = cuts_ptr.HostVector();
   size_t offset = 0;
   h_cuts_ptr.push_back(offset);
-  std::cout << "sorted_entries.size():" << sorted_entries.size() << std::endl;
   for (size_t i = 1; i < host_column_sizes_scan.size(); ++i) {
     offset +=
         std::min(host_column_sizes_scan[i] - host_column_sizes_scan[i - 1],
@@ -178,6 +177,7 @@ void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
   sorted_entries.clear();
   sorted_entries.shrink_to_fit();
   CHECK_EQ(sorted_entries.capacity(), 0);
+  CHECK_NE(cuts_ptr.Size(), 0);
   sketch_container->Push(cuts_ptr.ConstHostSpan(), dh::ToSpan(cuts));
 }
 
