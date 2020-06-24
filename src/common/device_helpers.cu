@@ -33,7 +33,7 @@ std::string PrintUUID(xgboost::common::Span<uint64_t, kUuidLength> uuid) {
 
 #endif  // __CUDACC_VER_MAJOR__ > 9
 
-void AllReducer::Init(int _device_ordinal, bool blocking) {
+void AllReducer::Init(int _device_ordinal) {
 #ifdef XGBOOST_USE_NCCL
   LOG(DEBUG) << "Running nccl init on: " << __CUDACC_VER_MAJOR__ << "." << __CUDACC_VER_MINOR__;
 
@@ -69,11 +69,7 @@ void AllReducer::Init(int _device_ordinal, bool blocking) {
   id_ = GetUniqueId();
   dh::safe_cuda(cudaSetDevice(device_ordinal_));
   dh::safe_nccl(ncclCommInitRank(&comm_, rabit::GetWorldSize(), id_, rank));
-  if (blocking) {
-    safe_cuda(cudaStreamCreate(&stream_));
-  } else {
-    safe_cuda(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
-  }
+  safe_cuda(cudaStreamCreate(&stream_));
   initialised_ = true;
 #else
   if (rabit::IsDistributed()) {

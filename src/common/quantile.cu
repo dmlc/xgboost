@@ -446,7 +446,7 @@ void SketchContainer::AllReduce() {
   }
   if (!reducer_) {
     reducer_ = std::make_unique<dh::AllReducer>();
-    reducer_->Init(device_, true);
+    reducer_->Init(device_);
   }
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   dh::device_vector<bst_feature_t> gathered_ptrs;
