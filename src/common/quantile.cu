@@ -188,20 +188,19 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
 }
 
 void SketchContainer::Push(common::Span<size_t const> cuts_ptr,
-                           const common::Span<SketchEntry>& entries) {
+                           dh::caching_device_vector<SketchEntry>* entries) {
   timer.Start(__func__);
   if(this->Current().size() == 0) {
     CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
-    this->Current().resize(entries.size());
-    dh::safe_cuda(cudaMemcpyAsync(this->Current().data().get(),
-                                  entries.data(), entries.size_bytes(),
-                                  cudaMemcpyDeviceToHost));
+    std::swap(this->Current(), *entries);
+    CHECK_EQ(entries->size(), 0);
     auto d_cuts_ptr = this->columns_ptr_.DevicePointer();
     thrust::copy(thrust::device, cuts_ptr.data(),
                  cuts_ptr.data() + cuts_ptr.size(), d_cuts_ptr);
   } else {
     std::vector<size_t> h_cuts_ptr(cuts_ptr.size());
-    this->Merge(cuts_ptr, entries);
+    auto d_entries = dh::ToSpan(*entries);
+    this->Merge(cuts_ptr, d_entries);
   }
   this->Prune(limit_size_);
   CHECK_NE(this->columns_ptr_.Size(), 0);

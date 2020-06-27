@@ -121,6 +121,7 @@ void GetColumnSizesScan(int device, size_t num_cuts_per_feature,
                   &d_column_sizes_scan[e.index]),
               static_cast<unsigned long long>(1)); // NOLINT
   });
+  // Calculate cuts CSC pointer
   auto cut_ptr_it = dh::MakeTransformIterator<size_t>(
       column_sizes_scan->begin(), [=] __device__(size_t column_size) {
         return thrust::min(num_cuts_per_feature, column_size);
@@ -129,6 +130,7 @@ void GetColumnSizesScan(int device, size_t num_cuts_per_feature,
   thrust::exclusive_scan(thrust::cuda::par(alloc), cut_ptr_it,
                          cut_ptr_it + column_sizes_scan->size(),
                          cuts_ptr->DevicePointer());
+  // Calculate entries CSC pointer
   thrust::exclusive_scan(thrust::cuda::par(alloc), column_sizes_scan->begin(),
                          column_sizes_scan->end(), column_sizes_scan->begin());
 }
@@ -180,7 +182,7 @@ void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
   sorted_entries.shrink_to_fit();
   CHECK_EQ(sorted_entries.capacity(), 0);
   CHECK_NE(cuts_ptr.Size(), 0);
-  sketch_container->Push(cuts_ptr.ConstDeviceSpan(), dh::ToSpan(cuts));
+  sketch_container->Push(cuts_ptr.ConstDeviceSpan(), &cuts);
 }
 
 void SortByWeight(dh::XGBCachingDeviceAllocator<char>* alloc,
@@ -262,7 +264,7 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
                             dh::ToSpan(cuts));
 
   // add cuts into sketches
-  sketch_container->Push(cuts_ptr.ConstDeviceSpan(), dh::ToSpan(cuts));
+  sketch_container->Push(cuts_ptr.ConstDeviceSpan(), &cuts);
 }
 
 HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,

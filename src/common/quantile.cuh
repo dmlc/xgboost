@@ -35,30 +35,30 @@ struct SketchContainer {
   int32_t device_;
 
   // Double buffer as neither prune nor merge can be performed inplace.
-  dh::device_vector<SketchEntry> entries_a_;
-  dh::device_vector<SketchEntry> entries_b_;
+  dh::caching_device_vector<SketchEntry> entries_a_;
+  dh::caching_device_vector<SketchEntry> entries_b_;
   bool current_buffer_ {true};
   // The container is just a CSC matrix.
   HostDeviceVector<bst_feature_t> columns_ptr_;
 
-  dh::device_vector<SketchEntry>& Current() {
+  dh::caching_device_vector<SketchEntry>& Current() {
     if (current_buffer_) {
       return entries_a_;
     } else {
       return entries_b_;
     }
   }
-  dh::device_vector<SketchEntry>& Other() {
+  dh::caching_device_vector<SketchEntry>& Other() {
     if (!current_buffer_) {
       return entries_a_;
     } else {
       return entries_b_;
     }
   }
-  dh::device_vector<SketchEntry> const& Current() const {
+  dh::caching_device_vector<SketchEntry> const& Current() const {
     return const_cast<SketchContainer*>(this)->Current();
   }
-  dh::device_vector<SketchEntry> const& Other() const {
+  dh::caching_device_vector<SketchEntry> const& Other() const {
     return const_cast<SketchContainer*>(this)->Other();
   }
   void Alternate() {
@@ -97,7 +97,7 @@ struct SketchContainer {
 
   /* \brief Push a CSC structured cut matrix. */
   void Push(common::Span<size_t const> cuts_ptr,
-            const common::Span<SketchEntry>& entries);
+            dh::caching_device_vector<SketchEntry>* entries);
   /* \brief Prune the quantile structure.
    *
    * \param to The maximum size of pruned quantile.  If the size of quantile structure is

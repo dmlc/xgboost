@@ -64,7 +64,7 @@ MakeCutsPtr(int32_t device,
             thrust::host_vector<size_t> const &host_column_sizes_scan,
             size_t cuts_per_feature);
 
-inline size_t BytesPerElement(bool has_weight) {
+inline size_t constexpr BytesPerElement(bool has_weight) {
   // Double the memory usage for sorting.  We need to assign weight for each element, so
   // sizeof(float) is added to all elements.
   return (has_weight ? sizeof(Entry) + sizeof(float) : sizeof(Entry)) * 2;
@@ -168,7 +168,7 @@ void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
   sorted_entries.shrink_to_fit();
 
   // Push cuts into sketches stored in host memory
-  sketch_container->Push(cuts_ptr.ConstDeviceSpan(), dh::ToSpan(cuts));
+  sketch_container->Push(cuts_ptr.ConstDeviceSpan(), &cuts);
 }
 
 /**
@@ -269,7 +269,7 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
   sorted_entries.clear();
   sorted_entries.shrink_to_fit();
   // add cuts into sketches
-  sketch_container->Push(cuts_ptr.ConstDeviceSpan(), dh::ToSpan(cuts));
+  sketch_container->Push(cuts_ptr.ConstDeviceSpan(), &cuts);
 }
 
 template <typename AdapterT>
