@@ -335,7 +335,32 @@ void SketchContainer::Merge(Span<size_t const> d_that_columns_ptr,
   CHECK_EQ(this->columns_ptr_.Size(), num_columns_ + 1);
   CHECK_EQ(this->columns_ptr_.HostVector().back(), this->Other().size());
   this->Alternate();
+  this->FixError();
   timer.Stop(__func__);
+}
+
+void SketchContainer::FixError() {
+  auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
+  auto in = dh::ToSpan(this->Current());
+  dh::LaunchN(device_, this->Current().size(), [=] __device__(size_t idx) {
+    auto column_id = dh::SegmentId(d_columns_ptr, idx);
+    auto in_column = in.subspan(d_columns_ptr[column_id],
+                                d_columns_ptr[column_id + 1] -
+                                    d_columns_ptr[column_id]);
+    idx -= d_columns_ptr[column_id];
+    float prev_rmin = idx == 0 ? 0.0f : in_column[idx-1].rmin;
+    if (in_column[idx].rmin < prev_rmin) {
+      in_column[idx].rmin = prev_rmin;
+    }
+    float prev_rmax = idx == 0 ? 0.0f : in_column[idx-1].rmax;
+    if (in_column[idx].rmax < prev_rmax) {
+      in_column[idx].rmax = prev_rmax;
+    }
+    float rmin_next = in_column[idx].RMinNext();
+    if (in_column[idx].rmax < rmin_next) {
+      in_column[idx].rmax = rmin_next;
+    }
+  });
 }
 
 void SketchContainer::AllReduce() {

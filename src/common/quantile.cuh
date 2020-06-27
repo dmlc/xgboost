@@ -94,6 +94,8 @@ struct SketchContainer {
   }
   /* \brief Removes all the duplicated elements in quantile structure. */
   size_t Unique();
+  /* Fix rounding error and re-establish invariance. */
+  void FixError();
 
   /* \brief Push a CSC structured cut matrix. */
   void Push(common::Span<size_t const> cuts_ptr,
