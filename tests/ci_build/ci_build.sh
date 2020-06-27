@@ -207,6 +207,7 @@ ${DOCKER_BINARY} run --rm --pid=host \
     -v "${WORKSPACE}":/workspace \
     -w /workspace \
     ${USER_IDS} \
+    --shm-size=3g \
     "${CI_DOCKER_EXTRA_PARAMS[@]}" \
     "${DOCKER_IMG_NAME}" \
     "${COMMAND[@]}"
