@@ -5,8 +5,8 @@
 #include <dmlc/filesystem.h>
 #include <atomic>
 #include <type_traits>
+#include <fstream>
 #include <cstdint>
-#include <cstdio>
 #include "../../../src/common/io.h"
 
 namespace xgboost {
@@ -57,20 +57,20 @@ TEST(IO, LoadSequentialFile) {
   dmlc::TemporaryDirectory tempdir;
   std::string path = "/dev/shm/xgboost_test_io_big_file.txt";
   {
-    FILE* f = std::fopen(path.c_str(), "w");
+    std::ofstream f(path);
     if (!f) {  // /dev/shm not present
       LOG(INFO) << "No /dev/shm; using dmlc::TemporaryDirectory instead";
       path = tempdir.path + "/xgboost_test_io_big_file.txt";
-      f = std::fopen(path.c_str(), "w");
+      f = std::ofstream(path);
     }
     CHECK(f);
     std::string str(nbyte, 'a');
     CHECK_EQ(str.size(), nbyte);
-    CHECK_EQ(std::fwrite(str.data(), sizeof(char), nbyte, f), nbyte);
-    std::fclose(f);
+    f << str;
   }
   {
     std::string str = LoadSequentialFile(path);
+    CHECK_EQ(str.size(), nbyte);
     dmlc::OMPException omp_exc;
     std::atomic<bool> success{true};
     #pragma omp parallel for schedule(static)
