@@ -54,29 +54,6 @@ void ExtractCutsSparse(int device, common::Span<size_t const> cuts_ptr,
   });
 }
 
-void ExtractCuts(int device,
-                 size_t num_cuts_per_feature,
-                 Span<Entry const> sorted_data,
-                 Span<size_t const> column_sizes_scan,
-                 Span<SketchEntry> out_cuts) {
-  dh::LaunchN(device, out_cuts.size(), [=] __device__(size_t idx) {
-    // Each thread is responsible for obtaining one cut from the sorted input
-    size_t column_idx = idx / num_cuts_per_feature;
-    size_t column_size =
-        column_sizes_scan[column_idx + 1] - column_sizes_scan[column_idx];
-    size_t num_available_cuts =
-        thrust::min(static_cast<size_t>(num_cuts_per_feature), column_size);
-    size_t cut_idx = idx % num_cuts_per_feature;
-    if (cut_idx >= num_available_cuts) return;
-    Span<Entry const> column_entries =
-        sorted_data.subspan(column_sizes_scan[column_idx], column_size);
-    size_t rank = (column_entries.size() * cut_idx) /
-                  static_cast<float>(num_available_cuts);
-    out_cuts[idx] = WQSketch::Entry(rank, rank + 1, 1,
-                                    column_entries[rank].fvalue);
-  });
-}
-
 /**
  * \brief Extracts the cuts from sorted data, considering weights.
  *
@@ -139,6 +116,24 @@ void ExtractWeightedCuts(int device,
   });
 }
 
+HostDeviceVector<size_t>
+MakeCutsPtr(int32_t device,
+            thrust::host_vector<size_t> const &host_column_sizes_scan,
+            size_t cuts_per_feature) {
+  HostDeviceVector<size_t> cuts_ptr;
+  cuts_ptr.SetDevice(device);
+  auto &h_cuts_ptr = cuts_ptr.HostVector();
+  size_t offset = 0;
+  h_cuts_ptr.push_back(offset);
+  for (size_t i = 1; i < host_column_sizes_scan.size(); ++i) {
+    offset +=
+        std::min(host_column_sizes_scan[i] - host_column_sizes_scan[i - 1],
+                 static_cast<size_t>(cuts_per_feature));
+    h_cuts_ptr.push_back(offset);
+  }
+  return cuts_ptr;
+}
+
 void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
                   SketchContainer* sketch_container, int num_cuts,
                   size_t num_columns) {
@@ -155,19 +150,10 @@ void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
                      num_columns);
   thrust::host_vector<size_t> host_column_sizes_scan(column_sizes_scan);
 
-  HostDeviceVector<size_t> cuts_ptr;
-  cuts_ptr.SetDevice(device);
-  auto& h_cuts_ptr = cuts_ptr.HostVector();
-  size_t offset = 0;
-  h_cuts_ptr.push_back(offset);
-  for (size_t i = 1; i < host_column_sizes_scan.size(); ++i) {
-    offset +=
-        std::min(host_column_sizes_scan[i] - host_column_sizes_scan[i - 1],
-                 static_cast<size_t>(num_cuts));
-    h_cuts_ptr.push_back(offset);
-  }
-
+  HostDeviceVector<size_t> cuts_ptr = MakeCutsPtr(device, host_column_sizes_scan, num_cuts);
+  auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
   auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
+
   dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
   CHECK_EQ(d_cuts_ptr.size(), column_sizes_scan.size());
   ExtractCutsSparse(device, d_cuts_ptr, dh::ToSpan(sorted_entries),
