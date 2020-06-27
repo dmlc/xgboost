@@ -48,8 +48,7 @@ TEST(IO, FixedSizeStream) {
 
 #if SIZE_MAX == 0xFFFFFFFFFFFFFFFF  // Only run this test on 64-bit system
 TEST(IO, LoadSequentialFile) {
-  // bytes_read = 2147479552, f_size_bytes = 2896075944
-  const size_t nbyte = static_cast<size_t>(2896075944LL);
+  const size_t nbyte = static_cast<size_t>(2896075944LL);  // About 2.69 GB
   static_assert(sizeof(size_t) == 8, "Assumption failed: size_t was assumed to be 8-bytes long");
   static_assert(std::is_same<size_t, std::string::size_type>::value,
                 "Assumption failed: size_type of std::string was assumed to be 8-bytes long");
