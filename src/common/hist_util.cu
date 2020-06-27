@@ -178,7 +178,7 @@ void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
   sorted_entries.shrink_to_fit();
   CHECK_EQ(sorted_entries.capacity(), 0);
   CHECK_NE(cuts_ptr.Size(), 0);
-  sketch_container->Push(cuts_ptr.ConstHostSpan(), dh::ToSpan(cuts));
+  sketch_container->Push(cuts_ptr.ConstDeviceSpan(), dh::ToSpan(cuts));
 }
 
 void SortByWeight(dh::XGBCachingDeviceAllocator<char>* alloc,

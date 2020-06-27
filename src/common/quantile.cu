@@ -251,11 +251,14 @@ void SketchContainer::Push(common::Span<size_t const> cuts_ptr,
     dh::safe_cuda(cudaMemcpyAsync(this->Current().data().get(),
                                   entries.data(), entries.size_bytes(),
                                   cudaMemcpyDeviceToHost));
-    auto& h_columns_ptr = this->columns_ptr_.HostVector();
-    h_columns_ptr.resize(cuts_ptr.size());
-    std::copy(cuts_ptr.cbegin(), cuts_ptr.cend(), h_columns_ptr.begin());
+    this->columns_ptr_.SetDevice(device_);
+    this->columns_ptr_.Resize(cuts_ptr.size());
+    auto d_cuts_ptr = this->columns_ptr_.DevicePointer();
+    thrust::copy(thrust::device, cuts_ptr.data(),
+                 cuts_ptr.data() + cuts_ptr.size(), d_cuts_ptr);
   } else {
-    LOG(FATAL) << "Not implemented";
+    std::vector<size_t> h_cuts_ptr(cuts_ptr.size());
+    this->Merge(cuts_ptr, entries);
   }
   this->Prune(limit_size_);
   CHECK_NE(this->columns_ptr_.Size(), 0);
@@ -379,6 +382,56 @@ void SketchContainer::Merge(std::vector< Span<SketchEntry> > that) {
     auto self_column = this->Column(i);
     auto that_column = that[i];
 
+    auto out_size = self_column.size() + that_column.size();
+    auto out = dh::ToSpan(this->Other()).subspan(out_offset, out_size);
+    MergeImpl(self_column, that_column, out);
+    out_offset += out_size;
+    new_columns_ptr.emplace_back(out_offset);
+  }
+  CHECK_EQ(this->columns_ptr_.Size(), new_columns_ptr.size());
+  this->columns_ptr_.HostVector() = std::move(new_columns_ptr);
+  CHECK_EQ(this->columns_ptr_.Size(), num_columns_ + 1);
+  CHECK_EQ(this->columns_ptr_.HostVector().back(), this->Other().size());
+  this->Alternate();
+  timer.Stop(__func__);
+}
+
+void SketchContainer::Merge(Span<size_t const> d_that_columns_ptr,
+                            Span<SketchEntry const> other) {
+  timer.Start(__func__);
+  std::vector<size_t> that_columns_ptr(d_that_columns_ptr.size());
+  dh::CopyDeviceSpanToVector(&that_columns_ptr, d_that_columns_ptr);
+  size_t total = that_columns_ptr.back();
+  if (this->Current().size() == 0) {
+    CHECK_EQ(this->columns_ptr_.HostVector().back(), 0);
+    this->Current().resize(total, SketchEntry{0, 0, 0, 0});
+    this->columns_ptr_.HostVector().clear();
+
+    size_t offset = 0;
+    columns_ptr_.HostVector().emplace_back(offset);
+    for (size_t i = 1; i < that_columns_ptr.size(); ++i) {
+      auto c = other.subspan(that_columns_ptr[i - 1],
+                             that_columns_ptr[i] - that_columns_ptr[i - 1]);
+      dh::safe_cuda(cudaMemcpyAsync(this->Current().data().get() + offset,
+                                    c.data(), c.size_bytes(),
+                                    cudaMemcpyDeviceToDevice));
+      offset += c.size();
+      columns_ptr_.HostVector().emplace_back(offset);
+    }
+
+    CHECK_EQ(columns_ptr_.Size(), num_columns_ + 1);
+    timer.Stop(__func__);
+    return;
+  }
+
+  this->Other().resize(this->Current().size() + total, SketchEntry{0, 0, 0, 0});
+  CHECK_EQ(that_columns_ptr.size(), this->columns_ptr_.Size());
+  bst_feature_t out_offset = 0;
+  std::vector<bst_feature_t> new_columns_ptr{out_offset};
+  for (size_t i = 1; i < that_columns_ptr.size(); ++i) {
+    auto self_column = this->Column(i-1);
+    auto that_column = other.subspan(
+        that_columns_ptr[i-1], that_columns_ptr[i] - that_columns_ptr[i-1]);
     auto out_size = self_column.size() + that_column.size();
     auto out = dh::ToSpan(this->Other()).subspan(out_offset, out_size);
     MergeImpl(self_column, that_column, out);

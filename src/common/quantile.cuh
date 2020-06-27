@@ -120,12 +120,17 @@ struct SketchContainer {
    * \param other columns of other.
    */
   void Merge(std::vector< Span<SketchEntry> >other);
+  void Merge(Span<size_t const> that_columns_ptr,
+             Span<SketchEntry const> other);
+
   /* \brief Merge quantiles from other GPU workers. */
   void AllReduce();
   /* \brief Create the final histogram cut values. */
   void MakeCuts(HistogramCuts* cuts);
 
-  Span<SketchEntry const> Data() const { return dh::ToSpan(this->Current()); }
+  Span<SketchEntry const> Data() const {
+    return {this->Current().data().get(), this->Current().size()};
+  }
 
   // Prevent copying/assigning/moving this as its internals can't be
   // assigned/copied/moved
