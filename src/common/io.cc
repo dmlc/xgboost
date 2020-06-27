@@ -120,10 +120,14 @@ std::string LoadSequentialFile(std::string fname) {
 #if defined(__linux__)
   posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
 #endif  // defined(__linux__)
-  ssize_t bytes_read = read(fd, &buffer[0], f_size_bytes);
-  if (bytes_read < 0) {
-    close(fd);
-    ReadErr();
+  ssize_t bytes_read = 0;
+  while (bytes_read < f_size_bytes) {
+    ssize_t result = read(fd, &buffer[bytes_read], f_size_bytes);
+    if (result < 0) {
+      close(fd);
+      ReadErr();
+    }
+    bytes_read += result;
   }
   close(fd);
 #else  // defined(__unix__)
