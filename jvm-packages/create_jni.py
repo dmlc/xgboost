@@ -98,7 +98,7 @@ if __name__ == "__main__":
             if os.getenv("RABIT_MOCK", None) is not None:
                 args.append("-DRABIT_MOCK:BOOL=ON")
 
-            run("cmake .. " + " ".join(args) + maybe_generator)
+            run("cmake .. -DCMAKE_BUILD_TYPE=Release " + " ".join(args) + maybe_generator)
             run("cmake --build . --config Release" + maybe_parallel_build)
 
         with cd("demo/regression"):
