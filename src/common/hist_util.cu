@@ -116,6 +116,57 @@ void ExtractWeightedCuts(int device,
   });
 }
 
+void ExtractWeightedCutsSparse(int device,
+                               common::Span<size_t const> cuts_ptr,
+                               Span<Entry> sorted_data,
+                               Span<float> weights_scan,
+                               Span<size_t> column_sizes_scan,
+                               Span<SketchEntry> cuts) {
+  dh::LaunchN(device, cuts.size(), [=] __device__(size_t idx) {
+    // Each thread is responsible for obtaining one cut from the sorted input
+    size_t column_idx = dh::SegmentId(cuts_ptr, idx);
+    size_t column_size =
+        column_sizes_scan[column_idx + 1] - column_sizes_scan[column_idx];
+    size_t num_available_cuts = cuts_ptr[column_idx + 1] - cuts_ptr[column_idx];
+    size_t cut_idx = idx - cuts_ptr[column_idx];
+
+    Span<Entry> column_entries =
+        sorted_data.subspan(column_sizes_scan[column_idx], column_size);
+
+    Span<float> column_weights_scan =
+        weights_scan.subspan(column_sizes_scan[column_idx], column_size);
+    float total_column_weight = column_weights_scan.back();
+    size_t sample_idx = 0;
+    if (cut_idx == 0) {
+      // First cut
+      sample_idx = 0;
+    } else if (cut_idx == num_available_cuts) {
+      // Last cut
+      sample_idx = column_entries.size() - 1;
+    } else if (num_available_cuts == column_size) {
+      // There are less samples available than our buffer
+      // Take every available sample
+      sample_idx = cut_idx;
+    } else {
+      bst_float rank = (total_column_weight * cut_idx) /
+                       static_cast<float>(num_available_cuts);
+      sample_idx = thrust::upper_bound(thrust::seq,
+                                       column_weights_scan.begin(),
+                                       column_weights_scan.end(),
+                                       rank) -
+                   column_weights_scan.begin();
+      sample_idx =
+          max(static_cast<size_t>(0),
+              min(sample_idx, column_entries.size() - 1));
+    }
+    // repeated values will be filtered out on the CPU
+    bst_float rmin = sample_idx > 0 ? column_weights_scan[sample_idx - 1] : 0.0f;
+    bst_float rmax = column_weights_scan[sample_idx];
+    cuts[idx] = WQSketch::Entry(rmin, rmax, rmax - rmin,
+                                column_entries[sample_idx].fvalue);
+  });
+}
+
 HostDeviceVector<size_t>
 MakeCutsPtr(int32_t device,
             thrust::host_vector<size_t> const &host_column_sizes_scan,
@@ -233,15 +284,20 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
   GetColumnSizesScan(device, &column_sizes_scan,
                      {sorted_entries.data().get(), sorted_entries.size()},
                      num_columns);
+
   thrust::host_vector<size_t> host_column_sizes_scan(column_sizes_scan);
+  HostDeviceVector<size_t> cuts_ptr =
+      MakeCutsPtr(device, host_column_sizes_scan, num_cuts_per_feature);
+  auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
+  auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
 
   // Extract cuts
-  dh::caching_device_vector<SketchEntry> cuts(num_columns * num_cuts_per_feature);
-  ExtractWeightedCuts(device, num_cuts_per_feature,
-                      dh::ToSpan(sorted_entries),
-                      dh::ToSpan(temp_weights),
-                      dh::ToSpan(column_sizes_scan),
-                      dh::ToSpan(cuts));
+  dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
+  ExtractWeightedCutsSparse(device, d_cuts_ptr,
+                            dh::ToSpan(sorted_entries),
+                            dh::ToSpan(temp_weights),
+                            dh::ToSpan(column_sizes_scan),
+                            dh::ToSpan(cuts));
 
   // add cuts into sketches
   sketch_container->Push(num_cuts_per_feature, dh::ToSpan(cuts), host_column_sizes_scan);
