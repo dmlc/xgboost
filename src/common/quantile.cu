@@ -191,12 +191,11 @@ void SketchContainer::Push(common::Span<size_t const> cuts_ptr,
                            const common::Span<SketchEntry>& entries) {
   timer.Start(__func__);
   if(this->Current().size() == 0) {
+    CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
     this->Current().resize(entries.size());
     dh::safe_cuda(cudaMemcpyAsync(this->Current().data().get(),
                                   entries.data(), entries.size_bytes(),
                                   cudaMemcpyDeviceToHost));
-    this->columns_ptr_.SetDevice(device_);
-    this->columns_ptr_.Resize(cuts_ptr.size());
     auto d_cuts_ptr = this->columns_ptr_.DevicePointer();
     thrust::copy(thrust::device, cuts_ptr.data(),
                  cuts_ptr.data() + cuts_ptr.size(), d_cuts_ptr);
