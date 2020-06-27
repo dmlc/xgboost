@@ -97,7 +97,7 @@ void ExtractWeightedCutsSparse(int device,
           max(static_cast<size_t>(0),
               min(sample_idx, column_entries.size() - 1));
     }
-    // repeated values will be filtered out on the CPU
+    // repeated values will be filtered out later.
     bst_float rmin = sample_idx > 0 ? column_weights_scan[sample_idx - 1] : 0.0f;
     bst_float rmax = column_weights_scan[sample_idx];
     cuts[idx] = WQSketch::Entry(rmin, rmax, rmax - rmin,
