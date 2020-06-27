@@ -22,9 +22,16 @@ RUN \
     # Maven
     wget https://archive.apache.org/dist/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz && \
     tar xvf apache-maven-3.6.1-bin.tar.gz -C /opt && \
-    ln -s /opt/apache-maven-3.6.1/ /opt/maven
+    ln -s /opt/apache-maven-3.6.1/ /opt/maven && \
+    # Ninja
+    mkdir -p /usr/local && \
+    cd /usr/local/ && \
+    wget -nv -nc https://github.com/ninja-build/ninja/archive/v1.10.0.tar.gz --no-check-certificate && \
+    tar xf v1.10.0.tar.gz && mv ninja-1.10.0 ninja && rm -v v1.10.0.tar.gz && \
+    cd ninja && \
+    python ./configure.py --bootstrap
 
-ENV PATH=/opt/python/bin:/opt/maven/bin:$PATH
+ENV PATH=/opt/python/bin:/opt/maven/bin:/usr/local/ninja:$PATH
 ENV CC=/opt/rh/devtoolset-4/root/usr/bin/gcc
 ENV CXX=/opt/rh/devtoolset-4/root/usr/bin/c++
 ENV CPP=/opt/rh/devtoolset-4/root/usr/bin/cpp
