@@ -234,7 +234,6 @@ size_t SketchContainer::Unique() {
 void SketchContainer::Prune(size_t to) {
   timer.Start(__func__);
   auto n_uniques = this->Unique();
-
   bst_feature_t to_total = 0;
   HostDeviceVector<bst_feature_t> new_columns_ptr{to_total};
   new_columns_ptr.SetDevice(device_);
@@ -259,7 +258,8 @@ void SketchContainer::Prune(size_t to) {
                                 d_columns_ptr_in[column_id + 1] -
                                     d_columns_ptr_in[column_id]);
     idx -= d_columns_ptr_out[column_id];
-    // Just copy the output.
+    // Input has lesser columns than to, just copy them to the output.  This is correct as
+    // the new output size is calculated based on both to and current column size.
     if (d_columns_ptr_in[column_id + 1] - d_columns_ptr_in[column_id] <= to) {
       out_column[idx] = in_column[idx];
       return;
@@ -289,57 +289,8 @@ void SketchContainer::Prune(size_t to) {
   timer.Stop(__func__);
 }
 
-void SketchContainer::Merge(std::vector< Span<SketchEntry> > that) {
-  timer.Start(__func__);
-  CHECK_EQ(that.size(), this->num_columns_);
-  size_t total = 0;
-  for (auto s : that) {
-    total += s.size();
-  }
-
-  if (this->Current().size() == 0) {
-    CHECK_EQ(this->columns_ptr_.HostVector().back(), 0);
-    this->Current().resize(total, SketchEntry{0, 0, 0, 0});
-    columns_ptr_.HostVector().clear();
-
-    size_t offset = 0;
-    columns_ptr_.HostVector().emplace_back(offset);
-    for (auto c : that) {
-      dh::safe_cuda(cudaMemcpyAsync(this->Current().data().get() + offset,
-                                    c.data(), c.size_bytes(),
-                                    cudaMemcpyDeviceToDevice));
-      offset += c.size();
-      columns_ptr_.HostVector().emplace_back(offset);
-    }
-
-    CHECK_EQ(columns_ptr_.Size(), num_columns_ + 1);
-    timer.Stop(__func__);
-    return;
-  }
-
-  this->Other().resize(this->Current().size() + total, SketchEntry{0, 0, 0, 0});
-  bst_feature_t out_offset = 0;
-  std::vector<bst_feature_t> new_columns_ptr{out_offset};
-  for (size_t i = 0; i < num_columns_; ++i) {
-    auto self_column = this->Column(i);
-    auto that_column = that[i];
-
-    auto out_size = self_column.size() + that_column.size();
-    auto out = dh::ToSpan(this->Other()).subspan(out_offset, out_size);
-    MergeImpl(self_column, that_column, out);
-    out_offset += out_size;
-    new_columns_ptr.emplace_back(out_offset);
-  }
-  CHECK_EQ(this->columns_ptr_.Size(), new_columns_ptr.size());
-  this->columns_ptr_.HostVector() = std::move(new_columns_ptr);
-  CHECK_EQ(this->columns_ptr_.Size(), num_columns_ + 1);
-  CHECK_EQ(this->columns_ptr_.HostVector().back(), this->Other().size());
-  this->Alternate();
-  timer.Stop(__func__);
-}
-
 void SketchContainer::Merge(Span<size_t const> d_that_columns_ptr,
-                            Span<SketchEntry const> other) {
+                            Span<SketchEntry const> that) {
   timer.Start(__func__);
   std::vector<size_t> that_columns_ptr(d_that_columns_ptr.size());
   dh::CopyDeviceSpanToVector(&that_columns_ptr, d_that_columns_ptr);
@@ -352,8 +303,8 @@ void SketchContainer::Merge(Span<size_t const> d_that_columns_ptr,
     size_t offset = 0;
     columns_ptr_.HostVector().emplace_back(offset);
     for (size_t i = 1; i < that_columns_ptr.size(); ++i) {
-      auto c = other.subspan(that_columns_ptr[i - 1],
-                             that_columns_ptr[i] - that_columns_ptr[i - 1]);
+      auto c = that.subspan(that_columns_ptr[i - 1],
+                            that_columns_ptr[i] - that_columns_ptr[i - 1]);
       dh::safe_cuda(cudaMemcpyAsync(this->Current().data().get() + offset,
                                     c.data(), c.size_bytes(),
                                     cudaMemcpyDeviceToDevice));
@@ -372,8 +323,8 @@ void SketchContainer::Merge(Span<size_t const> d_that_columns_ptr,
   std::vector<bst_feature_t> new_columns_ptr{out_offset};
   for (size_t i = 1; i < that_columns_ptr.size(); ++i) {
     auto self_column = this->Column(i-1);
-    auto that_column = other.subspan(
-        that_columns_ptr[i-1], that_columns_ptr[i] - that_columns_ptr[i-1]);
+    auto that_column = that.subspan(
+        that_columns_ptr[i - 1], that_columns_ptr[i] - that_columns_ptr[i - 1]);
     auto out_size = self_column.size() + that_column.size();
     auto out = dh::ToSpan(this->Other()).subspan(out_offset, out_size);
     MergeImpl(self_column, that_column, out);
@@ -400,7 +351,7 @@ void SketchContainer::AllReduce() {
     reducer_->Init(device_);
   }
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
-  dh::device_vector<bst_feature_t> gathered_ptrs;
+  dh::device_vector<size_t> gathered_ptrs;
 
   // FIXME: Uneven number of columns.
   CHECK_NE(d_columns_ptr.size(), 0);
@@ -414,7 +365,7 @@ void SketchContainer::AllReduce() {
   thrust::copy(thrust::device, d_columns_ptr.data(), d_columns_ptr.data() + d_columns_ptr.size(),
                gathered_ptrs.begin() + offset);
   reducer_->AllReduceSum(gathered_ptrs.data().get(), gathered_ptrs.data().get(), gathered_ptrs.size());
-  std::vector<bst_feature_t> h_gathered_ptrs (gathered_ptrs.size());
+  std::vector<size_t> h_gathered_ptrs (gathered_ptrs.size());
   thrust::copy(gathered_ptrs.begin(), gathered_ptrs.end(), h_gathered_ptrs.begin());
 
   std::vector<size_t> recv_lengths;
@@ -439,14 +390,10 @@ void SketchContainer::AllReduce() {
   for (size_t i = 0; i < allworkers.size(); ++i) {
     auto worker = allworkers[i];
     auto worker_ptr =
-        common::Span<bst_feature_t>(h_gathered_ptrs)
+        common::Span<size_t>(h_gathered_ptrs)
             .subspan(i * d_columns_ptr.size(), d_columns_ptr.size());
     CHECK_EQ(worker_ptr.back(), worker.size());
-    std::vector<Span<SketchEntry>> columns;
-    for (size_t j = 1; j < worker_ptr.size(); ++j) {
-      columns.emplace_back(worker.subspan(worker_ptr[j-1], worker_ptr[j] - worker_ptr[j-1]));
-    }
-    this->Merge(columns);
+    this->Merge(worker_ptr, worker);
   }
   timer.Stop(__func__);
 }

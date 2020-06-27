@@ -86,10 +86,10 @@ struct SketchContainer {
     // Initialize Sketches for this dmatrix
     auto eps = 1.0 / (WQSketch::kFactor * max_bin);
     size_t level;
-    WQuantileSketch<float, float>::LimitSizeLevel(num_rows, eps, &limit_size_, &level);
+    WQuantileSketch<float, float>::LimitSizeLevel(num_rows, eps, &level, &limit_size_);
     this->columns_ptr_.SetDevice(device_);
     this->columns_ptr_.Resize(num_columns + 1);
-    limit_size_ *= level;  // ON GPU we don't have streaming algorithm.
+    limit_size_ = std::min(limit_size_, num_rows);
     timer.Init(__func__);
   }
   /* \brief Removes all the duplicated elements in quantile structure. */
@@ -105,11 +105,10 @@ struct SketchContainer {
    */
   void Prune(size_t to);
   /* \brief Merge another set of sketch.
-   * \param other columns of other.
+   * \param that columns of other.
    */
-  void Merge(std::vector< Span<SketchEntry> >other);
   void Merge(Span<size_t const> that_columns_ptr,
-             Span<SketchEntry const> other);
+             Span<SketchEntry const> that);
 
   /* \brief Merge quantiles from other GPU workers. */
   void AllReduce();
