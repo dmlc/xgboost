@@ -69,7 +69,7 @@ build_script:
         mkdir build_msvc%ver% &&
         cd build_msvc%ver% &&
         call "%vcvars%" &&
-        cmake .. -GNinja -DCMAKE_BUILD_TYPE=%configuration% &&
+        cmake .. -GNinja -DCMAKE_BUILD_TYPE=%configuration% -DCMAKE_C_COMPILER="cl.exe" -DCMAKE_CXX_COMPILER="cl.exe" &&
         ninja -v
       )
     - if /i "%target%" == "mingw" (
@@ -96,7 +96,7 @@ build_script:
         mkdir build_rmsvc%ver% &&
         cd build_rmsvc%ver% &&
         call "%vcvars%" &&
-        cmake .. -GNinja -DCMAKE_CONFIGURATION_TYPES="Release" -DR_LIB=ON &&
+        cmake .. -GNinja -DCMAKE_CONFIGURATION_TYPES="Release" -DR_LIB=ON  -DCMAKE_C_COMPILER="cl.exe" -DCMAKE_CXX_COMPILER="cl.exe" &&
         cmake --build . --target install --config Release
       )
     - if /i "%target%" == "jvm" cd jvm-packages && mvn test -pl :xgboost4j_2.12
