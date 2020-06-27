@@ -105,6 +105,34 @@ void ExtractWeightedCutsSparse(int device,
   });
 }
 
+void GetColumnSizesScan(int device, size_t num_cuts_per_feature,
+                        HostDeviceVector<size_t> *cuts_ptr,
+                        dh::caching_device_vector<size_t> *column_sizes_scan,
+                        Span<const Entry> entries, size_t num_columns) {
+  column_sizes_scan->resize(num_columns + 1, 0);
+  cuts_ptr->SetDevice(device);
+  cuts_ptr->Resize(num_columns + 1, 0);
+
+  auto d_column_sizes_scan = column_sizes_scan->data().get();
+  auto d_entries = entries.data();
+  dh::LaunchN(device, entries.size(), [=] __device__(size_t idx) {
+    auto &e = d_entries[idx];
+    atomicAdd(reinterpret_cast<unsigned long long *>( // NOLINT
+                  &d_column_sizes_scan[e.index]),
+              static_cast<unsigned long long>(1)); // NOLINT
+  });
+  auto cut_ptr_it = dh::MakeTransformIterator<size_t>(
+      column_sizes_scan->begin(), [=] __device__(size_t column_size) {
+        return thrust::min(num_cuts_per_feature, column_size);
+      });
+  dh::XGBCachingDeviceAllocator<char> alloc;
+  thrust::exclusive_scan(thrust::cuda::par(alloc), cut_ptr_it,
+                         cut_ptr_it + column_sizes_scan->size(),
+                         cuts_ptr->DevicePointer());
+  thrust::exclusive_scan(thrust::cuda::par(alloc), column_sizes_scan->begin(),
+                         column_sizes_scan->end(), column_sizes_scan->begin());
+}
+
 HostDeviceVector<size_t>
 MakeCutsPtr(int32_t device,
             thrust::host_vector<size_t> const &host_column_sizes_scan,
@@ -133,17 +161,16 @@ void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
   thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
                sorted_entries.end(), EntryCompareOp());
 
+  HostDeviceVector<size_t> cuts_ptr;
   dh::caching_device_vector<size_t> column_sizes_scan;
-  GetColumnSizesScan(device, &column_sizes_scan,
+  GetColumnSizesScan(device, num_cuts, &cuts_ptr, &column_sizes_scan,
                      {sorted_entries.data().get(), sorted_entries.size()},
                      num_columns);
-  thrust::host_vector<size_t> host_column_sizes_scan(column_sizes_scan);
 
-  HostDeviceVector<size_t> cuts_ptr = MakeCutsPtr(device, host_column_sizes_scan, num_cuts);
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
+  dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
   auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
 
-  dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
   CHECK_EQ(d_cuts_ptr.size(), column_sizes_scan.size());
   ExtractCutsSparse(device, d_cuts_ptr, dh::ToSpan(sorted_entries),
                     dh::ToSpan(column_sizes_scan), dh::ToSpan(cuts));
@@ -218,19 +245,16 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
   }
   SortByWeight(&alloc, &temp_weights, &sorted_entries);
 
+  HostDeviceVector<size_t> cuts_ptr;
   dh::caching_device_vector<size_t> column_sizes_scan;
-  GetColumnSizesScan(device, &column_sizes_scan,
+  GetColumnSizesScan(device, num_cuts_per_feature, &cuts_ptr, &column_sizes_scan,
                      {sorted_entries.data().get(), sorted_entries.size()},
                      num_columns);
-
-  thrust::host_vector<size_t> host_column_sizes_scan(column_sizes_scan);
-  HostDeviceVector<size_t> cuts_ptr =
-      MakeCutsPtr(device, host_column_sizes_scan, num_cuts_per_feature);
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
+  dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
   auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
 
   // Extract cuts
-  dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
   ExtractWeightedCutsSparse(device, d_cuts_ptr,
                             dh::ToSpan(sorted_entries),
                             dh::ToSpan(temp_weights),
@@ -238,7 +262,7 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
                             dh::ToSpan(cuts));
 
   // add cuts into sketches
-  sketch_container->Push(num_cuts_per_feature, dh::ToSpan(cuts), host_column_sizes_scan);
+  sketch_container->Push(cuts_ptr.ConstDeviceSpan(), dh::ToSpan(cuts));
 }
 
 HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,

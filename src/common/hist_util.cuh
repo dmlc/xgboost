@@ -37,24 +37,6 @@ void ExtractCutsSparse(int device, common::Span<size_t const> cuts_ptr,
                        Span<size_t const> column_sizes_scan,
                        Span<SketchEntry> out_cuts);
 
-// Count the entries in each column and exclusive scan
-inline void GetColumnSizesScan(int device,
-                               dh::caching_device_vector<size_t>* column_sizes_scan,
-                               Span<const Entry> entries, size_t num_columns) {
-  column_sizes_scan->resize(num_columns + 1, 0);
-  auto d_column_sizes_scan = column_sizes_scan->data().get();
-  auto d_entries = entries.data();
-  dh::LaunchN(device, entries.size(), [=] __device__(size_t idx) {
-    auto& e = d_entries[idx];
-    atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
-                  &d_column_sizes_scan[e.index]),
-              static_cast<unsigned long long>(1));  // NOLINT
-  });
-  dh::XGBCachingDeviceAllocator<char> alloc;
-  thrust::exclusive_scan(thrust::cuda::par(alloc), column_sizes_scan->begin(),
-                         column_sizes_scan->end(), column_sizes_scan->begin());
-}
-
 // For adapter.
 template <typename Iter>
 void GetColumnSizesScan(int device, size_t num_columns,
