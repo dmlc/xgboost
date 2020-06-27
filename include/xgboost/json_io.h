@@ -9,12 +9,13 @@
 #include <vector>
 #include <memory>
 #include <string>
-#include <cinttypes>
 #include <utility>
 #include <map>
 #include <limits>
 #include <sstream>
 #include <locale>
+#include <cinttypes>
+#include <cstdio>
 
 namespace xgboost {
 /*
@@ -84,8 +85,10 @@ class JsonReader {
     std::string msg = "Expecting: \"";
     msg += c;
     msg += "\", got: \"";
-    if (got == -1) {
+    if (got == EOF) {
       msg += "EOF\"";
+    } else if (got == 0) {
+      msg += "\\0\"";
     } else {
       msg += std::to_string(got) + " \"";
     }
