@@ -134,8 +134,8 @@ std::string LoadSequentialFile(std::string fname) {
   buffer.back() = '\0';
 #else  // defined(__unix__)
   std::ifstream ifs(fname);
-  buffer = std::string( (std::istreambuf_iterator<char>(ifs) ),
-                        (std::istreambuf_iterator<char>()) );
+  buffer = std::string((std::istreambuf_iterator<char>(ifs)),
+                       (std::istreambuf_iterator<char>()));
 #endif  // defined(__unix__)
   return buffer;
 }
