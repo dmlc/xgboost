@@ -4,7 +4,6 @@ set -e
 rm -rf build
 mkdir build
 cd build
-cmake -DRABIT_MOCK=ON -DCMAKE_VERBOSE_MAKEFILE=ON ..
-make clean
-make -j$(nproc)
+cmake -GNinja -DRABIT_MOCK=ON -DCMAKE_VERBOSE_MAKEFILE=ON ..
+ninja -v
 cd ..
