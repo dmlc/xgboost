@@ -7,9 +7,10 @@
 #include <unistd.h>
 #endif  // defined(__unix__)
 #include <algorithm>
-#include <cstdio>
+#include <fstream>
 #include <string>
 #include <utility>
+#include <cstdio>
 
 #include "xgboost/logging.h"
 #include "io.h"
@@ -130,21 +131,12 @@ std::string LoadSequentialFile(std::string fname) {
     bytes_read += result;
   }
   close(fd);
-#else  // defined(__unix__)
-  FILE *f = fopen(fname.c_str(), "r");
-  if (f == NULL) {
-    std::string msg;
-    OpenErr();
-  }
-  fseek(f, 0, SEEK_END);
-  auto fsize = ftell(f);
-  fseek(f, 0, SEEK_SET);
-
-  buffer.resize(fsize + 1);
-  fread(&buffer[0], 1, fsize, f);
-  fclose(f);
-#endif  // defined(__unix__)
   buffer.back() = '\0';
+#else  // defined(__unix__)
+  std::ifstream ifs(fname);
+  buffer = std::string( (std::istreambuf_iterator<char>(ifs) ),
+                        (std::istreambuf_iterator<char>()) );
+#endif  // defined(__unix__)
   return buffer;
 }
 
