@@ -76,6 +76,7 @@ void GetColumnSizesScan(int device, size_t num_columns,
                          column_sizes_scan->end(), column_sizes_scan->begin());
 }
 
+// Make the column ptr for CSC structured cuts.
 HostDeviceVector<size_t>
 MakeCutsPtr(int32_t device,
             thrust::host_vector<size_t> const &host_column_sizes_scan,
@@ -188,12 +189,22 @@ void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
   sketch_container->Push(cuts_ptr.ConstDeviceSpan(), dh::ToSpan(cuts));
 }
 
-void ExtractWeightedCuts(int device,
-                         size_t num_cuts_per_feature,
-                         Span<Entry> sorted_data,
-                         Span<float> weights_scan,
-                         Span<size_t> column_sizes_scan,
-                         Span<SketchEntry> cuts);
+/**
+ * \brief Extracts the cuts from sorted data, considering weights.
+ *
+ * \param device                The device.
+ * \param cuts_ptr              Column pointers to CSC structured cuts
+ * \param sorted_data           Sorted entries in segments of columns.
+ * \param weights_scan          Inclusive scan of weights for each entry in sorted_data.
+ * \param column_sizes_scan     Describes the boundaries of column segments in sorted data.
+ * \param cuts                  Output cuts.
+ */
+void ExtractWeightedCutsSparse(int device,
+                               common::Span<size_t const> cuts_ptr,
+                               Span<Entry> sorted_data,
+                               Span<float> weights_scan,
+                               Span<size_t> column_sizes_scan,
+                               Span<SketchEntry> cuts);
 
 void SortByWeight(dh::XGBCachingDeviceAllocator<char>* alloc,
                   dh::caching_device_vector<float>* weights,
@@ -260,13 +271,19 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
   }
 
   SortByWeight(&alloc, &temp_weights, &sorted_entries);
+
+  HostDeviceVector<size_t> cuts_ptr =
+      MakeCutsPtr(device, host_column_sizes_scan, num_cuts_per_feature);
+  auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
+  auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
+
   // Extract cuts
-  dh::caching_device_vector<SketchEntry> cuts(columns * num_cuts_per_feature);
-  ExtractWeightedCuts(device, num_cuts_per_feature,
-                      dh::ToSpan(sorted_entries),
-                      dh::ToSpan(temp_weights),
-                      dh::ToSpan(column_sizes_scan),
-                      dh::ToSpan(cuts));
+  dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
+  ExtractWeightedCutsSparse(device, d_cuts_ptr,
+                            dh::ToSpan(sorted_entries),
+                            dh::ToSpan(temp_weights),
+                            dh::ToSpan(column_sizes_scan),
+                            dh::ToSpan(cuts));
   sorted_entries.clear();
   sorted_entries.shrink_to_fit();
   // add cuts into sketches
