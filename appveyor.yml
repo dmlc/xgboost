@@ -6,10 +6,12 @@ environment:
           ver: 2015
           generator: "Visual Studio 14 2015 Win64"
           configuration: Debug
+          vcvars: C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\x86_amd64\vcvarsx86_amd64.bat
         - target: msvc
           ver: 2015
           generator: "Visual Studio 14 2015 Win64"
           configuration: Release
+          vcvars: C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\x86_amd64\vcvarsx86_amd64.bat
         - target: mingw
           generator: "Unix Makefiles"
         - target: jvm
@@ -17,6 +19,7 @@ environment:
           ver: 2015
           generator: "Visual Studio 14 2015 Win64"
           configuration: Release
+          vcvars: C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\x86_amd64\vcvarsx86_amd64.bat
         - target: rmingw
           generator: "Unix Makefiles"
 
@@ -65,14 +68,15 @@ build_script:
     - if /i "%target%" == "msvc" (
         mkdir build_msvc%ver% &&
         cd build_msvc%ver% &&
-        cmake .. -G"%generator%" -DCMAKE_CONFIGURATION_TYPES="Release;Debug;" &&
-        msbuild xgboost.sln
+        call "%vcvars%" &&
+        cmake .. -GNinja -DCMAKE_BUILD_TYPE=%configuration% &&
+        ninja -v
       )
     - if /i "%target%" == "mingw" (
         mkdir build_mingw &&
         cd build_mingw &&
-        cmake .. -G"%generator%" &&
-        make -j2
+        cmake .. -GNinja &&
+        ninja -v
       )
     # Python package
     - if /i "%DO_PYTHON%" == "on" (
@@ -91,7 +95,8 @@ build_script:
     - if /i "%target%" == "rmsvc" (
         mkdir build_rmsvc%ver% &&
         cd build_rmsvc%ver% &&
-        cmake .. -G"%generator%" -DCMAKE_CONFIGURATION_TYPES="Release" -DR_LIB=ON &&
+        call "%vcvars%" &&
+        cmake .. -GNinja -DCMAKE_CONFIGURATION_TYPES="Release" -DR_LIB=ON &&
         cmake --build . --target install --config Release
       )
     - if /i "%target%" == "jvm" cd jvm-packages && mvn test -pl :xgboost4j_2.12
