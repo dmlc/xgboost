@@ -2,6 +2,11 @@
  * Copyright (c) by XGBoost Contributors 2019
  */
 #include <gtest/gtest.h>
+#include <dmlc/filesystem.h>
+#include <atomic>
+#include <type_traits>
+#include <cstdint>
+#include <cstdio>
 #include "../../../src/common/io.h"
 
 namespace xgboost {
@@ -39,5 +44,51 @@ TEST(IO, FixedSizeStream) {
     ASSERT_EQ(huge_buffer, out_buffer);
   }
 }
+
+
+#if SIZE_MAX == 0xFFFFFFFFFFFFFFFF  // Only run this test on 64-bit system
+TEST(IO, LoadSequentialFile) {
+  // bytes_read = 2147479552, f_size_bytes = 2896075944
+  const size_t nbyte = static_cast<size_t>(2896075944LL);
+  static_assert(sizeof(size_t) == 8, "Assumption failed: size_t was assumed to be 8-bytes long");
+  static_assert(std::is_same<size_t, std::string::size_type>::value,
+                "Assumption failed: size_type of std::string was assumed to be 8-bytes long");
+
+  dmlc::TemporaryDirectory tempdir;
+  std::string path = "/dev/shm/xgboost_test_io_big_file.txt";
+  {
+    FILE* f = std::fopen(path.c_str(), "w");
+    if (!f) {  // /dev/shm not present
+      LOG(INFO) << "No /dev/shm; using dmlc::TemporaryDirectory instead";
+      path = tempdir.path + "/xgboost_test_io_big_file.txt";
+      f = std::fopen(path.c_str(), "w");
+    }
+    CHECK(f);
+    std::string str(nbyte, 'a');
+    CHECK_EQ(str.size(), nbyte);
+    CHECK_EQ(std::fwrite(str.data(), sizeof(char), nbyte, f), nbyte);
+    std::fclose(f);
+  }
+  {
+    std::string str = LoadSequentialFile(path);
+    dmlc::OMPException omp_exc;
+    std::atomic<bool> success{true};
+    #pragma omp parallel for schedule(static)
+    for (int64_t i = 0; i < static_cast<int64_t>(nbyte); ++i) {
+      omp_exc.Run([&] {
+        if (str[i] != 'a' && success.load(std::memory_order_acquire)) {
+          success.store(false, std::memory_order_release);
+          LOG(FATAL) << "Big file got corrupted. Expected: str[" << i << "] = 'a', "
+            << "Actual: str[" << i << "] = '"
+            << (str[i] ? std::string(1, str[i]) : std::string("\\0")) << "'";
+        }
+      });
+    }
+    omp_exc.Rethrow();
+    CHECK(success.load(std::memory_order_acquire));
+  }
+}
+#endif  // SIZE_MAX == 0xFFFFFFFFFFFFFFFF
+
 }  // namespace common
 }  // namespace xgboost
