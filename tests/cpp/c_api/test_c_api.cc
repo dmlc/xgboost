@@ -113,9 +113,10 @@ TEST(CAPI, ConfigIO) {
 
 TEST(CAPI, JsonModelIO) {
   size_t constexpr kRows = 10;
+  size_t constexpr kCols = 10;
   dmlc::TemporaryDirectory tempdir;
 
-  auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatrix();
+  auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
   std::vector<bst_float> labels(kRows);
   for (size_t i = 0; i < labels.size(); ++i) {
@@ -131,6 +132,10 @@ TEST(CAPI, JsonModelIO) {
   std::string modelfile_0 = tempdir.path + "/model_0.json";
   XGBoosterSaveModel(handle, modelfile_0.c_str());
   XGBoosterLoadModel(handle, modelfile_0.c_str());
+
+  bst_ulong num_feature {0};
+  ASSERT_EQ(XGBoosterGetNumFeature(handle, &num_feature), 0);
+  ASSERT_EQ(num_feature, kCols);
 
   std::string modelfile_1 = tempdir.path + "/model_1.json";
   XGBoosterSaveModel(handle, modelfile_1.c_str());

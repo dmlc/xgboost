@@ -340,6 +340,14 @@ XGB_DLL int XGBoosterSetParam(BoosterHandle handle,
   API_END();
 }
 
+XGB_DLL int XGBoosterGetNumFeature(BoosterHandle handle,
+                                   xgboost::bst_ulong *out) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  *out = static_cast<Learner*>(handle)->GetNumFeature();
+  API_END();
+}
+
 XGB_DLL int XGBoosterLoadJsonConfig(BoosterHandle handle, char const* json_parameters) {
   API_BEGIN();
   CHECK_HANDLE();

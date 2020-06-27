@@ -367,6 +367,14 @@ XGB_DLL int XGBoosterSetParam(BoosterHandle handle,
                               const char *value);
 
 /*!
+ * \brief get number of features
+ * \param out number of features
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterGetNumFeature(BoosterHandle handle,
+                                   bst_ulong *out);
+
+/*!
  * \brief update the model in one round using dtrain
  * \param handle handle
  * \param iter current iteration rounds
