@@ -269,7 +269,7 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
   sorted_entries.clear();
   sorted_entries.shrink_to_fit();
   // add cuts into sketches
-  sketch_container->Push(num_cuts_per_feature, dh::ToSpan(cuts), host_column_sizes_scan);
+  sketch_container->Push(cuts_ptr.ConstDeviceSpan(), dh::ToSpan(cuts));
 }
 
 template <typename AdapterT>

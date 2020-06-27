@@ -187,62 +187,6 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
   });
 }
 
-void SketchContainer::Push(size_t entries_per_column,
-                           const common::Span<SketchEntry>& entries,
-                           const thrust::host_vector<size_t>& column_scan) {
-  timer.Start(__func__);
-  std::vector<Span<SketchEntry>> columns;
-  std::vector<bst_feature_t> new_columns_ptr{0};
-  for (size_t icol = 0; icol < num_columns_; ++icol) {
-    size_t column_size = column_scan[icol + 1] - column_scan[icol];
-    size_t num_available_cuts =
-        std::min(size_t(entries_per_column), column_size);
-    CHECK_GT(column_size, 0);  // FIXME
-    // if (column_size == 0) continue;
-    columns.emplace_back(entries.subspan(entries_per_column * icol, num_available_cuts));
-    new_columns_ptr.emplace_back(num_available_cuts);
-  }
-  CHECK_EQ(entries.size(), entries_per_column * num_columns_);
-  timer.Start("CopyIntoQuantile");
-  if (this->Current().size() == 0) {
-    CHECK_EQ(this->columns_ptr_.HostVector().back(), 0);
-    dh::device_vector<size_t> d_columns_scan(column_scan.size());
-    thrust::copy(column_scan.begin(), column_scan.end(),
-                 d_columns_scan.begin());
-    auto s_columns_scan = dh::ToSpan(d_columns_scan);
-    std::partial_sum(new_columns_ptr.begin(), new_columns_ptr.end(), new_columns_ptr.begin());
-    this->Current().resize(new_columns_ptr.back());
-    dh::XGBCachingDeviceAllocator<char> alloc;
-    size_t n =
-        thrust::copy_if(
-            thrust::cuda::par(alloc), entries.data(), entries.data() + entries.size(),
-            thrust::make_counting_iterator(0ul), this->Current().begin(),
-            [=] __device__(size_t i) {
-              auto column_id = i / entries_per_column;
-              size_t column_size =
-                  s_columns_scan[column_id + 1] - s_columns_scan[column_id];
-              size_t num_available_cuts =
-                  thrust::min(size_t(entries_per_column), column_size);
-              size_t pos = i - entries_per_column * column_id;
-              if (pos < num_available_cuts) {
-                return true;
-              } else {
-                return false;
-              }
-            }) -
-        this->Current().begin();
-    CHECK_EQ(n, new_columns_ptr.back());
-    this->columns_ptr_.HostVector() = new_columns_ptr;
-  } else {
-    CHECK_EQ(columns.size(), num_columns_);
-    this->Merge(columns);
-  }
-  timer.Stop("CopyIntoQuantile");
-
-  this->Prune(limit_size_);
-  timer.Stop(__func__);
-}
-
 void SketchContainer::Push(common::Span<size_t const> cuts_ptr,
                            const common::Span<SketchEntry>& entries) {
   timer.Start(__func__);

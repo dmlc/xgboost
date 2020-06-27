@@ -95,18 +95,6 @@ struct SketchContainer {
   /* \brief Removes all the duplicated elements in quantile structure. */
   size_t Unique();
 
-  /**
-   * \brief Pushes cuts to the sketches.
-   *
-   * \param entries_per_column  The entries per column.
-   * \param entries             Vector of cuts from all columns, length
-   * entries_per_column * num_columns. \param column_scan         Exclusive scan
-   * of column sizes. Used to detect cases where there are fewer entries than we
-   * have storage for.
-   */
-  void Push(size_t entries_per_column,
-            const common::Span<SketchEntry>& entries,
-            const thrust::host_vector<size_t>& column_scan);
   /* \brief Push a CSC structured cut matrix. */
   void Push(common::Span<size_t const> cuts_ptr,
             const common::Span<SketchEntry>& entries);
