@@ -260,7 +260,7 @@ void SketchContainer::Prune(size_t to) {
     idx -= d_columns_ptr_out[column_id];
     // Input has lesser columns than to, just copy them to the output.  This is correct as
     // the new output size is calculated based on both to and current column size.
-    if (d_columns_ptr_in[column_id + 1] - d_columns_ptr_in[column_id] <= to) {
+    if (in_column.size() <= to) {
       out_column[idx] = in_column[idx];
       return;
     }
@@ -277,11 +277,10 @@ void SketchContainer::Prune(size_t to) {
     }
 
     float w = entries.back().rmin - entries.front().rmax;
-    auto budget = static_cast<float>(d_out.size());
     assert(w != 0);
+    auto budget = static_cast<float>(d_out.size());
     assert(budget != 0);
     auto q = ((idx * w) / (to - 1) + entries.front().rmax);
-    assert(idx < d_out.size());
     d_out[idx] = BinarySearchQuery(entries, q);
   });
   this->columns_ptr_.HostVector() = new_columns_ptr.HostVector();

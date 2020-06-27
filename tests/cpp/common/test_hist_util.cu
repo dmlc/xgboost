@@ -30,11 +30,12 @@ HistogramCuts GetHostCuts(AdapterT *adapter, int num_bins, float missing) {
   builder.Build(&dmat, num_bins);
   return cuts;
 }
+
 TEST(HistUtil, DeviceSketch) {
-  int num_rows = 5;
   int num_columns = 1;
   int num_bins = 4;
-  std::vector<float> x = {1.0, 2.0, 3.0, 4.0, 5.0};
+  std::vector<float> x = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 7.0f, -1.0f};
+  int num_rows = x.size();
   auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
 
   auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
@@ -61,10 +62,14 @@ size_t RequiredSampleCutsTest(int max_bins, size_t num_rows) {
 size_t BytesRequiredForTest(size_t num_rows, size_t num_columns, size_t num_bins,
                             bool with_weights) {
   size_t bytes_num_elements = BytesPerElement(with_weights) * num_rows * num_columns;
+  // One column ptr for input data and another for output cuts, third for new cut ptrs
+  // created by pruning.
+  size_t bytes_num_columns = (num_columns + 1) * sizeof(size_t) * 3;
+  // Output from sliding window, storage in qunatile structure.
   size_t bytes_cuts = RequiredSampleCutsTest(num_bins, num_rows) * num_columns *
                       sizeof(DenseCuts::WQSketch::Entry);
   // divide by 2 is because the memory quota used in sorting is reused for storing cuts.
-  return bytes_num_elements / 2 + bytes_cuts;
+  return bytes_num_elements / 2 + bytes_cuts + bytes_num_columns;
 }
 
 TEST(HistUtil, DeviceSketchMemory) {
