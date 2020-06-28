@@ -60,6 +60,30 @@ __device__ __forceinline__ double atomicAdd(double* address, double val) {  // N
 #endif
 
 namespace dh {
+namespace detail {
+template <size_t size>
+struct AtomicDispatcher;
+
+template <>
+struct AtomicDispatcher<sizeof(uint32_t)> {
+  using Type = unsigned int;
+  static_assert(sizeof(Type) == sizeof(uint32_t), "Unsigned should be of size 32 bits.");
+};
+
+template <>
+struct AtomicDispatcher<sizeof(uint64_t)> {
+  using Type = unsigned long long;
+  static_assert(sizeof(Type) == sizeof(uint64_t), "Unsigned long long should be of size 64 bits.");
+};
+}  // namespace detail
+}  // namespace dh
+
+void __device__ __forceinline__ atomicAdd(size_t* addr, size_t v) {
+  using T = dh::detail::AtomicDispatcher<sizeof(xgboost::bst_row_t)>::Type;
+  ::atomicAdd(reinterpret_cast<T*>(addr), static_cast<T>(v));
+}
+
+namespace dh {
 
 #define HOST_DEV_INLINE XGBOOST_DEVICE __forceinline__
 #define DEV_INLINE __device__ __forceinline__
@@ -658,7 +682,7 @@ class AllReducer {
     CHECK(initialised_);
 
     dh::safe_cuda(cudaSetDevice(device_ordinal_));
-    static_assert(sizeof(unsigned long long) == sizeof(uint64_t), "");
+    static_assert(sizeof(unsigned long long) == sizeof(uint64_t), ""); // NOLINT
     dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclUint64, ncclSum, comm_, stream_));
 #endif
   }
@@ -957,26 +981,6 @@ size_t __device__ SegmentId(It first, It last, size_t idx) {
 template <typename T>
 size_t __device__ SegmentId(xgboost::common::Span<T> segments_ptr, size_t idx) {
   return SegmentId(segments_ptr.cbegin(), segments_ptr.cend(), idx);
-}
-
-namespace detail {
-template <size_t size>
-struct AtomicDispatcher;
-
-template <>
-struct AtomicDispatcher<sizeof(uint32_t)> {
-  using Type = unsigned int;
-};
-
-template <>
-struct AtomicDispatcher<sizeof(uint64_t)> {
-  using Type = unsigned long long;
-};
-}  // namespace detail
-
-inline void __device__ atomicAdd(size_t* addr, size_t v) {
-  using T = detail::AtomicDispatcher<sizeof(xgboost::bst_row_t)>::Type;
-  ::atomicAdd(reinterpret_cast<T*>(addr), static_cast<T>(v));
 }
 
 namespace detail {
