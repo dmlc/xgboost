@@ -75,9 +75,7 @@ void GetColumnSizesScan(int device, size_t num_columns, size_t num_cuts_per_feat
   dh::LaunchN(device, end - begin, [=] __device__(size_t idx) {
     auto e = batch_iter[begin + idx];
     if (is_valid(e)) {
-      atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
-                    &d_column_sizes_scan[e.column_idx]),
-                static_cast<unsigned long long>(1));  // NOLINT
+      atomicAdd(&d_column_sizes_scan[e.column_idx], static_cast<size_t>(1));
     }
   });
   // Calculate cuts CSC pointer
