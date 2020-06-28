@@ -83,8 +83,8 @@ template <typename T = size_t,
                            !std::is_same<size_t, unsigned long long>::value> * =
               nullptr>
 T __device__ __forceinline__ atomicAdd(T *addr, T v) {
-  using Type = dh::detail::AtomicDispatcher<sizeof(xgboost::bst_row_t)>::Type;
-  Type ret = ::atomicAdd(reinterpret_cast<T *>(addr), static_cast<T>(v));
+  using Type = typename dh::detail::AtomicDispatcher<sizeof(T)>::Type;
+  Type ret = ::atomicAdd(reinterpret_cast<Type *>(addr), static_cast<Type>(v));
   return static_cast<T>(ret);
 }
 
