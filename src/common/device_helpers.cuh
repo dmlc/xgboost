@@ -291,9 +291,11 @@ public:
     safe_cuda(cudaGetDevice(&current_device));
     stats_.RegisterDeallocation(ptr, n, current_device);
   }
-  size_t PeakMemory()
-  {
+  size_t PeakMemory() const {
     return stats_.peak_allocated_bytes;
+  }
+  size_t CurrentlyAllocatedBytes() const {
+    return stats_.currently_allocated_bytes;
   }
   void Clear()
   {

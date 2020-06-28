@@ -364,12 +364,13 @@ void SketchContainer::FixError() {
 }
 
 void SketchContainer::AllReduce() {
-  timer.Start(__func__);
   dh::safe_cuda(cudaSetDevice(device_));
   auto world = rabit::GetWorldSize();
   if (world == 1) {
     return;
   }
+
+  timer.Start(__func__);
   if (!reducer_) {
     reducer_ = std::make_unique<dh::AllReducer>();
     reducer_->Init(device_);

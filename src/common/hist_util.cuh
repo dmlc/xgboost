@@ -39,12 +39,16 @@ void ExtractCutsSparse(int device, common::Span<size_t const> cuts_ptr,
 
 // For adapter.
 template <typename Iter>
-void GetColumnSizesScan(int device, size_t num_columns,
+void GetColumnSizesScan(int device, size_t num_columns, size_t num_cuts_per_feature,
                         Iter batch_iter, data::IsValidFunctor is_valid,
                         size_t begin, size_t end,
+                        HostDeviceVector<size_t> *cuts_ptr,
                         dh::caching_device_vector<size_t>* column_sizes_scan) {
-  dh::XGBCachingDeviceAllocator<char> alloc;
   column_sizes_scan->resize(num_columns + 1, 0);
+  cuts_ptr->SetDevice(device);
+  cuts_ptr->Resize(num_columns + 1, 0);
+
+  dh::XGBCachingDeviceAllocator<char> alloc;
   auto d_column_sizes_scan = column_sizes_scan->data().get();
   dh::LaunchN(device, end - begin, [=] __device__(size_t idx) {
     auto e = batch_iter[begin + idx];
@@ -54,6 +58,14 @@ void GetColumnSizesScan(int device, size_t num_columns,
                 static_cast<unsigned long long>(1));  // NOLINT
     }
   });
+  // Calculate cuts CSC pointer
+  auto cut_ptr_it = dh::MakeTransformIterator<size_t>(
+      column_sizes_scan->begin(), [=] __device__(size_t column_size) {
+        return thrust::min(num_cuts_per_feature, column_size);
+      });
+  thrust::exclusive_scan(thrust::cuda::par(alloc), cut_ptr_it,
+                         cut_ptr_it + column_sizes_scan->size(),
+                         cuts_ptr->DevicePointer());
   thrust::exclusive_scan(thrust::cuda::par(alloc), column_sizes_scan->begin(),
                          column_sizes_scan->end(), column_sizes_scan->begin());
 }
@@ -108,8 +120,8 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
 template <typename AdapterBatch, typename BatchIter>
 void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter,
                             Range1d range, float missing,
-                            size_t columns, int device,
-                            thrust::host_vector<size_t>* host_column_sizes_scan,
+                            size_t columns, size_t cuts_per_feature, int device,
+                            HostDeviceVector<size_t>* cut_sizes_scan,
                             dh::caching_device_vector<size_t>* column_sizes_scan,
                             dh::caching_device_vector<Entry>* sorted_entries) {
   auto entry_iter = dh::MakeTransformIterator<Entry>(
@@ -119,16 +131,12 @@ void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter,
       });
   data::IsValidFunctor is_valid(missing);
   // Work out how many valid entries we have in each column
-  GetColumnSizesScan(device, columns,
+  GetColumnSizesScan(device, columns, cuts_per_feature,
                      batch_iter, is_valid,
                      range.begin(), range.end(),
+                     cut_sizes_scan,
                      column_sizes_scan);
-  host_column_sizes_scan->resize(column_sizes_scan->size());
-  thrust::copy(column_sizes_scan->begin(), column_sizes_scan->end(),
-               host_column_sizes_scan->begin());
-
-  size_t num_valid = host_column_sizes_scan->back();
-
+  size_t num_valid = column_sizes_scan->back();
   // Copy current subset of valid elements into temporary storage and sort
   sorted_entries->resize(num_valid);
   dh::XGBCachingDeviceAllocator<char> alloc;
@@ -147,19 +155,20 @@ void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
   auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
       thrust::make_counting_iterator(0llu),
       [=] __device__(size_t idx) { return batch.GetElement(idx); });
-  MakeEntriesFromAdapter(batch, batch_iter, {begin, end}, missing, columns, device,
-                         &host_column_sizes_scan,
+  HostDeviceVector<size_t> cuts_ptr;
+  MakeEntriesFromAdapter(batch, batch_iter, {begin, end}, missing,
+                         columns, num_cuts, device,
+                         &cuts_ptr,
                          &column_sizes_scan,
                          &sorted_entries);
   dh::XGBCachingDeviceAllocator<char> alloc;
   thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
                sorted_entries.end(), EntryCompareOp());
 
-  // Extract the cuts from all columns concurrently
-  HostDeviceVector<size_t> cuts_ptr = MakeCutsPtr(device, host_column_sizes_scan, num_cuts);
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
   auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
   dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
+  // Extract the cuts from all columns concurrently
   ExtractCutsSparse(device, d_cuts_ptr,
                     dh::ToSpan(sorted_entries),
                     dh::ToSpan(column_sizes_scan),
@@ -210,10 +219,11 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
     [=] __device__(size_t idx) { return batch.GetElement(idx); });
   dh::caching_device_vector<Entry> sorted_entries;
   dh::caching_device_vector<size_t> column_sizes_scan;
-  thrust::host_vector<size_t> host_column_sizes_scan;
+  HostDeviceVector<size_t> cuts_ptr;
   MakeEntriesFromAdapter(batch, batch_iter,
-                         {begin, end}, missing, columns, device,
-                         &host_column_sizes_scan,
+                         {begin, end}, missing,
+                         columns, num_cuts_per_feature, device,
+                         &cuts_ptr,
                          &column_sizes_scan,
                          &sorted_entries);
   data::IsValidFunctor is_valid(missing);
@@ -254,8 +264,6 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
 
   SortByWeight(&alloc, &temp_weights, &sorted_entries);
 
-  HostDeviceVector<size_t> cuts_ptr =
-      MakeCutsPtr(device, host_column_sizes_scan, num_cuts_per_feature);
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
   auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
 

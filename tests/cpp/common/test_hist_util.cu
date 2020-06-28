@@ -82,12 +82,11 @@ TEST(HistUtil, DeviceSketchMemory) {
   dh::GlobalMemoryLogger().Clear();
   ConsoleLogger::Configure({{"verbosity", "3"}});
   auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
-  ConsoleLogger::Configure({{"verbosity", "0"}});
 
   size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, false);
-  size_t bytes_constant = 1000;
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required + bytes_constant);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
+  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
+  ConsoleLogger::Configure({{"verbosity", "0"}});
 }
 
 TEST(HistUtil, DeviceSketchWeightsMemory) {
@@ -281,7 +280,7 @@ TEST(HistUtil, AdapterDeviceSketchMemory) {
   size_t bytes_constant = 1000;
   size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, false);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required + bytes_constant);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
 }
 
 TEST(HistUtil, AdapterSketchBatchMemory) {
@@ -298,11 +297,10 @@ TEST(HistUtil, AdapterSketchBatchMemory) {
   SketchContainer sketch_container(num_bins, num_columns, num_rows, 0);
   AdapterDeviceSketch(adapter.Value(), num_bins, std::numeric_limits<float>::quiet_NaN(),
                       0, &sketch_container);
-  ConsoleLogger::Configure({{"verbosity", "0"}});
-  size_t bytes_constant = 1000;
   size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, false);
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required + bytes_constant);
-  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
+  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
+  EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
+  ConsoleLogger::Configure({{"verbosity", "0"}});
 }
 
 TEST(HistUtil, AdapterSketchBatchWeightedMemory) {
