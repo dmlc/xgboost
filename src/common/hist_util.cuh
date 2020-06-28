@@ -70,12 +70,6 @@ void GetColumnSizesScan(int device, size_t num_columns, size_t num_cuts_per_feat
                          column_sizes_scan->end(), column_sizes_scan->begin());
 }
 
-// Make the column ptr for CSC structured cuts.
-HostDeviceVector<size_t>
-MakeCutsPtr(int32_t device,
-            thrust::host_vector<size_t> const &host_column_sizes_scan,
-            size_t cuts_per_feature);
-
 inline size_t constexpr BytesPerElement(bool has_weight) {
   // Double the memory usage for sorting.  We need to assign weight for each element, so
   // sizeof(float) is added to all elements.

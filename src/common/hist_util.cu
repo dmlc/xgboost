@@ -135,24 +135,6 @@ void GetColumnSizesScan(int device, size_t num_cuts_per_feature,
                          column_sizes_scan->end(), column_sizes_scan->begin());
 }
 
-HostDeviceVector<size_t>
-MakeCutsPtr(int32_t device,
-            thrust::host_vector<size_t> const &host_column_sizes_scan,
-            size_t cuts_per_feature) {
-  HostDeviceVector<size_t> cuts_ptr;
-  cuts_ptr.SetDevice(device);
-  auto &h_cuts_ptr = cuts_ptr.HostVector();
-  size_t offset = 0;
-  h_cuts_ptr.push_back(offset);
-  for (size_t i = 1; i < host_column_sizes_scan.size(); ++i) {
-    offset +=
-        std::min(host_column_sizes_scan[i] - host_column_sizes_scan[i - 1],
-                 static_cast<size_t>(cuts_per_feature));
-    h_cuts_ptr.push_back(offset);
-  }
-  return cuts_ptr;
-}
-
 void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
                   SketchContainer* sketch_container, int num_cuts,
                   size_t num_columns) {
