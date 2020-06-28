@@ -123,7 +123,7 @@ std::string LoadSequentialFile(std::string fname) {
 #endif  // defined(__linux__)
   ssize_t bytes_read = 0;
   while (bytes_read < f_size_bytes) {
-    ssize_t result = read(fd, &buffer[bytes_read], f_size_bytes);
+    ssize_t result = read(fd, &buffer[bytes_read], f_size_bytes - bytes_read);
     if (result < 0) {
       close(fd);
       ReadErr();
