@@ -54,7 +54,9 @@ struct SketchUnique {
 };
 }  // anonymous namespace
 
-void CopyTo(Span<SketchEntry> out, Span<SketchEntry const> src) {
+template <typename T>
+void CopyTo(Span<T> out, Span<T const> src) {
+  CHECK_EQ(out.size(), src.size());
   dh::safe_cuda(cudaMemcpyAsync(out.data(), src.data(),
                                 out.size_bytes(),
                                 cudaMemcpyDefault));
@@ -293,31 +295,23 @@ void SketchContainer::Prune(size_t to) {
 void SketchContainer::Merge(Span<size_t const> d_that_columns_ptr,
                             Span<SketchEntry const> that) {
   timer_.Start(__func__);
-  std::vector<size_t> that_columns_ptr(d_that_columns_ptr.size());
-  dh::CopyDeviceSpanToVector(&that_columns_ptr, d_that_columns_ptr);
-  size_t total = that_columns_ptr.back();
   if (this->Current().size() == 0) {
     CHECK_EQ(this->columns_ptr_.HostVector().back(), 0);
-    this->Current().resize(total, SketchEntry{0, 0, 0, 0});
-    this->columns_ptr_.HostVector().clear();
-
-    size_t offset = 0;
-    columns_ptr_.HostVector().emplace_back(offset);
-    for (size_t i = 1; i < that_columns_ptr.size(); ++i) {
-      auto c = that.subspan(that_columns_ptr[i - 1],
-                            that_columns_ptr[i] - that_columns_ptr[i - 1]);
-      dh::safe_cuda(cudaMemcpyAsync(this->Current().data().get() + offset,
-                                    c.data(), c.size_bytes(),
-                                    cudaMemcpyDeviceToDevice));
-      offset += c.size();
-      columns_ptr_.HostVector().emplace_back(offset);
-    }
-
+    CHECK_EQ(this->columns_ptr_.HostVector().size(), d_that_columns_ptr.size());
     CHECK_EQ(columns_ptr_.Size(), num_columns_ + 1);
+    thrust::copy(thrust::device, d_that_columns_ptr.data(),
+                 d_that_columns_ptr.data() + d_that_columns_ptr.size(),
+                 this->columns_ptr_.DevicePointer());
+    auto total = this->columns_ptr_.HostVector().back();
+    this->Current().resize(total, SketchEntry{0, 0, 0, 0});
+    CopyTo(dh::ToSpan(this->Current()), that);
     timer_.Stop(__func__);
     return;
   }
 
+  std::vector<size_t> that_columns_ptr(d_that_columns_ptr.size());
+  dh::CopyDeviceSpanToVector(&that_columns_ptr, d_that_columns_ptr);
+  size_t total = that_columns_ptr.back();
   this->Other().resize(this->Current().size() + total, SketchEntry{0, 0, 0, 0});
   CHECK_EQ(that_columns_ptr.size(), this->columns_ptr_.Size());
   OffsetT out_offset = 0;

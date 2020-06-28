@@ -169,7 +169,7 @@ TEST(HistUitl, DeviceSketchWeights) {
 TEST(HistUtil, DeviceSketchBatches) {
   int num_bins = 256;
   int num_rows = 5000;
-  int batch_sizes[] = {0};
+  int batch_sizes[] = {0, 100, 1500, 6000};
   int num_columns = 5;
   for (auto batch_size : batch_sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
