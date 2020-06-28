@@ -66,13 +66,13 @@ struct AtomicDispatcher;
 
 template <>
 struct AtomicDispatcher<sizeof(uint32_t)> {
-  using Type = unsigned int;
+  using Type = unsigned int;  // NOLINT
   static_assert(sizeof(Type) == sizeof(uint32_t), "Unsigned should be of size 32 bits.");
 };
 
 template <>
 struct AtomicDispatcher<sizeof(uint64_t)> {
-  using Type = unsigned long long;
+  using Type = unsigned long long;  // NOLINT
   static_assert(sizeof(Type) == sizeof(uint64_t), "Unsigned long long should be of size 64 bits.");
 };
 }  // namespace detail
@@ -81,7 +81,7 @@ struct AtomicDispatcher<sizeof(uint64_t)> {
 // atomicAdd is not defined for size_t.
 template <typename T = size_t,
           std::enable_if_t<std::is_same<size_t, T>::value &&
-                           !std::is_same<size_t, unsigned long long>::value> * =
+                           !std::is_same<size_t, unsigned long long>::value> * =  // NOLINT
               nullptr>
 T __device__ __forceinline__ atomicAdd(T *addr, T v) {  // NOLINT
   using Type = typename dh::detail::AtomicDispatcher<sizeof(T)>::Type;
@@ -687,7 +687,7 @@ class AllReducer {
   // be one of uint64_t/uint32_t/unsigned long long/unsigned long.
   template <typename T = size_t,
             std::enable_if_t<std::is_same<size_t, T>::value &&
-                             !std::is_same<size_t, unsigned long long>::value>
+                             !std::is_same<size_t, unsigned long long>::value>  // NOLINT
                 * = nullptr>
   void AllReduceSum(const T *sendbuff, T *recvbuff, int count) { // NOLINT
 #ifdef XGBOOST_USE_NCCL
