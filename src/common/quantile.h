@@ -230,20 +230,18 @@ struct WQSummary {
       data[size++] = src.data[src.size - 1];
     }
   }
-
   /*!
    * \brief set current summary to be merged summary of sa and sb
    * \param sa first input summary to be merged
    * \param sb second input summary to be merged
    */
-  void SetCombine(const WQSummary &sa, const WQSummary &sb) {
+  inline void SetCombine(const WQSummary &sa,
+                         const WQSummary &sb) {
     if (sa.size == 0) {
-      this->CopyFrom(sb);
-      return;
+      this->CopyFrom(sb); return;
     }
     if (sb.size == 0) {
-      this->CopyFrom(sa);
-      return;
+      this->CopyFrom(sa); return;
     }
     CHECK(sa.size > 0 && sb.size > 0);
     const Entry *a = sa.data, *a_end = sa.data + sa.size;
@@ -254,56 +252,51 @@ struct WQSummary {
     while (a != a_end && b != b_end) {
       // duplicated value entry
       if (a->value == b->value) {
-        *dst = Entry(a->rmin + b->rmin, a->rmax + b->rmax, a->wmin + b->wmin,
-                     a->value);
+        *dst = Entry(a->rmin + b->rmin,
+                     a->rmax + b->rmax,
+                     a->wmin + b->wmin, a->value);
         aprev_rmin = a->RMinNext();
         bprev_rmin = b->RMinNext();
-        ++dst;
-        ++a;
-        ++b;
+        ++dst; ++a; ++b;
       } else if (a->value < b->value) {
-        *dst = Entry(a->rmin + bprev_rmin, a->rmax + b->RMaxPrev(), a->wmin,
-                     a->value);
+        *dst = Entry(a->rmin + bprev_rmin,
+                     a->rmax + b->RMaxPrev(),
+                     a->wmin, a->value);
         aprev_rmin = a->RMinNext();
-        ++dst;
-        ++a;
+        ++dst; ++a;
       } else {
-        *dst = Entry(b->rmin + aprev_rmin, b->rmax + a->RMaxPrev(), b->wmin,
-                     b->value);
+        *dst = Entry(b->rmin + aprev_rmin,
+                     b->rmax + a->RMaxPrev(),
+                     b->wmin, b->value);
         bprev_rmin = b->RMinNext();
-        ++dst;
-        ++b;
+        ++dst; ++b;
       }
     }
     if (a != a_end) {
       RType brmax = (b_end - 1)->rmax;
       do {
         *dst = Entry(a->rmin + bprev_rmin, a->rmax + brmax, a->wmin, a->value);
-        ++dst;
-        ++a;
+        ++dst; ++a;
       } while (a != a_end);
     }
     if (b != b_end) {
       RType armax = (a_end - 1)->rmax;
       do {
         *dst = Entry(b->rmin + aprev_rmin, b->rmax + armax, b->wmin, b->value);
-        ++dst;
-        ++b;
+        ++dst; ++b;
       } while (b != b_end);
     }
-
     this->size = dst - data;
-
     const RType tol = 10;
     RType err_mingap, err_maxgap, err_wgap;
     this->FixError(&err_mingap, &err_maxgap, &err_wgap);
     if (err_mingap > tol || err_maxgap > tol || err_wgap > tol) {
-      LOG(INFO) << "mingap=" << err_mingap << ", maxgap=" << err_maxgap
+      LOG(INFO) << "mingap=" << err_mingap
+                << ", maxgap=" << err_maxgap
                 << ", wgap=" << err_wgap;
     }
     CHECK(size <= sa.size + sb.size) << "bug in combine";
   }
-
   // helper function to print the current content of sketch
   inline void Print() const {
     for (size_t i = 0; i < this->size; ++i) {

@@ -23,7 +23,7 @@ using SketchEntry = WQSketch::Entry;
  *  across distinct rows.
  */
 struct SketchContainer {
-  static constexpr float kFactor = 8;
+  static constexpr float kFactor = WQSketch::kFactor;
   Monitor timer;
 
  private:
