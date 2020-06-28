@@ -24,6 +24,18 @@ struct SegmentedUniqueReduceOp {
 
 /* \brief Segmented unique function.  Keys are pointers to segments with key_last -
  *        key_first = n_segments + 1.
+ *
+ * \pre   Input segment and output segment must not overlap.
+ * \pre   Segment type must be compatible with `atomicAdd`.
+ *
+ * \param key_first Beginning iterator of segments.
+ * \param key_last  End iterator of segments.
+ * \param val_first Beginning iterator of values.
+ * \param val_last  End iterator of values.
+ * \param key_out   Output iterator of segments.
+ * \param val_out   Output iterator of values.
+ *
+ * \return Number of unique values in total.
  */
 template <typename KeyInIt, typename KeyOutIt, typename ValInIt,
           typename ValOutIt, typename Comp>
