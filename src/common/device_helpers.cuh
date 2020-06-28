@@ -78,11 +78,12 @@ struct AtomicDispatcher<sizeof(uint64_t)> {
 }  // namespace detail
 }  // namespace dh
 
+// atomicAdd is not defined for size_t.
 template <typename T = size_t,
           std::enable_if_t<std::is_same<size_t, T>::value &&
                            !std::is_same<size_t, unsigned long long>::value> * =
               nullptr>
-T __device__ __forceinline__ atomicAdd(T *addr, T v) {
+T __device__ __forceinline__ atomicAdd(T *addr, T v) {  // NOLINT
   using Type = typename dh::detail::AtomicDispatcher<sizeof(T)>::Type;
   Type ret = ::atomicAdd(reinterpret_cast<Type *>(addr), static_cast<Type>(v));
   return static_cast<T>(ret);
@@ -682,7 +683,13 @@ class AllReducer {
 #endif
   }
 
-  void AllReduceSum(const unsigned long long *sendbuff, unsigned long long *recvbuff, int count) {  // NOLINT
+  // Specialization for size_t, which is implementation defined so it might or might not
+  // be one of uint64_t/uint32_t/unsigned long long/unsigned long.
+  template <typename T = size_t,
+            std::enable_if_t<std::is_same<size_t, T>::value &&
+                             !std::is_same<size_t, unsigned long long>::value>
+                * = nullptr>
+  void AllReduceSum(const T *sendbuff, T *recvbuff, int count) { // NOLINT
 #ifdef XGBOOST_USE_NCCL
     CHECK(initialised_);
 
