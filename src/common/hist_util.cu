@@ -308,7 +308,6 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
   bool has_weights = dmat->Info().weights_.Size() > 0;
   size_t num_cuts_per_feature =
       detail::RequiredSampleCutsPerColumn(max_bins, dmat->Info().num_row_);
-  size_t nnz = dmat->Info().num_nonzero_;
   sketch_batch_num_elements = detail::SketchBatchNumElements(
       sketch_batch_num_elements,
       dmat->Info().num_row_,

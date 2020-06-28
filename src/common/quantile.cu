@@ -235,7 +235,7 @@ size_t SketchContainer::Unique() {
 
 void SketchContainer::Prune(size_t to) {
   timer.Start(__func__);
-  auto n_uniques = this->Unique();
+  this->Unique();
   bst_feature_t to_total = 0;
   HostDeviceVector<bst_feature_t> new_columns_ptr{to_total};
   for (size_t i = 0; i < num_columns_; ++i) {
