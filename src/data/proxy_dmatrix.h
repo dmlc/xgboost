@@ -47,21 +47,13 @@ class DMatrixProxy : public DMatrix {
   dmlc::any batch_;
   int32_t device_ { xgboost::GenericParameter::kCpuId };
 
- public:
-  void SetInfo(char const *key, void const *info, DataType type,
-               size_t len) override {
-    this->Info().SetInfo(key, info, type, len);
-  }
-  void SetInfo(const char* key, std::string const& interface_str) override {
-    this->Info().SetInfo(key, interface_str);
-  }
-
-  int DeviceIdx() const { return device_; }
-
 #if defined(XGBOOST_USE_CUDA)
   void FromCudaColumnar(std::string interface_str);
   void FromCudaArray(std::string interface_str);
 #endif  // defined(XGBOOST_USE_CUDA)
+
+ public:
+  int DeviceIdx() const { return device_; }
 
   void SetData(char const* c_interface) {
     common::AssertGPUSupport();

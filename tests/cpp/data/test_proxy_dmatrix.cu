@@ -19,7 +19,7 @@ TEST(ProxyDMatrix, Basic) {
                     .GenerateColumnarArrayInterface(&label_storage);
 
   DMatrixProxy proxy;
-  proxy.FromCudaArray(data);
+  proxy.SetData(data.c_str());
   proxy.SetInfo("label", labels.c_str());
 
   ASSERT_EQ(proxy.Adapter().type(), typeid(std::shared_ptr<CupyAdapter>));
@@ -34,7 +34,7 @@ TEST(ProxyDMatrix, Basic) {
   data = RandomDataGenerator(kRows, kCols, 0)
                     .Device(0)
                     .GenerateColumnarArrayInterface(&columnar_storage);
-  proxy.FromCudaColumnar(data);
+  proxy.SetData(data.c_str());
   ASSERT_EQ(proxy.Adapter().type(), typeid(std::shared_ptr<CudfAdapter>));
   ASSERT_EQ(dmlc::get<std::shared_ptr<CudfAdapter>>(proxy.Adapter())->NumRows(),
             kRows);
