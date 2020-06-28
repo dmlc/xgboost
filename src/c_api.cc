@@ -1,8 +1,6 @@
 // Copyright by Contributors
 // implementations in ctypes
-#define _CRT_SECURE_NO_WARNINGS
-#define _CRT_SECURE_NO_DEPRECATE
-
+#include <rabit/base.h>
 #include <cstring>
 #include <string>
 #include "rabit/rabit.h"

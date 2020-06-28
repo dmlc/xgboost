@@ -2,9 +2,24 @@
 
 echo "Testing on: ${TRAVIS_OS_NAME}, Home directory: ${HOME}"
 
-pip3 install cpplint pylint urllib3 numpy cpplint
-pip3 install websocket-client kubernetes
-
+# Install Miniconda
+if [ ${TRAVIS_OS_NAME} == "osx" ]; then
+  wget -O conda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
+else
+  wget -O conda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+fi
+bash conda.sh -b -p $HOME/miniconda
+source $HOME/miniconda/bin/activate
+conda config --set always_yes yes --set changeps1 no
+conda update -q conda
+conda info -a
+conda create -n python3 python=3.7
+conda activate python3
+conda --version
+python --version
+# Install Python packages
+conda install -c conda-forge numpy scipy urllib3 websocket-client
+python -m pip install cpplint pylint kubernetes
 
 # Install googletest under home directory
 GTEST_VERSION=1.8.1
@@ -27,7 +42,7 @@ make install
 popd
 
 if [ ${TRAVIS_OS_NAME} == "linux" ]; then
-    sudo apt-get install python3-pip tree
+    sudo apt-get install tree
 fi
 
 if [ ${TRAVIS_OS_NAME} == "osx" ]; then
