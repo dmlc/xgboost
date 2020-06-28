@@ -35,7 +35,7 @@ constexpr float SketchContainer::kFactor;
 namespace detail {
 
 // Count the entries in each column and exclusive scan
-void ExtractCutsSparse(int device, common::Span<size_t const> cuts_ptr,
+void ExtractCutsSparse(int device, common::Span<SketchContainer::OffsetT const> cuts_ptr,
                        Span<Entry const> sorted_data,
                        Span<size_t const> column_sizes_scan,
                        Span<SketchEntry> out_cuts) {
@@ -57,7 +57,7 @@ void ExtractCutsSparse(int device, common::Span<size_t const> cuts_ptr,
 }
 
 void ExtractWeightedCutsSparse(int device,
-                               common::Span<size_t const> cuts_ptr,
+                               common::Span<SketchContainer::OffsetT const> cuts_ptr,
                                Span<Entry> sorted_data,
                                Span<float> weights_scan,
                                Span<size_t> column_sizes_scan,
@@ -200,7 +200,7 @@ void ProcessBatch(int device, const SparsePage &page, size_t begin, size_t end,
   thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
                sorted_entries.end(), detail::EntryCompareOp());
 
-  HostDeviceVector<size_t> cuts_ptr;
+  HostDeviceVector<SketchContainer::OffsetT> cuts_ptr;
   dh::caching_device_vector<size_t> column_sizes_scan;
   data::IsValidFunctor dummy_is_valid(std::numeric_limits<float>::quiet_NaN());
   auto batch_it = dh::MakeTransformIterator<data::COOTuple>(
@@ -274,7 +274,7 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
   }
   detail::SortByWeight(&alloc, &temp_weights, &sorted_entries);
 
-  HostDeviceVector<size_t> cuts_ptr;
+  HostDeviceVector<SketchContainer::OffsetT> cuts_ptr;
   dh::caching_device_vector<size_t> column_sizes_scan;
   data::IsValidFunctor dummy_is_valid(std::numeric_limits<float>::quiet_NaN());
   auto batch_it = dh::MakeTransformIterator<data::COOTuple>(

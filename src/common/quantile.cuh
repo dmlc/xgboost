@@ -102,7 +102,7 @@ class SketchContainer {
   void FixError();
 
   /* \brief Push a CSC structured cut matrix. */
-  void Push(common::Span<size_t const> cuts_ptr,
+  void Push(common::Span<OffsetT const> cuts_ptr,
             dh::caching_device_vector<SketchEntry>* entries);
   /* \brief Prune the quantile structure.
    *
@@ -113,7 +113,7 @@ class SketchContainer {
   /* \brief Merge another set of sketch.
    * \param that columns of other.
    */
-  void Merge(Span<size_t const> that_columns_ptr,
+  void Merge(Span<OffsetT const> that_columns_ptr,
              Span<SketchEntry const> that);
 
   /* \brief Merge quantiles from other GPU workers. */

@@ -184,7 +184,7 @@ template class HostDeviceVector<uint32_t>;  // bst_feature_t
  * typedef unsigned long       __darwin_size_t;
  */
 template class HostDeviceVector<std::size_t>;
-#else
+#elif !defined(__MINGW32__)
 template class HostDeviceVector<unsigned long long>;  // NOLINT
 #endif  // defined(__APPLE__)
 

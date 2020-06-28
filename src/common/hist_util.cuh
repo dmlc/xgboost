@@ -37,7 +37,7 @@ struct EntryCompareOp {
  * \param column_sizes_scan     Describes the boundaries of column segments in sorted data
  * \param out_cuts              Output cut values
  */
-void ExtractCutsSparse(int device, common::Span<size_t const> cuts_ptr,
+void ExtractCutsSparse(int device, common::Span<SketchContainer::OffsetT const> cuts_ptr,
                        Span<Entry const> sorted_data,
                        Span<size_t const> column_sizes_scan,
                        Span<SketchEntry> out_cuts);
@@ -53,7 +53,7 @@ void ExtractCutsSparse(int device, common::Span<size_t const> cuts_ptr,
  * \param cuts                  Output cuts.
  */
 void ExtractWeightedCutsSparse(int device,
-                               common::Span<size_t const> cuts_ptr,
+                               common::Span<SketchContainer::OffsetT const> cuts_ptr,
                                Span<Entry> sorted_data,
                                Span<float> weights_scan,
                                Span<size_t> column_sizes_scan,
@@ -64,7 +64,7 @@ template <typename Iter>
 void GetColumnSizesScan(int device, size_t num_columns, size_t num_cuts_per_feature,
                         Iter batch_iter, data::IsValidFunctor is_valid,
                         size_t begin, size_t end,
-                        HostDeviceVector<size_t> *cuts_ptr,
+                        HostDeviceVector<SketchContainer::OffsetT> *cuts_ptr,
                         dh::caching_device_vector<size_t>* column_sizes_scan) {
   column_sizes_scan->resize(num_columns + 1, 0);
   cuts_ptr->SetDevice(device);
@@ -114,7 +114,7 @@ template <typename AdapterBatch, typename BatchIter>
 void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter,
                             Range1d range, float missing,
                             size_t columns, size_t cuts_per_feature, int device,
-                            HostDeviceVector<size_t>* cut_sizes_scan,
+                            HostDeviceVector<SketchContainer::OffsetT>* cut_sizes_scan,
                             dh::caching_device_vector<size_t>* column_sizes_scan,
                             dh::caching_device_vector<Entry>* sorted_entries) {
   auto entry_iter = dh::MakeTransformIterator<Entry>(
@@ -157,7 +157,7 @@ void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
   auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
       thrust::make_counting_iterator(0llu),
       [=] __device__(size_t idx) { return batch.GetElement(idx); });
-  HostDeviceVector<size_t> cuts_ptr;
+  HostDeviceVector<SketchContainer::OffsetT> cuts_ptr;
   detail::MakeEntriesFromAdapter(batch, batch_iter, {begin, end}, missing,
                                  columns, num_cuts, device,
                                  &cuts_ptr,
@@ -200,7 +200,7 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
     [=] __device__(size_t idx) { return batch.GetElement(idx); });
   dh::caching_device_vector<Entry> sorted_entries;
   dh::caching_device_vector<size_t> column_sizes_scan;
-  HostDeviceVector<size_t> cuts_ptr;
+  HostDeviceVector<SketchContainer::OffsetT> cuts_ptr;
   detail::MakeEntriesFromAdapter(batch, batch_iter,
                                  {begin, end}, missing,
                                  columns, num_cuts_per_feature, device,

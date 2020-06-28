@@ -647,6 +647,16 @@ class AllReducer {
 #endif
   }
 
+  void AllReduceSum(const unsigned long long *sendbuff, unsigned long long *recvbuff, int count) {  // NOLINT
+#ifdef XGBOOST_USE_NCCL
+    CHECK(initialised_);
+
+    dh::safe_cuda(cudaSetDevice(device_ordinal_));
+    static_assert(sizeof(unsigned long long) == sizeof(uint64_t), "");
+    dh::safe_nccl(ncclAllReduce(sendbuff, recvbuff, count, ncclUint64, ncclSum, comm_, stream_));
+#endif
+  }
+
   /**
    * \fn  void Synchronize()
    *
