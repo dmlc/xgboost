@@ -69,6 +69,7 @@ TEST(IO, LoadSequentialFile) {
   }
   {
     std::string str = LoadSequentialFile(path);
+    CHECK_GE(str.size(), nbyte);
     dmlc::OMPException omp_exc;
     std::atomic<bool> success{true};
     #pragma omp parallel for schedule(static)
