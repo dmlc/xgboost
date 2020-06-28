@@ -132,14 +132,6 @@ std::string LoadSequentialFile(std::string fname) {
   }
   close(fd);
   buffer.back() = '\0';
-  // Trim NUL letters at the end
-  int64_t i;
-  for (i = static_cast<int64_t>(buffer.size()); i >= 0; --i) {
-    if (buffer[i - 1] != '\0') {
-      break;
-    }
-  }
-  buffer = buffer.substr(0, i);
 #else  // defined(__unix__)
   std::ifstream ifs(fname);
   buffer = std::string((std::istreambuf_iterator<char>(ifs)),

@@ -15,7 +15,6 @@
 #include <sstream>
 #include <locale>
 #include <cinttypes>
-#include <cstdio>
 
 namespace xgboost {
 /*
@@ -85,7 +84,7 @@ class JsonReader {
     std::string msg = "Expecting: \"";
     msg += c;
     msg += "\", got: \"";
-    if (got == EOF) {
+    if (got == -1) {
       msg += "EOF\"";
     } else if (got == 0) {
       msg += "\\0\"";
