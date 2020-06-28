@@ -24,9 +24,7 @@ using SketchEntry = WQSketch::Entry;
 class SketchContainer {
  public:
   static constexpr float kFactor = WQSketch::kFactor;
-  using OffsetT =
-      std::conditional_t<sizeof(size_t) == sizeof(unsigned long long),  // NOLINT
-                         unsigned long long, unsigned long>;            // NOLINT
+  using OffsetT = bst_row_t;
   static_assert(sizeof(OffsetT) == sizeof(size_t), "Wrong type for sketch element offset.");
 
  private:

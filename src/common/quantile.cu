@@ -11,7 +11,6 @@
 
 #include "xgboost/span.h"
 #include "quantile.h"
-#include "segmented_uniques.cuh"
 #include "quantile.cuh"
 #include "hist_util.h"
 #include "device_helpers.cuh"
@@ -221,7 +220,7 @@ size_t SketchContainer::Unique() {
   auto d_scan_out = scan_out.DeviceSpan();
 
   d_column_scan = this->columns_ptr_.DeviceSpan();
-  size_t n_uniques = SegmentedUnique(
+  size_t n_uniques = dh::SegmentedUnique(
       d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
       entries.data(), entries.data() + entries.size(), scan_out.DevicePointer(),
       entries.data(),
