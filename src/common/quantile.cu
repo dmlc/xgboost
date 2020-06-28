@@ -393,8 +393,6 @@ void SketchContainer::AllReduce() {
                gathered_ptrs.begin() + offset);
   reducer_->AllReduceSum(gathered_ptrs.data().get(), gathered_ptrs.data().get(),
                          gathered_ptrs.size());
-  std::vector<size_t> h_gathered_ptrs(gathered_ptrs.size());
-  thrust::copy(gathered_ptrs.begin(), gathered_ptrs.end(), h_gathered_ptrs.begin());
 
   std::vector<size_t> recv_lengths;
   dh::caching_device_vector<char> recvbuf;
@@ -418,9 +416,8 @@ void SketchContainer::AllReduce() {
   for (size_t i = 0; i < allworkers.size(); ++i) {
     auto worker = allworkers[i];
     auto worker_ptr =
-        common::Span<size_t>(h_gathered_ptrs)
+        dh::ToSpan(gathered_ptrs)
             .subspan(i * d_columns_ptr.size(), d_columns_ptr.size());
-    CHECK_EQ(worker_ptr.back(), worker.size());
     this->Merge(worker_ptr, worker);
   }
   timer.Stop(__func__);
