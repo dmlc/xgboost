@@ -1,8 +1,10 @@
 import sys
+import os
 import pytest
 import numpy as np
 import unittest
 import xgboost
+import subprocess
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -42,7 +44,8 @@ class TestDistributedGPU(unittest.TestCase):
                 y = y.map_partitions(cudf.from_pandas)
 
                 dtrain = dxgb.DaskDMatrix(client, X, y)
-                out = dxgb.train(client, {'tree_method': 'gpu_hist'},
+                out = dxgb.train(client, {'tree_method': 'gpu_hist',
+                                          'debug_synchronize': True},
                                  dtrain=dtrain,
                                  evals=[(dtrain, 'X')],
                                  num_boost_round=4)
@@ -89,7 +92,8 @@ class TestDistributedGPU(unittest.TestCase):
                 X = X.map_blocks(cp.asarray)
                 y = y.map_blocks(cp.asarray)
                 dtrain = dxgb.DaskDMatrix(client, X, y)
-                out = dxgb.train(client, {'tree_method': 'gpu_hist'},
+                out = dxgb.train(client, {'tree_method': 'gpu_hist',
+                                          'debug_synchronize': True},
                                  dtrain=dtrain,
                                  evals=[(dtrain, 'X')],
                                  num_boost_round=2)
@@ -113,5 +117,42 @@ class TestDistributedGPU(unittest.TestCase):
     def test_empty_dmatrix(self):
         with LocalCUDACluster() as cluster:
             with Client(cluster) as client:
-                parameters = {'tree_method': 'gpu_hist'}
+                parameters = {'tree_method': 'gpu_hist',
+                              'debug_synchronize': True}
                 run_empty_dmatrix(client, parameters)
+
+    def test_quantile(self):
+        if sys.platform.startswith("win"):
+            pytest.skip("Skipping dask tests on Windows")
+
+        exe = None
+        for possible_path in {'./testxgboost', './build/testxgboost',
+                              '../build/testxgboost', '../gpu-build/testxgboost'}:
+            if os.path.exists(possible_path):
+                exe = possible_path
+        if exe is None:
+            pytest.skip('No testxgboost executable found.')
+        test = "--gtest_filter=GPUQuantile.AllReduce"
+
+        def runit(worker_addr, rabit_args):
+            port = None
+            for arg in rabit_args:
+                if arg.decode('utf-8').startswith('DMLC_TRACKER_PORT'):
+                    port = arg.decode('utf-8')
+            port = port.split('=')
+            env = os.environ.copy()
+            env[port[0]] = port[1]
+            return subprocess.run([exe, test], env=env)
+
+        with LocalCUDACluster() as cluster:
+            with Client(cluster) as client:
+                workers = list(dxgb._get_client_workers(client).keys())
+                rabit_args = dxgb._get_rabit_args(workers, client)
+                futures = client.map(runit,
+                                     workers,
+                                     pure=False,
+                                     workers=workers,
+                                     rabit_args=rabit_args)
+                results = client.gather(futures)
+                for ret in results:
+                    assert ret.returncode == 0

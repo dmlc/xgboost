@@ -365,11 +365,10 @@ void SketchContainer::AllReduce() {
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   dh::device_vector<SketchContainer::OffsetT> gathered_ptrs;
 
-  // FIXME: Uneven number of columns.
-  CHECK_NE(d_columns_ptr.size(), 0);
+  CHECK_EQ(d_columns_ptr.size(), num_columns_ + 1);
   size_t n = d_columns_ptr.size();
   rabit::Allreduce<rabit::op::Max>(&n, 1);
-  CHECK_EQ(n, d_columns_ptr.size());
+  CHECK_EQ(n, d_columns_ptr.size()) << "Number of columns differs across workers";
 
   gathered_ptrs.resize(d_columns_ptr.size() * world, 0);
   size_t rank = rabit::GetRank();
@@ -399,6 +398,9 @@ void SketchContainer::AllReduce() {
   }
 
   for (size_t i = 0; i < allworkers.size(); ++i) {
+    if (i == rank) {
+      continue;
+    }
     auto worker = allworkers[i];
     auto worker_ptr =
         dh::ToSpan(gathered_ptrs)

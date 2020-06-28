@@ -31,8 +31,8 @@ void TestSketchUnique(float sparsity) {
   if (sparsity == 0) {
     ASSERT_EQ(sketch.Data().size(), n_cuts * kCols);
   } else {
-    ASSERT_LT(sketch.Data().size(), n_cuts * kCols * sparsity + 0.05);
-    ASSERT_GT(sketch.Data().size(), n_cuts * kCols * sparsity - 0.05);
+    ASSERT_LT(sketch.Data().size(), n_cuts * kCols * (sparsity + 0.05));
+    ASSERT_GT(sketch.Data().size(), n_cuts * kCols * (sparsity - 0.05));
   }
 
   sketch.Unique();
@@ -126,5 +126,89 @@ TEST(GPUQuantile, Merge) {
                                 sketch_0.Data().data() + sketch_0.Data().size(),
                                 detail::SketchUnique{}));
 }
+
+TEST(GPUQuantile, AllReduce) {
+  // This test is supposed to run by a python test that setups the environment.
+  std::string msg {"Skipping AllReduce test"};
+#if defined(__linux__) && defined(XGBOOST_USE_NCCL)
+  constexpr size_t kRows = 1000, kCols = 100, kBins = 256;
+  auto n_gpus = AllVisibleGPUs();
+  auto port = std::getenv("DMLC_TRACKER_PORT");
+  std::string port_str;
+  if (port) {
+    port_str = port;
+  } else {
+    LOG(WARNING) << msg << " as `DMLC_TRACKER_PORT` is not set up.";
+    return;
+  }
+
+  std::vector<std::string> envs{
+      "DMLC_TRACKER_PORT=" + port_str,
+      "DMLC_TRACKER_URI=127.0.0.1",
+      "DMLC_NUM_WORKER=" + std::to_string(n_gpus)};
+  char* c_envs[] {&(envs[0][0]), &(envs[1][0]), &(envs[2][0])};
+  rabit::Init(3, c_envs);
+
+  // Set up single node version;
+  SketchContainer sketch_on_single_node(kBins, kCols, kRows, 0);
+  auto world = rabit::GetWorldSize();
+  if (world != 1) {
+    ASSERT_EQ(world, n_gpus);
+  }
+
+  for (auto rank = 0; rank < world; ++rank) {
+    HostDeviceVector<float> storage;
+    std::string interface_str =
+        RandomDataGenerator{kRows, kCols, 0}.Device(0).Seed(rank).GenerateArrayInterface(
+            &storage);
+    data::CupyAdapter adapter(interface_str);
+    AdapterDeviceSketch(adapter.Value(), kBins,
+                        std::numeric_limits<float>::quiet_NaN(),
+                        &sketch_on_single_node);
+  }
+  sketch_on_single_node.Unique();
+
+  // Set up distributed version.  We rely on using rank as seed to generate the exact same
+  // copy of data.
+  auto rank = rabit::GetRank();
+  SketchContainer sketch_distributed(kBins, kCols, kRows, 0);
+  HostDeviceVector<float> storage;
+  std::string interface_str =
+      RandomDataGenerator{kRows, kCols, 0}.Device(0).Seed(rank).GenerateArrayInterface(
+          &storage);
+  data::CupyAdapter adapter(interface_str);
+  AdapterDeviceSketch(adapter.Value(), kBins,
+                      std::numeric_limits<float>::quiet_NaN(),
+                      &sketch_distributed);
+  sketch_distributed.AllReduce();
+  sketch_distributed.Unique();
+
+  ASSERT_EQ(sketch_distributed.ColumnsPtr().size(), sketch_on_single_node.ColumnsPtr().size());
+  ASSERT_EQ(sketch_distributed.Data().size(), sketch_on_single_node.Data().size());
+
+  TestQuantileElemRank(0, sketch_distributed.Data(), sketch_distributed.ColumnsPtr());
+
+  std::vector<SketchEntry> single_node_data(sketch_on_single_node.Data().size());
+  dh::CopyDeviceSpanToVector(&single_node_data, sketch_on_single_node.Data());
+
+  std::vector<SketchEntry> distributed_data(sketch_distributed.Data().size());
+  dh::CopyDeviceSpanToVector(&distributed_data, sketch_distributed.Data());
+
+  for (size_t i = 0; i < single_node_data.size(); ++i) {
+    // It's possible that the result is not exactly equal when running on different
+    // platforms like different GPUs.
+    ASSERT_EQ(single_node_data[i].value, distributed_data[i].value);
+    ASSERT_EQ(single_node_data[i].rmax, distributed_data[i].rmax);
+    ASSERT_EQ(single_node_data[i].rmin, distributed_data[i].rmin);
+    ASSERT_EQ(single_node_data[i].wmin, distributed_data[i].wmin);
+  }
+
+  rabit::Finalize();
+#else
+  LOG(WARNING) << msg;
+  return;
+#endif  // !defined(__linux__)
+}
+
 }  // namespace common
 }  // namespace xgboost
