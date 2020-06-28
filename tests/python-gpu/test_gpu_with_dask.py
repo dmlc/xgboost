@@ -127,7 +127,7 @@ class TestDistributedGPU(unittest.TestCase):
 
         exe = None
         for possible_path in {'./testxgboost', './build/testxgboost',
-                              '../build/testxgboost', '../gpu-build/testxgboost'}:
+                              '../build/testxgboost'}:
             if os.path.exists(possible_path):
                 exe = possible_path
         if exe is None:
@@ -136,13 +136,14 @@ class TestDistributedGPU(unittest.TestCase):
 
         def runit(worker_addr, rabit_args):
             port = None
+            # setup environment for running the c++ part.
             for arg in rabit_args:
                 if arg.decode('utf-8').startswith('DMLC_TRACKER_PORT'):
                     port = arg.decode('utf-8')
             port = port.split('=')
             env = os.environ.copy()
             env[port[0]] = port[1]
-            return subprocess.run([exe, test], env=env)
+            return subprocess.run([exe, test], env=env, stdout=subprocess.PIPE)
 
         with LocalCUDACluster() as cluster:
             with Client(cluster) as client:
@@ -155,4 +156,6 @@ class TestDistributedGPU(unittest.TestCase):
                                      rabit_args=rabit_args)
                 results = client.gather(futures)
                 for ret in results:
+                    msg = ret.stdout.decode('utf-8')
+                    assert msg.find('1 test from GPUQuantile') != -1
                     assert ret.returncode == 0

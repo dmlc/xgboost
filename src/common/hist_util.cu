@@ -41,7 +41,6 @@ void ExtractCutsSparse(int device, common::Span<SketchContainer::OffsetT const> 
                        Span<SketchEntry> out_cuts) {
   dh::LaunchN(device, out_cuts.size(), [=] __device__(size_t idx) {
     // Each thread is responsible for obtaining one cut from the sorted input
-    // size_t column_idx = idx / num_cuts_per_feature;
     size_t column_idx = dh::SegmentId(cuts_ptr, idx);
     size_t column_size =
         column_sizes_scan[column_idx + 1] - column_sizes_scan[column_idx];
