@@ -40,7 +40,7 @@ case "$suite" in
     pytest -v -s -rxXs --fulltrace -m "mgpu" tests/python-gpu
 
     cd tests/distributed
-    TESTXGBOOST=../../build/testxgboost ./runtests-gpu.sh
+    ./runtests-gpu.sh
     cd -
     ;;
 
