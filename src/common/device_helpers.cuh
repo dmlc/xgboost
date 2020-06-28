@@ -78,9 +78,14 @@ struct AtomicDispatcher<sizeof(uint64_t)> {
 }  // namespace detail
 }  // namespace dh
 
-void __device__ __forceinline__ atomicAdd(size_t* addr, size_t v) {
-  using T = dh::detail::AtomicDispatcher<sizeof(xgboost::bst_row_t)>::Type;
-  ::atomicAdd(reinterpret_cast<T*>(addr), static_cast<T>(v));
+template <typename T = size_t,
+          std::enable_if_t<std::is_same<size_t, T>::value &&
+                           !std::is_same<size_t, unsigned long long>::value> * =
+              nullptr>
+T __device__ __forceinline__ atomicAdd(T *addr, T v) {
+  using Type = dh::detail::AtomicDispatcher<sizeof(xgboost::bst_row_t)>::Type;
+  Type ret = ::atomicAdd(reinterpret_cast<T *>(addr), static_cast<T>(v));
+  return static_cast<T>(ret);
 }
 
 namespace dh {
