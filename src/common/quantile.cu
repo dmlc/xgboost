@@ -190,6 +190,7 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
 void SketchContainer::Push(common::Span<size_t const> cuts_ptr,
                            dh::caching_device_vector<SketchEntry>* entries) {
   timer.Start(__func__);
+  // Copy or merge the new cuts, pruning is performed during `MakeCuts`.
   if(this->Current().size() == 0) {
     CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
     std::swap(this->Current(), *entries);
@@ -202,7 +203,6 @@ void SketchContainer::Push(common::Span<size_t const> cuts_ptr,
     auto d_entries = dh::ToSpan(*entries);
     this->Merge(cuts_ptr, d_entries);
   }
-  this->Prune(limit_size_);
   CHECK_NE(this->columns_ptr_.Size(), 0);
   timer.Stop(__func__);
 }
@@ -236,13 +236,13 @@ void SketchContainer::Prune(size_t to) {
   auto n_uniques = this->Unique();
   bst_feature_t to_total = 0;
   HostDeviceVector<bst_feature_t> new_columns_ptr{to_total};
-  new_columns_ptr.SetDevice(device_);
   for (size_t i = 0; i < num_columns_; ++i) {
     size_t length = this->Column(i).size();
     length = std::min(length, to);
     to_total += length;
     new_columns_ptr.HostVector().emplace_back(to_total);
   }
+  new_columns_ptr.SetDevice(device_);
   this->Other().resize(to_total, SketchEntry{0, 0, 0, 0});
 
   auto d_columns_ptr_in = this->columns_ptr_.ConstDeviceSpan();
