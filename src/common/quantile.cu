@@ -203,7 +203,6 @@ void SketchContainer::Push(common::Span<OffsetT const> cuts_ptr,
     thrust::copy(thrust::device, cuts_ptr.data(),
                  cuts_ptr.data() + cuts_ptr.size(), d_cuts_ptr);
   } else {
-    std::vector<size_t> h_cuts_ptr(cuts_ptr.size());
     auto d_entries = dh::ToSpan(*entries);
     this->Merge(cuts_ptr, d_entries);
   }
@@ -311,7 +310,7 @@ void SketchContainer::Merge(Span<OffsetT const> d_that_columns_ptr,
 
   std::vector<OffsetT> that_columns_ptr(d_that_columns_ptr.size());
   dh::CopyDeviceSpanToVector(&that_columns_ptr, d_that_columns_ptr);
-  size_t total = that_columns_ptr.back();
+  OffsetT total = that_columns_ptr.back();
   this->Other().resize(this->Current().size() + total, SketchEntry{0, 0, 0, 0});
   CHECK_EQ(that_columns_ptr.size(), this->columns_ptr_.Size());
   OffsetT out_offset = 0;
@@ -430,7 +429,6 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   this->Unique();
 
   // Set up inputs
-  auto h_in_columns_ptr = this->columns_ptr_.ConstHostSpan();
   auto d_in_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
 
   p_cuts->min_vals_.SetDevice(device_);
@@ -448,7 +446,6 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
                                               this->Column(i).size())),
                  static_cast<size_t>(num_bins_)));
   }
-  CHECK_EQ(h_out_columns_ptr.size(), h_in_columns_ptr.size());
   std::partial_sum(h_out_columns_ptr.begin(), h_out_columns_ptr.end(),
                    h_out_columns_ptr.begin());
   auto d_out_columns_ptr = p_cuts->cut_ptrs_.ConstDeviceSpan();

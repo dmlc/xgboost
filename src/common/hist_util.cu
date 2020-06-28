@@ -153,8 +153,12 @@ size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
   // 10. Allocate final cut values, min values, cut ptrs: std::min(rows, bins + 1) *
   //     n_columns + n_columns + n_columns + 1
   total += std::min(num_rows, num_bins) * num_columns * sizeof(float);
-  total += num_columns * sizeof(size_t);
-  total += (num_columns + 1) * sizeof(decltype(HistogramCuts::cut_values_)::value_type);
+  total += num_columns *
+           sizeof(std::remove_reference_t<decltype(
+                      std::declval<HistogramCuts>().MinValues())>::value_type);
+  total += (num_columns + 1) *
+           sizeof(std::remove_reference_t<decltype(
+                      std::declval<HistogramCuts>().Ptrs())>::value_type);
   peak = std::max(peak, total);
 
   return peak;
