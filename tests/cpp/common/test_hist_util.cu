@@ -59,45 +59,6 @@ size_t RequiredSampleCutsTest(int max_bins, size_t num_rows) {
   return std::min(num_cuts, num_rows);
 }
 
-size_t BytesRequiredForTest(size_t num_rows, size_t num_columns, size_t num_bins,
-                            bool with_weights) {
-  size_t peak = 0;
-  // 0. Allocate cut pointer in quantile container by increasing: n_columns + 1
-  size_t total = (num_columns + 1) * sizeof(bst_feature_t);
-  // 1. Copy and sort: 2 * bytes_per_element * shape
-  total += BytesPerElement(with_weights) * num_rows * num_columns;
-  peak = std::max(peak, total);
-  // 2. Deallocate bytes_per_element * shape due to reusing memory in sort.
-  total -= BytesPerElement(with_weights) * num_rows * num_columns / 2;
-  // 3. Allocate colomn size scan by increasing: n_columns + 1
-  total += (num_columns + 1) * sizeof(size_t);
-  // 4. Allocate cut pointer by increasing: n_columns + 1
-  total += (num_columns + 1) * sizeof(size_t);
-  // 5. Allocate cuts: assuming rows is greater than bins: n_columns * limit_size
-  total += num_columns * RequiredSampleCutsTest(num_bins, num_rows) * sizeof(SketchEntry);
-  // 6. Deallocate copied entries by reducing: bytes_per_element * shape.
-  peak = std::max(peak, total);
-  total -= (BytesPerElement(with_weights) * num_rows * num_columns) / 2;
-  peak = std::max(peak, total);
-  // Deallocate column size scan.
-  total -= (num_columns + 1) * sizeof(size_t);
-  // Deallocate cut size scan.
-  total -= (num_columns + 1) * sizeof(size_t);
-
-  // 8. Allocate std::min(rows, bins * factor) * shape due to pruning to global num rows.
-  total += num_columns * RequiredSampleCutsTest(num_bins, num_rows) * sizeof(SketchEntry);
-  // 9. No allocation occured at second prune as bins + 1 assuming bins + 1 is less than rows.
-  peak = std::max(peak, total);
-  // 10. Allocate final cut values, min values, cut ptrs: std::min(rows, bins + 1) *
-  // n_columns + n_columns + n_columns + 1
-  total += std::min(num_rows, num_bins) * num_columns * sizeof(float);
-  total += num_columns * sizeof(size_t);
-  total += (num_columns + 1) * sizeof(decltype(HistogramCuts::cut_values_)::value_type);
-  peak = std::max(peak, total);
-
-  return peak;
-}
-
 TEST(HistUtil, DeviceSketchMemory) {
   int num_columns = 100;
   int num_rows = 1000;
@@ -109,7 +70,8 @@ TEST(HistUtil, DeviceSketchMemory) {
   ConsoleLogger::Configure({{"verbosity", "3"}});
   auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
 
-  size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, false);
+  size_t bytes_required = detail::RequiredMemory(
+      num_rows, num_columns, num_rows * num_columns, num_bins, false);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
   ConsoleLogger::Configure({{"verbosity", "0"}});
@@ -128,7 +90,8 @@ TEST(HistUtil, DeviceSketchWeightsMemory) {
   auto device_cuts = DeviceSketch(0, dmat.get(), num_bins);
   ConsoleLogger::Configure({{"verbosity", "0"}});
 
-  size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, true);
+  size_t bytes_required = detail::RequiredMemory(
+      num_rows, num_columns, num_rows * num_columns, num_bins, true);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
 }
@@ -304,12 +267,13 @@ TEST(HistUtil, AdapterDeviceSketchMemory) {
                                   std::numeric_limits<float>::quiet_NaN());
   ConsoleLogger::Configure({{"verbosity", "0"}});
   size_t bytes_constant = 1000;
-  size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, false);
+  size_t bytes_required = detail::RequiredMemory(
+      num_rows, num_columns, num_rows * num_columns, num_bins, false);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required + bytes_constant);
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
 }
 
-TEST(HistUtil, AdapterSketchBatchMemory) {
+TEST(HistUtil, AdapterSketchSlidingWindowMemory) {
   int num_columns = 100;
   int num_rows = 1000;
   int num_bins = 256;
@@ -325,13 +289,14 @@ TEST(HistUtil, AdapterSketchBatchMemory) {
                       0, &sketch_container);
   HistogramCuts cuts;
   sketch_container.MakeCuts(&cuts);
-  size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, false);
+  size_t bytes_required = detail::RequiredMemory(
+      num_rows, num_columns, num_rows * num_columns, num_bins, false);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
   ConsoleLogger::Configure({{"verbosity", "0"}});
 }
 
-TEST(HistUtil, AdapterSketchBatchWeightedMemory) {
+TEST(HistUtil, AdapterSketchSlidingWindowWeightedMemory) {
   int num_columns = 100;
   int num_rows = 1000;
   int num_bins = 256;
@@ -353,7 +318,8 @@ TEST(HistUtil, AdapterSketchBatchWeightedMemory) {
   HistogramCuts cuts;
   sketch_container.MakeCuts(&cuts);
   ConsoleLogger::Configure({{"verbosity", "0"}});
-  size_t bytes_required = BytesRequiredForTest(num_rows, num_columns, num_bins, true);
+  size_t bytes_required = detail::RequiredMemory(
+      num_rows, num_columns, num_rows * num_columns, num_bins, true);
   EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required);
 }

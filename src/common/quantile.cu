@@ -7,6 +7,8 @@
 #include <thrust/transform_scan.h>
 #include <thrust/execution_policy.h>
 
+#include <utility>
+
 #include "xgboost/span.h"
 #include "quantile.h"
 #include "segmented_uniques.cuh"
@@ -83,10 +85,10 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
 
   // allocate memory for later use in scan
   auto place_holder = thrust::make_constant_iterator(-1);
-  auto x_val_it =
-      thrust::make_zip_iterator(thrust::make_tuple(place_holder, a_ind_iter, place_holder, place_holder));
-  auto y_val_it =
-      thrust::make_zip_iterator(thrust::make_tuple(place_holder, b_ind_iter, place_holder, place_holder));
+  auto x_val_it = thrust::make_zip_iterator(
+      thrust::make_tuple(place_holder, a_ind_iter, place_holder, place_holder));
+  auto y_val_it = thrust::make_zip_iterator(
+      thrust::make_tuple(place_holder, b_ind_iter, place_holder, place_holder));
 
   using Tuple = thrust::tuple<uint32_t, uint32_t, uint32_t, uint32_t>;
   auto get_ind = []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<1>(t); };
@@ -130,7 +132,7 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
     thrust::tie(a_ind, b_ind, p_0, p_1) = d_merge_path[idx];
     // Handle trailing elements.
     assert(a_ind <= d_x.size());
-    if (a_ind == d_x.size()){
+    if (a_ind == d_x.size()) {
       // Trailing elements are from y because there's no more x to land.
       auto y_elem = d_y[b_ind];
       d_out[idx] = SketchEntry(y_elem.rmin + d_x.back().RMinNext(),
@@ -191,7 +193,7 @@ void SketchContainer::Push(common::Span<size_t const> cuts_ptr,
                            dh::caching_device_vector<SketchEntry>* entries) {
   timer.Start(__func__);
   // Copy or merge the new cuts, pruning is performed during `MakeCuts`.
-  if(this->Current().size() == 0) {
+  if (this->Current().size() == 0) {
     CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
     std::swap(this->Current(), *entries);
     CHECK_EQ(entries->size(), 0);
@@ -389,8 +391,9 @@ void SketchContainer::AllReduce() {
   auto offset = rank * d_columns_ptr.size();
   thrust::copy(thrust::device, d_columns_ptr.data(), d_columns_ptr.data() + d_columns_ptr.size(),
                gathered_ptrs.begin() + offset);
-  reducer_->AllReduceSum(gathered_ptrs.data().get(), gathered_ptrs.data().get(), gathered_ptrs.size());
-  std::vector<size_t> h_gathered_ptrs (gathered_ptrs.size());
+  reducer_->AllReduceSum(gathered_ptrs.data().get(), gathered_ptrs.data().get(),
+                         gathered_ptrs.size());
+  std::vector<size_t> h_gathered_ptrs(gathered_ptrs.size());
   thrust::copy(gathered_ptrs.begin(), gathered_ptrs.end(), h_gathered_ptrs.begin());
 
   std::vector<size_t> recv_lengths;

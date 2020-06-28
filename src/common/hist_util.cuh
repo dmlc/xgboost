@@ -14,6 +14,8 @@
 
 namespace xgboost {
 namespace common {
+
+namespace detail {
 struct EntryCompareOp {
   __device__ bool operator()(const Entry& a, const Entry& b) {
     if (a.index == b.index) {
@@ -37,7 +39,24 @@ void ExtractCutsSparse(int device, common::Span<size_t const> cuts_ptr,
                        Span<size_t const> column_sizes_scan,
                        Span<SketchEntry> out_cuts);
 
-// For adapter.
+/**
+ * \brief Extracts the cuts from sorted data, considering weights.
+ *
+ * \param device                The device.
+ * \param cuts_ptr              Column pointers to CSC structured cuts
+ * \param sorted_data           Sorted entries in segments of columns.
+ * \param weights_scan          Inclusive scan of weights for each entry in sorted_data.
+ * \param column_sizes_scan     Describes the boundaries of column segments in sorted data.
+ * \param cuts                  Output cuts.
+ */
+void ExtractWeightedCutsSparse(int device,
+                               common::Span<size_t const> cuts_ptr,
+                               Span<Entry> sorted_data,
+                               Span<float> weights_scan,
+                               Span<size_t> column_sizes_scan,
+                               Span<SketchEntry> cuts);
+
+// Get column size For adapter.
 template <typename Iter>
 void GetColumnSizesScan(int device, size_t num_columns, size_t num_cuts_per_feature,
                         Iter batch_iter, data::IsValidFunctor is_valid,
@@ -76,40 +95,17 @@ inline size_t constexpr BytesPerElement(bool has_weight) {
   return (has_weight ? sizeof(Entry) + sizeof(float) : sizeof(Entry)) * 2;
 }
 
-inline size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
-                                     size_t columns, int device,
-                                     size_t num_cuts, bool has_weight) {
-  if (sketch_batch_num_elements == 0) {
-    size_t bytes_per_element = BytesPerElement(has_weight);
-    // One copy for storing sliding windows output, anther for storing in quantile
-    // structure.
-    size_t bytes_cuts = num_cuts * columns * sizeof(SketchEntry) * 2;
-    // One column ptr for input data and another for output cuts.
-    size_t bytes_num_columns = (columns + 1) * sizeof(size_t) * 3;
-    // use up to 80% of available space
-    sketch_batch_num_elements = (dh::AvailableMemory(device) -
-                                 bytes_cuts - bytes_num_columns) *
-                                0.8 / bytes_per_element;
-  }
-  return sketch_batch_num_elements;
-}
-
+/* \brief Calcuate the length of sliding window. */
+size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
+                              bst_row_t num_rows, size_t columns, size_t nnz, int device,
+                              size_t num_cuts, bool has_weight);
 
 // Compute number of sample cuts needed on local node to maintain accuracy
 // We take more cuts than needed and then reduce them later
-inline size_t RequiredSampleCuts(int max_bins, size_t num_rows) {
-  double eps = 1.0 / (SketchContainer::kFactor * max_bins);
-  size_t dummy_nlevel;
-  size_t num_cuts;
-  WQuantileSketch<bst_float, bst_float>::LimitSizeLevel(
-      num_rows, eps, &dummy_nlevel, &num_cuts);
-  return std::min(num_cuts, num_rows);
-}
-
-// sketch_batch_num_elements 0 means autodetect. Only modify this for testing.
-HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
-                           size_t sketch_batch_num_elements = 0);
-
+size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows);
+// Compute required memory for each sliding window.
+size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
+                      size_t num_bins, bool with_weights);
 
 template <typename AdapterBatch, typename BatchIter>
 void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter,
@@ -138,6 +134,16 @@ void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter,
                   entry_iter + range.end(), sorted_entries->begin(), is_valid);
 }
 
+void SortByWeight(dh::XGBCachingDeviceAllocator<char>* alloc,
+                  dh::caching_device_vector<float>* weights,
+                  dh::caching_device_vector<Entry>* sorted_entries);
+}  // namespace detail
+
+// Compute sketch on DMatrix.
+// sketch_batch_num_elements 0 means autodetect. Only modify this for testing.
+HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
+                           size_t sketch_batch_num_elements = 0);
+
 template <typename AdapterBatch>
 void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
                           size_t begin, size_t end, float missing,
@@ -149,50 +155,29 @@ void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
       thrust::make_counting_iterator(0llu),
       [=] __device__(size_t idx) { return batch.GetElement(idx); });
   HostDeviceVector<size_t> cuts_ptr;
-  MakeEntriesFromAdapter(batch, batch_iter, {begin, end}, missing,
-                         columns, num_cuts, device,
-                         &cuts_ptr,
-                         &column_sizes_scan,
-                         &sorted_entries);
+  detail::MakeEntriesFromAdapter(batch, batch_iter, {begin, end}, missing,
+                                 columns, num_cuts, device,
+                                 &cuts_ptr,
+                                 &column_sizes_scan,
+                                 &sorted_entries);
   dh::XGBCachingDeviceAllocator<char> alloc;
   thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
-               sorted_entries.end(), EntryCompareOp());
+               sorted_entries.end(), detail::EntryCompareOp());
 
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
   auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
   dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
   // Extract the cuts from all columns concurrently
-  ExtractCutsSparse(device, d_cuts_ptr,
-                    dh::ToSpan(sorted_entries),
-                    dh::ToSpan(column_sizes_scan),
-                    dh::ToSpan(cuts));
+  detail::ExtractCutsSparse(device, d_cuts_ptr,
+                            dh::ToSpan(sorted_entries),
+                            dh::ToSpan(column_sizes_scan),
+                            dh::ToSpan(cuts));
   sorted_entries.clear();
   sorted_entries.shrink_to_fit();
 
   // Push cuts into sketches stored in host memory
   sketch_container->Push(cuts_ptr.ConstDeviceSpan(), &cuts);
 }
-
-/**
- * \brief Extracts the cuts from sorted data, considering weights.
- *
- * \param device                The device.
- * \param cuts_ptr              Column pointers to CSC structured cuts
- * \param sorted_data           Sorted entries in segments of columns.
- * \param weights_scan          Inclusive scan of weights for each entry in sorted_data.
- * \param column_sizes_scan     Describes the boundaries of column segments in sorted data.
- * \param cuts                  Output cuts.
- */
-void ExtractWeightedCutsSparse(int device,
-                               common::Span<size_t const> cuts_ptr,
-                               Span<Entry> sorted_data,
-                               Span<float> weights_scan,
-                               Span<size_t> column_sizes_scan,
-                               Span<SketchEntry> cuts);
-
-void SortByWeight(dh::XGBCachingDeviceAllocator<char>* alloc,
-                  dh::caching_device_vector<float>* weights,
-                  dh::caching_device_vector<Entry>* sorted_entries);
 
 template <typename Batch>
 void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
@@ -213,12 +198,12 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
   dh::caching_device_vector<Entry> sorted_entries;
   dh::caching_device_vector<size_t> column_sizes_scan;
   HostDeviceVector<size_t> cuts_ptr;
-  MakeEntriesFromAdapter(batch, batch_iter,
-                         {begin, end}, missing,
-                         columns, num_cuts_per_feature, device,
-                         &cuts_ptr,
-                         &column_sizes_scan,
-                         &sorted_entries);
+  detail::MakeEntriesFromAdapter(batch, batch_iter,
+                                 {begin, end}, missing,
+                                 columns, num_cuts_per_feature, device,
+                                 &cuts_ptr,
+                                 &column_sizes_scan,
+                                 &sorted_entries);
   data::IsValidFunctor is_valid(missing);
 
   dh::caching_device_vector<float> temp_weights(sorted_entries.size());
@@ -255,18 +240,18 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
     CHECK_EQ(retit - d_temp_weights.data(), d_temp_weights.size());
   }
 
-  SortByWeight(&alloc, &temp_weights, &sorted_entries);
+  detail::SortByWeight(&alloc, &temp_weights, &sorted_entries);
 
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
   auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
 
   // Extract cuts
   dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
-  ExtractWeightedCutsSparse(device, d_cuts_ptr,
-                            dh::ToSpan(sorted_entries),
-                            dh::ToSpan(temp_weights),
-                            dh::ToSpan(column_sizes_scan),
-                            dh::ToSpan(cuts));
+  detail::ExtractWeightedCutsSparse(device, d_cuts_ptr,
+                                    dh::ToSpan(sorted_entries),
+                                    dh::ToSpan(temp_weights),
+                                    dh::ToSpan(column_sizes_scan),
+                                    dh::ToSpan(cuts));
   sorted_entries.clear();
   sorted_entries.shrink_to_fit();
   // add cuts into sketches
@@ -277,16 +262,18 @@ template <typename AdapterT>
 HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
                                   float missing,
                                   size_t sketch_batch_num_elements = 0) {
-  size_t num_cuts_per_feature = RequiredSampleCuts(num_bins, adapter->NumRows());
+  size_t num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, adapter->NumRows());
   CHECK(adapter->NumRows() != data::kAdapterUnknownSize);
   CHECK(adapter->NumColumns() != data::kAdapterUnknownSize);
 
   adapter->BeforeFirst();
   adapter->Next();
   auto& batch = adapter->Value();
-  sketch_batch_num_elements = SketchBatchNumElements(
+  sketch_batch_num_elements = detail::SketchBatchNumElements(
       sketch_batch_num_elements,
-      adapter->NumColumns(), adapter->DeviceIdx(), num_cuts_per_feature, false);
+      adapter->NumRows(), adapter->NumColumns(), std::numeric_limits<size_t>::max(),
+      adapter->DeviceIdx(),
+      num_cuts_per_feature, false);
 
   // Enforce single batch
   CHECK(!adapter->Next());
@@ -295,8 +282,7 @@ HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
   SketchContainer sketch_container(num_bins, adapter->NumColumns(),
                                    adapter->NumRows(), adapter->DeviceIdx());
 
-  for (auto begin = 0ull; begin < batch.Size();
-       begin += sketch_batch_num_elements) {
+  for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
     size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
     auto const& batch = adapter->Value();
     ProcessSlidingWindow(batch, adapter->DeviceIdx(), adapter->NumColumns(),
@@ -314,10 +300,11 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
                          size_t sketch_batch_num_elements = 0) {
   size_t num_rows = batch.NumRows();
   size_t num_cols = batch.NumCols();
-  size_t num_cuts_per_feature = RequiredSampleCuts(num_bins, num_rows);
-  sketch_batch_num_elements = SketchBatchNumElements(
+  size_t num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, num_rows);
+  sketch_batch_num_elements = detail::SketchBatchNumElements(
       sketch_batch_num_elements,
-      num_cols, device, num_cuts_per_feature, false);
+      num_rows, num_cols, std::numeric_limits<size_t>::max(),
+      device, num_cuts_per_feature, false);
   for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
     size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
     ProcessSlidingWindow(batch, device, num_cols,
@@ -334,10 +321,11 @@ void AdapterDeviceSketchWeighted(Batch batch, int num_bins,
                                  size_t sketch_batch_num_elements = 0) {
   size_t num_rows = batch.NumRows();
   size_t num_cols = batch.NumCols();
-  size_t num_cuts_per_feature = RequiredSampleCuts(num_bins, num_rows);
-  sketch_batch_num_elements = SketchBatchNumElements(
+  size_t num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, num_rows);
+  sketch_batch_num_elements = detail::SketchBatchNumElements(
       sketch_batch_num_elements,
-      num_cols, device, num_cuts_per_feature, true);
+      num_rows, num_cols, std::numeric_limits<size_t>::max(),
+      device, num_cuts_per_feature, true);
   for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
     size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
     ProcessWeightedSlidingWindow(batch, info,

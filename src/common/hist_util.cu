@@ -32,6 +32,8 @@ namespace common {
 
 constexpr float SketchContainer::kFactor;
 
+namespace detail {
+
 // Count the entries in each column and exclusive scan
 void ExtractCutsSparse(int device, common::Span<size_t const> cuts_ptr,
                        Span<Entry const> sorted_data,
@@ -105,66 +107,69 @@ void ExtractWeightedCutsSparse(int device,
   });
 }
 
-void GetColumnSizesScan(int device, size_t num_cuts_per_feature,
-                        HostDeviceVector<size_t> *cuts_ptr,
-                        dh::caching_device_vector<size_t> *column_sizes_scan,
-                        Span<const Entry> entries, size_t num_columns) {
-  column_sizes_scan->resize(num_columns + 1, 0);
-  cuts_ptr->SetDevice(device);
-  cuts_ptr->Resize(num_columns + 1, 0);
-
-  auto d_column_sizes_scan = column_sizes_scan->data().get();
-  auto d_entries = entries.data();
-  dh::LaunchN(device, entries.size(), [=] __device__(size_t idx) {
-    auto &e = d_entries[idx];
-    atomicAdd(reinterpret_cast<unsigned long long *>( // NOLINT
-                  &d_column_sizes_scan[e.index]),
-              static_cast<unsigned long long>(1)); // NOLINT
-  });
-  // Calculate cuts CSC pointer
-  auto cut_ptr_it = dh::MakeTransformIterator<size_t>(
-      column_sizes_scan->begin(), [=] __device__(size_t column_size) {
-        return thrust::min(num_cuts_per_feature, column_size);
-      });
-  dh::XGBCachingDeviceAllocator<char> alloc;
-  thrust::exclusive_scan(thrust::cuda::par(alloc), cut_ptr_it,
-                         cut_ptr_it + column_sizes_scan->size(),
-                         cuts_ptr->DevicePointer());
-  // Calculate entries CSC pointer
-  thrust::exclusive_scan(thrust::cuda::par(alloc), column_sizes_scan->begin(),
-                         column_sizes_scan->end(), column_sizes_scan->begin());
+size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows) {
+  double eps = 1.0 / (SketchContainer::kFactor * max_bins);
+  size_t dummy_nlevel;
+  size_t num_cuts;
+  WQuantileSketch<bst_float, bst_float>::LimitSizeLevel(
+      num_rows, eps, &dummy_nlevel, &num_cuts);
+  return std::min(num_cuts, num_rows);
 }
 
-void ProcessBatch(int device, const SparsePage& page, size_t begin, size_t end,
-                  SketchContainer* sketch_container, int num_cuts,
-                  size_t num_columns) {
-  dh::XGBCachingDeviceAllocator<char> alloc;
-  const auto& host_data = page.data.ConstHostVector();
-  dh::caching_device_vector<Entry> sorted_entries(host_data.begin() + begin,
-                                                  host_data.begin() + end);
-  thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
-               sorted_entries.end(), EntryCompareOp());
+size_t RequiredSampleCuts(bst_row_t num_rows, bst_feature_t num_columns,
+                          size_t max_bins, size_t nnz) {
+  auto per_column = RequiredSampleCutsPerColumn(max_bins, num_rows);
+  auto if_dense = num_columns * per_column;
+  auto result = std::min(nnz, if_dense);
+  return result;
+}
 
-  HostDeviceVector<size_t> cuts_ptr;
-  dh::caching_device_vector<size_t> column_sizes_scan;
-  GetColumnSizesScan(device, num_cuts, &cuts_ptr, &column_sizes_scan,
-                     {sorted_entries.data().get(), sorted_entries.size()},
-                     num_columns);
+size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
+                      size_t num_bins, bool with_weights) {
+  size_t peak = 0;
+  // 0. Allocate cut pointer in quantile container by increasing: n_columns + 1
+  size_t total = (num_columns + 1) * sizeof(bst_feature_t);
+  // 1. Copy and sort: 2 * bytes_per_element * shape
+  total += BytesPerElement(with_weights) * num_rows * num_columns;
+  peak = std::max(peak, total);
+  // 2. Deallocate bytes_per_element * shape due to reusing memory in sort.
+  total -= BytesPerElement(with_weights) * num_rows * num_columns / 2;
+  // 3. Allocate colomn size scan by increasing: n_columns + 1
+  total += (num_columns + 1) * sizeof(size_t);
+  // 4. Allocate cut pointer by increasing: n_columns + 1
+  total += (num_columns + 1) * sizeof(size_t);
+  // 5. Allocate cuts: assuming rows is greater than bins: n_columns * limit_size
+  total += RequiredSampleCuts(num_rows, num_bins, num_bins, nnz) * sizeof(SketchEntry);
+  // 6. Deallocate copied entries by reducing: bytes_per_element * shape.
+  peak = std::max(peak, total);
+  total -= (BytesPerElement(with_weights) * num_rows * num_columns) / 2;
+  // 7. Deallocate column size scan.
+  peak = std::max(peak, total);
+  total -= (num_columns + 1) * sizeof(size_t);
+  // 8. Deallocate cut size scan.
+  total -= (num_columns + 1) * sizeof(size_t);
+  // 9. Allocate std::min(rows, bins * factor) * shape due to pruning to global num rows.
+  total += RequiredSampleCuts(num_rows, num_bins, num_bins, nnz) * sizeof(SketchEntry);
+  // 10. Allocate final cut values, min values, cut ptrs: std::min(rows, bins + 1) *
+  //     n_columns + n_columns + n_columns + 1
+  total += std::min(num_rows, num_bins) * num_columns * sizeof(float);
+  total += num_columns * sizeof(size_t);
+  total += (num_columns + 1) * sizeof(decltype(HistogramCuts::cut_values_)::value_type);
+  peak = std::max(peak, total);
 
-  auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
-  dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
-  auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
+  return peak;
+}
 
-  CHECK_EQ(d_cuts_ptr.size(), column_sizes_scan.size());
-  ExtractCutsSparse(device, d_cuts_ptr, dh::ToSpan(sorted_entries),
-                    dh::ToSpan(column_sizes_scan), dh::ToSpan(cuts));
-
-  // add cuts into sketches
-  sorted_entries.clear();
-  sorted_entries.shrink_to_fit();
-  CHECK_EQ(sorted_entries.capacity(), 0);
-  CHECK_NE(cuts_ptr.Size(), 0);
-  sketch_container->Push(cuts_ptr.ConstDeviceSpan(), &cuts);
+size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
+                              bst_row_t num_rows, size_t columns, size_t nnz, int device,
+                              size_t num_cuts, bool has_weight) {
+  if (sketch_batch_num_elements == 0) {
+    auto required_memory = RequiredMemory(num_rows, columns, nnz, num_cuts, has_weight);
+    // use up to 80% of available space
+    sketch_batch_num_elements = (dh::AvailableMemory(device) -
+                                 required_memory * 0.8);
+  }
+  return sketch_batch_num_elements;
 }
 
 void SortByWeight(dh::XGBCachingDeviceAllocator<char>* alloc,
@@ -173,7 +178,7 @@ void SortByWeight(dh::XGBCachingDeviceAllocator<char>* alloc,
   // Sort both entries and wegihts.
   thrust::sort_by_key(thrust::cuda::par(*alloc), sorted_entries->begin(),
                       sorted_entries->end(), weights->begin(),
-                      EntryCompareOp());
+                      detail::EntryCompareOp());
 
   // Scan weights
   thrust::inclusive_scan_by_key(thrust::cuda::par(*alloc),
@@ -182,6 +187,46 @@ void SortByWeight(dh::XGBCachingDeviceAllocator<char>* alloc,
                                 [=] __device__(const Entry& a, const Entry& b) {
                                   return a.index == b.index;
                                 });
+}
+}  // namespace detail
+
+void ProcessBatch(int device, const SparsePage &page, size_t begin, size_t end,
+                  SketchContainer *sketch_container, int num_cuts_per_feature,
+                  size_t num_columns) {
+  dh::XGBCachingDeviceAllocator<char> alloc;
+  const auto& host_data = page.data.ConstHostVector();
+  dh::caching_device_vector<Entry> sorted_entries(host_data.begin() + begin,
+                                                  host_data.begin() + end);
+  thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
+               sorted_entries.end(), detail::EntryCompareOp());
+
+  HostDeviceVector<size_t> cuts_ptr;
+  dh::caching_device_vector<size_t> column_sizes_scan;
+  data::IsValidFunctor dummy_is_valid(std::numeric_limits<float>::quiet_NaN());
+  auto batch_it = dh::MakeTransformIterator<data::COOTuple>(
+      sorted_entries.data().get(),
+      [] __device__(Entry const &e) -> data::COOTuple {
+        return {0, e.index, e.fvalue};  // row_idx is not needed for scaning column size.
+      });
+  detail::GetColumnSizesScan(device, num_columns, num_cuts_per_feature,
+                             batch_it, dummy_is_valid,
+                             0, sorted_entries.size(),
+                             &cuts_ptr, &column_sizes_scan);
+
+  auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
+  dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
+  auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
+
+  CHECK_EQ(d_cuts_ptr.size(), column_sizes_scan.size());
+  detail::ExtractCutsSparse(device, d_cuts_ptr, dh::ToSpan(sorted_entries),
+                            dh::ToSpan(column_sizes_scan), dh::ToSpan(cuts));
+
+  // add cuts into sketches
+  sorted_entries.clear();
+  sorted_entries.shrink_to_fit();
+  CHECK_EQ(sorted_entries.capacity(), 0);
+  CHECK_NE(cuts_ptr.Size(), 0);
+  sketch_container->Push(cuts_ptr.ConstDeviceSpan(), &cuts);
 }
 
 void ProcessWeightedBatch(int device, const SparsePage& page,
@@ -227,23 +272,31 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
         d_temp_weights[idx] = weights[ridx + base_rowid];
       });
   }
-  SortByWeight(&alloc, &temp_weights, &sorted_entries);
+  detail::SortByWeight(&alloc, &temp_weights, &sorted_entries);
 
   HostDeviceVector<size_t> cuts_ptr;
   dh::caching_device_vector<size_t> column_sizes_scan;
-  GetColumnSizesScan(device, num_cuts_per_feature, &cuts_ptr, &column_sizes_scan,
-                     {sorted_entries.data().get(), sorted_entries.size()},
-                     num_columns);
+  data::IsValidFunctor dummy_is_valid(std::numeric_limits<float>::quiet_NaN());
+  auto batch_it = dh::MakeTransformIterator<data::COOTuple>(
+      sorted_entries.data().get(),
+      [] __device__(Entry const &e) -> data::COOTuple {
+        return {0, e.index, e.fvalue};  // row_idx is not needed for scaning column size.
+      });
+  detail::GetColumnSizesScan(device, num_columns, num_cuts_per_feature,
+                             batch_it, dummy_is_valid,
+                             0, sorted_entries.size(),
+                             &cuts_ptr, &column_sizes_scan);
+
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
   dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
   auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
 
   // Extract cuts
-  ExtractWeightedCutsSparse(device, d_cuts_ptr,
-                            dh::ToSpan(sorted_entries),
-                            dh::ToSpan(temp_weights),
-                            dh::ToSpan(column_sizes_scan),
-                            dh::ToSpan(cuts));
+  detail::ExtractWeightedCutsSparse(device, d_cuts_ptr,
+                                    dh::ToSpan(sorted_entries),
+                                    dh::ToSpan(temp_weights),
+                                    dh::ToSpan(column_sizes_scan),
+                                    dh::ToSpan(cuts));
 
   // add cuts into sketches
   sketch_container->Push(cuts_ptr.ConstDeviceSpan(), &cuts);
@@ -253,10 +306,15 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
                            size_t sketch_batch_num_elements) {
   // Configure batch size based on available memory
   bool has_weights = dmat->Info().weights_.Size() > 0;
-  size_t num_cuts_per_feature = RequiredSampleCuts(max_bins, dmat->Info().num_row_);
-  sketch_batch_num_elements = SketchBatchNumElements(
+  size_t num_cuts_per_feature =
+      detail::RequiredSampleCutsPerColumn(max_bins, dmat->Info().num_row_);
+  size_t nnz = dmat->Info().num_nonzero_;
+  sketch_batch_num_elements = detail::SketchBatchNumElements(
       sketch_batch_num_elements,
-      dmat->Info().num_col_, device, num_cuts_per_feature, has_weights);
+      dmat->Info().num_row_,
+      dmat->Info().num_col_,
+      dmat->Info().num_nonzero_,
+      device, num_cuts_per_feature, has_weights);
 
   HistogramCuts cuts;
   DenseCuts dense_cuts(&cuts);
