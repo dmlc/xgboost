@@ -210,7 +210,7 @@ void ProcessBatch(int device, const SparsePage &page, size_t begin, size_t end,
   auto batch_it = dh::MakeTransformIterator<data::COOTuple>(
       sorted_entries.data().get(),
       [] __device__(Entry const &e) -> data::COOTuple {
-        return {0, e.index, e.fvalue};  // row_idx is not needed for scaning column size.
+        return {0, e.index, e.fvalue};  // row_idx is not needed for scanning column size.
       });
   detail::GetColumnSizesScan(device, num_columns, num_cuts_per_feature,
                              batch_it, dummy_is_valid,

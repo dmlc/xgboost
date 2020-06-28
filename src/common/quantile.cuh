@@ -33,7 +33,6 @@ class SketchContainer {
   size_t num_rows_;
   size_t num_columns_;
   int32_t num_bins_;
-  size_t limit_size_;
   int32_t device_;
 
   // Double buffer as neither prune nor merge can be performed inplace.
@@ -86,14 +85,12 @@ class SketchContainer {
   SketchContainer(int max_bin, size_t num_columns, size_t num_rows, int32_t device) :
       num_rows_{num_rows}, num_columns_{num_columns}, num_bins_{max_bin}, device_{device} {
     // Initialize Sketches for this dmatrix
-    auto eps = 1.0 / (WQSketch::kFactor * max_bin);
-    size_t level;
-    WQuantileSketch<float, float>::LimitSizeLevel(num_rows, eps, &level, &limit_size_);
     this->columns_ptr_.SetDevice(device_);
     this->columns_ptr_.Resize(num_columns + 1);
-    limit_size_ = std::min(limit_size_, num_rows);
     timer_.Init(__func__);
   }
+  /* \brief Return GPU ID for this container. */
+  int32_t DeviceIdx() const { return device_; }
   /* \brief Removes all the duplicated elements in quantile structure. */
   size_t Unique();
   /* Fix rounding error and re-establish invariance. */
@@ -123,6 +120,8 @@ class SketchContainer {
     return {this->Current().data().get(), this->Current().size()};
   }
 
+  Span<OffsetT const> ColumnsPtr() const { return this->columns_ptr_.ConstDeviceSpan(); }
+
   // Prevent copying/assigning/moving this as its internals can't be
   // assigned/copied/moved
   SketchContainer(const SketchContainer&) = delete;
@@ -130,6 +129,14 @@ class SketchContainer {
   SketchContainer& operator=(const SketchContainer&) = delete;
   SketchContainer& operator=(const SketchContainer&&) = delete;
 };
+
+namespace detail {
+struct SketchUnique {
+  XGBOOST_DEVICE bool operator()(SketchEntry const& a, SketchEntry const& b) const {
+    return a.value - b.value == 0;
+  }
+};
+}  // anonymous detail
 }  // namespace common
 }  // namespace xgboost
 

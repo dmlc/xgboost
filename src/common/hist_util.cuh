@@ -296,12 +296,12 @@ HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
 
 template <typename Batch>
 void AdapterDeviceSketch(Batch batch, int num_bins,
-                         float missing, int device,
-                         SketchContainer* sketch_container,
+                         float missing, SketchContainer* sketch_container,
                          size_t sketch_batch_num_elements = 0) {
   size_t num_rows = batch.NumRows();
   size_t num_cols = batch.NumCols();
   size_t num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, num_rows);
+  int32_t device = sketch_container->DeviceIdx();
   sketch_batch_num_elements = detail::SketchBatchNumElements(
       sketch_batch_num_elements,
       num_rows, num_cols, std::numeric_limits<size_t>::max(),
@@ -316,13 +316,12 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
 template <typename Batch>
 void AdapterDeviceSketchWeighted(Batch batch, int num_bins,
                                  MetaInfo const& info,
-                                 float missing,
-                                 int device,
-                                 SketchContainer* sketch_container,
+                                 float missing, SketchContainer* sketch_container,
                                  size_t sketch_batch_num_elements = 0) {
   size_t num_rows = batch.NumRows();
   size_t num_cols = batch.NumCols();
   size_t num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, num_rows);
+  int32_t device = sketch_container->DeviceIdx();
   sketch_batch_num_elements = detail::SketchBatchNumElements(
       sketch_batch_num_elements,
       num_rows, num_cols, std::numeric_limits<size_t>::max(),

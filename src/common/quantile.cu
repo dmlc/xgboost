@@ -45,13 +45,6 @@ __device__ SketchEntry BinarySearchQuery(Span<SketchEntry const> entries, float 
     return entries[i+1];
   }
 }
-namespace {
-struct SketchUnique {
-  XGBOOST_DEVICE bool operator()(SketchEntry const& a, SketchEntry const& b) const {
-    return a.value - b.value == 0;
-  }
-};
-}  // anonymous namespace
 
 template <typename T>
 void CopyTo(Span<T> out, Span<T const> src) {
@@ -204,6 +197,7 @@ void SketchContainer::Push(common::Span<OffsetT const> cuts_ptr,
   } else {
     auto d_entries = dh::ToSpan(*entries);
     this->Merge(cuts_ptr, d_entries);
+    this->FixError();
   }
   CHECK_NE(this->columns_ptr_.Size(), 0);
   timer_.Stop(__func__);
@@ -224,7 +218,7 @@ size_t SketchContainer::Unique() {
       d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
       entries.data(), entries.data() + entries.size(), scan_out.DevicePointer(),
       entries.data(),
-      SketchUnique{});
+      detail::SketchUnique{});
   this->columns_ptr_.Copy(scan_out);
   CHECK(!this->columns_ptr_.HostCanRead());
 
@@ -329,14 +323,13 @@ void SketchContainer::Merge(Span<OffsetT const> d_that_columns_ptr,
   CHECK_EQ(this->columns_ptr_.Size(), num_columns_ + 1);
   CHECK_EQ(this->columns_ptr_.HostVector().back(), this->Other().size());
   this->Alternate();
-  this->FixError();
   timer_.Stop(__func__);
 }
 
 void SketchContainer::FixError() {
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   auto in = dh::ToSpan(this->Current());
-  dh::LaunchN(device_, this->Current().size(), [=] __device__(size_t idx) {
+  dh::LaunchN(device_, in.size(), [=] __device__(size_t idx) {
     auto column_id = dh::SegmentId(d_columns_ptr, idx);
     auto in_column = in.subspan(d_columns_ptr[column_id],
                                 d_columns_ptr[column_id + 1] -
@@ -411,6 +404,7 @@ void SketchContainer::AllReduce() {
         dh::ToSpan(gathered_ptrs)
             .subspan(i * d_columns_ptr.size(), d_columns_ptr.size());
     this->Merge(worker_ptr, worker);
+    this->FixError();
   }
   timer_.Stop(__func__);
 }

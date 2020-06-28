@@ -215,7 +215,7 @@ void ValidateBatchedCuts(Adapter adapter, int num_bins, int num_columns, int num
   common::HistogramCuts batched_cuts;
   SketchContainer sketch_container(num_bins, num_columns, num_rows, 0);
   AdapterDeviceSketch(adapter.Value(), num_bins, std::numeric_limits<float>::quiet_NaN(),
-                      0, &sketch_container);
+                      &sketch_container);
   sketch_container.MakeCuts(&batched_cuts);
   ValidateCuts(batched_cuts, dmat, num_bins);
 }
@@ -275,7 +275,7 @@ TEST(HistUtil, AdapterSketchSlidingWindowMemory) {
   common::HistogramCuts batched_cuts;
   SketchContainer sketch_container(num_bins, num_columns, num_rows, 0);
   AdapterDeviceSketch(adapter.Value(), num_bins, std::numeric_limits<float>::quiet_NaN(),
-                      0, &sketch_container);
+                      &sketch_container);
   HistogramCuts cuts;
   sketch_container.MakeCuts(&cuts);
   size_t bytes_required = detail::RequiredMemory(
@@ -302,7 +302,7 @@ TEST(HistUtil, AdapterSketchSlidingWindowWeightedMemory) {
   common::HistogramCuts batched_cuts;
   SketchContainer sketch_container(num_bins, num_columns, num_rows, 0);
   AdapterDeviceSketchWeighted(adapter.Value(), num_bins, info,
-                              std::numeric_limits<float>::quiet_NaN(), 0,
+                              std::numeric_limits<float>::quiet_NaN(),
                               &sketch_container);
   HistogramCuts cuts;
   sketch_container.MakeCuts(&cuts);
@@ -451,7 +451,6 @@ void TestAdapterSketchFromWeights(bool with_group) {
   auto const& batch = adapter.Value();
   SketchContainer sketch_container(kBins, kCols, kRows, 0);
   AdapterDeviceSketchWeighted(adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
-                              0,
                               &sketch_container);
   common::HistogramCuts cuts;
   sketch_container.MakeCuts(&cuts);
