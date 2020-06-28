@@ -111,7 +111,7 @@ TEST(HistUtil, DeviceSketchDeterminism) {
   }
 }
 
- TEST(HistUtil, DeviceSketchCategorical) {
+TEST(HistUtil, DeviceSketchCategorical) {
   int categorical_sizes[] = {2, 6, 8, 12};
   int num_bins = 256;
   int sizes[] = {25, 100, 1000};
