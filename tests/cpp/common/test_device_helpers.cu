@@ -15,6 +15,20 @@ TEST(SumReduce, Test) {
   ASSERT_NEAR(sum, 100.0f, 1e-5);
 }
 
+void TestAtomicSizeT() {
+  size_t constexpr kThreads = 235;
+  dh::device_vector<size_t> out(1, 0);
+  auto d_out = dh::ToSpan(out);
+  dh::LaunchN(0, kThreads, [=]__device__(size_t idx){
+      atomicAdd(&d_out[0], static_cast<size_t>(1));
+  });
+  ASSERT_EQ(out[0], kThreads);
+}
+
+TEST(AtomicAdd, SizeT) {
+  TestAtomicSizeT();
+}
+
 TEST(SegmentedUnique, Basic) {
   std::vector<float> values{0.1f, 0.2f, 0.3f, 0.62448811531066895f, 0.62448811531066895f, 0.4f};
   std::vector<size_t> segments{0, 3, 6};
