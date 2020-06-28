@@ -16,47 +16,34 @@ TEST(GPUQuantile, Basic) {
   ASSERT_EQ(sketch.Data().size(), 0);
 }
 
-TEST(GPUQuantile, Unique) {
+void TestSketchUnique(float sparsity) {
   constexpr size_t kRows = 1000, kCols = 100, kBins = 256;
-  {
-    SketchContainer sketch(kBins, kCols, kRows, 0);
+  SketchContainer sketch(kBins, kCols, kRows, 0);
 
-    HostDeviceVector<float> storage;
-    std::string interface_str =
-        RandomDataGenerator{kRows, kCols, 0}.Device(0).GenerateArrayInterface(
-            &storage);
-    data::CupyAdapter adapter(interface_str);
-    AdapterDeviceSketch(adapter.Value(), kBins, std::numeric_limits<float>::quiet_NaN(),
-                        &sketch);
-    auto n_cuts = detail::RequiredSampleCutsPerColumn(kBins, kRows);
+  HostDeviceVector<float> storage;
+  std::string interface_str = RandomDataGenerator{kRows, kCols, sparsity}
+                                  .Device(0)
+                                  .GenerateArrayInterface(&storage);
+  data::CupyAdapter adapter(interface_str);
+  AdapterDeviceSketch(adapter.Value(), kBins,
+                      std::numeric_limits<float>::quiet_NaN(), &sketch);
+  auto n_cuts = detail::RequiredSampleCutsPerColumn(kBins, kRows);
+  if (sparsity == 0) {
     ASSERT_EQ(sketch.Data().size(), n_cuts * kCols);
-
-    sketch.Unique();
-    ASSERT_TRUE(thrust::is_sorted(thrust::device,
-                                  sketch.Data().data(),
-                                  sketch.Data().data() + sketch.Data().size(),
-                                  detail::SketchUnique{}));
+  } else {
+    ASSERT_LT(sketch.Data().size(), n_cuts * kCols * sparsity + 0.05);
+    ASSERT_GT(sketch.Data().size(), n_cuts * kCols * sparsity - 0.05);
   }
-  {
-    SketchContainer sketch(kBins, kCols, kRows, 0);
 
-    HostDeviceVector<float> storage;
-    std::string interface_str =
-        RandomDataGenerator{kRows, kCols, 0.5}.Device(0).GenerateArrayInterface(
-            &storage);
-    data::CupyAdapter adapter(interface_str);
-    AdapterDeviceSketch(adapter.Value(), kBins, std::numeric_limits<float>::quiet_NaN(),
-                        &sketch);
-    auto n_cuts = detail::RequiredSampleCutsPerColumn(kBins, kRows);
-    ASSERT_LT(sketch.Data().size(), n_cuts * kCols * 0.6);
-    ASSERT_GT(sketch.Data().size(), n_cuts * kCols * 0.4);
+  sketch.Unique();
+  ASSERT_TRUE(thrust::is_sorted(thrust::device, sketch.Data().data(),
+                                sketch.Data().data() + sketch.Data().size(),
+                                detail::SketchUnique{}));
+}
 
-    sketch.Unique();
-    ASSERT_TRUE(thrust::is_sorted(thrust::device,
-                                  sketch.Data().data(),
-                                  sketch.Data().data() + sketch.Data().size(),
-                                  detail::SketchUnique{}));
-  }
+TEST(GPUQuantile, Unique) {
+  TestSketchUnique(0);
+  TestSketchUnique(0.5);
 }
 
 void TestQuantileElemRank(int32_t device, Span<SketchEntry const> in,
