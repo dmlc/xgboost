@@ -145,7 +145,6 @@ void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
   // Copy current subset of valid elements into temporary storage and sort
   dh::caching_device_vector<Entry> sorted_entries;
   dh::caching_device_vector<size_t> column_sizes_scan;
-  thrust::host_vector<size_t> host_column_sizes_scan;
   auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
       thrust::make_counting_iterator(0llu),
       [=] __device__(size_t idx) { return batch.GetElement(idx); });
@@ -278,7 +277,7 @@ template <typename AdapterT>
 HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
                                   float missing,
                                   size_t sketch_batch_num_elements = 0) {
-  size_t num_cuts = RequiredSampleCuts(num_bins, adapter->NumRows());
+  size_t num_cuts_per_feature = RequiredSampleCuts(num_bins, adapter->NumRows());
   CHECK(adapter->NumRows() != data::kAdapterUnknownSize);
   CHECK(adapter->NumColumns() != data::kAdapterUnknownSize);
 
@@ -287,7 +286,7 @@ HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
   auto& batch = adapter->Value();
   sketch_batch_num_elements = SketchBatchNumElements(
       sketch_batch_num_elements,
-      adapter->NumColumns(), adapter->DeviceIdx(), num_cuts, false);
+      adapter->NumColumns(), adapter->DeviceIdx(), num_cuts_per_feature, false);
 
   // Enforce single batch
   CHECK(!adapter->Next());
@@ -301,7 +300,7 @@ HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
     size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
     auto const& batch = adapter->Value();
     ProcessSlidingWindow(batch, adapter->DeviceIdx(), adapter->NumColumns(),
-                         begin, end, missing, &sketch_container, num_cuts);
+                         begin, end, missing, &sketch_container, num_cuts_per_feature);
   }
 
   sketch_container.MakeCuts(&cuts);
@@ -315,14 +314,14 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
                          size_t sketch_batch_num_elements = 0) {
   size_t num_rows = batch.NumRows();
   size_t num_cols = batch.NumCols();
-  size_t num_cuts = RequiredSampleCuts(num_bins, num_rows);
+  size_t num_cuts_per_feature = RequiredSampleCuts(num_bins, num_rows);
   sketch_batch_num_elements = SketchBatchNumElements(
       sketch_batch_num_elements,
-      num_cols, device, num_cuts, false);
+      num_cols, device, num_cuts_per_feature, false);
   for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
     size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
     ProcessSlidingWindow(batch, device, num_cols,
-                         begin, end, missing, sketch_container, num_cuts);
+                         begin, end, missing, sketch_container, num_cuts_per_feature);
   }
 }
 
@@ -335,14 +334,14 @@ void AdapterDeviceSketchWeighted(Batch batch, int num_bins,
                                  size_t sketch_batch_num_elements = 0) {
   size_t num_rows = batch.NumRows();
   size_t num_cols = batch.NumCols();
-  size_t num_cuts = RequiredSampleCuts(num_bins, num_rows);
+  size_t num_cuts_per_feature = RequiredSampleCuts(num_bins, num_rows);
   sketch_batch_num_elements = SketchBatchNumElements(
       sketch_batch_num_elements,
-      num_cols, device, num_cuts, true);
+      num_cols, device, num_cuts_per_feature, true);
   for (auto begin = 0ull; begin < batch.Size(); begin += sketch_batch_num_elements) {
     size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
     ProcessWeightedSlidingWindow(batch, info,
-                                 num_cuts,
+                                 num_cuts_per_feature,
                                  CutsBuilder::UseGroup(info), missing, device, num_cols, begin, end,
                                  sketch_container);
   }
