@@ -191,7 +191,7 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
 
 void SketchContainer::Push(common::Span<size_t const> cuts_ptr,
                            dh::caching_device_vector<SketchEntry>* entries) {
-  timer.Start(__func__);
+  timer_.Start(__func__);
   // Copy or merge the new cuts, pruning is performed during `MakeCuts`.
   if (this->Current().size() == 0) {
     CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
@@ -206,16 +206,16 @@ void SketchContainer::Push(common::Span<size_t const> cuts_ptr,
     this->Merge(cuts_ptr, d_entries);
   }
   CHECK_NE(this->columns_ptr_.Size(), 0);
-  timer.Stop(__func__);
+  timer_.Stop(__func__);
 }
 
 size_t SketchContainer::Unique() {
-  timer.Start(__func__);
+  timer_.Start(__func__);
   this->columns_ptr_.SetDevice(device_);
-  Span<bst_feature_t> d_column_scan = this->columns_ptr_.DeviceSpan();
+  Span<OffsetT> d_column_scan = this->columns_ptr_.DeviceSpan();
   CHECK_EQ(d_column_scan.size(), num_columns_ + 1);
   Span<SketchEntry> entries = dh::ToSpan(this->Current());
-  HostDeviceVector<bst_feature_t> scan_out(d_column_scan.size());
+  HostDeviceVector<OffsetT> scan_out(d_column_scan.size());
   scan_out.SetDevice(device_);
   auto d_scan_out = scan_out.DeviceSpan();
 
@@ -229,15 +229,15 @@ size_t SketchContainer::Unique() {
   CHECK(!this->columns_ptr_.HostCanRead());
 
   this->Current().resize(n_uniques, SketchEntry{0, 0, 0, 0});
-  timer.Stop(__func__);
+  timer_.Stop(__func__);
   return n_uniques;
 }
 
 void SketchContainer::Prune(size_t to) {
-  timer.Start(__func__);
+  timer_.Start(__func__);
   this->Unique();
-  bst_feature_t to_total = 0;
-  HostDeviceVector<bst_feature_t> new_columns_ptr{to_total};
+  OffsetT to_total = 0;
+  HostDeviceVector<OffsetT> new_columns_ptr{to_total};
   for (size_t i = 0; i < num_columns_; ++i) {
     size_t length = this->Column(i).size();
     length = std::min(length, to);
@@ -287,12 +287,12 @@ void SketchContainer::Prune(size_t to) {
   });
   this->columns_ptr_.HostVector() = new_columns_ptr.HostVector();
   this->Alternate();
-  timer.Stop(__func__);
+  timer_.Stop(__func__);
 }
 
 void SketchContainer::Merge(Span<size_t const> d_that_columns_ptr,
                             Span<SketchEntry const> that) {
-  timer.Start(__func__);
+  timer_.Start(__func__);
   std::vector<size_t> that_columns_ptr(d_that_columns_ptr.size());
   dh::CopyDeviceSpanToVector(&that_columns_ptr, d_that_columns_ptr);
   size_t total = that_columns_ptr.back();
@@ -314,14 +314,14 @@ void SketchContainer::Merge(Span<size_t const> d_that_columns_ptr,
     }
 
     CHECK_EQ(columns_ptr_.Size(), num_columns_ + 1);
-    timer.Stop(__func__);
+    timer_.Stop(__func__);
     return;
   }
 
   this->Other().resize(this->Current().size() + total, SketchEntry{0, 0, 0, 0});
   CHECK_EQ(that_columns_ptr.size(), this->columns_ptr_.Size());
-  bst_feature_t out_offset = 0;
-  std::vector<bst_feature_t> new_columns_ptr{out_offset};
+  OffsetT out_offset = 0;
+  std::vector<OffsetT> new_columns_ptr{out_offset};
   for (size_t i = 1; i < that_columns_ptr.size(); ++i) {
     auto self_column = this->Column(i-1);
     auto that_column = that.subspan(
@@ -338,7 +338,7 @@ void SketchContainer::Merge(Span<size_t const> d_that_columns_ptr,
   CHECK_EQ(this->columns_ptr_.HostVector().back(), this->Other().size());
   this->Alternate();
   this->FixError();
-  timer.Stop(__func__);
+  timer_.Stop(__func__);
 }
 
 void SketchContainer::FixError() {
@@ -372,7 +372,7 @@ void SketchContainer::AllReduce() {
     return;
   }
 
-  timer.Start(__func__);
+  timer_.Start(__func__);
   if (!reducer_) {
     reducer_ = std::make_unique<dh::AllReducer>();
     reducer_->Init(device_);
@@ -420,11 +420,11 @@ void SketchContainer::AllReduce() {
             .subspan(i * d_columns_ptr.size(), d_columns_ptr.size());
     this->Merge(worker_ptr, worker);
   }
-  timer.Stop(__func__);
+  timer_.Stop(__func__);
 }
 
 void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
-  timer.Start(__func__);
+  timer_.Start(__func__);
   p_cuts->min_vals_.Resize(num_columns_);
   size_t global_max_rows = num_rows_;
   rabit::Allreduce<rabit::op::Sum>(&global_max_rows, 1);
@@ -450,7 +450,9 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   h_out_columns_ptr.push_back(0);
   for (size_t i = 0; i < num_columns_; ++i) {
     h_out_columns_ptr.push_back(
-        std::min(std::max(1ul, this->Column(i).size()), static_cast<size_t>(num_bins_)));
+        std::min(static_cast<size_t>(std::max(static_cast<size_t>(1ul),
+                                              this->Column(i).size())),
+                 static_cast<size_t>(num_bins_)));
   }
   CHECK_EQ(h_out_columns_ptr.size(), h_in_columns_ptr.size());
   std::partial_sum(h_out_columns_ptr.begin(), h_out_columns_ptr.end(),
@@ -496,7 +498,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
     assert(idx+1 < in_column.size());
     out_column[idx] = in_column[idx+1].value;
   });
-  timer.Stop(__func__);
+  timer_.Stop(__func__);
 }
 }  // namespace common
 }  // namespace xgboost

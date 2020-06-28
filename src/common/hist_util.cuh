@@ -1,5 +1,8 @@
 /*!
  * Copyright 2020 XGBoost contributors
+ *
+ * \brief Front end and utilities for GPU based sketching.  Works on sliding window
+ *        instead of stream.
  */
 #ifndef COMMON_HIST_UTIL_CUH_
 #define COMMON_HIST_UTIL_CUH_

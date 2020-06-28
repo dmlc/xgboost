@@ -48,17 +48,6 @@ TEST(HistUtil, DeviceSketch) {
   EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 
-// Duplicate this function from hist_util.cu so we don't have to expose it in
-// header
-size_t RequiredSampleCutsTest(int max_bins, size_t num_rows) {
-  double eps = 1.0 / (SketchContainer::kFactor * max_bins);
-  size_t dummy_nlevel;
-  size_t num_cuts;
-  WQuantileSketch<bst_float, bst_float>::LimitSizeLevel(
-    num_rows, eps, &dummy_nlevel, &num_cuts);
-  return std::min(num_cuts, num_rows);
-}
-
 TEST(HistUtil, DeviceSketchMemory) {
   int num_columns = 100;
   int num_rows = 1000;

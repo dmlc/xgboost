@@ -108,7 +108,7 @@ void ExtractWeightedCutsSparse(int device,
 }
 
 size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows) {
-  double eps = 1.0 / (SketchContainer::kFactor * max_bins);
+  double eps = 1.0 / (WQSketch::kFactor * max_bins);
   size_t dummy_nlevel;
   size_t num_cuts;
   WQuantileSketch<bst_float, bst_float>::LimitSizeLevel(
@@ -128,16 +128,16 @@ size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
                       size_t num_bins, bool with_weights) {
   size_t peak = 0;
   // 0. Allocate cut pointer in quantile container by increasing: n_columns + 1
-  size_t total = (num_columns + 1) * sizeof(bst_feature_t);
+  size_t total = (num_columns + 1) * sizeof(SketchContainer::OffsetT);
   // 1. Copy and sort: 2 * bytes_per_element * shape
   total += BytesPerElement(with_weights) * num_rows * num_columns;
   peak = std::max(peak, total);
   // 2. Deallocate bytes_per_element * shape due to reusing memory in sort.
   total -= BytesPerElement(with_weights) * num_rows * num_columns / 2;
   // 3. Allocate colomn size scan by increasing: n_columns + 1
-  total += (num_columns + 1) * sizeof(size_t);
+  total += (num_columns + 1) * sizeof(SketchContainer::OffsetT);
   // 4. Allocate cut pointer by increasing: n_columns + 1
-  total += (num_columns + 1) * sizeof(size_t);
+  total += (num_columns + 1) * sizeof(SketchContainer::OffsetT);
   // 5. Allocate cuts: assuming rows is greater than bins: n_columns * limit_size
   total += RequiredSampleCuts(num_rows, num_bins, num_bins, nnz) * sizeof(SketchEntry);
   // 6. Deallocate copied entries by reducing: bytes_per_element * shape.
@@ -145,9 +145,9 @@ size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
   total -= (BytesPerElement(with_weights) * num_rows * num_columns) / 2;
   // 7. Deallocate column size scan.
   peak = std::max(peak, total);
-  total -= (num_columns + 1) * sizeof(size_t);
+  total -= (num_columns + 1) * sizeof(SketchContainer::OffsetT);
   // 8. Deallocate cut size scan.
-  total -= (num_columns + 1) * sizeof(size_t);
+  total -= (num_columns + 1) * sizeof(SketchContainer::OffsetT);
   // 9. Allocate std::min(rows, bins * factor) * shape due to pruning to global num rows.
   total += RequiredSampleCuts(num_rows, num_bins, num_bins, nnz) * sizeof(SketchEntry);
   // 10. Allocate final cut values, min values, cut ptrs: std::min(rows, bins + 1) *

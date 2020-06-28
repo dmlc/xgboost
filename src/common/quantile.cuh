@@ -16,17 +16,21 @@ using WQSketch = WQuantileSketch<bst_float, bst_float>;
 using SketchEntry = WQSketch::Entry;
 
 /*!
- * \brief A container that holds the device sketches across all
- *  sparse page batches which are distributed to different devices.
- *  As sketches are aggregated by column, the mutex guards
- *  multiple devices pushing sketch summary for the same column
- *  across distinct rows.
+ * \brief A container that holds the device sketches across all sparse page batches which
+ *  are distributed to different devices.  As sketches are aggregated by column, the mutex
+ *  guards multiple devices pushing sketch summary for the same column across distinct
+ *  rows.
  */
-struct SketchContainer {
+class SketchContainer {
+ public:
   static constexpr float kFactor = WQSketch::kFactor;
-  Monitor timer;
+  using OffsetT =
+      std::conditional_t<sizeof(size_t) == sizeof(unsigned long long),  // NOLINT
+                         unsigned long long, unsigned long>;            // NOLINT
+  static_assert(sizeof(OffsetT) == sizeof(size_t), "Wrong type for sketch element offset.");
 
  private:
+  Monitor timer_;
   std::unique_ptr<dh::AllReducer> reducer_;
   size_t num_rows_;
   size_t num_columns_;
@@ -39,7 +43,7 @@ struct SketchContainer {
   dh::caching_device_vector<SketchEntry> entries_b_;
   bool current_buffer_ {true};
   // The container is just a CSC matrix.
-  HostDeviceVector<bst_feature_t> columns_ptr_;
+  HostDeviceVector<OffsetT> columns_ptr_;
 
   dh::caching_device_vector<SketchEntry>& Current() {
     if (current_buffer_) {
@@ -90,7 +94,7 @@ struct SketchContainer {
     this->columns_ptr_.SetDevice(device_);
     this->columns_ptr_.Resize(num_columns + 1);
     limit_size_ = std::min(limit_size_, num_rows);
-    timer.Init(__func__);
+    timer_.Init(__func__);
   }
   /* \brief Removes all the duplicated elements in quantile structure. */
   size_t Unique();

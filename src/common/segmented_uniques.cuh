@@ -16,7 +16,8 @@ struct SegmentedUniqueReduceOp {
   KeyOutIt key_out;
 
   Key const& __device__ operator()(Key const& key) const {
-    atomicAdd(&(*(key_out + key.first)), 1);
+    auto constexpr kOne = static_cast<std::remove_reference_t<decltype(*(key_out + key.first))>>(1);
+    atomicAdd(&(*(key_out + key.first)), kOne);
     return key;
   }
 };
