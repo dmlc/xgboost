@@ -54,6 +54,164 @@ void CopyTo(Span<T> out, Span<T const> src) {
                                 cudaMemcpyDefault));
 }
 
+void MergeImpl(int32_t device, Span<SketchEntry const> d_x, Span<bst_row_t const> x_ptr,
+               Span<SketchEntry const> d_y, Span<bst_row_t const> y_ptr,
+               Span<SketchEntry> out, Span<bst_row_t> out_ptr) {
+  CHECK_EQ(d_x.size() + d_y.size(), out.size());
+  CHECK_EQ(x_ptr.size(), out_ptr.size());
+  CHECK_EQ(y_ptr.size(), out_ptr.size());
+  dh::safe_cuda(cudaSetDevice(device));
+
+  auto x_merge_key_it = thrust::make_zip_iterator(thrust::make_tuple(
+      dh::MakeTransformIterator<bst_row_t>(
+          thrust::make_counting_iterator(0ul),
+          [=] __device__(size_t idx) { return dh::SegmentId(x_ptr, idx); }),
+      d_x.data()));
+  auto y_merge_key_it = thrust::make_zip_iterator(thrust::make_tuple(
+      dh::MakeTransformIterator<bst_row_t>(
+          thrust::make_counting_iterator(0ul),
+          [=] __device__(size_t idx) { return dh::SegmentId(y_ptr, idx); }),
+      d_y.data()));
+
+  using Tuple = thrust::tuple<uint32_t, uint32_t, uint32_t, uint32_t>;
+
+  thrust::constant_iterator<uint32_t> a_ind_iter(0);
+  thrust::constant_iterator<uint32_t> b_ind_iter(1);
+
+  // allocate memory for later use in scan
+  auto place_holder = thrust::make_constant_iterator(0u);
+  auto x_val_it = thrust::make_zip_iterator(
+      thrust::make_tuple(place_holder, a_ind_iter, place_holder, place_holder));
+  auto y_val_it = thrust::make_zip_iterator(
+      thrust::make_tuple(place_holder, b_ind_iter, place_holder, place_holder));
+
+  dh::XGBCachingDeviceAllocator<Tuple> alloc;
+  static_assert(sizeof(Tuple) == sizeof(SketchEntry), "");
+  // We reuse the memory for storing merge path.
+  common::Span<Tuple> merge_path{reinterpret_cast<Tuple *>(out.data()), out.size()};
+  // Determine the merge path
+  thrust::merge_by_key(thrust::cuda::par(alloc), x_merge_key_it,
+                       x_merge_key_it + d_x.size(), y_merge_key_it,
+                       y_merge_key_it + d_y.size(), x_val_it, y_val_it,
+                       thrust::make_discard_iterator(), merge_path.data(),
+                       [=] __device__(auto l, auto r) -> bool {
+                         auto l_column_id = thrust::get<0>(l);
+                         auto r_column_id = thrust::get<0>(r);
+                         if (l_column_id == r_column_id) {
+                           return thrust::get<1>(l).value < thrust::get<1>(r).value;
+                         }
+                         return l_column_id < r_column_id;
+                       });
+
+  // Compute output ptr
+  auto transform_it = thrust::make_zip_iterator(thrust::make_tuple(x_ptr.data(), y_ptr.data()));
+  thrust::transform(
+      thrust::cuda::par(alloc), transform_it, transform_it + x_ptr.size(),
+      out_ptr.data(),
+      [] __device__(auto t) { return thrust::get<0>(t) + thrust::get<1>(t); });
+
+  auto get_ind = []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<1>(t); };
+  auto get_a =   []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<2>(t); };
+  auto get_b =   []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<3>(t); };
+
+  auto scan_key_it = dh::MakeTransformIterator<bst_feature_t>(
+      thrust::make_counting_iterator(0ul),
+      [=] __device__(size_t idx) { return dh::SegmentId(out_ptr, idx); });
+
+  auto scan_val_it = dh::MakeTransformIterator<Tuple>(
+      merge_path.data(), [=] __device__(Tuple const &t) -> Tuple {
+        auto ind = get_ind(t); // == 0 if element is from a
+        // place_holder, place_holder, a_counter, b_counter
+        return thrust::make_tuple(0u, 0u, !ind, ind);
+      });
+
+  thrust::exclusive_scan_by_key(
+      thrust::cuda::par(alloc), scan_key_it, scan_key_it + merge_path.size(),
+      scan_val_it,
+      merge_path.data(), thrust::make_tuple(0u, 0u, 0u, 0u),
+      thrust::equal_to<bst_row_t>{},
+      [=] __device__(Tuple const &l, Tuple const &r) -> Tuple {
+        return thrust::make_tuple(0, 0, get_a(l) + get_a(r), get_b(l) + get_b(r));
+      });
+
+  auto d_merge_path = merge_path;
+  auto d_out = out;
+
+  dh::LaunchN(device, d_out.size(), [=] __device__(size_t idx) {
+    auto column_id = dh::SegmentId(out_ptr, idx);
+    idx -= out_ptr[column_id];
+
+    auto d_x_column =
+        d_x.subspan(x_ptr[column_id], x_ptr[column_id + 1] - x_ptr[column_id]);
+    auto d_y_column =
+        d_y.subspan(y_ptr[column_id], y_ptr[column_id + 1] - y_ptr[column_id]);
+    auto d_out_column = d_out.subspan(
+        out_ptr[column_id], out_ptr[column_id + 1] - out_ptr[column_id]);
+    auto d_path_column = d_merge_path.subspan(
+        out_ptr[column_id], out_ptr[column_id + 1] - out_ptr[column_id]);
+
+    uint32_t a_ind, b_ind, _0, _1;
+    thrust::tie(_0, _1, a_ind, b_ind) = d_path_column[idx];
+
+    // Handle trailing elements.
+    assert(a_ind <= d_x_column.size());
+    if (a_ind == d_x_column.size()) {
+      // Trailing elements are from y because there's no more x to land.
+      auto y_elem = d_y_column[b_ind];
+      d_out_column[idx] = SketchEntry(y_elem.rmin + d_x_column.back().RMinNext(),
+                                      y_elem.rmax + d_x_column.back().rmax,
+                                      y_elem.wmin, y_elem.value);
+      return;
+    }
+    auto x_elem = d_x_column[a_ind];
+    assert(b_ind <= d_y_column.size());
+    if (b_ind == d_y_column.size()) {
+      d_out_column[idx] = SketchEntry(x_elem.rmin + d_y_column.back().RMinNext(),
+                                      x_elem.rmax + d_y_column.back().rmax,
+                                      x_elem.wmin, x_elem.value);
+      return;
+    }
+    auto y_elem = d_y_column[b_ind];
+
+    /* Merge procedure.  See A.3 merge operation eq (26) ~ (28).  The trick to interpret
+       it is rewriting the symbols on both side of equality.  Take eq (26) as an example:
+       Expand it according to definition of extended rank then rewrite it into:
+
+       If $k_i$ is the $i$ element in output and \textbf{comes from $D_1$}:
+
+         r_\bar{D}(k_i) = r_{\bar{D_1}}(k_i) + w_{\bar{{D_1}}}(k_i) +
+                                          [r_{\bar{D_2}}(x_i) + w_{\bar{D_2}}(x_i)]
+
+         Where $x_i$ is the largest element in $D_2$ that's less than $k_i$.  $k_i$ can be
+         used in $D_1$ as it's since $k_i \in D_1$.  Other 2 equations can be applied
+         similarly with $k_i$ comes from different $D$.  just use different symbol on
+         different source of summary.
+    */
+    assert(idx < d_out_column.size());
+    if (x_elem.value == y_elem.value) {
+      d_out_column[idx] =
+          SketchEntry{x_elem.rmin + y_elem.rmin, x_elem.rmax + y_elem.rmax,
+                      x_elem.wmin + y_elem.wmin, x_elem.value};
+    } else if (x_elem.value < y_elem.value) {
+      // elem from x is landed. yprev_min is the element in D_2 that's 1 rank less than
+      // x_elem if we put x_elem in D_2.
+      float yprev_min = b_ind == 0 ? 0.0f : d_y_column[b_ind - 1].RMinNext();
+      // rmin should be equal to x_elem.rmin + x_elem.wmin + yprev_min.  But for
+      // implementation, the weight is stored in a separated field and we compute the
+      // extended definition on the fly when needed.
+      d_out_column[idx] =
+          SketchEntry{x_elem.rmin + yprev_min, x_elem.rmax + y_elem.RMaxPrev(),
+                      x_elem.wmin, x_elem.value};
+    } else {
+      // elem from y is landed.
+      float xprev_min = a_ind == 0 ? 0.0f : d_x_column[a_ind - 1].RMinNext();
+      d_out_column[idx] =
+          SketchEntry{xprev_min + y_elem.rmin, x_elem.RMaxPrev() + y_elem.rmax,
+                      y_elem.wmin, y_elem.value};
+    }
+  });
+}
+
 // Merge d_x and d_y into out.  Because the final output depends on predicate (which
 // summary does the output element come from) result by definition of merged rank.  So we
 // run it in 2 passes to obtain the merge path and then customize the standard merge
@@ -122,7 +280,7 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
   auto d_out = Span<SketchEntry>{out.data(), d_x.size() + d_y.size()};
 
   dh::LaunchN(0, d_out.size(), [=] __device__(size_t idx) {
-    int32_t a_ind, b_ind, p_0, p_1;
+    uint32_t a_ind, b_ind, p_0, p_1;
     thrust::tie(a_ind, b_ind, p_0, p_1) = d_merge_path[idx];
     // Handle trailing elements.
     assert(a_ind <= d_x.size());
@@ -301,27 +459,19 @@ void SketchContainer::Merge(Span<OffsetT const> d_that_columns_ptr,
     return;
   }
 
-  std::vector<OffsetT> that_columns_ptr(d_that_columns_ptr.size());
-  dh::CopyDeviceSpanToVector(&that_columns_ptr, d_that_columns_ptr);
-  OffsetT total = that_columns_ptr.back();
-  this->Other().resize(this->Current().size() + total, SketchEntry{0, 0, 0, 0});
-  CHECK_EQ(that_columns_ptr.size(), this->columns_ptr_.Size());
-  OffsetT out_offset = 0;
-  std::vector<OffsetT> new_columns_ptr{out_offset};
-  for (size_t i = 1; i < that_columns_ptr.size(); ++i) {
-    auto self_column = this->Column(i-1);
-    auto that_column = that.subspan(
-        that_columns_ptr[i - 1], that_columns_ptr[i] - that_columns_ptr[i - 1]);
-    auto out_size = self_column.size() + that_column.size();
-    auto out = dh::ToSpan(this->Other()).subspan(out_offset, out_size);
-    MergeImpl(self_column, that_column, out);
-    out_offset += out_size;
-    new_columns_ptr.emplace_back(out_offset);
-  }
-  CHECK_EQ(this->columns_ptr_.Size(), new_columns_ptr.size());
-  this->columns_ptr_.HostVector() = std::move(new_columns_ptr);
+  this->Other().resize(this->Current().size() + that.size(), SketchEntry{0, 0, 0, 0});
+  CHECK_EQ(d_that_columns_ptr.size(), this->columns_ptr_.Size());
+
+  HostDeviceVector<OffsetT> new_columns_ptr;
+  new_columns_ptr.SetDevice(device_);
+  new_columns_ptr.Resize(this->ColumnsPtr().size());
+  MergeImpl(device_, this->Data(), this->ColumnsPtr(),
+            that, d_that_columns_ptr,
+            dh::ToSpan(this->Other()), new_columns_ptr.DeviceSpan());
+  this->columns_ptr_.Copy(new_columns_ptr);
+  // this->columns_ptr_.HostVector() = std::move(new_columns_ptr.HostVector());
   CHECK_EQ(this->columns_ptr_.Size(), num_columns_ + 1);
-  CHECK_EQ(this->columns_ptr_.HostVector().back(), this->Other().size());
+  // CHECK_EQ(this->columns_ptr_.HostVector().back(), this->Other().size());
   this->Alternate();
   timer_.Stop(__func__);
 }
