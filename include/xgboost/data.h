@@ -441,6 +441,13 @@ class DMatrix {
   DMatrix()  = default;
   /*! \brief meta information of the dataset */
   virtual MetaInfo& Info() = 0;
+  virtual void SetInfo(const char *key, const void *dptr, DataType dtype,
+                       size_t num) {
+    this->Info().SetInfo(key, dptr, dtype, num);
+  }
+  virtual void SetInfo(const char* key, std::string const& interface_str) {
+    this->Info().SetInfo(key, interface_str);
+  }
   /*! \brief meta information of the dataset */
   virtual const MetaInfo& Info() const = 0;
   /**
