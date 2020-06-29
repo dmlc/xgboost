@@ -59,7 +59,7 @@ void CopyTo(Span<T> out, Span<T const> src) {
 // run it in 2 passes to obtain the merge path and then customize the standard merge
 // algorithm.
 void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
-               Span<SketchEntry> out, cudaStream_t stream = nullptr) {
+               Span<SketchEntry> out) {
   if (d_x.size() == 0) {
     CopyTo(out, d_y);
     return;
@@ -94,7 +94,7 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
   // We reuse the memory for storing merge path.
   common::Span<Tuple> merge_path{reinterpret_cast<Tuple *>(out.data()), out.size()};
   // Determine the merge path
-  thrust::merge_by_key(thrust::cuda::par(alloc).on(stream),
+  thrust::merge_by_key(thrust::cuda::par(alloc),
                        a_key_it, a_key_it + d_x.size(), b_key_it,
                        b_key_it + d_y.size(), x_val_it, y_val_it,
                        thrust::make_discard_iterator(), merge_path.data());
@@ -106,7 +106,7 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
   // is landed into output as the first element in merge result.  The scan result is the
   // subscript of a and b.
   thrust::transform_exclusive_scan(
-      thrust::cuda::par(alloc).on(stream), merge_path.data(), merge_path.data() + merge_path.size(),
+      thrust::cuda::par(alloc), merge_path.data(), merge_path.data() + merge_path.size(),
       merge_path.data(),
       [=] __device__(Tuple const &t) {
         auto ind = get_ind(t);  // == 0 if element is from a
@@ -121,7 +121,7 @@ void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
   auto d_merge_path = merge_path;
   auto d_out = Span<SketchEntry>{out.data(), d_x.size() + d_y.size()};
 
-  dh::LaunchN(0, d_out.size(), stream, [=] __device__(size_t idx) {
+  dh::LaunchN(0, d_out.size(), [=] __device__(size_t idx) {
     int32_t a_ind, b_ind, p_0, p_1;
     thrust::tie(a_ind, b_ind, p_0, p_1) = d_merge_path[idx];
     // Handle trailing elements.
