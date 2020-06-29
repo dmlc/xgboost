@@ -52,7 +52,7 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, size_t cols,
 }
 
 // p_full and p_hist should come from the same data set.
-void TestTrainingPrediction(size_t rows, std::string tree_method,
+void TestTrainingPrediction(size_t rows, size_t bins, std::string tree_method,
                             std::shared_ptr<DMatrix> p_full,
                             std::shared_ptr<DMatrix> p_hist);
 

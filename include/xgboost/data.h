@@ -502,7 +502,33 @@ class DMatrix {
                          const std::string& cache_prefix = "",
                          size_t page_size = kPageSize);
 
-  virtual DMatrix* Slice(common::Span<int32_t const> ridxs) = 0;
+  /**
+   * \brief Create a new Quantile based DMatrix used for histogram based algorithm.
+   *
+   * \tparam DataIterHandle         External iterator type, defined in C API.
+   * \tparam DMatrixHandle          DMatrix handle, defined in C API.
+   * \tparam DataIterResetCallback  Callback for reset, prototype defined in C API.
+   * \tparam XGDMatrixCallbackNext  Callback for next, prototype defined in C API.
+   *
+   * \param iter    External data iterator
+   * \param proxy   A hanlde to ProxyDMatrix
+   * \param reset   Callback for reset
+   * \param next    Callback for next
+   * \param missing Value that should be treated as missing.
+   * \param nthread number of threads used for initialization.
+   * \param max_bin Maximum number of bins.
+   *
+   * \return A created quantile based DMatrix.
+   */
+  template <typename DataIterHandle, typename DMatrixHandle,
+            typename DataIterResetCallback, typename XGDMatrixCallbackNext>
+  static DMatrix *Create(DataIterHandle iter, DMatrixHandle proxy,
+                         DataIterResetCallback *reset,
+                         XGDMatrixCallbackNext *next, float missing,
+                         int nthread,
+                         int max_bin);
+
+      virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
   /*! \brief page size 32 MB */
   static const size_t kPageSize = 32UL << 20UL;
 

@@ -68,9 +68,11 @@ struct SketchContainer {
   // Prevent copying/assigning/moving this as its internals can't be
   // assigned/copied/moved
   SketchContainer(const SketchContainer&) = delete;
-  SketchContainer(const SketchContainer&&) = delete;
+  SketchContainer(SketchContainer&& that) {
+    std::swap(sketches_, that.sketches_);
+  }
   SketchContainer& operator=(const SketchContainer&) = delete;
-  SketchContainer& operator=(const SketchContainer&&) = delete;
+  SketchContainer& operator=(SketchContainer&&) = delete;
 };
 
 struct EntryCompareOp {
