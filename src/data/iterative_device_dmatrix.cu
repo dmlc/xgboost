@@ -110,7 +110,7 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
   size_t nbytes =
       common::WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts);
 #pragma omp parallel for num_threads(nthread) if (nthread > 0)
-  for (size_t c = 0; c < cols; ++c) {
+  for (omp_ulong c = 0; c < cols; ++c) {
     for (auto& sketch_batch : sketch_containers) {
       common::WQSketch::SummaryContainer summary;
       sketch_batch.sketches_.at(c).GetSummary(&summary);
@@ -123,7 +123,7 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
   // Build the final summary.
   std::vector<common::WQSketch> sketches(cols);
 #pragma omp parallel for num_threads(nthread) if (nthread > 0)
-  for (size_t c = 0; c < cols; ++c) {
+  for (omp_ulong c = 0; c < cols; ++c) {
     sketches.at(c).Init(
         accumulated_rows,
         1.0 / (common::SketchContainer::kFactor * batch_param_.max_bin));
