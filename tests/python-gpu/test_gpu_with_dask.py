@@ -121,6 +121,8 @@ class TestDistributedGPU(unittest.TestCase):
                               'debug_synchronize': True}
                 run_empty_dmatrix(client, parameters)
 
+    @pytest.mark.skipif(**tm.no_dask())
+    @pytest.mark.mgpu
     def test_quantile(self):
         if sys.platform.startswith("win"):
             pytest.skip("Skipping dask tests on Windows")
