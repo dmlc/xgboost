@@ -54,6 +54,10 @@ void CopyTo(Span<T> out, Span<T const> src) {
                                 cudaMemcpyDefault));
 }
 
+// Merge d_x and d_y into out.  Because the final output depends on predicate (which
+// summary does the output element come from) result by definition of merged rank.  So we
+// run it in 2 passes to obtain the merge path and then customize the standard merge
+// algorithm.
 void MergeImpl(int32_t device, Span<SketchEntry const> d_x, Span<bst_row_t const> x_ptr,
                Span<SketchEntry const> d_y, Span<bst_row_t const> y_ptr,
                Span<SketchEntry> out, Span<bst_row_t> out_ptr) {
@@ -78,11 +82,10 @@ void MergeImpl(int32_t device, Span<SketchEntry const> d_x, Span<bst_row_t const
   thrust::constant_iterator<uint32_t> a_ind_iter(0);
   thrust::constant_iterator<uint32_t> b_ind_iter(1);
 
-  // allocate memory for later use in scan
   auto place_holder = thrust::make_constant_iterator(0u);
-  auto x_val_it = thrust::make_zip_iterator(
+  auto x_merge_val_it = thrust::make_zip_iterator(
       thrust::make_tuple(place_holder, a_ind_iter, place_holder, place_holder));
-  auto y_val_it = thrust::make_zip_iterator(
+  auto y_merge_val_it = thrust::make_zip_iterator(
       thrust::make_tuple(place_holder, b_ind_iter, place_holder, place_holder));
 
   dh::XGBCachingDeviceAllocator<Tuple> alloc;
@@ -90,25 +93,26 @@ void MergeImpl(int32_t device, Span<SketchEntry const> d_x, Span<bst_row_t const
   // We reuse the memory for storing merge path.
   common::Span<Tuple> merge_path{reinterpret_cast<Tuple *>(out.data()), out.size()};
   // Determine the merge path
-  thrust::merge_by_key(thrust::cuda::par(alloc), x_merge_key_it,
-                       x_merge_key_it + d_x.size(), y_merge_key_it,
-                       y_merge_key_it + d_y.size(), x_val_it, y_val_it,
-                       thrust::make_discard_iterator(), merge_path.data(),
-                       [=] __device__(auto l, auto r) -> bool {
-                         auto l_column_id = thrust::get<0>(l);
-                         auto r_column_id = thrust::get<0>(r);
-                         if (l_column_id == r_column_id) {
-                           return thrust::get<1>(l).value < thrust::get<1>(r).value;
-                         }
-                         return l_column_id < r_column_id;
-                       });
+  thrust::merge_by_key(
+      thrust::cuda::par(alloc), x_merge_key_it, x_merge_key_it + d_x.size(),
+      y_merge_key_it, y_merge_key_it + d_y.size(), x_merge_val_it,
+      y_merge_val_it, thrust::make_discard_iterator(), merge_path.data(),
+      [=] __device__(auto const &l, auto const &r) -> bool {
+        auto l_column_id = thrust::get<0>(l);
+        auto r_column_id = thrust::get<0>(r);
+        if (l_column_id == r_column_id) {
+          return thrust::get<1>(l).value < thrust::get<1>(r).value;
+        }
+        return l_column_id < r_column_id;
+      });
 
   // Compute output ptr
-  auto transform_it = thrust::make_zip_iterator(thrust::make_tuple(x_ptr.data(), y_ptr.data()));
+  auto transform_it =
+      thrust::make_zip_iterator(thrust::make_tuple(x_ptr.data(), y_ptr.data()));
   thrust::transform(
       thrust::cuda::par(alloc), transform_it, transform_it + x_ptr.size(),
       out_ptr.data(),
-      [] __device__(auto t) { return thrust::get<0>(t) + thrust::get<1>(t); });
+      [] __device__(auto const& t) { return thrust::get<0>(t) + thrust::get<1>(t); });
 
   auto get_ind = []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<1>(t); };
   auto get_a =   []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<2>(t); };
@@ -120,11 +124,18 @@ void MergeImpl(int32_t device, Span<SketchEntry const> d_x, Span<bst_row_t const
 
   auto scan_val_it = dh::MakeTransformIterator<Tuple>(
       merge_path.data(), [=] __device__(Tuple const &t) -> Tuple {
-        auto ind = get_ind(t); // == 0 if element is from a
+        auto ind = get_ind(t);  // == 0 if element is from a
         // place_holder, place_holder, a_counter, b_counter
         return thrust::make_tuple(0u, 0u, !ind, ind);
       });
 
+  // Compute the index for both a and b (which of the element in a and b are used in each
+  // comparison) by scaning the binary merge path.  Take output [(a_0, b_0), (a_0, b_1),
+  // ...] as an example, the comparison between (a_0, b_0) adds 1 step in the merge path.
+  // Because b_0 is less than a_0 so this step is torward the end of b.  After the
+  // comparison, index of b is incremented by 1 from b_0 to b_1, and at the same time, b_0
+  // is landed into output as the first element in merge result.  The scan result is the
+  // subscript of a and b.
   thrust::exclusive_scan_by_key(
       thrust::cuda::par(alloc), scan_key_it, scan_key_it + merge_path.size(),
       scan_val_it,
@@ -212,138 +223,10 @@ void MergeImpl(int32_t device, Span<SketchEntry const> d_x, Span<bst_row_t const
   });
 }
 
-// Merge d_x and d_y into out.  Because the final output depends on predicate (which
-// summary does the output element come from) result by definition of merged rank.  So we
-// run it in 2 passes to obtain the merge path and then customize the standard merge
-// algorithm.
-void MergeImpl(Span<SketchEntry const> d_x, Span<SketchEntry const> d_y,
-               Span<SketchEntry> out) {
-  if (d_x.size() == 0) {
-    CopyTo(out, d_y);
-    return;
-  }
-  if (d_y.size() == 0) {
-    CopyTo(out, d_x);
-    return;
-  }
-
-  auto a_key_it = dh::MakeTransformIterator<float>(
-      d_x.data(), []__device__(SketchEntry const &e) { return e.value; });
-  auto b_key_it = dh::MakeTransformIterator<float>(
-      d_y.data(), []__device__(SketchEntry const &e) { return e.value; });
-
-  thrust::constant_iterator<int32_t> a_ind_iter(0);
-  thrust::constant_iterator<int32_t> b_ind_iter(1);
-
-  // allocate memory for later use in scan
-  auto place_holder = thrust::make_constant_iterator(-1);
-  auto x_val_it = thrust::make_zip_iterator(
-      thrust::make_tuple(place_holder, a_ind_iter, place_holder, place_holder));
-  auto y_val_it = thrust::make_zip_iterator(
-      thrust::make_tuple(place_holder, b_ind_iter, place_holder, place_holder));
-
-  using Tuple = thrust::tuple<uint32_t, uint32_t, uint32_t, uint32_t>;
-  auto get_ind = []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<1>(t); };
-  auto get_a =   []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<0>(t); };
-  auto get_b =   []XGBOOST_DEVICE(Tuple const& t) { return thrust::get<1>(t); };
-
-  dh::XGBCachingDeviceAllocator<Tuple> alloc;
-  static_assert(sizeof(Tuple) == sizeof(SketchEntry), "");
-  // We reuse the memory for storing merge path.
-  common::Span<Tuple> merge_path{reinterpret_cast<Tuple *>(out.data()), out.size()};
-  // Determine the merge path
-  thrust::merge_by_key(thrust::cuda::par(alloc),
-                       a_key_it, a_key_it + d_x.size(), b_key_it,
-                       b_key_it + d_y.size(), x_val_it, y_val_it,
-                       thrust::make_discard_iterator(), merge_path.data());
-  // Compute the index for both a and b (which of the element in a and b are used in each
-  // comparison) by scaning the binary merge path.  Take output [(a_0, b_0), (a_0, b_1),
-  // ...] as an example, the comparison between (a_0, b_0) adds 1 step in the merge path.
-  // Because b_0 is less than a_0 so this step is torward the end of b.  After the
-  // comparison, index of b is incremented by 1 from b_0 to b_1, and at the same time, b_0
-  // is landed into output as the first element in merge result.  The scan result is the
-  // subscript of a and b.
-  thrust::transform_exclusive_scan(
-      thrust::cuda::par(alloc), merge_path.data(), merge_path.data() + merge_path.size(),
-      merge_path.data(),
-      [=] __device__(Tuple const &t) {
-        auto ind = get_ind(t);  // == 0 if element is from a
-        // a_counter, b_counter
-        return thrust::make_tuple(!ind, ind, 0, 0);
-      },
-      thrust::make_tuple(0, 0, 0, 0),
-      [=] __device__(Tuple const &l, Tuple const &r) {
-        return thrust::make_tuple(get_a(l) + get_a(r), get_b(l) + get_b(r), 0, 0);
-      });
-
-  auto d_merge_path = merge_path;
-  auto d_out = Span<SketchEntry>{out.data(), d_x.size() + d_y.size()};
-
-  dh::LaunchN(0, d_out.size(), [=] __device__(size_t idx) {
-    uint32_t a_ind, b_ind, p_0, p_1;
-    thrust::tie(a_ind, b_ind, p_0, p_1) = d_merge_path[idx];
-    // Handle trailing elements.
-    assert(a_ind <= d_x.size());
-    if (a_ind == d_x.size()) {
-      // Trailing elements are from y because there's no more x to land.
-      auto y_elem = d_y[b_ind];
-      d_out[idx] = SketchEntry(y_elem.rmin + d_x.back().RMinNext(),
-                               y_elem.rmax + d_x.back().rmax,
-                               y_elem.wmin, y_elem.value);
-      return;
-    }
-    auto x_elem = d_x[a_ind];
-    assert(b_ind <= d_y.size());
-    if (b_ind == d_y.size()) {
-      d_out[idx] = SketchEntry(x_elem.rmin + d_y.back().RMinNext(),
-                               x_elem.rmax + d_y.back().rmax,
-                               x_elem.wmin, x_elem.value);
-      return;
-    }
-    auto y_elem = d_y[b_ind];
-
-    /* Merge procedure.  See A.3 merge operation eq (26) ~ (28).  The trick to interpret
-       it is rewriting the symbols on both side of equality.  Take eq (26) as an example:
-       Expand it according to definition of extended rank then rewrite it into:
-
-       If $k_i$ is the $i$ element in output and \textbf{comes from $D_1$}:
-
-         r_\bar{D}(k_i) = r_{\bar{D_1}}(k_i) + w_{\bar{{D_1}}}(k_i) +
-                                          [r_{\bar{D_2}}(x_i) + w_{\bar{D_2}}(x_i)]
-
-         Where $x_i$ is the largest element in $D_2$ that's less than $k_i$.  $k_i$ can be
-         used in $D_1$ as it's since $k_i \in D_1$.  Other 2 equations can be applied
-         similarly with $k_i$ comes from different $D$.  just use different symbol on
-         different source of summary.
-    */
-    assert(idx < d_out.size());
-    if (x_elem.value == y_elem.value) {
-      d_out[idx] =
-          SketchEntry{x_elem.rmin + y_elem.rmin, x_elem.rmax + y_elem.rmax,
-                      x_elem.wmin + y_elem.wmin, x_elem.value};
-    } else if (x_elem.value < y_elem.value) {
-      // elem from x is landed. yprev_min is the element in D_2 that's 1 rank less than
-      // x_elem if we put x_elem in D_2.
-      float yprev_min = b_ind == 0 ? 0.0f : d_y[b_ind - 1].RMinNext();
-      // rmin should be equal to x_elem.rmin + x_elem.wmin + yprev_min.  But for
-      // implementation, the weight is stored in a separated field and we compute the
-      // extended definition on the fly when needed.
-      d_out[idx] =
-          SketchEntry{x_elem.rmin + yprev_min, x_elem.rmax + y_elem.RMaxPrev(),
-                      x_elem.wmin, x_elem.value};
-    } else {
-      // elem from y is landed.
-      float xprev_min = a_ind == 0 ? 0.0f : d_x[a_ind - 1].RMinNext();
-      d_out[idx] =
-          SketchEntry{xprev_min + y_elem.rmin, x_elem.RMaxPrev() + y_elem.rmax,
-                      y_elem.wmin, y_elem.value};
-    }
-  });
-}
-
 void SketchContainer::Push(common::Span<OffsetT const> cuts_ptr,
                            dh::caching_device_vector<SketchEntry>* entries) {
   timer_.Start(__func__);
+  dh::safe_cuda(cudaSetDevice(device_));
   // Copy or merge the new cuts, pruning is performed during `MakeCuts`.
   if (this->Current().size() == 0) {
     CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
@@ -363,6 +246,7 @@ void SketchContainer::Push(common::Span<OffsetT const> cuts_ptr,
 
 size_t SketchContainer::Unique() {
   timer_.Start(__func__);
+  dh::safe_cuda(cudaSetDevice(device_));
   this->columns_ptr_.SetDevice(device_);
   Span<OffsetT> d_column_scan = this->columns_ptr_.DeviceSpan();
   CHECK_EQ(d_column_scan.size(), num_columns_ + 1);
@@ -387,6 +271,8 @@ size_t SketchContainer::Unique() {
 
 void SketchContainer::Prune(size_t to) {
   timer_.Start(__func__);
+  dh::safe_cuda(cudaSetDevice(device_));
+
   this->Unique();
   OffsetT to_total = 0;
   HostDeviceVector<OffsetT> new_columns_ptr{to_total};
@@ -444,6 +330,7 @@ void SketchContainer::Prune(size_t to) {
 
 void SketchContainer::Merge(Span<OffsetT const> d_that_columns_ptr,
                             Span<SketchEntry const> that) {
+  dh::safe_cuda(cudaSetDevice(device_));
   timer_.Start(__func__);
   if (this->Current().size() == 0) {
     CHECK_EQ(this->columns_ptr_.HostVector().back(), 0);
@@ -468,15 +355,15 @@ void SketchContainer::Merge(Span<OffsetT const> d_that_columns_ptr,
   MergeImpl(device_, this->Data(), this->ColumnsPtr(),
             that, d_that_columns_ptr,
             dh::ToSpan(this->Other()), new_columns_ptr.DeviceSpan());
-  this->columns_ptr_.Copy(new_columns_ptr);
-  // this->columns_ptr_.HostVector() = std::move(new_columns_ptr.HostVector());
+  this->columns_ptr_ = std::move(new_columns_ptr);
   CHECK_EQ(this->columns_ptr_.Size(), num_columns_ + 1);
-  // CHECK_EQ(this->columns_ptr_.HostVector().back(), this->Other().size());
+  CHECK_EQ(new_columns_ptr.Size(), 0);
   this->Alternate();
   timer_.Stop(__func__);
 }
 
 void SketchContainer::FixError() {
+  dh::safe_cuda(cudaSetDevice(device_));
   auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   auto in = dh::ToSpan(this->Current());
   dh::LaunchN(device_, in.size(), [=] __device__(size_t idx) {
@@ -520,6 +407,7 @@ void SketchContainer::AllReduce() {
   rabit::Allreduce<rabit::op::Max>(&n, 1);
   CHECK_EQ(n, d_columns_ptr.size()) << "Number of columns differs across workers";
 
+  // Get the columns ptr from all workers
   gathered_ptrs.resize(d_columns_ptr.size() * world, 0);
   size_t rank = rabit::GetRank();
   auto offset = rank * d_columns_ptr.size();
@@ -528,6 +416,7 @@ void SketchContainer::AllReduce() {
   reducer_->AllReduceSum(gathered_ptrs.data().get(), gathered_ptrs.data().get(),
                          gathered_ptrs.size());
 
+  // Get the data from all workers.
   std::vector<size_t> recv_lengths;
   dh::caching_device_vector<char> recvbuf;
   reducer_->AllGather(this->Current().data().get(),
@@ -535,6 +424,7 @@ void SketchContainer::AllReduce() {
                       &recvbuf);
   reducer_->Synchronize();
 
+  // Segment the received data.
   auto s_recvbuf = dh::ToSpan(recvbuf);
   std::vector<Span<SketchEntry>> allworkers;
   offset = 0;
@@ -547,6 +437,7 @@ void SketchContainer::AllReduce() {
     offset += length_as_bytes;
   }
 
+  // Merge them into current sketch.
   for (size_t i = 0; i < allworkers.size(); ++i) {
     if (i == rank) {
       continue;
@@ -563,6 +454,7 @@ void SketchContainer::AllReduce() {
 
 void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   timer_.Start(__func__);
+  dh::safe_cuda(cudaSetDevice(device_));
   p_cuts->min_vals_.Resize(num_columns_);
   size_t global_max_rows = num_rows_;
   rabit::Allreduce<rabit::op::Sum>(&global_max_rows, 1);
