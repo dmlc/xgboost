@@ -272,7 +272,7 @@ class XGBoostClassificationModel private[ml](
   }
 
   // Actually we don't use this function at all, to make it pass compiler check.
-  override protected def predictRaw(features: Vector): Vector = {
+  override def predictRaw(features: Vector): Vector = {
     throw new Exception("XGBoost-Spark does not support \'predictRaw\'")
   }
 
