@@ -109,34 +109,17 @@ std::string LoadSequentialFile(std::string fname) {
                  };
 
   std::string buffer;
-#if defined(__unix__)
-  struct stat fs;
-  if (stat(fname.c_str(), &fs) != 0) {
-    OpenErr();
-  }
-
-  size_t f_size_bytes = fs.st_size;
-  buffer.resize(f_size_bytes + 1);
-  int32_t fd = open(fname.c_str(), O_RDONLY);
-#if defined(__linux__)
-  posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
-#endif  // defined(__linux__)
-  ssize_t bytes_read = 0;
-  while (bytes_read < f_size_bytes) {
-    ssize_t result = read(fd, &buffer[bytes_read], f_size_bytes - bytes_read);
-    if (result < 0) {
-      close(fd);
-      ReadErr();
-    }
-    bytes_read += result;
-  }
-  close(fd);
+  // Open in binary mode so that correct file size can be computed with seekg().
+  // This accommodates Windows platform:
+  // https://docs.microsoft.com/en-us/cpp/standard-library/basic-istream-class?view=vs-2019#seekg
+  std::ifstream ifs(fname, std::ios_base::binary | std::ios_base::in);
+  ifs.seekg(0, std::ios_base::end);
+  const size_t file_size = static_cast<size_t>(ifs.tellg());
+  ifs.seekg(0, std::ios_base::beg);
+  buffer.resize(file_size + 1);
+  ifs.read(&buffer[0], file_size);
   buffer.back() = '\0';
-#else  // defined(__unix__)
-  std::ifstream ifs(fname);
-  buffer = std::string((std::istreambuf_iterator<char>(ifs)),
-                       (std::istreambuf_iterator<char>()));
-#endif  // defined(__unix__)
+
   return buffer;
 }
 

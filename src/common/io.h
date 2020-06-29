@@ -75,7 +75,6 @@ class FixedSizeStream : public PeekableInStream {
   std::string buffer_;
 };
 
-// Optimized for consecutive file loading in unix like systime.
 std::string LoadSequentialFile(std::string fname);
 
 inline std::string FileExtension(std::string const& fname) {
