@@ -16,10 +16,8 @@ using WQSketch = WQuantileSketch<bst_float, bst_float>;
 using SketchEntry = WQSketch::Entry;
 
 /*!
- * \brief A container that holds the device sketches across all sparse page batches which
- *  are distributed to different devices.  As sketches are aggregated by column, the mutex
- *  guards multiple devices pushing sketch summary for the same column across distinct
- *  rows.
+ * \brief A container that holds the device sketches.  Sketching is performed per-column,
+ *        but fused into single operation for performance.
  */
 class SketchContainer {
  public:
@@ -30,8 +28,8 @@ class SketchContainer {
  private:
   Monitor timer_;
   std::unique_ptr<dh::AllReducer> reducer_;
-  size_t num_rows_;
-  size_t num_columns_;
+  bst_row_t num_rows_;
+  bst_feature_t num_columns_;
   int32_t num_bins_;
   int32_t device_;
 
@@ -67,7 +65,7 @@ class SketchContainer {
   }
 
   // Get the span of one column.
-  Span<SketchEntry> Column(size_t i) {
+  Span<SketchEntry> Column(bst_feature_t i) {
     auto data = dh::ToSpan(this->Current());
     auto h_ptr = columns_ptr_.ConstHostSpan();
     auto c = data.subspan(h_ptr[i], h_ptr[i+1] - h_ptr[i]);
@@ -82,7 +80,7 @@ class SketchContainer {
    * \param num_rows    Total number of rows in known dataset (typically the rows in current worker).
    * \param device      GPU ID.
    */
-  SketchContainer(int max_bin, size_t num_columns, size_t num_rows, int32_t device) :
+  SketchContainer(int32_t max_bin, bst_feature_t num_columns, bst_row_t num_rows, int32_t device) :
       num_rows_{num_rows}, num_columns_{num_columns}, num_bins_{max_bin}, device_{device} {
     // Initialize Sketches for this dmatrix
     this->columns_ptr_.SetDevice(device_);

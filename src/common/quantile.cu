@@ -301,7 +301,7 @@ void SketchContainer::Prune(size_t to) {
   this->Unique();
   OffsetT to_total = 0;
   HostDeviceVector<OffsetT> new_columns_ptr{to_total};
-  for (size_t i = 0; i < num_columns_; ++i) {
+  for (bst_feature_t i = 0; i < num_columns_; ++i) {
     size_t length = this->Column(i).size();
     length = std::min(length, to);
     to_total += length;
@@ -508,7 +508,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   auto& h_out_columns_ptr = p_cuts->cut_ptrs_.HostVector();
   h_out_columns_ptr.clear();
   h_out_columns_ptr.push_back(0);
-  for (size_t i = 0; i < num_columns_; ++i) {
+  for (bst_feature_t i = 0; i < num_columns_; ++i) {
     h_out_columns_ptr.push_back(
         std::min(static_cast<size_t>(std::max(static_cast<size_t>(1ul),
                                               this->Column(i).size())),
