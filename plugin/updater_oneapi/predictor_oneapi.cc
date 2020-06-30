@@ -442,7 +442,7 @@ class PredictorOneAPI : public Predictor {
       device_matrix_cache_;
 };
 
-XGBOOST_REGISTER_PREDICTOR(PredictorOneAPI, "predictor_oneapi")
+XGBOOST_REGISTER_PREDICTOR(PredictorOneAPI, "oneapi_predictor")
 .describe("Make predictions using DPC++.")
 .set_body([](GenericParameter const* generic_param) {
             return new PredictorOneAPI(generic_param);

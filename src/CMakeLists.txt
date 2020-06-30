@@ -53,6 +53,7 @@ endif (USE_CUDA)
 
 #-- DPC++ support
 if (PLUGIN_UPDATER_ONEAPI)
+  target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_ONEAPI=1)
   set_source_files_properties(${PLUGINS_SOURCES_ONEAPI} PROPERTIES COMPILE_FLAGS -fsycl)
 endif (PLUGIN_UPDATER_ONEAPI)
 #-- End of DPC++ support
