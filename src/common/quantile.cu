@@ -54,21 +54,13 @@ void CopyTo(Span<T> out, Span<T const> src) {
                                 cudaMemcpyDefault));
 }
 
-// Merge d_x and d_y into out.  Because the final output depends on predicate (which
-// summary does the output element come from) result by definition of merged rank.  So we
-// run it in 2 passes to obtain the merge path and then customize the standard merge
-// algorithm.
-void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
+// Compute the merge path.
+auto MergePath(Span<SketchEntry const> const &d_x,
                Span<bst_row_t const> const &x_ptr,
                Span<SketchEntry const> const &d_y,
-               Span<bst_row_t const> const &y_ptr,
-               Span<SketchEntry> out,
-               Span<bst_row_t> out_ptr) {
-  CHECK_EQ(d_x.size() + d_y.size(), out.size());
-  CHECK_EQ(x_ptr.size(), out_ptr.size());
-  CHECK_EQ(y_ptr.size(), out_ptr.size());
-  dh::safe_cuda(cudaSetDevice(device));
-
+               Span<bst_row_t const> const &y_ptr, Span<SketchEntry> out,
+               Span<bst_row_t> out_ptr)
+    -> common::Span<thrust::tuple<uint32_t, uint32_t, uint32_t, uint32_t>> {
   auto x_merge_key_it = thrust::make_zip_iterator(thrust::make_tuple(
       dh::MakeTransformIterator<bst_row_t>(
           thrust::make_counting_iterator(0ul),
@@ -148,7 +140,25 @@ void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
         return thrust::make_tuple(0, 0, get_a(l) + get_a(r), get_b(l) + get_b(r));
       });
 
-  auto d_merge_path = merge_path;
+  return merge_path;
+}
+
+// Merge d_x and d_y into out.  Because the final output depends on predicate (which
+// summary does the output element come from) result by definition of merged rank.  So we
+// run it in 2 passes to obtain the merge path and then customize the standard merge
+// algorithm.
+void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
+               Span<bst_row_t const> const &x_ptr,
+               Span<SketchEntry const> const &d_y,
+               Span<bst_row_t const> const &y_ptr,
+               Span<SketchEntry> out,
+               Span<bst_row_t> out_ptr) {
+  dh::safe_cuda(cudaSetDevice(device));
+  CHECK_EQ(d_x.size() + d_y.size(), out.size());
+  CHECK_EQ(x_ptr.size(), out_ptr.size());
+  CHECK_EQ(y_ptr.size(), out_ptr.size());
+
+  auto d_merge_path = MergePath(d_x, x_ptr, d_y, y_ptr, out, out_ptr);
   auto d_out = out;
 
   dh::LaunchN(device, d_out.size(), [=] __device__(size_t idx) {
