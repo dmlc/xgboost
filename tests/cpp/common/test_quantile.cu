@@ -314,12 +314,13 @@ TEST(GPUQuantile, AllReduce) {
 
     std::vector<SketchEntry> distributed_data(sketch_distributed.Data().size());
     dh::CopyDeviceSpanToVector(&distributed_data, sketch_distributed.Data());
+    float Eps = 2e4 * world;
 
     for (size_t i = 0; i < single_node_data.size(); ++i) {
-      ASSERT_NEAR(single_node_data[i].value, distributed_data[i].value, kRtEps);
-      ASSERT_NEAR(single_node_data[i].rmax, distributed_data[i].rmax, kRtEps);
-      ASSERT_NEAR(single_node_data[i].rmin, distributed_data[i].rmin, kRtEps);
-      ASSERT_NEAR(single_node_data[i].wmin, distributed_data[i].wmin, kRtEps);
+      ASSERT_NEAR(single_node_data[i].value, distributed_data[i].value, Eps);
+      ASSERT_NEAR(single_node_data[i].rmax, distributed_data[i].rmax, Eps);
+      ASSERT_NEAR(single_node_data[i].rmin, distributed_data[i].rmin, Eps);
+      ASSERT_NEAR(single_node_data[i].wmin, distributed_data[i].wmin, Eps);
     }
   });
   rabit::Finalize();
