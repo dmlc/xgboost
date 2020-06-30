@@ -167,8 +167,8 @@ void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
     uint32_t a_ind, b_ind, _0, _1;
     thrust::tie(_0, _1, a_ind, b_ind) = d_path_column[idx];
 
-    // Handle empty column.  When both columns are empty, we should not have such
-    // column_id as result of binary search.
+    // Handle empty column.  When both columns are empty, we should not get this column_id
+    // as result of binary search.
     assert((d_x_column.size() != 0) || (d_y_column.size() != 0));
     if (d_x_column.size() == 0) {
       d_out_column[idx] = d_y_column[b_ind];
@@ -208,10 +208,10 @@ void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
          r_\bar{D}(k_i) = r_{\bar{D_1}}(k_i) + w_{\bar{{D_1}}}(k_i) +
                                           [r_{\bar{D_2}}(x_i) + w_{\bar{D_2}}(x_i)]
 
-         Where $x_i$ is the largest element in $D_2$ that's less than $k_i$.  $k_i$ can be
-         used in $D_1$ as it's since $k_i \in D_1$.  Other 2 equations can be applied
-         similarly with $k_i$ comes from different $D$.  just use different symbol on
-         different source of summary.
+       Where $x_i$ is the largest element in $D_2$ that's less than $k_i$.  $k_i$ can be
+       used in $D_1$ as it's since $k_i \in D_1$.  Other 2 equations can be applied
+       similarly with $k_i$ comes from different $D$.  just use different symbol on
+       different source of summary.
     */
     assert(idx < d_out_column.size());
     if (x_elem.value == y_elem.value) {
@@ -313,8 +313,9 @@ void SketchContainer::Prune(size_t to) {
                                 d_columns_ptr_in[column_id + 1] -
                                     d_columns_ptr_in[column_id]);
     idx -= d_columns_ptr_out[column_id];
-    // Input has lesser columns than to, just copy them to the output.  This is correct as
-    // the new output size is calculated based on both to and current column size.
+    // Input has lesser columns than `to`, just copy them to the output.  This is correct
+    // as the new output size is calculated based on both the size of `to` and current
+    // column.
     if (in_column.size() <= to) {
       out_column[idx] = in_column[idx];
       return;
@@ -473,10 +474,14 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   p_cuts->min_vals_.Resize(num_columns_);
   size_t global_max_rows = num_rows_;
   rabit::Allreduce<rabit::op::Sum>(&global_max_rows, 1);
+
+  // Sync between workers.
   size_t intermediate_num_cuts =
       std::min(global_max_rows, static_cast<size_t>(num_bins_ * kFactor));
   this->Prune(intermediate_num_cuts);
   this->AllReduce();
+
+  // Prune to final number of bins.
   this->Prune(num_bins_ + 1);
   this->Unique();
   this->FixError();

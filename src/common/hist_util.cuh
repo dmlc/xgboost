@@ -59,7 +59,7 @@ void ExtractWeightedCutsSparse(int device,
                                Span<size_t> column_sizes_scan,
                                Span<SketchEntry> cuts);
 
-// Get column size For adapter.
+// Get column size from adapter batch and for output cuts.
 template <typename Iter>
 void GetColumnSizesScan(int device, size_t num_columns, size_t num_cuts_per_feature,
                         Iter batch_iter, data::IsValidFunctor is_valid,
@@ -108,6 +108,7 @@ size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows);
 size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
                       size_t num_bins, bool with_weights);
 
+// Count the valid entries in each column and copy them out.
 template <typename AdapterBatch, typename BatchIter>
 void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter,
                             Range1d range, float missing,
@@ -228,6 +229,7 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
                                  is_valid);
     CHECK_EQ(retit - d_temp_weights.data(), d_temp_weights.size());
   } else {
+    CHECK_EQ(batch.NumRows(), weights.size());
     auto const weight_iter = dh::MakeTransformIterator<float>(
         thrust::make_counting_iterator(0lu),
         [=]__device__(size_t idx) -> float {
@@ -294,6 +296,16 @@ HistogramCuts AdapterDeviceSketch(AdapterT* adapter, int num_bins,
   return cuts;
 }
 
+/*
+ * \brief Perform sketching on GPU.
+ *
+ * \param batch            A batch from adapter.
+ * \param num_bins         Bins per column.
+ * \param missing          Floating point value that represents invalid value.
+ * \param sketch_container Container for output sketch.
+ * \param sketch_batch_num_elements Number of element per-sliding window, use it only for
+ *                                  testing.
+ */
 template <typename Batch>
 void AdapterDeviceSketch(Batch batch, int num_bins,
                          float missing, SketchContainer* sketch_container,
@@ -313,6 +325,12 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
   }
 }
 
+
+/*
+ * \brief Perform weighted sketching on GPU.
+ *
+ * When weight in info is empty, this function is equivalent to unweighted version.
+ */
 template <typename Batch>
 void AdapterDeviceSketchWeighted(Batch batch, int num_bins,
                                  MetaInfo const& info,
