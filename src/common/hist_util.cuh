@@ -318,6 +318,10 @@ void AdapterDeviceSketchWeighted(Batch batch, int num_bins,
                                  MetaInfo const& info,
                                  float missing, SketchContainer* sketch_container,
                                  size_t sketch_batch_num_elements = 0) {
+  if (info.weights_.Size() == 0) {
+    return AdapterDeviceSketch(batch, num_bins, missing, sketch_container, sketch_batch_num_elements);
+  }
+
   size_t num_rows = batch.NumRows();
   size_t num_cols = batch.NumCols();
   size_t num_cuts_per_feature = detail::RequiredSampleCutsPerColumn(num_bins, num_rows);

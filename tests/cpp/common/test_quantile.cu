@@ -16,7 +16,7 @@ TEST(GPUQuantile, Basic) {
   ASSERT_EQ(sketch.Data().size(), 0);
 }
 
-template <typename Fn> void RunWithSeedsAndBins(Fn fn) {
+template <typename Fn> void RunWithSeedsAndBins(size_t rows, Fn fn) {
   std::vector<int32_t> seeds(4);
   SimpleLCG lcg;
   SimpleRealUniformDistribution<float> dist(3, 1000);
@@ -26,18 +26,25 @@ template <typename Fn> void RunWithSeedsAndBins(Fn fn) {
   for (size_t i = 0; i < bins.size() - 1; ++i) {
     bins[i] = i * 35 + 2;
   }
-  bins.back() = 1080;  // provide a bin number greater than rows.
+  bins.back() = rows + 80;  // provide a bin number greater than rows.
+
+  std::vector<MetaInfo> infos(2);
+  auto& h_weights = infos.front().weights_.HostVector();
+  h_weights.resize(rows);
+  std::generate(h_weights.begin(), h_weights.end(), [&]() { return dist(&lcg); });
 
   for (auto seed : seeds) {
     for (auto n_bin : bins) {
-      fn(seed, n_bin);
+      for (auto const& info : infos) {
+        fn(seed, n_bin, info);
+      }
     }
   }
 }
 
 void TestSketchUnique(float sparsity) {
-  RunWithSeedsAndBins([sparsity](int32_t seed, size_t n_bins) {
-    constexpr size_t kRows = 1000, kCols = 100;
+  constexpr size_t kRows = 1000, kCols = 100;
+  RunWithSeedsAndBins(kRows, [kRows, kCols, sparsity](int32_t seed, size_t n_bins, MetaInfo const& info) {
     SketchContainer sketch(n_bins, kCols, kRows, 0);
 
     HostDeviceVector<float> storage;
@@ -46,8 +53,8 @@ void TestSketchUnique(float sparsity) {
                                     .Device(0)
                                     .GenerateArrayInterface(&storage);
     data::CupyAdapter adapter(interface_str);
-    AdapterDeviceSketch(adapter.Value(), n_bins,
-                        std::numeric_limits<float>::quiet_NaN(), &sketch);
+    AdapterDeviceSketchWeighted(adapter.Value(), n_bins, info,
+                                std::numeric_limits<float>::quiet_NaN(), &sketch);
     auto n_cuts = detail::RequiredSampleCutsPerColumn(n_bins, kRows);
 
     dh::caching_device_vector<size_t> column_sizes_scan;
@@ -80,20 +87,29 @@ TEST(GPUQuantile, Unique) {
   TestSketchUnique(0.5);
 }
 
+// if with_error is true, the test tolerates floating point error
 void TestQuantileElemRank(int32_t device, Span<SketchEntry const> in,
-                          Span<bst_row_t const> d_columns_ptr) {
-  dh::LaunchN(device, in.size(), [=] __device__(size_t idx) {
+                          Span<bst_row_t const> d_columns_ptr, bool with_error = false) {
+  dh::LaunchN(device, in.size(), [=]XGBOOST_DEVICE(size_t idx) {
     auto column_id = dh::SegmentId(d_columns_ptr, idx);
     auto in_column = in.subspan(d_columns_ptr[column_id],
                                 d_columns_ptr[column_id + 1] -
                                     d_columns_ptr[column_id]);
+    auto constexpr kEps = 1e-6f;
     idx -= d_columns_ptr[column_id];
     float prev_rmin = idx == 0 ? 0.0f : in_column[idx-1].rmin;
-    SPAN_CHECK(in_column[idx].rmin >= prev_rmin);
     float prev_rmax = idx == 0 ? 0.0f : in_column[idx-1].rmax;
-    SPAN_CHECK(in_column[idx].rmax >= prev_rmax);
     float rmin_next = in_column[idx].RMinNext();
-    SPAN_CHECK(in_column[idx].rmax >= rmin_next);
+
+    if (with_error) {
+      SPAN_CHECK(in_column[idx].rmin + in_column[idx].rmin * kEps >= prev_rmin);
+      SPAN_CHECK(in_column[idx].rmax + in_column[idx].rmin * kEps >= prev_rmax);
+      SPAN_CHECK(in_column[idx].rmax + in_column[idx].rmin * kEps >= rmin_next);
+    } else {
+      SPAN_CHECK(in_column[idx].rmin >= prev_rmin);
+      SPAN_CHECK(in_column[idx].rmax >= prev_rmax);
+      SPAN_CHECK(in_column[idx].rmax >= rmin_next);
+    }
   });
   // Force sync to terminate current test instead of a later one.
   dh::DebugSyncDevice(__FILE__, __LINE__);
@@ -101,8 +117,8 @@ void TestQuantileElemRank(int32_t device, Span<SketchEntry const> in,
 
 
 TEST(GPUQuantile, Prune) {
-  RunWithSeedsAndBins([](int32_t seed, size_t n_bins) {
-    constexpr size_t kRows = 1000, kCols = 100;
+  constexpr size_t kRows = 1000, kCols = 100;
+  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
     SketchContainer sketch(n_bins, kCols, kRows, 0);
 
     HostDeviceVector<float> storage;
@@ -111,8 +127,8 @@ TEST(GPUQuantile, Prune) {
                                     .Seed(seed)
                                     .GenerateArrayInterface(&storage);
     data::CupyAdapter adapter(interface_str);
-    AdapterDeviceSketch(adapter.Value(), n_bins,
-                        std::numeric_limits<float>::quiet_NaN(), &sketch);
+    AdapterDeviceSketchWeighted(adapter.Value(), n_bins, info,
+                                std::numeric_limits<float>::quiet_NaN(), &sketch);
     auto n_cuts = detail::RequiredSampleCutsPerColumn(n_bins, kRows);
     ASSERT_EQ(sketch.Data().size(), n_cuts * kCols);
 
@@ -181,8 +197,8 @@ TEST(GPUQuantile, MergeBasic) {
 }
 
 TEST(GPUQuantile, Merge) {
-  RunWithSeedsAndBins([](int32_t seed, size_t n_bins) {
-    constexpr size_t kRows = 1000, kCols = 100;
+  constexpr size_t kRows = 1000, kCols = 100;
+  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
     SketchContainer sketch_0(n_bins, kCols, kRows, 0);
     HostDeviceVector<float> storage_0;
     std::string interface_str_0 = RandomDataGenerator{kRows, kCols, 0}
@@ -190,8 +206,8 @@ TEST(GPUQuantile, Merge) {
                                       .Seed(seed)
                                       .GenerateArrayInterface(&storage_0);
     data::CupyAdapter adapter_0(interface_str_0);
-    AdapterDeviceSketch(adapter_0.Value(), n_bins,
-                        std::numeric_limits<float>::quiet_NaN(), &sketch_0);
+    AdapterDeviceSketchWeighted(adapter_0.Value(), n_bins, info,
+                                std::numeric_limits<float>::quiet_NaN(), &sketch_0);
 
     SketchContainer sketch_1(n_bins, kCols, kRows, 0);
     HostDeviceVector<float> storage_1;
@@ -200,14 +216,18 @@ TEST(GPUQuantile, Merge) {
                                       .Seed(seed)
                                       .GenerateArrayInterface(&storage_0);
     data::CupyAdapter adapter_1(interface_str_1);
-    AdapterDeviceSketch(adapter_1.Value(), n_bins,
-                        std::numeric_limits<float>::quiet_NaN(), &sketch_1);
+    AdapterDeviceSketchWeighted(adapter_1.Value(), n_bins, info,
+                                std::numeric_limits<float>::quiet_NaN(), &sketch_1);
 
     size_t size_before_merge = sketch_0.Data().size();
     sketch_0.Merge(sketch_1.ColumnsPtr(), sketch_1.Data());
-    TestQuantileElemRank(0, sketch_0.Data(), sketch_0.ColumnsPtr());
-    sketch_0.FixError();
-    TestQuantileElemRank(0, sketch_0.Data(), sketch_0.ColumnsPtr());
+    if (info.weights_.Size() != 0) {
+      TestQuantileElemRank(0, sketch_0.Data(), sketch_0.ColumnsPtr(), true);
+      sketch_0.FixError();
+      TestQuantileElemRank(0, sketch_0.Data(), sketch_0.ColumnsPtr(), false);
+    } else {
+      TestQuantileElemRank(0, sketch_0.Data(), sketch_0.ColumnsPtr());
+    }
 
     auto columns_ptr = sketch_0.ColumnsPtr();
     std::vector<bst_row_t> h_columns_ptr(columns_ptr.size());
@@ -242,9 +262,8 @@ TEST(GPUQuantile, AllReduce) {
       "DMLC_NUM_WORKER=" + std::to_string(n_gpus)};
   char* c_envs[] {&(envs[0][0]), &(envs[1][0]), &(envs[2][0])};
   rabit::Init(3, c_envs);
-
-  RunWithSeedsAndBins([n_gpus](int32_t seed, size_t n_bins) {
-    constexpr size_t kRows = 1000, kCols = 100;
+  constexpr size_t kRows = 1000, kCols = 100;
+  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
     // Set up single node version;
     SketchContainer sketch_on_single_node(n_bins, kCols, kRows, 0);
     auto world = rabit::GetWorldSize();
@@ -259,9 +278,9 @@ TEST(GPUQuantile, AllReduce) {
                                       .Seed(rank + seed)
                                       .GenerateArrayInterface(&storage);
       data::CupyAdapter adapter(interface_str);
-      AdapterDeviceSketch(adapter.Value(), n_bins,
-                          std::numeric_limits<float>::quiet_NaN(),
-                          &sketch_on_single_node);
+      AdapterDeviceSketchWeighted(adapter.Value(), n_bins, info,
+                                  std::numeric_limits<float>::quiet_NaN(),
+                                  &sketch_on_single_node);
     }
     sketch_on_single_node.Unique();
 
@@ -275,9 +294,9 @@ TEST(GPUQuantile, AllReduce) {
                                     .Seed(rank + seed)
                                     .GenerateArrayInterface(&storage);
     data::CupyAdapter adapter(interface_str);
-    AdapterDeviceSketch(adapter.Value(), n_bins,
-                        std::numeric_limits<float>::quiet_NaN(),
-                        &sketch_distributed);
+    AdapterDeviceSketchWeighted(adapter.Value(), n_bins, info,
+                                std::numeric_limits<float>::quiet_NaN(),
+                                &sketch_distributed);
     sketch_distributed.AllReduce();
     sketch_distributed.Unique();
 

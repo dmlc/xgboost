@@ -479,6 +479,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   this->AllReduce();
   this->Prune(num_bins_ + 1);
   this->Unique();
+  this->FixError();
 
   // Set up inputs
   auto d_in_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
