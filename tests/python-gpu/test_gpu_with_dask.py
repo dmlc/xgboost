@@ -123,6 +123,7 @@ class TestDistributedGPU(unittest.TestCase):
 
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.mgpu
+    @pytest.mark.gtest
     def test_quantile(self):
         if sys.platform.startswith("win"):
             pytest.skip("Skipping dask tests on Windows")
@@ -132,8 +133,7 @@ class TestDistributedGPU(unittest.TestCase):
                               '../build/testxgboost'}:
             if os.path.exists(possible_path):
                 exe = possible_path
-        if exe is None:
-            pytest.skip('No testxgboost executable found.')
+        assert exe, 'No testxgboost executable found.'
         test = "--gtest_filter=GPUQuantile.AllReduce"
 
         def runit(worker_addr, rabit_args):
@@ -160,4 +160,4 @@ class TestDistributedGPU(unittest.TestCase):
                 for ret in results:
                     msg = ret.stdout.decode('utf-8')
                     assert msg.find('1 test from GPUQuantile') != -1
-                    assert ret.returncode == 0
+                    assert ret.returncode == 0, msg
