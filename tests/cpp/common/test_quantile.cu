@@ -17,7 +17,7 @@ TEST(GPUQuantile, Basic) {
 }
 
 template <typename Fn> void RunWithSeedsAndBins(Fn fn) {
-  std::vector<int32_t> seeds(5);
+  std::vector<int32_t> seeds(4);
   SimpleLCG lcg;
   SimpleRealUniformDistribution<float> dist(3, 1000);
   std::generate(seeds.begin(), seeds.end(), [&](){ return dist(&lcg); });
@@ -49,11 +49,23 @@ void TestSketchUnique(float sparsity) {
     AdapterDeviceSketch(adapter.Value(), n_bins,
                         std::numeric_limits<float>::quiet_NaN(), &sketch);
     auto n_cuts = detail::RequiredSampleCutsPerColumn(n_bins, kRows);
+
+    dh::caching_device_vector<size_t> column_sizes_scan;
+    HostDeviceVector<size_t> cut_sizes_scan;
+    auto batch = adapter.Value();
+    data::IsValidFunctor is_valid(std::numeric_limits<float>::quiet_NaN());
+    auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
+        thrust::make_counting_iterator(0llu),
+        [=] __device__(size_t idx) { return batch.GetElement(idx); });
+    auto end = kCols * kRows;
+    detail::GetColumnSizesScan(0, kCols, n_cuts, batch_iter, is_valid, 0, end,
+                               &cut_sizes_scan, &column_sizes_scan);
+    auto const& cut_sizes = cut_sizes_scan.HostVector();
+
     if (sparsity == 0) {
       ASSERT_EQ(sketch.Data().size(), n_cuts * kCols);
     } else {
-      ASSERT_LT(sketch.Data().size(), n_cuts * kCols * (sparsity + 0.05));
-      ASSERT_GT(sketch.Data().size(), n_cuts * kCols * (sparsity - 0.05));
+      ASSERT_EQ(sketch.Data().size(), cut_sizes.back());
     }
 
     sketch.Unique();
@@ -65,7 +77,7 @@ void TestSketchUnique(float sparsity) {
 
 TEST(GPUQuantile, Unique) {
   TestSketchUnique(0);
-  // TestSketchUnique(0.5);
+  TestSketchUnique(0.5);
 }
 
 void TestQuantileElemRank(int32_t device, Span<SketchEntry const> in,
@@ -121,6 +133,53 @@ TEST(GPUQuantile, Prune) {
   });
 }
 
+TEST(GPUQuantile, MergeBasic) {
+  constexpr size_t kRows = 1000, kCols = 100;
+  size_t n_bins = 10;
+  SketchContainer sketch_0(n_bins, kCols, kRows, 0);
+  HostDeviceVector<float> storage_0;
+  std::string interface_str_0 =
+      RandomDataGenerator{kRows, kCols, 0}.Device(0).GenerateArrayInterface(
+          &storage_0);
+  data::CupyAdapter adapter_0(interface_str_0);
+  AdapterDeviceSketch(adapter_0.Value(), n_bins,
+                      std::numeric_limits<float>::quiet_NaN(), &sketch_0);
+
+  SketchContainer sketch_1(n_bins, kCols, kRows, 0);
+  HostDeviceVector<float> storage_1;
+  std::string interface_str_1 =
+      RandomDataGenerator{0, 0, 0}.Device(0).GenerateArrayInterface(
+          &storage_0);
+  data::CupyAdapter adapter_1(interface_str_1);
+  AdapterDeviceSketch(adapter_1.Value(), n_bins,
+                      std::numeric_limits<float>::quiet_NaN(), &sketch_1);
+  CHECK_EQ(sketch_1.Data().size(), 0);
+
+  std::vector<SketchEntry> entries_before(sketch_0.Data().size());
+  dh::CopyDeviceSpanToVector(&entries_before, sketch_0.Data());
+  std::vector<bst_row_t> ptrs_before(sketch_0.ColumnsPtr().size());
+  dh::CopyDeviceSpanToVector(&ptrs_before, sketch_0.ColumnsPtr());
+  // Merge an empty sketch
+  sketch_0.Merge(sketch_1.ColumnsPtr(), sketch_1.Data());
+
+  std::vector<SketchEntry> entries_after(sketch_0.Data().size());
+  dh::CopyDeviceSpanToVector(&entries_after, sketch_0.Data());
+  std::vector<bst_row_t> ptrs_after(sketch_0.ColumnsPtr().size());
+  dh::CopyDeviceSpanToVector(&ptrs_after, sketch_0.ColumnsPtr());
+
+  CHECK_EQ(entries_before.size(), entries_after.size());
+  CHECK_EQ(ptrs_before.size(), ptrs_after.size());
+  for (size_t i = 0; i < entries_before.size(); ++i) {
+    CHECK_EQ(entries_before[i].value, entries_after[i].value);
+    CHECK_EQ(entries_before[i].rmin, entries_after[i].rmin);
+    CHECK_EQ(entries_before[i].rmax, entries_after[i].rmax);
+    CHECK_EQ(entries_before[i].wmin, entries_after[i].wmin);
+  }
+  for (size_t i = 0; i < ptrs_before.size(); ++i) {
+    CHECK_EQ(ptrs_before[i], ptrs_after[i]);
+  }
+}
+
 TEST(GPUQuantile, Merge) {
   RunWithSeedsAndBins([](int32_t seed, size_t n_bins) {
     constexpr size_t kRows = 1000, kCols = 100;
@@ -140,7 +199,7 @@ TEST(GPUQuantile, Merge) {
                                       .Device(0)
                                       .Seed(seed)
                                       .GenerateArrayInterface(&storage_0);
-    data::CupyAdapter adapter_1(interface_str_0);
+    data::CupyAdapter adapter_1(interface_str_1);
     AdapterDeviceSketch(adapter_1.Value(), n_bins,
                         std::numeric_limits<float>::quiet_NaN(), &sketch_1);
 

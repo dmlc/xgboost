@@ -23,7 +23,7 @@ using WQSketch = DenseCuts::WQSketch;
 using SketchEntry = WQSketch::Entry;
 
 // Algorithm 4 in XGBoost's paper, using binary search to find i.
-__device__ SketchEntry BinarySearchQuery(Span<SketchEntry const> entries, float rank) {
+__device__ SketchEntry BinarySearchQuery(Span<SketchEntry const> const& entries, float rank) {
   assert(entries.size() >= 2);
   rank *= 2;
   if (rank < entries.front().rmin + entries.front().rmax) {
@@ -58,9 +58,12 @@ void CopyTo(Span<T> out, Span<T const> src) {
 // summary does the output element come from) result by definition of merged rank.  So we
 // run it in 2 passes to obtain the merge path and then customize the standard merge
 // algorithm.
-void MergeImpl(int32_t device, Span<SketchEntry const> d_x, Span<bst_row_t const> x_ptr,
-               Span<SketchEntry const> d_y, Span<bst_row_t const> y_ptr,
-               Span<SketchEntry> out, Span<bst_row_t> out_ptr) {
+void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
+               Span<bst_row_t const> const &x_ptr,
+               Span<SketchEntry const> const &d_y,
+               Span<bst_row_t const> const &y_ptr,
+               Span<SketchEntry> out,
+               Span<bst_row_t> out_ptr) {
   CHECK_EQ(d_x.size() + d_y.size(), out.size());
   CHECK_EQ(x_ptr.size(), out_ptr.size());
   CHECK_EQ(y_ptr.size(), out_ptr.size());
@@ -163,6 +166,18 @@ void MergeImpl(int32_t device, Span<SketchEntry const> d_x, Span<bst_row_t const
 
     uint32_t a_ind, b_ind, _0, _1;
     thrust::tie(_0, _1, a_ind, b_ind) = d_path_column[idx];
+
+    // Handle empty column.  When both columns are empty, we should not have such
+    // column_id as result of binary search.
+    assert((d_x_column.size() != 0) || (d_y_column.size() != 0));
+    if (d_x_column.size() == 0) {
+      d_out_column[idx] = d_y_column[b_ind];
+      return;
+    }
+    if (d_y_column.size() == 0) {
+      d_out_column[idx] = d_x_column[a_ind];
+      return;
+    }
 
     // Handle trailing elements.
     assert(a_ind <= d_x_column.size());
