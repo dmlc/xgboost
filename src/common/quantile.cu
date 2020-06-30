@@ -279,7 +279,7 @@ size_t SketchContainer::Unique() {
   this->columns_ptr_.Copy(scan_out);
   CHECK(!this->columns_ptr_.HostCanRead());
 
-  this->Current().resize(n_uniques, SketchEntry{0, 0, 0, 0});
+  this->Current().resize(n_uniques);
   timer_.Stop(__func__);
   return n_uniques;
 }
@@ -298,7 +298,7 @@ void SketchContainer::Prune(size_t to) {
     new_columns_ptr.HostVector().emplace_back(to_total);
   }
   new_columns_ptr.SetDevice(device_);
-  this->Other().resize(to_total, SketchEntry{0, 0, 0, 0});
+  this->Other().resize(to_total);
 
   auto d_columns_ptr_in = this->columns_ptr_.ConstDeviceSpan();
   auto d_columns_ptr_out = new_columns_ptr.ConstDeviceSpan();
@@ -356,13 +356,13 @@ void SketchContainer::Merge(Span<OffsetT const> d_that_columns_ptr,
                  d_that_columns_ptr.data() + d_that_columns_ptr.size(),
                  this->columns_ptr_.DevicePointer());
     auto total = this->columns_ptr_.HostVector().back();
-    this->Current().resize(total, SketchEntry{0, 0, 0, 0});
+    this->Current().resize(total);
     CopyTo(dh::ToSpan(this->Current()), that);
     timer_.Stop(__func__);
     return;
   }
 
-  this->Other().resize(this->Current().size() + that.size(), SketchEntry{0, 0, 0, 0});
+  this->Other().resize(this->Current().size() + that.size());
   CHECK_EQ(d_that_columns_ptr.size(), this->columns_ptr_.Size());
 
   HostDeviceVector<OffsetT> new_columns_ptr;
