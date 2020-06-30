@@ -55,12 +55,10 @@ void CopyTo(Span<T> out, Span<T const> src) {
 }
 
 // Compute the merge path.
-auto MergePath(Span<SketchEntry const> const &d_x,
-               Span<bst_row_t const> const &x_ptr,
-               Span<SketchEntry const> const &d_y,
-               Span<bst_row_t const> const &y_ptr, Span<SketchEntry> out,
-               Span<bst_row_t> out_ptr)
-    -> common::Span<thrust::tuple<uint32_t, uint32_t, uint32_t, uint32_t>> {
+common::Span<thrust::tuple<uint32_t, uint32_t, uint32_t, uint32_t>> MergePath(
+    Span<SketchEntry const> const &d_x, Span<bst_row_t const> const &x_ptr,
+    Span<SketchEntry const> const &d_y, Span<bst_row_t const> const &y_ptr,
+    Span<SketchEntry> out, Span<bst_row_t> out_ptr) {
   auto x_merge_key_it = thrust::make_zip_iterator(thrust::make_tuple(
       dh::MakeTransformIterator<bst_row_t>(
           thrust::make_counting_iterator(0ul),
