@@ -5,6 +5,7 @@
  * \brief A simple example of using xgboost C API.
  */
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <xgboost/c_api.h>
@@ -83,6 +84,30 @@ int main(int argc, char** argv) {
     printf("%1.4f ", out_result[i]);
   }
   printf("\n");
+
+  {
+    printf("Dense Matrix Example (XGDMatrixCreateFromMat): ");
+
+    const float values[] = {0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0,
+      1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
+      0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0,
+      1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      1, 0, 0, 0, 0, 1};
+
+    DMatrixHandle dmat;
+    safe_xgboost(XGDMatrixCreateFromMat(values, 1, 127, 0.0, &dmat));
+
+    bst_ulong out_len = 0;
+    const float* out_result = NULL;
+
+    safe_xgboost(XGBoosterPredict(booster, dmat, 0, 0, 0, &out_len,
+          &out_result));
+    assert(out_len == 1);
+
+    printf("%1.4f \n", out_result[0]);
+    safe_xgboost(XGDMatrixFree(dmat));
+  }
 
   // free everything
   safe_xgboost(XGBoosterFree(booster));
