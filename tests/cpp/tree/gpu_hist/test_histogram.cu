@@ -7,11 +7,12 @@ namespace xgboost {
 namespace tree {
 
 template <typename Gradient>
-void TestDeterminsticHistogram() {
+void TestDeterminsticHistogram(bool is_dense, int shm_size) {
   size_t constexpr kBins = 24, kCols = 8, kRows = 32768, kRounds = 16;
   float constexpr kLower = -1e-2, kUpper = 1e2;
 
-  auto matrix = RandomDataGenerator(kRows, kCols, 0.5).GenerateDMatrix();
+  float sparsity = is_dense ? 0.0f : 0.5f;
+  auto matrix = RandomDataGenerator(kRows, kCols, sparsity).GenerateDMatrix();
   BatchParam batch_param{0, static_cast<int32_t>(kBins), 0};
 
   for (auto const& batch : matrix->GetBatches<EllpackPage>(batch_param)) {
@@ -27,7 +28,6 @@ void TestDeterminsticHistogram() {
     gpair.SetDevice(0);
 
     FeatureGroups feature_groups;
-    int shm_size = 48 * 1024;  // 48 KiB
     feature_groups.Init<Gradient>(page->Cuts(), page->is_dense, shm_size);
     
     auto rounding = CreateRoundingFactor<Gradient>(gpair.DeviceSpan());
@@ -69,8 +69,14 @@ void TestDeterminsticHistogram() {
 }
 
 TEST(Histogram, GPUDeterminstic) {
-  TestDeterminsticHistogram<GradientPair>();
-  TestDeterminsticHistogram<GradientPairPrecise>();
+  std::vector<bool> is_dense_array{false, true};
+  std::vector<int> shm_sizes{48 * 1024, 64 * 1024, 96 * 1024};
+  for (bool is_dense : is_dense_array) {
+    for (int shm_size : shm_sizes) {
+      TestDeterminsticHistogram<GradientPair>(is_dense, shm_size);
+      TestDeterminsticHistogram<GradientPairPrecise>(is_dense, shm_size);
+    }
+  }
 }
 }  // namespace tree
 }  // namespace xgboost
