@@ -131,7 +131,7 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
       // global memory
       GradientSumT* atomic_add_ptr =
         use_shared_memory_histograms ? smem_arr : d_node_hist;
-      gidx -= group.start_bin;
+      gidx = use_shared_memory_histograms ? gidx - group.start_bin : gidx;
       dh::AtomicAddGpair(atomic_add_ptr + gidx, truncated);
     }
   }
