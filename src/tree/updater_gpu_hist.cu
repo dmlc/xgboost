@@ -26,6 +26,7 @@
 #include "param.h"
 #include "updater_gpu_common.cuh"
 #include "constraints.cuh"
+#include "gpu_hist/feature_groups.cuh"
 #include "gpu_hist/gradient_based_sampler.cuh"
 #include "gpu_hist/row_partitioner.cuh"
 #include "gpu_hist/histogram.cuh"
@@ -203,9 +204,7 @@ struct GPUHistMakerDevice {
 
   std::unique_ptr<GradientBasedSampler> sampler;
 
-  HostDeviceVector<int> bin_groups;
-  HostDeviceVector<int> feature_groups;
-  int max_group_bins;
+  FeatureGroups feature_groups;
 
   GPUHistMakerDevice(int _device_id,
                      EllpackPageImpl* _page,
@@ -233,7 +232,8 @@ struct GPUHistMakerDevice {
     // Init histogram
     hist.Init(device_id, page->Cuts().TotalBins());
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(device_id));
-    InitFeatureGroups();
+    feature_groups.Init<GradientSumT>(page->Cuts(), page->is_dense,
+                                      int(dh::MaxSharedMemoryOptin(device_id)));
   }
 
   ~GPUHistMakerDevice() {  // NOLINT
@@ -241,43 +241,6 @@ struct GPUHistMakerDevice {
     for (auto& stream : streams) {
       dh::safe_cuda(cudaStreamDestroy(stream));
     }
-  }
-
-  void InitFeatureGroups() {
-    bin_groups.SetDevice(device_id);
-    feature_groups.SetDevice(device_id);
-    std::vector<int>& bin_groups_h = bin_groups.HostVector();
-    std::vector<int>& feature_groups_h = feature_groups.HostVector();
-    bin_groups_h.push_back(0);
-    feature_groups_h.push_back(0);
-
-    // Don't use feature groups for sparse matrices
-    bool single_group = !page->is_dense;
-    if (single_group) {
-      feature_groups_h.push_back(page->Cuts().Ptrs().size() - 1);
-      bin_groups_h.push_back(page->Cuts().TotalBins());
-      max_group_bins = page->Cuts().TotalBins();
-      return;
-    }
-
-    const std::vector<uint32_t>& cut_ptrs = page->Cuts().Ptrs();
-    int max_shmem_bins = dh::MaxSharedMemoryOptin(device_id) / sizeof(GradientSumT);
-    max_group_bins = 0;
-
-    for (size_t i = 2; i < cut_ptrs.size(); ++i) {
-      int last_start = bin_groups_h.back();
-      if (cut_ptrs[i] - last_start > max_shmem_bins) {
-        bin_groups_h.push_back(cut_ptrs[i - 1]);
-        feature_groups_h.push_back(i - 1);
-        max_group_bins = std::max(max_group_bins, bin_groups_h.back() -
-                                  last_start);
-      }
-    }
-    bin_groups_h.push_back(cut_ptrs.back());
-    feature_groups_h.push_back(cut_ptrs.size() - 1);
-    max_group_bins = std::max(max_group_bins,
-                              bin_groups_h.back() -
-                              bin_groups_h[bin_groups_h.size() - 2]);
   }
 
   // Get vector of at least n initialised streams
@@ -414,9 +377,9 @@ struct GPUHistMakerDevice {
     hist.AllocateHistogram(nidx);
     auto d_node_hist = hist.GetNodeHistogram(nidx);
     auto d_ridx = row_partitioner->GetRows(nidx);
-    BuildGradientHistogram(page->GetDeviceAccessor(device_id), gpair, d_ridx,
-                           feature_groups.ConstDeviceSpan(), bin_groups.ConstDeviceSpan(),
-                           d_node_hist, histogram_rounding, max_group_bins);
+    BuildGradientHistogram(page->GetDeviceAccessor(device_id),
+                           feature_groups.DeviceAccessor(device_id), gpair, d_ridx,
+                           d_node_hist, histogram_rounding);
   }
 
   void SubtractionTrick(int nidx_parent, int nidx_histogram,

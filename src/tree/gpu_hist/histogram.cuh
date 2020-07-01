@@ -4,6 +4,9 @@
 #ifndef HISTOGRAM_CUH_
 #define HISTOGRAM_CUH_
 #include <thrust/transform.h>
+
+#include "feature_groups.cuh"
+
 #include "../../data/ellpack_page.cuh"
 
 namespace xgboost {
@@ -19,12 +22,11 @@ DEV_INLINE T TruncateWithRoundingFactor(T const rounding_factor, float const x) 
 
 template <typename GradientSumT>
 void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
+                            FeatureGroupsAccessor const& feature_groups,
                             common::Span<GradientPair const> gpair,
                             common::Span<const uint32_t> ridx,
-                            common::Span<int const> feature_groups,
-                            common::Span<int const> bin_groups,
                             common::Span<GradientSumT> histogram,
-                            GradientSumT rounding, int max_group_bins);
+                            GradientSumT rounding);
 }  // namespace tree
 }  // namespace xgboost
 

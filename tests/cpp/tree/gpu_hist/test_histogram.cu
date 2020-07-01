@@ -25,28 +25,24 @@ void TestDeterminsticHistogram() {
     auto d_histogram = dh::ToSpan(histogram);
     auto gpair = GenerateRandomGradients(kRows, kLower, kUpper);
     gpair.SetDevice(0);
-    
-    HostDeviceVector<int> feature_groups{0, static_cast<int>(kCols)};
-    feature_groups.SetDevice(0);
-    
-    HostDeviceVector<int> bin_groups{0, num_bins};
-    bin_groups.SetDevice(0);
 
+    FeatureGroups feature_groups;
+    int shm_size = 48 * 1024;  // 48 KiB
+    feature_groups.Init<Gradient>(page->Cuts(), page->is_dense, shm_size);
+    
     auto rounding = CreateRoundingFactor<Gradient>(gpair.DeviceSpan());
-    BuildGradientHistogram(page->GetDeviceAccessor(0), gpair.DeviceSpan(), ridx,
-                           feature_groups.ConstDeviceSpan(),
-                           bin_groups.ConstDeviceSpan(), d_histogram, rounding,
-                           num_bins);
+    BuildGradientHistogram(page->GetDeviceAccessor(0),
+                           feature_groups.DeviceAccessor(0), gpair.DeviceSpan(),
+                           ridx, d_histogram, rounding);
 
     for (size_t i = 0; i < kRounds; ++i) {
       dh::device_vector<Gradient> new_histogram(kBins * kCols);
       auto d_histogram = dh::ToSpan(new_histogram);
 
       auto rounding = CreateRoundingFactor<Gradient>(gpair.DeviceSpan());
-      BuildGradientHistogram(page->GetDeviceAccessor(0), gpair.DeviceSpan(), ridx,
-                             feature_groups.ConstDeviceSpan(),
-                             bin_groups.ConstDeviceSpan(), d_histogram,
-                             rounding, num_bins);
+      BuildGradientHistogram(page->GetDeviceAccessor(0),
+                             feature_groups.DeviceAccessor(0),
+                             gpair.DeviceSpan(), ridx,  d_histogram, rounding);
 
       for (size_t j = 0; j < new_histogram.size(); ++j) {
         ASSERT_EQ(((Gradient)new_histogram[j]).GetGrad(),
@@ -60,10 +56,10 @@ void TestDeterminsticHistogram() {
       auto gpair = GenerateRandomGradients(kRows, kLower, kUpper);
       gpair.SetDevice(0);
       dh::device_vector<Gradient> baseline(kBins * kCols);
-      BuildGradientHistogram(page->GetDeviceAccessor(0), gpair.DeviceSpan(), ridx,
-                             feature_groups.ConstDeviceSpan(),
-                             bin_groups.ConstDeviceSpan(), dh::ToSpan(baseline),
-                             rounding, num_bins);
+      BuildGradientHistogram(page->GetDeviceAccessor(0),
+                             feature_groups.DeviceAccessor(0),
+                             gpair.DeviceSpan(), ridx, dh::ToSpan(baseline),
+                             rounding);
       for (size_t i = 0; i < baseline.size(); ++i) {
         EXPECT_NEAR(((Gradient)baseline[i]).GetGrad(), ((Gradient)histogram[i]).GetGrad(),
                     ((Gradient)baseline[i]).GetGrad() * 1e-3);
