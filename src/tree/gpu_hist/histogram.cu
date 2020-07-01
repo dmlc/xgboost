@@ -182,10 +182,22 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   int n_blocks_per_mp = 0;
   dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor
                 (&n_blocks_per_mp, kernel, block_threads, smem_size));
-  // TODO(canonizer): This is really a hack, find a better way to distribute the data
-  // among thread blocks
   unsigned grid_size = n_blocks_per_mp * n_mps;
-  grid_size = common::DivRoundUp(grid_size, common::DivRoundUp(num_groups, 4));
+  
+  // TODO(canonizer): This is really a hack, find a better way to distribute the
+  // data among thread blocks.
+  // The intention is to generate enough thread blocks to fill the GPU, but
+  // avoid having too many thread blocks, as this is less efficient when the
+  // number of rows is low. At least one thread block per feature group is
+  // required.
+  // The number of thread blocks:
+  // - for num_groups <= num_groups_threshold, around  grid_size * num_groups
+  // - for num_groups_threshold <= num_groups <= num_groups_threshold * grid_size,
+  //     around grid_size * num_groups_threshold
+  // - for num_groups_threshold * grid_size <= num_groups, around num_groups
+  int num_groups_threshold = 4;
+  grid_size = common::DivRoundUp(grid_size,
+      common::DivRoundUp(num_groups, num_groups_threshold));
 
   dh::LaunchKernel {dim3(grid_size, num_groups), block_threads, smem_size} (
       kernel,
