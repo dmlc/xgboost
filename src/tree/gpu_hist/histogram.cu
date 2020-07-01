@@ -183,7 +183,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   dh::safe_cuda(cudaOccupancyMaxActiveBlocksPerMultiprocessor
                 (&n_blocks_per_mp, kernel, block_threads, smem_size));
   unsigned grid_size = n_blocks_per_mp * n_mps;
-  
+
   // TODO(canonizer): This is really a hack, find a better way to distribute the
   // data among thread blocks.
   // The intention is to generate enough thread blocks to fill the GPU, but

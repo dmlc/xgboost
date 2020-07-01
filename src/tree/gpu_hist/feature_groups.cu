@@ -2,6 +2,8 @@
  * Copyright 2020 by XGBoost Contributors
  */
 
+#include <algorithm>
+#include <vector>
 #include <xgboost/base.h>
 
 #include "feature_groups.cuh"
