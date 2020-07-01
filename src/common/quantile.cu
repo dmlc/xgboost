@@ -253,7 +253,9 @@ void SketchContainer::Push(common::Span<OffsetT const> cuts_ptr,
   // Copy or merge the new cuts, pruning is performed during `MakeCuts`.
   if (this->Current().size() == 0) {
     CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
-    std::swap(this->Current(), *entries);
+    // See thrust issue 1030, THRUST_CPP_DIALECT is not correctly defined so
+    // move constructor is not used.
+    this->Current().swap(*entries);
     CHECK_EQ(entries->size(), 0);
     auto d_cuts_ptr = this->columns_ptr_.DevicePointer();
     thrust::copy(thrust::device, cuts_ptr.data(),
