@@ -52,9 +52,8 @@ struct FeatureGroupsAccessor {
 
   /** \brief Gets the information about a feature group with index i. */
   __host__ __device__ FeatureGroup operator[](int i) const {
-    return FeatureGroup(feature_segments[i],
-                        feature_segments[i + 1] - feature_segments[i],
-                        bin_segments[i], bin_segments[i + 1] - bin_segments[i]);
+    return {feature_segments[i], feature_segments[i + 1] - feature_segments[i],
+        bin_segments[i], bin_segments[i + 1] - bin_segments[i]};
   }
 };
 
@@ -98,9 +97,8 @@ struct FeatureGroups {
   FeatureGroupsAccessor DeviceAccessor(int device) const {
     feature_segments.SetDevice(device);
     bin_segments.SetDevice(device);
-    return FeatureGroupsAccessor(feature_segments.ConstDeviceSpan(),
-                                 bin_segments.ConstDeviceSpan(),
-                                 max_group_bins);
+    return {feature_segments.ConstDeviceSpan(), bin_segments.ConstDeviceSpan(),
+        max_group_bins};
   }
 }; 
 
