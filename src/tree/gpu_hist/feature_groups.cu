@@ -14,9 +14,8 @@
 namespace xgboost {
 namespace tree {
 
-template <typename GradientSumT>
-void FeatureGroups::Init(const common::HistogramCuts& cuts, bool is_dense,
-                         int shm_size) {
+FeatureGroups::FeatureGroups(const common::HistogramCuts& cuts, bool is_dense,
+                             size_t shm_size, size_t bin_size) {
   // Only use a single feature group for sparse matrices.
   bool single_group = !is_dense;
   if (single_group) {
@@ -30,7 +29,7 @@ void FeatureGroups::Init(const common::HistogramCuts& cuts, bool is_dense,
   bin_segments_h.push_back(0);
 
   const std::vector<uint32_t>& cut_ptrs = cuts.Ptrs();
-  int max_shmem_bins = shm_size / sizeof(GradientSumT);
+  int max_shmem_bins = shm_size / bin_size;
   max_group_bins = 0;
 
   for (size_t i = 2; i < cut_ptrs.size(); ++i) {
@@ -60,12 +59,6 @@ void FeatureGroups::InitSingle(const common::HistogramCuts& cuts) {
 
   max_group_bins = cuts.TotalBins();
 }
-
-template void FeatureGroups::Init<GradientPair>(
-    const common::HistogramCuts& cuts, bool is_dense, int shm_size);
-
-template void FeatureGroups::Init<GradientPairPrecise>(
-    const common::HistogramCuts& cuts, bool is_dense, int shm_size);
 
 }  // namespace tree
 }  // namespace xgboost

@@ -28,8 +28,8 @@ void TestDeterministicHistogram(bool is_dense, int shm_size) {
     auto gpair = GenerateRandomGradients(kRows, kLower, kUpper);
     gpair.SetDevice(0);
 
-    FeatureGroups feature_groups;
-    feature_groups.Init<Gradient>(page->Cuts(), page->is_dense, shm_size);
+    FeatureGroups feature_groups(page->Cuts(), page->is_dense, shm_size,
+                                 sizeof(Gradient));
     
     auto rounding = CreateRoundingFactor<Gradient>(gpair.DeviceSpan());
     BuildGradientHistogram(page->GetDeviceAccessor(0),
@@ -66,8 +66,7 @@ void TestDeterministicHistogram(bool is_dense, int shm_size) {
       gpair.SetDevice(0);
 
       // Use a single feature group to compute the baseline.
-      FeatureGroups single_group;
-      single_group.InitSingle(page->Cuts());
+      FeatureGroups single_group(page->Cuts());
       
       dh::device_vector<Gradient> baseline(num_bins);
       BuildGradientHistogram(page->GetDeviceAccessor(0),

@@ -85,20 +85,22 @@ struct FeatureGroups {
       shared memory when launching a kernel. */
   int max_group_bins;
   
-  /** Splits the features into groups.
-      \tparam GradientSumT Type that is used for histogram bins.
+  /** Creates feature groups by splitting features into groups.
       \param cuts Histogram cuts that given the number of bins per feature.
       \param is_dense Whether the data matrix is dense.
       \param shm_size Available size of shared memory per thread block (in
-      bytes) used to compute feature groups. */
-  template <typename GradientSumT>
-  void Init(const common::HistogramCuts& cuts, bool is_dense, int shm_size);
+      bytes) used to compute feature groups.
+      \param bin_size Size of a single bin of the histogram. */
+  FeatureGroups(const common::HistogramCuts& cuts, bool is_dense,
+                size_t shm_size, size_t bin_size);
 
   /** Creates a single feature group containing all features and bins.
       \notes This is used as a fallback for sparse matrices, and is also useful
       for testing.
    */
-  void InitSingle(const common::HistogramCuts& cuts);
+  FeatureGroups(const common::HistogramCuts& cuts) {
+    InitSingle(cuts);
+  }
 
   FeatureGroupsAccessor DeviceAccessor(int device) const {
     feature_segments.SetDevice(device);
@@ -106,6 +108,9 @@ struct FeatureGroups {
     return {feature_segments.ConstDeviceSpan(), bin_segments.ConstDeviceSpan(),
         max_group_bins};
   }
+
+private:
+  void InitSingle(const common::HistogramCuts& cuts);
 }; 
 
 }  // namespace tree

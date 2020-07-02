@@ -204,7 +204,7 @@ struct GPUHistMakerDevice {
 
   std::unique_ptr<GradientBasedSampler> sampler;
 
-  FeatureGroups feature_groups;
+  std::unique_ptr<FeatureGroups> feature_groups;
 
   GPUHistMakerDevice(int _device_id,
                      EllpackPageImpl* _page,
@@ -232,9 +232,9 @@ struct GPUHistMakerDevice {
     // Init histogram
     hist.Init(device_id, page->Cuts().TotalBins());
     monitor.Init(std::string("GPUHistMakerDevice") + std::to_string(device_id));
-    feature_groups.Init<GradientSumT>(
-        page->Cuts(), page->is_dense,
-        static_cast<int>(dh::MaxSharedMemoryOptin(device_id)));
+    feature_groups.reset(new FeatureGroups(
+        page->Cuts(), page->is_dense, dh::MaxSharedMemoryOptin(device_id),
+        sizeof(GradientSumT)));
   }
 
   ~GPUHistMakerDevice() {  // NOLINT
@@ -379,8 +379,8 @@ struct GPUHistMakerDevice {
     auto d_node_hist = hist.GetNodeHistogram(nidx);
     auto d_ridx = row_partitioner->GetRows(nidx);
     BuildGradientHistogram(page->GetDeviceAccessor(device_id),
-                           feature_groups.DeviceAccessor(device_id), gpair, d_ridx,
-                           d_node_hist, histogram_rounding);
+                           feature_groups->DeviceAccessor(device_id), gpair,
+                           d_ridx, d_node_hist, histogram_rounding);
   }
 
   void SubtractionTrick(int nidx_parent, int nidx_histogram,
