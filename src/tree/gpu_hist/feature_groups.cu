@@ -50,7 +50,7 @@ void FeatureGroups::Init(const common::HistogramCuts& cuts, bool is_dense,
 }
 
 void FeatureGroups::InitSingle(const common::HistogramCuts& cuts) {
-  std::vector<int>& feature_segments_h = feature_segments.HostVector();  
+  std::vector<int>& feature_segments_h = feature_segments.HostVector();
   feature_segments_h.push_back(0);
   feature_segments_h.push_back(cuts.Ptrs().size() - 1);
 
@@ -58,7 +58,7 @@ void FeatureGroups::InitSingle(const common::HistogramCuts& cuts) {
   bin_segments_h.push_back(0);
   bin_segments_h.push_back(cuts.TotalBins());
 
-  max_group_bins = cuts.TotalBins();  
+  max_group_bins = cuts.TotalBins();
 }
 
 template void FeatureGroups::Init<GradientPair>(
