@@ -431,7 +431,7 @@ class MultiExactUpdater : public TreeUpdater  {
               DMatrix* data,
               const std::vector<RegTree*>& trees) override {
     CHECK_NE(trees.size(), 0);
-    if (trees.front()->Kind() == RegTree::kSingle) {
+    if (trees.front()->Kind() == OutputType::kSingle) {
       single_.Update(gpair, data, trees);
     } else {
       multi_.Update(gpair, data, trees);

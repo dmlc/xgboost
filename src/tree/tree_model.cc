@@ -613,7 +613,7 @@ constexpr bst_node_t RegTree::kRoot;
 std::string RegTree::DumpModel(const FeatureMap& fmap,
                                bool with_stats,
                                std::string format) const {
-  CHECK_EQ(Kind(), kSingle)
+  CHECK_EQ(Kind(), OutputType::kSingle)
       << "Dump model is not available for multi-target tree.";
   std::unique_ptr<TreeGenerator> builder {
     TreeGenerator::Create(format, fmap, with_stats)
@@ -625,7 +625,7 @@ std::string RegTree::DumpModel(const FeatureMap& fmap,
 }
 
 bool RegTree::Equal(const RegTree& b) const {
-  CHECK_EQ(Kind(), kSingle);
+  CHECK_EQ(Kind(), OutputType::kSingle);
   if (NumExtraNodes() != b.NumExtraNodes()) {
     return false;
   }
@@ -666,7 +666,7 @@ bst_node_t RegTree::GetNumSplitNodes() const {
 }
 
 void RegTree::Load(dmlc::Stream* fi) {
-  CHECK_NE(Kind(), kMulti) << "Multi-target tree requires JSON serialization format.";
+  CHECK_NE(Kind(), OutputType::kMulti) << "Multi-target tree requires JSON serialization format.";
   CHECK_EQ(fi->Read(&param, sizeof(TreeParam)), sizeof(TreeParam));
   nodes_.resize(param.num_nodes);
   stats_.resize(param.num_nodes);
@@ -685,7 +685,7 @@ void RegTree::Load(dmlc::Stream* fi) {
   CHECK_EQ(static_cast<int>(deleted_nodes_.size()), param.num_deleted);
 }
 void RegTree::Save(dmlc::Stream* fo) const {
-  CHECK_NE(Kind(), kMulti) << "Model persistent for multi-target tree is not yet implemented.";
+  CHECK_NE(Kind(), OutputType::kMulti) << "Model persistent for multi-target tree is not yet implemented.";
   CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
   CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
   fo->Write(&param, sizeof(TreeParam));
@@ -761,7 +761,7 @@ void RegTree::LoadModel(Json const& in) {
 }
 
 void RegTree::SaveModel(Json* p_out) const {
-  CHECK_NE(Kind(), kMulti) << "Model persistent for multi-target tree is not yet implemented.";
+  CHECK_NE(Kind(), OutputType::kMulti) << "Model persistent for multi-target tree is not yet implemented.";
   auto& out = *p_out;
   CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
   CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
@@ -838,7 +838,7 @@ bst_float RegTree::FillNodeMeanValue(int nid) {
 
 void RegTree::CalculateContributionsApprox(const RegTree::FVec &feat,
                                            bst_float *out_contribs) const {
-  CHECK_EQ(Kind(), kSingle) << "Contribution is not available for mutli-target tree.";
+  CHECK_EQ(Kind(), OutputType::kSingle) << "Contribution is not available for mutli-target tree.";
   CHECK_GT(this->node_mean_values_.size(), 0U);
   // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
   unsigned split_index = 0;
@@ -954,7 +954,7 @@ void RegTree::TreeShap(const RegTree::FVec &feat, bst_float *phi,
                        bst_float parent_one_fraction, int parent_feature_index,
                        int condition, unsigned condition_feature,
                        bst_float condition_fraction) const {
-  CHECK_EQ(Kind(), kSingle) << "Tree shap is not available for mutli-target tree.";
+  CHECK_EQ(Kind(), OutputType::kSingle) << "Tree shap is not available for mutli-target tree.";
   const auto node = (*this)[node_index];
 
   // stop if we have no weight coming down to us

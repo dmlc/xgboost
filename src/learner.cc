@@ -154,15 +154,12 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
 LearnerModelParam::LearnerModelParam(
     LearnerModelParamLegacy const &user_param, float base_margin)
     : base_score{base_margin}, num_feature{user_param.num_feature},
-      num_targets{user_param.num_targets}, output_type{user_param.output_type}
+      output_type{user_param.output_type}
 {
   if (user_param.output_type == OutputType::kSingle) {
     CHECK(user_param.num_class == 0 || user_param.num_targets == 0);
     num_output_group = std::max(static_cast<uint32_t>(user_param.num_class),
                                 user_param.num_targets);
-    num_targets = 1;
-  } else {
-    num_targets = std::max(num_targets, static_cast<uint32_t>(user_param.num_class));
   }
   num_output_group = std::max(num_output_group, 1u);
 }
@@ -1097,7 +1094,7 @@ class LearnerImpl : public LearnerIO {
 
   void ValidateDMatrix(DMatrix* p_fmat) const {
     MetaInfo const& info = p_fmat->Info();
-    info.Validate(generic_parameters_.gpu_id, learner_model_param_.num_targets);
+    info.Validate(generic_parameters_.gpu_id, learner_model_param_.num_output_group);
 
     auto const row_based_split = [this]() {
       return tparam_.dsplit == DataSplitMode::kRow ||
@@ -1107,16 +1104,8 @@ class LearnerImpl : public LearnerIO {
       CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_)
           << "Number of columns does not match number of features in booster.";
     }
-
-    if (learner_model_param_.output_type == OutputType::kSingle) {
-      CHECK(p_fmat->Info().labels_cols == 1 ||
-            p_fmat->Info().labels_cols == learner_model_param_.num_output_group);
-    } else {
-      CHECK(p_fmat->Info().labels_cols == learner_model_param_.num_targets ||
-            p_fmat->Info().labels_cols == learner_model_param_.num_output_group)
-          << "p_fmat->Info().labels_cols: " << p_fmat->Info().labels_cols << ", "
-          << "learner_model_param_.num_targets: " << learner_model_param_.num_targets;
-    }
+    CHECK(p_fmat->Info().labels_cols == 1 ||
+          p_fmat->Info().labels_cols == learner_model_param_.num_output_group);
   }
 
  private:

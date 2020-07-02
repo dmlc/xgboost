@@ -215,7 +215,7 @@ class CPUPredictor : public Predictor {
     page.data.HostVector();
     page.offset.HostVector();
     dmlc::OMPException omp_handler;
-    size_t targets = model.learner_model_param->num_targets;
+    size_t targets = model.learner_model_param->num_output_group;
 #pragma omp parallel for
     for (omp_ulong i = 0; i < page.Size(); ++i) {
       omp_handler.Run(
@@ -253,9 +253,7 @@ class CPUPredictor : public Predictor {
                           HostDeviceVector<bst_float>* out_preds,
                           const gbm::GBTreeModel& model) const {
     CHECK_NE(model.learner_model_param->num_output_group, 0);
-    size_t n = std::max(model.learner_model_param->num_targets,
-                        model.learner_model_param->num_output_group) *
-               info.num_row_;
+    size_t n = model.learner_model_param->num_output_group * info.num_row_;
     const auto& base_margin = info.base_margin_.HostVector();
     std::vector<bst_float>& out_preds_h = out_preds->HostVector();
     // size_t const out_size = info.labels_cols * n;
@@ -312,7 +310,7 @@ class CPUPredictor : public Predictor {
     CHECK_LE(beg_version, end_version);
 
     if (beg_version < end_version) {
-      if (model.trees.front()->Kind() == RegTree::kMulti) {
+      if (model.trees.front()->Kind() == OutputType::kMulti) {
         CHECK_EQ(output_groups, 1);
         for (auto const& page : dmat->GetBatches<SparsePage>()) {
           this->PredictVectorInternal(page, model, &out_preds->HostVector(),
@@ -333,7 +331,7 @@ class CPUPredictor : public Predictor {
 
     CHECK(out_preds->Size() == output_groups * dmat->Info().num_row_ ||
           out_preds->Size() ==
-              model.learner_model_param->num_targets * dmat->Info().num_row_);
+              model.learner_model_param->num_output_group * dmat->Info().num_row_);
   }
 
   template <typename Adapter>

@@ -17,8 +17,6 @@
 #include "xgboost/parameter.h"
 #include "xgboost/model.h"
 
-DECLARE_FIELD_ENUM_CLASS(xgboost::RegTree::TreeKind);
-
 namespace xgboost {
 
 class Json;

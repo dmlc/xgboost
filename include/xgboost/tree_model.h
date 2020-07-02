@@ -137,14 +137,8 @@ class MultiTargetTreeNodeStat {
  *  This is the data structure used in xgboost's major tree models.
  */
 class RegTree : public Model {
- public:
-  enum TreeKind : int {
-    kSingle,
-    kMulti
-  };
-
  private:
-  TreeKind kind_ {kSingle};
+  OutputType kind_ {OutputType::kSingle};
 
  public:
   using SplitCondT = bst_float;
@@ -289,8 +283,9 @@ class RegTree : public Model {
     Info info_;
   };
 
-  explicit RegTree(bst_feature_t leaf_size = 1, TreeKind kind = kSingle) :
-      kind_{kind}, leaf_size_{leaf_size}, multi_target_stats_{leaf_size} {
+  explicit RegTree(bst_feature_t leaf_size = 1,
+                   OutputType kind = OutputType::kSingle)
+      : kind_{kind}, leaf_size_{leaf_size}, multi_target_stats_{leaf_size} {
     param.num_nodes = 1;
     param.num_deleted = 0;
     nodes_.resize(param.num_nodes);
@@ -302,13 +297,13 @@ class RegTree : public Model {
 
     if (leaf_size_ != 1) {
       leaf_values_.resize(leaf_size_);
-      CHECK_EQ(kind_, kMulti);
+      CHECK_EQ(static_cast<int32_t>(kind_), static_cast<int32_t>(OutputType::kMulti));
     }
   }
   /*!
    * \brief Return tree kind, kSingle or kMulti.
    */
-  TreeKind Kind() const { return kind_; }
+  OutputType Kind() const { return kind_; }
   /*!
    * \brief Return the size of leaf.
    */
@@ -571,12 +566,12 @@ class RegTree : public Model {
   };
 
   common::Span<float const> VectorLeafValue(bst_node_t nidx) const {
-    CHECK_EQ(kind_, kMulti);
+    CHECK_EQ(static_cast<int32_t>(kind_), static_cast<int32_t>(OutputType::kMulti));
     auto s = common::Span<float const> {leaf_values_}.subspan(nidx * leaf_size_, leaf_size_);
     return s;
   }
   float LeafValue(bst_node_t nidx) const {
-    CHECK_EQ(kind_, kSingle);
+    CHECK_EQ(kind_, OutputType::kSingle);
     return (*this)[nidx].SingleLeafValue();
   }
 

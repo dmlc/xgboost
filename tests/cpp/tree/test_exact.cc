@@ -83,7 +83,7 @@ TEST_F(MultiExactTest, InitData) {
 }
 
 TEST_F(MultiExactTest, InitRoot) {
-  RegTree tree(p_dmat_->Info().num_col_, RegTree::kMulti);
+  RegTree tree(p_dmat_->Info().num_col_, OutputType::kMulti);
   GenericParameter runtime;
   runtime.InitAllowUnknown(Args{});
   runtime.gpu_id = GenericParameter::kCpuId;
@@ -100,7 +100,7 @@ TEST_F(MultiExactTest, InitRoot) {
 }
 
 TEST_F(MultiExactTest, EvaluateSplit) {
-  RegTree tree(p_dmat_->Info().num_col_, RegTree::kMulti);
+  RegTree tree(p_dmat_->Info().num_col_, OutputType::kMulti);
   GenericParameter runtime;
   runtime.InitAllowUnknown(Args{});
   runtime.gpu_id = GenericParameter::kCpuId;
@@ -127,7 +127,7 @@ TEST_F(MultiExactTest, EvaluateSplit) {
 }
 
 TEST_F(MultiExactTest, ApplySplit) {
-  RegTree tree(p_dmat_->Info().num_col_, RegTree::kMulti);
+  RegTree tree(p_dmat_->Info().num_col_, OutputType::kMulti);
   GenericParameter runtime;
   runtime.InitAllowUnknown(Args{});
   runtime.gpu_id = GenericParameter::kCpuId;

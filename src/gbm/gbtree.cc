@@ -185,7 +185,7 @@ void GBTree::DoBoost(DMatrix* p_fmat,
                      HostDeviceVector<GradientPair>* in_gpair,
                      PredictionCacheEntry* predt) {
   std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
-  const int ngroup = model_.learner_model_param->num_output_group;
+  bst_group_t ngroup = model_.learner_model_param->num_output_group;
   ConfigureWithKnownData(this->cfg_, p_fmat);
   monitor_.Start("BoostNewTrees");
   CHECK_NE(ngroup, 0);
@@ -275,11 +275,8 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
              "trees.";
       // create new tree
       std::unique_ptr<RegTree> ptr;
-      if (model_.learner_model_param->output_type == OutputType::kSingle) {
-        ptr.reset(new RegTree(1, RegTree::kSingle));
-      } else {
-        ptr.reset(new RegTree(model_.learner_model_param->num_targets, RegTree::kMulti));
-      }
+      ptr.reset(new RegTree(model_.learner_model_param->num_output_group,
+                            model_.learner_model_param->output_type));
       ptr->param.UpdateAllowUnknown(this->cfg_);
       new_trees.push_back(ptr.get());
       ret->push_back(std::move(ptr));
@@ -301,7 +298,8 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
     }
   }
   // update the trees
-  CHECK_EQ(gpair->Size(), p_fmat->Info().num_row_ * model_.learner_model_param->num_targets)
+  CHECK_EQ(gpair->Size(), p_fmat->Info().num_row_ *
+                              model_.learner_model_param->num_output_group)
       << "Mismatching size between number of rows from input data and size of "
          "gradient vector.";
   for (auto& up : updaters_) {

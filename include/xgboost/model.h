@@ -7,6 +7,7 @@
 #define XGBOOST_MODEL_H_
 
 #include <cstdint>
+#include <iostream>
 
 namespace dmlc {
 class Stream;
@@ -51,6 +52,11 @@ enum class OutputType : int32_t {
   kMulti
 };
 
+inline std::ostream& operator<<(std::ostream& os, OutputType t) {
+  os << static_cast<int32_t>(t);
+  return os;
+}
+
 /*
  * \brief Basic Model Parameters, used to describe the booster.
  */
@@ -61,8 +67,7 @@ struct LearnerModelParam {
   uint32_t num_feature { 0 };
   /* \brief number of classes, if it is multi-class classification  */
   uint32_t num_output_group { 0 };
-  /* \brief number of target variables. */
-  uint32_t num_targets { 1 };
+  /* \brief Output type of a tree, either single or multi. */
   OutputType output_type { OutputType::kSingle };
 
   LearnerModelParam() = default;
