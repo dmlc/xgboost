@@ -11,7 +11,7 @@ namespace xgboost {
 
 // Forward declarations.
 namespace common {
-struct HistogramCuts;
+class HistogramCuts;
 }  // namespace common
 
 namespace tree {
