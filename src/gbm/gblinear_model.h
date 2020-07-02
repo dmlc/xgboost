@@ -4,7 +4,6 @@
 #pragma once
 #include <dmlc/io.h>
 #include <dmlc/parameter.h>
-#include <xgboost/learner.h>
 
 #include <vector>
 #include <string>

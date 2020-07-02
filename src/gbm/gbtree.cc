@@ -121,6 +121,7 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
     return;
   }
   // tparam_ is set before calling this function.
+  CHECK(tparam_.GetInitialised());
   if (tparam_.tree_method != TreeMethod::kAuto) {
     return;
   }
@@ -162,13 +163,11 @@ void GBTree::ConfigureUpdaters() {
     case TreeMethod::kApprox:
       tparam_.updater_seq = "grow_histmaker,prune";
       break;
-    case TreeMethod::kExact:
-      tparam_.updater_seq = "grow_colmaker,prune";
+    case TreeMethod::kExact: {
+      tparam_.updater_seq = "grow_colmaker";
       break;
+    }
     case TreeMethod::kHist:
-      LOG(INFO) <<
-          "Tree method is selected to be 'hist', which uses a "
-          "single updater grow_quantile_histmaker.";
       tparam_.updater_seq = "grow_quantile_histmaker";
       break;
     case TreeMethod::kGPUHist: {
@@ -186,7 +185,7 @@ void GBTree::DoBoost(DMatrix* p_fmat,
                      HostDeviceVector<GradientPair>* in_gpair,
                      PredictionCacheEntry* predt) {
   std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
-  const int ngroup = model_.learner_model_param->num_output_group;
+  bst_group_t ngroup = model_.learner_model_param->num_output_group;
   ConfigureWithKnownData(this->cfg_, p_fmat);
   monitor_.Start("BoostNewTrees");
   CHECK_NE(ngroup, 0);
@@ -201,6 +200,8 @@ void GBTree::DoBoost(DMatrix* p_fmat,
     HostDeviceVector<GradientPair> tmp(in_gpair->Size() / ngroup,
                                        GradientPair(),
                                        in_gpair->DeviceIdx());
+    CHECK(model_.learner_model_param->output_type == OutputType::kSingle)
+        << "Using one tree per-target should not choose multi-target tree.";
     const auto& gpair_h = in_gpair->ConstHostVector();
     auto nsize = static_cast<bst_omp_uint>(tmp.Size());
     for (int gid = 0; gid < ngroup; ++gid) {
@@ -273,7 +274,9 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
           << "Set `process_type` to `update` if you want to update existing "
              "trees.";
       // create new tree
-      std::unique_ptr<RegTree> ptr(new RegTree());
+      std::unique_ptr<RegTree> ptr;
+      ptr.reset(new RegTree(model_.learner_model_param->num_output_group,
+                            model_.learner_model_param->output_type));
       ptr->param.UpdateAllowUnknown(this->cfg_);
       new_trees.push_back(ptr.get());
       ret->push_back(std::move(ptr));
@@ -295,7 +298,8 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
     }
   }
   // update the trees
-  CHECK_EQ(gpair->Size(), p_fmat->Info().num_row_)
+  CHECK_EQ(gpair->Size(), p_fmat->Info().num_row_ *
+                              model_.learner_model_param->num_output_group)
       << "Mismatching size between number of rows from input data and size of "
          "gradient vector.";
   for (auto& up : updaters_) {
@@ -348,6 +352,7 @@ void GBTree::LoadConfig(Json const& in) {
   auto const& j_updaters = get<Object const>(in["updater"]);
   updaters_.clear();
   for (auto const& kv : j_updaters) {
+    CHECK(model_.learner_model_param);
     std::unique_ptr<TreeUpdater> up(TreeUpdater::Create(kv.first, generic_param_));
     up->LoadConfig(kv.second);
     updaters_.push_back(std::move(up));
@@ -681,7 +686,7 @@ class Dart : public GBTree {
         bool drop = std::binary_search(idx_drop_.begin(), idx_drop_.end(), i);
         if (!drop) {
           int tid = model_.trees[i]->GetLeafIndex(*p_feats);
-          psum += weight_drop_[i] * (*model_.trees[i])[tid].LeafValue();
+          psum += weight_drop_[i] * (*model_.trees[i]).LeafValue(tid);
         }
       }
     }

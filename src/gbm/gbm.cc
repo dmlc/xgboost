@@ -9,7 +9,7 @@
 #include <memory>
 
 #include "xgboost/gbm.h"
-#include "xgboost/learner.h"
+#include "xgboost/model.h"
 #include "xgboost/generic_parameters.h"
 
 namespace dmlc {

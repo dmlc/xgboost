@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 #include <xgboost/predictor.h>
 #include <xgboost/data.h>
+#include <xgboost/learner.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/generic_parameters.h>
 

@@ -56,6 +56,7 @@ enum class DataSplitMode : int {
 }  // namespace xgboost
 
 DECLARE_FIELD_ENUM_CLASS(xgboost::DataSplitMode);
+DECLARE_FIELD_ENUM_CLASS(xgboost::OutputType);
 
 namespace xgboost {
 // implementation of base learner.
@@ -85,8 +86,11 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   /*! \brief the version of XGBoost. */
   uint32_t major_version;
   uint32_t minor_version;
+  /*! \brief Used for multi target trees. */
+  uint32_t num_targets;
+  OutputType output_type;
   /*! \brief reserved field */
-  int reserved[27];
+  int reserved[25];
   /*! \brief constructor */
   LearnerModelParamLegacy() {
     std::memset(this, 0, sizeof(LearnerModelParamLegacy));
@@ -102,6 +106,12 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     obj["base_score"] = std::to_string(base_score);
     obj["num_feature"] = std::to_string(num_feature);
     obj["num_class"] = std::to_string(num_class);
+    obj["num_targets"] = std::to_string(num_targets);
+    if (output_type == OutputType::kSingle) {
+      obj["output_type"] = String("single");
+    } else {
+      obj["output_type"] = String("multi");
+    }
     return Json(std::move(obj));
   }
   void FromJson(Json const& obj) {
@@ -110,6 +120,14 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     m["base_score"] = get<String const>(j_param.at("base_score"));
     m["num_feature"] = get<String const>(j_param.at("num_feature"));
     m["num_class"] = get<String const>(j_param.at("num_class"));
+
+    if (j_param.find("num_targets") == j_param.cend()) {
+      LOG(WARNING) << "Using old experimental JSON model.  Please consider "
+                      "saving the model again in current version of XGBoost.";
+    } else {
+      m["num_targets"] = get<String const>(j_param.at("num_targets"));
+      m["output_type"] = get<String const>(j_param.at("output_type"));
+    }
     this->Init(m);
   }
   // declare parameters
@@ -122,6 +140,11 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
         .describe(
             "Number of features in training data,"
             " this parameter will be automatically detected by learner.");
+    DMLC_DECLARE_FIELD(num_targets).set_default(0);
+    DMLC_DECLARE_FIELD(output_type)
+        .set_default(OutputType::kSingle)
+        .add_enum("single", OutputType::kSingle)
+        .add_enum("multi", OutputType::kMulti);
     DMLC_DECLARE_FIELD(num_class).set_default(0).set_lower_bound(0).describe(
         "Number of class option for multi-class classifier. "
         " By default equals 0 and corresponds to binary classifier.");
@@ -131,10 +154,15 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
 LearnerModelParam::LearnerModelParam(
     LearnerModelParamLegacy const &user_param, float base_margin)
     : base_score{base_margin}, num_feature{user_param.num_feature},
-      num_output_group{user_param.num_class == 0
-                       ? 1
-                       : static_cast<uint32_t>(user_param.num_class)}
-{}
+      output_type{user_param.output_type}
+{
+  if (user_param.output_type == OutputType::kSingle) {
+    CHECK(user_param.num_class == 0 || user_param.num_targets == 0);
+    num_output_group = std::max(static_cast<uint32_t>(user_param.num_class),
+                                user_param.num_targets);
+  }
+  num_output_group = std::max(num_output_group, 1u);
+}
 
 struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
   // data split mode, can be row, col, or none.
@@ -980,8 +1008,9 @@ class LearnerImpl : public LearnerIO {
       auto &out = output_predictions_.Cache(m, generic_parameters_.gpu_id).predictions;
       out.Resize(predt.predictions.Size());
       out.Copy(predt.predictions);
-
+      TrainingObserver::Instance().Observe(out, "Before Transform");
       obj_->EvalTransform(&out);
+      TrainingObserver::Instance().Observe(out, "Eval Transform");
       for (auto& ev : metrics_) {
         os << '\t' << data_names[i] << '-' << ev->Name() << ':'
            << ev->Eval(out, m->Info(), tparam_.dsplit == DataSplitMode::kRow);
@@ -1065,7 +1094,7 @@ class LearnerImpl : public LearnerIO {
 
   void ValidateDMatrix(DMatrix* p_fmat) const {
     MetaInfo const& info = p_fmat->Info();
-    info.Validate(generic_parameters_.gpu_id);
+    info.Validate(generic_parameters_.gpu_id, learner_model_param_.num_output_group);
 
     auto const row_based_split = [this]() {
       return tparam_.dsplit == DataSplitMode::kRow ||
@@ -1075,6 +1104,8 @@ class LearnerImpl : public LearnerIO {
       CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_)
           << "Number of columns does not match number of features in booster.";
     }
+    CHECK(p_fmat->Info().labels_cols == 1 ||
+          p_fmat->Info().labels_cols == learner_model_param_.num_output_group);
   }
 
  private:

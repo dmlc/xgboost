@@ -49,12 +49,19 @@ void CreateSimpleTestData(const std::string& filename);
 
 void CreateBigTestData(const std::string& filename, size_t n_entries);
 
+
+/*
+ * \brief Automated checking for objective function.
+ *
+ * Specify number rows if it doesn't equal to number of labels.
+ */
 void CheckObjFunction(std::unique_ptr<xgboost::ObjFunction> const& obj,
                       std::vector<xgboost::bst_float> preds,
                       std::vector<xgboost::bst_float> labels,
                       std::vector<xgboost::bst_float> weights,
                       std::vector<xgboost::bst_float> out_grad,
-                      std::vector<xgboost::bst_float> out_hess);
+                      std::vector<xgboost::bst_float> out_hess,
+                      size_t rows=0);
 
 xgboost::Json CheckConfigReloadImpl(xgboost::Configurable* const configurable,
                                     std::string name);
@@ -219,7 +226,8 @@ class RandomDataGenerator {
 
   void GenerateDense(HostDeviceVector<float>* out) const;
 
-  std::string GenerateArrayInterface(HostDeviceVector<float>* storage) const;
+  std::string GenerateArrayInterface(HostDeviceVector<float> *storage,
+                                     bool wrap_in_column = false) const;
 
   /*!
    * \brief Generate batches of array interface stored in consecutive memory.

@@ -79,7 +79,7 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
         .describe("Number of parallel trees constructed during each iteration."\
                   " This option is used to support boosted random forest.");
     DMLC_DECLARE_FIELD(updater_seq)
-        .set_default("grow_colmaker,prune")
+        .set_default("grow_colmaker")
         .describe("Tree updater sequence.");
     DMLC_DECLARE_FIELD(process_type)
         .set_default(TreeProcessType::kDefault)

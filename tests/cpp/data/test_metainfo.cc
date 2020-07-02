@@ -39,6 +39,26 @@ TEST(MetaInfo, GetSet) {
   ASSERT_EQ(info.group_ptr_.size(), 0);
 }
 
+TEST(MetaInfo, SetLabels) {
+  size_t constexpr kRows { 128 };
+  size_t constexpr kCols { 128 };
+  xgboost::HostDeviceVector<float> labels;
+  std::string arr =
+      xgboost::RandomDataGenerator{kRows, kCols, 0}.GenerateArrayInterface(
+          &labels, true);
+  xgboost::MetaInfo info;
+  info.SetInfo("label", arr, xgboost::GenericParameter::kCpuId);
+  ASSERT_EQ(info.labels_.Size(), labels.Size());
+  ASSERT_EQ(info.labels_cols, kCols);
+  ASSERT_EQ(info.labels_rows, kRows);
+  for (size_t i = 0; i < kRows; ++i) {
+    for (size_t j = 0; j < kCols; ++j) {
+      ASSERT_EQ(labels.HostVector()[i * kCols + j],
+                info.labels_.HostVector()[i * kCols + j]);
+    }
+  }
+}
+
 TEST(MetaInfo, SaveLoadBinary) {
   xgboost::MetaInfo info;
   uint64_t constexpr kRows { 64 }, kCols { 32 };
@@ -149,18 +169,18 @@ TEST(MetaInfo, Validate) {
   info.num_col_ = 3;
   std::vector<xgboost::bst_group_t> groups (11);
   info.SetInfo("group", groups.data(), xgboost::DataType::kUInt32, 11);
-  EXPECT_THROW(info.Validate(0), dmlc::Error);
+  EXPECT_THROW(info.Validate(0, 1), dmlc::Error);
 
   std::vector<float> labels(info.num_row_ + 1);
   info.SetInfo("label", labels.data(), xgboost::DataType::kFloat32, info.num_row_ + 1);
-  EXPECT_THROW(info.Validate(0), dmlc::Error);
+  EXPECT_THROW(info.Validate(0, 1), dmlc::Error);
 
 #if defined(XGBOOST_USE_CUDA)
   info.group_ptr_.clear();
   labels.resize(info.num_row_);
   info.SetInfo("label", labels.data(), xgboost::DataType::kFloat32, info.num_row_);
   info.labels_.SetDevice(0);
-  EXPECT_THROW(info.Validate(1), dmlc::Error);
+  EXPECT_THROW(info.Validate(1, 1), dmlc::Error);
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 

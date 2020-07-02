@@ -188,7 +188,7 @@ class TextGenerator : public TreeGenerator {
         kLeafTemplate,
         {{"{tabs}",  SuperT::Tabs(depth)},
          {"{nid}",   std::to_string(nid)},
-         {"{leaf}",  SuperT::ToStr(tree[nid].LeafValue())},
+         {"{leaf}",  SuperT::ToStr(tree.LeafValue(nid))},
          {"{stats}", with_stats_ ?
           SuperT::Match(kStatTemplate,
                         {{"{cover}", SuperT::ToStr(tree.Stat(nid).sum_hess)}}) : ""}});
@@ -313,7 +313,7 @@ class JsonGenerator : public TreeGenerator {
     std::string result = SuperT::Match(
         kLeafTemplate,
         {{"{nid}",  std::to_string(nid)},
-         {"{leaf}", SuperT::ToStr(tree[nid].LeafValue())},
+         {"{leaf}", SuperT::ToStr(tree.LeafValue(nid))},
          {"{stat}", with_stats_ ? SuperT::Match(
              kStatTemplate,
              {{"{sum_hess}",
@@ -569,7 +569,7 @@ class GraphvizGenerator : public TreeGenerator {
         "    {nid} [ label=\"leaf={leaf-value}\" {params}]\n";
     auto result = SuperT::Match(kLeafTemplate, {
         {"{nid}",        std::to_string(nid)},
-        {"{leaf-value}", ToStr(tree[nid].LeafValue())},
+        {"{leaf-value}", ToStr(tree.LeafValue(nid))},
         {"{params}",     param_.leaf_node_params}});
     return result;
   };
@@ -613,6 +613,8 @@ constexpr bst_node_t RegTree::kRoot;
 std::string RegTree::DumpModel(const FeatureMap& fmap,
                                bool with_stats,
                                std::string format) const {
+  CHECK_EQ(Kind(), OutputType::kSingle)
+      << "Dump model is not available for multi-target tree.";
   std::unique_ptr<TreeGenerator> builder {
     TreeGenerator::Create(format, fmap, with_stats)
   };
@@ -623,6 +625,7 @@ std::string RegTree::DumpModel(const FeatureMap& fmap,
 }
 
 bool RegTree::Equal(const RegTree& b) const {
+  CHECK_EQ(Kind(), OutputType::kSingle);
   if (NumExtraNodes() != b.NumExtraNodes()) {
     return false;
   }
@@ -663,6 +666,7 @@ bst_node_t RegTree::GetNumSplitNodes() const {
 }
 
 void RegTree::Load(dmlc::Stream* fi) {
+  CHECK_NE(Kind(), OutputType::kMulti) << "Multi-target tree requires JSON serialization format.";
   CHECK_EQ(fi->Read(&param, sizeof(TreeParam)), sizeof(TreeParam));
   nodes_.resize(param.num_nodes);
   stats_.resize(param.num_nodes);
@@ -681,6 +685,7 @@ void RegTree::Load(dmlc::Stream* fi) {
   CHECK_EQ(static_cast<int>(deleted_nodes_.size()), param.num_deleted);
 }
 void RegTree::Save(dmlc::Stream* fo) const {
+  CHECK_NE(Kind(), OutputType::kMulti) << "Model persistent for multi-target tree is not yet implemented.";
   CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
   CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
   fo->Write(&param, sizeof(TreeParam));
@@ -756,6 +761,7 @@ void RegTree::LoadModel(Json const& in) {
 }
 
 void RegTree::SaveModel(Json* p_out) const {
+  CHECK_NE(Kind(), OutputType::kMulti) << "Model persistent for multi-target tree is not yet implemented.";
   auto& out = *p_out;
   CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
   CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
@@ -820,7 +826,7 @@ bst_float RegTree::FillNodeMeanValue(int nid) {
   bst_float result;
   auto& node = (*this)[nid];
   if (node.IsLeaf()) {
-    result = node.LeafValue();
+    result = LeafValue(nid);
   } else {
     result  = this->FillNodeMeanValue(node.LeftChild()) * this->Stat(node.LeftChild()).sum_hess;
     result += this->FillNodeMeanValue(node.RightChild()) * this->Stat(node.RightChild()).sum_hess;
@@ -832,6 +838,7 @@ bst_float RegTree::FillNodeMeanValue(int nid) {
 
 void RegTree::CalculateContributionsApprox(const RegTree::FVec &feat,
                                            bst_float *out_contribs) const {
+  CHECK_EQ(Kind(), OutputType::kSingle) << "Contribution is not available for mutli-target tree.";
   CHECK_GT(this->node_mean_values_.size(), 0U);
   // this follows the idea of http://blog.datadive.net/interpreting-random-forests/
   unsigned split_index = 0;
@@ -851,7 +858,7 @@ void RegTree::CalculateContributionsApprox(const RegTree::FVec &feat,
     out_contribs[split_index] += new_value - node_value;
     node_value = new_value;
   }
-  bst_float leaf_value = (*this)[nid].LeafValue();
+  bst_float leaf_value = this->LeafValue(nid);
   // update leaf feature weight
   out_contribs[split_index] += leaf_value - node_value;
 }
@@ -947,6 +954,7 @@ void RegTree::TreeShap(const RegTree::FVec &feat, bst_float *phi,
                        bst_float parent_one_fraction, int parent_feature_index,
                        int condition, unsigned condition_feature,
                        bst_float condition_fraction) const {
+  CHECK_EQ(Kind(), OutputType::kSingle) << "Tree shap is not available for mutli-target tree.";
   const auto node = (*this)[node_index];
 
   // stop if we have no weight coming down to us
@@ -968,7 +976,7 @@ void RegTree::TreeShap(const RegTree::FVec &feat, bst_float *phi,
       const bst_float w = UnwoundPathSum(unique_path, unique_depth, i);
       const PathElement &el = unique_path[i];
       phi[el.feature_index] += w * (el.one_fraction - el.zero_fraction)
-                                 * node.LeafValue() * condition_fraction;
+                               * LeafValue(node_index) * condition_fraction;
     }
 
   // internal node

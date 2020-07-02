@@ -99,11 +99,47 @@ struct RTreeNodeStat {
   }
 };
 
+class MultiTargetTreeNodeStat {
+  std::vector<float> loss_chg_;
+  std::vector<double> sum_hess_;
+  std::vector<float> base_weight_;
+  size_t targets_;
+
+ public:
+  explicit MultiTargetTreeNodeStat(size_t targets) : targets_{targets} {}
+  void Set(bst_node_t nidx, float loss_chg, common::Span<float const> weight,
+           common::Span<double const> hess) {
+    if (loss_chg_.size() < static_cast<size_t>(nidx + 1)) {
+      loss_chg_.resize(nidx + 1);
+    }
+    loss_chg_[nidx] = loss_chg;
+    size_t beg = nidx * targets_;
+    size_t end = beg + targets_;
+    if (sum_hess_.size() < end) {
+      sum_hess_.resize(end);
+      base_weight_.resize(end);
+    }
+    for (size_t i = beg; i < end; ++i) {
+      sum_hess_[i] = hess[i - beg];
+      base_weight_[i] = weight[i - beg];
+    }
+  }
+  void Prune(bst_node_t nidx) {
+    loss_chg_[nidx] = std::numeric_limits<float>::quiet_NaN();
+  }
+  bool IsDeleted(bst_node_t nidx) const {
+    return std::isnan(loss_chg_[nidx]);
+  }
+};
+
 /*!
  * \brief define regression tree to be the most common tree model.
  *  This is the data structure used in xgboost's major tree models.
  */
 class RegTree : public Model {
+ private:
+  OutputType kind_ {OutputType::kSingle};
+
  public:
   using SplitCondT = bst_float;
   static constexpr bst_node_t kInvalidNodeId {-1};
@@ -150,7 +186,7 @@ class RegTree : public Model {
       return cleft_ == kInvalidNodeId;
     }
     /*! \return get leaf value of leaf node */
-    XGBOOST_DEVICE bst_float LeafValue() const {
+    XGBOOST_DEVICE bst_float SingleLeafValue() const {
       return (this->info_).leaf_value;
     }
     /*! \return get split condition of the node */
@@ -247,6 +283,31 @@ class RegTree : public Model {
     Info info_;
   };
 
+  explicit RegTree(bst_feature_t leaf_size = 1,
+                   OutputType kind = OutputType::kSingle)
+      : kind_{kind}, leaf_size_{leaf_size}, multi_target_stats_{leaf_size} {
+    param.num_nodes = 1;
+    param.num_deleted = 0;
+    nodes_.resize(param.num_nodes);
+    stats_.resize(param.num_nodes);
+    for (int i = 0; i < param.num_nodes; i ++) {
+      nodes_[i].SetLeaf(0.0f);
+      nodes_[i].SetParent(kInvalidNodeId);
+    }
+
+    if (leaf_size_ != 1) {
+      leaf_values_.resize(leaf_size_);
+      CHECK_EQ(static_cast<int32_t>(kind_), static_cast<int32_t>(OutputType::kMulti));
+    }
+  }
+  /*!
+   * \brief Return tree kind, kSingle or kMulti.
+   */
+  OutputType Kind() const { return kind_; }
+  /*!
+   * \brief Return the size of leaf.
+   */
+  bst_feature_t LeafSize() const { return leaf_size_; }
   /*!
    * \brief change a non leaf node to a leaf node, delete its children
    * \param rid node id of the node
@@ -275,19 +336,6 @@ class RegTree : public Model {
     this->ChangeToLeaf(rid, value);
   }
 
-  /*! \brief model parameter */
-  TreeParam param;
-  /*! \brief constructor */
-  RegTree() {
-    param.num_nodes = 1;
-    param.num_deleted = 0;
-    nodes_.resize(param.num_nodes);
-    stats_.resize(param.num_nodes);
-    for (int i = 0; i < param.num_nodes; i ++) {
-      nodes_[i].SetLeaf(0.0f);
-      nodes_[i].SetParent(kInvalidNodeId);
-    }
-  }
   /*! \brief get node given nid */
   Node& operator[](int nid) {
     return nodes_[nid];
@@ -402,6 +450,33 @@ class RegTree : public Model {
     this->Stat(pright) = {0.0f, right_sum, right_leaf_weight};
   }
 
+  void ExpandNode(int nid, unsigned split_index,
+                  bst_float split_value,
+                  bool default_left, std::vector<float> const& base_weight,
+                  std::vector<float> const& left_leaf_weight,
+                  std::vector<float> const& right_leaf_weight,
+                  bst_float loss_change,
+                  std::vector<double> const& sum_hess,
+                  std::vector<double> const& left_sum, std::vector<double> const& right_sum) {
+    int pleft = this->AllocNode();
+    int pright = this->AllocNode();
+    auto &node = nodes_[nid];
+    CHECK(node.IsLeaf());
+    node.SetLeftChild(pleft);
+    node.SetRightChild(pright);
+    nodes_[node.LeftChild()].SetParent(nid, true);
+    nodes_[node.RightChild()].SetParent(nid, false);
+    node.SetSplit(split_index, split_value,
+                  default_left);
+    this->SetLeaf(left_leaf_weight, pleft);
+    this->SetLeaf(right_leaf_weight, pright);
+    this->multi_target_stats_.Set(nid, loss_change,
+                                  common::Span<float const>{base_weight},
+                                  common::Span<double const>{sum_hess});
+    this->multi_target_stats_.Set(pleft, 0, {left_leaf_weight}, {left_sum});
+    this->multi_target_stats_.Set(pright, 0, {right_leaf_weight}, {right_sum});
+  }
+
   /*!
    * \brief get current depth
    * \param nid node id
@@ -489,6 +564,42 @@ class RegTree : public Model {
     };
     std::vector<Entry> data_;
   };
+
+  common::Span<float const> VectorLeafValue(bst_node_t nidx) const {
+    CHECK_EQ(static_cast<int32_t>(kind_), static_cast<int32_t>(OutputType::kMulti));
+    auto s = common::Span<float const> {leaf_values_}.subspan(nidx * leaf_size_, leaf_size_);
+    return s;
+  }
+  float LeafValue(bst_node_t nidx) const {
+    CHECK_EQ(kind_, OutputType::kSingle);
+    return (*this)[nidx].SingleLeafValue();
+  }
+
+  void SetLeaf(std::vector<float> const& leaf, bst_node_t nid,
+               std::vector<double> const& sum_hess = {}) {
+    (*this)[nid].SetLeaf(0);
+    auto offset = LeafSize() * nid;
+    if (leaf_values_.size() < offset + LeafSize()) {
+      leaf_values_.resize(offset + LeafSize());
+    }
+    CHECK_EQ(leaf.size(), LeafSize());
+    for (size_t i = 0; i < LeafSize(); ++i) {
+      leaf_values_[i + offset] = leaf[i];
+    }
+    (*this)[nid].SetLeftChild(kInvalidNodeId);
+    (*this)[nid].SetRightChild(kInvalidNodeId);
+
+    if (sum_hess.size() != 0) {
+      this->multi_target_stats_.Set(nid, 0, leaf, sum_hess);
+    }
+  }
+  void SetLeaf(float const& leaf, bst_node_t nid,
+               double sum_hess = 0) {
+    (*this)[nid].SetLeaf(leaf);
+    this->Stat(nid).loss_chg = 0;
+    this->Stat(nid).base_weight = leaf;
+    this->Stat(nid).sum_hess = sum_hess;
+  }
   /*!
    * \brief get the leaf index
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
@@ -554,6 +665,9 @@ class RegTree : public Model {
    */
   void FillNodeMeanValues();
 
+  /*! \brief model parameter */
+  TreeParam param;
+
  private:
   // vector of nodes
   std::vector<Node> nodes_;
@@ -562,6 +676,11 @@ class RegTree : public Model {
   // stats of nodes
   std::vector<RTreeNodeStat> stats_;
   std::vector<bst_float> node_mean_values_;
+
+  bst_feature_t leaf_size_ {0};
+  std::vector<float> leaf_values_;
+  MultiTargetTreeNodeStat multi_target_stats_;
+
   // allocate a new node,
   // !!!!!! NOTE: may cause BUG here, nodes.resize
   int AllocNode() {

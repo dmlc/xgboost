@@ -82,7 +82,7 @@ TEST(Tree, Load) {
   EXPECT_EQ(tree.GetDepth(1), 1);
   EXPECT_EQ(tree[0].SplitCond(), 0.5f);
   EXPECT_EQ(tree[0].SplitIndex(), 5);
-  EXPECT_EQ(tree[1].LeafValue(), 0.1f);
+  EXPECT_EQ(tree.LeafValue(1), 0.1f);
   EXPECT_TRUE(tree[1].IsLeaf());
 }
 

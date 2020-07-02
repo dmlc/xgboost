@@ -87,7 +87,7 @@ struct ArrayInterfaceErrors {
     }
   }
 
-  static std::string UnSupportedType(const char (&typestr)[3]) {
+  static std::string UnSupportedType(char const typestr[3]) {
     return TypeStr(typestr[1]) + " is not supported.";
   }
 };

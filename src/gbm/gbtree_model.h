@@ -7,15 +7,15 @@
 
 #include <dmlc/parameter.h>
 #include <dmlc/io.h>
-#include <xgboost/model.h>
-#include <xgboost/tree_model.h>
-#include <xgboost/parameter.h>
-#include <xgboost/learner.h>
 
 #include <memory>
 #include <utility>
 #include <string>
 #include <vector>
+
+#include "xgboost/tree_model.h"
+#include "xgboost/parameter.h"
+#include "xgboost/model.h"
 
 namespace xgboost {
 
@@ -55,7 +55,7 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
     DMLC_DECLARE_FIELD(num_trees)
         .set_lower_bound(0)
         .set_default(0)
-        .describe("Number of features used for training and prediction.");
+        .describe("Number of trees used for training and prediction.");
     DMLC_DECLARE_FIELD(size_leaf_vector)
         .set_lower_bound(0)
         .set_default(0)

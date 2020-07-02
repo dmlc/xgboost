@@ -57,16 +57,23 @@
 #if defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4) && \
     !defined(__CUDACC__)
 #include <parallel/algorithm>
+#include <parallel/numeric>
 #define XGBOOST_PARALLEL_SORT(X, Y, Z) __gnu_parallel::sort((X), (Y), (Z))
 #define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) \
   __gnu_parallel::stable_sort((X), (Y), (Z))
+#define XGBOOST_PARALLEL_ACCUMULATE(__BEG, __END, __INIT, __OP) \
+  __gnu_parallel::accumulate(__BEG, __END, __INIT, __OP)
 #elif defined(_MSC_VER) && (!__INTEL_COMPILER)
 #include <ppl.h>
 #define XGBOOST_PARALLEL_SORT(X, Y, Z) concurrency::parallel_sort((X), (Y), (Z))
 #define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
+#define XGBOOST_PARALLEL_ACCUMULATE(__BEG, __END, __INIT, __OP) \
+  std::accumulate(__BEG, __END, __INIT, __OP)
 #else
 #define XGBOOST_PARALLEL_SORT(X, Y, Z) std::sort((X), (Y), (Z))
 #define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) std::stable_sort((X), (Y), (Z))
+#define XGBOOST_PARALLEL_ACCUMULATE(__BEG, __END, __INIT, __OP) \
+  std::accumulate(__BEG, __END, __INIT, __OP)
 #endif  // GLIBC VERSION
 
 #if defined(__GNUC__)
@@ -135,8 +142,8 @@ class GradientPairInternal {
   /*! \brief second order gradient statistics */
   T hess_;
 
-  XGBOOST_DEVICE void SetGrad(T g) { grad_ = g; }
-  XGBOOST_DEVICE void SetHess(T h) { hess_ = h; }
+  XGBOOST_DEVICE void SetGrad(T g) { grad_ = std::move(g); }
+  XGBOOST_DEVICE void SetHess(T h) { hess_ = std::move(h); }
 
  public:
   using ValueT = T;
@@ -150,12 +157,9 @@ class GradientPairInternal {
     a += b;
   }
 
-  XGBOOST_DEVICE GradientPairInternal() : grad_(0), hess_(0) {}
-
-  XGBOOST_DEVICE GradientPairInternal(T grad, T hess) {
-    SetGrad(grad);
-    SetHess(hess);
-  }
+  constexpr XGBOOST_DEVICE GradientPairInternal() : grad_(0), hess_(0) {}
+  constexpr XGBOOST_DEVICE GradientPairInternal(T grad, T hess)
+      : grad_{std::move(grad)}, hess_{std::move(hess)} {}
 
   // Copy constructor if of same value type, marked as default to be trivially_copyable
   GradientPairInternal(const GradientPairInternal<T> &g) = default;
@@ -168,8 +172,11 @@ class GradientPairInternal {
     SetHess(g.GetHess());
   }
 
-  XGBOOST_DEVICE T GetGrad() const { return grad_; }
-  XGBOOST_DEVICE T GetHess() const { return hess_; }
+  XGBOOST_DEVICE T const& GetGrad() const { return grad_; }
+  XGBOOST_DEVICE T const& GetHess() const { return hess_; }
+
+  XGBOOST_DEVICE T& GetGrad() { return grad_; }
+  XGBOOST_DEVICE T& GetHess() { return hess_; }
 
   XGBOOST_DEVICE GradientPairInternal<T> &operator+=(
       const GradientPairInternal<T> &rhs) {

@@ -663,7 +663,7 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
         }
         CHECK((*p_last_tree_)[nid].IsLeaf());
       }
-      leaf_value = (*p_last_tree_)[nid].LeafValue();
+      leaf_value = p_last_tree_->LeafValue(nid);
 
       for (const size_t* it = rowset.begin + r.begin(); it < rowset.begin + r.end(); ++it) {
         out_preds[*it] += leaf_value;

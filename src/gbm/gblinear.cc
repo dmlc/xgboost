@@ -18,7 +18,7 @@
 #include "xgboost/predictor.h"
 #include "xgboost/linear_updater.h"
 #include "xgboost/logging.h"
-#include "xgboost/learner.h"
+#include "xgboost/model.h"
 
 #include "gblinear_model.h"
 #include "../common/timer.h"

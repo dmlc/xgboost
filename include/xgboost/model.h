@@ -6,6 +6,9 @@
 #ifndef XGBOOST_MODEL_H_
 #define XGBOOST_MODEL_H_
 
+#include <cstdint>
+#include <iostream>
+
 namespace dmlc {
 class Stream;
 }  // namespace dmlc
@@ -40,6 +43,39 @@ struct Configurable {
    * \param out pointer to output JSON object
    */
   virtual void SaveConfig(Json* out) const = 0;
+};
+
+struct LearnerModelParamLegacy;
+
+enum class OutputType : int32_t {
+  kSingle,
+  kMulti
+};
+
+inline std::ostream& operator<<(std::ostream& os, OutputType t) {
+  os << static_cast<int32_t>(t);
+  return os;
+}
+
+/*
+ * \brief Basic Model Parameters, used to describe the booster.
+ */
+struct LearnerModelParam {
+  /* \brief global bias */
+  float base_score { 0.5 };
+  /* \brief number of features  */
+  uint32_t num_feature { 0 };
+  /* \brief number of classes, if it is multi-class classification  */
+  uint32_t num_output_group { 0 };
+  /* \brief Output type of a tree, either single or multi. */
+  OutputType output_type { OutputType::kSingle };
+
+  LearnerModelParam() = default;
+  // As the old `LearnerModelParamLegacy` is still used by binary IO, we keep
+  // this one as an immutable copy.
+  LearnerModelParam(LearnerModelParamLegacy const& user_param, float base_margin);
+  /* \brief Whether this parameter is initialized with LearnerModelParamLegacy. */
+  bool Initialized() const { return num_feature != 0; }
 };
 }  // namespace xgboost
 

@@ -41,25 +41,23 @@ class MultiClassMetricsReduction {
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,
       const HostDeviceVector<bst_float>& preds,
+      size_t ndata,
       const size_t n_class) const {
-    size_t ndata = labels.Size();
-
-    const auto& h_labels = labels.HostVector();
-    const auto& h_weights = weights.HostVector();
-    const auto& h_preds = preds.HostVector();
+    const auto h_labels = labels.HostSpan();
+    const auto h_weights = weights.HostSpan();
+    const auto h_preds = preds.HostSpan();
 
     bst_float residue_sum = 0;
     bst_float weights_sum = 0;
     int label_error = 0;
     bool const is_null_weight = weights.Size() == 0;
-
 #pragma omp parallel for reduction(+: residue_sum, weights_sum) schedule(static)
     for (omp_ulong idx = 0; idx < ndata; ++idx) {
       bst_float weight = is_null_weight ? 1.0f : h_weights[idx];
       auto label = static_cast<int>(h_labels[idx]);
       if (label >= 0 && label < static_cast<int>(n_class)) {
         residue_sum += EvalRowPolicy::EvalRow(
-            label, h_preds.data() + idx * n_class, n_class) * weight;
+            h_labels, h_preds, idx, n_class) * weight;
         weights_sum += weight;
       } else {
         label_error = label;
@@ -77,9 +75,8 @@ class MultiClassMetricsReduction {
       const HostDeviceVector<bst_float>& weights,
       const HostDeviceVector<bst_float>& labels,
       const HostDeviceVector<bst_float>& preds,
+      size_t const n_data,
       const size_t n_class) {
-    size_t n_data = labels.Size();
-
     thrust::counting_iterator<size_t> begin(0);
     thrust::counting_iterator<size_t> end = begin + n_data;
 
@@ -101,7 +98,7 @@ class MultiClassMetricsReduction {
           auto label = static_cast<int>(s_labels[idx]);
           if (label >= 0 && label < static_cast<int32_t>(n_class)) {
             residue = EvalRowPolicy::EvalRow(
-                label, &s_preds[idx * n_class], n_class) * weight;
+                s_labels, s_preds, idx, n_class) * weight;
           } else {
             s_label_error[0] = label;
           }
@@ -120,13 +117,14 @@ class MultiClassMetricsReduction {
       const GenericParameter &tparam,
       int device,
       size_t n_class,
-      const HostDeviceVector<bst_float>& weights,
-      const HostDeviceVector<bst_float>& labels,
+      MetaInfo const& info,
       const HostDeviceVector<bst_float>& preds) {
     PackedReduceResult result;
+    auto const& labels = info.labels_;
+    auto const& weights = info.weights_;
 
     if (device < 0) {
-      result = CpuReduceMetrics(weights, labels, preds, n_class);
+      result = CpuReduceMetrics(weights, labels, preds, info.num_row_, n_class);
     }
 #if defined(XGBOOST_USE_CUDA)
     else {  // NOLINT
@@ -136,7 +134,7 @@ class MultiClassMetricsReduction {
       weights.SetDevice(device_);
 
       dh::safe_cuda(cudaSetDevice(device_));
-      result = DeviceReduceMetrics(weights, labels, preds, n_class);
+      result = DeviceReduceMetrics(weights, labels, preds, info.num_row_, n_class);
     }
 #endif  // defined(XGBOOST_USE_CUDA)
     return result;
@@ -161,13 +159,13 @@ struct EvalMClassBase : public Metric {
     CHECK_NE(info.labels_.Size(), 0U) << "label set cannot be empty";
     CHECK(preds.Size() % info.labels_.Size() == 0)
         << "label and prediction size not match";
-    const size_t nclass = preds.Size() / info.labels_.Size();
+    const size_t nclass = preds.Size() / info.num_row_;
     CHECK_GE(nclass, 1U)
         << "mlogloss and merror are only used for multi-class classification,"
         << " use logloss for binary classification";
 
     int device = tparam_->gpu_id;
-    auto result = reducer_.Reduce(*tparam_, device, nclass, info.weights_, info.labels_, preds);
+    auto result = reducer_.Reduce(*tparam_, device, nclass, info, preds);
     double dat[2] { result.Residue(), result.Weights() };
 
     if (distributed) {
@@ -178,12 +176,14 @@ struct EvalMClassBase : public Metric {
   /*!
    * \brief to be implemented by subclass,
    *   get evaluation result from one row
-   * \param label label of current instance
-   * \param pred prediction value of current instance
+   * \param s_labels label of current instance
+   * \param s_predt prediction value of current instance
+   * \param idx index of current instance
    * \param nclass number of class in the prediction
    */
-  XGBOOST_DEVICE static bst_float EvalRow(int label,
-                                          const bst_float *pred,
+  XGBOOST_DEVICE static bst_float EvalRow(common::Span<float const> s_label,
+                                          common::Span<float const> s_predt,
+                                          size_t idx,
                                           size_t nclass);
   /*!
    * \brief to be overridden by subclass, final transformation
@@ -205,10 +205,15 @@ struct EvalMatchError : public EvalMClassBase<EvalMatchError> {
   const char* Name() const override {
     return "merror";
   }
-  XGBOOST_DEVICE static bst_float EvalRow(int label,
-                                          const bst_float *pred,
+  XGBOOST_DEVICE static bst_float EvalRow(common::Span<float const> s_label,
+                                          common::Span<float const> s_predt,
+                                          size_t idx,
                                           size_t nclass) {
-    return common::FindMaxIndex(pred, pred + nclass) != pred + static_cast<int>(label);
+    auto pred = s_predt.subspan(idx * nclass, nclass);
+    auto label = static_cast<int32_t>(s_label[idx]);
+    return
+        common::FindMaxIndex(pred.begin(), pred.begin() + nclass) !=
+        pred.begin() + static_cast<int>(label);
   }
 };
 
@@ -217,16 +222,44 @@ struct EvalMultiLogLoss : public EvalMClassBase<EvalMultiLogLoss> {
   const char* Name() const override {
     return "mlogloss";
   }
-  XGBOOST_DEVICE static bst_float EvalRow(int label,
-                                          const bst_float *pred,
+  XGBOOST_DEVICE static bst_float EvalRow(common::Span<float const> s_label,
+                                          common::Span<float const> s_predt,
+                                          size_t idx,
                                           size_t nclass) {
+    auto pred = s_predt.subspan(idx * nclass, nclass);
+    auto label = static_cast<int32_t>(s_label[idx]);
     const bst_float eps = 1e-16f;
-    auto k = static_cast<size_t>(label);
-    if (pred[k] > eps) {
-      return -std::log(pred[k]);
+    if (pred[label] > eps) {
+      return -std::log(pred[label]);
     } else {
       return -std::log(eps);
     }
+  }
+};
+
+struct EvalMultiLogLossOneHot : public EvalMClassBase<EvalMultiLogLossOneHot> {
+  const char* Name() const override {
+    return "mtlogloss";
+  }
+  XGBOOST_DEVICE static bst_float EvalRow(common::Span<float const> s_label,
+                                          common::Span<float const> s_predt,
+                                          size_t idx,
+                                          size_t nclass) {
+    auto predt = s_predt.subspan(idx * nclass, nclass);
+    auto label = s_label.subspan(idx * nclass, nclass);
+    size_t k = 0;
+    for (; k < nclass; ++k) {
+      if (label[k] == 1) {
+        break;
+      }
+    }
+    float ret { 0 };
+    if (predt[k] > kRtEps) {
+      ret = -std::log(predt[k]);
+    } else {
+      ret = -std::log(kRtEps);
+    }
+    return ret;
   }
 };
 
@@ -237,5 +270,9 @@ XGBOOST_REGISTER_METRIC(MatchError, "merror")
 XGBOOST_REGISTER_METRIC(MultiLogLoss, "mlogloss")
 .describe("Multiclass negative loglikelihood.")
 .set_body([](const char* param) { return new EvalMultiLogLoss(); });
+
+XGBOOST_REGISTER_METRIC(MultiLogLossOneHot, "mtlogloss")
+.describe("Multiclass negative loglikelihood.")
+.set_body([](const char* param) { return new EvalMultiLogLossOneHot(); });
 }  // namespace metric
 }  // namespace xgboost

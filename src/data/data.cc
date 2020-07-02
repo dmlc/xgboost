@@ -11,8 +11,10 @@
 #include "xgboost/host_device_vector.h"
 #include "xgboost/logging.h"
 #include "xgboost/version_config.h"
+#include "xgboost/json.h"
 #include "sparse_page_writer.h"
 #include "simple_dmatrix.h"
+#include "array_interface.h"
 
 #include "../common/io.h"
 #include "../common/math.h"
@@ -381,7 +383,7 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows) {
   }
 }
 
-void MetaInfo::Validate(int32_t device) const {
+void MetaInfo::Validate(int32_t device, size_t targets) const {
   if (group_ptr_.size() != 0 && weights_.Size() != 0) {
     CHECK_EQ(group_ptr_.size(), weights_.Size() + 1)
         << "Size of weights must equal to number of groups when ranking "
@@ -409,19 +411,19 @@ void MetaInfo::Validate(int32_t device) const {
     return;
   }
   if (labels_.Size() != 0) {
-    CHECK_EQ(labels_.Size(), num_row_)
+    CHECK_EQ(labels_.Size(), num_row_ * targets)
         << "Size of labels must equal to number of rows.";
     check_device(labels_);
     return;
   }
   if (labels_lower_bound_.Size() != 0) {
-    CHECK_EQ(labels_lower_bound_.Size(), num_row_)
+    CHECK_EQ(labels_lower_bound_.Size(), num_row_ * targets)
         << "Size of label_lower_bound must equal to number of rows.";
     check_device(labels_lower_bound_);
     return;
   }
   if (labels_upper_bound_.Size() != 0) {
-    CHECK_EQ(labels_upper_bound_.Size(), num_row_)
+    CHECK_EQ(labels_upper_bound_.Size(), num_row_ * targets)
         << "Size of label_upper_bound must equal to number of rows.";
     check_device(labels_upper_bound_);
     return;
@@ -434,11 +436,40 @@ void MetaInfo::Validate(int32_t device) const {
   }
 }
 
+
+void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str, int32_t device) {
+  if (device == GenericParameter::kCpuId) {
+    Json j_interface = Json::Load({interface_str.c_str(), interface_str.size()});
+    auto const& arr = get<Array>(j_interface);
+    CHECK_EQ(arr.size(), 1) << "Columnar format array interface for CPU is not supported.";
+    auto obj = get<Object const>(arr.at(0));
+    ArrayInterface interface {obj};
+    CHECK_EQ(c_key, std::string{"label"})
+        << "Only labels is supported for setting meta info with array "
+           "interface.";
+    if (interface.num_cols != 1) {
+      LOG(WARNING) << "Found 2-d array label.  Multi target support is at "
+                      "experimental stage "
+                      "and is not recommended for real world usage.";
+    }
+
+    auto& h_labels = labels_.HostVector();
+    h_labels.resize(interface.num_rows * interface.num_cols);
+#pragma omp parallel for schedule(static)
+    for (omp_ulong i = 0; i < h_labels.size(); ++i) {
+      h_labels[i] = interface.GetElement(i);
+    }
+    labels_rows = interface.num_rows;
+    labels_cols = interface.num_cols;
+  } else {
 #if !defined(XGBOOST_USE_CUDA)
-void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   common::AssertGPUSupport();
-}
+    LOG(FATAL) << "XGBoost version not compiled with GPU support.";
+#else
+    this->SetInfoDevice(c_key, interface_str);
 #endif  // !defined(XGBOOST_USE_CUDA)
+  }
+}
 
 DMatrix* DMatrix::Load(const std::string& uri,
                        bool silent,

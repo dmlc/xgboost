@@ -507,17 +507,32 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
     def set_interface_info(self, field, data):
         """Set info type property into DMatrix."""
         # If we are passed a dataframe, extract the series
-        if lazy_isinstance(data, 'cudf.core.dataframe', 'DataFrame'):
+        if lazy_isinstance(data, 'cupy.core.core', 'ndarray'):
+            interface = [data.__cuda_array_interface__]
+            device = data.device.id
+        elif lazy_isinstance(data, 'cudf.core.dataframe', 'DataFrame'):
             if len(data.columns) != 1:
                 raise ValueError(
                     'Expecting meta-info to contain a single column')
             data = data[data.columns[0]]
-
-        interface = bytes(json.dumps([data.__cuda_array_interface__],
-                                     indent=2), 'utf-8')
-        _check_call(_LIB.XGDMatrixSetInfoFromInterface(self.handle,
-                                                       c_str(field),
-                                                       interface))
+            interface = [data.__cuda_array_interface__]
+            import cupy         # pylint: disable=import-error
+            device = cupy.cuda.runtime.pointerGetAttributes(
+                interface[0]['data'][0]).device
+        elif lazy_isinstance(data, 'cudf.core.series', 'Series'):
+            interface = [data.__cuda_array_interface__]
+            import cupy         # pylint: disable=import-error
+            device = cupy.cuda.runtime.pointerGetAttributes(
+                interface[0]['data'][0]).device
+        else:
+            interface = [data.__array_interface__]
+            device = -1
+        interface = bytes(json.dumps(interface), 'utf-8')
+        _check_call(_LIB.XGDMatrixSetInfoFromInterface(
+            self.handle,
+            c_str(field),
+            interface,
+            ctypes.c_int(device)))
 
     def save_binary(self, fname, silent=True):
         """Save DMatrix to an XGBoost buffer.  Saved binary can be later loaded
@@ -543,6 +558,10 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             The label information to be set into DMatrix
         """
         if _has_cuda_array_interface(label):
+            self.set_interface_info('label', label)
+        elif (hasattr(label, '__array_interface__') and
+              len(label.shape) == 2 and
+              label.shape[1] > 1):
             self.set_interface_info('label', label)
         else:
             self.set_float_info('label', label)
