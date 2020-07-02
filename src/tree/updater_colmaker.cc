@@ -603,7 +603,7 @@ class ColMaker: public TreeUpdater {
 
 XGBOOST_REGISTER_TREE_UPDATER(ColMaker, "grow_colmaker_deprecated")
 .describe("Grow tree with parallelization over columns.")
-.set_body([](GenericParameter const* tparam, LearnerModelParam const* mparam) {
+.set_body([]() {
     return new ColMaker();
   });
 }  // namespace tree

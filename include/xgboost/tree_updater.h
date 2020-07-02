@@ -82,18 +82,16 @@ class TreeUpdater : public Configurable {
    * \param name Name of the tree updater.
    * \param tparam A global runtime parameter
    */
-  static TreeUpdater* Create(const std::string& name, GenericParameter const* tparam,
-                             LearnerModelParam const* mparam);
+  static TreeUpdater* Create(const std::string& name, GenericParameter const* tparam);
 };
 
 /*!
  * \brief Registry entry for tree updater.
  */
 struct TreeUpdaterReg
-    : public dmlc::FunctionRegEntryBase<
-          TreeUpdaterReg,
-          std::function<TreeUpdater *(GenericParameter const *tparam,
-                                      LearnerModelParam const *mparam)>> {};
+    : public dmlc::FunctionRegEntryBase<TreeUpdaterReg,
+                                        std::function<TreeUpdater* ()> > {
+};
 
 /*!
  * \brief Macro to register tree updater.

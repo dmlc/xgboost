@@ -390,7 +390,7 @@ class SketchMaker: public BaseMaker {
 
 XGBOOST_REGISTER_TREE_UPDATER(SketchMaker, "grow_skmaker")
 .describe("Approximate sketching maker.")
-.set_body([](GenericParameter const* tparam, LearnerModelParam const* mparam) {
+.set_body([]() {
     return new SketchMaker();
   });
 }  // namespace tree

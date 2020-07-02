@@ -466,46 +466,47 @@ class QuantileHistMock : public QuantileHistMaker {
 
   int static constexpr kNRows = 8, kNCols = 16;
   std::shared_ptr<xgboost::DMatrix> dmat_;
-  LearnerModelParam mparam_;
   const std::vector<std::pair<std::string, std::string> > cfg_;
   std::shared_ptr<BuilderMock<float> > float_builder_;
   std::shared_ptr<BuilderMock<double> > double_builder_;
 
  public:
   explicit QuantileHistMock(
-      const std::vector<std::pair<std::string, std::string>> &args,
-      const bool single_precision_histogram = false, bool batch = true)
-      : QuantileHistMaker{&mparam_}, cfg_{args} {
+      const std::vector<std::pair<std::string, std::string> >& args,
+      const bool single_precision_histogram = false, bool batch = true) :
+      cfg_{args} {
     QuantileHistMaker::Configure(args);
     spliteval_->Init(&param_);
     dmat_ = RandomDataGenerator(kNRows, kNCols, 0.8).Seed(3).GenerateDMatrix();
     if (single_precision_histogram) {
-      float_builder_.reset(new BuilderMock<float>(
-          param_, std::move(pruner_),
-          std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone()),
-          int_constraint_, dmat_.get()));
+      float_builder_.reset(
+          new BuilderMock<float>(
+              param_,
+              std::move(pruner_),
+              std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone()),
+              int_constraint_,
+              dmat_.get()));
       if (batch) {
         float_builder_->SetHistSynchronizer(new BatchHistSynchronizer<float>());
         float_builder_->SetHistRowsAdder(new BatchHistRowsAdder<float>());
       } else {
-        float_builder_->SetHistSynchronizer(
-            new DistributedHistSynchronizer<float>());
+        float_builder_->SetHistSynchronizer(new DistributedHistSynchronizer<float>());
         float_builder_->SetHistRowsAdder(new DistributedHistRowsAdder<float>());
       }
     } else {
-      double_builder_.reset(new BuilderMock<double>(
-          param_, std::move(pruner_),
-          std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone()),
-          int_constraint_, dmat_.get()));
+      double_builder_.reset(
+          new BuilderMock<double>(
+              param_,
+              std::move(pruner_),
+              std::unique_ptr<SplitEvaluator>(spliteval_->GetHostClone()),
+              int_constraint_,
+              dmat_.get()));
       if (batch) {
-        double_builder_->SetHistSynchronizer(
-            new BatchHistSynchronizer<double>());
+        double_builder_->SetHistSynchronizer(new BatchHistSynchronizer<double>());
         double_builder_->SetHistRowsAdder(new BatchHistRowsAdder<double>());
       } else {
-        double_builder_->SetHistSynchronizer(
-            new DistributedHistSynchronizer<double>());
-        double_builder_->SetHistRowsAdder(
-            new DistributedHistRowsAdder<double>());
+        double_builder_->SetHistSynchronizer(new DistributedHistSynchronizer<double>());
+        double_builder_->SetHistRowsAdder(new DistributedHistRowsAdder<double>());
       }
     }
   }

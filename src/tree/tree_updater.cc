@@ -14,16 +14,13 @@ DMLC_REGISTRY_ENABLE(::xgboost::TreeUpdaterReg);
 
 namespace xgboost {
 
-TreeUpdater* TreeUpdater::Create(const std::string& name, GenericParameter const* tparam,
-                                 LearnerModelParam const* mparam) {
+TreeUpdater* TreeUpdater::Create(const std::string& name, GenericParameter const* tparam) {
   auto *e = ::dmlc::Registry< ::xgboost::TreeUpdaterReg>::Get()->Find(name);
   if (e == nullptr) {
     LOG(FATAL) << "Unknown tree updater " << name;
   }
-  auto p_updater = (e->body)(tparam, mparam);
-  if (!p_updater->tparam_) {
-    p_updater->tparam_ = tparam;
-  }
+  auto p_updater = (e->body)();
+  p_updater->tparam_ = tparam;
   return p_updater;
 }
 

@@ -890,9 +890,7 @@ class GPUHistMaker : public TreeUpdater {
 #if !defined(GTEST_TEST)
 XGBOOST_REGISTER_TREE_UPDATER(GPUHistMaker, "grow_gpu_hist")
     .describe("Grow tree with GPU.")
-    .set_body([](GenericParameter const* tparam, LearnerModelParam const* mparam) {
-        return new GPUHistMaker();
-      });
+    .set_body([]() { return new GPUHistMaker(); });
 #endif  // !defined(GTEST_TEST)
 
 }  // namespace tree

@@ -414,8 +414,6 @@ class MultiExactUpdater : public TreeUpdater  {
   MultiTargetExact multi_;
 
  public:
-  explicit MultiExactUpdater(GenericParameter const *tparam)
-      : single_{tparam}, multi_{tparam} {}
   char const *Name() const override { return single_.Name(); };
   void Configure(const Args &args) override {
     single_.Configure(args);
@@ -443,8 +441,8 @@ class MultiExactUpdater : public TreeUpdater  {
 
 XGBOOST_REGISTER_TREE_UPDATER(MultiExact, "grow_colmaker")
     .describe("Grow tree with parallelization over columns.")
-    .set_body([](GenericParameter const *tparam, LearnerModelParam const* mparam) {
-       return new MultiExactUpdater(tparam);
+    .set_body([]() {
+       return new MultiExactUpdater();
     });
 
 }  // namespace tree

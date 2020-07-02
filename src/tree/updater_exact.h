@@ -450,10 +450,7 @@ class MultiExact : public TreeUpdater {
   }
 
  public:
-  explicit MultiExact(GenericParameter const *runtime) {
-    if (runtime) {
-      tparam_ = runtime;
-    }
+  explicit MultiExact() {
     node_shift_ = 0;
     monitor_.Init(__func__);
   }

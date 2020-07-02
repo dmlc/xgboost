@@ -45,8 +45,8 @@ class MultiExactTest : public :: testing::Test {
 
 class MultiExactUpdaterForTest : public MultiExact<MultiGradientPair> {
  public:
-  explicit MultiExactUpdaterForTest(GenericParameter const *runtime)
-      : MultiExact{runtime} {
+  explicit MultiExactUpdaterForTest(GenericParameter const *runtime) {
+    this->tparam_ = runtime;
     this->Configure(Args{});
   }
   decltype(gpairs_) &GetGpairs() { return gpairs_; }

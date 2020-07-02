@@ -33,8 +33,8 @@ TEST(GrowHistMaker, InteractionConstraint) {
     // With constraints
     RegTree tree;
     tree.param.num_feature = kCols;
-    LearnerModelParam mparam;
-    std::unique_ptr<TreeUpdater> updater { TreeUpdater::Create("grow_histmaker", &param, &mparam) };
+
+    std::unique_ptr<TreeUpdater> updater { TreeUpdater::Create("grow_histmaker", &param) };
     updater->Configure(Args{
         {"interaction_constraints", "[[0, 1]]"},
         {"num_feature", std::to_string(kCols)}});
@@ -50,8 +50,8 @@ TEST(GrowHistMaker, InteractionConstraint) {
     // Without constraints
     RegTree tree;
     tree.param.num_feature = kCols;
-    LearnerModelParam mparam;
-    std::unique_ptr<TreeUpdater> updater { TreeUpdater::Create("grow_histmaker", &param, &mparam) };
+
+    std::unique_ptr<TreeUpdater> updater { TreeUpdater::Create("grow_histmaker", &param) };
     updater->Configure(Args{{"num_feature", std::to_string(kCols)}});
     updater->Update(&gradients, p_dmat.get(), {&tree});
 

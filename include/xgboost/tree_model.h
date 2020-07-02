@@ -192,7 +192,7 @@ class RegTree : public Model {
       return cleft_ == kInvalidNodeId;
     }
     /*! \return get leaf value of leaf node */
-    XGBOOST_DEVICE bst_float SinlgeLeafValue() const {
+    XGBOOST_DEVICE bst_float SingleLeafValue() const {
       return (this->info_).leaf_value;
     }
     /*! \return get split condition of the node */
@@ -577,7 +577,7 @@ class RegTree : public Model {
   }
   float LeafValue(bst_node_t nidx) const {
     CHECK_EQ(kind_, kSingle);
-    return (*this)[nidx].SinlgeLeafValue();
+    return (*this)[nidx].SingleLeafValue();
   }
 
   void SetLeaf(std::vector<float> const& leaf, bst_node_t nid,

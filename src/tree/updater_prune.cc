@@ -24,7 +24,7 @@ DMLC_REGISTRY_FILE_TAG(updater_prune);
 class TreePruner: public TreeUpdater {
  public:
   TreePruner() {
-    syncher_.reset(TreeUpdater::Create("sync", tparam_, mparam_));
+    syncher_.reset(TreeUpdater::Create("sync", tparam_));
     pruner_monitor_.Init("TreePruner");
   }
   char const* Name() const override {
@@ -98,23 +98,22 @@ class TreePruner: public TreeUpdater {
         npruned = this->TryPruneLeaf(tree, nid, tree.GetDepth(nid), npruned);
       }
     }
-    // LOG(INFO) << "tree pruning end, "
-    //           << tree.NumExtraNodes() << " extra nodes, " << npruned
-    //           << " pruned nodes, max_depth=" << tree.MaxDepth();
+    LOG(INFO) << "tree pruning end, "
+              << tree.NumExtraNodes() << " extra nodes, " << npruned
+              << " pruned nodes, max_depth=" << tree.MaxDepth();
   }
 
  private:
   // synchronizer
   std::unique_ptr<TreeUpdater> syncher_;
   // training parameter
-  LearnerModelParam const* mparam_;
   TrainParam param_;
   common::Monitor pruner_monitor_;
 };
 
 XGBOOST_REGISTER_TREE_UPDATER(TreePruner, "prune")
 .describe("Pruner that prune the tree according to statistics.")
-.set_body([](GenericParameter const* tparam, LearnerModelParam const* mparam) {
+.set_body([]() {
     return new TreePruner();
   });
 }  // namespace tree
