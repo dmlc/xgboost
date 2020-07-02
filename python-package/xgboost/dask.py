@@ -34,6 +34,11 @@ from .tracker import RabitTracker
 from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase
 from .sklearn import xgboost_model_doc
 
+try:
+    from distributed import Client
+except ImportError:
+    Client = None
+
 # Current status is considered as initial support, many features are
 # not properly supported yet.
 #
@@ -360,7 +365,7 @@ class DaskDMatrix:
             cols = c
         return (rows, cols)
 
-from distributed import Client
+
 def _get_rabit_args(worker_map, client: Client, host_ip=None, port=None):
     '''Get rabit context arguments from data distribution in DaskDMatrix.'''
     msg = 'Please provide both IP and port'
