@@ -94,6 +94,12 @@ struct FeatureGroups {
   template <typename GradientSumT>
   void Init(const common::HistogramCuts& cuts, bool is_dense, int shm_size);
 
+  /** Creates a single feature group containing all features and bins.
+      \notes This is used as a fallback for sparse matrices, and is also useful
+      for testing.
+   */
+  void InitSingle(const common::HistogramCuts& cuts);
+
   FeatureGroupsAccessor DeviceAccessor(int device) const {
     feature_segments.SetDevice(device);
     bin_segments.SetDevice(device);
