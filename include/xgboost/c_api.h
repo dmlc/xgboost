@@ -161,7 +161,7 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data,
  *
  * Short notes for data callback
  *
- * There are 2 sets of data cakkbacks for DMatrix.  The first one is currently exclusively
+ * There are 2 sets of data callbacks for DMatrix.  The first one is currently exclusively
  * used by JVM packages.  It uses `XGBoostBatchCSR` to accept batches for CSR formated
  * input, and concatenate them into 1 final big CSR.  The related functions are:
  *
@@ -172,10 +172,10 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data,
  * Another set is used by Quantile based DMatrix (used by hist algorithm) for reducing
  * memory usage.  Currently only GPU implementation is available.  It accept foreign data
  * iterators as callbacks and works similar to external memory.  For GPU Hist, the data is
- * still concatenated at the end, but in a compressed format.  This is particular useful
- * for distributed setting as it eliminates 2 copies of data.  1 by a `concat` from
- * external library to make the data into a blob for normal DMatrix initialization,
- * another by the internal CSR copy of DMatrix.  Related functions are:
+ * first compressed by quantile sketching then merged.  This is particular useful for
+ * distributed setting as it eliminates 2 copies of data.  1 by a `concat` from external
+ * library to make the data into a blob for normal DMatrix initialization, another by the
+ * internal CSR copy of DMatrix.  Related functions are:
  *
  * - XGProxyDMatrixCreate
  * - XGDMatrixCallbackNext
@@ -293,8 +293,8 @@ XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLIN
 /*!
  * \brief Create a device DMatrix with data iterator.
  *
- * \param iter A handle to external data iterator.
- * \param proxy A DMatrix proxy handle created by `XGProxyDMatrixCreate`.
+ * \param iter     A handle to external data iterator.
+ * \param proxy    A DMatrix proxy handle created by `XGProxyDMatrixCreate`.
  * \param reset    Callback function reseting the iterator state.
  * \param next     Callback function yieling the next batch of data.
  * \param missing  Which value to represent missing value
