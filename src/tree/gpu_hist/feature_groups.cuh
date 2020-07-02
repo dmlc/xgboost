@@ -98,7 +98,7 @@ struct FeatureGroups {
       \notes This is used as a fallback for sparse matrices, and is also useful
       for testing.
    */
-  FeatureGroups(const common::HistogramCuts& cuts) {
+  explicit FeatureGroups(const common::HistogramCuts& cuts) {
     InitSingle(cuts);
   }
 
