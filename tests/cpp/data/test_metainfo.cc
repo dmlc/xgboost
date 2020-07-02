@@ -169,18 +169,18 @@ TEST(MetaInfo, Validate) {
   info.num_col_ = 3;
   std::vector<xgboost::bst_group_t> groups (11);
   info.SetInfo("group", groups.data(), xgboost::DataType::kUInt32, 11);
-  EXPECT_THROW(info.Validate(0), dmlc::Error);
+  EXPECT_THROW(info.Validate(0, 1), dmlc::Error);
 
   std::vector<float> labels(info.num_row_ + 1);
   info.SetInfo("label", labels.data(), xgboost::DataType::kFloat32, info.num_row_ + 1);
-  EXPECT_THROW(info.Validate(0), dmlc::Error);
+  EXPECT_THROW(info.Validate(0, 1), dmlc::Error);
 
 #if defined(XGBOOST_USE_CUDA)
   info.group_ptr_.clear();
   labels.resize(info.num_row_);
   info.SetInfo("label", labels.data(), xgboost::DataType::kFloat32, info.num_row_);
   info.labels_.SetDevice(0);
-  EXPECT_THROW(info.Validate(1), dmlc::Error);
+  EXPECT_THROW(info.Validate(1, 1), dmlc::Error);
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 

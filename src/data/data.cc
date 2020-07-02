@@ -383,7 +383,7 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows) {
   }
 }
 
-void MetaInfo::Validate(int32_t device) const {
+void MetaInfo::Validate(int32_t device, size_t targets) const {
   if (group_ptr_.size() != 0 && weights_.Size() != 0) {
     CHECK_EQ(group_ptr_.size(), weights_.Size() + 1)
         << "Size of weights must equal to number of groups when ranking "
@@ -411,19 +411,19 @@ void MetaInfo::Validate(int32_t device) const {
     return;
   }
   if (labels_.Size() != 0) {
-    CHECK_EQ(labels_.Size(), num_row_)
+    CHECK_EQ(labels_.Size(), num_row_ * targets)
         << "Size of labels must equal to number of rows.";
     check_device(labels_);
     return;
   }
   if (labels_lower_bound_.Size() != 0) {
-    CHECK_EQ(labels_lower_bound_.Size(), num_row_)
+    CHECK_EQ(labels_lower_bound_.Size(), num_row_ * targets)
         << "Size of label_lower_bound must equal to number of rows.";
     check_device(labels_lower_bound_);
     return;
   }
   if (labels_upper_bound_.Size() != 0) {
-    CHECK_EQ(labels_upper_bound_.Size(), num_row_)
+    CHECK_EQ(labels_upper_bound_.Size(), num_row_ * targets)
         << "Size of label_upper_bound must equal to number of rows.";
     check_device(labels_upper_bound_);
     return;

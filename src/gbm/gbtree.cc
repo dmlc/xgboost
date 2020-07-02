@@ -301,7 +301,7 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
     }
   }
   // update the trees
-  CHECK_EQ(gpair->Size(), p_fmat->Info().num_row_)
+  CHECK_EQ(gpair->Size(), p_fmat->Info().num_row_ * model_.learner_model_param->num_targets)
       << "Mismatching size between number of rows from input data and size of "
          "gradient vector.";
   for (auto& up : updaters_) {

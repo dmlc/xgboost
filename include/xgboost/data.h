@@ -104,8 +104,11 @@ class MetaInfo {
 
   /*!
    * \brief Validate all metainfo.
+   *
+   * \param device GPU ID
+   * \param targets Number of output targets.
    */
-  void Validate(int32_t device) const;
+  void Validate(int32_t device, size_t targets) const;
 
   MetaInfo Slice(common::Span<int32_t const> ridxs) const;
   /*!

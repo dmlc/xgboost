@@ -1097,7 +1097,7 @@ class LearnerImpl : public LearnerIO {
 
   void ValidateDMatrix(DMatrix* p_fmat) const {
     MetaInfo const& info = p_fmat->Info();
-    info.Validate(generic_parameters_.gpu_id);
+    info.Validate(generic_parameters_.gpu_id, learner_model_param_.num_targets);
 
     auto const row_based_split = [this]() {
       return tparam_.dsplit == DataSplitMode::kRow ||
