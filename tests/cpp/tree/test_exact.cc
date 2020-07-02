@@ -45,9 +45,8 @@ class MultiExactTest : public :: testing::Test {
 
 class MultiExactUpdaterForTest : public MultiExact<MultiGradientPair> {
  public:
-  explicit MultiExactUpdaterForTest(GenericParameter const *runtime,
-                                    LearnerModelParam const& mparam)
-      : MultiExact{runtime, &mparam} {
+  explicit MultiExactUpdaterForTest(GenericParameter const *runtime)
+      : MultiExact{runtime} {
     this->Configure(Args{});
   }
   decltype(gpairs_) &GetGpairs() { return gpairs_; }
@@ -60,12 +59,9 @@ TEST_F(MultiExactTest, InitData) {
   GenericParameter runtime;
   runtime.InitAllowUnknown(Args{});
   runtime.gpu_id = GenericParameter::kCpuId;
-  LearnerModelParam mparam;
-  mparam.output_type = OutputType::kMulti;
-  mparam.num_targets = kLabels;
-  MultiExactUpdaterForTest updater(&runtime, mparam);
+  MultiExactUpdaterForTest updater(&runtime);
   auto h_grad = common::Span<GradientPair>{gradients_.HostVector()};
-  updater.InitData(p_dmat_.get(), h_grad);
+  updater.InitData(p_dmat_.get(), h_grad, kLabels);
 
   auto const& gpairs = updater.GetGpairs();
 
@@ -91,13 +87,10 @@ TEST_F(MultiExactTest, InitRoot) {
   GenericParameter runtime;
   runtime.InitAllowUnknown(Args{});
   runtime.gpu_id = GenericParameter::kCpuId;
-  LearnerModelParam mparam;
-  mparam.output_type = OutputType::kMulti;
-  mparam.num_targets = kLabels;
-  MultiExactUpdaterForTest updater{&runtime, mparam};
+  MultiExactUpdaterForTest updater{&runtime};
   updater.Configure(Args{});
   auto h_grad = common::Span<GradientPair>{gradients_.HostVector()};
-  updater.InitData(p_dmat_.get(), h_grad);
+  updater.InitData(p_dmat_.get(), h_grad, kLabels);
 
   updater.InitRoot(p_dmat_.get(), &tree);
   auto root_weight = tree.VectorLeafValue(RegTree::kRoot);
@@ -111,10 +104,7 @@ TEST_F(MultiExactTest, EvaluateSplit) {
   GenericParameter runtime;
   runtime.InitAllowUnknown(Args{});
   runtime.gpu_id = GenericParameter::kCpuId;
-  LearnerModelParam mparam;
-  mparam.output_type = OutputType::kMulti;
-  mparam.num_targets = kLabels;
-  MultiExactUpdaterForTest updater{&runtime, mparam};
+  MultiExactUpdaterForTest updater{&runtime};
 
   for (auto& page : p_dmat_->GetBatches<SortedCSCPage>()) {
     auto& offset = page.offset.HostVector();
@@ -125,7 +115,7 @@ TEST_F(MultiExactTest, EvaluateSplit) {
 
   updater.Configure(Args{});
   auto h_grad = common::Span<GradientPair>{gradients_.HostVector()};
-  updater.InitData(p_dmat_.get(), h_grad);
+  updater.InitData(p_dmat_.get(), h_grad, kLabels);
   updater.InitRoot(p_dmat_.get(), &tree);
   updater.GetNodesSplit().front().candidate.loss_chg = 0.001;
 
@@ -141,13 +131,10 @@ TEST_F(MultiExactTest, ApplySplit) {
   GenericParameter runtime;
   runtime.InitAllowUnknown(Args{});
   runtime.gpu_id = GenericParameter::kCpuId;
-  LearnerModelParam mparam;
-  mparam.output_type = OutputType::kMulti;
-  mparam.num_targets = kLabels;
-  MultiExactUpdaterForTest updater{&runtime, mparam};
+  MultiExactUpdaterForTest updater{&runtime};
   updater.Configure(Args{});
   auto h_grad = common::Span<GradientPair>{gradients_.HostVector()};
-  updater.InitData(p_dmat_.get(), h_grad);
+  updater.InitData(p_dmat_.get(), h_grad, kLabels);
   updater.InitRoot(p_dmat_.get(), &tree);
   ASSERT_EQ(updater.GetNodesSplit().size(), 1);
 

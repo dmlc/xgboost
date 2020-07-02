@@ -307,8 +307,8 @@ class MultiValueConstraint {
     HostDeviceVector<float> upper_storage;
   };
 
-  explicit MultiValueConstraint(size_t targets) : targets_{targets} {}
-  void Init(TrainParam const& p, Storage* storage) {
+  void Init(TrainParam const& p, size_t targets, Storage* storage) {
+    targets_ = targets;
     monotone_ = {p.monotone_constraints};
     if (!monotone_.empty()) {
       storage->lower_storage.Resize(p.MaxNodes(),
@@ -437,7 +437,7 @@ class MultiExact : public TreeUpdater {
   // Scan of gradient statistic, used in enumeration.
   std::vector<std::vector<SplitEntry>> tloc_scans_;
   common::ColumnSampler sampler_;
-  LearnerModelParam const* mparam_;
+  size_t targets_{0};
 
   bool NeedForward(SparsePage::Inst const &column, TrainParam const& p) const {
     return p.default_direction == 2 ||
@@ -450,10 +450,7 @@ class MultiExact : public TreeUpdater {
   }
 
  public:
-  explicit MultiExact(GenericParameter const *runtime,
-                      LearnerModelParam const *mparam)
-      : mparam_{mparam}, value_constraints_{mparam->num_targets} {
-    CHECK_NE(mparam->num_targets, 0);
+  explicit MultiExact(GenericParameter const *runtime) {
     if (runtime) {
       tparam_ = runtime;
     }
@@ -475,7 +472,7 @@ class MultiExact : public TreeUpdater {
     out["train_param"] = ToJson(param_);
   }
 
-  void InitData(DMatrix* data, common::Span<GradientPair const> gpairs);
+  void InitData(DMatrix* data, common::Span<GradientPair const> gpairs, size_t targets);
   void InitRoot(DMatrix* data, RegTree* tree);
 
   void EvaluateFeature(bst_feature_t fid, SparsePage::Inst const &column,

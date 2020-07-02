@@ -50,16 +50,17 @@ namespace tree {
 
 template <typename GradientT>
 void MultiExact<GradientT>::InitData(DMatrix *data,
-                                     common::Span<GradientPair const> gpairs) {
+                                     common::Span<GradientPair const> gpairs, size_t targets) {
   monitor_.Start(__func__);
+  this->targets_ = targets;
   this->positions_.clear();
   this->is_splitable_.clear();
   this->nodes_split_.clear();
   this->node_shift_ = 0;
 
-  CHECK_EQ(gpairs.size(), data->Info().num_row_ * mparam_->num_targets);
-  gpairs_ = std::vector<GradientT>(gpairs.size() / mparam_->num_targets,
-                                   MakeGradientPair<GradientT>(mparam_->num_targets));
+  CHECK_EQ(gpairs.size(), data->Info().num_row_ * this->targets_);
+  gpairs_ = std::vector<GradientT>(gpairs.size() / this->targets_,
+                                   MakeGradientPair<GradientT>(this->targets_));
   CHECK_EQ(gpairs_.size(), data->Info().num_row_);
   is_splitable_.resize(param_.MaxNodes(), 1);
 
@@ -72,8 +73,8 @@ void MultiExact<GradientT>::InitData(DMatrix *data,
 
   // Get a vectorized veiw of gradients.
   for (size_t i = 0; i < data->Info().num_row_; ++i) {
-    size_t beg = i * mparam_->num_targets;
-    size_t end = beg + mparam_->num_targets;
+    size_t beg = i * this->targets_;
+    size_t end = beg + this->targets_;
     auto &vec = gpairs_[i];
     for (size_t j = beg; j < end; ++j) {
       vec.GetGrad()[j - beg] = gpairs[j].GetGrad();
@@ -82,7 +83,7 @@ void MultiExact<GradientT>::InitData(DMatrix *data,
   }
 
   if (subsample != 1.0) {
-    size_t targets = mparam_->num_targets;
+    size_t targets = this->targets_;
     std::bernoulli_distribution flip(subsample);
     auto &rnd = common::GlobalRandom();
     std::transform(gpairs_.begin(), gpairs_.end(), gpairs_.begin(),
@@ -97,14 +98,14 @@ void MultiExact<GradientT>::InitData(DMatrix *data,
   sampler_.Init(data->Info().num_col_, param_.colsample_bynode,
                 param_.colsample_bylevel, param_.colsample_bytree);
 
-  value_constraints_.Init(param_, &monotone_constriants_);
+  value_constraints_.Init(param_, targets_, &monotone_constriants_);
   monitor_.Stop(__func__);
 }
 
 template <typename GradientT>
 void MultiExact<GradientT>::InitRoot(DMatrix *data, RegTree *tree) {
   monitor_.Start(__func__);
-  GradientT root_sum {MakeGradientPair<GradientT>(mparam_->num_targets)};
+  GradientT root_sum {MakeGradientPair<GradientT>(tree->LeafSize())};
   root_sum =
       XGBOOST_PARALLEL_ACCUMULATE(gpairs_.cbegin(), gpairs_.cend(), root_sum,
                                   std::plus<GradientT>{});
@@ -155,7 +156,7 @@ void MultiExact<GradientT>::EvaluateFeature(bst_feature_t fid,
                            bool const forward) {
     auto const inc = forward ? 1 : -1;
     auto& node_scans = *p_scans;
-    size_t targets { this->mparam_->num_targets };
+    size_t targets { this->targets_ };
     for (size_t i = node_shift_; i < nodes_split_.size(); ++i) {
       auto& scan = node_scans[i];
       scan.candidate.left_sum = MakeGradientPair<GradientT>(targets);
@@ -387,7 +388,9 @@ void MultiExact<GradientT>::ApplySplit(DMatrix *m, RegTree *p_tree) {
 template <typename GradientT>
 void MultiExact<GradientT>::UpdateTree(HostDeviceVector<GradientPair> *gpair,
                                        DMatrix *data, RegTree *tree) {
-  this->InitData(data, gpair->ConstHostSpan());
+  this->InitData(data, gpair->ConstHostSpan(), tree->LeafSize());
+  CHECK_NE(this->targets_, 0);
+
   this->InitRoot(data, tree);
   this->ApplySplit(data, tree);
 
@@ -411,8 +414,8 @@ class MultiExactUpdater : public TreeUpdater  {
   MultiTargetExact multi_;
 
  public:
-  explicit MultiExactUpdater(GenericParameter const *tparam, LearnerModelParam const* mparam)
-      : single_{tparam, mparam}, multi_{tparam, mparam} {}
+  explicit MultiExactUpdater(GenericParameter const *tparam)
+      : single_{tparam}, multi_{tparam} {}
   char const *Name() const override { return single_.Name(); };
   void Configure(const Args &args) override {
     single_.Configure(args);
@@ -441,7 +444,7 @@ class MultiExactUpdater : public TreeUpdater  {
 XGBOOST_REGISTER_TREE_UPDATER(MultiExact, "grow_colmaker")
     .describe("Grow tree with parallelization over columns.")
     .set_body([](GenericParameter const *tparam, LearnerModelParam const* mparam) {
-       return new MultiExactUpdater(tparam, mparam);
+       return new MultiExactUpdater(tparam);
     });
 
 }  // namespace tree
