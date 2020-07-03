@@ -200,7 +200,7 @@ TEST(GPUQuantile, MergeBasic) {
     AdapterDeviceSketchWeighted(adapter_0.Value(), n_bins, info,
                                 std::numeric_limits<float>::quiet_NaN(), &sketch_0);
 
-    SketchContainer sketch_1(n_bins, kCols, kRows, 0);
+    SketchContainer sketch_1(n_bins, kCols, kRows * kRows, 0);
     HostDeviceVector<float> storage_1;
     std::string interface_str_1 = RandomDataGenerator{kRows, kCols, 0}
                                       .Device(0)
@@ -430,6 +430,7 @@ TEST(GPUQuantile, SameOnAllWorkers) {
                                 std::numeric_limits<float>::quiet_NaN(),
                                 &sketch_distributed);
     sketch_distributed.AllReduce();
+    sketch_distributed.Unique();
     TestQuantileElemRank(0, sketch_distributed.Data(), sketch_distributed.ColumnsPtr());
 
     // Test for all workers having the same sketch.
