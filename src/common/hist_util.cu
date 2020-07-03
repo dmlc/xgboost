@@ -147,10 +147,8 @@ size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
   total -= (num_columns + 1) * sizeof(SketchContainer::OffsetT);
   // 8. Deallocate cut size scan.
   total -= (num_columns + 1) * sizeof(SketchContainer::OffsetT);
-  // 9. Allocate std::min(rows, bins * factor) * shape due to pruning to global num rows.
-  total += RequiredSampleCuts(num_rows, num_bins, num_bins, nnz) * sizeof(SketchEntry);
-  // 10. Allocate final cut values, min values, cut ptrs: std::min(rows, bins + 1) *
-  //     n_columns + n_columns + n_columns + 1
+  // 9. Allocate final cut values, min values, cut ptrs: std::min(rows, bins + 1) *
+  //    n_columns + n_columns + n_columns + 1
   total += std::min(num_rows, num_bins) * num_columns * sizeof(float);
   total += num_columns *
            sizeof(std::remove_reference_t<decltype(

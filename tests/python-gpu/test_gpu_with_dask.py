@@ -130,7 +130,7 @@ class TestDistributedGPU(unittest.TestCase):
 
         exe = None
         for possible_path in {'./testxgboost', './build/testxgboost',
-                              '../build/testxgboost'}:
+                              '../build/testxgboost', '../gpu-build/testxgboost'}:
             if os.path.exists(possible_path):
                 exe = possible_path
         assert exe, 'No testxgboost executable found.'

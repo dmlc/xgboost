@@ -122,10 +122,10 @@ class SketchContainer {
   Span<OffsetT const> ColumnsPtr() const { return this->columns_ptr_.ConstDeviceSpan(); }
 
   SketchContainer(SketchContainer&&) = default;
+  SketchContainer& operator=(SketchContainer&&) = default;
 
   SketchContainer(const SketchContainer&) = delete;
   SketchContainer& operator=(const SketchContainer&) = delete;
-  SketchContainer& operator=(const SketchContainer&&) = delete;
 };
 
 namespace detail {

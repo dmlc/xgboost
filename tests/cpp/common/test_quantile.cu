@@ -324,7 +324,9 @@ TEST(GPUQuantile, AllReduce) {
     if (world != 1) {
       ASSERT_EQ(world, n_gpus);
     }
-
+    size_t intermediate_num_cuts =
+        std::min(kRows * world, static_cast<size_t>(n_bins * WQSketch::kFactor));
+    std::vector<SketchContainer> containers;
     for (auto rank = 0; rank < world; ++rank) {
       HostDeviceVector<float> storage;
       std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
@@ -332,11 +334,16 @@ TEST(GPUQuantile, AllReduce) {
                                       .Seed(rank + seed)
                                       .GenerateArrayInterface(&storage);
       data::CupyAdapter adapter(interface_str);
+      containers.emplace_back(n_bins, kCols, kRows, 0);
       AdapterDeviceSketchWeighted(adapter.Value(), n_bins, info,
                                   std::numeric_limits<float>::quiet_NaN(),
-                                  &sketch_on_single_node);
+                                  &containers.back());
     }
-    sketch_on_single_node.Unique();
+    for (auto& sketch : containers) {
+      sketch.Prune(intermediate_num_cuts);
+      sketch_on_single_node.Merge(sketch.ColumnsPtr(), sketch.Data());
+      sketch_on_single_node.FixError();
+    }
 
     // Set up distributed version.  We rely on using rank as seed to generate
     // the exact same copy of data.
@@ -352,7 +359,6 @@ TEST(GPUQuantile, AllReduce) {
                                 std::numeric_limits<float>::quiet_NaN(),
                                 &sketch_distributed);
     sketch_distributed.AllReduce();
-    sketch_distributed.Unique();
 
     ASSERT_EQ(sketch_distributed.ColumnsPtr().size(),
               sketch_on_single_node.ColumnsPtr().size());

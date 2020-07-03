@@ -428,15 +428,21 @@ void SketchContainer::AllReduce() {
     reducer_ = std::make_unique<dh::AllReducer>();
     reducer_->Init(device_);
   }
-  auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
-  dh::device_vector<SketchContainer::OffsetT> gathered_ptrs;
+  // Reduce the overhead on syncing.
+  size_t global_sum_rows = num_rows_;
+  rabit::Allreduce<rabit::op::Sum>(&global_sum_rows, 1);
+  size_t intermediate_num_cuts =
+      std::min(global_sum_rows, static_cast<size_t>(num_bins_ * kFactor));
+  this->Prune(intermediate_num_cuts);
 
+  auto d_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
   CHECK_EQ(d_columns_ptr.size(), num_columns_ + 1);
   size_t n = d_columns_ptr.size();
   rabit::Allreduce<rabit::op::Max>(&n, 1);
   CHECK_EQ(n, d_columns_ptr.size()) << "Number of columns differs across workers";
 
   // Get the columns ptr from all workers
+  dh::device_vector<SketchContainer::OffsetT> gathered_ptrs;
   gathered_ptrs.resize(d_columns_ptr.size() * world, 0);
   size_t rank = rabit::GetRank();
   auto offset = rank * d_columns_ptr.size();
@@ -466,18 +472,19 @@ void SketchContainer::AllReduce() {
     offset += length_as_bytes;
   }
 
-  // Merge them into current sketch.
+  // Merge them into a new sketch.
+  SketchContainer new_sketch(num_bins_, this->num_columns_, global_sum_rows,
+                             this->device_);
   for (size_t i = 0; i < allworkers.size(); ++i) {
-    if (i == rank) {
-      continue;
-    }
     auto worker = allworkers[i];
     auto worker_ptr =
         dh::ToSpan(gathered_ptrs)
             .subspan(i * d_columns_ptr.size(), d_columns_ptr.size());
-    this->Merge(worker_ptr, worker);
-    this->FixError();
+    new_sketch.Merge(worker_ptr, worker);
+    new_sketch.FixError();
   }
+
+  *this = std::move(new_sketch);
   timer_.Stop(__func__);
 }
 
@@ -485,13 +492,8 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   timer_.Start(__func__);
   dh::safe_cuda(cudaSetDevice(device_));
   p_cuts->min_vals_.Resize(num_columns_);
-  size_t global_max_rows = num_rows_;
-  rabit::Allreduce<rabit::op::Sum>(&global_max_rows, 1);
 
   // Sync between workers.
-  size_t intermediate_num_cuts =
-      std::min(global_max_rows, static_cast<size_t>(num_bins_ * kFactor));
-  this->Prune(intermediate_num_cuts);
   this->AllReduce();
 
   // Prune to final number of bins.
