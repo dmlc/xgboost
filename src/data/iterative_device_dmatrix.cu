@@ -73,24 +73,24 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
     }
     sketch_containers.emplace_back(batch_param_.max_bin, num_cols(), num_rows(), device);
     auto* p_sketch = &sketch_containers.back();
-      proxy->Info().weights_.SetDevice(device);
-      Dispatch(proxy, [&](auto const &value) {
+    proxy->Info().weights_.SetDevice(device);
+    Dispatch(proxy, [&](auto const &value) {
         common::AdapterDeviceSketchWeighted(value, batch_param_.max_bin,
                                             proxy->Info(), missing, p_sketch);
       });
 
-      auto batch_rows = num_rows();
-      accumulated_rows += batch_rows;
-      dh::caching_device_vector<size_t> row_counts(batch_rows + 1, 0);
-      common::Span<size_t> row_counts_span(row_counts.data().get(),
-                                           row_counts.size());
-      row_stride = std::max(row_stride, Dispatch(proxy, [=](auto const &value) {
-                              return GetRowCounts(value, row_counts_span,
-                                                  device, missing);
-                            }));
-      nnz += thrust::reduce(thrust::cuda::par(alloc), row_counts.begin(),
-                            row_counts.end());
-      batches++;
+    auto batch_rows = num_rows();
+    accumulated_rows += batch_rows;
+    dh::caching_device_vector<size_t> row_counts(batch_rows + 1, 0);
+    common::Span<size_t> row_counts_span(row_counts.data().get(),
+                                         row_counts.size());
+    row_stride = std::max(row_stride, Dispatch(proxy, [=](auto const &value) {
+          return GetRowCounts(value, row_counts_span,
+                              device, missing);
+        }));
+    nnz += thrust::reduce(thrust::cuda::par(alloc), row_counts.begin(),
+                          row_counts.end());
+    batches++;
   }
 
   common::SketchContainer final_sketch(batch_param_.max_bin, cols, accumulated_rows, device);
