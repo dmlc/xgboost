@@ -32,7 +32,8 @@ TEST(Predictor, PredictionCache) {
   EXPECT_ANY_THROW(container.Entry(m));
 }
 
-void TestTrainingPrediction(size_t rows, std::string tree_method,
+void TestTrainingPrediction(size_t rows, size_t bins,
+                            std::string tree_method,
                             std::shared_ptr<DMatrix> p_full,
                             std::shared_ptr<DMatrix> p_hist) {
   size_t constexpr kCols = 16;

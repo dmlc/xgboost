@@ -304,5 +304,51 @@ inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_row
   HostDeviceVector<GradientPair> gpair(h_gpair);
   return gpair;
 }
+
+typedef void *DMatrixHandle;  // NOLINT(*);
+
+class CudaArrayIterForTest {
+  HostDeviceVector<float> data_;
+  size_t iter_ {0};
+  DMatrixHandle proxy_;
+  std::unique_ptr<RandomDataGenerator> rng_;
+
+  std::vector<std::string> batches_;
+  std::string interface_;
+  size_t rows_;
+  size_t cols_;
+  size_t n_batches_;
+
+ public:
+  size_t static constexpr kRows { 1000 };
+  size_t static constexpr kBatches { 100 };
+  size_t static constexpr kCols { 13 };
+
+  explicit CudaArrayIterForTest(float sparsity, size_t rows = kRows,
+                                size_t cols = kCols, size_t batches = kBatches);
+  ~CudaArrayIterForTest();
+
+  std::string AsArray() const {
+    return interface_;
+  }
+
+  int Next();
+  void Reset() {
+    iter_ = 0;
+  }
+  size_t Iter() const { return iter_; }
+  auto Proxy() -> decltype(proxy_) { return proxy_; }
+};
+
+typedef void *DataIterHandle;  // NOLINT(*)
+
+inline void Reset(DataIterHandle self) {
+  static_cast<CudaArrayIterForTest*>(self)->Reset();
+}
+
+inline int Next(DataIterHandle self) {
+  return static_cast<CudaArrayIterForTest*>(self)->Next();
+}
+
 }  // namespace xgboost
 #endif

@@ -252,6 +252,31 @@ EllpackPageImpl::EllpackPageImpl(AdapterT* adapter, float missing, bool is_dense
 ELLPACK_SPECIALIZATION(data::CudfAdapter)
 ELLPACK_SPECIALIZATION(data::CupyAdapter)
 
+
+template <typename AdapterBatch>
+EllpackPageImpl::EllpackPageImpl(AdapterBatch batch, float missing, int device,
+                                 bool is_dense, int nthread,
+                                 common::Span<size_t> row_counts_span,
+                                 size_t row_stride, size_t n_rows, size_t n_cols,
+                                 common::HistogramCuts const& cuts) {
+  dh::safe_cuda(cudaSetDevice(device));
+
+  *this = EllpackPageImpl(device, cuts, is_dense, row_stride, n_rows);
+  CopyDataToEllpack(batch, this, device, missing);
+  WriteNullValues(this, device, row_counts_span);
+}
+
+#define ELLPACK_BATCH_SPECIALIZE(__BATCH_T)                             \
+  template EllpackPageImpl::EllpackPageImpl(                            \
+      __BATCH_T batch, float missing, int device,                       \
+      bool is_dense, int nthread,                                       \
+      common::Span<size_t> row_counts_span,                             \
+      size_t row_stride, size_t n_rows, size_t n_cols,                  \
+      common::HistogramCuts const& cuts);
+
+ELLPACK_BATCH_SPECIALIZE(data::CudfAdapterBatch)
+ELLPACK_BATCH_SPECIALIZE(data::CupyAdapterBatch)
+
 // A functor that copies the data from one EllpackPage to another.
 struct CopyPage {
   common::CompressedBufferWriter cbw;
@@ -279,6 +304,10 @@ size_t EllpackPageImpl::Copy(int device, EllpackPageImpl* page, size_t offset) {
   CHECK_EQ(row_stride, page->row_stride);
   CHECK_EQ(NumSymbols(), page->NumSymbols());
   CHECK_GE(n_rows * row_stride, offset + num_elements);
+  if (page == this) {
+    LOG(FATAL) << "Concatenating the same Ellpack.";
+    return this->n_rows * this->row_stride;
+  }
   gidx_buffer.SetDevice(device);
   page->gidx_buffer.SetDevice(device);
   dh::LaunchN(device, num_elements, CopyPage(this, page, offset));

@@ -26,39 +26,10 @@
 // manually define unsigned long
 typedef uint64_t bst_ulong;  // NOLINT(*)
 
-
 /*! \brief handle to DMatrix */
 typedef void *DMatrixHandle;  // NOLINT(*)
 /*! \brief handle to Booster */
 typedef void *BoosterHandle;  // NOLINT(*)
-/*! \brief handle to a data iterator */
-typedef void *DataIterHandle;  // NOLINT(*)
-/*! \brief handle to a internal data holder. */
-typedef void *DataHolderHandle;  // NOLINT(*)
-
-/*! \brief Mini batch used in XGBoost Data Iteration */
-typedef struct {  // NOLINT(*)
-  /*! \brief number of rows in the minibatch */
-  size_t size;
-  /* \brief number of columns in the minibatch. */
-  size_t columns;
-  /*! \brief row pointer to the rows in the data */
-#ifdef __APPLE__
-  /* Necessary as Java on MacOS defines jlong as long int
-   * and gcc defines int64_t as long long int. */
-  long* offset; // NOLINT(*)
-#else
-  int64_t* offset;  // NOLINT(*)
-#endif  // __APPLE__
-  /*! \brief labels of each instance */
-  float* label;
-  /*! \brief weight of each instance, can be NULL */
-  float* weight;
-  /*! \brief feature index */
-  int* index;
-  /*! \brief feature values */
-  float* value;
-} XGBoostBatchCSR;
 
 /*!
  * \brief Return the version of the XGBoost library being currently used.
@@ -70,29 +41,6 @@ typedef struct {  // NOLINT(*)
  * \param patch Store the patch (revision) number
  */
 XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch);
-
-/*!
- * \brief Callback to set the data to handle,
- * \param handle The handle to the callback.
- * \param batch The data content to be set.
- */
-XGB_EXTERN_C typedef int XGBCallbackSetData(  // NOLINT(*)
-    DataHolderHandle handle, XGBoostBatchCSR batch);
-
-/*!
- * \brief The data reading callback function.
- *  The iterator will be able to give subset of batch in the data.
- *
- *  If there is data, the function will call set_function to set the data.
- *
- * \param data_handle The handle to the callback.
- * \param set_function The batch returned by the iterator
- * \param set_function_handle The handle to be passed to set function.
- * \return 0 if we are reaching the end and batch is not returned.
- */
-XGB_EXTERN_C typedef int XGBCallbackDataIterNext(  // NOLINT(*)
-    DataIterHandle data_handle, XGBCallbackSetData *set_function,
-    DataHolderHandle set_function_handle);
 
 /*!
  * \brief get string message of the last error
@@ -125,20 +73,6 @@ XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
 XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
                                     int silent,
                                     DMatrixHandle *out);
-
-/*!
- * \brief Create a DMatrix from a data iterator.
- * \param data_handle The handle to the data.
- * \param callback The callback to get the data.
- * \param cache_info Additional information about cache file, can be null.
- * \param out The created DMatrix
- * \return 0 when success, -1 when failure happens.
- */
-XGB_DLL int XGDMatrixCreateFromDataIter(
-    DataIterHandle data_handle,
-    XGBCallbackDataIterNext* callback,
-    const char* cache_info,
-    DMatrixHandle *out);
 
 /*!
  * \brief create a matrix content from CSR format
@@ -221,6 +155,189 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data,
                                   bst_ulong ncol,
                                   DMatrixHandle* out,
                                   int nthread);
+
+/*
+ * ========================== Begin data callback APIs =========================
+ *
+ * Short notes for data callback
+ *
+ * There are 2 sets of data callbacks for DMatrix.  The first one is currently exclusively
+ * used by JVM packages.  It uses `XGBoostBatchCSR` to accept batches for CSR formated
+ * input, and concatenate them into 1 final big CSR.  The related functions are:
+ *
+ * - XGBCallbackSetData
+ * - XGBCallbackDataIterNext
+ * - XGDMatrixCreateFromDataIter
+ *
+ * Another set is used by Quantile based DMatrix (used by hist algorithm) for reducing
+ * memory usage.  Currently only GPU implementation is available.  It accept foreign data
+ * iterators as callbacks and works similar to external memory.  For GPU Hist, the data is
+ * first compressed by quantile sketching then merged.  This is particular useful for
+ * distributed setting as it eliminates 2 copies of data.  1 by a `concat` from external
+ * library to make the data into a blob for normal DMatrix initialization, another by the
+ * internal CSR copy of DMatrix.  Related functions are:
+ *
+ * - XGProxyDMatrixCreate
+ * - XGDMatrixCallbackNext
+ * - DataIterResetCallback
+ * - XGDeviceQuantileDMatrixSetDataCudaArrayInterface
+ * - XGDeviceQuantileDMatrixSetDataCudaColumnar
+ * - ... (data setters)
+ */
+
+/*  ==== First set of callback functions, used exclusively by JVM packages. ==== */
+
+/*! \brief handle to a external data iterator */
+typedef void *DataIterHandle;  // NOLINT(*)
+/*! \brief handle to a internal data holder. */
+typedef void *DataHolderHandle;  // NOLINT(*)
+
+
+/*! \brief Mini batch used in XGBoost Data Iteration */
+typedef struct {  // NOLINT(*)
+  /*! \brief number of rows in the minibatch */
+  size_t size;
+  /* \brief number of columns in the minibatch. */
+  size_t columns;
+  /*! \brief row pointer to the rows in the data */
+#ifdef __APPLE__
+  /* Necessary as Java on MacOS defines jlong as long int
+   * and gcc defines int64_t as long long int. */
+  long* offset; // NOLINT(*)
+#else
+  int64_t* offset;  // NOLINT(*)
+#endif  // __APPLE__
+  /*! \brief labels of each instance */
+  float* label;
+  /*! \brief weight of each instance, can be NULL */
+  float* weight;
+  /*! \brief feature index */
+  int* index;
+  /*! \brief feature values */
+  float* value;
+} XGBoostBatchCSR;
+
+/*!
+ * \brief Callback to set the data to handle,
+ * \param handle The handle to the callback.
+ * \param batch The data content to be set.
+ */
+XGB_EXTERN_C typedef int XGBCallbackSetData(  // NOLINT(*)
+    DataHolderHandle handle, XGBoostBatchCSR batch);
+
+/*!
+ * \brief The data reading callback function.
+ *  The iterator will be able to give subset of batch in the data.
+ *
+ *  If there is data, the function will call set_function to set the data.
+ *
+ * \param data_handle The handle to the callback.
+ * \param set_function The batch returned by the iterator
+ * \param set_function_handle The handle to be passed to set function.
+ * \return 0 if we are reaching the end and batch is not returned.
+ */
+XGB_EXTERN_C typedef int XGBCallbackDataIterNext(  // NOLINT(*)
+    DataIterHandle data_handle, XGBCallbackSetData *set_function,
+    DataHolderHandle set_function_handle);
+
+/*!
+ * \brief Create a DMatrix from a data iterator.
+ * \param data_handle The handle to the data.
+ * \param callback The callback to get the data.
+ * \param cache_info Additional information about cache file, can be null.
+ * \param out The created DMatrix
+ * \return 0 when success, -1 when failure happens.
+ */
+XGB_DLL int XGDMatrixCreateFromDataIter(
+    DataIterHandle data_handle,
+    XGBCallbackDataIterNext* callback,
+    const char* cache_info,
+    DMatrixHandle *out);
+
+/*  == Second set of callback functions, used by constructing Quantile based DMatrix. ===
+ *
+ * Short note for how to use the second set of callback for GPU Hist tree method.
+ *
+ * Step 0: Define a data iterator with 2 methods `reset`, and `next`.
+ * Step 1: Create a DMatrix proxy by `XGProxyDMatrixCreate` and hold the handle.
+ * Step 2: Pass the iterator handle, proxy handle and 2 methods into
+ *         `XGDeviceQuantileDMatrixCreateFromCallback`.
+ * Step 3: Call appropriate data setters in `next` functions.
+ *
+ * See test_iterative_device_dmatrix.cu or Python interface for examples.
+ */
+
+/*!
+ * \brief Create a DMatrix proxy for setting data, can be free by XGDMatrixFree.
+ *
+ * \param out      The created Device Quantile DMatrix
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGProxyDMatrixCreate(DMatrixHandle* out);
+
+/*!
+ * \brief Callback function prototype for getting next batch of data.
+ *
+ * \param iter  A handler to the user defined iterator.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_EXTERN_C typedef int XGDMatrixCallbackNext(DataIterHandle iter);  // NOLINT(*)
+
+/*!
+ * \brief Callback function prototype for reseting external iterator
+ */
+XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLINT(*)
+
+/*!
+ * \brief Create a device DMatrix with data iterator.
+ *
+ * \param iter     A handle to external data iterator.
+ * \param proxy    A DMatrix proxy handle created by `XGProxyDMatrixCreate`.
+ * \param reset    Callback function reseting the iterator state.
+ * \param next     Callback function yieling the next batch of data.
+ * \param missing  Which value to represent missing value
+ * \param nthread  Number of threads to use, 0 for default.
+ * \param max_bin  Maximum number of bins for building histogram.
+ * \param out      The created Device Quantile DMatrix
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDeviceQuantileDMatrixCreateFromCallback(
+    DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
+    XGDMatrixCallbackNext *next, float missing, int nthread, int max_bin,
+    DMatrixHandle *out);
+/*!
+ * \brief Set data on a DMatrix proxy.
+ *
+ * \param handle          A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param c_interface_str Null terminated JSON document string representation of CUDA
+ *                        array interface.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDeviceQuantileDMatrixSetDataCudaArrayInterface(
+    DMatrixHandle handle,
+    const char* c_interface_str);
+/*!
+ * \brief Set data on a DMatrix proxy.
+ *
+ * \param handle          A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param c_interface_str Null terminated JSON document string representation of CUDA
+ *                        array interface, with an array of columns.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDeviceQuantileDMatrixSetDataCudaColumnar(
+    DMatrixHandle handle,
+    const char* c_interface_str);
+/*
+ * ==========================- End data callback APIs ==========================
+ */
+
+
+
 /*!
  * \brief create a new dmatrix from sliced content of existing matrix
  * \param handle instance of data matrix to be sliced
@@ -261,6 +378,18 @@ XGB_DLL int XGDMatrixFree(DMatrixHandle handle);
  */
 XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle,
                                 const char *fname, int silent);
+
+/*!
+ * \brief Set content in array interface to a content in info.
+ * \param handle a instance of data matrix
+ * \param field field name.
+ * \param c_interface_str JSON string representation of array interface.
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixSetInfoFromInterface(DMatrixHandle handle,
+                                          char const* field,
+                                          char const* c_interface_str);
+
 /*!
  * \brief set float vector to a content in info
  * \param handle a instance of data matrix
@@ -437,6 +566,10 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              int training,
                              bst_ulong *out_len,
                              const float **out_result);
+
+/*
+ * ========================== Begin Serialization APIs =========================
+ */
 /*
  * Short note for serialization APIs.  There are 3 different sets of serialization API.
  *
@@ -559,6 +692,10 @@ XGB_DLL int XGBoosterSaveJsonConfig(BoosterHandle handle, bst_ulong *out_len,
  */
 XGB_DLL int XGBoosterLoadJsonConfig(BoosterHandle handle,
                                     char const *json_parameters);
+/*
+ * =========================== End Serialization APIs ==========================
+ */
+
 
 /*!
  * \brief dump model, return array of strings representing model dump
