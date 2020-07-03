@@ -7,6 +7,7 @@
 #include <thrust/transform_scan.h>
 #include <thrust/execution_policy.h>
 
+#include <memory>
 #include <utility>
 
 #include "xgboost/span.h"

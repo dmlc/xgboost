@@ -94,7 +94,7 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
   }
 
   common::SketchContainer final_sketch(batch_param_.max_bin, cols, accumulated_rows, device);
-  for (auto const& sketch: sketch_containers) {
+  for (auto const& sketch : sketch_containers) {
     final_sketch.Merge(sketch.ColumnsPtr(), sketch.Data());
   }
   sketch_containers.clear();
