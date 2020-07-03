@@ -349,6 +349,7 @@ TEST(GPUQuantile, AllReduceBasic) {
       sketch_on_single_node.Merge(sketch.ColumnsPtr(), sketch.Data());
       sketch_on_single_node.FixError();
     }
+    sketch_on_single_node.Unique();
     TestQuantileElemRank(0, sketch_on_single_node.Data(),
                          sketch_on_single_node.ColumnsPtr());
 
@@ -366,6 +367,7 @@ TEST(GPUQuantile, AllReduceBasic) {
                                 std::numeric_limits<float>::quiet_NaN(),
                                 &sketch_distributed);
     sketch_distributed.AllReduce();
+    sketch_distributed.Unique();
 
     ASSERT_EQ(sketch_distributed.ColumnsPtr().size(),
               sketch_on_single_node.ColumnsPtr().size());
@@ -440,6 +442,7 @@ TEST(GPUQuantile, SameOnAllWorkers) {
     reducer.AllReduceSum(all_workers.data().get(), all_workers.data().get(),
                          all_workers.size());
     reducer.Synchronize();
+    sketch_distributed.Unique();
     TestQuantileElemRank(0, sketch_distributed.Data(), sketch_distributed.ColumnsPtr());
 
     auto base_line = dh::ToSpan(all_workers).subspan(0, size_as_float);
