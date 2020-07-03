@@ -113,7 +113,7 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
   auto get_x =   []XGBOOST_DEVICE(Tuple const &t) { return thrust::get<0>(t); };
   auto get_y =   []XGBOOST_DEVICE(Tuple const &t) { return thrust::get<1>(t); };
 
-  auto scan_key_it = dh::MakeTransformIterator<bst_feature_t>(
+  auto scan_key_it = dh::MakeTransformIterator<size_t>(
       thrust::make_counting_iterator(0ul),
       [=] __device__(size_t idx) { return dh::SegmentId(out_ptr, idx); });
 
@@ -135,7 +135,7 @@ common::Span<thrust::tuple<uint64_t, uint64_t>> MergePath(
       thrust::cuda::par(alloc), scan_key_it, scan_key_it + merge_path.size(),
       scan_val_it, merge_path.data(),
       thrust::make_tuple<uint64_t, uint64_t>(0ul, 0ul),
-      thrust::equal_to<bst_row_t>{},
+      thrust::equal_to<size_t>{},
       [=] __device__(Tuple const &l, Tuple const &r) -> Tuple {
         return thrust::make_tuple(get_x(l) + get_x(r), get_y(l) + get_y(r));
       });
