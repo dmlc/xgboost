@@ -296,10 +296,7 @@ TEST(GPUQuantile, MergeDuplicated) {
   }
 }
 
-TEST(GPUQuantile, AllReduce) {
-  // This test is supposed to run by a python test that setups the environment.
-  std::string msg {"Skipping AllReduce test"};
-#if defined(__linux__) && defined(XGBOOST_USE_NCCL)
+void InitRabitContext(std::string msg) {
   auto n_gpus = AllVisibleGPUs();
   auto port = std::getenv("DMLC_TRACKER_PORT");
   std::string port_str;
@@ -316,6 +313,14 @@ TEST(GPUQuantile, AllReduce) {
       "DMLC_NUM_WORKER=" + std::to_string(n_gpus)};
   char* c_envs[] {&(envs[0][0]), &(envs[1][0]), &(envs[2][0])};
   rabit::Init(3, c_envs);
+}
+
+TEST(GPUQuantile, AllReduceBasic) {
+  // This test is supposed to run by a python test that setups the environment.
+  std::string msg {"Skipping AllReduce test"};
+#if defined(__linux__) && defined(XGBOOST_USE_NCCL)
+  InitRabitContext(msg);
+  auto n_gpus = AllVisibleGPUs();
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
     // Set up single node version;
@@ -387,8 +392,71 @@ TEST(GPUQuantile, AllReduce) {
 #else
   LOG(WARNING) << msg;
   return;
-#endif  // !defined(__linux__)
+#endif  // !defined(__linux__) && defined(XGBOOST_USE_NCCL)
 }
 
+TEST(GPUQuantile, SameOnAllWorkers) {
+  std::string msg {"Skipping SameOnAllWorkers test"};
+#if defined(__linux__) && defined(XGBOOST_USE_NCCL)
+  InitRabitContext(msg);
+
+  constexpr size_t kRows = 1000, kCols = 100;
+  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins,
+                                 MetaInfo const &info) {
+    auto world = rabit::GetWorldSize();
+    auto rank = rabit::GetRank();
+    SketchContainer sketch_distributed(n_bins, kCols, kRows, 0);
+    HostDeviceVector<float> storage;
+    std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
+                                    .Device(0)
+                                    .Seed(rank + seed)
+                                    .GenerateArrayInterface(&storage);
+    data::CupyAdapter adapter(interface_str);
+    AdapterDeviceSketchWeighted(adapter.Value(), n_bins, info,
+                                std::numeric_limits<float>::quiet_NaN(),
+                                &sketch_distributed);
+    sketch_distributed.AllReduce();
+
+    // Test for all workers having the same sketch.
+    size_t n_data = sketch_distributed.Data().size();
+    rabit::Allreduce<rabit::op::Max>(&n_data, 1);
+    ASSERT_EQ(n_data, sketch_distributed.Data().size());
+    size_t size_as_float =
+        sketch_distributed.Data().size_bytes() / sizeof(float);
+    auto local_data = Span<float const>{
+        reinterpret_cast<float const *>(sketch_distributed.Data().data()),
+        size_as_float};
+
+    dh::caching_device_vector<float> all_workers(size_as_float * world);
+    thrust::fill(all_workers.begin(), all_workers.end(), 0);
+    thrust::copy(thrust::device, local_data.data(),
+                 local_data.data() + local_data.size(),
+                 all_workers.begin() + local_data.size() * rank);
+    dh::AllReducer reducer;
+    reducer.Init(0);
+
+    reducer.AllReduceSum(all_workers.data().get(), all_workers.data().get(),
+                         all_workers.size());
+    reducer.Synchronize();
+
+    auto base_line = dh::ToSpan(all_workers).subspan(0, size_as_float);
+    std::vector<float> h_base_line(base_line.size());
+    dh::CopyDeviceSpanToVector(&h_base_line, base_line);
+
+    size_t offset = 0;
+    for (size_t i = 0; i < world; ++i) {
+      auto comp = dh::ToSpan(all_workers).subspan(offset, size_as_float);
+      std::vector<float> h_comp(comp.size());
+      dh::CopyDeviceSpanToVector(&h_comp, comp);
+      ASSERT_EQ(comp.size(), base_line.size());
+      ASSERT_EQ(h_base_line, h_comp);
+      offset += size_as_float;
+    }
+  });
+#else
+  LOG(WARNING) << msg;
+  return;
+#endif  // !defined(__linux__) && defined(XGBOOST_USE_NCCL)
+}
 }  // namespace common
 }  // namespace xgboost

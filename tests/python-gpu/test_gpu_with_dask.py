@@ -121,10 +121,7 @@ class TestDistributedGPU(unittest.TestCase):
                               'debug_synchronize': True}
                 run_empty_dmatrix(client, parameters)
 
-    @pytest.mark.skipif(**tm.no_dask())
-    @pytest.mark.mgpu
-    @pytest.mark.gtest
-    def test_quantile(self):
+    def run_quantile(self, name):
         if sys.platform.startswith("win"):
             pytest.skip("Skipping dask tests on Windows")
 
@@ -134,7 +131,7 @@ class TestDistributedGPU(unittest.TestCase):
             if os.path.exists(possible_path):
                 exe = possible_path
         assert exe, 'No testxgboost executable found.'
-        test = "--gtest_filter=GPUQuantile.AllReduce"
+        test = "--gtest_filter=GPUQuantile." + name
 
         def runit(worker_addr, rabit_args):
             port = None
@@ -159,5 +156,17 @@ class TestDistributedGPU(unittest.TestCase):
                 results = client.gather(futures)
                 for ret in results:
                     msg = ret.stdout.decode('utf-8')
-                    assert msg.find('1 test from GPUQuantile') != -1
+                    assert msg.find('1 test from GPUQuantile') != -1, msg
                     assert ret.returncode == 0, msg
+
+    @pytest.mark.skipif(**tm.no_dask())
+    @pytest.mark.mgpu
+    @pytest.mark.gtest
+    def test_quantile_basic(self):
+        self.run_quantile('AllReduceBasic')
+
+    @pytest.mark.skipif(**tm.no_dask())
+    @pytest.mark.mgpu
+    @pytest.mark.gtest
+    def test_quantile_same_on_all_workers(self):
+        self.run_quantile('SameOnAllWorkers')
