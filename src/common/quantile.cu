@@ -536,7 +536,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
                                                  d_out_columns_ptr[column_id]);
     idx -= d_out_columns_ptr[column_id];
     if (in_column.size() == 0) {
-      // If the column is empty, we push a dummy value.  If won't effect training as the
+      // If the column is empty, we push a dummy value.  It won't affect training as the
       // column is empty, trees cannot split on it.  This is just to be consistent with
       // rest of the library.
       if (idx == 0) {
