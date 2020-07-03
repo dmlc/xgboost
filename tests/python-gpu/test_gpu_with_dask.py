@@ -5,6 +5,8 @@ import numpy as np
 import unittest
 import xgboost
 import subprocess
+from hypothesis import given, strategies, settings, note
+from test_gpu_updaters import parameter_strategy
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -14,11 +16,13 @@ from test_with_dask import run_empty_dmatrix  # noqa
 from test_with_dask import generate_array     # noqa
 import testing as tm                          # noqa
 
+
 try:
     import dask.dataframe as dd
     from xgboost import dask as dxgb
     from dask_cuda import LocalCUDACluster
     from dask.distributed import Client
+    from dask import array as da
     import cudf
 except ImportError:
     pass
@@ -64,7 +68,8 @@ class TestDistributedGPU(unittest.TestCase):
                     xgboost.DMatrix(X.compute()))
 
                 cp.testing.assert_allclose(single_node, predictions)
-                np.testing.assert_allclose(single_node, series_predictions.to_array())
+                np.testing.assert_allclose(single_node,
+                                           series_predictions.to_array())
 
                 predt = dxgb.predict(client, out, X)
                 assert isinstance(predt, dd.Series)
@@ -79,6 +84,40 @@ class TestDistributedGPU(unittest.TestCase):
 
                 cp.testing.assert_allclose(
                     predt.values.compute(), single_node)
+
+    @given(parameter_strategy, strategies.integers(1, 20),
+           tm.dataset_strategy)
+    @settings(deadline=None)
+    def test_gpu_hist(self, params, num_rounds, dataset):
+        with LocalCUDACluster(n_workers=2) as cluster:
+            with Client(cluster) as client:
+                params['tree_method'] = 'gpu_hist'
+                params = dataset.set_params(params)
+                # multi class doesn't handle empty dataset well (empty
+                # means at least 1 worker has data).
+                if params['objective'] == "multi:softmax":
+                    return
+                # It doesn't make sense to distribute a completely
+                # empty dataset.
+                if dataset.X.shape[0] == 0:
+                    return
+
+                chunk = 128
+                X = da.from_array(dataset.X,
+                                  chunks=(chunk, dataset.X.shape[1]))
+                y = da.from_array(dataset.y, chunks=(chunk, ))
+                if dataset.w is not None:
+                    w = da.from_array(dataset.w, chunks=(chunk, ))
+                else:
+                    w = None
+
+                m = dxgb.DaskDMatrix(
+                    client, data=X, label=y, weight=w)
+                history = dxgb.train(client, params=params, dtrain=m,
+                                     num_boost_round=num_rounds,
+                                     evals=[(m, 'train')])['history']
+                note(history)
+                assert tm.non_increasing(history['train'][dataset.metric])
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.mgpu

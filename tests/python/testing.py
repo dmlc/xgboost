@@ -188,6 +188,7 @@ def _dataset_and_weight(draw):
         data.w = draw(arrays(np.float64, (len(data.y)), elements=strategies.floats(0.1, 2.0)))
     return data
 
+
 # A strategy for drawing from a set of example datasets
 # May add random weights to the dataset
 dataset_strategy = _dataset_and_weight()
