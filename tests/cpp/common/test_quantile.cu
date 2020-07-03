@@ -321,14 +321,18 @@ TEST(GPUQuantile, AllReduceBasic) {
 #if defined(__linux__) && defined(XGBOOST_USE_NCCL)
   InitRabitContext(msg);
   auto n_gpus = AllVisibleGPUs();
+  auto world = rabit::GetWorldSize();
+  if (world != 1) {
+    ASSERT_EQ(world, n_gpus);
+  } else {
+    return;
+  }
+
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
     // Set up single node version;
     SketchContainer sketch_on_single_node(n_bins, kCols, kRows, 0);
-    auto world = rabit::GetWorldSize();
-    if (world != 1) {
-      ASSERT_EQ(world, n_gpus);
-    }
+
     size_t intermediate_num_cuts =
         std::min(kRows * world, static_cast<size_t>(n_bins * WQSketch::kFactor));
     std::vector<SketchContainer> containers;
@@ -403,11 +407,17 @@ TEST(GPUQuantile, SameOnAllWorkers) {
   std::string msg {"Skipping SameOnAllWorkers test"};
 #if defined(__linux__) && defined(XGBOOST_USE_NCCL)
   InitRabitContext(msg);
+  auto world = rabit::GetWorldSize();
+  auto n_gpus = AllVisibleGPUs();
+  if (world != 1) {
+    ASSERT_EQ(world, n_gpus);
+  } else {
+    return;
+  }
 
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins,
                                  MetaInfo const &info) {
-    auto world = rabit::GetWorldSize();
     auto rank = rabit::GetRank();
     SketchContainer sketch_distributed(n_bins, kCols, kRows, 0);
     HostDeviceVector<float> storage;
@@ -420,6 +430,7 @@ TEST(GPUQuantile, SameOnAllWorkers) {
                                 std::numeric_limits<float>::quiet_NaN(),
                                 &sketch_distributed);
     sketch_distributed.AllReduce();
+    TestQuantileElemRank(0, sketch_distributed.Data(), sketch_distributed.ColumnsPtr());
 
     // Test for all workers having the same sketch.
     size_t n_data = sketch_distributed.Data().size();
@@ -442,8 +453,6 @@ TEST(GPUQuantile, SameOnAllWorkers) {
     reducer.AllReduceSum(all_workers.data().get(), all_workers.data().get(),
                          all_workers.size());
     reducer.Synchronize();
-    sketch_distributed.Unique();
-    TestQuantileElemRank(0, sketch_distributed.Data(), sketch_distributed.ColumnsPtr());
 
     auto base_line = dh::ToSpan(all_workers).subspan(0, size_as_float);
     std::vector<float> h_base_line(base_line.size());
@@ -455,7 +464,9 @@ TEST(GPUQuantile, SameOnAllWorkers) {
       std::vector<float> h_comp(comp.size());
       dh::CopyDeviceSpanToVector(&h_comp, comp);
       ASSERT_EQ(comp.size(), base_line.size());
-      ASSERT_EQ(h_base_line, h_comp);
+      for (size_t j = 0; j < h_comp.size(); ++j) {
+        ASSERT_NEAR(h_base_line[j], h_comp[j], kRtEps);
+      }
       offset += size_as_float;
     }
   });
