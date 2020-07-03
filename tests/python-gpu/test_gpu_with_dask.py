@@ -88,6 +88,7 @@ class TestDistributedGPU(unittest.TestCase):
     @given(parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
     @settings(deadline=None)
+    @pytest.mark.mgpu
     def test_gpu_hist(self, params, num_rounds, dataset):
         with LocalCUDACluster(n_workers=2) as cluster:
             with Client(cluster) as client:
