@@ -3,6 +3,7 @@
  */
 #include <gtest/gtest.h>
 #include <vector>
+#include <thread>
 #include "helpers.h"
 #include <dmlc/filesystem.h>
 
@@ -173,6 +174,48 @@ TEST(Learner, JsonModelIO) {
     ASSERT_TRUE(IsA<Object>(out["learner"]["attributes"]));
     ASSERT_EQ(get<Object>(out["learner"]["attributes"]).size(), 1);
     ASSERT_EQ(out, new_in);
+  }
+}
+
+// Tries to crash the test runner if there are race condiditions.
+//
+// Build with additional cmake flags to enable thread sanitized
+// which definitely catches problems:
+//
+// ```
+// -DCMAKE_C_FLAGS="-fsanitize=thread -g -O1"
+// -DCMAKE_CXX_FLAGS="-fsanitize=thread -g -O1"
+// -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=thread"
+// -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
+// ```
+TEST(Learner, MultiThreadedPredict) {
+  size_t constexpr kRows = 1000;
+  size_t constexpr kCols = 1000;
+  size_t constexpr kIters = 10;
+
+  std::shared_ptr<DMatrix> p_dmat{
+      RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
+  p_dmat->Info().labels_.Resize(kRows);
+  CHECK_NE(p_dmat->Info().num_col_, 0);
+
+  std::shared_ptr<DMatrix> p_data{
+      RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
+
+  std::shared_ptr<Learner> learner{Learner::Create({p_dmat})};
+  learner->Configure();
+
+  std::vector<std::thread> threads;
+  for (int32_t thread_id = 0;
+       thread_id < 2 * std::thread::hardware_concurrency(); ++thread_id) {
+    threads.push_back(std::thread([learner, p_data] {
+      for (size_t iter = 0; iter < kIters; ++iter) {
+        auto &entry = learner->GetThreadLocal().prediction_entry;
+        learner->Predict(p_data, false, &entry.predictions);
+      }
+    }));
+  }
+  for (auto &thread : threads) {
+    thread.join();
   }
 }
 
