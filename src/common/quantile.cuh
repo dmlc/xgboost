@@ -121,10 +121,9 @@ class SketchContainer {
 
   Span<OffsetT const> ColumnsPtr() const { return this->columns_ptr_.ConstDeviceSpan(); }
 
-  // Prevent copying/assigning/moving this as its internals can't be
-  // assigned/copied/moved
+  SketchContainer(SketchContainer&&) = default;
+
   SketchContainer(const SketchContainer&) = delete;
-  SketchContainer(const SketchContainer&&) = delete;
   SketchContainer& operator=(const SketchContainer&) = delete;
   SketchContainer& operator=(const SketchContainer&&) = delete;
 };
