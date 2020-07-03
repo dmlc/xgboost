@@ -349,6 +349,8 @@ TEST(GPUQuantile, AllReduceBasic) {
       sketch_on_single_node.Merge(sketch.ColumnsPtr(), sketch.Data());
       sketch_on_single_node.FixError();
     }
+    TestQuantileElemRank(0, sketch_on_single_node.Data(),
+                         sketch_on_single_node.ColumnsPtr());
 
     // Set up distributed version.  We rely on using rank as seed to generate
     // the exact same copy of data.
@@ -438,6 +440,7 @@ TEST(GPUQuantile, SameOnAllWorkers) {
     reducer.AllReduceSum(all_workers.data().get(), all_workers.data().get(),
                          all_workers.size());
     reducer.Synchronize();
+    TestQuantileElemRank(0, sketch_distributed.Data(), sketch_distributed.ColumnsPtr());
 
     auto base_line = dh::ToSpan(all_workers).subspan(0, size_as_float);
     std::vector<float> h_base_line(base_line.size());
