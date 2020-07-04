@@ -7,9 +7,10 @@
 #include <unistd.h>
 #endif  // defined(__unix__)
 #include <algorithm>
-#include <cstdio>
+#include <fstream>
 #include <string>
 #include <utility>
+#include <cstdio>
 
 #include "xgboost/logging.h"
 #include "io.h"
@@ -108,39 +109,17 @@ std::string LoadSequentialFile(std::string fname) {
                  };
 
   std::string buffer;
-#if defined(__unix__)
-  struct stat fs;
-  if (stat(fname.c_str(), &fs) != 0) {
-    OpenErr();
-  }
-
-  size_t f_size_bytes = fs.st_size;
-  buffer.resize(f_size_bytes + 1);
-  int32_t fd = open(fname.c_str(), O_RDONLY);
-#if defined(__linux__)
-  posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
-#endif  // defined(__linux__)
-  ssize_t bytes_read = read(fd, &buffer[0], f_size_bytes);
-  if (bytes_read < 0) {
-    close(fd);
-    ReadErr();
-  }
-  close(fd);
-#else  // defined(__unix__)
-  FILE *f = fopen(fname.c_str(), "r");
-  if (f == NULL) {
-    std::string msg;
-    OpenErr();
-  }
-  fseek(f, 0, SEEK_END);
-  auto fsize = ftell(f);
-  fseek(f, 0, SEEK_SET);
-
-  buffer.resize(fsize + 1);
-  fread(&buffer[0], 1, fsize, f);
-  fclose(f);
-#endif  // defined(__unix__)
+  // Open in binary mode so that correct file size can be computed with seekg().
+  // This accommodates Windows platform:
+  // https://docs.microsoft.com/en-us/cpp/standard-library/basic-istream-class?view=vs-2019#seekg
+  std::ifstream ifs(fname, std::ios_base::binary | std::ios_base::in);
+  ifs.seekg(0, std::ios_base::end);
+  const size_t file_size = static_cast<size_t>(ifs.tellg());
+  ifs.seekg(0, std::ios_base::beg);
+  buffer.resize(file_size + 1);
+  ifs.read(&buffer[0], file_size);
   buffer.back() = '\0';
+
   return buffer;
 }
 
