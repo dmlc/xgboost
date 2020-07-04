@@ -1106,7 +1106,7 @@ class LearnerImpl : public LearnerIO {
       gbm_->PredictInteractionContributions(data.get(), out_preds, ntree_limit,
                                             approx_contribs);
     } else if (pred_leaf) {
-      gbm_->PredictLeaf(data.get(), &out_preds->HostVector(), ntree_limit);
+      gbm_->PredictLeaf(data.get(), out_preds, ntree_limit);
     } else {
       auto local_cache = this->GetPredictionCache();
       auto& prediction = local_cache->Cache(data, generic_parameters_.gpu_id);

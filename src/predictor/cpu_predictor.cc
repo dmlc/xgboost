@@ -345,7 +345,7 @@ class CPUPredictor : public Predictor {
     }
   }
 
-  void PredictLeaf(DMatrix* p_fmat, std::vector<bst_float>* out_preds,
+  void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_preds,
                    const gbm::GBTreeModel& model, unsigned ntree_limit) override {
     const int nthread = omp_get_max_threads();
     InitThreadTemp(nthread, model.learner_model_param->num_feature, &this->thread_temp_);
@@ -355,7 +355,7 @@ class CPUPredictor : public Predictor {
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }
-    std::vector<bst_float>& preds = *out_preds;
+    std::vector<bst_float>& preds = out_preds->HostVector();
     preds.resize(info.num_row_ * ntree_limit);
     // start collecting the prediction
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
