@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <fstream>
 #include <string>
+#include <memory>
 #include <utility>
 #include <cstdio>
 
