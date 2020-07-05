@@ -428,6 +428,17 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
  * \param size      Size of `features` pointer (number of strings passed in).
  *
  * \return 0 when success, -1 when failure happens
+ *
+ * \code
+ *
+ *   char const* feat_names [] {"feat_0", "feat_1"};
+ *   XGDMatrixSetStrFeatureInfo(handle, "feature_name", feat_names, 2);
+ *
+ *   // i for integer, q for quantitive.  Similarly "int" and "float" are also recognized.
+ *   char const* feat_types [] {"i", "q"};
+ *   XGDMatrixSetStrFeatureInfo(handle, "feature_type", feat_types, 2);
+ *
+ * \endcode
  */
 XGB_DLL int XGDMatrixSetStrFeatureInfo(DMatrixHandle handle, const char *field,
                                        const char **features,
@@ -440,7 +451,8 @@ XGB_DLL int XGDMatrixSetStrFeatureInfo(DMatrixHandle handle, const char *field,
  *   - feature_name
  *   - feature_type
  *
- * Caller is responsible for copying out the data, before next call to any API in XGBoost.
+ * Caller is responsible for copying out the data, before next call to any API function of
+ * XGBoost.
  *
  * \param handle       An instance of data matrix
  * \param field        Feild name
@@ -454,6 +466,8 @@ XGB_DLL int XGDMatrixSetStrFeatureInfo(DMatrixHandle handle, const char *field,
  *
  *  char const **c_out_features = NULL;
  *  bst_ulong out_size = 0;
+ *
+ *  // Asumming the feature names are already set by `XGDMatrixSetStrFeatureInfo`.
  *  XGDMatrixGetStrFeatureInfo(handle, "feature_name", &out_size,
  *                             &c_out_features)
  *
@@ -462,6 +476,8 @@ XGB_DLL int XGDMatrixSetStrFeatureInfo(DMatrixHandle handle, const char *field,
  *    // useful after print.
  *    printf("feature %lu: %s\n", i, c_out_features[i]);
  *  }
+ *
+ * \endcode
  */
 XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
                                        bst_ulong *size,
@@ -627,8 +643,9 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
  *
  * - Functions with the term "Model" handles saving/loading XGBoost model like trees or
  *   linear weights.  Striping out parameters configuration like training algorithms or
- *   CUDA device ID helps user to reuse the trained model for different tasks, examples
- *   are prediction, training continuation or interpretation.
+ *   CUDA device ID.  These functions are designed to let users reuse the trained model
+ *   for different tasks, examples are prediction, training continuation or model
+ *   interpretation.
  *
  * - Functions with the term "Config" handles save/loading configuration.  It helps user
  *   to study the internal of XGBoost.  Also user can use the load method for specifying
@@ -644,7 +661,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
 /*!
  * \brief Load model from existing file
  * \param handle handle
- * \param fname file name
+ * \param fname File URI or file name.
 * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterLoadModel(BoosterHandle handle,
@@ -652,7 +669,7 @@ XGB_DLL int XGBoosterLoadModel(BoosterHandle handle,
 /*!
  * \brief Save model into existing file
  * \param handle handle
- * \param fname file name
+ * \param fname File URI or file name.
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterSaveModel(BoosterHandle handle,

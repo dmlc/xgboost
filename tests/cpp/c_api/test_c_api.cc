@@ -148,8 +148,8 @@ TEST(CAPI, CatchDMLCError) {
 }
 
 TEST(CAPI, DMatrixSetFeatureName) {
-  size_t constexpr kRows = 50;
-  bst_feature_t constexpr kCols = 50;
+  size_t constexpr kRows = 10;
+  bst_feature_t constexpr kCols = 2;
 
   DMatrixHandle handle;
   std::vector<float> data(kCols * kRows, 1.5);
@@ -177,6 +177,16 @@ TEST(CAPI, DMatrixSetFeatureName) {
   std::vector<std::string> out_features;
   for (bst_ulong i = 0; i < out_len; ++i) {
     ASSERT_EQ(std::to_string(i), c_out_features[i]);
+  }
+
+  char const* feat_types [] {"i", "q"};
+  static_assert(sizeof(feat_types)/ sizeof(nullptr) == kCols, "");
+  XGDMatrixSetStrFeatureInfo(handle, "feature_type", feat_types, kCols);
+  char const **c_out_types;
+  XGDMatrixGetStrFeatureInfo(handle, u8"feature_type", &out_len,
+                             &c_out_types);
+  for (bst_ulong i = 0; i < out_len; ++i) {
+    ASSERT_STREQ(feat_types[i], c_out_types[i]);
   }
 
   XGDMatrixFree(handle);
