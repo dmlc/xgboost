@@ -729,7 +729,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
                 c_bst_ulong(len(feature_names))))
         else:
             # reset feature_types also
-            _check_call(_LIB.XGDMatrixSetStrUFeatureInfo(
+            _check_call(_LIB.XGDMatrixSetStrFeatureInfo(
                 self.handle,
                 c_str('feature_name'),
                 None,
@@ -783,7 +783,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
                                for f in feature_types]
             c_feature_types = (ctypes.c_char_p *
                                len(c_feature_types))(*c_feature_types)
-            _check_call(_LIB.XGDMatrixSetStrUFeatureInfo(
+            _check_call(_LIB.XGDMatrixSetStrFeatureInfo(
                 self.handle, c_str('feature_type'),
                 c_feature_types,
                 c_bst_ulong(len(feature_types))))
@@ -793,7 +793,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
                 raise ValueError(msg)
         else:
             # Reset.
-            _check_call(_LIB.XGDMatrixSetStrUFeatureInfo(
+            _check_call(_LIB.XGDMatrixSetStrFeatureInfo(
                 self.handle,
                 c_str('feature_type'),
                 None,

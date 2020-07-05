@@ -10,7 +10,6 @@
 #include "../helpers.h"
 #include "../../../src/common/io.h"
 
-
 TEST(CAPI, XGDMatrixCreateFromMatDT) {
   std::vector<int> col0 = {0, -1, 3};
   std::vector<float> col1 = {-4.0f, 2.0f, 0.0f};
@@ -179,5 +178,7 @@ TEST(CAPI, DMatrixSetFeatureName) {
   for (bst_ulong i = 0; i < out_len; ++i) {
     ASSERT_EQ(std::to_string(i), c_out_features[i]);
   }
+
+  XGDMatrixFree(handle);
 }
 }  // namespace xgboost
