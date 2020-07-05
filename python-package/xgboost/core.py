@@ -768,7 +768,9 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             Labels for features. None will reset existing feature names
         """
         if feature_types is not None:
-            assert isinstance(feature_types, (list, str)), feature_types
+            if not isinstance(feature_types, (list, str)):
+                raise TypeError(
+                    'feature_types must be string or list of strings')
             if isinstance(feature_types, STRING_TYPES):
                 # single string will be applied to all columns
                 feature_types = [feature_types] * self.num_col()

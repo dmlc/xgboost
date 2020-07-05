@@ -372,7 +372,7 @@ class DTHandler(DataHandler):
                 raise ValueError(
                     'DataTable has own feature types, cannot pass them in.')
             feature_types = np.vectorize(self.dt_type_mapper2.get)(
-                data_types_names)
+                data_types_names).tolist()
 
         return data, feature_names, feature_types
 
