@@ -554,7 +554,7 @@ using DMatrixThreadLocal =
 
 XGBAPIThreadLocalEntry& DMatrix::GetThreadLocal() const {
   return (*DMatrixThreadLocal::Get())[this];
-};
+}
 
 DMatrix::~DMatrix() {
   auto local_map = DMatrixThreadLocal::Get();
