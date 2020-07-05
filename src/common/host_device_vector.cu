@@ -398,6 +398,7 @@ template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
 template class HostDeviceVector<int32_t>;   // bst_node_t
 template class HostDeviceVector<uint8_t>;
+template class HostDeviceVector<FeatureType>;
 template class HostDeviceVector<Entry>;
 template class HostDeviceVector<uint64_t>;  // bst_row_t
 template class HostDeviceVector<uint32_t>;  // bst_feature_t

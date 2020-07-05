@@ -31,7 +31,12 @@ enum class DataType : uint8_t {
   kFloat32 = 1,
   kDouble = 2,
   kUInt32 = 3,
-  kUInt64 = 4
+  kUInt64 = 4,
+  kChar = 5
+};
+
+enum class FeatureType : uint8_t {
+  kNumerical
 };
 
 /*!
@@ -40,7 +45,7 @@ enum class DataType : uint8_t {
 class MetaInfo {
  public:
   /*! \brief number of data fields in MetaInfo */
-  static constexpr uint64_t kNumField = 9;
+  static constexpr uint64_t kNumField = 11;
 
   /*! \brief number of rows in the data */
   uint64_t num_row_{0};  // NOLINT
@@ -71,6 +76,19 @@ class MetaInfo {
    * \brief upper bound of the label, to be used for survival analysis (censored regression)
    */
   HostDeviceVector<bst_float> labels_upper_bound_;  // NOLINT
+
+  /*!
+   * \brief Name of type for each feature provided by users. Eg. "int"/"float"/"i"/"q"
+   */
+  std::vector<std::string> feature_type_names;
+  /*!
+   * \brief Name for each feature.
+   */
+  std::vector<std::string> feature_names;
+  /*
+   * \brief Type of each feature.  Automatically set when feature_type_names is specifed.
+   */
+  HostDeviceVector<FeatureType> feature_types;
 
   /*! \brief default constructor */
   MetaInfo()  = default;
@@ -157,6 +175,12 @@ class MetaInfo {
    *        Right now only 1 column is permitted.
    */
   void SetInfo(const char* key, std::string const& interface_str);
+
+  void GetInfo(char const* key, bst_row_t* out_len, DataType dtype,
+               const void** out_dptr) const;
+
+  void SetFeatureInfo(const char *key, const char **info, const bst_ulong size);
+  void GetFeatureInfo(const char *field, std::vector<std::string>* out_str_vecs) const;
 
   /*
    * \brief Extend with other MetaInfo.
