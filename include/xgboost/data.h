@@ -176,7 +176,7 @@ class MetaInfo {
    */
   void SetInfo(const char* key, std::string const& interface_str);
 
-  void GetInfo(char const* key, bst_row_t* out_len, DataType dtype,
+  void GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
                const void** out_dptr) const;
 
   void SetFeatureInfo(const char *key, const char **info, const bst_ulong size);

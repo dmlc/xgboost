@@ -382,7 +382,7 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
   }
 }
 
-void MetaInfo::GetInfo(char const *key, bst_row_t *out_len, DataType dtype,
+void MetaInfo::GetInfo(char const *key, bst_ulong *out_len, DataType dtype,
                        const void **out_dptr) const {
   if (dtype == DataType::kFloat32) {
     const std::vector<bst_float>* vec = nullptr;
