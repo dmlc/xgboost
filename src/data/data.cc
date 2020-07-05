@@ -11,6 +11,7 @@
 #include "xgboost/host_device_vector.h"
 #include "xgboost/logging.h"
 #include "xgboost/version_config.h"
+#include "xgboost/learner.h"
 #include "sparse_page_writer.h"
 #include "simple_dmatrix.h"
 
@@ -547,6 +548,20 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
+
+using DMatrixThreadLocal =
+    dmlc::ThreadLocalStore<std::map<DMatrix const *, XGBAPIThreadLocalEntry>>;
+
+XGBAPIThreadLocalEntry& DMatrix::GetThreadLocal() const {
+  return (*DMatrixThreadLocal::Get())[this];
+};
+
+DMatrix::~DMatrix() {
+  auto local_map = DMatrixThreadLocal::Get();
+  if (local_map->find(this) != local_map->cend()) {
+    local_map->erase(this);
+  }
+}
 
 DMatrix* DMatrix::Load(const std::string& uri,
                        bool silent,

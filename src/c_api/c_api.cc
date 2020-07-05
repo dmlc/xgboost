@@ -293,13 +293,6 @@ XGB_DLL int XGDMatrixSetStrUFeatureInfo(DMatrixHandle handle, const char *field,
   API_END();
 }
 
-using DMatrixThreadLocal =
-    dmlc::ThreadLocalStore<std::map<DMatrix const *, XGBAPIThreadLocalEntry>>;
-
-XGBAPIThreadLocalEntry& GetDMatrixThreadLocal(std::shared_ptr<DMatrix> m) {
-  return (*DMatrixThreadLocal::Get())[m.get()];
-}
-
 XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
                                        xgboost::bst_ulong *len,
                                        const char ***out_features) {
@@ -308,8 +301,8 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
   auto m = *static_cast<std::shared_ptr<DMatrix>*>(handle);
   auto &info = static_cast<std::shared_ptr<DMatrix> *>(handle)->get()->Info();
 
-  std::vector<const char *> &charp_vecs = GetDMatrixThreadLocal(m).ret_vec_charp;
-  std::vector<std::string> &str_vecs = GetDMatrixThreadLocal(m).ret_vec_str;
+  std::vector<const char *> &charp_vecs = m->GetThreadLocal().ret_vec_charp;
+  std::vector<std::string> &str_vecs = m->GetThreadLocal().ret_vec_str;
 
   info.GetFeatureInfo(field, &str_vecs);
 

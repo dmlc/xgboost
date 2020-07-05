@@ -456,6 +456,8 @@ class BatchSet {
   BatchIterator<T> begin_iter_;
 };
 
+struct XGBAPIThreadLocalEntry;
+
 /*!
  * \brief Internal data structured used by XGBoost during training.
  */
@@ -474,6 +476,10 @@ class DMatrix {
   }
   /*! \brief meta information of the dataset */
   virtual const MetaInfo& Info() const = 0;
+
+  /*! \brief Get thread local memory for returning data from DMatrix. */
+  XGBAPIThreadLocalEntry& GetThreadLocal() const;
+
   /**
    * \brief Gets batches. Use range based for loop over BatchSet to access individual batches.
    */
@@ -486,7 +492,7 @@ class DMatrix {
   /*! \return Whether the data columns single column block. */
   virtual bool SingleColBlock() const = 0;
   /*! \brief virtual destructor */
-  virtual ~DMatrix() = default;
+  virtual ~DMatrix();
 
   /*! \brief Whether the matrix is dense. */
   bool IsDense() const {
