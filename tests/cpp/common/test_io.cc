@@ -2,6 +2,11 @@
  * Copyright (c) by XGBoost Contributors 2019
  */
 #include <gtest/gtest.h>
+#include <dmlc/filesystem.h>
+
+#include <fstream>
+
+#include "../helpers.h"
 #include "../../../src/common/io.h"
 
 namespace xgboost {
@@ -38,6 +43,42 @@ TEST(IO, FixedSizeStream) {
     fixed.Take(&out_buffer);
     ASSERT_EQ(huge_buffer, out_buffer);
   }
+}
+
+TEST(IO, LoadSequentialFile) {
+  EXPECT_THROW(LoadSequentialFile("non-exist"), dmlc::Error);
+
+  dmlc::TemporaryDirectory tempdir;
+  std::ofstream fout(tempdir.path + "test_file");
+  std::string content;
+
+  // Generate a JSON file.
+  size_t constexpr kRows = 1000, kCols = 100;
+  std::shared_ptr<DMatrix> p_dmat{
+    RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix(true)};
+  std::unique_ptr<Learner> learner { Learner::Create({p_dmat}) };
+  learner->SetParam("tree_method", "hist");
+  learner->Configure();
+
+  for (int32_t iter = 0; iter < 10; ++iter) {
+    learner->UpdateOneIter(iter, p_dmat);
+  }
+  Json out { Object() };
+  learner->SaveModel(&out);
+  std::string str;
+  Json::Dump(out, &str);
+
+  std::string tmpfile = tempdir.path + "/model.json";
+  {
+    std::unique_ptr<dmlc::Stream> fo(
+        dmlc::Stream::Create(tmpfile.c_str(), "w"));
+    fo->Write(str.c_str(), str.size());
+  }
+
+  auto loaded = LoadSequentialFile(tmpfile, true);
+  ASSERT_EQ(loaded, str);
+
+  ASSERT_THROW(LoadSequentialFile("non-exist", true), dmlc::Error);
 }
 }  // namespace common
 }  // namespace xgboost
