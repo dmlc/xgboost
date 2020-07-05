@@ -471,9 +471,9 @@ XGB_DLL int XGDMatrixSetStrFeatureInfo(DMatrixHandle handle, const char *field,
  *  XGDMatrixGetStrFeatureInfo(handle, "feature_name", &out_size,
  *                             &c_out_features)
  *
- *  for (bst_ulong i = 0; i < out_len; ++i) {
+ *  for (bst_ulong i = 0; i < out_size; ++i) {
  *    // Here we are simply printing the string.  Copy it out if the feature name is
- *    // useful after print.
+ *    // useful after printing.
  *    printf("feature %lu: %s\n", i, c_out_features[i]);
  *  }
  *
