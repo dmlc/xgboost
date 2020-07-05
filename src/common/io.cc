@@ -100,19 +100,17 @@ std::string LoadSequentialFile(std::string fname) {
                    msg += strerror(errno);
                    LOG(FATAL) << msg;
                  };
-  auto ReadErr = [&fname]() {
-                   std::string msg {"Error in reading file: "};
-                   msg += fname;
-                   msg += ": ";
-                   msg += strerror(errno);
-                   LOG(FATAL) << msg;
-                 };
 
   std::string buffer;
   // Open in binary mode so that correct file size can be computed with seekg().
   // This accommodates Windows platform:
   // https://docs.microsoft.com/en-us/cpp/standard-library/basic-istream-class?view=vs-2019#seekg
   std::ifstream ifs(fname, std::ios_base::binary | std::ios_base::in);
+  if (!ifs) {
+    // https://stackoverflow.com/a/17338934
+    OpenErr();
+  }
+
   ifs.seekg(0, std::ios_base::end);
   const size_t file_size = static_cast<size_t>(ifs.tellg());
   ifs.seekg(0, std::ios_base::beg);
