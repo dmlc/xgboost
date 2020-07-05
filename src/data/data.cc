@@ -177,9 +177,9 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   SaveVectorField(fo, u8"labels_upper_bound", DataType::kFloat32,
                   {labels_upper_bound_.Size(), 1}, labels_upper_bound_); ++field_cnt;
 
-  SaveVectorField(fo, u8"feature_name", DataType::kChar,
+  SaveVectorField(fo, u8"feature_name", DataType::kStr,
                   {feature_names.size(), 1}, feature_names); ++field_cnt;
-  SaveVectorField(fo, u8"feature_type", DataType::kChar,
+  SaveVectorField(fo, u8"feature_type", DataType::kStr,
                   {feature_type_names.size(), 1}, feature_type_names); ++field_cnt;
 
   CHECK_EQ(field_cnt, kNumField) << "Wrong number of fields";
@@ -241,8 +241,8 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   LoadVectorField(fi, u8"labels_lower_bound", DataType::kFloat32, &labels_lower_bound_);
   LoadVectorField(fi, u8"labels_upper_bound", DataType::kFloat32, &labels_upper_bound_);
 
-  LoadVectorField(fi, u8"feature_name", DataType::kChar, &feature_names);
-  LoadVectorField(fi, u8"feature_type", DataType::kChar, &feature_type_names);
+  LoadVectorField(fi, u8"feature_name", DataType::kStr, &feature_names);
+  LoadVectorField(fi, u8"feature_type", DataType::kStr, &feature_type_names);
   LoadFeatureType(feature_type_names, &feature_types.HostVector());
 }
 
