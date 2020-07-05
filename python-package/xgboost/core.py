@@ -723,7 +723,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
                                for f in feature_names]
             c_feature_names = (ctypes.c_char_p *
                                len(c_feature_names))(*c_feature_names)
-            _check_call(_LIB.XGDMatrixSetStrUFeatureInfo(
+            _check_call(_LIB.XGDMatrixSetStrFeatureInfo(
                 self.handle, c_str('feature_name'),
                 c_feature_names,
                 c_bst_ulong(len(feature_names))))

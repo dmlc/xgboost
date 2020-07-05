@@ -148,4 +148,36 @@ TEST(CAPI, CatchDMLCError) {
   EXPECT_THROW({ dmlc::Stream::Create("foo", "r"); },  dmlc::Error);
 }
 
+TEST(CAPI, DMatrixSetFeatureName) {
+  size_t constexpr kRows = 50;
+  bst_feature_t constexpr kCols = 50;
+
+  DMatrixHandle handle;
+  std::vector<float> data(kCols * kRows, 1.5);
+
+  XGDMatrixCreateFromMat_omp(data.data(), kRows, kCols,
+                             std::numeric_limits<float>::quiet_NaN(), &handle,
+                             0);
+  std::vector<std::string> feature_names;
+  for (bst_feature_t i = 0; i < kCols; ++i) {
+    feature_names.emplace_back(std::to_string(i));
+  }
+  std::vector<char const*> c_feature_names;
+  c_feature_names.resize(feature_names.size());
+  std::transform(feature_names.cbegin(), feature_names.cend(),
+                 c_feature_names.begin(),
+                 [](auto const &str) { return str.c_str(); });
+  XGDMatrixSetStrFeatureInfo(handle, u8"feature_name", c_feature_names.data(),
+                             c_feature_names.size());
+  size_t out_len = 0;
+  char const **c_out_features;
+  XGDMatrixGetStrFeatureInfo(handle, u8"feature_name", &out_len,
+                             &c_out_features);
+
+  CHECK_EQ(out_len, kCols);
+  std::vector<std::string> out_features;
+  for (bst_ulong i = 0; i < out_len; ++i) {
+    ASSERT_EQ(std::to_string(i), c_out_features[i]);
+  }
+}
 }  // namespace xgboost

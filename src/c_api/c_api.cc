@@ -283,9 +283,9 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
   API_END();
 }
 
-XGB_DLL int XGDMatrixSetStrUFeatureInfo(DMatrixHandle handle, const char *field,
-                                        const char **c_info,
-                                        const xgboost::bst_ulong size) {
+XGB_DLL int XGDMatrixSetStrFeatureInfo(DMatrixHandle handle, const char *field,
+                                       const char **c_info,
+                                       const xgboost::bst_ulong size) {
   API_BEGIN();
   CHECK_HANDLE();
   auto &info = static_cast<std::shared_ptr<DMatrix> *>(handle)->get()->Info();

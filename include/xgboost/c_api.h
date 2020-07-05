@@ -416,6 +416,58 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
                                  bst_ulong len);
 
 /*!
+ * \brief Set string encoded information of all features.
+ *
+ * Accepted fields are:
+ *   - feature_name
+ *   - feature_type
+ *
+ * \param handle    An instance of data matrix
+ * \param field     Feild name
+ * \param features  Pointer to array of strings.
+ * \param size      Size of `features` pointer (number of strings passed in).
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixSetStrFeatureInfo(DMatrixHandle handle, const char *field,
+                                       const char **features,
+                                       const bst_ulong size);
+
+/*!
+ * \brief Get string encoded information of all features.
+ *
+ * Accepted fields are:
+ *   - feature_name
+ *   - feature_type
+ *
+ * Caller is responsible for copying out the data, before next call to any API in XGBoost.
+ *
+ * \param handle       An instance of data matrix
+ * \param field        Feild name
+ * \param size         Size of output pointer `features` (number of strings returned).
+ * \param out_features Address of a pointer to array of strings.  Result is stored in
+ *                     thread local memory.
+ *
+ * \return 0 when success, -1 when failure happens
+ *
+ * \code
+ *
+ *  char const **c_out_features = NULL;
+ *  bst_ulong out_size = 0;
+ *  XGDMatrixGetStrFeatureInfo(handle, "feature_name", &out_size,
+ *                             &c_out_features)
+ *
+ *  for (bst_ulong i = 0; i < out_len; ++i) {
+ *    // Here we are simply printing the string.  Copy it out if the feature name is
+ *    // useful after print.
+ *    printf("feature %lu: %s\n", i, c_out_features[i]);
+ *  }
+ */
+XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
+                                       bst_ulong *size,
+                                       const char ***out_features);
+
+/*!
  * \brief (deprecated) Use XGDMatrixSetUIntInfo instead. Set group of the training matrix
  * \param handle a instance of data matrix
  * \param group pointer to group size
