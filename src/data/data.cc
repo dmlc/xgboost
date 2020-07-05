@@ -148,8 +148,10 @@ void MetaInfo::Clear() {
  * | group_ptr          | kUInt32  | False     | ${size} |       1 | ${group_ptr_}           |
  * | weights            | kFloat32 | False     | ${size} |       1 | ${weights_}             |
  * | base_margin        | kFloat32 | False     | ${size} |       1 | ${base_margin_}         |
- * | labels_lower_bound | kFloat32 | False     | ${size} |       1 | ${labels_lower_bound__} |
- * | labels_upper_bound | kFloat32 | False     | ${size} |       1 | ${labels_upper_bound__} |
+ * | labels_lower_bound | kFloat32 | False     | ${size} |       1 | ${labels_lower_bound_}  |
+ * | labels_upper_bound | kFloat32 | False     | ${size} |       1 | ${labels_upper_bound_}  |
+ * | feature_names      | kStr     | False     | ${size} |       1 | ${feature_names}        |
+ * | feature_types      | kStr     | False     | ${size} |       1 | ${feature_types}        |
  *
  * Note that the scalar fields (is_scalar=True) will have num_row and num_col missing.
  * Also notice the difference between the saved name and the name used in `SetInfo':
@@ -177,9 +179,9 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   SaveVectorField(fo, u8"labels_upper_bound", DataType::kFloat32,
                   {labels_upper_bound_.Size(), 1}, labels_upper_bound_); ++field_cnt;
 
-  SaveVectorField(fo, u8"feature_name", DataType::kStr,
+  SaveVectorField(fo, u8"feature_names", DataType::kStr,
                   {feature_names.size(), 1}, feature_names); ++field_cnt;
-  SaveVectorField(fo, u8"feature_type", DataType::kStr,
+  SaveVectorField(fo, u8"feature_types", DataType::kStr,
                   {feature_type_names.size(), 1}, feature_type_names); ++field_cnt;
 
   CHECK_EQ(field_cnt, kNumField) << "Wrong number of fields";
@@ -241,8 +243,8 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   LoadVectorField(fi, u8"labels_lower_bound", DataType::kFloat32, &labels_lower_bound_);
   LoadVectorField(fi, u8"labels_upper_bound", DataType::kFloat32, &labels_upper_bound_);
 
-  LoadVectorField(fi, u8"feature_name", DataType::kStr, &feature_names);
-  LoadVectorField(fi, u8"feature_type", DataType::kStr, &feature_type_names);
+  LoadVectorField(fi, u8"feature_names", DataType::kStr, &feature_names);
+  LoadVectorField(fi, u8"feature_types", DataType::kStr, &feature_type_names);
   LoadFeatureType(feature_type_names, &feature_types.HostVector());
 }
 
