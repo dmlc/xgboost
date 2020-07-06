@@ -168,7 +168,7 @@ TEST(CAPI, DMatrixSetFeatureName) {
                  [](auto const &str) { return str.c_str(); });
   XGDMatrixSetStrFeatureInfo(handle, u8"feature_name", c_feature_names.data(),
                              c_feature_names.size());
-  size_t out_len = 0;
+  bst_ulong out_len = 0;
   char const **c_out_features;
   XGDMatrixGetStrFeatureInfo(handle, u8"feature_name", &out_len,
                              &c_out_features);
