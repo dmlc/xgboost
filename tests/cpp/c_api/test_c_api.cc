@@ -180,7 +180,7 @@ TEST(CAPI, DMatrixSetFeatureName) {
   }
 
   char const* feat_types [] {"i", "q"};
-  static_assert(sizeof(feat_types)/ sizeof(nullptr) == kCols, "");
+  static_assert(sizeof(feat_types)/ sizeof(feat_types[0]) == kCols, "");
   XGDMatrixSetStrFeatureInfo(handle, "feature_type", feat_types, kCols);
   char const **c_out_types;
   XGDMatrixGetStrFeatureInfo(handle, u8"feature_type", &out_len,
