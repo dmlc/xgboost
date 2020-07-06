@@ -20,6 +20,7 @@ Python example:
 ```python
 param['predictor'] = 'predictor_oneapi'
 param['objective'] = 'reg:squarederror_oneapi'
+```
 
 ## Dependencies
 Building the plugin requires Data Parallel C++ Compiler (https://software.intel.com/content/www/us/en/develop/tools/oneapi/components/dpc-compiler.html)
