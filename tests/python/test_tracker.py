@@ -27,7 +27,7 @@ def run_rabit_ops(client, n_workers):
     from xgboost import rabit
 
     workers = list(_get_client_workers(client).keys())
-    rabit_args = _get_rabit_args(workers, client)
+    rabit_args = client.sync(_get_rabit_args, workers, client)
     assert not rabit.is_distributed()
 
     def local_test(worker_id):
