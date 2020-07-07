@@ -93,6 +93,11 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
     batches++;
   }
 
+  if (device < 0) {  // error or empty
+    this->page_.reset(new EllpackPage);
+    return;
+  }
+
   common::SketchContainer final_sketch(batch_param_.max_bin, cols, accumulated_rows, device);
   for (auto const& sketch : sketch_containers) {
     final_sketch.Merge(sketch.ColumnsPtr(), sketch.Data());
@@ -122,6 +127,7 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
   // Construct the final ellpack page.
   size_t offset = 0;
   iter.Reset();
+  size_t n_batches_for_verification = 0;
   while (iter.Next()) {
     init_page();
     auto device = proxy->DeviceIdx();
@@ -146,7 +152,10 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
     if (batches != 1) {
       this->info_.Extend(std::move(proxy->Info()), false);
     }
+    n_batches_for_verification++;
   }
+  CHECK_EQ(batches, n_batches_for_verification)
+      << "Different number of batches returned between 2 iterations";
 
   if (batches == 1) {
     this->info_ = std::move(proxy->Info());
