@@ -366,7 +366,6 @@ class DataIter:
             ret = self.next(data_handle)  # pylint: disable=not-callable
         except Exception as e:            # pylint: disable=broad-except
             tb = sys.exc_info()[2]
-            print('Got an exception in Python')
             self.exception = e.with_traceback(tb)
             return 0
         return ret
