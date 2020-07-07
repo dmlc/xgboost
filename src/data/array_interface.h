@@ -114,7 +114,6 @@ class ArrayInterfaceHandler {
             get<Array const>(
                 obj.at("data"))
             .at(0))));
-    CHECK(p_data);
     return p_data;
   }
 
@@ -234,7 +233,6 @@ class ArrayInterface {
                   bool allow_mask = true) {
     ArrayInterfaceHandler::Validate(column);
     data = ArrayInterfaceHandler::GetPtrFromArrayData<void*>(column);
-    CHECK(data) << "Column is null";
     auto shape = ArrayInterfaceHandler::ExtractShape(column);
     num_rows = shape.first;
     num_cols = shape.second;

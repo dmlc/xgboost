@@ -15,6 +15,9 @@
 namespace xgboost {
 
 void CopyInfoImpl(ArrayInterface column, HostDeviceVector<float>* out) {
+  if (column.num_rows == 0) {
+    return;
+  }
   auto SetDeviceToPtr = [](void* ptr) {
     cudaPointerAttributes attr;
     dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
@@ -26,7 +29,6 @@ void CopyInfoImpl(ArrayInterface column, HostDeviceVector<float>* out) {
 
   out->SetDevice(ptr_device);
   out->Resize(column.num_rows);
-
   auto p_dst = thrust::device_pointer_cast(out->DevicePointer());
 
   dh::LaunchN(ptr_device, column.num_rows, [=] __device__(size_t idx) {
@@ -69,6 +71,9 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
       << "Meta info " << key << " should be dense, found validity mask";
   CHECK_EQ(array_interface.num_cols, 1)
       << "Meta info should be a single column.";
+  if (array_interface.num_rows == 0) {
+    return;
+  }
 
   if (key == "label") {
     CopyInfoImpl(array_interface, &labels_);

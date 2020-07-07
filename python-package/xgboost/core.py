@@ -4,13 +4,14 @@
 """Core XGBoost Library."""
 import collections
 # pylint: disable=no-name-in-module,import-error
-from collections.abc import Mapping  # Python 3
+from collections.abc import Mapping
 # pylint: enable=no-name-in-module,import-error
 import ctypes
 import os
 import re
 import sys
 import json
+import warnings
 
 import numpy as np
 import scipy.sparse
@@ -267,7 +268,6 @@ def _convert_unknown_data(data, meta=None, meta_type=None):
             raise TypeError('Can not handle data from {}'.format(
                 type(data).__name__)) from e
     else:
-        import warnings
         warnings.warn(
             'Unknown data type: ' + str(type(data)) +
             ', coverting it to csr_matrix')
@@ -366,6 +366,9 @@ class DataIter:
             ret = self.next(data_handle)  # pylint: disable=not-callable
         except Exception as e:            # pylint: disable=broad-except
             tb = sys.exc_info()[2]
+            # On dask the worker is restarted and somehow the information is
+            # lost.
+            warnings.warn(e)
             self.exception = e.with_traceback(tb)
             return 0
         return ret
