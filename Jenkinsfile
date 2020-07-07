@@ -179,7 +179,7 @@ def Doxygen() {
 }
 
 def BuildCPU() {
-  node('linux && cpu_build') {
+  node('linux && cpu') {
     unstash name: 'srcs'
     echo "Build CPU"
     def container_type = "cpu"
@@ -206,7 +206,7 @@ def BuildCPU() {
 }
 
 def BuildCPUMock() {
-  node('linux && cpu_build') {
+  node('linux && cpu') {
     unstash name: 'srcs'
     echo "Build CPU with rabit mock"
     def container_type = "cpu"
@@ -221,7 +221,7 @@ def BuildCPUMock() {
 }
 
 def BuildCPUNonOmp() {
-  node('linux && cpu_build') {
+  node('linux && cpu') {
     unstash name: 'srcs'
     echo "Build CPU without OpenMP"
     def container_type = "cpu"
