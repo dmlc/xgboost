@@ -5,11 +5,11 @@
  * \author Avinash Barnwal, Hyunsu Cho and Toby Hocking
  */
 
-#include <memory>
-#include <vector>
-
 #include <rabit/rabit.h>
 #include <dmlc/registry.h>
+
+#include <memory>
+#include <vector>
 
 #include "xgboost/json.h"
 #include "xgboost/metric.h"
