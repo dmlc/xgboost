@@ -300,6 +300,99 @@ def _cudf_array_interfaces(df):
     return interfaces_str
 
 
+class DataIter:
+    '''The interface for user defined data iterator. Currently is only
+    supported by Device DMatrix.
+
+    Parameters
+    ----------
+
+    rows : int
+        Total number of rows combining all batches.
+    cols : int
+        Number of columns for each batch.
+    '''
+    def __init__(self):
+        proxy_handle = ctypes.c_void_p()
+        _check_call(_LIB.XGProxyDMatrixCreate(ctypes.byref(proxy_handle)))
+        self._handle = DeviceQuantileDMatrix(proxy_handle)
+        self.exception = None
+
+    @property
+    def proxy(self):
+        '''Handler of DMatrix proxy.'''
+        return self._handle
+
+    def reset_wrapper(self, this):  # pylint: disable=unused-argument
+        '''A wrapper for user defined `reset` function.'''
+        self.reset()
+
+    def next_wrapper(self, this):  # pylint: disable=unused-argument
+        '''A wrapper for user defined `next` function.
+
+        `this` is not used in Python.  ctypes can handle `self` of a Python
+        member function automatically when converting a it to c function
+        pointer.
+
+        '''
+        if self.exception is not None:
+            return 0
+
+        def data_handle(data, label=None, weight=None, base_margin=None,
+                        group=None,
+                        label_lower_bound=None, label_upper_bound=None):
+            if lazy_isinstance(data, 'cudf.core.dataframe', 'DataFrame'):
+                # pylint: disable=protected-access
+                self.proxy._set_data_from_cuda_columnar(data)
+            elif lazy_isinstance(data, 'cudf.core.series', 'Series'):
+                # pylint: disable=protected-access
+                self.proxy._set_data_from_cuda_columnar(data)
+            elif lazy_isinstance(data, 'cupy.core.core', 'ndarray'):
+                # pylint: disable=protected-access
+                self.proxy._set_data_from_cuda_interface(data)
+            else:
+                raise TypeError(
+                    'Value type is not supported for data iterator:' +
+                    str(type(self._handle)), type(data))
+            self.proxy.set_info(label=label, weight=weight,
+                                base_margin=base_margin,
+                                group=group,
+                                label_lower_bound=label_lower_bound,
+                                label_upper_bound=label_upper_bound)
+        try:
+            # Deffer the exception in order to return 0 and stop the iteration.
+            # Exception inside a ctype callback function has no effect except
+            # for printing to stderr (doesn't stop the execution).
+            ret = self.next(data_handle)  # pylint: disable=not-callable
+        except Exception as e:            # pylint: disable=broad-except
+            tb = sys.exc_info()[2]
+            print('Got an exception in Python')
+            self.exception = e.with_traceback(tb)
+            return 0
+        return ret
+
+    def reset(self):
+        '''Reset the data iterator.  Prototype for user defined function.'''
+        raise NotImplementedError()
+
+    def next(self, input_data):
+        '''Set the next batch of data.
+
+        Parameters
+        ----------
+
+        data_handle: callable
+            A function with same data fields like `data`, `label` with
+            `xgboost.DMatrix`.
+
+        Returns
+        -------
+        0 if there's no more batch, otherwise 1.
+
+        '''
+        raise NotImplementedError()
+
+
 class DMatrix:                  # pylint: disable=too-many-instance-attributes
     """Data Matrix used in XGBoost.
 
@@ -361,35 +454,64 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             self.handle = None
             return
 
-        handler = self.get_data_handler(data)
+        handler = self._get_data_handler(data)
+        can_handle_meta = False
         if handler is None:
             data = _convert_unknown_data(data, None)
-            handler = self.get_data_handler(data)
+            handler = self._get_data_handler(data)
+        try:
+            handler.handle_meta(label, weight, base_margin)
+            can_handle_meta = True
+        except NotImplementedError:
+            can_handle_meta = False
+
         self.handle, feature_names, feature_types = handler.handle_input(
             data, feature_names, feature_types)
         assert self.handle, 'Failed to construct a DMatrix.'
 
-        if label is not None:
-            self.set_label(label)
-        if weight is not None:
-            self.set_weight(weight)
-        if base_margin is not None:
-            self.set_base_margin(base_margin)
+        if not can_handle_meta:
+            self.set_info(label, weight, base_margin)
 
         self.feature_names = feature_names
         self.feature_types = feature_types
 
-    def get_data_handler(self, data, meta=None, meta_type=None):
+    def _get_data_handler(self, data, meta=None, meta_type=None):
         '''Get data handler for this DMatrix class.'''
         from .data import get_dmatrix_data_handler
         handler = get_dmatrix_data_handler(
             data, self.missing, self.nthread, self.silent, meta, meta_type)
         return handler
 
+    # pylint: disable=no-self-use
+    def _get_meta_handler(self, data, meta, meta_type):
+        from .data import get_dmatrix_meta_handler
+        handler = get_dmatrix_meta_handler(
+            data, meta, meta_type)
+        return handler
+
     def __del__(self):
         if hasattr(self, "handle") and self.handle:
             _check_call(_LIB.XGDMatrixFree(self.handle))
             self.handle = None
+
+    def set_info(self,
+                 label=None, weight=None, base_margin=None,
+                 group=None,
+                 label_lower_bound=None,
+                 label_upper_bound=None):
+        '''Set meta info for DMatrix.'''
+        if label is not None:
+            self.set_label(label)
+        if weight is not None:
+            self.set_weight(weight)
+        if base_margin is not None:
+            self.set_base_margin(base_margin)
+        if group is not None:
+            self.set_group(group)
+        if label_lower_bound is not None:
+            self.set_float_info('label_lower_bound', label_lower_bound)
+        if label_upper_bound is not None:
+            self.set_float_info('label_upper_bound', label_upper_bound)
 
     def get_float_info(self, field):
         """Get float property from the DMatrix.
@@ -447,10 +569,8 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         if isinstance(data, np.ndarray):
             self.set_float_info_npy2d(field, data)
             return
-        handler = self.get_data_handler(data, field, np.float32)
-        if handler is None:
-            data = _convert_unknown_data(data, field, np.float32)
-            handler = self.get_data_handler(data, field, np.float32)
+        handler = self._get_data_handler(data, field, np.float32)
+        assert handler
         data, _, _ = handler.transform(data)
         c_data = c_array(ctypes.c_float, data)
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
@@ -470,7 +590,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         data: numpy array
             The array of data to be set
         """
-        data, _, _ = self.get_data_handler(
+        data, _, _ = self._get_meta_handler(
             data, field, np.float32).transform(data)
         c_data = data.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
         _check_call(_LIB.XGDMatrixSetFloatInfo(self.handle,
@@ -489,7 +609,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         data: numpy array
             The array of data to be set
         """
-        data, _, _ = self.get_data_handler(
+        data, _, _ = self._get_data_handler(
             data, field, 'uint32').transform(data)
         _check_call(_LIB.XGDMatrixSetUIntInfo(self.handle,
                                               c_str(field),
@@ -803,11 +923,11 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
 
 
 class DeviceQuantileDMatrix(DMatrix):
-    """Device memory Data Matrix used in XGBoost for training with tree_method='gpu_hist'. Do not
-    use this for test/validation tasks as some information may be lost in quantisation. This
-    DMatrix is primarily designed to save memory in training from device memory inputs by
-    avoiding intermediate storage. Implementation does not currently consider weights in
-    quantisation process(unlike DMatrix). Set max_bin to control the number of bins during
+    """Device memory Data Matrix used in XGBoost for training with
+    tree_method='gpu_hist'. Do not use this for test/validation tasks as some
+    information may be lost in quantisation. This DMatrix is primarily designed
+    to save memory in training from device memory inputs by avoiding
+    intermediate storage. Set max_bin to control the number of bins during
     quantisation.
 
     You can construct DeviceQuantileDMatrix from cupy/cudf/dlpack.
@@ -823,6 +943,9 @@ class DeviceQuantileDMatrix(DMatrix):
                  feature_types=None,
                  nthread=None, max_bin=256):
         self.max_bin = max_bin
+        if isinstance(data, ctypes.c_void_p):
+            self.handle = data
+            return
         super().__init__(data, label=label, weight=weight,
                          base_margin=base_margin,
                          missing=missing,
@@ -831,10 +954,31 @@ class DeviceQuantileDMatrix(DMatrix):
                          feature_types=feature_types,
                          nthread=nthread)
 
-    def get_data_handler(self, data, meta=None, meta_type=None):
+    def _get_data_handler(self, data, meta=None, meta_type=None):
         from .data import get_device_quantile_dmatrix_data_handler
         return get_device_quantile_dmatrix_data_handler(
             data, self.max_bin, self.missing, self.nthread, self.silent)
+
+    def _set_data_from_cuda_interface(self, data):
+        '''Set data from CUDA array interface.'''
+        interface = data.__cuda_array_interface__
+        interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
+        _check_call(
+            _LIB.XGDeviceQuantileDMatrixSetDataCudaArrayInterface(
+                self.handle,
+                interface_str
+            )
+        )
+
+    def _set_data_from_cuda_columnar(self, data):
+        '''Set data from CUDA columnar format.1'''
+        interfaces_str = _cudf_array_interfaces(data)
+        _check_call(
+            _LIB.XGDeviceQuantileDMatrixSetDataCudaColumnar(
+                self.handle,
+                interfaces_str
+            )
+        )
 
 
 class Booster(object):
