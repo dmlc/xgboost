@@ -123,7 +123,7 @@ def checkoutSrcs() {
 }
 
 def ClangTidy() {
-  node('linux && cpu') {
+  node('linux && cpu_build') {
     unstash name: 'srcs'
     echo "Running clang-tidy job..."
     def container_type = "clang_tidy"
