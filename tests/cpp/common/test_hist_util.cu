@@ -214,11 +214,10 @@ TEST(HistUtil, DeviceSketchExternalMemoryWithWeights) {
   int bin_sizes[] = {2, 16, 256, 512};
   int sizes[] = {100, 1000, 1500};
   int num_columns = 5;
+  dmlc::TemporaryDirectory temp;
   for (auto num_rows : sizes) {
     auto x = GenerateRandom(num_rows, num_columns);
-    dmlc::TemporaryDirectory temp;
-    auto dmat =
-        GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, 100, temp);
+    auto dmat = GetExternalMemoryDMatrixFromData(x, num_rows, num_columns, 100, temp);
     dmat->Info().weights_.HostVector() = GenerateRandomWeights(num_rows);
     for (auto num_bins : bin_sizes) {
       auto cuts = DeviceSketch(0, dmat.get(), num_bins);
