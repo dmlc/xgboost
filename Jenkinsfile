@@ -313,6 +313,7 @@ def TestPythonGPU(args) {
   nodeReq = (args.multi_gpu) ? 'linux && mgpu' : 'linux && gpu'
   node(nodeReq) {
     unstash name: 'xgboost_whl_cuda10'
+    unstash name: 'xgboost_cpp_tests'
     unstash name: 'srcs'
     echo "Test Python GPU: CUDA ${args.cuda_version}"
     def container_type = "gpu"

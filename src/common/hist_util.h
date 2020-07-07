@@ -167,7 +167,7 @@ class CutsBuilder {
 
 /*! \brief Cut configuration for sparse dataset. */
 class SparseCuts : public CutsBuilder {
-  /* \brief Distrbute columns to each thread according to number of entries. */
+  /* \brief Distribute columns to each thread according to number of entries. */
   static std::vector<size_t> LoadBalance(SparsePage const& page, size_t const nthreads);
   Monitor monitor_;
 
