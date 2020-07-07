@@ -3,16 +3,14 @@
  * \file device_dmatrix.cu
  * \brief Device-memory version of DMatrix.
  */
-#include <memory>
-#include <utility>
 
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_output_iterator.h>
-
 #include <xgboost/base.h>
 #include <xgboost/data.h>
-
+#include <memory>
+#include <utility>
 #include "../common/hist_util.h"
 #include "adapter.h"
 #include "device_adapter.cuh"

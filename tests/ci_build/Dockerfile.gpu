@@ -3,6 +3,7 @@ FROM nvidia/cuda:$CUDA_VERSION-runtime-ubuntu16.04
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
+SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 
 # Install all basic requirements
 RUN \
@@ -14,11 +15,11 @@ RUN \
 
 ENV PATH=/opt/python/bin:$PATH
 
-# Install Python packages
+# Create new Conda environment with cuDF, Dask, and cuPy
 RUN \
     conda create -n gpu_test -c rapidsai -c nvidia -c conda-forge -c defaults \
-        python=3.7 dask dask-cuda numpy pytest scipy  scikit-learn pandas \
-        matplotlib wheel python-kubernetes urllib3 graphviz
+        python=3.7 cudf=0.14 cudatoolkit=$CUDA_VERSION dask dask-cuda dask-cudf cupy \
+        numpy pytest scipy scikit-learn pandas matplotlib wheel python-kubernetes urllib3 graphviz hypothesis
 
 ENV GOSU_VERSION 1.10
 

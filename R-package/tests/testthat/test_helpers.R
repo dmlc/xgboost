@@ -12,7 +12,7 @@ flag_32bit = .Machine$sizeof.pointer != 8
 
 set.seed(1982)
 data(Arthritis)
-df <- data.table(Arthritis, keep.rownames = F)
+df <- data.table(Arthritis, keep.rownames = FALSE)
 df[,AgeDiscret := as.factor(round(Age / 10,0))]
 df[,AgeCat := as.factor(ifelse(Age > 30, "Old", "Young"))]
 df[,ID := NULL]
@@ -47,7 +47,7 @@ test_that("xgb.dump works", {
   if (!flag_32bit)
     expect_length(xgb.dump(bst.Tree), 200)
   dump_file = file.path(tempdir(), 'xgb.model.dump')
-  expect_true(xgb.dump(bst.Tree, dump_file, with_stats = T))
+  expect_true(xgb.dump(bst.Tree, dump_file, with_stats = TRUE))
   expect_true(file.exists(dump_file))
   expect_gt(file.size(dump_file), 8000)
 
@@ -160,7 +160,7 @@ test_that("SHAPs sum to predictions, with or without DART", {
           objective = "reg:squarederror",
           eval_metric = "rmse"),
         if (booster == "dart")
-          list(rate_drop = .01, one_drop = T)),
+          list(rate_drop = .01, one_drop = TRUE)),
       data = d,
       label = y,
       nrounds = nrounds)
@@ -168,8 +168,8 @@ test_that("SHAPs sum to predictions, with or without DART", {
     pr <- function(...)
       predict(fit, newdata = d, ...)
     pred <- pr()
-    shap <- pr(predcontrib = T)
-    shapi <- pr(predinteraction = T)
+    shap <- pr(predcontrib = TRUE)
+    shapi <- pr(predinteraction = TRUE)
     tol = 1e-5
 
     expect_equal(rowSums(shap), pred, tol = tol)

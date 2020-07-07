@@ -78,9 +78,8 @@ TEST(DeviceDMatrix, ColumnMajor) {
 
   Json column_arr{columns};
 
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(column_arr, &str);
 
   data::CudfAdapter adapter(str);
   data::DeviceDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),

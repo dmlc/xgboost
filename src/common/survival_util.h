@@ -15,9 +15,9 @@
   https://github.com/avinashbarnwal/GSOC-2019/blob/master/doc/Accelerated_Failure_Time.pdf
 */
 
+#include <xgboost/parameter.h>
 #include <memory>
 #include <algorithm>
-#include "xgboost/parameter.h"
 #include "probability_distribution.h"
 
 DECLARE_FIELD_ENUM_CLASS(xgboost::common::ProbabilityDistributionType);

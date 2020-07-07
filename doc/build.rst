@@ -49,19 +49,7 @@ Please refer to `Trouble Shooting`_ section first if you have any problem
 during installation. If the instructions do not work for you, please feel free
 to ask questions at `the user forum <https://discuss.xgboost.ai>`_.
 
-**Contents**
-
-* `Building the Shared Library`_
-
-  - `Building on Linux Distributions`_
-  - `Building on OSX`_
-  - `Building on Windows`_
-  - `Building with GPU support`_
-
-* `Python Package Installation`_
-* `R Package Installation`_
-* `Trouble Shooting`_
-* `Building the documentation`_
+.. contents:: Contents
 
 .. _build_shared_lib:
 
@@ -365,12 +353,11 @@ You can install XGBoost from CRAN just like any other R package:
 
    and then run ``install.packages("xgboost")``. Without OpenMP, XGBoost will only use a single CPU core, leading to suboptimal training speed.
 
-Installing the development version
-----------------------------------
+Installing the development version (Linux / Mac OSX)
+----------------------------------------------------
 
 Make sure you have installed git and a recent C++ compiler supporting C++11 (See above
-sections for requirements of building C++ core).  On Windows, Rtools must be installed,
-and its bin directory has to be added to ``PATH`` during the installation.
+sections for requirements of building C++ core).
 
 Due to the use of git-submodules, ``devtools::install_github`` can no longer be used to install the latest version of R package.
 Thus, one has to run git to check out the code first:
@@ -389,6 +376,37 @@ Thus, one has to run git to check out the code first:
 
 If all fails, try `Building the shared library`_ to see whether a problem is specific to R
 package or not.  Notice that the R package is installed by CMake directly.
+
+Installing the development version with Visual Studio
+-----------------------------------------------------
+
+On Windows, CMake with Visual C++ Build Tools (or Visual Studio) can be used to build the R package.
+
+While not required, this build can be faster if you install the R package ``processx`` with ``install.packages("processx")``.
+
+.. note:: Setting correct PATH environment variable on Windows
+
+  If you are using Windows, make sure to include the right directories in the PATH environment variable.
+
+  * If you are using R 4.x with RTools 4.0:
+    - ``C:\rtools40\usr\bin``
+    - ``C:\rtools40\mingw64\bin``
+
+  * If you are using R 3.x with RTools 3.x:
+
+    - ``C:\Rtools\bin``
+    - ``C:\Rtools\mingw_64\bin``
+
+Open the Command Prompt and navigate to the XGBoost directory, and then run the following commands. Make sure to specify the correct R version.
+
+.. code-block:: bash
+
+  cd C:\path\to\xgboost
+  mkdir build
+  cd build
+  cmake .. -G"Visual Studio 16 2019" -A x64 -DR_LIB=ON -DR_VERSION=4.0.0
+  cmake --build . --target install --config Release
+
 
 .. _r_gpu_support:
 
@@ -409,19 +427,32 @@ On Linux, starting from the XGBoost directory type:
 When default target is used, an R package shared library would be built in the ``build`` area.
 The ``install`` target, in addition, assembles the package files with this shared library under ``build/R-package`` and runs ``R CMD INSTALL``.
 
-On Windows, CMake with Visual C++ Build Tools (or Visual Studio) has to be used to build an R package with GPU support. Rtools must also be installed (perhaps, some other MinGW distributions with ``gendef.exe`` and ``dlltool.exe`` would work, but that was not tested).
+On Windows, CMake with Visual Studio has to be used to build an R package with GPU support. Rtools must also be installed.
+
+.. note:: Setting correct PATH environment variable on Windows
+
+  If you are using Windows, make sure to include the right directories in the PATH environment variable.
+
+  * If you are using R 4.x with RTools 4.0:
+
+    - ``C:\rtools40\usr\bin``
+    - ``C:\rtools40\mingw64\bin``
+  * If you are using R 3.x with RTools 3.x:
+
+    - ``C:\Rtools\bin``
+    - ``C:\Rtools\mingw_64\bin``
+
+Open the Command Prompt and navigate to the XGBoost directory, and then run the following commands. Make sure to specify the correct R version.
 
 .. code-block:: bash
 
+  cd C:\path\to\xgboost
   mkdir build
   cd build
-  cmake .. -G"Visual Studio 14 2015 Win64" -DUSE_CUDA=ON -DR_LIB=ON
+  cmake .. -G"Visual Studio 16 2019" -A x64 -DUSE_CUDA=ON -DR_LIB=ON -DR_VERSION=4.0.0
   cmake --build . --target install --config Release
 
-When ``--target xgboost`` is used, an R package DLL would be built under ``build/Release``.
-The ``--target install``, in addition, assembles the package files with this dll under ``build/R-package`` and runs ``R CMD INSTALL``.
-
-If cmake can't find your R during the configuration step, you might provide the location of its executable to cmake like this: ``-DLIBR_EXECUTABLE="C:/Program Files/R/R-3.4.1/bin/x64/R.exe"``.
+If CMake can't find your R during the configuration step, you might provide the location of R to CMake like this: ``-DLIBR_HOME="C:\Program Files\R\R-4.0.0"``.
 
 If on Windows you get a "permission denied" error when trying to write to ...Program Files/R/... during the package installation, create a ``.Rprofile`` file in your personal home directory (if you don't already have one in there), and add a line to it which specifies the location of your R packages user library, like the following:
 

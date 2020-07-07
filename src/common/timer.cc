@@ -1,15 +1,14 @@
 /*!
  * Copyright by Contributors 2019
  */
+#include <rabit/rabit.h>
 #include <algorithm>
 #include <type_traits>
 #include <utility>
 #include <vector>
 #include <sstream>
-
-#include <rabit/rabit.h>
-#include "xgboost/json.h"
 #include "timer.h"
+#include "xgboost/json.h"
 
 #if defined(XGBOOST_USE_NVTX)
 #include <nvToolsExt.h>
@@ -62,9 +61,8 @@ std::vector<Monitor::StatMap> Monitor::CollectFromOtherRanks() const {
         kv.second.timer.elapsed).count()));
   }
 
-  std::stringstream ss;
-  Json::Dump(j_statistic, &ss);
-  std::string const str { ss.str() };
+  std::string str;
+  Json::Dump(j_statistic, &str);
 
   size_t str_size = str.size();
   rabit::Allreduce<rabit::op::Max>(&str_size, 1);

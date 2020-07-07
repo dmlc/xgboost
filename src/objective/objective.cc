@@ -3,11 +3,11 @@
  * \file objective.cc
  * \brief Registry of all objective functions.
  */
-#include <sstream>
-
+#include <xgboost/objective.h>
 #include <dmlc/registry.h>
 
-#include "xgboost/objective.h"
+#include <sstream>
+
 #include "xgboost/host_device_vector.h"
 
 namespace dmlc {

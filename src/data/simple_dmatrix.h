@@ -7,11 +7,12 @@
 #ifndef XGBOOST_DATA_SIMPLE_DMATRIX_H_
 #define XGBOOST_DATA_SIMPLE_DMATRIX_H_
 
+#include <xgboost/base.h>
+#include <xgboost/data.h>
+
 #include <memory>
 #include <string>
 
-#include <xgboost/base.h>
-#include <xgboost/data.h>
 
 namespace xgboost {
 namespace data {

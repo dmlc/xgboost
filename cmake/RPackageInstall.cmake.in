@@ -1,0 +1,34 @@
+# Commands to install the R package as a CMake install target
+
+function(check_call)
+  set(cmd COMMAND)
+  cmake_parse_arguments(
+    PARSE_ARGV 0
+    CALL_ARG "" "" "${cmd}"
+  )
+  string(REPLACE ";" " " commands "${CALL_ARG_COMMAND}")
+  message("Command: ${commands}")
+  execute_process(COMMAND ${CALL_ARG_COMMAND}
+                  OUTPUT_VARIABLE _out
+				  ERROR_VARIABLE _err
+				  RESULT_VARIABLE _res)
+  if(NOT "${_res}" EQUAL "0")
+    message(FATAL_ERROR "out: ${_out}, err: ${_err}, res: ${_res}")
+  endif()
+endfunction()
+
+# Important paths
+set(build_dir "@build_dir@")
+set(LIBR_EXECUTABLE "@LIBR_EXECUTABLE@")
+
+# Back up cmake_install.cmake
+file(WRITE "${build_dir}/R-package/src/Makevars" "all:")
+file(WRITE "${build_dir}/R-package/src/Makevars.win" "all:")
+
+# Install dependencies
+set(XGB_DEPS_SCRIPT
+    "deps = setdiff(c('data.table', 'magrittr', 'stringi'), rownames(installed.packages())); if(length(deps)>0) install.packages(deps, repo = 'https://cloud.r-project.org/')")
+check_call(COMMAND "${LIBR_EXECUTABLE}" -q -e "${XGB_DEPS_SCRIPT}")
+
+# Install the XGBoost R package
+check_call(COMMAND "${LIBR_EXECUTABLE}" CMD INSTALL --no-multiarch --build "${build_dir}/R-package")

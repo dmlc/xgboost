@@ -147,6 +147,9 @@ class TestGPUPredict(unittest.TestCase):
             copied_predt = cp.array(booster.predict(d))
             return cp.all(copied_predt == inplace_predt)
 
+        # Don't do this on Windows, see issue #5793
+        if sys.platform.startswith("win"):
+            pytest.skip('Multi-threaded in-place prediction with cuPy is not working on Windows')
         for i in range(10):
             run_threaded_predict(X, rows, predict_dense)
 
@@ -158,10 +161,10 @@ class TestGPUPredict(unittest.TestCase):
         rows = 1000
         cols = 10
         rng = np.random.RandomState(1994)
+        cp.cuda.runtime.setDevice(0)
         X = rng.randn(rows, cols)
         X = pd.DataFrame(X)
         y = rng.randn(rows)
-
         X = cudf.from_pandas(X)
 
         dtrain = xgb.DMatrix(X, y)

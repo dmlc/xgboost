@@ -226,11 +226,12 @@ add_dependencies(xgboost runxgboost)
 
 #-- Installing XGBoost
 if (R_LIB)
+  include(cmake/RPackageInstallTargetSetup.cmake)
   set_target_properties(xgboost PROPERTIES PREFIX "")
   if (APPLE)
     set_target_properties(xgboost PROPERTIES SUFFIX ".so")
   endif (APPLE)
-  setup_rpackage_install_target(xgboost ${CMAKE_CURRENT_BINARY_DIR})
+  setup_rpackage_install_target(xgboost "${CMAKE_CURRENT_BINARY_DIR}/R-package-install")
   set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/dummy_inst")
 endif (R_LIB)
 if (MINGW)

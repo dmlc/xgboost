@@ -51,6 +51,7 @@ Debug
 #.Rbuildignore
 R-package.Rproj
 *.cache*
+.mypy_cache/
 # java
 java/xgboost4j/target
 java/xgboost4j/tmp
@@ -92,6 +93,7 @@ metastore_db
 # files from R-package source install
 **/config.status
 R-package/src/Makevars
+*.lib
 
 # Visual Studio Code
 /.vscode/

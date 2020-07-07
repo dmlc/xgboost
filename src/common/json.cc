@@ -1,12 +1,15 @@
 /*!
- * Copyright (c) by Contributors 2019
+ * Copyright (c) by Contributors 2019-2020
  */
 #include <cctype>
+#include <cstddef>
+#include <iterator>
 #include <locale>
 #include <sstream>
 #include <limits>
 #include <cmath>
 
+#include "charconv.h"
 #include "xgboost/base.h"
 #include "xgboost/logging.h"
 #include "xgboost/json.h"
@@ -19,56 +22,68 @@ void JsonWriter::Save(Json json) {
 }
 
 void JsonWriter::Visit(JsonArray const* arr) {
-  this->Write("[");
+  stream_->emplace_back('[');
   auto const& vec = arr->GetArray();
   size_t size = vec.size();
   for (size_t i = 0; i < size; ++i) {
     auto const& value = vec[i];
     this->Save(value);
-    if (i != size-1) { Write(","); }
+    if (i != size - 1) {
+      stream_->emplace_back(',');
+    }
   }
-  this->Write("]");
+  stream_->emplace_back(']');
 }
 
 void JsonWriter::Visit(JsonObject const* obj) {
-  this->Write("{");
-  this->BeginIndent();
-  this->NewLine();
-
+  stream_->emplace_back('{');
   size_t i = 0;
   size_t size = obj->GetObject().size();
 
   for (auto& value : obj->GetObject()) {
-    this->Write("\"" + value.first + "\":");
+    auto s = String{value.first};
+    this->Visit(&s);
+    stream_->emplace_back(':');
     this->Save(value.second);
 
     if (i != size-1) {
-      this->Write(",");
-      this->NewLine();
+      stream_->emplace_back(',');
     }
     i++;
   }
-  this->EndIndent();
-  this->NewLine();
-  this->Write("}");
+
+  stream_->emplace_back('}');
 }
 
 void JsonWriter::Visit(JsonNumber const* num) {
-  convertor_ << num->GetNumber();
-  auto const& str = convertor_.str();
-  this->Write(StringView{str.c_str(), str.size()});
-  convertor_.str("");
+  char number[NumericLimits<float>::kToCharsSize];
+  auto res = to_chars(number, number + sizeof(number), num->GetNumber());
+  auto end = res.ptr;
+  auto ori_size = stream_->size();
+  stream_->resize(stream_->size() + end - number);
+  std::memcpy(stream_->data() + ori_size, number, end - number);
 }
 
 void JsonWriter::Visit(JsonInteger const* num) {
-  convertor_ << num->GetInteger();
-  auto const& str = convertor_.str();
-  this->Write(StringView{str.c_str(), str.size()});
-  convertor_.str("");
+  char i2s_buffer_[NumericLimits<int64_t>::kToCharsSize];
+  auto i = num->GetInteger();
+  auto ret = to_chars(i2s_buffer_, i2s_buffer_ + NumericLimits<int64_t>::kToCharsSize, i);
+  auto end = ret.ptr;
+  CHECK(ret.ec == std::errc());
+  auto digits = std::distance(i2s_buffer_, end);
+  auto ori_size = stream_->size();
+  stream_->resize(ori_size + digits);
+  std::memcpy(stream_->data() + ori_size, i2s_buffer_, digits);
 }
 
 void JsonWriter::Visit(JsonNull const* null) {
-  this->Write("null");
+    auto s = stream_->size();
+    stream_->resize(s + 4);
+    auto& buf = (*stream_);
+    buf[s + 0] = 'n';
+    buf[s + 1] = 'u';
+    buf[s + 2] = 'l';
+    buf[s + 3] = 'l';
 }
 
 void JsonWriter::Visit(JsonString const* str) {
@@ -105,15 +120,30 @@ void JsonWriter::Visit(JsonString const* str) {
     }
   }
   buffer += '"';
-  this->Write(buffer);
+
+  auto s = stream_->size();
+  stream_->resize(s + buffer.size());
+  std::memcpy(stream_->data() + s, buffer.data(), buffer.size());
 }
 
 void JsonWriter::Visit(JsonBoolean const* boolean) {
   bool val = boolean->GetBoolean();
+  auto s = stream_->size();
   if (val) {
-    this->Write(u8"true");
+    stream_->resize(s + 4);
+    auto& buf = (*stream_);
+    buf[s + 0] = 't';
+    buf[s + 1] = 'r';
+    buf[s + 2] = 'u';
+    buf[s + 3] = 'e';
   } else {
-    this->Write(u8"false");
+    stream_->resize(s + 5);
+    auto& buf = (*stream_);
+    buf[s + 0] = 'f';
+    buf[s + 1] = 'a';
+    buf[s + 2] = 'l';
+    buf[s + 3] = 's';
+    buf[s + 4] = 'e';
   }
 }
 
@@ -310,7 +340,7 @@ Value & JsonNull::operator=(Value const &rhs) {
 }
 
 void JsonNull::Save(JsonWriter* writer) {
-  writer->Write("null");
+  writer->Visit(this);
 }
 
 // Json Boolean
@@ -354,7 +384,7 @@ Json JsonReader::Parse() {
     } else if ( c == '[' ) {
       return ParseArray();
     } else if ( c == '-' || std::isdigit(c) ||
-                c == 'N' ) {
+                c == 'N' || c == 'I') {
       // For now we only accept `NaN`, not `nan` as the later violiates LR(1) with `null`.
       return ParseNumber();
     } else if ( c == '\"' ) {
@@ -379,8 +409,12 @@ void JsonReader::Error(std::string msg) const {
   // just copy it.
   std::istringstream str_s(raw_str_.substr(0, raw_str_.size()));
 
-  msg += ", around character: " + std::to_string(cursor_.Pos());
+  msg += ", around character position: " + std::to_string(cursor_.Pos());
   msg += '\n';
+
+  if (cursor_.Pos() == 0) {
+    LOG(FATAL) << msg << ", \"" << str_s.str() << " \"";
+  }
 
   constexpr size_t kExtend = 8;
   auto beg = static_cast<int64_t>(cursor_.Pos()) -
@@ -393,6 +427,8 @@ void JsonReader::Error(std::string msg) const {
   for (auto c : raw_portion) {
     if (c == '\n') {
       portion += "\\n";
+    } else if (c == '\0') {
+      portion += "\\0";
     } else {
       portion += c;
     }
@@ -413,11 +449,15 @@ void JsonReader::Error(std::string msg) const {
   LOG(FATAL) << msg;
 }
 
+namespace {
+bool IsSpace(char c) { return c == ' ' || c == '\n' || c == '\r' || c == '\t'; }
+}  // anonymous namespace
+
 // Json class
 void JsonReader::SkipSpaces() {
   while (cursor_.Pos() < raw_str_.size()) {
     char c = raw_str_[cursor_.Pos()];
-    if (std::isspace(c)) {
+    if (IsSpace(c)) {
       cursor_.Forward();
     } else {
       break;
@@ -438,7 +478,7 @@ void ParseStr(std::string const& str) {
 }
 
 Json JsonReader::ParseString() {
-  char ch { GetChar('\"') };  // NOLINT
+  char ch { GetConsecutiveChar('\"') };  // NOLINT
   std::ostringstream output;
   std::string str;
   while (true) {
@@ -483,14 +523,14 @@ Json JsonReader::ParseNull() {
 Json JsonReader::ParseArray() {
   std::vector<Json> data;
 
-  char ch { GetChar('[') };  // NOLINT
+  char ch { GetConsecutiveChar('[') };  // NOLINT
   while (true) {
     if (PeekNextChar() == ']') {
-      GetChar(']');
+      GetConsecutiveChar(']');
       return Json(std::move(data));
     }
     auto obj = Parse();
-    data.push_back(obj);
+    data.emplace_back(obj);
     ch = GetNextNonSpaceChar();
     if (ch == ']') break;
     if (ch != ',') {
@@ -502,14 +542,14 @@ Json JsonReader::ParseArray() {
 }
 
 Json JsonReader::ParseObject() {
-  GetChar('{');
+  GetConsecutiveChar('{');
 
   std::map<std::string, Json> data;
   SkipSpaces();
   char ch = PeekNextChar();
 
   if (ch == '}') {
-    GetChar('}');
+    GetConsecutiveChar('}');
     return Json(std::move(data));
   }
 
@@ -550,118 +590,105 @@ Json JsonReader::ParseNumber() {
   char const* const beg = p;  // keep track of current pointer
 
   // TODO(trivialfis): Add back all the checks for number
-  bool negative = false;
   if (XGBOOST_EXPECT(*p == 'N', false)) {
-    GetChar('N');
-    GetChar('a');
-    GetChar('N');
+    GetConsecutiveChar('N');
+    GetConsecutiveChar('a');
+    GetConsecutiveChar('N');
     return Json(static_cast<Number::Float>(std::numeric_limits<float>::quiet_NaN()));
   }
 
-  if ('-' == *p) {
-    ++p;
+  bool negative = false;
+  switch (*p) {
+  case '-': {
     negative = true;
+    ++p;
+    break;
+  }
+  case '+': {
+    negative = false;
+    ++p;
+    break;
+  }
+  default: {
+    break;
+  }
+  }
+
+  if (XGBOOST_EXPECT(*p == 'I', false)) {
+    cursor_.Forward(std::distance(beg, p));  // +/-
+    for (auto i : {'I', 'n', 'f', 'i', 'n', 'i', 't', 'y'}) {
+      GetConsecutiveChar(i);
+    }
+    auto f = std::numeric_limits<float>::infinity();
+    if (negative) {
+      f = -f;
+    }
+    return Json(static_cast<Number::Float>(f));
   }
 
   bool is_float = false;
 
-  using ExpInt = std::remove_const<
-    decltype(std::numeric_limits<Number::Float>::max_exponent)>::type;
-  constexpr auto kExpMax = std::numeric_limits<ExpInt>::max();
-  constexpr auto kExpMin = std::numeric_limits<ExpInt>::min();
-
-  JsonInteger::Int i = 0;
-  double f = 0.0;  // Use double to maintain accuracy
+  int64_t i = 0;
 
   if (*p == '0') {
-    ++p;
-  } else {
-    char c = *p;
-    do {
-      ++p;
-      char digit = c - '0';
-      i = 10 * i + digit;
-      c = *p;
-    } while (std::isdigit(c));
+    i = 0;
+    p++;
   }
 
-  ExpInt exponent = 0;
-  const char *const dot_position = p;
-  if ('.' == *p) {
+  while (XGBOOST_EXPECT(*p >= '0' && *p <= '9', true)) {
+    i = i * 10 + (*p - '0');
+    p++;
+  }
+
+  if (*p == '.') {
+    p++;
     is_float = true;
-    f = i;
-    ++p;
-    char c = *p;
 
-    do {
-      ++p;
-      f = f * 10 + (c - '0');
-      c = *p;
-    } while (std::isdigit(c));
-  }
-  if (is_float) {
-    exponent = dot_position - p + 1;
+    while (*p >= '0' && *p <= '9') {
+      i = i * 10 + (*p - '0');
+      p++;
+    }
   }
 
-  char e = *p;
-  if ('e' == e || 'E' == e) {
-    if (!is_float) {
-      is_float = true;
-      f = i;
-    }
-    ++p;
+  if (*p == 'E' || *p == 'e') {
+    is_float = true;
+    p++;
 
-    bool negative_exponent = false;
-    if ('-' == *p) {
-      negative_exponent = true;
-      ++p;
-    } else if ('+' == *p) {
-      ++p;
+    switch (*p) {
+    case '-':
+    case '+': {
+      p++;
+      break;
+    }
+    default:
+      break;
     }
 
-    ExpInt exp = 0;
-
-    char c = *p;
-    while (std::isdigit(c)) {
-      unsigned char digit = c - '0';
-      if (XGBOOST_EXPECT(exp > (kExpMax - digit) / 10, false)) {
-        CHECK_GT(exp, (kExpMax - digit) / 10) << "Overflow";
+    if (XGBOOST_EXPECT(*p >= '0' && *p <= '9', true)) {
+      p++;
+      while (*p >= '0' && *p <= '9') {
+        p++;
       }
-      exp = 10 * exp + digit;
-      ++p;
-      c = *p;
+    } else {
+      Error("Expecting digit");
     }
-    static_assert(-kExpMax >= kExpMin, "exp can be negated without loss or UB");
-    exponent += (negative_exponent ? -exp : exp);
-  }
-
-  if (exponent) {
-    CHECK(is_float);
-    // If d is zero but the exponent is huge, don't
-    // multiply zero by inf which gives nan.
-    if (f != 0.0) {
-      // Only use exp10 from libc on gcc+linux
-#if !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__) || !defined(__linux__)
-#define exp10(val) std::pow(10, (val))
-#endif  // !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__) || !defined(__linux__)
-      f *= exp10(exponent);
-#if !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__) || !defined(__linux__)
-#undef exp10
-#endif  // !defined(__GNUC__) || defined(_WIN32) || defined(__APPLE__) || !defined(__linux__)
-    }
-  }
-
-  if (negative) {
-      f = -f;
-      i = -i;
   }
 
   auto moved = std::distance(beg, p);
   this->cursor_.Forward(moved);
 
   if (is_float) {
+    float f;
+    auto ret = from_chars(beg, p, f);
+    if (XGBOOST_EXPECT(ret.ec != std::errc(), false)) {
+      // Compatible with old format that generates very long mantissa from std stream.
+      f = std::strtof(beg, nullptr);
+    }
     return Json(static_cast<Number::Float>(f));
   } else {
+    if (negative) {
+      i = -i;
+    }
     return Json(JsonInteger(i));
   }
 }
@@ -674,20 +701,15 @@ Json JsonReader::ParseBoolean() {
   std::string buffer;
 
   if (ch == 't') {
-    for (size_t i = 0; i < 3; ++i) {
-      buffer.push_back(GetNextNonSpaceChar());
-    }
-    if (buffer != u8"rue") {
-      Error("Expecting boolean value \"true\".");
-    }
+    GetConsecutiveChar('r');
+    GetConsecutiveChar('u');
+    GetConsecutiveChar('e');
     result = true;
   } else {
-    for (size_t i = 0; i < 4; ++i) {
-      buffer.push_back(GetNextNonSpaceChar());
-    }
-    if (buffer != u8"alse") {
-      Error("Expecting boolean value \"false\".");
-    }
+    GetConsecutiveChar('a');
+    GetConsecutiveChar('l');
+    GetConsecutiveChar('s');
+    GetConsecutiveChar('e');
     result = false;
   }
   return Json{JsonBoolean{result}};
@@ -704,16 +726,12 @@ Json Json::Load(JsonReader* reader) {
   return json;
 }
 
-void Json::Dump(Json json, std::ostream *stream, bool pretty) {
-  JsonWriter writer(stream, pretty);
+void Json::Dump(Json json, std::string* str) {
+  std::vector<char> buffer;
+  JsonWriter writer(&buffer);
   writer.Save(json);
-}
-
-void Json::Dump(Json json, std::string* str, bool pretty) {
-  std::stringstream ss;
-  JsonWriter writer(&ss, pretty);
-  writer.Save(json);
-  *str = ss.str();
+  str->resize(buffer.size());
+  std::copy(buffer.cbegin(), buffer.cend(), str->begin());
 }
 
 Json& Json::operator=(Json const &other) = default;

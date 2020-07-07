@@ -7,15 +7,14 @@
 #ifndef XGBOOST_COMMON_HIST_UTIL_H_
 #define XGBOOST_COMMON_HIST_UTIL_H_
 
+#include <xgboost/data.h>
+#include <xgboost/generic_parameters.h>
 #include <limits>
 #include <vector>
 #include <algorithm>
 #include <memory>
 #include <utility>
 #include <map>
-
-#include "xgboost/data.h"
-#include "xgboost/generic_parameters.h"
 
 #include "row_set.h"
 #include "threading_utils.h"
@@ -130,6 +129,7 @@ class CutsBuilder {
   using WQSketch = common::WQuantileSketch<bst_float, bst_float>;
   /* \brief return whether group for ranking is used. */
   static bool UseGroup(DMatrix* dmat);
+  static bool UseGroup(MetaInfo const& info);
 
  protected:
   HistogramCuts* p_cuts_;

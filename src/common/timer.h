@@ -2,14 +2,13 @@
  * Copyright by Contributors 2017-2019
  */
 #pragma once
+#include <xgboost/logging.h>
 #include <chrono>
 #include <iostream>
 #include <map>
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <xgboost/logging.h>
 
 namespace xgboost {
 namespace common {

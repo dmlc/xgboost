@@ -1,87 +1,80 @@
-import numpy as np
 import testing as tm
-import unittest
-import pytest
-
+from hypothesis import strategies, given, settings, note
 import xgboost as xgb
 
-try:
-    from sklearn.linear_model import ElasticNet
-    from sklearn.preprocessing import scale
-    from regression_test_utilities import run_suite, parameter_combinations
-except ImportError:
-    None
+parameter_strategy = strategies.fixed_dictionaries({
+    'booster': strategies.just('gblinear'),
+    'eta': strategies.floats(0.01, 0.25),
+    'tolerance': strategies.floats(1e-5, 1e-2),
+    'nthread': strategies.integers(1, 4),
+})
+
+coord_strategy = strategies.fixed_dictionaries({
+    'feature_selector': strategies.sampled_from(['cyclic', 'shuffle',
+                                                 'greedy', 'thrifty']),
+    'top_k': strategies.integers(1, 10),
+})
 
 
-def is_float(s):
-    try:
-        float(s)
-        return 1
-    except ValueError:
-        return 0
+def train_result(param, dmat, num_rounds):
+    result = {}
+    xgb.train(param, dmat, num_rounds, [(dmat, 'train')], verbose_eval=False,
+              evals_result=result)
+    return result
 
 
-def xgb_get_weights(bst):
-    return np.array([float(s) for s in bst.get_dump()[0].split() if
-                     is_float(s)])
+class TestLinear:
+    @given(parameter_strategy, strategies.integers(10, 50),
+           tm.dataset_strategy, coord_strategy)
+    @settings(deadline=None)
+    def test_coordinate(self, param, num_rounds, dataset, coord_param):
+        param['updater'] = 'coord_descent'
+        param.update(coord_param)
+        param = dataset.set_params(param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        assert tm.non_increasing(result, 5e-4)
 
+    # Loss is not guaranteed to always decrease because of regularisation parameters
+    # We test a weaker condition that the loss has not increased between the first and last
+    # iteration
+    @given(parameter_strategy, strategies.integers(10, 50),
+           tm.dataset_strategy, coord_strategy, strategies.floats(1e-5, 2.0),
+           strategies.floats(1e-5, 2.0))
+    @settings(deadline=None)
+    def test_coordinate_regularised(self, param, num_rounds, dataset, coord_param, alpha, lambd):
+        param['updater'] = 'coord_descent'
+        param['alpha'] = alpha
+        param['lambda'] = lambd
+        param.update(coord_param)
+        param = dataset.set_params(param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        assert tm.non_increasing([result[0], result[-1]])
 
-def assert_regression_result(results, tol):
-    regression_results = [r for r in results if
-                          r["param"]["objective"] == "reg:squarederror"]
-    for res in regression_results:
-        X = scale(res["dataset"].X,
-                  with_mean=isinstance(res["dataset"].X, np.ndarray))
-        y = res["dataset"].y
-        reg_alpha = res["param"]["alpha"]
-        reg_lambda = res["param"]["lambda"]
-        pred = res["bst"].predict(xgb.DMatrix(X))
-        weights = xgb_get_weights(res["bst"])[1:]
-        enet = ElasticNet(alpha=reg_alpha + reg_lambda,
-                          l1_ratio=reg_alpha / (reg_alpha + reg_lambda))
-        enet.fit(X, y)
-        enet_pred = enet.predict(X)
-        assert np.isclose(weights, enet.coef_, rtol=tol,
-                          atol=tol).all(), (weights, enet.coef_)
-        assert np.isclose(enet_pred, pred, rtol=tol, atol=tol).all(), (
-            res["dataset"].name, enet_pred[:5], pred[:5])
+    @given(parameter_strategy, strategies.integers(10, 50),
+           tm.dataset_strategy)
+    @settings(deadline=None)
+    def test_shotgun(self, param, num_rounds, dataset):
+        param['updater'] = 'shotgun'
+        param = dataset.set_params(param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        # shotgun is non-deterministic, so we relax the test by sampling
+        # result.
+        if len(result) > 2:
+            sampled_result = [score for i, score in enumerate(result)
+                              if i % 2 == 0]
+            sampled_result[-1] = result[-1]  # make sure the last one is used
+        else:
+            sampled_result = result
+        assert tm.non_increasing(sampled_result, 1e-3)
 
-
-# TODO: More robust classification tests
-def assert_classification_result(results):
-    classification_results = [r for r in results if
-                              r["param"]["objective"] != "reg:squarederror"]
-    for res in classification_results:
-        # Check accuracy  is reasonable
-        assert res["eval"][-1] < 2.0, (res["dataset"].name, res["eval"][-1])
-
-
-class TestLinear(unittest.TestCase):
-
-    datasets = ["Boston", "Digits", "Cancer", "Sparse regression",
-                "Boston External Memory"]
-
-    @pytest.mark.skipif(**tm.no_sklearn())
-    def test_coordinate(self):
-        variable_param = {'booster': ['gblinear'], 'updater':
-                          ['coord_descent'], 'eta': [0.5], 'top_k':
-                          [10], 'tolerance': [1e-5], 'nthread': [2],
-                          'alpha': [.005, .1], 'lambda': [.005],
-                          'feature_selector': ['cyclic', 'shuffle',
-                                               'greedy', 'thrifty']}
-        for param in parameter_combinations(variable_param):
-            results = run_suite(param, 150, self.datasets, scale_features=True)
-            assert_regression_result(results, 1e-2)
-            assert_classification_result(results)
-
-    @pytest.mark.skipif(**tm.no_sklearn())
-    def test_shotgun(self):
-        variable_param = {'booster': ['gblinear'], 'updater':
-                          ['shotgun'], 'eta': [0.5], 'top_k': [10],
-                          'tolerance': [1e-5], 'nthread': [2],
-                          'alpha': [.005, .1], 'lambda': [.005],
-                          'feature_selector': ['cyclic', 'shuffle']}
-        for param in parameter_combinations(variable_param):
-            results = run_suite(param, 200, self.datasets, True)
-            assert_regression_result(results, 1e-2)
-            assert_classification_result(results)
+    @given(parameter_strategy, strategies.integers(10, 50),
+           tm.dataset_strategy, strategies.floats(1e-5, 2.0),
+           strategies.floats(1e-5, 2.0))
+    @settings(deadline=None)
+    def test_shotgun_regularised(self, param, num_rounds, dataset, alpha, lambd):
+        param['updater'] = 'shotgun'
+        param['alpha'] = alpha
+        param['lambda'] = lambd
+        param = dataset.set_params(param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        assert tm.non_increasing([result[0], result[-1]])

@@ -3,6 +3,9 @@
  * \file split_evaluator.cc
  * \brief Contains implementations of different split evaluators.
  */
+#include <dmlc/json.h>
+#include <dmlc/registry.h>
+
 #include <algorithm>
 #include <unordered_set>
 #include <vector>
@@ -11,9 +14,6 @@
 #include <string>
 #include <sstream>
 #include <utility>
-
-#include <dmlc/json.h>
-#include <dmlc/registry.h>
 
 #include "xgboost/logging.h"
 #include "xgboost/parameter.h"

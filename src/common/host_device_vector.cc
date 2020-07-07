@@ -4,12 +4,12 @@
 #ifndef XGBOOST_USE_CUDA
 
 // dummy implementation of HostDeviceVector in case CUDA is not used
+
+#include <xgboost/base.h>
+#include <xgboost/data.h>
 #include <cstdint>
 #include <memory>
 #include <utility>
-
-#include "xgboost/base.h"
-#include "xgboost/data.h"
 #include "xgboost/host_device_vector.h"
 
 namespace xgboost {
@@ -137,6 +137,14 @@ void HostDeviceVector<T>::Copy(std::initializer_list<T> other) {
 }
 
 template <typename T>
+void HostDeviceVector<T>::Extend(HostDeviceVector const& other) {
+  auto ori_size = this->Size();
+  this->HostVector().resize(ori_size + other.Size());
+  std::copy(other.ConstHostVector().cbegin(), other.ConstHostVector().cend(),
+            this->HostVector().begin() + ori_size);
+}
+
+template <typename T>
 bool HostDeviceVector<T>::HostCanRead() const {
   return true;
 }
@@ -163,6 +171,8 @@ void HostDeviceVector<T>::SetDevice(int device) const {}
 template class HostDeviceVector<bst_float>;
 template class HostDeviceVector<GradientPair>;
 template class HostDeviceVector<int32_t>;   // bst_node_t
+template class HostDeviceVector<uint8_t>;
+template class HostDeviceVector<FeatureType>;
 template class HostDeviceVector<Entry>;
 template class HostDeviceVector<uint64_t>;  // bst_row_t
 template class HostDeviceVector<uint32_t>;  // bst_feature_t
