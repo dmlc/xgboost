@@ -306,7 +306,7 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
       size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
       ProcessWeightedSlidingWindow(batch, info,
                                    num_cuts_per_feature,
-                                   CutsBuilder::UseGroup(info), missing, device, num_cols, begin, end,
+                                   HostSketchContainer::UseGroup(info), missing, device, num_cols, begin, end,
                                    sketch_container);
     }
   } else {

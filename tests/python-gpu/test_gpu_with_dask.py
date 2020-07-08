@@ -233,12 +233,14 @@ class TestDistributedGPU(unittest.TestCase):
                     assert ret.returncode == 0, msg
 
     @pytest.mark.skipif(**tm.no_dask())
+    @pytest.mark.skipif(**tm.no_dask_cuda())
     @pytest.mark.mgpu
     @pytest.mark.gtest
     def test_quantile_basic(self):
         self.run_quantile('AllReduceBasic')
 
     @pytest.mark.skipif(**tm.no_dask())
+    @pytest.mark.skipif(**tm.no_dask_cuda())
     @pytest.mark.mgpu
     @pytest.mark.gtest
     def test_quantile_same_on_all_workers(self):

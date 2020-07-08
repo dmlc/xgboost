@@ -6,9 +6,9 @@
 #ifndef XGBOOST_COMMON_THREADING_UTILS_H_
 #define XGBOOST_COMMON_THREADING_UTILS_H_
 
+#include <dmlc/common.h>
 #include <vector>
 #include <algorithm>
-
 #include "xgboost/logging.h"
 
 namespace xgboost {
@@ -115,17 +115,32 @@ void ParallelFor2d(const BlockedSpace2d& space, int nthreads, Func func) {
   nthreads = std::min(nthreads, omp_get_max_threads());
   nthreads = std::max(nthreads, 1);
 
+  dmlc::OMPException omp_exc;
 #pragma omp parallel num_threads(nthreads)
   {
-    size_t tid = omp_get_thread_num();
-    size_t chunck_size = num_blocks_in_space / nthreads + !!(num_blocks_in_space % nthreads);
+    omp_exc.Run([&]() {
+      size_t tid = omp_get_thread_num();
+      size_t chunck_size =
+          num_blocks_in_space / nthreads + !!(num_blocks_in_space % nthreads);
 
-    size_t begin = chunck_size * tid;
-    size_t end   = std::min(begin + chunck_size, num_blocks_in_space);
-    for (auto i = begin; i < end; i++) {
-      func(space.GetFirstDimension(i), space.GetRange(i));
-    }
+      size_t begin = chunck_size * tid;
+      size_t end = std::min(begin + chunck_size, num_blocks_in_space);
+      for (auto i = begin; i < end; i++) {
+        func(space.GetFirstDimension(i), space.GetRange(i));
+      }
+    });
   }
+  omp_exc.Rethrow();
+}
+
+template <typename Func>
+void ParallelFor(size_t size, size_t nthreads, Func fn) {
+  dmlc::OMPException omp_exc;
+#pragma omp parallel for num_threads(nthreads)
+  for (omp_ulong i = 0; i < size; ++i) {
+    omp_exc.Run(fn, i);
+  }
+  omp_exc.Rethrow();
 }
 
 }  // namespace common

@@ -239,6 +239,21 @@ struct BatchParam {
   }
 };
 
+struct HostSparsePageView {
+  using Inst = common::Span<Entry const>;
+
+  common::Span<bst_row_t const> offset;
+  common::Span<Entry const> data;
+
+  Inst operator[](size_t i) const {
+    auto size = *(offset.data() + i + 1) - *(offset.data() + i);
+    return {data.data() + *(offset.data() + i),
+            static_cast<Inst::index_type>(size)};
+  }
+
+  size_t Size() const { return offset.size() == 0 ? 0 : offset.size() - 1; }
+};
+
 /*!
  * \brief In-memory storage unit of sparse batch, stored in CSR format.
  */
@@ -269,6 +284,11 @@ class SparsePage {
     return {data_vec.data() + offset_vec[i],
             static_cast<Inst::index_type>(size)};
   }
+
+  HostSparsePageView GetView() const {
+    return {offset.ConstHostSpan(), data.ConstHostSpan()};
+  }
+
 
   /*! \brief constructor */
   SparsePage() {

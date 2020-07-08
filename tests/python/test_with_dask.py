@@ -1,11 +1,16 @@
 import testing as tm
 import pytest
+import unittest
 import xgboost as xgb
 import sys
 import numpy as np
 import json
 import asyncio
 from sklearn.datasets import make_classification
+import os
+import subprocess
+from hypothesis import given, strategies, settings, note
+from test_updaters import hist_parameter_strategy, exact_parameter_strategy
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -445,3 +450,98 @@ def test_with_asyncio():
 
             asyncio.run(run_dask_regressor_asyncio(address))
             asyncio.run(run_dask_classifier_asyncio(address))
+
+
+class TestWithDask(unittest.TestCase):
+    def run_updater_test(self, client, params, num_rounds, dataset,
+                         tree_method):
+        params['tree_method'] = tree_method
+        params = dataset.set_params(params)
+        # multi class doesn't handle empty dataset well (empty
+        # means at least 1 worker has data).
+        if params['objective'] == "multi:softmax":
+            return
+        # It doesn't make sense to distribute a completely
+        # empty dataset.
+        if dataset.X.shape[0] == 0:
+            return
+
+        chunk = 128
+        X = da.from_array(dataset.X,
+                          chunks=(chunk, dataset.X.shape[1]))
+        y = da.from_array(dataset.y, chunks=(chunk, ))
+        if dataset.w is not None:
+            w = da.from_array(dataset.w, chunks=(chunk, ))
+        else:
+            w = None
+
+        m = xgb.dask.DaskDMatrix(
+            client, data=X, label=y, weight=w)
+        history = xgb.dask.train(client, params=params, dtrain=m,
+                                 num_boost_round=num_rounds,
+                                 evals=[(m, 'train')])['history']
+        note(history)
+        assert tm.non_increasing(history['train'][dataset.metric])
+
+    @given(hist_parameter_strategy, strategies.integers(10, 20),
+           tm.dataset_strategy)
+    @settings(deadline=None)
+    def test_hist(self, params, num_rounds, dataset):
+        with LocalCluster() as cluster:
+            with Client(cluster) as client:
+                self.run_updater_test(
+                    client, params, num_rounds, dataset, 'hist')
+
+    @given(exact_parameter_strategy, strategies.integers(10, 20),
+           tm.dataset_strategy)
+    @settings(deadline=None)
+    def test_approx(self, params, num_rounds, dataset):
+        with LocalCluster() as cluster:
+            with Client(cluster) as client:
+                self.run_updater_test(
+                    client, params, num_rounds, dataset, 'approx')
+
+    def run_quantile(self, name):
+        if sys.platform.startswith("win"):
+            pytest.skip("Skipping dask tests on Windows")
+
+        exe = None
+        for possible_path in {'./testxgboost', './build/testxgboost',
+                              '../build/testxgboost', '../cpu-build/testxgboost'}:
+            if os.path.exists(possible_path):
+                exe = possible_path
+        if exe is None:
+            return
+
+        test = "--gtest_filter=Quantile." + name
+
+        def runit(worker_addr, rabit_args):
+            port = None
+            # setup environment for running the c++ part.
+            for arg in rabit_args:
+                if arg.decode('utf-8').startswith('DMLC_TRACKER_PORT'):
+                    port = arg.decode('utf-8')
+            port = port.split('=')
+            env = os.environ.copy()
+            env[port[0]] = port[1]
+            return subprocess.run([exe, test], env=env, stdout=subprocess.PIPE)
+
+        with LocalCluster(n_workers=4) as cluster:
+            with Client(cluster) as client:
+                workers = list(xgb.dask._get_client_workers(client).keys())
+                rabit_args = xgb.dask._get_rabit_args(workers, client)
+                futures = client.map(runit,
+                                     workers,
+                                     pure=False,
+                                     workers=workers,
+                                     rabit_args=rabit_args)
+                results = client.gather(futures)
+                for ret in results:
+                    msg = ret.stdout.decode('utf-8')
+                    assert msg.find('1 test from Quantile') != -1, msg
+                    assert ret.returncode == 0, msg
+
+    @pytest.mark.skipif(**tm.no_dask())
+    @pytest.mark.gtest
+    def test_quantile_basic(self):
+        self.run_quantile('SameOnAllWorkers')
