@@ -1,4 +1,3 @@
-#include <dmlc/omp.h>
 #include <xgboost/logging.h>
 #include <xgboost/objective.h>
 #include <cmath>
@@ -70,7 +69,7 @@ class RegLossObjOneAPI : public ObjFunction {
     cl::sycl::buffer<bst_float, 1> labels_buf(info.labels_.HostPointer(), info.labels_.Size());
     cl::sycl::buffer<GradientPair, 1> out_gpair_buf(out_gpair->HostPointer(), out_gpair->Size());
     cl::sycl::buffer<bst_float, 1> weights_buf(is_null_weight ? NULL : info.weights_.HostPointer(),
-    										   is_null_weight ? 1 : info.weights_.Size());
+                                               is_null_weight ? 1 : info.weights_.Size());
 
     LOG(WARNING) << "null_weight = " << is_null_weight;
     auto scale_pos_weight = param_.scale_pos_weight;
@@ -142,29 +141,29 @@ DMLC_REGISTER_PARAMETER(RegLossParamOneAPI);
 XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegressionOneAPI, LinearSquareLossOneAPI::Name())
 .describe("Regression with squared error with DPC++ backend.")
 .set_body([]() { return new RegLossObjOneAPI<LinearSquareLossOneAPI,
-											 LinearSquareLossGetGradients,
-											 LinearSquareLossPredTransform>(); });
+                                             LinearSquareLossGetGradients,
+                                             LinearSquareLossPredTransform>(); });
 XGBOOST_REGISTER_OBJECTIVE(SquareLogErrorOneAPI, SquaredLogErrorOneAPI::Name())
 .describe("Regression with root mean squared logarithmic error with DPC++ backend.")
 .set_body([]() { return new RegLossObjOneAPI<SquaredLogErrorOneAPI,
-											 SquaredLogErrorGetGradients,
-											 SquaredLogErrorPredTransform>(); });
+                                             SquaredLogErrorGetGradients,
+                                             SquaredLogErrorPredTransform>(); });
 XGBOOST_REGISTER_OBJECTIVE(LogisticRegressionOneAPI, LogisticRegressionOneAPI::Name())
 .describe("Logistic regression for probability regression task with DPC++ backend.")
 .set_body([]() { return new RegLossObjOneAPI<LogisticRegressionOneAPI,
-											 LogisticRegressionGetGradients,
-											 LogisticRegressionPredTransform>(); });
+                                             LogisticRegressionGetGradients,
+                                             LogisticRegressionPredTransform>(); });
 XGBOOST_REGISTER_OBJECTIVE(LogisticClassificationOneAPI, LogisticClassificationOneAPI::Name())
 .describe("Logistic regression for binary classification task with DPC++ backend.")
 .set_body([]() { return new RegLossObjOneAPI<LogisticClassificationOneAPI,
-											 LogisticClassificationGetGradients,
-											 LogisticClassificationPredTransform>(); });
+                                             LogisticClassificationGetGradients,
+                                             LogisticClassificationPredTransform>(); });
 XGBOOST_REGISTER_OBJECTIVE(LogisticRawOneAPI, LogisticRawOneAPI::Name())
 .describe("Logistic regression for classification, output score "
           "before logistic transformation with DPC++ backend.")
 .set_body([]() { return new RegLossObjOneAPI<LogisticRawOneAPI,
-											 LogisticRawGetGradients,
-											 LogisticRawPredTransform>(); });
+                                             LogisticRawGetGradients,
+                                             LogisticRawPredTransform>(); });
 
 }  // namespace obj
 }  // namespace xgboost

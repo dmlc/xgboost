@@ -8,10 +8,14 @@ if (PLUGIN_DENSE_PARSER)
 endif (PLUGIN_DENSE_PARSER)
 
 if (PLUGIN_UPDATER_ONEAPI)
+  
   set(PLUGINS_SOURCES_ONEAPI 
     ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/regression_obj_oneapi.cc 
     ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/predictor_oneapi.cc)
 
   set(PLUGINS_SOURCES_ONEAPI ${PLUGINS_SOURCES_ONEAPI} PARENT_SCOPE)
-  set(PLUGINS_SOURCES ${PLUGINS_SOURCES} ${PLUGINS_SOURCES_ONEAPI} PARENT_SCOPE)
+  
+  target_sources(objxgboost PRIVATE ${PLUGINS_SOURCES_ONEAPI})
+  target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_ONEAPI=1)
+  target_link_libraries(objxgboost PUBLIC -fsycl)
 endif (PLUGIN_UPDATER_ONEAPI)

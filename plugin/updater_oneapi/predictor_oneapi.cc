@@ -1,9 +1,6 @@
 /*!
  * Copyright by Contributors 2017-2020
  */
-#include <dmlc/omp.h>
-#include <dmlc/any.h>
-
 #include <cstddef>
 #include <limits>
 #include <mutex>
@@ -95,12 +92,12 @@ struct DeviceMatrixOneAPI {
   }
 
   ~DeviceMatrixOneAPI() {
-  	if (row_ptr) {
+    if (row_ptr) {
       cl::sycl::free(row_ptr, qu_);
     }
     if (data) {
-  	  cl::sycl::free(data, qu_);
-  	}
+      cl::sycl::free(data, qu_);
+    }
   }
 };
 
@@ -165,20 +162,20 @@ class DeviceModelOneAPI {
   DeviceModelOneAPI() : nodes(nullptr), tree_segments(nullptr), tree_group(nullptr) {}
 
   ~DeviceModelOneAPI() {
-  	Reset();
+    Reset();
   }
 
   void Reset() {
-  	if (nodes)
-   	  cl::sycl::free(nodes, qu_);
-  	if (tree_segments)
-   	  cl::sycl::free(tree_segments, qu_);
-  	if (tree_group)
-   	  cl::sycl::free(tree_group, qu_);
+    if (nodes)
+      cl::sycl::free(nodes, qu_);
+    if (tree_segments)
+      cl::sycl::free(tree_segments, qu_);
+    if (tree_group)
+      cl::sycl::free(tree_group, qu_);
   }
 
   void Init(const gbm::GBTreeModel& model, size_t tree_begin, size_t tree_end, cl::sycl::queue qu) {
-  	qu_ = qu;
+    qu_ = qu;
     CHECK_EQ(model.param.size_leaf_vector, 0);
     Reset();
 
@@ -194,12 +191,12 @@ class DeviceModelOneAPI {
     for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
       auto& src_nodes = model.trees[tree_idx]->GetNodes();
       for (size_t node_idx = 0; node_idx < src_nodes.size(); node_idx++)
-      	nodes[node_idx + tree_segments[tree_idx - tree_begin]] = src_nodes[node_idx];
+        nodes[node_idx + tree_segments[tree_idx - tree_begin]] = src_nodes[node_idx];
     }
 
     tree_group = cl::sycl::malloc_device<int>(model.tree_info.size(), qu_);
     for (size_t tree_idx = 0; tree_idx < model.tree_info.size(); tree_idx++)
-    	tree_group[tree_idx] = model.tree_info[tree_idx];
+      tree_group[tree_idx] = model.tree_info[tree_idx];
 
     tree_beg_ = tree_begin;
     tree_end_ = tree_end;
@@ -244,10 +241,10 @@ float GetLeafWeight(int ridx, const DeviceNodeOneAPI* tree, EntryOneAPI* data, s
       n = tree[n.MissingIdx()];
     } else {
       if (fvalue < n.GetFvalue()) {
-      	node_id = n.left_child_idx;
+        node_id = n.left_child_idx;
         n = tree[n.left_child_idx];
       } else {
-      	node_id = n.right_child_idx;
+        node_id = n.right_child_idx;
         n = tree[n.right_child_idx];
       }
     }
@@ -328,7 +325,7 @@ class PredictorOneAPI : public Predictor {
             out_predictions[out_prediction_idx] += GetLeafWeight(global_idx, tree, data, row_ptr);
           }
         }
-   	  });
+      });
     }).wait();
   }
 
@@ -336,7 +333,7 @@ class PredictorOneAPI : public Predictor {
   explicit PredictorOneAPI(GenericParameter const* generic_param) :
       Predictor::Predictor{generic_param}, cpu_predictor(Predictor::Create("cpu_predictor", generic_param)) {
     cl::sycl::gpu_selector selector;
-  	qu_ = cl::sycl::queue(selector);
+    qu_ = cl::sycl::queue(selector);
   }
 
   // ntree_limit is a very problematic parameter, as it's ambiguous in the context of
@@ -421,7 +418,7 @@ class PredictorOneAPI : public Predictor {
                            std::vector<bst_float>* tree_weights,
                            bool approximate, int condition,
                            unsigned condition_feature) override {
-	cpu_predictor->PredictContribution(p_fmat, out_contribs, model, ntree_limit, tree_weights, approximate, condition, condition_feature);
+    cpu_predictor->PredictContribution(p_fmat, out_contribs, model, ntree_limit, tree_weights, approximate, condition, condition_feature);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, std::vector<bst_float>* out_contribs,

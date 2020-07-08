@@ -120,6 +120,8 @@ if (USE_OPENMP)
   find_package(OpenMP REQUIRED)
 endif (USE_OPENMP)
 
+add_library(objxgboost OBJECT)
+
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
 
@@ -184,6 +186,12 @@ endif (R_LIB)
 # Plugin
 add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
 
+#-- DPC++ support
+if (PLUGIN_UPDATER_ONEAPI)
+  set_source_files_properties(${PLUGINS_SOURCES_ONEAPI} PROPERTIES COMPILE_FLAGS -fsycl)
+endif (PLUGIN_UPDATER_ONEAPI)
+#-- End of DPC++ support
+
 #-- library
 if (BUILD_STATIC_LIB)
   add_library(xgboost STATIC)
@@ -231,14 +239,6 @@ set_target_properties(
   CXX_STANDARD 14
   CXX_STANDARD_REQUIRED ON)
 #-- End CLI for xgboost
-
-#-- DPC++ support
-if (PLUGIN_UPDATER_ONEAPI)
-  target_link_libraries(objxgboost PUBLIC -fsycl)
-  target_link_libraries(runxgboost PUBLIC -fsycl)
-  target_link_libraries(xgboost PUBLIC -fsycl)
-endif (PLUGIN_UPDATER_ONEAPI)
-#-- End of DPC++ support
 
 set_output_directory(runxgboost ${xgboost_SOURCE_DIR})
 set_output_directory(xgboost ${xgboost_SOURCE_DIR}/lib)

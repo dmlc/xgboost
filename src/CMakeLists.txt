@@ -3,7 +3,6 @@ list(REMOVE_ITEM CPU_SOURCES ${xgboost_SOURCE_DIR}/src/cli_main.cc)
 
 #-- Object library
 # Object library is necessary for jvm-package, which creates its own shared library.
-add_library(objxgboost OBJECT)
 target_sources(objxgboost PRIVATE ${CPU_SOURCES})
 if (USE_CUDA)
   file(GLOB_RECURSE CUDA_SOURCES *.cu *.cuh)
@@ -50,13 +49,6 @@ if (USE_CUDA)
     CUDA_STANDARD_REQUIRED ON
     CUDA_SEPARABLE_COMPILATION OFF)
 endif (USE_CUDA)
-
-#-- DPC++ support
-if (PLUGIN_UPDATER_ONEAPI)
-  target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_ONEAPI=1)
-  set_source_files_properties(${PLUGINS_SOURCES_ONEAPI} PROPERTIES COMPILE_FLAGS -fsycl)
-endif (PLUGIN_UPDATER_ONEAPI)
-#-- End of DPC++ support
 
 target_include_directories(objxgboost
   PRIVATE
