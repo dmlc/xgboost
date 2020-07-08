@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import scala.collection.immutable.HashSet
 
-import org.apache.spark.ml.param.{DoubleParam, IntParam, Param, Params}
+import org.apache.spark.ml.param.{DoubleParam, IntParam, BooleanParam, Param, Params}
 
 private[spark] trait BoosterParams extends Params {
 
@@ -172,6 +172,14 @@ private[spark] trait BoosterParams extends Params {
     (value: Int) => value > 0)
 
   final def getMaxBins: Int = $(maxBins)
+
+  /**
+   * whether to build histograms using single precision floating point values
+   */
+  final val singlePrecisionHistogram = new BooleanParam(this, "singlePrecisionHistogram",
+    "whether to use single precision to build histograms")
+
+  final def getSinglePrecisionHistogram: Boolean = $(singlePrecisionHistogram)
 
   /**
    * This is only used for approximate greedy algorithm.
