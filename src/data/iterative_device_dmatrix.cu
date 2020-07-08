@@ -75,10 +75,11 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
     dh::safe_cuda(cudaSetDevice(get_device()));
     if (cols == 0) {
       cols = num_cols();
+      rabit::Allreduce<rabit::op::Max>(&cols, 1);
     } else {
       CHECK_EQ(cols, num_cols()) << "Inconsistent number of columns.";
     }
-    sketch_containers.emplace_back(batch_param_.max_bin, num_cols(), num_rows(), get_device());
+    sketch_containers.emplace_back(batch_param_.max_bin, cols, num_rows(), get_device());
     auto* p_sketch = &sketch_containers.back();
     proxy->Info().weights_.SetDevice(get_device());
     Dispatch(proxy, [&](auto const &value) {
@@ -100,7 +101,6 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
   }
   iter.Reset();
   dh::safe_cuda(cudaSetDevice(get_device()));
-  rabit::Allreduce<rabit::op::Max>(&cols, 1);
   common::SketchContainer final_sketch(batch_param_.max_bin, cols, accumulated_rows, get_device());
   for (auto const& sketch : sketch_containers) {
     final_sketch.Merge(sketch.ColumnsPtr(), sketch.Data());
