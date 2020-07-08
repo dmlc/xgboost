@@ -420,7 +420,7 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
  * allocations if verbose. Does not initialise memory on construction.
  */
 template <class T>
-struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
+struct XGBCachingDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
   using pointer = thrust::device_ptr<T>;  // NOLINT
   template<typename U>
   struct rebind  // NOLINT
@@ -462,8 +462,13 @@ using XGBDeviceAllocator = detail::XGBDefaultDeviceAllocatorImpl<T>;
 /*! Be careful that the initialization constructor is a no-op, which means calling
  *  `vec.resize(n)` won't initialize the memory region to 0. Instead use
  * `vec.resize(n, 0)`*/
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+template <typename T>
+using XGBCachingDeviceAllocator = detail::XGBDefaultDeviceAllocatorImpl<T>;
+#else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 template <typename T>
 using XGBCachingDeviceAllocator = detail::XGBCachingDeviceAllocatorImpl<T>;
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 /** \brief Specialisation of thrust device vector using custom allocator. */
 template <typename T>
 using device_vector = thrust::device_vector<T,  XGBDeviceAllocator<T>>;  // NOLINT
