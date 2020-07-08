@@ -30,7 +30,7 @@ struct RegLossParamOneAPI : public XGBoostParameter<RegLossParamOneAPI> {
   }
 };
 
-template<typename Loss>
+template<typename Loss, class GetGradientsKernel, class PredTransformKernel>
 class RegLossObjOneAPI : public ObjFunction {
  protected:
   HostDeviceVector<int> label_correct_;
@@ -64,53 +64,36 @@ class RegLossObjOneAPI : public ObjFunction {
     label_correct_.Resize(1);
     label_correct_.Fill(1);
 
+    bool is_null_weight = info.weights_.Size() == 0;
+
     cl::sycl::buffer<bst_float, 1> preds_buf(preds.HostPointer(), preds.Size());
     cl::sycl::buffer<bst_float, 1> labels_buf(info.labels_.HostPointer(), info.labels_.Size());
     cl::sycl::buffer<GradientPair, 1> out_gpair_buf(out_gpair->HostPointer(), out_gpair->Size());
+    cl::sycl::buffer<bst_float, 1> weights_buf(is_null_weight ? NULL : info.weights_.HostPointer(),
+    										   is_null_weight ? 1 : info.weights_.Size());
 
-    bool is_null_weight = info.weights_.Size() == 0;
+    LOG(WARNING) << "null_weight = " << is_null_weight;
     auto scale_pos_weight = param_.scale_pos_weight;
-    if (!is_null_weight) {
-      CHECK_EQ(info.weights_.Size(), ndata)
-          << "Number of weights should be equal to number of data points.";
+    CHECK_EQ(info.weights_.Size(), ndata)
+        << "Number of weights should be equal to number of data points.";
 
-      cl::sycl::buffer<bst_float, 1> weights_buf(info.weights_.HostPointer(), info.weights_.Size());
-
-      qu_.submit([&](cl::sycl::handler& cgh) {
-        auto preds_acc     = preds_buf.get_access<cl::sycl::access::mode::read>(cgh);
-        auto labels_acc    = labels_buf.get_access<cl::sycl::access::mode::read>(cgh);
-        auto weights_acc   = weights_buf.get_access<cl::sycl::access::mode::read>(cgh);
-        auto out_gpair_acc = out_gpair_buf.get_access<cl::sycl::access::mode::write>(cgh);
-        cgh.parallel_for<class GetGradientWeights>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
-          int idx = pid[0];
-          bst_float p = Loss::PredTransform(preds_acc[idx]);
-          bst_float w = weights_acc[idx];
-          bst_float label = labels_acc[idx];
-          if (label == 1.0f) {
-            w *= scale_pos_weight;
-          }
-          out_gpair_acc[idx] = GradientPair(Loss::FirstOrderGradient(p, label) * w,
-                                            Loss::SecondOrderGradient(p, label) * w);
-        });
-      }).wait();
-    } else {
-      qu_.submit([&](cl::sycl::handler& cgh) {
-        auto preds_acc = preds_buf.get_access<cl::sycl::access::mode::read>(cgh);
-        auto labels_acc = labels_buf.get_access<cl::sycl::access::mode::read>(cgh);
-        auto out_gpair_acc = out_gpair_buf.get_access<cl::sycl::access::mode::write>(cgh);
-        cgh.parallel_for<class GetGradientNoWeights>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
-          int idx = pid[0];
-          bst_float p = Loss::PredTransform(preds_acc[idx]);
-          bst_float w = 1.0f;
-          bst_float label = labels_acc[idx];
-          if (label == 1.0f) {
-            w *= scale_pos_weight;
-          }
-          out_gpair_acc[idx] = GradientPair(Loss::FirstOrderGradient(p, label) * w,
-                                            Loss::SecondOrderGradient(p, label) * w);
-        });
-      }).wait();
-    }
+    qu_.submit([&](cl::sycl::handler& cgh) {
+      auto preds_acc     = preds_buf.get_access<cl::sycl::access::mode::read>(cgh);
+      auto labels_acc    = labels_buf.get_access<cl::sycl::access::mode::read>(cgh);
+      auto weights_acc   = weights_buf.get_access<cl::sycl::access::mode::read>(cgh);
+      auto out_gpair_acc = out_gpair_buf.get_access<cl::sycl::access::mode::write>(cgh);
+      cgh.parallel_for<GetGradientsKernel>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
+        int idx = pid[0];
+        bst_float p = Loss::PredTransform(preds_acc[idx]);
+        bst_float w = is_null_weight ? 1.0f : weights_acc[idx];
+        bst_float label = labels_acc[idx];
+        if (label == 1.0f) {
+          w *= scale_pos_weight;
+        }
+        out_gpair_acc[idx] = GradientPair(Loss::FirstOrderGradient(p, label) * w,
+                                          Loss::SecondOrderGradient(p, label) * w);
+      });
+    }).wait();
   }
 
  public:
@@ -125,7 +108,7 @@ class RegLossObjOneAPI : public ObjFunction {
 
     qu_.submit([&](cl::sycl::handler& cgh) {
       auto io_preds_acc = io_preds_buf.get_access<cl::sycl::access::mode::read_write>(cgh);
-      cgh.parallel_for<class PredTransform>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
+      cgh.parallel_for<PredTransformKernel>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
         int idx = pid[0];
         io_preds_acc[idx] = Loss::PredTransform(io_preds_acc[idx]);
       });
@@ -155,26 +138,33 @@ class RegLossObjOneAPI : public ObjFunction {
 // register the objective functions
 DMLC_REGISTER_PARAMETER(RegLossParamOneAPI);
 
+// TODO: Find a better way to dispatch names of DPC++ kernels with various template parameters of loss function
 XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegressionOneAPI, LinearSquareLossOneAPI::Name())
 .describe("Regression with squared error with DPC++ backend.")
-.set_body([]() { return new RegLossObjOneAPI<LinearSquareLossOneAPI>(); });
-
-// TODO: Find a way to dispatch names of DPC++ kernels with various template parameters of loss function
-/*
+.set_body([]() { return new RegLossObjOneAPI<LinearSquareLossOneAPI,
+											 LinearSquareLossGetGradients,
+											 LinearSquareLossPredTransform>(); });
 XGBOOST_REGISTER_OBJECTIVE(SquareLogErrorOneAPI, SquaredLogErrorOneAPI::Name())
 .describe("Regression with root mean squared logarithmic error with DPC++ backend.")
-.set_body([]() { return new RegLossObjOneAPI<SquaredLogErrorOneAPI>(); });
+.set_body([]() { return new RegLossObjOneAPI<SquaredLogErrorOneAPI,
+											 SquaredLogErrorGetGradients,
+											 SquaredLogErrorPredTransform>(); });
 XGBOOST_REGISTER_OBJECTIVE(LogisticRegressionOneAPI, LogisticRegressionOneAPI::Name())
 .describe("Logistic regression for probability regression task with DPC++ backend.")
-.set_body([]() { return new RegLossObjOneAPI<LogisticRegressionOneAPI>(); });
+.set_body([]() { return new RegLossObjOneAPI<LogisticRegressionOneAPI,
+											 LogisticRegressionGetGradients,
+											 LogisticRegressionPredTransform>(); });
 XGBOOST_REGISTER_OBJECTIVE(LogisticClassificationOneAPI, LogisticClassificationOneAPI::Name())
 .describe("Logistic regression for binary classification task with DPC++ backend.")
-.set_body([]() { return new RegLossObjOneAPI<LogisticClassificationOneAPI>(); });
+.set_body([]() { return new RegLossObjOneAPI<LogisticClassificationOneAPI,
+											 LogisticClassificationGetGradients,
+											 LogisticClassificationPredTransform>(); });
 XGBOOST_REGISTER_OBJECTIVE(LogisticRawOneAPI, LogisticRawOneAPI::Name())
 .describe("Logistic regression for classification, output score "
           "before logistic transformation with DPC++ backend.")
-.set_body([]() { return new RegLossObjOneAPI<LogisticRawOneAPI>(); });
-*/
+.set_body([]() { return new RegLossObjOneAPI<LogisticRawOneAPI,
+											 LogisticRawGetGradients,
+											 LogisticRawPredTransform>(); });
 
 }  // namespace obj
 }  // namespace xgboost

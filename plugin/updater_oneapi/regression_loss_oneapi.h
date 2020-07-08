@@ -7,10 +7,20 @@
 #include <dmlc/omp.h>
 #include <xgboost/logging.h>
 #include <algorithm>
-#include "../../src/common/math.h"
+
+#include "CL/sycl.hpp"
 
 namespace xgboost {
 namespace obj {
+
+/*!
+ * \brief calculate the sigmoid of the input.
+ * \param x input parameter
+ * \return the transformed value.
+ */
+inline float SigmoidOneAPI(float x) {
+  return 1.0f / (1.0f + cl::sycl::exp(-x));
+}
 
 // common regressions
 // linear regression
@@ -30,7 +40,11 @@ struct LinearSquareLossOneAPI {
   static const char* Name() { return "reg:squarederror_oneapi"; }
 };
 
-// TODO: DPC++ does not support std math inside offloaded kernels
+// classes for DPC++ kernels namings
+class LinearSquareLossGetGradients {};
+class LinearSquareLossPredTransform {};
+
+// TODO: DPC++ does not fully support std math inside offloaded kernels
 struct SquaredLogErrorOneAPI {
   static bst_float PredTransform(bst_float x) { return x; }
   static bool CheckLabel(bst_float label) {
@@ -38,12 +52,12 @@ struct SquaredLogErrorOneAPI {
   }
   static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
     predt = std::max(predt, (bst_float)(-1 + 1e-6));  // ensure correct value for log1p
-    return (std::log1p(predt) - std::log1p(label)) / (predt + 1);
+    return (cl::sycl::log1p(predt) - cl::sycl::log1p(label)) / (predt + 1);
   }
   static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
     predt = std::max(predt, (bst_float)(-1 + 1e-6));
-    float res = (-std::log1p(predt) + std::log1p(label) + 1) /
-                std::pow(predt + 1, 2);
+    float res = (-cl::sycl::log1p(predt) + cl::sycl::log1p(label) + 1) /
+                cl::sycl::pow(predt + 1, (bst_float)2);
     res = std::max(res, (bst_float)1e-6f);
     return res;
   }
@@ -56,11 +70,15 @@ struct SquaredLogErrorOneAPI {
   static const char* Name() { return "reg:squaredlogerror_oneapi"; }
 };
 
+// classes for DPC++ kernels namings
+class SquaredLogErrorGetGradients {};
+class SquaredLogErrorPredTransform {};
+
 // logistic loss for probability regression task
 struct LogisticRegressionOneAPI {
   // duplication is necessary, as __device__ specifier
   // cannot be made conditional on template parameter
-  static bst_float PredTransform(bst_float x) { return common::Sigmoid(x); }
+  static bst_float PredTransform(bst_float x) { return SigmoidOneAPI(x); }
   static bool CheckLabel(bst_float x) { return x >= 0.0f && x <= 1.0f; }
   static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
     return predt - label;
@@ -70,7 +88,7 @@ struct LogisticRegressionOneAPI {
     return std::max(predt * (1.0f - predt), eps);
   }
   template <typename T>
-  static T PredTransform(T x) { return common::Sigmoid(x); }
+  static T PredTransform(T x) { return SigmoidOneAPI(x); }
   template <typename T>
   static T FirstOrderGradient(T predt, T label) { return predt - label; }
   template <typename T>
@@ -91,11 +109,19 @@ struct LogisticRegressionOneAPI {
   static const char* Name() { return "reg:logistic_oneapi"; }
 };
 
+// classes for DPC++ kernels namings
+class LogisticRegressionGetGradients {};
+class LogisticRegressionPredTransform {};
+
 // logistic loss for binary classification task
 struct LogisticClassificationOneAPI : public LogisticRegressionOneAPI {
   static const char* DefaultEvalMetric() { return "error"; }
   static const char* Name() { return "binary:logistic_oneapi"; }
 };
+
+// classes for DPC++ kernels namings
+class LogisticClassificationGetGradients {};
+class LogisticClassificationPredTransform {};
 
 // logistic loss, but predict un-transformed margin
 struct LogisticRawOneAPI : public LogisticRegressionOneAPI {
@@ -103,31 +129,35 @@ struct LogisticRawOneAPI : public LogisticRegressionOneAPI {
   // cannot be made conditional on template parameter
   static bst_float PredTransform(bst_float x) { return x; }
   static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
-    predt = common::Sigmoid(predt);
+    predt = SigmoidOneAPI(predt);
     return predt - label;
   }
   static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
     const bst_float eps = 1e-16f;
-    predt = common::Sigmoid(predt);
+    predt = SigmoidOneAPI(predt);
     return std::max(predt * (1.0f - predt), eps);
   }
   template <typename T>
     static T PredTransform(T x) { return x; }
   template <typename T>
     static T FirstOrderGradient(T predt, T label) {
-    predt = common::Sigmoid(predt);
+    predt = SigmoidOneAPI(predt);
     return predt - label;
   }
   template <typename T>
     static T SecondOrderGradient(T predt, T label) {
     const T eps = T(1e-16f);
-    predt = common::Sigmoid(predt);
+    predt = SigmoidOneAPI(predt);
     return std::max(predt * (T(1.0f) - predt), eps);
   }
   static const char* DefaultEvalMetric() { return "auc"; }
 
   static const char* Name() { return "binary:logitraw_oneapi"; }
 };
+
+// classes for DPC++ kernels namings
+class LogisticRawGetGradients {};
+class LogisticRawPredTransform {};
 
 }  // namespace obj
 }  // namespace xgboost
