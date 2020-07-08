@@ -66,6 +66,7 @@ pipeline {
             'build-cpu-non-omp': { BuildCPUNonOmp() },
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
             'build-gpu-cuda10.1': { BuildCUDA(cuda_version: '10.1') },
+            'build-gpu-rmm-cuda10.2': { BuildCUDAWithRMM(cuda_version: '10.2') },
             'build-jvm-packages': { BuildJVMPackages(spark_version: '2.4.3') },
             'build-jvm-doc': { BuildJVMDoc() }
           ])
@@ -84,6 +85,7 @@ pipeline {
             'test-python-mgpu-cuda10.1': { TestPythonGPU(cuda_version: '10.1', multi_gpu: true) },
             'test-cpp-gpu': { TestCppGPU(cuda_version: '10.1') },
             'test-cpp-mgpu': { TestCppGPU(cuda_version: '10.1', multi_gpu: true) },
+            'test-rmm-cpp-gpu': { TestCppGPUWithRMM(cuda_version: '10.2') },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '2.4.3') },
             'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
             'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') },
@@ -262,6 +264,22 @@ def BuildCUDA(args) {
   }
 }
 
+def BuildCUDAWithRMM(args) {
+  node('linux && cpu_build') {
+    unstash name: 'srcs'
+    echo "Build with CUDA ${args.cuda_version} and RMM"
+    def container_type = "rmm"
+    def docker_binary = "docker"
+    def docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh --conda-env=rmm_test -DUSE_CUDA=ON -DUSE_RMM=ON
+    """
+    echo 'Stashing C++ test executable (testxgboost)...'
+    stash name: 'xgboost_rmm_cpp_tests', includes: 'build/testxgboost'
+    deleteDir()
+  }
+}
+
 def BuildJVMPackages(args) {
   node('linux && cpu') {
     unstash name: 'srcs'
@@ -364,6 +382,22 @@ def TestCppGPU(args) {
       echo "Using a single GPU"
       sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} build/testxgboost --gtest_filter=-*.MGPU_*"
     }
+    deleteDir()
+  }
+}
+
+def TestCppGPUWithRMM(args) {
+  node('linux && gpu') {
+    unstash name: 'xgboost_rmm_cpp_tests'
+    unstash name: 'srcs'
+    echo "Test C++, CUDA ${args.cuda_version} with RMM"
+    def container_type = "rmm"
+    def docker_binary = "nvidia-docker"
+    def docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
+    echo "Using a single GPU"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate rmm_test && build/testxgboost --gtest_filter=-*.MGPU_*"
+    """
     deleteDir()
   }
 }

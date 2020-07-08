@@ -44,6 +44,7 @@ option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
+option(USE_RMM "Build with RAPIDS Memory Manager (RMM)" OFF)
 ## Copied From dmlc
 option(USE_HDFS "Build with HDFS support" OFF)
 option(USE_AZURE "Build with AZURE support" OFF)
@@ -79,6 +80,9 @@ endif (R_LIB AND GOOGLE_TEST)
 if (USE_AVX)
   message(SEND_ERROR  "The option 'USE_AVX' is deprecated as experimental AVX features have been removed from XGBoost.")
 endif (USE_AVX)
+if (USE_RMM AND NOT (USE_CUDA))
+  message(SEND_ERROR "`USE_RMM` must be enabled with `USE_CUDA` flag.")
+endif (USE_RMM AND NOT (USE_CUDA))
 
 #-- Sanitizer
 if (USE_SANITIZER)
@@ -169,6 +173,9 @@ endif (R_LIB)
 
 # Plugin
 add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
+
+# 3rd-party libs
+include(cmake/ExternalLibs.cmake)
 
 #-- library
 if (BUILD_STATIC_LIB)
