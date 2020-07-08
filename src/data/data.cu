@@ -29,6 +29,7 @@ void CopyInfoImpl(ArrayInterface column, HostDeviceVector<float>* out) {
 
   out->SetDevice(ptr_device);
   out->Resize(column.num_rows);
+
   auto p_dst = thrust::device_pointer_cast(out->DevicePointer());
 
   dh::LaunchN(ptr_device, column.num_rows, [=] __device__(size_t idx) {

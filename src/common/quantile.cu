@@ -417,8 +417,6 @@ void SketchContainer::FixError() {
 }
 
 void SketchContainer::AllReduce() {
-  // If data is empty we don't know the device.  So as a heuristic we just use 0.
-  auto get_device = [=]() { return std::max(device_, 0); };
   dh::safe_cuda(cudaSetDevice(device_));
   auto world = rabit::GetWorldSize();
   if (world == 1) {
@@ -476,7 +474,7 @@ void SketchContainer::AllReduce() {
 
   // Merge them into a new sketch.
   SketchContainer new_sketch(num_bins_, this->num_columns_, global_sum_rows,
-                             device_);
+                             this->device_);
   for (size_t i = 0; i < allworkers.size(); ++i) {
     auto worker = allworkers[i];
     auto worker_ptr =
@@ -494,6 +492,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   timer_.Start(__func__);
   dh::safe_cuda(cudaSetDevice(device_));
   p_cuts->min_vals_.Resize(num_columns_);
+
   // Sync between workers.
   this->AllReduce();
 
@@ -523,6 +522,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   std::partial_sum(h_out_columns_ptr.begin(), h_out_columns_ptr.end(),
                    h_out_columns_ptr.begin());
   auto d_out_columns_ptr = p_cuts->cut_ptrs_.ConstDeviceSpan();
+
   // Set up output cuts
   size_t total_bins = h_out_columns_ptr.back();
   p_cuts->cut_values_.SetDevice(device_);
