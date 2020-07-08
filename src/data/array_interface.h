@@ -223,6 +223,9 @@ class ArrayInterfaceHandler {
     auto shape = ExtractShape(column);
 
     T* p_data = ArrayInterfaceHandler::GetPtrFromArrayData<T*>(column);
+    if (!p_data) {
+      CHECK_EQ(shape.first * shape.second, 0) << "Empty data with non-zero shape.";
+    }
     return common::Span<T>{p_data, shape.first * shape.second};
   }
 };
