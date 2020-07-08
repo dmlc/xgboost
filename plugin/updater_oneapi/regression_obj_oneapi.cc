@@ -71,7 +71,6 @@ class RegLossObjOneAPI : public ObjFunction {
     cl::sycl::buffer<bst_float, 1> weights_buf(is_null_weight ? NULL : info.weights_.HostPointer(),
                                                is_null_weight ? 1 : info.weights_.Size());
 
-    LOG(WARNING) << "null_weight = " << is_null_weight;
     auto scale_pos_weight = param_.scale_pos_weight;
     CHECK_EQ(info.weights_.Size(), ndata)
         << "Number of weights should be equal to number of data points.";
