@@ -116,26 +116,14 @@ inline HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins) {
   for (auto& column : column_sizes) {
     column.resize(info.num_col_, 0);
   }
-  for (auto const& page : m->GetBatches<SparsePage>()) {
-    page.data.HostVector();
-    page.offset.HostVector();
-    ParallelFor(page.Size(), threads, [&](size_t i) {
-      auto &local_column_sizes = column_sizes.at(omp_get_thread_num());
-      auto row = page[i];
-      auto const *p_row = row.data();
-      for (size_t j = 0; j < row.size(); ++j) {
-        local_column_sizes.at(p_row[j].index)++;
-      }
-    });
-  }
   std::vector<bst_row_t> reduced(info.num_col_, 0);
-
-  ParallelFor(info.num_col_, threads, [&](size_t i) {
-    for (auto const &thread : column_sizes) {
-      reduced[i] += thread[i];
+  for (auto const& page : m->GetBatches<SparsePage>()) {
+    auto const &entries_per_column =
+        HostSketchContainer::CalcColumnSize(page, info.num_col_, threads);
+    for (size_t i = 0; i < entries_per_column.size(); ++i) {
+      reduced[i] += entries_per_column[i];
     }
-  });
-
+  }
   HostSketchContainer container(reduced, max_bins,
                                 HostSketchContainer::UseGroup(info));
   for (auto const &page : m->GetBatches<SparsePage>()) {
