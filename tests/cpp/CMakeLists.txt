@@ -12,8 +12,9 @@ if (USE_CUDA)
   file(GLOB_RECURSE CUDA_TEST_SOURCES "*.cu")
   list(APPEND TEST_SOURCES ${CUDA_TEST_SOURCES})
 endif (USE_CUDA)
-add_executable(testxgboost ${TEST_SOURCES} ${XGBOOST_OBJ_SOURCES}
+add_executable(testxgboost ${TEST_SOURCES}
   ${xgboost_SOURCE_DIR}/plugin/example/custom_obj.cc)
+target_link_libraries(testxgboost PRIVATE objxgboost)
 
 if (USE_CUDA)
   # OpenMP is mandatory for CUDA
@@ -75,10 +76,8 @@ set_target_properties(
   CXX_STANDARD_REQUIRED ON)
 target_link_libraries(testxgboost
   PRIVATE
-  ${GTEST_LIBRARIES}
-  ${LINKED_LIBRARIES_PRIVATE})
+  ${GTEST_LIBRARIES})
 
-target_compile_definitions(testxgboost PRIVATE ${XGBOOST_DEFINITIONS})
 set_output_directory(testxgboost ${xgboost_BINARY_DIR})
 
 # This grouping organises source files nicely in visual studio

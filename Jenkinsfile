@@ -189,7 +189,7 @@ def BuildCPU() {
       # This step is not necessary, but here we include it, to ensure that DMLC_CORE_USE_CMAKE flag is correctly propagated
       # We want to make sure that we use the configured header build/dmlc/build_config.h instead of include/dmlc/build_config_default.h.
       # See discussion at https://github.com/dmlc/xgboost/issues/5510
-    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh -DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON
     ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
     """
     // Sanitizer test
@@ -313,6 +313,7 @@ def TestPythonGPU(args) {
   nodeReq = (args.multi_gpu) ? 'linux && mgpu' : 'linux && gpu'
   node(nodeReq) {
     unstash name: 'xgboost_whl_cuda10'
+    unstash name: 'xgboost_cpp_tests'
     unstash name: 'srcs'
     echo "Test Python GPU: CUDA ${args.cuda_version}"
     def container_type = "gpu"
@@ -323,25 +324,12 @@ def TestPythonGPU(args) {
       sh """
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh mgpu
       """
-      if (args.cuda_version != '9.0') {
-        echo "Running tests with cuDF..."
-        sh """
-        ${dockerRun} cudf ${docker_binary} ${docker_args} tests/ci_build/test_python.sh mgpu-cudf
-        """
-      }
     } else {
       echo "Using a single GPU"
       sh """
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh gpu
       """
-      if (args.cuda_version != '9.0') {
-        echo "Running tests with cuDF..."
-        sh """
-        ${dockerRun} cudf ${docker_binary} ${docker_args} tests/ci_build/test_python.sh cudf
-        """
-      }
     }
-    // For CUDA 10.0 target, run cuDF tests too
     deleteDir()
   }
 }

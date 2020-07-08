@@ -1,4 +1,4 @@
-# pylint: disable=too-many-arguments, no-self-use
+# pylint: disable=too-many-arguments, no-self-use, too-many-instance-attributes
 '''Data dispatching for DMatrix.'''
 import ctypes
 import abc
@@ -8,6 +8,7 @@ import warnings
 import numpy as np
 
 from .core import c_array, _LIB, _check_call, c_str, _cudf_array_interfaces
+from .core import DataIter
 from .compat import lazy_isinstance, STRING_TYPES, os_fspath, os_PathLike
 
 c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
@@ -22,6 +23,18 @@ class DataHandler(abc.ABC):
 
         self.meta = meta
         self.meta_type = meta_type
+
+    def handle_meta(self, label=None, weight=None, base_margin=None,
+                    group=None,
+                    label_lower_bound=None,
+                    label_upper_bound=None):
+        '''Handle meta data when the DMatrix type can not defer setting meta
+        data after construction.  Example is `DeviceQuantileDMatrix`
+        which requires weight to be presented before digesting
+        data.
+
+        '''
+        raise NotImplementedError()
 
     def _warn_unused_missing(self, data):
         if not (np.isnan(np.nan) or None):
@@ -114,6 +127,14 @@ def get_dmatrix_data_handler(data, missing, nthread, silent,
     if handler is None:
         return None
     return handler(missing, nthread, silent, meta, meta_type)
+
+
+def get_dmatrix_meta_handler(data, meta, meta_type):
+    '''Get handler for meta instead of data.'''
+    handler = __dmatrix_registry.get_handler(data)
+    if handler is None:
+        return None
+    return handler(None, 0, True, meta, meta_type)
 
 
 class FileHandler(DataHandler):
@@ -372,7 +393,7 @@ class DTHandler(DataHandler):
                 raise ValueError(
                     'DataTable has own feature types, cannot pass them in.')
             feature_types = np.vectorize(self.dt_type_mapper2.get)(
-                data_types_names)
+                data_types_names).tolist()
 
         return data, feature_names, feature_types
 
@@ -511,6 +532,43 @@ __dmatrix_registry.register_handler_opaque(
     DLPackHandler)
 
 
+class SingleBatchInternalIter(DataIter):
+    '''An iterator for single batch data to help creating device DMatrix.
+    Transforming input directly to histogram with normal single batch data API
+    can not access weight for sketching.  So this iterator acts as a staging
+    area for meta info.
+
+    '''
+    def __init__(self, data, label, weight, base_margin, group,
+                 label_lower_bound, label_upper_bound):
+        self.data = data
+        self.label = label
+        self.weight = weight
+        self.base_margin = base_margin
+        self.group = group
+        self.label_lower_bound = label_lower_bound
+        self.label_upper_bound = label_upper_bound
+        self.it = 0             # pylint: disable=invalid-name
+        super().__init__()
+
+    def next(self, input_data):
+        if self.it == 1:
+            return 0
+        self.it += 1
+        input_data(data=self.data, label=self.label,
+                   weight=self.weight, base_margin=self.base_margin,
+                   group=self.group,
+                   label_lower_bound=self.label_lower_bound,
+                   label_upper_bound=self.label_upper_bound)
+        return 1
+
+    def reset(self):
+        self.it = 0
+
+
+__device_quantile_dmatrix_registry = DMatrixDataManager()  # pylint: disable=invalid-name
+
+
 class DeviceQuantileDMatrixDataHandler(DataHandler):  # pylint: disable=abstract-method
     '''Base class of data handler for `DeviceQuantileDMatrix`.'''
     def __init__(self, max_bin, missing, nthread, silent,
@@ -518,8 +576,53 @@ class DeviceQuantileDMatrixDataHandler(DataHandler):  # pylint: disable=abstract
         self.max_bin = max_bin
         super().__init__(missing, nthread, silent, meta, meta_type)
 
+    def handle_meta(self, label=None, weight=None, base_margin=None,
+                    group=None,
+                    label_lower_bound=None,
+                    label_upper_bound=None):
+        self.label = label
+        self.weight = weight
+        self.base_margin = base_margin
+        self.group = group
+        self.label_lower_bound = label_lower_bound
+        self.label_upper_bound = label_upper_bound
 
-__device_quantile_dmatrix_registry = DMatrixDataManager()  # pylint: disable=invalid-name
+    def handle_input(self, data, feature_names, feature_types):
+        if not isinstance(data, DataIter):
+            it = SingleBatchInternalIter(
+                data, self.label, self.weight,
+                self.base_margin, self.group,
+                self.label_lower_bound, self.label_upper_bound)
+        else:
+            it = data
+        reset_factory = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+        reset_callback = reset_factory(it.reset_wrapper)
+        next_factory = ctypes.CFUNCTYPE(
+            ctypes.c_int,
+            ctypes.c_void_p,
+        )
+        next_callback = next_factory(it.next_wrapper)
+        handle = ctypes.c_void_p()
+        ret = _LIB.XGDeviceQuantileDMatrixCreateFromCallback(
+            None,
+            it.proxy.handle,
+            reset_callback,
+            next_callback,
+            ctypes.c_float(self.missing),
+            ctypes.c_int(self.nthread),
+            ctypes.c_int(self.max_bin),
+            ctypes.byref(handle)
+        )
+        if it.exception:
+            raise it.exception
+        # delay check_call to throw intermediate exception first
+        _check_call(ret)
+        return handle, feature_names, feature_types
+
+
+__device_quantile_dmatrix_registry.register_handler_opaque(
+    lambda x: isinstance(x, DataIter),
+    DeviceQuantileDMatrixDataHandler)
 
 
 def get_device_quantile_dmatrix_data_handler(
@@ -549,19 +652,7 @@ class DeviceQuantileCudaArrayInterfaceHandler(
                 data, '__array__'):
             import cupy         # pylint: disable=import-error
             data = cupy.array(data, copy=False)
-
-        interface = data.__cuda_array_interface__
-        if 'mask' in interface:
-            interface['mask'] = interface['mask'].__cuda_array_interface__
-        interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
-
-        handle = ctypes.c_void_p()
-        _check_call(
-            _LIB.XGDeviceQuantileDMatrixCreateFromArrayInterface(
-                interface_str,
-                ctypes.c_float(self.missing), ctypes.c_int(self.nthread),
-                ctypes.c_int(self.max_bin), ctypes.byref(handle)))
-        return handle, feature_names, feature_types
+        return super().handle_input(data, feature_names, feature_types)
 
 
 __device_quantile_dmatrix_registry.register_handler(
@@ -582,14 +673,7 @@ class DeviceQuantileCudaColumnarHandler(DeviceQuantileDMatrixDataHandler,
         """Initialize Quantile Device DMatrix from columnar memory format."""
         data, feature_names, feature_types = self._maybe_cudf_dataframe(
             data, feature_names, feature_types)
-        interfaces_str = _cudf_array_interfaces(data)
-        handle = ctypes.c_void_p()
-        _check_call(
-            _LIB.XGDeviceQuantileDMatrixCreateFromArrayInterfaceColumns(
-                interfaces_str,
-                ctypes.c_float(self.missing), ctypes.c_int(self.nthread),
-                ctypes.c_int(self.max_bin), ctypes.byref(handle)))
-        return handle, feature_names, feature_types
+        return super().handle_input(data, feature_names, feature_types)
 
 
 __device_quantile_dmatrix_registry.register_handler(

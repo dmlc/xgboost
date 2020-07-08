@@ -202,7 +202,7 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
 #endif  // defined(XGBOOST_USE_CUDA)
 }
 
-using XGBAPIThreadLocalStore =
+using LearnerAPIThreadLocalStore =
     dmlc::ThreadLocalStore<std::map<Learner const *, XGBAPIThreadLocalEntry>>;
 
 class LearnerConfiguration : public Learner {
@@ -895,7 +895,7 @@ class LearnerImpl : public LearnerIO {
   explicit LearnerImpl(std::vector<std::shared_ptr<DMatrix> > cache)
       : LearnerIO{cache} {}
   ~LearnerImpl() override {
-    auto local_map = XGBAPIThreadLocalStore::Get();
+    auto local_map = LearnerAPIThreadLocalStore::Get();
     if (local_map->find(this) != local_map->cend()) {
       local_map->erase(this);
     }
@@ -1023,7 +1023,7 @@ class LearnerImpl : public LearnerIO {
   }
 
   XGBAPIThreadLocalEntry& GetThreadLocal() const override {
-    return (*XGBAPIThreadLocalStore::Get())[this];
+    return (*LearnerAPIThreadLocalStore::Get())[this];
   }
 
   void InplacePredict(dmlc::any const &x, std::string const &type,

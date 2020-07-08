@@ -11,6 +11,7 @@
 #include "xgboost/host_device_vector.h"
 #include "xgboost/logging.h"
 #include "xgboost/version_config.h"
+#include "xgboost/learner.h"
 #include "sparse_page_writer.h"
 #include "simple_dmatrix.h"
 
@@ -19,6 +20,7 @@
 #include "../common/version.h"
 #include "../common/group_data.h"
 #include "../data/adapter.h"
+#include "../data/iterative_device_dmatrix.h"
 
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
@@ -147,8 +149,10 @@ void MetaInfo::Clear() {
  * | group_ptr          | kUInt32  | False     | ${size} |       1 | ${group_ptr_}           |
  * | weights            | kFloat32 | False     | ${size} |       1 | ${weights_}             |
  * | base_margin        | kFloat32 | False     | ${size} |       1 | ${base_margin_}         |
- * | labels_lower_bound | kFloat32 | False     | ${size} |       1 | ${labels_lower_bound__} |
- * | labels_upper_bound | kFloat32 | False     | ${size} |       1 | ${labels_upper_bound__} |
+ * | labels_lower_bound | kFloat32 | False     | ${size} |       1 | ${labels_lower_bound_}  |
+ * | labels_upper_bound | kFloat32 | False     | ${size} |       1 | ${labels_upper_bound_}  |
+ * | feature_names      | kStr     | False     | ${size} |       1 | ${feature_names}        |
+ * | feature_types      | kStr     | False     | ${size} |       1 | ${feature_types}        |
  *
  * Note that the scalar fields (is_scalar=True) will have num_row and num_col missing.
  * Also notice the difference between the saved name and the name used in `SetInfo':
@@ -176,7 +180,29 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
   SaveVectorField(fo, u8"labels_upper_bound", DataType::kFloat32,
                   {labels_upper_bound_.Size(), 1}, labels_upper_bound_); ++field_cnt;
 
+  SaveVectorField(fo, u8"feature_names", DataType::kStr,
+                  {feature_names.size(), 1}, feature_names); ++field_cnt;
+  SaveVectorField(fo, u8"feature_types", DataType::kStr,
+                  {feature_type_names.size(), 1}, feature_type_names); ++field_cnt;
+
   CHECK_EQ(field_cnt, kNumField) << "Wrong number of fields";
+}
+
+void LoadFeatureType(std::vector<std::string>const& type_names, std::vector<FeatureType>* types) {
+  types->clear();
+  for (auto const &elem : type_names) {
+    if (elem == "int") {
+      types->emplace_back(FeatureType::kNumerical);
+    } else if (elem == "float") {
+      types->emplace_back(FeatureType::kNumerical);
+    } else if (elem == "i") {
+      types->emplace_back(FeatureType::kNumerical);
+    } else if (elem == "q") {
+      types->emplace_back(FeatureType::kNumerical);
+    } else {
+      LOG(FATAL) << "All feature_types must be {int, float, i, q}";
+    }
+  }
 }
 
 void MetaInfo::LoadBinary(dmlc::Stream *fi) {
@@ -192,11 +218,20 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   const uint64_t expected_num_field = kNumField;
   uint64_t num_field { 0 };
   CHECK(fi->Read(&num_field)) << "MetaInfo: invalid format";
-  CHECK_GE(num_field, expected_num_field)
-    << "MetaInfo: insufficient number of fields (expected at least " << expected_num_field
-    << " fields, but the binary file only contains " << num_field << "fields.)";
+  size_t expected = 0;
+  if (major == 1 && std::get<1>(version) < 2) {
+    // feature names and types are added in 1.2
+    expected = expected_num_field - 2;
+  } else {
+    expected = expected_num_field;
+  }
+  CHECK_GE(num_field, expected)
+      << "MetaInfo: insufficient number of fields (expected at least "
+      << expected << " fields, but the binary file only contains " << num_field
+      << "fields.)";
   if (num_field > expected_num_field) {
-    LOG(WARNING) << "MetaInfo: the given binary file contains extra fields which will be ignored.";
+    LOG(WARNING) << "MetaInfo: the given binary file contains extra fields "
+                    "which will be ignored.";
   }
 
   LoadScalarField(fi, u8"num_row", DataType::kUInt64, &num_row_);
@@ -208,6 +243,10 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   LoadVectorField(fi, u8"base_margin", DataType::kFloat32, &base_margin_);
   LoadVectorField(fi, u8"labels_lower_bound", DataType::kFloat32, &labels_lower_bound_);
   LoadVectorField(fi, u8"labels_upper_bound", DataType::kFloat32, &labels_upper_bound_);
+
+  LoadVectorField(fi, u8"feature_names", DataType::kStr, &feature_names);
+  LoadVectorField(fi, u8"feature_types", DataType::kStr, &feature_type_names);
+  LoadFeatureType(feature_type_names, &feature_types.HostVector());
 }
 
 template <typename T>
@@ -343,6 +382,114 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
   }
 }
 
+void MetaInfo::GetInfo(char const *key, bst_ulong *out_len, DataType dtype,
+                       const void **out_dptr) const {
+  if (dtype == DataType::kFloat32) {
+    const std::vector<bst_float>* vec = nullptr;
+    if (!std::strcmp(key, "label")) {
+      vec = &this->labels_.HostVector();
+    } else if (!std::strcmp(key, "weight")) {
+      vec = &this->weights_.HostVector();
+    } else if (!std::strcmp(key, "base_margin")) {
+      vec = &this->base_margin_.HostVector();
+    } else if (!std::strcmp(key, "label_lower_bound")) {
+      vec = &this->labels_lower_bound_.HostVector();
+    } else if (!std::strcmp(key, "label_upper_bound")) {
+      vec = &this->labels_upper_bound_.HostVector();
+    } else {
+      LOG(FATAL) << "Unknown float field name: " << key;
+    }
+    *out_len = static_cast<xgboost::bst_ulong>(vec->size()); // NOLINT
+    *reinterpret_cast<float const**>(out_dptr) = dmlc::BeginPtr(*vec);
+  } else if (dtype == DataType::kUInt32) {
+    const std::vector<unsigned> *vec = nullptr;
+    if (!std::strcmp(key, "group_ptr")) {
+      vec = &this->group_ptr_;
+    } else {
+      LOG(FATAL) << "Unknown uint32 field name: " << key;
+    }
+    *out_len = static_cast<xgboost::bst_ulong>(vec->size());
+    *reinterpret_cast<unsigned const**>(out_dptr) = dmlc::BeginPtr(*vec);
+  } else {
+    LOG(FATAL) << "Unknown data type for getting meta info.";
+  }
+}
+
+void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulong size) {
+  if (size != 0) {
+    CHECK_EQ(size, this->num_col_)
+        << "Length of " << key << " must be equal to number of columns.";
+  }
+  if (!std::strcmp(key, "feature_type")) {
+    feature_type_names.clear();
+    auto& h_feature_types = feature_types.HostVector();
+    for (size_t i = 0; i < size; ++i) {
+      auto elem = info[i];
+      feature_type_names.emplace_back(elem);
+    }
+    LoadFeatureType(feature_type_names, &h_feature_types);
+  } else if (!std::strcmp(key, "feature_name")) {
+    feature_names.clear();
+    for (size_t i = 0; i < size; ++i) {
+      feature_names.emplace_back(info[i]);
+    }
+  } else {
+    LOG(FATAL) << "Unknown feature info name: " << key;
+  }
+}
+
+void MetaInfo::GetFeatureInfo(const char *field,
+                              std::vector<std::string> *out_str_vecs) const {
+  auto &str_vecs = *out_str_vecs;
+  if (!std::strcmp(field, "feature_type")) {
+    str_vecs.resize(feature_type_names.size());
+    std::copy(feature_type_names.cbegin(), feature_type_names.cend(), str_vecs.begin());
+  } else if (!strcmp(field, "feature_name")) {
+    str_vecs.resize(feature_names.size());
+    std::copy(feature_names.begin(), feature_names.end(), str_vecs.begin());
+  } else {
+    LOG(FATAL) << "Unknown feature info: " << field;
+  }
+}
+
+void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows) {
+  if (accumulate_rows) {
+    this->num_row_ += that.num_row_;
+  }
+  if (this->num_col_ != 0) {
+    CHECK_EQ(this->num_col_, that.num_col_)
+        << "Number of columns must be consistent across batches.";
+  }
+  this->num_col_ = that.num_col_;
+
+  this->labels_.SetDevice(that.labels_.DeviceIdx());
+  this->labels_.Extend(that.labels_);
+
+  this->weights_.SetDevice(that.weights_.DeviceIdx());
+  this->weights_.Extend(that.weights_);
+
+  this->labels_lower_bound_.SetDevice(that.labels_lower_bound_.DeviceIdx());
+  this->labels_lower_bound_.Extend(that.labels_lower_bound_);
+
+  this->labels_upper_bound_.SetDevice(that.labels_upper_bound_.DeviceIdx());
+  this->labels_upper_bound_.Extend(that.labels_upper_bound_);
+
+  this->base_margin_.SetDevice(that.base_margin_.DeviceIdx());
+  this->base_margin_.Extend(that.base_margin_);
+
+  if (this->group_ptr_.size() == 0) {
+    this->group_ptr_ = that.group_ptr_;
+  } else {
+    CHECK_NE(that.group_ptr_.size(), 0);
+    auto group_ptr = that.group_ptr_;
+    for (size_t i = 1; i < group_ptr.size(); ++i) {
+      group_ptr[i] += this->group_ptr_.back();
+    }
+    this->group_ptr_.insert(this->group_ptr_.end(), group_ptr.begin() + 1,
+                            group_ptr.end());
+  }
+}
+
 void MetaInfo::Validate(int32_t device) const {
   if (group_ptr_.size() != 0 && weights_.Size() != 0) {
     CHECK_EQ(group_ptr_.size(), weights_.Size() + 1)
@@ -401,6 +548,20 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
+
+using DMatrixThreadLocal =
+    dmlc::ThreadLocalStore<std::map<DMatrix const *, XGBAPIThreadLocalEntry>>;
+
+XGBAPIThreadLocalEntry& DMatrix::GetThreadLocal() const {
+  return (*DMatrixThreadLocal::Get())[this];
+}
+
+DMatrix::~DMatrix() {
+  auto local_map = DMatrixThreadLocal::Get();
+  if (local_map->find(this) != local_map->cend()) {
+    local_map->erase(this);
+  }
+}
 
 DMatrix* DMatrix::Load(const std::string& uri,
                        bool silent,
@@ -531,6 +692,26 @@ DMatrix* DMatrix::Load(const std::string& uri,
   }
   return dmat;
 }
+template <typename DataIterHandle, typename DMatrixHandle,
+          typename DataIterResetCallback, typename XGDMatrixCallbackNext>
+DMatrix *DMatrix::Create(DataIterHandle iter, DMatrixHandle proxy,
+                         DataIterResetCallback *reset,
+                         XGDMatrixCallbackNext *next, float missing,
+                         int nthread,
+                         int max_bin) {
+#if defined(XGBOOST_USE_CUDA)
+  return new data::IterativeDeviceDMatrix(iter, proxy, reset, next, missing, nthread, max_bin);
+#else
+  common::AssertGPUSupport();
+  return nullptr;
+#endif
+}
+
+template DMatrix *DMatrix::Create<DataIterHandle, DMatrixHandle,
+                                  DataIterResetCallback, XGDMatrixCallbackNext>(
+    DataIterHandle iter, DMatrixHandle proxy, DataIterResetCallback *reset,
+    XGDMatrixCallbackNext *next, float missing, int nthread,
+    int max_bin);
 
 template <typename AdapterT>
 DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,

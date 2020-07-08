@@ -2,13 +2,11 @@ file(GLOB_RECURSE CPU_SOURCES *.cc *.h)
 list(REMOVE_ITEM CPU_SOURCES ${xgboost_SOURCE_DIR}/src/cli_main.cc)
 
 #-- Object library
-# Object library is necessary for jvm-package, which creates its own shared
-# library.
+# Object library is necessary for jvm-package, which creates its own shared library.
+add_library(objxgboost OBJECT)
+target_sources(objxgboost PRIVATE ${CPU_SOURCES})
 if (USE_CUDA)
   file(GLOB_RECURSE CUDA_SOURCES *.cu *.cuh)
-  add_library(objxgboost OBJECT ${CPU_SOURCES} ${CUDA_SOURCES} ${PLUGINS_SOURCES})
-  target_compile_definitions(objxgboost
-    PRIVATE -DXGBOOST_USE_CUDA=1)
   if (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
     target_include_directories(objxgboost PRIVATE ${xgboost_SOURCE_DIR}/cub/)
   endif (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
@@ -22,7 +20,7 @@ if (USE_CUDA)
     find_package(Nccl REQUIRED)
     target_include_directories(objxgboost PRIVATE ${NCCL_INCLUDE_DIR})
     target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_NCCL=1)
-    list(APPEND SRC_LIBS ${NCCL_LIBRARY})
+    target_link_libraries(objxgboost PUBLIC ${NCCL_LIBRARY})
   endif (USE_NCCL)
 
   if (USE_NVTX)
@@ -49,8 +47,6 @@ if (USE_CUDA)
     CUDA_STANDARD 14
     CUDA_STANDARD_REQUIRED ON
     CUDA_SEPARABLE_COMPILATION OFF)
-else (USE_CUDA)
-  add_library(objxgboost OBJECT ${CPU_SOURCES} ${PLUGINS_SOURCES})
 endif (USE_CUDA)
 
 target_include_directories(objxgboost
@@ -81,8 +77,7 @@ set_target_properties(objxgboost PROPERTIES
 target_compile_definitions(objxgboost
   PRIVATE
   -DDMLC_LOG_CUSTOMIZE=1  # enable custom logging
-  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:_MWAITXINTRIN_H_INCLUDED>
-  ${XGBOOST_DEFINITIONS})
+  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:_MWAITXINTRIN_H_INCLUDED>)
 if (USE_DEBUG_OUTPUT)
   target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_DEBUG_OUTPUT=1)
 endif (USE_DEBUG_OUTPUT)
@@ -99,14 +94,12 @@ if (XGBOOST_BUILTIN_PREFETCH_PRESENT)
 endif (XGBOOST_BUILTIN_PREFETCH_PRESENT)
 
 find_package(Threads REQUIRED)
-list(APPEND SRC_LIBS Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(objxgboost PUBLIC Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
 
 if (USE_OPENMP OR USE_CUDA)  # CUDA requires OpenMP
   find_package(OpenMP REQUIRED)
-  list(APPEND SRC_LIBS OpenMP::OpenMP_CXX)
-  target_link_libraries(objxgboost PRIVATE OpenMP::OpenMP_CXX)
+  target_link_libraries(objxgboost PUBLIC OpenMP::OpenMP_CXX)
 endif (USE_OPENMP OR USE_CUDA)
-set(LINKED_LIBRARIES_PRIVATE "${LINKED_LIBRARIES_PRIVATE};${SRC_LIBS}" PARENT_SCOPE)
 
 # For MSVC: Call msvc_use_static_runtime() once again to completely
 # replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462

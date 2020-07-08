@@ -147,6 +147,9 @@ class TestGPUPredict(unittest.TestCase):
             copied_predt = cp.array(booster.predict(d))
             return cp.all(copied_predt == inplace_predt)
 
+        # Don't do this on Windows, see issue #5793
+        if sys.platform.startswith("win"):
+            pytest.skip('Multi-threaded in-place prediction with cuPy is not working on Windows')
         for i in range(10):
             run_threaded_predict(X, rows, predict_dense)
 

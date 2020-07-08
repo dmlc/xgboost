@@ -201,7 +201,7 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
 
 // Returns maximum row length
 template <typename AdapterBatchT>
-size_t GetRowCounts(const AdapterBatchT& batch, common::Span<size_t> offset,
+size_t GetRowCounts(const AdapterBatchT batch, common::Span<size_t> offset,
                     int device_idx, float missing) {
   IsValidFunctor is_valid(missing);
   // Count elements per row

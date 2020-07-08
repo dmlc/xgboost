@@ -23,9 +23,8 @@ void TestCudfAdapter()
 
   Json column_arr {columns};
 
-  std::stringstream ss;
-  Json::Dump(column_arr, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(column_arr, &str);
 
   data::CudfAdapter adapter(str);
 
