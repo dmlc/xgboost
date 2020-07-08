@@ -466,6 +466,7 @@ class CudaColumnarHandler(DataHandler):
     '''Handler of CUDA based columnar data. (cudf.DataFrame)'''
     def _maybe_cudf_dataframe(self, data, feature_names, feature_types):
         """Extract internal data from cudf.DataFrame for DMatrix data."""
+        print('Runining handle')
         if feature_names is None:
             if lazy_isinstance(data, 'cudf.core.series', 'Series'):
                 feature_names = [data.name]

@@ -362,13 +362,16 @@ class DaskPartitionIter(DataIter):
     '''A data iterator for `DaskDeviceQuantileDMatrix`.
     '''
     def __init__(self, data, label=None, weight=None, base_margin=None,
-                 label_lower_bound=None, label_upper_bound=None):
+                 label_lower_bound=None, label_upper_bound=None,
+                 feature_names=None, feature_types=None):
         self._data = data
         self._labels = label
         self._weights = weight
         self._base_margin = base_margin
         self._label_lower_bound = label_lower_bound
         self._label_upper_bound = label_upper_bound
+        self._feature_names = feature_names
+        self._feature_types = feature_types
 
         assert isinstance(self._data, Sequence)
 
@@ -430,7 +433,9 @@ class DaskPartitionIter(DataIter):
         input_data(data=self.data(), label=self.labels(),
                    weight=self.weights(), group=None,
                    label_lower_bound=self.label_lower_bounds(),
-                   label_upper_bound=self.label_upper_bounds())
+                   label_upper_bound=self.label_upper_bounds(),
+                   feature_names=self._feature_names,
+                   feature_types=self._feature_types)
         self._iter += 1
         return 1
 
@@ -483,6 +488,7 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
                                         feature_types=self.feature_types,
                                         nthread=worker.nthreads,
                                         max_bin=self.max_bin)
+        print('get_worker_data: feature_names:', dmatrix.feature_names)
         return dmatrix
 
 
@@ -675,12 +681,14 @@ def predict(client, model, data, *args, missing=numpy.nan):
         list_of_parts = data.get_worker_x_ordered(worker)
         predictions = []
         booster.set_param({'nthread': worker.nthreads})
+        print('Dispatched: ', data.feature_names)
         for part, order in list_of_parts:
             local_x = DMatrix(part,
                               feature_names=data.feature_names,
                               feature_types=data.feature_types,
                               missing=data.missing,
                               nthread=worker.nthreads)
+            print('local_x.num_row():', local_x.num_row(), local_x.num_col())
             predt = booster.predict(data=local_x,
                                     validate_features=local_x.num_row() != 0,
                                     *args)

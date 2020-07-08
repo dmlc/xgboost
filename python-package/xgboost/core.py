@@ -331,7 +331,7 @@ class DataIter:
         '''A wrapper for user defined `next` function.
 
         `this` is not used in Python.  ctypes can handle `self` of a Python
-        member function automatically when converting a it to c function
+        member function automatically when converting it to c function
         pointer.
 
         '''
@@ -340,7 +340,8 @@ class DataIter:
 
         def data_handle(data, label=None, weight=None, base_margin=None,
                         group=None,
-                        label_lower_bound=None, label_upper_bound=None):
+                        label_lower_bound=None, label_upper_bound=None,
+                        feature_names=None, feature_types=None):
             if lazy_isinstance(data, 'cudf.core.dataframe', 'DataFrame'):
                 # pylint: disable=protected-access
                 self.proxy._set_data_from_cuda_columnar(data)
@@ -358,7 +359,9 @@ class DataIter:
                                 base_margin=base_margin,
                                 group=group,
                                 label_lower_bound=label_lower_bound,
-                                label_upper_bound=label_upper_bound)
+                                label_upper_bound=label_upper_bound,
+                                feature_names=feature_names,
+                                feature_types=feature_types)
         try:
             # Deffer the exception in order to return 0 and stop the iteration.
             # Exception inside a ctype callback function has no effect except
@@ -467,13 +470,16 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         except NotImplementedError:
             can_handle_meta = False
 
+        print('Before handle:', feature_names, handler)
         self.handle, feature_names, feature_types = handler.handle_input(
             data, feature_names, feature_types)
+        print('After handle:', feature_names)
         assert self.handle, 'Failed to construct a DMatrix.'
 
         if not can_handle_meta:
-            self.set_info(label, weight, base_margin)
+            self.set_info(label=label, weight=weight, base_margin=base_margin)
 
+        print('Before setting:', feature_names)
         self.feature_names = feature_names
         self.feature_types = feature_types
 
@@ -500,7 +506,9 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
                  label=None, weight=None, base_margin=None,
                  group=None,
                  label_lower_bound=None,
-                 label_upper_bound=None):
+                 label_upper_bound=None,
+                 feature_names=None,
+                 feature_types=None):
         '''Set meta info for DMatrix.'''
         if label is not None:
             self.set_label(label)
@@ -514,6 +522,10 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             self.set_float_info('label_lower_bound', label_lower_bound)
         if label_upper_bound is not None:
             self.set_float_info('label_upper_bound', label_upper_bound)
+        if feature_names is not None:
+            self.feature_names = feature_names
+        if feature_types is not None:
+            self.feature_types = feature_types
 
     def get_float_info(self, field):
         """Get float property from the DMatrix.
@@ -822,6 +834,9 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             Labels for features. None will reset existing feature names
         """
         if feature_names is not None:
+            import traceback
+            print('Setting feature names:', feature_names)
+            traceback.print_stack()
             # validate feature name
             try:
                 if not isinstance(feature_names, str):
@@ -851,6 +866,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
                 c_bst_ulong(len(feature_names))))
         else:
             # reset feature_types also
+            print('Reseting')
             _check_call(_LIB.XGDMatrixSetStrFeatureInfo(
                 self.handle,
                 c_str('feature_name'),
@@ -1434,6 +1450,7 @@ class Booster(object):
                             type(data))
 
         if validate_features:
+            print('data.num_row():', data.num_row(), data.num_col())
             self._validate_features(data)
 
         length = c_bst_ulong()
@@ -1986,6 +2003,7 @@ class Booster(object):
         Set feature_names and feature_types from DMatrix
         """
         if self.feature_names is None:
+            print('Asigning data feature:', data.feature_names)
             self.feature_names = data.feature_names
             self.feature_types = data.feature_types
         else:

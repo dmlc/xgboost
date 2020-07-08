@@ -163,7 +163,7 @@ class TestDistributedGPU(unittest.TestCase):
     def test_dask_dataframe(self):
         with LocalCUDACluster() as cluster:
             with Client(cluster) as client:
-                run_with_dask_dataframe(dxgb.DaskDMatrix, client)
+                # run_with_dask_dataframe(dxgb.DaskDMatrix, client)
                 run_with_dask_dataframe(dxgb.DaskDeviceQuantileDMatrix, client)
 
     @given(parameter_strategy, strategies.integers(1, 20),
