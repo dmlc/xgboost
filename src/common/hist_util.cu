@@ -264,7 +264,6 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
         d_temp_weights[idx] = weights[group];
       });
   } else {
-    CHECK_EQ(weights.size(), page.offset.Size() - 1);
     dh::LaunchN(device, temp_weights.size(), [=] __device__(size_t idx) {
         size_t element_idx = idx + begin;
         size_t ridx = thrust::upper_bound(thrust::seq, row_ptrs.begin(),
