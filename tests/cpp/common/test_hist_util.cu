@@ -227,7 +227,7 @@ TEST(HistUtil, DeviceSketchExternalMemoryWithWeights) {
 }
 
 template <typename Adapter>
-auto MakeUnweightedCutsForTest(Adapter adapter, int32_t num_bins, float missing) {
+auto MakeUnweightedCutsForTest(Adapter adapter, int32_t num_bins, float missing, size_t batch_size = 0) {
   common::HistogramCuts batched_cuts;
   SketchContainer sketch_container(num_bins, adapter.NumColumns(), adapter.NumRows(), 0);
   MetaInfo info;
@@ -239,7 +239,7 @@ auto MakeUnweightedCutsForTest(Adapter adapter, int32_t num_bins, float missing)
 
 template <typename Adapter>
 void ValidateBatchedCuts(Adapter adapter, int num_bins, int num_columns, int num_rows,
-                         DMatrix* dmat) {
+                         DMatrix* dmat, size_t batch_size = 0) {
   common::HistogramCuts batched_cuts = MakeUnweightedCutsForTest(
       adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
   ValidateCuts(batched_cuts, dmat, num_bins);
@@ -378,7 +378,7 @@ TEST(HistUtil, AdapterDeviceSketchBatches) {
     auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
     auto x_device = thrust::device_vector<float>(x);
     auto adapter = AdapterFromData(x_device, num_rows, num_columns);
-    ValidateBatchedCuts(adapter, num_bins, num_columns, num_rows, dmat.get());
+    ValidateBatchedCuts(adapter, num_bins, num_columns, num_rows, dmat.get(), batch_size);
   }
 }
 

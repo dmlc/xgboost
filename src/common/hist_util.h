@@ -138,16 +138,11 @@ class CutsBuilder {
   explicit CutsBuilder(HistogramCuts* p_cuts) : p_cuts_{p_cuts} {}
   virtual ~CutsBuilder() = default;
 
-  static uint32_t SearchGroupIndFromRow(
-      std::vector<bst_uint> const& group_ptr, size_t const base_rowid) {
-    using KIt = std::vector<bst_uint>::const_iterator;
-    KIt res = std::lower_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid);
-    // Cannot use CHECK_NE because it will try to print the iterator.
-    bool const found = res != group_ptr.cend() - 1;
-    if (!found) {
-      LOG(FATAL) << "Row " << base_rowid << " does not lie in any group!";
-    }
-    uint32_t group_ind = std::distance(group_ptr.cbegin(), res);
+  static uint32_t SearchGroupIndFromRow(std::vector<bst_uint> const &group_ptr,
+                                        size_t const base_rowid) {
+    bst_group_t group_ind =
+        std::upper_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid) -
+        group_ptr.cbegin() - 1;
     return group_ind;
   }
 

@@ -232,11 +232,8 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
         thrust::make_constant_iterator(0lu),
         [=]__device__(size_t idx) -> float {
           auto ridx = batch.GetElement(idx).row_idx;
-          auto it = thrust::upper_bound(thrust::seq,
-                                        d_group_ptr.cbegin(), d_group_ptr.cend(),
-                                        ridx) - 1;
-          bst_group_t group = thrust::distance(d_group_ptr.cbegin(), it);
-          return weights[group];
+          bst_group_t group_idx = dh::SegmentId(d_group_ptr, ridx);
+          return weights[group_idx];
         });
     auto retit = thrust::copy_if(thrust::cuda::par(alloc),
                                  weight_iter + begin, weight_iter + end,
