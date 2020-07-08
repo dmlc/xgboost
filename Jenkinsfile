@@ -189,7 +189,7 @@ def BuildCPU() {
       # This step is not necessary, but here we include it, to ensure that DMLC_CORE_USE_CMAKE flag is correctly propagated
       # We want to make sure that we use the configured header build/dmlc/build_config.h instead of include/dmlc/build_config_default.h.
       # See discussion at https://github.com/dmlc/xgboost/issues/5510
-    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh -DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON
     ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
     """
     // Sanitizer test

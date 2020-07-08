@@ -112,6 +112,9 @@ if (USE_OPENMP)
   find_package(OpenMP REQUIRED)
 endif (USE_OPENMP)
 
+# core xgboost
+add_subdirectory(${xgboost_SOURCE_DIR}/src)
+
 # dmlc-core
 msvc_use_static_runtime()
 add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
@@ -119,7 +122,6 @@ set_target_properties(dmlc PROPERTIES
   CXX_STANDARD 14
   CXX_STANDARD_REQUIRED ON
   POSITION_INDEPENDENT_CODE ON)
-list(APPEND LINKED_LIBRARIES_PRIVATE dmlc)
 if (MSVC)
   target_compile_options(dmlc PRIVATE
                          -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
@@ -128,6 +130,7 @@ if (MSVC)
                            -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
   endif (TARGET dmlc_unit_tests)
 endif (MSVC)
+target_link_libraries(objxgboost PUBLIC dmlc)
 
 # rabit
 set(RABIT_BUILD_DMLC OFF)
@@ -136,13 +139,13 @@ set(RABIT_WITH_R_LIB ${R_LIB})
 add_subdirectory(rabit)
 
 if (RABIT_MOCK)
-  list(APPEND LINKED_LIBRARIES_PRIVATE rabit_mock_static)
+  target_link_libraries(objxgboost PUBLIC rabit_mock_static)
   if (MSVC)
     target_compile_options(rabit_mock_static PRIVATE
                            -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
   endif (MSVC)
 else()
-  list(APPEND LINKED_LIBRARIES_PRIVATE rabit)
+  target_link_libraries(objxgboost PUBLIC rabit)
   if (MSVC)
     target_compile_options(rabit PRIVATE
                            -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
@@ -164,19 +167,16 @@ if (R_LIB)
   add_subdirectory(${xgboost_SOURCE_DIR}/R-package)
 endif (R_LIB)
 
-# core xgboost
-list(APPEND LINKED_LIBRARIES_PRIVATE Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
+# Plugin
 add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
-add_subdirectory(${xgboost_SOURCE_DIR}/src)
-target_link_libraries(objxgboost PUBLIC dmlc)
-set(XGBOOST_OBJ_SOURCES "${XGBOOST_OBJ_SOURCES};$<TARGET_OBJECTS:objxgboost>")
 
 #-- library
 if (BUILD_STATIC_LIB)
-  add_library(xgboost STATIC ${XGBOOST_OBJ_SOURCES})
+  add_library(xgboost STATIC)
 else (BUILD_STATIC_LIB)
-  add_library(xgboost SHARED ${XGBOOST_OBJ_SOURCES})
+  add_library(xgboost SHARED)
 endif (BUILD_STATIC_LIB)
+target_link_libraries(xgboost PRIVATE objxgboost)
 
 if (USE_NVTX)
   enable_nvtx(xgboost)
@@ -192,7 +192,6 @@ target_include_directories(xgboost
   INTERFACE
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
-target_link_libraries(xgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
 
 # This creates its own shared library `xgboost4j'.
 if (JVM_BINDINGS)
@@ -201,7 +200,8 @@ endif (JVM_BINDINGS)
 #-- End shared library
 
 #-- CLI for xgboost
-add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc ${XGBOOST_OBJ_SOURCES})
+add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc)
+target_link_libraries(runxgboost PRIVATE objxgboost)
 if (USE_NVTX)
   enable_nvtx(runxgboost)
 endif (USE_NVTX)
@@ -211,7 +211,6 @@ target_include_directories(runxgboost
   ${xgboost_SOURCE_DIR}/include
   ${xgboost_SOURCE_DIR}/dmlc-core/include
   ${xgboost_SOURCE_DIR}/rabit/include)
-target_link_libraries(runxgboost PRIVATE ${LINKED_LIBRARIES_PRIVATE})
 set_target_properties(
   runxgboost PROPERTIES
   OUTPUT_NAME xgboost
