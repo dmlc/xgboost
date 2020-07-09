@@ -9,7 +9,7 @@
 #include "helpers.h"
 
 int main(int argc, char ** argv) {
-  auto rmm_alloc = xgboost::SetUpRMMResource();
+  auto rmm_alloc = xgboost::SetUpRMMResourceForCppTests();
   xgboost::Args args {{"verbosity", "2"}};
   xgboost::ConsoleLogger::Configure(args);
 

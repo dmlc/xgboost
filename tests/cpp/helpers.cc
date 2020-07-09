@@ -20,6 +20,13 @@
 #include "../../src/gbm/gbtree_model.h"
 #include "xgboost/predictor.h"
 
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+#include <memory>
+#include "rmm/mr/device/default_memory_resource.hpp"
+#include "rmm/mr/device/cuda_memory_resource.hpp"
+#include "rmm/mr/device/pool_memory_resource.hpp"
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+
 bool FileExists(const std::string& filename) {
   struct stat st;
   return stat(filename.c_str(), &st) == 0;
@@ -478,14 +485,30 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
   return gbm;
 }
 
-#if !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1
-class RMMAllocator {};
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+using cuda_mr_t = rmm::mr::cuda_memory_resource;
+using pool_mr_t = rmm::mr::pool_memory_resource<cuda_mr_t>;
+class RMMAllocator {
+ public:
+  std::unique_ptr<pool_mr_t> handle;
+};
 
 void DeleteRMMResource(RMMAllocator* r) {
   delete r;
 }
 
-RMMAllocatorPtr SetUpRMMResource() {
+RMMAllocatorPtr SetUpRMMResourceForCppTests() {
+  auto cuda_mr = std::make_unique<cuda_mr_t>();
+  auto pool_mr = std::make_unique<pool_mr_t>(cuda_mr.release());
+	rmm::mr::set_default_resource(pool_mr.get());
+  return RMMAllocatorPtr(new RMMAllocator{std::move(pool_mr)}, DeleteRMMResource);
+}
+#else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+class RMMAllocator {};
+
+void DeleteRMMResource(RMMAllocator* r) {}
+
+RMMAllocatorPtr SetUpRMMResourceForCppTests() {
   return RMMAllocatorPtr(nullptr, DeleteRMMResource);
 }
 #endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1

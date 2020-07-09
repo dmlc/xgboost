@@ -4,13 +4,6 @@
 #include "../../src/data/device_adapter.cuh"
 #include "../../src/data/iterative_device_dmatrix.h"
 
-#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-#include <memory>
-#include "rmm/mr/device/default_memory_resource.hpp"
-#include "rmm/mr/device/cuda_memory_resource.hpp"
-#include "rmm/mr/device/pool_memory_resource.hpp"
-#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-
 namespace xgboost {
 
 CudaArrayIterForTest::CudaArrayIterForTest(float sparsity, size_t rows,
@@ -47,24 +40,4 @@ std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDeviceDMatrix(bool with_la
       0, bins_);
   return m;
 }
-
-#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-using cuda_mr_t = rmm::mr::cuda_memory_resource;
-using pool_mr_t = rmm::mr::pool_memory_resource<cuda_mr_t>;
-class RMMAllocator {
- public:
-  std::unique_ptr<pool_mr_t> handle;
-};
-
-void DeleteRMMResource(RMMAllocator* r) {
-  delete r;
-}
-
-RMMAllocatorPtr SetUpRMMResource() {
-  auto cuda_mr = std::make_unique<cuda_mr_t>();
-  auto pool_mr = std::make_unique<pool_mr_t>(cuda_mr.release());
-	rmm::mr::set_default_resource(pool_mr.get());
-  return RMMAllocatorPtr(new RMMAllocator{std::move(pool_mr)}, DeleteRMMResource);
-}
-#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 }  // namespace xgboost
