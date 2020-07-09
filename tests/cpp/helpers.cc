@@ -478,8 +478,16 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
   return gbm;
 }
 
-#ifndef XGBOOST_USE_CUDA
-void SetUpRMMResource() {}
-#endif  // XGBOOST_USE_CUDA
+#if !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1
+class RMMAllocator {};
+
+void DeleteRMMResource(RMMAllocator* r) {
+  delete r;
+}
+
+RMMAllocatorPtr SetUpRMMResource() {
+  return RMMAllocatorPtr(nullptr, DeleteRMMResource);
+}
+#endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1
 
 }  // namespace xgboost

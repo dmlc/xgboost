@@ -3,12 +3,13 @@
 #include <xgboost/base.h>
 #include <xgboost/logging.h>
 #include <string>
+#include <memory>
 #include <vector>
 
 #include "helpers.h"
 
 int main(int argc, char ** argv) {
-  xgboost::SetUpRMMResource();
+  auto rmm_alloc = xgboost::SetUpRMMResource();
   xgboost::Args args {{"verbosity", "2"}};
   xgboost::ConsoleLogger::Configure(args);
 

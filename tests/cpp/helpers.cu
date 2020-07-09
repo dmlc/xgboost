@@ -48,13 +48,23 @@ std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDeviceDMatrix(bool with_la
   return m;
 }
 
-void SetUpRMMResource() {
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  using cuda_mr_t = rmm::mr::cuda_memory_resource;
-  using pool_mr_t = rmm::mr::pool_memory_resource<cuda_mr_t>;
+using cuda_mr_t = rmm::mr::cuda_memory_resource;
+using pool_mr_t = rmm::mr::pool_memory_resource<cuda_mr_t>;
+class RMMAllocator {
+ public:
+  std::unique_ptr<pool_mr_t> handle;
+};
+
+void DeleteRMMResource(RMMAllocator* r) {
+  delete r;
+}
+
+RMMAllocatorPtr SetUpRMMResource() {
   auto cuda_mr = std::make_unique<cuda_mr_t>();
   auto pool_mr = std::make_unique<pool_mr_t>(cuda_mr.release());
-	rmm::mr::set_default_resource(pool_mr.release());
-#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+	rmm::mr::set_default_resource(pool_mr.get());
+  return RMMAllocatorPtr(new RMMAllocator{std::move(pool_mr)}, DeleteRMMResource);
 }
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 }  // namespace xgboost
