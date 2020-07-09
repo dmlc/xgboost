@@ -5,8 +5,10 @@
 #include "../../src/data/iterative_device_dmatrix.h"
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+#include <memory>
 #include "rmm/mr/device/default_memory_resource.hpp"
-#include "rmm/mr/device/cnmem_memory_resource.hpp"
+#include "rmm/mr/device/cuda_memory_resource.hpp"
+#include "rmm/mr/device/pool_memory_resource.hpp"
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 namespace xgboost {
@@ -48,8 +50,11 @@ std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDeviceDMatrix(bool with_la
 
 void SetUpRMMResource() {
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-	rmm::mr::cnmem_memory_resource pool_mr{};
-	rmm::mr::set_default_resource(&pool_mr);
+  using cuda_mr_t = rmm::mr::cuda_memory_resource;
+  using pool_mr_t = rmm::mr::pool_memory_resource<cuda_mr_t>;
+  auto cuda_mr = std::make_unique<cuda_mr_t>();
+  auto pool_mr = std::make_unique<pool_mr_t>(cuda_mr.release());
+	rmm::mr::set_default_resource(pool_mr.release());
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 }
 }  // namespace xgboost
