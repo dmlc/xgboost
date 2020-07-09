@@ -396,7 +396,7 @@ def TestCppGPUWithRMM(args) {
     def docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
     echo "Using a single GPU"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate rmm_test && build/testxgboost --gtest_filter=-*.MGPU_*"
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate rmm_test && build/testxgboost --gtest_filter=-*.MGPU_*:*DeathTest.*"
     """
     deleteDir()
   }
