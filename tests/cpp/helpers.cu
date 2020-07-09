@@ -4,6 +4,11 @@
 #include "../../src/data/device_adapter.cuh"
 #include "../../src/data/iterative_device_dmatrix.h"
 
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+#include "rmm/mr/device/default_memory_resource.hpp"
+#include "rmm/mr/device/cnmem_memory_resource.hpp"
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+
 namespace xgboost {
 
 CudaArrayIterForTest::CudaArrayIterForTest(float sparsity, size_t rows,
@@ -39,5 +44,12 @@ std::shared_ptr<DMatrix> RandomDataGenerator::GenerateDeviceDMatrix(bool with_la
       &iter, iter.Proxy(), Reset, Next, std::numeric_limits<float>::quiet_NaN(),
       0, bins_);
   return m;
+}
+
+void SetUpRMMResource() {
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+	rmm::mr::cnmem_memory_resource pool_mr{};
+	rmm::mr::set_default_resource(&pool_mr);
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 }
 }  // namespace xgboost

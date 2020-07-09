@@ -5,7 +5,10 @@
 #include <string>
 #include <vector>
 
+#include "helpers.h"
+
 int main(int argc, char ** argv) {
+  xgboost::SetUpRMMResource();
   xgboost::Args args {{"verbosity", "2"}};
   xgboost::ConsoleLogger::Configure(args);
 

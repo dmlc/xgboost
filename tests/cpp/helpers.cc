@@ -478,4 +478,8 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
   return gbm;
 }
 
+#ifndef XGBOOST_USE_CUDA
+void SetUpRMMResource() {}
+#endif  // XGBOOST_USE_CUDA
+
 }  // namespace xgboost

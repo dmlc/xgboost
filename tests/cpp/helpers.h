@@ -352,5 +352,7 @@ inline int Next(DataIterHandle self) {
   return static_cast<CudaArrayIterForTest*>(self)->Next();
 }
 
+void SetUpRMMResource();
+
 }  // namespace xgboost
 #endif
