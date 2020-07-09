@@ -221,7 +221,7 @@ struct TestElementAccess {
   }
 };
 
-TEST(GPUSpan, ElementAccess) {
+TEST(GPUSpanDeathTest, ElementAccess) {
   dh::safe_cuda(cudaSetDevice(0));
   auto test_element_access = []() {
     thrust::host_vector<float> h_vec (16);
