@@ -39,10 +39,7 @@
 #endif  // XGBOOST_USE_NCCL
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-#include "rmm/mr/device/cuda_memory_resource.hpp"
 #include "rmm/mr/device/default_memory_resource.hpp"
-#include "rmm/mr/device/device_memory_resource.hpp"
-#include "rmm/mr/device/pool_memory_resource.hpp"
 #include "rmm/mr/device/thrust_allocator_adaptor.hpp"
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
@@ -409,9 +406,7 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     return SuperT::deallocate(ptr, n);
   }
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  using cuda_mr = rmm::mr::cuda_memory_resource;
-  using pool_mr = rmm::mr::pool_memory_resource<cuda_mr>;
-  XGBDefaultDeviceAllocatorImpl() : SuperT(new pool_mr(new cuda_mr), cudaStream_t{0}) {}
+  XGBDefaultDeviceAllocatorImpl() : SuperT(rmm::mr::get_default_resource(), cudaStream_t{0}) {}
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 };
 
