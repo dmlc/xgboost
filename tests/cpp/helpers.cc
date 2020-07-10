@@ -490,7 +490,10 @@ using cuda_mr_t = rmm::mr::cuda_memory_resource;
 using pool_mr_t = rmm::mr::pool_memory_resource<cuda_mr_t>;
 class RMMAllocator {
  public:
-  std::unique_ptr<pool_mr_t> handle;
+  cuda_mr_t cuda_mr;
+  pool_mr_t pool_mr;
+  RMMAllocator() : cuda_mr(), pool_mr(&cuda_mr) {}
+  ~RMMAllocator() = default;
 };
 
 void DeleteRMMResource(RMMAllocator* r) {
@@ -498,10 +501,9 @@ void DeleteRMMResource(RMMAllocator* r) {
 }
 
 RMMAllocatorPtr SetUpRMMResourceForCppTests() {
-  auto cuda_mr = std::make_unique<cuda_mr_t>();
-  auto pool_mr = std::make_unique<pool_mr_t>(cuda_mr.release());
-	rmm::mr::set_default_resource(pool_mr.get());
-  return RMMAllocatorPtr(new RMMAllocator{std::move(pool_mr)}, DeleteRMMResource);
+  auto ptr = RMMAllocatorPtr(new RMMAllocator(), DeleteRMMResource);
+  rmm::mr::set_default_resource(&ptr->pool_mr);
+  return ptr;
 }
 #else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 class RMMAllocator {};
