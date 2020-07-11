@@ -140,9 +140,11 @@ class CutsBuilder {
 
   static uint32_t SearchGroupIndFromRow(std::vector<bst_uint> const &group_ptr,
                                         size_t const base_rowid) {
-    bst_group_t group_ind =
-        std::upper_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid) -
-        group_ptr.cbegin() - 1;
+    CHECK_LT(base_rowid, group_ptr.back())
+        << "Row: " << base_rowid << " is not found in any group.";
+    auto it =
+        std::upper_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid);
+    bst_group_t group_ind = it - group_ptr.cbegin() - 1;
     return group_ind;
   }
 
