@@ -125,7 +125,7 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
   )
   data <- data_list[["data"]]
   shap_contrib <- data_list[["shap_contrib"]]
-  features <- data_list[["features"]]
+  features <- colnames(data)
 
   which <- match.arg(which)
   if (which == "2d")
@@ -215,12 +215,12 @@ xgb.plot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, to
   xgb.ggplot.shap.summary(data, shap_contrib, features, top_n, model, trees, target_class, approxcontrib, subsample)
 }
 
-#' Prepare data for SHAP plots. To be used in xgb.plot.shap, xgb.ggplot.shap,
-#' and xgb.ggplot.shap_summary. Internal utility function.
+#' Prepare data for SHAP plots. To be used in xgb.plot.shap, xgb.plot.shap.summary, etc.
+#' Internal utility function.
 #'
 #' @return A list containing: 'data', a matrix containing sample observations
-#'   and their feature values; 'shap_contrib', the SHAP contribution values for
-#'   these observations
+#'   and their feature values; 'shap_contrib', a matrix containing the SHAP contribution 
+#'   values for these observations.
 xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1, model = NULL,
                           trees = NULL, target_class = NULL, approxcontrib = FALSE,
                           subsample = NULL, max_observations = 100000) {
@@ -271,7 +271,6 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
 
   list(
     data = data,
-    shap_contrib = shap_contrib,
-    features = features
+    shap_contrib = shap_contrib
   )
 }
