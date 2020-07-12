@@ -100,7 +100,7 @@
 #'               n_col = 2, col = col, pch = 16, pch_NA = 17)
 #' xgb.plot.shap(x, model = mbst, trees = trees0 + 2, target_class = 2, top_n = 4,
 #'               n_col = 2, col = col, pch = 16, pch_NA = 17)
-#' xgb.plot.shap.summary(x, model = mbst, target_class = 0, top_n = 4)  # Summary plot
+#' xgb.ggplot.shap.summary(x, model = mbst, target_class = 0, top_n = 4)  # Summary plot
 #'
 #' @rdname xgb.plot.shap
 #' @export
