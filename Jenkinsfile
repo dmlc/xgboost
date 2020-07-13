@@ -32,7 +32,7 @@ pipeline {
   // Build stages
   stages {
     stage('Jenkins Linux: Initialize') {
-      agent { label 'master' }
+      agent { label 'job_initializer' }
       steps {
         script {
           checkoutSrcs()
