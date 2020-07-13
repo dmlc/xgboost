@@ -430,11 +430,18 @@ class DaskPartitionIter(DataIter):
         if self._iter == len(self._data):
             # Return 0 when there's no more batch.
             return 0
+        if self._feature_names:
+            feature_names = self._feature_names
+        else:
+            if hasattr(self.data(), 'columns'):
+                feature_names = self.data().columns.format()
+            else:
+                feature_names = None
         input_data(data=self.data(), label=self.labels(),
                    weight=self.weights(), group=None,
                    label_lower_bound=self.label_lower_bounds(),
                    label_upper_bound=self.label_upper_bounds(),
-                   feature_names=self._feature_names,
+                   feature_names=feature_names,
                    feature_types=self._feature_types)
         self._iter += 1
         return 1
@@ -488,7 +495,6 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
                                         feature_types=self.feature_types,
                                         nthread=worker.nthreads,
                                         max_bin=self.max_bin)
-        print('get_worker_data: feature_names:', dmatrix.feature_names)
         return dmatrix
 
 
@@ -681,14 +687,12 @@ def predict(client, model, data, *args, missing=numpy.nan):
         list_of_parts = data.get_worker_x_ordered(worker)
         predictions = []
         booster.set_param({'nthread': worker.nthreads})
-        print('Dispatched: ', data.feature_names)
         for part, order in list_of_parts:
             local_x = DMatrix(part,
                               feature_names=data.feature_names,
                               feature_types=data.feature_types,
                               missing=data.missing,
                               nthread=worker.nthreads)
-            print('local_x.num_row():', local_x.num_row(), local_x.num_col())
             predt = booster.predict(data=local_x,
                                     validate_features=local_x.num_row() != 0,
                                     *args)

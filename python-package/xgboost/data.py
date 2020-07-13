@@ -8,7 +8,7 @@ import warnings
 import numpy as np
 
 from .core import c_array, _LIB, _check_call, c_str, _cudf_array_interfaces
-from .core import DataIter
+from .core import DataIter, DeviceQuantileDMatrix
 from .compat import lazy_isinstance, STRING_TYPES, os_fspath, os_PathLike
 
 c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
@@ -466,7 +466,6 @@ class CudaColumnarHandler(DataHandler):
     '''Handler of CUDA based columnar data. (cudf.DataFrame)'''
     def _maybe_cudf_dataframe(self, data, feature_names, feature_types):
         """Extract internal data from cudf.DataFrame for DMatrix data."""
-        print('Runining handle')
         if feature_names is None:
             if lazy_isinstance(data, 'cudf.core.series', 'Series'):
                 feature_names = [data.name]
@@ -541,7 +540,8 @@ class SingleBatchInternalIter(DataIter):
 
     '''
     def __init__(self, data, label, weight, base_margin, group,
-                 label_lower_bound, label_upper_bound):
+                 label_lower_bound, label_upper_bound,
+                 feature_names, feature_types):
         self.data = data
         self.label = label
         self.weight = weight
@@ -549,6 +549,8 @@ class SingleBatchInternalIter(DataIter):
         self.group = group
         self.label_lower_bound = label_lower_bound
         self.label_upper_bound = label_upper_bound
+        self.feature_names = feature_names
+        self.feature_types = feature_types
         self.it = 0             # pylint: disable=invalid-name
         super().__init__()
 
@@ -560,7 +562,9 @@ class SingleBatchInternalIter(DataIter):
                    weight=self.weight, base_margin=self.base_margin,
                    group=self.group,
                    label_lower_bound=self.label_lower_bound,
-                   label_upper_bound=self.label_upper_bound)
+                   label_upper_bound=self.label_upper_bound,
+                   feature_names=self.feature_names,
+                   feature_types=self.feature_types)
         return 1
 
     def reset(self):
@@ -593,7 +597,8 @@ class DeviceQuantileDMatrixDataHandler(DataHandler):  # pylint: disable=abstract
             it = SingleBatchInternalIter(
                 data, self.label, self.weight,
                 self.base_margin, self.group,
-                self.label_lower_bound, self.label_upper_bound)
+                self.label_lower_bound, self.label_upper_bound,
+                feature_names, feature_types)
         else:
             it = data
         reset_factory = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
@@ -618,6 +623,10 @@ class DeviceQuantileDMatrixDataHandler(DataHandler):  # pylint: disable=abstract
             raise it.exception
         # delay check_call to throw intermediate exception first
         _check_call(ret)
+        m = DeviceQuantileDMatrix(handle)
+        feature_names = m.feature_names
+        feature_types = m.feature_types
+        m.handle = None
         return handle, feature_names, feature_types
 
 

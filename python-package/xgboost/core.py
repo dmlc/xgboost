@@ -371,7 +371,6 @@ class DataIter:
             tb = sys.exc_info()[2]
             # On dask the worker is restarted and somehow the information is
             # lost.
-            warnings.warn(e)
             self.exception = e.with_traceback(tb)
             return 0
         return ret
@@ -470,16 +469,13 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         except NotImplementedError:
             can_handle_meta = False
 
-        print('Before handle:', feature_names, handler)
         self.handle, feature_names, feature_types = handler.handle_input(
             data, feature_names, feature_types)
-        print('After handle:', feature_names)
         assert self.handle, 'Failed to construct a DMatrix.'
 
         if not can_handle_meta:
             self.set_info(label=label, weight=weight, base_margin=base_margin)
 
-        print('Before setting:', feature_names)
         self.feature_names = feature_names
         self.feature_types = feature_types
 
@@ -834,9 +830,6 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             Labels for features. None will reset existing feature names
         """
         if feature_names is not None:
-            import traceback
-            print('Setting feature names:', feature_names)
-            traceback.print_stack()
             # validate feature name
             try:
                 if not isinstance(feature_names, str):
@@ -848,8 +841,8 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
 
             if len(feature_names) != len(set(feature_names)):
                 raise ValueError('feature_names must be unique')
-            if len(feature_names) != self.num_col():
-                msg = 'feature_names must have the same length as data'
+            if len(feature_names) != self.num_col() and self.num_col() != 0:
+                msg = f'feature_names must have the same length as data'
                 raise ValueError(msg)
             # prohibit to use symbols may affect to parse. e.g. []<
             if not all(isinstance(f, STRING_TYPES) and
@@ -866,7 +859,6 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
                 c_bst_ulong(len(feature_names))))
         else:
             # reset feature_types also
-            print('Reseting')
             _check_call(_LIB.XGDMatrixSetStrFeatureInfo(
                 self.handle,
                 c_str('feature_name'),
@@ -1450,7 +1442,6 @@ class Booster(object):
                             type(data))
 
         if validate_features:
-            print('data.num_row():', data.num_row(), data.num_col())
             self._validate_features(data)
 
         length = c_bst_ulong()
@@ -2003,7 +1994,6 @@ class Booster(object):
         Set feature_names and feature_types from DMatrix
         """
         if self.feature_names is None:
-            print('Asigning data feature:', data.feature_names)
             self.feature_names = data.feature_names
             self.feature_types = data.feature_types
         else:

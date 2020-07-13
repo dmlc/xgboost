@@ -153,6 +153,10 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
     proxy->Info().num_col_ = cols;
     if (batches != 1) {
       this->info_.Extend(std::move(proxy->Info()), false);
+      this->info_.feature_names = proxy->Info().feature_names;
+      this->info_.feature_types.Resize(proxy->Info().feature_types.Size());
+      this->info_.feature_types.Copy(proxy->Info().feature_types);
+      this->info_.feature_type_names = proxy->Info().feature_type_names;
     }
     n_batches_for_verification++;
   }

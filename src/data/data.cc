@@ -416,7 +416,7 @@ void MetaInfo::GetInfo(char const *key, bst_ulong *out_len, DataType dtype,
 }
 
 void MetaInfo::SetFeatureInfo(const char* key, const char **info, const bst_ulong size) {
-  if (size != 0) {
+  if (size != 0 && this->num_col_ != 0) {
     CHECK_EQ(size, this->num_col_)
         << "Length of " << key << " must be equal to number of columns.";
   }
