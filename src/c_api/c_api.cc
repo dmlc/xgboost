@@ -227,7 +227,8 @@ XGB_DLL int XGDMatrixSliceDMatrixEx(DMatrixHandle handle,
         << "slice does not support group structure";
   }
   DMatrix* dmat = static_cast<std::shared_ptr<DMatrix>*>(handle)->get();
-  *out = new std::shared_ptr<DMatrix>(dmat->Slice({idxset, len}));
+  *out = new std::shared_ptr<DMatrix>(
+      dmat->Slice({idxset, static_cast<std::size_t>(len)}));
   API_END();
 }
 
