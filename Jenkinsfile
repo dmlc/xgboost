@@ -31,13 +31,14 @@ pipeline {
 
   // Build stages
   stages {
-    stage('Jenkins Linux: Get sources') {
-      agent { label 'linux && cpu' }
+    stage('Jenkins Linux: Initialize') {
+      agent { label 'master' }
       steps {
         script {
           checkoutSrcs()
           commit_id = "${GIT_COMMIT}"
         }
+        sh 'python3 tests/jenkins_get_approval.py'
         stash name: 'srcs'
         milestone ordinal: 1
       }
