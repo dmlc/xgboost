@@ -348,17 +348,18 @@ object XGBoost extends Serializable {
       throw new RuntimeException("Something wrong for task context")
     }
     val resources = tc.resources()
-
     if (resources.contains("gpu")) {
       val addrs = resources("gpu").addresses
       if (addrs.size > 1) {
+        // TODO should we throw exception ?
         logger.warn("XGBoost only supports 1 gpu per worker")
       }
+      logger.warn("===================================xxxxxxxxxxxx")
       // take the first one
       addrs.head.toInt
     } else {
       throw new RuntimeException("gpu is not allocated by spark, " +
-        "pls check if gpu scheduling is enabled")
+        "please check if gpu scheduling is enabled")
     }
   }
 
@@ -398,15 +399,17 @@ object XGBoost extends Serializable {
         } else {
           getGPUAddrFromResources
         }
+        logger.info("Leveraging gpu device " + gpuId + " to train")
         params = params + ("gpu_id" -> gpuId)
       }
+      logger.info(params)
       val booster = if (makeCheckpoint) {
         SXGBoost.trainAndSaveCheckpoint(
-          watches.toMap("train"), xgbExecutionParam.toMap, numRounds,
+          watches.toMap("train"), params, numRounds,
           watches.toMap, metrics, obj, eval,
           earlyStoppingRound = numEarlyStoppingRounds, prevBooster, externalCheckpointParams)
       } else {
-        SXGBoost.train(watches.toMap("train"), xgbExecutionParam.toMap, numRounds,
+        SXGBoost.train(watches.toMap("train"), params, numRounds,
           watches.toMap, metrics, obj, eval,
           earlyStoppingRound = numEarlyStoppingRounds, prevBooster)
       }
