@@ -9,11 +9,10 @@
 #define XGBOOST_COMMON_SURVIVAL_UTIL_H_
 
 /*
-- Formulas are motivated from document -
-  http://members.cbio.mines-paristech.fr/~thocking/survival.pdf
-- Detailed Derivation of Loss/Gradient/Hessian -
-  https://github.com/avinashbarnwal/GSOC-2019/blob/master/doc/Accelerated_Failure_Time.pdf
-*/
+ * For the derivation of the loss, gradient, and hessian for the Accelerated Failure Time model,
+ * refer to the paper "Survival regression with accelerated failure time model in XGBoost"
+ * at https://arxiv.org/abs/2006.04920.
+ */
 
 #include <xgboost/parameter.h>
 #include <memory>
