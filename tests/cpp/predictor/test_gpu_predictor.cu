@@ -121,6 +121,7 @@ TEST(GPUPredictor, ExternalMemoryTest) {
       ASSERT_EQ(host_vector[i * n_classes + 2], 0.5);
     }
   }
+  dmats.clear();
 }
 
 TEST(GPUPredictor, InplacePredictCupy) {

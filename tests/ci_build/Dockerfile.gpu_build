@@ -21,7 +21,14 @@ RUN \
     bash Miniconda3.sh -b -p /opt/python && \
     # CMake
     wget -nv -nc https://cmake.org/files/v3.13/cmake-3.13.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.13.0-Linux-x86_64.sh --skip-license --prefix=/usr
+    bash cmake-3.13.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
+    # Ninja
+    mkdir -p /usr/local && \
+    cd /usr/local/ && \
+    wget -nv -nc https://github.com/ninja-build/ninja/archive/v1.10.0.tar.gz --no-check-certificate && \
+    tar xf v1.10.0.tar.gz && mv ninja-1.10.0 ninja && rm -v v1.10.0.tar.gz && \
+    cd ninja && \
+    python ./configure.py --bootstrap
 
 # NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
 RUN \
@@ -33,7 +40,7 @@ RUN \
     yum install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-static-${NCCL_VERSION}+cuda${CUDA_SHORT} && \
     rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm;
 
-ENV PATH=/opt/python/bin:$PATH
+ENV PATH=/opt/python/bin:/usr/local/ninja:$PATH
 ENV CC=/opt/rh/devtoolset-4/root/usr/bin/gcc
 ENV CXX=/opt/rh/devtoolset-4/root/usr/bin/c++
 ENV CPP=/opt/rh/devtoolset-4/root/usr/bin/cpp
