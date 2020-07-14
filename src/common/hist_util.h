@@ -138,16 +138,13 @@ class CutsBuilder {
   explicit CutsBuilder(HistogramCuts* p_cuts) : p_cuts_{p_cuts} {}
   virtual ~CutsBuilder() = default;
 
-  static uint32_t SearchGroupIndFromRow(
-      std::vector<bst_uint> const& group_ptr, size_t const base_rowid) {
-    using KIt = std::vector<bst_uint>::const_iterator;
-    KIt res = std::lower_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid);
-    // Cannot use CHECK_NE because it will try to print the iterator.
-    bool const found = res != group_ptr.cend() - 1;
-    if (!found) {
-      LOG(FATAL) << "Row " << base_rowid << " does not lie in any group!";
-    }
-    uint32_t group_ind = std::distance(group_ptr.cbegin(), res);
+  static uint32_t SearchGroupIndFromRow(std::vector<bst_uint> const &group_ptr,
+                                        size_t const base_rowid) {
+    CHECK_LT(base_rowid, group_ptr.back())
+        << "Row: " << base_rowid << " is not found in any group.";
+    auto it =
+        std::upper_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid);
+    bst_group_t group_ind = it - group_ptr.cbegin() - 1;
     return group_ind;
   }
 
@@ -167,7 +164,7 @@ class CutsBuilder {
 
 /*! \brief Cut configuration for sparse dataset. */
 class SparseCuts : public CutsBuilder {
-  /* \brief Distrbute columns to each thread according to number of entries. */
+  /* \brief Distribute columns to each thread according to number of entries. */
   static std::vector<size_t> LoadBalance(SparsePage const& page, size_t const nthreads);
   Monitor monitor_;
 

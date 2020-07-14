@@ -76,15 +76,15 @@ TEST(GPUPredictor, EllpackTraining) {
        .Bins(kBins)
        .Device(0)
        .GenerateDeviceDMatrix(true);
-  std::vector<HostDeviceVector<float>> storage(kCols);
+  HostDeviceVector<float> storage(kRows * kCols);
   auto columnar = RandomDataGenerator{kRows, kCols, 0.0}
        .Device(0)
-       .GenerateColumnarArrayInterface(&storage);
-  auto adapter = data::CudfAdapter(columnar);
+       .GenerateArrayInterface(&storage);
+  auto adapter = data::CupyAdapter(columnar);
   std::shared_ptr<DMatrix> p_full {
     DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)
   };
-  TestTrainingPrediction(kRows, "gpu_hist", p_full, p_ellpack);
+  TestTrainingPrediction(kRows, kBins, "gpu_hist", p_full, p_ellpack);
 }
 
 TEST(GPUPredictor, ExternalMemoryTest) {

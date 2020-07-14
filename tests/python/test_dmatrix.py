@@ -115,6 +115,7 @@ class TestDMatrix(unittest.TestCase):
         dm.feature_names = list('abcde')
         assert dm.feature_names == list('abcde')
 
+        assert dm.slice([0, 1]).num_col() == dm.num_col()
         assert dm.slice([0, 1]).feature_names == dm.feature_names
 
         dm.feature_types = 'q'
