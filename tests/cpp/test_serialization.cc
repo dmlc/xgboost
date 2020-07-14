@@ -615,6 +615,7 @@ TEST_F(MultiClassesSerializationTest, GpuHist) {
                             {"seed", "0"},
                             {"nthread", "1"},
                             {"max_depth", std::to_string(kClasses)},
+                            {"predictor", "gpu_predictor"},
                             // GPU_Hist has higher floating point error. 1e-6 doesn't work
                             // after num_parallel_tree goes to 4
                             {"num_parallel_tree", "3"},
