@@ -117,17 +117,21 @@ macro(enable_nvtx target)
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
 endmacro()
 
-macro(enable_arrow target)
-  find_package(Arrow REQUIRED)
-  find_package(ArrowPython REQUIRED)
-  find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-  target_include_directories(${target}  PRIVATE
-                              ${ARROW_INCLUDE_DIR}
-                              ${ARROW_PYTHON_INCLUDE_DIR}
-                              ${Python3_INCLUDE_DIRS})
-  target_link_libraries(${target} PRIVATE 
-                        ${ARROW_SHARED_LIB}
-                        ${ARROW_PYTHON_SHARED_LIB}
-                        ${Python3_LIBRARIES})
-  target_compile_definitions(${target}  PRIVATE -DXGBOOST_BUILD_ARROW_SUPPORT=1)
+macro(enable_arrow_if_available target)
+  find_package(Arrow)
+  find_package(ArrowPython)
+  if (ARROW_FOUND AND ARROW_PYTHON_FOUND)
+    find_package(Python3 COMPONENTS Development REQUIRED)
+    target_include_directories(${target}  PRIVATE
+                                ${ARROW_INCLUDE_DIR}
+                                ${ARROW_PYTHON_INCLUDE_DIR}
+                                ${Python3_INCLUDE_DIRS})
+    target_link_libraries(${target} PRIVATE 
+                          ${ARROW_SHARED_LIB}
+                          ${ARROW_PYTHON_SHARED_LIB}
+                          ${Python3_LIBRARIES})
+    target_compile_definitions(${target} PRIVATE
+                      -DXGBOOST_BUILD_ARROW_SUPPORT=1
+                      -D_GLIBCXX_USE_CXX11_ABI=0)
+  endif (ARROW_FOUND AND ARROW_PYTHON_FOUND)
 endmacro()

@@ -5,7 +5,11 @@ ENV DEBIAN_FRONTEND noninteractive
 SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 
 # Install all basic requirements
+ENV http_proxy=http://child-prc.intel.com:913
+ENV https_proxy=http://child-prc.intel.com:913
 RUN \
+    echo 'Acquire::http::proxy "http://child-prc.intel.com:913";' >> /etc/apt/apt.conf && \
+    echo 'Acquire::https::proxy "http://child-prc.intel.com:913";' >> /etc/apt/apt.conf && \
     apt-get update && \
     apt-get install -y tar unzip wget git build-essential doxygen graphviz llvm libasan2 libidn11 liblz4-dev ninja-build && \
     # CMake
