@@ -168,7 +168,9 @@ class SimpleRealUniformDistribution {
   ResultT operator()(GeneratorT* rng) const {
     ResultT tmp = GenerateCanonical<std::numeric_limits<ResultT>::digits,
                                     GeneratorT>(rng);
-    return (tmp * (upper_ - lower_)) + lower_;
+    auto ret = (tmp * (upper_ - lower_)) + lower_;
+    // Correct floating point error.
+    return std::max(ret, lower_);
   }
 };
 

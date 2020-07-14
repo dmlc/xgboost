@@ -422,11 +422,11 @@ TEST(Span, Subspan) {
   ASSERT_EQ(s4.size(), s1.size() - 2);
 
   EXPECT_DEATH(s1.subspan(-1, 0), "\\[xgboost\\] Condition .* failed.\n");
-  EXPECT_DEATH(s1.subspan(16, 0), "\\[xgboost\\] Condition .* failed.\n");
+  EXPECT_DEATH(s1.subspan(17, 0), "\\[xgboost\\] Condition .* failed.\n");
 
   auto constexpr kOne = static_cast<Span<int, 4>::index_type>(-1);
   EXPECT_DEATH(s1.subspan<kOne>(), "\\[xgboost\\] Condition .* failed.\n");
-  EXPECT_DEATH(s1.subspan<16>(), "\\[xgboost\\] Condition .* failed.\n");
+  EXPECT_DEATH(s1.subspan<17>(),   "\\[xgboost\\] Condition .* failed.\n");
 }
 
 TEST(Span, Compare) {

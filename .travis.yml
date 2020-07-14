@@ -43,6 +43,7 @@ addons:
       - graphviz
       - openssl
       - libgit2
+      - lz4
       - wget
       - r
     update: true

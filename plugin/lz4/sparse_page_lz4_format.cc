@@ -156,7 +156,7 @@ inline void CompressArray<DType>::Write(dmlc::Stream* fo) {
 }
 
 template<typename StorageIndex>
-class SparsePageLZ4Format : public SparsePageFormat {
+class SparsePageLZ4Format : public SparsePageFormat<SparsePage> {
  public:
   explicit SparsePageLZ4Format(bool use_lz4_hc)
       : use_lz4_hc_(use_lz4_hc) {
