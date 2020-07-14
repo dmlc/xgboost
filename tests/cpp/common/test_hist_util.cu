@@ -227,16 +227,23 @@ TEST(HistUtil, DeviceSketchExternalMemoryWithWeights) {
 }
 
 template <typename Adapter>
-void ValidateBatchedCuts(Adapter adapter, int num_bins, int num_columns, int num_rows,
-                         DMatrix* dmat) {
+auto MakeUnweightedCutsForTest(Adapter adapter, int32_t num_bins, float missing, size_t batch_size = 0) {
   common::HistogramCuts batched_cuts;
-  SketchContainer sketch_container(num_bins, num_columns, num_rows, 0);
-  AdapterDeviceSketch(adapter.Value(), num_bins, std::numeric_limits<float>::quiet_NaN(),
+  SketchContainer sketch_container(num_bins, adapter.NumColumns(), adapter.NumRows(), 0);
+  MetaInfo info;
+  AdapterDeviceSketch(adapter.Value(), num_bins, info, std::numeric_limits<float>::quiet_NaN(),
                       &sketch_container);
   sketch_container.MakeCuts(&batched_cuts);
-  ValidateCuts(batched_cuts, dmat, num_bins);
+  return batched_cuts;
 }
 
+template <typename Adapter>
+void ValidateBatchedCuts(Adapter adapter, int num_bins, int num_columns, int num_rows,
+                         DMatrix* dmat, size_t batch_size = 0) {
+  common::HistogramCuts batched_cuts = MakeUnweightedCutsForTest(
+      adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
+  ValidateCuts(batched_cuts, dmat, num_bins);
+}
 
 TEST(HistUtil, AdapterDeviceSketch) {
   int rows = 5;
@@ -251,7 +258,7 @@ TEST(HistUtil, AdapterDeviceSketch) {
 
   data::CupyAdapter adapter(str);
 
-  auto device_cuts = AdapterDeviceSketch(&adapter, num_bins, missing);
+  auto device_cuts = MakeUnweightedCutsForTest(adapter, num_bins, missing);
   auto host_cuts = GetHostCuts(&adapter, num_bins, missing);
 
   EXPECT_EQ(device_cuts.Values(), host_cuts.Values());
@@ -269,8 +276,7 @@ TEST(HistUtil, AdapterDeviceSketchMemory) {
 
   dh::GlobalMemoryLogger().Clear();
   ConsoleLogger::Configure({{"verbosity", "3"}});
-  auto cuts = AdapterDeviceSketch(&adapter, num_bins,
-                                  std::numeric_limits<float>::quiet_NaN());
+  auto cuts = MakeUnweightedCutsForTest(adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
   ConsoleLogger::Configure({{"verbosity", "0"}});
   size_t bytes_constant = 1000;
   size_t bytes_required = detail::RequiredMemory(
@@ -286,12 +292,13 @@ TEST(HistUtil, AdapterSketchSlidingWindowMemory) {
   auto x = GenerateRandom(num_rows, num_columns);
   auto x_device = thrust::device_vector<float>(x);
   auto adapter = AdapterFromData(x_device, num_rows, num_columns);
+  MetaInfo info;
 
   dh::GlobalMemoryLogger().Clear();
   ConsoleLogger::Configure({{"verbosity", "3"}});
   common::HistogramCuts batched_cuts;
   SketchContainer sketch_container(num_bins, num_columns, num_rows, 0);
-  AdapterDeviceSketch(adapter.Value(), num_bins, std::numeric_limits<float>::quiet_NaN(),
+  AdapterDeviceSketch(adapter.Value(), num_bins, info, std::numeric_limits<float>::quiet_NaN(),
                       &sketch_container);
   HistogramCuts cuts;
   sketch_container.MakeCuts(&cuts);
@@ -318,9 +325,9 @@ TEST(HistUtil, AdapterSketchSlidingWindowWeightedMemory) {
   ConsoleLogger::Configure({{"verbosity", "3"}});
   common::HistogramCuts batched_cuts;
   SketchContainer sketch_container(num_bins, num_columns, num_rows, 0);
-  AdapterDeviceSketchWeighted(adapter.Value(), num_bins, info,
-                              std::numeric_limits<float>::quiet_NaN(),
-                              &sketch_container);
+  AdapterDeviceSketch(adapter.Value(), num_bins, info,
+                      std::numeric_limits<float>::quiet_NaN(),
+                      &sketch_container);
   HistogramCuts cuts;
   sketch_container.MakeCuts(&cuts);
   ConsoleLogger::Configure({{"verbosity", "0"}});
@@ -340,9 +347,8 @@ TEST(HistUtil, AdapterDeviceSketchCategorical) {
       auto dmat = GetDMatrixFromData(x, n, 1);
       auto x_device = thrust::device_vector<float>(x);
       auto adapter = AdapterFromData(x_device, n, 1);
-      auto cuts = AdapterDeviceSketch(&adapter, num_bins,
-                                      std::numeric_limits<float>::quiet_NaN());
-      ValidateCuts(cuts, dmat.get(), num_bins);
+      ValidateBatchedCuts(adapter, num_bins, adapter.NumColumns(),
+                          adapter.NumRows(), dmat.get());
     }
   }
 }
@@ -357,9 +363,6 @@ TEST(HistUtil, AdapterDeviceSketchMultipleColumns) {
     auto x_device = thrust::device_vector<float>(x);
     for (auto num_bins : bin_sizes) {
       auto adapter = AdapterFromData(x_device, num_rows, num_columns);
-      auto cuts = AdapterDeviceSketch(&adapter, num_bins,
-                                      std::numeric_limits<float>::quiet_NaN());
-      ValidateCuts(cuts, dmat.get(), num_bins);
       ValidateBatchedCuts(adapter, num_bins, num_columns, num_rows, dmat.get());
     }
   }
@@ -375,11 +378,7 @@ TEST(HistUtil, AdapterDeviceSketchBatches) {
     auto dmat = GetDMatrixFromData(x, num_rows, num_columns);
     auto x_device = thrust::device_vector<float>(x);
     auto adapter = AdapterFromData(x_device, num_rows, num_columns);
-    auto cuts = AdapterDeviceSketch(&adapter, num_bins,
-                                    std::numeric_limits<float>::quiet_NaN(),
-                                    batch_size);
-    ValidateCuts(cuts, dmat.get(), num_bins);
-    ValidateBatchedCuts(adapter, num_bins, num_columns, num_rows, dmat.get());
+    ValidateBatchedCuts(adapter, num_bins, num_columns, num_rows, dmat.get(), batch_size);
   }
 }
 
@@ -396,8 +395,8 @@ TEST(HistUtil, SketchingEquivalent) {
       auto dmat_cuts = DeviceSketch(0, dmat.get(), num_bins);
       auto x_device = thrust::device_vector<float>(x);
       auto adapter = AdapterFromData(x_device, num_rows, num_columns);
-      auto adapter_cuts = AdapterDeviceSketch(
-          &adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
+      common::HistogramCuts adapter_cuts = MakeUnweightedCutsForTest(
+          adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
       EXPECT_EQ(dmat_cuts.Values(), adapter_cuts.Values());
       EXPECT_EQ(dmat_cuts.Ptrs(), adapter_cuts.Ptrs());
       EXPECT_EQ(dmat_cuts.MinValues(), adapter_cuts.MinValues());
@@ -467,8 +466,8 @@ void TestAdapterSketchFromWeights(bool with_group) {
   data::CupyAdapter adapter(m);
   auto const& batch = adapter.Value();
   SketchContainer sketch_container(kBins, kCols, kRows, 0);
-  AdapterDeviceSketchWeighted(adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
-                              &sketch_container);
+  AdapterDeviceSketch(adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
+                      &sketch_container);
   common::HistogramCuts cuts;
   sketch_container.MakeCuts(&cuts);
 
