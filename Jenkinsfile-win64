@@ -12,13 +12,14 @@ pipeline {
   agent none
   // Build stages
   stages {
-    stage('Jenkins Win64: Get sources') {
-      agent { label 'win64 && build' }
+    stage('Jenkins Win64: Initialize') {
+      agent { label 'job_initializer' }
       steps {
         script {
           checkoutSrcs()
           commit_id = "${GIT_COMMIT}"
         }
+        sh 'python3 tests/jenkins_get_approval.py'
         stash name: 'srcs'
         milestone ordinal: 1
       }
