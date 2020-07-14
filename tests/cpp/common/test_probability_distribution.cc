@@ -95,7 +95,7 @@ TEST(ProbabilityDistribution, ExtremeDist) {
     mean +=
       5e-4 * ((x - 1e-3) * ExtremeDistribution::PDF(x - 1e-3) + x * ExtremeDistribution::PDF(x));
   }
-  EXPECT_NEAR(mean, -probability_constant::kEulerMascheroni, 1e-7);
+  EXPECT_NEAR(mean, -kEulerMascheroni, 1e-7);
 
   // Enumerate 25000 grid points in range [-20, 5].
   // Compute the variance of the distribution using numerical integration.
@@ -108,7 +108,7 @@ TEST(ProbabilityDistribution, ExtremeDist) {
     variance += 5e-4 * ((x - 1e-3 - mean) * (x - 1e-3 - mean) * ExtremeDistribution::PDF(x - 1e-3)
                         + (x - mean) * (x - mean) * ExtremeDistribution::PDF(x));
   }
-  EXPECT_NEAR(variance, probability_constant::kPI * probability_constant::kPI / 6.0, 1e-6);
+  EXPECT_NEAR(variance, kPI * kPI / 6.0, 1e-6);
 }
 
 } // namespace common

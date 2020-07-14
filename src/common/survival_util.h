@@ -18,6 +18,7 @@
 #include <xgboost/parameter.h>
 #include <memory>
 #include <algorithm>
+#include <limits>
 #include "probability_distribution.h"
 
 DECLARE_FIELD_ENUM_CLASS(xgboost::common::ProbabilityDistributionType);
@@ -250,7 +251,7 @@ GetLimitGradAtInfPred<NormalDistribution>(CensoringType censor_type, bool sign, 
   case CensoringType::kIntervalCensored:
     return sign ? kMinGradient : kMaxGradient;
   }
-  return nan("");
+  return std::numeric_limits<double>::quiet_NaN();
 }
 
 template <>
@@ -266,7 +267,7 @@ GetLimitHessAtInfPred<NormalDistribution>(CensoringType censor_type, bool sign, 
   case CensoringType::kIntervalCensored:
     return 1.0 / (sigma * sigma);
   }
-  return nan("");
+  return std::numeric_limits<double>::quiet_NaN();
 }
 
 template <>
@@ -282,7 +283,7 @@ GetLimitGradAtInfPred<LogisticDistribution>(CensoringType censor_type, bool sign
   case CensoringType::kIntervalCensored:
     return sign ? (-1.0 / sigma) : (1.0 / sigma);
   }
-  return nan("");
+  return std::numeric_limits<double>::quiet_NaN();
 }
 
 template <>
@@ -295,7 +296,7 @@ GetLimitHessAtInfPred<LogisticDistribution>(CensoringType censor_type, bool sign
   case CensoringType::kIntervalCensored:
     return kMinHessian;
   }
-  return nan("");
+  return std::numeric_limits<double>::quiet_NaN();
 }
 
 template <>
@@ -311,7 +312,7 @@ GetLimitGradAtInfPred<ExtremeDistribution>(CensoringType censor_type, bool sign,
   case CensoringType::kIntervalCensored:
     return sign ? kMinGradient : (1.0 / sigma);
   }
-  return nan("");
+  return std::numeric_limits<double>::quiet_NaN();
 }
 
 template <>
@@ -326,7 +327,7 @@ GetLimitHessAtInfPred<ExtremeDistribution>(CensoringType censor_type, bool sign,
   case CensoringType::kIntervalCensored:
     return sign ? kMaxHessian : kMinHessian;
   }
-  return nan("");
+  return std::numeric_limits<double>::quiet_NaN();
 }
 
 }  // namespace aft
