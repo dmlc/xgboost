@@ -428,7 +428,10 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
 
         from .data import dispatch_data_backend
         handle, feature_names, feature_types = dispatch_data_backend(
-            data, self.missing, self.nthread, feature_names, feature_types)
+            data, missing=self.missing,
+            threads=self.nthread,
+            feature_names=feature_names,
+            feature_types=feature_types)
         assert handle is not None
         self.handle = handle
 

@@ -83,7 +83,7 @@ def _from_scipy_csc(data, missing, feature_names, feature_types):
 
 
 def _is_numpy_array(data):
-    return isinstance(data, np.ndarray)
+    return isinstance(data, (np.ndarray, np.matrix))
 
 
 def _maybe_np_slice(data, dtype):
