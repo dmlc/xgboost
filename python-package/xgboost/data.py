@@ -388,8 +388,17 @@ def _is_cupy_array(data):
     return isinstance(data, cupy.ndarray)
 
 
+def _transform_cupy_array(data):
+    if not hasattr(data, '__cuda_array_interface__') and hasattr(
+            data, '__array__'):
+        import cupy         # pylint: disable=import-error
+        data = cupy.array(data, copy=False)
+    return data
+
+
 def _from_cupy_array(data, missing, nthread, feature_names, feature_types):
     """Initialize DMatrix from cupy ndarray."""
+    data = _transform_cupy_array(data)
     interface = data.__cuda_array_interface__
     if 'mask' in interface:
         interface['mask'] = interface['mask'].__cuda_array_interface__
@@ -427,6 +436,7 @@ def _is_dlpack(data):
 
 def _transform_dlpack(data):
     from cupy import fromDlpack  # pylint: disable=E0401
+    assert 'used_dltenso' not in str(data)
     data = fromDlpack(data)
     return data
 
@@ -570,6 +580,7 @@ def _meta_from_cudf_series(data, handle, field):
 
 
 def _meta_from_cupy_array(data, handle, field):
+    data = _transform_cupy_array(data)
     interface = bytes(json.dumps([data.__cuda_array_interface__],
                                  indent=2), 'utf-8')
     _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle,
@@ -664,6 +675,10 @@ def init_device_quantile_dmatrix(
                 _is_dlpack(data), _is_iter(data)]):
         raise TypeError(str(type(data)) +
                         ' is not supported for DeviceQuantileDMatrix')
+    if _is_dlpack(data):
+        # We specialize for dlpack because cupy will take the memory from it so
+        # it can't be transformed twice.
+        data = _transform_dlpack(data)
     if _is_iter(data):
         it = data
     else:
@@ -706,6 +721,7 @@ def _device_quantile_transform(data, feature_names, feature_types):
     if _is_cudf_ser(data):
         return _transform_cudf_df(data, feature_names, feature_types)
     if _is_cupy_array(data):
+        data = _transform_cupy_array(data)
         return data, feature_names, feature_types
     if _is_dlpack(data):
         return _transform_dlpack(data), feature_names, feature_types
