@@ -436,7 +436,7 @@ def _is_dlpack(data):
 
 def _transform_dlpack(data):
     from cupy import fromDlpack  # pylint: disable=E0401
-    assert 'used_dltenso' not in str(data)
+    assert 'used_dltensor' not in str(data)
     data = fromDlpack(data)
     return data
 
