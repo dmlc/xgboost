@@ -116,7 +116,7 @@ def _transform_np_array(data: np.ndarray):
                        dtype=np.float32)
     flatten = _maybe_np_slice(flatten, np.float32)
     _check_complex(data)
-    return data
+    return flatten
 
 
 def _from_numpy_array(data, missing, nthread, feature_names, feature_types):
