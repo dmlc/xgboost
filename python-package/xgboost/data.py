@@ -1,5 +1,5 @@
 # pylint: disable=too-many-arguments, too-many-branches
-# pylint: disable=too-many-return-statements
+# pylint: disable=too-many-return-statements, import-error
 '''Data dispatching for DMatrix.'''
 import ctypes
 import json
@@ -390,7 +390,7 @@ def _is_cupy_array(data):
 def _transform_cupy_array(data):
     if not hasattr(data, '__cuda_array_interface__') and hasattr(
             data, '__array__'):
-        import cupy         # pylint: disable=import-error
+        import cupy             # pylint: disable=import-error
         data = cupy.array(data, copy=False)
     return data
 
