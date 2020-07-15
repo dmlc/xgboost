@@ -25,7 +25,6 @@ USER_OPTIONS = {
     'use-hdfs':   (None, 'Build with HDFS support', 0),
     'use-azure':  (None, 'Build with AZURE support.', 0),
     'use-s3':     (None, 'Build with S3 support', 0),
-    'use-arrow':  (None, 'Build with Apache Arrow support', 0),
     'plugin-lz4': (None, 'Build lz4 plugin.', 0),
     'plugin-dense-parser': (None, 'Build dense parser plugin.', 0)
 }

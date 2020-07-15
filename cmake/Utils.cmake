@@ -122,11 +122,11 @@ macro(enable_arrow_if_available target)
   find_package(ArrowPython)
   if (ARROW_FOUND AND ARROW_PYTHON_FOUND)
     find_package(Python3 COMPONENTS Development REQUIRED)
-    target_include_directories(${target}  PRIVATE
+    target_include_directories(${target} PRIVATE
                                 ${ARROW_INCLUDE_DIR}
                                 ${ARROW_PYTHON_INCLUDE_DIR}
                                 ${Python3_INCLUDE_DIRS})
-    target_link_libraries(${target} PRIVATE 
+    target_link_libraries(${target} PRIVATE
                           ${ARROW_SHARED_LIB}
                           ${ARROW_PYTHON_SHARED_LIB}
                           ${Python3_LIBRARIES})
