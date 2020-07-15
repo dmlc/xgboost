@@ -282,11 +282,18 @@ def _from_dt_df(data, missing, nthread, feature_names, feature_types):
         data, feature_names, feature_types, None, None)
 
     ptrs = (ctypes.c_void_p * data.ncols)()
-    # datatable>0.8.0
-    for icol in range(data.ncols):
-        col = data.internal.column(icol)
-        ptr = col.data_pointer
-        ptrs[icol] = ctypes.c_void_p(ptr)
+    if hasattr(data, "internal") and hasattr(data.internal, "column"):
+        # datatable>0.8.0
+        for icol in range(data.ncols):
+            col = data.internal.column(icol)
+            ptr = col.data_pointer
+            ptrs[icol] = ctypes.c_void_p(ptr)
+    else:
+        # datatable<=0.8.0
+        from datatable.internal import \
+            frame_column_data_r  # pylint: disable=no-name-in-module
+        for icol in range(data.ncols):
+            ptrs[icol] = frame_column_data_r(data, icol)
 
     # always return stypes for dt ingestion
     feature_type_strings = (ctypes.c_char_p * data.ncols)()
