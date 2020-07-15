@@ -21,7 +21,7 @@ target_include_directories(xgboost-r
   ${PROJECT_SOURCE_DIR}/include
   ${PROJECT_SOURCE_DIR}/dmlc-core/include
   ${PROJECT_SOURCE_DIR}/rabit/include)
-target_link_libraries(xgboost-r PRIVATE ${LIBR_CORE_LIBRARY})
+target_link_libraries(xgboost-r PUBLIC ${LIBR_CORE_LIBRARY})
 set_target_properties(
   xgboost-r PROPERTIES
   CXX_STANDARD 14
