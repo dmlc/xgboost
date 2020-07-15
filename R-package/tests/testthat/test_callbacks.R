@@ -5,8 +5,8 @@ require(data.table)
 
 context("callbacks")
 
-data(agaricus.train, package='xgboost')
-data(agaricus.test, package='xgboost')
+data(agaricus.train, package = 'xgboost')
+data(agaricus.test, package = 'xgboost')
 train <- agaricus.train
 test <- agaricus.test
 
@@ -21,24 +21,24 @@ ltrain <- add.noise(train$label, 0.2)
 ltest <- add.noise(test$label, 0.2)
 dtrain <- xgb.DMatrix(train$data, label = ltrain)
 dtest <- xgb.DMatrix(test$data, label = ltest)
-watchlist = list(train=dtrain, test=dtest)
+watchlist <- list(train = dtrain, test = dtest)
 
 
-err <- function(label, pr) sum((pr > 0.5) != label)/length(label)
+err <- function(label, pr) sum((pr > 0.5) != label) / length(label)
 
 param <- list(objective = "binary:logistic", max_depth = 2, nthread = 2)
 
 
 test_that("cb.print.evaluation works as expected", {
 
-  bst_evaluation <- c('train-auc'=0.9, 'test-auc'=0.8)
+  bst_evaluation <- c('train-auc' = 0.9, 'test-auc' = 0.8)
   bst_evaluation_err <- NULL
   begin_iteration <- 1
   end_iteration <- 7
 
-  f0 <- cb.print.evaluation(period=0)
-  f1 <- cb.print.evaluation(period=1)
-  f5 <- cb.print.evaluation(period=5)
+  f0 <- cb.print.evaluation(period = 0)
+  f1 <- cb.print.evaluation(period = 1)
+  f5 <- cb.print.evaluation(period = 5)
 
   expect_false(is.null(attr(f1, 'call')))
   expect_equal(attr(f1, 'name'), 'cb.print.evaluation')
@@ -57,13 +57,13 @@ test_that("cb.print.evaluation works as expected", {
   expect_output(f1(), "\\[7\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
   expect_output(f5(), "\\[7\\]\ttrain-auc:0.900000\ttest-auc:0.800000")
 
-  bst_evaluation_err  <- c('train-auc'=0.1, 'test-auc'=0.2)
+  bst_evaluation_err  <- c('train-auc' = 0.1, 'test-auc' = 0.2)
   expect_output(f1(), "\\[7\\]\ttrain-auc:0.900000\\+0.100000\ttest-auc:0.800000\\+0.200000")
 })
 
 test_that("cb.evaluation.log works as expected", {
 
-  bst_evaluation <- c('train-auc'=0.9, 'test-auc'=0.8)
+  bst_evaluation <- c('train-auc' = 0.9, 'test-auc' = 0.8)
   bst_evaluation_err <- NULL
 
   evaluation_log <- list()
@@ -75,33 +75,33 @@ test_that("cb.evaluation.log works as expected", {
   iteration <- 1
   expect_silent(f())
   expect_equal(evaluation_log,
-               list(c(iter=1, bst_evaluation)))
+               list(c(iter = 1, bst_evaluation)))
   iteration <- 2
   expect_silent(f())
   expect_equal(evaluation_log,
-               list(c(iter=1, bst_evaluation), c(iter=2, bst_evaluation)))
+               list(c(iter = 1, bst_evaluation), c(iter = 2, bst_evaluation)))
   expect_silent(f(finalize = TRUE))
   expect_equal(evaluation_log,
-               data.table(iter=1:2, train_auc=c(0.9,0.9), test_auc=c(0.8,0.8)))
+               data.table(iter = 1:2, train_auc = c(0.9, 0.9), test_auc = c(0.8, 0.8)))
 
-  bst_evaluation_err  <- c('train-auc'=0.1, 'test-auc'=0.2)
+  bst_evaluation_err  <- c('train-auc' = 0.1, 'test-auc' = 0.2)
   evaluation_log <- list()
   f <- cb.evaluation.log()
 
   iteration <- 1
   expect_silent(f())
   expect_equal(evaluation_log,
-               list(c(iter=1, c(bst_evaluation, bst_evaluation_err))))
+               list(c(iter = 1, c(bst_evaluation, bst_evaluation_err))))
   iteration <- 2
   expect_silent(f())
   expect_equal(evaluation_log,
-               list(c(iter=1, c(bst_evaluation, bst_evaluation_err)),
-                    c(iter=2, c(bst_evaluation, bst_evaluation_err))))
+               list(c(iter = 1, c(bst_evaluation, bst_evaluation_err)),
+                    c(iter = 2, c(bst_evaluation, bst_evaluation_err))))
   expect_silent(f(finalize = TRUE))
   expect_equal(evaluation_log,
-               data.table(iter=1:2,
-                          train_auc_mean=c(0.9,0.9), train_auc_std=c(0.1,0.1),
-                          test_auc_mean=c(0.8,0.8), test_auc_std=c(0.2,0.2)))
+               data.table(iter = 1:2,
+                          train_auc_mean = c(0.9, 0.9), train_auc_std = c(0.1, 0.1),
+                          test_auc_mean = c(0.8, 0.8), test_auc_std = c(0.2, 0.2)))
 })
 
 
@@ -237,7 +237,7 @@ test_that("early stopping using a specific metric works", {
   set.seed(11)
   expect_output(
     bst <- xgb.train(param, dtrain, nrounds = 20, watchlist, eta = 0.6,
-                     eval_metric="logloss", eval_metric="auc",
+                     eval_metric = "logloss", eval_metric = "auc",
                      callbacks = list(cb.early.stop(stopping_rounds = 3, maximize = FALSE,
                                                     metric_name = 'test_logloss')))
   , "Stopping. Best iteration")
@@ -267,12 +267,12 @@ test_that("early stopping xgb.cv works", {
 
 test_that("prediction in xgb.cv works", {
   set.seed(11)
-  nrounds = 4
+  nrounds <- 4
   cv <- xgb.cv(param, dtrain, nfold = 5, eta = 0.5, nrounds = nrounds, prediction = TRUE, verbose = 0)
   expect_false(is.null(cv$evaluation_log))
   expect_false(is.null(cv$pred))
   expect_length(cv$pred, nrow(train$data))
-  err_pred <- mean( sapply(cv$folds, function(f) mean(err(ltrain[f], cv$pred[f]))) )
+  err_pred <- mean(sapply(cv$folds, function(f) mean(err(ltrain[f], cv$pred[f]))))
   err_log <- cv$evaluation_log[nrounds, test_error_mean]
   expect_equal(err_pred, err_log, tolerance = 1e-6)
 
@@ -308,7 +308,7 @@ test_that("prediction in early-stopping xgb.cv works", {
   expect_false(is.null(cv$pred))
   expect_length(cv$pred, nrow(train$data))
 
-  err_pred <- mean( sapply(cv$folds, function(f) mean(err(ltrain[f], cv$pred[f]))) )
+  err_pred <- mean(sapply(cv$folds, function(f) mean(err(ltrain[f], cv$pred[f]))))
   err_log <- cv$evaluation_log[cv$best_iteration, test_error_mean]
   expect_equal(err_pred, err_log, tolerance = 1e-6)
   err_log_last <- cv$evaluation_log[cv$niter, test_error_mean]
