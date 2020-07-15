@@ -277,10 +277,9 @@ def _transform_dt_df(data, feature_names, feature_types, meta=None,
     return data, feature_names, feature_types
 
 
-def _from_dt_df(data, missing, nthread, feature_names, feature_types,
-                meta=None, meta_type=None):
+def _from_dt_df(data, missing, nthread, feature_names, feature_types):
     data, feature_names, feature_types = _transform_dt_df(
-        data, feature_names, feature_types, meta, meta_type)
+        data, feature_names, feature_types, None, None)
 
     ptrs = (ctypes.c_void_p * data.ncols)()
     # datatable>0.8.0
@@ -551,7 +550,7 @@ def _meta_from_tuple(data, field, dtype, handle):
     return _meta_from_list(data, field, dtype, handle)
 
 
-def _meta_from_cudf_df(data, handle, field):
+def _meta_from_cudf_df(data, field, handle):
     if len(data.columns) != 1:
         raise ValueError(
             'Expecting meta-info to contain a single column')
@@ -564,7 +563,7 @@ def _meta_from_cudf_df(data, handle, field):
                                                    interface))
 
 
-def _meta_from_cudf_series(data, handle, field):
+def _meta_from_cudf_series(data, field, handle):
     interface = bytes(json.dumps([data.__cuda_array_interface__],
                                  indent=2), 'utf-8')
     _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle,
@@ -572,13 +571,18 @@ def _meta_from_cudf_series(data, handle, field):
                                                    interface))
 
 
-def _meta_from_cupy_array(data, handle, field):
+def _meta_from_cupy_array(data, field, handle):
     data = _transform_cupy_array(data)
     interface = bytes(json.dumps([data.__cuda_array_interface__],
                                  indent=2), 'utf-8')
     _check_call(_LIB.XGDMatrixSetInfoFromInterface(handle,
                                                    c_str(field),
                                                    interface))
+
+
+def _meta_from_dt(data, field, dtype, handle):
+    data, _, _ = _transform_dt_df(data, None, None)
+    _meta_from_numpy(data, field, dtype, handle)
 
 
 def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
@@ -606,16 +610,19 @@ def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
         return
     if _is_dlpack(data):
         data = _transform_dlpack(data)
-        _meta_from_cupy_array(data, handle, name)
+        _meta_from_cupy_array(data, name, handle)
         return
     if _is_cupy_array(data):
-        _meta_from_cupy_array(data, handle, name)
+        _meta_from_cupy_array(data, name, handle)
         return
     if _is_cudf_ser(data):
-        _meta_from_cudf_series(data, handle, name)
+        _meta_from_cudf_series(data, name, handle)
         return
     if _is_cudf_df(data):
-        _meta_from_cudf_df(data, handle, name)
+        _meta_from_cudf_df(data, name, handle)
+        return
+    if _is_dt_df(data):
+        _meta_from_dt(data, name, dtype, handle)
         return
     if _has_array_protocol(data):
         pass
