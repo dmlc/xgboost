@@ -725,6 +725,8 @@ def _device_quantile_transform(data, feature_names, feature_types):
         return data, feature_names, feature_types
     if _is_dlpack(data):
         return _transform_dlpack(data), feature_names, feature_types
+    raise TypeError('Value type is not supported for data iterator:' +
+                    str(type(data)))
 
 
 def dispatch_device_quantile_dmatrix_set_data(proxy, data):

@@ -68,7 +68,7 @@ class TestBasic(unittest.TestCase):
             # save dmatrix into binary buffer
             dtest.save_binary(dtest_path)
             # save model
-            model_path = 'model.booster'
+            model_path = os.path.join(tmpdir, 'model.booster')
             bst.save_model(model_path)
             # load model and data in
             bst2 = xgb.Booster(model_file=model_path)
