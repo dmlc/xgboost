@@ -1,6 +1,4 @@
 environment:
-    R_ARCH: x64
-    USE_RTOOLS: true
     matrix:
         - target: msvc
           ver: 2015
@@ -11,13 +9,6 @@ environment:
           generator: "Visual Studio 14 2015 Win64"
           configuration: Release
         - target: mingw
-          generator: "Unix Makefiles"
-        - target: jvm
-        - target: rmsvc
-          ver: 2015
-          generator: "Visual Studio 14 2015 Win64"
-          configuration: Release
-        - target: rmingw
           generator: "Unix Makefiles"
 
 #matrix:
@@ -47,18 +38,6 @@ install:
         conda install -y numpy scipy pandas matplotlib pytest scikit-learn graphviz python-graphviz hypothesis
       )
     - set PATH=C:\Miniconda3-x64\Library\bin\graphviz;%PATH%
-    # R: based on https://github.com/krlmlr/r-appveyor
-    - ps: |
-        if($env:target -eq 'rmingw' -or $env:target -eq 'rmsvc') {
-          #$ErrorActionPreference = "Stop"
-          Invoke-WebRequest https://raw.githubusercontent.com/krlmlr/r-appveyor/master/scripts/appveyor-tool.ps1 -OutFile "$Env:TEMP\appveyor-tool.ps1"
-          Import-Module "$Env:TEMP\appveyor-tool.ps1"
-          Bootstrap
-          $BINARY_DEPS = "c('XML','igraph')"
-          cmd.exe /c "R.exe -q -e ""install.packages($BINARY_DEPS, repos='$CRAN', type='win.binary')"" 2>&1"
-          $DEPS = "c('data.table','magrittr','stringi','ggplot2','DiagrammeR','Ckmeans.1d.dp','vcd','testthat','lintr','knitr','rmarkdown')"
-          cmd.exe /c "R.exe -q -e ""install.packages($DEPS, repos='$CRAN', type='both')"" 2>&1"
-        }
 
 build_script:
     - cd %APPVEYOR_BUILD_FOLDER%
@@ -81,53 +60,12 @@ build_script:
         mkdir wheel &&
         python setup.py bdist_wheel --universal --plat-name win-amd64 -d wheel
       )
-    # R package: make + mingw standard CRAN packaging (only x64 for now)
-    - if /i "%target%" == "rmingw" (
-        make Rbuild &&
-        ls -l &&
-        R.exe CMD INSTALL xgboost*.tar.gz
-      )
-    # R package: cmake + VC2015
-    - if /i "%target%" == "rmsvc" (
-        mkdir build_rmsvc%ver% &&
-        cd build_rmsvc%ver% &&
-        cmake .. -G"%generator%" -DCMAKE_CONFIGURATION_TYPES="Release" -DR_LIB=ON &&
-        cmake --build . --target install --config Release
-      )
-    - if /i "%target%" == "jvm" cd jvm-packages && mvn test -pl :xgboost4j_2.12
 
 test_script:
     - cd %APPVEYOR_BUILD_FOLDER%
     - if /i "%DO_PYTHON%" == "on" python -m pytest tests/python
-    # mingw R package: run the R check (which includes unit tests), and also keep the built binary package
-    - if /i "%target%" == "rmingw" (
-        set _R_CHECK_CRAN_INCOMING_=FALSE&&
-        set _R_CHECK_FORCE_SUGGESTS_=FALSE&&
-        R.exe CMD check xgboost*.tar.gz --no-manual --no-build-vignettes --as-cran --install-args=--build
-      )
-    # MSVC R package: run only the unit tests
-    - if /i "%target%" == "rmsvc" (
-        cd R-package &&
-        R.exe -q -e "library(testthat); setwd('tests'); source('testthat.R')"
-      )
-
-on_failure:
-    # keep the whole output of R check
-    - if /i "%target%" == "rmingw" (
-        7z a failure.zip *.Rcheck\* &&
-        appveyor PushArtifact failure.zip
-      )
 
 artifacts:
-    # log from R check
-    - path: '*.Rcheck\**\*.log'
-      name: Logs
-    # source R-package
-    - path: '\xgboost_*.tar.gz'
-      name: Bits
-    # binary R-package
-    - path: '**\xgboost_*.zip'
-      name: Bits
     # binary Python wheel package
     - path: '**\*.whl'
       name: Bits
