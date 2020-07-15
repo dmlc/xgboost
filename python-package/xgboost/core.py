@@ -322,6 +322,10 @@ class DataIter:
                         label_lower_bound=None, label_upper_bound=None,
                         feature_names=None, feature_types=None):
             from .data import dispatch_device_quantile_dmatrix_set_data
+            from .data import _device_quantile_transform
+            data, feature_names, feature_types = _device_quantile_transform(
+                data, feature_names, feature_types
+            )
             dispatch_device_quantile_dmatrix_set_data(self.proxy, data)
             self.proxy.set_info(label=label, weight=weight,
                                 base_margin=base_margin,

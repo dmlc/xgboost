@@ -700,6 +700,17 @@ def init_device_quantile_dmatrix(
     return handle, feature_names, feature_types
 
 
+def _device_quantile_transform(data, feature_names, feature_types):
+    if _is_cudf_df(data):
+        return _transform_cudf_df(data, feature_names, feature_types)
+    if _is_cudf_ser(data):
+        return _transform_cudf_df(data, feature_names, feature_types)
+    if _is_cupy_array(data):
+        return data, feature_names, feature_types
+    if _is_dlpack(data):
+        return _transform_dlpack(data), feature_names, feature_types
+
+
 def dispatch_device_quantile_dmatrix_set_data(proxy, data):
     '''Dispatch for DeviceQuantileDMatrix.'''
     if _is_cudf_df(data):
