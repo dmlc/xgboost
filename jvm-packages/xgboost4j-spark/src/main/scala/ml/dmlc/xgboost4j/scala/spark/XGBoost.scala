@@ -354,7 +354,6 @@ object XGBoost extends Serializable {
         // TODO should we throw exception ?
         logger.warn("XGBoost only supports 1 gpu per worker")
       }
-      logger.warn("===================================xxxxxxxxxxxx")
       // take the first one
       addrs.head.toInt
     } else {
@@ -402,7 +401,6 @@ object XGBoost extends Serializable {
         logger.info("Leveraging gpu device " + gpuId + " to train")
         params = params + ("gpu_id" -> gpuId)
       }
-      logger.info(params)
       val booster = if (makeCheckpoint) {
         SXGBoost.trainAndSaveCheckpoint(
           watches.toMap("train"), params, numRounds,
