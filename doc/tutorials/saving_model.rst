@@ -112,7 +112,7 @@ configuration directly as a JSON string.  In Python package:
   print(config)
 
 
-or
+or in R:
 
 .. code-block:: R
 
@@ -158,22 +158,9 @@ Will print out something similiar to (not actual output as it's too long for dem
                 "colsample_bynode": "1",
                 "colsample_bytree": "1",
                 "default_direction": "learn",
-                "enable_feature_grouping": "0",
-                "eta": "0.300000012",
-                "gamma": "0",
-                "grow_policy": "depthwise",
-                "interaction_constraints": "",
-                "lambda": "1",
-                "learning_rate": "0.300000012",
-                "max_bin": "256",
-                "max_conflict_rate": "0",
-                "max_delta_step": "0",
-                "max_depth": "6",
-                "max_leaves": "0",
-                "max_search_group": "100",
-                "refresh_leaf": "1",
-                "sketch_eps": "0.0299999993",
-                "sketch_ratio": "2",
+
+                ...
+
                 "subsample": "1"
               }
             }
@@ -207,13 +194,16 @@ This way users can study the internal representation more closely.  Please note 
 JSON generators make use of locale dependent floating point serialization methods, which
 is not supported by XGBoost.
 
-************
-Future Plans
-************
+*************************************************
+Difference between saving model and dumping model
+*************************************************
 
-Right now using the JSON format incurs longer serialisation time, we have been working on
-optimizing the JSON implementation to close the gap between binary format and JSON format.
-You can track the progress in `#5046 <https://github.com/dmlc/xgboost/pull/5046>`_.
+XGBoost has a function called ``dump_model`` in Booster object, which lets you to export
+the model in a readable format like ``text``, ``json`` or ``dot`` (graphviz).  The primary
+use case for it is for model interpretation or visualization, and is not supposed to be
+loaded back to XGBoost.  The JSON version has a `schema
+<https://github.com/dmlc/xgboost/blob/master/doc/dump.schema>`_.  See next section for
+more info.
 
 ***********
 JSON Schema
@@ -229,3 +219,10 @@ leaf directly, instead it saves the weights as a separated array.
 
 .. include:: ../model.schema
    :code: json
+
+************
+Future Plans
+************
+
+Right now using the JSON format incurs longer serialisation time, we have been working on
+optimizing the JSON implementation to close the gap between binary format and JSON format.

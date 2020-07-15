@@ -4,7 +4,6 @@
 #include "xgboost/learner.h"
 #include "c_api_error.h"
 #include "../data/device_adapter.cuh"
-#include "../data/device_dmatrix.h"
 
 using namespace xgboost;  // NOLINT
 
@@ -31,28 +30,6 @@ XGB_DLL int XGDMatrixCreateFromArrayInterface(char const* c_json_strs,
   API_END();
 }
 
-XGB_DLL int XGDeviceQuantileDMatrixCreateFromArrayInterfaceColumns(char const* c_json_strs,
-  bst_float missing, int nthread, int max_bin,
-  DMatrixHandle* out) {
-  API_BEGIN();
-  std::string json_str{c_json_strs};
-  data::CudfAdapter adapter(json_str);
-  *out =
-    new std::shared_ptr<DMatrix>(new data::DeviceDMatrix(&adapter, missing, nthread, max_bin));
-  API_END();
-}
-
-XGB_DLL int XGDeviceQuantileDMatrixCreateFromArrayInterface(char const* c_json_strs,
-  bst_float missing, int nthread, int max_bin,
-  DMatrixHandle* out) {
-  API_BEGIN();
-  std::string json_str{c_json_strs};
-  data::CupyAdapter adapter(json_str);
-  *out =
-    new std::shared_ptr<DMatrix>(new data::DeviceDMatrix(&adapter, missing, nthread, max_bin));
-  API_END();
-}
-
 // A hidden API as cache id is not being supported yet.
 XGB_DLL int XGBoosterPredictFromArrayInterfaceColumns(BoosterHandle handle,
                                                       char const* c_json_strs,
@@ -69,7 +46,7 @@ XGB_DLL int XGBoosterPredictFromArrayInterfaceColumns(BoosterHandle handle,
   auto *learner = static_cast<Learner*>(handle);
 
   std::string json_str{c_json_strs};
-  auto x = data::CudfAdapter(json_str);
+  auto x = std::make_shared<data::CudfAdapter>(json_str);
   HostDeviceVector<float>* p_predt { nullptr };
   std::string type { c_type };
   learner->InplacePredict(x, type, missing, &p_predt);
@@ -97,7 +74,7 @@ XGB_DLL int XGBoosterPredictFromArrayInterface(BoosterHandle handle,
   auto *learner = static_cast<Learner*>(handle);
 
   std::string json_str{c_json_strs};
-  auto x = data::CupyAdapter(json_str);
+  auto x = std::make_shared<data::CupyAdapter>(json_str);
   HostDeviceVector<float>* p_predt { nullptr };
   std::string type { c_type };
   learner->InplacePredict(x, type, missing, &p_predt);

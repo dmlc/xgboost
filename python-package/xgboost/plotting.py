@@ -56,8 +56,8 @@ def plot_importance(booster, ax=None, height=0.2,
     """
     try:
         import matplotlib.pyplot as plt
-    except ImportError:
-        raise ImportError('You must install matplotlib to plot importance')
+    except ImportError as e:
+        raise ImportError('You must install matplotlib to plot importance') from e
 
     if isinstance(booster, XGBModel):
         importance = booster.get_booster().get_score(
@@ -168,8 +168,8 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
     """
     try:
         from graphviz import Source
-    except ImportError:
-        raise ImportError('You must install graphviz to plot tree')
+    except ImportError as e:
+        raise ImportError('You must install graphviz to plot tree') from e
     if isinstance(booster, XGBModel):
         booster = booster.get_booster()
 
@@ -237,8 +237,8 @@ def plot_tree(booster, fmap='', num_trees=0, rankdir=None, ax=None, **kwargs):
     try:
         from matplotlib import pyplot as plt
         from matplotlib import image
-    except ImportError:
-        raise ImportError('You must install matplotlib to plot tree')
+    except ImportError as e:
+        raise ImportError('You must install matplotlib to plot tree') from e
 
     if ax is None:
         _, ax = plt.subplots(1, 1)

@@ -13,7 +13,7 @@ exclude <-  c('POLICYNO', 'PLCYDATE', 'CLM_FREQ5', 'CLM_AMT5', 'CLM_FLAG', 'IN_Y
 # retains the missing values
 # NOTE: this dataset is comes ready out of the box
 options(na.action = 'na.pass')
-x <- sparse.model.matrix(~ . - 1, data = dt[, -exclude, with = F])
+x <- sparse.model.matrix(~ . - 1, data = dt[, -exclude, with = FALSE])
 options(na.action = 'na.omit')
 
 # response

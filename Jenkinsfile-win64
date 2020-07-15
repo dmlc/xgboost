@@ -12,13 +12,14 @@ pipeline {
   agent none
   // Build stages
   stages {
-    stage('Jenkins Win64: Get sources') {
-      agent { label 'win64 && build' }
+    stage('Jenkins Win64: Initialize') {
+      agent { label 'job_initializer' }
       steps {
         script {
           checkoutSrcs()
           commit_id = "${GIT_COMMIT}"
         }
+        sh 'python3 tests/jenkins_get_approval.py'
         stash name: 'srcs'
         milestone ordinal: 1
       }
@@ -40,7 +41,6 @@ pipeline {
         script {
           parallel ([
             'test-win64-cpu': { TestWin64CPU() },
-            'test-win64-gpu-cuda10.0': { TestWin64GPU(cuda_target: 'cuda10_0') },
             'test-win64-gpu-cuda10.1': { TestWin64GPU(cuda_target: 'cuda10_1') }
           ])
         }
@@ -113,7 +113,7 @@ def TestWin64CPU() {
     """
     echo "Installing Python dependencies..."
     bat """
-     conda activate && conda upgrade scikit-learn pandas numpy
+     conda activate && conda install -y hypothesis && conda upgrade scikit-learn pandas numpy hypothesis
     """
     echo "Running Python tests..."
     bat "conda activate && python -m pytest -v -s --fulltrace tests\\python"
@@ -137,8 +137,9 @@ def TestWin64GPU(args) {
     conda activate && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"
     """
     echo "Installing Python dependencies..."
+    def cuda_short_ver = args.cuda_target.replaceAll('_', '')
     bat """
-     conda activate && conda upgrade scikit-learn pandas numpy
+     conda activate && conda install -y hypothesis && conda upgrade scikit-learn pandas numpy hypothesis  && python -m pip install cupy-${cuda_short_ver}
     """
     echo "Running Python tests..."
     bat """

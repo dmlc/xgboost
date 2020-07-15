@@ -115,6 +115,51 @@ def test_ranking():
     np.testing.assert_almost_equal(pred, pred_orig)
 
 
+def test_stacking_regression():
+    from sklearn.model_selection import train_test_split
+    from sklearn.datasets import load_diabetes
+    from sklearn.linear_model import RidgeCV
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.ensemble import StackingRegressor
+
+    X, y = load_diabetes(return_X_y=True)
+    estimators = [
+        ('gbm', xgb.sklearn.XGBRegressor(objective='reg:squarederror')),
+        ('lr', RidgeCV())
+    ]
+    reg = StackingRegressor(
+        estimators=estimators,
+        final_estimator=RandomForestRegressor(n_estimators=10,
+                                              random_state=42)
+    )
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
+    reg.fit(X_train, y_train).score(X_test, y_test)
+
+
+def test_stacking_classification():
+    from sklearn.model_selection import train_test_split
+    from sklearn.datasets import load_iris
+    from sklearn.svm import LinearSVC
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.pipeline import make_pipeline
+    from sklearn.ensemble import StackingClassifier
+
+    X, y = load_iris(return_X_y=True)
+    estimators = [
+        ('gbm', xgb.sklearn.XGBClassifier()),
+        ('svr', make_pipeline(StandardScaler(),
+                              LinearSVC(random_state=42)))
+    ]
+    clf = StackingClassifier(
+        estimators=estimators, final_estimator=LogisticRegression()
+    )
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
+    clf.fit(X_train, y_train).score(X_test, y_test)
+
+
 @pytest.mark.skipif(**tm.no_pandas())
 def test_feature_importances_weight():
     from sklearn.datasets import load_digits

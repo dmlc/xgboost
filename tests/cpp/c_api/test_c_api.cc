@@ -10,7 +10,6 @@
 #include "../helpers.h"
 #include "../../../src/common/io.h"
 
-
 TEST(CAPI, XGDMatrixCreateFromMatDT) {
   std::vector<int> col0 = {0, -1, 3};
   std::vector<float> col1 = {-4.0f, 2.0f, 0.0f};
@@ -113,9 +112,10 @@ TEST(CAPI, ConfigIO) {
 
 TEST(CAPI, JsonModelIO) {
   size_t constexpr kRows = 10;
+  size_t constexpr kCols = 10;
   dmlc::TemporaryDirectory tempdir;
 
-  auto p_dmat = RandomDataGenerator(kRows, 10, 0).GenerateDMatrix();
+  auto p_dmat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
   std::vector<std::shared_ptr<DMatrix>> mat {p_dmat};
   std::vector<bst_float> labels(kRows);
   for (size_t i = 0; i < labels.size(); ++i) {
@@ -131,6 +131,10 @@ TEST(CAPI, JsonModelIO) {
   std::string modelfile_0 = tempdir.path + "/model_0.json";
   XGBoosterSaveModel(handle, modelfile_0.c_str());
   XGBoosterLoadModel(handle, modelfile_0.c_str());
+
+  bst_ulong num_feature {0};
+  ASSERT_EQ(XGBoosterGetNumFeature(handle, &num_feature), 0);
+  ASSERT_EQ(num_feature, kCols);
 
   std::string modelfile_1 = tempdir.path + "/model_1.json";
   XGBoosterSaveModel(handle, modelfile_1.c_str());
@@ -148,4 +152,48 @@ TEST(CAPI, CatchDMLCError) {
   EXPECT_THROW({ dmlc::Stream::Create("foo", "r"); },  dmlc::Error);
 }
 
+TEST(CAPI, DMatrixSetFeatureName) {
+  size_t constexpr kRows = 10;
+  bst_feature_t constexpr kCols = 2;
+
+  DMatrixHandle handle;
+  std::vector<float> data(kCols * kRows, 1.5);
+
+  XGDMatrixCreateFromMat_omp(data.data(), kRows, kCols,
+                             std::numeric_limits<float>::quiet_NaN(), &handle,
+                             0);
+  std::vector<std::string> feature_names;
+  for (bst_feature_t i = 0; i < kCols; ++i) {
+    feature_names.emplace_back(std::to_string(i));
+  }
+  std::vector<char const*> c_feature_names;
+  c_feature_names.resize(feature_names.size());
+  std::transform(feature_names.cbegin(), feature_names.cend(),
+                 c_feature_names.begin(),
+                 [](auto const &str) { return str.c_str(); });
+  XGDMatrixSetStrFeatureInfo(handle, u8"feature_name", c_feature_names.data(),
+                             c_feature_names.size());
+  bst_ulong out_len = 0;
+  char const **c_out_features;
+  XGDMatrixGetStrFeatureInfo(handle, u8"feature_name", &out_len,
+                             &c_out_features);
+
+  CHECK_EQ(out_len, kCols);
+  std::vector<std::string> out_features;
+  for (bst_ulong i = 0; i < out_len; ++i) {
+    ASSERT_EQ(std::to_string(i), c_out_features[i]);
+  }
+
+  char const* feat_types [] {"i", "q"};
+  static_assert(sizeof(feat_types)/ sizeof(feat_types[0]) == kCols, "");
+  XGDMatrixSetStrFeatureInfo(handle, "feature_type", feat_types, kCols);
+  char const **c_out_types;
+  XGDMatrixGetStrFeatureInfo(handle, u8"feature_type", &out_len,
+                             &c_out_types);
+  for (bst_ulong i = 0; i < out_len; ++i) {
+    ASSERT_STREQ(feat_types[i], c_out_types[i]);
+  }
+
+  XGDMatrixFree(handle);
+}
 }  // namespace xgboost

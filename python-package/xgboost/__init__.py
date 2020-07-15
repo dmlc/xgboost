@@ -5,8 +5,6 @@ Contributors: https://github.com/dmlc/xgboost/blob/master/CONTRIBUTORS.md
 """
 
 import os
-import sys
-import warnings
 
 from .core import DMatrix, DeviceQuantileDMatrix, Booster
 from .training import train, cv

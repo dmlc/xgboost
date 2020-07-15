@@ -146,6 +146,9 @@ class XGBoostClassifier (
     value
   )
 
+  def setSinglePrecisionHistogram(value: Boolean): this.type =
+    set(singlePrecisionHistogram, value)
+
   // called at the start of fit/train when 'eval_metric' is not defined
   private def setupDefaultEvalMetric(): String = {
     require(isDefined(objective), "Users must set \'objective\' via xgboostParams.")
@@ -277,7 +280,7 @@ class XGBoostClassificationModel private[ml](
   }
 
   // Actually we don't use this function at all, to make it pass compiler check.
-  override protected def predictRaw(features: Vector): Vector = {
+  override def predictRaw(features: Vector): Vector = {
     throw new Exception("XGBoost-Spark does not support \'predictRaw\'")
   }
 
