@@ -32,6 +32,7 @@ option(R_LIB "Build shared library for R package" OFF)
 ## Dev
 option(USE_DEBUG_OUTPUT "Dump internal training results like gradients and predictions to stdout.
 Should only be used for debugging." OFF)
+option(ENABLE_ALL_WARNINGS "Enable all compiler warnings. Only effective for GCC/Clang" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
@@ -79,6 +80,11 @@ endif (R_LIB AND GOOGLE_TEST)
 if (USE_AVX)
   message(SEND_ERROR  "The option 'USE_AVX' is deprecated as experimental AVX features have been removed from XGBoost.")
 endif (USE_AVX)
+if (ENABLE_ALL_WARNINGS)
+  if ((NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang") AND (NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
+    message(SEND_ERROR "ENABLE_ALL_WARNINGS is only available for Clang and GCC.")
+  endif ((NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang") AND (NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
+endif (ENABLE_ALL_WARNINGS)
 
 #-- Sanitizer
 if (USE_SANITIZER)
@@ -130,6 +136,9 @@ if (MSVC)
                            -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
   endif (TARGET dmlc_unit_tests)
 endif (MSVC)
+if (ENABLE_ALL_WARNINGS)
+  target_compile_options(dmlc PUBLIC -Wall -Wextra)
+endif (ENABLE_ALL_WARNINGS)
 target_link_libraries(objxgboost PUBLIC dmlc)
 
 # rabit
@@ -159,6 +168,9 @@ foreach(lib rabit rabit_base rabit_empty rabit_mock rabit_mock_static)
     if (HIDE_CXX_SYMBOLS)  # Hide all C++ symbols from Rabit
       set_target_properties(${lib} PROPERTIES CXX_VISIBILITY_PRESET hidden)
     endif (HIDE_CXX_SYMBOLS)
+    if (ENABLE_ALL_WARNINGS)
+      target_compile_options(${lib} PUBLIC -Wall -Wextra)
+    endif (ENABLE_ALL_WARNINGS)
   endif (TARGET ${lib})
 endforeach()
 
