@@ -92,10 +92,10 @@ def _test_cupy_metainfo(DMatrixT):
     dmat.set_float_info('label', floats)
     dmat.set_float_info('base_margin', floats)
     dmat.set_uint_info('group', uints)
-    dmat_cupy.set_interface_info('weight', cupy_floats)
-    dmat_cupy.set_interface_info('label', cupy_floats)
-    dmat_cupy.set_interface_info('base_margin', cupy_floats)
-    dmat_cupy.set_interface_info('group', cupy_uints)
+    dmat_cupy.set_info(weight=cupy_floats)
+    dmat_cupy.set_info(label=cupy_floats)
+    dmat_cupy.set_info(base_margin=cupy_floats)
+    dmat_cupy.set_info(group=cupy_uints)
 
     # Test setting info with cupy
     assert np.array_equal(dmat.get_float_info('weight'),
