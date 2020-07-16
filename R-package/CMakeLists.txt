@@ -7,7 +7,7 @@ file(GLOB_RECURSE R_SOURCES
 # Use object library to expose symbols
 add_library(xgboost-r OBJECT ${R_SOURCES})
 if (ENABLE_ALL_WARNINGS)
-  target_compile_options(xgboost-r PUBLIC -Wall -Wextra)
+  target_compile_options(xgboost-r PRIVATE -Wall -Wextra)
 endif (ENABLE_ALL_WARNINGS)
 target_compile_definitions(xgboost-r
   PUBLIC
