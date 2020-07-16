@@ -15,7 +15,7 @@ c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
 
 
 def _warn_unused_missing(data, missing):
-    if not (np.isnan(missing) or None):
+    if (not np.isnan(missing)) or (missing is None):
         warnings.warn(
             '`missing` is not used for current input data type:' +
             str(type(data)))
