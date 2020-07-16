@@ -114,7 +114,6 @@ class ArrayInterfaceHandler {
             get<Array const>(
                 obj.at("data"))
             .at(0))));
-    CHECK(p_data);
     return p_data;
   }
 
@@ -224,6 +223,9 @@ class ArrayInterfaceHandler {
     auto shape = ExtractShape(column);
 
     T* p_data = ArrayInterfaceHandler::GetPtrFromArrayData<T*>(column);
+    if (!p_data) {
+      CHECK_EQ(shape.first * shape.second, 0) << "Empty data with non-zero shape.";
+    }
     return common::Span<T>{p_data, shape.first * shape.second};
   }
 };
@@ -234,7 +236,6 @@ class ArrayInterface {
                   bool allow_mask = true) {
     ArrayInterfaceHandler::Validate(column);
     data = ArrayInterfaceHandler::GetPtrFromArrayData<void*>(column);
-    CHECK(data) << "Column is null";
     auto shape = ArrayInterfaceHandler::ExtractShape(column);
     num_rows = shape.first;
     num_cols = shape.second;
