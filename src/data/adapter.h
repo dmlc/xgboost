@@ -136,8 +136,7 @@ class CSRAdapterBatch : public detail::NoMetaInfo {
     const float* values_;
   };
   CSRAdapterBatch(const size_t* row_ptr, const unsigned* feature_idx,
-                  const float* values, size_t num_rows, size_t num_elements,
-                  size_t num_features)
+                  const float* values, size_t num_rows, size_t num_features)
       : row_ptr_(row_ptr),
         feature_idx_(feature_idx),
         values_(values),
@@ -160,10 +159,8 @@ class CSRAdapterBatch : public detail::NoMetaInfo {
 class CSRAdapter : public detail::SingleBatchDataIter<CSRAdapterBatch> {
  public:
   CSRAdapter(const size_t* row_ptr, const unsigned* feature_idx,
-             const float* values, size_t num_rows, size_t num_elements,
-             size_t num_features)
-      : batch_(row_ptr, feature_idx, values, num_rows, num_elements,
-               num_features),
+             const float* values, size_t num_rows, size_t num_features)
+      : batch_(row_ptr, feature_idx, values, num_rows, num_features),
         num_rows_(num_rows),
         num_columns_(num_features) {}
   const CSRAdapterBatch& Value() const override { return batch_; }

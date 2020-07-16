@@ -150,11 +150,11 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
                                      const unsigned* indices,
                                      const bst_float* data,
                                      size_t nindptr,
-                                     size_t nelem,
+                                     size_t nelem, // unused
                                      size_t num_col,
                                      DMatrixHandle* out) {
   API_BEGIN();
-  data::CSRAdapter adapter(indptr, indices, data, nindptr - 1, nelem, num_col);
+  data::CSRAdapter adapter(indptr, indices, data, nindptr - 1, num_col);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), 1));
   API_END();
 }
@@ -546,7 +546,7 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle,
                                     const unsigned* indices,
                                     const bst_float* data,
                                     size_t nindptr,
-                                    size_t nelem,
+                                    size_t nelem, // unusued
                                     size_t num_col,
                                     float missing,
                                     unsigned iteration_begin,
@@ -561,7 +561,7 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle,
   auto *learner = static_cast<xgboost::Learner *>(handle);
 
   std::shared_ptr<xgboost::data::CSRAdapter> x{
-    new xgboost::data::CSRAdapter(indptr, indices, data, nindptr - 1, nelem, num_col)};
+    new xgboost::data::CSRAdapter(indptr, indices, data, nindptr - 1, num_col)};
   HostDeviceVector<float>* p_predt { nullptr };
   std::string type { c_type };
   learner->InplacePredict(x, type, missing, &p_predt);
