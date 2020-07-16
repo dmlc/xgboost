@@ -62,7 +62,8 @@ if (MSVC)
   )
 endif (MSVC)
 if (ENABLE_ALL_WARNINGS)
-  target_compile_options(testxgboost PUBLIC -Wall -Wextra)
+  target_compile_options(testxgboost PUBLIC
+    $<IF:$<COMPILE_LANGUAGE:CUDA>,-Xcompiler=-Wall -Xcompiler=-Wextra,-Wall -Wextra>)
 endif (ENABLE_ALL_WARNINGS)
 
 target_include_directories(testxgboost
