@@ -133,6 +133,38 @@ int main(int argc, char** argv) {
     safe_xgboost(XGDMatrixFree(dmat));
   }
 
+  {
+    printf("Sparse Matrix Example (XGDMatrixCreateFromCSCEx): ");
+
+    const size_t col_ptr[] = {0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2,
+      2, 2, 2, 2, 3, 3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 7, 7, 7, 8,
+      8, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 10, 10, 10, 11, 11, 11, 11, 11, 11,
+      11, 11, 11, 12, 12, 12, 12, 13, 13, 13, 13, 13, 13, 13, 13, 14, 14, 14,
+      14, 14, 14, 14, 14, 14, 15, 15, 16, 16, 16, 16, 17, 17, 17, 18, 18, 18,
+      18, 18, 18, 18, 19, 19, 19, 19, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+      20, 21, 21, 21, 21, 21, 22, 22, 22, 22, 22};
+
+    const unsigned indices[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0};
+
+    const float data[] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+
+    DMatrixHandle dmat;
+    safe_xgboost(XGDMatrixCreateFromCSCEx(col_ptr, indices, data, 128, 22, 1,
+      &dmat));
+
+    bst_ulong out_len = 0;
+    const float* out_result = NULL;
+
+    safe_xgboost(XGBoosterPredict(booster, dmat, 0, 0, 0, &out_len,
+          &out_result));
+    assert(out_len == 1);
+
+    printf("%1.4f \n", out_result[0]);
+    safe_xgboost(XGDMatrixFree(dmat));
+  }
+
   // free everything
   safe_xgboost(XGBoosterFree(booster));
   safe_xgboost(XGDMatrixFree(dtrain));
