@@ -93,10 +93,34 @@ int main(int argc, char** argv) {
       1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
       0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0,
       1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      1, 0, 0, 0, 0, 1};
+      1, 0, 0, 0, 0, 1, 0, 0, 0, 0};
 
     DMatrixHandle dmat;
     safe_xgboost(XGDMatrixCreateFromMat(values, 1, 127, 0.0, &dmat));
+
+    bst_ulong out_len = 0;
+    const float* out_result = NULL;
+
+    safe_xgboost(XGBoosterPredict(booster, dmat, 0, 0, 0, &out_len,
+          &out_result));
+    assert(out_len == 1);
+
+    printf("%1.4f \n", out_result[0]);
+    safe_xgboost(XGDMatrixFree(dmat));
+  }
+
+  {
+    printf("Sparse Matrix Example (XGDMatrixCreateFromCSREx): ");
+
+    const size_t indptr[] = {0, 22};
+    const unsigned indices[] = {1, 9, 19, 21, 24, 34, 36, 39, 42, 53, 56, 65,
+      69, 77, 86, 88, 92, 95, 102, 106, 117, 122};
+    const float data[] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+
+    DMatrixHandle dmat;
+    safe_xgboost(XGDMatrixCreateFromCSREx(indptr, indices, data, 2, 22, 127,
+      &dmat));
 
     bst_ulong out_len = 0;
     const float* out_result = NULL;
