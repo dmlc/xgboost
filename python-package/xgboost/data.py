@@ -323,7 +323,7 @@ def _is_cudf_df(data):
 def _cudf_array_interfaces(data):
     '''Extract CuDF __cuda_array_interface__'''
     interfaces = []
-    if lazy_isinstance(data, 'cudf.core.series', 'Series'):
+    if _is_cudf_ser(data):
         interfaces.append(data.__cuda_array_interface__)
     else:
         for col in data:
@@ -337,7 +337,7 @@ def _cudf_array_interfaces(data):
 
 def _transform_cudf_df(data, feature_names, feature_types):
     if feature_names is None:
-        if lazy_isinstance(data, 'cudf.core.series', 'Series'):
+        if _is_cudf_ser(data):
             feature_names = [data.name]
         elif lazy_isinstance(
                 data.columns, 'cudf.core.multiindex', 'MultiIndex'):
@@ -348,7 +348,7 @@ def _transform_cudf_df(data, feature_names, feature_types):
         else:
             feature_names = data.columns.format()
     if feature_types is None:
-        if lazy_isinstance(data, 'cudf.core.series', 'Series'):
+        if _is_cudf_ser(data):
             dtypes = [data.dtype]
         else:
             dtypes = data.dtypes
