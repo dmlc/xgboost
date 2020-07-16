@@ -100,7 +100,8 @@ inline size_t constexpr BytesPerElement(bool has_weight) {
  *        directly if it's not 0.
  */
 size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
-                              bst_row_t num_rows, size_t columns, size_t nnz, int device,
+                              bst_row_t num_rows, bst_feature_t columns,
+                              size_t nnz, int device,
                               size_t num_cuts, bool has_weight);
 
 // Compute number of sample cuts needed on local node to maintain accuracy

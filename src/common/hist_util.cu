@@ -162,7 +162,8 @@ size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
 }
 
 size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
-                              bst_row_t num_rows, size_t columns, size_t nnz, int device,
+                              bst_row_t num_rows, bst_feature_t columns,
+                              size_t nnz, int device,
                               size_t num_cuts, bool has_weight) {
   if (sketch_batch_num_elements == 0) {
     auto required_memory = RequiredMemory(num_rows, columns, nnz, num_cuts, has_weight);
@@ -171,7 +172,7 @@ size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
     if (required_memory > avail) {
       sketch_batch_num_elements = avail / BytesPerElement(has_weight);
     } else {
-      sketch_batch_num_elements = num_rows * columns;
+      sketch_batch_num_elements = std::min(num_rows * static_cast<size_t>(columns), nnz);
     }
   }
   return sketch_batch_num_elements;
