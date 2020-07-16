@@ -457,7 +457,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
                  feature_names=None,
                  feature_types=None):
         '''Set meta info for DMatrix.'''
-        if label is not None and not isinstance(label, str):
+        if label is not None:
             self.set_label(label)
         if weight is not None:
             self.set_weight(weight)

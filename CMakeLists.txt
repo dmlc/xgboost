@@ -126,6 +126,15 @@ if (USE_OPENMP)
   find_package(OpenMP REQUIRED)
 endif (USE_OPENMP)
 
+# Detect Pyarrow installation
+find_package(Python3 COMPONENTS Interpreter Development)
+if (Python3_FOUND)
+  set(ARROW_HOME "${Python3_SITELIB}/pyarrow")
+  message(STATUS "ARROW_HOME: ${ARROW_HOME}")
+  find_package(Arrow)
+  find_package(ArrowPython)
+endif (Python3_FOUND)
+
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
 
@@ -136,6 +145,14 @@ set_target_properties(dmlc PROPERTIES
   CXX_STANDARD 14
   CXX_STANDARD_REQUIRED ON
   POSITION_INDEPENDENT_CODE ON)
+if (ARROW_FOUND AND ARROW_PYTHON_FOUND)
+  target_compile_definitions(dmlc PRIVATE
+                             -D_GLIBCXX_USE_CXX11_ABI=0)
+  if (TARGET dmlc_unit_tests)
+    target_compile_definitions(dmlc_unit_tests PRIVATE
+                               -D_GLIBCXX_USE_CXX11_ABI=0)
+  endif (TARGET dmlc_unit_tests)
+endif (ARROW_FOUND AND ARROW_PYTHON_FOUND)
 if (MSVC)
   target_compile_options(dmlc PRIVATE
                          -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
@@ -222,11 +239,15 @@ endif (JVM_BINDINGS)
 #-- CLI for xgboost
 add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc)
 target_link_libraries(runxgboost PRIVATE objxgboost)
+
+if (ARROW_FOUND AND ARROW_PYTHON_FOUND)
+  target_compile_definitions(runxgboost PRIVATE
+                    -D_GLIBCXX_USE_CXX11_ABI=0)
+endif (ARROW_FOUND AND ARROW_PYTHON_FOUND)
+
 if (USE_NVTX)
   enable_nvtx(runxgboost)
 endif (USE_NVTX)
-
-enable_arrow_if_available(runxgboost)
 
 target_include_directories(runxgboost
   PRIVATE

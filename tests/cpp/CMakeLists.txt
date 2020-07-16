@@ -6,6 +6,12 @@ if (USE_DMLC_GTEST)
 else (USE_DMLC_GTEST)
   find_package(GTest REQUIRED)
 endif (USE_DMLC_GTEST)
+
+if (ARROW_FOUND AND ARROW_PYTHON_FOUND)
+  target_compile_definitions(gtest PRIVATE
+                    -D_GLIBCXX_USE_CXX11_ABI=0)
+endif (ARROW_FOUND AND ARROW_PYTHON_FOUND)
+
 file(GLOB_RECURSE TEST_SOURCES "*.cc")
 
 if (USE_CUDA)
@@ -14,6 +20,11 @@ if (USE_CUDA)
 endif (USE_CUDA)
 add_executable(testxgboost ${TEST_SOURCES}
   ${xgboost_SOURCE_DIR}/plugin/example/custom_obj.cc)
+
+if (ARROW_FOUND AND ARROW_PYTHON_FOUND)
+  target_compile_definitions(testxgboost PRIVATE
+                    -D_GLIBCXX_USE_CXX11_ABI=0)
+endif (ARROW_FOUND AND ARROW_PYTHON_FOUND)
 target_link_libraries(testxgboost PRIVATE objxgboost)
 
 if (USE_CUDA)
@@ -55,8 +66,6 @@ if (USE_CUDA)
     CUDA_STANDARD 14
     CUDA_STANDARD_REQUIRED ON)
 endif (USE_CUDA)
-
-enable_arrow_if_available(testxgboost)
 
 if (MSVC)
   target_compile_options(testxgboost PRIVATE

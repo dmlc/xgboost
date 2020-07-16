@@ -299,6 +299,7 @@ if __name__ == '__main__':
               'scikit-learn': ['scikit-learn'],
               'dask': ['dask', 'pandas', 'distributed'],
               'datatable': ['datatable'],
+              'pyarrow': ['pyarrow'],
               'plotting': ['graphviz', 'matplotlib']
           },
           maintainer='Hyunsu Cho',

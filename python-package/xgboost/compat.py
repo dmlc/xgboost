@@ -202,10 +202,8 @@ except ImportError:
 # pyarrow
 try:
     from pyarrow import Table as ArrowTable
-    from pyarrow import ChunkedArray as ArrowChunkedArray
 
     PYARROW_INSTALLED = True
 except ImportError:
     ArrowTable = object
-    ArrowChunkedArray = object
     PYARROW_INSTALLED = False

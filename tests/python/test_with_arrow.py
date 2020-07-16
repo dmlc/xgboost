@@ -30,10 +30,10 @@ class TestArrowTable(unittest.TestCase):
         assert dm.num_col() == 4
 
     def test_arrow_table_with_label(self):
-        df = pd.DataFrame([[0, 1, 2., 3.], [1, 2, 3., 4.]],
-                          columns=['label', 'a', 'b', 'c'])
-        table = pa.Table.from_pandas(df)
-        dm = xgb.DMatrix(table, label='label')
+        df = pd.DataFrame([[1, 2., 3.], [2, 3., 4.]],
+                          columns=['a', 'b', 'c'])
+        label = np.array([0, 1])
+        dm = xgb.DMatrix(df, label=label)
         assert dm.num_row() == 2
         assert dm.num_col() == 3
         np.testing.assert_array_equal(dm.get_label(), np.array([0, 1]))

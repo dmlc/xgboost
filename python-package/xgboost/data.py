@@ -316,27 +316,7 @@ def _is_arrow_table(data):
     return lazy_isinstance(data, 'pyarrow.lib', 'Table')
 
 
-def _transform_arrow_table(data, feature_names=None, feature_types=None,
-                           meta=None, meta_type=None):
-    if meta:
-        data = data.column(meta).to_pandas()
-        if meta_type:
-            data = data.astype(meta_type)
-        return data, None, None
-
-    if feature_names is None:
-        feature_names = data.column_names
-
-    if feature_types is not None:
-        raise ValueError(
-            'ArrowTable has own feature types, cannot pass them in.')
-
-    return data, feature_names, feature_types
-
-
 def _from_arrow_table(data, missing, nthread, feature_names, feature_types):
-    data, feature_names, feature_types = _transform_arrow_table(
-        data, feature_names, feature_types, None, None)
     nthread = -1
     handle = ctypes.c_void_p()
     _check_call(_LIB.XGDMatrixCreateFromArrowTable(
@@ -671,10 +651,6 @@ def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
         return
     if _is_dt_df(data):
         _meta_from_dt(data, name, dtype, handle)
-        return
-    if _is_arrow_table(data):
-        data, _, _ = _transform_arrow_table(data, meta=name, meta_type=dtype)
-        _meta_from_numpy(data, name, dtype, handle)
         return
     if _has_array_protocol(data):
         pass
