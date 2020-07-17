@@ -124,7 +124,7 @@ def checkoutSrcs() {
 }
 
 def ClangTidy() {
-  node('linux && cpu') {
+  node('linux && cpu_build') {
     unstash name: 'srcs'
     echo "Running clang-tidy job..."
     def container_type = "clang_tidy"
@@ -239,7 +239,7 @@ def BuildCPUNonOmp() {
 }
 
 def BuildCUDA(args) {
-  node('linux && cpu') {
+  node('linux && cpu_build') {
     unstash name: 'srcs'
     echo "Build with CUDA ${args.cuda_version}"
     def container_type = "gpu_build"
