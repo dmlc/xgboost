@@ -131,9 +131,9 @@ def TestWin64() {
      conda activate && conda install -y hypothesis && conda upgrade scikit-learn pandas numpy hypothesis  && python -m pip install cupy-cuda100
     """
     echo "Running Python tests..."
-    bat "conda activate && python -m pytest -v -s --fulltrace tests\\python"
+    bat "conda activate && python -m pytest -v -s -rxXs --fulltrace tests\\python"
     bat """
-    conda activate && python -m pytest -v -s --fulltrace -m "(not slow) and (not mgpu)" tests\\python-gpu
+    conda activate && python -m pytest -v -s -rxXs --fulltrace -m "(not slow) and (not mgpu)" tests\\python-gpu
     """
     bat "conda activate && python -m pip uninstall -y xgboost"
     deleteDir()
