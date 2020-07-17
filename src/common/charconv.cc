@@ -285,7 +285,7 @@ struct RyuPowLogUtils {
 
   static uint32_t FloorLog2(const uint32_t value) {
 #if defined(_MSC_VER)
-    unsigned long index;
+    unsigned long index;  // NOLINT
     return _BitScanReverse(&index, value) ? index : 32;
 #else
     return 31 - __builtin_clz(value);
