@@ -120,6 +120,7 @@ def TestWin64() {
     unstash name: 'srcs'
     unstash name: 'xgboost_whl'
     unstash name: 'xgboost_cli'
+    unstash name: 'xgboost_cpp_tests'
     echo "Test Win64"
     bat "nvcc --version"
     echo "Running C++ tests..."
