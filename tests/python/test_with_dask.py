@@ -128,7 +128,6 @@ def test_dask_missing_value_reg():
 
 
 def test_dask_missing_value_cls():
-    # Multi-class doesn't handle empty DMatrix well.  So we use lesser workers.
     with LocalCluster() as cluster:
         with Client(cluster) as client:
             X_0 = np.ones((kRows // 2, kCols))

@@ -121,10 +121,6 @@ def to_cp(x, DMatrixT):
 def run_gpu_hist(params, num_rounds, dataset, DMatrixT, client):
     params['tree_method'] = 'gpu_hist'
     params = dataset.set_params(params)
-    # multi class doesn't handle empty dataset well (empty
-    # means at least 1 worker has data).
-    if params['objective'] == "multi:softmax":
-        return
     # It doesn't make sense to distribute a completely
     # empty dataset.
     if dataset.X.shape[0] == 0:
@@ -163,12 +159,12 @@ class TestDistributedGPU(unittest.TestCase):
     def test_dask_dataframe(self):
         with LocalCUDACluster() as cluster:
             with Client(cluster) as client:
-                # run_with_dask_dataframe(dxgb.DaskDMatrix, client)
+                run_with_dask_dataframe(dxgb.DaskDMatrix, client)
                 run_with_dask_dataframe(dxgb.DaskDeviceQuantileDMatrix, client)
 
     @given(parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
-    @settings(deadline=duration(seconds=120), verbosity=2)
+    @settings(deadline=duration(seconds=120))
     @pytest.mark.mgpu
     def test_gpu_hist(self, params, num_rounds, dataset):
         with LocalCUDACluster(n_workers=2) as cluster:
