@@ -121,6 +121,9 @@ def TestWin64() {
     unstash name: 'xgboost_whl'
     unstash name: 'xgboost_cli'
     echo "Test Win64"
+    bat "nvcc --version"
+    echo "Running C++ tests..."
+    bat "build\\testxgboost.exe"
     echo "Installing Python wheel..."
     bat "conda activate && (python -m pip uninstall -y xgboost || cd .)"
     bat """
