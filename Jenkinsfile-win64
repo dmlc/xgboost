@@ -91,8 +91,11 @@ def BuildWin64() {
     """
     echo 'Stashing Python wheel...'
     stash name: 'xgboost_whl', includes: 'python-package/dist/*.whl'
-    path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
-    s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
+    if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
+      echo 'Uploading Python wheel...'
+      path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
+      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
+    }
     echo 'Stashing C++ test executable (testxgboost)...'
     stash name: 'xgboost_cpp_tests', includes: 'build/testxgboost.exe'
     stash name: 'xgboost_cli', includes: 'xgboost.exe'

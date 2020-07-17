@@ -173,8 +173,10 @@ def Doxygen() {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/doxygen.sh ${BRANCH_NAME}
     """
-    echo 'Uploading doc...'
-    s3Upload file: "build/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "doxygen/${BRANCH_NAME}.tar.bz2"
+    if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
+      echo 'Uploading doc...'
+      s3Upload file: "build/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "doxygen/${BRANCH_NAME}.tar.bz2"
+    }
     deleteDir()
   }
 }
@@ -254,8 +256,11 @@ def BuildCUDA(args) {
     if (args.cuda_version == '10.0') {
       echo 'Stashing Python wheel...'
       stash name: 'xgboost_whl_cuda10', includes: 'python-package/dist/*.whl'
-      path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
-      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
+      if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
+        echo 'Uploading Python wheel...'
+        path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
+        s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
+      }
       echo 'Stashing C++ test executable (testxgboost)...'
       stash name: 'xgboost_cpp_tests', includes: 'build/testxgboost'
     }
@@ -289,8 +294,10 @@ def BuildJVMDoc() {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_jvm_doc.sh ${BRANCH_NAME}
     """
-    echo 'Uploading doc...'
-    s3Upload file: "jvm-packages/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${BRANCH_NAME}.tar.bz2"
+    if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
+      echo 'Uploading doc...'
+      s3Upload file: "jvm-packages/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${BRANCH_NAME}.tar.bz2"
+    }
     deleteDir()
   }
 }
