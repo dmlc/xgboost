@@ -48,6 +48,18 @@ TEST(HistUtil, DeviceSketch) {
   EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 
+TEST(HistUtil, SketchBatchNumElements) {
+  size_t constexpr kCols = 10000;
+  int device;
+  dh::safe_cuda(cudaGetDevice(&device));
+  auto avail = static_cast<size_t>(dh::AvailableMemory(device) * 0.8);
+  auto per_elem = detail::BytesPerElement(false);
+  auto avail_elem = avail / per_elem;
+  size_t rows = avail_elem / kCols * 10;
+  auto batch = detail::SketchBatchNumElements(0, rows, kCols, rows * kCols, device, 256, false);
+  ASSERT_EQ(batch, avail_elem);
+}
+
 TEST(HistUtil, DeviceSketchMemory) {
   int num_columns = 100;
   int num_rows = 1000;
