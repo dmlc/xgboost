@@ -332,8 +332,8 @@ def TestPythonCPU() {
 }
 
 def TestPythonGPU(args) {
-  nodeReq = (args.multi_gpu) ? 'linux && mgpu' : 'linux && gpu'
-  artifact_cuda_version = (args.artifact_cuda_version) ?: ref_cuda_ver
+  def nodeReq = (args.multi_gpu) ? 'linux && mgpu' : 'linux && gpu'
+  def artifact_cuda_version = (args.artifact_cuda_version) ?: ref_cuda_ver
   node(nodeReq) {
     unstash name: "xgboost_whl_cuda${artifact_cuda_version}"
     unstash name: 'srcs'
@@ -371,8 +371,8 @@ def TestCppRabit() {
 }
 
 def TestCppGPU(args) {
-  nodeReq = 'linux && mgpu'
-  artifact_cuda_version = (args.artifact_cuda_version) ?: ref_cuda_ver
+  def nodeReq = 'linux && mgpu'
+  def artifact_cuda_version = (args.artifact_cuda_version) ?: ref_cuda_ver
   node(nodeReq) {
     unstash name: "xgboost_cpp_tests_cuda${artifact_cuda_version}"
     unstash name: 'srcs'
