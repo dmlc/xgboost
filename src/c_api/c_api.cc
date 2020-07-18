@@ -227,7 +227,8 @@ XGB_DLL int XGDMatrixSliceDMatrixEx(DMatrixHandle handle,
         << "slice does not support group structure";
   }
   DMatrix* dmat = static_cast<std::shared_ptr<DMatrix>*>(handle)->get();
-  *out = new std::shared_ptr<DMatrix>(dmat->Slice({idxset, len}));
+  *out = new std::shared_ptr<DMatrix>(
+      dmat->Slice({idxset, static_cast<std::size_t>(len)}));
   API_END();
 }
 
@@ -392,6 +393,14 @@ XGB_DLL int XGBoosterSetParam(BoosterHandle handle,
   API_BEGIN();
   CHECK_HANDLE();
   static_cast<Learner*>(handle)->SetParam(name, value);
+  API_END();
+}
+
+XGB_DLL int XGBoosterGetNumFeature(BoosterHandle handle,
+                                   xgboost::bst_ulong *out) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  *out = static_cast<Learner*>(handle)->GetNumFeature();
   API_END();
 }
 

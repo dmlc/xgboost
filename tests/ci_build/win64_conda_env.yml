@@ -1,0 +1,18 @@
+name: win64_env
+channels:
+- conda-forge
+dependencies:
+- python=3.7
+- numpy
+- scipy
+- matplotlib
+- scikit-learn
+- pandas
+- pytest
+- python-graphviz
+- boto3
+- hypothesis
+- jsonschema
+- pip
+- pip:
+  - cupy-cuda101

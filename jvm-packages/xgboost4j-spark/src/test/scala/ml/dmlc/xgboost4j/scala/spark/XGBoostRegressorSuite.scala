@@ -127,7 +127,7 @@ class XGBoostRegressorSuite extends FunSuite with PerTest {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
 
-    val getWeightFromId = udf({id: Int => if (id == 0) 1.0f else 0.001f}, DataTypes.FloatType)
+    val getWeightFromId = udf({id: Int => if (id == 0) 1.0f else 0.001f})
     val trainingDF = buildDataFrame(Regression.train)
       .withColumn("weight", getWeightFromId(col("id")))
     val testDF = buildDataFrame(Regression.test)

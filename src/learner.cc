@@ -384,6 +384,10 @@ class LearnerConfiguration : public Learner {
     }
   }
 
+  uint32_t GetNumFeature() override {
+    return learner_model_param_.num_feature;
+  }
+
   void SetAttr(const std::string& key, const std::string& value) override {
     attributes_[key] = value;
     mparam_.contain_extra_attrs = 1;

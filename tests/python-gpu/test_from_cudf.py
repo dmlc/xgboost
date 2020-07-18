@@ -119,10 +119,10 @@ def _test_cudf_metainfo(DMatrixT):
     dmat.set_float_info('label', floats)
     dmat.set_float_info('base_margin', floats)
     dmat.set_uint_info('group', uints)
-    dmat_cudf.set_interface_info('weight', cudf_floats)
-    dmat_cudf.set_interface_info('label', cudf_floats)
-    dmat_cudf.set_interface_info('base_margin', cudf_floats)
-    dmat_cudf.set_interface_info('group', cudf_uints)
+    dmat_cudf.set_info(weight=cudf_floats)
+    dmat_cudf.set_info(label=cudf_floats)
+    dmat_cudf.set_info(base_margin=cudf_floats)
+    dmat_cudf.set_info(group=cudf_uints)
 
     # Test setting info with cudf DataFrame
     assert np.array_equal(dmat.get_float_info('weight'), dmat_cudf.get_float_info('weight'))
@@ -132,10 +132,10 @@ def _test_cudf_metainfo(DMatrixT):
     assert np.array_equal(dmat.get_uint_info('group_ptr'), dmat_cudf.get_uint_info('group_ptr'))
 
     # Test setting info with cudf Series
-    dmat_cudf.set_interface_info('weight', cudf_floats[cudf_floats.columns[0]])
-    dmat_cudf.set_interface_info('label', cudf_floats[cudf_floats.columns[0]])
-    dmat_cudf.set_interface_info('base_margin', cudf_floats[cudf_floats.columns[0]])
-    dmat_cudf.set_interface_info('group', cudf_uints[cudf_uints.columns[0]])
+    dmat_cudf.set_info(weight=cudf_floats[cudf_floats.columns[0]])
+    dmat_cudf.set_info(label=cudf_floats[cudf_floats.columns[0]])
+    dmat_cudf.set_info(base_margin=cudf_floats[cudf_floats.columns[0]])
+    dmat_cudf.set_info(group=cudf_uints[cudf_uints.columns[0]])
     assert np.array_equal(dmat.get_float_info('weight'), dmat_cudf.get_float_info('weight'))
     assert np.array_equal(dmat.get_float_info('label'), dmat_cudf.get_float_info('label'))
     assert np.array_equal(dmat.get_float_info('base_margin'),

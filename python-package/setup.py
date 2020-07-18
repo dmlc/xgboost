@@ -153,6 +153,8 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
                         '%s is used for building Windows distribution.', vs)
                     break
                 except subprocess.CalledProcessError:
+                    shutil.rmtree(build_dir)
+                    os.mkdir(build_dir)
                     continue
         else:
             gen = '-GNinja' if build_tool == 'ninja' else '-GUnix Makefiles'
