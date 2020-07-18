@@ -132,7 +132,7 @@ def TestWin64() {
     """
     echo "Installing Python dependencies..."
     bat """
-     conda activate && conda install -y hypothesis && conda upgrade scikit-learn pandas numpy hypothesis  && python -m pip install cupy-cuda101
+     conda activate && conda install -y hypothesis jsonschema && conda upgrade scikit-learn pandas numpy hypothesis  && python -m pip install cupy-cuda101
     """
     echo "Running Python tests..."
     bat "conda activate && python -m pytest -v -s -rxXs --fulltrace tests\\python"
