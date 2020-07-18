@@ -125,21 +125,19 @@ def TestWin64() {
     bat "nvcc --version"
     echo "Running C++ tests..."
     bat "build\\testxgboost.exe"
-    echo "Installing Python wheel..."
-    bat "conda activate && (python -m pip uninstall -y xgboost || cd .)"
-    bat """
-    conda activate && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"
-    """
     echo "Installing Python dependencies..."
+    def env_name = 'win64_' + UUID.randomUUID().toString().replaceAll('-', '')
+    bat "conda env create -n ${env_name} --file=tests/ci_build/win64_conda_env.yml"
+    echo "Installing Python wheel..."
     bat """
-     conda activate && conda install -y hypothesis jsonschema && conda upgrade scikit-learn pandas numpy hypothesis  && python -m pip install cupy-cuda101
+    conda activate ${env_name} && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"
     """
     echo "Running Python tests..."
-    bat "conda activate && python -m pytest -v -s -rxXs --fulltrace tests\\python"
+    bat "conda activate ${env_name} && python -m pytest -v -s -rxXs --fulltrace tests\\python"
     bat """
-    conda activate && python -m pytest -v -s -rxXs --fulltrace -m "(not slow) and (not mgpu)" tests\\python-gpu
+    conda activate ${env_name} && python -m pytest -v -s -rxXs --fulltrace -m "(not slow) and (not mgpu)" tests\\python-gpu
     """
-    bat "conda activate && python -m pip uninstall -y xgboost"
+    bat "conda env remove --name ${env_name}"
     deleteDir()
   }
 }
