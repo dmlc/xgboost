@@ -336,6 +336,7 @@ def TestPythonGPU(args) {
   def artifact_cuda_version = (args.artifact_cuda_version) ?: ref_cuda_ver
   node(nodeReq) {
     unstash name: "xgboost_whl_cuda${artifact_cuda_version}"
+    unstash name: "xgboost_cpp_tests_cuda${artifact_cuda_version}"
     unstash name: 'srcs'
     echo "Test Python GPU: CUDA ${args.host_cuda_version}"
     def container_type = "gpu"
