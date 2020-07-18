@@ -188,8 +188,8 @@ then
     echo "docker tag ${DOCKER_IMG_NAME} ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     docker tag "${DOCKER_IMG_NAME}" "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
 
-    echo "python3 -m awscli ecr create-repository --repository-name ${DOCKER_IMG_NAME} || true"
-    python3 -m awscli ecr create-repository --repository-name ${DOCKER_IMG_NAME} || true
+    echo "python3 -m awscli ecr create-repository --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION} || true"
+    python3 -m awscli ecr create-repository --repository-name ${DOCKER_IMG_NAME} --region ${DOCKER_CACHE_ECR_REGION} || true
 
     echo "docker push ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     docker push "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
