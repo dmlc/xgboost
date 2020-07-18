@@ -38,7 +38,7 @@ pipeline {
       steps {
         script {
           parallel ([
-            'build-win64-cuda10.0': { BuildWin64() }
+            'build-win64-cuda10.1': { BuildWin64() }
           ])
         }
         milestone ordinal: 2
@@ -49,7 +49,7 @@ pipeline {
       steps {
         script {
           parallel ([
-            'test-win64-cuda10.0': { TestWin64() },
+            'test-win64-cuda10.1': { TestWin64() },
           ])
         }
         milestone ordinal: 3
