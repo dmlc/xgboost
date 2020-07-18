@@ -6,6 +6,9 @@
 // Command to run command inside a docker container
 dockerRun = 'tests/ci_build/ci_build.sh'
 
+// Which CUDA version to use when building reference distribution wheel
+ref_cuda_ver = '10.0'
+
 import groovy.transform.Field
 
 @Field
@@ -65,8 +68,13 @@ pipeline {
             'build-cpu': { BuildCPU() },
             'build-cpu-rabit-mock': { BuildCPUMock() },
             'build-cpu-non-omp': { BuildCPUNonOmp() },
+            // Build reference, distribution-ready Python wheel with CUDA 10.0
+            // using CentOS 6 image
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
+            // The build-gpu-* builds below use Ubuntu image
             'build-gpu-cuda10.1': { BuildCUDA(cuda_version: '10.1') },
+            'build-gpu-cuda10.2': { BuildCUDA(cuda_version: '10.2') },
+            'build-gpu-cuda11.0': { BuildCUDA(cuda_version: '11.0') },
             'build-jvm-packages': { BuildJVMPackages(spark_version: '3.0.0') },
             'build-jvm-doc': { BuildJVMDoc() }
           ])
@@ -124,7 +132,7 @@ def checkoutSrcs() {
 }
 
 def GetCUDABuildContainerType(cuda_version) {
-  return (cuda_version == '10.0') ? 'gpu_build_centos6' : 'gpu_build'
+  return (cuda_version == ref_cuda_ver) ? 'gpu_build_centos6' : 'gpu_build'
 }
 
 def ClangTidy() {
@@ -260,18 +268,15 @@ def BuildCUDA(args) {
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python tests/ci_build/rename_whl.py python-package/dist/*.whl ${commit_id} manylinux2010_x86_64
     """
-    // Stash wheel for CUDA 10.0 target
-    if (args.cuda_version == '10.0') {
-      echo 'Stashing Python wheel...'
-      stash name: 'xgboost_whl_cuda10', includes: 'python-package/dist/*.whl'
-      if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
-        echo 'Uploading Python wheel...'
-        path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
-        s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
-      }
-      echo 'Stashing C++ test executable (testxgboost)...'
-      stash name: 'xgboost_cpp_tests', includes: 'build/testxgboost'
+    echo 'Stashing Python wheel...'
+    stash name: "xgboost_whl_cuda${args.cuda_version}", includes: 'python-package/dist/*.whl'
+    if (args.cuda_version == ref_cuda_ver && (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release'))) {
+      echo 'Uploading Python wheel...'
+      path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
+      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
     }
+    echo 'Stashing C++ test executable (testxgboost)...'
+    stash name: "xgboost_cpp_tests_cuda${args.cuda_version}", includes: 'build/testxgboost'
     deleteDir()
   }
 }
@@ -312,7 +317,7 @@ def BuildJVMDoc() {
 
 def TestPythonCPU() {
   node('linux && cpu') {
-    unstash name: 'xgboost_whl_cuda10'
+    unstash name: "xgboost_whl_cuda${ref_cuda_ver}"
     unstash name: 'srcs'
     unstash name: 'xgboost_cli'
     echo "Test Python CPU"
@@ -328,8 +333,7 @@ def TestPythonCPU() {
 def TestPythonGPU(args) {
   nodeReq = (args.multi_gpu) ? 'linux && mgpu' : 'linux && gpu'
   node(nodeReq) {
-    unstash name: 'xgboost_whl_cuda10'
-    unstash name: 'xgboost_cpp_tests'
+    unstash name: "xgboost_whl_cuda${ref_cuda_ver}"
     unstash name: 'srcs'
     echo "Test Python GPU: CUDA ${args.cuda_version}"
     def container_type = "gpu"
@@ -367,7 +371,7 @@ def TestCppRabit() {
 def TestCppGPU(args) {
   nodeReq = (args.multi_gpu) ? 'linux && mgpu' : 'linux && gpu'
   node(nodeReq) {
-    unstash name: 'xgboost_cpp_tests'
+    unstash name: "xgboost_cpp_tests_cuda${ref_cuda_ver}"
     unstash name: 'srcs'
     echo "Test C++, CUDA ${args.cuda_version}"
     def container_type = "gpu"
