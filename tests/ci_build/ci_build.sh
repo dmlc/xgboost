@@ -187,6 +187,10 @@ then
     # that is associated with the particular branch or pull request
     echo "docker tag ${DOCKER_IMG_NAME} ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     docker tag "${DOCKER_IMG_NAME}" "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
+
+    echo "python3 -m awscli ecr create-repository --repository-name ${DOCKER_IMG_NAME} || true"
+    python3 -m awscli ecr create-repository --repository-name ${DOCKER_IMG_NAME} || true
+
     echo "docker push ${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     docker push "${DOCKER_CACHE_REPO}/${DOCKER_IMG_NAME}:${BRANCH_NAME}"
     if [[ $? != "0" ]]; then
