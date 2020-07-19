@@ -107,6 +107,15 @@ def no_graphviz():
         return {'condition': True, 'reason': reason}
 
 
+def no_rmm():
+    reason = 'RMM is not installed'
+    try:
+        import rmm  # noqa
+        return {'condition': False, 'reason': reason}
+    except ImportError:
+        return {'condition': True, 'reason': reason}
+
+
 def no_multiple(*args):
     condition = False
     reason = ''
