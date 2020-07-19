@@ -17,6 +17,7 @@ try:
     from .sklearn import XGBModel, XGBClassifier, XGBRegressor, XGBRanker
     from .sklearn import XGBRFClassifier, XGBRFRegressor
     from .plotting import plot_importance, plot_tree, to_graphviz
+    from .gpu_alloc_callback import set_gpu_alloc_callback
 except ImportError:
     pass
 
@@ -29,4 +30,5 @@ __all__ = ['DMatrix', 'DeviceQuantileDMatrix', 'Booster',
            'RabitTracker',
            'XGBModel', 'XGBClassifier', 'XGBRegressor', 'XGBRanker',
            'XGBRFClassifier', 'XGBRFRegressor',
-           'plot_importance', 'plot_tree', 'to_graphviz', 'dask']
+           'plot_importance', 'plot_tree', 'to_graphviz', 'dask',
+           'set_gpu_alloc_callback']

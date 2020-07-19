@@ -33,6 +33,7 @@
 #include "xgboost/span.h"
 
 #include "common.h"
+#include "device_allocator.h"
 
 #ifdef XGBOOST_USE_NCCL
 #include "nccl.h"
@@ -370,6 +371,8 @@ inline void DebugSyncDevice(std::string file="", int32_t line = -1) {
 }
 
 namespace detail {
+using DeviceAllocateFunc = void *(*)(size_t);
+using DeviceDeallocateFunc = void (*)(void *, size_t);
 /**
  * \brief Default memory allocator, uses cudaMalloc/Free and logs allocations if verbose.
  */
@@ -377,20 +380,35 @@ template <class T>
 struct XGBDefaultDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
   using SuperT = thrust::device_malloc_allocator<T>;
   using pointer = thrust::device_ptr<T>;  // NOLINT
+
   template<typename U>
   struct rebind  // NOLINT
   {
     using other = XGBDefaultDeviceAllocatorImpl<U>;  // NOLINT
   };
+
+  XGBDefaultDeviceAllocatorImpl() : mr_(GetDeviceMemoryResource()) {}
+
   pointer allocate(size_t n) {  // NOLINT
-    pointer ptr = SuperT::allocate(n);
+    pointer ptr;
+    if (mr_.allocate) {
+      ptr = thrust::device_pointer_cast(static_cast<T*>(mr_.allocate(n * sizeof(T))));
+    } else {
+      ptr = SuperT::allocate(n);
+    }
     GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T));
     return ptr;
   }
   void deallocate(pointer ptr, size_t n) {  // NOLINT
     GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
-    return SuperT::deallocate(ptr, n);
+    if (mr_.deallocate) {
+      mr_.deallocate(thrust::raw_pointer_cast(ptr), n * sizeof(T));
+    } else {
+      return SuperT::deallocate(ptr, n);
+    }
   }
+ protected:
+  DeviceMemoryResource mr_;
 };
 
 /**

@@ -21,6 +21,7 @@
 
 #include "c_api_error.h"
 #include "../common/io.h"
+#include "../common/device_allocator.h"
 #include "../data/adapter.h"
 #include "../data/simple_dmatrix.h"
 #include "../data/proxy_dmatrix.h"
@@ -43,6 +44,13 @@ XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
   API_BEGIN();
   LogCallbackRegistry* registry = LogCallbackRegistryStore::Get();
   registry->Register(callback);
+  API_END();
+}
+
+XGB_DLL int XGBRegisterGPUDeviceAllocator(void* (*allocate)(size_t),
+                                          void (*deallocate)(void*, size_t)) {
+  API_BEGIN();
+  dh::detail::RegisterDeviceAllocatorCallback(allocate, deallocate);
   API_END();
 }
 
