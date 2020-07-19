@@ -3,13 +3,9 @@
 #include <xgboost/base.h>
 #include <xgboost/logging.h>
 #include <string>
-#include <memory>
 #include <vector>
 
-#include "helpers.h"
-
 int main(int argc, char ** argv) {
-  auto rmm_alloc = xgboost::SetUpRMMResourceForCppTests();
   xgboost::Args args {{"verbosity", "2"}};
   xgboost::ConsoleLogger::Configure(args);
 

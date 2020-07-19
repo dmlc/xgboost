@@ -8,7 +8,6 @@
 #include <fstream>
 #include <cstdio>
 #include <string>
-#include <memory>
 #include <vector>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -352,10 +351,6 @@ inline void Reset(DataIterHandle self) {
 inline int Next(DataIterHandle self) {
   return static_cast<CudaArrayIterForTest*>(self)->Next();
 }
-
-class RMMAllocator;
-using RMMAllocatorPtr = std::unique_ptr<RMMAllocator, void(*)(RMMAllocator*)>;
-RMMAllocatorPtr SetUpRMMResourceForCppTests();
 
 }  // namespace xgboost
 #endif
