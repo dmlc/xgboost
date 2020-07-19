@@ -1,5 +1,5 @@
 ARG CUDA_VERSION
-FROM nvidia/cuda:$CUDA_VERSION-runtime-ubuntu16.04
+FROM nvidia/cuda:$CUDA_VERSION-devel-ubuntu16.04
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
@@ -11,7 +11,10 @@ RUN \
     apt-get install -y wget unzip bzip2 libgomp1 build-essential && \
     # Python
     wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
-    bash Miniconda3.sh -b -p /opt/python
+    bash Miniconda3.sh -b -p /opt/python && \
+    # CMake
+    wget -nv -nc https://cmake.org/files/v3.13/cmake-3.13.0-Linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.13.0-Linux-x86_64.sh --skip-license --prefix=/usr
 
 ENV PATH=/opt/python/bin:$PATH
 
