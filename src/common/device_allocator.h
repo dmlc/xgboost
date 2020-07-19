@@ -3,8 +3,8 @@
  * \file device_allocator.h
  * \brief Store callback functions for allocating and de-allocating memory on GPU devices.
  */
-#ifndef XGBOOST_DEVICE_ALLOCATOR_H
-#define XGBOOST_DEVICE_ALLOCATOR_H
+#ifndef XGBOOST_COMMON_DEVICE_ALLOCATOR_H_
+#define XGBOOST_COMMON_DEVICE_ALLOCATOR_H_
 
 #include <mutex>
 
@@ -36,4 +36,4 @@ inline void RegisterDeviceAllocatorCallback(DeviceAllocateFunc allocate,
 }  // namespace detail
 }  // namespace dh
 
-#endif  // XGBOOST_DEVICE_ALLOCATOR_H
+#endif  // XGBOOST_COMMON_DEVICE_ALLOCATOR_H_
