@@ -31,13 +31,14 @@ pipeline {
 
   // Build stages
   stages {
-    stage('Jenkins Linux: Get sources') {
-      agent { label 'linux && cpu' }
+    stage('Jenkins Linux: Initialize') {
+      agent { label 'job_initializer' }
       steps {
         script {
           checkoutSrcs()
           commit_id = "${GIT_COMMIT}"
         }
+        sh 'python3 tests/jenkins_get_approval.py'
         stash name: 'srcs'
         milestone ordinal: 1
       }
@@ -67,7 +68,7 @@ pipeline {
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
             'build-gpu-cuda10.1': { BuildCUDA(cuda_version: '10.1') },
             'build-gpu-rmm-cuda10.2': { BuildCUDAWithRMM(cuda_version: '10.2') },
-            'build-jvm-packages': { BuildJVMPackages(spark_version: '2.4.3') },
+            'build-jvm-packages': { BuildJVMPackages(spark_version: '3.0.0') },
             'build-jvm-doc': { BuildJVMDoc() }
           ])
         }
@@ -86,7 +87,7 @@ pipeline {
             'test-cpp-gpu': { TestCppGPU(cuda_version: '10.1') },
             'test-cpp-mgpu': { TestCppGPU(cuda_version: '10.1', multi_gpu: true) },
             'test-rmm-cpp-gpu': { TestCppGPUWithRMM(cuda_version: '10.2') },
-            'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '2.4.3') },
+            'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '3.0.0') },
             'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
             'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') },
             'test-r-3.5.3': { TestR(use_r35: true) }
@@ -100,7 +101,7 @@ pipeline {
       steps {
         script {
           parallel ([
-            'deploy-jvm-packages': { DeployJVMPackages(spark_version: '2.4.3') }
+            'deploy-jvm-packages': { DeployJVMPackages(spark_version: '3.0.0') }
           ])
         }
         milestone ordinal: 5
@@ -125,7 +126,7 @@ def checkoutSrcs() {
 }
 
 def ClangTidy() {
-  node('linux && cpu') {
+  node('linux && cpu_build') {
     unstash name: 'srcs'
     echo "Running clang-tidy job..."
     def container_type = "clang_tidy"
@@ -174,8 +175,10 @@ def Doxygen() {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/doxygen.sh ${BRANCH_NAME}
     """
-    echo 'Uploading doc...'
-    s3Upload file: "build/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "doxygen/${BRANCH_NAME}.tar.bz2"
+    if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
+      echo 'Uploading doc...'
+      s3Upload file: "build/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "doxygen/${BRANCH_NAME}.tar.bz2"
+    }
     deleteDir()
   }
 }
@@ -240,14 +243,18 @@ def BuildCPUNonOmp() {
 }
 
 def BuildCUDA(args) {
-  node('linux && cpu') {
+  node('linux && cpu_build') {
     unstash name: 'srcs'
     echo "Build with CUDA ${args.cuda_version}"
     def container_type = "gpu_build"
     def docker_binary = "docker"
     def docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
+    def arch_flag = ""
+    if (env.BRANCH_NAME != 'master' && !(env.BRANCH_NAME.startsWith('release'))) {
+      arch_flag = "-DGPU_COMPUTE_VER=75"
+    }
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON -DOPEN_MP:BOOL=ON -DHIDE_CXX_SYMBOLS=ON
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON -DOPEN_MP:BOOL=ON -DHIDE_CXX_SYMBOLS=ON ${arch_flag}
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python3 tests/ci_build/rename_whl.py python-package/dist/*.whl ${commit_id} manylinux2010_x86_64
     """
@@ -255,8 +262,11 @@ def BuildCUDA(args) {
     if (args.cuda_version == '10.0') {
       echo 'Stashing Python wheel...'
       stash name: 'xgboost_whl_cuda10', includes: 'python-package/dist/*.whl'
-      path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
-      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
+      if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
+        echo 'Uploading Python wheel...'
+        path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
+        s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
+      }
       echo 'Stashing C++ test executable (testxgboost)...'
       stash name: 'xgboost_cpp_tests', includes: 'build/testxgboost'
     }
@@ -306,8 +316,10 @@ def BuildJVMDoc() {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_jvm_doc.sh ${BRANCH_NAME}
     """
-    echo 'Uploading doc...'
-    s3Upload file: "jvm-packages/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${BRANCH_NAME}.tar.bz2"
+    if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
+      echo 'Uploading doc...'
+      s3Upload file: "jvm-packages/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "${BRANCH_NAME}.tar.bz2"
+    }
     deleteDir()
   }
 }

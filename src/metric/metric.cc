@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2019 by Contributors
+ * Copyright 2015-2020 by Contributors
  * \file metric_registry.cc
  * \brief Registry of objective functions.
  */
@@ -80,6 +80,7 @@ namespace metric {
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(elementwise_metric);
 DMLC_REGISTRY_LINK_TAG(multiclass_metric);
+DMLC_REGISTRY_LINK_TAG(survival_metric);
 DMLC_REGISTRY_LINK_TAG(rank_metric);
 #ifdef XGBOOST_USE_CUDA
 DMLC_REGISTRY_LINK_TAG(rank_metric_gpu);

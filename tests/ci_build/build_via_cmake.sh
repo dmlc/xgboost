@@ -15,7 +15,7 @@ fi
 rm -rf build
 mkdir build
 cd build
-cmake .. ${cmake_args} -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DCMAKE_VERBOSE_MAKEFILE=ON
-make clean
-make -j$(nproc)
+cmake .. ${cmake_args} -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DCMAKE_VERBOSE_MAKEFILE=ON -GNinja
+ninja clean
+time ninja -v
 cd ..

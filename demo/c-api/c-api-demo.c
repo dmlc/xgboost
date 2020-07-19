@@ -60,6 +60,10 @@ int main(int argc, char** argv) {
     printf("%s\n", eval_result);
   }
 
+  bst_ulong num_feature = 0;
+  safe_xgboost(XGBoosterGetNumFeature(booster, &num_feature));
+  printf("num_feature: %llu\n", num_feature);
+
   // predict
   bst_ulong out_len = 0;
   const float* out_result = NULL;

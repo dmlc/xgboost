@@ -98,6 +98,26 @@ def no_json_schema():
         return {'condition': True, 'reason': reason}
 
 
+def no_graphviz():
+    reason = 'graphviz is not installed'
+    try:
+        import graphviz  # noqa
+        return {'condition': False, 'reason': reason}
+    except ImportError:
+        return {'condition': True, 'reason': reason}
+
+
+def no_multiple(*args):
+    condition = False
+    reason = ''
+    for arg in args:
+        condition = (condition or arg['condition'])
+        if arg['condition']:
+            reason = arg['reason']
+            break
+    return {'condition': condition, 'reason': reason}
+
+
 # Contains a dataset in numpy format as well as the relevant objective and metric
 class TestDataset:
     def __init__(self, name, get_dataset, objective, metric
