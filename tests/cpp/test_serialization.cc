@@ -148,8 +148,8 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
 // Binary is not tested, as it is NOT reproducible.
 class SerializationTest : public ::testing::Test {
  protected:
-  size_t constexpr static kRows = 10;
-  size_t constexpr static kCols = 10;
+  size_t constexpr static kRows = 15;
+  size_t constexpr static kCols = 15;
   std::shared_ptr<DMatrix> p_dmat_;
   FeatureMap fmap_;
 
