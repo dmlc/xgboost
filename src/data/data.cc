@@ -488,6 +488,15 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows) {
     this->group_ptr_.insert(this->group_ptr_.end(), group_ptr.begin() + 1,
                             group_ptr.end());
   }
+
+  if (!that.feature_names.empty()) {
+    this->feature_names = that.feature_names;
+  }
+  if (!that.feature_type_names.empty()) {
+    this->feature_type_names = that.feature_type_names;
+    auto &h_feature_types = feature_types.HostVector();
+    LoadFeatureType(this->feature_type_names, &h_feature_types);
+  }
 }
 
 void MetaInfo::Validate(int32_t device) const {

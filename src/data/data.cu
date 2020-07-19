@@ -69,6 +69,9 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
       << "Meta info " << key << " should be dense, found validity mask";
   CHECK_EQ(array_interface.num_cols, 1)
       << "Meta info should be a single column.";
+  if (array_interface.num_rows == 0) {
+    return;
+  }
 
   if (key == "label") {
     CopyInfoImpl(array_interface, &labels_);
