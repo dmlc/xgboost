@@ -341,6 +341,9 @@ def TestPythonGPU(args) {
       sh """
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh gpu
       """
+      sh """
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh gpu-rmm
+      """
     }
     deleteDir()
   }

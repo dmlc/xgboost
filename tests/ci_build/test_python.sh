@@ -34,6 +34,15 @@ case "$suite" in
     pytest -v -s -rxXs --fulltrace -m "not mgpu" tests/python-gpu
     ;;
 
+  gpu-rmm)
+    source activate gpu_test
+    install_xgboost
+    pytest -v -s -rxXs tests/python-gpu/test_gpu_demos.py::test_rmm_integration_demo
+    XGBOOST_RMM_TEST_LIBPATH=demo/rmm-integration/build/librmm_bridge.so \
+      pytest -v -s -rxXs --fulltrace -m "not mgpu" -k "not test_rmm_integration_demo" \
+      tests/python-gpu/ --ignore=tests/python-gpu/test_gpu_pickling.py
+    ;;
+
   mgpu)
     source activate gpu_test
     install_xgboost
@@ -52,7 +61,7 @@ case "$suite" in
     ;;
 
   *)
-    echo "Usage: $0 {gpu|mgpu|cpu}"
+    echo "Usage: $0 {gpu|gpu-rmm|mgpu|cpu}"
     exit 1
     ;;
 esac
