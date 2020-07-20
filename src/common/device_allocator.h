@@ -23,6 +23,7 @@ struct DeviceMemoryResource {
 };
 
 extern DeviceMemoryResource DeviceMemoryResourceSingleton;
+extern LibraryHandle LibraryHandleSingleton;
 extern std::mutex DeviceMemoryResourceSingletonMutex;
 
 LibraryHandle OpenLibrary(const char* libpath);
@@ -42,6 +43,8 @@ inline void RegisterGPUDeviceAllocator(const char* libpath) {
   CHECK(allocate) << "Could not load function void* allocate(size_t)";
   CHECK(deallocate) << "Could not load function void deallocate(void*, size_t)";
   std::lock_guard<std::mutex> guard(DeviceMemoryResourceSingletonMutex);
+  CHECK(!LibraryHandleSingleton) << "Custom allocator already set; resetting is not allowed";
+  LibraryHandleSingleton = lib;
   DeviceMemoryResourceSingleton = {allocate, deallocate};
 }
 

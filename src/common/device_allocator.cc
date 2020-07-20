@@ -16,6 +16,7 @@ namespace dh {
 namespace detail {
 
 DeviceMemoryResource DeviceMemoryResourceSingleton{nullptr, nullptr};
+LibraryHandle LibraryHandleSingleton{nullptr};
 std::mutex DeviceMemoryResourceSingletonMutex;
 
 LibraryHandle OpenLibrary(const char* libpath) {
