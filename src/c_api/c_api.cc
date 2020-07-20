@@ -47,10 +47,9 @@ XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
   API_END();
 }
 
-XGB_DLL int XGBRegisterGPUDeviceAllocator(void* (*allocate)(size_t),
-                                          void (*deallocate)(void*, size_t)) {
+XGB_DLL int XGBRegisterGPUDeviceAllocator(const char* libpath) {
   API_BEGIN();
-  dh::detail::RegisterDeviceAllocatorCallback(allocate, deallocate);
+  dh::detail::RegisterGPUDeviceAllocator(libpath);
   API_END();
 }
 

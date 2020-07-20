@@ -10,5 +10,4 @@ def pytest_sessionstart(session):
     if not libpath:
         return
     print('Initializing RMM pool')
-    bridge = ctypes.cdll.LoadLibrary(libpath)
-    xgboost.set_gpu_alloc_callback(bridge.allocate, bridge.deallocate)
+    xgboost.set_gpu_alloc_callback(libpath)

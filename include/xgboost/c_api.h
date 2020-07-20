@@ -64,13 +64,13 @@ XGB_DLL const char *XGBGetLastError(void);
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
 
 /*!
- * \brief Register custom callback functions for allocating and de-allocating memory on GPUs
+ * \brief Load from a shared library custom callback functions for allocating and de-allocating
+ * memory on NVIDIA GPUs.
  * Note: This function can be called by multiple threads. Access is controlled via an atomic
  * variable.
  * \return 0 for success, -1 for failure
  */
-XGB_DLL int XGBRegisterGPUDeviceAllocator(void* (*allocate)(size_t),
-                                          void (*deallocate)(void*, size_t));
+XGB_DLL int XGBRegisterGPUDeviceAllocator(const char* libpath);
 
 /*!
  * \brief load a data matrix
