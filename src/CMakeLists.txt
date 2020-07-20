@@ -69,6 +69,10 @@ if (MSVC)
     -D_CRT_SECURE_NO_DEPRECATE
   )
 endif (MSVC)
+# -ldl for UNIX-like systems
+if(UNIX)
+  target_link_libraries(objxgboost PUBLIC dl)
+endif(UNIX)
 
 set_target_properties(objxgboost PROPERTIES
   POSITION_INDEPENDENT_CODE ON
