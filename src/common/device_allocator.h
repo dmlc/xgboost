@@ -6,8 +6,8 @@
 #ifndef XGBOOST_COMMON_DEVICE_ALLOCATOR_H_
 #define XGBOOST_COMMON_DEVICE_ALLOCATOR_H_
 
-#include <mutex>
 #include <xgboost/logging.h>
+#include <mutex>
 
 namespace dh {
 namespace detail {
