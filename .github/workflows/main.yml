@@ -18,7 +18,6 @@ jobs:
       matrix:
         config:
           - {os: windows-latest, r: 'release'}
-          # how to install omp on osx?
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
       RSPM: ${{ matrix.config.rspm }}
