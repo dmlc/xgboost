@@ -1,6 +1,7 @@
 # Construct an internal xgboost Booster and return a handle to it.
 # internal utility function
-xgb.Booster.handle <- function(params = list(), cachelist = list(), modelfile = NULL) {
+xgb.Booster.handle <- function(params = list(), cachelist = list(),
+                               modelfile = NULL) {
   if (typeof(cachelist) != "list" ||
       !all(vapply(cachelist, inherits, logical(1), what = 'xgb.DMatrix'))) {
     stop("cachelist must be a list of xgb.DMatrix objects")
@@ -62,8 +63,8 @@ is.null.handle <- function(handle) {
   return(FALSE)
 }
 
-# Return a verified to be valid handle out of either xgb.Booster.handle or xgb.Booster
-# internal utility function
+# Return a verified to be valid handle out of either xgb.Booster.handle or
+# xgb.Booster internal utility function
 xgb.get.handle <- function(object) {
   if (inherits(object, "xgb.Booster")) {
     handle <- object$handle
@@ -369,8 +370,8 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
       matrix(ret, nrow = n_row, byrow = TRUE, dimnames = list(NULL, cnames))
     } else {
       arr <- array(ret, c(n_col1, n_group, n_row),
-                   dimnames = list(cnames, NULL, NULL)) %>% aperm(c(2,3,1)) # [group, row, col]
-      lapply(seq_len(n_group), function(g) arr[g,,])
+                   dimnames = list(cnames, NULL, NULL)) %>% aperm(c(2, 3, 1)) # [group, row, col]
+      lapply(seq_len(n_group), function(g) arr[g, , ])
     }
   } else if (predinteraction) {
     n_col1 <- ncol(newdata) + 1
@@ -379,11 +380,11 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     ret <- if (n_ret == n_row) {
       matrix(ret, ncol = 1, dimnames = list(NULL, cnames))
     } else if (n_group == 1) {
-      array(ret, c(n_col1, n_col1, n_row), dimnames = list(cnames, cnames, NULL)) %>% aperm(c(3,1,2))
+      array(ret, c(n_col1, n_col1, n_row), dimnames = list(cnames, cnames, NULL)) %>% aperm(c(3, 1, 2))
     } else {
       arr <- array(ret, c(n_col1, n_col1, n_group, n_row),
-                   dimnames = list(cnames, cnames, NULL, NULL)) %>% aperm(c(3,4,1,2)) # [group, row, col1, col2]
-      lapply(seq_len(n_group), function(g) arr[g,,,])
+                   dimnames = list(cnames, cnames, NULL, NULL)) %>% aperm(c(3, 4, 1, 2)) # [group, row, col1, col2]
+      lapply(seq_len(n_group), function(g) arr[g, , , ])
     }
   } else if (reshape && npred_per_case > 1) {
     ret <- matrix(ret, nrow = n_row, byrow = TRUE)
@@ -656,7 +657,7 @@ print.xgb.Booster <- function(x, verbose = FALSE, ...) {
 
   if (!is.null(x$params)) {
     cat('params (as set within xgb.train):\n')
-    cat( '  ',
+    cat('  ',
          paste(names(x$params),
                paste0('"', unlist(x$params), '"'),
                sep = ' = ', collapse = ', '), '\n', sep = '')
@@ -669,9 +670,9 @@ print.xgb.Booster <- function(x, verbose = FALSE, ...) {
   if (length(attrs) > 0) {
     cat('xgb.attributes:\n')
     if (verbose) {
-      cat( paste(paste0('  ',names(attrs)),
-                 paste0('"', unlist(attrs), '"'),
-                 sep = ' = ', collapse = '\n'), '\n', sep = '')
+        cat(paste(paste0('  ', names(attrs)),
+                  paste0('"', unlist(attrs), '"'),
+                  sep = ' = ', collapse = '\n'), '\n', sep = '')
     } else {
       cat('  ', paste(names(attrs), collapse = ', '), '\n', sep = '')
     }
@@ -693,7 +694,7 @@ print.xgb.Booster <- function(x, verbose = FALSE, ...) {
   #cat('ntree: ', xgb.ntree(x), '\n', sep='')
 
   for (n in setdiff(names(x), c('handle', 'raw', 'call', 'params', 'callbacks',
-                                'evaluation_log','niter','feature_names'))) {
+                                'evaluation_log', 'niter', 'feature_names'))) {
     if (is.atomic(x[[n]])) {
       cat(n, ':', x[[n]], '\n', sep = ' ')
     } else {

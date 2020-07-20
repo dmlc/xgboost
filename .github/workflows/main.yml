@@ -1,0 +1,52 @@
+# This is a basic workflow to help you get started with Actions
+
+name: XGoost-CI
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on: [push, pull_request]
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  test-with-R:
+    runs-on: ${{ matrix.config.os }}
+
+    name: Test R on OS ${{ matrix.config.os }}, R (${{ matrix.config.r }})
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {os: windows-latest, r: 'release'}
+    env:
+      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+      RSPM: ${{ matrix.config.rspm }}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: r-lib/actions/setup-r@master
+      with:
+        r-version: ${{ matrix.config.r }}
+
+    - name: Install dependencies
+      shell: Rscript {0}
+      run: |
+        install.packages(c('XML','igraph'))
+        install.packages(c('data.table','magrittr','stringi','ggplot2','DiagrammeR','Ckmeans.1d.dp','vcd','testthat','lintr','knitr','rmarkdown'))
+
+    - name: Config R
+      run: |
+        mkdir build && cd build
+        cmake .. -DCMAKE_CONFIGURATION_TYPES="Release" -DR_LIB=ON
+
+    - name: Build R
+      run: |
+        cmake --build build --target install --config Release
+
+    - name: Test R
+      run: |
+        cd R-package
+        R.exe -q -e "library(testthat); setwd('tests'); source('testthat.R')"
