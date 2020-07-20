@@ -7,6 +7,7 @@
 #define XGBOOST_COMMON_DEVICE_ALLOCATOR_H_
 
 #include <xgboost/logging.h>
+#include <memory>
 #include <mutex>
 
 namespace dh {
@@ -23,7 +24,7 @@ struct DeviceMemoryResource {
 };
 
 extern DeviceMemoryResource DeviceMemoryResourceSingleton;
-extern LibraryHandle LibraryHandleSingleton;
+extern std::unique_ptr<void, void (*)(void*)> LibraryHandleSingleton;
 extern std::mutex DeviceMemoryResourceSingletonMutex;
 
 LibraryHandle OpenLibrary(const char* libpath);
@@ -44,7 +45,7 @@ inline void RegisterGPUDeviceAllocator(const char* libpath) {
   CHECK(deallocate) << "Could not load function void deallocate(void*, size_t)";
   std::lock_guard<std::mutex> guard(DeviceMemoryResourceSingletonMutex);
   CHECK(!LibraryHandleSingleton) << "Custom allocator already set; resetting is not allowed";
-  LibraryHandleSingleton = lib;
+  LibraryHandleSingleton.reset(static_cast<void*>(lib));
   DeviceMemoryResourceSingleton = {allocate, deallocate};
 }
 

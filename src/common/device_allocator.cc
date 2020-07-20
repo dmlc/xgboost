@@ -3,6 +3,7 @@
  * \file device_allocator.cc
  * \brief Store callback functions for allocating and de-allocating memory on GPU devices.
  */
+#include <memory>
 #include <mutex>
 #include "device_allocator.h"
 
@@ -15,8 +16,12 @@
 namespace dh {
 namespace detail {
 
+void LibraryDeleter(void* handle) {
+  CloseLibrary(static_cast<LibraryHandle>(handle));
+}
+
 DeviceMemoryResource DeviceMemoryResourceSingleton{nullptr, nullptr};
-LibraryHandle LibraryHandleSingleton{nullptr};
+std::unique_ptr<void, void (*)(void*)> LibraryHandleSingleton{nullptr, LibraryDeleter};
 std::mutex DeviceMemoryResourceSingletonMutex;
 
 LibraryHandle OpenLibrary(const char* libpath) {
@@ -29,6 +34,9 @@ LibraryHandle OpenLibrary(const char* libpath) {
 }
 
 void CloseLibrary(LibraryHandle handle) {
+  if (!handle) {
+    return;
+  }
 #ifdef _WIN32
   FreeLibrary(static_cast<HMODULE>(handle));
 #else
