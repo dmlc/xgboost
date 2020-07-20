@@ -244,7 +244,6 @@ XGB_DLL int XGDMatrixCombineDMatrix(DMatrixHandle handle_left,
 
   dmat->Combine(dmat_right, total_size);
   *out = new std::shared_ptr<DMatrix>(*(static_cast<std::shared_ptr<DMatrix>*>(handle_left)));
-  
   API_END();
 }
 
