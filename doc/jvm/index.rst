@@ -204,20 +204,11 @@ in order to get the benefit of multi-threading.
 
 Building with GPU support
 -------------------------
-If you want to build XGBoost4J that supports distributed GPU training, you need to go to the file ``xgboost/jvm-packages/create_jni.py`` and enable both "USE_CUDA" and "USE_NCCL" in CONFIG.
+If you want to build XGBoost4J that supports distributed GPU training, run
 
-.. code-block:: python
+.. code-block:: bash
 
-  CONFIG = {
-      "USE_OPENMP": "ON",
-      "USE_HDFS": "OFF",
-      "USE_AZURE": "OFF",
-      "USE_S3": "OFF",
-
-      "USE_CUDA": "ON",
-      "USE_NCCL": "ON",
-      "JVM_BINDINGS": "ON"
-  }
+  mvn -Duse.cuda=ON install
 
 ********
 Contents

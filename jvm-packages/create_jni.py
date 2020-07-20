@@ -7,6 +7,10 @@ import subprocess
 import sys
 from contextlib import contextmanager
 
+# usage
+# ./create_jni.py [ON|OFF]
+#  ON : USE_CUDA=ON
+#  OFF: USE_CUDA=OFF
 
 # Monkey-patch the API inconsistency between Python2.X and 3.X.
 if sys.platform.startswith("linux"):
@@ -88,6 +92,10 @@ if __name__ == "__main__":
                 maybe_parallel_build = " -- -j $(nproc)"
             else:
                 maybe_parallel_build = ""
+
+            if len(sys.argv) == 2 and sys.argv[1] == "ON":
+                CONFIG['USE_CUDA'] = "ON"
+                CONFIG['USE_NCCL'] = "ON"
 
             args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
 
