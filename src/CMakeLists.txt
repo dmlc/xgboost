@@ -3,6 +3,7 @@ list(REMOVE_ITEM CPU_SOURCES ${xgboost_SOURCE_DIR}/src/cli_main.cc)
 
 #-- Object library
 # Object library is necessary for jvm-package, which creates its own shared library.
+add_library(objxgboost OBJECT)
 target_sources(objxgboost PRIVATE ${CPU_SOURCES})
 if (USE_CUDA)
   file(GLOB_RECURSE CUDA_SOURCES *.cu *.cuh)

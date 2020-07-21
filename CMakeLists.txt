@@ -120,8 +120,6 @@ if (USE_OPENMP)
   find_package(OpenMP REQUIRED)
 endif (USE_OPENMP)
 
-add_library(objxgboost OBJECT)
-
 # core xgboost
 add_subdirectory(${xgboost_SOURCE_DIR}/src)
 
@@ -185,12 +183,6 @@ endif (R_LIB)
 
 # Plugin
 add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
-
-#-- DPC++ support
-if (PLUGIN_UPDATER_ONEAPI)
-  set_source_files_properties(${PLUGINS_SOURCES_ONEAPI} PROPERTIES COMPILE_FLAGS -fsycl)
-endif (PLUGIN_UPDATER_ONEAPI)
-#-- End of DPC++ support
 
 #-- library
 if (BUILD_STATIC_LIB)
