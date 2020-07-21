@@ -32,8 +32,9 @@ class TestArrowTable(unittest.TestCase):
     def test_arrow_table_with_label(self):
         df = pd.DataFrame([[1, 2., 3.], [2, 3., 4.]],
                           columns=['a', 'b', 'c'])
+        table = pa.Table.from_pandas(df)
         label = np.array([0, 1])
-        dm = xgb.DMatrix(df, label=label)
+        dm = xgb.DMatrix(table, label=label)
         assert dm.num_row() == 2
         assert dm.num_col() == 3
         np.testing.assert_array_equal(dm.get_label(), np.array([0, 1]))

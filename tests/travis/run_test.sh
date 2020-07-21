@@ -21,6 +21,7 @@ if [ ${TASK} == "python_test" ]; then
     # Build/test
     rm -rf build
     mkdir build && cd build
+    python -m pip install pyarrow==0.17.*
     cmake .. -DUSE_OPENMP=ON -DCMAKE_VERBOSE_MAKEFILE=ON
     make -j$(nproc)
 
