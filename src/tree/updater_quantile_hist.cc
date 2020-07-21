@@ -1373,5 +1373,8 @@ XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMaker, "grow_quantile_histmaker")
       return new QuantileHistMaker();
     });
 
+template struct QuantileHistMaker::Builder<float>;
+template struct QuantileHistMaker::Builder<double>;
+
 }  // namespace tree
 }  // namespace xgboost
