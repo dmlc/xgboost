@@ -15,8 +15,8 @@
 #  R_VERSION (for win)
 #  R_ARCH (for win 64 when want 32 bit build)
 #
-# TODO: 
-# - someone to verify OSX detection, 
+# TODO:
+# - someone to verify OSX detection,
 # - possibly, add OSX detection based on current R in PATH or LIBR_EXECUTABLE
 # - improve registry-based R_HOME detection in Windows (from a set of R_VERSION's)
 
@@ -37,8 +37,8 @@ endif()
 # Creates R.lib and R.def in the build directory for linking with MSVC
 function(create_rlib_for_msvc)
   # various checks and warnings
-  if(NOT WIN32 OR NOT MSVC)
-    message(FATAL_ERROR "create_rlib_for_msvc() can only be used with MSVC")
+  if(NOT WIN32 OR (NOT MSVC AND NOT MINGW))
+    message(FATAL_ERROR "create_rlib_for_msvc() can only be used with MSVC or MINGW")
   endif()
   if(NOT EXISTS "${LIBR_LIB_DIR}")
     message(FATAL_ERROR "LIBR_LIB_DIR was not set!")
@@ -90,7 +90,7 @@ if(APPLE)
     set(LIBR_INCLUDE_DIRS "${LIBR_HOME}/include" CACHE PATH "R include directory")
     set(LIBR_LIB_DIR "${LIBR_HOME}/lib" CACHE PATH "R lib directory")
   endif()
-  
+
 # detection for UNIX & Win32
 else()
 
@@ -98,7 +98,7 @@ else()
   if(NOT LIBR_EXECUTABLE)
     find_program(LIBR_EXECUTABLE NAMES R R.exe)
   endif()
-  
+
   if(UNIX)
 
     if(NOT LIBR_EXECUTABLE)
@@ -124,7 +124,7 @@ else()
 
   # Windows
   else()
-    # ask R for R_HOME 
+    # ask R for R_HOME
     if(LIBR_EXECUTABLE)
       execute_process(
         COMMAND ${LIBR_EXECUTABLE} "--slave" "--no-save" "-e" "cat(normalizePath(R.home(),winslash='/'))"
@@ -147,7 +147,7 @@ else()
     # set other R paths based on home path
     set(LIBR_INCLUDE_DIRS "${LIBR_HOME}/include")
     set(LIBR_LIB_DIR "${LIBR_HOME}/bin/${R_ARCH}")
- 
+
 message(STATUS "LIBR_HOME [${LIBR_HOME}]")
 message(STATUS "LIBR_EXECUTABLE [${LIBR_EXECUTABLE}]")
 message(STATUS "LIBR_INCLUDE_DIRS [${LIBR_INCLUDE_DIRS}]")
@@ -158,7 +158,7 @@ message(STATUS "LIBR_CORE_LIBRARY [${LIBR_CORE_LIBRARY}]")
 
 endif()
 
-if(WIN32 AND MSVC)
+if((WIN32 AND MSVC) OR (WIN32 AND MINGW))
   # create a local R.lib import library for R.dll if it doesn't exist
   if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/R.lib")
     create_rlib_for_msvc()
