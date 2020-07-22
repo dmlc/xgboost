@@ -31,4 +31,4 @@ set(XGB_DEPS_SCRIPT
 check_call(COMMAND "${LIBR_EXECUTABLE}" -q -e "${XGB_DEPS_SCRIPT}")
 
 # Install the XGBoost R package
-check_call(COMMAND "${LIBR_EXECUTABLE}" CMD INSTALL --with-keep.source --no-multiarch --build "${build_dir}/R-package")
+check_call(COMMAND "${LIBR_EXECUTABLE}" CMD INSTALL --no-multiarch --build "${build_dir}/R-package")
