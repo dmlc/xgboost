@@ -20,7 +20,7 @@ logregobj <- function(preds, dtrain) {
 
 evalerror <- function(preds, dtrain) {
   labels <- getinfo(dtrain, "label")
-  err <- as.numeric(sum(labels != (preds > 0))) / length(labels)
+  err <- as.numeric(sum(labels != (preds > 0.5))) / length(labels)
   return(list(metric = "error", value = err))
 }
 
