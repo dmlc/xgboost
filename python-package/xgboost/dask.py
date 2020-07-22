@@ -1,5 +1,6 @@
 # pylint: disable=too-many-arguments, too-many-locals
 # pylint: disable=missing-class-docstring, invalid-name
+# pylint: disable=too-many-lines
 """Dask extensions for distributed training. See
 https://xgboost.readthedocs.io/en/latest/tutorials/dask.html for simple
 tutorial.  Also xgboost/demo/dask for some examples.
@@ -548,8 +549,7 @@ def _create_dmatrix(feature_names, feature_types, has_label,
 def _dmatrix_from_worker_map(is_quantile, **kwargs):
     if is_quantile:
         return _create_device_quantile_dmatrix(**kwargs)
-    else:
-        return _create_dmatrix(**kwargs)
+    return _create_dmatrix(**kwargs)
 
 
 async def _get_rabit_args(worker_map, client: Client):
