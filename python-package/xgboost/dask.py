@@ -346,6 +346,49 @@ def _get_worker_parts(has_label, has_weights, worker_map, worker):
     return data, labels, weights
 
 
+def _dmatrix_from_worker_map(feature_names, feature_types, has_label,
+                             has_weights, missing, worker_map):
+    '''Get data that local to worker from DaskDMatrix.
+
+      Returns
+      -------
+      A DMatrix object.
+
+    '''
+    worker = distributed_get_worker()
+    if worker.address not in set(worker_map.keys()):
+        msg = 'worker {address} has an empty DMatrix.  ' \
+            'All workers associated with this DMatrix: {workers}'.format(
+                address=worker.address,
+                workers=set(worker_map.keys()))
+        LOGGER.warning(msg)
+        d = DMatrix(numpy.empty((0, 0)),
+                    feature_names=feature_names,
+                    feature_types=feature_types)
+        return d
+
+    data, labels, weights = _get_worker_parts(has_label, has_weights,
+                                              worker_map, worker)
+    data = concat(data)
+
+    if has_label:
+        labels = concat(labels)
+    else:
+        labels = None
+    if has_weights:
+        weights = concat(weights)
+    else:
+        weights = None
+    dmatrix = DMatrix(data,
+                      labels,
+                      weight=weights,
+                      missing=missing,
+                      feature_names=feature_names,
+                      feature_types=feature_types,
+                      nthread=worker.nthreads)
+    return dmatrix
+
+
 class DaskPartitionIter(DataIter):  # pylint: disable=R0902
     '''A data iterator for `DaskDeviceQuantileDMatrix`.
     '''
@@ -485,49 +528,6 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
                                         nthread=worker.nthreads,
                                         max_bin=self.max_bin)
         return dmatrix
-
-
-def _dmatrix_from_worker_map(feature_names, feature_types, has_label,
-                             has_weights, missing, worker_map):
-    '''Get data that local to worker from DaskDMatrix.
-
-      Returns
-      -------
-      A DMatrix object.
-
-    '''
-    worker = distributed_get_worker()
-    if worker.address not in set(worker_map.keys()):
-        msg = 'worker {address} has an empty DMatrix.  ' \
-            'All workers associated with this DMatrix: {workers}'.format(
-                address=worker.address,
-                workers=set(worker_map.keys()))
-        LOGGER.warning(msg)
-        d = DMatrix(numpy.empty((0, 0)),
-                    feature_names=feature_names,
-                    feature_types=feature_types)
-        return d
-
-    data, labels, weights = _get_worker_parts(has_label, has_weights,
-                                              worker_map, worker)
-    data = concat(data)
-
-    if has_label:
-        labels = concat(labels)
-    else:
-        labels = None
-    if has_weights:
-        weights = concat(weights)
-    else:
-        weights = None
-    dmatrix = DMatrix(data,
-                      labels,
-                      weight=weights,
-                      missing=missing,
-                      feature_names=feature_names,
-                      feature_types=feature_types,
-                      nthread=worker.nthreads)
-    return dmatrix
 
 
 async def _get_rabit_args(worker_map, client: Client):

@@ -118,10 +118,10 @@ Working with asyncio
 .. versionadded:: 1.2.0
 
 XGBoost dask interface supports the new ``asyncio`` in Python and can be integrated into
-asynchronous workflows like GCP.  For using dask with asynchronous operations, please
-refer to `dask example <https://examples.dask.org/applications/async-await.html>`_ and
-document in `distributed <https://distributed.dask.org/en/latest/asynchronous.html>`_.  As
-XGBoost takes ``Client`` object as an argument for both training and prediction, so when
+asynchronous workflows.  For using dask with asynchronous operations, please refer to
+`dask example <https://examples.dask.org/applications/async-await.html>`_ and document in
+`distributed <https://distributed.dask.org/en/latest/asynchronous.html>`_.  As XGBoost
+takes ``Client`` object as an argument for both training and prediction, so when
 ``asynchronous=True`` is specified when creating ``Client``, the dask interface can adapt
 the change accordingly.  All functions provided by the functional interface returns a
 coroutine when called in async function, and hence require awaiting to get the result,
