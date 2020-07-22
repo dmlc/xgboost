@@ -3,6 +3,10 @@ import xgboost as xgb
 import pytest
 import testing as tm
 import numpy as np
+import sys
+
+if sys.platform.startswith("win"):
+    pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
 
 
 def test_rabit_tracker():

@@ -8,16 +8,46 @@ on: [push, pull_request]
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
+  test-with-jvm:
+    name: Test JVM on OS ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-2016, ubuntu-latest]
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: actions/setup-java@v1
+      with:
+        java-version: 1.8
+
+    - name: Test JVM packages
+      run: |
+        cd jvm-packages
+        mvn test -pl :xgboost4j_2.12
+
+
   test-with-R:
     runs-on: ${{ matrix.config.os }}
 
-    name: Test R on OS ${{ matrix.config.os }}, R (${{ matrix.config.r }})
+    name: Test R on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
 
     strategy:
       fail-fast: false
       matrix:
         config:
-          - {os: windows-latest, r: 'release'}
+          - {os: windows-latest, r: 'release', compiler: 'msvc', build: 'autotools'}
+          - {os: windows-2016, r: 'release', compiler: 'msvc', build: 'autotools'}
+          - {os: windows-latest, r: 'release', compiler: 'msvc', build: 'cmake'}
+          - {os: windows-2016, r: 'release', compiler: 'msvc', build: 'cmake'}
+          - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'autotools'}
+          - {os: windows-2016, r: 'release', compiler: 'mingw', build: 'autotools'}
+          - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'cmake'}
+          - {os: windows-2016, r: 'release', compiler: 'mingw', build: 'cmake'}
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
       RSPM: ${{ matrix.config.rspm }}
@@ -37,16 +67,11 @@ jobs:
         install.packages(c('XML','igraph'))
         install.packages(c('data.table','magrittr','stringi','ggplot2','DiagrammeR','Ckmeans.1d.dp','vcd','testthat','lintr','knitr','rmarkdown'))
 
-    - name: Config R
-      run: |
-        mkdir build && cd build
-        cmake .. -DCMAKE_CONFIGURATION_TYPES="Release" -DR_LIB=ON
-
-    - name: Build R
-      run: |
-        cmake --build build --target install --config Release
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.6' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+        architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
 
     - name: Test R
       run: |
-        cd R-package
-        R.exe -q -e "library(testthat); setwd('tests'); source('testthat.R')"
+        python tests/ci_build/test_r_package.py --compiler="${{ matrix.config.compiler }}" --build-tool="${{ matrix.config.build }}"
