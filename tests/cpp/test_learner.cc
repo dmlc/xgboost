@@ -200,6 +200,7 @@ TEST(Learner, MultiThreadedPredict) {
 
   std::shared_ptr<DMatrix> p_data{
       RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
+  CHECK_NE(p_data->Info().num_col_, 0);
 
   std::shared_ptr<Learner> learner{Learner::Create({p_dmat})};
   learner->Configure();
@@ -208,8 +209,8 @@ TEST(Learner, MultiThreadedPredict) {
   for (int32_t thread_id = 0;
        thread_id < 2 * std::thread::hardware_concurrency(); ++thread_id) {
     threads.push_back(std::thread([learner, p_data] {
+      auto &entry = learner->GetThreadLocal().prediction_entry;
       for (size_t iter = 0; iter < kIters; ++iter) {
-        auto &entry = learner->GetThreadLocal().prediction_entry;
         learner->Predict(p_data, false, &entry.predictions);
       }
     }));
