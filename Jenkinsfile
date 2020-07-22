@@ -362,8 +362,8 @@ def TestPythonGPU(args) {
     sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh ${mgpu_indicator}"
     if (args.test_rmm) {
       sh "rm -rfv build/ python-package/dist/"
-      unstash name: "xgboost_whl_rmm_cuda${artifact_cuda_version}"
-      unstash name: "xgboost_cpp_tests_rmm_cuda${artifact_cuda_version}"
+      unstash name: "xgboost_whl_rmm_cuda${args.host_cuda_version}"
+      unstash name: "xgboost_cpp_tests_rmm_cuda${args.host_cuda_version}"
       sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh ${mgpu_indicator}"
     }
     deleteDir()
@@ -393,7 +393,7 @@ def TestCppGPU(args) {
     echo "Test C++, CUDA ${args.host_cuda_version}"
     def container_type = "gpu"
     def docker_binary = "nvidia-docker"
-    def docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
+    def docker_args = "--build-arg CUDA_VERSION=${artifact_cuda_version}"
     sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} build/testxgboost"
     if (args.test_rmm) {
       sh "rm -rfv build/"
