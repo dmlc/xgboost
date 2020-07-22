@@ -210,7 +210,7 @@ class TestModels(unittest.TestCase):
 
         def evalerror(preds, dtrain):
             labels = dtrain.get_label()
-            return 'error', float(sum(labels != (preds > 0.0))) / len(labels)
+            return 'error', float(sum(labels != (preds > 0.5))) / len(labels)
 
         # test custom_objective in training
         bst = xgb.train(param, dtrain, num_round, watchlist, logregobj, evalerror)
