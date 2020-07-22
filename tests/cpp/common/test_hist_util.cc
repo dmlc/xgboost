@@ -164,7 +164,12 @@ TEST(CutsBuilder, SearchGroupInd) {
   group_ind = CutsBuilder::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 5);
   ASSERT_EQ(group_ind, 2);
 
-  EXPECT_ANY_THROW(CutsBuilder::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 17));
+  p_mat->Info().Validate(-1);
+  EXPECT_THROW(CutsBuilder::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 17),
+               dmlc::Error);
+
+  std::vector<bst_uint> group_ptr {0, 1, 2};
+  CHECK_EQ(CutsBuilder::SearchGroupIndFromRow(group_ptr, 1), 1);
 }
 
 TEST(SparseCuts, SingleThreadedBuild) {

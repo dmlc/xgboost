@@ -62,23 +62,30 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
   size_t batches = 0;
   size_t accumulated_rows = 0;
   bst_feature_t cols = 0;
-  int32_t device = -1;
+  int32_t device = GenericParameter::kCpuId;
+  int32_t current_device_;
+  dh::safe_cuda(cudaGetDevice(&current_device_));
+  auto get_device = [&]() -> int32_t {
+    int32_t d = GenericParameter::kCpuId ? current_device_ : device;
+    return d;
+  };
+
   while (iter.Next()) {
     device = proxy->DeviceIdx();
-    dh::safe_cuda(cudaSetDevice(device));
+    dh::safe_cuda(cudaSetDevice(get_device()));
     if (cols == 0) {
       cols = num_cols();
+      rabit::Allreduce<rabit::op::Max>(&cols, 1);
     } else {
       CHECK_EQ(cols, num_cols()) << "Inconsistent number of columns.";
     }
-    sketch_containers.emplace_back(batch_param_.max_bin, num_cols(), num_rows(), device);
+    sketch_containers.emplace_back(batch_param_.max_bin, cols, num_rows(), get_device());
     auto* p_sketch = &sketch_containers.back();
-    proxy->Info().weights_.SetDevice(device);
+    proxy->Info().weights_.SetDevice(get_device());
     Dispatch(proxy, [&](auto const &value) {
-        common::AdapterDeviceSketchWeighted(value, batch_param_.max_bin,
-                                            proxy->Info(), missing, p_sketch);
+        common::AdapterDeviceSketch(value, batch_param_.max_bin,
+                                    proxy->Info(), missing, p_sketch);
       });
-
     auto batch_rows = num_rows();
     accumulated_rows += batch_rows;
     dh::caching_device_vector<size_t> row_counts(batch_rows + 1, 0);
@@ -86,19 +93,15 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
                                          row_counts.size());
     row_stride = std::max(row_stride, Dispatch(proxy, [=](auto const &value) {
           return GetRowCounts(value, row_counts_span,
-                              device, missing);
+                              get_device(), missing);
         }));
     nnz += thrust::reduce(thrust::cuda::par(alloc), row_counts.begin(),
                           row_counts.end());
     batches++;
   }
-
-  if (device < 0) {  // error or empty
-    this->page_.reset(new EllpackPage);
-    return;
-  }
-
-  common::SketchContainer final_sketch(batch_param_.max_bin, cols, accumulated_rows, device);
+  iter.Reset();
+  dh::safe_cuda(cudaSetDevice(get_device()));
+  common::SketchContainer final_sketch(batch_param_.max_bin, cols, accumulated_rows, get_device());
   for (auto const& sketch : sketch_containers) {
     final_sketch.Merge(sketch.ColumnsPtr(), sketch.Data());
     final_sketch.FixError();
@@ -113,14 +116,14 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
   this->info_.num_row_ = accumulated_rows;
   this->info_.num_nonzero_ = nnz;
 
-  auto init_page = [this, &proxy, &cuts, row_stride, accumulated_rows]() {
+  auto init_page = [this, &proxy, &cuts, row_stride, accumulated_rows,
+                    get_device]() {
     if (!page_) {
       // Should be put inside the while loop to protect against empty batch.  In
       // that case device id is invalid.
       page_.reset(new EllpackPage);
-      *(page_->Impl()) =
-          EllpackPageImpl(proxy->DeviceIdx(), cuts, this->IsDense(), row_stride,
-                          accumulated_rows);
+      *(page_->Impl()) = EllpackPageImpl(get_device(), cuts, this->IsDense(),
+                                         row_stride, accumulated_rows);
     }
   };
 
@@ -130,21 +133,20 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
   size_t n_batches_for_verification = 0;
   while (iter.Next()) {
     init_page();
-    auto device = proxy->DeviceIdx();
-    dh::safe_cuda(cudaSetDevice(device));
+    dh::safe_cuda(cudaSetDevice(get_device()));
     auto rows = num_rows();
     dh::caching_device_vector<size_t> row_counts(rows + 1, 0);
     common::Span<size_t> row_counts_span(row_counts.data().get(),
                                          row_counts.size());
     Dispatch(proxy, [=](auto const& value) {
-        return GetRowCounts(value, row_counts_span, device, missing);
+        return GetRowCounts(value, row_counts_span, get_device(), missing);
       });
     auto is_dense = this->IsDense();
     auto new_impl = Dispatch(proxy, [&](auto const &value) {
-      return EllpackPageImpl(value, missing, device, is_dense, nthread,
-                             row_counts_span, row_stride, rows, cols, cuts);
+        return EllpackPageImpl(value, missing, get_device(), is_dense, nthread,
+                               row_counts_span, row_stride, rows, cols, cuts);
     });
-    size_t num_elements = page_->Impl()->Copy(device, &new_impl, offset);
+    size_t num_elements = page_->Impl()->Copy(get_device(), &new_impl, offset);
     offset += num_elements;
 
     proxy->Info().num_row_ = num_rows();

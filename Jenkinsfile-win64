@@ -10,15 +10,25 @@ def commit_id   // necessary to pass a variable from one stage to another
 
 pipeline {
   agent none
+
+  // Setup common job properties
+  options {
+    timestamps()
+    timeout(time: 240, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '10'))
+    preserveStashes()
+  }
+
   // Build stages
   stages {
-    stage('Jenkins Win64: Get sources') {
-      agent { label 'win64 && build' }
+    stage('Jenkins Win64: Initialize') {
+      agent { label 'job_initializer' }
       steps {
         script {
           checkoutSrcs()
           commit_id = "${GIT_COMMIT}"
         }
+        sh 'python3 tests/jenkins_get_approval.py'
         stash name: 'srcs'
         milestone ordinal: 1
       }
@@ -28,7 +38,7 @@ pipeline {
       steps {
         script {
           parallel ([
-            'build-win64-cuda10.0': { BuildWin64() }
+            'build-win64-cuda10.1': { BuildWin64() }
           ])
         }
         milestone ordinal: 2
@@ -39,9 +49,7 @@ pipeline {
       steps {
         script {
           parallel ([
-            'test-win64-cpu': { TestWin64CPU() },
-            'test-win64-gpu-cuda10.0': { TestWin64GPU(cuda_target: 'cuda10_0') },
-            'test-win64-gpu-cuda10.1': { TestWin64GPU(cuda_target: 'cuda10_1') }
+            'test-win64-cuda10.1': { TestWin64() },
           ])
         }
         milestone ordinal: 3
@@ -66,14 +74,18 @@ def checkoutSrcs() {
 }
 
 def BuildWin64() {
-  node('win64 && build && cuda10') {
+  node('win64 && cuda10_unified') {
     unstash name: 'srcs'
     echo "Building XGBoost for Windows AMD64 target..."
     bat "nvcc --version"
+    def arch_flag = ""
+    if (env.BRANCH_NAME != 'master' && !(env.BRANCH_NAME.startsWith('release'))) {
+      arch_flag = "-DGPU_COMPUTE_VER=75"
+    }
     bat """
     mkdir build
     cd build
-    cmake .. -G"Visual Studio 15 2017 Win64" -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON
+    cmake .. -G"Visual Studio 15 2017 Win64" -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON ${arch_flag}
     """
     bat """
     cd build
@@ -91,8 +103,11 @@ def BuildWin64() {
     """
     echo 'Stashing Python wheel...'
     stash name: 'xgboost_whl', includes: 'python-package/dist/*.whl'
-    path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
-    s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
+    if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
+      echo 'Uploading Python wheel...'
+      path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
+      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
+    }
     echo 'Stashing C++ test executable (testxgboost)...'
     stash name: 'xgboost_cpp_tests', includes: 'build/testxgboost.exe'
     stash name: 'xgboost_cli', includes: 'xgboost.exe'
@@ -100,52 +115,29 @@ def BuildWin64() {
   }
 }
 
-def TestWin64CPU() {
-  node('win64 && cpu') {
+def TestWin64() {
+  node('win64 && cuda10_unified') {
     unstash name: 'srcs'
     unstash name: 'xgboost_whl'
     unstash name: 'xgboost_cli'
-    echo "Test Win64 CPU"
-    echo "Installing Python wheel..."
-    bat "conda activate && (python -m pip uninstall -y xgboost || cd .)"
-    bat """
-    conda activate && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"
-    """
-    echo "Installing Python dependencies..."
-    bat """
-     conda activate && conda install -y hypothesis && conda upgrade scikit-learn pandas numpy hypothesis
-    """
-    echo "Running Python tests..."
-    bat "conda activate && python -m pytest -v -s --fulltrace tests\\python"
-    bat "conda activate && python -m pip uninstall -y xgboost"
-    deleteDir()
-  }
-}
-
-def TestWin64GPU(args) {
-  node("win64 && gpu && ${args.cuda_target}") {
-    unstash name: 'srcs'
-    unstash name: 'xgboost_whl'
     unstash name: 'xgboost_cpp_tests'
-    echo "Test Win64 GPU (${args.cuda_target})"
+    echo "Test Win64"
     bat "nvcc --version"
     echo "Running C++ tests..."
     bat "build\\testxgboost.exe"
-    echo "Installing Python wheel..."
-    bat "conda activate && (python -m pip uninstall -y xgboost || cd .)"
-    bat """
-    conda activate && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"
-    """
     echo "Installing Python dependencies..."
-    def cuda_short_ver = args.cuda_target.replaceAll('_', '')
+    def env_name = 'win64_' + UUID.randomUUID().toString().replaceAll('-', '')
+    bat "conda env create -n ${env_name} --file=tests/ci_build/win64_conda_env.yml"
+    echo "Installing Python wheel..."
     bat """
-     conda activate && conda install -y hypothesis && conda upgrade scikit-learn pandas numpy hypothesis  && python -m pip install cupy-${cuda_short_ver}
+    conda activate ${env_name} && for /R %%i in (python-package\\dist\\*.whl) DO python -m pip install "%%i"
     """
     echo "Running Python tests..."
+    bat "conda activate ${env_name} && python -m pytest -v -s -rxXs --fulltrace tests\\python"
     bat """
-    conda activate && python -m pytest -v -s --fulltrace -m "(not slow) and (not mgpu)" tests\\python-gpu
+    conda activate ${env_name} && python -m pytest -v -s -rxXs --fulltrace -m "(not slow) and (not mgpu)" tests\\python-gpu
     """
-    bat "conda activate && python -m pip uninstall -y xgboost"
+    bat "conda env remove --name ${env_name}"
     deleteDir()
   }
 }

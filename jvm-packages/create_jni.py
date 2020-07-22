@@ -80,7 +80,7 @@ if __name__ == "__main__":
         with cd("build"):
             if sys.platform == "win32":
                 # Force x64 build on Windows.
-                maybe_generator = ' -G"Visual Studio 14 Win64"'
+                maybe_generator = ' -A x64'
             else:
                 maybe_generator = ""
             if sys.platform == "linux":

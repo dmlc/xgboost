@@ -5,18 +5,18 @@ require(data.table)
 require(Matrix)
 require(vcd, quietly = TRUE)
 
-float_tolerance = 5e-6
+float_tolerance <- 5e-6
 
 # disable some tests for 32-bit environment
-flag_32bit = .Machine$sizeof.pointer != 8
+flag_32bit <- .Machine$sizeof.pointer != 8
 
 set.seed(1982)
 data(Arthritis)
 df <- data.table(Arthritis, keep.rownames = FALSE)
-df[,AgeDiscret := as.factor(round(Age / 10,0))]
-df[,AgeCat := as.factor(ifelse(Age > 30, "Old", "Young"))]
-df[,ID := NULL]
-sparse_matrix <- sparse.model.matrix(Improved~.-1, data = df)
+df[, AgeDiscret := as.factor(round(Age / 10, 0))]
+df[, AgeCat := as.factor(ifelse(Age > 30, "Old", "Young"))]
+df[, ID := NULL]
+sparse_matrix <- sparse.model.matrix(Improved~.-1, data = df) # nolint
 label <- df[, ifelse(Improved == "Marked", 1, 0)]
 
 # binary
@@ -46,7 +46,7 @@ mbst.GLM <- xgboost(data = as.matrix(iris[, -5]), label = mlabel, verbose = 0,
 test_that("xgb.dump works", {
   if (!flag_32bit)
     expect_length(xgb.dump(bst.Tree), 200)
-  dump_file = file.path(tempdir(), 'xgb.model.dump')
+  dump_file <- file.path(tempdir(), 'xgb.model.dump')
   expect_true(xgb.dump(bst.Tree, dump_file, with_stats = TRUE))
   expect_true(file.exists(dump_file))
   expect_gt(file.size(dump_file), 8000)
@@ -63,7 +63,7 @@ test_that("xgb.dump works for gblinear", {
   # also make sure that it works properly for a sparse model where some coefficients
   # are 0 from setting large L1 regularization:
   bst.GLM.sp <- xgboost(data = sparse_matrix, label = label, eta = 1, nthread = 2, nrounds = 1,
-                        alpha=2, objective = "binary:logistic", booster = "gblinear")
+                        alpha = 2, objective = "binary:logistic", booster = "gblinear")
   d.sp <- xgb.dump(bst.GLM.sp)
   expect_length(d.sp, 14)
   expect_gt(sum(d.sp == "0"), 0)
@@ -110,9 +110,9 @@ test_that("predict feature contributions works", {
   pred <- predict(bst.GLM, sparse_matrix, outputmargin = TRUE)
   expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-5)
   # manual calculation of linear terms
-  coefs <- xgb.dump(bst.GLM)[-c(1,2,4)] %>% as.numeric
+  coefs <- xgb.dump(bst.GLM)[-c(1, 2, 4)] %>% as.numeric
   coefs <- c(coefs[-1], coefs[1]) # intercept must be the last
-  pred_contr_manual <- sweep(cbind(sparse_matrix, 1), 2, coefs, FUN="*")
+  pred_contr_manual <- sweep(cbind(sparse_matrix, 1), 2, coefs, FUN = "*")
   expect_equal(as.numeric(pred_contr), as.numeric(pred_contr_manual),
                tolerance = float_tolerance)
 
@@ -130,13 +130,13 @@ test_that("predict feature contributions works", {
   pred <- predict(mbst.GLM, as.matrix(iris[, -5]), outputmargin = TRUE, reshape = TRUE)
   pred_contr <- predict(mbst.GLM, as.matrix(iris[, -5]), predcontrib = TRUE)
   expect_length(pred_contr, 3)
-  coefs_all <- xgb.dump(mbst.GLM)[-c(1,2,6)] %>% as.numeric %>% matrix(ncol = 3, byrow = TRUE)
+  coefs_all <- xgb.dump(mbst.GLM)[-c(1, 2, 6)] %>% as.numeric %>% matrix(ncol = 3, byrow = TRUE)
   for (g in seq_along(pred_contr)) {
     expect_equal(colnames(pred_contr[[g]]), c(colnames(iris[, -5]), "BIAS"))
     expect_lt(max(abs(rowSums(pred_contr[[g]]) - pred[, g])), float_tolerance)
     # manual calculation of linear terms
     coefs <- c(coefs_all[-1, g], coefs_all[1, g]) # intercept needs to be the last
-    pred_contr_manual <- sweep(as.matrix(cbind(iris[,-5], 1)), 2, coefs, FUN="*")
+    pred_contr_manual <- sweep(as.matrix(cbind(iris[, -5], 1)), 2, coefs, FUN = "*")
     expect_equal(as.numeric(pred_contr[[g]]), as.numeric(pred_contr_manual),
                  tolerance = float_tolerance)
   }
@@ -147,8 +147,8 @@ test_that("SHAPs sum to predictions, with or without DART", {
     x1 = rnorm(100),
     x2 = rnorm(100),
     x3 = rnorm(100))
-  y <- d[,"x1"] + d[,"x2"]^2 +
-    ifelse(d[,"x3"] > .5, d[,"x3"]^2, 2^d[,"x3"]) +
+  y <- d[, "x1"] + d[, "x2"]^2 +
+    ifelse(d[, "x3"] > .5, d[, "x3"]^2, 2^d[, "x3"]) +
     rnorm(100)
   nrounds <- 30
 
@@ -170,19 +170,19 @@ test_that("SHAPs sum to predictions, with or without DART", {
     pred <- pr()
     shap <- pr(predcontrib = TRUE)
     shapi <- pr(predinteraction = TRUE)
-    tol = 1e-5
+    tol <- 1e-5
 
     expect_equal(rowSums(shap), pred, tol = tol)
     expect_equal(apply(shapi, 1, sum), pred, tol = tol)
     for (i in 1 : nrow(d))
       for (f in list(rowSums, colSums))
-        expect_equal(f(shapi[i,,]), shap[i,], tol = tol)
+        expect_equal(f(shapi[i, , ]), shap[i, ], tol = tol)
   }
 })
 
 test_that("xgb-attribute functionality", {
   val <- "my attribute value"
-  list.val <- list(my_attr=val, a=123, b='ok')
+  list.val <- list(my_attr = val, a = 123, b = 'ok')
   list.ch <- list.val[order(names(list.val))]
   list.ch <- lapply(list.ch, as.character)
   # note: iter is 0-index in xgb attributes
@@ -208,9 +208,9 @@ test_that("xgb-attribute functionality", {
   xgb.attr(bst, "my_attr") <- NULL
   expect_null(xgb.attr(bst, "my_attr"))
   expect_equal(xgb.attributes(bst), list.ch[c("a", "b", "niter")])
-  xgb.attributes(bst) <- list(a=NULL, b=NULL)
+  xgb.attributes(bst) <- list(a = NULL, b = NULL)
   expect_equal(xgb.attributes(bst), list.default)
-  xgb.attributes(bst) <- list(niter=NULL)
+  xgb.attributes(bst) <- list(niter = NULL)
   expect_null(xgb.attributes(bst))
 })
 
@@ -268,7 +268,7 @@ test_that("xgb.model.dt.tree works with and without feature names", {
   bst.Tree.x$feature_names <- NULL
   dt.tree.x <- xgb.model.dt.tree(model = bst.Tree.x)
   expect_output(str(dt.tree.x), 'Feature.*\\"3\\"')
-  expect_equal(dt.tree[, -4, with=FALSE], dt.tree.x[, -4, with=FALSE])
+  expect_equal(dt.tree[, -4, with = FALSE], dt.tree.x[, -4, with = FALSE])
 
   # using integer node ID instead of character
   dt.tree.int <- xgb.model.dt.tree(model = bst.Tree, use_int_id = TRUE)
@@ -295,7 +295,7 @@ test_that("xgb.importance works with and without feature names", {
   bst.Tree.x <- bst.Tree
   bst.Tree.x$feature_names <- NULL
   importance.Tree.x <- xgb.importance(model = bst.Tree)
-  expect_equal(importance.Tree[, -1, with=FALSE], importance.Tree.x[, -1, with=FALSE],
+  expect_equal(importance.Tree[, -1, with = FALSE], importance.Tree.x[, -1, with = FALSE],
                tolerance = float_tolerance)
 
   imp2plot <- xgb.plot.importance(importance_matrix = importance.Tree)
@@ -305,7 +305,7 @@ test_that("xgb.importance works with and without feature names", {
   # for multiclass
   imp.Tree <- xgb.importance(model = mbst.Tree)
   expect_equal(dim(imp.Tree), c(4, 4))
-  xgb.importance(model = mbst.Tree, trees = seq(from=0, by=nclass, length.out=nrounds))
+  xgb.importance(model = mbst.Tree, trees = seq(from = 0, by = nclass, length.out = nrounds))
 })
 
 test_that("xgb.importance works with GLM model", {
@@ -320,7 +320,7 @@ test_that("xgb.importance works with GLM model", {
   # for multiclass
   imp.GLM <- xgb.importance(model = mbst.GLM)
   expect_equal(dim(imp.GLM), c(12, 3))
-  expect_equal(imp.GLM$Class, rep(0:2, each=4))
+  expect_equal(imp.GLM$Class, rep(0:2, each = 4))
 })
 
 test_that("xgb.model.dt.tree and xgb.importance work with a single split model", {

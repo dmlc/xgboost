@@ -15,7 +15,7 @@ except ImportError:
     pass
 
 
-pytestmark = pytest.mark.skipif(**tm.no_matplotlib())
+pytestmark = pytest.mark.skipif(**tm.no_multiple(tm.no_matplotlib(), tm.no_graphviz()))
 
 
 dpath = 'demo/data/'

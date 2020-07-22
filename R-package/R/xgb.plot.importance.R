@@ -92,10 +92,10 @@ xgb.plot.importance <- function(importance_matrix = NULL, top_n = NULL, measure 
     importance_matrix <- head(importance_matrix, top_n)
   }
   if (rel_to_first) {
-    importance_matrix[, Importance := Importance/max(abs(Importance))]
+    importance_matrix[, Importance := Importance / max(abs(Importance))]
   }
   if (is.null(cex)) {
-    cex <- 2.5/log2(1 + nrow(importance_matrix))
+    cex <- 2.5 / log2(1 + nrow(importance_matrix))
   }
 
   if (plot) {

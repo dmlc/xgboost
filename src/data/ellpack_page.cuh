@@ -159,12 +159,6 @@ class EllpackPageImpl {
    */
   explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
 
-  template <typename AdapterT>
-  explicit EllpackPageImpl(AdapterT* adapter, float missing, bool is_dense, int nthread,
-                           int max_bin,
-                           common::Span<size_t> row_counts_span,
-                           size_t row_stride);
-
   template <typename AdapterBatch>
   explicit EllpackPageImpl(AdapterBatch batch, float missing, int device, bool is_dense, int nthread,
                            common::Span<size_t> row_counts_span,

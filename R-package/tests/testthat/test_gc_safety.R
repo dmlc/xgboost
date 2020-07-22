@@ -3,8 +3,8 @@ require(xgboost)
 context("Garbage Collection Safety Check")
 
 test_that("train and prediction when gctorture is on", {
-  data(agaricus.train, package='xgboost')
-  data(agaricus.test, package='xgboost')
+  data(agaricus.train, package = 'xgboost')
+  data(agaricus.test, package = 'xgboost')
   train <- agaricus.train
   test <- agaricus.test
   gctorture(TRUE)
