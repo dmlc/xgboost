@@ -43,6 +43,13 @@ test_that("custom objective in CV works", {
   expect_lt(cv$evaluation_log[num_round, test_error_mean], 0.03)
 })
 
+test_that("custom objective with early stop works", {
+  bst <- xgb.train(param, dtrain, 10, watchlist)
+  expect_equal(class(bst), "xgb.Booster")
+  train_log <- bst$evaluation_log$train_error
+  expect_true(all(diff(train_log)) <= 0)
+})
+
 test_that("custom objective using DMatrix attr works", {
 
   attr(dtrain, 'label') <- getinfo(dtrain, 'label')
