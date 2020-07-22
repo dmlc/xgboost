@@ -76,6 +76,9 @@ if (ENABLE_ALL_WARNINGS)
   target_compile_options(objxgboost PUBLIC
     $<IF:$<COMPILE_LANGUAGE:CUDA>,-Xcompiler=-Wall -Xcompiler=-Wextra,-Wall -Wextra>)
 endif (ENABLE_ALL_WARNINGS)
+if (LOG_CAPI_INVOCATION)
+  target_compile_definitions(objxgboost PUBLIC -DLOG_CAPI_INVOCATION=1)
+endif (LOG_CAPI_INVOCATION)
 
 set_target_properties(objxgboost PROPERTIES
   POSITION_INDEPENDENT_CODE ON

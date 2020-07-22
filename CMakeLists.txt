@@ -33,6 +33,7 @@ option(R_LIB "Build shared library for R package" OFF)
 option(USE_DEBUG_OUTPUT "Dump internal training results like gradients and predictions to stdout.
 Should only be used for debugging." OFF)
 option(ENABLE_ALL_WARNINGS "Enable all compiler warnings. Only effective for GCC/Clang" OFF)
+option(LOG_CAPI_INVOCATION "Log all C API invocations for debugging" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)

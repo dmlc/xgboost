@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import errno
+import argparse
 import glob
 import os
 import shutil
@@ -20,7 +21,8 @@ CONFIG = {
     "USE_S3": "OFF",
 
     "USE_CUDA": "OFF",
-    "JVM_BINDINGS": "ON"
+    "JVM_BINDINGS": "ON",
+    "LOG_CAPI_INVOCATION": "OFF"
 }
 
 
@@ -68,6 +70,10 @@ def normpath(path):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--log-capi-invocation', type=str, choices=['ON', 'OFF'], default='OFF')
+    cli_args = parser.parse_args()
+
     if sys.platform == "darwin":
         # Enable of your compiler supports OpenMP.
         CONFIG["USE_OPENMP"] = "OFF"
@@ -87,6 +93,9 @@ if __name__ == "__main__":
                 maybe_parallel_build = " -- -j $(nproc)"
             else:
                 maybe_parallel_build = ""
+
+            if cli_args.log_capi_invocation == 'ON':
+                CONFIG['LOG_CAPI_INVOCATION'] = 'ON'
 
             args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
 

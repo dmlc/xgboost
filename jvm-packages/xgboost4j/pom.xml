@@ -78,6 +78,8 @@
                           <executable>python</executable>
                           <arguments>
                             <argument>create_jni.py</argument>
+                            <argument>--log-capi-invocation</argument>
+                            <argument>${log.capi.invocation}</argument>
                           </arguments>
                           <workingDirectory>${user.dir}</workingDirectory>
                       </configuration>
