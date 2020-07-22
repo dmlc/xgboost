@@ -280,12 +280,12 @@ def BuildCUDA(args) {
     stash name: "xgboost_cpp_tests_cuda${args.cuda_version}", includes: 'build/testxgboost'
     if (args.build_rmm) {
       echo "Build with CUDA ${args.cuda_version} and RMM"
-      def container_type = "rmm"
-      def docker_binary = "docker"
-      def docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
+      container_type = "rmm"
+      docker_binary = "docker"
+      docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
       sh """
       rm -rf build/
-      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh --conda-env=rmm_test -DUSE_CUDA=ON -DUSE_RMM=ON ${arch_flag}
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh --conda-env=rmm_test -DUSE_CUDA=ON -DUSE_NCCL=ON -DUSE_RMM=ON ${arch_flag}
       """
       echo 'Stashing C++ test executable (testxgboost)...'
       stash name: "xgboost_cpp_tests_rmm_cuda${args.cuda_version}", includes: 'build/testxgboost'
@@ -398,9 +398,9 @@ def TestCppGPU(args) {
       sh "rm -rfv build/"
       unstash name: "xgboost_cpp_tests_rmm_cuda${artifact_cuda_version}"
       echo "Test C++, CUDA ${args.host_cuda_version} with RMM"
-      def container_type = "rmm"
-      def docker_binary = "nvidia-docker"
-      def docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
+      container_type = "rmm"
+      docker_binary = "nvidia-docker"
+      docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
       echo "Using a single GPU"
       sh """
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate rmm_test && build/testxgboost --gtest_filter=-*DeathTest.*"
