@@ -941,6 +941,8 @@ template uint64_t
 SparsePage::Push(const data::CSCAdapterBatch& batch, float missing, int nthread);
 template uint64_t
 SparsePage::Push(const data::DataTableAdapterBatch& batch, float missing, int nthread);
+template uint64_t
+SparsePage::Push(const data::FileAdapterBatch& batch, float missing, int nthread);
 
 namespace data {
 
