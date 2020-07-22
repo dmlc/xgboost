@@ -410,12 +410,6 @@ def TestCppGPU(args) {
   }
 }
 
-def TestCppGPUWithRMM(args) {
-  node('linux && gpu') {
-    deleteDir()
-  }
-}
-
 def CrossTestJVMwithJDK(args) {
   node('linux && cpu') {
     unstash name: 'xgboost4j_jar'
