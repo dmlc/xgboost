@@ -933,7 +933,17 @@ void SparsePage::PushCSC(const SparsePage &batch) {
   self_offset = std::move(offset);
 }
 
+template uint64_t
+SparsePage::Push(const data::DenseAdapterBatch& batch, float missing, int nthread);
+template uint64_t
+SparsePage::Push(const data::CSRAdapterBatch& batch, float missing, int nthread);
+template uint64_t
+SparsePage::Push(const data::CSCAdapterBatch& batch, float missing, int nthread);
+template uint64_t
+SparsePage::Push(const data::DataTableAdapterBatch& batch, float missing, int nthread);
+
 namespace data {
+
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(sparse_page_raw_format);
 }  // namespace data
