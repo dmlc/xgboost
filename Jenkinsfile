@@ -70,7 +70,7 @@ pipeline {
             'build-cpu-non-omp': { BuildCPUNonOmp() },
             // Build reference, distribution-ready Python wheel with CUDA 10.0
             // using CentOS 6 image
-            'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0', build_rmm: true) },
+            'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
             // The build-gpu-* builds below use Ubuntu image
             'build-gpu-cuda10.1': { BuildCUDA(cuda_version: '10.1') },
             'build-gpu-cuda10.2': { BuildCUDA(cuda_version: '10.2', build_rmm: true) },
@@ -395,7 +395,7 @@ def TestCppGPU(args) {
     sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} build/testxgboost"
     if (args.test_rmm) {
       sh "rm -rfv build/"
-      unstash name: "xgboost_cpp_tests_rmm_cuda${artifact_cuda_version}"
+      unstash name: "xgboost_cpp_tests_rmm_cuda${args.host_cuda_version}"
       echo "Test C++, CUDA ${args.host_cuda_version} with RMM"
       container_type = "rmm"
       docker_binary = "nvidia-docker"
