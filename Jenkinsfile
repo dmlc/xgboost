@@ -89,9 +89,9 @@ pipeline {
           parallel ([
             'test-python-cpu': { TestPythonCPU() },
             'test-python-gpu-cuda10.0': { TestPythonGPU(host_cuda_version: '10.0') },
-            'test-python-gpu-cuda10.2': { TestPythonGPU(host_cuda_version: '10.2') },
+            'test-python-gpu-cuda10.2': { TestPythonGPU(host_cuda_version: '10.2', test_rmm: true) },
             'test-python-gpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0') },
-            'test-python-mgpu-cuda10.2': { TestPythonGPU(host_cuda_version: '10.2', multi_gpu: true) },
+            'test-python-mgpu-cuda10.2': { TestPythonGPU(host_cuda_version: '10.2', multi_gpu: true, test_rmm: true) },
             'test-cpp-gpu-cuda10.2': { TestCppGPU(artifact_cuda_version: '10.2', host_cuda_version: '10.2', test_rmm: true) },
             'test-cpp-gpu-cuda11.0': { TestCppGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0') },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '3.0.0') },
@@ -286,7 +286,11 @@ def BuildCUDA(args) {
       sh """
       rm -rf build/
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh --conda-env=rmm_test -DUSE_CUDA=ON -DUSE_NCCL=ON -DUSE_RMM=ON ${arch_flag}
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python tests/ci_build/rename_whl.py python-package/dist/*.whl ${commit_id} manylinux2010_x86_64
       """
+      echo 'Stashing Python wheel...'
+      stash name: "xgboost_whl_rmm_cuda${args.cuda_version}", includes: 'python-package/dist/*.whl'
       echo 'Stashing C++ test executable (testxgboost)...'
       stash name: "xgboost_cpp_tests_rmm_cuda${args.cuda_version}", includes: 'build/testxgboost'
     }
@@ -354,17 +358,12 @@ def TestPythonGPU(args) {
     def container_type = "gpu"
     def docker_binary = "nvidia-docker"
     def docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
-    if (args.multi_gpu) {
-      echo "Using multiple GPUs"
-      sh """
-      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh mgpu
-      """
-    } else {
-      echo "Using a single GPU"
-      sh """
-      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh gpu
-      """
-    }
+    def mgpu_indicator = (args.multi_gpu) ? 'mgpu' : 'gpu'
+    sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh ${mgpu_indicator}"
+    sh "rm -rfv build/ python-package/dist/"
+    unstash name: "xgboost_whl_rmm_cuda${artifact_cuda_version}"
+    unstash name: "xgboost_cpp_tests_rmm_cuda${artifact_cuda_version}"
+    sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh ${mgpu_indicator}"
     deleteDir()
   }
 }

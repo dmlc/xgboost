@@ -26,12 +26,17 @@ function install_xgboost {
   fi
 }
 
+function uninstall_xgboost {
+  pip uninstall -y xgboost
+}
+
 # Run specified test suite
 case "$suite" in
   gpu)
     source activate gpu_test
     install_xgboost
     pytest -v -s -rxXs --fulltrace -m "not mgpu" tests/python-gpu
+    uninstall_xgboost
     ;;
 
   mgpu)
@@ -41,7 +46,7 @@ case "$suite" in
 
     cd tests/distributed
     ./runtests-gpu.sh
-    cd -
+    uninstall_xgboost
     ;;
 
   cpu)
@@ -49,6 +54,7 @@ case "$suite" in
     pytest -v -s --fulltrace tests/python
     cd tests/distributed
     ./runtests.sh
+    uninstall_xgboost
     ;;
 
   *)
