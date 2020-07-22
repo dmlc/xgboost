@@ -177,16 +177,19 @@ TEST(Learner, JsonModelIO) {
   }
 }
 
-// Tries to crash the test runner if there are race condiditions.
+// Crashes the test runner if there are race condiditions.
 //
-// Build with additional cmake flags to enable thread sanitized
-// which definitely catches problems:
+// Build with additional cmake flags to enable thread sanitizer
+// which definitely catches problems. Note that OpenMP needs to be
+// disabled, otherwise thread sanitizer will also report false
+// positives.
 //
 // ```
 // -DCMAKE_C_FLAGS="-fsanitize=thread -g -O1"
 // -DCMAKE_CXX_FLAGS="-fsanitize=thread -g -O1"
 // -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=thread"
 // -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
+// -DUSE_OPENMP=0
 // ```
 TEST(Learner, MultiThreadedPredict) {
   size_t constexpr kRows = 1000;
