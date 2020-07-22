@@ -215,6 +215,8 @@ class DaskDMatrix:
         self.has_label = label is not None
         self.has_weights = weight is not None
 
+        self.is_quantile = False
+
         self._init = client.sync(self.map_local_data,
                                  client, data, label, weight)
 
@@ -308,7 +310,8 @@ class DaskDMatrix:
                 'has_label': self.has_label,
                 'has_weights': self.has_weights,
                 'missing': self.missing,
-                'worker_map': self.worker_map}
+                'worker_map': self.worker_map,
+                'is_quantile': self.is_quantile}
 
 
 def _get_worker_x_ordered(worker_map, partition_order, worker):
@@ -344,49 +347,6 @@ def _get_worker_parts(has_label, has_weights, worker_map, worker):
         labels = None
         weights = None
     return data, labels, weights
-
-
-def _dmatrix_from_worker_map(feature_names, feature_types, has_label,
-                             has_weights, missing, worker_map):
-    '''Get data that local to worker from DaskDMatrix.
-
-      Returns
-      -------
-      A DMatrix object.
-
-    '''
-    worker = distributed_get_worker()
-    if worker.address not in set(worker_map.keys()):
-        msg = 'worker {address} has an empty DMatrix.  ' \
-            'All workers associated with this DMatrix: {workers}'.format(
-                address=worker.address,
-                workers=set(worker_map.keys()))
-        LOGGER.warning(msg)
-        d = DMatrix(numpy.empty((0, 0)),
-                    feature_names=feature_names,
-                    feature_types=feature_types)
-        return d
-
-    data, labels, weights = _get_worker_parts(has_label, has_weights,
-                                              worker_map, worker)
-    data = concat(data)
-
-    if has_label:
-        labels = concat(labels)
-    else:
-        labels = None
-    if has_weights:
-        weights = concat(weights)
-    else:
-        weights = None
-    dmatrix = DMatrix(data,
-                      labels,
-                      weight=weights,
-                      missing=missing,
-                      feature_names=feature_names,
-                      feature_types=feature_types,
-                      nthread=worker.nthreads)
-    return dmatrix
 
 
 class DaskPartitionIter(DataIter):  # pylint: disable=R0902
@@ -503,31 +463,93 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
                          feature_names=feature_names,
                          feature_types=feature_types)
         self.max_bin = max_bin
+        self.is_quantile = True
 
-    def get_worker_data(self, worker):
-        if worker.address not in set(self.worker_map.keys()):
-            msg = 'worker {address} has an empty DMatrix.  ' \
-                'All workers associated with this DMatrix: {workers}'.format(
-                    address=worker.address,
-                    workers=set(self.worker_map.keys()))
-            LOGGER.warning(msg)
-            import cupy         # pylint: disable=import-error
-            d = DeviceQuantileDMatrix(cupy.zeros((0, 0)),
-                                      feature_names=self.feature_names,
-                                      feature_types=self.feature_types,
-                                      max_bin=self.max_bin)
-            return d
+    def create_fn_args(self):
+        args = super().create_fn_args()
+        args['max_bin'] = self.max_bin
+        return args
 
-        data, labels, weights = self.get_worker_parts(worker)
-        it = DaskPartitionIter(data=data, label=labels, weight=weights)
 
-        dmatrix = DeviceQuantileDMatrix(it,
-                                        missing=self.missing,
-                                        feature_names=self.feature_names,
-                                        feature_types=self.feature_types,
-                                        nthread=worker.nthreads,
-                                        max_bin=self.max_bin)
-        return dmatrix
+def _create_device_quantile_dmatrix(feature_names, feature_types,
+                                    has_label,
+                                    has_weights, missing, worker_map,
+                                    max_bin):
+    worker = distributed_get_worker()
+    if worker.address not in set(worker_map.keys()):
+        msg = 'worker {address} has an empty DMatrix.  ' \
+            'All workers associated with this DMatrix: {workers}'.format(
+                address=worker.address,
+                workers=set(worker_map.keys()))
+        LOGGER.warning(msg)
+        import cupy         # pylint: disable=import-error
+        d = DeviceQuantileDMatrix(cupy.zeros((0, 0)),
+                                  feature_names=feature_names,
+                                  feature_types=feature_types,
+                                  max_bin=max_bin)
+        return d
+
+    data, labels, weights = _get_worker_parts(has_label, has_weights,
+                                              worker_map, worker)
+    it = DaskPartitionIter(data=data, label=labels, weight=weights)
+
+    dmatrix = DeviceQuantileDMatrix(it,
+                                    missing=missing,
+                                    feature_names=feature_names,
+                                    feature_types=feature_types,
+                                    nthread=worker.nthreads,
+                                    max_bin=max_bin)
+    return dmatrix
+
+
+def _create_dmatrix(feature_names, feature_types, has_label,
+                    has_weights, missing, worker_map):
+    '''Get data that local to worker from DaskDMatrix.
+
+      Returns
+      -------
+      A DMatrix object.
+
+    '''
+    worker = distributed_get_worker()
+    if worker.address not in set(worker_map.keys()):
+        msg = 'worker {address} has an empty DMatrix.  ' \
+            'All workers associated with this DMatrix: {workers}'.format(
+                address=worker.address,
+                workers=set(worker_map.keys()))
+        LOGGER.warning(msg)
+        d = DMatrix(numpy.empty((0, 0)),
+                    feature_names=feature_names,
+                    feature_types=feature_types)
+        return d
+
+    data, labels, weights = _get_worker_parts(has_label, has_weights,
+                                              worker_map, worker)
+    data = concat(data)
+
+    if has_label:
+        labels = concat(labels)
+    else:
+        labels = None
+    if has_weights:
+        weights = concat(weights)
+    else:
+        weights = None
+    dmatrix = DMatrix(data,
+                      labels,
+                      weight=weights,
+                      missing=missing,
+                      feature_names=feature_names,
+                      feature_types=feature_types,
+                      nthread=worker.nthreads)
+    return dmatrix
+
+
+def _dmatrix_from_worker_map(is_quantile, **kwargs):
+    if is_quantile:
+        return _create_device_quantile_dmatrix(**kwargs)
+    else:
+        return _create_dmatrix(**kwargs)
 
 
 async def _get_rabit_args(worker_map, client: Client):

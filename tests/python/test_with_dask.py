@@ -333,7 +333,7 @@ def test_empty_dmatrix_approx():
 async def run_from_dask_array_asyncio(scheduler_address):
     async with Client(scheduler_address, asynchronous=True) as client:
         X, y = generate_array()
-        m = await xgb.dask.DaskDMatrix(client, X, y)
+        m = await DaskDMatrix(client, X, y)
         output = await xgb.dask.train(client, {}, dtrain=m)
 
         with_m = await xgb.dask.predict(client, output, m)
