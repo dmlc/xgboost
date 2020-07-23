@@ -90,6 +90,11 @@ class RabitContext:
 
 def concat(value):              # pylint: disable=too-many-return-statements
     '''To be replaced with dask builtin.'''
+    def unbox_0d_array(x):
+        if isinstance(x, numpy.ndarray) and x.dtype == numpy.object and x.shape == ():
+            return x[()]
+        return x
+    value = tuple(unbox_0d_array(x) for x in value)
     if isinstance(value[0], numpy.ndarray):
         return numpy.concatenate(value, axis=0)
     if scipy_sparse and isinstance(value[0], scipy_sparse.spmatrix):
