@@ -122,10 +122,11 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   void FromJson(Json const& obj) {
     auto const& j_param = get<Object const>(obj);
     std::map<std::string, std::string> m;
-    m["base_score"] = get<String const>(j_param.at("base_score"));
     m["num_feature"] = get<String const>(j_param.at("num_feature"));
     m["num_class"] = get<String const>(j_param.at("num_class"));
     this->Init(m);
+    std::string str = get<String const>(j_param.at("base_score"));
+    from_chars(str.c_str(), str.c_str() + str.size(), base_score);
   }
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerModelParamLegacy) {
