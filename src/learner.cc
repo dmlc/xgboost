@@ -102,16 +102,19 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     Object obj;
     char floats[NumericLimits<float>::kToCharsSize];
     auto ret = to_chars(floats, floats + NumericLimits<float>::kToCharsSize, base_score);
+    CHECK(ret.ec == std::errc());
     obj["base_score"] =
         std::string{floats, static_cast<size_t>(std::distance(floats, ret.ptr))};
 
     char integers[NumericLimits<int64_t>::kToCharsSize];
     ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
                    static_cast<int64_t>(num_feature));
+    CHECK(ret.ec == std::errc());
     obj["num_feature"] =
         std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
     ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
                    static_cast<int64_t>(num_class));
+    CHECK(ret.ec == std::errc());
     obj["num_class"] =
         std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
     return Json(std::move(obj));
