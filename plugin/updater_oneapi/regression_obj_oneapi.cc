@@ -71,15 +71,24 @@ class RegLossObjOneAPI : public ObjFunction {
     cl::sycl::buffer<bst_float, 1> weights_buf(is_null_weight ? NULL : info.weights_.HostPointer(),
                                                is_null_weight ? 1 : info.weights_.Size());
 
+	cl::sycl::buffer<int, 1> additional_input_buf(1);
+	{
+		auto additional_input_acc = additional_input_buf.get_access<cl::sycl::access::mode::write>();
+		additional_input_acc[0] = 1; // Fill the label_correct flag
+	}
+
     auto scale_pos_weight = param_.scale_pos_weight;
-    CHECK_EQ(info.weights_.Size(), ndata)
+    if (!is_null_weight) {
+      CHECK_EQ(info.weights_.Size(), ndata)
         << "Number of weights should be equal to number of data points.";
+    }
 
     qu_.submit([&](cl::sycl::handler& cgh) {
-      auto preds_acc     = preds_buf.get_access<cl::sycl::access::mode::read>(cgh);
-      auto labels_acc    = labels_buf.get_access<cl::sycl::access::mode::read>(cgh);
-      auto weights_acc   = weights_buf.get_access<cl::sycl::access::mode::read>(cgh);
-      auto out_gpair_acc = out_gpair_buf.get_access<cl::sycl::access::mode::write>(cgh);
+      auto preds_acc            = preds_buf.get_access<cl::sycl::access::mode::read>(cgh);
+      auto labels_acc           = labels_buf.get_access<cl::sycl::access::mode::read>(cgh);
+      auto weights_acc          = weights_buf.get_access<cl::sycl::access::mode::read>(cgh);
+      auto out_gpair_acc        = out_gpair_buf.get_access<cl::sycl::access::mode::write>(cgh);
+      auto additional_input_acc = additional_input_buf.get_access<cl::sycl::access::mode::write>(cgh);
       cgh.parallel_for<GetGradientsKernel>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
         int idx = pid[0];
         bst_float p = Loss::PredTransform(preds_acc[idx]);
@@ -88,10 +97,25 @@ class RegLossObjOneAPI : public ObjFunction {
         if (label == 1.0f) {
           w *= scale_pos_weight;
         }
+        if (!Loss::CheckLabel(label)) {
+          // If there is an incorrect label, the host code will know.
+          additional_input_acc[0] = 0;
+        }
         out_gpair_acc[idx] = GradientPair(Loss::FirstOrderGradient(p, label) * w,
                                           Loss::SecondOrderGradient(p, label) * w);
       });
     }).wait();
+
+    int flag = 1;
+	{
+		auto additional_input_acc = additional_input_buf.get_access<cl::sycl::access::mode::read>();
+		flag = additional_input_acc[0];
+	}
+
+    if (flag == 0) {
+      LOG(FATAL) << Loss::LabelErrorMsg();
+    }
+  
   }
 
  public:
