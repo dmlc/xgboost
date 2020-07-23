@@ -38,6 +38,7 @@
         <scala.version>2.12.8</scala.version>
         <scala.binary.version>2.12</scala.binary.version>
         <hadoop.version>2.7.3</hadoop.version>
+        <maven.wagon.http.retryHandler.count>3</maven.wagon.http.retryHandler.count>
     </properties>
     <repositories>
         <repository>
