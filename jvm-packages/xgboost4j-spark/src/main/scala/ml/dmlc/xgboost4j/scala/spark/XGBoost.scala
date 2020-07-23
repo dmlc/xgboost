@@ -21,8 +21,6 @@ import java.nio.file.Files
 
 import scala.collection.{AbstractIterator, mutable}
 import scala.util.Random
-import scala.collection.JavaConverters._
-
 import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker => PyRabitTracker}
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
@@ -32,9 +30,8 @@ import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.FileSystem
-
-import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext, TaskFailedListener}
+import org.apache.spark.rdd.{RDD, RDDBarrier}
+import org.apache.spark.{SparkContext, TaskContext}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.storage.StorageLevel
 
@@ -372,7 +369,11 @@ object XGBoost extends Serializable {
           watches.toMap, metrics, obj, eval,
           earlyStoppingRound = numEarlyStoppingRounds, prevBooster)
       }
-      Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
+      if (TaskContext.get().partitionId() == 0) {
+        Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
+      } else {
+        Iterator.empty
+      }
     } catch {
       case xgbException: XGBoostError =>
         logger.error(s"XGBooster worker $taskId has failed $attempt times due to ", xgbException)
@@ -440,6 +441,13 @@ object XGBoost extends Serializable {
     }
   }
 
+  def getBarrierRDD[T](rdd: RDD[T]): RDDBarrier[T] = {
+    // rdd.persist(StorageLevel.DISK_ONLY)
+    // rdd.localCheckpoint()
+    // rdd.count()  // materialize rdd & truncate lineage
+    rdd.barrier()
+  }
+
   private def trainForNonRanking(
       trainingData: RDD[XGBLabeledPoint],
       xgbExecutionParams: XGBoostExecutionParams,
@@ -447,7 +455,7 @@ object XGBoost extends Serializable {
       prevBooster: Booster,
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
     if (evalSetsMap.isEmpty) {
-      trainingData.mapPartitions(labeledPoints => {
+      getBarrierRDD(trainingData).mapPartitions(labeledPoints => {
         val watches = Watches.buildWatches(xgbExecutionParams,
           processMissingValues(labeledPoints, xgbExecutionParams.missing,
             xgbExecutionParams.allowNonZeroForMissing),
@@ -456,8 +464,8 @@ object XGBoost extends Serializable {
           xgbExecutionParams.eval, prevBooster)
       }).cache()
     } else {
-      coPartitionNoGroupSets(trainingData, evalSetsMap, xgbExecutionParams.numWorkers).
-        mapPartitions {
+      getBarrierRDD(coPartitionNoGroupSets(
+        trainingData, evalSetsMap, xgbExecutionParams.numWorkers)).mapPartitions {
           nameAndLabeledPointSets =>
             val watches = Watches.buildWatches(
               nameAndLabeledPointSets.map {
@@ -478,7 +486,7 @@ object XGBoost extends Serializable {
       prevBooster: Booster,
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
     if (evalSetsMap.isEmpty) {
-      trainingData.mapPartitions(labeledPointGroups => {
+      getBarrierRDD(trainingData).mapPartitions(labeledPointGroups => {
         val watches = Watches.buildWatchesWithGroup(xgbExecutionParam,
           processMissingValuesWithGroup(labeledPointGroups, xgbExecutionParam.missing,
             xgbExecutionParam.allowNonZeroForMissing),
@@ -487,7 +495,8 @@ object XGBoost extends Serializable {
           xgbExecutionParam.obj, xgbExecutionParam.eval, prevBooster)
       }).cache()
     } else {
-      coPartitionGroupSets(trainingData, evalSetsMap, xgbExecutionParam.numWorkers).mapPartitions(
+      getBarrierRDD(coPartitionGroupSets(
+        trainingData, evalSetsMap, xgbExecutionParam.numWorkers)).mapPartitions(
         labeledPointGroupSets => {
           val watches = Watches.buildWatchesWithGroup(
             labeledPointGroupSets.map {
@@ -548,9 +557,6 @@ object XGBoost extends Serializable {
       // Train for every ${savingRound} rounds and save the partially completed booster
       val tracker = startTracker(xgbExecParams.numWorkers, xgbExecParams.trackerConf)
       val (booster, metrics) = try {
-        val parallelismTracker = new SparkParallelismTracker(sc,
-          xgbExecParams.timeoutRequestWorkers,
-          xgbExecParams.numWorkers)
         val rabitEnv = tracker.getWorkerEnvs
         val boostersAndMetrics = if (hasGroup) {
           trainForRanking(transformedTrainingData.left.get, xgbExecParams, rabitEnv, prevBooster,
@@ -559,18 +565,12 @@ object XGBoost extends Serializable {
           trainForNonRanking(transformedTrainingData.right.get, xgbExecParams, rabitEnv,
             prevBooster, evalSetsMap)
         }
-        val sparkJobThread = new Thread() {
-          override def run() {
-            // force the job
-            boostersAndMetrics.foreachPartition(() => _)
-          }
-        }
-        sparkJobThread.setUncaughtExceptionHandler(tracker)
-        sparkJobThread.start()
-        val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
+        val (booster, metrics) = boostersAndMetrics.collect()(0)
+        val trackerReturnVal = tracker.waitFor(0L)
         logger.info(s"Rabit returns with exit code $trackerReturnVal")
-        val (booster, metrics) = postTrackerReturnProcessing(trackerReturnVal,
-          boostersAndMetrics, sparkJobThread)
+        if (trackerReturnVal != 0) {
+          throw new XGBoostError("XGBoostModel training failed.")
+        }
         (booster, metrics)
       } finally {
         tracker.stop()
