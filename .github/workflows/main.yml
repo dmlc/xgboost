@@ -16,9 +16,6 @@ jobs:
       matrix:
         os: [windows-latest, windows-2016, ubuntu-latest]
 
-    env:
-      RABIT_MOCK: ON
-
     steps:
     - uses: actions/checkout@v2
       with:
@@ -39,6 +36,8 @@ jobs:
       run: |
         cd jvm-packages
         mvn -B test
+      env:
+        RABIT_MOCK: ON
 
 
   test-with-R:
