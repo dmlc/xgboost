@@ -90,7 +90,7 @@ class RabitContext:
 
 def concat(value):              # pylint: disable=too-many-return-statements
     '''To be replaced with dask builtin.'''
-    def unbox_0d_array(x):
+    def unbox_0d_array(x):  # pylint: disable=invalid-name
         if isinstance(x, numpy.ndarray) and x.dtype == numpy.object and x.shape == ():
             return x[()]
         return x
