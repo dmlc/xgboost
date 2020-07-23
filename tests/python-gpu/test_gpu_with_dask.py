@@ -220,7 +220,7 @@ class TestDistributedGPU(unittest.TestCase):
         with LocalCUDACluster() as cluster:
             with Client(cluster) as client:
                 workers = list(dxgb._get_client_workers(client).keys())
-                rabit_args = dxgb._get_rabit_args(workers, client)
+                rabit_args = client.sync(dxgb._get_rabit_args, workers, client)
                 futures = client.map(runit,
                                      workers,
                                      pure=False,

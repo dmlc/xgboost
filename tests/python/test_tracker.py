@@ -29,6 +29,8 @@ def run_rabit_ops(client, n_workers):
     workers = list(_get_client_workers(client).keys())
     rabit_args = client.sync(_get_rabit_args, workers, client)
     assert not rabit.is_distributed()
+    n_workers_from_dask = len(workers)
+    assert n_workers == n_workers_from_dask
 
     def local_test(worker_id):
         with RabitContext(rabit_args):
