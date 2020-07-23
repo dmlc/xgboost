@@ -16,6 +16,10 @@ jobs:
       matrix:
         os: [windows-latest, windows-2016, ubuntu-latest]
 
+    env:
+      # To prevent build failures due to "Connection reset" during artifact download.
+      MVN_CONNECTION_PROPS: -Dmaven.wagon.httpconnectionManager.ttlSeconds=60 -Dmaven.wagon.http.retryHandler.count=5
+
     steps:
     - uses: actions/checkout@v2
       with:
@@ -35,7 +39,7 @@ jobs:
     - name: Test JVM packages
       run: |
         cd jvm-packages
-        mvn test -Dmaven.wagon.http.retryHandler.count=3
+        mvn -B test ${{ env.MVN_CONNECTION_PROPS }}
 
 
   test-with-R:
