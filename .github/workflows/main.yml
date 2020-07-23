@@ -35,7 +35,7 @@ jobs:
     - name: Test JVM packages
       run: |
         cd jvm-packages
-        mvn test -pl :xgboost4j_2.12
+        mvn test -Dmaven.wagon.http.retryHandler.count=3
 
 
   test-with-R:
