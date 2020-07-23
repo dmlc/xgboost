@@ -332,7 +332,7 @@ class PredictorOneAPI : public Predictor {
  public:
   explicit PredictorOneAPI(GenericParameter const* generic_param) :
       Predictor::Predictor{generic_param}, cpu_predictor(Predictor::Create("cpu_predictor", generic_param)) {
-    cl::sycl::gpu_selector selector;
+    cl::sycl::default_selector selector;
     qu_ = cl::sycl::queue(selector);
   }
 

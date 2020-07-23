@@ -40,7 +40,7 @@ class RegLossObjOneAPI : public ObjFunction {
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.UpdateAllowUnknown(args);
 
-    cl::sycl::gpu_selector selector;
+    cl::sycl::default_selector selector;
     qu_ = cl::sycl::queue(selector);
   }
 
