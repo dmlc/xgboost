@@ -185,11 +185,7 @@ TEST(Learner, JsonModelIO) {
 // positives.
 //
 // ```
-// -DCMAKE_C_FLAGS="-fsanitize=thread -g -O1"
-// -DCMAKE_CXX_FLAGS="-fsanitize=thread -g -O1"
-// -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=thread"
-// -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
-// -DUSE_OPENMP=0
+// -DUSE_SANITIZER=ON -DENABLED_SANITIZERS=thread -DUSE_OPENMP=OFF
 // ```
 TEST(Learner, MultiThreadedPredict) {
   size_t constexpr kRows = 1000;
