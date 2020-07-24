@@ -289,7 +289,7 @@ def BuildJVMPackagesWithCUDA(args) {
     unstash name: 'srcs'
     echo "Build XGBoost4J-Spark with Spark ${args.spark_version}, CUDA ${args.cuda_version}"
     def container_type = "jvm_gpu_build"
-    def docker_binary = "docker"
+    def docker_binary = "nvidia-docker"
     def docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
     def arch_flag = ""
     if (env.BRANCH_NAME != 'master' && !(env.BRANCH_NAME.startsWith('release'))) {
