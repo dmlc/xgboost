@@ -197,10 +197,6 @@ void SparseCuts::SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
     summary.Reserve(n_bins + 1);
     summary.SetPrune(out_summary, n_bins + 1);
 
-    // Can be use data[1] as the min values so that we don't need to
-    // store another array?
-    float mval = summary.data[0].value;
-
     this->AddCutPoint(summary, max_num_bins);
 
     bst_float cpt = (summary.size > 0) ?
@@ -414,11 +410,10 @@ void DenseCuts::Init
   // we need to move this allreduce before loadcheckpoint call in future
   sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
 
-  for (size_t fid = 0; fid < summary_array.size(); ++fid) {
+  for (auto const& summary : summary_array) {
     WQSketch::SummaryContainer a;
     a.Reserve(max_num_bins + 1);
-    a.SetPrune(summary_array[fid], max_num_bins + 1);
-    const bst_float mval = a.data[0].value;
+    a.SetPrune(summary, max_num_bins + 1);
     AddCutPoint(a, max_num_bins);
     // push a value that is greater than anything
     const bst_float cpt
