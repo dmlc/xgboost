@@ -17,7 +17,7 @@ xgb.unserialize <- function(buffer) {
         warning(paste("Loading model from a RDS file from XGBoost version 1.0.0 or earlier. ",
                       "We strongly ADVISE AGAINST using saveRDS() / readRDS() functions, to ",
                       "ensure that your model can be read in current and upcoing XGBoost ",
-                      "releases. Consider using xgb.save() / xgb.load() instead.", sep=""))
+                      "releases. Consider using xgb.save() / xgb.load() instead.", sep = ""))
         .Call(XGBoosterLoadModelFromRaw_R, handle, buffer)
       } else {
         stop(e)
