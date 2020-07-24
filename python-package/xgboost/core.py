@@ -384,7 +384,8 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
                  silent=False,
                  feature_names=None,
                  feature_types=None,
-                 nthread=None):
+                 nthread=None,
+                 enable_categorical=False):
         """Parameters
         ----------
         data : os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/
@@ -419,6 +420,17 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             Number of threads to use for loading data when parallelization is
             applicable. If -1, uses maximum threads available on the system.
 
+        enable_categorical: boolean, optional
+
+            .. versionadded:: 1.3.0
+
+            Experimental support of specializing for categorical features.  Do
+            not set to True unless you are interested in development.
+            Currently it's only available for `gpu_hist` tree method with 1 vs
+            rest (one hot) categorical split.  Also, JSON serialization format,
+            `enable_experimental_json_serialization`, `gpu_predictor` and
+            pandas input are required.
+
         """
         if isinstance(data, list):
             raise TypeError('Input data can not be a list.')
@@ -437,7 +449,8 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             data, missing=self.missing,
             threads=self.nthread,
             feature_names=feature_names,
-            feature_types=feature_types)
+            feature_types=feature_types,
+            enable_categorical=enable_categorical)
         assert handle is not None
         self.handle = handle
 

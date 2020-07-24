@@ -80,6 +80,11 @@ struct AtomicDispatcher<sizeof(uint64_t)> {
   using Type = unsigned long long;  // NOLINT
   static_assert(sizeof(Type) == sizeof(uint64_t), "Unsigned long long should be of size 64 bits.");
 };
+
+template <>
+struct AtomicDispatcher<sizeof(uint8_t)> {
+  using Type = uint8_t;  // NOLINT
+};
 }  // namespace detail
 }  // namespace dh
 
@@ -534,6 +539,17 @@ void CopyDeviceSpanToVector(std::vector<T> *dst, xgboost::common::Span<const T> 
   CHECK_EQ(dst->size(), src.size());
   dh::safe_cuda(cudaMemcpyAsync(dst->data(), src.data(), dst->size() * sizeof(T),
                                 cudaMemcpyDeviceToHost));
+}
+
+template <class HContainer, class DContainer>
+void CopyToD(HContainer const &h, DContainer *d) {
+  d->resize(h.size());
+  using HVT = std::remove_cv_t<typename HContainer::value_type>;
+  using DVT = std::remove_cv_t<typename DContainer::value_type>;
+  static_assert(std::is_same<HVT, DVT>::value,
+                "Host and device containers must have same value type.");
+  dh::safe_cuda(cudaMemcpyAsync(d->data().get(), h.data(), h.size() * sizeof(HVT),
+                                cudaMemcpyHostToDevice));
 }
 
 // Keep track of pinned memory allocation

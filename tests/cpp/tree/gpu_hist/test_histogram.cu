@@ -4,6 +4,7 @@
 #include "../../../../src/common/categorical.h"
 #include "../../../../src/tree/gpu_hist/row_partitioner.cuh"
 #include "../../../../src/tree/gpu_hist/histogram.cuh"
+#include "../../../../src/common/categorical.h"
 
 namespace xgboost {
 namespace tree {

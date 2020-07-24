@@ -41,6 +41,52 @@ class TestGPUUpdaters:
         note(result)
         assert tm.non_increasing(result['train'][dataset.metric])
 
+    def run_categorical_basic(self, cat, onehot, label, rounds):
+        by_etl_results = {}
+        by_builtin_results = {}
+
+        parameters = {'tree_method': 'gpu_hist',
+                      'predictor': 'gpu_predictor',
+                      'enable_experimental_json_serialization': True}
+
+        m = xgb.DMatrix(onehot, label, enable_categorical=True)
+        xgb.train(parameters, m,
+                  num_boost_round=rounds,
+                  evals=[(m, 'Train')], evals_result=by_etl_results)
+
+        m = xgb.DMatrix(cat, label, enable_categorical=True)
+        xgb.train(parameters, m,
+                  num_boost_round=rounds,
+                  evals=[(m, 'Train')], evals_result=by_builtin_results)
+        np.testing.assert_allclose(
+            np.array(by_etl_results['Train']['rmse']),
+            np.array(by_builtin_results['Train']['rmse']),
+            rtol=1e-4)
+        assert tm.non_increasing(by_builtin_results['Train']['rmse'])
+
+    @given(strategies.integers(10, 400), strategies.integers(5, 10),
+           strategies.integers(1, 6), strategies.integers(4, 8))
+    @settings(deadline=None)
+    @pytest.mark.skipif(**tm.no_pandas())
+    def test_categorical(self, rows, cols, rounds, cats):
+        import pandas as pd
+        rng = np.random.RandomState(1994)
+
+        pd_dict = {}
+        for i in range(cols):
+            c = rng.randint(low=0, high=cats+1, size=rows)
+            pd_dict[str(i)] = pd.Series(c, dtype=np.int64)
+
+        df = pd.DataFrame(pd_dict)
+        label = df.iloc[:, 0]
+        for i in range(0, cols-1):
+            label += df.iloc[:, i]
+        label += 1
+        df = df.astype('category')
+        x = pd.get_dummies(df)
+
+        self.run_categorical_basic(df, x, label, rounds)
+
     @pytest.mark.skipif(**tm.no_cupy())
     @given(parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)

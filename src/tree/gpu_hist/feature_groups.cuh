@@ -20,7 +20,7 @@ namespace tree {
     consecutive feature indices, and also contains a range of all bin indices
     associated with those features. */
 struct FeatureGroup {
-  __host__ __device__ FeatureGroup(int start_feature_, int num_features_,
+  __host__ __device__ FeatureGroup(size_t start_feature_, size_t num_features_,
                                    int start_bin_, int num_bins_) :
     start_feature(start_feature_), num_features(num_features_),
     start_bin(start_bin_), num_bins(num_bins_) {}
@@ -36,24 +36,24 @@ struct FeatureGroup {
 
 /** \brief FeatureGroupsAccessor is a non-owning accessor for FeatureGroups. */
 struct FeatureGroupsAccessor {
-  FeatureGroupsAccessor(common::Span<const int> feature_segments_,
+  FeatureGroupsAccessor(common::Span<const size_t> feature_segments_,
                        common::Span<const int> bin_segments_, int max_group_bins_) :
     feature_segments(feature_segments_), bin_segments(bin_segments_),
     max_group_bins(max_group_bins_) {}
-  
-  common::Span<const int> feature_segments;
+
+  common::Span<const size_t> feature_segments;
   common::Span<const int> bin_segments;
   int max_group_bins;
-  
+
   /** \brief Gets the number of feature groups. */
-  __host__ __device__ int NumGroups() const {
+  __host__ __device__ size_t NumGroups() const {
     return feature_segments.size() - 1;
   }
 
   /** \brief Gets the information about a feature group with index i. */
   __host__ __device__ FeatureGroup operator[](int i) const {
     return {feature_segments[i], feature_segments[i + 1] - feature_segments[i],
-        bin_segments[i], bin_segments[i + 1] - bin_segments[i]};
+          bin_segments[i], bin_segments[i + 1] - bin_segments[i]};
   }
 };
 
@@ -78,13 +78,13 @@ struct FeatureGroupsAccessor {
 */
 struct FeatureGroups {
   /** Group cuts for features. Size equals to (number of groups + 1). */
-  HostDeviceVector<int> feature_segments;
+  HostDeviceVector<size_t> feature_segments;
   /** Group cuts for bins. Size equals to (number of groups + 1)  */
   HostDeviceVector<int> bin_segments;
   /** Maximum number of bins in a group. Useful to compute the amount of dynamic
       shared memory when launching a kernel. */
   int max_group_bins;
-  
+
   /** Creates feature groups by splitting features into groups.
       \param cuts Histogram cuts that given the number of bins per feature.
       \param is_dense Whether the data matrix is dense.
@@ -106,12 +106,12 @@ struct FeatureGroups {
     feature_segments.SetDevice(device);
     bin_segments.SetDevice(device);
     return {feature_segments.ConstDeviceSpan(), bin_segments.ConstDeviceSpan(),
-        max_group_bins};
+          max_group_bins};
   }
 
 private:
   void InitSingle(const common::HistogramCuts& cuts);
-}; 
+};
 
 }  // namespace tree
 }  // namespace xgboost

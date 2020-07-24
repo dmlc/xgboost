@@ -68,7 +68,7 @@ namespace data {
 /** \brief An adapter can return this value for number of rows or columns
  * indicating that this value is currently unknown and should be inferred while
  * passing over the data. */
-constexpr size_t kAdapterUnknownSize = std::numeric_limits<size_t >::max();
+constexpr size_t kAdapterUnknownSize = std::numeric_limits<bst_row_t>::max();
 
 struct COOTuple {
   COOTuple() = default;

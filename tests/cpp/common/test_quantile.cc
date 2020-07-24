@@ -1,11 +1,12 @@
 #include <gtest/gtest.h>
+#include "test_hist_util.h"
 #include "test_quantile.h"
+
 #include "../../../src/common/quantile.h"
 #include "../../../src/common/hist_util.h"
 
 namespace xgboost {
 namespace common {
-
 TEST(Quantile, LoadBalance) {
   size_t constexpr kRows = 1000, kCols = 100;
   auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
@@ -182,6 +183,18 @@ TEST(Quantile, SameOnAllWorkers) {
       });
   rabit::Finalize();
 #endif  // defined(__unix__)
+}
+
+TEST(CPUQuantile, FromOneHot) {
+  std::vector<float> x = BasicOneHotEncodedData();
+  auto m = GetDMatrixFromData(x, 5, 3);
+
+  int32_t max_bins = 16;
+  HistogramCuts cuts = SketchOnDMatrix(m.get(), max_bins);
+
+  std::vector<uint32_t> const& h_cuts_ptr = cuts.Ptrs();
+  std::vector<float> h_cuts_values = cuts.Values();
+  ValidateBasicOneHot(h_cuts_ptr, h_cuts_values);
 }
 }  // namespace common
 }  // namespace xgboost

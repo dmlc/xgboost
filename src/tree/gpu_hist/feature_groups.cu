@@ -23,13 +23,13 @@ FeatureGroups::FeatureGroups(const common::HistogramCuts& cuts, bool is_dense,
     return;
   }
 
-  std::vector<int>& feature_segments_h = feature_segments.HostVector();
+  std::vector<size_t>& feature_segments_h = feature_segments.HostVector();
   std::vector<int>& bin_segments_h = bin_segments.HostVector();
   feature_segments_h.push_back(0);
   bin_segments_h.push_back(0);
 
   const std::vector<uint32_t>& cut_ptrs = cuts.Ptrs();
-  int max_shmem_bins = shm_size / bin_size;
+  size_t max_shmem_bins = shm_size / bin_size;
   max_group_bins = 0;
 
   for (size_t i = 2; i < cut_ptrs.size(); ++i) {
@@ -49,7 +49,7 @@ FeatureGroups::FeatureGroups(const common::HistogramCuts& cuts, bool is_dense,
 }
 
 void FeatureGroups::InitSingle(const common::HistogramCuts& cuts) {
-  std::vector<int>& feature_segments_h = feature_segments.HostVector();
+  std::vector<size_t>& feature_segments_h = feature_segments.HostVector();
   feature_segments_h.push_back(0);
   feature_segments_h.push_back(cuts.Ptrs().size() - 1);
 

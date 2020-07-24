@@ -160,9 +160,11 @@ TEST(GPUPredictor, MGPU_InplacePredict) {  // NOLINT
                dmlc::Error);
 }
 
+
 TEST(GpuPredictor, LesserFeatures) {
   TestPredictionWithLesserFeatures("gpu_predictor");
 }
+
 // Very basic test of empty model
 TEST(GPUPredictor, ShapStump) {
   cudaSetDevice(0);
@@ -189,6 +191,7 @@ TEST(GPUPredictor, ShapStump) {
   EXPECT_EQ(phis[4], 0.0);
   EXPECT_EQ(phis[5], param.base_score);
 }
+
 TEST(GPUPredictor, Shap) {
   LearnerModelParam param;
   param.num_feature = 1;
@@ -219,5 +222,8 @@ TEST(GPUPredictor, Shap) {
   }
 }
 
+TEST(GPUPredictor, CategoricalPrediction) {
+  TestCategoricalPrediction("gpu_predictor");
+}
 }  // namespace predictor
 }  // namespace xgboost

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "test_quantile.h"
 #include "../helpers.h"
+#include "test_quantile.h"
 #include "../../../src/common/hist_util.cuh"
 #include "../../../src/common/quantile.cuh"
 
@@ -95,8 +96,7 @@ void TestQuantileElemRank(int32_t device, Span<SketchEntry const> in,
 
 TEST(GPUQuantile, Prune) {
   constexpr size_t kRows = 1000, kCols = 100;
-  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins,
-                                 MetaInfo const &info) {
+  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
     HostDeviceVector<FeatureType> ft;
     SketchContainer sketch(ft, n_bins, kCols, kRows, 0);
 
@@ -293,9 +293,8 @@ TEST(GPUQuantile, AllReduceBasic) {
   }
 
   constexpr size_t kRows = 1000, kCols = 100;
-  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins,
-                                 MetaInfo const &info) {
-    // Set up single node version
+  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
+    // Set up single node version;
     HostDeviceVector<FeatureType> ft;
     SketchContainer sketch_on_single_node(ft, n_bins, kCols, kRows, 0);
 
@@ -443,6 +442,18 @@ TEST(GPUQuantile, SameOnAllWorkers) {
   LOG(WARNING) << msg;
   return;
 #endif  // !defined(__linux__) && defined(XGBOOST_USE_NCCL)
+}
+
+TEST(GPUQuantile, FromOneHot) {
+  std::vector<float> x = BasicOneHotEncodedData();
+  auto m = GetDMatrixFromData(x, 5, 3);
+  int32_t max_bins = 16;
+  auto cuts = DeviceSketch(0, m.get(), max_bins);
+
+  std::vector<uint32_t> const& h_cuts_ptr = cuts.Ptrs();
+  std::vector<float> h_cuts_values = cuts.Values();
+
+  ValidateBasicOneHot(h_cuts_ptr, h_cuts_values);
 }
 }  // namespace common
 }  // namespace xgboost

@@ -7,11 +7,14 @@
 
 #include "../helpers.h"
 #include "../histogram_helpers.h"
+#include "../common/test_quantile.h"
 #include "gtest/gtest.h"
 
 #include "../../../src/common/categorical.h"
 #include "../../../src/common/hist_util.h"
 #include "../../../src/data/ellpack_page.cuh"
+#include "../../../src/data/adapter.h"
+#include "../../../src/data/simple_dmatrix.h"
 
 namespace xgboost {
 
@@ -115,6 +118,25 @@ TEST(EllpackPage, FromCategoricalBasic) {
     auto bin_value = h_cuts_values.at(bin);
     ASSERT_EQ(AsCat(x[i]), AsCat(bin_value));
   }
+}
+
+TEST(EllpackPage, FromOneHot) {
+  std::vector<float> x = common::BasicOneHotEncodedData();
+  auto m = GetDMatrixFromData(x, 5, 3);
+  int32_t max_bins = 16;
+  BatchParam p(0, max_bins);
+  auto ellpack = EllpackPage(m.get(), p);
+  auto accessor = ellpack.Impl()->GetDeviceAccessor(0);
+
+  std::vector<uint32_t> h_cuts_ptr(accessor.feature_segments.size());
+  dh::CopyDeviceSpanToVector(&h_cuts_ptr, accessor.feature_segments);
+  std::vector<float> h_cuts_values(accessor.gidx_fvalue_map.size());
+  dh::CopyDeviceSpanToVector(&h_cuts_values, accessor.gidx_fvalue_map);
+
+  size_t const cols = 3;
+  ASSERT_EQ(h_cuts_ptr.size(),  cols + 1);
+  ASSERT_EQ(h_cuts_values.size(), cols * 2);
+  common::ValidateBasicOneHot(h_cuts_ptr, h_cuts_values);
 }
 
 struct ReadRowFunction {
@@ -234,5 +256,4 @@ TEST(EllpackPage, Compact) {
     }
   }
 }
-
 }  // namespace xgboost

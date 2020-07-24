@@ -6,6 +6,7 @@
 #include <string>
 #include <fstream>
 #include "../../../src/common/hist_util.h"
+#include "../../../src/common/categorical.h"
 #include "../../../src/data/simple_dmatrix.h"
 #include "../../../src/data/adapter.h"
 
@@ -59,13 +60,6 @@ inline data::CupyAdapter AdapterFromData(const thrust::device_vector<float> &x,
   return data::CupyAdapter(str);
 }
 #endif
-
-inline std::shared_ptr<data::SimpleDMatrix>
-GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns) {
-  data::DenseAdapter adapter(x.data(), num_rows, num_columns);
-  return std::shared_ptr<data::SimpleDMatrix>(new data::SimpleDMatrix(
-      &adapter, std::numeric_limits<float>::quiet_NaN(), 1));
-}
 
 inline std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
     const std::vector<float>& x, int num_rows, int num_columns,
@@ -134,12 +128,14 @@ inline void TestRank(const std::vector<float> &column_cuts,
 inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
                            const std::vector<float>& sorted_column,
                            const std::vector<float>& sorted_weights,
-                           size_t num_bins) {
-
+                           size_t num_bins, bool is_cat = false) {
   // Check the endpoints are correct
   CHECK_GT(sorted_column.size(), 0);
-  EXPECT_LT(cuts.MinValues().at(column_idx), sorted_column.front());
-  EXPECT_GT(cuts.Values()[cuts.Ptrs()[column_idx]], sorted_column.front());
+  if (is_cat) {
+    EXPECT_EQ(cuts.Values()[cuts.Ptrs()[column_idx]], sorted_column.front());
+  } else {
+    EXPECT_GT(cuts.Values()[cuts.Ptrs()[column_idx]], sorted_column.front());
+  }
   EXPECT_GE(cuts.Values()[cuts.Ptrs()[column_idx+1]-1], sorted_column.back());
 
   // Check the cuts are sorted
@@ -174,7 +170,9 @@ inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
 inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat,
                          int num_bins) {
   // Collect data into columns
-  std::vector<std::vector<float>> columns(dmat->Info().num_col_);
+  auto const& info = dmat->Info();
+  auto const& ft = info.feature_types.ConstHostSpan();
+  std::vector<std::vector<float>> columns(info.num_col_);
   for (auto& batch : dmat->GetBatches<SparsePage>()) {
     ASSERT_GT(batch.Size(), 0ul);
     for (auto i = 0ull; i < batch.Size(); i++) {
@@ -184,7 +182,7 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat,
     }
   }
   // Sort
-  for (auto i = 0ull; i < columns.size(); i++) {
+  for (auto i = 0ul; i < columns.size(); i++) {
     auto& col = columns.at(i);
     const auto& w = dmat->Info().weights_.HostVector();
     std::vector<size_t > index(col.size());
@@ -201,7 +199,7 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat,
       }
     }
 
-    ValidateColumn(cuts, i, sorted_column, sorted_weights, num_bins);
+    ValidateColumn(cuts, i, sorted_column, sorted_weights, num_bins, IsCat(ft, i));
   }
 }
 

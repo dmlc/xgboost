@@ -98,6 +98,9 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
         }));
     nnz += thrust::reduce(thrust::cuda::par(alloc), row_counts.begin(),
                           row_counts.end());
+
+    this->Info().feature_types.Resize(proxy->Info().feature_types.Size());
+    this->Info().feature_types.Copy(proxy->Info().feature_types);
     batches++;
   }
   iter.Reset();

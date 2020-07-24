@@ -165,7 +165,8 @@ class TestDistributedGPU:
     @settings(deadline=duration(seconds=120))
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
-    @pytest.mark.parametrize('local_cuda_cluster', [{'n_workers': 2}], indirect=['local_cuda_cluster'])
+    @pytest.mark.parametrize('local_cuda_cluster', [{'n_workers': 2}],
+                             indirect=['local_cuda_cluster'])
     @pytest.mark.mgpu
     def test_gpu_hist(self, params, num_rounds, dataset, local_cuda_cluster):
         with Client(local_cuda_cluster) as client:

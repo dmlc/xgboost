@@ -82,7 +82,9 @@ class FeatureMap {
     if (!strcmp("q", tname)) return kQuantitive;
     if (!strcmp("int", tname)) return kInteger;
     if (!strcmp("float", tname)) return kFloat;
-    LOG(FATAL) << "unknown feature type, use i for indicator and q for quantity";
+    if (!strcmp("categorical", tname)) return kInteger;
+    LOG(FATAL) << "unknown feature type, use i for indicator, q for quantity "
+                  "and categorical for categorical split.";
     return kIndicator;
   }
   /*! \brief name of the feature */
