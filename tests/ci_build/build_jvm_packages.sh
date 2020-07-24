@@ -8,8 +8,8 @@ use_cuda=$2
 
 gpu_options=""
 if [ "x$use_cuda" == "x-Duse.cuda=ON" ]; then
-  # Since building jvm for CPU will do unit tests, let's bypass it when building for GPU
-  gpu_options=" -Dmaven.test.skip=true -DskipTests $use_cuda "
+  # Since building jvm for CPU will do unit tests, choose gpu-with-gpu-tests profile to build
+  gpu_options=" -Pgpu-with-gpu-tests "
 fi
 
 # Initialize local Maven repository
