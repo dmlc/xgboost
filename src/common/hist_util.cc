@@ -161,10 +161,8 @@ void SparseCuts::SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
 
   // Data groups, used in ranking.
   std::vector<bst_uint> const& group_ptr = info.group_ptr_;
-  auto &local_min_vals = p_cuts_->min_vals_.HostVector();
   auto &local_cuts = p_cuts_->cut_values_.HostVector();
   auto &local_ptrs = p_cuts_->cut_ptrs_.HostVector();
-  local_min_vals.resize(end_col - beg_col, 0);
 
   for (uint32_t col_id = beg_col; col_id < page.Size() && col_id < end_col; ++col_id) {
     // Using a local variable makes things easier, but at the cost of memory trashing.
@@ -202,13 +200,12 @@ void SparseCuts::SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
     // Can be use data[1] as the min values so that we don't need to
     // store another array?
     float mval = summary.data[0].value;
-    local_min_vals[col_id - beg_col]  = mval - (fabs(mval) + 1e-5);
 
     this->AddCutPoint(summary, max_num_bins);
 
     bst_float cpt = (summary.size > 0) ?
                     summary.data[summary.size - 1].value :
-                    local_min_vals[col_id - beg_col];
+                    kTrivialSplit;
     cpt += fabs(cpt) + 1e-5;
     local_cuts.emplace_back(cpt);
 
@@ -286,14 +283,10 @@ void SparseCuts::Concat(
     std::vector<std::unique_ptr<SparseCuts>> const& cuts, uint32_t n_cols) {
   monitor_.Start(__FUNCTION__);
   uint32_t nthreads = omp_get_max_threads();
-  auto &local_min_vals = p_cuts_->min_vals_.HostVector();
   auto &local_cuts = p_cuts_->cut_values_.HostVector();
   auto &local_ptrs = p_cuts_->cut_ptrs_.HostVector();
-  local_min_vals.resize(n_cols, std::numeric_limits<float>::max());
-  size_t min_vals_tail = 0;
 
   for (uint32_t t = 0; t < nthreads; ++t) {
-    auto& thread_min_vals = cuts[t]->p_cuts_->min_vals_.HostVector();
     auto& thread_cuts = cuts[t]->p_cuts_->cut_values_.HostVector();
     auto& thread_ptrs = cuts[t]->p_cuts_->cut_ptrs_.HostVector();
 
@@ -314,12 +307,6 @@ void SparseCuts::Concat(
     for (size_t j = old_iv_size; j < new_iv_size; ++j) {
       local_cuts[j] = thread_cuts[j-old_iv_size];
     }
-    // merge min values
-    for (size_t j = 0; j < thread_min_vals.size(); ++j) {
-       local_min_vals.at(min_vals_tail + j) =
-          std::min(local_min_vals.at(min_vals_tail + j), thread_min_vals.at(j));
-    }
-    min_vals_tail += thread_min_vals.size();
   }
   monitor_.Stop(__FUNCTION__);
 }
@@ -426,18 +413,16 @@ void DenseCuts::Init
   // TODO(chenqin): rabit failure recovery assumes no boostrap onetime call after loadcheckpoint
   // we need to move this allreduce before loadcheckpoint call in future
   sreducer.Allreduce(dmlc::BeginPtr(summary_array), nbytes, summary_array.size());
-  p_cuts_->min_vals_.HostVector().resize(sketchs.size());
 
   for (size_t fid = 0; fid < summary_array.size(); ++fid) {
     WQSketch::SummaryContainer a;
     a.Reserve(max_num_bins + 1);
     a.SetPrune(summary_array[fid], max_num_bins + 1);
     const bst_float mval = a.data[0].value;
-    p_cuts_->min_vals_.HostVector()[fid] = mval - (fabs(mval) + 1e-5);
     AddCutPoint(a, max_num_bins);
     // push a value that is greater than anything
     const bst_float cpt
-      = (a.size > 0) ? a.data[a.size - 1].value : p_cuts_->min_vals_.HostVector()[fid];
+      = (a.size > 0) ? a.data[a.size - 1].value : kTrivialSplit;
     // this must be bigger than last value in a scale
     const bst_float last = cpt + (fabs(cpt) + 1e-5);
     p_cuts_->cut_values_.HostVector().push_back(last);

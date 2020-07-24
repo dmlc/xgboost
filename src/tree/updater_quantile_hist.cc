@@ -25,6 +25,7 @@
 #include "./updater_quantile_hist.h"
 #include "./split_evaluator.h"
 #include "../common/random.h"
+#include "../common/common.h"
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
 #include "../common/column_matrix.h"
@@ -1333,7 +1334,7 @@ GradStats QuantileHistMaker::Builder<GradientSumT>::EnumerateSplit(
               snode.root_gain);
           if (i == imin) {
             // for leftmost bin, left bound is the smallest feature value
-            split_pt = gmat.cut.MinValues()[fid];
+            split_pt = common::kTrivialSplit;
           } else {
             split_pt = cut_val[i - 1];
           }

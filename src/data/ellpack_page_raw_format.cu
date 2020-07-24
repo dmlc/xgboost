@@ -19,7 +19,6 @@ class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
     auto* impl = page->Impl();
     fi->Read(&impl->Cuts().cut_values_.HostVector());
     fi->Read(&impl->Cuts().cut_ptrs_.HostVector());
-    fi->Read(&impl->Cuts().min_vals_.HostVector());
     fi->Read(&impl->n_rows);
     fi->Read(&impl->is_dense);
     fi->Read(&impl->row_stride);
@@ -40,7 +39,6 @@ class EllpackPageRawFormat : public SparsePageFormat<EllpackPage> {
     auto* impl = page.Impl();
     fo->Write(impl->Cuts().cut_values_.ConstHostVector());
     fo->Write(impl->Cuts().cut_ptrs_.ConstHostVector());
-    fo->Write(impl->Cuts().min_vals_.ConstHostVector());
     fo->Write(impl->n_rows);
     fo->Write(impl->is_dense);
     fo->Write(impl->row_stride);

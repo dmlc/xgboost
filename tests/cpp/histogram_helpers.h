@@ -14,9 +14,6 @@ class HistogramCutsWrapper : public common::HistogramCuts {
   void SetPtrs(std::vector<uint32_t> ptrs) {
     SuperT::cut_ptrs_.HostVector() = std::move(ptrs);
   }
-  void SetMins(std::vector<float> mins) {
-    SuperT::min_vals_.HostVector() = std::move(mins);
-  }
 };
 }  //  anonymous namespace
 
@@ -36,7 +33,6 @@ inline std::unique_ptr<EllpackPageImpl> BuildEllpackPage(
           0.25f, 0.74f, 2.00f,
           0.26f, 0.74f, 1.98f,
           0.26f, 0.71f, 1.83f});
-  cmat.SetMins({0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f});
 
   bst_row_t row_stride = 0;
   const auto &offset_vec = batch.offset.ConstHostVector();

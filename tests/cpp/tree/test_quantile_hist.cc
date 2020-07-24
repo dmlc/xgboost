@@ -93,7 +93,7 @@ class QuantileHistMock : public QuantileHistMaker {
             if (bin_id > gmat.cut.Ptrs()[fid]) {
               ASSERT_GE(inst[j].fvalue, gmat.cut.Values()[bin_id - 1]);
             } else {
-              ASSERT_GE(inst[j].fvalue, gmat.cut.MinValues()[fid]);
+              ASSERT_NE(inst[j].fvalue, common::kTrivialSplit);
             }
           }
         }

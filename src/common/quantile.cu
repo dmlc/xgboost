@@ -491,7 +491,6 @@ void SketchContainer::AllReduce() {
 void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   timer_.Start(__func__);
   dh::safe_cuda(cudaSetDevice(device_));
-  p_cuts->min_vals_.Resize(num_columns_);
 
   // Sync between workers.
   this->AllReduce();
@@ -503,9 +502,6 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
 
   // Set up inputs
   auto d_in_columns_ptr = this->columns_ptr_.ConstDeviceSpan();
-
-  p_cuts->min_vals_.SetDevice(device_);
-  auto d_min_values = p_cuts->min_vals_.DeviceSpan();
   auto in_cut_values = dh::ToSpan(this->Current());
 
   // Set up output ptr
@@ -543,18 +539,12 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
       // column is empty, trees cannot split on it.  This is just to be consistent with
       // rest of the library.
       if (idx == 0) {
-        d_min_values[column_id] = kRtEps;
         out_column[0] = kRtEps;
         assert(out_column.size() == 1);
       }
       return;
     }
 
-    // First thread is responsible for setting min values.
-    if (idx == 0) {
-      auto mval = in_column[idx].value;
-      d_min_values[column_id] = mval - (fabs(mval) + 1e-5);
-    }
     // Last thread is responsible for setting a value that's greater than other cuts.
     if (idx == out_column.size() - 1) {
       const bst_float cpt = in_column.back().value;

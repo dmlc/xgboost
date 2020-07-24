@@ -190,7 +190,6 @@ TEST(SparseCuts, SingleThreadedBuild) {
   ASSERT_EQ(hmat.cut.Ptrs().size(), cuts.Ptrs().size());
   ASSERT_EQ(hmat.cut.Ptrs(), cuts.Ptrs());
   ASSERT_EQ(hmat.cut.Values(), cuts.Values());
-  ASSERT_EQ(hmat.cut.MinValues(), cuts.MinValues());
 }
 
 TEST(SparseCuts, MultiThreadedBuild) {
@@ -254,7 +253,6 @@ TEST(HistUtil, DenseCutsCategorical) {
        DenseCuts dense(&cuts);
        dense.Build(dmat.get(), num_bins);
        auto cuts_from_sketch = cuts.Values();
-       EXPECT_LT(cuts.MinValues()[0], x_sorted.front());
        EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());
        EXPECT_GE(cuts_from_sketch.back(), x_sorted.back());
        EXPECT_EQ(cuts_from_sketch.size(), num_categories);
@@ -344,7 +342,6 @@ TEST(HistUtil, SparseCutsCategorical) {
       SparseCuts sparse(&cuts);
       sparse.Build(dmat.get(), num_bins);
       auto cuts_from_sketch = cuts.Values();
-      EXPECT_LT(cuts.MinValues()[0], x_sorted.front());
       EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());
       EXPECT_GE(cuts_from_sketch.back(), x_sorted.back());
       EXPECT_EQ(cuts_from_sketch.size(), num_categories);

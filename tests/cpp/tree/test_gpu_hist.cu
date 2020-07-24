@@ -133,7 +133,6 @@ TEST(GpuHist, BuildHistSharedMem) {
 HistogramCutsWrapper GetHostCutMatrix () {
   HistogramCutsWrapper cmat;
   cmat.SetPtrs({0, 3, 6, 9, 12, 15, 18, 21, 24});
-  cmat.SetMins({0.1f, 0.2f, 0.3f, 0.1f, 0.2f, 0.3f, 0.2f, 0.2f});
   // 24 cut fields, 3 cut fields for each feature (column).
   // Each row of the cut represents the cuts for a data column.
   cmat.SetValues({0.30f, 0.67f, 1.64f,

@@ -45,7 +45,6 @@ TEST(HistUtil, DeviceSketch) {
 
   EXPECT_EQ(device_cuts.Values(), host_cuts.Values());
   EXPECT_EQ(device_cuts.Ptrs(), host_cuts.Ptrs());
-  EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 
 TEST(HistUtil, SketchBatchNumElements) {
@@ -108,7 +107,6 @@ TEST(HistUtil, DeviceSketchDeterminism) {
   for (size_t r = 0; r < kRounds; ++r) {
     auto new_sketch = DeviceSketch(0, dmat.get(), num_bins);
     ASSERT_EQ(reference_sketch.Values(), new_sketch.Values());
-    ASSERT_EQ(reference_sketch.MinValues(), new_sketch.MinValues());
   }
 }
 
@@ -169,7 +167,6 @@ TEST(HistUitl, DeviceSketchWeights) {
     for (auto num_bins : bin_sizes) {
       auto cuts = DeviceSketch(0, dmat.get(), num_bins);
       auto wcuts = DeviceSketch(0, weighted_dmat.get(), num_bins);
-      ASSERT_EQ(cuts.MinValues(), wcuts.MinValues());
       ASSERT_EQ(cuts.Ptrs(), wcuts.Ptrs());
       ASSERT_EQ(cuts.Values(), wcuts.Values());
       ValidateCuts(cuts, dmat.get(), num_bins);
@@ -275,7 +272,6 @@ TEST(HistUtil, AdapterDeviceSketch) {
 
   EXPECT_EQ(device_cuts.Values(), host_cuts.Values());
   EXPECT_EQ(device_cuts.Ptrs(), host_cuts.Ptrs());
-  EXPECT_EQ(device_cuts.MinValues(), host_cuts.MinValues());
 }
 
 TEST(HistUtil, AdapterDeviceSketchMemory) {
@@ -411,7 +407,6 @@ TEST(HistUtil, SketchingEquivalent) {
           adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
       EXPECT_EQ(dmat_cuts.Values(), adapter_cuts.Values());
       EXPECT_EQ(dmat_cuts.Ptrs(), adapter_cuts.Ptrs());
-      EXPECT_EQ(dmat_cuts.MinValues(), adapter_cuts.MinValues());
 
       ValidateBatchedCuts(adapter, num_bins, num_columns, num_rows, dmat.get());
     }
@@ -436,14 +431,10 @@ TEST(HistUtil, DeviceSketchFromGroupWeights) {
   HistogramCuts cuts = DeviceSketch(0, m.get(), kBins, 0);
 
   ASSERT_EQ(cuts.Values().size(), weighted_cuts.Values().size());
-  ASSERT_EQ(cuts.MinValues().size(), weighted_cuts.MinValues().size());
   ASSERT_EQ(cuts.Ptrs().size(), weighted_cuts.Ptrs().size());
 
   for (size_t i = 0; i < cuts.Values().size(); ++i) {
     EXPECT_EQ(cuts.Values()[i], weighted_cuts.Values()[i]) << "i:"<< i;
-  }
-  for (size_t i = 0; i < cuts.MinValues().size(); ++i) {
-    ASSERT_EQ(cuts.MinValues()[i], weighted_cuts.MinValues()[i]);
   }
   for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
     ASSERT_EQ(cuts.Ptrs().at(i), weighted_cuts.Ptrs().at(i));
@@ -498,9 +489,6 @@ void TestAdapterSketchFromWeights(bool with_group) {
     HistogramCuts non_weighted = DeviceSketch(0, dmat.get(), kBins, 0);
     for (size_t i = 0; i < cuts.Values().size(); ++i) {
       EXPECT_EQ(cuts.Values()[i], non_weighted.Values()[i]);
-    }
-    for (size_t i = 0; i < cuts.MinValues().size(); ++i) {
-      ASSERT_EQ(cuts.MinValues()[i], non_weighted.MinValues()[i]);
     }
     for (size_t i = 0; i < cuts.Ptrs().size(); ++i) {
       ASSERT_EQ(cuts.Ptrs().at(i), non_weighted.Ptrs().at(i));

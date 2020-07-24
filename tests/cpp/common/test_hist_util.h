@@ -151,7 +151,6 @@ inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
 
   // Check the endpoints are correct
   CHECK_GT(sorted_column.size(), 0);
-  EXPECT_LT(cuts.MinValues().at(column_idx), sorted_column.front());
   EXPECT_GT(cuts.Values()[cuts.Ptrs()[column_idx]], sorted_column.front());
   EXPECT_GE(cuts.Values()[cuts.Ptrs()[column_idx+1]-1], sorted_column.back());
 
