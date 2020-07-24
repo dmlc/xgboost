@@ -164,9 +164,12 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   if (adapter->NumRows() == kAdapterUnknownSize) {
     using IteratorAdapterT
       = IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext, XGBoostBatchCSR>;
+    // If AdapterT is either IteratorAdapter or FileAdapter type, use the total batch size to
+    // determine the correct number of rows, as offset_vec may be too short
     if (std::is_same<AdapterT, IteratorAdapterT>::value
         || std::is_same<AdapterT, FileAdapter>::value) {
       info_.num_row_ = total_batch_size;
+      // Ensure offset_vec.size() - 1 == [number of rows]
       while (offset_vec.size() - 1 < total_batch_size) {
         offset_vec.emplace_back(offset_vec.back());
       }
