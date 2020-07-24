@@ -285,7 +285,7 @@ def BuildCUDA(args) {
 }
 
 def BuildJVMPackagesWithCUDA(args) {
-  node('linux && cpu_build') {
+  node('linux && gpu') {
     unstash name: 'srcs'
     echo "Build XGBoost4J-Spark with Spark ${args.spark_version}, CUDA ${args.cuda_version}"
     def container_type = "jvm_gpu_build"
@@ -298,7 +298,7 @@ def BuildJVMPackagesWithCUDA(args) {
     // Use only 4 CPU cores
     def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='--cpuset-cpus 0-3'"
     sh """
-    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_jvm_packages.sh ${args.spark_version} -Duse.cuda=ON
+    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_jvm_packages.sh ${args.spark_version} -Duse.cuda=ON $arch_flag
     """
     echo "Stashing XGBoost4J JAR with CUDA ${args.cuda_version} ..."
     stash name: 'xgboost4j_jar_gpu', includes: "jvm-packages/xgboost4j/target/*.jar,jvm-packages/xgboost4j-spark/target/*.jar,jvm-packages/xgboost4j-example/target/*.jar"

@@ -103,6 +103,11 @@ if __name__ == "__main__":
             if os.getenv("RABIT_MOCK", None) is not None:
                 args.append("-DRABIT_MOCK:BOOL=ON")
 
+            # if enviorment set GPU_ARCH_FLAG
+            gpu_arch_flag = os.getenv("GPU_ARCH_FLAG", None)
+            if gpu_arch_flag is not None:
+                args.append("%s" % gpu_arch_flag)
+
             run("cmake .. " + " ".join(args) + maybe_generator)
             run("cmake --build . --config Release" + maybe_parallel_build)
 
