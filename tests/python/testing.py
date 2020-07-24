@@ -40,6 +40,17 @@ def no_dt():
             'reason': 'Datatable is not installed.'}
 
 
+def no_cupy():
+    reason = 'Matplotlib is not installed.'
+    try:
+        import cupy       # noqa
+        return {'condition': False,
+                'reason': reason}
+    except ImportError:
+        return {'condition': True,
+                'reason': reason}
+
+
 def no_matplotlib():
     reason = 'Matplotlib is not installed.'
     try:
