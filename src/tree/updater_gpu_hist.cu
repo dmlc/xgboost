@@ -305,7 +305,6 @@ struct GPUHistMakerDevice {
         feature_set,
         matrix.feature_segments,
         matrix.gidx_fvalue_map,
-        matrix.min_fvalue,
         hist.GetNodeHistogram(nidx),
         node_value_constraints[nidx],
         dh::ToSpan(monotone_constraints)};
@@ -343,7 +342,6 @@ struct GPUHistMakerDevice {
                                            left_feature_set,
                                            matrix.feature_segments,
                                            matrix.gidx_fvalue_map,
-                                           matrix.min_fvalue,
                                            hist.GetNodeHistogram(left_nidx),
                                            node_value_constraints[left_nidx],
                                            dh::ToSpan(monotone_constraints)};
@@ -355,7 +353,6 @@ struct GPUHistMakerDevice {
         right_feature_set,
         matrix.feature_segments,
         matrix.gidx_fvalue_map,
-        matrix.min_fvalue,
         hist.GetNodeHistogram(right_nidx),
         node_value_constraints[right_nidx],
         dh::ToSpan(monotone_constraints)};

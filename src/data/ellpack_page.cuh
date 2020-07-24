@@ -52,8 +52,6 @@ struct EllpackDeviceAccessor {
   size_t base_rowid{};
   size_t n_rows{};
   common::CompressedIterator<uint32_t> gidx_iter;
-  /*! \brief Minimum value for each feature. Size equals to number of features. */
-  common::Span<const bst_float> min_fvalue;
   /*! \brief Histogram cut pointers. Size equals to (number of features + 1). */
   common::Span<const uint32_t> feature_segments;
   /*! \brief Histogram cut values. Size equals to (bins per feature * number of features). */
@@ -68,10 +66,8 @@ struct EllpackDeviceAccessor {
         n_rows(n_rows) ,gidx_iter(gidx_iter){
     cuts.cut_values_.SetDevice(device);
     cuts.cut_ptrs_.SetDevice(device);
-    cuts.min_vals_.SetDevice(device);
     gidx_fvalue_map = cuts.cut_values_.ConstDeviceSpan();
     feature_segments = cuts.cut_ptrs_.ConstDeviceSpan();
-    min_fvalue = cuts.min_vals_.ConstDeviceSpan();
   }
   // Get a matrix element, uses binary search for look up Return NaN if missing
   // Given a row index and a feature index, returns the corresponding cut value
@@ -124,7 +120,7 @@ struct EllpackDeviceAccessor {
 
   XGBOOST_DEVICE size_t NumBins() const { return gidx_fvalue_map.size(); }
 
-  XGBOOST_DEVICE size_t NumFeatures() const { return min_fvalue.size(); }
+  XGBOOST_DEVICE size_t NumFeatures() const { return feature_segments.size() - 1; }
 };
 
 

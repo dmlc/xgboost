@@ -30,7 +30,6 @@ TEST(GpuHist, EvaluateSingleSplit) {
                                           dh::ToSpan(feature_set),
                                           dh::ToSpan(feature_segments),
                                           dh::ToSpan(feature_values),
-                                          dh::ToSpan(feature_min_values),
                                           dh::ToSpan(feature_histogram),
                                           ValueConstraint(),
                                           dh::ToSpan(monotonic_constraints)};
@@ -65,7 +64,6 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
                                           dh::ToSpan(feature_set),
                                           dh::ToSpan(feature_segments),
                                           dh::ToSpan(feature_values),
-                                          dh::ToSpan(feature_min_values),
                                           dh::ToSpan(feature_histogram),
                                           ValueConstraint(),
                                           dh::ToSpan(monotonic_constraints)};
@@ -117,7 +115,6 @@ TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
                                           dh::ToSpan(feature_set),
                                           dh::ToSpan(feature_segments),
                                           dh::ToSpan(feature_values),
-                                          dh::ToSpan(feature_min_values),
                                           dh::ToSpan(feature_histogram),
                                           ValueConstraint(),
                                           dh::ToSpan(monotonic_constraints)};
@@ -154,7 +151,6 @@ TEST(GpuHist, EvaluateSingleSplitBreakTies) {
                                           dh::ToSpan(feature_set),
                                           dh::ToSpan(feature_segments),
                                           dh::ToSpan(feature_values),
-                                          dh::ToSpan(feature_min_values),
                                           dh::ToSpan(feature_histogram),
                                           ValueConstraint(),
                                           dh::ToSpan(monotonic_constraints)};
@@ -192,7 +188,6 @@ TEST(GpuHist, EvaluateSplits) {
       dh::ToSpan(feature_set),
       dh::ToSpan(feature_segments),
       dh::ToSpan(feature_values),
-      dh::ToSpan(feature_min_values),
       dh::ToSpan(feature_histogram_left),
       ValueConstraint(),
       dh::ToSpan(monotonic_constraints)};
@@ -203,7 +198,6 @@ TEST(GpuHist, EvaluateSplits) {
       dh::ToSpan(feature_set),
       dh::ToSpan(feature_segments),
       dh::ToSpan(feature_values),
-      dh::ToSpan(feature_min_values),
       dh::ToSpan(feature_histogram_right),
       ValueConstraint(),
       dh::ToSpan(monotonic_constraints)};

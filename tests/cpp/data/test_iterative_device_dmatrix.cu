@@ -39,26 +39,18 @@ void TestEquivalent(float sparsity) {
     auto from_data = ellpack.Impl()->GetDeviceAccessor(0);
 
     std::vector<float> cuts_from_iter(from_iter.gidx_fvalue_map.size());
-    std::vector<float> min_fvalues_iter(from_iter.min_fvalue.size());
     std::vector<uint32_t> cut_ptrs_iter(from_iter.feature_segments.size());
     dh::CopyDeviceSpanToVector(&cuts_from_iter, from_iter.gidx_fvalue_map);
-    dh::CopyDeviceSpanToVector(&min_fvalues_iter, from_iter.min_fvalue);
     dh::CopyDeviceSpanToVector(&cut_ptrs_iter, from_iter.feature_segments);
 
     std::vector<float> cuts_from_data(from_data.gidx_fvalue_map.size());
-    std::vector<float> min_fvalues_data(from_data.min_fvalue.size());
     std::vector<uint32_t> cut_ptrs_data(from_data.feature_segments.size());
     dh::CopyDeviceSpanToVector(&cuts_from_data, from_data.gidx_fvalue_map);
-    dh::CopyDeviceSpanToVector(&min_fvalues_data, from_data.min_fvalue);
     dh::CopyDeviceSpanToVector(&cut_ptrs_data, from_data.feature_segments);
 
     ASSERT_EQ(cuts_from_iter.size(), cuts_from_data.size());
     for (size_t i = 0; i < cuts_from_iter.size(); ++i) {
       EXPECT_NEAR(cuts_from_iter[i], cuts_from_data[i], kRtEps);
-    }
-    ASSERT_EQ(min_fvalues_iter.size(), min_fvalues_data.size());
-    for (size_t i = 0; i < min_fvalues_iter.size(); ++i) {
-      ASSERT_NEAR(min_fvalues_iter[i], min_fvalues_data[i], kRtEps);
     }
     ASSERT_EQ(cut_ptrs_iter.size(), cut_ptrs_data.size());
     for (size_t i = 0; i < cut_ptrs_iter.size(); ++i) {

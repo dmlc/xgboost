@@ -100,7 +100,7 @@ __device__ void EvaluateFeature(
     GradientSumT bin = thread_active
                            ? inputs.gradient_histogram[scan_begin + threadIdx.x]
                            : GradientSumT();
-    ScanT(temp_storage->scan).ExclusiveScan(bin, bin, cub::Sum(), prefix_op);
+    ScanT(temp_storage->scan).InclusiveScan(bin, bin, cub::Sum(), prefix_op);
 
     // Whether the gradient of missing values is put to the left side.
     bool missing_left = true;
@@ -127,10 +127,10 @@ __device__ void EvaluateFeature(
 
     // Best thread updates split
     if (threadIdx.x == block_max.key) {
-      int split_gidx = (scan_begin + threadIdx.x) - 1;
+      int split_gidx = (scan_begin + threadIdx.x);
       float fvalue;
       if (split_gidx < static_cast<int>(gidx_begin)) {
-        fvalue = inputs.min_fvalue[fidx];
+        fvalue = common::kTrivialSplit;
       } else {
         fvalue = inputs.feature_values[split_gidx];
       }

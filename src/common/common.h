@@ -82,6 +82,8 @@ XGBOOST_DEVICE T1 DivRoundUp(const T1 a, const T2 b) {
   return static_cast<T1>(std::ceil(static_cast<double>(a) / b));
 }
 
+constexpr float kTrivialSplit = -std::numeric_limits<float>::infinity();
+
 /*
  * Range iterator
  */

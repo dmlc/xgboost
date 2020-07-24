@@ -111,7 +111,7 @@ struct EllpackLoader {
     // The gradient index needs to be shifted by one as min values are not included in the
     // cuts.
     if (gidx == matrix.feature_segments[fidx]) {
-      return matrix.min_fvalue[fidx];
+      return common::kTrivialSplit;
     }
     return matrix.gidx_fvalue_map[gidx - 1];
   }
