@@ -6,7 +6,23 @@
 xgb.unserialize <- function(buffer) {
   cachelist <- list()
   handle <- .Call(XGBoosterCreate_R, cachelist)
-  .Call(XGBoosterUnserializeFromBuffer_R, handle, buffer)
+  tryCatch(
+    .Call(XGBoosterUnserializeFromBuffer_R, handle, buffer),
+    error = function(e) {
+      error_msg <- conditionMessage(e)
+      m <- regexec("(src/learner.cc:[0-9]+): Check failed: (header == serialisation_header_)",
+                   error_msg, perl = TRUE)
+      groups <- regmatches(error_msg, m)[[1]]
+      if (length(groups) == 3) {
+        warning(paste("Loading model from a RDS file from XGBoost version 1.0.0 or earlier. ",
+                      "We strongly ADVISE AGAINST using saveRDS() / readRDS() functions, to ",
+                      "ensure that your model can be read in current and upcoing XGBoost ",
+                      "releases. Consider using xgb.save() / xgb.load() instead.", sep=""))
+        .Call(XGBoosterLoadModelFromRaw_R, handle, buffer)
+      } else {
+        stop(e)
+      }
+    })
   class(handle) <- "xgb.Booster.handle"
   return (handle)
 }
