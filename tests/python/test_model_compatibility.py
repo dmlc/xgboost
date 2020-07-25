@@ -87,7 +87,6 @@ def run_scikit_model_check(name, path):
         assert False
 
 
-@pytest.mark.ci
 def test_model_compatibility():
     '''Test model compatibility, can only be run on CI as others don't
     have the credentials.
@@ -102,13 +101,9 @@ def test_model_compatibility():
         pytest.skip(
             'Skiping compatibility tests as boto3 is not installed.')
 
-    try:
-        s3_bucket = boto3.resource('s3').Bucket('xgboost-ci-jenkins-artifacts')
-        zip_path = 'xgboost_model_compatibility_test.zip'
-        s3_bucket.download_file(zip_path, zip_path)
-    except botocore.exceptions.NoCredentialsError:
-        pytest.skip(
-            'Skiping compatibility tests as running on non-CI environment.')
+    s3_bucket = boto3.resource('s3').Bucket('xgboost-ci-jenkins-artifacts')
+    zip_path = 'xgboost_model_compatibility_test.zip'
+    s3_bucket.download_file(zip_path, zip_path)
 
     with zipfile.ZipFile(zip_path, 'r') as z:
         z.extractall(path)
