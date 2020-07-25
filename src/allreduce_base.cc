@@ -6,11 +6,11 @@
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
 #define NOMINMAX
+#include "allreduce_base.h"
 #include <rabit/base.h>
 #include <netinet/tcp.h>
 #include <cstring>
 #include <map>
-#include "allreduce_base.h"
 
 namespace rabit {
 
@@ -33,6 +33,8 @@ AllreduceBase::AllreduceBase(void) {
   version_number = 0;
   // 32 K items
   reduce_ring_mincount = 32 << 10;
+  // 1M reducer size each time
+  tree_reduce_minsize = 1 << 20;
   // tracker URL
   task_id = "NULL";
   err_link = NULL;
@@ -187,6 +189,7 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
   if (!strcmp(name, "DMLC_ROLE")) dmlc_role = val;
   if (!strcmp(name, "rabit_world_size")) world_size = atoi(val);
   if (!strcmp(name, "rabit_hadoop_mode")) hadoop_mode = utils::StringToBool(val);
+  if (!strcmp(name, "rabit_tree_reduce_minsize")) tree_reduce_minsize =  atoi(val);
   if (!strcmp(name, "rabit_reduce_ring_mincount")) {
     reduce_ring_mincount = atoi(val);
     utils::Assert(reduce_ring_mincount > 0, "rabit_reduce_ring_mincount should be greater than 0");
@@ -504,6 +507,9 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
   size_t size_up_out = 0;
   // size of message we received, and send in the down pass
   size_t size_down_in = 0;
+  // minimal size of each reducer
+  const size_t eachreduce = (tree_reduce_minsize / type_nbytes * type_nbytes);
+
   // initialize the link ring-buffer and pointer
   for (int i = 0; i < nlink; ++i) {
     if (i != parent_index) {
@@ -560,9 +566,14 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
     // read data from childs
     for (int i = 0; i < nlink; ++i) {
       if (i != parent_index && watcher.CheckRead(links[i].sock)) {
-        ReturnType ret = links[i].ReadToRingBuffer(size_up_out, total_size);
-        if (ret != kSuccess) {
-          return ReportError(&links[i], ret);
+        // make sure to receive minimal reducer size
+        // since each child reduce and sends the minimal reducer size
+        while (links[i].size_read < total_size
+                && links[i].size_read - size_up_reduce < eachreduce) {
+          ReturnType ret = links[i].ReadToRingBuffer(size_up_out, total_size);
+          if (ret != kSuccess) {
+            return ReportError(&links[i], ret);
+          }
         }
       }
     }
@@ -582,6 +593,12 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
       utils::Assert(buffer_size != 0, "must assign buffer_size");
       // round to type_n4bytes
       max_reduce = (max_reduce / type_nbytes * type_nbytes);
+
+      // if max reduce is less than total size, we reduce multiple times of
+      // eachreduce size
+      if (max_reduce < total_size)
+          max_reduce = max_reduce - max_reduce % eachreduce;
+
       // peform reduce, can be at most two rounds
       while (size_up_reduce < max_reduce) {
         // start position
@@ -605,7 +622,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
       // pass message up to parent, can pass data that are already been reduced
       if (size_up_out < size_up_reduce) {
         ssize_t len = links[parent_index].sock.
-            Send(sendrecvbuf + size_up_out, size_up_reduce - size_up_out);
+        Send(sendrecvbuf + size_up_out, size_up_reduce - size_up_out);
         if (len != -1) {
           size_up_out += static_cast<size_t>(len);
         } else {
@@ -618,20 +635,33 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
       // read data from parent
       if (watcher.CheckRead(links[parent_index].sock) &&
           total_size > size_down_in) {
-        ssize_t len = links[parent_index].sock.
-            Recv(sendrecvbuf + size_down_in, total_size - size_down_in);
-        if (len == 0) {
-          links[parent_index].sock.Close();
-          return ReportError(&links[parent_index], kRecvZeroLen);
-        }
-        if (len != -1) {
-          size_down_in += static_cast<size_t>(len);
-          utils::Assert(size_down_in <= size_up_out,
-                        "Allreduce: boundary error");
-        } else {
-          ReturnType ret = Errno2Return();
-          if (ret != kSuccess) {
-            return ReportError(&links[parent_index], ret);
+        size_t left_size = total_size-size_down_in;
+        size_t reduce_size_min = std::min(left_size, eachreduce);
+        size_t recved = 0;
+        while (recved < reduce_size_min) {
+          ssize_t len = links[parent_index].sock.
+          Recv(sendrecvbuf + size_down_in, total_size - size_down_in);
+
+          if (len == 0) {
+            links[parent_index].sock.Close();
+            return ReportError(&links[parent_index], kRecvZeroLen);
+          }
+          if (len != -1) {
+            size_down_in += static_cast<size_t>(len);
+            utils::Assert(size_down_in <= size_up_out,
+                          "Allreduce: boundary error");
+            recved+=len;
+
+            // if it receives more data than each reduce, it means the next block is sent.
+            // we double the reduce_size_min or add to left_size
+            while (recved > reduce_size_min) {
+              reduce_size_min += std::min(left_size-reduce_size_min, eachreduce);
+            }
+          } else {
+            ReturnType ret = Errno2Return();
+            if (ret != kSuccess) {
+              return ReportError(&links[parent_index], ret);
+            }
           }
         }
       }

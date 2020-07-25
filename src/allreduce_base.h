@@ -565,6 +565,8 @@ class AllreduceBase : public IEngine {
   int reduce_method;
   // mininum count of cells to use ring based method
   size_t reduce_ring_mincount;
+  // minimul block size per tree reduce
+  size_t tree_reduce_minsize;
   // current rank
   int rank;
   // world size

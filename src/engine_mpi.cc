@@ -7,9 +7,10 @@
  * \author Tianqi Chen
  */
 #define NOMINMAX
-#include <rabit/base.h>
 #include <mpi.h>
+#include <rabit/base.h>
 #include <cstdio>
+#include <string>
 #include "rabit/internal/engine.h"
 #include "rabit/internal/utils.h"
 
