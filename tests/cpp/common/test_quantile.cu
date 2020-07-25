@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "../helpers.h"
+#include "test_quantile.h"
 #include "../../../src/common/hist_util.cuh"
 #include "../../../src/common/quantile.cuh"
 
@@ -476,6 +477,18 @@ TEST(GPUQuantile, SameOnAllWorkers) {
   LOG(WARNING) << msg;
   return;
 #endif  // !defined(__linux__) && defined(XGBOOST_USE_NCCL)
+}
+
+TEST(GPUQuantile, FromOneHot) {
+  std::vector<float> x = BasicOneHotEncodedData();
+  auto m = GetDMatrixFromData(x, 5, 3);
+  int32_t max_bins = 16;
+  auto cuts = DeviceSketch(0, m.get(), max_bins);
+
+  std::vector<uint32_t> const& h_cuts_ptr = cuts.Ptrs();
+  std::vector<float> h_cuts_values = cuts.Values();
+
+  ValidateBasicOneHot(h_cuts_ptr, h_cuts_values);
 }
 }  // namespace common
 }  // namespace xgboost

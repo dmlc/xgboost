@@ -17,6 +17,7 @@
 #include "helpers.h"
 #include "xgboost/c_api.h"
 #include "../../src/data/adapter.h"
+#include "../../src/data/simple_dmatrix.h"
 #include "../../src/gbm/gbtree_model.h"
 #include "xgboost/predictor.h"
 
@@ -478,4 +479,10 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
   return gbm;
 }
 
+std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float> &x,
+                                            int num_rows, int num_columns) {
+  data::DenseAdapter adapter(x.data(), num_rows, num_columns);
+  return std::shared_ptr<DMatrix>(new data::SimpleDMatrix(
+      &adapter, std::numeric_limits<float>::quiet_NaN(), 1));
+}
 }  // namespace xgboost

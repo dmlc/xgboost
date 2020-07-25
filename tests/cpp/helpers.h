@@ -307,6 +307,9 @@ inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_row
   return gpair;
 }
 
+std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float> &x,
+                                            int num_rows, int num_columns);
+
 typedef void *DMatrixHandle;  // NOLINT(*);
 
 class CudaArrayIterForTest {

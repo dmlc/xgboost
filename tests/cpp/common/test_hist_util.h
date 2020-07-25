@@ -73,13 +73,6 @@ inline std::vector<float> GenerateRandomCategoricalSingleColumn(int n,
   return x;
 }
 
-inline std::shared_ptr<data::SimpleDMatrix>
-GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns) {
-  data::DenseAdapter adapter(x.data(), num_rows, num_columns);
-  return std::shared_ptr<data::SimpleDMatrix>(new data::SimpleDMatrix(
-      &adapter, std::numeric_limits<float>::quiet_NaN(), 1));
-}
-
 inline std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
     const std::vector<float>& x, int num_rows, int num_columns,
     size_t page_size, const dmlc::TemporaryDirectory& tempdir) {

@@ -464,6 +464,5 @@ TEST(HistUtil, SparseIndexBinData) {
     }
   }
 }
-
 }  // namespace common
 }  // namespace xgboost
