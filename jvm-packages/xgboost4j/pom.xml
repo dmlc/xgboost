@@ -84,6 +84,7 @@
                           <executable>python</executable>
                           <arguments>
                             <argument>create_jni.py</argument>
+                            <argument>--use-cuda</argument>
                             <argument>${use.cuda}</argument>
                           </arguments>
                           <workingDirectory>${user.dir}</workingDirectory>

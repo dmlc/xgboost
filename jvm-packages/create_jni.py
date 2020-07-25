@@ -1,16 +1,12 @@
 #!/usr/bin/env python
 import errno
+import argparse
 import glob
 import os
 import shutil
 import subprocess
 import sys
 from contextlib import contextmanager
-
-# usage
-# ./create_jni.py [ON|OFF]
-#  ON : USE_CUDA=ON
-#  OFF: USE_CUDA=OFF
 
 # Monkey-patch the API inconsistency between Python2.X and 3.X.
 if sys.platform.startswith("linux"):
@@ -73,6 +69,10 @@ def normpath(path):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--use-cuda', type=str, choices=['ON', 'OFF'], default='OFF')
+    cli_args = parser.parse_args()
+
     if sys.platform == "darwin":
         # Enable of your compiler supports OpenMP.
         CONFIG["USE_OPENMP"] = "OFF"
@@ -93,9 +93,9 @@ if __name__ == "__main__":
             else:
                 maybe_parallel_build = ""
 
-            if len(sys.argv) == 2 and sys.argv[1] == "ON":
-                CONFIG['USE_CUDA'] = "ON"
-                CONFIG['USE_NCCL'] = "ON"
+            if cli_args.use_cuda == 'ON':
+                CONFIG['USE_CUDA'] = 'ON'
+                CONFIG['USE_NCCL'] = 'ON'
 
             args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
 
