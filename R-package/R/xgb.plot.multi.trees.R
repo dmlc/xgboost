@@ -9,7 +9,7 @@
 #' @param plot_height height in pixels of the graph to produce
 #' @param render a logical flag for whether the graph should be rendered (see Value).
 #' @param ... currently not used
-#' 
+#'
 #' @details
 #'
 #' This function tries to capture the complexity of a gradient boosted tree model
@@ -72,53 +72,53 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
 
   precedent.nodes <- root.nodes
 
-  while(tree.matrix[,sum(is.na(abs.node.position))] > 0) {
+  while (tree.matrix[, sum(is.na(abs.node.position))] > 0) {
     yes.row.nodes <- tree.matrix[abs.node.position %in% precedent.nodes & !is.na(Yes)]
     no.row.nodes <- tree.matrix[abs.node.position %in% precedent.nodes & !is.na(No)]
     yes.nodes.abs.pos <- yes.row.nodes[, abs.node.position] %>% paste0("_0")
     no.nodes.abs.pos <- no.row.nodes[, abs.node.position] %>% paste0("_1")
-    
+
     tree.matrix[ID %in% yes.row.nodes[, Yes], abs.node.position := yes.nodes.abs.pos]
     tree.matrix[ID %in% no.row.nodes[, No], abs.node.position := no.nodes.abs.pos]
     precedent.nodes <- c(yes.nodes.abs.pos, no.nodes.abs.pos)
   }
-  
+
   tree.matrix[!is.na(Yes), Yes := paste0(abs.node.position, "_0")]
   tree.matrix[!is.na(No), No := paste0(abs.node.position, "_1")]
-  
+
   remove.tree <- . %>% stri_replace_first_regex(pattern = "^\\d+-", replacement = "")
-  
-  tree.matrix[,`:=`(abs.node.position = remove.tree(abs.node.position),
-                    Yes = remove.tree(Yes),
-                    No = remove.tree(No))]
-  
+
+  tree.matrix[, `:=`(abs.node.position = remove.tree(abs.node.position),
+                     Yes = remove.tree(Yes),
+                     No = remove.tree(No))]
+
   nodes.dt <- tree.matrix[
         , .(Quality = sum(Quality))
         , by = .(abs.node.position, Feature)
       ][, .(Text = paste0(Feature[1:min(length(Feature), features_keep)],
                           " (",
-                          format(Quality[1:min(length(Quality), features_keep)], digits=5),
+                          format(Quality[1:min(length(Quality), features_keep)], digits = 5),
                           ")") %>%
                    paste0(collapse = "\n"))
         , by = abs.node.position]
-  
+
   edges.dt <- tree.matrix[Feature != "Leaf", .(abs.node.position, Yes)] %>%
-    list(tree.matrix[Feature != "Leaf",.(abs.node.position, No)]) %>%
+    list(tree.matrix[Feature != "Leaf", .(abs.node.position, No)]) %>%
     rbindlist() %>%
     setnames(c("From", "To")) %>%
     .[, .N, .(From, To)] %>%
-    .[, N:=NULL]
-  
+    .[, N := NULL]
+
   nodes <- DiagrammeR::create_node_df(
     n = nrow(nodes.dt),
-    label = nodes.dt[,Text]
+    label = nodes.dt[, Text]
   )
-  
+
   edges <- DiagrammeR::create_edge_df(
-    from = match(edges.dt[,From], nodes.dt[,abs.node.position]),
-    to = match(edges.dt[,To], nodes.dt[,abs.node.position]),
+    from = match(edges.dt[, From], nodes.dt[, abs.node.position]),
+    to = match(edges.dt[, To], nodes.dt[, abs.node.position]),
     rel = "leading_to")
-  
+
   graph <- DiagrammeR::create_graph(
       nodes_df = nodes,
       edges_df = edges,

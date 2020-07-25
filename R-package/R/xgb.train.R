@@ -3,7 +3,7 @@
 #' \code{xgb.train} is an advanced interface for training an xgboost model.
 #' The \code{xgboost} function is a simpler wrapper for \code{xgb.train}.
 #'
-#' @param params the list of parameters. The complete list of parameters is 
+#' @param params the list of parameters. The complete list of parameters is
 #'   available in the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}. Below
 #'   is a shorter summary:
 #'
@@ -278,7 +278,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
 
   # evaluation printing callback
   params <- c(params)
-  print_every_n <- max( as.integer(print_every_n), 1L)
+  print_every_n <- max(as.integer(print_every_n), 1L)
   if (!has.callbacks(callbacks, 'cb.print.evaluation') &&
       verbose) {
     callbacks <- add.cb(callbacks, cb.print.evaluation(print_every_n))
@@ -328,11 +328,8 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
       niter_init <- xgb.ntree(bst) %/% (num_parallel_tree * num_class)
     }
   }
-  if(is_update && nrounds > niter_init)
+  if (is_update && nrounds > niter_init)
     stop("nrounds cannot be larger than ", niter_init, " (nrounds of xgb_model)")
-
-  # TODO: distributed code
-  rank <- 0
 
   niter_skip <- ifelse(is_update, 0, niter_init)
   begin_iteration <- niter_skip + 1
@@ -345,7 +342,6 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
 
     xgb.iter.update(bst$handle, dtrain, iteration - 1, obj)
 
-    bst_evaluation <- numeric(0)
     if (length(watchlist) > 0)
       bst_evaluation <- xgb.iter.eval(bst$handle, watchlist, iteration - 1, feval)
 
@@ -360,7 +356,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   bst <- xgb.Booster.complete(bst, saveraw = TRUE)
 
   # store the total number of boosting iterations
-  bst$niter = end_iteration
+  bst$niter <- end_iteration
 
   # store the evaluation results
   if (length(evaluation_log) > 0 &&

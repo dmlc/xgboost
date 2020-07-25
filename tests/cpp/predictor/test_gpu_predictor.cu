@@ -94,7 +94,7 @@ TEST(GPUPredictor, ExternalMemoryTest) {
   gpu_predictor->Configure({});
 
   LearnerModelParam param;
-  param.num_feature = 2;
+  param.num_feature = 5;
   const int n_classes = 3;
   param.num_output_group = n_classes;
   param.base_score = 0.5;
