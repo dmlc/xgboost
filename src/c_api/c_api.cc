@@ -150,7 +150,7 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
                                      const unsigned* indices,
                                      const bst_float* data,
                                      size_t nindptr,
-                                     size_t nelem, // unused
+                                     size_t nelem,  // unused
                                      size_t num_col,
                                      DMatrixHandle* out) {
   API_BEGIN();
@@ -546,7 +546,7 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle,
                                     const unsigned* indices,
                                     const bst_float* data,
                                     size_t nindptr,
-                                    size_t nelem, // unusued
+                                    size_t nelem,  // unusued
                                     size_t num_col,
                                     float missing,
                                     unsigned iteration_begin,
