@@ -11,8 +11,8 @@ test_that('Test ranking with unweighted data', {
   group <- c(5, 5, 5, 5)
   dtrain <- xgb.DMatrix(X, label = y, group = group)
 
-  params = list(eta = 1, tree_method = 'exact', objective = 'rank:pairwise', max_depth = 1,
-                eval_metric = 'auc', eval_metric = 'aucpr')
+  params <- list(eta = 1, tree_method = 'exact', objective = 'rank:pairwise', max_depth = 1,
+                 eval_metric = 'auc', eval_metric = 'aucpr')
   bst <- xgb.train(params, dtrain, nrounds = 10, watchlist = list(train = dtrain))
   # Check if the metric is monotone increasing
   expect_true(all(diff(bst$evaluation_log$train_auc) >= 0))
@@ -28,8 +28,8 @@ test_that('Test ranking with weighted data', {
   weight <- c(1.0, 2.0, 3.0, 4.0)
   dtrain <- xgb.DMatrix(X, label = y, group = group, weight = weight)
 
-  params = list(eta = 1, tree_method = 'exact', objective = 'rank:pairwise', max_depth = 1,
-                eval_metric = 'auc', eval_metric = 'aucpr')
+  params <- list(eta = 1, tree_method = 'exact', objective = 'rank:pairwise', max_depth = 1,
+                 eval_metric = 'auc', eval_metric = 'aucpr')
   bst <- xgb.train(params, dtrain, nrounds = 10, watchlist = list(train = dtrain))
   # Check if the metric is monotone increasing
   expect_true(all(diff(bst$evaluation_log$train_auc) >= 0))
