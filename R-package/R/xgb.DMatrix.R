@@ -257,8 +257,6 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
     return(TRUE)
   }
   if (name == "weight") {
-    if (length(info) != nrow(object))
-      stop("The length of weights must equal to the number of rows in the input data")
     .Call(XGDMatrixSetInfo_R, object, name, as.numeric(info))
     return(TRUE)
   }
