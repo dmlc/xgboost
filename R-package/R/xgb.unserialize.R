@@ -10,7 +10,7 @@ xgb.unserialize <- function(buffer) {
     .Call(XGBoosterUnserializeFromBuffer_R, handle, buffer),
     error = function(e) {
       error_msg <- conditionMessage(e)
-      m <- regexec("(src/learner.cc:[0-9]+): Check failed: (header == serialisation_header_)",
+      m <- regexec("(src[\\/]learner.cc:[0-9]+): Check failed: (header == serialisation_header_)",
                    error_msg, perl = TRUE)
       groups <- regmatches(error_msg, m)[[1]]
       if (length(groups) == 3) {
