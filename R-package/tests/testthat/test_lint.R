@@ -2,7 +2,7 @@ context("Code is of high quality and lint free")
 test_that("Code Lint", {
   skip_on_cran()
   my_linters <- list(
-    absolute_paths_linter = lintr::absolute_paths_linter,
+    absolute_path_linter = lintr::absolute_path_linter,
     assignment_linter = lintr::assignment_linter,
     closed_curly_linter = lintr::closed_curly_linter,
     commas_linter = lintr::commas_linter,
