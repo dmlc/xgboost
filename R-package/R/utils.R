@@ -308,14 +308,14 @@ xgb.createFolds <- function(y, k = 10)
 #' @name xgboost-deprecated
 NULL
 
-#' Do not use saveRDS() for long-term archival of models. Use xgb.load() instead.
+#' Do not use saveRDS() for long-term archival of models. Use xgb.save() instead.
 #'
 #' It is a common practice to use the built-in \code{saveRDS()} function to persist R objects to
 #' the disk. While \code{xgb.Booster} objects can be persisted with \code{saveRDS()} as well, it
 #' is not advisable to use it if the model is to be accessed in the future. If you train a model
 #' with the current version of XGBoost and persist it with \code{saveRDS()}, the model is not
 #' guaranteed to be accessible in later releases of XGBoost. To ensure that your model can be
-#' accessed in future releases of XGBoost, use \code{xgb.load()} instead.
+#' accessed in future releases of XGBoost, use \code{xgb.save()} instead.
 #'
 #' @name a-compatibility-note-for-saveRDS
 NULL
