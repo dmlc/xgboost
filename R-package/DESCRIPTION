@@ -54,7 +54,8 @@ Suggests:
     lintr,
     igraph (>= 1.0.1),
     jsonlite,
-    float
+    float,
+    crayon
 Depends:
     R (>= 3.3.0)
 Imports:
