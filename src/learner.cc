@@ -41,6 +41,7 @@
 #include "common/observer.h"
 #include "common/random.h"
 #include "common/timer.h"
+#include "common/charconv.h"
 #include "common/version.h"
 
 namespace {
@@ -99,18 +100,33 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
   // Skip other legacy fields.
   Json ToJson() const {
     Object obj;
-    obj["base_score"] = std::to_string(base_score);
-    obj["num_feature"] = std::to_string(num_feature);
-    obj["num_class"] = std::to_string(num_class);
+    char floats[NumericLimits<float>::kToCharsSize];
+    auto ret = to_chars(floats, floats + NumericLimits<float>::kToCharsSize, base_score);
+    CHECK(ret.ec == std::errc());
+    obj["base_score"] =
+        std::string{floats, static_cast<size_t>(std::distance(floats, ret.ptr))};
+
+    char integers[NumericLimits<int64_t>::kToCharsSize];
+    ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
+                   static_cast<int64_t>(num_feature));
+    CHECK(ret.ec == std::errc());
+    obj["num_feature"] =
+        std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
+    ret = to_chars(integers, integers + NumericLimits<int64_t>::kToCharsSize,
+                   static_cast<int64_t>(num_class));
+    CHECK(ret.ec == std::errc());
+    obj["num_class"] =
+        std::string{integers, static_cast<size_t>(std::distance(integers, ret.ptr))};
     return Json(std::move(obj));
   }
   void FromJson(Json const& obj) {
     auto const& j_param = get<Object const>(obj);
     std::map<std::string, std::string> m;
-    m["base_score"] = get<String const>(j_param.at("base_score"));
     m["num_feature"] = get<String const>(j_param.at("num_feature"));
     m["num_class"] = get<String const>(j_param.at("num_class"));
     this->Init(m);
+    std::string str = get<String const>(j_param.at("base_score"));
+    from_chars(str.c_str(), str.c_str() + str.size(), base_score);
   }
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerModelParamLegacy) {
