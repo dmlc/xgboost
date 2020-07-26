@@ -77,9 +77,10 @@ jobs:
                          repos = 'http://cloud.r-project.org',
                          dependencies = c('Depends', 'Imports', 'LinkingTo'))
 
-    - name: Test R
+    - name: Run lintr
       run: |
         cd R-package
+        R.exe CMD INSTALL .
         Rscript.exe tests/run_lint.R
 
 
