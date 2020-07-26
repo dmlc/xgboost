@@ -136,7 +136,9 @@ class QuantileHistMaker: public TreeUpdater {
         << "by a previous version of XGBoost. A likely cause for this warning is that the model "
         << "was saved with saveRDS() in R or pickle.dump() in Python. We strongly ADVISE AGAINST "
         << "using saveRDS() or pickle.dump() so that the model remains accessible in current and "
-        << "upcoming XGBoost releases. Please use xgb.save() instead.";
+        << "upcoming XGBoost releases. Please use xgb.save() instead to preserve models long term. "
+        << "For more details and explanation, see "
+        << "https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html";
       this->hist_maker_param_.UpdateAllowUnknown(Args{});
     }
   }
