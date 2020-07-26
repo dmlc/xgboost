@@ -78,7 +78,7 @@ generate_ranking_model <- function () {
   # setinfo(data, 'weight', w)
   # ^^^ does not work in version <= 1.1.0; see https://github.com/dmlc/xgboost/issues/5942
   # So call low-level function XGDMatrixSetInfo_R directly. Since this function is not an exported
-  # symbol, use the triple-color operator.
+  # symbol, use the triple-colon operator.
   .Call(xgboost:::XGDMatrixSetInfo_R, data, 'weight', as.numeric(w))
   params <- list(objective = 'rank:ndcg', num_parallel_tree = metadata$kForests,
                  tree_method = 'hist', max_depth = metadata$kMaxDepth)

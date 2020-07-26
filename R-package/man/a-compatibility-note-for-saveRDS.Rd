@@ -9,5 +9,7 @@ the disk. While \code{xgb.Booster} objects can be persisted with \code{saveRDS()
 is not advisable to use it if the model is to be accessed in the future. If you train a model
 with the current version of XGBoost and persist it with \code{saveRDS()}, the model is not
 guaranteed to be accessible in later releases of XGBoost. To ensure that your model can be
-accessed in future releases of XGBoost, use \code{xgb.save()} instead.
+accessed in future releases of XGBoost, use \code{xgb.save()} instead. For more details and
+explanation, consult the page
+\url{https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html}.
 }
