@@ -1,4 +1,5 @@
 library(lintr)
+library(crayon)
 
 my_linters <- list(
   absolute_path_linter = lintr::absolute_path_linter,
@@ -22,14 +23,49 @@ my_linters <- list(
   true_false = lintr::T_and_F_symbol_linter
 )
 
-found_error <- FALSE
+results <- lapply(
+  list.files(path = '.', pattern = '\\.[Rr]$', recursive = TRUE),
+  function (r_file) {
+    cat(sprintf("Processing %s ...\n", r_file))
+    list(r_file = r_file,
+         output = lintr::lint(filename = r_file, linters = my_linters))
+  })
+num_issue <- Reduce(sum, lapply(results, function (e) length(e$output)))
 
-for (r_file in list.files(path = '.', pattern = '\\.[Rr]$', recursive = TRUE)) {
-  cat(sprintf("**** %s\n\n", r_file))
-  output <- lintr::lint(filename = r_file, linters = my_linters)
-  print(output)
-  if (length(output) > 0) {
-    found_error <- TRUE
+lint2str <- function(lint_entry) {
+  color <- function(type) {
+    switch(type,
+      "warning" = crayon::magenta,
+      "error" = crayon::red,
+      "style" = crayon::blue,
+      crayon::bold
+    )
   }
+
+  paste0(
+    lapply(lint_entry$output,
+      function (lint_line) {
+        paste0(
+          crayon::bold(lint_entry$r_file, ":",
+          as.character(lint_line$line_number), ":",
+          as.character(lint_line$column_number), ": ", sep = ""),
+          color(lint_line$type)(lint_line$type, ": ", sep = ""),
+          crayon::bold(lint_line$message), "\n",
+          lint_line$line, "\n",
+          lintr:::highlight_string(lint_line$message, lint_line$column_number, lint_line$ranges),
+          "\n",
+          collapse = "")
+      }),
+    collapse = "")
 }
-quit(save = 'no', status = ifelse(found_error, 1, 0))
+
+if (num_issue > 0) {
+  cat(sprintf('R linters found %d issues:\n', num_issue))
+  for (entry in results) {
+    if (length(entry$output)) {
+      cat(paste0('**** ', crayon::bold(entry$r_file), '\n'))
+      cat(paste0(lint2str(entry), collapse = ''))
+    }
+  }
+  quit(save = 'no', status = 1)  # Signal error to parent shell
+}
