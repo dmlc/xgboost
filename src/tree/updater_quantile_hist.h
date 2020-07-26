@@ -125,7 +125,15 @@ class QuantileHistMaker: public TreeUpdater {
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
     FromJson(config.at("train_param"), &this->param_);
-    FromJson(config.at("cpu_hist_train_param"), &this->hist_maker_param_);
+    try {
+      FromJson(config.at("cpu_hist_train_param"), &this->hist_maker_param_);
+    } catch (std::out_of_range& e) {
+      // XGBoost model is from 1.1.x, so 'cpu_hist_train_param' is missing.
+      // We add this compatibility check because it's just recently that we (developers) began
+      // persuade R users away from using saveRDS() for model serialization. Hopefully, one day,
+      // everyone will beg using xgb.save().
+      this->hist_maker_param_.UpdateAllowUnknown(Args{});
+    }
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
