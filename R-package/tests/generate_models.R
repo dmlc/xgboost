@@ -1,0 +1,90 @@
+# Script to generate reference models. The reference models are used to test backward compatibility
+# of saved model files from XGBoost version 0.90 and 1.0.x.
+library(xgboost)
+library(Matrix)
+source('./generate_models_params.R')
+
+set.seed(0)
+X <- Matrix(data = rnorm(kRows * kCols), nrow = kRows, ncol = kCols, sparse = TRUE)
+w <- runif(kRows)
+
+version <- packageVersion('xgboost')
+target_dir <- 'models'
+
+save_booster <- function (booster, model_name) {
+  booster_bin <- function (model_name) {
+    return (file.path(target_dir, paste('xgboost-', version, '.', model_name, '.bin', sep = '')))
+  }
+  booster_json <- function (model_name) {
+    return (file.path(target_dir, paste('xgboost-', version, '.', model_name, '.json', sep = '')))
+  }
+  booster_rds <- function (model_name) {
+    return (file.path(target_dir, paste('xgboost-', version, '.', model_name, '.rds', sep = '')))
+  }
+  xgb.save(booster, booster_bin(model_name))
+  saveRDS(booster, booster_rds(model_name))
+  if (version >= '1.0.0') {
+    xgb.save(booster, booster_json(model_name))
+  }
+}
+
+generate_regression_model <- function () {
+  print('Regression')
+  y <- rnorm(kRows)
+
+  data <- xgb.DMatrix(X, label = y)
+  params <- list(tree_method = 'hist', num_parallel_tree = kForests, max_depth = kMaxDepth)
+  booster <- xgb.train(params, data, nrounds = kRounds)
+  save_booster(booster, 'reg')
+}
+
+generate_logistic_model <- function () {
+  print('Binary classification with logistic loss')
+  y <- sample(0:1, size = kRows, replace = TRUE)
+  stopifnot(max(y) == 1, min(y) == 0)
+
+  data <- xgb.DMatrix(X, label = y, weight = w)
+  params <- list(tree_method = 'hist', num_parallel_tree = kForests, max_depth = kMaxDepth,
+                 objective = 'binary:logistic')
+  booster <- xgb.train(params, data, nrounds = kRounds)
+  save_booster(booster, 'logit')
+}
+
+generate_classification_model <- function () {
+  print('Multi-class classification')
+  y <- sample(0:(kClasses - 1), size = kRows, replace = TRUE)
+  stopifnot(max(y) == kClasses - 1, min(y) == 0)
+
+  data <- xgb.DMatrix(X, label = y, weight = w)
+  params <- list(num_class = kClasses, tree_method = 'hist', num_parallel_tree = kForests,
+                 max_depth = kMaxDepth, objective = 'multi:softmax')
+  booster <- xgb.train(params, data, nrounds = kRounds)
+  save_booster(booster, 'cls')
+}
+
+generate_ranking_model <- function () {
+  print('Learning to rank')
+  y <- sample(0:4, size = kRows, replace = TRUE)
+  stopifnot(max(y) == 4, min(y) == 0)
+  kGroups <- 20
+  w <- runif(kGroups)
+  g <- rep(50, times = kGroups)
+
+  data <- xgb.DMatrix(X, label = y, group = g)
+  # setinfo(data, 'weight', w)
+  # ^^^ does not work in version <= 1.1.0; see https://github.com/dmlc/xgboost/issues/5942
+  # So call low-level function XGDMatrixSetInfo_R directly. Since this function is not an exported
+  # symbol, use the triple-color operator.
+  .Call(xgboost:::XGDMatrixSetInfo_R, data, 'weight', as.numeric(w))
+  params <- list(objective = 'rank:ndcg', num_parallel_tree = kForests, tree_method = 'hist',
+                 max_depth = kMaxDepth)
+  booster <- xgb.train(params, data, nrounds = kRounds)
+  save_booster(booster, 'ltr')
+}
+
+dir.create(target_dir)
+
+invisible(generate_regression_model())
+invisible(generate_logistic_model())
+invisible(generate_classification_model())
+invisible(generate_ranking_model())
