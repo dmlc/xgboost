@@ -131,7 +131,7 @@ class QuantileHistMaker: public TreeUpdater {
       // XGBoost model is from 1.1.x, so 'cpu_hist_train_param' is missing.
       // We add this compatibility check because it's just recently that we (developers) began
       // persuade R users away from using saveRDS() for model serialization. Hopefully, one day,
-      // everyone will beg using xgb.save().
+      // everyone will be using xgb.save().
       LOG(WARNING) << "Attempted to load interal configuration for a model file that's generated "
         << "by a previous version of XGBoost. A likely cause for this warning is that the model "
         << "was saved with saveRDS() in R or pickle.dump() in Python. We strongly ADVISE AGAINST "

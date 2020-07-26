@@ -5,8 +5,10 @@ library(Matrix)
 source('./generate_models_params.R')
 
 set.seed(0)
-X <- Matrix(data = rnorm(kRows * kCols), nrow = kRows, ncol = kCols, sparse = TRUE)
-w <- runif(kRows)
+metadata <- model_generator_metadata()
+X <- Matrix(data = rnorm(metadata$kRows * metadata$kCols), nrow = metadata$kRows,
+            ncol = metadata$kCols, sparse = TRUE)
+w <- runif(metadata$kRows)
 
 version <- packageVersion('xgboost')
 target_dir <- 'models'
@@ -30,41 +32,43 @@ save_booster <- function (booster, model_name) {
 
 generate_regression_model <- function () {
   print('Regression')
-  y <- rnorm(kRows)
+  y <- rnorm(metadata$kRows)
 
   data <- xgb.DMatrix(X, label = y)
-  params <- list(tree_method = 'hist', num_parallel_tree = kForests, max_depth = kMaxDepth)
-  booster <- xgb.train(params, data, nrounds = kRounds)
+  params <- list(tree_method = 'hist', num_parallel_tree = metadata$kForests,
+                 max_depth = metadata$kMaxDepth)
+  booster <- xgb.train(params, data, nrounds = metadata$kRounds)
   save_booster(booster, 'reg')
 }
 
 generate_logistic_model <- function () {
   print('Binary classification with logistic loss')
-  y <- sample(0:1, size = kRows, replace = TRUE)
+  y <- sample(0:1, size = metadata$kRows, replace = TRUE)
   stopifnot(max(y) == 1, min(y) == 0)
 
   data <- xgb.DMatrix(X, label = y, weight = w)
-  params <- list(tree_method = 'hist', num_parallel_tree = kForests, max_depth = kMaxDepth,
-                 objective = 'binary:logistic')
-  booster <- xgb.train(params, data, nrounds = kRounds)
+  params <- list(tree_method = 'hist', num_parallel_tree = metadata$kForests,
+                 max_depth = metadata$kMaxDepth, objective = 'binary:logistic')
+  booster <- xgb.train(params, data, nrounds = metadata$kRounds)
   save_booster(booster, 'logit')
 }
 
 generate_classification_model <- function () {
   print('Multi-class classification')
-  y <- sample(0:(kClasses - 1), size = kRows, replace = TRUE)
-  stopifnot(max(y) == kClasses - 1, min(y) == 0)
+  y <- sample(0:(metadata$kClasses - 1), size = metadata$kRows, replace = TRUE)
+  stopifnot(max(y) == metadata$kClasses - 1, min(y) == 0)
 
   data <- xgb.DMatrix(X, label = y, weight = w)
-  params <- list(num_class = kClasses, tree_method = 'hist', num_parallel_tree = kForests,
-                 max_depth = kMaxDepth, objective = 'multi:softmax')
-  booster <- xgb.train(params, data, nrounds = kRounds)
+  params <- list(num_class = metadata$kClasses, tree_method = 'hist',
+                 num_parallel_tree = metadata$kForests, max_depth = metadata$kMaxDepth,
+                 objective = 'multi:softmax')
+  booster <- xgb.train(params, data, nrounds = metadata$kRounds)
   save_booster(booster, 'cls')
 }
 
 generate_ranking_model <- function () {
   print('Learning to rank')
-  y <- sample(0:4, size = kRows, replace = TRUE)
+  y <- sample(0:4, size = metadata$kRows, replace = TRUE)
   stopifnot(max(y) == 4, min(y) == 0)
   kGroups <- 20
   w <- runif(kGroups)
@@ -76,9 +80,9 @@ generate_ranking_model <- function () {
   # So call low-level function XGDMatrixSetInfo_R directly. Since this function is not an exported
   # symbol, use the triple-color operator.
   .Call(xgboost:::XGDMatrixSetInfo_R, data, 'weight', as.numeric(w))
-  params <- list(objective = 'rank:ndcg', num_parallel_tree = kForests, tree_method = 'hist',
-                 max_depth = kMaxDepth)
-  booster <- xgb.train(params, data, nrounds = kRounds)
+  params <- list(objective = 'rank:ndcg', num_parallel_tree = metadata$kForests,
+                 tree_method = 'hist', max_depth = metadata$kMaxDepth)
+  booster <- xgb.train(params, data, nrounds = metadata$kRounds)
   save_booster(booster, 'ltr')
 }
 
