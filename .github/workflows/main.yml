@@ -6,6 +6,9 @@ name: XGBoost-CI
 # events but only for the master branch
 on: [push, pull_request]
 
+env:
+  R_PACKAGES: c('XML', 'igraph', 'data.table', 'magrittr', 'stringi', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm')
+
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   test-with-jvm:
@@ -70,8 +73,9 @@ jobs:
     - name: Install dependencies
       shell: Rscript {0}
       run: |
-        install.packages(c('XML','igraph'))
-        install.packages(c('data.table','magrittr','stringi','ggplot2','DiagrammeR','Ckmeans.1d.dp','vcd','testthat','lintr','knitr','rmarkdown'))
+        install.packages(${{ env.R_PACKAGES }},
+                         repos = 'http://cloud.r-project.org',
+                         dependencies = c('Depends', 'Imports', 'LinkingTo'))
 
     - name: Test R
       run: |
@@ -119,8 +123,9 @@ jobs:
     - name: Install dependencies
       shell: Rscript {0}
       run: |
-        install.packages(c('XML','igraph'))
-        install.packages(c('data.table','magrittr','stringi','ggplot2','DiagrammeR','Ckmeans.1d.dp','vcd','testthat','lintr','knitr','rmarkdown'))
+        install.packages(${{ env.R_PACKAGES }},
+                         repos = 'http://cloud.r-project.org',
+                         dependencies = c('Depends', 'Imports', 'LinkingTo'))
 
     - uses: actions/setup-python@v2
       with:

@@ -46,6 +46,10 @@ def test_with_autotools(args):
             'R.exe', '-q', '-e',
             "library(testthat); setwd('tests'); source('testthat.R')"
         ])
+        subprocess.check_call([
+            'R.exe', '-q', '-e',
+            "demo(runall, package = 'xgboost')"
+        ])
 
 
 def test_with_cmake(args):
@@ -78,6 +82,10 @@ def test_with_cmake(args):
         subprocess.check_call([
             'R.exe', '-q', '-e',
             "library(testthat); setwd('tests'); source('testthat.R')"
+        ])
+        subprocess.check_call([
+            'R.exe', '-q', '-e',
+            "demo(runall, package = 'xgboost')"
         ])
 
 
