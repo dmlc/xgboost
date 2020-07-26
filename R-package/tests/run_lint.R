@@ -21,4 +21,15 @@ my_linters <- list(
   trailing_whitespace_linter = lintr::trailing_whitespace_linter,
   true_false = lintr::T_and_F_symbol_linter
 )
-lint_package(linters = my_linters) # uncomment this if you want to check code quality
+
+found_error <- FALSE
+
+for (r_file in list.files(path = '.', pattern = '\\.[Rr]$', recursive = TRUE)) {
+  cat(sprintf("**** %s\n\n", r_file))
+  output <- lintr::lint(filename = r_file, linters = my_linters)
+  print(output)
+  if (length(output) > 0) {
+    found_error <- TRUE
+  }
+}
+quit(save = 'no', status = ifelse(found_error, 1, 0))
