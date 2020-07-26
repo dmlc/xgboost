@@ -17,4 +17,4 @@ Benchmarks
 Notes
 ====
 * Contribution of examples, benchmarks is more than welcomed!
-* If you like to share how you use xgboost to solve your problem, send a pull request:)
+* If you like to share how you use xgboost to solve your problem, send a pull request :)
