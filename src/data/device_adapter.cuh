@@ -122,10 +122,14 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
     CHECK_NE(typestr.front(), '>') << ArrayInterfaceErrors::BigEndian();
     std::vector<ArrayInterface> columns;
     auto first_column = ArrayInterface(get<Object const>(json_columns[0]));
+    num_rows_ = first_column.num_rows;
+    if (num_rows_ == 0) {
+      return;
+    }
+
     device_idx_ = dh::CudaGetPointerDevice(first_column.data);
     CHECK_NE(device_idx_, -1);
     dh::safe_cuda(cudaSetDevice(device_idx_));
-    num_rows_ = first_column.num_rows;
     for (auto& json_col : json_columns) {
       auto column = ArrayInterface(get<Object const>(json_col));
       columns.push_back(column);
@@ -183,9 +187,12 @@ class CupyAdapter : public detail::SingleBatchDataIter<CupyAdapterBatch> {
     Json json_array_interface =
         Json::Load({cuda_interface_str.c_str(), cuda_interface_str.size()});
     array_interface_ = ArrayInterface(get<Object const>(json_array_interface), false);
+    batch_ = CupyAdapterBatch(array_interface_);
+    if (array_interface_.num_rows == 0) {
+      return;
+    }
     device_idx_ = dh::CudaGetPointerDevice(array_interface_.data);
     CHECK_NE(device_idx_, -1);
-    batch_ = CupyAdapterBatch(array_interface_);
   }
   const CupyAdapterBatch& Value() const override { return batch_; }
 

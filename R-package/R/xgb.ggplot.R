@@ -74,7 +74,7 @@ xgb.ggplot.deepness <- function(model = NULL, which = c("2x1", "max.depth", "med
     p <-
       ggplot2::ggplot(dt_depths[, max(Depth), Tree]) +
       ggplot2::geom_jitter(ggplot2::aes(x = Tree, y = V1),
-                           height = 0.15, alpha=0.4, size=3, stroke=0) +
+                           height = 0.15, alpha = 0.4, size = 3, stroke = 0) +
       ggplot2::xlab("tree #") +
       ggplot2::ylab("Max tree leaf depth")
     return(p)
@@ -83,7 +83,7 @@ xgb.ggplot.deepness <- function(model = NULL, which = c("2x1", "max.depth", "med
     p <-
       ggplot2::ggplot(dt_depths[, median(as.numeric(Depth)), Tree]) +
       ggplot2::geom_jitter(ggplot2::aes(x = Tree, y = V1),
-                           height = 0.15, alpha=0.4, size=3, stroke=0) +
+                           height = 0.15, alpha = 0.4, size = 3, stroke = 0) +
       ggplot2::xlab("tree #") +
       ggplot2::ylab("Median tree leaf depth")
     return(p)
@@ -92,7 +92,7 @@ xgb.ggplot.deepness <- function(model = NULL, which = c("2x1", "max.depth", "med
     p <-
       ggplot2::ggplot(dt_depths[, median(abs(Weight)), Tree]) +
       ggplot2::geom_point(ggplot2::aes(x = Tree, y = V1),
-                          alpha=0.4, size=3, stroke=0) +
+                          alpha = 0.4, size = 3, stroke = 0) +
       ggplot2::xlab("tree #") +
       ggplot2::ylab("Median absolute leaf weight")
     return(p)
@@ -184,7 +184,7 @@ normalize <- function(x) {
 # internal utility function
 multiplot <- function(..., cols = 1) {
   plots <- list(...)
-  num_plots = length(plots)
+  num_plots <- length(plots)
 
   layout <- matrix(seq(1, cols * ceiling(num_plots / cols)),
                    ncol = cols, nrow = ceiling(num_plots / cols))

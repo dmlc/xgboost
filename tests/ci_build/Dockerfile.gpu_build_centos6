@@ -1,0 +1,62 @@
+ARG CUDA_VERSION
+FROM nvidia/cuda:$CUDA_VERSION-devel-centos6
+ARG CUDA_VERSION
+
+# Environment
+ENV DEBIAN_FRONTEND noninteractive
+ENV DEVTOOLSET_URL_ROOT http://vault.centos.org/6.9/sclo/x86_64/rh/devtoolset-4/
+
+# Install all basic requirements
+RUN \
+    yum -y update && \
+    yum install -y tar unzip wget xz git centos-release-scl yum-utils && \
+    yum-config-manager --enable centos-sclo-rh-testing && \
+    yum -y update && \
+    yum install -y $DEVTOOLSET_URL_ROOT/devtoolset-4-gcc-5.3.1-6.1.el6.x86_64.rpm \
+                   $DEVTOOLSET_URL_ROOT/devtoolset-4-gcc-c++-5.3.1-6.1.el6.x86_64.rpm \
+                   $DEVTOOLSET_URL_ROOT/devtoolset-4-binutils-2.25.1-8.el6.x86_64.rpm \
+                   $DEVTOOLSET_URL_ROOT/devtoolset-4-runtime-4.1-3.sc1.el6.x86_64.rpm \
+                   $DEVTOOLSET_URL_ROOT/devtoolset-4-libstdc++-devel-5.3.1-6.1.el6.x86_64.rpm && \
+    # Python
+    wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash Miniconda3.sh -b -p /opt/python && \
+    # CMake
+    wget -nv -nc https://cmake.org/files/v3.13/cmake-3.13.0-Linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.13.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
+    # Ninja
+    mkdir -p /usr/local && \
+    cd /usr/local/ && \
+    wget -nv -nc https://github.com/ninja-build/ninja/archive/v1.10.0.tar.gz --no-check-certificate && \
+    tar xf v1.10.0.tar.gz && mv ninja-1.10.0 ninja && rm -v v1.10.0.tar.gz && \
+    cd ninja && \
+    python ./configure.py --bootstrap
+
+# NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
+RUN \
+    export CUDA_SHORT=`echo $CUDA_VERSION | egrep -o '[0-9]+\.[0-9]'` && \
+    export NCCL_VERSION=2.4.8-1 && \
+    wget https://developer.download.nvidia.com/compute/machine-learning/repos/rhel7/x86_64/nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
+    rpm -i nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
+    yum -y update && \
+    yum install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-static-${NCCL_VERSION}+cuda${CUDA_SHORT} && \
+    rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm;
+
+ENV PATH=/opt/python/bin:/usr/local/ninja:$PATH
+ENV CC=/opt/rh/devtoolset-4/root/usr/bin/gcc
+ENV CXX=/opt/rh/devtoolset-4/root/usr/bin/c++
+ENV CPP=/opt/rh/devtoolset-4/root/usr/bin/cpp
+
+ENV GOSU_VERSION 1.10
+
+# Install lightweight sudo (not bound to TTY)
+RUN set -ex; \
+    wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64" && \
+    chmod +x /usr/local/bin/gosu && \
+    gosu nobody true
+
+# Default entry-point to use if running locally
+# It will preserve attributes of created files
+COPY entrypoint.sh /scripts/
+
+WORKDIR /workspace
+ENTRYPOINT ["/scripts/entrypoint.sh"]

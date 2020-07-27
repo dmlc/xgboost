@@ -437,6 +437,7 @@ def test_sklearn_api_gblinear():
 
 
 @pytest.mark.skipif(**tm.no_matplotlib())
+@pytest.mark.skipif(**tm.no_graphviz())
 def test_sklearn_plotting():
     from sklearn.datasets import load_iris
 

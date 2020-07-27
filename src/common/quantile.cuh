@@ -85,6 +85,7 @@ class SketchContainer {
     // Initialize Sketches for this dmatrix
     this->columns_ptr_.SetDevice(device_);
     this->columns_ptr_.Resize(num_columns + 1);
+    CHECK_GE(device, 0);
     timer_.Init(__func__);
   }
   /* \brief Return GPU ID for this container. */

@@ -6,6 +6,9 @@ file(GLOB_RECURSE R_SOURCES
   ${CMAKE_CURRENT_LIST_DIR}/src/*.c)
 # Use object library to expose symbols
 add_library(xgboost-r OBJECT ${R_SOURCES})
+if (ENABLE_ALL_WARNINGS)
+  target_compile_options(xgboost-r PRIVATE -Wall -Wextra)
+endif (ENABLE_ALL_WARNINGS)
 target_compile_definitions(xgboost-r
   PUBLIC
   -DXGBOOST_STRICT_R_MODE=1
@@ -21,7 +24,11 @@ target_include_directories(xgboost-r
   ${PROJECT_SOURCE_DIR}/include
   ${PROJECT_SOURCE_DIR}/dmlc-core/include
   ${PROJECT_SOURCE_DIR}/rabit/include)
-target_link_libraries(xgboost-r PRIVATE ${LIBR_CORE_LIBRARY})
+target_link_libraries(xgboost-r PUBLIC ${LIBR_CORE_LIBRARY})
+if (USE_OPENMP)
+  find_package(OpenMP REQUIRED)
+  target_link_libraries(xgboost-r PUBLIC OpenMP::OpenMP_CXX OpenMP::OpenMP_C)
+endif (USE_OPENMP)
 set_target_properties(
   xgboost-r PROPERTIES
   CXX_STANDARD 14

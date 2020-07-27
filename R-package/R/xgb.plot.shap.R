@@ -140,8 +140,8 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
 
   if (plot && which == "1d") {
     op <- par(mfrow = c(ceiling(length(features) / n_col), n_col),
-              oma = c(0,0,0,0) + 0.2,
-              mar = c(3.5,3.5,0,0) + 0.1,
+              oma = c(0, 0, 0, 0) + 0.2,
+              mar = c(3.5, 3.5, 0, 0) + 0.1,
               mgp = c(1.7, 0.6, 0))
     for (f in cols) {
       ord <- order(data[, f])
@@ -164,7 +164,7 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
       grid()
       if (plot_loess) {
         # compress x to 3 digits, and mean-aggredate y
-        zz <- data.table::data.table(x = signif(x, 3), y)[, .(.N, y=mean(y)), x]
+        zz <- data.table(x = signif(x, 3), y)[, .(.N, y = mean(y)), x]
         if (nrow(zz) <= 5) {
           lines(zz$x, zz$y, col = col_loess)
         } else {
