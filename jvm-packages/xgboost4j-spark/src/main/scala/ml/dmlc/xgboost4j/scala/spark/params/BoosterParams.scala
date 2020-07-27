@@ -145,11 +145,12 @@ private[spark] trait BoosterParams extends Params {
   final def getAlpha: Double = $(alpha)
 
   /**
-   * The tree construction algorithm used in XGBoost. options: {'auto', 'exact', 'approx'}
-   *  [default='auto']
+   * The tree construction algorithm used in XGBoost. options:
+   * {'auto', 'exact', 'approx','gpu_hist'} [default='auto']
    */
   final val treeMethod = new Param[String](this, "treeMethod",
-    "The tree construction algorithm used in XGBoost, options: {'auto', 'exact', 'approx', 'hist'}",
+    "The tree construction algorithm used in XGBoost, options: " +
+      "{'auto', 'exact', 'approx', 'hist', 'gpu_hist'}",
     (value: String) => BoosterParams.supportedTreeMethods.contains(value))
 
   final def getTreeMethod: String = $(treeMethod)
@@ -292,7 +293,7 @@ private[spark] object BoosterParams {
 
   val supportedBoosters = HashSet("gbtree", "gblinear", "dart")
 
-  val supportedTreeMethods = HashSet("auto", "exact", "approx", "hist")
+  val supportedTreeMethods = HashSet("auto", "exact", "approx", "hist", "gpu_hist")
 
   val supportedGrowthPolicies = HashSet("depthwise", "lossguide")
 
