@@ -259,7 +259,7 @@ include(GNUInstallDirs)
 install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-install(TARGETS xgboost runxgboost
+install(TARGETS xgboost objxgboost runxgboost
   EXPORT XGBoostTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
