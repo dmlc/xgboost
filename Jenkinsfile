@@ -405,7 +405,7 @@ def TestCppGPU(args) {
     def container_type = "gpu"
     def docker_binary = "nvidia-docker"
     def docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
-    sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} build/testxgboost"
+    sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} cuda-memcheck build/testxgboost"
     deleteDir()
   }
 }
