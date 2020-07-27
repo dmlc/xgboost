@@ -1,5 +1,5 @@
 # install development version of caret library that contains xgboost models
-devtools::install_github("topepo/caret/pkg/caret") 
+devtools::install_github("topepo/caret/pkg/caret")
 require(caret)
 require(xgboost)
 require(data.table)
@@ -13,13 +13,13 @@ df <- data.table(Arthritis, keep.rownames = FALSE)
 
 # Let's add some new categorical features to see if it helps. Of course these feature are highly correlated to the Age feature. Usually it's not a good thing in ML, but Tree algorithms (including boosted trees) are able to select the best features, even in case of highly correlated features.
 # For the first feature we create groups of age by rounding the real age. Note that we transform it to factor (categorical data) so the algorithm treat them as independant values.
-df[,AgeDiscret:= as.factor(round(Age/10,0))]
+df[, AgeDiscret := as.factor(round(Age / 10, 0))]
 
 # Here is an even stronger simplification of the real age with an arbitrary split at 30 years old. I choose this value based on nothing. We will see later if simplifying the information based on arbitrary values is a good strategy (I am sure you already have an idea of how well it will work!).
-df[,AgeCat:= as.factor(ifelse(Age > 30, "Old", "Young"))]
+df[, AgeCat := as.factor(ifelse(Age > 30, "Old", "Young"))]
 
 # We remove ID as there is nothing to learn from this feature (it will just add some noise as the dataset is small).
-df[,ID:=NULL]
+df[, ID := NULL]
 
 #-------------Basic Training using XGBoost in caret Library-----------------
 # Set up control parameters for caret::train

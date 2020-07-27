@@ -7,8 +7,8 @@ context("Models from previous versions of XGBoost can be loaded")
 metadata <- model_generator_metadata()
 
 run_model_param_check <- function (config) {
-  expect_equal(config$learner$learner_model_param$num_feature, '4')
-  expect_equal(config$learner$learner_train_param$booster, 'gbtree')
+  testthat::expect_equal(config$learner$learner_model_param$num_feature, '4')
+  testthat::expect_equal(config$learner$learner_train_param$booster, 'gbtree')
 }
 
 get_num_tree <- function (booster) {
@@ -27,22 +27,24 @@ run_booster_check <- function (booster, name) {
   config <- jsonlite::fromJSON(xgb.config(booster))
   run_model_param_check(config)
   if (name == 'cls') {
-    expect_equal(get_num_tree(booster), metadata$kForests * metadata$kRounds * metadata$kClasses)
-    expect_equal(as.numeric(config$learner$learner_model_param$base_score), 0.5)
-    expect_equal(config$learner$learner_train_param$objective, 'multi:softmax')
-    expect_equal(as.numeric(config$learner$learner_model_param$num_class), metadata$kClasses)
+    testthat::expect_equal(get_num_tree(booster),
+                           metadata$kForests * metadata$kRounds * metadata$kClasses)
+    testthat::expect_equal(as.numeric(config$learner$learner_model_param$base_score), 0.5)
+    testthat::expect_equal(config$learner$learner_train_param$objective, 'multi:softmax')
+    testthat::expect_equal(as.numeric(config$learner$learner_model_param$num_class),
+                           metadata$kClasses)
   } else if (name == 'logit') {
-    expect_equal(get_num_tree(booster), metadata$kForests * metadata$kRounds)
-    expect_equal(as.numeric(config$learner$learner_model_param$num_class), 0)
-    expect_equal(config$learner$learner_train_param$objective, 'binary:logistic')
+    testthat::expect_equal(get_num_tree(booster), metadata$kForests * metadata$kRounds)
+    testthat::expect_equal(as.numeric(config$learner$learner_model_param$num_class), 0)
+    testthat::expect_equal(config$learner$learner_train_param$objective, 'binary:logistic')
   } else if (name == 'ltr') {
-    expect_equal(get_num_tree(booster), metadata$kForests * metadata$kRounds)
-    expect_equal(config$learner$learner_train_param$objective, 'rank:ndcg')
+    testthat::expect_equal(get_num_tree(booster), metadata$kForests * metadata$kRounds)
+    testthat::expect_equal(config$learner$learner_train_param$objective, 'rank:ndcg')
   } else {
-    expect_equal(name, 'reg')
-    expect_equal(get_num_tree(booster), metadata$kForests * metadata$kRounds)
-    expect_equal(as.numeric(config$learner$learner_model_param$base_score), 0.5)
-    expect_equal(config$learner$learner_train_param$objective, 'reg:squarederror')
+    testthat::expect_equal(name, 'reg')
+    testthat::expect_equal(get_num_tree(booster), metadata$kForests * metadata$kRounds)
+    testthat::expect_equal(as.numeric(config$learner$learner_model_param$base_score), 0.5)
+    testthat::expect_equal(config$learner$learner_train_param$objective, 'reg:squarederror')
   }
 }
 
@@ -73,5 +75,4 @@ test_that("Models from previous versions of XGBoost can be loaded", {
     predict(booster, newdata = pred_data)
     run_booster_check(booster, name)
   })
-  expect_true(TRUE)
 })
