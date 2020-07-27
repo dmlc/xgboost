@@ -14,6 +14,7 @@
 #include <xgboost/base.h>
 #include <xgboost/parameter.h>
 
+#include <atomic>
 #include <sstream>
 #include <map>
 #include <string>
@@ -60,7 +61,7 @@ class ConsoleLogger : public BaseLogger {
   using LV = LogVerbosity;
 
  private:
-  static LogVerbosity global_verbosity_;
+  static std::atomic<LogVerbosity> global_verbosity_;
   static ConsoleLoggerParam param_;
 
   LogVerbosity cur_verbosity_;

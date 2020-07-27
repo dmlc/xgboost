@@ -42,8 +42,8 @@ namespace xgboost {
 
 DMLC_REGISTER_PARAMETER(ConsoleLoggerParam);
 
-ConsoleLogger::LogVerbosity ConsoleLogger::global_verbosity_ =
-    ConsoleLogger::DefaultVerbosity();
+std::atomic<ConsoleLogger::LogVerbosity> ConsoleLogger::global_verbosity_{
+    ConsoleLogger::DefaultVerbosity()};
 
 ConsoleLoggerParam ConsoleLogger::param_ = ConsoleLoggerParam();
 
