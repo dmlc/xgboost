@@ -146,34 +146,63 @@ object DataUtils extends Serializable {
       numWorkers: Int,
       deterministicPartition: Boolean,
       dataFrames: DataFrame*): Array[RDD[XGBLabeledPoint]] = {
-    val selectedColumns = group.map(groupCol => Seq(labelCol.cast(FloatType),
-      featuresCol,
-      weight.cast(FloatType),
-      groupCol.cast(IntegerType),
-      baseMargin.cast(FloatType))).getOrElse(Seq(labelCol.cast(FloatType),
-      featuresCol,
-      weight.cast(FloatType),
-      baseMargin.cast(FloatType)))
-    val arrayOfRDDs = dataFrames.toArray.map {
-      df => df.select(selectedColumns: _*).rdd.map {
-        case row @ Row(label: Float, features: Vector, weight: Float, group: Int,
-          baseMargin: Float) =>
-          val (size, indices, values) = features match {
-            case v: SparseVector => (v.size, v.indices, v.values.map(_.toFloat))
-            case v: DenseVector => (v.size, null, v.values.map(_.toFloat))
-          }
-          val xgbLp = XGBLabeledPoint(label, size, indices, values, weight, group, baseMargin)
-          attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
-        case row @ Row(label: Float, features: Vector, weight: Float, baseMargin: Float) =>
-          val (size, indices, values) = features match {
-            case v: SparseVector => (v.size, v.indices, v.values.map(_.toFloat))
-            case v: DenseVector => (v.size, null, v.values.map(_.toFloat))
-          }
-          val xgbLp = XGBLabeledPoint(label, size, indices, values, weight, baseMargin = baseMargin)
-          attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
-      }
-    }
-    repartitionRDDs(deterministicPartition, numWorkers, arrayOfRDDs)
+    val dataFrameToRDDParams = DataFrameToRDDParams(labelCol, featuresCol, weight, baseMargin,
+      group, numWorkers, deterministicPartition)
+    convertDataFrameToXGBLabeledPointRDDs(dataFrameToRDDParams, dataFrames: _*)
   }
 
+  private[spark] def convertDataFrameToXGBLabeledPointRDDs(
+      dataFrameToRDDParams: DataFrameToRDDParams,
+      dataFrames: DataFrame*): Array[RDD[XGBLabeledPoint]] = {
+
+    dataFrameToRDDParams match {
+      case DataFrameToRDDParams(labelCol, featuresCol, weight, baseMargin, group,
+        numWorkers, deterministicPartition) =>
+        val selectedColumns = group.map(groupCol => Seq(labelCol.cast(FloatType),
+          featuresCol,
+          weight.cast(FloatType),
+          groupCol.cast(IntegerType),
+          baseMargin.cast(FloatType))).getOrElse(Seq(labelCol.cast(FloatType),
+          featuresCol,
+          weight.cast(FloatType),
+          baseMargin.cast(FloatType)))
+        val arrayOfRDDs = dataFrames.toArray.map {
+          df => df.select(selectedColumns: _*).rdd.map {
+            case row @ Row(label: Float, features: Vector, weight: Float, group: Int,
+            baseMargin: Float) =>
+              val (size, indices, values) = features match {
+                case v: SparseVector => (v.size, v.indices, v.values.map(_.toFloat))
+                case v: DenseVector => (v.size, null, v.values.map(_.toFloat))
+              }
+              val xgbLp = XGBLabeledPoint(label, size, indices, values, weight, group, baseMargin)
+              attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
+            case row @ Row(label: Float, features: Vector, weight: Float, baseMargin: Float) =>
+              val (size, indices, values) = features match {
+                case v: SparseVector => (v.size, v.indices, v.values.map(_.toFloat))
+                case v: DenseVector => (v.size, null, v.values.map(_.toFloat))
+              }
+              val xgbLp = XGBLabeledPoint(label, size, indices, values, weight,
+                baseMargin = baseMargin)
+              attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
+          }
+        }
+        repartitionRDDs(deterministicPartition, numWorkers, arrayOfRDDs)
+    }
+  }
+
+}
+
+case class DataFrameToRDDParams(
+    labelCol: Column,
+    featuresCol: Column,
+    weight: Column,
+    baseMargin: Column,
+    group: Option[Column],
+    numWorkers: Int,
+    deterministicPartition: Boolean) {
+  def unapply(arg: DataFrameToRDDParams):
+    Option[(Column, Column, Column, Column, Option[Column], Int, Boolean)] = {
+      Some(arg.labelCol, arg.featuresCol, arg.weight, arg.baseMargin, arg.group,
+        arg.numWorkers, arg.deterministicPartition)
+  }
 }

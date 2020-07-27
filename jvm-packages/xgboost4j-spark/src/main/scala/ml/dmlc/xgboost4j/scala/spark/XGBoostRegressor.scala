@@ -175,20 +175,17 @@ class XGBoostRegressor (
       col($(baseMarginCol))
     }
     val group = if (!isDefined(groupCol) || $(groupCol).isEmpty) lit(-1) else col($(groupCol))
-    val trainingSet: RDD[XGBLabeledPoint] = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
-      col($(labelCol)), col($(featuresCol)), weight, baseMargin, Some(group),
-      $(numWorkers), needDeterministicRepartitioning, dataset.asInstanceOf[DataFrame]).head
-    val evalRDDMap = getEvalSets(xgboostParams).map {
-      case (name, dataFrame) => (name,
-        DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), col($(featuresCol)),
-          weight, baseMargin, Some(group), $(numWorkers), needDeterministicRepartitioning,
-          dataFrame).head)
-    }
+
+    val dsToRDDParams = DataFrameToRDDParams(col($(labelCol)), col($(featuresCol)), weight,
+      baseMargin, Some(group), $(numWorkers), needDeterministicRepartitioning)
+
+    val evalDsMap = getEvalSets(xgboostParams)
+
     transformSchema(dataset.schema, logging = true)
     val derivedXGBParamMap = MLlib2XGBoostParams
     // All non-null param maps in XGBoostRegressor are in derivedXGBParamMap.
-    val (_booster, _metrics) = XGBoost.trainDistributed(trainingSet, derivedXGBParamMap,
-      hasGroup = group != lit(-1), evalRDDMap)
+    val (_booster, _metrics) = XGBoost.trainDistributed(dataset, dsToRDDParams,
+      derivedXGBParamMap, hasGroup = group != lit(-1), evalDsMap)
     val model = new XGBoostRegressionModel(uid, _booster)
     val summary = XGBoostTrainingSummary(_metrics)
     model.setSummary(summary)

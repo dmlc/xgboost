@@ -26,6 +26,7 @@ import ml.dmlc.xgboost4j.java.{IRabitTracker, Rabit, XGBoostError, RabitTracker 
 import ml.dmlc.xgboost4j.scala.rabit.RabitTracker
 import ml.dmlc.xgboost4j.scala.spark.params.LearningTaskParams
 import ml.dmlc.xgboost4j.scala.ExternalCheckpointManager
+import ml.dmlc.xgboost4j.scala.spark.XGBoost.{buildDistributedBooster, cacheData, coPartitionGroupSets, coPartitionNoGroupSets, getCacheDirName, processMissingValues, processMissingValuesWithGroup, repartitionForTrainingGroup}
 import ml.dmlc.xgboost4j.scala.{XGBoost => SXGBoost, _}
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
 import org.apache.commons.io.FileUtils
@@ -33,7 +34,7 @@ import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext, TaskFailedListener}
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, Dataset, SparkSession}
 import org.apache.spark.storage.StorageLevel
 
 
@@ -315,7 +316,7 @@ object XGBoost extends Serializable {
     }
   }
 
-  private def processMissingValuesWithGroup(
+  private[spark] def processMissingValuesWithGroup(
       xgbLabelPointGroups: Iterator[Array[XGBLabeledPoint]],
       missing: Float,
       allowNonZeroMissing: Boolean): Iterator[Array[XGBLabeledPoint]] = {
@@ -332,7 +333,7 @@ object XGBoost extends Serializable {
     }
   }
 
-  private def getCacheDirName(useExternalMemory: Boolean): Option[String] = {
+  private[spark] def getCacheDirName(useExternalMemory: Boolean): Option[String] = {
     val taskId = TaskContext.getPartitionId().toString
     if (useExternalMemory) {
       val dir = Files.createTempDirectory(s"${TaskContext.get().stageId()}-cache-$taskId")
@@ -446,7 +447,7 @@ object XGBoost extends Serializable {
     }
   }
 
-  private def coPartitionNoGroupSets(
+  private[spark] def coPartitionNoGroupSets(
       trainingData: RDD[XGBLabeledPoint],
       evalSets: Map[String, RDD[XGBLabeledPoint]],
       nWorkers: Int) = {
@@ -542,15 +543,15 @@ object XGBoost extends Serializable {
     }
   }
 
-  private def cacheData(ifCacheDataBoolean: Boolean, input: RDD[_]): RDD[_] = {
+  private[spark] def cacheData(ifCacheDataBoolean: Boolean, input: RDD[_]): RDD[_] = {
     if (ifCacheDataBoolean) input.persist(StorageLevel.MEMORY_AND_DISK) else input
   }
 
   private def composeInputData(
-    trainingData: RDD[XGBLabeledPoint],
-    ifCacheDataBoolean: Boolean,
-    hasGroup: Boolean,
-    nWorkers: Int): Either[RDD[Array[XGBLabeledPoint]], RDD[XGBLabeledPoint]] = {
+      trainingData: RDD[XGBLabeledPoint],
+      ifCacheDataBoolean: Boolean,
+      hasGroup: Boolean,
+      nWorkers: Int): Either[RDD[Array[XGBLabeledPoint]], RDD[XGBLabeledPoint]] = {
     if (hasGroup) {
       val repartitionedData = repartitionForTrainingGroup(trainingData, nWorkers)
       Left(cacheData(ifCacheDataBoolean, repartitionedData).
@@ -563,6 +564,7 @@ object XGBoost extends Serializable {
   /**
    * @return A tuple of the booster and the metrics used to build training summary
    */
+  @deprecated("use trainDistributed for Dataset instead of RDD", "1.2.0")
   @throws(classOf[XGBoostError])
   private[spark] def trainDistributed(
       trainingData: RDD[XGBLabeledPoint],
@@ -676,7 +678,7 @@ object XGBoost extends Serializable {
     allGroups.repartition(nWorkers)
   }
 
-  private def coPartitionGroupSets(
+  private[spark] def coPartitionGroupSets(
       aggedTrainingSet: RDD[Array[XGBLabeledPoint]],
       evalSets: Map[String, RDD[XGBLabeledPoint]],
       nWorkers: Int): RDD[(String, Iterator[Array[XGBLabeledPoint]])] = {
@@ -737,9 +739,96 @@ object XGBoost extends Serializable {
     }
   }
 
+  private def chooseTrainImpl(hasGroup: Boolean,
+      xgbExecutionParams: XGBoostExecutionParams,
+      evalData: Map[String, Dataset[_]] = Map.empty): TrainWrapper = {
+    TrainWrapper(hasGroup, xgbExecutionParams, evalData)
+  }
+
+  /**
+   * @return A tuple of the booster and the metrics used to build training summary
+   */
+  @throws(classOf[XGBoostError])
+  private[spark] def trainDistributed(
+      trainingData: Dataset[_],
+      dsToRddParams: DataFrameToRDDParams,
+      params: Map[String, Any],
+      hasGroup: Boolean,
+      evalData: Map[String, Dataset[_]]): (Booster, Map[String, Array[Float]]) = {
+
+    logger.info(s"Running XGBoost ${spark.VERSION} with parameters:\n${params.mkString("\n")}")
+
+    val sc = trainingData.sparkSession.sparkContext
+    val xgbParamsFactory = new XGBoostExecutionParamsFactory(params, sc)
+    val xgbExecParams = xgbParamsFactory.buildXGBRuntimeParams
+
+    val prevBooster = xgbExecParams.checkpointParam.map { checkpointParam =>
+      val checkpointManager = new ExternalCheckpointManager(
+        checkpointParam.checkpointPath,
+        FileSystem.get(sc.hadoopConfiguration))
+      checkpointManager.cleanUpHigherVersions(xgbExecParams.numRounds)
+      checkpointManager.loadCheckpointAsScalaBooster()
+    }.orNull
+
+    val trainImpl = chooseTrainImpl(hasGroup, xgbExecParams, evalData)
+
+    try {
+      // Train for every ${savingRound} rounds and save the partially completed booster
+      val tracker = startTracker(xgbExecParams.numWorkers, xgbExecParams.trackerConf)
+      val (booster, metrics) = try {
+        val parallelismTracker = new SparkParallelismTracker(sc,
+          xgbExecParams.timeoutRequestWorkers,
+          xgbExecParams.numWorkers)
+        val rabitEnv = tracker.getWorkerEnvs
+
+        val boostersAndMetrics = trainImpl.datasetToRDD(trainingData, dsToRddParams).mapPartitions(
+          iter => {
+            val watches = trainImpl.buildWatches(iter)
+            buildDistributedBooster(watches, xgbExecParams, rabitEnv,
+              xgbExecParams.obj, xgbExecParams.eval, prevBooster)
+        }).cache()
+
+        val sparkJobThread = new Thread() {
+          override def run() {
+            // force the job
+            boostersAndMetrics.foreachPartition(() => _)
+          }
+        }
+        sparkJobThread.setUncaughtExceptionHandler(tracker)
+        sparkJobThread.start()
+        val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
+        logger.info(s"Rabit returns with exit code $trackerReturnVal")
+        val (booster, metrics) = postTrackerReturnProcessing(trackerReturnVal,
+          boostersAndMetrics, sparkJobThread)
+        (booster, metrics)
+      } finally {
+        tracker.stop()
+      }
+      // we should delete the checkpoint directory after a successful training
+      xgbExecParams.checkpointParam.foreach {
+        cpParam =>
+          if (!xgbExecParams.checkpointParam.get.skipCleanCheckpoint) {
+            val checkpointManager = new ExternalCheckpointManager(
+              cpParam.checkpointPath,
+              FileSystem.get(sc.hadoopConfiguration))
+            checkpointManager.cleanPath()
+          }
+      }
+      (booster, metrics)
+    } catch {
+      case t: Throwable =>
+        // if the job was aborted due to an exception
+        logger.error("the job was aborted due to ", t)
+        sc.stop()
+        throw t
+    } finally {
+      trainImpl.cleanUpDriver()
+    }
+  }
+
 }
 
-private class Watches private(
+private[spark] class Watches private(
     val datasets: Array[DMatrix],
     val names: Array[String],
     val cacheDirName: Option[String]) {
@@ -760,7 +849,7 @@ private class Watches private(
   override def toString: String = toMap.toString
 }
 
-private object Watches {
+private[spark] object Watches {
 
   private def fromBaseMarginsToArray(baseMargins: Iterator[Float]): Option[Array[Float]] = {
     val builder = new mutable.ArrayBuilder.ofFloat()
@@ -998,3 +1087,224 @@ private[spark] class LabeledPointGroupIterator(base: Iterator[XGBLabeledPoint])
   }
 }
 
+private case class TrainWrapper(hasGroup: Boolean,
+    xgbExecutionParams: XGBoostExecutionParams,
+    evalDsMap: Map[String, Dataset[_]] = Map.empty) {
+
+  val hasEval = !evalDsMap.isEmpty
+
+  val trainImpl: TrainIntf = (hasGroup, hasEval) match {
+    case (true, true) => TrainRankWithEval(xgbExecutionParams)
+    case (true, false) => TrainRankWithoutEval(xgbExecutionParams)
+    case (false, true) => TrainNonRankWithEval(xgbExecutionParams)
+    case (false, false) => TrainNonRankWithoutEval(xgbExecutionParams)
+  }
+
+  /**
+   * Convert dataset to RDD
+   * @param dataset
+   * @param dsToRDDParams
+   * @return
+   */
+  def datasetToRDD(dataset: Dataset[_], dsToRDDParams: DataFrameToRDDParams): RDD[_] = {
+    val trainRDD: RDD[XGBLabeledPoint] = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
+      dsToRDDParams, dataset.asInstanceOf[DataFrame]).head
+
+    val evalRDDMap = evalDsMap.map {
+      case (name, dataFrame) => (name,
+        DataUtils.convertDataFrameToXGBLabeledPointRDDs(dsToRDDParams,
+          dataFrame.asInstanceOf[DataFrame]).head)
+    }
+
+    trainImpl.rddTransform(trainRDD, evalRDDMap)
+  }
+
+  /**
+   * This function is running on executor side.
+   *
+   * @param iter, which can be casted into any type of Iterator[Any] according to type datasetToRDD.
+   * @return
+   */
+  def buildWatches(iter: Iterator[_]): Watches = {
+    trainImpl.buildWatches(iter)
+  }
+
+  /**
+   * clean up after building booster.
+   */
+  def cleanUpDriver(): Unit = {
+    trainImpl.cleanUpDriver()
+  }
+}
+
+private trait TrainIntf {
+  def xgbExecutionParams: XGBoostExecutionParams
+
+  /**
+   * Do any transforms in this function
+   * @param trainRDD
+   * @param evalSets
+   * @return
+   */
+  def rddTransform(trainRDD: RDD[XGBLabeledPoint],
+      evalSets: Map[String, RDD[XGBLabeledPoint]] = Map.empty): RDD[_]
+
+  /**
+   * This function is running on executor side.
+   *
+   * @param iter, which can be casted into any type of Iterator[Any] according to type rddTransform.
+   * @return
+   */
+  def buildWatches(iter: Iterator[_]): Watches
+
+  /**
+   * clean up after building booster.
+   */
+  def cleanUpDriver(): Unit = {}
+}
+
+private case class TrainRankWithEval(xgbExecutionParams: XGBoostExecutionParams)
+    extends TrainIntf with Serializable {
+
+  var cachedRdd: RDD[_] = _
+
+  override def rddTransform(trainRDD: RDD[XGBLabeledPoint],
+      evalSets: Map[String, RDD[XGBLabeledPoint]]): RDD[_] = {
+
+    val repartitionedData = repartitionForTrainingGroup(trainRDD, xgbExecutionParams.numWorkers)
+    cachedRdd = cacheData(xgbExecutionParams.cacheTrainingSet, repartitionedData).
+      asInstanceOf[RDD[Array[XGBLabeledPoint]]]
+
+    coPartitionGroupSets(cachedRdd.asInstanceOf[RDD[Array[XGBLabeledPoint]]], evalSets,
+      xgbExecutionParams.numWorkers)
+  }
+
+  /**
+   * Running on executor side
+   *
+   * @param iter
+   * @return
+   */
+  override def buildWatches(iter: Iterator[_]): Watches = {
+    val labeledPointGroupSets = iter.asInstanceOf[
+        Iterator[(String, Iterator[Array[XGBLabeledPoint]])]]
+    Watches.buildWatchesWithGroup(
+      labeledPointGroupSets.map {
+        case (name, iter) => (name, processMissingValuesWithGroup(iter,
+          xgbExecutionParams.missing, xgbExecutionParams.allowNonZeroForMissing))
+      },
+      getCacheDirName(xgbExecutionParams.useExternalMemory))
+  }
+
+  override def cleanUpDriver(): Unit = {
+    if (xgbExecutionParams.cacheTrainingSet && cachedRdd != null) {
+      cachedRdd.unpersist()
+    }
+  }
+}
+
+private case class TrainRankWithoutEval(xgbExecutionParams: XGBoostExecutionParams)
+    extends TrainIntf {
+
+  var cachedRdd: RDD[_] = _
+
+  override def rddTransform(trainRDD: RDD[XGBLabeledPoint],
+    evalSets: Map[String, RDD[XGBLabeledPoint]] = Map.empty): RDD[_] = {
+
+    val repartitionedData = repartitionForTrainingGroup(trainRDD, xgbExecutionParams.numWorkers)
+    cachedRdd = cacheData(xgbExecutionParams.cacheTrainingSet, repartitionedData).
+      asInstanceOf[RDD[Array[XGBLabeledPoint]]]
+    cachedRdd
+  }
+
+  /**
+   * Running on executor side
+   *
+   * @param iter
+   * @return
+   */
+  override def buildWatches(iter: Iterator[_]): Watches = {
+    val labeledPointGroups = iter.asInstanceOf[Iterator[Array[XGBLabeledPoint]]]
+    Watches.buildWatchesWithGroup(xgbExecutionParams,
+      processMissingValuesWithGroup(labeledPointGroups, xgbExecutionParams.missing,
+        xgbExecutionParams.allowNonZeroForMissing),
+      getCacheDirName(xgbExecutionParams.useExternalMemory))
+  }
+
+  override def cleanUpDriver(): Unit = {
+    if (xgbExecutionParams.cacheTrainingSet && cachedRdd != null) {
+      cachedRdd.unpersist()
+    }
+  }
+}
+
+private case class TrainNonRankWithEval(xgbExecutionParams: XGBoostExecutionParams)
+    extends TrainIntf {
+
+  var cachedRdd: RDD[_] = _
+
+  override def rddTransform(trainRDD: RDD[XGBLabeledPoint],
+    evalSets: Map[String, RDD[XGBLabeledPoint]]): RDD[_] = {
+
+    cachedRdd = cacheData(xgbExecutionParams.cacheTrainingSet, trainRDD)
+      .asInstanceOf[RDD[XGBLabeledPoint]]
+    coPartitionNoGroupSets(cachedRdd.asInstanceOf[RDD[XGBLabeledPoint]], evalSets,
+      xgbExecutionParams.numWorkers)
+  }
+
+  /**
+   * Running on executor side
+   *
+   * @param iter
+   * @return
+   */
+  override def buildWatches(iter: Iterator[_]): Watches = {
+
+    val nameAndLabeledPointSets = iter.asInstanceOf[Iterator[(String, Iterator[XGBLabeledPoint])]]
+    Watches.buildWatches(
+      nameAndLabeledPointSets.map {
+        case (name, iter) => (name, processMissingValues(iter,
+          xgbExecutionParams.missing, xgbExecutionParams.allowNonZeroForMissing))
+      },
+      getCacheDirName(xgbExecutionParams.useExternalMemory))
+  }
+
+  override def cleanUpDriver(): Unit = {
+    if (xgbExecutionParams.cacheTrainingSet && cachedRdd != null) {
+      cachedRdd.unpersist()
+    }
+  }
+}
+
+private case class TrainNonRankWithoutEval(xgbExecutionParams: XGBoostExecutionParams)
+    extends TrainIntf {
+
+  var cachedRdd: RDD[_] = _
+
+  override def rddTransform(trainRDD: RDD[XGBLabeledPoint],
+      evalSets: Map[String, RDD[XGBLabeledPoint]]): RDD[_] = {
+    cachedRdd = cacheData(xgbExecutionParams.cacheTrainingSet, trainRDD)
+      .asInstanceOf[RDD[XGBLabeledPoint]]
+    cachedRdd
+  }
+
+  /**
+   * Running on executor side
+   *
+   * @param iter
+   * @return
+   */
+  override def buildWatches(iter: Iterator[_]): Watches = {
+    val labeledPoints = iter.asInstanceOf[Iterator[XGBLabeledPoint]]
+    Watches.buildWatches(xgbExecutionParams,
+      processMissingValues(labeledPoints, xgbExecutionParams.missing,
+        xgbExecutionParams.allowNonZeroForMissing),
+      getCacheDirName(xgbExecutionParams.useExternalMemory))
+  }
+
+  override def cleanUpDriver(): Unit = {
+    if (xgbExecutionParams.cacheTrainingSet && cachedRdd != null) {
+      cachedRdd.unpersist()
+    }
+  }
+}

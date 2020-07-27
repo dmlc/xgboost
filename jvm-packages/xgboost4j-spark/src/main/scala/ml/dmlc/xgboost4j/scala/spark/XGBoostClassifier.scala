@@ -179,19 +179,16 @@ class XGBoostClassifier (
       col($(baseMarginCol))
     }
 
-    val trainingSet: RDD[XGBLabeledPoint] = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
-      col($(labelCol)), col($(featuresCol)), weight, baseMargin,
-      None, $(numWorkers), needDeterministicRepartitioning, dataset.asInstanceOf[DataFrame]).head
-    val evalRDDMap = getEvalSets(xgboostParams).map {
-      case (name, dataFrame) => (name,
-        DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), col($(featuresCol)),
-          weight, baseMargin, None, $(numWorkers), needDeterministicRepartitioning, dataFrame).head)
-    }
+    val dsToRDDParams = DataFrameToRDDParams(col($(labelCol)), col($(featuresCol)), weight,
+      baseMargin, None, $(numWorkers), needDeterministicRepartitioning)
+
+    val evalDsMap = getEvalSets(xgboostParams)
+
     transformSchema(dataset.schema, logging = true)
     val derivedXGBParamMap = MLlib2XGBoostParams
     // All non-null param maps in XGBoostClassifier are in derivedXGBParamMap.
-    val (_booster, _metrics) = XGBoost.trainDistributed(trainingSet, derivedXGBParamMap,
-      hasGroup = false, evalRDDMap)
+    val (_booster, _metrics) = XGBoost.trainDistributed(dataset, dsToRDDParams,
+      derivedXGBParamMap, hasGroup = false, evalDsMap)
     val model = new XGBoostClassificationModel(uid, _numClasses, _booster)
     val summary = XGBoostTrainingSummary(_metrics)
     model.setSummary(summary)
