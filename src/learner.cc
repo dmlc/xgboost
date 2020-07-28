@@ -228,7 +228,7 @@ class LearnerConfiguration : public Learner {
   explicit LearnerConfiguration(std::vector<std::shared_ptr<DMatrix> > cache)
       : need_configuration_{true} {
     monitor_.Init("Learner");
-    auto local_cache = (*ThreadLocalPredictionCache::Get())[this];
+    auto& local_cache = (*ThreadLocalPredictionCache::Get())[this];
     for (std::shared_ptr<DMatrix> const& d : cache) {
       local_cache.Cache(d, GenericParameter::kCpuId);
     }

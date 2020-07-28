@@ -205,14 +205,14 @@ TEST(Learner, MultiThreadedPredict) {
   learner->Configure();
 
   std::vector<std::thread> threads;
-  for (int32_t thread_id = 0;
+  for (uint32_t thread_id = 0;
        thread_id < 2 * std::thread::hardware_concurrency(); ++thread_id) {
-    threads.emplace_back(std::thread([learner, p_data] {
+    threads.emplace_back([learner, p_data] {
       auto &entry = learner->GetThreadLocal().prediction_entry;
       for (size_t iter = 0; iter < kIters; ++iter) {
         learner->Predict(p_data, false, &entry.predictions);
       }
-    }));
+    });
   }
   for (auto &thread : threads) {
     thread.join();
