@@ -205,7 +205,8 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
 using LearnerAPIThreadLocalStore =
     dmlc::ThreadLocalStore<std::map<Learner const *, XGBAPIThreadLocalEntry>>;
 
-using ThreadLocalPredictionCache = dmlc::ThreadLocalStore<PredictionContainer>;
+using ThreadLocalPredictionCache =
+    dmlc::ThreadLocalStore<std::map<Learner const *, PredictionContainer>>;
 
 class LearnerConfiguration : public Learner {
  protected:
@@ -227,13 +228,19 @@ class LearnerConfiguration : public Learner {
   explicit LearnerConfiguration(std::vector<std::shared_ptr<DMatrix> > cache)
       : need_configuration_{true} {
     monitor_.Init("Learner");
+    auto local_cache = this->GetPredictionCache();
     for (std::shared_ptr<DMatrix> const& d : cache) {
-      auto local_cache = ThreadLocalPredictionCache::Get();
       local_cache->Cache(d, GenericParameter::kCpuId);
     }
   }
-  // Configuration before data is known.
+  ~LearnerConfiguration() override {
+    auto local_map = ThreadLocalPredictionCache::Get();
+    if (local_map->find(this) != local_map->cend()) {
+      local_map->erase(this);
+    }
+  }
 
+  // Configuration before data is known.
   void Configure() override {
     // Varient of double checked lock
     if (!this->need_configuration_) { return; }
@@ -298,6 +305,10 @@ class LearnerConfiguration : public Learner {
 
     // FIXME(trivialfis): Clear the cache once binary IO is gone.
     monitor_.Stop("Configure");
+  }
+
+  virtual PredictionContainer* GetPredictionCache() const {
+    return &((*ThreadLocalPredictionCache::Get())[this]);
   }
 
   void LoadConfig(Json const& in) override {
@@ -495,7 +506,7 @@ class LearnerConfiguration : public Learner {
     if (mparam_.num_feature == 0) {
       // TODO(hcho3): Change num_feature to 64-bit integer
       unsigned num_feature = 0;
-      auto local_cache = ThreadLocalPredictionCache::Get();
+      auto local_cache = this->GetPredictionCache();
       for (auto& matrix : local_cache->Container()) {
         CHECK(matrix.first);
         CHECK(!matrix.second.ref.expired());
@@ -933,7 +944,7 @@ class LearnerImpl : public LearnerIO {
     this->CheckDataSplitMode();
     this->ValidateDMatrix(train.get());
 
-    auto local_cache = ThreadLocalPredictionCache::Get();
+    auto local_cache = this->GetPredictionCache();
     auto& predt = local_cache->Cache(train, generic_parameters_.gpu_id);
 
     monitor_.Start("PredictRaw");
@@ -959,7 +970,7 @@ class LearnerImpl : public LearnerIO {
     }
     this->CheckDataSplitMode();
     this->ValidateDMatrix(train.get());
-    auto local_cache = ThreadLocalPredictionCache::Get();
+    auto local_cache = this->GetPredictionCache();
     local_cache->Cache(train, generic_parameters_.gpu_id);
 
     gbm_->DoBoost(train.get(), in_gpair, &local_cache->Entry(train.get()));
@@ -979,7 +990,7 @@ class LearnerImpl : public LearnerIO {
       metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
     }
 
-    auto local_cache = ThreadLocalPredictionCache::Get();
+    auto local_cache = this->GetPredictionCache();
     for (size_t i = 0; i < data_sets.size(); ++i) {
       std::shared_ptr<DMatrix> m = data_sets[i];
       auto &predt = local_cache->Cache(m, generic_parameters_.gpu_id);
@@ -1019,7 +1030,7 @@ class LearnerImpl : public LearnerIO {
     } else if (pred_leaf) {
       gbm_->PredictLeaf(data.get(), &out_preds->HostVector(), ntree_limit);
     } else {
-      auto local_cache = ThreadLocalPredictionCache::Get();
+      auto local_cache = this->GetPredictionCache();
       auto& prediction = local_cache->Cache(data, generic_parameters_.gpu_id);
       this->PredictRaw(data.get(), &prediction, training, ntree_limit);
       // Copy the prediction cache to output prediction. out_preds comes from C API
