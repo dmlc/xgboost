@@ -228,15 +228,15 @@ class LearnerConfiguration : public Learner {
   explicit LearnerConfiguration(std::vector<std::shared_ptr<DMatrix> > cache)
       : need_configuration_{true} {
     monitor_.Init("Learner");
-    auto local_cache = this->GetPredictionCache();
+    auto local_cache = (*ThreadLocalPredictionCache::Get())[this];
     for (std::shared_ptr<DMatrix> const& d : cache) {
-      local_cache->Cache(d, GenericParameter::kCpuId);
+      local_cache.Cache(d, GenericParameter::kCpuId);
     }
   }
   ~LearnerConfiguration() override {
-    auto local_map = ThreadLocalPredictionCache::Get();
-    if (local_map->find(this) != local_map->cend()) {
-      local_map->erase(this);
+    auto local_cache = ThreadLocalPredictionCache::Get();
+    if (local_cache->find(this) != local_cache->cend()) {
+      local_cache->erase(this);
     }
   }
 
