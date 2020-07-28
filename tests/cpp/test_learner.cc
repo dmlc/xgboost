@@ -190,7 +190,6 @@ TEST(Learner, JsonModelIO) {
 TEST(Learner, MultiThreadedPredict) {
   size_t constexpr kRows = 1000;
   size_t constexpr kCols = 1000;
-  size_t constexpr kIters = 10;
 
   std::shared_ptr<DMatrix> p_dmat{
       RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
@@ -208,6 +207,7 @@ TEST(Learner, MultiThreadedPredict) {
   for (uint32_t thread_id = 0;
        thread_id < 2 * std::thread::hardware_concurrency(); ++thread_id) {
     threads.emplace_back([learner, p_data] {
+      size_t constexpr kIters = 10;
       auto &entry = learner->GetThreadLocal().prediction_entry;
       for (size_t iter = 0; iter < kIters; ++iter) {
         learner->Predict(p_data, false, &entry.predictions);
