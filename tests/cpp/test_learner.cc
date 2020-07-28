@@ -207,7 +207,7 @@ TEST(Learner, MultiThreadedPredict) {
   std::vector<std::thread> threads;
   for (int32_t thread_id = 0;
        thread_id < 2 * std::thread::hardware_concurrency(); ++thread_id) {
-    threads.push_back(std::thread([learner, p_data] {
+    threads.emplace_back(std::thread([learner, p_data] {
       auto &entry = learner->GetThreadLocal().prediction_entry;
       for (size_t iter = 0; iter < kIters; ++iter) {
         learner->Predict(p_data, false, &entry.predictions);
