@@ -79,6 +79,10 @@ test_that("custom objective with multi-class works", {
     hess <- rnorm(dim(as.matrix(preds))[1])
     return (list(grad = grad, hess = hess))
   }
+  fake_merror <- function(preds, dtrain) {
+    expect_equal(dim(data)[1] * nclasses, dim(as.matrix(preds))[1])
+  }
   param$objective <- fake_softprob
+  param$eval_metric <- fake_merror
   bst <- xgb.train(param, dtrain, 1, num_class = nclasses)
 })
