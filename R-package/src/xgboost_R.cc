@@ -375,7 +375,7 @@ SEXP XGBoosterSaveJsonConfig_R(SEXP handle) {
 
 SEXP XGBoosterLoadJsonConfig_R(SEXP handle, SEXP value) {
   R_API_BEGIN();
-  XGBoosterLoadJsonConfig(R_ExternalPtrAddr(handle), CHAR(asChar(value)));
+  CHECK_CALL(XGBoosterLoadJsonConfig(R_ExternalPtrAddr(handle), CHAR(asChar(value))));
   R_API_END();
   return R_NilValue;
 }
@@ -397,9 +397,9 @@ SEXP XGBoosterSerializeToBuffer_R(SEXP handle) {
 
 SEXP XGBoosterUnserializeFromBuffer_R(SEXP handle, SEXP raw) {
   R_API_BEGIN();
-  XGBoosterUnserializeFromBuffer(R_ExternalPtrAddr(handle),
+  CHECK_CALL(XGBoosterUnserializeFromBuffer(R_ExternalPtrAddr(handle),
                                  RAW(raw),
-                                 length(raw));
+                                 length(raw)));
   R_API_END();
   return R_NilValue;
 }

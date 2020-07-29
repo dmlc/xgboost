@@ -145,7 +145,8 @@ xgb.iter.update <- function(booster_handle, dtrain, iter, obj = NULL) {
   if (is.null(obj)) {
     .Call(XGBoosterUpdateOneIter_R, booster_handle, as.integer(iter), dtrain)
   } else {
-    pred <- predict(booster_handle, dtrain, outputmargin = TRUE, training = TRUE)
+    pred <- predict(booster_handle, dtrain, outputmargin = TRUE, training = TRUE,
+                    ntreelimit = 0)
     gpair <- obj(pred, dtrain)
     .Call(XGBoosterBoostOneIter_R, booster_handle, dtrain, gpair$grad, gpair$hess)
   }
@@ -172,7 +173,7 @@ xgb.iter.eval <- function(booster_handle, watchlist, iter, feval = NULL) {
   } else {
     res <- sapply(seq_along(watchlist), function(j) {
       w <- watchlist[[j]]
-      preds <- predict(booster_handle, w) # predict using all trees
+      preds <- predict(booster_handle, w, ntreelimit = 0) # predict using all trees
       eval_res <- feval(preds, w)
       out <- eval_res$value
       names(out) <- paste0(evnames[j], "-", eval_res$metric)
@@ -305,6 +306,20 @@ xgb.createFolds <- function(y, k = 10)
 #' (as R is able to partially match parameter names).
 #'
 #' @name xgboost-deprecated
+NULL
+
+#' Do not use saveRDS() for long-term archival of models. Use xgb.save() instead.
+#'
+#' It is a common practice to use the built-in \code{saveRDS()} function to persist R objects to
+#' the disk. While \code{xgb.Booster} objects can be persisted with \code{saveRDS()} as well, it
+#' is not advisable to use it if the model is to be accessed in the future. If you train a model
+#' with the current version of XGBoost and persist it with \code{saveRDS()}, the model is not
+#' guaranteed to be accessible in later releases of XGBoost. To ensure that your model can be
+#' accessed in future releases of XGBoost, use \code{xgb.save()} instead. For more details and
+#' explanation, consult the page
+#' \url{https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html}.
+#'
+#' @name a-compatibility-note-for-saveRDS
 NULL
 
 # Lookup table for the deprecated parameters bookkeeping

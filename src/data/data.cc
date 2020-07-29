@@ -833,9 +833,9 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   uint64_t max_columns = 0;
 
   // First-pass over the batch counting valid elements
-  size_t num_lines = batch.Size();
+  size_t batch_size = batch.Size();
 #pragma omp parallel for schedule(static)
-  for (omp_ulong i = 0; i < static_cast<omp_ulong>(num_lines);
+  for (omp_ulong i = 0; i < static_cast<omp_ulong>(batch_size);
        ++i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     auto line = batch.GetLine(i);
@@ -847,7 +847,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
         size_t key = element.row_idx - base_rowid;
         // Adapter row index is absolute, here we want it relative to
         // current page
-        CHECK_GE(key,  builder_base_row_offset);
+        CHECK_GE(key, builder_base_row_offset);
         builder.AddBudget(key, tid);
       }
     }
@@ -856,7 +856,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
 
   // Second pass over batch, placing elements in correct position
 #pragma omp parallel for schedule(static)
-  for (omp_ulong i = 0; i < static_cast<omp_ulong>(num_lines);
+  for (omp_ulong i = 0; i < static_cast<omp_ulong>(batch_size);
        ++i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     auto line = batch.GetLine(i);
@@ -933,7 +933,19 @@ void SparsePage::PushCSC(const SparsePage &batch) {
   self_offset = std::move(offset);
 }
 
+template uint64_t
+SparsePage::Push(const data::DenseAdapterBatch& batch, float missing, int nthread);
+template uint64_t
+SparsePage::Push(const data::CSRAdapterBatch& batch, float missing, int nthread);
+template uint64_t
+SparsePage::Push(const data::CSCAdapterBatch& batch, float missing, int nthread);
+template uint64_t
+SparsePage::Push(const data::DataTableAdapterBatch& batch, float missing, int nthread);
+template uint64_t
+SparsePage::Push(const data::FileAdapterBatch& batch, float missing, int nthread);
+
 namespace data {
+
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(sparse_page_raw_format);
 }  // namespace data

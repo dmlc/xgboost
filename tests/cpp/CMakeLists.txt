@@ -65,6 +65,10 @@ if (MSVC)
     -D_CRT_SECURE_NO_DEPRECATE
   )
 endif (MSVC)
+if (ENABLE_ALL_WARNINGS)
+  target_compile_options(testxgboost PUBLIC
+    $<IF:$<COMPILE_LANGUAGE:CUDA>,-Xcompiler=-Wall -Xcompiler=-Wextra,-Wall -Wextra>)
+endif (ENABLE_ALL_WARNINGS)
 
 target_include_directories(testxgboost
   PRIVATE

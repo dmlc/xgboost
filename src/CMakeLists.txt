@@ -72,6 +72,11 @@ if (MSVC)
   )
 endif (MSVC)
 
+if (ENABLE_ALL_WARNINGS)
+  target_compile_options(objxgboost PUBLIC
+    $<IF:$<COMPILE_LANGUAGE:CUDA>,-Xcompiler=-Wall -Xcompiler=-Wextra,-Wall -Wextra>)
+endif (ENABLE_ALL_WARNINGS)
+
 set_target_properties(objxgboost PROPERTIES
   POSITION_INDEPENDENT_CODE ON
   CXX_STANDARD 14
