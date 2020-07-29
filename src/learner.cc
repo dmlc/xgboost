@@ -253,7 +253,7 @@ class LearnerConfiguration : public Learner {
   void Configure() override {
     // Varient of double checked lock
     if (!this->need_configuration_) { return; }
-    std::lock_guard<std::mutex> gard(config_lock_);
+    std::lock_guard<std::mutex> guard(config_lock_);
     if (!this->need_configuration_) { return; }
 
     monitor_.Start("Configure");
