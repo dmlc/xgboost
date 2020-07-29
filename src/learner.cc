@@ -156,7 +156,7 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
   // data split mode, can be row, col, or none.
   DataSplitMode dsplit;
   // flag to disable default metric
-  int disable_default_eval_metric;
+  bool disable_default_eval_metric;
   // FIXME(trivialfis): The following parameters belong to model itself, but can be
   // specified by users.  Move them to model parameter once we can get rid of binary IO.
   std::string booster;
@@ -171,7 +171,7 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
         .add_enum("row", DataSplitMode::kRow)
         .describe("Data split mode for distributed training.");
     DMLC_DECLARE_FIELD(disable_default_eval_metric)
-        .set_default(0)
+        .set_default(false)
         .describe("Flag to disable default metric. Set to >0 to disable");
     DMLC_DECLARE_FIELD(booster)
         .set_default("gbtree")
