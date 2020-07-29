@@ -154,9 +154,9 @@ LearnerModelParam::LearnerModelParam(
 
 struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
   // data split mode, can be row, col, or none.
-  DataSplitMode dsplit;
+  DataSplitMode dsplit {DataSplitMode::kAuto};
   // flag to disable default metric
-  bool disable_default_eval_metric;
+  bool disable_default_eval_metric {false};
   // FIXME(trivialfis): The following parameters belong to model itself, but can be
   // specified by users.  Move them to model parameter once we can get rid of binary IO.
   std::string booster;
