@@ -22,9 +22,10 @@
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 #include <memory>
+#include <numeric>
+#include <vector>
 #include "rmm/mr/device/default_memory_resource.hpp"
-#include "rmm/mr/device/cuda_memory_resource.hpp"
-#include "rmm/mr/device/pool_memory_resource.hpp"
+#include "rmm/mr/device/cnmem_memory_resource.hpp"
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 bool FileExists(const std::string& filename) {
@@ -486,13 +487,18 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
 }
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-using cuda_mr_t = rmm::mr::cuda_memory_resource;
-using pool_mr_t = rmm::mr::pool_memory_resource<cuda_mr_t>;
+
+std::vector<int> GetVisibleGPUs() {
+  std::vector<int> gpus(common::AllVisibleGPUs());
+  std::iota(gpus.begin(), gpus.end(), 0);
+  return gpus;
+}
+
+using cnmem_mr_t = rmm::mr::cnmem_memory_resource;
 class RMMAllocator {
  public:
-  cuda_mr_t cuda_mr;
-  pool_mr_t pool_mr;
-  RMMAllocator() : cuda_mr(), pool_mr(&cuda_mr) {}
+  cnmem_mr_t cnmem_mr;
+  RMMAllocator() : cnmem_mr(0, GetVisibleGPUs()) {}
   ~RMMAllocator() = default;
 };
 
@@ -502,7 +508,7 @@ void DeleteRMMResource(RMMAllocator* r) {
 
 RMMAllocatorPtr SetUpRMMResourceForCppTests() {
   auto ptr = RMMAllocatorPtr(new RMMAllocator(), DeleteRMMResource);
-  rmm::mr::set_default_resource(&ptr->pool_mr);
+  rmm::mr::set_default_resource(&ptr->cnmem_mr);
   return ptr;
 }
 #else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
