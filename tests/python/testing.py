@@ -216,3 +216,8 @@ dataset_strategy = _dataset_and_weight()
 
 def non_increasing(L, tolerance=1e-4):
     return all((y - x) < tolerance for x, y in zip(L, L[1:]))
+
+
+CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
+PROJECT_ROOT = os.path.normpath(
+    os.path.join(CURDIR, os.path.pardir, os.path.pardir))
