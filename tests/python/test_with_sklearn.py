@@ -888,6 +888,38 @@ def test_parameter_validation():
     assert len(output) == 0
 
 
+@pytest.mark.skipif(**tm.no_pandas())
+def test_pandas_input():
+    import pandas as pd
+    from sklearn.calibration import CalibratedClassifierCV
+    rng = np.random.RandomState(1994)
+
+    kRows = 100
+    kCols = 6
+
+    X = rng.randint(low=0, high=2, size=kRows*kCols)
+    X = X.reshape(kRows, kCols)
+
+    df = pd.DataFrame(X)
+    feature_names = []
+    for i in range(1, kCols):
+        feature_names += ['k'+str(i)]
+
+    df.columns = ['status'] + feature_names
+
+    target = df['status']
+    train = df.drop(columns=['status'])
+    model = xgb.XGBClassifier()
+    model.fit(train, target)
+    clf_isotonic = CalibratedClassifierCV(model,
+                                          cv='prefit', method='isotonic')
+    clf_isotonic.fit(train, target)
+    assert isinstance(clf_isotonic.calibrated_classifiers_[0].base_estimator,
+                      xgb.XGBClassifier)
+    np.testing.assert_allclose(np.array(clf_isotonic.classes_),
+                               np.array([0, 1]))
+
+
 class TestBoostFromPrediction(unittest.TestCase):
     def run_boost_from_prediction(self, tree_method):
         from sklearn.datasets import load_breast_cancer
