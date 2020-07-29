@@ -1092,7 +1092,7 @@ class LearnerImpl : public LearnerIO {
              tparam_.dsplit == DataSplitMode::kAuto;
     };
     if (row_based_split()) {
-      CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_)
+      CHECK_GE(learner_model_param_.num_feature, p_fmat->Info().num_col_)
           << "Number of columns does not match number of features in booster.";
     }
   }
