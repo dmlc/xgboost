@@ -1228,7 +1228,8 @@ class Booster(object):
         res = msg.value.decode()
         if feval is not None:
             for dmat, evname in evals:
-                feval_ret = feval(self.predict(dmat, training=False), dmat)
+                feval_ret = feval(self.predict(dmat, training=False,
+                                               output_margin=True), dmat)
                 if isinstance(feval_ret, list):
                     for name, val in feval_ret:
                         res += '\t%s-%s:%f' % (evname, name, val)

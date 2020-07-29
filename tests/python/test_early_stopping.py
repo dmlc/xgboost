@@ -37,11 +37,11 @@ class TestEarlyStopping(unittest.TestCase):
                  eval_set=[(X_test, y_test)])
         assert clf3.best_score == 1
 
-    @pytest.mark.skipif(**tm.no_sklearn())
     def evalerror(self, preds, dtrain):
         from sklearn.metrics import mean_squared_error
 
         labels = dtrain.get_label()
+        preds = 1.0 / (1.0 + np.exp(-preds))
         return 'rmse', mean_squared_error(labels, preds)
 
     @staticmethod

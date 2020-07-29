@@ -50,6 +50,7 @@ case "$suite" in
     ;;
 
   cpu)
+    source activate cpu_test
     install_xgboost
     pytest -v -s --fulltrace tests/python
     cd tests/distributed

@@ -40,9 +40,9 @@ General Parameters
 
   - Number of parallel threads used to run XGBoost
 
-* ``disable_default_eval_metric`` [default=0]
+* ``disable_default_eval_metric`` [default=``false``]
 
-  - Flag to disable default metric. Set to >0 to disable.
+  - Flag to disable default metric. Set to 1 or ``true`` to disable.
 
 * ``num_pbuffer`` [set automatically by XGBoost, no need to be set by user]
 

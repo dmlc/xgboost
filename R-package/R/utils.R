@@ -173,7 +173,7 @@ xgb.iter.eval <- function(booster_handle, watchlist, iter, feval = NULL) {
   } else {
     res <- sapply(seq_along(watchlist), function(j) {
       w <- watchlist[[j]]
-      preds <- predict(booster_handle, w, ntreelimit = 0) # predict using all trees
+      preds <- predict(booster_handle, w, outputmargin = TRUE, ntreelimit = 0) # predict using all trees
       eval_res <- feval(preds, w)
       out <- eval_res$value
       names(out) <- paste0(evnames[j], "-", eval_res$metric)

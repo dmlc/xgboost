@@ -154,9 +154,9 @@ LearnerModelParam::LearnerModelParam(
 
 struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
   // data split mode, can be row, col, or none.
-  DataSplitMode dsplit;
+  DataSplitMode dsplit {DataSplitMode::kAuto};
   // flag to disable default metric
-  int disable_default_eval_metric;
+  bool disable_default_eval_metric {false};
   // FIXME(trivialfis): The following parameters belong to model itself, but can be
   // specified by users.  Move them to model parameter once we can get rid of binary IO.
   std::string booster;
@@ -171,7 +171,7 @@ struct LearnerTrainParam : public XGBoostParameter<LearnerTrainParam> {
         .add_enum("row", DataSplitMode::kRow)
         .describe("Data split mode for distributed training.");
     DMLC_DECLARE_FIELD(disable_default_eval_metric)
-        .set_default(0)
+        .set_default(false)
         .describe("Flag to disable default metric. Set to >0 to disable");
     DMLC_DECLARE_FIELD(booster)
         .set_default("gbtree")
@@ -253,7 +253,7 @@ class LearnerConfiguration : public Learner {
   void Configure() override {
     // Varient of double checked lock
     if (!this->need_configuration_) { return; }
-    std::lock_guard<std::mutex> gard(config_lock_);
+    std::lock_guard<std::mutex> guard(config_lock_);
     if (!this->need_configuration_) { return; }
 
     monitor_.Start("Configure");
@@ -946,7 +946,7 @@ class LearnerImpl : public LearnerIO {
       common::GlobalRandom().seed(generic_parameters_.seed * kRandSeedMagic + iter);
     }
     this->CheckDataSplitMode();
-    this->ValidateDMatrix(train.get());
+    this->ValidateDMatrix(train.get(), true);
 
     auto& predt = this->cache_.Cache(train, generic_parameters_.gpu_id);
 
@@ -972,7 +972,7 @@ class LearnerImpl : public LearnerIO {
       common::GlobalRandom().seed(generic_parameters_.seed * kRandSeedMagic + iter);
     }
     this->CheckDataSplitMode();
-    this->ValidateDMatrix(train.get());
+    this->ValidateDMatrix(train.get(), true);
     this->cache_.Cache(train, generic_parameters_.gpu_id);
 
     gbm_->DoBoost(train.get(), in_gpair, &cache_.Entry(train.get()));
@@ -994,7 +994,7 @@ class LearnerImpl : public LearnerIO {
     for (size_t i = 0; i < data_sets.size(); ++i) {
       std::shared_ptr<DMatrix> m = data_sets[i];
       auto &predt = this->cache_.Cache(m, generic_parameters_.gpu_id);
-      this->ValidateDMatrix(m.get());
+      this->ValidateDMatrix(m.get(), false);
       this->PredictRaw(m.get(), &predt, false);
 
       auto &out = output_predictions_.Cache(m, generic_parameters_.gpu_id).predictions;
@@ -1079,11 +1079,11 @@ class LearnerImpl : public LearnerIO {
                   bool training,
                   unsigned ntree_limit = 0) const {
     CHECK(gbm_ != nullptr) << "Predict must happen after Load or configuration";
-    this->ValidateDMatrix(data);
+    this->ValidateDMatrix(data, false);
     gbm_->PredictBatch(data, out_preds, training, ntree_limit);
   }
 
-  void ValidateDMatrix(DMatrix* p_fmat) const {
+  void ValidateDMatrix(DMatrix* p_fmat, bool is_training) const {
     MetaInfo const& info = p_fmat->Info();
     info.Validate(generic_parameters_.gpu_id);
 
@@ -1092,8 +1092,15 @@ class LearnerImpl : public LearnerIO {
              tparam_.dsplit == DataSplitMode::kAuto;
     };
     if (row_based_split()) {
-      CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_)
-          << "Number of columns does not match number of features in booster.";
+      if (is_training) {
+        CHECK_EQ(learner_model_param_.num_feature, p_fmat->Info().num_col_)
+            << "Number of columns does not match number of features in "
+               "booster.";
+      } else {
+        CHECK_GE(learner_model_param_.num_feature, p_fmat->Info().num_col_)
+            << "Number of columns does not match number of features in "
+               "booster.";
+      }
     }
   }
 
