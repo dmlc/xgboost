@@ -207,4 +207,4 @@ addressed yet:
 - Only ``GridSearchCV`` from Scikit-Learn is supported.  Meaning that we can distribute data
   among workers but have to train one model at a time.  If you want to scale up grid searching with
   model parallelism with `Dask-ML <https://ml.dask.org/>`_, please consider using XGBoost's non-dask
-  Scikit-Learn interface, for example ``xgboost.XGBRegressor`, for now.
+  Scikit-Learn interface, for example ``xgboost.XGBRegressor``, for now.
