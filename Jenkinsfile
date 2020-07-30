@@ -75,6 +75,7 @@ pipeline {
             'build-gpu-cuda10.1': { BuildCUDA(cuda_version: '10.1') },
             'build-gpu-cuda10.2': { BuildCUDA(cuda_version: '10.2') },
             'build-gpu-cuda11.0': { BuildCUDA(cuda_version: '11.0') },
+            'build-jvm-packages-gpu-cuda10.0': { BuildJVMPackagesWithCUDA(spark_version: '3.0.0', cuda_version: '10.0') },
             'build-jvm-packages': { BuildJVMPackages(spark_version: '3.0.0') },
             'build-jvm-doc': { BuildJVMDoc() }
           ])
@@ -94,6 +95,7 @@ pipeline {
             'test-python-mgpu-cuda10.2': { TestPythonGPU(host_cuda_version: '10.2', multi_gpu: true) },
             'test-cpp-gpu-cuda10.2': { TestCppGPU(artifact_cuda_version: '10.2', host_cuda_version: '10.2') },
             'test-cpp-gpu-cuda11.0': { TestCppGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0') },
+            'test-jvm-jdk8-cuda10.0': { CrossTestJVMwithJDKGPU(artifact_cuda_version: '10.0', host_cuda_version: '10.0') },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '3.0.0') },
             'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
             'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') },
@@ -157,7 +159,7 @@ def Lint() {
     def container_type = "cpu"
     def docker_binary = "docker"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} make lint
+    ${dockerRun} ${container_type} ${docker_binary} bash -c "source activate cpu_test && make lint"
     """
     deleteDir()
   }
@@ -171,7 +173,7 @@ def SphinxDoc() {
     def docker_binary = "docker"
     def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e SPHINX_GIT_BRANCH=${BRANCH_NAME}'"
     sh """#!/bin/bash
-    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} make -C doc html
+    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} bash -c "source activate cpu_test && make -C doc html"
     """
     deleteDir()
   }
@@ -282,6 +284,28 @@ def BuildCUDA(args) {
   }
 }
 
+def BuildJVMPackagesWithCUDA(args) {
+  node('linux && gpu') {
+    unstash name: 'srcs'
+    echo "Build XGBoost4J-Spark with Spark ${args.spark_version}, CUDA ${args.cuda_version}"
+    def container_type = "jvm_gpu_build"
+    def docker_binary = "nvidia-docker"
+    def docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
+    def arch_flag = ""
+    if (env.BRANCH_NAME != 'master' && !(env.BRANCH_NAME.startsWith('release'))) {
+      arch_flag = "-DGPU_COMPUTE_VER=75"
+    }
+    // Use only 4 CPU cores
+    def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='--cpuset-cpus 0-3'"
+    sh """
+    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_jvm_packages.sh ${args.spark_version} -Duse.cuda=ON $arch_flag
+    """
+    echo "Stashing XGBoost4J JAR with CUDA ${args.cuda_version} ..."
+    stash name: 'xgboost4j_jar_gpu', includes: "jvm-packages/xgboost4j/target/*.jar,jvm-packages/xgboost4j-spark/target/*.jar,jvm-packages/xgboost4j-example/target/*.jar"
+    deleteDir()
+  }
+}
+
 def BuildJVMPackages(args) {
   node('linux && cpu') {
     unstash name: 'srcs'
@@ -382,6 +406,24 @@ def TestCppGPU(args) {
     def docker_binary = "nvidia-docker"
     def docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
     sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} build/testxgboost"
+    deleteDir()
+  }
+}
+
+def CrossTestJVMwithJDKGPU(args) {
+  def nodeReq = 'linux && mgpu'
+  node(nodeReq) {
+    unstash name: "xgboost4j_jar_gpu"
+    unstash name: 'srcs'
+    if (args.spark_version != null) {
+      echo "Test XGBoost4J on a machine with JDK ${args.jdk_version}, Spark ${args.spark_version}, CUDA ${args.host_cuda_version}"
+    } else {
+      echo "Test XGBoost4J on a machine with JDK ${args.jdk_version}, CUDA ${args.host_cuda_version}"
+    }
+    def container_type = "gpu_jvm"
+    def docker_binary = "nvidia-docker"
+    def docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
+    sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_jvm_gpu_cross.sh"
     deleteDir()
   }
 }

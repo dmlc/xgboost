@@ -202,6 +202,14 @@ If you are on Mac OS and using a compiler that supports OpenMP, you need to go t
 
 in order to get the benefit of multi-threading.
 
+Building with GPU support
+-------------------------
+If you want to build XGBoost4J that supports distributed GPU training, run
+
+.. code-block:: bash
+
+  mvn -Duse.cuda=ON install
+
 ********
 Contents
 ********

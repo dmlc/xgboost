@@ -8,7 +8,6 @@ import subprocess
 import sys
 from contextlib import contextmanager
 
-
 # Monkey-patch the API inconsistency between Python2.X and 3.X.
 if sys.platform.startswith("linux"):
     sys.platform = "linux"
@@ -21,6 +20,7 @@ CONFIG = {
     "USE_S3": "OFF",
 
     "USE_CUDA": "OFF",
+    "USE_NCCL": "OFF",
     "JVM_BINDINGS": "ON",
     "LOG_CAPI_INVOCATION": "OFF"
 }
@@ -72,6 +72,7 @@ def normpath(path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--log-capi-invocation', type=str, choices=['ON', 'OFF'], default='OFF')
+    parser.add_argument('--use-cuda', type=str, choices=['ON', 'OFF'], default='OFF')
     cli_args = parser.parse_args()
 
     if sys.platform == "darwin":
@@ -97,11 +98,20 @@ if __name__ == "__main__":
             if cli_args.log_capi_invocation == 'ON':
                 CONFIG['LOG_CAPI_INVOCATION'] = 'ON'
 
+            if cli_args.use_cuda == 'ON':
+                CONFIG['USE_CUDA'] = 'ON'
+                CONFIG['USE_NCCL'] = 'ON'
+
             args = ["-D{0}:BOOL={1}".format(k, v) for k, v in CONFIG.items()]
 
             # if enviorment set rabit_mock
             if os.getenv("RABIT_MOCK", None) is not None:
                 args.append("-DRABIT_MOCK:BOOL=ON")
+
+            # if enviorment set GPU_ARCH_FLAG
+            gpu_arch_flag = os.getenv("GPU_ARCH_FLAG", None)
+            if gpu_arch_flag is not None:
+                args.append("%s" % gpu_arch_flag)
 
             run("cmake .. " + " ".join(args) + maybe_generator)
             run("cmake --build . --config Release" + maybe_parallel_build)
