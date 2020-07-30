@@ -121,21 +121,21 @@ Working with asyncio
 
 .. versionadded:: 1.2.0
 
-XGBoost dask interface supports the new ``asyncio`` in Python and can be integrated into
+XGBoost's dask interface supports the new ``asyncio`` in Python and can be integrated into
 asynchronous workflows.  For using dask with asynchronous operations, please refer to
-`dask example <https://examples.dask.org/applications/async-await.html>`_ and document in
-`distributed <https://distributed.dask.org/en/latest/asynchronous.html>`_.  As XGBoost
-takes ``Client`` object as an argument for both training and prediction, so when
-``asynchronous=True`` is specified when creating ``Client``, the dask interface can adapt
-the change accordingly.  All functions provided by the functional interface returns a
-coroutine when called in async function, and hence require awaiting to get the result,
-including ``DaskDMatrix``.
+`this dask example <https://examples.dask.org/applications/async-await.html>`_ and document in
+`distributed <https://distributed.dask.org/en/latest/asynchronous.html>`_. To use XGBoost's
+dask interface asynchronously, the ``client`` which is passed as an argument for training and
+prediction must be operating in asynchronous mode by specifying ``asynchronous=True`` when the
+``client`` is created (example below). All functions (including ``DaskDMatrix``) provided
+by the functional interface will then return coroutines which can then be awaited to retrieve
+their result.
 
 Functional interface:
 
 .. code-block:: python
 
-    async with Client(scheduler_address, asynchronous=True) as client:
+    async with dask.distributed.Client(scheduler_address, asynchronous=True) as client:
         X, y = generate_array()
         m = await xgb.dask.DaskDMatrix(client, X, y)
         output = await xgb.dask.train(client, {}, dtrain=m)
@@ -148,13 +148,13 @@ Functional interface:
         print(await client.compute(with_m))
 
 
-While for Scikit Learn interface, trivial methods like ``set_params`` and accessing class
+While for the Scikit-Learn interface, trivial methods like ``set_params`` and accessing class
 attributes like ``evals_result_`` do not require ``await``.  Other methods involving
 actual computation will return a coroutine and hence require awaiting:
 
 .. code-block:: python
 
-    async with Client(scheduler_address, asynchronous=True) as client:
+    async with dask.distributed.Client(scheduler_address, asynchronous=True) as client:
         X, y = generate_array()
         regressor = await xgb.dask.DaskXGBRegressor(verbosity=1, n_estimators=2)
         regressor.set_params(tree_method='hist')  # trivial method, synchronous operation
