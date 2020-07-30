@@ -6,6 +6,7 @@ import xgboost
 import subprocess
 import numpy
 import json
+import testing as tm
 
 
 class TestCLI(unittest.TestCase):
@@ -28,22 +29,20 @@ data = {data_path}
 eval[test] = {data_path}
 '''
 
-    curdir = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
-    project_root = os.path.normpath(
-        os.path.join(curdir, os.path.pardir, os.path.pardir))
+    PROJECT_ROOT = tm.PROJECT_ROOT
 
     def get_exe(self):
         if platform.system() == 'Windows':
             exe = 'xgboost.exe'
         else:
             exe = 'xgboost'
-        exe = os.path.join(self.project_root, exe)
+        exe = os.path.join(self.PROJECT_ROOT, exe)
         assert os.path.exists(exe)
         return exe
 
     def test_cli_model(self):
         data_path = "{root}/demo/data/agaricus.txt.train?format=libsvm".format(
-            root=self.project_root)
+            root=self.PROJECT_ROOT)
         exe = self.get_exe()
         seed = 1994
 
@@ -128,7 +127,7 @@ eval[test] = {data_path}
     def test_cli_model_json(self):
         exe = self.get_exe()
         data_path = "{root}/demo/data/agaricus.txt.train?format=libsvm".format(
-            root=self.project_root)
+            root=self.PROJECT_ROOT)
         seed = 1994
 
         with tempfile.TemporaryDirectory() as tmpdir:

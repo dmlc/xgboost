@@ -55,7 +55,6 @@ struct PredictionCacheEntry {
 class PredictionContainer {
   std::unordered_map<DMatrix *, PredictionCacheEntry> container_;
   void ClearExpiredEntries();
-  std::mutex cache_lock_;
 
  public:
   PredictionContainer() = default;

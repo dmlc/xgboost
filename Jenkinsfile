@@ -159,7 +159,7 @@ def Lint() {
     def container_type = "cpu"
     def docker_binary = "docker"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} make lint
+    ${dockerRun} ${container_type} ${docker_binary} bash -c "source activate cpu_test && make lint"
     """
     deleteDir()
   }
@@ -173,7 +173,7 @@ def SphinxDoc() {
     def docker_binary = "docker"
     def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e SPHINX_GIT_BRANCH=${BRANCH_NAME}'"
     sh """#!/bin/bash
-    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} make -C doc html
+    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} bash -c "source activate cpu_test && make -C doc html"
     """
     deleteDir()
   }

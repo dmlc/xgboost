@@ -165,4 +165,8 @@ TEST(CpuPredictor, InplacePredict) {
     TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
   }
 }
+
+TEST(CpuPredictor, LesserFeatures) {
+  TestPredictionWithLesserFeatures("cpu_predictor");
+}
 }  // namespace xgboost

@@ -12,6 +12,12 @@ algorithms.  For an overview of GPU based training and internal workings, see `A
 Official Dask API for XGBoost
 <https://medium.com/rapids-ai/a-new-official-dask-api-for-xgboost-e8b10f3d1eb7>`_.
 
+**Contents**
+
+.. contents::
+  :backlinks: none
+  :local:
+
 ************
 Requirements
 ************
@@ -108,6 +114,60 @@ set:
                           num_boost_round=4, evals=[(dtrain, 'train')])
 
 XGBoost will use 8 threads in each training process.
+
+********************
+Working with asyncio
+********************
+
+.. versionadded:: 1.2.0
+
+XGBoost dask interface supports the new ``asyncio`` in Python and can be integrated into
+asynchronous workflows.  For using dask with asynchronous operations, please refer to
+`dask example <https://examples.dask.org/applications/async-await.html>`_ and document in
+`distributed <https://distributed.dask.org/en/latest/asynchronous.html>`_.  As XGBoost
+takes ``Client`` object as an argument for both training and prediction, so when
+``asynchronous=True`` is specified when creating ``Client``, the dask interface can adapt
+the change accordingly.  All functions provided by the functional interface returns a
+coroutine when called in async function, and hence require awaiting to get the result,
+including ``DaskDMatrix``.
+
+Functional interface:
+
+.. code-block:: python
+
+    async with Client(scheduler_address, asynchronous=True) as client:
+        X, y = generate_array()
+        m = await xgb.dask.DaskDMatrix(client, X, y)
+        output = await xgb.dask.train(client, {}, dtrain=m)
+
+        with_m = await xgb.dask.predict(client, output, m)
+        with_X = await xgb.dask.predict(client, output, X)
+        inplace = await xgb.dask.inplace_predict(client, output, X)
+
+        # Use `client.compute` instead of the `compute` method from dask collection
+        print(await client.compute(with_m))
+
+
+While for Scikit Learn interface, trivial methods like ``set_params`` and accessing class
+attributes like ``evals_result_`` do not require ``await``.  Other methods involving
+actual computation will return a coroutine and hence require awaiting:
+
+.. code-block:: python
+
+    async with Client(scheduler_address, asynchronous=True) as client:
+        X, y = generate_array()
+        regressor = await xgb.dask.DaskXGBRegressor(verbosity=1, n_estimators=2)
+        regressor.set_params(tree_method='hist')  # trivial method, synchronous operation
+        regressor.client = client  #  accessing attribute, synchronous operation
+        regressor = await regressor.fit(X, y, eval_set=[(X, y)])
+        prediction = await regressor.predict(X)
+
+        # Use `client.compute` instead of the `compute` method from dask collection
+        print(await client.compute(prediction))
+
+Be careful that XGBoost uses all the workers supplied by the ``client`` object.  If you
+are training on GPU cluster and have 2 GPUs, the client object passed to XGBoost should
+return 2 workers.
 
 *****************************************************************************
 Why is the initialization of ``DaskDMatrix``  so slow and throws weird errors
