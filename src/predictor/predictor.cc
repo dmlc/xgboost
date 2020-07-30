@@ -26,7 +26,6 @@ void PredictionContainer::ClearExpiredEntries() {
 }
 
 PredictionCacheEntry &PredictionContainer::Cache(std::shared_ptr<DMatrix> m, int32_t device) {
-  std::lock_guard<std::mutex> guard { cache_lock_ };
   this->ClearExpiredEntries();
   container_[m.get()].ref = m;
   if (device != GenericParameter::kCpuId) {
