@@ -33,8 +33,11 @@ illustrates the basic usage:
 
 .. code-block:: python
 
-  cluster = LocalCluster(n_workers=4, threads_per_worker=1)
-  client = Client(cluster)
+  import xgboost as xgb
+  import dask.distributed
+
+  cluster = dask.distributed.LocalCluster(n_workers=4, threads_per_worker=1)
+  client = dask.distributed.Client(cluster)
 
   dtrain = xgb.dask.DaskDMatrix(client, X, y)  # X and y are dask dataframes or arrays
 
@@ -44,8 +47,8 @@ illustrates the basic usage:
                           dtrain,
                           num_boost_round=4, evals=[(dtrain, 'train')])
 
-Here we first create a cluster in single-node mode wtih ``distributed.LocalCluster``, then
-connect a ``client`` to this cluster, setting up environment for later computation.
+Here we first create a cluster in single-node mode wtih ``dask.distributed.LocalCluster``, then
+connect a ``dask.distributed.Client`` to this cluster, setting up environment for later computation.
 Similar to non-distributed interface, we create a ``DMatrix`` object and pass it to
 ``train`` along with some other parameters.  Except in dask interface, client is an extra
 argument for carrying out the computation, when set to ``None`` XGBoost will use the
@@ -88,7 +91,7 @@ will override the configuration in Dask.  For example:
 
 .. code-block:: python
 
-  with LocalCluster(n_workers=7, threads_per_worker=4) as cluster:
+  with dask.distributed.LocalCluster(n_workers=7, threads_per_worker=4) as cluster:
 
 There are 4 threads allocated for each dask worker.  Then by default XGBoost will use 4
 threads in each process for both training and prediction.  But if ``nthread`` parameter is
