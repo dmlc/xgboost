@@ -107,6 +107,9 @@ Parameters for Tree Booster
     'colsample_bynode':0.5}`` with 64 features will leave 8 features to choose from at
     each split.
 
+    On Python interface, one can set the ``feature_weights`` for DMatrix to define the
+    probability of each feature being selected when using column sampling.
+
 * ``lambda`` [default=1, alias: ``reg_lambda``]
 
   - L2 regularization term on weights. Increasing this value will make model more conservative.

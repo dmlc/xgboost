@@ -841,6 +841,45 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
                 None,
                 c_bst_ulong(0)))
 
+    @property
+    def feature_weights(self):
+        '''Weight for each feature, defines the probability of each feature
+        being selected when colsample is being used.  All values must
+        be greater than 0, otherwise a `XGBoostError` is thrown.
+
+        .. versionadded:: 1.3.0
+
+        '''
+        length = c_bst_ulong()
+        ret = ctypes.POINTER(ctypes.c_void_p)()
+        out_type = ctypes.c_int()
+        _check_call(_LIB.XGDMatrixGetFeatureInfo(
+            self.handle,
+            c_str('feature_weight'),
+            ctypes.byref(out_type),
+            ctypes.byref(length),
+            ctypes.byref(ret)
+        ))
+        to_data_type = {1: np.float32, 2: np.float64, 3: np.uint32,
+                        4: np.uint64}
+        to_c_type = {1: ctypes.c_float, 2: ctypes.c_double, 3: ctypes.c_uint32,
+                     4: ctypes.c_uint64}
+        dtype = to_data_type[out_type.value]
+        ptr = ctypes.cast(ret, ctypes.POINTER(to_c_type[out_type.value]))
+        return ctypes2numpy(ptr, length.value, dtype)
+
+    @feature_weights.setter
+    def feature_weights(self, array):
+        '''Setter for feature weights.  Clear the feature weights if array is
+        None.
+
+        '''
+        from .data import dispatch_meta_backend
+        if array is None:
+            array = np.empty((0, 0))
+        dispatch_meta_backend(matrix=self, data=array, name='feature_weight',
+                              is_feature=True)
+
 
 class DeviceQuantileDMatrix(DMatrix):
     """Device memory Data Matrix used in XGBoost for training with

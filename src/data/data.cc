@@ -293,6 +293,9 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
   } else {
     out.base_margin_.HostVector() = Gather(this->base_margin_.HostVector(), ridxs);
   }
+
+  out.feature_weigths.Resize(this->feature_weigths.Size());
+  out.feature_weigths.Copy(this->feature_weigths);
   return out;
 }
 
@@ -452,6 +455,30 @@ void MetaInfo::GetFeatureInfo(const char *field,
   }
 }
 
+void MetaInfo::SetFeatureInfo(const char *c_field, const void *info, DataType type,
+                              bst_ulong size) {
+  std::string field {c_field};
+  CHECK_EQ(field, "feature_weight") << "Only feature weight is supported for feature info.";
+  auto& h_feature_weights = feature_weigths.HostVector();
+  h_feature_weights.resize(size);
+  DISPATCH_CONST_PTR(
+      type, info, cast_dptr,
+      std::copy(cast_dptr, cast_dptr + size, h_feature_weights.begin()));
+  bool valid = std::all_of(h_feature_weights.cbegin(), h_feature_weights.cend(),
+                           [](float w) { return w >= 0; });
+  CHECK(valid) << "Feature weight must be greater than 0.";
+}
+
+void MetaInfo::GetFeatureInfo(const char *c_field, DataType *out_type,
+                              std::vector<float> *out) const {
+  std::string field {c_field};
+  CHECK_EQ(field, "feature_weight") << "Only feature weight is supported for feature info.";
+  *out_type = DataType::kFloat32;
+  out->resize(feature_weigths.Size());
+  auto const& h_feature_weights = feature_weigths.ConstHostVector();
+  std::copy(h_feature_weights.cbegin(), h_feature_weights.cend(), out->begin());
+}
+
 void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows) {
   if (accumulate_rows) {
     this->num_row_ += that.num_row_;
@@ -497,6 +524,11 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows) {
     auto &h_feature_types = feature_types.HostVector();
     LoadFeatureType(this->feature_type_names, &h_feature_types);
   }
+  if (!that.feature_weigths.Empty()) {
+    this->feature_weigths.Resize(that.feature_weigths.Size());
+    this->feature_weigths.SetDevice(that.feature_weigths.DeviceIdx());
+    this->feature_weigths.Copy(that.feature_weigths);
+  }
 }
 
 void MetaInfo::Validate(int32_t device) const {
@@ -537,6 +569,11 @@ void MetaInfo::Validate(int32_t device) const {
         << "Size of label_lower_bound must equal to number of rows.";
     check_device(labels_lower_bound_);
     return;
+  }
+  if (feature_weigths.Size() != 0) {
+    CHECK_EQ(feature_weigths.Size(), num_col_)
+        << "Size of feature_weights must equal to number of columns.";
+    check_device(feature_weigths);
   }
   if (labels_upper_bound_.Size() != 0) {
     CHECK_EQ(labels_upper_bound_.Size(), num_row_)

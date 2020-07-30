@@ -1,3 +1,5 @@
+import collections
+import importlib.util
 import numpy as np
 import xgboost as xgb
 from xgboost.sklearn import XGBoostLabelEncoder
@@ -654,6 +656,7 @@ def test_validation_weights_xgbmodel():
                 eval_set=[(X_train, y_train), (X_test, y_test)],
                 sample_weight_eval_set=[weights_train])
 
+
 def test_validation_weights_xgbclassifier():
     from sklearn.datasets import make_hastie_10_2
 
@@ -918,6 +921,64 @@ def test_pandas_input():
                       xgb.XGBClassifier)
     np.testing.assert_allclose(np.array(clf_isotonic.classes_),
                                np.array([0, 1]))
+
+
+def run_feature_weights(increasing):
+    with TemporaryDirectory() as tmpdir:
+        kRows = 512
+        kCols = 64
+        colsample_bynode = 0.5
+        reg = xgb.XGBRegressor(tree_method='hist',
+                               colsample_bynode=colsample_bynode)
+        X = rng.randn(kRows, kCols)
+        y = rng.randn(kRows)
+        fw = np.ones(shape=(kCols,))
+        for i in range(kCols):
+            if increasing:
+                fw[i] *= float(i)
+            else:
+                fw[i] *= float(kCols - i)
+
+        reg.fit(X, y, feature_weights=fw)
+        model_path = os.path.join(tmpdir, 'model.json')
+        reg.save_model(model_path)
+        with open(model_path) as fd:
+            model = json.load(fd)
+
+        parser_path = os.path.join(tm.PROJECT_ROOT, 'demo', 'json-model',
+                                   'json_parser.py')
+        spec = importlib.util.spec_from_file_location("JsonParser",
+                                                      parser_path)
+        foo = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(foo)
+        model = foo.Model(model)
+        splits = {}
+        total_nodes = 0
+        for tree in model.trees:
+            n_nodes = len(tree.nodes)
+            total_nodes += n_nodes
+            for n in range(n_nodes):
+                if tree.is_leaf(n):
+                    continue
+                if splits.get(tree.split_index(n), None) is None:
+                    splits[tree.split_index(n)] = 1
+                else:
+                    splits[tree.split_index(n)] += 1
+
+        od = collections.OrderedDict(sorted(splits.items()))
+        tuples = [(k, v) for k, v in od.items()]
+        k, v = list(zip(*tuples))
+        w = np.polyfit(k, v, deg=1)
+        return w
+
+
+def test_feature_weights():
+    poly_increasing = run_feature_weights(True)
+    poly_decreasing = run_feature_weights(False)
+    # Approxmated test, this is dependent on the implementation of random
+    # number generator in std library.
+    assert poly_increasing[0] > 0.08
+    assert poly_decreasing[0] < -0.08
 
 
 class TestBoostFromPrediction(unittest.TestCase):

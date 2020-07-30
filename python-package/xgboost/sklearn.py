@@ -441,6 +441,7 @@ class XGBModel(XGBModelBase):
     def fit(self, X, y, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None, early_stopping_rounds=None,
             verbose=True, xgb_model=None, sample_weight_eval_set=None,
+            feature_weights=None,
             callbacks=None):
         # pylint: disable=invalid-name,attribute-defined-outside-init
         """Fit gradient boosting model
@@ -459,9 +460,6 @@ class XGBModel(XGBModelBase):
             A list of (X, y) tuple pairs to use as validation sets, for which
             metrics will be computed.
             Validation metrics will help us track the performance of the model.
-        sample_weight_eval_set : list, optional
-            A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
-            instance weights on the i-th validation set.
         eval_metric : str, list of str, or callable, optional
             If a str, should be a built-in evaluation metric to use. See
             doc/parameter.rst.
@@ -490,6 +488,13 @@ class XGBModel(XGBModelBase):
         xgb_model : str
             file name of stored XGBoost model or 'Booster' instance XGBoost model to be
             loaded before training (allows training continuation).
+        sample_weight_eval_set : list, optional
+            A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
+            instance weights on the i-th validation set.
+        feature_weights: array_like
+            Weight for each feature, defines the probability of each feature
+            being selected when colsample is being used.  All values must be
+            greater than 0, otherwise a `ValueError` is thrown.
         callbacks : list of callback functions
             List of callback functions that are applied at end of each iteration.
             It is possible to use predefined callbacks by using :ref:`callback_api`.
@@ -498,6 +503,7 @@ class XGBModel(XGBModelBase):
             .. code-block:: python
 
                 [xgb.callback.reset_learning_rate(custom_rates)]
+
         """
         self.n_features_in_ = X.shape[1]
 
@@ -505,6 +511,7 @@ class XGBModel(XGBModelBase):
                                 base_margin=base_margin,
                                 missing=self.missing,
                                 nthread=self.n_jobs)
+        train_dmatrix.feature_weights = feature_weights
 
         evals_result = {}
 
@@ -759,7 +766,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     def fit(self, X, y, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None,
-            sample_weight_eval_set=None, callbacks=None):
+            sample_weight_eval_set=None, feature_weights=None, callbacks=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
 
         evals_result = {}
@@ -821,6 +828,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         train_dmatrix = DMatrix(X, label=training_labels, weight=sample_weight,
                                 base_margin=base_margin,
                                 missing=self.missing, nthread=self.n_jobs)
+        train_dmatrix.feature_weights = feature_weights
 
         self._Booster = train(xgb_options, train_dmatrix,
                               self.get_num_boosting_rounds(),
@@ -1101,10 +1109,10 @@ class XGBRanker(XGBModel):
             raise ValueError("please use XGBRanker for ranking task")
 
     def fit(self, X, y, group, sample_weight=None, base_margin=None,
-            eval_set=None,
-            sample_weight_eval_set=None, eval_group=None, eval_metric=None,
+            eval_set=None, sample_weight_eval_set=None,
+            eval_group=None, eval_metric=None,
             early_stopping_rounds=None, verbose=False, xgb_model=None,
-            callbacks=None):
+            feature_weights=None, callbacks=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """Fit gradient boosting ranker
 
@@ -1170,6 +1178,10 @@ class XGBRanker(XGBModel):
         xgb_model : str
             file name of stored XGBoost model or 'Booster' instance XGBoost
             model to be loaded before training (allows training continuation).
+        feature_weights: array_like
+            Weight for each feature, defines the probability of each feature
+            being selected when colsample is being used.  All values must be
+            greater than 0, otherwise a `ValueError` is thrown.
         callbacks : list of callback functions
             List of callback functions that are applied at end of each
             iteration.  It is possible to use predefined callbacks by using
@@ -1205,6 +1217,7 @@ class XGBRanker(XGBModel):
         train_dmatrix = DMatrix(data=X, label=y, weight=sample_weight,
                                 base_margin=base_margin,
                                 missing=self.missing, nthread=self.n_jobs)
+        train_dmatrix.feature_weights = feature_weights
         train_dmatrix.set_group(group)
 
         evals_result = {}

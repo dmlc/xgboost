@@ -68,6 +68,7 @@
 #include "../src/learner.cc"
 #include "../src/logging.cc"
 #include "../src/common/common.cc"
+#include "../src/common/random.cc"
 #include "../src/common/charconv.cc"
 #include "../src/common/timer.cc"
 #include "../src/common/quantile.cc"

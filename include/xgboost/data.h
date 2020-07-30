@@ -88,34 +88,17 @@ class MetaInfo {
    * \brief Type of each feature.  Automatically set when feature_type_names is specifed.
    */
   HostDeviceVector<FeatureType> feature_types;
+  /*
+   * \brief Weight of each feature, used to define the probability of each feature being
+   *        selected when using column sampling.
+   */
+  HostDeviceVector<float> feature_weigths;
 
   /*! \brief default constructor */
   MetaInfo()  = default;
   MetaInfo(MetaInfo&& that) = default;
   MetaInfo& operator=(MetaInfo&& that) = default;
-  MetaInfo& operator=(MetaInfo const& that) {
-    this->num_row_ = that.num_row_;
-    this->num_col_ = that.num_col_;
-    this->num_nonzero_ = that.num_nonzero_;
-
-    this->labels_.Resize(that.labels_.Size());
-    this->labels_.Copy(that.labels_);
-
-    this->group_ptr_ = that.group_ptr_;
-
-    this->weights_.Resize(that.weights_.Size());
-    this->weights_.Copy(that.weights_);
-
-    this->base_margin_.Resize(that.base_margin_.Size());
-    this->base_margin_.Copy(that.base_margin_);
-
-    this->labels_lower_bound_.Resize(that.labels_lower_bound_.Size());
-    this->labels_lower_bound_.Copy(that.labels_lower_bound_);
-
-    this->labels_upper_bound_.Resize(that.labels_upper_bound_.Size());
-    this->labels_upper_bound_.Copy(that.labels_upper_bound_);
-    return *this;
-  }
+  MetaInfo& operator=(MetaInfo const& that) = delete;
 
   /*!
    * \brief Validate all metainfo.
@@ -180,6 +163,9 @@ class MetaInfo {
 
   void SetFeatureInfo(const char *key, const char **info, const bst_ulong size);
   void GetFeatureInfo(const char *field, std::vector<std::string>* out_str_vecs) const;
+  void SetFeatureInfo(const char *field, const void *info, DataType type,
+                      bst_ulong size);
+  void GetFeatureInfo(const char *field, DataType *out_type, std::vector<float>* out) const;
 
   /*
    * \brief Extend with other MetaInfo.

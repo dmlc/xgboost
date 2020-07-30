@@ -484,6 +484,49 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
                                        const char ***out_features);
 
 /*!
+ * \brief Set feature info that's not strings.  Currently accepted fields are:
+ *
+ * - feature_weight
+ *
+ * \param handle An instance of data matrix
+ * \param field  Feild name
+ * \param data   Pointer to consecutive memory storing data.
+ * \param size   Size of the data, this is relative to size of type.  (Meaning NOT number
+ *               of bytes.)
+ * \param type   Indicator of data type.  This is defined in xgboost::DataType enum class.
+ *
+ *    float    = 1
+ *    double   = 2
+ *    uint32_t = 3
+ *    uint64_t = 4
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixSetFeatureInfo(DMatrixHandle handle, const char *field,
+                                    void *data, bst_ulong size, int type);
+
+/*!
+ * \brief Get feature info in a thread local buffer.
+ *
+ * Caller is responsible for copying out the data, before next call to any API function of
+ * XGBoost.  The data is always on CPU thread local storage.
+ *
+ * \param handle   An instance of data matrix.
+ * \param field    Field name.
+ * \param out_type Type of this field.  This is defined in xgboost::DataType enum class.
+ * \param out_size Length of output data, this is relative to size of out_type.  (Meaning
+ *                 NOT number of bytes.)
+ * \param out_dptr Pointer to output buffer.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixGetFeatureInfo(DMatrixHandle handle,
+                                    const char* field,
+                                    int* out_type,
+                                    bst_ulong* out_size,
+                                    const void** out_dptr);
+
+/*!
  * \brief (deprecated) Use XGDMatrixSetUIntInfo instead. Set group of the training matrix
  * \param handle a instance of data matrix
  * \param group pointer to group size

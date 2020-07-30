@@ -99,6 +99,9 @@ class TestDMatrix(unittest.TestCase):
         X = rng.randn(100, 100)
         y = rng.randint(low=0, high=3, size=100)
         d = xgb.DMatrix(X, y)
+        fw = rng.uniform(size=100)
+        d.feature_weights = fw
+
         eval_res_0 = {}
         booster = xgb.train(
             {'num_class': 3, 'objective': 'multi:softprob'}, d,
@@ -109,13 +112,17 @@ class TestDMatrix(unittest.TestCase):
         d.set_base_margin(predt)
 
         ridxs = [1, 2, 3, 4, 5, 6]
-        d = d.slice(ridxs)
-        sliced_margin = d.get_float_info('base_margin')
+        sliced = d.slice(ridxs)
+        np.testing.assert_equal(sliced.feature_weights, d.feature_weights)
+
+        sliced = d.slice(ridxs)
+        sliced_margin = sliced.get_float_info('base_margin')
         assert sliced_margin.shape[0] == len(ridxs) * 3
 
         eval_res_1 = {}
-        xgb.train({'num_class': 3, 'objective': 'multi:softprob'}, d,
-                  num_boost_round=2, evals=[(d, 'd')], evals_result=eval_res_1)
+        xgb.train({'num_class': 3, 'objective': 'multi:softprob'}, sliced,
+                  num_boost_round=2, evals=[(sliced, 'd')],
+                  evals_result=eval_res_1)
 
         eval_res_0 = eval_res_0['d']['merror']
         eval_res_1 = eval_res_1['d']['merror']
@@ -195,6 +202,25 @@ class TestDMatrix(unittest.TestCase):
         dtrain.get_float_info('weight')
         dtrain.get_float_info('base_margin')
         dtrain.get_uint_info('group_ptr')
+
+    def test_feature_info(self):
+        kRows = 10
+        kCols = 50
+        rng = np.random.RandomState(1994)
+        fw = rng.uniform(size=kCols)
+        X = rng.randn(kRows, kCols)
+        m = xgb.DMatrix(X)
+        m.feature_weights = fw
+        np.testing.assert_allclose(fw, m.feature_weights)
+        # Handle None
+        m.feature_weights = None
+        assert m.feature_weights.shape[0] == 0
+
+        fw -= 1
+
+        def assign_weight():
+            m.feature_weights = fw
+        self.assertRaises(ValueError, assign_weight)
 
     def test_sparse_dmatrix_csr(self):
         nrow = 100
