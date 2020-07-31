@@ -21,7 +21,8 @@ CONFIG = {
 
     "USE_CUDA": "OFF",
     "USE_NCCL": "OFF",
-    "JVM_BINDINGS": "ON"
+    "JVM_BINDINGS": "ON",
+    "LOG_CAPI_INVOCATION": "OFF"
 }
 
 
@@ -70,6 +71,7 @@ def normpath(path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument('--log-capi-invocation', type=str, choices=['ON', 'OFF'], default='OFF')
     parser.add_argument('--use-cuda', type=str, choices=['ON', 'OFF'], default='OFF')
     cli_args = parser.parse_args()
 
@@ -92,6 +94,9 @@ if __name__ == "__main__":
                 maybe_parallel_build = " -- -j $(nproc)"
             else:
                 maybe_parallel_build = ""
+
+            if cli_args.log_capi_invocation == 'ON':
+                CONFIG['LOG_CAPI_INVOCATION'] = 'ON'
 
             if cli_args.use_cuda == 'ON':
                 CONFIG['USE_CUDA'] = 'ON'

@@ -34,6 +34,7 @@ option(USE_DEBUG_OUTPUT "Dump internal training results like gradients and predi
 Should only be used for debugging." OFF)
 option(FORCE_COLORED_OUTPUT "Force colored output from compilers, useful when ninja is used instead of make." OFF)
 option(ENABLE_ALL_WARNINGS "Enable all compiler warnings. Only effective for GCC/Clang" OFF)
+option(LOG_CAPI_INVOCATION "Log all C API invocations for debugging" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)

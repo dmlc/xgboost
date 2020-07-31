@@ -84,6 +84,8 @@
                           <executable>python</executable>
                           <arguments>
                             <argument>create_jni.py</argument>
+                            <argument>--log-capi-invocation</argument>
+                            <argument>${log.capi.invocation}</argument>
                             <argument>--use-cuda</argument>
                             <argument>${use.cuda}</argument>
                           </arguments>
