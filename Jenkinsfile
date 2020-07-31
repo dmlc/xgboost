@@ -368,8 +368,10 @@ def TestPythonGPU(args) {
     def docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
     if (args.multi_gpu) {
       echo "Using multiple GPUs"
+      // Allocate extra space in /dev/shm to enable NCCL
+      def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='--shm-size=4g'"
       sh """
-      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh mgpu
+      ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh mgpu
       """
     } else {
       echo "Using a single GPU"
