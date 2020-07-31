@@ -16,14 +16,14 @@ xgb.dump(
 \arguments{
 \item{model}{the model object.}
 
-\item{fname}{the name of the text file where to save the model text dump. 
+\item{fname}{the name of the text file where to save the model text dump.
 If not provided or set to \code{NULL}, the model is returned as a \code{character} vector.}
 
 \item{fmap}{feature map file representing feature types.
-Detailed description could be found at 
+Detailed description could be found at
 \url{https://github.com/dmlc/xgboost/wiki/Binary-Classification#dump-model}.
 See demo/ for walkthrough example in R, and
-\url{https://github.com/dmlc/xgboost/blob/master/demo/data/featmap.txt} 
+\url{https://github.com/dmlc/xgboost/blob/master/demo/data/featmap.txt}
 for example Format.}
 
 \item{with_stats}{whether to dump some additional statistics about the splits.
@@ -47,7 +47,7 @@ data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
 train <- agaricus.train
 test <- agaricus.test
-bst <- xgboost(data = train$data, label = train$label, max_depth = 2, 
+bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
                eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
 # save the model in file 'xgb.model.dump'
 dump_path = file.path(tempdir(), 'model.dump')
