@@ -507,6 +507,9 @@ void DeleteRMMResource(RMMAllocator* r) {
 }
 
 RMMAllocatorPtr SetUpRMMResourceForCppTests() {
+  if (dmlc::GetEnv("XGBOOST_CPP_TEST_USE_RMM_POOL", 0) != 1) {
+    return RMMAllocatorPtr(nullptr, DeleteRMMResource);
+  }
   auto ptr = RMMAllocatorPtr(new RMMAllocator(), DeleteRMMResource);
   rmm::mr::set_default_resource(&ptr->cnmem_mr);
   return ptr;
