@@ -89,10 +89,11 @@ pipeline {
         script {
           parallel ([
             'test-python-cpu': { TestPythonCPU() },
-            'test-python-gpu-cuda10.2': { TestPythonGPU(host_cuda_version: '10.2', test_rmm: true) },
+            // artifact_cuda_version doesn't apply to RMM tests; RMM tests will always match CUDA version between artifact and host env
+            'test-python-gpu-cuda10.2': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '10.2', test_rmm: true) },
             'test-python-gpu-cuda11.0-cross': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '11.0') },
             'test-python-gpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0') },
-            'test-python-mgpu-cuda10.2': { TestPythonGPU(artifact_cuda_version: '10.2', host_cuda_version: '10.2', multi_gpu: true, test_rmm: true) },
+            'test-python-mgpu-cuda10.2': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '10.2', multi_gpu: true, test_rmm: true) },
             'test-cpp-gpu-cuda10.2': { TestCppGPU(artifact_cuda_version: '10.2', host_cuda_version: '10.2', test_rmm: true) },
             'test-cpp-gpu-cuda11.0': { TestCppGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0') },
             'test-jvm-jdk8-cuda10.0': { CrossTestJVMwithJDKGPU(artifact_cuda_version: '10.0', host_cuda_version: '10.0') },
@@ -388,8 +389,8 @@ def TestPythonGPU(args) {
     sh "${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh ${mgpu_indicator}"
     if (args.test_rmm) {
       sh "rm -rfv build/ python-package/dist/"
-      unstash name: "xgboost_whl_rmm_cuda${artifact_cuda_version}"
-      unstash name: "xgboost_cpp_tests_rmm_cuda${artifact_cuda_version}"
+      unstash name: "xgboost_whl_rmm_cuda${args.host_cuda_version}"
+      unstash name: "xgboost_cpp_tests_rmm_cuda${args.host_cuda_version}"
       sh "${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh ${mgpu_indicator}"
     }
     deleteDir()
@@ -423,7 +424,7 @@ def TestCppGPU(args) {
     sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} build/testxgboost"
     if (args.test_rmm) {
       sh "rm -rfv build/"
-      unstash name: "xgboost_cpp_tests_rmm_cuda${artifact_cuda_version}"
+      unstash name: "xgboost_cpp_tests_rmm_cuda${args.host_cuda_version}"
       echo "Test C++, CUDA ${args.host_cuda_version} with RMM"
       container_type = "rmm"
       docker_binary = "nvidia-docker"
