@@ -330,6 +330,10 @@ NULL
 #' The \code{\link{xgb.save.raw}} function is useful if you'd like to persist the XGBoost model
 #' as part of another R object.
 #'
+#' Note: Do not use \code{\link{xgb.serialize}} to store models long-term. It persists not only the
+#' model but also internal configurations and parameters, and its format is not stable across
+#' multiple XGBoost versions. Use \code{\link{xgb.serialize}} only for checkpointing.
+#'
 #' For more details and explanation about model persistence and archival, consult the page
 #' \url{https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html}.
 #'
