@@ -19,6 +19,7 @@ def test_basic_walkthrough():
     os.remove('dump.raw.txt')
 
 
+@pytest.mark.skipif(**tm.no_matplotlib())
 def test_custom_multiclass_objective():
     script = os.path.join(PYTHON_DEMO_DIR, 'custom_softmax.py')
     cmd = ['python', script, '--plot=0']
@@ -105,6 +106,8 @@ def test_evals_result_demo():
     subprocess.check_call(cmd)
 
 
+@pytest.mark.skipif(**tm.no_sklearn())
+@pytest.mark.skipif(**tm.no_pandas())
 def test_aft_demo():
     script = os.path.join(DEMO_DIR, 'aft_survival', 'aft_survival_demo.py')
     cmd = ['python', script]

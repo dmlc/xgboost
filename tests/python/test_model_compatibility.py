@@ -1,6 +1,7 @@
 import xgboost
 import os
 import generate_models as gm
+import testing as tm
 import json
 import zipfile
 import pytest
@@ -87,6 +88,7 @@ def run_scikit_model_check(name, path):
         assert False
 
 
+@pytest.mark.skipif(**tm.no_sklearn())
 def test_model_compatibility():
     '''Test model compatibility, can only be run on CI as others don't
     have the credentials.
