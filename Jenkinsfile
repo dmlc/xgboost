@@ -287,7 +287,7 @@ def BuildCUDA(args) {
       docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
       sh """
       rm -rf build/
-      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh --conda-env=rmm_test -DUSE_CUDA=ON -DUSE_NCCL=ON -DUSE_RMM=ON ${arch_flag}
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh --conda-env=gpu_test -DUSE_CUDA=ON -DUSE_NCCL=ON -DUSE_RMM=ON ${arch_flag}
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python tests/ci_build/rename_whl.py python-package/dist/*.whl ${commit_id} manylinux2010_x86_64
       """
@@ -430,7 +430,7 @@ def TestCppGPU(args) {
       docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
       echo "Using a single GPU"
       sh """
-      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate rmm_test && build/testxgboost --gtest_filter=-*DeathTest.*"
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate gpu_test && build/testxgboost --gtest_filter=-*DeathTest.*"
       """
     }
     deleteDir()
