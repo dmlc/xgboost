@@ -383,12 +383,14 @@ def TestPythonGPU(args) {
     def docker_binary = "nvidia-docker"
     def docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
     def mgpu_indicator = (args.multi_gpu) ? 'mgpu' : 'gpu'
-    sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh ${mgpu_indicator}"
+    // Allocate extra space in /dev/shm to enable NCCL
+    def docker_extra_params = (args.multi_gpu) ? "CI_DOCKER_EXTRA_PARAMS_INIT='--shm-size=4g'" : ''
+    sh "${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh ${mgpu_indicator}"
     if (args.test_rmm) {
       sh "rm -rfv build/ python-package/dist/"
       unstash name: "xgboost_whl_rmm_cuda${artifact_cuda_version}"
       unstash name: "xgboost_cpp_tests_rmm_cuda${artifact_cuda_version}"
-      sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh ${mgpu_indicator}"
+      sh "${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh ${mgpu_indicator}"
     }
     deleteDir()
   }
