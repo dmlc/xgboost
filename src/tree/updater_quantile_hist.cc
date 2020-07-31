@@ -1384,6 +1384,5 @@ XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMaker, "grow_quantile_histmaker")
     []() {
       return new QuantileHistMaker();
     });
-
 }  // namespace tree
 }  // namespace xgboost
