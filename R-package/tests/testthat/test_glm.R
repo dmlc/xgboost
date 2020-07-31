@@ -3,8 +3,8 @@ context('Test generalized linear models')
 require(xgboost)
 
 test_that("gblinear works", {
-  data(agaricus.train, package='xgboost')
-  data(agaricus.test, package='xgboost')
+  data(agaricus.train, package = 'xgboost')
+  data(agaricus.test, package = 'xgboost')
   dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
   dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
 
@@ -16,7 +16,7 @@ test_that("gblinear works", {
   ERR_UL <- 0.005 # upper limit for the test set error
   VERB <- 0      # chatterbox switch
 
-  param$updater = 'shotgun'
+  param$updater <- 'shotgun'
   bst <- xgb.train(param, dtrain, n, watchlist, verbose = VERB, feature_selector = 'shuffle')
   ypred <- predict(bst, dtest)
   expect_equal(length(getinfo(dtest, 'label')), 1611)
@@ -29,7 +29,7 @@ test_that("gblinear works", {
   expect_equal(dim(h), c(n, ncol(dtrain) + 1))
   expect_is(h, "matrix")
 
-  param$updater = 'coord_descent'
+  param$updater <- 'coord_descent'
   bst <- xgb.train(param, dtrain, n, watchlist, verbose = VERB, feature_selector = 'cyclic')
   expect_lt(bst$evaluation_log$eval_error[n], ERR_UL)
 

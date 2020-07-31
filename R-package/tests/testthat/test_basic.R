@@ -2,19 +2,19 @@ require(xgboost)
 
 context("basic functions")
 
-data(agaricus.train, package='xgboost')
-data(agaricus.test, package='xgboost')
+data(agaricus.train, package = 'xgboost')
+data(agaricus.test, package = 'xgboost')
 train <- agaricus.train
 test <- agaricus.test
 set.seed(1994)
 
 # disable some tests for Win32
-windows_flag = .Platform$OS.type == "windows" &&
+windows_flag <- .Platform$OS.type == "windows" &&
                .Machine$sizeof.pointer != 8
-solaris_flag = (Sys.info()['sysname'] == "SunOS")
+solaris_flag <- (Sys.info()['sysname'] == "SunOS")
 
 test_that("train and predict binary classification", {
-  nrounds = 2
+  nrounds <- 2
   expect_output(
     bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
                   eta = 1, nthread = 2, nrounds = nrounds, objective = "binary:logistic")
@@ -30,24 +30,24 @@ test_that("train and predict binary classification", {
 
   pred1 <- predict(bst, train$data, ntreelimit = 1)
   expect_length(pred1, 6513)
-  err_pred1 <- sum((pred1 > 0.5) != train$label)/length(train$label)
+  err_pred1 <- sum((pred1 > 0.5) != train$label) / length(train$label)
   err_log <- bst$evaluation_log[1, train_error]
   expect_lt(abs(err_pred1 - err_log), 10e-6)
 })
 
 test_that("parameter validation works", {
   p <- list(foo = "bar")
-  nrounds = 1
+  nrounds <- 1
   set.seed(1994)
 
   d <- cbind(
     x1 = rnorm(10),
     x2 = rnorm(10),
     x3 = rnorm(10))
-  y <- d[,"x1"] + d[,"x2"]^2 +
-    ifelse(d[,"x3"] > .5, d[,"x3"]^2, 2^d[,"x3"]) +
+  y <- d[, "x1"] + d[, "x2"]^2 +
+    ifelse(d[, "x3"] > .5, d[, "x3"]^2, 2^d[, "x3"]) +
     rnorm(10)
-  dtrain <- xgb.DMatrix(data=d, info = list(label=y))
+  dtrain <- xgb.DMatrix(data = d, info = list(label = y))
 
   correct <- function() {
     params <- list(max_depth = 2, booster = "dart",
@@ -70,15 +70,15 @@ test_that("parameter validation works", {
 
 
 test_that("dart prediction works", {
-  nrounds = 32
+  nrounds <- 32
   set.seed(1994)
 
   d <- cbind(
     x1 = rnorm(100),
     x2 = rnorm(100),
     x3 = rnorm(100))
-  y <- d[,"x1"] + d[,"x2"]^2 +
-    ifelse(d[,"x3"] > .5, d[,"x3"]^2, 2^d[,"x3"]) +
+  y <- d[, "x1"] + d[, "x2"]^2 +
+    ifelse(d[, "x3"] > .5, d[, "x3"]^2, 2^d[, "x3"]) +
     rnorm(100)
 
   set.seed(1994)
@@ -87,23 +87,23 @@ test_that("dart prediction works", {
                                 eta = 1, nthread = 2, nrounds = nrounds, objective = "reg:squarederror")
   pred_by_xgboost_0 <- predict(booster_by_xgboost, newdata = d, ntreelimit = 0)
   pred_by_xgboost_1 <- predict(booster_by_xgboost, newdata = d, ntreelimit = nrounds)
-  expect_true(all(matrix(pred_by_xgboost_0, byrow=TRUE) == matrix(pred_by_xgboost_1, byrow=TRUE)))
+  expect_true(all(matrix(pred_by_xgboost_0, byrow = TRUE) == matrix(pred_by_xgboost_1, byrow = TRUE)))
 
   pred_by_xgboost_2 <- predict(booster_by_xgboost, newdata = d, training = TRUE)
-  expect_false(all(matrix(pred_by_xgboost_0, byrow=TRUE) == matrix(pred_by_xgboost_2, byrow=TRUE)))
+  expect_false(all(matrix(pred_by_xgboost_0, byrow = TRUE) == matrix(pred_by_xgboost_2, byrow = TRUE)))
 
   set.seed(1994)
-  dtrain <- xgb.DMatrix(data=d, info = list(label=y))
-  booster_by_train <- xgb.train( params = list(
-                                   booster = "dart",
-                                   max_depth = 2,
-                                   eta = 1,
-                                   rate_drop = 0.5,
-                                   one_drop = TRUE,
-                                   nthread = 1,
-                                   tree_method= "exact",
-                                   objective = "reg:squarederror"
-                                 ),
+  dtrain <- xgb.DMatrix(data = d, info = list(label = y))
+  booster_by_train <- xgb.train(params = list(
+                                    booster = "dart",
+                                    max_depth = 2,
+                                    eta = 1,
+                                    rate_drop = 0.5,
+                                    one_drop = TRUE,
+                                    nthread = 1,
+                                    tree_method = "exact",
+                                    objective = "reg:squarederror"
+                                ),
                                 data = dtrain,
                                 nrounds = nrounds
                                 )
@@ -111,9 +111,9 @@ test_that("dart prediction works", {
   pred_by_train_1 <- predict(booster_by_train, newdata = dtrain, ntreelimit = nrounds)
   pred_by_train_2 <- predict(booster_by_train, newdata = dtrain, training = TRUE)
 
-  expect_true(all(matrix(pred_by_train_0, byrow=TRUE) == matrix(pred_by_xgboost_0, byrow=TRUE)))
-  expect_true(all(matrix(pred_by_train_1, byrow=TRUE) == matrix(pred_by_xgboost_1, byrow=TRUE)))
-  expect_true(all(matrix(pred_by_train_2, byrow=TRUE) == matrix(pred_by_xgboost_2, byrow=TRUE)))
+  expect_true(all(matrix(pred_by_train_0, byrow = TRUE) == matrix(pred_by_xgboost_0, byrow = TRUE)))
+  expect_true(all(matrix(pred_by_train_1, byrow = TRUE) == matrix(pred_by_xgboost_1, byrow = TRUE)))
+  expect_true(all(matrix(pred_by_train_2, byrow = TRUE) == matrix(pred_by_xgboost_2, byrow = TRUE)))
 })
 
 test_that("train and predict softprob", {
@@ -122,7 +122,7 @@ test_that("train and predict softprob", {
   expect_output(
     bst <- xgboost(data = as.matrix(iris[, -5]), label = lb,
                    max_depth = 3, eta = 0.5, nthread = 2, nrounds = 5,
-                   objective = "multi:softprob", num_class=3)
+                   objective = "multi:softprob", num_class = 3)
   , "train-merror")
   expect_false(is.null(bst$evaluation_log))
   expect_lt(bst$evaluation_log[, min(train_merror)], 0.025)
@@ -130,17 +130,17 @@ test_that("train and predict softprob", {
   pred <- predict(bst, as.matrix(iris[, -5]))
   expect_length(pred, nrow(iris) * 3)
   # row sums add up to total probability of 1:
-  expect_equal(rowSums(matrix(pred, ncol=3, byrow=TRUE)), rep(1, nrow(iris)), tolerance = 1e-7)
+  expect_equal(rowSums(matrix(pred, ncol = 3, byrow = TRUE)), rep(1, nrow(iris)), tolerance = 1e-7)
   # manually calculate error at the last iteration:
   mpred <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE)
   expect_equal(as.numeric(t(mpred)), pred)
   pred_labels <- max.col(mpred) - 1
-  err <- sum(pred_labels != lb)/length(lb)
+  err <- sum(pred_labels != lb) / length(lb)
   expect_equal(bst$evaluation_log[5, train_merror], err, tolerance = 5e-6)
   # manually calculate error at the 1st iteration:
   mpred <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE, ntreelimit = 1)
   pred_labels <- max.col(mpred) - 1
-  err <- sum(pred_labels != lb)/length(lb)
+  err <- sum(pred_labels != lb) / length(lb)
   expect_equal(bst$evaluation_log[1, train_merror], err, tolerance = 5e-6)
 })
 
@@ -150,7 +150,7 @@ test_that("train and predict softmax", {
   expect_output(
     bst <- xgboost(data = as.matrix(iris[, -5]), label = lb,
                    max_depth = 3, eta = 0.5, nthread = 2, nrounds = 5,
-                   objective = "multi:softmax", num_class=3)
+                   objective = "multi:softmax", num_class = 3)
   , "train-merror")
   expect_false(is.null(bst$evaluation_log))
   expect_lt(bst$evaluation_log[, min(train_merror)], 0.025)
@@ -158,7 +158,7 @@ test_that("train and predict softmax", {
 
   pred <- predict(bst, as.matrix(iris[, -5]))
   expect_length(pred, nrow(iris))
-  err <- sum(pred != lb)/length(lb)
+  err <- sum(pred != lb) / length(lb)
   expect_equal(bst$evaluation_log[5, train_merror], err, tolerance = 5e-6)
 })
 
@@ -173,12 +173,12 @@ test_that("train and predict RF", {
   expect_equal(xgb.ntree(bst), 20)
 
   pred <- predict(bst, train$data)
-  pred_err <- sum((pred > 0.5) != lb)/length(lb)
+  pred_err <- sum((pred > 0.5) != lb) / length(lb)
   expect_lt(abs(bst$evaluation_log[1, train_error] - pred_err), 10e-6)
   #expect_lt(pred_err, 0.03)
 
   pred <- predict(bst, train$data, ntreelimit = 20)
-  pred_err_20 <- sum((pred > 0.5) != lb)/length(lb)
+  pred_err_20 <- sum((pred > 0.5) != lb) / length(lb)
   expect_equal(pred_err_20, pred_err)
 
   #pred <- predict(bst, train$data, ntreelimit = 1)
@@ -193,19 +193,19 @@ test_that("train and predict RF with softprob", {
   set.seed(11)
   bst <- xgboost(data = as.matrix(iris[, -5]), label = lb,
                  max_depth = 3, eta = 0.9, nthread = 2, nrounds = nrounds,
-                 objective = "multi:softprob", num_class=3, verbose = 0,
+                 objective = "multi:softprob", num_class = 3, verbose = 0,
                  num_parallel_tree = 4, subsample = 0.5, colsample_bytree = 0.5)
   expect_equal(bst$niter, 15)
-  expect_equal(xgb.ntree(bst), 15*3*4)
+  expect_equal(xgb.ntree(bst), 15 * 3 * 4)
   # predict for all iterations:
-  pred <- predict(bst, as.matrix(iris[, -5]), reshape=TRUE)
+  pred <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE)
   expect_equal(dim(pred), c(nrow(iris), 3))
   pred_labels <- max.col(pred) - 1
-  err <- sum(pred_labels != lb)/length(lb)
+  err <- sum(pred_labels != lb) / length(lb)
   expect_equal(bst$evaluation_log[nrounds, train_merror], err, tolerance = 5e-6)
   # predict for 7 iterations and adjust for 4 parallel trees per iteration
-  pred <- predict(bst, as.matrix(iris[, -5]), reshape=TRUE, ntreelimit = 7 * 4)
-  err <- sum((max.col(pred) - 1) != lb)/length(lb)
+  pred <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE, ntreelimit = 7 * 4)
+  err <- sum((max.col(pred) - 1) != lb) / length(lb)
   expect_equal(bst$evaluation_log[7, train_merror], err, tolerance = 5e-6)
 })
 
@@ -223,7 +223,7 @@ test_that("use of multiple eval metrics works", {
 
 test_that("training continuation works", {
   dtrain <- xgb.DMatrix(train$data, label = train$label)
-  watchlist = list(train=dtrain)
+  watchlist <- list(train = dtrain)
   param <- list(objective = "binary:logistic", max_depth = 2, eta = 1, nthread = 2)
 
   # for the reference, use 4 iterations at once:
@@ -255,7 +255,7 @@ test_that("training continuation works", {
 test_that("model serialization works", {
   out_path <- "model_serialization"
   dtrain <- xgb.DMatrix(train$data, label = train$label)
-  watchlist = list(train=dtrain)
+  watchlist <- list(train = dtrain)
   param <- list(objective = "binary:logistic")
   booster <- xgb.train(param, dtrain, nrounds = 4, watchlist)
   raw <- xgb.serialize(booster)
@@ -273,7 +273,7 @@ test_that("xgb.cv works", {
   expect_output(
     cv <- xgb.cv(data = train$data, label = train$label, max_depth = 2, nfold = 5,
                  eta = 1., nthread = 2, nrounds = 2, objective = "binary:logistic",
-                 verbose=TRUE)
+                 verbose = TRUE)
   , "train-error:")
   expect_is(cv, 'xgb.cv.synchronous')
   expect_false(is.null(cv$evaluation_log))
@@ -292,11 +292,11 @@ test_that("xgb.cv works with stratified folds", {
   set.seed(314159)
   cv <- xgb.cv(data = dtrain, max_depth = 2, nfold = 5,
                eta = 1., nthread = 2, nrounds = 2, objective = "binary:logistic",
-               verbose=TRUE, stratified = FALSE)
+               verbose = TRUE, stratified = FALSE)
   set.seed(314159)
   cv2 <- xgb.cv(data = dtrain, max_depth = 2, nfold = 5,
                 eta = 1., nthread = 2, nrounds = 2, objective = "binary:logistic",
-                verbose=TRUE, stratified = TRUE)
+                verbose = TRUE, stratified = TRUE)
   # Stratified folds should result in a different evaluation logs
   expect_true(all(cv$evaluation_log[, test_error_mean] != cv2$evaluation_log[, test_error_mean]))
 })
@@ -319,7 +319,7 @@ test_that("train and predict with non-strict classes", {
   expect_equal(pr0, pr)
 
   # dense matrix-like input of non-matrix class with some inheritance
-  class(train_dense) <- c('pphmatrix','shmatrix')
+  class(train_dense) <- c('pphmatrix', 'shmatrix')
   expect_true(is.matrix(train_dense))
   expect_error(
     bst <- xgboost(data = train_dense, label = train$label, max_depth = 2,
@@ -337,15 +337,15 @@ test_that("train and predict with non-strict classes", {
 test_that("max_delta_step works", {
   dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
   watchlist <- list(train = dtrain)
-  param <- list(objective = "binary:logistic", eval_metric="logloss", max_depth = 2, nthread = 2, eta = 0.5)
-  nrounds = 5
+  param <- list(objective = "binary:logistic", eval_metric = "logloss", max_depth = 2, nthread = 2, eta = 0.5)
+  nrounds <- 5
   # model with no restriction on max_delta_step
   bst1 <- xgb.train(param, dtrain, nrounds, watchlist, verbose = 1)
   # model with restricted max_delta_step
   bst2 <- xgb.train(param, dtrain, nrounds, watchlist, verbose = 1, max_delta_step = 1)
   # the no-restriction model is expected to have consistently lower loss during the initial interations
   expect_true(all(bst1$evaluation_log$train_logloss < bst2$evaluation_log$train_logloss))
-  expect_lt(mean(bst1$evaluation_log$train_logloss)/mean(bst2$evaluation_log$train_logloss), 0.8)
+  expect_lt(mean(bst1$evaluation_log$train_logloss) / mean(bst2$evaluation_log$train_logloss), 0.8)
 })
 
 test_that("colsample_bytree works", {

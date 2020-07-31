@@ -427,6 +427,8 @@ void JsonReader::Error(std::string msg) const {
   for (auto c : raw_portion) {
     if (c == '\n') {
       portion += "\\n";
+    } else if (c == '\0') {
+      portion += "\\0";
     } else {
       portion += c;
     }

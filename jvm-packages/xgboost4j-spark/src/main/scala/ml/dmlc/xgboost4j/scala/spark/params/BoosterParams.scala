@@ -18,7 +18,7 @@ package ml.dmlc.xgboost4j.scala.spark.params
 
 import scala.collection.immutable.HashSet
 
-import org.apache.spark.ml.param.{DoubleParam, IntParam, Param, Params}
+import org.apache.spark.ml.param.{DoubleParam, IntParam, BooleanParam, Param, Params}
 
 private[spark] trait BoosterParams extends Params {
 
@@ -145,11 +145,12 @@ private[spark] trait BoosterParams extends Params {
   final def getAlpha: Double = $(alpha)
 
   /**
-   * The tree construction algorithm used in XGBoost. options: {'auto', 'exact', 'approx'}
-   *  [default='auto']
+   * The tree construction algorithm used in XGBoost. options:
+   * {'auto', 'exact', 'approx','gpu_hist'} [default='auto']
    */
   final val treeMethod = new Param[String](this, "treeMethod",
-    "The tree construction algorithm used in XGBoost, options: {'auto', 'exact', 'approx', 'hist'}",
+    "The tree construction algorithm used in XGBoost, options: " +
+      "{'auto', 'exact', 'approx', 'hist', 'gpu_hist'}",
     (value: String) => BoosterParams.supportedTreeMethods.contains(value))
 
   final def getTreeMethod: String = $(treeMethod)
@@ -172,6 +173,14 @@ private[spark] trait BoosterParams extends Params {
     (value: Int) => value > 0)
 
   final def getMaxBins: Int = $(maxBins)
+
+  /**
+   * whether to build histograms using single precision floating point values
+   */
+  final val singlePrecisionHistogram = new BooleanParam(this, "singlePrecisionHistogram",
+    "whether to use single precision to build histograms")
+
+  final def getSinglePrecisionHistogram: Boolean = $(singlePrecisionHistogram)
 
   /**
    * This is only used for approximate greedy algorithm.
@@ -284,7 +293,7 @@ private[spark] object BoosterParams {
 
   val supportedBoosters = HashSet("gbtree", "gblinear", "dart")
 
-  val supportedTreeMethods = HashSet("auto", "exact", "approx", "hist")
+  val supportedTreeMethods = HashSet("auto", "exact", "approx", "hist", "gpu_hist")
 
   val supportedGrowthPolicies = HashSet("depthwise", "lossguide")
 

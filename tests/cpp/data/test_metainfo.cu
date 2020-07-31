@@ -77,7 +77,6 @@ TEST(MetaInfo, FromInterface) {
 
 TEST(MetaInfo, Group) {
   cudaSetDevice(0);
-
   MetaInfo info;
 
   thrust::device_vector<uint32_t> d_uint;
@@ -104,5 +103,26 @@ TEST(MetaInfo, Group) {
   std::string float_str = PrepareData<float>("<f4", &d_float);
   info = MetaInfo();
   EXPECT_ANY_THROW(info.SetInfo("group", float_str.c_str()));
+}
+
+TEST(MetaInfo, DeviceExtend) {
+  dh::safe_cuda(cudaSetDevice(0));
+  size_t const kRows = 100;
+  MetaInfo lhs, rhs;
+
+  thrust::device_vector<float> d_data;
+  std::string str = PrepareData<float>("<f4", &d_data, kRows);
+  lhs.SetInfo("label", str.c_str());
+  rhs.SetInfo("label", str.c_str());
+  ASSERT_FALSE(rhs.labels_.HostCanRead());
+  lhs.num_row_ = kRows;
+  rhs.num_row_ = kRows;
+
+  lhs.Extend(rhs, true);
+  ASSERT_EQ(lhs.num_row_, kRows * 2);
+  ASSERT_FALSE(lhs.labels_.HostCanRead());
+
+  ASSERT_FALSE(lhs.labels_.HostCanRead());
+  ASSERT_FALSE(rhs.labels_.HostCanRead());
 }
 }  // namespace xgboost

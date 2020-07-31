@@ -4,6 +4,7 @@ import xgboost as xgb
 import sys
 import numpy as np
 import json
+import asyncio
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -128,8 +129,7 @@ def test_dask_missing_value_reg():
 
 
 def test_dask_missing_value_cls():
-    # Multi-class doesn't handle empty DMatrix well.  So we use lesser workers.
-    with LocalCluster(n_workers=2) as cluster:
+    with LocalCluster() as cluster:
         with Client(cluster) as client:
             X_0 = np.ones((kRows // 2, kCols))
             X_1 = np.zeros((kRows // 2, kCols))
@@ -234,7 +234,7 @@ def test_sklearn_grid_search():
             assert len(means) == len(set(means))
 
 
-def run_empty_dmatrix(client, parameters):
+def run_empty_dmatrix_reg(client, parameters):
 
     def _check_outputs(out, predictions):
         assert isinstance(out['booster'], xgb.dask.Booster)
@@ -271,6 +271,46 @@ def run_empty_dmatrix(client, parameters):
     _check_outputs(out, predictions)
 
 
+def run_empty_dmatrix_cls(client, parameters):
+    n_classes = 4
+
+    def _check_outputs(out, predictions):
+        assert isinstance(out['booster'], xgb.dask.Booster)
+        assert len(out['history']['validation']['merror']) == 2
+        assert isinstance(predictions, np.ndarray)
+        assert predictions.shape[1] == n_classes, predictions.shape
+
+    kRows, kCols = 1, 97
+    X = dd.from_array(np.random.randn(kRows, kCols))
+    y = dd.from_array(np.random.randint(low=0, high=n_classes, size=kRows))
+    dtrain = xgb.dask.DaskDMatrix(client, X, y)
+    parameters['objective'] = 'multi:softprob'
+    parameters['num_class'] = n_classes
+
+    out = xgb.dask.train(client, parameters,
+                         dtrain=dtrain,
+                         evals=[(dtrain, 'validation')],
+                         num_boost_round=2)
+    predictions = xgb.dask.predict(client=client, model=out,
+                                   data=dtrain).compute()
+    _check_outputs(out, predictions)
+
+    # train has more rows than evals
+    valid = dtrain
+    kRows += 1
+    X = dd.from_array(np.random.randn(kRows, kCols))
+    y = dd.from_array(np.random.randint(low=0, high=n_classes, size=kRows))
+    dtrain = xgb.dask.DaskDMatrix(client, X, y)
+
+    out = xgb.dask.train(client, parameters,
+                         dtrain=dtrain,
+                         evals=[(valid, 'validation')],
+                         num_boost_round=2)
+    predictions = xgb.dask.predict(client=client, model=out,
+                                   data=valid).compute()
+    _check_outputs(out, predictions)
+
+
 # No test for Exact, as empty DMatrix handling are mostly for distributed
 # environment and Exact doesn't support it.
 
@@ -278,11 +318,106 @@ def test_empty_dmatrix_hist():
     with LocalCluster(n_workers=5) as cluster:
         with Client(cluster) as client:
             parameters = {'tree_method': 'hist'}
-            run_empty_dmatrix(client, parameters)
+            run_empty_dmatrix_reg(client, parameters)
+            run_empty_dmatrix_cls(client, parameters)
 
 
 def test_empty_dmatrix_approx():
     with LocalCluster(n_workers=5) as cluster:
         with Client(cluster) as client:
             parameters = {'tree_method': 'approx'}
-            run_empty_dmatrix(client, parameters)
+            run_empty_dmatrix_reg(client, parameters)
+            run_empty_dmatrix_cls(client, parameters)
+
+
+async def run_from_dask_array_asyncio(scheduler_address):
+    async with Client(scheduler_address, asynchronous=True) as client:
+        X, y = generate_array()
+        m = await DaskDMatrix(client, X, y)
+        output = await xgb.dask.train(client, {}, dtrain=m)
+
+        with_m = await xgb.dask.predict(client, output, m)
+        with_X = await xgb.dask.predict(client, output, X)
+        inplace = await xgb.dask.inplace_predict(client, output, X)
+        assert isinstance(with_m, da.Array)
+        assert isinstance(with_X, da.Array)
+        assert isinstance(inplace, da.Array)
+
+        np.testing.assert_allclose(await client.compute(with_m),
+                                   await client.compute(with_X))
+        np.testing.assert_allclose(await client.compute(with_m),
+                                   await client.compute(inplace))
+
+        client.shutdown()
+        return output
+
+
+async def run_dask_regressor_asyncio(scheduler_address):
+    async with Client(scheduler_address, asynchronous=True) as client:
+        X, y = generate_array()
+        regressor = await xgb.dask.DaskXGBRegressor(verbosity=1,
+                                                    n_estimators=2)
+        regressor.set_params(tree_method='hist')
+        regressor.client = client
+        await regressor.fit(X, y, eval_set=[(X, y)])
+        prediction = await regressor.predict(X)
+
+        assert prediction.ndim == 1
+        assert prediction.shape[0] == kRows
+
+        history = regressor.evals_result()
+
+        assert isinstance(prediction, da.Array)
+        assert isinstance(history, dict)
+
+        assert list(history['validation_0'].keys())[0] == 'rmse'
+        assert len(history['validation_0']['rmse']) == 2
+
+
+async def run_dask_classifier_asyncio(scheduler_address):
+    async with Client(scheduler_address, asynchronous=True) as client:
+        X, y = generate_array()
+        y = (y * 10).astype(np.int32)
+        classifier = await xgb.dask.DaskXGBClassifier(
+            verbosity=1, n_estimators=2)
+        classifier.client = client
+        await classifier.fit(X, y,  eval_set=[(X, y)])
+        prediction = await classifier.predict(X)
+
+        assert prediction.ndim == 1
+        assert prediction.shape[0] == kRows
+
+        history = classifier.evals_result()
+
+        assert isinstance(prediction, da.Array)
+        assert isinstance(history, dict)
+
+        assert list(history.keys())[0] == 'validation_0'
+        assert list(history['validation_0'].keys())[0] == 'merror'
+        assert len(list(history['validation_0'])) == 1
+        assert len(history['validation_0']['merror']) == 2
+
+        assert classifier.n_classes_ == 10
+
+        # Test with dataframe.
+        X_d = dd.from_dask_array(X)
+        y_d = dd.from_dask_array(y)
+        await classifier.fit(X_d, y_d)
+
+        assert classifier.n_classes_ == 10
+        prediction = await classifier.predict(X_d)
+
+        assert prediction.ndim == 1
+        assert prediction.shape[0] == kRows
+
+
+def test_with_asyncio():
+    with LocalCluster() as cluster:
+        with Client(cluster) as client:
+            address = client.scheduler.address
+            output = asyncio.run(run_from_dask_array_asyncio(address))
+            assert isinstance(output['booster'], xgb.Booster)
+            assert isinstance(output['history'], dict)
+
+            asyncio.run(run_dask_regressor_asyncio(address))
+            asyncio.run(run_dask_classifier_asyncio(address))

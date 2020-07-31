@@ -102,23 +102,26 @@ template GradientPair CreateRoundingFactor(common::Span<GradientPair const> gpai
 
 template <typename GradientSumT>
 __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
+                                    FeatureGroupsAccessor feature_groups,
                                     common::Span<const RowPartitioner::RowIndexT> d_ridx,
                                     GradientSumT* __restrict__ d_node_hist,
                                     const GradientPair* __restrict__ d_gpair,
-                                    size_t n_elements,
                                     GradientSumT const rounding,
                                     bool use_shared_memory_histograms) {
   using T = typename GradientSumT::ValueT;
   extern __shared__ char smem[];
+  FeatureGroup group = feature_groups[blockIdx.y];
   GradientSumT* smem_arr = reinterpret_cast<GradientSumT*>(smem);  // NOLINT
   if (use_shared_memory_histograms) {
-    dh::BlockFill(smem_arr, matrix.NumBins(), GradientSumT());
+    dh::BlockFill(smem_arr, group.num_bins, GradientSumT());
     __syncthreads();
   }
+  int feature_stride = matrix.is_dense ? group.num_features : matrix.row_stride;
+  size_t n_elements = feature_stride * d_ridx.size();
   for (auto idx : dh::GridStrideRange(static_cast<size_t>(0), n_elements)) {
-    int ridx = d_ridx[idx / matrix.row_stride];
-    int gidx =
-        matrix.gidx_iter[ridx * matrix.row_stride + idx % matrix.row_stride];
+    int ridx = d_ridx[idx / feature_stride];
+    int gidx = matrix.gidx_iter[ridx * matrix.row_stride + group.start_feature +
+                                idx % feature_stride];
     if (gidx != matrix.NumBins()) {
       GradientSumT truncated {
         TruncateWithRoundingFactor<T>(rounding.GetGrad(), d_gpair[ridx].GetGrad()),
@@ -127,7 +130,8 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
       // If we are not using shared memory, accumulate the values directly into
       // global memory
       GradientSumT* atomic_add_ptr =
-          use_shared_memory_histograms ? smem_arr : d_node_hist;
+        use_shared_memory_histograms ? smem_arr : d_node_hist;
+      gidx = use_shared_memory_histograms ? gidx - group.start_bin : gidx;
       dh::AtomicAddGpair(atomic_add_ptr + gidx, truncated);
     }
   }
@@ -135,18 +139,21 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
   if (use_shared_memory_histograms) {
     // Write shared memory back to global memory
     __syncthreads();
-    for (auto i : dh::BlockStrideRange(static_cast<size_t>(0), matrix.NumBins())) {
-      GradientSumT truncated {
-        TruncateWithRoundingFactor<T>(rounding.GetGrad(), smem_arr[i].GetGrad()),
-        TruncateWithRoundingFactor<T>(rounding.GetHess(), smem_arr[i].GetHess()),
+    for (auto i : dh::BlockStrideRange(0, group.num_bins)) {
+      GradientSumT truncated{
+          TruncateWithRoundingFactor<T>(rounding.GetGrad(),
+                                        smem_arr[i].GetGrad()),
+          TruncateWithRoundingFactor<T>(rounding.GetHess(),
+                                        smem_arr[i].GetHess()),
       };
-      dh::AtomicAddGpair(d_node_hist + i, truncated);
+      dh::AtomicAddGpair(d_node_hist + group.start_bin + i, truncated);
     }
   }
 }
 
 template <typename GradientSumT>
 void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
+                            FeatureGroupsAccessor const& feature_groups,
                             common::Span<GradientPair const> gpair,
                             common::Span<const uint32_t> d_ridx,
                             common::Span<GradientSumT> histogram,
@@ -155,7 +162,7 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   int device = 0;
   dh::safe_cuda(cudaGetDevice(&device));
   int max_shared_memory = dh::MaxSharedMemoryOptin(device);
-  size_t smem_size = sizeof(GradientSumT) * matrix.NumBins();
+  size_t smem_size = sizeof(GradientSumT) * feature_groups.max_group_bins;
   bool shared = smem_size <= max_shared_memory;
   smem_size = shared ? smem_size : 0;
 
@@ -168,7 +175,12 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   }
 
   // determine the launch configuration
-  unsigned block_threads = shared ? 1024 : 256;
+  int min_grid_size;
+  int block_threads = 1024;
+  dh::safe_cuda(cudaOccupancyMaxPotentialBlockSize(
+      &min_grid_size, &block_threads, kernel, smem_size, 0));
+
+  int num_groups = feature_groups.NumGroups();
   int n_mps = 0;
   dh::safe_cuda(cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, device));
   int n_blocks_per_mp = 0;
@@ -176,15 +188,32 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
                 (&n_blocks_per_mp, kernel, block_threads, smem_size));
   unsigned grid_size = n_blocks_per_mp * n_mps;
 
-  auto n_elements = d_ridx.size() * matrix.row_stride;
-  dh::LaunchKernel {grid_size, block_threads, smem_size} (
-      kernel, matrix, d_ridx, histogram.data(), gpair.data(), n_elements,
-      rounding, shared);
+  // TODO(canonizer): This is really a hack, find a better way to distribute the
+  // data among thread blocks.
+  // The intention is to generate enough thread blocks to fill the GPU, but
+  // avoid having too many thread blocks, as this is less efficient when the
+  // number of rows is low. At least one thread block per feature group is
+  // required.
+  // The number of thread blocks:
+  // - for num_groups <= num_groups_threshold, around  grid_size * num_groups
+  // - for num_groups_threshold <= num_groups <= num_groups_threshold * grid_size,
+  //     around grid_size * num_groups_threshold
+  // - for num_groups_threshold * grid_size <= num_groups, around num_groups
+  int num_groups_threshold = 4;
+  grid_size = common::DivRoundUp(grid_size,
+      common::DivRoundUp(num_groups, num_groups_threshold));
+
+  dh::LaunchKernel {
+    dim3(grid_size, num_groups), static_cast<uint32_t>(block_threads), smem_size} (
+      kernel,
+      matrix, feature_groups, d_ridx, histogram.data(), gpair.data(), rounding,
+      shared);
   dh::safe_cuda(cudaGetLastError());
 }
 
 template void BuildGradientHistogram<GradientPair>(
     EllpackDeviceAccessor const& matrix,
+    FeatureGroupsAccessor const& feature_groups,
     common::Span<GradientPair const> gpair,
     common::Span<const uint32_t> ridx,
     common::Span<GradientPair> histogram,
@@ -192,6 +221,7 @@ template void BuildGradientHistogram<GradientPair>(
 
 template void BuildGradientHistogram<GradientPairPrecise>(
     EllpackDeviceAccessor const& matrix,
+    FeatureGroupsAccessor const& feature_groups,
     common::Span<GradientPair const> gpair,
     common::Span<const uint32_t> ridx,
     common::Span<GradientPairPrecise> histogram,

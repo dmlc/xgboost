@@ -44,21 +44,8 @@ case "$suite" in
     cd -
     ;;
 
-  cudf)
-    source activate cudf_test
-    install_xgboost
-    pytest -v -s -rxXs --fulltrace -m "not mgpu" \
-           tests/python-gpu/test_from_cudf.py tests/python-gpu/test_from_cupy.py \
-	   tests/python-gpu/test_gpu_prediction.py
-    ;;
-
-  mgpu-cudf)
-    source activate cudf_test
-    install_xgboost
-    pytest -v -s -rxXs --fulltrace -m "mgpu" tests/python-gpu/test_gpu_with_dask.py
-    ;;
-
   cpu)
+    source activate cpu_test
     install_xgboost
     pytest -v -s --fulltrace tests/python
     cd tests/distributed
@@ -66,7 +53,7 @@ case "$suite" in
     ;;
 
   *)
-    echo "Usage: $0 {gpu|mgpu|cudf|cpu}"
+    echo "Usage: $0 {gpu|mgpu|cpu}"
     exit 1
     ;;
 esac

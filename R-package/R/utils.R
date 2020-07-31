@@ -69,23 +69,23 @@ check.booster.params <- function(params, ...) {
 
   if (!is.null(params[['monotone_constraints']]) &&
       typeof(params[['monotone_constraints']]) != "character") {
-        vec2str = paste(params[['monotone_constraints']], collapse = ',')
-        vec2str = paste0('(', vec2str, ')')
-        params[['monotone_constraints']] = vec2str
+        vec2str <- paste(params[['monotone_constraints']], collapse = ',')
+        vec2str <- paste0('(', vec2str, ')')
+        params[['monotone_constraints']] <- vec2str
   }
 
   # interaction constraints parser (convert from list of column indices to string)
   if (!is.null(params[['interaction_constraints']]) &&
       typeof(params[['interaction_constraints']]) != "character"){
     # check input class
-    if (!identical(class(params[['interaction_constraints']]),'list')) stop('interaction_constraints should be class list')
-    if (!all(unique(sapply(params[['interaction_constraints']], class)) %in% c('numeric','integer'))) {
+    if (!identical(class(params[['interaction_constraints']]), 'list')) stop('interaction_constraints should be class list')
+    if (!all(unique(sapply(params[['interaction_constraints']], class)) %in% c('numeric', 'integer'))) {
       stop('interaction_constraints should be a list of numeric/integer vectors')
     }
 
     # recast parameter as string
-    interaction_constraints <- sapply(params[['interaction_constraints']], function(x) paste0('[', paste(x, collapse=','), ']'))
-    params[['interaction_constraints']] <- paste0('[', paste(interaction_constraints, collapse=','), ']')
+    interaction_constraints <- sapply(params[['interaction_constraints']], function(x) paste0('[', paste(x, collapse = ','), ']'))
+    params[['interaction_constraints']] <- paste0('[', paste(interaction_constraints, collapse = ','), ']')
   }
   return(params)
 }
@@ -145,7 +145,8 @@ xgb.iter.update <- function(booster_handle, dtrain, iter, obj = NULL) {
   if (is.null(obj)) {
     .Call(XGBoosterUpdateOneIter_R, booster_handle, as.integer(iter), dtrain)
   } else {
-    pred <- predict(booster_handle, dtrain, outputmargin = TRUE, training = TRUE)
+    pred <- predict(booster_handle, dtrain, outputmargin = TRUE, training = TRUE,
+                    ntreelimit = 0)
     gpair <- obj(pred, dtrain)
     .Call(XGBoosterBoostOneIter_R, booster_handle, dtrain, gpair$grad, gpair$hess)
   }
@@ -167,12 +168,12 @@ xgb.iter.eval <- function(booster_handle, watchlist, iter, feval = NULL) {
   if (is.null(feval)) {
     msg <- .Call(XGBoosterEvalOneIter_R, booster_handle, as.integer(iter), watchlist, as.list(evnames))
     msg <- stri_split_regex(msg, '(\\s+|:|\\s+)')[[1]][-1]
-    res <- as.numeric(msg[c(FALSE,TRUE)]) # even indices are the values
-    names(res) <- msg[c(TRUE,FALSE)]      # odds are the names
+    res <- as.numeric(msg[c(FALSE, TRUE)]) # even indices are the values
+    names(res) <- msg[c(TRUE, FALSE)]      # odds are the names
   } else {
     res <- sapply(seq_along(watchlist), function(j) {
       w <- watchlist[[j]]
-      preds <- predict(booster_handle, w) # predict using all trees
+      preds <- predict(booster_handle, w, outputmargin = TRUE, ntreelimit = 0) # predict using all trees
       eval_res <- feval(preds, w)
       out <- eval_res$value
       names(out) <- paste0(evnames[j], "-", eval_res$metric)
@@ -307,6 +308,20 @@ xgb.createFolds <- function(y, k = 10)
 #' @name xgboost-deprecated
 NULL
 
+#' Do not use saveRDS() for long-term archival of models. Use xgb.save() instead.
+#'
+#' It is a common practice to use the built-in \code{saveRDS()} function to persist R objects to
+#' the disk. While \code{xgb.Booster} objects can be persisted with \code{saveRDS()} as well, it
+#' is not advisable to use it if the model is to be accessed in the future. If you train a model
+#' with the current version of XGBoost and persist it with \code{saveRDS()}, the model is not
+#' guaranteed to be accessible in later releases of XGBoost. To ensure that your model can be
+#' accessed in future releases of XGBoost, use \code{xgb.save()} instead. For more details and
+#' explanation, consult the page
+#' \url{https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html}.
+#'
+#' @name a-compatibility-note-for-saveRDS
+NULL
+
 # Lookup table for the deprecated parameters bookkeeping
 depr_par_lut <- matrix(c(
   'print.every.n', 'print_every_n',
@@ -315,8 +330,8 @@ depr_par_lut <- matrix(c(
   'with.stats', 'with_stats',
   'numberOfClusters', 'n_clusters',
   'features.keep', 'features_keep',
-  'plot.height','plot_height',
-  'plot.width','plot_width',
+  'plot.height', 'plot_height',
+  'plot.width', 'plot_width',
   'n_first_tree', 'trees',
   'dummy', 'DUMMY'
 ), ncol = 2, byrow = TRUE)
@@ -329,20 +344,20 @@ colnames(depr_par_lut) <- c('old', 'new')
 check.deprecation <- function(..., env = parent.frame()) {
   pars <- list(...)
   # exact and partial matches
-  all_match <- pmatch(names(pars), depr_par_lut[,1])
+  all_match <- pmatch(names(pars), depr_par_lut[, 1])
   # indices of matched pars' names
   idx_pars <- which(!is.na(all_match))
   if (length(idx_pars) == 0) return()
   # indices of matched LUT rows
   idx_lut <- all_match[idx_pars]
   # which of idx_lut were the exact matches?
-  ex_match <- depr_par_lut[idx_lut,1] %in% names(pars)
+  ex_match <- depr_par_lut[idx_lut, 1] %in% names(pars)
   for (i in seq_along(idx_pars)) {
     pars_par <- names(pars)[idx_pars[i]]
     old_par <- depr_par_lut[idx_lut[i], 1]
     new_par <- depr_par_lut[idx_lut[i], 2]
     if (!ex_match[i]) {
-      warning("'", pars_par, "' was partially matched to '", old_par,"'")
+      warning("'", pars_par, "' was partially matched to '", old_par, "'")
     }
     .Deprecated(new_par, old = old_par, package = 'xgboost')
     if (new_par != 'NULL') {

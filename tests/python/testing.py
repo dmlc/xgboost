@@ -1,10 +1,12 @@
 # coding: utf-8
+import os
 from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
 from xgboost.compat import DASK_INSTALLED
 from hypothesis import strategies
 from hypothesis.extra.numpy import arrays
 from joblib import Memory
 from sklearn import datasets
+import tempfile
 import xgboost as xgb
 import numpy as np
 
@@ -96,6 +98,26 @@ def no_json_schema():
         return {'condition': True, 'reason': reason}
 
 
+def no_graphviz():
+    reason = 'graphviz is not installed'
+    try:
+        import graphviz  # noqa
+        return {'condition': False, 'reason': reason}
+    except ImportError:
+        return {'condition': True, 'reason': reason}
+
+
+def no_multiple(*args):
+    condition = False
+    reason = ''
+    for arg in args:
+        condition = (condition or arg['condition'])
+        if arg['condition']:
+            reason = arg['reason']
+            break
+    return {'condition': condition, 'reason': reason}
+
+
 # Contains a dataset in numpy format as well as the relevant objective and metric
 class TestDataset:
     def __init__(self, name, get_dataset, objective, metric
@@ -123,10 +145,15 @@ class TestDataset:
         return xgb.DeviceQuantileDMatrix(X, y, w)
 
     def get_external_dmat(self):
-        np.savetxt('tmptmp_1234.csv', np.hstack((self.y.reshape(len(self.y), 1), self.X)),
-                   delimiter=',')
-        return xgb.DMatrix('tmptmp_1234.csv?format=csv&label_column=0#tmptmp_',
-                           weight=self.w)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, 'tmptmp_1234.csv')
+            np.savetxt(path,
+                       np.hstack((self.y.reshape(len(self.y), 1), self.X)),
+                       delimiter=',')
+            uri = path + '?format=csv&label_column=0#tmptmp_'
+            # The uri looks like:
+            # 'tmptmp_1234.csv?format=csv&label_column=0#tmptmp_'
+            return xgb.DMatrix(uri, weight=self.w)
 
     def __repr__(self):
         return self.name
@@ -181,6 +208,7 @@ def _dataset_and_weight(draw):
         data.w = draw(arrays(np.float64, (len(data.y)), elements=strategies.floats(0.1, 2.0)))
     return data
 
+
 # A strategy for drawing from a set of example datasets
 # May add random weights to the dataset
 dataset_strategy = _dataset_and_weight()
@@ -188,3 +216,8 @@ dataset_strategy = _dataset_and_weight()
 
 def non_increasing(L, tolerance=1e-4):
     return all((y - x) < tolerance for x, y in zip(L, L[1:]))
+
+
+CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
+PROJECT_ROOT = os.path.normpath(
+    os.path.join(CURDIR, os.path.pardir, os.path.pardir))

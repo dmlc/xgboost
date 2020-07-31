@@ -21,19 +21,23 @@ import org.apache.spark.Partitioner
 import org.apache.spark.ml.feature.VectorAssembler
 import org.apache.spark.sql.SparkSession
 import org.scalatest.FunSuite
+import org.apache.spark.sql.functions._
 
 import scala.util.Random
 
 class FeatureSizeValidatingSuite extends FunSuite with PerTest {
 
-  test("transform throwing exception if feature size of dataset is different with model's") {
+  test("transform throwing exception if feature size of dataset is greater than model's") {
     val modelPath = getClass.getResource("/model/0.82/model").getPath
     val model = XGBoostClassificationModel.read.load(modelPath)
     val r = new Random(0)
     // 0.82/model was trained with 251 features. and transform will throw exception
     // if feature size of data is not equal to 251
-    val df = ss.createDataFrame(Seq.fill(100)(r.nextInt(2)).map(i => (i, i))).
+    var df = ss.createDataFrame(Seq.fill(100)(r.nextInt(2)).map(i => (i, i))).
       toDF("feature", "label")
+    for (x <- 1 to 252) {
+      df = df.withColumn(s"feature_${x}", lit(1))
+    }
     val assembler = new VectorAssembler()
       .setInputCols(df.columns.filter(!_.contains("label")))
       .setOutputCol("features")
@@ -67,5 +71,4 @@ class FeatureSizeValidatingSuite extends FunSuite with PerTest {
       xgb.fit(repartitioned)
     }
   }
-
 }

@@ -31,7 +31,12 @@ enum class DataType : uint8_t {
   kFloat32 = 1,
   kDouble = 2,
   kUInt32 = 3,
-  kUInt64 = 4
+  kUInt64 = 4,
+  kStr = 5
+};
+
+enum class FeatureType : uint8_t {
+  kNumerical
 };
 
 /*!
@@ -40,7 +45,7 @@ enum class DataType : uint8_t {
 class MetaInfo {
  public:
   /*! \brief number of data fields in MetaInfo */
-  static constexpr uint64_t kNumField = 9;
+  static constexpr uint64_t kNumField = 11;
 
   /*! \brief number of rows in the data */
   uint64_t num_row_{0};  // NOLINT
@@ -71,6 +76,19 @@ class MetaInfo {
    * \brief upper bound of the label, to be used for survival analysis (censored regression)
    */
   HostDeviceVector<bst_float> labels_upper_bound_;  // NOLINT
+
+  /*!
+   * \brief Name of type for each feature provided by users. Eg. "int"/"float"/"i"/"q"
+   */
+  std::vector<std::string> feature_type_names;
+  /*!
+   * \brief Name for each feature.
+   */
+  std::vector<std::string> feature_names;
+  /*
+   * \brief Type of each feature.  Automatically set when feature_type_names is specifed.
+   */
+  HostDeviceVector<FeatureType> feature_types;
 
   /*! \brief default constructor */
   MetaInfo()  = default;
@@ -157,6 +175,22 @@ class MetaInfo {
    *        Right now only 1 column is permitted.
    */
   void SetInfo(const char* key, std::string const& interface_str);
+
+  void GetInfo(char const* key, bst_ulong* out_len, DataType dtype,
+               const void** out_dptr) const;
+
+  void SetFeatureInfo(const char *key, const char **info, const bst_ulong size);
+  void GetFeatureInfo(const char *field, std::vector<std::string>* out_str_vecs) const;
+
+  /*
+   * \brief Extend with other MetaInfo.
+   *
+   * \param that The other MetaInfo object.
+   *
+   * \param accumulate_rows Whether rows need to be accumulated in this function.  If
+   *        client code knows number of rows in advance, set this parameter to false.
+   */
+  void Extend(MetaInfo const& that, bool accumulate_rows);
 
  private:
   /*! \brief argsort of labels */
@@ -422,6 +456,8 @@ class BatchSet {
   BatchIterator<T> begin_iter_;
 };
 
+struct XGBAPIThreadLocalEntry;
+
 /*!
  * \brief Internal data structured used by XGBoost during training.
  */
@@ -431,8 +467,19 @@ class DMatrix {
   DMatrix()  = default;
   /*! \brief meta information of the dataset */
   virtual MetaInfo& Info() = 0;
+  virtual void SetInfo(const char *key, const void *dptr, DataType dtype,
+                       size_t num) {
+    this->Info().SetInfo(key, dptr, dtype, num);
+  }
+  virtual void SetInfo(const char* key, std::string const& interface_str) {
+    this->Info().SetInfo(key, interface_str);
+  }
   /*! \brief meta information of the dataset */
   virtual const MetaInfo& Info() const = 0;
+
+  /*! \brief Get thread local memory for returning data from DMatrix. */
+  XGBAPIThreadLocalEntry& GetThreadLocal() const;
+
   /**
    * \brief Gets batches. Use range based for loop over BatchSet to access individual batches.
    */
@@ -445,7 +492,7 @@ class DMatrix {
   /*! \return Whether the data columns single column block. */
   virtual bool SingleColBlock() const = 0;
   /*! \brief virtual destructor */
-  virtual ~DMatrix() = default;
+  virtual ~DMatrix();
 
   /*! \brief Whether the matrix is dense. */
   bool IsDense() const {
@@ -485,7 +532,33 @@ class DMatrix {
                          const std::string& cache_prefix = "",
                          size_t page_size = kPageSize);
 
-  virtual DMatrix* Slice(common::Span<int32_t const> ridxs) = 0;
+  /**
+   * \brief Create a new Quantile based DMatrix used for histogram based algorithm.
+   *
+   * \tparam DataIterHandle         External iterator type, defined in C API.
+   * \tparam DMatrixHandle          DMatrix handle, defined in C API.
+   * \tparam DataIterResetCallback  Callback for reset, prototype defined in C API.
+   * \tparam XGDMatrixCallbackNext  Callback for next, prototype defined in C API.
+   *
+   * \param iter    External data iterator
+   * \param proxy   A hanlde to ProxyDMatrix
+   * \param reset   Callback for reset
+   * \param next    Callback for next
+   * \param missing Value that should be treated as missing.
+   * \param nthread number of threads used for initialization.
+   * \param max_bin Maximum number of bins.
+   *
+   * \return A created quantile based DMatrix.
+   */
+  template <typename DataIterHandle, typename DMatrixHandle,
+            typename DataIterResetCallback, typename XGDMatrixCallbackNext>
+  static DMatrix *Create(DataIterHandle iter, DMatrixHandle proxy,
+                         DataIterResetCallback *reset,
+                         XGDMatrixCallbackNext *next, float missing,
+                         int nthread,
+                         int max_bin);
+
+      virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
   /*! \brief page size 32 MB */
   static const size_t kPageSize = 32UL << 20UL;
 

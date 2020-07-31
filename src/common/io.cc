@@ -7,9 +7,11 @@
 #include <unistd.h>
 #endif  // defined(__unix__)
 #include <algorithm>
-#include <cstdio>
+#include <fstream>
 #include <string>
+#include <memory>
 #include <utility>
+#include <cstdio>
 
 #include "xgboost/logging.h"
 #include "io.h"
@@ -92,57 +94,53 @@ void FixedSizeStream::Take(std::string* out) {
   *out = std::move(buffer_);
 }
 
-std::string LoadSequentialFile(std::string fname) {
-  auto OpenErr = [&fname]() {
-                   std::string msg;
-                   msg = "Opening " + fname + " failed: ";
-                   msg += strerror(errno);
-                   LOG(FATAL) << msg;
-                 };
-  auto ReadErr = [&fname]() {
-                   std::string msg {"Error in reading file: "};
-                   msg += fname;
-                   msg += ": ";
-                   msg += strerror(errno);
-                   LOG(FATAL) << msg;
-                 };
-
-  std::string buffer;
-#if defined(__unix__)
-  struct stat fs;
-  if (stat(fname.c_str(), &fs) != 0) {
-    OpenErr();
-  }
-
-  size_t f_size_bytes = fs.st_size;
-  buffer.resize(f_size_bytes + 1);
-  int32_t fd = open(fname.c_str(), O_RDONLY);
-#if defined(__linux__)
-  posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
-#endif  // defined(__linux__)
-  ssize_t bytes_read = read(fd, &buffer[0], f_size_bytes);
-  if (bytes_read < 0) {
-    close(fd);
-    ReadErr();
-  }
-  close(fd);
-#else  // defined(__unix__)
-  FILE *f = fopen(fname.c_str(), "r");
-  if (f == NULL) {
+std::string LoadSequentialFile(std::string uri, bool stream) {
+  auto OpenErr = [&uri]() {
     std::string msg;
-    OpenErr();
-  }
-  fseek(f, 0, SEEK_END);
-  auto fsize = ftell(f);
-  fseek(f, 0, SEEK_SET);
+    msg = "Opening " + uri + " failed: ";
+    msg += strerror(errno);
+    LOG(FATAL) << msg;
+  };
 
-  buffer.resize(fsize + 1);
-  fread(&buffer[0], 1, fsize, f);
-  fclose(f);
-#endif  // defined(__unix__)
-  buffer.back() = '\0';
+  auto parsed = dmlc::io::URI(uri.c_str());
+  // Read from file.
+  if ((parsed.protocol == "file://" || parsed.protocol.length() == 0) && !stream) {
+    std::string buffer;
+    // Open in binary mode so that correct file size can be computed with
+    // seekg(). This accommodates Windows platform:
+    // https://docs.microsoft.com/en-us/cpp/standard-library/basic-istream-class?view=vs-2019#seekg
+    std::ifstream ifs(uri, std::ios_base::binary | std::ios_base::in);
+    if (!ifs) {
+      // https://stackoverflow.com/a/17338934
+      OpenErr();
+    }
+
+    ifs.seekg(0, std::ios_base::end);
+    const size_t file_size = static_cast<size_t>(ifs.tellg());
+    ifs.seekg(0, std::ios_base::beg);
+    buffer.resize(file_size + 1);
+    ifs.read(&buffer[0], file_size);
+    buffer.back() = '\0';
+
+    return buffer;
+  }
+
+  // Read from remote.
+  std::unique_ptr<dmlc::Stream> fs{dmlc::Stream::Create(uri.c_str(), "r")};
+  std::string buffer;
+  size_t constexpr kInitialSize = 4096;
+  size_t size {kInitialSize}, total {0};
+  while (true) {
+    buffer.resize(total + size);
+    size_t read = fs->Read(&buffer[total], size);
+    total += read;
+    if (read < size) {
+      break;
+    }
+    size *= 2;
+  }
+  buffer.resize(total);
   return buffer;
 }
-
 }  // namespace common
 }  // namespace xgboost
