@@ -92,7 +92,7 @@ pipeline {
             'test-python-gpu-cuda10.0': { TestPythonGPU(host_cuda_version: '10.0') },
             'test-python-gpu-cuda10.2': { TestPythonGPU(host_cuda_version: '10.2', test_rmm: true) },
             'test-python-gpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0') },
-            'test-python-mgpu-cuda10.2': { TestPythonGPU(host_cuda_version: '10.2', multi_gpu: true, test_rmm: true) },
+            'test-python-mgpu-cuda10.2': { TestPythonGPU(artifact_cuda_version: '10.2', host_cuda_version: '10.2', multi_gpu: true, test_rmm: true) },
             'test-cpp-gpu-cuda10.2': { TestCppGPU(artifact_cuda_version: '10.2', host_cuda_version: '10.2', test_rmm: true) },
             'test-cpp-gpu-cuda11.0': { TestCppGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0') },
             'test-jvm-jdk8-cuda10.0': { CrossTestJVMwithJDKGPU(artifact_cuda_version: '10.0', host_cuda_version: '10.0') },
