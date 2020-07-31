@@ -6,6 +6,7 @@
 #include "xgboost/json_io.h"
 
 namespace xgboost {
+#if DMLC_IO_NO_ENDIAN_SWAP  // skip on big-endian machines
 // Manually construct tree in binary format
 // Do not use structs in case they change
 // We want to preserve backwards compatibility
@@ -85,6 +86,7 @@ TEST(Tree, Load) {
   EXPECT_EQ(tree[1].LeafValue(), 0.1f);
   EXPECT_TRUE(tree[1].IsLeaf());
 }
+#endif  // DMLC_IO_NO_ENDIAN_SWAP
 
 TEST(Tree, AllocateNode) {
   RegTree tree;
