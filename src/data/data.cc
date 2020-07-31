@@ -628,14 +628,18 @@ DMatrix* DMatrix::Load(const std::string& uri,
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
     if (fi != nullptr) {
       common::PeekableInStream is(fi.get());
-      if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic) &&
-        magic == data::SimpleDMatrix::kMagic) {
-        DMatrix* dmat = new data::SimpleDMatrix(&is);
-        if (!silent) {
-          LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
-            << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
+      if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic)) {
+        if (!DMLC_IO_NO_ENDIAN_SWAP) {
+          dmlc::ByteSwap(&magic, sizeof(magic), 1);
         }
-        return dmat;
+        if (magic == data::SimpleDMatrix::kMagic) {
+          DMatrix* dmat = new data::SimpleDMatrix(&is);
+          if (!silent) {
+            LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
+              << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
+          }
+          return dmat;
+        }
       }
     }
   }
