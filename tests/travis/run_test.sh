@@ -99,8 +99,16 @@ if [ ${TASK} == "s390x_test" ]; then
     time ninja -v
     ./testxgboost
 
-    # Run model compatibility tests
+    # Run model compatibility tests (Python)
     cd ..
     python3 -m pip install --user pytest hypothesis
     PYTHONPATH=./python-package python3 -m pytest --fulltrace -v -rxXs tests/python/ -k 'test_model'
+
+    # Run model compatibility tests (R)
+    rm -rf build
+    mkdir build && cd build
+    cmake .. -DCMAKE_VERBOSE_MAKEFILE=ON -DR_LIB=ON -DUSE_OPENMP=ON -GNinja
+    time sudo ninja -v install
+    cd ../R-package/tests
+    R -q -e "library(testthat); test_file('testthat/test_model_compatibility.R')"
 fi
