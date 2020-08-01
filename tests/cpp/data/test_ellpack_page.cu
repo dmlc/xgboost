@@ -7,6 +7,7 @@
 
 #include "../helpers.h"
 #include "../histogram_helpers.h"
+#include "../common/test_quantile.h"
 #include "gtest/gtest.h"
 
 #include "../../../src/common/hist_util.h"
