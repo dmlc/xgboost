@@ -1,46 +1,30 @@
 ARG CUDA_VERSION
-FROM nvidia/cuda:$CUDA_VERSION-devel-centos6
+FROM nvidia/cuda:$CUDA_VERSION-devel-ubuntu16.04
+ARG CUDA_VERSION
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
-ENV DEVTOOLSET_URL_ROOT http://vault.centos.org/6.9/sclo/x86_64/rh/devtoolset-4/
+SHELL ["/bin/bash", "-c"]   # Use Bash as shell
 
 # Install all basic requirements
 RUN \
-    yum -y update && \
-    yum install -y tar unzip wget xz git centos-release-scl yum-utils && \
-    yum-config-manager --enable centos-sclo-rh-testing && \
-    yum -y update && \
-    yum install -y $DEVTOOLSET_URL_ROOT/devtoolset-4-gcc-5.3.1-6.1.el6.x86_64.rpm \
-                   $DEVTOOLSET_URL_ROOT/devtoolset-4-gcc-c++-5.3.1-6.1.el6.x86_64.rpm \
-                   $DEVTOOLSET_URL_ROOT/devtoolset-4-binutils-2.25.1-8.el6.x86_64.rpm \
-                   $DEVTOOLSET_URL_ROOT/devtoolset-4-runtime-4.1-3.sc1.el6.x86_64.rpm \
-                   $DEVTOOLSET_URL_ROOT/devtoolset-4-libstdc++-devel-5.3.1-6.1.el6.x86_64.rpm && \
-    # Python
-    wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
-    bash Miniconda3.sh -b -p /opt/python && \
+    apt-get update && \
+    apt-get install -y tar unzip wget bzip2 libgomp1 git build-essential doxygen graphviz llvm libasan2 libidn11 liblz4-dev ninja-build && \
     # CMake
     wget -nv -nc https://cmake.org/files/v3.13/cmake-3.13.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.13.0-Linux-x86_64.sh --skip-license --prefix=/usr
+    bash cmake-3.13.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
+    # Python
+    wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash Miniconda3.sh -b -p /opt/python
 
 # NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
 RUN \
     export CUDA_SHORT=`echo $CUDA_VERSION | egrep -o '[0-9]+\.[0-9]'` && \
-    export NCCL_VERSION=2.4.8-1 && \
-    wget https://developer.download.nvidia.com/compute/machine-learning/repos/rhel7/x86_64/nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
-    rpm -i nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
-    yum -y update && \
-    yum install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-static-${NCCL_VERSION}+cuda${CUDA_SHORT} && \
-    rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm;
+    export NCCL_VERSION=2.7.5-1 && \
+    apt-get update && \
+    apt-get install -y --allow-downgrades --allow-change-held-packages libnccl2=${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-dev=${NCCL_VERSION}+cuda${CUDA_SHORT}
 
 ENV PATH=/opt/python/bin:$PATH
-ENV CC=/opt/rh/devtoolset-4/root/usr/bin/gcc
-ENV CXX=/opt/rh/devtoolset-4/root/usr/bin/c++
-ENV CPP=/opt/rh/devtoolset-4/root/usr/bin/cpp
-
-# Install Python packages
-RUN \
-    pip install numpy pytest scipy scikit-learn wheel kubernetes urllib3==1.22
 
 ENV GOSU_VERSION 1.10
 

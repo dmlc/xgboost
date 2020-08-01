@@ -37,11 +37,6 @@
 
 #if defined(_MSC_VER)
 #include <intrin.h>
-namespace {
-inline int32_t __builtin_clzll(uint64_t x) {
-  return static_cast<int32_t>(__lzcnt64(x));
-}
-}  // anonymous namespace
 #endif
 
 /*
@@ -288,8 +283,13 @@ struct RyuPowLogUtils {
     return MulShift(m, kFloatPow5Split[i], j);  // NOLINT
   }
 
-  static uint32_t FloorLog2(const uint64_t value) {
-    return 63 - __builtin_clzll(value);
+  static uint32_t FloorLog2(const uint32_t value) {
+#if defined(_MSC_VER)
+    unsigned long index;  // NOLINT
+    return _BitScanReverse(&index, value) ? index : 32;
+#else
+    return 31 - __builtin_clz(value);
+#endif
   }
 
   /*

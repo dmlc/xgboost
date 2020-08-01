@@ -175,7 +175,11 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   }
 
   // determine the launch configuration
-  unsigned block_threads = shared ? 1024 : 256;
+  int min_grid_size;
+  int block_threads = 1024;
+  dh::safe_cuda(cudaOccupancyMaxPotentialBlockSize(
+      &min_grid_size, &block_threads, kernel, smem_size, 0));
+
   int num_groups = feature_groups.NumGroups();
   int n_mps = 0;
   dh::safe_cuda(cudaDeviceGetAttribute(&n_mps, cudaDevAttrMultiProcessorCount, device));
@@ -199,7 +203,8 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   grid_size = common::DivRoundUp(grid_size,
       common::DivRoundUp(num_groups, num_groups_threshold));
 
-  dh::LaunchKernel {dim3(grid_size, num_groups), block_threads, smem_size} (
+  dh::LaunchKernel {
+    dim3(grid_size, num_groups), static_cast<uint32_t>(block_threads), smem_size} (
       kernel,
       matrix, feature_groups, d_ridx, histogram.data(), gpair.data(), rounding,
       shared);

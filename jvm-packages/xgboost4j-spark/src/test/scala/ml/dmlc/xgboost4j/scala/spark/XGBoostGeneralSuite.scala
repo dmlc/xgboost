@@ -366,4 +366,5 @@ class XGBoostGeneralSuite extends FunSuite with TmpFolderPerSuite with PerTest {
     df1.collect()
     df2.collect()
   }
+
 }

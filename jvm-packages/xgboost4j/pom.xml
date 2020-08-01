@@ -43,6 +43,12 @@
             <version>2.5.23</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+          <groupId>org.scalatest</groupId>
+          <artifactId>scalatest_${scala.binary.version}</artifactId>
+          <version>3.0.5</version>
+          <scope>compile</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -78,6 +84,10 @@
                           <executable>python</executable>
                           <arguments>
                             <argument>create_jni.py</argument>
+                            <argument>--log-capi-invocation</argument>
+                            <argument>${log.capi.invocation}</argument>
+                            <argument>--use-cuda</argument>
+                            <argument>${use.cuda}</argument>
                           </arguments>
                           <workingDirectory>${user.dir}</workingDirectory>
                       </configuration>

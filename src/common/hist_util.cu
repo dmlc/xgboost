@@ -162,13 +162,18 @@ size_t RequiredMemory(bst_row_t num_rows, bst_feature_t num_columns, size_t nnz,
 }
 
 size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
-                              bst_row_t num_rows, size_t columns, size_t nnz, int device,
+                              bst_row_t num_rows, bst_feature_t columns,
+                              size_t nnz, int device,
                               size_t num_cuts, bool has_weight) {
   if (sketch_batch_num_elements == 0) {
     auto required_memory = RequiredMemory(num_rows, columns, nnz, num_cuts, has_weight);
     // use up to 80% of available space
-    sketch_batch_num_elements = (dh::AvailableMemory(device) -
-                                 required_memory * 0.8);
+    auto avail = dh::AvailableMemory(device) * 0.8;
+    if (required_memory > avail) {
+      sketch_batch_num_elements = avail / BytesPerElement(has_weight);
+    } else {
+      sketch_batch_num_elements = std::min(num_rows * static_cast<size_t>(columns), nnz);
+    }
   }
   return sketch_batch_num_elements;
 }
@@ -196,7 +201,7 @@ void ProcessBatch(int device, const SparsePage &page, size_t begin, size_t end,
                   size_t num_columns) {
   dh::XGBCachingDeviceAllocator<char> alloc;
   const auto& host_data = page.data.ConstHostVector();
-  dh::caching_device_vector<Entry> sorted_entries(host_data.begin() + begin,
+  dh::device_vector<Entry> sorted_entries(host_data.begin() + begin,
                                                   host_data.begin() + end);
   thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
                sorted_entries.end(), detail::EntryCompareOp());

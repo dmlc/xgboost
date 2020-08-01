@@ -1,9 +1,9 @@
 # An example of using GPU-accelerated tree building algorithms
-# 
-# NOTE: it can only run if you have a CUDA-enable GPU and the package was 
+#
+# NOTE: it can only run if you have a CUDA-enable GPU and the package was
 #       specially compiled with GPU support.
 #
-# For the current functionality, see 
+# For the current functionality, see
 # https://xgboost.readthedocs.io/en/latest/gpu/index.html
 #
 
@@ -21,8 +21,8 @@ m <- X[, sel] %*% betas - 1 + rnorm(N)
 y <- rbinom(N, 1, plogis(m))
 
 tr <- sample.int(N, N * 0.75)
-dtrain <- xgb.DMatrix(X[tr,], label = y[tr])
-dtest <- xgb.DMatrix(X[-tr,], label = y[-tr])
+dtrain <- xgb.DMatrix(X[tr, ], label = y[tr])
+dtest <- xgb.DMatrix(X[-tr, ], label = y[-tr])
 wl <- list(train = dtrain, test = dtest)
 
 # An example of running 'gpu_hist' algorithm

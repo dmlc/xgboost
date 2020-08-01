@@ -9,7 +9,9 @@ if (USE_CUDA)
   file(GLOB_RECURSE CUDA_SOURCES *.cu *.cuh)
   target_sources(objxgboost PRIVATE ${CUDA_SOURCES})
   target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_CUDA=1)
-  target_include_directories(objxgboost PRIVATE ${xgboost_SOURCE_DIR}/cub/)
+  if (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
+    target_include_directories(objxgboost PRIVATE ${xgboost_SOURCE_DIR}/cub/)
+  endif (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
   target_compile_options(objxgboost PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
@@ -69,6 +71,14 @@ if (MSVC)
     -D_CRT_SECURE_NO_DEPRECATE
   )
 endif (MSVC)
+
+if (ENABLE_ALL_WARNINGS)
+  target_compile_options(objxgboost PUBLIC
+    $<IF:$<COMPILE_LANGUAGE:CUDA>,-Xcompiler=-Wall -Xcompiler=-Wextra,-Wall -Wextra>)
+endif (ENABLE_ALL_WARNINGS)
+if (LOG_CAPI_INVOCATION)
+  target_compile_definitions(objxgboost PUBLIC -DLOG_CAPI_INVOCATION=1)
+endif (LOG_CAPI_INVOCATION)
 
 set_target_properties(objxgboost PROPERTIES
   POSITION_INDEPENDENT_CODE ON

@@ -148,8 +148,8 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
 // Binary is not tested, as it is NOT reproducible.
 class SerializationTest : public ::testing::Test {
  protected:
-  size_t constexpr static kRows = 10;
-  size_t constexpr static kCols = 10;
+  size_t constexpr static kRows = 15;
+  size_t constexpr static kCols = 15;
   std::shared_ptr<DMatrix> p_dmat_;
   FeatureMap fmap_;
 
@@ -177,6 +177,7 @@ TEST_F(SerializationTest, Exact) {
   TestLearnerSerialization({{"booster", "gbtree"},
                             {"seed", "0"},
                             {"nthread", "1"},
+                            {"base_score", "3.14195265"},
                             {"max_depth", "2"},
                             {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "exact"}},
@@ -185,6 +186,7 @@ TEST_F(SerializationTest, Exact) {
   TestLearnerSerialization({{"booster", "gbtree"},
                             {"seed", "0"},
                             {"nthread", "1"},
+                            {"base_score", "3.14195265"},
                             {"max_depth", "2"},
                             {"num_parallel_tree", "4"},
                             {"enable_experimental_json_serialization", "1"},
@@ -194,6 +196,7 @@ TEST_F(SerializationTest, Exact) {
   TestLearnerSerialization({{"booster", "dart"},
                             {"seed", "0"},
                             {"nthread", "1"},
+                            {"base_score", "3.14195265"},
                             {"max_depth", "2"},
                             {"enable_experimental_json_serialization", "1"},
                             {"tree_method", "exact"}},

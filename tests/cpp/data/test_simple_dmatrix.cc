@@ -185,16 +185,22 @@ TEST(SimpleDMatrix, FromCSC) {
 TEST(SimpleDMatrix, FromFile) {
   std::string filename = "test.libsvm";
   CreateBigTestData(filename, 3 * 5);
+  // Add an empty row at the end of the matrix
+  {
+    std::ofstream fo(filename, std::ios::app | std::ios::out);
+    fo << "0\n";
+  }
+  constexpr size_t kExpectedNumRow = 6;
   std::unique_ptr<dmlc::Parser<uint32_t>> parser(
       dmlc::Parser<uint32_t>::Create(filename.c_str(), 0, 1, "auto"));
 
-  auto verify_batch = [](SparsePage const &batch) {
-    EXPECT_EQ(batch.Size(), 5);
+  auto verify_batch = [kExpectedNumRow](SparsePage const &batch) {
+    EXPECT_EQ(batch.Size(), kExpectedNumRow);
     EXPECT_EQ(batch.offset.HostVector(),
-              std::vector<bst_row_t>({0, 3, 6, 9, 12, 15}));
+              std::vector<bst_row_t>({0, 3, 6, 9, 12, 15, 15}));
     EXPECT_EQ(batch.base_rowid, 0);
 
-    for (auto i = 0ull; i < batch.Size(); i++) {
+    for (auto i = 0ull; i < batch.Size() - 1; i++) {
       if (i % 2 == 0) {
         EXPECT_EQ(batch[i][0].index, 0);
         EXPECT_EQ(batch[i][1].index, 1);

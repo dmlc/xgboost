@@ -40,9 +40,9 @@ General Parameters
 
   - Number of parallel threads used to run XGBoost
 
-* ``disable_default_eval_metric`` [default=0]
+* ``disable_default_eval_metric`` [default=``false``]
 
-  - Flag to disable default metric. Set to >0 to disable.
+  - Flag to disable default metric. Set to 1 or ``true`` to disable.
 
 * ``num_pbuffer`` [set automatically by XGBoost, no need to be set by user]
 
@@ -357,7 +357,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
     Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function ``h(t) = h0(t) * HR``).
   - ``survival:aft``: Accelerated failure time model for censored survival time data.
     See :doc:`/tutorials/aft_survival_analysis` for details.
-  - ``aft_loss_distribution``: Probabilty Density Function used by ``survival:aft`` and ``aft-nloglik`` metric.
+  - ``aft_loss_distribution``: Probabilty Density Function used by ``survival:aft`` objective and ``aft-nloglik`` metric.
   - ``multi:softmax``: set XGBoost to do multiclass classification using the softmax objective, you also need to set num_class(number of classes)
   - ``multi:softprob``: same as softmax, but output a vector of ``ndata * nclass``, which can be further reshaped to ``ndata * nclass`` matrix. The result contains predicted probability of each data point belonging to each class.
   - ``rank:pairwise``: Use LambdaMART to perform pairwise ranking where the pairwise loss is minimized
@@ -399,6 +399,8 @@ Specify the learning task and the corresponding learning objective. The objectiv
     - ``tweedie-nloglik``: negative log-likelihood for Tweedie regression (at a specified value of the ``tweedie_variance_power`` parameter)
     - ``aft-nloglik``: Negative log likelihood of Accelerated Failure Time model.
       See :doc:`/tutorials/aft_survival_analysis` for details.
+    - ``interval-regression-accuracy``: Fraction of data points whose predicted labels fall in the interval-censored labels.
+      Only applicable for interval-censored data.  See :doc:`/tutorials/aft_survival_analysis` for details.
 
 * ``seed`` [default=0]
 

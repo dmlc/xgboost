@@ -98,6 +98,26 @@ def no_json_schema():
         return {'condition': True, 'reason': reason}
 
 
+def no_graphviz():
+    reason = 'graphviz is not installed'
+    try:
+        import graphviz  # noqa
+        return {'condition': False, 'reason': reason}
+    except ImportError:
+        return {'condition': True, 'reason': reason}
+
+
+def no_multiple(*args):
+    condition = False
+    reason = ''
+    for arg in args:
+        condition = (condition or arg['condition'])
+        if arg['condition']:
+            reason = arg['reason']
+            break
+    return {'condition': condition, 'reason': reason}
+
+
 # Contains a dataset in numpy format as well as the relevant objective and metric
 class TestDataset:
     def __init__(self, name, get_dataset, objective, metric
@@ -196,3 +216,8 @@ dataset_strategy = _dataset_and_weight()
 
 def non_increasing(L, tolerance=1e-4):
     return all((y - x) < tolerance for x, y in zip(L, L[1:]))
+
+
+CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
+PROJECT_ROOT = os.path.normpath(
+    os.path.join(CURDIR, os.path.pardir, os.path.pardir))

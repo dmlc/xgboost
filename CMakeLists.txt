@@ -32,6 +32,9 @@ option(R_LIB "Build shared library for R package" OFF)
 ## Dev
 option(USE_DEBUG_OUTPUT "Dump internal training results like gradients and predictions to stdout.
 Should only be used for debugging." OFF)
+option(FORCE_COLORED_OUTPUT "Force colored output from compilers, useful when ninja is used instead of make." OFF)
+option(ENABLE_ALL_WARNINGS "Enable all compiler warnings. Only effective for GCC/Clang" OFF)
+option(LOG_CAPI_INVOCATION "Log all C API invocations for debugging" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
@@ -79,6 +82,11 @@ endif (R_LIB AND GOOGLE_TEST)
 if (USE_AVX)
   message(SEND_ERROR  "The option 'USE_AVX' is deprecated as experimental AVX features have been removed from XGBoost.")
 endif (USE_AVX)
+if (ENABLE_ALL_WARNINGS)
+  if ((NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang") AND (NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
+    message(SEND_ERROR "ENABLE_ALL_WARNINGS is only available for Clang and GCC.")
+  endif ((NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang") AND (NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
+endif (ENABLE_ALL_WARNINGS)
 
 #-- Sanitizer
 if (USE_SANITIZER)
@@ -100,6 +108,12 @@ if (USE_CUDA)
   format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
   message(STATUS "CUDA GEN_CODE: ${GEN_CODE}")
 endif (USE_CUDA)
+
+if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
+    ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
+      (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")))
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always")
+endif()
 
 find_package(Threads REQUIRED)
 
@@ -130,6 +144,9 @@ if (MSVC)
                            -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
   endif (TARGET dmlc_unit_tests)
 endif (MSVC)
+if (ENABLE_ALL_WARNINGS)
+  target_compile_options(dmlc PRIVATE -Wall -Wextra)
+endif (ENABLE_ALL_WARNINGS)
 target_link_libraries(objxgboost PUBLIC dmlc)
 
 # rabit
@@ -159,6 +176,9 @@ foreach(lib rabit rabit_base rabit_empty rabit_mock rabit_mock_static)
     if (HIDE_CXX_SYMBOLS)  # Hide all C++ symbols from Rabit
       set_target_properties(${lib} PROPERTIES CXX_VISIBILITY_PRESET hidden)
     endif (HIDE_CXX_SYMBOLS)
+    if (ENABLE_ALL_WARNINGS)
+      target_compile_options(${lib} PRIVATE -Wall -Wextra)
+    endif (ENABLE_ALL_WARNINGS)
   endif (TARGET ${lib})
 endforeach()
 

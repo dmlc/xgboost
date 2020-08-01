@@ -909,7 +909,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             'Label encoder is not defined.  Returning class probability.')
         return class_probs
 
-    def predict_proba(self, data, ntree_limit=None, validate_features=True,
+    def predict_proba(self, data, ntree_limit=None, validate_features=False,
                       base_margin=None):
         """
         Predict the probability of each `data` example being of a given class.
