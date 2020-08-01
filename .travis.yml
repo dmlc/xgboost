@@ -27,7 +27,7 @@ jobs:
       env: TASK=cmake_test
     - os: linux
       arch: s390x
-      env: TASK=cmake_test
+      env: TASK=s390x_test
 
 # dependent brew packages
 addons:

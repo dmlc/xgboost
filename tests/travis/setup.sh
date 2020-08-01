@@ -20,10 +20,13 @@ if [ ${TASK} == "cmake_test" ] && [ ${TRAVIS_OS_NAME} == "osx" ]; then
     sudo softwareupdate -i "Command Line Tools (macOS High Sierra version 10.13) for Xcode-9.3"
 fi
 
-if [ ${TASK} == "cmake_test" ] && [ ${TRAVIS_CPU_ARCH} == "s390x" ]; then
+if [ ${TASK} == "s390x_test" ] && [ ${TRAVIS_CPU_ARCH} == "s390x" ]; then
     sudo snap install cmake --channel=3.17/beta --classic
     export PATH=/snap/bin:${PATH}
     cmake --version
+    sudo apt-get update
+    sudo apt-get install -y --no-install-recommends tar unzip wget git build-essential ninja-build \
+      time python3 python3-pip python3-numpy python3-scipy python3-sklearn r-base
 fi
 
 if [ ${TASK} == "python_sdist_test" ] && [ ${TRAVIS_OS_NAME} == "linux" ]; then

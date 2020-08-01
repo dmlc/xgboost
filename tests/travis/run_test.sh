@@ -88,3 +88,19 @@ if [ ${TASK} == "cmake_test" ]; then
     cd ..
     rm -rf build
 fi
+
+if [ ${TASK} == "s390x_test" ]; then
+    set -e
+
+    # Build and run C++ tests
+    rm -rf build
+    mkdir build && cd build
+    cmake .. -DCMAKE_VERBOSE_MAKEFILE=ON -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -GNinja
+    time ninja -v
+    ./testxgboost
+
+    # Run model compatibility tests
+    cd ..
+    python3 -m pip install --user pytest hypothesis
+    PYTHONPATH=./python-package python3 -m pytest --fulltrace -v -rxXs tests/python/ -k 'test_model'
+fi
