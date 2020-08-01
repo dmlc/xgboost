@@ -4,7 +4,7 @@ import xgboost as xgb
 import unittest
 import scipy.sparse
 import pytest
-from scipy.sparse import rand
+from scipy.sparse import rand, csr_matrix
 
 rng = np.random.RandomState(1)
 
@@ -23,6 +23,18 @@ class TestDMatrix(unittest.TestCase):
             data._warn_unused_missing('uri', np.nan)
 
         assert len(record) == 0
+
+        with pytest.warns(None) as record:
+            x = rng.randn(10, 10)
+            y = rng.randn(10)
+
+            xgb.DMatrix(x, y, missing=4)
+
+        assert len(record) == 0
+
+        with pytest.warns(UserWarning):
+            csr = csr_matrix(x)
+            xgb.DMatrix(csr, y, missing=4)
 
     def test_dmatrix_numpy_init(self):
         data = np.random.randn(5, 5)
