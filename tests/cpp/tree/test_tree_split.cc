@@ -12,7 +12,7 @@ TEST(Hist, SplitOneHot) {
   ASSERT_EQ(encoded.size(), x.size() * 2);
   auto m = GetDMatrixFromData(encoded, 2, 2);
 
-  HostDeviceVector<GradientPair> gradient{{1.0f, 2.0f}, {1.0f, 2.0f}};
+  HostDeviceVector<GradientPair> gradient{{1.0f, 1.0f}, {2.0f, 1.0f}};
   GenericParameter runtime;
   runtime.UpdateAllowUnknown(Args{});
   LearnerModelParam mparam;
@@ -21,7 +21,7 @@ TEST(Hist, SplitOneHot) {
 
   std::unique_ptr<GradientBooster> gbm {
       GradientBooster::Create("gbtree", &runtime, &mparam)};
-  gbm->Configure(Args{{"tree_method", "hist"}});
+  gbm->Configure(Args{{"tree_method", "hist"}, {"reg_lambda", "0"}});
 
   PredictionCacheEntry prediction;
   prediction.predictions.Resize(2);
@@ -30,7 +30,6 @@ TEST(Hist, SplitOneHot) {
   Json out { Object() };
   gbm->SaveModel(&out);
   float split_cond = get<Number>(out["model"]["trees"][0]["split_conditions"][0]);
-  // ASSERT_EQ(split_cond, 1.0f);
-  std::cout << out << std::endl;
+  ASSERT_EQ(split_cond, 1.0f);
 }
 }  // namespace xgboost
