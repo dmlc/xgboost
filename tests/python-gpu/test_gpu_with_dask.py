@@ -272,6 +272,8 @@ async def run_from_dask_array_asyncio(scheduler_address):
         return output
 
 
+@pytest.mark.skipif(**tm.no_dask())
+@pytest.mark.mgpu
 def test_with_asyncio():
     with LocalCUDACluster() as cluster:
         with Client(cluster) as client:
