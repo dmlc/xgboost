@@ -28,7 +28,7 @@ xgb.cv(
 )
 }
 \arguments{
-\item{params}{the list of parameters. The complete list of parameters is 
+\item{params}{the list of parameters. The complete list of parameters is
   available in the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}. Below
   is a shorter summary:
 \itemize{

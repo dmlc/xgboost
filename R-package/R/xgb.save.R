@@ -13,7 +13,11 @@
 #'
 #' Note: a model can also be saved as an R-object (e.g., by using \code{\link[base]{readRDS}}
 #' or \code{\link[base]{save}}). However, it would then only be compatible with R, and
-#' corresponding R-methods would need to be used to load it.
+#' corresponding R-methods would need to be used to load it. Moreover, persisting the model with
+#' \code{\link[base]{readRDS}} or \code{\link[base]{save}}) will cause compatibility problems in
+#' future versions of XGBoost. Consult \code{\link{a-compatibility-note-for-saveRDS-save}} to learn
+#' how to persist models in a future-proof way, i.e. to make the model accessible in future
+#' releases of XGBoost.
 #'
 #' @seealso
 #' \code{\link{xgb.load}}, \code{\link{xgb.Booster.complete}}.
