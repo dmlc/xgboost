@@ -67,4 +67,17 @@ TEST(RandomDataGenerator, GenerateArrayInterfaceBatch) {
   CHECK_EQ(get<Integer>(j_array["shape"][0]), kRows);
   CHECK_EQ(get<Integer>(j_array["shape"][1]), kCols);
 }
+
+TEST(OneHotEncodeData, Basic) {
+  std::vector<float> x{0, 1};
+  auto encoded = OneHotEncodeFeature(x, 2);
+  ASSERT_EQ(encoded.size(), x.size() * 2);
+
+  size_t constexpr kRows = 100, kCats = 4;
+  x = GenerateRandomCategoricalSingleColumn(kRows, kCats);
+  encoded = OneHotEncodeFeature(x, kCats);
+  ASSERT_EQ(encoded.size(), x.size() * 4);
+  ASSERT_TRUE(std::all_of(encoded.cbegin(), encoded.cend(),
+                          [](float v) { return v == 0 || v == 1; }));
+}
 }  // namespace xgboost

@@ -307,6 +307,29 @@ inline HostDeviceVector<GradientPair> GenerateRandomGradients(const size_t n_row
   return gpair;
 }
 
+inline std::vector<float> GenerateRandomCategoricalSingleColumn(int n,
+                                                                int num_categories) {
+  std::vector<float> x(n);
+  std::mt19937 rng(0);
+  std::uniform_int_distribution<int> dist(0, num_categories - 1);
+  std::generate(x.begin(), x.end(), [&]() { return dist(rng); });
+  // Make sure each category is present
+  for(auto i = 0; i < num_categories; i++) {
+    x[i] = i;
+  }
+  return x;
+}
+
+inline std::vector<float> OneHotEncodeFeature(std::vector<float> x, size_t num_cat) {
+  std::vector<float> ret(x.size() * num_cat, 0);
+  size_t n_rows = x.size();
+  for (size_t r = 0; r < n_rows; ++r) {
+    int32_t cat = static_cast<int32_t>(x[r]);
+    ret.at(num_cat * r + cat) = 1;
+  }
+  return ret;
+}
+
 std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float> &x,
                                             int num_rows, int num_columns);
 
