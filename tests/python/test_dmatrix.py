@@ -3,6 +3,7 @@ import numpy as np
 import xgboost as xgb
 import unittest
 import scipy.sparse
+import pytest
 from scipy.sparse import rand
 
 rng = np.random.RandomState(1)
@@ -12,6 +13,17 @@ rng = np.random.RandomState(1994)
 
 
 class TestDMatrix(unittest.TestCase):
+    def test_warn_missing(self):
+        from xgboost import data
+        with pytest.warns(UserWarning):
+            data._warn_unused_missing('uri', 4)
+
+        with pytest.warns(None) as record:
+            data._warn_unused_missing('uri', None)
+            data._warn_unused_missing('uri', np.nan)
+
+        assert len(record) == 0
+
     def test_dmatrix_numpy_init(self):
         data = np.random.randn(5, 5)
         dm = xgb.DMatrix(data)
