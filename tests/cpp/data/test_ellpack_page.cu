@@ -195,4 +195,22 @@ TEST(EllpackPage, Compact) {
   }
 }
 
+TEST(EllpackPage, FromOneHot) {
+  std::vector<float> x = common::BasicOneHotEncodedData();
+  auto m = GetDMatrixFromData(x, 5, 3);
+  int32_t max_bins = 16;
+  BatchParam p(0, max_bins);
+  auto ellpack = EllpackPage(m.get(), p);
+  auto accessor = ellpack.Impl()->GetDeviceAccessor(0);
+
+  std::vector<uint32_t> h_cuts_ptr(accessor.feature_segments.size());
+  dh::CopyDeviceSpanToVector(&h_cuts_ptr, accessor.feature_segments);
+  std::vector<float> h_cuts_values(accessor.gidx_fvalue_map.size());
+  dh::CopyDeviceSpanToVector(&h_cuts_values, accessor.gidx_fvalue_map);
+
+  size_t const cols = 3;
+  ASSERT_EQ(h_cuts_ptr.size(),  cols + 1);
+  ASSERT_EQ(h_cuts_values.size(), cols * 2);
+  common::ValidateBasicOneHot(h_cuts_ptr, h_cuts_values);
+}
 }  // namespace xgboost

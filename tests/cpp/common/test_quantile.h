@@ -24,9 +24,9 @@ inline void ValidateBasicOneHot(std::vector<uint32_t> const& h_cuts_ptr, std::ve
     auto feature =
         common::Span<float const>(h_cuts_values)
             .subspan(h_cuts_ptr[i - 1], h_cuts_ptr[i] - h_cuts_ptr[i - 1]);
-    EXPECT_EQ(feature.size(), 2) << "i: " << i;
-    EXPECT_EQ(feature[0], 0.0f) << "i: " << i;
-    EXPECT_EQ(feature[1], 1.0f) << "i: " << i;
+    EXPECT_EQ(feature.size(), 2);
+    EXPECT_EQ(feature[0], 1.0f);
+    EXPECT_GT(feature[1], 1.0f);  // greater than any value.
   }
 }
 }  // namespace common
