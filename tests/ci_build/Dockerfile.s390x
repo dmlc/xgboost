@@ -11,10 +11,6 @@ RUN \
       cmake time python3 python3-pip python3-numpy python3-scipy python3-sklearn r-base && \
     python3 -m pip install pytest hypothesis
 
-# Install R packages
-RUN apt-get update && apt-get install -y --no-install-recommends zlib1g-dev pkg-config \
-    r-cran-data.table r-cran-magrittr r-cran-stringi r-cran-testthat r-cran-jsonlite
-
 ENV GOSU_VERSION 1.10
 
 # Install lightweight sudo (not bound to TTY)

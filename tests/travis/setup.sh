@@ -26,8 +26,7 @@ if [ ${TASK} == "s390x_test" ] && [ ${TRAVIS_CPU_ARCH} == "s390x" ]; then
     cmake --version
     sudo apt-get update
     sudo apt-get install -y --no-install-recommends tar unzip wget git build-essential ninja-build \
-      time python3 python3-pip python3-numpy python3-scipy python3-sklearn zlib1g-dev pkg-config \
-      r-base r-cran-data.table r-cran-magrittr r-cran-stringi r-cran-testthat r-cran-jsonlite
+      time python3 python3-pip python3-numpy python3-scipy python3-sklearn r-base
 fi
 
 if [ ${TASK} == "python_sdist_test" ] && [ ${TRAVIS_OS_NAME} == "linux" ]; then
