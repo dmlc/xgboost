@@ -152,11 +152,11 @@ prepare.ggplot.shap.data <- function(data_list, normalize = FALSE) {
     data[, (names(data)) := lapply(.SD, normalize)]
   }
   data[, "id" := .I]
-  data_m <- data.table::melt.data.table(data, id.vars = "id", variable.name ="feature", value.name = "feature_value")
+  data_m <- data.table::melt.data.table(data, id.vars = "id", variable.name = "feature", value.name = "feature_value")
 
   shap_contrib <- data.table::as.data.table(as.matrix(shap_contrib))
   shap_contrib[, "id" := .I]
-  shap_contrib_m <- data.table::melt.data.table(shap_contrib, id.vars = "id", variable.name ="feature", value.name = "shap_value")
+  shap_contrib_m <- data.table::melt.data.table(shap_contrib, id.vars = "id", variable.name = "feature", value.name = "shap_value")
 
   p_data <- data.table::merge.data.table(data_m, shap_contrib_m, by = c("id", "feature"))
 

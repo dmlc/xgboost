@@ -132,18 +132,12 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
     stop("2D plots are not implemented yet")
 
   if (n_col > length(features)) n_col <- length(features)
-  cols <- colnames(data)
-  if (is.null(cols)) cols <- colnames(shap_contrib)
-  if (is.null(cols)) cols <- paste0('X', 1:ncol(data))
-  colnames(data) <- cols
-  colnames(shap_contrib) <- cols
-
   if (plot && which == "1d") {
     op <- par(mfrow = c(ceiling(length(features) / n_col), n_col),
               oma = c(0, 0, 0, 0) + 0.2,
               mar = c(3.5, 3.5, 0, 0) + 0.1,
               mgp = c(1.7, 0.6, 0))
-    for (f in cols) {
+    for (f in features) {
       ord <- order(data[, f])
       x <- data[, f][ord]
       y <- shap_contrib[, f][ord]
@@ -237,32 +231,48 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
       (!is.matrix(shap_contrib) || nrow(shap_contrib) != nrow(data) || ncol(shap_contrib) != ncol(data) + 1))
     stop("shap_contrib is not compatible with the provided data")
 
+  if (is.character(features) && is.null(colnames(data)))
+    stop("either provide `data` with column names or provide `features` as column indices")
+  
+  if (is.null(model$feature_names) && model$nfeatures != ncol(data))
+    stop("if model has no feature_names, columns in `data` must match features in model")
+  
   if (!is.null(subsample)) {
     idx <- sample(x = seq_len(nrow(data)), size = as.integer(subsample * nrow(data)), replace = FALSE)
   } else {
     idx <- seq_len(min(nrow(data), max_observations))
   }
-  data <- data[idx,]
-
-  if (is.null(shap_contrib)) {
+  data <- data[idx, ]
+  if (is.null(colnames(data))) {
+    colnames(data) <- paste0("X", 1:ncol(data))
+  }
+  
+  if (!is.null(shap_contrib)) {
+    if (is.list(shap_contrib)) { # multiclass: either choose a class or merge
+      shap_contrib <- if (!is.null(target_class)) shap_contrib[[target_class + 1]] else Reduce("+", lapply(shap_contrib, abs))
+    }
+    shap_contrib <- shap_contrib[idx, ]
+    if (is.null(colnames(shap_contrib))) {
+      colnames(shap_contrib) <- paste0("X", 1:ncol(data))
+    }
+  } else {
     shap_contrib <- predict(model, newdata = data, predcontrib = TRUE, approxcontrib = approxcontrib)
+    if (is.list(shap_contrib)) { # multiclass: either choose a class or merge
+      shap_contrib <- if (!is.null(target_class)) shap_contrib[[target_class + 1]] else Reduce("+", lapply(shap_contrib, abs))
+    }
   }
-  if (is.list(shap_contrib)) { # multiclass: either choose a class or merge
-    shap_contrib <-  if (!is.null(target_class)) shap_contrib[[target_class + 1]] else Reduce("+", lapply(shap_contrib, abs))
-  }
-  shap_contrib <- shap_contrib[idx, ]
-
+  
   if (is.null(features)) {
-    imp <- xgb.importance(model = model, trees = trees)
+    if (!is.null(model$feature_names)) {
+      imp <- xgb.importance(model = model, trees = trees)  
+    } else {
+      imp <- xgb.importance(model = model, trees = trees, feature_names = colnames(data))  
+    }
     top_n <- top_n[1]
     if (top_n < 1 | top_n > 100) stop("top_n: must be an integer within [1, 100]")
-    features <- imp$Feature[1:min(top_n, nrow(imp))]
+    features <- imp$Feature[1:min(top_n, NROW(imp))]
   }
-  if (is.numeric(features)) {
-    features <- colnames(data)[features]
-  } else if (is.character(features)) {
-    if (is.null(colnames(data)))
-      stop("Either provide `data` with column names or provide `features` as column indices")
+  if (is.character(features)) {
     features <- match(features, colnames(data))
   }
 
