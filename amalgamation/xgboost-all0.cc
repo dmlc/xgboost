@@ -57,7 +57,6 @@
 #include "../src/tree/updater_refresh.cc"
 #include "../src/tree/updater_sync.cc"
 #include "../src/tree/updater_histmaker.cc"
-#include "../src/tree/updater_skmaker.cc"
 #include "../src/tree/constraints.cc"
 
 // linear
