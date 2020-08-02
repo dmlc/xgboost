@@ -124,6 +124,8 @@ eval[test] = {data_path}
         v = xgboost.__version__
         if v.find('SNAPSHOT') != -1:
             assert msg.split(':')[1].strip() == v.split('-')[0]
+        elif v.find('rc') != -1:
+            assert msg.split(':')[1].strip() == v.split('rc')[0]
         else:
             assert msg.split(':')[1].strip() == v
 
