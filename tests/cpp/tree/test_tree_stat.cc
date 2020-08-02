@@ -56,4 +56,8 @@ TEST_F(UpdaterTreeStatTest, Exact) {
 TEST_F(UpdaterTreeStatTest, Approx) {
   this->RunTest("grow_histmaker");
 }
+
+TEST_F(UpdaterTreeStatTest, Local) {
+  this->RunTest("grow_local_histmaker");
+}
 }  // namespace xgboost
