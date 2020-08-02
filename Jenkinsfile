@@ -285,7 +285,7 @@ def BuildCUDA(args) {
 }
 
 def BuildJVMPackagesWithCUDA(args) {
-  node('linux && gpu') {
+  node('linux && mgpu') {
     unstash name: 'srcs'
     echo "Build XGBoost4J-Spark with Spark ${args.spark_version}, CUDA ${args.cuda_version}"
     def container_type = "jvm_gpu_build"
