@@ -145,6 +145,11 @@ class XGBoostRegressor (
 
   def setCustomEval(value: EvalTrait): this.type = set(customEval, value)
 
+  def setAllowNonZeroForMissing(value: Boolean): this.type = set(
+    allowNonZeroForMissing,
+    value
+  )
+
   def setSinglePrecisionHistogram(value: Boolean): this.type =
     set(singlePrecisionHistogram, value)
 
@@ -244,7 +249,7 @@ class XGBoostRegressionModel private[ml] (
 
   def setMissing(value: Float): this.type = set(missing, value)
 
-  def setAllowZeroForMissingValue(value: Boolean): this.type = set(
+  def setAllowNonZeroForMissing(value: Boolean): this.type = set(
     allowNonZeroForMissing,
     value
   )
