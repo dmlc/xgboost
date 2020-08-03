@@ -43,7 +43,7 @@ import org.apache.spark.broadcast.Broadcast
 
 class XGBoostRegressor (
     override val uid: String,
-    private val xgboostParams: Map[String, Any])
+    private[spark] val xgboostParams: Map[String, Any])
   extends Predictor[Vector, XGBoostRegressor, XGBoostRegressionModel]
     with XGBoostRegressorParams with DefaultParamsWritable {
 
@@ -173,27 +173,18 @@ class XGBoostRegressor (
       set(objectiveType, "regression")
     }
 
-    val weight = if (!isDefined(weightCol) || $(weightCol).isEmpty) lit(1.0) else col($(weightCol))
-    val baseMargin = if (!isDefined(baseMarginCol) || $(baseMarginCol).isEmpty) {
-      lit(Float.NaN)
-    } else {
-      col($(baseMarginCol))
-    }
-    val group = if (!isDefined(groupCol) || $(groupCol).isEmpty) lit(-1) else col($(groupCol))
-    val trainingSet: RDD[XGBLabeledPoint] = DataUtils.convertDataFrameToXGBLabeledPointRDDs(
-      col($(labelCol)), col($(featuresCol)), weight, baseMargin, Some(group),
-      $(numWorkers), needDeterministicRepartitioning, dataset.asInstanceOf[DataFrame]).head
-    val evalRDDMap = getEvalSets(xgboostParams).map {
-      case (name, dataFrame) => (name,
-        DataUtils.convertDataFrameToXGBLabeledPointRDDs(col($(labelCol)), col($(featuresCol)),
-          weight, baseMargin, Some(group), $(numWorkers), needDeterministicRepartitioning,
-          dataFrame).head)
-    }
+
     transformSchema(dataset.schema, logging = true)
     val derivedXGBParamMap = MLlib2XGBoostParams
     // All non-null param maps in XGBoostRegressor are in derivedXGBParamMap.
-    val (_booster, _metrics) = XGBoost.trainDistributed(trainingSet, derivedXGBParamMap,
-      hasGroup = group != lit(-1), evalRDDMap)
+
+    val builRddWatches: XGBoostExecutionParams => RDD[Watches] =
+      TrainWrapper.getTrainImpl(this, dataset)
+
+    // All non-null param maps in XGBoostClassifier are in derivedXGBParamMap.
+    val (_booster, _metrics) = XGBoost.trainDistributed(builRddWatches, derivedXGBParamMap,
+      dataset.sparkSession.sparkContext)
+
     val model = new XGBoostRegressionModel(uid, _booster)
     val summary = XGBoostTrainingSummary(_metrics)
     model.setSummary(summary)

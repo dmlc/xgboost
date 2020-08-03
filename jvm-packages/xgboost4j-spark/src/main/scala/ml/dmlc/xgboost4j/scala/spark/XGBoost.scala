@@ -479,20 +479,17 @@ object XGBoost extends Serializable {
     }
   }
 
-  private def trainForNonRanking(
+  private[spark] def trainForNonRanking(
       trainingData: RDD[XGBLabeledPoint],
       xgbExecutionParams: XGBoostExecutionParams,
-      rabitEnv: java.util.Map[String, String],
-      prevBooster: Booster,
-      evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
+      evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[Watches] = {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPoints => {
         val watches = Watches.buildWatches(xgbExecutionParams,
           processMissingValues(labeledPoints, xgbExecutionParams.missing,
             xgbExecutionParams.allowNonZeroForMissing),
           getCacheDirName(xgbExecutionParams.useExternalMemory))
-        buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, xgbExecutionParams.obj,
-          xgbExecutionParams.eval, prevBooster)
+        Iterator.single(watches)
       }).cache()
     } else {
       coPartitionNoGroupSets(trainingData, evalSetsMap, xgbExecutionParams.numWorkers).
@@ -504,26 +501,22 @@ object XGBoost extends Serializable {
                   xgbExecutionParams.missing, xgbExecutionParams.allowNonZeroForMissing))
               },
               getCacheDirName(xgbExecutionParams.useExternalMemory))
-            buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, xgbExecutionParams.obj,
-              xgbExecutionParams.eval, prevBooster)
+            Iterator.single(watches)
         }.cache()
     }
   }
 
-  private def trainForRanking(
+  private[spark] def trainForRanking(
       trainingData: RDD[Array[XGBLabeledPoint]],
       xgbExecutionParam: XGBoostExecutionParams,
-      rabitEnv: java.util.Map[String, String],
-      prevBooster: Booster,
-      evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
+      evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[Watches] = {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPointGroups => {
         val watches = Watches.buildWatchesWithGroup(xgbExecutionParam,
           processMissingValuesWithGroup(labeledPointGroups, xgbExecutionParam.missing,
             xgbExecutionParam.allowNonZeroForMissing),
           getCacheDirName(xgbExecutionParam.useExternalMemory))
-        buildDistributedBooster(watches, xgbExecutionParam, rabitEnv,
-          xgbExecutionParam.obj, xgbExecutionParam.eval, prevBooster)
+        Iterator.single(watches)
       }).cache()
     } else {
       coPartitionGroupSets(trainingData, evalSetsMap, xgbExecutionParam.numWorkers).mapPartitions(
@@ -534,10 +527,7 @@ object XGBoost extends Serializable {
                 xgbExecutionParam.missing, xgbExecutionParam.allowNonZeroForMissing))
             },
             getCacheDirName(xgbExecutionParam.useExternalMemory))
-          buildDistributedBooster(watches, xgbExecutionParam, rabitEnv,
-            xgbExecutionParam.obj,
-            xgbExecutionParam.eval,
-            prevBooster)
+          Iterator.single(watches)
         }).cache()
     }
   }
@@ -546,7 +536,7 @@ object XGBoost extends Serializable {
     if (ifCacheDataBoolean) input.persist(StorageLevel.MEMORY_AND_DISK) else input
   }
 
-  private def composeInputData(
+  private[spark] def composeInputData(
     trainingData: RDD[XGBLabeledPoint],
     ifCacheDataBoolean: Boolean,
     hasGroup: Boolean,
@@ -564,18 +554,11 @@ object XGBoost extends Serializable {
    * @return A tuple of the booster and the metrics used to build training summary
    */
   @throws(classOf[XGBoostError])
-  private[spark] def trainDistributed(
-      trainingData: RDD[XGBLabeledPoint],
-      params: Map[String, Any],
-      hasGroup: Boolean = false,
-      evalSetsMap: Map[String, RDD[XGBLabeledPoint]] = Map()):
-    (Booster, Map[String, Array[Float]]) = {
+  private[spark] def trainDistributed(buildTrainingData: XGBoostExecutionParams => RDD[Watches],
+      params: Map[String, Any], sc: SparkContext): (Booster, Map[String, Array[Float]]) = {
     logger.info(s"Running XGBoost ${spark.VERSION} with parameters:\n${params.mkString("\n")}")
-    val xgbParamsFactory = new XGBoostExecutionParamsFactory(params, trainingData.sparkContext)
+    val xgbParamsFactory = new XGBoostExecutionParamsFactory(params, sc)
     val xgbExecParams = xgbParamsFactory.buildXGBRuntimeParams
-    val sc = trainingData.sparkContext
-    val transformedTrainingData = composeInputData(trainingData, xgbExecParams.cacheTrainingSet,
-      hasGroup, xgbExecParams.numWorkers)
     val prevBooster = xgbExecParams.checkpointParam.map { checkpointParam =>
       val checkpointManager = new ExternalCheckpointManager(
         checkpointParam.checkpointPath,
@@ -591,13 +574,20 @@ object XGBoost extends Serializable {
           xgbExecParams.timeoutRequestWorkers,
           xgbExecParams.numWorkers)
         val rabitEnv = tracker.getWorkerEnvs
-        val boostersAndMetrics = if (hasGroup) {
-          trainForRanking(transformedTrainingData.left.get, xgbExecParams, rabitEnv, prevBooster,
-            evalSetsMap)
-        } else {
-          trainForNonRanking(transformedTrainingData.right.get, xgbExecParams, rabitEnv,
-            prevBooster, evalSetsMap)
-        }
+
+        val boostersAndMetrics = buildTrainingData(xgbExecParams).mapPartitions(iter => {
+          var watches: Option[Watches] = None
+          if (iter.hasNext) {
+             watches = Some(iter.next())
+          }
+
+          if (watches.isEmpty) {
+            throw new RuntimeException("wrong number of Watches: " + iter.size)
+          }
+          buildDistributedBooster(watches.get, xgbExecParams, rabitEnv,
+            xgbExecParams.obj, xgbExecParams.eval, prevBooster)
+        }).cache()
+
         val sparkJobThread = new Thread() {
           override def run() {
             // force the job
@@ -629,12 +619,13 @@ object XGBoost extends Serializable {
       case t: Throwable =>
         // if the job was aborted due to an exception
         logger.error("the job was aborted due to ", t)
-        trainingData.sparkContext.stop()
+        sc.stop()
         throw t
     } finally {
-      uncacheTrainingData(xgbExecParams.cacheTrainingSet, transformedTrainingData)
+
     }
   }
+
 
   private def uncacheTrainingData(
       cacheTrainingSet: Boolean,
@@ -739,7 +730,7 @@ object XGBoost extends Serializable {
 
 }
 
-private class Watches private(
+private[spark] class Watches private(
     val datasets: Array[DMatrix],
     val names: Array[String],
     val cacheDirName: Option[String]) {
