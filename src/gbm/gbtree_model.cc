@@ -4,6 +4,7 @@
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
 #include "gbtree_model.h"
+#include <utility>
 
 namespace xgboost {
 namespace gbm {
@@ -41,15 +42,15 @@ void GBTreeModel::SaveModel(Json* p_out) const {
   auto& out = *p_out;
   CHECK_EQ(param.num_trees, static_cast<int>(trees.size()));
   out["gbtree_model_param"] = ToJson(param);
-  std::vector<Json> trees_json;
-  size_t t = 0;
-  for (auto const& tree : trees) {
+  std::vector<Json> trees_json(trees.size());
+
+#pragma omp parallel for
+  for (omp_ulong t = 0; t < trees.size(); ++t) {
+    auto const& tree = trees[t];
     Json tree_json{Object()};
     tree->SaveModel(&tree_json);
-    // The field is not used in XGBoost, but might be useful for external project.
     tree_json["id"] = Integer(t);
-    trees_json.emplace_back(tree_json);
-    t++;
+    trees_json[t] = std::move(tree_json);
   }
 
   std::vector<Json> tree_info_json(tree_info.size());
@@ -70,9 +71,11 @@ void GBTreeModel::LoadModel(Json const& in) {
   auto const& trees_json = get<Array const>(in["trees"]);
   trees.resize(trees_json.size());
 
-  for (size_t t = 0; t < trees.size(); ++t) {
-    trees[t].reset( new RegTree() );
-    trees[t]->LoadModel(trees_json[t]);
+#pragma omp parallel for
+  for (omp_ulong t = 0; t < trees_json.size(); ++t) {  // NOLINT
+    auto tree_id = get<Integer>(trees_json[t]["id"]);
+    trees.at(tree_id).reset(new RegTree());
+    trees.at(tree_id)->LoadModel(trees_json[t]);
   }
 
   tree_info.resize(param.num_trees);
