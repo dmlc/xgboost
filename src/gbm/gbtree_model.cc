@@ -49,7 +49,7 @@ void GBTreeModel::SaveModel(Json* p_out) const {
     auto const& tree = trees[t];
     Json tree_json{Object()};
     tree->SaveModel(&tree_json);
-    tree_json["id"] = Integer(t);
+    tree_json["id"] = Integer(static_cast<Integer::Int>(t));
     trees_json[t] = std::move(tree_json);
   }
 
