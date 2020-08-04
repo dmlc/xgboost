@@ -1,10 +1,11 @@
 /*!
- * Copyright 2019 by Contributors
+ * Copyright 2019-2020 by Contributors
  */
+#include <utility>
+
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
 #include "gbtree_model.h"
-#include <utility>
 
 namespace xgboost {
 namespace gbm {
