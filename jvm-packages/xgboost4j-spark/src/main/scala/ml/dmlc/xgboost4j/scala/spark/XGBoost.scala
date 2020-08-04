@@ -381,7 +381,6 @@ object XGBoost extends Serializable {
     val attempt = TaskContext.get().attemptNumber.toString
     rabitEnv.put("DMLC_TASK_ID", taskId)
     rabitEnv.put("DMLC_NUM_ATTEMPT", attempt)
-    rabitEnv.put("DMLC_WORKER_STOP_PROCESS_ON_ERROR", "false")
     val numRounds = xgbExecutionParam.numRounds
     val makeCheckpoint = xgbExecutionParam.checkpointParam.isDefined && taskId.toInt == 0
     try {
@@ -997,4 +996,3 @@ private[spark] class LabeledPointGroupIterator(base: Iterator[XGBLabeledPoint])
     group
   }
 }
-
