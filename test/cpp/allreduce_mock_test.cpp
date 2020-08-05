@@ -3,6 +3,7 @@
 
 #include <string>
 #include <iostream>
+#include <dmlc/logging.h>
 #include "../../src/allreduce_mock.h"
 
 TEST(allreduce_mock, mock_allreduce)
@@ -17,7 +18,7 @@ TEST(allreduce_mock, mock_allreduce)
   char* argv[] = {cmd};
   m.Init(1, argv);
   m.rank = 0;
-  EXPECT_EXIT(m.Allreduce(nullptr,0,0,nullptr,nullptr,nullptr), ::testing::ExitedWithCode(255), "");
+  EXPECT_THROW({m.Allreduce(nullptr,0,0,nullptr,nullptr,nullptr);}, dmlc::Error);
 }
 
 TEST(allreduce_mock, mock_broadcast)
@@ -32,7 +33,7 @@ TEST(allreduce_mock, mock_broadcast)
   m.rank = 0;
   m.version_number=1;
   m.seq_counter=2;
-  EXPECT_EXIT(m.Broadcast(nullptr,0,0), ::testing::ExitedWithCode(255), "");
+  EXPECT_THROW({m.Broadcast(nullptr,0,0);}, dmlc::Error);
 }
 
 TEST(allreduce_mock, mock_gather)
@@ -47,5 +48,5 @@ TEST(allreduce_mock, mock_gather)
   m.rank = 3;
   m.version_number=13;
   m.seq_counter=22;
-  EXPECT_EXIT(m.Allgather(nullptr,0,0,0,0), ::testing::ExitedWithCode(255), "");
+  EXPECT_THROW({m.Allgather(nullptr,0,0,0,0);}, dmlc::Error);
 }

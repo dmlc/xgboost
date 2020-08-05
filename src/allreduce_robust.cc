@@ -167,8 +167,8 @@ int AllreduceRobust::GetBootstrapCache(const std::string &key, void* buf,
  * \param size_prev_slice size of the previous slice i.e. slice of node (rank - 1) % world_size
  * \param _file caller file name used to generate unique cache key
  * \param _line caller line number used to generate unique cache key
- * \param _caller caller function name used to generate unique cache key 
- */ 
+ * \param _caller caller function name used to generate unique cache key
+ */
 void AllreduceRobust::Allgather(void *sendrecvbuf,
                                     size_t total_size,
                                     size_t slice_begin,
@@ -518,8 +518,8 @@ void AllreduceRobust::CheckPoint_(const Serializable *global_model,
   }
   // execute checkpoint, note: when checkpoint existing, load will not happen
   _assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint,
-    ActionSummary::kSpecialOp, cur_cache_seq),
-                "check point must return true");
+                      ActionSummary::kSpecialOp, cur_cache_seq),
+          "check point must return true");
   // this is the critical region where we will change all the stored models
   // increase version number
   version_number += 1;
@@ -550,8 +550,9 @@ void AllreduceRobust::CheckPoint_(const Serializable *global_model,
   delta = utils::GetTime() - start;
   // log checkpoint ack latency
   if (rabit_debug) {
-    utils::HandleLogInfo("[%d] checkpoint ack finished version %d, take %f seconds\n",
-    rank, version_number, delta);
+    utils::HandleLogInfo(
+        "[%d] checkpoint ack finished version %d, take %f seconds\n", rank,
+        version_number, delta);
   }
 }
 /*!

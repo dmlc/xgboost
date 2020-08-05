@@ -12,11 +12,6 @@
 #include "rabit/internal/engine.h"
 
 namespace rabit {
-
-namespace utils {
-  bool STOP_PROCESS_ON_ERROR = true;
-}
-
 namespace engine {
 /*! \brief EmptyEngine */
 class EmptyEngine : public IEngine {

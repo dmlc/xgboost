@@ -65,10 +65,6 @@ namespace utils {
 /*! \brief error message buffer length */
 const int kPrintBuffer = 1 << 12;
 
-/*! \brief we may want to keep the process alive when there are multiple workers
- * co-locate in the same process */
-extern bool STOP_PROCESS_ON_ERROR;
-
 /* \brief Case-insensitive string comparison */
 inline int CompareStringsCaseInsensitive(const char* s1, const char* s2) {
 #ifdef _MSC_VER
@@ -89,26 +85,17 @@ inline bool StringToBool(const char* s) {
  * \param msg error message
  */
 inline void HandleAssertError(const char *msg) {
-  if (STOP_PROCESS_ON_ERROR) {
-    fprintf(stderr, "AssertError:%s, shutting down process\n", msg);
-    exit(-1);
-  } else {
-    fprintf(stderr, "AssertError:%s, rabit is configured to keep process running\n", msg);
-    throw dmlc::Error(msg);
-  }
+  fprintf(stderr,
+          "AssertError:%s, rabit is configured to keep process running\n", msg);
+  throw dmlc::Error(msg);
 }
 /*!
  * \brief handling of Check error, caused by inappropriate input
  * \param msg error message
  */
 inline void HandleCheckError(const char *msg) {
-  if (STOP_PROCESS_ON_ERROR) {
-    fprintf(stderr, "%s, shutting down process\n", msg);
-    exit(-1);
-  } else {
-    fprintf(stderr, "%s, rabit is configured to keep process running\n", msg);
-    throw dmlc::Error(msg);
-  }
+  fprintf(stderr, "%s, rabit is configured to keep process running\n", msg);
+  throw dmlc::Error(msg);
 }
 inline void HandlePrint(const char *msg) {
   printf("%s", msg);

@@ -3,6 +3,7 @@ find_package(GTest REQUIRED)
 add_executable(
   unit_tests
   test_io.cc
+  test_utils.cc
   allreduce_robust_test.cc
   allreduce_base_test.cc
   allreduce_mock_test.cc
