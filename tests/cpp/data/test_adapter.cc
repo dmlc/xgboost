@@ -725,7 +725,7 @@ TEST(Adapter, ArrowAdapterCreateDMatWithLabels) {
   ASSERT_TRUE(builder.AppendValues(labels).ok());
   std::shared_ptr<arrow::Array> arr;
   ASSERT_TRUE(builder.Finish(&arr).ok());
-  std::shared_ptr<arrow::ChunkedArray> label_col = 
+  std::shared_ptr<arrow::ChunkedArray> label_col =
       std::make_shared<arrow::ChunkedArray>(arr);
 
   data::ArrowAdapter adapter(rb, label_col,
@@ -745,7 +745,7 @@ TEST(Adapter, ArrowAdapterCreateDMatWithLabels) {
       }
     }
   }
-  
+
   const std::vector<float>& dmat_labels = dmat->Info().labels_.HostVector();
   for (size_t i = 0; i < dmat_labels.size(); ++i) {
     EXPECT_FLOAT_EQ(dmat_labels[i], static_cast<float>(labels[i]));

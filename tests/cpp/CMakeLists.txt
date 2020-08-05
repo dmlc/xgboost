@@ -7,11 +7,6 @@ else (USE_DMLC_GTEST)
   find_package(GTest REQUIRED)
 endif (USE_DMLC_GTEST)
 
-if (ARROW_FOUND AND ARROW_PYTHON_FOUND)
-  target_compile_definitions(gtest PRIVATE
-                    -D_GLIBCXX_USE_CXX11_ABI=0)
-endif (ARROW_FOUND AND ARROW_PYTHON_FOUND)
-
 file(GLOB_RECURSE TEST_SOURCES "*.cc")
 
 if (USE_CUDA)
