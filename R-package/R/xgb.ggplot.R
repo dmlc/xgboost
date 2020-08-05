@@ -117,7 +117,7 @@ xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, 
   )
   p_data <- prepare.ggplot.shap.data(data_list, normalize = TRUE)
   # Reverse factor levels so that the first level is at the top of the plot
-  p_data[, feature := factor(feature, rev(levels(feature)))]
+  p_data[, "feature" := factor(feature, rev(levels(feature)))]
 
   p <- ggplot2::ggplot(p_data, ggplot2::aes(x = feature, y = shap_value, colour = feature_value)) +
     ggplot2::geom_jitter(alpha = 0.5, width = 0.1) +
@@ -151,11 +151,11 @@ prepare.ggplot.shap.data <- function(data_list, normalize = FALSE) {
   if (normalize) {
     data[, (names(data)) := lapply(.SD, normalize)]
   }
-  data[, "id" := .I]
+  data[, "id" := seq_len(nrow(data))]
   data_m <- data.table::melt.data.table(data, id.vars = "id", variable.name = "feature", value.name = "feature_value")
 
   shap_contrib <- data.table::as.data.table(as.matrix(shap_contrib))
-  shap_contrib[, "id" := .I]
+  shap_contrib[, "id" := seq_len(nrow(shap_contrib))]
   shap_contrib_m <- data.table::melt.data.table(shap_contrib, id.vars = "id", variable.name = "feature", value.name = "shap_value")
 
   p_data <- data.table::merge.data.table(data_m, shap_contrib_m, by = c("id", "feature"))
@@ -210,5 +210,5 @@ multiplot <- function(..., cols = 1) {
 
 globalVariables(c(
   "Cluster", "ggplot", "aes", "geom_bar", "coord_flip", "xlab", "ylab", "ggtitle", "theme",
-  "element_blank", "element_text", "V1", "Weight"
+  "element_blank", "element_text", "V1", "Weight", "feature"
 ))
