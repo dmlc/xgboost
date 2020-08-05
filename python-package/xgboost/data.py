@@ -15,10 +15,10 @@ c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
 
 
 def _warn_unused_missing(data, missing):
-    if (not np.isnan(missing)) or (missing is None):
+    if (missing is not None) and (not np.isnan(missing)):
         warnings.warn(
             '`missing` is not used for current input data type:' +
-            str(type(data)))
+            str(type(data)), UserWarning)
 
 
 def _check_complex(data):
