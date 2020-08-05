@@ -22,7 +22,7 @@ class TestDMatrix(unittest.TestCase):
             data._warn_unused_missing('uri', None)
             data._warn_unused_missing('uri', np.nan)
 
-        assert len(record) == 0
+            assert len(record) == 0
 
         with pytest.warns(None) as record:
             x = rng.randn(10, 10)
@@ -30,7 +30,7 @@ class TestDMatrix(unittest.TestCase):
 
             xgb.DMatrix(x, y, missing=4)
 
-        assert len(record) == 0
+            assert len(record) == 0
 
         with pytest.warns(UserWarning):
             csr = csr_matrix(x)
