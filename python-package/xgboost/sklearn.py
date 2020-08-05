@@ -77,7 +77,7 @@ __model_doc = '''
     gamma : float
         Minimum loss reduction required to make a further partition on a leaf
         node of the tree.
-    min_child_weight : int
+    min_child_weight : float
         Minimum sum of instance weight(hessian) needed in a child.
     max_delta_step : int
         Maximum delta step we allow each tree's weight estimation to be.
