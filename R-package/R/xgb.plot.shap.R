@@ -213,7 +213,7 @@ xgb.plot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, to
 #' Internal utility function.
 #'
 #' @return A list containing: 'data', a matrix containing sample observations
-#'   and their feature values; 'shap_contrib', a matrix containing the SHAP contribution 
+#'   and their feature values; 'shap_contrib', a matrix containing the SHAP contribution
 #'   values for these observations.
 xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1, model = NULL,
                           trees = NULL, target_class = NULL, approxcontrib = FALSE,
@@ -233,10 +233,10 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
 
   if (is.character(features) && is.null(colnames(data)))
     stop("either provide `data` with column names or provide `features` as column indices")
-  
+
   if (is.null(model$feature_names) && model$nfeatures != ncol(data))
     stop("if model has no feature_names, columns in `data` must match features in model")
-  
+
   if (!is.null(subsample)) {
     idx <- sample(x = seq_len(nrow(data)), size = as.integer(subsample * nrow(data)), replace = FALSE)
   } else {
@@ -246,7 +246,7 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
   if (is.null(colnames(data))) {
     colnames(data) <- paste0("X", 1:ncol(data))
   }
-  
+
   if (!is.null(shap_contrib)) {
     if (is.list(shap_contrib)) { # multiclass: either choose a class or merge
       shap_contrib <- if (!is.null(target_class)) shap_contrib[[target_class + 1]] else Reduce("+", lapply(shap_contrib, abs))
@@ -261,12 +261,12 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
       shap_contrib <- if (!is.null(target_class)) shap_contrib[[target_class + 1]] else Reduce("+", lapply(shap_contrib, abs))
     }
   }
-  
+
   if (is.null(features)) {
     if (!is.null(model$feature_names)) {
-      imp <- xgb.importance(model = model, trees = trees)  
+      imp <- xgb.importance(model = model, trees = trees)
     } else {
-      imp <- xgb.importance(model = model, trees = trees, feature_names = colnames(data))  
+      imp <- xgb.importance(model = model, trees = trees, feature_names = colnames(data))
     }
     top_n <- top_n[1]
     if (top_n < 1 | top_n > 100) stop("top_n: must be an integer within [1, 100]")
