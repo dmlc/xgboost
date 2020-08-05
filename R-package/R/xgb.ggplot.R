@@ -173,7 +173,7 @@ prepare.ggplot.shap.data <- function(data_list, normalize = FALSE) {
 #' @return Numeric vector with mean 0 and sd 1.
 normalize <- function(x) {
   loc <- mean(x, na.rm = TRUE)
-  scale <- sd(x, na.rm = TRUE)
+  scale <- stats::sd(x, na.rm = TRUE)
 
   (x - loc) / scale
 }
