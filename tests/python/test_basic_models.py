@@ -343,6 +343,25 @@ class TestModels(unittest.TestCase):
                             schema=schema)
         os.remove(model_path)
 
+        try:
+            xgb.train({'objective': 'foo'}, dtrain, num_boost_round=1)
+        except ValueError as e:
+            e_str = str(e)
+            beg = e_str.find('Objective candidate')
+            end = e_str.find('Stack trace')
+            e_str = e_str[beg: end]
+            e_str = e_str.strip()
+            splited = e_str.splitlines()
+            objectives = [s.split(': ')[1] for s in splited]
+            j_objectives = schema['properties']['learner']['properties'][
+                'objective']['oneOf']
+            objectives_from_schema = set()
+            for j_obj in j_objectives:
+                objectives_from_schema.add(
+                    j_obj['properties']['name']['const'])
+            objectives = set(objectives)
+            assert objectives == objectives_from_schema
+
     @pytest.mark.skipif(**tm.no_json_schema())
     def test_json_dump_schema(self):
         import jsonschema
