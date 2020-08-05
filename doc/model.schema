@@ -276,6 +276,17 @@
             {
               "type": "object",
               "properties": {
+                "name": { "const": "reg:pseudohubererror" },
+                "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
+              },
+              "required": [
+                "name",
+                "reg_loss_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
                 "name": { "const": "reg:squaredlogerror" },
                 "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
               },
