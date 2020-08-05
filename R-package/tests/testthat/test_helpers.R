@@ -359,7 +359,7 @@ test_that("xgb.shap.data works when top_n is provided", {
   expect_equal(NROW(data_list$data), NROW(data_list$shap_contrib))
   expect_gt(length(colnames(data_list$data)), 0)
   expect_gt(length(colnames(data_list$shap_contrib)), 0)
-  
+
   # for multiclass without target class provided
   data_list <- xgb.shap.data(data = as.matrix(iris[, -5]), model = mbst.Tree, top_n = 2)
   expect_equal(dim(data_list$shap_contrib), c(nrow(iris), 2))
