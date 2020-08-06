@@ -5,6 +5,7 @@ import sys
 import numpy as np
 import json
 import asyncio
+from sklearn.datasets import make_classification
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -36,7 +37,7 @@ def generate_array():
 
 
 def test_from_dask_dataframe():
-    with LocalCluster(n_workers=5) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             X, y = generate_array()
 
@@ -74,7 +75,7 @@ def test_from_dask_dataframe():
 
 
 def test_from_dask_array():
-    with LocalCluster(n_workers=5, threads_per_worker=5) as cluster:
+    with LocalCluster(n_workers=kWorkers, threads_per_worker=5) as cluster:
         with Client(cluster) as client:
             X, y = generate_array()
             dtrain = DaskDMatrix(client, X, y)
@@ -104,8 +105,28 @@ def test_from_dask_array():
             assert np.all(single_node_predt == from_arr.compute())
 
 
+def test_dask_predict_shape_infer():
+    with LocalCluster(n_workers=kWorkers) as cluster:
+        with Client(cluster) as client:
+            X, y = make_classification(n_samples=1000, n_informative=5,
+                                       n_classes=3)
+            X_ = dd.from_array(X, chunksize=100)
+            y_ = dd.from_array(y, chunksize=100)
+            dtrain = xgb.dask.DaskDMatrix(client, data=X_, label=y_)
+
+            model = xgb.dask.train(
+                client,
+                {"objective": "multi:softprob", "num_class": 3},
+                dtrain=dtrain
+            )
+
+            preds = xgb.dask.predict(client, model, dtrain)
+            assert preds.shape[0] == preds.compute().shape[0]
+            assert preds.shape[1] == preds.compute().shape[1]
+
+
 def test_dask_missing_value_reg():
-    with LocalCluster(n_workers=5) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             X_0 = np.ones((20 // 2, kCols))
             X_1 = np.zeros((20 // 2, kCols))
@@ -156,7 +177,7 @@ def test_dask_missing_value_cls():
 
 
 def test_dask_regressor():
-    with LocalCluster(n_workers=5) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             X, y = generate_array()
             regressor = xgb.dask.DaskXGBRegressor(verbosity=1, n_estimators=2)
@@ -178,7 +199,7 @@ def test_dask_regressor():
 
 
 def test_dask_classifier():
-    with LocalCluster(n_workers=5) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             X, y = generate_array()
             y = (y * 10).astype(np.int32)
@@ -188,7 +209,7 @@ def test_dask_classifier():
             classifier.fit(X, y,  eval_set=[(X, y)])
             prediction = classifier.predict(X)
 
-            assert prediction.ndim == 1
+            assert prediction.ndim == 2
             assert prediction.shape[0] == kRows
 
             history = classifier.evals_result()
@@ -211,14 +232,14 @@ def test_dask_classifier():
             assert classifier.n_classes_ == 10
             prediction = classifier.predict(X_d)
 
-            assert prediction.ndim == 1
+            assert prediction.ndim == 2
             assert prediction.shape[0] == kRows
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
 def test_sklearn_grid_search():
     from sklearn.model_selection import GridSearchCV
-    with LocalCluster(n_workers=4) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             X, y = generate_array()
             reg = xgb.dask.DaskXGBRegressor(learning_rate=0.1,
@@ -292,7 +313,9 @@ def run_empty_dmatrix_cls(client, parameters):
                          evals=[(dtrain, 'validation')],
                          num_boost_round=2)
     predictions = xgb.dask.predict(client=client, model=out,
-                                   data=dtrain).compute()
+                                   data=dtrain)
+    assert predictions.shape[1] == 10
+    predictions = predictions.compute()
     _check_outputs(out, predictions)
 
     # train has more rows than evals
@@ -315,7 +338,7 @@ def run_empty_dmatrix_cls(client, parameters):
 # environment and Exact doesn't support it.
 
 def test_empty_dmatrix_hist():
-    with LocalCluster(n_workers=5) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             parameters = {'tree_method': 'hist'}
             run_empty_dmatrix_reg(client, parameters)
@@ -323,7 +346,7 @@ def test_empty_dmatrix_hist():
 
 
 def test_empty_dmatrix_approx():
-    with LocalCluster(n_workers=5) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             parameters = {'tree_method': 'approx'}
             run_empty_dmatrix_reg(client, parameters)
@@ -384,7 +407,7 @@ async def run_dask_classifier_asyncio(scheduler_address):
         await classifier.fit(X, y,  eval_set=[(X, y)])
         prediction = await classifier.predict(X)
 
-        assert prediction.ndim == 1
+        assert prediction.ndim == 2
         assert prediction.shape[0] == kRows
 
         history = classifier.evals_result()
@@ -407,8 +430,9 @@ async def run_dask_classifier_asyncio(scheduler_address):
         assert classifier.n_classes_ == 10
         prediction = await classifier.predict(X_d)
 
-        assert prediction.ndim == 1
+        assert prediction.ndim == 2
         assert prediction.shape[0] == kRows
+        assert prediction.shape[1] == 10
 
 
 def test_with_asyncio():
