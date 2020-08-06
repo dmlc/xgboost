@@ -2,7 +2,15 @@
 set -e
 set -x
 
-suite=$1
+if [ "$#" -lt 1 ]
+then
+  suite=''
+  args=''
+else
+  suite=$1
+  shift 1
+  args="$@"
+fi
 
 # Install XGBoost Python package
 function install_xgboost {
@@ -35,14 +43,14 @@ case "$suite" in
   gpu)
     source activate gpu_test
     install_xgboost
-    pytest -v -s -rxXs --fulltrace -m "not mgpu" tests/python-gpu
+    pytest -v -s -rxXs --fulltrace -m "not mgpu" ${args} tests/python-gpu
     uninstall_xgboost
     ;;
 
   mgpu)
     source activate gpu_test
     install_xgboost
-    pytest -v -s -rxXs --fulltrace -m "mgpu" tests/python-gpu
+    pytest -v -s -rxXs --fulltrace -m "mgpu" ${args} tests/python-gpu
 
     cd tests/distributed
     ./runtests-gpu.sh
@@ -52,14 +60,14 @@ case "$suite" in
   cpu)
     source activate cpu_test
     install_xgboost
-    pytest -v -s --fulltrace tests/python
+    pytest -v -s -rxXs --fulltrace ${args} tests/python
     cd tests/distributed
     ./runtests.sh
     uninstall_xgboost
     ;;
 
   *)
-    echo "Usage: $0 {gpu|mgpu|cpu}"
+    echo "Usage: $0 {gpu|mgpu|cpu} [extra args to pass to pytest]"
     exit 1
     ;;
 esac

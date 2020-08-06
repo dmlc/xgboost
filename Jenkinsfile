@@ -391,7 +391,7 @@ def TestPythonGPU(args) {
       sh "rm -rfv build/ python-package/dist/"
       unstash name: "xgboost_whl_rmm_cuda${args.host_cuda_version}"
       unstash name: "xgboost_cpp_tests_rmm_cuda${args.host_cuda_version}"
-      sh "${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh ${mgpu_indicator}"
+      sh "${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_python.sh ${mgpu_indicator} --use-rmm-pool"
     }
     deleteDir()
   }
