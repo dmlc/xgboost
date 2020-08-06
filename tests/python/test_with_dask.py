@@ -144,12 +144,12 @@ def test_dask_missing_value_cls():
                                              missing=0.0)
             cls.client = client
             cls.fit(X, y, eval_set=[(X, y)])
-            dd_predt = cls.predict(X).compute()
+            dd_pred_proba = cls.predict_proba(X).compute()
 
             np_X = X.compute()
-            np_predt = cls.get_booster().predict(
+            np_pred_proba = cls.get_booster().predict(
                 xgb.DMatrix(np_X, missing=0.0))
-            np.testing.assert_allclose(np_predt, dd_predt)
+            np.testing.assert_allclose(np_pred_proba, dd_pred_proba)
 
             cls = xgb.dask.DaskXGBClassifier()
             assert hasattr(cls, 'missing')
@@ -202,6 +202,9 @@ def test_dask_classifier():
             assert len(history['validation_0']['merror']) == 2
 
             assert classifier.n_classes_ == 10
+
+            probas = classifier.predict_proba(X)
+            assert probas.shape[1] == classifier.n_classes_
 
             # Test with dataframe.
             X_d = dd.from_dask_array(X)
