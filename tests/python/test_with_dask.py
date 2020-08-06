@@ -314,7 +314,7 @@ def run_empty_dmatrix_cls(client, parameters):
                          num_boost_round=2)
     predictions = xgb.dask.predict(client=client, model=out,
                                    data=dtrain)
-    assert predictions.shape[1] == 10
+    assert predictions.shape[1] == n_classes
     predictions = predictions.compute()
     _check_outputs(out, predictions)
 
