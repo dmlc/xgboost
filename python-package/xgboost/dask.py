@@ -775,7 +775,8 @@ async def _predict_async(client: Client, model, data, *args,
     # See https://docs.dask.org/en/latest/array-creation.html
     arrays = []
     for i, shape in enumerate(shapes):
-        arrays.append(da.from_delayed(results[i], shape=(shape[0], ),
+        columns = 1 if len(shape) == 1 else shape[1]  # multi-class
+        arrays.append(da.from_delayed(results[i], shape=(shape[0], columns),
                                       dtype=numpy.float32))
     predictions = await da.concatenate(arrays, axis=0)
     return predictions
@@ -1032,9 +1033,6 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
     ['estimators', 'model']
 )
 class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
-    # pylint: disable=missing-docstring
-    _client = None
-
     async def _fit_async(self, X, y,
                          sample_weights=None,
                          eval_set=None,
