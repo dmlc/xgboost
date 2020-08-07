@@ -8,6 +8,10 @@ Specify the 'objective' parameter as one of the following options to offload com
 | objective | Description |
 | --- | --- |
 reg:squarederror_oneapi | regression with squared loss  |
+reg:squaredlogerror_oneapi | regression with root mean squared logarithmic loss |
+reg:logistic_oneapi | logistic regression for probability regression task |
+binary:logistic_oneapi | logistic regression for binary classification task |
+binary:logitraw_oneapi | logistic regression for classification, output score before logistic transformation |
 
 Specify the 'predictor' parameter as one of the following options to offload prediction stage on OneAPI device. 
 
@@ -15,6 +19,8 @@ Specify the 'predictor' parameter as one of the following options to offload pre
 | predictor | Description |
 | --- | --- |
 predictor_oneapi | prediction using OneAPI device  |
+
+Please note that parameter names are not finalized and can be changed during further integration of OneAPI support.
 
 Python example:
 ```python
