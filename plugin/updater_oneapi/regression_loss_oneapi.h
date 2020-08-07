@@ -40,10 +40,6 @@ struct LinearSquareLossOneAPI {
   static const char* Name() { return "reg:squarederror_oneapi"; }
 };
 
-// classes for DPC++ kernels namings
-class LinearSquareLossGetGradients {};
-class LinearSquareLossPredTransform {};
-
 // TODO: DPC++ does not fully support std math inside offloaded kernels
 struct SquaredLogErrorOneAPI {
   static bst_float PredTransform(bst_float x) { return x; }
@@ -69,10 +65,6 @@ struct SquaredLogErrorOneAPI {
 
   static const char* Name() { return "reg:squaredlogerror_oneapi"; }
 };
-
-// classes for DPC++ kernels namings
-class SquaredLogErrorGetGradients {};
-class SquaredLogErrorPredTransform {};
 
 // logistic loss for probability regression task
 struct LogisticRegressionOneAPI {
@@ -109,19 +101,11 @@ struct LogisticRegressionOneAPI {
   static const char* Name() { return "reg:logistic_oneapi"; }
 };
 
-// classes for DPC++ kernels namings
-class LogisticRegressionGetGradients {};
-class LogisticRegressionPredTransform {};
-
 // logistic loss for binary classification task
 struct LogisticClassificationOneAPI : public LogisticRegressionOneAPI {
   static const char* DefaultEvalMetric() { return "error"; }
   static const char* Name() { return "binary:logistic_oneapi"; }
 };
-
-// classes for DPC++ kernels namings
-class LogisticClassificationGetGradients {};
-class LogisticClassificationPredTransform {};
 
 // logistic loss, but predict un-transformed margin
 struct LogisticRawOneAPI : public LogisticRegressionOneAPI {
@@ -154,10 +138,6 @@ struct LogisticRawOneAPI : public LogisticRegressionOneAPI {
 
   static const char* Name() { return "binary:logitraw_oneapi"; }
 };
-
-// classes for DPC++ kernels namings
-class LogisticRawGetGradients {};
-class LogisticRawPredTransform {};
 
 }  // namespace obj
 }  // namespace xgboost

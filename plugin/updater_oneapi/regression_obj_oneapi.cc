@@ -29,7 +29,7 @@ struct RegLossParamOneAPI : public XGBoostParameter<RegLossParamOneAPI> {
   }
 };
 
-template<typename Loss, class GetGradientsKernel, class PredTransformKernel>
+template<typename Loss>
 class RegLossObjOneAPI : public ObjFunction {
  protected:
   HostDeviceVector<int> label_correct_;
@@ -89,7 +89,7 @@ class RegLossObjOneAPI : public ObjFunction {
       auto weights_acc          = weights_buf.get_access<cl::sycl::access::mode::read>(cgh);
       auto out_gpair_acc        = out_gpair_buf.get_access<cl::sycl::access::mode::write>(cgh);
       auto additional_input_acc = additional_input_buf.get_access<cl::sycl::access::mode::write>(cgh);
-      cgh.parallel_for<GetGradientsKernel>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
+      cgh.parallel_for<>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
         int idx = pid[0];
         bst_float p = Loss::PredTransform(preds_acc[idx]);
         bst_float w = is_null_weight ? 1.0f : weights_acc[idx];
@@ -130,7 +130,7 @@ class RegLossObjOneAPI : public ObjFunction {
 
     qu_.submit([&](cl::sycl::handler& cgh) {
       auto io_preds_acc = io_preds_buf.get_access<cl::sycl::access::mode::read_write>(cgh);
-      cgh.parallel_for<PredTransformKernel>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
+      cgh.parallel_for<>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
         int idx = pid[0];
         io_preds_acc[idx] = Loss::PredTransform(io_preds_acc[idx]);
       });
@@ -163,30 +163,20 @@ DMLC_REGISTER_PARAMETER(RegLossParamOneAPI);
 // TODO: Find a better way to dispatch names of DPC++ kernels with various template parameters of loss function
 XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegressionOneAPI, LinearSquareLossOneAPI::Name())
 .describe("Regression with squared error with DPC++ backend.")
-.set_body([]() { return new RegLossObjOneAPI<LinearSquareLossOneAPI,
-                                             LinearSquareLossGetGradients,
-                                             LinearSquareLossPredTransform>(); });
+.set_body([]() { return new RegLossObjOneAPI<LinearSquareLossOneAPI>(); });
 XGBOOST_REGISTER_OBJECTIVE(SquareLogErrorOneAPI, SquaredLogErrorOneAPI::Name())
 .describe("Regression with root mean squared logarithmic error with DPC++ backend.")
-.set_body([]() { return new RegLossObjOneAPI<SquaredLogErrorOneAPI,
-                                             SquaredLogErrorGetGradients,
-                                             SquaredLogErrorPredTransform>(); });
+.set_body([]() { return new RegLossObjOneAPI<SquaredLogErrorOneAPI>(); });
 XGBOOST_REGISTER_OBJECTIVE(LogisticRegressionOneAPI, LogisticRegressionOneAPI::Name())
 .describe("Logistic regression for probability regression task with DPC++ backend.")
-.set_body([]() { return new RegLossObjOneAPI<LogisticRegressionOneAPI,
-                                             LogisticRegressionGetGradients,
-                                             LogisticRegressionPredTransform>(); });
+.set_body([]() { return new RegLossObjOneAPI<LogisticRegressionOneAPI>(); });
 XGBOOST_REGISTER_OBJECTIVE(LogisticClassificationOneAPI, LogisticClassificationOneAPI::Name())
 .describe("Logistic regression for binary classification task with DPC++ backend.")
-.set_body([]() { return new RegLossObjOneAPI<LogisticClassificationOneAPI,
-                                             LogisticClassificationGetGradients,
-                                             LogisticClassificationPredTransform>(); });
+.set_body([]() { return new RegLossObjOneAPI<LogisticClassificationOneAPI>(); });
 XGBOOST_REGISTER_OBJECTIVE(LogisticRawOneAPI, LogisticRawOneAPI::Name())
 .describe("Logistic regression for classification, output score "
           "before logistic transformation with DPC++ backend.")
-.set_body([]() { return new RegLossObjOneAPI<LogisticRawOneAPI,
-                                             LogisticRawGetGradients,
-                                             LogisticRawPredTransform>(); });
+.set_body([]() { return new RegLossObjOneAPI<LogisticRawOneAPI>(); });
 
 }  // namespace obj
 }  // namespace xgboost
