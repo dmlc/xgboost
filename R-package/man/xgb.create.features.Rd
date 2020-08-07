@@ -24,9 +24,9 @@ This is the function inspired from the paragraph 3.1 of the paper:
 
 \strong{Practical Lessons from Predicting Clicks on Ads at Facebook}
 
-\emph{(Xinran He, Junfeng Pan, Ou Jin, Tianbing Xu, Bo Liu, Tao Xu, Yan, xin Shi, Antoine Atallah, Ralf Herbrich, Stuart Bowers, 
+\emph{(Xinran He, Junfeng Pan, Ou Jin, Tianbing Xu, Bo Liu, Tao Xu, Yan, xin Shi, Antoine Atallah, Ralf Herbrich, Stuart Bowers,
 Joaquin Quinonero Candela)}
- 
+
 International Workshop on Data Mining for Online Advertising (ADKDD) - August 24, 2014
 
 \url{https://research.fb.com/publications/practical-lessons-from-predicting-clicks-on-ads-at-facebook/}.
@@ -37,10 +37,10 @@ Extract explaining the method:
 convenient way to implement non-linear and tuple transformations
 of the kind we just described. We treat each individual
 tree as a categorical feature that takes as value the
-index of the leaf an instance ends up falling in. We use 
-1-of-K coding of this type of features. 
+index of the leaf an instance ends up falling in. We use
+1-of-K coding of this type of features.
 
-For example, consider the boosted tree model in Figure 1 with 2 subtrees, 
+For example, consider the boosted tree model in Figure 1 with 2 subtrees,
 where the first subtree has 3 leafs and the second 2 leafs. If an
 instance ends up in leaf 2 in the first subtree and leaf 1 in
 second subtree, the overall input to the linear classifier will

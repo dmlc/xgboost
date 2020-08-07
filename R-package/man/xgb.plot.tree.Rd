@@ -60,7 +60,7 @@ The content of each node is organised that way:
  \item \code{Gain} (for split nodes): the information gain metric of a split
        (corresponds to the importance of the node in the model).
  \item \code{Value} (for leafs): the margin value that the leaf may contribute to prediction.
-} 
+}
 The tree root nodes also indicate the Tree index (0-based).
 
 The "Yes" branches are marked by the "< split_value" label.
@@ -80,7 +80,7 @@ xgb.plot.tree(model = bst)
 xgb.plot.tree(model = bst, trees = 0, show_node_id = TRUE)
 
 \dontrun{
-# Below is an example of how to save this plot to a file. 
+# Below is an example of how to save this plot to a file.
 # Note that for `export_graph` to work, the DiagrammeRsvg and rsvg packages must also be installed.
 library(DiagrammeR)
 gr <- xgb.plot.tree(model=bst, trees=0:1, render=FALSE)
