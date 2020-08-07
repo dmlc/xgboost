@@ -67,8 +67,8 @@ struct DeviceMatrixOneAPI {
       num_row += batch.Size();
     }
 
-    row_ptr = cl::sycl::malloc_device<size_t>(num_row + 1, qu_);
-    data = cl::sycl::malloc_device<EntryOneAPI>(num_nonzero, qu_);
+    row_ptr = cl::sycl::malloc_shared<size_t>(num_row + 1, qu_);
+    data = cl::sycl::malloc_shared<EntryOneAPI>(num_nonzero, qu_);
 
     size_t data_offset = 0;
     for (auto &batch : dmat->GetBatches<SparsePage>()) {
@@ -179,7 +179,7 @@ class DeviceModelOneAPI {
     CHECK_EQ(model.param.size_leaf_vector, 0);
     Reset();
 
-    tree_segments = cl::sycl::malloc_device<size_t>((tree_end - tree_begin) + 1, qu_);
+    tree_segments = cl::sycl::malloc_shared<size_t>((tree_end - tree_begin) + 1, qu_);
     int sum = 0;
     tree_segments[0] = sum;
     for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
@@ -187,14 +187,14 @@ class DeviceModelOneAPI {
       tree_segments[tree_idx - tree_begin + 1] = sum;
     }
 
-    nodes = cl::sycl::malloc_device<DeviceNodeOneAPI>(sum, qu_);
+    nodes = cl::sycl::malloc_shared<DeviceNodeOneAPI>(sum, qu_);
     for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
       auto& src_nodes = model.trees[tree_idx]->GetNodes();
       for (size_t node_idx = 0; node_idx < src_nodes.size(); node_idx++)
         nodes[node_idx + tree_segments[tree_idx - tree_begin]] = src_nodes[node_idx];
     }
 
-    tree_group = cl::sycl::malloc_device<int>(model.tree_info.size(), qu_);
+    tree_group = cl::sycl::malloc_shared<int>(model.tree_info.size(), qu_);
     for (size_t tree_idx = 0; tree_idx < model.tree_info.size(); tree_idx++)
       tree_group[tree_idx] = model.tree_info[tree_idx];
 
