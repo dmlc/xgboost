@@ -119,7 +119,7 @@ TEST(Plugin, LogisticRawGPairOneAPI) {
                    {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f});
 }
 
-TEST(Plugin, CPU_vs_ONEAPI) {
+TEST(Plugin, CPUvsOneAPI) {
   GenericParameter lparam = CreateEmptyGenericParam(0);
 
   ObjFunction * obj_cpu =
@@ -143,7 +143,7 @@ TEST(Plugin, CPU_vs_ONEAPI) {
   info.labels_.Resize(kRows);
   auto& h_labels = info.labels_.HostVector();
   for (size_t i = 0; i < h_labels.size(); ++i) {
-    h_labels[i] = 1 / (float)(i+1);
+    h_labels[i] = 1 / static_cast<float>(i+1);
   }
 
   {
