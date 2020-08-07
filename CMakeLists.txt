@@ -47,7 +47,6 @@ option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
 option(BUILD_WITH_SHARED_NCCL "Build with shared NCCL library." OFF)
 set(GPU_COMPUTE_VER "" CACHE STRING
   "Semicolon separated list of compute versions to be built against, e.g. '35;61'")
-option(USE_RMM "Build with RAPIDS Memory Manager (RMM)" OFF)
 ## Copied From dmlc
 option(USE_HDFS "Build with HDFS support" OFF)
 option(USE_AZURE "Build with AZURE support" OFF)
@@ -61,6 +60,7 @@ address, leak, undefined and thread.")
 ## Plugins
 option(PLUGIN_LZ4 "Build lz4 plugin" OFF)
 option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
+option(PLUGIN_RMM "Build with RAPIDS Memory Manager (RMM)" OFF)
 option(ADD_PKGCONFIG "Add xgboost.pc into system." ON)
 
 #-- Checks for building XGBoost
@@ -83,9 +83,9 @@ endif (R_LIB AND GOOGLE_TEST)
 if (USE_AVX)
   message(SEND_ERROR  "The option 'USE_AVX' is deprecated as experimental AVX features have been removed from XGBoost.")
 endif (USE_AVX)
-if (USE_RMM AND NOT (USE_CUDA))
-  message(SEND_ERROR "`USE_RMM` must be enabled with `USE_CUDA` flag.")
-endif (USE_RMM AND NOT (USE_CUDA))
+if (PLUGIN_RMM AND NOT (USE_CUDA))
+  message(SEND_ERROR "`PLUGIN_RMM` must be enabled with `USE_CUDA` flag.")
+endif (PLUGIN_RMM AND NOT (USE_CUDA))
 if (ENABLE_ALL_WARNINGS)
   if ((NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang") AND (NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
     message(SEND_ERROR "ENABLE_ALL_WARNINGS is only available for Clang and GCC.")
@@ -193,9 +193,6 @@ endif (R_LIB)
 
 # Plugin
 add_subdirectory(${xgboost_SOURCE_DIR}/plugin)
-
-# 3rd-party libs
-include(cmake/ExternalLibs.cmake)
 
 #-- library
 if (BUILD_STATIC_LIB)
