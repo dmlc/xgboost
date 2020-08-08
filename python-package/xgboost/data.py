@@ -317,7 +317,7 @@ def _is_cudf_df(data):
         import cudf
     except ImportError:
         return False
-    return isinstance(data, cudf.DataFrame)
+    return hasattr(cudf, 'DataFrame') and isinstance(data, cudf.DataFrame)
 
 
 def _cudf_array_interfaces(data):
