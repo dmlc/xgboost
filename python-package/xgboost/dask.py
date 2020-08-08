@@ -1080,6 +1080,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
                                 eval_set, sample_weight_eval_set, verbose)
 
     async def _predict_proba_async(self, data):
+        _assert_dask_support()
+
         test_dmatrix = await DaskDMatrix(client=self.client, data=data,
                                          missing=self.missing)
         pred_probs = await predict(client=self.client,
