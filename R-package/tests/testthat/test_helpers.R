@@ -174,7 +174,7 @@ test_that("SHAPs sum to predictions, with or without DART", {
 
     expect_equal(rowSums(shap), pred, tol = tol)
     expect_equal(apply(shapi, 1, sum), pred, tol = tol)
-    for (i in 1 : nrow(d))
+    for (i in seq_len(nrow(d)))
       for (f in list(rowSums, colSums))
         expect_equal(f(shapi[i, , ]), shap[i, ], tol = tol)
   }
