@@ -1086,7 +1086,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
                                    model=self.get_booster(), data=test_dmatrix)
         return pred_probs
 
-    def predict_proba(self, data):  # pylint: disable=arguments-differ
+    def predict_proba(self, data):  # pylint: disable=arguments-differ,missing-docstring
         _assert_dask_support()
         return self.client.sync(self._predict_proba_async, data)
 
