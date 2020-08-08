@@ -276,7 +276,7 @@ class RabitTracker(object):
                 assert s.rank >= 0 and s.rank not in shutdown
                 assert s.rank not in wait_conn
                 shutdown[s.rank] = s
-                logging.debug('Receive %s signal from %d', s.cmd, s.rank)
+                logging.debug('Received %s signal from %d', s.cmd, s.rank)
                 continue
             assert s.cmd == 'start' or s.cmd == 'recover'
             # lazily initialize the slaves
@@ -306,14 +306,14 @@ class RabitTracker(object):
                         s.assign_rank(rank, wait_conn, tree_map, parent_map, ring_map)
                         if s.wait_accept > 0:
                             wait_conn[rank] = s
-                        logging.debug('Receive %s signal from %s; assign rank %d',
+                        logging.debug('Received %s signal from %s; assign rank %d',
                                       s.cmd, s.host, s.rank)
                 if not todo_nodes:
                     logging.info('@tracker All of %d nodes getting started', nslave)
                     self.start_time = time.time()
             else:
                 s.assign_rank(rank, wait_conn, tree_map, parent_map, ring_map)
-                logging.debug('Receive %s signal from %d', s.cmd, s.rank)
+                logging.debug('Received %s signal from %d', s.cmd, s.rank)
                 if s.wait_accept > 0:
                     wait_conn[rank] = s
         logging.info('@tracker All nodes finishes job')
