@@ -355,7 +355,7 @@ inline int Next(DataIterHandle self) {
 
 class RMMAllocator;
 using RMMAllocatorPtr = std::unique_ptr<RMMAllocator, void(*)(RMMAllocator*)>;
-RMMAllocatorPtr SetUpRMMResourceForCppTests();
+RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv);
 
 }  // namespace xgboost
 #endif

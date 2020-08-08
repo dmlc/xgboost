@@ -24,8 +24,9 @@
 #include <memory>
 #include <numeric>
 #include <vector>
-#include "rmm/mr/device/default_memory_resource.hpp"
-#include "rmm/mr/device/cnmem_memory_resource.hpp"
+#include "rmm/mr/device/per_device_resource.hpp"
+#include "rmm/mr/device/cuda_memory_resource.hpp"
+#include "rmm/mr/device/pool_memory_resource.hpp"
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 bool FileExists(const std::string& filename) {
@@ -488,17 +489,23 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
-std::vector<int> GetVisibleGPUs() {
-  std::vector<int> gpus(common::AllVisibleGPUs());
-  std::iota(gpus.begin(), gpus.end(), 0);
-  return gpus;
-}
-
-using cnmem_mr_t = rmm::mr::cnmem_memory_resource;
+using cuda_mr_t = rmm::mr::cuda_memory_resource;
+using pool_mr_t = rmm::mr::pool_memory_resource<cuda_mr_t>;
 class RMMAllocator {
  public:
-  cnmem_mr_t cnmem_mr;
-  RMMAllocator() : cnmem_mr(0, GetVisibleGPUs()) {}
+  std::vector<std::unique_ptr<cuda_mr_t>> cuda_mr;
+  std::vector<std::unique_ptr<pool_mr_t>> pool_mr;
+  int n_gpu;
+  RMMAllocator() : n_gpu(common::AllVisibleGPUs()) {
+    int current_device;
+    CHECK_EQ(cudaGetDevice(&current_device), cudaSuccess);
+    for (int i = 0; i < n_gpu; ++i) {
+      CHECK_EQ(cudaSetDevice(i), cudaSuccess);
+      cuda_mr.push_back(std::unique_ptr<cuda_mr_t>(new cuda_mr_t));
+      pool_mr.push_back(std::unique_ptr<pool_mr_t>(new pool_mr_t(cuda_mr[i].get())));
+    }
+    CHECK_EQ(cudaSetDevice(current_device), cudaSuccess);
+  }
   ~RMMAllocator() = default;
 };
 
@@ -506,12 +513,21 @@ void DeleteRMMResource(RMMAllocator* r) {
   delete r;
 }
 
-RMMAllocatorPtr SetUpRMMResourceForCppTests() {
-  if (dmlc::GetEnv("XGBOOST_CPP_TEST_USE_RMM_POOL", 0) != 1) {
+RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
+  bool use_rmm_pool = false;
+  for (int i = 1; i < argc; ++i) {
+    if (argv[i] == std::string("--use-rmm-pool")) {
+      use_rmm_pool = true;
+    }
+  }
+  if (!use_rmm_pool) {
     return RMMAllocatorPtr(nullptr, DeleteRMMResource);
   }
+  LOG(INFO) << "Using RMM memory pool";
   auto ptr = RMMAllocatorPtr(new RMMAllocator(), DeleteRMMResource);
-  rmm::mr::set_default_resource(&ptr->cnmem_mr);
+  for (int i = 0; i < ptr->n_gpu; ++i) {
+    rmm::mr::set_per_device_resource(rmm::cuda_device_id(i), ptr->pool_mr[i].get());
+  }
   return ptr;
 }
 #else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
@@ -519,7 +535,7 @@ class RMMAllocator {};
 
 void DeleteRMMResource(RMMAllocator* r) {}
 
-RMMAllocatorPtr SetUpRMMResourceForCppTests() {
+RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
   return RMMAllocatorPtr(nullptr, DeleteRMMResource);
 }
 #endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1

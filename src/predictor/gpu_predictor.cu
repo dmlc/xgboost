@@ -213,9 +213,10 @@ __global__ void PredictKernel(Data data,
 
 class DeviceModel {
  public:
-  dh::device_vector<RegTree::Node> nodes;
-  dh::device_vector<size_t> tree_segments;
-  dh::device_vector<int> tree_group;
+  // Need to lazily construct the vectors because GPU id is only known at runtime
+  std::unique_ptr<dh::device_vector<RegTree::Node>> nodes;
+  std::unique_ptr<dh::device_vector<size_t>> tree_segments;
+  std::unique_ptr<dh::device_vector<int>> tree_group;
   size_t tree_beg_;  // NOLINT
   size_t tree_end_;  // NOLINT
   int num_group;
@@ -224,16 +225,16 @@ class DeviceModel {
                  const thrust::host_vector<size_t>& h_tree_segments,
                  const thrust::host_vector<RegTree::Node>& h_nodes,
                  size_t tree_begin, size_t tree_end) {
-    nodes.resize(h_nodes.size());
-    dh::safe_cuda(cudaMemcpyAsync(nodes.data().get(), h_nodes.data(),
+    nodes->resize(h_nodes.size());
+    dh::safe_cuda(cudaMemcpyAsync(nodes->data().get(), h_nodes.data(),
                                   sizeof(RegTree::Node) * h_nodes.size(),
                                   cudaMemcpyHostToDevice));
-    tree_segments.resize(h_tree_segments.size());
-    dh::safe_cuda(cudaMemcpyAsync(tree_segments.data().get(), h_tree_segments.data(),
+    tree_segments->resize(h_tree_segments.size());
+    dh::safe_cuda(cudaMemcpyAsync(tree_segments->data().get(), h_tree_segments.data(),
                                   sizeof(size_t) * h_tree_segments.size(),
                                   cudaMemcpyHostToDevice));
-    tree_group.resize(model.tree_info.size());
-    dh::safe_cuda(cudaMemcpyAsync(tree_group.data().get(), model.tree_info.data(),
+    tree_group->resize(model.tree_info.size());
+    dh::safe_cuda(cudaMemcpyAsync(tree_group->data().get(), model.tree_info.data(),
                                   sizeof(int) * model.tree_info.size(),
                                   cudaMemcpyHostToDevice));
     this->tree_beg_ = tree_begin;
@@ -243,6 +244,11 @@ class DeviceModel {
 
   void Init(const gbm::GBTreeModel& model, size_t tree_begin, size_t tree_end, int32_t gpu_id) {
     dh::safe_cuda(cudaSetDevice(gpu_id));
+    // Allocate device vectors using correct GPU ID context
+    nodes.reset(new dh::device_vector<RegTree::Node>());
+    tree_segments.reset(new dh::device_vector<size_t>());
+    tree_group.reset(new dh::device_vector<int>());
+
     CHECK_EQ(model.param.size_leaf_vector, 0);
     // Copy decision trees to device
     thrust::host_vector<size_t> h_tree_segments{};

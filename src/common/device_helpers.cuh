@@ -39,7 +39,8 @@
 #endif  // XGBOOST_USE_NCCL
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-#include "rmm/mr/device/default_memory_resource.hpp"
+#include <unistd.h>
+#include "rmm/mr/device/per_device_resource.hpp"
 #include "rmm/mr/device/thrust_allocator_adaptor.hpp"
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
@@ -406,7 +407,8 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     return SuperT::deallocate(ptr, n);
   }
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  XGBDefaultDeviceAllocatorImpl() : SuperT(rmm::mr::get_default_resource(), cudaStream_t{0}) {}
+  XGBDefaultDeviceAllocatorImpl()
+    : SuperT(rmm::mr::get_current_device_resource(), cudaStream_t{0}) {}
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 };
 
@@ -768,6 +770,15 @@ template <typename T>
 xgboost::common::Span<T> ToSpan(thrust::device_vector<T>& vec,
                                 size_t offset, size_t size) {
   return ToSpan(vec, offset, size);
+}
+
+template <typename VectorT, typename T = typename VectorT::value_type,
+  typename IndexT = typename xgboost::common::Span<T>::index_type>
+xgboost::common::Span<T> ToSpan(
+    std::unique_ptr<VectorT>& vec,
+    IndexT offset = 0,
+    IndexT size = std::numeric_limits<size_t>::max()) {
+  return ToSpan(*vec.get(), offset, size);
 }
 
 // thrust begin, similiar to std::begin

@@ -429,9 +429,8 @@ def TestCppGPU(args) {
       container_type = "rmm"
       docker_binary = "nvidia-docker"
       docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
-      def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e XGBOOST_CPP_TEST_USE_RMM_POOL=1'"
       sh """
-      ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate gpu_test && build/testxgboost --gtest_filter=-*DeathTest.*"
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate gpu_test && build/testxgboost --use-rmm-pool --gtest_filter=-*DeathTest.*"
       """
     }
     deleteDir()
