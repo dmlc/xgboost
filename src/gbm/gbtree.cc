@@ -62,6 +62,14 @@ void GBTree::Configure(const Args& cfg) {
   }
 #endif  // defined(XGBOOST_USE_CUDA)
 
+#if defined(XGBOOST_USE_ONEAPI)
+  if (!oneapi_predictor_) {
+    oneapi_predictor_ = std::unique_ptr<Predictor>(
+        Predictor::Create("oneapi_predictor", this->generic_param_));
+  }
+  oneapi_predictor_->Configure(cfg);
+#endif  // defined(XGBOOST_USE_ONEAPI)
+
   monitor_.Init("GBTree");
 
   specified_updater_ = std::any_of(cfg.cbegin(), cfg.cend(),
@@ -413,6 +421,14 @@ GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
 #else
       common::AssertGPUSupport();
 #endif  // defined(XGBOOST_USE_CUDA)
+    }
+    if (tparam_.predictor == PredictorType::kOneAPIPredictor) {
+#if defined(XGBOOST_USE_ONEAPI)
+      CHECK(oneapi_predictor_);
+      return oneapi_predictor_;
+#else
+      common::AssertOneAPISupport();
+#endif  // defined(XGBOOST_USE_ONEAPI)
     }
     CHECK(cpu_predictor_);
     return cpu_predictor_;

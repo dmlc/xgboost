@@ -124,7 +124,7 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
     stop("shap_contrib is not compatible with the provided data")
 
   nsample <- if (is.null(subsample)) min(100000, nrow(data)) else as.integer(subsample * nrow(data))
-  idx <- sample(1:nrow(data), nsample)
+  idx <- sample(seq_len(nrow(data)), nsample)
   data <- data[idx, ]
 
   if (is.null(shap_contrib)) {
@@ -162,7 +162,7 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
   data <- data[, features, drop = FALSE]
   cols <- colnames(data)
   if (is.null(cols)) cols <- colnames(shap_contrib)
-  if (is.null(cols)) cols <- paste0('X', 1:ncol(data))
+  if (is.null(cols)) cols <- paste0('X', seq_len(ncol(data)))
   colnames(data) <- cols
   colnames(shap_contrib) <- cols
 

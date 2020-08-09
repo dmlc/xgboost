@@ -99,7 +99,7 @@ test_that("xgb.DMatrix: colnames", {
   dtest <- xgb.DMatrix(test_data, label = test_label)
   expect_equal(colnames(dtest), colnames(test_data))
   expect_error(colnames(dtest) <- 'asdf')
-  new_names <- make.names(1:ncol(test_data))
+  new_names <- make.names(seq_len(ncol(test_data)))
   expect_silent(colnames(dtest) <- new_names)
   expect_equal(colnames(dtest), new_names)
   expect_silent(colnames(dtest) <- NULL)
