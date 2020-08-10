@@ -6,6 +6,7 @@ if (USE_DMLC_GTEST)
 else (USE_DMLC_GTEST)
   find_package(GTest REQUIRED)
 endif (USE_DMLC_GTEST)
+
 file(GLOB_RECURSE TEST_SOURCES "*.cc")
 
 if (USE_CUDA)
@@ -20,6 +21,11 @@ endif (NOT PLUGIN_UPDATER_ONEAPI)
 
 add_executable(testxgboost ${TEST_SOURCES}
   ${xgboost_SOURCE_DIR}/plugin/example/custom_obj.cc)
+
+if (ARROW_FOUND AND ARROW_PYTHON_FOUND)
+  target_compile_definitions(testxgboost PRIVATE
+                    -D_GLIBCXX_USE_CXX11_ABI=0)
+endif (ARROW_FOUND AND ARROW_PYTHON_FOUND)
 target_link_libraries(testxgboost PRIVATE objxgboost)
 
 if (USE_CUDA)

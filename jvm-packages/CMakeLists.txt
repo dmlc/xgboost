@@ -14,6 +14,11 @@ target_include_directories(xgboost4j
   ${PROJECT_SOURCE_DIR}/dmlc-core/include
   ${PROJECT_SOURCE_DIR}/rabit/include)
 
+if (ARROW_FOUND AND ARROW_PYTHON_FOUND)
+  target_compile_definitions(xgboost4j PRIVATE
+                    -D_GLIBCXX_USE_CXX11_ABI=0)
+endif (ARROW_FOUND AND ARROW_PYTHON_FOUND)
+
 set_output_directory(xgboost4j ${PROJECT_SOURCE_DIR}/lib)
 set_target_properties(
   xgboost4j PROPERTIES

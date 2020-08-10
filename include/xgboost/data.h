@@ -26,6 +26,10 @@ namespace xgboost {
 // forward declare dmatrix.
 class DMatrix;
 
+namespace data {
+class ArrowAdapterBatch;
+};
+
 /*! \brief data type accepted by xgboost interface */
 enum class DataType : uint8_t {
   kFloat32 = 1,
@@ -204,7 +208,11 @@ struct Entry {
   /*! \brief feature value */
   bst_float fvalue;
   /*! \brief default constructor */
+#if defined(XGBOOST_BUILD_ARROW_SUPPORT)
+  Entry() {} // NOLINT: Allow empty default constructor for performance reasons
+#else
   Entry() = default;
+#endif
   /*!
    * \brief constructor with index and value
    * \param index The feature or row index.
@@ -332,6 +340,11 @@ class SparsePage {
    */
   template <typename AdapterBatchT>
   uint64_t Push(const AdapterBatchT& batch, float missing, int nthread);
+
+  /**
+   * \brief Overload Push for ArrowAdapterBatch
+   */
+  uint64_t Push(const data::ArrowAdapterBatch& batch, float missing, int nthread);
 
   /*!
    * \brief Push a sparse page

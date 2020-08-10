@@ -103,6 +103,20 @@ if (XGBOOST_BUILTIN_PREFETCH_PRESENT)
     -DXGBOOST_BUILTIN_PREFETCH_PRESENT=1)
 endif (XGBOOST_BUILTIN_PREFETCH_PRESENT)
 
+if (ARROW_FOUND AND ARROW_PYTHON_FOUND)
+  target_include_directories(objxgboost PRIVATE
+                              ${ARROW_INCLUDE_DIR}
+                              ${ARROW_PYTHON_INCLUDE_DIR}
+                              ${Python3_INCLUDE_DIRS})
+  target_compile_definitions(objxgboost PRIVATE
+                    -DXGBOOST_BUILD_ARROW_SUPPORT=1
+                    -D_GLIBCXX_USE_CXX11_ABI=0)
+  target_link_libraries(objxgboost PUBLIC
+                        ${ARROW_SHARED_LIB}
+                        ${ARROW_PYTHON_SHARED_LIB}
+                        ${Python3_LIBRARIES})
+endif (ARROW_FOUND AND ARROW_PYTHON_FOUND)
+
 find_package(Threads REQUIRED)
 target_link_libraries(objxgboost PUBLIC Threads::Threads ${CMAKE_THREAD_LIBS_INIT})
 

@@ -21,7 +21,8 @@ ENV GOSU_VERSION 1.10
 
 # Create new Conda environment
 COPY conda_env/cpu_test.yml /scripts/
-RUN conda env create -n cpu_test --file=/scripts/cpu_test.yml
+RUN conda env create -n cpu_test --file=/scripts/cpu_test.yml && \
+    pip install pyarrow==0.17.*
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \
