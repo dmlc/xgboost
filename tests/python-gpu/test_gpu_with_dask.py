@@ -12,6 +12,8 @@ from test_gpu_updaters import parameter_strategy
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
 
+pytestmark = pytest.mark.no_rmm_pool_setup
+
 sys.path.append("tests/python")
 from test_with_dask import run_empty_dmatrix_reg  # noqa
 from test_with_dask import run_empty_dmatrix_cls  # noqa

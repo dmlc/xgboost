@@ -8,9 +8,18 @@ def has_rmm():
     except ImportError:
         return False
 
+def get_module_attributes(module):
+    if not hasattr(module, 'pytestmark'):
+        return []
+    if isinstance(module.pytestmark, list):
+        return [x.name for x in module.pytestmark]
+    return [module.pytestmark.name]
+
 @pytest.fixture(scope='module', autouse=True)
 def setup_rmm_pool(request, pytestconfig):
-    if pytestconfig.getoption('--use-rmm-pool') and request.module.__name__ != 'test_gpu_with_dask':
+    if (pytestconfig.getoption('--use-rmm-pool') and
+            'no_rmm_pool_setup' not in get_module_attributes(request.module)):
+        print('!!! Setting up RMM pool')
         if not has_rmm():
             raise ImportError('The --use-rmm-pool option requires the RMM package')
         import rmm
