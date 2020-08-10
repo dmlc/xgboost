@@ -452,56 +452,55 @@ def test_with_asyncio():
             asyncio.run(run_dask_classifier_asyncio(address))
 
 
-def run_updater_test(client, params, num_rounds, dataset,
-                     tree_method):
-    params['tree_method'] = tree_method
-    params = dataset.set_params(params)
-    # multi class doesn't handle empty dataset well (empty
-    # means at least 1 worker has data).
-    if params['objective'] == "multi:softmax":
-        return
-    # It doesn't make sense to distribute a completely
-    # empty dataset.
-    if dataset.X.shape[0] == 0:
-        return
-
-    chunk = 128
-    X = da.from_array(dataset.X,
-                      chunks=(chunk, dataset.X.shape[1]))
-    y = da.from_array(dataset.y, chunks=(chunk, ))
-    if dataset.w is not None:
-        w = da.from_array(dataset.w, chunks=(chunk, ))
-    else:
-        w = None
-
-    m = xgb.dask.DaskDMatrix(
-        client, data=X, label=y, weight=w)
-    history = xgb.dask.train(client, params=params, dtrain=m,
-                             num_boost_round=num_rounds,
-                             evals=[(m, 'train')])['history']
-    note(history)
-    assert tm.non_increasing(history['train'][dataset.metric])
-
-
-@given(hist_parameter_strategy, tm.dataset_strategy)
-@settings(deadline=None)
-def test_hist(params, dataset):
-    with LocalCluster() as cluster:
-        with Client(cluster) as client:
-            run_updater_test(
-                client, params, 20, dataset, 'hist')
-
-
-@given(exact_parameter_strategy, tm.dataset_strategy)
-@settings(deadline=None)
-def test_approx(params, dataset):
-    with LocalCluster() as cluster:
-        with Client(cluster) as client:
-            run_updater_test(
-                client, params, 20, dataset, 'approx')
-
-
 class TestWithDask(unittest.TestCase):
+    def run_updater_test(self, client, params, num_rounds, dataset,
+                         tree_method):
+        params['tree_method'] = tree_method
+        params = dataset.set_params(params)
+        # multi class doesn't handle empty dataset well (empty
+        # means at least 1 worker has data).
+        if params['objective'] == "multi:softmax":
+            return
+        # It doesn't make sense to distribute a completely
+        # empty dataset.
+        if dataset.X.shape[0] == 0:
+            return
+
+        chunk = 128
+        X = da.from_array(dataset.X,
+                          chunks=(chunk, dataset.X.shape[1]))
+        y = da.from_array(dataset.y, chunks=(chunk, ))
+        if dataset.w is not None:
+            w = da.from_array(dataset.w, chunks=(chunk, ))
+        else:
+            w = None
+
+        m = xgb.dask.DaskDMatrix(
+            client, data=X, label=y, weight=w)
+        history = xgb.dask.train(client, params=params, dtrain=m,
+                                 num_boost_round=num_rounds,
+                                 evals=[(m, 'train')])['history']
+        note(history)
+        assert tm.non_increasing(history['train'][dataset.metric])
+
+    @given(hist_parameter_strategy, strategies.integers(10, 20),
+           tm.dataset_strategy)
+    @settings(deadline=None)
+    def test_hist(self, params, num_rounds, dataset):
+        with LocalCluster() as cluster:
+            with Client(cluster) as client:
+                self.run_updater_test(
+                    client, params, num_rounds, dataset, 'hist')
+
+    @given(exact_parameter_strategy, strategies.integers(10, 20),
+           tm.dataset_strategy)
+    @settings(deadline=None)
+    def test_approx(self, params, num_rounds, dataset):
+        with LocalCluster() as cluster:
+            with Client(cluster) as client:
+                self.run_updater_test(
+                    client, params, num_rounds, dataset, 'approx')
+
     def run_quantile(self, name):
         if sys.platform.startswith("win"):
             pytest.skip("Skipping dask tests on Windows")
