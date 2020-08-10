@@ -1121,7 +1121,7 @@ class LearnerImpl : public LearnerIO {
     }
 
     if (p_fmat->Info().num_row_ == 0) {
-      LOG(WARNING) << "Empty dataset at: " << rabit::GetRank();
+      LOG(WARNING) << "Empty dataset at worker: " << rabit::GetRank();
     }
   }
 
