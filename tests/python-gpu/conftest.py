@@ -19,7 +19,6 @@ def get_module_attributes(module):
 def setup_rmm_pool(request, pytestconfig):
     if (pytestconfig.getoption('--use-rmm-pool') and
             'no_rmm_pool_setup' not in get_module_attributes(request.module)):
-        print('!!! Setting up RMM pool')
         if not has_rmm():
             raise ImportError('The --use-rmm-pool option requires the RMM package')
         import rmm
