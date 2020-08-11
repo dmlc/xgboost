@@ -70,6 +70,7 @@
 #include "../src/common/common.cc"
 #include "../src/common/charconv.cc"
 #include "../src/common/timer.cc"
+#include "../src/common/quantile.cc"
 #include "../src/common/host_device_vector.cc"
 #include "../src/common/hist_util.cc"
 #include "../src/common/json.cc"

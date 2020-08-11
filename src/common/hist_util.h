@@ -17,6 +17,7 @@
 #include <map>
 
 #include "row_set.h"
+#include "common.h"
 #include "threading_utils.h"
 #include "../tree/param.h"
 #include "./quantile.h"
@@ -34,15 +35,8 @@ using GHistIndexRow = Span<uint32_t const>;
 // A CSC matrix representing histogram cuts, used in CPU quantile hist.
 // The cut values represent upper bounds of bins containing approximately equal numbers of elements
 class HistogramCuts {
-  // Using friends to avoid creating a virtual class, since HistogramCuts is used as value
-  // object in many places.
-  friend class SparseCuts;
-  friend class DenseCuts;
-  friend class CutsBuilder;
-
  protected:
   using BinIdx = uint32_t;
-  common::Monitor monitor_;
 
  public:
   HostDeviceVector<bst_float> cut_values_;  // NOLINT
@@ -75,16 +69,12 @@ class HistogramCuts {
   }
 
   HistogramCuts& operator=(HistogramCuts&& that) noexcept(true) {
-    monitor_ = std::move(that.monitor_);
     cut_ptrs_ = std::move(that.cut_ptrs_);
     cut_values_ = std::move(that.cut_values_);
     min_vals_ = std::move(that.min_vals_);
     return *this;
   }
 
-  /* \brief Build histogram cuts. */
-  void Build(DMatrix* dmat, uint32_t const max_num_bins);
-  /* \brief How many bins a feature has. */
   uint32_t FeatureBins(uint32_t feature) const {
     return cut_ptrs_.ConstHostVector().at(feature + 1) -
            cut_ptrs_.ConstHostVector()[feature];
@@ -118,86 +108,42 @@ class HistogramCuts {
   }
 };
 
-/* \brief An interface for building quantile cuts.
- *
- * `DenseCuts' always assumes there are `max_bins` for each feature, which makes it not
- * suitable for sparse dataset.  On the other hand `SparseCuts' uses `GetColumnBatches',
- * which doubles the memory usage, hence can not be applied to dense dataset.
- */
-class CutsBuilder {
- public:
-  using WQSketch = common::WQuantileSketch<bst_float, bst_float>;
-  /* \brief return whether group for ranking is used. */
-  static bool UseGroup(DMatrix* dmat);
-  static bool UseGroup(MetaInfo const& info);
-
- protected:
-  HistogramCuts* p_cuts_;
-
- public:
-  explicit CutsBuilder(HistogramCuts* p_cuts) : p_cuts_{p_cuts} {}
-  virtual ~CutsBuilder() = default;
-
-  static uint32_t SearchGroupIndFromRow(std::vector<bst_uint> const &group_ptr,
-                                        size_t const base_rowid) {
-    CHECK_LT(base_rowid, group_ptr.back())
-        << "Row: " << base_rowid << " is not found in any group.";
-    auto it =
-        std::upper_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid);
-    bst_group_t group_ind = it - group_ptr.cbegin() - 1;
-    return group_ind;
+inline HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins) {
+  HistogramCuts out;
+  auto const& info = m->Info();
+  const auto threads = omp_get_max_threads();
+  std::vector<std::vector<bst_row_t>> column_sizes(threads);
+  for (auto& column : column_sizes) {
+    column.resize(info.num_col_, 0);
   }
-
-  void AddCutPoint(WQSketch::SummaryContainer const& summary, int max_bin) {
-    size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
-    for (size_t i = 1; i < required_cuts; ++i) {
-      bst_float cpt = summary.data[i].value;
-      if (i == 1 || cpt > p_cuts_->cut_values_.ConstHostVector().back()) {
-        p_cuts_->cut_values_.HostVector().push_back(cpt);
+  for (auto const& page : m->GetBatches<SparsePage>()) {
+    page.data.HostVector();
+    page.offset.HostVector();
+    ParallelFor(page.Size(), threads, [&](size_t i) {
+      auto &local_column_sizes = column_sizes.at(omp_get_thread_num());
+      auto row = page[i];
+      auto const *p_row = row.data();
+      for (size_t j = 0; j < row.size(); ++j) {
+        local_column_sizes.at(p_row[j].index)++;
       }
+    });
+  }
+  std::vector<bst_row_t> reduced(info.num_col_, 0);
+
+  ParallelFor(info.num_col_, threads, [&](size_t i) {
+    for (auto const &thread : column_sizes) {
+      reduced[i] += thread[i];
     }
+  });
+
+  HostSketchContainer container(reduced, max_bins,
+                                HostSketchContainer::UseGroup(info));
+  for (auto const &page : m->GetBatches<SparsePage>()) {
+    container.PushRowPage(page, info);
   }
-
-  /* \brief Build histogram indices. */
-  virtual void Build(DMatrix* dmat, uint32_t const max_num_bins) = 0;
-};
-
-/*! \brief Cut configuration for sparse dataset. */
-class SparseCuts : public CutsBuilder {
-  /* \brief Distribute columns to each thread according to number of entries. */
-  static std::vector<size_t> LoadBalance(SparsePage const& page, size_t const nthreads);
-  Monitor monitor_;
-
- public:
-  explicit SparseCuts(HistogramCuts* container) :
-      CutsBuilder(container) {
-    monitor_.Init(__FUNCTION__);
-  }
-
-  /* \brief Concatonate the built cuts in each thread. */
-  void Concat(std::vector<std::unique_ptr<SparseCuts>> const& cuts, uint32_t n_cols);
-  /* \brief Build histogram indices in single thread. */
-  void SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
-                         uint32_t max_num_bins,
-                         bool const use_group_ind,
-                         uint32_t beg, uint32_t end, uint32_t thread_id);
-  void Build(DMatrix* dmat, uint32_t const max_num_bins) override;
-};
-
-/*! \brief Cut configuration for dense dataset. */
-class DenseCuts  : public CutsBuilder {
- protected:
-  Monitor monitor_;
-
- public:
-  explicit DenseCuts(HistogramCuts* container) :
-      CutsBuilder(container) {
-    monitor_.Init(__FUNCTION__);
-  }
-  void Init(std::vector<WQSketch>* sketchs, uint32_t max_num_bins, size_t max_rows);
-  void Build(DMatrix* p_fmat, uint32_t max_num_bins) override;
-};
-
+  container.MakeCuts(&out);
+  return out;
+}
 
 enum BinTypeSize {
   kUint8BinsTypeSize  = 1,
