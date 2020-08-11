@@ -225,14 +225,14 @@ Parameters for Tree Booster
     See tutorial for more information
 
 Additional parameters for ``hist`` and ```gpu_hist`` tree method
-===========================================================
+================================================================
 
 * ``single_precision_histogram``, [default=``false``]
 
   - Use single precision to build histograms instead of double precision.
 
 Additional parameters for ``gpu_hist`` tree method
-================================================
+==================================================
 
 * ``deterministic_histogram``, [default=``true``]
 
