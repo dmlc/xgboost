@@ -489,20 +489,20 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
-using cuda_mr_t = rmm::mr::cuda_memory_resource;
-using pool_mr_t = rmm::mr::pool_memory_resource<cuda_mr_t>;
+using CUDAMemoryResource = rmm::mr::cuda_memory_resource;
+using PoolMemoryResource = rmm::mr::pool_memory_resource<CUDAMemoryResource>;
 class RMMAllocator {
  public:
-  std::vector<std::unique_ptr<cuda_mr_t>> cuda_mr;
-  std::vector<std::unique_ptr<pool_mr_t>> pool_mr;
+  std::vector<std::unique_ptr<CUDAMemoryResource>> cuda_mr;
+  std::vector<std::unique_ptr<PoolMemoryResource>> pool_mr;
   int n_gpu;
   RMMAllocator() : n_gpu(common::AllVisibleGPUs()) {
     int current_device;
     CHECK_EQ(cudaGetDevice(&current_device), cudaSuccess);
     for (int i = 0; i < n_gpu; ++i) {
       CHECK_EQ(cudaSetDevice(i), cudaSuccess);
-      cuda_mr.push_back(std::unique_ptr<cuda_mr_t>(new cuda_mr_t));
-      pool_mr.push_back(std::unique_ptr<pool_mr_t>(new pool_mr_t(cuda_mr[i].get())));
+      cuda_mr.push_back(std::make_unique<CUDAMemoryResource>());
+      pool_mr.push_back(std::make_unique<PoolMemoryResource>(cuda_mr[i].get()));
     }
     CHECK_EQ(cudaSetDevice(current_device), cudaSuccess);
   }
