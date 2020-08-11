@@ -771,15 +771,6 @@ xgboost::common::Span<T> ToSpan(thrust::device_vector<T>& vec,
   return ToSpan(vec, offset, size);
 }
 
-template <typename VectorT, typename T = typename VectorT::value_type,
-  typename IndexT = typename xgboost::common::Span<T>::index_type>
-xgboost::common::Span<T> ToSpan(
-    std::unique_ptr<VectorT>& vec,
-    IndexT offset = 0,
-    IndexT size = std::numeric_limits<size_t>::max()) {
-  return ToSpan(*vec.get(), offset, size);
-}
-
 // thrust begin, similiar to std::begin
 template <typename T>
 thrust::device_ptr<T> tbegin(xgboost::HostDeviceVector<T>& vector) {  // NOLINT
