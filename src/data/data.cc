@@ -806,15 +806,54 @@ void SparsePage::Push(const SparsePage &batch) {
   }
 }
 
+template<typename AdapterBatchT>
+inline void InitBudged(const AdapterBatchT& dummy_batch,
+                       common::ParallelGroupBuilder<Entry, bst_row_t>* const builder,
+                       const size_t expected_rows, const size_t thread_size,
+                       const size_t nthread, const size_t tail_size,
+                       size_t* thread_displace) {
+  builder->InitBudget(expected_rows, nthread);
+  (*thread_displace) = 0;
+}
+
+template<typename AdapterBatchT>
+inline void InitStorage(const AdapterBatchT& dummy_batch,
+                        common::ParallelGroupBuilder<Entry, bst_row_t>* const builder,
+                        const size_t expected_rows) {
+  builder->InitStorage();
+}
+
+template<>
+inline void InitBudged<xgboost::data::DenseAdapterBatch>(
+                      const xgboost::data::DenseAdapterBatch& dummy_batch,
+                      common::ParallelGroupBuilder<Entry, bst_row_t>* const builder,
+                      const size_t expected_rows, const size_t thread_size,
+                      const size_t nthread, const size_t tail_size,
+                      size_t* thread_displace) {
+  // In case DenseAdapterBatch memory can be used more effective
+  builder->InitBudget(thread_size, nthread, tail_size);
+  (*thread_displace) = thread_size;
+}
+
+template<>
+inline void InitStorage<xgboost::data::DenseAdapterBatch>(
+               const xgboost::data::DenseAdapterBatch& dummy_batch,
+               common::ParallelGroupBuilder<Entry, bst_row_t>* const builder,
+               const size_t expected_rows) {
+  // In case DenseAdapterBatch memory can be used more effective
+  builder->InitStorage(expected_rows + 1);
+}
+
 template <typename AdapterBatchT>
 uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread) {
   // Set number of threads but keep old value so we can reset it after
   const int nthreadmax = omp_get_max_threads();
   if (nthread <= 0) nthread = nthreadmax;
-  int nthread_original = omp_get_max_threads();
+  const int nthread_original = omp_get_max_threads();
   omp_set_num_threads(nthread);
   auto& offset_vec = offset.HostVector();
   auto& data_vec = data.HostVector();
+
   size_t builder_base_row_offset = this->Size();
   common::ParallelGroupBuilder<
       Entry, std::remove_reference<decltype(offset_vec)>::type::value_type>
@@ -829,48 +868,71 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
           last_line.GetElement(last_line.Size() - 1).row_idx - base_rowid;
     }
   }
-  builder.InitBudget(expected_rows, nthread);
+  size_t batch_size = batch.Size();
+  const size_t thread_size = batch_size/nthread;
+  const size_t tail_size = batch_size - thread_size*nthread;
+  size_t thread_displace = 0;
+  InitBudged(batch, &builder, expected_rows,
+             thread_size, nthread, tail_size, &thread_displace);
   uint64_t max_columns = 0;
+  if (batch_size == 0) {
+    omp_set_num_threads(nthread_original);
+    return max_columns;
+  }
+  std::vector<std::vector<uint64_t>> max_columns_vector(nthread);
 
   // First-pass over the batch counting valid elements
-  size_t batch_size = batch.Size();
-#pragma omp parallel for schedule(static)
-  for (omp_ulong i = 0; i < static_cast<omp_ulong>(batch_size);
-       ++i) {  // NOLINT(*)
+#pragma omp parallel num_threads(nthread)
+  {
     int tid = omp_get_thread_num();
-    auto line = batch.GetLine(i);
-    for (auto j = 0ull; j < line.Size(); j++) {
-      data::COOTuple element = line.GetElement(j);
-      max_columns =
-          std::max(max_columns, static_cast<uint64_t>(element.column_idx + 1));
-      if (!common::CheckNAN(element.value) && element.value != missing) {
-        size_t key = element.row_idx - base_rowid;
-        // Adapter row index is absolute, here we want it relative to
-        // current page
-        CHECK_GE(key, builder_base_row_offset);
-        builder.AddBudget(key, tid);
+    size_t begin = tid*thread_size;
+    size_t end = tid != (nthread-1) ? (tid+1)*thread_size : batch_size;
+    max_columns_vector[tid].resize(1, 0);
+    uint64_t& max_columns_local = max_columns_vector[tid][0];
+
+    for (size_t i = begin; i < end; ++i) {
+      auto line = batch.GetLine(i);
+      for (auto j = 0ull; j < line.Size(); j++) {
+        auto element = line.GetElement(j);
+        const size_t key = (element.row_idx - base_rowid) - tid*thread_displace;
+        CHECK_GE(key,  builder_base_row_offset);
+        max_columns_local =
+            std::max(max_columns_local, static_cast<uint64_t>(element.column_idx + 1));
+
+        if (!common::CheckNAN(element.value) && element.value != missing) {
+          // Adapter row index is absolute, here we want it relative to
+          // current page
+          builder.AddBudget(key, tid);
+        }
       }
     }
   }
-  builder.InitStorage();
+  for (const auto & max : max_columns_vector) {
+    max_columns = std::max(max_columns, max[0]);
+  }
+
+  InitStorage(batch, &builder, expected_rows);
 
   // Second pass over batch, placing elements in correct position
-#pragma omp parallel for schedule(static)
-  for (omp_ulong i = 0; i < static_cast<omp_ulong>(batch_size);
-       ++i) {  // NOLINT(*)
+
+#pragma omp parallel num_threads(nthread)
+  {
     int tid = omp_get_thread_num();
-    auto line = batch.GetLine(i);
-    for (auto j = 0ull; j < line.Size(); j++) {
-      auto element = line.GetElement(j);
-      if (!common::CheckNAN(element.value) && element.value != missing) {
-        size_t key = element.row_idx -
-                     base_rowid;  // Adapter row index is absolute, here we want
-                                  // it relative to current page
-        builder.Push(key, Entry(element.column_idx, element.value), tid);
+    size_t begin = tid*thread_size;
+    size_t end = tid != (nthread-1) ? (tid+1)*thread_size : batch_size;
+    for (size_t i = begin; i < end; ++i) {
+      auto line = batch.GetLine(i);
+      for (auto j = 0ull; j < line.Size(); j++) {
+        auto element = line.GetElement(j);
+        const size_t key = (element.row_idx - base_rowid)- tid*thread_displace;
+        if (!common::CheckNAN(element.value) && element.value != missing) {
+          builder.Push(key, Entry(element.column_idx, element.value), tid);
+        }
       }
     }
   }
   omp_set_num_threads(nthread_original);
+
   return max_columns;
 }
 
