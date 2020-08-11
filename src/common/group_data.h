@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <vector>
 #include <algorithm>
+#include <utility>
 
 #include "xgboost/base.h"
 
@@ -60,6 +61,15 @@ class ParallelGroupBuilder {
       std::fill(thread_rptr_[i].begin(), thread_rptr_[i].end(), 0);
     }
   }
+
+  void InitBudget(std::size_t thread_size, int nthread, const std::size_t tail_size) {
+    thread_rptr_.resize(nthread);
+    for (std::size_t i = 0; i < thread_rptr_.size() - 1; ++i) {
+      thread_rptr_[i].resize(thread_size, 0);
+    }
+    thread_rptr_[nthread - 1].resize(thread_rptr_[0].size() + tail_size, 0);
+  }
+
   /*!
    * \brief step 2: add budget to each key
    * \param key the key
@@ -74,6 +84,34 @@ class ParallelGroupBuilder {
     }
     trptr[offset_key] += nelem;
   }
+
+
+
+  /*! \brief step 3: initialize the necessary storage */
+  inline void InitStorage(const size_t expected_rows) {
+    // initialize rptr to be beginning of each segment
+    SizeType rptr_fill_value = rptr_.empty() ? 0 : rptr_.back();
+    rptr_.resize(expected_rows + base_row_offset_ + 1, rptr_fill_value);
+    const size_t thread_size = thread_rptr_[0].size();
+
+    std::size_t count = 0;
+    size_t offset_idx = base_row_offset_;
+    rptr_[offset_idx++] = count;
+    for (std::size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
+      std::vector<SizeType> &trptr = thread_rptr_[tid];
+      for (std::size_t i = 0; i < trptr.size(); ++i) {
+        std::size_t thread_count = trptr[i];  // how many entries in this row
+        trptr[i] = count;
+        count += thread_count;
+        if (offset_idx < rptr_.size()) {
+          rptr_[offset_idx++] = count;
+        }
+      }
+    }
+    data_.resize(count);  // usage of empty allocator can help to improve performance
+  }
+
+
   /*! \brief step 3: initialize the necessary storage */
   inline void InitStorage() {
     // set rptr to correct size
@@ -101,6 +139,7 @@ class ParallelGroupBuilder {
     }
     data_.resize(rptr_.back());
   }
+
   /*!
    * \brief step 4: add data to the allocated space,
    *   the calls to this function should be exactly match previous call to AddBudget
@@ -109,10 +148,10 @@ class ParallelGroupBuilder {
    * \param value The value to be pushed to the group.
    * \param threadid the id of thread that calls this function
    */
-  void Push(std::size_t key, ValueType value, int threadid) {
+  void Push(std::size_t key, ValueType&& value, int threadid) {
     size_t offset_key = key - base_row_offset_;
     SizeType &rp = thread_rptr_[threadid][offset_key];
-    data_[rp++] = value;
+    data_[rp++] = std::move(value);
   }
 
  private:
