@@ -13,6 +13,7 @@ HostSketchContainer::HostSketchContainer(std::vector<bst_row_t> columns_size,
                                          int32_t max_bins, bool use_group)
     : columns_size_{std::move(columns_size)}, max_bins_{max_bins},
       use_group_ind_{use_group} {
+  monitor_.Init(__func__);
   CHECK_NE(columns_size_.size(), 0);
   sketches_.resize(columns_size_.size());
   for (size_t i = 0; i < sketches_.size(); ++i) {
@@ -57,6 +58,7 @@ std::vector<bst_feature_t> LoadBalance(SparsePage const &page,
 
 void HostSketchContainer::PushRowPage(SparsePage const &page,
                                       MetaInfo const &info) {
+  monitor_.Start(__func__);
   int nthread = omp_get_max_threads();
   CHECK_EQ(sketches_.size(), info.num_col_);
 
@@ -81,7 +83,7 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
 
       // do not iterate if no columns are assigned to the thread
       if (begin < end && end <= ncol) {
-        for (size_t i = 0; i < batch.Size(); ++i) { // NOLINT(*)
+        for (size_t i = 0; i < batch.Size(); ++i) {
           size_t const ridx = page.base_rowid + i;
           SparsePage::Inst const inst = batch[i];
           if (use_group_ind_) {
@@ -89,13 +91,12 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
           }
           size_t w_idx = use_group_ind_ ? group_ind : ridx;
           auto w = info.GetWeight(w_idx);
-          auto p_data = inst.data();
+          auto p_inst = inst.data();
           if (is_dense) {
             for (size_t ii = begin; ii < end; ii++) {
-              sketches_[ii].Push(p_data[ii].fvalue, w);
+              sketches_[ii].Push(p_inst[ii].fvalue, w);
             }
           } else {
-            auto p_inst = inst.data();
             for (size_t i = 0; i < inst.size(); ++i) {
               auto const& entry = p_inst[i];
               if (entry.index >= begin && entry.index < end) {
@@ -108,6 +109,7 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
     });
   }
   exec.Rethrow();
+  monitor_.Stop(__func__);
 }
 
 void AddCutPoint(WQuantileSketch<float, float>::SummaryContainer const &summary,
@@ -123,6 +125,7 @@ void AddCutPoint(WQuantileSketch<float, float>::SummaryContainer const &summary,
 }
 
 void HostSketchContainer::MakeCuts(HistogramCuts* cuts) {
+  monitor_.Start(__func__);
   rabit::Allreduce<rabit::op::Sum>(columns_size_.data(), columns_size_.size());
   std::vector<WQSketch::SummaryContainer> reduced(sketches_.size());
   std::vector<int32_t> num_cuts;
@@ -184,6 +187,7 @@ void HostSketchContainer::MakeCuts(HistogramCuts* cuts) {
     CHECK_GT(cut_size, cuts->cut_ptrs_.HostVector().back());
     cuts->cut_ptrs_.HostVector().push_back(cut_size);
   }
+  monitor_.Stop(__func__);
 }
 }  // namespace common
 }  // namespace xgboost

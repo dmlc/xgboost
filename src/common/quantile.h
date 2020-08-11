@@ -16,6 +16,8 @@
 #include <algorithm>
 #include <iostream>
 
+#include "timer.h"
+
 namespace xgboost {
 namespace common {
 /*!
@@ -698,6 +700,7 @@ class HostSketchContainer {
   std::vector<bst_row_t> columns_size_;
   int32_t max_bins_;
   bool use_group_ind_{false};
+  Monitor monitor_;
 
  public:
   /* \brief Initialize necessary info.
