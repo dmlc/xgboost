@@ -1079,12 +1079,33 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         return self.client.sync(self._fit_async, X, y, sample_weights,
                                 eval_set, sample_weight_eval_set, verbose)
 
-    async def _predict_async(self, data):
+    async def _predict_proba_async(self, data):
+        _assert_dask_support()
+
         test_dmatrix = await DaskDMatrix(client=self.client, data=data,
                                          missing=self.missing)
         pred_probs = await predict(client=self.client,
                                    model=self.get_booster(), data=test_dmatrix)
         return pred_probs
+
+    def predict_proba(self, data):  # pylint: disable=arguments-differ,missing-docstring
+        _assert_dask_support()
+        return self.client.sync(self._predict_proba_async, data)
+
+    async def _predict_async(self, data):
+        _assert_dask_support()
+
+        test_dmatrix = await DaskDMatrix(client=self.client, data=data,
+                                         missing=self.missing)
+        pred_probs = await predict(client=self.client,
+                                   model=self.get_booster(), data=test_dmatrix)
+
+        if self.n_classes_ == 2:
+            preds = (pred_probs > 0.5).astype(int)
+        else:
+            preds = da.argmax(pred_probs, axis=1)
+
+        return preds
 
     def predict(self, data):  # pylint: disable=arguments-differ
         _assert_dask_support()
