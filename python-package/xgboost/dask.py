@@ -738,7 +738,8 @@ async def _predict_async(client: Client, model, data, *args,
             predt = booster.predict(data=local_x,
                                     validate_features=local_x.num_row() != 0,
                                     *args)
-            ret = (delayed(predt), order)
+            columns = 1 if len(predt.shape) == 1 else predt.shape[1]
+            ret = ((delayed(predt), columns), order)
             predictions.append(ret)
         return predictions
 
@@ -775,8 +776,10 @@ async def _predict_async(client: Client, model, data, *args,
     # See https://docs.dask.org/en/latest/array-creation.html
     arrays = []
     for i, shape in enumerate(shapes):
-        arrays.append(da.from_delayed(results[i], shape=(shape[0], ),
-                                      dtype=numpy.float32))
+        arrays.append(da.from_delayed(
+            results[i][0], shape=(shape[0],)
+            if results[i][1] == 1 else (shape[0], results[i][1]),
+            dtype=numpy.float32))
     predictions = await da.concatenate(arrays, axis=0)
     return predictions
 
@@ -978,6 +981,7 @@ class DaskScikitLearnBase(XGBModel):
     def client(self, clt):
         self._client = clt
 
+
 @xgboost_model_doc("""Implementation of the Scikit-Learn API for XGBoost.""",
                    ['estimators', 'model'])
 class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
@@ -1032,9 +1036,6 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
     ['estimators', 'model']
 )
 class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
-    # pylint: disable=missing-docstring
-    _client = None
-
     async def _fit_async(self, X, y,
                          sample_weights=None,
                          eval_set=None,
@@ -1078,12 +1079,33 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         return self.client.sync(self._fit_async, X, y, sample_weights,
                                 eval_set, sample_weight_eval_set, verbose)
 
-    async def _predict_async(self, data):
+    async def _predict_proba_async(self, data):
+        _assert_dask_support()
+
         test_dmatrix = await DaskDMatrix(client=self.client, data=data,
                                          missing=self.missing)
         pred_probs = await predict(client=self.client,
                                    model=self.get_booster(), data=test_dmatrix)
         return pred_probs
+
+    def predict_proba(self, data):  # pylint: disable=arguments-differ,missing-docstring
+        _assert_dask_support()
+        return self.client.sync(self._predict_proba_async, data)
+
+    async def _predict_async(self, data):
+        _assert_dask_support()
+
+        test_dmatrix = await DaskDMatrix(client=self.client, data=data,
+                                         missing=self.missing)
+        pred_probs = await predict(client=self.client,
+                                   model=self.get_booster(), data=test_dmatrix)
+
+        if self.n_classes_ == 2:
+            preds = (pred_probs > 0.5).astype(int)
+        else:
+            preds = da.argmax(pred_probs, axis=1)
+
+        return preds
 
     def predict(self, data):  # pylint: disable=arguments-differ
         _assert_dask_support()
