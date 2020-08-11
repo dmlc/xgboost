@@ -229,6 +229,12 @@ def test_dask_classifier():
             assert probas.shape[0] == kRows
             assert probas.shape[1] == 10
 
+            cls_booster = classifier.get_booster()
+            single_node_proba = cls_booster.inplace_predict(X.compute())
+
+            np.testing.assert_allclose(single_node_proba,
+                                       probas.compute())
+
             # Test with dataframe.
             X_d = dd.from_dask_array(X)
             y_d = dd.from_dask_array(y)
