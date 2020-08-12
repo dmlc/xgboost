@@ -177,6 +177,17 @@
         }
       }
     },
+    "aft_loss_param": {
+      "type": "object",
+      "properties": {
+        "aft_loss_distribution": {
+          "type": "string"
+        },
+        "aft_loss_distribution_scale": {
+          "type": "string"
+        }
+      }
+    },
     "softmax_multiclass_param": {
       "type": "object",
       "properties": {
@@ -276,7 +287,29 @@
             {
               "type": "object",
               "properties": {
+                "name": { "const": "reg:pseudohubererror" },
+                "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
+              },
+              "required": [
+                "name",
+                "reg_loss_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
                 "name": { "const": "reg:squaredlogerror" },
+                "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
+              },
+              "required": [
+                "name",
+                "reg_loss_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "reg:linear" },
                 "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
               },
               "required": [
@@ -420,6 +453,19 @@
                 "name",
                 "lambda_rank_param"
               ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": {"const": "survival:aft"},
+                "aft_loss_param": { "$ref": "#/definitions/aft_loss_param"}
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": {"const": "binary:hinge"}
+              }
             }
           ]
         },

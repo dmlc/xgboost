@@ -32,7 +32,9 @@ option(R_LIB "Build shared library for R package" OFF)
 ## Dev
 option(USE_DEBUG_OUTPUT "Dump internal training results like gradients and predictions to stdout.
 Should only be used for debugging." OFF)
+option(FORCE_COLORED_OUTPUT "Force colored output from compilers, useful when ninja is used instead of make." OFF)
 option(ENABLE_ALL_WARNINGS "Enable all compiler warnings. Only effective for GCC/Clang" OFF)
+option(LOG_CAPI_INVOCATION "Log all C API invocations for debugging" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
@@ -58,6 +60,8 @@ address, leak, undefined and thread.")
 ## Plugins
 option(PLUGIN_LZ4 "Build lz4 plugin" OFF)
 option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
+## TODO: 1. Add check if DPC++ compiler is used for building 
+option(PLUGIN_UPDATER_ONEAPI "DPC++ updater" OFF)
 option(ADD_PKGCONFIG "Add xgboost.pc into system." ON)
 
 #-- Checks for building XGBoost
@@ -106,6 +110,12 @@ if (USE_CUDA)
   format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
   message(STATUS "CUDA GEN_CODE: ${GEN_CODE}")
 endif (USE_CUDA)
+
+if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
+    ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
+      (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")))
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always")
+endif()
 
 find_package(Threads REQUIRED)
 

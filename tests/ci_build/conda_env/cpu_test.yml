@@ -1,0 +1,33 @@
+name: cpu_test
+channels:
+- conda-forge
+dependencies:
+- python=3.7
+- pip
+- wheel
+- pyyaml
+- cpplint
+- pylint
+- numpy
+- scipy
+- scikit-learn
+- pandas
+- matplotlib
+- dask
+- python-graphviz
+- hypothesis
+- astroid
+- sphinx
+- sh
+- recommonmark
+- mock
+- breathe
+- pytest
+- python-kubernetes
+- urllib3
+- jsonschema
+- boto3
+- awscli
+- pip:
+  - guzzle_sphinx_theme
+  - datatable

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source activate cpu_test
+
 export DMLC_SUBMIT_CLUSTER=local
 
 submit="python3 dmlc-core/tracker/dmlc-submit"

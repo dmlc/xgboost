@@ -85,6 +85,8 @@ Dask API
 
 .. autofunction:: xgboost.dask.DaskDMatrix
 
+.. autofunction:: xgboost.dask.DaskDeviceQuantileDMatrix
+
 .. autofunction:: xgboost.dask.train
 
 .. autofunction:: xgboost.dask.predict

@@ -117,3 +117,18 @@ def test_aft_demo():
 # gamma regression is not tested as it requires running a R script first.
 # aft viz is not tested due to ploting is not controled
 # aft tunning is not tested due to extra dependency.
+
+
+def test_cli_regression_demo():
+    reg_dir = os.path.join(DEMO_DIR, 'regression')
+    script = os.path.join(reg_dir, 'mapfeat.py')
+    cmd = ['python', script]
+    subprocess.check_call(cmd, cwd=reg_dir)
+
+    script = os.path.join(reg_dir, 'mknfold.py')
+    cmd = ['python', script, 'machine.txt', '1']
+    subprocess.check_call(cmd, cwd=reg_dir)
+
+    exe = os.path.join(tm.PROJECT_ROOT, 'xgboost')
+    conf = os.path.join(reg_dir, 'machine.conf')
+    subprocess.check_call([exe, conf], cwd=reg_dir)

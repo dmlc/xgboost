@@ -198,4 +198,38 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
     val model = new XGBoostClassifier(paramMap).fit(inputDF)
     model.transform(inputDF).collect()
   }
+
+  test("Getter and setter for AllowNonZeroForMissingValue works") {
+    {
+      val paramMap = Map("eta" -> "1", "max_depth" -> "6",
+        "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers)
+      val training = buildDataFrame(Classification.train)
+      val classifier = new XGBoostClassifier(paramMap)
+      classifier.setAllowNonZeroForMissing(true)
+      assert(classifier.getAllowNonZeroForMissingValue)
+      classifier.setAllowNonZeroForMissing(false)
+      assert(!classifier.getAllowNonZeroForMissingValue)
+      val model = classifier.fit(training)
+      model.setAllowNonZeroForMissing(true)
+      assert(model.getAllowNonZeroForMissingValue)
+      model.setAllowNonZeroForMissing(false)
+      assert(!model.getAllowNonZeroForMissingValue)
+    }
+
+    {
+      val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+        "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
+      val training = buildDataFrame(Regression.train)
+      val regressor = new XGBoostRegressor(paramMap)
+      regressor.setAllowNonZeroForMissing(true)
+      assert(regressor.getAllowNonZeroForMissingValue)
+      regressor.setAllowNonZeroForMissing(false)
+      assert(!regressor.getAllowNonZeroForMissingValue)
+      val model = regressor.fit(training)
+      model.setAllowNonZeroForMissing(true)
+      assert(model.getAllowNonZeroForMissingValue)
+      model.setAllowNonZeroForMissing(false)
+      assert(!model.getAllowNonZeroForMissingValue)
+    }
+  }
 }

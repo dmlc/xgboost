@@ -145,6 +145,11 @@ class XGBoostRegressor (
 
   def setCustomEval(value: EvalTrait): this.type = set(customEval, value)
 
+  def setAllowNonZeroForMissing(value: Boolean): this.type = set(
+    allowNonZeroForMissing,
+    value
+  )
+
   def setSinglePrecisionHistogram(value: Boolean): this.type =
     set(singlePrecisionHistogram, value)
 
@@ -244,7 +249,7 @@ class XGBoostRegressionModel private[ml] (
 
   def setMissing(value: Float): this.type = set(missing, value)
 
-  def setAllowZeroForMissingValue(value: Boolean): this.type = set(
+  def setAllowNonZeroForMissing(value: Boolean): this.type = set(
     allowNonZeroForMissing,
     value
   )
@@ -281,8 +286,7 @@ class XGBoostRegressionModel private[ml] (
         private val batchIterImpl = rowIterator.grouped($(inferBatchSize)).flatMap { batchRow =>
           if (batchCnt == 0) {
             val rabitEnv = Array(
-              "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString,
-              "DMLC_WORKER_STOP_PROCESS_ON_ERROR" -> "false").toMap
+              "DMLC_TASK_ID" -> TaskContext.getPartitionId().toString).toMap
             Rabit.init(rabitEnv.asJava)
           }
 

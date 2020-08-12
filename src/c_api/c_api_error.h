@@ -10,7 +10,12 @@
 #include <dmlc/logging.h>
 
 /*! \brief  macro to guard beginning and end section of all functions */
+#ifdef LOG_CAPI_INVOCATION
+#define API_BEGIN() \
+  LOG(CONSOLE) << "[XGBoost C API invocation] " << __PRETTY_FUNCTION__; try {
+#else  // LOG_CAPI_INVOCATION
 #define API_BEGIN() try {
+#endif  // LOG_CAPI_INVOCATION
 /*! \brief every function starts with API_BEGIN();
      and finishes with API_END() or API_END_HANDLE_ERROR */
 #define API_END() } catch(dmlc::Error &_except_) { return XGBAPIHandleException(_except_); } return 0;  // NOLINT(*)
