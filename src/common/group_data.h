@@ -57,17 +57,8 @@ class ParallelGroupBuilder {
   void InitBudget(std::size_t max_key, int nthread) {
     thread_rptr_.resize(nthread);
     for (std::size_t i = 0; i < thread_rptr_.size(); ++i) {
-      thread_rptr_[i].resize(max_key - std::min(base_row_offset_, max_key));
-      std::fill(thread_rptr_[i].begin(), thread_rptr_[i].end(), 0);
+      thread_rptr_[i].resize(max_key - std::min(base_row_offset_, max_key), 0);
     }
-  }
-
-  void InitBudget(std::size_t thread_size, int nthread, const std::size_t tail_size) {
-    thread_rptr_.resize(nthread);
-    for (std::size_t i = 0; i < thread_rptr_.size() - 1; ++i) {
-      thread_rptr_[i].resize(thread_size, 0);
-    }
-    thread_rptr_[nthread - 1].resize(thread_rptr_[0].size() + tail_size, 0);
   }
 
   /*!
@@ -84,33 +75,6 @@ class ParallelGroupBuilder {
     }
     trptr[offset_key] += nelem;
   }
-
-
-
-  /*! \brief step 3: initialize the necessary storage */
-  inline void InitStorage(const size_t expected_rows) {
-    // initialize rptr to be beginning of each segment
-    SizeType rptr_fill_value = rptr_.empty() ? 0 : rptr_.back();
-    rptr_.resize(expected_rows + base_row_offset_ + 1, rptr_fill_value);
-    const size_t thread_size = thread_rptr_[0].size();
-
-    std::size_t count = 0;
-    size_t offset_idx = base_row_offset_;
-    rptr_[offset_idx++] = count;
-    for (std::size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
-      std::vector<SizeType> &trptr = thread_rptr_[tid];
-      for (std::size_t i = 0; i < trptr.size(); ++i) {
-        std::size_t thread_count = trptr[i];  // how many entries in this row
-        trptr[i] = count;
-        count += thread_count;
-        if (offset_idx < rptr_.size()) {
-          rptr_[offset_idx++] = count;
-        }
-      }
-    }
-    data_.resize(count);  // usage of empty allocator can help to improve performance
-  }
-
 
   /*! \brief step 3: initialize the necessary storage */
   inline void InitStorage() {
