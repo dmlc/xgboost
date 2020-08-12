@@ -20,6 +20,15 @@
 #include "../../src/gbm/gbtree_model.h"
 #include "xgboost/predictor.h"
 
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+#include <memory>
+#include <numeric>
+#include <vector>
+#include "rmm/mr/device/per_device_resource.hpp"
+#include "rmm/mr/device/cuda_memory_resource.hpp"
+#include "rmm/mr/device/pool_memory_resource.hpp"
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+
 bool FileExists(const std::string& filename) {
   struct stat st;
   return stat(filename.c_str(), &st) == 0;
@@ -477,5 +486,58 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
 
   return gbm;
 }
+
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+
+using CUDAMemoryResource = rmm::mr::cuda_memory_resource;
+using PoolMemoryResource = rmm::mr::pool_memory_resource<CUDAMemoryResource>;
+class RMMAllocator {
+ public:
+  std::vector<std::unique_ptr<CUDAMemoryResource>> cuda_mr;
+  std::vector<std::unique_ptr<PoolMemoryResource>> pool_mr;
+  int n_gpu;
+  RMMAllocator() : n_gpu(common::AllVisibleGPUs()) {
+    int current_device;
+    CHECK_EQ(cudaGetDevice(&current_device), cudaSuccess);
+    for (int i = 0; i < n_gpu; ++i) {
+      CHECK_EQ(cudaSetDevice(i), cudaSuccess);
+      cuda_mr.push_back(std::make_unique<CUDAMemoryResource>());
+      pool_mr.push_back(std::make_unique<PoolMemoryResource>(cuda_mr[i].get()));
+    }
+    CHECK_EQ(cudaSetDevice(current_device), cudaSuccess);
+  }
+  ~RMMAllocator() = default;
+};
+
+void DeleteRMMResource(RMMAllocator* r) {
+  delete r;
+}
+
+RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
+  bool use_rmm_pool = false;
+  for (int i = 1; i < argc; ++i) {
+    if (argv[i] == std::string("--use-rmm-pool")) {
+      use_rmm_pool = true;
+    }
+  }
+  if (!use_rmm_pool) {
+    return RMMAllocatorPtr(nullptr, DeleteRMMResource);
+  }
+  LOG(INFO) << "Using RMM memory pool";
+  auto ptr = RMMAllocatorPtr(new RMMAllocator(), DeleteRMMResource);
+  for (int i = 0; i < ptr->n_gpu; ++i) {
+    rmm::mr::set_per_device_resource(rmm::cuda_device_id(i), ptr->pool_mr[i].get());
+  }
+  return ptr;
+}
+#else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+class RMMAllocator {};
+
+void DeleteRMMResource(RMMAllocator* r) {}
+
+RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
+  return RMMAllocatorPtr(nullptr, DeleteRMMResource);
+}
+#endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1
 
 }  // namespace xgboost
