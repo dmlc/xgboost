@@ -476,7 +476,7 @@ def DeployJVMPackages(args) {
       ${dockerRun} jvm docker tests/ci_build/deploy_jvm_packages.sh ${args.spark_version} 0
       """
       sh """
-      ${dockerRun} jvm_gpu_build docker tests/ci_build/deploy_jvm_packages.sh ${args.spark_version} 1
+      ${dockerRun} jvm_gpu_build docker --build-arg CUDA_VERSION=10.0 tests/ci_build/deploy_jvm_packages.sh ${args.spark_version} 1
       """
     }
     deleteDir()
