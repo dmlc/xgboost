@@ -20,7 +20,7 @@ rm -rf ../build/
 
 # Re-build package without Mock Rabit
 # Deploy to S3 bucket xgboost-maven-repo
-if [[ "$build_gpu" == "1" ]]
+if [[ "$build_gpu" == "0" ]]
 then
   # Build CPU artifact
   mvn --no-transfer-progress package deploy -P release-to-s3 -Dspark.version=${spark_version} -DskipTests
