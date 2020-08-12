@@ -806,44 +806,6 @@ void SparsePage::Push(const SparsePage &batch) {
   }
 }
 
-template<typename AdapterBatchT>
-inline void InitBudged(const AdapterBatchT& dummy_batch,
-                       common::ParallelGroupBuilder<Entry, bst_row_t>* const builder,
-                       const size_t expected_rows, const size_t thread_size,
-                       const size_t nthread, const size_t tail_size,
-                       size_t* thread_displace) {
-  builder->InitBudget(expected_rows, nthread);
-  (*thread_displace) = 0;
-}
-
-template<typename AdapterBatchT>
-inline void InitStorage(const AdapterBatchT& dummy_batch,
-                        common::ParallelGroupBuilder<Entry, bst_row_t>* const builder,
-                        const size_t expected_rows) {
-  builder->InitStorage();
-}
-
-template<>
-inline void InitBudged<xgboost::data::DenseAdapterBatch>(
-                      const xgboost::data::DenseAdapterBatch& dummy_batch,
-                      common::ParallelGroupBuilder<Entry, bst_row_t>* const builder,
-                      const size_t expected_rows, const size_t thread_size,
-                      const size_t nthread, const size_t tail_size,
-                      size_t* thread_displace) {
-  // In case DenseAdapterBatch memory can be used more effective
-  builder->InitBudget(thread_size, nthread, tail_size);
-  (*thread_displace) = thread_size;
-}
-
-template<>
-inline void InitStorage<xgboost::data::DenseAdapterBatch>(
-               const xgboost::data::DenseAdapterBatch& dummy_batch,
-               common::ParallelGroupBuilder<Entry, bst_row_t>* const builder,
-               const size_t expected_rows) {
-  // In case DenseAdapterBatch memory can be used more effective
-  builder->InitStorage(expected_rows + 1);
-}
-
 template <typename AdapterBatchT>
 uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread) {
   // Set number of threads but keep old value so we can reset it after
@@ -870,10 +832,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   }
   size_t batch_size = batch.Size();
   const size_t thread_size = batch_size/nthread;
-  const size_t tail_size = batch_size - thread_size*nthread;
-  size_t thread_displace = 0;
-  InitBudged(batch, &builder, expected_rows,
-             thread_size, nthread, tail_size, &thread_displace);
+  builder.InitBudget(expected_rows+1, nthread);
   uint64_t max_columns = 0;
   if (batch_size == 0) {
     omp_set_num_threads(nthread_original);
@@ -894,7 +853,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
       auto line = batch.GetLine(i);
       for (auto j = 0ull; j < line.Size(); j++) {
         auto element = line.GetElement(j);
-        const size_t key = (element.row_idx - base_rowid) - tid*thread_displace;
+        const size_t key = element.row_idx - base_rowid;
         CHECK_GE(key,  builder_base_row_offset);
         max_columns_local =
             std::max(max_columns_local, static_cast<uint64_t>(element.column_idx + 1));
@@ -911,7 +870,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     max_columns = std::max(max_columns, max[0]);
   }
 
-  InitStorage(batch, &builder, expected_rows);
+  builder.InitStorage();
 
   // Second pass over batch, placing elements in correct position
 
@@ -924,7 +883,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
       auto line = batch.GetLine(i);
       for (auto j = 0ull; j < line.Size(); j++) {
         auto element = line.GetElement(j);
-        const size_t key = (element.row_idx - base_rowid)- tid*thread_displace;
+        const size_t key = (element.row_idx - base_rowid);
         if (!common::CheckNAN(element.value) && element.value != missing) {
           builder.Push(key, Entry(element.column_idx, element.value), tid);
         }
