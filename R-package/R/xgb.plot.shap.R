@@ -244,7 +244,7 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
   }
   data <- data[idx, ]
   if (is.null(colnames(data))) {
-    colnames(data) <- paste0("X", 1:ncol(data))
+    colnames(data) <- paste0("X", seq_len(ncol(data)))
   }
 
   if (!is.null(shap_contrib)) {
@@ -253,7 +253,7 @@ xgb.shap.data <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
     }
     shap_contrib <- shap_contrib[idx, ]
     if (is.null(colnames(shap_contrib))) {
-      colnames(shap_contrib) <- paste0("X", 1:ncol(data))
+      colnames(shap_contrib) <- paste0("X", seq_len(ncol(data)))
     }
   } else {
     shap_contrib <- predict(model, newdata = data, predcontrib = TRUE, approxcontrib = approxcontrib)
