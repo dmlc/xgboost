@@ -40,6 +40,7 @@ pipeline {
         script {
           checkoutSrcs()
           commit_id = "${GIT_COMMIT}"
+          cancelPreviousBuilds()
         }
         sh 'python3 tests/jenkins_get_approval.py'
         stash name: 'srcs'
@@ -505,4 +506,18 @@ def DeployJVMPackages(args) {
     }
     deleteDir()
   }
+}
+
+// From https://stackoverflow.com/a/48956042
+@NonCPS
+def cancelPreviousBuilds() {
+    def jobName = env.JOB_NAME
+    def buildNumber = env.BUILD_NUMBER.toInteger()
+    def currentJob = Jenkins.instance.getItemByFullName(jobName)
+    for (def build : currentJob.builds) {
+        /* If there is a build that's currently running and it's not current build, stop it */
+        if (build.isBuilding() && build.number.toInteger() != buildNumber) {
+            build.doStop()
+        }
+    }
 }
