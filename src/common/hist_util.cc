@@ -500,13 +500,13 @@ void GHistIndexBlockMatrix::Init(const GHistIndexMatrix& gmat,
  */
 template<typename GradientSumT>
 void InitilizeHistByZeroes(GHistRow<GradientSumT> hist, size_t begin, size_t end) {
-#if defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
-  std::fill(hist.begin() + begin, hist.begin() + end,
-            xgboost::detail::GradientPairInternal<GradientSumT>());
-#else  // defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
-  memset(hist.data() + begin, '\0', (end-begin)*
+  static_assert(sizeof(xgboost::detail::GradientPairInternal<GradientSumT>) %
+                        sizeof(GradientSumT) ==
+                    0,
+                "");
+  auto p_data = reinterpret_cast<GradientSumT*>(hist.data());
+  memset(p_data + begin, '\0', (end-begin)*
          sizeof(xgboost::detail::GradientPairInternal<GradientSumT>));
-#endif  // defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1
 }
 template void InitilizeHistByZeroes(GHistRow<float> hist, size_t begin,
                                     size_t end);
