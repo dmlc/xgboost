@@ -79,7 +79,7 @@ class SparkParallelismTracker(
   def execute[T](body: => T): T = {
     if (timeout <= 0) {
       logger.info("starting training without setting timeout for waiting for resources")
-      body
+      safeExecute(body)
     } else {
       logger.info(s"starting training with timeout set as $timeout ms for waiting for resources")
       if (!waitForCondition(numAliveCores >= requestedCores, timeout)) {
@@ -98,8 +98,8 @@ private[spark] class TaskFailedListener extends SparkListener {
     taskEnd.reason match {
       case taskEndReason: TaskFailedReason =>
         logger.error(s"Training Task Failed during XGBoost Training: " +
-            s"$taskEndReason, stopping SparkContext")
-        TaskFailedListener.startedSparkContextKiller()
+            s"$taskEndReason, cancelling all jobs")
+        TaskFailedListener.cancelAllJobs()
       case _ =>
     }
   }
@@ -107,22 +107,21 @@ private[spark] class TaskFailedListener extends SparkListener {
 
 object TaskFailedListener {
 
-  var killerStarted = false
+  var cancelJobStarted = false
 
-  private def startedSparkContextKiller(): Unit = this.synchronized {
-    if (!killerStarted) {
-      // Spark does not allow ListenerThread to shutdown SparkContext so that we have to do it
-      // in a separate thread
-      val sparkContextKiller = new Thread() {
+  private def cancelAllJobs(): Unit = this.synchronized {
+    if (!cancelJobStarted) {
+      val cancelJob = new Thread() {
         override def run(): Unit = {
           LiveListenerBus.withinListenerThread.withValue(false) {
-            SparkContext.getOrCreate().stop()
+            SparkContext.getOrCreate().cancelAllJobs()
           }
         }
       }
-      sparkContextKiller.setDaemon(true)
-      sparkContextKiller.start()
-      killerStarted = true
+      cancelJob.setDaemon(true)
+      cancelJob.start()
+      cancelJobStarted = true
     }
   }
+
 }

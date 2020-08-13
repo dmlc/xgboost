@@ -626,9 +626,8 @@ object XGBoost extends Serializable {
       (booster, metrics)
     } catch {
       case t: Throwable =>
-        // if the job was aborted due to an exception
+        // if the job was aborted due to an exception, just throw the exception
         logger.error("the job was aborted due to ", t)
-        trainingData.sparkContext.stop()
         throw t
     } finally {
       uncacheTrainingData(xgbExecParams.cacheTrainingSet, transformedTrainingData)
