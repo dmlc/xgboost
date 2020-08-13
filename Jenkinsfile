@@ -38,13 +38,14 @@ pipeline {
       agent { label 'job_initializer' }
       steps {
         script {
+          def buildNumber = env.BUILD_NUMBER as int
+          if (buildNumber > 1) milestone(buildNumber - 1)
+          milestone(buildNumber)
           checkoutSrcs()
           commit_id = "${GIT_COMMIT}"
-          cancelPreviousBuilds()
         }
         sh 'python3 tests/jenkins_get_approval.py'
         stash name: 'srcs'
-        milestone ordinal: 1
       }
     }
     stage('Jenkins Linux: Formatting Check') {
@@ -58,7 +59,6 @@ pipeline {
             'doxygen': { Doxygen() }
           ])
         }
-        milestone ordinal: 2
       }
     }
     stage('Jenkins Linux: Build') {
@@ -81,7 +81,6 @@ pipeline {
             'build-jvm-doc': { BuildJVMDoc() }
           ])
         }
-        milestone ordinal: 3
       }
     }
     stage('Jenkins Linux: Test') {
@@ -104,7 +103,6 @@ pipeline {
             'test-r-3.5.3': { TestR(use_r35: true) }
           ])
         }
-        milestone ordinal: 4
       }
     }
     stage('Jenkins Linux: Deploy') {
@@ -115,7 +113,6 @@ pipeline {
             'deploy-jvm-packages': { DeployJVMPackages(spark_version: '3.0.0') }
           ])
         }
-        milestone ordinal: 5
       }
     }
   }
@@ -506,18 +503,4 @@ def DeployJVMPackages(args) {
     }
     deleteDir()
   }
-}
-
-// From https://stackoverflow.com/a/48956042
-@NonCPS
-def cancelPreviousBuilds() {
-    def jobName = env.JOB_NAME
-    def buildNumber = env.BUILD_NUMBER.toInteger()
-    def currentJob = Jenkins.instance.getItemByFullName(jobName)
-    for (def build : currentJob.builds) {
-        /* If there is a build that's currently running and it's not current build, stop it */
-        if (build.isBuilding() && build.number.toInteger() != buildNumber) {
-            build.doStop()
-        }
-    }
 }
