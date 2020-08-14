@@ -58,6 +58,15 @@ void CopyGroupInfoImpl(ArrayInterface column, std::vector<bst_group_t>* out) {
   std::partial_sum(out->begin(), out->end(), out->begin());
 }
 
+namespace {
+// thrust::all_of tries to copy lambda function.
+struct AllOfOp {
+  __device__ bool operator()(float w) {
+    return w >= 0;
+  }
+};
+}  // anonymous namespace
+
 void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   Json j_interface = Json::Load({interface_str.c_str(), interface_str.size()});
   auto const& j_arr = get<Array>(j_interface);
@@ -81,6 +90,21 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
     CopyInfoImpl(array_interface, &base_margin_);
   } else if (key == "group") {
     CopyGroupInfoImpl(array_interface, &group_ptr_);
+    return;
+  } else if (key == "label_lower_bound") {
+    CopyInfoImpl(array_interface, &labels_lower_bound_);
+    return;
+  } else if (key == "label_upper_bound") {
+    CopyInfoImpl(array_interface, &labels_upper_bound_);
+    return;
+  } else if (key == "feature_weights") {
+    CopyInfoImpl(array_interface, &feature_weigths);
+    auto d_feature_weights = feature_weigths.ConstDeviceSpan();
+    auto valid =
+        thrust::all_of(thrust::device, d_feature_weights.data(),
+                       d_feature_weights.data() + d_feature_weights.size(),
+                       AllOfOp{});
+    CHECK(valid) << "Feature weight must be greater than 0.";
     return;
   } else {
     LOG(FATAL) << "Unknown metainfo: " << key;
