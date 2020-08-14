@@ -163,9 +163,6 @@ class MetaInfo {
 
   void SetFeatureInfo(const char *key, const char **info, const bst_ulong size);
   void GetFeatureInfo(const char *field, std::vector<std::string>* out_str_vecs) const;
-  void SetFeatureInfo(const char *field, const void *info, DataType type,
-                      bst_ulong size);
-  void GetFeatureInfo(const char *field, DataType *out_type, std::vector<float>* out) const;
 
   /*
    * \brief Extend with other MetaInfo.

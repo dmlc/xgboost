@@ -530,52 +530,39 @@ def dispatch_data_backend(data, missing, threads,
     raise TypeError('Not supported type for data.' + str(type(data)))
 
 
-def _to_data_type(dtype: str):
+def _to_data_type(dtype: str, name: str):
     dtype_map = {'float32': 1, 'float64': 2, 'uint32': 3, 'uint64': 4}
+    if dtype not in dtype_map.keys():
+        raise TypeError(
+            f'Expecting float32, float64, uint32, uint64, got {dtype} ' +
+            f'for {name}.')
     return dtype_map[dtype]
 
 
-def _meta_from_numpy(data, field, dtype, handle, is_feature: bool = False):
-    if is_feature:
-        data = _maybe_np_slice(data, dtype)
-        interface = data.__array_interface__
-        assert interface.get('mask', None) is None
-        size = data.shape[0]
-        c_type = _to_data_type(str(data.dtype))
-        data = interface['data']
-        data = ctypes.c_void_p(data[0])
-        _check_call(_LIB.XGDMatrixSetFeatureInfo(
-            handle,
-            c_str(field),
-            data,
-            size,
-            c_type
-        ))
-    else:
-        data = _maybe_np_slice(data, dtype)
-        if dtype == 'uint32':
-            c_data = c_array(ctypes.c_uint32, data)
-            _check_call(_LIB.XGDMatrixSetUIntInfo(handle,
-                                                  c_str(field),
-                                                  c_array(ctypes.c_uint, data),
-                                                  c_bst_ulong(len(data))))
-        elif dtype == 'float':
-            c_data = c_array(ctypes.c_float, data)
-            _check_call(_LIB.XGDMatrixSetFloatInfo(handle,
-                                                   c_str(field),
-                                                   c_data,
-                                                   c_bst_ulong(len(data))))
-        else:
-            raise TypeError('Unsupported type ' + str(dtype) + ' for:' + field)
+def _meta_from_numpy(data, field, dtype, handle):
+    data = _maybe_np_slice(data, dtype)
+    interface = data.__array_interface__
+    assert interface.get('mask', None) is None, 'Masked array is not supported'
+    size = data.shape[0]
+    c_type = _to_data_type(str(data.dtype), field)
+    data = interface['data']
+    data = ctypes.c_void_p(data[0])
+    _check_call(_LIB.XGDMatrixSetDenseInfo(
+        handle,
+        c_str(field),
+        data,
+        size,
+        c_type
+    ))
 
 
-def _meta_from_list(data, field, dtype, handle, is_feature):
+def _meta_from_list(data, field, dtype, handle):
     data = np.array(data)
-    _meta_from_numpy(data, field, dtype, handle, is_feature)
+    _meta_from_numpy(data, field, dtype, handle)
 
 
-def _meta_from_tuple(data, field, dtype, handle, is_feature):
-    return _meta_from_list(data, field, dtype, handle, is_feature)
+def _meta_from_tuple(data, field, dtype, handle):
+    return _meta_from_list(data, field, dtype, handle)
 
 
 def _meta_from_cudf_df(data, field, handle):
@@ -613,29 +600,28 @@ def _meta_from_dt(data, field, dtype, handle):
     _meta_from_numpy(data, field, dtype, handle)
 
 
-def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None,
-                          is_feature: bool = False):
+def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
     '''Dispatch for meta info.'''
     handle = matrix.handle
     if data is None:
         return
     if _is_list(data):
-        _meta_from_list(data, name, dtype, handle, is_feature)
+        _meta_from_list(data, name, dtype, handle)
         return
     if _is_tuple(data):
-        _meta_from_tuple(data, name, dtype, handle, is_feature)
+        _meta_from_tuple(data, name, dtype, handle)
         return
     if _is_numpy_array(data):
-        _meta_from_numpy(data, name, dtype, handle, is_feature)
+        _meta_from_numpy(data, name, dtype, handle)
         return
     if _is_pandas_df(data):
         data, _, _ = _transform_pandas_df(data, meta=name, meta_type=dtype)
-        _meta_from_numpy(data, name, dtype, handle, is_feature)
+        _meta_from_numpy(data, name, dtype, handle)
         return
     if _is_pandas_series(data):
         data = data.values.astype('float')
         assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1
-        _meta_from_numpy(data, name, dtype, handle, is_feature)
+        _meta_from_numpy(data, name, dtype, handle)
         return
     if _is_dlpack(data):
         data = _transform_dlpack(data)

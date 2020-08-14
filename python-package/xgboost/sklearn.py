@@ -511,7 +511,7 @@ class XGBModel(XGBModelBase):
                                 base_margin=base_margin,
                                 missing=self.missing,
                                 nthread=self.n_jobs)
-        train_dmatrix.feature_weights = feature_weights
+        train_dmatrix.set_info(feature_weights=feature_weights)
 
         evals_result = {}
 
@@ -828,7 +828,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         train_dmatrix = DMatrix(X, label=training_labels, weight=sample_weight,
                                 base_margin=base_margin,
                                 missing=self.missing, nthread=self.n_jobs)
-        train_dmatrix.feature_weights = feature_weights
+        train_dmatrix.set_info(feature_weights=feature_weights)
 
         self._Booster = train(xgb_options, train_dmatrix,
                               self.get_num_boosting_rounds(),
@@ -1217,7 +1217,7 @@ class XGBRanker(XGBModel):
         train_dmatrix = DMatrix(data=X, label=y, weight=sample_weight,
                                 base_margin=base_margin,
                                 missing=self.missing, nthread=self.n_jobs)
-        train_dmatrix.feature_weights = feature_weights
+        train_dmatrix.set_info(feature_weights=feature_weights)
         train_dmatrix.set_group(group)
 
         evals_result = {}

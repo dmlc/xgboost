@@ -502,29 +502,8 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixSetFeatureInfo(DMatrixHandle handle, const char *field,
-                                    void *data, bst_ulong size, int type);
-
-/*!
- * \brief Get feature info in a thread local buffer.
- *
- * Caller is responsible for copying out the data, before next call to any API function of
- * XGBoost.  The data is always on CPU thread local storage.
- *
- * \param handle   An instance of data matrix.
- * \param field    Field name.
- * \param out_type Type of this field.  This is defined in xgboost::DataType enum class.
- * \param out_size Length of output data, this is relative to size of out_type.  (Meaning
- *                 NOT number of bytes.)
- * \param out_dptr Pointer to output buffer.
- *
- * \return 0 when success, -1 when failure happens
- */
-XGB_DLL int XGDMatrixGetFeatureInfo(DMatrixHandle handle,
-                                    const char* field,
-                                    int* out_type,
-                                    bst_ulong* out_size,
-                                    const void** out_dptr);
+XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
+                                  void *data, bst_ulong size, int type);
 
 /*!
  * \brief (deprecated) Use XGDMatrixSetUIntInfo instead. Set group of the training matrix

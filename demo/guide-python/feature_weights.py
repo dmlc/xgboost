@@ -22,7 +22,7 @@ def main(args):
         fw[i] *= float(i)
 
     dtrain = xgboost.DMatrix(X, y)
-    dtrain.feature_weights = fw
+    dtrain.set_info(feature_weights=fw)
 
     bst = xgboost.train({'tree_method': 'hist',
                          'colsample_bynode': 0.5},

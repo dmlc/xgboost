@@ -316,34 +316,13 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
   API_END();
 }
 
-XGB_DLL int XGDMatrixSetFeatureInfo(DMatrixHandle handle, const char *field,
-                                    void *data, xgboost::bst_ulong size,
-                                    int type) {
+XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
+                                  void *data, xgboost::bst_ulong size,
+                                  int type) {
   API_BEGIN();
   CHECK_HANDLE();
   auto &info = static_cast<std::shared_ptr<DMatrix> *>(handle)->get()->Info();
-  info.SetFeatureInfo(field, data, static_cast<DataType>(type), size);
-  API_END();
-}
-
-XGB_DLL int XGDMatrixGetFeatureInfo(DMatrixHandle handle,
-                                    const char* field,
-                                    int* out_type,
-                                    xgboost::bst_ulong* out_len,
-                                    const void** out_dptr) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  auto m = *static_cast<std::shared_ptr<DMatrix>*>(handle);
-  auto &info = static_cast<std::shared_ptr<DMatrix> *>(handle)->get()->Info();
-  DataType out_t;
-
-  // Right now only float for feature weights is used.  If other data types are rquired,
-  // we can pass in a general memory buffer.
-  auto& float_vec = m->GetThreadLocal().ret_vec_float;
-  info.GetFeatureInfo(field, &out_t, &float_vec);
-  *out_type = static_cast<int>(out_t);
-  *out_len = float_vec.size();
-  *out_dptr = float_vec.data();
+  info.SetInfo(field, data, static_cast<DataType>(type), size);
   API_END();
 }
 

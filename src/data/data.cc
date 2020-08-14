@@ -380,6 +380,16 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     labels.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
                        std::copy(cast_dptr, cast_dptr + num, labels.begin()));
+  } else if (!std::strcmp(key, "feature_weights")) {
+    auto &h_feature_weights = feature_weigths.HostVector();
+    h_feature_weights.resize(num);
+    DISPATCH_CONST_PTR(
+        dtype, dptr, cast_dptr,
+        std::copy(cast_dptr, cast_dptr + num, h_feature_weights.begin()));
+    bool valid =
+        std::all_of(h_feature_weights.cbegin(), h_feature_weights.cend(),
+                    [](float w) { return w >= 0; });
+    CHECK(valid) << "Feature weight must be greater than 0.";
   } else {
     LOG(FATAL) << "Unknown key for MetaInfo: " << key;
   }
@@ -399,6 +409,8 @@ void MetaInfo::GetInfo(char const *key, bst_ulong *out_len, DataType dtype,
       vec = &this->labels_lower_bound_.HostVector();
     } else if (!std::strcmp(key, "label_upper_bound")) {
       vec = &this->labels_upper_bound_.HostVector();
+    } else if (!std::strcmp(key, "feature_weights")) {
+      vec = &this->feature_weigths.HostVector();
     } else {
       LOG(FATAL) << "Unknown float field name: " << key;
     }
@@ -453,30 +465,6 @@ void MetaInfo::GetFeatureInfo(const char *field,
   } else {
     LOG(FATAL) << "Unknown feature info: " << field;
   }
-}
-
-void MetaInfo::SetFeatureInfo(const char *c_field, const void *info, DataType type,
-                              bst_ulong size) {
-  std::string field {c_field};
-  CHECK_EQ(field, "feature_weight") << "Only feature weight is supported for feature info.";
-  auto& h_feature_weights = feature_weigths.HostVector();
-  h_feature_weights.resize(size);
-  DISPATCH_CONST_PTR(
-      type, info, cast_dptr,
-      std::copy(cast_dptr, cast_dptr + size, h_feature_weights.begin()));
-  bool valid = std::all_of(h_feature_weights.cbegin(), h_feature_weights.cend(),
-                           [](float w) { return w >= 0; });
-  CHECK(valid) << "Feature weight must be greater than 0.";
-}
-
-void MetaInfo::GetFeatureInfo(const char *c_field, DataType *out_type,
-                              std::vector<float> *out) const {
-  std::string field {c_field};
-  CHECK_EQ(field, "feature_weight") << "Only feature weight is supported for feature info.";
-  *out_type = DataType::kFloat32;
-  out->resize(feature_weigths.Size());
-  auto const& h_feature_weights = feature_weigths.ConstHostVector();
-  std::copy(h_feature_weights.cbegin(), h_feature_weights.cend(), out->begin());
 }
 
 void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows) {
