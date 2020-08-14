@@ -96,11 +96,18 @@ class TestDMatrix(unittest.TestCase):
         assert (from_view == from_array).all()
 
     def test_slice(self):
+        # 2887052510386eb7d12e09c859529a4f2b01ba35b847c807f95cbaddbb5eea7a
         X = rng.randn(100, 100)
+        # 85a40616f6748d98e59baf2961b655e0ebb2fc8ac298fc638a173e434073a0f9
         y = rng.randint(low=0, high=3, size=100)
+        # ab7b1162766f953935c244dd73d663ac0b79e4bd0a914a64e5b0fe66ae55b7ef
+        # failed:
+        # 33d8eee9310c7f6ff57f0c876b5977f39f7e450eb7c71513cc4c133c57921a6
         d = xgb.DMatrix(X, y)
-        fw = rng.uniform(size=100)
-        d.feature_weights = fw
+        np.testing.assert_equal(d.get_label(), y.astype(np.float32))
+
+        # fw = rng.uniform(size=100).astype(np.float32)
+        # d.set_info(feature_weights=fw)
 
         eval_res_0 = {}
         booster = xgb.train(
@@ -109,15 +116,32 @@ class TestDMatrix(unittest.TestCase):
 
         predt = booster.predict(d)
         predt = predt.reshape(100 * 3, 1)
+
+        i = 0
+        import os
+        while os.path.exists(f'test_predict-{i}.txt'):
+            i += 1
+        with open(f'test_predict-{i}.txt', 'w') as fd:
+            print(predt, 'pred', file=fd)
+
         d.set_base_margin(predt)
 
         ridxs = [1, 2, 3, 4, 5, 6]
+        # failed:
+        # f3459dc754e30ff09e91c9660789cef53d998d6256f8ee81cc9c304cc54fbf40
+        # passed:
+        # ab7b1162766f953935c244dd73d663ac0b79e4bd0a914a64e5b0fe66ae55b7ef
         sliced = d.slice(ridxs)
-        np.testing.assert_equal(sliced.feature_weights, d.feature_weights)
+        # np.testing.assert_equal(sliced.get_float_info('feature_weights'), fw)
 
-        sliced = d.slice(ridxs)
         sliced_margin = sliced.get_float_info('base_margin')
         assert sliced_margin.shape[0] == len(ridxs) * 3
+
+        i = 0
+        while os.path.exists(f'test_slice-{i}.dmatrix'):
+            i += 1
+        d.save_binary(f'd_test_slice-{i}.dmatrix')
+        sliced.save_binary(f'test_slice-{i}.dmatrix')
 
         eval_res_1 = {}
         xgb.train({'num_class': 3, 'objective': 'multi:softprob'}, sliced,
@@ -126,6 +150,10 @@ class TestDMatrix(unittest.TestCase):
 
         eval_res_0 = eval_res_0['d']['merror']
         eval_res_1 = eval_res_1['d']['merror']
+
+        np.savetxt('test_sliced-X.txt', X)
+        np.savetxt('test_sliced-y.txt', y)
+
         for i in range(len(eval_res_0)):
             assert abs(eval_res_0[i] - eval_res_1[i]) < 0.02
 
@@ -203,23 +231,24 @@ class TestDMatrix(unittest.TestCase):
         dtrain.get_float_info('base_margin')
         dtrain.get_uint_info('group_ptr')
 
-    def test_feature_info(self):
+    def test_feature_weights(self):
         kRows = 10
         kCols = 50
         rng = np.random.RandomState(1994)
         fw = rng.uniform(size=kCols)
         X = rng.randn(kRows, kCols)
         m = xgb.DMatrix(X)
-        m.feature_weights = fw
-        np.testing.assert_allclose(fw, m.feature_weights)
-        # Handle None
-        m.feature_weights = None
-        assert m.feature_weights.shape[0] == 0
+        m.set_info(feature_weights=fw)
+        np.testing.assert_allclose(fw, m.get_float_info('feature_weights'))
+        # Handle empty
+        m.set_info(feature_weights=np.empty((0, 0)))
+
+        assert m.get_float_info('feature_weights').shape[0] == 0
 
         fw -= 1
 
         def assign_weight():
-            m.feature_weights = fw
+            m.set_info(feature_weights=fw)
         self.assertRaises(ValueError, assign_weight)
 
     def test_sparse_dmatrix_csr(self):
@@ -228,7 +257,7 @@ class TestDMatrix(unittest.TestCase):
         x = rand(nrow, ncol, density=0.0005, format='csr', random_state=rng)
         assert x.indices.max() < ncol - 1
         x.data[:] = 1
-        dtrain = xgb.DMatrix(x, label=np.random.binomial(1, 0.3, nrow))
+        dtrain = xgb.DMatrix(x, label=rng.binomial(1, 0.3, nrow))
         assert (dtrain.num_row(), dtrain.num_col()) == (nrow, ncol)
         watchlist = [(dtrain, 'train')]
         param = {'max_depth': 3, 'objective': 'binary:logistic', 'verbosity': 0}
@@ -241,7 +270,7 @@ class TestDMatrix(unittest.TestCase):
         x = rand(nrow, ncol, density=0.0005, format='csc', random_state=rng)
         assert x.indices.max() < nrow - 1
         x.data[:] = 1
-        dtrain = xgb.DMatrix(x, label=np.random.binomial(1, 0.3, nrow))
+        dtrain = xgb.DMatrix(x, label=rng.binomial(1, 0.3, nrow))
         assert (dtrain.num_row(), dtrain.num_col()) == (nrow, ncol)
         watchlist = [(dtrain, 'train')]
         param = {'max_depth': 3, 'objective': 'binary:logistic', 'verbosity': 0}

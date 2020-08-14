@@ -322,6 +322,7 @@ XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
   API_BEGIN();
   CHECK_HANDLE();
   auto &info = static_cast<std::shared_ptr<DMatrix> *>(handle)->get()->Info();
+  CHECK(type >= 1 && type <= 4);
   info.SetInfo(field, data, static_cast<DataType>(type), size);
   API_END();
 }
