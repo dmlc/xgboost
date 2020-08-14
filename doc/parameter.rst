@@ -108,7 +108,8 @@ Parameters for Tree Booster
     each split.
 
     On Python interface, one can set the ``feature_weights`` for DMatrix to define the
-    probability of each feature being selected when using column sampling.
+    probability of each feature being selected when using column sampling.  There's a
+    similar parameter for ``fit`` method in sklearn interface.
 
 * ``lambda`` [default=1, alias: ``reg_lambda``]
 
@@ -227,7 +228,7 @@ Parameters for Tree Booster
     list is a group of indices of features that are allowed to interact with each other.
     See tutorial for more information
 
-Additional parameters for ``hist`` and ```gpu_hist`` tree method
+Additional parameters for ``hist`` and ``gpu_hist`` tree method
 ================================================================
 
 * ``single_precision_histogram``, [default=``false``]
