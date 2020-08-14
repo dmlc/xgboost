@@ -484,9 +484,15 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
                                        const char ***out_features);
 
 /*!
- * \brief Set feature info that's not strings.  Currently accepted fields are:
+ * \brief Set meta info from dense matrix.  Valid field names are:
  *
- * - feature_weight
+ *  - label
+ *  - weight
+ *  - base_margin
+ *  - group
+ *  - label_lower_bound
+ *  - label_upper_bound
+ *  - feature_weights
  *
  * \param handle An instance of data matrix
  * \param field  Feild name
