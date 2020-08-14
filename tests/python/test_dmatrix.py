@@ -96,18 +96,13 @@ class TestDMatrix(unittest.TestCase):
         assert (from_view == from_array).all()
 
     def test_slice(self):
-        # 2887052510386eb7d12e09c859529a4f2b01ba35b847c807f95cbaddbb5eea7a
         X = rng.randn(100, 100)
-        # 85a40616f6748d98e59baf2961b655e0ebb2fc8ac298fc638a173e434073a0f9
         y = rng.randint(low=0, high=3, size=100)
-        # ab7b1162766f953935c244dd73d663ac0b79e4bd0a914a64e5b0fe66ae55b7ef
-        # failed:
-        # 33d8eee9310c7f6ff57f0c876b5977f39f7e450eb7c71513cc4c133c57921a6
         d = xgb.DMatrix(X, y)
         np.testing.assert_equal(d.get_label(), y.astype(np.float32))
 
-        # fw = rng.uniform(size=100).astype(np.float32)
-        # d.set_info(feature_weights=fw)
+        fw = rng.uniform(size=100).astype(np.float32)
+        d.set_info(feature_weights=fw)
 
         eval_res_0 = {}
         booster = xgb.train(
@@ -127,12 +122,7 @@ class TestDMatrix(unittest.TestCase):
         d.set_base_margin(predt)
 
         ridxs = [1, 2, 3, 4, 5, 6]
-        # failed:
-        # f3459dc754e30ff09e91c9660789cef53d998d6256f8ee81cc9c304cc54fbf40
-        # passed:
-        # ab7b1162766f953935c244dd73d663ac0b79e4bd0a914a64e5b0fe66ae55b7ef
         sliced = d.slice(ridxs)
-        # np.testing.assert_equal(sliced.get_float_info('feature_weights'), fw)
 
         sliced_margin = sliced.get_float_info('base_margin')
         assert sliced_margin.shape[0] == len(ridxs) * 3

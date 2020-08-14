@@ -539,19 +539,27 @@ def _to_data_type(dtype: str, name: str):
     return dtype_map[dtype]
 
 
+def _validate_meta_shape(data):
+    if hasattr(data, 'shape'):
+        assert len(data.shape) == 1 or (
+            len(data.shape) == 2 and
+            (data.shape[1] == 0 or data.shape[1] == 1))
+
+
 def _meta_from_numpy(data, field, dtype, handle):
     data = _maybe_np_slice(data, dtype)
     interface = data.__array_interface__
     assert interface.get('mask', None) is None, 'Masked array is not supported'
     size = data.shape[0]
+
     c_type = _to_data_type(str(data.dtype), field)
-    data = interface['data']
-    data = ctypes.c_void_p(data[0])
+    ptr = interface['data'][0]
+    ptr = ctypes.c_void_p(ptr)
     _check_call(_LIB.XGDMatrixSetDenseInfo(
         handle,
         c_str(field),
-        data,
-        size,
+        ptr,
+        c_bst_ulong(size),
         c_type
     ))
 
@@ -603,6 +611,7 @@ def _meta_from_dt(data, field, dtype, handle):
 def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
     '''Dispatch for meta info.'''
     handle = matrix.handle
+    _validate_meta_shape(data)
     if data is None:
         return
     if _is_list(data):
