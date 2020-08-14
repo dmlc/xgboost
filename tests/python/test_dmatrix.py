@@ -112,13 +112,6 @@ class TestDMatrix(unittest.TestCase):
         predt = booster.predict(d)
         predt = predt.reshape(100 * 3, 1)
 
-        i = 0
-        import os
-        while os.path.exists(f'test_predict-{i}.txt'):
-            i += 1
-        with open(f'test_predict-{i}.txt', 'w') as fd:
-            print(predt, 'pred', file=fd)
-
         d.set_base_margin(predt)
 
         ridxs = [1, 2, 3, 4, 5, 6]
@@ -127,12 +120,6 @@ class TestDMatrix(unittest.TestCase):
         sliced_margin = sliced.get_float_info('base_margin')
         assert sliced_margin.shape[0] == len(ridxs) * 3
 
-        i = 0
-        while os.path.exists(f'test_slice-{i}.dmatrix'):
-            i += 1
-        d.save_binary(f'd_test_slice-{i}.dmatrix')
-        sliced.save_binary(f'test_slice-{i}.dmatrix')
-
         eval_res_1 = {}
         xgb.train({'num_class': 3, 'objective': 'multi:softprob'}, sliced,
                   num_boost_round=2, evals=[(sliced, 'd')],
@@ -140,9 +127,6 @@ class TestDMatrix(unittest.TestCase):
 
         eval_res_0 = eval_res_0['d']['merror']
         eval_res_1 = eval_res_1['d']['merror']
-
-        np.savetxt('test_sliced-X.txt', X)
-        np.savetxt('test_sliced-y.txt', y)
 
         for i in range(len(eval_res_0)):
             assert abs(eval_res_0[i] - eval_res_1[i]) < 0.02
