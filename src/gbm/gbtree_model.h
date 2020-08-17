@@ -102,13 +102,15 @@ struct GBTreeModel : public Model {
 
   void Slice(size_t tree_begin, size_t tree_end, GBTreeModel* out) const {
     CHECK(trees_to_update.empty());
-    std::vector<std::unique_ptr<RegTree>> out_trees(tree_end - tree_end);
-    std::vector<int32_t> out_trees_info(tree_end - tree_end);
+    std::vector<std::unique_ptr<RegTree>> out_trees(tree_end - tree_begin);
+    std::vector<int32_t> out_trees_info(tree_end - tree_begin);
+    int it = 0;
     for (size_t i = tree_begin; i < tree_end; ++i) {
-      std::unique_ptr<RegTree> new_tree {new RegTree(*this->trees[i])};
+      auto new_tree = std::make_unique<RegTree>(*this->trees[i]);
       bst_group_t group = this->tree_info[i];
-      out_trees[i] = std::move(new_tree);
-      out_trees_info[i] = group;
+      out_trees.at(it) = std::move(new_tree);
+      out_trees_info.at(it) = group;
+      it++;
     }
     CHECK(out);
     out->trees = std::move(out_trees);

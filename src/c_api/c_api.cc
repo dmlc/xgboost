@@ -730,14 +730,15 @@ XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle) {
   API_END();
 }
 
-XGB_DLL int XGBoosterSlice(BoosterHandle handle, unsigned begin_layer,
-                           unsigned end_layer, BoosterHandle *out) {
+XGB_DLL int XGBoosterSlice(BoosterHandle handle, int begin_layer,
+                           int end_layer, int step,
+                           BoosterHandle *out) {
   API_BEGIN();
   CHECK_HANDLE();
-  std::shared_ptr<Learner> p_out;
   auto* learner = static_cast<Learner*>(handle);
-  learner->Slice(begin_layer, end_layer, &p_out);
+  auto p_out = learner->Slice(begin_layer, end_layer);
   CHECK(p_out);
+  *out = p_out;
   API_END();
 }
 

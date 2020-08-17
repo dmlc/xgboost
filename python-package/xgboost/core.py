@@ -947,8 +947,8 @@ class Booster(object):
             Parameters for boosters.
         cache : list
             List of cache items.
-        model_file : string or os.PathLike
-            Path to the model file.
+        model_file : string/os.PathLike/Booster/bytearray
+            Path to the model file if it's string or PathLike.
         """
         for d in cache:
             if not isinstance(d, DMatrix):
@@ -1023,6 +1023,18 @@ class Booster(object):
                 _LIB.XGBoosterUnserializeFromBuffer(handle, ptr, length))
             state['handle'] = handle
         self.__dict__.update(state)
+
+    def __getitem__(self, val: slice):
+        start = ctypes.c_uint(val.start)
+        stop = ctypes.c_uint(val.stop)
+        step = c_bst_ulong(val.step)
+        sliced_handle = ctypes.c_void_p()
+        _check_call(_LIB.XGBoosterSlice(self.handle, start, stop, step,
+                                        ctypes.byref(sliced_handle)))
+        sliced = Booster()
+        _check_call(_LIB.XGBoosterFree(sliced.handle))
+        sliced.handle = sliced_handle
+        return sliced
 
     def save_config(self):
         '''Output internal parameter configuration of Booster as a JSON

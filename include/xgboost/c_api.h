@@ -586,12 +586,14 @@ XGB_DLL int XGBoosterFree(BoosterHandle handle);
  * \param handle Booster to be sliced.
  * \param begin_layer
  * \param end_layer
+ * \param step
  * \param out Sliced booster.
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterSlice(BoosterHandle handle, unsigned begin_layer,
-                           unsigned end_layer, BoosterHandle *out);
+XGB_DLL int XGBoosterSlice(BoosterHandle handle, int begin_layer,
+                           int end_layer, int step,
+                           BoosterHandle *out);
 
 /*!
  * \brief set parameters

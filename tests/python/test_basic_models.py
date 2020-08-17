@@ -325,3 +325,24 @@ class TestModels(unittest.TestCase):
         parameters = {'tree_method': 'hist', 'booster': 'dart',
                       'objective': 'multi:softmax'}
         validate_model(parameters)
+
+    def test_slice(self):
+        from sklearn.datasets import make_classification
+        num_classes = 3
+        X, y = make_classification(n_samples=1000, n_informative=5,
+                                   n_classes=num_classes)
+        dtrain = xgb.DMatrix(data=X, label=y)
+        num_parallel_tree = 4
+        num_boost_round = 16
+        total_trees = num_parallel_tree * num_classes * num_boost_round
+        booster = xgb.train({
+            'num_parallel_tree': 4, 'subsample': 0.5, 'num_class': 3},
+                            num_boost_round=num_boost_round, dtrain=dtrain)
+        assert len(booster.get_dump()) == total_trees
+        beg = 3
+        end = 7
+        s = slice(beg, end, 1)
+        sliced: xgb.Booster = booster[s]
+
+        sliced_trees = (end - beg) * num_parallel_tree * num_classes
+        assert sliced_trees == len(sliced.get_dump())
