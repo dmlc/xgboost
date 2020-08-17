@@ -293,7 +293,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @param predContribs prediction feature contributions
    * @return predict results
    */
-  private synchronized float[][] predict(DMatrix data,
+  private float[][] predict(DMatrix data,
                                          boolean outputMargin,
                                          int treeLimit,
                                          boolean predLeaf,
