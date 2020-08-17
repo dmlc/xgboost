@@ -581,6 +581,19 @@ XGB_DLL int XGBoosterCreate(const DMatrixHandle dmats[],
 XGB_DLL int XGBoosterFree(BoosterHandle handle);
 
 /*!
+ * \brief Slice a model according to layers.
+ *
+ * \param handle Booster to be sliced.
+ * \param begin_layer
+ * \param end_layer
+ * \param out Sliced booster.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterSlice(BoosterHandle handle, unsigned begin_layer,
+                           unsigned end_layer, BoosterHandle *out);
+
+/*!
  * \brief set parameters
  * \param handle handle
  * \param name  parameter name
