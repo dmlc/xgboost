@@ -599,20 +599,8 @@ class GPUPredictor : public xgboost::Predictor {
     int device = generic_param_->gpu_id;
     CHECK_GE(device, 0) << "Set `gpu_id' to positive value for processing GPU data.";
     auto* out_preds = &predts->predictions;
-
-    if (out_preds->Size() == 0 && dmat->Info().num_row_ != 0) {
-      CHECK_EQ(predts->version, 0);
-    }
     if (tree_end == 0) {
       tree_end = model.trees.size();
-    }
-    if (predts->version == 0) {
-      // out_preds->Size() can be non-zero as it's initialized here before any tree is
-      // built at the 0^th iterator.
-      this->InitOutPredictions(dmat->Info(), out_preds, model);
-    }
-    if (tree_end - tree_begin == 0) {
-      return;
     }
     this->DevicePredictInternal(dmat, out_preds, model, tree_begin, tree_end);
   }
@@ -788,7 +776,7 @@ class GPUPredictor : public xgboost::Predictor {
  protected:
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
-                          const gbm::GBTreeModel& model) const {
+                          const gbm::GBTreeModel& model) const override {
     size_t n_classes = model.learner_model_param->num_output_group;
     size_t n = n_classes * info.num_row_;
     const HostDeviceVector<bst_float>& base_margin = info.base_margin_;

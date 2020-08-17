@@ -804,7 +804,7 @@ async def _train_async(
     workers = list(_get_workers_from_data(dtrain, evals))
     _rabit_args = await _get_rabit_args(len(workers), client)
 
-    if params.get("booster", None) is not None and params["booster"] != "gbtree":
+    if params.get("booster", None) == "gblinear":
         raise NotImplementedError(
             f"booster `{params['booster']}` is not yet supported for dask."
         )
@@ -1012,6 +1012,7 @@ def _infer_predict_output(
         if kwargs.pop("predict_type") == "margin":
             kwargs["output_margin"] = True
     m = DMatrix(test_sample)
+    # generated DMatrix doesn't have feature name, so no validation.
     test_predt = booster.predict(m, validate_features=False, **kwargs)
     n_columns = test_predt.shape[1] if len(test_predt.shape) > 1 else 1
     meta: Dict[int, str] = {}
@@ -1098,6 +1099,7 @@ async def _predict_async(
                 pred_contribs=pred_contribs,
                 approx_contribs=approx_contribs,
                 pred_interactions=pred_interactions,
+                strict_shape=strict_shape,
             )
         )
         return await _direct_predict_impl(
@@ -1116,6 +1118,7 @@ async def _predict_async(
             pred_contribs=pred_contribs,
             approx_contribs=approx_contribs,
             pred_interactions=pred_interactions,
+            strict_shape=strict_shape,
         )
     )
     # Prediction on dask DMatrix.
@@ -1297,6 +1300,7 @@ async def _inplace_predict_async(  # pylint: disable=too-many-branches
             inplace=True,
             predict_type=predict_type,
             iteration_range=iteration_range,
+            strict_shape=strict_shape,
         )
     )
     return await _direct_predict_impl(

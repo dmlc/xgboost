@@ -10,6 +10,7 @@
 #include "xgboost/learner.h"
 #include "../helpers.h"
 #include "../../../src/gbm/gbtree.h"
+#include "../../../src/data/adapter.h"
 #include "xgboost/predictor.h"
 
 namespace xgboost {
@@ -247,7 +248,9 @@ TEST(Dart, JsonIO) {
 TEST(Dart, Prediction) {
   size_t constexpr kRows = 16, kCols = 10;
 
-  auto p_mat = RandomDataGenerator(kRows, kCols, 0).GenerateDMatrix();
+  HostDeviceVector<float> data;
+  auto array_str = RandomDataGenerator(kRows, kCols, 0).GenerateArrayInterface(&data);
+  auto p_mat = GetDMatrixFromData(data.HostVector(), kRows, kCols);
 
   std::vector<bst_float> labels (kRows);
   for (size_t i = 0; i < kRows; ++i) {
@@ -265,16 +268,28 @@ TEST(Dart, Prediction) {
   }
 
   HostDeviceVector<float> predts_training;
-  learner->Predict(p_mat, false, &predts_training, 0, true);
-  HostDeviceVector<float> predts_inference;
-  learner->Predict(p_mat, false, &predts_inference, 0, false);
+  learner->Predict(p_mat, false, &predts_training, 0, 0, true);
 
-  auto& h_predts_training = predts_training.ConstHostVector();
-  auto& h_predts_inference = predts_inference.ConstHostVector();
+  HostDeviceVector<float>* inplace_predts;
+  auto adapter = std::shared_ptr<data::ArrayAdapter>(new data::ArrayAdapter{StringView{array_str}});
+  learner->InplacePredict(adapter, nullptr, PredictionType::kValue,
+                          std::numeric_limits<float>::quiet_NaN(),
+                          &inplace_predts, 0, 0);
+  CHECK(inplace_predts);
+
+  HostDeviceVector<float> predts_inference;
+  learner->Predict(p_mat, false, &predts_inference, 0, 0, false);
+
+  auto const& h_predts_training = predts_training.ConstHostVector();
+  auto const& h_predts_inference = predts_inference.ConstHostVector();
+  auto const& h_inplace_predts = inplace_predts->HostVector();
   ASSERT_EQ(h_predts_training.size(), h_predts_inference.size());
+  ASSERT_EQ(h_inplace_predts.size(), h_predts_inference.size());
   for (size_t i = 0; i < predts_inference.Size(); ++i) {
     // Inference doesn't drop tree.
-    ASSERT_GT(std::abs(h_predts_training[i] - h_predts_inference[i]), kRtEps);
+    ASSERT_GT(std::abs(h_predts_training[i] - h_predts_inference[i]), kRtEps * 10);
+    // Inplace prediction is inference.
+    ASSERT_LT(h_inplace_predts[i] - h_predts_inference[i], kRtEps / 10);
   }
 }
 

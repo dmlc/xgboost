@@ -201,7 +201,7 @@ class CPUPredictor : public Predictor {
 
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
-                          const gbm::GBTreeModel& model) const {
+                          const gbm::GBTreeModel& model) const override {
     CHECK_NE(model.learner_model_param->num_output_group, 0);
     size_t n = model.learner_model_param->num_output_group * info.num_row_;
     const auto& base_margin = info.base_margin_.HostVector();
@@ -234,25 +234,15 @@ class CPUPredictor : public Predictor {
  public:
   explicit CPUPredictor(GenericParameter const* generic_param) :
       Predictor::Predictor{generic_param} {}
+
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts,
                     const gbm::GBTreeModel &model, uint32_t tree_begin,
                     uint32_t tree_end = 0) const override {
     auto* out_preds = &predts->predictions;
-    if (out_preds->Size() == 0 && dmat->Info().num_row_ != 0) {
-      CHECK_EQ(predts->version, 0);
-    }
     // This is actually already handled in gbm, but large amount of tests rely on the
     // behaviour.
     if (tree_end == 0) {
       tree_end = model.trees.size();
-    }
-    if (predts->version == 0) {
-      // out_preds->Size() can be non-zero as it's initialized here before any tree is
-      // built at the 0^th iterator.
-      this->InitOutPredictions(dmat->Info(), out_preds, model);
-    }
-    if (tree_end - tree_begin == 0) {
-      return;
     }
     this->PredictDMatrix(dmat, &out_preds->HostVector(), model, tree_begin,
                          tree_end);

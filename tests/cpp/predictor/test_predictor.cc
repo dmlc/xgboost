@@ -218,6 +218,7 @@ void TestCategoricalPrediction(std::string name) {
   row[split_ind] = split_cat;
   auto m = GetDMatrixFromData(row, 1, kCols);
 
+  predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
   predictor->PredictBatch(m.get(), &out_predictions, model, 0);
   ASSERT_EQ(out_predictions.predictions.Size(), 1ul);
   ASSERT_EQ(out_predictions.predictions.HostVector()[0],
@@ -226,6 +227,7 @@ void TestCategoricalPrediction(std::string name) {
   row[split_ind] = split_cat + 1;
   m = GetDMatrixFromData(row, 1, kCols);
   out_predictions.version = 0;
+  predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
   predictor->PredictBatch(m.get(), &out_predictions, model, 0);
   ASSERT_EQ(out_predictions.predictions.HostVector()[0],
             left_weight + param.base_score);
