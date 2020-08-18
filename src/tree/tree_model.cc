@@ -850,7 +850,8 @@ void RegTree::LoadModel(Json const& in) {
       }
       auto begin = split_categories_.size();
       split_categories_.resize(begin + cat_bits_storage.size());
-      std::copy(cat_bits_storage.begin(), cat_bits_storage.end(), split_categories_.begin() + begin);
+      std::copy(cat_bits_storage.begin(), cat_bits_storage.end(),
+                split_categories_.begin() + begin);
       split_categories_segments_[i].beg = begin;
       split_categories_segments_[i].size = cat_bits_storage.size();
     }

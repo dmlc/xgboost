@@ -113,11 +113,11 @@ TEST(Tree, ExpandCategoricalFeature) {
                            /*left_sum=*/3.0, /*right_sum=*/4.0);
     ASSERT_EQ(tree.GetNodes().size(), 3ul);
     ASSERT_EQ(tree.GetNumLeaves(), 2);
-    ASSERT_EQ(tree.GetSplitTypes().size(), 3);
+    ASSERT_EQ(tree.GetSplitTypes().size(), 3ul);
     ASSERT_EQ(tree.GetSplitTypes()[0], FeatureType::kCategorical);
     ASSERT_EQ(tree.GetSplitTypes()[1], FeatureType::kNumerical);
     ASSERT_EQ(tree.GetSplitTypes()[2], FeatureType::kNumerical);
-    ASSERT_EQ(tree.GetSplitCategories().size(), 0);
+    ASSERT_EQ(tree.GetSplitCategories().size(), 0ul);
     ASSERT_TRUE(std::isnan(tree[0].SplitCond()));
   }
   {
@@ -138,6 +138,15 @@ TEST(Tree, ExpandCategoricalFeature) {
 
     RegTree loaded_tree;
     loaded_tree.LoadModel(out);
+
+    auto const& cat_ptr = loaded_tree.GetSplitCategoriesPtr();
+    ASSERT_EQ(cat_ptr.size(), 3ul);
+    ASSERT_EQ(cat_ptr[0].beg, 0ul);
+    ASSERT_EQ(cat_ptr[0].size, 2ul);
+
+    auto loaded_categories = loaded_tree.GetSplitCategories();
+    auto loaded_root = loaded_categories.subspan(cat_ptr[0].beg, cat_ptr[0].size);
+    ASSERT_TRUE(std::equal(loaded_root.begin(), loaded_root.end(), split_cats.begin()));
   }
 }
 
@@ -171,14 +180,14 @@ TEST(Tree, DumpJson) {
   while ((iter = str.find("leaf", iter + 1)) != std::string::npos) {
     n_leaves++;
   }
-  ASSERT_EQ(n_leaves, 4);
+  ASSERT_EQ(n_leaves, 4ul);
 
   size_t n_conditions = 0;
   iter = 0;
   while ((iter = str.find("split_condition", iter + 1)) != std::string::npos) {
     n_conditions++;
   }
-  ASSERT_EQ(n_conditions, 3);
+  ASSERT_EQ(n_conditions, 3ul);
 
   fmap.PushBack(0, "feat_0", "i");
   fmap.PushBack(1, "feat_1", "q");
@@ -194,7 +203,7 @@ TEST(Tree, DumpJson) {
 
 
   auto j_tree = Json::Load({str.c_str(), str.size()});
-  ASSERT_EQ(get<Array>(j_tree["children"]).size(), 2);
+  ASSERT_EQ(get<Array>(j_tree["children"]).size(), 2ul);
 }
 
 TEST(Tree, DumpText) {
@@ -206,14 +215,14 @@ TEST(Tree, DumpText) {
   while ((iter = str.find("leaf", iter + 1)) != std::string::npos) {
     n_leaves++;
   }
-  ASSERT_EQ(n_leaves, 4);
+  ASSERT_EQ(n_leaves, 4ul);
 
   iter = 0;
   size_t n_conditions = 0;
   while ((iter = str.find("gain", iter + 1)) != std::string::npos) {
     n_conditions++;
   }
-  ASSERT_EQ(n_conditions, 3);
+  ASSERT_EQ(n_conditions, 3ul);
 
   ASSERT_NE(str.find("[f0<0]"), std::string::npos);
   ASSERT_NE(str.find("[f1<1]"), std::string::npos);
@@ -242,14 +251,14 @@ TEST(Tree, DumpDot) {
   while ((iter = str.find("leaf", iter + 1)) != std::string::npos) {
     n_leaves++;
   }
-  ASSERT_EQ(n_leaves, 4);
+  ASSERT_EQ(n_leaves, 4ul);
 
   size_t n_edges = 0;
   iter = 0;
   while ((iter = str.find("->", iter + 1)) != std::string::npos) {
     n_edges++;
   }
-  ASSERT_EQ(n_edges, 6);
+  ASSERT_EQ(n_edges, 6ul);
 
   fmap.PushBack(0, "feat_0", "i");
   fmap.PushBack(1, "feat_1", "q");
@@ -276,12 +285,12 @@ TEST(Tree, JsonIO) {
   ASSERT_EQ(get<String>(tparam["num_nodes"]), "3");
   ASSERT_EQ(get<String>(tparam["size_leaf_vector"]), "0");
 
-  ASSERT_EQ(get<Array const>(j_tree["left_children"]).size(), 3);
-  ASSERT_EQ(get<Array const>(j_tree["right_children"]).size(), 3);
-  ASSERT_EQ(get<Array const>(j_tree["parents"]).size(), 3);
-  ASSERT_EQ(get<Array const>(j_tree["split_indices"]).size(), 3);
-  ASSERT_EQ(get<Array const>(j_tree["split_conditions"]).size(), 3);
-  ASSERT_EQ(get<Array const>(j_tree["default_left"]).size(), 3);
+  ASSERT_EQ(get<Array const>(j_tree["left_children"]).size(), 3ul);
+  ASSERT_EQ(get<Array const>(j_tree["right_children"]).size(), 3ul);
+  ASSERT_EQ(get<Array const>(j_tree["parents"]).size(), 3ul);
+  ASSERT_EQ(get<Array const>(j_tree["split_indices"]).size(), 3ul);
+  ASSERT_EQ(get<Array const>(j_tree["split_conditions"]).size(), 3ul);
+  ASSERT_EQ(get<Array const>(j_tree["default_left"]).size(), 3ul);
 
   RegTree loaded_tree;
   loaded_tree.LoadModel(j_tree);
