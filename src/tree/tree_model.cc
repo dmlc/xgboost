@@ -842,8 +842,10 @@ void RegTree::LoadModel(Json const& in) {
         auto cat = common::AsCat(get<Integer const>(j_cat));
         max_cat = std::max(max_cat, cat);
       }
-      std::vector<uint32_t> cat_bits_storage(
-          common::KCatBitField::ComputeStorageSize(max_cat));
+      size_t size = max_cat == std::numeric_limits<bst_cat_t>::min()
+                        ? 0
+                        : common::KCatBitField::ComputeStorageSize(max_cat);
+      std::vector<uint32_t> cat_bits_storage(size);
       common::CatBitField cat_bits{common::Span<uint32_t>(cat_bits_storage)};
       for (auto const& j_cat : j_categories) {
         cat_bits.Set(common::AsCat(get<Integer const>(j_cat)));
@@ -915,6 +917,7 @@ void RegTree::SaveModel(Json* p_out) const {
     conds[i] = n.SplitCond();
     default_left[i] = n.DefaultLeft();
 
+    std::vector<Json> categories_temp;
     // This condition is only for being compatibale with older version of XGBoost model
     // that doesn't have categorical data support.
     if (self.GetSplitTypes().size() == static_cast<size_t>(n_nodes)) {
@@ -924,14 +927,13 @@ void RegTree::SaveModel(Json* p_out) const {
       auto size = self.split_categories_segments_.at(i).size;
       auto node_categories = self.GetSplitCategories().subspan(beg, size);
       common::KCatBitField const cat_bits(node_categories);
-      std::vector<Json> categories_temp;
       for (size_t i = 0; i < cat_bits.Size(); ++i) {
         if (cat_bits.Check(i)) {
           categories_temp.emplace_back(static_cast<Integer::Int>(i));
         }
       }
-      categories[i] = Array(categories_temp);
     }
+    categories[i] = Array(categories_temp);
   }
 
   out["loss_changes"] = std::move(loss_changes);
