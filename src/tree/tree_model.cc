@@ -662,6 +662,53 @@ bst_node_t RegTree::GetNumSplitNodes() const {
   return splits;
 }
 
+void RegTree::ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_value,
+                         bool default_left, bst_float base_weight,
+                         bst_float left_leaf_weight,
+                         bst_float right_leaf_weight, bst_float loss_change,
+                         float sum_hess, float left_sum, float right_sum,
+                         bst_node_t leaf_right_child) {
+  int pleft = this->AllocNode();
+  int pright = this->AllocNode();
+  auto &node = nodes_[nid];
+  CHECK(node.IsLeaf());
+  node.SetLeftChild(pleft);
+  node.SetRightChild(pright);
+  nodes_[node.LeftChild()].SetParent(nid, true);
+  nodes_[node.RightChild()].SetParent(nid, false);
+  node.SetSplit(split_index, split_value, default_left);
+
+  nodes_[pleft].SetLeaf(left_leaf_weight, leaf_right_child);
+  nodes_[pright].SetLeaf(right_leaf_weight, leaf_right_child);
+
+  this->Stat(nid) = {loss_change, sum_hess, base_weight};
+  this->Stat(pleft) = {0.0f, left_sum, left_leaf_weight};
+  this->Stat(pright) = {0.0f, right_sum, right_leaf_weight};
+
+  this->split_types_.at(nid) = FeatureType::kNumerical;
+}
+
+void RegTree::ExpandCategorical(bst_node_t nid, unsigned split_index,
+                                common::Span<uint32_t> split_cat, bool default_left,
+                                bst_float base_weight,
+                                bst_float left_leaf_weight,
+                                bst_float right_leaf_weight,
+                                bst_float loss_change, float sum_hess,
+                                float left_sum, float right_sum) {
+  this->ExpandNode(nid, split_index, std::numeric_limits<float>::quiet_NaN(),
+                   default_left, base_weight,
+                   left_leaf_weight, right_leaf_weight, loss_change, sum_hess,
+                   left_sum, right_sum);
+
+  size_t orig_size = split_categories_.size();
+  this->split_categories_.resize(orig_size + split_cat.size());
+  std::copy(split_cat.data(), split_cat.data() + split_cat.size(),
+            split_categories_.begin() + orig_size);
+  this->split_types_.at(nid) = FeatureType::kCategorical;
+  this->split_categories_segments_.at(nid).beg = orig_size;
+  this->split_categories_segments_.at(nid).size = split_cat.size();
+}
+
 void RegTree::Load(dmlc::Stream* fi) {
   CHECK_EQ(fi->Read(&param, sizeof(TreeParam)), sizeof(TreeParam));
   if (!DMLC_IO_NO_ENDIAN_SWAP) {
@@ -751,11 +798,32 @@ void RegTree::LoadModel(Json const& in) {
   auto const& default_left = get<Array const>(in["default_left"]);
   CHECK_EQ(default_left.size(), n_nodes);
 
+  bool has_cat = get<Object const>(in).find("split_type") != get<Object const>(in).cend();
+  std::vector<Json> split_type;
+  std::vector<Json> cat_seg_begin;
+  std::vector<Json> cat_seg_size;
+  std::vector<Json> categories;
+  if (has_cat) {
+    split_type = get<Array const>(in["split_type"]);
+    cat_seg_begin = get<Array const>(in["categories_segment_begin"]);
+    cat_seg_size = get<Array const>(in["categories_segment_size"]);
+    categories = get<Array const>(in["categories_bitset"]);
+    CHECK_EQ(cat_seg_size.size(), cat_seg_begin.size());
+  }
+
+
   stats_.clear();
   nodes_.clear();
 
   stats_.resize(n_nodes);
   nodes_.resize(n_nodes);
+  split_types_.resize(n_nodes);
+  if (cat_seg_begin.empty()) {
+    split_categories_segments_.resize(n_nodes);
+  } else {
+    split_categories_segments_.resize(cat_seg_begin.size());
+  }
+  CHECK_EQ(n_nodes, split_categories_segments_.size());
   for (int32_t i = 0; i < n_nodes; ++i) {
     auto& s = stats_[i];
     s.loss_chg = get<Number const>(loss_changes[i]);
@@ -771,6 +839,23 @@ void RegTree::LoadModel(Json const& in) {
     float cond { get<Number const>(conds[i]) };
     bool dft_left { get<Boolean const>(default_left[i]) };
     n = Node{left, right, parent, ind, cond, dft_left};
+
+    if (has_cat) {
+      split_types_[i] =
+          static_cast<FeatureType>(get<Integer const>(split_type[i]));
+      size_t beg = get<Integer const>(cat_seg_begin[i]);
+      size_t size = get<Integer const>(cat_seg_size[i]);
+      split_categories_segments_[i].beg = beg;
+      split_categories_segments_[i].size = size;
+      auto const& j_categories = get<Array const>(categories[i]);
+      if (split_categories_.size() < beg + size) {
+        split_categories_.resize(beg + size);
+      }
+      for (size_t j = beg; j < size; ++j) {
+        split_categories_[j] =
+            static_cast<uint32_t>(get<Integer const>(j_categories[j]));
+      }
+    }
   }
 
   deleted_nodes_.clear();
@@ -811,8 +896,17 @@ void RegTree::SaveModel(Json* p_out) const {
   std::vector<Json> indices(n_nodes);
   std::vector<Json> conds(n_nodes);
   std::vector<Json> default_left(n_nodes);
+  std::vector<Json> split_type(n_nodes);
 
-  for (int32_t i = 0; i < n_nodes; ++i) {
+  std::vector<Json> cat_seg_begin(n_nodes);
+  std::vector<Json> cat_seg_size(n_nodes);
+  std::vector<Json> categories(n_nodes);
+
+  auto& self = *this;
+
+  std::vector<Json> categories_temp;
+
+  for (bst_node_t i = 0; i < n_nodes; ++i) {
     auto const& s = stats_[i];
     loss_changes[i] = s.loss_chg;
     sum_hessian[i] = s.sum_hess;
@@ -826,6 +920,20 @@ void RegTree::SaveModel(Json* p_out) const {
     indices[i] = static_cast<I>(n.SplitIndex());
     conds[i] = n.SplitCond();
     default_left[i] = n.DefaultLeft();
+
+    if (self.GetSplitTypes().size() == static_cast<size_t>(n_nodes)) {
+      CHECK_EQ(self.split_categories_segments_.size(), param.num_nodes);
+      split_type[i] = static_cast<I>(self.NodeSplitType(i));
+      auto beg = self.split_categories_segments_.at(i).beg;
+      auto size = self.split_categories_segments_.at(i).size;
+      cat_seg_begin[i] = static_cast<I>(beg);
+      cat_seg_size[i] = static_cast<I>(size);
+      auto node_categories = self.GetSplitCategories().subspan(beg, size);
+      categories_temp.resize(node_categories.size());
+      std::copy(node_categories.data(), node_categories.data() + node_categories.size(),
+                categories_temp.begin());
+      categories[i] = Array(categories_temp);
+    }
   }
 
   out["loss_changes"] = std::move(loss_changes);
@@ -839,6 +947,14 @@ void RegTree::SaveModel(Json* p_out) const {
   out["split_indices"] = std::move(indices);
   out["split_conditions"] = std::move(conds);
   out["default_left"] = std::move(default_left);
+
+  out["categories_segment_begin"] = cat_seg_begin;
+  out["categories_segment_size"] = cat_seg_size;
+  out["categories_bitset"] = categories;
+
+  if (self.GetSplitTypes().size() == static_cast<size_t>(n_nodes)) {
+    out["split_type"] = std::move(split_type);
+  }
 }
 
 void RegTree::FillNodeMeanValues() {

@@ -35,7 +35,8 @@ enum class DataType : uint8_t {
 };
 
 enum class FeatureType : uint8_t {
-  kNumerical
+  kNumerical,
+  kCategorical
 };
 
 /*!
@@ -308,12 +309,6 @@ class SparsePage {
       }
     }
   }
-
-  /*!
-   * \brief Push row block into the page.
-   * \param batch the row batch.
-   */
-  void Push(const dmlc::RowBlock<uint32_t>& batch);
 
   /**
    * \brief Pushes external data batch onto this page

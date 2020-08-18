@@ -1,9 +1,10 @@
 // Copyright by Contributors
 #include <gtest/gtest.h>
-#include <xgboost/tree_model.h>
 #include "../helpers.h"
 #include "dmlc/filesystem.h"
 #include "xgboost/json_io.h"
+#include "xgboost/tree_model.h"
+#include "../../../src/common/bitfield.h"
 
 namespace xgboost {
 #if DMLC_IO_NO_ENDIAN_SWAP  // skip on big-endian machines
@@ -105,6 +106,36 @@ TEST(Tree, AllocateNode) {
   ASSERT_TRUE(nodes.at(2).IsLeaf());
 }
 
+TEST(Tree, ExpandCategoricalFeature) {
+  {
+    RegTree tree;
+    tree.ExpandCategorical(0, 0, {}, true, 1.0, 2.0, 3.0, 11.0, 2.0,
+                           /*left_sum=*/3.0, /*right_sum=*/4.0);
+    ASSERT_EQ(tree.GetNodes().size(), 3);
+    ASSERT_EQ(tree.GetNumLeaves(), 2);
+    ASSERT_EQ(tree.GetSplitTypes().size(), 3);
+    ASSERT_EQ(tree.GetSplitTypes()[0], FeatureType::kCategorical);
+    ASSERT_EQ(tree.GetSplitTypes()[1], FeatureType::kNumerical);
+    ASSERT_EQ(tree.GetSplitTypes()[2], FeatureType::kNumerical);
+    ASSERT_EQ(tree.GetSplitCategories().size(), 0);
+    ASSERT_TRUE(std::isnan(tree[0].SplitCond()));
+  }
+  {
+    RegTree tree;
+    bst_cat_t cat = 33;
+    std::vector<uint32_t> split_cats(LBitField32::ComputeStorageSize(cat+1));
+    LBitField32 bitset {split_cats};
+    bitset.Set(cat);
+    tree.ExpandCategorical(0, 0, split_cats, true, 1.0, 2.0, 3.0, 11.0, 2.0,
+                           /*left_sum=*/3.0, /*right_sum=*/4.0);
+    auto categories = tree.GetSplitCategories();
+    auto segments = tree.GetSplitCategoriesPtr();
+    auto got = categories.subspan(segments[0].beg, segments[0].size);
+    ASSERT_TRUE(std::equal(got.cbegin(), got.cend(), split_cats.cbegin()));
+  }
+}
+
+namespace {
 RegTree ConstructTree() {
   RegTree tree;
   tree.ExpandNode(
@@ -123,6 +154,7 @@ RegTree ConstructTree() {
       /*right_sum=*/0.0f);
   return tree;
 }
+}  // anonymous namespace
 
 TEST(Tree, DumpJson) {
   auto tree = ConstructTree();
@@ -268,5 +300,4 @@ TEST(Tree, JsonIO) {
   ASSERT_EQ(loaded_tree[1].RightChild(), -1);
   ASSERT_TRUE(tree.Equal(loaded_tree));
 }
-
 }  // namespace xgboost
