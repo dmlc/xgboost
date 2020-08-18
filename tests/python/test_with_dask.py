@@ -503,10 +503,8 @@ class TestWithDask:
         note(history)
         history = history['train'][dataset.metric]
         assert tm.non_increasing(history)
-        first_half = history[:len(history) // 2]
-        second_half = history[len(history) // 2:]
-        for i in range(min(len(first_half), len(second_half))):
-            assert first_half[i] > second_half[i]
+        # Make sure that it's decreasing
+        assert history[-1] < history[0]
 
     @given(params=hist_parameter_strategy,
            num_rounds=strategies.integers(20, 30),
