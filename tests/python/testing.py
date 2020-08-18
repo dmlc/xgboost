@@ -2,13 +2,17 @@
 import os
 from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
 from xgboost.compat import DASK_INSTALLED
+import pytest
+import tempfile
+import xgboost as xgb
+import numpy as np
+
+hypothesis = pytest.importorskip('hypothesis')
+sklearn = pytest.importorskip('sklearn')
 from hypothesis import strategies
 from hypothesis.extra.numpy import arrays
 from joblib import Memory
 from sklearn import datasets
-import tempfile
-import xgboost as xgb
-import numpy as np
 
 try:
     import cupy as cp

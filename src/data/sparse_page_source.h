@@ -144,7 +144,7 @@ class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
       std::unique_ptr<dmlc::Stream> finfo(
           dmlc::Stream::Create(info.name_info.c_str(), "r"));
       int tmagic;
-      CHECK_EQ(finfo->Read(&tmagic, sizeof(tmagic)), sizeof(tmagic));
+      CHECK(finfo->Read(&tmagic));
       CHECK_EQ(tmagic, kMagic) << "invalid format, magic number mismatch";
     }
     files_.resize(info.name_shards.size());
@@ -359,7 +359,7 @@ class SparsePageSource {
       std::unique_ptr<dmlc::Stream> fo(
           dmlc::Stream::Create(cache_info_.name_info.c_str(), "w"));
       int tmagic = kMagic;
-      fo->Write(&tmagic, sizeof(tmagic));
+      fo->Write(tmagic);
       // Either every row has query ID or none at all
       CHECK(qids.empty() || qids.size() == info.num_row_);
       info.SaveBinary(fo.get());

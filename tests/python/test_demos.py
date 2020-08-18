@@ -109,6 +109,8 @@ def test_evals_result_demo():
     subprocess.check_call(cmd)
 
 
+@pytest.mark.skipif(**tm.no_sklearn())
+@pytest.mark.skipif(**tm.no_pandas())
 def test_aft_demo():
     script = os.path.join(DEMO_DIR, 'aft_survival', 'aft_survival_demo.py')
     cmd = ['python', script]

@@ -1465,8 +1465,12 @@ class Booster(object):
                            ctypes.c_uint(iteration_range[1]))
 
         # once caching is supported, we can pass id(data) as cache id.
-        if isinstance(data, DataFrame):
-            data = data.values
+        try:
+            import pandas as pd
+            if isinstance(data, pd.DataFrame):
+                data = data.values
+        except ImportError:
+            pass
         if isinstance(data, np.ndarray):
             assert data.flags.c_contiguous
             arr = np.array(data.reshape(data.size), copy=False,

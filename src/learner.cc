@@ -128,6 +128,19 @@ struct LearnerModelParamLegacy : public dmlc::Parameter<LearnerModelParamLegacy>
     std::string str = get<String const>(j_param.at("base_score"));
     from_chars(str.c_str(), str.c_str() + str.size(), base_score);
   }
+  inline LearnerModelParamLegacy ByteSwap() const {
+    LearnerModelParamLegacy x = *this;
+    dmlc::ByteSwap(&x.base_score, sizeof(x.base_score), 1);
+    dmlc::ByteSwap(&x.num_feature, sizeof(x.num_feature), 1);
+    dmlc::ByteSwap(&x.num_class, sizeof(x.num_class), 1);
+    dmlc::ByteSwap(&x.contain_extra_attrs, sizeof(x.contain_extra_attrs), 1);
+    dmlc::ByteSwap(&x.contain_eval_metrics, sizeof(x.contain_eval_metrics), 1);
+    dmlc::ByteSwap(&x.major_version, sizeof(x.major_version), 1);
+    dmlc::ByteSwap(&x.minor_version, sizeof(x.minor_version), 1);
+    dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
+    return x;
+  }
+
   // declare parameters
   DMLC_DECLARE_PARAMETER(LearnerModelParamLegacy) {
     DMLC_DECLARE_FIELD(base_score)
@@ -694,7 +707,9 @@ class LearnerIO : public LearnerConfiguration {
     // read parameter
     CHECK_EQ(fi->Read(&mparam_, sizeof(mparam_)), sizeof(mparam_))
         << "BoostLearner: wrong model format";
-
+    if (!DMLC_IO_NO_ENDIAN_SWAP) {
+      mparam_ = mparam_.ByteSwap();
+    }
     CHECK(fi->Read(&tparam_.objective)) << "BoostLearner: wrong model format";
     CHECK(fi->Read(&tparam_.booster)) << "BoostLearner: wrong model format";
 
@@ -828,7 +843,12 @@ class LearnerIO : public LearnerConfiguration {
     }
     std::string header {"binf"};
     fo->Write(header.data(), 4);
-    fo->Write(&mparam, sizeof(LearnerModelParamLegacy));
+    if (DMLC_IO_NO_ENDIAN_SWAP) {
+      fo->Write(&mparam, sizeof(LearnerModelParamLegacy));
+    } else {
+      LearnerModelParamLegacy x = mparam.ByteSwap();
+      fo->Write(&x, sizeof(LearnerModelParamLegacy));
+    }
     fo->Write(tparam_.objective);
     fo->Write(tparam_.booster);
     gbm_->Save(fo);
@@ -867,7 +887,13 @@ class LearnerIO : public LearnerConfiguration {
       // concatonate the model and config at final output, it's a temporary solution for
       // continuing support for binary model format
       fo->Write(&serialisation_header_[0], serialisation_header_.size());
-      fo->Write(&json_offset, sizeof(json_offset));
+      if (DMLC_IO_NO_ENDIAN_SWAP) {
+        fo->Write(&json_offset, sizeof(json_offset));
+      } else {
+        auto x = json_offset;
+        dmlc::ByteSwap(&x, sizeof(x), 1);
+        fo->Write(&x, sizeof(json_offset));
+      }
       fo->Write(&binary_buf[0], binary_buf.size());
       fo->Write(&config_str[0], config_str.size());
     }
@@ -904,6 +930,9 @@ class LearnerIO : public LearnerConfiguration {
 )doc";
       int64_t sz {-1};
       CHECK_EQ(fp.Read(&sz, sizeof(sz)), sizeof(sz));
+      if (!DMLC_IO_NO_ENDIAN_SWAP) {
+        dmlc::ByteSwap(&sz, sizeof(sz), 1);
+      }
       CHECK_GT(sz, 0);
       size_t json_offset = static_cast<size_t>(sz);
       std::string buffer;
