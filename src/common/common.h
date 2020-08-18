@@ -9,12 +9,15 @@
 #include <xgboost/base.h>
 #include <xgboost/logging.h>
 
+#include <algorithm>
 #include <exception>
+#include <functional>
 #include <limits>
 #include <type_traits>
 #include <vector>
 #include <string>
 #include <sstream>
+#include <numeric>
 
 #if defined(__CUDACC__)
 #include <thrust/system/cuda/error.h>
@@ -160,6 +163,15 @@ inline void AssertOneAPISupport() {
 #endif  // XGBOOST_USE_ONEAPI
 }
 
+template <typename Idx, typename V, typename Comp = std::less<V>>
+std::vector<Idx> ArgSort(std::vector<V> const &array, Comp comp = std::less<V>{}) {
+  std::vector<Idx> result(array.size());
+  std::iota(result.begin(), result.end(), 0);
+  std::stable_sort(
+      result.begin(), result.end(),
+      [&array, comp](Idx const &l, Idx const &r) { return comp(array[l], array[r]); });
+  return result;
+}
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_COMMON_H_

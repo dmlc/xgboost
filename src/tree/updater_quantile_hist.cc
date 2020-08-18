@@ -841,11 +841,13 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
   // store a pointer to the tree
   p_last_tree_ = &tree;
   if (data_layout_ == kDenseDataOneBased) {
-    column_sampler_.Init(info.num_col_, param_.colsample_bynode, param_.colsample_bylevel,
-            param_.colsample_bytree, true);
+    column_sampler_.Init(info.num_col_, info.feature_weigths.ConstHostVector(),
+                         param_.colsample_bynode, param_.colsample_bylevel,
+                         param_.colsample_bytree, true);
   } else {
-    column_sampler_.Init(info.num_col_, param_.colsample_bynode, param_.colsample_bylevel,
-            param_.colsample_bytree,  false);
+    column_sampler_.Init(info.num_col_, info.feature_weigths.ConstHostVector(),
+                         param_.colsample_bynode, param_.colsample_bylevel,
+                         param_.colsample_bytree, false);
   }
   if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
     /* specialized code for dense data:

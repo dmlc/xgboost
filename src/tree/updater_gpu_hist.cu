@@ -266,8 +266,10 @@ struct GPUHistMakerDevice {
   // Note that the column sampler must be passed by value because it is not
   // thread safe
   void Reset(HostDeviceVector<GradientPair>* dh_gpair, DMatrix* dmat, int64_t num_columns) {
-    this->column_sampler.Init(num_columns, param.colsample_bynode,
-      param.colsample_bylevel, param.colsample_bytree);
+    auto const& info = dmat->Info();
+    this->column_sampler.Init(num_columns, info.feature_weigths.HostVector(),
+                              param.colsample_bynode, param.colsample_bylevel,
+                              param.colsample_bytree);
     dh::safe_cuda(cudaSetDevice(device_id));
     this->interaction_constraints.Reset();
     std::fill(node_sum_gradients.begin(), node_sum_gradients.end(),

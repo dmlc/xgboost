@@ -455,7 +455,8 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
                  label_lower_bound=None,
                  label_upper_bound=None,
                  feature_names=None,
-                 feature_types=None):
+                 feature_types=None,
+                 feature_weights=None):
         '''Set meta info for DMatrix.'''
         if label is not None:
             self.set_label(label)
@@ -473,6 +474,10 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             self.feature_names = feature_names
         if feature_types is not None:
             self.feature_types = feature_types
+        if feature_weights is not None:
+            from .data import dispatch_meta_backend
+            dispatch_meta_backend(matrix=self, data=feature_weights,
+                                  name='feature_weights')
 
     def get_float_info(self, field):
         """Get float property from the DMatrix.

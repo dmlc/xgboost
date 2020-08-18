@@ -204,12 +204,11 @@ TEST(GpuHist, EvaluateRootSplit) {
   ASSERT_EQ(maker.hist.Data().size(), hist.size());
   thrust::copy(hist.begin(), hist.end(),
     maker.hist.Data().begin());
+  std::vector<float> feature_weights;
 
-  maker.column_sampler.Init(kNCols,
-    param.colsample_bynode,
-    param.colsample_bylevel,
-    param.colsample_bytree,
-    false);
+  maker.column_sampler.Init(kNCols, feature_weights, param.colsample_bynode,
+                            param.colsample_bylevel, param.colsample_bytree,
+                            false);
 
   RegTree tree;
   MetaInfo info;
