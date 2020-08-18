@@ -106,6 +106,7 @@ TEST(Quantile, Distributed) {
 }
 
 TEST(Quantile, SameOnAllWorkers) {
+#if defined(__unix__)
   std::string msg{"Skipping Quantile AllreduceBasic test"};
   int32_t constexpr kWorkers = 4;
   InitRabitContext(msg, kWorkers);
@@ -174,6 +175,7 @@ TEST(Quantile, SameOnAllWorkers) {
         }
       });
   rabit::Finalize();
+#endif  // defined(__unix__)
 }
 }  // namespace common
 }  // namespace xgboost
