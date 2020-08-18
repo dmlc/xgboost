@@ -803,6 +803,7 @@ void RegTree::LoadModel(Json const& in) {
   std::vector<Json> split_type;
   std::vector<Json> categories;
   if (has_cat) {
+    split_type = get<Array const>(in["split_type"]);
     categories = get<Array const>(in["categories"]);
   }
 

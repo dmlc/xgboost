@@ -83,7 +83,7 @@ TEST(Tree, Load) {
   tree.Load(fi.get());
   EXPECT_EQ(tree.GetDepth(1), 1);
   EXPECT_EQ(tree[0].SplitCond(), 0.5f);
-  EXPECT_EQ(tree[0].SplitIndex(), 5);
+  EXPECT_EQ(tree[0].SplitIndex(), 5ul);
   EXPECT_EQ(tree[1].LeafValue(), 0.1f);
   EXPECT_TRUE(tree[1].IsLeaf());
 }
@@ -111,7 +111,7 @@ TEST(Tree, ExpandCategoricalFeature) {
     RegTree tree;
     tree.ExpandCategorical(0, 0, {}, true, 1.0, 2.0, 3.0, 11.0, 2.0,
                            /*left_sum=*/3.0, /*right_sum=*/4.0);
-    ASSERT_EQ(tree.GetNodes().size(), 3);
+    ASSERT_EQ(tree.GetNodes().size(), 3ul);
     ASSERT_EQ(tree.GetNumLeaves(), 2);
     ASSERT_EQ(tree.GetSplitTypes().size(), 3);
     ASSERT_EQ(tree.GetSplitTypes()[0], FeatureType::kCategorical);
@@ -132,6 +132,12 @@ TEST(Tree, ExpandCategoricalFeature) {
     auto segments = tree.GetSplitCategoriesPtr();
     auto got = categories.subspan(segments[0].beg, segments[0].size);
     ASSERT_TRUE(std::equal(got.cbegin(), got.cend(), split_cats.cbegin()));
+
+    Json out{Object()};
+    tree.SaveModel(&out);
+
+    RegTree loaded_tree;
+    loaded_tree.LoadModel(out);
   }
 }
 
