@@ -68,7 +68,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
         .set_lower_bound(0)
         .describe("GPU page size when running in external memory mode.");
     DMLC_DECLARE_FIELD(enable_experimental_json_serialization)
-        .set_default(false)
+        .set_default(true)
         .describe("Enable using JSON for memory serialization (Python Pickle, "
                   "rabit checkpoints etc.).");
     DMLC_DECLARE_FIELD(validate_parameters)
