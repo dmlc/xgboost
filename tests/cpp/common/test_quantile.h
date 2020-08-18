@@ -7,7 +7,7 @@
 
 namespace xgboost {
 namespace common {
-inline void InitRabitContext(std::string msg, size_t n_workers) {
+inline void InitRabitContext(std::string msg, int32_t n_workers) {
   auto port = std::getenv("DMLC_TRACKER_PORT");
   std::string port_str;
   if (port) {

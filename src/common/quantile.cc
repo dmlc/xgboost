@@ -144,6 +144,56 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
   monitor_.Stop(__func__);
 }
 
+void HostSketchContainer::GatherSketchInfo(
+    std::vector<WQSketch::SummaryContainer> const &reduced,
+    std::vector<size_t> *p_worker_segments,
+    std::vector<bst_row_t> *p_sketches_scan,
+    std::vector<WQSketch::Entry> *p_global_sketches) {
+  auto& worker_segments = *p_worker_segments;
+  worker_segments.resize(1, 0);
+  auto world = rabit::GetWorldSize();
+  auto rank = rabit::GetRank();
+  auto n_columns = sketches_.size();
+
+  std::vector<bst_row_t> sketch_size;
+  for (auto const& sketch : reduced) {
+    sketch_size.push_back(sketch.size);
+  }
+  std::vector<bst_row_t>& sketches_scan = *p_sketches_scan;
+  sketches_scan.resize((n_columns + 1) * world, 0);
+  size_t beg_scan = rank * (n_columns + 1);
+  std::partial_sum(sketch_size.cbegin(), sketch_size.cend(),
+                   sketches_scan.begin() + beg_scan + 1);
+  // Gather all column pointers
+  rabit::Allreduce<rabit::op::Sum>(sketches_scan.data(), sketches_scan.size());
+
+  for (int32_t i = 0; i < world; ++i) {
+    size_t back = (i + 1) * (n_columns + 1) - 1;
+    auto n_entries = sketches_scan.at(back);
+    worker_segments.push_back(n_entries);
+  }
+  // Offset of sketch from each worker.
+  std::partial_sum(worker_segments.begin(), worker_segments.end(),
+                   worker_segments.begin());
+  CHECK_GE(worker_segments.size(), 1);
+  auto total = worker_segments.back();
+
+  auto& global_sketches = *p_global_sketches;
+  global_sketches.resize(total, WQSketch::Entry{0, 0, 0, 0});
+  auto local = Span<WQSketch::Entry>{global_sketches}.subspan(
+      worker_segments[rank], worker_segments[rank + 1] - worker_segments[rank]);
+  size_t cursor = 0;
+  for (auto const &sketch : reduced) {
+    std::copy(sketch.data, sketch.data + sketch.size, local.begin() + cursor);
+    cursor += sketch.size;
+  }
+
+  static_assert(sizeof(WQSketch::Entry) / 4 == sizeof(float), "");
+  rabit::Allreduce<rabit::op::Sum>(
+      reinterpret_cast<float *>(global_sketches.data()),
+      global_sketches.size() * sizeof(WQSketch::Entry) / sizeof(float));
+}
+
 void HostSketchContainer::AllReduce(
     std::vector<WQSketch::SummaryContainer> *p_reduced,
     std::vector<int32_t>* p_num_cuts) {
@@ -179,42 +229,46 @@ void HostSketchContainer::AllReduce(
     return;
   }
 
-  auto rank = rabit::GetRank();
-  std::vector<bst_row_t> sketch_size;
-  for (auto const& sketch : reduced) {
-    sketch_size.push_back(sketch.size);
-  }
-  std::vector<bst_row_t> sketches_scan((n_columns + 1) * world, 0);
-  size_t beg_scan = rank * (n_columns + 1);
-  std::partial_sum(sketch_size.cbegin(), sketch_size.cend(),
-                   sketches_scan.begin() + beg_scan + 1);
-  // Gather all column pointers
-  rabit::Allreduce<rabit::op::Sum>(sketches_scan.data(), sketches_scan.size());
+  // auto rank = rabit::GetRank();
+  // std::vector<bst_row_t> sketch_size;
+  // for (auto const& sketch : reduced) {
+  //   sketch_size.push_back(sketch.size);
+  // }
+  // std::vector<bst_row_t> sketches_scan((n_columns + 1) * world, 0);
+  // size_t beg_scan = rank * (n_columns + 1);
+  // std::partial_sum(sketch_size.cbegin(), sketch_size.cend(),
+  //                  sketches_scan.begin() + beg_scan + 1);
+  // // Gather all column pointers
+  // rabit::Allreduce<rabit::op::Sum>(sketches_scan.data(), sketches_scan.size());
 
   std::vector<size_t> worker_segments(1, 0);  // CSC pointer to sketches.
-  for (int32_t i = 0; i < world; ++i) {
-    size_t back = (i + 1) * (n_columns + 1) - 1;
-    auto n_entries = sketches_scan.at(back);
-    worker_segments.push_back(n_entries);
-  }
+  std::vector<bst_row_t> sketches_scan((n_columns + 1) * world, 0);
+  // for (int32_t i = 0; i < world; ++i) {
+  //   size_t back = (i + 1) * (n_columns + 1) - 1;
+  //   auto n_entries = sketches_scan.at(back);
+  //   worker_segments.push_back(n_entries);
+  // }
 
-  std::partial_sum(worker_segments.begin(), worker_segments.end(),
-                   worker_segments.begin());
-  auto total = worker_segments.back();
+  // std::partial_sum(worker_segments.begin(), worker_segments.end(),
+  //                  worker_segments.begin());
+  // auto total = worker_segments.back();
 
-  std::vector<WQSketch::Entry> global_sketches(total, WQSketch::Entry{0, 0, 0, 0});
-  auto local = Span<WQSketch::Entry>{global_sketches}.subspan(
-      worker_segments[rank], worker_segments[rank + 1] - worker_segments[rank]);
-  size_t cursor = 0;
-  for (auto const &sketch : reduced) {
-    std::copy(sketch.data, sketch.data + sketch.size, local.begin() + cursor);
-    cursor += sketch.size;
-  }
+  // auto local = Span<WQSketch::Entry>{global_sketches}.subspan(
+  //     worker_segments[rank], worker_segments[rank + 1] - worker_segments[rank]);
+  // size_t cursor = 0;
+  // for (auto const &sketch : reduced) {
+  //   std::copy(sketch.data, sketch.data + sketch.size, local.begin() + cursor);
+  //   cursor += sketch.size;
+  // }
 
-  static_assert(sizeof(WQSketch::Entry) / 4 == sizeof(float), "");
-  rabit::Allreduce<rabit::op::Sum>(
-      reinterpret_cast<float *>(global_sketches.data()),
-      global_sketches.size() * sizeof(WQSketch::Entry) / sizeof(float));
+  // static_assert(sizeof(WQSketch::Entry) / 4 == sizeof(float), "");
+  // rabit::Allreduce<rabit::op::Sum>(
+  //     reinterpret_cast<float *>(global_sketches.data()),
+  //     global_sketches.size() * sizeof(WQSketch::Entry) / sizeof(float));
+
+  std::vector<WQSketch::Entry> global_sketches;
+  this->GatherSketchInfo(reduced, &worker_segments, &sketches_scan,
+                         &global_sketches);
 
   std::vector<WQSketch::SummaryContainer> final_sketches(n_columns);
   ParallelFor(n_columns, omp_get_max_threads(), [&](size_t fidx) {

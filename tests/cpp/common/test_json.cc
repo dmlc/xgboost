@@ -222,7 +222,7 @@ TEST(Json, ParseArray) {
   auto json = Json::Load(StringView{str.c_str(), str.size()});
   json = json["nodes"];
   std::vector<Json> arr = get<JsonArray>(json);
-  ASSERT_EQ(arr.size(), 3);
+  ASSERT_EQ(arr.size(), 3ul);
   Json v0 = arr[0];
   ASSERT_EQ(get<Integer>(v0["depth"]), 3);
   ASSERT_NEAR(get<Number>(v0["gain"]), 10.4866, kRtEps);
@@ -284,7 +284,7 @@ TEST(Json, EmptyArray) {
   std::istringstream iss(str);
   auto json = Json::Load(StringView{str.c_str(), str.size()});
   auto arr = get<JsonArray>(json["leaf_vector"]);
-  ASSERT_EQ(arr.size(), 0);
+  ASSERT_EQ(arr.size(), 0ul);
 }
 
 TEST(Json, Boolean) {
@@ -315,7 +315,7 @@ TEST(Json, AssigningObjects) {
     Json json;
     json = JsonObject();
     json["Okay"] = JsonArray();
-    ASSERT_EQ(get<JsonArray>(json["Okay"]).size(), 0);
+    ASSERT_EQ(get<JsonArray>(json["Okay"]).size(), 0ul);
   }
 
   {

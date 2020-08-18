@@ -748,7 +748,12 @@ class HostSketchContainer {
         group_ptr.cbegin() - 1;
     return group_ind;
   }
-
+  // Gather sketches from all workers.
+  void GatherSketchInfo(std::vector<WQSketch::SummaryContainer> const &reduced,
+                        std::vector<bst_row_t> *p_worker_segments,
+                        std::vector<bst_row_t> *p_sketches_scan,
+                        std::vector<WQSketch::Entry> *p_global_sketches);
+  // Merge sketches from all workers.
   void AllReduce(std::vector<WQSketch::SummaryContainer> *p_reduced,
                  std::vector<int32_t>* p_num_cuts);
 

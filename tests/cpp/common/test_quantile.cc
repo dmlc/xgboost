@@ -22,7 +22,7 @@ TEST(Quantile, LoadBalance) {
 
 void TestDistributedQuantile(size_t rows, size_t cols) {
   std::string msg {"Skipping AllReduce test"};
-  size_t constexpr kWorkers = 4;
+  int32_t constexpr kWorkers = 4;
   InitRabitContext(msg, kWorkers);
   auto world = rabit::GetWorldSize();
   if (world != 1) {
@@ -77,7 +77,7 @@ void TestDistributedQuantile(size_t rows, size_t cols) {
 
   ASSERT_EQ(sptrs.size(), dptrs.size());
   for (size_t i = 0; i < sptrs.size(); ++i) {
-    ASSERT_EQ(sptrs[i], dptrs[i]) << "i: " << i;
+    ASSERT_EQ(sptrs[i], dptrs[i]);
   }
 
   ASSERT_EQ(svals.size(), dvals.size());
@@ -107,7 +107,7 @@ TEST(Quantile, Distributed) {
 
 TEST(Quantile, SameOnAllWorkers) {
   std::string msg{"Skipping Quantile AllreduceBasic test"};
-  size_t constexpr kWorkers = 4;
+  int32_t constexpr kWorkers = 4;
   InitRabitContext(msg, kWorkers);
   auto world = rabit::GetWorldSize();
   if (world != 1) {

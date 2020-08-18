@@ -159,10 +159,10 @@ TEST(CutsBuilder, SearchGroupInd) {
   HistogramCuts hmat;
 
   size_t group_ind = HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 0);
-  ASSERT_EQ(group_ind, 0);
+  ASSERT_EQ(group_ind, 0ul);
 
   group_ind = HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 5);
-  ASSERT_EQ(group_ind, 2);
+  ASSERT_EQ(group_ind, 2ul);
 
   EXPECT_ANY_THROW(HostSketchContainer::SearchGroupIndFromRow(p_mat->Info().group_ptr_, 17));
 
@@ -189,7 +189,7 @@ TEST(HistUtil, DenseCutsCategorical) {
        EXPECT_LT(cuts.MinValues()[0], x_sorted.front());
        EXPECT_GT(cuts_from_sketch.front(), x_sorted.front());
        EXPECT_GE(cuts_from_sketch.back(), x_sorted.back());
-       EXPECT_EQ(cuts_from_sketch.size(), num_categories);
+       EXPECT_EQ(cuts_from_sketch.size(), static_cast<size_t>(num_categories));
      }
    }
 }
