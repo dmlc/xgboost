@@ -27,7 +27,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
   int gpu_id;
   // gpu page size in external memory mode, 0 means using the default.
   size_t gpu_page_size;
-  bool enable_experimental_json_serialization {false};
+  bool enable_experimental_json_serialization {true};
   bool validate_parameters {false};
 
   void CheckDeprecated() {
