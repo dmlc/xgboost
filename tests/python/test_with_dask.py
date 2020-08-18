@@ -501,17 +501,22 @@ class TestWithDask:
                                  num_boost_round=num_rounds,
                                  evals=[(m, 'train')])['history']
         note(history)
-        assert tm.non_increasing(history['train'][dataset.metric])
+        history = history['train'][dataset.metric]
+        assert tm.non_increasing(history)
+        first_half = history[:len(history) // 2]
+        second_half = history[len(history) // 2:]
+        for i in range(min(len(first_half), len(second_half))):
+            assert first_half[i] > second_half[i]
 
     @given(params=hist_parameter_strategy,
-           num_rounds=strategies.integers(10, 20),
+           num_rounds=strategies.integers(20, 30),
            dataset=tm.dataset_strategy)
     @settings(deadline=None)
     def test_hist(self, params, num_rounds, dataset, client):
         self.run_updater_test(client, params, num_rounds, dataset, 'hist')
 
     @given(params=exact_parameter_strategy,
-           num_rounds=strategies.integers(10, 20),
+           num_rounds=strategies.integers(20, 30),
            dataset=tm.dataset_strategy)
     @settings(deadline=None)
     def test_approx(self, client, params, num_rounds, dataset):

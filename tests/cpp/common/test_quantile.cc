@@ -20,12 +20,6 @@ TEST(Quantile, LoadBalance) {
   CHECK_EQ(n_cols, kCols);
 }
 
-template <typename Float>
-Float RelError(Float l, Float r) {
-  static_assert(std::is_floating_point<Float>::value, "");
-  return std::abs(1.0f - l / r);
-}
-
 void TestDistributedQuantile(size_t rows, size_t cols) {
   std::string msg {"Skipping AllReduce test"};
   int32_t constexpr kWorkers = 4;
