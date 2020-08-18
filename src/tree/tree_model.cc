@@ -18,6 +18,7 @@
 
 #include "param.h"
 #include "../common/common.h"
+#include "../common/categorical.h"
 
 namespace xgboost {
 // register tree parameter
@@ -800,15 +801,9 @@ void RegTree::LoadModel(Json const& in) {
 
   bool has_cat = get<Object const>(in).find("split_type") != get<Object const>(in).cend();
   std::vector<Json> split_type;
-  std::vector<Json> cat_seg_begin;
-  std::vector<Json> cat_seg_size;
   std::vector<Json> categories;
   if (has_cat) {
-    split_type = get<Array const>(in["split_type"]);
-    cat_seg_begin = get<Array const>(in["categories_segment_begin"]);
-    cat_seg_size = get<Array const>(in["categories_segment_size"]);
-    categories = get<Array const>(in["categories_bitset"]);
-    CHECK_EQ(cat_seg_size.size(), cat_seg_begin.size());
+    categories = get<Array const>(in["categories"]);
   }
 
 
@@ -818,11 +813,8 @@ void RegTree::LoadModel(Json const& in) {
   stats_.resize(n_nodes);
   nodes_.resize(n_nodes);
   split_types_.resize(n_nodes);
-  if (cat_seg_begin.empty()) {
-    split_categories_segments_.resize(n_nodes);
-  } else {
-    split_categories_segments_.resize(cat_seg_begin.size());
-  }
+  split_categories_segments_.resize(n_nodes);
+
   CHECK_EQ(n_nodes, split_categories_segments_.size());
   for (int32_t i = 0; i < n_nodes; ++i) {
     auto& s = stats_[i];
@@ -843,18 +835,23 @@ void RegTree::LoadModel(Json const& in) {
     if (has_cat) {
       split_types_[i] =
           static_cast<FeatureType>(get<Integer const>(split_type[i]));
-      size_t beg = get<Integer const>(cat_seg_begin[i]);
-      size_t size = get<Integer const>(cat_seg_size[i]);
-      split_categories_segments_[i].beg = beg;
-      split_categories_segments_[i].size = size;
       auto const& j_categories = get<Array const>(categories[i]);
-      if (split_categories_.size() < beg + size) {
-        split_categories_.resize(beg + size);
+      bst_cat_t max_cat { std::numeric_limits<bst_cat_t>::min() };
+      for (auto const& j_cat : j_categories) {
+        auto cat = common::AsCat(get<Integer const>(j_cat));
+        max_cat = std::max(max_cat, cat);
       }
-      for (size_t j = beg; j < size; ++j) {
-        split_categories_[j] =
-            static_cast<uint32_t>(get<Integer const>(j_categories[j]));
+      std::vector<uint32_t> cat_bits_storage(
+          common::KCatBitField::ComputeStorageSize(max_cat));
+      common::CatBitField cat_bits{common::Span<uint32_t>(cat_bits_storage)};
+      for (auto const& j_cat : j_categories) {
+        cat_bits.Set(common::AsCat(get<Integer const>(j_cat)));
       }
+      auto begin = split_categories_.size();
+      split_categories_.resize(begin + cat_bits_storage.size());
+      std::copy(cat_bits_storage.begin(), cat_bits_storage.end(), split_categories_.begin() + begin);
+      split_categories_segments_[i].beg = begin;
+      split_categories_segments_[i].size = cat_bits_storage.size();
     }
   }
 
@@ -931,9 +928,12 @@ void RegTree::SaveModel(Json* p_out) const {
       cat_seg_begin[i] = static_cast<I>(beg);
       cat_seg_size[i] = static_cast<I>(size);
       auto node_categories = self.GetSplitCategories().subspan(beg, size);
-      categories_temp.resize(node_categories.size());
-      std::copy(node_categories.data(), node_categories.data() + node_categories.size(),
-                categories_temp.begin());
+      common::KCatBitField const cat_bits(node_categories);
+      for (size_t i = 0; i < cat_bits.Size(); ++i) {
+        if (cat_bits.Check(i)) {
+          categories_temp.emplace_back(static_cast<Integer::Int>(i));
+        }
+      }
       categories[i] = Array(categories_temp);
     }
   }
@@ -950,9 +950,7 @@ void RegTree::SaveModel(Json* p_out) const {
   out["split_conditions"] = std::move(conds);
   out["default_left"] = std::move(default_left);
 
-  out["categories_segment_begin"] = cat_seg_begin;
-  out["categories_segment_size"] = cat_seg_size;
-  out["categories_bitset"] = categories;
+  out["categories"] = categories;
 
   if (self.GetSplitTypes().size() == static_cast<size_t>(n_nodes)) {
     out["split_type"] = std::move(split_type);
