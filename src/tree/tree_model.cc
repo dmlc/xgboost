@@ -921,6 +921,8 @@ void RegTree::SaveModel(Json* p_out) const {
     conds[i] = n.SplitCond();
     default_left[i] = n.DefaultLeft();
 
+    // This condition is only for being compatibale with older version of XGBoost model
+    // that doesn't have categorical data support.
     if (self.GetSplitTypes().size() == static_cast<size_t>(n_nodes)) {
       CHECK_EQ(self.split_categories_segments_.size(), param.num_nodes);
       split_type[i] = static_cast<I>(self.NodeSplitType(i));

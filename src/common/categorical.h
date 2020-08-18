@@ -41,6 +41,9 @@ inline XGBOOST_DEVICE bool Decision(common::Span<uint32_t const> cats, bst_cat_t
   CLBitField32 const s_cats(cats);
   return !s_cats.Check(cat);
 }
+
+using CatBitField = LBitField32;
+using KCatBitField = CLBitField32;
 }  // namespace common
 }  // namespace xgboost
 
