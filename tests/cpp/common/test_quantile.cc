@@ -20,6 +20,12 @@ TEST(Quantile, LoadBalance) {
   CHECK_EQ(n_cols, kCols);
 }
 
+template <typename Float>
+Float RelError(Float l, Float r) {
+  static_assert(std::is_floating_point<Float>::value, "");
+  return std::abs(1.0f - l / r);
+}
+
 void TestDistributedQuantile(size_t rows, size_t cols) {
   std::string msg {"Skipping AllReduce test"};
   int32_t constexpr kWorkers = 4;
@@ -44,8 +50,11 @@ void TestDistributedQuantile(size_t rows, size_t cols) {
   auto sparsity = 0.5f;
   auto rank = rabit::GetRank();
   HostSketchContainer sketch_distributed(column_size, n_bins, false);
-  auto m =
-      RandomDataGenerator{rows, cols, sparsity}.Seed(rank).GenerateDMatrix();
+  auto m = RandomDataGenerator{rows, cols, sparsity}
+               .Seed(rank)
+               .Lower(.0f)
+               .Upper(1.0f)
+               .GenerateDMatrix();
   for (auto const &page : m->GetBatches<SparsePage>()) {
     sketch_distributed.PushRowPage(page, m->Info());
   }
@@ -58,8 +67,11 @@ void TestDistributedQuantile(size_t rows, size_t cols) {
   std::for_each(column_size.begin(), column_size.end(), [=](auto& size) { size *= world; });
   HostSketchContainer sketch_on_single_node(column_size, n_bins, false);
   for (auto rank = 0; rank < world; ++rank) {
-    auto m =
-        RandomDataGenerator{rows, cols, sparsity}.Seed(rank).GenerateDMatrix();
+    auto m = RandomDataGenerator{rows, cols, sparsity}
+                 .Seed(rank)
+                 .Lower(.0f)
+                 .Upper(1.0f)
+                 .GenerateDMatrix();
     for (auto const &page : m->GetBatches<SparsePage>()) {
       sketch_on_single_node.PushRowPage(page, m->Info());
     }
@@ -82,7 +94,7 @@ void TestDistributedQuantile(size_t rows, size_t cols) {
 
   ASSERT_EQ(svals.size(), dvals.size());
   for (size_t i = 0; i < svals.size(); ++i) {
-    ASSERT_FLOAT_EQ(svals[i], dvals[i]);
+    ASSERT_NEAR(svals[i], dvals[i], 2e-2f);
   }
 
   ASSERT_EQ(smins.size(), dmins.size());

@@ -212,6 +212,7 @@ void HostSketchContainer::AllReduce(
   std::vector<bst_row_t> global_column_size(columns_size_);
   rabit::Allreduce<rabit::op::Sum>(global_column_size.data(), global_column_size.size());
 
+size_t nbytes = 0;
   for (size_t i = 0; i < sketches_.size(); ++i) {
     int32_t intermediate_num_cuts =  static_cast<int32_t>(std::min(
         global_column_size[i], static_cast<size_t>(max_bins_ * WQSketch::kFactor)));
@@ -221,6 +222,9 @@ void HostSketchContainer::AllReduce(
       reduced[i].Reserve(intermediate_num_cuts);
       CHECK(reduced[i].data);
       reduced[i].SetPrune(out, intermediate_num_cuts);
+      nbytes = std::max(
+          WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts),
+          nbytes);
     }
 
     num_cuts.push_back(intermediate_num_cuts);
