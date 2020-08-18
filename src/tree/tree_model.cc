@@ -897,14 +897,9 @@ void RegTree::SaveModel(Json* p_out) const {
   std::vector<Json> default_left(n_nodes);
   std::vector<Json> split_type(n_nodes);
 
-  std::vector<Json> cat_seg_begin(n_nodes);
-  std::vector<Json> cat_seg_size(n_nodes);
   std::vector<Json> categories(n_nodes);
 
   auto& self = *this;
-
-  std::vector<Json> categories_temp;
-
   for (bst_node_t i = 0; i < n_nodes; ++i) {
     auto const& s = stats_[i];
     loss_changes[i] = s.loss_chg;
@@ -927,10 +922,9 @@ void RegTree::SaveModel(Json* p_out) const {
       split_type[i] = static_cast<I>(self.NodeSplitType(i));
       auto beg = self.split_categories_segments_.at(i).beg;
       auto size = self.split_categories_segments_.at(i).size;
-      cat_seg_begin[i] = static_cast<I>(beg);
-      cat_seg_size[i] = static_cast<I>(size);
       auto node_categories = self.GetSplitCategories().subspan(beg, size);
       common::KCatBitField const cat_bits(node_categories);
+      std::vector<Json> categories_temp;
       for (size_t i = 0; i < cat_bits.Size(); ++i) {
         if (cat_bits.Check(i)) {
           categories_temp.emplace_back(static_cast<Integer::Int>(i));
