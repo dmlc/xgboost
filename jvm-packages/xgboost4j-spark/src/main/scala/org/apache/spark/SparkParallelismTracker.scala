@@ -26,11 +26,13 @@ import org.apache.spark.scheduler._
  * @param sc The SparkContext object
  * @param timeout The maximum time to wait for enough number of workers.
  * @param numWorkers nWorkers used in an XGBoost Job
+ * @param killSparkContext kill SparkContext or not when task fails
  */
 class SparkParallelismTracker(
     val sc: SparkContext,
     timeout: Long,
-    numWorkers: Int) {
+    numWorkers: Int,
+    killSparkContext: Boolean = true) {
 
   private[this] val requestedCores = numWorkers * sc.conf.getInt("spark.task.cpus", 1)
   private[this] val logger = LogFactory.getLog("XGBoostSpark")
@@ -58,7 +60,7 @@ class SparkParallelismTracker(
   }
 
   private[this] def safeExecute[T](body: => T): T = {
-    val listener = new TaskFailedListener
+    val listener = new TaskFailedListener(killSparkContext)
     sc.addSparkListener(listener)
     try {
       body
@@ -90,7 +92,7 @@ class SparkParallelismTracker(
   }
 }
 
-private[spark] class TaskFailedListener extends SparkListener {
+class TaskFailedListener(killSparkContext: Boolean = true) extends SparkListener {
 
   private[this] val logger = LogFactory.getLog("XGBoostTaskFailedListener")
 
@@ -99,28 +101,57 @@ private[spark] class TaskFailedListener extends SparkListener {
       case taskEndReason: TaskFailedReason =>
         logger.error(s"Training Task Failed during XGBoost Training: " +
             s"$taskEndReason, cancelling all jobs")
-        TaskFailedListener.cancelAllJobs()
+        taskFaultHandle
       case _ =>
+    }
+  }
+
+  private[this] def taskFaultHandle = {
+    if (killSparkContext == true) {
+      TaskFailedListener.startedSparkContextKiller()
+    } else {
+      TaskFailedListener.cancelAllJobs()
     }
   }
 }
 
 object TaskFailedListener {
-
+  private[this] val logger = LogFactory.getLog("XGBoostTaskFailedListener")
   var cancelJobStarted = false
 
   private def cancelAllJobs(): Unit = this.synchronized {
     if (!cancelJobStarted) {
+      cancelJobStarted = true
       val cancelJob = new Thread() {
         override def run(): Unit = {
           LiveListenerBus.withinListenerThread.withValue(false) {
+            logger.info("will call spark cancel all jobs")
             SparkContext.getOrCreate().cancelAllJobs()
+            logger.info("after call spark cancel all jobs")
           }
         }
       }
       cancelJob.setDaemon(true)
       cancelJob.start()
-      cancelJobStarted = true
+    }
+  }
+
+  var killerStarted = false
+
+  private def startedSparkContextKiller(): Unit = this.synchronized {
+    if (!killerStarted) {
+      // Spark does not allow ListenerThread to shutdown SparkContext so that we have to do it
+      // in a separate thread
+      val sparkContextKiller = new Thread() {
+        override def run(): Unit = {
+          LiveListenerBus.withinListenerThread.withValue(false) {
+            SparkContext.getOrCreate().stop()
+          }
+        }
+      }
+      sparkContextKiller.setDaemon(true)
+      sparkContextKiller.start()
+      killerStarted = true
     }
   }
 

@@ -34,6 +34,15 @@ class SparkParallelismTrackerSuite extends FunSuite with PerTest {
     .config("spark.driver.memory", "512m")
     .config("spark.task.cpus", 1)
 
+  private def waitAndCheckSparkShutdown(waitMiliSec: Int): Boolean = {
+    var totalWaitedTime = 0L
+    while (!ss.sparkContext.isStopped && totalWaitedTime <= waitMiliSec) {
+      Thread.sleep(100)
+      totalWaitedTime += 100
+    }
+    ss.sparkContext.isStopped
+  }
+
   test("tracker should not affect execution result when timeout is not larger than 0") {
     val nWorkers = numParallelism
     val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
@@ -74,4 +83,27 @@ class SparkParallelismTrackerSuite extends FunSuite with PerTest {
       }
     }
   }
+
+  test("tracker should not kill SparkContext when killSparkContext=false") {
+    val nWorkers = numParallelism
+    val rdd: RDD[Int] = sc.parallelize(1 to nWorkers, nWorkers)
+    val tracker = new SparkParallelismTracker(sc, 0, nWorkers, false)
+    try {
+      tracker.execute {
+        rdd.map { i =>
+          val partitionId = TaskContext.get().partitionId()
+          if (partitionId == 0) {
+            throw new RuntimeException("mocking task failing")
+          }
+          i
+        }.sum()
+      }
+    } catch {
+      case e: Exception => // catch the exception
+    } finally {
+      // wait 3s to check if SparkContext is killed
+      assert(waitAndCheckSparkShutdown(3000) == false)
+    }
+  }
+
 }

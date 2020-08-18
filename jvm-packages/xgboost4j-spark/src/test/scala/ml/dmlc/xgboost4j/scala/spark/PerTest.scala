@@ -51,6 +51,7 @@ trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
         cleanExternalCache(currentSession.sparkContext.appName)
         currentSession = null
       }
+      TaskFailedListener.killerStarted = false
       TaskFailedListener.cancelJobStarted = false
     }
   }

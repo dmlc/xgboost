@@ -105,8 +105,14 @@ private[spark] trait LearningTaskParams extends Params {
 
   final def getMaximizeEvaluationMetrics: Boolean = $(maximizeEvaluationMetrics)
 
-  setDefault(objective -> "reg:squarederror", baseScore -> 0.5,
-    trainTestRatio -> 1.0, numEarlyStoppingRounds -> 0, cacheTrainingSet -> false)
+  /**
+   * whether killing SparkContext when training task fails
+   */
+  final val killSparkContext = new BooleanParam(this, "killSparkContext",
+    "whether killing SparkContext when training task fails")
+
+  setDefault(objective -> "reg:squarederror", baseScore -> 0.5, trainTestRatio -> 1.0,
+    numEarlyStoppingRounds -> 0, cacheTrainingSet -> false, killSparkContext -> true)
 }
 
 private[spark] object LearningTaskParams {
