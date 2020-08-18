@@ -476,8 +476,6 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             self.feature_types = feature_types
         if feature_weights is not None:
             from .data import dispatch_meta_backend
-            # feature weight API is newer than the others and it accepts
-            # general data type instead of float only.
             dispatch_meta_backend(matrix=self, data=feature_weights,
                                   name='feature_weights')
 

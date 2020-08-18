@@ -78,6 +78,13 @@ using GlobalRandomEngine = RandomEngine;
  */
 GlobalRandomEngine& GlobalRandom(); // NOLINT(*)
 
+/*
+ * Original paper:
+ * Weighted Random Sampling (2005; Efraimidis, Spirakis)
+ *
+ * Blog:
+ * https://timvieira.github.io/blog/post/2019/09/16/algorithms-for-sampling-without-replacement/
+*/
 template <typename T>
 std::vector<T> WeightedSamplingWithoutReplacement(
     std::vector<T> const &array, std::vector<float> const &weights, size_t n) {
