@@ -245,11 +245,12 @@ test_that("training continuation works", {
     expect_equal(bst$raw, bst2$raw)
   expect_equal(dim(bst2$evaluation_log), c(2, 2))
   # test continuing from a model in file
-  xgb.save(bst1, "xgboost.model")
-  bst2 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0, xgb_model = "xgboost.model")
+  xgb.save(bst1, "xgboost.json")
+  bst2 <- xgb.train(param, dtrain, nrounds = 2, watchlist, verbose = 0, xgb_model = "xgboost.json")
   if (!windows_flag && !solaris_flag)
     expect_equal(bst$raw, bst2$raw)
   expect_equal(dim(bst2$evaluation_log), c(2, 2))
+  file.remove("xgboost.json")
 })
 
 test_that("model serialization works", {
