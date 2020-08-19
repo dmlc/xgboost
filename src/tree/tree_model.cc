@@ -901,7 +901,6 @@ void RegTree::SaveModel(Json* p_out) const {
 
   std::vector<Json> categories(n_nodes);
 
-  auto& self = *this;
   for (bst_node_t i = 0; i < n_nodes; ++i) {
     auto const& s = stats_[i];
     loss_changes[i] = s.loss_chg;
@@ -920,12 +919,12 @@ void RegTree::SaveModel(Json* p_out) const {
     std::vector<Json> categories_temp;
     // This condition is only for being compatibale with older version of XGBoost model
     // that doesn't have categorical data support.
-    if (self.GetSplitTypes().size() == static_cast<size_t>(n_nodes)) {
-      CHECK_EQ(self.split_categories_segments_.size(), param.num_nodes);
-      split_type[i] = static_cast<I>(self.NodeSplitType(i));
-      auto beg = self.split_categories_segments_.at(i).beg;
-      auto size = self.split_categories_segments_.at(i).size;
-      auto node_categories = self.GetSplitCategories().subspan(beg, size);
+    if (this->GetSplitTypes().size() == static_cast<size_t>(n_nodes)) {
+      CHECK_EQ(this->GetSplitCategoriesPtr().size(), param.num_nodes);
+      split_type[i] = static_cast<I>(this->NodeSplitType(i));
+      auto beg = this->GetSplitCategoriesPtr().at(i).beg;
+      auto size = this->GetSplitCategoriesPtr().at(i).size;
+      auto node_categories = this->GetSplitCategories().subspan(beg, size);
       common::KCatBitField const cat_bits(node_categories);
       for (size_t i = 0; i < cat_bits.Size(); ++i) {
         if (cat_bits.Check(i)) {
@@ -950,7 +949,7 @@ void RegTree::SaveModel(Json* p_out) const {
 
   out["categories"] = categories;
 
-  if (self.GetSplitTypes().size() == static_cast<size_t>(n_nodes)) {
+  if (this->GetSplitTypes().size() == static_cast<size_t>(n_nodes)) {
     out["split_type"] = std::move(split_type);
   }
 }

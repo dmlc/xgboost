@@ -528,7 +528,6 @@ class Span {
 
   XGBOOST_DEVICE reference operator[](index_type _idx) const {
     SPAN_LT(_idx, size());
-    SPAN_CHECK(_idx < size());
     return data()[_idx];
   }
 
@@ -588,7 +587,6 @@ class Span {
            detail::ExtentValue<Extent, Offset, Count>::value> {
     SPAN_CHECK((Count == dynamic_extent) ?
                (Offset <= size()) : (Offset + Count <= size()));
-
     return {data() + Offset, Count == dynamic_extent ? size() - Offset : Count};
   }
 
