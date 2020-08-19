@@ -215,10 +215,6 @@ TEST(GpuHist, EvaluateRootSplit) {
   info.num_row_ = kNRows;
   info.num_col_ = kNCols;
 
-  maker.node_value_constraints.resize(1);
-  maker.node_value_constraints[0].lower_bound = -1.0;
-  maker.node_value_constraints[0].upper_bound = 1.0;
-
   DeviceSplitCandidate res = maker.EvaluateRootSplit({6.4f, 12.8f});
 
   ASSERT_EQ(res.findex, 7);

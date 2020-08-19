@@ -247,7 +247,7 @@ class SparsePage {
   /*! \brief the data of the segments */
   HostDeviceVector<Entry> data;
 
-  size_t base_rowid{};
+  size_t base_rowid {0};
 
   /*! \brief an instance of sparse vector in the batch */
   using Inst = common::Span<Entry const>;
@@ -548,7 +548,7 @@ class DMatrix {
                          int nthread,
                          int max_bin);
 
-      virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
+  virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
   /*! \brief page size 32 MB */
   static const size_t kPageSize = 32UL << 20UL;
 
