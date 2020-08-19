@@ -55,7 +55,6 @@ pipeline {
         script {
           parallel ([
             'clang-tidy': { ClangTidy() },
-            'lint': { Lint() },
             'sphinx-doc': { SphinxDoc() },
             'doxygen': { Doxygen() }
           ])
@@ -147,19 +146,6 @@ def ClangTidy() {
     def dockerArgs = "--build-arg CUDA_VERSION=10.1"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} python3 tests/ci_build/tidy.py
-    """
-    deleteDir()
-  }
-}
-
-def Lint() {
-  node('linux && cpu') {
-    unstash name: 'srcs'
-    echo "Running lint..."
-    def container_type = "cpu"
-    def docker_binary = "docker"
-    sh """
-    ${dockerRun} ${container_type} ${docker_binary} bash -c "source activate cpu_test && make lint"
     """
     deleteDir()
   }
