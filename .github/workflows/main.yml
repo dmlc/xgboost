@@ -125,9 +125,7 @@ jobs:
 
   lintr:
     runs-on: ${{ matrix.config.os }}
-
     name: Run R linters on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
-
     strategy:
       matrix:
         config:
@@ -165,23 +163,16 @@ jobs:
         R.exe CMD INSTALL .
         Rscript.exe tests/run_lint.R
 
-
   test-with-R:
     runs-on: ${{ matrix.config.os }}
-
     name: Test R on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
-
     strategy:
       fail-fast: false
       matrix:
         config:
-          - {os: windows-latest, r: 'release', compiler: 'msvc', build: 'autotools'}
           - {os: windows-2016, r: 'release', compiler: 'msvc', build: 'autotools'}
-          - {os: windows-latest, r: 'release', compiler: 'msvc', build: 'cmake'}
           - {os: windows-2016, r: 'release', compiler: 'msvc', build: 'cmake'}
-          - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'autotools'}
           - {os: windows-2016, r: 'release', compiler: 'mingw', build: 'autotools'}
-          - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'cmake'}
           - {os: windows-2016, r: 'release', compiler: 'mingw', build: 'cmake'}
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
