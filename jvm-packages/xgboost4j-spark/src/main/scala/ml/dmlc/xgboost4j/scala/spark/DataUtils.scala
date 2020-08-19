@@ -103,7 +103,8 @@ object DataUtils extends Serializable {
       case sparseVector: SparseVector =>
         featureValueOfSparseVector(rowHashCode, sparseVector)
     }
-    math.abs((rowHashCode.toLong + featureValue).toString.hashCode % numPartitions)
+    val nonNaNFeatureValue = if (featureValue.isNaN) { 0.0f } else { featureValue }
+    math.abs((rowHashCode.toLong + nonNaNFeatureValue).toString.hashCode % numPartitions)
   }
 
   private def attachPartitionKey(
