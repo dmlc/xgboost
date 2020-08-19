@@ -49,24 +49,12 @@ pipeline {
         stash name: 'srcs'
       }
     }
-    stage('Jenkins Linux: Formatting Check') {
-      agent none
-      steps {
-        script {
-          parallel ([
-            'clang-tidy': { ClangTidy() },
-            'lint': { Lint() },
-            'sphinx-doc': { SphinxDoc() },
-            'doxygen': { Doxygen() }
-          ])
-        }
-      }
-    }
     stage('Jenkins Linux: Build') {
       agent none
       steps {
         script {
           parallel ([
+            'clang-tidy': { ClangTidy() },
             'build-cpu': { BuildCPU() },
             'build-cpu-rabit-mock': { BuildCPUMock() },
             'build-cpu-non-omp': { BuildCPUNonOmp() },
@@ -148,50 +136,6 @@ def ClangTidy() {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} python3 tests/ci_build/tidy.py
     """
-    deleteDir()
-  }
-}
-
-def Lint() {
-  node('linux && cpu') {
-    unstash name: 'srcs'
-    echo "Running lint..."
-    def container_type = "cpu"
-    def docker_binary = "docker"
-    sh """
-    ${dockerRun} ${container_type} ${docker_binary} bash -c "source activate cpu_test && make lint"
-    """
-    deleteDir()
-  }
-}
-
-def SphinxDoc() {
-  node('linux && cpu') {
-    unstash name: 'srcs'
-    echo "Running sphinx-doc..."
-    def container_type = "cpu"
-    def docker_binary = "docker"
-    def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e SPHINX_GIT_BRANCH=${BRANCH_NAME}'"
-    sh """#!/bin/bash
-    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} bash -c "source activate cpu_test && make -C doc html"
-    """
-    deleteDir()
-  }
-}
-
-def Doxygen() {
-  node('linux && cpu') {
-    unstash name: 'srcs'
-    echo "Running doxygen..."
-    def container_type = "cpu"
-    def docker_binary = "docker"
-    sh """
-    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/doxygen.sh ${BRANCH_NAME}
-    """
-    if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
-      echo 'Uploading doc...'
-      s3Upload file: "build/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "doxygen/${BRANCH_NAME}.tar.bz2"
-    }
     deleteDir()
   }
 }
