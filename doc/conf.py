@@ -22,7 +22,7 @@ import subprocess
 import guzzle_sphinx_theme
 
 git_branch = os.getenv('SPHINX_GIT_BRANCH', default=None)
-if git_branch is None:
+if not git_branch:
     # If SPHINX_GIT_BRANCH environment variable is not given, run git
     # to determine branch name
     git_branch = [
@@ -30,6 +30,8 @@ if git_branch is None:
             git.branch('-r', '--contains', 'HEAD')).rstrip('\n').split('\n')
     ]
     git_branch = [x for x in git_branch if 'HEAD' not in x]
+else:
+    git_branch = [git_branch]
 print('git_branch = {}'.format(git_branch[0]))
 try:
     filename, _ = urllib.request.urlretrieve(

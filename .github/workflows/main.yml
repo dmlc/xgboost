@@ -42,9 +42,7 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
-
     name: Code linting for Python and C++
-
     steps:
     - uses: actions/checkout@v2
       with:
@@ -63,9 +61,7 @@ jobs:
 
   doxygen:
     runs-on: ubuntu-latest
-
     name: Generate C/C++ API doc using Doxygen
-
     steps:
     - uses: actions/checkout@v2
       with:
@@ -99,6 +95,33 @@ jobs:
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
+
+  sphinx:
+    runs-on: ubuntu-latest
+    name: Build docs using Sphinx
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.7'
+        architecture: 'x64'
+    - name: Install system packages
+      run: |
+        sudo apt-get install -y --no-install-recommends graphviz
+        python -m pip install wheel setuptools
+        python -m pip install -r doc/requirements.txt
+    - name: Extract branch name
+      shell: bash
+      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+      id: extract_branch
+      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
+    - name: Run Sphinx
+      run: |
+        make -C doc html
+      env:
+        SPHINX_GIT_BRANCH: ${{ steps.extract_branch.outputs.branch }}
 
   lintr:
     runs-on: ${{ matrix.config.os }}

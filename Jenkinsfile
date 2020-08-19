@@ -54,8 +54,7 @@ pipeline {
       steps {
         script {
           parallel ([
-            'clang-tidy': { ClangTidy() },
-            'sphinx-doc': { SphinxDoc() },
+            'clang-tidy': { ClangTidy() }
           ])
         }
       }
@@ -145,20 +144,6 @@ def ClangTidy() {
     def dockerArgs = "--build-arg CUDA_VERSION=10.1"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} python3 tests/ci_build/tidy.py
-    """
-    deleteDir()
-  }
-}
-
-def SphinxDoc() {
-  node('linux && cpu') {
-    unstash name: 'srcs'
-    echo "Running sphinx-doc..."
-    def container_type = "cpu"
-    def docker_binary = "docker"
-    def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e SPHINX_GIT_BRANCH=${BRANCH_NAME}'"
-    sh """#!/bin/bash
-    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} bash -c "source activate cpu_test && make -C doc html"
     """
     deleteDir()
   }
