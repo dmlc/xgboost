@@ -56,7 +56,6 @@ pipeline {
           parallel ([
             'clang-tidy': { ClangTidy() },
             'sphinx-doc': { SphinxDoc() },
-            'doxygen': { Doxygen() }
           ])
         }
       }
@@ -161,23 +160,6 @@ def SphinxDoc() {
     sh """#!/bin/bash
     ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} bash -c "source activate cpu_test && make -C doc html"
     """
-    deleteDir()
-  }
-}
-
-def Doxygen() {
-  node('linux && cpu') {
-    unstash name: 'srcs'
-    echo "Running doxygen..."
-    def container_type = "cpu"
-    def docker_binary = "docker"
-    sh """
-    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/doxygen.sh ${BRANCH_NAME}
-    """
-    if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
-      echo 'Uploading doc...'
-      s3Upload file: "build/${BRANCH_NAME}.tar.bz2", bucket: 'xgboost-docs', acl: 'PublicRead', path: "doxygen/${BRANCH_NAME}.tar.bz2"
-    }
     deleteDir()
   }
 }
