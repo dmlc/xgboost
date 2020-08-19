@@ -49,21 +49,12 @@ pipeline {
         stash name: 'srcs'
       }
     }
-    stage('Jenkins Linux: Formatting Check') {
-      agent none
-      steps {
-        script {
-          parallel ([
-            'clang-tidy': { ClangTidy() }
-          ])
-        }
-      }
-    }
     stage('Jenkins Linux: Build') {
       agent none
       steps {
         script {
           parallel ([
+            'clang-tidy': { ClangTidy() },
             'build-cpu': { BuildCPU() },
             'build-cpu-rabit-mock': { BuildCPUMock() },
             'build-cpu-non-omp': { BuildCPUNonOmp() },
