@@ -422,7 +422,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             raise TypeError('Input data can not be a list.')
 
         self.missing = missing if missing is not None else np.nan
-        self.nthread = nthread if nthread is not None else 1
+        self.nthread = nthread if nthread is not None else -1
         self.silent = silent
 
         # force into void_p, mac need to pass things in as void_p
