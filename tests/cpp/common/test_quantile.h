@@ -7,7 +7,7 @@
 
 namespace xgboost {
 namespace common {
-inline void InitRabitContext(std::string msg, size_t n_workers) {
+inline void InitRabitContext(std::string msg, int32_t n_workers) {
   auto port = std::getenv("DMLC_TRACKER_PORT");
   std::string port_str;
   if (port) {
@@ -35,7 +35,7 @@ template <typename Fn> void RunWithSeedsAndBins(size_t rows, Fn fn) {
   for (size_t i = 0; i < bins.size() - 1; ++i) {
     bins[i] = i * 35 + 2;
   }
-  bins.back() = rows + 80;  // provide a bin number greater than rows.
+  bins.back() = rows + 160;  // provide a bin number greater than rows.
 
   std::vector<MetaInfo> infos(2);
   auto& h_weights = infos.front().weights_.HostVector();
