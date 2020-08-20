@@ -496,7 +496,7 @@ class GPUPredictor : public xgboost::Predictor {
               margin.empty() ? base_score : margin[idx];
         });
 
-    const auto& paths = this->ExtractPaths(model);
+    const auto& paths = this->ExtractPaths(model, real_ntree_limit);
     for (auto& batch : p_fmat->GetBatches<SparsePage>()) {
       batch.data.SetDevice(generic_param_->gpu_id);
       batch.offset.SetDevice(generic_param_->gpu_id);
@@ -565,10 +565,11 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
   std::vector<gpu_treeshap::PathElement> ExtractPaths(
-      const gbm::GBTreeModel& model) {
+      const gbm::GBTreeModel& model, size_t tree_limit) {
     std::vector<gpu_treeshap::PathElement> paths;
     size_t path_idx = 0;
-    for (auto i = 0ull; i < model.trees.size(); i++) {
+    CHECK_LE(tree_limit, model.trees.size());
+    for (auto i = 0ull; i < tree_limit; i++) {
       const auto& tree = *model.trees.at(i);
       size_t group = model.tree_info[i];
       for (auto j = 0ull; j < tree.GetNodes().size(); j++) {
