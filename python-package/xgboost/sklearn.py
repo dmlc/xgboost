@@ -757,7 +757,10 @@ class XGBModel(XGBModelBase):
 
 @xgboost_model_doc(
     "Implementation of the scikit-learn API for XGBoost classification.",
-    ['model', 'objective'])
+    ['model', 'objective'], extra_parameters='''
+    n_estimators : int
+        Number of boosting rounds.
+''')
 class XGBClassifier(XGBModel, XGBClassifierBase):
     # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
     def __init__(self, objective="binary:logistic", **kwargs):
@@ -1041,7 +1044,10 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
 
 @xgboost_model_doc(
     "scikit-learn API for XGBoost random forest regression.",
-    ['model', 'objective'])
+    ['model', 'objective'], extra_parameters='''
+    n_estimators : int
+        Number of trees in random forest to fit.
+''')
 class XGBRFRegressor(XGBRegressor):
     # pylint: disable=missing-docstring
     def __init__(self, learning_rate=1, subsample=0.8, colsample_bynode=0.8,
