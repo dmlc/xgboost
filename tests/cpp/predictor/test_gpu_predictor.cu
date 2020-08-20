@@ -165,6 +165,7 @@ TEST(GpuPredictor, LesserFeatures) {
 }
 // Very basic test of empty model
 TEST(GPUPredictor, ShapStump) {
+  cudaSetDevice(0);
   LearnerModelParam param;
   param.num_feature = 1;
   param.num_output_group = 1;
