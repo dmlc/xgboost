@@ -15,6 +15,7 @@ rng = np.random.RandomState(1994)
 shap_parameter_strategy = strategies.fixed_dictionaries({
     'max_depth': strategies.integers(0, 11),
     'max_leaves': strategies.integers(0, 256),
+    'num_parallel_tree': strategies.sampled_from([1, 10]),
 })
 
 
@@ -202,9 +203,9 @@ class TestGPUPredict(unittest.TestCase):
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)
         if all_rows:
-            test_dmat = xgb.DMatrix(dataset.X)
+            test_dmat = xgb.DMatrix(dataset.X, dataset.y, dataset.w, dataset.margin)
         else:
-            test_dmat = xgb.DMatrix(dataset.X[0:1,:])
+            test_dmat = xgb.DMatrix(dataset.X[0:1, :])
         shap = bst.predict(test_dmat, pred_contribs=True)
         bst.set_param({"predictor": "cpu_predictor"})
         cpu_shap = bst.predict(test_dmat, pred_contribs=True)

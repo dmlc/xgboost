@@ -485,7 +485,6 @@ class GPUPredictor : public xgboost::Predictor {
     // Add the bias term to last column
     p_fmat->Info().base_margin_.SetDevice(generic_param_->gpu_id);
     const auto margin = p_fmat->Info().base_margin_.ConstDeviceSpan();
-    CHECK(margin.empty());
     float base_score = model.learner_model_param->base_score;
     auto d_phis = phis.data().get();
     dh::LaunchN(
@@ -574,7 +573,7 @@ class GPUPredictor : public xgboost::Predictor {
       size_t group = model.tree_info[i];
       for (auto j = 0ull; j < tree.GetNodes().size(); j++) {
         const auto& nodes = tree.GetNodes();
-        if (nodes[j].IsLeaf()) {
+        if (nodes[j].IsLeaf() && !nodes[j].IsDeleted()) {
           auto child = nodes[j];
           float v = child.LeafValue();
           size_t child_idx = j;
