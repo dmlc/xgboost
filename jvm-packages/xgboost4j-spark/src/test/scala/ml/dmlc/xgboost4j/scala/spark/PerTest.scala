@@ -52,7 +52,6 @@ trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
         currentSession = null
       }
       TaskFailedListener.killerStarted = false
-      TaskFailedListener.cancelJobStarted = false
     }
   }
 

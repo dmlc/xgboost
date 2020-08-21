@@ -19,6 +19,8 @@ package org.apache.spark
 import org.apache.commons.logging.LogFactory
 import org.apache.spark.scheduler._
 
+import scala.collection.mutable.{HashMap, HashSet}
+
 /**
  * A tracker that ensures enough number of executor cores are alive.
  * Throws an exception when the number of alive cores is less than nWorkers.
@@ -96,46 +98,53 @@ class TaskFailedListener(killSparkContext: Boolean = true) extends SparkListener
 
   private[this] val logger = LogFactory.getLog("XGBoostTaskFailedListener")
 
+  // {jobId, [stageId0, stageId1, ...] }
+  // keep track of the mapping of job id and stage ids
+  // when a task failed, find the job id and stage Id the task belongs to, finally
+  // cancel the jobs
+  private val jobIdToStageIds: HashMap[Int, HashSet[Int]] = HashMap.empty
+
+  override def onJobStart(jobStart: SparkListenerJobStart): Unit = {
+    if (!killSparkContext) {
+      jobStart.stageIds.foreach(stageId => {
+        jobIdToStageIds.getOrElseUpdate(jobStart.jobId, new HashSet[Int]()) += stageId
+      })
+    }
+  }
+
+  override def onJobEnd(jobEnd: SparkListenerJobEnd): Unit = {
+    if (!killSparkContext) {
+      jobIdToStageIds.remove(jobEnd.jobId)
+    }
+  }
+
   override def onTaskEnd(taskEnd: SparkListenerTaskEnd): Unit = {
     taskEnd.reason match {
       case taskEndReason: TaskFailedReason =>
         logger.error(s"Training Task Failed during XGBoost Training: " +
-            s"$taskEndReason, cancelling all jobs")
-        taskFaultHandle
-      case _ =>
-    }
-  }
+            s"$taskEndReason")
+        if (killSparkContext) {
+          logger.error("killing SparkContext")
+          TaskFailedListener.startedSparkContextKiller()
+        } else {
+          val stageId = taskEnd.stageId
+          // find job ids according to stage id and then cancel the job
+          jobIdToStageIds.foreach(t => {
+            val jobId = t._1
+            val stageIds = t._2
 
-  private[this] def taskFaultHandle = {
-    if (killSparkContext == true) {
-      TaskFailedListener.startedSparkContextKiller()
-    } else {
-      TaskFailedListener.cancelAllJobs()
+            if (stageIds.contains(stageId)) {
+              logger.error("Cancelling jobId:" + jobId)
+              SparkContext.getOrCreate().cancelJob(jobId)
+            }
+          })
+        }
+      case _ =>
     }
   }
 }
 
 object TaskFailedListener {
-  private[this] val logger = LogFactory.getLog("XGBoostTaskFailedListener")
-  var cancelJobStarted = false
-
-  private def cancelAllJobs(): Unit = this.synchronized {
-    if (!cancelJobStarted) {
-      cancelJobStarted = true
-      val cancelJob = new Thread() {
-        override def run(): Unit = {
-          LiveListenerBus.withinListenerThread.withValue(false) {
-            logger.info("will call spark cancel all jobs")
-            SparkContext.getOrCreate().cancelAllJobs()
-            logger.info("after call spark cancel all jobs")
-          }
-        }
-      }
-      cancelJob.setDaemon(true)
-      cancelJob.start()
-    }
-  }
-
   var killerStarted = false
 
   private def startedSparkContextKiller(): Unit = this.synchronized {
@@ -154,5 +163,4 @@ object TaskFailedListener {
       killerStarted = true
     }
   }
-
 }
