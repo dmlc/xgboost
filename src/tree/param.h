@@ -239,6 +239,10 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
     if (this->max_leaves > 0) {
       n_nodes = this->max_leaves * 2 - 1;
     } else {
+      // bst_node_t will overflow.
+      CHECK_LE(this->max_depth, 31)
+          << "max_depth can not be greater than 31 as that might generate 2 ** "
+             "32 - 1 nodes.";
       n_nodes = (1 << (this->max_depth + 1)) - 1;
     }
     CHECK_NE(n_nodes, 0);
