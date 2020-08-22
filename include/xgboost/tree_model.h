@@ -421,6 +421,21 @@ class RegTree : public Model {
                   float right_sum,
                   bst_node_t leaf_right_child = kInvalidNodeId);
 
+  /**
+   * \brief Expands a leaf node with categories
+   *
+   * \param nid               The node index to expand.
+   * \param split_index       Feature index of the split.
+   * \param split_cat         The bitset containing categories
+   * \param default_left      True to default left.
+   * \param base_weight       The base weight, before learning rate.
+   * \param left_leaf_weight  The left leaf weight for prediction, modified by learning rate.
+   * \param right_leaf_weight The right leaf weight for prediction, modified by learning rate.
+   * \param loss_change       The loss change.
+   * \param sum_hess          The sum hess.
+   * \param left_sum          The sum hess of left leaf.
+   * \param right_sum         The sum hess of right leaf.
+   */
   void ExpandCategorical(bst_node_t nid, unsigned split_index,
                          common::Span<uint32_t> split_cat, bool default_left,
                          bst_float base_weight, bst_float left_leaf_weight,
@@ -610,6 +625,7 @@ class RegTree : public Model {
 
   // Categories for each internal node.
   std::vector<uint32_t> split_categories_;
+  // Ptr to split categories of each node.
   std::vector<Segment> split_categories_segments_;
 
   // allocate a new node,
