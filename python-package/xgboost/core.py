@@ -40,7 +40,7 @@ class EarlyStopException(Exception):
     """
 
     def __init__(self, best_iteration):
-        super(EarlyStopException, self).__init__()
+        super().__init__()
         self.best_iteration = best_iteration
 
 
