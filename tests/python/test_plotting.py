@@ -14,27 +14,27 @@ try:
 except ImportError:
     pass
 
+pytestmark = pytest.mark.skipif(**tm.no_multiple(tm.no_matplotlib(),
+                                                 tm.no_graphviz()))
 
-pytestmark = pytest.mark.skipif(**tm.no_multiple(tm.no_matplotlib(), tm.no_graphviz()))
-
-
-dpath = 'demo/data/'
-rng = np.random.RandomState(1994)
+dpath = 'demo/data/agaricus.txt.train'
 
 
 class TestPlotting(unittest.TestCase):
-
     def test_plotting(self):
-        bst2 = xgb.Booster(model_file='xgb.model')
+        m = xgb.DMatrix(dpath)
+        booster = xgb.train({'max_depth': 2, 'eta': 1,
+                             'objective': 'binary:logistic'}, m,
+                            num_boost_round=2)
 
-        ax = xgb.plot_importance(bst2)
+        ax = xgb.plot_importance(booster)
         assert isinstance(ax, Axes)
         assert ax.get_title() == 'Feature importance'
         assert ax.get_xlabel() == 'F score'
         assert ax.get_ylabel() == 'Features'
         assert len(ax.patches) == 4
 
-        ax = xgb.plot_importance(bst2, color='r',
+        ax = xgb.plot_importance(booster, color='r',
                                  title='t', xlabel='x', ylabel='y')
         assert isinstance(ax, Axes)
         assert ax.get_title() == 't'
@@ -44,7 +44,7 @@ class TestPlotting(unittest.TestCase):
         for p in ax.patches:
             assert p.get_facecolor() == (1.0, 0, 0, 1.0)  # red
 
-        ax = xgb.plot_importance(bst2, color=['r', 'r', 'b', 'b'],
+        ax = xgb.plot_importance(booster, color=['r', 'r', 'b', 'b'],
                                  title=None, xlabel=None, ylabel=None)
         assert isinstance(ax, Axes)
         assert ax.get_title() == ''
@@ -56,10 +56,10 @@ class TestPlotting(unittest.TestCase):
         assert ax.patches[2].get_facecolor() == (0, 0, 1.0, 1.0)  # blue
         assert ax.patches[3].get_facecolor() == (0, 0, 1.0, 1.0)  # blue
 
-        g = xgb.to_graphviz(bst2, num_trees=0)
+        g = xgb.to_graphviz(booster, num_trees=0)
         assert isinstance(g, Source)
 
-        ax = xgb.plot_tree(bst2, num_trees=0)
+        ax = xgb.plot_tree(booster, num_trees=0)
         assert isinstance(ax, Axes)
 
     def test_importance_plot_lim(self):

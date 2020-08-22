@@ -6,6 +6,7 @@ import json
 import testing as tm
 import pytest
 import locale
+import tempfile
 
 dpath = 'demo/data/'
 dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
@@ -60,15 +61,20 @@ class TestModels(unittest.TestCase):
         # error must be smaller than 10%
         assert err < 0.1
 
-        # save dmatrix into binary buffer
-        dtest.save_binary('dtest.buffer')
-        model_path = 'xgb.model.dart'
-        # save model
-        bst.save_model(model_path)
-        # load model and data in
-        bst2 = xgb.Booster(params=param, model_file='xgb.model.dart')
-        dtest2 = xgb.DMatrix('dtest.buffer')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dtest_path = os.path.join(tmpdir, 'dtest.dmatrix')
+            model_path = os.path.join(tmpdir, 'xgboost.model.dart')
+            # save dmatrix into binary buffer
+            dtest.save_binary(dtest_path)
+            model_path = model_path
+            # save model
+            bst.save_model(model_path)
+            # load model and data in
+            bst2 = xgb.Booster(params=param, model_file=model_path)
+            dtest2 = xgb.DMatrix(dtest_path)
+
         preds2 = bst2.predict(dtest2, ntree_limit=num_round)
+
         # assert they are the same
         assert np.sum(np.abs(preds2 - preds)) == 0
 
@@ -103,7 +109,6 @@ class TestModels(unittest.TestCase):
         for ii in range(len(preds_list)):
             for jj in range(ii + 1, len(preds_list)):
                 assert np.sum(np.abs(preds_list[ii] - preds_list[jj])) > 0
-        os.remove(model_path)
 
     def run_eta_decay(self, tree_method):
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
