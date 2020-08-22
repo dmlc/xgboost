@@ -1025,7 +1025,7 @@ class XGBRFClassifier(XGBClassifier):
                          **kwargs)
 
     def get_xgb_params(self):
-        params = super(XGBRFClassifier, self).get_xgb_params()
+        params = super().get_xgb_params()
         params['num_parallel_tree'] = self.n_estimators
         return params
 
@@ -1057,7 +1057,7 @@ class XGBRFRegressor(XGBRegressor):
                          reg_lambda=reg_lambda, **kwargs)
 
     def get_xgb_params(self):
-        params = super(XGBRFRegressor, self).get_xgb_params()
+        params = super().get_xgb_params()
         params['num_parallel_tree'] = self.n_estimators
         return params
 
