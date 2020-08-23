@@ -65,6 +65,8 @@ This will check out the latest stable version from the Maven Central.
 
 For the latest release version number, please check `here <https://github.com/dmlc/xgboost/releases>`_.
 
+To enable the GPU algorithm (``tree_method='gpu_hist'``), use artifacts ``xgboost4j-gpu_2.12`` and ``xgboost4j-spark-gpu_2.12`` instead (note the ``gpu`` suffix).
+
 .. note:: Using Maven repository hosted by the XGBoost project
 
   There may be some delay until a new release becomes available to Maven Central. If you would like to access the latest release immediately, add the Maven repository hosted by the XGBoost project:
@@ -82,6 +84,11 @@ For the latest release version number, please check `here <https://github.com/dm
     :caption: sbt
 
     resolvers += "XGBoost4J Release Repo" at "https://s3-us-west-2.amazonaws.com/xgboost-maven-repo/release/"
+
+.. note:: Windows not supported in the JVM package
+
+  Currently, XGBoost4J-Spark does not support Windows platform, as the distributed training algorithm is inoperational for Windows. Please use Linux or MacOS.
+
 
 Access SNAPSHOT version
 -----------------------
@@ -141,9 +148,8 @@ The SNAPSHOT JARs are hosted by the XGBoost project. Every commit in the ``maste
 
 You can browse the file listing of the Maven repository at https://s3-us-west-2.amazonaws.com/xgboost-maven-repo/list.html.
 
-.. note:: Windows not supported by published JARs
+To enable the GPU algorithm (``tree_method='gpu_hist'``), use artifacts ``xgboost4j-gpu_2.12`` and ``xgboost4j-spark-gpu_2.12`` instead (note the ``gpu`` suffix).
 
-  The published JARs from the Maven Central and GitHub currently only supports Linux and MacOS. Windows users should consider building XGBoost4J / XGBoost4J-Spark from the source. Alternatively, checkout pre-built JARs from `criteo-forks/xgboost-jars <https://github.com/criteo-forks/xgboost-jars>`_.
 
 Installation from source
 ========================
