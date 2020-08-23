@@ -245,7 +245,7 @@ def BuildCUDA(args) {
 }
 
 def BuildJVMPackagesWithCUDA(args) {
-  node('linux && gpu') {
+  node('linux && mgpu') {
     unstash name: 'srcs'
     echo "Build XGBoost4J-Spark with Spark ${args.spark_version}, CUDA ${args.cuda_version}"
     def container_type = "jvm_gpu_build"
@@ -440,10 +440,11 @@ def DeployJVMPackages(args) {
     unstash name: 'srcs'
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Deploying to xgboost-maven-repo S3 repo...'
-      def container_type = "jvm"
-      def docker_binary = "docker"
       sh """
-      ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/deploy_jvm_packages.sh ${args.spark_version}
+      ${dockerRun} jvm docker tests/ci_build/deploy_jvm_packages.sh ${args.spark_version} 0
+      """
+      sh """
+      ${dockerRun} jvm_gpu_build docker --build-arg CUDA_VERSION=10.0 tests/ci_build/deploy_jvm_packages.sh ${args.spark_version} 1
       """
     }
     deleteDir()
