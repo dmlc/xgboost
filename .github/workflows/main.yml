@@ -35,10 +35,15 @@ jobs:
         key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2
 
-    - name: Test JVM packages
+    - name: Test XGBoost4J
       run: |
         cd jvm-packages
+        mvn test -B -pl :xgboost4j_2.12
+
+    - name: Test XGBoost4J-Spark
+        cd jvm-packages
         mvn -B test
+      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
       env:
         RABIT_MOCK: ON
 
