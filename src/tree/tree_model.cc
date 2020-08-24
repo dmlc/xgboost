@@ -664,13 +664,26 @@ bst_node_t RegTree::GetNumSplitNodes() const {
 
 void RegTree::Load(dmlc::Stream* fi) {
   CHECK_EQ(fi->Read(&param, sizeof(TreeParam)), sizeof(TreeParam));
+  if (!DMLC_IO_NO_ENDIAN_SWAP) {
+    param = param.ByteSwap();
+  }
   nodes_.resize(param.num_nodes);
   stats_.resize(param.num_nodes);
   CHECK_NE(param.num_nodes, 0);
   CHECK_EQ(fi->Read(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size()),
            sizeof(Node) * nodes_.size());
+  if (!DMLC_IO_NO_ENDIAN_SWAP) {
+    for (Node& node : nodes_) {
+      node = node.ByteSwap();
+    }
+  }
   CHECK_EQ(fi->Read(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * stats_.size()),
            sizeof(RTreeNodeStat) * stats_.size());
+  if (!DMLC_IO_NO_ENDIAN_SWAP) {
+    for (RTreeNodeStat& stat : stats_) {
+      stat = stat.ByteSwap();
+    }
+  }
   // chg deleted nodes
   deleted_nodes_.resize(0);
   for (int i = 1; i < param.num_nodes; ++i) {
@@ -683,11 +696,32 @@ void RegTree::Load(dmlc::Stream* fi) {
 void RegTree::Save(dmlc::Stream* fo) const {
   CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
   CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
-  fo->Write(&param, sizeof(TreeParam));
   CHECK_EQ(param.deprecated_num_roots, 1);
   CHECK_NE(param.num_nodes, 0);
-  fo->Write(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size());
-  fo->Write(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * nodes_.size());
+
+  if (DMLC_IO_NO_ENDIAN_SWAP) {
+    fo->Write(&param, sizeof(TreeParam));
+  } else {
+    TreeParam x = param.ByteSwap();
+    fo->Write(&x, sizeof(x));
+  }
+
+  if (DMLC_IO_NO_ENDIAN_SWAP) {
+    fo->Write(dmlc::BeginPtr(nodes_), sizeof(Node) * nodes_.size());
+  } else {
+    for (const Node& node : nodes_) {
+      Node x = node.ByteSwap();
+      fo->Write(&x, sizeof(x));
+    }
+  }
+  if (DMLC_IO_NO_ENDIAN_SWAP) {
+    fo->Write(dmlc::BeginPtr(stats_), sizeof(RTreeNodeStat) * nodes_.size());
+  } else {
+    for (const RTreeNodeStat& stat : stats_) {
+      RTreeNodeStat x = stat.ByteSwap();
+      fo->Write(&x, sizeof(x));
+    }
+  }
 }
 
 void RegTree::LoadModel(Json const& in) {

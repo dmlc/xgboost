@@ -40,9 +40,9 @@ General Parameters
 
   - Number of parallel threads used to run XGBoost
 
-* ``disable_default_eval_metric`` [default=0]
+* ``disable_default_eval_metric`` [default=``false``]
 
-  - Flag to disable default metric. Set to >0 to disable.
+  - Flag to disable default metric. Set to 1 or ``true`` to disable.
 
 * ``num_pbuffer`` [set automatically by XGBoost, no need to be set by user]
 
@@ -107,6 +107,10 @@ Parameters for Tree Booster
     'colsample_bynode':0.5}`` with 64 features will leave 8 features to choose from at
     each split.
 
+    On Python interface, one can set the ``feature_weights`` for DMatrix to define the
+    probability of each feature being selected when using column sampling.  There's a
+    similar parameter for ``fit`` method in sklearn interface.
+
 * ``lambda`` [default=1, alias: ``reg_lambda``]
 
   - L2 regularization term on weights. Increasing this value will make model more conservative.
@@ -159,7 +163,6 @@ Parameters for Tree Booster
     - ``grow_colmaker``: non-distributed column-based construction of trees.
     - ``grow_histmaker``: distributed tree construction with row-based data splitting based on global proposal of histogram counting.
     - ``grow_local_histmaker``: based on local histogram counting.
-    - ``grow_skmaker``: uses the approximate sketching algorithm.
     - ``grow_quantile_histmaker``: Grow tree using quantized histogram.
     - ``grow_gpu_hist``: Grow tree with GPU.
     - ``sync``: synchronizes trees in all distributed nodes.
@@ -225,15 +228,15 @@ Parameters for Tree Booster
     list is a group of indices of features that are allowed to interact with each other.
     See tutorial for more information
 
-Additional parameters for `hist` and 'gpu_hist' tree method
-================================================
+Additional parameters for ``hist`` and ``gpu_hist`` tree method
+================================================================
 
 * ``single_precision_histogram``, [default=``false``]
 
   - Use single precision to build histograms instead of double precision.
 
-Additional parameters for `gpu_hist` tree method
-================================================
+Additional parameters for ``gpu_hist`` tree method
+==================================================
 
 * ``deterministic_histogram``, [default=``true``]
 

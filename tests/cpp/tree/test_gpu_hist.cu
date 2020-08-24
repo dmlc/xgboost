@@ -204,12 +204,11 @@ TEST(GpuHist, EvaluateRootSplit) {
   ASSERT_EQ(maker.hist.Data().size(), hist.size());
   thrust::copy(hist.begin(), hist.end(),
     maker.hist.Data().begin());
+  std::vector<float> feature_weights;
 
-  maker.column_sampler.Init(kNCols,
-    param.colsample_bynode,
-    param.colsample_bylevel,
-    param.colsample_bytree,
-    false);
+  maker.column_sampler.Init(kNCols, feature_weights, param.colsample_bynode,
+                            param.colsample_bylevel, param.colsample_bytree,
+                            false);
 
   RegTree tree;
   MetaInfo info;
@@ -506,5 +505,17 @@ TEST(GpuHist, ConfigIO) {
   ASSERT_EQ(j_updater, j_updater_roundtrip);
 }
 
+TEST(GpuHist, MaxDepth) {
+  GenericParameter generic_param(CreateEmptyGenericParam(0));
+  size_t constexpr kRows = 16;
+  size_t constexpr kCols = 4;
+  auto p_mat = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
+
+  auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
+  learner->SetParam("max_depth", "32");
+  learner->Configure();
+
+  ASSERT_THROW({learner->UpdateOneIter(0, p_mat);}, dmlc::Error);
+}
 }  // namespace tree
 }  // namespace xgboost

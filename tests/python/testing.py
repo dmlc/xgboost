@@ -2,13 +2,17 @@
 import os
 from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
 from xgboost.compat import DASK_INSTALLED
+import pytest
+import tempfile
+import xgboost as xgb
+import numpy as np
+
+hypothesis = pytest.importorskip('hypothesis')
+sklearn = pytest.importorskip('sklearn')
 from hypothesis import strategies
 from hypothesis.extra.numpy import arrays
 from joblib import Memory
 from sklearn import datasets
-import tempfile
-import xgboost as xgb
-import numpy as np
 
 try:
     import cupy as cp
@@ -216,3 +220,8 @@ dataset_strategy = _dataset_and_weight()
 
 def non_increasing(L, tolerance=1e-4):
     return all((y - x) < tolerance for x, y in zip(L, L[1:]))
+
+
+CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
+PROJECT_ROOT = os.path.normpath(
+    os.path.join(CURDIR, os.path.pardir, os.path.pardir))

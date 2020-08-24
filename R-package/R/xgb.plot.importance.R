@@ -106,12 +106,12 @@ xgb.plot.importance <- function(importance_matrix = NULL, top_n = NULL, measure 
     par(mar = mar)
 
     # reverse the order of rows to have the highest ranked at the top
-    importance_matrix[nrow(importance_matrix):1,
+    importance_matrix[rev(seq_len(nrow(importance_matrix))),
                       barplot(Importance, horiz = TRUE, border = NA, cex.names = cex,
                               names.arg = Feature, las = 1, ...)]
     grid(NULL, NA)
     # redraw over the grid
-    importance_matrix[nrow(importance_matrix):1,
+    importance_matrix[rev(seq_len(nrow(importance_matrix))),
                       barplot(Importance, horiz = TRUE, border = NA, add = TRUE)]
     par(op)
   }

@@ -59,6 +59,21 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
     num_nodes = 1;
     deprecated_num_roots = 1;
   }
+
+  // Swap byte order for all fields. Useful for transporting models between machines with different
+  // endianness (big endian vs little endian)
+  inline TreeParam ByteSwap() const {
+    TreeParam x = *this;
+    dmlc::ByteSwap(&x.deprecated_num_roots, sizeof(x.deprecated_num_roots), 1);
+    dmlc::ByteSwap(&x.num_nodes, sizeof(x.num_nodes), 1);
+    dmlc::ByteSwap(&x.num_deleted, sizeof(x.num_deleted), 1);
+    dmlc::ByteSwap(&x.deprecated_max_depth, sizeof(x.deprecated_max_depth), 1);
+    dmlc::ByteSwap(&x.num_feature, sizeof(x.num_feature), 1);
+    dmlc::ByteSwap(&x.size_leaf_vector, sizeof(x.size_leaf_vector), 1);
+    dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
+    return x;
+  }
+
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TreeParam) {
     // only declare the parameters that can be set by the user.
@@ -96,6 +111,16 @@ struct RTreeNodeStat {
   bool operator==(const RTreeNodeStat& b) const {
     return loss_chg == b.loss_chg && sum_hess == b.sum_hess &&
            base_weight == b.base_weight && leaf_child_cnt == b.leaf_child_cnt;
+  }
+  // Swap byte order for all fields. Useful for transporting models between machines with different
+  // endianness (big endian vs little endian)
+  inline RTreeNodeStat ByteSwap() const {
+    RTreeNodeStat x = *this;
+    dmlc::ByteSwap(&x.loss_chg, sizeof(x.loss_chg), 1);
+    dmlc::ByteSwap(&x.sum_hess, sizeof(x.sum_hess), 1);
+    dmlc::ByteSwap(&x.base_weight, sizeof(x.base_weight), 1);
+    dmlc::ByteSwap(&x.leaf_child_cnt, sizeof(x.leaf_child_cnt), 1);
+    return x;
   }
 };
 
@@ -225,6 +250,16 @@ class RegTree : public Model {
       return parent_ == b.parent_ && cleft_ == b.cleft_ &&
              cright_ == b.cright_ && sindex_ == b.sindex_ &&
              info_.leaf_value == b.info_.leaf_value;
+    }
+
+    inline Node ByteSwap() const {
+      Node x = *this;
+      dmlc::ByteSwap(&x.parent_, sizeof(x.parent_), 1);
+      dmlc::ByteSwap(&x.cleft_, sizeof(x.cleft_), 1);
+      dmlc::ByteSwap(&x.cright_, sizeof(x.cright_), 1);
+      dmlc::ByteSwap(&x.sindex_, sizeof(x.sindex_), 1);
+      dmlc::ByteSwap(&x.info_, sizeof(x.info_), 1);
+      return x;
     }
 
    private:

@@ -257,8 +257,6 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
     return(TRUE)
   }
   if (name == "weight") {
-    if (length(info) != nrow(object))
-      stop("The length of weights must equal to the number of rows in the input data")
     .Call(XGDMatrixSetInfo_R, object, name, as.numeric(info))
     return(TRUE)
   }
@@ -359,7 +357,7 @@ slice.xgb.DMatrix <- function(object, idxset, ...) {
 #' @export
 print.xgb.DMatrix <- function(x, verbose = FALSE, ...) {
   cat('xgb.DMatrix  dim:', nrow(x), 'x', ncol(x), ' info: ')
-  infos <- c()
+  infos <- character(0)
   if (length(getinfo(x, 'label')) > 0) infos <- 'label'
   if (length(getinfo(x, 'weight')) > 0) infos <- c(infos, 'weight')
   if (length(getinfo(x, 'base_margin')) > 0) infos <- c(infos, 'base_margin')

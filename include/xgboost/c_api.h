@@ -484,6 +484,34 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
                                        const char ***out_features);
 
 /*!
+ * \brief Set meta info from dense matrix.  Valid field names are:
+ *
+ *  - label
+ *  - weight
+ *  - base_margin
+ *  - group
+ *  - label_lower_bound
+ *  - label_upper_bound
+ *  - feature_weights
+ *
+ * \param handle An instance of data matrix
+ * \param field  Feild name
+ * \param data   Pointer to consecutive memory storing data.
+ * \param size   Size of the data, this is relative to size of type.  (Meaning NOT number
+ *               of bytes.)
+ * \param type   Indicator of data type.  This is defined in xgboost::DataType enum class.
+ *
+ *    float    = 1
+ *    double   = 2
+ *    uint32_t = 3
+ *    uint64_t = 4
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
+                                  void *data, bst_ulong size, int type);
+
+/*!
  * \brief (deprecated) Use XGDMatrixSetUIntInfo instead. Set group of the training matrix
  * \param handle a instance of data matrix
  * \param group pointer to group size

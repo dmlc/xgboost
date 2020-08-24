@@ -313,7 +313,6 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
       device, num_cuts_per_feature, has_weights);
 
   HistogramCuts cuts;
-  DenseCuts dense_cuts(&cuts);
   SketchContainer sketch_container(max_bins, dmat->Info().num_col_,
                                    dmat->Info().num_row_, device);
 
@@ -324,7 +323,7 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
     for (auto begin = 0ull; begin < batch_nnz; begin += sketch_batch_num_elements) {
       size_t end = std::min(batch_nnz, size_t(begin + sketch_batch_num_elements));
       if (has_weights) {
-        bool is_ranking = CutsBuilder::UseGroup(dmat);
+        bool is_ranking = HostSketchContainer::UseGroup(dmat->Info());
         dh::caching_device_vector<uint32_t> groups(info.group_ptr_.cbegin(),
                                                    info.group_ptr_.cend());
         ProcessWeightedBatch(

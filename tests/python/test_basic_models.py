@@ -6,6 +6,7 @@ import json
 import testing as tm
 import pytest
 import locale
+import tempfile
 
 dpath = 'demo/data/'
 dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
@@ -60,15 +61,20 @@ class TestModels(unittest.TestCase):
         # error must be smaller than 10%
         assert err < 0.1
 
-        # save dmatrix into binary buffer
-        dtest.save_binary('dtest.buffer')
-        model_path = 'xgb.model.dart'
-        # save model
-        bst.save_model(model_path)
-        # load model and data in
-        bst2 = xgb.Booster(params=param, model_file='xgb.model.dart')
-        dtest2 = xgb.DMatrix('dtest.buffer')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dtest_path = os.path.join(tmpdir, 'dtest.dmatrix')
+            model_path = os.path.join(tmpdir, 'xgboost.model.dart')
+            # save dmatrix into binary buffer
+            dtest.save_binary(dtest_path)
+            model_path = model_path
+            # save model
+            bst.save_model(model_path)
+            # load model and data in
+            bst2 = xgb.Booster(params=param, model_file=model_path)
+            dtest2 = xgb.DMatrix(dtest_path)
+
         preds2 = bst2.predict(dtest2, ntree_limit=num_round)
+
         # assert they are the same
         assert np.sum(np.abs(preds2 - preds)) == 0
 
@@ -103,7 +109,6 @@ class TestModels(unittest.TestCase):
         for ii in range(len(preds_list)):
             for jj in range(ii + 1, len(preds_list)):
                 assert np.sum(np.abs(preds_list[ii] - preds_list[jj])) > 0
-        os.remove(model_path)
 
     def run_eta_decay(self, tree_method):
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
@@ -197,9 +202,9 @@ class TestModels(unittest.TestCase):
         assert np.all(np.abs(predt_2 - predt_1) < 1e-6)
 
     def test_custom_objective(self):
-        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0}
+        param = {'max_depth': 2, 'eta': 1, 'objective': 'reg:logistic'}
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
-        num_round = 2
+        num_round = 10
 
         def logregobj(preds, dtrain):
             labels = dtrain.get_label()
@@ -210,10 +215,12 @@ class TestModels(unittest.TestCase):
 
         def evalerror(preds, dtrain):
             labels = dtrain.get_label()
+            preds = 1.0 / (1.0 + np.exp(-preds))
             return 'error', float(sum(labels != (preds > 0.5))) / len(labels)
 
         # test custom_objective in training
-        bst = xgb.train(param, dtrain, num_round, watchlist, logregobj, evalerror)
+        bst = xgb.train(param, dtrain, num_round, watchlist, obj=logregobj,
+                        feval=evalerror)
         assert isinstance(bst, xgb.core.Booster)
         preds = bst.predict(dtest)
         labels = dtest.get_label()
@@ -230,7 +237,8 @@ class TestModels(unittest.TestCase):
             labels = dtrain.get_label()
             return 'error', float(sum(labels == (preds > 0.0))) / len(labels)
 
-        bst2 = xgb.train(param, dtrain, num_round, watchlist, logregobj, neg_evalerror, maximize=True)
+        bst2 = xgb.train(param, dtrain, num_round, watchlist, logregobj,
+                         neg_evalerror, maximize=True)
         preds2 = bst2.predict(dtest)
         err2 = sum(1 for i in range(len(preds2))
                    if int(preds2[i] > 0.5) != labels[i]) / float(len(preds2))
@@ -342,6 +350,25 @@ class TestModels(unittest.TestCase):
         jsonschema.validate(instance=json_model(model_path, parameters),
                             schema=schema)
         os.remove(model_path)
+
+        try:
+            xgb.train({'objective': 'foo'}, dtrain, num_boost_round=1)
+        except ValueError as e:
+            e_str = str(e)
+            beg = e_str.find('Objective candidate')
+            end = e_str.find('Stack trace')
+            e_str = e_str[beg: end]
+            e_str = e_str.strip()
+            splited = e_str.splitlines()
+            objectives = [s.split(': ')[1] for s in splited]
+            j_objectives = schema['properties']['learner']['properties'][
+                'objective']['oneOf']
+            objectives_from_schema = set()
+            for j_obj in j_objectives:
+                objectives_from_schema.add(
+                    j_obj['properties']['name']['const'])
+            objectives = set(objectives)
+            assert objectives == objectives_from_schema
 
     @pytest.mark.skipif(**tm.no_json_schema())
     def test_json_dump_schema(self):

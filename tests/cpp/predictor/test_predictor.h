@@ -59,6 +59,8 @@ void TestTrainingPrediction(size_t rows, size_t bins, std::string tree_method,
 void TestInplacePrediction(dmlc::any x, std::string predictor,
                            bst_row_t rows, bst_feature_t cols,
                            int32_t device = -1);
+
+void TestPredictionWithLesserFeatures(std::string preditor_name);
 }  // namespace xgboost
 
 #endif  // XGBOOST_TEST_PREDICTOR_H_

@@ -40,7 +40,7 @@ class EarlyStopException(Exception):
     """
 
     def __init__(self, best_iteration):
-        super(EarlyStopException, self).__init__()
+        super().__init__()
         self.best_iteration = best_iteration
 
 
@@ -422,7 +422,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             raise TypeError('Input data can not be a list.')
 
         self.missing = missing if missing is not None else np.nan
-        self.nthread = nthread if nthread is not None else 1
+        self.nthread = nthread if nthread is not None else -1
         self.silent = silent
 
         # force into void_p, mac need to pass things in as void_p
@@ -455,7 +455,8 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
                  label_lower_bound=None,
                  label_upper_bound=None,
                  feature_names=None,
-                 feature_types=None):
+                 feature_types=None,
+                 feature_weights=None):
         '''Set meta info for DMatrix.'''
         if label is not None:
             self.set_label(label)
@@ -473,6 +474,10 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             self.feature_names = feature_names
         if feature_types is not None:
             self.feature_types = feature_types
+        if feature_weights is not None:
+            from .data import dispatch_meta_backend
+            dispatch_meta_backend(matrix=self, data=feature_weights,
+                                  name='feature_weights')
 
     def get_float_info(self, field):
         """Get float property from the DMatrix.
@@ -1228,7 +1233,8 @@ class Booster(object):
         res = msg.value.decode()
         if feval is not None:
             for dmat, evname in evals:
-                feval_ret = feval(self.predict(dmat, training=False), dmat)
+                feval_ret = feval(self.predict(dmat, training=False,
+                                               output_margin=True), dmat)
                 if isinstance(feval_ret, list):
                     for name, val in feval_ret:
                         res += '\t%s-%s:%f' % (evname, name, val)
@@ -1459,8 +1465,12 @@ class Booster(object):
                            ctypes.c_uint(iteration_range[1]))
 
         # once caching is supported, we can pass id(data) as cache id.
-        if isinstance(data, DataFrame):
-            data = data.values
+        try:
+            import pandas as pd
+            if isinstance(data, pd.DataFrame):
+                data = data.values
+        except ImportError:
+            pass
         if isinstance(data, np.ndarray):
             assert data.flags.c_contiguous
             arr = np.array(data.reshape(data.size), copy=False,

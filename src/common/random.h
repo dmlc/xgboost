@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015 by Contributors
+ * Copyright 2015-2020 by Contributors
  * \file random.h
  * \brief Utility related to random.
  * \author Tianqi Chen
@@ -10,14 +10,17 @@
 #include <rabit/rabit.h>
 #include <xgboost/logging.h>
 #include <algorithm>
+#include <functional>
 #include <vector>
 #include <limits>
 #include <map>
 #include <memory>
 #include <numeric>
 #include <random>
+#include <utility>
 
 #include "xgboost/host_device_vector.h"
+#include "common.h"
 
 namespace xgboost {
 namespace common {
@@ -75,6 +78,38 @@ using GlobalRandomEngine = RandomEngine;
  */
 GlobalRandomEngine& GlobalRandom(); // NOLINT(*)
 
+/*
+ * Original paper:
+ * Weighted Random Sampling (2005; Efraimidis, Spirakis)
+ *
+ * Blog:
+ * https://timvieira.github.io/blog/post/2019/09/16/algorithms-for-sampling-without-replacement/
+*/
+template <typename T>
+std::vector<T> WeightedSamplingWithoutReplacement(
+    std::vector<T> const &array, std::vector<float> const &weights, size_t n) {
+  // ES sampling.
+  CHECK_EQ(array.size(), weights.size());
+  std::vector<float> keys(weights.size());
+  std::uniform_real_distribution<float> dist;
+  auto& rng = GlobalRandom();
+  for (size_t i = 0; i < array.size(); ++i) {
+    auto w = std::max(weights.at(i), kRtEps);
+    auto u = dist(rng);
+    auto k = std::log(u) / w;
+    keys[i] = k;
+  }
+  auto ind = ArgSort<size_t>(keys, std::greater<>{});
+  ind.resize(n);
+
+  std::vector<T> results(ind.size());
+  for (size_t k = 0; k < ind.size(); ++k) {
+    auto idx = ind[k];
+    results[k] = array[idx];
+  }
+  return results;
+}
+
 /**
  * \class ColumnSampler
  *
@@ -82,36 +117,18 @@ GlobalRandomEngine& GlobalRandom(); // NOLINT(*)
  * colsample_bynode parameters. Should be initialised before tree construction and to
  * reset when tree construction is completed.
  */
-
 class ColumnSampler {
   std::shared_ptr<HostDeviceVector<bst_feature_t>> feature_set_tree_;
   std::map<int, std::shared_ptr<HostDeviceVector<bst_feature_t>>> feature_set_level_;
+  std::vector<float> feature_weights_;
   float colsample_bylevel_{1.0f};
   float colsample_bytree_{1.0f};
   float colsample_bynode_{1.0f};
   GlobalRandomEngine rng_;
 
-  std::shared_ptr<HostDeviceVector<bst_feature_t>> ColSample(
-      std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features, float colsample) {
-    if (colsample == 1.0f) return p_features;
-    const auto& features = p_features->HostVector();
-    CHECK_GT(features.size(), 0);
-    int n = std::max(1, static_cast<int>(colsample * features.size()));
-    auto p_new_features = std::make_shared<HostDeviceVector<bst_feature_t>>();
-    auto& new_features = *p_new_features;
-    new_features.Resize(features.size());
-    std::copy(features.begin(), features.end(),
-              new_features.HostVector().begin());
-    std::shuffle(new_features.HostVector().begin(),
-                 new_features.HostVector().end(), rng_);
-    new_features.Resize(n);
-    std::sort(new_features.HostVector().begin(),
-              new_features.HostVector().end());
-
-    return p_new_features;
-  }
-
  public:
+  std::shared_ptr<HostDeviceVector<bst_feature_t>> ColSample(
+      std::shared_ptr<HostDeviceVector<bst_feature_t>> p_features, float colsample);
   /**
    * \brief Column sampler constructor.
    * \note This constructor manually sets the rng seed
@@ -139,8 +156,10 @@ class ColumnSampler {
    * \param colsample_bytree
    * \param skip_index_0      (Optional) True to skip index 0.
    */
-  void Init(int64_t num_col, float colsample_bynode, float colsample_bylevel,
+  void Init(int64_t num_col, std::vector<float> feature_weights,
+            float colsample_bynode, float colsample_bylevel,
             float colsample_bytree, bool skip_index_0 = false) {
+    feature_weights_ = std::move(feature_weights);
     colsample_bylevel_ = colsample_bylevel;
     colsample_bytree_ = colsample_bytree;
     colsample_bynode_ = colsample_bynode;

@@ -1,10 +1,12 @@
 import xgboost
 import os
 import generate_models as gm
+import testing as tm
 import json
 import zipfile
 import pytest
 import copy
+import urllib.request
 
 
 def run_model_param_check(config):
@@ -87,7 +89,7 @@ def run_scikit_model_check(name, path):
         assert False
 
 
-@pytest.mark.ci
+@pytest.mark.skipif(**tm.no_sklearn())
 def test_model_compatibility():
     '''Test model compatibility, can only be run on CI as others don't
     have the credentials.
@@ -95,21 +97,9 @@ def test_model_compatibility():
     '''
     path = os.path.dirname(os.path.abspath(__file__))
     path = os.path.join(path, 'models')
-    try:
-        import boto3
-        import botocore
-    except ImportError:
-        pytest.skip(
-            'Skiping compatibility tests as boto3 is not installed.')
 
-    try:
-        s3_bucket = boto3.resource('s3').Bucket('xgboost-ci-jenkins-artifacts')
-        zip_path = 'xgboost_model_compatibility_test.zip'
-        s3_bucket.download_file(zip_path, zip_path)
-    except botocore.exceptions.NoCredentialsError:
-        pytest.skip(
-            'Skiping compatibility tests as running on non-CI environment.')
-
+    zip_path, _ = urllib.request.urlretrieve('https://xgboost-ci-jenkins-artifacts.s3-us-west-2' +
+                                             '.amazonaws.com/xgboost_model_compatibility_test.zip')
     with zipfile.ZipFile(zip_path, 'r') as z:
         z.extractall(path)
 

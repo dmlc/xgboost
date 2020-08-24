@@ -1,9 +1,16 @@
 import testing as tm
 import pytest
+import unittest
 import xgboost as xgb
 import sys
 import numpy as np
 import json
+import asyncio
+from sklearn.datasets import make_classification
+import os
+import subprocess
+from hypothesis import given, strategies, settings, note
+from test_updaters import hist_parameter_strategy, exact_parameter_strategy
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -12,12 +19,16 @@ pytestmark = pytest.mark.skipif(**tm.no_dask())
 
 try:
     from distributed import LocalCluster, Client
+    from distributed.utils_test import client, loop, cluster_fixture
     import dask.dataframe as dd
     import dask.array as da
     from xgboost.dask import DaskDMatrix
 except ImportError:
     LocalCluster = None
     Client = None
+    client = None
+    loop = None
+    cluster_fixture = None
     dd = None
     da = None
     DaskDMatrix = None
@@ -35,7 +46,7 @@ def generate_array():
 
 
 def test_from_dask_dataframe():
-    with LocalCluster(n_workers=5) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             X, y = generate_array()
 
@@ -73,7 +84,7 @@ def test_from_dask_dataframe():
 
 
 def test_from_dask_array():
-    with LocalCluster(n_workers=5, threads_per_worker=5) as cluster:
+    with LocalCluster(n_workers=kWorkers, threads_per_worker=5) as cluster:
         with Client(cluster) as client:
             X, y = generate_array()
             dtrain = DaskDMatrix(client, X, y)
@@ -103,8 +114,28 @@ def test_from_dask_array():
             assert np.all(single_node_predt == from_arr.compute())
 
 
+def test_dask_predict_shape_infer():
+    with LocalCluster(n_workers=kWorkers) as cluster:
+        with Client(cluster) as client:
+            X, y = make_classification(n_samples=1000, n_informative=5,
+                                       n_classes=3)
+            X_ = dd.from_array(X, chunksize=100)
+            y_ = dd.from_array(y, chunksize=100)
+            dtrain = xgb.dask.DaskDMatrix(client, data=X_, label=y_)
+
+            model = xgb.dask.train(
+                client,
+                {"objective": "multi:softprob", "num_class": 3},
+                dtrain=dtrain
+            )
+
+            preds = xgb.dask.predict(client, model, dtrain)
+            assert preds.shape[0] == preds.compute().shape[0]
+            assert preds.shape[1] == preds.compute().shape[1]
+
+
 def test_dask_missing_value_reg():
-    with LocalCluster(n_workers=5) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             X_0 = np.ones((20 // 2, kCols))
             X_1 = np.zeros((20 // 2, kCols))
@@ -143,19 +174,19 @@ def test_dask_missing_value_cls():
                                              missing=0.0)
             cls.client = client
             cls.fit(X, y, eval_set=[(X, y)])
-            dd_predt = cls.predict(X).compute()
+            dd_pred_proba = cls.predict_proba(X).compute()
 
             np_X = X.compute()
-            np_predt = cls.get_booster().predict(
+            np_pred_proba = cls.get_booster().predict(
                 xgb.DMatrix(np_X, missing=0.0))
-            np.testing.assert_allclose(np_predt, dd_predt)
+            np.testing.assert_allclose(np_pred_proba, dd_pred_proba)
 
             cls = xgb.dask.DaskXGBClassifier()
             assert hasattr(cls, 'missing')
 
 
 def test_dask_regressor():
-    with LocalCluster(n_workers=5) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             X, y = generate_array()
             regressor = xgb.dask.DaskXGBRegressor(verbosity=1, n_estimators=2)
@@ -177,7 +208,7 @@ def test_dask_regressor():
 
 
 def test_dask_classifier():
-    with LocalCluster(n_workers=5) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             X, y = generate_array()
             y = (y * 10).astype(np.int32)
@@ -200,7 +231,18 @@ def test_dask_classifier():
             assert len(list(history['validation_0'])) == 1
             assert len(history['validation_0']['merror']) == 2
 
+            # Test .predict_proba()
+            probas = classifier.predict_proba(X)
             assert classifier.n_classes_ == 10
+            assert probas.ndim == 2
+            assert probas.shape[0] == kRows
+            assert probas.shape[1] == 10
+
+            cls_booster = classifier.get_booster()
+            single_node_proba = cls_booster.inplace_predict(X.compute())
+
+            np.testing.assert_allclose(single_node_proba,
+                                       probas.compute())
 
             # Test with dataframe.
             X_d = dd.from_dask_array(X)
@@ -217,7 +259,7 @@ def test_dask_classifier():
 @pytest.mark.skipif(**tm.no_sklearn())
 def test_sklearn_grid_search():
     from sklearn.model_selection import GridSearchCV
-    with LocalCluster(n_workers=4) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             X, y = generate_array()
             reg = xgb.dask.DaskXGBRegressor(learning_rate=0.1,
@@ -291,7 +333,9 @@ def run_empty_dmatrix_cls(client, parameters):
                          evals=[(dtrain, 'validation')],
                          num_boost_round=2)
     predictions = xgb.dask.predict(client=client, model=out,
-                                   data=dtrain).compute()
+                                   data=dtrain)
+    assert predictions.shape[1] == n_classes
+    predictions = predictions.compute()
     _check_outputs(out, predictions)
 
     # train has more rows than evals
@@ -314,7 +358,7 @@ def run_empty_dmatrix_cls(client, parameters):
 # environment and Exact doesn't support it.
 
 def test_empty_dmatrix_hist():
-    with LocalCluster(n_workers=5) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             parameters = {'tree_method': 'hist'}
             run_empty_dmatrix_reg(client, parameters)
@@ -322,8 +366,214 @@ def test_empty_dmatrix_hist():
 
 
 def test_empty_dmatrix_approx():
-    with LocalCluster(n_workers=5) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             parameters = {'tree_method': 'approx'}
             run_empty_dmatrix_reg(client, parameters)
             run_empty_dmatrix_cls(client, parameters)
+
+
+async def run_from_dask_array_asyncio(scheduler_address):
+    async with Client(scheduler_address, asynchronous=True) as client:
+        X, y = generate_array()
+        m = await DaskDMatrix(client, X, y)
+        output = await xgb.dask.train(client, {}, dtrain=m)
+
+        with_m = await xgb.dask.predict(client, output, m)
+        with_X = await xgb.dask.predict(client, output, X)
+        inplace = await xgb.dask.inplace_predict(client, output, X)
+        assert isinstance(with_m, da.Array)
+        assert isinstance(with_X, da.Array)
+        assert isinstance(inplace, da.Array)
+
+        np.testing.assert_allclose(await client.compute(with_m),
+                                   await client.compute(with_X))
+        np.testing.assert_allclose(await client.compute(with_m),
+                                   await client.compute(inplace))
+
+        client.shutdown()
+        return output
+
+
+async def run_dask_regressor_asyncio(scheduler_address):
+    async with Client(scheduler_address, asynchronous=True) as client:
+        X, y = generate_array()
+        regressor = await xgb.dask.DaskXGBRegressor(verbosity=1,
+                                                    n_estimators=2)
+        regressor.set_params(tree_method='hist')
+        regressor.client = client
+        await regressor.fit(X, y, eval_set=[(X, y)])
+        prediction = await regressor.predict(X)
+
+        assert prediction.ndim == 1
+        assert prediction.shape[0] == kRows
+
+        history = regressor.evals_result()
+
+        assert isinstance(prediction, da.Array)
+        assert isinstance(history, dict)
+
+        assert list(history['validation_0'].keys())[0] == 'rmse'
+        assert len(history['validation_0']['rmse']) == 2
+
+
+async def run_dask_classifier_asyncio(scheduler_address):
+    async with Client(scheduler_address, asynchronous=True) as client:
+        X, y = generate_array()
+        y = (y * 10).astype(np.int32)
+        classifier = await xgb.dask.DaskXGBClassifier(
+            verbosity=1, n_estimators=2)
+        classifier.client = client
+        await classifier.fit(X, y,  eval_set=[(X, y)])
+        prediction = await classifier.predict(X)
+
+        assert prediction.ndim == 1
+        assert prediction.shape[0] == kRows
+
+        history = classifier.evals_result()
+
+        assert isinstance(prediction, da.Array)
+        assert isinstance(history, dict)
+
+        assert list(history.keys())[0] == 'validation_0'
+        assert list(history['validation_0'].keys())[0] == 'merror'
+        assert len(list(history['validation_0'])) == 1
+        assert len(history['validation_0']['merror']) == 2
+
+        # Test .predict_proba()
+        probas = await classifier.predict_proba(X)
+        assert classifier.n_classes_ == 10
+        assert probas.ndim == 2
+        assert probas.shape[0] == kRows
+        assert probas.shape[1] == 10
+
+
+        # Test with dataframe.
+        X_d = dd.from_dask_array(X)
+        y_d = dd.from_dask_array(y)
+        await classifier.fit(X_d, y_d)
+
+        assert classifier.n_classes_ == 10
+        prediction = await classifier.predict(X_d)
+
+        assert prediction.ndim == 1
+        assert prediction.shape[0] == kRows
+
+
+def test_with_asyncio():
+    with LocalCluster() as cluster:
+        with Client(cluster) as client:
+            address = client.scheduler.address
+            output = asyncio.run(run_from_dask_array_asyncio(address))
+            assert isinstance(output['booster'], xgb.Booster)
+            assert isinstance(output['history'], dict)
+
+            asyncio.run(run_dask_regressor_asyncio(address))
+            asyncio.run(run_dask_classifier_asyncio(address))
+
+
+class TestWithDask:
+    def run_updater_test(self, client, params, num_rounds, dataset,
+                         tree_method):
+        params['tree_method'] = tree_method
+        params = dataset.set_params(params)
+        # multi class doesn't handle empty dataset well (empty
+        # means at least 1 worker has data).
+        if params['objective'] == "multi:softmax":
+            return
+        # It doesn't make sense to distribute a completely
+        # empty dataset.
+        if dataset.X.shape[0] == 0:
+            return
+
+        chunk = 128
+        X = da.from_array(dataset.X,
+                          chunks=(chunk, dataset.X.shape[1]))
+        y = da.from_array(dataset.y, chunks=(chunk, ))
+        if dataset.w is not None:
+            w = da.from_array(dataset.w, chunks=(chunk, ))
+        else:
+            w = None
+
+        m = xgb.dask.DaskDMatrix(
+            client, data=X, label=y, weight=w)
+        history = xgb.dask.train(client, params=params, dtrain=m,
+                                 num_boost_round=num_rounds,
+                                 evals=[(m, 'train')])['history']
+        note(history)
+        history = history['train'][dataset.metric]
+        assert tm.non_increasing(history)
+        # Make sure that it's decreasing
+        assert history[-1] < history[0]
+
+    @given(params=hist_parameter_strategy,
+           num_rounds=strategies.integers(20, 30),
+           dataset=tm.dataset_strategy)
+    @settings(deadline=None)
+    def test_hist(self, params, num_rounds, dataset, client):
+        self.run_updater_test(client, params, num_rounds, dataset, 'hist')
+
+    @given(params=exact_parameter_strategy,
+           num_rounds=strategies.integers(20, 30),
+           dataset=tm.dataset_strategy)
+    @settings(deadline=None)
+    def test_approx(self, client, params, num_rounds, dataset):
+        self.run_updater_test(client, params, num_rounds, dataset, 'approx')
+
+    def run_quantile(self, name):
+        if sys.platform.startswith("win"):
+            pytest.skip("Skipping dask tests on Windows")
+
+        exe = None
+        for possible_path in {'./testxgboost', './build/testxgboost',
+                              '../build/testxgboost',
+                              '../cpu-build/testxgboost'}:
+            if os.path.exists(possible_path):
+                exe = possible_path
+        if exe is None:
+            return
+
+        test = "--gtest_filter=Quantile." + name
+
+        def runit(worker_addr, rabit_args):
+            port = None
+            # setup environment for running the c++ part.
+            for arg in rabit_args:
+                if arg.decode('utf-8').startswith('DMLC_TRACKER_PORT'):
+                    port = arg.decode('utf-8')
+            port = port.split('=')
+            env = os.environ.copy()
+            env[port[0]] = port[1]
+            return subprocess.run([exe, test], env=env, capture_output=True)
+
+        with LocalCluster(n_workers=4) as cluster:
+            with Client(cluster) as client:
+                workers = list(xgb.dask._get_client_workers(client).keys())
+                rabit_args = client.sync(
+                    xgb.dask._get_rabit_args, workers, client)
+                futures = client.map(runit,
+                                     workers,
+                                     pure=False,
+                                     workers=workers,
+                                     rabit_args=rabit_args)
+                results = client.gather(futures)
+
+                for ret in results:
+                    msg = ret.stdout.decode('utf-8')
+                    assert msg.find('1 test from Quantile') != -1, msg
+                    assert ret.returncode == 0, msg
+
+    @pytest.mark.skipif(**tm.no_dask())
+    @pytest.mark.gtest
+    def test_quantile_basic(self):
+        self.run_quantile('DistributedBasic')
+
+    @pytest.mark.skipif(**tm.no_dask())
+    @pytest.mark.gtest
+    def test_quantile(self):
+        self.run_quantile('Distributed')
+
+    @pytest.mark.skipif(**tm.no_dask())
+    @pytest.mark.gtest
+    def test_quantile_same_on_all_workers(self):
+        self.run_quantile('SameOnAllWorkers')

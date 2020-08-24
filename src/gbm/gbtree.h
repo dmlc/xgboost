@@ -45,7 +45,8 @@ enum class TreeProcessType : int {
 enum class PredictorType : int {
   kAuto = 0,
   kCPUPredictor,
-  kGPUPredictor
+  kGPUPredictor,
+  kOneAPIPredictor
 };
 }  // namespace xgboost
 
@@ -93,6 +94,7 @@ struct GBTreeTrainParam : public XGBoostParameter<GBTreeTrainParam> {
         .add_enum("auto", PredictorType::kAuto)
         .add_enum("cpu_predictor", PredictorType::kCPUPredictor)
         .add_enum("gpu_predictor", PredictorType::kGPUPredictor)
+        .add_enum("oneapi_predictor", PredictorType::kOneAPIPredictor)
         .describe("Predictor algorithm type");
     DMLC_DECLARE_FIELD(tree_method)
         .set_default(TreeMethod::kAuto)
@@ -292,6 +294,9 @@ class GBTree : public GradientBooster {
 #if defined(XGBOOST_USE_CUDA)
   std::unique_ptr<Predictor> gpu_predictor_;
 #endif  // defined(XGBOOST_USE_CUDA)
+#if defined(XGBOOST_USE_ONEAPI)
+  std::unique_ptr<Predictor> oneapi_predictor_;
+#endif  // defined(XGBOOST_USE_ONEAPI)
   common::Monitor monitor_;
 };
 

@@ -15,15 +15,14 @@ Installation Guide
 
   * The binary wheel will support GPU algorithms (`gpu_hist`) on machines with NVIDIA GPUs. Please note that **training with multiple GPUs is only supported for Linux platform**. See :doc:`gpu/index`.
   * Currently, we provide binary wheels for 64-bit Linux, macOS and Windows.
-  * Nightly builds are available. You can now run
+  * Nightly builds are available. You can go to `this page
+    <https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/list.html>`_, find the
+    wheel with the commit id you want and install it with pip:
 
     .. code-block:: bash
 
-      pip install https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/xgboost-[version]+[commithash]-py2.py3-none-manylinux1_x86_64.whl
+      pip install <url to the wheel>
 
-    to install the nightly build with the given commit hash. See `this page
-    <https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/list.html>`_ to see the
-    list of all nightly builds.
 
 ****************************
 Building XGBoost from source

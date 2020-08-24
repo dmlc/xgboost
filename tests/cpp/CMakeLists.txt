@@ -12,6 +12,12 @@ if (USE_CUDA)
   file(GLOB_RECURSE CUDA_TEST_SOURCES "*.cu")
   list(APPEND TEST_SOURCES ${CUDA_TEST_SOURCES})
 endif (USE_CUDA)
+
+file(GLOB_RECURSE ONEAPI_TEST_SOURCES "plugin/*_oneapi.cc")
+if (NOT PLUGIN_UPDATER_ONEAPI)
+  list(REMOVE_ITEM TEST_SOURCES ${ONEAPI_TEST_SOURCES})
+endif (NOT PLUGIN_UPDATER_ONEAPI)
+
 add_executable(testxgboost ${TEST_SOURCES}
   ${xgboost_SOURCE_DIR}/plugin/example/custom_obj.cc)
 target_link_libraries(testxgboost PRIVATE objxgboost)
@@ -31,6 +37,8 @@ if (USE_CUDA)
     $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>)
   target_compile_definitions(testxgboost
     PRIVATE -DXGBOOST_USE_CUDA=1)
+  find_package(CUDA)
+  target_include_directories(testxgboost PRIVATE ${CUDA_INCLUDE_DIRS})
   set_target_properties(testxgboost PROPERTIES
     CUDA_SEPARABLE_COMPILATION OFF)
 

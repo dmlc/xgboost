@@ -94,7 +94,7 @@ class Tree:
 
 class Model:
     '''Gradient boosted tree model.'''
-    def __init__(self, m: dict):
+    def __init__(self, model: dict):
         '''Construct the Model from JSON object.
 
          parameters

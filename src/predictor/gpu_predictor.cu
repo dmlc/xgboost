@@ -213,39 +213,21 @@ __global__ void PredictKernel(Data data,
 
 class DeviceModel {
  public:
-  dh::device_vector<RegTree::Node> nodes;
-  dh::device_vector<size_t> tree_segments;
-  dh::device_vector<int> tree_group;
+  // Need to lazily construct the vectors because GPU id is only known at runtime
+  HostDeviceVector<RegTree::Node> nodes;
+  HostDeviceVector<size_t> tree_segments;
+  HostDeviceVector<int> tree_group;
   size_t tree_beg_;  // NOLINT
   size_t tree_end_;  // NOLINT
   int num_group;
 
-  void CopyModel(const gbm::GBTreeModel& model,
-                 const thrust::host_vector<size_t>& h_tree_segments,
-                 const thrust::host_vector<RegTree::Node>& h_nodes,
-                 size_t tree_begin, size_t tree_end) {
-    nodes.resize(h_nodes.size());
-    dh::safe_cuda(cudaMemcpyAsync(nodes.data().get(), h_nodes.data(),
-                                  sizeof(RegTree::Node) * h_nodes.size(),
-                                  cudaMemcpyHostToDevice));
-    tree_segments.resize(h_tree_segments.size());
-    dh::safe_cuda(cudaMemcpyAsync(tree_segments.data().get(), h_tree_segments.data(),
-                                  sizeof(size_t) * h_tree_segments.size(),
-                                  cudaMemcpyHostToDevice));
-    tree_group.resize(model.tree_info.size());
-    dh::safe_cuda(cudaMemcpyAsync(tree_group.data().get(), model.tree_info.data(),
-                                  sizeof(int) * model.tree_info.size(),
-                                  cudaMemcpyHostToDevice));
-    this->tree_beg_ = tree_begin;
-    this->tree_end_ = tree_end;
-    this->num_group = model.learner_model_param->num_output_group;
-  }
-
   void Init(const gbm::GBTreeModel& model, size_t tree_begin, size_t tree_end, int32_t gpu_id) {
     dh::safe_cuda(cudaSetDevice(gpu_id));
+
     CHECK_EQ(model.param.size_leaf_vector, 0);
     // Copy decision trees to device
-    thrust::host_vector<size_t> h_tree_segments{};
+    tree_segments = std::move(HostDeviceVector<size_t>({}, gpu_id));
+    auto& h_tree_segments = tree_segments.HostVector();
     h_tree_segments.reserve((tree_end - tree_begin) + 1);
     size_t sum = 0;
     h_tree_segments.push_back(sum);
@@ -254,13 +236,21 @@ class DeviceModel {
       h_tree_segments.push_back(sum);
     }
 
-    thrust::host_vector<RegTree::Node> h_nodes(h_tree_segments.back());
+    nodes = std::move(HostDeviceVector<RegTree::Node>(h_tree_segments.back(), RegTree::Node(),
+                                                      gpu_id));
+    auto& h_nodes = nodes.HostVector();
     for (auto tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
       auto& src_nodes = model.trees.at(tree_idx)->GetNodes();
       std::copy(src_nodes.begin(), src_nodes.end(),
                 h_nodes.begin() + h_tree_segments[tree_idx - tree_begin]);
     }
-    CopyModel(model, h_tree_segments, h_nodes, tree_begin, tree_end);
+
+    tree_group = std::move(HostDeviceVector<int>(model.tree_info.size(), 0, gpu_id));
+    auto& h_tree_group = tree_group.HostVector();
+    std::memcpy(h_tree_group.data(), model.tree_info.data(), sizeof(int) * model.tree_info.size());
+    this->tree_beg_ = tree_begin;
+    this->tree_end_ = tree_end;
+    this->num_group = model.learner_model_param->num_output_group;
   }
 };
 
@@ -287,8 +277,8 @@ class GPUPredictor : public xgboost::Predictor {
     dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes} (
         PredictKernel<SparsePageLoader, SparsePageView>,
         data,
-        dh::ToSpan(model_.nodes), predictions->DeviceSpan().subspan(batch_offset),
-        dh::ToSpan(model_.tree_segments), dh::ToSpan(model_.tree_group),
+        model_.nodes.DeviceSpan(), predictions->DeviceSpan().subspan(batch_offset),
+        model_.tree_segments.DeviceSpan(), model_.tree_group.DeviceSpan(),
         model_.tree_beg_, model_.tree_end_, num_features, num_rows,
         entry_start, use_shared, model_.num_group);
   }
@@ -303,8 +293,8 @@ class GPUPredictor : public xgboost::Predictor {
     dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS} (
         PredictKernel<EllpackLoader, EllpackDeviceAccessor>,
         batch,
-        dh::ToSpan(model_.nodes), out_preds->DeviceSpan().subspan(batch_offset),
-        dh::ToSpan(model_.tree_segments), dh::ToSpan(model_.tree_group),
+        model_.nodes.DeviceSpan(), out_preds->DeviceSpan().subspan(batch_offset),
+        model_.tree_segments.DeviceSpan(), model_.tree_group.DeviceSpan(),
         model_.tree_beg_, model_.tree_end_, batch.NumFeatures(), num_rows,
         entry_start, use_shared, model_.num_group);
   }
@@ -435,8 +425,8 @@ class GPUPredictor : public xgboost::Predictor {
     dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes} (
         PredictKernel<Loader, typename Loader::BatchT>,
         m->Value(),
-        dh::ToSpan(d_model.nodes), out_preds->predictions.DeviceSpan(),
-        dh::ToSpan(d_model.tree_segments), dh::ToSpan(d_model.tree_group),
+        d_model.nodes.DeviceSpan(), out_preds->predictions.DeviceSpan(),
+        d_model.tree_segments.DeviceSpan(), d_model.tree_group.DeviceSpan(),
         tree_begin, tree_end, m->NumColumns(), info.num_row_,
         entry_start, use_shared, output_groups);
   }

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
-project(xgboost LANGUAGES CXX C VERSION 1.2.0)
+project(xgboost LANGUAGES CXX C VERSION 1.3.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
@@ -32,7 +32,9 @@ option(R_LIB "Build shared library for R package" OFF)
 ## Dev
 option(USE_DEBUG_OUTPUT "Dump internal training results like gradients and predictions to stdout.
 Should only be used for debugging." OFF)
+option(FORCE_COLORED_OUTPUT "Force colored output from compilers, useful when ninja is used instead of make." OFF)
 option(ENABLE_ALL_WARNINGS "Enable all compiler warnings. Only effective for GCC/Clang" OFF)
+option(LOG_CAPI_INVOCATION "Log all C API invocations for debugging" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
@@ -58,6 +60,9 @@ address, leak, undefined and thread.")
 ## Plugins
 option(PLUGIN_LZ4 "Build lz4 plugin" OFF)
 option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
+option(PLUGIN_RMM "Build with RAPIDS Memory Manager (RMM)" OFF)
+## TODO: 1. Add check if DPC++ compiler is used for building 
+option(PLUGIN_UPDATER_ONEAPI "DPC++ updater" OFF)
 option(ADD_PKGCONFIG "Add xgboost.pc into system." ON)
 
 #-- Checks for building XGBoost
@@ -80,6 +85,9 @@ endif (R_LIB AND GOOGLE_TEST)
 if (USE_AVX)
   message(SEND_ERROR  "The option 'USE_AVX' is deprecated as experimental AVX features have been removed from XGBoost.")
 endif (USE_AVX)
+if (PLUGIN_RMM AND NOT (USE_CUDA))
+  message(SEND_ERROR "`PLUGIN_RMM` must be enabled with `USE_CUDA` flag.")
+endif (PLUGIN_RMM AND NOT (USE_CUDA))
 if (ENABLE_ALL_WARNINGS)
   if ((NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang") AND (NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
     message(SEND_ERROR "ENABLE_ALL_WARNINGS is only available for Clang and GCC.")
@@ -106,6 +114,12 @@ if (USE_CUDA)
   format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
   message(STATUS "CUDA GEN_CODE: ${GEN_CODE}")
 endif (USE_CUDA)
+
+if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
+    ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
+      (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")))
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always")
+endif()
 
 find_package(Threads REQUIRED)
 

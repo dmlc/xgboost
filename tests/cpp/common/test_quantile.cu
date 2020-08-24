@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include "test_quantile.h"
 #include "../helpers.h"
 #include "../../../src/common/hist_util.cuh"
 #include "../../../src/common/quantile.cuh"
@@ -14,32 +15,6 @@ TEST(GPUQuantile, Basic) {
   // Push empty
   sketch.Push(dh::ToSpan(cuts_ptr), &entries);
   ASSERT_EQ(sketch.Data().size(), 0);
-}
-
-template <typename Fn> void RunWithSeedsAndBins(size_t rows, Fn fn) {
-  std::vector<int32_t> seeds(4);
-  SimpleLCG lcg;
-  SimpleRealUniformDistribution<float> dist(3, 1000);
-  std::generate(seeds.begin(), seeds.end(), [&](){ return dist(&lcg); });
-
-  std::vector<size_t> bins(8);
-  for (size_t i = 0; i < bins.size() - 1; ++i) {
-    bins[i] = i * 35 + 2;
-  }
-  bins.back() = rows + 80;  // provide a bin number greater than rows.
-
-  std::vector<MetaInfo> infos(2);
-  auto& h_weights = infos.front().weights_.HostVector();
-  h_weights.resize(rows);
-  std::generate(h_weights.begin(), h_weights.end(), [&]() { return dist(&lcg); });
-
-  for (auto seed : seeds) {
-    for (auto n_bin : bins) {
-      for (auto const& info : infos) {
-        fn(seed, n_bin, info);
-      }
-    }
-  }
 }
 
 void TestSketchUnique(float sparsity) {
@@ -297,31 +272,12 @@ TEST(GPUQuantile, MergeDuplicated) {
   }
 }
 
-void InitRabitContext(std::string msg) {
-  auto n_gpus = AllVisibleGPUs();
-  auto port = std::getenv("DMLC_TRACKER_PORT");
-  std::string port_str;
-  if (port) {
-    port_str = port;
-  } else {
-    LOG(WARNING) << msg << " as `DMLC_TRACKER_PORT` is not set up.";
-    return;
-  }
-
-  std::vector<std::string> envs{
-      "DMLC_TRACKER_PORT=" + port_str,
-      "DMLC_TRACKER_URI=127.0.0.1",
-      "DMLC_NUM_WORKER=" + std::to_string(n_gpus)};
-  char* c_envs[] {&(envs[0][0]), &(envs[1][0]), &(envs[2][0])};
-  rabit::Init(3, c_envs);
-}
-
 TEST(GPUQuantile, AllReduceBasic) {
   // This test is supposed to run by a python test that setups the environment.
   std::string msg {"Skipping AllReduce test"};
 #if defined(__linux__) && defined(XGBOOST_USE_NCCL)
-  InitRabitContext(msg);
   auto n_gpus = AllVisibleGPUs();
+  InitRabitContext(msg, n_gpus);
   auto world = rabit::GetWorldSize();
   if (world != 1) {
     ASSERT_EQ(world, n_gpus);
@@ -407,9 +363,9 @@ TEST(GPUQuantile, AllReduceBasic) {
 TEST(GPUQuantile, SameOnAllWorkers) {
   std::string msg {"Skipping SameOnAllWorkers test"};
 #if defined(__linux__) && defined(XGBOOST_USE_NCCL)
-  InitRabitContext(msg);
-  auto world = rabit::GetWorldSize();
   auto n_gpus = AllVisibleGPUs();
+  InitRabitContext(msg, n_gpus);
+  auto world = rabit::GetWorldSize();
   if (world != 1) {
     ASSERT_EQ(world, n_gpus);
   } else {

@@ -6,6 +6,7 @@ import xgboost
 import subprocess
 import numpy
 import json
+import testing as tm
 
 
 class TestCLI(unittest.TestCase):
@@ -28,29 +29,30 @@ data = {data_path}
 eval[test] = {data_path}
 '''
 
-    curdir = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
-    project_root = os.path.normpath(
-        os.path.join(curdir, os.path.pardir, os.path.pardir))
+    PROJECT_ROOT = tm.PROJECT_ROOT
 
     def get_exe(self):
         if platform.system() == 'Windows':
             exe = 'xgboost.exe'
         else:
             exe = 'xgboost'
-        exe = os.path.join(self.project_root, exe)
+        exe = os.path.join(self.PROJECT_ROOT, exe)
         assert os.path.exists(exe)
         return exe
 
     def test_cli_model(self):
         data_path = "{root}/demo/data/agaricus.txt.train?format=libsvm".format(
-            root=self.project_root)
+            root=self.PROJECT_ROOT)
         exe = self.get_exe()
         seed = 1994
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            model_out_cli = os.path.join(tmpdir, 'test_load_cli_model-cli.bin')
-            model_out_py = os.path.join(tmpdir, 'test_cli_model-py.bin')
-            config_path = os.path.join(tmpdir, 'test_load_cli_model.conf')
+            model_out_cli = os.path.join(
+                tmpdir, 'test_load_cli_model-cli.json')
+            model_out_py = os.path.join(
+                tmpdir, 'test_cli_model-py.json')
+            config_path = os.path.join(
+                tmpdir, 'test_load_cli_model.conf')
 
             train_conf = self.template.format(data_path=data_path,
                                               seed=seed,
@@ -122,13 +124,15 @@ eval[test] = {data_path}
         v = xgboost.__version__
         if v.find('SNAPSHOT') != -1:
             assert msg.split(':')[1].strip() == v.split('-')[0]
+        elif v.find('rc') != -1:
+            assert msg.split(':')[1].strip() == v.split('rc')[0]
         else:
             assert msg.split(':')[1].strip() == v
 
     def test_cli_model_json(self):
         exe = self.get_exe()
         data_path = "{root}/demo/data/agaricus.txt.train?format=libsvm".format(
-            root=self.project_root)
+            root=self.PROJECT_ROOT)
         seed = 1994
 
         with tempfile.TemporaryDirectory() as tmpdir:

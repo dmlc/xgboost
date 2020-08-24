@@ -316,6 +316,17 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
   API_END();
 }
 
+XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
+                                  void *data, xgboost::bst_ulong size,
+                                  int type) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto &info = static_cast<std::shared_ptr<DMatrix> *>(handle)->get()->Info();
+  CHECK(type >= 1 && type <= 4);
+  info.SetInfo(field, data, static_cast<DataType>(type), size);
+  API_END();
+}
+
 XGB_DLL int XGDMatrixSetGroup(DMatrixHandle handle,
                               const unsigned* group,
                               xgboost::bst_ulong len) {

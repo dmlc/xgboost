@@ -16,82 +16,16 @@
 
 package ml.dmlc.xgboost4j.scala.spark
 
+import ml.dmlc.xgboost4j.java.GpuTestSuite
 import ml.dmlc.xgboost4j.scala.{DMatrix, XGBoost => ScalaXGBoost}
 import org.apache.spark.ml.linalg._
 import org.apache.spark.sql._
 import org.scalatest.FunSuite
 import org.apache.spark.Partitioner
 
-class XGBoostClassifierSuite extends FunSuite with PerTest {
+abstract class XGBoostClassifierSuiteBase extends FunSuite with PerTest {
 
-  test("XGBoost-Spark XGBoostClassifier output should match XGBoost4j") {
-    val trainingDM = new DMatrix(Classification.train.iterator)
-    val testDM = new DMatrix(Classification.test.iterator)
-    val trainingDF = buildDataFrame(Classification.train)
-    val testDF = buildDataFrame(Classification.test)
-    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF)
-  }
-
-  test("XGBoostClassifier should make correct predictions after upstream random sort") {
-    val trainingDM = new DMatrix(Classification.train.iterator)
-    val testDM = new DMatrix(Classification.test.iterator)
-    val trainingDF = buildDataFrameWithRandSort(Classification.train)
-    val testDF = buildDataFrameWithRandSort(Classification.test)
-    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF)
-  }
-
-  private def checkResultsWithXGBoost4j(
-      trainingDM: DMatrix,
-      testDM: DMatrix,
-      trainingDF: DataFrame,
-      testDF: DataFrame,
-      round: Int = 5): Unit = {
-    val paramMap = Map(
-      "eta" -> "1",
-      "max_depth" -> "6",
-      "silent" -> "1",
-      "objective" -> "binary:logistic")
-
-    val model1 = ScalaXGBoost.train(trainingDM, paramMap, round)
-    val prediction1 = model1.predict(testDM)
-
-    val model2 = new XGBoostClassifier(paramMap ++ Array("num_round" -> round,
-      "num_workers" -> numWorkers)).fit(trainingDF)
-
-    val prediction2 = model2.transform(testDF).
-        collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("probability"))).toMap
-
-    assert(testDF.count() === prediction2.size)
-    // the vector length in probability column is 2 since we have to fit to the evaluator in Spark
-    for (i <- prediction1.indices) {
-      assert(prediction1(i).length === prediction2(i).values.length - 1)
-      for (j <- prediction1(i).indices) {
-        assert(prediction1(i)(j) === prediction2(i)(j + 1))
-      }
-    }
-
-    val prediction3 = model1.predict(testDM, outPutMargin = true)
-    val prediction4 = model2.transform(testDF).
-        collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("rawPrediction"))).toMap
-
-    assert(testDF.count() === prediction4.size)
-    // the vector length in rawPrediction column is 2 since we have to fit to the evaluator in Spark
-    for (i <- prediction3.indices) {
-      assert(prediction3(i).length === prediction4(i).values.length - 1)
-      for (j <- prediction3(i).indices) {
-        assert(prediction3(i)(j) === prediction4(i)(j + 1))
-      }
-    }
-
-    // check the equality of single instance prediction
-    val firstOfDM = testDM.slice(Array(0))
-    val firstOfDF = testDF.filter(_.getAs[Int]("id") == 0)
-        .head()
-        .getAs[Vector]("features")
-    val prediction5 = math.round(model1.predict(firstOfDM)(0)(0))
-    val prediction6 = model2.predict(firstOfDF)
-    assert(prediction5 === prediction6)
-  }
+  protected val treeMethod: String = "auto"
 
   test("Set params in XGBoost and MLlib way should produce same model") {
     val trainingDF = buildDataFrame(Classification.train)
@@ -104,6 +38,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
       "silent" -> "1",
       "objective" -> "binary:logistic",
       "num_round" -> round,
+      "tree_method" -> treeMethod,
       "num_workers" -> numWorkers)
 
     // Set params in XGBoost way
@@ -128,7 +63,8 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
 
   test("test schema of XGBoostClassificationModel") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
-      "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers)
+      "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers,
+      "tree_method" -> treeMethod)
     val trainingDF = buildDataFrame(Classification.train)
     val testDF = buildDataFrame(Classification.test)
 
@@ -160,7 +96,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
   test("multi class classification") {
     val paramMap = Map("eta" -> "0.1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "multi:softmax", "num_class" -> "6", "num_round" -> 5,
-      "num_workers" -> numWorkers)
+      "num_workers" -> numWorkers, "tree_method" -> treeMethod)
     val trainingDF = buildDataFrame(MultiClassification.train)
     val xgb = new XGBoostClassifier(paramMap)
     val model = xgb.fit(trainingDF)
@@ -175,7 +111,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     val test = buildDataFrame(Classification.test)
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "train_test_ratio" -> "1.0",
-      "num_round" -> 5, "num_workers" -> numWorkers)
+      "num_round" -> 5, "num_workers" -> numWorkers, "tree_method" -> treeMethod)
 
     val xgb = new XGBoostClassifier(paramMap)
     val model1 = xgb.fit(training1)
@@ -194,7 +130,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
   test("test predictionLeaf") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
-      "num_round" -> 5, "num_workers" -> numWorkers)
+      "num_round" -> 5, "num_workers" -> numWorkers, "tree_method" -> treeMethod)
     val training = buildDataFrame(Classification.train)
     val test = buildDataFrame(Classification.test)
     val groundTruth = test.count()
@@ -209,7 +145,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
   test("test predictionLeaf with empty column name") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
-      "num_round" -> 5, "num_workers" -> numWorkers)
+      "num_round" -> 5, "num_workers" -> numWorkers, "tree_method" -> treeMethod)
     val training = buildDataFrame(Classification.train)
     val test = buildDataFrame(Classification.test)
     val xgb = new XGBoostClassifier(paramMap)
@@ -222,7 +158,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
   test("test predictionContrib") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
-      "num_round" -> 5, "num_workers" -> numWorkers)
+      "num_round" -> 5, "num_workers" -> numWorkers, "tree_method" -> treeMethod)
     val training = buildDataFrame(Classification.train)
     val test = buildDataFrame(Classification.test)
     val groundTruth = test.count()
@@ -237,7 +173,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
   test("test predictionContrib with empty column name") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
-      "num_round" -> 5, "num_workers" -> numWorkers)
+      "num_round" -> 5, "num_workers" -> numWorkers, "tree_method" -> treeMethod)
     val training = buildDataFrame(Classification.train)
     val test = buildDataFrame(Classification.test)
     val xgb = new XGBoostClassifier(paramMap)
@@ -250,7 +186,7 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
   test("test predictionLeaf and predictionContrib") {
     val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
       "objective" -> "binary:logistic", "train_test_ratio" -> "0.5",
-      "num_round" -> 5, "num_workers" -> numWorkers)
+      "num_round" -> 5, "num_workers" -> numWorkers, "tree_method" -> treeMethod)
     val training = buildDataFrame(Classification.train)
     val test = buildDataFrame(Classification.test)
     val groundTruth = test.count()
@@ -262,6 +198,80 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     assert(resultDF.count == groundTruth)
     assert(resultDF.columns.contains("predictLeaf"))
     assert(resultDF.columns.contains("predictContrib"))
+  }
+
+}
+
+class XGBoostCpuClassifierSuite extends XGBoostClassifierSuiteBase {
+  test("XGBoost-Spark XGBoostClassifier output should match XGBoost4j") {
+    val trainingDM = new DMatrix(Classification.train.iterator)
+    val testDM = new DMatrix(Classification.test.iterator)
+    val trainingDF = buildDataFrame(Classification.train)
+    val testDF = buildDataFrame(Classification.test)
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF)
+  }
+
+  test("XGBoostClassifier should make correct predictions after upstream random sort") {
+    val trainingDM = new DMatrix(Classification.train.iterator)
+    val testDM = new DMatrix(Classification.test.iterator)
+    val trainingDF = buildDataFrameWithRandSort(Classification.train)
+    val testDF = buildDataFrameWithRandSort(Classification.test)
+    checkResultsWithXGBoost4j(trainingDM, testDM, trainingDF, testDF)
+  }
+
+  private def checkResultsWithXGBoost4j(
+      trainingDM: DMatrix,
+      testDM: DMatrix,
+      trainingDF: DataFrame,
+      testDF: DataFrame,
+      round: Int = 5): Unit = {
+    val paramMap = Map(
+      "eta" -> "1",
+      "max_depth" -> "6",
+      "silent" -> "1",
+      "objective" -> "binary:logistic",
+      "tree_method" -> treeMethod,
+      "max_bin" -> 16)
+
+    val model1 = ScalaXGBoost.train(trainingDM, paramMap, round)
+    val prediction1 = model1.predict(testDM)
+
+    val model2 = new XGBoostClassifier(paramMap ++ Array("num_round" -> round,
+      "num_workers" -> numWorkers)).fit(trainingDF)
+
+    val prediction2 = model2.transform(testDF).
+      collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("probability"))).toMap
+
+    assert(testDF.count() === prediction2.size)
+    // the vector length in probability column is 2 since we have to fit to the evaluator in Spark
+    for (i <- prediction1.indices) {
+      assert(prediction1(i).length === prediction2(i).values.length - 1)
+      for (j <- prediction1(i).indices) {
+        assert(prediction1(i)(j) === prediction2(i)(j + 1))
+      }
+    }
+
+    val prediction3 = model1.predict(testDM, outPutMargin = true)
+    val prediction4 = model2.transform(testDF).
+      collect().map(row => (row.getAs[Int]("id"), row.getAs[DenseVector]("rawPrediction"))).toMap
+
+    assert(testDF.count() === prediction4.size)
+    // the vector length in rawPrediction column is 2 since we have to fit to the evaluator in Spark
+    for (i <- prediction3.indices) {
+      assert(prediction3(i).length === prediction4(i).values.length - 1)
+      for (j <- prediction3(i).indices) {
+        assert(prediction3(i)(j) === prediction4(i)(j + 1))
+      }
+    }
+
+    // check the equality of single instance prediction
+    val firstOfDM = testDM.slice(Array(0))
+    val firstOfDF = testDF.filter(_.getAs[Int]("id") == 0)
+      .head()
+      .getAs[Vector]("features")
+    val prediction5 = math.round(model1.predict(firstOfDM)(0)(0))
+    val prediction6 = model2.predict(firstOfDF)
+    assert(prediction5 === prediction6)
   }
 
   test("infrequent features") {
@@ -305,5 +315,10 @@ class XGBoostClassifierSuite extends FunSuite with PerTest {
     val xgb = new XGBoostClassifier(paramMap)
     xgb.fit(repartitioned)
   }
+}
 
+@GpuTestSuite
+class XGBoostGpuClassifierSuite extends XGBoostClassifierSuiteBase {
+  override protected val treeMethod: String = "gpu_hist"
+  override protected val numWorkers: Int = 1
 }

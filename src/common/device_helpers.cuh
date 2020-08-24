@@ -36,7 +36,12 @@
 
 #ifdef XGBOOST_USE_NCCL
 #include "nccl.h"
-#endif
+#endif  // XGBOOST_USE_NCCL
+
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+#include "rmm/mr/device/per_device_resource.hpp"
+#include "rmm/mr/device/thrust_allocator_adaptor.hpp"
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600 || defined(__clang__)
 
@@ -370,12 +375,21 @@ inline void DebugSyncDevice(std::string file="", int32_t line = -1) {
 }
 
 namespace detail {
+
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+template <typename T>
+using XGBBaseDeviceAllocator = rmm::mr::thrust_allocator<T>;
+#else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+template <typename T>
+using XGBBaseDeviceAllocator = thrust::device_malloc_allocator<T>;
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+
 /**
  * \brief Default memory allocator, uses cudaMalloc/Free and logs allocations if verbose.
  */
 template <class T>
-struct XGBDefaultDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
-  using SuperT = thrust::device_malloc_allocator<T>;
+struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
+  using SuperT = XGBBaseDeviceAllocator<T>;
   using pointer = thrust::device_ptr<T>;  // NOLINT
   template<typename U>
   struct rebind  // NOLINT
@@ -391,10 +405,15 @@ struct XGBDefaultDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
     GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
     return SuperT::deallocate(ptr, n);
   }
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+  XGBDefaultDeviceAllocatorImpl()
+    : SuperT(rmm::mr::get_current_device_resource(), cudaStream_t{0}) {}
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 };
 
 /**
- * \brief Caching memory allocator, uses cub::CachingDeviceAllocator as a back-end and logs allocations if verbose. Does not initialise memory on construction.
+ * \brief Caching memory allocator, uses cub::CachingDeviceAllocator as a back-end and logs
+ * allocations if verbose. Does not initialise memory on construction.
  */
 template <class T>
 struct XGBCachingDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
