@@ -133,6 +133,48 @@ def test_dask_predict_shape_infer():
             assert preds.shape[1] == preds.compute().shape[1]
 
 
+@pytest.mark.parametrize("tree_method", ["hist", "approx"])
+def test_boost_from_prediction(tree_method):
+    from sklearn.datasets import load_breast_cancer
+
+    with LocalCluster(n_workers=4) as cluster:
+        with Client(cluster) as client:
+            X, y = load_breast_cancer(return_X_y=True)
+            X_ = dd.from_array(X, chunksize=100)
+            y_ = dd.from_array(y, chunksize=100)
+
+            from sklearn.datasets import load_breast_cancer
+
+            X, y = load_breast_cancer(return_X_y=True)
+            model_0 = xgb.dask.DaskXGBClassifier(
+                learning_rate=0.3,
+                random_state=0,
+                n_estimators=4,
+                tree_method=tree_method,
+            )
+            model_0.fit(X=X_, y=y_)
+            margin = model_0.predict_proba(X_)
+
+            model_1 = xgb.dask.DaskXGBClassifier(
+                learning_rate=0.3,
+                random_state=0,
+                n_estimators=4,
+                tree_method=tree_method,
+            )
+            model_1.fit(X=X_, y=y_, base_margin=margin)
+            predictions_1 = model_1.predict(X_, base_margin=margin)
+
+            cls_2 = xgb.dask.DaskXGBClassifier(
+                learning_rate=0.3,
+                random_state=0,
+                n_estimators=8,
+                tree_method=tree_method,
+            )
+            cls_2.fit(X=X_, y=y_)
+            predictions_2 = cls_2.predict(X_)
+            np.testing.assert_equal(predictions_1.compute(), predictions_2.compute())
+
+
 def test_dask_missing_value_reg():
     with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:

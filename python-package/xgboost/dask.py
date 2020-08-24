@@ -983,6 +983,7 @@ class DaskScikitLearnBase(XGBModel):
     # pylint: disable=arguments-differ
     def fit(self, X, y,
             sample_weights=None,
+            base_margin=None,
             eval_set=None,
             sample_weight_eval_set=None,
             verbose=True):
@@ -1043,12 +1044,14 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
                          X,
                          y,
                          sample_weights=None,
+                         base_margin=None,
                          eval_set=None,
                          sample_weight_eval_set=None,
                          verbose=True):
-        dtrain = await DaskDMatrix(client=self.client,
-                                   data=X, label=y, weight=sample_weights,
-                                   missing=self.missing)
+        dtrain = await DaskDMatrix(
+            client=self.client, data=X, label=y, weight=sample_weights,
+            base_margin=base_margin, missing=self.missing
+        )
         params = self.get_xgb_params()
         evals = await _evaluation_matrices(self.client,
                                            eval_set, sample_weight_eval_set,
@@ -1064,17 +1067,20 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
     # pylint: disable=missing-docstring
     def fit(self, X, y,
             sample_weights=None,
+            base_margin=None,
             eval_set=None,
             sample_weight_eval_set=None,
             verbose=True):
         _assert_dask_support()
-        return self.client.sync(self._fit_async, X, y, sample_weights,
-                                eval_set, sample_weight_eval_set,
-                                verbose)
+        return self.client.sync(
+            self._fit_async, X, y, sample_weights, base_margin,
+            eval_set, sample_weight_eval_set, verbose
+        )
 
-    async def _predict_async(self, data):  # pylint: disable=arguments-differ
-        test_dmatrix = await DaskDMatrix(client=self.client, data=data,
-                                         missing=self.missing)
+    async def _predict_async(self, data, base_margin=None):  # pylint: disable=arguments-differ
+        test_dmatrix = await DaskDMatrix(
+            client=self.client, data=data, base_margin=base_margin, missing=self.missing
+        )
         pred_probs = await predict(client=self.client,
                                    model=self.get_booster(), data=test_dmatrix)
         return pred_probs
@@ -1091,11 +1097,13 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
 class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
     async def _fit_async(self, X, y,
                          sample_weights=None,
+                         base_margin=None,
                          eval_set=None,
                          sample_weight_eval_set=None,
                          verbose=True):
         dtrain = await DaskDMatrix(client=self.client,
                                    data=X, label=y, weight=sample_weights,
+                                   base_margin=base_margin,
                                    missing=self.missing)
         params = self.get_xgb_params()
 
@@ -1125,31 +1133,38 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 
     def fit(self, X, y,
             sample_weights=None,
+            base_margin=None,
             eval_set=None,
             sample_weight_eval_set=None,
             verbose=True):
         _assert_dask_support()
-        return self.client.sync(self._fit_async, X, y, sample_weights,
-                                eval_set, sample_weight_eval_set, verbose)
+        return self.client.sync(
+            self._fit_async, X, y, sample_weights, base_margin, eval_set,
+            sample_weight_eval_set, verbose
+        )
 
-    async def _predict_proba_async(self, data):
+    async def _predict_proba_async(self, data, base_margin=None):
         _assert_dask_support()
 
-        test_dmatrix = await DaskDMatrix(client=self.client, data=data,
-                                         missing=self.missing)
+        test_dmatrix = await DaskDMatrix(
+            client=self.client, data=data,base_margin=base_margin,
+            missing=self.missing
+        )
         pred_probs = await predict(client=self.client,
                                    model=self.get_booster(), data=test_dmatrix)
         return pred_probs
 
-    def predict_proba(self, data):  # pylint: disable=arguments-differ,missing-docstring
+    def predict_proba(self, data, base_margin=None):  # pylint: disable=arguments-differ,missing-docstring
         _assert_dask_support()
-        return self.client.sync(self._predict_proba_async, data)
+        return self.client.sync(self._predict_proba_async, data, base_margin)
 
-    async def _predict_async(self, data):
+    async def _predict_async(self, data, base_margin=None):
         _assert_dask_support()
 
-        test_dmatrix = await DaskDMatrix(client=self.client, data=data,
-                                         missing=self.missing)
+        test_dmatrix = await DaskDMatrix(
+            client=self.client, data=data, base_margin=base_margin,
+            missing=self.missing
+        )
         pred_probs = await predict(client=self.client,
                                    model=self.get_booster(), data=test_dmatrix)
 
@@ -1160,6 +1175,6 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 
         return preds
 
-    def predict(self, data):  # pylint: disable=arguments-differ
+    def predict(self, data, base_margin=None):  # pylint: disable=arguments-differ
         _assert_dask_support()
-        return self.client.sync(self._predict_async, data)
+        return self.client.sync(self._predict_async, data, base_margin)
