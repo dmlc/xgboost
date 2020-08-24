@@ -42,6 +42,7 @@ jobs:
 
     - name: Test XGBoost4J-Spark
       run: |
+        rm -rfv build/
         cd jvm-packages
         mvn -B test
       if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
