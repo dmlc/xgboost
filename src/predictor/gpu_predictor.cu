@@ -481,12 +481,12 @@ class GPUPredictor : public xgboost::Predictor {
         model.learner_model_param->num_feature + 1;  // +1 for bias
     contribs.resize(p_fmat->Info().num_row_ * contributions_columns *
                     model.learner_model_param->num_output_group);
-    dh::caching_device_vector<float> phis(contribs.size(), 0.0);
-    // Add the bias term to last column
+    dh::TemporaryArray<float> phis(contribs.size(), 0.0);
     p_fmat->Info().base_margin_.SetDevice(generic_param_->gpu_id);
     const auto margin = p_fmat->Info().base_margin_.ConstDeviceSpan();
     float base_score = model.learner_model_param->base_score;
     auto d_phis = phis.data().get();
+    // Add the base margin term to last column
     dh::LaunchN(
         generic_param_->gpu_id,
         p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
@@ -571,8 +571,8 @@ class GPUPredictor : public xgboost::Predictor {
     for (auto i = 0ull; i < tree_limit; i++) {
       const auto& tree = *model.trees.at(i);
       size_t group = model.tree_info[i];
-      for (auto j = 0ull; j < tree.GetNodes().size(); j++) {
-        const auto& nodes = tree.GetNodes();
+      const auto& nodes = tree.GetNodes();
+      for (auto j = 0ull; j < nodes.size(); j++) {
         if (nodes[j].IsLeaf() && !nodes[j].IsDeleted()) {
           auto child = nodes[j];
           float v = child.LeafValue();
@@ -592,7 +592,6 @@ class GPUPredictor : public xgboost::Predictor {
             float lower_bound = is_left_path ? -inf : parent.SplitCond();
             float upper_bound = is_left_path ? parent.SplitCond() : inf;
             paths.emplace_back(path_idx, parent.SplitIndex(), group,
-
                                lower_bound, upper_bound, is_missing_path,
                                zero_fraction, v);
             child_idx = child.Parent();
