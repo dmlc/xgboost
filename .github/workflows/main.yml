@@ -41,6 +41,7 @@ jobs:
         mvn test -B -pl :xgboost4j_2.12
 
     - name: Test XGBoost4J-Spark
+      run: |
         cd jvm-packages
         mvn -B test
       if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
