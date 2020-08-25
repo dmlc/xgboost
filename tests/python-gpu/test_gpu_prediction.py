@@ -4,12 +4,19 @@ import pytest
 
 import numpy as np
 import xgboost as xgb
+from hypothesis import given, strategies, assume, settings, note
 
 sys.path.append("tests/python")
 import testing as tm
 from test_predict import run_threaded_predict  # noqa
 
 rng = np.random.RandomState(1994)
+
+shap_parameter_strategy = strategies.fixed_dictionaries({
+    'max_depth': strategies.integers(0, 11),
+    'max_leaves': strategies.integers(0, 256),
+    'num_parallel_tree': strategies.sampled_from([1, 10]),
+})
 
 
 class TestGPUPredict(unittest.TestCase):
@@ -149,7 +156,8 @@ class TestGPUPredict(unittest.TestCase):
 
         # Don't do this on Windows, see issue #5793
         if sys.platform.startswith("win"):
-            pytest.skip('Multi-threaded in-place prediction with cuPy is not working on Windows')
+            pytest.skip(
+                'Multi-threaded in-place prediction with cuPy is not working on Windows')
         for i in range(10):
             run_threaded_predict(X, rows, predict_dense)
 
@@ -185,3 +193,24 @@ class TestGPUPredict(unittest.TestCase):
 
         for i in range(10):
             run_threaded_predict(X, rows, predict_df)
+
+    @given(strategies.integers(1, 200),
+           tm.dataset_strategy, shap_parameter_strategy, strategies.booleans())
+    @settings(deadline=None)
+    def test_shap(self, num_rounds, dataset, param, all_rows):
+        param.update({"predictor": "gpu_predictor", "gpu_id": 0})
+        param = dataset.set_params(param)
+        dmat = dataset.get_dmat()
+        bst = xgb.train(param, dmat, num_rounds)
+        if all_rows:
+            test_dmat = xgb.DMatrix(dataset.X, dataset.y, dataset.w, dataset.margin)
+        else:
+            test_dmat = xgb.DMatrix(dataset.X[0:1, :])
+        shap = bst.predict(test_dmat, pred_contribs=True)
+        bst.set_param({"predictor": "cpu_predictor"})
+        cpu_shap = bst.predict(test_dmat, pred_contribs=True)
+        margin = bst.predict(test_dmat, output_margin=True)
+        assert np.allclose(shap, cpu_shap, 1e-3, 1e-3)
+        # feature contributions should add up to predictions
+        assume(len(dataset.y) > 0)
+        assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-3, 1e-3)

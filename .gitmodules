@@ -4,3 +4,6 @@
 [submodule "cub"]
 	path = cub
 	url = https://github.com/NVlabs/cub
+[submodule "gputreeshap"]
+	path = gputreeshap
+	url = https://github.com/rapidsai/gputreeshap.git
