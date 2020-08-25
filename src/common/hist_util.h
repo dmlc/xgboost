@@ -306,7 +306,7 @@ int32_t XGBOOST_HOST_DEV_INLINE BinarySearchBin(bst_uint begin, bst_uint end,
   }
   // Value is missing
   return -1;
-};
+}
 
 struct GHistIndexBlock {
   const size_t* row_ptr;
