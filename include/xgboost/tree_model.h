@@ -608,6 +608,9 @@ class RegTree : public Model {
   common::Span<uint32_t const> GetSplitCategories() const { return split_categories_; }
   auto const& GetSplitCategoriesPtr() const { return split_categories_segments_; }
 
+  // The fields of split_categories_segments_[i] are set such that
+  // the range split_categories_[beg:(beg+size)] stores the bitset for
+  // the matching categories for the i-th node.
   struct Segment {
     size_t beg {0};
     size_t size {0};
