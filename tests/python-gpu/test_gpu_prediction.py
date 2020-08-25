@@ -198,6 +198,9 @@ class TestGPUPredict(unittest.TestCase):
            tm.dataset_strategy, shap_parameter_strategy, strategies.booleans())
     @settings(deadline=None)
     def test_shap(self, num_rounds, dataset, param, all_rows):
+        if param['max_depth'] == 0 and param['max_leaves'] == 0:
+            return
+
         param.update({"predictor": "gpu_predictor", "gpu_id": 0})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
