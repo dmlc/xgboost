@@ -178,6 +178,8 @@ class DaskDMatrix:
         to be present as a missing value. If None, defaults to np.nan.
     weight : dask.array.Array/dask.dataframe.DataFrame
         Weight for each instance.
+    base_margin : dask.array.Array/dask.dataframe.DataFrame
+        A base margin of booster to start from
     feature_names : list, optional
         Set names for features.
     feature_types : list, optional
