@@ -10,15 +10,15 @@ if (USE_CUDA)
   target_sources(objxgboost PRIVATE ${CUDA_SOURCES})
   target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_CUDA=1)
 
-  # GPUTreeSHAP
+  # GPUTreeShap
   include(FetchContent)
   FetchContent_Declare(
-    GPUTreeSHAP
+    GPUTreeShap
     GIT_REPOSITORY https://github.com/hcho3/gputreeshap
-    GIT_TAG        7cfff7bf697b8a5d56db8b22d0a552ce8d9db89b
+    GIT_TAG        f6d195c7030b3a975ed316ca3d3ae4d57aff3848
   )
-  FetchContent_MakeAvailable(GPUTreeSHAP)
-  target_link_libraries(objxgboost PUBLIC GPUTreeShap)
+  FetchContent_MakeAvailable(GPUTreeShap)
+  target_link_libraries(objxgboost PUBLIC GPUTreeShap::GPUTreeShap)
 
   if (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
     target_include_directories(objxgboost PRIVATE ${xgboost_SOURCE_DIR}/cub/)
