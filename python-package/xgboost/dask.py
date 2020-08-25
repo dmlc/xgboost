@@ -1134,7 +1134,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         _assert_dask_support()
 
         test_dmatrix = await DaskDMatrix(
-            client=self.client, data=data,base_margin=base_margin,
+            client=self.client, data=data, base_margin=base_margin,
             missing=self.missing
         )
         pred_probs = await predict(client=self.client,
