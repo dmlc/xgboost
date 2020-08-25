@@ -151,6 +151,13 @@ def _is_pandas_df(data):
         return False
     return isinstance(data, pd.DataFrame)
 
+def _is_modin_df(data):
+    try:
+        import modin.pandas as pd
+    except ImportError:
+        return False
+    return isinstance(data, pd.DataFrame)
+
 
 _pandas_dtype_mapper = {
     'int8': 'int',
@@ -500,6 +507,9 @@ def dispatch_data_backend(data, missing, threads,
     if _is_tuple(data):
         return _from_tuple(data, missing, feature_names, feature_types)
     if _is_pandas_df(data):
+        return _from_pandas_df(data, missing, threads,
+                               feature_names, feature_types)
+    if _is_modin_df(data):
         return _from_pandas_df(data, missing, threads,
                                feature_names, feature_types)
     if _is_pandas_series(data):
