@@ -101,6 +101,18 @@ namespace common {
   } while (0);
 #endif  // __CUDA_ARCH__
 
+#if defined(__CUDA_ARCH__)
+#define SPAN_LT(lhs, rhs)                                                      \
+  if (!((lhs) < (rhs))) {                                                      \
+    printf("%lu < %lu failed\n", static_cast<size_t>(lhs),                     \
+           static_cast<size_t>(rhs));                                          \
+    asm("trap;");                                                              \
+  }
+#else
+#define SPAN_LT(lhs, rhs)                       \
+  SPAN_CHECK((lhs) < (rhs))
+#endif  // defined(__CUDA_ARCH__)
+
 namespace detail {
 /*!
  * By default, XGBoost uses uint32_t for indexing data. int64_t covers all
@@ -515,7 +527,7 @@ class Span {
   }
 
   XGBOOST_DEVICE reference operator[](index_type _idx) const {
-    SPAN_CHECK(_idx < size());
+    SPAN_LT(_idx, size());
     return data()[_idx];
   }
 
@@ -575,7 +587,6 @@ class Span {
            detail::ExtentValue<Extent, Offset, Count>::value> {
     SPAN_CHECK((Count == dynamic_extent) ?
                (Offset <= size()) : (Offset + Count <= size()));
-
     return {data() + Offset, Count == dynamic_extent ? size() - Offset : Count};
   }
 
