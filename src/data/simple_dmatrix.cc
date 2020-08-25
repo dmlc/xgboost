@@ -57,14 +57,21 @@ DMatrix* SimpleDMatrix::Combine(DMatrix* right, uint64_t total_size) {
           << "Inconsistent num columns";
   this->Info().num_nonzero_ = out_page.offset.HostVector().back();
   Info().labels_.Append(right->Info().labels_);
-  Info().weights_.Append(right->Info().weights_);
   Info().base_margin_.Append(right->Info().base_margin_);
-  // update group_ptr_
-  auto& right_grp = right->Info().group_ptr_;
-  std::vector<bst_group_t> gptr;
-  std::set_union(Info().group_ptr_.begin(), Info().group_ptr_.end(),
-                 right_grp.begin(), right_grp.end(), gptr.begin());
-  Info().group_ptr_.swap(gptr);
+  Info().weights_.Append(right->Info().weights_);
+
+  /*
+   * TODO: Currently, the Combine method doesn't support the learning-to-rank
+   * usecase. Combining group_ptr_ vectors is therefore disabled.
+  * auto& right_grp = right->Info().group_ptr_;
+  * std::vector<bst_group_t> gptr;
+  * std::sort(Info().group_ptr_.begin(), Info().group_ptr_.end());
+  * std::sort(right_grp.begin(), right_grp.end());
+  * std::set_union(Info().group_ptr_.begin(), Info().group_ptr_.end(),
+  *                right_grp.begin(), right_grp.end(), gptr.begin());
+  * Info().group_ptr_.swap(gptr);
+   */
+  
   return this;
 }
 

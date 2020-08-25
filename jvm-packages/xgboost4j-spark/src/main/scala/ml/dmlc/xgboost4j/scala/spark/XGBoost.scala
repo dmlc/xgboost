@@ -64,6 +64,7 @@ private[this] case class XGBoostExecutionInputParams(trainTestRatio: Double, see
 
 private[this] case class XGBoostExecutionParams(
     numWorkers: Int,
+    nThread: Int,
     numRounds: Int,
     useExternalMemory: Boolean,
     obj: ObjectiveTrait,
@@ -163,6 +164,7 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
 
   def buildXGBRuntimeParams: XGBoostExecutionParams = {
     val nWorkers = overridedParams("num_workers").asInstanceOf[Int]
+    val nThread = overridedParams("nthread").asInstanceOf[Int]
     val round = overridedParams("num_round").asInstanceOf[Int]
     val useExternalMemory = overridedParams("use_external_memory").asInstanceOf[Boolean]
     val obj = overridedParams.getOrElse("custom_obj", null).asInstanceOf[ObjectiveTrait]
@@ -225,8 +227,8 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     val killSparkContext = overridedParams.getOrElse("kill_spark_context_on_worker_failure", true)
       .asInstanceOf[Boolean]
 
-    val xgbExecParam = XGBoostExecutionParams(nWorkers, round, useExternalMemory, obj, eval,
-      missing, allowNonZeroForMissing, trackerConf,
+    val xgbExecParam = XGBoostExecutionParams(nWorkers, nThread, round, useExternalMemory, obj,
+      eval, missing, allowNonZeroForMissing, trackerConf,
       timeoutRequestWorkers,
       checkpointParam,
       inputParams,
@@ -455,18 +457,18 @@ object XGBoost extends Serializable {
   private def coPartitionNoGroupSets(
       trainingData: RDD[XGBLabeledPoint],
       evalSets: Map[String, RDD[XGBLabeledPoint]],
-      nWorkers: Int) = {
+      nPartitions: Int) = {
     // eval_sets is supposed to be set by the caller of [[trainDistributed]]
     val allDatasets = Map("train" -> trainingData) ++ evalSets
     val repartitionedDatasets = allDatasets.map{case (name, rdd) =>
-      if (rdd.getNumPartitions != nWorkers) {
-        (name, rdd.repartition(nWorkers))
+      if (rdd.getNumPartitions != nPartitions) {
+        (name, rdd.repartition(nPartitions))
       } else {
         (name, rdd)
       }
     }
     repartitionedDatasets.foldLeft(trainingData.sparkContext.parallelize(
-      Array.fill[(String, Iterator[XGBLabeledPoint])](nWorkers)(null), nWorkers)){
+      Array.fill[(String, Iterator[XGBLabeledPoint])](nPartitions)(null), nPartitions)){
       case (rddOfIterWrapper, (name, rddOfIter)) =>
         rddOfIterWrapper.zipPartitions(rddOfIter){
           (itrWrapper, itr) =>
@@ -517,8 +519,8 @@ object XGBoost extends Serializable {
           xgbExecutionParams.eval, prevBooster)
       }).cache()
     } else {
-      val watchrdd = coPartitionNoGroupSets(
-        trainingData, evalSetsMap, xgbExecutionParams.numWorkers).mapPartitions(
+      val watchrdd = coPartitionNoGroupSets(trainingData, evalSetsMap,
+        xgbExecutionParams.numWorkers * xgbExecutionParams.nThread).mapPartitions(
           nameAndLabeledPointSets => {
             val watches = Watches.buildWatches(
               nameAndLabeledPointSets.map {
@@ -555,81 +557,48 @@ object XGBoost extends Serializable {
       prevBooster: Booster,
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
     if (evalSetsMap.isEmpty) {
-      val watchrdd = trainingData.mapPartitions(labeledPointGroups => {
+      trainingData.mapPartitions(labeledPointGroups => {
         val watches = Watches.buildWatchesWithGroup(xgbExecutionParam,
           processMissingValuesWithGroup(labeledPointGroups, xgbExecutionParam.missing,
             xgbExecutionParam.allowNonZeroForMissing),
           getCacheDirName(xgbExecutionParam.useExternalMemory))
-        Iterator(watches)
-      }).filter( watches => {
-        val tomap = watches.toMap
-        if (tomap.size == 0) {
-          watches.delete()
-        }
-        tomap.size>0
-      }).cache()
-
-      watchrdd.foreachPartition(() => _)
-      watchrdd.count()
-      val reducedrdd = processWatchesRDD(watchrdd).cache()
-      watchrdd.unpersist()
-
-      reducedrdd.mapPartitions(iter => {
-        val watches = iter.next
         buildDistributedBooster(watches, xgbExecutionParam, rabitEnv,
           xgbExecutionParam.obj, xgbExecutionParam.eval, prevBooster)
       }).cache()
     } else {
-      val watchrdd = coPartitionGroupSets(
-        trainingData, evalSetsMap, xgbExecutionParam.numWorkers).mapPartitions(
-          labeledPointGroupSets => {
-            val watches = Watches.buildWatchesWithGroup(
-              labeledPointGroupSets.map {
-                case (name, iter) => (name, processMissingValuesWithGroup(iter,
-                  xgbExecutionParam.missing, xgbExecutionParam.allowNonZeroForMissing))
-              },
-              getCacheDirName(xgbExecutionParam.useExternalMemory))
-            Iterator(watches)
-          }).filter( watches => {
-            val tomap = watches.toMap
-            if (tomap.size == 0) {
-              watches.delete()
-            }
-            tomap.size>0
-          }).cache()
-
-      watchrdd.foreachPartition(() => _)
-      watchrdd.count()
-      val reducedrdd = processWatchesRDD(watchrdd).cache()
-      watchrdd.unpersist()
-
-      reducedrdd.mapPartitions(iter => {
-        val watches = iter.next
-        buildDistributedBooster(watches, xgbExecutionParam, rabitEnv,
-          xgbExecutionParam.obj,
-          xgbExecutionParam.eval,
-          prevBooster)
-      }).cache()
+      coPartitionGroupSets(trainingData, evalSetsMap, xgbExecutionParam.numWorkers).mapPartitions(
+        labeledPointGroupSets => {
+          val watches = Watches.buildWatchesWithGroup(
+            labeledPointGroupSets.map {
+              case (name, iter) => (name, processMissingValuesWithGroup(iter,
+                xgbExecutionParam.missing, xgbExecutionParam.allowNonZeroForMissing))
+            },
+            getCacheDirName(xgbExecutionParam.useExternalMemory))
+          buildDistributedBooster(watches, xgbExecutionParam, rabitEnv,
+            xgbExecutionParam.obj,
+            xgbExecutionParam.eval,
+            prevBooster)
+        }).cache()
     }
   }
 
   private def processWatchesRDD(watchrdd: RDD[Watches]): RDD[Watches] = {
-    val iscls = watchrdd.sparkContext.getConf.getInt("spark.xgboost.coalesce", 0)
-    val coalescedrdd = if ( iscls==0 ) watchrdd else watchrdd.coalesce(1,
+    val coalescedrdd = watchrdd.coalesce(1,
         partitionCoalescer = Some(new ExecutorInProcessCoalescePartitioner()))
     coalescedrdd.mapPartitions { iter =>
         val matcharr = iter.toArray
-        val totalsize = matcharr.foldLeft(Map("train" -> 0L, "test" -> 0L)) {
-           (l, r) =>
+        val totalsize = matcharr.foldLeft(Map("train" -> 0L)) {
+           (l, r) => {
              val merged = l.toSeq ++ r.dataVecSizeMap.toSeq
              merged.groupBy(_._1).mapValues(_.map(_._2).sum)
+           }
         }
         Iterator( matcharr.reduce { (l, r) =>
           val rst = l.combineDMatrix(r, totalsize)
           l.delete()
           r.delete()
           rst
-        })
+       })
     }
   }
 
@@ -838,15 +807,15 @@ private class Watches private(
     val names: Array[String],
     val cacheDirName: Option[String]) {
 
-  val toMap: Map[String, DMatrix] = {
+  def toMap: Map[String, DMatrix] = {
     names.zip(datasets).toMap.filter { case (_, matrix) => matrix.rowNum > 0 }
   }
 
-  val dataVecSizeMap: Map[String, Long] = {
+  def dataVecSizeMap: Map[String, Long] = {
     toMap.map{ case (key, matrix) => (key, matrix.dataVecSize) }
   }
 
-  val size: Int = toMap.size
+  def size: Int = toMap.size
 
   def delete(): Unit = {
     datasets.foreach(_.delete())
@@ -861,10 +830,6 @@ private class Watches private(
       ndpair._2.combine(namemap(ndpair._1), rowMap(ndpair._1))
     }).toArray
     return new Watches(result, toMap.keys.toArray, cacheDirName)
-  }
-
-  def trainSize(): Seq[Long] = {
-    Seq(toMap("train").rowNum, toMap("test").rowNum)
   }
 
   override def toString: String = toMap.toString
