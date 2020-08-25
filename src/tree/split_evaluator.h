@@ -42,8 +42,6 @@ class TreeEvaluator {
       upper_bounds_.SetDevice(device);
       monotone_.SetDevice(device);
     }
-    lower_bounds_.Resize(p.MaxNodes(), -std::numeric_limits<float>::max());
-    upper_bounds_.Resize(p.MaxNodes(), std::numeric_limits<float>::max());
 
     if (p.monotone_constraints.empty()) {
       monotone_.HostVector().resize(n_features, 0);
@@ -51,6 +49,8 @@ class TreeEvaluator {
     } else {
       monotone_.HostVector() = p.monotone_constraints;
       monotone_.HostVector().resize(n_features, 0);
+      lower_bounds_.Resize(p.MaxNodes(), -std::numeric_limits<float>::max());
+      upper_bounds_.Resize(p.MaxNodes(), std::numeric_limits<float>::max());
       has_constraint_ = true;
     }
 
