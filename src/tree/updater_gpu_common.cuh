@@ -114,58 +114,6 @@ struct DeviceSplitCandidateReduceOp {
   }
 };
 
-struct DeviceNodeStats {
-  GradientPair sum_gradients;
-  float root_gain {-FLT_MAX};
-  float weight {-FLT_MAX};
-
-  /** default direction for missing values */
-  DefaultDirection dir {kLeftDir};
-  /** threshold value for comparison */
-  float fvalue {0.0f};
-  GradientPair left_sum;
-  GradientPair right_sum;
-  /** \brief The feature index. */
-  int fidx{kUnusedNode};
-  /** node id (used as key for reduce/scan) */
-  NodeIdT idx{kUnusedNode};
-
-  XGBOOST_DEVICE DeviceNodeStats() {}  // NOLINT
-
-  template <typename ParamT>
-  HOST_DEV_INLINE DeviceNodeStats(GradientPair sum_gradients, NodeIdT nidx,
-                                  const ParamT& param)
-      : sum_gradients(sum_gradients),
-        idx(nidx) {
-    this->root_gain =
-        CalcGain(param, sum_gradients.GetGrad(), sum_gradients.GetHess());
-    this->weight =
-        CalcWeight(param, sum_gradients.GetGrad(), sum_gradients.GetHess());
-  }
-
-  HOST_DEV_INLINE void SetSplit(float fvalue, int fidx, DefaultDirection dir,
-                                GradientPair left_sum, GradientPair right_sum) {
-    this->fvalue = fvalue;
-    this->fidx = fidx;
-    this->dir = dir;
-    this->left_sum = left_sum;
-    this->right_sum = right_sum;
-  }
-
-  HOST_DEV_INLINE void SetSplit(const DeviceSplitCandidate& split) {
-    this->SetSplit(split.fvalue, split.findex, split.dir, split.left_sum,
-                   split.right_sum);
-  }
-
-  /** Tells whether this node is part of the decision tree */
-  HOST_DEV_INLINE bool IsUnused() const { return (idx == kUnusedNode); }
-
-  /** Tells whether this node is a leaf of the decision tree */
-  HOST_DEV_INLINE bool IsLeaf() const {
-    return (!IsUnused() && (fidx == kUnusedNode));
-  }
-};
-
 template <typename T>
 struct SumCallbackOp {
   // Running prefix

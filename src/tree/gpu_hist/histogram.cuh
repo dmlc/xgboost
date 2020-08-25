@@ -16,7 +16,7 @@ template <typename GradientSumT>
 GradientSumT CreateRoundingFactor(common::Span<GradientPair const> gpair);
 
 template <typename T>
-DEV_INLINE T TruncateWithRoundingFactor(T const rounding_factor, float const x) {
+XGBOOST_DEV_INLINE T TruncateWithRoundingFactor(T const rounding_factor, float const x) {
   return (rounding_factor + static_cast<T>(x)) - rounding_factor;
 }
 

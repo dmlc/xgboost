@@ -281,6 +281,33 @@ struct GHistIndexMatrix {
   bool isDense_;
 };
 
+template <typename GradientIndex>
+int32_t XGBOOST_HOST_DEV_INLINE BinarySearchBin(bst_uint begin, bst_uint end,
+                                                GradientIndex const &data,
+                                                uint32_t const fidx_begin,
+                                                uint32_t const fidx_end) {
+  uint32_t previous_middle = std::numeric_limits<uint32_t>::max();
+  while (end != begin) {
+    auto middle = begin + (end - begin) / 2;
+    if (middle == previous_middle) {
+      break;
+    }
+    previous_middle = middle;
+
+    auto gidx = data[middle];
+
+    if (gidx >= fidx_begin && gidx < fidx_end) {
+      return static_cast<int32_t>(gidx);
+    } else if (gidx < fidx_begin) {
+      begin = middle;
+    } else {
+      end = middle;
+    }
+  }
+  // Value is missing
+  return -1;
+};
+
 struct GHistIndexBlock {
   const size_t* row_ptr;
   const uint32_t* index;
