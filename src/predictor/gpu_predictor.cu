@@ -134,9 +134,9 @@ struct DeviceAdapterLoader {
 
   using BatchT = Batch;
 
-  DEV_INLINE DeviceAdapterLoader(Batch const batch, bool use_shared,
-                                 bst_feature_t num_features, bst_row_t num_rows,
-                                 size_t entry_start) :
+  XGBOOST_DEV_INLINE DeviceAdapterLoader(Batch const batch, bool use_shared,
+                                         bst_feature_t num_features, bst_row_t num_rows,
+                                         size_t entry_start) :
     batch{batch},
     columns{num_features},
     use_shared{use_shared} {
@@ -158,7 +158,7 @@ struct DeviceAdapterLoader {
       __syncthreads();
     }
 
-  DEV_INLINE  float GetElement(size_t  ridx, size_t  fidx) const {
+  XGBOOST_DEV_INLINE  float GetElement(size_t  ridx, size_t  fidx) const {
     if (use_shared) {
       return smem[threadIdx.x * columns + fidx];
     }

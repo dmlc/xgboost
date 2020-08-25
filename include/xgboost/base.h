@@ -84,6 +84,14 @@
 #define XGBOOST_DEVICE
 #endif  // defined (__CUDA__) || defined(__NVCC__)
 
+#if defined(__CUDA__) || defined(__CUDACC__)
+#define XGBOOST_HOST_DEV_INLINE XGBOOST_DEVICE __forceinline__
+#define XGBOOST_DEV_INLINE __device__ __forceinline__
+#else
+#define XGBOOST_HOST_DEV_INLINE
+#define XGBOOST_DEV_INLINE
+#endif  // defined(__CUDA__) || defined(__CUDACC__)
+
 // These check are for Makefile.
 #if !defined(XGBOOST_MM_PREFETCH_PRESENT) && !defined(XGBOOST_BUILTIN_PREFETCH_PRESENT)
 /* default logic for software pre-fetching */
