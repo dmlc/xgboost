@@ -369,7 +369,7 @@ def aggcv(rlist):
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
        metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
        fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True,
-       seed=0, callbacks=None, shuffle=True):
+       seed=0, callbacks=None, shuffle=True, as_modin=False):
     # pylint: disable = invalid-name
     """Cross-validation with given parameters.
 
@@ -521,6 +521,12 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     if as_pandas:
         try:
             import pandas as pd
+            results = pd.DataFrame.from_dict(results)
+        except ImportError:
+            pass
+    elif as_modin:
+        try:
+            import modin.pandas as pd
             results = pd.DataFrame.from_dict(results)
         except ImportError:
             pass

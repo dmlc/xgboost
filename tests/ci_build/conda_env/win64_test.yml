@@ -8,6 +8,7 @@ dependencies:
 - matplotlib
 - scikit-learn
 - pandas
+- modin[all]
 - pytest
 - python-graphviz
 - boto3

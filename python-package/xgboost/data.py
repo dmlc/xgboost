@@ -235,6 +235,13 @@ def _is_pandas_series(data):
         return False
     return isinstance(data, pd.Series)
 
+def _is_modin_series(data):
+    try:
+        import modin.pandas as pd
+    except ImportError:
+        return False
+    return isinstance(data, pd.Series)
+
 
 def _from_pandas_series(data, missing, nthread, feature_types, feature_names):
     return _from_numpy_array(data.values.astype('float'), missing, nthread,
@@ -515,6 +522,9 @@ def dispatch_data_backend(data, missing, threads,
     if _is_pandas_series(data):
         return _from_pandas_series(data, missing, threads, feature_names,
                                    feature_types)
+    if _is_modin_series(data):
+        return _from_pandas_series(data, missing, threads, feature_names,
+                                   feature_types)
     if _is_cudf_df(data):
         return _from_cudf_df(data, missing, threads, feature_names,
                              feature_types)
@@ -620,7 +630,16 @@ def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
         data, _, _ = _transform_pandas_df(data, meta=name, meta_type=dtype)
         _meta_from_numpy(data, name, dtype, handle)
         return
+    if _is_modin_df(data):
+        data, _, _ = _transform_pandas_df(data, meta=name, meta_type=dtype)
+        _meta_from_numpy(data, name, dtype, handle)
+        return
     if _is_pandas_series(data):
+        data = data.values.astype('float')
+        assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1
+        _meta_from_numpy(data, name, dtype, handle)
+        return
+    if _is_modin_series(data):
         data = data.values.astype('float')
         assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1
         _meta_from_numpy(data, name, dtype, handle)
