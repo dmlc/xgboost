@@ -11,7 +11,7 @@ except ImportError:
     pass
 
 
-pytestmark = pytest.mark.skipif(**tm.no_pandas())
+pytestmark = pytest.mark.skipif(**tm.no_modin())
 
 
 dpath = 'demo/data/'
