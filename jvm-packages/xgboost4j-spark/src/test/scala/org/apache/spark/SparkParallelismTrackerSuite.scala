@@ -106,7 +106,7 @@ class SparkParallelismTrackerSuite extends FunSuite with PerTest {
     }
   }
 
-  test("tracker should cancel correct job when killSparkContext=false") {
+  test("tracker should cancel the correct job when killSparkContext=false") {
     val nWorkers = 2
     val tracker = new SparkParallelismTracker(sc, 0, nWorkers, false)
     val rdd: RDD[Int] = sc.parallelize(1 to 10, nWorkers)

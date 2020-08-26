@@ -135,6 +135,7 @@ class TaskFailedListener(killSparkContext: Boolean = true) extends SparkListener
 
             if (stageIds.contains(stageId)) {
               logger.error("Cancelling jobId:" + jobId)
+              jobIdToStageIds.remove(jobId)
               SparkContext.getOrCreate().cancelJob(jobId)
             }
           })
