@@ -349,7 +349,7 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   template <typename GpairT>
   XGBOOST_DEVICE explicit GradStats(const GpairT &sum)
       : sum_grad(sum.GetGrad()), sum_hess(sum.GetHess()) {}
-  explicit GradStats(const GradType grad, const GradType hess)
+  XGBOOST_DEVICE explicit GradStats(const GradType grad, const GradType hess)
       : sum_grad(grad), sum_hess(hess) {}
   /*!
    * \brief accumulate statistics
@@ -358,9 +358,12 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   inline void Add(GradientPair p) { this->Add(p.GetGrad(), p.GetHess()); }
 
   /*! \brief add statistics to the data */
-  inline void Add(const GradStats& b) {
+  XGBOOST_DEVICE void Add(const GradStats& b) {
     sum_grad += b.sum_grad;
     sum_hess += b.sum_hess;
+  }
+  XGBOOST_DEVICE GradStats operator+(GradStats const& r) const {
+    return GradStats{sum_grad + r.sum_grad, sum_hess + r.sum_hess};
   }
   /*! \brief same as add, reduce is used in All Reduce */
   inline static void Reduce(GradStats& a, const GradStats& b) { // NOLINT(*)
@@ -377,6 +380,10 @@ struct XGBOOST_ALIGNAS(16) GradStats {
   inline void Add(GradType grad, GradType hess) {
     sum_grad += grad;
     sum_hess += hess;
+  }
+
+  bool operator==(GradStats const &that) const {
+    return sum_grad == that.GetGrad() && sum_hess == that.GetHess();
   }
 };
 
@@ -471,6 +478,35 @@ struct SplitEntryContainer {
       return true;
     } else {
       return false;
+    }
+  }
+
+  template <typename ParamT>
+  XGBOOST_DEVICE void Update(const SplitEntryContainer& other,
+                             const ParamT& param) {
+    if (other.loss_chg > loss_chg &&
+        other.left_sum.GetHess() >= param.min_child_weight &&
+        other.right_sum.GetHess() >= param.min_child_weight) {
+      *this = other;
+    }
+  }
+
+  template <typename ParamT>
+  XGBOOST_DEVICE void Update(float loss_chg_in, bool default_left,
+                             float fvalue_in, int findex_in,
+                             GradientT left_sum_in,
+                             GradientT right_sum_in, const ParamT &param) {
+    if (loss_chg_in > loss_chg &&
+        left_sum_in.GetHess() >= param.min_child_weight &&
+        right_sum_in.GetHess() >= param.min_child_weight) {
+      loss_chg = loss_chg_in;
+      if (default_left) {
+        findex_in |= (1U << 31);
+      }
+      split_value = fvalue_in;
+      left_sum = left_sum_in;
+      right_sum = right_sum_in;
+      sindex = findex_in;
     }
   }
 

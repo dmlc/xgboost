@@ -1,13 +1,14 @@
 #include <gtest/gtest.h>
-#include "../../../../src/tree/gpu_hist/driver.cuh"
+#include "../../../src/tree/driver.h"
 
 namespace xgboost {
 namespace tree {
 
 TEST(GpuHist, DriverDepthWise) {
+  using Driver = DriverContainer<ExpandEntry>;
   Driver driver(TrainParam::kDepthWise);
   EXPECT_TRUE(driver.Pop().empty());
-  DeviceSplitCandidate split;
+  SplitEntry split;
   split.loss_chg = 1.0f;
   ExpandEntry root(0, 0, split, .0f, .0f, .0f);
   driver.Push({root});
@@ -27,9 +28,10 @@ TEST(GpuHist, DriverDepthWise) {
 }
 
 TEST(GpuHist, DriverLossGuided) {
-  DeviceSplitCandidate high_gain;
+  using Driver = DriverContainer<ExpandEntry>;
+  SplitEntry high_gain;
   high_gain.loss_chg = 5.0f;
-  DeviceSplitCandidate low_gain;
+  SplitEntry low_gain;
   low_gain.loss_chg = 1.0f;
 
   Driver driver(TrainParam::kLossGuide);

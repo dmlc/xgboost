@@ -16,7 +16,7 @@ auto ZeroParam() {
 }  // anonymous namespace
 
 TEST(GpuHist, EvaluateSingleSplit) {
-  thrust::device_vector<DeviceSplitCandidate> out_splits(1);
+  thrust::device_vector<SplitEntry> out_splits(1);
   GradientPair parent_sum(0.0, 1.0);
   TrainParam tparam = ZeroParam();
   GPUTrainingParam param{tparam};
@@ -46,9 +46,9 @@ TEST(GpuHist, EvaluateSingleSplit) {
   auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
   EvaluateSingleSplit(dh::ToSpan(out_splits), evaluator, input);
 
-  DeviceSplitCandidate result = out_splits[0];
-  EXPECT_EQ(result.findex, 1);
-  EXPECT_EQ(result.fvalue, 11.0);
+  SplitEntry result = out_splits[0];
+  EXPECT_EQ(result.SplitIndex(), 1);
+  EXPECT_EQ(result.split_value, 11.0);
   EXPECT_FLOAT_EQ(result.left_sum.GetGrad() + result.right_sum.GetGrad(),
                   parent_sum.GetGrad());
   EXPECT_FLOAT_EQ(result.left_sum.GetHess() + result.right_sum.GetHess(),
@@ -56,7 +56,7 @@ TEST(GpuHist, EvaluateSingleSplit) {
 }
 
 TEST(GpuHist, EvaluateSingleSplitMissing) {
-  thrust::device_vector<DeviceSplitCandidate> out_splits(1);
+  thrust::device_vector<SplitEntry> out_splits(1);
   GradientPair parent_sum(1.0, 1.5);
   TrainParam tparam = ZeroParam();
   GPUTrainingParam param{tparam};
@@ -83,20 +83,22 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
   auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
   EvaluateSingleSplit(dh::ToSpan(out_splits), evaluator, input);
 
-  DeviceSplitCandidate result = out_splits[0];
-  EXPECT_EQ(result.findex, 0);
-  EXPECT_EQ(result.fvalue, 1.0);
-  EXPECT_EQ(result.dir, kRightDir);
-  EXPECT_EQ(result.left_sum, GradientPair(-0.5, 0.5));
-  EXPECT_EQ(result.right_sum, GradientPair(1.5, 1.0));
+  SplitEntry result = out_splits[0];
+  EXPECT_EQ(result.SplitIndex(), 0);
+  EXPECT_EQ(result.split_value, 1.0);
+  EXPECT_FALSE(result.DefaultLeft());
+  EXPECT_EQ(result.left_sum.GetGrad(), -0.5);
+  EXPECT_EQ(result.left_sum.GetHess(), 0.5);
+  EXPECT_EQ(result.right_sum.GetGrad(), 1.5);
+  EXPECT_EQ(result.right_sum.GetHess(), 1.0);
 }
 
 TEST(GpuHist, EvaluateSingleSplitEmpty) {
-  DeviceSplitCandidate nonzeroed;
-  nonzeroed.findex = 1;
+  SplitEntry nonzeroed;
+  nonzeroed.sindex = (1 | (1U << 31));
   nonzeroed.loss_chg = 1.0;
 
-  thrust::device_vector<DeviceSplitCandidate> out_split(1);
+  thrust::device_vector<SplitEntry> out_split(1);
   out_split[0] = nonzeroed;
 
   TrainParam tparam = ZeroParam();
@@ -105,14 +107,14 @@ TEST(GpuHist, EvaluateSingleSplitEmpty) {
   EvaluateSingleSplit(dh::ToSpan(out_split), evaluator,
                       EvaluateSplitInputs<GradientPair>{});
 
-  DeviceSplitCandidate result = out_split[0];
-  EXPECT_EQ(result.findex, -1);
+  SplitEntry result = out_split[0];
+  EXPECT_EQ(result.SplitIndex(), -1);
   EXPECT_LT(result.loss_chg, 0.0f);
 }
 
 // Feature 0 has a better split, but the algorithm must select feature 1
 TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
-  thrust::device_vector<DeviceSplitCandidate> out_splits(1);
+  thrust::device_vector<SplitEntry> out_splits(1);
   GradientPair parent_sum(0.0, 1.0);
   TrainParam tparam = ZeroParam();
   tparam.UpdateAllowUnknown(Args{});
@@ -143,16 +145,16 @@ TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
   auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
   EvaluateSingleSplit(dh::ToSpan(out_splits), evaluator, input);
 
-  DeviceSplitCandidate result = out_splits[0];
-  EXPECT_EQ(result.findex, 1);
-  EXPECT_EQ(result.fvalue, 11.0);
-  EXPECT_EQ(result.left_sum, GradientPair(-0.5, 0.5));
-  EXPECT_EQ(result.right_sum, GradientPair(0.5, 0.5));
+  SplitEntry result = out_splits[0];
+  EXPECT_EQ(result.SplitIndex(), 1);
+  EXPECT_EQ(result.split_value, 11.0);
+  EXPECT_EQ(result.left_sum, GradStats(-0.5, 0.5));
+  EXPECT_EQ(result.right_sum, GradStats(0.5, 0.5));
 }
 
 // Features 0 and 1 have identical gain, the algorithm must select 0
 TEST(GpuHist, EvaluateSingleSplitBreakTies) {
-  thrust::device_vector<DeviceSplitCandidate> out_splits(1);
+  thrust::device_vector<SplitEntry> out_splits(1);
   GradientPair parent_sum(0.0, 1.0);
   TrainParam tparam = ZeroParam();
   tparam.UpdateAllowUnknown(Args{});
@@ -183,13 +185,13 @@ TEST(GpuHist, EvaluateSingleSplitBreakTies) {
   auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
   EvaluateSingleSplit(dh::ToSpan(out_splits), evaluator, input);
 
-  DeviceSplitCandidate result = out_splits[0];
-  EXPECT_EQ(result.findex, 0);
-  EXPECT_EQ(result.fvalue, 1.0);
+  SplitEntry result = out_splits[0];
+  EXPECT_EQ(result.SplitIndex(), 0);
+  EXPECT_EQ(result.split_value, 1.0);
 }
 
 TEST(GpuHist, EvaluateSplits) {
-  thrust::device_vector<DeviceSplitCandidate> out_splits(2);
+  thrust::device_vector<SplitEntry> out_splits(2);
   GradientPair parent_sum(0.0, 1.0);
   TrainParam tparam = ZeroParam();
   tparam.UpdateAllowUnknown(Args{});
@@ -233,13 +235,13 @@ TEST(GpuHist, EvaluateSplits) {
   auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
   EvaluateSplits(dh::ToSpan(out_splits), evaluator, input_left, input_right);
 
-  DeviceSplitCandidate result_left = out_splits[0];
-  EXPECT_EQ(result_left.findex, 1);
-  EXPECT_EQ(result_left.fvalue, 11.0);
+  SplitEntry result_left = out_splits[0];
+  EXPECT_EQ(result_left.SplitIndex(), 1);
+  EXPECT_EQ(result_left.split_value, 11.0);
 
-  DeviceSplitCandidate result_right = out_splits[1];
-  EXPECT_EQ(result_right.findex, 0);
-  EXPECT_EQ(result_right.fvalue, 1.0);
+  SplitEntry result_right = out_splits[1];
+  EXPECT_EQ(result_right.SplitIndex(), 0);
+  EXPECT_EQ(result_right.split_value, 1.0);
 }
 
 }  // namespace tree

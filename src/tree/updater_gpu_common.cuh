@@ -54,62 +54,12 @@ enum DefaultDirection {
   kRightDir
 };
 
-struct DeviceSplitCandidate {
-  float loss_chg {-FLT_MAX};
-  DefaultDirection dir {kLeftDir};
-  int findex {-1};
-  float fvalue {0};
-
-  GradientPair left_sum;
-  GradientPair right_sum;
-
-  XGBOOST_DEVICE DeviceSplitCandidate() {}  // NOLINT
-
-  template <typename ParamT>
-  XGBOOST_DEVICE void Update(const DeviceSplitCandidate& other,
-                             const ParamT& param) {
-    if (other.loss_chg > loss_chg &&
-        other.left_sum.GetHess() >= param.min_child_weight &&
-        other.right_sum.GetHess() >= param.min_child_weight) {
-      *this = other;
-    }
-  }
-
-  XGBOOST_DEVICE void Update(float loss_chg_in, DefaultDirection dir_in,
-                             float fvalue_in, int findex_in,
-                             GradientPair left_sum_in,
-                             GradientPair right_sum_in,
-                             const GPUTrainingParam& param) {
-    if (loss_chg_in > loss_chg &&
-        left_sum_in.GetHess() >= param.min_child_weight &&
-        right_sum_in.GetHess() >= param.min_child_weight) {
-      loss_chg = loss_chg_in;
-      dir = dir_in;
-      fvalue = fvalue_in;
-      left_sum = left_sum_in;
-      right_sum = right_sum_in;
-      findex = findex_in;
-    }
-  }
-  XGBOOST_DEVICE bool IsValid() const { return loss_chg > 0.0f; }
-
-  friend std::ostream& operator<<(std::ostream& os, DeviceSplitCandidate const& c) {
-    os << "loss_chg:" << c.loss_chg << ", "
-       << "dir: " << c.dir << ", "
-       << "findex: " << c.findex << ", "
-       << "fvalue: " << c.fvalue << ", "
-       << "left sum: " << c.left_sum << ", "
-       << "right sum: " << c.right_sum << std::endl;
-    return os;
-  }
-};
-
 struct DeviceSplitCandidateReduceOp {
   GPUTrainingParam param;
   explicit DeviceSplitCandidateReduceOp(GPUTrainingParam param) : param(std::move(param)) {}
-  XGBOOST_DEVICE DeviceSplitCandidate operator()(
-      const DeviceSplitCandidate& a, const DeviceSplitCandidate& b) const {
-    DeviceSplitCandidate best;
+  XGBOOST_DEVICE SplitEntry operator()(
+      const SplitEntry& a, const SplitEntry& b) const {
+    SplitEntry best;
     best.Update(a, param);
     best.Update(b, param);
     return best;

@@ -24,12 +24,12 @@ struct EvaluateSplitInputs {
   common::Span<const GradientSumT> gradient_histogram;
 };
 template <typename GradientSumT>
-void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
+void EvaluateSplits(common::Span<SplitEntry> out_splits,
                     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
                     EvaluateSplitInputs<GradientSumT> left,
                     EvaluateSplitInputs<GradientSumT> right);
 template <typename GradientSumT>
-void EvaluateSingleSplit(common::Span<DeviceSplitCandidate> out_split,
+void EvaluateSingleSplit(common::Span<SplitEntry> out_split,
                          TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
                          EvaluateSplitInputs<GradientSumT> input);
 }  // namespace tree

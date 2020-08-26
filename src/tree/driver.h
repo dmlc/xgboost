@@ -1,26 +1,22 @@
-/*!
- * Copyright 2020 by XGBoost Contributors
- */
-#ifndef DRIVER_CUH_
-#define DRIVER_CUH_
-#include <xgboost/span.h>
+#ifndef XGBOOST_TREE_DRIVER_H_
+#define XGBOOST_TREE_DRIVER_H_
+#include <functional>
 #include <queue>
-#include "../param.h"
-#include "evaluate_splits.cuh"
+#include "param.h"
 
 namespace xgboost {
 namespace tree {
 struct ExpandEntry {
   int nid;
   int depth;
-  DeviceSplitCandidate split;
+  SplitEntry split;
 
   float base_weight { std::numeric_limits<float>::quiet_NaN() };
   float left_weight { std::numeric_limits<float>::quiet_NaN() };
   float right_weight { std::numeric_limits<float>::quiet_NaN() };
 
   ExpandEntry() = default;
-  XGBOOST_DEVICE ExpandEntry(int nid, int depth, DeviceSplitCandidate split,
+  XGBOOST_DEVICE ExpandEntry(int nid, int depth, SplitEntry split,
                              float base, float left, float right)
       : nid(nid), depth(depth), split(std::move(split)), base_weight{base},
         left_weight{left}, right_weight{right} {}
@@ -58,10 +54,13 @@ struct ExpandEntry {
   }
 };
 
+
+template <typename ExpandEntry>
 inline bool DepthWise(const ExpandEntry& lhs, const ExpandEntry& rhs) {
   return lhs.depth > rhs.depth;  // favor small depth
 }
 
+template <typename ExpandEntry>
 inline bool LossGuide(const ExpandEntry& lhs, const ExpandEntry& rhs) {
   if (lhs.split.loss_chg == rhs.split.loss_chg) {
     return lhs.nid > rhs.nid;  // favor small timestamp
@@ -70,16 +69,16 @@ inline bool LossGuide(const ExpandEntry& lhs, const ExpandEntry& rhs) {
   }
 }
 
-// Drives execution of tree building on device
-class Driver {
+template <typename ExpandEntry>
+class DriverContainer {
   using ExpandQueue =
       std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
                           std::function<bool(ExpandEntry, ExpandEntry)>>;
 
  public:
-  explicit Driver(TrainParam::TreeGrowPolicy policy)
+  explicit DriverContainer(TrainParam::TreeGrowPolicy policy)
       : policy_(policy),
-        queue_(policy == TrainParam::kDepthWise ? DepthWise : LossGuide) {}
+        queue_(policy == TrainParam::kDepthWise ? DepthWise<ExpandEntry> : LossGuide<ExpandEntry>) {}
   template <typename EntryIterT>
   void Push(EntryIterT begin,EntryIterT end) {
     for (auto it = begin; it != end; ++it) {
@@ -123,5 +122,4 @@ class Driver {
 };
 }  // namespace tree
 }  // namespace xgboost
-
-#endif  // DRIVER_CUH_
+#endif  // XGBOOST_TREE_DRIVER_H_

@@ -215,10 +215,10 @@ TEST(GpuHist, EvaluateRootSplit) {
   info.num_row_ = kNRows;
   info.num_col_ = kNCols;
 
-  DeviceSplitCandidate res = maker.EvaluateRootSplit({6.4f, 12.8f});
+  SplitEntry res = maker.EvaluateRootSplit({6.4f, 12.8f});
 
-  ASSERT_EQ(res.findex, 7);
-  ASSERT_NEAR(res.fvalue, 0.26, xgboost::kRtEps);
+  ASSERT_EQ(res.SplitIndex(), 7);
+  ASSERT_NEAR(res.split_value, 0.26, xgboost::kRtEps);
 }
 
 void TestHistogramIndexImpl() {

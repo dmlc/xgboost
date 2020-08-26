@@ -76,7 +76,7 @@ template <int BLOCK_THREADS, typename ReduceT, typename ScanT,
 __device__ void EvaluateFeature(
     int fidx, EvaluateSplitInputs<GradientSumT> inputs,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
-    DeviceSplitCandidate* best_split,  // shared memory storing best split
+    SplitEntry* best_split,  // shared memory storing best split
     TempStorageT* temp_storage         // temp memory for cub operations
 ) {
   // Use pointer from cut to indicate begin and end of bins for each feature.
@@ -140,8 +140,7 @@ __device__ void EvaluateFeature(
       }
       GradientSumT left = missing_left ? bin + missing : bin;
       GradientSumT right = inputs.parent_sum - left;
-      best_split->Update(gain, missing_left ? kLeftDir : kRightDir, fvalue,
-                         fidx, GradientPair(left), GradientPair(right),
+      best_split->Update(gain, missing_left, fvalue, fidx, GradStats(left), GradStats(right),
                          inputs.param);
     }
     __syncthreads();
@@ -153,7 +152,7 @@ __global__ void EvaluateSplitsKernel(
     EvaluateSplitInputs<GradientSumT> left,
     EvaluateSplitInputs<GradientSumT> right,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
-    common::Span<DeviceSplitCandidate> out_candidates) {
+    common::Span<SplitEntry> out_candidates) {
   // KeyValuePair here used as threadIdx.x -> gain_value
   using ArgMaxT = cub::KeyValuePair<int, float>;
   using BlockScanT =
@@ -169,12 +168,12 @@ __global__ void EvaluateSplitsKernel(
   };
 
   // Aligned && shared storage for best_split
-  __shared__ cub::Uninitialized<DeviceSplitCandidate> uninitialized_split;
-  DeviceSplitCandidate& best_split = uninitialized_split.Alias();
+  __shared__ cub::Uninitialized<SplitEntry> uninitialized_split;
+  SplitEntry& best_split = uninitialized_split.Alias();
   __shared__ TempStorage temp_storage;
 
   if (threadIdx.x == 0) {
-    best_split = DeviceSplitCandidate();
+    best_split = SplitEntry();
   }
 
   __syncthreads();
@@ -198,19 +197,19 @@ __global__ void EvaluateSplitsKernel(
   }
 }
 
-__device__ DeviceSplitCandidate operator+(const DeviceSplitCandidate& a,
-                                          const DeviceSplitCandidate& b) {
+__device__ SplitEntry operator+(const SplitEntry& a,
+                                          const SplitEntry& b) {
   return b.loss_chg > a.loss_chg ? b : a;
 }
 
 template <typename GradientSumT>
-void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
+void EvaluateSplits(common::Span<SplitEntry> out_splits,
                     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
                     EvaluateSplitInputs<GradientSumT> left,
                     EvaluateSplitInputs<GradientSumT> right) {
   size_t combined_num_features =
       left.feature_set.size() + right.feature_set.size();
-  dh::TemporaryArray<DeviceSplitCandidate> feature_best_splits(
+  dh::TemporaryArray<SplitEntry> feature_best_splits(
       combined_num_features);
   // One block for each feature
   uint32_t constexpr kBlockThreads = 256;
@@ -245,28 +244,28 @@ void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
 }
 
 template <typename GradientSumT>
-void EvaluateSingleSplit(common::Span<DeviceSplitCandidate> out_split,
+void EvaluateSingleSplit(common::Span<SplitEntry> out_split,
                          TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
                          EvaluateSplitInputs<GradientSumT> input) {
   EvaluateSplits(out_split, evaluator, input, {});
 }
 
 template void EvaluateSplits<GradientPair>(
-    common::Span<DeviceSplitCandidate> out_splits,
+    common::Span<SplitEntry> out_splits,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     EvaluateSplitInputs<GradientPair> left,
     EvaluateSplitInputs<GradientPair> right);
 template void EvaluateSplits<GradientPairPrecise>(
-    common::Span<DeviceSplitCandidate> out_splits,
+    common::Span<SplitEntry> out_splits,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     EvaluateSplitInputs<GradientPairPrecise> left,
     EvaluateSplitInputs<GradientPairPrecise> right);
 template void EvaluateSingleSplit<GradientPair>(
-    common::Span<DeviceSplitCandidate> out_split,
+    common::Span<SplitEntry> out_split,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     EvaluateSplitInputs<GradientPair> input);
 template void EvaluateSingleSplit<GradientPairPrecise>(
-    common::Span<DeviceSplitCandidate> out_split,
+    common::Span<SplitEntry> out_split,
     TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     EvaluateSplitInputs<GradientPairPrecise> input);
 }  // namespace tree

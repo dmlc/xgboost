@@ -31,7 +31,7 @@
 #include "gpu_hist/row_partitioner.cuh"
 #include "gpu_hist/histogram.cuh"
 #include "gpu_hist/evaluate_splits.cuh"
-#include "gpu_hist/driver.cuh"
+#include "driver.h"
 
 namespace xgboost {
 namespace tree {
@@ -279,9 +279,9 @@ struct GPUHistMakerDevice {
   }
 
 
-  DeviceSplitCandidate EvaluateRootSplit(GradientPair root_sum) {
+  SplitEntry EvaluateRootSplit(GradientPair root_sum) {
     int nidx = RegTree::kRoot;
-    dh::TemporaryArray<DeviceSplitCandidate> splits_out(1);
+    dh::TemporaryArray<SplitEntry> splits_out(1);
     GPUTrainingParam gpu_param(param);
     auto sampled_features = column_sampler.GetFeatureSet(0);
     sampled_features->SetDevice(device_id);
@@ -299,9 +299,9 @@ struct GPUHistMakerDevice {
         hist.GetNodeHistogram(nidx)};
     auto gain_calc = tree_evaluator.GetEvaluator<GPUTrainingParam>();
     EvaluateSingleSplit(dh::ToSpan(splits_out), gain_calc, inputs);
-    std::vector<DeviceSplitCandidate> result(1);
+    std::vector<SplitEntry> result(1);
     dh::safe_cuda(cudaMemcpy(result.data(), splits_out.data().get(),
-                             sizeof(DeviceSplitCandidate) * splits_out.size(),
+                             sizeof(SplitEntry) * splits_out.size(),
                              cudaMemcpyDeviceToHost));
     return result.front();
   }
@@ -309,7 +309,7 @@ struct GPUHistMakerDevice {
   void EvaluateLeftRightSplits(
       ExpandEntry candidate, int left_nidx, int right_nidx, const RegTree& tree,
       common::Span<ExpandEntry> pinned_candidates_out) {
-    dh::TemporaryArray<DeviceSplitCandidate> splits_out(2);
+    dh::TemporaryArray<SplitEntry> splits_out(2);
     GPUTrainingParam gpu_param(param);
     auto left_sampled_features =
         column_sampler.GetFeatureSet(tree.GetDepth(left_nidx));
@@ -327,18 +327,18 @@ struct GPUHistMakerDevice {
 
     EvaluateSplitInputs<GradientSumT> left{
       left_nidx,
-      {candidate.split.left_sum.GetGrad(),
-            candidate.split.left_sum.GetHess()},
-          gpu_param,
-          left_feature_set,
-          matrix.feature_segments,
-          matrix.gidx_fvalue_map,
-          matrix.min_fvalue,
-          hist.GetNodeHistogram(left_nidx)};
+      {static_cast<float>(candidate.split.left_sum.GetGrad()),
+       static_cast<float>(candidate.split.left_sum.GetHess())},
+       gpu_param,
+       left_feature_set,
+       matrix.feature_segments,
+       matrix.gidx_fvalue_map,
+       matrix.min_fvalue,
+       hist.GetNodeHistogram(left_nidx)};
     EvaluateSplitInputs<GradientSumT> right{
         right_nidx,
-        {candidate.split.right_sum.GetGrad(),
-         candidate.split.right_sum.GetHess()},
+        {static_cast<float>(candidate.split.right_sum.GetGrad()),
+         static_cast<float>(candidate.split.right_sum.GetHess())},
         gpu_param,
         right_feature_set,
         matrix.feature_segments,
@@ -353,9 +353,10 @@ struct GPUHistMakerDevice {
     dh::LaunchN(device_id, 2, [=] __device__(size_t idx) {
       auto split = d_splits_out[idx];
       auto nidx = idx == 0 ? left_nidx : right_nidx;
-
+      GradStats parent_sum = split.left_sum;
+      parent_sum.Add(split.right_sum);
       float base_weight = evaluator.CalcWeight(
-          nidx, gpu_param, GradStats{split.left_sum + split.right_sum});
+          nidx, gpu_param, parent_sum);
       float left_weight =
           evaluator.CalcWeight(nidx, gpu_param, GradStats{split.left_sum});
       float right_weight = evaluator.CalcWeight(
@@ -556,13 +557,16 @@ struct GPUHistMakerDevice {
   void ApplySplit(const ExpandEntry& candidate, RegTree* p_tree) {
     RegTree& tree = *p_tree;
     auto evaluator = tree_evaluator.GetEvaluator();
-    auto parent_sum = candidate.split.left_sum + candidate.split.right_sum;
+    GradStats parent_sum{candidate.split.left_sum.GetGrad() +
+                             candidate.split.right_sum.GetGrad(),
+                         candidate.split.left_sum.GetHess() +
+                             candidate.split.right_sum.GetHess()};
     auto base_weight = candidate.base_weight;
     auto left_weight = candidate.left_weight * param.learning_rate;
     auto right_weight = candidate.right_weight * param.learning_rate;
 
-    tree.ExpandNode(candidate.nid, candidate.split.findex,
-                    candidate.split.fvalue, candidate.split.dir == kLeftDir,
+    tree.ExpandNode(candidate.nid, candidate.split.SplitIndex(),
+                    candidate.split.split_value, candidate.split.DefaultLeft(),
                     base_weight, left_weight, right_weight,
                     candidate.split.loss_chg, parent_sum.GetHess(),
                     candidate.split.left_sum.GetHess(), candidate.split.right_sum.GetHess());
@@ -575,9 +579,11 @@ struct GPUHistMakerDevice {
                             tree[candidate.nid].SplitIndex(), candidate.left_weight,
                             candidate.right_weight);
     node_sum_gradients[tree[candidate.nid].LeftChild()] =
-        candidate.split.left_sum;
+        GradientPair{static_cast<float>(candidate.split.left_sum.GetGrad()),
+                     static_cast<float>(candidate.split.left_sum.GetHess())};
     node_sum_gradients[tree[candidate.nid].RightChild()] =
-        candidate.split.right_sum;
+        GradientPair{static_cast<float>(candidate.split.right_sum.GetGrad()),
+                     static_cast<float>(candidate.split.right_sum.GetHess())};
 
     interaction_constraints.Split(
         candidate.nid, tree[candidate.nid].SplitIndex(),
@@ -631,7 +637,7 @@ struct GPUHistMakerDevice {
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat,
                   RegTree* p_tree, dh::AllReducer* reducer) {
     auto& tree = *p_tree;
-    Driver driver(static_cast<TrainParam::TreeGrowPolicy>(param.grow_policy));
+    DriverContainer<ExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param.grow_policy));
 
     monitor.Start("Reset");
     this->Reset(gpair_all, p_fmat, p_fmat->Info().num_col_);
