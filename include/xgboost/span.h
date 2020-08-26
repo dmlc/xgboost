@@ -104,13 +104,12 @@ namespace common {
 #if defined(__CUDA_ARCH__)
 #define SPAN_LT(lhs, rhs)                                                      \
   if (!((lhs) < (rhs))) {                                                      \
-    printf("%lu < %lu failed\n", static_cast<size_t>(lhs),                     \
-           static_cast<size_t>(rhs));                                          \
+    printf("[xgboost] Condition: %lu < %lu failed\n",                          \
+           static_cast<size_t>(lhs), static_cast<size_t>(rhs));                \
     asm("trap;");                                                              \
   }
 #else
-#define SPAN_LT(lhs, rhs)                       \
-  SPAN_CHECK((lhs) < (rhs))
+#define SPAN_LT(lhs, rhs) SPAN_CHECK((lhs) < (rhs))
 #endif  // defined(__CUDA_ARCH__)
 
 namespace detail {

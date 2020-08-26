@@ -81,7 +81,7 @@ void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
   auto counting = thrust::make_counting_iterator(0llu);
   auto input_iterator = dh::MakeTransformIterator<IndexFlagTuple>(
       counting, [=] __device__(size_t idx) {
-        return IndexFlagTuple{idx, position[idx] == left_nidx};
+        return IndexFlagTuple{idx, static_cast<size_t>(position[idx] == left_nidx)};
       });
   size_t temp_bytes = 0;
   cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, input_iterator,

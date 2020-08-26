@@ -155,6 +155,7 @@ class TestDataset:
             np.savetxt(path,
                        np.hstack((self.y.reshape(len(self.y), 1), self.X)),
                        delimiter=',')
+            assert os.path.exists(path)
             uri = path + '?format=csv&label_column=0#tmptmp_'
             # The uri looks like:
             # 'tmptmp_1234.csv?format=csv&label_column=0#tmptmp_'

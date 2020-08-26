@@ -659,8 +659,6 @@ class GHistBuilder {
   /*! \brief number of all bins over all features */
   uint32_t nbins_ { 0 };
 };
-
-
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_HIST_UTIL_H_

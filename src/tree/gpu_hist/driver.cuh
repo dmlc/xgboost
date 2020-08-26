@@ -14,9 +14,16 @@ struct ExpandEntry {
   int nid;
   int depth;
   DeviceSplitCandidate split;
+
+  float base_weight { std::numeric_limits<float>::quiet_NaN() };
+  float left_weight { std::numeric_limits<float>::quiet_NaN() };
+  float right_weight { std::numeric_limits<float>::quiet_NaN() };
+
   ExpandEntry() = default;
-  XGBOOST_DEVICE ExpandEntry(int nid, int depth, DeviceSplitCandidate split)
-      : nid(nid), depth(depth), split(std::move(split)) {}
+  XGBOOST_DEVICE ExpandEntry(int nid, int depth, DeviceSplitCandidate split,
+                             float base, float left, float right)
+      : nid(nid), depth(depth), split(std::move(split)), base_weight{base},
+        left_weight{left}, right_weight{right} {}
   bool IsValid(const TrainParam& param, int num_leaves) const {
     if (split.loss_chg <= kRtEps) return false;
     if (split.left_sum.GetHess() == 0 || split.right_sum.GetHess() == 0) {

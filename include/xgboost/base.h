@@ -242,7 +242,7 @@ class GradientPairInternal {
 
   XGBOOST_DEVICE explicit GradientPairInternal(int value) {
     *this = GradientPairInternal<T>(static_cast<float>(value),
-                                  static_cast<float>(value));
+                                    static_cast<float>(value));
   }
 
   friend std::ostream &operator<<(std::ostream &os,

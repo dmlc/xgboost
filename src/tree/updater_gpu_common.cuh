@@ -26,6 +26,7 @@ struct GPUTrainingParam {
   // this parameter can be used to stabilize update
   // default=0 means no constraint on weight delta
   float max_delta_step;
+  float learning_rate;
 
   GPUTrainingParam() = default;
 
@@ -33,7 +34,8 @@ struct GPUTrainingParam {
       : min_child_weight(param.min_child_weight),
         reg_lambda(param.reg_lambda),
         reg_alpha(param.reg_alpha),
-        max_delta_step(param.max_delta_step) {}
+        max_delta_step(param.max_delta_step),
+        learning_rate{param.learning_rate} {}
 };
 
 using NodeIdT = int32_t;
