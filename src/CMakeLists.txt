@@ -9,7 +9,6 @@ if (USE_CUDA)
   file(GLOB_RECURSE CUDA_SOURCES *.cu *.cuh)
   target_sources(objxgboost PRIVATE ${CUDA_SOURCES})
   target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_CUDA=1)
-  target_include_directories(objxgboost PRIVATE ${xgboost_SOURCE_DIR}/gputreeshap)
   if (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
     target_include_directories(objxgboost PRIVATE ${xgboost_SOURCE_DIR}/cub/)
   endif (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
@@ -50,6 +49,7 @@ if (USE_CUDA)
     CUDA_STANDARD 14
     CUDA_STANDARD_REQUIRED ON
     CUDA_SEPARABLE_COMPILATION OFF)
+  target_link_libraries(objxgboost PRIVATE GPUTreeShap)
 endif (USE_CUDA)
 
 target_include_directories(objxgboost

@@ -113,6 +113,7 @@ if (USE_CUDA)
   set(GEN_CODE "")
   format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
   message(STATUS "CUDA GEN_CODE: ${GEN_CODE}")
+  add_subdirectory(${PROJECT_SOURCE_DIR}/gputreeshap)
 endif (USE_CUDA)
 
 if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
