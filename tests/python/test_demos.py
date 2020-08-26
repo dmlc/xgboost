@@ -1,12 +1,10 @@
 import os
 import subprocess
-import sys
 import pytest
 import testing as tm
 
 
-CURRENT_DIR = os.path.dirname(__file__)
-ROOT_DIR = os.path.dirname(os.path.dirname(CURRENT_DIR))
+ROOT_DIR = tm.PROJECT_ROOT
 DEMO_DIR = os.path.join(ROOT_DIR, 'demo')
 PYTHON_DEMO_DIR = os.path.join(DEMO_DIR, 'guide-python')
 
@@ -19,17 +17,23 @@ def test_basic_walkthrough():
     os.remove('dump.raw.txt')
 
 
+@pytest.mark.skipif(**tm.no_matplotlib())
 def test_custom_multiclass_objective():
     script = os.path.join(PYTHON_DEMO_DIR, 'custom_softmax.py')
     cmd = ['python', script, '--plot=0']
     subprocess.check_call(cmd)
 
 
+@pytest.mark.skipif(**tm.no_matplotlib())
 def test_custom_rmsle_objective():
-    major, minor = sys.version_info[:2]
-    if minor < 6:
-        pytest.skip('Skipping RMLSE test due to Python version being too low.')
     script = os.path.join(PYTHON_DEMO_DIR, 'custom_rmsle.py')
+    cmd = ['python', script, '--plot=0']
+    subprocess.check_call(cmd)
+
+
+@pytest.mark.skipif(**tm.no_matplotlib())
+def test_feature_weights_demo():
+    script = os.path.join(PYTHON_DEMO_DIR, 'feature_weights.py')
     cmd = ['python', script, '--plot=0']
     subprocess.check_call(cmd)
 
@@ -105,6 +109,8 @@ def test_evals_result_demo():
     subprocess.check_call(cmd)
 
 
+@pytest.mark.skipif(**tm.no_sklearn())
+@pytest.mark.skipif(**tm.no_pandas())
 def test_aft_demo():
     script = os.path.join(DEMO_DIR, 'aft_survival', 'aft_survival_demo.py')
     cmd = ['python', script]

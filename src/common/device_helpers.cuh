@@ -36,7 +36,12 @@
 
 #ifdef XGBOOST_USE_NCCL
 #include "nccl.h"
-#endif
+#endif  // XGBOOST_USE_NCCL
+
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+#include "rmm/mr/device/per_device_resource.hpp"
+#include "rmm/mr/device/thrust_allocator_adaptor.hpp"
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600 || defined(__clang__)
 
@@ -90,9 +95,6 @@ T __device__ __forceinline__ atomicAdd(T *addr, T v) {  // NOLINT
 }
 
 namespace dh {
-
-#define HOST_DEV_INLINE XGBOOST_DEVICE __forceinline__
-#define DEV_INLINE __device__ __forceinline__
 
 #ifdef XGBOOST_USE_NCCL
 #define safe_nccl(ans) ThrowOnNcclError((ans), __FILE__, __LINE__)
@@ -179,9 +181,11 @@ inline void CheckComputeCapability() {
   }
 }
 
-DEV_INLINE void AtomicOrByte(unsigned int* __restrict__ buffer, size_t ibyte, unsigned char b) {
+XGBOOST_DEV_INLINE void AtomicOrByte(unsigned int *__restrict__ buffer,
+                                     size_t ibyte, unsigned char b) {
   atomicOr(&buffer[ibyte / sizeof(unsigned int)],
-           static_cast<unsigned int>(b) << (ibyte % (sizeof(unsigned int)) * 8));
+           static_cast<unsigned int>(b)
+               << (ibyte % (sizeof(unsigned int)) * 8));
 }
 
 template <typename T>
@@ -370,12 +374,21 @@ inline void DebugSyncDevice(std::string file="", int32_t line = -1) {
 }
 
 namespace detail {
+
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+template <typename T>
+using XGBBaseDeviceAllocator = rmm::mr::thrust_allocator<T>;
+#else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+template <typename T>
+using XGBBaseDeviceAllocator = thrust::device_malloc_allocator<T>;
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+
 /**
  * \brief Default memory allocator, uses cudaMalloc/Free and logs allocations if verbose.
  */
 template <class T>
-struct XGBDefaultDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
-  using SuperT = thrust::device_malloc_allocator<T>;
+struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
+  using SuperT = XGBBaseDeviceAllocator<T>;
   using pointer = thrust::device_ptr<T>;  // NOLINT
   template<typename U>
   struct rebind  // NOLINT
@@ -391,10 +404,15 @@ struct XGBDefaultDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
     GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
     return SuperT::deallocate(ptr, n);
   }
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+  XGBDefaultDeviceAllocatorImpl()
+    : SuperT(rmm::mr::get_current_device_resource(), cudaStream_t{0}) {}
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 };
 
 /**
- * \brief Caching memory allocator, uses cub::CachingDeviceAllocator as a back-end and logs allocations if verbose. Does not initialise memory on construction.
+ * \brief Caching memory allocator, uses cub::CachingDeviceAllocator as a back-end and logs
+ * allocations if verbose. Does not initialise memory on construction.
  */
 template <class T>
 struct XGBCachingDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
@@ -455,8 +473,18 @@ class TemporaryArray {
   using AllocT = XGBCachingDeviceAllocator<T>;
   using value_type = T;  // NOLINT
   explicit TemporaryArray(size_t n) : size_(n) { ptr_ = AllocT().allocate(n); }
+  TemporaryArray(size_t n, T val) : size_(n) {
+    ptr_ = AllocT().allocate(n);
+    this->fill(val);
+  }
   ~TemporaryArray() { AllocT().deallocate(ptr_, this->size()); }
-
+  void fill(T val)  // NOLINT
+  {
+    int device = 0;
+    dh::safe_cuda(cudaGetDevice(&device));
+    auto d_data = ptr_.get();
+    LaunchN(device, this->size(), [=] __device__(size_t idx) { d_data[idx] = val; });
+  }
   thrust::device_ptr<T> data() { return ptr_; }  // NOLINT
   size_t size() { return size_; }  // NOLINT
 
@@ -965,8 +993,8 @@ class SegmentSorter {
 
 // Atomic add function for gradients
 template <typename OutputGradientT, typename InputGradientT>
-DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
-                               const InputGradientT& gpair) {
+XGBOOST_DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
+                                       const InputGradientT& gpair) {
   auto dst_ptr = reinterpret_cast<typename OutputGradientT::ValueT*>(dest);
 
   atomicAdd(dst_ptr,

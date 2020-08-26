@@ -239,6 +239,10 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
     if (this->max_leaves > 0) {
       n_nodes = this->max_leaves * 2 - 1;
     } else {
+      // bst_node_t will overflow.
+      CHECK_LE(this->max_depth, 31)
+          << "max_depth can not be greater than 31 as that might generate 2 ** "
+             "32 - 1 nodes.";
       n_nodes = (1 << (this->max_depth + 1)) - 1;
     }
     CHECK_NE(n_nodes, 0);
@@ -270,6 +274,20 @@ XGBOOST_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p,
   return -(T(2.0) * sum_grad * w + (sum_hess + p.reg_lambda) * Sqr(w));
 }
 
+// calculate weight given the statistics
+template <typename TrainingParams, typename T>
+XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
+                                   T sum_hess) {
+  if (sum_hess < p.min_child_weight || sum_hess <= 0.0) {
+    return 0.0;
+  }
+  T dw = -ThresholdL1(sum_grad, p.reg_alpha) / (sum_hess + p.reg_lambda);
+  if (p.max_delta_step != 0.0f && std::abs(dw) > p.max_delta_step) {
+    dw = std::copysign(p.max_delta_step, dw);
+  }
+  return dw;
+}
+
 // calculate the cost of loss function
 template <typename TrainingParams, typename T>
 XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess) {
@@ -298,30 +316,6 @@ template <typename TrainingParams,
           typename StatT, typename T = decltype(StatT().GetHess())>
 XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, StatT stat) {
   return CalcGain(p, stat.GetGrad(), stat.GetHess());
-}
-
-// calculate weight given the statistics
-template <typename TrainingParams, typename T>
-XGBOOST_DEVICE inline T CalcWeight(const TrainingParams &p, T sum_grad,
-                                   T sum_hess) {
-  if (sum_hess < p.min_child_weight || sum_hess <= 0.0) {
-    return 0.0;
-  }
-  T dw;
-  if (p.reg_alpha == 0.0f) {
-    dw = -sum_grad / (sum_hess + p.reg_lambda);
-  } else {
-    dw = -ThresholdL1(sum_grad, p.reg_alpha) / (sum_hess + p.reg_lambda);
-  }
-  if (p.max_delta_step != 0.0f) {
-    if (dw > p.max_delta_step) {
-      dw = p.max_delta_step;
-    }
-    if (dw < -p.max_delta_step) {
-      dw = -p.max_delta_step;
-    }
-  }
-  return dw;
 }
 
 // Used in gpu code where GradientPair is used for gradient sum, not GradStats.

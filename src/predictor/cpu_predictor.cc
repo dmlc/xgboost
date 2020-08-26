@@ -44,18 +44,16 @@ bst_float PredValue(const SparsePage::Inst &inst,
 
 template <size_t kUnrollLen = 8>
 struct SparsePageView {
-  SparsePage const* page;
   bst_row_t base_rowid;
+  HostSparsePageView view;
   static size_t constexpr kUnroll = kUnrollLen;
 
   explicit SparsePageView(SparsePage const *p)
-      : page{p}, base_rowid{page->base_rowid} {
-    // Pull to host before entering omp block, as this is not thread safe.
-    page->data.HostVector();
-    page->offset.HostVector();
+      : base_rowid{p->base_rowid} {
+    view = p->GetView();
   }
-  SparsePage::Inst operator[](size_t i) { return (*page)[i]; }
-  size_t Size() const { return page->Size(); }
+  SparsePage::Inst operator[](size_t i) { return view[i]; }
+  size_t Size() const { return view.Size(); }
 };
 
 template <typename Adapter, size_t kUnrollLen = 8>

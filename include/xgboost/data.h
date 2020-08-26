@@ -10,7 +10,6 @@
 #include <dmlc/base.h>
 #include <dmlc/data.h>
 #include <dmlc/serializer.h>
-#include <rabit/rabit.h>
 #include <xgboost/base.h>
 #include <xgboost/span.h>
 #include <xgboost/host_device_vector.h>
@@ -36,7 +35,8 @@ enum class DataType : uint8_t {
 };
 
 enum class FeatureType : uint8_t {
-  kNumerical
+  kNumerical,
+  kCategorical
 };
 
 /*!
@@ -89,34 +89,17 @@ class MetaInfo {
    * \brief Type of each feature.  Automatically set when feature_type_names is specifed.
    */
   HostDeviceVector<FeatureType> feature_types;
+  /*
+   * \brief Weight of each feature, used to define the probability of each feature being
+   *        selected when using column sampling.
+   */
+  HostDeviceVector<float> feature_weigths;
 
   /*! \brief default constructor */
   MetaInfo()  = default;
   MetaInfo(MetaInfo&& that) = default;
   MetaInfo& operator=(MetaInfo&& that) = default;
-  MetaInfo& operator=(MetaInfo const& that) {
-    this->num_row_ = that.num_row_;
-    this->num_col_ = that.num_col_;
-    this->num_nonzero_ = that.num_nonzero_;
-
-    this->labels_.Resize(that.labels_.Size());
-    this->labels_.Copy(that.labels_);
-
-    this->group_ptr_ = that.group_ptr_;
-
-    this->weights_.Resize(that.weights_.Size());
-    this->weights_.Copy(that.weights_);
-
-    this->base_margin_.Resize(that.base_margin_.Size());
-    this->base_margin_.Copy(that.base_margin_);
-
-    this->labels_lower_bound_.Resize(that.labels_lower_bound_.Size());
-    this->labels_lower_bound_.Copy(that.labels_lower_bound_);
-
-    this->labels_upper_bound_.Resize(that.labels_upper_bound_.Size());
-    this->labels_upper_bound_.Copy(that.labels_upper_bound_);
-    return *this;
-  }
+  MetaInfo& operator=(MetaInfo const& that) = delete;
 
   /*!
    * \brief Validate all metainfo.
@@ -239,6 +222,21 @@ struct BatchParam {
   }
 };
 
+struct HostSparsePageView {
+  using Inst = common::Span<Entry const>;
+
+  common::Span<bst_row_t const> offset;
+  common::Span<Entry const> data;
+
+  Inst operator[](size_t i) const {
+    auto size = *(offset.data() + i + 1) - *(offset.data() + i);
+    return {data.data() + *(offset.data() + i),
+            static_cast<Inst::index_type>(size)};
+  }
+
+  size_t Size() const { return offset.size() == 0 ? 0 : offset.size() - 1; }
+};
+
 /*!
  * \brief In-memory storage unit of sparse batch, stored in CSR format.
  */
@@ -249,7 +247,7 @@ class SparsePage {
   /*! \brief the data of the segments */
   HostDeviceVector<Entry> data;
 
-  size_t base_rowid{};
+  size_t base_rowid {0};
 
   /*! \brief an instance of sparse vector in the batch */
   using Inst = common::Span<Entry const>;
@@ -258,17 +256,15 @@ class SparsePage {
   inline Inst operator[](size_t i) const {
     const auto& data_vec = data.HostVector();
     const auto& offset_vec = offset.HostVector();
-    size_t size;
-    // in distributed mode, some partitions may not get any instance for a feature. Therefore
-    // we should set the size as zero
-    if (rabit::IsDistributed() && i + 1 >= offset_vec.size()) {
-      size = 0;
-    } else {
-      size = offset_vec[i + 1] - offset_vec[i];
-    }
+    size_t size = offset_vec[i + 1] - offset_vec[i];
     return {data_vec.data() + offset_vec[i],
             static_cast<Inst::index_type>(size)};
   }
+
+  HostSparsePageView GetView() const {
+    return {offset.ConstHostSpan(), data.ConstHostSpan()};
+  }
+
 
   /*! \brief constructor */
   SparsePage() {
@@ -313,12 +309,6 @@ class SparsePage {
       }
     }
   }
-
-  /*!
-   * \brief Push row block into the page.
-   * \param batch the row batch.
-   */
-  void Push(const dmlc::RowBlock<uint32_t>& batch);
 
   /**
    * \brief Pushes external data batch onto this page
@@ -558,7 +548,7 @@ class DMatrix {
                          int nthread,
                          int max_bin);
 
-      virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
+  virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
   /*! \brief page size 32 MB */
   static const size_t kPageSize = 32UL << 20UL;
 

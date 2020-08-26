@@ -59,7 +59,7 @@ TEST(Transform, DeclareUnifiedTest(Basic)) {
 }
 
 #if !defined(__CUDACC__)
-TEST(Transform, Exception) {
+TEST(TransformDeathTest, Exception) {
   size_t const kSize {16};
   std::vector<bst_float> h_in(kSize);
   const HostDeviceVector<bst_float> in_vec{h_in, -1};

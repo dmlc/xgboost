@@ -11,6 +11,7 @@
 
 #include "xgboost/data.h"
 #include "xgboost/host_device_vector.h"
+#include "xgboost/tree_model.h"
 #include "device_helpers.cuh"
 
 namespace xgboost {
@@ -402,6 +403,7 @@ template class HostDeviceVector<FeatureType>;
 template class HostDeviceVector<Entry>;
 template class HostDeviceVector<uint64_t>;  // bst_row_t
 template class HostDeviceVector<uint32_t>;  // bst_feature_t
+template class HostDeviceVector<RegTree::Node>;
 
 #if defined(__APPLE__)
 /*

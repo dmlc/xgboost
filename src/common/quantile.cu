@@ -20,7 +20,7 @@
 namespace xgboost {
 namespace common {
 
-using WQSketch = DenseCuts::WQSketch;
+using WQSketch = HostSketchContainer::WQSketch;
 using SketchEntry = WQSketch::Entry;
 
 // Algorithm 4 in XGBoost's paper, using binary search to find i.

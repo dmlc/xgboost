@@ -59,6 +59,21 @@ struct TreeParam : public dmlc::Parameter<TreeParam> {
     num_nodes = 1;
     deprecated_num_roots = 1;
   }
+
+  // Swap byte order for all fields. Useful for transporting models between machines with different
+  // endianness (big endian vs little endian)
+  inline TreeParam ByteSwap() const {
+    TreeParam x = *this;
+    dmlc::ByteSwap(&x.deprecated_num_roots, sizeof(x.deprecated_num_roots), 1);
+    dmlc::ByteSwap(&x.num_nodes, sizeof(x.num_nodes), 1);
+    dmlc::ByteSwap(&x.num_deleted, sizeof(x.num_deleted), 1);
+    dmlc::ByteSwap(&x.deprecated_max_depth, sizeof(x.deprecated_max_depth), 1);
+    dmlc::ByteSwap(&x.num_feature, sizeof(x.num_feature), 1);
+    dmlc::ByteSwap(&x.size_leaf_vector, sizeof(x.size_leaf_vector), 1);
+    dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
+    return x;
+  }
+
   // declare the parameters
   DMLC_DECLARE_PARAMETER(TreeParam) {
     // only declare the parameters that can be set by the user.
@@ -96,6 +111,16 @@ struct RTreeNodeStat {
   bool operator==(const RTreeNodeStat& b) const {
     return loss_chg == b.loss_chg && sum_hess == b.sum_hess &&
            base_weight == b.base_weight && leaf_child_cnt == b.leaf_child_cnt;
+  }
+  // Swap byte order for all fields. Useful for transporting models between machines with different
+  // endianness (big endian vs little endian)
+  inline RTreeNodeStat ByteSwap() const {
+    RTreeNodeStat x = *this;
+    dmlc::ByteSwap(&x.loss_chg, sizeof(x.loss_chg), 1);
+    dmlc::ByteSwap(&x.sum_hess, sizeof(x.sum_hess), 1);
+    dmlc::ByteSwap(&x.base_weight, sizeof(x.base_weight), 1);
+    dmlc::ByteSwap(&x.leaf_child_cnt, sizeof(x.leaf_child_cnt), 1);
+    return x;
   }
 };
 
@@ -227,6 +252,16 @@ class RegTree : public Model {
              info_.leaf_value == b.info_.leaf_value;
     }
 
+    inline Node ByteSwap() const {
+      Node x = *this;
+      dmlc::ByteSwap(&x.parent_, sizeof(x.parent_), 1);
+      dmlc::ByteSwap(&x.cleft_, sizeof(x.cleft_), 1);
+      dmlc::ByteSwap(&x.cright_, sizeof(x.cright_), 1);
+      dmlc::ByteSwap(&x.sindex_, sizeof(x.sindex_), 1);
+      dmlc::ByteSwap(&x.info_, sizeof(x.info_), 1);
+      return x;
+    }
+
    private:
     /*!
      * \brief in leaf node, we have weights, in non-leaf nodes,
@@ -283,6 +318,8 @@ class RegTree : public Model {
     param.num_deleted = 0;
     nodes_.resize(param.num_nodes);
     stats_.resize(param.num_nodes);
+    split_types_.resize(param.num_nodes, FeatureType::kNumerical);
+    split_categories_segments_.resize(param.num_nodes);
     for (int i = 0; i < param.num_nodes; i ++) {
       nodes_[i].SetLeaf(0.0f);
       nodes_[i].SetParent(kInvalidNodeId);
@@ -377,30 +414,33 @@ class RegTree : public Model {
    * \param leaf_right_child  The right child index of leaf, by default kInvalidNodeId,
    *                          some updaters use the right child index of leaf as a marker
    */
-  void ExpandNode(int nid, unsigned split_index, bst_float split_value,
+  void ExpandNode(bst_node_t nid, unsigned split_index, bst_float split_value,
                   bool default_left, bst_float base_weight,
                   bst_float left_leaf_weight, bst_float right_leaf_weight,
                   bst_float loss_change, float sum_hess, float left_sum,
                   float right_sum,
-                  bst_node_t leaf_right_child = kInvalidNodeId) {
-    int pleft = this->AllocNode();
-    int pright = this->AllocNode();
-    auto &node = nodes_[nid];
-    CHECK(node.IsLeaf());
-    node.SetLeftChild(pleft);
-    node.SetRightChild(pright);
-    nodes_[node.LeftChild()].SetParent(nid, true);
-    nodes_[node.RightChild()].SetParent(nid, false);
-    node.SetSplit(split_index, split_value,
-                  default_left);
+                  bst_node_t leaf_right_child = kInvalidNodeId);
 
-    nodes_[pleft].SetLeaf(left_leaf_weight, leaf_right_child);
-    nodes_[pright].SetLeaf(right_leaf_weight, leaf_right_child);
-
-    this->Stat(nid)    = {loss_change, sum_hess, base_weight};
-    this->Stat(pleft)  = {0.0f, left_sum, left_leaf_weight};
-    this->Stat(pright) = {0.0f, right_sum, right_leaf_weight};
-  }
+  /**
+   * \brief Expands a leaf node with categories
+   *
+   * \param nid               The node index to expand.
+   * \param split_index       Feature index of the split.
+   * \param split_cat         The bitset containing categories
+   * \param default_left      True to default left.
+   * \param base_weight       The base weight, before learning rate.
+   * \param left_leaf_weight  The left leaf weight for prediction, modified by learning rate.
+   * \param right_leaf_weight The right leaf weight for prediction, modified by learning rate.
+   * \param loss_change       The loss change.
+   * \param sum_hess          The sum hess.
+   * \param left_sum          The sum hess of left leaf.
+   * \param right_sum         The sum hess of right leaf.
+   */
+  void ExpandCategorical(bst_node_t nid, unsigned split_index,
+                         common::Span<uint32_t> split_cat, bool default_left,
+                         bst_float base_weight, bst_float left_leaf_weight,
+                         bst_float right_leaf_weight, bst_float loss_change,
+                         float sum_hess, float left_sum, float right_sum);
 
   /*!
    * \brief get current depth
@@ -553,6 +593,28 @@ class RegTree : public Model {
    * \brief calculate the mean value for each node, required for feature contributions
    */
   void FillNodeMeanValues();
+  /*!
+   * \brief Get split type for a node.
+   * \param nidx Index of node.
+   * \return The type of this split.  For leaf node it's always kNumerical.
+   */
+  FeatureType NodeSplitType(bst_node_t nidx) const {
+    return split_types_.at(nidx);
+  }
+  /*!
+   * \brief Get split types for all nodes.
+   */
+  std::vector<FeatureType> const &GetSplitTypes() const { return split_types_; }
+  common::Span<uint32_t const> GetSplitCategories() const { return split_categories_; }
+  auto const& GetSplitCategoriesPtr() const { return split_categories_segments_; }
+
+  // The fields of split_categories_segments_[i] are set such that
+  // the range split_categories_[beg:(beg+size)] stores the bitset for
+  // the matching categories for the i-th node.
+  struct Segment {
+    size_t beg {0};
+    size_t size {0};
+  };
 
  private:
   // vector of nodes
@@ -562,9 +624,16 @@ class RegTree : public Model {
   // stats of nodes
   std::vector<RTreeNodeStat> stats_;
   std::vector<bst_float> node_mean_values_;
+  std::vector<FeatureType> split_types_;
+
+  // Categories for each internal node.
+  std::vector<uint32_t> split_categories_;
+  // Ptr to split categories of each node.
+  std::vector<Segment> split_categories_segments_;
+
   // allocate a new node,
   // !!!!!! NOTE: may cause BUG here, nodes.resize
-  int AllocNode() {
+  bst_node_t AllocNode() {
     if (param.num_deleted != 0) {
       int nid = deleted_nodes_.back();
       deleted_nodes_.pop_back();
@@ -577,6 +646,8 @@ class RegTree : public Model {
         << "number of nodes in the tree exceed 2^31";
     nodes_.resize(param.num_nodes);
     stats_.resize(param.num_nodes);
+    split_types_.resize(param.num_nodes, FeatureType::kNumerical);
+    split_categories_segments_.resize(param.num_nodes);
     return nd;
   }
   // delete a tree node, keep the parent field to allow trace back

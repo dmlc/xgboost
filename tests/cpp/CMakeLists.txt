@@ -37,6 +37,8 @@ if (USE_CUDA)
     $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>)
   target_compile_definitions(testxgboost
     PRIVATE -DXGBOOST_USE_CUDA=1)
+  find_package(CUDA)
+  target_include_directories(testxgboost PRIVATE ${CUDA_INCLUDE_DIRS})
   set_target_properties(testxgboost PROPERTIES
     CUDA_SEPARABLE_COMPILATION OFF)
 

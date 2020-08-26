@@ -9,19 +9,20 @@ namespace tree {
 
 // With constraints
 template <typename GradientPairT>
-XGBOOST_DEVICE float LossChangeMissing(const GradientPairT& scan,
-                                       const GradientPairT& missing,
-                                       const GradientPairT& parent_sum,
-                                       const GPUTrainingParam& param,
-                                       int constraint,
-                                       const ValueConstraint& value_constraint,
-                                       bool& missing_left_out) {  // NOLINT
+XGBOOST_DEVICE float
+LossChangeMissing(const GradientPairT &scan, const GradientPairT &missing,
+                  const GradientPairT &parent_sum,
+                  const GPUTrainingParam &param,
+                  bst_node_t nidx,
+                  bst_feature_t fidx,
+                  TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
+                  bool &missing_left_out) { // NOLINT
   float parent_gain = CalcGain(param, parent_sum);
-  float missing_left_gain = value_constraint.CalcSplitGain(
-      param, constraint, GradStats(scan + missing),
-      GradStats(parent_sum - (scan + missing)));
-  float missing_right_gain = value_constraint.CalcSplitGain(
-      param, constraint, GradStats(scan), GradStats(parent_sum - scan));
+  float missing_left_gain =
+      evaluator.CalcSplitGain(param, nidx, fidx, GradStats(scan + missing),
+                              GradStats(parent_sum - (scan + missing)));
+  float missing_right_gain = evaluator.CalcSplitGain(
+      param, nidx, fidx, GradStats(scan), GradStats(parent_sum - scan));
 
   if (missing_left_gain >= missing_right_gain) {
     missing_left_out = true;
@@ -74,6 +75,7 @@ template <int BLOCK_THREADS, typename ReduceT, typename ScanT,
           typename MaxReduceT, typename TempStorageT, typename GradientSumT>
 __device__ void EvaluateFeature(
     int fidx, EvaluateSplitInputs<GradientSumT> inputs,
+    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     DeviceSplitCandidate* best_split,  // shared memory storing best split
     TempStorageT* temp_storage         // temp memory for cub operations
 ) {
@@ -107,8 +109,10 @@ __device__ void EvaluateFeature(
     float gain = null_gain;
     if (thread_active) {
       gain = LossChangeMissing(bin, missing, inputs.parent_sum, inputs.param,
-                               inputs.monotonic_constraints[fidx],
-                               inputs.value_constraint, missing_left);
+                               inputs.nidx,
+                               fidx,
+                               evaluator,
+                               missing_left);
     }
 
     __syncthreads();
@@ -148,6 +152,7 @@ template <int BLOCK_THREADS, typename GradientSumT>
 __global__ void EvaluateSplitsKernel(
     EvaluateSplitInputs<GradientSumT> left,
     EvaluateSplitInputs<GradientSumT> right,
+    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     common::Span<DeviceSplitCandidate> out_candidates) {
   // KeyValuePair here used as threadIdx.x -> gain_value
   using ArgMaxT = cub::KeyValuePair<int, float>;
@@ -183,7 +188,7 @@ __global__ void EvaluateSplitsKernel(
                                         : blockIdx.x - left.feature_set.size()];
 
   EvaluateFeature<BLOCK_THREADS, SumReduceT, BlockScanT, MaxReduceT>(
-      fidx, inputs, &best_split, &temp_storage);
+      fidx, inputs, evaluator, &best_split, &temp_storage);
 
   __syncthreads();
 
@@ -200,6 +205,7 @@ __device__ DeviceSplitCandidate operator+(const DeviceSplitCandidate& a,
 
 template <typename GradientSumT>
 void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
+                    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
                     EvaluateSplitInputs<GradientSumT> left,
                     EvaluateSplitInputs<GradientSumT> right) {
   size_t combined_num_features =
@@ -209,7 +215,7 @@ void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
   // One block for each feature
   uint32_t constexpr kBlockThreads = 256;
   dh::LaunchKernel {uint32_t(combined_num_features), kBlockThreads, 0}(
-      EvaluateSplitsKernel<kBlockThreads, GradientSumT>, left, right,
+      EvaluateSplitsKernel<kBlockThreads, GradientSumT>, left, right, evaluator,
       dh::ToSpan(feature_best_splits));
 
   // Reduce to get best candidate for left and right child over all features
@@ -240,23 +246,28 @@ void EvaluateSplits(common::Span<DeviceSplitCandidate> out_splits,
 
 template <typename GradientSumT>
 void EvaluateSingleSplit(common::Span<DeviceSplitCandidate> out_split,
+                         TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
                          EvaluateSplitInputs<GradientSumT> input) {
-  EvaluateSplits(out_split, input, {});
+  EvaluateSplits(out_split, evaluator, input, {});
 }
 
 template void EvaluateSplits<GradientPair>(
     common::Span<DeviceSplitCandidate> out_splits,
+    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     EvaluateSplitInputs<GradientPair> left,
     EvaluateSplitInputs<GradientPair> right);
 template void EvaluateSplits<GradientPairPrecise>(
     common::Span<DeviceSplitCandidate> out_splits,
+    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     EvaluateSplitInputs<GradientPairPrecise> left,
     EvaluateSplitInputs<GradientPairPrecise> right);
 template void EvaluateSingleSplit<GradientPair>(
     common::Span<DeviceSplitCandidate> out_split,
+    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     EvaluateSplitInputs<GradientPair> input);
 template void EvaluateSingleSplit<GradientPairPrecise>(
     common::Span<DeviceSplitCandidate> out_split,
+    TreeEvaluator::SplitEvaluator<GPUTrainingParam> evaluator,
     EvaluateSplitInputs<GradientPairPrecise> input);
 }  // namespace tree
 }  // namespace xgboost

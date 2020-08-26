@@ -83,7 +83,7 @@ void LoadScalarField(dmlc::Stream* strm, const std::string& expected_name,
   CHECK(strm->Read(&is_scalar)) << invalid;
   CHECK(is_scalar)
     << invalid << "Expected field " << expected_name << " to be a scalar; got a vector";
-  CHECK(strm->Read(field, sizeof(T))) << invalid;
+  CHECK(strm->Read(field)) << invalid;
 }
 
 template <typename T>
@@ -199,8 +199,10 @@ void LoadFeatureType(std::vector<std::string>const& type_names, std::vector<Feat
       types->emplace_back(FeatureType::kNumerical);
     } else if (elem == "q") {
       types->emplace_back(FeatureType::kNumerical);
+    } else if (elem == "categorical") {
+      types->emplace_back(FeatureType::kCategorical);
     } else {
-      LOG(FATAL) << "All feature_types must be {int, float, i, q}";
+      LOG(FATAL) << "All feature_types must be one of {int, float, i, q, categorical}.";
     }
   }
 }
@@ -293,6 +295,9 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
   } else {
     out.base_margin_.HostVector() = Gather(this->base_margin_.HostVector(), ridxs);
   }
+
+  out.feature_weigths.Resize(this->feature_weigths.Size());
+  out.feature_weigths.Copy(this->feature_weigths);
   return out;
 }
 
@@ -377,6 +382,16 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     labels.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
                        std::copy(cast_dptr, cast_dptr + num, labels.begin()));
+  } else if (!std::strcmp(key, "feature_weights")) {
+    auto &h_feature_weights = feature_weigths.HostVector();
+    h_feature_weights.resize(num);
+    DISPATCH_CONST_PTR(
+        dtype, dptr, cast_dptr,
+        std::copy(cast_dptr, cast_dptr + num, h_feature_weights.begin()));
+    bool valid =
+        std::all_of(h_feature_weights.cbegin(), h_feature_weights.cend(),
+                    [](float w) { return w >= 0; });
+    CHECK(valid) << "Feature weight must be greater than 0.";
   } else {
     LOG(FATAL) << "Unknown key for MetaInfo: " << key;
   }
@@ -396,6 +411,8 @@ void MetaInfo::GetInfo(char const *key, bst_ulong *out_len, DataType dtype,
       vec = &this->labels_lower_bound_.HostVector();
     } else if (!std::strcmp(key, "label_upper_bound")) {
       vec = &this->labels_upper_bound_.HostVector();
+    } else if (!std::strcmp(key, "feature_weights")) {
+      vec = &this->feature_weigths.HostVector();
     } else {
       LOG(FATAL) << "Unknown float field name: " << key;
     }
@@ -497,6 +514,11 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows) {
     auto &h_feature_types = feature_types.HostVector();
     LoadFeatureType(this->feature_type_names, &h_feature_types);
   }
+  if (!that.feature_weigths.Empty()) {
+    this->feature_weigths.Resize(that.feature_weigths.Size());
+    this->feature_weigths.SetDevice(that.feature_weigths.DeviceIdx());
+    this->feature_weigths.Copy(that.feature_weigths);
+  }
 }
 
 void MetaInfo::Validate(int32_t device) const {
@@ -537,6 +559,11 @@ void MetaInfo::Validate(int32_t device) const {
         << "Size of label_lower_bound must equal to number of rows.";
     check_device(labels_lower_bound_);
     return;
+  }
+  if (feature_weigths.Size() != 0) {
+    CHECK_EQ(feature_weigths.Size(), num_col_)
+        << "Size of feature_weights must equal to number of columns.";
+    check_device(feature_weigths);
   }
   if (labels_upper_bound_.Size() != 0) {
     CHECK_EQ(labels_upper_bound_.Size(), num_row_)
@@ -628,14 +655,18 @@ DMatrix* DMatrix::Load(const std::string& uri,
     std::unique_ptr<dmlc::Stream> fi(dmlc::Stream::Create(fname.c_str(), "r", true));
     if (fi != nullptr) {
       common::PeekableInStream is(fi.get());
-      if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic) &&
-        magic == data::SimpleDMatrix::kMagic) {
-        DMatrix* dmat = new data::SimpleDMatrix(&is);
-        if (!silent) {
-          LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
-            << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
+      if (is.PeekRead(&magic, sizeof(magic)) == sizeof(magic)) {
+        if (!DMLC_IO_NO_ENDIAN_SWAP) {
+          dmlc::ByteSwap(&magic, sizeof(magic), 1);
         }
-        return dmat;
+        if (magic == data::SimpleDMatrix::kMagic) {
+          DMatrix* dmat = new data::SimpleDMatrix(&is);
+          if (!silent) {
+            LOG(CONSOLE) << dmat->Info().num_row_ << 'x' << dmat->Info().num_col_ << " matrix with "
+              << dmat->Info().num_nonzero_ << " entries loaded from " << uri;
+          }
+          return dmat;
+        }
       }
     }
   }
@@ -811,10 +842,11 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   // Set number of threads but keep old value so we can reset it after
   const int nthreadmax = omp_get_max_threads();
   if (nthread <= 0) nthread = nthreadmax;
-  int nthread_original = omp_get_max_threads();
+  const int nthread_original = omp_get_max_threads();
   omp_set_num_threads(nthread);
   auto& offset_vec = offset.HostVector();
   auto& data_vec = data.HostVector();
+
   size_t builder_base_row_offset = this->Size();
   common::ParallelGroupBuilder<
       Entry, std::remove_reference<decltype(offset_vec)>::type::value_type>
@@ -829,48 +861,74 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
           last_line.GetElement(last_line.Size() - 1).row_idx - base_rowid;
     }
   }
-  builder.InitBudget(expected_rows, nthread);
-  uint64_t max_columns = 0;
-
-  // First-pass over the batch counting valid elements
   size_t batch_size = batch.Size();
-#pragma omp parallel for schedule(static)
-  for (omp_ulong i = 0; i < static_cast<omp_ulong>(batch_size);
-       ++i) {  // NOLINT(*)
-    int tid = omp_get_thread_num();
-    auto line = batch.GetLine(i);
-    for (auto j = 0ull; j < line.Size(); j++) {
-      data::COOTuple element = line.GetElement(j);
-      max_columns =
-          std::max(max_columns, static_cast<uint64_t>(element.column_idx + 1));
-      if (!common::CheckNAN(element.value) && element.value != missing) {
-        size_t key = element.row_idx - base_rowid;
-        // Adapter row index is absolute, here we want it relative to
-        // current page
-        CHECK_GE(key, builder_base_row_offset);
-        builder.AddBudget(key, tid);
-      }
-    }
+  const size_t thread_size = batch_size/nthread;
+  builder.InitBudget(expected_rows+1, nthread);
+  uint64_t max_columns = 0;
+  if (batch_size == 0) {
+    omp_set_num_threads(nthread_original);
+    return max_columns;
   }
+  std::vector<std::vector<uint64_t>> max_columns_vector(nthread);
+  dmlc::OMPException exec;
+  // First-pass over the batch counting valid elements
+#pragma omp parallel num_threads(nthread)
+  {
+    exec.Run([&]() {
+      int tid = omp_get_thread_num();
+      size_t begin = tid*thread_size;
+      size_t end = tid != (nthread-1) ? (tid+1)*thread_size : batch_size;
+      max_columns_vector[tid].resize(1, 0);
+      uint64_t& max_columns_local = max_columns_vector[tid][0];
+
+      for (size_t i = begin; i < end; ++i) {
+        auto line = batch.GetLine(i);
+        for (auto j = 0ull; j < line.Size(); j++) {
+          auto element = line.GetElement(j);
+          const size_t key = element.row_idx - base_rowid;
+          CHECK_GE(key,  builder_base_row_offset);
+          max_columns_local =
+              std::max(max_columns_local, static_cast<uint64_t>(element.column_idx + 1));
+
+          if (!common::CheckNAN(element.value) && element.value != missing) {
+            // Adapter row index is absolute, here we want it relative to
+            // current page
+            builder.AddBudget(key, tid);
+          }
+        }
+      }
+    });
+  }
+  exec.Rethrow();
+  for (const auto & max : max_columns_vector) {
+    max_columns = std::max(max_columns, max[0]);
+  }
+
   builder.InitStorage();
 
   // Second pass over batch, placing elements in correct position
-#pragma omp parallel for schedule(static)
-  for (omp_ulong i = 0; i < static_cast<omp_ulong>(batch_size);
-       ++i) {  // NOLINT(*)
-    int tid = omp_get_thread_num();
-    auto line = batch.GetLine(i);
-    for (auto j = 0ull; j < line.Size(); j++) {
-      auto element = line.GetElement(j);
-      if (!common::CheckNAN(element.value) && element.value != missing) {
-        size_t key = element.row_idx -
-                     base_rowid;  // Adapter row index is absolute, here we want
-                                  // it relative to current page
-        builder.Push(key, Entry(element.column_idx, element.value), tid);
+
+#pragma omp parallel num_threads(nthread)
+  {
+    exec.Run([&]() {
+      int tid = omp_get_thread_num();
+      size_t begin = tid*thread_size;
+      size_t end = tid != (nthread-1) ? (tid+1)*thread_size : batch_size;
+      for (size_t i = begin; i < end; ++i) {
+        auto line = batch.GetLine(i);
+        for (auto j = 0ull; j < line.Size(); j++) {
+          auto element = line.GetElement(j);
+          const size_t key = (element.row_idx - base_rowid);
+          if (!common::CheckNAN(element.value) && element.value != missing) {
+            builder.Push(key, Entry(element.column_idx, element.value), tid);
+          }
+        }
       }
-    }
+    });
   }
+  exec.Rethrow();
   omp_set_num_threads(nthread_original);
+
   return max_columns;
 }
 

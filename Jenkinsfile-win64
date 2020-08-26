@@ -25,12 +25,14 @@ pipeline {
       agent { label 'job_initializer' }
       steps {
         script {
+          def buildNumber = env.BUILD_NUMBER as int
+          if (buildNumber > 1) milestone(buildNumber - 1)
+          milestone(buildNumber)
           checkoutSrcs()
           commit_id = "${GIT_COMMIT}"
         }
         sh 'python3 tests/jenkins_get_approval.py'
         stash name: 'srcs'
-        milestone ordinal: 1
       }
     }
     stage('Jenkins Win64: Build') {
@@ -41,7 +43,6 @@ pipeline {
             'build-win64-cuda10.1': { BuildWin64() }
           ])
         }
-        milestone ordinal: 2
       }
     }
     stage('Jenkins Win64: Test') {
@@ -52,7 +53,6 @@ pipeline {
             'test-win64-cuda10.1': { TestWin64() },
           ])
         }
-        milestone ordinal: 3
       }
     }
   }

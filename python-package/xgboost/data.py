@@ -331,7 +331,7 @@ def _is_cudf_df(data):
         import cudf
     except ImportError:
         return False
-    return isinstance(data, cudf.DataFrame)
+    return hasattr(cudf, 'DataFrame') and isinstance(data, cudf.DataFrame)
 
 
 def _cudf_array_interfaces(data):
@@ -550,22 +550,38 @@ def dispatch_data_backend(data, missing, threads,
     raise TypeError('Not supported type for data.' + str(type(data)))
 
 
+def _to_data_type(dtype: str, name: str):
+    dtype_map = {'float32': 1, 'float64': 2, 'uint32': 3, 'uint64': 4}
+    if dtype not in dtype_map.keys():
+        raise TypeError(
+            f'Expecting float32, float64, uint32, uint64, got {dtype} ' +
+            f'for {name}.')
+    return dtype_map[dtype]
+
+
+def _validate_meta_shape(data):
+    if hasattr(data, 'shape'):
+        assert len(data.shape) == 1 or (
+            len(data.shape) == 2 and
+            (data.shape[1] == 0 or data.shape[1] == 1))
+
+
 def _meta_from_numpy(data, field, dtype, handle):
     data = _maybe_np_slice(data, dtype)
-    if dtype == 'uint32':
-        c_data = c_array(ctypes.c_uint32, data)
-        _check_call(_LIB.XGDMatrixSetUIntInfo(handle,
-                                              c_str(field),
-                                              c_array(ctypes.c_uint, data),
-                                              c_bst_ulong(len(data))))
-    elif dtype == 'float':
-        c_data = c_array(ctypes.c_float, data)
-        _check_call(_LIB.XGDMatrixSetFloatInfo(handle,
-                                               c_str(field),
-                                               c_data,
-                                               c_bst_ulong(len(data))))
-    else:
-        raise TypeError('Unsupported type ' + str(dtype) + ' for:' + field)
+    interface = data.__array_interface__
+    assert interface.get('mask', None) is None, 'Masked array is not supported'
+    size = data.shape[0]
+
+    c_type = _to_data_type(str(data.dtype), field)
+    ptr = interface['data'][0]
+    ptr = ctypes.c_void_p(ptr)
+    _check_call(_LIB.XGDMatrixSetDenseInfo(
+        handle,
+        c_str(field),
+        ptr,
+        c_bst_ulong(size),
+        c_type
+    ))
 
 
 def _meta_from_list(data, field, dtype, handle):
@@ -615,6 +631,7 @@ def _meta_from_dt(data, field, dtype, handle):
 def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
     '''Dispatch for meta info.'''
     handle = matrix.handle
+    _validate_meta_shape(data)
     if data is None:
         return
     if _is_list(data):

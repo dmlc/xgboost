@@ -275,6 +275,9 @@ Json& JsonNumber::operator[](int ind) {
 
 bool JsonNumber::operator==(Value const& rhs) const {
   if (!IsA<JsonNumber>(&rhs)) { return false; }
+  if (std::isinf(number_)) {
+    return std::isinf(Cast<JsonNumber const>(&rhs)->GetNumber());
+  }
   return std::abs(number_ - Cast<JsonNumber const>(&rhs)->GetNumber()) < kRtEps;
 }
 

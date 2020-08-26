@@ -192,8 +192,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
 
 SimpleDMatrix::SimpleDMatrix(dmlc::Stream* in_stream) {
   int tmagic;
-  CHECK(in_stream->Read(&tmagic, sizeof(tmagic)) == sizeof(tmagic))
-      << "invalid input file format";
+  CHECK(in_stream->Read(&tmagic)) << "invalid input file format";
   CHECK_EQ(tmagic, kMagic) << "invalid format, magic number mismatch";
   info_.LoadBinary(in_stream);
   in_stream->Read(&sparse_page_.offset.HostVector());
@@ -203,7 +202,7 @@ SimpleDMatrix::SimpleDMatrix(dmlc::Stream* in_stream) {
 void SimpleDMatrix::SaveToLocalFile(const std::string& fname) {
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
     int tmagic = kMagic;
-    fo->Write(&tmagic, sizeof(tmagic));
+    fo->Write(tmagic);
     info_.SaveBinary(fo.get());
     fo->Write(sparse_page_.offset.HostVector());
     fo->Write(sparse_page_.data.HostVector());

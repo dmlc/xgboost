@@ -99,6 +99,11 @@ class TestDMatrix(unittest.TestCase):
         X = rng.randn(100, 100)
         y = rng.randint(low=0, high=3, size=100)
         d = xgb.DMatrix(X, y)
+        np.testing.assert_equal(d.get_label(), y.astype(np.float32))
+
+        fw = rng.uniform(size=100).astype(np.float32)
+        d.set_info(feature_weights=fw)
+
         eval_res_0 = {}
         booster = xgb.train(
             {'num_class': 3, 'objective': 'multi:softprob'}, d,
@@ -106,19 +111,23 @@ class TestDMatrix(unittest.TestCase):
 
         predt = booster.predict(d)
         predt = predt.reshape(100 * 3, 1)
+
         d.set_base_margin(predt)
 
         ridxs = [1, 2, 3, 4, 5, 6]
-        d = d.slice(ridxs)
-        sliced_margin = d.get_float_info('base_margin')
+        sliced = d.slice(ridxs)
+
+        sliced_margin = sliced.get_float_info('base_margin')
         assert sliced_margin.shape[0] == len(ridxs) * 3
 
         eval_res_1 = {}
-        xgb.train({'num_class': 3, 'objective': 'multi:softprob'}, d,
-                  num_boost_round=2, evals=[(d, 'd')], evals_result=eval_res_1)
+        xgb.train({'num_class': 3, 'objective': 'multi:softprob'}, sliced,
+                  num_boost_round=2, evals=[(sliced, 'd')],
+                  evals_result=eval_res_1)
 
         eval_res_0 = eval_res_0['d']['merror']
         eval_res_1 = eval_res_1['d']['merror']
+
         for i in range(len(eval_res_0)):
             assert abs(eval_res_0[i] - eval_res_1[i]) < 0.02
 
@@ -196,13 +205,33 @@ class TestDMatrix(unittest.TestCase):
         dtrain.get_float_info('base_margin')
         dtrain.get_uint_info('group_ptr')
 
+    def test_feature_weights(self):
+        kRows = 10
+        kCols = 50
+        rng = np.random.RandomState(1994)
+        fw = rng.uniform(size=kCols)
+        X = rng.randn(kRows, kCols)
+        m = xgb.DMatrix(X)
+        m.set_info(feature_weights=fw)
+        np.testing.assert_allclose(fw, m.get_float_info('feature_weights'))
+        # Handle empty
+        m.set_info(feature_weights=np.empty((0, 0)))
+
+        assert m.get_float_info('feature_weights').shape[0] == 0
+
+        fw -= 1
+
+        def assign_weight():
+            m.set_info(feature_weights=fw)
+        self.assertRaises(ValueError, assign_weight)
+
     def test_sparse_dmatrix_csr(self):
         nrow = 100
         ncol = 1000
         x = rand(nrow, ncol, density=0.0005, format='csr', random_state=rng)
         assert x.indices.max() < ncol - 1
         x.data[:] = 1
-        dtrain = xgb.DMatrix(x, label=np.random.binomial(1, 0.3, nrow))
+        dtrain = xgb.DMatrix(x, label=rng.binomial(1, 0.3, nrow))
         assert (dtrain.num_row(), dtrain.num_col()) == (nrow, ncol)
         watchlist = [(dtrain, 'train')]
         param = {'max_depth': 3, 'objective': 'binary:logistic', 'verbosity': 0}
@@ -215,7 +244,7 @@ class TestDMatrix(unittest.TestCase):
         x = rand(nrow, ncol, density=0.0005, format='csc', random_state=rng)
         assert x.indices.max() < nrow - 1
         x.data[:] = 1
-        dtrain = xgb.DMatrix(x, label=np.random.binomial(1, 0.3, nrow))
+        dtrain = xgb.DMatrix(x, label=rng.binomial(1, 0.3, nrow))
         assert (dtrain.num_row(), dtrain.num_col()) == (nrow, ncol)
         watchlist = [(dtrain, 'train')]
         param = {'max_depth': 3, 'objective': 'binary:logistic', 'verbosity': 0}

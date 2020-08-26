@@ -6,6 +6,7 @@
 #define XGBOOST_COMMON_OBSERVER_H_
 
 #include <iostream>
+#include <algorithm>
 #include <limits>
 #include <string>
 #include <vector>
@@ -62,6 +63,13 @@ class TrainingObserver {
     auto const& tree = *p_tree;
     this->Observe(tree);
   }
+  template <typename T>
+  void Observe(common::Span<T> span, std::string name,
+               size_t n = std::numeric_limits<std::size_t>::max()) {
+    std::vector<T> copy(span.size());
+    std::copy(span.cbegin(), span.cend(), copy.begin());
+    this->Observe(copy, name, n);
+  }
   /*\brief Observe data hosted by `std::vector'. */
   template <typename T>
   void Observe(std::vector<T> const& h_vec, std::string name,
@@ -71,7 +79,7 @@ class TrainingObserver {
 
     for (size_t i = 0; i < h_vec.size(); ++i) {
       OBSERVER_PRINT << h_vec[i] << ", ";
-      if (i % 8 == 0) {
+      if (i % 8 == 0 && i != 0) {
         OBSERVER_PRINT << OBSERVER_NEWLINE;
       }
       if ((i + 1) == n) {

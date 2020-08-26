@@ -24,13 +24,13 @@ class RowSetCollection {
   struct Elem {
     const size_t* begin{nullptr};
     const size_t* end{nullptr};
-    int node_id{-1};
+    bst_node_t node_id{-1};
       // id of node associated with this instance set; -1 means uninitialized
     Elem()
          = default;
     Elem(const size_t* begin,
          const size_t* end,
-         int node_id = -1)
+         bst_node_t node_id = -1)
         : begin(begin), end(end), node_id(node_id) {}
 
     inline size_t Size() const {
