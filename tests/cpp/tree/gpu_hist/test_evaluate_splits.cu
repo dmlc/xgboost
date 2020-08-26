@@ -108,7 +108,7 @@ TEST(GpuHist, EvaluateSingleSplitEmpty) {
                       EvaluateSplitInputs<GradientPair>{});
 
   SplitEntry result = out_split[0];
-  EXPECT_EQ(result.SplitIndex(), -1);
+  EXPECT_EQ(result.SplitIndex(), 0);
   EXPECT_LT(result.loss_chg, 0.0f);
 }
 

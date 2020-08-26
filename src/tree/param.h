@@ -394,7 +394,7 @@ struct XGBOOST_ALIGNAS(16) GradStats {
 template<typename GradientT>
 struct SplitEntryContainer {
   /*! \brief loss change after split this node */
-  bst_float loss_chg {0.0f};
+  bst_float loss_chg  {-std::numeric_limits<float>::max()};
   /*! \brief split index */
   bst_feature_t sindex{0};
   bst_float split_value{0.0f};
@@ -432,9 +432,9 @@ struct SplitEntryContainer {
                                          // skip value in this case
       return false;
     } else if (this->SplitIndex() <= split_index) {
-      return new_loss_chg > this->loss_chg;
+      return new_loss_chg > this->loss_chg && new_loss_chg > 0;
     } else {
-      return !(this->loss_chg > new_loss_chg);
+      return !(this->loss_chg > new_loss_chg) && new_loss_chg > 0;
     }
   }
   /*!
