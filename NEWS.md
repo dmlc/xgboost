@@ -167,6 +167,13 @@ This file records the changes in xgboost library in reverse chronological order.
 
 **Reviewers**: Nan Zhu (@CodingCat), @LionOrCatThatIsTheQuestion, Hao Yang (@QuantHao), Rory Mitchell (@RAMitchell), @ShvetsKS, Egor Smirnov (@SmirnovEgorRu), Alex Wozniakowski (@a-wozniakowski), Amit Kumar (@aktech), Avinash Barnwal (@avinashbarnwal), @boxdot, Andy Adinets (@canonizer), Chandra Shekhar Reddy (@chandrureddy), Ram Rachum (@cool-RR), Cristiano Goncalves (@cristianogoncalves), Elliot Hershberg (@elliothershberg), Jason E. Aten, Ph.D. (@glycerine), Philip Hyunsu Cho (@hcho3), Tong He (@hetong007), James Lamb (@jameslamb), James Bourbeau (@jrbourbeau), Lee Drake (@leedrake5), DougM (@mengdong), Oleksandr Kuvshynov (@okuvshynov), RongOu (@rongou), Shaochen Shi (@shishaochen), Xu Xiao (@sperlingxx), Yuan Tang (@terrytangyuan), Theodore Vasiloudis (@thvasilo), Jiaming Yuan (@trivialfis), Bobby Wang (@wbo4958), Zhang Zhang (@zhangzhang10)
 
+## v1.1.1 (2020.06.06)
+This patch release applies the following patches to 1.1.0 release:
+
+* CPU performance improvement in the PyPI wheels (#5720)
+* Fix loading old model (#5724)
+* Install pkg-config file (#5744)
+
 ## v1.1.0 (2020.05.17)
 
 ### Better performance on multi-core CPUs (#5244, #5334, #5522)
@@ -366,6 +373,16 @@ Upgrading to latest pip allows us to depend on newer versions of system librarie
 **Contributors**: Nan Zhu (@CodingCat), Rory Mitchell (@RAMitchell), @ShvetsKS, Egor Smirnov (@SmirnovEgorRu), Andrew Kane (@ankane), Avinash Barnwal (@avinashbarnwal), Bart Broere (@bartbroere), Andy Adinets (@canonizer), Chen Qin (@chenqin), Daiki Katsuragawa (@daikikatsuragawa), David Díaz Vico (@daviddiazvico), Darius Kharazi (@dkharazi), Darby Payne (@dpayne), Jason E. Aten, Ph.D. (@glycerine), Philip Hyunsu Cho (@hcho3), James Lamb (@jameslamb), Jan Borchmann (@jborchma), Kamil A. Kaczmarek (@kamil-kaczmarek), Melissa Kohl (@mjkohl32), Nicolas Scozzaro (@nscozzaro), Paul Kaefer (@paulkaefer), Rong Ou (@rongou), Samrat Pandiri (@samratp), Sriram Chandramouli (@sriramch), Yuan Tang (@terrytangyuan), Jiaming Yuan (@trivialfis), Liang-Chi Hsieh (@viirya), Bobby Wang (@wbo4958), Zhang Zhang (@zhangzhang10),
 
 **Reviewers**: Nan Zhu (@CodingCat), @LeZhengThu, Rory Mitchell (@RAMitchell), @ShvetsKS, Egor Smirnov (@SmirnovEgorRu), Steve Bronder (@SteveBronder), Nikita Titov (@StrikerRUS), Andrew Kane (@ankane), Avinash Barnwal (@avinashbarnwal), @brydag, Andy Adinets (@canonizer), Chandra Shekhar Reddy (@chandrureddy), Chen Qin (@chenqin), Codecov (@codecov-io), David Díaz Vico (@daviddiazvico), Darby Payne (@dpayne), Jason E. Aten, Ph.D. (@glycerine), Philip Hyunsu Cho (@hcho3), James Lamb (@jameslamb), @johnny-cat, Mu Li (@mli), Mate Soos (@msoos), @rnyak, Rong Ou (@rongou), Sriram Chandramouli (@sriramch), Toby Dylan Hocking (@tdhock), Yuan Tang (@terrytangyuan), Oleksandr Pryimak (@trams), Jiaming Yuan (@trivialfis), Liang-Chi Hsieh (@viirya), Bobby Wang (@wbo4958),
+
+## v1.0.2 (2020.03.03)
+This patch release applies the following patches to 1.0.0 release:
+
+* Fix a small typo in sklearn.py that broke multiple eval metrics (#5341)
+* Restore loading model from buffer (#5360)
+* Use type name for data type check (#5364)
+
+## v1.0.1 (2020.02.21)
+This release is identical to the 1.0.0 release, except that it fixes a small bug that rendered 1.0.0 incompatible with Python 3.5. See #5328.
 
 ## v1.0.0 (2020.02.19)
 This release marks a major milestone for the XGBoost project.
