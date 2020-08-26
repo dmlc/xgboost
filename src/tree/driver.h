@@ -1,7 +1,13 @@
+/*!
+ * Copyright 2020 by Contributors
+ */
 #ifndef XGBOOST_TREE_DRIVER_H_
 #define XGBOOST_TREE_DRIVER_H_
 #include <functional>
 #include <queue>
+#include <limits>
+#include <vector>
+#include <utility>
 #include "param.h"
 
 namespace xgboost {
@@ -78,9 +84,10 @@ class DriverContainer {
  public:
   explicit DriverContainer(TrainParam::TreeGrowPolicy policy)
       : policy_(policy),
-        queue_(policy == TrainParam::kDepthWise ? DepthWise<ExpandEntry> : LossGuide<ExpandEntry>) {}
+        queue_(policy == TrainParam::kDepthWise ? DepthWise<ExpandEntry>
+                                                : LossGuide<ExpandEntry>) {}
   template <typename EntryIterT>
-  void Push(EntryIterT begin,EntryIterT end) {
+  void Push(EntryIterT begin, EntryIterT end) {
     for (auto it = begin; it != end; ++it) {
       const ExpandEntry& e = *it;
       if (e.split.loss_chg > kRtEps) {
