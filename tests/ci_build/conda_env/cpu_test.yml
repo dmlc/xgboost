@@ -12,7 +12,7 @@ dependencies:
 - scipy
 - scikit-learn
 - pandas
-- modin[all]
+- modin
 - matplotlib
 - dask
 - python-graphviz
