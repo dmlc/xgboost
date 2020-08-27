@@ -8,7 +8,6 @@ dependencies:
 - matplotlib
 - scikit-learn
 - pandas
-- modin
 - pytest
 - python-graphviz
 - boto3
@@ -17,3 +16,4 @@ dependencies:
 - pip
 - pip:
   - cupy-cuda101
+  - modin[ray]

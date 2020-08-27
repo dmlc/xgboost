@@ -12,7 +12,6 @@ dependencies:
 - scipy
 - scikit-learn
 - pandas
-- modin
 - matplotlib
 - dask
 - python-graphviz
@@ -32,3 +31,4 @@ dependencies:
 - pip:
   - guzzle_sphinx_theme
   - datatable
+  - modin[ray]
