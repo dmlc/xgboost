@@ -7,10 +7,10 @@ This file records the changes in xgboost library in reverse chronological order.
 
 ### XGBoost4J-Spark now supports the GPU algorithm (#5171)
 * Now XGBoost4J-Spark is able to leverage NVIDIA GPU hardware to speed up training.
-* There is an on-going work for accelerating the rest of the data pipeline with NVIDIA GPUs (#5950, #5972).
+* There is on-going work for accelerating the rest of the data pipeline with NVIDIA GPUs (#5950, #5972).
 
 ### XGBoost now supports CUDA 11 (#5808)
-* It is now possible to build XGBoost with CUDA 11. Note that we do not yet distributed pre-built binaries built with CUDA 11; all current distributions use CUDA 10.0.
+* It is now possible to build XGBoost with CUDA 11. Note that we do not yet distribute pre-built binaries built with CUDA 11; all current distributions use CUDA 10.0.
 
 ### Better guidance for persisting XGBoost models in an R environment (#5940, #5964)
 * Users are strongly encouraged to use `xgb.save()` and `xgb.save.raw()` instead of `saveRDS()`. This is so that the persisted models can be accessed with future releases of XGBoost.
@@ -77,7 +77,7 @@ This file records the changes in xgboost library in reverse chronological order.
 * Python 3.6 has many useful features such as f-strings.
 
 ### Breaking: XGBoost now adopts the C++14 standard (#5664)
-* Make sure to use sufficiently modern C++ compiler that supports C++14, such as Visual Studio 2017, GCC 5.0+, and Clang 3.4+.
+* Make sure to use a sufficiently modern C++ compiler that supports C++14, such as Visual Studio 2017, GCC 5.0+, and Clang 3.4+.
 
 ### Bug-fixes
 * Fix a data race in the prediction function (#5853). As a byproduct, the prediction function now uses a thread-local data store and became thread-safe.
