@@ -16,4 +16,4 @@ dependencies:
 - pip
 - pip:
   - cupy-cuda101
-  - modin[ray]
+  - modin[all]

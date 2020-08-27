@@ -31,4 +31,4 @@ dependencies:
 - pip:
   - guzzle_sphinx_theme
   - datatable
-  - modin[ray]
+  - modin[all]
