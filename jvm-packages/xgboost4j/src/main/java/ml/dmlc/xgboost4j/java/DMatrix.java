@@ -302,10 +302,6 @@ public class DMatrix {
     long[] out = new long[1];
     XGBoostJNI.checkCall(XGBoostJNI.XGDMatrixCombineDMatrix(handle, dmx.handle, totalSize, out));
     long sHandle = out[0];
-    System.out.println("xgbtck javacombin " + String.valueOf(handle)
-        + " " + String.valueOf(dmx.handle)
-        + " " + String.valueOf(sHandle));
-
     DMatrix sMatrix = new DMatrix(sHandle);
 
     // Release the right handler.
