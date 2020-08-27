@@ -49,7 +49,7 @@ if (USE_CUDA)
     CUDA_STANDARD 14
     CUDA_STANDARD_REQUIRED ON
     CUDA_SEPARABLE_COMPILATION OFF)
-  target_link_libraries(objxgboost PRIVATE GPUTreeShap)
+  target_link_libraries(objxgboost PRIVATE GPUTreeShap::GPUTreeShap)
 endif (USE_CUDA)
 
 target_include_directories(objxgboost
