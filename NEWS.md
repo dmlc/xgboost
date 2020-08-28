@@ -97,7 +97,7 @@ This file records the changes in xgboost library in reverse chronological order.
 ### Usability Improvements, Documentation
 * [Doc] Document that CUDA 10.0 is required (#5872)
 * Refactored command line interface (CLI). Now CLI is able to handle user errors and output basic document. (#5574)
-* Better error handling in Python: use `throw from` syntax to preserve full stacktrace (#5787).
+* Better error handling in Python: use `raise from` syntax to preserve full stacktrace (#5787).
 * The JSON model dump now has a formal schema (#5660, #5818). The benefit is to prevent `dump_model()` function from breaking. See [this document](https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html#difference-between-saving-model-and-dumping-model) to understand the difference between saving and dumping models.
 * Add a reference to the GPU external memory paper (#5684)
 * Document more objective parameters in the R package (#5682)
