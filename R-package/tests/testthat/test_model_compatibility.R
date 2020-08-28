@@ -1,10 +1,16 @@
 require(xgboost)
 require(jsonlite)
-source('../generate_models_params.R')
 
 context("Models from previous versions of XGBoost can be loaded")
 
-metadata <- model_generator_metadata()
+metadata <- list(
+  kRounds = 2,
+  kRows = 1000,
+  kCols = 4,
+  kForests = 2,
+  kMaxDepth = 2,
+  kClasses = 3
+)
 
 run_model_param_check <- function (config) {
   testthat::expect_equal(config$learner$learner_model_param$num_feature, '4')
