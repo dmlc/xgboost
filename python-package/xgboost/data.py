@@ -215,8 +215,8 @@ def _transform_pandas_df(data, feature_names=None, feature_types=None,
             'DataFrame for {meta} cannot have multiple columns'.format(
                 meta=meta))
 
-    dtype = meta_type if meta_type else 'float'
-    data = data.values.astype(dtype)
+    dtype = meta_type if meta_type else np.float32
+    data = np.ascontiguousarray(data.values, dtype=dtype)
 
     return data, feature_names, feature_types
 
