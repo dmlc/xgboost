@@ -81,7 +81,7 @@ jobs:
       run: |
         cd R-package
         R.exe CMD INSTALL .
-        Rscript.exe tests/run_lint.R
+        Rscript.exe tests/helper_scripts/run_lint.R
 
 
   test-with-R:
