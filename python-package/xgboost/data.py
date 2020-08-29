@@ -151,6 +151,13 @@ def _is_pandas_df(data):
         return False
     return isinstance(data, pd.DataFrame)
 
+def _is_modin_df(data):
+    try:
+        import modin.pandas as pd
+    except ImportError:
+        return False
+    return isinstance(data, pd.DataFrame)
+
 
 _pandas_dtype_mapper = {
     'int8': 'int',
@@ -208,8 +215,8 @@ def _transform_pandas_df(data, feature_names=None, feature_types=None,
             'DataFrame for {meta} cannot have multiple columns'.format(
                 meta=meta))
 
-    dtype = meta_type if meta_type else 'float'
-    data = data.values.astype(dtype)
+    dtype = meta_type if meta_type else np.float32
+    data = np.ascontiguousarray(data.values, dtype=dtype)
 
     return data, feature_names, feature_types
 
@@ -224,6 +231,13 @@ def _from_pandas_df(data, missing, nthread, feature_names, feature_types):
 def _is_pandas_series(data):
     try:
         import pandas as pd
+    except ImportError:
+        return False
+    return isinstance(data, pd.Series)
+
+def _is_modin_series(data):
+    try:
+        import modin.pandas as pd
     except ImportError:
         return False
     return isinstance(data, pd.Series)
@@ -525,6 +539,12 @@ def dispatch_data_backend(data, missing, threads,
         _warn_unused_missing(data, missing)
         return _from_dt_df(data, missing, threads, feature_names,
                            feature_types)
+    if _is_modin_df(data):
+        return _from_pandas_df(data, missing, threads,
+                               feature_names, feature_types)
+    if _is_modin_series(data):
+        return _from_pandas_series(data, missing, threads, feature_names,
+                                   feature_types)
     if _has_array_protocol(data):
         pass
     raise TypeError('Not supported type for data.' + str(type(data)))
@@ -647,6 +667,15 @@ def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
         return
     if _is_dt_df(data):
         _meta_from_dt(data, name, dtype, handle)
+        return
+    if _is_modin_df(data):
+        data, _, _ = _transform_pandas_df(data, meta=name, meta_type=dtype)
+        _meta_from_numpy(data, name, dtype, handle)
+        return
+    if _is_modin_series(data):
+        data = data.values.astype('float')
+        assert len(data.shape) == 1 or data.shape[1] == 0 or data.shape[1] == 1
+        _meta_from_numpy(data, name, dtype, handle)
         return
     if _has_array_protocol(data):
         pass
