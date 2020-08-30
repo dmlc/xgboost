@@ -70,50 +70,13 @@ object DataUtils extends Serializable {
     }
   }
 
-  private def featureValueOfDenseVector(rowHashCode: Int, features: DenseVector): Float = {
-    val featureId = {
-      if (rowHashCode > 0) {
-        rowHashCode % features.size
-      } else {
-        // prevent overflow
-        math.abs(rowHashCode + 1) % features.size
-      }
-    }
-    features.values(featureId).toFloat
-  }
-
-  private def featureValueOfSparseVector(rowHashCode: Int, features: SparseVector): Float = {
-    val featureId = {
-      if (rowHashCode > 0) {
-        rowHashCode % features.indices.length
-      } else {
-        // prevent overflow
-        math.abs(rowHashCode + 1) % features.indices.length
-      }
-    }
-    features.values(featureId).toFloat
-  }
-
-  private def calculatePartitionKey(row: Row, numPartitions: Int): Int = {
-    val Row(_, features: Vector, _, _) = row
-    val rowHashCode = row.hashCode()
-    val featureValue = features match {
-      case denseVector: DenseVector =>
-        featureValueOfDenseVector(rowHashCode, denseVector)
-      case sparseVector: SparseVector =>
-        featureValueOfSparseVector(rowHashCode, sparseVector)
-    }
-    val nonNaNFeatureValue = if (featureValue.isNaN) { 0.0f } else { featureValue }
-    math.abs((rowHashCode.toLong + nonNaNFeatureValue).toString.hashCode % numPartitions)
-  }
-
   private def attachPartitionKey(
       row: Row,
       deterministicPartition: Boolean,
       numWorkers: Int,
       xgbLp: XGBLabeledPoint): (Int, XGBLabeledPoint) = {
     if (deterministicPartition) {
-      (calculatePartitionKey(row, numWorkers), xgbLp)
+      (math.abs(row.hashCode() % numWorkers), xgbLp)
     } else {
       (1, xgbLp)
     }
