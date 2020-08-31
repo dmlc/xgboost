@@ -34,6 +34,15 @@ class SparkParallelismTrackerSuite extends FunSuite with PerTest {
     .config("spark.driver.memory", "512m")
     .config("spark.task.cpus", 1)
 
+  private def waitAndCheckSparkShutdown(waitMiliSec: Int): Boolean = {
+    var totalWaitedTime = 0L
+    while (!ss.sparkContext.isStopped && totalWaitedTime <= waitMiliSec) {
+      Thread.sleep(100)
+      totalWaitedTime += 100
+    }
+    ss.sparkContext.isStopped
+  }
+
   test("tracker should not affect execution result when timeout is not larger than 0") {
     val nWorkers = numParallelism
     val rdd: RDD[Int] = sc.parallelize(1 to nWorkers)
@@ -71,6 +80,71 @@ class SparkParallelismTrackerSuite extends FunSuite with PerTest {
           Thread.sleep(Long.MaxValue)
           i
         }.sum()
+      }
+    }
+  }
+
+  test("tracker should not kill SparkContext when killSparkContextOnWorkerFailure=false") {
+    val nWorkers = numParallelism
+    val tracker = new SparkParallelismTracker(sc, 0, nWorkers, false)
+    val rdd: RDD[Int] = sc.parallelize(1 to nWorkers, nWorkers)
+    try {
+      tracker.execute {
+        rdd.map { i =>
+          val partitionId = TaskContext.get().partitionId()
+          if (partitionId == 0) {
+            throw new RuntimeException("mocking task failing")
+          }
+          i
+        }.sum()
+      }
+    } catch {
+      case e: Exception => // catch the exception
+    } finally {
+      // wait 3s to check if SparkContext is killed
+      assert(waitAndCheckSparkShutdown(3000) == false)
+    }
+  }
+
+  test("tracker should cancel the correct job when killSparkContextOnWorkerFailure=false") {
+    val nWorkers = 2
+    val tracker = new SparkParallelismTracker(sc, 0, nWorkers, false)
+    val rdd: RDD[Int] = sc.parallelize(1 to 10, nWorkers)
+    val thread = new TestThread(sc)
+    thread.start()
+    try {
+      tracker.execute {
+        rdd.map { i =>
+          Thread.sleep(100)
+          val partitionId = TaskContext.get().partitionId()
+          if (partitionId == 0) {
+            throw new RuntimeException("mocking task failing")
+          }
+          i
+        }.sum()
+      }
+    } catch {
+      case e: Exception => // catch the exception
+    } finally {
+      thread.join(8000)
+      // wait 3s to check if SparkContext is killed
+      assert(waitAndCheckSparkShutdown(3000) == false)
+    }
+  }
+
+  private[this] class TestThread(sc: SparkContext) extends Thread {
+    override def run(): Unit = {
+      var sum: Double = 0.0f
+      try {
+        val rdd = sc.parallelize(1 to 4, 2)
+        sum = rdd.mapPartitions(iter => {
+          // sleep 2s to ensure task is alive when cancelling other jobs
+          Thread.sleep(2000)
+          iter
+        }).sum()
+      } finally {
+        // get the correct result
+        assert(sum.toInt == 10)
       }
     }
   }
