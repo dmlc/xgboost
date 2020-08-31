@@ -84,7 +84,7 @@ class SparkParallelismTrackerSuite extends FunSuite with PerTest {
     }
   }
 
-  test("tracker should not kill SparkContext when killSparkContext=false") {
+  test("tracker should not kill SparkContext when killSparkContextOnWorkerFailure=false") {
     val nWorkers = numParallelism
     val tracker = new SparkParallelismTracker(sc, 0, nWorkers, false)
     val rdd: RDD[Int] = sc.parallelize(1 to nWorkers, nWorkers)
@@ -106,11 +106,11 @@ class SparkParallelismTrackerSuite extends FunSuite with PerTest {
     }
   }
 
-  test("tracker should cancel the correct job when killSparkContext=false") {
+  test("tracker should cancel the correct job when killSparkContextOnWorkerFailure=false") {
     val nWorkers = 2
     val tracker = new SparkParallelismTracker(sc, 0, nWorkers, false)
     val rdd: RDD[Int] = sc.parallelize(1 to 10, nWorkers)
-    val thread = new MyThread(sc)
+    val thread = new TestThread(sc)
     thread.start()
     try {
       tracker.execute {
@@ -132,7 +132,7 @@ class SparkParallelismTrackerSuite extends FunSuite with PerTest {
     }
   }
 
-  private[this] class MyThread(sc: SparkContext) extends Thread {
+  private[this] class TestThread(sc: SparkContext) extends Thread {
     override def run(): Unit = {
       var sum: Double = 0.0f
       try {

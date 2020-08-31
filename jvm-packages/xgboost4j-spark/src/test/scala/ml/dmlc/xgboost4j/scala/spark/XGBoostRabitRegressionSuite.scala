@@ -130,7 +130,7 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
         "objective" -> "binary:logistic",
         "num_round" -> 5,
         "num_workers" -> numWorkers,
-        "kill_spark_context" -> false,
+        "kill_spark_context_on_worker_failure" -> false,
         "rabit_timeout" -> 0))
         .fit(training)
     } catch {

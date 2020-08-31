@@ -28,13 +28,13 @@ import scala.collection.mutable.{HashMap, HashSet}
  * @param sc The SparkContext object
  * @param timeout The maximum time to wait for enough number of workers.
  * @param numWorkers nWorkers used in an XGBoost Job
- * @param killSparkContext kill SparkContext or not when task fails
+ * @param killSparkContextOnWorkerFailure kill SparkContext or not when task fails
  */
 class SparkParallelismTracker(
     val sc: SparkContext,
     timeout: Long,
     numWorkers: Int,
-    killSparkContext: Boolean = true) {
+    killSparkContextOnWorkerFailure: Boolean = true) {
 
   private[this] val requestedCores = numWorkers * sc.conf.getInt("spark.task.cpus", 1)
   private[this] val logger = LogFactory.getLog("XGBoostSpark")
@@ -62,7 +62,7 @@ class SparkParallelismTracker(
   }
 
   private[this] def safeExecute[T](body: => T): T = {
-    val listener = new TaskFailedListener(killSparkContext)
+    val listener = new TaskFailedListener(killSparkContextOnWorkerFailure)
     sc.addSparkListener(listener)
     try {
       body
@@ -100,7 +100,7 @@ class TaskFailedListener(killSparkContext: Boolean = true) extends SparkListener
 
   // {jobId, [stageId0, stageId1, ...] }
   // keep track of the mapping of job id and stage ids
-  // when a task failed, find the job id and stage Id the task belongs to, finally
+  // when a task fails, find the job id and stage id the task belongs to, finally
   // cancel the jobs
   private val jobIdToStageIds: HashMap[Int, HashSet[Int]] = HashMap.empty
 
@@ -129,16 +129,15 @@ class TaskFailedListener(killSparkContext: Boolean = true) extends SparkListener
         } else {
           val stageId = taskEnd.stageId
           // find job ids according to stage id and then cancel the job
-          jobIdToStageIds.foreach(t => {
-            val jobId = t._1
-            val stageIds = t._2
 
-            if (stageIds.contains(stageId)) {
-              logger.error("Cancelling jobId:" + jobId)
-              jobIdToStageIds.remove(jobId)
-              SparkContext.getOrCreate().cancelJob(jobId)
-            }
-          })
+          jobIdToStageIds.foreach {
+            case (jobId, stageIds) =>
+              if (stageIds.contains(stageId)) {
+                logger.error("Cancelling jobId:" + jobId)
+                jobIdToStageIds.remove(jobId)
+                SparkContext.getOrCreate().cancelJob(jobId)
+              }
+          }
         }
       case _ =>
     }
@@ -146,6 +145,7 @@ class TaskFailedListener(killSparkContext: Boolean = true) extends SparkListener
 }
 
 object TaskFailedListener {
+
   var killerStarted = false
 
   private def startedSparkContextKiller(): Unit = this.synchronized {

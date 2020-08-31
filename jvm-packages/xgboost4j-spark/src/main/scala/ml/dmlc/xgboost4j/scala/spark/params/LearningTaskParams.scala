@@ -108,11 +108,11 @@ private[spark] trait LearningTaskParams extends Params {
   /**
    * whether killing SparkContext when training task fails
    */
-  final val killSparkContext = new BooleanParam(this, "killSparkContext",
-    "whether killing SparkContext when training task fails")
+  final val killSparkContextOnWorkerFailure = new BooleanParam(this,
+    "killSparkContextOnWorkerFailure", "whether killing SparkContext when training task fails")
 
   setDefault(objective -> "reg:squarederror", baseScore -> 0.5, trainTestRatio -> 1.0,
-    numEarlyStoppingRounds -> 0, cacheTrainingSet -> false, killSparkContext -> true)
+    numEarlyStoppingRounds -> 0, cacheTrainingSet -> false, killSparkContextOnWorkerFailure -> true)
 }
 
 private[spark] object LearningTaskParams {
