@@ -26,11 +26,10 @@ import org.apache.spark.scheduler.TaskLocation
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-class ExecutorInProcessCoalescePartitioner(val balanceSlack: Double = 0.10)
-  extends PartitionCoalescer with Serializable {
+class ExecutorInProcessCoalescePartitioner() extends PartitionCoalescer with Serializable {
   private val logger = LogFactory.getLog("ExecutorInProcessCoalescePartitioner")
 
-  def coalesce(maxPartitions: Int, prev: RDD[_]): Array[PartitionGroup] = {
+  override def coalesce(maxPartitions: Int, prev: RDD[_]): Array[PartitionGroup] = {
     val map = new mutable.HashMap[String, mutable.HashSet[Partition]]()
 
     // System.out.println("xgbtck rddname " + prev.getClass.getName
@@ -53,9 +52,8 @@ class ExecutorInProcessCoalescePartitioner(val balanceSlack: Double = 0.10)
         //  + " location = " + execLoc)
 
       case loc : TaskLocation =>
-        System.out.println("xgbtck partitionloc " + loc.getClass.getName)
-        System.out.println("xgbtck partitionloc " + loc.host)
-        logger.error("Invalid location : ")
+        throw new SparkException("Invalid partition location: " +
+          loc.getClass.getName + loc.host)
       }
     })
     map.foreach(x => {

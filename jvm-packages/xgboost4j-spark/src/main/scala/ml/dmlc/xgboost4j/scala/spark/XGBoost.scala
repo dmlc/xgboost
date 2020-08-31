@@ -510,7 +510,7 @@ object XGBoost extends Serializable {
 
       watchrdd.foreachPartition(() => _)
       watchrdd.count()
-      val reducedrdd = processWatchesRDD(watchrdd).cache()
+      val reducedrdd = processWatchesRDD(watchrdd, xgbExecutionParams.numWorkers).cache()
       watchrdd.unpersist()
 
       reducedrdd.mapPartitions(iter => {
@@ -539,7 +539,7 @@ object XGBoost extends Serializable {
 
       watchrdd.foreachPartition(() => _)
       watchrdd.count()
-      val reducedrdd = processWatchesRDD(watchrdd).cache()
+      val reducedrdd = processWatchesRDD(watchrdd, xgbExecutionParams.numWorkers).cache()
       watchrdd.unpersist()
 
       reducedrdd.mapPartitions(iter => {
@@ -582,23 +582,29 @@ object XGBoost extends Serializable {
     }
   }
 
-  private def processWatchesRDD(watchrdd: RDD[Watches]): RDD[Watches] = {
+  private def processWatchesRDD(watchrdd: RDD[Watches], numWorkers: Int): RDD[Watches] = {
     val coalescedrdd = watchrdd.coalesce(1,
         partitionCoalescer = Some(new ExecutorInProcessCoalescePartitioner()))
-    coalescedrdd.mapPartitions { iter =>
-        val matcharr = iter.toArray
-        val totalsize = matcharr.foldLeft(Map("train" -> 0L)) {
-           (l, r) => {
-             val merged = l.toSeq ++ r.dataVecSizeMap.toSeq
-             merged.groupBy(_._1).mapValues(_.map(_._2).sum)
-           }
-        }
-        Iterator( matcharr.reduce { (l, r) =>
-          val rst = l.combineDMatrix(r, totalsize)
-          l.delete()
-          r.delete()
-          rst
-       })
+    if (coalescedrdd.getNumPartitions < numWorkers) {
+      logger.info("ExecutorInProcessCoalesce fails to create enough partitions. " +
+        "Fall back to regular coalesce.")
+      watchrdd.coalesce(numWorkers)
+    } else {
+      coalescedrdd.mapPartitions { iter =>
+          val matcharr = iter.toArray
+          val totalsize = matcharr.foldLeft(Map("train" -> 0L)) {
+             (l, r) => {
+               val merged = l.toSeq ++ r.dataVecSizeMap.toSeq
+               merged.groupBy(_._1).mapValues(_.map(_._2).sum)
+             }
+          }
+          Iterator( matcharr.reduce { (l, r) =>
+            val rst = l.combineDMatrix(r, totalsize)
+            l.delete()
+            r.delete()
+            rst
+         })
+      }
     }
   }
 

@@ -29,15 +29,19 @@ class XGBoostConfigureSuite extends FunSuite with PerTest {
       .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
       .config("spark.kryo.classesToRegister", classOf[Booster].getName)
 
-  test("nthread configuration must be no larger than spark.task.cpus") {
-    val training = buildDataFrame(Classification.train)
-    val paramMap = Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
-      "objective" -> "binary:logistic", "num_workers" -> numWorkers,
-      "nthread" -> (sc.getConf.getInt("spark.task.cpus", 1) + 1))
-    intercept[IllegalArgumentException] {
-      new XGBoostClassifier(paramMap ++ Seq("num_round" -> 2)).fit(training)
-    }
-  }
+  /*
+   * Disable this test because PR 5774 allows nthread to be larger than
+   * spark.task.cpus.
+   */
+  // test("nthread configuration must be no larger than spark.task.cpus") {
+  //   val training = buildDataFrame(Classification.train)
+  //   val paramMap = Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
+  //     "objective" -> "binary:logistic", "num_workers" -> numWorkers,
+  //     "nthread" -> (sc.getConf.getInt("spark.task.cpus", 1) + 1))
+  //   intercept[IllegalArgumentException] {
+  //     new XGBoostClassifier(paramMap ++ Seq("num_round" -> 2)).fit(training)
+  //   }
+  // }
 
   test("kryoSerializer test") {
     // TODO write an isolated test for Booster.
