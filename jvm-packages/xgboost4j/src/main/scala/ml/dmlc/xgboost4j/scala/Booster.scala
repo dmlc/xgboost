@@ -291,6 +291,16 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
         .asScala.mapValues(_.doubleValue).toSeq: _*)
   }
 
+  /**
+    * Get the number of model features.
+    *
+    * @return number of features
+    */
+  @throws(classOf[XGBoostError])
+  def getNumFeature: Long = {
+    booster.getNumFeature
+  }
+
   def getVersion: Int = booster.getVersion
 
   def toByteArray: Array[Byte] = {
