@@ -850,6 +850,22 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSaveRabit
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGBoosterGetNumFeature
+ * Signature: (J[J)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetNumFeature
+  (JNIEnv *jenv, jclass jcls, jlong jhandle, jlongArray jout) {
+  BoosterHandle handle = (BoosterHandle) jhandle;
+  bst_ulong num_feature;
+  int ret = XGBoosterGetNumFeature(handle, &num_feature);
+  JVM_CHECK_CALL(ret);
+  jlong jnum_feature = num_feature;
+  jenv->SetLongArrayRegion(jout, 0, 1, &jnum_feature);
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    RabitInit
  * Signature: ([Ljava/lang/String;)I
  */

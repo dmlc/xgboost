@@ -678,6 +678,17 @@ public class Booster implements Serializable, KryoSerializable {
   }
 
   /**
+   * Get number of model features.
+   * @return the number of features.
+   * @throws XGBoostError
+   */
+  public long getNumFeature() throws XGBoostError {
+    long[] numFeature = new long[1];
+    XGBoostJNI.checkCall(XGBoostJNI.XGBoosterGetNumFeature(this.handle, numFeature));
+    return numFeature[0];
+  }
+
+  /**
    * Internal initialization function.
    * @param cacheMats The cached DMatrix.
    * @throws XGBoostError
