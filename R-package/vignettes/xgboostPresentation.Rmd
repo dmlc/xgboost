@@ -68,7 +68,7 @@ The version 0.4-2 is on CRAN, and you can install it by:
 install.packages("xgboost")
 ```
 
-Formerly available versions can be obtained from the CRAN [archive](https://cran.r-project.org/src/contrib/Archive/xgboost)
+Formerly available versions can be obtained from the CRAN [archive](https://cran.r-project.org/src/contrib/Archive/xgboost/)
 
 ## Learning
 

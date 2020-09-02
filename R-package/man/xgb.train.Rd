@@ -215,16 +215,16 @@ User may set one or several \code{eval_metric} parameters.
 Note that when using a customized metric, only this single metric can be used.
 The following is the list of built-in metrics for which Xgboost provides optimized implementation:
   \itemize{
-     \item \code{rmse} root mean square error. \url{http://en.wikipedia.org/wiki/Root_mean_square_error}
-     \item \code{logloss} negative log-likelihood. \url{http://en.wikipedia.org/wiki/Log-likelihood}
+     \item \code{rmse} root mean square error. \url{https://en.wikipedia.org/wiki/Root_mean_square_error}
+     \item \code{logloss} negative log-likelihood. \url{https://en.wikipedia.org/wiki/Log-likelihood}
      \item \code{mlogloss} multiclass logloss. \url{https://scikit-learn.org/stable/modules/generated/sklearn.metrics.log_loss.html}
      \item \code{error} Binary classification error rate. It is calculated as \code{(# wrong cases) / (# all cases)}.
            By default, it uses the 0.5 threshold for predicted values to define negative and positive instances.
            Different threshold (e.g., 0.) could be specified as "error@0."
      \item \code{merror} Multiclass classification error rate. It is calculated as \code{(# wrong cases) / (# all cases)}.
-     \item \code{auc} Area under the curve. \url{http://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.
+     \item \code{auc} Area under the curve. \url{https://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.
      \item \code{aucpr} Area under the PR curve. \url{https://en.wikipedia.org/wiki/Precision_and_recall} for ranking evaluation.
-     \item \code{ndcg} Normalized Discounted Cumulative Gain (for ranking task). \url{http://en.wikipedia.org/wiki/NDCG}
+     \item \code{ndcg} Normalized Discounted Cumulative Gain (for ranking task). \url{https://en.wikipedia.org/wiki/NDCG}
   }
 
 The following callbacks are automatically created when certain parameters are set:
