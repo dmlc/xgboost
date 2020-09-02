@@ -3,6 +3,177 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## v1.2.0 (2020.08.22)
+
+### XGBoost4J-Spark now supports the GPU algorithm (#5171)
+* Now XGBoost4J-Spark is able to leverage NVIDIA GPU hardware to speed up training.
+* There is on-going work for accelerating the rest of the data pipeline with NVIDIA GPUs (#5950, #5972).
+
+### XGBoost now supports CUDA 11 (#5808)
+* It is now possible to build XGBoost with CUDA 11. Note that we do not yet distribute pre-built binaries built with CUDA 11; all current distributions use CUDA 10.0.
+
+### Better guidance for persisting XGBoost models in an R environment (#5940, #5964)
+* Users are strongly encouraged to use `xgb.save()` and `xgb.save.raw()` instead of `saveRDS()`. This is so that the persisted models can be accessed with future releases of XGBoost.
+* The previous release (1.1.0) had problems loading models that were saved with `saveRDS()`. This release adds a compatibility layer to restore access to the old RDS files. Note that this is meant to be a temporary measure; users are advised to stop using `saveRDS()` and migrate to `xgb.save()` and `xgb.save.raw()`.
+
+### New objectives and metrics
+* The pseudo-Huber loss `reg:pseudohubererror` is added (#5647). The corresponding metric is `mphe`. Right now, the slope is hard-coded to 1.
+* The Accelerated Failure Time objective for survival analysis (`survival:aft`) is now accelerated on GPUs (#5714, #5716). The survival metrics `aft-nloglik` and `interval-regression-accuracy` are also accelerated on GPUs.
+
+### Improved integration with scikit-learn
+* Added `n_features_in_` attribute to the scikit-learn interface to store the number of features used (#5780). This is useful for integrating with some scikit-learn features such as `StackingClassifier`.  See [this link](https://scikit-learn-enhancement-proposals.readthedocs.io/en/latest/slep010/proposal.html) for more details.
+* `XGBoostError` now inherits `ValueError`, which conforms scikit-learn's exception requirement (#5696).
+
+### Improved integration with Dask
+* The XGBoost Dask API now exposes an asynchronous interface (#5862). See [the document](https://xgboost.readthedocs.io/en/latest/tutorials/dask.html#working-with-asyncio) for details.
+* Zero-copy ingestion of GPU arrays via `DaskDeviceQuantileDMatrix` (#5623, #5799, #5800, #5803, #5837, #5874, #5901): Previously, the Dask interface had to make 2 data copies: one for concatenating the Dask partition/block into a single block and another for internal representation. To save memory, we introduce `DaskDeviceQuantileDMatrix`. As long as Dask partitions are resident in the GPU memory, `DaskDeviceQuantileDMatrix` is able to ingest them directly without making copies. This matrix type wraps `DeviceQuantileDMatrix`.
+* The prediction function now returns GPU Series type if the input is from Dask-cuDF (#5710). This is to preserve the input data type.
+
+### Robust handling of external data types (#5689, #5893)
+- As we support more and more external data types, the handling logic has proliferated all over the code base and became hard to keep track. It also became unclear how missing values and threads are handled. We refactored the Python package code to collect all data handling logic to a central location, and now we have an explicit list of of all supported data types.
+
+### Improvements in GPU-side data matrix (`DeviceQuantileDMatrix`)
+* The GPU-side data matrix now implements its own quantile sketching logic, so that data don't have to be transported back to the main memory (#5700, #5747, #5760, #5846, #5870, #5898). The GK sketching algorithm is also now better documented.
+  - Now we can load extremely sparse dataset like URL, although performance is still sub-optimal.
+* The GPU-side data matrix now exposes an iterative interface (#5783), so that users are able to construct a matrix from a data iterator. See the [Python demo](https://github.com/dmlc/xgboost/blob/release_1.2.0/demo/guide-python/data_iterator.py).
+
+### New language binding: Swift (#5728)
+* Visit https://github.com/kongzii/SwiftXGBoost for more details.
+
+### Robust model serialization with JSON (#5772, #5804, #5831, #5857, #5934)
+* We continue efforts from the 1.0.0 release to adopt JSON as the format to save and load models robustly.
+* JSON model IO is significantly faster and produces smaller model files.
+* Round-trip reproducibility is guaranteed, via the introduction of an efficient float-to-string conversion algorithm known as [the Ryū algorithm](https://dl.acm.org/doi/10.1145/3192366.3192369). The conversion is locale-independent, producing consistent numeric representation regardless of the locale setting of the user's machine.
+* We fixed an issue in loading large JSON files to memory.
+* It is now possible to load a JSON file from a remote source such as S3.
+
+### Performance improvements
+* CPU hist tree method optimization
+  - Skip missing lookup in hist row partitioning if data is dense. (#5644)
+  - Specialize training procedures for CPU hist tree method on distributed environment. (#5557)
+  - Add single point histogram for CPU hist.  Previously gradient histogram for CPU hist is hard coded to be 64 bit, now users can specify the parameter `single_precision_histogram` to use 32 bit histogram instead for faster training performance. (#5624, #5811)
+* GPU hist tree method optimization
+  - Removed some unnecessary synchronizations and better memory allocation pattern. (#5707)
+  - Optimize GPU Hist for wide dataset.  Previously for wide dataset the atomic operation is performed on global memory, now it can run on shared memory for faster histogram building. But there's a known small regression on GeForce cards with dense data. (#5795, #5926, #5948, #5631)
+
+### API additions
+* Support passing fmap to importance plot (#5719). Now importance plot can show actual names of features instead of default ones.
+* Support 64bit seed. (#5643)
+* A new C API `XGBoosterGetNumFeature` is added for getting number of features in booster (#5856).
+* Feature names and feature types are now stored in C++ core and saved in binary DMatrix (#5858).
+
+### Breaking: The `predict()` method of `DaskXGBClassifier` now produces class predictions (#5986). Use `predict_proba()` to obtain probability predictions.
+* Previously, `DaskXGBClassifier.predict()` produced probability predictions. This is inconsistent with the behavior of other scikit-learn classifiers, where `predict()` returns class predictions. We make a breaking change in 1.2.0 release so that `DaskXGBClassifier.predict()` now correctly produces class predictions and thus behave like other scikit-learn classifiers. Furthermore, we introduce the `predict_proba()` method for obtaining probability predictions, again to be in line with other scikit-learn classifiers.
+
+### Breaking: Custom evaluation metric now receives raw prediction (#5954)
+* Previously, the custom evaluation metric received a transformed prediction result when used with a classifier. Now the custom metric will receive a raw (untransformed) prediction and will need to transform the prediction itself.  See [demo/guide-python/custom\_softmax.py](https://github.com/dmlc/xgboost/blob/release_1.2.0/demo/guide-python/custom_softmax.py) for an example.
+* This change is to make the custom metric behave consistently with the custom objective, which already receives raw prediction (#5564).
+
+### Breaking: XGBoost4J-Spark now requires Spark 3.0 and Scala 2.12 (#5836, #5890)
+* Starting with version 3.0, Spark can manage GPU resources and allocate them among executors.
+* Spark 3.0 dropped support for Scala 2.11 and now only supports Scala 2.12. Thus, XGBoost4J-Spark also only supports Scala 2.12.
+
+### Breaking: XGBoost Python package now requires Python 3.6 and later (#5715)
+* Python 3.6 has many useful features such as f-strings.
+
+### Breaking: XGBoost now adopts the C++14 standard (#5664)
+* Make sure to use a sufficiently modern C++ compiler that supports C++14, such as Visual Studio 2017, GCC 5.0+, and Clang 3.4+.
+
+### Bug-fixes
+* Fix a data race in the prediction function (#5853). As a byproduct, the prediction function now uses a thread-local data store and became thread-safe.
+* Restore capability to run prediction when the test input has fewer features than the training data (#5955). This capability is necessary to support predicting with LIBSVM inputs. The previous release (1.1) had broken this capability, so we restore it in this version with better tests.
+* Fix OpenMP build with CMake for R package, to support CMake 3.13 (#5895).
+* Fix Windows 2016 build (#5902, #5918).
+* Fix edge cases in scikit-learn interface with Pandas input by disabling feature validation. (#5953)
+* [R] Enable weighted learning to rank (#5945)
+* [R] Fix early stopping with custom objective (#5923)
+* Fix NDK Build (#5886)
+* Add missing explicit template specializations for greater portability (#5921)
+* Handle empty rows in data iterators correctly (#5929). This bug affects file loader and JVM data frames.
+* Fix `IsDense` (#5702)
+* [jvm-packages] Fix wrong method name `setAllowZeroForMissingValue` (#5740)
+* Fix shape inference for Dask predict (#5989)
+
+### Usability Improvements, Documentation
+* [Doc] Document that CUDA 10.0 is required (#5872)
+* Refactored command line interface (CLI). Now CLI is able to handle user errors and output basic document. (#5574)
+* Better error handling in Python: use `raise from` syntax to preserve full stacktrace (#5787).
+* The JSON model dump now has a formal schema (#5660, #5818). The benefit is to prevent `dump_model()` function from breaking. See [this document](https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html#difference-between-saving-model-and-dumping-model) to understand the difference between saving and dumping models.
+* Add a reference to the GPU external memory paper (#5684)
+* Document more objective parameters in the R package (#5682)
+* Document the existence of pre-built binary wheels for MacOS (#5711)
+* Remove `max.depth` in the R gblinear example. (#5753)
+* Added conda environment file for building docs (#5773)
+* Mention dask blog post in the doc, which introduces using Dask with GPU and some internal workings. (#5789)
+* Fix rendering of Markdown docs (#5821)
+* Document new objectives and metrics available on GPUs (#5909)
+* Better message when no GPU is found. (#5594)
+* Remove the use of `silent` parameter from R demos. (#5675)
+* Don't use masked array in array interface. (#5730)
+* Update affiliation of @terrytangyuan: Ant Financial -> Ant Group (#5827)
+* Move dask tutorial closer other distributed tutorials (#5613)
+* Update XGBoost + Dask overview documentation (#5961)
+* Show `n_estimators` in the docstring of the scikit-learn interface (#6041)
+* Fix a type in a doctring of the scikit-learn interface (#5980)
+
+### Maintenance: testing, continuous integration, build system
+* [CI] Remove CUDA 9.0 from CI (#5674, #5745)
+* Require CUDA 10.0+ in CMake build (#5718)
+* [R] Remove dependency on gendef for Visual Studio builds (fixes #5608) (#5764). This enables building XGBoost with GPU support with R 4.x.
+* [R-package] Reduce duplication in configure.ac (#5693)
+* Bump com.esotericsoftware to 4.0.2 (#5690)
+* Migrate some tests from AppVeyor to GitHub Actions to speed up the tests. (#5911, #5917, #5919, #5922, #5928)
+* Reduce cost of the Jenkins CI server (#5884, #5904, #5892). We now enforce a daily budget via an automated monitor. We also dramatically reduced the workload for the Windows platform, since the cloud VM cost is vastly greater for Windows.
+* [R] Set up automated R linter (#5944)
+* [R] replace uses of T and F with TRUE and FALSE (#5778)
+* Update Docker container 'CPU' (#5956)
+* Simplify CMake build with modern CMake techniques (#5871)
+* Use `hypothesis` package for testing (#5759, #5835, #5849).
+* Define `_CRT_SECURE_NO_WARNINGS` to remove unneeded warnings in MSVC (#5434)
+* Run all Python demos in CI, to ensure that they don't break (#5651)
+* Enhance nvtx support (#5636). Now we can use unified timer between CPU and GPU. Also CMake is able to find nvtx automatically.
+* Speed up python test. (#5752)
+* Add helper for generating batches of data. (#5756)
+* Add c-api-demo to .gitignore (#5855)
+* Add option to enable all compiler warnings in GCC/Clang (#5897)
+* Make Python model compatibility test runnable locally (#5941)
+* Add cupy to Windows CI (#5797)
+* [CI] Fix cuDF install; merge 'gpu' and 'cudf' test suite (#5814)
+* Update rabit submodule (#5680, #5876)
+* Force colored output for Ninja build. (#5959)
+* [CI] Assign larger /dev/shm to NCCL (#5966)
+* Add missing Pytest marks to AsyncIO unit test (#5968)
+* [CI] Use latest cuDF and dask-cudf (#6048)
+* Add CMake flag to log C API invocations, to aid debugging (#5925)
+* Fix a unit test on CLI, to handle RC versions (#6050)
+* [CI] Use mgpu machine to run gpu hist unit tests (#6050)
+* [CI] Build GPU-enabled JAR artifact and deploy to xgboost-maven-repo (#6050)
+
+### Maintenance: Refactor code for legibility and maintainability
+* Remove dead code in DMatrix initialization. (#5635)
+* Catch dmlc error by ref. (#5678)
+* Refactor the `gpu_hist` split evaluation in preparation for batched nodes enumeration. (#5610)
+* Remove column major specialization. (#5755)
+* Remove unused imports in Python (#5776)
+* Avoid including `c_api.h` in header files. (#5782)
+* Remove unweighted GK quantile, which is unused. (#5816)
+* Add Python binding for rabit ops. (#5743)
+* Implement `Empty` method for host device vector. (#5781)
+* Remove print (#5867)
+* Enforce tree order in JSON (#5974)
+
+### Acknowledgement
+**Contributors**: Nan Zhu (@CodingCat), @LionOrCatThatIsTheQuestion, Dmitry Mottl (@Mottl), Rory Mitchell (@RAMitchell), @ShvetsKS, Alex Wozniakowski (@a-wozniakowski), Alexander Gugel (@alexanderGugel), @anttisaukko, @boxdot, Andy Adinets (@canonizer), Ram Rachum (@cool-RR), Elliot Hershberg (@elliothershberg), Jason E. Aten, Ph.D. (@glycerine), Philip Hyunsu Cho (@hcho3), @jameskrach, James Lamb (@jameslamb), James Bourbeau (@jrbourbeau), Peter Jung (@kongzii), Lorenz Walthert (@lorenzwalthert), Oleksandr Kuvshynov (@okuvshynov), Rong Ou (@rongou), Shaochen Shi (@shishaochen), Yuan Tang (@terrytangyuan), Jiaming Yuan (@trivialfis), Bobby Wang (@wbo4958), Zhang Zhang (@zhangzhang10)
+
+**Reviewers**: Nan Zhu (@CodingCat), @LionOrCatThatIsTheQuestion, Hao Yang (@QuantHao), Rory Mitchell (@RAMitchell), @ShvetsKS, Egor Smirnov (@SmirnovEgorRu), Alex Wozniakowski (@a-wozniakowski), Amit Kumar (@aktech), Avinash Barnwal (@avinashbarnwal), @boxdot, Andy Adinets (@canonizer), Chandra Shekhar Reddy (@chandrureddy), Ram Rachum (@cool-RR), Cristiano Goncalves (@cristianogoncalves), Elliot Hershberg (@elliothershberg), Jason E. Aten, Ph.D. (@glycerine), Philip Hyunsu Cho (@hcho3), Tong He (@hetong007), James Lamb (@jameslamb), James Bourbeau (@jrbourbeau), Lee Drake (@leedrake5), DougM (@mengdong), Oleksandr Kuvshynov (@okuvshynov), RongOu (@rongou), Shaochen Shi (@shishaochen), Xu Xiao (@sperlingxx), Yuan Tang (@terrytangyuan), Theodore Vasiloudis (@thvasilo), Jiaming Yuan (@trivialfis), Bobby Wang (@wbo4958), Zhang Zhang (@zhangzhang10)
+
+## v1.1.1 (2020.06.06)
+This patch release applies the following patches to 1.1.0 release:
+
+* CPU performance improvement in the PyPI wheels (#5720)
+* Fix loading old model (#5724)
+* Install pkg-config file (#5744)
+
 ## v1.1.0 (2020.05.17)
 
 ### Better performance on multi-core CPUs (#5244, #5334, #5522)
@@ -202,6 +373,16 @@ Upgrading to latest pip allows us to depend on newer versions of system librarie
 **Contributors**: Nan Zhu (@CodingCat), Rory Mitchell (@RAMitchell), @ShvetsKS, Egor Smirnov (@SmirnovEgorRu), Andrew Kane (@ankane), Avinash Barnwal (@avinashbarnwal), Bart Broere (@bartbroere), Andy Adinets (@canonizer), Chen Qin (@chenqin), Daiki Katsuragawa (@daikikatsuragawa), David Díaz Vico (@daviddiazvico), Darius Kharazi (@dkharazi), Darby Payne (@dpayne), Jason E. Aten, Ph.D. (@glycerine), Philip Hyunsu Cho (@hcho3), James Lamb (@jameslamb), Jan Borchmann (@jborchma), Kamil A. Kaczmarek (@kamil-kaczmarek), Melissa Kohl (@mjkohl32), Nicolas Scozzaro (@nscozzaro), Paul Kaefer (@paulkaefer), Rong Ou (@rongou), Samrat Pandiri (@samratp), Sriram Chandramouli (@sriramch), Yuan Tang (@terrytangyuan), Jiaming Yuan (@trivialfis), Liang-Chi Hsieh (@viirya), Bobby Wang (@wbo4958), Zhang Zhang (@zhangzhang10),
 
 **Reviewers**: Nan Zhu (@CodingCat), @LeZhengThu, Rory Mitchell (@RAMitchell), @ShvetsKS, Egor Smirnov (@SmirnovEgorRu), Steve Bronder (@SteveBronder), Nikita Titov (@StrikerRUS), Andrew Kane (@ankane), Avinash Barnwal (@avinashbarnwal), @brydag, Andy Adinets (@canonizer), Chandra Shekhar Reddy (@chandrureddy), Chen Qin (@chenqin), Codecov (@codecov-io), David Díaz Vico (@daviddiazvico), Darby Payne (@dpayne), Jason E. Aten, Ph.D. (@glycerine), Philip Hyunsu Cho (@hcho3), James Lamb (@jameslamb), @johnny-cat, Mu Li (@mli), Mate Soos (@msoos), @rnyak, Rong Ou (@rongou), Sriram Chandramouli (@sriramch), Toby Dylan Hocking (@tdhock), Yuan Tang (@terrytangyuan), Oleksandr Pryimak (@trams), Jiaming Yuan (@trivialfis), Liang-Chi Hsieh (@viirya), Bobby Wang (@wbo4958),
+
+## v1.0.2 (2020.03.03)
+This patch release applies the following patches to 1.0.0 release:
+
+* Fix a small typo in sklearn.py that broke multiple eval metrics (#5341)
+* Restore loading model from buffer (#5360)
+* Use type name for data type check (#5364)
+
+## v1.0.1 (2020.02.21)
+This release is identical to the 1.0.0 release, except that it fixes a small bug that rendered 1.0.0 incompatible with Python 3.5. See #5328.
 
 ## v1.0.0 (2020.02.19)
 This release marks a major milestone for the XGBoost project.
