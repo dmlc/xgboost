@@ -76,7 +76,8 @@ private[this] case class XGBoostExecutionParams(
     earlyStoppingParams: XGBoostExecutionEarlyStoppingParams,
     cacheTrainingSet: Boolean,
     treeMethod: Option[String],
-    isLocal: Boolean) {
+    isLocal: Boolean,
+    killSparkContextOnWorkerFailure: Boolean) {
 
   private var rawParamMap: Map[String, Any] = _
 
@@ -220,6 +221,9 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
     val cacheTrainingSet = overridedParams.getOrElse("cache_training_set", false)
       .asInstanceOf[Boolean]
 
+    val killSparkContext = overridedParams.getOrElse("kill_spark_context_on_worker_failure", true)
+      .asInstanceOf[Boolean]
+
     val xgbExecParam = XGBoostExecutionParams(nWorkers, round, useExternalMemory, obj, eval,
       missing, allowNonZeroForMissing, trackerConf,
       timeoutRequestWorkers,
@@ -228,7 +232,8 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
       xgbExecEarlyStoppingParams,
       cacheTrainingSet,
       treeMethod,
-      isLocal)
+      isLocal,
+      killSparkContext)
     xgbExecParam.setRawParamMap(overridedParams)
     xgbExecParam
   }
@@ -588,7 +593,8 @@ object XGBoost extends Serializable {
       val (booster, metrics) = try {
         val parallelismTracker = new SparkParallelismTracker(sc,
           xgbExecParams.timeoutRequestWorkers,
-          xgbExecParams.numWorkers)
+          xgbExecParams.numWorkers,
+          xgbExecParams.killSparkContextOnWorkerFailure)
         val rabitEnv = tracker.getWorkerEnvs
         val boostersAndMetrics = if (hasGroup) {
           trainForRanking(transformedTrainingData.left.get, xgbExecParams, rabitEnv, prevBooster,
@@ -628,7 +634,9 @@ object XGBoost extends Serializable {
       case t: Throwable =>
         // if the job was aborted due to an exception
         logger.error("the job was aborted due to ", t)
-        trainingData.sparkContext.stop()
+        if (xgbExecParams.killSparkContextOnWorkerFailure) {
+          trainingData.sparkContext.stop()
+        }
         throw t
     } finally {
       uncacheTrainingData(xgbExecParams.cacheTrainingSet, transformedTrainingData)
