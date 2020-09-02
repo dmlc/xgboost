@@ -508,8 +508,14 @@ object XGBoost extends Serializable {
         tomap.size>0
       }).cache()
 
-      watchrdd.foreachPartition(() => _)
-      watchrdd.count()
+      try {
+        watchrdd.foreachPartition(() => _)
+        watchrdd.count()
+      } catch {
+        case t: Throwable =>
+          logger.error("building watches failed due to ", t)
+          throw new XGBoostError("Building watches failed")
+      }
       val reducedrdd = processWatchesRDD(watchrdd, xgbExecutionParams.numWorkers).cache()
       watchrdd.unpersist()
 
@@ -537,8 +543,14 @@ object XGBoost extends Serializable {
             tomap.size>0
           }).cache()
 
-      watchrdd.foreachPartition(() => _)
-      watchrdd.count()
+      try {
+        watchrdd.foreachPartition(() => _)
+        watchrdd.count()
+      } catch {
+        case t: Throwable =>
+          logger.error("building watches failed due to ", t)
+          throw new XGBoostError("Building watches failed")
+      }
       val reducedrdd = processWatchesRDD(watchrdd, xgbExecutionParams.numWorkers).cache()
       watchrdd.unpersist()
 
