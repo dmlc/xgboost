@@ -200,9 +200,9 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
 #' @return A \code{ggplot2} object.
 #' @export
 #'
-#' @examples See \code{\link{xgb.plot.shap}}.
+#' @examples # See \code{\link{xgb.plot.shap}}.
 #' @seealso \code{\link{xgb.plot.shap}}, \code{\link{xgb.ggplot.shap.summary}},
-#'   \code{\url{https://github.com/slundberg/shap}}
+#'   \url{https://github.com/slundberg/shap}
 xgb.plot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, top_n = 10, model = NULL,
                                   trees = NULL, target_class = NULL, approxcontrib = FALSE, subsample = NULL) {
   # Only ggplot implementation is available.

@@ -5,7 +5,14 @@ library(Matrix)
 source('./generate_models_params.R')
 
 set.seed(0)
-metadata <- model_generator_metadata()
+metadata <- list(
+  kRounds = 2,
+  kRows = 1000,
+  kCols = 4,
+  kForests = 2,
+  kMaxDepth = 2,
+  kClasses = 3
+)
 X <- Matrix(data = rnorm(metadata$kRows * metadata$kCols), nrow = metadata$kRows,
             ncol = metadata$kCols, sparse = TRUE)
 w <- runif(metadata$kRows)

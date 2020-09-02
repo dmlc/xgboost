@@ -154,7 +154,7 @@ The cross-validation process is then repeated \code{nrounds} times, with each of
 
 All observations are used for both training and validation.
 
-Adapted from \url{http://en.wikipedia.org/wiki/Cross-validation_\%28statistics\%29#k-fold_cross-validation}
+Adapted from \url{https://en.wikipedia.org/wiki/Cross-validation_\%28statistics\%29}
 }
 \examples{
 data(agaricus.train, package='xgboost')

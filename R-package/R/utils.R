@@ -349,6 +349,7 @@ NULL
 #' # Save as a stand-alone file (JSON); load it with xgb.load()
 #' xgb.save(bst, 'xgb.model.json')
 #' bst2 <- xgb.load('xgb.model.json')
+#' if (file.exists('xgb.model.json')) file.remove('xgb.model.json')
 #'
 #' # Save as a raw byte vector; load it with xgb.load.raw()
 #' xgb_bytes <- xgb.save.raw(bst)
@@ -364,6 +365,7 @@ NULL
 #' obj2 <- readRDS('my_object.rds')
 #' # Re-construct xgb.Booster object from the bytes
 #' bst2 <- xgb.load.raw(obj2$xgb_model_bytes)
+#' if (file.exists('my_object.rds')) file.remove('my_object.rds')
 #'
 #' @name a-compatibility-note-for-saveRDS-save
 NULL

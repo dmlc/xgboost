@@ -57,7 +57,7 @@ To answer the question above we will convert *categorical* variables to `numeric
 
 In this Vignette we will see how to transform a *dense* `data.frame` (*dense* = few zeroes in the matrix) with *categorical* variables to a very *sparse* matrix (*sparse* = lots of zero in the matrix) of `numeric` features.
 
-The method we are going to see is usually called [one-hot encoding](http://en.wikipedia.org/wiki/One-hot).
+The method we are going to see is usually called [one-hot encoding](https://en.wikipedia.org/wiki/One-hot).
 
 The first step is to load `Arthritis` dataset in memory and wrap it with `data.table` package.
 
@@ -66,7 +66,7 @@ data(Arthritis)
 df <- data.table(Arthritis, keep.rownames = FALSE)
 ```
 
-> `data.table` is 100% compliant with **R** `data.frame` but its syntax is more consistent and its performance for large dataset is [best in class](http://stackoverflow.com/questions/21435339/data-table-vs-dplyr-can-one-do-something-well-the-other-cant-or-does-poorly) (`dplyr` from **R** and `Pandas` from **Python** [included](https://github.com/Rdatatable/data.table/wiki/Benchmarks-%3A-Grouping)). Some parts of **Xgboost** **R** package use `data.table`.
+> `data.table` is 100% compliant with **R** `data.frame` but its syntax is more consistent and its performance for large dataset is [best in class](https://stackoverflow.com/questions/21435339/data-table-vs-dplyr-can-one-do-something-well-the-other-cant-or-does-poorly) (`dplyr` from **R** and `Pandas` from **Python** [included](https://github.com/Rdatatable/data.table/wiki/Benchmarks-%3A-Grouping)). Some parts of **Xgboost** **R** package use `data.table`.
 
 The first thing we want to do is to have a look to the first few lines of the `data.table`:
 
@@ -137,8 +137,8 @@ levels(df[,Treatment])
 #### Encoding categorical features
 
 Next step, we will transform the categorical data to dummy variables.
-Several encoding methods exist, e.g., [one-hot encoding](http://en.wikipedia.org/wiki/One-hot) is a common approach.
-We will use the [dummy contrast coding](http://www.ats.ucla.edu/stat/r/library/contrast_coding.htm#dummy) which is popular because it produces "full rank" encoding (also see [this blog post by Max Kuhn](http://appliedpredictivemodeling.com/blog/2013/10/23/the-basics-of-encoding-categorical-data-for-predictive-models)).
+Several encoding methods exist, e.g., [one-hot encoding](https://en.wikipedia.org/wiki/One-hot) is a common approach.
+We will use the [dummy contrast coding](https://stats.idre.ucla.edu/r/library/r-library-contrast-coding-systems-for-categorical-variables/) which is popular because it produces "full rank" encoding (also see [this blog post by Max Kuhn](http://appliedpredictivemodeling.com/blog/2013/10/23/the-basics-of-encoding-categorical-data-for-predictive-models)).
 
 The purpose is to transform each value of each *categorical* feature into a *binary* feature `{0, 1}`.
 
@@ -176,7 +176,7 @@ bst <- xgboost(data = sparse_matrix, label = output_vector, max_depth = 4,
 
 You can see some `train-error: 0.XXXXX` lines followed by a number. It decreases. Each line shows how well the model explains your data. Lower is better.
 
-A model which fits too well may [overfit](http://en.wikipedia.org/wiki/Overfitting) (meaning it copy/paste too much the past, and won't be that good to predict the future).
+A model which fits too well may [overfit](https://en.wikipedia.org/wiki/Overfitting) (meaning it copy/paste too much the past, and won't be that good to predict the future).
 
 > Here you can see the numbers decrease until line 7 and then increase.
 >
@@ -304,7 +304,7 @@ Linear model may not be that smart in this scenario.
 Special Note: What about Random Forests™?
 -----------------------------------------
 
-As you may know, [Random Forests™](http://en.wikipedia.org/wiki/Random_forest) algorithm is cousin with boosting and both are part of the [ensemble learning](http://en.wikipedia.org/wiki/Ensemble_learning) family.
+As you may know, [Random Forests™](https://en.wikipedia.org/wiki/Random_forest) algorithm is cousin with boosting and both are part of the [ensemble learning](https://en.wikipedia.org/wiki/Ensemble_learning) family.
 
 Both trains several decision trees for one dataset. The *main* difference is that in Random Forests™, trees are independent and in boosting, the tree `N+1` focus its learning on the loss (<=> what has not been well modeled by the tree `N`).
 
