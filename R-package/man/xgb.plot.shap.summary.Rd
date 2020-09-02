@@ -70,9 +70,9 @@ or smaller values of the feature. We effectively try to replicate the
 \code{summary_plot} function from https://github.com/slundberg/shap.
 }
 \examples{
-See \code{\link{xgb.plot.shap}}.
+# See \code{\link{xgb.plot.shap}}.
 }
 \seealso{
 \code{\link{xgb.plot.shap}}, \code{\link{xgb.ggplot.shap.summary}},
-  \code{\url{https://github.com/slundberg/shap}}
+  \url{https://github.com/slundberg/shap}
 }
