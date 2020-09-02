@@ -79,7 +79,7 @@
 #'
 #' All observations are used for both training and validation.
 #'
-#' Adapted from \url{http://en.wikipedia.org/wiki/Cross-validation_\%28statistics\%29#k-fold_cross-validation}
+#' Adapted from \url{https://en.wikipedia.org/wiki/Cross-validation_\%28statistics\%29}
 #'
 #' @return
 #' An object of class \code{xgb.cv.synchronous} with the following elements:
