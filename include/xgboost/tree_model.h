@@ -337,6 +337,9 @@ class RegTree : public Model {
   /*! \brief get const reference to nodes */
   const std::vector<Node>& GetNodes() const { return nodes_; }
 
+  /*! \brief get const reference to stats */
+  const std::vector<RTreeNodeStat>& GetStats() const { return stats_; }
+
   /*! \brief get node statistics given nid */
   RTreeNodeStat& Stat(int nid) {
     return stats_[nid];
