@@ -256,10 +256,10 @@ class DeviceModel {
       auto& src_stats = model.trees.at(tree_idx)->GetStats();
       dh::safe_cuda(cudaMemcpyAsync(
           d_nodes + h_tree_segments[tree_idx - tree_begin], src_nodes.data(),
-          sizeof(RegTree::Node) * src_nodes.size(),cudaMemcpyDefault));
+          sizeof(RegTree::Node) * src_nodes.size(), cudaMemcpyDefault));
       dh::safe_cuda(cudaMemcpyAsync(
           d_stats + h_tree_segments[tree_idx - tree_begin], src_stats.data(),
-          sizeof(RTreeNodeStat) * src_stats.size(),cudaMemcpyDefault));
+          sizeof(RTreeNodeStat) * src_stats.size(), cudaMemcpyDefault));
     }
 
     tree_group = std::move(HostDeviceVector<int>(model.tree_info.size(), 0, gpu_id));
