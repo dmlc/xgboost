@@ -161,7 +161,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
 
     Parameters
     ----------
-    stopp_rounds : int
+    stopping_rounds : int
        The stopping rounds before the trend occur.
 
     maximize : bool
