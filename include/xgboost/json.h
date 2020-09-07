@@ -6,6 +6,7 @@
 
 #include <xgboost/logging.h>
 #include <xgboost/parameter.h>
+#include <xgboost/intrusive_ptr.h>
 
 #include <map>
 #include <memory>
@@ -21,6 +22,13 @@ class JsonReader;
 class JsonWriter;
 
 class Value {
+ private:
+  mutable class IntrusivePtrCell ref_;
+  friend IntrusivePtrCell &
+  IntrusivePtrRefCount(xgboost::Value const *t) noexcept {
+    return t->ref_;
+  }
+
  public:
   /*!\brief Simplified implementation of LLVM RTTI. */
   enum class ValueKind {
@@ -69,12 +77,15 @@ T* Cast(U* value) {
 
 class JsonString : public Value {
   std::string str_;
+
  public:
   JsonString() : Value(ValueKind::kString) {}
   JsonString(std::string const& str) :  // NOLINT
       Value(ValueKind::kString), str_{str} {}
   JsonString(std::string&& str) :  // NOLINT
       Value(ValueKind::kString), str_{std::move(str)} {}
+  JsonString(JsonString&& str) :  // NOLINT
+      Value(ValueKind::kString), str_{std::move(str.str_)} {}
 
   void Save(JsonWriter* writer) override;
 
@@ -167,6 +178,8 @@ class JsonNumber : public Value {
             typename std::enable_if<std::is_same<FloatT, double>::value>::type* = nullptr>
   JsonNumber(FloatT value) : Value{ValueKind::kNumber},  // NOLINT
                              number_{static_cast<Float>(value)} {}
+  JsonNumber(JsonNumber const& that) = delete;
+  JsonNumber(JsonNumber&& that) : Value{ValueKind::kNumber}, number_{that.number_} {}
 
   void Save(JsonWriter* writer) override;
 
@@ -214,6 +227,9 @@ class JsonInteger : public Value {
       : Value(ValueKind::kInteger),
         integer_{static_cast<Int>(value)} {}
 
+  JsonInteger(JsonInteger &&that)
+      : Value{ValueKind::kInteger}, integer_{that.integer_} {}
+
   Json& operator[](std::string const & key) override;
   Json& operator[](int ind) override;
 
@@ -234,6 +250,7 @@ class JsonNull : public Value {
  public:
   JsonNull() : Value(ValueKind::kNull) {}
   JsonNull(std::nullptr_t) : Value(ValueKind::kNull) {}  // NOLINT
+  JsonNull(JsonNull&& that) : Value(ValueKind::kNull) {}
 
   void Save(JsonWriter* writer) override;
 
@@ -261,6 +278,8 @@ class JsonBoolean : public Value {
               std::is_same<Bool, bool const>::value>::type* = nullptr>
   JsonBoolean(Bool value) :  // NOLINT
       Value(ValueKind::kBoolean), boolean_{value} {}
+  JsonBoolean(JsonBoolean&& value) :  // NOLINT
+      Value(ValueKind::kBoolean), boolean_{value.boolean_} {}
 
   void Save(JsonWriter* writer) override;
 
@@ -336,14 +355,14 @@ class Json {
   Json() : ptr_{new JsonNull} {}
 
   // number
-  explicit Json(JsonNumber number) : ptr_{new JsonNumber(number)} {}
+  explicit Json(JsonNumber number) : ptr_{new JsonNumber(std::move(number))} {}
   Json& operator=(JsonNumber number) {
     ptr_.reset(new JsonNumber(std::move(number)));
     return *this;
   }
 
   // integer
-  explicit Json(JsonInteger integer) : ptr_{new JsonInteger(integer)} {}
+  explicit Json(JsonInteger integer) : ptr_{new JsonInteger(std::move(integer))} {}
   Json& operator=(JsonInteger integer) {
     ptr_.reset(new JsonInteger(std::move(integer)));
     return *this;
@@ -418,7 +437,7 @@ class Json {
   }
 
  private:
-  std::shared_ptr<Value> ptr_;
+  IntrusivePtr<Value> ptr_;
 };
 
 template <typename T>
