@@ -18,7 +18,7 @@ namespace engine {
 // singleton sync manager
 #ifndef RABIT_USE_BASE
 #ifndef RABIT_USE_MOCK
-typedef AllreduceRobust Manager;
+using Manager = AllreduceRobust;
 #else
 typedef AllreduceMock Manager;
 #endif  // RABIT_USE_MOCK
@@ -31,13 +31,13 @@ struct ThreadLocalEntry {
   /*! \brief stores the current engine */
   std::unique_ptr<Manager> engine;
   /*! \brief whether init has been called */
-  bool initialized;
+  bool initialized{false};
   /*! \brief constructor */
-  ThreadLocalEntry() : initialized(false) {}
+  ThreadLocalEntry()  {}
 };
 
 // define the threadlocal store.
-typedef ThreadLocalStore<ThreadLocalEntry> EngineThreadLocal;
+using EngineThreadLocal = ThreadLocalStore<ThreadLocalEntry>;
 
 /*! \brief intiialize the synchronization module */
 bool Init(int argc, char *argv[]) {
@@ -111,18 +111,18 @@ void Allreduce_(void *sendrecvbuf,
 }
 
 // code for reduce handle
-ReduceHandle::ReduceHandle(void)
-  : handle_(NULL), redfunc_(NULL), htype_(NULL) {
+ReduceHandle::ReduceHandle()
+  : handle_(nullptr), redfunc_(nullptr), htype_(nullptr) {
 }
 
-ReduceHandle::~ReduceHandle(void) {}
+ReduceHandle::~ReduceHandle() = default;
 
 int ReduceHandle::TypeSize(const MPI::Datatype &dtype) {
   return static_cast<int>(dtype.type_size);
 }
 
 void ReduceHandle::Init(IEngine::ReduceFunction redfunc, size_t type_nbytes) {
-  utils::Assert(redfunc_ == NULL, "cannot initialize reduce handle twice");
+  utils::Assert(redfunc_ == nullptr, "cannot initialize reduce handle twice");
   redfunc_ = redfunc;
 }
 
@@ -133,7 +133,7 @@ void ReduceHandle::Allreduce(void *sendrecvbuf,
                              const char* _file,
                              const int _line,
                              const char* _caller) {
-  utils::Assert(redfunc_ != NULL, "must intialize handle to call AllReduce");
+  utils::Assert(redfunc_ != nullptr, "must intialize handle to call AllReduce");
   GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count,
                          redfunc_, prepare_fun, prepare_arg,
                          _file, _line, _caller);

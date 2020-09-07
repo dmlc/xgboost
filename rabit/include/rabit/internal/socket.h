@@ -15,7 +15,7 @@
 #else
 #include <fcntl.h>
 #include <netdb.h>
-#include <errno.h>
+#include <cerrno>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -50,11 +50,11 @@ namespace utils {
 struct SockAddr {
   sockaddr_in addr;
   // constructor
-  SockAddr(void) {}
+  SockAddr() = default;
   SockAddr(const char *url, int port) {
     this->Set(url, port);
   }
-  inline static std::string GetHostName(void) {
+  inline static std::string GetHostName() {
     std::string buf; buf.resize(256);
     utils::Check(gethostname(&buf[0], 256) != -1, "fail to get host name");
     return std::string(buf.c_str());
@@ -69,9 +69,9 @@ struct SockAddr {
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_protocol = SOCK_STREAM;
-    addrinfo *res = NULL;
-    int sig = getaddrinfo(host, NULL, &hints, &res);
-    Check(sig == 0 && res != NULL, "cannot obtain address of %s", host);
+    addrinfo *res = nullptr;
+    int sig = getaddrinfo(host, nullptr, &hints, &res);
+    Check(sig == 0 && res != nullptr, "cannot obtain address of %s", host);
     Check(res->ai_family == AF_INET, "Does not support IPv6");
     memcpy(&addr, res->ai_addr, res->ai_addrlen);
     addr.sin_port = htons(port);
@@ -91,7 +91,7 @@ struct SockAddr {
     const char *s = inet_ntop(AF_INET, &addr.sin_addr,
                               &buf[0], buf.length());
 #endif  // _WIN32
-    Assert(s != NULL, "cannot decode address");
+    Assert(s != nullptr, "cannot decode address");
     return std::string(s);
   }
 };
@@ -268,7 +268,7 @@ class Socket {
 class TCPSocket : public Socket{
  public:
   // constructor
-  TCPSocket(void) : Socket(INVALID_SOCKET) {
+  TCPSocket() : Socket(INVALID_SOCKET) {
   }
   explicit TCPSocket(SOCKET sockfd) : Socket(sockfd) {
   }
@@ -309,8 +309,8 @@ class TCPSocket : public Socket{
     listen(sockfd, backlog);
   }
   /*! \brief get a new connection */
-  TCPSocket Accept(void) {
-    SOCKET newfd = accept(sockfd, NULL, NULL);
+  TCPSocket Accept() {
+    SOCKET newfd = accept(sockfd, nullptr, nullptr);
     if (newfd == INVALID_SOCKET) {
       Socket::Error("Accept");
     }
@@ -320,7 +320,7 @@ class TCPSocket : public Socket{
    * \brief decide whether the socket is at OOB mark
    * \return 1 if at mark, 0 if not, -1 if an error occured
    */
-  inline int AtMark(void) const {
+  inline int AtMark() const {
 #ifdef _WIN32
     unsigned long atmark;  // NOLINT(*)
     if (ioctlsocket(sockfd, SIOCATMARK, &atmark) != NO_ERROR) return -1;
