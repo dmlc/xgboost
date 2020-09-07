@@ -52,7 +52,7 @@ class IEngine {
                                  void *dst, int count,
                                  const MPI::Datatype &dtype);
   /*! \brief virtual destructor */
-  virtual ~IEngine() {}
+  ~IEngine() = default;
   /*!
    * \brief Allgather function, each node have a segment of data in the ring of sendrecvbuf,
    *  the data provided by current node k is [slice_begin, slice_end),
@@ -68,7 +68,7 @@ class IEngine {
    * \param _file caller file name used to generate unique cache key
    * \param _line caller line number used to generate unique cache key
    * \param _caller caller function name used to generate unique cache key
-   */ 
+   */
   virtual void Allgather(void *sendrecvbuf,
                          size_t total_size,
                          size_t slice_begin,
@@ -96,8 +96,8 @@ class IEngine {
                          size_t type_nbytes,
                          size_t count,
                          ReduceFunction reducer,
-                         PreprocFunction prepare_fun = NULL,
-                         void *prepare_arg = NULL,
+                         PreprocFunction prepare_fun = nullptr,
+                         void *prepare_arg = nullptr,
                          const char* _file = _FILE,
                          const int _line = _LINE,
                          const char* _caller = _CALLER) = 0;
@@ -119,7 +119,7 @@ class IEngine {
    *    call this function when IEngine throws an exception,
    *    this function should only be used for test purposes
    */
-  virtual void InitAfterException(void) = 0;
+  virtual void InitAfterException() = 0;
   /*!
    * \brief loads the latest check point
    * \param global_model pointer to the globally shared model/state
@@ -143,7 +143,7 @@ class IEngine {
    * \sa CheckPoint, VersionNumber
    */
   virtual int LoadCheckPoint(Serializable *global_model,
-                             Serializable *local_model = NULL) = 0;
+                             Serializable *local_model = nullptr) = 0;
   /*!
    * \brief checkpoints the model, meaning a stage of execution was finished
    *  every time we call check point, a version number increases by ones
@@ -161,7 +161,7 @@ class IEngine {
    * \sa LoadCheckPoint, VersionNumber
    */
   virtual void CheckPoint(const Serializable *global_model,
-                          const Serializable *local_model = NULL) = 0;
+                          const Serializable *local_model = nullptr) = 0;
   /*!
    * \brief This function can be used to replace CheckPoint for global_model only,
    *   when certain condition is met (see detailed explanation).
@@ -188,17 +188,17 @@ class IEngine {
    *         which means how many calls to CheckPoint we made so far
    * \sa LoadCheckPoint, CheckPoint
    */
-  virtual int VersionNumber(void) const = 0;
+  virtual int VersionNumber() const = 0;
   /*! \brief gets rank of previous node in ring topology */
-  virtual int GetRingPrevRank(void) const = 0;
+  virtual int GetRingPrevRank() const = 0;
   /*! \brief gets rank of current node */
-  virtual int GetRank(void) const = 0;
+  virtual int GetRank() const = 0;
   /*! \brief gets total number of nodes */
-  virtual int GetWorldSize(void) const = 0;
+  virtual int GetWorldSize() const = 0;
   /*! \brief whether we run in distribted mode */
-  virtual bool IsDistributed(void) const = 0;
+  virtual bool IsDistributed() const = 0;
   /*! \brief gets the host name of the current node */
-  virtual std::string GetHost(void) const = 0;
+  virtual std::string GetHost() const = 0;
   /*!
    * \brief prints the msg in the tracker,
    *    this function can be used to communicate progress information to
@@ -211,9 +211,9 @@ class IEngine {
 /*! \brief initializes the engine module */
 bool Init(int argc, char *argv[]);
 /*! \brief finalizes the engine module */
-bool Finalize(void);
+bool Finalize();
 /*! \brief singleton method to get engine */
-IEngine *GetEngine(void);
+IEngine *GetEngine();
 
 /*! \brief namespace that contains stubs to be compatible with MPI */
 namespace mpi {
@@ -286,8 +286,8 @@ void Allreduce_(void *sendrecvbuf,
                 IEngine::ReduceFunction red,
                 mpi::DataType dtype,
                 mpi::OpType op,
-                IEngine::PreprocFunction prepare_fun = NULL,
-                void *prepare_arg = NULL,
+                IEngine::PreprocFunction prepare_fun = nullptr,
+                void *prepare_arg = nullptr,
                 const char* _file = _FILE,
                 const int _line = _LINE,
                 const char* _caller = _CALLER);
@@ -298,9 +298,9 @@ void Allreduce_(void *sendrecvbuf,
 class ReduceHandle {
  public:
   // constructor
-  ReduceHandle(void);
+  ReduceHandle();
   // destructor
-  ~ReduceHandle(void);
+  ~ReduceHandle();
   /*!
    * \brief initialize the reduce function,
    *   with the type the reduce function needs to deal with
@@ -323,8 +323,8 @@ class ReduceHandle {
   void Allreduce(void *sendrecvbuf,
                  size_t type_nbytes,
                  size_t count,
-                 IEngine::PreprocFunction prepare_fun = NULL,
-                 void *prepare_arg = NULL,
+                 IEngine::PreprocFunction prepare_fun = nullptr,
+                 void *prepare_arg = nullptr,
                  const char* _file = _FILE,
                  const int _line = _LINE,
                  const char* _caller = _CALLER);

@@ -53,12 +53,12 @@ namespace rabit {
  * \brief defines stream used in rabit
  * see definition of Stream in dmlc/io.h
  */
-typedef dmlc::Stream Stream;
+using Stream = dmlc::Stream;
 /*!
  * \brief defines serializable objects used in rabit
  * see definition of Serializable in dmlc/io.h
  */
-typedef dmlc::Serializable Serializable;
+using Serializable = dmlc::Serializable;
 
 /*!
  * \brief reduction operators namespace
@@ -199,8 +199,8 @@ inline void Broadcast(std::string *sendrecv_data, int root,
  */
 template<typename OP, typename DType>
 inline void Allreduce(DType *sendrecvbuf, size_t count,
-                      void (*prepare_fun)(void *) = NULL,
-                      void *prepare_arg = NULL,
+                      void (*prepare_fun)(void *) = nullptr,
+                      void *prepare_arg = nullptr,
                       const char* _file = _FILE,
                       const int _line = _LINE,
                       const char* _caller = _CALLER);
@@ -220,7 +220,7 @@ inline void Allreduce(DType *sendrecvbuf, size_t count,
 * \param _file caller file name used to generate unique cache key
 * \param _line caller line number used to generate unique cache key
 * \param _caller caller function name used to generate unique cache key
-*/ 
+*/
 template<typename DType>
 inline void Allgather(DType *sendrecvbuf_,
                   size_t total_size,
@@ -291,7 +291,7 @@ inline void Allreduce(DType *sendrecvbuf, size_t count,
  * \sa CheckPoint, VersionNumber
  */
 inline int LoadCheckPoint(Serializable *global_model,
-                          Serializable *local_model = NULL);
+                          Serializable *local_model = nullptr);
 /*!
  * \brief checkpoints the model, meaning a stage of execution has finished.
  *  every time we call check point, a version number will be increased by one
@@ -307,7 +307,7 @@ inline int LoadCheckPoint(Serializable *global_model,
    * \sa LoadCheckPoint, VersionNumber
    */
 inline void CheckPoint(const Serializable *global_model,
-                       const Serializable *local_model = NULL);
+                       const Serializable *local_model = nullptr);
 /*!
  * \brief This function can be used to replace CheckPoint for global_model only,
  *   when certain condition is met (see detailed explanation).
@@ -366,8 +366,8 @@ class Reducer {
    * \param _caller caller function name used to generate unique cache key
    */
   inline void Allreduce(DType *sendrecvbuf, size_t count,
-                        void (*prepare_fun)(void *) = NULL,
-                        void *prepare_arg = NULL,
+                        void (*prepare_fun)(void *) = nullptr,
+                        void *prepare_arg = nullptr,
                         const char* _file = _FILE,
                         const int _line = _LINE,
                         const char* _caller = _CALLER);
@@ -422,8 +422,8 @@ class SerializeReducer {
    */
   inline void Allreduce(DType *sendrecvobj,
                         size_t max_nbyte, size_t count,
-                        void (*prepare_fun)(void *) = NULL,
-                        void *prepare_arg = NULL,
+                        void (*prepare_fun)(void *) = nullptr,
+                        void *prepare_arg = nullptr,
                         const char* _file = _FILE,
                         const int _line = _LINE,
                         const char* _caller = _CALLER);

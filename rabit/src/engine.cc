@@ -33,7 +33,7 @@ struct ThreadLocalEntry {
   /*! \brief whether init has been called */
   bool initialized{false};
   /*! \brief constructor */
-  ThreadLocalEntry()  {}
+  ThreadLocalEntry() = default;
 };
 
 // define the threadlocal store.
