@@ -18,7 +18,6 @@ class Tree:
     _loss_chg = 0
     _sum_hess = 1
     _base_weight = 2
-    _child_cnt = 3
 
     def __init__(self, tree_id: int, nodes, stats):
         self.tree_id = tree_id
@@ -36,10 +35,6 @@ class Tree:
     def base_weight(self, node_id: int):
         '''Base weight of a node.'''
         return self.stats[node_id][self._base_weight]
-
-    def num_children(self, node_id: int):
-        '''Number of children of a node.'''
-        return self.stats[node_id][self._child_cnt]
 
     def split_index(self, node_id: int):
         '''Split feature index of node.'''
@@ -138,7 +133,6 @@ class Model:
             base_weights = tree['base_weights']
             loss_changes = tree['loss_changes']
             sum_hessian = tree['sum_hessian']
-            leaf_child_counts = tree['leaf_child_counts']
 
             stats = []
             nodes = []
@@ -152,7 +146,7 @@ class Model:
                 ])
                 stats.append([
                     loss_changes[node_id], sum_hessian[node_id],
-                    base_weights[node_id], leaf_child_counts[node_id]
+                    base_weights[node_id]
                 ])
 
             tree = Tree(tree_id, nodes, stats)
