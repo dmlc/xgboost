@@ -93,6 +93,9 @@ if (ENABLE_ALL_WARNINGS)
     message(SEND_ERROR "ENABLE_ALL_WARNINGS is only available for Clang and GCC.")
   endif ((NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang") AND (NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
 endif (ENABLE_ALL_WARNINGS)
+if (BUILD_STATIC_LIB AND (R_LIB OR JVM_BINDINGS))
+  message(SEND_ERROR "Cannot build a static library libxgboost.a when R or JVM packages are enabled.")
+endif (BUILD_STATIC_LIB AND (R_LIB OR JVM_BINDINGS))
 
 #-- Sanitizer
 if (USE_SANITIZER)
@@ -274,7 +277,20 @@ include(GNUInstallDirs)
 install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-install(TARGETS xgboost runxgboost
+# Install libraries. If `xgboost` is a static lib, specify `objxgboost` also, to avoid the
+# following error:
+#
+#  > install(EXPORT ...) includes target "xgboost" which requires target "objxgboost" that is not
+#  > in any export set.
+#
+# https://github.com/dmlc/xgboost/issues/6085
+if (BUILD_STATIC_LIB)
+  set(INSTALL_TARGETS xgboost runxgboost objxgboost)
+else (BUILD_STATIC_LIB)
+  set(INSTALL_TARGETS xgboost runxgboost)
+endif (BUILD_STATIC_LIB)
+
+install(TARGETS ${INSTALL_TARGETS}
   EXPORT XGBoostTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
