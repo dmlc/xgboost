@@ -783,8 +783,6 @@ void RegTree::LoadModel(Json const& in) {
   CHECK_EQ(sum_hessian.size(), n_nodes);
   auto const& base_weights = get<Array const>(in["base_weights"]);
   CHECK_EQ(base_weights.size(), n_nodes);
-  auto const& leaf_child_counts = get<Array const>(in["leaf_child_counts"]);
-  CHECK_EQ(leaf_child_counts.size(), n_nodes);
   // nodes
   auto const& lefts = get<Array const>(in["left_children"]);
   CHECK_EQ(lefts.size(), n_nodes);
@@ -822,7 +820,6 @@ void RegTree::LoadModel(Json const& in) {
     s.loss_chg = get<Number const>(loss_changes[i]);
     s.sum_hess = get<Number const>(sum_hessian[i]);
     s.base_weight = get<Number const>(base_weights[i]);
-    s.leaf_child_cnt = get<Integer const>(leaf_child_counts[i]);
 
     auto& n = nodes_[i];
     bst_node_t left = get<Integer const>(lefts[i]);
@@ -888,7 +885,6 @@ void RegTree::SaveModel(Json* p_out) const {
   std::vector<Json> loss_changes(n_nodes);
   std::vector<Json> sum_hessian(n_nodes);
   std::vector<Json> base_weights(n_nodes);
-  std::vector<Json> leaf_child_counts(n_nodes);
 
   // nodes
   std::vector<Json> lefts(n_nodes);
@@ -906,7 +902,6 @@ void RegTree::SaveModel(Json* p_out) const {
     loss_changes[i] = s.loss_chg;
     sum_hessian[i] = s.sum_hess;
     base_weights[i] = s.base_weight;
-    leaf_child_counts[i] = static_cast<I>(s.leaf_child_cnt);
 
     auto const& n = nodes_[i];
     lefts[i] = static_cast<I>(n.LeftChild());
@@ -938,7 +933,6 @@ void RegTree::SaveModel(Json* p_out) const {
   out["loss_changes"] = std::move(loss_changes);
   out["sum_hessian"] = std::move(sum_hessian);
   out["base_weights"] = std::move(base_weights);
-  out["leaf_child_counts"] = std::move(leaf_child_counts);
 
   out["left_children"] = std::move(lefts);
   out["right_children"] = std::move(rights);
