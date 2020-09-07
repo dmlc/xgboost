@@ -277,7 +277,20 @@ include(GNUInstallDirs)
 install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-install(TARGETS xgboost runxgboost objxgboost
+# Install libraries. If `xgboost` is a static lib, specify `objxgboost` also, to avoid the
+# following error:
+#
+#  > install(EXPORT ...) includes target "xgboost" which requires target "objxgboost" that is not
+#  > in any export set.
+#
+# https://github.com/dmlc/xgboost/issues/6085
+if (BUILD_STATIC_LIB)
+  set(INSTALL_TARGETS xgboost runxgboost objxgboost)
+else (BUILD_STATIC_LIB)
+  set(INSTALL_TARGETS xgboost runxgboost)
+endif (BUILD_STATIC_LIB)
+
+install(TARGETS ${INSTALL_TARGETS}
   EXPORT XGBoostTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
