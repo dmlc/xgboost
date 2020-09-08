@@ -52,14 +52,6 @@ if ((CMAKE_CONFIGURATION_TYPES STREQUAL "Debug") AND (CMAKE_CXX_COMPILER_ID MATC
     endforeach()
 endif((CMAKE_CONFIGURATION_TYPES STREQUAL "Debug") AND (CMAKE_CXX_COMPILER_ID MATCHES GNU))
 
-if(RABIT_BUILD_DMLC)
-  set(DMLC_ROOT ${CMAKE_CURRENT_LIST_DIR}/dmlc-core)
-endif()
-
-if(DMLC_ROOT)
-  message("DMLC_ROOT point to " ${DMLC_ROOT})
-endif(DMLC_ROOT)
-
 foreach(lib ${rabit_libs})
   target_include_directories(${lib} PUBLIC
           "$<BUILD_INTERFACE:${rabit_SOURCE_DIR}/include>"
@@ -77,14 +69,14 @@ if (GOOGLE_TEST)
     add_executable(${test} test/${test}.cc)
     target_link_libraries(${test} rabit_mock_static)
     set_target_properties(${test}  PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON)
-    install(TARGETS ${test} DESTINATION test) # Why are we installing these??
+    add_test(NAME ${test} COMMAND ${test} WORKING_DIRECTORY ${xgboost_BINARY_DIR})
   endforeach()
 
   if(RABIT_BUILD_MPI)
     add_executable(speed_test_mpi test/speed_test.cc)
     target_link_libraries(speed_test_mpi rabit_mpi)
-    install(TARGETS speed_test_mpi DESTINATION test)
-  endif()
+    add_test(NAME speed_test_mpi COMMAND speed_test_mpi WORKING_DIRECTORY ${xgboost_BINARY_DIR})
+  endif(RABIT_BUILD_MPI)
 endif (GOOGLE_TEST)
 
 set(include_install_dir "include")
