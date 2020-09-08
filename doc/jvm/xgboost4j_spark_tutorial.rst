@@ -492,10 +492,11 @@ This parameter controls how many parallel workers we want to have when training 
   By default, we allocate a core per each XGBoost worker. Therefore, the OpenMP optimization within each XGBoost worker does not take effect and the parallelization of training is achieved
   by running multiple workers (i.e. Spark tasks) at the same time.
 
-  If you do want OpenMP optimization, you have to
+  On the other hand, OpenMP parallelization can improve performance for training tasks on CPUs, especially when using large datasets. If you do want OpenMP parallelization, you can
 
   1. set ``nthread`` to a value larger than 1 when creating XGBoostClassifier/XGBoostRegressor
-  2. set ``spark.task.cpus`` in Spark to the same value as ``nthread``
+  2. set ``spark.executor.cores`` in Spark to the same value as ``nthread``
+  3. set ``spark.task.cpus`` in Spark to 1.
 
 Gang Scheduling
 ===============
