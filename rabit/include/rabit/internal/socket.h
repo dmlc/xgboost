@@ -15,7 +15,7 @@
 #else
 #include <fcntl.h>
 #include <netdb.h>
-#include <errno.h>
+#include <cerrno>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -39,9 +39,9 @@ static inline int poll(struct pollfd *pfd, int nfds,
                        int timeout) { return WSAPoll ( pfd, nfds, timeout ); }
 #else
 #include <sys/poll.h>
-typedef int SOCKET;
-typedef size_t sock_size_t;
-const int INVALID_SOCKET = -1;
+using SOCKET = int;
+using sock_size_t = size_t;  // NOLINT
+const int kInvalidSocket = -1;
 #endif  // defined(_WIN32)
 
 namespace rabit {
@@ -50,11 +50,11 @@ namespace utils {
 struct SockAddr {
   sockaddr_in addr;
   // constructor
-  SockAddr(void) {}
+  SockAddr() = default;
   SockAddr(const char *url, int port) {
     this->Set(url, port);
   }
-  inline static std::string GetHostName(void) {
+  inline static std::string GetHostName() {
     std::string buf; buf.resize(256);
     utils::Check(gethostname(&buf[0], 256) != -1, "fail to get host name");
     return std::string(buf.c_str());
@@ -69,20 +69,20 @@ struct SockAddr {
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_protocol = SOCK_STREAM;
-    addrinfo *res = NULL;
-    int sig = getaddrinfo(host, NULL, &hints, &res);
-    Check(sig == 0 && res != NULL, "cannot obtain address of %s", host);
+    addrinfo *res = nullptr;
+    int sig = getaddrinfo(host, nullptr, &hints, &res);
+    Check(sig == 0 && res != nullptr, "cannot obtain address of %s", host);
     Check(res->ai_family == AF_INET, "Does not support IPv6");
     memcpy(&addr, res->ai_addr, res->ai_addrlen);
     addr.sin_port = htons(port);
     freeaddrinfo(res);
   }
   /*! \brief return port of the address*/
-  inline int port(void) const {
+  inline int Port() const {
     return ntohs(addr.sin_port);
   }
   /*! \return a string representation of the address */
-  inline std::string AddrStr(void) const {
+  inline std::string AddrStr() const {
     std::string buf; buf.resize(256);
 #ifdef _WIN32
     const char *s = inet_ntop(AF_INET, (PVOID)&addr.sin_addr,
@@ -91,7 +91,7 @@ struct SockAddr {
     const char *s = inet_ntop(AF_INET, &addr.sin_addr,
                               &buf[0], buf.length());
 #endif  // _WIN32
-    Assert(s != NULL, "cannot decode address");
+    Assert(s != nullptr, "cannot decode address");
     return std::string(s);
   }
 };
@@ -104,13 +104,13 @@ class Socket {
   /*! \brief the file descriptor of socket */
   SOCKET sockfd;
   // default conversion to int
-  inline operator SOCKET() const {
+  operator SOCKET() const {  // NOLINT
     return sockfd;
   }
   /*!
    * \return last error of socket operation
    */
-  inline static int GetLastError(void) {
+  inline static int GetLastError() {
 #ifdef _WIN32
     return WSAGetLastError();
 #else
@@ -118,7 +118,7 @@ class Socket {
 #endif  // _WIN32
   }
   /*! \return whether last error was would block */
-  inline static bool LastErrorWouldBlock(void) {
+  inline static bool LastErrorWouldBlock() {
     int errsv = GetLastError();
 #ifdef _WIN32
     return errsv == WSAEWOULDBLOCK;
@@ -130,7 +130,7 @@ class Socket {
    * \brief start up the socket module
    *   call this before using the sockets
    */
-  inline static void Startup(void) {
+  inline static void Startup() {
 #ifdef _WIN32
     WSADATA wsa_data;
     if (WSAStartup(MAKEWORD(2, 2), &wsa_data) == -1) {
@@ -145,7 +145,7 @@ class Socket {
   /*!
    * \brief shutdown the socket module after use, all sockets need to be closed
    */
-  inline static void Finalize(void) {
+  inline static void Finalize() {
 #ifdef _WIN32
     WSACleanup();
 #endif  // _WIN32
@@ -214,7 +214,7 @@ class Socket {
     return -1;
   }
   /*! \brief get last error code if any */
-  inline int GetSockError(void) const {
+  inline int GetSockError() const {
     int error = 0;
     socklen_t len = sizeof(error);
     if (getsockopt(sockfd,  SOL_SOCKET, SO_ERROR,
@@ -224,25 +224,25 @@ class Socket {
     return error;
   }
   /*! \brief check if anything bad happens */
-  inline bool BadSocket(void) const {
+  inline bool BadSocket() const {
     if (IsClosed()) return true;
     int err = GetSockError();
     if (err == EBADF || err == EINTR) return true;
     return false;
   }
   /*! \brief check if socket is already closed */
-  inline bool IsClosed(void) const {
-    return sockfd == INVALID_SOCKET;
+  inline bool IsClosed() const {
+    return sockfd == kInvalidSocket;
   }
   /*! \brief close the socket */
-  inline void Close(void) {
-    if (sockfd != INVALID_SOCKET) {
+  inline void Close() {
+    if (sockfd != kInvalidSocket) {
 #ifdef _WIN32
       closesocket(sockfd);
 #else
       close(sockfd);
 #endif
-      sockfd = INVALID_SOCKET;
+      sockfd = kInvalidSocket;
     } else {
       Error("Socket::Close double close the socket or close without create");
     }
@@ -268,7 +268,7 @@ class Socket {
 class TCPSocket : public Socket{
  public:
   // constructor
-  TCPSocket(void) : Socket(INVALID_SOCKET) {
+  TCPSocket() : Socket(kInvalidSocket) {
   }
   explicit TCPSocket(SOCKET sockfd) : Socket(sockfd) {
   }
@@ -297,7 +297,7 @@ class TCPSocket : public Socket{
    */
   inline void Create(int af = PF_INET) {
     sockfd = socket(PF_INET, SOCK_STREAM, 0);
-    if (sockfd == INVALID_SOCKET) {
+    if (sockfd == kInvalidSocket) {
       Socket::Error("Create");
     }
   }
@@ -309,9 +309,9 @@ class TCPSocket : public Socket{
     listen(sockfd, backlog);
   }
   /*! \brief get a new connection */
-  TCPSocket Accept(void) {
-    SOCKET newfd = accept(sockfd, NULL, NULL);
-    if (newfd == INVALID_SOCKET) {
+  TCPSocket Accept() {
+    SOCKET newfd = accept(sockfd, nullptr, nullptr);
+    if (newfd == kInvalidSocket) {
       Socket::Error("Accept");
     }
     return TCPSocket(newfd);
@@ -320,7 +320,7 @@ class TCPSocket : public Socket{
    * \brief decide whether the socket is at OOB mark
    * \return 1 if at mark, 0 if not, -1 if an error occured
    */
-  inline int AtMark(void) const {
+  inline int AtMark() const {
 #ifdef _WIN32
     unsigned long atmark;  // NOLINT(*)
     if (ioctlsocket(sockfd, SIOCATMARK, &atmark) != NO_ERROR) return -1;

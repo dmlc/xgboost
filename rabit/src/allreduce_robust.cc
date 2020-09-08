@@ -23,31 +23,32 @@
 namespace rabit {
 namespace engine {
 
-AllreduceRobust::AllreduceRobust(void) {
-  num_local_replica = 0;
-  num_global_replica = 5;
-  default_local_replica = 2;
+AllreduceRobust::AllreduceRobust() {
+  num_local_replica_ = 0;
+  num_global_replica_ = 5;
+  default_local_replica_ = 2;
   seq_counter = 0;
-  cur_cache_seq = 0;
-  local_chkpt_version = 0;
-  result_buffer_round = 1;
-  global_lazycheck = NULL;
-  use_local_model = -1;
-  recover_counter = 0;
-  checkpoint_loaded = false;
-  env_vars.push_back("rabit_global_replica");
-  env_vars.push_back("rabit_local_replica");
+  cur_cache_seq_ = 0;
+  local_chkpt_version_ = 0;
+  result_buffer_round_ = 1;
+  global_lazycheck_ = nullptr;
+  use_local_model_ = -1;
+  recover_counter_ = 0;
+  checkpoint_loaded_ = false;
+  env_vars.emplace_back("rabit_global_replica");
+  env_vars.emplace_back("rabit_local_replica");
 }
 bool AllreduceRobust::Init(int argc, char* argv[]) {
   if (AllreduceBase::Init(argc, argv)) {
     // chenqin: alert user opted in experimental feature.
-    if (rabit_bootstrap_cache) utils::HandleLogInfo(
+    if (rabit_bootstrap_cache) { utils::HandleLogInfo(
       "[EXPERIMENTAL] bootstrap cache has been enabled\n");
-    checkpoint_loaded = false;
-    if (num_global_replica == 0) {
-      result_buffer_round = -1;
+}
+    checkpoint_loaded_ = false;
+    if (num_global_replica_ == 0) {
+      result_buffer_round_ = -1;
     } else {
-      result_buffer_round = std::max(world_size / num_global_replica, 1);
+      result_buffer_round_ = std::max(world_size / num_global_replica_, 1);
     }
     return true;
   } else {
@@ -55,27 +56,27 @@ bool AllreduceRobust::Init(int argc, char* argv[]) {
   }
 }
 /*! \brief shutdown the engine */
-bool AllreduceRobust::Shutdown(void) {
+bool AllreduceRobust::Shutdown() {
   try {
     // need to sync the exec before we shutdown, do a pesudo check point
     // execute checkpoint, note: when checkpoint existing, load will not happen
-    _assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint, ActionSummary::kSpecialOp,
-      cur_cache_seq), "Shutdown: check point must return true");
+    assert_(RecoverExec(nullptr, 0, ActionSummary::kCheckPoint, ActionSummary::kSpecialOp,
+      cur_cache_seq_), "Shutdown: check point must return true");
     // reset result buffer
-    resbuf.Clear(); seq_counter = 0;
-    cachebuf.Clear(); cur_cache_seq = 0;
-    lookupbuf.Clear();
+    resbuf_.Clear(); seq_counter = 0;
+    cachebuf_.Clear(); cur_cache_seq_ = 0;
+    lookupbuf_.Clear();
     // execute check ack step, load happens here
-    _assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck,
-      ActionSummary::kSpecialOp, cur_cache_seq), "Shutdown: check ack must return true");
+    assert_(RecoverExec(nullptr, 0, ActionSummary::kCheckAck,
+      ActionSummary::kSpecialOp, cur_cache_seq_), "Shutdown: check ack must return true");
 // travis ci only osx test hang
 #if defined (__APPLE__)
     sleep(1);
 #endif
-    shutdown_timeout = true;
-    if (rabit_timeout_task.valid()) {
-      rabit_timeout_task.wait();
-      _assert(rabit_timeout_task.get(), "expect timeout task return\n");
+    shutdown_timeout_ = true;
+    if (rabit_timeout_task_.valid()) {
+      rabit_timeout_task_.wait();
+      assert_(rabit_timeout_task_.get(), "expect timeout task return\n");
     }
     return AllreduceBase::Shutdown();
   } catch (const std::exception& e) {
@@ -91,50 +92,48 @@ bool AllreduceRobust::Shutdown(void) {
  */
 void AllreduceRobust::SetParam(const char *name, const char *val) {
   AllreduceBase::SetParam(name, val);
-  if (!strcmp(name, "rabit_global_replica")) num_global_replica = atoi(val);
+  if (!strcmp(name, "rabit_global_replica")) num_global_replica_ = atoi(val);
   if (!strcmp(name, "rabit_local_replica")) {
-    num_local_replica = atoi(val);
+    num_local_replica_ = atoi(val);
   }
 }
 
 int AllreduceRobust::SetBootstrapCache(const std::string &key, const void *buf,
   const size_t type_nbytes, const size_t count) {
-  int index = -1;
-  for (int i = 0 ; i < cur_cache_seq; i++) {
+  for (int i = 0 ; i < cur_cache_seq_; i++) {
     size_t nsize = 0;
-    void* name = lookupbuf.Query(i, &nsize);
+    void* name = lookupbuf_.Query(i, &nsize);
     if (nsize == key.length() + 1
       && strcmp(static_cast<const char*>(name), key.c_str()) == 0) {
-      index = i;
       break;
     }
   }
   // we should consider way to support duplicated signatures
   // https://github.com/dmlc/xgboost/issues/5012
   // _assert(index == -1, "immutable cache key already exists");
-  _assert(type_nbytes*count > 0, "can't set empty cache");
-  void* temp = cachebuf.AllocTemp(type_nbytes, count);
-  cachebuf.PushTemp(cur_cache_seq, type_nbytes, count);
+  assert_(type_nbytes*count > 0, "can't set empty cache");
+  void* temp = cachebuf_.AllocTemp(type_nbytes, count);
+  cachebuf_.PushTemp(cur_cache_seq_, type_nbytes, count);
   std::memcpy(temp, buf, type_nbytes*count);
 
   std::string k(key);
-  void* name = lookupbuf.AllocTemp(strlen(k.c_str()) + 1, 1);
-  lookupbuf.PushTemp(cur_cache_seq, strlen(k.c_str()) + 1, 1);
+  void* name = lookupbuf_.AllocTemp(strlen(k.c_str()) + 1, 1);
+  lookupbuf_.PushTemp(cur_cache_seq_, strlen(k.c_str()) + 1, 1);
   std::memcpy(name, key.c_str(), strlen(k.c_str()) + 1);
-  cur_cache_seq += 1;
+  cur_cache_seq_ += 1;
   return 0;
 }
 
 int AllreduceRobust::GetBootstrapCache(const std::string &key, void* buf,
   const size_t type_nbytes, const size_t count) {
   // as requester sync with rest of nodes on latest cache content
-  if (!RecoverExec(NULL, 0, ActionSummary::kLoadBootstrapCache,
-    seq_counter, cur_cache_seq)) return -1;
+  if (!RecoverExec(nullptr, 0, ActionSummary::kLoadBootstrapCache,
+    seq_counter, cur_cache_seq_)) return -1;
 
   int index = -1;
-  for (int i = 0 ; i < cur_cache_seq; i++) {
+  for (int i = 0 ; i < cur_cache_seq_; i++) {
     size_t nsize = 0;
-    void* name = lookupbuf.Query(i, &nsize);
+    void* name = lookupbuf_.Query(i, &nsize);
     if (nsize == strlen(key.c_str()) + 1
       && strcmp(reinterpret_cast<char*>(name), key.c_str()) == 0) {
       index = i;
@@ -145,8 +144,8 @@ int AllreduceRobust::GetBootstrapCache(const std::string &key, void* buf,
   if (index == -1) return -1;
 
   size_t siz = 0;
-  void* temp = cachebuf.Query(index, &siz);
-  utils::Assert(cur_cache_seq > index, "cur_cache_seq is smaller than lookup cache seq index");
+  void* temp = cachebuf_.Query(index, &siz);
+  utils::Assert(cur_cache_seq_ > index, "cur_cache_seq is smaller than lookup cache seq index");
   utils::Assert(siz == type_nbytes*count, "cache size stored expected to be same as requested");
   utils::Assert(siz > 0, "cache size should be greater than 0");
   std::memcpy(buf, temp, type_nbytes*count);
@@ -183,19 +182,19 @@ void AllreduceRobust::Allgather(void *sendrecvbuf,
     + std::string(_caller) + "#" +std::to_string(total_size);
 
   // try fetch bootstrap allgather results from cache
-  if (!checkpoint_loaded && rabit_bootstrap_cache &&
+  if (!checkpoint_loaded_ && rabit_bootstrap_cache &&
     GetBootstrapCache(key, sendrecvbuf, total_size, 1) != -1) return;
 
   double start = utils::GetTime();
-  bool recovered = RecoverExec(sendrecvbuf, total_size, 0, seq_counter, cur_cache_seq);
+  bool recovered = RecoverExec(sendrecvbuf, total_size, 0, seq_counter, cur_cache_seq_);
 
-  if (resbuf.LastSeqNo() != -1 &&
-    (result_buffer_round == -1 ||
-      resbuf.LastSeqNo() % result_buffer_round != rank % result_buffer_round)) {
-    resbuf.DropLast();
+  if (resbuf_.LastSeqNo() != -1 &&
+    (result_buffer_round_ == -1 ||
+      resbuf_.LastSeqNo() % result_buffer_round_ != rank % result_buffer_round_)) {
+    resbuf_.DropLast();
   }
 
-  void *temp = resbuf.AllocTemp(total_size, 1);
+  void *temp = resbuf_.AllocTemp(total_size, 1);
   while (true) {
     if (recovered) {
       std::memcpy(temp, sendrecvbuf, total_size); break;
@@ -205,7 +204,7 @@ void AllreduceRobust::Allgather(void *sendrecvbuf,
                                            slice_begin, slice_end, size_prev_slice))) {
         std::memcpy(sendrecvbuf, temp, total_size); break;
       } else {
-        recovered = RecoverExec(sendrecvbuf, total_size, 0, seq_counter, cur_cache_seq);
+        recovered = RecoverExec(sendrecvbuf, total_size, 0, seq_counter, cur_cache_seq_);
       }
     }
   }
@@ -217,8 +216,8 @@ void AllreduceRobust::Allgather(void *sendrecvbuf,
   }
 
   // if bootstrap allgather, store and fetch through cache
-  if (checkpoint_loaded || !rabit_bootstrap_cache) {
-    resbuf.PushTemp(seq_counter, total_size, 1);
+  if (checkpoint_loaded_ || !rabit_bootstrap_cache) {
+    resbuf_.PushTemp(seq_counter, total_size, 1);
     seq_counter += 1;
   } else {
     SetBootstrapCache(key, sendrecvbuf, total_size, 1);
@@ -251,7 +250,7 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
                                 const char* _caller) {
   // skip action in single node
   if (world_size == 1 || world_size == -1) {
-    if (prepare_fun != NULL) prepare_fun(prepare_arg);
+    if (prepare_fun != nullptr) prepare_fun(prepare_arg);
     return;
   }
 
@@ -260,20 +259,20 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
     + std::string(_caller) + "#" +std::to_string(type_nbytes) + "x" + std::to_string(count);
 
   // try fetch bootstrap allreduce results from cache
-  if (!checkpoint_loaded && rabit_bootstrap_cache &&
+  if (!checkpoint_loaded_ && rabit_bootstrap_cache &&
     GetBootstrapCache(key, sendrecvbuf_, type_nbytes, count) != -1) return;
 
   double start = utils::GetTime();
-  bool recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter, cur_cache_seq);
+  bool recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter, cur_cache_seq_);
 
-  if (resbuf.LastSeqNo() != -1 &&
-    (result_buffer_round == -1 ||
-      resbuf.LastSeqNo() % result_buffer_round != rank % result_buffer_round)) {
-    resbuf.DropLast();
+  if (resbuf_.LastSeqNo() != -1 &&
+    (result_buffer_round_ == -1 ||
+      resbuf_.LastSeqNo() % result_buffer_round_ != rank % result_buffer_round_)) {
+    resbuf_.DropLast();
   }
 
-  if (!recovered && prepare_fun != NULL) prepare_fun(prepare_arg);
-  void *temp = resbuf.AllocTemp(type_nbytes, count);
+  if (!recovered && prepare_fun != nullptr) prepare_fun(prepare_arg);
+  void *temp = resbuf_.AllocTemp(type_nbytes, count);
   while (true) {
     if (recovered) {
       std::memcpy(temp, sendrecvbuf_, type_nbytes * count); break;
@@ -282,7 +281,7 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
       if (CheckAndRecover(TryAllreduce(temp, type_nbytes, count, reducer))) {
         std::memcpy(sendrecvbuf_, temp, type_nbytes * count); break;
       } else {
-        recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter, cur_cache_seq);
+        recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter, cur_cache_seq_);
       }
     }
   }
@@ -294,8 +293,8 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
   }
 
   // if bootstrap allreduce, store and fetch through cache
-  if (checkpoint_loaded || !rabit_bootstrap_cache) {
-    resbuf.PushTemp(seq_counter, type_nbytes, count);
+  if (checkpoint_loaded_ || !rabit_bootstrap_cache) {
+    resbuf_.PushTemp(seq_counter, type_nbytes, count);
     seq_counter += 1;
   } else {
     SetBootstrapCache(key, sendrecvbuf_, type_nbytes, count);
@@ -320,17 +319,19 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root,
   std::string key = std::string(_file) + "::" + std::to_string(_line) + "::"
     + std::string(_caller) + "#" +std::to_string(total_size) + "@" + std::to_string(root);
   // try fetch bootstrap allreduce results from cache
-  if (!checkpoint_loaded && rabit_bootstrap_cache &&
-  GetBootstrapCache(key, sendrecvbuf_, total_size, 1) != -1) return;
-  double start = utils::GetTime();
-  bool recovered = RecoverExec(sendrecvbuf_, total_size, 0, seq_counter, cur_cache_seq);
-  // now we are free to remove the last result, if any
-  if (resbuf.LastSeqNo() != -1 &&
-      (result_buffer_round == -1 ||
-       resbuf.LastSeqNo() % result_buffer_round != rank % result_buffer_round)) {
-    resbuf.DropLast();
+  if (!checkpoint_loaded_ && rabit_bootstrap_cache &&
+      GetBootstrapCache(key, sendrecvbuf_, total_size, 1) != -1) {
+    return;
   }
-  void *temp = resbuf.AllocTemp(1, total_size);
+  double start = utils::GetTime();
+  bool recovered = RecoverExec(sendrecvbuf_, total_size, 0, seq_counter, cur_cache_seq_);
+  // now we are free to remove the last result, if any
+  if (resbuf_.LastSeqNo() != -1 &&
+      (result_buffer_round_ == -1 ||
+       resbuf_.LastSeqNo() % result_buffer_round_ != rank % result_buffer_round_)) {
+    resbuf_.DropLast();
+  }
+  void *temp = resbuf_.AllocTemp(1, total_size);
   while (true) {
     if (recovered) {
       std::memcpy(temp, sendrecvbuf_, total_size); break;
@@ -338,7 +339,7 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root,
       if (CheckAndRecover(TryBroadcast(sendrecvbuf_, total_size, root))) {
         std::memcpy(temp, sendrecvbuf_, total_size); break;
       } else {
-        recovered = RecoverExec(sendrecvbuf_, total_size, 0, seq_counter, cur_cache_seq);
+        recovered = RecoverExec(sendrecvbuf_, total_size, 0, seq_counter, cur_cache_seq_);
       }
     }
   }
@@ -351,8 +352,8 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root,
       rank, key.c_str(), root, version_number, seq_counter, delta);
   }
   // if bootstrap broadcast, store and fetch through cache
-  if (checkpoint_loaded || !rabit_bootstrap_cache) {
-    resbuf.PushTemp(seq_counter, 1, total_size);
+  if (checkpoint_loaded_ || !rabit_bootstrap_cache) {
+    resbuf_.PushTemp(seq_counter, 1, total_size);
     seq_counter += 1;
   } else {
     SetBootstrapCache(key, sendrecvbuf_, total_size, 1);
@@ -382,46 +383,46 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root,
  */
 int AllreduceRobust::LoadCheckPoint(Serializable *global_model,
                                     Serializable *local_model) {
-  checkpoint_loaded = true;
+  checkpoint_loaded_ = true;
   // skip action in single node
   if (world_size == 1) return 0;
-  this->LocalModelCheck(local_model != NULL);
-  if (num_local_replica == 0) {
-    utils::Check(local_model == NULL,
+  this->LocalModelCheck(local_model != nullptr);
+  if (num_local_replica_ == 0) {
+    utils::Check(local_model == nullptr,
                  "need to set rabit_local_replica larger than 1 to checkpoint local_model");
   }
   double start = utils::GetTime();
   // check if we succeed
-  if (RecoverExec(NULL, 0, ActionSummary::kLoadCheck, ActionSummary::kSpecialOp, cur_cache_seq)) {
-    int nlocal = std::max(static_cast<int>(local_rptr[local_chkpt_version].size()) - 1, 0);
-    if (local_model != NULL) {
-      if (nlocal == num_local_replica + 1) {
+  if (RecoverExec(nullptr, 0, ActionSummary::kLoadCheck, ActionSummary::kSpecialOp, cur_cache_seq_)) {
+    int nlocal = std::max(static_cast<int>(local_rptr_[local_chkpt_version_].size()) - 1, 0);
+    if (local_model != nullptr) {
+      if (nlocal == num_local_replica_ + 1) {
         // load in local model
-        utils::MemoryFixSizeBuffer fs(BeginPtr(local_chkpt[local_chkpt_version]),
-                                      local_rptr[local_chkpt_version][1]);
+        utils::MemoryFixSizeBuffer fs(BeginPtr(local_chkpt_[local_chkpt_version_]),
+                                      local_rptr_[local_chkpt_version_][1]);
         local_model->Load(&fs);
       } else {
-        _assert(nlocal == 0, "[%d] local model inconsistent, nlocal=%d", rank, nlocal);
+        assert_(nlocal == 0, "[%d] local model inconsistent, nlocal=%d", rank, nlocal);
       }
     }
     // reset result buffer
-    resbuf.Clear(); seq_counter = 0;
+    resbuf_.Clear(); seq_counter = 0;
     // load from buffer
-    utils::MemoryBufferStream fs(&global_checkpoint);
-    if (global_checkpoint.length() == 0) {
+    utils::MemoryBufferStream fs(&global_checkpoint_);
+    if (global_checkpoint_.length() == 0) {
       version_number = 0;
     } else {
-      _assert(fs.Read(&version_number, sizeof(version_number)) != 0,
+      assert_(fs.Read(&version_number, sizeof(version_number)) != 0,
                     "read in version number");
       global_model->Load(&fs);
-      _assert(local_model == NULL || nlocal == num_local_replica + 1,
+      assert_(local_model == nullptr || nlocal == num_local_replica_ + 1,
                     "local model inconsistent, nlocal=%d", nlocal);
     }
     // run another phase of check ack, if recovered from data
-    _assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck,
-      ActionSummary::kSpecialOp, cur_cache_seq), "check ack must return true");
+    assert_(RecoverExec(nullptr, 0, ActionSummary::kCheckAck,
+      ActionSummary::kSpecialOp, cur_cache_seq_), "check ack must return true");
 
-    if (!RecoverExec(NULL, 0, ActionSummary::kLoadBootstrapCache, seq_counter, cur_cache_seq)) {
+    if (!RecoverExec(nullptr, 0, ActionSummary::kLoadBootstrapCache, seq_counter, cur_cache_seq_)) {
       utils::Printf("no need to load cache\n");
     }
     double delta = utils::GetTime() - start;
@@ -430,7 +431,7 @@ int AllreduceRobust::LoadCheckPoint(Serializable *global_model,
     if (rabit_debug) {
       utils::HandleLogInfo("[%d] loadcheckpoint size %ld finished version %d, "
                          "seq %d, take %f seconds\n",
-                         rank, global_checkpoint.length(),
+                         rank, global_checkpoint_.length(),
                          version_number, seq_counter, delta);
     }
     return version_number;
@@ -439,7 +440,7 @@ int AllreduceRobust::LoadCheckPoint(Serializable *global_model,
     if (rabit_debug) utils::HandleLogInfo("[%d] loadcheckpoint reset\n", rank);
 
     // reset result buffer
-    resbuf.Clear(); seq_counter = 0; version_number = 0;
+    resbuf_.Clear(); seq_counter = 0; version_number = 0;
     // nothing loaded, a fresh start, everyone init model
     return version_number;
   }
@@ -453,18 +454,18 @@ int AllreduceRobust::LoadCheckPoint(Serializable *global_model,
  * \param with_local whether the user calls CheckPoint with local model
  */
 void AllreduceRobust::LocalModelCheck(bool with_local) {
-  if (use_local_model == -1) {
+  if (use_local_model_ == -1) {
     if (with_local) {
-      use_local_model = 1;
-      if (num_local_replica == 0) {
-        num_local_replica = default_local_replica;
+      use_local_model_ = 1;
+      if (num_local_replica_ == 0) {
+        num_local_replica_ = default_local_replica_;
       }
     } else {
-      use_local_model = 0;
-      num_local_replica = 0;
+      use_local_model_ = 0;
+      num_local_replica_ = 0;
     }
   } else {
-    utils::Check(use_local_model == static_cast<int>(with_local),
+    utils::Check(use_local_model_ == static_cast<int>(with_local),
                  "Can only call Checkpoint/LoadCheckPoint always with"\
                  "or without local_model, but not mixed case");
   }
@@ -481,57 +482,57 @@ void AllreduceRobust::LocalModelCheck(bool with_local) {
  *
  * \sa CheckPoint, LazyCheckPoint
  */
-void AllreduceRobust::CheckPoint_(const Serializable *global_model,
-                                  const Serializable *local_model,
-                                  bool lazy_checkpt) {
+void AllreduceRobust::CheckPointImpl(const Serializable *global_model,
+                                     const Serializable *local_model,
+                                     bool lazy_checkpt) {
   // never do check point in single machine mode
   if (world_size == 1) {
     version_number += 1; return;
   }
   double start = utils::GetTime();
-  this->LocalModelCheck(local_model != NULL);
-  if (num_local_replica == 0) {
-    utils::Check(local_model == NULL,
+  this->LocalModelCheck(local_model != nullptr);
+  if (num_local_replica_ == 0) {
+    utils::Check(local_model == nullptr,
                  "need to set rabit_local_replica larger than 1 to checkpoint local_model");
   }
-  if (num_local_replica != 0) {
+  if (num_local_replica_ != 0) {
     while (true) {
-      if (RecoverExec(NULL, 0, 0, ActionSummary::kLocalCheckPoint)) break;
+      if (RecoverExec(nullptr, 0, 0, ActionSummary::kLocalCheckPoint)) break;
       // save model to new version place
-      int new_version = !local_chkpt_version;
+      int new_version = !local_chkpt_version_;
 
-      local_chkpt[new_version].clear();
-      utils::MemoryBufferStream fs(&local_chkpt[new_version]);
-      if (local_model != NULL) {
+      local_chkpt_[new_version].clear();
+      utils::MemoryBufferStream fs(&local_chkpt_[new_version]);
+      if (local_model != nullptr) {
         local_model->Save(&fs);
       }
-      local_rptr[new_version].clear();
-      local_rptr[new_version].push_back(0);
-      local_rptr[new_version].push_back(local_chkpt[new_version].length());
-      if (CheckAndRecover(TryCheckinLocalState(&local_rptr[new_version],
-                                               &local_chkpt[new_version]))) break;
+      local_rptr_[new_version].clear();
+      local_rptr_[new_version].push_back(0);
+      local_rptr_[new_version].push_back(local_chkpt_[new_version].length());
+      if (CheckAndRecover(TryCheckinLocalState(&local_rptr_[new_version],
+                                               &local_chkpt_[new_version]))) break;
     }
     // run the ack phase, can be true or false
-    RecoverExec(NULL, 0, 0, ActionSummary::kLocalCheckAck);
+    RecoverExec(nullptr, 0, 0, ActionSummary::kLocalCheckAck);
     // switch pointer to new version
-    local_chkpt_version = !local_chkpt_version;
+    local_chkpt_version_ = !local_chkpt_version_;
   }
   // execute checkpoint, note: when checkpoint existing, load will not happen
-  _assert(RecoverExec(NULL, 0, ActionSummary::kCheckPoint,
-                      ActionSummary::kSpecialOp, cur_cache_seq),
+  assert_(RecoverExec(nullptr, 0, ActionSummary::kCheckPoint,
+                      ActionSummary::kSpecialOp, cur_cache_seq_),
           "check point must return true");
   // this is the critical region where we will change all the stored models
   // increase version number
   version_number += 1;
   // save model
   if (lazy_checkpt) {
-    global_lazycheck = global_model;
+    global_lazycheck_ = global_model;
   } else {
-    global_checkpoint.resize(0);
-    utils::MemoryBufferStream fs(&global_checkpoint);
+    global_checkpoint_.resize(0);
+    utils::MemoryBufferStream fs(&global_checkpoint_);
     fs.Write(&version_number, sizeof(version_number));
     global_model->Save(&fs);
-    global_lazycheck = NULL;
+    global_lazycheck_ = nullptr;
   }
   double delta = utils::GetTime() - start;
   // log checkpoint latency
@@ -542,10 +543,10 @@ void AllreduceRobust::CheckPoint_(const Serializable *global_model,
   }
   start = utils::GetTime();
   // reset result buffer, mark boostrap phase complete
-  resbuf.Clear(); seq_counter = 0;
+  resbuf_.Clear(); seq_counter = 0;
   // execute check ack step, load happens here
-  _assert(RecoverExec(NULL, 0, ActionSummary::kCheckAck,
-    ActionSummary::kSpecialOp, cur_cache_seq), "check ack must return true");
+  assert_(RecoverExec(nullptr, 0, ActionSummary::kCheckAck,
+    ActionSummary::kSpecialOp, cur_cache_seq_), "check ack must return true");
 
   delta = utils::GetTime() - start;
   // log checkpoint ack latency
@@ -564,7 +565,7 @@ void AllreduceRobust::CheckPoint_(const Serializable *global_model,
  *         when kSockError is returned, it simply means there are bad sockets in the links,
  *         and some link recovery proceduer is needed
  */
-AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
+AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks() {
   // number of links
   const int nlink = static_cast<int>(all_links.size());
   for (int i = 0; i < nlink; ++i) {
@@ -618,7 +619,7 @@ AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
       if (all_links[i].size_read == 0) {
         int atmark = all_links[i].sock.AtMark();
         if (atmark < 0) {
-          _assert(all_links[i].sock.BadSocket(), "must already gone bad");
+          assert_(all_links[i].sock.BadSocket(), "must already gone bad");
         } else if (atmark > 0) {
           all_links[i].size_read = 1;
         } else {
@@ -640,10 +641,10 @@ AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
       if (len == 0) {
         all_links[i].sock.Close(); continue;
       } else if (len > 0) {
-        _assert(oob_mark == kResetMark, "wrong oob msg");
-        _assert(all_links[i].sock.AtMark() != 1, "should already read past mark");
+        assert_(oob_mark == kResetMark, "wrong oob msg");
+        assert_(all_links[i].sock.AtMark() != 1, "should already read past mark");
       } else {
-        _assert(errno != EAGAIN|| errno != EWOULDBLOCK, "BUG");
+        assert_(errno != EAGAIN|| errno != EWOULDBLOCK, "BUG");
       }
       // send out ack
       char ack = kResetAck;
@@ -664,9 +665,9 @@ AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
       if (len == 0) {
         all_links[i].sock.Close(); continue;
       } else if (len > 0) {
-        _assert(ack == kResetAck, "wrong Ack MSG");
+        assert_(ack == kResetAck, "wrong Ack MSG");
       } else {
-        _assert(errno != EAGAIN|| errno != EWOULDBLOCK, "BUG");
+        assert_(errno != EAGAIN|| errno != EWOULDBLOCK, "BUG");
       }
       // set back to nonblock mode
       all_links[i].sock.SetNonBlock(true);
@@ -685,15 +686,15 @@ AllreduceRobust::ReturnType AllreduceRobust::TryResetLinks(void) {
  * \return true if err_type is kSuccess, false otherwise
  */
 bool AllreduceRobust::CheckAndRecover(ReturnType err_type) {
-  shutdown_timeout = err_type == kSuccess;
+  shutdown_timeout_ = err_type == kSuccess;
   if (err_type == kSuccess) return true;
 
-  _assert(err_link != NULL, "must know the error link");
-  recover_counter += 1;
+  assert_(err_link != nullptr, "must know the error link");
+  recover_counter_ += 1;
   // async launch timeout task if enable_rabit_timeout is set
-  if (rabit_timeout && !rabit_timeout_task.valid()) {
+  if (rabit_timeout && !rabit_timeout_task_.valid()) {
     utils::Printf("[EXPERIMENTAL] timeout thread expires in %d second(s)\n", timeout_sec);
-    rabit_timeout_task = std::async(std::launch::async, [=]() {
+    rabit_timeout_task_ = std::async(std::launch::async, [=]() {
       if (rabit_debug) {
         utils::Printf("[%d] timeout thread %ld starts\n", rank,
                       std::this_thread::get_id());
@@ -702,7 +703,7 @@ bool AllreduceRobust::CheckAndRecover(ReturnType err_type) {
       // check if rabit recovered every 100ms
       while (time++ < 10 * timeout_sec) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        if (shutdown_timeout.load()) {
+        if (shutdown_timeout_.load()) {
           if (rabit_debug) {
             utils::Printf("[%d] timeout task thread %ld exits\n",
               rank, std::this_thread::get_id());
@@ -710,13 +711,13 @@ bool AllreduceRobust::CheckAndRecover(ReturnType err_type) {
           return true;
         }
       }
-      _error("[%d] exit due to time out %d s\n", rank, timeout_sec);
+      error_("[%d] exit due to time out %d s\n", rank, timeout_sec);
       return false;
     });
   }
   // simple way, shutdown all links
-  for (size_t i = 0; i < all_links.size(); ++i) {
-    if (!all_links[i].sock.BadSocket()) all_links[i].sock.Close();
+  for (auto & all_link : all_links) {
+    if (!all_link.sock.BadSocket()) all_link.sock.Close();
   }
   // smooth out traffic to tracker
   std::this_thread::sleep_for(std::chrono::milliseconds(10*rank));
@@ -836,8 +837,8 @@ AllreduceRobust::TryDecideRouting(AllreduceRobust::RecoverType role,
     // set p_req_in
     (*p_req_in)[i] = (req_in[i] != 0);
     if (req_out[i] != 0) {
-      _assert(req_in[i] == 0, "cannot get and receive request");
-      _assert(static_cast<int>(i) == best_link, "request result inconsistent");
+      assert_(req_in[i] == 0, "cannot get and receive request");
+      assert_(static_cast<int>(i) == best_link, "request result inconsistent");
     }
   }
   *p_recvlink = best_link;
@@ -866,21 +867,21 @@ AllreduceRobust::TryRecoverData(RecoverType role,
                                 const std::vector<bool> &req_in) {
   RefLinkVector &links = tree_links;
   // no need to run recovery for zero size messages
-  if (links.size() == 0 || size == 0) return kSuccess;
-  _assert(req_in.size() == links.size(), "TryRecoverData");
-  const int nlink = static_cast<int>(links.size());
+  if (links.Size() == 0 || size == 0) return kSuccess;
+  assert_(req_in.size() == links.Size(), "TryRecoverData");
+  const int nlink = static_cast<int>(links.Size());
   {
     bool req_data = role == kRequestData;
     for (int i = 0; i < nlink; ++i) {
       if (req_in[i]) {
-        _assert(i != recv_link, "TryDecideRouting");
+        assert_(i != recv_link, "TryDecideRouting");
         req_data = true;
       }
     }
     // do not need to provide data or receive data, directly exit
     if (!req_data) return kSuccess;
   }
-  _assert(recv_link >= 0 || role == kHaveData, "recv_link must be active");
+  assert_(recv_link >= 0 || role == kHaveData, "recv_link must be active");
   if (role == kPassData) {
     links[recv_link].InitBuffer(1, size, reduce_buffer_size);
   }
@@ -947,7 +948,7 @@ AllreduceRobust::TryRecoverData(RecoverType role,
         for (int i = 0; i < nlink; ++i) {
           if (req_in[i]) min_write = std::min(links[i].size_write, min_write);
         }
-        _assert(min_write <= links[pid].size_read, "boundary check");
+        assert_(min_write <= links[pid].size_read, "boundary check");
         ReturnType ret = links[pid].ReadToRingBuffer(min_write, size);
         if (ret != kSuccess) {
           return ReportError(&links[pid], ret);
@@ -981,10 +982,10 @@ AllreduceRobust::ReturnType AllreduceRobust::TryRestoreCache(bool requester,
   const int min_seq, const int max_seq) {
   // clear requester and rebuild from those with most cache entries
   if (requester) {
-    _assert(cur_cache_seq <= max_seq, "requester is expected to have fewer cache entries");
-    cachebuf.Clear();
-    lookupbuf.Clear();
-    cur_cache_seq = 0;
+    assert_(cur_cache_seq_ <= max_seq, "requester is expected to have fewer cache entries");
+    cachebuf_.Clear();
+    lookupbuf_.Clear();
+    cur_cache_seq_ = 0;
   }
   RecoverType role = requester ? kRequestData : kHaveData;
   size_t size = 1;
@@ -998,23 +999,23 @@ AllreduceRobust::ReturnType AllreduceRobust::TryRestoreCache(bool requester,
   for (int i = 0; i < max_seq; i++) {
     // restore lookup map
     size_t cache_size = 0;
-    void* key = lookupbuf.Query(i, &cache_size);
+    void* key = lookupbuf_.Query(i, &cache_size);
     ret = TryRecoverData(role, &cache_size, sizeof(size_t), recv_link, req_in);
     if (ret != kSuccess) return ret;
     if (requester) {
-      key = lookupbuf.AllocTemp(cache_size, 1);
-      lookupbuf.PushTemp(i, cache_size, 1);
+      key = lookupbuf_.AllocTemp(cache_size, 1);
+      lookupbuf_.PushTemp(i, cache_size, 1);
     }
     ret = TryRecoverData(role, key, cache_size, recv_link, req_in);
     if (ret != kSuccess) return ret;
     // restore cache content
     cache_size = 0;
-    void* buf = cachebuf.Query(i, &cache_size);
+    void* buf = cachebuf_.Query(i, &cache_size);
     ret = TryRecoverData(role, &cache_size, sizeof(size_t), recv_link, req_in);
     if (requester) {
-      buf = cachebuf.AllocTemp(cache_size, 1);
-      cachebuf.PushTemp(i, cache_size, 1);
-      cur_cache_seq +=1;
+      buf = cachebuf_.AllocTemp(cache_size, 1);
+      cachebuf_.PushTemp(i, cache_size, 1);
+      cur_cache_seq_ +=1;
     }
     ret = TryRecoverData(role, buf, cache_size, recv_link, req_in);
     if (ret != kSuccess) return ret;
@@ -1038,20 +1039,20 @@ AllreduceRobust::ReturnType AllreduceRobust::TryLoadCheckPoint(bool requester) {
   // check in local data
   RecoverType role =  requester ? kRequestData : kHaveData;
   ReturnType succ;
-  if (num_local_replica != 0) {
+  if (num_local_replica_ != 0) {
     if (requester) {
       // clear existing history, if any, before load
-      local_rptr[local_chkpt_version].clear();
-      local_chkpt[local_chkpt_version].clear();
+      local_rptr_[local_chkpt_version_].clear();
+      local_chkpt_[local_chkpt_version_].clear();
     }
     // recover local checkpoint
-    succ = TryRecoverLocalState(&local_rptr[local_chkpt_version],
-                                &local_chkpt[local_chkpt_version]);
+    succ = TryRecoverLocalState(&local_rptr_[local_chkpt_version_],
+                                &local_chkpt_[local_chkpt_version_]);
     if (succ != kSuccess) return succ;
-    int nlocal = std::max(static_cast<int>(local_rptr[local_chkpt_version].size()) - 1, 0);
+    int nlocal = std::max(static_cast<int>(local_rptr_[local_chkpt_version_].size()) - 1, 0);
     // check if everyone is OK
     unsigned state = 0;
-    if (nlocal == num_local_replica + 1) {
+    if (nlocal == num_local_replica_ + 1) {
       // complete recovery
       state = 1;
     } else if (nlocal == 0) {
@@ -1067,24 +1068,24 @@ AllreduceRobust::ReturnType AllreduceRobust::TryLoadCheckPoint(bool requester) {
                  "LoadCheckPoint: too many nodes fails, cannot recover local state");
   }
   // do call save model if the checkpoint was lazy
-  if (role == kHaveData && global_lazycheck != NULL) {
-    global_checkpoint.resize(0);
-    utils::MemoryBufferStream fs(&global_checkpoint);
+  if (role == kHaveData && global_lazycheck_ != nullptr) {
+    global_checkpoint_.resize(0);
+    utils::MemoryBufferStream fs(&global_checkpoint_);
     fs.Write(&version_number, sizeof(version_number));
-    global_lazycheck->Save(&fs);
-    global_lazycheck = NULL;
+    global_lazycheck_->Save(&fs);
+    global_lazycheck_ = nullptr;
   }
   // recover global checkpoint
-  size_t size = this->global_checkpoint.length();
+  size_t size = this->global_checkpoint_.length();
   int recv_link;
   std::vector<bool> req_in;
   succ = TryDecideRouting(role, &size, &recv_link, &req_in);
   if (succ != kSuccess) return succ;
   if (role == kRequestData) {
-    global_checkpoint.resize(size);
+    global_checkpoint_.resize(size);
   }
   if (size == 0) return kSuccess;
-  return TryRecoverData(role, BeginPtr(global_checkpoint), size, recv_link, req_in);
+  return TryRecoverData(role, BeginPtr(global_checkpoint_), size, recv_link, req_in);
 }
 /*!
  * \brief try to get the result of operation specified by seqno
@@ -1107,19 +1108,19 @@ AllreduceRobust::TryGetResult(void *sendrecvbuf, size_t size, int seqno, bool re
   if (seqno == ActionSummary::kLocalCheckAck) return kSuccess;
   if (seqno == ActionSummary::kLocalCheckPoint) {
     // new version of local model
-    int new_version = !local_chkpt_version;
-    int nlocal = std::max(static_cast<int>(local_rptr[new_version].size()) - 1, 0);
+    int new_version = !local_chkpt_version_;
+    int nlocal = std::max(static_cast<int>(local_rptr_[new_version].size()) - 1, 0);
     // if we goes to this place, use must have already setup the state once
-    _assert(nlocal == 1 || nlocal == num_local_replica + 1,
+    assert_(nlocal == 1 || nlocal == num_local_replica_ + 1,
                   "TryGetResult::Checkpoint");
-    return TryRecoverLocalState(&local_rptr[new_version], &local_chkpt[new_version]);
+    return TryRecoverLocalState(&local_rptr_[new_version], &local_chkpt_[new_version]);
   }
 
   // handles normal data recovery
   RecoverType role;
   if (!requester) {
-    sendrecvbuf = resbuf.Query(seqno, &size);
-    role = sendrecvbuf != NULL ? kHaveData : kPassData;
+    sendrecvbuf = resbuf_.Query(seqno, &size);
+    role = sendrecvbuf != nullptr ? kHaveData : kPassData;
   } else {
     role = kRequestData;
   }
@@ -1160,13 +1161,13 @@ bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno,
   // kLoadBootstrapCache should be treated similar as allreduce
   // when loadcheck/check/checkack runs in other nodes
   if (flag != 0 && flag != ActionSummary::kLoadBootstrapCache) {
-    _assert(seqno == ActionSummary::kSpecialOp, "must only set seqno for normal operations");
+    assert_(seqno == ActionSummary::kSpecialOp, "must only set seqno for normal operations");
   }
 
   std::string msg = std::string(caller) + " pass negative seqno "
     + std::to_string(seqno) + " flag " + std::to_string(flag)
     + " version " + std::to_string(version_number);
-  _assert(seqno >=0, msg.c_str());
+  assert_(seqno >=0, msg.c_str());
 
   ActionSummary req(flag, flag, seqno, cache_seqno);
 
@@ -1177,33 +1178,33 @@ bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno,
     // get the reduced action
     if (!CheckAndRecover(TryAllreduce(&act, sizeof(act), 1, ActionSummary::Reducer))) continue;
 
-    if (act.check_ack()) {
-      if (act.check_point()) {
+    if (act.CheckAck()) {
+      if (act.CheckPoint()) {
         // if we also have check_point, do check point first
-        _assert(!act.diff_seq(),
+        assert_(!act.DiffSeq(),
                       "check ack & check pt  cannot occur together with normal ops");
         // if we requested checkpoint, we are free to go
-        if (req.check_point()) return true;
-      } else if (act.load_check()) {
+        if (req.CheckPoint()) return true;
+      } else if (act.LoadCheck()) {
         // if there is only check_ack and load_check, do load_check
-        if (!CheckAndRecover(TryLoadCheckPoint(req.load_check()))) continue;
+        if (!CheckAndRecover(TryLoadCheckPoint(req.LoadCheck()))) continue;
         // if requested load check, then misson complete
-        if (req.load_check()) return true;
+        if (req.LoadCheck()) return true;
       } else {
         // there is no check point and no load check, execute check ack
-        if (req.check_ack()) return true;
+        if (req.CheckAck()) return true;
       }
       // if execute to this point
       // this means the action requested has not been completed
       // try next round
     } else {
-      if (act.check_point()) {
-        if (act.diff_seq()) {
-          _assert(act.seqno() != ActionSummary::kSpecialOp, "min seq bug");
+      if (act.CheckPoint()) {
+        if (act.DiffSeq()) {
+          assert_(act.Seqno() != ActionSummary::kSpecialOp, "min seq bug");
           // print checkpoint consensus flag if user turn on debug
           if (rabit_debug) {
-            req.print_flags(rank, "checkpoint req");
-            act.print_flags(rank, "checkpoint act");
+            req.PrintFlags(rank, "checkpoint req");
+            act.PrintFlags(rank, "checkpoint act");
           }
           /*
            * Chen Qin
@@ -1219,82 +1220,82 @@ bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno,
            * after catch up to checkpoint n, diff_seq will be false
            * */
           // assume requester is falling behind
-          bool requester = req.seqno() == act.seqno();
+          bool requester = req.Seqno() == act.Seqno();
           // if not load cache
-          if (!act.load_cache()) {
-            if (act.seqno() > 0) {
+          if (!act.LoadCache()) {
+            if (act.Seqno() > 0) {
               if (!requester) {
-                _assert(req.check_point(), "checkpoint node should be KHaveData role");
-                buf = resbuf.Query(act.seqno(), &size);
-                _assert(buf != NULL, "buf should have data from resbuf");
-                _assert(size > 0, "buf size should be greater than 0");
+                assert_(req.CheckPoint(), "checkpoint node should be KHaveData role");
+                buf = resbuf_.Query(act.Seqno(), &size);
+                assert_(buf != nullptr, "buf should have data from resbuf");
+                assert_(size > 0, "buf size should be greater than 0");
               }
-              if (!CheckAndRecover(TryGetResult(buf, size, act.seqno(), requester))) continue;
+              if (!CheckAndRecover(TryGetResult(buf, size, act.Seqno(), requester))) continue;
             }
           } else {
             // cache seq no should be smaller than kSpecialOp
-            _assert(act.seqno(SeqType::kCache) != ActionSummary::kSpecialOp,
+            assert_(act.Seqno(SeqType::kCache) != ActionSummary::kSpecialOp,
               "checkpoint with kSpecialOp");
-            int max_cache_seq = cur_cache_seq;
+            int max_cache_seq = cur_cache_seq_;
             if (TryAllreduce(&max_cache_seq, sizeof(max_cache_seq), 1,
               op::Reducer<op::Max, unsigned>) != kSuccess) continue;
 
-            if (TryRestoreCache(req.load_cache(), act.seqno(), max_cache_seq)
+            if (TryRestoreCache(req.LoadCache(), act.Seqno(), max_cache_seq)
               != kSuccess) continue;
           }
           if (requester) return true;
         } else  {
           // no difference in seq no, means we are free to check point
-          if (req.check_point()) return true;
+          if (req.CheckPoint()) return true;
         }
       } else {
         // no check point
-        if (act.load_check()) {
+        if (act.LoadCheck()) {
           // all the nodes called load_check, this is an incomplete action
-          if (!act.diff_seq()) return false;
+          if (!act.DiffSeq()) return false;
           // load check have higher priority, do load_check
-          if (!CheckAndRecover(TryLoadCheckPoint(req.load_check()))) continue;
+          if (!CheckAndRecover(TryLoadCheckPoint(req.LoadCheck()))) continue;
           // if requested load check, then misson complete
-          if (req.load_check()) return true;
+          if (req.LoadCheck()) return true;
         } else {
           // run all nodes in a isolated cache restore logic
-          if (act.load_cache()) {
+          if (act.LoadCache()) {
             // print checkpoint consensus flag if user turn on debug
             if (rabit_debug) {
-              req.print_flags(rank, "loadcache req");
-              act.print_flags(rank, "loadcache act");
+              req.PrintFlags(rank, "loadcache req");
+              act.PrintFlags(rank, "loadcache act");
             }
             // load cache should not running in parralel with other states
-            _assert(!act.load_check(),
+            assert_(!act.LoadCheck(),
               "load cache state expect no nodes doing load checkpoint");
-            _assert(!act.check_point() ,
+            assert_(!act.CheckPoint() ,
               "load cache state expect no nodes doing checkpoint");
-            _assert(!act.check_ack(),
+            assert_(!act.CheckAck(),
               "load cache state expect no nodes doing checkpoint ack");
 
             // if all nodes are requester in load cache, skip
-            if (act.load_cache(SeqType::kCache)) return false;
+            if (act.LoadCache(SeqType::kCache)) return false;
 
             // bootstrap cache always restore before loadcheckpoint
             // requester always have seq diff with non requester
-            if (act.diff_seq()) {
+            if (act.DiffSeq()) {
               // restore cache failed, retry from what's left
-              if (TryRestoreCache(req.load_cache(), act.seqno(), act.seqno(SeqType::kCache))
+              if (TryRestoreCache(req.LoadCache(), act.Seqno(), act.Seqno(SeqType::kCache))
                 != kSuccess) continue;
             }
             // if requested load cache, then mission complete
-            if (req.load_cache()) return true;
+            if (req.LoadCache()) return true;
             continue;
           }
 
           // assert no req with load cache set goes into seq catch up
-          _assert(!req.load_cache(), "load cache not interacte with rest states");
+          assert_(!req.LoadCache(), "load cache not interacte with rest states");
 
           // no special flags, no checkpoint, check ack, load_check
-          _assert(act.seqno() != ActionSummary::kSpecialOp, "min seq bug");
-          if (act.diff_seq()) {
-            bool requester = req.seqno() == act.seqno();
-            if (!CheckAndRecover(TryGetResult(buf, size, act.seqno(), requester))) continue;
+          assert_(act.Seqno() != ActionSummary::kSpecialOp, "min seq bug");
+          if (act.DiffSeq()) {
+            bool requester = req.Seqno() == act.Seqno();
+            if (!CheckAndRecover(TryGetResult(buf, size, act.Seqno(), requester))) continue;
             if (requester) return true;
           } else {
             // all the request is same,
@@ -1306,7 +1307,7 @@ bool AllreduceRobust::RecoverExec(void *buf, size_t size, int flag, int seqno,
       // something is still incomplete try next round
     }
   }
-  _assert(false, "RecoverExec: should not reach here");
+  assert_(false, "RecoverExec: should not reach here");
   return true;
 }
 /*!
@@ -1329,18 +1330,18 @@ AllreduceRobust::ReturnType
 AllreduceRobust::TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
                                       std::string *p_local_chkpt) {
   // if there is no local replica, we can do nothing
-  if (num_local_replica == 0) return kSuccess;
+  if (num_local_replica_ == 0) return kSuccess;
   std::vector<size_t> &rptr = *p_local_rptr;
   std::string &chkpt = *p_local_chkpt;
   if (rptr.size() == 0) {
     rptr.push_back(0);
-    _assert(chkpt.length() == 0, "local chkpt space inconsistent");
+    assert_(chkpt.length() == 0, "local chkpt space inconsistent");
   }
-  const int n = num_local_replica;
+  const int n = num_local_replica_;
   {
     // backward passing, passing state in backward direction of the ring
     const int nlocal = static_cast<int>(rptr.size() - 1);
-    _assert(nlocal <= n + 1, "invalid local replica");
+    assert_(nlocal <= n + 1, "invalid local replica");
     std::vector<int> msg_back(n + 1);
     msg_back[0] = nlocal;
     // backward passing one hop the request
@@ -1394,7 +1395,7 @@ AllreduceRobust::TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
   {
     // forward passing, passing state in forward direction of the ring
     const int nlocal = static_cast<int>(rptr.size() - 1);
-    _assert(nlocal <= n + 1, "invalid local replica");
+    assert_(nlocal <= n + 1, "invalid local replica");
     std::vector<int> msg_forward(n + 1);
     msg_forward[0] = nlocal;
     // backward passing one hop the request
@@ -1476,12 +1477,12 @@ AllreduceRobust::ReturnType
 AllreduceRobust::TryCheckinLocalState(std::vector<size_t> *p_local_rptr,
                                       std::string *p_local_chkpt) {
   // if there is no local replica, we can do nothing
-  if (num_local_replica == 0) return kSuccess;
+  if (num_local_replica_ == 0) return kSuccess;
   std::vector<size_t> &rptr = *p_local_rptr;
   std::string &chkpt = *p_local_chkpt;
-  _assert(rptr.size() == 2,
+  assert_(rptr.size() == 2,
                 "TryCheckinLocalState must have exactly 1 state");
-  const int n = num_local_replica;
+  const int n = num_local_replica_;
   std::vector<size_t> sizes(n + 1);
   sizes[0] = rptr[1] - rptr[0];
   ReturnType succ;
@@ -1534,11 +1535,11 @@ AllreduceRobust::RingPassing(void *sendrecvbuf_,
                              size_t write_end,
                              LinkRecord *read_link,
                              LinkRecord *write_link) {
-  if (read_link == NULL || write_link == NULL || read_end == 0) return kSuccess;
-  _assert(write_end <= read_end,
+  if (read_link == nullptr || write_link == nullptr || read_end == 0) return kSuccess;
+  assert_(write_end <= read_end,
                 "RingPassing: boundary check1");
-  _assert(read_ptr <= read_end, "RingPassing: boundary check2");
-  _assert(write_ptr <= write_end, "RingPassing: boundary check3");
+  assert_(read_ptr <= read_end, "RingPassing: boundary check2");
+  assert_(write_ptr <= write_end, "RingPassing: boundary check3");
   // take reference
   LinkRecord &prev = *read_link, &next = *write_link;
   // send recv buffer

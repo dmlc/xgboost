@@ -25,7 +25,7 @@
 #endif  // RABIT_CXXTESTDEFS_H
 
 
-namespace MPI {
+namespace MPI {  // NOLINT
 // MPI data type to be compatible with existing MPI interface
 class Datatype {
  public:
@@ -41,12 +41,12 @@ class AllreduceBase : public IEngine {
   // magic number to verify server
   static const int kMagic = 0xff99;
   // constant one byte out of band message to indicate error happening
-  AllreduceBase(void);
-  virtual ~AllreduceBase(void) {}
+  AllreduceBase();
+  virtual ~AllreduceBase() = default;
   // initialize the manager
   virtual bool Init(int argc, char* argv[]);
   // shutdown the engine
-  virtual bool Shutdown(void);
+  virtual bool Shutdown();
   /*!
    * \brief set parameters to the engine
    * \param name parameter name
@@ -59,27 +59,27 @@ class AllreduceBase : public IEngine {
    *    the user who monitors the tracker
    * \param msg message to be printed in the tracker
    */
-  virtual void TrackerPrint(const std::string &msg);
+  void TrackerPrint(const std::string &msg) override;
 
   /*! \brief get rank of previous node in ring topology*/
-  virtual int GetRingPrevRank(void) const {
+  int GetRingPrevRank() const override {
     return ring_prev->rank;
   }
   /*! \brief get rank */
-  virtual int GetRank(void) const {
+  int GetRank() const override {
     return rank;
   }
   /*! \brief get rank */
-  virtual int GetWorldSize(void) const {
+  int GetWorldSize() const override {
     if (world_size == -1) return 1;
     return world_size;
   }
   /*! \brief whether is distributed or not */
-  virtual bool IsDistributed(void) const {
+  bool IsDistributed() const override {
     return tracker_uri != "NULL";
   }
   /*! \brief get rank */
-  virtual std::string GetHost(void) const {
+  std::string GetHost() const override {
     return host_uri;
   }
 
@@ -99,13 +99,10 @@ class AllreduceBase : public IEngine {
   * \param _line caller line number used to generate unique cache key
   * \param _caller caller function name used to generate unique cache key
   */
-  virtual void Allgather(void *sendrecvbuf_, size_t total_size,
-                             size_t slice_begin,
-                             size_t slice_end,
-                             size_t size_prev_slice,
-                             const char* _file = _FILE,
-                             const int _line = _LINE,
-                             const char* _caller = _CALLER) {
+  void Allgather(void *sendrecvbuf_, size_t total_size, size_t slice_begin,
+                 size_t slice_end, size_t size_prev_slice,
+                 const char *_file = _FILE, const int _line = _LINE,
+                 const char *_caller = _CALLER) override {
     if (world_size == 1 || world_size == -1) return;
     utils::Assert(TryAllgatherRing(sendrecvbuf_, total_size,
                                    slice_begin, slice_end, size_prev_slice) == kSuccess,
@@ -126,16 +123,12 @@ class AllreduceBase : public IEngine {
    * \param _line caller line number used to generate unique cache key
    * \param _caller caller function name used to generate unique cache key
    */
-  virtual void Allreduce(void *sendrecvbuf_,
-                         size_t type_nbytes,
-                         size_t count,
-                         ReduceFunction reducer,
-                         PreprocFunction prepare_fun = NULL,
-                         void *prepare_arg = NULL,
-                         const char* _file = _FILE,
-                         const int _line = _LINE,
-                         const char* _caller = _CALLER) {
-    if (prepare_fun != NULL) prepare_fun(prepare_arg);
+  void Allreduce(void *sendrecvbuf_, size_t type_nbytes, size_t count,
+                 ReduceFunction reducer, PreprocFunction prepare_fun = nullptr,
+                 void *prepare_arg = nullptr, const char *_file = _FILE,
+                 const int _line = _LINE,
+                 const char *_caller = _CALLER) override {
+    if (prepare_fun != nullptr) prepare_fun(prepare_arg);
     if (world_size == 1 || world_size == -1) return;
     utils::Assert(TryAllreduce(sendrecvbuf_,
                                type_nbytes, count, reducer) == kSuccess,
@@ -150,8 +143,9 @@ class AllreduceBase : public IEngine {
    * \param _line caller line number used to generate unique cache key
    * \param _caller caller function name used to generate unique cache key
    */
-  virtual void Broadcast(void *sendrecvbuf_, size_t total_size, int root,
-    const char* _file = _FILE, const int _line = _LINE, const char* _caller = _CALLER) {
+  void Broadcast(void *sendrecvbuf_, size_t total_size, int root,
+                 const char *_file = _FILE, const int _line = _LINE,
+                 const char *_caller = _CALLER) override {
     if (world_size == 1 || world_size == -1) return;
     utils::Assert(TryBroadcast(sendrecvbuf_, total_size, root) == kSuccess,
                   "Broadcast failed");
@@ -178,8 +172,8 @@ class AllreduceBase : public IEngine {
    *
    * \sa CheckPoint, VersionNumber
    */
-  virtual int LoadCheckPoint(Serializable *global_model,
-                             Serializable *local_model = NULL) {
+  int LoadCheckPoint(Serializable *global_model,
+                     Serializable *local_model = nullptr) override {
     return 0;
   }
   /*!
@@ -198,8 +192,8 @@ class AllreduceBase : public IEngine {
    *
    * \sa LoadCheckPoint, VersionNumber
    */
-  virtual void CheckPoint(const Serializable *global_model,
-                          const Serializable *local_model = NULL) {
+  void CheckPoint(const Serializable *global_model,
+                  const Serializable *local_model = nullptr) override {
     version_number += 1;
   }
   /*!
@@ -222,7 +216,7 @@ class AllreduceBase : public IEngine {
    *   is the same in all nodes
    * \sa LoadCheckPoint, CheckPoint, VersionNumber
    */
-  virtual void LazyCheckPoint(const Serializable *global_model) {
+  void LazyCheckPoint(const Serializable *global_model) override {
     version_number += 1;
   }
   /*!
@@ -230,7 +224,7 @@ class AllreduceBase : public IEngine {
    *         which means how many calls to CheckPoint we made so far
    * \sa LoadCheckPoint, CheckPoint
    */
-  virtual int VersionNumber(void) const {
+  int VersionNumber() const override {
     return version_number;
   }
   /*!
@@ -238,14 +232,14 @@ class AllreduceBase : public IEngine {
    *    call this function when IEngine throw an exception out,
    *    this function is only used for test purpose
    */
-  virtual void InitAfterException(void) {
+  void InitAfterException() override {
     utils::Error("InitAfterException: not implemented");
   }
   /*!
    * \brief report current status to the job tracker
    * depending on the job tracker we are in
    */
-  inline void ReportStatus(void) const {
+  inline void ReportStatus() const {
     if (hadoop_mode != 0) {
       fprintf(stderr, "reporter:status:Rabit Phase[%03d] Operation %03d\n",
               version_number, seq_counter);
@@ -274,7 +268,7 @@ class AllreduceBase : public IEngine {
     /*! \brief internal return type */
     ReturnTypeEnum value;
     // constructor
-    ReturnType() {}
+    ReturnType() = default;
     ReturnType(ReturnTypeEnum value) : value(value) {}  // NOLINT(*)
     inline bool operator==(const ReturnTypeEnum &v) const {
       return value == v;
@@ -306,13 +300,11 @@ class AllreduceBase : public IEngine {
     // size of data sent to the link
     size_t size_write;
     // pointer to buffer head
-    char *buffer_head;
+    char *buffer_head {nullptr};
     // buffer size, in bytes
-    size_t buffer_size;
+    size_t buffer_size {0};
     // constructor
-    LinkRecord(void)
-        : buffer_head(NULL), buffer_size(0) {
-    }
+    LinkRecord() = default;
     // initialize buffer
     inline void InitBuffer(size_t type_nbytes, size_t count,
                            size_t reduce_buffer_size) {
@@ -328,7 +320,7 @@ class AllreduceBase : public IEngine {
       buffer_head = reinterpret_cast<char*>(BeginPtr(buffer_));
     }
     // reset the recv and sent size
-    inline void ResetSize(void) {
+    inline void ResetSize() {
       size_write = size_read = 0;
     }
     /*!
@@ -340,7 +332,7 @@ class AllreduceBase : public IEngine {
      * \return the type of reading
      */
     inline ReturnType ReadToRingBuffer(size_t protect_start, size_t max_size_read) {
-      utils::Assert(buffer_head != NULL, "ReadToRingBuffer: buffer not allocated");
+      utils::Assert(buffer_head != nullptr, "ReadToRingBuffer: buffer not allocated");
       utils::Assert(size_read <= max_size_read, "ReadToRingBuffer: max_size_read check");
       size_t ngap = size_read - protect_start;
       utils::Assert(ngap <= buffer_size, "Allreduce: boundary check");
@@ -405,7 +397,7 @@ class AllreduceBase : public IEngine {
     inline LinkRecord &operator[](size_t i) {
       return *plinks[i];
     }
-    inline size_t size(void) const {
+    inline size_t Size() const {
       return plinks.size();
     }
   };
@@ -413,7 +405,7 @@ class AllreduceBase : public IEngine {
    * \brief initialize connection to the tracker
    * \return a socket that initializes the connection
    */
-  utils::TCPSocket ConnectTracker(void) const;
+  utils::TCPSocket ConnectTracker() const;
   /*!
    * \brief connect to the tracker to fix the the missing links
    *   this function is also used when the engine start up
@@ -525,64 +517,64 @@ class AllreduceBase : public IEngine {
   //---- data structure related to model ----
   // call sequence counter, records how many calls we made so far
   // from last call to CheckPoint, LoadCheckPoint
-  int seq_counter;
+  int seq_counter;  // NOLINT
   // version number of model
-  int version_number;
+  int version_number;  // NOLINT
   // whether the job is running in hadoop
-  bool hadoop_mode;
+  bool hadoop_mode;  // NOLINT
   //---- local data related to link ----
   // index of parent link, can be -1, meaning this is root of the tree
-  int parent_index;
+  int parent_index;  // NOLINT
   // rank of parent node, can be -1
-  int parent_rank;
+  int parent_rank;  // NOLINT
   // sockets of all links this connects to
-  std::vector<LinkRecord> all_links;
+  std::vector<LinkRecord> all_links;  // NOLINT
   // used to record the link where things goes wrong
-  LinkRecord *err_link;
+  LinkRecord *err_link;  // NOLINT
   // all the links in the reduction tree connection
-  RefLinkVector tree_links;
+  RefLinkVector tree_links;  // NOLINT
   // pointer to links in the ring
-  LinkRecord *ring_prev, *ring_next;
+  LinkRecord *ring_prev, *ring_next;  // NOLINT
   //----- meta information-----
   // list of enviroment variables that are of possible interest
-  std::vector<std::string> env_vars;
+  std::vector<std::string> env_vars;  // NOLINT
   // unique identifier of the possible job this process is doing
   // used to assign ranks, optional, default to NULL
-  std::string task_id;
+  std::string task_id;  // NOLINT
   // uri of current host, to be set by Init
-  std::string host_uri;
+  std::string host_uri;  // NOLINT
   // uri of tracker
-  std::string tracker_uri;
+  std::string tracker_uri;  // NOLINT
   // role in dmlc jobs
-  std::string dmlc_role;
+  std::string dmlc_role;  // NOLINT
   // port of tracker address
-  int tracker_port;
+  int tracker_port;  // NOLINT
   // port of slave process
-  int slave_port, nport_trial;
+  int slave_port, nport_trial;  // NOLINT
   // reduce buffer size
-  size_t reduce_buffer_size;
+  size_t reduce_buffer_size;  // NOLINT
   // reduction method
-  int reduce_method;
+  int reduce_method;  // NOLINT
   // mininum count of cells to use ring based method
-  size_t reduce_ring_mincount;
+  size_t reduce_ring_mincount;  // NOLINT
   // minimul block size per tree reduce
-  size_t tree_reduce_minsize;
+  size_t tree_reduce_minsize;  // NOLINT
   // current rank
-  int rank;
+  int rank;  // NOLINT
   // world size
-  int world_size;
+  int world_size;  // NOLINT
   // connect retry time
-  int connect_retry;
+  int connect_retry;  // NOLINT
   // enable bootstrap cache 0 false 1 true
-  bool rabit_bootstrap_cache = false;
+  bool rabit_bootstrap_cache = false;  // NOLINT
   // enable detailed logging
-  bool rabit_debug = false;
+  bool rabit_debug = false;  // NOLINT
   // by default, if rabit worker not recover in half an hour exit
-  int timeout_sec = 1800;
+  int timeout_sec = 1800;  // NOLINT
   // flag to enable rabit_timeout
-  bool rabit_timeout = false;
+  bool rabit_timeout = false;  // NOLINT
   // Enable TCP node delay
-  bool rabit_enable_tcp_no_delay = false;
+  bool rabit_enable_tcp_no_delay = false;  // NOLINT
 };
 }  // namespace engine
 }  // namespace rabit

@@ -7,18 +7,19 @@
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
 #include <rabit/base.h>
+#include <dmlc/thread_local.h>
+
 #include <memory>
 #include "rabit/internal/engine.h"
 #include "allreduce_base.h"
 #include "allreduce_robust.h"
-#include "rabit/internal/thread_local.h"
 
 namespace rabit {
 namespace engine {
 // singleton sync manager
 #ifndef RABIT_USE_BASE
 #ifndef RABIT_USE_MOCK
-typedef AllreduceRobust Manager;
+using Manager = AllreduceRobust;
 #else
 typedef AllreduceMock Manager;
 #endif  // RABIT_USE_MOCK
@@ -31,13 +32,13 @@ struct ThreadLocalEntry {
   /*! \brief stores the current engine */
   std::unique_ptr<Manager> engine;
   /*! \brief whether init has been called */
-  bool initialized;
+  bool initialized{false};
   /*! \brief constructor */
-  ThreadLocalEntry() : initialized(false) {}
+  ThreadLocalEntry() = default;
 };
 
 // define the threadlocal store.
-typedef ThreadLocalStore<ThreadLocalEntry> EngineThreadLocal;
+using EngineThreadLocal = dmlc::ThreadLocalStore<ThreadLocalEntry>;
 
 /*! \brief intiialize the synchronization module */
 bool Init(int argc, char *argv[]) {
@@ -95,7 +96,7 @@ void Allgather(void *sendrecvbuf_, size_t total_size,
 
 
 // perform in-place allreduce, on sendrecvbuf
-void Allreduce_(void *sendrecvbuf,
+void Allreduce_(void *sendrecvbuf,  // NOLINT
                 size_t type_nbytes,
                 size_t count,
                 IEngine::ReduceFunction red,
@@ -111,18 +112,15 @@ void Allreduce_(void *sendrecvbuf,
 }
 
 // code for reduce handle
-ReduceHandle::ReduceHandle(void)
-  : handle_(NULL), redfunc_(NULL), htype_(NULL) {
-}
-
-ReduceHandle::~ReduceHandle(void) {}
+ReduceHandle::ReduceHandle() = default;
+ReduceHandle::~ReduceHandle() = default;
 
 int ReduceHandle::TypeSize(const MPI::Datatype &dtype) {
   return static_cast<int>(dtype.type_size);
 }
 
 void ReduceHandle::Init(IEngine::ReduceFunction redfunc, size_t type_nbytes) {
-  utils::Assert(redfunc_ == NULL, "cannot initialize reduce handle twice");
+  utils::Assert(redfunc_ == nullptr, "cannot initialize reduce handle twice");
   redfunc_ = redfunc;
 }
 
@@ -133,7 +131,7 @@ void ReduceHandle::Allreduce(void *sendrecvbuf,
                              const char* _file,
                              const int _line,
                              const char* _caller) {
-  utils::Assert(redfunc_ != NULL, "must intialize handle to call AllReduce");
+  utils::Assert(redfunc_ != nullptr, "must intialize handle to call AllReduce");
   GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count,
                          redfunc_, prepare_fun, prepare_arg,
                          _file, _line, _caller);

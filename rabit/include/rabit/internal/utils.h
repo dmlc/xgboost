@@ -8,7 +8,7 @@
 #define RABIT_INTERNAL_UTILS_H_
 
 #include <rabit/base.h>
-#include <string.h>
+#include <cstring>
 #include <cstdio>
 #include <string>
 #include <cstdlib>
@@ -48,15 +48,7 @@ extern "C" {
 }
 #endif  // _MSC_VER
 
-#ifdef _MSC_VER
-typedef unsigned char uint8_t;
-typedef unsigned __int16 uint16_t;
-typedef unsigned __int32 uint32_t;
-typedef unsigned __int64 uint64_t;
-typedef __int64 int64_t;
-#else
-#include <inttypes.h>
-#endif  // _MSC_VER
+#include <cinttypes>
 
 namespace rabit {
 /*! \brief namespace for helper utils of the project */
@@ -184,7 +176,7 @@ inline void Error(const char *fmt, ...) {
 /*! \brief replace fopen, report error when the file open fails */
 inline std::FILE *FopenCheck(const char *fname, const char *flag) {
   std::FILE *fp = fopen64(fname, flag);
-  Check(fp != NULL, "can not open file \"%s\"\n", fname);
+  Check(fp != nullptr, "can not open file \"%s\"\n", fname);
   return fp;
 }
 }  // namespace utils
@@ -193,7 +185,7 @@ inline std::FILE *FopenCheck(const char *fname, const char *flag) {
 template<typename T>
 inline T *BeginPtr(std::vector<T> &vec) {  // NOLINT(*)
   if (vec.size() == 0) {
-    return NULL;
+    return nullptr;
   } else {
     return &vec[0];
   }
@@ -202,17 +194,17 @@ inline T *BeginPtr(std::vector<T> &vec) {  // NOLINT(*)
 template<typename T>
 inline const T *BeginPtr(const std::vector<T> &vec) {  // NOLINT(*)
   if (vec.size() == 0) {
-    return NULL;
+    return nullptr;
   } else {
     return &vec[0];
   }
 }
 inline char* BeginPtr(std::string &str) {  // NOLINT(*)
-  if (str.length() == 0) return NULL;
+  if (str.length() == 0) return nullptr;
   return &str[0];
 }
 inline const char* BeginPtr(const std::string &str) {
-  if (str.length() == 0) return NULL;
+  if (str.length() == 0) return nullptr;
   return &str[0];
 }
 }  // namespace rabit
