@@ -4,7 +4,7 @@
 #include <chrono>
 #include <string>
 #include <iostream>
-#include "../../src/allreduce_robust.h"
+#include "../../../rabit/src/allreduce_robust.h"
 
 inline void MockErr(const char *fmt, ...) {EXPECT_STRCASEEQ(fmt, "[%d] exit due to time out %d s\n");}
 inline void MockAssert(bool val, const char *fmt, ...) {}

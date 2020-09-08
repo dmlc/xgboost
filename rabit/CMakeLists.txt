@@ -68,7 +68,6 @@ endforeach()
 
 if (GOOGLE_TEST)
   enable_testing()
-  add_subdirectory(${rabit_SOURCE_DIR}/test/cpp)
 
   # rabit mock based integration tests
   list(REMOVE_ITEM rabit_libs "rabit_mock_static") # remove here to avoid installing it
