@@ -247,16 +247,31 @@ struct GHistIndexMatrix {
   // Create a global histogram matrix, given cut
   void Init(DMatrix* p_fmat, int max_num_bins);
 
-  template<typename BinIdxType>
-  void SetIndexDataForDense(common::Span<BinIdxType> index_data_span,
-                    size_t batch_threads, const SparsePage& batch,
-                    size_t rbegin, common::Span<const uint32_t> offsets_span,
-                    size_t nbins);
-
   // specific method for sparse data as no posibility to reduce allocated memory
-  void SetIndexDataForSparse(common::Span<uint32_t> index_data_span,
-                             size_t batch_threads, const SparsePage& batch,
-                             size_t rbegin, size_t nbins);
+  template <typename BinIdxType, typename GetOffset>
+  void SetIndexData(common::Span<BinIdxType> index_data_span,
+                    size_t batch_threads, const SparsePage &batch,
+                    size_t rbegin, size_t nbins, GetOffset get_offset) {
+    const xgboost::Entry *data_ptr = batch.data.HostVector().data();
+    const std::vector<bst_row_t> &offset_vec = batch.offset.HostVector();
+    const size_t batch_size = batch.Size();
+    CHECK_LT(batch_size, offset_vec.size());
+    BinIdxType* index_data = index_data_span.data();
+#pragma omp parallel for num_threads(batch_threads) schedule(static)
+    for (omp_ulong i = 0; i < batch_size; ++i) {
+      const int tid = omp_get_thread_num();
+      size_t ibegin = row_ptr[rbegin + i];
+      size_t iend = row_ptr[rbegin + i + 1];
+      const size_t size = offset_vec[i + 1] - offset_vec[i];
+      SparsePage::Inst inst = {data_ptr + offset_vec[i], size};
+      CHECK_EQ(ibegin + inst.size(), iend);
+      for (bst_uint j = 0; j < inst.size(); ++j) {
+        uint32_t idx = cut.SearchBin(inst[j]);
+        index_data[ibegin + j] = get_offset(idx, j);
+        ++hit_count_tloc_[tid * nbins + idx];
+      }
+    }
+  }
 
   void ResizeIndex(const size_t rbegin, const SparsePage& batch,
                    const size_t n_offsets, const size_t n_index,
