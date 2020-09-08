@@ -71,7 +71,7 @@ if (GOOGLE_TEST AND (NOT WIN32))
     target_link_libraries(speed_test_mpi rabit_mpi)
     add_test(NAME speed_test_mpi COMMAND speed_test_mpi WORKING_DIRECTORY ${xgboost_BINARY_DIR})
   endif(RABIT_BUILD_MPI)
-endif (GOOGLE_TEST)
+endif (GOOGLE_TEST AND (NOT WIN32))
 
 set(include_install_dir "include")
 
