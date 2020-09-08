@@ -333,11 +333,11 @@ class ReduceHandle {
 
  protected:
   // handle function field
-  void *handle_;
+  void *handle_ {nullptr};
   // reduce function of the reducer
-  IEngine::ReduceFunction *redfunc_;
+  IEngine::ReduceFunction *redfunc_{nullptr};
   // handle to the type field
-  void *htype_;
+  void *htype_{nullptr};
   // the created type in 4 bytes
   size_t created_type_nbytes_;
 };

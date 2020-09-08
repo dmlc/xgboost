@@ -78,7 +78,7 @@ struct SockAddr {
     freeaddrinfo(res);
   }
   /*! \brief return port of the address*/
-  inline int port() const {
+  inline int Port() const {
     return ntohs(addr.sin_port);
   }
   /*! \return a string representation of the address */
@@ -104,7 +104,7 @@ class Socket {
   /*! \brief the file descriptor of socket */
   SOCKET sockfd;
   // default conversion to int
-  operator SOCKET() const {
+  operator SOCKET() const {  // NOLINT
     return sockfd;
   }
   /*!

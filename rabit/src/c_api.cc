@@ -38,7 +38,7 @@ void Allreduce(void *sendrecvbuf_,
                 engine::mpi::DataType enum_dtype,
                 void (*prepare_fun)(void *arg),
                 void *prepare_arg) {
-  using namespace engine::mpi;
+  using namespace engine::mpi;  // NOLINT
   switch (enum_dtype) {
     case kChar:
       rabit::Allreduce<OP>
@@ -89,7 +89,7 @@ void Allreduce(void *sendrecvbuf,
                engine::mpi::OpType enum_op,
                void (*prepare_fun)(void *arg),
                void *prepare_arg) {
-  using namespace engine::mpi;
+  using namespace engine::mpi;  // NOLINT
   switch (enum_op) {
     case kMax:
       Allreduce<op::Max>
@@ -124,7 +124,7 @@ void Allgather(void *sendrecvbuf_,
                size_t size_node_slice,
                size_t size_prev_slice,
                int enum_dtype) {
-  using namespace engine::mpi;
+  using namespace engine::mpi;  // NOLINT
   size_t type_size = 0;
   switch (enum_dtype) {
   case kChar:

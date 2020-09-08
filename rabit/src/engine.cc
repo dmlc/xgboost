@@ -111,10 +111,7 @@ void Allreduce_(void *sendrecvbuf,
 }
 
 // code for reduce handle
-ReduceHandle::ReduceHandle()
-  : handle_(nullptr), redfunc_(nullptr), htype_(nullptr) {
-}
-
+ReduceHandle::ReduceHandle() = default;
 ReduceHandle::~ReduceHandle() = default;
 
 int ReduceHandle::TypeSize(const MPI::Datatype &dtype) {

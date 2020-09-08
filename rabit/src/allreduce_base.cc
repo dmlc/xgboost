@@ -480,11 +480,11 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
                                 size_t count,
                                 ReduceFunction reducer) {
   RefLinkVector &links = tree_links;
-  if (links.size() == 0 || count == 0) return kSuccess;
+  if (links.Size() == 0 || count == 0) return kSuccess;
   // total size of message
   const size_t total_size = type_nbytes * count;
   // number of links
-  const int nlink = static_cast<int>(links.size());
+  const int nlink = static_cast<int>(links.Size());
   // send recv buffer
   char *sendrecvbuf = reinterpret_cast<char*>(sendrecvbuf_);
   // size of space that we already performs reduce in up pass
@@ -679,11 +679,11 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
 AllreduceBase::ReturnType
 AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
   RefLinkVector &links = tree_links;
-  if (links.size() == 0 || total_size == 0) return kSuccess;
+  if (links.Size() == 0 || total_size == 0) return kSuccess;
   utils::Check(root < world_size,
                "Broadcast: root should be smaller than world size");
   // number of links
-  const int nlink = static_cast<int>(links.size());
+  const int nlink = static_cast<int>(links.Size());
   // size of space already read from data
   size_t size_in = 0;
   // input link, -2 means unknown yet, -1 means this is root

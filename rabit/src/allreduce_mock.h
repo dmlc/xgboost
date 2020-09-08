@@ -102,8 +102,8 @@ class AllreduceMock : public AllreduceRobust {
     double tcost = utils::GetTime() - tstart;
     if (report_stats_ != 0 && rank == 0) {
       std::stringstream ss;
-      ss << "[v" << version_number << "] global_size=" << global_checkpoint.length()
-         << ",local_size=" << (local_chkpt[0].length() + local_chkpt[1].length())
+      ss << "[v" << version_number << "] global_size=" << global_checkpoint_.length()
+         << ",local_size=" << (local_chkpt_[0].length() + local_chkpt_[1].length())
          << ",check_tcost="<< tcost <<" sec"
          << ",allreduce_tcost=" << tsum_allreduce_ << " sec"
          << ",allgather_tcost=" << tsum_allgather_ << " sec"
@@ -186,7 +186,7 @@ class AllreduceMock : public AllreduceRobust {
     if (mock_map_.count(key) != 0) {
       num_trial_ += 1;
       // data processing frameworks runs on shared process
-      _error("[%d]@@@Hit Mock Error:%s ", rank, name);
+      error_("[%d]@@@Hit Mock Error:%s ", rank, name);
     }
   }
 };

@@ -67,13 +67,10 @@ class AllreduceRobust : public AllreduceBase {
    * \param _line caller line number used to generate unique cache key
    * \param _caller caller function name used to generate unique cache key
    */
-  virtual void Allgather(void *sendrecvbuf_, size_t total_size,
-                              size_t slice_begin,
-                              size_t slice_end,
-                              size_t size_prev_slice,
-                              const char* _file = _FILE,
-                              const int _line = _LINE,
-                              const char* _caller = _CALLER);
+  void Allgather(void *sendrecvbuf_, size_t total_size, size_t slice_begin,
+                 size_t slice_end, size_t size_prev_slice,
+                 const char *_file = _FILE, const int _line = _LINE,
+                 const char *_caller = _CALLER) override;
   /*!
    * \brief perform in-place allreduce, on sendrecvbuf
    *        this function is NOT thread-safe
@@ -129,8 +126,8 @@ class AllreduceRobust : public AllreduceBase {
    *
    * \sa CheckPoint, VersionNumber
    */
-  virtual int LoadCheckPoint(Serializable *global_model,
-                             Serializable *local_model = nullptr);
+  int LoadCheckPoint(Serializable *global_model,
+                     Serializable *local_model = nullptr) override;
   /*!
    * \brief checkpoint the model, meaning we finished a stage of execution
    *  every time we call check point, there is a version number which will increase by one
@@ -147,9 +144,9 @@ class AllreduceRobust : public AllreduceBase {
    *
    * \sa LoadCheckPoint, VersionNumber
    */
-  virtual void CheckPoint(const Serializable *global_model,
-                          const Serializable *local_model = nullptr) {
-    this->CheckPoint_(global_model, local_model, false);
+  void CheckPoint(const Serializable *global_model,
+                  const Serializable *local_model = nullptr) override {
+    this->CheckPointImpl(global_model, local_model, false);
   }
   /*!
    * \brief This function can be used to replace CheckPoint for global_model only,
@@ -171,18 +168,20 @@ class AllreduceRobust : public AllreduceBase {
    *   is the same in all nodes
    * \sa LoadCheckPoint, CheckPoint, VersionNumber
    */
-  virtual void LazyCheckPoint(const Serializable *global_model) {
-    this->CheckPoint_(global_model, nullptr, true);
+  void LazyCheckPoint(const Serializable *global_model) override {
+    this->CheckPointImpl(global_model, nullptr, true);
   }
   /*!
    * \brief explicitly re-init everything before calling LoadCheckPoint
    *    call this function when IEngine throw an exception out,
    *    this function is only used for test purpose
    */
-  virtual void InitAfterException() {
+  void InitAfterException() override {
     // simple way, shutdown all links
-    for (size_t i = 0; i < all_links.size(); ++i) {
-      if (!all_links[i].sock.BadSocket()) all_links[i].sock.Close();
+    for (auto& link : all_links) {
+      if (link.sock.BadSocket()) {
+        link.sock.Close();
+      }
     }
     ReConnectLinks("recover");
   }
@@ -240,46 +239,46 @@ class AllreduceRobust : public AllreduceBase {
     // there are nodes request load cache
     static const int kLoadBootstrapCache = 16;
     // constructor
-    ActionSummary() {}
+    ActionSummary() = default;
     // constructor of action
     explicit ActionSummary(int seqno_flag, int cache_flag = 0,
       u_int32_t minseqno = kSpecialOp, u_int32_t maxseqno = kSpecialOp) {
-      seqcode = (minseqno << 5) | seqno_flag;
-      maxseqcode = (maxseqno << 5) | cache_flag;
+      seqcode_ = (minseqno << 5) | seqno_flag;
+      maxseqcode_ = (maxseqno << 5) | cache_flag;
     }
     // minimum number of all operations by default
     // maximum number of all cache operations otherwise
     inline u_int32_t Seqno(SeqType t = SeqType::kSeq) const {
-      int code = t == SeqType::kSeq ? seqcode : maxseqcode;
+      int code = t == SeqType::kSeq ? seqcode_ : maxseqcode_;
       return code >> 5;
     }
     // whether the operation set contains a load_check
     inline bool LoadCheck(SeqType t = SeqType::kSeq) const {
-      int code = t == SeqType::kSeq ? seqcode : maxseqcode;
+      int code = t == SeqType::kSeq ? seqcode_ : maxseqcode_;
       return (code & kLoadCheck) != 0;
     }
     // whether the operation set contains a load_cache
     inline bool LoadCache(SeqType t = SeqType::kSeq) const {
-      int code = t == SeqType::kSeq ? seqcode : maxseqcode;
+      int code = t == SeqType::kSeq ? seqcode_ : maxseqcode_;
       return (code & kLoadBootstrapCache) != 0;
     }
     // whether the operation set contains a check point
     inline bool CheckPoint(SeqType t = SeqType::kSeq) const {
-      int code = t == SeqType::kSeq ? seqcode : maxseqcode;
+      int code = t == SeqType::kSeq ? seqcode_ : maxseqcode_;
       return (code & kCheckPoint) != 0;
     }
     // whether the operation set contains a check ack
     inline bool CheckAck(SeqType t = SeqType::kSeq) const {
-      int code = t == SeqType::kSeq ? seqcode : maxseqcode;
+      int code = t == SeqType::kSeq ? seqcode_ : maxseqcode_;
       return (code & kCheckAck) != 0;
     }
     // whether the operation set contains different sequence number
     inline bool DiffSeq() const {
-      return (seqcode & kDiffSeq) != 0;
+      return (seqcode_ & kDiffSeq) != 0;
     }
     // returns the operation flag of the result
     inline int Flag(SeqType t = SeqType::kSeq) const {
-      int code = t == SeqType::kSeq ? seqcode : maxseqcode;
+      int code = t == SeqType::kSeq ? seqcode_ : maxseqcode_;
       return code & 31;
     }
     // print flags in user friendly way
@@ -292,7 +291,7 @@ class AllreduceRobust : public AllreduceBase {
     // reducer for Allreduce, get the result ActionSummary from all nodes
     inline static void Reducer(const void *src_, void *dst_,
                                int len, const MPI::Datatype &dtype) {
-      const ActionSummary *src = (const ActionSummary*)src_;
+      const ActionSummary *src = static_cast<const ActionSummary*>(src_);
       ActionSummary *dst = reinterpret_cast<ActionSummary*>(dst_);
       for (int i = 0; i < len; ++i) {
         u_int32_t min_seqno = std::min(src[i].Seqno(), dst[i].Seqno());
@@ -311,9 +310,9 @@ class AllreduceRobust : public AllreduceBase {
 
    private:
     // internel sequence code min of rabit seqno
-    u_int32_t seqcode;
+    u_int32_t seqcode_;
     // internal sequence code max of cache seqno
-    u_int32_t maxseqcode;
+    u_int32_t maxseqcode_;
   };
   /*! \brief data structure to remember result of Bcast and Allreduce calls*/
   class ResultBuffer{
@@ -402,9 +401,8 @@ class AllreduceRobust : public AllreduceBase {
    *
    * \sa CheckPoint, LazyCheckPoint
    */
-  void CheckPoint_(const Serializable *global_model,
-                   const Serializable *local_model,
-                   bool lazy_checkpt);
+  void CheckPointImpl(const Serializable *global_model,
+                      const Serializable *local_model, bool lazy_checkpt);
   /*!
    * \brief reset the all the existing links by sending Out-of-Band message marker
    *  after this function finishes, all the messages received and sent
@@ -614,29 +612,29 @@ o   *  the input state must exactly one saved state(local state of current node)
                                 size_t out_index));
   //---- recovery data structure ----
   // the round of result buffer, used to mode the result
-  int result_buffer_round;
+  int result_buffer_round_;
   // result buffer of all reduce
-  ResultBuffer resbuf;
+  ResultBuffer resbuf_;
   // current cached allreduce/braodcast sequence number
-  int cur_cache_seq;
+  int cur_cache_seq_;
   // result buffer of cached all reduce
-  ResultBuffer cachebuf;
+  ResultBuffer cachebuf_;
   // key of each cache entry
-  ResultBuffer lookupbuf;
+  ResultBuffer lookupbuf_;
   // last check point global model
-  std::string global_checkpoint;
+  std::string global_checkpoint_;
   // lazy checkpoint of global model
-  const Serializable *global_lazycheck;
+  const Serializable *global_lazycheck_;
   // number of replica for local state/model
-  int num_local_replica;
+  int num_local_replica_;
   // number of default local replica
-  int default_local_replica;
+  int default_local_replica_;
   // flag to decide whether local model is used, -1: unknown, 0: no, 1:yes
-  int use_local_model;
+  int use_local_model_;
   // number of replica for global state/model
-  int num_global_replica;
+  int num_global_replica_;
   // number of times recovery happens
-  int recover_counter;
+  int recover_counter_;
   // --- recovery data structure for local checkpoint
   // there is two version of the data structure,
   // at one time one version is valid and another is used as temp memory
@@ -644,21 +642,21 @@ o   *  the input state must exactly one saved state(local state of current node)
   // local model is stored in CSR format(like a sparse matrices)
   // local_model[rptr[0]:rptr[1]] stores the model of current node
   // local_model[rptr[k]:rptr[k+1]] stores the model of node in previous k hops
-  std::vector<size_t> local_rptr[2];
+  std::vector<size_t> local_rptr_[2];
   // storage for local model replicas
-  std::string local_chkpt[2];
+  std::string local_chkpt_[2];
   // version of local checkpoint can be 1 or 0
   int local_chkpt_version_;
   // if checkpoint were loaded, used to distinguish results boostrap cache from seqno cache
   bool checkpoint_loaded_;
   // sidecar executing timeout task
-  std::future<bool> rabit_timeout_task;
+  std::future<bool> rabit_timeout_task_;
   // flag to shutdown rabit_timeout_task before timeout
-  std::atomic<bool> shutdown_timeout{false};
+  std::atomic<bool> shutdown_timeout_{false};
   // error handler
-  void (* _error)(const char *fmt, ...) = utils::Error;
+  void (* error_)(const char *fmt, ...) = utils::Error;
   // assert handler
-  void (* _assert)(bool exp, const char *fmt, ...) = utils::Assert;
+  void (* assert_)(bool exp, const char *fmt, ...) = utils::Assert;
 };
 }  // namespace engine
 }  // namespace rabit

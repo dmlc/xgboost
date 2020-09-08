@@ -16,78 +16,68 @@ namespace engine {
 /*! \brief EmptyEngine */
 class EmptyEngine : public IEngine {
  public:
-  EmptyEngine(void) {
-    version_number = 0;
+  EmptyEngine() {
+    version_number_ = 0;
   }
-  virtual void Allgather(void *sendrecvbuf_,
-                         size_t total_size,
-                         size_t slice_begin,
-                         size_t slice_end,
-                         size_t size_prev_slice,
-                         const char* _file,
-                         const int _line,
-                         const char* _caller) {
+  void Allgather(void *sendrecvbuf_, size_t total_size, size_t slice_begin,
+                 size_t slice_end, size_t size_prev_slice, const char *_file,
+                 const int _line, const char *_caller) override {
     utils::Error("EmptyEngine:: Allgather is not supported");
   }
-  virtual int GetRingPrevRank(void) const {
+  int GetRingPrevRank() const override {
     utils::Error("EmptyEngine:: GetRingPrevRank is not supported");
     return -1;
   }
-  virtual void Allreduce(void *sendrecvbuf_,
-                         size_t type_nbytes,
-                         size_t count,
-                         ReduceFunction reducer,
-                         PreprocFunction prepare_fun,
-                         void *prepare_arg,
-                         const char* _file,
-                         const int _line,
-                         const char* _caller) {
+  void Allreduce(void *sendrecvbuf_, size_t type_nbytes, size_t count,
+                 ReduceFunction reducer, PreprocFunction prepare_fun,
+                 void *prepare_arg, const char *_file, const int _line,
+                 const char *_caller) override {
     utils::Error("EmptyEngine:: Allreduce is not supported,"\
                  "use Allreduce_ instead");
   }
-  virtual void Broadcast(void *sendrecvbuf_, size_t size, int root,
-                          const char* _file, const int _line, const char* _caller) {
+  void Broadcast(void *sendrecvbuf_, size_t size, int root,
+                 const char* _file, const int _line, const char* _caller) override {
   }
-  virtual void InitAfterException(void) {
+  void InitAfterException() override {
     utils::Error("EmptyEngine is not fault tolerant");
   }
-  virtual int LoadCheckPoint(Serializable *global_model,
-                             Serializable *local_model = NULL) {
+  int LoadCheckPoint(Serializable *global_model,
+                     Serializable *local_model = nullptr) override {
     return 0;
   }
-  virtual void CheckPoint(const Serializable *global_model,
-                          const Serializable *local_model = NULL) {
-    version_number += 1;
+  void CheckPoint(const Serializable *global_model,
+                          const Serializable *local_model = nullptr) override {
+    version_number_ += 1;
   }
-  virtual void LazyCheckPoint(const Serializable *global_model) {
-    version_number += 1;
+  void LazyCheckPoint(const Serializable *global_model) override {
+    version_number_ += 1;
   }
-  virtual int VersionNumber(void) const {
-    return version_number;
+  int VersionNumber() const override {
+    return version_number_;
   }
   /*! \brief get rank of current node */
-  virtual int GetRank(void) const {
+  int GetRank() const override {
     return 0;
   }
   /*! \brief get total number of */
-  virtual int GetWorldSize(void) const {
+  int GetWorldSize() const override {
     return 1;
   }
   /*! \brief whether it is distributed */
-  virtual bool IsDistributed(void) const {
+  bool IsDistributed() const override {
     return false;
   }
   /*! \brief get the host name of current node */
-  virtual std::string GetHost(void) const {
+  std::string GetHost() const override {
     return std::string("");
   }
-  virtual void TrackerPrint(const std::string &msg) {
+  void TrackerPrint(const std::string &msg) override {
     // simply print information into the tracker
     utils::Printf("%s", msg.c_str());
   }
 
  private:
-  int version_number;
+  int version_number_;
 };
 
 // singleton sync manager
@@ -98,12 +88,12 @@ bool Init(int argc, char *argv[]) {
   return true;
 }
 /*! \brief finalize syncrhonization module */
-bool Finalize(void) {
+bool Finalize() {
   return true;
 }
 
 /*! \brief singleton method to get engine */
-IEngine *GetEngine(void) {
+IEngine *GetEngine() {
   return &manager;
 }
 // perform in-place allreduce, on sendrecvbuf
@@ -118,13 +108,12 @@ void Allreduce_(void *sendrecvbuf,
                 const char* _file,
                 const int _line,
                 const char* _caller) {
-  if (prepare_fun != NULL) prepare_fun(prepare_arg);
+  if (prepare_fun != nullptr) prepare_fun(prepare_arg);
 }
 
 // code for reduce handle
-ReduceHandle::ReduceHandle(void) : handle_(NULL), htype_(NULL) {
-}
-ReduceHandle::~ReduceHandle(void) {}
+ReduceHandle::ReduceHandle()  = default;
+ReduceHandle::~ReduceHandle() = default;
 
 int ReduceHandle::TypeSize(const MPI::Datatype &dtype) {
   return 0;
@@ -137,7 +126,7 @@ void ReduceHandle::Allreduce(void *sendrecvbuf,
                              const char* _file,
                              const int _line,
                              const char* _caller) {
-  if (prepare_fun != NULL) prepare_fun(prepare_arg);
+  if (prepare_fun != nullptr) prepare_fun(prepare_arg);
 }
 }  // namespace engine
 }  // namespace rabit

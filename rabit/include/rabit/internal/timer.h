@@ -6,7 +6,7 @@
  */
 #ifndef RABIT_INTERNAL_TIMER_H_
 #define RABIT_INTERNAL_TIMER_H_
-#include <time.h>
+#include <ctime>
 #ifdef __MACH__
 #include <mach/clock.h>
 #include <mach/mach.h>
@@ -18,7 +18,7 @@ namespace utils {
 /*!
  * \brief return time in seconds, not cross platform, avoid to use this in most places
  */
-inline double GetTime(void) {
+inline double GetTime() {
 #ifdef __MACH__
   clock_serv_t cclock;
   mach_timespec_t mts;

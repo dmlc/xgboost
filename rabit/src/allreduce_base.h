@@ -25,7 +25,7 @@
 #endif  // RABIT_CXXTESTDEFS_H
 
 
-namespace MPI {
+namespace MPI {  // NOLINT
 // MPI data type to be compatible with existing MPI interface
 class Datatype {
  public:
@@ -397,7 +397,7 @@ class AllreduceBase : public IEngine {
     inline LinkRecord &operator[](size_t i) {
       return *plinks[i];
     }
-    inline size_t size() const {
+    inline size_t Size() const {
       return plinks.size();
     }
   };
