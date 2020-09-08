@@ -24,7 +24,7 @@ using SeekStream = dmlc::SeekStream;
 struct MemoryFixSizeBuffer : public SeekStream {
  public:
   // similar to SEEK_END in libc
-  static size_t constexpr SeekEnd = std::numeric_limits<size_t>::max();
+  static size_t constexpr kSeekEnd = std::numeric_limits<size_t>::max();
 
  public:
   MemoryFixSizeBuffer(void *p_buffer, size_t buffer_size)
@@ -47,7 +47,7 @@ struct MemoryFixSizeBuffer : public SeekStream {
     curr_ptr_ += size;
   }
   void Seek(size_t pos) override {
-    if (pos == SeekEnd) {
+    if (pos == kSeekEnd) {
       curr_ptr_ = buffer_size_;
     } else {
       curr_ptr_ = static_cast<size_t>(pos);

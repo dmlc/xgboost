@@ -19,7 +19,7 @@
 #define _CALLER  "N/A"
 #endif  // (defined(__GNUC__) && !defined(__clang__))
 
-namespace MPI {
+namespace MPI {  // NOLINT
 /*! \brief MPI data type just to be compatible with MPI reduce function*/
 class Datatype;
 }
@@ -36,7 +36,7 @@ class IEngine {
    *        used to prepare the data used by AllReduce
    * \param arg additional possible argument used to invoke the preprocessor
    */
-  typedef void (PreprocFunction) (void *arg);
+  typedef void (PreprocFunction) (void *arg);  // NOLINT
   /*!
    * \brief reduce function, the same form of MPI reduce function is used,
    *        to be compatible with MPI interface
@@ -48,7 +48,7 @@ class IEngine {
    *              the definition of the reduce function should be type aware
    * \param dtype the data type object, to be compatible with MPI reduce
    */
-  typedef void (ReduceFunction) (const void *src,
+  typedef void (ReduceFunction) (const void *src,  // NOLINT
                                  void *dst, int count,
                                  const MPI::Datatype &dtype);
   /*! \brief virtual destructor */
@@ -280,7 +280,7 @@ void Allgather(void* sendrecvbuf,
  * \param _line caller line number used to generate unique cache key
  * \param _caller caller function name used to generate unique cache key
  */
-void Allreduce_(void *sendrecvbuf,
+void Allreduce_(void *sendrecvbuf,  // NOLINT
                 size_t type_nbytes,
                 size_t count,
                 IEngine::ReduceFunction red,
