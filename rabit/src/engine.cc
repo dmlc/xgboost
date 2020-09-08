@@ -96,7 +96,7 @@ void Allgather(void *sendrecvbuf_, size_t total_size,
 
 
 // perform in-place allreduce, on sendrecvbuf
-void Allreduce_(void *sendrecvbuf,
+void Allreduce_(void *sendrecvbuf,  // NOLINT
                 size_t type_nbytes,
                 size_t count,
                 IEngine::ReduceFunction red,
