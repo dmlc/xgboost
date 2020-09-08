@@ -364,7 +364,7 @@ def TestCppGPU(args) {
     def container_type = "gpu"
     def docker_binary = "nvidia-docker"
     def docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
-    sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} ctest"
+    sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} build/testxgboost"
     if (args.test_rmm) {
       sh "rm -rfv build/"
       unstash name: "xgboost_cpp_tests_rmm_cuda${args.host_cuda_version}"
