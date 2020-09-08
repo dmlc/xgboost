@@ -1,4 +1,5 @@
 #define RABIT_CXXTESTDEFS_H
+#if defined(_WIN32)
 #include <gtest/gtest.h>
 
 #include <string>
@@ -64,3 +65,4 @@ TEST(AllreduceBase, InitWithRingReduce)
   EXPECT_EQ(base.task_id, "1");
   EXPECT_EQ(base.reduce_ring_mincount, 1ul);
 }
+#endif  // defined(_WIN32)
