@@ -52,7 +52,7 @@ foreach(lib ${rabit_libs})
           "$<BUILD_INTERFACE:${xgboost_SOURCE_DIR}/dmlc-core/include>")
 endforeach()
 
-if (GOOGLE_TEST)
+if (GOOGLE_TEST AND (NOT WIN32))
   enable_testing()
 
   # rabit mock based integration tests

@@ -1,5 +1,5 @@
 #define RABIT_CXXTESTDEFS_H
-#if defined(_WIN32)
+#if !defined(_WIN32)
 #include <gtest/gtest.h>
 
 #include <chrono>
@@ -232,4 +232,4 @@ TEST(AllreduceRobust, ShutDownBeforeTimeout)
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
   m.Shutdown();
 }
-#endif  // defined(_WIN32)
+#endif  // !defined(_WIN32)

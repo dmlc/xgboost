@@ -1,5 +1,5 @@
 #define RABIT_CXXTESTDEFS_H
-#if defined(_WIN32)
+#if !defined(_WIN32)
 #include <gtest/gtest.h>
 
 #include <string>
@@ -50,4 +50,4 @@ TEST(AllreduceMock, MockGather)
   m.seq_counter=22;
   EXPECT_THROW({m.Allgather(nullptr,0,0,0,0);}, dmlc::Error);
 }
-#endif  // defined(_WIN32)
+#endif  // !defined(_WIN32)
