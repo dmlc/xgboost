@@ -12,7 +12,7 @@ add_executable(
 target_link_libraries(
   unit_tests PRIVATE
   GTest::GTest GTest::Main
-  rabit_base rabit_mock rabit)
+  rabit_mock rabit)
 
 target_include_directories(unit_tests PUBLIC
   "$<BUILD_INTERFACE:${rabit_SOURCE_DIR}/include>"
