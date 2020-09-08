@@ -62,7 +62,7 @@ if (GOOGLE_TEST AND (NOT WIN32))
   foreach(test ${tests})
     add_executable(${test} test/${test}.cc)
     target_link_libraries(${test} rabit_mock_static)
-    set_target_properties(${test}  PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON)
+    set_target_properties(${test}  PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
     add_test(NAME ${test} COMMAND ${test} WORKING_DIRECTORY ${xgboost_BINARY_DIR})
   endforeach()
 
@@ -80,4 +80,4 @@ install(
     DIRECTORY "include/"
     DESTINATION "${include_install_dir}"
     FILES_MATCHING PATTERN "*.h"
-)
+    )
