@@ -1,6 +1,4 @@
 cmake_minimum_required(VERSION 3.3)
-# by default point to xgboost/dmlc-core
-set(DMLC_ROOT ${xgboost_SOURCE_DIR}/dmlc-core)
 
 if(R_LIB OR MINGW OR WIN32)
   add_library(rabit src/engine_empty.cc src/c_api.cc)
@@ -50,8 +48,8 @@ endif((CMAKE_CONFIGURATION_TYPES STREQUAL "Debug") AND (CMAKE_CXX_COMPILER_ID MA
 
 foreach(lib ${rabit_libs})
   target_include_directories(${lib} PUBLIC
-          "$<BUILD_INTERFACE:${rabit_SOURCE_DIR}/include>"
-          "$<BUILD_INTERFACE:${DMLC_ROOT}/include>")
+          "$<BUILD_INTERFACE:${xgboost_SOURCE_DIR}/rabit/include>"
+          "$<BUILD_INTERFACE:${xgboost_SOURCE_DIR}/dmlc-core/include>")
 endforeach()
 
 if (GOOGLE_TEST)
