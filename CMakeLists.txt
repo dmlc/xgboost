@@ -162,9 +162,6 @@ endif (ENABLE_ALL_WARNINGS)
 target_link_libraries(objxgboost PUBLIC dmlc)
 
 # rabit
-set(RABIT_BUILD_DMLC OFF)
-set(DMLC_ROOT ${xgboost_SOURCE_DIR}/dmlc-core)
-set(RABIT_WITH_R_LIB ${R_LIB})
 add_subdirectory(rabit)
 
 if (RABIT_MOCK)

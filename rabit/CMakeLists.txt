@@ -1,13 +1,12 @@
 cmake_minimum_required(VERSION 3.3)
 # by default point to xgboost/dmlc-core
-set(DMLC_ROOT ${CMAKE_CURRENT_LIST_DIR}/../dmlc-core)
+set(DMLC_ROOT ${xgboost_SOURCE_DIR}/dmlc-core)
 
-# moved from xgboost build
 if(R_LIB OR MINGW OR WIN32)
   add_library(rabit src/engine_empty.cc src/c_api.cc)
   set(rabit_libs rabit)
   set_target_properties(rabit
-    PROPERTIES CXX_STANDARD 11
+    PROPERTIES CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON
     POSITION_INDEPENDENT_CODE ON)
 else()
@@ -16,9 +15,9 @@ else()
   add_library(rabit src/allreduce_base.cc src/allreduce_robust.cc src/engine.cc src/c_api.cc)
   add_library(rabit_mock_static src/allreduce_base.cc src/allreduce_robust.cc src/engine_mock.cc src/c_api.cc)
   add_library(rabit_mock SHARED src/allreduce_base.cc src/allreduce_robust.cc src/engine_mock.cc src/c_api.cc)
-  target_link_libraries(rabit Threads::Threads)
-  target_link_libraries(rabit_mock_static Threads::Threads)
-  target_link_libraries(rabit_mock Threads::Threads)
+  target_link_libraries(rabit Threads::Threads dmlc)
+  target_link_libraries(rabit_mock_static Threads::Threads dmlc)
+  target_link_libraries(rabit_mock Threads::Threads dmlc)
 
   set(rabit_libs rabit rabit_mock rabit_mock_static)
   set_target_properties(rabit rabit_mock rabit_mock_static
@@ -39,9 +38,6 @@ endif()
 
 # place binaries and libraries according to GNU standards
 include(GNUInstallDirs)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})
 
 # we use this to get code coverage
 if ((CMAKE_CONFIGURATION_TYPES STREQUAL "Debug") AND (CMAKE_CXX_COMPILER_ID MATCHES GNU))
