@@ -7,11 +7,12 @@
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
 #include <rabit/base.h>
+#include <dmlc/thread_local.h>
+
 #include <memory>
 #include "rabit/internal/engine.h"
 #include "allreduce_base.h"
 #include "allreduce_robust.h"
-#include "rabit/internal/thread_local.h"
 
 namespace rabit {
 namespace engine {
@@ -37,7 +38,7 @@ struct ThreadLocalEntry {
 };
 
 // define the threadlocal store.
-using EngineThreadLocal = ThreadLocalStore<ThreadLocalEntry>;
+using EngineThreadLocal = dmlc::ThreadLocalStore<ThreadLocalEntry>;
 
 /*! \brief intiialize the synchronization module */
 bool Init(int argc, char *argv[]) {
