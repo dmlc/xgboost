@@ -297,9 +297,7 @@ class Booster private[xgboost4j](private[xgboost4j] var booster: JBooster)
     * @return number of features
     */
   @throws(classOf[XGBoostError])
-  def getNumFeature: Long = {
-    booster.getNumFeature
-  }
+  def getNumFeature: Long = booster.getNumFeature
 
   def getVersion: Int = booster.getVersion
 
