@@ -58,12 +58,6 @@
                       "type": "number"
                     }
                   },
-                  "leaf_child_counts": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
                   "left_children": {
                     "type": "array",
                     "items": {
@@ -106,7 +100,6 @@
                   "loss_changes",
                   "sum_hessian",
                   "base_weights",
-                  "leaf_child_counts",
                   "left_children",
                   "right_children",
                   "parents",
