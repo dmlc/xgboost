@@ -16,6 +16,12 @@ This tutorial is to cover the end-to-end process to build a machine learning pip
 * Building a Machine Learning Pipeline with XGBoost4J-Spark
 * Running XGBoost4J-Spark in Production
 
+.. note::
+
+  **SparkContext will be stopped by default when XGBoost training task fails**.
+
+  To address this issue, we added a parameter **kill_spark_context_on_worker_failure** in `#6019 <https://github.com/dmlc/xgboost/pull/6019>`_ from **XGBoost4j-Spark 1.2.0**. When **kill_spark_context_on_worker_failure** is set to **false**, the SparkContext will not be stopped even XGBoost training task fails, instead, we throw out the exception. So for the users who want to continue using SparkContext should **try catch** the training code.
+
 .. contents::
   :backlinks: none
   :local:
