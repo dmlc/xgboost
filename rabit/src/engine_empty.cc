@@ -9,6 +9,7 @@
 #define NOMINMAX
 
 #include <rabit/base.h>
+#include "xgboost/logging.h"
 #include "rabit/internal/engine.h"
 
 namespace rabit {
@@ -73,7 +74,7 @@ class EmptyEngine : public IEngine {
   }
   void TrackerPrint(const std::string &msg) override {
     // simply print information into the tracker
-    utils::Printf("%s", msg.c_str());
+    LOG(INFO) << msg;
   }
 
  private:
