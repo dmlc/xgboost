@@ -9,16 +9,13 @@
 
 #include <rabit/base.h>
 #include <cstring>
+#include <cstdarg>
 #include <cstdio>
 #include <string>
 #include <cstdlib>
 #include <stdexcept>
 #include <vector>
 #include "dmlc/io.h"
-
-#ifndef RABIT_STRICT_CXX98_
-#include <cstdarg>
-#endif  // RABIT_STRICT_CXX98_
 
 #if !defined(__GNUC__) || defined(__FreeBSD__)
 #define fopen64 std::fopen
