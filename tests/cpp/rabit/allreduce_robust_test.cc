@@ -1,17 +1,18 @@
 #define RABIT_CXXTESTDEFS_H
+#if !defined(_WIN32)
 #include <gtest/gtest.h>
 
 #include <chrono>
 #include <string>
 #include <iostream>
-#include "../../src/allreduce_robust.h"
+#include "../../../rabit/src/allreduce_robust.h"
 
-inline void mockerr(const char *fmt, ...) {EXPECT_STRCASEEQ(fmt, "[%d] exit due to time out %d s\n");}
-inline void mockassert(bool val, const char *fmt, ...) {}
+inline void MockErr(const char *fmt, ...) {EXPECT_STRCASEEQ(fmt, "[%d] exit due to time out %d s\n");}
+inline void MockAssert(bool val, const char *fmt, ...) {}
 rabit::engine::AllreduceRobust::ReturnType err_type(rabit::engine::AllreduceRobust::ReturnTypeEnum::kSockError);
 rabit::engine::AllreduceRobust::ReturnType succ_type(rabit::engine::AllreduceRobust::ReturnTypeEnum::kSuccess);
 
-TEST(allreduce_robust, sync_error_timeout)
+TEST(AllreduceRobust, SyncErrorTimeout)
 {
   rabit::engine::AllreduceRobust m;
 
@@ -28,15 +29,15 @@ TEST(allreduce_robust, sync_error_timeout)
   char* argv[] = {cmd,cmd1};
   m.Init(2, argv);
   m.rank = 0;
-  m.rabit_bootstrap_cache = 1;
-  m._error = mockerr;
-  m._assert = mockassert;
+  m.rabit_bootstrap_cache = true;
+  m.error_ = MockErr;
+  m.assert_ = MockAssert;
   EXPECT_EQ(m.CheckAndRecover(err_type), false);
   std::this_thread::sleep_for(std::chrono::milliseconds(1500));
-  EXPECT_EQ(m.rabit_timeout_task.get(), false);
+  EXPECT_EQ(m.rabit_timeout_task_.get(), false);
 }
 
-TEST(allreduce_robust, sync_error_reset)
+TEST(AllreduceRobust, SyncErrorReset)
 {
   rabit::engine::AllreduceRobust m;
 
@@ -58,15 +59,15 @@ TEST(allreduce_robust, sync_error_reset)
   char* argv[] = {cmd, cmd1,cmd2};
   m.Init(3, argv);
   m.rank = 0;
-  m._assert = mockassert;
+  m.assert_ = MockAssert;
   EXPECT_EQ(m.CheckAndRecover(err_type), false);
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   EXPECT_EQ(m.CheckAndRecover(succ_type), true);
-  EXPECT_EQ(m.rabit_timeout_task.get(), true);
+  EXPECT_EQ(m.rabit_timeout_task_.get(), true);
   m.Shutdown();
 }
 
-TEST(allreduce_robust, sync_success_error_timeout)
+TEST(AllreduceRobust, SyncSuccessErrorTimeout)
 {
   rabit::engine::AllreduceRobust m;
 
@@ -88,17 +89,17 @@ TEST(allreduce_robust, sync_success_error_timeout)
   char* argv[] = {cmd, cmd1,cmd2};
   m.Init(3, argv);
   m.rank = 0;
-  m.rabit_bootstrap_cache = 1;
-  m._assert = mockassert;
-  m._error = mockerr;
+  m.rabit_bootstrap_cache = true;
+  m.assert_ = MockAssert;
+  m.error_ = MockErr;
   EXPECT_EQ(m.CheckAndRecover(succ_type), true);
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   EXPECT_EQ(m.CheckAndRecover(err_type), false);
   std::this_thread::sleep_for(std::chrono::milliseconds(1500));
-  EXPECT_EQ(m.rabit_timeout_task.get(), false);
+  EXPECT_EQ(m.rabit_timeout_task_.get(), false);
 }
 
-TEST(allreduce_robust, sync_success_error_success)
+TEST(AllreduceRobust, SyncSuccessErrorSuccess)
 {
   rabit::engine::AllreduceRobust m;
 
@@ -120,8 +121,8 @@ TEST(allreduce_robust, sync_success_error_success)
   char* argv[] = {cmd, cmd1,cmd2};
   m.Init(3, argv);
   m.rank = 0;
-  m.rabit_bootstrap_cache = 1;
-  m._assert = mockassert;
+  m.rabit_bootstrap_cache = true;
+  m.assert_ = MockAssert;
   EXPECT_EQ(m.CheckAndRecover(succ_type), true);
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
@@ -129,11 +130,11 @@ TEST(allreduce_robust, sync_success_error_success)
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
   EXPECT_EQ(m.CheckAndRecover(succ_type), true);
   std::this_thread::sleep_for(std::chrono::milliseconds(1100));
-  EXPECT_EQ(m.rabit_timeout_task.get(), true);
+  EXPECT_EQ(m.rabit_timeout_task_.get(), true);
   m.Shutdown();
 }
 
-TEST(allreduce_robust, sync_error_no_reset_timeout)
+TEST(AllreduceRobust, SyncErrorNoResetTimeout)
 {
   rabit::engine::AllreduceRobust m;
 
@@ -155,9 +156,9 @@ TEST(allreduce_robust, sync_error_no_reset_timeout)
   char* argv[] = {cmd, cmd1,cmd2};
   m.Init(3, argv);
   m.rank = 0;
-  m.rabit_bootstrap_cache = 1;
-  m._assert = mockassert;
-  m._error = mockerr;
+  m.rabit_bootstrap_cache = true;
+  m.assert_ = MockAssert;
+  m.error_ = MockErr;
   auto start = std::chrono::system_clock::now();
 
   EXPECT_EQ(m.CheckAndRecover(err_type), false);
@@ -165,16 +166,16 @@ TEST(allreduce_robust, sync_error_no_reset_timeout)
 
   EXPECT_EQ(m.CheckAndRecover(err_type), false);
 
-  m.rabit_timeout_task.wait();
+  m.rabit_timeout_task_.wait();
   auto end = std::chrono::system_clock::now();
   std::chrono::duration<double> diff = end-start;
 
-  EXPECT_EQ(m.rabit_timeout_task.get(), false);
+  EXPECT_EQ(m.rabit_timeout_task_.get(), false);
   // expect second error don't overwrite/reset timeout task
   EXPECT_LT(diff.count(), 2);
 }
 
-TEST(allreduce_robust, no_timeout_shut_down)
+TEST(AllreduceRobust, NoTimeoutShutDown)
 {
   rabit::engine::AllreduceRobust m;
 
@@ -202,7 +203,7 @@ TEST(allreduce_robust, no_timeout_shut_down)
   m.Shutdown();
 }
 
-TEST(allreduce_robust, shut_down_before_timeout)
+TEST(AllreduceRobust, ShutDownBeforeTimeout)
 {
   rabit::engine::AllreduceRobust m;
 
@@ -226,8 +227,9 @@ TEST(allreduce_robust, shut_down_before_timeout)
   m.rank = 0;
   rabit::engine::AllreduceRobust::LinkRecord a;
   m.err_link = &a;
-  
+
   EXPECT_EQ(m.CheckAndRecover(err_type), false);
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
   m.Shutdown();
 }
+#endif  // !defined(_WIN32)

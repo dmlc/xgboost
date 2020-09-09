@@ -1,11 +1,12 @@
 #define RABIT_CXXTESTDEFS_H
+#if !defined(_WIN32)
 #include <gtest/gtest.h>
 
 #include <string>
 #include <iostream>
-#include "../../src/allreduce_base.h"
+#include "../../../rabit/src/allreduce_base.h"
 
-TEST(allreduce_base, init_task)
+TEST(AllreduceBase, InitTask)
 {
   rabit::engine::AllreduceBase base;
 
@@ -19,7 +20,7 @@ TEST(allreduce_base, init_task)
   EXPECT_EQ(base.task_id, "1");
 }
 
-TEST(allreduce_base, init_with_cache_on)
+TEST(AllreduceBase, InitWithCacheOn)
 {
   rabit::engine::AllreduceBase base;
 
@@ -41,11 +42,11 @@ TEST(allreduce_base, init_with_cache_on)
   char* argv[] = {cmd, cmd2, cmd3};
   base.Init(3, argv);
   EXPECT_EQ(base.task_id, "1");
-  EXPECT_EQ(base.rabit_bootstrap_cache, 1);
+  EXPECT_TRUE(base.rabit_bootstrap_cache);
   EXPECT_EQ(base.rabit_debug, 1);
 }
 
-TEST(allreduce_base, init_with_ring_reduce)
+TEST(AllreduceBase, InitWithRingReduce)
 {
   rabit::engine::AllreduceBase base;
 
@@ -62,5 +63,6 @@ TEST(allreduce_base, init_with_ring_reduce)
   char* argv[] = {cmd, cmd2};
   base.Init(2, argv);
   EXPECT_EQ(base.task_id, "1");
-  EXPECT_EQ(base.reduce_ring_mincount, 1);
+  EXPECT_EQ(base.reduce_ring_mincount, 1ul);
 }
+#endif  // !defined(_WIN32)

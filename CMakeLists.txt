@@ -23,9 +23,11 @@ write_version()
 set_default_configuration_release()
 
 #-- Options
+## User options
 option(BUILD_C_DOC "Build documentation for C APIs using Doxygen." OFF)
 option(USE_OPENMP "Build with OpenMP support." ON)
 option(BUILD_STATIC_LIB "Build static library" OFF)
+option(RABIT_BUILD_MPI "Build MPI" OFF)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -61,7 +63,7 @@ address, leak, undefined and thread.")
 option(PLUGIN_LZ4 "Build lz4 plugin" OFF)
 option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
 option(PLUGIN_RMM "Build with RAPIDS Memory Manager (RMM)" OFF)
-## TODO: 1. Add check if DPC++ compiler is used for building 
+## TODO: 1. Add check if DPC++ compiler is used for building
 option(PLUGIN_UPDATER_ONEAPI "DPC++ updater" OFF)
 option(ADD_PKGCONFIG "Add xgboost.pc into system." ON)
 
@@ -160,9 +162,6 @@ endif (ENABLE_ALL_WARNINGS)
 target_link_libraries(objxgboost PUBLIC dmlc)
 
 # rabit
-set(RABIT_BUILD_DMLC OFF)
-set(DMLC_ROOT ${xgboost_SOURCE_DIR}/dmlc-core)
-set(RABIT_WITH_R_LIB ${R_LIB})
 add_subdirectory(rabit)
 
 if (RABIT_MOCK)
@@ -285,7 +284,7 @@ install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
 #
 # https://github.com/dmlc/xgboost/issues/6085
 if (BUILD_STATIC_LIB)
-  set(INSTALL_TARGETS xgboost runxgboost objxgboost)
+  set(INSTALL_TARGETS xgboost runxgboost objxgboost rabit)
 else (BUILD_STATIC_LIB)
   set(INSTALL_TARGETS xgboost runxgboost)
 endif (BUILD_STATIC_LIB)

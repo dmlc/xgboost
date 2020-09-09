@@ -152,14 +152,14 @@ def BuildCPU() {
       # We want to make sure that we use the configured header build/dmlc/build_config.h instead of include/dmlc/build_config_default.h.
       # See discussion at https://github.com/dmlc/xgboost/issues/5510
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh -DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON
-    ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
+    ${dockerRun} ${container_type} ${docker_binary} ctest
     """
     // Sanitizer test
     def docker_extra_params = "CI_DOCKER_EXTRA_PARAMS_INIT='-e ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer -e ASAN_OPTIONS=symbolize=1 -e UBSAN_OPTIONS=print_stacktrace=1:log_path=ubsan_error.log --cap-add SYS_PTRACE'"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address;leak;undefined" \
       -DCMAKE_BUILD_TYPE=Debug -DSANITIZER_PATH=/usr/lib/x86_64-linux-gnu/
-    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
+    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ctest
     """
 
     stash name: 'xgboost_cli', includes: 'xgboost'
@@ -193,7 +193,7 @@ def BuildCPUNonOmp() {
     """
     echo "Running Non-OpenMP C++ test..."
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} build/testxgboost
+    ${dockerRun} ${container_type} ${docker_binary} ctest
     """
     deleteDir()
   }
