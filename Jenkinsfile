@@ -159,7 +159,7 @@ def BuildCPU() {
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh -DUSE_SANITIZER=ON -DENABLED_SANITIZERS="address;leak;undefined" \
       -DCMAKE_BUILD_TYPE=Debug -DSANITIZER_PATH=/usr/lib/x86_64-linux-gnu/
-    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} bash -c "cd build && ctest --extra-verbose"
+    ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} bash -c "cd build && ctest --exclude-regex AllTestsInDMLCUnitTests --extra-verbose"
     """
 
     stash name: 'xgboost_cli', includes: 'xgboost'
