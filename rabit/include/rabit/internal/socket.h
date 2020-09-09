@@ -49,7 +49,7 @@ using sock_size_t = size_t;  // NOLINT
 
 #define IS_MINGW() defined(__MINGW32__)
 
-#if IS_MINGW()
+#if IS_MINGW() && !defined(POLLRDNORM) && !defined(POLLRDBAND)
 /*
  * On later mingw versions poll should be supported (with bugs).  See:
  * https://stackoverflow.com/a/60623080
@@ -58,6 +58,11 @@ using sock_size_t = size_t;  // NOLINT
  * So we just give a warning and provide dummy implementation to get
  * compilation passed.  Otherwise we will have to provide a stub for
  * RABIT.
+ *
+ * Even on mingw version that has these structures and flags defined,
+ * functions like `send` and `listen` might have unresolved linkage to
+ * their implementation.  So supporting mingw is quite difficult at
+ * the time of writing.
  */
 #pragma message("Distributed training on mingw is not supported.")
 
@@ -654,7 +659,7 @@ struct PollHelper {
 }  // namespace utils
 }  // namespace rabit
 
-#if IS_MINGW()
+#if IS_MINGW() && !defined(POLLRDNORM) && !defined(POLLRDBAND)
 #undef POLLIN
 #undef POLLPRI
 #undef POLLOUT
