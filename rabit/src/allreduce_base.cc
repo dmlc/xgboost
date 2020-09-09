@@ -8,7 +8,13 @@
 #define NOMINMAX
 #include "allreduce_base.h"
 #include <rabit/base.h>
+
+#ifdef __unix__
 #include <netinet/tcp.h>
+#else
+#include <winsock.h>
+#endif  // __unix__
+
 #include <cstring>
 #include <map>
 
@@ -413,8 +419,12 @@ bool AllreduceBase::ReConnectLinks(const char *cmd) {
       all_link.sock.SetNonBlock(true);
       all_link.sock.SetKeepAlive(true);
       if (rabit_enable_tcp_no_delay) {
+#if defined(__unix__)
         setsockopt(all_link.sock, IPPROTO_TCP,
                    TCP_NODELAY, reinterpret_cast<void *>(&tcpNoDelay), sizeof(tcpNoDelay));
+#else
+        fprintf(stderr, "tcp no delay is not implemented on non unix platforms");
+#endif
       }
       if (tree_neighbors.count(all_link.rank) != 0) {
         if (all_link.rank == parent_rank) {

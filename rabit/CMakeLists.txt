@@ -1,28 +1,19 @@
 cmake_minimum_required(VERSION 3.3)
 
-if(R_LIB OR MINGW OR WIN32)
-  add_library(rabit src/engine_empty.cc src/c_api.cc)
-  set(rabit_libs rabit)
-  set_target_properties(rabit
-    PROPERTIES CXX_STANDARD 14
-    CXX_STANDARD_REQUIRED ON
-    POSITION_INDEPENDENT_CODE ON)
-else()
-  find_package(Threads REQUIRED)
+find_package(Threads REQUIRED)
 
-  add_library(rabit src/allreduce_base.cc src/allreduce_robust.cc src/engine.cc src/c_api.cc)
-  add_library(rabit_mock_static src/allreduce_base.cc src/allreduce_robust.cc src/engine_mock.cc src/c_api.cc)
-  add_library(rabit_mock SHARED src/allreduce_base.cc src/allreduce_robust.cc src/engine_mock.cc src/c_api.cc)
-  target_link_libraries(rabit Threads::Threads dmlc)
-  target_link_libraries(rabit_mock_static Threads::Threads dmlc)
-  target_link_libraries(rabit_mock Threads::Threads dmlc)
+add_library(rabit src/allreduce_base.cc src/allreduce_robust.cc src/engine.cc src/c_api.cc)
+add_library(rabit_mock_static src/allreduce_base.cc src/allreduce_robust.cc src/engine_mock.cc src/c_api.cc)
+add_library(rabit_mock SHARED src/allreduce_base.cc src/allreduce_robust.cc src/engine_mock.cc src/c_api.cc)
+target_link_libraries(rabit Threads::Threads dmlc)
+target_link_libraries(rabit_mock_static Threads::Threads dmlc)
+target_link_libraries(rabit_mock Threads::Threads dmlc)
 
-  set(rabit_libs rabit rabit_mock rabit_mock_static)
-  set_target_properties(rabit rabit_mock rabit_mock_static
-    PROPERTIES CXX_STANDARD 14
-    CXX_STANDARD_REQUIRED ON
-    POSITION_INDEPENDENT_CODE ON)
-endif(R_LIB OR MINGW OR WIN32)
+set(rabit_libs rabit rabit_mock rabit_mock_static)
+set_target_properties(rabit rabit_mock rabit_mock_static
+  PROPERTIES CXX_STANDARD 14
+  CXX_STANDARD_REQUIRED ON
+  POSITION_INDEPENDENT_CODE ON)
 
 if(RABIT_BUILD_MPI)
   find_package(MPI REQUIRED)

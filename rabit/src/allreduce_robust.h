@@ -217,11 +217,11 @@ class AllreduceRobust : public AllreduceBase {
    */
   struct ActionSummary {
     // maximumly allowed sequence id
-    static const u_int32_t kSpecialOp = (1 << 26);
+    static const uint32_t kSpecialOp = (1 << 26);
     // special sequence number for local state checkpoint
-    static const u_int32_t kLocalCheckPoint = (1 << 26) - 2;
+    static const uint32_t kLocalCheckPoint = (1 << 26) - 2;
     // special sequnce number for local state checkpoint ack signal
-    static const u_int32_t kLocalCheckAck = (1 << 26) - 1;
+    static const uint32_t kLocalCheckAck = (1 << 26) - 1;
     //---------------------------------------------
     // The following are bit mask of flag used in
     //----------------------------------------------
@@ -242,13 +242,13 @@ class AllreduceRobust : public AllreduceBase {
     ActionSummary() = default;
     // constructor of action
     explicit ActionSummary(int seqno_flag, int cache_flag = 0,
-      u_int32_t minseqno = kSpecialOp, u_int32_t maxseqno = kSpecialOp) {
+      uint32_t minseqno = kSpecialOp, uint32_t maxseqno = kSpecialOp) {
       seqcode_ = (minseqno << 5) | seqno_flag;
       maxseqcode_ = (maxseqno << 5) | cache_flag;
     }
     // minimum number of all operations by default
     // maximum number of all cache operations otherwise
-    inline u_int32_t Seqno(SeqType t = SeqType::kSeq) const {
+    inline uint32_t Seqno(SeqType t = SeqType::kSeq) const {
       int code = t == SeqType::kSeq ? seqcode_ : maxseqcode_;
       return code >> 5;
     }
@@ -294,8 +294,8 @@ class AllreduceRobust : public AllreduceBase {
       const ActionSummary *src = static_cast<const ActionSummary*>(src_);
       ActionSummary *dst = reinterpret_cast<ActionSummary*>(dst_);
       for (int i = 0; i < len; ++i) {
-        u_int32_t min_seqno = std::min(src[i].Seqno(), dst[i].Seqno());
-        u_int32_t max_seqno = std::max(src[i].Seqno(SeqType::kCache),
+        uint32_t min_seqno = Min(src[i].Seqno(), dst[i].Seqno());
+        uint32_t max_seqno = Max(src[i].Seqno(SeqType::kCache),
           dst[i].Seqno(SeqType::kCache));
         int action_flag = src[i].Flag() | dst[i].Flag();
         // if any node is not requester set to 0 otherwise 1
@@ -310,9 +310,9 @@ class AllreduceRobust : public AllreduceBase {
 
    private:
     // internel sequence code min of rabit seqno
-    u_int32_t seqcode_;
+    uint32_t seqcode_;
     // internal sequence code max of cache seqno
-    u_int32_t maxseqcode_;
+    uint32_t maxseqcode_;
   };
   /*! \brief data structure to remember result of Bcast and Allreduce calls*/
   class ResultBuffer{

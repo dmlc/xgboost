@@ -34,15 +34,14 @@ typedef int ssize_t;
 
 #if defined(_WIN32)
 typedef int sock_size_t;
-
 static inline int poll(struct pollfd *pfd, int nfds,
                        int timeout) { return WSAPoll ( pfd, nfds, timeout ); }
 #else
 #include <sys/poll.h>
 using SOCKET = int;
 using sock_size_t = size_t;  // NOLINT
-const int kInvalidSocket = -1;
 #endif  // defined(_WIN32)
+const int kInvalidSocket = -1;
 
 namespace rabit {
 namespace utils {

@@ -180,6 +180,19 @@ inline std::FILE *FopenCheck(const char *fname, const char *flag) {
   return fp;
 }
 }  // namespace utils
+
+// Can not use std::min on Windows with msvc due to:
+// error C2589: '(': illegal token on right side of '::'
+template <typename T>
+auto Min(T const& l, T const& r) {
+  return l < r ? l : r;
+}
+// same with Min
+template <typename T>
+auto Max(T const& l, T const& r) {
+  return l > r ? l : r;
+}
+
 // easy utils that can be directly accessed in xgboost
 /*! \brief get the beginning address of a vector */
 template<typename T>
