@@ -47,9 +47,9 @@ using SOCKET = int;
 using sock_size_t = size_t;  // NOLINT
 #endif  // defined(_WIN32)
 
-#define IS_OLD_MINGW() (defined(__MINGW32__) && !defined(POLLRDNORM) && !defined(POLLRDBAND))
+#define IS_MINGW() defined(__MINGW32__)
 
-#if IS_OLD_MINGW()
+#if IS_MINGW()
 /*
  * On later mingw versions poll should be supported (with bugs).  See:
  * https://stackoverflow.com/a/60623080
@@ -81,7 +81,7 @@ inline const char *inet_ntop(int, const void *, char *, size_t) {
   MingWError();
   return nullptr;
 }
-#endif  // IS_OLD_MINGW()
+#endif  // IS_MINGW()
 
 namespace rabit {
 namespace utils {
@@ -92,16 +92,16 @@ template <typename PollFD>
 int PollImpl(PollFD *pfd, int nfds, int timeout) {
 #if defined(_WIN32)
 
-#if IS_OLD_MINGW()
+#if IS_MINGW()
   MingWError();
   return -1;
 #else
   return WSAPoll(pfd, nfds, timeout);
-#endif  // IS_OLD_MINGW()
+#endif  // IS_MINGW()
 
 #else
   return poll(pfd, nfds, timeout);
-#endif  // IS_OLD_MINGW()
+#endif  // IS_MINGW()
 }
 
 /*! \brief data structure for network address */
@@ -114,9 +114,9 @@ struct SockAddr {
   }
   inline static std::string GetHostName() {
     std::string buf; buf.resize(256);
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     utils::Check(gethostname(&buf[0], 256) != -1, "fail to get host name");
-#endif  // IS_OLD_MINGW()
+#endif  // IS_MINGW()
     return std::string(buf.c_str());
   }
   /*!
@@ -125,7 +125,7 @@ struct SockAddr {
    * \param port the port of address
    */
   inline void Set(const char *host, int port) {
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     addrinfo hints;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
@@ -137,7 +137,7 @@ struct SockAddr {
     memcpy(&addr, res->ai_addr, res->ai_addrlen);
     addr.sin_port = htons(port);
     freeaddrinfo(res);
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
   }
   /*! \brief return port of the address*/
   inline int Port() const {
@@ -175,12 +175,12 @@ class Socket {
   inline static int GetLastError() {
 #ifdef _WIN32
 
-#if IS_OLD_MINGW()
+#if IS_MINGW()
     MingWError();
     return -1;
 #else
     return WSAGetLastError();
-#endif  // IS_OLD_MINGW()
+#endif  // IS_MINGW()
 
 #else
     return errno;
@@ -201,7 +201,7 @@ class Socket {
    */
   inline static void Startup() {
 #ifdef _WIN32
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     WSADATA wsa_data;
     if (WSAStartup(MAKEWORD(2, 2), &wsa_data) == -1) {
       Socket::Error("Startup");
@@ -210,7 +210,7 @@ class Socket {
     WSACleanup();
     utils::Error("Could not find a usable version of Winsock.dll\n");
     }
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
 #endif  // _WIN32
   }
   /*!
@@ -218,9 +218,9 @@ class Socket {
    */
   inline static void Finalize() {
 #ifdef _WIN32
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     WSACleanup();
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
 #endif  // _WIN32
   }
   /*!
@@ -230,12 +230,12 @@ class Socket {
    */
   inline void SetNonBlock(bool non_block) {
 #ifdef _WIN32
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     u_long mode = non_block ? 1 : 0;
     if (ioctlsocket(sockfd, FIONBIO, &mode) != NO_ERROR) {
       Socket::Error("SetNonBlock");
     }
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
 #else
     int flag = fcntl(sockfd, F_GETFL, 0);
     if (flag == -1) {
@@ -256,12 +256,12 @@ class Socket {
    * \param addr
    */
   inline void Bind(const SockAddr &addr) {
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     if (bind(sockfd, reinterpret_cast<const sockaddr*>(&addr.addr),
              sizeof(addr.addr)) == -1) {
       Socket::Error("Bind");
     }
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
   }
   /*!
    * \brief try bind the socket to host, from start_port to end_port
@@ -271,7 +271,7 @@ class Socket {
    */
   inline int TryBindHost(int start_port, int end_port) {
     // TODO(tqchen) add prefix check
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     for (int port = start_port; port < end_port; ++port) {
       SockAddr addr("0.0.0.0", port);
       if (bind(sockfd, reinterpret_cast<sockaddr*>(&addr.addr),
@@ -288,14 +288,14 @@ class Socket {
       }
 #endif  // defined(_WIN32)
     }
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
     return -1;
   }
   /*! \brief get last error code if any */
   inline int GetSockError() const {
     int error = 0;
     socklen_t len = sizeof(error);
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR,
                    reinterpret_cast<char *>(&error), &len) != 0) {
       Error("GetSockError");
@@ -303,7 +303,7 @@ class Socket {
 #else
     // undefined reference to `_imp__getsockopt@20'
     MingWError();
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
     return error;
   }
   /*! \brief check if anything bad happens */
@@ -321,9 +321,9 @@ class Socket {
   inline void Close() {
     if (sockfd != kInvalidSocket) {
 #ifdef _WIN32
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
       closesocket(sockfd);
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
 #else
       close(sockfd);
 #endif
@@ -362,48 +362,48 @@ class TCPSocket : public Socket{
    * \param keepalive whether to set the keep alive option on
    */
   void SetKeepAlive(bool keepalive) {
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     int opt = static_cast<int>(keepalive);
     if (setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE,
                    reinterpret_cast<char*>(&opt), sizeof(opt)) < 0) {
       Socket::Error("SetKeepAlive");
     }
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
   }
   inline void SetLinger(int timeout = 0) {
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     struct linger sl;
     sl.l_onoff = 1;    /* non-zero value enables linger option in kernel */
     sl.l_linger = timeout;    /* timeout interval in seconds */
     if (setsockopt(sockfd, SOL_SOCKET, SO_LINGER, reinterpret_cast<char*>(&sl), sizeof(sl)) == -1) {
       Socket::Error("SO_LINGER");
     }
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
   }
   /*!
    * \brief create the socket, call this before using socket
    * \param af domain
    */
   inline void Create(int af = PF_INET) {
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     sockfd = socket(PF_INET, SOCK_STREAM, 0);
     if (sockfd == kInvalidSocket) {
       Socket::Error("Create");
     }
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
   }
   /*!
    * \brief perform listen of the socket
    * \param backlog backlog parameter
    */
   inline void Listen(int backlog = 16) {
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     listen(sockfd, backlog);
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
   }
   /*! \brief get a new connection */
   TCPSocket Accept() {
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     SOCKET newfd = accept(sockfd, nullptr, nullptr);
     if (newfd == kInvalidSocket) {
       Socket::Error("Accept");
@@ -411,14 +411,14 @@ class TCPSocket : public Socket{
     return TCPSocket(newfd);
 #else
     return TCPSocket();
-#endif // !IS_OLD_MINGW()
+#endif // !IS_MINGW()
   }
   /*!
    * \brief decide whether the socket is at OOB mark
    * \return 1 if at mark, 0 if not, -1 if an error occured
    */
   inline int AtMark() const {
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
 
 #ifdef _WIN32
     unsigned long atmark;  // NOLINT(*)
@@ -432,7 +432,7 @@ class TCPSocket : public Socket{
 
 #else
     return -1;
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
   }
   /*!
    * \brief connect to an address
@@ -440,12 +440,12 @@ class TCPSocket : public Socket{
    * \return whether connect is successful
    */
   inline bool Connect(const SockAddr &addr) {
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     return connect(sockfd, reinterpret_cast<const sockaddr*>(&addr.addr),
                    sizeof(addr.addr)) == 0;
 #else
     return false;
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
   }
   /*!
    * \brief send data using the socket
@@ -457,11 +457,11 @@ class TCPSocket : public Socket{
    */
   inline ssize_t Send(const void *buf_, size_t len, int flag = 0) {
     const char *buf = reinterpret_cast<const char*>(buf_);
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     return send(sockfd, buf, static_cast<sock_size_t>(len), flag);
 #else
     return 0;
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
   }
   /*!
    * \brief receive data using the socket
@@ -473,11 +473,11 @@ class TCPSocket : public Socket{
    */
   inline ssize_t Recv(void *buf_, size_t len, int flags = 0) {
     char *buf = reinterpret_cast<char*>(buf_);
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     return recv(sockfd, buf, static_cast<sock_size_t>(len), flags);
 #else
     return 0;
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
   }
   /*!
    * \brief peform block write that will attempt to send all data out
@@ -489,7 +489,7 @@ class TCPSocket : public Socket{
   inline size_t SendAll(const void *buf_, size_t len) {
     const char *buf = reinterpret_cast<const char*>(buf_);
     size_t ndone = 0;
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     while (ndone <  len) {
       ssize_t ret = send(sockfd, buf, static_cast<ssize_t>(len - ndone), 0);
       if (ret == -1) {
@@ -499,7 +499,7 @@ class TCPSocket : public Socket{
       buf += ret;
       ndone += ret;
     }
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
     return ndone;
   }
   /*!
@@ -512,7 +512,7 @@ class TCPSocket : public Socket{
   inline size_t RecvAll(void *buf_, size_t len) {
     char *buf = reinterpret_cast<char*>(buf_);
     size_t ndone = 0;
-#if !IS_OLD_MINGW()
+#if !IS_MINGW()
     while (ndone <  len) {
       ssize_t ret = recv(sockfd, buf,
                          static_cast<sock_size_t>(len - ndone), MSG_WAITALL);
@@ -524,7 +524,7 @@ class TCPSocket : public Socket{
       buf += ret;
       ndone += ret;
     }
-#endif  // !IS_OLD_MINGW()
+#endif  // !IS_MINGW()
     return ndone;
   }
   /*!
@@ -654,10 +654,10 @@ struct PollHelper {
 }  // namespace utils
 }  // namespace rabit
 
-#if IS_OLD_MINGW()
+#if IS_MINGW()
 #undef POLLIN
 #undef POLLPRI
 #undef POLLOUT
-#endif  // IS_OLD_MINGW()
+#endif  // IS_MINGW()
 
 #endif  // RABIT_INTERNAL_SOCKET_H_
