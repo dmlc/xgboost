@@ -49,6 +49,12 @@ using sock_size_t = size_t;  // NOLINT
 
 #define IS_MINGW() defined(__MINGW32__)
 
+#if IS_MINGW()
+inline void MingWError() {
+  throw dmlc::Error("Distributed training on mingw is not supported.");
+}
+#endif  // IS_MINGW()
+
 #if IS_MINGW() && !defined(POLLRDNORM) && !defined(POLLRDBAND)
 /*
  * On later mingw versions poll should be supported (with bugs).  See:
@@ -65,11 +71,6 @@ using sock_size_t = size_t;  // NOLINT
  * the time of writing.
  */
 #pragma message("Distributed training on mingw is not supported.")
-
-inline void MingWError() {
-  throw dmlc::Error("Distributed training on mingw is not supported.");
-}
-
 typedef struct pollfd {
   SOCKET fd;
   short  events;
@@ -86,7 +87,7 @@ inline const char *inet_ntop(int, const void *, char *, size_t) {
   MingWError();
   return nullptr;
 }
-#endif  // IS_MINGW()
+#endif  // IS_MINGW() && !defined(POLLRDNORM) && !defined(POLLRDBAND)
 
 namespace rabit {
 namespace utils {
