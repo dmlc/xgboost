@@ -341,7 +341,6 @@ endif (GOOGLE_TEST)
 
 if (GOOGLE_TEST AND (NOT WIN32))
   # rabit mock based integration tests
-  list(REMOVE_ITEM rabit_libs "rabit_mock_static") # remove here to avoid installing it
   set(tests lazy_recover local_recover model_recover)
 
   foreach(test ${tests})
