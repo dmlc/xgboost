@@ -26,22 +26,13 @@ def get_mingw_bin():
 
 def test_with_autotools(args):
     with DirectoryExcursion(r_package):
-        if args.compiler == 'mingw':
-            mingw_bin = get_mingw_bin()
-            CXX = os.path.join(mingw_bin, 'g++.exe')
-            CC = os.path.join(mingw_bin, 'gcc.exe')
-            cmd = ['R.exe', 'CMD', 'INSTALL', str(os.path.curdir)]
-            env = os.environ.copy()
-            env.update({'CC': CC, 'CXX': CXX})
-            subprocess.check_call(cmd, env=env)
-        elif args.compiler == 'msvc':
-            cmd = ['R.exe', 'CMD', 'INSTALL', str(os.path.curdir)]
-            env = os.environ.copy()
-            # autotool favor mingw by default.
-            env.update({'CC': 'cl.exe', 'CXX': 'cl.exe'})
-            subprocess.check_call(cmd, env=env)
-        else:
-            raise ValueError('Wrong compiler')
+        mingw_bin = get_mingw_bin()
+        CXX = os.path.join(mingw_bin, 'g++.exe')
+        CC = os.path.join(mingw_bin, 'gcc.exe')
+        cmd = ['R.exe', 'CMD', 'INSTALL', str(os.path.curdir)]
+        env = os.environ.copy()
+        env.update({'CC': CC, 'CXX': CXX})
+        subprocess.check_call(cmd, env=env)
         subprocess.check_call([
             'R.exe', '-q', '-e',
             "library(testthat); setwd('tests'); source('testthat.R')"

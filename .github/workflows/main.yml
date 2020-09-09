@@ -179,9 +179,8 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - {os: windows-2016, r: 'release', compiler: 'msvc', build: 'autotools'}
-          - {os: windows-2016, r: 'release', compiler: 'msvc', build: 'cmake'}
           - {os: windows-2016, r: 'release', compiler: 'mingw', build: 'autotools'}
+          - {os: windows-2016, r: 'release', compiler: 'msvc', build: 'cmake'}
           - {os: windows-2016, r: 'release', compiler: 'mingw', build: 'cmake'}
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true

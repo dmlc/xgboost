@@ -423,7 +423,7 @@ bool AllreduceBase::ReConnectLinks(const char *cmd) {
         setsockopt(all_link.sock, IPPROTO_TCP,
                    TCP_NODELAY, reinterpret_cast<void *>(&tcpNoDelay), sizeof(tcpNoDelay));
 #else
-        fprintf(stderr, "tcp no delay is not implemented on non unix platforms");
+        fprintf(stderr, "tcp no delay is not implemented on non unix platforms\n");
 #endif
       }
       if (tree_neighbors.count(all_link.rank) != 0) {
