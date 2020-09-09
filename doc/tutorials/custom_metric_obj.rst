@@ -143,5 +143,5 @@ Multi-class objective function
 ******************************
 
 A similiar demo for multi-class objective funtion is also available, see
-`demo/guide-python/custom_softmax.py <https://github.com/dmlc/xgboost/tree/master/demo/guide-python/custom_rmsle.py>`_
+`demo/guide-python/custom_softmax.py <https://github.com/dmlc/xgboost/tree/master/demo/guide-python/custom_softmax.py>`_
 for details.
