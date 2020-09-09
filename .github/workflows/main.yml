@@ -11,6 +11,30 @@ env:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
+  gtest-cpu:
+    name: Test Google C++ test (CPU)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-10.15]
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - name: Install system packages
+      run: |
+        brew install lz4 ninja
+    - name: Build gtest binary
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON -GNinja
+        ninja -v
+    - name: Run gtest binary
+      run: |
+        cd build
+        ctest --extra-verbose
   test-with-jvm:
     name: Test JVM on OS ${{ matrix.os }}
     runs-on: ${{ matrix.os }}

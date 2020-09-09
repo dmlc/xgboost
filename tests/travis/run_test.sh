@@ -17,6 +17,12 @@ if [ ${TASK} == "python_sdist_test" ]; then
 fi
 
 if [ ${TASK} == "python_test" ]; then
+    if grep -n -R '<<<.*>>>\(.*\)' src include | grep --invert "NOLINT"; then
+        echo 'Do not use raw CUDA execution configuration syntax with <<<blocks, threads>>>.' \
+             'try `dh::LaunchKernel`'
+        exit -1
+    fi
+
     set -e
     # Build/test
     rm -rf build
@@ -67,26 +73,6 @@ if [ ${TASK} == "java_test" ]; then
     cd jvm-packages
     mvn -q clean install -DskipTests -Dmaven.test.skip
     mvn -q test
-fi
-
-if [ ${TASK} == "cmake_test" ]; then
-    set -e
-
-    if grep -n -R '<<<.*>>>\(.*\)' src include | grep --invert "NOLINT"; then
-        echo 'Do not use raw CUDA execution configuration syntax with <<<blocks, threads>>>.' \
-             'try `dh::LaunchKernel`'
-        exit -1
-    fi
-
-    # Build/test
-    rm -rf build
-    mkdir build && cd build
-    PLUGINS="-DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON"
-    cmake .. -DCMAKE_VERBOSE_MAKEFILE=ON -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON ${PLUGINS}
-    make -j$(nproc)
-    ./testxgboost
-    cd ..
-    rm -rf build
 fi
 
 if [ ${TASK} == "s390x_test" ]; then
