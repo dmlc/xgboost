@@ -1,6 +1,5 @@
 sudo: required
 
-osx_image: xcode10.1
 dist: bionic
 
 env:
@@ -15,15 +14,23 @@ jobs:
       env: TASK=python_sdist_test
     - os: osx
       arch: amd64
+      osx_image: xcode10.1
       env: TASK=python_test
     - os: osx
       arch: amd64
+      osx_image: xcode10.1
       env: TASK=python_sdist_test
     - os: osx
       arch: amd64
+      osx_image: xcode10.1
       env: TASK=java_test
     - os: osx
       arch: amd64
+      osx_image: xcode10.1
+      env: TASK=cmake_test
+    - os: osx
+      arch: amd64
+      osx_image: xcode11.6
       env: TASK=cmake_test
     - os: linux
       arch: s390x
