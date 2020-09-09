@@ -71,71 +71,6 @@ inline bool StringToBool(const char* s) {
   return CompareStringsCaseInsensitive(s, "true") == 0 || atoi(s) != 0;
 }
 
-#ifndef RABIT_CUSTOMIZE_MSG_
-/*!
- * \brief handling of Assert error, caused by inappropriate input
- * \param msg error message
- */
-inline void HandleAssertError(const char *msg) {
-  fprintf(stderr,
-          "AssertError:%s, rabit is configured to keep process running\n", msg);
-  throw dmlc::Error(msg);
-}
-/*!
- * \brief handling of Check error, caused by inappropriate input
- * \param msg error message
- */
-inline void HandleCheckError(const char *msg) {
-  fprintf(stderr, "%s, rabit is configured to keep process running\n", msg);
-  throw dmlc::Error(msg);
-}
-inline void HandlePrint(const char *msg) {
-  printf("%s", msg);
-}
-
-inline void HandleLogInfo(const char *fmt, ...) {
-  std::string msg(kPrintBuffer, '\0');
-  va_list args;
-  va_start(args, fmt);
-  vsnprintf(&msg[0], kPrintBuffer, fmt, args);
-  va_end(args);
-  fprintf(stdout, "%s", msg.c_str());
-  fflush(stdout);
-}
-#else
-#ifndef RABIT_STRICT_CXX98_
-// include declarations, some one must implement this
-void HandleAssertError(const char *msg);
-void HandleCheckError(const char *msg);
-void HandlePrint(const char *msg);
-#endif  // RABIT_STRICT_CXX98_
-#endif  // RABIT_CUSTOMIZE_MSG_
-#ifdef RABIT_STRICT_CXX98_
-// these function pointers are to be assigned
-extern "C" void (*Printf)(const char *fmt, ...);
-extern "C" int (*SPrintf)(char *buf, size_t size, const char *fmt, ...);
-extern "C" void (*Assert)(int exp, const char *fmt, ...);
-extern "C" void (*Check)(int exp, const char *fmt, ...);
-extern "C" void (*Error)(const char *fmt, ...);
-#else
-/*! \brief printf, prints messages to the console */
-inline void Printf(const char *fmt, ...) {
-  std::string msg(kPrintBuffer, '\0');
-  va_list args;
-  va_start(args, fmt);
-  vsnprintf(&msg[0], kPrintBuffer, fmt, args);
-  va_end(args);
-  HandlePrint(msg.c_str());
-}
-/*! \brief portable version of snprintf */
-inline int SPrintf(char *buf, size_t size, const char *fmt, ...) {
-  va_list args;
-  va_start(args, fmt);
-  int ret = vsnprintf(buf, size, fmt, args);
-  va_end(args);
-  return ret;
-}
-
 /*! \brief assert a condition is true, use this to handle debug information */
 inline void Assert(bool exp, const char *fmt, ...) {
   if (!exp) {
@@ -144,7 +79,7 @@ inline void Assert(bool exp, const char *fmt, ...) {
     va_start(args, fmt);
     vsnprintf(&msg[0], kPrintBuffer, fmt, args);
     va_end(args);
-    HandleAssertError(msg.c_str());
+    LOG(FATAL) << msg;
   }
 }
 
@@ -156,7 +91,7 @@ inline void Check(bool exp, const char *fmt, ...) {
     va_start(args, fmt);
     vsnprintf(&msg[0], kPrintBuffer, fmt, args);
     va_end(args);
-    HandleCheckError(msg.c_str());
+    LOG(FATAL) << msg;
   }
 }
 
@@ -168,44 +103,9 @@ inline void Error(const char *fmt, ...) {
     va_start(args, fmt);
     vsnprintf(&msg[0], kPrintBuffer, fmt, args);
     va_end(args);
-    HandleCheckError(msg.c_str());
+    LOG(FATAL) << msg;
   }
-}
-#endif  // RABIT_STRICT_CXX98_
-
-/*! \brief replace fopen, report error when the file open fails */
-inline std::FILE *FopenCheck(const char *fname, const char *flag) {
-  std::FILE *fp = fopen64(fname, flag);
-  Check(fp != nullptr, "can not open file \"%s\"\n", fname);
-  return fp;
 }
 }  // namespace utils
-// easy utils that can be directly accessed in xgboost
-/*! \brief get the beginning address of a vector */
-template<typename T>
-inline T *BeginPtr(std::vector<T> &vec) {  // NOLINT(*)
-  if (vec.size() == 0) {
-    return nullptr;
-  } else {
-    return &vec[0];
-  }
-}
-/*! \brief get the beginning address of a vector */
-template<typename T>
-inline const T *BeginPtr(const std::vector<T> &vec) {  // NOLINT(*)
-  if (vec.size() == 0) {
-    return nullptr;
-  } else {
-    return &vec[0];
-  }
-}
-inline char* BeginPtr(std::string &str) {  // NOLINT(*)
-  if (str.length() == 0) return nullptr;
-  return &str[0];
-}
-inline const char* BeginPtr(const std::string &str) {
-  if (str.length() == 0) return nullptr;
-  return &str[0];
-}
 }  // namespace rabit
 #endif  // RABIT_INTERNAL_UTILS_H_

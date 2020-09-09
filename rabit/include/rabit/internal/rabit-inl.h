@@ -10,6 +10,7 @@
 // use engine for implementation
 #include <vector>
 #include <string>
+#include "xgboost/logging.h"
 #include "rabit/internal/io.h"
 #include "rabit/internal/utils.h"
 #include "rabit/rabit.h"
@@ -330,7 +331,7 @@ struct SerializeReduceClosure {
   inline void Run() {
     if (prepare_fun != nullptr) prepare_fun(prepare_arg);
     for (size_t i = 0; i < count; ++i) {
-      utils::MemoryFixSizeBuffer fs(BeginPtr(*p_buffer) + i * max_nbyte, max_nbyte);
+      utils::MemoryFixSizeBuffer fs(dmlc::BeginPtr(*p_buffer) + i * max_nbyte, max_nbyte);
       sendrecvobj[i].Save(fs);
     }
   }
@@ -352,11 +353,11 @@ inline void SerializeReducer<DType>::Allreduce(DType *sendrecvobj,
   c.sendrecvobj = sendrecvobj; c.max_nbyte = max_nbyte; c.count = count;
   c.prepare_fun = prepare_fun; c.prepare_arg = prepare_arg; c.p_buffer = &buffer_;
   // invoke here
-  handle_.Allreduce(BeginPtr(buffer_), max_nbyte, count,
+  handle_.Allreduce(dmlc::BeginPtr(buffer_), max_nbyte, count,
                     SerializeReduceClosure<DType>::Invoke, &c,
                     _file, _line, _caller);
   for (size_t i = 0; i < count; ++i) {
-    utils::MemoryFixSizeBuffer fs(BeginPtr(buffer_) + i * max_nbyte, max_nbyte);
+    utils::MemoryFixSizeBuffer fs(dmlc::BeginPtr(buffer_) + i * max_nbyte, max_nbyte);
     sendrecvobj[i].Load(fs);
   }
 }

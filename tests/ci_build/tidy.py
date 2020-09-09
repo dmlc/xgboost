@@ -144,8 +144,10 @@ class ClangTidy(object):
         src = src.replace('/', '\\/')
         include = os.path.join(self.root_path, 'include')
         include = include.replace('/', '\\/')
+        rabit_src = os.path.join(self.root_path, 'rabit', 'src')
+        rabit_inc = os.path.join(self.root_path, 'rabit', 'include')
 
-        header_filter = '(' + src + '|' + include + ')'
+        header_filter = f'({src}|{include}|{rabit_src}|{rabit_inc})'
         common_args = [self.exe,
                        "-header-filter=" + header_filter,
                        '-config='+self.clang_tidy]
@@ -182,8 +184,7 @@ class ClangTidy(object):
         def should_lint(path):
             if not self.cpp_lint and path.endswith('.cc'):
                 return False
-            isxgb = path.find('rabit') == -1
-            isxgb = isxgb and path.find('dmlc-core') == -1
+            isxgb = path.find('dmlc-core') == -1
             isxgb = isxgb and (not path.startswith(self.cdb_path))
             if isxgb:
                 print(path)

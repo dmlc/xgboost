@@ -283,10 +283,10 @@ class AllreduceRobust : public AllreduceBase {
     }
     // print flags in user friendly way
     inline void PrintFlags(int rank, std::string prefix ) {
-      utils::HandleLogInfo("[%d] %s - |%lu|%d|%d|%d|%d| - |%lu|%d|\n", rank,
-                           prefix.c_str(), Seqno(), CheckPoint(), CheckAck(),
-                           LoadCache(), DiffSeq(), Seqno(SeqType::kCache),
-                           LoadCache(SeqType::kCache));
+      LOG(INFO) << "[" << rank << "] " << prefix << " - " << Seqno() << "|"
+                << CheckPoint() << "|" << CheckAck() << "|" << LoadCache()
+                << "|" << DiffSeq() << "|" << Seqno(SeqType::kCache) << "|"
+                << LoadCache(SeqType::kCache);
     }
     // reducer for Allreduce, get the result ActionSummary from all nodes
     inline static void Reducer(const void *src_, void *dst_,
@@ -334,7 +334,7 @@ class AllreduceRobust : public AllreduceBase {
       utils::Assert(nhop != 0, "cannot allocate 0 size memory");
       // allocate addational nhop buffer size
       data_.resize(rptr_.back() + nhop);
-      return BeginPtr(data_) + rptr_.back();
+      return dmlc::BeginPtr(data_) + rptr_.back();
     }
     // push the result in temp to the
     inline void PushTemp(int seqid, size_t type_nbytes, size_t count) {
@@ -354,7 +354,7 @@ class AllreduceRobust : public AllreduceBase {
                                     seqno_.end(), seqid) - seqno_.begin();
       if (idx == seqno_.size() || seqno_[idx] != seqid) return nullptr;
       *p_size = size_[idx];
-      return BeginPtr(data_) + rptr_[idx];
+      return dmlc::BeginPtr(data_) + rptr_[idx];
     }
     // drop last stored result
     inline void DropLast() {

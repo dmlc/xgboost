@@ -41,9 +41,9 @@ AllreduceRobust::AllreduceRobust() {
 bool AllreduceRobust::Init(int argc, char* argv[]) {
   if (AllreduceBase::Init(argc, argv)) {
     // chenqin: alert user opted in experimental feature.
-    if (rabit_bootstrap_cache) { utils::HandleLogInfo(
-      "[EXPERIMENTAL] bootstrap cache has been enabled\n");
-}
+    if (rabit_bootstrap_cache) {
+      LOG(WARNING) << "[EXPERIMENTAL] bootstrap cache has been enabled";
+    }
     checkpoint_loaded_ = false;
     if (num_global_replica_ == 0) {
       result_buffer_round_ = -1;
@@ -185,7 +185,6 @@ void AllreduceRobust::Allgather(void *sendrecvbuf,
   if (!checkpoint_loaded_ && rabit_bootstrap_cache &&
     GetBootstrapCache(key, sendrecvbuf, total_size, 1) != -1) return;
 
-  double start = utils::GetTime();
   bool recovered = RecoverExec(sendrecvbuf, total_size, 0, seq_counter, cur_cache_seq_);
 
   if (resbuf_.LastSeqNo() != -1 &&
@@ -207,12 +206,6 @@ void AllreduceRobust::Allgather(void *sendrecvbuf,
         recovered = RecoverExec(sendrecvbuf, total_size, 0, seq_counter, cur_cache_seq_);
       }
     }
-  }
-  double delta = utils::GetTime() - start;
-  // log allgather latency
-  if (rabit_debug) {
-    utils::HandleLogInfo("[%d] allgather (%s) finished version %d, seq %d, take %f seconds\n",
-      rank, key.c_str(), version_number, seq_counter, delta);
   }
 
   // if bootstrap allgather, store and fetch through cache
@@ -262,7 +255,6 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
   if (!checkpoint_loaded_ && rabit_bootstrap_cache &&
     GetBootstrapCache(key, sendrecvbuf_, type_nbytes, count) != -1) return;
 
-  double start = utils::GetTime();
   bool recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter, cur_cache_seq_);
 
   if (resbuf_.LastSeqNo() != -1 &&
@@ -284,12 +276,6 @@ void AllreduceRobust::Allreduce(void *sendrecvbuf_,
         recovered = RecoverExec(sendrecvbuf_, type_nbytes * count, 0, seq_counter, cur_cache_seq_);
       }
     }
-  }
-  double delta = utils::GetTime() - start;
-  // log allreduce latency
-  if (rabit_debug) {
-    utils::HandleLogInfo("[%d] allreduce (%s) finished version %d, seq %d, take %f seconds\n",
-      rank, key.c_str(), version_number, seq_counter, delta);
   }
 
   // if bootstrap allreduce, store and fetch through cache
@@ -323,7 +309,6 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root,
       GetBootstrapCache(key, sendrecvbuf_, total_size, 1) != -1) {
     return;
   }
-  double start = utils::GetTime();
   bool recovered = RecoverExec(sendrecvbuf_, total_size, 0, seq_counter, cur_cache_seq_);
   // now we are free to remove the last result, if any
   if (resbuf_.LastSeqNo() != -1 &&
@@ -344,13 +329,6 @@ void AllreduceRobust::Broadcast(void *sendrecvbuf_, size_t total_size, int root,
     }
   }
 
-  double delta = utils::GetTime() - start;
-  // log broadcast latency
-  if (rabit_debug) {
-    utils::HandleLogInfo(
-      "[%d] broadcast (%s) root %d finished version %d,seq %d, take %f seconds\n",
-      rank, key.c_str(), root, version_number, seq_counter, delta);
-  }
   // if bootstrap broadcast, store and fetch through cache
   if (checkpoint_loaded_ || !rabit_bootstrap_cache) {
     resbuf_.PushTemp(seq_counter, 1, total_size);
@@ -391,14 +369,13 @@ int AllreduceRobust::LoadCheckPoint(Serializable *global_model,
     utils::Check(local_model == nullptr,
                  "need to set rabit_local_replica larger than 1 to checkpoint local_model");
   }
-  double start = utils::GetTime();
   // check if we succeed
   if (RecoverExec(nullptr, 0, ActionSummary::kLoadCheck, ActionSummary::kSpecialOp, cur_cache_seq_)) {
     int nlocal = std::max(static_cast<int>(local_rptr_[local_chkpt_version_].size()) - 1, 0);
     if (local_model != nullptr) {
       if (nlocal == num_local_replica_ + 1) {
         // load in local model
-        utils::MemoryFixSizeBuffer fs(BeginPtr(local_chkpt_[local_chkpt_version_]),
+        utils::MemoryFixSizeBuffer fs(dmlc::BeginPtr(local_chkpt_[local_chkpt_version_]),
                                       local_rptr_[local_chkpt_version_][1]);
         local_model->Load(&fs);
       } else {
@@ -423,22 +400,10 @@ int AllreduceRobust::LoadCheckPoint(Serializable *global_model,
       ActionSummary::kSpecialOp, cur_cache_seq_), "check ack must return true");
 
     if (!RecoverExec(nullptr, 0, ActionSummary::kLoadBootstrapCache, seq_counter, cur_cache_seq_)) {
-      utils::Printf("no need to load cache\n");
-    }
-    double delta = utils::GetTime() - start;
-
-    // log broadcast latency
-    if (rabit_debug) {
-      utils::HandleLogInfo("[%d] loadcheckpoint size %ld finished version %d, "
-                         "seq %d, take %f seconds\n",
-                         rank, global_checkpoint_.length(),
-                         version_number, seq_counter, delta);
+      LOG(DEBUG) << "no need to load cache\n";
     }
     return version_number;
   } else {
-    // log job fresh start
-    if (rabit_debug) utils::HandleLogInfo("[%d] loadcheckpoint reset\n", rank);
-
     // reset result buffer
     resbuf_.Clear(); seq_counter = 0; version_number = 0;
     // nothing loaded, a fresh start, everyone init model
@@ -465,9 +430,9 @@ void AllreduceRobust::LocalModelCheck(bool with_local) {
       num_local_replica_ = 0;
     }
   } else {
-    utils::Check(use_local_model_ == static_cast<int>(with_local),
-                 "Can only call Checkpoint/LoadCheckPoint always with"\
-                 "or without local_model, but not mixed case");
+    CHECK_EQ(use_local_model_, static_cast<int>(with_local))
+        << "Can only call Checkpoint/LoadCheckPoint always with"
+           "or without local_model, but not mixed case";
   }
 }
 /*!
@@ -489,7 +454,6 @@ void AllreduceRobust::CheckPointImpl(const Serializable *global_model,
   if (world_size == 1) {
     version_number += 1; return;
   }
-  double start = utils::GetTime();
   this->LocalModelCheck(local_model != nullptr);
   if (num_local_replica_ == 0) {
     utils::Check(local_model == nullptr,
@@ -534,27 +498,11 @@ void AllreduceRobust::CheckPointImpl(const Serializable *global_model,
     global_model->Save(&fs);
     global_lazycheck_ = nullptr;
   }
-  double delta = utils::GetTime() - start;
-  // log checkpoint latency
-  if (rabit_debug) {
-    utils::HandleLogInfo(
-      "[%d] checkpoint finished version %d,seq %d, take %f seconds\n",
-      rank, version_number, seq_counter, delta);
-  }
-  start = utils::GetTime();
   // reset result buffer, mark boostrap phase complete
   resbuf_.Clear(); seq_counter = 0;
   // execute check ack step, load happens here
   assert_(RecoverExec(nullptr, 0, ActionSummary::kCheckAck,
     ActionSummary::kSpecialOp, cur_cache_seq_), "check ack must return true");
-
-  delta = utils::GetTime() - start;
-  // log checkpoint ack latency
-  if (rabit_debug) {
-    utils::HandleLogInfo(
-        "[%d] checkpoint ack finished version %d, take %f seconds\n", rank,
-        version_number, delta);
-  }
 }
 /*!
  * \brief reset the all the existing links by sending Out-of-Band message marker
@@ -693,21 +641,13 @@ bool AllreduceRobust::CheckAndRecover(ReturnType err_type) {
   recover_counter_ += 1;
   // async launch timeout task if enable_rabit_timeout is set
   if (rabit_timeout && !rabit_timeout_task_.valid()) {
-    utils::Printf("[EXPERIMENTAL] timeout thread expires in %d second(s)\n", timeout_sec);
+    LOG(INFO) << "[EXPERIMENTAL] timeout thread expires in " << timeout_sec << " second(s)\n";
     rabit_timeout_task_ = std::async(std::launch::async, [=]() {
-      if (rabit_debug) {
-        utils::Printf("[%d] timeout thread %ld starts\n", rank,
-                      std::this_thread::get_id());
-      }
       int time = 0;
       // check if rabit recovered every 100ms
       while (time++ < 10 * timeout_sec) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         if (shutdown_timeout_.load()) {
-          if (rabit_debug) {
-            utils::Printf("[%d] timeout task thread %ld exits\n",
-              rank, std::this_thread::get_id());
-          }
           return true;
         }
       }
@@ -1085,7 +1025,7 @@ AllreduceRobust::ReturnType AllreduceRobust::TryLoadCheckPoint(bool requester) {
     global_checkpoint_.resize(size);
   }
   if (size == 0) return kSuccess;
-  return TryRecoverData(role, BeginPtr(global_checkpoint_), size, recv_link, req_in);
+  return TryRecoverData(role, dmlc::BeginPtr(global_checkpoint_), size, recv_link, req_in);
 }
 /*!
  * \brief try to get the result of operation specified by seqno
@@ -1346,7 +1286,7 @@ AllreduceRobust::TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
     msg_back[0] = nlocal;
     // backward passing one hop the request
     ReturnType succ;
-    succ = RingPassing(BeginPtr(msg_back),
+    succ = RingPassing(dmlc::BeginPtr(msg_back),
                        1 * sizeof(int), (n+1) * sizeof(int),
                        0 * sizeof(int), n * sizeof(int),
                        ring_next, ring_prev);
@@ -1371,7 +1311,7 @@ AllreduceRobust::TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
       sizes[i] = rptr[i + 1] - rptr[i];
     }
     // pass size through the link
-    succ = RingPassing(BeginPtr(sizes),
+    succ = RingPassing(dmlc::BeginPtr(sizes),
                        nlocal * sizeof(size_t),
                        nread_end * sizeof(size_t),
                        nwrite_start * sizeof(size_t),
@@ -1385,7 +1325,7 @@ AllreduceRobust::TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
     }
     chkpt.resize(rptr.back());
     // pass data through the link
-    succ = RingPassing(BeginPtr(chkpt), rptr[nlocal], rptr[nread_end],
+    succ = RingPassing(dmlc::BeginPtr(chkpt), rptr[nlocal], rptr[nread_end],
                        rptr[nwrite_start], rptr[nread_end],
                        ring_next, ring_prev);
     if (succ != kSuccess) {
@@ -1400,7 +1340,7 @@ AllreduceRobust::TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
     msg_forward[0] = nlocal;
     // backward passing one hop the request
     ReturnType succ;
-    succ = RingPassing(BeginPtr(msg_forward),
+    succ = RingPassing(dmlc::BeginPtr(msg_forward),
                        1 * sizeof(int), (n+1) * sizeof(int),
                        0 * sizeof(int), n * sizeof(int),
                        ring_prev, ring_next);
@@ -1435,7 +1375,7 @@ AllreduceRobust::TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
       sizes[i] = rptr[i + 1] - rptr[i];
     }
     // pass size through the link, check consistency
-    succ = RingPassing(BeginPtr(sizes),
+    succ = RingPassing(dmlc::BeginPtr(sizes),
                        nlocal * sizeof(size_t),
                        nread_end * sizeof(size_t),
                        nwrite_start * sizeof(size_t),
@@ -1449,7 +1389,7 @@ AllreduceRobust::TryRecoverLocalState(std::vector<size_t> *p_local_rptr,
     }
     chkpt.resize(rptr.back());
     // pass data through the link
-    succ = RingPassing(BeginPtr(chkpt), rptr[nlocal], rptr[nread_end],
+    succ = RingPassing(dmlc::BeginPtr(chkpt), rptr[nlocal], rptr[nread_end],
                        rptr[nwrite_start], rptr[nwrite_end],
                        ring_prev, ring_next);
     if (succ != kSuccess) {
@@ -1487,7 +1427,7 @@ AllreduceRobust::TryCheckinLocalState(std::vector<size_t> *p_local_rptr,
   sizes[0] = rptr[1] - rptr[0];
   ReturnType succ;
   // pass size through the link
-  succ = RingPassing(BeginPtr(sizes),
+  succ = RingPassing(dmlc::BeginPtr(sizes),
                      1 * sizeof(size_t),
                      (n + 1) * sizeof(size_t),
                      0 * sizeof(size_t),
@@ -1501,7 +1441,7 @@ AllreduceRobust::TryCheckinLocalState(std::vector<size_t> *p_local_rptr,
   }
   chkpt.resize(rptr.back());
   // pass data through the link
-  succ = RingPassing(BeginPtr(chkpt),
+  succ = RingPassing(dmlc::BeginPtr(chkpt),
                      rptr[1], rptr[n + 1],
                      rptr[0], rptr[n],
                      ring_prev, ring_next);

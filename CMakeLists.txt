@@ -339,6 +339,26 @@ if (GOOGLE_TEST)
     PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
 endif (GOOGLE_TEST)
 
+if (GOOGLE_TEST AND (NOT WIN32))
+  # rabit mock based integration tests
+  list(REMOVE_ITEM rabit_libs "rabit_mock_static") # remove here to avoid installing it
+  set(tests lazy_recover local_recover model_recover)
+
+  foreach(test ${tests})
+    add_executable(${test} rabit/test/${test}.cc)
+    set_output_directory(${test} ${xgboost_BINARY_DIR})
+    target_link_libraries(${test} rabit_mock_static xgboost)
+    set_target_properties(${test}  PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
+    add_test(NAME ${test} COMMAND ${test} WORKING_DIRECTORY ${xgboost_BINARY_DIR})
+  endforeach()
+
+  if(RABIT_BUILD_MPI)
+    add_executable(speed_test_mpi test/speed_test.cc)
+    target_link_libraries(speed_test_mpi rabit_mpi)
+    add_test(NAME speed_test_mpi COMMAND speed_test_mpi WORKING_DIRECTORY ${xgboost_BINARY_DIR})
+  endif(RABIT_BUILD_MPI)
+endif (GOOGLE_TEST AND (NOT WIN32))
+
 # For MSVC: Call msvc_use_static_runtime() once again to completely
 # replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462
 # for issues caused by mixing of /MD and /MT flags

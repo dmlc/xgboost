@@ -233,7 +233,7 @@ class AllreduceBase : public IEngine {
    *    this function is only used for test purpose
    */
   void InitAfterException() override {
-    utils::Error("InitAfterException: not implemented");
+    LOG(FATAL) << "InitAfterException: not implemented";
   }
   /*!
    * \brief report current status to the job tracker
@@ -317,7 +317,7 @@ class AllreduceBase : public IEngine {
                     "too large type_nbytes=%lu, buffer_size=%lu",
                     type_nbytes, buffer_size);
       // set buffer head
-      buffer_head = reinterpret_cast<char*>(BeginPtr(buffer_));
+      buffer_head = reinterpret_cast<char*>(dmlc::BeginPtr(buffer_));
     }
     // reset the recv and sent size
     inline void ResetSize() {

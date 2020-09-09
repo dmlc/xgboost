@@ -7,6 +7,7 @@
  */
 #define NOMINMAX
 #include "allreduce_base.h"
+#include "xgboost/logging.h"
 #include <rabit/base.h>
 #include <netinet/tcp.h>
 #include <cstring>
@@ -34,7 +35,7 @@ AllreduceBase::AllreduceBase() {
   task_id = "NULL";
   err_link = nullptr;
   dmlc_role = "worker";
-  this->SetParam("rabit_reduce_buffer", "256MB");
+  this->AllreduceBase::SetParam("rabit_reduce_buffer", "256MB");
   // setup possible enviroment variable of interest
   // include dmlc support direct variables
   env_vars.emplace_back("DMLC_TASK_ID");
@@ -70,8 +71,7 @@ bool AllreduceBase::Init(int argc, char* argv[]) {
       task_id = getenv("mapreduce_task_id");
     }
     if (hadoop_mode) {
-      utils::Check(task_id != nullptr,
-                   "hadoop_mode is set but cannot find mapred_task_id");
+      CHECK(task_id) << "hadoop_mode is set but cannot find mapred_task_id";
     }
     if (task_id != nullptr) {
       this->SetParam("rabit_task_id", task_id);
@@ -138,7 +138,7 @@ bool AllreduceBase::Shutdown() {
 
 void AllreduceBase::TrackerPrint(const std::string &msg) {
   if (tracker_uri == "NULL") {
-    utils::Printf("%s", msg.c_str()); return;
+    LOG(INFO) << msg; return;
   }
   utils::TCPSocket tracker = this->ConnectTracker();
   tracker.SendStr(std::string("print"));
@@ -158,13 +158,15 @@ inline size_t ParseUnit(const char *name, const char *val) {
       case 'K': return amount << 10UL;
       case 'M': return amount << 20UL;
       case 'G': return amount << 30UL;
-      default: utils::Error("invalid format for %s", name); return 0;
+      default:
+        LOG(FATAL) << "invalid format for " << name;
+        return 0;
     }
   } else if (n == 1) {
     return amount;
   } else {
-    utils::Error("invalid format for %s,"                               \
-                 "shhould be {integer}{unit}, unit can be {B, KB, MB, GB}", name);
+    LOG(FATAL) << "invalid format for " << name << ", "
+               << "shhould be {integer}{unit}, unit can be {B, KB, MB, GB}";
     return 0;
   }
 }
@@ -232,7 +234,7 @@ utils::TCPSocket AllreduceBase::ConnectTracker() const {
         fprintf(stderr, "connect to (failed): [%s]\n", tracker_uri.c_str());
         utils::Socket::Error("Connect");
       } else {
-        fprintf(stderr, "retry connect to ip(retry time %d): [%s]\n", retry, tracker_uri.c_str());
+        LOG(WARNING) << "retry connect to ip" << "(retry time" << retry << "): " << tracker_uri;
 #if defined(_MSC_VER) || defined (__MINGW32__)
         Sleep(retry << 1);
 #else
@@ -244,16 +246,15 @@ utils::TCPSocket AllreduceBase::ConnectTracker() const {
     break;
   } while (true);
 
-  using utils::Assert;
-  Assert(tracker.SendAll(&magic, sizeof(magic)) == sizeof(magic),
-         "ReConnectLink failure 1");
-  Assert(tracker.RecvAll(&magic, sizeof(magic)) == sizeof(magic),
-         "ReConnectLink failure 2");
-  utils::Check(magic == kMagic, "sync::Invalid tracker message, init failure");
-  Assert(tracker.SendAll(&rank, sizeof(rank)) == sizeof(rank),
-                "ReConnectLink failure 3");
-  Assert(tracker.SendAll(&world_size, sizeof(world_size)) == sizeof(world_size),
-         "ReConnectLink failure 3");
+  CHECK_EQ(tracker.SendAll(&magic, sizeof(magic)), sizeof(magic))
+      << "ReConnectLink failure send";
+  CHECK_EQ(tracker.RecvAll(&magic, sizeof(magic)), sizeof(magic))
+      << "ReConnectLink failure recv";
+  CHECK_EQ(magic, kMagic) << "sync::Invalid tracker message, init failure";
+  CHECK_EQ(tracker.SendAll(&rank, sizeof(rank)), sizeof(rank))
+      << "ReConnectLink failure 3";
+  CHECK_EQ(tracker.SendAll(&world_size, sizeof(world_size)),
+           sizeof(world_size));
   tracker.SendStr(task_id);
   return tracker;
 }
@@ -268,7 +269,7 @@ bool AllreduceBase::ReConnectLinks(const char *cmd) {
   }
   try {
     utils::TCPSocket tracker = this->ConnectTracker();
-    fprintf(stdout, "task %s connected to the tracker\n", task_id.c_str());
+    LOG(INFO) << "task " << task_id << " connected to the tracker";
     tracker.SendStr(std::string(cmd));
 
     // the rank of previous link, next link in ring
@@ -288,11 +289,8 @@ bool AllreduceBase::ReConnectLinks(const char *cmd) {
            "must keep rank to same if the node already have one");
     rank = newrank;
 
-    // tracker got overwhelemed and not able to assign correct rank
-    if (rank == -1) exit(-1);
-
-    fprintf(stdout, "task %s got new rank %d\n", task_id.c_str(), rank);
-
+    CHECK_NE(rank, -1) << "tracker got overwhelemed and not able to assign correct rank";
+    LOG(INFO) << "task " << task_id << " got new rank " << rank;
     Assert(tracker.RecvAll(&num_neighbors, sizeof(num_neighbors)) == \
          sizeof(num_neighbors), "ReConnectLink failure 4");
     for (int i = 0; i < num_neighbors; ++i) {
@@ -571,20 +569,20 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
       for (int i = 0; i < nlink; ++i) {
         if (i != parent_index) {
           max_reduce = std::min(max_reduce, links[i].size_read);
-          utils::Assert(buffer_size == 0 || buffer_size == links[i].buffer_size,
-                        "buffer size inconsistent");
+          CHECK(buffer_size == 0 || buffer_size == links[i].buffer_size)
+              << "buffer size inconsistent";
           buffer_size = links[i].buffer_size;
         }
       }
-      utils::Assert(buffer_size != 0, "must assign buffer_size");
+      CHECK_NE(buffer_size, 0) << "must assign buffer_size";
       // round to type_n4bytes
       max_reduce = (max_reduce / type_nbytes * type_nbytes);
 
       // if max reduce is less than total size, we reduce multiple times of
       // eachreduce size
       if (max_reduce < total_size) {
-          max_reduce = max_reduce - max_reduce % eachreduce;
-}
+        max_reduce = max_reduce - max_reduce % eachreduce;
+      }
 
       // peform reduce, can be at most two rounds
       while (size_up_reduce < max_reduce) {
@@ -593,7 +591,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
         // peform read till end of buffer
         size_t nread = std::min(buffer_size - start,
                                 max_reduce - size_up_reduce);
-        utils::Assert(nread % type_nbytes == 0, "Allreduce: size check");
+        CHECK_EQ(nread % type_nbytes, 0) << "Allreduce: size check";
         for (int i = 0; i < nlink; ++i) {
           if (i != parent_index) {
             reducer(links[i].buffer_head + start,
@@ -913,7 +911,7 @@ AllreduceBase::TryReduceScatterRing(void *sendrecvbuf_,
       }
       // sync the rate
       read_ptr = next.size_read;
-      utils::Assert(read_ptr <= stop_read, "[%d] read_ptr boundary check", rank);
+      CHECK_LE(read_ptr, stop_read) << "[" << rank << "] read_ptr boundary check";
       const size_t buffer_size = next.buffer_size;
       size_t max_reduce = (read_ptr  / type_nbytes) * type_nbytes;
       while (reduce_ptr < max_reduce) {

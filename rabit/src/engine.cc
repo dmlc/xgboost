@@ -21,10 +21,10 @@ namespace engine {
 #ifndef RABIT_USE_MOCK
 using Manager = AllreduceRobust;
 #else
-typedef AllreduceMock Manager;
+using Manager = AllreduceMock;
 #endif  // RABIT_USE_MOCK
 #else
-typedef AllreduceBase Manager;
+using Manager = AllreduceBase;
 #endif  // RABIT_USE_BASE
 
 /*! \brief entry to to easily hold returning information */

@@ -28,7 +28,7 @@ struct FHelper<op::BitOR, DType> {
             size_t count,
             void (*prepare_fun)(void *arg),
             void *prepare_arg) {
-    utils::Error("DataType does not support bitwise or operation");
+    LOG(FATAL) << "DataType does not support bitwise or operation";
   }
 };
 
@@ -80,9 +80,11 @@ void Allreduce(void *sendrecvbuf_,
           (static_cast<double*>(sendrecvbuf_),
            count, prepare_fun, prepare_arg);
       return;
-    default: utils::Error("unknown data_type");
+    default:
+      LOG(FATAL) << "unknown data_type";
   }
 }
+
 void Allreduce(void *sendrecvbuf,
                size_t count,
                engine::mpi::DataType enum_dtype,
@@ -115,7 +117,8 @@ void Allreduce(void *sendrecvbuf,
            count, enum_dtype,
            prepare_fun, prepare_arg);
       return;
-    default: utils::Error("unknown enum_op");
+    default:
+      LOG(FATAL) << "unknown enum_op";
   }
 }
 void Allgather(void *sendrecvbuf_,
@@ -175,7 +178,8 @@ void Allgather(void *sendrecvbuf_,
       beginIndex * type_size, (beginIndex + size_node_slice) * type_size,
       size_prev_slice * type_size);
     break;
-  default: utils::Error("unknown data_type");
+  default:
+    LOG(FATAL) << "unknown data_type";
   }
 }
 
@@ -195,7 +199,7 @@ struct ReadWrapper : public Serializable {
     }
   }
   void Save(Stream *fo) const override {
-    utils::Error("not implemented");
+    LOG(FATAL) << "not implemented";
   }
 };
 
@@ -207,7 +211,7 @@ struct WriteWrapper : public Serializable {
       : data(data), length(length) {
   }
   void Load(Stream *fi) override {
-    utils::Error("not implemented");
+    LOG(FATAL) << "not implemented";
   }
   void Save(Stream *fo) const override {
     uint64_t sz = static_cast<uint16_t>(length);
@@ -289,7 +293,7 @@ RABIT_DLL int RabitLoadCheckPoint(char **out_global_model,
                                   char **out_local_model,
                                   rbt_ulong *out_local_len) {
   // NOTE: this function is not thread-safe
-  using rabit::BeginPtr;
+  using dmlc::BeginPtr;
   using namespace rabit::c_api; // NOLINT(*)
   static std::string global_buffer;
   static std::string local_buffer;

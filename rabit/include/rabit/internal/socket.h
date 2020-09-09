@@ -26,6 +26,7 @@
 #include <cstring>
 #include <vector>
 #include <unordered_map>
+#include "xgboost/logging.h"
 #include "utils.h"
 
 #if defined(_WIN32) || defined(__MINGW32__)
@@ -71,8 +72,8 @@ struct SockAddr {
     hints.ai_protocol = SOCK_STREAM;
     addrinfo *res = nullptr;
     int sig = getaddrinfo(host, nullptr, &hints, &res);
-    Check(sig == 0 && res != nullptr, "cannot obtain address of %s", host);
-    Check(res->ai_family == AF_INET, "Does not support IPv6");
+    CHECK(sig == 0 && res != nullptr) << "cannot obtain address of: " << host;
+    CHECK(res->ai_family == AF_INET) << "Does not support IPv6";
     memcpy(&addr, res->ai_addr, res->ai_addrlen);
     addr.sin_port = htons(port);
     freeaddrinfo(res);
@@ -91,7 +92,7 @@ struct SockAddr {
     const char *s = inet_ntop(AF_INET, &addr.sin_addr,
                               &buf[0], buf.length());
 #endif  // _WIN32
-    Assert(s != nullptr, "cannot decode address");
+    CHECK(s) << "cannot decode address";
     return std::string(s);
   }
 };
@@ -251,9 +252,9 @@ class Socket {
   inline static void Error(const char *msg) {
     int errsv = GetLastError();
 #ifdef _WIN32
-    utils::Error("Socket %s Error:WSAError-code=%d", msg, errsv);
+    LOG(FATAL) << "Socket " << msg << " Error:WSAError-code=" << errsv;
 #else
-    utils::Error("Socket %s Error:%s", msg, strerror(errsv));
+    LOG(FATAL) << "Socket Error:" << msg << " " << strerror(errsv);
 #endif
   }
 
