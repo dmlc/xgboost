@@ -200,11 +200,4 @@ addressed yet:
 - Label encoding for the ``DaskXGBClassifier`` classifier may not be supported.  So users need
   to encode their training labels into discrete values first.
 - Ranking is not yet supported.
-- Empty worker is not well supported by classifier.  If the training hangs for classifier
-  with a warning about empty DMatrix, please consider balancing your data first.  But
-  regressor works fine with empty DMatrix.
 - Callback functions are not tested.
-- Only ``GridSearchCV`` from Scikit-Learn is supported.  Meaning that we can distribute data
-  among workers but have to train one model at a time.  If you want to scale up grid searching with
-  model parallelism with `Dask-ML <https://ml.dask.org/>`_, please consider using XGBoost's non-dask
-  Scikit-Learn interface, for example ``xgboost.XGBRegressor``, for now.
