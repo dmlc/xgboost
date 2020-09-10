@@ -9,11 +9,9 @@
 #include "allreduce_base.h"
 #include <rabit/base.h>
 
-#ifdef __unix__
+#ifndef _WIN32
 #include <netinet/tcp.h>
-#else
-#include <winsock.h>
-#endif  // __unix__
+#endif  // _WIN32
 
 #include <cstring>
 #include <map>
