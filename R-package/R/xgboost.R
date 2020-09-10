@@ -91,11 +91,6 @@ NULL
 #' @importFrom data.table setkeyv
 #' @importFrom data.table setnames
 #' @importFrom magrittr %>%
-#' @importFrom stringi stri_detect_regex
-#' @importFrom stringi stri_match_first_regex
-#' @importFrom stringi stri_replace_first_regex
-#' @importFrom stringi stri_replace_all_regex
-#' @importFrom stringi stri_split_regex
 #' @importFrom utils object.size str tail
 #' @importFrom stats predict
 #' @importFrom stats median
