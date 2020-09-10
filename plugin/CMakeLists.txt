@@ -1,6 +1,11 @@
 if (PLUGIN_LZ4)
   target_sources(objxgboost PRIVATE ${xgboost_SOURCE_DIR}/plugin/lz4/sparse_page_lz4_format.cc)
-  target_link_libraries(objxgboost PUBLIC lz4)
+  find_path(LIBLZ4_INCLUDE_DIR lz4.h)
+  find_library(LIBLZ4_LIBRARY NAMES lz4)
+  message(STATUS "LIBLZ4_INCLUDE_DIR = ${LIBLZ4_INCLUDE_DIR}")
+  message(STATUS "LIBLZ4_LIBRARY = ${LIBLZ4_LIBRARY}")
+  target_include_directories(objxgboost PUBLIC ${LIBLZ4_INCLUDE_DIR})
+  target_link_libraries(objxgboost PUBLIC ${LIBLZ4_LIBRARY})
 endif (PLUGIN_LZ4)
 
 if (PLUGIN_DENSE_PARSER)

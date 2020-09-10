@@ -109,7 +109,7 @@ class BlockedSpace2d {
 
 
 // Wrapper to implement nested parallelism with simple omp parallel for
-template<typename Func>
+template <typename Func>
 void ParallelFor2d(const BlockedSpace2d& space, int nthreads, Func func) {
   const size_t num_blocks_in_space = space.Size();
   nthreads = std::min(nthreads, omp_get_max_threads());
@@ -118,7 +118,8 @@ void ParallelFor2d(const BlockedSpace2d& space, int nthreads, Func func) {
   dmlc::OMPException omp_exc;
 #pragma omp parallel num_threads(nthreads)
   {
-    omp_exc.Run([&]() {
+    omp_exc.Run(
+        [](size_t num_blocks_in_space, const BlockedSpace2d& space, int nthreads, Func func) {
       size_t tid = omp_get_thread_num();
       size_t chunck_size =
           num_blocks_in_space / nthreads + !!(num_blocks_in_space % nthreads);
@@ -128,7 +129,7 @@ void ParallelFor2d(const BlockedSpace2d& space, int nthreads, Func func) {
       for (auto i = begin; i < end; i++) {
         func(space.GetFirstDimension(i), space.GetRange(i));
       }
-    });
+    }, num_blocks_in_space, space, nthreads, func);
   }
   omp_exc.Rethrow();
 }

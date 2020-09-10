@@ -16,10 +16,6 @@ if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_sdist_test" ]; then
     conda create -n python3 python=3.7
 fi
 
-if [ ${TASK} == "cmake_test" ] && [ ${TRAVIS_OS_NAME} == "osx" ]; then
-    sudo softwareupdate -i "Command Line Tools (macOS High Sierra version 10.13) for Xcode-9.3"
-fi
-
 if [ ${TASK} == "s390x_test" ] && [ ${TRAVIS_CPU_ARCH} == "s390x" ]; then
     sudo snap install cmake --channel=3.17/beta --classic
     export PATH=/snap/bin:${PATH}
