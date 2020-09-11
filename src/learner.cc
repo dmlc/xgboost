@@ -809,12 +809,6 @@ class LearnerIO : public LearnerConfiguration {
 
     {
       std::vector<std::string> saved_params;
-      // check if rabit_bootstrap_cache were set to non zero before adding to checkpoint
-      if (cfg_.find("rabit_bootstrap_cache") != cfg_.end() &&
-        (cfg_.find("rabit_bootstrap_cache"))->second != "0") {
-        std::copy(saved_configs_.begin(), saved_configs_.end(),
-                  std::back_inserter(saved_params));
-      }
       for (const auto& key : saved_params) {
         auto it = cfg_.find(key);
         if (it != cfg_.end()) {

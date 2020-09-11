@@ -2,8 +2,9 @@ cmake_minimum_required(VERSION 3.3)
 
 find_package(Threads REQUIRED)
 
-add_library(rabit src/allreduce_base.cc src/allreduce_robust.cc src/engine.cc src/c_api.cc)
-add_library(rabit_mock_static src/allreduce_base.cc src/allreduce_robust.cc src/engine_mock.cc src/c_api.cc)
+add_library(rabit src/allreduce_base.cc src/engine.cc src/c_api.cc)
+add_library(rabit_mock_static src/allreduce_base.cc src/engine_mock.cc src/c_api.cc)
+
 target_link_libraries(rabit Threads::Threads dmlc)
 target_link_libraries(rabit_mock_static Threads::Threads dmlc)
 

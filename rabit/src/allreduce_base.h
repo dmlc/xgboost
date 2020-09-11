@@ -518,9 +518,9 @@ class AllreduceBase : public IEngine {
   //---- data structure related to model ----
   // call sequence counter, records how many calls we made so far
   // from last call to CheckPoint, LoadCheckPoint
-  int seq_counter;  // NOLINT
+  int seq_counter{0}; // NOLINT
   // version number of model
-  int version_number;  // NOLINT
+  int version_number {0};  // NOLINT
   // whether the job is running in hadoop
   bool hadoop_mode;  // NOLINT
   //---- local data related to link ----

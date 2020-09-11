@@ -12,14 +12,13 @@
 #include <memory>
 #include "rabit/internal/engine.h"
 #include "allreduce_base.h"
-#include "allreduce_robust.h"
 
 namespace rabit {
 namespace engine {
 // singleton sync manager
 #ifndef RABIT_USE_BASE
 #ifndef RABIT_USE_MOCK
-using Manager = AllreduceRobust;
+using Manager = AllreduceBase;
 #else
 typedef AllreduceMock Manager;
 #endif  // RABIT_USE_MOCK
