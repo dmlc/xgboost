@@ -125,7 +125,7 @@ inline void Assert(bool exp, const char *fmt, ...) {
     va_start(args, fmt);
     vsnprintf(&msg[0], kPrintBuffer, fmt, args);
     va_end(args);
-    HandleAssertError(msg.c_str());
+    LOG(FATAL) << msg;
   }
 }
 
@@ -137,7 +137,7 @@ inline void Check(bool exp, const char *fmt, ...) {
     va_start(args, fmt);
     vsnprintf(&msg[0], kPrintBuffer, fmt, args);
     va_end(args);
-    HandleCheckError(msg.c_str());
+    LOG(FATAL) << msg;
   }
 }
 
@@ -149,7 +149,7 @@ inline void Error(const char *fmt, ...) {
     va_start(args, fmt);
     vsnprintf(&msg[0], kPrintBuffer, fmt, args);
     va_end(args);
-    HandleCheckError(msg.c_str());
+    LOG(FATAL) << msg;
   }
 }
 }  // namespace utils
@@ -170,15 +170,6 @@ auto Max(T const& l, T const& r) {
 /*! \brief get the beginning address of a vector */
 template<typename T>
 inline T *BeginPtr(std::vector<T> &vec) {  // NOLINT(*)
-  if (vec.size() == 0) {
-    return nullptr;
-  } else {
-    return &vec[0];
-  }
-}
-/*! \brief get the beginning address of a vector */
-template<typename T>
-inline const T *BeginPtr(const std::vector<T> &vec) {  // NOLINT(*)
   if (vec.size() == 0) {
     return nullptr;
   } else {

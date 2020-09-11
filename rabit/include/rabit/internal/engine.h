@@ -9,16 +9,6 @@
 #include <string>
 #include "rabit/serializable.h"
 
-#if (defined(__GNUC__) && !defined(__clang__))
-#define _FILE  __builtin_FILE()
-#define _LINE  __builtin_LINE()
-#define _CALLER  __builtin_FUNCTION()
-#else
-#define _FILE  "N/A"
-#define _LINE  -1
-#define _CALLER  "N/A"
-#endif  // (defined(__GNUC__) && !defined(__clang__))
-
 namespace MPI {  // NOLINT
 /*! \brief MPI data type just to be compatible with MPI reduce function*/
 class Datatype;
@@ -65,18 +55,12 @@ class IEngine {
    * \param slice_begin beginning of the current slice
    * \param slice_end end of the current slice
    * \param size_prev_slice size of the previous slice i.e. slice of node (rank - 1) % world_size
-   * \param _file caller file name used to generate unique cache key
-   * \param _line caller line number used to generate unique cache key
-   * \param _caller caller function name used to generate unique cache key
    */
   virtual void Allgather(void *sendrecvbuf,
                          size_t total_size,
                          size_t slice_begin,
                          size_t slice_end,
-                         size_t size_prev_slice,
-                         const char* _file = _FILE,
-                         const int _line = _LINE,
-                         const char* _caller = _CALLER) = 0;
+                         size_t size_prev_slice) = 0;
   /*!
    * \brief performs in-place Allreduce, on sendrecvbuf
    *        this function is NOT thread-safe
@@ -88,32 +72,20 @@ class IEngine {
    *                     will be called by the function before performing Allreduce in order to initialize the data in sendrecvbuf.
    *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
    * \param prepare_arg argument used to pass into the lazy preprocessing function
-   * \param _file caller file name used to generate unique cache key
-   * \param _line caller line number used to generate unique cache key
-   * \param _caller caller function name used to generate unique cache key
    */
   virtual void Allreduce(void *sendrecvbuf_,
                          size_t type_nbytes,
                          size_t count,
                          ReduceFunction reducer,
                          PreprocFunction prepare_fun = nullptr,
-                         void *prepare_arg = nullptr,
-                         const char* _file = _FILE,
-                         const int _line = _LINE,
-                         const char* _caller = _CALLER) = 0;
+                         void *prepare_arg = nullptr) = 0;
   /*!
    * \brief broadcasts data from root to every other node
    * \param sendrecvbuf_ buffer for both sending and receiving data
    * \param size the size of the data to be broadcasted
    * \param root the root worker id to broadcast the data
-   * \param _file caller file name used to generate unique cache key
-   * \param _line caller line number used to generate unique cache key
-   * \param _caller caller function name used to generate unique cache key
    */
-  virtual void Broadcast(void *sendrecvbuf_, size_t size, int root,
-                         const char* _file = _FILE,
-                         const int _line = _LINE,
-                         const char* _caller = _CALLER) = 0;
+  virtual void Broadcast(void *sendrecvbuf_, size_t size, int root) = 0;
   /*!
    * \brief explicitly re-initialize everything before calling LoadCheckPoint
    *    call this function when IEngine throws an exception,
@@ -250,18 +222,12 @@ enum DataType {
  * \param slice_begin beginning of the current slice
  * \param slice_end end of the current slice
  * \param size_prev_slice size of the previous slice i.e. slice of node (rank - 1) % world_size
- * \param _file caller file name used to generate unique cache key
- * \param _line caller line number used to generate unique cache key
- * \param _caller caller function name used to generate unique cache key
  */
 void Allgather(void* sendrecvbuf,
                    size_t total_size,
                    size_t slice_begin,
                    size_t slice_end,
-                   size_t size_prev_slice,
-                   const char* _file = _FILE,
-                   const int _line = _LINE,
-                   const char* _caller = _CALLER);
+                   size_t size_prev_slice);
 /*!
  * \brief perform in-place Allreduce, on sendrecvbuf
  *   this is an internal function used by rabit to be able to compile with MPI
@@ -276,9 +242,6 @@ void Allgather(void* sendrecvbuf,
  *                     will be called by the function before performing Allreduce, to initialize the data in sendrecvbuf_.
  *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
  * \param prepare_arg argument used to pass into the lazy preprocessing function.
- * \param _file caller file name used to generate unique cache key
- * \param _line caller line number used to generate unique cache key
- * \param _caller caller function name used to generate unique cache key
  */
 void Allreduce_(void *sendrecvbuf,  // NOLINT
                 size_t type_nbytes,
@@ -287,10 +250,7 @@ void Allreduce_(void *sendrecvbuf,  // NOLINT
                 mpi::DataType dtype,
                 mpi::OpType op,
                 IEngine::PreprocFunction prepare_fun = nullptr,
-                void *prepare_arg = nullptr,
-                const char* _file = _FILE,
-                const int _line = _LINE,
-                const char* _caller = _CALLER);
+                void *prepare_arg = nullptr);
 /*!
  * \brief handle for customized reducer, used to handle customized reduce
  *  this class is mainly created for compatiblity issues with MPI's customized reduce
@@ -316,18 +276,13 @@ class ReduceHandle {
    *                     will be called by the function before performing Allreduce in order to initialize the data in sendrecvbuf_.
    *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
    * \param prepare_arg argument used to pass into the lazy preprocessing function
-   * \param _file caller file name used to generate unique cache key
-   * \param _line caller line number used to generate unique cache key
-   * \param _caller caller function name used to generate unique cache key
    */
   void Allreduce(void *sendrecvbuf,
                  size_t type_nbytes,
                  size_t count,
                  IEngine::PreprocFunction prepare_fun = nullptr,
-                 void *prepare_arg = nullptr,
-                 const char* _file = _FILE,
-                 const int _line = _LINE,
-                 const char* _caller = _CALLER);
+                 void *prepare_arg = nullptr);
+
   /*! \return the number of bytes occupied by the type */
   static int TypeSize(const MPI::Datatype &dtype);
 
