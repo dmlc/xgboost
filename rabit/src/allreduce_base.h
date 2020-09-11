@@ -306,10 +306,11 @@ class AllreduceBase : public IEngine {
     // constructor
     LinkRecord() = default;
     // initialize buffer
-    inline void InitBuffer(size_t type_nbytes, size_t count,
-                           size_t reduce_buffer_size) {
+    void InitBuffer(size_t type_nbytes, size_t count,
+                    size_t reduce_buffer_size) {
       size_t n = (type_nbytes * count + 7)/ 8;
-      buffer_.resize(std::min(reduce_buffer_size, n));
+      auto to = Min(reduce_buffer_size, n);
+      buffer_.resize(to);
       // make sure align to type_nbytes
       buffer_size =
           buffer_.size() * sizeof(uint64_t) / type_nbytes * type_nbytes;
@@ -338,8 +339,8 @@ class AllreduceBase : public IEngine {
       utils::Assert(ngap <= buffer_size, "Allreduce: boundary check");
       size_t offset = size_read % buffer_size;
       size_t nmax = max_size_read - size_read;
-      nmax = std::min(nmax, buffer_size - ngap);
-      nmax = std::min(nmax, buffer_size - offset);
+      nmax = Min(nmax, buffer_size - ngap);
+      nmax = Min(nmax, buffer_size - offset);
       if (nmax == 0) return kSuccess;
       ssize_t len = sock.Recv(buffer_head + offset, nmax);
       // length equals 0, remote disconnected

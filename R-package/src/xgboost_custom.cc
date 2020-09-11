@@ -13,23 +13,6 @@ void CustomLogMessage::Log(const std::string& msg) {
 }
 }  // namespace dmlc
 
-// implements rabit error handling.
-extern "C" {
-  void XGBoostAssert_R(int exp, const char *fmt, ...);
-  void XGBoostCheck_R(int exp, const char *fmt, ...);
-}
-
-namespace rabit {
-namespace utils {
-extern "C" {
-  void (*Printf)(const char *fmt, ...) = Rprintf;
-  void (*Assert)(int exp, const char *fmt, ...) = XGBoostAssert_R;
-  void (*Check)(int exp, const char *fmt, ...) = XGBoostCheck_R;
-  void (*Error)(const char *fmt, ...) = error;
-}
-}
-}
-
 namespace xgboost {
 ConsoleLogger::~ConsoleLogger() {
   if (cur_verbosity_ == LogVerbosity::kIgnore ||
