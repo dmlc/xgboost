@@ -177,7 +177,7 @@ else()
                            -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
   endif (MSVC)
 endif(RABIT_MOCK)
-foreach(lib rabit rabit_base rabit_mock rabit_mock_static)
+foreach(lib rabit rabit_base rabit_mock_static)
   # Explicitly link dmlc to rabit, so that configured header (build_config.h)
   # from dmlc is correctly applied to rabit.
   if (TARGET ${lib})
