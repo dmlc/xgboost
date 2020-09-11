@@ -30,6 +30,7 @@
 #include <string>
 #include <cstring>
 #include <vector>
+#include <chrono>
 #include <unordered_map>
 #include "utils.h"
 
@@ -95,18 +96,18 @@ namespace utils {
 static constexpr int kInvalidSocket = -1;
 
 template <typename PollFD>
-int PollImpl(PollFD *pfd, int nfds, int timeout) {
+int PollImpl(PollFD *pfd, int nfds, std::chrono::seconds timeout) {
 #if defined(_WIN32)
 
 #if IS_MINGW()
   MingWError();
   return -1;
 #else
-  return WSAPoll(pfd, nfds, timeout);
+  return WSAPoll(pfd, nfds, std::chrono::milliseconds(timeout).count());
 #endif  // IS_MINGW()
 
 #else
-  return poll(pfd, nfds, timeout);
+  return poll(pfd, nfds, std::chrono::milliseconds(timeout).count());
 #endif  // IS_MINGW()
 }
 
@@ -616,32 +617,20 @@ struct PollHelper {
     const auto& pfd = fds.find(fd);
     return pfd != fds.end() && ((pfd->second.events & POLLPRI) != 0);
   }
-  /*!
-   * \brief wait for exception event on a single descriptor
-   * \param fd the file descriptor to wait the event for
-   * \param timeout the timeout counter, can be negative, which means wait until the event happen
-   * \return 1 if success, 0 if timeout, and -1 if error occurs
-   */
-  inline static int WaitExcept(SOCKET fd, long timeout = -1) { // NOLINT(*)
-    pollfd pfd;
-    pfd.fd = fd;
-    pfd.events = POLLPRI;
-    return PollImpl(&pfd, 1, timeout);
-  }
 
   /*!
    * \brief peform poll on the set defined, read, write, exception
    * \param timeout specify timeout in milliseconds(ms) if negative, means poll will block
    * \return
    */
-  inline void Poll(long timeout = -1) {  // NOLINT(*)
+  inline void Poll(std::chrono::seconds timeout) {  // NOLINT(*)
     std::vector<pollfd> fdset;
     fdset.reserve(fds.size());
     for (auto kv : fds) {
       fdset.push_back(kv.second);
     }
     int ret = PollImpl(fdset.data(), fdset.size(), timeout);
-    if (ret == -1) {
+    if (ret <= 0) {
       Socket::Error("Poll");
     } else {
       for (auto& pfd : fdset) {

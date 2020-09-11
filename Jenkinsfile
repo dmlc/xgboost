@@ -321,20 +321,6 @@ def TestPythonGPU(args) {
   }
 }
 
-def TestCppRabit() {
-  node(nodeReq) {
-    unstash name: 'xgboost_rabit_tests'
-    unstash name: 'srcs'
-    echo "Test C++, rabit mock on"
-    def container_type = "cpu"
-    def docker_binary = "docker"
-    sh """
-    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/runxgb.sh xgboost tests/ci_build/approx.conf.in
-    """
-    deleteDir()
-  }
-}
-
 def TestCppGPU(args) {
   def nodeReq = 'linux && mgpu'
   def artifact_cuda_version = (args.artifact_cuda_version) ?: ref_cuda_ver

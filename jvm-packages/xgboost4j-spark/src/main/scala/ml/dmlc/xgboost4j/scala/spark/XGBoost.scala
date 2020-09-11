@@ -577,6 +577,7 @@ object XGBoost extends Serializable {
     logger.info(s"Running XGBoost ${spark.VERSION} with parameters:\n${params.mkString("\n")}")
     val xgbParamsFactory = new XGBoostExecutionParamsFactory(params, trainingData.sparkContext)
     val xgbExecParams = xgbParamsFactory.buildXGBRuntimeParams
+    val xgbRabitParams = xgbParamsFactory.buildRabitParams.asJava
     val sc = trainingData.sparkContext
     val transformedTrainingData = composeInputData(trainingData, xgbExecParams.cacheTrainingSet,
       hasGroup, xgbExecParams.numWorkers)
@@ -595,6 +596,8 @@ object XGBoost extends Serializable {
           xgbExecParams.timeoutRequestWorkers,
           xgbExecParams.numWorkers,
           xgbExecParams.killSparkContextOnWorkerFailure)
+
+        tracker.getWorkerEnvs().putAll(xgbRabitParams)
         val rabitEnv = tracker.getWorkerEnvs
         val boostersAndMetrics = if (hasGroup) {
           trainForRanking(transformedTrainingData.left.get, xgbExecParams, rabitEnv, prevBooster,
