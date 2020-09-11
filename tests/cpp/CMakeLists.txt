@@ -20,7 +20,7 @@ endif (NOT PLUGIN_UPDATER_ONEAPI)
 
 add_executable(testxgboost ${TEST_SOURCES}
   ${xgboost_SOURCE_DIR}/plugin/example/custom_obj.cc)
-target_link_libraries(testxgboost PRIVATE objxgboost)
+target_link_libraries(testxgboost PRIVATE objxgboost rabit)
 
 if (USE_CUDA)
   xgboost_set_cuda_flags(testxgboost)

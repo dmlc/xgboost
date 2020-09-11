@@ -174,30 +174,6 @@ target_link_libraries(objxgboost PUBLIC dmlc)
 # rabit
 add_subdirectory(rabit)
 
-if (RABIT_MOCK)
-  target_link_libraries(objxgboost PUBLIC rabit_mock_static)
-  if (MSVC)
-    target_compile_options(rabit_mock_static PRIVATE
-                           -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
-  endif (MSVC)
-else()
-  target_link_libraries(objxgboost PUBLIC rabit)
-  if (MSVC)
-    target_compile_options(rabit PRIVATE
-                           -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
-  endif (MSVC)
-endif(RABIT_MOCK)
-foreach(lib rabit rabit_mock_static)
-  # Explicitly link dmlc to rabit, so that configured header (build_config.h)
-  # from dmlc is correctly applied to rabit.
-  if (TARGET ${lib})
-    target_link_libraries(${lib} dmlc ${CMAKE_THREAD_LIBS_INIT})
-    if (ENABLE_ALL_WARNINGS)
-      target_compile_options(${lib} PRIVATE -Wall -Wextra)
-    endif (ENABLE_ALL_WARNINGS)
-  endif (TARGET ${lib})
-endforeach()
-
 # Exports some R specific definitions and objects
 if (R_LIB)
   add_subdirectory(${xgboost_SOURCE_DIR}/R-package)
@@ -212,7 +188,7 @@ if (BUILD_STATIC_LIB)
 else (BUILD_STATIC_LIB)
   add_library(xgboost SHARED)
 endif (BUILD_STATIC_LIB)
-target_link_libraries(xgboost PRIVATE objxgboost)
+target_link_libraries(xgboost PRIVATE objxgboost rabit)
 
 if (USE_CUDA)
   xgboost_set_cuda_flags(xgboost)
@@ -238,7 +214,7 @@ endif (JVM_BINDINGS)
 
 #-- CLI for xgboost
 add_executable(runxgboost ${xgboost_SOURCE_DIR}/src/cli_main.cc)
-target_link_libraries(runxgboost PRIVATE objxgboost)
+target_link_libraries(runxgboost PRIVATE objxgboost rabit)
 if (USE_NVTX)
   enable_nvtx(runxgboost)
 endif (USE_NVTX)
@@ -345,6 +321,27 @@ if (GOOGLE_TEST)
   set_tests_properties(TestXGBoostCLI
     PROPERTIES
     PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
+
+  if (NOT WIN32)
+    set(tests lazy_recover local_recover model_recover)
+    foreach(test ${tests})
+      add_executable(${test} ${xgboost_SOURCE_DIR}/rabit/test/${test}.cc)
+      target_link_libraries(${test} xgboost)
+      target_include_directories(${test} PRIVATE
+        "$<BUILD_INTERFACE:${xgboost_SOURCE_DIR}/rabit/include>"
+        "$<BUILD_INTERFACE:${xgboost_SOURCE_DIR}/dmlc-core/include>")
+      set_target_properties(${test} PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
+      add_test(NAME ${test} COMMAND ${test} WORKING_DIRECTORY ${xgboost_BINARY_DIR})
+    endforeach()
+    if(RABIT_BUILD_MPI)
+      add_executable(speed_test_mpi ${xgboost_SOURCE_DIR}/rabit/test/speed_test.cc)
+      target_link_libraries(speed_test_mpi rabit_mpi)
+      target_include_directories(speed_test_mpi PRIVATE
+        "$<BUILD_INTERFACE:${xgboost_SOURCE_DIR}/rabit/include>"
+        "$<BUILD_INTERFACE:${xgboost_SOURCE_DIR}/dmlc-core/include>")
+      add_test(NAME speed_test_mpi COMMAND speed_test_mpi WORKING_DIRECTORY ${xgboost_BINARY_DIR})
+    endif(RABIT_BUILD_MPI)
+  endif (NOT WIN32)
 endif (GOOGLE_TEST)
 
 # For MSVC: Call msvc_use_static_runtime() once again to completely
