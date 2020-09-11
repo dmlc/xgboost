@@ -87,7 +87,7 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
   tree.matrix[!is.na(No), No := paste0(abs.node.position, "_1")]
 
   for (nm in c("abs.node.position", "Yes", "No"))
-    data.table::set(tree.matrix,, nm, sub("^\\d+-", "", tree.matrix[[nm]]))
+    data.table::set(tree.matrix, j = nm, value = sub("^\\d+-", "", tree.matrix[[nm]]))
 
   nodes.dt <- tree.matrix[
         , .(Quality = sum(Quality))
