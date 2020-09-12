@@ -122,7 +122,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
        # skip some indices with spurious capture groups from anynumber_regex
        xtr <- do.call(rbind, matches)[, c(2, 3, 5, 6, 7, 8, 10), drop = FALSE]
        xtr[, 3:5] <- add.tree.id(xtr[, 3:5], Tree)
-       as.data.frame(xtr)
+       as.data.table(xtr)
     }]
   # assign feature_names when available
   if (!is.null(feature_names)) {
@@ -138,7 +138,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
      (leaf_cols) := {
        matches <- regmatches(t, regexec(leaf_rx, t))
        xtr <- do.call(rbind, matches)[, c(2, 4)]
-       c("Leaf", as.data.frame(xtr))
+       c("Leaf", as.data.table(xtr))
     }]
 
   # convert some columns to numeric
