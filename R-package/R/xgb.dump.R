@@ -56,10 +56,10 @@ xgb.dump <- function(model, fname = NULL, fmap = "", with_stats=FALSE,
                       as.character(dump_format))
 
   if (is.null(fname))
-    model_dump <- stri_replace_all_regex(model_dump, '\t', '')
+    model_dump <- gsub('\t', '', model_dump, fixed = TRUE)
 
   if (dump_format == "text")
-    model_dump <- unlist(stri_split_regex(model_dump, '\n'))
+    model_dump <- unlist(strsplit(model_dump, '\n', fixed = TRUE))
 
   model_dump <- grep('^\\s*$', model_dump, invert = TRUE, value = TRUE)
 

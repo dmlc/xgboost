@@ -87,11 +87,11 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   }
 
   if (length(text) < 2 ||
-      sum(stri_detect_regex(text, 'yes=(\\d+),no=(\\d+)')) < 1) {
+      sum(grepl('yes=(\\d+),no=(\\d+)', text)) < 1) {
     stop("Non-tree model detected! This function can only be used with tree models.")
   }
 
-  position <- which(!is.na(stri_match_first_regex(text, "booster")))
+  position <- which(grepl("booster", text, fixed = TRUE))
 
   add.tree.id <- function(node, tree) if (use_int_id) node else paste(tree, node, sep = "-")
 
@@ -108,9 +108,9 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   }
   td <- td[Tree %in% trees & !grepl('^booster', t)]
 
-  td[, Node := stri_match_first_regex(t, "(\\d+):")[, 2] %>% as.integer]
+  td[, Node := as.integer(sub("^([0-9]+):.*", "\\1", t))]
   if (!use_int_id) td[, ID := add.tree.id(Node, Tree)]
-  td[, isLeaf := !is.na(stri_match_first_regex(t, "leaf"))]
+  td[, isLeaf := grepl("leaf", t, fixed = TRUE)]
 
   # parse branch lines
   branch_rx <- paste0("f(\\d+)<(", anynumber_regex, ")\\] yes=(\\d+),no=(\\d+),missing=(\\d+),",
@@ -118,10 +118,11 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   branch_cols <- c("Feature", "Split", "Yes", "No", "Missing", "Quality", "Cover")
   td[isLeaf == FALSE,
      (branch_cols) := {
-      # skip some indices with spurious capture groups from anynumber_regex
-      xtr <- stri_match_first_regex(t, branch_rx)[, c(2, 3, 5, 6, 7, 8, 10), drop = FALSE]
-      xtr[, 3:5] <- add.tree.id(xtr[, 3:5], Tree)
-      lapply(seq_len(ncol(xtr)), function(i) xtr[, i])
+       matches <- regmatches(t, regexec(branch_rx, t))
+       # skip some indices with spurious capture groups from anynumber_regex
+       xtr <- do.call(rbind, matches)[, c(2, 3, 5, 6, 7, 8, 10), drop = FALSE]
+       xtr[, 3:5] <- add.tree.id(xtr[, 3:5], Tree)
+       as.data.table(xtr)
     }]
   # assign feature_names when available
   if (!is.null(feature_names)) {
@@ -135,8 +136,9 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
   leaf_cols <- c("Feature", "Quality", "Cover")
   td[isLeaf == TRUE,
      (leaf_cols) := {
-      xtr <- stri_match_first_regex(t, leaf_rx)[, c(2, 4)]
-      c("Leaf", lapply(seq_len(ncol(xtr)), function(i) xtr[, i]))
+       matches <- regmatches(t, regexec(leaf_rx, t))
+       xtr <- do.call(rbind, matches)[, c(2, 4)]
+       c("Leaf", as.data.table(xtr))
     }]
 
   # convert some columns to numeric

@@ -167,9 +167,8 @@ xgb.iter.eval <- function(booster_handle, watchlist, iter, feval = NULL) {
   evnames <- names(watchlist)
   if (is.null(feval)) {
     msg <- .Call(XGBoosterEvalOneIter_R, booster_handle, as.integer(iter), watchlist, as.list(evnames))
-    msg <- stri_split_regex(msg, '(\\s+|:|\\s+)')[[1]][-1]
-    res <- as.numeric(msg[c(FALSE, TRUE)]) # even indices are the values
-    names(res) <- msg[c(TRUE, FALSE)]      # odds are the names
+    mat <- matrix(strsplit(msg, '\\s+|:')[[1]][-1], nrow = 2)
+    res <- structure(as.numeric(mat[2, ]), names = mat[1, ])
   } else {
     res <- sapply(seq_along(watchlist), function(j) {
       w <- watchlist[[j]]

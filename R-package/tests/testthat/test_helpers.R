@@ -335,8 +335,8 @@ test_that("xgb.model.dt.tree and xgb.importance work with a single split model",
 })
 
 test_that("xgb.plot.tree works with and without feature names", {
-  xgb.plot.tree(feature_names = feature.names, model = bst.Tree)
-  xgb.plot.tree(model = bst.Tree)
+  expect_silent(xgb.plot.tree(feature_names = feature.names, model = bst.Tree))
+  expect_silent(xgb.plot.tree(model = bst.Tree))
 })
 
 test_that("xgb.plot.multi.trees works with and without feature names", {
@@ -390,8 +390,8 @@ test_that("xgb.plot.shap works", {
 })
 
 test_that("xgb.plot.shap.summary works", {
-  xgb.plot.shap.summary(data = sparse_matrix, model = bst.Tree, top_n = 2)
-  xgb.ggplot.shap.summary(data = sparse_matrix, model = bst.Tree, top_n = 2)
+  expect_silent(xgb.plot.shap.summary(data = sparse_matrix, model = bst.Tree, top_n = 2))
+  expect_silent(xgb.ggplot.shap.summary(data = sparse_matrix, model = bst.Tree, top_n = 2))
 })
 
 test_that("check.deprecation works", {

@@ -138,12 +138,14 @@ Rpack: clean_all
 	rm xgboost/remove_warning_suppression_pragma.sh
 	rm -rfv xgboost/tests/helper_scripts/
 
+R ?= R
+
 Rbuild: Rpack
-	R CMD build --no-build-vignettes xgboost
+	$(R) CMD build --no-build-vignettes xgboost
 	rm -rf xgboost
 
 Rcheck: Rbuild
-	R CMD check --as-cran xgboost*.tar.gz
+	$(R) CMD check --as-cran xgboost*.tar.gz
 
 -include build/*.d
 -include build/*/*.d
