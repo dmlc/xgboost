@@ -178,6 +178,9 @@ inline size_t ParseUnit(const char *name, const char *val) {
  * \param val parameter value
  */
 void AllreduceBase::SetParam(const char *name, const char *val) {
+  std::cout << "Name: " << name << ", "
+            << "val: " << val << std::endl;
+
   if (!strcmp(name, "rabit_tracker_uri")) tracker_uri = val;
   if (!strcmp(name, "rabit_tracker_port")) tracker_port = atoi(val);
   if (!strcmp(name, "rabit_task_id")) task_id = val;
@@ -205,10 +208,14 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
     rabit_debug = utils::StringToBool(val);
   }
   if (!strcmp(name, "rabit_timeout")) {
+    std::cout << "rabit_timeout:" << rabit_timeout << ", "
+              << "val: " << val << std::endl;
     rabit_timeout = utils::StringToBool(val);
   }
   if (!strcmp(name, "rabit_timeout_sec")) {
     timeout_sec = atoi(val);
+    std::cout << "timeout_sec:" << timeout_sec << ", "
+              << "val: " << val << std::endl;
     utils::Assert(timeout_sec >= 0, "rabit_timeout_sec should be non negative second");
   }
   if (!strcmp(name, "rabit_enable_tcp_no_delay")) {
@@ -445,6 +452,39 @@ bool AllreduceBase::ReConnectLinks(const char *cmd) {
     return false;
   }
 }
+
+// class TimeoutGuard {
+//   // C++ has no way to cancel a future.
+//   std::atomic<bool> shutdown_timeout_{false};
+//   // sidecar executing timeout task
+//   std::future<bool> rabit_timeout_task_;
+//   int timeout_sec = 1800;  // NOLINT
+//   int32_t rank_;
+
+//  public:
+//   explicit TimeoutGuard(int timeout, int32_t rank)
+//       : timeout_sec{timeout}, rank_{rank} {
+//     rabit_timeout_task_ = std::async(std::launch::async, [this]() {
+//       int time = 0;
+//       // check if rabit recovered every 100ms
+//       while (time++ < 10 * timeout_sec) {
+//         std::cout << "waiting for timeout" << std::endl;
+//         std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//         if (shutdown_timeout_.load()) {
+//           std::cout << "Canceling timeout" << std::endl;
+//           return true;
+//         }
+//       }
+//       std::cout << "rank:" << rank_ << "timeouted" << std::endl;
+//       utils::Error("[%d] exit due to time out %d s\n", rank_, timeout_sec);
+//       return false;
+//     });
+//   }
+//   ~TimeoutGuard() {
+//     this->shutdown_timeout_ = true;
+//   }
+// };
+
 /*!
  * \brief perform in-place allreduce, on sendrecvbuf, this function can fail, and will return the cause of failure
  *
@@ -465,6 +505,7 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
                             size_t type_nbytes,
                             size_t count,
                             ReduceFunction reducer) {
+  // TimeoutGuard guard{timeout_sec, rank};
   if (count > reduce_ring_mincount) {
     return this->TryAllreduceRing(sendrecvbuf_, type_nbytes, count, reducer);
   } else {
@@ -686,6 +727,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
  */
 AllreduceBase::ReturnType
 AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
+  // TimeoutGuard guard{timeout_sec, rank};
   RefLinkVector &links = tree_links;
   if (links.Size() == 0 || total_size == 0) return kSuccess;
   utils::Check(root < world_size,
@@ -791,6 +833,7 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
                                 size_t slice_begin,
                                 size_t slice_end,
                                 size_t size_prev_slice) {
+  // TimeoutGuard guard{timeout_sec, rank};
   // read from next link and send to prev one
   LinkRecord &prev = *ring_prev, &next = *ring_next;
   // need to reply on special rank structure

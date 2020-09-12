@@ -41,6 +41,8 @@ class AllreduceMock : public AllreduceBase {
       utils::Check(sscanf(val, "%d,%d,%d,%d",
                           &k.rank, &k.version, &k.seqno, &k.ntrial) == 4,
                    "invalid mock parameter");
+      std::cout << "Have mock: " << k.rank << "|" << k.version << "|" << k.seqno
+                << "|" << k.ntrial << std::endl;
       mock_map_[k] = 1;
     }
   }
@@ -51,9 +53,8 @@ class AllreduceMock : public AllreduceBase {
                  const char *_caller = _CALLER) override {
     this->Verify(MockKey(rank, version_number, seq_counter, num_trial_), "AllReduce");
     double tstart = utils::GetTime();
-    AllreduceBase::Allreduce(sendrecvbuf_, type_nbytes,
-                               count, reducer, prepare_fun, prepare_arg,
-                               _file, _line, _caller);
+    AllreduceBase::Allreduce(sendrecvbuf_, type_nbytes, count, reducer,
+                             prepare_fun, prepare_arg, _file, _line, _caller);
     tsum_allreduce_ += utils::GetTime() - tstart;
   }
   void Allgather(void *sendrecvbuf, size_t total_size, size_t slice_begin,
@@ -62,9 +63,8 @@ class AllreduceMock : public AllreduceBase {
                  const char *_caller = _CALLER) override {
     this->Verify(MockKey(rank, version_number, seq_counter, num_trial_), "Allgather");
     double tstart = utils::GetTime();
-    AllreduceBase::Allgather(sendrecvbuf, total_size,
-                                   slice_begin, slice_end,
-                                   size_prev_slice, _file, _line, _caller);
+    AllreduceBase::Allgather(sendrecvbuf, total_size, slice_begin, slice_end,
+                             size_prev_slice, _file, _line, _caller);
     tsum_allgather_ += utils::GetTime() - tstart;
   }
   void Broadcast(void *sendrecvbuf_, size_t total_size, int root,
@@ -182,9 +182,12 @@ class AllreduceMock : public AllreduceBase {
   std::map<MockKey, int> mock_map_;
   // used to generate all kinds of exceptions
   inline void Verify(const MockKey &key, const char *name) {
+    std::cout << "Verify" << key.rank << "|" << key.version << "|"
+              << "|" << key.seqno << "|" << key.ntrial << std::endl;
     if (mock_map_.count(key) != 0) {
       num_trial_ += 1;
       // data processing frameworks runs on shared process
+      std::cout << "Throwing error" << std::endl;
       throw dmlc::Error(std::to_string(rank) + "@@@Hit Mock Error: " + name);
     }
   }

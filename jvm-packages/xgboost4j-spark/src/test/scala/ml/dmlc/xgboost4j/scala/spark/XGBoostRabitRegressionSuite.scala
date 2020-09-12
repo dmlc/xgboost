@@ -42,53 +42,53 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     return ss.sparkContext.isStopped
   }
 
-  test("test classification prediction parity w/o ring reduce") {
-    val training = buildDataFrame(Classification.train)
-    val testDF = buildDataFrame(Classification.test)
+  // test("test classification prediction parity w/o ring reduce") {
+  //   val training = buildDataFrame(Classification.train)
+  //   val testDF = buildDataFrame(Classification.test)
 
-    val xgbSettings = Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
-      "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers)
+  //   val xgbSettings = Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
+  //     "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers)
 
-    val model1 = new XGBoostClassifier(xgbSettings).fit(training)
-    val prediction1 = model1.transform(testDF).select("prediction").collect()
+  //   val model1 = new XGBoostClassifier(xgbSettings).fit(training)
+  //   val prediction1 = model1.transform(testDF).select("prediction").collect()
 
-    val model2 = new XGBoostClassifier(xgbSettings ++ Map("rabit_ring_reduce_threshold" -> 1))
-      .fit(training)
+  //   val model2 = new XGBoostClassifier(xgbSettings ++ Map("rabit_ring_reduce_threshold" -> 1))
+  //     .fit(training)
 
-    assert(Rabit.rabitEnvs.asScala.size > 3)
-    Rabit.rabitEnvs.asScala.foreach( item => {
-      if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "1")
-    })
+  //   assert(Rabit.rabitEnvs.asScala.size > 3)
+  //   Rabit.rabitEnvs.asScala.foreach( item => {
+  //     if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "1")
+  //   })
 
-    val prediction2 = model2.transform(testDF).select("prediction").collect()
-    // check parity w/o rabit cache
-    prediction1.zip(prediction2).foreach { case (Row(p1: Double), Row(p2: Double)) =>
-      assert(p1 == p2)
-    }
-  }
+  //   val prediction2 = model2.transform(testDF).select("prediction").collect()
+  //   // check parity w/o rabit cache
+  //   prediction1.zip(prediction2).foreach { case (Row(p1: Double), Row(p2: Double)) =>
+  //     assert(p1 == p2)
+  //   }
+  // }
 
-  test("test regression prediction parity w/o ring reduce") {
-    val training = buildDataFrame(Regression.train)
-    val testDF = buildDataFrame(Regression.test)
-    val xgbSettings = Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
-      "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
-    val model1 = new XGBoostRegressor(xgbSettings).fit(training)
+  // test("test regression prediction parity w/o ring reduce") {
+  //   val training = buildDataFrame(Regression.train)
+  //   val testDF = buildDataFrame(Regression.test)
+  //   val xgbSettings = Map("eta" -> "1", "max_depth" -> "2", "verbosity" -> "1",
+  //     "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
+  //   val model1 = new XGBoostRegressor(xgbSettings).fit(training)
 
-    val prediction1 = model1.transform(testDF).select("prediction").collect()
+  //   val prediction1 = model1.transform(testDF).select("prediction").collect()
 
-    val model2 = new XGBoostRegressor(xgbSettings ++ Map("rabit_ring_reduce_threshold" -> 1)
-    ).fit(training)
-    assert(Rabit.rabitEnvs.asScala.size > 3)
-    Rabit.rabitEnvs.asScala.foreach( item => {
-      if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "1")
-    })
-    // check the equality of single instance prediction
-    val prediction2 = model2.transform(testDF).select("prediction").collect()
-    // check parity w/o rabit cache
-    prediction1.zip(prediction2).foreach { case (Row(p1: Double), Row(p2: Double)) =>
-      assert(math.abs(p1 - p2) < predictionErrorMin)
-    }
-  }
+  //   val model2 = new XGBoostRegressor(xgbSettings ++ Map("rabit_ring_reduce_threshold" -> 1)
+  //   ).fit(training)
+  //   assert(Rabit.rabitEnvs.asScala.size > 3)
+  //   Rabit.rabitEnvs.asScala.foreach( item => {
+  //     if (item._1.toString == "rabit_reduce_ring_mincount") assert(item._2 == "1")
+  //   })
+  //   // check the equality of single instance prediction
+  //   val prediction2 = model2.transform(testDF).select("prediction").collect()
+  //   // check parity w/o rabit cache
+  //   prediction1.zip(prediction2).foreach { case (Row(p1: Double), Row(p2: Double)) =>
+  //     assert(math.abs(p1 - p2) < predictionErrorMin)
+  //   }
+  // }
 
   test("test rabit timeout fail handle") {
     // disable spark kill listener to verify if rabit_timeout take effect and kill tasks
@@ -117,27 +117,27 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
     }
   }
 
-  test("test SparkContext should not be killed ") {
-    val training = buildDataFrame(Classification.train)
-    // mock rank 0 failure during 8th allreduce synchronization
-    Rabit.mockList = Array("0,8,0,0").toList.asJava
+  // test("test SparkContext should not be killed ") {
+  //   val training = buildDataFrame(Classification.train)
+  //   // mock rank 0 failure during 8th allreduce synchronization
+  //   Rabit.mockList = Array("0,8,0,0").toList.asJava
 
-    try {
-      new XGBoostClassifier(Map(
-        "eta" -> "0.1",
-        "max_depth" -> "10",
-        "verbosity" -> "1",
-        "objective" -> "binary:logistic",
-        "num_round" -> 5,
-        "num_workers" -> numWorkers,
-        "kill_spark_context_on_worker_failure" -> false,
-        "rabit_timeout" -> 0))
-        .fit(training)
-    } catch {
-      case e: Throwable => // swallow anything
-    } finally {
-      // wait 3s to check if SparkContext is killed
-      assert(waitAndCheckSparkShutdown(3000) == false)
-    }
-  }
+  //   try {
+  //     new XGBoostClassifier(Map(
+  //       "eta" -> "0.1",
+  //       "max_depth" -> "10",
+  //       "verbosity" -> "1",
+  //       "objective" -> "binary:logistic",
+  //       "num_round" -> 5,
+  //       "num_workers" -> numWorkers,
+  //       "kill_spark_context_on_worker_failure" -> false,
+  //       "rabit_timeout" -> 0))
+  //       .fit(training)
+  //   } catch {
+  //     case e: Throwable => // swallow anything
+  //   } finally {
+  //     // wait 3s to check if SparkContext is killed
+  //     assert(waitAndCheckSparkShutdown(3000) == false)
+  //   }
+  // }
 }
