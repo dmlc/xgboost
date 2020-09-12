@@ -33,26 +33,19 @@ namespace common {
 constexpr float SketchContainer::kFactor;
 
 namespace detail {
-
 // Count the entries in each column and exclusive scan
 void ExtractCutsSparse(int device, common::Span<SketchContainer::OffsetT const> cuts_ptr,
                        Span<Entry const> sorted_data,
                        Span<size_t const> column_sizes_scan,
                        Span<SketchEntry> out_cuts) {
-  dh::LaunchN(device, out_cuts.size(), [=] __device__(size_t idx) {
-    // Each thread is responsible for obtaining one cut from the sorted input
-    size_t column_idx = dh::SegmentId(cuts_ptr, idx);
-    size_t column_size =
-        column_sizes_scan[column_idx + 1] - column_sizes_scan[column_idx];
-    size_t num_available_cuts = cuts_ptr[column_idx + 1] - cuts_ptr[column_idx];
-    size_t cut_idx = idx - cuts_ptr[column_idx];
-    Span<Entry const> column_entries =
-        sorted_data.subspan(column_sizes_scan[column_idx], column_size);
-    size_t rank = (column_entries.size() * cut_idx) /
-                  static_cast<float>(num_available_cuts);
-    out_cuts[idx] = WQSketch::Entry(rank, rank + 1, 1,
-                                    column_entries[rank].fvalue);
-  });
+  auto to_sketch_entry = [] __device__(size_t sample_idx, Span<Entry const> const& entries,
+                                       size_t = 0, size_t = 0) {
+    float rmin = sample_idx;
+    float rmax = sample_idx + 1;
+    return SketchEntry{rmin, rmax, 1, entries[sample_idx].fvalue};
+  };
+  detail::PruneImpl<Entry>(device, cuts_ptr, sorted_data, column_sizes_scan,
+                           out_cuts, to_sketch_entry);
 }
 
 void ExtractWeightedCutsSparse(int device,
@@ -61,58 +54,18 @@ void ExtractWeightedCutsSparse(int device,
                                Span<float> weights_scan,
                                Span<size_t> column_sizes_scan,
                                Span<SketchEntry> cuts) {
-  dh::LaunchN(device, cuts.size(), [=] __device__(size_t idx) {
-    // Each thread is responsible for obtaining one cut from the sorted input
-    size_t column_idx = dh::SegmentId(cuts_ptr, idx);
-    size_t column_size =
-        column_sizes_scan[column_idx + 1] - column_sizes_scan[column_idx];
-    size_t num_available_cuts = cuts_ptr[column_idx + 1] - cuts_ptr[column_idx];
-    size_t cut_idx = idx - cuts_ptr[column_idx];
-
-    Span<Entry> column_entries =
-        sorted_data.subspan(column_sizes_scan[column_idx], column_size);
-
+  auto to_sketch_entry = [weights_scan, column_sizes_scan] __device__(
+                             size_t sample_idx,
+                             Span<Entry const> const &entries, size_t column_id,
+                             size_t column_size) {
     Span<float> column_weights_scan =
-        weights_scan.subspan(column_sizes_scan[column_idx], column_size);
-    float total_column_weight = column_weights_scan.back();
-    size_t sample_idx = 0;
-    if (cut_idx == 0) {
-      // First cut
-      sample_idx = 0;
-    } else if (cut_idx == num_available_cuts) {
-      // Last cut
-      sample_idx = column_entries.size() - 1;
-    } else if (num_available_cuts == column_size) {
-      // There are less samples available than our buffer
-      // Take every available sample
-      sample_idx = cut_idx;
-    } else {
-      bst_float rank = (total_column_weight * cut_idx) /
-                       static_cast<float>(num_available_cuts);
-      sample_idx = thrust::upper_bound(thrust::seq,
-                                       column_weights_scan.begin(),
-                                       column_weights_scan.end(),
-                                       rank) -
-                   column_weights_scan.begin();
-      sample_idx =
-          max(static_cast<size_t>(0),
-              min(sample_idx, column_entries.size() - 1));
-    }
-    // repeated values will be filtered out later.
-    bst_float rmin = sample_idx > 0 ? column_weights_scan[sample_idx - 1] : 0.0f;
-    bst_float rmax = column_weights_scan[sample_idx];
-    cuts[idx] = WQSketch::Entry(rmin, rmax, rmax - rmin,
-                                column_entries[sample_idx].fvalue);
-  });
-}
-
-size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows) {
-  double eps = 1.0 / (WQSketch::kFactor * max_bins);
-  size_t dummy_nlevel;
-  size_t num_cuts;
-  WQuantileSketch<bst_float, bst_float>::LimitSizeLevel(
-      num_rows, eps, &dummy_nlevel, &num_cuts);
-  return std::min(num_cuts, num_rows);
+        weights_scan.subspan(column_sizes_scan[column_id], column_size);
+    float rmin = sample_idx > 0 ? column_weights_scan[sample_idx - 1] : 0.0f;
+    float rmax = column_weights_scan[sample_idx];
+    return SketchEntry{rmin, rmax, rmax - rmin, entries[sample_idx].fvalue};
+  };
+  detail::PruneImpl<Entry>(device, cuts_ptr, sorted_data, column_sizes_scan,
+                           cuts, to_sketch_entry);
 }
 
 size_t RequiredSampleCuts(bst_row_t num_rows, bst_feature_t num_columns,

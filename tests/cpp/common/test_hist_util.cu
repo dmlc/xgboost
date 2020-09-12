@@ -419,7 +419,7 @@ TEST(HistUtil, DeviceSketchFromGroupWeights) {
   size_t constexpr kGroups = 10;
   auto m = RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix();
   auto& h_weights = m->Info().weights_.HostVector();
-  h_weights.resize(kRows);
+  h_weights.resize(kGroups);
   std::fill(h_weights.begin(), h_weights.end(), 1.0f);
   std::vector<bst_group_t> groups(kGroups);
   for (size_t i = 0; i < kGroups; ++i) {

@@ -23,30 +23,6 @@ namespace common {
 using WQSketch = HostSketchContainer::WQSketch;
 using SketchEntry = WQSketch::Entry;
 
-// Algorithm 4 in XGBoost's paper, using binary search to find i.
-__device__ SketchEntry BinarySearchQuery(Span<SketchEntry const> const& entries, float rank) {
-  assert(entries.size() >= 2);
-  rank *= 2;
-  if (rank < entries.front().rmin + entries.front().rmax) {
-    return entries.front();
-  }
-  if (rank >= entries.back().rmin + entries.back().rmax) {
-    return entries.back();
-  }
-
-  auto begin = dh::MakeTransformIterator<float>(
-      entries.begin(), [=] __device__(SketchEntry const &entry) {
-        return entry.rmin + entry.rmax;
-      });
-  auto end = begin + entries.size();
-  auto i = thrust::upper_bound(thrust::seq, begin + 1, end - 1, rank) - begin - 1;
-  if (rank < entries[i].RMinNext() + entries[i+1].RMaxPrev()) {
-    return entries[i];
-  } else {
-    return entries[i+1];
-  }
-}
-
 template <typename T>
 void CopyTo(Span<T> out, Span<T const> src) {
   CHECK_EQ(out.size(), src.size());
@@ -191,7 +167,7 @@ void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
     }
 
     // Handle trailing elements.
-    assert(a_ind <= d_x_column.size());
+    SPAN_LE(a_ind, d_x_column.size());
     if (a_ind == d_x_column.size()) {
       // Trailing elements are from y because there's no more x to land.
       auto y_elem = d_y_column[b_ind];
@@ -201,7 +177,7 @@ void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
       return;
     }
     auto x_elem = d_x_column[a_ind];
-    assert(b_ind <= d_y_column.size());
+    SPAN_LE(b_ind, d_y_column.size());
     if (b_ind == d_y_column.size()) {
       d_out_column[idx] = SketchEntry(x_elem.rmin + d_y_column.back().RMinNext(),
                                       x_elem.rmax + d_y_column.back().rmax,
@@ -272,6 +248,34 @@ void SketchContainer::Push(common::Span<OffsetT const> cuts_ptr,
   timer_.Stop(__func__);
 }
 
+namespace {
+template <bool reverse>
+struct ScanOp {
+  Span<size_t> d_column_scan;
+  size_t total;
+
+  template <typename Tuple>
+  bool  __device__ operator()(Tuple const &l, Tuple const &r) {
+    auto idx = thrust::get<0>(l);
+    if (reverse) {
+      idx = total - idx;
+    }
+    auto l_column_id = dh::SegmentId(d_column_scan, idx);
+    idx = thrust::get<0>(r);
+    if (reverse) {
+      idx = total - idx;
+    }
+    auto r_column_id = dh::SegmentId(d_column_scan, idx);
+    if (l_column_id == r_column_id) {
+      auto l_v = thrust::get<1>(l);
+      auto r_v = thrust::get<1>(r);
+      return l_v.value - r_v.value == 0;
+    }
+    return false;
+  }
+};
+}  // anonymous namespace
+
 size_t SketchContainer::Unique() {
   timer_.Start(__func__);
   dh::safe_cuda(cudaSetDevice(device_));
@@ -284,6 +288,44 @@ size_t SketchContainer::Unique() {
   auto d_scan_out = scan_out.DeviceSpan();
 
   d_column_scan = this->columns_ptr_.DeviceSpan();
+  dh::XGBCachingDeviceAllocator<char> alloc;
+  // 3 passes algorithm.  First pass accumulate the weights on duplicated values, second
+  // pass broadcast them.  Third pass removes those duplicated items.
+  {
+    auto beg_it = thrust::make_zip_iterator(thrust::make_tuple(
+        thrust::make_counting_iterator(0ul), this->Current().begin()));
+    auto end_it = thrust::make_zip_iterator(thrust::make_tuple(
+        thrust::make_counting_iterator(this->Current().size()),
+        this->Current().end()));
+    thrust::inclusive_scan_by_key(
+        thrust::cuda::par(alloc), beg_it, end_it, this->Current().begin(),
+        this->Current().begin(),
+        ScanOp<false>{d_column_scan,
+                      static_cast<size_t>(std::distance(beg_it, end_it))},
+        [] __device__(SketchEntry const &l, SketchEntry const &r) {
+          SketchEntry v(l.rmin, l.RMinNext() + r.wmin, l.wmin + r.wmin,
+                        l.value);
+          return v;
+        });
+  }
+  {
+    auto beg_it = thrust::make_zip_iterator(thrust::make_tuple(
+        thrust::make_counting_iterator(0ul),
+        this->Current().rbegin()));
+    auto end_it = thrust::make_zip_iterator(thrust::make_tuple(
+        thrust::make_counting_iterator(this->Current().size()), this->Current().rend()));
+    CHECK_GE(std::distance(this->Current().rbegin(), this->Current().rend()), 0);
+    CHECK_GE(std::distance(beg_it, end_it), 0);
+    thrust::inclusive_scan_by_key(
+        thrust::cuda::par(alloc), beg_it, end_it, this->Current().rbegin(),
+        this->Current().rbegin(),
+        ScanOp<true>{d_column_scan,
+                     static_cast<size_t>(std::distance(beg_it, end_it) - 1)},
+        [] __device__(SketchEntry const &l, SketchEntry const &r) {
+          return l;
+        });
+  }
+
   size_t n_uniques = dh::SegmentedUnique(
       d_column_scan.data(), d_column_scan.data() + d_column_scan.size(),
       entries.data(), entries.data() + entries.size(), scan_out.DevicePointer(),
@@ -291,7 +333,6 @@ size_t SketchContainer::Unique() {
       detail::SketchUnique{});
   this->columns_ptr_.Copy(scan_out);
   CHECK(!this->columns_ptr_.HostCanRead());
-
   this->Current().resize(n_uniques);
   timer_.Stop(__func__);
   return n_uniques;
@@ -317,41 +358,13 @@ void SketchContainer::Prune(size_t to) {
   auto d_columns_ptr_out = new_columns_ptr.ConstDeviceSpan();
   auto out = dh::ToSpan(this->Other());
   auto in = dh::ToSpan(this->Current());
-  dh::LaunchN(0, to_total, [=] __device__(size_t idx) {
-    size_t column_id = dh::SegmentId(d_columns_ptr_out, idx);
-    auto out_column = out.subspan(d_columns_ptr_out[column_id],
-                                  d_columns_ptr_out[column_id + 1] -
-                                      d_columns_ptr_out[column_id]);
-    auto in_column = in.subspan(d_columns_ptr_in[column_id],
-                                d_columns_ptr_in[column_id + 1] -
-                                    d_columns_ptr_in[column_id]);
-    idx -= d_columns_ptr_out[column_id];
-    // Input has lesser columns than `to`, just copy them to the output.  This is correct
-    // as the new output size is calculated based on both the size of `to` and current
-    // column.
-    if (in_column.size() <= to) {
-      out_column[idx] = in_column[idx];
-      return;
-    }
-    // 1 thread for each output.  See A.4 for detail.
-    auto entries = in_column;
-    auto d_out = out_column;
-    if (idx == 0) {
-      d_out.front() = entries.front();
-      return;
-    }
-    if (idx == to - 1) {
-      d_out.back() = entries.back();
-      return;
-    }
-
-    float w = entries.back().rmin - entries.front().rmax;
-    assert(w != 0);
-    auto budget = static_cast<float>(d_out.size());
-    assert(budget != 0);
-    auto q = ((idx * w) / (to - 1) + entries.front().rmax);
-    d_out[idx] = BinarySearchQuery(entries, q);
-  });
+  auto no_op =
+      []__device__(size_t sample_idx, Span<SketchEntry const> const &entries, size_t,
+         size_t) {
+        return entries[sample_idx];
+      };
+  detail::PruneImpl<SketchEntry>(device_, d_columns_ptr_out, in,
+                                 d_columns_ptr_in, out, no_op);
   this->columns_ptr_.HostVector() = new_columns_ptr.HostVector();
   this->Alternate();
   timer_.Stop(__func__);

@@ -135,7 +135,95 @@ struct SketchUnique {
     return a.value - b.value == 0;
   }
 };
-}  // anonymous detail
+
+// Algorithm 4 in XGBoost's paper, using binary search to find i.
+template <typename EntryIter>
+__device__ SketchEntry BinarySearchQuery(EntryIter beg, EntryIter end, float rank) {
+  assert(end - beg >= 2);
+  rank *= 2;
+  auto front = *beg;
+  if (rank < front.rmin + front.rmax) {
+    return *beg;
+  }
+  auto back = *(end - 1);
+  if (rank >= back.rmin + back.rmax) {
+    return back;
+  }
+
+  auto search_begin = dh::MakeTransformIterator<float>(
+      beg, [=] __device__(SketchEntry const &entry) {
+        return entry.rmin + entry.rmax;
+      });
+  auto search_end = search_begin + (end - beg);
+  auto i = thrust::upper_bound(thrust::seq, search_begin + 1, search_end - 1, rank) - search_begin - 1;
+  if (rank < (*(beg + i)).RMinNext() + (*(beg + i + 1)).RMaxPrev()) {
+    return *(beg + i);
+  } else {
+    return *(beg + i + 1);
+  }
+}
+
+template <typename InEntry, typename ToSketchEntry>
+void PruneImpl(int device,
+               common::Span<SketchContainer::OffsetT const> cuts_ptr,
+               Span<InEntry const> sorted_data,
+               Span<size_t const> column_sizes_scan,
+               Span<SketchEntry> out_cuts,
+               ToSketchEntry to_sketch_entry) {
+  dh::LaunchN(device, out_cuts.size(), [=] __device__(size_t idx) {
+    size_t column_id = dh::SegmentId(cuts_ptr, idx);
+    auto out_column = out_cuts.subspan(
+        cuts_ptr[column_id], cuts_ptr[column_id + 1] - cuts_ptr[column_id]);
+    auto in_column = sorted_data.subspan(column_sizes_scan[column_id],
+                                         column_sizes_scan[column_id + 1] -
+                                             column_sizes_scan[column_id]);
+    auto to = cuts_ptr[column_id + 1] - cuts_ptr[column_id];
+    idx -= cuts_ptr[column_id];
+    auto entries = in_column;
+    auto front = to_sketch_entry(0ul, entries, column_id, in_column.size());
+    auto back = to_sketch_entry(entries.size() - 1, entries, column_id,
+                                in_column.size());
+
+    if (in_column.size() <= to) {
+      // cut idx equals sample idx
+      out_column[idx] = to_sketch_entry(idx, entries, column_id, in_column.size());
+      return;
+    }
+    // 1 thread for each output.  See A.4 for detail.
+    auto d_out = out_column;
+    if (idx == 0) {
+      d_out.front() = front;
+      return;
+    }
+    if (idx == to - 1) {
+      d_out.back() = back;
+      return;
+    }
+
+    float w = back.rmin - front.rmax;
+    assert(w != 0);
+    auto budget = static_cast<float>(d_out.size());
+    assert(budget != 0);
+    auto q = ((idx * w) / (to - 1) + front.rmax);
+    auto it = dh::MakeTransformIterator<SketchEntry>(
+        thrust::make_counting_iterator(0ul), [=] __device__(size_t idx) {
+          assert(idx < entries.size());
+          auto e = to_sketch_entry(idx, entries, column_id, in_column.size());
+          return e;
+        });
+    d_out[idx] = BinarySearchQuery(it, it + entries.size(), q);
+  });
+}
+
+inline size_t RequiredSampleCutsPerColumn(int max_bins, size_t num_rows) {
+  double eps = 1.0 / (WQSketch::kFactor * max_bins);
+  size_t dummy_nlevel;
+  size_t num_cuts;
+  WQuantileSketch<bst_float, bst_float>::LimitSizeLevel(
+      num_rows, eps, &dummy_nlevel, &num_cuts);
+  return std::min(num_cuts, num_rows);
+}
+}  // namespace detail
 }  // namespace common
 }  // namespace xgboost
 

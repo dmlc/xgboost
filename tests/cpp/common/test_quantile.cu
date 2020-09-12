@@ -433,5 +433,47 @@ TEST(GPUQuantile, SameOnAllWorkers) {
   return;
 #endif  // !defined(__linux__) && defined(XGBOOST_USE_NCCL)
 }
+
+TEST(GPUQuantile, DuplicatedValues) {
+  size_t constexpr kRows = 100;
+  std::vector<float> data(kRows);
+
+  std::fill(data.begin(), data.begin() + (data.size() / 2), 0.3f);
+  std::fill(data.begin() + (data.size() / 2), data.end(), 0.5f);
+  int32_t n_bins = 128;
+  bst_feature_t constexpr kCols = 1;
+
+  std::vector<SketchEntry> entries(kRows);
+  for (size_t i = 0; i < entries.size(); ++i) {
+    SketchEntry e{static_cast<float>(i), static_cast<float>(i + 1), 1.0f, data[i]};
+    entries[i] = e;
+  }
+
+  dh::caching_device_vector<SketchEntry> d_entries(entries);
+  dh::device_vector<size_t> columns_ptr(2);
+  columns_ptr[0] = 0;
+  columns_ptr[1] = kRows;
+
+  SketchContainer sketch(n_bins, kCols, kRows, 0);
+  sketch.Push(dh::ToSpan(columns_ptr), &d_entries);
+  sketch.Unique();
+
+  auto sketch_data = sketch.Data();
+
+  thrust::host_vector<SketchEntry> h_sketch_data(sketch_data.size());
+
+  auto ptr = thrust::device_ptr<SketchEntry const>(sketch_data.data());
+  thrust::copy(ptr, ptr + sketch_data.size(), h_sketch_data.begin());
+  ASSERT_EQ(h_sketch_data.size(), 2);
+  auto v_0 = h_sketch_data[0];
+  ASSERT_EQ(v_0.rmin, 0);
+  ASSERT_EQ(v_0.wmin, 50.0f);
+  ASSERT_EQ(v_0.rmax, 50.0f);
+
+  auto v_1 = h_sketch_data[1];
+  ASSERT_EQ(v_1.rmin, 50.0f);
+  ASSERT_EQ(v_1.wmin, 50.0f);
+  ASSERT_EQ(v_1.rmax, 100.0f);
+}
 }  // namespace common
 }  // namespace xgboost
