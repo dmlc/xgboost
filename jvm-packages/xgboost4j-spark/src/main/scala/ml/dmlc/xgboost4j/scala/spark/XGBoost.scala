@@ -517,7 +517,7 @@ object XGBoost extends Serializable {
           throw new XGBoostError("Building watches failed")
       }
       val reducedrdd = processWatchesRDD(watchrdd, xgbExecutionParams.numWorkers).cache()
-      watchrdd.unpersist()
+      // watchrdd.unpersist()
 
       reducedrdd.mapPartitions(iter => {
         val watches = iter.next
@@ -552,7 +552,7 @@ object XGBoost extends Serializable {
           throw new XGBoostError("Building watches failed")
       }
       val reducedrdd = processWatchesRDD(watchrdd, xgbExecutionParams.numWorkers).cache()
-      watchrdd.unpersist()
+      // watchrdd.unpersist()
 
       reducedrdd.mapPartitions(iter => {
         val watches = iter.next
@@ -598,9 +598,7 @@ object XGBoost extends Serializable {
     val coalescedrdd = watchrdd.coalesce(1,
         partitionCoalescer = Some(new ExecutorInProcessCoalescePartitioner()))
     if (coalescedrdd.getNumPartitions < numWorkers) {
-      logger.info("ExecutorInProcessCoalesce fails to create enough partitions. " +
-        "Fall back to regular coalesce.")
-      watchrdd.coalesce(numWorkers)
+      watchrdd
     } else {
       coalescedrdd.mapPartitions { iter =>
           val matcharr = iter.toArray
