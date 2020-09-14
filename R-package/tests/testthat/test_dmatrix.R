@@ -64,8 +64,8 @@ test_that("xgb.DMatrix: getinfo & setinfo", {
   expect_true(setinfo(dtest, 'group', c(50, 50)))
   expect_error(setinfo(dtest, 'group', test_label))
 
-  # providing character values will give a warning
-  expect_warning(setinfo(dtest, 'weight', rep('a', nrow(test_data))))
+  # providing character values will give an error
+  expect_error(setinfo(dtest, 'weight', rep('a', nrow(test_data))))
 
   # any other label should error
   expect_error(setinfo(dtest, 'asdf', test_label))
