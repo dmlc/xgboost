@@ -30,6 +30,7 @@ struct SparsePageView {
   common::Span<const bst_row_t> d_row_ptr;
   bst_feature_t num_features;
 
+  SparsePageView() = default;
   XGBOOST_DEVICE SparsePageView(common::Span<const Entry> data,
                                 common::Span<const bst_row_t> row_ptr,
                                 bst_feature_t num_features)
@@ -562,6 +563,7 @@ class GPUPredictor : public xgboost::Predictor {
                  << " approximate is not implemented in GPU Predictor.";
     }
 
+    dh::safe_cuda(cudaSetDevice(generic_param_->gpu_id));
     uint32_t real_ntree_limit =
         ntree_limit * model.learner_model_param->num_output_group;
     if (real_ntree_limit == 0 || real_ntree_limit > model.trees.size()) {
