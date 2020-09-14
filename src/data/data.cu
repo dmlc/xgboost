@@ -86,6 +86,11 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
     CopyInfoImpl(array_interface, &labels_);
   } else if (key == "weight") {
     CopyInfoImpl(array_interface, &weights_);
+    auto ptr = weights_.ConstDevicePointer();
+    if (thrust::any_of(thrust::device, ptr, ptr + weights_.Size(),
+                       [] __device__(auto const &w) { return w < 0; })) {
+      LOG(FATAL) << "Weights must be positive values.";
+    }
   } else if (key == "base_margin") {
     CopyInfoImpl(array_interface, &base_margin_);
   } else if (key == "group") {

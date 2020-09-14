@@ -39,7 +39,7 @@ class IterForDMatrixDemo(xgboost.core.DataIter):
         rng = cupy.random.RandomState(1994)
         self._data = [rng.randn(self.rows, self.cols)] * BATCHES
         self._labels = [rng.randn(self.rows)] * BATCHES
-        self._weights = [rng.randn(self.rows)] * BATCHES
+        self._weights = [rng.uniform(size=self.rows)] * BATCHES
 
         self.it = 0             # set iterator to 0
         super().__init__()
