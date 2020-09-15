@@ -56,8 +56,8 @@ private[spark] trait LearningTaskParams extends Params {
   /**
    * evaluation metrics for validation data, a default metric will be assigned according to
    * objective(rmse for regression, and error for classification, mean average precision for
-   * ranking). options: rmse, rmsle, mae, logloss, error, merror, mlogloss, auc, aucpr, ndcg, map,
-   * gamma-deviance
+   * ranking). options: rmse, rmsle, mae, mape, logloss, error, merror, mlogloss, auc, aucpr, ndcg,
+   * map, gamma-deviance
    */
   final val evalMetric = new Param[String](this, "evalMetric", "evaluation metrics for " +
     "validation data, a default metric will be assigned according to objective " +
@@ -121,6 +121,6 @@ private[spark] object LearningTaskParams {
 
   val evalMetricsToMaximize = HashSet("auc", "aucpr", "ndcg", "map")
 
-  val evalMetricsToMinimize = HashSet("rmse", "rmsle", "mae", "logloss", "error", "merror",
+  val evalMetricsToMinimize = HashSet("rmse", "rmsle", "mae", "mape", "logloss", "error", "merror",
     "mlogloss", "gamma-deviance")
 }

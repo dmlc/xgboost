@@ -222,6 +222,8 @@ The following is the list of built-in metrics for which Xgboost provides optimiz
            By default, it uses the 0.5 threshold for predicted values to define negative and positive instances.
            Different threshold (e.g., 0.) could be specified as "error@0."
      \item \code{merror} Multiclass classification error rate. It is calculated as \code{(# wrong cases) / (# all cases)}.
+     \item \code{mae} Mean absolute error
+     \item \code{mape} Mean absolute percentage error
      \item \code{auc} Area under the curve. \url{https://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.
      \item \code{aucpr} Area under the PR curve. \url{https://en.wikipedia.org/wiki/Precision_and_recall} for ranking evaluation.
      \item \code{ndcg} Normalized Discounted Cumulative Gain (for ranking task). \url{https://en.wikipedia.org/wiki/NDCG}

@@ -153,6 +153,8 @@ Following table shows current support status for evaluation metrics on the GPU.
 +------------------------------+-------------+
 | mae                          | |tick|      |
 +------------------------------+-------------+
+| mape                         | |tick|      |
++------------------------------+-------------+
 | mphe                         | |tick|      |
 +------------------------------+-------------+
 | logloss                      | |tick|      |
