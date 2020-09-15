@@ -92,10 +92,15 @@ object DataUtils extends Serializable {
       }
     } else {
       arrayOfRDDs.map(rdd => {
-        if (rdd.getNumPartitions % numWorkers != 0 ) {
-          val partitions = rdd.getNumPartitions +
-            numWorkers - (rdd.getNumPartitions % numWorkers)
-          rdd.map(_._2).repartition(partitions)
+        val nPartitions = if (rdd.sparkContext.isLocal) numWorkers else {
+          if (rdd.getNumPartitions % numWorkers != 0) {
+            rdd.getNumPartitions + numWorkers - (rdd.getNumPartitions % numWorkers)
+          } else {
+            rdd.getNumPartitions
+          }
+        }
+        if (rdd.getNumPartitions != nPartitions) {
+          rdd.map(_._2).repartition(nPartitions)
         } else {
           rdd.map(_._2)
         }
