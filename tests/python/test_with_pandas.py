@@ -151,7 +151,7 @@ class TestPandas(unittest.TestCase):
 
         X = np.random.randn(kRows, kCols)
         y = np.random.randn(kRows)
-        w = np.random.randn(kRows).astype(np.float32)
+        w = np.random.uniform(size=kRows).astype(np.float32)
         w_pd = pd.DataFrame(w)
         data = xgb.DMatrix(X, y, w_pd)
 

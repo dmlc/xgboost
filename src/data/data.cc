@@ -359,6 +359,9 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     weights.resize(num);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
                        std::copy(cast_dptr, cast_dptr + num, weights.begin()));
+    auto valid = std::all_of(weights.cbegin(), weights.cend(),
+                             [](float w) { return w >= 0; });
+    CHECK(valid) << "Weights must be positive values.";
   } else if (!std::strcmp(key, "base_margin")) {
     auto& base_margin = base_margin_.HostVector();
     base_margin.resize(num);
