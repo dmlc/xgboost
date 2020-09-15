@@ -358,11 +358,9 @@ void SketchContainer::Prune(size_t to) {
   auto d_columns_ptr_out = new_columns_ptr.ConstDeviceSpan();
   auto out = dh::ToSpan(this->Other());
   auto in = dh::ToSpan(this->Current());
-  auto no_op =
-      []__device__(size_t sample_idx, Span<SketchEntry const> const &entries, size_t,
-         size_t) {
-        return entries[sample_idx];
-      };
+  auto no_op = [] __device__(size_t sample_idx,
+                             Span<SketchEntry const> const &entries, size_t,
+                             size_t) { return entries[sample_idx]; }; // NOLINT
   detail::PruneImpl<SketchEntry>(device_, d_columns_ptr_out, in,
                                  d_columns_ptr_in, out, no_op);
   this->columns_ptr_.HostVector() = new_columns_ptr.HostVector();

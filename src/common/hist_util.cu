@@ -38,12 +38,13 @@ void ExtractCutsSparse(int device, common::Span<SketchContainer::OffsetT const> 
                        Span<Entry const> sorted_data,
                        Span<size_t const> column_sizes_scan,
                        Span<SketchEntry> out_cuts) {
-  auto to_sketch_entry = [] __device__(size_t sample_idx, Span<Entry const> const& entries,
+  auto to_sketch_entry = [] __device__(size_t sample_idx,
+                                       Span<Entry const> const &entries,
                                        size_t = 0, size_t = 0) {
     float rmin = sample_idx;
     float rmax = sample_idx + 1;
     return SketchEntry{rmin, rmax, 1, entries[sample_idx].fvalue};
-  };
+  };  // NOLINT
   detail::PruneImpl<Entry>(device, cuts_ptr, sorted_data, column_sizes_scan,
                            out_cuts, to_sketch_entry);
 }
@@ -63,7 +64,7 @@ void ExtractWeightedCutsSparse(int device,
     float rmin = sample_idx > 0 ? column_weights_scan[sample_idx - 1] : 0.0f;
     float rmax = column_weights_scan[sample_idx];
     return SketchEntry{rmin, rmax, rmax - rmin, entries[sample_idx].fvalue};
-  };
+  };  // NOLINT
   detail::PruneImpl<Entry>(device, cuts_ptr, sorted_data, column_sizes_scan,
                            cuts, to_sketch_entry);
 }
