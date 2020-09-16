@@ -293,6 +293,7 @@ class DaskDMatrix:
                 bm_parts), inconsistent(X_parts, 'X', bm_parts, 'base_margin'
             )
             parts.append(bm_parts)
+
         parts = list(map(delayed, zip(*parts)))
 
         parts = client.compute(parts)
@@ -332,14 +333,22 @@ class DaskDMatrix:
                 'is_quantile': self.is_quantile}
 
 
-def _get_worker_x_ordered(worker_map, partition_order, worker):
+def _get_worker_parts_ordered(has_base_margin, worker_map,
+                          partition_order, worker):
     list_of_parts = worker_map[worker.address]
     client = get_client()
     list_of_parts_value = client.gather(list_of_parts)
+
     result = []
+
     for i, part in enumerate(list_of_parts):
-        result.append((list_of_parts_value[i][0],
-                       partition_order[part.key]))
+        data = list_of_parts_value[i][0]
+        if has_base_margin:
+            base_margin = list_of_parts_value[i][1]
+        else:
+            base_margin = None
+        result.append((data, base_margin, partition_order[part.key]))
+
     return result
 
 
@@ -575,6 +584,7 @@ def _create_dmatrix(feature_names, feature_types, has_label,
         base_margin = concat(base_margin)
     else:
         base_margin = None
+
     dmatrix = DMatrix(data,
                       labels,
                       weight=weights,
@@ -728,7 +738,8 @@ async def _direct_predict_impl(client, data, predict_fn):
 
 
 # pylint: disable=too-many-statements
-async def _predict_async(client: Client, model, data, *args,
+async def _predict_async(client: Client, model, data, output_margin,
+                         *args,
                          missing=numpy.nan):
     if isinstance(model, Booster):
         booster = model
@@ -744,7 +755,7 @@ async def _predict_async(client: Client, model, data, *args,
         worker = distributed_get_worker()
         booster.set_param({'nthread': worker.nthreads})
         m = DMatrix(partition, missing=missing, nthread=worker.nthreads)
-        predt = booster.predict(m, *args, validate_features=False)
+        predt = booster.predict(m, *args, output_margin=output_margin, validate_features=False)
         if is_df:
             if lazy_isinstance(partition, 'cudf', 'core.dataframe.DataFrame'):
                 import cudf     # pylint: disable=import-error
@@ -762,21 +773,30 @@ async def _predict_async(client: Client, model, data, *args,
     feature_names = data.feature_names
     feature_types = data.feature_types
     missing = data.missing
+    has_base_margin = data.has_base_margin
 
     def dispatched_predict(worker_id):
         '''Perform prediction on each worker.'''
         LOGGER.info('Predicting on %d', worker_id)
+
         worker = distributed_get_worker()
-        list_of_parts = _get_worker_x_ordered(worker_map, partition_order,
-                                              worker)
+        list_of_parts = _get_worker_parts_ordered(has_base_margin,
+            worker_map, partition_order, worker
+        )
         predictions = []
         booster.set_param({'nthread': worker.nthreads})
-        for part, order in list_of_parts:
-            local_x = DMatrix(part, feature_names=feature_names,
-                              feature_types=feature_types,
-                              missing=missing, nthread=worker.nthreads)
-            predt = booster.predict(data=local_x,
-                                    validate_features=local_x.num_row() != 0,
+        for data, base_margin, order in list_of_parts:
+            local_part = DMatrix(
+                data,
+                base_margin=base_margin,
+                feature_names=feature_names,
+                feature_types=feature_types,
+                missing=missing,
+                nthread=worker.nthreads
+            )
+            predt = booster.predict(data=local_part,
+                                    validate_features=local_part.num_row() != 0,
+                                    output_margin=output_margin,
                                     *args)
             columns = 1 if len(predt.shape) == 1 else predt.shape[1]
             ret = ((delayed(predt), columns), order)
@@ -787,9 +807,9 @@ async def _predict_async(client: Client, model, data, *args,
         '''Get shape of data in each worker.'''
         LOGGER.info('Get shape on %d', worker_id)
         worker = distributed_get_worker()
-        list_of_parts = _get_worker_x_ordered(worker_map,
+        list_of_parts = _get_worker_parts_ordered(False, worker_map,
                                               partition_order, worker)
-        shapes = [(part.shape, order) for part, order in list_of_parts]
+        shapes = [(part.shape, order) for part, _, order in list_of_parts]
         return shapes
 
     async def map_function(func):
@@ -824,7 +844,7 @@ async def _predict_async(client: Client, model, data, *args,
     return predictions
 
 
-def predict(client, model, data, *args, missing=numpy.nan):
+def predict(client, model, data, output_margin, *args, missing=numpy.nan):
     '''Run prediction with a trained booster.
 
     .. note::
@@ -853,8 +873,8 @@ def predict(client, model, data, *args, missing=numpy.nan):
     '''
     _assert_dask_support()
     client = _xgb_get_client(client)
-    return client.sync(_predict_async, client, model, data, *args,
-                       missing=missing)
+    return client.sync(_predict_async, client, model, data, output_margin,
+                        *args, missing=missing)
 
 
 async def _inplace_predict_async(client, model, data,
@@ -1130,7 +1150,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             sample_weight_eval_set, verbose
         )
 
-    async def _predict_proba_async(self, data, base_margin=None):
+    async def _predict_proba_async(self, data, output_margin=False, base_margin=None):
         _assert_dask_support()
 
         test_dmatrix = await DaskDMatrix(
@@ -1138,14 +1158,16 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             missing=self.missing
         )
         pred_probs = await predict(client=self.client,
-                                   model=self.get_booster(), data=test_dmatrix)
+                                   model=self.get_booster(),
+                                   data=test_dmatrix,
+                                   output_margin=output_margin)
         return pred_probs
 
-    def predict_proba(self, data, base_margin=None):  # pylint: disable=arguments-differ,missing-docstring
+    def predict_proba(self, data, output_margin=False, base_margin=None):  # pylint: disable=arguments-differ,missing-docstring
         _assert_dask_support()
-        return self.client.sync(self._predict_proba_async, data, base_margin)
+        return self.client.sync(self._predict_proba_async, data, output_margin, base_margin)
 
-    async def _predict_async(self, data, base_margin=None):
+    async def _predict_async(self, data, output_margin=False, base_margin=None):
         _assert_dask_support()
 
         test_dmatrix = await DaskDMatrix(
@@ -1153,7 +1175,9 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             missing=self.missing
         )
         pred_probs = await predict(client=self.client,
-                                   model=self.get_booster(), data=test_dmatrix)
+                                   model=self.get_booster(),
+                                   data=test_dmatrix,
+                                   output_margin=output_margin)
 
         if self.n_classes_ == 2:
             preds = (pred_probs > 0.5).astype(int)
@@ -1162,6 +1186,6 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 
         return preds
 
-    def predict(self, data, base_margin=None):  # pylint: disable=arguments-differ
+    def predict(self, data, output_margin=False, base_margin=None):  # pylint: disable=arguments-differ
         _assert_dask_support()
-        return self.client.sync(self._predict_async, data, base_margin)
+        return self.client.sync(self._predict_async, data, output_margin, base_margin)

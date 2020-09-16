@@ -149,31 +149,38 @@ def test_boost_from_prediction(tree_method):
             X, y = load_breast_cancer(return_X_y=True)
             model_0 = xgb.dask.DaskXGBClassifier(
                 learning_rate=0.3,
-                random_state=0,
+                random_state=123,
                 n_estimators=4,
                 tree_method=tree_method,
             )
             model_0.fit(X=X_, y=y_)
-            margin = model_0.predict_proba(X_)
+            margin = model_0.predict_proba(X_, output_margin=True)
 
             model_1 = xgb.dask.DaskXGBClassifier(
                 learning_rate=0.3,
-                random_state=0,
+                random_state=123,
                 n_estimators=4,
                 tree_method=tree_method,
             )
             model_1.fit(X=X_, y=y_, base_margin=margin)
             predictions_1 = model_1.predict(X_, base_margin=margin)
+            proba_1 = model_1.predict_proba(X_, base_margin=margin)
 
             cls_2 = xgb.dask.DaskXGBClassifier(
                 learning_rate=0.3,
-                random_state=0,
+                random_state=123,
                 n_estimators=8,
                 tree_method=tree_method,
             )
             cls_2.fit(X=X_, y=y_)
             predictions_2 = cls_2.predict(X_)
+            proba_2 = cls_2.predict_proba(X_)
+
             np.testing.assert_equal(predictions_1.compute(), predictions_2.compute())
+
+            # This won't pass for approx
+            if tree_method != "approx":
+                np.testing.assert_almost_equal(proba_1.compute(), proba_2.compute())
 
 
 def test_dask_missing_value_reg():
