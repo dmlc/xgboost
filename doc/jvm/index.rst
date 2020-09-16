@@ -154,7 +154,7 @@ To enable the GPU algorithm (``tree_method='gpu_hist'``), use artifacts ``xgboos
 Installation from source
 ========================
 
-Building XGBoost4J using Maven requires Maven 3 or newer, Java 7+ and CMake 3.3+ for compiling the JNI bindings.
+Building XGBoost4J using Maven requires Maven 3 or newer, Java 7+ and CMake 3.13+ for compiling the JNI bindings.
 
 Before you install XGBoost4J, you need to define environment variable ``JAVA_HOME`` as your JDK directory to ensure that your compiler can find ``jni.h`` correctly, since XGBoost4J relies on JNI to implement the interaction between the JVM and native libraries.
 
