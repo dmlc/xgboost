@@ -24,27 +24,81 @@ using WQSketch = HostSketchContainer::WQSketch;
 using SketchEntry = WQSketch::Entry;
 
 // Algorithm 4 in XGBoost's paper, using binary search to find i.
-__device__ SketchEntry BinarySearchQuery(Span<SketchEntry const> const& entries, float rank) {
-  assert(entries.size() >= 2);
+template <typename EntryIter>
+__device__ SketchEntry BinarySearchQuery(EntryIter beg, EntryIter end, float rank) {
+  assert(end - beg >= 2);
   rank *= 2;
-  if (rank < entries.front().rmin + entries.front().rmax) {
-    return entries.front();
+  auto front = *beg;
+  if (rank < front.rmin + front.rmax) {
+    return *beg;
   }
-  if (rank >= entries.back().rmin + entries.back().rmax) {
-    return entries.back();
+  auto back = *(end - 1);
+  if (rank >= back.rmin + back.rmax) {
+    return back;
   }
 
-  auto begin = dh::MakeTransformIterator<float>(
-      entries.begin(), [=] __device__(SketchEntry const &entry) {
+  auto search_begin = dh::MakeTransformIterator<float>(
+      beg, [=] __device__(SketchEntry const &entry) {
         return entry.rmin + entry.rmax;
       });
-  auto end = begin + entries.size();
-  auto i = thrust::upper_bound(thrust::seq, begin + 1, end - 1, rank) - begin - 1;
-  if (rank < entries[i].RMinNext() + entries[i+1].RMaxPrev()) {
-    return entries[i];
+  auto search_end = search_begin + (end - beg);
+  auto i =
+      thrust::upper_bound(thrust::seq, search_begin + 1, search_end - 1, rank) -
+      search_begin - 1;
+  if (rank < (*(beg + i)).RMinNext() + (*(beg + i + 1)).RMaxPrev()) {
+    return *(beg + i);
   } else {
-    return entries[i+1];
+    return *(beg + i + 1);
   }
+}
+
+template <typename InEntry, typename ToSketchEntry>
+void PruneImpl(int device,
+               common::Span<SketchContainer::OffsetT const> cuts_ptr,
+               Span<InEntry const> sorted_data,
+               Span<size_t const> columns_ptr_in,  // could be ptr for data or cuts
+               Span<SketchEntry> out_cuts,
+               ToSketchEntry to_sketch_entry) {
+  dh::LaunchN(device, out_cuts.size(), [=] __device__(size_t idx) {
+    size_t column_id = dh::SegmentId(cuts_ptr, idx);
+    auto out_column = out_cuts.subspan(
+        cuts_ptr[column_id], cuts_ptr[column_id + 1] - cuts_ptr[column_id]);
+    auto in_column = sorted_data.subspan(columns_ptr_in[column_id],
+                                         columns_ptr_in[column_id + 1] -
+                                             columns_ptr_in[column_id]);
+    auto to = cuts_ptr[column_id + 1] - cuts_ptr[column_id];
+    idx -= cuts_ptr[column_id];
+    auto front = to_sketch_entry(0ul, in_column, column_id);
+    auto back = to_sketch_entry(in_column.size() - 1, in_column, column_id);
+
+    if (in_column.size() <= to) {
+      // cut idx equals sample idx
+      out_column[idx] = to_sketch_entry(idx, in_column, column_id);
+      return;
+    }
+    // 1 thread for each output.  See A.4 for detail.
+    auto d_out = out_column;
+    if (idx == 0) {
+      d_out.front() = front;
+      return;
+    }
+    if (idx == to - 1) {
+      d_out.back() = back;
+      return;
+    }
+
+    float w = back.rmin - front.rmax;
+    assert(w != 0);
+    auto budget = static_cast<float>(d_out.size());
+    assert(budget != 0);
+    auto q = ((static_cast<float>(idx) * w) / (static_cast<float>(to) - 1.0f) + front.rmax);
+    auto it = dh::MakeTransformIterator<SketchEntry>(
+        thrust::make_counting_iterator(0ul), [=] __device__(size_t idx) {
+          auto e = to_sketch_entry(idx, in_column, column_id);
+          return e;
+        });
+    d_out[idx] = BinarySearchQuery(it, it + in_column.size(), q);
+  });
 }
 
 template <typename T>
@@ -249,27 +303,57 @@ void MergeImpl(int32_t device, Span<SketchEntry const> const &d_x,
   });
 }
 
-void SketchContainer::Push(common::Span<OffsetT const> cuts_ptr,
-                           dh::caching_device_vector<SketchEntry>* entries) {
-  timer_.Start(__func__);
-  dh::safe_cuda(cudaSetDevice(device_));
-  // Copy or merge the new cuts, pruning is performed during `MakeCuts`.
-  if (this->Current().size() == 0) {
-    CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
-    // See thrust issue 1030, THRUST_CPP_DIALECT is not correctly defined so
-    // move constructor is not used.
-    this->Current().swap(*entries);
-    CHECK_EQ(entries->size(), 0);
-    auto d_cuts_ptr = this->columns_ptr_.DevicePointer();
-    thrust::copy(thrust::device, cuts_ptr.data(),
-                 cuts_ptr.data() + cuts_ptr.size(), d_cuts_ptr);
+void SketchContainer::Push(Span<Entry const> entries, Span<size_t> columns_ptr,
+                           common::Span<OffsetT const> cuts_ptr,
+                           size_t total_cuts, Span<float> weights) {
+  Span<SketchEntry> out;
+  dh::caching_device_vector<SketchEntry> cuts;
+  bool first_window = this->Current().empty();
+  if (!first_window) {
+    cuts.resize(total_cuts);
+    out = dh::ToSpan(cuts);
   } else {
-    auto d_entries = dh::ToSpan(*entries);
-    this->Merge(cuts_ptr, d_entries);
-    this->FixError();
+    this->Current().resize(total_cuts);
+    out = dh::ToSpan(this->Current());
   }
-  CHECK_NE(this->columns_ptr_.Size(), 0);
-  timer_.Stop(__func__);
+
+  if (weights.empty()) {
+    auto to_sketch_entry = [] __device__(size_t sample_idx,
+                                         Span<Entry const> const &column,
+                                         size_t) {
+      float rmin = sample_idx;
+      float rmax = sample_idx + 1;
+      return SketchEntry{rmin, rmax, 1, column[sample_idx].fvalue};
+    }; // NOLINT
+    PruneImpl<Entry>(device_, cuts_ptr, entries, columns_ptr, out,
+                     to_sketch_entry);
+  } else {
+    auto to_sketch_entry = [weights, columns_ptr] __device__(
+                               size_t sample_idx,
+                               Span<Entry const> const &column,
+                               size_t column_id) {
+      Span<float const> column_weights_scan =
+          weights.subspan(columns_ptr[column_id], column.size());
+      float rmin = sample_idx > 0 ? column_weights_scan[sample_idx - 1] : 0.0f;
+      float rmax = column_weights_scan[sample_idx];
+      float wmin = rmax - rmin;
+      wmin = wmin < 0 ? kRtEps : wmin;  // GPU scan can generate floating error.
+      return SketchEntry{rmin, rmax, rmax - rmin, column[sample_idx].fvalue};
+    }; // NOLINT
+    PruneImpl<Entry>(device_, cuts_ptr, entries, columns_ptr, out,
+                     to_sketch_entry);
+  }
+
+  if (!first_window) {
+    CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
+    this->Merge(cuts_ptr, out);
+  } else {
+    this->columns_ptr_.SetDevice(device_);
+    this->columns_ptr_.Resize(cuts_ptr.size());
+
+    auto d_cuts_ptr = this->columns_ptr_.DeviceSpan();
+    CopyTo(d_cuts_ptr, cuts_ptr);
+  }
 }
 
 size_t SketchContainer::Unique() {
@@ -317,41 +401,11 @@ void SketchContainer::Prune(size_t to) {
   auto d_columns_ptr_out = new_columns_ptr.ConstDeviceSpan();
   auto out = dh::ToSpan(this->Other());
   auto in = dh::ToSpan(this->Current());
-  dh::LaunchN(0, to_total, [=] __device__(size_t idx) {
-    size_t column_id = dh::SegmentId(d_columns_ptr_out, idx);
-    auto out_column = out.subspan(d_columns_ptr_out[column_id],
-                                  d_columns_ptr_out[column_id + 1] -
-                                      d_columns_ptr_out[column_id]);
-    auto in_column = in.subspan(d_columns_ptr_in[column_id],
-                                d_columns_ptr_in[column_id + 1] -
-                                    d_columns_ptr_in[column_id]);
-    idx -= d_columns_ptr_out[column_id];
-    // Input has lesser columns than `to`, just copy them to the output.  This is correct
-    // as the new output size is calculated based on both the size of `to` and current
-    // column.
-    if (in_column.size() <= to) {
-      out_column[idx] = in_column[idx];
-      return;
-    }
-    // 1 thread for each output.  See A.4 for detail.
-    auto entries = in_column;
-    auto d_out = out_column;
-    if (idx == 0) {
-      d_out.front() = entries.front();
-      return;
-    }
-    if (idx == to - 1) {
-      d_out.back() = entries.back();
-      return;
-    }
-
-    float w = entries.back().rmin - entries.front().rmax;
-    assert(w != 0);
-    auto budget = static_cast<float>(d_out.size());
-    assert(budget != 0);
-    auto q = ((idx * w) / (to - 1) + entries.front().rmax);
-    d_out[idx] = BinarySearchQuery(entries, q);
-  });
+  auto no_op = [] __device__(size_t sample_idx,
+                             Span<SketchEntry const> const &entries,
+                             size_t) { return entries[sample_idx]; }; // NOLINT
+  PruneImpl<SketchEntry>(device_, d_columns_ptr_out, in, d_columns_ptr_in, out,
+                         no_op);
   this->columns_ptr_.HostVector() = new_columns_ptr.HostVector();
   this->Alternate();
   timer_.Stop(__func__);

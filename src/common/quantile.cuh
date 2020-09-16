@@ -96,13 +96,21 @@ class SketchContainer {
    * addition inside `RMinNext` and subtraction in `RMaxPrev`. */
   void FixError();
 
-  /* \brief Push a CSC structured cut matrix. */
-  void Push(common::Span<OffsetT const> cuts_ptr,
-            dh::caching_device_vector<SketchEntry>* entries);
+  /* \brief Push sorted entries.
+   *
+   * \param entries Sorted entries.
+   * \param columns_ptr CSC pointer for entries.
+   * \param cuts_ptr CSC pointer for cuts.
+   * \param total_cuts Total number of cuts, equanl to back of cuts_ptr.
+   * \param weights (optional) data weights.
+   */
+  void Push(Span<Entry const> entries, Span<size_t> columns_ptr,
+            common::Span<OffsetT const> cuts_ptr, size_t total_cuts,
+            Span<float> weights = {});
   /* \brief Prune the quantile structure.
    *
-   * \param to The maximum size of pruned quantile.  If the size of quantile structure is
-   *           already less than `to`, then no operation is performed.
+   * \param to The maximum size of pruned quantile.  If the size of quantile
+   * structure is already less than `to`, then no operation is performed.
    */
   void Prune(size_t to);
   /* \brief Merge another set of sketch.
@@ -135,7 +143,7 @@ struct SketchUnique {
     return a.value - b.value == 0;
   }
 };
-}  // anonymous detail
+}  // namespace detail
 }  // namespace common
 }  // namespace xgboost
 
