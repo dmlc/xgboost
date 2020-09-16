@@ -66,7 +66,7 @@ on the binding you choose).  For building language specific package, see corresp
 sections in this document.  The minimal building requirement is
 
 - A recent C++ compiler supporting C++11 (g++-5.0 or higher)
-- CMake 3.12 or higher.
+- CMake 3.13 or higher.
 
 For a list of CMake options, see ``#-- Options`` in CMakeLists.txt on top level of source tree.
 
