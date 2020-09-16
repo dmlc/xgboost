@@ -182,6 +182,9 @@ void SortByWeight(dh::XGBCachingDeviceAllocator<char>* alloc,
                   dh::caching_device_vector<float>* weights,
                   dh::caching_device_vector<Entry>* sorted_entries) {
   // Sort both entries and wegihts.
+
+  // FIXME(trivialfis): In some rare cases the inclusive scan can generate unsorted
+  // weights due to floating error.
   thrust::sort_by_key(thrust::cuda::par(*alloc), sorted_entries->begin(),
                       sorted_entries->end(), weights->begin(),
                       detail::EntryCompareOp());
