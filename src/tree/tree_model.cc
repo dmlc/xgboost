@@ -740,7 +740,11 @@ void RegTree::Load(dmlc::Stream* fi) {
     }
   }
   CHECK_EQ(static_cast<int>(deleted_nodes_.size()), param.num_deleted);
+
+  split_types_.resize(param.num_nodes, FeatureType::kNumerical);
+  split_categories_segments_.resize(param.num_nodes, Segment{0ul, 0ul});
 }
+
 void RegTree::Save(dmlc::Stream* fo) const {
   CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
   CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
@@ -807,6 +811,7 @@ void RegTree::LoadCategoricalSplit(Json const& in) {
 
 void RegTree::SaveCategoricalSplit(Json* p_out) const {
   auto& out = *p_out;
+  CHECK_EQ(this->split_types_.size(), param.num_nodes);
   CHECK_EQ(this->GetSplitCategoriesPtr().size(), param.num_nodes);
 
   std::vector<Json> categories_segments;
@@ -858,14 +863,8 @@ void RegTree::LoadModel(Json const& in) {
 
   bool has_cat = get<Object const>(in).find("split_type") != get<Object const>(in).cend();
   std::vector<Json> split_type;
-  std::vector<Json> categories;
-  std::vector<Json> categories_segments;
-  std::vector<Json> categories_sizes;
   if (has_cat) {
     split_type = get<Array const>(in["split_type"]);
-    categories = get<Array const>(in["categories"]);
-    categories_segments = get<Array const>(in["categories_segments"]);
-    categories_sizes = get<Array const>(in["categories_sizes"]);
   }
   stats_.clear();
   nodes_.clear();
@@ -891,11 +890,19 @@ void RegTree::LoadModel(Json const& in) {
     bool dft_left { get<Boolean const>(default_left[i]) };
     n = Node{left, right, parent, ind, cond, dft_left};
 
-    split_types_[i] =
-        static_cast<FeatureType>(get<Integer const>(split_type[i]));
+    if (has_cat) {
+      split_types_[i] =
+          static_cast<FeatureType>(get<Integer const>(split_type[i]));
+    }
   }
 
-  this->LoadCategoricalSplit(in);
+  if (has_cat) {
+    this->LoadCategoricalSplit(in);
+  } else {
+    this->split_categories_segments_.resize(this->param.num_nodes,
+                                            Segment{0ul, 0ul});
+    std::fill(split_types_.begin(), split_types_.end(), FeatureType::kNumerical);
+  }
 
   deleted_nodes_.clear();
   for (bst_node_t i = 1; i < param.num_nodes; ++i) {
@@ -911,9 +918,16 @@ void RegTree::LoadModel(Json const& in) {
     self[nid].SetParent(self[nid].Parent(), self[parent].LeftChild() == nid);
   }
   CHECK_EQ(static_cast<bst_node_t>(deleted_nodes_.size()), param.num_deleted);
+  CHECK_EQ(this->split_categories_segments_.size(), param.num_nodes);
 }
 
 void RegTree::SaveModel(Json* p_out) const {
+  /*  Here we are treating leaf node and internal node equally.  Some information like
+   *  child node id doesn't make sense for leaf node but we will have to save them to
+   *  avoid creating a huge map.  One difficulty is XGBoost has deleted node created by
+   *  pruner, and this pruner can be used inside another updater so leaf are not necessary
+   *  at the end of node array.
+   */
   auto& out = *p_out;
   CHECK_EQ(param.num_nodes, static_cast<int>(nodes_.size()));
   CHECK_EQ(param.num_nodes, static_cast<int>(stats_.size()));
@@ -935,6 +949,7 @@ void RegTree::SaveModel(Json* p_out) const {
   std::vector<Json> conds(n_nodes);
   std::vector<Json> default_left(n_nodes);
   std::vector<Json> split_type(n_nodes);
+  CHECK_EQ(this->split_types_.size(), param.num_nodes);
 
   for (bst_node_t i = 0; i < n_nodes; ++i) {
     auto const& s = stats_[i];
