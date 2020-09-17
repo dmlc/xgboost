@@ -779,33 +779,52 @@ void RegTree::Save(dmlc::Stream* fo) const {
 void RegTree::LoadCategoricalSplit(Json const& in) {
   auto const& categories_segments = get<Array const>(in["categories_segments"]);
   auto const& categories_sizes = get<Array const>(in["categories_sizes"]);
+  auto const& categories_nodes = get<Array const>(in["categories_nodes"]);
   auto const& categories = get<Array const>(in["categories"]);
 
-  for (size_t i = 0; i < categories_segments.size(); ++i) {
-    auto j_begin = get<Integer const>(categories_segments[i]);
-    auto j_end = get<Integer const>(categories_sizes[i]) + j_begin;
-    bst_cat_t max_cat{std::numeric_limits<bst_cat_t>::min()};
+  std::fill(split_categories_segments_.begin(), split_categories_segments_.end(), Segment{0, 0});
+  size_t cnt = 0;
+  bst_node_t last_cat_node = -1;
+  if (!categories_nodes.empty()) {
+    last_cat_node = get<Integer const>(categories_nodes[cnt]);
+  }
+  for (size_t nidx = 0; nidx < param.num_nodes; ++nidx) {
+    if (nidx == last_cat_node) {
+      auto j_begin = get<Integer const>(categories_segments[cnt]);
+      auto j_end = get<Integer const>(categories_sizes[cnt]) + j_begin;
+      bst_cat_t max_cat{std::numeric_limits<bst_cat_t>::min()};
 
-    for (auto j = j_begin; j < j_end; ++j) {
-      auto const &category = get<Integer const>(categories[j]);
-      auto cat = common::AsCat(category);
-      max_cat = std::max(max_cat, cat);
-    }
-    size_t size = max_cat == std::numeric_limits<bst_cat_t>::min()
-                      ? 0
-                      : common::KCatBitField::ComputeStorageSize(max_cat);
-    std::vector<uint32_t> cat_bits_storage(size);
-    common::CatBitField cat_bits{common::Span<uint32_t>(cat_bits_storage)};
-    for (auto j = j_begin; j < j_end; ++j) {
-      cat_bits.Set(common::AsCat(get<Integer const>(categories[j])));
-    }
+      for (auto j = j_begin; j < j_end; ++j) {
+        auto const &category = get<Integer const>(categories[j]);
+        auto cat = common::AsCat(category);
+        max_cat = std::max(max_cat, cat);
+      }
+      size_t size = max_cat == std::numeric_limits<bst_cat_t>::min()
+                        ? 0
+                        : common::KCatBitField::ComputeStorageSize(max_cat);
+      std::vector<uint32_t> cat_bits_storage(size);
+      common::CatBitField cat_bits{common::Span<uint32_t>(cat_bits_storage)};
+      for (auto j = j_begin; j < j_end; ++j) {
+        cat_bits.Set(common::AsCat(get<Integer const>(categories[j])));
+      }
 
-    auto begin = split_categories_.size();
-    split_categories_.resize(begin + cat_bits_storage.size());
-    std::copy(cat_bits_storage.begin(), cat_bits_storage.end(),
-              split_categories_.begin() + begin);
-    split_categories_segments_[i].beg = begin;
-    split_categories_segments_[i].size = cat_bits_storage.size();
+      auto begin = split_categories_.size();
+      split_categories_.resize(begin + cat_bits_storage.size());
+      std::copy(cat_bits_storage.begin(), cat_bits_storage.end(),
+                split_categories_.begin() + begin);
+      split_categories_segments_[nidx].beg = begin;
+      split_categories_segments_[nidx].size = cat_bits_storage.size();
+
+      ++cnt;
+      if (cnt == categories_nodes.size()) {
+        last_cat_node = -1;
+      } else {
+        last_cat_node = get<Integer const>(categories_nodes[++cnt]);
+      }
+    } else {
+      split_categories_segments_[nidx].beg = categories.size();
+      split_categories_segments_[nidx].size = 0;
+    }
   }
 }
 
@@ -817,22 +836,30 @@ void RegTree::SaveCategoricalSplit(Json* p_out) const {
   std::vector<Json> categories_segments;
   std::vector<Json> categories_sizes;
   std::vector<Json> categories;
+  std::vector<Json> categories_nodes;
 
-  for (auto segment : split_categories_segments_) {
-    auto node_categories =
-        this->GetSplitCategories().subspan(segment.beg, segment.size);
-    size_t beg = categories.size();
-    common::KCatBitField const cat_bits(node_categories);
-    for (size_t i = 0; i < cat_bits.Size(); ++i) {
-      if (cat_bits.Check(i)) {
-        categories.emplace_back(static_cast<Integer::Int>(i));
+  for (size_t i = 0; i < nodes_.size(); ++i) {
+    if (this->split_types_[i] == FeatureType::kCategorical) {
+      categories_nodes.emplace_back(i);
+      auto begin = categories.size();
+      categories_segments.emplace_back(static_cast<Integer::Int>(begin));
+      auto segment = split_categories_segments_[i];
+      auto node_categories =
+          this->GetSplitCategories().subspan(segment.beg, segment.size);
+      common::KCatBitField const cat_bits(node_categories);
+      for (size_t i = 0; i < cat_bits.Size(); ++i) {
+        if (cat_bits.Check(i)) {
+          categories.emplace_back(static_cast<Integer::Int>(i));
+        }
       }
+      size_t size = categories.size() - begin;
+      categories_sizes.emplace_back(static_cast<Integer::Int>(size));
     }
-    categories_segments.emplace_back(beg);
-    categories_sizes.emplace_back(categories.size() - beg);
   }
+
   out["categories_segments"] = categories_segments;
   out["categories_sizes"] = categories_sizes;
+  out["categories_nodes"] = categories_nodes;
   out["categories"] = categories;
 }
 
