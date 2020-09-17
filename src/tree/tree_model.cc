@@ -742,7 +742,7 @@ void RegTree::Load(dmlc::Stream* fi) {
   CHECK_EQ(static_cast<int>(deleted_nodes_.size()), param.num_deleted);
 
   split_types_.resize(param.num_nodes, FeatureType::kNumerical);
-  split_categories_segments_.resize(param.num_nodes, Segment{0ul, 0ul});
+  split_categories_segments_.resize(param.num_nodes);
 }
 
 void RegTree::Save(dmlc::Stream* fo) const {
@@ -782,7 +782,6 @@ void RegTree::LoadCategoricalSplit(Json const& in) {
   auto const& categories_nodes = get<Array const>(in["categories_nodes"]);
   auto const& categories = get<Array const>(in["categories"]);
 
-  std::fill(split_categories_segments_.begin(), split_categories_segments_.end(), Segment{0, 0});
   size_t cnt = 0;
   bst_node_t last_cat_node = -1;
   if (!categories_nodes.empty()) {
@@ -926,8 +925,7 @@ void RegTree::LoadModel(Json const& in) {
   if (has_cat) {
     this->LoadCategoricalSplit(in);
   } else {
-    this->split_categories_segments_.resize(this->param.num_nodes,
-                                            Segment{0ul, 0ul});
+    this->split_categories_segments_.resize(this->param.num_nodes);
     std::fill(split_types_.begin(), split_types_.end(), FeatureType::kNumerical);
   }
 
