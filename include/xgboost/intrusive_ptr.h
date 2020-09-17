@@ -3,8 +3,8 @@
  * \file intrusive_ptr.h
  * \brief Implementation of Intrusive Ptr.
  */
-#ifndef DMLC_INTRUSIVE_PTR_H_
-#define DMLC_INTRUSIVE_PTR_H_
+#ifndef XGBOOST_INTRUSIVE_PTR_H_
+#define XGBOOST_INTRUSIVE_PTR_H_
 
 #include <atomic>
 #include <cinttypes>
@@ -184,4 +184,4 @@ void swap(xgboost::IntrusivePtr<T> &x,  // NOLINT
 template <typename T>
 struct hash<xgboost::IntrusivePtr<T>> : public xgboost::IntrusivePtr<T>::Hash {};
 }      // namespace std
-#endif  // DMLC_INTRUSIVE_PTR_H_
+#endif  // XGBOOST_INTRUSIVE_PTR_H_
