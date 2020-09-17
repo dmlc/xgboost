@@ -772,6 +772,65 @@ void RegTree::Save(dmlc::Stream* fo) const {
   }
 }
 
+void RegTree::LoadCategoricalSplit(std::vector<Json> *p_split_type,
+                                   std::vector<Json> *p_categories_segments,
+                                   std::vector<Json> *p_categories,
+                                   bst_node_t i) {
+  auto& split_type = *p_split_type;
+  auto& categories_segments = *p_categories_segments;
+  auto& categories = *p_categories;
+
+  split_types_[i] = static_cast<FeatureType>(get<Integer const>(split_type[i]));
+
+  auto j_begin = get<Integer const>(categories_segments[i - 1]);
+  auto j_end = get<Integer const>(categories_segments[i]);
+  bst_cat_t max_cat{std::numeric_limits<bst_cat_t>::min()};
+
+  for (auto i = j_begin; i < j_end; ++i) {
+    auto const &category = get<Integer const>(categories[i]);
+    auto cat = common::AsCat(category);
+    max_cat = std::max(max_cat, cat);
+  }
+  size_t size = max_cat == std::numeric_limits<bst_cat_t>::min()
+                    ? 0
+                    : common::KCatBitField::ComputeStorageSize(max_cat);
+
+  std::vector<uint32_t> cat_bits_storage(size);
+  common::CatBitField cat_bits{common::Span<uint32_t>(cat_bits_storage)};
+
+  for (auto i = j_begin; i < j_end; ++i) {
+    cat_bits.Set(common::AsCat(get<Integer const>(categories[i])));
+  }
+
+  auto begin = split_categories_.size();
+  split_categories_.resize(begin + cat_bits_storage.size());
+  std::copy(cat_bits_storage.begin(), cat_bits_storage.end(),
+            split_categories_.begin() + begin);
+  split_categories_segments_[i].beg = begin;
+  split_categories_segments_[i].size = cat_bits_storage.size();
+}
+
+void RegTree::SaveCategoricalSplit(bst_node_t i,
+                                   std::vector<Json> *p_split_type,
+                                   std::vector<Json> *p_categories_segment,
+                                   std::vector<Json> *p_categories) const {
+  auto& split_type = *p_split_type;
+  auto& categories_segment = *p_categories_segment;
+  auto& categories = *p_categories;
+  CHECK_EQ(this->GetSplitCategoriesPtr().size(), param.num_nodes);
+  split_type[i] = static_cast<Integer::Int>(this->NodeSplitType(i));
+  auto beg = this->GetSplitCategoriesPtr().at(i).beg;
+  auto size = this->GetSplitCategoriesPtr().at(i).size;
+  auto node_categories = this->GetSplitCategories().subspan(beg, size);
+  common::KCatBitField const cat_bits(node_categories);
+  for (size_t i = 0; i < cat_bits.Size(); ++i) {
+    if (cat_bits.Check(i)) {
+      categories.emplace_back(static_cast<Integer::Int>(i));
+    }
+  }
+  categories_segment.emplace_back(Integer(categories.size()));
+}
+
 void RegTree::LoadModel(Json const& in) {
   FromJson(in["tree_param"], &param);
   auto n_nodes = param.num_nodes;
@@ -800,9 +859,11 @@ void RegTree::LoadModel(Json const& in) {
   bool has_cat = get<Object const>(in).find("split_type") != get<Object const>(in).cend();
   std::vector<Json> split_type;
   std::vector<Json> categories;
+  std::vector<Json> categories_segments;
   if (has_cat) {
     split_type = get<Array const>(in["split_type"]);
     categories = get<Array const>(in["categories"]);
+    categories_segments = get<Array const>(in["categories_segments"]);
   }
 
 
@@ -831,28 +892,7 @@ void RegTree::LoadModel(Json const& in) {
     n = Node{left, right, parent, ind, cond, dft_left};
 
     if (has_cat) {
-      split_types_[i] =
-          static_cast<FeatureType>(get<Integer const>(split_type[i]));
-      auto const& j_categories = get<Array const>(categories[i]);
-      bst_cat_t max_cat { std::numeric_limits<bst_cat_t>::min() };
-      for (auto const& j_cat : j_categories) {
-        auto cat = common::AsCat(get<Integer const>(j_cat));
-        max_cat = std::max(max_cat, cat);
-      }
-      size_t size = max_cat == std::numeric_limits<bst_cat_t>::min()
-                        ? 0
-                        : common::KCatBitField::ComputeStorageSize(max_cat);
-      std::vector<uint32_t> cat_bits_storage(size);
-      common::CatBitField cat_bits{common::Span<uint32_t>(cat_bits_storage)};
-      for (auto const& j_cat : j_categories) {
-        cat_bits.Set(common::AsCat(get<Integer const>(j_cat)));
-      }
-      auto begin = split_categories_.size();
-      split_categories_.resize(begin + cat_bits_storage.size());
-      std::copy(cat_bits_storage.begin(), cat_bits_storage.end(),
-                split_categories_.begin() + begin);
-      split_categories_segments_[i].beg = begin;
-      split_categories_segments_[i].size = cat_bits_storage.size();
+      this->LoadCategoricalSplit(&split_type, &categories_segments, &categories, i);
     }
   }
 
@@ -895,7 +935,8 @@ void RegTree::SaveModel(Json* p_out) const {
   std::vector<Json> default_left(n_nodes);
   std::vector<Json> split_type(n_nodes);
 
-  std::vector<Json> categories(n_nodes);
+  std::vector<Json> categories_segment{Json(Integer(0))};
+  std::vector<Json> categories;
 
   for (bst_node_t i = 0; i < n_nodes; ++i) {
     auto const& s = stats_[i];
@@ -911,23 +952,11 @@ void RegTree::SaveModel(Json* p_out) const {
     conds[i] = n.SplitCond();
     default_left[i] = n.DefaultLeft();
 
-    std::vector<Json> categories_temp;
     // This condition is only for being compatibale with older version of XGBoost model
     // that doesn't have categorical data support.
     if (this->GetSplitTypes().size() == static_cast<size_t>(n_nodes)) {
-      CHECK_EQ(this->GetSplitCategoriesPtr().size(), param.num_nodes);
-      split_type[i] = static_cast<I>(this->NodeSplitType(i));
-      auto beg = this->GetSplitCategoriesPtr().at(i).beg;
-      auto size = this->GetSplitCategoriesPtr().at(i).size;
-      auto node_categories = this->GetSplitCategories().subspan(beg, size);
-      common::KCatBitField const cat_bits(node_categories);
-      for (size_t i = 0; i < cat_bits.Size(); ++i) {
-        if (cat_bits.Check(i)) {
-          categories_temp.emplace_back(static_cast<Integer::Int>(i));
-        }
-      }
+      this->SaveCategoricalSplit(i, &split_type, &categories_segment, &categories);
     }
-    categories[i] = Array(categories_temp);
   }
 
   out["loss_changes"] = std::move(loss_changes);
@@ -941,6 +970,7 @@ void RegTree::SaveModel(Json* p_out) const {
   out["split_conditions"] = std::move(conds);
   out["default_left"] = std::move(default_left);
 
+  out["categories_segment"] = categories_segment;
   out["categories"] = categories;
 
   if (this->GetSplitTypes().size() == static_cast<size_t>(n_nodes)) {

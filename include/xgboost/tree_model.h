@@ -620,6 +620,12 @@ class RegTree : public Model {
   };
 
  private:
+  void LoadCategoricalSplit(std::vector<Json> *p_split_type,
+                            std::vector<Json> *p_categories_segments,
+                            std::vector<Json> *p_categories, bst_node_t nidx);
+  void SaveCategoricalSplit(bst_node_t i, std::vector<Json> *p_split_type,
+                            std::vector<Json> *p_categories_segment,
+                            std::vector<Json> *p_categories) const;
   // vector of nodes
   std::vector<Node> nodes_;
   // free node space, used during training process
