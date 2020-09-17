@@ -101,7 +101,7 @@ class SketchContainer {
    * \param entries Sorted entries.
    * \param columns_ptr CSC pointer for entries.
    * \param cuts_ptr CSC pointer for cuts.
-   * \param total_cuts Total number of cuts, equanl to back of cuts_ptr.
+   * \param total_cuts Total number of cuts, equal to the back of cuts_ptr.
    * \param weights (optional) data weights.
    */
   void Push(Span<Entry const> entries, Span<size_t> columns_ptr,
