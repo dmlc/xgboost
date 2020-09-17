@@ -176,10 +176,25 @@ def test_boost_from_prediction(tree_method):
             predictions_2 = cls_2.predict(X_)
             proba_2 = cls_2.predict_proba(X_)
 
-            np.testing.assert_equal(predictions_1.compute(), predictions_2.compute())
+            cls_3 = xgb.dask.DaskXGBClassifier(
+                learning_rate=0.3,
+                random_state=123,
+                n_estimators=8,
+                tree_method=tree_method,
+            )
+            cls_3.fit(X=X_, y=y_)
+            predictions_3 = cls_3.predict(X_)
+            proba_3 = cls_3.predict_proba(X_)
 
-            # This won't pass for approx
-            if tree_method != "approx":
+            # compute variance between two of the same model, use this to check
+            # to make sure approx is functioning within normal parameters
+            variance = np.max(np.abs(proba_3 - proba_2)).compute()
+
+            if variance > 0:
+                print("variance > 0")
+                assert np.all(np.abs(proba_2 - proba_1) <= variance)
+            else:
+                np.testing.assert_equal(predictions_1.compute(), predictions_2.compute())
                 np.testing.assert_almost_equal(proba_1.compute(), proba_2.compute())
 
 
