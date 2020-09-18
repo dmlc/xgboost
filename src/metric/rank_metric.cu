@@ -12,6 +12,7 @@
 #include <thrust/iterator/discard_iterator.h>
 
 #include <cmath>
+#include <array>
 #include <vector>
 
 #include "metric_common.h"
@@ -379,7 +380,11 @@ struct EvalAucGpu : public Metric {
         }
       });
 
-      auto nunique_preds = seg_idx.back();
+      std::array<uint32_t, 1> h_nunique_preds;
+      dh::safe_cuda(cudaMemcpyAsync(h_nunique_preds.data(),
+                                    seg_idx.data().get() + seg_idx.size() - 1,
+                                    sizeof(uint32_t), cudaMemcpyDeviceToHost));
+      auto nunique_preds = h_nunique_preds.back();
       ReleaseMemory(seg_idx);
 
       // Next, accumulate the positive and negative precisions for every prediction group

@@ -406,10 +406,14 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
   }
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   XGBDefaultDeviceAllocatorImpl()
-    : SuperT(rmm::mr::get_current_device_resource(), cudaStream_t{0}) {}
+    : SuperT(rmm::mr::get_current_device_resource(), cudaStream_t{nullptr}) {}
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 };
 
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+template <typename T>
+using XGBCachingDeviceAllocatorImpl = XGBDefaultDeviceAllocatorImpl<T>;
+#else
 /**
  * \brief Caching memory allocator, uses cub::CachingDeviceAllocator as a back-end and logs
  * allocations if verbose. Does not initialise memory on construction.
@@ -448,6 +452,7 @@ struct XGBCachingDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
     // no-op
   }
 };
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 }  // namespace detail
 
 // Declare xgboost allocators
