@@ -338,7 +338,7 @@ void SketchContainer::Push(Span<Entry const> entries, Span<size_t> columns_ptr,
       float rmax = column_weights_scan[sample_idx];
       float wmin = rmax - rmin;
       wmin = wmin < 0 ? kRtEps : wmin;  // GPU scan can generate floating error.
-      return SketchEntry{rmin, rmax, rmax - rmin, column[sample_idx].fvalue};
+      return SketchEntry{rmin, rmax, wmin, column[sample_idx].fvalue};
     }; // NOLINT
     PruneImpl<Entry>(device_, cuts_ptr, entries, columns_ptr, out,
                      to_sketch_entry);
