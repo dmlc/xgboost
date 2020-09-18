@@ -220,6 +220,7 @@ class DaskDMatrix:
 
         self._init = client.sync(self.map_local_data,
                                  client, data, label=label, weights=weight,
+                                 base_margin=base_margin,
                                  label_lower_bound=label_lower_bound,
                                  label_upper_bound=label_upper_bound)
 
@@ -248,16 +249,10 @@ class DaskDMatrix:
                 ' chunks=(partition_size, X.shape[1])'
 
         data = data.persist()
-        if label is not None:
-            label = label.persist()
-        if weights is not None:
-            weights = weights.persist()
-        if base_margin is not None:
-            base_margin = base_margin.persist()
-        if label_lower_bound is not None:
-            label_lower_bound = label_lower_bound.persist()
-        if label_upper_bound is not None:
-            label_upper_bound = label_upper_bound.persist()
+        for meta in [label, weights, base_margin, label_lower_bound,
+                     label_upper_bound]:
+            if meta is not None:
+                meta = meta.persist()
         # Breaking data into partitions, a trick borrowed from dask_xgboost.
 
         # `to_delayed` downgrades high-level objects into numpy or pandas
