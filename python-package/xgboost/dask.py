@@ -219,7 +219,9 @@ class DaskDMatrix:
         self.is_quantile = False
 
         self._init = client.sync(self.map_local_data,
-                                 client, data, label, weight)
+                                 client, data, label=label, weights=weight,
+                                 label_lower_bound=label_lower_bound,
+                                 label_upper_bound=label_upper_bound)
 
     def __await__(self):
         return self._init.__await__()

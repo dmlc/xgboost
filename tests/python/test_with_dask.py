@@ -1,6 +1,5 @@
 import testing as tm
 import pytest
-import unittest
 import xgboost as xgb
 import sys
 import numpy as np
@@ -482,14 +481,57 @@ def test_predict():
             assert pred.ndim == 1
             assert pred.shape[0] == kRows
 
-            margin = xgb.dask.predict(client, model=booster, data=dtrain, output_margin=True)
+            margin = xgb.dask.predict(client, model=booster, data=dtrain,
+                                      output_margin=True)
             assert margin.ndim == 1
             assert margin.shape[0] == kRows
 
-            shap = xgb.dask.predict(client, model=booster, data=dtrain, pred_contribs=True)
+            shap = xgb.dask.predict(client, model=booster, data=dtrain,
+                                    pred_contribs=True)
             assert shap.ndim == 2
             assert shap.shape[0] == kRows
             assert shap.shape[1] == kCols + 1
+
+
+def test_aft_survival():
+    # survival doesn't handle empty dataset well.
+    with LocalCluster(n_workers=1) as cluster:
+        with Client(cluster) as client:
+            df = dd.read_csv(os.path.join(tm.PROJECT_ROOT, 'demo', 'data',
+                                          'veterans_lung_cancer.csv'))
+            y_lower_bound = df['Survival_label_lower_bound']
+            y_upper_bound = df['Survival_label_upper_bound']
+            X = df.drop(['Survival_label_lower_bound',
+                         'Survival_label_upper_bound'], axis=1)
+            m = DaskDMatrix(client, X, label_lower_bound=y_lower_bound,
+                            label_upper_bound=y_upper_bound)
+            print('lower_bound.shape:', y_lower_bound.compute().shape)
+            base_params = {'verbosity': 0,
+                           'objective': 'survival:aft',
+                           'eval_metric': 'aft-nloglik',
+                           'learning_rate': 0.05,
+                           'aft_loss_distribution_scale': 1.20,
+                           'max_depth': 6,
+                           'lambda': 0.01,
+                           'alpha': 0.02}
+
+            nloglik_rec = {}
+            dists = ['normal', 'logistic', 'extreme']
+            for dist in dists:
+                params = base_params
+                params.update({'aft_loss_distribution': dist})
+                evals_result = {}
+                out = xgb.dask.train(client, params, m, num_boost_round=100,
+                                     evals=[(m, 'train')])
+                evals_result = out['history']
+                nloglik_rec[dist] = evals_result['train']['aft-nloglik']
+                # AFT metric (negative log likelihood) improve monotonically
+                assert all(p >= q for p, q in zip(nloglik_rec[dist],
+                                                  nloglik_rec[dist][:1]))
+            # For this data, normal distribution works the best
+            assert nloglik_rec['normal'][-1] < 4.9
+            assert nloglik_rec['logistic'][-1] > 4.9
+            assert nloglik_rec['extreme'][-1] > 4.9
 
 
 class TestWithDask:

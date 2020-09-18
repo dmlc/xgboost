@@ -3,9 +3,10 @@ import pytest
 import numpy as np
 import xgboost as xgb
 import json
-from pathlib import Path
+import os
 
-dpath = Path('demo/data')
+dpath = os.path.join(tm.PROJECT_ROOT, 'demo', 'data')
+
 
 def test_aft_survival_toy_data():
     # See demo/aft_survival/aft_survival_viz_demo.py
@@ -51,7 +52,7 @@ def test_aft_survival_toy_data():
     for tree in model_json:
         assert gather_split_thresholds(tree).issubset({2.5, 3.5, 4.5})
 
-@pytest.mark.skipif(**tm.no_pandas())  
+@pytest.mark.skipif(**tm.no_pandas())
 def test_aft_survival_demo_data():
     import pandas as pd
     df = pd.read_csv(dpath / 'veterans_lung_cancer.csv')
