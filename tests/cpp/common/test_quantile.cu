@@ -9,11 +9,11 @@ namespace common {
 TEST(GPUQuantile, Basic) {
   constexpr size_t kRows = 1000, kCols = 100, kBins = 256;
   SketchContainer sketch(kBins, kCols, kRows, 0);
-  dh::caching_device_vector<SketchEntry> entries;
+  dh::caching_device_vector<Entry> entries;
   dh::device_vector<bst_row_t> cuts_ptr(kCols+1);
   thrust::fill(cuts_ptr.begin(), cuts_ptr.end(), 0);
   // Push empty
-  sketch.Push(dh::ToSpan(cuts_ptr), &entries);
+  sketch.Push(dh::ToSpan(entries), dh::ToSpan(cuts_ptr), dh::ToSpan(cuts_ptr), 0);
   ASSERT_EQ(sketch.Data().size(), 0);
 }
 

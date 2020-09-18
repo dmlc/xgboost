@@ -29,6 +29,24 @@ TEST(AtomicAdd, SizeT) {
   TestAtomicSizeT();
 }
 
+void TestSegmentID() {
+  std::vector<size_t> segments{0, 1, 3};
+  thrust::device_vector<size_t> d_segments(segments);
+  auto s_segments = dh::ToSpan(d_segments);
+  dh::LaunchN(0, 1, [=]__device__(size_t idx) {
+    auto id = dh::SegmentId(s_segments, 0);
+    SPAN_CHECK(id == 0);
+    id = dh::SegmentId(s_segments, 1);
+    SPAN_CHECK(id == 1);
+    id = dh::SegmentId(s_segments, 2);
+    SPAN_CHECK(id == 1);
+  });
+}
+
+TEST(SegmentID, Basic) {
+  TestSegmentID();
+}
+
 TEST(SegmentedUnique, Basic) {
   std::vector<float> values{0.1f, 0.2f, 0.3f, 0.62448811531066895f, 0.62448811531066895f, 0.4f};
   std::vector<size_t> segments{0, 3, 6};
