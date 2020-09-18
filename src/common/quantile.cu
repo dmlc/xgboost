@@ -347,6 +347,7 @@ void SketchContainer::Push(Span<Entry const> entries, Span<size_t> columns_ptr,
   if (!first_window) {
     CHECK_EQ(this->columns_ptr_.Size(), cuts_ptr.size());
     this->Merge(cuts_ptr, out);
+    this->FixError();
   } else {
     this->columns_ptr_.SetDevice(device_);
     this->columns_ptr_.Resize(cuts_ptr.size());
