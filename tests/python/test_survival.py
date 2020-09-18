@@ -55,7 +55,7 @@ def test_aft_survival_toy_data():
 @pytest.mark.skipif(**tm.no_pandas())
 def test_aft_survival_demo_data():
     import pandas as pd
-    df = pd.read_csv(dpath / 'veterans_lung_cancer.csv')
+    df = pd.read_csv(os.path.join(dpath, 'veterans_lung_cancer.csv'))
 
     y_lower_bound = df['Survival_label_lower_bound']
     y_upper_bound = df['Survival_label_upper_bound']
