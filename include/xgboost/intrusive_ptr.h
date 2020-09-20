@@ -12,7 +12,9 @@
 
 namespace xgboost {
 /*!
- * \brief Helper class for embedding reference counting into client objects.
+ * \brief Helper class for embedding reference counting into client objects.  See
+ *        https://www.boost.org/doc/libs/1_74_0/doc/html/atomic/usage_examples.html for
+ *        discussions of memory order.
  */
 class IntrusivePtrCell {
  private:
@@ -38,7 +40,34 @@ class IntrusivePtrCell {
 template <typename T> IntrusivePtrCell &IntrusivePtrRefCount(T const *ptr) noexcept;
 
 /*!
- * \brief Implementation of Intrusive Pointer.
+ * \brief Implementation of Intrusive Pointer.  A smart pointer that points to an object
+ *        with an embedded reference counter. The underlying object must implement a
+ *        friend function IntrusivePtrRefCount() that returns the ref counter (of type
+ *        IntrusivePtrCell). The intrusive pointer is faster than std::shared_ptr<>:
+ *        std::shared_ptr<> makes an extra memory allocation for the ref counter whereas
+ *        the intrusive pointer does not.
+ *
+ * \code
+ *
+ *   class ForIntrusivePtrTest {
+ *    public:
+ *     mutable class IntrusivePtrCell ref;
+ *     float data { 0 };
+ *
+ *     friend IntrusivePtrCell &
+ *     IntrusivePtrRefCount(ForIntrusivePtrTest const *t) noexcept {  // NOLINT
+ *       return t->ref;
+ *     }
+ *
+ *     ForIntrusivePtrTest() = default;
+ *     ForIntrusivePtrTest(float a, int32_t b) : data{a + static_cast<float>(b)} {}
+ *
+ *     explicit ForIntrusivePtrTest(NotCopyConstructible a) : data{a.data} {}
+ *   };
+ *
+ *   IntrusivePtr<ForIntrusivePtrTest> ptr {new ForIntrusivePtrTest};
+ *
+ * \endcode
  */
 template <typename T> class IntrusivePtr {
  private:
