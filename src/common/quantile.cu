@@ -415,7 +415,7 @@ void SketchContainer::Prune(size_t to) {
   auto ft = this->feature_types_.ConstDeviceSpan();
   PruneImpl<SketchEntry>(device_, d_columns_ptr_out, in, d_columns_ptr_in, ft,
                          out, no_op);
-  this->columns_ptr_.HostVector() = new_columns_ptr.HostVector();
+  this->columns_ptr_.Copy(new_columns_ptr);
   this->Alternate();
   timer_.Stop(__func__);
 }

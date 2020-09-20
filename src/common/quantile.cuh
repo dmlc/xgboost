@@ -95,6 +95,9 @@ class SketchContainer {
     this->feature_types_.Resize(feature_types.Size());
     this->feature_types_.Copy(feature_types);
     this->feature_types_.SetDevice(device);
+    // pull to device early
+    this->feature_types_.ConstDeviceSpan();
+    this->feature_types_.ConstHostSpan();
     timer_.Init(__func__);
   }
   /* \brief Return GPU ID for this container. */
