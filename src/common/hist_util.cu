@@ -172,9 +172,9 @@ void RemoveDuplicatedCategories(
 }
 }  // namespace detail
 
-void ProcessBatch(int device, MetaInfo const& info, const SparsePage &page, size_t begin, size_t end,
-                  SketchContainer *sketch_container, int num_cuts_per_feature,
-                  size_t num_columns) {
+void ProcessBatch(int device, MetaInfo const &info, const SparsePage &page,
+                  size_t begin, size_t end, SketchContainer *sketch_container,
+                  int num_cuts_per_feature, size_t num_columns) {
   dh::XGBCachingDeviceAllocator<char> alloc;
   const auto& host_data = page.data.ConstHostVector();
   dh::device_vector<Entry> sorted_entries(host_data.begin() + begin,
