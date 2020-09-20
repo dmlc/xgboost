@@ -271,6 +271,7 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
 
 HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
                            size_t sketch_batch_num_elements) {
+  dmat->Info().feature_types.SetDevice(device);
   dmat->Info().feature_types.ConstDevicePointer();  // pull to device early
   // Configure batch size based on available memory
   bool has_weights = dmat->Info().weights_.Size() > 0;
@@ -284,8 +285,6 @@ HistogramCuts DeviceSketch(int device, DMatrix* dmat, int max_bins,
       device, num_cuts_per_feature, has_weights);
 
   HistogramCuts cuts;
-
-  dmat->Info().feature_types.SetDevice(device);
   SketchContainer sketch_container(dmat->Info().feature_types, max_bins, dmat->Info().num_col_,
                                    dmat->Info().num_row_, device);
 

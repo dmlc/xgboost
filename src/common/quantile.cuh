@@ -98,8 +98,8 @@ class SketchContainer {
 
     this->feature_types_.Resize(feature_types.Size());
     this->feature_types_.Copy(feature_types);
+    // Pull to device.
     this->feature_types_.SetDevice(device);
-    // pull to device early
     this->feature_types_.ConstDeviceSpan();
     this->feature_types_.ConstHostSpan();
     timer_.Init(__func__);
