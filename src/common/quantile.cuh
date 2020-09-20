@@ -41,6 +41,7 @@ class SketchContainer {
   bool current_buffer_ {true};
   // The container is just a CSC matrix.
   HostDeviceVector<OffsetT> columns_ptr_;
+  HostDeviceVector<OffsetT> columns_ptr_b_;
 
   dh::caching_device_vector<SketchEntry>& Current() {
     if (current_buffer_) {
@@ -88,10 +89,13 @@ class SketchContainer {
                   int32_t device)
       : num_rows_{num_rows},
         num_columns_{num_columns}, num_bins_{max_bin}, device_{device} {
+    CHECK_GE(device, 0);
     // Initialize Sketches for this dmatrix
     this->columns_ptr_.SetDevice(device_);
     this->columns_ptr_.Resize(num_columns + 1);
-    CHECK_GE(device, 0);
+    this->columns_ptr_b_.SetDevice(device_);
+    this->columns_ptr_b_.Resize(num_columns + 1);
+
     this->feature_types_.Resize(feature_types.Size());
     this->feature_types_.Copy(feature_types);
     this->feature_types_.SetDevice(device);

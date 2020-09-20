@@ -391,7 +391,8 @@ void SketchContainer::Prune(size_t to) {
 
   this->Unique();
   OffsetT to_total = 0;
-  HostDeviceVector<OffsetT> new_columns_ptr{to_total};
+  auto& h_columns_ptr = columns_ptr_b_.HostVector();
+  h_columns_ptr[0] = to_total;
   auto const& h_feature_types = feature_types_.ConstHostSpan();
   for (bst_feature_t i = 0; i < num_columns_; ++i) {
     size_t length = this->Column(i).size();
@@ -400,13 +401,12 @@ void SketchContainer::Prune(size_t to) {
       length = this->Column(i).size();
     }
     to_total += length;
-    new_columns_ptr.HostVector().emplace_back(to_total);
+    h_columns_ptr[i+1] = to_total;
   }
-  new_columns_ptr.SetDevice(device_);
   this->Other().resize(to_total);
 
   auto d_columns_ptr_in = this->columns_ptr_.ConstDeviceSpan();
-  auto d_columns_ptr_out = new_columns_ptr.ConstDeviceSpan();
+  auto d_columns_ptr_out = columns_ptr_b_.ConstDeviceSpan();
   auto out = dh::ToSpan(this->Other());
   auto in = dh::ToSpan(this->Current());
   auto no_op = [] __device__(size_t sample_idx,
@@ -415,7 +415,7 @@ void SketchContainer::Prune(size_t to) {
   auto ft = this->feature_types_.ConstDeviceSpan();
   PruneImpl<SketchEntry>(device_, d_columns_ptr_out, in, d_columns_ptr_in, ft,
                          out, no_op);
-  this->columns_ptr_.Copy(new_columns_ptr);
+  this->columns_ptr_.Copy(columns_ptr_b_);
   this->Alternate();
   timer_.Stop(__func__);
 }
@@ -441,15 +441,11 @@ void SketchContainer::Merge(Span<OffsetT const> d_that_columns_ptr,
   this->Other().resize(this->Current().size() + that.size());
   CHECK_EQ(d_that_columns_ptr.size(), this->columns_ptr_.Size());
 
-  HostDeviceVector<OffsetT> new_columns_ptr;
-  new_columns_ptr.SetDevice(device_);
-  new_columns_ptr.Resize(this->ColumnsPtr().size());
   MergeImpl(device_, this->Data(), this->ColumnsPtr(),
             that, d_that_columns_ptr,
-            dh::ToSpan(this->Other()), new_columns_ptr.DeviceSpan());
-  this->columns_ptr_ = std::move(new_columns_ptr);
+            dh::ToSpan(this->Other()), columns_ptr_b_.DeviceSpan());
+  this->columns_ptr_.Copy(columns_ptr_b_);
   CHECK_EQ(this->columns_ptr_.Size(), num_columns_ + 1);
-  CHECK_EQ(new_columns_ptr.Size(), 0);
   this->Alternate();
   timer_.Stop(__func__);
 }
