@@ -108,7 +108,7 @@ TEST(HistUtil, DeviceSketchDeterminism) {
   }
 }
 
-TEST(HistUtil, DeviceSketchCategorical) {
+TEST(HistUtil, DeviceSketchCategoricalAsNumeric) {
   int categorical_sizes[] = {2, 6, 8, 12};
   int num_bins = 256;
   int sizes[] = {25, 100, 1000};
@@ -120,6 +120,33 @@ TEST(HistUtil, DeviceSketchCategorical) {
       ValidateCuts(cuts, dmat.get(), num_bins);
     }
   }
+}
+
+void TestCategoricalSketch(size_t n, size_t num_categories, int32_t num_bins) {
+  auto x = GenerateRandomCategoricalSingleColumn(n, num_categories);
+  auto dmat = GetDMatrixFromData(x, n, 1);
+  dmat->Info().feature_types.HostVector().push_back(FeatureType::kCategorical);
+  ASSERT_EQ(dmat->Info().feature_types.Size(), 1);
+  auto cuts = DeviceSketch(0, dmat.get(), num_bins);
+  std::sort(x.begin(), x.end());
+  auto n_uniques = std::unique(x.begin(), x.end()) - x.begin();
+  ASSERT_NE(n_uniques, x.size());
+  ASSERT_EQ(cuts.TotalBins(), n_uniques);
+  ASSERT_EQ(n_uniques, num_categories);
+
+  auto& values = cuts.cut_values_.HostVector();
+  ASSERT_TRUE(std::is_sorted(values.cbegin(), values.cend()));
+  auto is_unique = (std::unique(values.begin(), values.end()) - values.begin()) == n_uniques;
+  ASSERT_TRUE(is_unique);
+
+  x.resize(n_uniques);
+  for (size_t i = 0; i < n_uniques; ++i) {
+    ASSERT_EQ(x[i], values[i]);
+  }
+}
+
+TEST(HistUtil, DeviceSketchCategoricalFeatures) {
+  TestCategoricalSketch(1000, 256, 32);
 }
 
 TEST(HistUtil, DeviceSketchMultipleColumns) {
@@ -237,7 +264,8 @@ TEST(HistUtil, DeviceSketchExternalMemoryWithWeights) {
 template <typename Adapter>
 auto MakeUnweightedCutsForTest(Adapter adapter, int32_t num_bins, float missing, size_t batch_size = 0) {
   common::HistogramCuts batched_cuts;
-  SketchContainer sketch_container(num_bins, adapter.NumColumns(), adapter.NumRows(), 0);
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch_container(ft, num_bins, adapter.NumColumns(), adapter.NumRows(), 0);
   MetaInfo info;
   AdapterDeviceSketch(adapter.Value(), num_bins, info, std::numeric_limits<float>::quiet_NaN(),
                       &sketch_container);
@@ -305,7 +333,8 @@ TEST(HistUtil, AdapterSketchSlidingWindowMemory) {
   dh::GlobalMemoryLogger().Clear();
   ConsoleLogger::Configure({{"verbosity", "3"}});
   common::HistogramCuts batched_cuts;
-  SketchContainer sketch_container(num_bins, num_columns, num_rows, 0);
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch_container(ft, num_bins, num_columns, num_rows, 0);
   AdapterDeviceSketch(adapter.Value(), num_bins, info, std::numeric_limits<float>::quiet_NaN(),
                       &sketch_container);
   HistogramCuts cuts;
@@ -332,10 +361,12 @@ TEST(HistUtil, AdapterSketchSlidingWindowWeightedMemory) {
   dh::GlobalMemoryLogger().Clear();
   ConsoleLogger::Configure({{"verbosity", "3"}});
   common::HistogramCuts batched_cuts;
-  SketchContainer sketch_container(num_bins, num_columns, num_rows, 0);
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch_container(ft, num_bins, num_columns, num_rows, 0);
   AdapterDeviceSketch(adapter.Value(), num_bins, info,
                       std::numeric_limits<float>::quiet_NaN(),
                       &sketch_container);
+
   HistogramCuts cuts;
   sketch_container.MakeCuts(&cuts);
   ConsoleLogger::Configure({{"verbosity", "0"}});
@@ -477,9 +508,11 @@ void TestAdapterSketchFromWeights(bool with_group) {
 
   data::CupyAdapter adapter(m);
   auto const& batch = adapter.Value();
-  SketchContainer sketch_container(kBins, kCols, kRows, 0);
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch_container(ft, kBins, kCols, kRows, 0);
   AdapterDeviceSketch(adapter.Value(), kBins, info, std::numeric_limits<float>::quiet_NaN(),
                       &sketch_container);
+
   common::HistogramCuts cuts;
   sketch_container.MakeCuts(&cuts);
 
