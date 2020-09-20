@@ -138,19 +138,19 @@ void RemoveDuplicatedCategories(
     auto& sorted_entries = *p_sorted_entries;
     // Removing duplicated entries in categorical features.
     dh::caching_device_vector<size_t> new_column_scan(column_sizes_scan.size());
-    auto n_uniques = dh::SegmentedUnique(
-        column_sizes_scan.data().get(),
-        column_sizes_scan.data().get() + column_sizes_scan.size(),
-        sorted_entries.begin(), sorted_entries.end(),
-        new_column_scan.data().get(), sorted_entries.begin(),
-        [=] __device__(Entry const &l, Entry const &r) {
-          if (l.index == r.index) {
-            if (IsCat(d_feature_types, l.index)) {
-              return l.fvalue == r.fvalue;
-            }
-          }
-          return false;
-        });
+    dh::SegmentedUnique(column_sizes_scan.data().get(),
+                        column_sizes_scan.data().get() +
+                            column_sizes_scan.size(),
+                        sorted_entries.begin(), sorted_entries.end(),
+                        new_column_scan.data().get(), sorted_entries.begin(),
+                        [=] __device__(Entry const &l, Entry const &r) {
+                          if (l.index == r.index) {
+                            if (IsCat(d_feature_types, l.index)) {
+                              return l.fvalue == r.fvalue;
+                            }
+                          }
+                          return false;
+                        });
 
     // Renew the column scan and cut scan based on categorical data.
     dh::caching_device_vector<SketchContainer::OffsetT> new_cuts_size(
