@@ -134,16 +134,18 @@ One can also run all unit test using ctest tool which provides higher flexibilit
 Sanitizers: Detect memory errors and data races
 ***********************************************
 
-By default, sanitizers are bundled in GCC and Clang/LLVM. One can enable
-sanitizers with GCC >= 4.8 or LLVM >= 3.1, But some distributions might package
-sanitizers separately.  Here is a list of supported sanitizers with
-corresponding library names:
+By default, sanitizers are bundled in GCC and Clang/LLVM. One can enable sanitizers with
+GCC >= 4.8 or LLVM >= 3.1, But some distributions might package sanitizers separately.
+Here is a list of supported sanitizers with corresponding library names:
 
 - Address sanitizer: libasan
+- Undefined sanitizer: libubsan
 - Leak sanitizer:    liblsan
 - Thread sanitizer:  libtsan
 
-Memory sanitizer is exclusive to LLVM, hence not supported in XGBoost.
+Memory sanitizer is exclusive to LLVM, hence not supported in XGBoost.  With latest
+compilers like gcc-9, when sanitizer flags are specified, the compiler driver should be
+able to link the runtime libraries automatically.
 
 How to build XGBoost with sanitizers
 ====================================
@@ -175,5 +177,15 @@ environment variable:
 
   ASAN_OPTIONS=protect_shadow_gap=0 ${BUILD_DIR}/testxgboost
 
-For details, please consult `official documentation <https://github.com/google/sanitizers/wiki>`_ for sanitizers.
 
+Other sanitizer runtime options
+===============================
+
+By default undefined sanitizer doesn't print out the backtrace.  You can enable it by
+exporting environment variable:
+
+.. code-block::
+
+  UBSAN_OPTIONS=print_stacktrace=1 ${BUILD_DIR}/testxgboost
+
+For details, please consult `official documentation <https://github.com/google/sanitizers/wiki>`_ for sanitizers.
