@@ -320,7 +320,8 @@ class DataIter:
         def data_handle(data, label=None, weight=None, base_margin=None,
                         group=None,
                         label_lower_bound=None, label_upper_bound=None,
-                        feature_names=None, feature_types=None):
+                        feature_names=None, feature_types=None,
+                        feature_weights=None):
             from .data import dispatch_device_quantile_dmatrix_set_data
             from .data import _device_quantile_transform
             data, feature_names, feature_types = _device_quantile_transform(
@@ -333,7 +334,8 @@ class DataIter:
                                 label_lower_bound=label_lower_bound,
                                 label_upper_bound=label_upper_bound,
                                 feature_names=feature_names,
-                                feature_types=feature_types)
+                                feature_types=feature_types,
+                                feature_weights=feature_weights)
         try:
             # Differ the exception in order to return 0 and stop the iteration.
             # Exception inside a ctype callback function has no effect except
