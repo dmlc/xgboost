@@ -15,6 +15,7 @@
 #include "quantile.cuh"
 #include "hist_util.h"
 #include "device_helpers.cuh"
+#include "categorical.h"
 #include "common.h"
 
 namespace xgboost {
@@ -57,6 +58,7 @@ void PruneImpl(int device,
                common::Span<SketchContainer::OffsetT const> cuts_ptr,
                Span<InEntry const> sorted_data,
                Span<size_t const> columns_ptr_in,  // could be ptr for data or cuts
+               Span<FeatureType const> feature_types,
                Span<SketchEntry> out_cuts,
                ToSketchEntry to_sketch_entry) {
   dh::LaunchN(device, out_cuts.size(), [=] __device__(size_t idx) {
@@ -71,7 +73,8 @@ void PruneImpl(int device,
     auto front = to_sketch_entry(0ul, in_column, column_id);
     auto back = to_sketch_entry(in_column.size() - 1, in_column, column_id);
 
-    if (in_column.size() <= to) {
+    auto is_cat = IsCat(feature_types, column_id);
+    if (in_column.size() <= to || is_cat) {
       // cut idx equals sample idx
       out_column[idx] = to_sketch_entry(idx, in_column, column_id);
       return;
@@ -316,7 +319,7 @@ void SketchContainer::Push(Span<Entry const> entries, Span<size_t> columns_ptr,
     this->Current().resize(total_cuts);
     out = dh::ToSpan(this->Current());
   }
-
+  auto ft = this->feature_types_.ConstDeviceSpan();
   if (weights.empty()) {
     auto to_sketch_entry = [] __device__(size_t sample_idx,
                                          Span<Entry const> const &column,
@@ -325,7 +328,7 @@ void SketchContainer::Push(Span<Entry const> entries, Span<size_t> columns_ptr,
       float rmax = sample_idx + 1;
       return SketchEntry{rmin, rmax, 1, column[sample_idx].fvalue};
     }; // NOLINT
-    PruneImpl<Entry>(device_, cuts_ptr, entries, columns_ptr, out,
+    PruneImpl<Entry>(device_, cuts_ptr, entries, columns_ptr, ft, out,
                      to_sketch_entry);
   } else {
     auto to_sketch_entry = [weights, columns_ptr] __device__(
@@ -340,7 +343,7 @@ void SketchContainer::Push(Span<Entry const> entries, Span<size_t> columns_ptr,
       wmin = wmin < 0 ? kRtEps : wmin;  // GPU scan can generate floating error.
       return SketchEntry{rmin, rmax, wmin, column[sample_idx].fvalue};
     }; // NOLINT
-    PruneImpl<Entry>(device_, cuts_ptr, entries, columns_ptr, out,
+    PruneImpl<Entry>(device_, cuts_ptr, entries, columns_ptr, ft, out,
                      to_sketch_entry);
   }
 
@@ -388,26 +391,31 @@ void SketchContainer::Prune(size_t to) {
 
   this->Unique();
   OffsetT to_total = 0;
-  HostDeviceVector<OffsetT> new_columns_ptr{to_total};
+  auto& h_columns_ptr = columns_ptr_b_.HostVector();
+  h_columns_ptr[0] = to_total;
+  auto const& h_feature_types = feature_types_.ConstHostSpan();
   for (bst_feature_t i = 0; i < num_columns_; ++i) {
     size_t length = this->Column(i).size();
     length = std::min(length, to);
+    if (IsCat(h_feature_types, i)) {
+      length = this->Column(i).size();
+    }
     to_total += length;
-    new_columns_ptr.HostVector().emplace_back(to_total);
+    h_columns_ptr[i+1] = to_total;
   }
-  new_columns_ptr.SetDevice(device_);
   this->Other().resize(to_total);
 
   auto d_columns_ptr_in = this->columns_ptr_.ConstDeviceSpan();
-  auto d_columns_ptr_out = new_columns_ptr.ConstDeviceSpan();
+  auto d_columns_ptr_out = columns_ptr_b_.ConstDeviceSpan();
   auto out = dh::ToSpan(this->Other());
   auto in = dh::ToSpan(this->Current());
   auto no_op = [] __device__(size_t sample_idx,
                              Span<SketchEntry const> const &entries,
                              size_t) { return entries[sample_idx]; }; // NOLINT
-  PruneImpl<SketchEntry>(device_, d_columns_ptr_out, in, d_columns_ptr_in, out,
-                         no_op);
-  this->columns_ptr_.HostVector() = new_columns_ptr.HostVector();
+  auto ft = this->feature_types_.ConstDeviceSpan();
+  PruneImpl<SketchEntry>(device_, d_columns_ptr_out, in, d_columns_ptr_in, ft,
+                         out, no_op);
+  this->columns_ptr_.Copy(columns_ptr_b_);
   this->Alternate();
   timer_.Stop(__func__);
 }
@@ -433,15 +441,11 @@ void SketchContainer::Merge(Span<OffsetT const> d_that_columns_ptr,
   this->Other().resize(this->Current().size() + that.size());
   CHECK_EQ(d_that_columns_ptr.size(), this->columns_ptr_.Size());
 
-  HostDeviceVector<OffsetT> new_columns_ptr;
-  new_columns_ptr.SetDevice(device_);
-  new_columns_ptr.Resize(this->ColumnsPtr().size());
   MergeImpl(device_, this->Data(), this->ColumnsPtr(),
             that, d_that_columns_ptr,
-            dh::ToSpan(this->Other()), new_columns_ptr.DeviceSpan());
-  this->columns_ptr_ = std::move(new_columns_ptr);
+            dh::ToSpan(this->Other()), columns_ptr_b_.DeviceSpan());
+  this->columns_ptr_.Copy(columns_ptr_b_);
   CHECK_EQ(this->columns_ptr_.Size(), num_columns_ + 1);
-  CHECK_EQ(new_columns_ptr.Size(), 0);
   this->Alternate();
   timer_.Stop(__func__);
 }
@@ -528,7 +532,8 @@ void SketchContainer::AllReduce() {
   }
 
   // Merge them into a new sketch.
-  SketchContainer new_sketch(num_bins_, this->num_columns_, global_sum_rows,
+  SketchContainer new_sketch(this->feature_types_, num_bins_,
+                             this->num_columns_, global_sum_rows,
                              this->device_);
   for (size_t i = 0; i < allworkers.size(); ++i) {
     auto worker = allworkers[i];
@@ -568,11 +573,16 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   auto& h_out_columns_ptr = p_cuts->cut_ptrs_.HostVector();
   h_out_columns_ptr.clear();
   h_out_columns_ptr.push_back(0);
+  auto const& h_feature_types = this->feature_types_.ConstHostSpan();
   for (bst_feature_t i = 0; i < num_columns_; ++i) {
-    h_out_columns_ptr.push_back(
-        std::min(static_cast<size_t>(std::max(static_cast<size_t>(1ul),
-                                              this->Column(i).size())),
-                 static_cast<size_t>(num_bins_)));
+    size_t column_size = std::max(static_cast<size_t>(1ul),
+                                  this->Column(i).size());
+    if (IsCat(h_feature_types, i)) {
+      h_out_columns_ptr.push_back(static_cast<size_t>(column_size));
+    } else {
+      h_out_columns_ptr.push_back(std::min(static_cast<size_t>(column_size),
+                                           static_cast<size_t>(num_bins_)));
+    }
   }
   std::partial_sum(h_out_columns_ptr.begin(), h_out_columns_ptr.end(),
                    h_out_columns_ptr.begin());
@@ -583,6 +593,7 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
   p_cuts->cut_values_.SetDevice(device_);
   p_cuts->cut_values_.Resize(total_bins);
   auto out_cut_values = p_cuts->cut_values_.DeviceSpan();
+  auto d_ft = feature_types_.ConstDeviceSpan();
 
   dh::LaunchN(0, total_bins, [=] __device__(size_t idx) {
     auto column_id = dh::SegmentId(d_out_columns_ptr, idx);
@@ -605,11 +616,17 @@ void SketchContainer::MakeCuts(HistogramCuts* p_cuts) {
       return;
     }
 
-    // First thread is responsible for setting min values.
-    if (idx == 0) {
+    if (idx == 0 && !IsCat(d_ft, column_id)) {
       auto mval = in_column[idx].value;
       d_min_values[column_id] = mval - (fabs(mval) + 1e-5);
     }
+
+    if (IsCat(d_ft, column_id)) {
+      assert(out_column.size() == in_column.size());
+      out_column[idx] = in_column[idx].value;
+      return;
+    }
+
     // Last thread is responsible for setting a value that's greater than other cuts.
     if (idx == out_column.size() - 1) {
       const bst_float cpt = in_column.back().value;
