@@ -18,6 +18,7 @@ import logging
 from collections import defaultdict
 from collections.abc import Sequence
 from threading import Thread
+import socket
 
 import numpy
 
@@ -39,8 +40,10 @@ from .sklearn import xgboost_model_doc
 
 try:
     from distributed import Client
+    from distributed import worker_client
 except ImportError:
     Client = None
+    worker_client = None
 
 # Current status is considered as initial support, many features are
 # not properly supported yet.
@@ -66,17 +69,14 @@ except ImportError:
 LOGGER = logging.getLogger('[xgboost.dask]')
 
 
-def _start_tracker(host, n_workers):
-    """Start Rabit tracker """
-    env = {'DMLC_NUM_WORKER': n_workers}
+def _start_tracker(n_workers):
+    name = socket.gethostname()
+    host = socket.gethostbyname(name)
     rabit_context = RabitTracker(hostIP=host, nslave=n_workers)
-    env.update(rabit_context.slave_envs())
-
     rabit_context.start(n_workers)
-    thread = Thread(target=rabit_context.join)
-    thread.daemon = True
+    thread = Thread(target=rabit_context.join, daemon=True)
     thread.start()
-    return env
+    return rabit_context.slave_envs()
 
 
 def _assert_dask_support():
@@ -362,34 +362,31 @@ def _get_worker_parts(worker_map, meta_names, worker):
     assert list_of_parts, 'data in ' + worker.address + ' was moved.'
     assert isinstance(list_of_parts, list)
 
-    # `_get_worker_parts` is launched inside worker.  In dask side
-    # this should be equal to `worker._get_client`.
-    client = get_client()
-    list_of_parts = client.gather(list_of_parts)
-    data = None
-    labels = None
-    weights = None
-    base_margin = None
-    label_lower_bound = None
-    label_upper_bound = None
+    with worker_client() as client:
+        list_of_parts = client.gather(list_of_parts)
+        local_data = list(zip(*list_of_parts))
 
-    local_data = list(zip(*list_of_parts))
-    data = local_data[0]
+        data = local_data[0]
+        labels = None
+        weights = None
+        base_margin = None
+        label_lower_bound = None
+        label_upper_bound = None
 
-    for i, part in enumerate(local_data[1:]):
-        if meta_names[i] == 'labels':
-            labels = part
-        if meta_names[i] == 'weights':
-            weights = part
-        if meta_names[i] == 'base_margin':
-            base_margin = part
-        if meta_names[i] == 'label_lower_bound':
-            label_lower_bound = part
-        if meta_names[i] == 'label_upper_bound':
-            label_upper_bound = part
+        for i, part in enumerate(local_data[1:]):
+            if meta_names[i] == 'labels':
+                labels = part
+            if meta_names[i] == 'weights':
+                weights = part
+            if meta_names[i] == 'base_margin':
+                base_margin = part
+            if meta_names[i] == 'label_lower_bound':
+                label_lower_bound = part
+            if meta_names[i] == 'label_upper_bound':
+                label_upper_bound = part
 
-    return (data, labels, weights, base_margin, label_lower_bound,
-            label_upper_bound)
+        return (data, labels, weights, base_margin, label_lower_bound,
+                label_upper_bound)
 
 
 class DaskPartitionIter(DataIter):  # pylint: disable=R0902
@@ -614,9 +611,11 @@ def _dmatrix_from_worker_map(is_quantile, **kwargs):
 
 async def _get_rabit_args(worker_map, client: Client):
     '''Get rabit context arguments from data distribution in DaskDMatrix.'''
-    host = distributed_comm.get_address_host(client.scheduler.address)
-    env = await client.run_on_scheduler(
-        _start_tracker, host.strip('/:'), len(worker_map))
+    envs = await client.run_on_scheduler(_start_tracker, len(worker_map))
+    LOGGER.info('Tracker enviroment %s', str(envs))
+    n_workers = len(worker_map)
+    env = {'DMLC_NUM_WORKER': n_workers}
+    env.update(envs)
     rabit_args = [('%s=%s' % item).encode() for item in env.items()]
     return rabit_args
 
