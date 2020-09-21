@@ -92,14 +92,13 @@ EllpackPageImpl::EllpackPageImpl(int device, common::HistogramCuts cuts,
 }
 
 EllpackPageImpl::EllpackPageImpl(int device, common::HistogramCuts cuts,
-                                 const SparsePage& page, bool is_dense,
-                                 size_t row_stride)
-    : cuts_(std::move(cuts)),
-      is_dense(is_dense),
-      n_rows(page.Size()),
+                                 const SparsePage &page, bool is_dense,
+                                 size_t row_stride,
+                                 common::Span<FeatureType const> feature_types)
+    : cuts_(std::move(cuts)), is_dense(is_dense), n_rows(page.Size()),
       row_stride(row_stride) {
   this->InitCompressedData(device);
-  this->CreateHistIndices(device, page, {});
+  this->CreateHistIndices(device, page, feature_types);
 }
 
 // Construct an ELLPACK matrix in memory.

@@ -118,10 +118,12 @@ class EllpackPageImpl {
    */
   EllpackPageImpl(int device, common::HistogramCuts cuts, bool is_dense,
                   size_t row_stride, size_t n_rows);
-
+  /*!
+   * \brief Constructor used for external memory.
+   */
   EllpackPageImpl(int device, common::HistogramCuts cuts,
-                  const SparsePage& page,
-                  bool is_dense, size_t row_stride);
+                  const SparsePage &page, bool is_dense, size_t row_stride,
+                  common::Span<FeatureType const> feature_types);
 
   /*!
    * \brief Constructor from an existing DMatrix.
