@@ -620,6 +620,8 @@ class RegTree : public Model {
   };
 
  private:
+  void LoadCategoricalSplit(Json const& in);
+  void SaveCategoricalSplit(Json* p_out) const;
   // vector of nodes
   std::vector<Node> nodes_;
   // free node space, used during training process
