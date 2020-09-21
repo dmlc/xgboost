@@ -184,8 +184,8 @@ class EllpackPageImpl {
    * @param row_batch The CSR page.
    */
   void CreateHistIndices(int device,
-                         const SparsePage& row_batch
-                         );
+                         const SparsePage& row_batch,
+                         common::Span<FeatureType const> feature_types);
   /*!
    * \brief Initialize the buffer to store compressed features.
    */
