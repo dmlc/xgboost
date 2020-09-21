@@ -178,6 +178,12 @@ class DaskDMatrix:
         to be present as a missing value. If None, defaults to np.nan.
     weight : dask.array.Array/dask.dataframe.DataFrame
         Weight for each instance.
+    base_margin : dask.array.Array/dask.dataframe.DataFrame
+        Global bias for each instance.
+    label_lower_bound : dask.array.Array/dask.dataframe.DataFrame
+        Upper bound for survival training.
+    label_upper_bound : dask.array.Array/dask.dataframe.DataFrame
+        Lower bound for survival training.
     feature_names : list, optional
         Set names for features.
     feature_types : list, optional
@@ -482,13 +488,22 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
 
 
     '''
-    def __init__(self, client, data, label=None, weight=None,
+    def __init__(self, client,
+                 data,
+                 label=None,
                  missing=None,
+                 weight=None,
+                 base_margin=None,
+                 label_lower_bound=None,
+                 label_upper_bound=None,
                  feature_names=None,
                  feature_types=None,
                  max_bin=256):
-        super().__init__(client=client, data=data, label=label, weight=weight,
+        super().__init__(client=client, data=data, label=label,
                          missing=missing,
+                         weight=weight, base_margin=base_margin,
+                         label_lower_bound=label_lower_bound,
+                         label_upper_bound=label_upper_bound,
                          feature_names=feature_names,
                          feature_types=feature_types)
         self.max_bin = max_bin
