@@ -85,7 +85,7 @@ uint32_t SearchBin(bst_float* cut_values, uint32_t* cut_ptrs, float value, uint3
 uint32_t SearchBin(bst_float* cut_values, uint32_t* cut_ptrs, EntryOneAPI const& e);
 
 struct IndexOneAPI {
-  IndexOneAPI() : data_size_(0), data_(nullptr), offset_size_(0), offset_(nullptr) {
+  IndexOneAPI() {
     SetBinTypeSize(binTypeSize_);
   }
   IndexOneAPI(const IndexOneAPI& i) = delete;
@@ -93,10 +93,10 @@ struct IndexOneAPI {
   IndexOneAPI(IndexOneAPI&& i) = delete;
   IndexOneAPI& operator=(IndexOneAPI&& i) = delete;
   uint32_t operator[](size_t i) const {
-    if (offset_ != nullptr) {
-      return func_(data_, i) + offset_[i%p_];
+    if (!offset_.Empty()) {
+      return func_(data_.DataConst(), i) + offset_[i%p_];
     } else {
-      return func_(data_, i);
+      return func_(data_.DataConst(), i);
     }
   }
   void SetBinTypeSize(BinTypeSize binTypeSize) {
@@ -120,41 +120,43 @@ struct IndexOneAPI {
   BinTypeSize GetBinTypeSize() const {
     return binTypeSize_;
   }
+
   template<typename T>
-  T* data() const {  // NOLINT
-    return static_cast<T*>(data_);
+  T* data() {
+    return reinterpret_cast<T*>(data_.Data());
   }
-  uint32_t* Offset() const {
-    return offset_;
+
+  template<typename T>
+  const T* data() const {
+    return reinterpret_cast<const T*>(data_.DataConst());
   }
+
+  uint32_t* Offset() {
+    return offset_.Data();
+  }
+
+  const uint32_t* Offset() const {
+    return offset_.DataConst();
+  }
+
   size_t OffsetSize() const {
-    return offset_size_;
+    return offset_.Size();
   }
   size_t Size() const {
-    return data_size_ / (binTypeSize_);
+    return data_.Size() / (binTypeSize_);
   }
   void Resize(const size_t nBytesData) {
-    if (data_)
-    {
-    	cl::sycl::free((uint8_t*)data_, qu_);
-    }
-    data_ = (void*)cl::sycl::malloc_device<uint8_t>(nBytesData, qu_);
-    data_size_ = nBytesData;
+    data_.Resize(qu_, nBytesData);
   }
   void ResizeOffset(const size_t nDisps) {
-    if (offset_)
-    {
-    	cl::sycl::free(offset_, qu_);
-    }
-    offset_ = cl::sycl::malloc_device<uint32_t>(nDisps, qu_);
-    offset_size_ = nDisps;
+    offset_.Resize(qu_, nDisps);
     p_ = nDisps;
   }
   uint8_t* begin() const {  // NOLINT
-    return reinterpret_cast<uint8_t*>(data_);
+    return data_.Begin();
   }
   uint8_t* end() const {  // NOLINT
-    return reinterpret_cast<uint8_t*>(data_) + data_size_;
+    return data_.End();
   }
 
   void setQueue(cl::sycl::queue qu) {
@@ -162,22 +164,20 @@ struct IndexOneAPI {
   }
 
  private:
-  static uint32_t GetValueFromUint8(void *t, size_t i) {
-    return reinterpret_cast<uint8_t*>(t)[i];
+  static uint32_t GetValueFromUint8(const uint8_t* t, size_t i) {
+    return reinterpret_cast<const uint8_t*>(t)[i];
   }
-  static uint32_t GetValueFromUint16(void* t, size_t i) {
-    return reinterpret_cast<uint16_t*>(t)[i];
+  static uint32_t GetValueFromUint16(const uint8_t* t, size_t i) {
+    return reinterpret_cast<const uint16_t*>(t)[i];
   }
-  static uint32_t GetValueFromUint32(void* t, size_t i) {
-    return reinterpret_cast<uint32_t*>(t)[i];
+  static uint32_t GetValueFromUint32(const uint8_t* t, size_t i) {
+    return reinterpret_cast<const uint32_t*>(t)[i];
   }
 
-  using Func = uint32_t (*)(void*, size_t);
+  using Func = uint32_t (*)(const uint8_t*, size_t);
 
-  size_t data_size_;
-  void* data_;
-  size_t offset_size_;
-  uint32_t* offset_;  // size of this field is equal to number of features
+  USMVector<uint8_t> data_;
+  USMVector<uint32_t> offset_;  // size of this field is equal to number of features
   BinTypeSize binTypeSize_ {kUint8BinsTypeSize};
   size_t p_ {1};
   Func func_;
@@ -206,6 +206,7 @@ struct GHistIndexMatrixOneAPI {
   DMatrix* p_fmat;
   size_t max_num_bins;
   size_t nbins;
+  size_t nfeatures;
   // Create a global histogram matrix, given cut
   void Init(cl::sycl::queue qu, DMatrix* p_fmat, int max_num_bins);
 
@@ -562,7 +563,7 @@ class GHistBuilderOneAPI {
   GHistBuilderOneAPI(cl::sycl::queue qu, size_t nthread, uint32_t nbins) : qu_{qu}, nthread_{nthread}, nbins_{nbins} {}
 
   // construct a histogram via histogram aggregation
-  void BuildHist(const std::vector<GradientPair>& gpair,
+  void BuildHist(common::Monitor& builder_monitor_, const std::vector<GradientPair>& gpair,
                  const USMVector<GradientPair>& gpair_device,
                  const RowSetCollectionOneAPI::Elem row_indices,
                  const GHistIndexMatrixOneAPI& gmat,

@@ -23,7 +23,6 @@ public:
   explicit USMDeleter(cl::sycl::queue qu) : qu_(qu) {}
 
   void operator()(T* data) const {
-    LOG(INFO) << "Release memory " << data;
     cl::sycl::free(data, qu_);    
   }
 
@@ -43,14 +42,11 @@ public:
 
   USMVector(cl::sycl::queue qu, size_t size) : qu_(qu), size_(size) {
     data_ = std::shared_ptr<T>(cl::sycl::malloc_shared<T>(size_, qu_), USMDeleter<T>(qu_));
-    LOG(INFO) << "USMVector 1 create, size = " << size_ << ", data_ = " << data_.get();
   }
 
   USMVector(cl::sycl::queue qu, size_t size, T v) : qu_(qu), size_(size) {
     data_ = std::shared_ptr<T>(cl::sycl::malloc_shared<T>(size_, qu_), USMDeleter<T>(qu_));
-    LOG(INFO) << "USMVector 2 create, size = " << size_ << ", data_ = " << data_.get();
     std::fill(data_.get(), data_.get() + size_, v);
-    LOG(INFO) << "USMVector 2 create, fill = " << v;
 /*    qu.submit([&](cl::sycl::handler& cgh) {
       cgh.fill(data_.get(), v, size_);
     }).wait();*/
@@ -58,26 +54,20 @@ public:
 
   USMVector(cl::sycl::queue qu, const std::vector<T> &vec) : qu_(qu) {
     size_ = vec.size();
-    LOG(INFO) << "USMVector 3 create, size = " << size_ << ", ptr = " << vec.data();
     data_ = std::shared_ptr<T>(cl::sycl::malloc_shared<T>(size_, qu_), USMDeleter<T>(qu_));
-    LOG(INFO) << "USMVector 3 created, data = " << data_.get();
     std::copy(vec.begin (), vec.end (), data_.get());
-    LOG(INFO) << "USMVector 3 copied";
   }
 
   USMVector(const USMVector<T>& other) : qu_(other.qu_), size_(other.size_), data_(other.data_) {
-    LOG(INFO) << "USMVector copy constructor " << other.size_ << " " << other.data_.get();
   }
 
   ~USMVector() {
-    LOG(INFO) << "USMVector destroyed, size_ = " << size_ << ", data_ = " << data_.get();
   }
 
   USMVector<T>& operator=(const USMVector<T>& other) {
     qu_ = other.qu_;
     size_ = other.size_;
     data_ = other.data_;
-    LOG(INFO) << "USMVector copy " << other.size_ << " " << other.data_.get();
     return *this;
   }
 
@@ -95,7 +85,7 @@ public:
   bool Empty() const { return (size_ == 0); }
 
   void Resize(cl::sycl::queue qu, size_t new_size) {
-    LOG(INFO) << "USMVector 1 resize, size = " << size_ << ", data = " << data_.get() << ", new_size = " << new_size;
+    qu_ = qu;
     if (new_size <= size_) {
       size_ = new_size;
     } else {
@@ -103,7 +93,6 @@ public:
       auto data_old = data_;
       size_ = new_size;
       data_ = std::shared_ptr<T>(cl::sycl::malloc_shared<T>(size_, qu_), USMDeleter<T>(qu_));
-      LOG(INFO) << "USMVector 1 resize, new_data = " << data_.get();
       if (old_size > 0) {
         std::copy(data_old.get(), data_old.get() + old_size, data_.get());
 /*        qu.submit([&](cl::sycl::handler& cgh) {
@@ -114,7 +103,6 @@ public:
   }
 
   void Resize(cl::sycl::queue qu, size_t new_size, T v) {
-    LOG(INFO) << "USMVector 2 resize, size = " << size_ << ", data = " << data_.get() << ", new_size = " << new_size;
     qu_ = qu;
     if (new_size <= size_) {
       size_ = new_size;
@@ -123,7 +111,6 @@ public:
       auto data_old = data_;
       size_ = new_size;
       data_ = std::shared_ptr<T>(cl::sycl::malloc_shared<T>(size_, qu_), USMDeleter<T>(qu_));
-      LOG(INFO) << "USMVector 2 resize, new_data = " << data_.get();
       if (old_size > 0) {
         std::copy(data_old.get(), data_old.get() + old_size, data_.get());
 /*        qu.submit([&](cl::sycl::handler& cgh) {
@@ -139,11 +126,8 @@ public:
   void Init(cl::sycl::queue qu, const std::vector<T> &vec) {
     qu_ = qu;
     size_ = vec.size();
-    LOG(INFO) << "USMVector init create, size = " << size_ << ", ptr = " << vec.data();
     data_ = std::shared_ptr<T>(cl::sycl::malloc_shared<T>(size_, qu_), USMDeleter<T>(qu_));
-    LOG(INFO) << "USMVector init created, data = " << data_.get();
     std::copy(vec.begin (), vec.end (), data_.get());
-    LOG(INFO) << "USMVector init copied";
   }
 
   using value_type = T;  // NOLINT

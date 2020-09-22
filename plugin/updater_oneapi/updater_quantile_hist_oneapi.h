@@ -238,9 +238,7 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
         pruner_(std::move(pruner)),
         interaction_constraints_{std::move(int_constraints_)},
         p_last_tree_(nullptr), p_last_fmat_(fmat) {
-      LOG(INFO) << "Builder constructor 1";
       builder_monitor_.Init("QuantileOneAPI::Builder");
-      LOG(INFO) << "Builder constructor 2";
     }
     // update one tree, growing
     virtual void Update(const GHistIndexMatrixOneAPI& gmat,
@@ -260,7 +258,7 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
       if (param_.enable_feature_grouping > 0) {
         hist_builder_.BuildBlockHist(gpair, gpair_device, row_indices, gmatb, hist);
       } else {
-        hist_builder_.BuildHist(gpair, gpair_device, row_indices, gmat, hist, data_layout_ != kSparseData, hist_buffer);
+        hist_builder_.BuildHist(builder_monitor_, gpair, gpair_device, row_indices, gmat, hist, data_layout_ != kSparseData, hist_buffer);
       }
     }
 

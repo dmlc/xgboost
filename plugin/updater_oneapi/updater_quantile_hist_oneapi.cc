@@ -53,7 +53,7 @@ void QuantileHistMakerOneAPI::Configure(const Args& args) {
   }
   LOG(INFO) << "device_id = " << sycl_param.device_id << ", is_cpu = " << int(is_cpu);
 
-  if (is_cpu)
+  if (0 && is_cpu)
   {
     updater_backend_.reset(TreeUpdater::Create("grow_quantile_histmaker", tparam_));
     updater_backend_->Configure(args);
@@ -102,22 +102,17 @@ void GPUQuantileHistMakerOneAPI::Configure(const Args& args) {
 template<typename GradientSumT>
 void GPUQuantileHistMakerOneAPI::SetBuilder(std::unique_ptr<Builder<GradientSumT>>* builder,
                                    DMatrix *dmat) {
-  LOG(INFO) << "SetBuilder 1";
   builder->reset(new Builder<GradientSumT>(
                 qu_,
                 param_,
                 std::move(pruner_),
                 int_constraint_, dmat));
-  LOG(INFO) << "SetBuilder 2";
   if (rabit::IsDistributed()) {
     (*builder)->SetHistSynchronizer(new DistributedHistSynchronizerOneAPI<GradientSumT>());
     (*builder)->SetHistRowsAdder(new DistributedHistRowsAdderOneAPI<GradientSumT>());
   } else {
-  LOG(INFO) << "SetBuilder 3";
     (*builder)->SetHistSynchronizer(new BatchHistSynchronizerOneAPI<GradientSumT>());
-  LOG(INFO) << "SetBuilder 4";
     (*builder)->SetHistRowsAdder(new BatchHistRowsAdderOneAPI<GradientSumT>());
-  LOG(INFO) << "SetBuilder 5";
   }
 }
 
@@ -135,45 +130,31 @@ void GPUQuantileHistMakerOneAPI::Update(HostDeviceVector<GradientPair> *gpair,
                                const std::vector<RegTree *> &trees) {
   if (dmat != p_last_dmat_ || is_gmat_initialized_ == false) {
     updater_monitor_.Start("GmatInitialization");
-    LOG(INFO) << "gmat_ Init";
     gmat_.Init(qu_, dmat, static_cast<uint32_t>(param_.max_bin));
-    LOG(INFO) << "gmat_ Init finished";
     column_matrix_.Init(gmat_, param_.sparse_threshold);
-    LOG(INFO) << "column_matrix Init finished";
     if (param_.enable_feature_grouping > 0) {
       gmatb_.Init(gmat_, column_matrix_, param_);
     }
-    LOG(INFO) << "gmatb_ Init finished";
     updater_monitor_.Stop("GmatInitialization");
     // A proper solution is puting cut matrix in DMatrix, see:
     // https://github.com/dmlc/xgboost/issues/5143
     is_gmat_initialized_ = true;
   }
-  LOG(INFO) << "Update 1";
   // rescale learning rate according to size of trees
   float lr = param_.learning_rate;
   param_.learning_rate = lr / trees.size();
   int_constraint_.Configure(param_, dmat->Info().num_col_);
-  LOG(INFO) << "Update 2";
   // build tree
   if (hist_maker_param_.single_precision_histogram) {
-    LOG(INFO) << "Update 3.1";
     if (!float_builder_) {
-      LOG(INFO) << "Update 4.1";
       SetBuilder(&float_builder_, dmat);
-      LOG(INFO) << "Update 5.1";
     }
     CallBuilderUpdate(float_builder_, gpair, dmat, trees);
-    LOG(INFO) << "Update 6.1";
   } else {
-    LOG(INFO) << "Update 3.2";
     if (!double_builder_) {
       SetBuilder(&double_builder_, dmat);
-    LOG(INFO) << "Update 4.2";
     }
-    LOG(INFO) << "Update 5.2";
     CallBuilderUpdate(double_builder_, gpair, dmat, trees);
-    LOG(INFO) << "Update 6.2";
   }
 
   param_.learning_rate = lr;
@@ -204,31 +185,18 @@ void BatchHistSynchronizerOneAPI<GradientSumT>::SyncHistograms(BuilderT *builder
                                                          RegTree *p_tree) {
   builder->builder_monitor_.Start("SyncHistograms");
   const size_t nbins = builder->hist_builder_.GetNumBins();
-  common::BlockedSpace2d space(builder->nodes_for_explicit_hist_build_.size(), [&](size_t node) {
-    return nbins;
-  }, 1024);
 
-//  common::ParallelFor2d(space, builder->nthread_, [&](size_t node, common::Range1d r) {
   for (int i = 0; i < builder->nodes_for_explicit_hist_build_.size(); i++) {
     const auto entry = builder->nodes_for_explicit_hist_build_[i];
     auto this_hist = builder->hist_[entry.nid];
-    // Merging histograms from each thread into once
-//    builder->hist_buffer_.ReduceHist(node, r.begin(), r.end());
-/*
-    if (entry.nid < 10) {
-      LOG(INFO) << "sync histograms, nid = " << entry.nid;
-      for (size_t i = 0; i < 10; i++) {
-          LOG(INFO) << "sync histograms, nid = " << entry.nid << ", i = " << i << ", value = " << this_hist[i];
-      }
-    }*/
 
     if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
       const size_t parent_id = (*p_tree)[entry.nid].Parent();
       auto parent_hist = builder->hist_[parent_id];
       auto sibling_hist = builder->hist_[entry.sibling_nid];
-      common::SubtractionHist(builder->qu_, sibling_hist, parent_hist, this_hist, nbins);//r.begin(), r.end());
+      common::SubtractionHist(builder->qu_, sibling_hist, parent_hist, this_hist, nbins);
     }
-  }//);
+  }
   builder->builder_monitor_.Stop("SyncHistograms");
 }
 
@@ -398,44 +366,20 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::BuildLocalHistograms(
 
   const size_t n_nodes = nodes_for_explicit_hist_build_.size();
 
-  // create space of size (# rows in each node)
-  common::BlockedSpace2d space(n_nodes, [&](size_t node) {
-    const int32_t nid = nodes_for_explicit_hist_build_[node].nid;
-    return row_set_collection_[nid].Size();
-  }, 256);
-
-  std::vector<GHistRowT> target_hists(n_nodes);
-  for (size_t i = 0; i < n_nodes; ++i) {
-    const int32_t nid = nodes_for_explicit_hist_build_[i].nid;
-    target_hists[i] = hist_[nid];
-  }
-
-//  hist_buffer_.Reset(this->nthread_, n_nodes, space, target_hists);
+  builder_monitor_.Start("BuildLocalHistogramsOneAPIReset");
   hist_buffer_.Reset(256);
+  builder_monitor_.Stop("BuildLocalHistogramsOneAPIReset");
 
   // Parallel processing by nodes and data in each node
-//  common::ParallelFor2d(space, this->nthread_, [&](size_t nid_in_set, common::Range1d r) {
   for (size_t i = 0; i < n_nodes; i++) {
-//    const auto tid = static_cast<unsigned>(omp_get_thread_num());
-    const auto tid = 0;
     const int32_t nid = nodes_for_explicit_hist_build_[i].nid;
 
-    auto start_of_row_set = row_set_collection_[nid].begin;
-/*    auto rid_set = RowSetCollectionOneAPI::Elem(start_of_row_set + r.begin(),
-                                      start_of_row_set + r.end(),
-                                      nid);*/
-//    BuildHist(gpair_h, row_set_collection_[nid], gmat, gmatb, hist_buffer_.GetInitializedHist(tid, i));
-    common::InitializeHistByZeroes(hist_[nid], 0, hist_[nid].Size());
     if (row_set_collection_[nid].Size() > 0) {
       BuildHist(gpair_h, gpair_device, row_set_collection_[nid], gmat, gmatb, hist_[nid], hist_buffer_.GetDeviceBuffer());
+    } else {
+      common::InitializeHistByZeroes(hist_[nid], 0, hist_[nid].Size());
     }
-/*    if (nid < 10) {
-      LOG(INFO) << "build local histograms, nid = " << nid;
-      for (size_t i = 0; i < 10; i++) {
-          LOG(INFO) << "build local histograms, nid = " << nid << ", i = " << i << ", value = " << hist_[nid][i];
-      }
-    }*/
-  }//);
+  }
 
   builder_monitor_.Stop("BuildLocalHistogramsOneAPI");
 }
@@ -571,7 +515,6 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::ExpandWithDepthWise(
   const USMVector<GradientPair> &gpair_device) {
   unsigned timestamp = 0;
   int num_leaves = 0;
-  LOG(INFO) << "ExpandWithDepthWise started";
 
   // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
   qexpand_depth_wise_.emplace_back(ExpandEntry(ExpandEntry::kRootNid, ExpandEntry::kEmptyNid,
@@ -615,8 +558,6 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::ExpandWithLossGuide(
   builder_monitor_.Start("ExpandWithLossGuide");
   unsigned timestamp = 0;
   int num_leaves = 0;
-
-  LOG(INFO) << "ExpandWithLossGuide started";
 
   ExpandEntry node(ExpandEntry::kRootNid, ExpandEntry::kEmptyNid,
       p_tree->GetDepth(0), 0.0f, timestamp++);
@@ -691,30 +632,21 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::Update(
     DMatrix *p_fmat, RegTree *p_tree) {
   builder_monitor_.Start("Update");
   
-  LOG(INFO) << "GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::Update started";
-
   const std::vector<GradientPair>& gpair_h = gpair->ConstHostVector();
 
-  LOG(INFO) << "GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::Update started, 1st";
   USMVector<GradientPair> gpair_device(qu_, gpair_h);
-  LOG(INFO) << "GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::Update started, 2nd";
 
   tree_evaluator_ =
       TreeEvaluator(param_, p_fmat->Info().num_col_, GenericParameter::kCpuId);
   interaction_constraints_.Reset();
 
-  LOG(INFO) << "GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::Update started, 3";
   this->InitData(gmat, gpair_h, gpair_device, *p_fmat, *p_tree);
-  LOG(INFO) << "GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::Update started, 4";
   if (param_.grow_policy == TrainParam::kLossGuide) {
-    LOG(INFO) << "GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::Update started, 4.1";
     ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h, gpair_device);
   } else {
-    LOG(INFO) << "GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::Update started, 4.2";
     ExpandWithDepthWise(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h, gpair_device);
   }
 
-    LOG(INFO) << "GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::Update started, 5";
   for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
     p_tree->Stat(nid).loss_chg = snode_[nid].best.loss_chg;
     p_tree->Stat(nid).base_weight = snode_[nid].weight;
