@@ -154,7 +154,7 @@ struct WriteCompressedEllpackFunctor {
 // Here the data is already correctly ordered and simply needs to be compacted
 // to remove missing data
 template <typename AdapterBatchT>
-void CopyDataToEllpack(const AdapterBatchT& batch, EllpackPageImpl* dst,
+void CopyDataRowMajor(const AdapterBatchT& batch, EllpackPageImpl* dst,
                        int device_idx, float missing) {
   // Some witchcraft happens here
   // The goal is to copy valid elements out of the input to an ellpack matrix
@@ -209,6 +209,51 @@ void CopyDataToEllpack(const AdapterBatchT& batch, EllpackPageImpl* dst,
                          });
 }
 
+template <typename AdapterBatchT>
+void CopyDataColumnMajor(const AdapterBatchT& batch, EllpackPageImpl* dst,
+                         int device_idx, float missing) {
+  // Step 1: Get the sizes of the input columns
+  dh::caching_device_vector<size_t> column_sizes(batch.NumCols(), 0);
+  auto d_column_sizes = column_sizes.data().get();
+  // Populate column sizes
+  dh::LaunchN(device_idx, batch.Size(), [=] __device__(size_t idx) {
+      const auto& e = batch.GetElement(idx);
+      atomicAdd(reinterpret_cast<unsigned long long*>(  // NOLINT
+          &d_column_sizes[e.column_idx]),
+                static_cast<unsigned long long>(1));  // NOLINT
+    });
+
+  thrust::host_vector<size_t> host_column_sizes = column_sizes;
+
+  // Step 2: Iterate over columns, place elements in correct row, increment
+  // temporary row pointers
+  dh::caching_device_vector<size_t> temp_row_ptr(batch.NumRows(), 0);
+  auto d_temp_row_ptr = temp_row_ptr.data().get();
+  auto row_stride = dst->row_stride;
+  size_t begin = 0;
+  auto device_accessor = dst->GetDeviceAccessor(device_idx);
+  common::CompressedBufferWriter writer(device_accessor.NumSymbols());
+  auto d_compressed_buffer = dst->gidx_buffer.DevicePointer();
+  data::IsValidFunctor is_valid(missing);
+  for (auto size : host_column_sizes) {
+    size_t end = begin + size;
+    dh::LaunchN(device_idx, end - begin, [=] __device__(size_t idx) {
+        auto writer_non_const =
+            writer;  // For some reason this variable gets captured as const
+        const auto& e = batch.GetElement(idx + begin);
+        if (!is_valid(e)) return;
+        size_t output_position =
+            e.row_idx * row_stride + d_temp_row_ptr[e.row_idx];
+        auto bin_idx = device_accessor.SearchBin(e.value, e.column_idx);
+        writer_non_const.AtomicWriteSymbol(d_compressed_buffer, bin_idx,
+                                           output_position);
+        d_temp_row_ptr[e.row_idx] += 1;
+      });
+
+    begin = end;
+  }
+}
+
 void WriteNullValues(EllpackPageImpl* dst, int device_idx,
                      common::Span<size_t> row_counts) {
   // Write the null values
@@ -237,7 +282,11 @@ EllpackPageImpl::EllpackPageImpl(AdapterBatch batch, float missing, int device,
   dh::safe_cuda(cudaSetDevice(device));
 
   *this = EllpackPageImpl(device, cuts, is_dense, row_stride, n_rows);
-  CopyDataToEllpack(batch, this, device, missing);
+  if (batch.IsRowMajor()) {
+    CopyDataRowMajor(batch, this, device, missing);
+  } else {
+    CopyDataColumnMajor(batch, this, device, missing);
+  }
   WriteNullValues(this, device, row_counts_span);
 }
 

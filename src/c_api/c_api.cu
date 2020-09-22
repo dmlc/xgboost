@@ -46,7 +46,7 @@ XGB_DLL int XGBoosterPredictFromArrayInterfaceColumns(BoosterHandle handle,
   auto *learner = static_cast<Learner*>(handle);
 
   std::string json_str{c_json_strs};
-  auto x = std::make_shared<data::CudfAdapter>(json_str);
+  auto x = data::CudfAdapter(json_str);
   HostDeviceVector<float>* p_predt { nullptr };
   std::string type { c_type };
   learner->InplacePredict(x, type, missing, &p_predt);
@@ -74,7 +74,7 @@ XGB_DLL int XGBoosterPredictFromArrayInterface(BoosterHandle handle,
   auto *learner = static_cast<Learner*>(handle);
 
   std::string json_str{c_json_strs};
-  auto x = std::make_shared<data::CupyAdapter>(json_str);
+  auto x = data::CupyAdapter(json_str);
   HostDeviceVector<float>* p_predt { nullptr };
   std::string type { c_type };
   learner->InplacePredict(x, type, missing, &p_predt);
