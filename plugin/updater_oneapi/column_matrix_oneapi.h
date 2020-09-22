@@ -39,11 +39,9 @@ class ColumnMatrixOneAPI {
       CHECK_LE(gmat.cut.Ptrs()[fid + 1] - gmat.cut.Ptrs()[fid], max_val);
     }
     bool all_dense = gmat.IsDense();
-    LOG(INFO) << "ColumnMatrix, all_dense = " << all_dense;
     gmat.GetFeatureCounts(&feature_counts_[0]);
     // classify features
     for (int32_t fid = 0; fid < nfeature; ++fid) {
-      LOG(INFO) << "ColumnMatrix, fid = " << fid << ", feature_counts = " << feature_counts_[fid] << ", thresh = " << sparse_threshold * nrow;
       if (static_cast<double>(feature_counts_[fid])
                  < sparse_threshold * nrow) {
         type_[fid] = kSparseColumn;
@@ -88,31 +86,23 @@ class ColumnMatrixOneAPI {
 
     // pre-fill index_ for dense columns
     if (all_dense) {
-      LOG(INFO) << "ColumnMatrix 1";
       BinTypeSize gmat_bin_size = gmat.index.GetBinTypeSize();
       if (gmat_bin_size == kUint8BinsTypeSize) {
-        LOG(INFO) << "ColumnMatrix 1.1";
           SetIndexAllDense(gmat.index.data<uint8_t>(), gmat, nrow, nfeature, noMissingValues);
       } else if (gmat_bin_size == kUint16BinsTypeSize) {
-        LOG(INFO) << "ColumnMatrix 1.2";
           SetIndexAllDense(gmat.index.data<uint16_t>(), gmat, nrow, nfeature, noMissingValues);
       } else {
-        LOG(INFO) << "ColumnMatrix 1.3";
           CHECK_EQ(gmat_bin_size, kUint32BinsTypeSize);
           SetIndexAllDense(gmat.index.data<uint32_t>(), gmat, nrow, nfeature, noMissingValues);
       }
     /* For sparse DMatrix gmat.index.getBinTypeSize() returns always kUint32BinsTypeSize
        but for ColumnMatrixOneAPI we still have a chance to reduce the memory consumption */
     } else {
-        LOG(INFO) << "ColumnMatrix 2";
       if (bins_type_size_ == kUint8BinsTypeSize) {
-        LOG(INFO) << "ColumnMatrix 2.1";
           SetIndex<uint8_t>(gmat.index.data<uint32_t>(), gmat, nrow, nfeature);
       } else if (bins_type_size_ == kUint16BinsTypeSize) {
-        LOG(INFO) << "ColumnMatrix 2.2";
           SetIndex<uint16_t>(gmat.index.data<uint32_t>(), gmat, nrow, nfeature);
       } else {
-        LOG(INFO) << "ColumnMatrix 2.3";
           CHECK_EQ(bins_type_size_, kUint32BinsTypeSize);
           SetIndex<uint32_t>(gmat.index.data<uint32_t>(), gmat, nrow, nfeature);
       }
