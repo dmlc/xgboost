@@ -14,7 +14,7 @@ endif (PLUGIN_DENSE_PARSER)
 
 if (PLUGIN_RMM)
   find_path(RMM_INCLUDE "rmm" HINTS "$ENV{RMM_ROOT}/include")
-  if ((NOT RMM_LIBRARY) OR (NOT RMM_INCLUDE))
+  if (NOT RMM_INCLUDE)
     message(FATAL_ERROR "Could not locate RMM library")
   endif ()
 
