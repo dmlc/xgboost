@@ -454,10 +454,10 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
   XGBCachingDeviceAllocatorImpl()
       : SuperT(rmm::mr::get_current_device_resource(), cudaStream_t{nullptr}),
         use_cub_allocator_(true) {
-    char* symbol = abi::__cxa_demangle(typeid(*SuperT::resource()).name(),
-                                       nullptr, nullptr, nullptr);
-    CHECK(symbol);
-    std::string t{symbol};
+    std::unique_ptr<char> symbol{abi::__cxa_demangle(typeid(*SuperT::resource()).name(),
+                                                     nullptr, nullptr, nullptr)};
+    CHECK(symbol.get());
+    std::string t{symbol.get()};
     if (t.find("pool_memory_resource") != std::string::npos) {
       use_cub_allocator_ = false;
     }
