@@ -413,7 +413,7 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
 
 /**
  * \brief Caching memory allocator, uses cub::CachingDeviceAllocator as a back-end, unless
- *        RMM pool allocator is enabled.
+ *        RMM pool allocator is enabled. Does not initialise memory on construction.
  */
 template <class T>
 struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
