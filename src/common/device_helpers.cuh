@@ -458,7 +458,9 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
                                                      nullptr, nullptr, nullptr)};
     CHECK(symbol.get());
     std::string t{symbol.get()};
-    if (t.find("pool_memory_resource") != std::string::npos) {
+    if (t.find("pool_memory_resource") != std::string::npos
+        || t.find("binning_memory_resource") != std::string::npos
+        || t.find("arena_memory_resource") != std::string::npos) {
       use_cub_allocator_ = false;
     }
   }
