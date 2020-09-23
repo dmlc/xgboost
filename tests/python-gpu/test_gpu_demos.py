@@ -17,6 +17,7 @@ def test_data_iterator():
 @pytest.mark.skipif(**tm.no_dask())
 @pytest.mark.skipif(**tm.no_dask_cuda())
 @pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.mgpu
 def test_dask_training():
     script = os.path.join(tm.PROJECT_ROOT, 'demo', 'dask', 'gpu_training.py')
     cmd = ['python', script, '--ddqdm=1']
