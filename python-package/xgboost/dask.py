@@ -748,8 +748,7 @@ async def _direct_predict_impl(client, data, predict_fn):
 
 
 # pylint: disable=too-many-statements
-async def _predict_async(client: Client, model, data, output_margin,
-                         missing=numpy.nan, **kwargs):
+async def _predict_async(client: Client, model, data, missing=numpy.nan, **kwargs):
     if isinstance(model, Booster):
         booster = model
     elif isinstance(model, dict):
@@ -782,14 +781,14 @@ async def _predict_async(client: Client, model, data, output_margin,
     feature_names = data.feature_names
     feature_types = data.feature_types
     missing = data.missing
-    has_base_margin = data.has_base_margin
+    has_margin = "base_margin" in data.meta_names
 
     def dispatched_predict(worker_id):
         '''Perform prediction on each worker.'''
         LOGGER.info('Predicting on %d', worker_id)
 
         worker = distributed_get_worker()
-        list_of_parts = _get_worker_parts_ordered(has_base_margin,
+        list_of_parts = _get_worker_parts_ordered(has_margin,
             worker_map, partition_order, worker
         )
         predictions = []
@@ -881,6 +880,7 @@ def predict(client, model, data, missing=numpy.nan, **kwargs):
     '''
     _assert_dask_support()
     client = _xgb_get_client(client)
+    LOGGER.warning(kwargs)
     return client.sync(_predict_async, client, model, data,
                        missing=missing, **kwargs)
 
@@ -1173,7 +1173,12 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 
     def predict_proba(self, data, output_margin=False, base_margin=None):  # pylint: disable=arguments-differ,missing-docstring
         _assert_dask_support()
-        return self.client.sync(self._predict_proba_async, data, output_margin, base_margin)
+        return self.client.sync(
+            self._predict_proba_async,
+            data,
+            output_margin=output_margin,
+            base_margin=base_margin
+        )
 
     async def _predict_async(self, data, output_margin=False, base_margin=None):
         _assert_dask_support()
@@ -1196,4 +1201,9 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 
     def predict(self, data, output_margin=False, base_margin=None):  # pylint: disable=arguments-differ
         _assert_dask_support()
-        return self.client.sync(self._predict_async, data, output_margin, base_margin)
+        return self.client.sync(
+            self._predict_async,
+            data,
+            output_margin=output_margin,
+            base_margin=base_margin
+        )

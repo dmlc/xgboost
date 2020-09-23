@@ -136,16 +136,13 @@ def test_dask_predict_shape_infer():
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
 def test_boost_from_prediction(tree_method):
     from sklearn.datasets import load_breast_cancer
+    X, y = load_breast_cancer(return_X_y=True)
+
+    X_ = dd.from_array(X, chunksize=100)
+    y_ = dd.from_array(y, chunksize=100)
 
     with LocalCluster(n_workers=4) as cluster:
         with Client(cluster) as client:
-            X, y = load_breast_cancer(return_X_y=True)
-            X_ = dd.from_array(X, chunksize=100)
-            y_ = dd.from_array(y, chunksize=100)
-
-            from sklearn.datasets import load_breast_cancer
-
-            X, y = load_breast_cancer(return_X_y=True)
             model_0 = xgb.dask.DaskXGBClassifier(
                 learning_rate=0.3,
                 random_state=123,
@@ -185,13 +182,15 @@ def test_boost_from_prediction(tree_method):
             predictions_3 = cls_3.predict(X_)
             proba_3 = cls_3.predict_proba(X_)
 
-            # compute variance between two of the same model, use this to check
-            # to make sure approx is functioning within normal parameters
-            variance = np.max(np.abs(proba_3 - proba_2)).compute()
+            # compute variance of probability percentages between two of the
+            # same model, use this to check to make sure approx is functioning
+            # within normal parameters
+            expected_variance = np.max(np.abs(proba_3 - proba_2)).compute()
 
-            if variance > 0:
-                print("variance > 0")
-                assert np.all(np.abs(proba_2 - proba_1) <= variance)
+            if expected_variance > 0:
+                margin_variance = np.max(np.abs(proba_1 - proba_2)).compute()
+                # Ensure the margin variance is less than the expected variance + 10%
+                assert np.all(margin_variance <= expected_variance + .1)
             else:
                 np.testing.assert_equal(predictions_1.compute(), predictions_2.compute())
                 np.testing.assert_almost_equal(proba_1.compute(), proba_2.compute())
