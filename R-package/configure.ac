@@ -39,7 +39,7 @@ then
     OPENMP_CXXFLAGS=''
     OPENMP_LIB=''
     echo '*****************************************************************************************'
-    echo 'WARNING: OpenMP is unavailable on this Mac OSX system. Training speed may be suboptimal.'
+    echo '         OpenMP is unavailable on this Mac OSX system. Training speed may be suboptimal.'
     echo '         To use all CPU cores for training jobs, you should install OpenMP by running\n'
     echo '             brew install libomp'
     echo '*****************************************************************************************'
