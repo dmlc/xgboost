@@ -39,7 +39,6 @@
 #endif  // XGBOOST_USE_NCCL
 
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-#include <cxxabi.h>
 #include "rmm/mr/device/per_device_resource.hpp"
 #include "rmm/mr/device/thrust_allocator_adaptor.hpp"
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
@@ -453,13 +452,10 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   XGBCachingDeviceAllocatorImpl()
       : SuperT(rmm::mr::get_current_device_resource(), cudaStream_t{nullptr}) {
-    std::unique_ptr<char> symbol{abi::__cxa_demangle(typeid(*SuperT::resource()).name(),
-                                                     nullptr, nullptr, nullptr)};
-    CHECK(symbol.get());
-    std::string t{symbol.get()};
-    if (t.find("pool_memory_resource") != std::string::npos
-        || t.find("binning_memory_resource") != std::string::npos
-        || t.find("arena_memory_resource") != std::string::npos) {
+    std::string symbol{typeid(*SuperT::resource()).name()};
+    if (symbol.find("pool_memory_resource") != std::string::npos
+        || symbol.find("binning_memory_resource") != std::string::npos
+        || symbol.find("arena_memory_resource") != std::string::npos) {
       use_cub_allocator_ = false;
     }
   }
