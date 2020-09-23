@@ -452,8 +452,7 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
   }
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   XGBCachingDeviceAllocatorImpl()
-      : SuperT(rmm::mr::get_current_device_resource(), cudaStream_t{nullptr}),
-        use_cub_allocator_(true) {
+      : SuperT(rmm::mr::get_current_device_resource(), cudaStream_t{nullptr}) {
     std::unique_ptr<char> symbol{abi::__cxa_demangle(typeid(*SuperT::resource()).name(),
                                                      nullptr, nullptr, nullptr)};
     CHECK(symbol.get());
@@ -464,12 +463,9 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
       use_cub_allocator_ = false;
     }
   }
-#else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
-  XGBCachingDeviceAllocatorImpl()
-      : use_cub_allocator_(true) {}
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
  private:
-  bool use_cub_allocator_;
+  bool use_cub_allocator_{true};
 };
 }  // namespace detail
 
