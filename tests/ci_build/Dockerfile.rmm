@@ -1,5 +1,5 @@
 ARG CUDA_VERSION
-FROM nvidia/cuda:$CUDA_VERSION-devel-ubuntu16.04
+FROM nvidia/cuda:$CUDA_VERSION-devel-ubuntu18.04
 ARG CUDA_VERSION
 
 # Environment
