@@ -431,7 +431,7 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     return *allocator;
   }
   pointer allocate(size_t n) {  // NOLINT
-    pointer ptr{nullptr};
+    pointer ptr;
     if (use_cub_allocator_) {
       T* raw_ptr{nullptr};
       GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void**>(&raw_ptr), n * sizeof(T));
