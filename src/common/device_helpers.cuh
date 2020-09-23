@@ -464,6 +464,9 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
       use_cub_allocator_ = false;
     }
   }
+#else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+  XGBCachingDeviceAllocatorImpl()
+      : use_cub_allocator_(true) {}
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
  private:
   bool use_cub_allocator_;
