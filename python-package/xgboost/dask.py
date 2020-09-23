@@ -880,7 +880,6 @@ def predict(client, model, data, missing=numpy.nan, **kwargs):
     '''
     _assert_dask_support()
     client = _xgb_get_client(client)
-    LOGGER.warning(kwargs)
     return client.sync(_predict_async, client, model, data,
                        missing=missing, **kwargs)
 
