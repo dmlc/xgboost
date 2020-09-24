@@ -20,6 +20,7 @@
 #include "column_matrix_oneapi.h"
 #include "hist_util_oneapi.h"
 #include "row_set_oneapi.h"
+#include "split_evaluator_oneapi.h"
 
 #include "xgboost/data.h"
 #include "xgboost/json.h"
@@ -209,13 +210,13 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
   // data structure
   struct NodeEntry {
     /*! \brief statics for node entry */
-    GradStats stats;
+    GradStatsOneAPI stats;
     /*! \brief loss of this node, without split */
     bst_float root_gain;
     /*! \brief weight calculated related to current data */
     float weight;
     /*! \brief current best solution */
-    SplitEntry best;
+    SplitEntryOneAPI best;
     // constructor
     explicit NodeEntry(const TrainParam& param)
         : root_gain(0.0f), weight(0.0f) {}
@@ -234,7 +235,7 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
                      FeatureInteractionConstraintHost int_constraints_,
                      DMatrix const* fmat)
       : qu_(qu), param_(param),
-        tree_evaluator_(param, fmat->Info().num_col_, GenericParameter::kCpuId),
+        tree_evaluator_(qu, param, fmat->Info().num_col_),
         pruner_(std::move(pruner)),
         interaction_constraints_{std::move(int_constraints_)},
         p_last_tree_(nullptr), p_last_fmat_(fmat) {
@@ -305,6 +306,14 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
       }
     };
 
+
+    struct SplitQuery {
+      int nid;
+      int fid;
+      SplitEntryOneAPI best;
+      const GradientPairT* hist;
+    };
+
     // initialize temp data structure
     void InitData(const GHistIndexMatrixOneAPI& gmat,
                   const std::vector<GradientPair>& gpair,
@@ -349,17 +358,17 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
     // Returns the sum of gradients corresponding to the data points that contains a non-missing
     // value for the particular feature fid.
     template <int d_step>
-    GradStats EnumerateSplit(
-        const GHistIndexMatrixOneAPI &gmat, const GHistRowT &hist,
-        const NodeEntry &snode, SplitEntry *p_best, bst_uint fid,
+    static GradStatsOneAPI EnumerateSplit(
+        const uint32_t* cut_ptr,const bst_float* cut_val, const bst_float* cut_minval, const GradientPairT* hist_data,
+        const NodeEntry &snode, SplitEntryOneAPI& p_best, bst_uint fid,
         bst_uint nodeID,
-        TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const;
+        TreeEvaluatorOneAPI::SplitEvaluator const &evaluator, const TrainParamOneAPI& param);
 
     // if sum of statistics for non-missing values in the node
     // is equal to sum of statistics for all values:
     // then - there are no missing values
     // else - there are missing values
-    bool SplitContainsMissingValues(const GradStats e, const NodeEntry& snode);
+    static bool SplitContainsMissingValues(const GradStatsOneAPI e, const NodeEntry& snode);
 
     void ExpandWithDepthWise(const GHistIndexMatrixOneAPI &gmat,
                              const GHistIndexBlockMatrixOneAPI &gmatb,
@@ -442,14 +451,14 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
     RowSetCollectionOneAPI row_set_collection_;
     // the temp space for split
     std::vector<RowSetCollectionOneAPI::Split> row_split_tloc_;
-    std::vector<SplitEntry> best_split_tloc_;
+    USMVector<SplitQuery> split_queries_device_;
     /*! \brief TreeNode Data: statistics for each constructed node */
-    std::vector<NodeEntry> snode_;
+    USMVector<NodeEntry> snode_;
     /*! \brief culmulative histogram of gradients. */
     HistCollectionOneAPI<GradientSumT> hist_;
     /*! \brief culmulative local parent histogram of gradients. */
     HistCollectionOneAPI<GradientSumT> hist_local_worker_;
-    TreeEvaluator tree_evaluator_;
+    TreeEvaluatorOneAPI tree_evaluator_;
     /*! \brief feature with least # of bins. to be used for dense specialization
                of InitNewNode() */
     uint32_t fid_least_bins_;
