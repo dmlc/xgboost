@@ -854,7 +854,8 @@ def predict(client, model, data, missing=numpy.nan, **kwargs):
     model: A Booster or a dictionary returned by `xgboost.dask.train`.
         The trained model.
     data: DaskDMatrix/dask.dataframe.DataFrame/dask.array.Array
-        Input data used for prediction.
+        Input data used for prediction.  When input is a dataframe object,
+        prediction output is a series.
     missing: float
         Used when input data is not DaskDMatrix.  Specify the value
         considered as missing.
