@@ -17,6 +17,7 @@
 #include "helpers.h"
 #include "xgboost/c_api.h"
 #include "../../src/data/adapter.h"
+#include "../../src/data/simple_dmatrix.h"
 #include "../../src/gbm/gbtree_model.h"
 #include "xgboost/predictor.h"
 
@@ -350,6 +351,13 @@ RandomDataGenerator::GenerateDMatrix(bool with_label, bool float_label,
   return out;
 }
 
+std::shared_ptr<DMatrix>
+GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns){
+  data::DenseAdapter adapter(x.data(), num_rows, num_columns);
+  return std::shared_ptr<DMatrix>(new data::SimpleDMatrix(
+      &adapter, std::numeric_limits<float>::quiet_NaN(), 1));
+}
+
 std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
     size_t n_entries, size_t page_size, std::string tmp_file) {
   // Create sufficiently large data to make two row pages
@@ -539,5 +547,4 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
   return RMMAllocatorPtr(nullptr, DeleteRMMResource);
 }
 #endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1
-
 }  // namespace xgboost

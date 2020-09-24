@@ -42,6 +42,12 @@ struct LearnerModelParam;
 class GradientBooster;
 }
 
+template <typename Float>
+Float RelError(Float l, Float r) {
+  static_assert(std::is_floating_point<Float>::value, "");
+  return std::abs(1.0f - l / r);
+}
+
 bool FileExists(const std::string& filename);
 
 int64_t GetFileSize(const std::string& filename);
@@ -253,6 +259,22 @@ class RandomDataGenerator {
                                                  size_t classes = 1);
 #endif
 };
+
+inline std::vector<float>
+GenerateRandomCategoricalSingleColumn(int n, size_t num_categories) {
+  std::vector<float> x(n);
+  std::mt19937 rng(0);
+  std::uniform_int_distribution<size_t> dist(0, num_categories - 1);
+  std::generate(x.begin(), x.end(), [&]() { return dist(rng); });
+  // Make sure each category is present
+  for(size_t i = 0; i < num_categories; i++) {
+    x[i] = i;
+  }
+  return x;
+}
+
+std::shared_ptr<DMatrix> GetDMatrixFromData(const std::vector<float> &x,
+                                            int num_rows, int num_columns);
 
 std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
     size_t n_entries, size_t page_size, std::string tmp_file);

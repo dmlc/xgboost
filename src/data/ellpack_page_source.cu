@@ -55,6 +55,7 @@ void EllpackPageSource::WriteEllpackPages(int device, DMatrix* dmat,
   SparsePage temp_host_page;
   writer.Alloc(&page);
   auto* impl = page->Impl();
+  auto ft = dmat->Info().feature_types.ConstDeviceSpan();
 
   size_t bytes_write = 0;
   double tstart = dmlc::GetTime();
@@ -66,7 +67,7 @@ void EllpackPageSource::WriteEllpackPages(int device, DMatrix* dmat,
     if (mem_cost_bytes >= page_size_) {
       bytes_write += mem_cost_bytes;
       *impl = EllpackPageImpl(device, cuts, temp_host_page, dmat->IsDense(),
-                              row_stride);
+                              row_stride, ft);
       writer.PushWrite(std::move(page));
       writer.Alloc(&page);
       impl = page->Impl();
@@ -79,7 +80,7 @@ void EllpackPageSource::WriteEllpackPages(int device, DMatrix* dmat,
   }
   if (temp_host_page.Size() != 0) {
     *impl = EllpackPageImpl(device, cuts, temp_host_page, dmat->IsDense(),
-                            row_stride);
+                            row_stride, ft);
     writer.PushWrite(std::move(page));
   }
 }
