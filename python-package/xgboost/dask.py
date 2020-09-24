@@ -814,8 +814,12 @@ async def _predict_async(client: Client, model, data, missing=numpy.nan, **kwarg
         '''Get shape of data in each worker.'''
         LOGGER.info('Get shape on %d', worker_id)
         worker = distributed_get_worker()
-        list_of_parts = _get_worker_parts_ordered(False, worker_map,
-                                              partition_order, worker)
+        list_of_parts = _get_worker_parts_ordered(
+            False,
+            worker_map,
+            partition_order,
+            worker
+        )
         shapes = [(part.shape, order) for part, _, order in list_of_parts]
         return shapes
 
