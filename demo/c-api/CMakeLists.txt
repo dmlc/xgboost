@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.13)
+project(api-demo LANGUAGES C CXX VERSION 0.0.1)
 find_package(xgboost REQUIRED)
 add_executable(api-demo c-api-demo.c)
-target_link_libraries(api-demo xgboost::xgboost)
+target_link_libraries(api-demo PRIVATE xgboost::xgboost)
