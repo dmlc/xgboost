@@ -59,6 +59,7 @@ struct DeviceSplitCandidate {
   DefaultDirection dir {kLeftDir};
   int findex {-1};
   float fvalue {0};
+  bool is_cat { false };
 
   GradientPair left_sum;
   GradientPair right_sum;
@@ -79,6 +80,7 @@ struct DeviceSplitCandidate {
                              float fvalue_in, int findex_in,
                              GradientPair left_sum_in,
                              GradientPair right_sum_in,
+                             bool cat,
                              const GPUTrainingParam& param) {
     if (loss_chg_in > loss_chg &&
         left_sum_in.GetHess() >= param.min_child_weight &&
@@ -86,6 +88,7 @@ struct DeviceSplitCandidate {
       loss_chg = loss_chg_in;
       dir = dir_in;
       fvalue = fvalue_in;
+      is_cat = cat;
       left_sum = left_sum_in;
       right_sum = right_sum_in;
       findex = findex_in;
@@ -98,6 +101,7 @@ struct DeviceSplitCandidate {
        << "dir: " << c.dir << ", "
        << "findex: " << c.findex << ", "
        << "fvalue: " << c.fvalue << ", "
+       << "is_cat: " << c.is_cat << ", "
        << "left sum: " << c.left_sum << ", "
        << "right sum: " << c.right_sum << std::endl;
     return os;

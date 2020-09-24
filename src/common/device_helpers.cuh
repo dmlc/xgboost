@@ -536,6 +536,21 @@ void CopyDeviceSpanToVector(std::vector<T> *dst, xgboost::common::Span<const T> 
                                 cudaMemcpyDeviceToHost));
 }
 
+template <class HContainer, class DContainer>
+void CopyToD(HContainer const &h, DContainer *d) {
+  if (h.empty()) {
+    d->clear();
+    return;
+  }
+  d->resize(h.size());
+  using HVT = std::remove_cv_t<typename HContainer::value_type>;
+  using DVT = std::remove_cv_t<typename DContainer::value_type>;
+  static_assert(std::is_same<HVT, DVT>::value,
+                "Host and device containers must have same value type.");
+  dh::safe_cuda(cudaMemcpyAsync(d->data().get(), h.data(), h.size() * sizeof(HVT),
+                                cudaMemcpyHostToDevice));
+}
+
 // Keep track of pinned memory allocation
 struct PinnedMemory {
   void *temp_storage{nullptr};
