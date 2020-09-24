@@ -84,6 +84,11 @@ public:
 
   bool Empty() const { return (size_ == 0); }
 
+  void Clear() {
+    data_.reset();
+    size_ = 0;
+  }
+
   void Resize(cl::sycl::queue qu, size_t new_size) {
     qu_ = qu;
     if (new_size <= size_) {

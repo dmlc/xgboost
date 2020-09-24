@@ -53,7 +53,7 @@ void QuantileHistMakerOneAPI::Configure(const Args& args) {
   }
   LOG(INFO) << "device_id = " << sycl_param.device_id << ", is_cpu = " << int(is_cpu);
 
-  if (0 && is_cpu)
+  if (is_cpu)
   {
     updater_backend_.reset(TreeUpdater::Create("grow_quantile_histmaker", tparam_));
     updater_backend_->Configure(args);
@@ -433,9 +433,9 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::AddSplitsToTree(
 
       NodeEntry& e = snode_[nid];
       bst_float left_leaf_weight =
-          evaluator.CalcWeight(nid, param_, GradStats{e.best.left_sum}) * param_.learning_rate;
+          evaluator.CalcWeight(nid, GradStatsOneAPI{e.best.left_sum}) * param_.learning_rate;
       bst_float right_leaf_weight =
-          evaluator.CalcWeight(nid, param_, GradStats{e.best.right_sum}) * param_.learning_rate;
+          evaluator.CalcWeight(nid, GradStatsOneAPI{e.best.right_sum}) * param_.learning_rate;
       p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
                          e.best.DefaultLeft(), e.weight, left_leaf_weight,
                          right_leaf_weight, e.best.loss_chg, e.stats.GetHess(),
@@ -581,9 +581,9 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::ExpandWithLossGuide(
       auto evaluator = tree_evaluator_.GetEvaluator();
       NodeEntry& e = snode_[nid];
       bst_float left_leaf_weight =
-          evaluator.CalcWeight(nid, param_, GradStats{e.best.left_sum}) * param_.learning_rate;
+          evaluator.CalcWeight(nid, GradStatsOneAPI{e.best.left_sum}) * param_.learning_rate;
       bst_float right_leaf_weight =
-          evaluator.CalcWeight(nid, param_, GradStats{e.best.right_sum}) * param_.learning_rate;
+          evaluator.CalcWeight(nid, GradStatsOneAPI{e.best.right_sum}) * param_.learning_rate;
       p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
                          e.best.DefaultLeft(), e.weight, left_leaf_weight,
                          right_leaf_weight, e.best.loss_chg, e.stats.GetHess(),
@@ -637,7 +637,7 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::Update(
   USMVector<GradientPair> gpair_device(qu_, gpair_h);
 
   tree_evaluator_ =
-      TreeEvaluator(param_, p_fmat->Info().num_col_, GenericParameter::kCpuId);
+      TreeEvaluatorOneAPI(qu_, param_, p_fmat->Info().num_col_);
   interaction_constraints_.Reset();
 
   this->InitData(gmat, gpair_h, gpair_device, *p_fmat, *p_tree);
@@ -911,8 +911,9 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::InitData(const GHistInde
     CHECK_GT(min_nbins_per_feature, 0U);
   }
   {
-    snode_.reserve(256);
-    snode_.clear();
+/*    snode_.reserve(256);
+    snode_.clear();*/
+    snode_.Clear();
   }
   {
     if (param_.grow_policy == TrainParam::kLossGuide) {
@@ -930,7 +931,7 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::InitData(const GHistInde
 // else - there are missing values
 template <typename GradientSumT>
 bool GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::SplitContainsMissingValues(
-    const GradStats e, const NodeEntry &snode) {
+    const GradStatsOneAPI e, const NodeEntry &snode) {
   if (e.GetGrad() == snode.stats.GetGrad() && e.GetHess() == snode.stats.GetHess()) {
     return false;
   } else {
@@ -952,55 +953,107 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::EvaluateSplits(
 
   using FeatureSetType = std::shared_ptr<HostDeviceVector<bst_feature_t>>;
   std::vector<FeatureSetType> features_sets(n_nodes_in_set);
-  best_split_tloc_.resize(nthread * n_nodes_in_set);
 
   // Generate feature set for each tree node
+  size_t total_features = 0;
   for (size_t nid_in_set = 0; nid_in_set < n_nodes_in_set; ++nid_in_set) {
     const int32_t nid = nodes_set[nid_in_set].nid;
     features_sets[nid_in_set] = column_sampler_.GetFeatureSet(tree.GetDepth(nid));
-
-    for (unsigned tid = 0; tid < nthread; ++tid) {
-      best_split_tloc_[nthread*nid_in_set + tid] = snode_[nid].best;
+    for (size_t idx_in_feature_set = 0; idx_in_feature_set < features_sets[nid_in_set]->Size(); idx_in_feature_set++) {
+      const auto fid = features_sets[nid_in_set]->ConstHostVector()[idx_in_feature_set];
+      if (interaction_constraints_.Query(nid, fid)) {
+        total_features++;
+      }
     }
   }
 
-  // Create 2D space (# of nodes to process x # of features to process)
-  // to process them in parallel
-  const size_t grain_size = std::max<size_t>(1, features_sets[0]->Size() / nthread);
-  common::BlockedSpace2d space(n_nodes_in_set, [&](size_t nid_in_set) {
-      return features_sets[nid_in_set]->Size();
-  }, grain_size);
+  split_queries_device_.Resize(qu_, total_features);
 
-  auto evaluator = tree_evaluator_.GetEvaluator();
-  // Start parallel enumeration for all tree nodes in the set and all features
-  common::ParallelFor2d(space, this->nthread_, [&](size_t nid_in_set, common::Range1d r) {
-    const int32_t nid = nodes_set[nid_in_set].nid;
-    const auto tid = static_cast<unsigned>(omp_get_thread_num());
-    auto node_hist = hist[nid];
+  size_t pos = 0;
 
-    for (auto idx_in_feature_set = r.begin(); idx_in_feature_set < r.end(); ++idx_in_feature_set) {
+  for (size_t nid_in_set = 0; nid_in_set < n_nodes_in_set; ++nid_in_set) {
+    const size_t nid = nodes_set[nid_in_set].nid;
+
+    for (size_t idx_in_feature_set = 0; idx_in_feature_set < features_sets[nid_in_set]->Size(); idx_in_feature_set++) {
       const auto fid = features_sets[nid_in_set]->ConstHostVector()[idx_in_feature_set];
       if (interaction_constraints_.Query(nid, fid)) {
-        auto grad_stats = this->EnumerateSplit<+1>(
+        split_queries_device_[pos].nid = nid;
+        split_queries_device_[pos].fid = fid;
+        split_queries_device_[pos].hist = hist[nid].DataConst();
+        split_queries_device_[pos].best = snode_[nid].best;
+        pos++;
+      }
+    }
+  }
+
+  auto evaluator = tree_evaluator_.GetEvaluator();
+  SplitQuery* split_queries_device = split_queries_device_.Data();
+  // Start parallel enumeration for all tree nodes in the set and all features
+//  common::ParallelFor2d(space, this->nthread_, [&](size_t nid_in_set, common::Range1d r) {
+  const uint32_t* cut_ptr = gmat.cut_device.Ptrs().DataConst();
+  const bst_float* cut_val = gmat.cut_device.Values().DataConst();
+  const bst_float* cut_minval = gmat.cut_device.MinValues().DataConst();
+  const NodeEntry* snode = snode_.DataConst();
+
+//  const GradientPairT* hist_data = hist.DataConst();
+  TrainParamOneAPI param(param_);
+
+  qu_.submit([&](cl::sycl::handler& cgh) {
+    cgh.parallel_for<>(cl::sycl::range<1>(total_features), [=](cl::sycl::item<1> pid) {
+      TrainParamOneAPI param_device(param);
+      TreeEvaluatorOneAPI::SplitEvaluator evaluator_device = evaluator;
+      int i = pid.get_id(0);
+    int nid = split_queries_device[i].nid;
+    int fid = split_queries_device[i].fid;
+    const GradientPairT* hist_data = split_queries_device[i].hist;
+    auto grad_stats = EnumerateSplit<+1>(cut_ptr, cut_val, cut_minval, hist_data, snode[nid],
+            split_queries_device[i].best, fid, nid, evaluator_device, param_device);
+    if (SplitContainsMissingValues(grad_stats, snode[nid])) {
+      EnumerateSplit<-1>(cut_ptr, cut_val, cut_minval, hist_data, snode[nid],
+            split_queries_device[i].best, fid, nid, evaluator_device, param_device);
+    }
+  });
+  }).wait(); 
+  for (size_t i = 0; i < total_features; i++) {
+    int nid = split_queries_device[i].nid;
+//    int fid = split_queries_device_[i].fid;
+//    const GradientPairT* hist_data = split_queries_device[i].hist;
+//    LOG(INFO) << "EnumerateSplit, " << split_queries_device[i].best.loss_chg << " " << split_queries_device[i].best.sindex << " " << split_queries_device[i].best.split_value;
+    snode_[nid].best.Update(split_queries_device[i].best);
+//    this->EnumerateSplit<+1>(cut_ptr, cut_val, cut_minval, hist_data, snode_[nid],
+//            &split_queries_device_[i].best, fid, nid, evaluator);
+  }
+/*  
+  qu_.submit([&](cl::sycl::handler& cgh) {
+    cgh.parallel_for<>(cl::sycl::range<1>(total_features), [=](cl::sycl::item<1> pid) {
+      const size_t id = pid.get_id(0);
+      const size_t nid = features_nodes_ptr[id];
+      const size_t fid = features_sets_ptr[id];
+      auto node_hist = hist[nid];
+
+    for (auto idx_in_feature_set = 0; idx_in_feature_set < features_sets[nid_in_set]->Size(); ++idx_in_feature_set) {
+      const auto fid = features_sets[nid_in_set]->ConstHostVector()[idx_in_feature_set];
+      if (interaction_constraints_.Query(nid, fid)) {
+        this->EnumerateSplit<+1>(
             gmat, node_hist, snode_[nid],
-            &best_split_tloc_[nthread * nid_in_set + tid], fid, nid, evaluator);
+            &snode_[nid].best, fid, nid, evaluator);
         if (SplitContainsMissingValues(grad_stats, snode_[nid])) {
           this->EnumerateSplit<-1>(
               gmat, node_hist, snode_[nid],
-              &best_split_tloc_[nthread * nid_in_set + tid], fid, nid,
+              &snode_[nid].best&best_split_device_[nthread * nid_in_set + tid], fid, nid,
               evaluator);
         }
       }
     }
-  });
+  }*///);
 
   // Find Best Split across threads for each node in nodes set
-  for (unsigned nid_in_set = 0; nid_in_set < n_nodes_in_set; ++nid_in_set) {
+/*  for (unsigned nid_in_set = 0; nid_in_set < n_nodes_in_set; ++nid_in_set) {
     const int32_t nid = nodes_set[nid_in_set].nid;
     for (unsigned tid = 0; tid < nthread; ++tid) {
-      snode_[nid].best.Update(best_split_tloc_[nthread*nid_in_set + tid]);
+      snode_[nid].best.Update(best_split_device_[nthread*nid_in_set + tid]);
     }
-  }
+  }*/
 
   builder_monitor_.Stop("EvaluateSplits");
 }
@@ -1274,7 +1327,8 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::InitNewNode(int nid,
                                              const RegTree& tree) {
   builder_monitor_.Start("InitNewNode");
   {
-    snode_.resize(tree.param.num_nodes, NodeEntry(param_));
+//    snode_.resize(tree.param.num_nodes, NodeEntry(param_));
+    snode_.Resize(qu_, tree.param.num_nodes, NodeEntry(param_));
   }
 
   {
@@ -1298,7 +1352,7 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::InitNewNode(int nid,
         }
       }
       histred_.Allreduce(&grad_stat, 1);
-      snode_[nid].stats = tree::GradStats(grad_stat.GetGrad(), grad_stat.GetHess());
+      snode_[nid].stats = tree::GradStatsOneAPI(grad_stat.GetGrad(), grad_stat.GetHess());
     } else {
       int parent_id = tree[nid].Parent();
       if (tree[nid].IsLeftChild()) {
@@ -1314,9 +1368,9 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::InitNewNode(int nid,
     auto evaluator = tree_evaluator_.GetEvaluator();
     bst_uint parentid = tree[nid].Parent();
     snode_[nid].weight = static_cast<float>(
-        evaluator.CalcWeight(parentid, param_, GradStats{snode_[nid].stats}));
+        evaluator.CalcWeight(parentid, GradStatsOneAPI{snode_[nid].stats}));
     snode_[nid].root_gain = static_cast<float>(
-        evaluator.CalcGain(parentid, param_, GradStats{snode_[nid].stats}));
+        evaluator.CalcGain(parentid, GradStatsOneAPI{snode_[nid].stats}));
   }
   builder_monitor_.Stop("InitNewNode");
 }
@@ -1326,27 +1380,21 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::InitNewNode(int nid,
 // for the particular feature fid.
 template <typename GradientSumT>
 template <int d_step>
-GradStats GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::EnumerateSplit(
-    const GHistIndexMatrixOneAPI &gmat, const GHistRowT &hist, const NodeEntry &snode,
-    SplitEntry *p_best, bst_uint fid, bst_uint nodeID,
-    TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const {
-  CHECK(d_step == +1 || d_step == -1);
+GradStatsOneAPI GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::EnumerateSplit(
+    const uint32_t* cut_ptr,const bst_float* cut_val, const bst_float* cut_minval, const GradientPairT* hist_data, const NodeEntry& snode,
+    SplitEntryOneAPI& p_best, bst_uint fid, bst_uint nodeID,
+    TreeEvaluatorOneAPI::SplitEvaluator const &evaluator_device, const TrainParamOneAPI& param) {
+//  CHECK(d_step == +1 || d_step == -1);
 
   // aliases
-  const std::vector<uint32_t>& cut_ptr = gmat.cut.Ptrs();
-  const std::vector<bst_float>& cut_val = gmat.cut.Values();
 
   // statistics on both sides of split
-  GradStats c;
-  GradStats e;
+  GradStatsOneAPI c;
+  GradStatsOneAPI e;
   // best split so far
-  SplitEntry best;
+  SplitEntryOneAPI best;
 
   // bin boundaries
-  CHECK_LE(cut_ptr[fid],
-           static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
-  CHECK_LE(cut_ptr[fid + 1],
-           static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
   // imin: index (offset) of the minimum value for feature fid
   //       need this for backward enumeration
   const auto imin = static_cast<int32_t>(cut_ptr[fid]);
@@ -1364,29 +1412,27 @@ GradStats GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::EnumerateSplit(
   for (int32_t i = ibegin; i != iend; i += d_step) {
     // start working
     // try to find a split
-    e.Add(hist[i].GetGrad(), hist[i].GetHess());
-    if (e.GetHess() >= param_.min_child_weight) {
+    e.Add(hist_data[i].GetGrad(), hist_data[i].GetHess());
+    if (e.GetHess() >= param.min_child_weight) {
       c.SetSubstract(snode.stats, e);
-      if (c.GetHess() >= param_.min_child_weight) {
+      if (c.GetHess() >= param.min_child_weight) {
         bst_float loss_chg;
         bst_float split_pt;
         if (d_step > 0) {
           // forward enumeration: split at right bound of each bin
           loss_chg = static_cast<bst_float>(
-              evaluator.CalcSplitGain(param_, nodeID, fid, GradStats{e},
-                                      GradStats{c}) -
-              snode.root_gain);
+              evaluator_device.CalcSplitGain(nodeID, fid, e, c) - snode.root_gain);
           split_pt = cut_val[i];
           best.Update(loss_chg, fid, split_pt, d_step == -1, e, c);
         } else {
           // backward enumeration: split at left bound of each bin
           loss_chg = static_cast<bst_float>(
-              evaluator.CalcSplitGain(param_, nodeID, fid, GradStats{c},
-                                      GradStats{e}) -
+              evaluator_device.CalcSplitGain(nodeID, fid, GradStatsOneAPI{c},
+                                      GradStatsOneAPI{e}) -
               snode.root_gain);
           if (i == imin) {
             // for leftmost bin, left bound is the smallest feature value
-            split_pt = gmat.cut.MinValues()[fid];
+            split_pt = cut_minval[fid];
           } else {
             split_pt = cut_val[i - 1];
           }
@@ -1395,9 +1441,12 @@ GradStats GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::EnumerateSplit(
       }
     }
   }
-  p_best->Update(best);
-
+  p_best.Update(best);
+//  });
+//  }).wait();
+//  LOG(INFO) << "enumarate split finish";
   return e;
+//  return GradStatsOneAPI();
 }
 
 template struct GPUQuantileHistMakerOneAPI::Builder<float>;
