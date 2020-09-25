@@ -290,7 +290,7 @@ install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
 #
 # https://github.com/dmlc/xgboost/issues/6085
 if (BUILD_STATIC_LIB)
-  set(INSTALL_TARGETS xgboost runxgboost objxgboost rabit)
+  set(INSTALL_TARGETS xgboost runxgboost objxgboost rabit dmlc)
 else (BUILD_STATIC_LIB)
   set(INSTALL_TARGETS xgboost runxgboost)
 endif (BUILD_STATIC_LIB)
