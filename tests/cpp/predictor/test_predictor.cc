@@ -218,7 +218,7 @@ void TestCategoricalPrediction(std::string name) {
   predictor->PredictBatch(m.get(), &out_predictions, model, 0);
   ASSERT_EQ(out_predictions.predictions.Size(), 1ul);
   ASSERT_EQ(out_predictions.predictions.HostVector()[0],
-            right_weight + param.base_score);
+            right_weight + param.base_score);  // go to right for matching cat
 
   row[split_ind] = split_cat + 1;
   m = GetDMatrixFromData(row, 1, kCols);

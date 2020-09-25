@@ -269,9 +269,11 @@ class DeviceModel {
   HostDeviceVector<int> tree_group;
   HostDeviceVector<FeatureType> split_types;
 
-  HostDeviceVector<uint32_t> categories;
+  // Pointer to each tree, segmenting the node array.
   HostDeviceVector<uint32_t> categories_tree_segments;
+  // Pointer to each node, segmenting categories array.
   HostDeviceVector<RegTree::Segment> categories_node_segments;
+  HostDeviceVector<uint32_t> categories;
 
   size_t tree_beg_;  // NOLINT
   size_t tree_end_;  // NOLINT
@@ -326,7 +328,7 @@ class DeviceModel {
     categories = HostDeviceVector<uint32_t>({}, gpu_id);
     categories_tree_segments = HostDeviceVector<uint32_t>(1, 0, gpu_id);
     std::vector<uint32_t> &h_categories = categories.HostVector();
-    std::vector<uint32_t>& h_split_cat_segments = categories_tree_segments.HostVector();
+    std::vector<uint32_t> &h_split_cat_segments = categories_tree_segments.HostVector();
     for (auto tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
       auto const& src_cats = model.trees.at(tree_idx)->GetSplitCategories();
       size_t orig_size = h_categories.size();
