@@ -337,8 +337,8 @@ class DaskDMatrix:
                 'is_quantile': self.is_quantile}
 
 
-def _get_worker_parts_ordered(has_base_margin, worker_map,
-                          partition_order, worker):
+def _get_worker_parts_ordered(has_base_margin, worker_map, partition_order,
+                              worker):
     list_of_parts = worker_map[worker.address]
     client = get_client()
     list_of_parts_value = client.gather(list_of_parts)
@@ -788,9 +788,8 @@ async def _predict_async(client: Client, model, data, missing=numpy.nan, **kwarg
         LOGGER.info('Predicting on %d', worker_id)
 
         worker = distributed_get_worker()
-        list_of_parts = _get_worker_parts_ordered(has_margin,
-            worker_map, partition_order, worker
-        )
+        list_of_parts = _get_worker_parts_ordered(
+            has_margin, worker_map, partition_order, worker)
         predictions = []
         booster.set_param({'nthread': worker.nthreads})
         for data, base_margin, order in list_of_parts:
@@ -802,9 +801,10 @@ async def _predict_async(client: Client, model, data, missing=numpy.nan, **kwarg
                 missing=missing,
                 nthread=worker.nthreads
             )
-            predt = booster.predict(data=local_part,
-                                    validate_features=local_part.num_row() != 0,
-                                    **kwargs)
+            predt = booster.predict(
+                data=local_part,
+                validate_features=local_part.num_row() != 0,
+                **kwargs)
             columns = 1 if len(predt.shape) == 1 else predt.shape[1]
             ret = ((delayed(predt), columns), order)
             predictions.append(ret)
@@ -1095,17 +1095,23 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             eval_set, sample_weight_eval_set, verbose
         )
 
-    async def _predict_async(self, data, base_margin=None):  # pylint: disable=arguments-differ
+    async def _predict_async(
+            self, data, output_margin=False, base_margin=None):
         test_dmatrix = await DaskDMatrix(
-            client=self.client, data=data, base_margin=base_margin, missing=self.missing
+            client=self.client, data=data, base_margin=base_margin,
+            missing=self.missing
         )
         pred_probs = await predict(client=self.client,
-                                   model=self.get_booster(), data=test_dmatrix)
+                                   model=self.get_booster(), data=test_dmatrix,
+                                   output_margin=output_margin)
         return pred_probs
 
-    def predict(self, data):
+    # pylint: disable=arguments-differ
+    def predict(self, data, output_margin=False, base_margin=None):
         _assert_dask_support()
-        return self.client.sync(self._predict_async, data)
+        return self.client.sync(self._predict_async, data,
+                                output_margin=output_margin,
+                                base_margin=base_margin)
 
 
 @xgboost_model_doc(
@@ -1161,9 +1167,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             sample_weight_eval_set, verbose
         )
 
-    async def _predict_proba_async(self, data, output_margin=False, base_margin=None):
-        _assert_dask_support()
-
+    async def _predict_proba_async(self, data, output_margin=False,
+                                   base_margin=None):
         test_dmatrix = await DaskDMatrix(
             client=self.client, data=data, base_margin=base_margin,
             missing=self.missing
@@ -1184,8 +1189,6 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         )
 
     async def _predict_async(self, data, output_margin=False, base_margin=None):
-        _assert_dask_support()
-
         test_dmatrix = await DaskDMatrix(
             client=self.client, data=data, base_margin=base_margin,
             missing=self.missing

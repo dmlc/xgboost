@@ -179,7 +179,6 @@ def test_boost_from_prediction(tree_method):
                 tree_method=tree_method,
             )
             cls_3.fit(X=X_, y=y_)
-            predictions_3 = cls_3.predict(X_)
             proba_3 = cls_3.predict_proba(X_)
 
             # compute variance of probability percentages between two of the
