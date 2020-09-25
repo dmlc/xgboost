@@ -428,8 +428,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             not set to True unless you are interested in development.
             Currently it's only available for `gpu_hist` tree method with 1 vs
             rest (one hot) categorical split.  Also, JSON serialization format,
-            `enable_experimental_json_serialization`, `gpu_predictor` and
-            pandas input are required.
+            `gpu_predictor` and pandas input are required.
 
         """
         if isinstance(data, list):
