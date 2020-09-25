@@ -219,5 +219,8 @@ TEST(GPUPredictor, Shap) {
   }
 }
 
+TEST(GPUPredictor, CategoricalPrediction) {
+  TestCategoricalPrediction("gpu_predictor");
+}
 }  // namespace predictor
 }  // namespace xgboost
