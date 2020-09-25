@@ -29,6 +29,7 @@ dependencies:
 - boto3
 - awscli
 - pip:
+  - shap
   - guzzle_sphinx_theme
   - datatable
   - modin[all]
