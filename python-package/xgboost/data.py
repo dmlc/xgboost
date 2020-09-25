@@ -82,6 +82,15 @@ def _from_scipy_csc(data, missing, feature_names, feature_types):
     return handle, feature_names, feature_types
 
 
+def _is_scipy_coo(data):
+    try:
+        import scipy
+    except ImportError:
+        scipy = None
+        return False
+    return isinstance(data, scipy.sparse.coo_matrix)
+
+
 def _is_numpy_array(data):
     return isinstance(data, (np.ndarray, np.matrix))
 
@@ -504,6 +513,8 @@ def dispatch_data_backend(data, missing, threads,
         return _from_scipy_csr(data, missing, feature_names, feature_types)
     if _is_scipy_csc(data):
         return _from_scipy_csc(data, missing, feature_names, feature_types)
+    if _is_scipy_coo(data):
+        return _from_scipy_csr(data.tocsr(), missing, feature_names, feature_types)
     if _is_numpy_array(data):
         return _from_numpy_array(data, missing, threads, feature_names,
                                  feature_types)
