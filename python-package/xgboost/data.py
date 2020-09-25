@@ -184,20 +184,24 @@ _pandas_dtype_mapper = {
 }
 
 
-def _transform_pandas_df(data, feature_names=None, feature_types=None,
+def _transform_pandas_df(data, enable_categorical,
+                         feature_names=None, feature_types=None,
                          meta=None, meta_type=None):
     from pandas import MultiIndex, Int64Index
-    from pandas.api.types import is_sparse
+    from pandas.api.types import is_sparse, is_categorical
+
     data_dtypes = data.dtypes
-    if not all(dtype.name in _pandas_dtype_mapper or is_sparse(dtype)
+    if not all(dtype.name in _pandas_dtype_mapper or is_sparse(dtype) or
+               (is_categorical(dtype) and enable_categorical)
                for dtype in data_dtypes):
         bad_fields = [
             str(data.columns[i]) for i, dtype in enumerate(data_dtypes)
             if dtype.name not in _pandas_dtype_mapper
         ]
 
-        msg = """DataFrame.dtypes for data must be int, float or bool.
-                Did not expect the data types in fields """
+        msg = """DataFrame.dtypes for data must be int, float, bool or categorical.  When
+                categorical type is supplied, DMatrix parameter
+                `enable_categorical` must be set to `True`."""
         raise ValueError(msg + ', '.join(bad_fields))
 
     if feature_names is None and meta is None:
@@ -216,6 +220,8 @@ def _transform_pandas_df(data, feature_names=None, feature_types=None,
             if is_sparse(dtype):
                 feature_types.append(_pandas_dtype_mapper[
                     dtype.subtype.name])
+            elif is_categorical(dtype) and enable_categorical:
+                feature_types.append('categorical')
             else:
                 feature_types.append(_pandas_dtype_mapper[dtype.name])
 
@@ -226,13 +232,13 @@ def _transform_pandas_df(data, feature_names=None, feature_types=None,
 
     dtype = meta_type if meta_type else np.float32
     data = np.ascontiguousarray(data.values, dtype=dtype)
-
     return data, feature_names, feature_types
 
 
-def _from_pandas_df(data, missing, nthread, feature_names, feature_types):
+def _from_pandas_df(data, enable_categorical, missing, nthread,
+                    feature_names, feature_types):
     data, feature_names, feature_types = _transform_pandas_df(
-        data, feature_names, feature_types)
+        data, enable_categorical, feature_names, feature_types)
     return _from_numpy_array(data, missing, nthread, feature_names,
                              feature_types)
 
@@ -243,6 +249,7 @@ def _is_pandas_series(data):
     except ImportError:
         return False
     return isinstance(data, pd.Series)
+
 
 def _is_modin_series(data):
     try:
@@ -507,7 +514,8 @@ def _has_array_protocol(data):
 
 
 def dispatch_data_backend(data, missing, threads,
-                          feature_names, feature_types):
+                          feature_names, feature_types,
+                          enable_categorical=False):
     '''Dispatch data for DMatrix.'''
     if _is_scipy_csr(data):
         return _from_scipy_csr(data, missing, feature_names, feature_types)
@@ -525,7 +533,7 @@ def dispatch_data_backend(data, missing, threads,
     if _is_tuple(data):
         return _from_tuple(data, missing, feature_names, feature_types)
     if _is_pandas_df(data):
-        return _from_pandas_df(data, missing, threads,
+        return _from_pandas_df(data, enable_categorical, missing, threads,
                                feature_names, feature_types)
     if _is_pandas_series(data):
         return _from_pandas_series(data, missing, threads, feature_names,
@@ -551,7 +559,7 @@ def dispatch_data_backend(data, missing, threads,
         return _from_dt_df(data, missing, threads, feature_names,
                            feature_types)
     if _is_modin_df(data):
-        return _from_pandas_df(data, missing, threads,
+        return _from_pandas_df(data, enable_categorical, missing, threads,
                                feature_names, feature_types)
     if _is_modin_series(data):
         return _from_pandas_series(data, missing, threads, feature_names,
@@ -655,7 +663,8 @@ def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
         _meta_from_numpy(data, name, dtype, handle)
         return
     if _is_pandas_df(data):
-        data, _, _ = _transform_pandas_df(data, meta=name, meta_type=dtype)
+        data, _, _ = _transform_pandas_df(data, False, meta=name,
+                                          meta_type=dtype)
         _meta_from_numpy(data, name, dtype, handle)
         return
     if _is_pandas_series(data):
@@ -680,7 +689,8 @@ def dispatch_meta_backend(matrix: DMatrix, data, name: str, dtype: str = None):
         _meta_from_dt(data, name, dtype, handle)
         return
     if _is_modin_df(data):
-        data, _, _ = _transform_pandas_df(data, meta=name, meta_type=dtype)
+        data, _, _ = _transform_pandas_df(
+            data, False, meta=name, meta_type=dtype)
         _meta_from_numpy(data, name, dtype, handle)
         return
     if _is_modin_series(data):
