@@ -116,3 +116,55 @@ macro(enable_nvtx target)
   target_link_libraries(${target} PRIVATE "${NVTX_LIBRARY}")
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
 endmacro()
+
+function(xgboost_set_cuda_flags target)
+  find_package(OpenMP REQUIRED)
+  target_link_libraries(${target} PUBLIC OpenMP::OpenMP_CXX)
+
+  target_compile_options(${target} PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+    $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>)
+
+  if (USE_DEVICE_DEBUG)
+    if (CMAKE_BUILD_TYPE MATCHES "Debug")
+      target_compile_options(${target} PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:-G;-src-in-ptx>)
+    endif(CMAKE_BUILD_TYPE MATCHES "Debug")
+  else (USE_DEVICE_DEBUG)
+    target_compile_options(${target} PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
+  endif (USE_DEVICE_DEBUG)
+
+  if (USE_NVTX)
+    enable_nvtx(${target})
+  endif (USE_NVTX)
+
+  target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
+  if (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
+    target_include_directories(${target} PRIVATE ${xgboost_SOURCE_DIR}/cub/)
+  endif (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
+
+  if (MSVC)
+    target_compile_options(${target} PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>)
+  endif (MSVC)
+
+  set_target_properties(${target} PROPERTIES
+    CUDA_STANDARD 14
+    CUDA_STANDARD_REQUIRED ON
+    CUDA_SEPARABLE_COMPILATION OFF)
+
+  if (HIDE_CXX_SYMBOLS)
+    target_compile_options(${target} PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fvisibility=hidden>)
+  endif (HIDE_CXX_SYMBOLS)
+
+  if (USE_NCCL)
+    find_package(Nccl REQUIRED)
+    target_include_directories(${target} PRIVATE ${NCCL_INCLUDE_DIR})
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NCCL=1)
+    target_link_libraries(${target} PUBLIC ${NCCL_LIBRARY})
+  endif (USE_NCCL)
+endfunction(xgboost_set_cuda_flags)
