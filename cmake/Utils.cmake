@@ -54,23 +54,22 @@ endfunction(msvc_use_static_runtime)
 
 # Set output directory of target, ignoring debug or release
 function(set_output_directory target dir)
-	set_target_properties(${target} PROPERTIES
-		RUNTIME_OUTPUT_DIRECTORY ${dir}
-		RUNTIME_OUTPUT_DIRECTORY_DEBUG ${dir}
-		RUNTIME_OUTPUT_DIRECTORY_RELEASE ${dir}
-		RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
-		RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${dir}
-		LIBRARY_OUTPUT_DIRECTORY ${dir}
-		LIBRARY_OUTPUT_DIRECTORY_DEBUG ${dir}
-		LIBRARY_OUTPUT_DIRECTORY_RELEASE ${dir}
-		LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
-		LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL ${dir}
-		ARCHIVE_OUTPUT_DIRECTORY ${dir}
-		ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${dir}
-		ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${dir}
-		ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
-		ARCHIVE_OUTPUT_DIRECTORY_MINSIZEREL ${dir}
-	)
+  set_target_properties(${target} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${dir}
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${dir}
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${dir}
+    RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
+    RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${dir}
+    LIBRARY_OUTPUT_DIRECTORY ${dir}
+    LIBRARY_OUTPUT_DIRECTORY_DEBUG ${dir}
+    LIBRARY_OUTPUT_DIRECTORY_RELEASE ${dir}
+    LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
+    LIBRARY_OUTPUT_DIRECTORY_MINSIZEREL ${dir}
+    ARCHIVE_OUTPUT_DIRECTORY ${dir}
+    ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${dir}
+    ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${dir}
+    ARCHIVE_OUTPUT_DIRECTORY_RELWITHDEBINFO ${dir}
+    ARCHIVE_OUTPUT_DIRECTORY_MINSIZEREL ${dir})
 endfunction(set_output_directory)
 
 # Set a default build type to release if none was specified
@@ -91,7 +90,9 @@ function(format_gencode_flags flags out)
   endif()
   # Set up architecture flags
   if(NOT flags)
-    if(CUDA_VERSION VERSION_GREATER_EQUAL "10.0")
+    if (CUDA_VERSION VERSION_GREATER_EQUAL "11.0")
+      set(flags "35;50;52;60;61;70;75;80")
+    elseif(CUDA_VERSION VERSION_GREATER_EQUAL "10.0")
       set(flags "35;50;52;60;61;70;75")
     elseif(CUDA_VERSION VERSION_GREATER_EQUAL "9.0")
       set(flags "35;50;52;60;61;70")
@@ -99,15 +100,25 @@ function(format_gencode_flags flags out)
       set(flags "35;50;52;60;61")
     endif()
   endif()
-  # Generate SASS
-  foreach(ver ${flags})
-    set(${out} "${${out}}--generate-code=arch=compute_${ver},code=sm_${ver};")
-  endforeach()
-  # Generate PTX for last architecture
-  list(GET flags -1 ver)
-  set(${out} "${${out}}--generate-code=arch=compute_${ver},code=compute_${ver};")
 
-  set(${out} "${${out}}" PARENT_SCOPE)
+  if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+    cmake_policy(SET CMP0104 NEW)
+    foreach(ver ${flags})
+      set(CMAKE_CUDA_ARCHITECTURES "${ver}-real;${ver}-virtual;${CMAKE_CUDA_ARCHITECTURES}")
+    endforeach()
+    set(CMAKE_CUDA_ARCHITECTURES "${CMAKE_CUDA_ARCHITECTURES}" PARENT_SCOPE)
+    message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
+  else()
+    # Generate SASS
+    foreach(ver ${flags})
+      set(${out} "${${out}}--generate-code=arch=compute_${ver},code=sm_${ver};")
+    endforeach()
+    # Generate PTX for last architecture
+    list(GET flags -1 ver)
+    set(${out} "${${out}}--generate-code=arch=compute_${ver},code=compute_${ver};")
+    set(${out} "${${out}}" PARENT_SCOPE)
+    message(STATUS "CUDA GEN_CODE: ${GEN_CODE}")
+  endif (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
 endfunction(format_gencode_flags flags)
 
 macro(enable_nvtx target)
@@ -116,3 +127,60 @@ macro(enable_nvtx target)
   target_link_libraries(${target} PRIVATE "${NVTX_LIBRARY}")
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
 endmacro()
+
+# Set CUDA related flags to target.  Must be used after code `format_gencode_flags`.
+function(xgboost_set_cuda_flags target)
+  find_package(OpenMP REQUIRED)
+  target_link_libraries(${target} PUBLIC OpenMP::OpenMP_CXX)
+
+  target_compile_options(${target} PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+    $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>)
+
+  if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+    set_property(TARGET ${target} PROPERTY CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES})
+  endif (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
+
+  if (USE_DEVICE_DEBUG)
+    if (CMAKE_BUILD_TYPE MATCHES "Debug")
+      target_compile_options(${target} PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:-G;-src-in-ptx>)
+    endif(CMAKE_BUILD_TYPE MATCHES "Debug")
+  else (USE_DEVICE_DEBUG)
+    target_compile_options(${target} PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
+  endif (USE_DEVICE_DEBUG)
+
+  if (USE_NVTX)
+    enable_nvtx(${target})
+  endif (USE_NVTX)
+
+  target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
+  if (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
+    target_include_directories(${target} PRIVATE ${xgboost_SOURCE_DIR}/cub/)
+  endif (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
+
+  if (MSVC)
+    target_compile_options(${target} PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>)
+  endif (MSVC)
+
+  set_target_properties(${target} PROPERTIES
+    CUDA_STANDARD 14
+    CUDA_STANDARD_REQUIRED ON
+    CUDA_SEPARABLE_COMPILATION OFF)
+
+  if (HIDE_CXX_SYMBOLS)
+    target_compile_options(${target} PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fvisibility=hidden>)
+  endif (HIDE_CXX_SYMBOLS)
+
+  if (USE_NCCL)
+    find_package(Nccl REQUIRED)
+    target_include_directories(${target} PRIVATE ${NCCL_INCLUDE_DIR})
+    target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NCCL=1)
+    target_link_libraries(${target} PUBLIC ${NCCL_LIBRARY})
+  endif (USE_NCCL)
+endfunction(xgboost_set_cuda_flags)

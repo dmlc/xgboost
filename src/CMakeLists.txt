@@ -8,47 +8,7 @@ target_sources(objxgboost PRIVATE ${CPU_SOURCES})
 if (USE_CUDA)
   file(GLOB_RECURSE CUDA_SOURCES *.cu *.cuh)
   target_sources(objxgboost PRIVATE ${CUDA_SOURCES})
-  target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_CUDA=1)
-  if (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
-    target_include_directories(objxgboost PRIVATE ${xgboost_SOURCE_DIR}/cub/)
-  endif (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
-  target_compile_options(objxgboost PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
-    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
-    $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>
-    $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>)
-
-  if (USE_NCCL)
-    find_package(Nccl REQUIRED)
-    target_include_directories(objxgboost PRIVATE ${NCCL_INCLUDE_DIR})
-    target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_NCCL=1)
-    target_link_libraries(objxgboost PUBLIC ${NCCL_LIBRARY})
-  endif (USE_NCCL)
-
-  if (USE_NVTX)
-    enable_nvtx(objxgboost)
-  endif (USE_NVTX)
-
-  target_compile_options(objxgboost PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
-  )
-
-  if (MSVC)
-    target_compile_options(objxgboost PRIVATE
-      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>
-    )
-  endif (MSVC)
-
-  if (HIDE_CXX_SYMBOLS)
-    target_compile_options(objxgboost PRIVATE
-      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fvisibility=hidden>
-    )
-  endif (HIDE_CXX_SYMBOLS)
-
-  set_target_properties(objxgboost PROPERTIES
-    CUDA_STANDARD 14
-    CUDA_STANDARD_REQUIRED ON
-    CUDA_SEPARABLE_COMPILATION OFF)
+  xgboost_set_cuda_flags(objxgboost)
   target_link_libraries(objxgboost PRIVATE GPUTreeShap)
 endif (USE_CUDA)
 
