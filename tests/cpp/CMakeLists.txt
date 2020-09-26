@@ -23,7 +23,6 @@ add_executable(testxgboost ${TEST_SOURCES}
 target_link_libraries(testxgboost PRIVATE objxgboost)
 
 if (USE_CUDA)
-  # OpenMP is mandatory for CUDA
   xgboost_set_cuda_flags(testxgboost)
 
   find_package(CUDA)

@@ -117,6 +117,7 @@ macro(enable_nvtx target)
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_NVTX=1)
 endmacro()
 
+# Set CUDA related flags to target.  Must be used after code `format_gencode_flags`.
 function(xgboost_set_cuda_flags target)
   find_package(OpenMP REQUIRED)
   target_link_libraries(${target} PUBLIC OpenMP::OpenMP_CXX)
