@@ -155,7 +155,7 @@ class GBLinear : public GradientBooster {
   }
 
   void PredictContribution(DMatrix* p_fmat,
-                           std::vector<bst_float>* out_contribs,
+                           HostDeviceVector<bst_float>* out_contribs,
                            unsigned ntree_limit, bool approximate, int condition = 0,
                            unsigned condition_feature = 0) override {
     model_.LazyInitModel();
@@ -165,7 +165,7 @@ class GBLinear : public GradientBooster {
     const int ngroup = model_.learner_model_param->num_output_group;
     const size_t ncolumns = model_.learner_model_param->num_feature + 1;
     // allocate space for (#features + bias) times #groups times #rows
-    std::vector<bst_float>& contribs = *out_contribs;
+    std::vector<bst_float>& contribs = out_contribs->HostVector();
     contribs.resize(p_fmat->Info().num_row_ * ncolumns * ngroup);
     // make sure contributions is zeroed, we could be reusing a previously allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
@@ -195,9 +195,9 @@ class GBLinear : public GradientBooster {
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat,
-                                       std::vector<bst_float>* out_contribs,
+                                       HostDeviceVector<bst_float>* out_contribs,
                                        unsigned ntree_limit, bool approximate) override {
-    std::vector<bst_float>& contribs = *out_contribs;
+    std::vector<bst_float>& contribs = out_contribs->HostVector();
 
     // linear models have no interaction effects
     const size_t nelements = model_.learner_model_param->num_feature *

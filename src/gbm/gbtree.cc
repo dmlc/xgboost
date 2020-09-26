@@ -600,7 +600,7 @@ class Dart : public GBTree {
   }
 
   void PredictContribution(DMatrix* p_fmat,
-                           std::vector<bst_float>* out_contribs,
+                           HostDeviceVector<bst_float>* out_contribs,
                            unsigned ntree_limit, bool approximate, int condition,
                            unsigned condition_feature) override {
     CHECK(configured_);
@@ -609,7 +609,7 @@ class Dart : public GBTree {
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat,
-                                       std::vector<bst_float>* out_contribs,
+                                       HostDeviceVector<bst_float>* out_contribs,
                                        unsigned ntree_limit, bool approximate) override {
     CHECK(configured_);
     cpu_predictor_->PredictInteractionContributions(p_fmat, out_contribs, model_,
