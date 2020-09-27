@@ -71,6 +71,7 @@ build
 build_plugin
 recommonmark/
 tags
+TAGS
 *.class
 target
 *.swp
