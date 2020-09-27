@@ -5,7 +5,7 @@ import copy
 import warnings
 import json
 import numpy as np
-from .core import Booster, DMatrix, XGBoostError
+from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
 from .training import train
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
 
@@ -445,6 +445,7 @@ class XGBModel(XGBModelBase):
         # Delete the attribute after load
         self.get_booster().set_attr(scikit_learn=None)
 
+    @_deprecate_positional_args
     def fit(self, X, y, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None, early_stopping_rounds=None,
             verbose=True, xgb_model=None, sample_weight_eval_set=None,
@@ -778,6 +779,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self.use_label_encoder = use_label_encoder
         super().__init__(objective=objective, **kwargs)
 
+    @_deprecate_positional_args
     def fit(self, X, y, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None,
@@ -1167,6 +1169,7 @@ class XGBRanker(XGBModel):
         if "rank:" not in self.objective:
             raise ValueError("please use XGBRanker for ranking task")
 
+    @_deprecate_positional_args
     def fit(self, X, y, group, sample_weight=None, base_margin=None,
             eval_set=None, sample_weight_eval_set=None,
             eval_group=None, eval_metric=None,
