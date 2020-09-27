@@ -1068,9 +1068,9 @@ class LearnerImpl : public LearnerIO {
     this->Configure();
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
     if (pred_contribs) {
-      gbm_->PredictContribution(data.get(), &out_preds->HostVector(), ntree_limit, approx_contribs);
+      gbm_->PredictContribution(data.get(), out_preds, ntree_limit, approx_contribs);
     } else if (pred_interactions) {
-      gbm_->PredictInteractionContributions(data.get(), &out_preds->HostVector(), ntree_limit,
+      gbm_->PredictInteractionContributions(data.get(), out_preds, ntree_limit,
                                             approx_contribs);
     } else if (pred_leaf) {
       gbm_->PredictLeaf(data.get(), &out_preds->HostVector(), ntree_limit);

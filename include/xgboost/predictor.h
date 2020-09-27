@@ -201,7 +201,7 @@ class Predictor {
    */
 
   virtual void PredictContribution(DMatrix* dmat,
-                                   std::vector<bst_float>* out_contribs,
+                                   HostDeviceVector<bst_float>* out_contribs,
                                    const gbm::GBTreeModel& model,
                                    unsigned ntree_limit = 0,
                                    std::vector<bst_float>* tree_weights = nullptr,
@@ -210,7 +210,7 @@ class Predictor {
                                    unsigned condition_feature = 0) = 0;
 
   virtual void PredictInteractionContributions(DMatrix* dmat,
-                                               std::vector<bst_float>* out_contribs,
+                                               HostDeviceVector<bst_float>* out_contribs,
                                                const gbm::GBTreeModel& model,
                                                unsigned ntree_limit = 0,
                                                std::vector<bst_float>* tree_weights = nullptr,
