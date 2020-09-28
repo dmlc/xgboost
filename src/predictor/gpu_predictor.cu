@@ -559,8 +559,7 @@ class GPUPredictor : public xgboost::Predictor {
                            bool approximate, int condition,
                            unsigned condition_feature) override {
     if (approximate) {
-      LOG(FATAL) << "[Internal error]: " << __func__
-                 << " approximate is not implemented in GPU Predictor.";
+      LOG(FATAL) << "Approximated contribution is not implemented in GPU Predictor.";
     }
 
     dh::safe_cuda(cudaSetDevice(generic_param_->gpu_id));
