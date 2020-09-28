@@ -27,6 +27,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <tuple>
 
 #include "xgboost/logging.h"
 #include "xgboost/host_device_vector.h"
@@ -1059,14 +1060,14 @@ struct SegmentedUniqueReduceOp {
  *
  * \return Number of unique values in total.
  */
-template <typename KeyInIt, typename KeyOutIt, typename ValInIt,
+template <typename DerivedPolicy, typename KeyInIt, typename KeyOutIt, typename ValInIt,
           typename ValOutIt, typename Comp>
 size_t
-SegmentedUnique(KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
+SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
+                KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
                 ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
                 Comp comp) {
   using Key = thrust::pair<size_t, typename thrust::iterator_traits<ValInIt>::value_type>;
-  dh::XGBCachingDeviceAllocator<char> alloc;
   auto unique_key_it = dh::MakeTransformIterator<Key>(
       thrust::make_counting_iterator(static_cast<size_t>(0)),
       [=] __device__(size_t i) {
@@ -1083,7 +1084,7 @@ SegmentedUnique(KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt v
       thrust::make_discard_iterator(),
       detail::SegmentedUniqueReduceOp<Key, KeyOutIt>{key_segments_out});
   auto uniques_ret = thrust::unique_by_key_copy(
-      thrust::cuda::par(alloc), unique_key_it, unique_key_it + n_inputs,
+      exec, unique_key_it, unique_key_it + n_inputs,
       val_first, reduce_it, val_out,
       [=] __device__(Key const &l, Key const &r) {
         if (l.first == r.first) {
@@ -1094,8 +1095,16 @@ SegmentedUnique(KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt v
       });
   auto n_uniques = uniques_ret.second - val_out;
   CHECK_LE(n_uniques, n_inputs);
-  thrust::exclusive_scan(thrust::cuda::par(alloc), key_segments_out,
+  thrust::exclusive_scan(exec, key_segments_out,
                          key_segments_out + segments_len, key_segments_out, 0);
   return n_uniques;
+}
+
+template <typename... Inputs,
+          std::enable_if_t<std::tuple_size<std::tuple<Inputs...>>::value == 7>
+              * = nullptr>
+size_t SegmentedUnique(Inputs &&...inputs) {
+  dh::XGBCachingDeviceAllocator<char> alloc;
+  return SegmentedUnique(thrust::cuda::par(alloc), std::forward<Inputs&&>(inputs)...);
 }
 }  // namespace dh
