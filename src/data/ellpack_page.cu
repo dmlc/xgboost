@@ -175,12 +175,12 @@ void CopyDataToEllpack(const AdapterBatchT& batch, EllpackPageImpl* dst,
   // correct output position
   auto counting = thrust::make_counting_iterator(0llu);
   data::IsValidFunctor is_valid(missing);
-  auto key_iter = dh::MakeTransformIterator<size_t>(
+  auto key_iter = thrust::make_transform_iterator(
       counting,
       [=] __device__(size_t idx) {
         return batch.GetElement(idx).row_idx;
       });
-  auto value_iter = dh::MakeTransformIterator<size_t>(
+  auto value_iter = thrust::make_transform_iterator(
       counting,
       [=] __device__(size_t idx) -> size_t {
         return is_valid(batch.GetElement(idx));
