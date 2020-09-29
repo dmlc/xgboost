@@ -404,6 +404,7 @@ template class HostDeviceVector<Entry>;
 template class HostDeviceVector<uint64_t>;  // bst_row_t
 template class HostDeviceVector<uint32_t>;  // bst_feature_t
 template class HostDeviceVector<RegTree::Node>;
+template class HostDeviceVector<RegTree::Segment>;
 template class HostDeviceVector<RTreeNodeStat>;
 
 #if defined(__APPLE__)
