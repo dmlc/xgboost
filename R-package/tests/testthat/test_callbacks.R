@@ -238,7 +238,7 @@ test_that("early stopping xgb.train works", {
 test_that("early stopping using a specific metric works", {
   set.seed(11)
   expect_output(
-    bst <- xgb.train(param, dtrain, nrounds = 20, watchlist, eta = 0.6,
+    bst <- xgb.train(param[-2], dtrain, nrounds = 20, watchlist, eta = 0.6,
                      eval_metric = "logloss", eval_metric = "auc",
                      callbacks = list(cb.early.stop(stopping_rounds = 3, maximize = FALSE,
                                                     metric_name = 'test_logloss')))
