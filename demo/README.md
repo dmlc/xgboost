@@ -78,6 +78,7 @@ XGBoost is extensively used by machine learning practitioners to create state of
 this is a list of machine learning winning solutions with XGBoost.
 Please send pull requests if you find ones that are missing here.
 
+- Radek Osmulski, 1st place of the [iMaterialist Challenge (Fashion) at FGVC5](https://www.kaggle.com/c/imaterialist-challenge-fashion-2018/overview). Link to [the winning solution](https://www.kaggle.com/c/imaterialist-challenge-fashion-2018/discussion/57944).
 - Maksims Volkovs, Guangwei Yu and Tomi Poutanen, 1st place of the [2017 ACM RecSys challenge](http://2017.recsyschallenge.com/). Link to [paper](http://www.cs.toronto.edu/~mvolkovs/recsys2017_challenge.pdf).
 - Vlad Sandulescu, Mihai Chiru, 1st place of the [KDD Cup 2016 competition](https://kddcup2016.azurewebsites.net). Link to [the arxiv paper](http://arxiv.org/abs/1609.02728).
 - Marios Michailidis, Mathias Müller and HJ van Veen, 1st place of the [Dato Truely Native? competition](https://www.kaggle.com/c/dato-native). Link to [the Kaggle interview](http://blog.kaggle.com/2015/12/03/dato-winners-interview-1st-place-mad-professors/).
