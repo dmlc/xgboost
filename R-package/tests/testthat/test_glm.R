@@ -8,7 +8,7 @@ test_that("gblinear works", {
   dtrain <- xgb.DMatrix(agaricus.train$data, label = agaricus.train$label)
   dtest <- xgb.DMatrix(agaricus.test$data, label = agaricus.test$label)
 
-  param <- list(objective = "binary:logistic", booster = "gblinear",
+  param <- list(objective = "binary:logistic", eval_metric = "error", booster = "gblinear",
                 nthread = 2, eta = 0.8, alpha = 0.0001, lambda = 0.0001)
   watchlist <- list(eval = dtest, train = dtrain)
 
