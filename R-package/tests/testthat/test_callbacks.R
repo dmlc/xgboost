@@ -26,7 +26,8 @@ watchlist <- list(train = dtrain, test = dtest)
 
 err <- function(label, pr) sum((pr > 0.5) != label) / length(label)
 
-param <- list(objective = "binary:logistic", max_depth = 2, nthread = 2)
+param <- list(objective = "binary:logistic", eval_metric: "error",
+              max_depth = 2, nthread = 2)
 
 
 test_that("cb.print.evaluation works as expected", {
@@ -105,7 +106,8 @@ test_that("cb.evaluation.log works as expected", {
 })
 
 
-param <- list(objective = "binary:logistic", max_depth = 4, nthread = 2)
+param <- list(objective = "binary:logistic", eval_metric: "error",
+              max_depth = 4, nthread = 2)
 
 test_that("can store evaluation_log without printing", {
   expect_silent(
