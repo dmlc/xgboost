@@ -95,8 +95,7 @@ void TestQuantileElemRank(int32_t device, Span<SketchEntry const> in,
 
 TEST(GPUQuantile, Prune) {
   constexpr size_t kRows = 1000, kCols = 100;
-  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins,
-                                 MetaInfo const &info) {
+  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
     HostDeviceVector<FeatureType> ft;
     SketchContainer sketch(ft, n_bins, kCols, kRows, 0);
 
@@ -293,9 +292,8 @@ TEST(GPUQuantile, AllReduceBasic) {
   }
 
   constexpr size_t kRows = 1000, kCols = 100;
-  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins,
-                                 MetaInfo const &info) {
-    // Set up single node version
+  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
+    // Set up single node version;
     HostDeviceVector<FeatureType> ft;
     SketchContainer sketch_on_single_node(ft, n_bins, kCols, kRows, 0);
 

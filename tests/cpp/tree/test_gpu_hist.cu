@@ -80,7 +80,7 @@ void TestBuildHist(bool use_shared_memory_histograms) {
   param.Init(args);
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
-  GPUHistMakerDevice<GradientSumT> maker(0, page.get(), kNRows, param, kNCols, kNCols,
+  GPUHistMakerDevice<GradientSumT> maker(0, page.get(), {}, kNRows, param, kNCols, kNCols,
                                          true, batch_param);
   xgboost::SimpleLCG gen;
   xgboost::SimpleRealUniformDistribution<bst_float> dist(0.0f, 1.0f);
@@ -130,6 +130,48 @@ TEST(GpuHist, BuildHistSharedMem) {
   TestBuildHist<GradientPair>(true);
 }
 
+TEST(GpuHist, ApplySplit) {
+  RegTree tree;
+  ExpandEntry candidate;
+  candidate.nid = 0;
+  candidate.left_weight = 1.0f;
+  candidate.right_weight = 2.0f;
+  candidate.base_weight = 3.0f;
+  candidate.split.is_cat = true;
+  candidate.split.fvalue = 1.0f;  // at cat 1
+
+  size_t n_rows = 10;
+  size_t n_cols = 10;
+
+  auto m = RandomDataGenerator{n_rows, n_cols, 0}.GenerateDMatrix(true);
+  GenericParameter p;
+  p.InitAllowUnknown(Args{});
+
+  TrainParam tparam;
+  tparam.InitAllowUnknown(Args{});
+  BatchParam bparam;
+  bparam.gpu_id = 0;
+  bparam.max_bin = 3;
+  bparam.gpu_page_size = 0;
+
+  for (auto& ellpack : m->GetBatches<EllpackPage>(bparam)){
+    auto impl = ellpack.Impl();
+    HostDeviceVector<FeatureType> feature_types(10, FeatureType::kCategorical);
+    feature_types.SetDevice(bparam.gpu_id);
+    tree::GPUHistMakerDevice<GradientPairPrecise> updater(
+        0, impl, feature_types.ConstDeviceSpan(), n_rows, tparam, 0, n_cols, true, bparam);
+    updater.ApplySplit(candidate, &tree);
+
+    ASSERT_EQ(tree.GetSplitTypes().size(), 3);
+    ASSERT_EQ(tree.GetSplitTypes()[0], FeatureType::kCategorical);
+    ASSERT_EQ(tree.GetSplitCategories().size(), 1);
+    uint32_t bits = 1u << 30;  // bits: 0, 1, 0, 0, 0, ..., 0
+    ASSERT_EQ(tree.GetSplitCategories().back(), bits);
+
+    ASSERT_EQ(updater.node_categories.size(), 1);
+  }
+}
+
 HistogramCutsWrapper GetHostCutMatrix () {
   HistogramCutsWrapper cmat;
   cmat.SetPtrs({0, 3, 6, 9, 12, 15, 18, 21, 24});
@@ -154,19 +196,18 @@ TEST(GpuHist, EvaluateRootSplit) {
 
   TrainParam param;
 
-  std::vector<std::pair<std::string, std::string>> args {
-    {"max_depth", "1"},
-  {"max_leaves", "0"},
+  std::vector<std::pair<std::string, std::string>> args{
+      {"max_depth", "1"},
+      {"max_leaves", "0"},
 
-  // Disable all other parameters.
-  {"colsample_bynode", "1"},
-  {"colsample_bylevel", "1"},
-  {"colsample_bytree", "1"},
-  {"min_child_weight", "0.01"},
-  {"reg_alpha", "0"},
-  {"reg_lambda", "0"},
-  {"max_delta_step", "0"}
-  };
+      // Disable all other parameters.
+      {"colsample_bynode", "1"},
+      {"colsample_bylevel", "1"},
+      {"colsample_bytree", "1"},
+      {"min_child_weight", "0.01"},
+      {"reg_alpha", "0"},
+      {"reg_lambda", "0"},
+      {"max_delta_step", "0"}};
   param.Init(args);
   for (size_t i = 0; i < kNCols; ++i) {
     param.monotone_constraints.emplace_back(0);
@@ -178,7 +219,7 @@ TEST(GpuHist, EvaluateRootSplit) {
   auto page = BuildEllpackPage(kNRows, kNCols);
   BatchParam batch_param{};
   GPUHistMakerDevice<GradientPairPrecise>
-    maker(0, page.get(), kNRows, param, kNCols, kNCols, true, batch_param);
+      maker(0, page.get(), {}, kNRows, param, kNCols, kNCols, true, batch_param);
   // Initialize GPUHistMakerDevice::node_sum_gradients
   maker.node_sum_gradients = {};
 
@@ -257,7 +298,6 @@ void TestHistogramIndexImpl() {
 
   ASSERT_EQ(maker->page->Cuts().TotalBins(), maker_ext->page->Cuts().TotalBins());
   ASSERT_EQ(maker->page->gidx_buffer.Size(), maker_ext->page->gidx_buffer.Size());
-
 }
 
 TEST(GpuHist, TestHistogramIndex) {
