@@ -136,11 +136,8 @@ private[this] class XGBoostExecutionParamsFactory(rawParams: Map[String, Any], s
       params: Map[String, Any],
       sc: SparkContext): Map[String, Any] = {
     val coresPerTask = sc.getConf.getInt("spark.executor.cores", 1)
-    val cpusPerTask = sc.getConf.getInt("spark.task.cpus", 1)
     var overridedParams = params
-    if (isLocal) {
-      overridedParams = overridedParams + ("nthread" -> cpusPerTask)
-    } else if (overridedParams.contains("nthread")) {
+    if (overridedParams.contains("nthread")) {
       val nThread = overridedParams("nthread").toString.toInt
       require(nThread <= coresPerTask,
         s"the nthread configuration ($nThread) must be no larger than " +
@@ -520,23 +517,15 @@ object XGBoost extends Serializable {
           throw new XGBoostError("Building watches failed")
       }
 
-      if (xgbExecutionParams.isLocal) {
-        watchrdd.mapPartitions(iter => {
-          val watches = iter.next
-          buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, xgbExecutionParams.obj,
-            xgbExecutionParams.eval, prevBooster)
-        }).cache()
-      } else {
-        val reducedrdd = processWatchesRDD(watchrdd, xgbExecutionParams.numWorkers).cache()
-        reducedrdd.count()
-        watchrdd.unpersist()
+      val reducedrdd = processWatchesRDD(watchrdd, xgbExecutionParams.numWorkers).cache()
+      reducedrdd.count()
+      watchrdd.unpersist()
 
-        reducedrdd.mapPartitions(iter => {
-          val watches = iter.next
-          buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, xgbExecutionParams.obj,
-            xgbExecutionParams.eval, prevBooster)
-        }).cache()
-      }
+      reducedrdd.mapPartitions(iter => {
+        val watches = iter.next
+        buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, xgbExecutionParams.obj,
+          xgbExecutionParams.eval, prevBooster)
+      }).cache()
     } else {
       val nPartitions = if (xgbExecutionParams.isLocal) {
         xgbExecutionParams.numWorkers
@@ -569,23 +558,15 @@ object XGBoost extends Serializable {
           throw new XGBoostError("Building watches failed")
       }
 
-      if (xgbExecutionParams.isLocal) {
-        watchrdd.mapPartitions(iter => {
-          val watches = iter.next
-          buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, xgbExecutionParams.obj,
-            xgbExecutionParams.eval, prevBooster)
-        }).cache()
-      } else {
-        val reducedrdd = processWatchesRDD(watchrdd, xgbExecutionParams.numWorkers).cache()
-        reducedrdd.count()
-        watchrdd.unpersist()
+      val reducedrdd = processWatchesRDD(watchrdd, xgbExecutionParams.numWorkers).cache()
+      reducedrdd.count()
+      watchrdd.unpersist()
 
-        reducedrdd.mapPartitions(iter => {
-          val watches = iter.next
-          buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, xgbExecutionParams.obj,
-            xgbExecutionParams.eval, prevBooster)
-        }).cache()
-      }
+      reducedrdd.mapPartitions(iter => {
+        val watches = iter.next
+        buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, xgbExecutionParams.obj,
+          xgbExecutionParams.eval, prevBooster)
+      }).cache()
     }
   }
 
@@ -622,22 +603,26 @@ object XGBoost extends Serializable {
   }
 
   private def processWatchesRDD(watchrdd: RDD[Watches], numWorkers: Int): RDD[Watches] = {
-    val coalescedrdd = watchrdd.coalesce(1,
+    if (watchrdd.sparkContext.isLocal) {
+      watchrdd.coalesce(numWorkers)
+    } else {
+      val coalescedrdd = watchrdd.coalesce(1,
         partitionCoalescer = Some(new ExecutorInProcessCoalescePartitioner()))
-    coalescedrdd.mapPartitions { iter =>
-        val matcharr = iter.toArray
-        val totalsize = matcharr.foldLeft(Map("train" -> 0L)) {
-           (l, r) => {
-             val merged = l.toSeq ++ r.dataVecSizeMap.toSeq
-             merged.groupBy(_._1).mapValues(_.map(_._2).sum)
-           }
-        }
-        Iterator( matcharr.reduce { (l, r) =>
-          val rst = l.combineDMatrix(r, totalsize)
-          l.delete()
-          r.delete()
-          rst
-       })
+      coalescedrdd.mapPartitions { iter =>
+          val matcharr = iter.toArray
+          val totalsize = matcharr.foldLeft(Map("train" -> 0L)) {
+             (l, r) => {
+               val merged = l.toSeq ++ r.dataVecSizeMap.toSeq
+               merged.groupBy(_._1).mapValues(_.map(_._2).sum)
+             }
+          }
+          Iterator( matcharr.reduce { (l, r) =>
+            val rst = l.combineDMatrix(r, totalsize)
+            l.delete()
+            r.delete()
+            rst
+         })
+      }
     }
   }
 
