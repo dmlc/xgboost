@@ -125,7 +125,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
     this->Transform(io_preds, true);
   }
   const char* DefaultEvalMetric() const override {
-    return "merror";
+    return "mlogloss";
   }
 
   inline void Transform(HostDeviceVector<bst_float> *io_preds, bool prob) {
