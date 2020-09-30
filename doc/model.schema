@@ -93,6 +93,30 @@
                     "items": {
                       "type": "boolean"
                     }
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "categories_nodes": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "categories_segments": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "categorical_sizes": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
                   }
                 },
                 "required": [
@@ -105,7 +129,11 @@
                   "parents",
                   "split_indices",
                   "split_conditions",
-                  "default_left"
+                  "default_left",
+                  "categories",
+                  "categories_nodes",
+                  "categories_segments",
+                  "categories_sizes"
                 ]
               }
             },
