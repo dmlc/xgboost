@@ -161,6 +161,25 @@ struct WriteCompressedEllpackFunctor {
   }
 };
 
+namespace {
+template <typename BatchT>
+struct KeyOp {
+  BatchT batch;
+  __device__ size_t operator()(size_t idx) {
+    return batch.GetElement(idx).row_idx;
+  }
+};
+
+template <typename BatchT>
+struct ValOp {
+  BatchT batch;
+  data::IsValidFunctor is_valid;
+  __device__ size_t operator()(size_t idx) {
+    return static_cast<size_t>(is_valid(batch.GetElement(idx)));
+  }
+};
+}  // anonymous namespace
+
 // Here the data is already correctly ordered and simply needs to be compacted
 // to remove missing data
 template <typename AdapterBatchT>
@@ -177,14 +196,10 @@ void CopyDataToEllpack(const AdapterBatchT& batch, EllpackPageImpl* dst,
   data::IsValidFunctor is_valid(missing);
   auto key_iter = thrust::make_transform_iterator(
       counting,
-      [=] __device__(size_t idx) {
-        return batch.GetElement(idx).row_idx;
-      });
+      KeyOp<AdapterBatchT>{batch});
   auto value_iter = thrust::make_transform_iterator(
       counting,
-      [=] __device__(size_t idx) -> size_t {
-        return is_valid(batch.GetElement(idx));
-      });
+      ValOp<AdapterBatchT>{batch, is_valid});
 
   auto key_value_index_iter = thrust::make_zip_iterator(
       thrust::make_tuple(key_iter, value_iter, counting));
