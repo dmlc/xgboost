@@ -4,6 +4,7 @@ include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
 cmake_policy(SET CMP0079 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
 cmake_policy(SET CMP0063 NEW)
 
 if ((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUAL 3.13))
@@ -191,9 +192,6 @@ foreach(lib rabit rabit_mock_static)
   # from dmlc is correctly applied to rabit.
   if (TARGET ${lib})
     target_link_libraries(${lib} dmlc ${CMAKE_THREAD_LIBS_INIT})
-    if (HIDE_CXX_SYMBOLS)  # Hide all C++ symbols from Rabit
-      set_target_properties(${lib} PROPERTIES CXX_VISIBILITY_PRESET hidden)
-    endif (HIDE_CXX_SYMBOLS)
     if (ENABLE_ALL_WARNINGS)
       target_compile_options(${lib} PRIVATE -Wall -Wextra)
     endif (ENABLE_ALL_WARNINGS)
@@ -222,8 +220,9 @@ endif (USE_CUDA)
 
 #-- Hide all C++ symbols
 if (HIDE_CXX_SYMBOLS)
-  set_target_properties(objxgboost PROPERTIES CXX_VISIBILITY_PRESET hidden)
-  set_target_properties(xgboost PROPERTIES CXX_VISIBILITY_PRESET hidden)
+  foreach(target objxgboost xgboost dmlc rabit rabit_mock_static)
+    set_target_properties(${target} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+  endforeach()
 endif (HIDE_CXX_SYMBOLS)
 
 target_include_directories(xgboost
