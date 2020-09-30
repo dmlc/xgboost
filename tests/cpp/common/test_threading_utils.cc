@@ -89,5 +89,14 @@ TEST(ParallelFor2dNonUniform, Test) {
   omp_set_num_threads(old);
 }
 
+TEST(OmpSetNumThreads, Basic) {
+  OmpSetNumThreads(2);
+  ASSERT_EQ(omp_get_max_threads(), 2);
+  OmpSetNumThreads(0);
+  ASSERT_EQ(omp_get_max_threads(), omp_get_num_procs());
+  OmpSetNumThreads(1);
+  OmpSetNumThreads(0);
+  ASSERT_EQ(omp_get_max_threads(), omp_get_num_procs());
+}
 }  // namespace common
 }  // namespace xgboost

@@ -144,6 +144,14 @@ void ParallelFor(size_t size, size_t nthreads, Func fn) {
   omp_exc.Rethrow();
 }
 
+inline int32_t OmpSetNumThreads(int32_t threads) {
+  int32_t nthread_original = omp_get_max_threads();
+  if (threads <= 0) {
+    threads = omp_get_num_procs();
+  }
+  omp_set_num_threads(threads);
+  return nthread_original;
+}
 }  // namespace common
 }  // namespace xgboost
 
