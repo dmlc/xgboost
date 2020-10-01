@@ -979,7 +979,7 @@ AllreduceRobust::TryRecoverData(RecoverType role,
  *  of specific seqno from other nodes.
  */
 AllreduceRobust::ReturnType AllreduceRobust::TryRestoreCache(bool requester,
-  const int min_seq, const int max_seq) {
+  const int , const int max_seq) {
   // clear requester and rebuild from those with most cache entries
   if (requester) {
     assert_(cur_cache_seq_ <= max_seq, "requester is expected to have fewer cache entries");
