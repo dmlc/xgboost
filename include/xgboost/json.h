@@ -84,7 +84,7 @@ class JsonString : public Value {
       Value(ValueKind::kString), str_{str} {}
   JsonString(std::string&& str) :  // NOLINT
       Value(ValueKind::kString), str_{std::move(str)} {}
-  JsonString(JsonString&& str) :  // NOLINT
+  JsonString(JsonString&& str) noexcept :  // NOLINT
       Value(ValueKind::kString), str_{std::move(str.str_)} {}
 
   void Save(JsonWriter* writer) override;
@@ -179,7 +179,7 @@ class JsonNumber : public Value {
   JsonNumber(FloatT value) : Value{ValueKind::kNumber},  // NOLINT
                              number_{static_cast<Float>(value)} {}
   JsonNumber(JsonNumber const& that) = delete;
-  JsonNumber(JsonNumber&& that) : Value{ValueKind::kNumber}, number_{that.number_} {}
+  JsonNumber(JsonNumber&& that) noexcept : Value{ValueKind::kNumber}, number_{that.number_} {}
 
   void Save(JsonWriter* writer) override;
 
@@ -227,7 +227,7 @@ class JsonInteger : public Value {
       : Value(ValueKind::kInteger),
         integer_{static_cast<Int>(value)} {}
 
-  JsonInteger(JsonInteger &&that)
+  JsonInteger(JsonInteger &&that) noexcept
       : Value{ValueKind::kInteger}, integer_{that.integer_} {}
 
   Json& operator[](std::string const & key) override;
@@ -250,7 +250,7 @@ class JsonNull : public Value {
  public:
   JsonNull() : Value(ValueKind::kNull) {}
   JsonNull(std::nullptr_t) : Value(ValueKind::kNull) {}  // NOLINT
-  JsonNull(JsonNull&& that) : Value(ValueKind::kNull) {}
+  JsonNull(JsonNull&& that) noexcept : Value(ValueKind::kNull) {}
 
   void Save(JsonWriter* writer) override;
 
@@ -267,7 +267,7 @@ class JsonNull : public Value {
 
 /*! \brief Describes both true and false. */
 class JsonBoolean : public Value {
-  bool boolean_;
+  bool boolean_ = false;
 
  public:
   JsonBoolean() : Value(ValueKind::kBoolean) {}  // NOLINT
@@ -278,7 +278,7 @@ class JsonBoolean : public Value {
               std::is_same<Bool, bool const>::value>::type* = nullptr>
   JsonBoolean(Bool value) :  // NOLINT
       Value(ValueKind::kBoolean), boolean_{value} {}
-  JsonBoolean(JsonBoolean&& value) :  // NOLINT
+  JsonBoolean(JsonBoolean&& value) noexcept:  // NOLINT
       Value(ValueKind::kBoolean), boolean_{value.boolean_} {}
 
   void Save(JsonWriter* writer) override;

@@ -113,7 +113,7 @@ class TreeRefresher: public TreeUpdater {
   inline static void AddStats(const RegTree &tree,
                               const RegTree::FVec &feat,
                               const std::vector<GradientPair> &gpair,
-                              const MetaInfo &info,
+                              const MetaInfo&,
                               const bst_uint ridx,
                               GradStats *gstats) {
     // start from groups that belongs to current data

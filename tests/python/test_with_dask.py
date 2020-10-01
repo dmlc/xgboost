@@ -274,7 +274,7 @@ def test_dask_classifier():
             X, y = generate_array()
             y = (y * 10).astype(np.int32)
             classifier = xgb.dask.DaskXGBClassifier(
-                verbosity=1, n_estimators=2)
+                verbosity=1, n_estimators=2, eval_metric='merror')
             classifier.client = client
             classifier.fit(X, y, eval_set=[(X, y)])
             prediction = classifier.predict(X)
@@ -386,6 +386,7 @@ def run_empty_dmatrix_cls(client, parameters):
     y = dd.from_array(np.random.randint(low=0, high=n_classes, size=kRows))
     dtrain = xgb.dask.DaskDMatrix(client, X, y)
     parameters['objective'] = 'multi:softprob'
+    parameters['eval_metric'] = 'merror'
     parameters['num_class'] = n_classes
 
     out = xgb.dask.train(client, parameters,
@@ -482,7 +483,7 @@ async def run_dask_classifier_asyncio(scheduler_address):
         X, y = generate_array()
         y = (y * 10).astype(np.int32)
         classifier = await xgb.dask.DaskXGBClassifier(
-            verbosity=1, n_estimators=2)
+            verbosity=1, n_estimators=2, eval_metric='merror')
         classifier.client = client
         await classifier.fit(X, y, eval_set=[(X, y)])
         prediction = await classifier.predict(X)

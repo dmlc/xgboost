@@ -33,19 +33,19 @@ struct HostDeviceVectorImpl {
 };
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(size_t size, T v, int device)
+HostDeviceVector<T>::HostDeviceVector(size_t size, T v, int)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(size, v);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, int device)
+HostDeviceVector<T>::HostDeviceVector(std::initializer_list<T> init, int)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init);
 }
 
 template <typename T>
-HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, int device)
+HostDeviceVector<T>::HostDeviceVector(const std::vector<T>& init, int)
   : impl_(nullptr) {
   impl_ = new HostDeviceVectorImpl<T>(init);
 }
@@ -166,7 +166,7 @@ bool HostDeviceVector<T>::DeviceCanWrite() const {
 }
 
 template <typename T>
-void HostDeviceVector<T>::SetDevice(int device) const {}
+void HostDeviceVector<T>::SetDevice(int ) const {}
 
 // explicit instantiations are required, as HostDeviceVector isn't header-only
 template class HostDeviceVector<bst_float>;

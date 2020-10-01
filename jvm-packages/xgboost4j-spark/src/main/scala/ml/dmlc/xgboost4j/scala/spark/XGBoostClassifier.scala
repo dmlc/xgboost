@@ -154,10 +154,10 @@ class XGBoostClassifier (
     require(isDefined(objective), "Users must set \'objective\' via xgboostParams.")
     if ($(objective).startsWith("multi")) {
       // multi
-      "merror"
+      "mlogloss"
     } else {
       // binary
-      "error"
+      "logloss"
     }
   }
 

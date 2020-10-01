@@ -142,7 +142,8 @@ def main(args):
 
     native_results = {}
     # Use the same objective function defined in XGBoost.
-    booster_native = xgb.train({'num_class': kClasses},
+    booster_native = xgb.train({'num_class': kClasses,
+                                'eval_metric': 'merror'},
                                m,
                                num_boost_round=kRounds,
                                evals_result=native_results,

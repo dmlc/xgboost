@@ -103,7 +103,7 @@ struct LogisticRegressionOneAPI {
 
 // logistic loss for binary classification task
 struct LogisticClassificationOneAPI : public LogisticRegressionOneAPI {
-  static const char* DefaultEvalMetric() { return "error"; }
+  static const char* DefaultEvalMetric() { return "logloss"; }
   static const char* Name() { return "binary:logistic_oneapi"; }
 };
 

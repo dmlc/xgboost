@@ -99,7 +99,7 @@ class DistributedHistRowsAdder;
 // training parameters specific to this algorithm
 struct CPUHistMakerTrainParam
     : public XGBoostParameter<CPUHistMakerTrainParam> {
-  bool single_precision_histogram;
+  bool single_precision_histogram = false;
   // declare parameters
   DMLC_DECLARE_PARAMETER(CPUHistMakerTrainParam) {
     DMLC_DECLARE_FIELD(single_precision_histogram).set_default(false).describe(
@@ -127,7 +127,7 @@ class QuantileHistMaker: public TreeUpdater {
     FromJson(config.at("train_param"), &this->param_);
     try {
       FromJson(config.at("cpu_hist_train_param"), &this->hist_maker_param_);
-    } catch (std::out_of_range& e) {
+    } catch (std::out_of_range&) {
       // XGBoost model is from 1.1.x, so 'cpu_hist_train_param' is missing.
       // We add this compatibility check because it's just recently that we (developers) began
       // persuade R users away from using saveRDS() for model serialization. Hopefully, one day,
@@ -191,7 +191,7 @@ class QuantileHistMaker: public TreeUpdater {
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
-    explicit NodeEntry(const TrainParam& param)
+    explicit NodeEntry(const TrainParam&)
         : root_gain(0.0f), weight(0.0f) {}
   };
   // actual builder that runs the algorithm
@@ -229,7 +229,7 @@ class QuantileHistMaker: public TreeUpdater {
       if (param_.enable_feature_grouping > 0) {
         hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
-        hist_builder_.BuildHist(gpair, row_indices, gmat, hist, data_layout_ != kSparseData);
+        hist_builder_.BuildHist(gpair, row_indices, gmat, hist, data_layout_ != DataLayout::kSparseData);
       }
     }
 
@@ -442,7 +442,7 @@ class QuantileHistMaker: public TreeUpdater {
     // list of nodes whose histograms would be built explicitly.
     std::vector<ExpandEntry> nodes_for_explicit_hist_build_;
 
-    enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
+    enum class DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
 
     common::Monitor builder_monitor_;

@@ -117,7 +117,8 @@ class TestModels(unittest.TestCase):
         # learning_rates as a list
         # init eta with 0 to check whether learning_rates work
         param = {'max_depth': 2, 'eta': 0, 'verbosity': 0,
-                 'objective': 'binary:logistic', 'tree_method': tree_method}
+                 'objective': 'binary:logistic', 'eval_metric': 'error',
+                 'tree_method': tree_method}
         evals_result = {}
         bst = xgb.train(param, dtrain, num_round, watchlist,
                         callbacks=[xgb.callback.reset_learning_rate([
@@ -131,7 +132,8 @@ class TestModels(unittest.TestCase):
 
         # init learning_rate with 0 to check whether learning_rates work
         param = {'max_depth': 2, 'learning_rate': 0, 'verbosity': 0,
-                 'objective': 'binary:logistic', 'tree_method': tree_method}
+                 'objective': 'binary:logistic', 'eval_metric': 'error',
+                 'tree_method': tree_method}
         evals_result = {}
         bst = xgb.train(param, dtrain, num_round, watchlist,
                         callbacks=[xgb.callback.reset_learning_rate(
@@ -145,7 +147,7 @@ class TestModels(unittest.TestCase):
         # check if learning_rates override default value of eta/learning_rate
         param = {
             'max_depth': 2, 'verbosity': 0, 'objective': 'binary:logistic',
-            'tree_method': tree_method
+            'eval_metric': 'error', 'tree_method': tree_method
         }
         evals_result = {}
         bst = xgb.train(param, dtrain, num_round, watchlist,

@@ -100,8 +100,8 @@ void Allreduce_(void *sendrecvbuf,  // NOLINT
                 size_t type_nbytes,
                 size_t count,
                 IEngine::ReduceFunction red,
-                mpi::DataType dtype,
-                mpi::OpType op,
+                mpi::DataType,
+                mpi::OpType ,
                 IEngine::PreprocFunction prepare_fun,
                 void *prepare_arg,
                 const char* _file,
@@ -119,7 +119,7 @@ int ReduceHandle::TypeSize(const MPI::Datatype &dtype) {
   return static_cast<int>(dtype.type_size);
 }
 
-void ReduceHandle::Init(IEngine::ReduceFunction redfunc, size_t type_nbytes) {
+void ReduceHandle::Init(IEngine::ReduceFunction redfunc, size_t ) {
   utils::Assert(redfunc_ == nullptr, "cannot initialize reduce handle twice");
   redfunc_ = redfunc;
 }
