@@ -77,7 +77,7 @@ __model_doc = '''
     gamma : float
         Minimum loss reduction required to make a further partition on a leaf
         node of the tree.
-    min_child_weight : int
+    min_child_weight : float
         Minimum sum of instance weight(hessian) needed in a child.
     max_delta_step : int
         Maximum delta step we allow each tree's weight estimation to be.
@@ -246,7 +246,7 @@ class XGBModel(XGBModelBase):
 
     def _more_tags(self):
         '''Tags used for scikit-learn data validation.'''
-        return {'allow_nan': True}
+        return {'allow_nan': True, 'no_validation': True}
 
     def get_booster(self):
         """Get the underlying xgboost Booster of this model.
@@ -258,7 +258,8 @@ class XGBModel(XGBModelBase):
         booster : a xgboost booster of underlying model
         """
         if not hasattr(self, '_Booster'):
-            raise XGBoostError('need to call fit or load_model beforehand')
+            from sklearn.exceptions import NotFittedError
+            raise NotFittedError('need to call fit or load_model beforehand')
         return self._Booster
 
     def set_params(self, **params):
@@ -332,7 +333,7 @@ class XGBModel(XGBModelBase):
             for k, v in internal.items():
                 if k in params.keys() and params[k] is None:
                     params[k] = parse_parameter(v)
-        except XGBoostError:
+        except ValueError:
             pass
         return params
 
@@ -504,6 +505,8 @@ class XGBModel(XGBModelBase):
 
                 [xgb.callback.reset_learning_rate(custom_rates)]
         """
+        self.n_features_in_ = X.shape[1]
+
         train_dmatrix = DMatrix(data=X, label=y, weight=sample_weight,
                                 base_margin=base_margin,
                                 missing=self.missing,
@@ -757,7 +760,10 @@ class XGBModel(XGBModelBase):
 
 @xgboost_model_doc(
     "Implementation of the scikit-learn API for XGBoost classification.",
-    ['model', 'objective'])
+    ['model', 'objective'], extra_parameters='''
+    n_estimators : int
+        Number of boosting rounds.
+''')
 class XGBClassifier(XGBModel, XGBClassifierBase):
     # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
     def __init__(self, objective="binary:logistic", **kwargs):
@@ -875,7 +881,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             # different ways of reshaping
             raise ValueError(
                 'Please reshape the input data X into 2-dimensional matrix.')
+
         self._features_count = X.shape[1]
+        self.n_features_in_ = self._features_count
+
         train_dmatrix = DMatrix(X, label=training_labels, weight=sample_weight,
                                 base_margin=base_margin,
                                 missing=self.missing, nthread=self.n_jobs)
@@ -1098,7 +1107,10 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
 
 @xgboost_model_doc(
     "scikit-learn API for XGBoost random forest regression.",
-    ['model', 'objective'])
+    ['model', 'objective'], extra_parameters='''
+    n_estimators : int
+        Number of trees in random forest to fit.
+''')
 class XGBRFRegressor(XGBRegressor):
     # pylint: disable=missing-docstring
     def __init__(self, learning_rate=1, subsample=0.8, colsample_bynode=0.8,
@@ -1264,6 +1276,8 @@ class XGBRanker(XGBModel):
             ret = DMatrix(**params)
             ret.set_group(group)
             return ret
+
+        self.n_features_in_ = X.shape[1]
 
         train_dmatrix = DMatrix(data=X, label=y, weight=sample_weight,
                                 base_margin=base_margin,

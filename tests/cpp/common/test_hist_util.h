@@ -54,9 +54,8 @@ inline data::CupyAdapter AdapterFromData(const thrust::device_vector<float> &x,
   array_interface["data"] = j_data;
   array_interface["version"] = Integer(static_cast<Integer::Int>(1));
   array_interface["typestr"] = String("<f4");
-  std::stringstream ss;
-  Json::Dump(array_interface, &ss);
-  std::string str = ss.str();
+  std::string str;
+  Json::Dump(array_interface, &str);
   return data::CupyAdapter(str);
 }
 #endif
@@ -118,7 +117,7 @@ inline void TestBinDistribution(const HistogramCuts &cuts, int column_idx,
 
   // First and last bin can have smaller
   for (auto& kv : bin_weights) {
-    EXPECT_LE(std::abs(bin_weights[kv.first] - expected_bin_weight),
+    ASSERT_LE(std::abs(bin_weights[kv.first] - expected_bin_weight),
               allowable_error);
   }
 }
@@ -151,7 +150,8 @@ inline void ValidateColumn(const HistogramCuts& cuts, int column_idx,
                            size_t num_bins) {
 
   // Check the endpoints are correct
-  EXPECT_LT(cuts.MinValues()[column_idx], sorted_column.front());
+  CHECK_GT(sorted_column.size(), 0);
+  EXPECT_LT(cuts.MinValues().at(column_idx), sorted_column.front());
   EXPECT_GT(cuts.Values()[cuts.Ptrs()[column_idx]], sorted_column.front());
   EXPECT_GE(cuts.Values()[cuts.Ptrs()[column_idx+1]-1], sorted_column.back());
 
@@ -189,6 +189,7 @@ inline void ValidateCuts(const HistogramCuts& cuts, DMatrix* dmat,
   // Collect data into columns
   std::vector<std::vector<float>> columns(dmat->Info().num_col_);
   for (auto& batch : dmat->GetBatches<SparsePage>()) {
+    ASSERT_GT(batch.Size(), 0);
     for (auto i = 0ull; i < batch.Size(); i++) {
       for (auto e : batch[i]) {
         columns[e.index].push_back(e.fvalue);

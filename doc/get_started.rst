@@ -71,7 +71,7 @@ Scala
 
   import ml.dmlc.xgboost4j.scala.DMatrix
   import ml.dmlc.xgboost4j.scala.XGBoost
-  
+
   object XGBoostScalaExample {
     def main(args: Array[String]) {
       // read trainining data, available at xgboost/demo/data

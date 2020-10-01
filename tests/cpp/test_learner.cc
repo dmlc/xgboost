@@ -3,6 +3,7 @@
  */
 #include <gtest/gtest.h>
 #include <vector>
+#include <thread>
 #include "helpers.h"
 #include <dmlc/filesystem.h>
 
@@ -147,7 +148,16 @@ TEST(Learner, JsonModelIO) {
     Json out { Object() };
     learner->SaveModel(&out);
 
-    learner->LoadModel(out);
+    dmlc::TemporaryDirectory tmpdir;
+
+    std::ofstream fout (tmpdir.path + "/model.json");
+    fout << out;
+    fout.close();
+
+    auto loaded_str = common::LoadSequentialFile(tmpdir.path + "/model.json");
+    Json loaded = Json::Load(StringView{loaded_str.c_str(), loaded_str.size()});
+
+    learner->LoadModel(loaded);
     learner->Configure();
 
     Json new_in { Object() };
@@ -173,6 +183,48 @@ TEST(Learner, JsonModelIO) {
     ASSERT_TRUE(IsA<Object>(out["learner"]["attributes"]));
     ASSERT_EQ(get<Object>(out["learner"]["attributes"]).size(), 1);
     ASSERT_EQ(out, new_in);
+  }
+}
+
+// Crashes the test runner if there are race condiditions.
+//
+// Build with additional cmake flags to enable thread sanitizer
+// which definitely catches problems. Note that OpenMP needs to be
+// disabled, otherwise thread sanitizer will also report false
+// positives.
+//
+// ```
+// -DUSE_SANITIZER=ON -DENABLED_SANITIZERS=thread -DUSE_OPENMP=OFF
+// ```
+TEST(Learner, MultiThreadedPredict) {
+  size_t constexpr kRows = 1000;
+  size_t constexpr kCols = 1000;
+
+  std::shared_ptr<DMatrix> p_dmat{
+      RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
+  p_dmat->Info().labels_.Resize(kRows);
+  CHECK_NE(p_dmat->Info().num_col_, 0);
+
+  std::shared_ptr<DMatrix> p_data{
+      RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
+  CHECK_NE(p_data->Info().num_col_, 0);
+
+  std::shared_ptr<Learner> learner{Learner::Create({p_dmat})};
+  learner->Configure();
+
+  std::vector<std::thread> threads;
+  for (uint32_t thread_id = 0;
+       thread_id < 2 * std::thread::hardware_concurrency(); ++thread_id) {
+    threads.emplace_back([learner, p_data] {
+      size_t constexpr kIters = 10;
+      auto &entry = learner->GetThreadLocal().prediction_entry;
+      for (size_t iter = 0; iter < kIters; ++iter) {
+        learner->Predict(p_data, false, &entry.predictions);
+      }
+    });
+  }
+  for (auto &thread : threads) {
+    thread.join();
   }
 }
 
@@ -295,4 +347,26 @@ TEST(Learner, GPUConfiguration) {
   }
 }
 #endif  // defined(XGBOOST_USE_CUDA)
+
+TEST(Learner, Seed) {
+  auto m = RandomDataGenerator{10, 10, 0}.GenerateDMatrix();
+  std::unique_ptr<Learner> learner {
+    Learner::Create({m})
+  };
+  auto seed = std::numeric_limits<int64_t>::max();
+  learner->SetParam("seed", std::to_string(seed));
+  learner->Configure();
+  Json config { Object() };
+  learner->SaveConfig(&config);
+  ASSERT_EQ(std::to_string(seed),
+            get<String>(config["learner"]["generic_param"]["seed"]));
+
+  seed = std::numeric_limits<int64_t>::min();
+  learner->SetParam("seed", std::to_string(seed));
+  learner->Configure();
+  learner->SaveConfig(&config);
+  ASSERT_EQ(std::to_string(seed),
+            get<String>(config["learner"]["generic_param"]["seed"]));
+}
+
 }  // namespace xgboost

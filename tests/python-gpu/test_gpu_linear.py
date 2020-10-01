@@ -1,31 +1,50 @@
 import sys
-import pytest
-import unittest
-
-sys.path.append('tests/python/')
-import test_linear              # noqa: E402
-import testing as tm            # noqa: E402
+from hypothesis import strategies, given, settings, assume
+import xgboost as xgb
+sys.path.append("tests/python")
+import testing as tm
 
 
-class TestGPULinear(unittest.TestCase):
+parameter_strategy = strategies.fixed_dictionaries({
+    'booster': strategies.just('gblinear'),
+    'eta': strategies.floats(0.01, 0.25),
+    'tolerance': strategies.floats(1e-5, 1e-2),
+    'nthread': strategies.integers(1, 4),
+    'feature_selector': strategies.sampled_from(['cyclic', 'shuffle',
+                                                 'greedy', 'thrifty']),
+    'top_k': strategies.integers(1, 10),
+})
 
-    datasets = ["Boston", "Digits", "Cancer", "Sparse regression"]
-    common_param = {
-        'booster': ['gblinear'],
-        'updater': ['gpu_coord_descent'],
-        'eta': [0.5],
-        'top_k': [10],
-        'tolerance': [1e-5],
-        'alpha': [.005, .1],
-        'lambda': [0.005],
-        'coordinate_selection': ['cyclic', 'random', 'greedy']}
+def train_result(param, dmat, num_rounds):
+    result = {}
+    xgb.train(param, dmat, num_rounds, [(dmat, 'train')], verbose_eval=False,
+              evals_result=result)
+    return result
 
-    @pytest.mark.skipif(**tm.no_sklearn())
-    def test_gpu_coordinate(self):
-        parameters = self.common_param.copy()
-        parameters['gpu_id'] = [0]
-        for param in test_linear.parameter_combinations(parameters):
-            results = test_linear.run_suite(
-                param, 150, self.datasets, scale_features=True)
-            test_linear.assert_regression_result(results, 1e-2)
-            test_linear.assert_classification_result(results)
+
+class TestGPULinear:
+    @given(parameter_strategy, strategies.integers(10, 50),
+           tm.dataset_strategy)
+    @settings(deadline=None)
+    def test_gpu_coordinate(self, param, num_rounds, dataset):
+        assume(len(dataset.y) > 0)
+        param['updater'] = 'gpu_coord_descent'
+        param = dataset.set_params(param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        assert tm.non_increasing(result)
+
+    # Loss is not guaranteed to always decrease because of regularisation parameters
+    # We test a weaker condition that the loss has not increased between the first and last
+    # iteration
+    @given(parameter_strategy, strategies.integers(10, 50),
+           tm.dataset_strategy, strategies.floats(1e-5, 2.0),
+           strategies.floats(1e-5, 2.0))
+    @settings(deadline=None)
+    def test_gpu_coordinate_regularised(self, param, num_rounds, dataset, alpha, lambd):
+        assume(len(dataset.y) > 0)
+        param['updater'] = 'gpu_coord_descent'
+        param['alpha'] = alpha
+        param['lambda'] = lambd
+        param = dataset.set_params(param)
+        result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
+        assert tm.non_increasing([result[0], result[-1]])

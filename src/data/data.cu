@@ -10,7 +10,7 @@
 #include "array_interface.h"
 #include "../common/device_helpers.cuh"
 #include "device_adapter.cuh"
-#include "device_dmatrix.h"
+#include "simple_dmatrix.h"
 
 namespace xgboost {
 
@@ -34,17 +34,44 @@ void CopyInfoImpl(ArrayInterface column, HostDeviceVector<float>* out) {
   });
 }
 
+void CopyGroupInfoImpl(ArrayInterface column, std::vector<bst_group_t>* out) {
+  CHECK(column.type[1] == 'i' || column.type[1] == 'u')
+      << "Expected integer metainfo";
+  auto SetDeviceToPtr = [](void* ptr) {
+    cudaPointerAttributes attr;
+    dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
+    int32_t ptr_device = attr.device;
+    dh::safe_cuda(cudaSetDevice(ptr_device));
+    return ptr_device;
+  };
+  auto ptr_device = SetDeviceToPtr(column.data);
+  dh::TemporaryArray<bst_group_t> temp(column.num_rows);
+  auto d_tmp = temp.data();
+
+  dh::LaunchN(ptr_device, column.num_rows, [=] __device__(size_t idx) {
+    d_tmp[idx] = column.GetElement(idx);
+  });
+  auto length = column.num_rows;
+  out->resize(length + 1);
+  out->at(0) = 0;
+  thrust::copy(temp.data(), temp.data() + length, out->begin() + 1);
+  std::partial_sum(out->begin(), out->end(), out->begin());
+}
+
 void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   Json j_interface = Json::Load({interface_str.c_str(), interface_str.size()});
   auto const& j_arr = get<Array>(j_interface);
   CHECK_EQ(j_arr.size(), 1)
       << "MetaInfo: " << c_key << ". " << ArrayInterfaceErrors::Dimension(1);
-  ArrayInterface array_interface(get<Object const>(j_arr[0]));
+  ArrayInterface array_interface(interface_str);
   std::string key{c_key};
   CHECK(!array_interface.valid.Data())
       << "Meta info " << key << " should be dense, found validity mask";
   CHECK_EQ(array_interface.num_cols, 1)
       << "Meta info should be a single column.";
+  if (array_interface.num_rows == 0) {
+    return;
+  }
 
   if (key == "label") {
     CopyInfoImpl(array_interface, &labels_);
@@ -53,16 +80,7 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
   } else if (key == "base_margin") {
     CopyInfoImpl(array_interface, &base_margin_);
   } else if (key == "group") {
-    // Ranking is not performed on device.
-    thrust::device_ptr<uint32_t> p_src{
-        reinterpret_cast<uint32_t*>(array_interface.data)};
-
-    auto length = array_interface.num_rows;
-    group_ptr_.resize(length + 1);
-    group_ptr_[0] = 0;
-    thrust::copy(p_src, p_src + length, group_ptr_.begin() + 1);
-    std::partial_sum(group_ptr_.begin(), group_ptr_.end(), group_ptr_.begin());
-
+    CopyGroupInfoImpl(array_interface, &group_ptr_);
     return;
   } else {
     LOG(FATAL) << "Unknown metainfo: " << key;

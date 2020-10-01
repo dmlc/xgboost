@@ -4,7 +4,7 @@
 #include <memory>
 #include <utility>
 
-#include "../common/hist_util.h"
+#include "../common/hist_util.cuh"
 
 #include "ellpack_page.cuh"
 #include "ellpack_page_source.h"
@@ -12,20 +12,6 @@
 
 namespace xgboost {
 namespace data {
-
-size_t GetRowStride(DMatrix* dmat) {
-  if (dmat->IsDense()) return dmat->Info().num_col_;
-
-  size_t row_stride = 0;
-  for (const auto& batch : dmat->GetBatches<SparsePage>()) {
-    const auto& row_offset = batch.offset.ConstHostVector();
-    for (auto i = 1ull; i < row_offset.size(); i++) {
-      row_stride = std::max(
-          row_stride, static_cast<size_t>(row_offset[i] - row_offset[i - 1]));
-    }
-  }
-  return row_stride;
-}
 
 // Build the quantile sketch across the whole input data, then use the histogram cuts to compress
 // each CSR page, and write the accumulated ELLPACK pages to disk.
@@ -43,14 +29,14 @@ EllpackPageSource::EllpackPageSource(DMatrix* dmat,
   monitor_.Init("ellpack_page_source");
   dh::safe_cuda(cudaSetDevice(param.gpu_id));
 
-  monitor_.StartCuda("Quantiles");
+  monitor_.Start("Quantiles");
   size_t row_stride = GetRowStride(dmat);
   auto cuts = common::DeviceSketch(param.gpu_id, dmat, param.max_bin);
-  monitor_.StopCuda("Quantiles");
+  monitor_.Stop("Quantiles");
 
-  monitor_.StartCuda("WriteEllpackPages");
+  monitor_.Start("WriteEllpackPages");
   WriteEllpackPages(param.gpu_id, dmat, cuts, cache_info, row_stride);
-  monitor_.StopCuda("WriteEllpackPages");
+  monitor_.Stop("WriteEllpackPages");
 
   external_prefetcher_.reset(
       new ExternalMemoryPrefetcher<EllpackPage>(cache_info_));

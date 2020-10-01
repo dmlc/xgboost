@@ -20,12 +20,12 @@ if (err != 0) {                                                         \
 int main(int argc, char** argv) {
   int silent = 0;
   int use_gpu = 0;  // set to 1 to use the GPU for training
-  
+
   // load the data
   DMatrixHandle dtrain, dtest;
   safe_xgboost(XGDMatrixCreateFromFile("../data/agaricus.txt.train", silent, &dtrain));
   safe_xgboost(XGDMatrixCreateFromFile("../data/agaricus.txt.test", silent, &dtest));
-  
+
   // create the booster
   BoosterHandle booster;
   DMatrixHandle eval_dmats[2] = {dtrain, dtest};
@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
   safe_xgboost(XGBoosterSetParam(booster, "gamma", "0.1"));
   safe_xgboost(XGBoosterSetParam(booster, "max_depth", "3"));
   safe_xgboost(XGBoosterSetParam(booster, "verbosity", silent ? "0" : "1"));
-  
+
   // train and evaluate for 10 iterations
   int n_trees = 10;
   const char* eval_names[2] = {"train", "test"};
@@ -59,6 +59,10 @@ int main(int argc, char** argv) {
     safe_xgboost(XGBoosterEvalOneIter(booster, i, eval_dmats, eval_names, 2, &eval_result));
     printf("%s\n", eval_result);
   }
+
+  bst_ulong num_feature = 0;
+  safe_xgboost(XGBoosterGetNumFeature(booster, &num_feature));
+  printf("num_feature: %llu\n", num_feature);
 
   // predict
   bst_ulong out_len = 0;

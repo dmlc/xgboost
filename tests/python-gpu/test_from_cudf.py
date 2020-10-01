@@ -119,10 +119,10 @@ def _test_cudf_metainfo(DMatrixT):
     dmat.set_float_info('label', floats)
     dmat.set_float_info('base_margin', floats)
     dmat.set_uint_info('group', uints)
-    dmat_cudf.set_interface_info('weight', cudf_floats)
-    dmat_cudf.set_interface_info('label', cudf_floats)
-    dmat_cudf.set_interface_info('base_margin', cudf_floats)
-    dmat_cudf.set_interface_info('group', cudf_uints)
+    dmat_cudf.set_info(weight=cudf_floats)
+    dmat_cudf.set_info(label=cudf_floats)
+    dmat_cudf.set_info(base_margin=cudf_floats)
+    dmat_cudf.set_info(group=cudf_uints)
 
     # Test setting info with cudf DataFrame
     assert np.array_equal(dmat.get_float_info('weight'), dmat_cudf.get_float_info('weight'))
@@ -132,10 +132,10 @@ def _test_cudf_metainfo(DMatrixT):
     assert np.array_equal(dmat.get_uint_info('group_ptr'), dmat_cudf.get_uint_info('group_ptr'))
 
     # Test setting info with cudf Series
-    dmat_cudf.set_interface_info('weight', cudf_floats[cudf_floats.columns[0]])
-    dmat_cudf.set_interface_info('label', cudf_floats[cudf_floats.columns[0]])
-    dmat_cudf.set_interface_info('base_margin', cudf_floats[cudf_floats.columns[0]])
-    dmat_cudf.set_interface_info('group', cudf_uints[cudf_uints.columns[0]])
+    dmat_cudf.set_info(weight=cudf_floats[cudf_floats.columns[0]])
+    dmat_cudf.set_info(label=cudf_floats[cudf_floats.columns[0]])
+    dmat_cudf.set_info(base_margin=cudf_floats[cudf_floats.columns[0]])
+    dmat_cudf.set_info(group=cudf_uints[cudf_uints.columns[0]])
     assert np.array_equal(dmat.get_float_info('weight'), dmat_cudf.get_float_info('weight'))
     assert np.array_equal(dmat.get_float_info('label'), dmat_cudf.get_float_info('label'))
     assert np.array_equal(dmat.get_float_info('base_margin'),
@@ -170,3 +170,83 @@ Arrow specification.'''
     @pytest.mark.skipif(**tm.no_cudf())
     def test_cudf_metainfo_device_dmatrix(self):
         _test_cudf_metainfo(xgb.DeviceQuantileDMatrix)
+
+
+class IterForDMatrixTest(xgb.core.DataIter):
+    '''A data iterator for XGBoost DMatrix.
+
+    `reset` and `next` are required for any data iterator, other functions here
+    are utilites for demonstration's purpose.
+
+    '''
+    ROWS_PER_BATCH = 100            # data is splited by rows
+    BATCHES = 16
+
+    def __init__(self):
+        '''Generate some random data for demostration.
+
+        Actual data can be anything that is currently supported by XGBoost.
+        '''
+        import cudf
+        self.rows = self.ROWS_PER_BATCH
+        rng = np.random.RandomState(1994)
+        self._data = [
+            cudf.DataFrame(
+                {'a': rng.randn(self.ROWS_PER_BATCH),
+                 'b': rng.randn(self.ROWS_PER_BATCH)})] * self.BATCHES
+        self._labels = [rng.randn(self.rows)] * self.BATCHES
+
+        self.it = 0             # set iterator to 0
+        super().__init__()
+
+    def as_array(self):
+        import cudf
+        return cudf.concat(self._data)
+
+    def as_array_labels(self):
+        return np.concatenate(self._labels)
+
+    def data(self):
+        '''Utility function for obtaining current batch of data.'''
+        return self._data[self.it]
+
+    def labels(self):
+        '''Utility function for obtaining current batch of label.'''
+        return self._labels[self.it]
+
+    def reset(self):
+        '''Reset the iterator'''
+        self.it = 0
+
+    def next(self, input_data):
+        '''Yield next batch of data'''
+        if self.it == len(self._data):
+            # Return 0 when there's no more batch.
+            return 0
+        input_data(data=self.data(), label=self.labels())
+        self.it += 1
+        return 1
+
+
+@pytest.mark.skipif(**tm.no_cudf())
+def test_from_cudf_iter():
+    rounds = 100
+    it = IterForDMatrixTest()
+
+    # Use iterator
+    m_it = xgb.DeviceQuantileDMatrix(it)
+    reg_with_it = xgb.train({'tree_method': 'gpu_hist'}, m_it,
+                            num_boost_round=rounds)
+    predict_with_it = reg_with_it.predict(m_it)
+
+    # Without using iterator
+    m = xgb.DMatrix(it.as_array(), it.as_array_labels())
+
+    assert m_it.num_col() == m.num_col()
+    assert m_it.num_row() == m.num_row()
+
+    reg = xgb.train({'tree_method': 'gpu_hist'}, m,
+                    num_boost_round=rounds)
+    predict = reg.predict(m)
+
+    np.testing.assert_allclose(predict_with_it, predict)

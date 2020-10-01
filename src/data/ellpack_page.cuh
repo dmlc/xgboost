@@ -149,7 +149,7 @@ class EllpackPageImpl {
 
   EllpackPageImpl(int device, common::HistogramCuts cuts,
                   const SparsePage& page,
-                  bool is_dense,size_t row_stride);
+                  bool is_dense, size_t row_stride);
 
   /*!
    * \brief Constructor from an existing DMatrix.
@@ -158,6 +158,12 @@ class EllpackPageImpl {
    * in CSR format.
    */
   explicit EllpackPageImpl(DMatrix* dmat, const BatchParam& parm);
+
+  template <typename AdapterBatch>
+  explicit EllpackPageImpl(AdapterBatch batch, float missing, int device, bool is_dense, int nthread,
+                           common::Span<size_t> row_counts_span,
+                           size_t row_stride, size_t n_rows, size_t n_cols,
+                           common::HistogramCuts const& cuts);
 
   /*! \brief Copy the elements of the given ELLPACK page into this page.
    *
@@ -229,6 +235,19 @@ public:
   common::Monitor monitor_;
 };
 
+inline size_t GetRowStride(DMatrix* dmat) {
+  if (dmat->IsDense()) return dmat->Info().num_col_;
+
+  size_t row_stride = 0;
+  for (const auto& batch : dmat->GetBatches<SparsePage>()) {
+    const auto& row_offset = batch.offset.ConstHostVector();
+    for (auto i = 1ull; i < row_offset.size(); i++) {
+      row_stride = std::max(
+        row_stride, static_cast<size_t>(row_offset[i] - row_offset[i - 1]));
+    }
+  }
+  return row_stride;
+}
 }  // namespace xgboost
 
 #endif  // XGBOOST_DATA_ELLPACK_PAGE_H_

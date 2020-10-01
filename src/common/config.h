@@ -7,8 +7,6 @@
 #ifndef XGBOOST_COMMON_CONFIG_H_
 #define XGBOOST_COMMON_CONFIG_H_
 
-#include <xgboost/logging.h>
-#include <cstdio>
 #include <string>
 #include <fstream>
 #include <istream>
@@ -17,6 +15,8 @@
 #include <regex>
 #include <iterator>
 #include <utility>
+
+#include "xgboost/logging.h"
 
 namespace xgboost {
 namespace common {
@@ -40,10 +40,16 @@ class ConfigParser {
 
   std::string LoadConfigFile(const std::string& path) {
     std::ifstream fin(path, std::ios_base::in | std::ios_base::binary);
-    CHECK(fin) << "Failed to open: " << path;
-    std::string content{std::istreambuf_iterator<char>(fin),
-                        std::istreambuf_iterator<char>()};
-    return content;
+    CHECK(fin) << "Failed to open config file: \"" << path << "\"";
+    try {
+      std::string content{std::istreambuf_iterator<char>(fin),
+                          std::istreambuf_iterator<char>()};
+      return content;
+    } catch (std::ios_base::failure const &e) {
+      LOG(FATAL) << "Failed to read config file: \"" << path << "\"\n"
+                 << e.what();
+    }
+    return "";
   }
 
   /*!

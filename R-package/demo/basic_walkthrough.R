@@ -3,8 +3,8 @@ require(methods)
 
 # we load in the agaricus dataset
 # In this example, we are aiming to predict whether a mushroom is edible
-data(agaricus.train, package='xgboost')
-data(agaricus.test, package='xgboost')
+data(agaricus.train, package = 'xgboost')
+data(agaricus.test, package = 'xgboost')
 train <- agaricus.train
 test <- agaricus.test
 # the loaded data is stored in sparseMatrix, and label is a numeric vector in {0,1}
@@ -26,7 +26,7 @@ bst <- xgboost(data = as.matrix(train$data), label = train$label, max_depth = 2,
 # you can also put in xgb.DMatrix object, which stores label, data and other meta datas needed for advanced features
 print("Training xgboost with xgb.DMatrix")
 dtrain <- xgb.DMatrix(data = train$data, label = train$label)
-bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, nrounds = 2, nthread = 2, 
+bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, nrounds = 2, nthread = 2,
                objective = "binary:logistic")
 
 # Verbose = 0,1,2
@@ -46,7 +46,7 @@ bst <- xgboost(data = dtrain, max_depth = 2, eta = 1, nrounds = 2,
 
 #--------------------basic prediction using xgboost--------------
 # you can do prediction using the following line
-# you can put in Matrix, sparseMatrix, or xgb.DMatrix 
+# you can put in Matrix, sparseMatrix, or xgb.DMatrix
 pred <- predict(bst, test$data)
 err <- mean(as.numeric(pred > 0.5) != test$label)
 print(paste("test-error=", err))
@@ -58,31 +58,31 @@ xgb.save(bst, "xgboost.model")
 bst2 <- xgb.load("xgboost.model")
 pred2 <- predict(bst2, test$data)
 # pred2 should be identical to pred
-print(paste("sum(abs(pred2-pred))=", sum(abs(pred2-pred))))
+print(paste("sum(abs(pred2-pred))=", sum(abs(pred2 - pred))))
 
 # save model to R's raw vector
-raw = xgb.save.raw(bst)
+raw <- xgb.save.raw(bst)
 # load binary model to R
 bst3 <- xgb.load(raw)
 pred3 <- predict(bst3, test$data)
 # pred3 should be identical to pred
-print(paste("sum(abs(pred3-pred))=", sum(abs(pred3-pred))))
+print(paste("sum(abs(pred3-pred))=", sum(abs(pred3 - pred))))
 
 #----------------Advanced features --------------
 # to use advanced features, we need to put data in xgb.DMatrix
-dtrain <- xgb.DMatrix(data = train$data, label=train$label)
-dtest <- xgb.DMatrix(data = test$data, label=test$label)
+dtrain <- xgb.DMatrix(data = train$data, label = train$label)
+dtest <- xgb.DMatrix(data = test$data, label = test$label)
 #---------------Using watchlist----------------
 # watchlist is a list of xgb.DMatrix, each of them is tagged with name
-watchlist <- list(train=dtrain, test=dtest)
+watchlist <- list(train = dtrain, test = dtest)
 # to train with watchlist, use xgb.train, which contains more advanced features
-# watchlist allows us to monitor the evaluation result on all data in the list 
+# watchlist allows us to monitor the evaluation result on all data in the list
 print("Train xgboost using xgb.train with watchlist")
-bst <- xgb.train(data=dtrain, max_depth=2, eta=1, nrounds=2, watchlist=watchlist,
+bst <- xgb.train(data = dtrain, max_depth = 2, eta = 1, nrounds = 2, watchlist = watchlist,
                  nthread = 2, objective = "binary:logistic")
 # we can change evaluation metrics, or use multiple evaluation metrics
 print("train xgboost using xgb.train with watchlist, watch logloss and error")
-bst <- xgb.train(data=dtrain, max_depth=2, eta=1, nrounds=2, watchlist=watchlist,
+bst <- xgb.train(data = dtrain, max_depth = 2, eta = 1, nrounds = 2, watchlist = watchlist,
                  eval_metric = "error", eval_metric = "logloss",
                  nthread = 2, objective = "binary:logistic")
 
@@ -90,17 +90,17 @@ bst <- xgb.train(data=dtrain, max_depth=2, eta=1, nrounds=2, watchlist=watchlist
 xgb.DMatrix.save(dtrain, "dtrain.buffer")
 # to load it in, simply call xgb.DMatrix
 dtrain2 <- xgb.DMatrix("dtrain.buffer")
-bst <- xgb.train(data=dtrain2, max_depth=2, eta=1, nrounds=2, watchlist=watchlist,
+bst <- xgb.train(data = dtrain2, max_depth = 2, eta = 1, nrounds = 2, watchlist = watchlist,
                  nthread = 2, objective = "binary:logistic")
 # information can be extracted from xgb.DMatrix using getinfo
-label = getinfo(dtest, "label")
+label <- getinfo(dtest, "label")
 pred <- predict(bst, dtest)
-err <- as.numeric(sum(as.integer(pred > 0.5) != label))/length(label)
+err <- as.numeric(sum(as.integer(pred > 0.5) != label)) / length(label)
 print(paste("test-error=", err))
 
 # You can dump the tree you learned using xgb.dump into a text file
-dump_path = file.path(tempdir(), 'dump.raw.txt')
-xgb.dump(bst, dump_path, with_stats = T)
+dump_path <- file.path(tempdir(), 'dump.raw.txt')
+xgb.dump(bst, dump_path, with_stats = TRUE)
 
 # Finally, you can check which features are the most important.
 print("Most important features (look at column Gain):")

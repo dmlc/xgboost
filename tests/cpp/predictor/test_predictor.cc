@@ -32,7 +32,8 @@ TEST(Predictor, PredictionCache) {
   EXPECT_ANY_THROW(container.Entry(m));
 }
 
-void TestTrainingPrediction(size_t rows, std::string tree_method,
+void TestTrainingPrediction(size_t rows, size_t bins,
+                            std::string tree_method,
                             std::shared_ptr<DMatrix> p_full,
                             std::shared_ptr<DMatrix> p_hist) {
   size_t constexpr kCols = 16;
@@ -53,6 +54,7 @@ void TestTrainingPrediction(size_t rows, std::string tree_method,
     learner->SetParam("objective", "multi:softprob");
     learner->SetParam("num_feature", std::to_string(kCols));
     learner->SetParam("num_class", std::to_string(kClasses));
+    learner->SetParam("max_bin", std::to_string(bins));
     learner->Configure();
 
     for (size_t i = 0; i < kIters; ++i) {
@@ -131,5 +133,45 @@ void TestInplacePrediction(dmlc::any x, std::string predictor,
 
   learner->SetParam("gpu_id", "-1");
   learner->Configure();
+}
+
+void TestPredictionWithLesserFeatures(std::string predictor_name) {
+  size_t constexpr kRows = 256, kTrainCols = 256, kTestCols = 4, kIters = 4;
+  auto m_train = RandomDataGenerator(kRows, kTrainCols, 0.5).GenerateDMatrix(true);
+  auto m_test = RandomDataGenerator(kRows, kTestCols, 0.5).GenerateDMatrix(false);
+  std::unique_ptr<Learner> learner{Learner::Create({m_train})};
+
+  for (size_t i = 0; i < kIters; ++i) {
+    learner->UpdateOneIter(i, m_train);
+  }
+
+  HostDeviceVector<float> prediction;
+  learner->SetParam("predictor", predictor_name);
+  learner->Configure();
+  Json config{Object()};
+  learner->SaveConfig(&config);
+  ASSERT_EQ(get<String>(config["learner"]["gradient_booster"]["gbtree_train_param"]["predictor"]), predictor_name);
+
+  learner->Predict(m_test, false, &prediction);
+  ASSERT_EQ(prediction.Size(), kRows);
+
+  auto m_invalid = RandomDataGenerator(kRows, kTrainCols + 1, 0.5).GenerateDMatrix(false);
+  ASSERT_THROW({learner->Predict(m_invalid, false, &prediction);}, dmlc::Error);
+
+#if defined(XGBOOST_USE_CUDA)
+  HostDeviceVector<float> from_cpu;
+  learner->SetParam("predictor", "cpu_predictor");
+  learner->Predict(m_test, false, &from_cpu);
+
+  HostDeviceVector<float> from_cuda;
+  learner->SetParam("predictor", "gpu_predictor");
+  learner->Predict(m_test, false, &from_cuda);
+
+  auto const& h_cpu = from_cpu.ConstHostVector();
+  auto const& h_gpu = from_cuda.ConstHostVector();
+  for (size_t i = 0; i < h_cpu.size(); ++i) {
+    ASSERT_NEAR(h_cpu[i], h_gpu[i], kRtEps);
+  }
+#endif  // defined(XGBOOST_USE_CUDA)
 }
 }  // namespace xgboost

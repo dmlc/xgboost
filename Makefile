@@ -44,7 +44,7 @@ export CXX = g++
 endif
 endif
 
-export CFLAGS= -DDMLC_LOG_CUSTOMIZE=1 -std=c++11 -Wall -Wno-unknown-pragmas -Iinclude $(ADD_CFLAGS)
+export CFLAGS= -DDMLC_LOG_CUSTOMIZE=1 -std=c++14 -Wall -Wno-unknown-pragmas -Iinclude $(ADD_CFLAGS)
 CFLAGS += -I$(DMLC_CORE)/include -I$(RABIT)/include -I$(GTEST_PATH)/include
 
 ifeq ($(TEST_COVER), 1)
@@ -133,15 +133,16 @@ Rpack: clean_all
 	sed -i -e 's/@BACKTRACE_LIB@//g' xgboost/src/Makevars.win
 	sed -i -e 's/@OPENMP_LIB@//g' xgboost/src/Makevars.win
 	rm -f xgboost/src/Makevars.win-e   # OSX sed create this extra file; remove it
-	bash R-package/remove_warning_suppression_pragma.sh
+	bash xgboost/remove_warning_suppression_pragma.sh
 	rm xgboost/remove_warning_suppression_pragma.sh
+	rm -rfv xgboost/tests/helper_scripts/
 
 Rbuild: Rpack
 	R CMD build --no-build-vignettes xgboost
 	rm -rf xgboost
 
 Rcheck: Rbuild
-	R CMD check xgboost*.tar.gz
+	R CMD check --as-cran xgboost*.tar.gz
 
 -include build/*.d
 -include build/*/*.d

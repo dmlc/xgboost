@@ -161,6 +161,12 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
   virtual void SetParam(const std::string& key, const std::string& value) = 0;
 
   /*!
+   * \brief Get the number of features of the booster.
+   * \return number of features
+   */
+  virtual uint32_t GetNumFeature() = 0;
+
+  /*!
    * \brief Set additional attribute to the Booster.
    *
    *  The property will be saved along the booster.

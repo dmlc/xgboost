@@ -26,12 +26,13 @@ TEST(Adapter, CSRAdapter) {
   EXPECT_EQ(line0.GetElement(1).value, 2);
 
   auto line1 = batch.GetLine(1);
-  EXPECT_EQ(line1 .GetElement(0).value, 3);
-  EXPECT_EQ(line1 .GetElement(1).value, 4);
+  EXPECT_EQ(line1.GetElement(0).value, 3);
+  EXPECT_EQ(line1.GetElement(1).value, 4);
+
   auto line2 = batch.GetLine(2);
-  EXPECT_EQ(line2 .GetElement(0).value, 5);
-  EXPECT_EQ(line2 .GetElement(0).row_idx, 2);
-  EXPECT_EQ(line2 .GetElement(0).column_idx, 1);
+  EXPECT_EQ(line2.GetElement(0).value, 5);
+  EXPECT_EQ(line2.GetElement(0).row_idx, 2);
+  EXPECT_EQ(line2.GetElement(0).column_idx, 1);
 }
 
 TEST(Adapter, CSCAdapterColsMoreThanRows) {
@@ -68,15 +69,16 @@ TEST(Adapter, CSCAdapterColsMoreThanRows) {
 }
 
 // A mock for JVM data iterator.
-class DataIterForTest {
+class CSRIterForTest {
   std::vector<float> data_ {1, 2, 3, 4, 5};
   std::vector<std::remove_pointer<decltype(std::declval<XGBoostBatchCSR>().index)>::type>
       feature_idx_ {0, 1, 0, 1, 1};
   std::vector<std::remove_pointer<decltype(std::declval<XGBoostBatchCSR>().offset)>::type>
-      row_ptr_ {0, 2, 4, 5};
+      row_ptr_ {0, 2, 4, 5, 5};
   size_t iter_ {0};
 
  public:
+  size_t static constexpr kRows { 4 };  // Test for the last row being empty
   size_t static constexpr kCols { 13 };  // Test for having some missing columns
 
   XGBoostBatchCSR Next() {
@@ -88,7 +90,7 @@ class DataIterForTest {
     batch.offset = dmlc::BeginPtr(row_ptr_);
     batch.index = dmlc::BeginPtr(feature_idx_);
     batch.value = dmlc::BeginPtr(data_);
-    batch.size = 3;
+    batch.size = kRows;
 
     batch.label = nullptr;
     batch.weight = nullptr;
@@ -100,16 +102,16 @@ class DataIterForTest {
   size_t Iter() const { return iter_; }
 };
 
-size_t constexpr DataIterForTest::kCols;
+size_t constexpr CSRIterForTest::kCols;
 
-int SetDataNextForTest(DataIterHandle data_handle,
-                       XGBCallbackSetData *set_function,
-                       DataHolderHandle set_function_handle) {
+int CSRSetDataNextForTest(DataIterHandle data_handle,
+                          XGBCallbackSetData *set_function,
+                          DataHolderHandle set_function_handle) {
   size_t constexpr kIters { 2 };
-  auto iter = static_cast<DataIterForTest *>(data_handle);
+  auto iter = static_cast<CSRIterForTest *>(data_handle);
   if (iter->Iter() < kIters) {
     auto batch = iter->Next();
-    batch.columns = DataIterForTest::kCols;
+    batch.columns = CSRIterForTest::kCols;
     set_function(set_function_handle, batch);
     return 1;
   } else {
@@ -117,16 +119,23 @@ int SetDataNextForTest(DataIterHandle data_handle,
   }
 }
 
-TEST(Adapter, IteratorAdaper) {
-  DataIterForTest iter;
-  data::IteratorAdapter adapter{&iter, SetDataNextForTest};
-  constexpr size_t kRows { 6 };
+TEST(Adapter, IteratorAdapter) {
+  CSRIterForTest iter;
+  data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext,
+                        XGBoostBatchCSR> adapter{&iter, CSRSetDataNextForTest};
+  constexpr size_t kRows { 8 };
 
   std::unique_ptr<DMatrix> data {
     DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)
   };
-  ASSERT_EQ(data->Info().num_col_, DataIterForTest::kCols);
+  ASSERT_EQ(data->Info().num_col_, CSRIterForTest::kCols);
   ASSERT_EQ(data->Info().num_row_, kRows);
+  int num_batch = 0;
+  for (auto const& batch : data->GetBatches<SparsePage>()) {
+    ASSERT_EQ(batch.offset.HostVector(), std::vector<bst_row_t>({0, 2, 4, 5, 5, 7, 9, 10, 10}));
+    ++num_batch;
+  }
+  ASSERT_EQ(num_batch, 1);
 }
 
 }  // namespace xgboost

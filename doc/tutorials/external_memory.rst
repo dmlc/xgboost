@@ -52,6 +52,8 @@ data to further reduce GPU memory usage:
     'sampling_method': 'gradient_based',
   }
 
+For more information, see `this paper <https://arxiv.org/abs/2005.09148>`_.
+
 *******************
 Distributed Version
 *******************

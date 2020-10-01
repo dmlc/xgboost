@@ -12,19 +12,21 @@ if (USE_CUDA)
   file(GLOB_RECURSE CUDA_TEST_SOURCES "*.cu")
   list(APPEND TEST_SOURCES ${CUDA_TEST_SOURCES})
 endif (USE_CUDA)
-add_executable(testxgboost ${TEST_SOURCES} ${XGBOOST_OBJ_SOURCES}
+add_executable(testxgboost ${TEST_SOURCES}
   ${xgboost_SOURCE_DIR}/plugin/example/custom_obj.cc)
+target_link_libraries(testxgboost PRIVATE objxgboost)
 
 if (USE_CUDA)
   # OpenMP is mandatory for CUDA
   find_package(OpenMP REQUIRED)
-  target_include_directories(testxgboost PRIVATE
-    ${xgboost_SOURCE_DIR}/cub/)
+  if (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
+    target_include_directories(testxgboost PRIVATE
+      ${xgboost_SOURCE_DIR}/cub/)
+  endif (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
   target_compile_options(testxgboost PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
     $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>
-    $<$<AND:$<NOT:$<CXX_COMPILER_ID:MSVC>>,$<COMPILE_LANGUAGE:CUDA>>:--std=c++11>
     $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
     $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>)
   target_compile_definitions(testxgboost
@@ -40,21 +42,31 @@ if (USE_CUDA)
   endif (USE_NCCL)
 
   if (USE_NVTX)
-    target_include_directories(testxgboost PRIVATE "${NVTX_HEADER_DIR}")
-    target_compile_definitions(testxgboost PRIVATE -DXGBOOST_USE_NVTX=1)
+    enable_nvtx(testxgboost)
   endif (USE_NVTX)
+
   if (MSVC)
     target_compile_options(testxgboost PRIVATE
       $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>
     )
   endif (MSVC)
+
+  set_target_properties(testxgboost PROPERTIES
+    CUDA_STANDARD 14
+    CUDA_STANDARD_REQUIRED ON)
 endif (USE_CUDA)
 
 if (MSVC)
   target_compile_options(testxgboost PRIVATE
     $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/utf-8>
+    -D_CRT_SECURE_NO_WARNINGS
+    -D_CRT_SECURE_NO_DEPRECATE
   )
 endif (MSVC)
+if (ENABLE_ALL_WARNINGS)
+  target_compile_options(testxgboost PUBLIC
+    $<IF:$<COMPILE_LANGUAGE:CUDA>,-Xcompiler=-Wall -Xcompiler=-Wextra,-Wall -Wextra>)
+endif (ENABLE_ALL_WARNINGS)
 
 target_include_directories(testxgboost
   PRIVATE
@@ -64,14 +76,12 @@ target_include_directories(testxgboost
   ${xgboost_SOURCE_DIR}/rabit/include)
 set_target_properties(
   testxgboost PROPERTIES
-  CXX_STANDARD 11
+  CXX_STANDARD 14
   CXX_STANDARD_REQUIRED ON)
 target_link_libraries(testxgboost
   PRIVATE
-  ${GTEST_LIBRARIES}
-  ${LINKED_LIBRARIES_PRIVATE})
+  ${GTEST_LIBRARIES})
 
-target_compile_definitions(testxgboost PRIVATE ${XGBOOST_DEFINITIONS})
 set_output_directory(testxgboost ${xgboost_BINARY_DIR})
 
 # This grouping organises source files nicely in visual studio

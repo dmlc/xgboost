@@ -28,9 +28,14 @@ object SparkTraining {
   def main(args: Array[String]): Unit = {
     if (args.length < 1) {
       // scalastyle:off
-      println("Usage: program input_path")
+      println("Usage: program input_path [cpu|gpu]")
       sys.exit(1)
     }
+
+    val (treeMethod, numWorkers) = if (args.length == 2 && args(1) == "gpu") {
+      ("gpu_hist", 1)
+    } else ("auto", 2)
+
     val spark = SparkSession.builder().getOrCreate()
     val inputPath = args(0)
     val schema = new StructType(Array(
@@ -68,7 +73,8 @@ object SparkTraining {
       "objective" -> "multi:softprob",
       "num_class" -> 3,
       "num_round" -> 100,
-      "num_workers" -> 2,
+      "num_workers" -> numWorkers,
+      "tree_method" -> treeMethod,
       "eval_sets" -> Map("eval1" -> eval1, "eval2" -> eval2))
     val xgbClassifier = new XGBoostClassifier(xgbParam).
       setFeaturesCol("features").

@@ -60,13 +60,8 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
     val vectorAssembler = new VectorAssembler()
       .setInputCols(Array("col1", "col2", "col3"))
       .setOutputCol("features")
-    org.apache.spark.SPARK_VERSION match {
-      case version if version.startsWith("2.4") =>
-        val m = vectorAssembler.getClass.getDeclaredMethods
-          .filter(_.getName.contains("setHandleInvalid")).head
-        m.invoke(vectorAssembler, "keep")
-      case _ =>
-    }
+      .setHandleInvalid("keep")
+
     val inputDF = vectorAssembler.transform(testDF).select("features", "label")
     val paramMap = List("eta" -> "1", "max_depth" -> "2",
       "objective" -> "binary:logistic", "missing" -> Float.NaN, "num_workers" -> 1).toMap
@@ -175,5 +170,66 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
       "num_workers" -> 1, "allow_non_zero_for_missing" -> "true").toMap
     val model = new XGBoostClassifier(paramMap).fit(inputDF)
     model.transform(inputDF).collect()
+  }
+
+  // https://github.com/dmlc/xgboost/pull/5929
+  test("handle the empty last row correctly with a missing value as 0") {
+    val spark = ss
+    import spark.implicits._
+    // spark uses 1.5 * (nnz + 1.0) < size as the condition to decide whether using sparse or dense
+    // vector,
+    val testDF = Seq(
+      (7.0f, 0.0f, -1.0f, 1.0f, 1.0),
+      (1.0f, 0.0f, 1.0f, 1.0f, 1.0),
+      (0.0f, 1.0f, 0.0f, 1.0f, 0.0),
+      (1.0f, 0.0f, 1.0f, 1.0f, 1.0),
+      (1.0f, -1.0f, 0.0f, 1.0f, 0.0),
+      (0.0f, 0.0f, 0.0f, 1.0f, 1.0),
+      (0.0f, 0.0f, 0.0f, 0.0f, 0.0)
+    ).toDF("col1", "col2", "col3", "col4", "label")
+    val vectorAssembler = new VectorAssembler()
+      .setInputCols(Array("col1", "col2", "col3", "col4"))
+      .setOutputCol("features")
+    val inputDF = vectorAssembler.transform(testDF).select("features", "label")
+    inputDF.show()
+    val paramMap = List("eta" -> "1", "max_depth" -> "2",
+      "objective" -> "binary:logistic", "missing" -> 0.0f,
+      "num_workers" -> 1, "allow_non_zero_for_missing" -> "true").toMap
+    val model = new XGBoostClassifier(paramMap).fit(inputDF)
+    model.transform(inputDF).collect()
+  }
+
+  test("Getter and setter for AllowNonZeroForMissingValue works") {
+    {
+      val paramMap = Map("eta" -> "1", "max_depth" -> "6",
+        "objective" -> "binary:logistic", "num_round" -> 5, "num_workers" -> numWorkers)
+      val training = buildDataFrame(Classification.train)
+      val classifier = new XGBoostClassifier(paramMap)
+      classifier.setAllowNonZeroForMissing(true)
+      assert(classifier.getAllowNonZeroForMissingValue)
+      classifier.setAllowNonZeroForMissing(false)
+      assert(!classifier.getAllowNonZeroForMissingValue)
+      val model = classifier.fit(training)
+      model.setAllowNonZeroForMissing(true)
+      assert(model.getAllowNonZeroForMissingValue)
+      model.setAllowNonZeroForMissing(false)
+      assert(!model.getAllowNonZeroForMissingValue)
+    }
+
+    {
+      val paramMap = Map("eta" -> "1", "max_depth" -> "6", "silent" -> "1",
+        "objective" -> "reg:squarederror", "num_round" -> 5, "num_workers" -> numWorkers)
+      val training = buildDataFrame(Regression.train)
+      val regressor = new XGBoostRegressor(paramMap)
+      regressor.setAllowNonZeroForMissing(true)
+      assert(regressor.getAllowNonZeroForMissingValue)
+      regressor.setAllowNonZeroForMissing(false)
+      assert(!regressor.getAllowNonZeroForMissingValue)
+      val model = regressor.fit(training)
+      model.setAllowNonZeroForMissing(true)
+      assert(model.getAllowNonZeroForMissingValue)
+      model.setAllowNonZeroForMissing(false)
+      assert(!model.getAllowNonZeroForMissingValue)
+    }
   }
 }

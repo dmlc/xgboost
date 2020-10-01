@@ -5,8 +5,6 @@ Contributors: https://github.com/dmlc/xgboost/blob/master/CONTRIBUTORS.md
 """
 
 import os
-import sys
-import warnings
 
 from .core import DMatrix, DeviceQuantileDMatrix, Booster
 from .training import train, cv
@@ -21,12 +19,6 @@ try:
     from .plotting import plot_importance, plot_tree, to_graphviz
 except ImportError:
     pass
-
-if sys.version_info[:2] == (3, 5):
-    warnings.warn(
-        'Python 3.5 support is deprecated; XGBoost will require Python 3.6+ in the near future. ' +
-        'Consider upgrading to Python 3.6+.',
-        FutureWarning)
 
 VERSION_FILE = os.path.join(os.path.dirname(__file__), 'VERSION')
 with open(VERSION_FILE) as f:

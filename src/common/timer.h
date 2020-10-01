@@ -82,8 +82,6 @@ struct Monitor {
   void Init(std::string label) { this->label_ = label; }
   void Start(const std::string &name);
   void Stop(const std::string &name);
-  void StartCuda(const std::string &name);
-  void StopCuda(const std::string &name);
 };
 }  // namespace common
 }  // namespace xgboost

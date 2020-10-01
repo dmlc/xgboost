@@ -63,13 +63,13 @@ else:
         path_type = type(path)
         try:
             path_repr = path_type.__fspath__(path)
-        except AttributeError:
+        except AttributeError as e:
             if hasattr(path_type, '__fspath__'):
                 raise
             if issubclass(path_type, PurePath):
                 return _PurePath__fspath__(path)
             raise TypeError("expected str, bytes or os.PathLike object, "
-                            "not " + path_type.__name__)
+                            "not " + path_type.__name__) from e
         if isinstance(path_repr, (str, bytes)):
             return path_repr
         raise TypeError("expected {}.__fspath__() to return str or bytes, "
@@ -105,16 +105,8 @@ except ImportError:
 
 # cudf
 try:
-    from cudf import DataFrame as CUDF_DataFrame
-    from cudf import Series as CUDF_Series
-    from cudf import MultiIndex as CUDF_MultiIndex
     from cudf import concat as CUDF_concat
-    CUDF_INSTALLED = True
 except ImportError:
-    CUDF_DataFrame = object
-    CUDF_Series = object
-    CUDF_MultiIndex = object
-    CUDF_INSTALLED = False
     CUDF_concat = None
 
 # sklearn

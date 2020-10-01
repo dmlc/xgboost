@@ -6,10 +6,10 @@ if (!require(vcd)) {
   require(vcd)
 }
 # According to its documentation, Xgboost works only on numbers.
-# Sometimes the dataset we have to work on have categorical data. 
+# Sometimes the dataset we have to work on have categorical data.
 # A categorical variable is one which have a fixed number of values. By example, if for each observation a variable called "Colour" can have only "red", "blue" or "green" as value, it is a categorical variable.
 #
-# In R, categorical variable is called Factor. 
+# In R, categorical variable is called Factor.
 # Type ?factor in console for more information.
 #
 # In this demo we will see how to transform a dense dataframe with categorical variables to a sparse matrix before analyzing it in Xgboost.
@@ -19,7 +19,7 @@ if (!require(vcd)) {
 data(Arthritis)
 
 # create a copy of the dataset with data.table package (data.table is 100% compliant with R dataframe but its syntax is a lot more consistent and its performance are really good).
-df <- data.table(Arthritis, keep.rownames = F)
+df <- data.table(Arthritis, keep.rownames = FALSE)
 
 # Let's have a look to the data.table
 cat("Print the dataset\n")
@@ -32,17 +32,17 @@ str(df)
 # Let's add some new categorical features to see if it helps. Of course these feature are highly correlated to the Age feature. Usually it's not a good thing in ML, but Tree algorithms (including boosted trees) are able to select the best features, even in case of highly correlated features.
 
 # For the first feature we create groups of age by rounding the real age. Note that we transform it to factor (categorical data) so the algorithm treat them as independant values.
-df[,AgeDiscret:= as.factor(round(Age/10,0))]
+df[, AgeDiscret := as.factor(round(Age / 10, 0))]
 
 # Here is an even stronger simplification of the real age with an arbitrary split at 30 years old. I choose this value based on nothing. We will see later if simplifying the information based on arbitrary values is a good strategy (I am sure you already have an idea of how well it will work!).
-df[,AgeCat:= as.factor(ifelse(Age > 30, "Old", "Young"))]
+df[, AgeCat := as.factor(ifelse(Age > 30, "Old", "Young"))]
 
 # We remove ID as there is nothing to learn from this feature (it will just add some noise as the dataset is small).
-df[,ID:=NULL]
+df[, ID := NULL]
 
 # List the different values for the column Treatment: Placebo, Treated.
 cat("Values of the categorical feature Treatment\n")
-print(levels(df[,Treatment]))
+print(levels(df[, Treatment]))
 
 # Next step, we will transform the categorical data to dummy variables.
 # This method is also called one hot encoding.
@@ -52,16 +52,16 @@ print(levels(df[,Treatment]))
 #
 # Formulae Improved~.-1 used below means transform all categorical features but column Improved to binary values.
 # Column Improved is excluded because it will be our output column, the one we want to predict.
-sparse_matrix = sparse.model.matrix(Improved~.-1, data = df)
+sparse_matrix <- sparse.model.matrix(Improved ~ . - 1, data = df)
 
 cat("Encoding of the sparse Matrix\n")
 print(sparse_matrix)
 
 # Create the output vector (not sparse)
-# 1. Set, for all rows, field in Y column to 0; 
-# 2. set Y to 1 when Improved == Marked; 
+# 1. Set, for all rows, field in Y column to 0;
+# 2. set Y to 1 when Improved == Marked;
 # 3. Return Y column
-output_vector = df[,Y:=0][Improved == "Marked",Y:=1][,Y]
+output_vector <- df[, Y := 0][Improved == "Marked", Y := 1][, Y]
 
 # Following is the same process as other demo
 cat("Learning...\n")

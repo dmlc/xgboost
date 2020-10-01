@@ -78,10 +78,41 @@ using xgboost::common::GHistBuilder;
 using xgboost::common::ColumnMatrix;
 using xgboost::common::Column;
 
+template <typename GradientSumT>
+class HistSynchronizer;
+
+template <typename GradientSumT>
+class BatchHistSynchronizer;
+
+template <typename GradientSumT>
+class DistributedHistSynchronizer;
+
+template <typename GradientSumT>
+class HistRowsAdder;
+
+template <typename GradientSumT>
+class BatchHistRowsAdder;
+
+template <typename GradientSumT>
+class DistributedHistRowsAdder;
+
+// training parameters specific to this algorithm
+struct CPUHistMakerTrainParam
+    : public XGBoostParameter<CPUHistMakerTrainParam> {
+  bool single_precision_histogram;
+  // declare parameters
+  DMLC_DECLARE_PARAMETER(CPUHistMakerTrainParam) {
+    DMLC_DECLARE_FIELD(single_precision_histogram).set_default(false).describe(
+        "Use single precision to build histograms.");
+  }
+};
+
 /*! \brief construct a tree using quantized feature values */
 class QuantileHistMaker: public TreeUpdater {
  public:
-  QuantileHistMaker() = default;
+  QuantileHistMaker() {
+    updater_monitor_.Init("QuantileHistMaker");
+  }
   void Configure(const Args& args) override;
 
   void Update(HostDeviceVector<GradientPair>* gpair,
@@ -94,10 +125,27 @@ class QuantileHistMaker: public TreeUpdater {
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
     FromJson(config.at("train_param"), &this->param_);
+    try {
+      FromJson(config.at("cpu_hist_train_param"), &this->hist_maker_param_);
+    } catch (std::out_of_range& e) {
+      // XGBoost model is from 1.1.x, so 'cpu_hist_train_param' is missing.
+      // We add this compatibility check because it's just recently that we (developers) began
+      // persuade R users away from using saveRDS() for model serialization. Hopefully, one day,
+      // everyone will be using xgb.save().
+      LOG(WARNING) << "Attempted to load interal configuration for a model file that was generated "
+        << "by a previous version of XGBoost. A likely cause for this warning is that the model "
+        << "was saved with saveRDS() in R or pickle.dump() in Python. We strongly ADVISE AGAINST "
+        << "using saveRDS() or pickle.dump() so that the model remains accessible in current and "
+        << "upcoming XGBoost releases. Please use xgb.save() instead to preserve models for the "
+        << "long term. For more details and explanation, see "
+        << "https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html";
+      this->hist_maker_param_.UpdateAllowUnknown(Args{});
+    }
   }
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["train_param"] = ToJson(param_);
+    out["cpu_hist_train_param"] = ToJson(hist_maker_param_);
   }
 
   char const* Name() const override {
@@ -105,6 +153,21 @@ class QuantileHistMaker: public TreeUpdater {
   }
 
  protected:
+  template <typename GradientSumT>
+  friend class HistSynchronizer;
+  template <typename GradientSumT>
+  friend class BatchHistSynchronizer;
+  template <typename GradientSumT>
+  friend class DistributedHistSynchronizer;
+
+  template <typename GradientSumT>
+  friend class HistRowsAdder;
+  template <typename GradientSumT>
+  friend class BatchHistRowsAdder;
+  template <typename GradientSumT>
+  friend class DistributedHistRowsAdder;
+
+  CPUHistMakerTrainParam hist_maker_param_;
   // training parameter
   TrainParam param_;
   // quantized data matrix
@@ -132,8 +195,11 @@ class QuantileHistMaker: public TreeUpdater {
   };
   // actual builder that runs the algorithm
 
+  template<typename GradientSumT>
   struct Builder {
    public:
+    using GHistRowT = GHistRow<GradientSumT>;
+    using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
     // constructor
     explicit Builder(const TrainParam& param,
                      std::unique_ptr<TreeUpdater> pruner,
@@ -158,7 +224,7 @@ class QuantileHistMaker: public TreeUpdater {
                           const RowSetCollection::Elem row_indices,
                           const GHistIndexMatrix& gmat,
                           const GHistIndexBlockMatrix& gmatb,
-                          GHistRow hist) {
+                          GHistRowT hist) {
       if (param_.enable_feature_grouping > 0) {
         hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
@@ -166,7 +232,9 @@ class QuantileHistMaker: public TreeUpdater {
       }
     }
 
-    inline void SubtractionTrick(GHistRow self, GHistRow sibling, GHistRow parent) {
+    inline void SubtractionTrick(GHistRowT self,
+                                 GHistRowT sibling,
+                                 GHistRowT parent) {
       builder_monitor_.Start("SubtractionTrick");
       hist_builder_.SubtractionTrick(self, sibling, parent);
       builder_monitor_.Stop("SubtractionTrick");
@@ -174,8 +242,17 @@ class QuantileHistMaker: public TreeUpdater {
 
     bool UpdatePredictionCache(const DMatrix* data,
                                HostDeviceVector<bst_float>* p_out_preds);
+    void SetHistSynchronizer(HistSynchronizer<GradientSumT>* sync);
+    void SetHistRowsAdder(HistRowsAdder<GradientSumT>* adder);
 
    protected:
+    friend class HistSynchronizer<GradientSumT>;
+    friend class BatchHistSynchronizer<GradientSumT>;
+    friend class DistributedHistSynchronizer<GradientSumT>;
+    friend class HistRowsAdder<GradientSumT>;
+    friend class BatchHistRowsAdder<GradientSumT>;
+    friend class DistributedHistRowsAdder<GradientSumT>;
+
     /* tree growing policies */
     struct ExpandEntry {
       static const int kRootNid  = 0;
@@ -207,13 +284,13 @@ class QuantileHistMaker: public TreeUpdater {
 
     void EvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
                         const GHistIndexMatrix& gmat,
-                        const HistCollection& hist,
+                        const HistCollection<GradientSumT>& hist,
                         const RegTree& tree);
 
     void ApplySplit(std::vector<ExpandEntry> nodes,
                         const GHistIndexMatrix& gmat,
                         const ColumnMatrix& column_matrix,
-                        const HistCollection& hist,
+                        const HistCollection<GradientSumT>& hist,
                         RegTree* p_tree);
 
     template <typename BinIdxType>
@@ -237,7 +314,7 @@ class QuantileHistMaker: public TreeUpdater {
     // Returns the sum of gradients corresponding to the data points that contains a non-missing
     // value for the particular feature fid.
     template <int d_step>
-    GradStats EnumerateSplit(const GHistIndexMatrix &gmat, const GHistRow &hist,
+    GradStats EnumerateSplit(const GHistIndexMatrix &gmat, const GHistRowT &hist,
                              const NodeEntry &snode, SplitEntry *p_best,
                              bst_uint fid, bst_uint nodeID) const;
 
@@ -259,8 +336,6 @@ class QuantileHistMaker: public TreeUpdater {
                               RegTree *p_tree,
                               const std::vector<GradientPair> &gpair_h);
 
-    void AddHistRows(int *starting_index, int *sync_count);
-
     void BuildHistogramsLossGuide(
                         ExpandEntry entry,
                         const GHistIndexMatrix &gmat,
@@ -276,9 +351,9 @@ class QuantileHistMaker: public TreeUpdater {
                    std::vector<ExpandEntry>* big_siblings,
                    RegTree *p_tree);
 
-    void SyncHistograms(int starting_index,
-                        int sync_count,
-                        RegTree *p_tree);
+    void ParallelSubtractionHist(const common::BlockedSpace2d& space,
+                                 const std::vector<ExpandEntry>& nodes,
+                                 const RegTree * p_tree);
 
     void BuildNodeStats(const GHistIndexMatrix &gmat,
                         DMatrix *p_fmat,
@@ -316,7 +391,6 @@ class QuantileHistMaker: public TreeUpdater {
         return lhs.loss_chg < rhs.loss_chg;  // favor large loss_chg
       }
     }
-
     //  --data fields--
     const TrainParam& param_;
     // number of omp thread used during training
@@ -330,14 +404,16 @@ class QuantileHistMaker: public TreeUpdater {
     /*! \brief TreeNode Data: statistics for each constructed node */
     std::vector<NodeEntry> snode_;
     /*! \brief culmulative histogram of gradients. */
-    HistCollection hist_;
+    HistCollection<GradientSumT> hist_;
+    /*! \brief culmulative local parent histogram of gradients. */
+    HistCollection<GradientSumT> hist_local_worker_;
     /*! \brief feature with least # of bins. to be used for dense specialization
                of InitNewNode() */
     uint32_t fid_least_bins_;
     /*! \brief local prediction cache; maps node id to leaf value */
     std::vector<float> leaf_value_cache_;
 
-    GHistBuilder hist_builder_;
+    GHistBuilder<GradientSumT> hist_builder_;
     std::unique_ptr<TreeUpdater> pruner_;
     std::unique_ptr<SplitEvaluator> spliteval_;
     FeatureInteractionConstraintHost interaction_constraints_;
@@ -365,15 +441,94 @@ class QuantileHistMaker: public TreeUpdater {
     DataLayout data_layout_;
 
     common::Monitor builder_monitor_;
-    common::ParallelGHistBuilder hist_buffer_;
-    rabit::Reducer<GradStats, GradStats::Reduce> histred_;
+    common::ParallelGHistBuilder<GradientSumT> hist_buffer_;
+    rabit::Reducer<GradientPairT, GradientPairT::Reduce> histred_;
+    std::unique_ptr<HistSynchronizer<GradientSumT>> hist_synchronizer_;
+    std::unique_ptr<HistRowsAdder<GradientSumT>> hist_rows_adder_;
   };
+  common::Monitor updater_monitor_;
 
-  std::unique_ptr<Builder> builder_;
+  template<typename GradientSumT>
+  void SetBuilder(std::unique_ptr<Builder<GradientSumT>>*, DMatrix *dmat);
+
+  template<typename GradientSumT>
+  void CallBuilderUpdate(const std::unique_ptr<Builder<GradientSumT>>& builder,
+                         HostDeviceVector<GradientPair> *gpair,
+                         DMatrix *dmat,
+                         const std::vector<RegTree *> &trees);
+
+ protected:
+  std::unique_ptr<Builder<float>> float_builder_;
+  std::unique_ptr<Builder<double>> double_builder_;
+
   std::unique_ptr<TreeUpdater> pruner_;
   std::unique_ptr<SplitEvaluator> spliteval_;
   FeatureInteractionConstraintHost int_constraint_;
 };
+
+template <typename GradientSumT>
+class HistSynchronizer {
+ public:
+  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
+
+  virtual void SyncHistograms(BuilderT* builder,
+                              int starting_index,
+                              int sync_count,
+                              RegTree *p_tree) = 0;
+  virtual ~HistSynchronizer() = default;
+};
+
+template <typename GradientSumT>
+class BatchHistSynchronizer: public HistSynchronizer<GradientSumT> {
+ public:
+  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
+  void SyncHistograms(BuilderT* builder,
+                      int starting_index,
+                      int sync_count,
+                      RegTree *p_tree) override;
+};
+
+template <typename GradientSumT>
+class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
+ public:
+  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
+  using ExpandEntryT = typename BuilderT::ExpandEntry;
+
+  void SyncHistograms(BuilderT* builder, int starting_index,
+                      int sync_count, RegTree *p_tree) override;
+
+  void ParallelSubtractionHist(BuilderT* builder,
+                               const common::BlockedSpace2d& space,
+                               const std::vector<ExpandEntryT>& nodes,
+                               const RegTree * p_tree);
+};
+
+template <typename GradientSumT>
+class HistRowsAdder {
+ public:
+  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
+
+  virtual void AddHistRows(BuilderT* builder, int *starting_index,
+                           int *sync_count, RegTree *p_tree) = 0;
+  virtual ~HistRowsAdder() = default;
+};
+
+template <typename GradientSumT>
+class BatchHistRowsAdder: public HistRowsAdder<GradientSumT> {
+ public:
+  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
+  void AddHistRows(BuilderT*, int *starting_index,
+                   int *sync_count, RegTree *p_tree) override;
+};
+
+template <typename GradientSumT>
+class DistributedHistRowsAdder: public HistRowsAdder<GradientSumT> {
+ public:
+  using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
+  void AddHistRows(BuilderT*, int *starting_index,
+                   int *sync_count, RegTree *p_tree) override;
+};
+
 
 }  // namespace tree
 }  // namespace xgboost

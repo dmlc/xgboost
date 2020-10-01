@@ -68,7 +68,7 @@ The version 0.4-2 is on CRAN, and you can install it by:
 install.packages("xgboost")
 ```
 
-Formerly available versions can be obtained from the CRAN [archive](https://cran.r-project.org/src/contrib/Archive/xgboost)
+Formerly available versions can be obtained from the CRAN [archive](https://cran.r-project.org/src/contrib/Archive/xgboost/)
 
 ## Learning
 
@@ -363,7 +363,7 @@ xgb.plot.importance(importance_matrix = importance_matrix)
 You can dump the tree you learned using `xgb.dump` into a text file.
 
 ```{r dump, message=T, warning=F}
-xgb.dump(bst, with_stats = T)
+xgb.dump(bst, with_stats = TRUE)
 ```
 
 You can plot the trees from your model using ```xgb.plot.tree``

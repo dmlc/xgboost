@@ -1,0 +1,138 @@
+# This is a basic workflow to help you get started with Actions
+
+name: XGBoost-CI
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on: [push, pull_request]
+
+env:
+  R_PACKAGES: c('XML', 'igraph', 'data.table', 'magrittr', 'stringi', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm', 'devtools')
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  test-with-jvm:
+    name: Test JVM on OS ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-2016, ubuntu-latest]
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: actions/setup-java@v1
+      with:
+        java-version: 1.8
+
+    - name: Cache Maven packages
+      uses: actions/cache@v2
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+
+    - name: Test JVM packages
+      run: |
+        cd jvm-packages
+        mvn test -pl :xgboost4j_2.12
+
+
+  lintr:
+    runs-on: ${{ matrix.config.os }}
+
+    name: Run R linters on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
+
+    strategy:
+      matrix:
+        config:
+          - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'autotools'}
+    env:
+      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+      RSPM: ${{ matrix.config.rspm }}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: r-lib/actions/setup-r@master
+      with:
+        r-version: ${{ matrix.config.r }}
+
+    - name: Cache R packages
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.R_LIBS_USER }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-2-
+
+    - name: Install dependencies
+      shell: Rscript {0}
+      run: |
+        install.packages(${{ env.R_PACKAGES }},
+                         repos = 'http://cloud.r-project.org',
+                         dependencies = c('Depends', 'Imports', 'LinkingTo'))
+
+    - name: Run lintr
+      run: |
+        cd R-package
+        R.exe CMD INSTALL .
+        Rscript.exe tests/helper_scripts/run_lint.R
+
+
+  test-with-R:
+    runs-on: ${{ matrix.config.os }}
+
+    name: Test R on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {os: windows-latest, r: 'release', compiler: 'msvc', build: 'autotools'}
+          - {os: windows-2016, r: 'release', compiler: 'msvc', build: 'autotools'}
+          - {os: windows-latest, r: 'release', compiler: 'msvc', build: 'cmake'}
+          - {os: windows-2016, r: 'release', compiler: 'msvc', build: 'cmake'}
+          - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'autotools'}
+          - {os: windows-2016, r: 'release', compiler: 'mingw', build: 'autotools'}
+          - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'cmake'}
+          - {os: windows-2016, r: 'release', compiler: 'mingw', build: 'cmake'}
+    env:
+      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+      RSPM: ${{ matrix.config.rspm }}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: r-lib/actions/setup-r@master
+      with:
+        r-version: ${{ matrix.config.r }}
+
+    - name: Cache R packages
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.R_LIBS_USER }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-2-
+
+    - name: Install dependencies
+      shell: Rscript {0}
+      run: |
+        install.packages(${{ env.R_PACKAGES }},
+                         repos = 'http://cloud.r-project.org',
+                         dependencies = c('Depends', 'Imports', 'LinkingTo'))
+
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.6' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+        architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
+
+    - name: Test R
+      run: |
+        python tests/ci_build/test_r_package.py --compiler="${{ matrix.config.compiler }}" --build-tool="${{ matrix.config.build }}"

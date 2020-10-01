@@ -1,7 +1,7 @@
 /*!
  * Copyright 2019 by Contributors
  * \file array_interface.h
- * \brief Basic structure holding a reference to arrow columnar data format.
+ * \brief View of __array_interface__
  */
 #ifndef XGBOOST_DATA_ARRAY_INTERFACE_H_
 #define XGBOOST_DATA_ARRAY_INTERFACE_H_
@@ -11,6 +11,7 @@
 #include <string>
 #include <utility>
 
+#include "xgboost/base.h"
 #include "xgboost/data.h"
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
@@ -186,7 +187,7 @@ class ArrayInterfaceHandler {
     return 0;
   }
 
-  static std::pair<size_t, size_t> ExtractShape(
+  static std::pair<bst_row_t, bst_feature_t> ExtractShape(
       std::map<std::string, Json> const& column) {
     auto j_shape = get<Array const>(column.at("shape"));
     auto typestr = get<String const>(column.at("typestr"));
@@ -201,12 +202,12 @@ class ArrayInterfaceHandler {
     }
 
     if (j_shape.size() == 1) {
-      return {static_cast<size_t>(get<Integer const>(j_shape.at(0))), 1};
+      return {static_cast<bst_row_t>(get<Integer const>(j_shape.at(0))), 1};
     } else {
       CHECK_EQ(j_shape.size(), 2)
           << "Only 1D or 2-D arrays currently supported.";
-      return {static_cast<size_t>(get<Integer const>(j_shape.at(0))),
-              static_cast<size_t>(get<Integer const>(j_shape.at(1)))};
+      return {static_cast<bst_row_t>(get<Integer const>(j_shape.at(0))),
+              static_cast<bst_feature_t>(get<Integer const>(j_shape.at(1)))};
     }
   }
   template <typename T>
@@ -219,41 +220,68 @@ class ArrayInterfaceHandler {
     CHECK_EQ(typestr.at(2),   static_cast<char>(sizeof(T) + 48))
         << "Input data type and typestr mismatch. typestr: " << typestr;
 
-
     auto shape = ExtractShape(column);
 
     T* p_data = ArrayInterfaceHandler::GetPtrFromArrayData<T*>(column);
+    if (!p_data) {
+      CHECK_EQ(shape.first * shape.second, 0) << "Empty data with non-zero shape.";
+    }
     return common::Span<T>{p_data, shape.first * shape.second};
   }
 };
 
 // A view over __array_interface__
 class ArrayInterface {
- public:
-  ArrayInterface() = default;
-  explicit ArrayInterface(std::map<std::string, Json> const& column) {
+  void Initialize(std::map<std::string, Json> const &column,
+                  bool allow_mask = true) {
     ArrayInterfaceHandler::Validate(column);
     data = ArrayInterfaceHandler::GetPtrFromArrayData<void*>(column);
-    CHECK(data) << "Column is null";
     auto shape = ArrayInterfaceHandler::ExtractShape(column);
     num_rows = shape.first;
     num_cols = shape.second;
 
-    common::Span<RBitField8::value_type> s_mask;
-    size_t n_bits = ArrayInterfaceHandler::ExtractMask(column, &s_mask);
+    if (allow_mask) {
+      common::Span<RBitField8::value_type> s_mask;
+      size_t n_bits = ArrayInterfaceHandler::ExtractMask(column, &s_mask);
 
-    valid = RBitField8(s_mask);
+      valid = RBitField8(s_mask);
 
-    if (s_mask.data()) {
-      CHECK_EQ(n_bits, num_rows)
-          << "Shape of bit mask doesn't match data shape. "
-          << "XGBoost doesn't support internal broadcasting.";
+      if (s_mask.data()) {
+        CHECK_EQ(n_bits, num_rows)
+            << "Shape of bit mask doesn't match data shape. "
+            << "XGBoost doesn't support internal broadcasting.";
+      }
+    } else {
+      CHECK(column.find("mask") == column.cend())
+          << "Masked array is not yet supported.";
     }
+
     auto typestr = get<String const>(column.at("typestr"));
     type[0] = typestr.at(0);
     type[1] = typestr.at(1);
     type[2] = typestr.at(2);
     this->CheckType();
+  }
+
+ public:
+  ArrayInterface() = default;
+  explicit ArrayInterface(std::string const& str, bool allow_mask = true) {
+    auto jinterface = Json::Load({str.c_str(), str.size()});
+    if (IsA<Object>(jinterface)) {
+      this->Initialize(get<Object const>(jinterface), allow_mask);
+      return;
+    }
+    if (IsA<Array>(jinterface)) {
+      CHECK_EQ(get<Array const>(jinterface).size(), 1)
+          << "Column: " << ArrayInterfaceErrors::Dimension(1);
+      this->Initialize(get<Object const>(get<Array const>(jinterface)[0]), allow_mask);
+      return;
+    }
+  }
+
+  explicit ArrayInterface(std::map<std::string, Json> const &column,
+                          bool allow_mask = true) {
+    this->Initialize(column, allow_mask);
   }
 
   void CheckType() const {
@@ -284,6 +312,7 @@ class ArrayInterface {
   }
 
   XGBOOST_DEVICE float GetElement(size_t idx) const {
+    SPAN_CHECK(idx < num_cols * num_rows);
     if (type[1] == 'f' && type[2] == '4') {
       return reinterpret_cast<float*>(data)[idx];
     } else if (type[1] == 'f' && type[2] == '8') {
@@ -311,8 +340,8 @@ class ArrayInterface {
   }
 
   RBitField8 valid;
-  int32_t num_rows;
-  int32_t num_cols;
+  bst_row_t num_rows;
+  bst_feature_t num_cols;
   void* data;
   char type[3];
 };

@@ -76,15 +76,15 @@ TEST(GPUPredictor, EllpackTraining) {
        .Bins(kBins)
        .Device(0)
        .GenerateDeviceDMatrix(true);
-  std::vector<HostDeviceVector<float>> storage(kCols);
+  HostDeviceVector<float> storage(kRows * kCols);
   auto columnar = RandomDataGenerator{kRows, kCols, 0.0}
        .Device(0)
-       .GenerateColumnarArrayInterface(&storage);
-  auto adapter = data::CudfAdapter(columnar);
+       .GenerateArrayInterface(&storage);
+  auto adapter = data::CupyAdapter(columnar);
   std::shared_ptr<DMatrix> p_full {
     DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)
   };
-  TestTrainingPrediction(kRows, "gpu_hist", p_full, p_ellpack);
+  TestTrainingPrediction(kRows, kBins, "gpu_hist", p_full, p_ellpack);
 }
 
 TEST(GPUPredictor, ExternalMemoryTest) {
@@ -94,7 +94,7 @@ TEST(GPUPredictor, ExternalMemoryTest) {
   gpu_predictor->Configure({});
 
   LearnerModelParam param;
-  param.num_feature = 2;
+  param.num_feature = 5;
   const int n_classes = 3;
   param.num_output_group = n_classes;
   param.base_score = 0.5;
@@ -129,7 +129,7 @@ TEST(GPUPredictor, InplacePredictCupy) {
   gen.Device(0);
   HostDeviceVector<float> data;
   std::string interface_str = gen.GenerateArrayInterface(&data);
-  data::CupyAdapter x{interface_str};
+  auto x = std::make_shared<data::CupyAdapter>(interface_str);
   TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 0);
 }
 
@@ -139,7 +139,7 @@ TEST(GPUPredictor, InplacePredictCuDF) {
   gen.Device(0);
   std::vector<HostDeviceVector<float>> storage(kCols);
   auto interface_str = gen.GenerateColumnarArrayInterface(&storage);
-  data::CudfAdapter x {interface_str};
+  auto x = std::make_shared<data::CudfAdapter>(interface_str);
   TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 0);
 }
 
@@ -154,11 +154,14 @@ TEST(GPUPredictor, MGPU_InplacePredict) {  // NOLINT
   gen.Device(1);
   HostDeviceVector<float> data;
   std::string interface_str = gen.GenerateArrayInterface(&data);
-  data::CupyAdapter x{interface_str};
+  auto x = std::make_shared<data::CupyAdapter>(interface_str);
   TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 1);
   EXPECT_THROW(TestInplacePrediction(x, "gpu_predictor", kRows, kCols, 0),
                dmlc::Error);
 }
 
+TEST(GpuPredictor, LesserFeatures) {
+  TestPredictionWithLesserFeatures("gpu_predictor");
+}
 }  // namespace predictor
 }  // namespace xgboost

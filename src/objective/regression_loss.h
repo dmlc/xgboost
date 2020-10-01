@@ -98,6 +98,37 @@ struct LogisticRegression {
   static const char* Name() { return "reg:logistic"; }
 };
 
+struct PseudoHuberError {
+  XGBOOST_DEVICE static bst_float PredTransform(bst_float x) {
+    return x;
+  }
+  XGBOOST_DEVICE static bool CheckLabel(bst_float label) {
+    return true;
+  }
+  XGBOOST_DEVICE static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
+    const float z = predt - label;
+    const float scale_sqrt = std::sqrt(1 + std::pow(z, 2));
+    return z/scale_sqrt;
+  }
+  XGBOOST_DEVICE static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
+    const float scale = 1 + std::pow(predt - label, 2);
+    const float scale_sqrt = std::sqrt(scale);
+    return 1/(scale*scale_sqrt);
+  }
+  static bst_float ProbToMargin(bst_float base_score) {
+    return base_score;
+  }
+  static const char* LabelErrorMsg() {
+    return "";
+  }
+  static const char* DefaultEvalMetric() {
+    return "mphe";
+  }
+  static const char* Name() {
+    return "reg:pseudohubererror";
+  }
+};
+
 // logistic loss for binary classification task
 struct LogisticClassification : public LogisticRegression {
   static const char* DefaultEvalMetric() { return "error"; }

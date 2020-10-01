@@ -94,7 +94,7 @@ TEST(SparsePageDMatrix, ThreadSafetyException) {
 
   bool exception = false;
   int threads = 1000;
-#pragma omp parallel for
+#pragma omp parallel for num_threads(threads)
   for (auto i = 0; i < threads; i++) {
     try {
       auto iter = dmat->GetBatches<SparsePage>().begin();

@@ -3,9 +3,9 @@
 #' \code{xgb.train} is an advanced interface for training an xgboost model.
 #' The \code{xgboost} function is a simpler wrapper for \code{xgb.train}.
 #'
-#' @param params the list of parameters.
-#'        The complete list of parameters is available at \url{http://xgboost.readthedocs.io/en/latest/parameter.html}.
-#'        Below is a shorter summary:
+#' @param params the list of parameters. The complete list of parameters is
+#'   available in the \href{http://xgboost.readthedocs.io/en/latest/parameter.html}{online documentation}. Below
+#'   is a shorter summary:
 #'
 #' 1. General Parameters
 #'
@@ -43,13 +43,23 @@
 #' \item \code{objective} specify the learning task and the corresponding learning objective, users can pass a self-defined function to it. The default objective options are below:
 #'   \itemize{
 #'     \item \code{reg:squarederror} Regression with squared loss (Default).
+#'     \item \code{reg:squaredlogerror}: regression with squared log loss \eqn{1/2 * (log(pred + 1) - log(label + 1))^2}. All inputs are required to be greater than -1. Also, see metric rmsle for possible issue with this objective.
 #'     \item \code{reg:logistic} logistic regression.
+#'     \item \code{reg:pseudohubererror}: regression with Pseudo Huber loss, a twice differentiable alternative to absolute loss.
 #'     \item \code{binary:logistic} logistic regression for binary classification. Output probability.
 #'     \item \code{binary:logitraw} logistic regression for binary classification, output score before logistic transformation.
-#'     \item \code{num_class} set the number of classes. To use only with multiclass objectives.
+#'     \item \code{binary:hinge}: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
+#'     \item \code{count:poisson}: poisson regression for count data, output mean of poisson distribution. \code{max_delta_step} is set to 0.7 by default in poisson regression (used to safeguard optimization).
+#'     \item \code{survival:cox}: Cox regression for right censored survival time data (negative values are considered right censored). Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function \code{h(t) = h0(t) * HR)}.
+#'     \item \code{survival:aft}: Accelerated failure time model for censored survival time data. See \href{https://xgboost.readthedocs.io/en/latest/tutorials/aft_survival_analysis.html}{Survival Analysis with Accelerated Failure Time} for details.
+#'     \item \code{aft_loss_distribution}: Probabilty Density Function used by \code{survival:aft} and \code{aft-nloglik} metric.
 #'     \item \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective. Class is represented by a number and should be from 0 to \code{num_class - 1}.
 #'     \item \code{multi:softprob} same as softmax, but prediction outputs a vector of ndata * nclass elements, which can be further reshaped to ndata, nclass matrix. The result contains predicted probabilities of each data point belonging to each class.
 #'     \item \code{rank:pairwise} set xgboost to do ranking task by minimizing the pairwise loss.
+#'     \item \code{rank:ndcg}: Use LambdaMART to perform list-wise ranking where \href{https://en.wikipedia.org/wiki/Discounted_cumulative_gain}{Normalized Discounted Cumulative Gain (NDCG)} is maximized.
+#'     \item \code{rank:map}: Use LambdaMART to perform list-wise ranking where \href{https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Mean_average_precision}{Mean Average Precision (MAP)} is maximized.
+#'     \item \code{reg:gamma}: gamma regression with log-link. Output is a mean of gamma distribution. It might be useful, e.g., for modeling insurance claims severity, or for any outcome that might be \href{https://en.wikipedia.org/wiki/Gamma_distribution#Applications}{gamma-distributed}.
+#'     \item \code{reg:tweedie}: Tweedie regression with log-link. It might be useful, e.g., for modeling total loss in insurance, or for any outcome that might be \href{https://en.wikipedia.org/wiki/Tweedie_distribution#Applications}{Tweedie-distributed}.
 #'   }
 #'   \item \code{base_score} the initial prediction score of all instances, global bias. Default: 0.5
 #'   \item \code{eval_metric} evaluation metrics for validation data. Users can pass a self-defined function to it. Default: metric will be assigned according to objective(rmse for regression, and error for classification, mean average precision for ranking). List is provided in detail section.
@@ -120,16 +130,16 @@
 #' Note that when using a customized metric, only this single metric can be used.
 #' The following is the list of built-in metrics for which Xgboost provides optimized implementation:
 #'   \itemize{
-#'      \item \code{rmse} root mean square error. \url{http://en.wikipedia.org/wiki/Root_mean_square_error}
-#'      \item \code{logloss} negative log-likelihood. \url{http://en.wikipedia.org/wiki/Log-likelihood}
-#'      \item \code{mlogloss} multiclass logloss. \url{http://wiki.fast.ai/index.php/Log_Loss}
+#'      \item \code{rmse} root mean square error. \url{https://en.wikipedia.org/wiki/Root_mean_square_error}
+#'      \item \code{logloss} negative log-likelihood. \url{https://en.wikipedia.org/wiki/Log-likelihood}
+#'      \item \code{mlogloss} multiclass logloss. \url{https://scikit-learn.org/stable/modules/generated/sklearn.metrics.log_loss.html}
 #'      \item \code{error} Binary classification error rate. It is calculated as \code{(# wrong cases) / (# all cases)}.
 #'            By default, it uses the 0.5 threshold for predicted values to define negative and positive instances.
 #'            Different threshold (e.g., 0.) could be specified as "error@0."
 #'      \item \code{merror} Multiclass classification error rate. It is calculated as \code{(# wrong cases) / (# all cases)}.
-#'      \item \code{auc} Area under the curve. \url{http://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.
+#'      \item \code{auc} Area under the curve. \url{https://en.wikipedia.org/wiki/Receiver_operating_characteristic#'Area_under_curve} for ranking evaluation.
 #'      \item \code{aucpr} Area under the PR curve. \url{https://en.wikipedia.org/wiki/Precision_and_recall} for ranking evaluation.
-#'      \item \code{ndcg} Normalized Discounted Cumulative Gain (for ranking task). \url{http://en.wikipedia.org/wiki/NDCG}
+#'      \item \code{ndcg} Normalized Discounted Cumulative Gain (for ranking task). \url{https://en.wikipedia.org/wiki/NDCG}
 #'   }
 #'
 #' The following callbacks are automatically created when certain parameters are set:
@@ -268,7 +278,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
 
   # evaluation printing callback
   params <- c(params)
-  print_every_n <- max( as.integer(print_every_n), 1L)
+  print_every_n <- max(as.integer(print_every_n), 1L)
   if (!has.callbacks(callbacks, 'cb.print.evaluation') &&
       verbose) {
     callbacks <- add.cb(callbacks, cb.print.evaluation(print_every_n))
@@ -318,11 +328,8 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
       niter_init <- xgb.ntree(bst) %/% (num_parallel_tree * num_class)
     }
   }
-  if(is_update && nrounds > niter_init)
+  if (is_update && nrounds > niter_init)
     stop("nrounds cannot be larger than ", niter_init, " (nrounds of xgb_model)")
-
-  # TODO: distributed code
-  rank <- 0
 
   niter_skip <- ifelse(is_update, 0, niter_init)
   begin_iteration <- niter_skip + 1
@@ -335,7 +342,6 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
 
     xgb.iter.update(bst$handle, dtrain, iteration - 1, obj)
 
-    bst_evaluation <- numeric(0)
     if (length(watchlist) > 0)
       bst_evaluation <- xgb.iter.eval(bst$handle, watchlist, iteration - 1, feval)
 
@@ -350,7 +356,7 @@ xgb.train <- function(params = list(), data, nrounds, watchlist = list(),
   bst <- xgb.Booster.complete(bst, saveraw = TRUE)
 
   # store the total number of boosting iterations
-  bst$niter = end_iteration
+  bst$niter <- end_iteration
 
   # store the evaluation results
   if (length(evaluation_log) > 0 &&

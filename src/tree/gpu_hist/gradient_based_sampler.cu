@@ -354,9 +354,9 @@ GradientBasedSampler::GradientBasedSampler(EllpackPageImpl* page,
 // Sample a DMatrix based on the given gradient pairs.
 GradientBasedSample GradientBasedSampler::Sample(common::Span<GradientPair> gpair,
                                                  DMatrix* dmat) {
-  monitor_.StartCuda("Sample");
+  monitor_.Start("Sample");
   GradientBasedSample sample = strategy_->Sample(gpair, dmat);
-  monitor_.StopCuda("Sample");
+  monitor_.Stop("Sample");
   return sample;
 }
 

@@ -17,8 +17,8 @@ Load xgboost model from the binary model file.
 }
 \details{
 The input file is expected to contain a model saved in an xgboost-internal binary format
-using either \code{\link{xgb.save}} or \code{\link{cb.save.model}} in R, or using some 
-appropriate methods from other xgboost interfaces. E.g., a model trained in Python and 
+using either \code{\link{xgb.save}} or \code{\link{cb.save.model}} in R, or using some
+appropriate methods from other xgboost interfaces. E.g., a model trained in Python and
 saved from there in xgboost format, could be loaded from R.
 
 Note: a model saved as an R-object, has to be loaded using corresponding R-methods,
@@ -29,7 +29,7 @@ data(agaricus.train, package='xgboost')
 data(agaricus.test, package='xgboost')
 train <- agaricus.train
 test <- agaricus.test
-bst <- xgboost(data = train$data, label = train$label, max_depth = 2, 
+bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
                eta = 1, nthread = 2, nrounds = 2,objective = "binary:logistic")
 xgb.save(bst, 'xgb.model')
 bst <- xgb.load('xgb.model')

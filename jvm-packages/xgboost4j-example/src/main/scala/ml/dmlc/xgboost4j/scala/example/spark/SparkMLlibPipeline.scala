@@ -31,14 +31,19 @@ object SparkMLlibPipeline {
 
   def main(args: Array[String]): Unit = {
 
-    if (args.length != 3) {
-      println("Usage: SparkMLlibPipeline input_path native_model_path pipeline_model_path")
+    if (args.length != 3 && args.length != 4) {
+      println("Usage: SparkMLlibPipeline input_path native_model_path pipeline_model_path " +
+        "[cpu|gpu]")
       sys.exit(1)
     }
 
     val inputPath = args(0)
     val nativeModelPath = args(1)
     val pipelineModelPath = args(2)
+
+    val (treeMethod, numWorkers) = if (args.length == 4 && args(3) == "gpu") {
+      ("gpu_hist", 1)
+    } else ("auto", 2)
 
     val spark = SparkSession
       .builder()
@@ -76,7 +81,8 @@ object SparkMLlibPipeline {
         "objective" -> "multi:softprob",
         "num_class" -> 3,
         "num_round" -> 100,
-        "num_workers" -> 2
+        "num_workers" -> numWorkers,
+        "tree_method" -> treeMethod
       )
     )
     booster.setFeaturesCol("features")

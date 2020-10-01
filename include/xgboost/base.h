@@ -141,6 +141,15 @@ class GradientPairInternal {
  public:
   using ValueT = T;
 
+  inline void Add(const ValueT& grad, const ValueT& hess) {
+    grad_ += grad;
+    hess_ += hess;
+  }
+
+  inline static void Reduce(GradientPairInternal<T>& a, const GradientPairInternal<T>& b) { // NOLINT(*)
+    a += b;
+  }
+
   XGBOOST_DEVICE GradientPairInternal() : grad_(0), hess_(0) {}
 
   XGBOOST_DEVICE GradientPairInternal(T grad, T hess) {
@@ -148,9 +157,8 @@ class GradientPairInternal {
     SetHess(hess);
   }
 
-  // Copy constructor if of same value type
-  XGBOOST_DEVICE GradientPairInternal(const GradientPairInternal<T> &g)
-      : grad_(g.grad_), hess_(g.hess_) {}  // NOLINT
+  // Copy constructor if of same value type, marked as default to be trivially_copyable
+  GradientPairInternal(const GradientPairInternal<T> &g) = default;
 
   // Copy constructor if different value type - use getters and setters to
   // perform conversion

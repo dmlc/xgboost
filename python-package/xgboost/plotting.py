@@ -10,7 +10,7 @@ from .sklearn import XGBModel
 
 def plot_importance(booster, ax=None, height=0.2,
                     xlim=None, ylim=None, title='Feature importance',
-                    xlabel='F score', ylabel='Features',
+                    xlabel='F score', ylabel='Features', fmap='',
                     importance_type='weight', max_num_features=None,
                     grid=True, show_values=True, **kwargs):
     """Plot importance based on fitted trees.
@@ -43,6 +43,8 @@ def plot_importance(booster, ax=None, height=0.2,
         X axis title label. To disable, pass None.
     ylabel : str, default "Features"
         Y axis title label. To disable, pass None.
+    fmap: str or os.PathLike (optional)
+        The name of feature map file.
     show_values : bool, default True
         Show values on plot. To disable, pass False.
     kwargs :
@@ -54,14 +56,14 @@ def plot_importance(booster, ax=None, height=0.2,
     """
     try:
         import matplotlib.pyplot as plt
-    except ImportError:
-        raise ImportError('You must install matplotlib to plot importance')
+    except ImportError as e:
+        raise ImportError('You must install matplotlib to plot importance') from e
 
     if isinstance(booster, XGBModel):
         importance = booster.get_booster().get_score(
-            importance_type=importance_type)
+            importance_type=importance_type, fmap=fmap)
     elif isinstance(booster, Booster):
-        importance = booster.get_score(importance_type=importance_type)
+        importance = booster.get_score(importance_type=importance_type, fmap=fmap)
     elif isinstance(booster, dict):
         importance = booster
     else:
@@ -166,8 +168,8 @@ def to_graphviz(booster, fmap='', num_trees=0, rankdir=None,
     """
     try:
         from graphviz import Source
-    except ImportError:
-        raise ImportError('You must install graphviz to plot tree')
+    except ImportError as e:
+        raise ImportError('You must install graphviz to plot tree') from e
     if isinstance(booster, XGBModel):
         booster = booster.get_booster()
 
@@ -235,8 +237,8 @@ def plot_tree(booster, fmap='', num_trees=0, rankdir=None, ax=None, **kwargs):
     try:
         from matplotlib import pyplot as plt
         from matplotlib import image
-    except ImportError:
-        raise ImportError('You must install matplotlib to plot tree')
+    except ImportError as e:
+        raise ImportError('You must install matplotlib to plot tree') from e
 
     if ax is None:
         _, ax = plt.subplots(1, 1)

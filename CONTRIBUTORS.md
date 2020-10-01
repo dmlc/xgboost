@@ -10,8 +10,8 @@ The Project Management Committee(PMC) consists group of active committers that m
   - Tianqi is a Ph.D. student working on large-scale machine learning. He is the creator of the project.
 * [Michael Benesty](https://github.com/pommedeterresautee)
   - Michael is a lawyer and data scientist in France. He is the creator of XGBoost interactive analysis module in R.
-* [Yuan Tang](https://github.com/terrytangyuan), Ant Financial
-  - Yuan is a software engineer in Ant Financial. He contributed mostly in R and Python packages.
+* [Yuan Tang](https://github.com/terrytangyuan), Ant Group
+  - Yuan is a software engineer in Ant Group. He contributed mostly in R and Python packages.
 * [Nan Zhu](https://github.com/CodingCat), Uber
   - Nan is a software engineer in Uber. He contributed mostly in JVM packages.
 * [Jiaming Yuan](https://github.com/trivialfis)
@@ -37,6 +37,8 @@ Committers are people who have made substantial contribution to the project and 
   - Sergei is a software engineer in Criteo. He contributed mostly in JVM packages.
 * [Scott Lundberg](http://scottlundberg.com/), University of Washington
   - Scott is a Ph.D. student at University of Washington. He is the creator of SHAP, a unified approach to explain the output of machine learning models such as decision tree ensembles. He also helps maintain the XGBoost Julia package.
+* [Egor Smirnov](https://github.com/SmirnovEgorRu), Intel
+  - Egor has led a major effort to improve the performance of XGBoost on multi-core CPUs.
 
 
 Become a Committer

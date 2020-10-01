@@ -153,6 +153,8 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
                         '%s is used for building Windows distribution.', vs)
                     break
                 except subprocess.CalledProcessError:
+                    shutil.rmtree(build_dir)
+                    os.mkdir(build_dir)
                     continue
         else:
             gen = '-GNinja' if build_tool == 'ninja' else '-GUnix Makefiles'
@@ -309,11 +311,10 @@ if __name__ == '__main__':
                        'Operating System :: OS Independent',
                        'Programming Language :: Python',
                        'Programming Language :: Python :: 3',
-                       'Programming Language :: Python :: 3.5',
                        'Programming Language :: Python :: 3.6',
                        'Programming Language :: Python :: 3.7',
                        'Programming Language :: Python :: 3.8'],
-          python_requires='>=3.5',
+          python_requires='>=3.6',
           url='https://github.com/dmlc/xgboost')
 
     clean_up()

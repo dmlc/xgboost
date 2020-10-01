@@ -176,6 +176,13 @@ TEST(HostDeviceVector, Span) {
   ASSERT_TRUE(vec.HostCanWrite());
 }
 
+TEST(HostDeviceVector, Empty) {
+  HostDeviceVector<float> vec {1.0f, 2.0f, 3.0f, 4.0f};
+  HostDeviceVector<float> another { std::move(vec) };
+  ASSERT_FALSE(another.Empty());
+  ASSERT_TRUE(vec.Empty());
+}
+
 TEST(HostDeviceVector, MGPU_Basic) {  // NOLINT
   if (AllVisibleGPUs() < 2) {
     LOG(WARNING) << "Not testing in multi-gpu environment.";
