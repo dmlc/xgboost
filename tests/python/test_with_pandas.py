@@ -174,7 +174,7 @@ class TestPandas(unittest.TestCase):
     def test_cv_as_pandas(self):
         dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
         params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                  'objective': 'binary:logistic'}
+                  'objective': 'binary:logistic', 'eval_metric': 'error'}
 
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10)
         assert isinstance(cv, pd.DataFrame)

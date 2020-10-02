@@ -81,7 +81,7 @@ class TestBasic(unittest.TestCase):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
         param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                 'objective': 'binary:logistic'}
+                 'objective': 'binary:logistic', 'eval_metric': 'error'}
         # specify validations set to watch performance
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 2

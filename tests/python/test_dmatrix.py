@@ -115,7 +115,9 @@ class TestDMatrix(unittest.TestCase):
 
         eval_res_0 = {}
         booster = xgb.train(
-            {'num_class': 3, 'objective': 'multi:softprob'}, d,
+            {'num_class': 3, 'objective': 'multi:softprob',
+             'eval_metric': 'merror'},
+            d,
             num_boost_round=2, evals=[(d, 'd')], evals_result=eval_res_0)
 
         predt = booster.predict(d)
@@ -130,9 +132,11 @@ class TestDMatrix(unittest.TestCase):
         assert sliced_margin.shape[0] == len(ridxs) * 3
 
         eval_res_1 = {}
-        xgb.train({'num_class': 3, 'objective': 'multi:softprob'}, sliced,
-                  num_boost_round=2, evals=[(sliced, 'd')],
-                  evals_result=eval_res_1)
+        xgb.train(
+            {'num_class': 3, 'objective': 'multi:softprob',
+             'eval_metric': 'merror'},
+            sliced,
+            num_boost_round=2, evals=[(sliced, 'd')], evals_result=eval_res_1)
 
         eval_res_0 = eval_res_0['d']['merror']
         eval_res_1 = eval_res_1['d']['merror']
