@@ -18,7 +18,8 @@ ENV PATH=/opt/python/bin:$PATH
 # Create new Conda environment with cuDF, Dask, and cuPy
 RUN \
     conda create -n gpu_test -c rapidsai-nightly -c rapidsai -c nvidia -c conda-forge -c defaults \
-        python=3.7 cudf=0.16* rmm=0.16* cudatoolkit=$CUDA_VERSION dask dask-cuda dask-cudf cupy \
+	python=3.7 cudatoolkit=$CUDA_VERSION \
+	cudf=0.16* rmm=0.16* dask dask-cuda=0.16* dask-cudf=0.16* cupy \
         numpy pytest scipy scikit-learn pandas matplotlib wheel python-kubernetes urllib3 graphviz hypothesis
 
 ENV GOSU_VERSION 1.10
