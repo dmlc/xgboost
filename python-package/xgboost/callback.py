@@ -1,9 +1,14 @@
 # coding: utf-8
-# pylint: disable=invalid-name, too-many-statements
+# pylint: disable=invalid-name, too-many-statements, no-self-use
+# pylint: disable=too-many-arguments
 """Training Library containing training routines."""
+from abc import ABC
+import collections
+import numpy
 
 from . import rabit
-from .core import EarlyStopException
+from .core import EarlyStopException, DMatrix, CallbackEnv
+from .compat import STRING_TYPES
 
 
 def _get_callback_context(env):
@@ -23,7 +28,7 @@ def _fmt_metric(value, show_stdv=True):
         if show_stdv:
             return  '{0}:{1:.5f}+{2:.5f}'.format(value[0], value[1], value[2])
         return '{0}:{1:.5f}'.format(value[0], value[1])
-    raise ValueError("wrong metric value")
+    raise ValueError("wrong metric value", value)
 
 
 def print_evaluation(period=1, show_stdv=True):
@@ -253,3 +258,372 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
                 rabit.tracker_print(msg.format(best_msg))
             raise EarlyStopException(best_iteration)
     return callback
+
+
+#
+# The new implementation of callback functions.
+#
+# TODOs
+# - eval_set
+# - cv
+# - tests
+# - doc
+# - enforced best_xxx
+# - merged functionality of es and mon.
+
+# pylint: disable=unused-argument
+class TrainingCallback(ABC):
+    '''Interface for training callback.
+
+    .. versionadded:: 1.3.0
+
+    '''
+    def __init__(self):
+        self.history = {}
+
+    def before_training(self, model):
+        '''Run before training starts.'''
+
+    def after_training(self, model):
+        '''Run after training is finished.'''
+
+    def before_iteration(self, model, epoch):
+        '''Run before each iteration.'''
+        return False
+
+    def after_iteration(self, model, epoch):
+        '''Run after each iteration.'''
+        return False
+
+
+class CallbackContainer(TrainingCallback):
+    '''A container for list of callbacks.
+
+    .. versionadded:: 1.3.0
+
+    '''
+    def __init__(self, callbacks):
+        self.callbacks = callbacks
+        super().__init__()
+
+    def before_training(self, model):
+        '''Function called before training.'''
+        for c in self.callbacks:
+            c.before_training(model)
+
+    def after_training(self, model):
+        '''Function called after training.'''
+        for c in self.callbacks:
+            c.after_training(model)
+
+    def before_iteration(self, model, epoch):
+        '''Function called before training iteration.'''
+        return any(c.before_iteration(model, epoch)
+                   for c in self.callbacks)
+
+    def after_iteration(self, model, epoch):
+        '''Function called after training iteration.'''
+        return any(c.after_iteration(model, epoch)
+                   for c in self.callbacks)
+
+
+class LearningRateScheduler(TrainingCallback):
+    '''Callback function for scheduling learning rate.
+
+    .. versionadded:: 1.3.0
+
+    Parameters
+    ----------
+
+    learning_rates : callable/collections.Sequence
+        If it's a callable object, then it should accept an integer parameter
+        `epoch` and returns the corresponding learning rate.  Otherwise it
+        shoule be a sequence like list or tuple with the same size of boosting
+        rounds.
+
+    '''
+    def __init__(self, learning_rates):
+        assert callable(learning_rates) or \
+            isinstance(learning_rates, collections.Sequence)
+        if callable(learning_rates):
+            self.learning_rates = learning_rates
+        else:
+            self.learning_rates = lambda epoch: learning_rates[epoch]
+        super().__init__()
+
+    def after_iteration(self, model, epoch):
+        model.set_param('learning_rate', self.learning_rates(epoch))
+
+
+# pylint: disable=too-many-instance-attributes
+class EarlyStopping(TrainingCallback):
+    ''' Callback function for early stopping
+
+    .. versionadded:: 1.3.0
+
+    Parameters
+    ----------
+    data
+        data for evaluation.
+    name : str
+        Name of data.
+    metric : str/callable
+        Name of metric.  Use the default metric if not specified.
+    metric_name : str
+        Name of metric, used when metric is a callable object.
+    rounds : int
+        Early stopping rounds.
+    maximize : bool
+        Whether to maximize evaluation metric.
+    missing : float
+        Same as missing for DMatrix, used when input is not a DMatrix.
+    wegiht
+        Same as label for DMatrix, used when input is not a DMatrix.
+    label
+        Same as weight for DMatrix, used when input is not a DMatrix.
+    '''
+    def __init__(self, data, name, rounds, metric=None, metric_name='metric',
+                 maximize=False, missing=numpy.nan, weight=None, label=None):
+        if callable(metric):
+            self.data = data
+            self.label = label
+            assert weight is None, 'Weight is not supported by custom metric'
+        else:
+            self.data = self._make_dmatrix(data, label, weight, missing)
+            self.label = None
+            self.weight = None
+
+        self.data_id = id(self.data)
+        self.name = name
+        self.metric = metric
+        self.rounds = rounds
+        if callable(self.metric):
+            self.metric_name = metric_name
+        else:
+            self.metric_name = self.metric
+        self.maximize = maximize
+
+        if self.maximize:
+            self.improve_op = lambda x, y: x > y
+        else:
+            self.improve_op = lambda x, y: x < y
+
+        self.current_rounds = 0
+        self.best_scores = {}
+        super().__init__()
+
+    def _make_dmatrix(self, data, label, weight, missing):
+        if not isinstance(data, DMatrix):
+            assert label is not None, 'Label is required to construct DMatrix.'
+            data = DMatrix(data, label=label, weight=weight, missing=missing)
+        else:
+            assert label is None and weight is None and numpy.isnan(missing), (
+                'label, weight and missing are only used when input is not ' +
+                'a DMatrix'
+            )
+        return data
+
+    def before_training(self, model):
+        if not callable(self.metric):
+            model.set_param({'eval_metric': self.metric})
+
+    def after_training(self, model):
+        model.best_iteration = self.rounds
+        model.set_attr(best_iteration=str(self.rounds))
+
+    def _update_rounds(self, scores, model, epoch):
+        assert len(scores) == 1
+        score = scores[0]
+        metric, s = score[0], score[1]
+        if not self.history:    # First round
+            self.current_rounds = 0
+            self.history[self.name] = {}
+            self.history[self.name][metric] = [s]
+            self.best_scores[self.name] = {}
+            self.best_scores[self.name][metric] = [s]
+        elif not self.improve_op(s, self.best_scores[self.name][metric][-1]):
+            # Not improved
+            self.history[self.name][metric].append(s)
+            self.current_rounds += 1
+        else:                   # Improved
+            self.history[self.name][metric].append(s)
+            self.best_scores[self.name][metric].append(s)
+            record = self.history[self.name][metric][-1]
+            model.set_attr(best_score=str(record),
+                           best_iteration=str(epoch))
+            self.current_rounds = 0  # reset
+
+        if self.current_rounds >= self.rounds:
+            return True
+        return False
+
+    def after_iteration(self, model, epoch):
+        assert not rabit.is_distributed(), '''
+Use distributed version instead.  For dask users:
+
+>>>  from xgboost.dask import EarlyStopping
+'''
+        if callable(self.metric):
+            predt = model.inplace_predict(self.data)
+            score = self.metric(self.label, predt)
+            score = [(self.metric_name, score)]
+        else:
+            score = model.eval(self.data)
+            score = [s.split(':') for s in score.split()]
+            score = [(k, float(v)) for k, v in score[1:]]
+
+        return self._update_rounds(score, model, epoch)
+
+
+class EvaluationMonitor(TrainingCallback):
+    '''Print the evaluation result at each iteration.
+
+    .. versionadded:: 1.3.0
+
+    Parameters
+    ----------
+
+    data
+        Data for evaluation.
+    name : str
+        Name of data.
+    metric : str
+        Name of metric
+    rank : int
+        Which worker should be used for printing the result.
+    missing : float
+        Used when data is not a DMatrix.
+    weight
+        Used when data is not a DMatrix.
+    label
+        Used when data is not a DMatrix.
+    '''
+    def __init__(self, data, name,
+                 metric=None, rank=0, missing=numpy.nan,
+                 weight=None, label=None):
+        data = self._make_dmatrix(data, label, weight, missing)
+        self.data = data
+        self.data_id = id(self.data)
+
+        self.name = name
+        self.metric = metric
+        self.label = label
+        self.printer_rank = rank
+        super().__init__()
+
+    def _make_dmatrix(self, data, label, weight, missing):
+        if not isinstance(data, DMatrix):
+            assert label is not None
+            data = DMatrix(data, label=label, weight=weight, missing=missing)
+        else:
+            assert label is None and weight is None and numpy.isnan(missing), (
+                'label, weight and missing are only used when input is not ' +
+                'a DMatrix'
+            )
+        return data
+
+    def before_training(self, model):
+        model.set_param({'eval_metric': self.metric})
+
+    def _update_history(self, score, epoch):
+        score = [s.split(':') for s in score.split()]
+        score = [(k, float(v)) for k, v in score[1:]]
+
+        if rabit.get_rank() == self.printer_rank:
+            msg = _fmt_metric(score[0])
+            rabit.tracker_print('[%d]\t%s\n' % (epoch, msg))
+
+        def metric_name():
+            if self.metric:
+                return self.metric
+            name = score[0][0]
+            pos = name.index('-')
+            name = name[pos+1:]
+            return name
+
+        if not self.history:
+            self.history[metric_name()] = [score[0][1]]
+        else:
+            self.history[metric_name()].append(score[0][1])
+
+        return False
+
+    def after_iteration(self, model, epoch):
+        assert not rabit.is_distributed()
+        score = model.eval(self.data, self.name)
+        return self._update_history(score, epoch)
+
+
+class LegacyCallbacks(TrainingCallback):
+    '''Adapter for legacy callback functions.
+
+    .. versionadded:: 1.3.0
+
+    Parameters
+    ----------
+
+    callbacks : Sequence
+        A sequence of legacy callbacks (callbacks that are not instance of
+        TrainingCallback)
+    start_iteration : int
+        Begining iteration.
+    end_iteration : int
+        End iteration, normally is the number of boosting rounds.
+    evals : Sequence
+        Sequence of evaluation dataset tuples.
+    feval : Custom evaluation metric.
+    '''
+    def __init__(self, callbacks, start_iteration, end_iteration,
+                 evals, feval):
+        self.callbacks_before_iter = [
+            cb for cb in callbacks
+            if cb.__dict__.get('before_iteration', False)]
+        self.callbacks_after_iter = [
+            cb for cb in callbacks
+            if not cb.__dict__.get('before_iteration', False)]
+
+        self.start_iteration = start_iteration
+        self.end_iteration = end_iteration
+
+        self.evals = evals
+        self.feval = feval
+        assert self.feval is None or callable(self.feval)
+
+        super().__init__()
+
+    def before_iteration(self, model, epoch):
+        for cb in self.callbacks_before_iter:
+            rank = rabit.get_rank()
+            cb(CallbackEnv(model=model,
+                           cvfolds=None,
+                           iteration=epoch,
+                           begin_iteration=self.start_iteration,
+                           end_iteration=self.end_iteration,
+                           rank=rank,
+                           evaluation_result_list=None))
+        return False
+
+    def after_iteration(self, model, epoch):
+        evaluation_result_list = []
+        if self.evals:
+            bst_eval_set = model.eval_set(self.evals, epoch, self.feval)
+            if isinstance(bst_eval_set, STRING_TYPES):
+                msg = bst_eval_set
+            else:
+                msg = bst_eval_set.decode()
+            res = [x.split(':') for x in msg.split()]
+            evaluation_result_list = [(k, float(v)) for k, v in res[1:]]
+        try:
+            for cb in self.callbacks_after_iter:
+                rank = rabit.get_rank()
+                cb(CallbackEnv(model=model,
+                               cvfolds=None,
+                               iteration=epoch,
+                               begin_iteration=self.start_iteration,
+                               end_iteration=self.end_iteration,
+                               rank=rank,
+                               evaluation_result_list=evaluation_result_list))
+        except EarlyStopException:
+            return True
+
+        return False

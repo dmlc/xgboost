@@ -13,21 +13,13 @@ from . import callback
 def _train_internal(params, dtrain,
                     num_boost_round=10, evals=(),
                     obj=None, feval=None,
-                    xgb_model=None, callbacks=None):
+                    xgb_model=None, callbacks=None,
+                    evals_result=None, maximize=None,
+                    verbose_eval=None, early_stopping_rounds=None):
     """internal training function"""
     callbacks = [] if callbacks is None else callbacks
     evals = list(evals)
     params = params.copy()
-    if isinstance(params, dict) \
-            and 'eval_metric' in params \
-            and isinstance(params['eval_metric'], list):
-        params = dict((k, v) for k, v in params.items())
-        eval_metrics = params['eval_metric']
-        params.pop("eval_metric", None)
-        params = list(params.items())
-        for eval_metric in eval_metrics:
-            params += [('eval_metric', eval_metric)]
-
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
     nboost = 0
     num_parallel_tree = 1
@@ -49,26 +41,35 @@ def _train_internal(params, dtrain,
     # Distributed code: Load the checkpoint from rabit.
     version = bst.load_rabit_checkpoint()
     assert rabit.get_world_size() != 1 or version == 0
-    rank = rabit.get_rank()
     start_iteration = int(version / 2)
     nboost += start_iteration
 
-    callbacks_before_iter = [
-        cb for cb in callbacks
-        if cb.__dict__.get('before_iteration', False)]
-    callbacks_after_iter = [
-        cb for cb in callbacks
-        if not cb.__dict__.get('before_iteration', False)]
+    is_new_callback = [isinstance(c, callback.TrainingCallback)
+                       for c in callbacks]
+    if any(is_new_callback):
+        assert all(is_new_callback), "You can't mix two styles of callbacks."
+        callbacks = callback.CallbackContainer(callbacks)
+    else:
+        # Most of legacy advanced options becomes callbacks
+        if isinstance(verbose_eval, bool) and verbose_eval:
+            callbacks.append(callback.print_evaluation())
+        else:
+            if isinstance(verbose_eval, int):
+                callbacks.append(callback.print_evaluation(verbose_eval))
 
+        if early_stopping_rounds is not None:
+            callbacks.append(callback.early_stop(early_stopping_rounds,
+                                                 maximize=maximize,
+                                                 verbose=bool(verbose_eval)))
+        if evals_result is not None:
+            callbacks.append(callback.record_evaluation(evals_result))
+        callbacks = callback.LegacyCallbacks(
+            callbacks, start_iteration, num_boost_round, evals, feval)
+
+    callbacks.before_training(bst)
     for i in range(start_iteration, num_boost_round):
-        for cb in callbacks_before_iter:
-            cb(CallbackEnv(model=bst,
-                           cvfolds=None,
-                           iteration=i,
-                           begin_iteration=start_iteration,
-                           end_iteration=num_boost_round,
-                           rank=rank,
-                           evaluation_result_list=None))
+        if callbacks.before_iteration(bst, i):
+            break
         # Distributed code: need to resume to this point.
         # Skip the first update if it is a recovery step.
         if version % 2 == 0:
@@ -79,30 +80,15 @@ def _train_internal(params, dtrain,
         assert rabit.get_world_size() == 1 or version == rabit.version_number()
 
         nboost += 1
-        evaluation_result_list = []
         # check evaluation result.
-        if evals:
-            bst_eval_set = bst.eval_set(evals, i, feval)
-            if isinstance(bst_eval_set, STRING_TYPES):
-                msg = bst_eval_set
-            else:
-                msg = bst_eval_set.decode()
-            res = [x.split(':') for x in msg.split()]
-            evaluation_result_list = [(k, float(v)) for k, v in res[1:]]
-        try:
-            for cb in callbacks_after_iter:
-                cb(CallbackEnv(model=bst,
-                               cvfolds=None,
-                               iteration=i,
-                               begin_iteration=start_iteration,
-                               end_iteration=num_boost_round,
-                               rank=rank,
-                               evaluation_result_list=evaluation_result_list))
-        except EarlyStopException:
+        if callbacks.after_iteration(bst, i):
             break
-        # do checkpoint after evaluation, in case evaluation also updates booster.
+        # do checkpoint after evaluation, in case evaluation also updates
+        # booster.
         bst.save_rabit_checkpoint()
         version += 1
+
+    callbacks.after_training(bst)
 
     if bst.attr('best_score') is not None:
         bst.best_score = float(bst.attr('best_score'))
@@ -110,8 +96,8 @@ def _train_internal(params, dtrain,
     else:
         bst.best_iteration = nboost - 1
     bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
-
-    # Copy to serialise and unserialise booster to reset state and free training memory
+    # Copy to serialise and unserialise booster to reset state and free
+    # training memory
     return bst.copy()
 
 
@@ -189,27 +175,16 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     -------
     Booster : a trained booster model
     """
-    callbacks = [] if callbacks is None else callbacks
-
-    # Most of legacy advanced options becomes callbacks
-    if isinstance(verbose_eval, bool) and verbose_eval:
-        callbacks.append(callback.print_evaluation())
-    else:
-        if isinstance(verbose_eval, int):
-            callbacks.append(callback.print_evaluation(verbose_eval))
-
-    if early_stopping_rounds is not None:
-        callbacks.append(callback.early_stop(early_stopping_rounds,
-                                             maximize=maximize,
-                                             verbose=bool(verbose_eval)))
-    if evals_result is not None:
-        callbacks.append(callback.record_evaluation(evals_result))
-
-    return _train_internal(params, dtrain,
-                           num_boost_round=num_boost_round,
-                           evals=evals,
-                           obj=obj, feval=feval,
-                           xgb_model=xgb_model, callbacks=callbacks)
+    bst = _train_internal(params, dtrain,
+                          num_boost_round=num_boost_round,
+                          evals=evals,
+                          obj=obj, feval=feval,
+                          xgb_model=xgb_model, callbacks=callbacks,
+                          verbose_eval=verbose_eval,
+                          evals_result=evals_result,
+                          maximize=maximize,
+                          early_stopping_rounds=early_stopping_rounds)
+    return bst
 
 
 class CVPack(object):
