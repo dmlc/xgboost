@@ -4,6 +4,7 @@
 """Training Library containing training routines."""
 from abc import ABC
 import collections
+import os
 import numpy
 
 from . import rabit
@@ -552,6 +553,32 @@ class EvaluationMonitor(TrainingCallback):
         assert not rabit.is_distributed()
         score = model.eval(self.data, self.name)
         return self._update_history(score, epoch)
+
+
+class TrainingCheckPoint(TrainingCallback):
+    '''Checkpointing operation.
+
+    .. versionadded:: 1.3.0
+
+    Parameters
+    ----------
+
+    path : os.PathLike
+        Output model path.
+    iterations : int
+        Interval of checkpointing.
+    '''
+    def __init__(self, path: os.PathLike, iterations=10):
+        self._path = path
+        self._iterations = iterations
+        self._epoch = 0
+
+    def after_iteration(self, model, epoch):
+        self._epoch += 1
+        if self._epoch == 10:
+            self._epoch = 0
+            if rabit.get_rank() == 0:
+                model.save_model(self._path)
 
 
 class LegacyCallbacks(TrainingCallback):
