@@ -165,7 +165,7 @@ namespace {
 template <typename BatchT>
 struct KeyOp {
   BatchT batch;
-  __device__ size_t operator()(size_t idx) {
+  XGBOOST_DEVICE size_t operator()(size_t idx) {
     return batch.GetElement(idx).row_idx;
   }
 };
@@ -174,7 +174,7 @@ template <typename BatchT>
 struct ValOp {
   BatchT batch;
   data::IsValidFunctor is_valid;
-  __device__ size_t operator()(size_t idx) {
+  XGBOOST_DEVICE size_t operator()(size_t idx) {
     return static_cast<size_t>(is_valid(batch.GetElement(idx)));
   }
 };
