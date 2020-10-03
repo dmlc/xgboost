@@ -516,13 +516,64 @@ TEST(GPUQuantile, Push) {
 
   auto v_0 = h_sketch_data[0];
   ASSERT_EQ(v_0.rmin, 0);
-  ASSERT_EQ(v_0.wmin, 50.0f);
-  ASSERT_EQ(v_0.rmax, 50.0f);
+  ASSERT_EQ(v_0.wmin, kRows / 2.0f);
+  ASSERT_EQ(v_0.rmax, kRows / 2.0f);
 
   auto v_1 = h_sketch_data[1];
-  ASSERT_EQ(v_1.rmin, 50.0f);
-  ASSERT_EQ(v_1.wmin, 50.0f);
-  ASSERT_EQ(v_1.rmax, 100.0f);
+  ASSERT_EQ(v_1.rmin, kRows / 2.0f);
+  ASSERT_EQ(v_1.wmin, kRows / 2.0f);
+  ASSERT_EQ(v_1.rmax, static_cast<float>(kRows));
+}
+
+TEST(GPUQuantile, MultiColPush) {
+  size_t constexpr kRows = 100, kCols = 4;
+  std::vector<float> data(kRows * kCols);
+
+  std::fill(data.begin(), data.begin() + (data.size() / 2), 0.3f);
+
+  std::vector<Entry> entries(kRows * kCols);
+
+  for (bst_feature_t c = 0; c < kCols; ++c) {
+    for (size_t r = 0; r < kRows; ++r) {
+      float v = (r >= kRows / 2) ? 0.7 : 0.4;
+      auto e = Entry{c, v};
+      entries[c * kRows + r] = e;
+    }
+  }
+
+  int32_t n_bins = 16;
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch(ft, n_bins, kCols, kRows, 0);
+  dh::device_vector<Entry> d_entries {entries};
+
+  dh::device_vector<size_t> columns_ptr(kCols + 1, 0);
+  for (size_t i = 1; i < kCols + 1; ++i) {
+    columns_ptr[i] = kRows;
+  }
+  thrust::inclusive_scan(thrust::device, columns_ptr.begin(), columns_ptr.end(),
+                         columns_ptr.begin());
+  dh::device_vector<size_t> cuts_ptr(columns_ptr);
+
+  sketch.Push(dh::ToSpan(d_entries), dh::ToSpan(columns_ptr),
+              dh::ToSpan(cuts_ptr), kRows * kCols, {});
+
+  auto sketch_data = sketch.Data();
+  ASSERT_EQ(sketch_data.size(), kCols * 2);
+  auto ptr = thrust::device_ptr<SketchEntry const>(sketch_data.data());
+  std::vector<SketchEntry> h_sketch_data(sketch_data.size());
+  thrust::copy(ptr, ptr + sketch_data.size(), h_sketch_data.begin());
+
+  for (size_t i = 0; i < kCols; ++i) {
+    auto v_0 = h_sketch_data[i * 2];
+    ASSERT_EQ(v_0.rmin, 0);
+    ASSERT_EQ(v_0.wmin, kRows / 2.0f);
+    ASSERT_EQ(v_0.rmax, kRows / 2.0f);
+
+    auto v_1 = h_sketch_data[i * 2 + 1];
+    ASSERT_EQ(v_1.rmin, kRows / 2.0f);
+    ASSERT_EQ(v_1.wmin, kRows / 2.0f);
+    ASSERT_EQ(v_1.rmax, static_cast<float>(kRows));
+  }
 }
 }  // namespace common
 }  // namespace xgboost

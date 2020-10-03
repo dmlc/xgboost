@@ -373,12 +373,11 @@ size_t SketchContainer::ScanInput(Span<SketchEntry> entries, Span<OffsetT> d_col
   CHECK_EQ(d_columns_ptr_in.size(), num_columns_ + 1);
   dh::XGBCachingDeviceAllocator<char> alloc;
 
-  auto tran_it = dh::MakeTransformIterator<size_t>(
-      thrust::make_counting_iterator(entries.size()),
+  auto key_it = dh::MakeTransformIterator<size_t>(
+      thrust::make_reverse_iterator(thrust::make_counting_iterator(entries.size())),
       [=] __device__(size_t idx) {
         return dh::SegmentId(d_columns_ptr_in, idx);
       });
-  auto key_it = thrust::make_reverse_iterator(tran_it + entries.size());
   // Reverse scan to accumulate weights into first duplicated element on left.
   auto val_it = thrust::make_reverse_iterator(dh::tend(entries));
   thrust::inclusive_scan_by_key(
@@ -398,13 +397,10 @@ size_t SketchContainer::ScanInput(Span<SketchEntry> entries, Span<OffsetT> d_col
   auto d_columns_ptr_out = columns_ptr_b_.DeviceSpan();
   // thrust unique_by_key preserves the first element.
   auto n_uniques = dh::SegmentedUnique(
-      thrust::cuda::par(alloc),
       d_columns_ptr_in.data(),
       d_columns_ptr_in.data() + d_columns_ptr_in.size(), entries.data(),
       entries.data() + entries.size(), d_columns_ptr_out.data(), entries.data(),
-      [] __device__(SketchEntry const &l, SketchEntry const &r) {
-        return l.value == r.value;
-      });
+      detail::SketchUnique{});
   CopyTo(d_columns_ptr_in, d_columns_ptr_out);
 
   timer_.Stop(__func__);
