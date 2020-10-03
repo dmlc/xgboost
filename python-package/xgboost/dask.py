@@ -627,8 +627,8 @@ async def _get_rabit_args(worker_map, client: Client):
 # evaluation history is instead returned.
 
 
-async def _train_async(client, params, dtrain: DaskDMatrix,
-                       *args, evals=(), **kwargs):
+async def _train_async(client, params, dtrain: DaskDMatrix, *args, evals=(),
+                       early_stopping_rounds=None, **kwargs):
     _assert_dask_support()
     client: Client = _xgb_get_client(client)
     if 'evals_result' in kwargs.keys():
@@ -675,6 +675,7 @@ async def _train_async(client, params, dtrain: DaskDMatrix,
                                *args,
                                evals_result=local_history,
                                evals=local_evals,
+                               early_stopping_rounds=early_stopping_rounds,
                                **kwargs)
             ret = {'booster': bst, 'history': local_history}
             if local_dtrain.num_row() == 0:
@@ -694,7 +695,8 @@ async def _train_async(client, params, dtrain: DaskDMatrix,
     return list(filter(lambda ret: ret is not None, results))[0]
 
 
-def train(client, params, dtrain, *args, evals=(), **kwargs):
+def train(client, params, dtrain, *args, evals=(), early_stopping_rounds=None,
+          **kwargs):
     '''Train XGBoost model.
 
     .. versionadded:: 1.0.0
@@ -724,8 +726,9 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
     '''
     _assert_dask_support()
     client = _xgb_get_client(client)
-    return client.sync(_train_async, client, params,
-                       dtrain=dtrain, *args, evals=evals, **kwargs)
+    return client.sync(
+        _train_async, client, params, dtrain=dtrain, *args, evals=evals,
+        early_stopping_rounds=early_stopping_rounds, **kwargs)
 
 
 async def _direct_predict_impl(client, data, predict_fn):
@@ -1005,6 +1008,7 @@ class DaskScikitLearnBase(XGBModel):
             base_margin=None,
             eval_set=None,
             sample_weight_eval_set=None,
+            early_stopping_rounds=None,
             verbose=True):
         '''Fit the regressor.
 
@@ -1066,6 +1070,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
                          base_margin=None,
                          eval_set=None,
                          sample_weight_eval_set=None,
+                         early_stopping_rounds=None,
                          verbose=True):
         dtrain = await DaskDMatrix(
             client=self.client, data=X, label=y, weight=sample_weights,
@@ -1077,7 +1082,8 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
                                            self.missing)
         results = await train(client=self.client, params=params, dtrain=dtrain,
                               num_boost_round=self.get_num_boosting_rounds(),
-                              evals=evals, verbose_eval=verbose)
+                              evals=evals, verbose_eval=verbose,
+                              early_stopping_rounds=early_stopping_rounds)
         self._Booster = results['booster']
         # pylint: disable=attribute-defined-outside-init
         self.evals_result_ = results['history']
@@ -1089,6 +1095,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             base_margin=None,
             eval_set=None,
             sample_weight_eval_set=None,
+            early_stopping_rounds=None,
             verbose=True):
         _assert_dask_support()
         return self.client.sync(
@@ -1161,6 +1168,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             base_margin=None,
             eval_set=None,
             sample_weight_eval_set=None,
+            early_stopping_rounds=None,
             verbose=True):
         _assert_dask_support()
         return self.client.sync(
