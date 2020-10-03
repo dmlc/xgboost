@@ -106,3 +106,6 @@ R-package/src/Makevars
 
 # GDB
 .gdb_history
+
+# Python joblib.Memory used in pytest.
+cachedir/
