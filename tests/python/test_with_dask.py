@@ -648,6 +648,16 @@ class TestWithDask:
     def test_approx(self, client, params, num_rounds, dataset):
         self.run_updater_test(client, params, num_rounds, dataset, 'approx')
 
+    def test_early_stopping(self, client):
+        from sklearn.datasets import load_breast_cancer
+        X, y = load_breast_cancer(return_X_y=True)
+        m = xgb.dask.DaskDMatrix(X, y)
+        booster = xgb.dask.train({'objective': 'binary:logistic'}, m,
+                                 evals=[(m, 'Train')],
+                                 num_boost_round=1000,
+                                 early_stopping_rounds=5)
+        assert hasattr(booster, 'best_score')
+
     def run_quantile(self, name):
         if sys.platform.startswith("win"):
             pytest.skip("Skipping dask tests on Windows")
