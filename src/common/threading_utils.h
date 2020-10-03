@@ -144,7 +144,15 @@ void ParallelFor(size_t size, size_t nthreads, Func fn) {
   omp_exc.Rethrow();
 }
 
-inline int32_t OmpSetNumThreads(int32_t threads) {
+/* \brief Configure parallel threads.
+ *
+ * \param p_threads Number of threads, when it's less than or equal to 0, this function
+ *        will change it to number of process on system.
+ *
+ * \return Global openmp max threads before configuration.
+ */
+inline int32_t OmpSetNumThreads(int32_t* p_threads) {
+  auto& threads = *p_threads;
   int32_t nthread_original = omp_get_max_threads();
   if (threads <= 0) {
     threads = omp_get_num_procs();

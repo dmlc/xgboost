@@ -288,7 +288,7 @@ class LearnerConfiguration : public Learner {
     generic_parameters_.CheckDeprecated();
 
     ConsoleLogger::Configure(args);
-    common::OmpSetNumThreads(generic_parameters_.nthread);
+    common::OmpSetNumThreads(&generic_parameters_.nthread);
 
     // add additional parameters
     // These are cosntraints that need to be satisfied.
