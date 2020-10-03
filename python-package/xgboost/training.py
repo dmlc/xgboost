@@ -68,7 +68,7 @@ def _train_internal(params, dtrain,
 
     callbacks.before_training(bst)
     for i in range(start_iteration, num_boost_round):
-        if callbacks.before_iteration(bst, i):
+        if callbacks.before_iteration(bst, i, dtrain, evals):
             break
         # Distributed code: need to resume to this point.
         # Skip the first update if it is a recovery step.
@@ -81,7 +81,7 @@ def _train_internal(params, dtrain,
 
         nboost += 1
         # check evaluation result.
-        if callbacks.after_iteration(bst, i):
+        if callbacks.after_iteration(bst, i, dtrain, evals):
             break
         # do checkpoint after evaluation, in case evaluation also updates
         # booster.

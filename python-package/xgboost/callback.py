@@ -288,11 +288,11 @@ class TrainingCallback(ABC):
     def after_training(self, model):
         '''Run after training is finished.'''
 
-    def before_iteration(self, model, epoch):
+    def before_iteration(self, model, epoch, dtrain, evals):
         '''Run before each iteration.'''
         return False
 
-    def after_iteration(self, model, epoch):
+    def after_iteration(self, model, epoch, dtrain, evals):
         '''Run after each iteration.'''
         return False
 
@@ -317,14 +317,14 @@ class CallbackContainer(TrainingCallback):
         for c in self.callbacks:
             c.after_training(model)
 
-    def before_iteration(self, model, epoch):
+    def before_iteration(self, model, epoch, dtrain, evals):
         '''Function called before training iteration.'''
-        return any(c.before_iteration(model, epoch)
+        return any(c.before_iteration(model, epoch, dtrain, evals)
                    for c in self.callbacks)
 
-    def after_iteration(self, model, epoch):
+    def after_iteration(self, model, epoch, dtrain, evals):
         '''Function called after training iteration.'''
-        return any(c.after_iteration(model, epoch)
+        return any(c.after_iteration(model, epoch, dtrain, evals)
                    for c in self.callbacks)
 
 
@@ -352,8 +352,17 @@ class LearningRateScheduler(TrainingCallback):
             self.learning_rates = lambda epoch: learning_rates[epoch]
         super().__init__()
 
-    def after_iteration(self, model, epoch):
+    def after_iteration(self, model, epoch, dtrain, evals):
         model.set_param('learning_rate', self.learning_rates(epoch))
+
+
+def _allreduce_metric(score, maximize):
+    score = numpy.array([score])
+    if maximize:
+        score = rabit.allreduce(score, rabit.Op.MAX)
+    else:
+        score = rabit.allreduce(score, rabit.Op.MIN)
+    return score
 
 
 # pylint: disable=too-many-instance-attributes
@@ -383,18 +392,8 @@ class EarlyStopping(TrainingCallback):
     label
         Same as weight for DMatrix, used when input is not a DMatrix.
     '''
-    def __init__(self, data, name, rounds, metric=None, metric_name='metric',
-                 maximize=False, missing=numpy.nan, weight=None, label=None):
-        if callable(metric):
-            self.data = data
-            self.label = label
-            assert weight is None, 'Weight is not supported by custom metric'
-        else:
-            self.data = self._make_dmatrix(data, label, weight, missing)
-            self.label = None
-            self.weight = None
-
-        self.data_id = id(self.data)
+    def __init__(self, name, rounds, metric=None, metric_name='metric',
+                 maximize=False):
         self.name = name
         self.metric = metric
         self.rounds = rounds
@@ -412,17 +411,6 @@ class EarlyStopping(TrainingCallback):
         self.current_rounds = 0
         self.best_scores = {}
         super().__init__()
-
-    def _make_dmatrix(self, data, label, weight, missing):
-        if not isinstance(data, DMatrix):
-            assert label is not None, 'Label is required to construct DMatrix.'
-            data = DMatrix(data, label=label, weight=weight, missing=missing)
-        else:
-            assert label is None and weight is None and numpy.isnan(missing), (
-                'label, weight and missing are only used when input is not ' +
-                'a DMatrix'
-            )
-        return data
 
     def before_training(self, model):
         if not callable(self.metric):
@@ -458,18 +446,23 @@ class EarlyStopping(TrainingCallback):
             return True
         return False
 
-    def after_iteration(self, model, epoch):
+    def after_iteration(self, model, epoch, dtrain, evals):
         assert not rabit.is_distributed(), '''
 Use distributed version instead.  For dask users:
 
 >>>  from xgboost.dask import EarlyStopping
 '''
+        msg = 'Must have at least 1 validation dataset for early stopping.'
+        assert len(evals) >= 1, msg
+        stopping_data = evals[-1][1]
         if callable(self.metric):
-            predt = model.inplace_predict(self.data)
-            score = self.metric(self.label, predt)
+            label = stopping_data.get_label()
+            predt = model.predict(stopping_data)
+            score = self.metric(label, predt)
+            score = _allreduce_metric(score, self.maximize)
             score = [(self.metric_name, score)]
         else:
-            score = model.eval(self.data)
+            score = model.eval(stopping_data)
             score = [s.split(':') for s in score.split()]
             score = [(k, float(v)) for k, v in score[1:]]
 
@@ -499,29 +492,11 @@ class EvaluationMonitor(TrainingCallback):
     label
         Used when data is not a DMatrix.
     '''
-    def __init__(self, data, name,
-                 metric=None, rank=0, missing=numpy.nan,
-                 weight=None, label=None):
-        data = self._make_dmatrix(data, label, weight, missing)
-        self.data = data
-        self.data_id = id(self.data)
-
+    def __init__(self, name, metric=None, rank=0):
         self.name = name
         self.metric = metric
-        self.label = label
         self.printer_rank = rank
         super().__init__()
-
-    def _make_dmatrix(self, data, label, weight, missing):
-        if not isinstance(data, DMatrix):
-            assert label is not None
-            data = DMatrix(data, label=label, weight=weight, missing=missing)
-        else:
-            assert label is None and weight is None and numpy.isnan(missing), (
-                'label, weight and missing are only used when input is not ' +
-                'a DMatrix'
-            )
-        return data
 
     def before_training(self, model):
         model.set_param({'eval_metric': self.metric})
@@ -549,7 +524,7 @@ class EvaluationMonitor(TrainingCallback):
 
         return False
 
-    def after_iteration(self, model, epoch):
+    def after_iteration(self, model, epoch, dtrain, evals):
         assert not rabit.is_distributed()
         score = model.eval(self.data, self.name)
         return self._update_history(score, epoch)
@@ -573,7 +548,7 @@ class TrainingCheckPoint(TrainingCallback):
         self._iterations = iterations
         self._epoch = 0
 
-    def after_iteration(self, model, epoch):
+    def after_iteration(self, model, epoch, dtrain, evals):
         self._epoch += 1
         if self._epoch == 10:
             self._epoch = 0
@@ -618,7 +593,7 @@ class LegacyCallbacks(TrainingCallback):
 
         super().__init__()
 
-    def before_iteration(self, model, epoch):
+    def before_iteration(self, model, epoch, dtrain, evals):
         for cb in self.callbacks_before_iter:
             rank = rabit.get_rank()
             cb(CallbackEnv(model=model,
@@ -630,7 +605,7 @@ class LegacyCallbacks(TrainingCallback):
                            evaluation_result_list=None))
         return False
 
-    def after_iteration(self, model, epoch):
+    def after_iteration(self, model, epoch, dtrain, evals):
         evaluation_result_list = []
         if self.evals:
             bst_eval_set = model.eval_set(self.evals, epoch, self.feval)
