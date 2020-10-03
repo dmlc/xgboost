@@ -6,6 +6,7 @@ from abc import ABC
 import collections
 import os
 import numpy
+import pickle
 
 from . import rabit
 from .core import EarlyStopException, DMatrix, CallbackEnv
@@ -539,21 +540,36 @@ class TrainingCheckPoint(TrainingCallback):
     ----------
 
     path : os.PathLike
-        Output model path.
+        Output model directory.
+    name : name pattern of output model file.
+        Models will be saved as name_0.json, name_1.json, name_2.json ....
+    as_pickle : boolean
+        When set to Ture, all training parameters will be saved in pickle
+        format, instead of saving only the model.
     iterations : int
         Interval of checkpointing.
+
     '''
-    def __init__(self, path: os.PathLike, iterations=10):
-        self._path = path
-        self._iterations = iterations
+    def __init__(self, directory: os.PathLike, name: str = 'model',
+                 as_pickle=False, rounds: int = 10):
+        self._path = directory
+        self._name = name
+        self._as_pickle = as_pickle
+        self._iterations = rounds
         self._epoch = 0
 
     def after_iteration(self, model, epoch, dtrain, evals):
         self._epoch += 1
-        if self._epoch == 10:
+        if self._epoch == self._iterations:
+            path = os.path.join(self._path, self._name + '_' + str(epoch) +
+                                ('.pkl' if self._as_pickle else '.json'))
             self._epoch = 0
             if rabit.get_rank() == 0:
-                model.save_model(self._path)
+                if self._as_pickle:
+                    with open(path, 'wb') as fd:
+                        pickle.dump(model, fd)
+                else:
+                    model.save_model(path)
 
 
 class LegacyCallbacks(TrainingCallback):

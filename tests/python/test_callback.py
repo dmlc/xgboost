@@ -1,7 +1,9 @@
 import xgboost as xgb
 import pytest
+import os
 import testing as tm
 import numpy as np
+import tempfile
 
 
 def verify_booster_early_stop(booster):
@@ -62,3 +64,36 @@ def test_early_stopping_custom_eval_skl():
     cls.fit(X, y, eval_set=[(X, y)], early_stopping_rounds=5)
     booster = cls.get_booster()
     verify_booster_early_stop(booster)
+
+
+def test_learning_rate_scheduler():
+    pass
+
+
+def test_check_point():
+    from sklearn.datasets import load_breast_cancer
+    X, y = load_breast_cancer(return_X_y=True)
+    m = xgb.DMatrix(X, y)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        check_point = xgb.callback.TrainingCheckPoint(directory=tmpdir,
+                                                      rounds=1,
+                                                      name='model')
+        xgb.train({'objective': 'binary:logistic'}, m,
+                  num_boost_round=10,
+                  verbose_eval=False,
+                  callbacks=[check_point])
+        for i in range(0, 10):
+            assert os.path.exists(
+                os.path.join(tmpdir, 'model_' + str(i) + '.json'))
+
+        check_point = xgb.callback.TrainingCheckPoint(directory=tmpdir,
+                                                      rounds=1,
+                                                      as_pickle=True,
+                                                      name='model')
+        xgb.train({'objective': 'binary:logistic'}, m,
+                  num_boost_round=10,
+                  verbose_eval=False,
+                  callbacks=[check_point])
+        for i in range(0, 10):
+            assert os.path.exists(
+                os.path.join(tmpdir, 'model_' + str(i) + '.pkl'))
