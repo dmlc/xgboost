@@ -15,7 +15,7 @@ auto ZeroParam() {
 }
 }  // anonymous namespace
 
-TEST(GpuHist, EvaluateSingleSplit) {
+void TestEvaluateSingleSplit(bool is_categorical) {
   thrust::device_vector<DeviceSplitCandidate> out_splits(1);
   GradientPair parent_sum(0.0, 1.0);
   TrainParam tparam = ZeroParam();
@@ -33,11 +33,19 @@ TEST(GpuHist, EvaluateSingleSplit) {
   thrust::device_vector<GradientPair> feature_histogram =
       std::vector<GradientPair>{
           {-0.5, 0.5}, {0.5, 0.5}, {-1.0, 0.5}, {1.0, 0.5}};
+
   thrust::device_vector<int> monotonic_constraints(feature_set.size(), 0);
+  dh::device_vector<FeatureType> feature_types(feature_set.size(),
+                                               FeatureType::kCategorical);
+  common::Span<FeatureType> d_feature_types;
+  if (is_categorical) {
+    d_feature_types = dh::ToSpan(feature_types);
+  }
   EvaluateSplitInputs<GradientPair> input{1,
                                           parent_sum,
                                           param,
                                           dh::ToSpan(feature_set),
+                                          d_feature_types,
                                           dh::ToSpan(feature_segments),
                                           dh::ToSpan(feature_values),
                                           dh::ToSpan(feature_min_values),
@@ -53,6 +61,14 @@ TEST(GpuHist, EvaluateSingleSplit) {
                   parent_sum.GetGrad());
   EXPECT_FLOAT_EQ(result.left_sum.GetHess() + result.right_sum.GetHess(),
                   parent_sum.GetHess());
+}
+
+TEST(GpuHist, EvaluateSingleSplit) {
+  TestEvaluateSingleSplit(false);
+}
+
+TEST(GpuHist, EvaluateCategoricalSplit) {
+  TestEvaluateSingleSplit(true);
 }
 
 TEST(GpuHist, EvaluateSingleSplitMissing) {
@@ -74,6 +90,7 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
                                           parent_sum,
                                           param,
                                           dh::ToSpan(feature_set),
+                                          {},
                                           dh::ToSpan(feature_segments),
                                           dh::ToSpan(feature_values),
                                           dh::ToSpan(feature_min_values),
@@ -134,6 +151,7 @@ TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
                                           parent_sum,
                                           param,
                                           dh::ToSpan(feature_set),
+                                          {},
                                           dh::ToSpan(feature_segments),
                                           dh::ToSpan(feature_values),
                                           dh::ToSpan(feature_min_values),
@@ -174,6 +192,7 @@ TEST(GpuHist, EvaluateSingleSplitBreakTies) {
                                           parent_sum,
                                           param,
                                           dh::ToSpan(feature_set),
+                                          {},
                                           dh::ToSpan(feature_segments),
                                           dh::ToSpan(feature_values),
                                           dh::ToSpan(feature_min_values),
@@ -215,6 +234,7 @@ TEST(GpuHist, EvaluateSplits) {
       parent_sum,
       param,
       dh::ToSpan(feature_set),
+      {},
       dh::ToSpan(feature_segments),
       dh::ToSpan(feature_values),
       dh::ToSpan(feature_min_values),
@@ -224,6 +244,7 @@ TEST(GpuHist, EvaluateSplits) {
       parent_sum,
       param,
       dh::ToSpan(feature_set),
+      {},
       dh::ToSpan(feature_segments),
       dh::ToSpan(feature_values),
       dh::ToSpan(feature_min_values),
@@ -241,6 +262,5 @@ TEST(GpuHist, EvaluateSplits) {
   EXPECT_EQ(result_right.findex, 0);
   EXPECT_EQ(result_right.fvalue, 1.0);
 }
-
 }  // namespace tree
 }  // namespace xgboost

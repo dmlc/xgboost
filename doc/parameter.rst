@@ -376,7 +376,7 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
 * ``eval_metric`` [default according to objective]
 
-  - Evaluation metrics for validation data, a default metric will be assigned according to objective (rmse for regression, and error for classification, mean average precision for ranking)
+  - Evaluation metrics for validation data, a default metric will be assigned according to objective (rmse for regression, and logloss for classification, mean average precision for ranking)
   - User can add multiple evaluation metrics. Python users: remember to pass the metrics in as list of parameters pairs instead of map, so that latter ``eval_metric`` won't override previous one
   - The choices are listed below:
 

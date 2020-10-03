@@ -36,31 +36,31 @@ class SketchContainer {
   int32_t device_;
 
   // Double buffer as neither prune nor merge can be performed inplace.
-  dh::caching_device_vector<SketchEntry> entries_a_;
-  dh::caching_device_vector<SketchEntry> entries_b_;
+  dh::device_vector<SketchEntry> entries_a_;
+  dh::device_vector<SketchEntry> entries_b_;
   bool current_buffer_ {true};
   // The container is just a CSC matrix.
   HostDeviceVector<OffsetT> columns_ptr_;
   HostDeviceVector<OffsetT> columns_ptr_b_;
 
-  dh::caching_device_vector<SketchEntry>& Current() {
+  dh::device_vector<SketchEntry>& Current() {
     if (current_buffer_) {
       return entries_a_;
     } else {
       return entries_b_;
     }
   }
-  dh::caching_device_vector<SketchEntry>& Other() {
+  dh::device_vector<SketchEntry>& Other() {
     if (!current_buffer_) {
       return entries_a_;
     } else {
       return entries_b_;
     }
   }
-  dh::caching_device_vector<SketchEntry> const& Current() const {
+  dh::device_vector<SketchEntry> const& Current() const {
     return const_cast<SketchContainer*>(this)->Current();
   }
-  dh::caching_device_vector<SketchEntry> const& Other() const {
+  dh::device_vector<SketchEntry> const& Other() const {
     return const_cast<SketchContainer*>(this)->Other();
   }
   void Alternate() {

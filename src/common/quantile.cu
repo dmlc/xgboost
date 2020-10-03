@@ -310,7 +310,7 @@ void SketchContainer::Push(Span<Entry const> entries, Span<size_t> columns_ptr,
                            common::Span<OffsetT const> cuts_ptr,
                            size_t total_cuts, Span<float> weights) {
   Span<SketchEntry> out;
-  dh::caching_device_vector<SketchEntry> cuts;
+  dh::device_vector<SketchEntry> cuts;
   bool first_window = this->Current().empty();
   if (!first_window) {
     cuts.resize(total_cuts);

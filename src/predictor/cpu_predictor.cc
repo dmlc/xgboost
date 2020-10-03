@@ -352,7 +352,7 @@ class CPUPredictor : public Predictor {
     }
   }
 
-  void PredictContribution(DMatrix* p_fmat, std::vector<bst_float>* out_contribs,
+  void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                            const gbm::GBTreeModel& model, uint32_t ntree_limit,
                            std::vector<bst_float>* tree_weights,
                            bool approximate, int condition,
@@ -370,7 +370,7 @@ class CPUPredictor : public Predictor {
     size_t const ncolumns = model.learner_model_param->num_feature + 1;
     CHECK_NE(ncolumns, 0);
     // allocate space for (number of features + bias) times the number of rows
-    std::vector<bst_float>& contribs = *out_contribs;
+    std::vector<bst_float>& contribs = out_contribs->HostVector();
     contribs.resize(info.num_row_ * ncolumns * model.learner_model_param->num_output_group);
     // make sure contributions is zeroed, we could be reusing a previously
     // allocated one
@@ -423,7 +423,7 @@ class CPUPredictor : public Predictor {
     }
   }
 
-  void PredictInteractionContributions(DMatrix* p_fmat, std::vector<bst_float>* out_contribs,
+  void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
                                        const gbm::GBTreeModel& model, unsigned ntree_limit,
                                        std::vector<bst_float>* tree_weights,
                                        bool approximate) override {
@@ -435,21 +435,24 @@ class CPUPredictor : public Predictor {
     const unsigned crow_chunk = ngroup * (ncolumns + 1);
 
     // allocate space for (number of features^2) times the number of rows and tmp off/on contribs
-    std::vector<bst_float>& contribs = *out_contribs;
+    std::vector<bst_float>& contribs = out_contribs->HostVector();
     contribs.resize(info.num_row_ * ngroup * (ncolumns + 1) * (ncolumns + 1));
-    std::vector<bst_float> contribs_off(info.num_row_ * ngroup * (ncolumns + 1));
-    std::vector<bst_float> contribs_on(info.num_row_ * ngroup * (ncolumns + 1));
-    std::vector<bst_float> contribs_diag(info.num_row_ * ngroup * (ncolumns + 1));
+    HostDeviceVector<bst_float> contribs_off_hdv(info.num_row_ * ngroup * (ncolumns + 1));
+    auto &contribs_off = contribs_off_hdv.HostVector();
+    HostDeviceVector<bst_float> contribs_on_hdv(info.num_row_ * ngroup * (ncolumns + 1));
+    auto &contribs_on = contribs_on_hdv.HostVector();
+    HostDeviceVector<bst_float> contribs_diag_hdv(info.num_row_ * ngroup * (ncolumns + 1));
+    auto &contribs_diag = contribs_diag_hdv.HostVector();
 
     // Compute the difference in effects when conditioning on each of the features on and off
     // see: Axiomatic characterizations of probabilistic and
     //      cardinal-probabilistic interaction indices
-    PredictContribution(p_fmat, &contribs_diag, model, ntree_limit,
+    PredictContribution(p_fmat, &contribs_diag_hdv, model, ntree_limit,
                         tree_weights, approximate, 0, 0);
     for (size_t i = 0; i < ncolumns + 1; ++i) {
-      PredictContribution(p_fmat, &contribs_off, model, ntree_limit,
+      PredictContribution(p_fmat, &contribs_off_hdv, model, ntree_limit,
                           tree_weights, approximate, -1, i);
-      PredictContribution(p_fmat, &contribs_on, model, ntree_limit,
+      PredictContribution(p_fmat, &contribs_on_hdv, model, ntree_limit,
                           tree_weights, approximate, 1, i);
 
       for (size_t j = 0; j < info.num_row_; ++j) {

@@ -1031,6 +1031,18 @@ class LearnerImpl : public LearnerIO {
     std::ostringstream os;
     os << '[' << iter << ']' << std::setiosflags(std::ios::fixed);
     if (metrics_.size() == 0 && tparam_.disable_default_eval_metric <= 0) {
+      auto warn_default_eval_metric = [](const std::string& objective, const std::string& before,
+                                         const std::string& after) {
+        LOG(WARNING) << "Starting in XGBoost 1.3.0, the default evaluation metric used with the "
+                     << "objective '" << objective << "' was changed from '" << before
+                     << "' to '" << after << "'. Explicitly set eval_metric if you'd like to "
+                     << "restore the old behavior.";
+      };
+      if (tparam_.objective == "binary:logistic") {
+        warn_default_eval_metric(tparam_.objective, "error", "logloss");
+      } else if ((tparam_.objective == "multi:softmax" || tparam_.objective == "multi:softprob")) {
+        warn_default_eval_metric(tparam_.objective, "merror", "mlogloss");
+      }
       metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(), &generic_parameters_));
       metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
     }
@@ -1068,9 +1080,9 @@ class LearnerImpl : public LearnerIO {
     this->Configure();
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
     if (pred_contribs) {
-      gbm_->PredictContribution(data.get(), &out_preds->HostVector(), ntree_limit, approx_contribs);
+      gbm_->PredictContribution(data.get(), out_preds, ntree_limit, approx_contribs);
     } else if (pred_interactions) {
-      gbm_->PredictInteractionContributions(data.get(), &out_preds->HostVector(), ntree_limit,
+      gbm_->PredictInteractionContributions(data.get(), out_preds, ntree_limit,
                                             approx_contribs);
     } else if (pred_leaf) {
       gbm_->PredictLeaf(data.get(), &out_preds->HostVector(), ntree_limit);

@@ -43,7 +43,7 @@ def evalerror(preds, dtrain):
 py_evals_result = {}
 
 # training with customized objective, we can also do step by step training
-# simply look at xgboost.py's implementation of train
+# simply look at training.py's implementation of train
 py_params = param.copy()
 py_params.update({'disable_default_eval_metric': True})
 py_logreg = xgb.train(py_params, dtrain, num_round, watchlist, obj=logregobj,

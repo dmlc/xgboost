@@ -78,12 +78,14 @@ XGBoost is extensively used by machine learning practitioners to create state of
 this is a list of machine learning winning solutions with XGBoost.
 Please send pull requests if you find ones that are missing here.
 
+
 -Benedikt Schifferer, Gilberto Titericz, Chris Deotte, Christof Henkel, Kazuki Onodera, Jiwei Liu, Bojan Tunguz, Even Oldridge, Gabriel De Souza Pereira Moreira and Ahmet Erdem, 1st place winner of [Twitter RecSys Challenge 2020](https://recsys-twitter.com/) conducted from June,20-August,20. [GPU Accelerated Feature Engineering and Training for Recommender Systems](https://medium.com/rapids-ai/winning-solution-of-recsys2020-challenge-gpu-accelerated-feature-engineering-and-training-for-cd67c5a87b1f)
 - Eugene Khvedchenya,Jessica Fridrich, Jan Butora, Yassine Yousfi 1st place winner in [ALASKA2 Image Steganalysis](https://www.kaggle.com/c/alaska2-image-steganalysis/overview). Link to [discussion](https://www.kaggle.com/c/alaska2-image-steganalysis/discussion/168546)
 - Dan Ofer, Seffi Cohen, Noa Dagan, Nurit, 1st place in WiDS Datathon 2020. Link to [discussion](https://www.kaggle.com/c/widsdatathon2020/discussion/133189)
 - Chris Deotte, Konstantin Yakovlev 1st place in [IEEE-CIS Fraud Detection](https://www.kaggle.com/c/ieee-fraud-detection/overview). Link to [discussion](https://www.kaggle.com/c/ieee-fraud-detection/discussion/111308)
 - Giba, Lucasz, 1st place winner in [Santander Value Prediction Challenge](https://www.kaggle.com/c/santander-value-prediction-challenge) organized on August,2018. Solution [discussion](https://www.kaggle.com/c/santander-value-prediction-challenge/discussion/65272) and [code](https://www.kaggle.com/titericz/winner-model-giba-single-xgb-lb0-5178/comments)
 - Beluga, 2nd place and Evgeny Nekrasov, 3rd place winner in Statoil/C-CORE Iceberg Classifier Challenge'2018. Link to [discussion](https://www.kaggle.com/c/statoil-iceberg-classifier-challenge/discussion/48294)
+- Radek Osmulski, 1st place of the [iMaterialist Challenge (Fashion) at FGVC5](https://www.kaggle.com/c/imaterialist-challenge-fashion-2018/overview). Link to [the winning solution](https://www.kaggle.com/c/imaterialist-challenge-fashion-2018/discussion/57944).
 - Maksims Volkovs, Guangwei Yu and Tomi Poutanen, 1st place of the [2017 ACM RecSys challenge](http://2017.recsyschallenge.com/). Link to [paper](http://www.cs.toronto.edu/~mvolkovs/recsys2017_challenge.pdf).
 - Vlad Sandulescu, Mihai Chiru, 1st place of the [KDD Cup 2016 competition](https://kddcup2016.azurewebsites.net). Link to [the arxiv paper](http://arxiv.org/abs/1609.02728).
 - Marios Michailidis, Mathias Müller and HJ van Veen, 1st place of the [Dato Truely Native? competition](https://www.kaggle.com/c/dato-native). Link to [the Kaggle interview](http://blog.kaggle.com/2015/12/03/dato-winners-interview-1st-place-mad-professors/).

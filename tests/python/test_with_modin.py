@@ -67,7 +67,8 @@ class TestModin(unittest.TestCase):
         # 0  1    1    0    0
         # 1  2    0    1    0
         # 2  3    0    0    1
-        result, _, _ = xgb.data._transform_pandas_df(dummies)
+        result, _, _ = xgb.data._transform_pandas_df(dummies,
+                                                     enable_categorical=False)
         exp = np.array([[1., 1., 0., 0.],
                         [2., 0., 1., 0.],
                         [3., 0., 0., 1.]])
@@ -113,15 +114,15 @@ class TestModin(unittest.TestCase):
         # label must be a single column
         df = md.DataFrame({'A': ['X', 'Y', 'Z'], 'B': [1, 2, 3]})
         self.assertRaises(ValueError, xgb.data._transform_pandas_df, df,
-                          None, None, 'label', 'float')
+                          False, None, None, 'label', 'float')
 
         # label must be supported dtype
         df = md.DataFrame({'A': np.array(['a', 'b', 'c'], dtype=object)})
         self.assertRaises(ValueError, xgb.data._transform_pandas_df, df,
-                          None, None, 'label', 'float')
+                          False, None, None, 'label', 'float')
 
         df = md.DataFrame({'A': np.array([1, 2, 3], dtype=int)})
-        result, _, _ = xgb.data._transform_pandas_df(df, None, None,
+        result, _, _ = xgb.data._transform_pandas_df(df, False, None, None,
                                                      'label', 'float')
         np.testing.assert_array_equal(result, np.array([[1.], [2.], [3.]],
                                                        dtype=float))
