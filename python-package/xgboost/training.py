@@ -83,7 +83,7 @@ def _train_internal(params, dtrain,
             callbacks.append(callback.EvaluationMonitor(metric=feval))
         if early_stopping_rounds:
             callbacks.append(callback.EarlyStopping(
-                rounds=early_stopping_rounds))
+                rounds=early_stopping_rounds, maximize=maximize))
         callbacks = callback.CallbackContainer(callbacks, metric=feval)
     else:
         assert False
@@ -233,6 +233,28 @@ class CVPack(object):
         return self.bst.eval_set(self.watchlist, iteration, feval)
 
 
+class PackedBooster:
+    def __init__(self, cvfolds):
+        self.cvfolds = cvfolds
+
+    def update(self, iteration, obj):
+        for fold in self.cvfolds:
+            fold.update(iteration, obj)
+
+    def eval(self, iteration, feval):
+        result = [f.eval(iteration, feval) for f in self.cvfolds]
+        return result
+
+    def set_attr(self, **kwargs):
+        for f in self.cvfolds:
+            f.bst.set_attr(**kwargs)
+
+    @property
+    def best_iteration(self):
+        ret = self.cvfolds[0].bst.attr('best_iteration')
+        return int(ret)
+
+
 def groups_to_rows(groups, boundaries):
     """
     Given group row boundaries, convert ground indexes to row indexes
@@ -371,7 +393,7 @@ def aggcv(rlist):
 
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
        metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
-       fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True,
+       fpreproc=None, as_pandas=True, verbose_eval=True, show_stdv=True,
        seed=0, callbacks=None, shuffle=True):
     # pylint: disable = invalid-name
     """Cross-validation with given parameters.
@@ -470,36 +492,22 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
 
     # setup callbacks
     callbacks = [] if callbacks is None else callbacks
-    if early_stopping_rounds is not None:
-        callbacks.append(callback.early_stop(early_stopping_rounds,
-                                             maximize=maximize,
-                                             verbose=False))
+    if verbose_eval:
+        callbacks.append(callback.EvaluationMonitor(metric=feval))
+    if early_stopping_rounds:
+        callbacks.append(callback.EarlyStopping(
+            rounds=early_stopping_rounds, maximize=maximize))
+    callbacks = callback.CallbackContainer(callbacks, metric=feval, is_cv=True)
+    callbacks.before_training(cvfolds)
 
-    if isinstance(verbose_eval, bool) and verbose_eval:
-        callbacks.append(callback.print_evaluation(show_stdv=show_stdv))
-    else:
-        if isinstance(verbose_eval, int):
-            callbacks.append(callback.print_evaluation(verbose_eval, show_stdv=show_stdv))
-
-    callbacks_before_iter = [
-        cb for cb in callbacks if
-        cb.__dict__.get('before_iteration', False)]
-    callbacks_after_iter = [
-        cb for cb in callbacks if
-        not cb.__dict__.get('before_iteration', False)]
+    booster = PackedBooster(cvfolds)
 
     for i in range(num_boost_round):
-        for cb in callbacks_before_iter:
-            cb(CallbackEnv(model=None,
-                           cvfolds=cvfolds,
-                           iteration=i,
-                           begin_iteration=0,
-                           end_iteration=num_boost_round,
-                           rank=0,
-                           evaluation_result_list=None))
-        for fold in cvfolds:
-            fold.update(i, obj)
-        res = aggcv([f.eval(i, feval) for f in cvfolds])
+        if callbacks.before_iteration(booster, i, dtrain, None):
+            break
+        booster.update(i, obj)
+        evals_log = booster.eval(i, feval)
+        res = aggcv(evals_log)
 
         for key, mean, std in res:
             if key + '-mean' not in results:
@@ -508,18 +516,10 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
                 results[key + '-std'] = []
             results[key + '-mean'].append(mean)
             results[key + '-std'].append(std)
-        try:
-            for cb in callbacks_after_iter:
-                cb(CallbackEnv(model=None,
-                               cvfolds=cvfolds,
-                               iteration=i,
-                               begin_iteration=0,
-                               end_iteration=num_boost_round,
-                               rank=0,
-                               evaluation_result_list=res))
-        except EarlyStopException as e:
+
+        if callbacks.after_iteration(booster, i, dtrain, None):
             for k in results:
-                results[k] = results[k][:(e.best_iteration + 1)]
+                results[k] = results[k][:(booster.best_iteration + 1)]
             break
     if as_pandas:
         try:

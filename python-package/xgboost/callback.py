@@ -308,7 +308,7 @@ class CallbackContainer:
     .. versionadded:: 1.3.0
 
     '''
-    def __init__(self, callbacks, metric=None):
+    def __init__(self, callbacks, metric=None, is_cv=False):
         self.callbacks = callbacks
         if metric is not None:
             msg = 'metric must be callable object for monitor.  For ' + \
@@ -317,6 +317,7 @@ class CallbackContainer:
             assert callable(metric), msg
         self.metric = metric
         self.history = collections.OrderedDict()
+        self.is_cv = is_cv
 
     def before_training(self, model):
         '''Function called before training.'''
@@ -334,10 +335,8 @@ class CallbackContainer:
                    for c in self.callbacks)
 
     def _update_history(self, score, epoch):
-        split_by_data = score.split()[1:]  # remove iteration
-
-        for d in split_by_data:
-            name, s = d.split(':')
+        for d in score:
+            name, s = d[0], d[1]
             data_name, metric_name = name.split('-')
             s = float(s)
             s = _allreduce_metric(s)
@@ -352,11 +351,51 @@ class CallbackContainer:
                 self.history[data_name][metric_name] = [s]
         return False
 
+    def aggcv(self, rlist):
+        # pylint: disable=invalid-name
+        """
+        Aggregate cross-validation results.
+
+        If verbose_eval is true, progress is displayed in every call. If
+        verbose_eval is an integer, progress will only be displayed every
+        `verbose_eval` trees, tracked via trial.
+        """
+        cvmap = {}
+        idx = rlist[0].split()[0]
+        for line in rlist:
+            arr = line.split()
+            assert idx == arr[0]
+            for metric_idx, it in enumerate(arr[1:]):
+                if not isinstance(it, STRING_TYPES):
+                    it = it.decode()
+                k, v = it.split(':')
+                if (metric_idx, k) not in cvmap:
+                    cvmap[(metric_idx, k)] = []
+                cvmap[(metric_idx, k)].append(float(v))
+        msg = idx
+        results = []
+        for (metric_idx, k), v in sorted(cvmap.items(), key=lambda x: x[0][0]):
+            v = numpy.array(v)
+            if not isinstance(msg, STRING_TYPES):
+                msg = msg.decode()
+            mean, std = numpy.mean(v), numpy.std(v)
+            results.extend([(k, mean, std)])
+        return results
+
     def after_iteration(self, model, epoch, dtrain, evals):
         '''Function called after training iteration.'''
-        evals = [] if evals is None else evals
-        score = model.eval_set(evals, epoch, self.metric)
-        self._update_history(score, epoch)
+        if self.is_cv:
+            scores = model.eval(epoch, self.metric)
+            scores = self.aggcv(scores)
+            scores = [(s[0], s[1]) for s in scores]  # fliter out std
+            self._update_history(scores, epoch)
+        else:
+            evals = [] if evals is None else evals
+            score = model.eval_set(evals, epoch, self.metric)
+            score = score.split()[1:]  # into datasets
+            # split up `test-error:0.1223`
+            score = [tuple(s.split(':')) for s in score]
+            self._update_history(score, epoch)
         ret = any(c.after_iteration(model, epoch, self.history)
                   for c in self.callbacks)
         return ret
@@ -447,6 +486,7 @@ class EarlyStopping(TrainingCallback):
             self.stopping_history[name][metric] = [s]
             self.best_scores[name] = {}
             self.best_scores[name][metric] = [s]
+            model.set_attr(best_score=str(s), best_iteration=str(epoch))
         elif not self.improve_op(s, self.best_scores[name][metric][-1]):
             # Not improved
             self.stopping_history[name][metric].append(s)
