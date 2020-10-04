@@ -157,7 +157,10 @@ class Transform {
     /*! \brief Dummy funtion defined when compiling for CPU.  */
     template <typename std::enable_if<!CompiledWithCuda>::type* = nullptr,
               typename... HDV>
-    void LaunchCUDA(Functor _func, HDV*... _vectors) const {
+    void LaunchCUDA(Functor _func, HDV*...) const {
+      // Remove unused parameter compiler warning.
+      (void) _func;
+
       LOG(FATAL) << "Not part of device code. WITH_CUDA: " << WITH_CUDA();
     }
 #endif  // defined(__CUDACC__)
