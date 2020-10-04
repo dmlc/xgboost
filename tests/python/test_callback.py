@@ -66,6 +66,27 @@ class TestCallbacks(unittest.TestCase):
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
+    def test_early_stopping_customize(self):
+        D_train = xgb.DMatrix(self.X_train, self.y_train)
+        D_valid = xgb.DMatrix(self.X_valid, self.y_valid)
+        early_stopping_rounds = 5
+        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
+                                                metric=tm.eval_error_metric,
+                                                metric_name='PyError',
+                                                data_name='Train')
+        # Specify which dataset and which metric should be used for early stopping.
+        booster = xgb.train(
+            {'objective': 'binary:logistic',
+             'eval_metric': ['error', 'rmse'],
+             'tree_method': 'hist'}, D_train,
+            evals=[(D_train, 'Train'), (D_valid, 'Valid')],
+            num_boost_round=1000,
+            callbacks=[early_stop],
+            verbose_eval=False)
+        dump = booster.get_dump(dump_format='json')
+        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+        assert len(early_stop.stopping_history['Train']['PyError']) == len(dump)
+
     def test_early_stopping_skl(self):
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)

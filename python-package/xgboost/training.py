@@ -41,6 +41,16 @@ def _train_internal(params, dtrain,
     callbacks = [] if callbacks is None else callbacks
     evals = list(evals)
     params = params.copy()
+
+    if isinstance(params, dict) and 'eval_metric' in params \
+       and isinstance(params['eval_metric'], list):
+        params = dict((k, v) for k, v in params.items())
+        eval_metrics = params['eval_metric']
+        params.pop("eval_metric", None)
+        params = list(params.items())
+        for eval_metric in eval_metrics:
+            params += [('eval_metric', eval_metric)]
+
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
     nboost = 0
     num_parallel_tree = 1
