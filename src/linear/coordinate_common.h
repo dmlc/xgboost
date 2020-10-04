@@ -223,7 +223,15 @@ class FeatureSelector {
   virtual void Setup(const gbm::GBLinearModel &model,
                      const std::vector<GradientPair> &gpair,
                      DMatrix *p_fmat,
-                     float alpha, float lambda, int param) {}
+                     float alpha, float lambda, int param) {
+    // Remove unused parameter compiler warning.
+    (void) model;
+    (void) gpair;
+    (void) p_fmat;
+    (void) alpha;
+    (void) lambda;
+    (void) param;
+  }
   /**
    * \brief Select next coordinate to update.
    *
@@ -252,6 +260,13 @@ class CyclicFeatureSelector : public FeatureSelector {
   int NextFeature(int iteration, const gbm::GBLinearModel &model,
                   int group_idx, const std::vector<GradientPair> &gpair,
                   DMatrix *p_fmat, float alpha, float lambda) override {
+    // Remove unused parameter compiler warning.
+    (void) group_idx;
+    (void) gpair;
+    (void) p_fmat;
+    (void) alpha;
+    (void) lambda;
+
     return iteration % model.learner_model_param->num_feature;
   }
 };
@@ -265,6 +280,13 @@ class ShuffleFeatureSelector : public FeatureSelector {
   void Setup(const gbm::GBLinearModel &model,
              const std::vector<GradientPair> &gpair,
              DMatrix *p_fmat, float alpha, float lambda, int param) override {
+    // Remove unused parameter compiler warning.
+    (void) gpair;
+    (void) p_fmat;
+    (void) alpha;
+    (void) lambda;
+    (void) param;
+
     if (feat_index_.size() == 0) {
       feat_index_.resize(model.learner_model_param->num_feature);
       std::iota(feat_index_.begin(), feat_index_.end(), 0);
@@ -275,6 +297,13 @@ class ShuffleFeatureSelector : public FeatureSelector {
   int NextFeature(int iteration, const gbm::GBLinearModel &model,
                   int group_idx, const std::vector<GradientPair> &gpair,
                   DMatrix *p_fmat, float alpha, float lambda) override {
+    // Remove unused parameter compiler warning.
+    (void) group_idx;
+    (void) gpair;
+    (void) p_fmat;
+    (void) alpha;
+    (void) lambda;
+
     return feat_index_[iteration % model.learner_model_param->num_feature];
   }
 
@@ -291,6 +320,14 @@ class RandomFeatureSelector : public FeatureSelector {
   int NextFeature(int iteration, const gbm::GBLinearModel &model,
                   int group_idx, const std::vector<GradientPair> &gpair,
                   DMatrix *p_fmat, float alpha, float lambda) override {
+    // Remove unused parameter compiler warning.
+    (void) iteration;
+    (void) group_idx;
+    (void) gpair;
+    (void) p_fmat;
+    (void) alpha;
+    (void) lambda;
+
     return common::GlobalRandom()() % model.learner_model_param->num_feature;
   }
 };
@@ -309,6 +346,13 @@ class GreedyFeatureSelector : public FeatureSelector {
   void Setup(const gbm::GBLinearModel &model,
              const std::vector<GradientPair> &gpair,
              DMatrix *p_fmat, float alpha, float lambda, int param) override {
+    // Remove unused parameter compiler warning.
+    (void) gpair;
+    (void) p_fmat;
+    (void) alpha;
+    (void) lambda;
+    (void) param;
+
     top_k_ = static_cast<bst_uint>(param);
     const bst_uint ngroup = model.learner_model_param->num_output_group;
     if (param <= 0) top_k_ = std::numeric_limits<bst_uint>::max();
@@ -324,6 +368,9 @@ class GreedyFeatureSelector : public FeatureSelector {
   int NextFeature(int iteration, const gbm::GBLinearModel &model,
                   int group_idx, const std::vector<GradientPair> &gpair,
                   DMatrix *p_fmat, float alpha, float lambda) override {
+    // Remove unused parameter compiler warning.
+    (void) iteration;
+
     // k-th selected feature for a group
     auto k = counter_[group_idx]++;
     // stop after either reaching top-K or going through all the features in a group
@@ -441,6 +488,13 @@ class ThriftyFeatureSelector : public FeatureSelector {
   int NextFeature(int iteration, const gbm::GBLinearModel &model,
                   int group_idx, const std::vector<GradientPair> &gpair,
                   DMatrix *p_fmat, float alpha, float lambda) override {
+    // Remove unused parameter compiler warning.
+    (void) iteration;
+    (void) gpair;
+    (void) p_fmat;
+    (void) alpha;
+    (void) lambda;
+
     // k-th selected feature for a group
     auto k = counter_[group_idx]++;
     // stop after either reaching top-N or going through all the features in a group
