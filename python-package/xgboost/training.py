@@ -363,7 +363,7 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
 
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
        metrics=(), obj=None, feval=None, maximize=None, early_stopping_rounds=None,
-       fpreproc=None, as_pandas=True, verbose_eval=True, show_stdv=True,
+       fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True,
        seed=0, callbacks=None, shuffle=True):
     # pylint: disable = invalid-name
     """Cross-validation with given parameters.
@@ -465,7 +465,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     is_new_callback = [isinstance(c, callback.TrainingCallback)
                        for c in callbacks]
     if any(is_new_callback) or not callbacks:
-        if verbose_eval:
+        if isinstance(verbose_eval, bool) and verbose_eval:
             callbacks.append(callback.EvaluationMonitor(show_stdv=show_stdv))
         if early_stopping_rounds:
             callbacks.append(callback.EarlyStopping(

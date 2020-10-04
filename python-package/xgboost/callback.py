@@ -669,6 +669,9 @@ class LegacyCallbacks:
         self.feval = feval
         assert self.feval is None or callable(self.feval)
 
+        if cvfolds is not None:
+            self.aggregated_cv = None
+
         super().__init__()
 
     def before_training(self, model):
@@ -695,7 +698,14 @@ class LegacyCallbacks:
     def after_iteration(self, model, epoch, dtrain, evals):
         '''Called after each iteration.'''
         evaluation_result_list = []
+        if self.cvfolds is not None:
+            scores = model.eval(epoch, self.feval)
+            self.aggregated_cv = _aggcv(scores)
+            evaluation_result_list = self.aggregated_cv
+
         if evals:
+            # When cv is used, evals are embedded into folds.
+            assert self.cvfolds is None
             bst_eval_set = model.eval_set(evals, epoch, self.feval)
             if isinstance(bst_eval_set, STRING_TYPES):
                 msg = bst_eval_set
