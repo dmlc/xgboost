@@ -28,7 +28,7 @@ def _fmt_metric(value, show_stdv=True):
         return '{0}:{1:.5f}'.format(value[0], value[1])
     if len(value) == 3:
         if show_stdv:
-            return  '{0}:{1:.5f}+{2:.5f}'.format(value[0], value[1], value[2])
+            return '{0}:{1:.5f}+{2:.5f}'.format(value[0], value[1], value[2])
         return '{0}:{1:.5f}'.format(value[0], value[1])
     raise ValueError("wrong metric value", value)
 
@@ -337,9 +337,8 @@ class CallbackContainer:
 
     def _update_history(self, score, epoch):
         for d in score:
-            name, s = d[0], d[1]
+            name, s = d[0], float(d[1])
             data_name, metric_name = name.split('-')
-            s = float(s)
             s = _allreduce_metric(s)
             if data_name in self.history:
                 data_history = self.history[data_name]
@@ -394,7 +393,7 @@ class CallbackContainer:
             evals = [] if evals is None else evals
             score = model.eval_set(evals, epoch, self.metric)
             score = score.split()[1:]  # into datasets
-            # split up `test-error:0.1223`
+            # split up `test-error:0.1234`
             score = [tuple(s.split(':')) for s in score]
             self._update_history(score, epoch)
         ret = any(c.after_iteration(model, epoch, self.history)
@@ -453,7 +452,7 @@ class EarlyStopping(TrainingCallback):
     data_name: str
         Name of dataset that is used for early stopping.
     maximize : bool
-        Whether to maximize evaluation metric.
+        Whether to maximize evaluation metric.  None means auto (discouraged).
     '''
     def __init__(self,
                  rounds,
@@ -465,6 +464,7 @@ class EarlyStopping(TrainingCallback):
         self.metric_name = metric_name
         self.rounds = rounds
         self.save_best = save_best
+        # https://github.com/dmlc/xgboost/issues/5531
         assert self.save_best is False, 'save best is not yet supported.'
 
         self.maximize = maximize
@@ -530,18 +530,17 @@ class EarlyStopping(TrainingCallback):
         else:
             # Use the last one as default.
             data_name = list(evals_log.keys())[-1]
-        assert isinstance(data_name, str)
+        assert isinstance(data_name, str) and data_name
         data_log = evals_log[data_name]
 
         # Filter out scores that can not be used for early stopping.
         if self.metric_name:
             metric_name = self.metric_name
-            score = data_log[self.metric_name][-1]
         else:
             # Use last metric by default.
             assert isinstance(data_log, collections.OrderedDict)
             metric_name = list(data_log.keys())[-1]
-            score = data_log[metric_name][-1]
+        score = data_log[metric_name][-1]
         return self._update_rounds(score, data_name, metric_name, model, epoch)
 
 
