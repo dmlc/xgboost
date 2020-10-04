@@ -715,6 +715,7 @@ class TestDaskCallbacks:
         X, y = da.from_array(X), da.from_array(y)
         m = xgb.dask.DaskDMatrix(client, X, y)
         booster = xgb.dask.train(client, {'objective': 'binary:logistic',
+                                          'eval_metric': 'error',
                                           'tree_method': 'hist'}, m,
                                  evals=[(m, 'Train')],
                                  num_boost_round=1000,
@@ -731,6 +732,7 @@ class TestDaskCallbacks:
         early_stopping_rounds = 5
         booster = xgb.dask.train(
             client, {'objective': 'binary:logistic',
+                     'eval_metric': 'error',
                      'tree_method': 'hist'}, m,
             evals=[(m, 'Train')],
             feval=tm.eval_error_metric,

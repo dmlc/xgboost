@@ -28,7 +28,8 @@ class TestCallbacks(unittest.TestCase):
         D_valid = xgb.DMatrix(self.X_valid, self.y_valid)
         evals_result = {}
         rounds = 10
-        xgb.train({'objective': 'binary:logistic'}, D_train,
+        xgb.train({'objective': 'binary:logistic',
+                   'eval_metric': 'error'}, D_train,
                   evals=[(D_train, 'Train'), (D_valid, 'Valid')],
                   num_boost_round=rounds,
                   evals_result=evals_result,
@@ -43,7 +44,8 @@ class TestCallbacks(unittest.TestCase):
         evals_result = {}
         rounds = 30
         early_stopping_rounds = 5
-        booster = xgb.train({'objective': 'binary:logistic'}, D_train,
+        booster = xgb.train({'objective': 'binary:logistic',
+                             'eval_metric': 'error'}, D_train,
                             evals=[(D_train, 'Train'), (D_valid, 'Valid')],
                             num_boost_round=rounds,
                             evals_result=evals_result,
@@ -57,6 +59,7 @@ class TestCallbacks(unittest.TestCase):
         D_valid = xgb.DMatrix(self.X_valid, self.y_valid)
         early_stopping_rounds = 5
         booster = xgb.train({'objective': 'binary:logistic',
+                             'eval_metric': 'error',
                              'tree_method': 'hist'}, D_train,
                             evals=[(D_train, 'Train'), (D_valid, 'Valid')],
                             feval=tm.eval_error_metric,
@@ -93,7 +96,7 @@ class TestCallbacks(unittest.TestCase):
         cls = xgb.XGBClassifier()
         early_stopping_rounds = 5
         cls.fit(X, y, eval_set=[(X, y)],
-                early_stopping_rounds=early_stopping_rounds)
+                early_stopping_rounds=early_stopping_rounds, eval_metric='error')
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
@@ -104,7 +107,8 @@ class TestCallbacks(unittest.TestCase):
         cls = xgb.XGBClassifier()
         early_stopping_rounds = 5
         cls.fit(X, y, eval_set=[(X, y)],
-                early_stopping_rounds=early_stopping_rounds)
+                early_stopping_rounds=early_stopping_rounds,
+                eval_metric=tm.eval_error_metric)
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
