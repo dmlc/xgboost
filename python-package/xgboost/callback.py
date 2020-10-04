@@ -384,21 +384,26 @@ class EarlyStopping(TrainingCallback):
     metric : str/callable
         Name of metric.  Use the default metric if not specified.
     metric_name : str
-        Name of metric, used when metric is a callable object.
+        Name of metric that is used for early stopping.
+    data_name: str
+        Name of dataset that is used for early stopping.
     maximize : bool
         Whether to maximize evaluation metric.
     '''
-    def __init__(self, rounds, metric=None, metric_name=None, maximize=False,
+    def __init__(self,
+                 rounds,
+                 metric=None,
+                 metric_name=None,
+                 data_name=None,
+                 maximize=False,
                  save_best=False):
         self.metric = metric
+        self.data = data_name
+        self.metric_name = metric_name
         self.rounds = rounds
         self.save_best = save_best
         assert self.save_best is False, 'save best is not yet supported.'
 
-        if callable(self.metric):
-            self.metric_name = metric_name
-        else:
-            self.metric_name = self.metric
         self.maximize = maximize
         self.stopping_history = {}
 
@@ -412,11 +417,11 @@ class EarlyStopping(TrainingCallback):
         super().__init__()
 
     def _update_rounds(self, scores, name, model, epoch):
-        assert len(scores) == 1
+        assert len(scores) == 1, 'No matching metric name.'
         score = scores[0]
         metric, s = score[0], score[1]
         s = _allreduce_metric(s)
-        if not self.stopping_history:    # First round
+        if not self.stopping_history:  # First round
             self.current_rounds = 0
             self.stopping_history[name] = {}
             self.stopping_history[name][metric] = [s]
@@ -426,12 +431,11 @@ class EarlyStopping(TrainingCallback):
             # Not improved
             self.stopping_history[name][metric].append(s)
             self.current_rounds += 1
-        else:                   # Improved
+        else:  # Improved
             self.stopping_history[name][metric].append(s)
             self.best_scores[name][metric].append(s)
             record = self.stopping_history[name][metric][-1]
-            model.set_attr(best_score=str(record),
-                           best_iteration=str(epoch))
+            model.set_attr(best_score=str(record), best_iteration=str(epoch))
             self.current_rounds = 0  # reset
 
         if self.current_rounds >= self.rounds:
@@ -442,20 +446,42 @@ class EarlyStopping(TrainingCallback):
     def after_iteration(self, model, epoch, dtrain, evals):
         msg = 'Must have at least 1 validation dataset for early stopping.'
         assert len(evals) >= 1, msg
-        stopping_data = evals[-1][0]
-        assert isinstance(stopping_data, DMatrix)
-        stopping_name = evals[-1][1]
-        assert isinstance(stopping_name, str)
-        if callable(self.metric):
-            label = stopping_data.get_label()
-            predt = model.predict(stopping_data)
-            score = self.metric(label, predt)
-            score = _allreduce_metric(score)
-            score = [(self.metric_name, score)]
+        stopping_name = ''
+        stopping_data = None
+        if self.data:
+            for d, name in evals:
+                if name == self.data:
+                    stopping_name = name
+                    stopping_data = d
+            if not stopping_name:
+                raise ValueError('No dataset named:', self.data)
         else:
-            score = model.eval(stopping_data)
+            # Use the last one as default.
+            stopping_name = evals[-1][1]
+            stopping_data = evals[-1][0]
+
+        assert isinstance(stopping_data, DMatrix)
+        assert isinstance(stopping_name, str)
+
+        if callable(self.metric):
+            score = model.eval_set([(stopping_data, stopping_name)],
+                                   iteration=epoch,
+                                   feval=self.metric)
+            score = [s.split(':') for s in score.split()]
+            score = [(k, _allreduce_metric(float(v))) for k, v in score[1:]]
+        else:
+            score = model.eval_set([(stopping_data, stopping_name)],
+                                   iteration=epoch)
             score = [s.split(':') for s in score.split()]
             score = [(k, float(v)) for k, v in score[1:]]
+
+        # Filter out scores that can not be used for early stopping.
+        if self.metric_name:
+            score = list(
+                filter(lambda s: s[0].split('-')[1] == self.metric_name,
+                       score))
+        else:
+            score = [score[-1]]
 
         return self._update_rounds(score, stopping_name, model, epoch)
 
@@ -468,12 +494,14 @@ class EvaluationMonitor(TrainingCallback):
     Parameters
     ----------
 
-    metric : str
-        Name of metric
+    metric : callable
+        Extra user defined metric.
     rank : int
         Which worker should be used for printing the result.
     '''
     def __init__(self, metric=None, rank=0):
+        if metric is not None:
+            assert callable(metric), 'metric must be callable object.'
         self.metric = metric
         self.printer_rank = rank
         super().__init__()
@@ -496,14 +524,13 @@ class EvaluationMonitor(TrainingCallback):
                 self.history[data_name] = {}
                 self.history[data_name][metric_name] = [s]
 
-        if rabit.get_rank() == 0:
+        if rabit.get_rank() == self.printer_rank:
             rabit.tracker_print(score + '\n')
         return False
 
     def after_iteration(self, model, epoch, dtrain, evals):
         evals = [] if evals is None else evals
-        feval = self.metric if callable(self.metric) else None
-        score = model.eval_set(evals, epoch, feval)
+        score = model.eval_set(evals, epoch, self.metric)
         return self._update_history(score, epoch)
 
 

@@ -70,10 +70,10 @@ def _train_internal(params, dtrain,
     if any(is_new_callback) or not callbacks:
         assert all(is_new_callback), "You can't mix two styles of callbacks."
         if verbose_eval:
-            callbacks.append(callback.EvaluationMonitor())
+            callbacks.append(callback.EvaluationMonitor(metric=feval))
         if early_stopping_rounds:
             callbacks.append(callback.EarlyStopping(
-                rounds=early_stopping_rounds))
+                rounds=early_stopping_rounds, metric=feval))
         callbacks = callback.CallbackContainer(callbacks)
     else:
         assert False
