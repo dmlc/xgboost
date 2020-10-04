@@ -501,7 +501,10 @@ class EvaluationMonitor(TrainingCallback):
     '''
     def __init__(self, metric=None, rank=0):
         if metric is not None:
-            assert callable(metric), 'metric must be callable object.'
+            msg = 'metric must be callable object for monitor.  For ' + \
+                'builtin metrics, passing them in training parameter' + \
+                ' will invoke monitor automatically.'
+            assert callable(metric), msg
         self.metric = metric
         self.printer_rank = rank
         super().__init__()
