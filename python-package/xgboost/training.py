@@ -26,7 +26,7 @@ def _configure_deprected_callbacks(
     if evals_result is not None:
         callbacks.append(callback.record_evaluation(evals_result))
     callbacks = callback.LegacyCallbacks(
-        callbacks, start_iteration, num_boost_round, evals, feval)
+        callbacks, start_iteration, num_boost_round, feval)
     return callbacks
 
 
@@ -483,6 +483,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
             if isinstance(verbose_eval, int):
                 callbacks.append(callback.print_evaluation(verbose_eval,
                                                            show_stdv=show_stdv))
+        callbacks = callback.LegacyCallbacks(callbacks, 0, num_boost_round, feval,
+                                             cvfolds=cvfolds)
     callbacks.before_training(cvfolds)
 
     booster = _PackedBooster(cvfolds)

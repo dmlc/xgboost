@@ -292,6 +292,34 @@ class TrainingCallback(ABC):
         return False
 
 
+def _aggcv(rlist):
+    # pylint: disable=invalid-name
+    """Aggregate cross-validation results.
+
+    """
+    cvmap = {}
+    idx = rlist[0].split()[0]
+    for line in rlist:
+        arr = line.split()
+        assert idx == arr[0]
+        for metric_idx, it in enumerate(arr[1:]):
+            if not isinstance(it, STRING_TYPES):
+                it = it.decode()
+            k, v = it.split(':')
+            if (metric_idx, k) not in cvmap:
+                cvmap[(metric_idx, k)] = []
+            cvmap[(metric_idx, k)].append(float(v))
+    msg = idx
+    results = []
+    for (metric_idx, k), v in sorted(cvmap.items(), key=lambda x: x[0][0]):
+        v = numpy.array(v)
+        if not isinstance(msg, STRING_TYPES):
+            msg = msg.decode()
+        mean, std = numpy.mean(v), numpy.std(v)
+        results.extend([(k, mean, std)])
+    return results
+
+
 class CallbackContainer:
     '''A special callback for invoking a list of callbacks.
 
@@ -347,38 +375,11 @@ class CallbackContainer:
                 self.history[data_name][metric_name] = [s]
         return False
 
-    def _aggcv(self, rlist):
-        # pylint: disable=invalid-name
-        """Aggregate cross-validation results.
-
-        """
-        cvmap = {}
-        idx = rlist[0].split()[0]
-        for line in rlist:
-            arr = line.split()
-            assert idx == arr[0]
-            for metric_idx, it in enumerate(arr[1:]):
-                if not isinstance(it, STRING_TYPES):
-                    it = it.decode()
-                k, v = it.split(':')
-                if (metric_idx, k) not in cvmap:
-                    cvmap[(metric_idx, k)] = []
-                cvmap[(metric_idx, k)].append(float(v))
-        msg = idx
-        results = []
-        for (metric_idx, k), v in sorted(cvmap.items(), key=lambda x: x[0][0]):
-            v = numpy.array(v)
-            if not isinstance(msg, STRING_TYPES):
-                msg = msg.decode()
-            mean, std = numpy.mean(v), numpy.std(v)
-            results.extend([(k, mean, std)])
-        return results
-
     def after_iteration(self, model, epoch, dtrain, evals):
         '''Function called after training iteration.'''
         if self.is_cv:
             scores = model.eval(epoch, self.metric)
-            scores = self._aggcv(scores)
+            scores = _aggcv(scores)
             self.aggregated_cv = scores
             self._update_history(scores, epoch)
         else:
@@ -571,6 +572,8 @@ class EvaluationMonitor(TrainingCallback):
         return msg
 
     def after_iteration(self, model, epoch, evals_log):
+        if not evals_log:
+            return False
         msg = f'[{epoch}]'
         if rabit.get_rank() == self.printer_rank:
             for data, metric in evals_log.items():
@@ -651,7 +654,7 @@ class LegacyCallbacks:
     feval : Custom evaluation metric.
     '''
     def __init__(self, callbacks, start_iteration, end_iteration,
-                 evals, feval):
+                 feval, cvfolds=None):
         self.callbacks_before_iter = [
             cb for cb in callbacks
             if cb.__dict__.get('before_iteration', False)]
@@ -661,19 +664,27 @@ class LegacyCallbacks:
 
         self.start_iteration = start_iteration
         self.end_iteration = end_iteration
+        self.cvfolds = cvfolds
 
-        self.evals = evals
         self.feval = feval
         assert self.feval is None or callable(self.feval)
 
         super().__init__()
+
+    def before_training(self, model):
+        '''Nothing to do for legacy callbacks'''
+        pass
+
+    def after_training(self, model):
+        '''Nothing to do for legacy callbacks'''
+        pass
 
     def before_iteration(self, model, epoch, dtrain, evals):
         '''Called before each iteration.'''
         for cb in self.callbacks_before_iter:
             rank = rabit.get_rank()
             cb(CallbackEnv(model=model,
-                           cvfolds=None,
+                           cvfolds=self.cvfolds,
                            iteration=epoch,
                            begin_iteration=self.start_iteration,
                            end_iteration=self.end_iteration,
@@ -684,19 +695,20 @@ class LegacyCallbacks:
     def after_iteration(self, model, epoch, dtrain, evals):
         '''Called after each iteration.'''
         evaluation_result_list = []
-        if self.evals:
-            bst_eval_set = model.eval_set(self.evals, epoch, self.feval)
+        if evals:
+            bst_eval_set = model.eval_set(evals, epoch, self.feval)
             if isinstance(bst_eval_set, STRING_TYPES):
                 msg = bst_eval_set
             else:
                 msg = bst_eval_set.decode()
             res = [x.split(':') for x in msg.split()]
             evaluation_result_list = [(k, float(v)) for k, v in res[1:]]
+
         try:
             for cb in self.callbacks_after_iter:
                 rank = rabit.get_rank()
                 cb(CallbackEnv(model=model,
-                               cvfolds=None,
+                               cvfolds=self.cvfolds,
                                iteration=epoch,
                                begin_iteration=self.start_iteration,
                                end_iteration=self.end_iteration,

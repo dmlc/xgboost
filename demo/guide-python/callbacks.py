@@ -1,7 +1,7 @@
 '''
 Demo for using and defining callback functions.
 
-    .. versionadded:: 1.2.0
+    .. versionadded:: 1.3.0
 '''
 import xgboost as xgb
 import tempfile
