@@ -642,7 +642,7 @@ class TrainingCheckPoint(TrainingCallback):
         self._epoch += 1
 
 
-class LegacyCallbacks(TrainingCallback):
+class LegacyCallbacks:
     '''Adapter for legacy callback functions.
 
     .. versionadded:: 1.3.0

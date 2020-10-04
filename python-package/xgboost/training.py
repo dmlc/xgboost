@@ -233,7 +233,7 @@ class CVPack(object):
         return self.bst.eval_set(self.watchlist, iteration, feval)
 
 
-class PackedBooster:
+class _PackedBooster:
     def __init__(self, cvfolds):
         self.cvfolds = cvfolds
 
@@ -468,7 +468,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     callbacks = callback.CallbackContainer(callbacks, metric=feval, is_cv=True)
     callbacks.before_training(cvfolds)
 
-    booster = PackedBooster(cvfolds)
+    booster = _PackedBooster(cvfolds)
 
     for i in range(num_boost_round):
         if callbacks.before_iteration(booster, i, dtrain, None):

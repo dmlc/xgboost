@@ -10,6 +10,7 @@ import numpy as np
 from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
 from matplotlib import pyplot as plt
+import argparse
 
 
 class Plotting(xgb.callback.TrainingCallback):
@@ -120,5 +121,11 @@ def check_point_callback():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--plot', default=1, type=int)
+    args = parser.parse_args()
+
     check_point_callback()
-    custom_callback()
+
+    if args.plot:
+        custom_callback()
