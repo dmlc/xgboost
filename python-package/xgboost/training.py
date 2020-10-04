@@ -105,7 +105,9 @@ def _train_internal(params, dtrain,
 
     callbacks.after_training(bst)
 
-    evals_result.update(callbacks.history)
+    if evals_result:
+        evals_result.update(callbacks.history)
+
     if bst.attr('best_score') is not None:
         bst.best_score = float(bst.attr('best_score'))
         bst.best_iteration = int(bst.attr('best_iteration'))

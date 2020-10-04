@@ -52,6 +52,20 @@ class TestCallbacks(unittest.TestCase):
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
+    def test_early_stopping_custom_eval(self):
+        D_train = xgb.DMatrix(self.X_train, self.y_train)
+        D_valid = xgb.DMatrix(self.X_valid, self.y_valid)
+        early_stopping_rounds = 5
+        booster = xgb.train({'objective': 'binary:logistic',
+                             'tree_method': 'hist'}, D_train,
+                            evals=[(D_train, 'Train'), (D_valid, 'Valid')],
+                            feval=tm.eval_error_metric,
+                            num_boost_round=1000,
+                            early_stopping_rounds=early_stopping_rounds,
+                            verbose_eval=False)
+        dump = booster.get_dump(dump_format='json')
+        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
     def test_check_point(self):
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)
@@ -83,20 +97,6 @@ class TestCallbacks(unittest.TestCase):
 
 
 # @pytest.mark.skipif(**tm.no_sklearn())
-# def test_early_stopping_custom_eval():
-#     from sklearn.datasets import load_breast_cancer
-#     X, y = load_breast_cancer(return_X_y=True)
-#     m = xgb.DMatrix(X, y)
-#     early_stopping_rounds = 5
-#     booster = xgb.train({'objective': 'binary:logistic',
-#                          'tree_method': 'hist'}, m,
-#                         evals=[(m, 'Train')],
-#                         feval=tm.eval_error_metric,
-#                         num_boost_round=1000,
-#                         early_stopping_rounds=early_stopping_rounds,
-#                         verbose_eval=False)
-#     dump = booster.get_dump(dump_format='json')
-#     assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
 
 # @pytest.mark.skipif(**tm.no_sklearn())
