@@ -131,7 +131,7 @@ struct PseudoHuberError {
 
 // logistic loss for binary classification task
 struct LogisticClassification : public LogisticRegression {
-  static const char* DefaultEvalMetric() { return "error"; }
+  static const char* DefaultEvalMetric() { return "logloss"; }
   static const char* Name() { return "binary:logistic"; }
 };
 

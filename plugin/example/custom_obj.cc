@@ -56,7 +56,7 @@ class MyLogistic : public ObjFunction {
     }
   }
   const char* DefaultEvalMetric() const override {
-    return "error";
+    return "logloss";
   }
   void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
     // transform margin value to probability.

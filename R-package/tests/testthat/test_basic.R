@@ -17,7 +17,8 @@ test_that("train and predict binary classification", {
   nrounds <- 2
   expect_output(
     bst <- xgboost(data = train$data, label = train$label, max_depth = 2,
-                  eta = 1, nthread = 2, nrounds = nrounds, objective = "binary:logistic")
+                  eta = 1, nthread = 2, nrounds = nrounds, objective = "binary:logistic",
+                  eval_metric = "error")
   , "train-error")
   expect_equal(class(bst), "xgb.Booster")
   expect_equal(bst$niter, nrounds)
@@ -122,7 +123,7 @@ test_that("train and predict softprob", {
   expect_output(
     bst <- xgboost(data = as.matrix(iris[, -5]), label = lb,
                    max_depth = 3, eta = 0.5, nthread = 2, nrounds = 5,
-                   objective = "multi:softprob", num_class = 3)
+                   objective = "multi:softprob", num_class = 3, eval_metric = "merror")
   , "train-merror")
   expect_false(is.null(bst$evaluation_log))
   expect_lt(bst$evaluation_log[, min(train_merror)], 0.025)
@@ -150,7 +151,7 @@ test_that("train and predict softmax", {
   expect_output(
     bst <- xgboost(data = as.matrix(iris[, -5]), label = lb,
                    max_depth = 3, eta = 0.5, nthread = 2, nrounds = 5,
-                   objective = "multi:softmax", num_class = 3)
+                   objective = "multi:softmax", num_class = 3, eval_metric = "merror")
   , "train-merror")
   expect_false(is.null(bst$evaluation_log))
   expect_lt(bst$evaluation_log[, min(train_merror)], 0.025)
@@ -167,7 +168,7 @@ test_that("train and predict RF", {
   lb <- train$label
   # single iteration
   bst <- xgboost(data = train$data, label = lb, max_depth = 5,
-                 nthread = 2, nrounds = 1, objective = "binary:logistic",
+                 nthread = 2, nrounds = 1, objective = "binary:logistic", eval_metric = "error",
                  num_parallel_tree = 20, subsample = 0.6, colsample_bytree = 0.1)
   expect_equal(bst$niter, 1)
   expect_equal(xgb.ntree(bst), 20)
@@ -193,7 +194,8 @@ test_that("train and predict RF with softprob", {
   set.seed(11)
   bst <- xgboost(data = as.matrix(iris[, -5]), label = lb,
                  max_depth = 3, eta = 0.9, nthread = 2, nrounds = nrounds,
-                 objective = "multi:softprob", num_class = 3, verbose = 0,
+                 objective = "multi:softprob", eval_metric = "merror",
+                 num_class = 3, verbose = 0,
                  num_parallel_tree = 4, subsample = 0.5, colsample_bytree = 0.5)
   expect_equal(bst$niter, 15)
   expect_equal(xgb.ntree(bst), 15 * 3 * 4)
@@ -274,7 +276,7 @@ test_that("xgb.cv works", {
   expect_output(
     cv <- xgb.cv(data = train$data, label = train$label, max_depth = 2, nfold = 5,
                  eta = 1., nthread = 2, nrounds = 2, objective = "binary:logistic",
-                 verbose = TRUE)
+                 eval_metric = "error", verbose = TRUE)
   , "train-error:")
   expect_is(cv, 'xgb.cv.synchronous')
   expect_false(is.null(cv$evaluation_log))
@@ -299,7 +301,7 @@ test_that("xgb.cv works with stratified folds", {
                 eta = 1., nthread = 2, nrounds = 2, objective = "binary:logistic",
                 verbose = TRUE, stratified = TRUE)
   # Stratified folds should result in a different evaluation logs
-  expect_true(all(cv$evaluation_log[, test_error_mean] != cv2$evaluation_log[, test_error_mean]))
+  expect_true(all(cv$evaluation_log[, test_logloss_mean] != cv2$evaluation_log[, test_logloss_mean]))
 })
 
 test_that("train and predict with non-strict classes", {
