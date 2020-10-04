@@ -28,13 +28,16 @@ def test_early_stopping_custom_eval():
     from sklearn.datasets import load_breast_cancer
     X, y = load_breast_cancer(return_X_y=True)
     m = xgb.DMatrix(X, y)
-    booster = xgb.train({'objective': 'binary:logistic'}, m,
+    early_stopping_rounds = 5
+    booster = xgb.train({'objective': 'binary:logistic',
+                         'tree_method': 'hist'}, m,
                         evals=[(m, 'Train')],
                         feval=tm.eval_error_metric,
                         num_boost_round=1000,
-                        early_stopping_rounds=5,
+                        early_stopping_rounds=early_stopping_rounds,
                         verbose_eval=False)
-    verify_booster_early_stop(booster)
+    dump = booster.get_dump(dump_format='json')
+    assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
 
 @pytest.mark.skipif(**tm.no_sklearn())

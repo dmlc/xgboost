@@ -240,7 +240,7 @@ def non_increasing(L, tolerance=1e-4):
     return all((y - x) < tolerance for x, y in zip(L, L[1:]))
 
 
-def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix):
+def eval_error_metric(predt, dtrain: xgb.DMatrix):
     label = dtrain.get_label()
     r = np.zeros(predt.shape)
     gt = predt > 0.5

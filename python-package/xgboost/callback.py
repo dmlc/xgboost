@@ -357,12 +357,11 @@ class LearningRateScheduler(TrainingCallback):
         model.set_param('learning_rate', self.learning_rates(epoch))
 
 
-def _allreduce_metric(score, maximize):
+def _allreduce_metric(score):
     score = numpy.array([score])
-    if maximize:
-        score = rabit.allreduce(score, rabit.Op.MAX)
-    else:
-        score = rabit.allreduce(score, rabit.Op.MIN)
+    world = rabit.get_world_size()
+    assert world != 0
+    score = rabit.allreduce(score, rabit.Op.SUM) / world
     return score
 
 
@@ -526,8 +525,8 @@ class EvaluationMonitor(TrainingCallback):
         return False
 
     def after_iteration(self, model, epoch, dtrain, evals):
-        assert not rabit.is_distributed()
         score = model.eval(self.data, self.name)
+        _allreduce_metric(score)
         return self._update_history(score, epoch)
 
 

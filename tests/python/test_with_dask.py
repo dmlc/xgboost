@@ -667,14 +667,17 @@ class TestWithDask:
         X, y = load_breast_cancer(return_X_y=True)
         X, y = da.from_array(X), da.from_array(y)
         m = xgb.dask.DaskDMatrix(client, X, y)
-        booster = xgb.dask.train(client, {'objective': 'binary:logistic',
-                                          'tree_method': 'hist'}, m,
-                                 evals=[(m, 'Train')],
-                                 feval=tm.eval_error_metric,
-                                 num_boost_round=1000,
-                                 early_stopping_rounds=5)['booster']
+        early_stopping_rounds = 5
+        booster = xgb.dask.train(
+            client, {'objective': 'binary:logistic',
+                     'tree_method': 'hist'}, m,
+            evals=[(m, 'Train')],
+            feval=tm.eval_error_metric,
+            num_boost_round=1000,
+            early_stopping_rounds=early_stopping_rounds)['booster']
         assert hasattr(booster, 'best_score')
-        assert booster.best_iteration == 10
+        dump = booster.get_dump(dump_format='json')
+        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
     def run_quantile(self, name):
         if sys.platform.startswith("win"):
