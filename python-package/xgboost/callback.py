@@ -362,7 +362,9 @@ class CallbackContainer:
             if self.is_cv:
                 std = float(d[2])
                 s = (s, std)
-            data_name, metric_name = name.split('-')
+            splited_names = name.split('-')
+            data_name = splited_names[0]
+            metric_name = '-'.join(splited_names[1:])
             s = _allreduce_metric(s)
             if data_name in self.history:
                 data_history = self.history[data_name]
@@ -377,6 +379,8 @@ class CallbackContainer:
 
     def after_iteration(self, model, epoch, dtrain, evals):
         '''Function called after training iteration.'''
+        for d, name in evals:
+            assert name.find('-') == -1, 'Dataset name should not contain `-`'
         if self.is_cv:
             scores = model.eval(epoch, self.metric)
             scores = _aggcv(scores)
