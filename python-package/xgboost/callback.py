@@ -6,6 +6,7 @@ from abc import ABC
 import collections
 import os
 import pickle
+from typing import Callable, List
 import numpy
 
 from . import rabit
@@ -266,14 +267,13 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
 #
 # TODOs
 # - [x] eval_set
-# - [ ] cv
-# - [ ] tests
+# - [x] cv
+# - [x] tests
 # - [ ] doc
 # - [x] enforced best_xxx
-# - [ ] merged functionality of es and mon.
 # - [x] make callbacks a set instead of list.
 # - [x] auto detect maximize.
-# - [ ] Correct printing for cv
+# - [x] Correct printing for cv
 
 # Breaking:
 # - reset learning rate no longer accepts total boosting rounds
@@ -309,7 +309,8 @@ class CallbackContainer:
     .. versionadded:: 1.3.0
 
     '''
-    def __init__(self, callbacks, metric=None, is_cv=False):
+    def __init__(self, callbacks: List[TrainingCallback],
+                 metric: Callable = None, is_cv: bool = False):
         self.callbacks = set(callbacks)
         if metric is not None:
             msg = 'metric must be callable object for monitor.  For ' + \
@@ -341,6 +342,9 @@ class CallbackContainer:
     def _update_history(self, score, epoch):
         for d in score:
             name, s = d[0], float(d[1])
+            if self.is_cv:
+                std = float(d[2])
+                s = (s, std)
             data_name, metric_name = name.split('-')
             s = _allreduce_metric(s)
             if data_name in self.history:
@@ -356,12 +360,8 @@ class CallbackContainer:
 
     def _aggcv(self, rlist):
         # pylint: disable=invalid-name
-        """
-        Aggregate cross-validation results.
+        """Aggregate cross-validation results.
 
-        If verbose_eval is true, progress is displayed in every call. If
-        verbose_eval is an integer, progress will only be displayed every
-        `verbose_eval` trees, tracked via trial.
         """
         cvmap = {}
         idx = rlist[0].split()[0]
@@ -391,7 +391,6 @@ class CallbackContainer:
             scores = model.eval(epoch, self.metric)
             scores = self._aggcv(scores)
             self.aggregated_cv = scores
-            scores = [(s[0], s[1]) for s in scores]  # fliter out std
             self._update_history(scores, epoch)
         else:
             evals = [] if evals is None else evals
@@ -439,9 +438,14 @@ def _allreduce_metric(score):
     as final result.
 
     '''
-    score = numpy.array([score])
     world = rabit.get_world_size()
     assert world != 0
+    if world == 1:
+        return score
+    if isinstance(score, tuple):  # has mean and stdv
+        raise ValueError(
+            'xgboost.cv function should not be used in distributed environment.')
+    score = numpy.array([score])
     score = rabit.allreduce(score, rabit.Op.SUM) / world
     return score[0]
 
@@ -500,7 +504,6 @@ class EarlyStopping(TrainingCallback):
         super().__init__()
 
     def _update_rounds(self, score, name, metric, model, epoch):
-        s = _allreduce_metric(score)
         # Just to be compatibility with old behavior before 1.3.  We should let
         # user to decide.
         if self.maximize is None:
@@ -516,17 +519,17 @@ class EarlyStopping(TrainingCallback):
         if not self.stopping_history:  # First round
             self.current_rounds = 0
             self.stopping_history[name] = {}
-            self.stopping_history[name][metric] = [s]
+            self.stopping_history[name][metric] = [score]
             self.best_scores[name] = {}
-            self.best_scores[name][metric] = [s]
-            model.set_attr(best_score=str(s), best_iteration=str(epoch))
-        elif not self.improve_op(s, self.best_scores[name][metric][-1]):
+            self.best_scores[name][metric] = [score]
+            model.set_attr(best_score=str(score), best_iteration=str(epoch))
+        elif not self.improve_op(score, self.best_scores[name][metric][-1]):
             # Not improved
-            self.stopping_history[name][metric].append(s)
+            self.stopping_history[name][metric].append(score)
             self.current_rounds += 1
         else:  # Improved
-            self.stopping_history[name][metric].append(s)
-            self.best_scores[name][metric].append(s)
+            self.stopping_history[name][metric].append(score)
+            self.best_scores[name][metric].append(score)
             record = self.stopping_history[name][metric][-1]
             model.set_attr(best_score=str(record), best_iteration=str(epoch))
             self.current_rounds = 0  # reset
@@ -576,15 +579,16 @@ class EvaluationMonitor(TrainingCallback):
     rank : int
         Which worker should be used for printing the result.
     '''
-    def __init__(self, rank=0):
+    def __init__(self, rank=0, show_stdv=False):
         self.printer_rank = rank
+        self.show_stdv = show_stdv
         super().__init__()
 
     def _fmt_metric(self, data, metric, score, std):
-        if std is None:
-            msg = '\t{0}:{1:.5f}'.format(data + '-' + metric, score)
-        else:
+        if std is not None and self.show_stdv:
             msg = '\t{0}:{1:.5f}+{2:.5f}'.format(data + '-' + metric, score, std)
+        else:
+            msg = '\t{0}:{1:.5f}'.format(data + '-' + metric, score)
         return msg
 
     def after_iteration(self, model, epoch, evals_log):
@@ -592,7 +596,13 @@ class EvaluationMonitor(TrainingCallback):
         if rabit.get_rank() == self.printer_rank:
             for data, metric in evals_log.items():
                 for metric_name, log in metric.items():
-                    msg += self._fmt_metric(data, metric_name, log[-1], None)
+                    if isinstance(log[-1], tuple):
+                        score = log[-1][0]
+                        stdv = log[-1][1]
+                    else:
+                        score = log[-1]
+                        stdv = None
+                    msg += self._fmt_metric(data, metric_name, score, stdv)
             msg += '\n'
             rabit.tracker_print(msg)
         return False

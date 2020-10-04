@@ -461,7 +461,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     # setup callbacks
     callbacks = [] if callbacks is None else callbacks
     if verbose_eval:
-        callbacks.append(callback.EvaluationMonitor())
+        callbacks.append(callback.EvaluationMonitor(show_stdv=show_stdv))
     if early_stopping_rounds:
         callbacks.append(callback.EarlyStopping(
             rounds=early_stopping_rounds, maximize=maximize))
