@@ -240,6 +240,16 @@ def non_increasing(L, tolerance=1e-4):
     return all((y - x) < tolerance for x, y in zip(L, L[1:]))
 
 
+def eval_error_metric(predt: np.ndarray, dtrain: xgb.DMatrix):
+    label = dtrain.get_label()
+    r = np.zeros(predt.shape)
+    gt = predt > 0.5
+    r[gt] = 1 - label[gt]
+    le = predt <= 0.5
+    r[le] = label[le]
+    return 'PyError', np.sum(r)
+
+
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
 PROJECT_ROOT = os.path.normpath(
     os.path.join(CURDIR, os.path.pardir, os.path.pardir))

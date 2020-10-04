@@ -2,7 +2,6 @@ import xgboost as xgb
 import pytest
 import os
 import testing as tm
-import numpy as np
 import tempfile
 
 
@@ -24,15 +23,6 @@ def test_early_stopping():
     verify_booster_early_stop(booster)
 
 
-def eval_error_metric(label, predt):
-    r = np.zeros(predt.shape)
-    gt = predt > 0.5
-    r[gt] = 1 - label[gt]
-    le = predt <= 0.5
-    r[le] = label[le]
-    return np.sum(r)
-
-
 @pytest.mark.skipif(**tm.no_sklearn())
 def test_early_stopping_custom_eval():
     from sklearn.datasets import load_breast_cancer
@@ -40,6 +30,7 @@ def test_early_stopping_custom_eval():
     m = xgb.DMatrix(X, y)
     booster = xgb.train({'objective': 'binary:logistic'}, m,
                         evals=[(m, 'Train')],
+                        feval=tm.eval_error_metric,
                         num_boost_round=1000,
                         early_stopping_rounds=5,
                         verbose_eval=False)
