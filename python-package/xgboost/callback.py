@@ -264,17 +264,6 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
 
 
 # The new implementation of callback functions.
-#
-# TODOs
-# - [x] eval_set
-# - [x] cv
-# - [x] tests
-# - [ ] doc
-# - [x] enforced best_xxx
-# - [x] make callbacks a set instead of list.
-# - [x] auto detect maximize.
-# - [x] Correct printing for cv
-
 # Breaking:
 # - reset learning rate no longer accepts total boosting rounds
 
