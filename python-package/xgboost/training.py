@@ -3,8 +3,7 @@
 # pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
 import numpy as np
-from .core import Booster, STRING_TYPES, XGBoostError, CallbackEnv
-from .core import EarlyStopException
+from .core import Booster, XGBoostError
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
 from . import rabit
 from . import callback
@@ -86,7 +85,6 @@ def _train_internal(params, dtrain,
                 rounds=early_stopping_rounds, maximize=maximize))
         callbacks = callback.CallbackContainer(callbacks, metric=feval)
     else:
-        assert False
         callbacks = _configure_deprected_callbacks(
             verbose_eval, early_stopping_rounds, maximize, start_iteration,
             num_boost_round, evals, feval, evals_result, callbacks)
@@ -238,19 +236,23 @@ class _PackedBooster:
         self.cvfolds = cvfolds
 
     def update(self, iteration, obj):
+        '''Iterate through folds for update'''
         for fold in self.cvfolds:
             fold.update(iteration, obj)
 
     def eval(self, iteration, feval):
+        '''Iterate through folds for eval'''
         result = [f.eval(iteration, feval) for f in self.cvfolds]
         return result
 
     def set_attr(self, **kwargs):
+        '''Iterate through folds for setting attributes'''
         for f in self.cvfolds:
             f.bst.set_attr(**kwargs)
 
     @property
     def best_iteration(self):
+        '''Get best_iteration'''
         ret = self.cvfolds[0].bst.attr('best_iteration')
         return int(ret)
 
@@ -460,12 +462,27 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
 
     # setup callbacks
     callbacks = [] if callbacks is None else callbacks
-    if verbose_eval:
-        callbacks.append(callback.EvaluationMonitor(show_stdv=show_stdv))
-    if early_stopping_rounds:
-        callbacks.append(callback.EarlyStopping(
-            rounds=early_stopping_rounds, maximize=maximize))
-    callbacks = callback.CallbackContainer(callbacks, metric=feval, is_cv=True)
+    is_new_callback = [isinstance(c, callback.TrainingCallback)
+                       for c in callbacks]
+    if any(is_new_callback) or not callbacks:
+        if verbose_eval:
+            callbacks.append(callback.EvaluationMonitor(show_stdv=show_stdv))
+        if early_stopping_rounds:
+            callbacks.append(callback.EarlyStopping(
+                rounds=early_stopping_rounds, maximize=maximize))
+        callbacks = callback.CallbackContainer(callbacks, metric=feval, is_cv=True)
+    else:
+        if early_stopping_rounds is not None:
+            callbacks.append(callback.early_stop(early_stopping_rounds,
+                                                 maximize=maximize,
+                                                 verbose=False))
+
+        if isinstance(verbose_eval, bool) and verbose_eval:
+            callbacks.append(callback.print_evaluation(show_stdv=show_stdv))
+        else:
+            if isinstance(verbose_eval, int):
+                callbacks.append(callback.print_evaluation(verbose_eval,
+                                                           show_stdv=show_stdv))
     callbacks.before_training(cvfolds)
 
     booster = _PackedBooster(cvfolds)

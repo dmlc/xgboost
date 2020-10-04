@@ -680,6 +680,7 @@ class LegacyCallbacks:
         super().__init__()
 
     def before_iteration(self, model, epoch, dtrain, evals):
+        '''Called before each iteration.'''
         for cb in self.callbacks_before_iter:
             rank = rabit.get_rank()
             cb(CallbackEnv(model=model,
@@ -692,6 +693,7 @@ class LegacyCallbacks:
         return False
 
     def after_iteration(self, model, epoch, dtrain, evals):
+        '''Called after each iteration.'''
         evaluation_result_list = []
         if self.evals:
             bst_eval_set = model.eval_set(self.evals, epoch, self.feval)
