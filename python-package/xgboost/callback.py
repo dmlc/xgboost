@@ -272,6 +272,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
 # - doc
 # - enforced best_xxx
 # - merged functionality of es and mon.
+# - make callbacks a set instead of list.
 
 # Breaking:
 # - reset learning rate no longer accepts total boosting rounds
