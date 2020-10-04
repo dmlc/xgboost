@@ -386,7 +386,7 @@ class CallbackContainer:
             self._update_history(scores, epoch)
         else:
             evals = [] if evals is None else evals
-            for d, name in evals:
+            for _, name in evals:
                 assert name.find('-') == -1, 'Dataset name should not contain `-`'
             score = model.eval_set(evals, epoch, self.metric)
             score = score.split()[1:]  # into datasets
@@ -680,11 +680,9 @@ class LegacyCallbacks:
 
     def before_training(self, model):
         '''Nothing to do for legacy callbacks'''
-        pass
 
     def after_training(self, model):
         '''Nothing to do for legacy callbacks'''
-        pass
 
     def before_iteration(self, model, epoch, dtrain, evals):
         '''Called before each iteration.'''

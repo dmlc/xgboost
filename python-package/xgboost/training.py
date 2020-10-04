@@ -11,7 +11,7 @@ from . import callback
 
 def _configure_deprected_callbacks(
         verbose_eval, early_stopping_rounds, maximize, start_iteration,
-        num_boost_round, evals, feval, evals_result, callbacks):
+        num_boost_round, feval, evals_result, callbacks):
     # Most of legacy advanced options becomes callbacks
     if isinstance(verbose_eval, bool) and verbose_eval:
         callbacks.append(callback.print_evaluation())
@@ -87,7 +87,7 @@ def _train_internal(params, dtrain,
     else:
         callbacks = _configure_deprected_callbacks(
             verbose_eval, early_stopping_rounds, maximize, start_iteration,
-            num_boost_round, evals, feval, evals_result, callbacks)
+            num_boost_round, feval, evals_result, callbacks)
 
     callbacks.before_training(bst)
     for i in range(start_iteration, num_boost_round):
@@ -251,6 +251,7 @@ class _PackedBooster:
             f.bst.set_attr(**kwargs)
 
     def attr(self, key):
+        '''Redirect to booster attr.'''
         return self.cvfolds[0].bst.attr(key)
 
     @property
