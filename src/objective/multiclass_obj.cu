@@ -49,6 +49,9 @@ class SoftmaxMultiClassObj : public ObjFunction {
                    const MetaInfo& info,
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
+    // Remove unused parameter compiler warning.
+    (void) iter;
+
     if (info.labels_.Size() == 0) {
       return;
     }
