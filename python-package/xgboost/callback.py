@@ -9,7 +9,7 @@ import pickle
 import numpy
 
 from . import rabit
-from .core import EarlyStopException, DMatrix, CallbackEnv
+from .core import EarlyStopException, CallbackEnv
 from .compat import STRING_TYPES
 
 
@@ -271,7 +271,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
 # - [ ] doc
 # - [x] enforced best_xxx
 # - [ ] merged functionality of es and mon.
-# - [ ] make callbacks a set instead of list.
+# - [x] make callbacks a set instead of list.
 # - [x] auto detect maximize.
 # - [ ] Correct printing for cv
 
@@ -320,6 +320,9 @@ class CallbackContainer:
         self.history = collections.OrderedDict()
         self.is_cv = is_cv
 
+        if self.is_cv:
+            self.aggregated_cv = None
+
     def before_training(self, model):
         '''Function called before training.'''
         for c in self.callbacks:
@@ -351,7 +354,7 @@ class CallbackContainer:
                 self.history[data_name][metric_name] = [s]
         return False
 
-    def aggcv(self, rlist):
+    def _aggcv(self, rlist):
         # pylint: disable=invalid-name
         """
         Aggregate cross-validation results.
@@ -386,7 +389,8 @@ class CallbackContainer:
         '''Function called after training iteration.'''
         if self.is_cv:
             scores = model.eval(epoch, self.metric)
-            scores = self.aggcv(scores)
+            scores = self._aggcv(scores)
+            self.aggregated_cv = scores
             scores = [(s[0], s[1]) for s in scores]  # fliter out std
             self._update_history(scores, epoch)
         else:
@@ -430,11 +434,26 @@ class LearningRateScheduler(TrainingCallback):
 
 
 def _allreduce_metric(score):
+    '''Helper function for computing customized metric in distributed
+    environment.  Not strictly correct as many functions don't use mean value
+    as final result.
+
+    '''
     score = numpy.array([score])
     world = rabit.get_world_size()
     assert world != 0
     score = rabit.allreduce(score, rabit.Op.SUM) / world
     return score[0]
+
+
+def _get_latest_log(evals_log: collections.OrderedDict):
+    '''Given the evaluation log, extract the score of latest iteration.'''
+    result = []
+    for data, metric in evals_log.items():
+        for metric_name, log in metric.items():
+            result.append(
+                {'data': data, 'metric': metric_name, 'score': log[-1]})
+    return result
 
 
 # pylint: disable=too-many-instance-attributes
@@ -557,22 +576,23 @@ class EvaluationMonitor(TrainingCallback):
     rank : int
         Which worker should be used for printing the result.
     '''
-    def __init__(self, metric=None, rank=0):
-        if metric is not None:
-            msg = 'metric must be callable object for monitor.  For ' + \
-                'builtin metrics, passing them in training parameter' + \
-                ' will invoke monitor automatically.'
-            assert callable(metric), msg
-        self.metric = metric
+    def __init__(self, rank=0):
         self.printer_rank = rank
         super().__init__()
+
+    def _fmt_metric(self, data, metric, score, std):
+        if std is None:
+            msg = '\t{0}:{1:.5f}'.format(data + '-' + metric, score)
+        else:
+            msg = '\t{0}:{1:.5f}+{2:.5f}'.format(data + '-' + metric, score, std)
+        return msg
 
     def after_iteration(self, model, epoch, evals_log):
         msg = f'[{epoch}]'
         if rabit.get_rank() == self.printer_rank:
             for data, metric in evals_log.items():
                 for metric_name, log in metric.items():
-                    msg += '\t' + data + '-' + metric_name + ':' + str(log[-1])
+                    msg += self._fmt_metric(data, metric_name, log[-1], None)
             msg += '\n'
             rabit.tracker_print(msg)
         return False
@@ -586,20 +606,21 @@ class TrainingCheckPoint(TrainingCallback):
     Parameters
     ----------
 
-    path : os.PathLike
+    directory : os.PathLike
         Output model directory.
     name : str
-        pattern of output model file.  Models will be saved as name_0.json,
-        name_1.json, name_2.json ....
+        pattern of output model file.  Models will be saved as name_0.json, name_1.json,
+        name_2.json ....
     as_pickle : boolean
-        When set to Ture, all training parameters will be saved in pickle
-        format, instead of saving only the model.
+        When set to Ture, all training parameters will be saved in pickle format, instead
+        of saving only the model.
     iterations : int
-        Interval of checkpointing.
+        Interval of checkpointing.  Checkpointing is slow so setting a larger number can
+        reduce performance hit.
 
     '''
     def __init__(self, directory: os.PathLike, name: str = 'model',
-                 as_pickle=False, rounds: int = 10):
+                 as_pickle=False, rounds: int = 100):
         self._path = directory
         self._name = name
         self._as_pickle = as_pickle

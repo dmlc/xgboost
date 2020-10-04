@@ -80,7 +80,7 @@ def _train_internal(params, dtrain,
     if any(is_new_callback) or not callbacks:
         assert all(is_new_callback), "You can't mix two styles of callbacks."
         if verbose_eval:
-            callbacks.append(callback.EvaluationMonitor(metric=feval))
+            callbacks.append(callback.EvaluationMonitor())
         if early_stopping_rounds:
             callbacks.append(callback.EarlyStopping(
                 rounds=early_stopping_rounds, maximize=maximize))
@@ -359,38 +359,6 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
     return ret
 
 
-def aggcv(rlist):
-    # pylint: disable=invalid-name
-    """
-    Aggregate cross-validation results.
-
-    If verbose_eval is true, progress is displayed in every call. If
-    verbose_eval is an integer, progress will only be displayed every
-    `verbose_eval` trees, tracked via trial.
-    """
-    cvmap = {}
-    idx = rlist[0].split()[0]
-    for line in rlist:
-        arr = line.split()
-        assert idx == arr[0]
-        for metric_idx, it in enumerate(arr[1:]):
-            if not isinstance(it, STRING_TYPES):
-                it = it.decode()
-            k, v = it.split(':')
-            if (metric_idx, k) not in cvmap:
-                cvmap[(metric_idx, k)] = []
-            cvmap[(metric_idx, k)].append(float(v))
-    msg = idx
-    results = []
-    for (metric_idx, k), v in sorted(cvmap.items(), key=lambda x: x[0][0]):
-        v = np.array(v)
-        if not isinstance(msg, STRING_TYPES):
-            msg = msg.decode()
-        mean, std = np.mean(v), np.std(v)
-        results.extend([(k, mean, std)])
-    return results
-
-
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
        metrics=(), obj=None, feval=None, maximize=None, early_stopping_rounds=None,
        fpreproc=None, as_pandas=True, verbose_eval=True, show_stdv=True,
@@ -493,7 +461,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     # setup callbacks
     callbacks = [] if callbacks is None else callbacks
     if verbose_eval:
-        callbacks.append(callback.EvaluationMonitor(metric=feval))
+        callbacks.append(callback.EvaluationMonitor())
     if early_stopping_rounds:
         callbacks.append(callback.EarlyStopping(
             rounds=early_stopping_rounds, maximize=maximize))
@@ -506,9 +474,9 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         if callbacks.before_iteration(booster, i, dtrain, None):
             break
         booster.update(i, obj)
-        evals_log = booster.eval(i, feval)
-        res = aggcv(evals_log)
 
+        should_break = callbacks.after_iteration(booster, i, dtrain, None)
+        res = callbacks.aggregated_cv
         for key, mean, std in res:
             if key + '-mean' not in results:
                 results[key + '-mean'] = []
@@ -517,7 +485,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
             results[key + '-mean'].append(mean)
             results[key + '-std'].append(std)
 
-        if callbacks.after_iteration(booster, i, dtrain, None):
+        if should_break:
             for k in results:
                 results[k] = results[k][:(booster.best_iteration + 1)]
             break
