@@ -272,7 +272,7 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
 # - [x] enforced best_xxx
 # - [ ] merged functionality of es and mon.
 # - [ ] make callbacks a set instead of list.
-# - [ ] auto detect maximize.
+# - [x] auto detect maximize.
 # - [ ] Correct printing for cv
 
 # Breaking:
@@ -459,7 +459,7 @@ class EarlyStopping(TrainingCallback):
                  rounds,
                  metric_name=None,
                  data_name=None,
-                 maximize=False,
+                 maximize=None,
                  save_best=False):
         self.data = data_name
         self.metric_name = metric_name
@@ -470,10 +470,11 @@ class EarlyStopping(TrainingCallback):
         self.maximize = maximize
         self.stopping_history = {}
 
-        if self.maximize:
-            self.improve_op = lambda x, y: x > y
-        else:
-            self.improve_op = lambda x, y: x < y
+        if self.maximize is not None:
+            if self.maximize:
+                self.improve_op = lambda x, y: x > y
+            else:
+                self.improve_op = lambda x, y: x < y
 
         self.current_rounds = 0
         self.best_scores = {}
@@ -481,6 +482,18 @@ class EarlyStopping(TrainingCallback):
 
     def _update_rounds(self, score, name, metric, model, epoch):
         s = _allreduce_metric(score)
+        # Just to be compatibility with old behavior before 1.3.  We should let
+        # user to decide.
+        if self.maximize is None:
+            maximize_metrics = ('auc', 'aucpr', 'map', 'ndcg', 'auc@',
+                                'aucpr@', 'map@', 'ndcg@')
+            if any(metric.startswith(x) for x in maximize_metrics):
+                self.improve_op = lambda x, y: x > y
+                self.maximize = True
+            else:
+                self.improve_op = lambda x, y: x < y
+                self.maximize = False
+
         if not self.stopping_history:  # First round
             self.current_rounds = 0
             self.stopping_history[name] = {}

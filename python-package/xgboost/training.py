@@ -130,7 +130,7 @@ def _train_internal(params, dtrain,
 
 
 def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
-          maximize=False, early_stopping_rounds=None, evals_result=None,
+          maximize=None, early_stopping_rounds=None, evals_result=None,
           verbose_eval=True, xgb_model=None, callbacks=None):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
@@ -392,7 +392,7 @@ def aggcv(rlist):
 
 
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
-       metrics=(), obj=None, feval=None, maximize=False, early_stopping_rounds=None,
+       metrics=(), obj=None, feval=None, maximize=None, early_stopping_rounds=None,
        fpreproc=None, as_pandas=True, verbose_eval=True, show_stdv=True,
        seed=0, callbacks=None, shuffle=True):
     # pylint: disable = invalid-name
