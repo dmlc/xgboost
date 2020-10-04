@@ -651,12 +651,15 @@ class TestWithDask:
     def test_early_stopping(self, client):
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)
-        m = xgb.dask.DaskDMatrix(X, y)
-        booster = xgb.dask.train({'objective': 'binary:logistic'}, m,
+        X, y = da.from_array(X), da.from_array(y)
+        m = xgb.dask.DaskDMatrix(client, X, y)
+        booster = xgb.dask.train(client, {'objective': 'binary:logistic',
+                                          'tree_method': 'hist'}, m,
                                  evals=[(m, 'Train')],
                                  num_boost_round=1000,
-                                 early_stopping_rounds=5)
+                                 early_stopping_rounds=5)['booster']
         assert hasattr(booster, 'best_score')
+        assert booster.best_iteration == 10
 
     def run_quantile(self, name):
         if sys.platform.startswith("win"):
