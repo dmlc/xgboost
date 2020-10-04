@@ -210,7 +210,7 @@ class TestCallbacks(unittest.TestCase):
                       num_boost_round=10,
                       verbose_eval=False,
                       callbacks=[check_point])
-            for i in range(0, 10):
+            for i in range(1, 10):
                 assert os.path.exists(
                     os.path.join(tmpdir, 'model_' + str(i) + '.json'))
 
@@ -222,6 +222,6 @@ class TestCallbacks(unittest.TestCase):
                       num_boost_round=10,
                       verbose_eval=False,
                       callbacks=[check_point])
-            for i in range(0, 10):
+            for i in range(1, 10):
                 assert os.path.exists(
                     os.path.join(tmpdir, 'model_' + str(i) + '.pkl'))

@@ -450,16 +450,6 @@ def _allreduce_metric(score):
     return score[0]
 
 
-def _get_latest_log(evals_log: collections.OrderedDict):
-    '''Given the evaluation log, extract the score of latest iteration.'''
-    result = []
-    for data, metric in evals_log.items():
-        for metric_name, log in metric.items():
-            result.append(
-                {'data': data, 'metric': metric_name, 'score': log[-1]})
-    return result
-
-
 # pylint: disable=too-many-instance-attributes
 class EarlyStopping(TrainingCallback):
     ''' Callback function for early stopping
@@ -639,7 +629,6 @@ class TrainingCheckPoint(TrainingCallback):
         super().__init__()
 
     def after_iteration(self, model, epoch, evals_log):
-        self._epoch += 1
         if self._epoch == self._iterations:
             path = os.path.join(self._path, self._name + '_' + str(epoch) +
                                 ('.pkl' if self._as_pickle else '.json'))
@@ -650,6 +639,7 @@ class TrainingCheckPoint(TrainingCallback):
                         pickle.dump(model, fd)
                 else:
                     model.save_model(path)
+        self._epoch += 1
 
 
 class LegacyCallbacks(TrainingCallback):

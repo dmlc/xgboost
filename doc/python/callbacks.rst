@@ -34,14 +34,15 @@ this callback function directly into XGBoost:
 
     # Specify which dataset and which metric should be used for early stopping.
     early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
-                                            metric=tm.eval_error_metric,
-                                            metric_name='PyError',
-                                            data_name='Valid')
+					    metric_name='PyError',
+					    data_name='Train')
+
     booster = xgb.train(
         {'objective': 'binary:logistic',
          'eval_metric': ['error', 'rmse'],
          'tree_method': 'hist'}, D_train,
         evals=[(D_train, 'Train'), (D_valid, 'Valid')],
+	feval=eval_error_metric,
         num_boost_round=1000,
         callbacks=[early_stop],
         verbose_eval=False)
@@ -53,12 +54,6 @@ this callback function directly into XGBoost:
 Defining your own callback
 ##########################
 
-In here we will define a callback for monitoring shap value changes during training.
-First XGBoost provides an interface class: ``xgboost.callback.TrainingCallback``, user
-defined callbacks should inherit this class and override corresponding methods.
-
-.. code-block:: python
-    pass
-
-
-The full example is in.
+XGBoost provides an callback interface class: ``xgboost.callback.TrainingCallback``, user
+defined callbacks should inherit this class and override corresponding methods.  There's a
+working example in `demo/guide-python/callbacks.py <https://github.com/dmlc/xgboost/tree/master/demo/guide-python/callbacks.py>`_
