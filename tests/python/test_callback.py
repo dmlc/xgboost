@@ -66,6 +66,28 @@ class TestCallbacks(unittest.TestCase):
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
+    def test_early_stopping_skl(self):
+        from sklearn.datasets import load_breast_cancer
+        X, y = load_breast_cancer(return_X_y=True)
+        cls = xgb.XGBClassifier()
+        early_stopping_rounds = 5
+        cls.fit(X, y, eval_set=[(X, y)],
+                early_stopping_rounds=early_stopping_rounds)
+        booster = cls.get_booster()
+        dump = booster.get_dump(dump_format='json')
+        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
+    def test_early_stopping_custom_eval_skl(self):
+        from sklearn.datasets import load_breast_cancer
+        X, y = load_breast_cancer(return_X_y=True)
+        cls = xgb.XGBClassifier()
+        early_stopping_rounds = 5
+        cls.fit(X, y, eval_set=[(X, y)],
+                early_stopping_rounds=early_stopping_rounds)
+        booster = cls.get_booster()
+        dump = booster.get_dump(dump_format='json')
+        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
     def test_check_point(self):
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)
@@ -93,31 +115,6 @@ class TestCallbacks(unittest.TestCase):
             for i in range(0, 10):
                 assert os.path.exists(
                     os.path.join(tmpdir, 'model_' + str(i) + '.pkl'))
-
-
-
-# @pytest.mark.skipif(**tm.no_sklearn())
-
-
-# @pytest.mark.skipif(**tm.no_sklearn())
-# def test_early_stopping_skl():
-#     from sklearn.datasets import load_breast_cancer
-#     X, y = load_breast_cancer(return_X_y=True)
-#     cls = xgb.XGBClassifier()
-#     cls.fit(X, y, eval_set=[(X, y)], early_stopping_rounds=5)
-#     booster = cls.get_booster()
-#     verify_booster_early_stop(booster)
-
-
-# @pytest.mark.skipif(**tm.no_sklearn())
-# def test_early_stopping_custom_eval_skl():
-#     from sklearn.datasets import load_breast_cancer
-#     X, y = load_breast_cancer(return_X_y=True)
-#     cls = xgb.XGBClassifier()
-#     cls.fit(X, y, eval_set=[(X, y)], early_stopping_rounds=5)
-#     booster = cls.get_booster()
-#     verify_booster_early_stop(booster)
-
 
 # def test_learning_rate_scheduler():
 #     pass
