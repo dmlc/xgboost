@@ -12,6 +12,11 @@ from . import rabit
 from .core import EarlyStopException, DMatrix, CallbackEnv
 from .compat import STRING_TYPES
 
+import sys
+def fprint(*args, **kwargs):
+    print(*args, **kwargs)
+    sys.stdout.flush()
+
 
 def _get_callback_context(env):
     """return whether the current callback context is cv or train"""
@@ -325,8 +330,11 @@ class CallbackContainer(TrainingCallback):
 
     def after_iteration(self, model, epoch, dtrain, evals):
         '''Function called after training iteration.'''
-        return any(c.after_iteration(model, epoch, dtrain, evals)
+        ret = any(c.after_iteration(model, epoch, dtrain, evals)
                    for c in self.callbacks)
+        for c in self.callbacks:
+            self.history.update(c.history)
+        return ret
 
 
 class LearningRateScheduler(TrainingCallback):
@@ -362,7 +370,7 @@ def _allreduce_metric(score):
     world = rabit.get_world_size()
     assert world != 0
     score = rabit.allreduce(score, rabit.Op.SUM) / world
-    return score
+    return score[0]
 
 
 # pylint: disable=too-many-instance-attributes
@@ -375,8 +383,6 @@ class EarlyStopping(TrainingCallback):
     ----------
     data
         data for evaluation.
-    name : str
-        Name of data.
     metric : str/callable
         Name of metric.  Use the default metric if not specified.
     metric_name : str
@@ -392,9 +398,7 @@ class EarlyStopping(TrainingCallback):
     label
         Same as weight for DMatrix, used when input is not a DMatrix.
     '''
-    def __init__(self, name, rounds, metric=None, metric_name='metric',
-                 maximize=False):
-        self.name = name
+    def __init__(self, rounds, metric=None, metric_name=None, maximize=False):
         self.metric = metric
         self.rounds = rounds
         if callable(self.metric):
@@ -420,24 +424,24 @@ class EarlyStopping(TrainingCallback):
         model.best_iteration = self.rounds
         model.set_attr(best_iteration=str(self.rounds))
 
-    def _update_rounds(self, scores, model, epoch):
+    def _update_rounds(self, scores, name, model, epoch):
         assert len(scores) == 1
         score = scores[0]
         metric, s = score[0], score[1]
         if not self.history:    # First round
             self.current_rounds = 0
-            self.history[self.name] = {}
-            self.history[self.name][metric] = [s]
-            self.best_scores[self.name] = {}
-            self.best_scores[self.name][metric] = [s]
-        elif not self.improve_op(s, self.best_scores[self.name][metric][-1]):
+            self.history[name] = {}
+            self.history[name][metric] = [s]
+            self.best_scores[name] = {}
+            self.best_scores[name][metric] = [s]
+        elif not self.improve_op(s, self.best_scores[name][metric][-1]):
             # Not improved
-            self.history[self.name][metric].append(s)
+            self.history[name][metric].append(s)
             self.current_rounds += 1
         else:                   # Improved
-            self.history[self.name][metric].append(s)
-            self.best_scores[self.name][metric].append(s)
-            record = self.history[self.name][metric][-1]
+            self.history[name][metric].append(s)
+            self.best_scores[name][metric].append(s)
+            record = self.history[name][metric][-1]
             model.set_attr(best_score=str(record),
                            best_iteration=str(epoch))
             self.current_rounds = 0  # reset
@@ -492,41 +496,37 @@ class EvaluationMonitor(TrainingCallback):
     label
         Used when data is not a DMatrix.
     '''
-    def __init__(self, name, metric=None, rank=0):
-        self.name = name
+    def __init__(self, metric=None, rank=0):
         self.metric = metric
         self.printer_rank = rank
         super().__init__()
 
-    def before_training(self, model):
-        model.set_param({'eval_metric': self.metric})
-
     def _update_history(self, score, epoch):
-        score = [s.split(':') for s in score.split()]
-        score = [(k, float(v)) for k, v in score[1:]]
+        split_by_data = score.split()[1:]  # remove iteration
 
-        if rabit.get_rank() == self.printer_rank:
-            msg = _fmt_metric(score[0])
-            rabit.tracker_print('[%d]\t%s\n' % (epoch, msg))
+        for d in split_by_data:
+            name, s = d.split(':')
+            data_name, metric_name = name.split('-')
+            s = float(s)
+            s = _allreduce_metric(s)
+            if data_name in self.history:
+                data_history = self.history[data_name]
+                if metric_name in data_history:
+                    data_history[metric_name].append(s)
+                else:
+                    data_history[metric_name] = [s]
+            else:
+                self.history[data_name] = {}
+                self.history[data_name][metric_name] = [s]
 
-        def metric_name():
-            if self.metric:
-                return self.metric
-            name = score[0][0]
-            pos = name.index('-')
-            name = name[pos+1:]
-            return name
-
-        if not self.history:
-            self.history[metric_name()] = [score[0][1]]
-        else:
-            self.history[metric_name()].append(score[0][1])
-
+        if rabit.get_rank() == 0:
+            rabit.tracker_print(score + '\n')
         return False
 
     def after_iteration(self, model, epoch, dtrain, evals):
-        score = model.eval(self.data, self.name)
-        _allreduce_metric(score)
+        evals = [] if evals is None else evals
+        feval = self.metric if callable(self.metric) else None
+        score = model.eval_set(evals, epoch, feval)
         return self._update_history(score, epoch)
 
 
