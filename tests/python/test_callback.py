@@ -88,6 +88,95 @@ class TestCallbacks(unittest.TestCase):
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
+    def run_eta_decay(self, tree_method, deprecated_callback):
+        if deprecated_callback:
+            scheduler = xgb.callback.reset_learning_rate
+        else:
+            scheduler = xgb.callback.LearningRateScheduler
+
+        dpath = os.path.join(tm.PROJECT_ROOT, 'demo/data/')
+        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
+        num_round = 4
+
+        # learning_rates as a list
+        # init eta with 0 to check whether learning_rates work
+        param = {'max_depth': 2, 'eta': 0, 'verbosity': 0,
+                 'objective': 'binary:logistic', 'eval_metric': 'error',
+                 'tree_method': tree_method}
+        evals_result = {}
+        bst = xgb.train(param, dtrain, num_round, watchlist,
+                        callbacks=[scheduler([
+                            0.8, 0.7, 0.6, 0.5
+                        ])],
+                        evals_result=evals_result)
+        eval_errors_0 = list(map(float, evals_result['eval']['error']))
+        assert isinstance(bst, xgb.core.Booster)
+        # validation error should decrease, if eta > 0
+        assert eval_errors_0[0] > eval_errors_0[-1]
+
+        # init learning_rate with 0 to check whether learning_rates work
+        param = {'max_depth': 2, 'learning_rate': 0, 'verbosity': 0,
+                 'objective': 'binary:logistic', 'eval_metric': 'error',
+                 'tree_method': tree_method}
+        evals_result = {}
+        bst = xgb.train(param, dtrain, num_round, watchlist,
+                        callbacks=[scheduler(
+                            [0.8, 0.7, 0.6, 0.5])],
+                        evals_result=evals_result)
+        eval_errors_1 = list(map(float, evals_result['eval']['error']))
+        assert isinstance(bst, xgb.core.Booster)
+        # validation error should decrease, if learning_rate > 0
+        assert eval_errors_1[0] > eval_errors_1[-1]
+
+        # check if learning_rates override default value of eta/learning_rate
+        param = {
+            'max_depth': 2, 'verbosity': 0, 'objective': 'binary:logistic',
+            'eval_metric': 'error', 'tree_method': tree_method
+        }
+        evals_result = {}
+        bst = xgb.train(param, dtrain, num_round, watchlist,
+                        callbacks=[scheduler(
+                            [0, 0, 0, 0]
+                        )],
+                        evals_result=evals_result)
+        eval_errors_2 = list(map(float, evals_result['eval']['error']))
+        assert isinstance(bst, xgb.core.Booster)
+        # validation error should not decrease, if eta/learning_rate = 0
+        assert eval_errors_2[0] == eval_errors_2[-1]
+
+        # learning_rates as a customized decay function
+        def eta_decay(ithround, num_boost_round=num_round):
+            return num_boost_round / (ithround + 1)
+
+        evals_result = {}
+        bst = xgb.train(param, dtrain, num_round, watchlist,
+                        callbacks=[
+                            scheduler(eta_decay)
+                        ],
+                        evals_result=evals_result)
+        eval_errors_3 = list(map(float, evals_result['eval']['error']))
+
+        assert isinstance(bst, xgb.core.Booster)
+
+        assert eval_errors_3[0] == eval_errors_2[0]
+
+        for i in range(1, len(eval_errors_0)):
+            assert eval_errors_3[i] != eval_errors_2[i]
+
+    def test_eta_decay_hist(self):
+        # self.run_eta_decay('hist', True)
+        self.run_eta_decay('hist', False)
+
+    def test_eta_decay_approx(self):
+        # self.run_eta_decay('approx', True)
+        self.run_eta_decay('approx', False)
+
+    def test_eta_decay_exact(self):
+        # self.run_eta_decay('exact', True)
+        self.run_eta_decay('exact', False)
+
     def test_check_point(self):
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)
@@ -115,6 +204,3 @@ class TestCallbacks(unittest.TestCase):
             for i in range(0, 10):
                 assert os.path.exists(
                     os.path.join(tmpdir, 'model_' + str(i) + '.pkl'))
-
-# def test_learning_rate_scheduler():
-#     pass

@@ -278,6 +278,9 @@ def early_stop(stopping_rounds, maximize=False, verbose=True):
 # - enforced best_xxx
 # - merged functionality of es and mon.
 
+# Breaking:
+# - reset learning rate no longer accepts total boosting rounds
+
 # pylint: disable=unused-argument
 class TrainingCallback(ABC):
     '''Interface for training callback.
@@ -348,7 +351,7 @@ class LearningRateScheduler(TrainingCallback):
     learning_rates : callable/collections.Sequence
         If it's a callable object, then it should accept an integer parameter
         `epoch` and returns the corresponding learning rate.  Otherwise it
-        shoule be a sequence like list or tuple with the same size of boosting
+        should be a sequence like list or tuple with the same size of boosting
         rounds.
 
     '''
