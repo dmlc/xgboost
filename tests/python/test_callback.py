@@ -71,7 +71,6 @@ class TestCallbacks(unittest.TestCase):
         D_valid = xgb.DMatrix(self.X_valid, self.y_valid)
         early_stopping_rounds = 5
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
-                                                metric=tm.eval_error_metric,
                                                 metric_name='PyError',
                                                 data_name='Train')
         # Specify which dataset and which metric should be used for early stopping.
@@ -80,6 +79,7 @@ class TestCallbacks(unittest.TestCase):
              'eval_metric': ['error', 'rmse'],
              'tree_method': 'hist'}, D_train,
             evals=[(D_train, 'Train'), (D_valid, 'Valid')],
+            feval=tm.eval_error_metric,
             num_boost_round=1000,
             callbacks=[early_stop],
             verbose_eval=False)

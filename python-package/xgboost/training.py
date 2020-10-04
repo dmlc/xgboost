@@ -83,8 +83,8 @@ def _train_internal(params, dtrain,
             callbacks.append(callback.EvaluationMonitor(metric=feval))
         if early_stopping_rounds:
             callbacks.append(callback.EarlyStopping(
-                rounds=early_stopping_rounds, metric=feval))
-        callbacks = callback.CallbackContainer(callbacks)
+                rounds=early_stopping_rounds))
+        callbacks = callback.CallbackContainer(callbacks, metric=feval)
     else:
         assert False
         callbacks = _configure_deprected_callbacks(

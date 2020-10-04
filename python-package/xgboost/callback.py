@@ -285,7 +285,7 @@ class TrainingCallback(ABC):
 
     '''
     def __init__(self):
-        self.history = {}
+        pass
 
     def before_training(self, model):
         '''Run before training starts.'''
@@ -293,24 +293,30 @@ class TrainingCallback(ABC):
     def after_training(self, model):
         '''Run after training is finished.'''
 
-    def before_iteration(self, model, epoch, dtrain, evals):
+    def before_iteration(self, model, epoch, evals_log):
         '''Run before each iteration.'''
         return False
 
-    def after_iteration(self, model, epoch, dtrain, evals):
+    def after_iteration(self, model, epoch, evals_log):
         '''Run after each iteration.'''
         return False
 
 
-class CallbackContainer(TrainingCallback):
-    '''A container for list of callbacks.
+class CallbackContainer:
+    '''A special callback for invoking a list of callbacks.
 
     .. versionadded:: 1.3.0
 
     '''
-    def __init__(self, callbacks):
+    def __init__(self, callbacks, metric=None):
         self.callbacks = callbacks
-        super().__init__()
+        if metric is not None:
+            msg = 'metric must be callable object for monitor.  For ' + \
+                'builtin metrics, passing them in training parameter' + \
+                ' will invoke monitor automatically.'
+            assert callable(metric), msg
+        self.metric = metric
+        self.history = collections.OrderedDict()
 
     def before_training(self, model):
         '''Function called before training.'''
@@ -324,15 +330,35 @@ class CallbackContainer(TrainingCallback):
 
     def before_iteration(self, model, epoch, dtrain, evals):
         '''Function called before training iteration.'''
-        return any(c.before_iteration(model, epoch, dtrain, evals)
+        return any(c.before_iteration(model, epoch, self.history)
                    for c in self.callbacks)
+
+    def _update_history(self, score, epoch):
+        split_by_data = score.split()[1:]  # remove iteration
+
+        for d in split_by_data:
+            name, s = d.split(':')
+            data_name, metric_name = name.split('-')
+            s = float(s)
+            s = _allreduce_metric(s)
+            if data_name in self.history:
+                data_history = self.history[data_name]
+                if metric_name in data_history:
+                    data_history[metric_name].append(s)
+                else:
+                    data_history[metric_name] = [s]
+            else:
+                self.history[data_name] = collections.OrderedDict()
+                self.history[data_name][metric_name] = [s]
+        return False
 
     def after_iteration(self, model, epoch, dtrain, evals):
         '''Function called after training iteration.'''
-        ret = any(c.after_iteration(model, epoch, dtrain, evals)
+        evals = [] if evals is None else evals
+        score = model.eval_set(evals, epoch, self.metric)
+        self._update_history(score, epoch)
+        ret = any(c.after_iteration(model, epoch, self.history)
                   for c in self.callbacks)
-        for c in self.callbacks:
-            self.history.update(c.history)
         return ret
 
 
@@ -353,14 +379,14 @@ class LearningRateScheduler(TrainingCallback):
     '''
     def __init__(self, learning_rates):
         assert callable(learning_rates) or \
-            isinstance(learning_rates, collections.Sequence)
+            isinstance(learning_rates, collections.abc.Sequence)
         if callable(learning_rates):
             self.learning_rates = learning_rates
         else:
             self.learning_rates = lambda epoch: learning_rates[epoch]
         super().__init__()
 
-    def after_iteration(self, model, epoch, dtrain, evals):
+    def after_iteration(self, model, epoch, evals_log):
         model.set_param('learning_rate', self.learning_rates(epoch))
 
 
@@ -382,8 +408,6 @@ class EarlyStopping(TrainingCallback):
     ----------
     rounds : int
         Early stopping rounds.
-    metric : str/callable
-        Name of metric.  Use the default metric if not specified.
     metric_name : str
         Name of metric that is used for early stopping.
     data_name: str
@@ -393,12 +417,10 @@ class EarlyStopping(TrainingCallback):
     '''
     def __init__(self,
                  rounds,
-                 metric=None,
                  metric_name=None,
                  data_name=None,
                  maximize=False,
                  save_best=False):
-        self.metric = metric
         self.data = data_name
         self.metric_name = metric_name
         self.rounds = rounds
@@ -417,11 +439,8 @@ class EarlyStopping(TrainingCallback):
         self.best_scores = {}
         super().__init__()
 
-    def _update_rounds(self, scores, name, model, epoch):
-        assert len(scores) == 1, 'No matching metric name.'
-        score = scores[0]
-        metric, s = score[0].split('-')[1], score[1]
-        s = _allreduce_metric(s)
+    def _update_rounds(self, score, name, metric, model, epoch):
+        s = _allreduce_metric(score)
         if not self.stopping_history:  # First round
             self.current_rounds = 0
             self.stopping_history[name] = {}
@@ -444,47 +463,32 @@ class EarlyStopping(TrainingCallback):
             return True
         return False
 
-    def after_iteration(self, model, epoch, dtrain, evals):
+    def after_iteration(self, model, epoch, evals_log):
         msg = 'Must have at least 1 validation dataset for early stopping.'
-        assert len(evals) >= 1, msg
-        stopping_name = ''
-        stopping_data = None
+        assert len(evals_log.keys()) >= 1, msg
+        data_name = ''
         if self.data:
-            for d, name in evals:
-                if name == self.data:
-                    stopping_name = name
-                    stopping_data = d
-            if not stopping_name:
+            for d, _ in evals_log.items():
+                if d == self.data:
+                    data_name = d
+            if not data_name:
                 raise ValueError('No dataset named:', self.data)
         else:
             # Use the last one as default.
-            stopping_name = evals[-1][1]
-            stopping_data = evals[-1][0]
-
-        assert isinstance(stopping_data, DMatrix)
-        assert isinstance(stopping_name, str)
-
-        if callable(self.metric):
-            score = model.eval_set([(stopping_data, stopping_name)],
-                                   iteration=epoch,
-                                   feval=self.metric)
-            score = [s.split(':') for s in score.split()]
-            score = [(k, _allreduce_metric(float(v))) for k, v in score[1:]]
-        else:
-            score = model.eval_set([(stopping_data, stopping_name)],
-                                   iteration=epoch)
-            score = [s.split(':') for s in score.split()]
-            score = [(k, float(v)) for k, v in score[1:]]
+            data_name = list(evals_log.keys())[-1]
+        assert isinstance(data_name, str)
+        data_log = evals_log[data_name]
 
         # Filter out scores that can not be used for early stopping.
         if self.metric_name:
-            score = list(
-                filter(lambda s: s[0].split('-')[1] == self.metric_name,
-                       score))
+            metric_name = self.metric_name
+            score = data_log[self.metric_name][-1]
         else:
-            score = [score[-1]]
-
-        return self._update_rounds(score, stopping_name, model, epoch)
+            # Use last metric by default.
+            assert isinstance(data_log, collections.OrderedDict)
+            metric_name = list(data_log.keys())[-1]
+            score = data_log[metric_name][-1]
+        return self._update_rounds(score, data_name, metric_name, model, epoch)
 
 
 class EvaluationMonitor(TrainingCallback):
@@ -510,32 +514,15 @@ class EvaluationMonitor(TrainingCallback):
         self.printer_rank = rank
         super().__init__()
 
-    def _update_history(self, score, epoch):
-        split_by_data = score.split()[1:]  # remove iteration
-
-        for d in split_by_data:
-            name, s = d.split(':')
-            data_name, metric_name = name.split('-')
-            s = float(s)
-            s = _allreduce_metric(s)
-            if data_name in self.history:
-                data_history = self.history[data_name]
-                if metric_name in data_history:
-                    data_history[metric_name].append(s)
-                else:
-                    data_history[metric_name] = [s]
-            else:
-                self.history[data_name] = {}
-                self.history[data_name][metric_name] = [s]
-
+    def after_iteration(self, model, epoch, evals_log):
+        msg = f'[{epoch}]'
         if rabit.get_rank() == self.printer_rank:
-            rabit.tracker_print(score + '\n')
+            for data, metric in evals_log.items():
+                for metric_name, log in metric.items():
+                    msg += '\t' + data + '-' + metric_name + ':' + str(log[-1])
+            msg += '\n'
+            rabit.tracker_print(msg)
         return False
-
-    def after_iteration(self, model, epoch, dtrain, evals):
-        evals = [] if evals is None else evals
-        score = model.eval_set(evals, epoch, self.metric)
-        return self._update_history(score, epoch)
 
 
 class TrainingCheckPoint(TrainingCallback):
@@ -567,7 +554,7 @@ class TrainingCheckPoint(TrainingCallback):
         self._epoch = 0
         super().__init__()
 
-    def after_iteration(self, model, epoch, dtrain, evals):
+    def after_iteration(self, model, epoch, evals_log):
         self._epoch += 1
         if self._epoch == self._iterations:
             path = os.path.join(self._path, self._name + '_' + str(epoch) +
