@@ -417,6 +417,7 @@ class EarlyStopping(TrainingCallback):
         assert len(scores) == 1
         score = scores[0]
         metric, s = score[0], score[1]
+        s = _allreduce_metric(s)
         if not self.stopping_history:    # First round
             self.current_rounds = 0
             self.stopping_history[name] = {}
