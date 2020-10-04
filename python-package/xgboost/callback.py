@@ -310,7 +310,7 @@ class CallbackContainer:
 
     '''
     def __init__(self, callbacks, metric=None, is_cv=False):
-        self.callbacks = callbacks
+        self.callbacks = set(callbacks)
         if metric is not None:
             msg = 'metric must be callable object for monitor.  For ' + \
                 'builtin metrics, passing them in training parameter' + \
