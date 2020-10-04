@@ -250,6 +250,9 @@ class _PackedBooster:
         for f in self.cvfolds:
             f.bst.set_attr(**kwargs)
 
+    def attr(self, key):
+        return self.cvfolds[0].bst.attr(key)
+
     @property
     def best_iteration(self):
         '''Get best_iteration'''

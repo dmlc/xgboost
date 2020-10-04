@@ -119,7 +119,7 @@ def test_aft_demo():
     os.remove('aft_model.json')
 
 
-def test_callbacks():
+def test_callbacks_demo():
     script = os.path.join(PYTHON_DEMO_DIR, 'callbacks.py')
     cmd = ['python', script, '--plot=0']
     subprocess.check_call(cmd)
