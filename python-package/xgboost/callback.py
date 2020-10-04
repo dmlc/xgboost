@@ -5,17 +5,12 @@
 from abc import ABC
 import collections
 import os
-import numpy
 import pickle
+import numpy
 
 from . import rabit
 from .core import EarlyStopException, DMatrix, CallbackEnv
 from .compat import STRING_TYPES
-
-import sys
-def fprint(*args, **kwargs):
-    print(*args, **kwargs)
-    sys.stdout.flush()
 
 
 def _get_callback_context(env):
@@ -334,7 +329,7 @@ class CallbackContainer(TrainingCallback):
     def after_iteration(self, model, epoch, dtrain, evals):
         '''Function called after training iteration.'''
         ret = any(c.after_iteration(model, epoch, dtrain, evals)
-                   for c in self.callbacks)
+                  for c in self.callbacks)
         for c in self.callbacks:
             self.history.update(c.history)
         return ret
@@ -455,7 +450,7 @@ class EarlyStopping(TrainingCallback):
             label = stopping_data.get_label()
             predt = model.predict(stopping_data)
             score = self.metric(label, predt)
-            score = _allreduce_metric(score, self.maximize)
+            score = _allreduce_metric(score)
             score = [(self.metric_name, score)]
         else:
             score = model.eval(stopping_data)
@@ -473,20 +468,10 @@ class EvaluationMonitor(TrainingCallback):
     Parameters
     ----------
 
-    data
-        Data for evaluation.
-    name : str
-        Name of data.
     metric : str
         Name of metric
     rank : int
         Which worker should be used for printing the result.
-    missing : float
-        Used when data is not a DMatrix.
-    weight
-        Used when data is not a DMatrix.
-    label
-        Used when data is not a DMatrix.
     '''
     def __init__(self, metric=None, rank=0):
         self.metric = metric
@@ -532,8 +517,9 @@ class TrainingCheckPoint(TrainingCallback):
 
     path : os.PathLike
         Output model directory.
-    name : name pattern of output model file.
-        Models will be saved as name_0.json, name_1.json, name_2.json ....
+    name : str
+        pattern of output model file.  Models will be saved as name_0.json,
+        name_1.json, name_2.json ....
     as_pickle : boolean
         When set to Ture, all training parameters will be saved in pickle
         format, instead of saving only the model.
@@ -548,6 +534,7 @@ class TrainingCheckPoint(TrainingCallback):
         self._as_pickle = as_pickle
         self._iterations = rounds
         self._epoch = 0
+        super().__init__()
 
     def after_iteration(self, model, epoch, dtrain, evals):
         self._epoch += 1
