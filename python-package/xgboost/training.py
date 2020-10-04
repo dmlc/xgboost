@@ -72,7 +72,8 @@ def _train_internal(params, dtrain,
         if verbose_eval:
             callbacks.append(callback.EvaluationMonitor())
         if early_stopping_rounds:
-            callbacks.append(callback.EarlyStopping)
+            callbacks.append(callback.EarlyStopping(
+                rounds=early_stopping_rounds))
         callbacks = callback.CallbackContainer(callbacks)
     else:
         assert False

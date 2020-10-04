@@ -316,7 +316,7 @@ class CallbackContainer(TrainingCallback):
     def before_training(self, model):
         '''Function called before training.'''
         for c in self.callbacks:
-            c.before_training(model)
+            c.before_training(model=model)
 
     def after_training(self, model):
         '''Function called after training.'''
@@ -381,31 +381,28 @@ class EarlyStopping(TrainingCallback):
 
     Parameters
     ----------
-    data
-        data for evaluation.
+    rounds : int
+        Early stopping rounds.
     metric : str/callable
         Name of metric.  Use the default metric if not specified.
     metric_name : str
         Name of metric, used when metric is a callable object.
-    rounds : int
-        Early stopping rounds.
     maximize : bool
         Whether to maximize evaluation metric.
-    missing : float
-        Same as missing for DMatrix, used when input is not a DMatrix.
-    wegiht
-        Same as label for DMatrix, used when input is not a DMatrix.
-    label
-        Same as weight for DMatrix, used when input is not a DMatrix.
     '''
-    def __init__(self, rounds, metric=None, metric_name=None, maximize=False):
+    def __init__(self, rounds, metric=None, metric_name=None, maximize=False,
+                 save_best=False):
         self.metric = metric
         self.rounds = rounds
+        self.save_best = save_best
+        assert self.save_best is False, 'save best is not yet supported.'
+
         if callable(self.metric):
             self.metric_name = metric_name
         else:
             self.metric_name = self.metric
         self.maximize = maximize
+        self.stopping_history = {}
 
         if self.maximize:
             self.improve_op = lambda x, y: x > y
@@ -416,49 +413,40 @@ class EarlyStopping(TrainingCallback):
         self.best_scores = {}
         super().__init__()
 
-    def before_training(self, model):
-        if not callable(self.metric):
-            model.set_param({'eval_metric': self.metric})
-
-    def after_training(self, model):
-        model.best_iteration = self.rounds
-        model.set_attr(best_iteration=str(self.rounds))
-
     def _update_rounds(self, scores, name, model, epoch):
         assert len(scores) == 1
         score = scores[0]
         metric, s = score[0], score[1]
-        if not self.history:    # First round
+        if not self.stopping_history:    # First round
             self.current_rounds = 0
-            self.history[name] = {}
-            self.history[name][metric] = [s]
+            self.stopping_history[name] = {}
+            self.stopping_history[name][metric] = [s]
             self.best_scores[name] = {}
             self.best_scores[name][metric] = [s]
         elif not self.improve_op(s, self.best_scores[name][metric][-1]):
             # Not improved
-            self.history[name][metric].append(s)
+            self.stopping_history[name][metric].append(s)
             self.current_rounds += 1
         else:                   # Improved
-            self.history[name][metric].append(s)
+            self.stopping_history[name][metric].append(s)
             self.best_scores[name][metric].append(s)
-            record = self.history[name][metric][-1]
+            record = self.stopping_history[name][metric][-1]
             model.set_attr(best_score=str(record),
                            best_iteration=str(epoch))
             self.current_rounds = 0  # reset
 
         if self.current_rounds >= self.rounds:
+            # Should stop
             return True
         return False
 
     def after_iteration(self, model, epoch, dtrain, evals):
-        assert not rabit.is_distributed(), '''
-Use distributed version instead.  For dask users:
-
->>>  from xgboost.dask import EarlyStopping
-'''
         msg = 'Must have at least 1 validation dataset for early stopping.'
         assert len(evals) >= 1, msg
-        stopping_data = evals[-1][1]
+        stopping_data = evals[-1][0]
+        assert isinstance(stopping_data, DMatrix)
+        stopping_name = evals[-1][1]
+        assert isinstance(stopping_name, str)
         if callable(self.metric):
             label = stopping_data.get_label()
             predt = model.predict(stopping_data)
@@ -470,7 +458,7 @@ Use distributed version instead.  For dask users:
             score = [s.split(':') for s in score.split()]
             score = [(k, float(v)) for k, v in score[1:]]
 
-        return self._update_rounds(score, model, epoch)
+        return self._update_rounds(score, stopping_name, model, epoch)
 
 
 class EvaluationMonitor(TrainingCallback):
