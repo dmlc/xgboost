@@ -113,7 +113,7 @@ def _train_internal(params, dtrain,
 
     callbacks.after_training(bst)
 
-    if evals_result is not None:
+    if evals_result is not None and any(is_new_callback):
         evals_result.update(callbacks.history)
 
     if bst.attr('best_score') is not None:
