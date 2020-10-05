@@ -10,6 +10,10 @@ if [ ${TASK} == "python_sdist_test" ]; then
     conda activate python3
     python --version
     conda install numpy scipy
+    if [ ${TRAVIS_CPU_ARCH} == "arm64" ]; then
+        conda install cmake
+        cmake --version
+    fi
 
     make pippack
     python -m pip install xgboost-*.tar.gz -v --user
