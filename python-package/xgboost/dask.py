@@ -1132,7 +1132,8 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
     ['estimators', 'model'])
 class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
     async def _fit_async(self, X, y, sample_weights, base_margin, eval_set,
-                         sample_weight_eval_set, verbose):
+                         sample_weight_eval_set, early_stopping_rounds,
+                         verbose):
         dtrain = await DaskDMatrix(client=self.client,
                                    data=X,
                                    label=y,
@@ -1162,6 +1163,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
                               dtrain=dtrain,
                               num_boost_round=self.get_num_boosting_rounds(),
                               evals=evals,
+                              early_stopping_rounds=early_stopping_rounds,
                               verbose_eval=verbose)
         self._Booster = results['booster']
         # pylint: disable=attribute-defined-outside-init

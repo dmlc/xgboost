@@ -11,23 +11,40 @@ from . import callback
 
 def _configure_deprected_callbacks(
         verbose_eval, early_stopping_rounds, maximize, start_iteration,
-        num_boost_round, feval, evals_result, callbacks):
+        num_boost_round, feval, evals_result, callbacks, show_stdv, cvfolds):
     # Most of legacy advanced options becomes callbacks
-    if isinstance(verbose_eval, bool) and verbose_eval:
-        callbacks.append(callback.print_evaluation())
-    else:
-        if isinstance(verbose_eval, int):
-            callbacks.append(callback.print_evaluation(verbose_eval))
-
     if early_stopping_rounds is not None:
         callbacks.append(callback.early_stop(early_stopping_rounds,
                                              maximize=maximize,
                                              verbose=bool(verbose_eval)))
+    if isinstance(verbose_eval, bool) and verbose_eval:
+        callbacks.append(callback.print_evaluation(show_stdv=show_stdv))
+    else:
+        if isinstance(verbose_eval, int):
+            callbacks.append(callback.print_evaluation(verbose_eval,
+                                                       show_stdv=show_stdv))
     if evals_result is not None:
         callbacks.append(callback.record_evaluation(evals_result))
     callbacks = callback.LegacyCallbacks(
-        callbacks, start_iteration, num_boost_round, feval)
+        callbacks, start_iteration, num_boost_round, feval, cvfolds=cvfolds)
     return callbacks
+
+
+def _is_new_callback(callbacks):
+    return any(isinstance(c, callback.TrainingCallback)
+               for c in callbacks) or not callbacks
+
+
+def _configure_metrics(params):
+    if isinstance(params, dict) and 'eval_metric' in params \
+       and isinstance(params['eval_metric'], list):
+        params = dict((k, v) for k, v in params.items())
+        eval_metrics = params['eval_metric']
+        params.pop("eval_metric", None)
+        params = list(params.items())
+        for eval_metric in eval_metrics:
+            params += [('eval_metric', eval_metric)]
+    return params
 
 
 def _train_internal(params, dtrain,
@@ -39,16 +56,7 @@ def _train_internal(params, dtrain,
     """internal training function"""
     callbacks = [] if callbacks is None else callbacks
     evals = list(evals)
-    params = params.copy()
-
-    if isinstance(params, dict) and 'eval_metric' in params \
-       and isinstance(params['eval_metric'], list):
-        params = dict((k, v) for k, v in params.items())
-        eval_metrics = params['eval_metric']
-        params.pop("eval_metric", None)
-        params = list(params.items())
-        for eval_metric in eval_metrics:
-            params += [('eval_metric', eval_metric)]
+    params = _configure_metrics(params.copy())
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
     nboost = 0
@@ -74,10 +82,10 @@ def _train_internal(params, dtrain,
     start_iteration = int(version / 2)
     nboost += start_iteration
 
-    is_new_callback = [isinstance(c, callback.TrainingCallback)
-                       for c in callbacks]
-    if any(is_new_callback) or not callbacks:
-        assert all(is_new_callback), "You can't mix two styles of callbacks."
+    is_new_callback = _is_new_callback(callbacks)
+    if is_new_callback:
+        assert all(isinstance(c, callback.TrainingCallback)
+                   for c in callbacks), "You can't mix two styles of callbacks."
         if verbose_eval:
             callbacks.append(callback.EvaluationMonitor())
         if early_stopping_rounds:
@@ -87,7 +95,8 @@ def _train_internal(params, dtrain,
     else:
         callbacks = _configure_deprected_callbacks(
             verbose_eval, early_stopping_rounds, maximize, start_iteration,
-            num_boost_round, feval, evals_result, callbacks)
+            num_boost_round, feval, evals_result, callbacks,
+            show_stdv=False, cvfolds=None)
 
     callbacks.before_training(bst)
     for i in range(start_iteration, num_boost_round):
@@ -113,7 +122,7 @@ def _train_internal(params, dtrain,
 
     callbacks.after_training(bst)
 
-    if evals_result is not None and any(is_new_callback):
+    if evals_result is not None and is_new_callback:
         evals_result.update(callbacks.history)
 
     if bst.attr('best_score') is not None:
@@ -466,9 +475,10 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
 
     # setup callbacks
     callbacks = [] if callbacks is None else callbacks
-    is_new_callback = [isinstance(c, callback.TrainingCallback)
-                       for c in callbacks]
-    if any(is_new_callback) or not callbacks:
+    is_new_callback = _is_new_callback(callbacks)
+    if is_new_callback:
+        assert all(isinstance(c, callback.TrainingCallback)
+                   for c in callbacks), "You can't mix two styles of callbacks."
         if isinstance(verbose_eval, bool) and verbose_eval:
             callbacks.append(callback.EvaluationMonitor(show_stdv=show_stdv))
         if early_stopping_rounds:
@@ -476,19 +486,10 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
                 rounds=early_stopping_rounds, maximize=maximize))
         callbacks = callback.CallbackContainer(callbacks, metric=feval, is_cv=True)
     else:
-        if early_stopping_rounds is not None:
-            callbacks.append(callback.early_stop(early_stopping_rounds,
-                                                 maximize=maximize,
-                                                 verbose=False))
-
-        if isinstance(verbose_eval, bool) and verbose_eval:
-            callbacks.append(callback.print_evaluation(show_stdv=show_stdv))
-        else:
-            if isinstance(verbose_eval, int):
-                callbacks.append(callback.print_evaluation(verbose_eval,
-                                                           show_stdv=show_stdv))
-        callbacks = callback.LegacyCallbacks(callbacks, 0, num_boost_round, feval,
-                                             cvfolds=cvfolds)
+        callbacks = _configure_deprected_callbacks(
+            verbose_eval, early_stopping_rounds, maximize, 0,
+            num_boost_round, feval, None, callbacks,
+            show_stdv=show_stdv, cvfolds=cvfolds)
     callbacks.before_training(cvfolds)
 
     booster = _PackedBooster(cvfolds)
