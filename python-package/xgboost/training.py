@@ -9,7 +9,7 @@ from . import rabit
 from . import callback
 
 
-def _configure_deprected_callbacks(
+def _configure_deprecated_callbacks(
         verbose_eval, early_stopping_rounds, maximize, start_iteration,
         num_boost_round, feval, evals_result, callbacks, show_stdv, cvfolds):
     # Most of legacy advanced options becomes callbacks
@@ -93,7 +93,7 @@ def _train_internal(params, dtrain,
                 rounds=early_stopping_rounds, maximize=maximize))
         callbacks = callback.CallbackContainer(callbacks, metric=feval)
     else:
-        callbacks = _configure_deprected_callbacks(
+        callbacks = _configure_deprecated_callbacks(
             verbose_eval, early_stopping_rounds, maximize, start_iteration,
             num_boost_round, feval, evals_result, callbacks,
             show_stdv=False, cvfolds=None)
@@ -486,7 +486,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
                 rounds=early_stopping_rounds, maximize=maximize))
         callbacks = callback.CallbackContainer(callbacks, metric=feval, is_cv=True)
     else:
-        callbacks = _configure_deprected_callbacks(
+        callbacks = _configure_deprecated_callbacks(
             verbose_eval, early_stopping_rounds, maximize, 0,
             num_boost_round, feval, None, callbacks,
             show_stdv=show_stdv, cvfolds=cvfolds)

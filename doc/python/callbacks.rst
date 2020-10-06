@@ -34,15 +34,15 @@ this callback function directly into XGBoost:
 
     # Specify which dataset and which metric should be used for early stopping.
     early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
-					    metric_name='PyError',
-					    data_name='Train')
+                                            metric_name='PyError',
+                                            data_name='Train')
 
     booster = xgb.train(
         {'objective': 'binary:logistic',
          'eval_metric': ['error', 'rmse'],
          'tree_method': 'hist'}, D_train,
         evals=[(D_train, 'Train'), (D_valid, 'Valid')],
-	feval=eval_error_metric,
+        feval=eval_error_metric,
         num_boost_round=1000,
         callbacks=[early_stop],
         verbose_eval=False)
