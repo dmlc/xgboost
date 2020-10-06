@@ -787,7 +787,7 @@ void RegTree::LoadCategoricalSplit(Json const& in) {
   if (!categories_nodes.empty()) {
     last_cat_node = get<Integer const>(categories_nodes[cnt]);
   }
-  for (int nidx = 0; nidx < param.num_nodes; ++nidx) {
+  for (bst_node_t nidx = 0; nidx < param.num_nodes; ++nidx) {
     if (nidx == last_cat_node) {
       auto j_begin = get<Integer const>(categories_segments[cnt]);
       auto j_end = get<Integer const>(categories_sizes[cnt]) + j_begin;
