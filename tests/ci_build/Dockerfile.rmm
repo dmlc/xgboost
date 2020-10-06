@@ -1,6 +1,6 @@
-ARG CUDA_VERSION
-FROM nvidia/cuda:$CUDA_VERSION-devel-ubuntu18.04
-ARG CUDA_VERSION
+ARG CUDA_VERSION_ARG
+FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-ubuntu18.04
+ARG CUDA_VERSION_ARG
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
@@ -19,7 +19,7 @@ RUN \
 
 # NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
 RUN \
-    export CUDA_SHORT=`echo $CUDA_VERSION | egrep -o '[0-9]+\.[0-9]'` && \
+    export CUDA_SHORT=`echo $CUDA_VERSION_ARG | egrep -o '[0-9]+\.[0-9]'` && \
     export NCCL_VERSION=2.7.5-1 && \
     apt-get update && \
     apt-get install -y --allow-downgrades --allow-change-held-packages libnccl2=${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-dev=${NCCL_VERSION}+cuda${CUDA_SHORT}
@@ -29,7 +29,7 @@ ENV PATH=/opt/python/bin:$PATH
 # Create new Conda environment with RMM
 RUN \
     conda create -n gpu_test -c nvidia -c rapidsai-nightly -c rapidsai -c conda-forge -c defaults \
-        python=3.7 rmm=0.16* cudatoolkit=$CUDA_VERSION
+        python=3.7 rmm=0.16* cudatoolkit=$CUDA_VERSION_ARG
 
 ENV GOSU_VERSION 1.10
 

@@ -132,7 +132,7 @@ def ClangTidy() {
     echo "Running clang-tidy job..."
     def container_type = "clang_tidy"
     def docker_binary = "docker"
-    def dockerArgs = "--build-arg CUDA_VERSION=10.1"
+    def dockerArgs = "--build-arg CUDA_VERSION_ARG=10.1"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${dockerArgs} python3 tests/ci_build/tidy.py
     """
@@ -205,7 +205,7 @@ def BuildCUDA(args) {
     echo "Build with CUDA ${args.cuda_version}"
     def container_type = GetCUDABuildContainerType(args.cuda_version)
     def docker_binary = "docker"
-    def docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
+    def docker_args = "--build-arg CUDA_VERSION_ARG=${args.cuda_version}"
     def arch_flag = ""
     if (env.BRANCH_NAME != 'master' && !(env.BRANCH_NAME.startsWith('release'))) {
       arch_flag = "-DGPU_COMPUTE_VER=75"
@@ -228,7 +228,7 @@ def BuildCUDA(args) {
       echo "Build with CUDA ${args.cuda_version} and RMM"
       container_type = "rmm"
       docker_binary = "docker"
-      docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
+      docker_args = "--build-arg CUDA_VERSION_ARG=${args.cuda_version}"
       sh """
       rm -rf build/
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh --conda-env=gpu_test -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON ${arch_flag}
@@ -250,7 +250,7 @@ def BuildJVMPackagesWithCUDA(args) {
     echo "Build XGBoost4J-Spark with Spark ${args.spark_version}, CUDA ${args.cuda_version}"
     def container_type = "jvm_gpu_build"
     def docker_binary = "nvidia-docker"
-    def docker_args = "--build-arg CUDA_VERSION=${args.cuda_version}"
+    def docker_args = "--build-arg CUDA_VERSION_ARG=${args.cuda_version}"
     def arch_flag = ""
     if (env.BRANCH_NAME != 'master' && !(env.BRANCH_NAME.startsWith('release'))) {
       arch_flag = "-DGPU_COMPUTE_VER=75"
@@ -325,7 +325,7 @@ def TestPythonGPU(args) {
     echo "Test Python GPU: CUDA ${args.host_cuda_version}"
     def container_type = "gpu"
     def docker_binary = "nvidia-docker"
-    def docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
+    def docker_args = "--build-arg CUDA_VERSION_ARG=${args.host_cuda_version}"
     def mgpu_indicator = (args.multi_gpu) ? 'mgpu' : 'gpu'
     // Allocate extra space in /dev/shm to enable NCCL
     def docker_extra_params = (args.multi_gpu) ? "CI_DOCKER_EXTRA_PARAMS_INIT='--shm-size=4g'" : ''
@@ -363,7 +363,7 @@ def TestCppGPU(args) {
     echo "Test C++, CUDA ${args.host_cuda_version}"
     def container_type = "gpu"
     def docker_binary = "nvidia-docker"
-    def docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
+    def docker_args = "--build-arg CUDA_VERSION_ARG=${args.host_cuda_version}"
     sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} build/testxgboost"
     if (args.test_rmm) {
       sh "rm -rfv build/"
@@ -371,7 +371,7 @@ def TestCppGPU(args) {
       echo "Test C++, CUDA ${args.host_cuda_version} with RMM"
       container_type = "rmm"
       docker_binary = "nvidia-docker"
-      docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
+      docker_args = "--build-arg CUDA_VERSION_ARG=${args.host_cuda_version}"
       sh """
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate gpu_test && build/testxgboost --use-rmm-pool --gtest_filter=-*DeathTest.*"
       """
@@ -392,7 +392,7 @@ def CrossTestJVMwithJDKGPU(args) {
     }
     def container_type = "gpu_jvm"
     def docker_binary = "nvidia-docker"
-    def docker_args = "--build-arg CUDA_VERSION=${args.host_cuda_version}"
+    def docker_args = "--build-arg CUDA_VERSION_ARG=${args.host_cuda_version}"
     sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_jvm_gpu_cross.sh"
     deleteDir()
   }
@@ -444,7 +444,7 @@ def DeployJVMPackages(args) {
       ${dockerRun} jvm docker tests/ci_build/deploy_jvm_packages.sh ${args.spark_version} 0
       """
       sh """
-      ${dockerRun} jvm_gpu_build docker --build-arg CUDA_VERSION=10.0 tests/ci_build/deploy_jvm_packages.sh ${args.spark_version} 1
+      ${dockerRun} jvm_gpu_build docker --build-arg CUDA_VERSION_ARG=10.0 tests/ci_build/deploy_jvm_packages.sh ${args.spark_version} 1
       """
     }
     deleteDir()
