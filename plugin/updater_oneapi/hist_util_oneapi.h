@@ -215,18 +215,6 @@ struct GHistIndexMatrixOneAPI {
                     const DeviceMatrixOneAPI &dmat_device,
                     size_t nbins, uint32_t* offsets);
 
-/*
-  template<typename BinIdxType>
-  void SetIndexDataForDense(common::Span<BinIdxType> index_data_span,
-                    size_t batch_threads, const SparsePage& batch,
-                    size_t rbegin, common::Span<const uint32_t> offsets_span,
-                    size_t nbins);
-
-  // specific method for sparse data as no posibility to reduce allocated memory
-  void SetIndexDataForSparse(common::Span<uint32_t> index_data_span,
-                             size_t batch_threads, const SparsePage& batch,
-                             size_t rbegin, size_t nbins);
-*/
   void ResizeIndex(const size_t n_offsets, const size_t n_index,
                    const bool isDense);
 

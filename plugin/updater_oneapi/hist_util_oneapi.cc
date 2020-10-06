@@ -161,12 +161,12 @@ void GHistIndexMatrixOneAPI::Init(cl::sycl::queue qu, DMatrix* p_fmat, int max_b
 
 template <typename BinIdxType>
 static size_t GetConflictCount(const std::vector<bool>& mark,
-                               const Column<BinIdxType>& column_input,
+                               const ColumnOneAPI<BinIdxType>& column_input,
                                size_t max_cnt) {
   size_t ret = 0;
   if (column_input.GetType() == xgboost::common::kDenseColumn) {
-    const DenseColumn<BinIdxType>& column
-      = static_cast<const DenseColumn<BinIdxType>& >(column_input);
+    const DenseColumnOneAPI<BinIdxType>& column
+      = static_cast<const DenseColumnOneAPI<BinIdxType>& >(column_input);
     for (size_t i = 0; i < column.Size(); ++i) {
       if ((!column.IsMissing(i)) && mark[i]) {
         ++ret;
@@ -176,8 +176,8 @@ static size_t GetConflictCount(const std::vector<bool>& mark,
       }
     }
   } else {
-    const SparseColumn<BinIdxType>& column
-      = static_cast<const SparseColumn<BinIdxType>& >(column_input);
+    const SparseColumnOneAPI<BinIdxType>& column
+      = static_cast<const SparseColumnOneAPI<BinIdxType>& >(column_input);
     for (size_t i = 0; i < column.Size(); ++i) {
       if (mark[column.GetRowIdx(i)]) {
         ++ret;
@@ -192,19 +192,19 @@ static size_t GetConflictCount(const std::vector<bool>& mark,
 
 template <typename BinIdxType>
 inline void
-MarkUsed(std::vector<bool>* p_mark, const Column<BinIdxType>& column_input) {
+MarkUsed(std::vector<bool>* p_mark, const ColumnOneAPI<BinIdxType>& column_input) {
   std::vector<bool>& mark = *p_mark;
   if (column_input.GetType() == xgboost::common::kDenseColumn) {
-    const DenseColumn<BinIdxType>& column
-      = static_cast<const DenseColumn<BinIdxType>& >(column_input);
+    const DenseColumnOneAPI<BinIdxType>& column
+      = static_cast<const DenseColumnOneAPI<BinIdxType>& >(column_input);
     for (size_t i = 0; i < column.Size(); ++i) {
       if (!column.IsMissing(i)) {
         mark[i] = true;
       }
     }
   } else {
-    const SparseColumn<BinIdxType>& column
-      = static_cast<const SparseColumn<BinIdxType>& >(column_input);
+    const SparseColumnOneAPI<BinIdxType>& column
+      = static_cast<const SparseColumnOneAPI<BinIdxType>& >(column_input);
     for (size_t i = 0; i < column.Size(); ++i) {
       mark[column.GetRowIdx(i)] = true;
     }
@@ -212,7 +212,7 @@ MarkUsed(std::vector<bool>* p_mark, const Column<BinIdxType>& column_input) {
 }
 
 template <typename BinIdxType>
-inline void SetGroup(const unsigned fid, const Column<BinIdxType>& column,
+inline void SetGroup(const unsigned fid, const ColumnOneAPI<BinIdxType>& column,
   const size_t max_conflict_cnt, const std::vector<size_t>& search_groups,
   std::vector<size_t>* p_group_conflict_cnt,
   std::vector<std::vector<bool>>* p_conflict_marks,

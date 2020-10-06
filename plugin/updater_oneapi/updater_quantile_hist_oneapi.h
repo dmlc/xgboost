@@ -470,7 +470,7 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
     FeatureInteractionConstraintHost interaction_constraints_;
 
     static constexpr size_t kPartitionBlockSize = 2048;
-    common::PartitionBuilder<kPartitionBlockSize> partition_builder_;
+    common::PartitionBuilderOneAPI<kPartitionBlockSize> partition_builder_;
 
     // back pointers to tree and data matrix
     const RegTree* p_last_tree_;
