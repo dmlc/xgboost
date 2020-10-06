@@ -161,25 +161,6 @@ struct WriteCompressedEllpackFunctor {
   }
 };
 
-namespace {
-template <typename BatchT>
-struct KeyOp {
-  BatchT batch;
-  XGBOOST_DEVICE size_t operator()(size_t idx) {
-    return batch.GetElement(idx).row_idx;
-  }
-};
-
-template <typename BatchT>
-struct ValOp {
-  BatchT batch;
-  data::IsValidFunctor is_valid;
-  XGBOOST_DEVICE size_t operator()(size_t idx) {
-    return static_cast<size_t>(is_valid(batch.GetElement(idx)));
-  }
-};
-}  // anonymous namespace
-
 // Here the data is already correctly ordered and simply needs to be compacted
 // to remove missing data
 template <typename AdapterBatchT>
@@ -192,14 +173,19 @@ void CopyDataToEllpack(const AdapterBatchT& batch, EllpackPageImpl* dst,
   // segmented stream compaction via operators on an inclusive scan. The output
   // of this inclusive scan is fed to a custom function which works out the
   // correct output position
-  auto counting = thrust::make_counting_iterator(0llu);
+  auto counting = thrust::make_counting_iterator(0ul);
   data::IsValidFunctor is_valid(missing);
   auto key_iter = thrust::make_transform_iterator(
       counting,
-      KeyOp<AdapterBatchT>{batch});
+      [=]__device__(size_t idx) -> size_t {
+        assert(idx < batch.Size());
+        return batch.GetElement(idx).row_idx;
+      });
   auto value_iter = thrust::make_transform_iterator(
       counting,
-      ValOp<AdapterBatchT>{batch, is_valid});
+      [=]__device__(size_t idx) -> size_t {
+        return static_cast<size_t>(is_valid(batch.GetElement(idx)));
+      });
 
   auto key_value_index_iter = thrust::make_zip_iterator(
       thrust::make_tuple(key_iter, value_iter, counting));
