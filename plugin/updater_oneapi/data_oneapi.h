@@ -47,9 +47,12 @@ public:
   USMVector(cl::sycl::queue qu, size_t size, T v) : qu_(qu), size_(size) {
     data_ = std::shared_ptr<T>(cl::sycl::malloc_shared<T>(size_, qu_), USMDeleter<T>(qu_));
     std::fill(data_.get(), data_.get() + size_, v);
-/*    qu.submit([&](cl::sycl::handler& cgh) {
+    // switch to handler fill after moving to new compiler
+    /*
+    qu.submit([&](cl::sycl::handler& cgh) {
       cgh.fill(data_.get(), v, size_);
-    }).wait();*/
+    }).wait();
+    */
   }
 
   USMVector(cl::sycl::queue qu, const std::vector<T> &vec) : qu_(qu) {
@@ -100,9 +103,12 @@ public:
       data_ = std::shared_ptr<T>(cl::sycl::malloc_shared<T>(size_, qu_), USMDeleter<T>(qu_));
       if (old_size > 0) {
         std::copy(data_old.get(), data_old.get() + old_size, data_.get());
-/*        qu.submit([&](cl::sycl::handler& cgh) {
+        // switch to handler copy after moving to new compiler
+        /*
+        qu.submit([&](cl::sycl::handler& cgh) {
           cgh.copy(data_old.get(), data_.get(), old_size);
-        }).wait();*/
+        }).wait();
+        */
       }
     }
   }
@@ -118,9 +124,12 @@ public:
       data_ = std::shared_ptr<T>(cl::sycl::malloc_shared<T>(size_, qu_), USMDeleter<T>(qu_));
       if (old_size > 0) {
         std::copy(data_old.get(), data_old.get() + old_size, data_.get());
-/*        qu.submit([&](cl::sycl::handler& cgh) {
+        // switch to handler copy after moving to new compiler
+        /*
+        qu.submit([&](cl::sycl::handler& cgh) {
           cgh.copy(data_old.get(), data_.get(), old_size);
-        }).wait();*/
+        }).wait();
+        */
       }
       if (new_size > old_size) {
         std::fill(data_.get() + old_size, data_.get() + new_size, v);

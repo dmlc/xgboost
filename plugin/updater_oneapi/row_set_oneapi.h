@@ -128,11 +128,6 @@ class RowSetCollectionOneAPI {
 };
 
 // The builder is required for samples partition to left and rights children for set of nodes
-// Responsible for:
-// 1) Effective memory allocation for intermediate results for multi-thread work
-// 2) Merging partial results produced by threads into original row set (row_set_collection_)
-// BlockSize is template to enable memory alignment easily with C++11 'alignas()' feature
-template<size_t BlockSize>
 class PartitionBuilderOneAPI {
  public:
   static constexpr size_t maxLocalSums = 256;
@@ -180,11 +175,11 @@ class PartitionBuilderOneAPI {
     return subgroupSize;
   }
 
-  void SetNLeftElems(int nid, size_t begin, size_t end, size_t n_left) {
+  void SetNLeftElems(int nid, size_t n_left) {
     result_left_rows_[nid] = n_left;
   }
 
-  void SetNRightElems(int nid, size_t begin, size_t end, size_t n_right) {
+  void SetNRightElems(int nid, size_t n_right) {
     result_right_rows_[nid] = n_right;
   }
 

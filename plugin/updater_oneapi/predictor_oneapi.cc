@@ -201,8 +201,10 @@ class PredictorOneAPI : public Predictor {
     }
   }
 
-  void DevicePredictInternal(DeviceMatrixOneAPI* dmat, HostDeviceVector<float>* out_preds,
-                             const gbm::GBTreeModel& model, size_t tree_begin,
+  void DevicePredictInternal(DeviceMatrixOneAPI* dmat,
+                             HostDeviceVector<float>* out_preds,
+                             const gbm::GBTreeModel& model,
+                             size_t tree_begin,
                              size_t tree_end) {
     if (tree_end - tree_begin == 0) {
       return;
@@ -221,7 +223,7 @@ class PredictorOneAPI : public Predictor {
     int num_rows = dmat->row_ptr.Size() - 1;
     int num_group = model.learner_model_param->num_output_group;
 
-/*    qu_.submit([&](cl::sycl::handler& cgh) {
+    qu_.submit([&](cl::sycl::handler& cgh) {
       auto out_predictions = out_preds_buf.get_access<cl::sycl::access::mode::read_write>(cgh);
       cgh.parallel_for<class PredictInternal>(cl::sycl::range<1>(num_rows), [=](cl::sycl::id<1> pid) {
         int global_idx = pid[0];
@@ -241,7 +243,7 @@ class PredictorOneAPI : public Predictor {
           }
         }
       });
-    }).wait();*/
+    }).wait();
   }
 
  public:
@@ -350,8 +352,7 @@ class PredictorOneAPI : public Predictor {
   std::mutex lock_;
   std::unique_ptr<Predictor> cpu_predictor;
 
-  std::unordered_map<DMatrix*, std::unique_ptr<DeviceMatrixOneAPI>>
-      device_matrix_cache_;
+  std::unordered_map<DMatrix*, std::unique_ptr<DeviceMatrixOneAPI>> device_matrix_cache_;
 };
 
 XGBOOST_REGISTER_PREDICTOR(PredictorOneAPI, "oneapi_predictor")

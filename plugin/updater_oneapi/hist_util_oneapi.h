@@ -208,7 +208,7 @@ struct GHistIndexMatrixOneAPI {
   size_t nbins;
   size_t nfeatures;
   // Create a global histogram matrix, given cut
-  void Init(cl::sycl::queue qu, DMatrix* p_fmat, int max_num_bins);
+  void Init(cl::sycl::queue qu, const DeviceMatrixOneAPI& p_fmat_device, int max_num_bins);
 
   template <typename BinIdxType>
   void SetIndexData(cl::sycl::queue qu, common::Span<BinIdxType> index_data_span,
@@ -239,52 +239,11 @@ struct GHistIndexMatrixOneAPI {
 
 class ColumnMatrixOneAPI;
 
-class GHistIndexBlockMatrixOneAPI {
- public:
-  void Init(const GHistIndexMatrixOneAPI& gmat,
-            const ColumnMatrixOneAPI& colmat,
-            const tree::TrainParam& param);
-
-  inline GHistIndexBlock operator[](size_t i) const {
-    return {blocks_[i].row_ptr_begin, blocks_[i].index_begin};
-  }
-
-  inline size_t GetNumBlock() const {
-    return blocks_.size();
-  }
-
- private:
-  std::vector<size_t> row_ptr_;
-  std::vector<uint32_t> index_;
-  const HistogramCuts* cut_;
-  struct Block {
-    const size_t* row_ptr_begin;
-    const size_t* row_ptr_end;
-    const uint32_t* index_begin;
-    const uint32_t* index_end;
-  };
-  std::vector<Block> blocks_;
-};
-
 /*!
  * \brief fill a histogram by zeros
  */
 template<typename GradientSumT>
 void InitializeHistByZeroes(GHistRowOneAPI<GradientSumT>& hist, size_t begin, size_t end);
-
-/*!
- * \brief Increment hist as dst += add in range [begin, end)
- */
-template<typename GradientSumT>
-void IncrementHist(GHistRowOneAPI<GradientSumT>& dst, const GHistRowOneAPI<GradientSumT>& add,
-                   size_t begin, size_t end);
-
-/*!
- * \brief Copy hist from src to dst in range [begin, end)
- */
-template<typename GradientSumT>
-void CopyHist(GHistRowOneAPI<GradientSumT>& dst, const GHistRowOneAPI<GradientSumT>& src,
-              size_t begin, size_t end);
 
 /*!
  * \brief Compute Subtraction: dst = src1 - src2 in range [begin, end)
@@ -553,17 +512,12 @@ class GHistBuilderOneAPI {
   // construct a histogram via histogram aggregation
   void BuildHist(common::Monitor& builder_monitor_, const std::vector<GradientPair>& gpair,
                  const USMVector<GradientPair>& gpair_device,
-                 const RowSetCollectionOneAPI::Elem row_indices,
+                 const RowSetCollectionOneAPI::Elem& row_indices,
                  const GHistIndexMatrixOneAPI& gmat,
                  GHistRowT& hist,
                  bool isDense,
                  GHistRowT& hist_buffer);
-  // same, with feature grouping
-  void BuildBlockHist(const std::vector<GradientPair>& gpair,
-                      const USMVector<GradientPair>& gpair_device,
-                      const RowSetCollectionOneAPI::Elem row_indices,
-                      const GHistIndexBlockMatrixOneAPI& gmatb,
-                      GHistRowT& hist);
+
   // construct a histogram via subtraction trick
   void SubtractionTrick(GHistRowT& self,
                         GHistRowT& sibling,

@@ -40,7 +40,6 @@ namespace tree {
 using xgboost::common::HistCollectionOneAPI;
 using xgboost::common::GHistBuilderOneAPI;
 using xgboost::common::GHistIndexMatrixOneAPI;
-using xgboost::common::GHistIndexBlockMatrixOneAPI;
 using xgboost::common::ColumnMatrixOneAPI;
 using xgboost::common::GHistRowOneAPI;
 using xgboost::common::RowSetCollectionOneAPI;
@@ -201,7 +200,6 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
   // quantized data matrix
   GHistIndexMatrixOneAPI gmat_;
   // (optional) data matrix with feature grouping
-  GHistIndexBlockMatrixOneAPI gmatb_;
   // column accessor
   ColumnMatrixOneAPI column_matrix_;
   DMatrix const* p_last_dmat_ {nullptr};
@@ -243,7 +241,6 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
     }
     // update one tree, growing
     virtual void Update(const GHistIndexMatrixOneAPI& gmat,
-                        const GHistIndexBlockMatrixOneAPI& gmatb,
                         const ColumnMatrixOneAPI& column_matrix,
                         HostDeviceVector<GradientPair>* gpair,
                         DMatrix* p_fmat,
@@ -253,14 +250,9 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
                           const USMVector<GradientPair>& gpair_device,
                           const RowSetCollectionOneAPI::Elem row_indices,
                           const GHistIndexMatrixOneAPI& gmat,
-                          const GHistIndexBlockMatrixOneAPI& gmatb,
                           GHistRowT& hist,
                           GHistRowT& hist_buffer) {
-      if (param_.enable_feature_grouping > 0) {
-        hist_builder_.BuildBlockHist(gpair, gpair_device, row_indices, gmatb, hist);
-      } else {
-        hist_builder_.BuildHist(builder_monitor_, gpair, gpair_device, row_indices, gmat, hist, data_layout_ != kSparseData, hist_buffer);
-      }
+      hist_builder_.BuildHist(builder_monitor_, gpair, gpair_device, row_indices, gmat, hist, data_layout_ != kSparseData, hist_buffer);
     }
 
     inline void SubtractionTrick(GHistRowT& self,
@@ -371,7 +363,6 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
     static bool SplitContainsMissingValues(const GradStatsOneAPI e, const NodeEntry& snode);
 
     void ExpandWithDepthWise(const GHistIndexMatrixOneAPI &gmat,
-                             const GHistIndexBlockMatrixOneAPI &gmatb,
                              const ColumnMatrixOneAPI &column_matrix,
                              DMatrix *p_fmat,
                              RegTree *p_tree,
@@ -379,7 +370,6 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
                              const USMVector<GradientPair> &gpair_device);
 
     void BuildLocalHistograms(const GHistIndexMatrixOneAPI &gmat,
-                              const GHistIndexBlockMatrixOneAPI &gmatb,
                               RegTree *p_tree,
                               const std::vector<GradientPair> &gpair_h,
                               const USMVector<GradientPair> &gpair_device);
@@ -387,7 +377,6 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
     void BuildHistogramsLossGuide(
                         ExpandEntry entry,
                         const GHistIndexMatrixOneAPI &gmat,
-                        const GHistIndexBlockMatrixOneAPI &gmatb,
                         RegTree *p_tree,
                         const std::vector<GradientPair> &gpair_h,
                         const USMVector<GradientPair> &gpair_device);
@@ -428,7 +417,6 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
               std::vector<ExpandEntry>* temp_qexpand_depth);
 
     void ExpandWithLossGuide(const GHistIndexMatrixOneAPI& gmat,
-                             const GHistIndexBlockMatrixOneAPI& gmatb,
                              const ColumnMatrixOneAPI& column_matrix,
                              DMatrix* p_fmat,
                              RegTree* p_tree,
@@ -469,8 +457,7 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
     std::unique_ptr<TreeUpdater> pruner_;
     FeatureInteractionConstraintHost interaction_constraints_;
 
-    static constexpr size_t kPartitionBlockSize = 2048;
-    common::PartitionBuilderOneAPI<kPartitionBlockSize> partition_builder_;
+    common::PartitionBuilderOneAPI partition_builder_;
 
     // back pointers to tree and data matrix
     const RegTree* p_last_tree_;
