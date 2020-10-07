@@ -57,7 +57,6 @@ pipeline {
             'clang-tidy': { ClangTidy() },
             'build-cpu': { BuildCPU() },
             'build-cpu-rabit-mock': { BuildCPUMock() },
-            'build-cpu-non-omp': { BuildCPUNonOmp() },
             // Build reference, distribution-ready Python wheel with CUDA 10.0
             // using CentOS 6 image
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
@@ -178,23 +177,6 @@ def BuildCPUMock() {
     """
     echo 'Stashing rabit C++ test executable (xgboost)...'
     stash name: 'xgboost_rabit_tests', includes: 'xgboost'
-    deleteDir()
-  }
-}
-
-def BuildCPUNonOmp() {
-  node('linux && cpu') {
-    unstash name: 'srcs'
-    echo "Build CPU without OpenMP"
-    def container_type = "cpu"
-    def docker_binary = "docker"
-    sh """
-    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh -DUSE_OPENMP=OFF
-    """
-    echo "Running Non-OpenMP C++ test..."
-    sh """
-    ${dockerRun} ${container_type} ${docker_binary} bash -c "cd build && ctest --extra-verbose"
-    """
     deleteDir()
   }
 }

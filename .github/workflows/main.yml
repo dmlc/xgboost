@@ -35,6 +35,33 @@ jobs:
       run: |
         cd build
         ctest --extra-verbose
+
+  gtest-cpu-nonomp
+    name: Test Google C++ unittest (CPU Non-OMP)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - name: Install system packages
+      run: |
+      sudo apt-get install -y --no-install-recommends ninja-build
+    - name: Build and install XGBoost
+      shell: bash -l {0}
+      run: |
+        mkdir build
+        cd build
+        cmake .. -GNinja -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON -DUSE_OPENMP=OFF
+        ninja -v
+    - name: Run gtest binary
+      run: |
+        cd build
+        ctest --extra-verbose
+
   c-api-demo:
     name: Test installing XGBoost lib + building the C API demo
     runs-on: ${{ matrix.os }}
@@ -76,6 +103,7 @@ jobs:
         ninja -v
         cd ..
         ./build/api-demo
+
   test-with-jvm:
     name: Test JVM on OS ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
