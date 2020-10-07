@@ -233,7 +233,6 @@ struct GHistIndexMatrixOneAPI {
   }
 
  private:
-  std::vector<size_t> hit_count_tloc_;
   bool isDense_;
 };
 
@@ -333,165 +332,14 @@ class ParallelGHistBuilderOneAPI {
     return hist_device_buffer_;
   }
 
-  // Add new elements if needed, mark all hists as unused
-  // targeted_hists - already allocated hists which should contain final results after Reduce() call
-  void Reset(size_t nthreads, size_t nodes, const BlockedSpace2d& space,
-             const std::vector<GHistRowT>& targeted_hists) {
-    hist_buffer_.Init(qu_, nbins_);
-    tid_nid_to_hist_.clear();
-    hist_memory_.clear();
-    threads_to_nids_map_.clear();
-
-    targeted_hists_ = targeted_hists;
-
-    CHECK_EQ(nodes, targeted_hists.size());
-
-    nodes_    = nodes;
-    nthreads_ = nthreads;
-
-    MatchThreadsToNodes(space);
-    AllocateAdditionalHistograms();
-    MatchNodeNidPairToHist();
-
-    hist_was_used_.resize(nthreads * nodes_);
-    std::fill(hist_was_used_.begin(), hist_was_used_.end(), static_cast<int>(false));
-  }
-
-  // Get specified hist, initialize hist by zeros if it wasn't used before
-  GHistRowT& GetInitializedHist(size_t tid, size_t nid) {
-    CHECK_LT(nid, nodes_);
-    CHECK_LT(tid, nthreads_);
-
-    size_t idx = tid_nid_to_hist_.at({tid, nid});
-    GHistRowT& hist = hist_memory_[idx];
-
-    if (!hist_was_used_[tid * nodes_ + nid]) {
-      InitializeHistByZeroes(hist, 0, hist.Size());
-      hist_was_used_[tid * nodes_ + nid] = static_cast<int>(true);
-    }
-
-    return hist;
-  }
-
-  // Reduce following bins (begin, end] for nid-node in dst across threads
-  void ReduceHist(size_t nid, size_t begin, size_t end) {
-    CHECK_GT(end, begin);
-    CHECK_LT(nid, nodes_);
-
-    GHistRowT& dst = targeted_hists_[nid];
-
-    bool is_updated = false;
-    for (size_t tid = 0; tid < nthreads_; ++tid) {
-      if (hist_was_used_[tid * nodes_ + nid]) {
-        is_updated = true;
-        const size_t idx = tid_nid_to_hist_.at({tid, nid});
-        GHistRowT& src = hist_memory_[idx];
-
-        if (dst.Data() != src.Data()) {
-          IncrementHist(dst, src, begin, end);
-        }
-      }
-    }
-    if (!is_updated) {
-      // In distributed mode - some tree nodes can be empty on local machines,
-      // So we need just set local hist by zeros in this case
-      InitializeHistByZeroes(dst, begin, end);
-    }
-  }
-
  protected:
-  void MatchThreadsToNodes(const BlockedSpace2d& space) {
-    const size_t space_size = space.Size();
-    const size_t chunck_size = space_size / nthreads_ + !!(space_size % nthreads_);
-
-    threads_to_nids_map_.resize(nthreads_ * nodes_, false);
-
-    for (size_t tid = 0; tid < nthreads_; ++tid) {
-      size_t begin = chunck_size * tid;
-      size_t end   = std::min(begin + chunck_size, space_size);
-
-      if (begin < space_size) {
-        size_t nid_begin = space.GetFirstDimension(begin);
-        size_t nid_end   = space.GetFirstDimension(end-1);
-
-        for (size_t nid = nid_begin; nid <= nid_end; ++nid) {
-          // true - means thread 'tid' will work to compute partial hist for node 'nid'
-          threads_to_nids_map_[tid * nodes_ + nid] = true;
-        }
-      }
-    }
-  }
-
-  void AllocateAdditionalHistograms() {
-    size_t hist_allocated_additionally = 0;
-
-    for (size_t nid = 0; nid < nodes_; ++nid) {
-      int nthreads_for_nid = 0;
-
-      for (size_t tid = 0; tid < nthreads_; ++tid) {
-        if (threads_to_nids_map_[tid * nodes_ + nid]) {
-          nthreads_for_nid++;
-        }
-      }
-
-      // In distributed mode - some tree nodes can be empty on local machines,
-      // set nthreads_for_nid to 0 in this case.
-      // In another case - allocate additional (nthreads_for_nid - 1) histograms,
-      // because one is already allocated externally (will store final result for the node).
-      hist_allocated_additionally += std::max<int>(0, nthreads_for_nid - 1);
-    }
-
-    for (size_t i = 0; i < hist_allocated_additionally; ++i) {
-      hist_buffer_.AddHistRow(i);
-    }
-  }
-
-  void MatchNodeNidPairToHist() {
-    size_t hist_total = 0;
-    size_t hist_allocated_additionally = 0;
-
-    for (size_t nid = 0; nid < nodes_; ++nid) {
-      bool first_hist = true;
-      for (size_t tid = 0; tid < nthreads_; ++tid) {
-        if (threads_to_nids_map_[tid * nodes_ + nid]) {
-          if (first_hist) {
-            hist_memory_.push_back(targeted_hists_[nid]);
-            first_hist = false;
-          } else {
-            hist_memory_.push_back(hist_buffer_[hist_allocated_additionally]);
-            hist_allocated_additionally++;
-          }
-          // map pair {tid, nid} to index of allocated histogram from hist_memory_
-          tid_nid_to_hist_[{tid, nid}] = hist_total++;
-          CHECK_EQ(hist_total, hist_memory_.size());
-        }
-      }
-    }
-  }
 
   /*! \brief number of bins in each histogram */
   size_t nbins_ = 0;
-  /*! \brief number of threads for parallel computation */
-  size_t nthreads_ = 0;
   /*! \brief number of nodes which will be processed in parallel  */
   size_t nodes_ = 0;
   /*! \brief Buffer for additional histograms for Parallel processing  */
   HistCollectionOneAPI<GradientSumT> hist_buffer_;
-  /*!
-   * \brief Marks which hists were used, it means that they should be merged.
-   * Contains only {true or false} values
-   * but 'int' is used instead of 'bool', because std::vector<bool> isn't thread safe
-   */
-  std::vector<int> hist_was_used_;
-
-  /*! \brief Buffer for additional histograms for Parallel processing  */
-  std::vector<bool> threads_to_nids_map_;
-  /*! \brief Contains histograms for final results  */
-  std::vector<GHistRowT> targeted_hists_;
-  /*! \brief Allocated memory for histograms used for construction  */
-  std::vector<GHistRowT> hist_memory_;
-  /*! \brief map pair {tid, nid} to index of allocated histogram from hist_memory_  */
-  std::map<std::pair<size_t, size_t>, size_t> tid_nid_to_hist_;
 
   GHistRowT hist_device_buffer_;
 
