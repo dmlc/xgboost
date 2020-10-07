@@ -234,7 +234,7 @@ struct PrefetchOneAPI {
 constexpr size_t PrefetchOneAPI::kNoPrefetchSize;
 
 template<typename FPType, bool do_prefetch, typename BinIdxType>
-void BuildHistDenseKernel(common::Monitor& builder_monitor_, cl::sycl::queue qu,
+void BuildHistDenseKernel(cl::sycl::queue qu,
                           const std::vector<GradientPair>& gpair,
                           const USMVector<GradientPair>& gpair_device,
                           const RowSetCollectionOneAPI::Elem& row_indices,
@@ -242,7 +242,6 @@ void BuildHistDenseKernel(common::Monitor& builder_monitor_, cl::sycl::queue qu,
                           const size_t n_features,
                           GHistRowOneAPI<FPType>& hist,
                           GHistRowOneAPI<FPType>& hist_buffer) {
-  builder_monitor_.Start("BuildHistDenseKernel");
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
   const float* pgh = reinterpret_cast<const float*>(gpair_device.DataConst());
@@ -264,7 +263,6 @@ void BuildHistDenseKernel(common::Monitor& builder_monitor_, cl::sycl::queue qu,
   const size_t block_size = size / nblocks + !!(size % nblocks);
   FPType* hist_buffer_data = reinterpret_cast<FPType*>(hist_buffer.Data());
 
-  builder_monitor_.Start("BuildHistDenseKernel, kernel 2");
   qu.submit([&](cl::sycl::handler& cgh) {
     cgh.parallel_for<>(cl::sycl::nd_range<2>(cl::sycl::range<2>(nblocks, feat_local), cl::sycl::range<2>(blocks_local, feat_local)), [=](cl::sycl::nd_item<2> pid) {
       size_t block = pid.get_global_id(0);
@@ -293,9 +291,7 @@ void BuildHistDenseKernel(common::Monitor& builder_monitor_, cl::sycl::queue qu,
       }
     });
   }).wait();
-  builder_monitor_.Stop("BuildHistDenseKernel, kernel 2");
 
-  builder_monitor_.Start("BuildHistDenseKernel, kernel 3");
   qu.submit([&](cl::sycl::handler& cgh) {
     cgh.parallel_for<>(cl::sycl::range<1>(nbins), [=](cl::sycl::item<1> pid) {
       size_t i = pid.get_id(0);
@@ -315,20 +311,16 @@ void BuildHistDenseKernel(common::Monitor& builder_monitor_, cl::sycl::queue qu,
       hist_data[idx_bin + 1] = hsum;
     });
   }).wait();
-  builder_monitor_.Stop("BuildHistDenseKernel, kernel 3");
-
-  builder_monitor_.Stop("BuildHistDenseKernel");
 }
 
 template<typename FPType, bool do_prefetch>
-void BuildHistSparseKernel(common::Monitor& builder_monitor_, cl::sycl::queue qu,
+void BuildHistSparseKernel(cl::sycl::queue qu,
                            const std::vector<GradientPair>& gpair,
                            const USMVector<GradientPair>& gpair_device,
                            const RowSetCollectionOneAPI::Elem& row_indices,
                            const GHistIndexMatrixOneAPI& gmat,
                            GHistRowOneAPI<FPType>& hist,
                            GHistRowOneAPI<FPType>& hist_buffer) {
-  builder_monitor_.Start("BuildHistSparseKernel");
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
   const float* pgh = reinterpret_cast<const float*>(gpair_device.DataConst());
@@ -348,7 +340,6 @@ void BuildHistSparseKernel(common::Monitor& builder_monitor_, cl::sycl::queue qu
 
   FPType* hist_buffer_data = reinterpret_cast<FPType*>(hist_buffer.Data());
 
-  builder_monitor_.Start("BuildHistSparseKernel, kernel 1");
   qu.submit([&](cl::sycl::handler& cgh) {
     cgh.parallel_for<>(cl::sycl::range<2>(nblocks, nbins), [=](cl::sycl::item<2> pid) {
       size_t i = pid.get_id(0);
@@ -357,9 +348,7 @@ void BuildHistSparseKernel(common::Monitor& builder_monitor_, cl::sycl::queue qu
       hist_buffer_data[two * (i * nbins + j) + 1] = 0.0f;
     });
   }).wait();
-  builder_monitor_.Stop("BuildHistSparseKernel, kernel 1");
 
-  builder_monitor_.Start("BuildHistSparseKernel, kernel 2");
   qu.submit([&](cl::sycl::handler& cgh) {
     cgh.parallel_for<>(cl::sycl::range<1>(nblocks), [=](cl::sycl::item<1> pid) {
       size_t block = pid.get_id(0);
@@ -385,9 +374,7 @@ void BuildHistSparseKernel(common::Monitor& builder_monitor_, cl::sycl::queue qu
       }
     });
   }).wait();
-  builder_monitor_.Stop("BuildHistSparseKernel, kernel 2");
 
-  builder_monitor_.Start("BuildHistSparseKernel, kernel 3");
   qu.submit([&](cl::sycl::handler& cgh) {
     cgh.parallel_for<>(cl::sycl::range<1>(nbins), [=](cl::sycl::item<1> pid) {
       size_t i = pid.get_id(0);
@@ -406,29 +393,26 @@ void BuildHistSparseKernel(common::Monitor& builder_monitor_, cl::sycl::queue qu
       hist_data[idx_bin + 1] = hsum;
     });
   }).wait();
-  builder_monitor_.Stop("BuildHistSparseKernel, kernel 3");
-
-  builder_monitor_.Stop("BuildHistSparseKernel");
 }
 
 template<typename FPType, bool do_prefetch, typename BinIdxType>
-void BuildHistDispatchKernel(common::Monitor& builder_monitor_, cl::sycl::queue qu,
+void BuildHistDispatchKernel(cl::sycl::queue qu,
                              const std::vector<GradientPair>& gpair,
                              const USMVector<GradientPair>& gpair_device,
                              const RowSetCollectionOneAPI::Elem& row_indices,
                              const GHistIndexMatrixOneAPI& gmat, GHistRowOneAPI<FPType>& hist, bool isDense,
                              GHistRowOneAPI<FPType>& hist_buffer) {
   if (isDense) {
-    BuildHistDenseKernel<FPType, do_prefetch, BinIdxType>(builder_monitor_, qu, gpair, gpair_device, row_indices,
+    BuildHistDenseKernel<FPType, do_prefetch, BinIdxType>(qu, gpair, gpair_device, row_indices,
                                                        gmat, gmat.nfeatures, hist, hist_buffer);
   } else {
-    BuildHistSparseKernel<FPType, do_prefetch>(builder_monitor_, qu, gpair, gpair_device, row_indices,
+    BuildHistSparseKernel<FPType, do_prefetch>(qu, gpair, gpair_device, row_indices,
                                                         gmat, hist, hist_buffer);
   }
 }
 
 template<typename FPType, bool do_prefetch>
-void BuildHistKernel(common::Monitor& builder_monitor_, cl::sycl::queue qu,
+void BuildHistKernel(cl::sycl::queue qu,
                      const std::vector<GradientPair>& gpair,
                      const USMVector<GradientPair>& gpair_device,
                      const RowSetCollectionOneAPI::Elem& row_indices,
@@ -437,15 +421,15 @@ void BuildHistKernel(common::Monitor& builder_monitor_, cl::sycl::queue qu,
   const bool is_dense = isDense;
   switch (gmat.index.GetBinTypeSize()) {
     case kUint8BinsTypeSize:
-      BuildHistDispatchKernel<FPType, do_prefetch, uint8_t>(builder_monitor_, qu, gpair, gpair_device, row_indices,
+      BuildHistDispatchKernel<FPType, do_prefetch, uint8_t>(qu, gpair, gpair_device, row_indices,
                                                             gmat, hist, is_dense, hist_buffer);
       break;
     case kUint16BinsTypeSize:
-      BuildHistDispatchKernel<FPType, do_prefetch, uint16_t>(builder_monitor_, qu, gpair, gpair_device, row_indices,
+      BuildHistDispatchKernel<FPType, do_prefetch, uint16_t>(qu, gpair, gpair_device, row_indices,
                                                              gmat, hist, is_dense, hist_buffer);
       break;
     case kUint32BinsTypeSize:
-      BuildHistDispatchKernel<FPType, do_prefetch, uint32_t>(builder_monitor_, qu, gpair, gpair_device, row_indices,
+      BuildHistDispatchKernel<FPType, do_prefetch, uint32_t>(qu, gpair, gpair_device, row_indices,
                                                              gmat, hist, is_dense, hist_buffer);
       break;
     default:
@@ -454,32 +438,32 @@ void BuildHistKernel(common::Monitor& builder_monitor_, cl::sycl::queue qu,
 }
 
 template <typename GradientSumT>
-void GHistBuilderOneAPI<GradientSumT>::BuildHist(common::Monitor& builder_monitor_, 
-    const std::vector<GradientPair> &gpair,
-    const USMVector<GradientPair>& gpair_device,
-    const RowSetCollectionOneAPI::Elem& row_indices, const GHistIndexMatrixOneAPI &gmat,
-    GHistRowT& hist, bool isDense, GHistRowT& hist_buffer) {
-  BuildHistKernel<GradientSumT, false>(builder_monitor_, qu_, gpair, gpair_device, row_indices, gmat, isDense, hist, hist_buffer);
+void GHistBuilderOneAPI<GradientSumT>::BuildHist(const std::vector<GradientPair> &gpair,
+                                                 const USMVector<GradientPair>& gpair_device,
+                                                 const RowSetCollectionOneAPI::Elem& row_indices,
+                                                 const GHistIndexMatrixOneAPI &gmat,
+                                                 GHistRowT& hist,
+                                                 bool isDense,
+                                                 GHistRowT& hist_buffer) {
+  BuildHistKernel<GradientSumT, false>(qu_, gpair, gpair_device, row_indices, gmat, isDense, hist, hist_buffer);
 }
 
 template
-void GHistBuilderOneAPI<float>::BuildHist(common::Monitor& builder_monitor_, 
-                             const std::vector<GradientPair>& gpair,
-                             const USMVector<GradientPair>& gpair_device,
-                             const RowSetCollectionOneAPI::Elem& row_indices,
-                             const GHistIndexMatrixOneAPI& gmat,
-                             GHistRowOneAPI<float>& hist,
-                             bool isDense,
-                             GHistRowOneAPI<float>& hist_buffer);
+void GHistBuilderOneAPI<float>::BuildHist(const std::vector<GradientPair>& gpair,
+                                          const USMVector<GradientPair>& gpair_device,
+                                          const RowSetCollectionOneAPI::Elem& row_indices,
+                                          const GHistIndexMatrixOneAPI& gmat,
+                                          GHistRowOneAPI<float>& hist,
+                                          bool isDense,
+                                          GHistRowOneAPI<float>& hist_buffer);
 template
-void GHistBuilderOneAPI<double>::BuildHist(common::Monitor& builder_monitor_, 
-                             const std::vector<GradientPair>& gpair,
-                             const USMVector<GradientPair>& gpair_device,
-                             const RowSetCollectionOneAPI::Elem& row_indices,
-                             const GHistIndexMatrixOneAPI& gmat,
-                             GHistRowOneAPI<double>& hist,
-                             bool isDense,
-                             GHistRowOneAPI<double>& hist_buffer);
+void GHistBuilderOneAPI<double>::BuildHist(const std::vector<GradientPair>& gpair,
+                                           const USMVector<GradientPair>& gpair_device,
+                                           const RowSetCollectionOneAPI::Elem& row_indices,
+                                           const GHistIndexMatrixOneAPI& gmat,
+                                           GHistRowOneAPI<double>& hist,
+                                           bool isDense,
+                                           GHistRowOneAPI<double>& hist_buffer);
 
 template<typename GradientSumT>
 void GHistBuilderOneAPI<GradientSumT>::SubtractionTrick(GHistRowT& self,
