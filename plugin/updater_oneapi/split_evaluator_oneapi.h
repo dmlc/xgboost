@@ -61,9 +61,9 @@ class TreeEvaluatorOneAPI {
     TrainParamOneAPI param;
 
     float CalcSplitGain(bst_node_t nidx,
-                         bst_feature_t fidx,
-                         tree::GradStatsOneAPI left,
-                         tree::GradStatsOneAPI right) const {
+                        bst_feature_t fidx,
+                        tree::GradStatsOneAPI left,
+                        tree::GradStatsOneAPI right) const {
       int constraint = constraints[fidx];
       const float negative_infinity = -std::numeric_limits<float>::infinity();
       float wleft = this->CalcWeight(nidx, left);
