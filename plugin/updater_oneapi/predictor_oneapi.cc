@@ -330,7 +330,7 @@ class PredictorOneAPI : public Predictor {
     cpu_predictor->PredictLeaf(p_fmat, out_preds, model, ntree_limit);
   }
 
-  void PredictContribution(DMatrix* p_fmat, std::vector<bst_float>* out_contribs,
+  void PredictContribution(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
                            const gbm::GBTreeModel& model, uint32_t ntree_limit,
                            std::vector<bst_float>* tree_weights,
                            bool approximate, int condition,
@@ -338,7 +338,7 @@ class PredictorOneAPI : public Predictor {
     cpu_predictor->PredictContribution(p_fmat, out_contribs, model, ntree_limit, tree_weights, approximate, condition, condition_feature);
   }
 
-  void PredictInteractionContributions(DMatrix* p_fmat, std::vector<bst_float>* out_contribs,
+  void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
                                        const gbm::GBTreeModel& model, unsigned ntree_limit,
                                        std::vector<bst_float>* tree_weights,
                                        bool approximate) override {

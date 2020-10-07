@@ -252,7 +252,7 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
                           const GHistIndexMatrixOneAPI& gmat,
                           GHistRowT& hist,
                           GHistRowT& hist_buffer) {
-      hist_builder_.BuildHist(builder_monitor_, gpair, gpair_device, row_indices, gmat, hist, data_layout_ != kSparseData, hist_buffer);
+      hist_builder_.BuildHist(gpair, gpair_device, row_indices, gmat, hist, data_layout_ != kSparseData, hist_buffer);
     }
 
     inline void SubtractionTrick(GHistRowT& self,

@@ -510,7 +510,7 @@ class GHistBuilderOneAPI {
   GHistBuilderOneAPI(cl::sycl::queue qu, size_t nthread, uint32_t nbins) : qu_{qu}, nthread_{nthread}, nbins_{nbins} {}
 
   // construct a histogram via histogram aggregation
-  void BuildHist(common::Monitor& builder_monitor_, const std::vector<GradientPair>& gpair,
+  void BuildHist(const std::vector<GradientPair>& gpair,
                  const USMVector<GradientPair>& gpair_device,
                  const RowSetCollectionOneAPI::Elem& row_indices,
                  const GHistIndexMatrixOneAPI& gmat,
