@@ -36,7 +36,7 @@ jobs:
         cd build
         ctest --extra-verbose
 
-  gtest-cpu-nonomp
+  gtest-cpu-nonomp:
     name: Test Google C++ unittest (CPU Non-OMP)
     runs-on: ${{ matrix.os }}
     strategy:
