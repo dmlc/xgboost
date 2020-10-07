@@ -88,7 +88,7 @@ TEST(ParallelFor2dNonUniform, Test) {
 
   omp_set_num_threads(old);
 }
-
+#if defined(_OPENMP)
 TEST(OmpSetNumThreads, Basic) {
   auto nthreads = 2;
   auto orgi = OmpSetNumThreads(&nthreads);
@@ -104,5 +104,6 @@ TEST(OmpSetNumThreads, Basic) {
 
   omp_set_num_threads(orgi);
 }
+#endif  // defined(_OPENMP)
 }  // namespace common
 }  // namespace xgboost
