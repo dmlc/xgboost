@@ -12,6 +12,9 @@ jobs:
     - os: linux
       arch: amd64
       env: TASK=python_sdist_test
+    - os: linux
+      arch: arm64
+      env: TASK=python_sdist_test
     - os: osx
       arch: amd64
       osx_image: xcode10.1
