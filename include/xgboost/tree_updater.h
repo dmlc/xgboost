@@ -72,6 +72,9 @@ class TreeUpdater : public Configurable {
    */
   virtual bool UpdatePredictionCache(const DMatrix* data,
                                      HostDeviceVector<bst_float>* out_preds) {
+    // Remove unused parameter compiler warning.
+    (void) data;
+    (void) out_preds;
     return false;
   }
 
