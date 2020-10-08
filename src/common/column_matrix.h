@@ -179,12 +179,12 @@ class ColumnMatrix {
        but for ColumnMatrix we still have a chance to reduce the memory consumption */
     } else {
       if (bins_type_size_ == kUint8BinsTypeSize) {
-          SetIndex<uint8_t>(gmat.index.data<uint32_t>(), gmat, nrow, nfeature);
+          SetIndex<uint8_t>(gmat.index.data<uint32_t>(), gmat, nfeature);
       } else if (bins_type_size_ == kUint16BinsTypeSize) {
-          SetIndex<uint16_t>(gmat.index.data<uint32_t>(), gmat, nrow, nfeature);
+          SetIndex<uint16_t>(gmat.index.data<uint32_t>(), gmat, nfeature);
       } else {
           CHECK_EQ(bins_type_size_, kUint32BinsTypeSize);
-          SetIndex<uint32_t>(gmat.index.data<uint32_t>(), gmat, nrow, nfeature);
+          SetIndex<uint32_t>(gmat.index.data<uint32_t>(), gmat, nfeature);
       }
     }
   }
@@ -271,7 +271,7 @@ class ColumnMatrix {
 
   template<typename T>
   inline void SetIndex(uint32_t* index, const GHistIndexMatrix& gmat,
-                       const size_t nrow, const size_t nfeature) {
+                       const size_t nfeature) {
     std::vector<size_t> num_nonzeros;
     num_nonzeros.resize(nfeature);
     std::fill(num_nonzeros.begin(), num_nonzeros.end(), 0);
