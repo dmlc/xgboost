@@ -423,10 +423,7 @@ def DeployJVMPackages(args) {
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Deploying to xgboost-maven-repo S3 repo...'
       sh """
-      ${dockerRun} jvm docker tests/ci_build/deploy_jvm_packages.sh ${args.spark_version} 0
-      """
-      sh """
-      ${dockerRun} jvm_gpu_build docker --build-arg CUDA_VERSION_ARG=10.0 tests/ci_build/deploy_jvm_packages.sh ${args.spark_version} 1
+      ${dockerRun} jvm_gpu_build docker --build-arg CUDA_VERSION_ARG=10.0 tests/ci_build/deploy_jvm_packages.sh ${args.spark_version}
       """
     }
     deleteDir()
