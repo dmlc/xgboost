@@ -120,7 +120,7 @@ class ColumnMatrixOneAPI {
     for (int32_t fid = 0; fid < nfeature; ++fid) {
       CHECK_LE(gmat.cut.Ptrs()[fid + 1] - gmat.cut.Ptrs()[fid], max_val);
     }
-    bool all_dense = gmat.IsDense();
+    bool all_dense = gmat.IsDense(); // CHECK gmat.IsDense implicitly
     gmat.GetFeatureCounts(&feature_counts_[0]);
     // classify features
     for (int32_t fid = 0; fid < nfeature; ++fid) {
@@ -132,7 +132,7 @@ class ColumnMatrixOneAPI {
     }
 
     if (!all_dense) {
-      LOG(WARNING) << "Sparse data not supported for updater_quantil_hist_oneapi, converting to dense";
+      LOG(WARNING) << "Sparse data is not supported for updater_quantil_hist_oneapi, converting to dense";
       all_dense = true;
     }
 
@@ -159,6 +159,7 @@ class ColumnMatrixOneAPI {
 
     // store least bin id for each feature
     index_base_ = const_cast<uint32_t*>(gmat.cut.Ptrs().data());
+    index_base_device_ = const_cast<uint32_t*>(gmat.cut_device.Ptrs().DataConst());
 
     const bool noMissingValues = NoMissingValues(gmat.row_ptr[nrow], nrow, nfeature);
     any_missing_ = !noMissingValues;
@@ -170,15 +171,24 @@ class ColumnMatrixOneAPI {
     }
 
     // pre-fill index_ for dense columns
-    if (all_dense) {
+    if (gmat.IsDense()) {
       BinTypeSize gmat_bin_size = gmat.index.GetBinTypeSize();
       if (gmat_bin_size == kUint8BinsTypeSize) {
-          SetIndexAllDense(gmat.index.data<uint8_t>(), gmat, dmat_device, nrow, nfeature, noMissingValues);
+        SetIndexAllDense(gmat.index.data<uint8_t>(), gmat, dmat_device, nrow, nfeature, noMissingValues);
       } else if (gmat_bin_size == kUint16BinsTypeSize) {
-          SetIndexAllDense(gmat.index.data<uint16_t>(), gmat, dmat_device, nrow, nfeature, noMissingValues);
+        SetIndexAllDense(gmat.index.data<uint16_t>(), gmat, dmat_device, nrow, nfeature, noMissingValues);
       } else {
-          CHECK_EQ(gmat_bin_size, kUint32BinsTypeSize);
-          SetIndexAllDense(gmat.index.data<uint32_t>(), gmat, dmat_device, nrow, nfeature, noMissingValues);
+        CHECK_EQ(gmat_bin_size, kUint32BinsTypeSize);
+        SetIndexAllDense(gmat.index.data<uint32_t>(), gmat, dmat_device, nrow, nfeature, noMissingValues);
+      }
+    } else {
+      if (bins_type_size_ == kUint8BinsTypeSize) {
+        SetIndex<uint8_t>(gmat.index.data<uint32_t>(), gmat, dmat_device, nrow, nfeature);
+      } else if (bins_type_size_ == kUint16BinsTypeSize) {
+        SetIndex<uint16_t>(gmat.index.data<uint32_t>(), gmat, dmat_device, nrow, nfeature);
+      } else {
+        CHECK_EQ(bins_type_size_, kUint32BinsTypeSize);
+        SetIndex<uint32_t>(gmat.index.data<uint32_t>(), gmat, dmat_device, nrow, nfeature);
       }
     }
   }
@@ -259,6 +269,36 @@ class ColumnMatrixOneAPI {
     }
   }
 
+  template<typename T>
+  inline void SetIndex(const uint32_t* index,
+                       const GHistIndexMatrixOneAPI& gmat,
+                       const DeviceMatrixOneAPI& dmat_device,
+                       const size_t nrow,
+                       const size_t nfeature) {
+    T* local_index = reinterpret_cast<T*>(&index_[0]);
+    const xgboost::EntryOneAPI *data_ptr = dmat_device.data.DataConst();
+    const bst_row_t *offset_vec = dmat_device.row_ptr.DataConst();
+    const size_t num_rows = dmat_device.row_ptr.Size() - 1;
+    bool* missing_flags = missing_flags_.Data();
+    const size_t* feature_offsets = feature_offsets_.DataConst(); 
+    const uint32_t* index_base_device = index_base_device_;
+
+    qu_.submit([&](cl::sycl::handler& cgh) {
+      cgh.parallel_for<>(cl::sycl::range<1>(num_rows), [=](cl::sycl::item<1> pid) {
+        const size_t i = pid.get_id(0);
+        const size_t ibegin = offset_vec[i];
+        const size_t iend = offset_vec[i + 1];
+        const size_t size = iend - ibegin;
+        for (bst_uint j = 0; j < size; ++j) {
+          const size_t fid = data_ptr[ibegin + j].index;
+          const size_t idx = feature_offsets[fid];
+          local_index[i + idx] = index[ibegin + j] - index_base_device[fid];
+          missing_flags[i + idx] = false;
+        }
+      });
+    }).wait();
+  }
+
   const BinTypeSize GetTypeSize() const {
     return bins_type_size_;
   }
@@ -283,6 +323,7 @@ class ColumnMatrixOneAPI {
   USMVector<size_t> feature_offsets_;
 
   uint32_t* index_base_;
+  uint32_t* index_base_device_;
   USMVector<bool> missing_flags_;
   BinTypeSize bins_type_size_;
   bool any_missing_;

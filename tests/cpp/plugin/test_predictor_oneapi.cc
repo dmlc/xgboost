@@ -53,8 +53,9 @@ TEST(Plugin, OneAPIPredictorBasic) {
   }
 
   // Test predict contribution
-  std::vector<float> out_contribution;
-  oneapi_predictor->PredictContribution(dmat.get(), &out_contribution, model);
+  HostDeviceVector<float> out_contribution_hdv;
+  auto& out_contribution = out_contribution_hdv.HostVector();
+  oneapi_predictor->PredictContribution(dmat.get(), &out_contribution_hdv, model);
   ASSERT_EQ(out_contribution.size(), kRows * (kCols + 1));
   for (size_t i = 0; i < out_contribution.size(); ++i) {
     auto const& contri = out_contribution[i];
@@ -66,7 +67,7 @@ TEST(Plugin, OneAPIPredictorBasic) {
     }
   }
   // Test predict contribution (approximate method)
-  oneapi_predictor->PredictContribution(dmat.get(), &out_contribution, model, 0, nullptr, true);
+  oneapi_predictor->PredictContribution(dmat.get(), &out_contribution_hdv, model, 0, nullptr, true);
   for (size_t i = 0; i < out_contribution.size(); ++i) {
     auto const& contri = out_contribution[i];
     // shift 1 for bias, as test tree is a decision dump, only global bias is filled with LeafValue().
@@ -112,8 +113,9 @@ TEST(Plugin, OneAPIPredictorExternalMemory) {
   }
 
   // Test predict contribution
-  std::vector<float> out_contribution;
-  oneapi_predictor->PredictContribution(dmat.get(), &out_contribution, model);
+  HostDeviceVector<float> out_contribution_hdv;
+  auto& out_contribution = out_contribution_hdv.HostVector();
+  oneapi_predictor->PredictContribution(dmat.get(), &out_contribution_hdv, model);
   ASSERT_EQ(out_contribution.size(), dmat->Info().num_row_ * (dmat->Info().num_col_ + 1));
   for (size_t i = 0; i < out_contribution.size(); ++i) {
     auto const& contri = out_contribution[i];
@@ -126,8 +128,10 @@ TEST(Plugin, OneAPIPredictorExternalMemory) {
   }
 
   // Test predict contribution (approximate method)
-  std::vector<float> out_contribution_approximate;
-  oneapi_predictor->PredictContribution(dmat.get(), &out_contribution_approximate, model, 0, nullptr, true);
+  HostDeviceVector<float> out_contribution_approximate_hdv;
+  auto& out_contribution_approximate = out_contribution_approximate_hdv.HostVector();
+  oneapi_predictor->PredictContribution(
+      dmat.get(), &out_contribution_approximate_hdv, model, 0, nullptr, true);
   ASSERT_EQ(out_contribution_approximate.size(),
             dmat->Info().num_row_ * (dmat->Info().num_col_ + 1));
   for (size_t i = 0; i < out_contribution.size(); ++i) {
