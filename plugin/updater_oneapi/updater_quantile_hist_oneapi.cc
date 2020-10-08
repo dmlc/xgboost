@@ -36,6 +36,8 @@ namespace tree {
 
 DMLC_REGISTRY_FILE_TAG(updater_quantile_hist_oneapi);
 
+DMLC_REGISTER_PARAMETER(QuantileHistMakerParamOneAPI);
+
 void QuantileHistMakerOneAPI::Configure(const Args& args) {
   QuantileHistMakerParamOneAPI sycl_param;
   sycl_param.UpdateAllowUnknown(args);

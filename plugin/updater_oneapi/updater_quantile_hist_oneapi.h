@@ -76,8 +76,6 @@ struct QuantileHistMakerParamOneAPI
   }
 };
 
-DMLC_REGISTER_PARAMETER(QuantileHistMakerParamOneAPI);
-
 using xgboost::common::GHistIndexMatrix;
 using xgboost::common::GHistIndexBlockMatrix;
 using xgboost::common::GHistIndexRow;
