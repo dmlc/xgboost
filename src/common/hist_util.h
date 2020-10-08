@@ -273,8 +273,7 @@ struct GHistIndexMatrix {
     }
   }
 
-  void ResizeIndex(const size_t rbegin, const SparsePage& batch,
-                   const size_t n_offsets, const size_t n_index,
+  void ResizeIndex(const size_t n_index,
                    const bool isDense);
 
   inline void GetFeatureCounts(size_t* counts) const {
