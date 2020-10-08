@@ -1155,7 +1155,7 @@ void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToRowSet(
     const int32_t nid = nodes[i].nid;
     const size_t n_left = partition_builder_.GetNLeftElems(i);
     const size_t n_right = partition_builder_.GetNRightElems(i);
-
+    CHECK_EQ((*p_tree)[nid].LeftChild() + 1, (*p_tree)[nid].RightChild());
     row_set_collection_.AddSplit(nid, (*p_tree)[nid].LeftChild(),
         (*p_tree)[nid].RightChild(), n_left, n_right);
   }

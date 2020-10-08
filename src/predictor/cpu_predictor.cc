@@ -42,6 +42,47 @@ bst_float PredValue(const SparsePage::Inst &inst,
   return psum;
 }
 
+inline bst_float PredValueByOneTree(const RegTree::FVec& p_feats,
+                                    const std::unique_ptr<RegTree>& tree) {
+  const int lid = p_feats.HasMissing() ? tree->GetLeafIndex<true>(p_feats) :
+                                         tree->GetLeafIndex<false>(p_feats);  // 35% speed up
+  return (*tree)[lid].LeafValue();
+}
+
+inline void PredictByAllTrees(gbm::GBTreeModel const &model, const size_t tree_begin,
+                              const size_t tree_end, std::vector<bst_float>* out_preds,
+                              const size_t predict_offset, const size_t num_group,
+                              const std::vector<RegTree::FVec> &thread_temp,
+                              const size_t offset, const size_t block_size) {
+  std::vector<bst_float> &preds = *out_preds;
+  for (size_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
+    const size_t gid = model.tree_info[tree_id];
+    for (size_t i = 0; i < block_size; ++i) {
+      preds[(predict_offset + i) * num_group + gid] += PredValueByOneTree(thread_temp[offset + i],
+                                                                      model.trees[tree_id]);
+    }
+  }
+}
+
+template <typename DataView>
+void FVecFill(const size_t block_size, const size_t batch_offset, DataView* batch,
+              const size_t fvec_offset, std::vector<RegTree::FVec>* p_feats) {
+  for (size_t i = 0; i < block_size; ++i) {
+    RegTree::FVec &feats = (*p_feats)[fvec_offset + i];
+    const SparsePage::Inst inst = (*batch)[batch_offset + i];
+    feats.Fill(inst);
+  }
+}
+template <typename DataView>
+void FVecDrop(const size_t block_size, const size_t batch_offset, DataView* batch,
+              const size_t fvec_offset, std::vector<RegTree::FVec>* p_feats) {
+  for (size_t i = 0; i < block_size; ++i) {
+    RegTree::FVec &feats = (*p_feats)[fvec_offset + i];
+    const SparsePage::Inst inst = (*batch)[batch_offset + i];
+    feats.Drop(inst);
+  }
+}
+
 template <size_t kUnrollLen = 8>
 struct SparsePageView {
   bst_row_t base_rowid;
@@ -99,52 +140,31 @@ class AdapterView {
   bst_row_t const static base_rowid = 0;  // NOLINT
 };
 
-template <typename DataView>
-void PredictBatchKernel(DataView batch, std::vector<bst_float> *out_preds,
-                        gbm::GBTreeModel const &model, int32_t tree_begin,
-                        int32_t tree_end,
-                        std::vector<RegTree::FVec> *p_thread_temp) {
+template <typename DataView, size_t block_of_rows_size>
+void PredictBatchByBlockOfRowsKernel(DataView batch, std::vector<bst_float> *out_preds,
+                                     gbm::GBTreeModel const &model, int32_t tree_begin,
+                                     int32_t tree_end,
+                                     std::vector<RegTree::FVec> *p_thread_temp) {
   auto& thread_temp = *p_thread_temp;
   int32_t const num_group = model.learner_model_param->num_output_group;
 
-  std::vector<bst_float> &preds = *out_preds;
   CHECK_EQ(model.param.size_leaf_vector, 0)
       << "size_leaf_vector is enforced to 0 so far";
   // parallel over local batch
   const auto nsize = static_cast<bst_omp_uint>(batch.Size());
-  auto constexpr kUnroll = DataView::kUnroll;
-  const bst_omp_uint rest = nsize % kUnroll;
-  if (nsize >= kUnroll) {
-#pragma omp parallel for schedule(static)
-    for (bst_omp_uint i = 0; i < nsize - rest; i += kUnroll) {
-      const int tid = omp_get_thread_num();
-      RegTree::FVec &feats = thread_temp[tid];
-      int64_t ridx[kUnroll];
-      SparsePage::Inst inst[kUnroll];
-      for (size_t k = 0; k < kUnroll; ++k) {
-        ridx[k] = static_cast<int64_t>(batch.base_rowid + i + k);
-      }
-      for (size_t k = 0; k < kUnroll; ++k) {
-        inst[k] = batch[i + k];
-      }
-      for (size_t k = 0; k < kUnroll; ++k) {
-        for (int gid = 0; gid < num_group; ++gid) {
-          const size_t offset = ridx[k] * num_group + gid;
-          preds[offset] += PredValue(inst[k], model.trees, model.tree_info, gid,
-                                     &feats, tree_begin, tree_end);
-        }
-      }
-    }
-  }
-  for (bst_omp_uint i = nsize - rest; i < nsize; ++i) {
-    RegTree::FVec &feats = thread_temp[0];
-    const auto ridx = static_cast<int64_t>(batch.base_rowid + i);
-    auto inst = batch[i];
-    for (int gid = 0; gid < num_group; ++gid) {
-      const size_t offset = ridx * num_group + gid;
-      preds[offset] += PredValue(inst, model.trees, model.tree_info, gid,
-                                 &feats, tree_begin, tree_end);
-    }
+
+  const bst_omp_uint n_row_blocks = (nsize) / block_of_rows_size + !!((nsize) % block_of_rows_size);
+#pragma omp parallel for schedule(guided)
+  for (bst_omp_uint block_id = 0; block_id < n_row_blocks; ++block_id) {
+    const size_t batch_offset = block_id * block_of_rows_size;
+    const size_t block_size = std::min(nsize - batch_offset, block_of_rows_size);
+    const size_t fvec_offset = omp_get_thread_num() * block_of_rows_size;
+
+    FVecFill(block_size, batch_offset, &batch, fvec_offset, p_thread_temp);
+    // process block of rows through all trees to keep cache locality
+    PredictByAllTrees(model, tree_begin, tree_end, out_preds, batch_offset + batch.base_rowid,
+                      num_group, thread_temp, fvec_offset, block_size);
+    FVecDrop(block_size, batch_offset, &batch, fvec_offset, p_thread_temp);
   }
 }
 
@@ -166,13 +186,16 @@ class CPUPredictor : public Predictor {
                       int32_t tree_end) {
     std::lock_guard<std::mutex> guard(lock_);
     const int threads = omp_get_max_threads();
-    InitThreadTemp(threads, model.learner_model_param->num_feature, &this->thread_temp_);
+    InitThreadTemp(threads*kBlockOfRowsSize, model.learner_model_param->num_feature,
+                   &this->thread_temp_);
     for (auto const& batch : p_fmat->GetBatches<SparsePage>()) {
       CHECK_EQ(out_preds->size(),
                p_fmat->Info().num_row_ * model.learner_model_param->num_output_group);
       size_t constexpr kUnroll = 8;
-      PredictBatchKernel(SparsePageView<kUnroll>{&batch}, out_preds, model, tree_begin,
-                         tree_end, &thread_temp_);
+      PredictBatchByBlockOfRowsKernel<SparsePageView<kUnroll>,
+                          kBlockOfRowsSize>(SparsePageView<kUnroll>{&batch},
+                                              out_preds, model, tree_begin,
+                                              tree_end, &thread_temp_);
     }
   }
 
@@ -279,11 +302,12 @@ class CPUPredictor : public Predictor {
     std::vector<Entry> workspace(info.num_col_ * 8 * threads);
     auto &predictions = out_preds->predictions.HostVector();
     std::vector<RegTree::FVec> thread_temp;
-    InitThreadTemp(threads, model.learner_model_param->num_feature, &thread_temp);
-    size_t constexpr kUnroll = 8;
-    PredictBatchKernel(AdapterView<Adapter, kUnroll>(
-                           m.get(), missing, common::Span<Entry>{workspace}),
-                       &predictions, model, tree_begin, tree_end, &thread_temp);
+    InitThreadTemp(threads*kBlockOfRowsSize, model.learner_model_param->num_feature,
+                   &thread_temp);
+    PredictBatchByBlockOfRowsKernel<AdapterView<Adapter>,
+                       kBlockOfRowsSize>(AdapterView<Adapter>(
+                                          m.get(), missing, common::Span<Entry>{workspace}),
+                                          &predictions, model, tree_begin, tree_end, &thread_temp);
   }
 
   void InplacePredict(dmlc::any const &x, const gbm::GBTreeModel &model,
@@ -477,6 +501,7 @@ class CPUPredictor : public Predictor {
  private:
   std::mutex lock_;
   std::vector<RegTree::FVec> thread_temp_;
+  static size_t constexpr kBlockOfRowsSize = 64;
 };
 
 XGBOOST_REGISTER_PREDICTOR(CPUPredictor, "cpu_predictor")
