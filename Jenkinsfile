@@ -84,7 +84,6 @@ pipeline {
             'test-python-mgpu-cuda10.2': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '10.2', multi_gpu: true, test_rmm: true) },
             'test-cpp-gpu-cuda10.2': { TestCppGPU(artifact_cuda_version: '10.2', host_cuda_version: '10.2', test_rmm: true) },
             'test-cpp-gpu-cuda11.0': { TestCppGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0') },
-            'test-jvm-jdk8-cuda10.0': { CrossTestJVMwithJDKGPU(artifact_cuda_version: '10.0', host_cuda_version: '10.0') },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '3.0.0') },
             'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
             'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') },
@@ -243,7 +242,7 @@ def BuildJVMPackagesWithCUDA(args) {
     ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_jvm_packages.sh ${args.spark_version} -Duse.cuda=ON $arch_flag
     """
     echo "Stashing XGBoost4J JAR with CUDA ${args.cuda_version} ..."
-    stash name: 'xgboost4j_jar_gpu', includes: "jvm-packages/xgboost4j/target/*.jar,jvm-packages/xgboost4j-spark/target/*.jar,jvm-packages/xgboost4j-example/target/*.jar"
+    stash name: 'xgboost4j_jar_gpu', includes: "jvm-packages/xgboost4j-gpu/target/*.jar,jvm-packages/xgboost4j-spark-gpu/target/*.jar"
     deleteDir()
   }
 }
@@ -362,24 +361,6 @@ def TestCppGPU(args) {
   }
 }
 
-def CrossTestJVMwithJDKGPU(args) {
-  def nodeReq = 'linux && mgpu'
-  node(nodeReq) {
-    unstash name: "xgboost4j_jar_gpu"
-    unstash name: 'srcs'
-    if (args.spark_version != null) {
-      echo "Test XGBoost4J on a machine with JDK ${args.jdk_version}, Spark ${args.spark_version}, CUDA ${args.host_cuda_version}"
-    } else {
-      echo "Test XGBoost4J on a machine with JDK ${args.jdk_version}, CUDA ${args.host_cuda_version}"
-    }
-    def container_type = "gpu_jvm"
-    def docker_binary = "nvidia-docker"
-    def docker_args = "--build-arg CUDA_VERSION_ARG=${args.host_cuda_version}"
-    sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_jvm_gpu_cross.sh"
-    deleteDir()
-  }
-}
-
 def CrossTestJVMwithJDK(args) {
   node('linux && cpu') {
     unstash name: 'xgboost4j_jar'
@@ -423,10 +404,7 @@ def DeployJVMPackages(args) {
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Deploying to xgboost-maven-repo S3 repo...'
       sh """
-      ${dockerRun} jvm docker tests/ci_build/deploy_jvm_packages.sh ${args.spark_version} 0
-      """
-      sh """
-      ${dockerRun} jvm_gpu_build docker --build-arg CUDA_VERSION_ARG=10.0 tests/ci_build/deploy_jvm_packages.sh ${args.spark_version} 1
+      ${dockerRun} jvm_gpu_build docker --build-arg CUDA_VERSION_ARG=10.0 tests/ci_build/deploy_jvm_packages.sh ${args.spark_version}
       """
     }
     deleteDir()
