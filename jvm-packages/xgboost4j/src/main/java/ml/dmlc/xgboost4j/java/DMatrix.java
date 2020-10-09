@@ -307,7 +307,7 @@ public class DMatrix {
    * save DMatrix to filePath
    */
   public void saveBinary(String filePath) {
-    XGBoostJNI.XGDMatrixSaveBinary(handle, filePath);
+    XGBoostJNI.XGDMatrixSaveBinary(handle, filePath, 1);
   }
 
   /**

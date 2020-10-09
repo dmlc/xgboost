@@ -377,7 +377,7 @@ XGB_DLL int XGDMatrixFree(DMatrixHandle handle);
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle,
-                                const char *fname);
+                                const char *fname, int silent);
 
 /*!
  * \brief Set content in array interface to a content in info.

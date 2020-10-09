@@ -239,7 +239,8 @@ XGB_DLL int XGDMatrixFree(DMatrixHandle handle) {
   API_END();
 }
 
-XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle, const char* fname) {
+XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle, const char* fname,
+                                int silent) {
   API_BEGIN();
   CHECK_HANDLE();
   auto dmat = static_cast<std::shared_ptr<DMatrix>*>(handle)->get();

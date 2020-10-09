@@ -347,10 +347,10 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixFree
  * Signature: (JLjava/lang/String;I)V
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSaveBinary
-  (JNIEnv *jenv, jclass jcls, jlong jhandle, jstring jfname) {
+  (JNIEnv *jenv, jclass jcls, jlong jhandle, jstring jfname, jint jsilent) {
   DMatrixHandle handle = (DMatrixHandle) jhandle;
   const char* fname = jenv->GetStringUTFChars(jfname, 0);
-  int ret = XGDMatrixSaveBinary(handle, fname);
+  int ret = XGDMatrixSaveBinary(handle, fname, jsilent);
   JVM_CHECK_CALL(ret);
   if (fname) jenv->ReleaseStringUTFChars(jfname, (const char *)fname);
   return ret;

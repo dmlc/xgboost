@@ -19,6 +19,6 @@ xgb.DMatrix.save <- function(dmatrix, fname) {
   if (!inherits(dmatrix, "xgb.DMatrix"))
     stop("dmatrix must be xgb.DMatrix")
 
-  .Call(XGDMatrixSaveBinary_R, dmatrix, fname[1])
+  .Call(XGDMatrixSaveBinary_R, dmatrix, fname[1], 0L)
   return(TRUE)
 }
