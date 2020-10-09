@@ -243,7 +243,7 @@ def BuildJVMPackagesWithCUDA(args) {
     ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_jvm_packages.sh ${args.spark_version} -Duse.cuda=ON $arch_flag
     """
     echo "Stashing XGBoost4J JAR with CUDA ${args.cuda_version} ..."
-    stash name: 'xgboost4j_jar_gpu', includes: "jvm-packages/xgboost4j/target/*.jar,jvm-packages/xgboost4j-spark/target/*.jar,jvm-packages/xgboost4j-example/target/*.jar"
+    stash name: 'xgboost4j_jar_gpu', includes: "jvm-packages/xgboost4j-gpu/target/*.jar,jvm-packages/xgboost4j-spark-gpu/target/*.jar"
     deleteDir()
   }
 }
