@@ -156,5 +156,11 @@ TEST(SegmentedUnique, Regression) {
     TestSegmentedUniqueRegression(values, 0);
   }
 }
+
+TEST(Allocator, OOM) {
+  auto size = dh::AvailableMemory() * 2;
+  ASSERT_THROW({dh::caching_device_vector<char> vec(size)}, dmlc::Error);
+  ASSERT_THROW({dh::device_vector<char> vec(size)}, dmlc::Error);
+}
 }  // namespace common
 }  // namespace xgboost
