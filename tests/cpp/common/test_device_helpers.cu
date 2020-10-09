@@ -158,9 +158,9 @@ TEST(SegmentedUnique, Regression) {
 }
 
 TEST(Allocator, OOM) {
-  auto size = dh::AvailableMemory() * 2;
-  ASSERT_THROW({dh::caching_device_vector<char> vec(size)}, dmlc::Error);
-  ASSERT_THROW({dh::device_vector<char> vec(size)}, dmlc::Error);
+  auto size = dh::AvailableMemory(0) * 4;
+  ASSERT_THROW({dh::caching_device_vector<char> vec(size);}, dmlc::Error);
+  ASSERT_THROW({dh::device_vector<char> vec(size);}, dmlc::Error);
 }
 }  // namespace common
 }  // namespace xgboost

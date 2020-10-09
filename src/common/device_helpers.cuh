@@ -389,10 +389,11 @@ template <typename T>
 using XGBBaseDeviceAllocator = thrust::device_malloc_allocator<T>;
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
-inline void ThrowOOMError(std::exception const& e, size_t bytes) {
+inline void ThrowOOMError(std::string const& err, size_t bytes) {
   auto device = CurrentDevice();
+  auto rank = rabit::GetRank();
   std::stringstream ss;
-  ss << "Memory allocation error: " << e.what() << "\n"
+  ss << "Memory allocation error on worker " << rank << ": " << err << "\n"
      << "- Free memory: " << AvailableMemory(device) << "\n"
      << "- Requested memory: " << bytes << std::endl;
   LOG(FATAL) << ss.str();
@@ -415,7 +416,7 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     try {
       ptr = SuperT::allocate(n);
     } catch (const std::exception& e) {
-      ThrowOOMError(e, n * sizeof(T));
+      ThrowOOMError(e.what(), n * sizeof(T));
     }
     GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T));
     return ptr;
@@ -451,11 +452,10 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
   }
   pointer allocate(size_t n) {  // NOLINT
     T* ptr;
-    try {
-      GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&ptr),
-                                                 n * sizeof(T));
-    } catch (const std::exception& e) {
-      ThrowOOMError(e, n * sizeof(T));
+    auto errc =  GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&ptr),
+                                                            n * sizeof(T));
+    if (errc != cudaSuccess) {
+      ThrowOOMError("Caching allocator", n * sizeof(T));
     }
     pointer thrust_ptr{ ptr };
     GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T));
