@@ -72,7 +72,7 @@ class XGBoostJNI {
 
   public final static native int XGDMatrixFree(long handle);
 
-  public final static native int XGDMatrixSaveBinary(long handle, String fname, int silent);
+  public final static native int XGDMatrixSaveBinary(long handle, String fname);
 
   public final static native int XGDMatrixSetFloatInfo(long handle, String field, float[] array);
 

@@ -85,7 +85,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixFree
  * Signature: (JLjava/lang/String;I)I
  */
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGDMatrixSaveBinary
-  (JNIEnv *, jclass, jlong, jstring, jint);
+  (JNIEnv *, jclass, jlong, jstring);
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI

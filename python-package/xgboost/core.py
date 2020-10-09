@@ -590,8 +590,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             If set, the output is suppressed.
         """
         _check_call(_LIB.XGDMatrixSaveBinary(self.handle,
-                                             c_str(os_fspath(fname)),
-                                             ctypes.c_int(silent)))
+                                             c_str(os_fspath(fname))))
 
     def set_label(self, label):
         """Set label of dmatrix

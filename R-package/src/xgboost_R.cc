@@ -147,11 +147,10 @@ SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset) {
   return ret;
 }
 
-SEXP XGDMatrixSaveBinary_R(SEXP handle, SEXP fname, SEXP silent) {
+SEXP XGDMatrixSaveBinary_R(SEXP handle, SEXP fname) {
   R_API_BEGIN();
   CHECK_CALL(XGDMatrixSaveBinary(R_ExternalPtrAddr(handle),
-                                 CHAR(asChar(fname)),
-                                 asInteger(silent)));
+                                 CHAR(asChar(fname))));
   R_API_END();
   return R_NilValue;
 }

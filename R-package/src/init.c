@@ -40,7 +40,7 @@ extern SEXP XGDMatrixCreateFromMat_R(SEXP, SEXP);
 extern SEXP XGDMatrixGetInfo_R(SEXP, SEXP);
 extern SEXP XGDMatrixNumCol_R(SEXP);
 extern SEXP XGDMatrixNumRow_R(SEXP);
-extern SEXP XGDMatrixSaveBinary_R(SEXP, SEXP, SEXP);
+extern SEXP XGDMatrixSaveBinary_R(SEXP, SEXP);
 extern SEXP XGDMatrixSetInfo_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixSliceDMatrix_R(SEXP, SEXP);
 
@@ -70,7 +70,7 @@ static const R_CallMethodDef CallEntries[] = {
   {"XGDMatrixGetInfo_R",          (DL_FUNC) &XGDMatrixGetInfo_R,          2},
   {"XGDMatrixNumCol_R",           (DL_FUNC) &XGDMatrixNumCol_R,           1},
   {"XGDMatrixNumRow_R",           (DL_FUNC) &XGDMatrixNumRow_R,           1},
-  {"XGDMatrixSaveBinary_R",       (DL_FUNC) &XGDMatrixSaveBinary_R,       3},
+  {"XGDMatrixSaveBinary_R",       (DL_FUNC) &XGDMatrixSaveBinary_R,       2},
   {"XGDMatrixSetInfo_R",          (DL_FUNC) &XGDMatrixSetInfo_R,          3},
   {"XGDMatrixSliceDMatrix_R",     (DL_FUNC) &XGDMatrixSliceDMatrix_R,     2},
   {NULL, NULL, 0}

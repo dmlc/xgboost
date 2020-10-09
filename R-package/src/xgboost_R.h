@@ -66,7 +66,7 @@ XGB_DLL SEXP XGDMatrixSliceDMatrix_R(SEXP handle, SEXP idxset);
  * \param silent print statistics when saving
  * \return R_NilValue
  */
-XGB_DLL SEXP XGDMatrixSaveBinary_R(SEXP handle, SEXP fname, SEXP silent);
+XGB_DLL SEXP XGDMatrixSaveBinary_R(SEXP handle, SEXP fname);
 
 /*!
  * \brief set information to dmatrix
