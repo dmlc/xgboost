@@ -240,7 +240,7 @@ XGB_DLL int XGDMatrixFree(DMatrixHandle handle) {
 }
 
 XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle, const char* fname,
-                                int silent) {
+                                int) {
   API_BEGIN();
   CHECK_HANDLE();
   auto dmat = static_cast<std::shared_ptr<DMatrix>*>(handle)->get();
