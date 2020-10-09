@@ -160,6 +160,7 @@ def _is_pandas_df(data):
         return False
     return isinstance(data, pd.DataFrame)
 
+
 def _is_modin_df(data):
     try:
         import modin.pandas as pd
@@ -188,11 +189,11 @@ def _transform_pandas_df(data, enable_categorical,
                          feature_names=None, feature_types=None,
                          meta=None, meta_type=None):
     from pandas import MultiIndex, Int64Index
-    from pandas.api.types import is_sparse, is_categorical
+    from pandas.api.types import is_sparse, is_categorical_dtype
 
     data_dtypes = data.dtypes
     if not all(dtype.name in _pandas_dtype_mapper or is_sparse(dtype) or
-               (is_categorical(dtype) and enable_categorical)
+               (is_categorical_dtype(dtype) and enable_categorical)
                for dtype in data_dtypes):
         bad_fields = [
             str(data.columns[i]) for i, dtype in enumerate(data_dtypes)
@@ -220,7 +221,7 @@ def _transform_pandas_df(data, enable_categorical,
             if is_sparse(dtype):
                 feature_types.append(_pandas_dtype_mapper[
                     dtype.subtype.name])
-            elif is_categorical(dtype) and enable_categorical:
+            elif is_categorical_dtype(dtype) and enable_categorical:
                 feature_types.append('categorical')
             else:
                 feature_types.append(_pandas_dtype_mapper[dtype.name])
