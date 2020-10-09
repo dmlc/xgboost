@@ -578,7 +578,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         from .data import dispatch_meta_backend
         dispatch_meta_backend(self, data, field, 'uint32')
 
-    def save_binary(self, fname, silent=True):
+    def save_binary(self, fname):
         """Save DMatrix to an XGBoost buffer.  Saved binary can be later loaded
         by providing the path to :py:func:`xgboost.DMatrix` as input.
 
@@ -586,8 +586,6 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         ----------
         fname : string or os.PathLike
             Name of the output buffer file.
-        silent : bool (optional; default: True)
-            If set, the output is suppressed.
         """
         _check_call(_LIB.XGDMatrixSaveBinary(self.handle,
                                              c_str(os_fspath(fname))))
