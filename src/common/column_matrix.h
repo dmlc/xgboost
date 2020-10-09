@@ -43,7 +43,7 @@ class Column {
 
   BinIdxType GetFeatureBinIdx(size_t idx) const { return index_[idx]; }
 
-  const uint32_t GetBaseIdx() const { return index_base_; }
+  uint32_t GetBaseIdx() const { return index_base_; }
 
   common::Span<const BinIdxType> GetFeatureBinIdxPtr() const { return index_; }
 
@@ -311,18 +311,18 @@ class ColumnMatrix {
       rbegin += batch.Size();
     }
   }
-  const BinTypeSize GetTypeSize() const {
+  BinTypeSize GetTypeSize() const {
     return bins_type_size_;
   }
 
   // This is just an utility function
-  const bool NoMissingValues(const size_t n_elements,
+  bool NoMissingValues(const size_t n_elements,
                              const size_t n_row, const size_t n_features) {
     return n_elements == n_features * n_row;
   }
 
   // And this returns part of state
-  const bool AnyMissing() const {
+  bool AnyMissing() const {
     return any_missing_;
   }
 
