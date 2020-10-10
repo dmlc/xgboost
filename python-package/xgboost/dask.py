@@ -627,8 +627,8 @@ async def _get_rabit_args(worker_map, client: Client):
 # evaluation history is instead returned.
 
 
-async def _train_async(client, params, dtrain: DaskDMatrix,
-                       *args, evals=(), **kwargs):
+async def _train_async(client, params, dtrain: DaskDMatrix, *args, evals=(),
+                       early_stopping_rounds=None, **kwargs):
     _assert_dask_support()
     client: Client = _xgb_get_client(client)
     if 'evals_result' in kwargs.keys():
@@ -675,6 +675,7 @@ async def _train_async(client, params, dtrain: DaskDMatrix,
                                *args,
                                evals_result=local_history,
                                evals=local_evals,
+                               early_stopping_rounds=early_stopping_rounds,
                                **kwargs)
             ret = {'booster': bst, 'history': local_history}
             if local_dtrain.num_row() == 0:
@@ -694,7 +695,8 @@ async def _train_async(client, params, dtrain: DaskDMatrix,
     return list(filter(lambda ret: ret is not None, results))[0]
 
 
-def train(client, params, dtrain, *args, evals=(), **kwargs):
+def train(client, params, dtrain, *args, evals=(), early_stopping_rounds=None,
+          **kwargs):
     '''Train XGBoost model.
 
     .. versionadded:: 1.0.0
@@ -724,8 +726,9 @@ def train(client, params, dtrain, *args, evals=(), **kwargs):
     '''
     _assert_dask_support()
     client = _xgb_get_client(client)
-    return client.sync(_train_async, client, params,
-                       dtrain=dtrain, *args, evals=evals, **kwargs)
+    return client.sync(
+        _train_async, client, params, dtrain=dtrain, *args, evals=evals,
+        early_stopping_rounds=early_stopping_rounds, **kwargs)
 
 
 async def _direct_predict_impl(client, data, predict_fn):
@@ -1005,6 +1008,7 @@ class DaskScikitLearnBase(XGBModel):
             base_margin=None,
             eval_set=None,
             sample_weight_eval_set=None,
+            early_stopping_rounds=None,
             verbose=True):
         '''Fit the regressor.
 
@@ -1045,7 +1049,7 @@ class DaskScikitLearnBase(XGBModel):
         return self.client.sync(_).__await__()
 
     @property
-    def client(self):
+    def client(self) -> Client:
         '''The dask client used in this model.'''
         client = _xgb_get_client(self._client)
         return client
@@ -1059,42 +1063,51 @@ class DaskScikitLearnBase(XGBModel):
                    ['estimators', 'model'])
 class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
     # pylint: disable=missing-class-docstring
-    async def _fit_async(self,
-                         X,
-                         y,
-                         sample_weights=None,
-                         base_margin=None,
-                         eval_set=None,
-                         sample_weight_eval_set=None,
-                         verbose=True):
-        dtrain = await DaskDMatrix(
-            client=self.client, data=X, label=y, weight=sample_weights,
-            base_margin=base_margin, missing=self.missing
-        )
+    async def _fit_async(self, X, y, sample_weights, base_margin, eval_set,
+                         sample_weight_eval_set, early_stopping_rounds,
+                         verbose):
+        dtrain = await DaskDMatrix(client=self.client,
+                                   data=X,
+                                   label=y,
+                                   weight=sample_weights,
+                                   base_margin=base_margin,
+                                   missing=self.missing)
         params = self.get_xgb_params()
-        evals = await _evaluation_matrices(self.client,
-                                           eval_set, sample_weight_eval_set,
+        evals = await _evaluation_matrices(self.client, eval_set,
+                                           sample_weight_eval_set,
                                            self.missing)
-        results = await train(client=self.client, params=params, dtrain=dtrain,
+        results = await train(client=self.client,
+                              params=params,
+                              dtrain=dtrain,
                               num_boost_round=self.get_num_boosting_rounds(),
-                              evals=evals, verbose_eval=verbose)
+                              evals=evals,
+                              verbose_eval=verbose,
+                              early_stopping_rounds=early_stopping_rounds)
         self._Booster = results['booster']
         # pylint: disable=attribute-defined-outside-init
         self.evals_result_ = results['history']
         return self
 
     # pylint: disable=missing-docstring
-    def fit(self, X, y,
+    def fit(self,
+            X,
+            y,
             sample_weights=None,
             base_margin=None,
             eval_set=None,
             sample_weight_eval_set=None,
+            early_stopping_rounds=None,
             verbose=True):
         _assert_dask_support()
-        return self.client.sync(
-            self._fit_async, X, y, sample_weights, base_margin,
-            eval_set, sample_weight_eval_set, verbose
-        )
+        return self.client.sync(self._fit_async,
+                                X=X,
+                                y=y,
+                                sample_weights=sample_weights,
+                                base_margin=base_margin,
+                                eval_set=eval_set,
+                                sample_weight_eval_set=sample_weight_eval_set,
+                                early_stopping_rounds=early_stopping_rounds,
+                                verbose=verbose)
 
     async def _predict_async(
             self, data, output_margin=False, base_margin=None):
@@ -1114,20 +1127,17 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
                                 output_margin=output_margin,
                                 base_margin=base_margin)
 
-
 @xgboost_model_doc(
     'Implementation of the scikit-learn API for XGBoost classification.',
-    ['estimators', 'model']
-)
+    ['estimators', 'model'])
 class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
-    async def _fit_async(self, X, y,
-                         sample_weights=None,
-                         base_margin=None,
-                         eval_set=None,
-                         sample_weight_eval_set=None,
-                         verbose=True):
+    async def _fit_async(self, X, y, sample_weights, base_margin, eval_set,
+                         sample_weight_eval_set, early_stopping_rounds,
+                         verbose):
         dtrain = await DaskDMatrix(client=self.client,
-                                   data=X, label=y, weight=sample_weights,
+                                   data=X,
+                                   label=y,
+                                   weight=sample_weights,
                                    base_margin=base_margin,
                                    missing=self.missing)
         params = self.get_xgb_params()
@@ -1145,28 +1155,40 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         else:
             params["objective"] = "binary:logistic"
 
-        evals = await _evaluation_matrices(self.client,
-                                           eval_set, sample_weight_eval_set,
+        evals = await _evaluation_matrices(self.client, eval_set,
+                                           sample_weight_eval_set,
                                            self.missing)
-        results = await train(client=self.client, params=params, dtrain=dtrain,
+        results = await train(client=self.client,
+                              params=params,
+                              dtrain=dtrain,
                               num_boost_round=self.get_num_boosting_rounds(),
-                              evals=evals, verbose_eval=verbose)
+                              evals=evals,
+                              early_stopping_rounds=early_stopping_rounds,
+                              verbose_eval=verbose)
         self._Booster = results['booster']
         # pylint: disable=attribute-defined-outside-init
         self.evals_result_ = results['history']
         return self
 
-    def fit(self, X, y,
+    def fit(self,
+            X,
+            y,
             sample_weights=None,
             base_margin=None,
             eval_set=None,
             sample_weight_eval_set=None,
+            early_stopping_rounds=None,
             verbose=True):
         _assert_dask_support()
-        return self.client.sync(
-            self._fit_async, X, y, sample_weights, base_margin, eval_set,
-            sample_weight_eval_set, verbose
-        )
+        return self.client.sync(self._fit_async,
+                                X=X,
+                                y=y,
+                                sample_weights=sample_weights,
+                                base_margin=base_margin,
+                                eval_set=eval_set,
+                                sample_weight_eval_set=sample_weight_eval_set,
+                                early_stopping_rounds=early_stopping_rounds,
+                                verbose=verbose)
 
     async def _predict_proba_async(self, data, output_margin=False,
                                    base_margin=None):
