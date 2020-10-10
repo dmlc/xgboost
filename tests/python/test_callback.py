@@ -208,7 +208,7 @@ class TestCallbacks(unittest.TestCase):
         m = xgb.DMatrix(X, y)
         with tempfile.TemporaryDirectory() as tmpdir:
             check_point = xgb.callback.TrainingCheckPoint(directory=tmpdir,
-                                                          rounds=1,
+                                                          iterations=1,
                                                           name='model')
             xgb.train({'objective': 'binary:logistic'}, m,
                       num_boost_round=10,

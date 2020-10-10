@@ -284,11 +284,11 @@ class TrainingCallback(ABC):
         '''Run after training is finished.'''
 
     def before_iteration(self, model, epoch, evals_log):
-        '''Run before each iteration.'''
+        '''Run before each iteration.  Return True when training should stop.'''
         return False
 
     def after_iteration(self, model, epoch, evals_log):
-        '''Run after each iteration.'''
+        '''Run after each iteration.  Return True when training should stop.'''
         return False
 
 
@@ -320,8 +320,26 @@ def _aggcv(rlist):
     return results
 
 
+def _allreduce_metric(score):
+    '''Helper function for computing customized metric in distributed
+    environment.  Not strictly correct as many functions don't use mean value
+    as final result.
+
+    '''
+    world = rabit.get_world_size()
+    assert world != 0
+    if world == 1:
+        return score
+    if isinstance(score, tuple):  # has mean and stdv
+        raise ValueError(
+            'xgboost.cv function should not be used in distributed environment.')
+    score = numpy.array([score])
+    score = rabit.allreduce(score, rabit.Op.SUM) / world
+    return score[0]
+
+
 class CallbackContainer:
-    '''A special callback for invoking a list of callbacks.
+    '''A special callback for invoking a list of other callbacks.
 
     .. versionadded:: 1.3.0
 
@@ -330,7 +348,7 @@ class CallbackContainer:
                  metric: Callable = None, is_cv: bool = False):
         self.callbacks = set(callbacks)
         if metric is not None:
-            msg = 'metric must be callable object for monitor.  For ' + \
+            msg = 'metric must be callable object for monitoring.  For ' + \
                 'builtin metrics, passing them in training parameter' + \
                 ' will invoke monitor automatically.'
             assert callable(metric), msg
@@ -426,24 +444,6 @@ class LearningRateScheduler(TrainingCallback):
         model.set_param('learning_rate', self.learning_rates(epoch))
 
 
-def _allreduce_metric(score):
-    '''Helper function for computing customized metric in distributed
-    environment.  Not strictly correct as many functions don't use mean value
-    as final result.
-
-    '''
-    world = rabit.get_world_size()
-    assert world != 0
-    if world == 1:
-        return score
-    if isinstance(score, tuple):  # has mean and stdv
-        raise ValueError(
-            'xgboost.cv function should not be used in distributed environment.')
-    score = numpy.array([score])
-    score = rabit.allreduce(score, rabit.Op.SUM) / world
-    return score[0]
-
-
 # pylint: disable=too-many-instance-attributes
 class EarlyStopping(TrainingCallback):
     ''' Callback function for early stopping
@@ -460,6 +460,8 @@ class EarlyStopping(TrainingCallback):
         Name of dataset that is used for early stopping.
     maximize : bool
         Whether to maximize evaluation metric.  None means auto (discouraged).
+    save_best : bool
+        Placeholder, the feature is not yet supported.
     '''
     def __init__(self,
                  rounds,
@@ -562,6 +564,8 @@ class EvaluationMonitor(TrainingCallback):
         Extra user defined metric.
     rank : int
         Which worker should be used for printing the result.
+    show_stdv : bool
+        Used in cv to show standard deviation.  Users should not specify it.
     '''
     def __init__(self, rank=0, show_stdv=False):
         self.printer_rank = rank
@@ -616,11 +620,11 @@ class TrainingCheckPoint(TrainingCallback):
 
     '''
     def __init__(self, directory: os.PathLike, name: str = 'model',
-                 as_pickle=False, rounds: int = 100):
+                 as_pickle=False, iterations: int = 100):
         self._path = directory
         self._name = name
         self._as_pickle = as_pickle
-        self._iterations = rounds
+        self._iterations = iterations
         self._epoch = 0
         super().__init__()
 

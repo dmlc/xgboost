@@ -98,7 +98,7 @@ def check_point_callback():
         # Use callback class from xgboost.callback
         # Feel free to subclass/customize it to suit your need.
         check_point = xgb.callback.TrainingCheckPoint(directory=tmpdir,
-                                                      rounds=rounds,
+                                                      iterations=rounds,
                                                       name='model')
         xgb.train({'objective': 'binary:logistic'}, m,
                   num_boost_round=10,
