@@ -213,7 +213,8 @@ class TestGPUPredict(unittest.TestCase):
     @settings(deadline=None, max_examples=20)
     def test_shap_interactions(self, num_rounds, dataset, param):
         if dataset.name == 'sparse':
-            pytest.xfail()
+            issue = 'https://github.com/dmlc/xgboost/issues/6074'
+            pytest.xfail(reason=f'GPU shap with sparse is flaky: {issue}')
 
         param.update({"predictor": "gpu_predictor", "gpu_id": 0})
         param = dataset.set_params(param)
