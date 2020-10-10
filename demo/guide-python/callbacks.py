@@ -22,7 +22,6 @@ class Plotting(xgb.callback.TrainingCallback):
         self.fig = plt.figure()
         self.ax = self.fig.add_subplot(111)
         self.rounds = rounds
-        self.has_lines = False
         self.lines = {}
         self.fig.show()
         self.x = np.linspace(0, self.rounds, self.rounds)
