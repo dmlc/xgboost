@@ -22,8 +22,7 @@
 #define API_END()                                                              \
   } catch (dmlc::Error & _except_) {                                           \
     return XGBAPIHandleException(_except_);                                    \
-  }                                                                            \
-  catch (std::exception const &_except_) {                                     \
+  } catch (std::exception const &_except_) {                                   \
     return XGBAPIHandleException(dmlc::Error(_except_.what()));                \
   }                                                                            \
   return 0; // NOLINT(*)
