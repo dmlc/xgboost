@@ -10,6 +10,8 @@
 #include "../helpers.h"
 #include "../../../src/common/io.h"
 
+#include "../../../src/c_api/c_api_error.h"
+
 TEST(CAPI, XGDMatrixCreateFromMatDT) {
   std::vector<int> col0 = {0, -1, 3};
   std::vector<float> col1 = {-4.0f, 2.0f, 0.0f};
@@ -195,5 +197,20 @@ TEST(CAPI, DMatrixSetFeatureName) {
   }
 
   XGDMatrixFree(handle);
+}
+
+int TestExceptionCatching() {
+  API_BEGIN();
+  std::allocator<char> alloc;
+  // bad_alloc
+  alloc.allocate(std::numeric_limits<std::allocator<char>::size_type>::max());
+  API_END();
+}
+
+TEST(CAPI, Exception) {
+  ASSERT_NO_THROW({TestExceptionCatching();});
+  auto error = XGBGetLastError();
+  // Not null
+  ASSERT_TRUE(error);
 }
 }  // namespace xgboost
