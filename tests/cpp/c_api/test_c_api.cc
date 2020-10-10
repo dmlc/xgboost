@@ -209,6 +209,7 @@ int TestExceptionCatching() {
 
 TEST(CAPI, Exception) {
   ASSERT_NO_THROW({TestExceptionCatching();});
+  ASSERT_EQ(TestExceptionCatching(), -1);
   auto error = XGBGetLastError();
   // Not null
   ASSERT_TRUE(error);
