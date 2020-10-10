@@ -186,7 +186,9 @@ Json& JsonObject::operator[](int ind) {
 }
 
 bool JsonObject::operator==(Value const& rhs) const {
-  if (!IsA<JsonObject>(&rhs)) { return false; }
+  if (!IsA<JsonObject>(&rhs)) {
+    return false;
+  }
   return object_ == Cast<JsonObject const>(&rhs)->GetObject();
 }
 
@@ -275,10 +277,14 @@ Json& JsonNumber::operator[](int ind) {
 
 bool JsonNumber::operator==(Value const& rhs) const {
   if (!IsA<JsonNumber>(&rhs)) { return false; }
+  auto r_num = Cast<JsonNumber const>(&rhs)->GetNumber();
   if (std::isinf(number_)) {
-    return std::isinf(Cast<JsonNumber const>(&rhs)->GetNumber());
+    return std::isinf(r_num);
   }
-  return std::abs(number_ - Cast<JsonNumber const>(&rhs)->GetNumber()) < kRtEps;
+  if (std::isnan(number_)) {
+    return std::isnan(r_num);
+  }
+  return number_ - r_num == 0;
 }
 
 Value & JsonNumber::operator=(Value const &rhs) {

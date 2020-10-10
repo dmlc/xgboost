@@ -792,16 +792,17 @@ void RegTree::LoadCategoricalSplit(Json const& in) {
       auto j_begin = get<Integer const>(categories_segments[cnt]);
       auto j_end = get<Integer const>(categories_sizes[cnt]) + j_begin;
       bst_cat_t max_cat{std::numeric_limits<bst_cat_t>::min()};
+      CHECK_NE(j_end - j_begin, 0) << nidx;
 
       for (auto j = j_begin; j < j_end; ++j) {
         auto const &category = get<Integer const>(categories[j]);
         auto cat = common::AsCat(category);
         max_cat = std::max(max_cat, cat);
       }
-      size_t size = max_cat == std::numeric_limits<bst_cat_t>::min()
-                        ? 0
-                        : common::KCatBitField::ComputeStorageSize(max_cat);
-      size = size == 0 ? 1 : size;
+      // Have at least 1 category in split.
+      CHECK_NE(std::numeric_limits<bst_cat_t>::min(), max_cat);
+      size_t n_cats = max_cat + 1;  // cat 0
+      size_t size = common::KCatBitField::ComputeStorageSize(n_cats);
       std::vector<uint32_t> cat_bits_storage(size, 0);
       common::CatBitField cat_bits{common::Span<uint32_t>(cat_bits_storage)};
       for (auto j = j_begin; j < j_end; ++j) {
