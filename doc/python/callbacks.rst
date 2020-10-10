@@ -4,7 +4,7 @@ Callback Functions
 
 This document gives a basic walkthrough of callback function used in XGBoost Python
 package.  In XGBoost 1.3, a new callback interface is designed for Python package, which
-provides the flexiablity of designing various extension for training.  Also, XGBoost has a
+provides the flexiblity of designing various extension for training.  Also, XGBoost has a
 number of pre-defined callbacks for supporting early stopping, checkpoints etc.
 
 #######################
@@ -30,11 +30,11 @@ this callback function directly into XGBoost:
         r[gt] = 1 - label[gt]
         le = predt <= 0.5
         r[le] = label[le]
-        return 'PyError', np.sum(r)
+        return 'CustomErr', np.sum(r)
 
     # Specify which dataset and which metric should be used for early stopping.
     early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
-                                            metric_name='PyError',
+                                            metric_name='CustomErr',
                                             data_name='Train')
 
     booster = xgb.train(
@@ -48,7 +48,7 @@ this callback function directly into XGBoost:
         verbose_eval=False)
 
     dump = booster.get_dump(dump_format='json')
-    assert len(early_stop.stopping_history['Valid']['PyError']) == len(dump)
+    assert len(early_stop.stopping_history['Valid']['CustomErr']) == len(dump)
 
 ##########################
 Defining your own callback

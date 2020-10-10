@@ -12,6 +12,8 @@ from . import callback
 def _configure_deprecated_callbacks(
         verbose_eval, early_stopping_rounds, maximize, start_iteration,
         num_boost_round, feval, evals_result, callbacks, show_stdv, cvfolds):
+    link = 'https://xgboost.readthedocs.io/en/latest/python/callbacks.html'
+    raise DeprecationWarning(f'Old style callback is deprecated.  See: {link}')
     # Most of legacy advanced options becomes callbacks
     if early_stopping_rounds is not None:
         callbacks.append(callback.early_stop(early_stopping_rounds,
@@ -85,7 +87,7 @@ def _train_internal(params, dtrain,
     is_new_callback = _is_new_callback(callbacks)
     if is_new_callback:
         assert all(isinstance(c, callback.TrainingCallback)
-                   for c in callbacks), "You can't mix two styles of callbacks."
+                   for c in callbacks), "You can't mix new and old callback styles."
         if verbose_eval:
             callbacks.append(callback.EvaluationMonitor())
         if early_stopping_rounds:
@@ -478,7 +480,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     is_new_callback = _is_new_callback(callbacks)
     if is_new_callback:
         assert all(isinstance(c, callback.TrainingCallback)
-                   for c in callbacks), "You can't mix two styles of callbacks."
+                   for c in callbacks), "You can't mix new and old callback styles."
         if isinstance(verbose_eval, bool) and verbose_eval:
             callbacks.append(callback.EvaluationMonitor(show_stdv=show_stdv))
         if early_stopping_rounds:

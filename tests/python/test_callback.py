@@ -74,7 +74,7 @@ class TestCallbacks(unittest.TestCase):
         D_valid = xgb.DMatrix(self.X_valid, self.y_valid)
         early_stopping_rounds = 5
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
-                                                metric_name='PyError',
+                                                metric_name='CustomErr',
                                                 data_name='Train')
         # Specify which dataset and which metric should be used for early stopping.
         booster = xgb.train(
@@ -88,7 +88,7 @@ class TestCallbacks(unittest.TestCase):
             verbose_eval=False)
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
-        assert len(early_stop.stopping_history['Train']['PyError']) == len(dump)
+        assert len(early_stop.stopping_history['Train']['CustomErr']) == len(dump)
 
     def test_early_stopping_skl(self):
         from sklearn.datasets import load_breast_cancer

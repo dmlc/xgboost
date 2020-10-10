@@ -97,7 +97,7 @@ def check_point_callback():
     # Check point to a temporary directory for demo
     with tempfile.TemporaryDirectory() as tmpdir:
         # Use callback class from xgboost.callback
-        # Feel free to subclass/customize it to suite your need.
+        # Feel free to subclass/customize it to suit your need.
         check_point = xgb.callback.TrainingCheckPoint(directory=tmpdir,
                                                       rounds=rounds,
                                                       name='model')
