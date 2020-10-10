@@ -131,7 +131,7 @@ TEST(SparsePageDMatrix, Empty) {
 
   {
     data::CSRAdapter csr_adapter(row_ptr.data(), feature_idx.data(),
-                                 data.data(), 0, 0, 0);
+                                 data.data(), 0, 0);
     data::SparsePageDMatrix dmat(
         &csr_adapter, std::numeric_limits<float>::quiet_NaN(), 1, tmp_file);
     EXPECT_EQ(dmat.Info().num_nonzero_, 0);
@@ -174,7 +174,7 @@ TEST(SparsePageDMatrix, MissingData) {
   std::vector<size_t> row_ptr = {0, 2, 3};
 
   data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2,
-                           3, 2);
+                           2);
   data::SparsePageDMatrix dmat(
       &adapter, std::numeric_limits<float>::quiet_NaN(), 1, tmp_file);
   EXPECT_EQ(dmat.Info().num_nonzero_, 2);
@@ -192,7 +192,7 @@ TEST(SparsePageDMatrix, EmptyRow) {
   std::vector<size_t> row_ptr = {0, 2, 2};
 
   data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2,
-                           2, 2);
+                           2);
   data::SparsePageDMatrix dmat(
       &adapter, std::numeric_limits<float>::quiet_NaN(), 1, tmp_file);
   EXPECT_EQ(dmat.Info().num_nonzero_, 2);

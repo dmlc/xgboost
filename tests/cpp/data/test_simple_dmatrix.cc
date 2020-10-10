@@ -72,7 +72,7 @@ TEST(SimpleDMatrix, Empty) {
   std::vector<size_t> row_ptr = {};
 
   data::CSRAdapter csr_adapter(row_ptr.data(), feature_idx.data(), data.data(),
-                               0, 0, 0);
+                               0, 0);
   std::unique_ptr<data::SimpleDMatrix> dmat(new data::SimpleDMatrix(
       &csr_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
   CHECK_EQ(dmat->Info().num_nonzero_, 0);
@@ -109,7 +109,7 @@ TEST(SimpleDMatrix, MissingData) {
   std::vector<size_t> row_ptr = {0, 2, 3};
 
   data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2,
-                           3, 2);
+                           2);
   std::unique_ptr<data::SimpleDMatrix> dmat{new data::SimpleDMatrix{
       &adapter, std::numeric_limits<float>::quiet_NaN(), 1}};
   CHECK_EQ(dmat->Info().num_nonzero_, 2);
@@ -123,7 +123,7 @@ TEST(SimpleDMatrix, EmptyRow) {
   std::vector<size_t> row_ptr = {0, 2, 2};
 
   data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2,
-                           2, 2);
+                           2);
   data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
                            1);
   CHECK_EQ(dmat.Info().num_nonzero_, 2);

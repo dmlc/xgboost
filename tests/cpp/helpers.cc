@@ -332,7 +332,7 @@ RandomDataGenerator::GenerateDMatrix(bool with_label, bool float_label,
   HostDeviceVector<bst_feature_t> columns;
   this->GenerateCSR(&data, &rptrs, &columns);
   data::CSRAdapter adapter(rptrs.HostPointer(), columns.HostPointer(),
-                           data.HostPointer(), rows_, data.Size(), cols_);
+                           data.HostPointer(), rows_, cols_);
   std::shared_ptr<DMatrix> out{
       DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
 

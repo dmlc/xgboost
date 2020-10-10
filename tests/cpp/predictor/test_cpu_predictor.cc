@@ -168,7 +168,7 @@ TEST(CpuPredictor, InplacePredict) {
     gen.GenerateCSR(&data, &rptrs, &columns);
     std::shared_ptr<data::CSRAdapter> x{new data::CSRAdapter(
         rptrs.HostPointer(), columns.HostPointer(), data.HostPointer(), kRows,
-        data.Size(), kCols)};
+        kCols)};
     TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
   }
 }
