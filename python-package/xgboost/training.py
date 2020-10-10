@@ -2,6 +2,7 @@
 # pylint: disable=too-many-locals, too-many-arguments, invalid-name
 # pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
+import warnings
 import numpy as np
 from .core import Booster, XGBoostError
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
@@ -13,7 +14,7 @@ def _configure_deprecated_callbacks(
         verbose_eval, early_stopping_rounds, maximize, start_iteration,
         num_boost_round, feval, evals_result, callbacks, show_stdv, cvfolds):
     link = 'https://xgboost.readthedocs.io/en/latest/python/callbacks.html'
-    raise DeprecationWarning(f'Old style callback is deprecated.  See: {link}')
+    warnings.warn(f'Old style callback is deprecated.  See: {link}', DeprecationWarning)
     # Most of legacy advanced options becomes callbacks
     if early_stopping_rounds is not None:
         callbacks.append(callback.early_stop(early_stopping_rounds,

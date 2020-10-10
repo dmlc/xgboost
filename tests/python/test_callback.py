@@ -191,15 +191,18 @@ class TestCallbacks(unittest.TestCase):
             assert eval_errors_3[i] != eval_errors_2[i]
 
     def test_eta_decay_hist(self):
-        # self.run_eta_decay('hist', True)
+        with pytest.deprecated_call():
+            self.run_eta_decay('hist', True)
         self.run_eta_decay('hist', False)
 
     def test_eta_decay_approx(self):
-        # self.run_eta_decay('approx', True)
+        with pytest.deprecated_call():
+            self.run_eta_decay('approx', True)
         self.run_eta_decay('approx', False)
 
     def test_eta_decay_exact(self):
-        # self.run_eta_decay('exact', True)
+        with pytest.deprecated_call():
+            self.run_eta_decay('exact', True)
         self.run_eta_decay('exact', False)
 
     def test_check_point(self):
@@ -219,7 +222,7 @@ class TestCallbacks(unittest.TestCase):
                     os.path.join(tmpdir, 'model_' + str(i) + '.json'))
 
             check_point = xgb.callback.TrainingCheckPoint(directory=tmpdir,
-                                                          rounds=1,
+                                                          iterations=1,
                                                           as_pickle=True,
                                                           name='model')
             xgb.train({'objective': 'binary:logistic'}, m,
