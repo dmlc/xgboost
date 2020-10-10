@@ -109,7 +109,7 @@ def check_point_callback():
         # This version of checkpoint saves everything including parameters and
         # model.  See: doc/tutorials/saving_model.rst
         check_point = xgb.callback.TrainingCheckPoint(directory=tmpdir,
-                                                      rounds=rounds,
+                                                      iterations=rounds,
                                                       as_pickle=True,
                                                       name='model')
         xgb.train({'objective': 'binary:logistic'}, m,
