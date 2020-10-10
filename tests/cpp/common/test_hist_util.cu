@@ -314,10 +314,9 @@ TEST(HistUtil, AdapterDeviceSketchMemory) {
   ConsoleLogger::Configure({{"verbosity", "3"}});
   auto cuts = MakeUnweightedCutsForTest(adapter, num_bins, std::numeric_limits<float>::quiet_NaN());
   ConsoleLogger::Configure({{"verbosity", "0"}});
-  size_t bytes_constant = 1000;
   size_t bytes_required = detail::RequiredMemory(
       num_rows, num_columns, num_rows * num_columns, num_bins, false);
-  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required + bytes_constant);
+  EXPECT_LE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 1.05);
   EXPECT_GE(dh::GlobalMemoryLogger().PeakMemory(), bytes_required * 0.95);
 }
 

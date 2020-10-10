@@ -66,6 +66,9 @@ class DMatrixProxy : public DMatrix {
     } else {
       this->FromCudaArray(interface_str);
     }
+    if (this->info_.num_row_ == 0) {
+      this->device_ = GenericParameter::kCpuId;
+    }
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 

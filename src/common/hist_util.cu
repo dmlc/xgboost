@@ -269,7 +269,7 @@ void ProcessWeightedBatch(int device, const SparsePage& page,
                              &cuts_ptr, &column_sizes_scan);
 
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
-  auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
+  auto d_cuts_ptr = cuts_ptr.DeviceSpan();
 
   // Extract cuts
   sketch_container->Push(dh::ToSpan(sorted_entries),
