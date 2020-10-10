@@ -247,7 +247,7 @@ def eval_error_metric(predt, dtrain: xgb.DMatrix):
     r[gt] = 1 - label[gt]
     le = predt <= 0.5
     r[le] = label[le]
-    return 'PyError', np.sum(r)
+    return 'CustomErr', np.sum(r)
 
 
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
