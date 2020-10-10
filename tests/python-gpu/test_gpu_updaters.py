@@ -81,7 +81,7 @@ class TestGPUUpdaters:
             rtol=1e-3)
         assert tm.non_increasing(by_builtin_results['Train']['rmse'])
 
-    @given(strategies.integers(10, 400), strategies.integers(5, 10),
+    @given(strategies.integers(10, 400), strategies.integers(3, 8),
            strategies.integers(1, 5), strategies.integers(4, 7))
     @settings(deadline=None)
     @pytest.mark.skipif(**tm.no_pandas())
