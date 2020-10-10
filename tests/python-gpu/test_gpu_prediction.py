@@ -213,7 +213,7 @@ class TestGPUPredict(unittest.TestCase):
     @settings(deadline=None, max_examples=20)
     def test_shap_interactions(self, num_rounds, dataset, param):
         if dataset.name == 'sparse':
-            return
+            pytest.xfail()
 
         param.update({"predictor": "gpu_predictor", "gpu_id": 0})
         param = dataset.set_params(param)
@@ -223,5 +223,6 @@ class TestGPUPredict(unittest.TestCase):
         shap = bst.predict(test_dmat, pred_interactions=True)
         margin = bst.predict(test_dmat, output_margin=True)
         assume(len(dataset.y) > 0)
-        assert np.allclose(np.sum(shap, axis=(len(shap.shape) - 1, len(shap.shape) - 2)), margin,
+        assert np.allclose(np.sum(shap, axis=(len(shap.shape) - 1, len(shap.shape) - 2)),
+                           margin,
                            1e-3, 1e-3)
