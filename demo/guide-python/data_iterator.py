@@ -1,5 +1,7 @@
 '''A demo for defining data iterator.
 
+    .. versionadded:: 1.2.0
+
 The demo that defines a customized iterator for passing batches of data into
 `xgboost.DeviceQuantileDMatrix` and use this `DeviceQuantileDMatrix` for
 training.  The feature is used primarily designed to reduce the required GPU

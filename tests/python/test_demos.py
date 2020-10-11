@@ -119,6 +119,12 @@ def test_aft_demo():
     os.remove('aft_model.json')
 
 
+def test_callbacks_demo():
+    script = os.path.join(PYTHON_DEMO_DIR, 'callbacks.py')
+    cmd = ['python', script, '--plot=0']
+    subprocess.check_call(cmd)
+
+
 # gpu_acceleration is not tested due to covertype dataset is being too huge.
 # gamma regression is not tested as it requires running a R script first.
 # aft viz is not tested due to ploting is not controled

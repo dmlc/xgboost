@@ -5,12 +5,12 @@ import numpy as np
 import xgboost as xgb
 sys.path.append("tests/python")
 # Don't import the test class, otherwise they will run twice.
-import test_basic_models as test_bm  # noqa
+import test_callback as test_cb  # noqa
 rng = np.random.RandomState(1994)
 
 
 class TestGPUBasicModels(unittest.TestCase):
-    cputest = test_bm.TestModels()
+    cputest = test_cb.TestCallbacks()
 
     def run_cls(self, X, y, deterministic):
         cls = xgb.XGBClassifier(tree_method='gpu_hist',
@@ -36,7 +36,8 @@ class TestGPUBasicModels(unittest.TestCase):
         return hash(model_0), hash(model_1)
 
     def test_eta_decay_gpu_hist(self):
-        self.cputest.run_eta_decay('gpu_hist')
+        self.cputest.run_eta_decay('gpu_hist', True)
+        self.cputest.run_eta_decay('gpu_hist', False)
 
     def test_deterministic_gpu_hist(self):
         kRows = 1000
