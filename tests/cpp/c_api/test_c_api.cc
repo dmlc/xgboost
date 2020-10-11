@@ -201,9 +201,7 @@ TEST(CAPI, DMatrixSetFeatureName) {
 
 int TestExceptionCatching() {
   API_BEGIN();
-  std::allocator<char> alloc;
-  // bad_alloc
-  alloc.allocate(std::numeric_limits<std::allocator<char>::size_type>::max());
+  throw std::bad_alloc();
   API_END();
 }
 
