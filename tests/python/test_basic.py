@@ -312,7 +312,7 @@ class TestBasicPathLike(unittest.TestCase):
         # load again using load_model
         bst3 = xgb.Booster()
         bst3.load_model(save_path)
-        dump3= bst3.get_dump()
+        dump3 = bst3.get_dump()
         dump_assertions(dump3)
 
         # remove file

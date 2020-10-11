@@ -4,12 +4,13 @@
 import ctypes
 import json
 import warnings
+import os
 
 import numpy as np
 
 from .core import c_array, _LIB, _check_call, c_str
 from .core import DataIter, DeviceQuantileDMatrix, DMatrix
-from .compat import lazy_isinstance, os_fspath, os_PathLike
+from .compat import lazy_isinstance, os_fspath
 
 c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
 
@@ -478,7 +479,7 @@ def _from_dlpack(data, missing, nthread, feature_names, feature_types):
 
 
 def _is_uri(data):
-    return isinstance(data, (str, os_PathLike))
+    return isinstance(data, (str, os.PathLike))
 
 
 def _from_uri(data, missing, feature_names, feature_types):

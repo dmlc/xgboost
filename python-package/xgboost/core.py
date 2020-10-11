@@ -16,10 +16,8 @@ import warnings
 import numpy as np
 import scipy.sparse
 
-from .compat import (
-    STRING_TYPES, DataFrame, py_str,
-    PANDAS_INSTALLED,
-    os_fspath, os_PathLike, lazy_isinstance)
+from .compat import (STRING_TYPES, DataFrame, py_str, PANDAS_INSTALLED,
+                     lazy_isinstance)
 from .libpath import find_lib_path
 
 # c_bst_ulong corresponds to bst_ulong defined in xgboost/c_api.h
@@ -590,7 +588,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             If set, the output is suppressed.
         """
         _check_call(_LIB.XGDMatrixSaveBinary(self.handle,
-                                             c_str(os_fspath(fname)),
+                                             c_str(os.fspath(fname)),
                                              ctypes.c_int(silent)))
 
     def set_label(self, label):
@@ -982,7 +980,7 @@ class Booster(object):
             _check_call(
                 _LIB.XGBoosterUnserializeFromBuffer(self.handle, ptr, length))
             self.__dict__.update(state)
-        elif isinstance(model_file, (STRING_TYPES, os_PathLike, bytearray)):
+        elif isinstance(model_file, (STRING_TYPES, os.PathLike, bytearray)):
             self.load_model(model_file)
         elif model_file is None:
             pass
@@ -1582,11 +1580,11 @@ class Booster(object):
             Output file name
 
         """
-        if isinstance(fname, (STRING_TYPES, os_PathLike)):  # assume file name
+        if isinstance(fname, (STRING_TYPES, os.PathLike)):  # assume file name
             _check_call(_LIB.XGBoosterSaveModel(
-                self.handle, c_str(os_fspath(fname))))
+                self.handle, c_str(os.fspath(fname))))
         else:
-            raise TypeError("fname must be a string or os_PathLike")
+            raise TypeError("fname must be a string or os PathLike")
 
     def save_raw(self):
         """Save the model to a in memory buffer representation instead of file.
@@ -1620,11 +1618,11 @@ class Booster(object):
             Input file name or memory buffer(see also save_raw)
 
         """
-        if isinstance(fname, (STRING_TYPES, os_PathLike)):
+        if isinstance(fname, (STRING_TYPES, os.PathLike)):
             # assume file name, cannot use os.path.exist to check, file can be
             # from URL.
             _check_call(_LIB.XGBoosterLoadModel(
-                self.handle, c_str(os_fspath(fname))))
+                self.handle, c_str(os.fspath(fname))))
         elif isinstance(fname, bytearray):
             buf = fname
             length = c_bst_ulong(len(buf))
@@ -1650,8 +1648,8 @@ class Booster(object):
         dump_format : string, optional
             Format of model dump file. Can be 'text' or 'json'.
         """
-        if isinstance(fout, (STRING_TYPES, os_PathLike)):
-            fout = open(os_fspath(fout), 'w')
+        if isinstance(fout, (STRING_TYPES, os.PathLike)):
+            fout = open(os.fspath(fout), 'w')
             need_close = True
         else:
             need_close = False
@@ -1685,7 +1683,7 @@ class Booster(object):
             Format of model dump. Can be 'text', 'json' or 'dot'.
 
         """
-        fmap = os_fspath(fmap)
+        fmap = os.fspath(fmap)
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
         if self.feature_names is not None and fmap == '':
@@ -1765,7 +1763,7 @@ class Booster(object):
         importance_type: str, default 'weight'
             One of the importance types defined above.
         """
-        fmap = os_fspath(fmap)
+        fmap = os.fspath(fmap)
         if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
             raise ValueError('Feature importance is not defined for Booster type {}'
                              .format(self.booster))
@@ -1858,7 +1856,7 @@ class Booster(object):
            The name of feature map file.
         """
         # pylint: disable=too-many-locals
-        fmap = os_fspath(fmap)
+        fmap = os.fspath(fmap)
         if not PANDAS_INSTALLED:
             raise Exception(('pandas must be available to use this method.'
                              'Install pandas before calling again.'))

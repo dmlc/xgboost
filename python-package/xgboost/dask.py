@@ -24,8 +24,6 @@ import numpy
 from . import rabit
 
 from .compat import DASK_INSTALLED
-from .compat import distributed_get_worker, distributed_wait, distributed_comm
-from .compat import da, dd, delayed, get_client
 from .compat import sparse, scipy_sparse
 from .compat import PANDAS_INSTALLED, DataFrame, Series, pandas_concat
 from .compat import CUDF_concat
@@ -38,9 +36,22 @@ from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase
 from .sklearn import xgboost_model_doc
 
 try:
-    from distributed import Client
+    from distributed import Client, get_client
+    from dask.distributed import comm as distributed_comm
+    from dask.distributed import wait as distributed_wait
+    from distributed import get_worker as distributed_get_worker
+    from dask import dataframe as dd
+    from dask import array as da
+    from dask import delayed
 except ImportError:
     Client = None
+    get_client = None
+    distributed_comm = None
+    distributed_wait = None
+    distributed_get_worker = None
+    dd = None
+    da = None
+    delayed = None
 
 # Current status is considered as initial support, many features are
 # not properly supported yet.
@@ -83,6 +94,9 @@ def _assert_dask_support():
     if not DASK_INSTALLED:
         raise ImportError(
             'Dask needs to be installed in order to use this module')
+    if not distributed_wait:
+        raise ImportError(
+            'distributed needs to be installed in order to use this module.')
     if platform.system() == 'Windows':
         msg = 'Windows is not officially supported for dask/xgboost,'
         msg += ' contribution are welcomed.'
