@@ -7,7 +7,7 @@ name: XGBoost-CI
 on: [push, pull_request]
 
 env:
-  R_PACKAGES: c('XML', 'igraph', 'data.table', 'magrittr', 'stringi', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm', 'devtools')
+  R_PACKAGES: c('XML', 'igraph', 'data.table', 'magrittr', 'stringi', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm', 'devtools', 'float')
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -310,3 +310,8 @@ jobs:
     - name: Test R
       run: |
         python tests/ci_build/test_r_package.py --compiler="${{ matrix.config.compiler }}" --build-tool="${{ matrix.config.build }}"
+
+    - name: Check R
+      run: |
+        make Rbuild
+        R CMD check --as-cran xgboost*.tar.gz --no-manual
