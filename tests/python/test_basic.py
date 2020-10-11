@@ -248,7 +248,7 @@ class TestBasic(unittest.TestCase):
 
 
 class TestBasicPathLike(unittest.TestCase):
-    """Unit tests using the os_fspath and pathlib.Path for file interaction."""
+    """Unit tests using pathlib.Path for file interaction."""
 
     def test_DMatrix_init_from_path(self):
         """Initialization from the data path."""
@@ -317,19 +317,3 @@ class TestBasicPathLike(unittest.TestCase):
 
         # remove file
         Path.unlink(save_path)
-
-    def test_os_fspath(self):
-        """Core properties of the os_fspath function."""
-        # strings are returned unmodified
-        assert '' == xgb.compat.os_fspath('')
-        assert '/this/path' == xgb.compat.os_fspath('/this/path')
-
-        # bytes are returned unmodified
-        assert b'/this/path' == xgb.compat.os_fspath(b'/this/path')
-
-        # path objects are returned as string representation
-        path_test = Path('this') / 'path'
-        assert str(path_test) == xgb.compat.os_fspath(path_test)
-
-        # invalid values raise Type error
-        self.assertRaises(TypeError, xgb.compat.os_fspath, 123)
