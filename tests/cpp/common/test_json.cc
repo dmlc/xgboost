@@ -406,7 +406,7 @@ TEST(Json, LoadDump) {
   Json origin {Json::Load(StringView{ori_buffer.c_str(), ori_buffer.size()})};
 
   dmlc::TemporaryDirectory tempdir;
-  auto const& path = tempdir.path + "test_model_dump";
+  auto const& path = tempdir.path_ + "test_model_dump";
 
   std::string out;
   Json::Dump(origin, &out);

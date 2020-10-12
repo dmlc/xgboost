@@ -84,7 +84,7 @@ TEST(CpuPredictor, Basic) {
 
 TEST(CpuPredictor, ExternalMemory) {
   dmlc::TemporaryDirectory tmpdir;
-  std::string filename = tmpdir.path + "/big.libsvm";
+  std::string filename = tmpdir.path_ + "/big.libsvm";
   std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64, filename);
   auto lparam = CreateEmptyGenericParam(GPUIDX);
 

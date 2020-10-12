@@ -13,7 +13,7 @@ namespace xgboost {
 // We want to preserve backwards compatibility
 TEST(Tree, Load) {
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/tree.model";
+  const std::string tmp_file = tempdir.path_ + "/tree.model";
   std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(tmp_file.c_str(), "w"));
 
   // Write params

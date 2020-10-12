@@ -12,7 +12,7 @@ using namespace xgboost;  // NOLINT
 
 TEST(SimpleDMatrix, MetaInfo) {
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  const std::string tmp_file = tempdir.path_ + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
   xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file, true, false);
 
@@ -27,7 +27,7 @@ TEST(SimpleDMatrix, MetaInfo) {
 
 TEST(SimpleDMatrix, RowAccess) {
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  const std::string tmp_file = tempdir.path_ + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
   xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file, false, false);
 
@@ -49,7 +49,7 @@ TEST(SimpleDMatrix, RowAccess) {
 
 TEST(SimpleDMatrix, ColAccessWithoutBatches) {
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  const std::string tmp_file = tempdir.path_ + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
   xgboost::DMatrix *dmat = xgboost::DMatrix::Load(tmp_file, true, false);
 
@@ -286,12 +286,12 @@ TEST(SimpleDMatrix, Slice) {
 
 TEST(SimpleDMatrix, SaveLoadBinary) {
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  const std::string tmp_file = tempdir.path_ + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
   xgboost::DMatrix * dmat = xgboost::DMatrix::Load(tmp_file, true, false);
   data::SimpleDMatrix *simple_dmat = dynamic_cast<data::SimpleDMatrix*>(dmat);
 
-  const std::string tmp_binfile = tempdir.path + "/csr_source.binary";
+  const std::string tmp_binfile = tempdir.path_ + "/csr_source.binary";
   simple_dmat->SaveToLocalFile(tmp_binfile);
   xgboost::DMatrix * dmat_read = xgboost::DMatrix::Load(tmp_binfile, true, false);
 

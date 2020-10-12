@@ -14,7 +14,7 @@ namespace common {
 TEST(ConfigParser, NormalizeConfigEOL) {
   // Test whether strings with NL are loaded correctly.
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/my.conf";
+  const std::string tmp_file = tempdir.path_ + "/my.conf";
   /* Old Mac OS uses \r for line ending */
   {
     std::string const input = "foo\rbar\rdog\r";
@@ -64,7 +64,7 @@ TEST(ConfigParser, TrimWhitespace) {
 TEST(ConfigParser, ParseKeyValuePair) {
   // Create dummy configuration file
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/my.conf";
+  const std::string tmp_file = tempdir.path_ + "/my.conf";
   {
     std::ofstream fp(tmp_file);
     fp << "";

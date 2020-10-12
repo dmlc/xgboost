@@ -22,7 +22,7 @@ TEST(Version, Basic) {
   ASSERT_TRUE(Version::Same(triplet));
 
   dmlc::TemporaryDirectory tempdir;
-  const std::string fname = tempdir.path + "/version";
+  const std::string fname = tempdir.path_ + "/version";
 
   {
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));

@@ -10,7 +10,7 @@ using namespace xgboost;  // NOLINT
 
 TEST(SparsePageDMatrix, MetaInfo) {
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  const std::string tmp_file = tempdir.path_ + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
   xgboost::DMatrix *dmat = xgboost::DMatrix::Load(
       tmp_file + "#" + tmp_file + ".cache", false, false);
@@ -28,7 +28,7 @@ TEST(SparsePageDMatrix, MetaInfo) {
 
 TEST(SparsePageDMatrix, RowAccess) {
   dmlc::TemporaryDirectory tmpdir;
-  std::string filename = tmpdir.path + "/big.libsvm";
+  std::string filename = tmpdir.path_ + "/big.libsvm";
   std::unique_ptr<xgboost::DMatrix> dmat =
       xgboost::CreateSparsePageDMatrix(12, 64, filename);
 
@@ -42,7 +42,7 @@ TEST(SparsePageDMatrix, RowAccess) {
 
 TEST(SparsePageDMatrix, ColAccess) {
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  const std::string tmp_file = tempdir.path_ + "/simple.libsvm";
   CreateSimpleTestData(tmp_file);
   xgboost::DMatrix *dmat =
       xgboost::DMatrix::Load(tmp_file + "#" + tmp_file + ".cache", true, false);
@@ -76,7 +76,7 @@ TEST(SparsePageDMatrix, ColAccess) {
 
 TEST(SparsePageDMatrix, ExistingCacheFile) {
   dmlc::TemporaryDirectory tmpdir;
-  std::string filename = tmpdir.path + "/big.libsvm";
+  std::string filename = tmpdir.path_ + "/big.libsvm";
   std::unique_ptr<xgboost::DMatrix> dmat =
       xgboost::CreateSparsePageDMatrix(12, 64, filename);
   EXPECT_ANY_THROW({
@@ -88,7 +88,7 @@ TEST(SparsePageDMatrix, ExistingCacheFile) {
 #if defined(_OPENMP)
 TEST(SparsePageDMatrix, ThreadSafetyException) {
   dmlc::TemporaryDirectory tmpdir;
-  std::string filename = tmpdir.path + "/test";
+  std::string filename = tmpdir.path_ + "/test";
   std::unique_ptr<xgboost::DMatrix> dmat =
       xgboost::CreateSparsePageDMatrix(12, 64, filename);
 
@@ -110,7 +110,7 @@ TEST(SparsePageDMatrix, ThreadSafetyException) {
 // Multi-batches access
 TEST(SparsePageDMatrix, ColAccessBatches) {
   dmlc::TemporaryDirectory tmpdir;
-  std::string filename = tmpdir.path + "/big.libsvm";
+  std::string filename = tmpdir.path_ + "/big.libsvm";
   // Create multiple sparse pages
   std::unique_ptr<xgboost::DMatrix> dmat{
       xgboost::CreateSparsePageDMatrix(1024, 1024, filename)};
@@ -124,7 +124,7 @@ TEST(SparsePageDMatrix, ColAccessBatches) {
 
 TEST(SparsePageDMatrix, Empty) {
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  const std::string tmp_file = tempdir.path_ + "/simple.libsvm";
   std::vector<float> data{};
   std::vector<unsigned> feature_idx = {};
   std::vector<size_t> row_ptr = {};
@@ -168,7 +168,7 @@ TEST(SparsePageDMatrix, Empty) {
 
 TEST(SparsePageDMatrix, MissingData) {
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  const std::string tmp_file = tempdir.path_ + "/simple.libsvm";
   std::vector<float> data{0.0, std::nanf(""), 1.0};
   std::vector<unsigned> feature_idx = {0, 1, 0};
   std::vector<size_t> row_ptr = {0, 2, 3};
@@ -179,14 +179,14 @@ TEST(SparsePageDMatrix, MissingData) {
       &adapter, std::numeric_limits<float>::quiet_NaN(), 1, tmp_file);
   EXPECT_EQ(dmat.Info().num_nonzero_, 2);
 
-  const std::string tmp_file2 = tempdir.path + "/simple2.libsvm";
+  const std::string tmp_file2 = tempdir.path_ + "/simple2.libsvm";
   data::SparsePageDMatrix dmat2(&adapter, 1.0, 1, tmp_file2);
   EXPECT_EQ(dmat2.Info().num_nonzero_, 1);
 }
 
 TEST(SparsePageDMatrix, EmptyRow) {
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  const std::string tmp_file = tempdir.path_ + "/simple.libsvm";
   std::vector<float> data{0.0, 1.0};
   std::vector<unsigned> feature_idx = {0, 1};
   std::vector<size_t> row_ptr = {0, 2, 2};
@@ -202,7 +202,7 @@ TEST(SparsePageDMatrix, EmptyRow) {
 
 TEST(SparsePageDMatrix, FromDense) {
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  const std::string tmp_file = tempdir.path_ + "/simple.libsvm";
   int m = 3;
   int n = 2;
   std::vector<float> data = {1, 2, 3, 4, 5, 6};
@@ -226,7 +226,7 @@ TEST(SparsePageDMatrix, FromDense) {
 
 TEST(SparsePageDMatrix, FromCSC) {
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  const std::string tmp_file = tempdir.path_ + "/simple.libsvm";
   std::vector<float> data = {1, 3, 2, 4, 5};
   std::vector<unsigned> row_idx = {0, 1, 0, 1, 2};
   std::vector<size_t> col_ptr = {0, 2, 5};
@@ -262,7 +262,7 @@ TEST(SparsePageDMatrix, FromFile) {
       dmlc::Parser<uint32_t>::Create(filename.c_str(), 0, 1, "auto"));
   data::FileAdapter adapter(parser.get());
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/simple.libsvm";
+  const std::string tmp_file = tempdir.path_ + "/simple.libsvm";
 
   data::SparsePageDMatrix dmat(
       &adapter, std::numeric_limits<float>::quiet_NaN(), -1, tmp_file, 1);

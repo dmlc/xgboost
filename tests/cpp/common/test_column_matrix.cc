@@ -129,7 +129,7 @@ TEST(DenseColumnWithMissing, Test) {
 
 void TestGHistIndexMatrixCreation(size_t nthreads) {
   dmlc::TemporaryDirectory tmpdir;
-  std::string filename = tmpdir.path + "/big.libsvm";
+  std::string filename = tmpdir.path_ + "/big.libsvm";
   /* This should create multiple sparse pages */
   std::unique_ptr<DMatrix> dmat{ CreateSparsePageDMatrix(1024, 1024, filename) };
   omp_set_num_threads(nthreads);

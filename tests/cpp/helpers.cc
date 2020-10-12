@@ -391,7 +391,7 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(
   }
 
   // Create the svm file in a temp dir
-  const std::string tmp_file = tempdir.path + "/big.libsvm";
+  const std::string tmp_file = tempdir.path_ + "/big.libsvm";
 
   std::ofstream fo(tmp_file.c_str());
   size_t cols_per_row = ((std::max(n_rows, n_cols) - 1) / std::min(n_rows, n_cols)) + 1;

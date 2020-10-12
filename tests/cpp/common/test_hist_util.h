@@ -71,7 +71,7 @@ inline std::shared_ptr<DMatrix> GetExternalMemoryDMatrixFromData(
     const std::vector<float>& x, int num_rows, int num_columns,
     size_t page_size, const dmlc::TemporaryDirectory& tempdir) {
   // Create the svm file in a temp dir
-  const std::string tmp_file = tempdir.path + "/temp.libsvm";
+  const std::string tmp_file = tempdir.path_ + "/temp.libsvm";
   std::ofstream fo(tmp_file.c_str());
   for (auto i = 0; i < num_rows; i++) {
     std::stringstream row_data;

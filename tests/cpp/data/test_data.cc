@@ -63,7 +63,7 @@ TEST(SparsePage, PushCSCAfterTranspose) {
   return;
 #endif
   dmlc::TemporaryDirectory tmpdir;
-  std::string filename = tmpdir.path + "/big.libsvm";
+  std::string filename = tmpdir.path_ + "/big.libsvm";
   const int n_entries = 9;
   std::unique_ptr<DMatrix> dmat =
       CreateSparsePageDMatrix(n_entries, 64UL, filename);
@@ -98,7 +98,7 @@ TEST(DMatrix, Uri) {
   }
 
   dmlc::TemporaryDirectory tmpdir;
-  std::string path = tmpdir.path + "/small.csv";
+  std::string path = tmpdir.path_ + "/small.csv";
 
   std::ofstream fout(path);
   size_t i = 0;

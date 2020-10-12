@@ -49,7 +49,7 @@ TEST(IO, LoadSequentialFile) {
   EXPECT_THROW(LoadSequentialFile("non-exist"), dmlc::Error);
 
   dmlc::TemporaryDirectory tempdir;
-  std::ofstream fout(tempdir.path + "test_file");
+  std::ofstream fout(tempdir.path_ + "test_file");
   std::string content;
 
   // Generate a JSON file.
@@ -68,7 +68,7 @@ TEST(IO, LoadSequentialFile) {
   std::string str;
   Json::Dump(out, &str);
 
-  std::string tmpfile = tempdir.path + "/model.json";
+  std::string tmpfile = tempdir.path_ + "/model.json";
   {
     std::unique_ptr<dmlc::Stream> fo(
         dmlc::Stream::Create(tmpfile.c_str(), "w"));

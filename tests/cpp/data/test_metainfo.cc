@@ -98,7 +98,7 @@ TEST(MetaInfo, SaveLoadBinary) {
   info.SetFeatureInfo(u8"feature_name", c_names.data(), c_names.size());;
 
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/metainfo.binary";
+  const std::string tmp_file = tempdir.path_ + "/metainfo.binary";
   {
     std::unique_ptr<dmlc::Stream> fs {
       dmlc::Stream::Create(tmp_file.c_str(), "w")
@@ -145,7 +145,7 @@ TEST(MetaInfo, SaveLoadBinary) {
 
 TEST(MetaInfo, LoadQid) {
   dmlc::TemporaryDirectory tempdir;
-  std::string tmp_file = tempdir.path + "/qid_test.libsvm";
+  std::string tmp_file = tempdir.path_ + "/qid_test.libsvm";
   {
     std::unique_ptr<dmlc::Stream> fs(
       dmlc::Stream::Create(tmp_file.c_str(), "w"));

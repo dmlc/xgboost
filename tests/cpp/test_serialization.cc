@@ -65,7 +65,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
   int32_t constexpr kIters = 2;
 
   dmlc::TemporaryDirectory tempdir;
-  std::string const fname = tempdir.path + "/model";
+  std::string const fname = tempdir.path_ + "/model";
 
   std::vector<std::string> dumped_0;
   std::string model_at_kiter;

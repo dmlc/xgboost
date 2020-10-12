@@ -87,7 +87,7 @@ TEST(GBTree, ChoosePredictor) {
   }
   ASSERT_TRUE(data.HostCanWrite());
   dmlc::TemporaryDirectory tempdir;
-  const std::string fname = tempdir.path + "/model_param.bst";
+  const std::string fname = tempdir.path_ + "/model_param.bst";
 
   {
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));

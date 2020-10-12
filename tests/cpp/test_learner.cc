@@ -90,7 +90,7 @@ TEST(Learner, CheckGroup) {
 TEST(Learner, SLOW_CheckMultiBatch) {  // NOLINT
   // Create sufficiently large data to make two row pages
   dmlc::TemporaryDirectory tempdir;
-  const std::string tmp_file = tempdir.path + "/big.libsvm";
+  const std::string tmp_file = tempdir.path_ + "/big.libsvm";
   CreateBigTestData(tmp_file, 50000);
   std::shared_ptr<DMatrix> dmat(xgboost::DMatrix::Load(
       tmp_file + "#" + tmp_file + ".cache", true, false, "auto", 100));
@@ -150,11 +150,11 @@ TEST(Learner, JsonModelIO) {
 
     dmlc::TemporaryDirectory tmpdir;
 
-    std::ofstream fout (tmpdir.path + "/model.json");
+    std::ofstream fout (tmpdir.path_ + "/model.json");
     fout << out;
     fout.close();
 
-    auto loaded_str = common::LoadSequentialFile(tmpdir.path + "/model.json");
+    auto loaded_str = common::LoadSequentialFile(tmpdir.path_ + "/model.json");
     Json loaded = Json::Load(StringView{loaded_str.c_str(), loaded_str.size()});
 
     learner->LoadModel(loaded);
@@ -241,7 +241,7 @@ TEST(Learner, BinaryModelIO) {
     learner->UpdateOneIter(iter, p_dmat);
   }
   dmlc::TemporaryDirectory tempdir;
-  std::string const fname = tempdir.path + "binary_model_io.bin";
+  std::string const fname = tempdir.path_ + "binary_model_io.bin";
   {
     // Make sure the write is complete before loading.
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));

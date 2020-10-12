@@ -128,7 +128,7 @@ TEST(CAPI, JsonModelIO) {
   learner->UpdateOneIter(0, p_dmat);
   BoosterHandle handle = learner.get();
 
-  std::string modelfile_0 = tempdir.path + "/model_0.json";
+  std::string modelfile_0 = tempdir.path_ + "/model_0.json";
   XGBoosterSaveModel(handle, modelfile_0.c_str());
   XGBoosterLoadModel(handle, modelfile_0.c_str());
 
@@ -136,7 +136,7 @@ TEST(CAPI, JsonModelIO) {
   ASSERT_EQ(XGBoosterGetNumFeature(handle, &num_feature), 0);
   ASSERT_EQ(num_feature, kCols);
 
-  std::string modelfile_1 = tempdir.path + "/model_1.json";
+  std::string modelfile_1 = tempdir.path_ + "/model_1.json";
   XGBoosterSaveModel(handle, modelfile_1.c_str());
 
   auto model_str_0 = common::LoadSequentialFile(modelfile_0);
