@@ -111,17 +111,17 @@ class PairwiseLambdaWeightComputer {
    * \param list a list that is sorted by pred score
    * \param io_pairs record of pairs, containing the pairs to fill in weights
    */
-  static void GetLambdaWeight(const std::vector<ListEntry> &sorted_list,
-                              std::vector<LambdaPair> *io_pairs) {}
+  static void GetLambdaWeight(const std::vector<ListEntry>&,
+                              std::vector<LambdaPair>*) {}
 
   static char const* Name() {
     return "rank:pairwise";
   }
 
 #if defined(__CUDACC__)
-  PairwiseLambdaWeightComputer(const bst_float *dpreds,
-                               const bst_float *dlabels,
-                               const dh::SegmentSorter<float> &segment_label_sorter) {}
+  PairwiseLambdaWeightComputer(const bst_float*,
+                               const bst_float*,
+                               const dh::SegmentSorter<float>&) {}
 
   class PairwiseLambdaWeightMultiplier {
    public:
@@ -270,7 +270,7 @@ class NDCGLambdaWeightComputer
   };
 
   NDCGLambdaWeightComputer(const bst_float *dpreds,
-                           const bst_float *dlabels,
+                           const bst_float*,
                            const dh::SegmentSorter<float> &segment_label_sorter)
     : IndexablePredictionSorter(dpreds, segment_label_sorter),
       dgroup_dcg_(segment_label_sorter.GetNumGroups(), 0.0f),
