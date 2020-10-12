@@ -110,9 +110,8 @@ struct SparsePageLoader {
 
 struct EllpackLoader {
   EllpackDeviceAccessor const& matrix;
-  XGBOOST_DEVICE EllpackLoader(EllpackDeviceAccessor const& m, bool use_shared,
-                               bst_feature_t num_features, bst_row_t num_rows,
-                               size_t entry_start)
+  XGBOOST_DEVICE EllpackLoader(EllpackDeviceAccessor const& m, bool,
+                               bst_feature_t, bst_row_t, size_t)
       : matrix{m} {}
   __device__ __forceinline__ float GetElement(size_t  ridx, size_t  fidx) const {
     auto gidx = matrix.GetBinIndex(ridx, fidx);
@@ -587,7 +586,7 @@ class GPUPredictor : public xgboost::Predictor {
 
   template <typename Adapter, typename Loader>
   void DispatchedInplacePredict(dmlc::any const &x,
-                                const gbm::GBTreeModel &model, float missing,
+                                const gbm::GBTreeModel &model, float,
                                 PredictionCacheEntry *out_preds,
                                 uint32_t tree_begin, uint32_t tree_end) const {
     auto max_shared_memory_bytes = dh::MaxSharedMemory(this->generic_param_->gpu_id);
@@ -648,9 +647,9 @@ class GPUPredictor : public xgboost::Predictor {
   void PredictContribution(DMatrix* p_fmat,
                            HostDeviceVector<bst_float>* out_contribs,
                            const gbm::GBTreeModel& model, unsigned ntree_limit,
-                           std::vector<bst_float>* tree_weights,
-                           bool approximate, int condition,
-                           unsigned condition_feature) override {
+                           std::vector<bst_float>*,
+                           bool approximate, int,
+                           unsigned) override {
     if (approximate) {
       LOG(FATAL) << "Approximated contribution is not implemented in GPU Predictor.";
     }
@@ -702,7 +701,7 @@ class GPUPredictor : public xgboost::Predictor {
                                        HostDeviceVector<bst_float>* out_contribs,
                                        const gbm::GBTreeModel& model,
                                        unsigned ntree_limit,
-                                       std::vector<bst_float>* tree_weights,
+                                       std::vector<bst_float>*,
                                        bool approximate) override {
     if (approximate) {
       LOG(FATAL) << "[Internal error]: " << __func__
@@ -774,16 +773,16 @@ class GPUPredictor : public xgboost::Predictor {
     }
   }
 
-  void PredictInstance(const SparsePage::Inst& inst,
-                       std::vector<bst_float>* out_preds,
-                       const gbm::GBTreeModel& model, unsigned ntree_limit) override {
+  void PredictInstance(const SparsePage::Inst&,
+                       std::vector<bst_float>*,
+                       const gbm::GBTreeModel&, unsigned) override {
     LOG(FATAL) << "[Internal error]: " << __func__
                << " is not implemented in GPU Predictor.";
   }
 
-  void PredictLeaf(DMatrix* p_fmat, std::vector<bst_float>* out_preds,
-                   const gbm::GBTreeModel& model,
-                   unsigned ntree_limit) override {
+  void PredictLeaf(DMatrix*, std::vector<bst_float>*,
+                   const gbm::GBTreeModel&,
+                   unsigned) override {
     LOG(FATAL) << "[Internal error]: " << __func__
                << " is not implemented in GPU Predictor.";
   }
