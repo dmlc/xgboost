@@ -17,7 +17,7 @@ if sys.platform.startswith("win"):
 pytestmark = pytest.mark.skipif(**tm.no_dask())
 
 try:
-    from distributed import LocalCluster, Client, get_client, Worker
+    from distributed import LocalCluster, Client, get_client
     from distributed.utils_test import client, loop, cluster_fixture
     import dask.dataframe as dd
     import dask.array as da
@@ -145,7 +145,7 @@ def test_boost_from_prediction(tree_method):
     y_ = dd.from_array(y, chunksize=100)
 
     with LocalCluster(n_workers=4) as cluster:
-        with Client(cluster) as client:
+        with Client(cluster) as _:
             model_0 = xgb.dask.DaskXGBClassifier(
                 learning_rate=0.3,
                 random_state=123,
