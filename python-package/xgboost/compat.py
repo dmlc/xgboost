@@ -19,67 +19,6 @@ def py_str(x):
     return x.decode('utf-8')
 
 
-###############################################################################
-# START NUMPY PATHLIB ATTRIBUTION
-###############################################################################
-# os.PathLike compatibility used in  Numpy:
-# https://github.com/numpy/numpy/tree/v1.17.0
-# Attribution:
-# https://github.com/numpy/numpy/blob/v1.17.0/numpy/compat/py3k.py#L188-L247
-# Backport os.fs_path, os.PathLike, and PurePath.__fspath__
-if sys.version_info[:2] >= (3, 6):
-    os_fspath = os.fspath
-    os_PathLike = os.PathLike
-else:
-    def _PurePath__fspath__(self):
-        return str(self)
-
-    class os_PathLike(abc.ABC):
-        """Abstract base class for implementing the file system path protocol."""
-
-        @abc.abstractmethod
-        def __fspath__(self):
-            """Return the file system path representation of the object."""
-            raise NotImplementedError
-
-        @classmethod
-        def __subclasshook__(cls, subclass):
-            if issubclass(subclass, PurePath):
-                return True
-            return hasattr(subclass, '__fspath__')
-
-    def os_fspath(path):
-        """Return the path representation of a path-like object.
-        If str or bytes is passed in, it is returned unchanged. Otherwise the
-        os.PathLike interface is used to get the path representation. If the
-        path representation is not str or bytes, TypeError is raised. If the
-        provided path is not str, bytes, or os.PathLike, TypeError is raised.
-        """
-        if isinstance(path, (str, bytes)):
-            return path
-
-        # Work from the object's type to match method resolution of other magic
-        # methods.
-        path_type = type(path)
-        try:
-            path_repr = path_type.__fspath__(path)
-        except AttributeError as e:
-            if hasattr(path_type, '__fspath__'):
-                raise
-            if issubclass(path_type, PurePath):
-                return _PurePath__fspath__(path)
-            raise TypeError("expected str, bytes or os.PathLike object, "
-                            "not " + path_type.__name__) from e
-        if isinstance(path_repr, (str, bytes)):
-            return path_repr
-        raise TypeError("expected {}.__fspath__() to return str or bytes, "
-                        "not {}".format(path_type.__name__,
-                                        type(path_repr).__name__))
-###############################################################################
-# END NUMPY PATHLIB ATTRIBUTION
-###############################################################################
-
-
 def lazy_isinstance(instance, module, name):
     '''Use string representation to identify a type.'''
     module = type(instance).__module__ == module
@@ -167,26 +106,9 @@ except ImportError:
 # dask
 try:
     import dask
-    from dask import delayed
-    from dask import dataframe as dd
-    from dask import array as da
-    from dask.distributed import Client, get_client
-    from dask.distributed import comm as distributed_comm
-    from dask.distributed import wait as distributed_wait
-    from distributed import get_worker as distributed_get_worker
-
     DASK_INSTALLED = True
 except ImportError:
-    dd = None
-    da = None
-    Client = None
-    delayed = None
-    get_client = None
-    distributed_comm = None
-    distributed_wait = None
-    distributed_get_worker = None
     dask = None
-
     DASK_INSTALLED = False
 
 
