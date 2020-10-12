@@ -748,7 +748,7 @@ class TestDaskCallbacks:
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
-    def test_data_movement(self):
+    def test_data_initialization(self):
         '''Assert each worker has the correct amount of data, and DMatrix initialization doesn't
         generate unnecessary copies of data.
 
@@ -756,6 +756,7 @@ class TestDaskCallbacks:
         with LocalCluster(n_workers=2) as cluster:
             with Client(cluster) as client:
                 X, y = generate_array()
+                n_partitions = X.npartitions
                 m = xgb.dask.DaskDMatrix(client, X, y)
                 workers = list(xgb.dask._get_client_workers(client).keys())
                 rabit_args = client.sync(xgb.dask._get_rabit_args, workers, client)
@@ -780,3 +781,5 @@ class TestDaskCallbacks:
                         data.add(d)
 
                 assert len(data) == cnt
+                # Subtract the on disk resource from each worker
+                assert cnt - n_workers == n_partitions
