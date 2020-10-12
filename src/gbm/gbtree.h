@@ -239,7 +239,7 @@ class GBTree : public GradientBooster {
   void PredictContribution(DMatrix* p_fmat,
                            HostDeviceVector<bst_float>* out_contribs,
                            unsigned ntree_limit, bool approximate,
-                           int condition, unsigned condition_feature) override {
+                           int, unsigned) override {
     CHECK(configured_);
     this->GetPredictor()->PredictContribution(
         p_fmat, out_contribs, model_, ntree_limit, nullptr, approximate);
