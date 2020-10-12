@@ -17,20 +17,23 @@ if sys.platform.startswith("win"):
 pytestmark = pytest.mark.skipif(**tm.no_dask())
 
 try:
-    from distributed import LocalCluster, Client
+    from distributed import LocalCluster, Client, get_client, Worker
     from distributed.utils_test import client, loop, cluster_fixture
     import dask.dataframe as dd
     import dask.array as da
     from xgboost.dask import DaskDMatrix
+    import dask
 except ImportError:
     LocalCluster = None
     Client = None
+    get_client = None
     client = None
     loop = None
     cluster_fixture = None
     dd = None
     da = None
     DaskDMatrix = None
+    dask = None
 
 kRows = 1000
 kCols = 10
@@ -744,3 +747,36 @@ class TestDaskCallbacks:
         assert hasattr(booster, 'best_score')
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
+    def test_data_movement(self):
+        '''Assert each worker has the correct amount of data, and DMatrix initialization doesn't
+        generate unnecessary copies of data.
+
+        '''
+        with LocalCluster(n_workers=2) as cluster:
+            with Client(cluster) as client:
+                X, y = generate_array()
+                m = xgb.dask.DaskDMatrix(client, X, y)
+                workers = list(xgb.dask._get_client_workers(client).keys())
+                rabit_args = client.sync(xgb.dask._get_rabit_args, workers, client)
+                n_workers = len(workers)
+
+                def worker_fn(worker_addr, data_ref):
+                    with xgb.dask.RabitContext(rabit_args):
+                        local_dtrain = xgb.dask._dmatrix_from_worker_map(**data_ref)
+                        assert local_dtrain.num_row() == kRows / n_workers
+
+                futures = client.map(
+                    worker_fn, workers, [m.create_fn_args()] * len(workers),
+                    pure=False, workers=workers)
+                client.gather(futures)
+
+                has_what = client.has_what()
+                cnt = 0
+                data = set()
+                for k, v in has_what.items():
+                    for d in v:
+                        cnt += 1
+                        data.add(d)
+
+                assert len(data) == cnt
