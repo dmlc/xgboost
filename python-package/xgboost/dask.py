@@ -36,10 +36,10 @@ from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase
 from .sklearn import xgboost_model_doc
 
 try:
-    from distributed import Client, get_client
+    from dask.distributed import Client, get_client
     from dask.distributed import comm as distributed_comm
     from dask.distributed import wait as distributed_wait
-    from distributed import get_worker as distributed_get_worker
+    from dask.distributed import get_worker as distributed_get_worker
     from dask import dataframe as dd
     from dask import array as da
     from dask import delayed
