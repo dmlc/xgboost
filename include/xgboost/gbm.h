@@ -75,7 +75,7 @@ class GradientBooster : public Model, public Configurable {
    * \param prediction The output prediction cache entry that needs to be updated.
    * the booster may change content of gpair
    */
-  virtual void DoBoost(DMatrix* p_fmat, 
+  virtual void DoBoost(DMatrix* p_fmat,
                        HostDeviceVector<GradientPair>* in_gpair,
                        PredictionCacheEntry*) = 0;
 
