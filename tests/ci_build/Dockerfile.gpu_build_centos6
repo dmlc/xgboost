@@ -1,6 +1,6 @@
-ARG CUDA_VERSION
-FROM nvidia/cuda:$CUDA_VERSION-devel-centos6
-ARG CUDA_VERSION
+ARG CUDA_VERSION_ARG
+FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-centos6
+ARG CUDA_VERSION_ARG
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
@@ -33,7 +33,7 @@ RUN \
 
 # NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
 RUN \
-    export CUDA_SHORT=`echo $CUDA_VERSION | egrep -o '[0-9]+\.[0-9]'` && \
+    export CUDA_SHORT=`echo $CUDA_VERSION_ARG | egrep -o '[0-9]+\.[0-9]'` && \
     export NCCL_VERSION=2.4.8-1 && \
     wget https://developer.download.nvidia.com/compute/machine-learning/repos/rhel7/x86_64/nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
     rpm -i nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
