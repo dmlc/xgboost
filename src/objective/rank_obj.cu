@@ -293,7 +293,7 @@ class NDCGLambdaWeightComputer
                                              group_segments)),
                             thrust::make_discard_iterator(),  // We don't care for the group indices
                             dgroup_dcg_.begin());  // Sum of the item's DCG values in the group
-    CHECK(end_range.second - dgroup_dcg_.begin() == dgroup_dcg_.size());
+    CHECK(static_cast<unsigned>(end_range.second - dgroup_dcg_.begin()) == dgroup_dcg_.size());
   }
 
   inline const common::Span<const float> GetGroupDcgsSpan() const {
