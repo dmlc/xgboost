@@ -509,6 +509,10 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
     max_bin: Number of bins for histogram construction.
 
 
+    Know issue:
+    The size of each chunk (rows * cols for a single dask chunk/partition) can
+    not exceed 2 ** 31 - 1000
+
     '''
     def __init__(self, client,
                  data,
