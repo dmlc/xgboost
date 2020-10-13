@@ -156,5 +156,13 @@ TEST(SegmentedUnique, Regression) {
     TestSegmentedUniqueRegression(values, 0);
   }
 }
+
+TEST(Allocator, OOM) {
+  auto size = dh::AvailableMemory(0) * 4;
+  ASSERT_THROW({dh::caching_device_vector<char> vec(size);}, dmlc::Error);
+  ASSERT_THROW({dh::device_vector<char> vec(size);}, dmlc::Error);
+  // Clear last error so we don't fail subsequent tests
+  cudaGetLastError();
+}
 }  // namespace common
 }  // namespace xgboost
