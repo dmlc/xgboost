@@ -53,7 +53,7 @@ struct Pair {
   GradientPair first;
   GradientPair second;
 };
-XGBOOST_DEV_INLINE Pair operator+(Pair const& lhs, Pair const& rhs) {
+__host__ XGBOOST_DEV_INLINE Pair operator+(Pair const& lhs, Pair const& rhs) {
   return {lhs.first + rhs.first, lhs.second + rhs.second};
 }
 }  // anonymous namespace
@@ -86,7 +86,7 @@ GradientSumT CreateRoundingFactor(common::Span<GradientPair const> gpair) {
   thrust::device_ptr<GradientPair const> gpair_end {gpair.data() + gpair.size()};
   auto beg = thrust::make_transform_iterator(gpair_beg, Clip());
   auto end = thrust::make_transform_iterator(gpair_end, Clip());
-  Pair p = thrust::reduce(thrust::cuda::par(alloc), beg, end, Pair{});
+  Pair p = dh::Reduce(thrust::cuda::par(alloc), beg, end, Pair{}, thrust::plus<Pair>{});
   GradientPair positive_sum {p.first}, negative_sum {p.second};
 
   auto histogram_rounding = GradientSumT {

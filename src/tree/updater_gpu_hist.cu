@@ -642,10 +642,11 @@ struct GPUHistMakerDevice {
   ExpandEntry InitRoot(RegTree* p_tree, dh::AllReducer* reducer) {
     constexpr bst_node_t kRootNIdx = 0;
     dh::XGBCachingDeviceAllocator<char> alloc;
-    GradientPair root_sum = thrust::reduce(
+    GradientPair root_sum = dh::Reduce(
         thrust::cuda::par(alloc),
         thrust::device_ptr<GradientPair const>(gpair.data()),
-        thrust::device_ptr<GradientPair const>(gpair.data() + gpair.size()));
+        thrust::device_ptr<GradientPair const>(gpair.data() + gpair.size()),
+        GradientPair{}, thrust::plus<GradientPair>{});
     rabit::Allreduce<rabit::op::Sum, float>(reinterpret_cast<float*>(&root_sum),
                                             2);
 

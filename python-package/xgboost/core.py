@@ -871,6 +871,8 @@ class DeviceQuantileDMatrix(DMatrix):
 
     .. versionadded:: 1.1.0
 
+    Known limitation:
+    The data size (rows * cols) can not exceed 2 ** 31 - 1000
     """
 
     def __init__(self, data, label=None, weight=None,  # pylint: disable=W0231
