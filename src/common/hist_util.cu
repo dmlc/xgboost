@@ -204,9 +204,6 @@ void ProcessBatch(int device, MetaInfo const &info, const SparsePage &page,
   // add cuts into sketches
   sketch_container->Push(dh::ToSpan(sorted_entries), dh::ToSpan(column_sizes_scan),
                          d_cuts_ptr, h_cuts_ptr.back());
-  // Prevent this container from arbitrarily growing, otherwise we get oom on
-  // large files
-  sketch_container->Prune(num_cuts_per_feature * 4);
   sorted_entries.clear();
   sorted_entries.shrink_to_fit();
   CHECK_EQ(sorted_entries.capacity(), 0);

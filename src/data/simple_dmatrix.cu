@@ -35,7 +35,6 @@ void CountRowOffsets(const AdapterBatchT& batch, common::Span<bst_row_t> offset,
       thrust::device_pointer_cast(offset.data()));
 }
 
-namespace {
 template <typename AdapterBatchT>
 struct COOToEntryOp {
   AdapterBatchT batch;
@@ -44,7 +43,6 @@ struct COOToEntryOp {
     return Entry(e.column_idx, e.value);
   }
 };
-}  // namespace
 
 // Here the data is already correctly ordered and simply needs to be compacted
 // to remove missing data
