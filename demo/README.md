@@ -102,7 +102,8 @@ Please send pull requests if you find ones that are missing here.
 - Gilberto Titericz, Stanislav Semenov, 1st place in challenge to classify products into the correct category organized by Otto Group in 2015. Link to [challenge](https://www.kaggle.com/c/otto-group-product-classification-challenge). Link to [kaggle winning solution](https://www.kaggle.com/c/otto-group-product-classification-challenge/discussion/14335)
 - Darius Barušauskas, 1st place winner in [Predicting Red Hat Business Value](https://www.kaggle.com/c/predicting-red-hat-business-value). Link to [interview](https://medium.com/kaggle-blog/red-hat-business-value-competition-1st-place-winners-interview-darius-baru%C5%A1auskas-646692a2841b). Link to [discussion](https://www.kaggle.com/c/predicting-red-hat-business-value/discussion/23786)
 - David Austin, Weimin Wang, 1st place winner in [Iceberg-classifier-challenge](https://www.kaggle.com/c/statoil-iceberg-classifier-challenge/leaderboard) Link to [discussion](https://www.kaggle.com/c/statoil-iceberg-classifier-challenge/discussion/48241)
-
+- Kazuki Onodera, Kazuki Fujikawa, 2nd place winner in [OpenVaccine: COVID-19 mRNA Vaccine Degradation Prediction](https://www.kaggle.com/c/stanford-covid-vaccine/overview) Link to [Discussion](https://www.kaggle.com/c/stanford-covid-vaccine/discussion/189709)
+-
 ## Talks
 - [XGBoost: A Scalable Tree Boosting System](http://datascience.la/xgboost-workshop-and-meetup-talk-with-tianqi-chen/) (video+slides) by Tianqi Chen at the Los Angeles Data Science meetup
 
