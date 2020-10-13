@@ -412,10 +412,11 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     using other = XGBDefaultDeviceAllocatorImpl<U>;  // NOLINT
   };
   pointer allocate(size_t n) {  // NOLINT
-    pointer ptr = nullptr;
+    pointer ptr;
     try {
       ptr = SuperT::allocate(n);
-    } catch (const std::exception& e) {
+      dh::safe_cuda(cudaGetLastError());
+    } catch (const std::exception &e) {
       ThrowOOMError(e.what(), n * sizeof(T));
     }
     GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T));
