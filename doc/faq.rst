@@ -75,18 +75,20 @@ Different training results between different Operating Systems
 **************************************************************
 Even if you set all seeds and do single-threading training, you will notice that training results will diff between Mac OS and Linux.
 Here is an example in python:
-```
-# Install python dependencies:
-pip3 install pandas sklearn xgboost
+.. code-block:: bash
+  # Install python dependencies:
+  pip3 install pandas sklearn xgboost
 
-# Script for non-deterministic mac-linux results:
-python3 -c "import os; import pandas as pd; from xgboost import XGBClassifier; url = 'https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.data.csv' ; dta = pd.read_csv(url, header=None) ; y = dta.pop(dta.columns[-1]) ; os.environ['OMP_NUM_THREADS'] = '1' ; xgb = XGBClassifier(random_state=42, n_estimators=2, seed=1, nthread=1, colsample_bytree=.25) ; xgb.fit(dta, y) ; [print(line[0]) for line in xgb.predict_proba(dta)]"
-```
+.. code-block:: bash
+  # Script for non-deterministic mac-linux results:
+  python3 -c "import os; import pandas as pd; from xgboost import XGBClassifier; url = 'https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.data.csv' ; dta = pd.read_csv(url, header=None) ; y = dta.pop(dta.columns[-1]) ; os.environ['OMP_NUM_THREADS'] = '1' ; xgb = XGBClassifier(random_state=42, n_estimators=2, seed=1, nthread=1, colsample_bytree=.25) ; xgb.fit(dta, y) ; [print(line[0]) for line in xgb.predict_proba(dta)]"
+
 If you want to make your training to be deterministic across multiple systems, set the parameter `colsample_bytree` to 1.0 :
-```
-# Script for deterministic mac-linux results:
-python3 -c "import os; import pandas as pd; from xgboost import XGBClassifier; url = 'https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.data.csv' ; dta = pd.read_csv(url, header=None) ; y = dta.pop(dta.columns[-1]) ; os.environ['OMP_NUM_THREADS'] = '1' ; xgb = XGBClassifier(random_state=42, n_estimators=2, seed=1, nthread=1, colsample_bytree=1) ; xgb.fit(dta, y) ; [print(line[0]) for line in xgb.predict_proba(dta)]"
-```
+
+.. code-block:: bash
+  # Script for deterministic mac-linux results:
+  python3 -c "import os; import pandas as pd; from xgboost import XGBClassifier; url = 'https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.data.csv' ; dta = pd.read_csv(url, header=None) ; y = dta.pop(dta.columns[-1]) ; os.environ['OMP_NUM_THREADS'] = '1' ; xgb = XGBClassifier(random_state=42, n_estimators=2, seed=1, nthread=1, colsample_bytree=1) ; xgb.fit(dta, y) ; [print(line[0]) for line in xgb.predict_proba(dta)]"
+
 This is related to `this issue in XGBoost <https://github.com/dmlc/xgboost/issues/310>`_.
 
 **********************************************************
