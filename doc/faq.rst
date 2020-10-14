@@ -70,6 +70,12 @@ Slightly different result between runs
 This could happen, due to non-determinism in floating point summation order and multi-threading.
 Though the general accuracy will usually remain the same.
 
+*************************************************************
+Slightly different result between different Operating Systems
+*************************************************************
+Even if you set all seeds and do single-threading training, you will notice that training results will diff between Mac OS and Linux.
+If you want to make your training to be deterministic across multiple systems, set the parameter `colsample_bytree` to 1.0 
+
 **********************************************************
 Why do I see different results with sparse and dense data?
 **********************************************************
