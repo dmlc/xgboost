@@ -70,9 +70,9 @@ Slightly different result between runs
 This could happen, due to non-determinism in floating point summation order and multi-threading.
 Though the general accuracy will usually remain the same.
 
-**************************************************************
-Different training results between different Operating Systems
-**************************************************************
+****************************************************
+Different training results between Operating Systems
+****************************************************
 Even if you set all seeds and do single-threading training, you will notice that training results will diff between Mac OS and Linux.
 Here is an example in python:
 
