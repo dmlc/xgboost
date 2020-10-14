@@ -129,6 +129,16 @@ TEST(DeviceHelpers, Reduce) {
   CHECK_EQ(batched, kSize - 1);
 }
 
+TEST(DeviceHelpers, InclusiveScan) {
+  size_t n = 5216;
+  thrust::device_vector<int> x(n,1);
+  thrust::device_vector<int> out(x.size());
+  thrust::device_vector<int> thrust_out(x.size());
+
+  dh::InclusiveScan(x.begin(), x.end(), out.begin(), thrust::plus<int>{});
+  thrust::inclusive_scan(x.begin(), x.end(), thrust_out.begin());
+  EXPECT_TRUE(thrust::equal(out.begin(), out.end(), thrust_out.begin()));
+}
 
 TEST(SegmentedUnique, Regression) {
   {

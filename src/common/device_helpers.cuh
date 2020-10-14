@@ -195,11 +195,23 @@ XGBOOST_DEV_INLINE void AtomicOrByte(unsigned int *__restrict__ buffer,
                << (ibyte % (sizeof(unsigned int)) * 8));
 }
 
+// Blocks iterate in striped fashion
 template <typename T>
 __device__ xgboost::common::Range GridStrideRange(T begin, T end) {
   begin += blockDim.x * blockIdx.x + threadIdx.x;
   xgboost::common::Range r(begin, end);
   r.Step(gridDim.x * blockDim.x);
+  return r;
+}
+// Blocks iterate in blocked fashion
+template <typename T>
+__device__ xgboost::common::Range GridStrideBlockedRange(T begin, T end) {
+  size_t items_per_block = std::max(size_t(blockDim.x),
+               xgboost::common::DivRoundUp(size_t(end - begin), blockDim.x));
+  begin += items_per_block * blockIdx.x + threadIdx.x;
+  end = std::min(begin + items_per_block, end);
+  xgboost::common::Range r(begin, end);
+  r.Step(blockDim.x);
   return r;
 }
 
@@ -1149,4 +1161,77 @@ auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce
   }
   return aggregate;
 }
+
+namespace detail {
+template <int kBlockSize, typename InputIt, typename Func, typename InputT>
+__global__ void InclusiveScanReduceKernel(InputIt first, size_t size, Func op,
+                                          InputT *partials) {
+  using BlockScanT = cub::BlockScan<InputT, kBlockSize>;
+  // Allocate shared memory for BlockScan
+  __shared__ typename BlockScanT::TempStorage temp_storage;
+  InputT block_aggregate;
+  for (auto i : dh::GridStrideBlockedRange(size_t(0), size)) {
+    InputT thread_data = i < size ? first[i] : InputT();
+    BlockScanT(temp_storage)
+        .InclusiveScan(thread_data, thread_data, op, block_aggregate);
+    __syncthreads();
+  }
+  if (threadIdx.x == 0) {
+    partials[blockIdx.x] = block_aggregate;
+  }
+}
+
+template <int kBlockSize, typename Func, typename InputT>
+__global__ void InclusiveScanPartialsKernel(Func op, InputT *partials) {
+  using BlockScanT = cub::BlockScan<InputT, kBlockSize>;
+  // Allocate shared memory for BlockScan
+  __shared__ typename BlockScanT::TempStorage temp_storage;
+  InputT thread_data = partials[threadIdx.x];
+  BlockScanT(temp_storage)
+      .ExclusiveScan(thread_data, thread_data, InputT(), op);
+  __syncthreads();
+  partials[threadIdx.x] = thread_data;
+}
+
+template <int kBlockSize, typename InputIt, typename OutputIt, typename Func,
+          typename InputT>
+__global__ void InclusiveScanFinalKernel(InputIt first, OutputIt out,
+                                         size_t size, Func op,
+                                         InputT *partials) {
+  using BlockScanT = cub::BlockScan<InputT, kBlockSize>;
+  // Allocate shared memory for BlockScan
+  __shared__ typename BlockScanT::TempStorage temp_storage;
+  InputT partial = partials[blockIdx.x];
+  InputT block_aggregate;
+  for (auto i : dh::GridStrideBlockedRange(size_t(0), size)) {
+    InputT thread_data = i < size ? first[i] : InputT();
+    BlockScanT(temp_storage)
+        .InclusiveScan(thread_data, thread_data, op, block_aggregate);
+    __syncthreads();
+    if (i < size) {
+      out[i] = op(partial, thread_data);
+    }
+  }
+}
+};  // namespace detail
+
+// Workaround for thrust::inclusive_scan, which is unable to handle n > n^31
+template <typename InputIt, typename OutputIt, typename Func>
+void InclusiveScan(InputIt first, InputIt second, OutputIt output, Func op) {
+  size_t size = std::distance(first, second);
+  const int kNumBlocks = 128;
+  const int kBlockSize = 256;
+  using InputT = typename std::iterator_traits<InputIt>::value_type;
+  dh::TemporaryArray<InputT> partials(kBlockSize, InputT());
+
+  detail::InclusiveScanReduceKernel<kBlockSize>
+      <<<kNumBlocks, kBlockSize>>>(first, size, op, partials.data().get());
+
+  detail::InclusiveScanPartialsKernel<kNumBlocks>
+      <<<1, kNumBlocks>>>(op, partials.data().get());
+
+  detail::InclusiveScanFinalKernel<kBlockSize><<<kNumBlocks, kBlockSize>>>(
+      first, output, size, op, partials.data().get());
+}
+
 }  // namespace dh

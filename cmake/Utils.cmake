@@ -144,10 +144,8 @@ function(xgboost_set_cuda_flags target)
   endif (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
 
   if (USE_DEVICE_DEBUG)
-    if (CMAKE_BUILD_TYPE MATCHES "Debug")
-      target_compile_options(${target} PRIVATE
-        $<$<COMPILE_LANGUAGE:CUDA>:-G;-src-in-ptx>)
-    endif(CMAKE_BUILD_TYPE MATCHES "Debug")
+    target_compile_options(${target} PRIVATE
+      $<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>)
   else (USE_DEVICE_DEBUG)
     target_compile_options(${target} PRIVATE
       $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)

@@ -206,15 +206,7 @@ void CopyDataToEllpack(const AdapterBatchT& batch, EllpackPageImpl* dst,
     WriteCompressedEllpackFunctor<AdapterBatchT>, decltype(discard)>
       out(discard, functor);
   dh::XGBCachingDeviceAllocator<char> alloc;
-  // 1000 as a safe factor for inclusive_scan, otherwise it might generate overflow and
-  // lead to oom error.
-  // or:
-  // after reduction step 2: cudaErrorInvalidConfiguration: invalid configuration argument
-  // https://github.com/NVIDIA/thrust/issues/1299
-  CHECK_LE(batch.Size(), std::numeric_limits<int32_t>::max() - 1000)
-      << "Known limitation, size (rows * cols) of quantile based DMatrix "
-         "cannot exceed the limit of 32-bit integer.";
-  thrust::inclusive_scan(thrust::cuda::par(alloc), key_value_index_iter,
+  dh::InclusiveScan(key_value_index_iter,
                          key_value_index_iter + batch.Size(), out,
                          [=] __device__(Tuple a, Tuple b) {
                            // Key equal
