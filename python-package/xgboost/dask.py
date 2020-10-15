@@ -987,7 +987,7 @@ def inplace_predict(client, model, data,
 
 
 async def _evaluation_matrices(client, validation_set,
-                               sample_weights, missing):
+                               sample_weight, missing):
     '''
     Parameters
     ----------
@@ -1010,8 +1010,8 @@ async def _evaluation_matrices(client, validation_set,
     if validation_set is not None:
         assert isinstance(validation_set, list)
         for i, e in enumerate(validation_set):
-            w = (sample_weights[i]
-                 if sample_weights is not None else None)
+            w = (sample_weight[i]
+                 if sample_weight is not None else None)
             dmat = await DaskDMatrix(client=client, data=e[0], label=e[1],
                                      weight=w, missing=missing)
             evals.append((dmat, 'validation_{}'.format(i)))
@@ -1027,7 +1027,7 @@ class DaskScikitLearnBase(XGBModel):
 
     # pylint: disable=arguments-differ
     def fit(self, X, y,
-            sample_weights=None,
+            sample_weight=None,
             base_margin=None,
             eval_set=None,
             sample_weight_eval_set=None,
@@ -1086,13 +1086,13 @@ class DaskScikitLearnBase(XGBModel):
                    ['estimators', 'model'])
 class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
     # pylint: disable=missing-class-docstring
-    async def _fit_async(self, X, y, sample_weights, base_margin, eval_set,
+    async def _fit_async(self, X, y, sample_weight, base_margin, eval_set,
                          sample_weight_eval_set, early_stopping_rounds,
                          verbose):
         dtrain = await DaskDMatrix(client=self.client,
                                    data=X,
                                    label=y,
-                                   weight=sample_weights,
+                                   weight=sample_weight,
                                    base_margin=base_margin,
                                    missing=self.missing)
         params = self.get_xgb_params()
@@ -1115,7 +1115,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
     def fit(self,
             X,
             y,
-            sample_weights=None,
+            sample_weight=None,
             base_margin=None,
             eval_set=None,
             sample_weight_eval_set=None,
@@ -1125,7 +1125,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         return self.client.sync(self._fit_async,
                                 X=X,
                                 y=y,
-                                sample_weights=sample_weights,
+                                sample_weight=sample_weight,
                                 base_margin=base_margin,
                                 eval_set=eval_set,
                                 sample_weight_eval_set=sample_weight_eval_set,
@@ -1150,17 +1150,18 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
                                 output_margin=output_margin,
                                 base_margin=base_margin)
 
+
 @xgboost_model_doc(
     'Implementation of the scikit-learn API for XGBoost classification.',
     ['estimators', 'model'])
 class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
-    async def _fit_async(self, X, y, sample_weights, base_margin, eval_set,
+    async def _fit_async(self, X, y, sample_weight, base_margin, eval_set,
                          sample_weight_eval_set, early_stopping_rounds,
                          verbose):
         dtrain = await DaskDMatrix(client=self.client,
                                    data=X,
                                    label=y,
-                                   weight=sample_weights,
+                                   weight=sample_weight,
                                    base_margin=base_margin,
                                    missing=self.missing)
         params = self.get_xgb_params()
@@ -1196,7 +1197,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
     def fit(self,
             X,
             y,
-            sample_weights=None,
+            sample_weight=None,
             base_margin=None,
             eval_set=None,
             sample_weight_eval_set=None,
@@ -1206,7 +1207,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         return self.client.sync(self._fit_async,
                                 X=X,
                                 y=y,
-                                sample_weights=sample_weights,
+                                sample_weight=sample_weight,
                                 base_margin=base_margin,
                                 eval_set=eval_set,
                                 sample_weight_eval_set=sample_weight_eval_set,
