@@ -195,23 +195,11 @@ XGBOOST_DEV_INLINE void AtomicOrByte(unsigned int *__restrict__ buffer,
                << (ibyte % (sizeof(unsigned int)) * 8));
 }
 
-// Blocks iterate in striped fashion
 template <typename T>
 __device__ xgboost::common::Range GridStrideRange(T begin, T end) {
   begin += blockDim.x * blockIdx.x + threadIdx.x;
   xgboost::common::Range r(begin, end);
   r.Step(gridDim.x * blockDim.x);
-  return r;
-}
-// Blocks iterate in blocked fashion
-template <typename T>
-__device__ xgboost::common::Range GridStrideBlockedRange(T begin, T end) {
-  size_t items_per_block = std::max(size_t(blockDim.x),
-               xgboost::common::DivRoundUp(size_t(end - begin), blockDim.x));
-  begin += items_per_block * blockIdx.x + threadIdx.x;
-  end = std::min(begin + items_per_block, end);
-  xgboost::common::Range r(begin, end);
-  r.Step(blockDim.x);
   return r;
 }
 
@@ -319,7 +307,7 @@ class MemoryLogger {
     void RegisterDeallocation(void *ptr, size_t n, int current_device) {
       auto itr = device_allocations.find(ptr);
       if (itr == device_allocations.end()) {
-        LOG(FATAL) << "Attempting to deallocate " << n << " bytes on device "
+        LOG(WARNING) << "Attempting to deallocate " << n << " bytes on device "
                    << current_device << " that was never allocated ";
       }
       num_deallocations++;
@@ -1163,26 +1151,43 @@ auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce
 }
 
 namespace detail {
+template <typename T>
+__device__ xgboost::common::Range ScanBlockedRange(T begin, T end) {
+  size_t items_per_block =
+      xgboost::common::DivRoundUp(size_t(end - begin), gridDim.x);
+  // Round up to nearest block size
+  items_per_block =
+      xgboost::common::DivRoundUp(items_per_block, blockDim.x) * blockDim.x;
+  size_t local_begin = begin + items_per_block * blockIdx.x + threadIdx.x;
+  size_t local_end = local_begin + items_per_block;
+  local_begin = std::min(local_begin, local_end);
+  xgboost::common::Range r(local_begin, local_end);
+  r.Step(blockDim.x);
+  return r;
+}
+
 template <int kBlockSize, typename InputIt, typename Func, typename InputT>
 __global__ void InclusiveScanReduceKernel(InputIt first, size_t size, Func op,
-                                          InputT *partials) {
+                                          InputT* partials) {
   using BlockScanT = cub::BlockScan<InputT, kBlockSize>;
   // Allocate shared memory for BlockScan
   __shared__ typename BlockScanT::TempStorage temp_storage;
-  InputT block_aggregate;
-  for (auto i : dh::GridStrideBlockedRange(size_t(0), size)) {
+  InputT partial;
+  for (auto i : ScanBlockedRange(size_t(0), size)) {
+    InputT block_aggregate;
     InputT thread_data = i < size ? first[i] : InputT();
     BlockScanT(temp_storage)
         .InclusiveScan(thread_data, thread_data, op, block_aggregate);
     __syncthreads();
+    partial = op(partial, block_aggregate);
   }
   if (threadIdx.x == 0) {
-    partials[blockIdx.x] = block_aggregate;
+    partials[blockIdx.x] = partial;
   }
 }
 
 template <int kBlockSize, typename Func, typename InputT>
-__global__ void InclusiveScanPartialsKernel(Func op, InputT *partials) {
+__global__ void InclusiveScanPartialsKernel(Func op, InputT* partials) {
   using BlockScanT = cub::BlockScan<InputT, kBlockSize>;
   // Allocate shared memory for BlockScan
   __shared__ typename BlockScanT::TempStorage temp_storage;
@@ -1197,13 +1202,13 @@ template <int kBlockSize, typename InputIt, typename OutputIt, typename Func,
           typename InputT>
 __global__ void InclusiveScanFinalKernel(InputIt first, OutputIt out,
                                          size_t size, Func op,
-                                         InputT *partials) {
+                                         InputT* partials) {
   using BlockScanT = cub::BlockScan<InputT, kBlockSize>;
   // Allocate shared memory for BlockScan
   __shared__ typename BlockScanT::TempStorage temp_storage;
   InputT partial = partials[blockIdx.x];
-  InputT block_aggregate;
-  for (auto i : dh::GridStrideBlockedRange(size_t(0), size)) {
+  for (auto i : ScanBlockedRange(size_t(0), size)) {
+    InputT block_aggregate;
     InputT thread_data = i < size ? first[i] : InputT();
     BlockScanT(temp_storage)
         .InclusiveScan(thread_data, thread_data, op, block_aggregate);
@@ -1211,27 +1216,27 @@ __global__ void InclusiveScanFinalKernel(InputIt first, OutputIt out,
     if (i < size) {
       out[i] = op(partial, thread_data);
     }
+    partial = op(partial, block_aggregate);
   }
 }
 };  // namespace detail
 
-// Workaround for thrust::inclusive_scan, which is unable to handle n > n^31
+    // Workaround for thrust::inclusive_scan, which is unable to handle n > n^31
 template <typename InputIt, typename OutputIt, typename Func>
 void InclusiveScan(InputIt first, InputIt second, OutputIt output, Func op) {
   size_t size = std::distance(first, second);
   const int kNumBlocks = 128;
   const int kBlockSize = 256;
   using InputT = typename std::iterator_traits<InputIt>::value_type;
-  dh::TemporaryArray<InputT> partials(kBlockSize, InputT());
+  dh::TemporaryArray<InputT> partials(kNumBlocks, InputT());
 
   detail::InclusiveScanReduceKernel<kBlockSize>
-      <<<kNumBlocks, kBlockSize>>>(first, size, op, partials.data().get());
+    <<<kNumBlocks, kBlockSize>>>(first, size, op, partials.data().get());
 
   detail::InclusiveScanPartialsKernel<kNumBlocks>
-      <<<1, kNumBlocks>>>(op, partials.data().get());
+    <<<1, kNumBlocks>>>(op, partials.data().get());
 
   detail::InclusiveScanFinalKernel<kBlockSize><<<kNumBlocks, kBlockSize>>>(
-      first, output, size, op, partials.data().get());
+    first, output, size, op, partials.data().get());
 }
-
 }  // namespace dh
