@@ -8,6 +8,7 @@
 [![CRAN Status Badge](http://www.r-pkg.org/badges/version/xgboost)](http://cran.r-project.org/web/packages/xgboost)
 [![PyPI version](https://badge.fury.io/py/xgboost.svg)](https://pypi.python.org/pypi/xgboost/)
 [![Optuna](https://img.shields.io/badge/Optuna-integrated-blue)](https://optuna.org)
+[![Twitter](https://img.shields.io/badge/@XGBoostProject--_.svg?style=social&logo=twitter)](https://twitter.com/XGBoostProject)
 
 [Community](https://xgboost.ai/community) |
 [Documentation](https://xgboost.readthedocs.org) |
