@@ -161,6 +161,26 @@ struct WriteCompressedEllpackFunctor {
   }
 };
 
+template <typename Tuple>
+struct TupleScanOp {
+  __device__ Tuple operator()(Tuple a, Tuple b) {
+    // Key equal
+    if (a.get<0>() == b.get<0>()) {
+      b.get<1>() += a.get<1>();
+      return b;
+    }
+    // Not equal
+    return b;
+  }
+};
+
+// Change the value type of thrust discard iterator so we can use it with cub
+template <typename T>
+class TypedDiscard : public thrust::discard_iterator<T> {
+public:
+  using value_type = T;  // NOLINT
+};
+
 // Here the data is already correctly ordered and simply needs to be compacted
 // to remove missing data
 template <typename AdapterBatchT>
@@ -201,22 +221,25 @@ void CopyDataToEllpack(const AdapterBatchT& batch, EllpackPageImpl* dst,
   // We redirect the scan output into this functor to do the actual writing
   WriteCompressedEllpackFunctor<AdapterBatchT> functor(
       d_compressed_buffer, writer, batch, device_accessor, is_valid);
-  thrust::discard_iterator<size_t> discard;
+  TypedDiscard<Tuple> discard;
   thrust::transform_output_iterator<
     WriteCompressedEllpackFunctor<AdapterBatchT>, decltype(discard)>
       out(discard, functor);
   dh::XGBCachingDeviceAllocator<char> alloc;
-  dh::InclusiveScan(key_value_index_iter,
-                         key_value_index_iter + batch.Size(), out,
-                         [=] __device__(Tuple a, Tuple b) {
-                           // Key equal
-                           if (a.get<0>() == b.get<0>()) {
-                             b.get<1>() += a.get<1>();
-                             return b;
-                           }
-                           // Not equal
-                           return b;
-                         });
+  size_t temp_storage_bytes = 0;
+  cub::DispatchScan<decltype(key_value_index_iter), decltype(out),
+                    TupleScanOp<Tuple>, Tuple,
+                    size_t>::Dispatch(nullptr, temp_storage_bytes,
+                                      key_value_index_iter, out,
+                                      TupleScanOp<Tuple>(), Tuple(),
+                                      batch.Size(), nullptr, false);
+  dh::TemporaryArray<char> temp_storage(temp_storage_bytes);
+  cub::DispatchScan<decltype(key_value_index_iter), decltype(out),
+                    TupleScanOp<Tuple>, Tuple,
+                    size_t>::Dispatch(temp_storage.data().get(),
+                                      temp_storage_bytes, key_value_index_iter,
+                                      out, TupleScanOp<Tuple>(), Tuple(),
+                                      batch.Size(), nullptr, false);
 }
 
 void WriteNullValues(EllpackPageImpl* dst, int device_idx,
