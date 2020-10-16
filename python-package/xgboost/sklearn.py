@@ -879,7 +879,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         Parameters
         ----------
         data : array_like
-            The dmatrix storing the input.
+            Feature matrix.
         output_margin : bool
             Whether to output the raw untransformed margin value.
         ntree_limit : int
@@ -934,7 +934,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         Parameters
         ----------
         data : array_like
-            The dmatrix storing the input.
+            Feature matrix.
         ntree_limit : int
             Limit number of trees in the prediction; defaults to best_ntree_limit if defined
             (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
