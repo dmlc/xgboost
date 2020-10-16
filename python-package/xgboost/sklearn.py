@@ -933,7 +933,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         Parameters
         ----------
-        data : DMatrix
+        data : array_like
             The dmatrix storing the input.
         ntree_limit : int
             Limit number of trees in the prediction; defaults to best_ntree_limit if defined
