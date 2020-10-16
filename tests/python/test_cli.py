@@ -47,12 +47,9 @@ eval[test] = {data_path}
         seed = 1994
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            model_out_cli = os.path.join(
-                tmpdir, 'test_load_cli_model-cli.json')
-            model_out_py = os.path.join(
-                tmpdir, 'test_cli_model-py.json')
-            config_path = os.path.join(
-                tmpdir, 'test_load_cli_model.conf')
+            model_out_cli = os.path.join(tmpdir, 'test_load_cli_model-cli.bin')
+            model_out_py = os.path.join(tmpdir, 'test_cli_model-py.bin')
+            config_path = os.path.join(tmpdir, 'test_load_cli_model.conf')
 
             train_conf = self.template.format(data_path=data_path,
                                               seed=seed,
