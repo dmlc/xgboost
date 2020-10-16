@@ -45,7 +45,6 @@ def pytest_addoption(parser):
 def pytest_collection_modifyitems(config, items):
     if config.getoption('--use-rmm-pool'):
         blocklist = [
-            'python-gpu/test_gpu_with_dask.py::TestDistributedGPU::test_gpu_hist',
             'python-gpu/test_gpu_demos.py::test_dask_training',
             'python-gpu/test_gpu_prediction.py::TestGPUPredict::test_shap',
             'python-gpu/test_gpu_linear.py::TestGPULinear'
