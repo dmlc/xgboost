@@ -41,3 +41,16 @@ def local_cuda_cluster(request, pytestconfig):
 
 def pytest_addoption(parser):
     parser.addoption('--use-rmm-pool', action='store_true', default=False, help='Use RMM pool')
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption('--use-rmm-pool'):
+        blocklist = [
+            'python-gpu/test_gpu_with_dask.py::TestDistributedGPU::test_gpu_hist',
+            'python-gpu/test_gpu_demos.py::test_dask_training',
+            'python-gpu/test_gpu_prediction.py::TestGPUPredict::test_shap',
+            'python-gpu/test_gpu_linear.py::TestGPULinear'
+        ]
+        skip_mark = pytest.mark.skip(reason='This test is not run when --use-rmm-pool flag is active')
+        for item in items:
+            if any(item.nodeid.startswith(x) for x in blocklist):
+                item.add_marker(skip_mark)
