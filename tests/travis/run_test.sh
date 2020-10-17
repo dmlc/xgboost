@@ -27,6 +27,8 @@ if [ ${TASK} == "python_test" ]; then
     # Build/test
     rm -rf build
     mkdir build && cd build
+    conda activate python3
+    cmake --version
     cmake .. -DUSE_OPENMP=ON -DCMAKE_VERBOSE_MAKEFILE=ON
     make -j$(nproc)
 
