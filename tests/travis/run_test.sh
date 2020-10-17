@@ -24,18 +24,7 @@ if [ ${TASK} == "python_test" ]; then
     fi
 
     set -e
-    # Build/test
-    rm -rf build
-    mkdir build && cd build
-    conda activate python3
-    cmake --version
-    cmake .. -DUSE_OPENMP=ON -DCMAKE_VERBOSE_MAKEFILE=ON
-    make -j$(nproc)
 
-    echo "-------------------------------"
-    conda activate python3
-    conda --version
-    python --version
 
     # Build binary wheel
     if [ ${TRAVIS_CPU_ARCH} == "arm64" ]; then
@@ -45,12 +34,22 @@ if [ ${TASK} == "python_test" ]; then
       TAG=manylinux2014_aarch64
       tests/ci_build/ci_build.sh aarch64 docker -it python tests/ci_build/rename_whl.py python-package/dist/*.whl ${TRAVIS_COMMIT} ${TAG}
     else
+      rm -rf build
+      mkdir build && cd build
+      conda activate python3
+      cmake --version
+      cmake .. -DUSE_OPENMP=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+      make -j$(nproc)
       cd ../python-package
       python setup.py bdist_wheel
       cd ..
       TAG=macosx_10_13_x86_64.macosx_10_14_x86_64.macosx_10_15_x86_64
       python tests/ci_build/rename_whl.py python-package/dist/*.whl ${TRAVIS_COMMIT} ${TAG}
     fi
+    echo "------------------------------"
+    conda activate python3
+    conda --version
+    python --version
     python -m pip install ./python-package/dist/xgboost-*-py3-none-${TAG}.whl
 
     # Run unit tests
