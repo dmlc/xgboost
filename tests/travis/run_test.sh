@@ -9,11 +9,7 @@ if [ ${TASK} == "python_sdist_test" ]; then
 
     conda activate python3
     python --version
-    conda install numpy scipy
-    if [ ${TRAVIS_CPU_ARCH} == "arm64" ]; then
-        conda install cmake
-        cmake --version
-    fi
+    cmake --version
 
     make pippack
     python -m pip install xgboost-*.tar.gz -v --user
@@ -40,17 +36,28 @@ if [ ${TASK} == "python_test" ]; then
     python --version
 
     # Build binary wheel
-    cd ../python-package
-    python setup.py bdist_wheel
-    TAG=macosx_10_13_x86_64.macosx_10_14_x86_64.macosx_10_15_x86_64
-    python ../tests/ci_build/rename_whl.py dist/*.whl ${TRAVIS_COMMIT} ${TAG}
-    python -m pip install ./dist/xgboost-*-py3-none-${TAG}.whl
+    if [ ${TRAVIS_CPU_ARCH} == "arm64" ]; then
+      # Build manylinux2014 wheel on ARM64
+      tests/ci_build/ci_build.sh aarch64 docker tests/ci_build/build_via_cmake.sh --conda-env=aarch64_test
+      tests/ci_build/ci_build.sh aarch64 docker -it bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
+      TAG=manylinux2014_aarch64
+      tests/ci_build/ci_build.sh aarch64 docker -it python tests/ci_build/rename_whl.py python-package/dist/*.whl ${TRAVIS_COMMIT} ${TAG}
+    else
+      cd ../python-package
+      python setup.py bdist_wheel
+      cd ..
+      TAG=macosx_10_13_x86_64.macosx_10_14_x86_64.macosx_10_15_x86_64
+      python tests/ci_build/rename_whl.py python-package/dist/*.whl ${TRAVIS_COMMIT} ${TAG}
+    fi
+    python -m pip install ./python-package/dist/xgboost-*-py3-none-${TAG}.whl
 
     # Run unit tests
     cd ..
-    python -m pip install graphviz pytest pytest-cov codecov
-    python -m pip install datatable hypothesis
-    python -m pip install numpy scipy pandas matplotlib scikit-learn dask[complete]
+    if [ ${TRAVIS_CPU_ARCH} == "arm64" ]; then
+        conda env create -n aarch64_test --file=tests/ci_build/conda_env/aarch64_test.yml
+    else
+        conda env create -n aarch64_test --file=tests/ci_build/conda_env/cpu_test.yml
+    fi
     python -m pytest -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
     codecov
 
