@@ -2,11 +2,11 @@
 
 if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_sdist_test" ]; then
     if [ ${TRAVIS_OS_NAME} == "osx" ]; then
-        wget -O conda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
+        wget --no-verbose -O conda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
     elif [ ${TRAVIS_CPU_ARCH} == "arm64" ]; then
-        wget -O conda.sh https://github.com/conda-forge/miniforge/releases/download/4.8.2-1/Miniforge3-4.8.2-1-Linux-aarch64.sh
+        wget --no-verbose -O conda.sh https://github.com/conda-forge/miniforge/releases/download/4.8.2-1/Miniforge3-4.8.2-1-Linux-aarch64.sh
     else
-        wget -O conda.sh https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+        wget --no-verbose -O conda.sh https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
     fi
     bash conda.sh -b -p $HOME/miniconda
     source $HOME/miniconda/bin/activate
