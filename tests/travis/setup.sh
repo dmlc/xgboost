@@ -15,7 +15,7 @@ if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_sdist_test" ]; then
     conda update -q conda
     # Useful for debugging any issues with conda
     conda info -a
-    conda create -n python3 python=3.7 cmake numpy scipy
+    conda create -n python3 python=3.7 cmake numpy scipy codecov
 fi
 
 if [ ${TASK} == "s390x_test" ] && [ ${TRAVIS_CPU_ARCH} == "s390x" ]; then

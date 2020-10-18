@@ -52,8 +52,7 @@ if [ ${TASK} == "python_test" ]; then
     echo "------------------------------"
     if [ ${TRAVIS_CPU_ARCH} == "arm64" ]; then
         tests/ci_build/ci_build.sh aarch64 docker \
-          bash -c "source activate aarch64_test && python -m pip install ./python-package/dist/xgboost-*-py3-none-${TAG}.whl && python -m pytest -v -s -rxXs --durations=0 --fulltrace tests/python --cov=python-package/xgboost && codecov"
-        conda env create -n aarch64_test --file=tests/ci_build/conda_env/aarch64_test.yml
+          bash -c "source activate aarch64_test && python -m pip install ./python-package/dist/xgboost-*-py3-none-${TAG}.whl && python -m pytest -v -s -rxXs --durations=0 --fulltrace tests/python --cov=python-package/xgboost"
     else
         conda env create -n cpu_test --file=tests/ci_build/conda_env/cpu_test.yml
         conda activate cpu_test
@@ -61,8 +60,8 @@ if [ ${TASK} == "python_test" ]; then
         conda --version
         python --version
         python -m pytest -v -s -rxXs --durations=0 --fulltrace tests/python --cov=python-package/xgboost || exit -1
-        codecov
     fi
+    codecov
 
     # Deploy binary wheel to S3
     if [ "${TRAVIS_PULL_REQUEST}" != "false" ]
