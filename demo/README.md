@@ -103,7 +103,8 @@ Please send pull requests if you find ones that are missing here.
 - Darius Barušauskas, 1st place winner in [Predicting Red Hat Business Value](https://www.kaggle.com/c/predicting-red-hat-business-value). Link to [interview](https://medium.com/kaggle-blog/red-hat-business-value-competition-1st-place-winners-interview-darius-baru%C5%A1auskas-646692a2841b). Link to [discussion](https://www.kaggle.com/c/predicting-red-hat-business-value/discussion/23786)
 - David Austin, Weimin Wang, 1st place winner in [Iceberg-classifier-challenge](https://www.kaggle.com/c/statoil-iceberg-classifier-challenge/leaderboard) Link to [discussion](https://www.kaggle.com/c/statoil-iceberg-classifier-challenge/discussion/48241)
 - Kazuki Onodera, Kazuki Fujikawa, 2nd place winner in [OpenVaccine: COVID-19 mRNA Vaccine Degradation Prediction](https://www.kaggle.com/c/stanford-covid-vaccine/overview) Link to [Discussion](https://www.kaggle.com/c/stanford-covid-vaccine/discussion/189709)
--
+- Prarthana Bhat, 2nd place winner in [DYD Competition](https://datahack.analyticsvidhya.com/contest/date-your-data/). Link to [Solution](https://github.com/analyticsvidhya/DateYourData/blob/master/Prathna_Bhat_Model.R).
+
 ## Talks
 - [XGBoost: A Scalable Tree Boosting System](http://datascience.la/xgboost-workshop-and-meetup-talk-with-tianqi-chen/) (video+slides) by Tianqi Chen at the Los Angeles Data Science meetup
 
