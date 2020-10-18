@@ -30,9 +30,9 @@ if [ ${TASK} == "python_test" ]; then
     if [ ${TRAVIS_CPU_ARCH} == "arm64" ]; then
       # Build manylinux2014 wheel on ARM64
       tests/ci_build/ci_build.sh aarch64 docker tests/ci_build/build_via_cmake.sh --conda-env=aarch64_test
-      tests/ci_build/ci_build.sh aarch64 docker -it bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
+      tests/ci_build/ci_build.sh aarch64 docker bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
       TAG=manylinux2014_aarch64
-      tests/ci_build/ci_build.sh aarch64 docker -it python tests/ci_build/rename_whl.py python-package/dist/*.whl ${TRAVIS_COMMIT} ${TAG}
+      tests/ci_build/ci_build.sh aarch64 docker python tests/ci_build/rename_whl.py python-package/dist/*.whl ${TRAVIS_COMMIT} ${TAG}
     else
       rm -rf build
       mkdir build && cd build
