@@ -20,7 +20,8 @@ ENV CPP=/opt/rh/devtoolset-7/root/usr/bin/cpp
 ENV GOSU_VERSION 1.10
 
 # Create new Conda environment
-RUN conda create -n aarch64_test python=3.7 cmake ninja
+COPY conda_env/aarch64_test.yml /scripts/
+RUN conda env create -n aarch64_test --file=/scripts/aarch64_test.yml
 
 # Install lightweight sudo (not bound to TTY)
 RUN set -ex; \

@@ -52,8 +52,6 @@ addons:
   apt:
     packages:
       - snapd
-      - libxrender1
-      - libxext6
 
 before_install:
   - source tests/travis/travis_setup_env.sh

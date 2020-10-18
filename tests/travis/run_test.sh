@@ -47,21 +47,25 @@ if [ ${TASK} == "python_test" ]; then
       TAG=macosx_10_13_x86_64.macosx_10_14_x86_64.macosx_10_15_x86_64
       python tests/ci_build/rename_whl.py python-package/dist/*.whl ${TRAVIS_COMMIT} ${TAG}
     fi
-    echo "------------------------------"
-    conda activate python3
-    conda --version
-    python --version
-    python -m pip install ./python-package/dist/xgboost-*-py3-none-${TAG}.whl
 
     # Run unit tests
+    echo "------------------------------"
     if [ ${TRAVIS_CPU_ARCH} == "arm64" ]; then
+        tests/ci_build/ci_build.sh aarch64 docker \
+          bash -c "source activate aarch64_test && python -m pip install ./python-package/dist/xgboost-*-py3-none-${TAG}.whl"
+        tests/ci_build/ci_build.sh aarch64 docker \
+          bash -c "source activate aarch64_test && python -m pytest -v -s -rxXs --durations=0 --fulltrace tests/python --cov=python-package/xgboost && codecov"
         conda env create -n aarch64_test --file=tests/ci_build/conda_env/aarch64_test.yml
     else
-        conda env create -n aarch64_test --file=tests/ci_build/conda_env/cpu_test.yml
+        conda activate python3
+        conda --version
+        python --version
+        python -m pip install ./python-package/dist/xgboost-*-py3-none-${TAG}.whl
+        conda env create -n cpu_test --file=tests/ci_build/conda_env/cpu_test.yml
+        conda activate cpu_test
+        python -m pytest -v -s -rxXs --durations=0 --fulltrace tests/python --cov=python-package/xgboost || exit -1
+        codecov
     fi
-    conda activate aarch64_test
-    python -m pytest -v -s -rxXs --durations=0 --fulltrace tests/python --cov=python-package/xgboost || exit -1
-    codecov
 
     # Deploy binary wheel to S3
     python -m pip install awscli
