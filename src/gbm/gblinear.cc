@@ -231,7 +231,8 @@ class GBLinear : public GradientBooster {
     // start collecting the prediction
     const int ngroup = model_.learner_model_param->num_output_group;
     preds.resize(p_fmat->Info().num_row_ * ngroup);
-    for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
+    for (const auto &page : p_fmat->GetBatches<SparsePage>()) {
+      auto const& batch = page.GetView();
       // output convention: nrow * k, where nrow is number of rows
       // k is number of group
       // parallel over local batch
@@ -241,7 +242,7 @@ class GBLinear : public GradientBooster {
       }
 #pragma omp parallel for schedule(static)
       for (omp_ulong i = 0; i < nsize; ++i) {
-        const size_t ridx = batch.base_rowid + i;
+        const size_t ridx = page.base_rowid + i;
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {
           bst_float margin =
