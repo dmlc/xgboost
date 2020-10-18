@@ -48,6 +48,12 @@ auto MakeTimeoutTask(Fn&& fn, int32_t timeout, int32_t rank) {
     thr.join();
   } else {
     thr.detach();
+#if defined(__linux__)
+    // Canceling a thread is an ugly hack in most cases.  But here we throw the error
+    // immediately, so states are not required to be valid.
+    auto handle = thr.native_handle();
+    pthread_cancel(handle);
+#endif  // defined(__linux__)
     utils::Error("[%d] exit due to time out %d s\n", rank, timeout);
   }
   return future.get();
