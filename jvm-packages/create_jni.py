@@ -22,8 +22,7 @@ CONFIG = {
     "USE_CUDA": "OFF",
     "USE_NCCL": "OFF",
     "JVM_BINDINGS": "ON",
-    "LOG_CAPI_INVOCATION": "OFF",
-    "CMAKE_BUILD_TYPE": "Debug"
+    "LOG_CAPI_INVOCATION": "OFF"
 }
 
 
@@ -115,7 +114,7 @@ if __name__ == "__main__":
                 args.append("%s" % gpu_arch_flag)
 
             run("cmake .. " + " ".join(args) + maybe_generator)
-            run("cmake --build . --config Debug" + maybe_parallel_build)
+            run("cmake --build . --config Release" + maybe_parallel_build)
 
         with cd("demo/regression"):
             run(sys.executable + " mapfeat.py")
