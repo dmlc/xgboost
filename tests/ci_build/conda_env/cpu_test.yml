@@ -28,6 +28,8 @@ dependencies:
 - jsonschema
 - boto3
 - awscli
+- numba
+- llvmlite
 - pip:
   - shap
   - guzzle_sphinx_theme
