@@ -59,6 +59,7 @@ if [ ${TASK} == "python_test" ]; then
     else
         conda env create -n aarch64_test --file=tests/ci_build/conda_env/cpu_test.yml
     fi
+    conda activate aarch64_test
     python -m pytest -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
     codecov
 
