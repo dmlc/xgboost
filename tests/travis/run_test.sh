@@ -61,6 +61,7 @@ if [ ${TASK} == "python_test" ]; then
         python --version
         python -m pytest -v -s -rxXs --durations=0 --fulltrace tests/python --cov=python-package/xgboost || exit -1
     fi
+    conda activate python3
     codecov
 
     # Deploy binary wheel to S3
