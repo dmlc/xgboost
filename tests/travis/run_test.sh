@@ -54,7 +54,6 @@ if [ ${TASK} == "python_test" ]; then
     python -m pip install ./python-package/dist/xgboost-*-py3-none-${TAG}.whl
 
     # Run unit tests
-    cd ..
     if [ ${TRAVIS_CPU_ARCH} == "arm64" ]; then
         conda env create -n aarch64_test --file=tests/ci_build/conda_env/aarch64_test.yml
     else
