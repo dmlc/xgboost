@@ -44,6 +44,5 @@ TEST(GBLinear, JsonIO) {
     ASSERT_EQ(weights.size(), 17);
   }
 }
-
 }  // namespace gbm
 }  // namespace xgboost
