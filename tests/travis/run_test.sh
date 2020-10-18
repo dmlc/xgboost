@@ -65,7 +65,6 @@ if [ ${TASK} == "python_test" ]; then
     fi
 
     # Deploy binary wheel to S3
-    python -m pip install awscli
     if [ "${TRAVIS_PULL_REQUEST}" != "false" ]
     then
         S3_DEST="s3://xgboost-nightly-builds/PR-${TRAVIS_PULL_REQUEST}/"
