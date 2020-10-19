@@ -16,6 +16,7 @@ if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_sdist_test" ]; then
     # Useful for debugging any issues with conda
     conda info -a
     conda create -n python3 python=3.7 cmake numpy scipy codecov
+    conda activate python3
     python -m pip install awscli
 fi
 
