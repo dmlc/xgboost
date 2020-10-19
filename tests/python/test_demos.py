@@ -7,6 +7,7 @@ import testing as tm
 ROOT_DIR = tm.PROJECT_ROOT
 DEMO_DIR = os.path.join(ROOT_DIR, 'demo')
 PYTHON_DEMO_DIR = os.path.join(DEMO_DIR, 'guide-python')
+CLI_DEMO_DIR = os.path.join(DEMO_DIR, 'CLI')
 
 
 def test_basic_walkthrough():
@@ -132,7 +133,7 @@ def test_callbacks_demo():
 
 
 def test_cli_regression_demo():
-    reg_dir = os.path.join(DEMO_DIR, 'regression')
+    reg_dir = os.path.join(CLI_DEMO_DIR, 'regression')
     script = os.path.join(reg_dir, 'mapfeat.py')
     cmd = ['python', script]
     subprocess.check_call(cmd, cwd=reg_dir)
@@ -144,3 +145,27 @@ def test_cli_regression_demo():
     exe = os.path.join(tm.PROJECT_ROOT, 'xgboost')
     conf = os.path.join(reg_dir, 'machine.conf')
     subprocess.check_call([exe, conf], cwd=reg_dir)
+
+
+def test_cli_binary_classification():
+    cls_dir = os.path.join(CLI_DEMO_DIR, 'binary_classification')
+    with tm.DirectoryExcursion(cls_dir, cleanup=True):
+        subprocess.check_call(['./runexp.sh'])
+        os.remove('0002.model')
+
+# year prediction is not tested due to data size being too large.
+
+
+def test_cli_rank():
+    rank_dir = os.path.join(DEMO_DIR, 'rank')
+    getdata = os.path.join(rank_dir, 'wgetdata.sh')
+    with tm.DirectoryExcursion(rank_dir, cleanup=True):
+        try:
+            cmd = [getdata]
+            subprocess.check_call(cmd, cwd=rank_dir)
+        except subprocess.CalledProcessError:
+            # no wget or no unrar
+            pytest.skip()
+
+        subprocess.check_call(['./runexp.sh'])
+        os.remove('0002.model')
