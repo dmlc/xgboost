@@ -38,7 +38,8 @@ General Parameters
 
 * ``nthread`` [default to maximum number of threads available if not set]
 
-  - Number of parallel threads used to run XGBoost
+  - Number of parallel threads used to run XGBoost.  When choosing it, please keep thread
+    contention and hyperthreading in mind.
 
 * ``disable_default_eval_metric`` [default=``false``]
 

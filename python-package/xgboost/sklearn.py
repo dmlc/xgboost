@@ -73,7 +73,10 @@ __model_doc = '''
         available.  It's recommended to study this option from parameters
         document.
     n_jobs : int
-        Number of parallel threads used to run xgboost.
+        Number of parallel threads used to run xgboost.  When used with other Scikit-Learn
+        algorithms like grid search, you may choose which algorithm to parallelize and
+        balance the threads.  Creating thread contention will significantly slow dowm both
+        algorithms.
     gamma : float
         Minimum loss reduction required to make a further partition on a leaf
         node of the tree.
