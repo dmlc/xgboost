@@ -1025,14 +1025,18 @@ class Booster(object):
         self.__dict__.update(state)
 
     def __getitem__(self, val: slice):
-        if val.start < 0 or val.stop < 0:
+        if isinstance(val.stop, type(Ellipsis)):
+            stop = -1
+        else:
+            stop = val.stop
+        if val.start < 0 or stop < 0:
             raise ValueError('start and stop must be greater than 0')
-        if val.step != 1:
-            raise ValueError('step must be 1.')
+        step = val.step if val.step else 1
 
         start = ctypes.c_uint(val.start)
-        stop = ctypes.c_uint(val.stop)
-        step = c_bst_ulong(val.step)
+        stop = ctypes.c_uint(stop)
+        step = c_bst_ulong(step)
+
         sliced_handle = ctypes.c_void_p()
         _check_call(_LIB.XGBoosterSlice(self.handle, start, stop, step,
                                         ctypes.byref(sliced_handle)))

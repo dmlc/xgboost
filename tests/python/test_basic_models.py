@@ -342,7 +342,7 @@ class TestModels(unittest.TestCase):
         beg = 3
         end = 7
         s = slice(beg, end, 1)
-        sliced: xgb.Booster = booster[s]
+        sliced: xgb.Booster = booster[beg: end]
 
         sliced_trees = (end - beg) * num_parallel_tree * num_classes
         assert sliced_trees == len(sliced.get_dump())
