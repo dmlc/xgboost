@@ -1025,15 +1025,21 @@ class Booster(object):
         self.__dict__.update(state)
 
     def __getitem__(self, val: slice):
-        if isinstance(val.stop, type(Ellipsis)):
-            stop = -1
+        if isinstance(val.start, type(Ellipsis)) or val.start is None:
+            start = 0
+        else:
+            start = val.start
+
+        if isinstance(val.stop, type(Ellipsis)) or val.stop is None:
+            stop = 0
         else:
             stop = val.stop
-        if val.start < 0 or stop < 0:
-            raise ValueError('start and stop must be greater than 0')
+            if stop < start:
+                raise ValueError('Invalid slice', val)
+
         step = val.step if val.step else 1
 
-        start = ctypes.c_uint(val.start)
+        start = ctypes.c_uint(start)
         stop = ctypes.c_uint(stop)
         step = c_bst_ulong(step)
 

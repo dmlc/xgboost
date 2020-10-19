@@ -228,6 +228,7 @@ class GBTree : public GradientBooster {
     CHECK(p_gbtree);
     GBTreeModel out_model(p_gbtree->model_.learner_model_param);
     auto forest = model_.learner_model_param->num_output_group * tparam_.num_parallel_tree;
+    layer_end = layer_end == 0 ? model_.trees.size() / forest : layer_end;
     int32_t n_layers = (layer_end - layer_begin) / step;
     this->model_.Slice(tree_begin, tree_end, step, n_layers, forest, &out_model);
     p_gbtree->model_ = std::move(out_model);

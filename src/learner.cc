@@ -980,7 +980,11 @@ class LearnerImpl : public LearnerIO {
 
   Learner* Slice(int32_t begin_layer, int32_t end_layer, int32_t step) override {
     this->Configure();
-    CHECK_GE(end_layer, begin_layer);
+    CHECK_GE(begin_layer, 0);
+    if(end_layer != 0) {
+      CHECK_GE(end_layer, begin_layer);
+    }
+
     auto *out_impl = new LearnerImpl({});
     auto gbm = std::unique_ptr<GradientBooster>(GradientBooster::Create(
         this->tparam_.booster, &this->generic_parameters_,

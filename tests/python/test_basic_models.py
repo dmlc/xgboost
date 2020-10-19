@@ -350,6 +350,24 @@ class TestModels(unittest.TestCase):
         sliced: xgb.Booster = booster[beg: end: 2]
         assert sliced_trees == len(sliced.get_dump())
 
+        sliced: xgb.Booster = booster[beg: ...]
+        sliced_trees = (num_boost_round - beg) * num_parallel_tree * num_classes
+        assert sliced_trees == len(sliced.get_dump())
+
+        sliced: xgb.Booster = booster[beg:]
+        sliced_trees = (num_boost_round - beg) * num_parallel_tree * num_classes
+        assert sliced_trees == len(sliced.get_dump())
+
+        sliced: xgb.Booster = booster[:end]
+        sliced_trees = end * num_parallel_tree * num_classes
+        assert sliced_trees == len(sliced.get_dump())
+
+        sliced: xgb.Booster = booster[...:end]
+        sliced_trees = end * num_parallel_tree * num_classes
+        assert sliced_trees == len(sliced.get_dump())
+
         self.assertRaises(ValueError, lambda: booster[-1: 0])
+        # we do not accept empty slice.
         self.assertRaises(ValueError, lambda: booster[1:1])
         self.assertRaises(ValueError, lambda: booster[3:0])
+        self.assertRaises(ValueError, lambda: booster[3:-1])
