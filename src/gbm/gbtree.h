@@ -164,7 +164,7 @@ inline std::pair<uint32_t, uint32_t> SliceTrees(gbm::GBTreeModel const &model,
   if (tree_end == 0 || tree_end > model.trees.size()) {
     tree_end = static_cast<uint32_t>(model.trees.size());
   }
-  CHECK_LT(tree_end, model.trees.size());
+  CHECK_LE(tree_end, model.trees.size());
   CHECK_LT(tree_begin, tree_end);
   return {tree_begin, tree_end};
 }
