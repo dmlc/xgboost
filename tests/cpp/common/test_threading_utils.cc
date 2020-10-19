@@ -88,6 +88,22 @@ TEST(ParallelFor2dNonUniform, Test) {
 
   omp_set_num_threads(old);
 }
+#if defined(_OPENMP)
+TEST(OmpSetNumThreads, Basic) {
+  auto nthreads = 2;
+  auto orgi = OmpSetNumThreads(&nthreads);
+  ASSERT_EQ(omp_get_max_threads(), 2);
+  nthreads = 0;
+  OmpSetNumThreads(&nthreads);
+  ASSERT_EQ(omp_get_max_threads(), omp_get_num_procs());
+  nthreads = 1;
+  OmpSetNumThreads(&nthreads);
+  nthreads = 0;
+  OmpSetNumThreads(&nthreads);
+  ASSERT_EQ(omp_get_max_threads(), omp_get_num_procs());
 
+  omp_set_num_threads(orgi);
+}
+#endif  // defined(_OPENMP)
 }  // namespace common
 }  // namespace xgboost

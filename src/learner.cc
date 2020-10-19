@@ -43,6 +43,7 @@
 #include "common/timer.h"
 #include "common/charconv.h"
 #include "common/version.h"
+#include "common/threading_utils.h"
 
 namespace {
 
@@ -287,9 +288,7 @@ class LearnerConfiguration : public Learner {
     generic_parameters_.CheckDeprecated();
 
     ConsoleLogger::Configure(args);
-    if (generic_parameters_.nthread != 0) {
-      omp_set_num_threads(generic_parameters_.nthread);
-    }
+    common::OmpSetNumThreads(&generic_parameters_.nthread);
 
     // add additional parameters
     // These are cosntraints that need to be satisfied.
