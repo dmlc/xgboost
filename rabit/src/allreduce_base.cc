@@ -555,6 +555,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
     for (int i = 0; i < nlink; ++i) {
       // recive OOB message from some link
       if (watcher.CheckExcept(links[i].sock)) {
+        std::cout << __LINE__ << "kGetExcept" << std::endl;
         return ReportError(&links[i], kGetExcept);
       }
     }
@@ -567,6 +568,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
                 && links[i].size_read - size_up_reduce < eachreduce) {
           ReturnType ret = links[i].ReadToRingBuffer(size_up_out, total_size);
           if (ret != kSuccess) {
+            std::cout << __LINE__ << ReportError(&links[i], ret).Message() << std::endl;
             return ReportError(&links[i], ret);
           }
         }
@@ -624,6 +626,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
         } else {
           ReturnType ret = Errno2Return();
           if (ret != kSuccess) {
+            std::cout << __LINE__ << ReportError(&links[parent_index], ret).Message() << std::endl;
             return ReportError(&links[parent_index], ret);
           }
         }
@@ -640,6 +643,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
 
           if (len == 0) {
             links[parent_index].sock.Close();
+            std::cout << __LINE__ << ReportError(&links[parent_index], kRecvZeroLen).Message() << std::endl;
             return ReportError(&links[parent_index], kRecvZeroLen);
           }
           if (len != -1) {
@@ -656,6 +660,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
           } else {
             ReturnType ret = Errno2Return();
             if (ret != kSuccess) {
+              std::cout << __LINE__ << ReportError(&links[parent_index], ret).Message() << std::endl;
               return ReportError(&links[parent_index], ret);
             }
           }
@@ -670,6 +675,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
       if (i != parent_index && links[i].size_write < size_down_in) {
         ReturnType ret = links[i].WriteFromArray(sendrecvbuf, size_down_in);
         if (ret != kSuccess) {
+          std::cout << __LINE__ << ReportError(&links[parent_index], ret).Message() << std::endl;
           return ReportError(&links[i], ret);
         }
       }
@@ -832,7 +838,11 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
         read_ptr += static_cast<size_t>(len);
       } else {
         ReturnType ret = Errno2Return();
-        if (ret != kSuccess) return ReportError(&next, ret);
+        if (ret != kSuccess) {
+          auto err = ReportError(&next, ret);
+          std::cout << __LINE__ << ": " << err.Message() << std::endl;
+          return err;
+        }
       }
     }
     if (write_ptr < read_ptr && write_ptr != stop_write) {
@@ -846,7 +856,11 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
         write_ptr += static_cast<size_t>(len);
       } else {
         ReturnType ret = Errno2Return();
-        if (ret != kSuccess) return ReportError(&prev, ret);
+        if (ret != kSuccess) {
+          auto err = ReportError(&prev, ret);
+          std::cout << __LINE__ << ": " << err.Message() << std::endl;
+          return err;
+        }
       }
     }
   }

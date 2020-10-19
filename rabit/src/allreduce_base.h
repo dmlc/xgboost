@@ -281,6 +281,20 @@ class AllreduceBase : public IEngine {
     inline bool operator!=(const ReturnTypeEnum &v) const {
       return value != v;
     }
+    std::string Message() const {
+      switch (value) {
+        case kSuccess:
+          return "kSuccess";
+        case kConnReset:
+          return "kConnReset";
+        case kRecvZeroLen:
+          return "kRecvZeroLen";
+        case kSockError:
+          return "kSockError";
+        case kGetExcept:
+          return "kGetExcept";
+      }
+    }
   };
   /*! \brief translate errno to return type */
   inline static ReturnType Errno2Return() {
