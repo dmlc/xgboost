@@ -341,7 +341,6 @@ class TestModels(unittest.TestCase):
         assert len(booster.get_dump()) == total_trees
         beg = 3
         end = 7
-        s = slice(beg, end, 1)
         sliced: xgb.Booster = booster[beg: end]
 
         sliced_trees = (end - beg) * num_parallel_tree * num_classes
@@ -350,4 +349,3 @@ class TestModels(unittest.TestCase):
         self.assertRaises(ValueError, lambda: booster[-1: 0])
         self.assertRaises(ValueError, lambda: booster[1:1])
         self.assertRaises(ValueError, lambda: booster[3:0])
-        self.assertRaises(ValueError, lambda: booster[0:4:2])

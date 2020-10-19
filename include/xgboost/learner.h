@@ -195,7 +195,16 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \return whether the model allow lazy checkpoint in rabit.
    */
   bool AllowLazyCheckPoint() const;
-  virtual Learner *Slice(size_t begin_layer, size_t end_layer) = 0;
+  /*!
+   * \brief Slice the model.
+   *
+   * See InplacePredict for layer parameters.
+   *
+   * \param step step size between slice.
+   *
+   * \return a sliced model.
+   */
+  virtual Learner *Slice(int32_t begin_layer, int32_t end_layer, int32_t step) = 0;
   /*!
    * \brief dump the model in the requested format
    * \param fmap feature map that may help give interpretations of feature

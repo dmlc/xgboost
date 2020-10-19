@@ -736,7 +736,7 @@ XGB_DLL int XGBoosterSlice(BoosterHandle handle, int begin_layer,
   API_BEGIN();
   CHECK_HANDLE();
   auto* learner = static_cast<Learner*>(handle);
-  auto p_out = learner->Slice(begin_layer, end_layer);
+  auto p_out = learner->Slice(begin_layer, end_layer, step);
   CHECK(p_out);
   *out = p_out;
   API_END();

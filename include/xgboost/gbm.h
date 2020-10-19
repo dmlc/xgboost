@@ -66,7 +66,7 @@ class GradientBooster : public Model, public Configurable {
    * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \param out         Output gradient booster
    */
-  virtual void Slice(size_t layer_begin, size_t layer_end, GradientBooster* out) const {
+  virtual void Slice(int32_t layer_begin, int32_t layer_end, int32_t step, GradientBooster* out) const {
     LOG(FATAL) << "Slice is not supported by current booster.";
   }
   /*!

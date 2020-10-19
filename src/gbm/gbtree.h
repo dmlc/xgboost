@@ -218,7 +218,7 @@ class GBTree : public GradientBooster {
     return model_.learner_model_param->num_output_group == 1;
   }
 
-  void Slice(size_t layer_begin, size_t layer_end,
+  void Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
              GradientBooster *out) const override {
     CHECK(configured_);
     uint32_t tree_begin, tree_end;
@@ -227,7 +227,9 @@ class GBTree : public GradientBooster {
     auto p_gbtree = dynamic_cast<GBTree*>(out);
     CHECK(p_gbtree);
     GBTreeModel out_model(p_gbtree->model_.learner_model_param);
-    this->model_.Slice(tree_begin, tree_end, &out_model);
+    int32_t n_layers = (layer_end - layer_begin) / step;
+
+    this->model_.Slice(tree_begin, tree_end, step, &out_model);
     p_gbtree->model_ = std::move(out_model);
   }
 

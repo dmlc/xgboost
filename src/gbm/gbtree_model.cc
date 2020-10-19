@@ -9,6 +9,25 @@
 
 namespace xgboost {
 namespace gbm {
+void GBTreeModel::Slice(int32_t tree_begin, int32_t tree_end, int32_t step,
+                        uint32_t forest_size, GBTreeModel *out) const {
+  CHECK(trees_to_update.empty());
+  std::vector<std::unique_ptr<RegTree>> out_trees((tree_end - tree_begin) / step);
+  std::vector<int32_t> out_trees_info((tree_end - tree_begin) / step);
+  int it = 0;
+  CHECK_EQ((tree_end - tree_begin) % step, 0);
+
+  for (int32_t i = tree_begin; i < tree_end; i += 1) {
+    auto new_tree = std::make_unique<RegTree>(*this->trees.at(i));
+    bst_group_t group = this->tree_info[i];
+    out_trees.at(it) = std::move(new_tree);
+    out_trees_info.at(it) = group;
+    it++;
+  }
+  CHECK(out);
+  out->trees = std::move(out_trees);
+  out->tree_info = std::move(out_trees_info);
+}
 
 void GBTreeModel::Save(dmlc::Stream* fo) const {
   CHECK_EQ(param.num_trees, static_cast<int32_t>(trees.size()));
