@@ -103,7 +103,7 @@ int PollImpl(PollFD *pfd, int nfds, std::chrono::seconds timeout) {
   MingWError();
   return -1;
 #else
-  return WSAPoll(pfd, nfds, timeout);
+  return WSAPoll(pfd, nfds, std::chrono::milliseconds(timeout).count());
 #endif  // IS_MINGW()
 
 #else
