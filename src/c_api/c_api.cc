@@ -240,7 +240,7 @@ XGB_DLL int XGDMatrixFree(DMatrixHandle handle) {
 }
 
 XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle, const char* fname,
-                                int silent) {
+                                int) {
   API_BEGIN();
   CHECK_HANDLE();
   auto dmat = static_cast<std::shared_ptr<DMatrix>*>(handle)->get();
@@ -528,8 +528,8 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, float *values,
                                       xgboost::bst_ulong n_rows,
                                       xgboost::bst_ulong n_cols,
                                       float missing,
-                                      unsigned iteration_begin,
-                                      unsigned iteration_end,
+                                      unsigned,
+                                      unsigned,
                                       char const* c_type,
                                       xgboost::bst_ulong cache_id,
                                       xgboost::bst_ulong *out_len,
@@ -560,8 +560,8 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle,
                                     size_t nelem,
                                     size_t num_col,
                                     float missing,
-                                    unsigned iteration_begin,
-                                    unsigned iteration_end,
+                                    unsigned,
+                                    unsigned,
                                     char const *c_type,
                                     xgboost::bst_ulong cache_id,
                                     xgboost::bst_ulong *out_len,

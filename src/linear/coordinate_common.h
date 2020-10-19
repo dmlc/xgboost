@@ -263,7 +263,7 @@ class CyclicFeatureSelector : public FeatureSelector {
 class ShuffleFeatureSelector : public FeatureSelector {
  public:
   void Setup(const gbm::GBLinearModel &model,
-             const std::vector<GradientPair> &g,
+             const std::vector<GradientPair>&,
              DMatrix *, float, float, int) override {
     if (feat_index_.size() == 0) {
       feat_index_.resize(model.learner_model_param->num_feature);

@@ -95,7 +95,7 @@ class GBLinearModel : public Model {
     return &weight[i * learner_model_param->num_output_group];
   }
 
-  std::vector<std::string> DumpModel(const FeatureMap &fmap, bool with_stats,
+  std::vector<std::string> DumpModel(const FeatureMap &, bool,
                                      std::string format) const {
     const int ngroup = learner_model_param->num_output_group;
     const unsigned nfeature = learner_model_param->num_feature;

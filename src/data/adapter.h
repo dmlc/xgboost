@@ -136,8 +136,7 @@ class CSRAdapterBatch : public detail::NoMetaInfo {
     const float* values_;
   };
   CSRAdapterBatch(const size_t* row_ptr, const unsigned* feature_idx,
-                  const float* values, size_t num_rows, size_t num_elements,
-                  size_t num_features)
+                  const float* values, size_t num_rows, size_t, size_t)
       : row_ptr_(row_ptr),
         feature_idx_(feature_idx),
         values_(values),
