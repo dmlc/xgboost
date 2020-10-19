@@ -6,8 +6,9 @@
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
 #define NOMINMAX
+#include "rabit/base.h"
+#include "rabit/internal/rabit-inl.h"
 #include "allreduce_base.h"
-#include <rabit/base.h>
 
 #ifndef _WIN32
 #include <netinet/tcp.h>
@@ -121,6 +122,9 @@ bool AllreduceBase::Init(int argc, char* argv[]) {
 
 bool AllreduceBase::Shutdown() {
   try {
+    int32_t pseudo_sync = 0;
+    std::cout << "timeout_sec: " << timeout_sec.count() << std::endl;
+    this->TryAllreduce(&pseudo_sync, sizeof pseudo_sync, 1, op::Reducer<op::Max, int32_t>);
     for (auto & all_link : all_links) {
       all_link.sock.Close();
     }

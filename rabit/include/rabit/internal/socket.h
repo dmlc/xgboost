@@ -617,18 +617,6 @@ struct PollHelper {
     const auto& pfd = fds.find(fd);
     return pfd != fds.end() && ((pfd->second.events & POLLPRI) != 0);
   }
-  /*!
-   * \brief wait for exception event on a single descriptor
-   * \param fd the file descriptor to wait the event for
-   * \param timeout the timeout counter, can be negative, which means wait until the event happen
-   * \return 1 if success, 0 if timeout, and -1 if error occurs
-   */
-  inline static int WaitExcept(SOCKET fd, std::chrono::seconds timeout) { // NOLINT(*)
-    pollfd pfd;
-    pfd.fd = fd;
-    pfd.events = POLLPRI;
-    return PollImpl(&pfd, 1, timeout);
-  }
 
   /*!
    * \brief peform poll on the set defined, read, write, exception
@@ -642,7 +630,7 @@ struct PollHelper {
       fdset.push_back(kv.second);
     }
     int ret = PollImpl(fdset.data(), fdset.size(), timeout);
-    if (ret == -1) {
+    if (ret <= 0) {
       Socket::Error("Poll");
     } else {
       for (auto& pfd : fdset) {
