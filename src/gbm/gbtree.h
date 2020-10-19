@@ -152,6 +152,21 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
   }
 };
 
+namespace detail {
+// From here on, layer becomes concrete trees.
+std::pair<uint32_t, uint32_t> SliceTrees(gbm::GBTreeModel const &model,
+                                         GBTreeTrainParam const &tparam,
+                                         size_t layer_begin, size_t layer_end) {
+  bst_group_t groups = model.learner_model_param->num_output_group;
+  uint32_t tree_begin = layer_begin * groups * tparam.num_parallel_tree;
+  uint32_t tree_end = layer_end * groups * tparam.num_parallel_tree;
+  if (tree_end == 0 || tree_end > model.trees.size()) {
+    tree_end = static_cast<uint32_t>(model.trees.size());
+  }
+  return {tree_begin, tree_end};
+}
+}  // namespace detail
+
 // gradient boosted trees
 class GBTree : public GradientBooster {
  public:
@@ -203,14 +218,8 @@ class GBTree : public GradientBooster {
   void Slice(size_t layer_begin, size_t layer_end,
              GradientBooster *out) const override {
     CHECK(configured_);
-    // From here on, layer becomes concrete trees.
-    bst_group_t groups = model_.learner_model_param->num_output_group;
-    uint32_t tree_begin = layer_begin * groups * tparam_.num_parallel_tree;
-    uint32_t tree_end = layer_end * groups * tparam_.num_parallel_tree;
-    if (tree_end == 0 || tree_end > model_.trees.size()) {
-      tree_end = static_cast<uint32_t>(model_.trees.size());
-    }
-
+    uint32_t tree_begin, tree_end;
+    std::tie(tree_begin, tree_end) = detail::SliceTrees(model_, tparam_, layer_begin, layer_end);
     CHECK(out);
     auto p_gbtree = dynamic_cast<GBTree*>(out);
     CHECK(p_gbtree);
@@ -229,13 +238,8 @@ class GBTree : public GradientBooster {
                       uint32_t layer_begin = 0,
                       unsigned layer_end = 0) const override {
     CHECK(configured_);
-    // From here on, layer becomes concrete trees.
-    bst_group_t groups = model_.learner_model_param->num_output_group;
-    uint32_t tree_begin = layer_begin * groups * tparam_.num_parallel_tree;
-    uint32_t tree_end = layer_end * groups * tparam_.num_parallel_tree;
-    if (tree_end == 0 || tree_end > model_.trees.size()) {
-      tree_end = static_cast<uint32_t>(model_.trees.size());
-    }
+    uint32_t tree_begin, tree_end;
+    std::tie(tree_begin, tree_end) = detail::SliceTrees(model_, tparam_, layer_begin, layer_end);
     this->GetPredictor()->InplacePredict(x, model_, missing, out_preds,
                                          tree_begin, tree_end);
   }

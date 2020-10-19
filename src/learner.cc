@@ -980,6 +980,7 @@ class LearnerImpl : public LearnerIO {
 
   Learner* Slice(size_t begin_layer, size_t end_layer) override {
     this->Configure();
+    CHECK_GE(end_layer, begin_layer);
     auto* out_impl= new LearnerImpl({});
     auto gbm = std::unique_ptr<GradientBooster>(GradientBooster::Create(
         this->tparam_.booster, &this->generic_parameters_,
