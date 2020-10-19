@@ -122,9 +122,6 @@ bool AllreduceBase::Init(int argc, char* argv[]) {
 
 bool AllreduceBase::Shutdown() {
   try {
-    int32_t pseudo_sync = 0;
-    std::cout << "timeout_sec: " << timeout_sec.count() << std::endl;
-    this->TryAllreduce(&pseudo_sync, sizeof pseudo_sync, 1, op::Reducer<op::Max, int32_t>);
     for (auto & all_link : all_links) {
       all_link.sock.Close();
     }

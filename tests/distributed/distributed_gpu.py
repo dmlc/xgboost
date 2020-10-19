@@ -1,8 +1,8 @@
 """Distributed GPU tests."""
 import sys
-import time
 import xgboost as xgb
 import os
+import numpy as np
 
 
 def run_test(name, params_fun):
@@ -28,7 +28,7 @@ def run_test(name, params_fun):
     # Have each worker save its model
     model_name = "test.model.%s.%d" % (name, rank)
     bst.dump_model(model_name, with_stats=True)
-    time.sleep(2)
+    xgb.rabit.allreduce(np.ones((1, 1)), xgb.rabit.Op.MAX)  # sync
     xgb.rabit.tracker_print("Finished training\n")
 
     if (rank == 0):
@@ -43,14 +43,12 @@ def run_test(name, params_fun):
                     with open(model_name_rank, 'r') as model_rank:
                         contents_rank = model_rank.read()
                         if contents_root != contents_rank:
+                            print(contents_root, contents_rank)
                             raise Exception(
                                 ('Worker models diverged: test.model.%s.%d '
                                  'differs from test.model.%s.%d') % (name, i, name, j))
 
     xgb.rabit.finalize()
-
-    if os.path.exists(model_name):
-        os.remove(model_name)
 
 
 base_params = {
