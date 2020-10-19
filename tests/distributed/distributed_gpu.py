@@ -43,7 +43,6 @@ def run_test(name, params_fun):
                     with open(model_name_rank, 'r') as model_rank:
                         contents_rank = model_rank.read()
                         if contents_root != contents_rank:
-                            print(contents_root, contents_rank)
                             raise Exception(
                                 ('Worker models diverged: test.model.%s.%d '
                                  'differs from test.model.%s.%d') % (name, i, name, j))
