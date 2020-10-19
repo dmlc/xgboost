@@ -1025,6 +1025,11 @@ class Booster(object):
         self.__dict__.update(state)
 
     def __getitem__(self, val: slice):
+        if val.start < 0 or val.stop < 0:
+            raise ValueError('start and stop must be greater than 0')
+        if val.step != 1:
+            raise ValueError('step must be 1.')
+
         start = ctypes.c_uint(val.start)
         stop = ctypes.c_uint(val.stop)
         step = c_bst_ulong(val.step)

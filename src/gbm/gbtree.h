@@ -154,15 +154,18 @@ struct DartTrainParam : public XGBoostParameter<DartTrainParam> {
 
 namespace detail {
 // From here on, layer becomes concrete trees.
-std::pair<uint32_t, uint32_t> SliceTrees(gbm::GBTreeModel const &model,
-                                         GBTreeTrainParam const &tparam,
-                                         size_t layer_begin, size_t layer_end) {
+inline std::pair<uint32_t, uint32_t> SliceTrees(gbm::GBTreeModel const &model,
+                                                GBTreeTrainParam const &tparam,
+                                                size_t layer_begin,
+                                                size_t layer_end) {
   bst_group_t groups = model.learner_model_param->num_output_group;
   uint32_t tree_begin = layer_begin * groups * tparam.num_parallel_tree;
   uint32_t tree_end = layer_end * groups * tparam.num_parallel_tree;
   if (tree_end == 0 || tree_end > model.trees.size()) {
     tree_end = static_cast<uint32_t>(model.trees.size());
   }
+  CHECK_LT(tree_end, model.trees.size());
+  CHECK_LT(tree_begin, tree_end);
   return {tree_begin, tree_end};
 }
 }  // namespace detail
