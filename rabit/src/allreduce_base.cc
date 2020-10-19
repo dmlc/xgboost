@@ -217,7 +217,7 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
       rabit_enable_tcp_no_delay = true;
     } else {
       rabit_enable_tcp_no_delay = false;
-    }
+}
   }
 }
 /*!

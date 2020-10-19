@@ -109,11 +109,9 @@ class AllreduceBase : public IEngine {
     if (world_size == 1 || world_size == -1) {
       return;
     }
-    auto ret = TryAllgatherRing(sendrecvbuf_, total_size, slice_begin,
-                                slice_end, size_prev_slice);
-    if (ret != kSuccess) {
-      utils::Error("AllgatherRing failed: %d\n", ret.line);
-    }
+    utils::Assert(TryAllgatherRing(sendrecvbuf_, total_size, slice_begin,
+                                   slice_end, size_prev_slice) == kSuccess,
+                  "AllgatherRing failed");
   }
   /*!
    * \brief perform in-place allreduce, on sendrecvbuf
@@ -137,10 +135,9 @@ class AllreduceBase : public IEngine {
                  const char *_caller = _CALLER) override {
     if (prepare_fun != nullptr) prepare_fun(prepare_arg);
     if (world_size == 1 || world_size == -1) return;
-    auto ret = TryAllreduce(sendrecvbuf_, type_nbytes, count, reducer);
-    if (ret != kSuccess) {
-      utils::Error("Allreduce failed: %d\n", ret.line);
-    }
+    utils::Assert(TryAllreduce(sendrecvbuf_, type_nbytes, count, reducer) ==
+                      kSuccess,
+                  "Allreduce failed");
   }
   /*!
    * \brief broadcast data from root to all nodes
@@ -155,10 +152,8 @@ class AllreduceBase : public IEngine {
                  const char *_file = _FILE, const int _line = _LINE,
                  const char *_caller = _CALLER) override {
     if (world_size == 1 || world_size == -1) return;
-    auto ret = TryBroadcast(sendrecvbuf_, total_size, root);
-    if (ret != kSuccess) {
-      utils::Error("Broadcast failed: %d\n", ret.line);
-    }
+    utils::Assert(TryBroadcast(sendrecvbuf_, total_size, root) == kSuccess,
+                  "Broadcast failed");
   }
   /*!
    * \brief load latest check point
@@ -277,11 +272,9 @@ class AllreduceBase : public IEngine {
   struct ReturnType {
     /*! \brief internal return type */
     ReturnTypeEnum value;
-    int32_t line { -1 };
     // constructor
-    explicit ReturnType(int l  = __builtin_LINE()) : line{l} {}
-    ReturnType(ReturnTypeEnum value, int32_t l = __builtin_LINE()) : value(value), line{l} {}  // NOLINT(*)
-
+    ReturnType() = default;
+    ReturnType(ReturnTypeEnum value) : value(value) {}  // NOLINT(*)
     inline bool operator==(const ReturnTypeEnum &v) const {
       return value == v;
     }
@@ -525,8 +518,7 @@ class AllreduceBase : public IEngine {
    * \param err the error type
    */
   inline ReturnType ReportError(LinkRecord *link, ReturnType err) {
-    err_link = link;
-    return err;
+    err_link = link; return err;
   }
   //---- data structure related to model ----
   // call sequence counter, records how many calls we made so far
