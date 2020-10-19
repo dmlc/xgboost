@@ -154,18 +154,4 @@ def test_cli_binary_classification():
         os.remove('0002.model')
 
 # year prediction is not tested due to data size being too large.
-
-
-def test_cli_rank():
-    rank_dir = os.path.join(DEMO_DIR, 'rank')
-    getdata = os.path.join(rank_dir, 'wgetdata.sh')
-    with tm.DirectoryExcursion(rank_dir, cleanup=True):
-        try:
-            cmd = [getdata]
-            subprocess.check_call(cmd, cwd=rank_dir)
-        except subprocess.CalledProcessError:
-            # no wget or no unrar
-            pytest.skip()
-
-        subprocess.check_call(['./runexp.sh'])
-        os.remove('0002.model')
+# rank is not tested as it requires unrar command.
