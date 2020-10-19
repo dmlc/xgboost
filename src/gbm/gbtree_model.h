@@ -101,7 +101,7 @@ struct GBTreeModel : public Model {
   }
 
   void Slice(int32_t tree_begin, int32_t tree_end, int32_t step,
-             uint32_t forest_size, GBTreeModel *out) const;
+             uint32_t n_layers, uint32_t forest_size, GBTreeModel *out) const;
 
   void Load(dmlc::Stream* fi);
   void Save(dmlc::Stream* fo) const;

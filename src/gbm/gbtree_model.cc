@@ -9,21 +9,27 @@
 
 namespace xgboost {
 namespace gbm {
-void GBTreeModel::Slice(int32_t tree_begin, int32_t tree_end, int32_t step,
+void GBTreeModel::Slice(int32_t tree_begin, int32_t tree_end, int32_t step, uint32_t n_layers,
                         uint32_t forest_size, GBTreeModel *out) const {
   CHECK(trees_to_update.empty());
-  std::vector<std::unique_ptr<RegTree>> out_trees((tree_end - tree_begin) / step);
-  std::vector<int32_t> out_trees_info((tree_end - tree_begin) / step);
-  int it = 0;
-  CHECK_EQ((tree_end - tree_begin) % step, 0);
+  std::vector<std::unique_ptr<RegTree>> out_trees(forest_size * n_layers);
+  std::vector<int32_t> out_trees_info(forest_size * n_layers);
+  int32_t in_it = tree_begin;
+  int out_it = 0;
 
-  for (int32_t i = tree_begin; i < tree_end; i += 1) {
-    auto new_tree = std::make_unique<RegTree>(*this->trees.at(i));
-    bst_group_t group = this->tree_info[i];
-    out_trees.at(it) = std::move(new_tree);
-    out_trees_info.at(it) = group;
-    it++;
+  for (uint32_t l = 0; l < n_layers; ++l) {
+    for (uint32_t i = 0; i < forest_size; ++i) {
+      CHECK_LT(in_it, tree_end);
+      auto new_tree = std::make_unique<RegTree>(*this->trees.at(in_it));
+      bst_group_t group = this->tree_info[in_it];
+      out_trees.at(out_it) = std::move(new_tree);
+      out_trees_info.at(out_it) = group;
+      out_it++;
+      in_it++;
+    }
+    in_it += (step - 1) * forest_size;
   }
+
   CHECK(out);
   out->trees = std::move(out_trees);
   out->tree_info = std::move(out_trees_info);
