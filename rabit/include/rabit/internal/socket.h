@@ -30,6 +30,7 @@
 #include <string>
 #include <cstring>
 #include <vector>
+#include <chrono>
 #include <unordered_map>
 #include "utils.h"
 
@@ -95,7 +96,7 @@ namespace utils {
 static constexpr int kInvalidSocket = -1;
 
 template <typename PollFD>
-int PollImpl(PollFD *pfd, int nfds, int timeout) {
+int PollImpl(PollFD *pfd, int nfds, std::chrono::seconds timeout) {
 #if defined(_WIN32)
 
 #if IS_MINGW()
@@ -106,7 +107,7 @@ int PollImpl(PollFD *pfd, int nfds, int timeout) {
 #endif  // IS_MINGW()
 
 #else
-  return poll(pfd, nfds, timeout);
+  return poll(pfd, nfds, std::chrono::milliseconds(timeout).count());
 #endif  // IS_MINGW()
 }
 
@@ -622,7 +623,7 @@ struct PollHelper {
    * \param timeout the timeout counter, can be negative, which means wait until the event happen
    * \return 1 if success, 0 if timeout, and -1 if error occurs
    */
-  inline static int WaitExcept(SOCKET fd, long timeout) { // NOLINT(*)
+  inline static int WaitExcept(SOCKET fd, std::chrono::seconds timeout) { // NOLINT(*)
     pollfd pfd;
     pfd.fd = fd;
     pfd.events = POLLPRI;
@@ -634,7 +635,7 @@ struct PollHelper {
    * \param timeout specify timeout in milliseconds(ms) if negative, means poll will block
    * \return
    */
-  inline void Poll(long timeout) {  // NOLINT(*)
+  inline void Poll(std::chrono::seconds timeout) {  // NOLINT(*)
     std::vector<pollfd> fdset;
     fdset.reserve(fds.size());
     for (auto kv : fds) {

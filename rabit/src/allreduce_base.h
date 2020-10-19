@@ -612,7 +612,7 @@ class AllreduceBase : public IEngine {
   // enable detailed logging
   bool rabit_debug = false;  // NOLINT
   // by default, if rabit worker not recover in half an hour exit
-  int timeout_sec = 1800;  // NOLINT
+  std::chrono::seconds timeout_sec{std::chrono::seconds{1800}}; // NOLINT
   // flag to enable rabit_timeout
   bool rabit_timeout = false;  // NOLINT
   // Enable TCP node delay

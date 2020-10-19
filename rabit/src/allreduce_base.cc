@@ -208,8 +208,8 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
     rabit_timeout = utils::StringToBool(val);
   }
   if (!strcmp(name, "rabit_timeout_sec")) {
-    timeout_sec = atoi(val);
-    utils::Assert(timeout_sec >= 0, "rabit_timeout_sec should be non negative second");
+    timeout_sec = std::chrono::seconds(atoi(val));
+    utils::Assert(timeout_sec.count() >= 0, "rabit_timeout_sec should be non negative second");
   }
   if (!strcmp(name, "rabit_enable_tcp_no_delay")) {
     if (!strcmp(val, "true")) {
