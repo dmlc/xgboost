@@ -207,8 +207,8 @@ class GBTree : public GradientBooster {
 
   void InplacePredict(dmlc::any const &x, float missing,
                       PredictionCacheEntry *out_preds,
-                      uint32_t layer_begin = 0,
-                      unsigned layer_end = 0) const override {
+                      uint32_t layer_begin,
+                      unsigned layer_end) const override {
     CHECK(configured_);
     // From here on, layer becomes concrete trees.
     bst_group_t groups = model_.learner_model_param->num_output_group;
