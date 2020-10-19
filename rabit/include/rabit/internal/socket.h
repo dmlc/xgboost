@@ -622,7 +622,7 @@ struct PollHelper {
    * \param timeout the timeout counter, can be negative, which means wait until the event happen
    * \return 1 if success, 0 if timeout, and -1 if error occurs
    */
-  inline static int WaitExcept(SOCKET fd, long timeout = -1) { // NOLINT(*)
+  inline static int WaitExcept(SOCKET fd, long timeout) { // NOLINT(*)
     pollfd pfd;
     pfd.fd = fd;
     pfd.events = POLLPRI;
@@ -634,7 +634,7 @@ struct PollHelper {
    * \param timeout specify timeout in milliseconds(ms) if negative, means poll will block
    * \return
    */
-  inline void Poll(long timeout = -1) {  // NOLINT(*)
+  inline void Poll(long timeout) {  // NOLINT(*)
     std::vector<pollfd> fdset;
     fdset.reserve(fds.size());
     for (auto kv : fds) {

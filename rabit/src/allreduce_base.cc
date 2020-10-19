@@ -549,7 +549,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
     // finish runing allreduce
     if (finished) break;
     // select must return
-    watcher.Poll();
+    watcher.Poll(timeout_sec);
     // exception handling
     for (int i = 0; i < nlink; ++i) {
       // recive OOB message from some link
@@ -729,7 +729,7 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
     // finish running
     if (finished) break;
     // select
-    watcher.Poll();
+    watcher.Poll(timeout_sec);
     // exception handling
     for (int i = 0; i < nlink; ++i) {
       // recive OOB message from some link
@@ -819,7 +819,7 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
       finished  = false;
     }
     if (finished) break;
-    watcher.Poll();
+    watcher.Poll(timeout_sec);
     if (read_ptr != stop_read && watcher.CheckRead(next.sock)) {
       size_t size = stop_read - read_ptr;
       size_t start = read_ptr % total_size;
@@ -913,7 +913,7 @@ AllreduceBase::TryReduceScatterRing(void *sendrecvbuf_,
       finished = false;
     }
     if (finished) break;
-    watcher.Poll();
+    watcher.Poll(timeout_sec);
     if (read_ptr != stop_read && watcher.CheckRead(next.sock)) {
       ReturnType ret = next.ReadToRingBuffer(reduce_ptr, stop_read);
       if (ret != kSuccess) {

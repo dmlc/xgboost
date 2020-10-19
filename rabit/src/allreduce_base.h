@@ -130,14 +130,14 @@ class AllreduceBase : public IEngine {
     if (world_size == 1 || world_size == -1) {
       return;
     }
-    MakeTimeoutTask(
-        [&]() {
-          utils::Assert(TryAllgatherRing(sendrecvbuf_, total_size, slice_begin,
-                                         slice_end,
-                                         size_prev_slice) == kSuccess,
-                        "AllgatherRing failed");
-        },
-        timeout_sec, rank);
+    utils::Assert(TryAllgatherRing(sendrecvbuf_, total_size, slice_begin,
+                                   slice_end, size_prev_slice) == kSuccess,
+                  "AllgatherRing failed");
+    // MakeTimeoutTask(
+    //     [&]() {
+
+    //     },
+    //     timeout_sec, rank);
   }
   /*!
    * \brief perform in-place allreduce, on sendrecvbuf
@@ -161,14 +161,14 @@ class AllreduceBase : public IEngine {
                  const char *_caller = _CALLER) override {
     if (prepare_fun != nullptr) prepare_fun(prepare_arg);
     if (world_size == 1 || world_size == -1) return;
+    utils::Assert(TryAllreduce(sendrecvbuf_, type_nbytes, count, reducer) ==
+                      kSuccess,
+                  "Allreduce failed");
+    // MakeTimeoutTask(
+    //     [&]() {
 
-    MakeTimeoutTask(
-        [&]() {
-          utils::Assert(TryAllreduce(sendrecvbuf_, type_nbytes, count,
-                                     reducer) == kSuccess,
-                        "Allreduce failed");
-        },
-        timeout_sec, rank);
+    //     },
+    //     timeout_sec, rank);
   }
   /*!
    * \brief broadcast data from root to all nodes
@@ -183,13 +183,13 @@ class AllreduceBase : public IEngine {
                  const char *_file = _FILE, const int _line = _LINE,
                  const char *_caller = _CALLER) override {
     if (world_size == 1 || world_size == -1) return;
-    MakeTimeoutTask(
-        [&]() {
-          utils::Assert(TryBroadcast(sendrecvbuf_, total_size, root) ==
-                            kSuccess,
-                        "Broadcast failed");
-        },
-        timeout_sec, rank);
+    utils::Assert(TryBroadcast(sendrecvbuf_, total_size, root) == kSuccess,
+                  "Broadcast failed");
+    // MakeTimeoutTask(
+    //     [&]() {
+
+    //     },
+    //     timeout_sec, rank);
   }
   /*!
    * \brief load latest check point
