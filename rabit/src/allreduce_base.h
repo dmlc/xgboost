@@ -38,27 +38,6 @@ class Datatype {
 namespace rabit {
 namespace engine {
 
-template <typename Fn, typename... Args>
-auto MakeTimeoutTask(Fn&& fn, int32_t timeout, int32_t rank) {
-  using R = std::result_of_t<std::decay_t<Fn>(Args...)>;
-  std::packaged_task<R(Args...)> task(std::forward<Fn>(fn));
-  auto future = task.get_future();
-  std::thread thr (std::move(task));
-  if (future.wait_for(std::chrono::seconds(timeout)) != std::future_status::timeout) {
-    thr.join();
-  } else {
-    thr.detach();
-#if defined(__linux__)
-    // Canceling a thread is an ugly hack in most cases.  But here we throw the error
-    // immediately, so states are not required to be valid.
-    auto handle = thr.native_handle();
-    pthread_cancel(handle);
-#endif  // defined(__linux__)
-    utils::Error("[%d] exit due to time out %d s\n", rank, timeout);
-  }
-  return future.get();
-}
-
 /*! \brief implementation of basic Allreduce engine */
 class AllreduceBase : public IEngine {
  public:
@@ -133,11 +112,6 @@ class AllreduceBase : public IEngine {
     utils::Assert(TryAllgatherRing(sendrecvbuf_, total_size, slice_begin,
                                    slice_end, size_prev_slice) == kSuccess,
                   "AllgatherRing failed");
-    // MakeTimeoutTask(
-    //     [&]() {
-
-    //     },
-    //     timeout_sec, rank);
   }
   /*!
    * \brief perform in-place allreduce, on sendrecvbuf
@@ -164,11 +138,6 @@ class AllreduceBase : public IEngine {
     utils::Assert(TryAllreduce(sendrecvbuf_, type_nbytes, count, reducer) ==
                       kSuccess,
                   "Allreduce failed");
-    // MakeTimeoutTask(
-    //     [&]() {
-
-    //     },
-    //     timeout_sec, rank);
   }
   /*!
    * \brief broadcast data from root to all nodes
@@ -185,11 +154,6 @@ class AllreduceBase : public IEngine {
     if (world_size == 1 || world_size == -1) return;
     utils::Assert(TryBroadcast(sendrecvbuf_, total_size, root) == kSuccess,
                   "Broadcast failed");
-    // MakeTimeoutTask(
-    //     [&]() {
-
-    //     },
-    //     timeout_sec, rank);
   }
   /*!
    * \brief load latest check point
@@ -617,10 +581,6 @@ class AllreduceBase : public IEngine {
   bool rabit_timeout = false;  // NOLINT
   // Enable TCP node delay
   bool rabit_enable_tcp_no_delay = false;  // NOLINT
-  // sidecar executing timeout task
-  std::future<bool> rabit_timeout_task_;
-  // flag to shutdown rabit_timeout_task before timeout
-  std::atomic<bool> shutdown_timeout_{false};
 };
 }  // namespace engine
 }  // namespace rabit
