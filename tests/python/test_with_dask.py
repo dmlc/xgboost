@@ -611,10 +611,6 @@ class TestWithDask:
                          tree_method):
         params['tree_method'] = tree_method
         params = dataset.set_params(params)
-        # multi class doesn't handle empty dataset well (empty
-        # means at least 1 worker has data).
-        if params['objective'] == "multi:softmax":
-            return
         # It doesn't make sense to distribute a completely
         # empty dataset.
         if dataset.X.shape[0] == 0:
@@ -641,17 +637,17 @@ class TestWithDask:
         assert history[-1] < history[0]
 
     @given(params=hist_parameter_strategy,
-           num_rounds=strategies.integers(20, 30),
            dataset=tm.dataset_strategy)
     @settings(deadline=None)
-    def test_hist(self, params, num_rounds, dataset, client):
+    def test_hist(self, params, dataset, client):
+        num_rounds = 30
         self.run_updater_test(client, params, num_rounds, dataset, 'hist')
 
     @given(params=exact_parameter_strategy,
-           num_rounds=strategies.integers(20, 30),
            dataset=tm.dataset_strategy)
     @settings(deadline=None)
-    def test_approx(self, client, params, num_rounds, dataset):
+    def test_approx(self, client, params, dataset):
+        num_rounds = 30
         self.run_updater_test(client, params, num_rounds, dataset, 'approx')
 
     def run_quantile(self, name):
