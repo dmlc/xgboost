@@ -167,7 +167,7 @@ struct BitFieldContainer {
 
   XGBOOST_DEVICE bool Check(Pos pos_v) const {
     pos_v = Direction::Shift(pos_v);
-    SPAN_LT(pos_v.int_pos, bits_.size());
+    SPAN_CHECK(pos_v.int_pos < bits_.size());
     value_type const value = bits_[pos_v.int_pos];
     value_type const test_bit = kOne << pos_v.bit_pos;
     value_type result = test_bit & value;

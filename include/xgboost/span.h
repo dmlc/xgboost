@@ -98,19 +98,8 @@ namespace common {
       fflush(stderr);  /* It seems stderr on Windows is beffered? */           \
       std::terminate();                                                        \
     }                                                                          \
-  } while (0);
+  } while (0)
 #endif  // __CUDA_ARCH__
-
-#if defined(__CUDA_ARCH__)
-#define SPAN_LT(lhs, rhs)                                                      \
-  if (!((lhs) < (rhs))) {                                                      \
-    printf("[xgboost] Condition: %lu < %lu failed\n",                          \
-           static_cast<size_t>(lhs), static_cast<size_t>(rhs));                \
-    asm("trap;");                                                              \
-  }
-#else
-#define SPAN_LT(lhs, rhs) SPAN_CHECK((lhs) < (rhs))
-#endif  // defined(__CUDA_ARCH__)
 
 namespace detail {
 /*!
@@ -526,7 +515,7 @@ class Span {
   }
 
   XGBOOST_DEVICE reference operator[](index_type _idx) const {
-    SPAN_LT(_idx, size());
+    SPAN_CHECK(_idx < size());
     return data()[_idx];
   }
 
