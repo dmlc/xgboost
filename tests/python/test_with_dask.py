@@ -636,6 +636,7 @@ class TestWithDask:
         # Make sure that it's decreasing
         assert history[-1] < history[0]
 
+    @pytest.mark.skipif(**tm.is_arm())
     @given(params=hist_parameter_strategy,
            dataset=tm.dataset_strategy)
     @settings(deadline=None)
@@ -643,6 +644,7 @@ class TestWithDask:
         num_rounds = 30
         self.run_updater_test(client, params, num_rounds, dataset, 'hist')
 
+    @pytest.mark.skipif(**tm.is_arm())
     @given(params=exact_parameter_strategy,
            dataset=tm.dataset_strategy)
     @settings(deadline=None)

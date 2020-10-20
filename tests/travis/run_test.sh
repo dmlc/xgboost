@@ -52,7 +52,7 @@ if [ ${TASK} == "python_test" ]; then
     echo "------------------------------"
     if [ ${TRAVIS_CPU_ARCH} == "arm64" ]; then
         tests/ci_build/ci_build.sh aarch64 docker \
-          bash -c "source activate aarch64_test && python -m pip install ./python-package/dist/xgboost-*-py3-none-${TAG}.whl && python -m pytest -v -s -rxXs --durations=0 --fulltrace  -k 'not test_sklearn_demo and not test_sklearn_parallel_demo' tests/python --cov=python-package/xgboost"
+          bash -c "source activate aarch64_test && python -m pip install ./python-package/dist/xgboost-*-py3-none-${TAG}.whl && python -m pytest -v -s -rxXs --durations=0 --fulltrace tests/python --cov=python-package/xgboost"
     else
         conda env create -n cpu_test --file=tests/ci_build/conda_env/macos_cpu_test.yml
         conda activate cpu_test
