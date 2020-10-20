@@ -609,14 +609,6 @@ struct PollHelper {
     const auto& pfd = fds.find(fd);
     return pfd != fds.end() && ((pfd->second.events & POLLOUT) != 0);
   }
-  /*!
-   * \brief Check if the descriptor has any exception
-   * \param fd file descriptor to check status
-   */
-  inline bool CheckExcept(SOCKET fd) const {
-    const auto& pfd = fds.find(fd);
-    return pfd != fds.end() && ((pfd->second.events & POLLPRI) != 0);
-  }
 
   /*!
    * \brief peform poll on the set defined, read, write, exception

@@ -724,13 +724,6 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
     if (finished) break;
     // select
     watcher.Poll(timeout_sec);
-    // exception handling
-    for (int i = 0; i < nlink; ++i) {
-      // recive OOB message from some link
-      if (watcher.CheckExcept(links[i].sock)) {
-        return ReportError(&links[i], kGetExcept);
-      }
-    }
     if (in_link == -2) {
       // probe in-link
       for (int i = 0; i < nlink; ++i) {
