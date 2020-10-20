@@ -660,7 +660,6 @@ struct GPUHistMakerDevice {
     auto d_split_out = dh::ToSpan(split_out);
     this->EvaluateRootSplit(root_sum, d_split_out);
 
-    // auto split = this->EvaluateRootSplit(root_sum);
     dh::TemporaryArray<ExpandEntry> entries(1);
     auto d_entries = entries.data().get();
     auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
