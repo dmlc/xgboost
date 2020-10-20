@@ -34,17 +34,18 @@ struct IndexFlagOp {
 
 struct WriteResultsFunctor {
   bst_node_t left_nidx;
-  common::Span<bst_node_t> position_in;
-  common::Span<bst_node_t> position_out;
-  common::Span<RowPartitioner::RowIndexT> ridx_in;
-  common::Span<RowPartitioner::RowIndexT> ridx_out;
+  bst_node_t* position_in;
+  bst_node_t* position_out;
+  RowPartitioner::RowIndexT* ridx_in;
+  RowPartitioner::RowIndexT* ridx_out;
   int64_t* d_left_count;
 
   __device__ IndexFlagTuple operator()(const IndexFlagTuple& x) {
     // the ex_scan_result represents how many rows have been assigned to left
     // node so far during scan.
     int scatter_address;
-    if (position_in[x.idx] == left_nidx) {
+    auto pos = position_in[x.idx];
+    if (pos == left_nidx) {
       scatter_address = x.flag - 1;  // -1 because inclusive scan
     } else {
       // current number of rows belong to right node + total number of rows
@@ -52,7 +53,7 @@ struct WriteResultsFunctor {
       scatter_address = (x.idx - x.flag) + *d_left_count;
     }
     // copy the node id to output
-    position_out[scatter_address] = position_in[x.idx];
+    position_out[scatter_address] = pos;
     ridx_out[scatter_address] = ridx_in[x.idx];
 
     // Discard
@@ -74,14 +75,16 @@ void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
                                   common::Span<RowIndexT> ridx_out,
                                   bst_node_t left_nidx, bst_node_t,
                                   int64_t* d_left_count, cudaStream_t stream) {
-  WriteResultsFunctor write_results{left_nidx, position, position_out,
-                                    ridx,      ridx_out, d_left_count};
+  WriteResultsFunctor write_results{left_nidx,           position.data(),
+                                    position_out.data(), ridx.data(),
+                                    ridx_out.data(),     d_left_count};
   auto discard_write_iterator =
       thrust::make_transform_output_iterator(DiscardOverload(), write_results);
   auto counting = thrust::make_counting_iterator(0llu);
+  auto d_position = position.data();
   auto input_iterator = dh::MakeTransformIterator<IndexFlagTuple>(
       counting, [=] __device__(size_t idx) {
-        return IndexFlagTuple{idx, static_cast<size_t>(position[idx] == left_nidx)};
+        return IndexFlagTuple{idx, static_cast<size_t>(d_position[idx] == left_nidx)};
       });
   size_t temp_bytes = 0;
   cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, input_iterator,
