@@ -285,9 +285,8 @@ struct GPUHistMakerDevice {
   }
 
 
-  DeviceSplitCandidate EvaluateRootSplit(GradientPair root_sum) {
+  void EvaluateRootSplit(GradientPair root_sum, common::Span<DeviceSplitCandidate> d_split_out) {
     int nidx = RegTree::kRoot;
-    dh::TemporaryArray<DeviceSplitCandidate> splits_out(1);
     GPUTrainingParam gpu_param(param);
     auto sampled_features = column_sampler.GetFeatureSet(0);
     sampled_features->SetDevice(device_id);
@@ -305,12 +304,8 @@ struct GPUHistMakerDevice {
         matrix.min_fvalue,
         hist.GetNodeHistogram(nidx)};
     auto gain_calc = tree_evaluator.GetEvaluator<GPUTrainingParam>();
-    EvaluateSingleSplit(dh::ToSpan(splits_out), gain_calc, inputs);
+    EvaluateSingleSplit(d_split_out, gain_calc, inputs);
     std::vector<DeviceSplitCandidate> result(1);
-    dh::safe_cuda(cudaMemcpy(result.data(), splits_out.data().get(),
-                             sizeof(DeviceSplitCandidate) * splits_out.size(),
-                             cudaMemcpyDeviceToHost));
-    return result.front();
   }
 
   void EvaluateLeftRightSplits(
@@ -661,13 +656,18 @@ struct GPUHistMakerDevice {
     (*p_tree)[kRootNIdx].SetLeaf(param.learning_rate * weight);
 
     // Generate first split
-    auto split = this->EvaluateRootSplit(root_sum);
+    dh::TemporaryArray<DeviceSplitCandidate> split_out(1);
+    auto d_split_out = dh::ToSpan(split_out);
+    this->EvaluateRootSplit(root_sum, d_split_out);
+
+    // auto split = this->EvaluateRootSplit(root_sum);
     dh::TemporaryArray<ExpandEntry> entries(1);
     auto d_entries = entries.data().get();
     auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
     GPUTrainingParam gpu_param(param);
     auto depth = p_tree->GetDepth(kRootNIdx);
     dh::LaunchN(device_id, 1, [=] __device__(size_t idx) {
+      auto split = d_split_out[0];
       float left_weight = evaluator.CalcWeight(kRootNIdx, gpu_param,
                                                GradStats{split.left_sum});
       float right_weight = evaluator.CalcWeight(
