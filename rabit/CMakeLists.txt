@@ -7,9 +7,9 @@ set(RABIT_SOURCES
   ${CMAKE_CURRENT_LIST_DIR}/src/c_api.cc)
 
 if (RABIT_BUILD_MPI)
-  list(APPEND RABIT_SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/engine_mock.cc)
-elseif (RABIT_MOCK)
   list(APPEND RABIT_SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/engine_mpi.cc)
+elseif (RABIT_MOCK)
+  list(APPEND RABIT_SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/engine_mock.cc)
 else ()
   list(APPEND RABIT_SOURCES ${CMAKE_CURRENT_LIST_DIR}/src/engine.cc)
 endif ()

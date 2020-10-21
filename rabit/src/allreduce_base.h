@@ -98,14 +98,9 @@ class AllreduceBase : public IEngine {
   * \param slice_begin beginning of the current slice
   * \param slice_end end of the current slice
   * \param size_prev_slice size of the previous slice i.e. slice of node (rank - 1) % world_size
-  * \param _file caller file name used to generate unique cache key
-  * \param _line caller line number used to generate unique cache key
-  * \param _caller caller function name used to generate unique cache key
   */
   void Allgather(void *sendrecvbuf_, size_t total_size, size_t slice_begin,
-                 size_t slice_end, size_t size_prev_slice,
-                 const char *_file = _FILE, const int _line = _LINE,
-                 const char *_caller = _CALLER) override {
+                 size_t slice_end, size_t size_prev_slice) override {
     if (world_size == 1 || world_size == -1) {
       return;
     }
@@ -124,15 +119,10 @@ class AllreduceBase : public IEngine {
    *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
    *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
    * \param prepare_arg argument used to passed into the lazy preprocessing function
-   * \param _file caller file name used to generate unique cache key
-   * \param _line caller line number used to generate unique cache key
-   * \param _caller caller function name used to generate unique cache key
    */
   void Allreduce(void *sendrecvbuf_, size_t type_nbytes, size_t count,
                  ReduceFunction reducer, PreprocFunction prepare_fun = nullptr,
-                 void *prepare_arg = nullptr, const char *_file = _FILE,
-                 const int _line = _LINE,
-                 const char *_caller = _CALLER) override {
+                 void *prepare_arg = nullptr) override {
     if (prepare_fun != nullptr) prepare_fun(prepare_arg);
     if (world_size == 1 || world_size == -1) return;
     utils::Assert(TryAllreduce(sendrecvbuf_, type_nbytes, count, reducer) ==
@@ -148,9 +138,7 @@ class AllreduceBase : public IEngine {
    * \param _line caller line number used to generate unique cache key
    * \param _caller caller function name used to generate unique cache key
    */
-  void Broadcast(void *sendrecvbuf_, size_t total_size, int root,
-                 const char *_file = _FILE, const int _line = _LINE,
-                 const char *_caller = _CALLER) override {
+  void Broadcast(void *sendrecvbuf_, size_t total_size, int root) override {
     if (world_size == 1 || world_size == -1) return;
     utils::Assert(TryBroadcast(sendrecvbuf_, total_size, root) == kSuccess,
                   "Broadcast failed");
