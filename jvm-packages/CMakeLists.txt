@@ -5,7 +5,7 @@ add_library(xgboost4j SHARED
 if (ENABLE_ALL_WARNINGS)
   target_compile_options(xgboost4j PUBLIC -Wall -Wextra)
 endif (ENABLE_ALL_WARNINGS)
-target_link_libraries(xgboost4j PRIVATE objxgboost)
+target_link_libraries(xgboost4j PRIVATE objxgboost rabit)
 target_include_directories(xgboost4j
   PRIVATE
   ${JNI_INCLUDE_DIRS}
