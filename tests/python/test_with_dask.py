@@ -14,9 +14,9 @@ from test_updaters import hist_parameter_strategy, exact_parameter_strategy
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
 if tm.is_arm()['condition']:
-    pytest.skip(**tm.is_arm())
+    pytest.skip(**tm.is_arm(), allow_module_level=True)
 if tm.no_dask()['condition']:
-    pytest.skip(**tm.no_dask())
+    pytest.skip(**tm.no_dask(), allow_module_level=True)
 
 
 try:
