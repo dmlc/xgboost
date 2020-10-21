@@ -24,7 +24,8 @@ memory = Memory('./cachedir', verbose=0)
 
 
 def is_arm():
-    return {'condition': platform.machine().lower().find('arm') != -1,
+    return {'condition': (platform.machine().lower().find('arm') != -1 or
+                          platform.machine().lower().find('aarch') != -1),
             'reason': 'Skipping expensive tests on ARM.'}
 
 
