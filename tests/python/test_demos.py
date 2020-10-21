@@ -39,6 +39,7 @@ def test_feature_weights_demo():
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
+@pytest.mark.skipif(**tm.is_arm())
 def test_sklearn_demo():
     script = os.path.join(PYTHON_DEMO_DIR, 'sklearn_examples.py')
     cmd = ['python', script]
@@ -48,6 +49,7 @@ def test_sklearn_demo():
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
+@pytest.mark.skipif(**tm.is_arm())
 def test_sklearn_parallel_demo():
     script = os.path.join(PYTHON_DEMO_DIR, 'sklearn_parallel.py')
     cmd = ['python', script]

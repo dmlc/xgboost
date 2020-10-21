@@ -1,5 +1,6 @@
 # coding: utf-8
 import os
+import platform
 from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
 from xgboost.compat import DASK_INSTALLED
 import pytest
@@ -21,6 +22,10 @@ except ImportError:
 
 memory = Memory('./cachedir', verbose=0)
 
+
+def is_arm():
+    return {'condition': platform.machine().lower().find('arm') != 1,
+            'reason': 'Skipping expensive tests on ARM.'}
 
 def no_sklearn():
     return {'condition': not SKLEARN_INSTALLED,

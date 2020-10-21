@@ -83,6 +83,7 @@ class TestEarlyStopping(unittest.TestCase):
 
     @pytest.mark.skipif(**tm.no_sklearn())
     @pytest.mark.skipif(**tm.no_pandas())
+    @pytest.mark.skipif(**tm.is_arm())
     def test_cv_early_stopping_with_multiple_eval_sets_and_metrics(self):
         from sklearn.datasets import load_breast_cancer
 
