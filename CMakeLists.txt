@@ -321,27 +321,6 @@ if (GOOGLE_TEST)
   set_tests_properties(TestXGBoostCLI
     PROPERTIES
     PASS_REGULAR_EXPRESSION ".*test-rmse:0.087.*")
-
-  if (NOT WIN32)
-    set(tests lazy_recover local_recover model_recover)
-    foreach(test ${tests})
-      add_executable(${test} ${xgboost_SOURCE_DIR}/rabit/test/${test}.cc)
-      target_link_libraries(${test} xgboost)
-      target_include_directories(${test} PRIVATE
-        "$<BUILD_INTERFACE:${xgboost_SOURCE_DIR}/rabit/include>"
-        "$<BUILD_INTERFACE:${xgboost_SOURCE_DIR}/dmlc-core/include>")
-      set_target_properties(${test} PROPERTIES CXX_STANDARD 14 CXX_STANDARD_REQUIRED ON)
-      add_test(NAME ${test} COMMAND ${test} WORKING_DIRECTORY ${xgboost_BINARY_DIR})
-    endforeach()
-    if(RABIT_BUILD_MPI)
-      add_executable(speed_test_mpi ${xgboost_SOURCE_DIR}/rabit/test/speed_test.cc)
-      target_link_libraries(speed_test_mpi rabit_mpi)
-      target_include_directories(speed_test_mpi PRIVATE
-        "$<BUILD_INTERFACE:${xgboost_SOURCE_DIR}/rabit/include>"
-        "$<BUILD_INTERFACE:${xgboost_SOURCE_DIR}/dmlc-core/include>")
-      add_test(NAME speed_test_mpi COMMAND speed_test_mpi WORKING_DIRECTORY ${xgboost_BINARY_DIR})
-    endif(RABIT_BUILD_MPI)
-  endif (NOT WIN32)
 endif (GOOGLE_TEST)
 
 # For MSVC: Call msvc_use_static_runtime() once again to completely

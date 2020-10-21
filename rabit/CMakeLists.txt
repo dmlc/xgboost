@@ -41,3 +41,5 @@ endif()
 target_include_directories(rabit PUBLIC
   "$<BUILD_INTERFACE:${xgboost_SOURCE_DIR}/rabit/include>"
   "$<BUILD_INTERFACE:${xgboost_SOURCE_DIR}/dmlc-core/include>")
+target_include_directories(rabit PRIVATE
+  ${xgboost_SOURCE_DIR}/include)
