@@ -21,6 +21,12 @@
 #include "rabit/internal/engine.h"
 #include "rabit/internal/socket.h"
 
+#ifdef RABIT_CXXTESTDEFS_H
+#define private   public
+#define protected public
+#endif  // RABIT_CXXTESTDEFS_H
+
+
 namespace MPI {  // NOLINT
 // MPI data type to be compatible with existing MPI interface
 class Datatype {
