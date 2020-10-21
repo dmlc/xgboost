@@ -196,7 +196,7 @@ endif (USE_CUDA)
 
 #-- Hide all C++ symbols
 if (HIDE_CXX_SYMBOLS)
-  foreach(target objxgboost xgboost dmlc rabit rabit_mock_static)
+  foreach(target objxgboost xgboost dmlc rabit)
     set_target_properties(${target} PROPERTIES CXX_VISIBILITY_PRESET hidden)
   endforeach()
 endif (HIDE_CXX_SYMBOLS)
