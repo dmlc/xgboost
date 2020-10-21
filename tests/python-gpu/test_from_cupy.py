@@ -108,6 +108,25 @@ def _test_cupy_metainfo(DMatrixT):
                           dmat_cupy.get_uint_info('group_ptr'))
 
 
+@pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_cupy_training_with_sklearn():
+    import cupy as cp
+    np.random.seed(1)
+    cp.random.seed(1)
+    X = cp.random.randn(50, 10, dtype='float32')
+    y = (cp.random.randn(50, dtype='float32') > 0).astype('int8')
+    weights = np.random.random(50) + 1
+    cupy_weights = cp.array(weights)
+    base_margin = np.random.random(50)
+    cupy_base_margin = cp.array(base_margin)
+
+    clf = xgb.XGBClassifier(gpu_id=0, tree_method='gpu_hist')
+    clf.fit(X, y, sample_weight=cupy_weights, base_margin=cupy_base_margin, eval_set=[(X, y)])
+    pred = clf.predict(X)
+    assert np.array_equal(np.unique(pred), np.array([0, 1]))
+
+
 class TestFromCupy:
     '''Tests for constructing DMatrix from data structure conforming Apache
 Arrow specification.'''
