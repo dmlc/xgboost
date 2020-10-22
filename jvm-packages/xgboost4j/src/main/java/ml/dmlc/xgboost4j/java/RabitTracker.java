@@ -185,9 +185,9 @@ public class RabitTracker implements IRabitTracker {
   public int waitFor(long timeout) {
     if (timeout > 0L) {
       logger.warn("Python RabitTracker does not support timeout. " +
-              "The tracker will wait for either all workers to finish tasks and send " +
-              "shutdown signal, or manual interruptions. " +
-              "Use the Scala RabitTracker for timeout support.");
+                  "The tracker will wait for either all workers to finish tasks and send " +
+                  "shutdown signal, or manual interruptions. " +
+                  "Use the Scala RabitTracker for timeout support.");
     }
 
     try {

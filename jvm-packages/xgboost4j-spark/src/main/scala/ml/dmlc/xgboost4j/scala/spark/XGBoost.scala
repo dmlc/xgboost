@@ -373,7 +373,7 @@ object XGBoost extends Serializable {
       rabitEnv: java.util.Map[String, String],
       obj: ObjectiveTrait,
       eval: EvalTrait,
-      prevBooster: Booster): Iterator[(Booster, Map[String, Array[Float]])] = {
+      prevBooster: Booster): Iterator[(Option[Booster], Map[String, Array[Float]])] = {
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
@@ -415,11 +415,12 @@ object XGBoost extends Serializable {
           watches.toMap, metrics, obj, eval,
           earlyStoppingRound = numEarlyStoppingRounds, prevBooster)
       }
-      Iterator(booster -> watches.toMap.keys.zip(metrics).toMap)
+      Iterator(Some(booster) -> watches.toMap.keys.zip(metrics).toMap)
     } catch {
       case xgbException: XGBoostError =>
         logger.error(s"XGBooster worker $taskId has failed $attempt times due to ", xgbException)
-        throw xgbException
+        val metrics = Array.tabulate(watches.size)(_ => Array.ofDim[Float](numRounds))
+        Iterator(None -> watches.toMap.keys.zip(metrics).toMap)
     } finally {
       Rabit.shutdown()
       watches.delete()
@@ -488,7 +489,8 @@ object XGBoost extends Serializable {
       xgbExecutionParams: XGBoostExecutionParams,
       rabitEnv: java.util.Map[String, String],
       prevBooster: Booster,
-      evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
+    evalSetsMap: Map[String, RDD[XGBLabeledPoint]]):
+      RDD[(Option[Booster], Map[String, Array[Float]])] = {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPoints => {
         val watches = Watches.buildWatches(xgbExecutionParams,
@@ -519,7 +521,8 @@ object XGBoost extends Serializable {
       xgbExecutionParam: XGBoostExecutionParams,
       rabitEnv: java.util.Map[String, String],
       prevBooster: Booster,
-      evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
+    evalSetsMap: Map[String, RDD[XGBLabeledPoint]]):
+      RDD[(Option[Booster], Map[String, Array[Float]])] = {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPointGroups => {
         val watches = Watches.buildWatchesWithGroup(xgbExecutionParam,
@@ -606,6 +609,7 @@ object XGBoost extends Serializable {
           trainForNonRanking(transformedTrainingData.right.get, xgbExecParams, rabitEnv,
             prevBooster, evalSetsMap)
         }
+
         val sparkJobThread = new Thread() {
           override def run() {
             // force the job
@@ -614,10 +618,16 @@ object XGBoost extends Serializable {
         }
         sparkJobThread.setUncaughtExceptionHandler(tracker)
         sparkJobThread.start()
-        val trackerReturnVal = parallelismTracker.execute(tracker.waitFor(0L))
-        logger.info(s"Rabit returns with exit code $trackerReturnVal")
-        val (booster, metrics) = postTrackerReturnProcessing(trackerReturnVal,
-          boostersAndMetrics, sparkJobThread)
+        sparkJobThread.join()
+        boostersAndMetrics.foreach {
+          case (model, metric) =>
+            if (model == None) {
+              throw new XGBoostError("Training failed.");
+            }
+            (model, metric)
+        }
+        val (booster, metrics) = boostersAndMetrics.first()
+        boostersAndMetrics.unpersist(false)
         (booster, metrics)
       } finally {
         tracker.stop()
@@ -632,7 +642,7 @@ object XGBoost extends Serializable {
             checkpointManager.cleanPath()
           }
       }
-      (booster, metrics)
+      (booster.orNull, metrics) // throw the exception here
     } catch {
       case t: Throwable =>
         // if the job was aborted due to an exception
@@ -725,6 +735,7 @@ object XGBoost extends Serializable {
       distributedBoostersAndMetrics: RDD[(Booster, Map[String, Array[Float]])],
       sparkJobThread: Thread): (Booster, Map[String, Array[Float]]) = {
     if (trackerReturnVal == 0) {
+      logger.warn("Tracker returned with 0")
       // Copies of the final booster and the corresponding metrics
       // reside in each partition of the `distributedBoostersAndMetrics`.
       // Any of them can be used to create the model.
@@ -741,7 +752,7 @@ object XGBoost extends Serializable {
         }
       } catch {
         case _: InterruptedException =>
-          logger.info("spark job thread is interrupted")
+          logger.warn("spark job thread is interrupted")
       }
       throw new XGBoostError("XGBoostModel training failed")
     }
