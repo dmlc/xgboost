@@ -73,8 +73,7 @@ inline bool StringToBool(const char* s) {
  * \param msg error message
  */
 inline void HandleAssertError(const char *msg) {
-  fprintf(stderr,
-          "AssertError:%s, rabit is configured to keep process running\n", msg);
+  fprintf(stderr, "AssertError:%s\n", msg);
   throw dmlc::Error(msg);
 }
 /*!
@@ -82,7 +81,7 @@ inline void HandleAssertError(const char *msg) {
  * \param msg error message
  */
 inline void HandleCheckError(const char *msg) {
-  fprintf(stderr, "%s, rabit is configured to keep process running\n", msg);
+  fprintf(stderr, "%s\n", msg);
   throw dmlc::Error(msg);
 }
 
