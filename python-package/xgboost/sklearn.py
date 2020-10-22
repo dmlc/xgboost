@@ -814,10 +814,11 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                 xgb_options.update({"eval_metric": eval_metric})
 
         if use_label_encoder and not (_is_cudf_df(y) or _is_cudf_ser(y) or _is_cupy_array(y)):
-            warnings.warn('The use of label encoder in XGBClassifier is deprecated. To remove ' +
-                          'this warning, pass option use_label_encoder=False to ' +
-                          'XGBClassifier.fit(). A future release of XGBoost will *remove* label ' +
-                          'encoder from XGBClassifier.',
+            warnings.warn('The use of label encoder in XGBClassifier is deprecated and will be ' +
+                          'removed in a future release. To remove this warning, do the ' +
+                          'following: 1) Pass option use_label_encoder=False to ' +
+                          'XGBClassifier.fit(); and 2) Encode your labels (y) as integers ' +
+                          'starting with 0, i.e. 0, 1, 2, ..., [num_class - 1].',
                           UserWarning)
             self._le = XGBoostLabelEncoder().fit(y)
             label_transform = self._le.transform
