@@ -15,6 +15,7 @@
 #include <stdexcept>
 #include <vector>
 #include "dmlc/io.h"
+#include "xgboost/logging.h"
 #include <cstdarg>
 
 #if !defined(__GNUC__) || defined(__FreeBSD__)
@@ -74,7 +75,7 @@ inline bool StringToBool(const char* s) {
  */
 inline void HandleAssertError(const char *msg) {
   fprintf(stderr, "AssertError:%s\n", msg);
-  throw dmlc::Error(msg);
+  LOG(FATAL) << msg;
 }
 /*!
  * \brief handling of Check error, caused by inappropriate input
@@ -82,7 +83,7 @@ inline void HandleAssertError(const char *msg) {
  */
 inline void HandleCheckError(const char *msg) {
   fprintf(stderr, "%s\n", msg);
-  throw dmlc::Error(msg);
+  LOG(FATAL) << msg;
 }
 
 inline void HandlePrint(const char *msg) {

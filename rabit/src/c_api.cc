@@ -252,9 +252,11 @@ RABIT_DLL int RabitIsDistributed() {
   return rabit::IsDistributed();
 }
 
-RABIT_DLL void RabitTrackerPrint(const char *msg) {
+RABIT_DLL int RabitTrackerPrint(const char *msg) {
+  API_BEGIN()
   std::string m(msg);
   rabit::TrackerPrint(m);
+  API_END()
 }
 
 RABIT_DLL void RabitGetProcessorName(char *out_name,

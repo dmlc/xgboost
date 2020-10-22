@@ -916,7 +916,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitTrackerPrint
   (JNIEnv *jenv, jclass jcls, jstring jmsg) {
   std::string str(jenv->GetStringUTFChars(jmsg, 0),
                   jenv->GetStringLength(jmsg));
-  RabitTrackerPrint(str.c_str());
+  JVM_CHECK_CALL(RabitTrackerPrint(str.c_str()));
   return 0;
 }
 

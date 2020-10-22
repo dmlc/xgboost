@@ -73,7 +73,7 @@ RABIT_DLL int RabitIsDistributed(void);
  *    the user who monitors the tracker
  * \param msg the message to be printed
  */
-RABIT_DLL void RabitTrackerPrint(const char *msg);
+RABIT_DLL int RabitTrackerPrint(const char *msg);
 /*!
  * \brief get name of processor
  * \param out_name hold output string

@@ -9,6 +9,8 @@
 #include <dmlc/base.h>
 #include <dmlc/logging.h>
 
+#define LOG_CAPI_INVOCATION
+
 /*! \brief  macro to guard beginning and end section of all functions */
 #ifdef LOG_CAPI_INVOCATION
 #define API_BEGIN() \
