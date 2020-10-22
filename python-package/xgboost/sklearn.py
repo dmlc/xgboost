@@ -1036,6 +1036,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     extra_parameters='''
     n_estimators : int
         Number of trees in random forest to fit.
+    use_label_encoder : bool
+        (Deprecated) Use the label encoder from scikit-learn to encode the labels. For new code,
+        we recommend that you set this parameter to False.
 ''')
 class XGBRFClassifier(XGBClassifier):
     # pylint: disable=missing-docstring
@@ -1044,11 +1047,13 @@ class XGBRFClassifier(XGBClassifier):
                  subsample=0.8,
                  colsample_bynode=0.8,
                  reg_lambda=1e-5,
+                 use_label_encoder=True,
                  **kwargs):
         super().__init__(learning_rate=learning_rate,
                          subsample=subsample,
                          colsample_bynode=colsample_bynode,
                          reg_lambda=reg_lambda,
+                         use_label_encoder=use_label_encoder,
                          **kwargs)
 
     def get_xgb_params(self):
