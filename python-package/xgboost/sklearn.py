@@ -346,7 +346,7 @@ class XGBModel(XGBModelBase):
         params = self.get_params()
         # Parameters that should not go into native learner.
         wrapper_specific = {
-            'importance_type', 'kwargs', 'missing', 'n_estimators'}
+            'importance_type', 'kwargs', 'missing', 'n_estimators', 'use_label_encoder'}
         filtered = dict()
         for k, v in params.items():
             if k not in wrapper_specific:
@@ -430,6 +430,9 @@ class XGBModel(XGBModelBase):
                 continue
             if k == 'classes_':
                 self.classes_ = np.array(v)
+                continue
+            if k == 'use_label_encoder':
+                self.use_label_encoder = bool(v)
                 continue
             if k == 'type' and type(self).__name__ != v:
                 msg = 'Current model type: {}, '.format(type(self).__name__) + \
@@ -770,14 +773,14 @@ class XGBModel(XGBModelBase):
 ''')
 class XGBClassifier(XGBModel, XGBClassifierBase):
     # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
-    def __init__(self, objective="binary:logistic", **kwargs):
+    def __init__(self, objective="binary:logistic", use_label_encoder=True, **kwargs):
+        self.use_label_encoder = use_label_encoder
         super().__init__(objective=objective, **kwargs)
 
     def fit(self, X, y, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None,
-            sample_weight_eval_set=None, feature_weights=None, callbacks=None,
-            use_label_encoder=True):
+            sample_weight_eval_set=None, feature_weights=None, callbacks=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ,too-many-statements
 
         evals_result = {}
@@ -813,13 +816,14 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             else:
                 xgb_options.update({"eval_metric": eval_metric})
 
-        if use_label_encoder and not (_is_cudf_df(y) or _is_cudf_ser(y) or _is_cupy_array(y)):
-            warnings.warn('The use of label encoder in XGBClassifier is deprecated and will be ' +
-                          'removed in a future release. To remove this warning, do the ' +
-                          'following: 1) Pass option use_label_encoder=False to ' +
-                          'XGBClassifier.fit(); and 2) Encode your labels (y) as integers ' +
-                          'starting with 0, i.e. 0, 1, 2, ..., [num_class - 1].',
-                          UserWarning)
+        if self.use_label_encoder and not (_is_cudf_df(y) or _is_cudf_ser(y) or _is_cupy_array(y)):
+            warnings.warn(
+                'The use of label encoder in XGBClassifier is deprecated and will be ' +
+                'removed in a future release. To remove this warning, do the ' +
+                'following: 1) Pass option use_label_encoder=False when constructing ' +
+                'XGBClassifier object; and 2) Encode your labels (y) as integers ' +
+                'starting with 0, i.e. 0, 1, 2, ..., [num_class - 1].',
+                UserWarning)
             self._le = XGBoostLabelEncoder().fit(y)
             label_transform = self._le.transform
         else:

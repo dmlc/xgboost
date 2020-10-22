@@ -706,19 +706,17 @@ def save_load_model(model_path):
     from sklearn.datasets import load_digits
     from sklearn.model_selection import KFold
 
-    digits = load_digits(2)
+    digits = load_digits(n_class=2)
     y = digits['target']
     X = digits['data']
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
+        xgb_model = xgb.XGBClassifier(use_label_encoder=False).fit(X[train_index], y[train_index])
         xgb_model.save_model(model_path)
-        xgb_model = xgb.XGBClassifier()
+        xgb_model = xgb.XGBClassifier(use_label_encoder=False)
         xgb_model.load_model(model_path)
         assert isinstance(xgb_model.classes_, np.ndarray)
         assert isinstance(xgb_model._Booster, xgb.Booster)
-        assert isinstance(xgb_model._le, XGBoostLabelEncoder)
-        assert isinstance(xgb_model._le.classes_, np.ndarray)
         preds = xgb_model.predict(X[test_index])
         labels = y[test_index]
         err = sum(1 for i in range(len(preds))
@@ -750,7 +748,7 @@ def test_save_load_model():
     from sklearn.datasets import load_digits
     with TemporaryDirectory() as tempdir:
         model_path = os.path.join(tempdir, 'digits.model.json')
-        digits = load_digits(2)
+        digits = load_digits(n_class=2)
         y = digits['target']
         X = digits['data']
         booster = xgb.train({'tree_method': 'hist',
@@ -761,7 +759,7 @@ def test_save_load_model():
         booster.save_model(model_path)
         cls = xgb.XGBClassifier()
         cls.load_model(model_path)
-        predt_1 = cls.predict(X)
+        predt_1 = cls.predict_proba(X)[:, 1]
         assert np.allclose(predt_0, predt_1)
 
         cls = xgb.XGBModel()
