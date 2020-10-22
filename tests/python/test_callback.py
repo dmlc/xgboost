@@ -191,17 +191,17 @@ class TestCallbacks(unittest.TestCase):
             assert eval_errors_3[i] != eval_errors_2[i]
 
     def test_eta_decay_hist(self):
-        with pytest.deprecated_call():
+        with pytest.warns(UserWarning):
             self.run_eta_decay('hist', True)
         self.run_eta_decay('hist', False)
 
     def test_eta_decay_approx(self):
-        with pytest.deprecated_call():
+        with pytest.warns(UserWarning):
             self.run_eta_decay('approx', True)
         self.run_eta_decay('approx', False)
 
     def test_eta_decay_exact(self):
-        with pytest.deprecated_call():
+        with pytest.warns(UserWarning):
             self.run_eta_decay('exact', True)
         self.run_eta_decay('exact', False)
 
