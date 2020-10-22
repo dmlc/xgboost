@@ -6,6 +6,8 @@
 #include "rabit/rabit.h"
 #include "rabit/c_api.h"
 
+#include "../../src/c_api/c_api_error.h"
+
 namespace rabit {
 namespace c_api {
 // helper use to avoid BitOR operator
@@ -219,11 +221,19 @@ struct WriteWrapper : public Serializable {
 }  // namespace rabit
 
 RABIT_DLL bool RabitInit(int argc, char *argv[]) {
-  return rabit::Init(argc, argv);
+  auto ret = rabit::Init(argc, argv);
+  if (!ret) {
+    XGBAPISetLastError("Failed to initialize RABIT.");
+  }
+  return ret;
 }
 
 RABIT_DLL bool RabitFinalize() {
-  return rabit::Finalize();
+  auto ret = rabit::Finalize();
+  if (!ret) {
+    XGBAPISetLastError("Failed to shutdown RABIT worker.");
+  }
+  return ret;
 }
 
 RABIT_DLL int RabitGetRingPrevRank() {

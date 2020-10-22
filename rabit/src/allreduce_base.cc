@@ -123,7 +123,9 @@ bool AllreduceBase::Init(int argc, char* argv[]) {
 bool AllreduceBase::Shutdown() {
   try {
     for (auto & all_link : all_links) {
-      all_link.sock.Close();
+      if (!all_link.sock.IsClosed()) {
+        all_link.sock.Close();
+      }
     }
     all_links.clear();
     tree_links.plinks.clear();
@@ -136,7 +138,7 @@ bool AllreduceBase::Shutdown() {
     utils::TCPSocket::Finalize();
     return true;
   } catch (const std::exception& e) {
-    fprintf(stderr, "failed to shutdown due to %s\n", e.what());
+    LOG(WARNING) << "Failed to shutdown due to" << e.what();
     return false;
   }
 }
