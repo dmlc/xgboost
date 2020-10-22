@@ -778,14 +778,14 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             early_stopping_rounds=None, verbose=True, xgb_model=None,
             sample_weight_eval_set=None, feature_weights=None, callbacks=None,
             use_label_encoder=True):
-        # pylint: disable = attribute-defined-outside-init,arguments-differ
+        # pylint: disable = attribute-defined-outside-init,arguments-differ,too-many-statements
 
         evals_result = {}
         if _is_cudf_df(y) or _is_cudf_ser(y):
-            import cupy as cp
+            import cupy as cp  # pylint: disable=E0401
             self.classes_ = cp.unique(y.as_gpu_matrix())
         elif _is_cupy_array(y):
-            import cupy as cp
+            import cupy as cp  # pylint: disable=E0401
             self.classes_ = cp.unique(y)
         else:
             self.classes_ = np.unique(y)
@@ -814,10 +814,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                 xgb_options.update({"eval_metric": eval_metric})
 
         if use_label_encoder and not (_is_cudf_df(y) or _is_cudf_ser(y) or _is_cupy_array(y)):
-            warnings.warn(f'The use of label encoder in XGBClassifier is deprecated. To remove ' +
-                          f'this warning, pass option use_label_encoder=False to ' +
-                          f'XGBClassifier.fit(). A future release of XGBoost will *remove* label ' +
-                          f'encoder from XGBClassifier.',
+            warnings.warn('The use of label encoder in XGBClassifier is deprecated. To remove ' +
+                          'this warning, pass option use_label_encoder=False to ' +
+                          'XGBClassifier.fit(). A future release of XGBoost will *remove* label ' +
+                          'encoder from XGBClassifier.',
                           UserWarning)
             self._le = XGBoostLabelEncoder().fit(y)
             label_transform = self._le.transform
