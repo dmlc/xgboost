@@ -786,7 +786,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         evals_result = {}
         if _is_cudf_df(y) or _is_cudf_ser(y):
             import cupy as cp  # pylint: disable=E0401
-            self.classes_ = cp.unique(y.as_gpu_matrix())
+            self.classes_ = cp.unique(y.values)
         elif _is_cupy_array(y):
             import cupy as cp  # pylint: disable=E0401
             self.classes_ = cp.unique(y)
