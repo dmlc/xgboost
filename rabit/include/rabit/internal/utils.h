@@ -74,7 +74,6 @@ inline bool StringToBool(const char* s) {
  * \param msg error message
  */
 inline void HandleAssertError(const char *msg) {
-  fprintf(stderr, "AssertError:%s\n", msg);
   LOG(FATAL) << msg;
 }
 /*!
@@ -82,7 +81,6 @@ inline void HandleAssertError(const char *msg) {
  * \param msg error message
  */
 inline void HandleCheckError(const char *msg) {
-  fprintf(stderr, "%s\n", msg);
   LOG(FATAL) << msg;
 }
 
@@ -153,13 +151,6 @@ inline void Error(const char *fmt, ...) {
     va_end(args);
     HandleCheckError(msg.c_str());
   }
-}
-
-/*! \brief replace fopen, report error when the file open fails */
-inline std::FILE *FopenCheck(const char *fname, const char *flag) {
-  std::FILE *fp = fopen64(fname, flag);
-  Check(fp != nullptr, "can not open file \"%s\"\n", fname);
-  return fp;
 }
 }  // namespace utils
 

@@ -219,7 +219,7 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
       rabit_enable_tcp_no_delay = true;
     } else {
       rabit_enable_tcp_no_delay = false;
-}
+    }
   }
 }
 /*!
@@ -588,7 +588,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
       // eachreduce size
       if (max_reduce < total_size) {
           max_reduce = max_reduce - max_reduce % eachreduce;
-}
+      }
 
       // peform reduce, can be at most two rounds
       while (size_up_reduce < max_reduce) {
