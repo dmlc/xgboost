@@ -671,17 +671,6 @@ class GPUPredictor : public xgboost::Predictor {
                     model.learner_model_param->num_output_group);
     out_contribs->Fill(0.0f);
     auto phis = out_contribs->DeviceSpan();
-    p_fmat->Info().base_margin_.SetDevice(generic_param_->gpu_id);
-    const auto margin = p_fmat->Info().base_margin_.ConstDeviceSpan();
-    float base_score = model.learner_model_param->base_score;
-    // Add the base margin term to last column
-    dh::LaunchN(
-        generic_param_->gpu_id,
-        p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
-        [=] __device__(size_t idx) {
-          phis[(idx + 1) * contributions_columns - 1] =
-              margin.empty() ? base_score : margin[idx];
-        });
 
     dh::device_vector<gpu_treeshap::PathElement> device_paths;
     ExtractPaths(&device_paths, model, real_ntree_limit,
@@ -695,6 +684,17 @@ class GPUPredictor : public xgboost::Predictor {
           X, device_paths.begin(), device_paths.end(), ngroup,
           phis.data() + batch.base_rowid * contributions_columns, phis.size());
     }
+    // Add the base margin term to last column
+    p_fmat->Info().base_margin_.SetDevice(generic_param_->gpu_id);
+    const auto margin = p_fmat->Info().base_margin_.ConstDeviceSpan();
+    float base_score = model.learner_model_param->base_score;
+    dh::LaunchN(
+        generic_param_->gpu_id,
+        p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
+        [=] __device__(size_t idx) {
+          phis[(idx + 1) * contributions_columns - 1] +=
+              margin.empty() ? base_score : margin[idx];
+        });
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat,
@@ -726,21 +726,6 @@ class GPUPredictor : public xgboost::Predictor {
                          model.learner_model_param->num_output_group);
     out_contribs->Fill(0.0f);
     auto phis = out_contribs->DeviceSpan();
-    p_fmat->Info().base_margin_.SetDevice(generic_param_->gpu_id);
-    const auto margin = p_fmat->Info().base_margin_.ConstDeviceSpan();
-    float base_score = model.learner_model_param->base_score;
-    // Add the base margin term to last column
-    size_t n_features = model.learner_model_param->num_feature;
-    dh::LaunchN(
-        generic_param_->gpu_id,
-        p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
-        [=] __device__(size_t idx) {
-          size_t group = idx % ngroup;
-          size_t row_idx = idx / ngroup;
-          phis[gpu_treeshap::IndexPhiInteractions(
-              row_idx, ngroup, group, n_features, n_features, n_features)] =
-              margin.empty() ? base_score : margin[idx];
-        });
 
     dh::device_vector<gpu_treeshap::PathElement> device_paths;
     ExtractPaths(&device_paths, model, real_ntree_limit,
@@ -754,6 +739,22 @@ class GPUPredictor : public xgboost::Predictor {
           X, device_paths.begin(), device_paths.end(), ngroup,
           phis.data() + batch.base_rowid * contributions_columns, phis.size());
     }
+    // Add the base margin term to last column
+    p_fmat->Info().base_margin_.SetDevice(generic_param_->gpu_id);
+    const auto margin = p_fmat->Info().base_margin_.ConstDeviceSpan();
+    float base_score = model.learner_model_param->base_score;
+    size_t n_features = model.learner_model_param->num_feature;
+    dh::LaunchN(
+        generic_param_->gpu_id,
+        p_fmat->Info().num_row_ * model.learner_model_param->num_output_group,
+        [=] __device__(size_t idx) {
+          size_t group = idx % ngroup;
+          size_t row_idx = idx / ngroup;
+          phis[gpu_treeshap::IndexPhiInteractions(
+              row_idx, ngroup, group, n_features, n_features, n_features)] +=
+              margin.empty() ? base_score : margin[idx];
+        });
+
   }
 
  protected:
