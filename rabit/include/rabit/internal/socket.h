@@ -622,7 +622,9 @@ struct PollHelper {
       fdset.push_back(kv.second);
     }
     int ret = PollImpl(fdset.data(), fdset.size(), timeout);
-    if (ret <= 0) {
+    if (ret == 0) {
+      LOG(FATAL) << "Poll timeout";
+    } else if (ret < 0) {
       Socket::Error("Poll");
     } else {
       for (auto& pfd : fdset) {
