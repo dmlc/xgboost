@@ -121,7 +121,7 @@ def test_cupy_training_with_sklearn():
     base_margin = np.random.random(50)
     cupy_base_margin = cp.array(base_margin)
 
-    clf = xgb.XGBClassifier(gpu_id=0, tree_method='gpu_hist')
+    clf = xgb.XGBClassifier(gpu_id=0, tree_method='gpu_hist', use_label_encoder=False)
     clf.fit(X, y, sample_weight=cupy_weights, base_margin=cupy_base_margin, eval_set=[(X, y)])
     pred = clf.predict(X)
     assert np.array_equal(np.unique(pred), np.array([0, 1]))

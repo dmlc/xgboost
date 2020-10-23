@@ -193,7 +193,7 @@ def test_cudf_training_with_sklearn():
     y_cudf_series = ss(data=y.iloc[:, 0])
 
     for y_obj in [y_cudf, y_cudf_series]:
-        clf = xgb.XGBClassifier(gpu_id=0, tree_method='gpu_hist')
+        clf = xgb.XGBClassifier(gpu_id=0, tree_method='gpu_hist', use_label_encoder=False)
         clf.fit(X_cudf, y_obj, sample_weight=cudf_weights, base_margin=cudf_base_margin,
                 eval_set=[(X_cudf, y_obj)])
         pred = clf.predict(X_cudf)

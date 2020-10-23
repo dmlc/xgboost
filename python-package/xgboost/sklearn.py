@@ -783,16 +783,37 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             sample_weight_eval_set=None, feature_weights=None, callbacks=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ,too-many-statements
 
+        can_use_label_encoder = True
+        label_encoding_check_error = (
+                'The label must consist of integer labels of form 0, 1, 2, ..., [num_class - 1].')
+        label_encoder_deprecation_msg = (
+                'The use of label encoder in XGBClassifier is deprecated and will be ' +
+                'removed in a future release. To remove this warning, do the ' +
+                'following: 1) Pass option use_label_encoder=False when constructing ' +
+                'XGBClassifier object; and 2) Encode your labels (y) as integers ' +
+                'starting with 0, i.e. 0, 1, 2, ..., [num_class - 1].')
+
         evals_result = {}
         if _is_cudf_df(y) or _is_cudf_ser(y):
             import cupy as cp  # pylint: disable=E0401
             self.classes_ = cp.unique(y.values)
+            self.n_classes_ = len(self.classes_)
+            can_use_label_encoder = False
+            if not cp.array_equal(self.classes_, cp.arange(self.n_classes_)):
+                raise ValueError(label_encoding_check_error)
         elif _is_cupy_array(y):
             import cupy as cp  # pylint: disable=E0401
             self.classes_ = cp.unique(y)
+            self.n_classes_ = len(self.classes_)
+            can_use_label_encoder = False
+            if not cp.array_equal(self.classes_, cp.arange(self.n_classes_)):
+                raise ValueError(label_encoding_check_error)
         else:
             self.classes_ = np.unique(y)
-        self.n_classes_ = len(self.classes_)
+            self.n_classes_ = len(self.classes_)
+            if not self.use_label_encoder and (
+                    not np.array_equal(self.classes_, np.arange(self.n_classes_))):
+                raise ValueError(label_encoding_check_error)
 
         xgb_options = self.get_xgb_params()
 
@@ -816,14 +837,13 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             else:
                 xgb_options.update({"eval_metric": eval_metric})
 
-        if self.use_label_encoder and not (_is_cudf_df(y) or _is_cudf_ser(y) or _is_cupy_array(y)):
-            warnings.warn(
-                'The use of label encoder in XGBClassifier is deprecated and will be ' +
-                'removed in a future release. To remove this warning, do the ' +
-                'following: 1) Pass option use_label_encoder=False when constructing ' +
-                'XGBClassifier object; and 2) Encode your labels (y) as integers ' +
-                'starting with 0, i.e. 0, 1, 2, ..., [num_class - 1].',
-                UserWarning)
+        if self.use_label_encoder:
+            if not can_use_label_encoder:
+                raise ValueError('The option use_label_encoder=True is incompatible with inputs ' +
+                                 'of type cuDF or cuPy. Please set use_label_encoder=False when ' +
+                                 'constructing XGBClassifier object. NOTE: ' +
+                                 label_encoder_deprecation_msg)
+            warnings.warn(label_encoder_deprecation_msg, UserWarning)
             self._le = XGBoostLabelEncoder().fit(y)
             label_transform = self._le.transform
         else:

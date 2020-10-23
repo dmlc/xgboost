@@ -776,10 +776,10 @@ def test_RFECV():
 
     # Regression
     X, y = load_boston(return_X_y=True)
-    bst = xgb.XGBClassifier(booster='gblinear', learning_rate=0.1,
-                            n_estimators=10,
-                            objective='reg:squarederror',
-                            random_state=0, verbosity=0)
+    bst = xgb.XGBRegressor(booster='gblinear', learning_rate=0.1,
+                           n_estimators=10,
+                           objective='reg:squarederror',
+                           random_state=0, verbosity=0)
     rfecv = RFECV(
         estimator=bst, step=1, cv=3, scoring='neg_mean_squared_error')
     rfecv.fit(X, y)
@@ -789,7 +789,7 @@ def test_RFECV():
     bst = xgb.XGBClassifier(booster='gblinear', learning_rate=0.1,
                             n_estimators=10,
                             objective='binary:logistic',
-                            random_state=0, verbosity=0)
+                            random_state=0, verbosity=0, use_label_encoder=False)
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='roc_auc')
     rfecv.fit(X, y)
 
@@ -800,7 +800,7 @@ def test_RFECV():
                             n_estimators=10,
                             objective='multi:softprob',
                             random_state=0, reg_alpha=0.001, reg_lambda=0.01,
-                            scale_pos_weight=0.5, verbosity=0)
+                            scale_pos_weight=0.5, verbosity=0, use_label_encoder=False)
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='neg_log_loss')
     rfecv.fit(X, y)
 
@@ -809,7 +809,7 @@ def test_RFECV():
     rfecv = RFECV(estimator=reg)
     rfecv.fit(X, y)
 
-    cls = xgb.XGBClassifier()
+    cls = xgb.XGBClassifier(use_label_encoder=False)
     rfecv = RFECV(estimator=cls, step=1, cv=3,
                   scoring='neg_mean_squared_error')
     rfecv.fit(X, y)
