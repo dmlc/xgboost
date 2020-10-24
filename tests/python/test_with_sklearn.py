@@ -240,7 +240,6 @@ def test_feature_importances_gain():
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
 
-@pytest.mark.skipif(**tm.is_arm())
 def test_select_feature():
     from sklearn.datasets import load_digits
     from sklearn.feature_selection import SelectFromModel
