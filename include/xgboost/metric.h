@@ -34,7 +34,7 @@ class Metric : public Configurable {
    * \param args arguments to the objective function.
    */
   virtual void Configure(
-      const std::vector<std::pair<std::string, std::string> >& args) {}
+      const std::vector<std::pair<std::string, std::string> >&) {}
   /*!
    * \brief Load configuration from JSON object
    * By default, metric has no internal configuration;
