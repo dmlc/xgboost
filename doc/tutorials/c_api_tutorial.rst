@@ -231,7 +231,7 @@ Sample examples along with Code snippet to use C API functions
   XGDMatrixCreateFromMat(data2, ROWS, COLS, -1, &dmatrix2);
 
 
-4. Create booster learner for training & testing on dataset using `XGBoosterCreate <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#ad9fe6f8c8c4901db1c7581a96a21f9ae>`_ 
+3. Create booster learner for training & testing on dataset using `XGBoosterCreate <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#ad9fe6f8c8c4901db1c7581a96a21f9ae>`_ 
 
 .. note:: It is assumed that training & testing dataset is loaded in train & test DMatrixHandle type variable respectively.
 
@@ -243,7 +243,7 @@ Sample examples along with Code snippet to use C API functions
   XGBoosterCreate(eval_dmats, eval_dmats_size, &booster);
 
   
-5. Loading and reading the labels using `XGDMatrixSetFloatInfo <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#aef75cda93db3ae9af89e465ae7e9cbe3>`_ and `XGDMatrixGetFloatInfo <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#ab0ee317539a1fb1ce2b5f249e8c768f6>`_ respectively.
+4. Loading and reading the labels using `XGDMatrixSetFloatInfo <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#aef75cda93db3ae9af89e465ae7e9cbe3>`_ and `XGDMatrixGetFloatInfo <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#ab0ee317539a1fb1ce2b5f249e8c768f6>`_ respectively.
 
 .. code-block:: c
 
@@ -274,7 +274,7 @@ Sample examples along with Code snippet to use C API functions
     printf("label[%i] = %f \n", i, result[i]);
    
     
-6. Setting the parameters for the Booster Handle according to the requirement using `XGBoosterSetParam <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#af7378865b0c999d2d08a5b16483b8bcb>`_ . Check out the full list of parameters available `here <https://xgboost.readthedocs.io/en/latest/parameter.html>`_ . 
+5. Setting the parameters for the Booster Handle according to the requirement using `XGBoosterSetParam <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#af7378865b0c999d2d08a5b16483b8bcb>`_ . Check out the full list of parameters available `here <https://xgboost.readthedocs.io/en/latest/parameter.html>`_ . 
 
 .. code-block :: c
  
@@ -286,7 +286,7 @@ Sample examples along with Code snippet to use C API functions
     XGBoosterSetParam(booster, "eta", "0.1");
 
 
-7. Training & evaluating the model for required number of iterations using `XGBoosterUpdateOneIter <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a13594d68b27327db290ec5e0a0ac92ae>`_ and `XGBoosterEvalOneIter <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a201b53edb9cc52e9def1ccea951d18fe>`_ respectively.
+6. Training & evaluating the model for required number of iterations using `XGBoosterUpdateOneIter <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a13594d68b27327db290ec5e0a0ac92ae>`_ and `XGBoosterEvalOneIter <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a201b53edb9cc52e9def1ccea951d18fe>`_ respectively.
 
 .. note:: Extending point 4 from above
 
@@ -310,7 +310,7 @@ Sample examples along with Code snippet to use C API functions
     }
 
 
-8.  Predicting the result on test dataset using `XGBoosterPredict <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#adc14afaedd5f1add105d18942a4de33c>`_
+7.  Predicting the result on test dataset using `XGBoosterPredict <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#adc14afaedd5f1add105d18942a4de33c>`_
 
 .. note:: Extending point 7
 
@@ -328,10 +328,10 @@ Sample examples along with Code snippet to use C API functions
     }
 
 
-9. Free all the internal structure used in your code using `XGDMatrixFree <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#af06a15433b01e3b8297930a38155e05d>`_ and `XGBoosterFree <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a5d816936b005a103f0deabf287a6a5da>`_
+8. Free all the internal structure used in your code using `XGDMatrixFree <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#af06a15433b01e3b8297930a38155e05d>`_ and `XGBoosterFree <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a5d816936b005a103f0deabf287a6a5da>`_
 
 
-10. To get the number of features in your dataset using `XGBoosterGetNumFeature <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#aa2c22f65cf2770c0e2e56cc7929a14af>`_ .
+9. To get the number of features in your dataset using `XGBoosterGetNumFeature <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#aa2c22f65cf2770c0e2e56cc7929a14af>`_ .
 
 .. code-block:: c
 
@@ -346,7 +346,7 @@ Sample examples along with Code snippet to use C API functions
     printf("num_feature: %lu\n", (unsigned long)(num_of_features));
 
 
-11. Loading the model using `XGBoosterLoadModel function <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a054571e6364f9a1cbf6b6b4fd2f156d6>`_
+10. Loading the model using `XGBoosterLoadModel function <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a054571e6364f9a1cbf6b6b4fd2f156d6>`_
 
 .. code-block:: c
 
