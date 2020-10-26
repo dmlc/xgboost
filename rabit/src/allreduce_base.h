@@ -221,14 +221,6 @@ class AllreduceBase : public IEngine {
     return version_number;
   }
   /*!
-   * \brief explicitly re-init everything before calling LoadCheckPoint
-   *    call this function when IEngine throw an exception out,
-   *    this function is only used for test purpose
-   */
-  void InitAfterException() override {
-    utils::Error("InitAfterException: not implemented");
-  }
-  /*!
    * \brief report current status to the job tracker
    * depending on the job tracker we are in
    */

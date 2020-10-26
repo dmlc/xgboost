@@ -87,12 +87,6 @@ class IEngine {
    */
   virtual void Broadcast(void *sendrecvbuf_, size_t size, int root) = 0;
   /*!
-   * \brief explicitly re-initialize everything before calling LoadCheckPoint
-   *    call this function when IEngine throws an exception,
-   *    this function should only be used for test purposes
-   */
-  virtual void InitAfterException() = 0;
-  /*!
    * \brief loads the latest check point
    * \param global_model pointer to the globally shared model/state
    *   when calling this function, the caller needs to guarantee that the global_model
