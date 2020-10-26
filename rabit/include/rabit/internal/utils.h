@@ -69,33 +69,8 @@ inline bool StringToBool(const char* s) {
   return CompareStringsCaseInsensitive(s, "true") == 0 || atoi(s) != 0;
 }
 
-/*!
- * \brief handling of Assert error, caused by inappropriate input
- * \param msg error message
- */
-inline void HandleAssertError(const char *msg) {
-  LOG(FATAL) << msg;
-}
-/*!
- * \brief handling of Check error, caused by inappropriate input
- * \param msg error message
- */
-inline void HandleCheckError(const char *msg) {
-  LOG(FATAL) << msg;
-}
-
 inline void HandlePrint(const char *msg) {
   printf("%s", msg);
-}
-
-inline void HandleLogInfo(const char *fmt, ...) {
-  std::string msg(kPrintBuffer, '\0');
-  va_list args;
-  va_start(args, fmt);
-  vsnprintf(&msg[0], kPrintBuffer, fmt, args);
-  va_end(args);
-  fprintf(stdout, "%s", msg.c_str());
-  fflush(stdout);
 }
 
 /*! \brief printf, prints messages to the console */
@@ -106,15 +81,6 @@ inline void Printf(const char *fmt, ...) {
   vsnprintf(&msg[0], kPrintBuffer, fmt, args);
   va_end(args);
   HandlePrint(msg.c_str());
-}
-
-/*! \brief portable version of snprintf */
-inline int SPrintf(char *buf, size_t size, const char *fmt, ...) {
-  va_list args;
-  va_start(args, fmt);
-  int ret = vsnprintf(buf, size, fmt, args);
-  va_end(args);
-  return ret;
 }
 
 /*! \brief assert a condition is true, use this to handle debug information */
