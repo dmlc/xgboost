@@ -29,8 +29,10 @@ Run the following commands on your terminal. The below commands will install the
     cd xgboost
     mkdir build
     cd build
-    # Build the compiled version of this library inside the build folder
+    # Build the compiled version of XGBoost inside the build folder
     cmake .. -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=/path/to/conda/env -GNinja
+    # Activate the Conda environment, into which we'll install XGBoost
+    conda activate [env_name]
     # install XGBoost in your conda environment inside miniconda3/include folder
     ninja -v install
 
@@ -65,75 +67,43 @@ Usefull Tips To Remember
 
 Below are some usefull tips while using C API:
 
-1. Error handling
+1. Error handling: Always check the return value of the C API functions.
 
-a. In C: Use Macros, which print all the error/ exception occured 
+a. In a C application: Use the following macro to guard all calls to XGBoost's C API functions. The macro prints all the error/ exception occured:
 
 .. highlight:: c
    :linenothreshold: 5
 
 .. code-block:: c
 
-  #define safe_xgboost(call) {                                            
-    int err = (call);                                                       
-    if (err != 0) {     
+  #define safe_xgboost(call) {  \                                    
+    int err = (call); \                         
+    if (err != 0) { \
+      fprintf(stderr, "%s:%d: error in %s: %s\n", __FILE__, __LINE__, #call, XGBGetLastError());  \
+      exit(1); \
+    } \
+  }
 
-      fprintf(stderr, "%s:%d: error in %s: %s\n", __FILE__, __LINE__, #call, XGBGetLastError()); 
-      exit(1);    
-
-    }   
-
-   }
-
-
-b. Exception handling in C++ application:
+In your application, wrap all C API function calls with the macro as follows:
 
 .. code-block:: c
 
-    #include <assert.h>
-    #include <iostream>
-    #include <stdio.h>
-    #include <stdlib.h>
-    #include <xgboost/c_api.h>
+  DMatrixHandle train;
+  safe_xgboost(XGDMatrixCreateFromFile("/path/to/training/dataset/", silent, &train));
 
-    int main(int argc, char** argv) {
-      try{
-        int silent = 0;
-        int use_gpu = 0;  // set to 1 to use the GPU for training
+b. In a C++ application: modify the macro ``safe_xgboost`` to throw an exception upon an error.
 
-        // load the data
-        DMatrixHandle train;
-        int val = XGDMatrixCreateFromFile("/path/to/training/dataset/", silent, &train);
-       
-        if(val != 0)
-          throw XGBGetLastError();
-    
-	      // do something
-	
-	      val = XGDBMatrixFree(dtrain);
-	
-	      if(val != 0)
-	        throw XGBGetLastError();
-	 
-	   }
+.. highlight:: cpp
+   :linenothreshold: 5
 
-      catch(const char* e){
+.. code-block:: cpp
 
-        std::cout<<"exception caught"<<std::endl;
-        std::cout<<e<<std::endl; 
-
-       }
-
-      catch(std::exception &e){
-
-        std::cout<<"exception is caught"<<std::endl;
-        std::cout<<e.what()<<std::endl;
-
-       }
-
-      return 0;
-
-    }
+  #define safe_xgboost(call) {  \                                    
+    int err = (call); \                         
+    if (err != 0) { \
+      throw new Exception("%s:%d: error in %s: %s\n", __FILE__, __LINE__, #call, XGBGetLastError()));  \
+    } \
+  }
 
 c. Assertion technique: It works both in C/ C++. If expression evaluates to 0 (false), then the expression, source code filename, and line number are sent to the standard error, and then abort() function is called. It can be used to test assumptions made by you in the code.
 
@@ -143,7 +113,7 @@ c. Assertion technique: It works both in C/ C++. If expression evaluates to 0 (f
   assert( XGDMatrixCreateFromFile("training_data.libsvm", 0, &dmat) == 0);
 
 
-2. Always remember to free the allocated space by BoosterHandle & DMatrixHandle appropriately
+2. Always remember to free the allocated space by BoosterHandle & DMatrixHandle appropriately:
 
 .. code-block:: c
 
@@ -154,7 +124,6 @@ c. Assertion technique: It works both in C/ C++. If expression evaluates to 0 (f
     
     int main(int argc, char** argv) {
       int silent = 0;
-      int use_gpu = 0;  // set to 1 to use the GPU for training
   
       BoosterHandle booster;
    
