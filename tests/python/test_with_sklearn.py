@@ -706,19 +706,17 @@ def save_load_model(model_path):
     from sklearn.datasets import load_digits
     from sklearn.model_selection import KFold
 
-    digits = load_digits(2)
+    digits = load_digits(n_class=2)
     y = digits['target']
     X = digits['data']
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
+        xgb_model = xgb.XGBClassifier(use_label_encoder=False).fit(X[train_index], y[train_index])
         xgb_model.save_model(model_path)
-        xgb_model = xgb.XGBClassifier()
+        xgb_model = xgb.XGBClassifier(use_label_encoder=False)
         xgb_model.load_model(model_path)
         assert isinstance(xgb_model.classes_, np.ndarray)
         assert isinstance(xgb_model._Booster, xgb.Booster)
-        assert isinstance(xgb_model._le, XGBoostLabelEncoder)
-        assert isinstance(xgb_model._le.classes_, np.ndarray)
         preds = xgb_model.predict(X[test_index])
         labels = y[test_index]
         err = sum(1 for i in range(len(preds))
@@ -750,7 +748,7 @@ def test_save_load_model():
     from sklearn.datasets import load_digits
     with TemporaryDirectory() as tempdir:
         model_path = os.path.join(tempdir, 'digits.model.json')
-        digits = load_digits(2)
+        digits = load_digits(n_class=2)
         y = digits['target']
         X = digits['data']
         booster = xgb.train({'tree_method': 'hist',
@@ -761,7 +759,7 @@ def test_save_load_model():
         booster.save_model(model_path)
         cls = xgb.XGBClassifier()
         cls.load_model(model_path)
-        predt_1 = cls.predict(X)
+        predt_1 = cls.predict_proba(X)[:, 1]
         assert np.allclose(predt_0, predt_1)
 
         cls = xgb.XGBModel()
@@ -778,10 +776,10 @@ def test_RFECV():
 
     # Regression
     X, y = load_boston(return_X_y=True)
-    bst = xgb.XGBClassifier(booster='gblinear', learning_rate=0.1,
-                            n_estimators=10,
-                            objective='reg:squarederror',
-                            random_state=0, verbosity=0)
+    bst = xgb.XGBRegressor(booster='gblinear', learning_rate=0.1,
+                           n_estimators=10,
+                           objective='reg:squarederror',
+                           random_state=0, verbosity=0)
     rfecv = RFECV(
         estimator=bst, step=1, cv=3, scoring='neg_mean_squared_error')
     rfecv.fit(X, y)
@@ -791,7 +789,7 @@ def test_RFECV():
     bst = xgb.XGBClassifier(booster='gblinear', learning_rate=0.1,
                             n_estimators=10,
                             objective='binary:logistic',
-                            random_state=0, verbosity=0)
+                            random_state=0, verbosity=0, use_label_encoder=False)
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='roc_auc')
     rfecv.fit(X, y)
 
@@ -802,7 +800,7 @@ def test_RFECV():
                             n_estimators=10,
                             objective='multi:softprob',
                             random_state=0, reg_alpha=0.001, reg_lambda=0.01,
-                            scale_pos_weight=0.5, verbosity=0)
+                            scale_pos_weight=0.5, verbosity=0, use_label_encoder=False)
     rfecv = RFECV(estimator=bst, step=1, cv=3, scoring='neg_log_loss')
     rfecv.fit(X, y)
 
@@ -811,7 +809,7 @@ def test_RFECV():
     rfecv = RFECV(estimator=reg)
     rfecv.fit(X, y)
 
-    cls = xgb.XGBClassifier()
+    cls = xgb.XGBClassifier(use_label_encoder=False)
     rfecv = RFECV(estimator=cls, step=1, cv=3,
                   scoring='neg_mean_squared_error')
     rfecv.fit(X, y)
