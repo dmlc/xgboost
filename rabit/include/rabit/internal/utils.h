@@ -15,6 +15,7 @@
 #include <stdexcept>
 #include <vector>
 #include "dmlc/io.h"
+#include "xgboost/logging.h"
 #include <cstdarg>
 
 #if !defined(__GNUC__) || defined(__FreeBSD__)
@@ -73,17 +74,14 @@ inline bool StringToBool(const char* s) {
  * \param msg error message
  */
 inline void HandleAssertError(const char *msg) {
-  fprintf(stderr,
-          "AssertError:%s, rabit is configured to keep process running\n", msg);
-  throw dmlc::Error(msg);
+  LOG(FATAL) << msg;
 }
 /*!
  * \brief handling of Check error, caused by inappropriate input
  * \param msg error message
  */
 inline void HandleCheckError(const char *msg) {
-  fprintf(stderr, "%s, rabit is configured to keep process running\n", msg);
-  throw dmlc::Error(msg);
+  LOG(FATAL) << msg;
 }
 
 inline void HandlePrint(const char *msg) {
@@ -153,13 +151,6 @@ inline void Error(const char *fmt, ...) {
     va_end(args);
     HandleCheckError(msg.c_str());
   }
-}
-
-/*! \brief replace fopen, report error when the file open fails */
-inline std::FILE *FopenCheck(const char *fname, const char *flag) {
-  std::FILE *fp = fopen64(fname, flag);
-  Check(fp != nullptr, "can not open file \"%s\"\n", fname);
-  return fp;
 }
 }  // namespace utils
 

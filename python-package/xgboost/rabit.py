@@ -6,7 +6,7 @@ import ctypes
 import pickle
 import numpy as np
 
-from .core import _LIB, c_str, STRING_TYPES
+from .core import _LIB, c_str, STRING_TYPES, _check_call
 
 
 def _init_rabit():
@@ -77,7 +77,7 @@ def tracker_print(msg):
         msg = str(msg)
     is_dist = _LIB.RabitIsDistributed()
     if is_dist != 0:
-        _LIB.RabitTrackerPrint(c_str(msg))
+        _check_call(_LIB.RabitTrackerPrint(c_str(msg)))
     else:
         sys.stdout.write(msg)
         sys.stdout.flush()
