@@ -4,6 +4,7 @@
 import os
 import platform
 import sys
+import sysconfig
 
 
 class XGBoostLibraryNotFound(Exception):
@@ -20,10 +21,15 @@ def find_lib_path():
     """
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     dll_path = [
+        # make libpath work in FreeBSD
+        # from https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=247408#c0
+        sysconfig.get_config_var('LIBDIR'),
         # normal, after installation `lib` is copied into Python package tree.
         os.path.join(curr_path, 'lib'),
         # editable installation, no copying is performed.
         os.path.join(curr_path, os.path.pardir, os.path.pardir, 'lib'),
+        # use libxgboost from a system prefix, if available
+        os.path.join(sys.prefix, 'xgboost'),
     ]
     if sys.platform == 'win32':
         if platform.architecture()[0] == '64bit':
