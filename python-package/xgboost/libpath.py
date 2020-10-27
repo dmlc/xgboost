@@ -31,7 +31,7 @@ def find_lib_path():
         # use libxgboost from a system prefix, if available
         os.path.join(sys.prefix, 'xgboost'),
     ]
-    dll_path = [x for x in dllpath if x is not None]
+    dll_path = [x for x in dll_path if x is not None]
     if sys.platform == 'win32':
         if platform.architecture()[0] == '64bit':
             dll_path.append(
