@@ -102,6 +102,9 @@ inline dmlc::InputSplit *CreateInputSplit(std::string const& uri, unsigned part,
 template <typename IndexType, typename DType = float>
 void ConcatBlocks(
     std::vector<dmlc::data::RowBlockContainer<IndexType, DType>> *data) {
+  if (data->empty()) {
+    return;
+  }
   auto &block = data->front();
   for (size_t i = 1; i < data->size(); ++i) {
     block.Push(data->at(i).GetBlock());
@@ -118,9 +121,6 @@ class CSVParser : public dmlc::data::CSVParser<IndexType, DType> {
 
   bool ParseNext(std::vector<dmlc::data::RowBlockContainer<IndexType, DType> > *data) override {
     auto ret = TextParserBase::FillData(data);
-    if (data->empty()) {
-      return ret;
-    }
     ConcatBlocks(data);
     return ret;
   }
@@ -133,9 +133,6 @@ class LibFMParser : public dmlc::data::LibFMParser<IndexType, DType> {
 
   bool ParseNext(std::vector<dmlc::data::RowBlockContainer<IndexType, DType> > *data) override {
     auto ret = TextParserBase::FillData(data);
-    if (data->empty()) {
-      return ret;
-    }
     ConcatBlocks(data);
     return ret;
   }
@@ -148,9 +145,6 @@ class LibSVMParser : public dmlc::data::LibSVMParser<IndexType, DType> {
 
   bool ParseNext(std::vector<dmlc::data::RowBlockContainer<IndexType, DType> > *data) override {
     auto ret = TextParserBase::FillData(data);
-    if (data->empty()) {
-      return ret;
-    }
     ConcatBlocks(data);
     return ret;
   }
