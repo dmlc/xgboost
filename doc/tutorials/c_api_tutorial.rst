@@ -2,7 +2,7 @@
 C API Tutorial 
 ##############################
 
-In this tutorial, we are going to install Xgboost library & configure the CMakeLists.txt file of our C/C++ application to link Xgboost library with our application. Later on, we will see some usefull tips for using C API and code snippets as examples to use various functions available in C API to perform basic task like loading, training model & predicting on test dataset. 
+In this tutorial, we are going to install XGBoost library & configure the CMakeLists.txt file of our C/C++ application to link XGBoost library with our application. Later on, we will see some usefull tips for using C API and code snippets as examples to use various functions available in C API to perform basic task like loading, training model & predicting on test dataset. 
 
 .. contents::
   :backlinks: none
@@ -13,18 +13,17 @@ Requirements
 ************
 
 Install CMake - Follow the `cmake installation documentation <https://cmake.org/install/>`_ for instructions. 
-Install ninja-build - Follow the `ninja-build installation documentation <https://ninja-build.org/>`_ for instructions.
 Install Conda - Follow the `conda installation  documentation <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>`_ for instructions
 
 *************************************
-Install Xgboost on conda environment
+Install XGBoost on conda environment
 *************************************
 
 Run the following commands on your terminal. The below commands will install the XGBoost in your XGBoost folder of the repository cloned
 
 .. code-block:: bash
 
-    # clone the Xgboost repository & its submodules
+    # clone the XGBoost repository & its submodules
     git clone --recursive https://github.com/dmlc/xgboost
     cd xgboost
     mkdir build
@@ -33,33 +32,37 @@ Run the following commands on your terminal. The below commands will install the
     cmake .. -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=/path/to/conda/env -GNinja
     # Activate the Conda environment, into which we'll install XGBoost
     conda activate [env_name]
-    # install XGBoost in your conda environment inside miniconda3/include folder
-    ninja -v install
+    # install XGBoost in your conda environment (usually under [your home directory]/miniconda3)
+    make install
 
-**********************************************************************
-Configure CMakeList.txt file of your application to link with Xgboost 
-**********************************************************************
+*********************************************************************
+Configure CMakeList.txt file of your application to link with XGBoost 
+*********************************************************************
 
-If you have put Xgboost in your project folder then add these lines of code and appropriately replace ``your_project_name``, ``your_project_version``, ``path/to/project_file.c`` variables with there respective value:
-    
-.. code-block:: bash
+Here, we assume that your C++ application is using CMake for builds.
 
-    cmake_minimum_required(VERSION 3.13)
-    project(your_project_name LANGUAGES C CXX VERSION your_project_version)
-    add_subdirectory(xgboost)
-    add_executable(your_project_name /path/to/project_file.c)
-    target_link_libraries(your_project_name xgboost)
-
-
-If your Xgboost package is not present in the your project then use `find_package()` this will load external Xgboost already installed
+Use ``find_package()`` and ``target_link_libraries()`` in your application's CMakeList.txt to link with the XGBoost library:
    
-.. code-block:: bash
+.. code-block:: cmake
 
     cmake_minimum_required(VERSION 3.13)
     project(your_project_name LANGUAGES C CXX VERSION your_project_version)
     find_package(xgboost REQUIRED)
     add_executable(your_project_name /path/to/project_file.c)
     target_link_libraries(your_project_name xgboost::xgboost)
+
+To ensure that CMake can locate the XGBoost library, supply ``-DCMAKE_PREFIX_PATH=$CONDA_PREFIX`` argument when invoking CMake. This option instructs CMake to locate the XGBoost library in ``$CONDA_PREFIX``, which is where your Conda environment is located.
+
+.. code-block:: bash
+
+  # Nagivate to the build directory for your application
+  cd build
+  # Activate the Conda environment where we previously installed XGBoost
+  conda activate [env_name]
+  # Invoke CMake with CMAKE_PREFIX_PATH
+  cmake .. -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+  # Build your application
+  make
 
 ************************
 Usefull Tips To Remember
