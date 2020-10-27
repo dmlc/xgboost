@@ -295,7 +295,7 @@ class QuantileHistMaker: public TreeUpdater {
                         const GHistIndexMatrix& gmat,
                         const ColumnMatrix& column_matrix,
                         const HistCollection<GradientSumT>& hist,
-                        RegTree* p_tree, int depth = 0, int it = 0);
+                        RegTree* p_tree/*, int depth = 0, int it = 0*/);
 
     template <typename BinIdxType>
     void PartitionKernel(const size_t node_in_set, const size_t nid, common::Range1d range,
@@ -340,7 +340,7 @@ class QuantileHistMaker: public TreeUpdater {
     void BuildLocalHistograms(const GHistIndexMatrix &gmat,
                               const GHistIndexBlockMatrix &gmatb,
                               RegTree *p_tree,
-                              const std::vector<GradientPair> &gpair_h, int depth = 0);
+                              const std::vector<GradientPair> &gpair_h/*, int depth = 0*/);
 
     void BuildHistogramsLossGuide(
                         ExpandEntry entry,
@@ -479,7 +479,7 @@ class HistSynchronizer {
   virtual void SyncHistograms(BuilderT* builder,
                               int starting_index,
                               int sync_count,
-                              RegTree *p_tree, int depth = 0) = 0;
+                              RegTree *p_tree/*, int depth = 0*/) = 0;
   virtual ~HistSynchronizer() = default;
 };
 
@@ -490,7 +490,7 @@ class BatchHistSynchronizer: public HistSynchronizer<GradientSumT> {
   void SyncHistograms(BuilderT* builder,
                       int starting_index,
                       int sync_count,
-                      RegTree *p_tree, int depth = 0) override;
+                      RegTree *p_tree/*, int depth = 0*/) override;
 };
 
 template <typename GradientSumT>
@@ -500,7 +500,7 @@ class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
   using ExpandEntryT = typename BuilderT::ExpandEntry;
 
   void SyncHistograms(BuilderT* builder, int starting_index,
-                      int sync_count, RegTree *p_tree, int depth = 0) override;
+                      int sync_count, RegTree *p_tree/*, int depth = 0*/) override;
 
   void ParallelSubtractionHist(BuilderT* builder,
                                const common::BlockedSpace2d& space,
