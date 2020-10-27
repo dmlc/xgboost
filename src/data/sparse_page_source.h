@@ -21,6 +21,7 @@
 
 #include "xgboost/base.h"
 #include "xgboost/data.h"
+#include "rabit/rabit.h"
 
 #include "adapter.h"
 #include "sparse_page_writer.h"
@@ -127,6 +128,30 @@ inline void CheckCacheFileExists(const std::string& file) {
   }
 }
 
+template <typename Page>
+class FileBatchIter {
+  std::function<void()> before_first_;
+  std::function<bool(Page **)> next_;
+
+ public:
+  void Init(std::function<bool(Page **)> next,
+            std::function<void()> beforefirst) {
+    next_ = next;
+    before_first_ = beforefirst;
+  }
+
+  bool Next(Page** page) {
+    return next_(page);
+  }
+  void Recycle(Page** page) {
+    LOG(FATAL) << "w?";
+  }
+
+  void BeforeFirst() {
+    before_first_();
+  }
+};
+
 /**
  * \brief Given a set of cache files and page type, this object iterates over batches
  * using prefetching for improved performance. Not thread safe.
@@ -161,7 +186,7 @@ class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
       formats_[i].reset(CreatePageFormat<PageT>(format));
       std::unique_ptr<SparsePageFormat<PageT>>& fmt = formats_[i];
       size_t fbegin = fi->Tell();
-      prefetchers_[i].reset(new dmlc::ThreadedIter<PageT>(4));
+      prefetchers_[i].reset(new FileBatchIter<PageT>());
       prefetchers_[i]->Init(
           [&fi, &fmt](PageT** dptr) {
             if (*dptr == nullptr) {
@@ -228,7 +253,7 @@ class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
   /*! \brief Sparse page format file. */
   std::vector<std::unique_ptr<SparsePageFormat<PageT>>> formats_;
   /*! \brief internal prefetcher. */
-  std::vector<std::unique_ptr<dmlc::ThreadedIter<PageT>>> prefetchers_;
+  std::vector<std::unique_ptr<FileBatchIter<PageT>>> prefetchers_;
 };
 
 class SparsePageSource {
