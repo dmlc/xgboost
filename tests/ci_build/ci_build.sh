@@ -90,13 +90,13 @@ WORKSPACE="${WORKSPACE:-${SCRIPT_DIR}/../../}"
 DOCKER_IMG_NAME="xgb-ci.${CONTAINER_TYPE}"
 
 # Append cuda version if available
-CUDA_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'CUDA_VERSION=[0-9]+\.[0-9]+' | egrep -o '[0-9]+\.[0-9]+')
+CUDA_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | grep -o -E 'CUDA_VERSION=[0-9]+\.[0-9]+' | grep -o -E '[0-9]+\.[0-9]+')
 # Append jdk version if available
-JDK_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'JDK_VERSION=[0-9]+' | egrep -o '[0-9]+')
+JDK_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | grep -o -E 'JDK_VERSION=[0-9]+' | grep -o -E '[0-9]+')
 # Append cmake version if available
-CMAKE_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'CMAKE_VERSION=[0-9]+\.[0-9]+' | egrep -o '[0-9]+\.[0-9]+')
+CMAKE_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | grep -o -E 'CMAKE_VERSION=[0-9]+\.[0-9]+' | grep -o -E '[0-9]+\.[0-9]+')
 # Append R version if available
-USE_R35=$(echo "${CI_DOCKER_BUILD_ARG}" | egrep -o 'USE_R35=[0-9]+' | egrep -o '[0-9]+$')
+USE_R35=$(echo "${CI_DOCKER_BUILD_ARG}" | grep -o -E 'USE_R35=[0-9]+' | grep -o -E '[0-9]+$')
 if [[ ${USE_R35} == "1" ]]; then
   USE_R35="_r35"
 elif [[ ${USE_R35} == "0" ]]; then
