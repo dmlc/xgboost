@@ -548,10 +548,13 @@ void BuildHistDenseKernel(const std::vector<GradientPair>& gpair,
                           GHistRow<FPType> hist) {
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
-  const float* pgh = reinterpret_cast<const float*>(gpair.data());
+  const float* pg = reinterpret_cast<const float*>(gpair.data());
+  const float* ph = pg + 1;//reinterpret_cast<const float*>(gpair.data());
   const BinIdxType* gradient_index = gmat.index.data<BinIdxType>();
   const uint32_t* offsets = gmat.index.Offset();
   FPType* hist_data = reinterpret_cast<FPType*>(hist.data());
+  FPType* hist_data2 = hist_data + 1;//reinterpret_cast<FPType*>(hist.data());
+
   const uint32_t two {2};  // Each element from 'gpair' and 'hist' contains
                            // 2 FP values: gradient and hessian.
                            // So we need to multiply each row-index/bin-index by 2
@@ -564,7 +567,7 @@ void BuildHistDenseKernel(const std::vector<GradientPair>& gpair,
     if (do_prefetch) {
       const size_t icol_start_prefetch = rid[i + Prefetch::kPrefetchOffset] * n_features;
 
-      PREFETCH_READ_T0(pgh + two * rid[i + Prefetch::kPrefetchOffset]);
+      PREFETCH_READ_T0(pg + two * rid[i + Prefetch::kPrefetchOffset]);
       for (size_t j = icol_start_prefetch; j < icol_start_prefetch + n_features;
            j += Prefetch::GetPrefetchStep<BinIdxType>()) {
         PREFETCH_READ_T0(gradient_index + j);
@@ -575,8 +578,8 @@ void BuildHistDenseKernel(const std::vector<GradientPair>& gpair,
       const uint32_t idx_bin = two * (static_cast<uint32_t>(gr_index_local[j]) +
                                       offsets[j]);
 
-      hist_data[idx_bin]   += pgh[idx_gh];
-      hist_data[idx_bin+1] += pgh[idx_gh+1];
+      hist_data[idx_bin]   += pg[idx_gh];
+      hist_data2[idx_bin] += ph[idx_gh];
     }
   }
 }
@@ -588,10 +591,14 @@ void BuildHistSparseKernel(const std::vector<GradientPair>& gpair,
                            GHistRow<FPType> hist) {
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
-  const float* pgh = reinterpret_cast<const float*>(gpair.data());
+  const float* pg = reinterpret_cast<const float*>(gpair.data());
+  const float* ph = pg + 1;//reinterpret_cast<const float*>(gpair.data());
+
   const uint32_t* gradient_index = gmat.index.data<uint32_t>();
   const size_t* row_ptr =  gmat.row_ptr.data();
   FPType* hist_data = reinterpret_cast<FPType*>(hist.data());
+  FPType* hist_data2 = hist_data + 1;//reinterpret_cast<FPType*>(hist.data());
+
   const uint32_t two {2};  // Each element from 'gpair' and 'hist' contains
                            // 2 FP values: gradient and hessian.
                            // So we need to multiply each row-index/bin-index by 2
@@ -606,7 +613,7 @@ void BuildHistSparseKernel(const std::vector<GradientPair>& gpair,
       const size_t icol_start_prftch = row_ptr[rid[i+Prefetch::kPrefetchOffset]];
       const size_t icol_end_prefect = row_ptr[rid[i+Prefetch::kPrefetchOffset]+1];
 
-      PREFETCH_READ_T0(pgh + two * rid[i + Prefetch::kPrefetchOffset]);
+      PREFETCH_READ_T0(pg + two * rid[i + Prefetch::kPrefetchOffset]);
       for (size_t j = icol_start_prftch; j < icol_end_prefect;
         j+=Prefetch::GetPrefetchStep<uint32_t>()) {
         PREFETCH_READ_T0(gradient_index + j);
@@ -614,8 +621,8 @@ void BuildHistSparseKernel(const std::vector<GradientPair>& gpair,
     }
     for (size_t j = icol_start; j < icol_end; ++j) {
       const uint32_t idx_bin = two * gradient_index[j];
-      hist_data[idx_bin]   += pgh[idx_gh];
-      hist_data[idx_bin+1] += pgh[idx_gh+1];
+      hist_data[idx_bin]   += pg[idx_gh];
+      hist_data2[idx_bin] += ph[idx_gh];
     }
   }
 }

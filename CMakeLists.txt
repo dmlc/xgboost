@@ -136,7 +136,7 @@ if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
       (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")))
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always")
 endif()
-
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 find_package(Threads REQUIRED)
 
 if (USE_OPENMP)
