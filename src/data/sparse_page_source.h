@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 #include <fstream>
+#include <future>
 
 #include "xgboost/base.h"
 #include "xgboost/data.h"
@@ -129,23 +130,68 @@ inline void CheckCacheFileExists(const std::string& file) {
 }
 
 template <typename Page>
-class FileBatchIter {
-  std::function<void()> before_first_;
-  std::function<bool(Page **)> next_;
+class ExternalMemoryShardPrefetcher {
+  std::unique_ptr<SparsePageFormat<Page>> fmt_;
+  std::unique_ptr<dmlc::SeekStream> fi_;
+  size_t fbegin_;
+  Page* page_a_;
+  Page* page_b_;
+  bool current_ = true;
+  std::future<bool> f_return_;
+  bool ret_ { false };
+
+  Page* Current() {
+    if (current_) {
+      return page_a_;
+    } else {
+      return page_b_;
+    }
+  }
+  Page* Other() {
+    if (current_) {
+      return page_b_;
+    } else {
+      return page_a_;
+    }
+  }
+  void Alternate() {
+    current_ = !current_;
+  }
+  void Fetch() {
+    f_return_ = std::async(std::launch::async,
+                           [&]() { return fmt_->Read(Other(), fi_.get()); });
+  }
+  void Sync() {
+    ret_ = f_return_.get();
+    Alternate();
+  }
 
  public:
-  void Init(std::function<bool(Page **)> next,
-            std::function<void()> beforefirst) {
-    next_ = next;
-    before_first_ = beforefirst;
+  explicit ExternalMemoryShardPrefetcher(std::string name_row) {
+    fi_.reset(dmlc::SeekStream::CreateForRead(name_row.c_str()));
+    std::string format;
+    CHECK(fi_->Read(&format)) << "Invalid page format";
+    fmt_.reset(CreatePageFormat<Page>(format));
+
+    fbegin_ = fi_->Tell();
+    page_a_ = new Page();
+    page_b_ = new Page();
+  }
+  ~ExternalMemoryShardPrefetcher() {
+    delete page_a_;
+    delete page_b_;
   }
 
   bool Next(Page** page) {
-    return next_(page);
+    Sync();
+    *page = Current();
+    Fetch();
+    return ret_;
   }
 
   void BeforeFirst() {
-    before_first_();
+    fi_->Seek(fbegin_);
+    Fetch();
   }
 };
 
@@ -169,35 +215,15 @@ class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
       CHECK(finfo->Read(&tmagic));
       CHECK_EQ(tmagic, kMagic) << "invalid format, magic number mismatch";
     }
-    files_.resize(info.name_shards.size());
-    formats_.resize(info.name_shards.size());
     prefetchers_.resize(info.name_shards.size());
 
     // read in the cache files.
     for (size_t i = 0; i < info.name_shards.size(); ++i) {
       std::string name_row = info.name_shards.at(i);
-      files_[i].reset(dmlc::SeekStream::CreateForRead(name_row.c_str()));
-      std::unique_ptr<dmlc::SeekStream>& fi = files_[i];
-      std::string format;
-      CHECK(fi->Read(&format)) << "Invalid page format";
-      formats_[i].reset(CreatePageFormat<PageT>(format));
-      std::unique_ptr<SparsePageFormat<PageT>>& fmt = formats_[i];
-      size_t fbegin = fi->Tell();
-      prefetchers_[i].reset(new FileBatchIter<PageT>());
-      prefetchers_[i]->Init(
-          [&fi, &fmt](PageT** dptr) {
-            if (*dptr == nullptr) {
-              *dptr = new PageT();
-            }
-            return fmt->Read(*dptr, fi.get());
-          },
-          [&fi, fbegin]() { fi->Seek(fbegin); });
+      prefetchers_[i].reset(new ExternalMemoryShardPrefetcher<PageT>(name_row));
     }
   }
-  /*! \brief destructor */
-  ~ExternalMemoryPrefetcher() override {
-    delete page_;
-  }
+  ~ExternalMemoryPrefetcher() override = default;
 
   // implement Next
   bool Next() override {
@@ -240,12 +266,8 @@ class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
   PageT* page_;
   /*! \brief internal clock ptr */
   size_t clock_ptr_;
-  /*! \brief file pointer to the row blob file. */
-  std::vector<std::unique_ptr<dmlc::SeekStream>> files_;
-  /*! \brief Sparse page format file. */
-  std::vector<std::unique_ptr<SparsePageFormat<PageT>>> formats_;
   /*! \brief internal prefetcher. */
-  std::vector<std::unique_ptr<FileBatchIter<PageT>>> prefetchers_;
+  std::vector<std::unique_ptr<ExternalMemoryShardPrefetcher<PageT>>> prefetchers_;
 };
 
 class SparsePageSource {

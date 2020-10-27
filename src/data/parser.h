@@ -154,48 +154,15 @@ class LibSVMParser : public dmlc::data::LibSVMParser<IndexType, DType> {
   }
 };
 
-template<typename IndexType, typename DType = float>
-dmlc::Parser<IndexType, DType> *
-CreateCSVParser(const std::string& path,
-                const std::map<std::string, std::string>& args,
-                unsigned part_index,
-                unsigned num_parts, size_t batch_size) {
-  dmlc::InputSplit *source = CreateInputSplit(path, part_index, num_parts, batch_size);
-  return new CSVParser<IndexType, DType>(source, args, 2);
-}
-
-template<typename IndexType, typename DType = float>
-dmlc::Parser<IndexType> *
-CreateLibSVMParser(const std::string& path,
-                   const std::map<std::string, std::string>& args,
-                   unsigned part_index,
-                   unsigned num_parts, size_t batch_size) {
-  dmlc::InputSplit *source = CreateInputSplit(path, part_index, num_parts, batch_size);
-  dmlc::data::ParserImpl<IndexType> *parser =
-      new LibSVMParser<IndexType>(source, args, 2);
-  return parser;
-}
-
-template<typename IndexType, typename DType = float>
-dmlc::Parser<IndexType> *
-CreateLibFMParser(const std::string& path,
-                  const std::map<std::string, std::string>& args,
-                  unsigned part_index,
-                  unsigned num_parts, size_t batch_size) {
-  dmlc::InputSplit *source = CreateInputSplit(path, part_index, num_parts, batch_size);
-  dmlc::data::ParserImpl<IndexType> *parser =
-      new LibFMParser<IndexType>(source, args, 2);
-  return parser;
-}
-
 template <typename IndexType, typename DType = float>
 inline dmlc::Parser<IndexType, DType> *
 CreateParser(std::string uri, unsigned part_index, unsigned num_parts,
              std::string type) {
   dmlc::io::URISpec spec(uri.c_str(), part_index, num_parts);
   // The kPageSize is defined based on binary data blob size.  To keep the size of each
-  // SparsePage, we need to generate small blob during parsing.
-  size_t batch_size = DMatrix::kPageSize / 8;
+  // SparsePage stable hence number of batches stable, we need to generate small blobs
+  // during parsing.
+  size_t constexpr kBatchSize = DMatrix::kPageSize / 8;
   if (type == "auto") {
     if (spec.args.count("format") != 0) {
       type = spec.args.at("format");
@@ -203,18 +170,15 @@ CreateParser(std::string uri, unsigned part_index, unsigned num_parts,
       type = "libsvm";
     }
   }
-  CHECK_GT(batch_size, 0);
+  dmlc::InputSplit *source = CreateInputSplit(spec.uri, part_index, num_parts, kBatchSize);
 
   // create parser
   if (type == "csv") {
-    return CreateCSVParser<IndexType, DType>(spec.uri, spec.args, part_index,
-                                              num_parts, batch_size);
+    return new CSVParser<IndexType, DType>(source, spec.args, 2);
   } else if (type == "libsvm") {
-    return CreateLibSVMParser<IndexType, DType>(spec.uri, spec.args, part_index,
-                                                num_parts, batch_size);
+    return new LibSVMParser<IndexType>(source, spec.args, 2);
   } else if (type == "libfm") {
-    return CreateLibFMParser<IndexType, DType>(spec.uri, spec.args, part_index,
-                                               num_parts, batch_size);
+    return new LibFMParser<IndexType>(source, spec.args, 2);
   } else {
     LOG(FATAL) << "Unknown file format: " << type;
     return nullptr;
