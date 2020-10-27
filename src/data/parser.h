@@ -1,23 +1,7 @@
 /*!
  * Copyright 2020 by XGBoost Contributors
  * \file parser.h
- */
-
-#ifndef XGBOOST_DATA_PARSER_H_
-#define XGBOOST_DATA_PARSER_H_
-#include <dmlc/io.h>
-#include "../../dmlc-core/src/io/uri_spec.h"
-#include "../../dmlc-core/src/io/line_split.h"
-#include "../../dmlc-core/src/data/csv_parser.h"
-#include "../../dmlc-core/src/data/libfm_parser.h"
-#include "../../dmlc-core/src/data/libsvm_parser.h"
-
-#include "xgboost/logging.h"
-
-namespace xgboost {
-namespace data {
-
-/*
+ *
  * Overriding text data processing infrastructures in dmlc core for external memory
  * support.  There are a few issues we are trying to address/workaround here:
  *
@@ -29,10 +13,27 @@ namespace data {
  * - Batch size is not respected in dmlc-core, instead it has a buffer size.
  *
  * In general, the infrastructure in dmlc-core is more concerned with
- * performance/parallelism, but here we need consistency for data partitioning and memory
- * usage.
+ * performance/parallelism, but here we need consistency and deterministic for data
+ * partitioning and memory usage.
  */
 
+#ifndef XGBOOST_DATA_PARSER_H_
+#define XGBOOST_DATA_PARSER_H_
+#include <dmlc/io.h>
+#include "../../dmlc-core/src/io/uri_spec.h"
+#include "../../dmlc-core/src/io/line_split.h"
+#include "../../dmlc-core/src/io/single_threaded_input_split.h"
+#include "../../dmlc-core/src/data/csv_parser.h"
+#include "../../dmlc-core/src/data/libfm_parser.h"
+#include "../../dmlc-core/src/data/libsvm_parser.h"
+
+#include "xgboost/logging.h"
+#include "xgboost/data.h"
+
+namespace xgboost {
+namespace data {
+
+// A spliter that respects batch size.
 class TextInputSplit : public dmlc::InputSplit {
   dmlc::io::InputSplitBase::Chunk *tmp_chunk_;
   std::unique_ptr<dmlc::io::InputSplitBase> base_;
@@ -98,9 +99,10 @@ inline dmlc::InputSplit *CreateInputSplit(std::string const& uri, unsigned part,
   return new TextInputSplit(std::move(split), batch_size);
 }
 
-// Due the the parsing implementation in dmlc core, number of blocks equals to number of
-// available threads.  This violates external memory so we concatenate all the blocks
-// here.
+// External memory sharding depends on size of each parsed block
+// (SparsePage::MemCostBytes()).  Due the the parsing implementation in dmlc core, number
+// of blocks equals to number of available threads.  This makes the external memory
+// sharding non deterministic.  So we cancatenate all the blocks here.
 template <typename IndexType, typename DType = float>
 void ConcatBlocks(
     std::vector<dmlc::data::RowBlockContainer<IndexType, DType>> *data) {
@@ -191,21 +193,14 @@ inline dmlc::Parser<IndexType, DType> *
 CreateParser(std::string uri, unsigned part_index, unsigned num_parts,
              std::string type) {
   dmlc::io::URISpec spec(uri.c_str(), part_index, num_parts);
-  size_t batch_size = 256;
+  // The kPageSize is defined based on binary data blob size.  To keep the size of each
+  // SparsePage, we need to generate small blob during parsing.
+  size_t batch_size = DMatrix::kPageSize / 8;
   if (type == "auto") {
     if (spec.args.count("format") != 0) {
       type = spec.args.at("format");
     } else {
       type = "libsvm";
-    }
-    if (spec.args.count("batch_size")) {
-      try {
-        batch_size = std::stoull(spec.args.at("batch_size"));
-      } catch (std::invalid_argument const& e) {
-        LOG(FATAL) << e.what();
-      } catch (std::out_of_range const& e) {
-        LOG(FATAL) << e.what();
-      }
     }
   }
   CHECK_GT(batch_size, 0);

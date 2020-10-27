@@ -549,8 +549,8 @@ class DMatrix {
                          int max_bin);
 
   virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
-  /*! \brief page size 32 MB */
-  static const size_t kPageSize = 32UL << 20UL;
+  /*! \brief page size 128 MB */
+  static const size_t kPageSize = 32UL << 22UL;
 
  protected:
   virtual BatchSet<SparsePage> GetRowBatches() = 0;
