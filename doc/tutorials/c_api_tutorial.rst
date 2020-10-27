@@ -28,10 +28,10 @@ Run the following commands on your terminal. The below commands will install the
     cd xgboost
     mkdir build
     cd build
-    # Build the compiled version of XGBoost inside the build folder
-    cmake .. -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=/path/to/conda/env -GNinja
     # Activate the Conda environment, into which we'll install XGBoost
     conda activate [env_name]
+    # Build the compiled version of XGBoost inside the build folder
+    cmake .. -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
     # install XGBoost in your conda environment (usually under [your home directory]/miniconda3)
     make install
 
