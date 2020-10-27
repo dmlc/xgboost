@@ -17,6 +17,21 @@
 namespace xgboost {
 namespace data {
 
+/*
+ * Overriding text data processing infrastructures in dmlc core for external
+ * memory support.  There are a few issues we try to address/workaround here:
+ *
+ * - Avoid threaded iterator in dmlc, which is not thread safe and relies on C++ memory
+ *   model with heavy use of C++ threading primitives.
+ * - Override the threaded input split, which uses threaded iterator internally.
+ * - Override text input parser, which returns data blocks depending on number of system
+ *   threads.
+ * - Batch size is not respected in dmlc-core, instead it has a buffer size.
+ *
+ * In general, the infrastructures in dmlc-core is more concerned with performance and
+ * parallelism, but here we need consistency for data partitioning and memory usage.
+ */
+
 class TextInputSplit : public dmlc::InputSplit {
   dmlc::io::InputSplitBase::Chunk *tmp_chunk_;
   std::unique_ptr<dmlc::io::InputSplitBase> base_;
@@ -32,13 +47,6 @@ class TextInputSplit : public dmlc::InputSplit {
     LOG(FATAL) << "Not implemented";
     return 0;
   }
-  /*! \brief reset the position of InputSplit to beginning */
-  void BeforeFirst() override {
-    base_->BeforeFirst();
-    if (tmp_chunk_ != nullptr) {
-      tmp_chunk_ = nullptr;
-    }
-  }
   bool NextRecord(Blob *out_rec) override {
     LOG(FATAL) << "Not implemented";
     return false;
@@ -47,11 +55,16 @@ class TextInputSplit : public dmlc::InputSplit {
     LOG(FATAL) << "Not implemented";
   }
 
-  virtual bool NextChunkEx(dmlc::io::InputSplitBase::Chunk *chunk) {
+  bool NextChunkEx(dmlc::io::InputSplitBase::Chunk *chunk) {
     if (!chunk->Load(base_.get(), batch_size_)) return false;
     return true;
   }
-
+  void BeforeFirst() override {
+    base_->BeforeFirst();
+    if (tmp_chunk_ != nullptr) {
+      tmp_chunk_ = nullptr;
+    }
+  }
   bool NextChunk(Blob *out_chunk) override {
     if (tmp_chunk_ == nullptr) {
       tmp_chunk_ = new dmlc::io::InputSplitBase::Chunk(batch_size_);
@@ -71,32 +84,86 @@ class TextInputSplit : public dmlc::InputSplit {
 };
 
 inline dmlc::InputSplit *CreateInputSplit(std::string const& uri, unsigned part,
-                                          unsigned nsplit, const char *type,
-                                          const size_t batch_size = 256) {
+                                          unsigned nsplit, const size_t batch_size) {
   namespace io = dmlc::io;
   io::URISpec spec(uri.c_str(), part, nsplit);
   CHECK(part < nsplit) << "Invalid input parameter for input split.";
   io::URI path(spec.uri.c_str());
   std::unique_ptr<io::InputSplitBase> split{nullptr};
-  if (!strcmp(type, "text")) {
-    split.reset(new io::LineSplitter(io::FileSystem::GetInstance(path),
-                                     spec.uri.c_str(), part, nsplit));
-  } else {
-    LOG(FATAL) << "Unknown input split type " << type;
-  }
+  split.reset(new io::LineSplitter(io::FileSystem::GetInstance(path),
+                                   spec.uri.c_str(), part, nsplit));
   CHECK_EQ(spec.cache_file.length(), 0);
   return new TextInputSplit(std::move(split), batch_size);
 }
+
+// Due the the parsing implementation in dmlc core, number of blocks is number of
+// available threads.  This violates external memory so we concatenate all the blocks
+// here.
+template <typename IndexType, typename DType = float>
+void ConcatBlocks(
+    std::vector<dmlc::data::RowBlockContainer<IndexType, DType>> *data) {
+  auto &block = data->front();
+  for (size_t i = 1; i < data->size(); ++i) {
+    block.Push(data->at(i).GetBlock());
+  }
+
+  data->resize(1);
+  data->shrink_to_fit();
+}
+
+template <typename IndexType, typename DType = float>
+class CSVParser : public dmlc::data::CSVParser<IndexType, DType> {
+  using dmlc::data::CSVParser<IndexType, DType>::CSVParser;
+  using TextParserBase = dmlc::data::TextParserBase<IndexType, DType>;
+
+  bool ParseNext(std::vector<dmlc::data::RowBlockContainer<IndexType, DType> > *data) override {
+    auto ret = TextParserBase::FillData(data);
+    if (data->empty()) {
+      return ret;
+    }
+    ConcatBlocks(data);
+    return ret;
+  }
+};
+
+template <typename IndexType, typename DType = float>
+class LibFMParser : public dmlc::data::LibFMParser<IndexType, DType> {
+  using dmlc::data::LibFMParser<IndexType, DType>::LibFMParser;
+  using TextParserBase = dmlc::data::TextParserBase<IndexType, DType>;
+
+  bool ParseNext(std::vector<dmlc::data::RowBlockContainer<IndexType, DType> > *data) override {
+    auto ret = TextParserBase::FillData(data);
+    if (data->empty()) {
+      return ret;
+    }
+    ConcatBlocks(data);
+    return ret;
+  }
+};
+
+template <typename IndexType, typename DType = float>
+class LibSVMParser : public dmlc::data::LibSVMParser<IndexType, DType> {
+  using dmlc::data::LibSVMParser<IndexType, DType>::LibSVMParser;
+  using TextParserBase = dmlc::data::TextParserBase<IndexType, DType>;
+
+  bool ParseNext(std::vector<dmlc::data::RowBlockContainer<IndexType, DType> > *data) override {
+    auto ret = TextParserBase::FillData(data);
+    if (data->empty()) {
+      return ret;
+    }
+    ConcatBlocks(data);
+    return ret;
+  }
+};
 
 template<typename IndexType, typename DType = float>
 dmlc::Parser<IndexType, DType> *
 CreateCSVParser(const std::string& path,
                 const std::map<std::string, std::string>& args,
                 unsigned part_index,
-                unsigned num_parts) {
-  dmlc::InputSplit *source =
-      CreateInputSplit(path, part_index, num_parts, "text");
-  return new dmlc::data::CSVParser<IndexType, DType>(source, args, 2);
+                unsigned num_parts, size_t batch_size) {
+  dmlc::InputSplit *source = CreateInputSplit(path, part_index, num_parts, batch_size);
+  return new CSVParser<IndexType, DType>(source, args, 2);
 }
 
 template<typename IndexType, typename DType = float>
@@ -104,11 +171,10 @@ dmlc::Parser<IndexType> *
 CreateLibSVMParser(const std::string& path,
                    const std::map<std::string, std::string>& args,
                    unsigned part_index,
-                   unsigned num_parts) {
-  dmlc::InputSplit *source =
-      CreateInputSplit(path, part_index, num_parts, "text");
+                   unsigned num_parts, size_t batch_size) {
+  dmlc::InputSplit *source = CreateInputSplit(path, part_index, num_parts, batch_size);
   dmlc::data::ParserImpl<IndexType> *parser =
-      new dmlc::data::LibSVMParser<IndexType>(source, args, 2);
+      new LibSVMParser<IndexType>(source, args, 2);
   return parser;
 }
 
@@ -117,11 +183,10 @@ dmlc::Parser<IndexType> *
 CreateLibFMParser(const std::string& path,
                   const std::map<std::string, std::string>& args,
                   unsigned part_index,
-                  unsigned num_parts) {
-  dmlc::InputSplit *source =
-      CreateInputSplit(path, part_index, num_parts, "text");
+                  unsigned num_parts, size_t batch_size) {
+  dmlc::InputSplit *source = CreateInputSplit(path, part_index, num_parts, batch_size);
   dmlc::data::ParserImpl<IndexType> *parser =
-      new dmlc::data::LibFMParser<IndexType>(source, args, 2);
+      new LibFMParser<IndexType>(source, args, 2);
   return parser;
 }
 
@@ -131,23 +196,38 @@ CreateParser(const char *uri_, unsigned part_index, unsigned num_parts,
              const char *type) {
   std::string ptype = type;
   dmlc::io::URISpec spec(uri_, part_index, num_parts);
+  size_t batch_size = 256;
   if (ptype == "auto") {
     if (spec.args.count("format") != 0) {
       ptype = spec.args.at("format");
     } else {
       ptype = "libsvm";
     }
+    if (spec.args.count("batch_size")) {
+      try {
+        batch_size = std::stoull(spec.args.at("batch_size"));
+      } catch (std::invalid_argument const& e) {
+        LOG(FATAL) << e.what();
+      } catch (std::out_of_range const& e) {
+        LOG(FATAL) << e.what();
+      }
+    }
   }
+  CHECK_GT(batch_size, 0);
 
   // create parser
   if (ptype == "csv") {
-    return CreateCSVParser<IndexType, DType>(spec.uri, spec.args, part_index, num_parts);
+    return CreateCSVParser<IndexType, DType>(spec.uri, spec.args, part_index,
+                                             num_parts, batch_size);
   } else if (ptype == "libsvm") {
-    return CreateLibSVMParser<IndexType, DType>(spec.uri, spec.args, part_index, num_parts);
+    return CreateLibSVMParser<IndexType, DType>(spec.uri, spec.args, part_index,
+                                                num_parts, batch_size);
   } else if (ptype == "libfm") {
-    return CreateLibFMParser<IndexType, DType>(spec.uri, spec.args, part_index, num_parts);
+    return CreateLibFMParser<IndexType, DType>(spec.uri, spec.args, part_index,
+                                               num_parts, batch_size);
   } else {
     LOG(FATAL) << "Unknown file format: " << ptype;
+    return nullptr;
   }
 }
 }  // namespace data
