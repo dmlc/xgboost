@@ -249,8 +249,6 @@ Sample examples along with Code snippet to use C API functions
 
 6. Train & evaluate the model using `XGBoosterUpdateOneIter <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a13594d68b27327db290ec5e0a0ac92ae>`_ and `XGBoosterEvalOneIter <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a201b53edb9cc52e9def1ccea951d18fe>`_ respectively.
 
-.. note:: For customized loss function, use `XGBoosterBoostOneIter function <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#afd4a42c38cfb16d2cf2a9cf5daba4e83>`_ instead and manually specify the gradient and 2nd order gradient.
-
 .. code-block:: c
 
     int num_of_iterations = 20;
@@ -265,6 +263,8 @@ Sample examples along with Code snippet to use C API functions
       safe_xgboost(XGBoosterEvalOneIter(booster, i, eval_dmats, eval_names, eval_dmats_size, &eval_result));
       printf("%s\n", eval_result);
     }
+
+.. note:: For customized loss function, use `XGBoosterBoostOneIter function <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#afd4a42c38cfb16d2cf2a9cf5daba4e83>`_ instead and manually specify the gradient and 2nd order gradient.
 
 
 7.  Predict the result on a test set using `XGBoosterPredict <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#adc14afaedd5f1add105d18942a4de33c>`_
