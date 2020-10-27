@@ -11,8 +11,8 @@
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::PredictorReg);
 }  // namespace dmlc
-namespace xgboost {
 
+namespace xgboost {
 void PredictionContainer::ClearExpiredEntries() {
   std::vector<DMatrix*> expired;
   for (auto& kv : container_) {
