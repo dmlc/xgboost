@@ -14,6 +14,7 @@
 #include "xgboost/learner.h"
 #include "sparse_page_writer.h"
 #include "simple_dmatrix.h"
+#include "parser.h"
 
 #include "../common/io.h"
 #include "../common/math.h"
@@ -675,8 +676,9 @@ DMatrix* DMatrix::Load(const std::string& uri,
     }
   }
 
-  std::unique_ptr<dmlc::Parser<uint32_t> > parser(
-      dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
+  std::unique_ptr<dmlc::Parser<uint32_t, float>> parser{
+      data::CreateParser<uint32_t>(fname.c_str(), partid, npart,
+                                   file_format.c_str())};
   data::FileAdapter adapter(parser.get());
   DMatrix* dmat {nullptr};
 
