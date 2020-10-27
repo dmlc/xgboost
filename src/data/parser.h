@@ -16,6 +16,61 @@
 
 namespace xgboost {
 namespace data {
+
+class TextInputSplit : public dmlc::InputSplit {
+  dmlc::io::InputSplitBase::Chunk *tmp_chunk_;
+  std::unique_ptr<dmlc::io::InputSplitBase> base_;
+  size_t batch_size_;
+
+ public:
+  TextInputSplit(std::unique_ptr<dmlc::io::InputSplitBase> &&split,
+                 size_t batch_size)
+      : base_{std::forward<std::unique_ptr<dmlc::io::InputSplitBase>>(split)},
+        batch_size_{batch_size} {}
+
+  size_t GetTotalSize() override {
+    LOG(FATAL) << "Not implemented";
+    return 0;
+  }
+  /*! \brief reset the position of InputSplit to beginning */
+  void BeforeFirst() override {
+    base_->BeforeFirst();
+    if (tmp_chunk_ != nullptr) {
+      tmp_chunk_ = nullptr;
+    }
+  }
+  bool NextRecord(Blob *out_rec) override {
+    LOG(FATAL) << "Not implemented";
+    return false;
+  }
+  bool NextChunk(Blob *out_chunk) override {
+    if (tmp_chunk_ == nullptr) {
+    }
+    LOG(FATAL) << "Not implemented";
+    return true;
+  }
+
+  void ResetPartition(unsigned part_index, unsigned num_parts) override {
+    LOG(FATAL) << "Not implemented";
+    base_->ResetPartition(part_index, num_parts);
+    this->BeforeFirst();
+  }
+};
+
+// template <typename IndexType, typename DType>
+// class CSVParser : public dmlc::data::CSVParser<IndexType, DType> {
+//   size_t bytes_read_ { 0 };
+//   dmlc::InputSplit *source_;
+
+//   bool ParseNext(std::vector<dmlc::data::RowBlockContainer<IndexType, DType> > *data) override {
+//     dmlc::InputSplit::Blob chunk;
+//     if (!source_->NextChunk(&chunk)) return false;
+//     bytes_read_ += chunk.size;
+//     CHECK_NE(chunk.size, 0U);
+//     const char *head = reinterpret_cast<char *>(chunk.dptr);
+//   }
+// };
+
 inline dmlc::InputSplit *
 CreateInputSplit(const char *uri_, const char *index_uri_, unsigned part,
                  unsigned nsplit, const char *type, const bool shuffle = false,
@@ -28,30 +83,31 @@ CreateInputSplit(const char *uri_, const char *index_uri_, unsigned part,
   }
   CHECK(part < nsplit) << "invalid input parameter for InputSplit::Create";
   io::URI path(spec.uri.c_str());
-  io::InputSplitBase *split = nullptr;
+  std::unique_ptr<io::InputSplitBase> split{nullptr};
   if (!strcmp(type, "text")) {
-    split = new io::LineSplitter(io::FileSystem::GetInstance(path),
-                                 spec.uri.c_str(), part, nsplit);
+    split.reset(new io::LineSplitter(io::FileSystem::GetInstance(path),
+                                     spec.uri.c_str(), part, nsplit));
   } else if (!strcmp(type, "indexed_recordio")) {
     if (index_uri_ != nullptr) {
       io::URISpec index_spec(index_uri_, part, nsplit);
-      split = new io::IndexedRecordIOSplitter(
+      split.reset(new io::IndexedRecordIOSplitter(
           io::FileSystem::GetInstance(path), spec.uri.c_str(),
-          index_spec.uri.c_str(), part, nsplit, batch_size, shuffle, seed);
+          index_spec.uri.c_str(), part, nsplit, batch_size, shuffle, seed));
     } else {
       LOG(FATAL) << "need to pass index file to use IndexedRecordIO";
     }
   } else if (!strcmp(type, "recordio")) {
-    split = new io::RecordIOSplitter(io::FileSystem::GetInstance(path),
-                                     spec.uri.c_str(), part, nsplit,
-                                     recurse_directories);
+    split.reset(new io::RecordIOSplitter(io::FileSystem::GetInstance(path),
+                                         spec.uri.c_str(), part, nsplit,
+                                         recurse_directories));
   } else {
     LOG(FATAL) << "unknown input split type " << type;
   }
   if (spec.cache_file.length() == 0) {
-    return new io::SingleThreadedInputSplit(split, batch_size);
+    return new TextInputSplit(std::move(split), batch_size);
   } else {
-    return new io::CachedInputSplit(split, spec.cache_file.c_str());
+    LOG(FATAL) << "Not implemented";
+    return nullptr;
   }
 }
 
@@ -106,14 +162,12 @@ CreateParser(const char *uri_, unsigned part_index, unsigned num_parts,
     }
   }
 
-  const dmlc::ParserFactoryReg<IndexType, DType> *e =
-      dmlc::Registry<dmlc::ParserFactoryReg<IndexType, DType>>::Get()->Find(
-          ptype);
-  if (e == NULL) {
-    LOG(FATAL) << "Unknown data type " << ptype;
-  }
   // create parser
-  return (*e->body)(spec.uri, spec.args, part_index, num_parts);
+  if (ptype == "csv") {
+    return CreateCSVParser<IndexType, DType>(spec.uri, spec.args, part_index, num_parts);
+  } else {
+    LOG(FATAL) << "Unknown file format: " << ptype;
+  }
 }
 }  // namespace data
 }  // namespace xgboost

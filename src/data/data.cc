@@ -684,7 +684,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
 
   try {
     dmat = DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1,
-                           cache_file, page_size);
+                           cache_file, 1024);
   } catch (dmlc::Error& e) {
     std::vector<std::string> splited = common::Split(fname, '#');
     std::vector<std::string> args = common::Split(splited.front(), '?');
