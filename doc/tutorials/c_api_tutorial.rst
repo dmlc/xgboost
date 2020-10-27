@@ -104,7 +104,8 @@ b. In a C++ application: modify the macro ``safe_xgboost`` to throw an exception
   #define safe_xgboost(call) {  \                                    
     int err = (call); \                         
     if (err != 0) { \
-      throw new Exception("%s:%d: error in %s: %s\n", __FILE__, __LINE__, #call, XGBGetLastError()));  \
+      throw new Exception(std::string(__FILE__) + ":" + std::to_string(__LINE__) + \
+                          ": error in " + #call + ":" + XGBGetLastError()));  \
     } \
   }
 
@@ -150,23 +151,12 @@ c. Assertion technique: It works both in C/ C++. If expression evaluates to 0 (f
    Example if we our training data is in ``dense matrix`` format then your prediction dataset should also be a ``dense matrix`` or if training in ``libsvm`` format then dataset for prediction should also be in ``libsvm`` format.
 
 
-4. Avoid giving fixed size array for DMatrixHandle rather prefer using variables to define the size of the array
-
-.. code-block:: c
-
-    DMatrixHandle eval_dmats[2] = {dtrain, dtest}; // Avoid using this
- 
-    //Prefer:
-    #define eval_dmats_size = 2
-    DMatrixHandle eval_dmats[eval_dmats_size] = {dtrain,dtest};
-
-
-5. Always use strings for setting values to the parameters in booster handle object. The paramter value can be of any datatype( example int, char, float, double,etc)
+4. Always use strings for setting values to the parameters in booster handle object. The paramter value can be of any data type (e.g. int, char, float, double, etc), but they should always be encoded as strings.
 
 .. code-block:: c
 
     BoosterHandle booster;
-    XGBoosterSetParam(booster,"paramter_name","0.1");
+    XGBoosterSetParam(booster, "paramter_name", "0.1");
 
 
 **************************************************************
