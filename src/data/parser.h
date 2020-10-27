@@ -1,13 +1,8 @@
 #ifndef XGBOOST_DATA_PARSER_H_
 #define XGBOOST_DATA_PARSER_H_
 #include <dmlc/io.h>
-#include "../../dmlc-core/src/io/single_threaded_input_split.h"
-#include "../../dmlc-core/src/io/single_file_split.h"
 #include "../../dmlc-core/src/io/uri_spec.h"
 #include "../../dmlc-core/src/io/line_split.h"
-#include "../../dmlc-core/src/io/indexed_recordio_split.h"
-#include "../../dmlc-core/src/io/recordio_split.h"
-#include "../../dmlc-core/src/io/cached_input_split.h"
 #include "../../dmlc-core/src/data/csv_parser.h"
 #include "../../dmlc-core/src/data/libfm_parser.h"
 #include "../../dmlc-core/src/data/libsvm_parser.h"
@@ -43,33 +38,32 @@ class TextInputSplit : public dmlc::InputSplit {
     LOG(FATAL) << "Not implemented";
     return false;
   }
-  bool NextChunk(Blob *out_chunk) override {
-    if (tmp_chunk_ == nullptr) {
-    }
+  void ResetPartition(unsigned part_index, unsigned num_parts) override {
     LOG(FATAL) << "Not implemented";
+  }
+
+  virtual bool NextChunkEx(dmlc::io::InputSplitBase::Chunk *chunk) {
+    if (!chunk->Load(base_.get(), batch_size_)) return false;
     return true;
   }
 
-  void ResetPartition(unsigned part_index, unsigned num_parts) override {
-    LOG(FATAL) << "Not implemented";
-    base_->ResetPartition(part_index, num_parts);
-    this->BeforeFirst();
+  bool NextChunk(Blob *out_chunk) override {
+    if (tmp_chunk_ == nullptr) {
+      tmp_chunk_ = new dmlc::io::InputSplitBase::Chunk(batch_size_);
+    }
+
+    out_chunk->dptr = tmp_chunk_->begin;
+    out_chunk->size = tmp_chunk_->end - tmp_chunk_->begin;
+
+    while (!base_->ExtractNextRecord(out_chunk, tmp_chunk_)) {
+      if (!NextChunkEx(tmp_chunk_)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 };
-
-// template <typename IndexType, typename DType>
-// class CSVParser : public dmlc::data::CSVParser<IndexType, DType> {
-//   size_t bytes_read_ { 0 };
-//   dmlc::InputSplit *source_;
-
-//   bool ParseNext(std::vector<dmlc::data::RowBlockContainer<IndexType, DType> > *data) override {
-//     dmlc::InputSplit::Blob chunk;
-//     if (!source_->NextChunk(&chunk)) return false;
-//     bytes_read_ += chunk.size;
-//     CHECK_NE(chunk.size, 0U);
-//     const char *head = reinterpret_cast<char *>(chunk.dptr);
-//   }
-// };
 
 inline dmlc::InputSplit *
 CreateInputSplit(const char *uri_, const char *index_uri_, unsigned part,
@@ -78,34 +72,19 @@ CreateInputSplit(const char *uri_, const char *index_uri_, unsigned part,
                  const bool recurse_directories = false) {
   namespace io = dmlc::io;
   io::URISpec spec(uri_, part, nsplit);
-  if (!strcmp(spec.uri.c_str(), "stdin")) {
-    return new io::SingleFileSplit(spec.uri.c_str());
-  }
   CHECK(part < nsplit) << "invalid input parameter for InputSplit::Create";
   io::URI path(spec.uri.c_str());
   std::unique_ptr<io::InputSplitBase> split{nullptr};
   if (!strcmp(type, "text")) {
     split.reset(new io::LineSplitter(io::FileSystem::GetInstance(path),
                                      spec.uri.c_str(), part, nsplit));
-  } else if (!strcmp(type, "indexed_recordio")) {
-    if (index_uri_ != nullptr) {
-      io::URISpec index_spec(index_uri_, part, nsplit);
-      split.reset(new io::IndexedRecordIOSplitter(
-          io::FileSystem::GetInstance(path), spec.uri.c_str(),
-          index_spec.uri.c_str(), part, nsplit, batch_size, shuffle, seed));
-    } else {
-      LOG(FATAL) << "need to pass index file to use IndexedRecordIO";
-    }
-  } else if (!strcmp(type, "recordio")) {
-    split.reset(new io::RecordIOSplitter(io::FileSystem::GetInstance(path),
-                                         spec.uri.c_str(), part, nsplit,
-                                         recurse_directories));
   } else {
     LOG(FATAL) << "unknown input split type " << type;
   }
   if (spec.cache_file.length() == 0) {
     return new TextInputSplit(std::move(split), batch_size);
   } else {
+    // FIXME: This might be useful for distributed setting.
     LOG(FATAL) << "Not implemented";
     return nullptr;
   }
