@@ -1,3 +1,8 @@
+/*!
+ * Copyright 2020 by XGBoost Contributors
+ * \file parser.h
+ */
+
 #ifndef XGBOOST_DATA_PARSER_H_
 #define XGBOOST_DATA_PARSER_H_
 #include <dmlc/io.h>
