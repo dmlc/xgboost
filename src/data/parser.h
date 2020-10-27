@@ -18,18 +18,19 @@ namespace xgboost {
 namespace data {
 
 /*
- * Overriding text data processing infrastructures in dmlc core for external
- * memory support.  There are a few issues we try to address/workaround here:
+ * Overriding text data processing infrastructures in dmlc core for external memory
+ * support.  There are a few issues we are trying to address/workaround here:
  *
  * - Avoid threaded iterator in dmlc, which is not thread safe and relies on C++ memory
  *   model with heavy use of C++ threading primitives.
- * - Override the threaded input split, which uses threaded iterator internally.
+ * - Avoid the threaded input split, which uses threaded iterator internally.
  * - Override text input parser, which returns data blocks depending on number of system
  *   threads.
  * - Batch size is not respected in dmlc-core, instead it has a buffer size.
  *
- * In general, the infrastructures in dmlc-core is more concerned with performance and
- * parallelism, but here we need consistency for data partitioning and memory usage.
+ * In general, the infrastructure in dmlc-core is more concerned with
+ * performance/parallelism, but here we need consistency for data partitioning and memory
+ * usage.
  */
 
 class TextInputSplit : public dmlc::InputSplit {
@@ -62,6 +63,7 @@ class TextInputSplit : public dmlc::InputSplit {
   void BeforeFirst() override {
     base_->BeforeFirst();
     if (tmp_chunk_ != nullptr) {
+      delete tmp_chunk_;
       tmp_chunk_ = nullptr;
     }
   }
@@ -96,7 +98,7 @@ inline dmlc::InputSplit *CreateInputSplit(std::string const& uri, unsigned part,
   return new TextInputSplit(std::move(split), batch_size);
 }
 
-// Due the the parsing implementation in dmlc core, number of blocks is number of
+// Due the the parsing implementation in dmlc core, number of blocks equals to number of
 // available threads.  This violates external memory so we concatenate all the blocks
 // here.
 template <typename IndexType, typename DType = float>
