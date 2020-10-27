@@ -203,7 +203,6 @@ class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
   bool Next() override {
     CHECK(mutex_.try_lock()) << "Multiple threads attempting to use prefetcher";
     // doing clock rotation over shards.
-    std::cout << "Next" << std::endl;
     if (prefetchers_[clock_ptr_]->Next(&page_)) {
       page_->SetBaseRowId(base_rowid_);
       base_rowid_ += page_->Size();
@@ -220,7 +219,6 @@ class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
   // implement BeforeFirst
   void BeforeFirst() override {
     CHECK(mutex_.try_lock()) << "Multiple threads attempting to use prefetcher";
-    std::cout << "Before first" << std::endl;
     base_rowid_ = 0;
     clock_ptr_ = 0;
     for (auto& p : prefetchers_) {

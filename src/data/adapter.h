@@ -478,6 +478,7 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
     row_offset_ = 0;
   }
   bool Next() override {
+    std::cout << "Call next file adapter" << std::endl;
     bool next = parser_->Next();
     batch_.reset(new FileAdapterBatch(&parser_->Value(), row_offset_));
     row_offset_ += parser_->Value().size;
