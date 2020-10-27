@@ -8,13 +8,14 @@ import asyncio
 from sklearn.datasets import make_classification
 import os
 import subprocess
-from hypothesis import given, strategies, settings, note
+from hypothesis import given, settings, note
 from test_updaters import hist_parameter_strategy, exact_parameter_strategy
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
+if tm.no_dask()['condition']:
+    pytest.skip(msg=tm.no_dask()['reason'], allow_module_level=True)
 
-pytestmark = pytest.mark.skipif(**tm.no_dask())
 
 try:
     from distributed import LocalCluster, Client, get_client
@@ -636,7 +637,6 @@ class TestWithDask:
         # Make sure that it's decreasing
         assert history[-1] < history[0]
 
-    @pytest.mark.skipif(**tm.is_arm())
     @given(params=hist_parameter_strategy,
            dataset=tm.dataset_strategy)
     @settings(deadline=None)
@@ -644,7 +644,6 @@ class TestWithDask:
         num_rounds = 30
         self.run_updater_test(client, params, num_rounds, dataset, 'hist')
 
-    @pytest.mark.skipif(**tm.is_arm())
     @given(params=exact_parameter_strategy,
            dataset=tm.dataset_strategy)
     @settings(deadline=None)
