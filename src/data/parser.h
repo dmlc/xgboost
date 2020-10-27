@@ -65,29 +65,22 @@ class TextInputSplit : public dmlc::InputSplit {
   }
 };
 
-inline dmlc::InputSplit *
-CreateInputSplit(const char *uri_, const char *index_uri_, unsigned part,
-                 unsigned nsplit, const char *type, const bool shuffle = false,
-                 const int seed = 0, const size_t batch_size = 256,
-                 const bool recurse_directories = false) {
+inline dmlc::InputSplit *CreateInputSplit(std::string const& uri, unsigned part,
+                                          unsigned nsplit, const char *type,
+                                          const size_t batch_size = 256) {
   namespace io = dmlc::io;
-  io::URISpec spec(uri_, part, nsplit);
-  CHECK(part < nsplit) << "invalid input parameter for InputSplit::Create";
+  io::URISpec spec(uri.c_str(), part, nsplit);
+  CHECK(part < nsplit) << "Invalid input parameter for input split.";
   io::URI path(spec.uri.c_str());
   std::unique_ptr<io::InputSplitBase> split{nullptr};
   if (!strcmp(type, "text")) {
     split.reset(new io::LineSplitter(io::FileSystem::GetInstance(path),
                                      spec.uri.c_str(), part, nsplit));
   } else {
-    LOG(FATAL) << "unknown input split type " << type;
+    LOG(FATAL) << "Unknown input split type " << type;
   }
-  if (spec.cache_file.length() == 0) {
-    return new TextInputSplit(std::move(split), batch_size);
-  } else {
-    // FIXME: This might be useful for distributed setting.
-    LOG(FATAL) << "Not implemented";
-    return nullptr;
-  }
+  CHECK_EQ(spec.cache_file.length(), 0);
+  return new TextInputSplit(std::move(split), batch_size);
 }
 
 template<typename IndexType, typename DType = float>
@@ -97,7 +90,7 @@ CreateCSVParser(const std::string& path,
                 unsigned part_index,
                 unsigned num_parts) {
   dmlc::InputSplit *source =
-      CreateInputSplit(path.c_str(), nullptr, part_index, num_parts, "text");
+      CreateInputSplit(path, part_index, num_parts, "text");
   return new dmlc::data::CSVParser<IndexType, DType>(source, args, 2);
 }
 
@@ -108,7 +101,7 @@ CreateLibSVMParser(const std::string& path,
                    unsigned part_index,
                    unsigned num_parts) {
   dmlc::InputSplit *source =
-      CreateInputSplit(path.c_str(), nullptr, part_index, num_parts, "text");
+      CreateInputSplit(path, part_index, num_parts, "text");
   dmlc::data::ParserImpl<IndexType> *parser =
       new dmlc::data::LibSVMParser<IndexType>(source, args, 2);
   return parser;
@@ -121,7 +114,7 @@ CreateLibFMParser(const std::string& path,
                   unsigned part_index,
                   unsigned num_parts) {
   dmlc::InputSplit *source =
-      CreateInputSplit(path.c_str(), nullptr, part_index, num_parts, "text");
+      CreateInputSplit(path, part_index, num_parts, "text");
   dmlc::data::ParserImpl<IndexType> *parser =
       new dmlc::data::LibFMParser<IndexType>(source, args, 2);
   return parser;
@@ -144,6 +137,10 @@ CreateParser(const char *uri_, unsigned part_index, unsigned num_parts,
   // create parser
   if (ptype == "csv") {
     return CreateCSVParser<IndexType, DType>(spec.uri, spec.args, part_index, num_parts);
+  } else if (ptype == "libsvm") {
+    return CreateLibSVMParser<IndexType, DType>(spec.uri, spec.args, part_index, num_parts);
+  } else if (ptype == "libfm") {
+    return CreateLibFMParser<IndexType, DType>(spec.uri, spec.args, part_index, num_parts);
   } else {
     LOG(FATAL) << "Unknown file format: " << ptype;
   }
