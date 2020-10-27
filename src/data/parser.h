@@ -13,7 +13,7 @@
  * - Batch size is not respected in dmlc-core, instead it has a buffer size.
  *
  * In general, the infrastructure in dmlc-core is more concerned with
- * performance/parallelism, but here we need consistency and deterministic for data
+ * performance/parallelism, but here we need consistency and determinism for data
  * partitioning and memory usage.
  */
 
@@ -33,7 +33,7 @@
 namespace xgboost {
 namespace data {
 
-// A spliter that respects batch size.
+// A spliter that respects batch size and doesn't use thread.
 class TextInputSplit : public dmlc::InputSplit {
   dmlc::io::InputSplitBase::Chunk *tmp_chunk_;
   std::unique_ptr<dmlc::io::InputSplitBase> base_;
