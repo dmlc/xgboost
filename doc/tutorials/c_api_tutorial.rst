@@ -163,49 +163,46 @@ c. Assertion technique: It works both in C/ C++. If expression evaluates to 0 (f
 Sample examples along with Code snippet to use C API functions
 **************************************************************
 
-.. note:: In below snippets, I've not implemented exception/ error handling but it is best practice to implement it by using any of the above mentioned methods.
-
-1. If the dataset is available in a file, it can be loaded using the `XGDMatrixCreateFromFile <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a357c3654a1a4dcc05e6b5c50acd17105>`_
+1. If the dataset is available in a file, it can be loaded into a ``DMatrix`` object using the `XGDMatrixCreateFromFile <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a357c3654a1a4dcc05e6b5c50acd17105>`_
 
 .. code-block:: c
   
   DMatrixHandle data; // handle to DMatrix
   // Load the dat from file & store it in data variable of DMatrixHandle datatype
-  XGDMatrixCreateFromFile("/path/to/file/filename", silent, &data);
+  safe_xgboost(XGDMatrixCreateFromFile("/path/to/file/filename", silent, &data));
 
 
-2. If you want to create dataset from matrix `XGDMatrixCreateFromMat function <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a079f830cb972df70c7f50fb91678d62f>`_
+2. You can also create a ``DMatrix`` object from a 2D Matrix using the `XGDMatrixCreateFromMat function <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a079f830cb972df70c7f50fb91678d62f>`_
 
 .. code-block:: c
 
-  // 1 D matrix
+  // 1D matrix
   const int data1[] = { 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
 
-  // 2 D matrix
-  const int ROWS=5, COLS=3;
+  // 2D matrix
+  const int ROWS = 5, COLS = 3;
   const int data2[ROWS][COLS] = { {1, 2, 3}, {2, 4, 6}, {3, -1, 9}, {4, 8, -1}, {2, 5, 1}, {0, 1, 5} };
   DMatrixHandle dmatrix1, dmatrix2;
   // Pass the matrix, no of rows & columns contained in the matrix variable
   // here '0' represents the missing value in the matrix dataset
   // dmatrix variable will contain the created DMatrix using it
-  XGDMatrixCreateFromMat(data1, 1, 50, 0, &dmatrix);
+  safe_xgboost(XGDMatrixCreateFromMat(data1, 1, 50, 0, &dmatrix));
   // here -1 represents the missing value in the matrix dataset
-  XGDMatrixCreateFromMat(data2, ROWS, COLS, -1, &dmatrix2);
+  safe_xgboost(XGDMatrixCreateFromMat(data2, ROWS, COLS, -1, &dmatrix2)(;
 
 
-3. Create booster learner for training & testing on dataset using `XGBoosterCreate <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#ad9fe6f8c8c4901db1c7581a96a21f9ae>`_ 
-
-.. note:: It is assumed that training & testing dataset is loaded in train & test DMatrixHandle type variable respectively.
+3. Create a Booster object for training & testing on dataset using `XGBoosterCreate <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#ad9fe6f8c8c4901db1c7581a96a21f9ae>`_ 
 
 .. code-block:: c
 
   BoosterHandle booster;
   const int eval_dmats_size;
+  // We assume that training and test data have been loaded into 'train' and 'test'
   DMatrixHandle eval_dmats[eval_dmats_size] = {train, test};
-  XGBoosterCreate(eval_dmats, eval_dmats_size, &booster);
+  safe_xgboost(XGBoosterCreate(eval_dmats, eval_dmats_size, &booster));
 
   
-4. Loading and reading the labels using `XGDMatrixSetFloatInfo <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#aef75cda93db3ae9af89e465ae7e9cbe3>`_ and `XGDMatrixGetFloatInfo <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#ab0ee317539a1fb1ce2b5f249e8c768f6>`_ respectively.
+4. For each ``DMatrix`` object, set the labels using `XGDMatrixSetFloatInfo <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#aef75cda93db3ae9af89e465ae7e9cbe3>`_. Later you can access the label using `XGDMatrixGetFloatInfo <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#ab0ee317539a1fb1ce2b5f249e8c768f6>`_.
 
 .. code-block:: c
 
@@ -213,16 +210,17 @@ Sample examples along with Code snippet to use C API functions
   const int data[ROWS][COLS] = { {1, 2, 3}, {2, 4, 6}, {3, -1, 9}, {4, 8, -1}, {2, 5, 1}, {0, 1, 5} };
   DMatrixHandle dmatrix;
 
-  XGDMatrixCreateFromMat(data, ROWS, COLS, -1, &dmatrix);
+  safe_xgboost(XGDMatrixCreateFromMat(data, ROWS, COLS, -1, &dmatrix));
 
   // variable to store labels for the dataset created from above matrix
   float labels[ROWS];
 
-  for(int i=0; i < ROWS; i++)
+  for (int i = 0; i < ROWS; i++) {
     labels[i] = i;
+  }
 
   // Loading the labels
-  XGDMatrixSetFloatInfo(dmatrix, "labels", labels, ROWS);
+  safe_xgboost(XGDMatrixSetFloatInfo(dmatrix, "labels", labels, ROWS));
   
   // reading the labels and store the length of the result
   bst_ulong result_len;
@@ -230,29 +228,28 @@ Sample examples along with Code snippet to use C API functions
   // labels result
   const float *result;
 
-  XGDMatrixGetFloatInfo(dmatrix, "labels", &result_len, &result);
+  safe_xgboost(XGDMatrixGetFloatInfo(dmatrix, "labels", &result_len, &result));
 
-  for(unsigned int i =0; i<result_len; i++)
-    printf("label[%i] = %f \n", i, result[i]);
+  for(unsigned int i = 0; i < result_len; i++) {
+    printf("label[%i] = %f\n", i, result[i]);
+  }
    
     
-5. Setting the parameters for the Booster Handle according to the requirement using `XGBoosterSetParam <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#af7378865b0c999d2d08a5b16483b8bcb>`_ . Check out the full list of parameters available `here <https://xgboost.readthedocs.io/en/latest/parameter.html>`_ . 
+5. Set the parameters for the ``Booster`` object according to the requirement using `XGBoosterSetParam <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#af7378865b0c999d2d08a5b16483b8bcb>`_ . Check out the full list of parameters available `here <https://xgboost.readthedocs.io/en/latest/parameter.html>`_ .
 
 .. code-block :: c
  
     BoosterHandle booster;
-    XGBoosterSetParam(booster, "booster", "gblinear");
+    safe_xgboost(XGBoosterSetParam(booster, "booster", "gblinear"));
     // default max_depth =6
-    XGBoosterSetParam(booster, "max_depth", "3");
+    safe_xgboost(XGBoosterSetParam(booster, "max_depth", "3"));
     // default eta  = 0.3
-    XGBoosterSetParam(booster, "eta", "0.1");
+    safe_xgboost(XGBoosterSetParam(booster, "eta", "0.1"));
 
 
-6. Training & evaluating the model for required number of iterations using `XGBoosterUpdateOneIter <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a13594d68b27327db290ec5e0a0ac92ae>`_ and `XGBoosterEvalOneIter <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a201b53edb9cc52e9def1ccea951d18fe>`_ respectively.
+6. Train & evaluate the model using `XGBoosterUpdateOneIter <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a13594d68b27327db290ec5e0a0ac92ae>`_ and `XGBoosterEvalOneIter <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a201b53edb9cc52e9def1ccea951d18fe>`_ respectively.
 
-.. note:: Extending point 4 from above
-
-.. note:: For customized loss function use `XGBoosterBoostOneIter function <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#afd4a42c38cfb16d2cf2a9cf5daba4e83>`_ by specifying the gradient and 2nd order gradient instead of `XGBoosterUpdateOneIter <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a13594d68b27327db290ec5e0a0ac92ae>`_
+.. note:: For customized loss function, use `XGBoosterBoostOneIter function <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#afd4a42c38cfb16d2cf2a9cf5daba4e83>`_ instead and manually specify the gradient and 2nd order gradient.
 
 .. code-block:: c
 
@@ -260,40 +257,39 @@ Sample examples along with Code snippet to use C API functions
     const char* eval_names[eval_dmats_size] = {"train", "test"};
     const char* eval_result = NULL;
 
-
     for (int i = 0; i < num_of_iterations; ++i) {
-    
       // Update the model performance for each iteration
-      XGBoosterUpdateOneIter(booster, i, train);
+      safe_xgboost(XGBoosterUpdateOneIter(booster, i, train));
 
       // Give the statistics for the learner for training & testing dataset in terms of error after each iteration
-      XGBoosterEvalOneIter(booster, i, eval_dmats, eval_names, eval_dmats_size, &eval_result);
+      safe_xgboost(XGBoosterEvalOneIter(booster, i, eval_dmats, eval_names, eval_dmats_size, &eval_result));
       printf("%s\n", eval_result);
     }
 
 
-7.  Predicting the result on test dataset using `XGBoosterPredict <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#adc14afaedd5f1add105d18942a4de33c>`_
-
-.. note:: Extending point 7
+7.  Predict the result on a test set using `XGBoosterPredict <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#adc14afaedd5f1add105d18942a4de33c>`_
 
 .. code-block:: c
 
     bst_ulong output_length;
 
     const float *output_result;
-    XGBoosterPredict(booster, test, 0, 0, &output_length, &output_result);
+    safe_xgboost(XGBoosterPredict(booster, test, 0, 0, &output_length, &output_result));
 
-    for (unsigned int i=0;i<output_length;i++){
-      
+    for (unsigned int i = 0; i < output_length; i++){
       printf("prediction[%i] = %f \n", i, output_result[i]);
-
     }
 
 
-8. Free all the internal structure used in your code using `XGDMatrixFree <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#af06a15433b01e3b8297930a38155e05d>`_ and `XGBoosterFree <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a5d816936b005a103f0deabf287a6a5da>`_
+8. Free all the internal structure used in your code using `XGDMatrixFree <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#af06a15433b01e3b8297930a38155e05d>`_ and `XGBoosterFree <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a5d816936b005a103f0deabf287a6a5da>`_. This step is important to prevent memory leak.
+
+.. code-block:: c
+
+  safe_xgboost(XGDMatrixFree(dmatrix));
+  safe_xgboost(XGBoosterFree(booster));
 
 
-9. To get the number of features in your dataset using `XGBoosterGetNumFeature <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#aa2c22f65cf2770c0e2e56cc7929a14af>`_ .
+9. Get the number of features in your dataset using `XGBoosterGetNumFeature <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#aa2c22f65cf2770c0e2e56cc7929a14af>`_.
 
 .. code-block:: c
 
@@ -302,13 +298,13 @@ Sample examples along with Code snippet to use C API functions
     // Assuming booster variable of type BoosterHandle is already declared
     // and dataset is loaded and trained on booster
     // storing the results in num_of_features variable
-    XGBoosterGetNumFeature(booster, &num_of_features);
+    safe_xgboost(XGBoosterGetNumFeature(booster, &num_of_features));
 
     // Printing number of features by type conversion of num_of_features variable from bst_ulong to unsigned long
     printf("num_feature: %lu\n", (unsigned long)(num_of_features));
 
 
-10. Loading the model using `XGBoosterLoadModel function <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a054571e6364f9a1cbf6b6b4fd2f156d6>`_
+10. Load the model using `XGBoosterLoadModel function <https://xgboost.readthedocs.io/en/stable/dev/c__api_8h.html#a054571e6364f9a1cbf6b6b4fd2f156d6>`_
 
 .. code-block:: c
 
@@ -316,11 +312,11 @@ Sample examples along with Code snippet to use C API functions
     const char *model_path = "/path/of/model";
 
     // create booster handle first
-    XGBoosterCreate(NULL, 0, &booster);
+    safe_xgboost(XGBoosterCreate(NULL, 0, &booster));
 
     // set the model parameters here
 
     // load model
-    XGBoosterLoadModel(booster, model_path);
+    safe_xgboost(XGBoosterLoadModel(booster, model_path));
 
     // predict the model here
