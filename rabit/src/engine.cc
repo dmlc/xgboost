@@ -85,12 +85,9 @@ IEngine *GetEngine() {
 void Allgather(void *sendrecvbuf_, size_t total_size,
                    size_t slice_begin,
                    size_t slice_end,
-                   size_t size_prev_slice,
-                   const char* _file,
-                   const int _line,
-                   const char* _caller) {
+                   size_t size_prev_slice) {
   GetEngine()->Allgather(sendrecvbuf_, total_size, slice_begin,
-    slice_end, size_prev_slice, _file, _line, _caller);
+    slice_end, size_prev_slice);
 }
 
 
@@ -102,12 +99,9 @@ void Allreduce_(void *sendrecvbuf,  // NOLINT
                 mpi::DataType dtype,
                 mpi::OpType op,
                 IEngine::PreprocFunction prepare_fun,
-                void *prepare_arg,
-                const char* _file,
-                const int _line,
-                const char* _caller) {
+                void *prepare_arg) {
   GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count, red, prepare_fun,
-    prepare_arg, _file, _line, _caller);
+    prepare_arg);
 }
 
 // code for reduce handle
@@ -126,14 +120,10 @@ void ReduceHandle::Init(IEngine::ReduceFunction redfunc, size_t type_nbytes) {
 void ReduceHandle::Allreduce(void *sendrecvbuf,
                              size_t type_nbytes, size_t count,
                              IEngine::PreprocFunction prepare_fun,
-                             void *prepare_arg,
-                             const char* _file,
-                             const int _line,
-                             const char* _caller) {
+                             void *prepare_arg) {
   utils::Assert(redfunc_ != nullptr, "must intialize handle to call AllReduce");
   GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count,
-                         redfunc_, prepare_fun, prepare_arg,
-                         _file, _line, _caller);
+                         redfunc_, prepare_fun, prepare_arg);
 }
 }  // namespace engine
 }  // namespace rabit

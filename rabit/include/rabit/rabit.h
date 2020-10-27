@@ -12,36 +12,7 @@
 #define RABIT_RABIT_H_  // NOLINT(*)
 #include <string>
 #include <vector>
-
-// whether or not use c++11 support
-#ifndef DMLC_USE_CXX11
-#if defined(__GXX_EXPERIMENTAL_CXX0X__) || defined(_MSC_VER)
-#define DMLC_USE_CXX11 1
-#else
-#define DMLC_USE_CXX11 (__cplusplus >= 201103L)
-#endif  // defined(__GXX_EXPERIMENTAL_CXX0X__) || defined(_MSC_VER)
-#endif  // DMLC_USE_CXX11
-
-// keeps rabit api caller signature
-#ifndef RABIT_API_CALLER_SIGNATURE
-#define RABIT_API_CALLER_SIGNATURE
-
-#if (defined(__GNUC__) && !defined(__clang__))
-#define _FILE  __builtin_FILE()
-#define _LINE  __builtin_LINE()
-#define _CALLER  __builtin_FUNCTION()
-#else
-#define _FILE  "N/A"
-#define _LINE  -1
-#define _CALLER  "N/A"
-#endif  // (defined(__GNUC__) && !defined(__clang__))
-
-#endif  // RABIT_API_CALLER_SIGNATURE
-
-// optionally support of lambda functions in C++11, if available
-#if DMLC_USE_CXX11
 #include <functional>
-#endif  // C++11
 // engine definition of rabit, defines internal implementation
 // to use rabit interface, there is no need to read engine.h
 // rabit.h and serializable.h are enough to use the interface
@@ -135,31 +106,19 @@ inline void TrackerPrintf(const char *fmt, ...);
  * \param sendrecv_data the pointer to the send/receive buffer,
  * \param size the data size
  * \param root the process root
- * \param _file caller file name used to generate unique cache key
- * \param _line caller line number used to generate unique cache key
- * \param _caller caller function name used to generate unique cache key
  */
-inline void Broadcast(void *sendrecv_data, size_t size, int root,
-                      const char* _file = _FILE,
-                      const int _line = _LINE,
-                      const char* _caller = _CALLER);
+inline void Broadcast(void *sendrecv_data, size_t size, int root);
 
 /*!
  * \brief broadcasts an std::vector<DType> to every node from root
  * \param sendrecv_data the pointer to send/receive vector,
  *        for the receiver, the vector does not need to be pre-allocated
  * \param root the process root
- * \param _file caller file name used to generate unique cache key
- * \param _line caller line number used to generate unique cache key
- * \param _caller caller function name used to generate unique cache key
  * \tparam DType the data type stored in the vector, has to be a simple data type
  *               that can be directly transmitted by sending the sizeof(DType)
  */
 template<typename DType>
-inline void Broadcast(std::vector<DType> *sendrecv_data, int root,
-                      const char* _file = _FILE,
-                      const int _line = _LINE,
-                      const char* _caller = _CALLER);
+inline void Broadcast(std::vector<DType> *sendrecv_data, int root);
 /*!
  * \brief broadcasts a std::string to every node from the root
  * \param sendrecv_data the pointer to the send/receive buffer,
@@ -169,10 +128,7 @@ inline void Broadcast(std::vector<DType> *sendrecv_data, int root,
  * \param _caller caller function name used to generate unique cache key
  * \param root the process root
  */
-inline void Broadcast(std::string *sendrecv_data, int root,
-                      const char* _file = _FILE,
-                      const int _line = _LINE,
-                      const char* _caller = _CALLER);
+inline void Broadcast(std::string *sendrecv_data, int root);
 /*!
  * \brief performs in-place Allreduce on sendrecvbuf
  *        this function is NOT thread-safe
@@ -191,19 +147,13 @@ inline void Broadcast(std::string *sendrecv_data, int root,
  *                    will be called by the function before performing Allreduce in order to initialize the data in sendrecvbuf.
  *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
  * \param prepare_arg argument used to pass into the lazy preprocessing function
- * \param _file caller file name used to generate unique cache key
- * \param _line caller line number used to generate unique cache key
- * \param _caller caller function name used to generate unique cache key
  * \tparam OP see namespace op, reduce operator
  * \tparam DType data type
  */
 template<typename OP, typename DType>
 inline void Allreduce(DType *sendrecvbuf, size_t count,
                       void (*prepare_fun)(void *) = nullptr,
-                      void *prepare_arg = nullptr,
-                      const char* _file = _FILE,
-                      const int _line = _LINE,
-                      const char* _caller = _CALLER);
+                      void *prepare_arg = nullptr);
 
 /*!
 * \brief Allgather function, each node have a segment of data in the ring of sendrecvbuf,
@@ -217,19 +167,13 @@ inline void Allreduce(DType *sendrecvbuf, size_t count,
 * \param slice_begin beginning of the current slice
 * \param slice_end end of the current slice
 * \param size_prev_slice size of the previous slice i.e. slice of node (rank - 1) % world_size
-* \param _file caller file name used to generate unique cache key
-* \param _line caller line number used to generate unique cache key
-* \param _caller caller function name used to generate unique cache key
 */
 template<typename DType>
 inline void Allgather(DType *sendrecvbuf_,
                   size_t total_size,
                   size_t slice_begin,
                   size_t slice_end,
-                  size_t size_prev_slice,
-                  const char* _file = _FILE,
-                  const int _line = _LINE,
-                  const char* _caller = _CALLER);
+                  size_t size_prev_slice);
 
 // C++11 support for lambda prepare function
 #if DMLC_USE_CXX11
@@ -254,18 +198,12 @@ inline void Allgather(DType *sendrecvbuf_,
  * \param prepare_fun  Lazy lambda preprocessing function, prepare_fun() will be invoked
  *                     by the function before performing Allreduce in order to initialize the data in sendrecvbuf.
  *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
- * \param _file caller file name used to generate unique cache key
- * \param _line caller line number used to generate unique cache key
- * \param _caller caller function name used to generate unique cache key
  * \tparam OP see namespace op, reduce operator
  * \tparam DType data type
  */
 template<typename OP, typename DType>
 inline void Allreduce(DType *sendrecvbuf, size_t count,
-                      std::function<void()> prepare_fun,
-                      const char* _file = _FILE,
-                      const int _line = _LINE,
-                      const char* _caller = _CALLER);
+                      std::function<void()> prepare_fun);
 #endif  // C++11
 /*!
  * \brief loads the latest check point
@@ -361,31 +299,19 @@ class Reducer {
    *                     will be called by the function before performing Allreduce, to initialize the data in sendrecvbuf.
    *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
    * \param prepare_arg argument used to pass into the lazy preprocessing function
-   * \param _file caller file name used to generate unique cache key
-   * \param _line caller line number used to generate unique cache key
-   * \param _caller caller function name used to generate unique cache key
    */
   inline void Allreduce(DType *sendrecvbuf, size_t count,
                         void (*prepare_fun)(void *) = nullptr,
-                        void *prepare_arg = nullptr,
-                        const char* _file = _FILE,
-                        const int _line = _LINE,
-                        const char* _caller = _CALLER);
+                        void *prepare_arg = nullptr);
 #if DMLC_USE_CXX11
   /*!
    * \brief customized in-place all reduce operation, with lambda function as preprocessor
    * \param sendrecvbuf pointer to the array of objects to be reduced
    * \param count number of elements to be reduced
    * \param prepare_fun lambda function executed to prepare the data, if necessary
-   * \param _file caller file name used to generate unique cache key
-   * \param _line caller line number used to generate unique cache key
-   * \param _caller caller function name used to generate unique cache key
    */
   inline void Allreduce(DType *sendrecvbuf, size_t count,
-                        std::function<void()> prepare_fun,
-                        const char* _file = _FILE,
-                        const int _line = _LINE,
-                        const char* _caller = _CALLER);
+                        std::function<void()> prepare_fun);
 #endif  // DMLC_USE_CXX11
 
  private:
@@ -416,17 +342,11 @@ class SerializeReducer {
    *                     will be called by the function before performing Allreduce, to initialize the data in sendrecvbuf.
    *                     If the result of Allreduce can be recovered directly, then the prepare_func will NOT be called
    * \param prepare_arg argument used to pass into the lazy preprocessing function
-   * \param _file caller file name used to generate unique cache key
-   * \param _line caller line number used to generate unique cache key
-   * \param _caller caller function name used to generate unique cache key
    */
   inline void Allreduce(DType *sendrecvobj,
                         size_t max_nbyte, size_t count,
                         void (*prepare_fun)(void *) = nullptr,
-                        void *prepare_arg = nullptr,
-                        const char* _file = _FILE,
-                        const int _line = _LINE,
-                        const char* _caller = _CALLER);
+                        void *prepare_arg = nullptr);
 // C++11 support for lambda prepare function
 #if DMLC_USE_CXX11
   /*!
@@ -436,16 +356,10 @@ class SerializeReducer {
    *        this includes budget limit for intermediate and final result
    * \param count number of elements to be reduced
    * \param prepare_fun lambda function executed to prepare the data, if necessary
-   * \param _file caller file name used to generate unique cache key
-   * \param _line caller line number used to generate unique cache key
-   * \param _caller caller function name used to generate unique cache key
    */
   inline void Allreduce(DType *sendrecvobj,
                         size_t max_nbyte, size_t count,
-                        std::function<void()> prepare_fun,
-                        const char* _file = _FILE,
-                        const int _line = _LINE,
-                        const char* _caller = _CALLER);
+                        std::function<void()> prepare_fun);
 #endif  // DMLC_USE_CXX11
 
  private:

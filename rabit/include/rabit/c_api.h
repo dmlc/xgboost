@@ -41,7 +41,7 @@ RABIT_DLL bool RabitInit(int argc, char *argv[]);
  * call this function after you finished all jobs.
  * \return true if rabit is initialized successfully otherwise false
  */
-RABIT_DLL bool RabitFinalize(void);
+RABIT_DLL int RabitFinalize(void);
 
 /*!
  * \brief get rank of previous process in ring topology
@@ -91,8 +91,7 @@ RABIT_DLL void RabitGetProcessorName(char *out_name,
  * \param size the size of the data
  * \param root the root of process
  */
-RABIT_DLL void RabitBroadcast(void *sendrecv_data,
-                              rbt_ulong size, int root);
+RABIT_DLL int RabitBroadcast(void *sendrecv_data, rbt_ulong size, int root);
 
 /*!
  * \brief Allgather function, each node have a segment of data in the ring of sendrecvbuf,
@@ -110,12 +109,9 @@ RABIT_DLL void RabitBroadcast(void *sendrecv_data,
  * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
  * \sa ReturnType
  */
-RABIT_DLL void RabitAllgather(void *sendrecvbuf,
-                                  size_t total_size,
-                                  size_t beginIndex,
-                                  size_t size_node_slice,
-                                  size_t size_prev_slice,
-                                  int enum_dtype);
+RABIT_DLL int RabitAllgather(void *sendrecvbuf, size_t total_size,
+                             size_t beginIndex, size_t size_node_slice,
+                             size_t size_prev_slice, int enum_dtype);
 
 /*!
  * \brief perform in-place allreduce, on sendrecvbuf
@@ -133,14 +129,11 @@ RABIT_DLL void RabitAllgather(void *sendrecvbuf,
  * \param prepare_fun Lazy preprocessing function, if it is not NULL, prepare_fun(prepare_arg)
  *                    will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
  *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
-   * \param prepare_arg argument used to passed into the lazy preprocessing function
-   */
-RABIT_DLL void RabitAllreduce(void *sendrecvbuf,
-                              size_t count,
-                              int enum_dtype,
-                              int enum_op,
-                              void (*prepare_fun)(void *arg),
-                              void *prepare_arg);
+ * \param prepare_arg argument used to passed into the lazy preprocessing function
+ */
+RABIT_DLL int RabitAllreduce(void *sendrecvbuf, size_t count, int enum_dtype,
+                             int enum_op, void (*prepare_fun)(void *arg),
+                             void *prepare_arg);
 
 /*!
  * \brief load latest check point

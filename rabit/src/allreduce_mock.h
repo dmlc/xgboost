@@ -11,8 +11,8 @@
 #include <vector>
 #include <map>
 #include <sstream>
+#include <dmlc/timer.h>
 #include "rabit/internal/engine.h"
-#include "rabit/internal/timer.h"
 #include "allreduce_base.h"
 
 namespace rabit {
@@ -46,36 +46,30 @@ class AllreduceMock : public AllreduceBase {
   }
   void Allreduce(void *sendrecvbuf_, size_t type_nbytes, size_t count,
                  ReduceFunction reducer, PreprocFunction prepare_fun,
-                 void *prepare_arg, const char *_file = _FILE,
-                 const int _line = _LINE,
-                 const char *_caller = _CALLER) override {
+                 void *prepare_arg) override {
     this->Verify(MockKey(rank, version_number, seq_counter, num_trial_), "AllReduce");
-    double tstart = utils::GetTime();
+    double tstart = dmlc::GetTime();
     AllreduceBase::Allreduce(sendrecvbuf_, type_nbytes, count, reducer,
-                             prepare_fun, prepare_arg, _file, _line, _caller);
-    tsum_allreduce_ += utils::GetTime() - tstart;
+                             prepare_fun, prepare_arg);
+    tsum_allreduce_ += dmlc::GetTime() - tstart;
   }
   void Allgather(void *sendrecvbuf, size_t total_size, size_t slice_begin,
-                 size_t slice_end, size_t size_prev_slice,
-                 const char *_file = _FILE, const int _line = _LINE,
-                 const char *_caller = _CALLER) override {
+                 size_t slice_end, size_t size_prev_slice) override {
     this->Verify(MockKey(rank, version_number, seq_counter, num_trial_), "Allgather");
-    double tstart = utils::GetTime();
+    double tstart = dmlc::GetTime();
     AllreduceBase::Allgather(sendrecvbuf, total_size, slice_begin, slice_end,
-                             size_prev_slice, _file, _line, _caller);
-    tsum_allgather_ += utils::GetTime() - tstart;
+                             size_prev_slice);
+    tsum_allgather_ += dmlc::GetTime() - tstart;
   }
-  void Broadcast(void *sendrecvbuf_, size_t total_size, int root,
-                 const char *_file = _FILE, const int _line = _LINE,
-                 const char *_caller = _CALLER) override {
+  void Broadcast(void *sendrecvbuf_, size_t total_size, int root) override {
     this->Verify(MockKey(rank, version_number, seq_counter, num_trial_), "Broadcast");
-    AllreduceBase::Broadcast(sendrecvbuf_, total_size, root, _file, _line, _caller);
+    AllreduceBase::Broadcast(sendrecvbuf_, total_size, root);
   }
   int LoadCheckPoint(Serializable *global_model,
                      Serializable *local_model) override {
     tsum_allreduce_ = 0.0;
     tsum_allgather_ = 0.0;
-    time_checkpoint_ = utils::GetTime();
+    time_checkpoint_ = dmlc::GetTime();
     if (force_local_ == 0) {
       return AllreduceBase::LoadCheckPoint(global_model, local_model);
     } else {
@@ -87,7 +81,7 @@ class AllreduceMock : public AllreduceBase {
   void CheckPoint(const Serializable *global_model,
                   const Serializable *local_model) override {
     this->Verify(MockKey(rank, version_number, seq_counter, num_trial_), "CheckPoint");
-    double tstart = utils::GetTime();
+    double tstart = dmlc::GetTime();
     double tbet_chkpt = tstart - time_checkpoint_;
     if (force_local_ == 0) {
       AllreduceBase::CheckPoint(global_model, local_model);
@@ -96,8 +90,8 @@ class AllreduceMock : public AllreduceBase {
       ComboSerializer com(global_model, local_model);
       AllreduceBase::CheckPoint(&dum, &com);
     }
-    time_checkpoint_ = utils::GetTime();
-    double tcost = utils::GetTime() - tstart;
+    time_checkpoint_ = dmlc::GetTime();
+    double tcost = dmlc::GetTime() - tstart;
     if (report_stats_ != 0 && rank == 0) {
       std::stringstream ss;
       ss << "[v" << version_number << "] global_size="
