@@ -754,7 +754,6 @@ class GPUPredictor : public xgboost::Predictor {
               row_idx, ngroup, group, n_features, n_features, n_features)] +=
               margin.empty() ? base_score : margin[idx];
         });
-
   }
 
  protected:
