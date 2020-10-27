@@ -188,16 +188,15 @@ CreateLibFMParser(const std::string& path,
 
 template <typename IndexType, typename DType = float>
 inline dmlc::Parser<IndexType, DType> *
-CreateParser(const char *uri_, unsigned part_index, unsigned num_parts,
-             const char *type) {
-  std::string ptype = type;
-  dmlc::io::URISpec spec(uri_, part_index, num_parts);
+CreateParser(std::string uri, unsigned part_index, unsigned num_parts,
+             std::string type) {
+  dmlc::io::URISpec spec(uri.c_str(), part_index, num_parts);
   size_t batch_size = 256;
-  if (ptype == "auto") {
+  if (type == "auto") {
     if (spec.args.count("format") != 0) {
-      ptype = spec.args.at("format");
+      type = spec.args.at("format");
     } else {
-      ptype = "libsvm";
+      type = "libsvm";
     }
     if (spec.args.count("batch_size")) {
       try {
@@ -212,17 +211,17 @@ CreateParser(const char *uri_, unsigned part_index, unsigned num_parts,
   CHECK_GT(batch_size, 0);
 
   // create parser
-  if (ptype == "csv") {
+  if (type == "csv") {
     return CreateCSVParser<IndexType, DType>(spec.uri, spec.args, part_index,
-                                             num_parts, batch_size);
-  } else if (ptype == "libsvm") {
+                                              num_parts, batch_size);
+  } else if (type == "libsvm") {
     return CreateLibSVMParser<IndexType, DType>(spec.uri, spec.args, part_index,
                                                 num_parts, batch_size);
-  } else if (ptype == "libfm") {
+  } else if (type == "libfm") {
     return CreateLibFMParser<IndexType, DType>(spec.uri, spec.args, part_index,
                                                num_parts, batch_size);
   } else {
-    LOG(FATAL) << "Unknown file format: " << ptype;
+    LOG(FATAL) << "Unknown file format: " << type;
     return nullptr;
   }
 }
