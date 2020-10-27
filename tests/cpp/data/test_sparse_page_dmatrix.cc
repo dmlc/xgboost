@@ -85,7 +85,6 @@ TEST(SparsePageDMatrix, ExistingCacheFile) {
   });
 }
 
-#if defined(_OPENMP)
 TEST(SparsePageDMatrix, ThreadSafetyException) {
   dmlc::TemporaryDirectory tmpdir;
   std::string filename = tmpdir.path + "/test";
@@ -105,7 +104,6 @@ TEST(SparsePageDMatrix, ThreadSafetyException) {
   }
   EXPECT_TRUE(exception);
 }
-#endif
 
 // Multi-batches access
 TEST(SparsePageDMatrix, ColAccessBatches) {
