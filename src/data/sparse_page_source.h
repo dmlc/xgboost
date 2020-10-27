@@ -143,9 +143,6 @@ class FileBatchIter {
   bool Next(Page** page) {
     return next_(page);
   }
-  void Recycle(Page** page) {
-    LOG(FATAL) << "w?";
-  }
 
   void BeforeFirst() {
     before_first_();
@@ -206,11 +203,6 @@ class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
   bool Next() override {
     CHECK(mutex_.try_lock()) << "Multiple threads attempting to use prefetcher";
     // doing clock rotation over shards.
-    if (page_ != nullptr) {
-      size_t n = prefetchers_.size();
-      prefetchers_[(clock_ptr_ + n - 1) % n]->Recycle(&page_);
-    }
-
     if (prefetchers_[clock_ptr_]->Next(&page_)) {
       page_->SetBaseRowId(base_rowid_);
       base_rowid_ += page_->Size();
