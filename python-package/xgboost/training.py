@@ -493,9 +493,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
             verbose_eval, early_stopping_rounds, maximize, 0,
             num_boost_round, feval, None, callbacks,
             show_stdv=show_stdv, cvfolds=cvfolds)
-    callbacks.before_training(cvfolds)
-
     booster = _PackedBooster(cvfolds)
+    callbacks.before_training(booster)
 
     for i in range(num_boost_round):
         if callbacks.before_iteration(booster, i, dtrain, None):
@@ -522,4 +521,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
             results = pd.DataFrame.from_dict(results)
         except ImportError:
             pass
+
+    callbacks.after_training(booster)
+
     return results

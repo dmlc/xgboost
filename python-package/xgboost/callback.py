@@ -365,14 +365,22 @@ class CallbackContainer:
         '''Function called before training.'''
         for c in self.callbacks:
             model = c.before_training(model=model)
-            assert isinstance(model, Booster), 'before_training should return the Booster'
+            msg = 'before_training should return the model'
+            if self.is_cv:
+                assert isinstance(model.cvfolds, list), msg
+            else:
+                assert isinstance(model, Booster), msg
         return model
 
     def after_training(self, model):
         '''Function called after training.'''
         for c in self.callbacks:
             model = c.after_training(model=model)
-            assert isinstance(model, Booster), 'after_training should return the Booster'
+            msg = 'after_training should return the model'
+            if self.is_cv:
+                assert isinstance(model.cvfolds, list), msg
+            else:
+                assert isinstance(model, Booster), msg
         return model
 
     def before_iteration(self, model, epoch, dtrain, evals):
