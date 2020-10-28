@@ -410,6 +410,7 @@ void GBTree::Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
 
   layer_end = layer_end == 0 ? model_.trees.size() / layer_trees : layer_end;
   CHECK_GE(layer_end, layer_begin);
+  CHECK_GE(step, 1);
   int32_t n_layers = (layer_end - layer_begin) / step;
   std::vector<std::unique_ptr<RegTree>> &out_trees = out_model.trees;
   out_trees.resize(layer_trees * n_layers);

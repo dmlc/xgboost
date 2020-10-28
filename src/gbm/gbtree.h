@@ -173,7 +173,7 @@ inline std::pair<uint32_t, uint32_t> LayerToTree(gbm::GBTreeModel const &model,
 template <typename Func>
 inline void SliceTrees(int32_t layer_begin, int32_t layer_end, int32_t step,
                        GBTreeModel const &model, GBTreeTrainParam const &tparam,
-                       size_t layer_trees, Func fn) {
+                       uint32_t layer_trees, Func fn) {
   uint32_t tree_begin, tree_end;
   std::tie(tree_begin, tree_end) = detail::LayerToTree(model, tparam, layer_begin, layer_end);
   layer_end = layer_end == 0 ? model.trees.size() / layer_trees : layer_end;
@@ -240,6 +240,7 @@ class GBTree : public GradientBooster {
     return model_.learner_model_param->num_output_group == 1;
   }
 
+  // Number of trees per layer.
   auto LayerTrees() const {
     auto n_trees = model_.learner_model_param->num_output_group * tparam_.num_parallel_tree;
     return n_trees;

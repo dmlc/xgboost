@@ -369,8 +369,13 @@ class TestModels(unittest.TestCase):
         self.assertRaises(ValueError, lambda: booster[-1: 0])
         # we do not accept empty slice.
         self.assertRaises(ValueError, lambda: booster[1:1])
+        # stop can not be smaller than begin
         self.assertRaises(ValueError, lambda: booster[3:0])
         self.assertRaises(ValueError, lambda: booster[3:-1])
+        # negative step is not supported.
+        self.assertRaises(ValueError, lambda: booster[0:2:-1])
+        # step can not be 0.
+        self.assertRaises(ValueError, lambda: booster[0:2:0])
 
         def assign():
             booster[...:end] = booster

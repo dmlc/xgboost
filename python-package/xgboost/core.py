@@ -1037,11 +1037,11 @@ class Booster(object):
             if stop < start:
                 raise ValueError('Invalid slice', val)
 
-        step = val.step if val.step else 1
+        step = val.step if val.step is not None else 1
 
-        start = ctypes.c_uint(start)
-        stop = ctypes.c_uint(stop)
-        step = c_bst_ulong(step)
+        start = ctypes.c_int(start)
+        stop = ctypes.c_int(stop)
+        step = ctypes.c_int(step)
 
         sliced_handle = ctypes.c_void_p()
         _check_call(_LIB.XGBoosterSlice(self.handle, start, stop, step,

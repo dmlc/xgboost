@@ -24,4 +24,10 @@ list of trees and can be sliced into multiple sub-models.
                         num_boost_round=num_boost_round, dtrain=dtrain)
 
     # This is the sliced model, containing [3, 7) forests
+    # step is also supported with some limitations like negative step is invalid.
     sliced: xgb.Booster = booster[3:7]
+
+
+The sliced model is a copy of selected trees, that means the model itself is immutable
+during slicing.  This feature is the basis of `save_best` option in early stopping
+callback.
