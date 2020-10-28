@@ -1,11 +1,10 @@
 # coding: utf-8
 # pylint: disable= invalid-name,  unused-import
 """For compatibility and optional dependencies."""
-import abc
-import os
 import sys
-from pathlib import PurePath
-
+import types
+import importlib.util
+import logging
 import numpy as np
 
 assert (sys.version_info[0] == 3), 'Python 2 is no longer supported.'
@@ -120,3 +119,60 @@ except ImportError:
     sparse = False
     scipy_sparse = False
     SCIPY_INSTALLED = False
+
+
+# Modified from tensorflow with added caching.  There's a `LazyLoader` in
+# `importlib.utils`, except it's unclear from its document on how to use it.  This one
+# seems to be easy to understand and works out of box.
+
+# Copyright 2015 The TensorFlow Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not use this
+# file except in compliance with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the specific language governing
+# permissions and limitations under the License.
+class LazyLoader(types.ModuleType):
+    """Lazily import a module, mainly to avoid pulling in large dependencies.
+    """
+
+    def __init__(self, local_name, parent_module_globals, name, warning=None):
+        self._local_name = local_name
+        self._parent_module_globals = parent_module_globals
+        self._warning = warning
+        self.module = None
+
+        super().__init__(name)
+
+    def _load(self):
+        """Load the module and insert it into the parent's globals."""
+        # Import the target module and insert it into the parent's namespace
+        module = importlib.import_module(self.__name__)
+        self._parent_module_globals[self._local_name] = module
+
+        # Emit a warning if one was specified
+        if self._warning:
+            logging.warning(self._warning)
+            # Make sure to only warn once.
+        self._warning = None
+
+        # Update this object's dict so that if someone keeps a reference to the
+        #   LazyLoader, lookups are efficient (__getattr__ is only called on lookups
+        #   that fail).
+        self.__dict__.update(module.__dict__)
+
+        return module
+
+    def __getattr__(self, item):
+        if not self.module:
+            self.module = self._load()
+        return getattr(self.module, item)
+
+    def __dir__(self):
+        if not self.module:
+            self.module = self._load()
+        return dir(self.module)

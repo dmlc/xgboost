@@ -23,7 +23,7 @@ import numpy
 
 from . import rabit
 
-from .compat import DASK_INSTALLED
+from .compat import LazyLoader
 from .compat import sparse, scipy_sparse
 from .compat import PANDAS_INSTALLED, DataFrame, Series, pandas_concat
 from .compat import CUDF_concat
@@ -35,23 +35,11 @@ from .tracker import RabitTracker
 from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase
 from .sklearn import xgboost_model_doc
 
-try:
-    from dask.distributed import Client, get_client
-    from dask.distributed import comm as distributed_comm
-    from dask.distributed import wait as distributed_wait
-    from dask.distributed import get_worker as distributed_get_worker
-    from dask import dataframe as dd
-    from dask import array as da
-    from dask import delayed
-except ImportError:
-    Client = None
-    get_client = None
-    distributed_comm = None
-    distributed_wait = None
-    distributed_get_worker = None
-    dd = None
-    da = None
-    delayed = None
+
+dd = LazyLoader('dd', globals(), 'dask.dataframe')
+da = LazyLoader('da', globals(), 'dask.array')
+dask = LazyLoader('dask', globals(), 'dask')
+distributed = LazyLoader('distributed', globals(), 'dask.distributed')
 
 # Current status is considered as initial support, many features are
 # not properly supported yet.
@@ -91,12 +79,12 @@ def _start_tracker(host, n_workers):
 
 
 def _assert_dask_support():
-    if not DASK_INSTALLED:
+    try:
+        import dask             # pylint: disable=W0621,W0611
+    except ImportError as e:
         raise ImportError(
-            'Dask needs to be installed in order to use this module')
-    if not distributed_wait:
-        raise ImportError(
-            'distributed needs to be installed in order to use this module.')
+            'Dask needs to be installed in order to use this module') from e
+
     if platform.system() == 'Windows':
         msg = 'Windows is not officially supported for dask/xgboost,'
         msg += ' contribution are welcomed.'
@@ -107,7 +95,7 @@ class RabitContext:
     '''A context controling rabit initialization and finalization.'''
     def __init__(self, args):
         self.args = args
-        worker = distributed_get_worker()
+        worker = distributed.get_worker()
         self.args.append(
             ('DMLC_TASK_ID=[xgboost.dask]:' + str(worker.address)).encode())
 
@@ -146,10 +134,10 @@ def concat(value):              # pylint: disable=too-many-return-statements
 
 def _xgb_get_client(client):
     '''Simple wrapper around testing None.'''
-    if not isinstance(client, (type(get_client()), type(None))):
+    if not isinstance(client, (type(distributed.get_client()), type(None))):
         raise TypeError(
-            _expect([type(get_client()), type(None)], type(client)))
-    ret = get_client() if client is None else client
+            _expect([type(distributed.get_client()), type(None)], type(client)))
+    ret = distributed.get_client() if client is None else client
     return ret
 
 
@@ -217,7 +205,7 @@ class DaskDMatrix:
                  feature_names=None,
                  feature_types=None):
         _assert_dask_support()
-        client: Client = _xgb_get_client(client)
+        client: distributed.Client = _xgb_get_client(client)
 
         self.feature_names = feature_names
         self.feature_types = feature_types
@@ -313,10 +301,10 @@ class DaskDMatrix:
         append_meta(ll_parts, 'label_lower_bound')
         append_meta(lu_parts, 'label_upper_bound')
 
-        parts = list(map(delayed, zip(*parts)))
+        parts = list(map(dask.delayed, zip(*parts)))
 
         parts = client.compute(parts)
-        await distributed_wait(parts)  # async wait for parts to be computed
+        await distributed.wait(parts)  # async wait for parts to be computed
 
         for part in parts:
             assert part.status == 'finished'
@@ -354,7 +342,7 @@ class DaskDMatrix:
 def _get_worker_parts_ordered(has_base_margin, worker_map, partition_order,
                               worker):
     list_of_parts = worker_map[worker.address]
-    client = get_client()
+    client = distributed.get_client()
     list_of_parts_value = client.gather(list_of_parts)
 
     result = []
@@ -378,7 +366,7 @@ def _get_worker_parts(worker_map, meta_names, worker):
 
     # `_get_worker_parts` is launched inside worker.  In dask side
     # this should be equal to `worker._get_client`.
-    client = get_client()
+    client = distributed.get_client()
     list_of_parts = client.gather(list_of_parts)
     data = None
     labels = None
@@ -544,7 +532,7 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
 def _create_device_quantile_dmatrix(feature_names, feature_types,
                                     meta_names, missing, worker_map,
                                     max_bin):
-    worker = distributed_get_worker()
+    worker = distributed.get_worker()
     if worker.address not in set(worker_map.keys()):
         msg = 'worker {address} has an empty DMatrix.  ' \
             'All workers associated with this DMatrix: {workers}'.format(
@@ -584,7 +572,7 @@ def _create_dmatrix(feature_names, feature_types, meta_names, missing,
       A DMatrix object.
 
     '''
-    worker = distributed_get_worker()
+    worker = distributed.get_worker()
     if worker.address not in set(worker_map.keys()):
         msg = 'worker {address} has an empty DMatrix.  ' \
             'All workers associated with this DMatrix: {workers}'.format(
@@ -630,9 +618,9 @@ def _dmatrix_from_worker_map(is_quantile, **kwargs):
     return _create_dmatrix(**kwargs)
 
 
-async def _get_rabit_args(worker_map, client: Client):
+async def _get_rabit_args(worker_map, client):
     '''Get rabit context arguments from data distribution in DaskDMatrix.'''
-    host = distributed_comm.get_address_host(client.scheduler.address)
+    host = distributed.comm.get_address_host(client.scheduler.address)
     env = await client.run_on_scheduler(
         _start_tracker, host.strip('/:'), len(worker_map))
     rabit_args = [('%s=%s' % item).encode() for item in env.items()]
@@ -648,7 +636,7 @@ async def _get_rabit_args(worker_map, client: Client):
 async def _train_async(client, params, dtrain: DaskDMatrix, *args, evals=(),
                        early_stopping_rounds=None, **kwargs):
     _assert_dask_support()
-    client: Client = _xgb_get_client(client)
+    client: distributed.Client = _xgb_get_client(client)
     if 'evals_result' in kwargs.keys():
         raise ValueError(
             'evals_result is not supported in dask interface.',
@@ -662,7 +650,7 @@ async def _train_async(client, params, dtrain: DaskDMatrix, *args, evals=(),
 
         '''
         LOGGER.info('Training on %s', str(worker_addr))
-        worker = distributed_get_worker()
+        worker = distributed.get_worker()
         with RabitContext(rabit_args):
             local_dtrain = _dmatrix_from_worker_map(**dtrain_ref)
             local_evals = []
@@ -774,7 +762,7 @@ async def _direct_predict_impl(client, data, predict_fn):
 
 
 # pylint: disable=too-many-statements
-async def _predict_async(client: Client, model, data, missing=numpy.nan, **kwargs):
+async def _predict_async(client, model, data, missing=numpy.nan, **kwargs):
     if isinstance(model, Booster):
         booster = model
     elif isinstance(model, dict):
@@ -786,7 +774,7 @@ async def _predict_async(client: Client, model, data, missing=numpy.nan, **kwarg
                                 type(data)))
 
     def mapped_predict(partition, is_df):
-        worker = distributed_get_worker()
+        worker = distributed.get_worker()
         booster.set_param({'nthread': worker.nthreads})
         m = DMatrix(partition, missing=missing, nthread=worker.nthreads)
         predt = booster.predict(m, validate_features=False, **kwargs)
@@ -813,7 +801,7 @@ async def _predict_async(client: Client, model, data, missing=numpy.nan, **kwarg
         '''Perform prediction on each worker.'''
         LOGGER.info('Predicting on %d', worker_id)
 
-        worker = distributed_get_worker()
+        worker = distributed.get_worker()
         list_of_parts = _get_worker_parts_ordered(
             has_margin, worker_map, partition_order, worker)
         predictions = []
@@ -832,14 +820,14 @@ async def _predict_async(client: Client, model, data, missing=numpy.nan, **kwarg
                 validate_features=local_part.num_row() != 0,
                 **kwargs)
             columns = 1 if len(predt.shape) == 1 else predt.shape[1]
-            ret = ((delayed(predt), columns), order)
+            ret = ((dask.delayed(predt), columns), order)
             predictions.append(ret)
         return predictions
 
     def dispatched_get_shape(worker_id):
         '''Get shape of data in each worker.'''
         LOGGER.info('Get shape on %d', worker_id)
-        worker = distributed_get_worker()
+        worker = distributed.get_worker()
         list_of_parts = _get_worker_parts_ordered(
             False,
             worker_map,
@@ -930,7 +918,7 @@ async def _inplace_predict_async(client, model, data,
         raise TypeError(_expect([da.Array, dd.DataFrame], type(data)))
 
     def mapped_predict(data, is_df):
-        worker = distributed_get_worker()
+        worker = distributed.get_worker()
         booster.set_param({'nthread': worker.nthreads})
         prediction = booster.inplace_predict(
             data,
@@ -1072,7 +1060,7 @@ class DaskScikitLearnBase(XGBModel):
         return self.client.sync(_).__await__()
 
     @property
-    def client(self) -> Client:
+    def client(self):
         '''The dask client used in this model.'''
         client = _xgb_get_client(self._client)
         return client
