@@ -2,6 +2,7 @@ import os
 import subprocess
 import pytest
 import testing as tm
+import sys
 
 
 ROOT_DIR = tm.PROJECT_ROOT
@@ -147,6 +148,8 @@ def test_cli_regression_demo():
     subprocess.check_call([exe, conf], cwd=reg_dir)
 
 
+@pytest.mark.skipif(condition=sys.platform.startswith("win"),
+                    reason='Test requires sh execution.')
 def test_cli_binary_classification():
     cls_dir = os.path.join(CLI_DEMO_DIR, 'binary_classification')
     with tm.DirectoryExcursion(cls_dir, cleanup=True):
