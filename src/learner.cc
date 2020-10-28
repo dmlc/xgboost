@@ -1098,7 +1098,7 @@ class LearnerImpl : public LearnerIO {
 
   void InplacePredict(dmlc::any const &x, std::string const &type,
                       float missing, HostDeviceVector<bst_float> **out_preds,
-                      uint32_t layer_begin = 0, uint32_t layer_end = 0) override {
+                      uint32_t layer_begin, uint32_t layer_end) override {
     this->Configure();
     auto& out_predictions = this->GetThreadLocal().prediction_entry;
     this->gbm_->InplacePredict(x, missing, &out_predictions, layer_begin,
