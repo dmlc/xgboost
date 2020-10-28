@@ -2,6 +2,13 @@
 This plugin adds support of OneAPI programming model for tree construction and prediction algorithms to XGBoost.
 
 ## Usage
+Specify the 'updater' parameter as one of the following options to offload model training on OneAPI device. 
+
+### Algorithms
+| updater | Description |
+| --- | --- |
+grow_quantile_histmaker_oneapi | model training using OneAPI device  |
+
 Specify the 'objective' parameter as one of the following options to offload computation of objective function on OneAPI device. 
 
 ### Algorithms
@@ -24,6 +31,7 @@ Please note that parameter names are not finalized and can be changed during fur
 
 Python example:
 ```python
+param['updater'] = 'grow_quantile_histmaker_oneapi'
 param['predictor'] = 'predictor_oneapi'
 param['objective'] = 'reg:squarederror_oneapi'
 ```
