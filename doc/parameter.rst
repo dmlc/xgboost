@@ -108,9 +108,10 @@ Parameters for Tree Booster
     'colsample_bynode':0.5}`` with 64 features will leave 8 features to choose from at
     each split.
 
-    On Python interface, one can set the ``feature_weights`` for DMatrix to define the
-    probability of each feature being selected when using column sampling.  There's a
-    similar parameter for ``fit`` method in sklearn interface.
+    On Python interface, when using ``hist``, ``gpu_hist`` or ``exact`` tree method, one
+    can set the ``feature_weights`` for DMatrix to define the probability of each feature
+    being selected when using column sampling.  There's a similar parameter for ``fit``
+    method in sklearn interface.
 
 * ``lambda`` [default=1, alias: ``reg_lambda``]
 

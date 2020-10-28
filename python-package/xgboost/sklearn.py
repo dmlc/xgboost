@@ -499,9 +499,10 @@ class XGBModel(XGBModelBase):
             A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
             instance weights on the i-th validation set.
         feature_weights: array_like
-            Weight for each feature, defines the probability of each feature
-            being selected when colsample is being used.  All values must be
-            greater than 0, otherwise a `ValueError` is thrown.
+            Weight for each feature, defines the probability of each feature being
+            selected when colsample is being used.  All values must be greater than 0,
+            otherwise a `ValueError` is thrown.  Only available for `hist`, `gpu_hist` and
+            `exact` tree methods.
         callbacks : list of callback functions
             List of callback functions that are applied at end of each iteration.
             It is possible to use predefined callbacks by using :ref:`callback_api`.
@@ -1237,9 +1238,10 @@ class XGBRanker(XGBModel):
             file name of stored XGBoost model or 'Booster' instance XGBoost
             model to be loaded before training (allows training continuation).
         feature_weights: array_like
-            Weight for each feature, defines the probability of each feature
-            being selected when colsample is being used.  All values must be
-            greater than 0, otherwise a `ValueError` is thrown.
+            Weight for each feature, defines the probability of each feature being
+            selected when colsample is being used.  All values must be greater than 0,
+            otherwise a `ValueError` is thrown.  Only available for `hist`, `gpu_hist` and
+            `exact` tree methods.
         callbacks : list of callback functions
             List of callback functions that are applied at end of each
             iteration.  It is possible to use predefined callbacks by using
