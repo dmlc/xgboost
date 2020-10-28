@@ -127,12 +127,12 @@ bool QuantileHistMaker::UpdatePredictionCache(
 
 template <typename GradientSumT>
 void BatchHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT *builder,
-                                                         int starting_index,
-                                                         int sync_count,
+                                                         int,
+                                                         int,
                                                          RegTree *p_tree) {
   builder->builder_monitor_.Start("SyncHistograms");
   const size_t nbins = builder->hist_builder_.GetNumBins();
-  common::BlockedSpace2d space(builder->nodes_for_explicit_hist_build_.size(), [&](size_t node) {
+  common::BlockedSpace2d space(builder->nodes_for_explicit_hist_build_.size(), [&](size_t) {
     return nbins;
   }, 1024);
 
@@ -159,7 +159,7 @@ void DistributedHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT* builder
                                                  RegTree *p_tree) {
   builder->builder_monitor_.Start("SyncHistograms");
   const size_t nbins = builder->hist_builder_.GetNumBins();
-  common::BlockedSpace2d space(builder->nodes_for_explicit_hist_build_.size(), [&](size_t node) {
+  common::BlockedSpace2d space(builder->nodes_for_explicit_hist_build_.size(), [&](size_t) {
     return nbins;
   }, 1024);
   common::ParallelFor2d(space, builder->nthread_, [&](size_t node, common::Range1d r) {
@@ -188,7 +188,7 @@ void DistributedHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT* builder
 
   ParallelSubtractionHist(builder, space, builder->nodes_for_explicit_hist_build_, p_tree);
 
-  common::BlockedSpace2d space2(builder->nodes_for_subtraction_trick_.size(), [&](size_t node) {
+  common::BlockedSpace2d space2(builder->nodes_for_subtraction_trick_.size(), [&](size_t) {
     return nbins;
   }, 1024);
   ParallelSubtractionHist(builder, space2, builder->nodes_for_subtraction_trick_, p_tree);
@@ -219,7 +219,7 @@ template <typename GradientSumT>
 void BatchHistRowsAdder<GradientSumT>::AddHistRows(BuilderT *builder,
                                                    int *starting_index,
                                                    int *sync_count,
-                                                   RegTree *p_tree) {
+                                                   RegTree *) {
   builder->builder_monitor_.Start("AddHistRows");
 
   for (auto const& entry : builder->nodes_for_explicit_hist_build_) {

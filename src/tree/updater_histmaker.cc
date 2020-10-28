@@ -146,7 +146,7 @@ class HistMaker: public BaseMaker {
                                   const std::vector <bst_feature_t> &fset,
                                   const RegTree &tree) = 0;
   // initialize the current working set of features in this round
-  virtual void InitWorkSet(DMatrix *p_fmat,
+  virtual void InitWorkSet(DMatrix *,
                            const RegTree &tree,
                            std::vector<bst_feature_t> *p_fset) {
     p_fset->resize(tree.param.num_feature);
