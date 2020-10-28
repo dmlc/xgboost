@@ -80,7 +80,7 @@ def _start_tracker(host, n_workers):
 
 def _assert_dask_support():
     try:
-        import dask             # noqa
+        import dask             # pylint: disable=W0621,W0611
     except ImportError as e:
         raise ImportError(
             'Dask needs to be installed in order to use this module') from e
@@ -618,7 +618,7 @@ def _dmatrix_from_worker_map(is_quantile, **kwargs):
     return _create_dmatrix(**kwargs)
 
 
-async def _get_rabit_args(worker_map, client: distributed.Client):
+async def _get_rabit_args(worker_map, client):
     '''Get rabit context arguments from data distribution in DaskDMatrix.'''
     host = distributed.comm.get_address_host(client.scheduler.address)
     env = await client.run_on_scheduler(
@@ -762,8 +762,7 @@ async def _direct_predict_impl(client, data, predict_fn):
 
 
 # pylint: disable=too-many-statements
-async def _predict_async(client: distributed.Client, model, data, missing=numpy.nan,
-                         **kwargs):
+async def _predict_async(client, model, data, missing=numpy.nan, **kwargs):
     if isinstance(model, Booster):
         booster = model
     elif isinstance(model, dict):
@@ -1061,7 +1060,7 @@ class DaskScikitLearnBase(XGBModel):
         return self.client.sync(_).__await__()
 
     @property
-    def client(self) -> distributed.Client:
+    def client(self):
         '''The dask client used in this model.'''
         client = _xgb_get_client(self._client)
         return client
