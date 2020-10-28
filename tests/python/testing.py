@@ -251,6 +251,36 @@ def eval_error_metric(predt, dtrain: xgb.DMatrix):
     return 'CustomErr', np.sum(r)
 
 
+class DirectoryExcursion:
+    def __init__(self, path: os.PathLike, cleanup=False):
+        '''Change directory.  Change back and optionally cleaning up the directory when exit.
+
+        '''
+        self.path = path
+        self.curdir = os.path.normpath(os.path.abspath(os.path.curdir))
+        self.cleanup = cleanup
+        self.files = {}
+
+    def __enter__(self):
+        os.chdir(self.path)
+        if self.cleanup:
+            self.files = {
+                os.path.join(root, f)
+                for root, subdir, files in os.walk(self.path) for f in files
+            }
+
+    def __exit__(self, *args):
+        os.chdir(self.curdir)
+        if self.cleanup:
+            files = {
+                os.path.join(root, f)
+                for root, subdir, files in os.walk(self.path) for f in files
+            }
+            diff = files.difference(self.files)
+            for f in diff:
+                os.remove(f)
+
+
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
 PROJECT_ROOT = os.path.normpath(
     os.path.join(CURDIR, os.path.pardir, os.path.pardir))

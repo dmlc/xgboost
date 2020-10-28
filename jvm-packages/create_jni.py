@@ -116,7 +116,7 @@ if __name__ == "__main__":
             run("cmake .. " + " ".join(args) + maybe_generator)
             run("cmake --build . --config Release" + maybe_parallel_build)
 
-        with cd("demo/regression"):
+        with cd("demo/CLI/regression"):
             run(sys.executable + " mapfeat.py")
             run(sys.executable + " mknfold.py machine.txt 1")
 
@@ -138,11 +138,11 @@ if __name__ == "__main__":
 
     print("copying train/test files")
     maybe_makedirs("{}/src/test/resources".format(xgboost4j_spark))
-    with cd("../demo/regression"):
+    with cd("../demo/CLI/regression"):
         run("{} mapfeat.py".format(sys.executable))
         run("{} mknfold.py machine.txt 1".format(sys.executable))
 
-    for file in glob.glob("../demo/regression/machine.txt.t*"):
+    for file in glob.glob("../demo/CLI/regression/machine.txt.t*"):
         cp(file, "{}/src/test/resources".format(xgboost4j_spark))
     for file in glob.glob("../demo/data/agaricus.*"):
         cp(file, "{}/src/test/resources".format(xgboost4j_spark))
