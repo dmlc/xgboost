@@ -90,7 +90,7 @@ WORKSPACE="${WORKSPACE:-${SCRIPT_DIR}/../../}"
 DOCKER_IMG_NAME="xgb-ci.${CONTAINER_TYPE}"
 
 # Append cuda version if available
-CUDA_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | grep -o -E 'CUDA_VERSION=[0-9]+\.[0-9]+' | grep -o -E '[0-9]+\.[0-9]+')
+CUDA_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | grep -o -E 'CUDA_VERSION_ARG=[0-9]+\.[0-9]+' | grep -o -E '[0-9]+\.[0-9]+')
 # Append jdk version if available
 JDK_VERSION=$(echo "${CI_DOCKER_BUILD_ARG}" | grep -o -E 'JDK_VERSION=[0-9]+' | grep -o -E '[0-9]+')
 # Append cmake version if available
