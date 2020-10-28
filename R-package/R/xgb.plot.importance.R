@@ -99,8 +99,12 @@ xgb.plot.importance <- function(importance_matrix = NULL, top_n = NULL, measure 
   }
 
   if (plot) {
-    op <- par(no.readonly = TRUE)
-    mar <- op$mar
+    original_mar <- par()$mar
+
+    # reset margins so this function doesn't have side effects
+    on.exit({par(mar = original_mar)})
+
+    mar <- original_mar
     if (!is.null(left_margin))
       mar[2] <- left_margin
     par(mar = mar)
@@ -109,11 +113,6 @@ xgb.plot.importance <- function(importance_matrix = NULL, top_n = NULL, measure 
     importance_matrix[rev(seq_len(nrow(importance_matrix))),
                       barplot(Importance, horiz = TRUE, border = NA, cex.names = cex,
                               names.arg = Feature, las = 1, ...)]
-    grid(NULL, NA)
-    # redraw over the grid
-    importance_matrix[rev(seq_len(nrow(importance_matrix))),
-                      barplot(Importance, horiz = TRUE, border = NA, add = TRUE)]
-    par(op)
   }
 
   invisible(importance_matrix)
