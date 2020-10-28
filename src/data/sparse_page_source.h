@@ -19,6 +19,7 @@
 #include <vector>
 #include <fstream>
 
+#include "rabit/rabit.h"
 #include "xgboost/base.h"
 #include "xgboost/data.h"
 
@@ -231,6 +232,11 @@ class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
   std::vector<std::unique_ptr<dmlc::ThreadedIter<PageT>>> prefetchers_;
 };
 
+// Write the page using writer, split it into multiple smaller pages if necessary.
+void SplitWritePage(SparsePage const &page, size_t page_size,
+                    SparsePageWriter<SparsePage> *writer, size_t *rows,
+                    MetaInfo *info);
+
 class SparsePageSource {
  public:
   template <typename AdapterT>
@@ -249,17 +255,10 @@ class SparsePageSource {
     {
       SparsePageWriter<SparsePage> writer(cache_info_.name_shards,
                                           cache_info_.format_shards, 6);
-      std::shared_ptr<SparsePage> page;
-      writer.Alloc(&page);
-      page->Clear();
+      std::shared_ptr<SparsePage> page { new SparsePage };
 
       uint64_t inferred_num_columns = 0;
       uint64_t inferred_num_rows = 0;
-      size_t bytes_write = 0;
-      double tstart = dmlc::GetTime();
-      // print every 4 sec.
-      constexpr double kStep = 4.0;
-      size_t tick_expected = static_cast<double>(kStep);
 
       const uint64_t default_max = std::numeric_limits<uint64_t>::max();
       uint64_t last_group_id = default_max;
@@ -299,22 +298,10 @@ class SparsePageSource {
         auto batch_max_columns = page->Push(batch, missing, nthread);
         inferred_num_columns =
             std::max(batch_max_columns, inferred_num_columns);
-        if (page->MemCostBytes() >= page_size) {
-          inferred_num_rows += page->Size();
-          info.num_nonzero_ += page->offset.HostVector().back();
-          bytes_write += page->MemCostBytes();
-          writer.PushWrite(std::move(page));
-          writer.Alloc(&page);
+        if (page->Size() > page_size) {
+          SplitWritePage(*page, page_size, &writer, &inferred_num_rows, &info);
           page->Clear();
           page->SetBaseRowId(inferred_num_rows);
-
-          double tdiff = dmlc::GetTime() - tstart;
-          if (tdiff >= tick_expected) {
-            LOG(CONSOLE) << "Writing " << page_type << " to " << cache_info
-                         << " in " << ((bytes_write >> 20UL) / tdiff)
-                         << " MB/s, " << (bytes_write >> 20UL) << " written";
-            tick_expected += static_cast<size_t>(kStep);
-          }
         }
       }
 
@@ -324,9 +311,6 @@ class SparsePageSource {
         }
       }
       inferred_num_rows += page->Size();
-      if (!page->offset.HostVector().empty()) {
-        info.num_nonzero_ += page->offset.HostVector().back();
-      }
 
       // Deal with empty rows/columns if necessary
       if (adapter->NumColumns() == kAdapterUnknownSize) {
@@ -353,7 +337,11 @@ class SparsePageSource {
       }
 
       // Make sure we have at least one page if the dataset is empty
-      if (page->data.Size() > 0 || info.num_row_ == 0) {
+      if (page->data.Size() > 0) {
+        SplitWritePage(*page, page_size, &writer, &inferred_num_rows, &info);
+        page->Clear();
+      }
+      if (info.num_row_ == 0) {
         writer.PushWrite(std::move(page));
       }
       std::unique_ptr<dmlc::Stream> fo(
