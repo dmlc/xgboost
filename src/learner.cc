@@ -987,6 +987,7 @@ class LearnerImpl : public LearnerIO {
     Json config { Object() };
     this->SaveConfig(&config);
     out_impl->mparam_ = this->mparam_;
+    out_impl->attributes_ = this->attributes_;
     out_impl->learner_model_param_ = this->learner_model_param_;
     out_impl->LoadConfig(config);
     out_impl->Configure();

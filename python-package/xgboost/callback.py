@@ -528,7 +528,7 @@ class EarlyStopping(TrainingCallback):
             return True
         return False
 
-    def after_iteration(self, model, epoch, evals_log):
+    def after_iteration(self, model: Booster, epoch, evals_log):
         msg = 'Must have at least 1 validation dataset for early stopping.'
         assert len(evals_log.keys()) >= 1, msg
         data_name = ''
@@ -554,9 +554,9 @@ class EarlyStopping(TrainingCallback):
         score = data_log[metric_name][-1]
         return self._update_rounds(score, data_name, metric_name, model, epoch)
 
-    def after_training(self, model):
+    def after_training(self, model: Booster):
         if self.save_best:
-            model = model[: model.best_iteration]
+            model = model[: int(model.attr('best_iteration'))]
         return model
 
 
