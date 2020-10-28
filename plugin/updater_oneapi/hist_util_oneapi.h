@@ -245,6 +245,14 @@ template<typename GradientSumT>
 void InitializeHistByZeroes(GHistRowOneAPI<GradientSumT>& hist, size_t begin, size_t end);
 
 /*!
+ * \brief Copy hist from src to dst in range [begin, end)
+ */
+template<typename GradientSumT>
+void CopyHist(cl::sycl::queue qu,
+              GHistRowOneAPI<GradientSumT>& dst, const GHistRowOneAPI<GradientSumT>& src,
+              size_t size);
+
+/*!
  * \brief Compute Subtraction: dst = src1 - src2 in range [begin, end)
  */
 template<typename GradientSumT>

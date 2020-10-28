@@ -183,6 +183,25 @@ template void InitializeHistByZeroes(GHistRowOneAPI<double>& hist, size_t begin,
                                     size_t end);
 
 /*!
+ * \brief Copy hist from src to dst in range [begin, end)
+ */
+template<typename GradientSumT>
+void CopyHist(cl::sycl::queue qu,
+              GHistRowOneAPI<GradientSumT>& dst, const GHistRowOneAPI<GradientSumT>& src,
+              size_t size) {
+  GradientSumT* pdst = reinterpret_cast<GradientSumT*>(dst.Data());
+  const GradientSumT* psrc = reinterpret_cast<const GradientSumT*>(src.DataConst());
+
+  std::copy(psrc, psrc + 2 * size, pdst);
+}
+template void CopyHist(cl::sycl::queue qu,
+                       GHistRowOneAPI<float>& dst, const GHistRowOneAPI<float>& src,
+                       size_t size);
+template void CopyHist(cl::sycl::queue qu,
+                       GHistRowOneAPI<double>& dst, const GHistRowOneAPI<double>& src,
+                       size_t size);
+
+/*!
  * \brief Compute Subtraction: dst = src1 - src2
  */
 template<typename GradientSumT>

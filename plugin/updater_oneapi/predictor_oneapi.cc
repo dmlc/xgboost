@@ -224,7 +224,7 @@ class PredictorOneAPI : public Predictor {
     int num_group = model.learner_model_param->num_output_group;
 
     qu_.submit([&](cl::sycl::handler& cgh) {
-      auto out_predictions = out_preds_buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+      auto out_predictions = out_preds_buf.template get_access<cl::sycl::access::mode::read_write>(cgh);
       cgh.parallel_for<class PredictInternal>(cl::sycl::range<1>(num_rows), [=](cl::sycl::id<1> pid) {
         int global_idx = pid[0];
         if (global_idx >= num_rows) return;

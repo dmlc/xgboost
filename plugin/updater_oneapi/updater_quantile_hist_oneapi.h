@@ -421,6 +421,8 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
                              const std::vector<GradientPair>& gpair_h,
                              const USMVector<GradientPair>& gpair_device);
 
+    void ReduceHists(std::vector<int>& sync_ids, size_t nbins);
+
     inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
       if (lhs.loss_chg == rhs.loss_chg) {
         return lhs.timestamp > rhs.timestamp;  // favor small timestamp
@@ -511,8 +513,7 @@ class HistSynchronizerOneAPI {
   using BuilderT = GPUQuantileHistMakerOneAPI::Builder<GradientSumT>;
 
   virtual void SyncHistograms(BuilderT* builder,
-                              int starting_index,
-                              int sync_count,
+                              std::vector<int>& sync_ids,
                               RegTree *p_tree) = 0;
   virtual ~HistSynchronizerOneAPI() = default;
 };
@@ -522,8 +523,7 @@ class BatchHistSynchronizerOneAPI: public HistSynchronizerOneAPI<GradientSumT> {
  public:
   using BuilderT = GPUQuantileHistMakerOneAPI::Builder<GradientSumT>;
   void SyncHistograms(BuilderT* builder,
-                      int starting_index,
-                      int sync_count,
+                      std::vector<int>& sync_ids,
                       RegTree *p_tree) override;
 };
 
@@ -533,11 +533,9 @@ class DistributedHistSynchronizerOneAPI: public HistSynchronizerOneAPI<GradientS
   using BuilderT = GPUQuantileHistMakerOneAPI::Builder<GradientSumT>;
   using ExpandEntryT = typename BuilderT::ExpandEntry;
 
-  void SyncHistograms(BuilderT* builder, int starting_index,
-                      int sync_count, RegTree *p_tree) override;
+  void SyncHistograms(BuilderT* builder, std::vector<int>& sync_ids, RegTree *p_tree) override;
 
   void ParallelSubtractionHist(BuilderT* builder,
-                               const common::BlockedSpace2d& space,
                                const std::vector<ExpandEntryT>& nodes,
                                const RegTree * p_tree);
 };
@@ -547,8 +545,7 @@ class HistRowsAdderOneAPI {
  public:
   using BuilderT = GPUQuantileHistMakerOneAPI::Builder<GradientSumT>;
 
-  virtual void AddHistRows(BuilderT* builder, int *starting_index,
-                           int *sync_count, RegTree *p_tree) = 0;
+  virtual void AddHistRows(BuilderT* builder, std::vector<int>& sync_ids, RegTree *p_tree) = 0;
   virtual ~HistRowsAdderOneAPI() = default;
 };
 
@@ -556,16 +553,14 @@ template <typename GradientSumT>
 class BatchHistRowsAdderOneAPI: public HistRowsAdderOneAPI<GradientSumT> {
  public:
   using BuilderT = GPUQuantileHistMakerOneAPI::Builder<GradientSumT>;
-  void AddHistRows(BuilderT*, int *starting_index,
-                   int *sync_count, RegTree *p_tree) override;
+  void AddHistRows(BuilderT*, std::vector<int>& sync_ids, RegTree *p_tree) override;
 };
 
 template <typename GradientSumT>
 class DistributedHistRowsAdderOneAPI: public HistRowsAdderOneAPI<GradientSumT> {
  public:
   using BuilderT = GPUQuantileHistMakerOneAPI::Builder<GradientSumT>;
-  void AddHistRows(BuilderT*, int *starting_index,
-                   int *sync_count, RegTree *p_tree) override;
+  void AddHistRows(BuilderT*, std::vector<int>& sync_ids, RegTree *p_tree) override;
 };
 
 
