@@ -161,21 +161,24 @@ inline std::pair<uint32_t, uint32_t> LayerToTree(gbm::GBTreeModel const &model,
   bst_group_t groups = model.learner_model_param->num_output_group;
   uint32_t tree_begin = layer_begin * groups * tparam.num_parallel_tree;
   uint32_t tree_end = layer_end * groups * tparam.num_parallel_tree;
-  if (tree_end == 0 || tree_end > model.trees.size()) {
+  if (tree_end == 0) {
     tree_end = static_cast<uint32_t>(model.trees.size());
   }
-  CHECK_LE(tree_end, model.trees.size());
   CHECK_LT(tree_begin, tree_end);
   return {tree_begin, tree_end};
 }
 
-// Call fn for each pair of input output tree.
+// Call fn for each pair of input output tree.  Return true if index is out of bound.
 template <typename Func>
-inline void SliceTrees(int32_t layer_begin, int32_t layer_end, int32_t step,
+inline bool SliceTrees(int32_t layer_begin, int32_t layer_end, int32_t step,
                        GBTreeModel const &model, GBTreeTrainParam const &tparam,
                        uint32_t layer_trees, Func fn) {
   uint32_t tree_begin, tree_end;
   std::tie(tree_begin, tree_end) = detail::LayerToTree(model, tparam, layer_begin, layer_end);
+  if (tree_end > model.trees.size()) {
+    return true;
+  }
+
   layer_end = layer_end == 0 ? model.trees.size() / layer_trees : layer_end;
   uint32_t n_layers = (layer_end - layer_begin) / step;
   int32_t in_it = tree_begin;
@@ -189,6 +192,7 @@ inline void SliceTrees(int32_t layer_begin, int32_t layer_end, int32_t step,
     }
     in_it += (step - 1) * layer_trees;
   }
+  return false;
 }
 }  // namespace detail
 
@@ -247,7 +251,7 @@ class GBTree : public GradientBooster {
   }
   // slice the trees, out must be already allocated
   void Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
-             GradientBooster *out) const override;
+             GradientBooster *out, bool* out_of_bound) const override;
 
   void PredictBatch(DMatrix* p_fmat,
                     PredictionCacheEntry* out_preds,

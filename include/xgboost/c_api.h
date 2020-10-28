@@ -589,7 +589,7 @@ XGB_DLL int XGBoosterFree(BoosterHandle handle);
  * \param step        step size of the slice
  * \param out Sliced booster.
  *
- * \return 0 when success, -1 when failure happens
+ * \return 0 when success, -1 when failure happens, -2 when index is out of bound.
  */
 XGB_DLL int XGBoosterSlice(BoosterHandle handle, int begin_layer,
                            int end_layer, int step,

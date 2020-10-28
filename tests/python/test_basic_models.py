@@ -377,6 +377,12 @@ class TestModels(unittest.TestCase):
         # step can not be 0.
         self.assertRaises(ValueError, lambda: booster[0:2:0])
 
+        trees = [_ for _ in booster]
+        assert len(trees) == num_boost_round
+
+        self.assertRaises(TypeError, lambda: booster["wrong type"])
+        self.assertRaises(IndexError, lambda: booster[:num_boost_round+1])
+
         def assign():
             booster[...:end] = booster
         self.assertRaises(TypeError, assign)

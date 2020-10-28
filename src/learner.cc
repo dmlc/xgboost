@@ -971,14 +971,15 @@ class LearnerImpl : public LearnerIO {
     return gbm_->DumpModel(fmap, with_stats, format);
   }
 
-  Learner* Slice(int32_t begin_layer, int32_t end_layer, int32_t step) override {
+  Learner *Slice(int32_t begin_layer, int32_t end_layer, int32_t step,
+                 bool *out_of_bound) override {
     this->Configure();
     CHECK_GE(begin_layer, 0);
     auto *out_impl = new LearnerImpl({});
     auto gbm = std::unique_ptr<GradientBooster>(GradientBooster::Create(
         this->tparam_.booster, &this->generic_parameters_,
         &this->learner_model_param_));
-    this->gbm_->Slice(begin_layer, end_layer, step, gbm.get());
+    this->gbm_->Slice(begin_layer, end_layer, step, gbm.get(), out_of_bound);
     out_impl->gbm_ = std::move(gbm);
     Json config { Object() };
     this->SaveConfig(&config);

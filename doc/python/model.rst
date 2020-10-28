@@ -27,6 +27,10 @@ list of trees and can be sliced into multiple sub-models.
     # step is also supported with some limitations like negative step is invalid.
     sliced: xgb.Booster = booster[3:7]
 
+    # Access individual tree layer
+    trees = [_ for _ in booster]
+    assert len(trees) == num_boost_round
+
 
 The sliced model is a copy of selected trees, that means the model itself is immutable
 during slicing.  This feature is the basis of `save_best` option in early stopping

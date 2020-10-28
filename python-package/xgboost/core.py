@@ -1024,12 +1024,16 @@ class Booster(object):
             state['handle'] = handle
         self.__dict__.update(state)
 
-    def __getitem__(self, val: slice):
+    def __getitem__(self, val):
+        if isinstance(val, int):
+            val = slice(val, val+1)
+        if not isinstance(val, slice):
+            msg = _expect((int, slice), type(val))
+            raise TypeError(msg)
         if isinstance(val.start, type(Ellipsis)) or val.start is None:
             start = 0
         else:
             start = val.start
-
         if isinstance(val.stop, type(Ellipsis)) or val.stop is None:
             stop = 0
         else:
@@ -1044,8 +1048,12 @@ class Booster(object):
         step = ctypes.c_int(step)
 
         sliced_handle = ctypes.c_void_p()
-        _check_call(_LIB.XGBoosterSlice(self.handle, start, stop, step,
-                                        ctypes.byref(sliced_handle)))
+        status = _LIB.XGBoosterSlice(self.handle, start, stop, step,
+                                     ctypes.byref(sliced_handle))
+        if status == -2:
+            raise IndexError('Layer index out of range')
+        _check_call(status)
+
         sliced = Booster()
         _check_call(_LIB.XGBoosterFree(sliced.handle))
         sliced.handle = sliced_handle

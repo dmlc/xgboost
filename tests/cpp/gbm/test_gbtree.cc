@@ -254,9 +254,10 @@ std::pair<Json, Json> TestModelSlice(std::string booster) {
   Json config{Object()};
   learner->SaveModel(&model);
   learner->SaveConfig(&config);
+  bool out_of_bound = false;
 
   size_t constexpr kSliceStart = 2, kSliceEnd = 8, kStep = 3;
-  std::unique_ptr<Learner> sliced {learner->Slice(kSliceStart, kSliceEnd, kStep)};
+  std::unique_ptr<Learner> sliced {learner->Slice(kSliceStart, kSliceEnd, kStep, &out_of_bound)};
   Json sliced_model{Object()};
   sliced->SaveModel(&sliced_model);
 

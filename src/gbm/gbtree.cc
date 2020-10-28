@@ -399,7 +399,7 @@ void GBTree::SaveModel(Json* p_out) const {
 }
 
 void GBTree::Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
-                   GradientBooster *out) const {
+                   GradientBooster *out, bool* out_of_bound) const {
   CHECK(configured_);
   CHECK(out);
 
@@ -419,14 +419,15 @@ void GBTree::Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
   out_model.param.num_trees = out_model.trees.size();
   CHECK(this->model_.trees_to_update.empty());
 
-  detail::SliceTrees(layer_begin, layer_end, step, this->model_, tparam_,
-                     layer_trees, [&](auto const &in_it, auto const &out_it) {
-                       auto new_tree = std::make_unique<RegTree>(
-                           *this->model_.trees.at(in_it));
-                       bst_group_t group = this->model_.tree_info[in_it];
-                       out_trees.at(out_it) = std::move(new_tree);
-                       out_trees_info.at(out_it) = group;
-                     });
+  *out_of_bound = detail::SliceTrees(
+      layer_begin, layer_end, step, this->model_, tparam_, layer_trees,
+      [&](auto const &in_it, auto const &out_it) {
+        auto new_tree =
+            std::make_unique<RegTree>(*this->model_.trees.at(in_it));
+        bst_group_t group = this->model_.tree_info[in_it];
+        out_trees.at(out_it) = std::move(new_tree);
+        out_trees_info.at(out_it) = group;
+      });
 }
 
 void GBTree::PredictBatch(DMatrix* p_fmat,
@@ -526,8 +527,11 @@ class Dart : public GBTree {
   }
 
   void Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
-             GradientBooster *out) const final {
-    GBTree::Slice(layer_begin, layer_end, step, out);
+             GradientBooster *out, bool* out_of_bound) const final {
+    GBTree::Slice(layer_begin, layer_end, step, out, out_of_bound);
+    if (*out_of_bound) {
+      return;
+    }
     auto p_dart = dynamic_cast<Dart*>(out);
     CHECK(p_dart);
     CHECK(p_dart->weight_drop_.empty());
