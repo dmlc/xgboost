@@ -204,8 +204,8 @@ class PartitionBuilderOneAPI {
     const size_t* left = left_data_.Data() + nodes_offsets_[nid];
     const size_t* right = right_data_.Data() + nodes_offsets_[nid];
     
-    qu_.memcpy(left_result, left, sizeof(size_t) * result_left_rows_[nid]).wait();
-    qu_.memcpy(right_result, right, sizeof(size_t) * result_right_rows_[nid]).wait();
+    if (result_left_rows_[nid] > 0) qu_.memcpy(left_result, left, sizeof(size_t) * result_left_rows_[nid]).wait();
+    if (result_right_rows_[nid] > 0) qu_.memcpy(right_result, right, sizeof(size_t) * result_right_rows_[nid]).wait();
   }
 
  protected:

@@ -73,7 +73,7 @@ class RegLossObjOneAPI : public ObjFunction {
 
 	cl::sycl::buffer<int, 1> additional_input_buf(1);
 	{
-		auto additional_input_acc = additional_input_buf.get_access<cl::sycl::access::mode::write>();
+		auto additional_input_acc = additional_input_buf.template get_access<cl::sycl::access::mode::write>();
 		additional_input_acc[0] = 1; // Fill the label_correct flag
 	}
 
@@ -84,11 +84,11 @@ class RegLossObjOneAPI : public ObjFunction {
     }
 
     qu_.submit([&](cl::sycl::handler& cgh) {
-      auto preds_acc            = preds_buf.get_access<cl::sycl::access::mode::read>(cgh);
-      auto labels_acc           = labels_buf.get_access<cl::sycl::access::mode::read>(cgh);
-      auto weights_acc          = weights_buf.get_access<cl::sycl::access::mode::read>(cgh);
-      auto out_gpair_acc        = out_gpair_buf.get_access<cl::sycl::access::mode::write>(cgh);
-      auto additional_input_acc = additional_input_buf.get_access<cl::sycl::access::mode::write>(cgh);
+      auto preds_acc            = preds_buf.template get_access<cl::sycl::access::mode::read>(cgh);
+      auto labels_acc           = labels_buf.template get_access<cl::sycl::access::mode::read>(cgh);
+      auto weights_acc          = weights_buf.template get_access<cl::sycl::access::mode::read>(cgh);
+      auto out_gpair_acc        = out_gpair_buf.template get_access<cl::sycl::access::mode::write>(cgh);
+      auto additional_input_acc = additional_input_buf.template get_access<cl::sycl::access::mode::write>(cgh);
       cgh.parallel_for<>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
         int idx = pid[0];
         bst_float p = Loss::PredTransform(preds_acc[idx]);
@@ -108,7 +108,7 @@ class RegLossObjOneAPI : public ObjFunction {
 
     int flag = 1;
 	{
-		auto additional_input_acc = additional_input_buf.get_access<cl::sycl::access::mode::read>();
+		auto additional_input_acc = additional_input_buf.template get_access<cl::sycl::access::mode::read>();
 		flag = additional_input_acc[0];
 	}
 
@@ -129,7 +129,7 @@ class RegLossObjOneAPI : public ObjFunction {
     cl::sycl::buffer<bst_float, 1> io_preds_buf(io_preds->HostPointer(), io_preds->Size());
 
     qu_.submit([&](cl::sycl::handler& cgh) {
-      auto io_preds_acc = io_preds_buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+      auto io_preds_acc = io_preds_buf.template get_access<cl::sycl::access::mode::read_write>(cgh);
       cgh.parallel_for<>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
         int idx = pid[0];
         io_preds_acc[idx] = Loss::PredTransform(io_preds_acc[idx]);

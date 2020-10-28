@@ -141,7 +141,7 @@ public:
     qu_ = qu;
     size_ = vec.size();
     data_ = std::shared_ptr<T>(cl::sycl::malloc_shared<T>(size_, qu_), USMDeleter<T>(qu_));
-    std::copy(vec.begin (), vec.end (), data_.get());
+    std::copy(vec.begin(), vec.end(), data_.get());
   }
 
   using value_type = T;  // NOLINT
