@@ -584,9 +584,9 @@ XGB_DLL int XGBoosterFree(BoosterHandle handle);
  * \brief Slice a model according to layers.
  *
  * \param handle Booster to be sliced.
- * \param begin_layer
- * \param end_layer
- * \param step
+ * \param begin_layer start of the slice
+ * \param end_layer   end of the slice
+ * \param step        step size of the slice
  * \param out Sliced booster.
  *
  * \return 0 when success, -1 when failure happens

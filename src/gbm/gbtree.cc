@@ -530,9 +530,10 @@ class Dart : public GBTree {
     GBTree::Slice(layer_begin, layer_end, step, out);
     auto p_dart = dynamic_cast<Dart*>(out);
     CHECK(p_dart);
+    CHECK(p_dart->weight_drop_.empty());
     detail::SliceTrees(
         layer_begin, layer_end, step, model_, tparam_, this->LayerTrees(),
-        [&](auto const& in_it, auto const& out_it) {
+        [&](auto const& in_it, auto const&) {
           p_dart->weight_drop_.push_back(this->weight_drop_.at(in_it));
         });
   }
