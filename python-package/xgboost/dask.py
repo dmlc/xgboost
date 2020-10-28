@@ -36,8 +36,8 @@ from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase
 from .sklearn import xgboost_model_doc
 
 
-dd = LazyLoader('dataframe', globals(), 'dask.dataframe')
-da = LazyLoader('array', globals(), 'dask.array')
+dd = LazyLoader('dd', globals(), 'dask.dataframe')
+da = LazyLoader('da', globals(), 'dask.array')
 dask = LazyLoader('dask', globals(), 'dask')
 distributed = LazyLoader('distributed', globals(), 'dask.distributed')
 
