@@ -546,8 +546,7 @@ class LearnerConfiguration : public Learner {
         num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
       }
 
-      rabit::Allreduce<rabit::op::Max>(&num_feature, 1, nullptr, nullptr,
-                                       "num_feature");
+      rabit::Allreduce<rabit::op::Max>(&num_feature, 1);
       if (num_feature > mparam_.num_feature) {
         mparam_.num_feature = num_feature;
       }

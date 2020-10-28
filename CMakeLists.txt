@@ -148,9 +148,6 @@ if (USE_OPENMP)
   find_package(OpenMP REQUIRED)
 endif (USE_OPENMP)
 
-# core xgboost
-add_subdirectory(${xgboost_SOURCE_DIR}/src)
-
 # dmlc-core
 msvc_use_static_runtime()
 add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
@@ -169,34 +166,13 @@ endif (MSVC)
 if (ENABLE_ALL_WARNINGS)
   target_compile_options(dmlc PRIVATE -Wall -Wextra)
 endif (ENABLE_ALL_WARNINGS)
-target_link_libraries(objxgboost PUBLIC dmlc)
 
 # rabit
 add_subdirectory(rabit)
 
-if (RABIT_MOCK)
-  target_link_libraries(objxgboost PUBLIC rabit_mock_static)
-  if (MSVC)
-    target_compile_options(rabit_mock_static PRIVATE
-                           -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
-  endif (MSVC)
-else()
-  target_link_libraries(objxgboost PUBLIC rabit)
-  if (MSVC)
-    target_compile_options(rabit PRIVATE
-                           -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
-  endif (MSVC)
-endif(RABIT_MOCK)
-foreach(lib rabit rabit_mock_static)
-  # Explicitly link dmlc to rabit, so that configured header (build_config.h)
-  # from dmlc is correctly applied to rabit.
-  if (TARGET ${lib})
-    target_link_libraries(${lib} dmlc ${CMAKE_THREAD_LIBS_INIT})
-    if (ENABLE_ALL_WARNINGS)
-      target_compile_options(${lib} PRIVATE -Wall -Wextra)
-    endif (ENABLE_ALL_WARNINGS)
-  endif (TARGET ${lib})
-endforeach()
+# core xgboost
+add_subdirectory(${xgboost_SOURCE_DIR}/src)
+target_link_libraries(objxgboost PUBLIC dmlc)
 
 # Exports some R specific definitions and objects
 if (R_LIB)
@@ -220,7 +196,7 @@ endif (USE_CUDA)
 
 #-- Hide all C++ symbols
 if (HIDE_CXX_SYMBOLS)
-  foreach(target objxgboost xgboost dmlc rabit rabit_mock_static)
+  foreach(target objxgboost xgboost dmlc)
     set_target_properties(${target} PROPERTIES CXX_VISIBILITY_PRESET hidden)
   endforeach()
 endif (HIDE_CXX_SYMBOLS)
@@ -292,7 +268,7 @@ install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
 #
 # https://github.com/dmlc/xgboost/issues/6085
 if (BUILD_STATIC_LIB)
-  set(INSTALL_TARGETS xgboost runxgboost objxgboost rabit dmlc)
+  set(INSTALL_TARGETS xgboost runxgboost objxgboost dmlc)
 else (BUILD_STATIC_LIB)
   set(INSTALL_TARGETS xgboost runxgboost)
 endif (BUILD_STATIC_LIB)
