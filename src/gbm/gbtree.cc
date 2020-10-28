@@ -134,20 +134,19 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
   }
 
   if (rabit::IsDistributed()) {
-    LOG(WARNING) <<
-      "Tree method is automatically selected to be 'approx' "
-      "for distributed training.";
+    LOG(INFO) << "Tree method is automatically selected to be 'approx' "
+                 "for distributed training.";
     tparam_.tree_method = TreeMethod::kApprox;
   } else if (!fmat->SingleColBlock()) {
-    LOG(WARNING) << "Tree method is automatically set to 'approx' "
-                    "since external-memory data matrix is used.";
+    LOG(INFO) << "Tree method is automatically set to 'approx' "
+                 "since external-memory data matrix is used.";
     tparam_.tree_method = TreeMethod::kApprox;
   } else if (fmat->Info().num_row_ >= (4UL << 20UL)) {
     /* Choose tree_method='approx' automatically for large data matrix */
-    LOG(WARNING) << "Tree method is automatically selected to be "
-        "'approx' for faster speed. To use old behavior "
-        "(exact greedy algorithm on single machine), "
-        "set tree_method to 'exact'.";
+    LOG(INFO) << "Tree method is automatically selected to be "
+                 "'approx' for faster speed. To use old behavior "
+                 "(exact greedy algorithm on single machine), "
+                 "set tree_method to 'exact'.";
     tparam_.tree_method = TreeMethod::kApprox;
   } else {
     tparam_.tree_method = TreeMethod::kExact;

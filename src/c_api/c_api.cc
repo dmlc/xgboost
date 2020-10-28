@@ -528,8 +528,8 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, float *values,
                                       xgboost::bst_ulong n_rows,
                                       xgboost::bst_ulong n_cols,
                                       float missing,
-                                      unsigned,
-                                      unsigned,
+                                      unsigned iteration_begin,
+                                      unsigned iteration_end,
                                       char const* c_type,
                                       xgboost::bst_ulong cache_id,
                                       xgboost::bst_ulong *out_len,
@@ -543,7 +543,7 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, float *values,
     new xgboost::data::DenseAdapter(values, n_rows, n_cols)};
   HostDeviceVector<float>* p_predt { nullptr };
   std::string type { c_type };
-  learner->InplacePredict(x, type, missing, &p_predt);
+  learner->InplacePredict(x, type, missing, &p_predt, iteration_begin, iteration_end);
   CHECK(p_predt);
 
   *out_result = dmlc::BeginPtr(p_predt->HostVector());
@@ -560,8 +560,8 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle,
                                     size_t nelem,
                                     size_t num_col,
                                     float missing,
-                                    unsigned,
-                                    unsigned,
+                                    unsigned iteration_begin,
+                                    unsigned iteration_end,
                                     char const *c_type,
                                     xgboost::bst_ulong cache_id,
                                     xgboost::bst_ulong *out_len,
@@ -575,7 +575,7 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle,
     new xgboost::data::CSRAdapter(indptr, indices, data, nindptr - 1, nelem, num_col)};
   HostDeviceVector<float>* p_predt { nullptr };
   std::string type { c_type };
-  learner->InplacePredict(x, type, missing, &p_predt);
+  learner->InplacePredict(x, type, missing, &p_predt, iteration_begin, iteration_end);
   CHECK(p_predt);
 
   *out_result = dmlc::BeginPtr(p_predt->HostVector());

@@ -133,7 +133,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   virtual void InplacePredict(dmlc::any const& x, std::string const& type,
                               float missing,
                               HostDeviceVector<bst_float> **out_preds,
-                              uint32_t layer_begin = 0, uint32_t layer_end = 0) = 0;
+                              uint32_t layer_begin, uint32_t layer_end) = 0;
 
   void LoadModel(Json const& in) override = 0;
   void SaveModel(Json* out) const override = 0;
