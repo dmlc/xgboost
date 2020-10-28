@@ -692,9 +692,11 @@ class LegacyCallbacks:
 
     def before_training(self, model):
         '''Nothing to do for legacy callbacks'''
+        return model
 
     def after_training(self, model):
         '''Nothing to do for legacy callbacks'''
+        return model
 
     def before_iteration(self, model, epoch, dtrain, evals):
         '''Called before each iteration.'''
