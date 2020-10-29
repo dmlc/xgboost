@@ -35,7 +35,6 @@
 #include "../src/data/data.cc"
 #include "../src/data/simple_dmatrix.cc"
 #include "../src/data/sparse_page_raw_format.cc"
-#include "../src/data/sparse_page_source.cc"
 #include "../src/data/ellpack_page.cc"
 #include "../src/data/ellpack_page_source.cc"
 
@@ -45,6 +44,7 @@
 
 #if DMLC_ENABLE_STD_THREAD
 #include "../src/data/sparse_page_dmatrix.cc"
+#include "../src/data/sparse_page_source.cc"
 #endif
 
 // trees
