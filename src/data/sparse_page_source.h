@@ -402,8 +402,12 @@ class SparsePageSource {
         info.num_row_ = adapter->NumRows();
       }
 
-      // Make sure we have at least one page if the dataset is empty
-      pool.Push(page);
+      if (info.num_row_ == 0) {
+        // Make sure we have at least one page if the dataset is empty
+        pool.Push(page);
+      } else if (page->Size() != 0) {
+        pool.Push(page);
+      }
       pool.Finalize();
 
       std::unique_ptr<dmlc::Stream> fo(
