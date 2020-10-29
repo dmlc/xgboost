@@ -508,6 +508,8 @@ void DMatrixToCSR(DMatrix *dmat, std::vector<float> *p_data,
 
   auto const& in_offset = page.offset.HostVector();
   auto const& in_data = page.data.HostVector();
+
+  CHECK_EQ(in_offset.size(), row_ptr.size());
   std::copy(in_offset.cbegin(), in_offset.cend(), row_ptr.begin());
   ASSERT_EQ(in_data.size(), data.size());
   std::transform(in_data.cbegin(), in_data.cend(), data.begin(), [](Entry const& e) {

@@ -5,18 +5,17 @@
 
 namespace xgboost {
 namespace data {
-void SplitWritePage(SparsePage const &page, size_t page_size,
-               SparsePageWriter<SparsePage> *writer, size_t *rows,
-               MetaInfo *info) {
-  std::shared_ptr<SparsePage> out;
+void SplitWritePage(std::shared_ptr<SparsePage> page, size_t page_size,
+                    SparsePageWriter<SparsePage> *writer, size_t *rows,
+                    MetaInfo *info, bool last) {
+  auto out = std::make_shared<SparsePage>();
   auto& inferred_num_rows = *rows;
-  size_t total = page.Size();
+  size_t total = page->Size();
 
-  writer->Alloc(&out);
   out->Clear();
-  out->SetBaseRowId(page.base_rowid);
-  auto const& in_offset = page.offset.HostVector();
-  auto const& in_data = page.data.HostVector();
+  out->SetBaseRowId(page->base_rowid);
+  auto const& in_offset = page->offset.HostVector();
+  auto const& in_data = page->data.HostVector();
 
   size_t n_pages = common::DivRoundUp(total, page_size);
   size_t offset = 0;
@@ -43,17 +42,34 @@ void SplitWritePage(SparsePage const &page, size_t page_size,
     offset += n_rows;
     entry_offset += n_entries;
 
-    info->num_nonzero_ += h_data.size();
-    inferred_num_rows += out->Size();
-
-    writer->PushWrite(std::move(out));
-
     // Don't allocate unnecessary page, otherwise the concurrent queue might run into dead
     // lock.
     if (page_id != n_pages - 1) {
-      writer->Alloc(&out);
+      info->num_nonzero_ += h_data.size();
+      inferred_num_rows += out->Size();
+
+      std::shared_ptr<SparsePage> tmp;
+      writer->Alloc(&tmp);
+      tmp->Push(std::move(*out));
+      writer->PushWrite(std::move(tmp));
+
       out->Clear();
       out->SetBaseRowId(inferred_num_rows);
+    } else {
+      if (last) {
+        inferred_num_rows += out->Size();
+        info->num_nonzero_ += h_data.size();
+
+        std::shared_ptr<SparsePage> tmp;
+        writer->Alloc(&tmp);
+        tmp->Push(std::move(*out));
+        writer->PushWrite(std::move(out));
+      } else {
+        // Return the remaining entries.
+        page->Clear();
+        page->Push(*out);
+        page->SetBaseRowId(inferred_num_rows);
+      }
     }
 
     rows_written += n_rows;

@@ -232,10 +232,86 @@ class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
   std::vector<std::unique_ptr<dmlc::ThreadedIter<PageT>>> prefetchers_;
 };
 
+class DataPool {
+  size_t inferred_num_rows_;
+  MetaInfo* info_;
+  SparsePage pool_;
+  size_t page_size_;
+  SparsePageWriter<SparsePage> *writer_;
+
+  void Slice(std::shared_ptr<SparsePage> out, size_t offset, size_t n_rows,
+             size_t entry_offset) const {
+    auto const &in_offset = pool_.offset.HostVector();
+    auto const &in_data = pool_.data.HostVector();
+    auto &h_offset = out->offset.HostVector();
+    CHECK_LE(offset + n_rows + 1, in_offset.size());
+    h_offset.resize(n_rows + 1, 0);
+    std::transform(in_offset.cbegin() + offset,
+                   in_offset.cbegin() + offset + n_rows + 1, h_offset.begin(),
+                   [=](size_t ptr) { return ptr - entry_offset; });
+
+    auto &h_data = out->data.HostVector();
+    CHECK_GT(h_offset.size(), 0);
+    size_t n_entries = h_offset.back();
+    h_data.resize(n_entries);
+
+    CHECK_EQ(n_entries, in_offset.at(offset + n_rows) - in_offset.at(offset));
+    std::copy_n(in_data.cbegin() + in_offset.at(offset), n_entries,
+                h_data.begin());
+  }
+
+  void SplitWritePage() {
+    size_t total = pool_.Size();
+    size_t offset = 0;
+    size_t entry_offset = 0;
+    do {
+      size_t n_rows = std::min(page_size_, total - offset);
+      std::shared_ptr<SparsePage> out;
+      writer_->Alloc(&out);
+      out->Clear();
+      out->SetBaseRowId(inferred_num_rows_);
+      this->Slice(out, offset, n_rows, entry_offset);
+      inferred_num_rows_ += out->Size();
+      offset += n_rows;
+      entry_offset += out->data.Size();
+      writer_->PushWrite(std::move(out));
+    } while(total - offset >= page_size_);
+
+    auto out = std::make_shared<SparsePage>();
+    this->Slice(out, offset, total - offset, entry_offset);
+    pool_.Clear();
+    pool_.Push(*out);
+  }
+
+ public:
+  DataPool(MetaInfo *info, size_t page_size,
+           SparsePageWriter<SparsePage> *writer)
+      : inferred_num_rows_{0}, info_{info},
+        page_size_{page_size}, writer_{writer} {}
+
+  void Push(std::shared_ptr<SparsePage> page) {
+    pool_.Push(*page);
+    if (pool_.Size() > page_size_) {
+      this->SplitWritePage();
+    }
+    page->Clear();
+  }
+
+  size_t Finalize() {
+    inferred_num_rows_+= pool_.Size();
+    std::shared_ptr<SparsePage> page;
+    this->writer_->Alloc(&page);
+    page->Clear();
+    page->Push(pool_);
+    this->writer_->PushWrite(std::move(page));
+    return inferred_num_rows_;
+  }
+};
+
 // Write the page using writer, split it into multiple smaller pages if necessary.
-void SplitWritePage(SparsePage const &page, size_t page_size,
+void SplitWritePage(std::shared_ptr<SparsePage> page, size_t page_size,
                     SparsePageWriter<SparsePage> *writer, size_t *rows,
-                    MetaInfo *info);
+                    MetaInfo *info, bool last);
 
 class SparsePageSource {
  public:
@@ -255,6 +331,8 @@ class SparsePageSource {
     {
       SparsePageWriter<SparsePage> writer(cache_info_.name_shards,
                                           cache_info_.format_shards, 6);
+      DataPool pool(&info, page_size, &writer);
+
       std::shared_ptr<SparsePage> page { new SparsePage };
 
       uint64_t inferred_num_columns = 0;
@@ -298,11 +376,8 @@ class SparsePageSource {
         auto batch_max_columns = page->Push(batch, missing, nthread);
         inferred_num_columns =
             std::max(batch_max_columns, inferred_num_columns);
-        if (page->Size() > page_size) {
-          SplitWritePage(*page, page_size, &writer, &inferred_num_rows, &info);
-          page->Clear();
-          page->SetBaseRowId(inferred_num_rows);
-        }
+        inferred_num_rows += page->Size();
+        pool.Push(page);
       }
 
       if (last_group_id != default_max) {
@@ -310,7 +385,6 @@ class SparsePageSource {
           info.group_ptr_.push_back(group_size);
         }
       }
-      inferred_num_rows += page->Size();
 
       // Deal with empty rows/columns if necessary
       if (adapter->NumColumns() == kAdapterUnknownSize) {
@@ -337,13 +411,9 @@ class SparsePageSource {
       }
 
       // Make sure we have at least one page if the dataset is empty
-      if (page->data.Size() > 0) {
-        SplitWritePage(*page, page_size, &writer, &inferred_num_rows, &info);
-        page->Clear();
-      }
-      if (info.num_row_ == 0) {
-        writer.PushWrite(std::move(page));
-      }
+      pool.Push(page);
+      pool.Finalize();
+
       std::unique_ptr<dmlc::Stream> fo(
           dmlc::Stream::Create(cache_info_.name_info.c_str(), "w"));
       int tmagic = kMagic;
