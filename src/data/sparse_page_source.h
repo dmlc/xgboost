@@ -269,11 +269,6 @@ class DataPool {
   }
 };
 
-// Write the page using writer, split it into multiple smaller pages if necessary.
-void SplitWritePage(std::shared_ptr<SparsePage> page, size_t page_size,
-                    SparsePageWriter<SparsePage> *writer, size_t *rows,
-                    MetaInfo *info, bool last);
-
 class SparsePageSource {
  public:
   template <typename AdapterT>
