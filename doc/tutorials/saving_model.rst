@@ -167,7 +167,7 @@ or in R:
 
 Will print out something similiar to (not actual output as it's too long for demonstration):
 
-.. code-block:: json
+.. code-block:: javascript
 
     {
       "Learner": {

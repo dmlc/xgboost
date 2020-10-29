@@ -4,12 +4,13 @@
 import ctypes
 import json
 import warnings
+import os
 
 import numpy as np
 
 from .core import c_array, _LIB, _check_call, c_str
 from .core import DataIter, DeviceQuantileDMatrix, DMatrix
-from .compat import lazy_isinstance, os_fspath, os_PathLike
+from .compat import lazy_isinstance
 
 c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
 
@@ -160,6 +161,7 @@ def _is_pandas_df(data):
         return False
     return isinstance(data, pd.DataFrame)
 
+
 def _is_modin_df(data):
     try:
         import modin.pandas as pd
@@ -188,11 +190,11 @@ def _transform_pandas_df(data, enable_categorical,
                          feature_names=None, feature_types=None,
                          meta=None, meta_type=None):
     from pandas import MultiIndex, Int64Index
-    from pandas.api.types import is_sparse, is_categorical
+    from pandas.api.types import is_sparse, is_categorical_dtype
 
     data_dtypes = data.dtypes
     if not all(dtype.name in _pandas_dtype_mapper or is_sparse(dtype) or
-               (is_categorical(dtype) and enable_categorical)
+               (is_categorical_dtype(dtype) and enable_categorical)
                for dtype in data_dtypes):
         bad_fields = [
             str(data.columns[i]) for i, dtype in enumerate(data_dtypes)
@@ -220,7 +222,7 @@ def _transform_pandas_df(data, enable_categorical,
             if is_sparse(dtype):
                 feature_types.append(_pandas_dtype_mapper[
                     dtype.subtype.name])
-            elif is_categorical(dtype) and enable_categorical:
+            elif is_categorical_dtype(dtype) and enable_categorical:
                 feature_types.append('categorical')
             else:
                 feature_types.append(_pandas_dtype_mapper[dtype.name])
@@ -477,13 +479,13 @@ def _from_dlpack(data, missing, nthread, feature_names, feature_types):
 
 
 def _is_uri(data):
-    return isinstance(data, (str, os_PathLike))
+    return isinstance(data, (str, os.PathLike))
 
 
 def _from_uri(data, missing, feature_names, feature_types):
     _warn_unused_missing(data, missing)
     handle = ctypes.c_void_p()
-    _check_call(_LIB.XGDMatrixCreateFromFile(c_str(os_fspath(data)),
+    _check_call(_LIB.XGDMatrixCreateFromFile(c_str(os.fspath(data)),
                                              ctypes.c_int(1),
                                              ctypes.byref(handle)))
     return handle, feature_names, feature_types

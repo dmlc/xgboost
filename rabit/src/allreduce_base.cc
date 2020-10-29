@@ -6,8 +6,9 @@
  * \author Tianqi Chen, Ignacio Cano, Tianyi Zhou
  */
 #define NOMINMAX
+#include "rabit/base.h"
+#include "rabit/internal/rabit-inl.h"
 #include "allreduce_base.h"
-#include <rabit/base.h>
 
 #ifndef _WIN32
 #include <netinet/tcp.h>
@@ -122,7 +123,9 @@ bool AllreduceBase::Init(int argc, char* argv[]) {
 bool AllreduceBase::Shutdown() {
   try {
     for (auto & all_link : all_links) {
-      all_link.sock.Close();
+      if (!all_link.sock.IsClosed()) {
+        all_link.sock.Close();
+      }
     }
     all_links.clear();
     tree_links.plinks.clear();
@@ -135,7 +138,7 @@ bool AllreduceBase::Shutdown() {
     utils::TCPSocket::Finalize();
     return true;
   } catch (const std::exception& e) {
-    fprintf(stderr, "failed to shutdown due to %s\n", e.what());
+    LOG(WARNING) << "Failed to shutdown due to" << e.what();
     return false;
   }
 }
@@ -208,15 +211,15 @@ void AllreduceBase::SetParam(const char *name, const char *val) {
     rabit_timeout = utils::StringToBool(val);
   }
   if (!strcmp(name, "rabit_timeout_sec")) {
-    timeout_sec = atoi(val);
-    utils::Assert(timeout_sec >= 0, "rabit_timeout_sec should be non negative second");
+    timeout_sec = std::chrono::seconds(atoi(val));
+    utils::Assert(timeout_sec.count() >= 0, "rabit_timeout_sec should be non negative second");
   }
   if (!strcmp(name, "rabit_enable_tcp_no_delay")) {
     if (!strcmp(val, "true")) {
       rabit_enable_tcp_no_delay = true;
     } else {
       rabit_enable_tcp_no_delay = false;
-}
+    }
   }
 }
 /*!
@@ -272,7 +275,7 @@ bool AllreduceBase::ReConnectLinks(const char *cmd) {
   }
   try {
     utils::TCPSocket tracker = this->ConnectTracker();
-    fprintf(stdout, "task %s connected to the tracker\n", task_id.c_str());
+    LOG(INFO) << "task " << task_id << " connected to the tracker";
     tracker.SendStr(std::string(cmd));
 
     // the rank of previous link, next link in ring
@@ -549,14 +552,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
     // finish runing allreduce
     if (finished) break;
     // select must return
-    watcher.Poll();
-    // exception handling
-    for (int i = 0; i < nlink; ++i) {
-      // recive OOB message from some link
-      if (watcher.CheckExcept(links[i].sock)) {
-        return ReportError(&links[i], kGetExcept);
-      }
-    }
+    watcher.Poll(timeout_sec);
     // read data from childs
     for (int i = 0; i < nlink; ++i) {
       if (i != parent_index && watcher.CheckRead(links[i].sock)) {
@@ -592,7 +588,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
       // eachreduce size
       if (max_reduce < total_size) {
           max_reduce = max_reduce - max_reduce % eachreduce;
-}
+      }
 
       // peform reduce, can be at most two rounds
       while (size_up_reduce < max_reduce) {
@@ -729,14 +725,7 @@ AllreduceBase::TryBroadcast(void *sendrecvbuf_, size_t total_size, int root) {
     // finish running
     if (finished) break;
     // select
-    watcher.Poll();
-    // exception handling
-    for (int i = 0; i < nlink; ++i) {
-      // recive OOB message from some link
-      if (watcher.CheckExcept(links[i].sock)) {
-        return ReportError(&links[i], kGetExcept);
-      }
-    }
+    watcher.Poll(timeout_sec);
     if (in_link == -2) {
       // probe in-link
       for (int i = 0; i < nlink; ++i) {
@@ -819,7 +808,7 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
       finished  = false;
     }
     if (finished) break;
-    watcher.Poll();
+    watcher.Poll(timeout_sec);
     if (read_ptr != stop_read && watcher.CheckRead(next.sock)) {
       size_t size = stop_read - read_ptr;
       size_t start = read_ptr % total_size;
@@ -831,7 +820,10 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
         read_ptr += static_cast<size_t>(len);
       } else {
         ReturnType ret = Errno2Return();
-        if (ret != kSuccess) return ReportError(&next, ret);
+        if (ret != kSuccess) {
+          auto err = ReportError(&next, ret);
+          return err;
+        }
       }
     }
     if (write_ptr < read_ptr && write_ptr != stop_write) {
@@ -845,7 +837,10 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
         write_ptr += static_cast<size_t>(len);
       } else {
         ReturnType ret = Errno2Return();
-        if (ret != kSuccess) return ReportError(&prev, ret);
+        if (ret != kSuccess) {
+          auto err = ReportError(&prev, ret);
+          return err;
+        }
       }
     }
   }
@@ -913,7 +908,7 @@ AllreduceBase::TryReduceScatterRing(void *sendrecvbuf_,
       finished = false;
     }
     if (finished) break;
-    watcher.Poll();
+    watcher.Poll(timeout_sec);
     if (read_ptr != stop_read && watcher.CheckRead(next.sock)) {
       ReturnType ret = next.ReadToRingBuffer(reduce_ptr, stop_read);
       if (ret != kSuccess) {

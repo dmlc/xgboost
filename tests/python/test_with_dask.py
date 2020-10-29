@@ -8,39 +8,46 @@ import asyncio
 from sklearn.datasets import make_classification
 import os
 import subprocess
-from hypothesis import given, strategies, settings, note
+from hypothesis import given, settings, note
 from test_updaters import hist_parameter_strategy, exact_parameter_strategy
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
+if tm.no_dask()['condition']:
+    pytest.skip(msg=tm.no_dask()['reason'], allow_module_level=True)
 
-pytestmark = pytest.mark.skipif(**tm.no_dask())
 
 try:
-    from distributed import LocalCluster, Client
+    from distributed import LocalCluster, Client, get_client
     from distributed.utils_test import client, loop, cluster_fixture
     import dask.dataframe as dd
     import dask.array as da
     from xgboost.dask import DaskDMatrix
+    import dask
 except ImportError:
     LocalCluster = None
     Client = None
+    get_client = None
     client = None
     loop = None
     cluster_fixture = None
     dd = None
     da = None
     DaskDMatrix = None
+    dask = None
 
 kRows = 1000
 kCols = 10
 kWorkers = 5
 
 
-def generate_array():
+def generate_array(with_weights=False):
     partition_size = 20
     X = da.random.random((kRows, kCols), partition_size)
     y = da.random.random(kRows, partition_size)
+    if with_weights:
+        w = da.random.random(kRows, partition_size)
+        return X, y, w
     return X, y
 
 
@@ -135,6 +142,9 @@ def test_dask_predict_shape_infer():
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
 def test_boost_from_prediction(tree_method):
+    if tree_method == 'approx':
+        pytest.xfail(reason='test_boost_from_prediction[approx] is flaky')
+
     from sklearn.datasets import load_breast_cancer
     X, y = load_breast_cancer(return_X_y=True)
 
@@ -142,7 +152,7 @@ def test_boost_from_prediction(tree_method):
     y_ = dd.from_array(y, chunksize=100)
 
     with LocalCluster(n_workers=4) as cluster:
-        with Client(cluster) as client:
+        with Client(cluster) as _:
             model_0 = xgb.dask.DaskXGBClassifier(
                 learning_rate=0.3,
                 random_state=123,
@@ -249,11 +259,11 @@ def test_dask_missing_value_cls():
 def test_dask_regressor():
     with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
-            X, y = generate_array()
+            X, y, w = generate_array(with_weights=True)
             regressor = xgb.dask.DaskXGBRegressor(verbosity=1, n_estimators=2)
             regressor.set_params(tree_method='hist')
             regressor.client = client
-            regressor.fit(X, y, eval_set=[(X, y)])
+            regressor.fit(X, y, sample_weight=w, eval_set=[(X, y)])
             prediction = regressor.predict(X)
 
             assert prediction.ndim == 1
@@ -271,12 +281,12 @@ def test_dask_regressor():
 def test_dask_classifier():
     with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
-            X, y = generate_array()
+            X, y, w = generate_array(with_weights=True)
             y = (y * 10).astype(np.int32)
             classifier = xgb.dask.DaskXGBClassifier(
                 verbosity=1, n_estimators=2, eval_metric='merror')
             classifier.client = client
-            classifier.fit(X, y, eval_set=[(X, y)])
+            classifier.fit(X, y, sample_weight=w, eval_set=[(X, y)])
             prediction = classifier.predict(X)
 
             assert prediction.ndim == 1
@@ -328,7 +338,7 @@ def test_sklearn_grid_search():
             reg.client = client
             model = GridSearchCV(reg, {'max_depth': [2, 4],
                                        'n_estimators': [5, 10]},
-                                 cv=2, verbose=1, iid=True)
+                                 cv=2, verbose=1)
             model.fit(X, y)
             # Expect unique results for each parameter value This confirms
             # sklearn is able to successfully update the parameter
@@ -605,10 +615,6 @@ class TestWithDask:
                          tree_method):
         params['tree_method'] = tree_method
         params = dataset.set_params(params)
-        # multi class doesn't handle empty dataset well (empty
-        # means at least 1 worker has data).
-        if params['objective'] == "multi:softmax":
-            return
         # It doesn't make sense to distribute a completely
         # empty dataset.
         if dataset.X.shape[0] == 0:
@@ -635,17 +641,17 @@ class TestWithDask:
         assert history[-1] < history[0]
 
     @given(params=hist_parameter_strategy,
-           num_rounds=strategies.integers(20, 30),
            dataset=tm.dataset_strategy)
     @settings(deadline=None)
-    def test_hist(self, params, num_rounds, dataset, client):
+    def test_hist(self, params, dataset, client):
+        num_rounds = 30
         self.run_updater_test(client, params, num_rounds, dataset, 'hist')
 
     @given(params=exact_parameter_strategy,
-           num_rounds=strategies.integers(20, 30),
            dataset=tm.dataset_strategy)
     @settings(deadline=None)
-    def test_approx(self, client, params, num_rounds, dataset):
+    def test_approx(self, client, params, dataset):
+        num_rounds = 30
         self.run_updater_test(client, params, num_rounds, dataset, 'approx')
 
     def run_quantile(self, name):
@@ -705,3 +711,78 @@ class TestWithDask:
     @pytest.mark.gtest
     def test_quantile_same_on_all_workers(self):
         self.run_quantile('SameOnAllWorkers')
+
+
+class TestDaskCallbacks:
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_early_stopping(self, client):
+        from sklearn.datasets import load_breast_cancer
+        X, y = load_breast_cancer(return_X_y=True)
+        X, y = da.from_array(X), da.from_array(y)
+        m = xgb.dask.DaskDMatrix(client, X, y)
+        early_stopping_rounds = 5
+        booster = xgb.dask.train(client, {'objective': 'binary:logistic',
+                                          'eval_metric': 'error',
+                                          'tree_method': 'hist'}, m,
+                                 evals=[(m, 'Train')],
+                                 num_boost_round=1000,
+                                 early_stopping_rounds=early_stopping_rounds)['booster']
+        assert hasattr(booster, 'best_score')
+        assert booster.best_iteration == 10
+        dump = booster.get_dump(dump_format='json')
+        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_early_stopping_custom_eval(self, client):
+        from sklearn.datasets import load_breast_cancer
+        X, y = load_breast_cancer(return_X_y=True)
+        X, y = da.from_array(X), da.from_array(y)
+        m = xgb.dask.DaskDMatrix(client, X, y)
+        early_stopping_rounds = 5
+        booster = xgb.dask.train(
+            client, {'objective': 'binary:logistic',
+                     'eval_metric': 'error',
+                     'tree_method': 'hist'}, m,
+            evals=[(m, 'Train')],
+            feval=tm.eval_error_metric,
+            num_boost_round=1000,
+            early_stopping_rounds=early_stopping_rounds)['booster']
+        assert hasattr(booster, 'best_score')
+        dump = booster.get_dump(dump_format='json')
+        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
+    def test_data_initialization(self):
+        '''Assert each worker has the correct amount of data, and DMatrix initialization doesn't
+        generate unnecessary copies of data.
+
+        '''
+        with LocalCluster(n_workers=2) as cluster:
+            with Client(cluster) as client:
+                X, y = generate_array()
+                n_partitions = X.npartitions
+                m = xgb.dask.DaskDMatrix(client, X, y)
+                workers = list(xgb.dask._get_client_workers(client).keys())
+                rabit_args = client.sync(xgb.dask._get_rabit_args, workers, client)
+                n_workers = len(workers)
+
+                def worker_fn(worker_addr, data_ref):
+                    with xgb.dask.RabitContext(rabit_args):
+                        local_dtrain = xgb.dask._dmatrix_from_worker_map(**data_ref)
+                        assert local_dtrain.num_row() == kRows / n_workers
+
+                futures = client.map(
+                    worker_fn, workers, [m.create_fn_args()] * len(workers),
+                    pure=False, workers=workers)
+                client.gather(futures)
+
+                has_what = client.has_what()
+                cnt = 0
+                data = set()
+                for k, v in has_what.items():
+                    for d in v:
+                        cnt += 1
+                        data.add(d)
+
+                assert len(data) == cnt
+                # Subtract the on disk resource from each worker
+                assert cnt - n_workers == n_partitions

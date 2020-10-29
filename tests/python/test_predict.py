@@ -44,6 +44,11 @@ class TestInplacePredict(unittest.TestCase):
 
         np.testing.assert_allclose(predt_from_dmatrix, predt_from_array)
 
+        predt_from_array = booster.inplace_predict(X[:10, ...], iteration_range=(0, 4))
+        predt_from_dmatrix = booster.predict(test, ntree_limit=4)
+
+        np.testing.assert_allclose(predt_from_dmatrix, predt_from_array)
+
         def predict_dense(x):
             inplace_predt = booster.inplace_predict(x)
             d = xgb.DMatrix(x)

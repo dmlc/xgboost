@@ -19,6 +19,7 @@
 #include "../common/math.h"
 #include "../common/version.h"
 #include "../common/group_data.h"
+#include "../common/threading_utils.h"
 #include "../data/adapter.h"
 #include "../data/iterative_device_dmatrix.h"
 
@@ -713,8 +714,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
   /* sync up number of features after matrix loaded.
    * partitioned data will fail the train/val validation check
    * since partitioned data not knowing the real number of features. */
-  rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1, nullptr,
-    nullptr, fname.c_str());
+  rabit::Allreduce<rabit::op::Max>(&dmat->Info().num_col_, 1);
   // backward compatiblity code.
   if (!load_row_split) {
     MetaInfo& info = dmat->Info();
@@ -843,10 +843,7 @@ void SparsePage::Push(const SparsePage &batch) {
 template <typename AdapterBatchT>
 uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread) {
   // Set number of threads but keep old value so we can reset it after
-  const int nthreadmax = omp_get_max_threads();
-  if (nthread <= 0) nthread = nthreadmax;
-  const int nthread_original = omp_get_max_threads();
-  omp_set_num_threads(nthread);
+  int nthread_original = common::OmpSetNumThreads(&nthread);
   auto& offset_vec = offset.HostVector();
   auto& data_vec = data.HostVector();
 
@@ -865,7 +862,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     }
   }
   size_t batch_size = batch.Size();
-  const size_t thread_size = batch_size/nthread;
+  const size_t thread_size = batch_size / nthread;
   builder.InitBudget(expected_rows+1, nthread);
   uint64_t max_columns = 0;
   if (batch_size == 0) {

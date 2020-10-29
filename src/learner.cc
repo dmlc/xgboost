@@ -43,6 +43,7 @@
 #include "common/timer.h"
 #include "common/charconv.h"
 #include "common/version.h"
+#include "common/threading_utils.h"
 
 namespace {
 
@@ -287,9 +288,7 @@ class LearnerConfiguration : public Learner {
     generic_parameters_.CheckDeprecated();
 
     ConsoleLogger::Configure(args);
-    if (generic_parameters_.nthread != 0) {
-      omp_set_num_threads(generic_parameters_.nthread);
-    }
+    common::OmpSetNumThreads(&generic_parameters_.nthread);
 
     // add additional parameters
     // These are cosntraints that need to be satisfied.
@@ -547,8 +546,7 @@ class LearnerConfiguration : public Learner {
         num_feature = std::max(num_feature, static_cast<uint32_t>(num_col));
       }
 
-      rabit::Allreduce<rabit::op::Max>(&num_feature, 1, nullptr, nullptr,
-                                       "num_feature");
+      rabit::Allreduce<rabit::op::Max>(&num_feature, 1);
       if (num_feature > mparam_.num_feature) {
         mparam_.num_feature = num_feature;
       }
@@ -810,12 +808,6 @@ class LearnerIO : public LearnerConfiguration {
 
     {
       std::vector<std::string> saved_params;
-      // check if rabit_bootstrap_cache were set to non zero before adding to checkpoint
-      if (cfg_.find("rabit_bootstrap_cache") != cfg_.end() &&
-        (cfg_.find("rabit_bootstrap_cache"))->second != "0") {
-        std::copy(saved_configs_.begin(), saved_configs_.end(),
-                  std::back_inserter(saved_params));
-      }
       for (const auto& key : saved_params) {
         auto it = cfg_.find(key);
         if (it != cfg_.end()) {
@@ -1106,7 +1098,7 @@ class LearnerImpl : public LearnerIO {
 
   void InplacePredict(dmlc::any const &x, std::string const &type,
                       float missing, HostDeviceVector<bst_float> **out_preds,
-                      uint32_t layer_begin = 0, uint32_t layer_end = 0) override {
+                      uint32_t layer_begin, uint32_t layer_end) override {
     this->Configure();
     auto& out_predictions = this->GetThreadLocal().prediction_entry;
     this->gbm_->InplacePredict(x, missing, &out_predictions, layer_begin,

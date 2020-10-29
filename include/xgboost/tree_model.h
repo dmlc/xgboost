@@ -457,6 +457,7 @@ class RegTree : public Model {
     }
     return depth;
   }
+
   /*!
    * \brief get maximum depth
    * \param nid node id
@@ -498,6 +499,7 @@ class RegTree : public Model {
      * \param inst The sparse instance to fill.
      */
     void Fill(const SparsePage::Inst& inst);
+
     /*!
      * \brief drop the trace after fill, must be called after fill.
      * \param inst The sparse instance to drop.
@@ -520,6 +522,8 @@ class RegTree : public Model {
      * \return whether i-th value is missing.
      */
     bool IsMissing(size_t i) const;
+    bool HasMissing() const;
+
 
    private:
     /*!
@@ -531,13 +535,16 @@ class RegTree : public Model {
       int flag;
     };
     std::vector<Entry> data_;
+    bool has_missing_;
   };
   /*!
    * \brief get the leaf index
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
    * \return the leaf index of the given feature
    */
+  template <bool has_missing = true>
   int GetLeafIndex(const FVec& feat) const;
+
   /*!
    * \brief calculate the feature contributions (https://arxiv.org/abs/1706.06060) for the tree
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
@@ -581,6 +588,7 @@ class RegTree : public Model {
    * \param fvalue feature value if not missing.
    * \param is_unknown Whether current required feature is missing.
    */
+  template <bool has_missing = true>
   inline int GetNext(int pid, bst_float fvalue, bool is_unknown) const;
   /*!
    * \brief dump the model in the requested format as a text string
@@ -676,15 +684,19 @@ inline void RegTree::FVec::Init(size_t size) {
   Entry e; e.flag = -1;
   data_.resize(size);
   std::fill(data_.begin(), data_.end(), e);
+  has_missing_ = true;
 }
 
 inline void RegTree::FVec::Fill(const SparsePage::Inst& inst) {
+  size_t feature_count = 0;
   for (auto const& entry : inst) {
     if (entry.index >= data_.size()) {
       continue;
     }
     data_[entry.index].fvalue = entry.fvalue;
+    ++feature_count;
   }
+  has_missing_ = data_.size() != feature_count;
 }
 
 inline void RegTree::FVec::Drop(const SparsePage::Inst& inst) {
@@ -694,6 +706,7 @@ inline void RegTree::FVec::Drop(const SparsePage::Inst& inst) {
     }
     data_[entry.index].flag = -1;
   }
+  has_missing_ = true;
 }
 
 inline size_t RegTree::FVec::Size() const {
@@ -708,27 +721,41 @@ inline bool RegTree::FVec::IsMissing(size_t i) const {
   return data_[i].flag == -1;
 }
 
+inline bool RegTree::FVec::HasMissing() const {
+  return has_missing_;
+}
+
+template <bool has_missing>
 inline int RegTree::GetLeafIndex(const RegTree::FVec& feat) const {
   bst_node_t nid = 0;
   while (!(*this)[nid].IsLeaf()) {
     unsigned split_index = (*this)[nid].SplitIndex();
-    nid = this->GetNext(nid, feat.GetFvalue(split_index), feat.IsMissing(split_index));
+    nid = this->GetNext<has_missing>(nid, feat.GetFvalue(split_index),
+                                     has_missing && feat.IsMissing(split_index));
   }
   return nid;
 }
 
 /*! \brief get next position of the tree given current pid */
+template <bool has_missing>
 inline int RegTree::GetNext(int pid, bst_float fvalue, bool is_unknown) const {
-  bst_float split_value = (*this)[pid].SplitCond();
-  if (is_unknown) {
-    return (*this)[pid].DefaultChild();
-  } else {
-    if (fvalue < split_value) {
-      return (*this)[pid].LeftChild();
+  if (has_missing) {
+    if (is_unknown) {
+      return (*this)[pid].DefaultChild();
     } else {
-      return (*this)[pid].RightChild();
+      if (fvalue < (*this)[pid].SplitCond()) {
+        return (*this)[pid].LeftChild();
+      } else {
+        return (*this)[pid].RightChild();
+      }
     }
+  } else {
+    // 35% speed up due to reduced miss branch predictions
+    // The following expression returns the left child if (fvalue < split_cond);
+    // the right child otherwise.
+    return (*this)[pid].LeftChild() + !(fvalue < (*this)[pid].SplitCond());
   }
 }
+
 }  // namespace xgboost
 #endif  // XGBOOST_TREE_MODEL_H_

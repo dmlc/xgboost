@@ -143,7 +143,7 @@ class ColumnSampler {
   */
   ColumnSampler() {
     uint32_t seed = common::GlobalRandom()();
-    rabit::Broadcast(&seed, sizeof(seed), 0, "seed");
+    rabit::Broadcast(&seed, sizeof(seed), 0);
     rng_.seed(seed);
   }
 

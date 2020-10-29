@@ -27,6 +27,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <tuple>
 
 #include "xgboost/logging.h"
 #include "xgboost/host_device_vector.h"
@@ -126,6 +127,12 @@ inline size_t AvailableMemory(int device_idx) {
   safe_cuda(cudaSetDevice(device_idx));
   dh::safe_cuda(cudaMemGetInfo(&device_free, &device_total));
   return device_free;
+}
+
+inline int32_t CurrentDevice() {
+  int32_t device = 0;
+  safe_cuda(cudaGetDevice(&device));
+  return device;
 }
 
 inline size_t TotalMemory(int device_idx) {
@@ -383,6 +390,16 @@ template <typename T>
 using XGBBaseDeviceAllocator = thrust::device_malloc_allocator<T>;
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
+inline void ThrowOOMError(std::string const& err, size_t bytes) {
+  auto device = CurrentDevice();
+  auto rank = rabit::GetRank();
+  std::stringstream ss;
+  ss << "Memory allocation error on worker " << rank << ": " << err << "\n"
+     << "- Free memory: " << AvailableMemory(device) << "\n"
+     << "- Requested memory: " << bytes << std::endl;
+  LOG(FATAL) << ss.str();
+}
+
 /**
  * \brief Default memory allocator, uses cudaMalloc/Free and logs allocations if verbose.
  */
@@ -396,7 +413,13 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     using other = XGBDefaultDeviceAllocatorImpl<U>;  // NOLINT
   };
   pointer allocate(size_t n) {  // NOLINT
-    pointer ptr = SuperT::allocate(n);
+    pointer ptr;
+    try {
+      ptr = SuperT::allocate(n);
+      dh::safe_cuda(cudaGetLastError());
+    } catch (const std::exception &e) {
+      ThrowOOMError(e.what(), n * sizeof(T));
+    }
     GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T));
     return ptr;
   }
@@ -431,8 +454,11 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
   }
   pointer allocate(size_t n) {  // NOLINT
     T* ptr;
-    GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&ptr),
-                                               n * sizeof(T));
+    auto errc =  GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&ptr),
+                                                            n * sizeof(T));
+    if (errc != cudaSuccess) {
+      ThrowOOMError("Caching allocator", n * sizeof(T));
+    }
     pointer thrust_ptr{ ptr };
     GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T));
     return thrust_ptr;
@@ -1059,14 +1085,14 @@ struct SegmentedUniqueReduceOp {
  *
  * \return Number of unique values in total.
  */
-template <typename KeyInIt, typename KeyOutIt, typename ValInIt,
+template <typename DerivedPolicy, typename KeyInIt, typename KeyOutIt, typename ValInIt,
           typename ValOutIt, typename Comp>
 size_t
-SegmentedUnique(KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
+SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
+                KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
                 ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
                 Comp comp) {
   using Key = thrust::pair<size_t, typename thrust::iterator_traits<ValInIt>::value_type>;
-  dh::XGBCachingDeviceAllocator<char> alloc;
   auto unique_key_it = dh::MakeTransformIterator<Key>(
       thrust::make_counting_iterator(static_cast<size_t>(0)),
       [=] __device__(size_t i) {
@@ -1083,7 +1109,7 @@ SegmentedUnique(KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt v
       thrust::make_discard_iterator(),
       detail::SegmentedUniqueReduceOp<Key, KeyOutIt>{key_segments_out});
   auto uniques_ret = thrust::unique_by_key_copy(
-      thrust::cuda::par(alloc), unique_key_it, unique_key_it + n_inputs,
+      exec, unique_key_it, unique_key_it + n_inputs,
       val_first, reduce_it, val_out,
       [=] __device__(Key const &l, Key const &r) {
         if (l.first == r.first) {
@@ -1094,8 +1120,33 @@ SegmentedUnique(KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt v
       });
   auto n_uniques = uniques_ret.second - val_out;
   CHECK_LE(n_uniques, n_inputs);
-  thrust::exclusive_scan(thrust::cuda::par(alloc), key_segments_out,
+  thrust::exclusive_scan(exec, key_segments_out,
                          key_segments_out + segments_len, key_segments_out, 0);
   return n_uniques;
+}
+
+template <typename... Inputs,
+          std::enable_if_t<std::tuple_size<std::tuple<Inputs...>>::value == 7>
+              * = nullptr>
+size_t SegmentedUnique(Inputs &&...inputs) {
+  dh::XGBCachingDeviceAllocator<char> alloc;
+  return SegmentedUnique(thrust::cuda::par(alloc), std::forward<Inputs&&>(inputs)...);
+}
+
+template <typename Policy, typename InputIt, typename Init, typename Func>
+auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce_op) {
+  size_t constexpr kLimit = std::numeric_limits<int32_t>::max() / 2;
+  size_t size = std::distance(first, second);
+  using Ty = std::remove_cv_t<Init>;
+  Ty aggregate = init;
+  for (size_t offset = 0; offset < size; offset += kLimit) {
+    auto begin_it = first + offset;
+    auto end_it = first + std::min(offset + kLimit, size);
+    size_t batch_size = std::distance(begin_it, end_it);
+    CHECK_LE(batch_size, size);
+    auto ret = thrust::reduce(policy, begin_it, end_it, init, reduce_op);
+    aggregate = reduce_op(aggregate, ret);
+  }
+  return aggregate;
 }
 }  // namespace dh

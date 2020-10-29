@@ -2,11 +2,13 @@ import os
 import subprocess
 import pytest
 import testing as tm
+import sys
 
 
 ROOT_DIR = tm.PROJECT_ROOT
 DEMO_DIR = os.path.join(ROOT_DIR, 'demo')
 PYTHON_DEMO_DIR = os.path.join(DEMO_DIR, 'guide-python')
+CLI_DEMO_DIR = os.path.join(DEMO_DIR, 'CLI')
 
 
 def test_basic_walkthrough():
@@ -119,6 +121,12 @@ def test_aft_demo():
     os.remove('aft_model.json')
 
 
+def test_callbacks_demo():
+    script = os.path.join(PYTHON_DEMO_DIR, 'callbacks.py')
+    cmd = ['python', script, '--plot=0']
+    subprocess.check_call(cmd)
+
+
 # gpu_acceleration is not tested due to covertype dataset is being too huge.
 # gamma regression is not tested as it requires running a R script first.
 # aft viz is not tested due to ploting is not controled
@@ -126,7 +134,7 @@ def test_aft_demo():
 
 
 def test_cli_regression_demo():
-    reg_dir = os.path.join(DEMO_DIR, 'regression')
+    reg_dir = os.path.join(CLI_DEMO_DIR, 'regression')
     script = os.path.join(reg_dir, 'mapfeat.py')
     cmd = ['python', script]
     subprocess.check_call(cmd, cwd=reg_dir)
@@ -138,3 +146,15 @@ def test_cli_regression_demo():
     exe = os.path.join(tm.PROJECT_ROOT, 'xgboost')
     conf = os.path.join(reg_dir, 'machine.conf')
     subprocess.check_call([exe, conf], cwd=reg_dir)
+
+
+@pytest.mark.skipif(condition=sys.platform.startswith("win"),
+                    reason='Test requires sh execution.')
+def test_cli_binary_classification():
+    cls_dir = os.path.join(CLI_DEMO_DIR, 'binary_classification')
+    with tm.DirectoryExcursion(cls_dir, cleanup=True):
+        subprocess.check_call(['./runexp.sh'])
+        os.remove('0002.model')
+
+# year prediction is not tested due to data size being too large.
+# rank is not tested as it requires unrar command.

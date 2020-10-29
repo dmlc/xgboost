@@ -18,11 +18,11 @@ struct LinearSquareLoss {
   // duplication is necessary, as __device__ specifier
   // cannot be made conditional on template parameter
   XGBOOST_DEVICE static bst_float PredTransform(bst_float x) { return x; }
-  XGBOOST_DEVICE static bool CheckLabel(bst_float x) { return true; }
+  XGBOOST_DEVICE static bool CheckLabel(bst_float) { return true; }
   XGBOOST_DEVICE static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
     return predt - label;
   }
-  XGBOOST_DEVICE static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
+  XGBOOST_DEVICE static bst_float SecondOrderGradient(bst_float, bst_float) {
     return 1.0f;
   }
   template <typename T>
@@ -72,7 +72,7 @@ struct LogisticRegression {
   XGBOOST_DEVICE static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
     return predt - label;
   }
-  XGBOOST_DEVICE static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
+  XGBOOST_DEVICE static bst_float SecondOrderGradient(bst_float predt, bst_float) {
     const float eps = 1e-16f;
     return fmaxf(predt * (1.0f - predt), eps);
   }
@@ -102,7 +102,7 @@ struct PseudoHuberError {
   XGBOOST_DEVICE static bst_float PredTransform(bst_float x) {
     return x;
   }
-  XGBOOST_DEVICE static bool CheckLabel(bst_float label) {
+  XGBOOST_DEVICE static bool CheckLabel(bst_float) {
     return true;
   }
   XGBOOST_DEVICE static bst_float FirstOrderGradient(bst_float predt, bst_float label) {
@@ -144,7 +144,7 @@ struct LogisticRaw : public LogisticRegression {
     predt = common::Sigmoid(predt);
     return predt - label;
   }
-  XGBOOST_DEVICE static bst_float SecondOrderGradient(bst_float predt, bst_float label) {
+  XGBOOST_DEVICE static bst_float SecondOrderGradient(bst_float predt, bst_float) {
     const float eps = 1e-16f;
     predt = common::Sigmoid(predt);
     return fmaxf(predt * (1.0f - predt), eps);

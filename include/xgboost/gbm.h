@@ -75,8 +75,9 @@ class GradientBooster : public Model, public Configurable {
    * \param prediction The output prediction cache entry that needs to be updated.
    * the booster may change content of gpair
    */
-  virtual void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
-                       PredictionCacheEntry *prediction) = 0;
+  virtual void DoBoost(DMatrix* p_fmat,
+                       HostDeviceVector<GradientPair>* in_gpair,
+                       PredictionCacheEntry*) = 0;
 
   /*!
    * \brief generate predictions for given feature matrix
@@ -103,10 +104,10 @@ class GradientBooster : public Model, public Configurable {
    * \param           layer_begin (Optional) Begining of boosted tree layer used for prediction.
    * \param           layer_end   (Optional) End of booster layer. 0 means do not limit trees.
    */
-  virtual void InplacePredict(dmlc::any const &x, float missing,
-                              PredictionCacheEntry *out_preds,
-                              uint32_t layer_begin = 0,
-                              uint32_t layer_end = 0) const {
+  virtual void InplacePredict(dmlc::any const &, float,
+                              PredictionCacheEntry*,
+                              uint32_t,
+                              uint32_t) const {
     LOG(FATAL) << "Inplace predict is not supported by current booster.";
   }
   /*!

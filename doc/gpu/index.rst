@@ -85,6 +85,19 @@ The GPU algorithms currently work with CLI, Python and R packages. See :doc:`/bu
   XGBRegressor(tree_method='gpu_hist', gpu_id=0)
 
 
+GPU-Accelerated SHAP values
+=============================
+XGBoost makes use of `GPUTreeShap <https://github.com/rapidsai/gputreeshap>`_ as a backend for computing shap values when the GPU predictor is selected.
+
+.. code-block:: python
+
+  model.set_param({"predictor": "gpu_predictor"})
+  shap_values = model.predict(dtrain, pred_contribs=True)
+  shap_interaction_values = model.predict(dtrain, pred_interactions=True)
+
+See examples `here
+<https://github.com/dmlc/xgboost/tree/master/demo/gpu_acceleration>`_.
+
 Multi-node Multi-GPU Training
 =============================
 XGBoost supports fully distributed GPU training using `Dask <https://dask.org/>`_. For

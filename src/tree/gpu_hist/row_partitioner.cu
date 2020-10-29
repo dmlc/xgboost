@@ -72,7 +72,7 @@ void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
                                   common::Span<bst_node_t> position_out,
                                   common::Span<RowIndexT> ridx,
                                   common::Span<RowIndexT> ridx_out,
-                                  bst_node_t left_nidx, bst_node_t right_nidx,
+                                  bst_node_t left_nidx, bst_node_t,
                                   int64_t* d_left_count, cudaStream_t stream) {
   WriteResultsFunctor write_results{left_nidx, position, position_out,
                                     ridx,      ridx_out, d_left_count};

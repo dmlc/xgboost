@@ -153,7 +153,7 @@ void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
                sorted_entries.end(), detail::EntryCompareOp());
 
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
-  auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
+  auto d_cuts_ptr = cuts_ptr.DeviceSpan();
   // Extract the cuts from all columns concurrently
   sketch_container->Push(dh::ToSpan(sorted_entries),
                          dh::ToSpan(column_sizes_scan), d_cuts_ptr,
@@ -224,7 +224,7 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
   detail::SortByWeight(&temp_weights, &sorted_entries);
 
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
-  auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
+  auto d_cuts_ptr = cuts_ptr.DeviceSpan();
 
   // Extract cuts
   sketch_container->Push(dh::ToSpan(sorted_entries),

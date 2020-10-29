@@ -240,7 +240,7 @@ XGB_DLL int XGDMatrixFree(DMatrixHandle handle) {
 }
 
 XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle, const char* fname,
-                                int silent) {
+                                int) {
   API_BEGIN();
   CHECK_HANDLE();
   auto dmat = static_cast<std::shared_ptr<DMatrix>*>(handle)->get();
@@ -543,7 +543,7 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, float *values,
     new xgboost::data::DenseAdapter(values, n_rows, n_cols)};
   HostDeviceVector<float>* p_predt { nullptr };
   std::string type { c_type };
-  learner->InplacePredict(x, type, missing, &p_predt);
+  learner->InplacePredict(x, type, missing, &p_predt, iteration_begin, iteration_end);
   CHECK(p_predt);
 
   *out_result = dmlc::BeginPtr(p_predt->HostVector());
@@ -575,7 +575,7 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle,
     new xgboost::data::CSRAdapter(indptr, indices, data, nindptr - 1, nelem, num_col)};
   HostDeviceVector<float>* p_predt { nullptr };
   std::string type { c_type };
-  learner->InplacePredict(x, type, missing, &p_predt);
+  learner->InplacePredict(x, type, missing, &p_predt, iteration_begin, iteration_end);
   CHECK(p_predt);
 
   *out_result = dmlc::BeginPtr(p_predt->HostVector());

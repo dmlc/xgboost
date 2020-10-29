@@ -1,5 +1,7 @@
 import sys
 from hypothesis import strategies, given, settings, assume
+import pytest
+import numpy
 import xgboost as xgb
 sys.path.append("tests/python")
 import testing as tm
@@ -48,3 +50,22 @@ class TestGPULinear:
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
         assert tm.non_increasing([result[0], result[-1]])
+
+    @pytest.mark.skipif(**tm.no_cupy())
+    def test_gpu_coordinate_from_cupy(self):
+        # Training linear model is quite expensive, so we don't include it in
+        # test_from_cupy.py
+        import cupy
+        params = {'booster': 'gblinear', 'updater': 'gpu_coord_descent',
+                  'n_estimators': 100}
+        X, y = tm.get_boston()
+        cpu_model = xgb.XGBRegressor(**params)
+        cpu_model.fit(X, y)
+        cpu_predt = cpu_model.predict(X)
+
+        X = cupy.array(X)
+        y = cupy.array(y)
+        gpu_model = xgb.XGBRegressor(**params)
+        gpu_model.fit(X, y)
+        gpu_predt = gpu_model.predict(X)
+        cupy.testing.assert_allclose(cpu_predt, gpu_predt)

@@ -250,7 +250,7 @@ class JsonNull : public Value {
  public:
   JsonNull() : Value(ValueKind::kNull) {}
   JsonNull(std::nullptr_t) : Value(ValueKind::kNull) {}  // NOLINT
-  JsonNull(JsonNull&& that) noexcept : Value(ValueKind::kNull) {}
+  JsonNull(JsonNull&&) noexcept : Value(ValueKind::kNull) {}
 
   void Save(JsonWriter* writer) override;
 

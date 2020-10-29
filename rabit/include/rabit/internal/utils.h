@@ -15,6 +15,7 @@
 #include <stdexcept>
 #include <vector>
 #include "dmlc/io.h"
+#include "xgboost/logging.h"
 #include <cstdarg>
 
 #if !defined(__GNUC__) || defined(__FreeBSD__)
@@ -68,36 +69,8 @@ inline bool StringToBool(const char* s) {
   return CompareStringsCaseInsensitive(s, "true") == 0 || atoi(s) != 0;
 }
 
-/*!
- * \brief handling of Assert error, caused by inappropriate input
- * \param msg error message
- */
-inline void HandleAssertError(const char *msg) {
-  fprintf(stderr,
-          "AssertError:%s, rabit is configured to keep process running\n", msg);
-  throw dmlc::Error(msg);
-}
-/*!
- * \brief handling of Check error, caused by inappropriate input
- * \param msg error message
- */
-inline void HandleCheckError(const char *msg) {
-  fprintf(stderr, "%s, rabit is configured to keep process running\n", msg);
-  throw dmlc::Error(msg);
-}
-
 inline void HandlePrint(const char *msg) {
   printf("%s", msg);
-}
-
-inline void HandleLogInfo(const char *fmt, ...) {
-  std::string msg(kPrintBuffer, '\0');
-  va_list args;
-  va_start(args, fmt);
-  vsnprintf(&msg[0], kPrintBuffer, fmt, args);
-  va_end(args);
-  fprintf(stdout, "%s", msg.c_str());
-  fflush(stdout);
 }
 
 /*! \brief printf, prints messages to the console */
@@ -110,15 +83,6 @@ inline void Printf(const char *fmt, ...) {
   HandlePrint(msg.c_str());
 }
 
-/*! \brief portable version of snprintf */
-inline int SPrintf(char *buf, size_t size, const char *fmt, ...) {
-  va_list args;
-  va_start(args, fmt);
-  int ret = vsnprintf(buf, size, fmt, args);
-  va_end(args);
-  return ret;
-}
-
 /*! \brief assert a condition is true, use this to handle debug information */
 inline void Assert(bool exp, const char *fmt, ...) {
   if (!exp) {
@@ -127,7 +91,7 @@ inline void Assert(bool exp, const char *fmt, ...) {
     va_start(args, fmt);
     vsnprintf(&msg[0], kPrintBuffer, fmt, args);
     va_end(args);
-    HandleAssertError(msg.c_str());
+    LOG(FATAL) << msg;
   }
 }
 
@@ -139,7 +103,7 @@ inline void Check(bool exp, const char *fmt, ...) {
     va_start(args, fmt);
     vsnprintf(&msg[0], kPrintBuffer, fmt, args);
     va_end(args);
-    HandleCheckError(msg.c_str());
+    LOG(FATAL) << msg;
   }
 }
 
@@ -151,15 +115,8 @@ inline void Error(const char *fmt, ...) {
     va_start(args, fmt);
     vsnprintf(&msg[0], kPrintBuffer, fmt, args);
     va_end(args);
-    HandleCheckError(msg.c_str());
+    LOG(FATAL) << msg;
   }
-}
-
-/*! \brief replace fopen, report error when the file open fails */
-inline std::FILE *FopenCheck(const char *fname, const char *flag) {
-  std::FILE *fp = fopen64(fname, flag);
-  Check(fp != nullptr, "can not open file \"%s\"\n", fname);
-  return fp;
 }
 }  // namespace utils
 
@@ -179,15 +136,6 @@ auto Max(T const& l, T const& r) {
 /*! \brief get the beginning address of a vector */
 template<typename T>
 inline T *BeginPtr(std::vector<T> &vec) {  // NOLINT(*)
-  if (vec.size() == 0) {
-    return nullptr;
-  } else {
-    return &vec[0];
-  }
-}
-/*! \brief get the beginning address of a vector */
-template<typename T>
-inline const T *BeginPtr(const std::vector<T> &vec) {  // NOLINT(*)
   if (vec.size() == 0) {
     return nullptr;
   } else {

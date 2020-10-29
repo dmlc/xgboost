@@ -221,7 +221,7 @@ size_t GetRowCounts(const AdapterBatchT batch, common::Span<size_t> offset,
     }
   });
   dh::XGBCachingDeviceAllocator<char> alloc;
-  size_t row_stride = thrust::reduce(
+  size_t row_stride = dh::Reduce(
       thrust::cuda::par(alloc), thrust::device_pointer_cast(offset.data()),
       thrust::device_pointer_cast(offset.data()) + offset.size(), size_t(0),
       thrust::maximum<size_t>());

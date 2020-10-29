@@ -134,20 +134,19 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
   }
 
   if (rabit::IsDistributed()) {
-    LOG(WARNING) <<
-      "Tree method is automatically selected to be 'approx' "
-      "for distributed training.";
+    LOG(INFO) << "Tree method is automatically selected to be 'approx' "
+                 "for distributed training.";
     tparam_.tree_method = TreeMethod::kApprox;
   } else if (!fmat->SingleColBlock()) {
-    LOG(WARNING) << "Tree method is automatically set to 'approx' "
-                    "since external-memory data matrix is used.";
+    LOG(INFO) << "Tree method is automatically set to 'approx' "
+                 "since external-memory data matrix is used.";
     tparam_.tree_method = TreeMethod::kApprox;
   } else if (fmat->Info().num_row_ >= (4UL << 20UL)) {
     /* Choose tree_method='approx' automatically for large data matrix */
-    LOG(WARNING) << "Tree method is automatically selected to be "
-        "'approx' for faster speed. To use old behavior "
-        "(exact greedy algorithm on single machine), "
-        "set tree_method to 'exact'.";
+    LOG(INFO) << "Tree method is automatically selected to be "
+                 "'approx' for faster speed. To use old behavior "
+                 "(exact greedy algorithm on single machine), "
+                 "set tree_method to 'exact'.";
     tparam_.tree_method = TreeMethod::kApprox;
   } else {
     tparam_.tree_method = TreeMethod::kExact;
@@ -401,7 +400,7 @@ void GBTree::SaveModel(Json* p_out) const {
 
 void GBTree::PredictBatch(DMatrix* p_fmat,
                           PredictionCacheEntry* out_preds,
-                          bool training,
+                          bool,
                           unsigned ntree_limit) {
   CHECK(configured_);
   GetPredictor(&out_preds->predictions, p_fmat)
@@ -601,8 +600,8 @@ class Dart : public GBTree {
 
   void PredictContribution(DMatrix* p_fmat,
                            HostDeviceVector<bst_float>* out_contribs,
-                           unsigned ntree_limit, bool approximate, int condition,
-                           unsigned condition_feature) override {
+                           unsigned ntree_limit, bool approximate, int,
+                           unsigned) override {
     CHECK(configured_);
     cpu_predictor_->PredictContribution(p_fmat, out_contribs, model_,
                                         ntree_limit, &weight_drop_, approximate);
@@ -674,8 +673,7 @@ class Dart : public GBTree {
   // commit new trees all at once
   void
   CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees,
-              DMatrix* m,
-              PredictionCacheEntry* predts) override {
+              DMatrix*, PredictionCacheEntry*) override {
     int num_new_trees = 0;
     for (uint32_t gid = 0; gid < model_.learner_model_param->num_output_group; ++gid) {
       num_new_trees += new_trees[gid].size();

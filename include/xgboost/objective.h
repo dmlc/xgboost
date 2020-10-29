@@ -53,7 +53,7 @@ class ObjFunction : public Configurable {
    * \brief transform prediction values, this is only called when Prediction is called
    * \param io_preds prediction values, saves to this vector as well
    */
-  virtual void PredTransform(HostDeviceVector<bst_float> *io_preds) {}
+  virtual void PredTransform(HostDeviceVector<bst_float>*) {}
 
   /*!
    * \brief transform prediction values, this is only called when Eval is called,

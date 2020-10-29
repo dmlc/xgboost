@@ -57,7 +57,6 @@ pipeline {
             'clang-tidy': { ClangTidy() },
             'build-cpu': { BuildCPU() },
             'build-cpu-rabit-mock': { BuildCPUMock() },
-            'build-cpu-non-omp': { BuildCPUNonOmp() },
             // Build reference, distribution-ready Python wheel with CUDA 10.0
             // using CentOS 6 image
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
@@ -85,7 +84,6 @@ pipeline {
             'test-python-mgpu-cuda10.2': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '10.2', multi_gpu: true, test_rmm: true) },
             'test-cpp-gpu-cuda10.2': { TestCppGPU(artifact_cuda_version: '10.2', host_cuda_version: '10.2', test_rmm: true) },
             'test-cpp-gpu-cuda11.0': { TestCppGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0') },
-            'test-jvm-jdk8-cuda10.0': { CrossTestJVMwithJDKGPU(artifact_cuda_version: '10.0', host_cuda_version: '10.0') },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '3.0.0') },
             'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
             'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') },
@@ -182,23 +180,6 @@ def BuildCPUMock() {
   }
 }
 
-def BuildCPUNonOmp() {
-  node('linux && cpu') {
-    unstash name: 'srcs'
-    echo "Build CPU without OpenMP"
-    def container_type = "cpu"
-    def docker_binary = "docker"
-    sh """
-    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh -DUSE_OPENMP=OFF
-    """
-    echo "Running Non-OpenMP C++ test..."
-    sh """
-    ${dockerRun} ${container_type} ${docker_binary} bash -c "cd build && ctest --extra-verbose"
-    """
-    deleteDir()
-  }
-}
-
 def BuildCUDA(args) {
   node('linux && cpu_build') {
     unstash name: 'srcs'
@@ -261,7 +242,7 @@ def BuildJVMPackagesWithCUDA(args) {
     ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_jvm_packages.sh ${args.spark_version} -Duse.cuda=ON $arch_flag
     """
     echo "Stashing XGBoost4J JAR with CUDA ${args.cuda_version} ..."
-    stash name: 'xgboost4j_jar_gpu', includes: "jvm-packages/xgboost4j/target/*.jar,jvm-packages/xgboost4j-spark/target/*.jar,jvm-packages/xgboost4j-example/target/*.jar"
+    stash name: 'xgboost4j_jar_gpu', includes: "jvm-packages/xgboost4j-gpu/target/*.jar,jvm-packages/xgboost4j-spark-gpu/target/*.jar"
     deleteDir()
   }
 }
@@ -340,20 +321,6 @@ def TestPythonGPU(args) {
   }
 }
 
-def TestCppRabit() {
-  node(nodeReq) {
-    unstash name: 'xgboost_rabit_tests'
-    unstash name: 'srcs'
-    echo "Test C++, rabit mock on"
-    def container_type = "cpu"
-    def docker_binary = "docker"
-    sh """
-    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/runxgb.sh xgboost tests/ci_build/approx.conf.in
-    """
-    deleteDir()
-  }
-}
-
 def TestCppGPU(args) {
   def nodeReq = 'linux && mgpu'
   def artifact_cuda_version = (args.artifact_cuda_version) ?: ref_cuda_ver
@@ -376,24 +343,6 @@ def TestCppGPU(args) {
       ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "source activate gpu_test && build/testxgboost --use-rmm-pool --gtest_filter=-*DeathTest.*"
       """
     }
-    deleteDir()
-  }
-}
-
-def CrossTestJVMwithJDKGPU(args) {
-  def nodeReq = 'linux && mgpu'
-  node(nodeReq) {
-    unstash name: "xgboost4j_jar_gpu"
-    unstash name: 'srcs'
-    if (args.spark_version != null) {
-      echo "Test XGBoost4J on a machine with JDK ${args.jdk_version}, Spark ${args.spark_version}, CUDA ${args.host_cuda_version}"
-    } else {
-      echo "Test XGBoost4J on a machine with JDK ${args.jdk_version}, CUDA ${args.host_cuda_version}"
-    }
-    def container_type = "gpu_jvm"
-    def docker_binary = "nvidia-docker"
-    def docker_args = "--build-arg CUDA_VERSION_ARG=${args.host_cuda_version}"
-    sh "${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_jvm_gpu_cross.sh"
     deleteDir()
   }
 }
@@ -441,10 +390,7 @@ def DeployJVMPackages(args) {
     if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
       echo 'Deploying to xgboost-maven-repo S3 repo...'
       sh """
-      ${dockerRun} jvm docker tests/ci_build/deploy_jvm_packages.sh ${args.spark_version} 0
-      """
-      sh """
-      ${dockerRun} jvm_gpu_build docker --build-arg CUDA_VERSION_ARG=10.0 tests/ci_build/deploy_jvm_packages.sh ${args.spark_version} 1
+      ${dockerRun} jvm_gpu_build docker --build-arg CUDA_VERSION_ARG=10.0 tests/ci_build/deploy_jvm_packages.sh ${args.spark_version}
       """
     }
     deleteDir()

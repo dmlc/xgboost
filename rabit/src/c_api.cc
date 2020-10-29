@@ -6,6 +6,8 @@
 #include "rabit/rabit.h"
 #include "rabit/c_api.h"
 
+#include "../../src/c_api/c_api_error.h"
+
 namespace rabit {
 namespace c_api {
 // helper use to avoid BitOR operator
@@ -219,11 +221,19 @@ struct WriteWrapper : public Serializable {
 }  // namespace rabit
 
 RABIT_DLL bool RabitInit(int argc, char *argv[]) {
-  return rabit::Init(argc, argv);
+  auto ret = rabit::Init(argc, argv);
+  if (!ret) {
+    XGBAPISetLastError("Failed to initialize RABIT.");
+  }
+  return ret;
 }
 
-RABIT_DLL bool RabitFinalize() {
-  return rabit::Finalize();
+RABIT_DLL int RabitFinalize() {
+  auto ret = rabit::Finalize();
+  if (!ret) {
+    XGBAPISetLastError("Failed to shutdown RABIT worker.");
+  }
+  return static_cast<int>(ret);
 }
 
 RABIT_DLL int RabitGetRingPrevRank() {
@@ -242,9 +252,11 @@ RABIT_DLL int RabitIsDistributed() {
   return rabit::IsDistributed();
 }
 
-RABIT_DLL void RabitTrackerPrint(const char *msg) {
+RABIT_DLL int RabitTrackerPrint(const char *msg) {
+  API_BEGIN()
   std::string m(msg);
   rabit::TrackerPrint(m);
+  API_END()
 }
 
 RABIT_DLL void RabitGetProcessorName(char *out_name,
@@ -258,37 +270,39 @@ RABIT_DLL void RabitGetProcessorName(char *out_name,
   *out_len = static_cast<rbt_ulong>(s.length());
 }
 
-RABIT_DLL void RabitBroadcast(void *sendrecv_data,
+RABIT_DLL int RabitBroadcast(void *sendrecv_data,
                               rbt_ulong size, int root) {
+  API_BEGIN()
   rabit::Broadcast(sendrecv_data, size, root);
+  API_END()
 }
 
-RABIT_DLL void RabitAllgather(void *sendrecvbuf_, size_t total_size,
+RABIT_DLL int RabitAllgather(void *sendrecvbuf_, size_t total_size,
                               size_t beginIndex, size_t size_node_slice,
                               size_t size_prev_slice, int enum_dtype) {
-  rabit::c_api::Allgather(sendrecvbuf_,
-                          total_size,
-                          beginIndex,
-                          size_node_slice,
-                          size_prev_slice,
-                          static_cast<rabit::engine::mpi::DataType>(enum_dtype));
+  API_BEGIN()
+  rabit::c_api::Allgather(
+      sendrecvbuf_, total_size, beginIndex, size_node_slice, size_prev_slice,
+      static_cast<rabit::engine::mpi::DataType>(enum_dtype));
+  API_END()
 }
 
-RABIT_DLL void RabitAllreduce(void *sendrecvbuf, size_t count, int enum_dtype,
+RABIT_DLL int RabitAllreduce(void *sendrecvbuf, size_t count, int enum_dtype,
                               int enum_op, void (*prepare_fun)(void *arg),
                               void *prepare_arg) {
-  rabit::c_api::Allreduce
-      (sendrecvbuf, count,
-       static_cast<rabit::engine::mpi::DataType>(enum_dtype),
-       static_cast<rabit::engine::mpi::OpType>(enum_op),
-       prepare_fun, prepare_arg);
+  API_BEGIN()
+  rabit::c_api::Allreduce(sendrecvbuf, count,
+                          static_cast<rabit::engine::mpi::DataType>(enum_dtype),
+                          static_cast<rabit::engine::mpi::OpType>(enum_op),
+                          prepare_fun, prepare_arg);
+  API_END()
 }
 
 RABIT_DLL int RabitLoadCheckPoint(char **out_global_model,
                                   rbt_ulong *out_global_len,
                                   char **out_local_model,
                                   rbt_ulong *out_local_len) {
-  // NOTE: this function is not thread-safe
+  // no-op as XGBoost 1.3
   using rabit::BeginPtr;
   using namespace rabit::c_api; // NOLINT(*)
   static std::string global_buffer;

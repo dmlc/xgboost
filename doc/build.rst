@@ -168,6 +168,12 @@ XGBoost can be built with GPU support for both Linux and Windows using CMake. GP
 
 An up-to-date version of the CUDA toolkit is required.
 
+.. note:: Checking your compiler version
+
+  CUDA is really picky about supported compilers, a table for the compatible compilers for the latests CUDA version on Linux can be seen `here <https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html>`_.
+
+  Some distros package a compatible ``gcc`` version with CUDA. If you run into compiler errors with ``nvcc``, try specifying the correct compiler with ``-DCMAKE_CXX_COMPILER=/path/to/correct/g++ -DCMAKE_C_COMPILER=/path/to/correct/gcc``. On Arch Linux, for example, both binaries can be found under ``/opt/cuda/bin/``.
+
 From the command line on Linux starting from the XGBoost directory:
 
 .. code-block:: bash
@@ -176,6 +182,10 @@ From the command line on Linux starting from the XGBoost directory:
   cd build
   cmake .. -DUSE_CUDA=ON
   make -j4
+
+.. note:: Specifying compute capability
+
+  To speed up compilation, the compute version specific to your GPU could be passed to cmake as, e.g., ``-DGPU_COMPUTE_VER=50``. A quick explanation and numbers for some architectures can be found `here <https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/>`_.
 
 .. note:: Enabling distributed GPU training
 
@@ -206,7 +216,6 @@ On Windows, run CMake as follows:
 
     cmake .. -G"Visual Studio 15 2017 Win64" -T v140,cuda=8.0 -DUSE_CUDA=ON
 
-To speed up compilation, the compute version specific to your GPU could be passed to cmake as, e.g., ``-DGPU_COMPUTE_VER=50``.
 The above cmake configuration run will create an ``xgboost.sln`` solution file in the build directory. Build this solution in release mode as a x64 build, either from Visual studio or from command line:
 
 .. code-block:: bash

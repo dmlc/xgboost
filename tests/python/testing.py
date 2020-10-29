@@ -1,5 +1,6 @@
 # coding: utf-8
 import os
+import platform
 from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
 from xgboost.compat import DASK_INSTALLED
 import pytest
@@ -238,6 +239,46 @@ dataset_strategy = _dataset_weight_margin()
 
 def non_increasing(L, tolerance=1e-4):
     return all((y - x) < tolerance for x, y in zip(L, L[1:]))
+
+
+def eval_error_metric(predt, dtrain: xgb.DMatrix):
+    label = dtrain.get_label()
+    r = np.zeros(predt.shape)
+    gt = predt > 0.5
+    r[gt] = 1 - label[gt]
+    le = predt <= 0.5
+    r[le] = label[le]
+    return 'CustomErr', np.sum(r)
+
+
+class DirectoryExcursion:
+    def __init__(self, path: os.PathLike, cleanup=False):
+        '''Change directory.  Change back and optionally cleaning up the directory when exit.
+
+        '''
+        self.path = path
+        self.curdir = os.path.normpath(os.path.abspath(os.path.curdir))
+        self.cleanup = cleanup
+        self.files = {}
+
+    def __enter__(self):
+        os.chdir(self.path)
+        if self.cleanup:
+            self.files = {
+                os.path.join(root, f)
+                for root, subdir, files in os.walk(self.path) for f in files
+            }
+
+    def __exit__(self, *args):
+        os.chdir(self.curdir)
+        if self.cleanup:
+            files = {
+                os.path.join(root, f)
+                for root, subdir, files in os.walk(self.path) for f in files
+            }
+            diff = files.difference(self.files)
+            for f in diff:
+                os.remove(f)
 
 
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))

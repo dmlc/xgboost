@@ -11,4 +11,5 @@ Contents
 .. toctree::
   python_intro
   python_api
+  callbacks
   Python examples <https://github.com/dmlc/xgboost/tree/master/demo/guide-python>

@@ -233,7 +233,7 @@ GradientBasedSample ExternalMemoryUniformSampling::Sample(common::Span<GradientP
 
 GradientBasedSampling::GradientBasedSampling(EllpackPageImpl* page,
                                              size_t n_rows,
-                                             const BatchParam& batch_param,
+                                             const BatchParam&,
                                              float subsample)
     : page_(page),
       subsample_(subsample),

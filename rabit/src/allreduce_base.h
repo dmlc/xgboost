@@ -12,6 +12,8 @@
 #ifndef RABIT_ALLREDUCE_BASE_H_
 #define RABIT_ALLREDUCE_BASE_H_
 
+#include <functional>
+#include <future>
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -35,6 +37,7 @@ class Datatype {
 }
 namespace rabit {
 namespace engine {
+
 /*! \brief implementation of basic Allreduce engine */
 class AllreduceBase : public IEngine {
  public:
@@ -95,17 +98,14 @@ class AllreduceBase : public IEngine {
   * \param slice_begin beginning of the current slice
   * \param slice_end end of the current slice
   * \param size_prev_slice size of the previous slice i.e. slice of node (rank - 1) % world_size
-  * \param _file caller file name used to generate unique cache key
-  * \param _line caller line number used to generate unique cache key
-  * \param _caller caller function name used to generate unique cache key
   */
   void Allgather(void *sendrecvbuf_, size_t total_size, size_t slice_begin,
-                 size_t slice_end, size_t size_prev_slice,
-                 const char *_file = _FILE, const int _line = _LINE,
-                 const char *_caller = _CALLER) override {
-    if (world_size == 1 || world_size == -1) return;
-    utils::Assert(TryAllgatherRing(sendrecvbuf_, total_size,
-                                   slice_begin, slice_end, size_prev_slice) == kSuccess,
+                 size_t slice_end, size_t size_prev_slice) override {
+    if (world_size == 1 || world_size == -1) {
+      return;
+    }
+    utils::Assert(TryAllgatherRing(sendrecvbuf_, total_size, slice_begin,
+                                   slice_end, size_prev_slice) == kSuccess,
                   "AllgatherRing failed");
   }
   /*!
@@ -119,19 +119,14 @@ class AllreduceBase : public IEngine {
    *                     will be called by the function before performing Allreduce, to intialize the data in sendrecvbuf_.
    *                     If the result of Allreduce can be recovered directly, then prepare_func will NOT be called
    * \param prepare_arg argument used to passed into the lazy preprocessing function
-   * \param _file caller file name used to generate unique cache key
-   * \param _line caller line number used to generate unique cache key
-   * \param _caller caller function name used to generate unique cache key
    */
   void Allreduce(void *sendrecvbuf_, size_t type_nbytes, size_t count,
                  ReduceFunction reducer, PreprocFunction prepare_fun = nullptr,
-                 void *prepare_arg = nullptr, const char *_file = _FILE,
-                 const int _line = _LINE,
-                 const char *_caller = _CALLER) override {
+                 void *prepare_arg = nullptr) override {
     if (prepare_fun != nullptr) prepare_fun(prepare_arg);
     if (world_size == 1 || world_size == -1) return;
-    utils::Assert(TryAllreduce(sendrecvbuf_,
-                               type_nbytes, count, reducer) == kSuccess,
+    utils::Assert(TryAllreduce(sendrecvbuf_, type_nbytes, count, reducer) ==
+                      kSuccess,
                   "Allreduce failed");
   }
   /*!
@@ -143,9 +138,7 @@ class AllreduceBase : public IEngine {
    * \param _line caller line number used to generate unique cache key
    * \param _caller caller function name used to generate unique cache key
    */
-  void Broadcast(void *sendrecvbuf_, size_t total_size, int root,
-                 const char *_file = _FILE, const int _line = _LINE,
-                 const char *_caller = _CALLER) override {
+  void Broadcast(void *sendrecvbuf_, size_t total_size, int root) override {
     if (world_size == 1 || world_size == -1) return;
     utils::Assert(TryBroadcast(sendrecvbuf_, total_size, root) == kSuccess,
                   "Broadcast failed");
@@ -226,14 +219,6 @@ class AllreduceBase : public IEngine {
    */
   int VersionNumber() const override {
     return version_number;
-  }
-  /*!
-   * \brief explicitly re-init everything before calling LoadCheckPoint
-   *    call this function when IEngine throw an exception out,
-   *    this function is only used for test purpose
-   */
-  void InitAfterException() override {
-    utils::Error("InitAfterException: not implemented");
   }
   /*!
    * \brief report current status to the job tracker
@@ -518,9 +503,9 @@ class AllreduceBase : public IEngine {
   //---- data structure related to model ----
   // call sequence counter, records how many calls we made so far
   // from last call to CheckPoint, LoadCheckPoint
-  int seq_counter;  // NOLINT
+  int seq_counter{0}; // NOLINT
   // version number of model
-  int version_number;  // NOLINT
+  int version_number {0};  // NOLINT
   // whether the job is running in hadoop
   bool hadoop_mode;  // NOLINT
   //---- local data related to link ----
@@ -571,7 +556,7 @@ class AllreduceBase : public IEngine {
   // enable detailed logging
   bool rabit_debug = false;  // NOLINT
   // by default, if rabit worker not recover in half an hour exit
-  int timeout_sec = 1800;  // NOLINT
+  std::chrono::seconds timeout_sec{std::chrono::seconds{1800}}; // NOLINT
   // flag to enable rabit_timeout
   bool rabit_timeout = false;  // NOLINT
   // Enable TCP node delay

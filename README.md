@@ -1,6 +1,6 @@
 <img src=https://raw.githubusercontent.com/dmlc/dmlc.github.io/master/img/logo-m/xgboost.png width=135/>  eXtreme Gradient Boosting
 ===========
-[![Build Status](https://xgboost-ci.net/job/xgboost/job/master/badge/icon?style=plastic)](https://xgboost-ci.net/blue/organizations/jenkins/xgboost/activity)
+[![Build Status](https://xgboost-ci.net/job/xgboost/job/master/badge/icon)](https://xgboost-ci.net/blue/organizations/jenkins/xgboost/activity)
 [![Build Status](https://img.shields.io/travis/dmlc/xgboost.svg?label=build&logo=travis&branch=master)](https://travis-ci.org/dmlc/xgboost)
 [![Build Status](https://ci.appveyor.com/api/projects/status/5ypa8vaed6kpmli8?svg=true)](https://ci.appveyor.com/project/tqchen/xgboost)
 [![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](https://xgboost.readthedocs.org)
@@ -8,6 +8,7 @@
 [![CRAN Status Badge](http://www.r-pkg.org/badges/version/xgboost)](http://cran.r-project.org/web/packages/xgboost)
 [![PyPI version](https://badge.fury.io/py/xgboost.svg)](https://pypi.python.org/pypi/xgboost/)
 [![Optuna](https://img.shields.io/badge/Optuna-integrated-blue)](https://optuna.org)
+[![Twitter](https://img.shields.io/badge/@XGBoostProject--_.svg?style=social&logo=twitter)](https://twitter.com/XGBoostProject)
 
 [Community](https://xgboost.ai/community) |
 [Documentation](https://xgboost.readthedocs.org) |

@@ -234,5 +234,4 @@ TEST(EllpackPage, Compact) {
     }
   }
 }
-
 }  // namespace xgboost
