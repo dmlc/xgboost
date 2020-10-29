@@ -3,6 +3,37 @@
  * \file page_csr_source.h
  *  External memory data source, saved with sparse_batch_page binary format.
  * \author Tianqi Chen
+ *
+ * -------------------------------------------------
+ * Random notes on implementation of external memory
+ * -------------------------------------------------
+ *
+ * As of XGBoost 1.3, the general pipeline is:
+ *
+ * dmlc text file parser --> file adapter --> sparse page source -> data pool -->
+ * write to binary cache --> load it back ~~> [ other pages (csc, ellpack, sorted csc) -->
+ * write to binary cache ] --> use it in various algorithms.
+ *
+ *       ~~> means optional
+ *
+ * The dmlc text file parser returns number of blocks based on available threads, which
+ * can make the data partitioning non-deterministic, so here we set up an extra data pool
+ * to stage parsed data.  As a result, the number of blocks returned by text parser does
+ * not equal to number of blocks in binary cache.
+ *
+ * Binary cache loading is async by the dmlc threaded iterator, which helps performance,
+ * but as this iterator itself is not thread safe, so calling
+ * `dmatrix->GetBatches<SparsePage>` is also not thread safe.  Please note that, the
+ * threaded iterator is also used inside dmlc text file parser.
+ *
+ * Memory consumption is difficult to control due to various reasons.  Firstly the text
+ * parsing doesn't have a batch size, only a hard coded buffer size is available.
+ * Secondly, everything is loaded/written with async queue, with multiple queues running
+ * the memory consumption is difficult to measure.
+ *
+ * The threaded iterator relies heavily on C++ memory model and threading primitive.  The
+ * concurrent writer for binary cache is an old copy of moody queue.  We should try to
+ * replace them with something more robust.
  */
 #ifndef XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
 #define XGBOOST_DATA_SPARSE_PAGE_SOURCE_H_
@@ -232,6 +263,9 @@ class ExternalMemoryPrefetcher : dmlc::DataIter<PageT> {
   std::vector<std::unique_ptr<dmlc::ThreadedIter<PageT>>> prefetchers_;
 };
 
+
+// A data pool to keep the size of each page balanced and data partitioning to be
+// deterministic.
 class DataPool {
   size_t inferred_num_rows_;
   MetaInfo* info_;
