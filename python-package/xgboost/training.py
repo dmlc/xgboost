@@ -3,6 +3,8 @@
 # pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
 import warnings
+import copy
+
 import numpy as np
 from .core import Booster, XGBoostError
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
@@ -57,7 +59,7 @@ def _train_internal(params, dtrain,
                     evals_result=None, maximize=None,
                     verbose_eval=None, early_stopping_rounds=None):
     """internal training function"""
-    callbacks = [] if callbacks is None else callbacks
+    callbacks = [] if callbacks is None else copy.copy(callbacks)
     evals = list(evals)
     params = _configure_metrics(params.copy())
 

@@ -232,3 +232,16 @@ class TestCallbacks(unittest.TestCase):
             for i in range(1, 10):
                 assert os.path.exists(
                     os.path.join(tmpdir, 'model_' + str(i) + '.pkl'))
+
+    def test_callback_list(self):
+        X, y = tm.get_boston()
+        m = xgb.DMatrix(X, y)
+        callbacks = [xgb.callback.EarlyStopping(rounds=10)]
+        for i in range(4):
+            xgb.train({'objective': 'reg:squarederror',
+                       'eval_metric': 'rmse'}, m,
+                      evals=[(m, 'Train')],
+                      num_boost_round=1,
+                      verbose_eval=True,
+                      callbacks=callbacks)
+        assert len(callbacks) == 1
