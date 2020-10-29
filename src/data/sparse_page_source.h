@@ -153,9 +153,12 @@ inline void TryDeleteCacheFile(const std::string& file) {
 inline void CheckCacheFileExists(const std::string& file) {
   std::ifstream f(file.c_str());
   if (f.good()) {
-    LOG(FATAL) << "Cache file " << file
-               << " exists already; Is there another DMatrix with the same "
-                  "cache prefix? Otherwise please remove it manually.";
+    LOG(FATAL)
+        << "Cache file " << file << " exists already;  "
+        << "Is there another DMatrix with the same "
+           "cache prefix?  It can be caused by previously used DMatrix that "
+           "hasn't been collected by language environment garbage collector.  "
+           "Otherwise please remove it manually.";
   }
 }
 

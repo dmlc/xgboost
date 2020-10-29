@@ -1,5 +1,6 @@
 import numpy as np
 import sys
+import gc
 import pytest
 import xgboost as xgb
 from hypothesis import given, strategies, assume, settings, note
@@ -118,7 +119,10 @@ class TestGPUUpdaters:
         assume(len(dataset.y) > 0)
         param['tree_method'] = 'gpu_hist'
         param = dataset.set_params(param)
-        external_result = train_result(param, dataset.get_external_dmat(), num_rounds)
+        m = dataset.get_external_dmat()
+        external_result = train_result(param, m, num_rounds)
+        del m
+        gc.collect()
         assert tm.non_increasing(external_result['train'][dataset.metric])
 
     def test_empty_dmatrix_prediction(self):
