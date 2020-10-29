@@ -3,8 +3,9 @@
 # pylint: disable=too-many-branches, too-many-statements
 """Training Library containing training routines."""
 import warnings
-import numpy as np
 import copy
+
+import numpy as np
 from .core import Booster, XGBoostError
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
 from . import rabit
