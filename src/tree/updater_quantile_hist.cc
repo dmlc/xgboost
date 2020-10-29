@@ -847,7 +847,8 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
                          param_.colsample_bynode, param_.colsample_bylevel,
                          param_.colsample_bytree, false);
   }
-  if (data_layout_ == DataLayout::kDenseDataZeroBased || data_layout_ == DataLayout::kDenseDataOneBased) {
+  if (data_layout_ == DataLayout::kDenseDataZeroBased
+      || data_layout_ == DataLayout::kDenseDataOneBased) {
     /* specialized code for dense data:
        choose the column that has a least positive number of discrete bins.
        For dense data (with no missing value),
@@ -1236,7 +1237,8 @@ void QuantileHistMaker::Builder<GradientSumT>::InitNewNode(int nid,
     GHistRowT hist = hist_[nid];
     GradientPairT grad_stat;
     if (tree[nid].IsRoot()) {
-      if (data_layout_ == DataLayout::kDenseDataZeroBased || data_layout_ == DataLayout::kDenseDataOneBased) {
+      if (data_layout_ == DataLayout::kDenseDataZeroBased
+          || data_layout_ == DataLayout::kDenseDataOneBased) {
         const std::vector<uint32_t>& row_ptr = gmat.cut.Ptrs();
         const uint32_t ibegin = row_ptr[fid_least_bins_];
         const uint32_t iend = row_ptr[fid_least_bins_ + 1];

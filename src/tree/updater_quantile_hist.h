@@ -229,7 +229,8 @@ class QuantileHistMaker: public TreeUpdater {
       if (param_.enable_feature_grouping > 0) {
         hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
-        hist_builder_.BuildHist(gpair, row_indices, gmat, hist, data_layout_ != DataLayout::kSparseData);
+        hist_builder_.BuildHist(gpair, row_indices, gmat, hist,
+                                data_layout_ != DataLayout::kSparseData);
       }
     }
 
