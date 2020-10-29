@@ -104,7 +104,7 @@ TEST(SparsePageDMatrix, ThreadSafetyException) {
 
   std::vector<std::thread> waiting;
 
-  for (size_t i = 0; i < threads; ++i) {
+  for (int32_t i = 0; i < threads; ++i) {
     waiting.emplace_back([&]() {
       try {
         auto iter = dmat->GetBatches<SparsePage>().begin();
@@ -326,7 +326,12 @@ TEST(SparsePageDMatrix, Large) {
   std::vector<bst_feature_t> simple_cids;
   DMatrixToCSR(simple.get(), &simple_data, &simple_rptr, &simple_cids);
 
+  ASSERT_EQ(sparse_rptr.size(), sparse->Info().num_row_ + 1);
+  ASSERT_EQ(sparse_rptr.size(), simple->Info().num_row_ + 1);
+
+  ASSERT_EQ(sparse_data.size(), simple_data.size());
   ASSERT_EQ(sparse_data, simple_data);
+  ASSERT_EQ(sparse_rptr.size(), simple_rptr.size());
   ASSERT_EQ(sparse_rptr, simple_rptr);
   ASSERT_EQ(sparse_cids, simple_cids);
 }

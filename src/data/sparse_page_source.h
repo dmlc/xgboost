@@ -334,11 +334,13 @@ class SparsePageSource {
             ++group_size;
           }
         }
+        CHECK_EQ(page->Size(), 0);
         auto batch_max_columns = page->Push(batch, missing, nthread);
         inferred_num_columns =
             std::max(batch_max_columns, inferred_num_columns);
         inferred_num_rows += page->Size();
         pool.Push(page);
+        page->SetBaseRowId(inferred_num_rows);
       }
 
       if (last_group_id != default_max) {
