@@ -4,6 +4,7 @@
 """Training Library containing training routines."""
 import warnings
 import numpy as np
+import copy
 from .core import Booster, XGBoostError
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
 from . import rabit
@@ -57,7 +58,7 @@ def _train_internal(params, dtrain,
                     evals_result=None, maximize=None,
                     verbose_eval=None, early_stopping_rounds=None):
     """internal training function"""
-    callbacks = [] if callbacks is None else callbacks
+    callbacks = [] if callbacks is None else copy.copy(callbacks)
     evals = list(evals)
     params = _configure_metrics(params.copy())
 
