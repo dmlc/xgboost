@@ -445,29 +445,115 @@ class FileAdapterBatch {
     const float* value_;
     size_t size_;
   };
-  FileAdapterBatch(const dmlc::RowBlock<uint32_t>* block, size_t row_offset)
+  FileAdapterBatch(const dmlc::RowBlock<uint32_t> block, size_t row_offset)
       : block_(block), row_offset_(row_offset) {}
   Line GetLine(size_t idx) const {
-    auto begin = block_->offset[idx];
-    auto end = block_->offset[idx + 1];
-    return Line{idx + row_offset_, &block_->index[begin], &block_->value[begin],
+    auto begin = block_.offset[idx];
+    auto end = block_.offset[idx + 1];
+    return Line{idx + row_offset_, &block_.index[begin], &block_.value[begin],
                 end - begin};
   }
-  const float* Labels() const { return block_->label; }
-  const float* Weights() const { return block_->weight; }
-  const uint64_t* Qid() const { return block_->qid; }
+  const float* Labels() const { return block_.label; }
+  const float* Weights() const { return block_.weight; }
+  const uint64_t* Qid() const { return block_.qid; }
   const float* BaseMargin() const { return nullptr; }
 
-  size_t Size() const { return block_->size; }
+  size_t Size() const { return block_.size; }
 
  private:
-  const dmlc::RowBlock<uint32_t>* block_;
+  const dmlc::RowBlock<uint32_t> block_;
   size_t row_offset_;
 };
 
 /** \brief FileAdapter wraps dmlc::parser to read files and provide access in a
  * common interface. */
 class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
+  struct Block {
+    std::vector<size_t> offset {0};
+    /*! \brief array[size] label of each instance */
+    std::vector<float> label;
+    /*! \brief With weight: array[size] label of each instance, otherwise
+     * nullptr */
+    std::vector<float> weight;
+    /*! \brief With qid: array[size] session id of each instance, otherwise
+     * nullptr */
+    std::vector<uint64_t> qid;
+    /*! \brief field id*/
+    std::vector<uint32_t> field;
+    /*! \brief feature index */
+    std::vector<uint32_t> index;
+    /*! \brief feature value, can be NULL, indicating all values are 1 */
+    std::vector<float> value;
+
+    explicit operator dmlc::RowBlock<uint32_t>() const {
+      dmlc::RowBlock<uint32_t> out{offset.empty() ? 0 : offset.size() - 1,
+                                   offset.data(),
+                                   label.data(),
+                                   weight.data(),
+                                   qid.data(),
+                                   field.data(),
+                                   index.data(),
+                                   value.data()};
+      return out;
+    }
+
+
+    inline size_t MemCostBytes() const {
+      return dmlc::RowBlock<uint32_t>(*this).MemCostBytes();
+    }
+  };
+
+  class DataPool {
+    Block block_;
+    Block staging_;  // to be returned to caller
+
+    size_t page_size_ {0};
+    size_t offset_{0};
+    size_t entry_offset_{0};
+
+    Block Slice(size_t offset, size_t n_rows, size_t entry_offset) const {
+      auto& in_offset = block_.offset;
+      auto& in_data = block_.value;
+
+      Block out;
+      auto &h_offset = out.offset;
+      CHECK_LE(offset + n_rows + 1, in_offset.size());
+      h_offset.resize(n_rows + 1, 0);
+      std::transform(in_offset.cbegin() + offset,
+                     in_offset.cbegin() + offset + n_rows + 1, h_offset.begin(),
+                     [=](size_t ptr) { return ptr - entry_offset; });
+
+      auto &h_data = out.value;
+      CHECK_GT(h_offset.size(), 0);
+      size_t n_entries = h_offset.back();
+      h_data.resize(n_entries);
+
+      CHECK_EQ(n_entries, in_offset.at(offset + n_rows) - in_offset.at(offset));
+      std::copy_n(in_data.cbegin() + in_offset.at(offset), n_entries,
+                  h_data.begin());
+
+      return out;
+    }
+
+   public:
+    bool Full() const { return block_.MemCostBytes() > page_size_; }
+    bool Push(dmlc::RowBlock<uint32_t> const* block) {
+      CHECK_EQ(block->offset[0], 0);
+      block_.offset.resize(block->size+1);
+      std::copy_n(block->offset + 1, block->size, this->block_.offset.data());
+      block_.value.resize(block->size);
+      std::copy_n(block->value, block->size, this->block_.value.data());
+      return Full();
+    }
+
+     auto Value() {
+      size_t i = std::upper_bound(block_.offset.begin(), block_.offset.end(), []{}) - block_.offset.cbegin();
+      staging_ = this->Slice(offset_, block_.offset.at(i), entry_offset_);
+      return dmlc::RowBlock<uint32_t>(staging_);
+    }
+  };
+  DataPool pool_;
+
  public:
   explicit FileAdapter(dmlc::Parser<uint32_t>* parser) : parser_(parser) {}
 
@@ -478,9 +564,17 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
     row_offset_ = 0;
   }
   bool Next() override {
-    bool next = parser_->Next();
-    batch_.reset(new FileAdapterBatch(&parser_->Value(), row_offset_));
-    row_offset_ += parser_->Value().size;
+    if (pool_.Full()) {
+      auto block = pool_.Value();
+      batch_.reset(new FileAdapterBatch(block, row_offset_));
+      return true;
+    }
+    bool next = false;
+    while ((next = parser_->Next()) && pool_.Push(&parser_->Value())) {
+    }
+    auto block = pool_.Value();
+    batch_.reset(new FileAdapterBatch(block, row_offset_));
+    row_offset_ += block.size;
     return next;
   }
   // Indicates a number of rows/columns must be inferred
