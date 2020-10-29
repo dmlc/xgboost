@@ -40,13 +40,38 @@ void DataPool::SplitWritePage() {
     inferred_num_rows_ += out->Size();
     offset += n_rows;
     entry_offset += out->data.Size();
+    CHECK_NE(out->Size(), 0);
     writer_->PushWrite(std::move(out));
   } while (total - offset >= page_size_);
 
-  auto out = std::make_shared<SparsePage>();
-  this->Slice(out, offset, total - offset, entry_offset);
-  pool_.Clear();
-  pool_.Push(*out);
+  if (total - offset != 0) {
+    auto out = std::make_shared<SparsePage>();
+    this->Slice(out, offset, total - offset, entry_offset);
+    CHECK_NE(out->Size(), 0);
+    pool_.Clear();
+    pool_.Push(*out);
+  } else {
+    pool_.Clear();
+  }
+}
+size_t DataPool::Finalize() {
+  inferred_num_rows_ += pool_.Size();
+  if (pool_.Size() != 0) {
+    std::shared_ptr<SparsePage> page;
+    this->writer_->Alloc(&page);
+    page->Clear();
+    page->Push(pool_);
+    this->writer_->PushWrite(std::move(page));
+  }
+
+  if (inferred_num_rows_ == 0) {
+    std::shared_ptr<SparsePage> page;
+    this->writer_->Alloc(&page);
+    page->Clear();
+    this->writer_->PushWrite(std::move(page));
+  }
+
+  return inferred_num_rows_;
 }
 }  // namespace data
 }  // namespace xgboost

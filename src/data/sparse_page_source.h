@@ -292,15 +292,7 @@ class DataPool {
     page->Clear();
   }
 
-  size_t Finalize() {
-    inferred_num_rows_+= pool_.Size();
-    std::shared_ptr<SparsePage> page;
-    this->writer_->Alloc(&page);
-    page->Clear();
-    page->Push(pool_);
-    this->writer_->PushWrite(std::move(page));
-    return inferred_num_rows_;
-  }
+  size_t Finalize();
 };
 
 class SparsePageSource {
@@ -402,12 +394,7 @@ class SparsePageSource {
         info.num_row_ = adapter->NumRows();
       }
 
-      if (info.num_row_ == 0) {
-        // Make sure we have at least one page if the dataset is empty
-        pool.Push(page);
-      } else if (page->Size() != 0) {
-        pool.Push(page);
-      }
+      pool.Push(page);
       pool.Finalize();
 
       std::unique_ptr<dmlc::Stream> fo(
