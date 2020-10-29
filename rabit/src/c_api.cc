@@ -26,10 +26,10 @@ struct FHelper {
 template<typename DType>
 struct FHelper<op::BitOR, DType> {
   static void
-  Allreduce(DType *senrecvbuf_,
-            size_t count,
-            void (*prepare_fun)(void *arg),
-            void *prepare_arg) {
+  Allreduce(DType *,
+            size_t ,
+            void (*)(void *arg),
+            void *) {
     utils::Error("DataType does not support bitwise or operation");
   }
 };
@@ -196,7 +196,7 @@ struct ReadWrapper : public Serializable {
                     "Read pickle string");
     }
   }
-  void Save(Stream *fo) const override {
+  void Save(Stream *) const override {
     utils::Error("not implemented");
   }
 };
@@ -208,7 +208,7 @@ struct WriteWrapper : public Serializable {
                         size_t length)
       : data(data), length(length) {
   }
-  void Load(Stream *fi) override {
+  void Load(Stream *) override {
     utils::Error("not implemented");
   }
   void Save(Stream *fo) const override {
