@@ -768,7 +768,9 @@ class TestDaskCallbacks:
                 def worker_fn(worker_addr, data_ref):
                     with xgb.dask.RabitContext(rabit_args):
                         local_dtrain = xgb.dask._dmatrix_from_worker_map(**data_ref)
-                        assert local_dtrain.num_row() == kRows / n_workers
+                        total = np.array([local_dtrain.num_row()])
+                        total = xgb.rabit.allreduce(total, xgb.rabit.Op.SUM)
+                        assert total[0] == kRows
 
                 futures = client.map(
                     worker_fn, workers, [m.create_fn_args()] * len(workers),
