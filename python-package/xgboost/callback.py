@@ -10,7 +10,7 @@ from typing import Callable, List
 import numpy
 
 from . import rabit
-from .core import EarlyStopException, CallbackEnv, Booster
+from .core import EarlyStopException, CallbackEnv, Booster, XGBoostError
 from .compat import STRING_TYPES
 
 
@@ -563,8 +563,11 @@ class EarlyStopping(TrainingCallback):
         return self._update_rounds(score, data_name, metric_name, model, epoch)
 
     def after_training(self, model: Booster):
-        if self.save_best:
-            model = model[: int(model.attr('best_iteration'))]
+        try:
+            if self.save_best:
+                model = model[: int(model.attr('best_iteration'))]
+        except XGBoostError as e:
+            raise XGBoostError('`save_best` is not applicable to current booster') from e
         return model
 
 

@@ -116,7 +116,7 @@ class TestCallbacks(unittest.TestCase):
     def test_early_stopping_save_best_model(self):
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)
-        cls = xgb.XGBClassifier()
+        cls = xgb.XGBClassifier(n_estimators=10)
         early_stopping_rounds = 5
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
                                                 save_best=True)
@@ -125,6 +125,21 @@ class TestCallbacks(unittest.TestCase):
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format='json')
         assert len(dump) == booster.best_iteration
+
+        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
+                                                save_best=True)
+        cls = xgb.XGBClassifier(booster='gblinear', n_estimators=10)
+        self.assertRaises(ValueError, lambda: cls.fit(X, y, eval_set=[(X, y)],
+                                                      eval_metric=tm.eval_error_metric,
+                                                      callbacks=[early_stop]))
+
+        # No error
+        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
+                                                save_best=False)
+        xgb.XGBClassifier(booster='gblinear', n_estimators=10).fit(
+            X, y, eval_set=[(X, y)],
+            eval_metric=tm.eval_error_metric,
+            callbacks=[early_stop])
 
     def run_eta_decay(self, tree_method, deprecated_callback):
         if deprecated_callback:
