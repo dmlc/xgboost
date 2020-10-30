@@ -69,20 +69,24 @@ class TreeGenerator {
     return result;
   }
 
-  virtual std::string Indicator(RegTree const& /*tree*/, int32_t /*nid*/, uint32_t /*depth*/) const {
+  virtual std::string Indicator(RegTree const& /*tree*/,
+                                int32_t /*nid*/, uint32_t /*depth*/) const {
     return "";
   }
-  virtual std::string Integer(RegTree const& /*tree*/, int32_t /*nid*/, uint32_t /*depth*/) const {
+  virtual std::string Integer(RegTree const& /*tree*/,
+                                int32_t /*nid*/, uint32_t /*depth*/) const {
     return "";
   }
-  virtual std::string Quantitive(RegTree const& /*tree*/, int32_t /*nid*/, uint32_t /*depth*/) const {
+  virtual std::string Quantitive(RegTree const& /*tree*/,
+                                int32_t /*nid*/, uint32_t /*depth*/) const {
     return "";
   }
   virtual std::string NodeStat(RegTree const& /*tree*/, int32_t /*nid*/) const {
     return "";
   }
 
-  virtual std::string PlainNode(RegTree const& /*tree*/, int32_t /*nid*/, uint32_t /*depth*/) const = 0;
+  virtual std::string PlainNode(RegTree const& /*tree*/,
+                                int32_t /*nid*/, uint32_t /*depth*/) const = 0;
 
   virtual std::string SplitNode(RegTree const& tree, int32_t nid, uint32_t depth) {
     auto const split_index = tree[nid].SplitIndex();
