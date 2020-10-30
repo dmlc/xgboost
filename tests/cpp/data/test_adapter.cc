@@ -139,10 +139,27 @@ TEST(Adapter, IteratorAdapter) {
 }
 
 TEST(Adapter, FileAdapter) {
-  data::FileAdapter::DataPool pool(16);
+  size_t constexpr kPageSize = 16;
+  data::FileAdapter::DataPool pool(kPageSize);
 
   ASSERT_FALSE(pool.Full());
 
   auto block = data::FileAdapter::Block{}.Clear();
+
+  HostDeviceVector<float> values;
+  HostDeviceVector<size_t> rptrs;
+  HostDeviceVector<bst_feature_t> cids;
+
+  size_t constexpr kRows = kPageSize * 4, kCols = 12;
+  RandomDataGenerator{kRows, kCols, 0.5}.GenerateCSR(&values, &rptrs, &cids);
+
+  {
+    // Push empty
+    auto empty = dmlc::RowBlock<uint32_t>(block);
+    pool.Push(&empty);
+    auto value = pool.Value();
+    ASSERT_EQ(value.size, 0ul);
+    ASSERT_EQ(value.offset[0], 0);
+  }
 }
 }  // namespace xgboost
