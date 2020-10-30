@@ -16,7 +16,7 @@ namespace xgboost {
 
 const Version::TripletT Version::kInvalid {-1, -1, -1};
 
-Version::TripletT Version::Load(Json const& in, bool check) {
+Version::TripletT Version::Load(Json const& in) {
   if (get<Object const>(in).find("version") == get<Object const>(in).cend()) {
     return kInvalid;
   }

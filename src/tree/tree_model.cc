@@ -179,7 +179,7 @@ class TextGenerator : public TreeGenerator {
   using SuperT = TreeGenerator;
 
  public:
-  TextGenerator(FeatureMap const& fmap, std::string const& attrs, bool with_stats) :
+  TextGenerator(FeatureMap const& fmap, bool with_stats) :
       TreeGenerator(fmap, with_stats) {}
 
   std::string LeafNode(RegTree const& tree, int32_t nid, uint32_t depth) const override {
@@ -288,14 +288,14 @@ class TextGenerator : public TreeGenerator {
 XGBOOST_REGISTER_TREE_IO(TextGenerator, "text")
 .describe("Dump text representation of tree")
 .set_body([](FeatureMap const& fmap, std::string const& attrs, bool with_stats) {
-            return new TextGenerator(fmap, attrs, with_stats);
+            return new TextGenerator(fmap, with_stats);
           });
 
 class JsonGenerator : public TreeGenerator {
   using SuperT = TreeGenerator;
 
  public:
-  JsonGenerator(FeatureMap const& fmap, std::string attrs, bool with_stats) :
+  JsonGenerator(FeatureMap const& fmap, bool with_stats) :
       TreeGenerator(fmap, with_stats) {}
 
   std::string Indent(uint32_t depth) const {
@@ -426,7 +426,7 @@ class JsonGenerator : public TreeGenerator {
 XGBOOST_REGISTER_TREE_IO(JsonGenerator, "json")
 .describe("Dump json representation of tree")
 .set_body([](FeatureMap const& fmap, std::string const& attrs, bool with_stats) {
-            return new JsonGenerator(fmap, attrs, with_stats);
+            return new JsonGenerator(fmap, with_stats);
           });
 
 struct GraphvizParam : public XGBoostParameter<GraphvizParam> {
