@@ -534,6 +534,11 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
       CHECK_EQ(n_entries, in_offset.at(offset + n_rows) - in_offset.at(offset));
       std::copy_n(in_data.cbegin() + in_offset.at(offset), n_entries, h_data.begin());
     }
+
+    size_t Size() const {
+      CHECK_GE(offset.size(), 1);
+      return offset.back();
+    }
   };
 
   class DataPool {
@@ -543,22 +548,15 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
 
    public:
     bool Full() const { return block_.MemCostBytes() > page_size_; }
-    bool Push(dmlc::RowBlock<uint32_t> const* block) {
-      CHECK_EQ(block->offset[0], 0);
-      block_.offset.resize(block->size+1);
-      std::copy_n(block->offset + 1, block->size, this->block_.offset.data());
-      block_.value.resize(block->size);
-      std::copy_n(block->value, block->size, this->block_.value.data());
-      return Full();
-    }
+    bool Push(dmlc::RowBlock<uint32_t> const* block);
 
     auto Value() {
       if (Full()) {
         size_t i = page_size_;
         staging_.Clear();
-        staging_.CopySlice(block_, block_.offset.at(i), 0);
+        staging_.CopySlice(block_, i, 0);
         Block remaining;
-        remaining.CopySlice(block_, block_.offset.back() - block_.offset.at(i), block_.offset.at(i));
+        remaining.CopySlice(block_, block_.Size() - i, i);
         block_ = std::move(remaining);
       } else {
         staging_ = std::move(block_);
@@ -682,7 +680,7 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
     block_.index = dmlc::BeginPtr(index_);
     block_.value = dmlc::BeginPtr(value_);
 
-    batch_.reset(new FileAdapterBatch(&block_, row_offset_));
+    batch_.reset(new FileAdapterBatch(block_, row_offset_));
     row_offset_ += offset_.size() - 1;
   }
 
