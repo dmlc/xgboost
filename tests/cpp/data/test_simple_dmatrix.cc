@@ -214,7 +214,7 @@ TEST(SimpleDMatrix, FromFile) {
   };
 
   constexpr bst_feature_t kCols = 5;
-  data::FileAdapter adapter(parser.get());
+  data::FileAdapter adapter(parser.get(), DMatrix::kPageSize);
   data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
                            1);
   ASSERT_EQ(dmat.Info().num_col_, kCols);

@@ -28,8 +28,6 @@ void FileAdapter::Block::CopySlice(Block const &that, size_t n_rows, size_t offs
   std::copy_n(in_data.cbegin() + in_offset.at(offset), n_entries, h_data.begin());
 }
 
-FileAdapter::DataPool::DataPool() : page_size_{DMatrix::kPageSize} {}
-
 dmlc::RowBlock<uint32_t> FileAdapter::DataPool::Value() {
   if (Full()) {
     size_t i = page_size_;

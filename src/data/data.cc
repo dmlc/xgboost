@@ -677,7 +677,7 @@ DMatrix* DMatrix::Load(const std::string& uri,
 
   std::unique_ptr<dmlc::Parser<uint32_t> > parser(
       dmlc::Parser<uint32_t>::Create(fname.c_str(), partid, npart, file_format.c_str()));
-  data::FileAdapter adapter(parser.get());
+  data::FileAdapter adapter(parser.get(), page_size);
   DMatrix* dmat {nullptr};
 
   try {

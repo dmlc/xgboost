@@ -529,7 +529,7 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
     size_t page_size_;
 
    public:
-    DataPool();
+    explicit DataPool(size_t page_size) : page_size_{page_size} {}
     bool Full() const { return block_.Size() > page_size_; }
     bool Push(dmlc::RowBlock<uint32_t> const* block);
     dmlc::RowBlock<uint32_t> Value();
@@ -539,7 +539,8 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
   DataPool pool_;
 
  public:
-  explicit FileAdapter(dmlc::Parser<uint32_t>* parser) : parser_(parser) {}
+  explicit FileAdapter(dmlc::Parser<uint32_t> *parser, size_t page_size)
+      : pool_{page_size}, parser_{parser} {}
 
   const FileAdapterBatch& Value() const override { return *batch_.get(); }
   void BeforeFirst() override {
