@@ -163,7 +163,7 @@ class ColMaker: public TreeUpdater {
                         DMatrix* p_fmat,
                         RegTree* p_tree) {
       std::vector<int> newnodes;
-      this->InitData(gpair, *p_fmat, *p_tree);
+      this->InitData(gpair, *p_fmat);
       this->InitNewNode(qexpand_, gpair, *p_fmat, *p_tree);
       for (int depth = 0; depth < param_.max_depth; ++depth) {
         this->FindSplit(depth, qexpand_, gpair, p_fmat, p_tree);
@@ -200,8 +200,7 @@ class ColMaker: public TreeUpdater {
    protected:
     // initialize temp data structure
     inline void InitData(const std::vector<GradientPair>& gpair,
-                         const DMatrix& fmat,
-                         const RegTree& tree) {
+                         const DMatrix& fmat) {
       {
         // setup position
         position_.resize(gpair.size());
@@ -439,7 +438,7 @@ class ColMaker: public TreeUpdater {
     virtual void UpdateSolution(const SparsePage &batch,
                                 const std::vector<bst_feature_t> &feat_set,
                                 const std::vector<GradientPair> &gpair,
-                                DMatrix*p_fmat) {
+                                DMatrix*) {
       // start enumeration
       const auto num_features = static_cast<bst_omp_uint>(feat_set.size());
 #if defined(_OPENMP)

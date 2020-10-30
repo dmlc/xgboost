@@ -107,7 +107,7 @@ class TreeEvaluator {
         return w;
       }
     }
-    XGBOOST_DEVICE float CalcGainGivenWeight(bst_node_t nid, ParamT const &p,
+    XGBOOST_DEVICE float CalcGainGivenWeight(bst_node_t, ParamT const &p,
                                              tree::GradStats stats, float w) const {
       if (stats.GetHess() <= 0) {
         return .0f;
@@ -149,7 +149,7 @@ class TreeEvaluator {
       return;
     }
     common::Transform<>::Init(
-        [=] XGBOOST_DEVICE(size_t idx, common::Span<float> lower,
+        [=] XGBOOST_DEVICE(size_t, common::Span<float> lower,
                            common::Span<float> upper,
                            common::Span<int> monotone) {
           lower[leftid] = lower[nodeid];

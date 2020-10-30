@@ -163,7 +163,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
     } else {
       common::Span<uint32_t> index_data_span = {index.data<uint32_t>(), n_index};
       SetIndexData(index_data_span, batch_threads, batch, rbegin, nbins,
-                   [](auto idx, auto i) { return idx; });
+                   [](auto idx, auto) { return idx; });
     }
 
     #pragma omp parallel for num_threads(nthread) schedule(static)

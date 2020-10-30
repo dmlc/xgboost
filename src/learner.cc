@@ -341,7 +341,7 @@ class LearnerConfiguration : public Learner {
 
   void LoadConfig(Json const& in) override {
     CHECK(IsA<Object>(in));
-    Version::Load(in, true);
+    Version::Load(in);
 
     auto const& learner_parameters = get<Object>(in["learner"]);
     FromJson(learner_parameters.at("learner_train_param"), &tparam_);
@@ -623,7 +623,7 @@ class LearnerIO : public LearnerConfiguration {
 
   void LoadModel(Json const& in) override {
     CHECK(IsA<Object>(in));
-    Version::Load(in, false);
+    Version::Load(in);
     auto const& learner = get<Object>(in["learner"]);
     mparam_.FromJson(learner.at("learner_model_param"));
 

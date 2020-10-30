@@ -37,7 +37,7 @@ class SparsePageDMatrix : public DMatrix {
   const MetaInfo& Info() const override;
 
   bool SingleColBlock() const override { return false; }
-  DMatrix *Slice(common::Span<int32_t const> ridxs) override {
+  DMatrix *Slice(common::Span<int32_t const>) override {
     LOG(FATAL) << "Slicing DMatrix is not supported for external memory.";
     return nullptr;
   }

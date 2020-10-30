@@ -69,20 +69,24 @@ class TreeGenerator {
     return result;
   }
 
-  virtual std::string Indicator(RegTree const& tree, int32_t nid, uint32_t depth) const {
+  virtual std::string Indicator(RegTree const& /*tree*/,
+                                int32_t /*nid*/, uint32_t /*depth*/) const {
     return "";
   }
-  virtual std::string Integer(RegTree const& tree, int32_t nid, uint32_t depth) const {
+  virtual std::string Integer(RegTree const& /*tree*/,
+                                int32_t /*nid*/, uint32_t /*depth*/) const {
     return "";
   }
-  virtual std::string Quantitive(RegTree const& tree, int32_t nid, uint32_t depth) const {
+  virtual std::string Quantitive(RegTree const& /*tree*/,
+                                int32_t /*nid*/, uint32_t /*depth*/) const {
     return "";
   }
-  virtual std::string NodeStat(RegTree const& tree, int32_t nid) const {
+  virtual std::string NodeStat(RegTree const& /*tree*/, int32_t /*nid*/) const {
     return "";
   }
 
-  virtual std::string PlainNode(RegTree const& tree, int32_t nid, uint32_t depth) const = 0;
+  virtual std::string PlainNode(RegTree const& /*tree*/,
+                                int32_t /*nid*/, uint32_t /*depth*/) const = 0;
 
   virtual std::string SplitNode(RegTree const& tree, int32_t nid, uint32_t depth) {
     auto const split_index = tree[nid].SplitIndex();
@@ -179,7 +183,7 @@ class TextGenerator : public TreeGenerator {
   using SuperT = TreeGenerator;
 
  public:
-  TextGenerator(FeatureMap const& fmap, std::string const& attrs, bool with_stats) :
+  TextGenerator(FeatureMap const& fmap, bool with_stats) :
       TreeGenerator(fmap, with_stats) {}
 
   std::string LeafNode(RegTree const& tree, int32_t nid, uint32_t depth) const override {
@@ -196,7 +200,7 @@ class TextGenerator : public TreeGenerator {
     return result;
   }
 
-  std::string Indicator(RegTree const& tree, int32_t nid, uint32_t depth) const override {
+  std::string Indicator(RegTree const& tree, int32_t nid, uint32_t) const override {
     static std::string const kIndicatorTemplate = "{nid}:[{fname}] yes={yes},no={no}";
     int32_t nyes = tree[nid].DefaultLeft() ?
                    tree[nid].RightChild() : tree[nid].LeftChild();
@@ -288,14 +292,14 @@ class TextGenerator : public TreeGenerator {
 XGBOOST_REGISTER_TREE_IO(TextGenerator, "text")
 .describe("Dump text representation of tree")
 .set_body([](FeatureMap const& fmap, std::string const& attrs, bool with_stats) {
-            return new TextGenerator(fmap, attrs, with_stats);
+            return new TextGenerator(fmap, with_stats);
           });
 
 class JsonGenerator : public TreeGenerator {
   using SuperT = TreeGenerator;
 
  public:
-  JsonGenerator(FeatureMap const& fmap, std::string attrs, bool with_stats) :
+  JsonGenerator(FeatureMap const& fmap, bool with_stats) :
       TreeGenerator(fmap, with_stats) {}
 
   std::string Indent(uint32_t depth) const {
@@ -306,7 +310,7 @@ class JsonGenerator : public TreeGenerator {
     return result;
   }
 
-  std::string LeafNode(RegTree const& tree, int32_t nid, uint32_t depth) const override {
+  std::string LeafNode(RegTree const& tree, int32_t nid, uint32_t) const override {
     static std::string const kLeafTemplate =
         R"L({ "nodeid": {nid}, "leaf": {leaf} {stat}})L";
     static std::string const kStatTemplate =
@@ -426,7 +430,7 @@ class JsonGenerator : public TreeGenerator {
 XGBOOST_REGISTER_TREE_IO(JsonGenerator, "json")
 .describe("Dump json representation of tree")
 .set_body([](FeatureMap const& fmap, std::string const& attrs, bool with_stats) {
-            return new JsonGenerator(fmap, attrs, with_stats);
+            return new JsonGenerator(fmap, with_stats);
           });
 
 struct GraphvizParam : public XGBoostParameter<GraphvizParam> {
@@ -531,7 +535,7 @@ class GraphvizGenerator : public TreeGenerator {
  protected:
   // Only indicator is different, so we combine all different node types into this
   // function.
-  std::string PlainNode(RegTree const& tree, int32_t nid, uint32_t depth) const override {
+  std::string PlainNode(RegTree const& tree, int32_t nid, uint32_t) const override {
     auto split = tree[nid].SplitIndex();
     auto cond = tree[nid].SplitCond();
     static std::string const kNodeTemplate =
@@ -565,7 +569,7 @@ class GraphvizGenerator : public TreeGenerator {
     return result;
   };
 
-  std::string LeafNode(RegTree const& tree, int32_t nid, uint32_t depth) const override {
+  std::string LeafNode(RegTree const& tree, int32_t nid, uint32_t) const override {
     static std::string const kLeafTemplate =
         "    {nid} [ label=\"leaf={leaf-value}\" {params}]\n";
     auto result = SuperT::Match(kLeafTemplate, {
