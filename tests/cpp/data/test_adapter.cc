@@ -140,7 +140,9 @@ TEST(Adapter, IteratorAdapter) {
 
 TEST(Adapter, FileAdapter) {
   data::FileAdapter::DataPool pool(16);
-  std::string filename = "test.libsvm";
-  CreateBigTestData(filename, 1 << 8);
+
+  ASSERT_FALSE(pool.Full());
+
+  auto block = data::FileAdapter::Block{}.Clear();
 }
 }  // namespace xgboost

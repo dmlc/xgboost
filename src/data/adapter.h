@@ -503,7 +503,7 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
       return dmlc::RowBlock<uint32_t>(*this).MemCostBytes();
     }
 
-    void Clear() {
+    Block& Clear() {
       offset.resize(1);
       offset.front() = 0;
 
@@ -513,6 +513,8 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
       field.clear();
       index.clear();
       value.clear();
+
+      return *this;
     }
 
     void CopySlice(Block const& that, size_t n_rows, size_t offset);
