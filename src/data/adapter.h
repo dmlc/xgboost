@@ -521,7 +521,7 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
 
     size_t Size() const {
       CHECK_GE(offset.size(), 1);
-      return offset.back();
+      return offset.size() - 1;
     }
   };
 

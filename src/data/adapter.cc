@@ -20,6 +20,8 @@ template <typename T> auto CopyMeta(std::vector<T> *p_out, std::vector<T> const 
 void FileAdapter::Block::CopySlice(Block const &that, size_t n_rows, size_t offset) {
   auto &in_offset = that.offset;
   auto &in_data = that.value;
+  auto& in_index = that.index;
+
   size_t entry_offset = 0;
 
   Block &out = *this;
@@ -33,9 +35,11 @@ void FileAdapter::Block::CopySlice(Block const &that, size_t n_rows, size_t offs
   CHECK_GT(h_offset.size(), 0);
   size_t n_entries = h_offset.back();
   h_data.resize(n_entries);
+  auto& h_index = out.index;
 
   CHECK_EQ(n_entries, in_offset.at(offset + n_rows) - in_offset.at(offset));
   std::copy_n(in_data.cbegin() + in_offset.at(offset), n_entries, h_data.begin());
+  std::copy_n(in_index.cbegin() + in_offset.at(offset), n_entries, h_index.begin());
 
   CopyMeta(&label, that.label, offset, n_rows);
   CopyMeta(&weight, that.weight, offset, n_rows);
@@ -53,55 +57,69 @@ dmlc::RowBlock<uint32_t> FileAdapter::DataPool::Value() {
     block_ = std::move(remaining);
   } else {
     staging_ = std::move(block_);
+    CHECK(!staging_.value.empty());
+    CHECK(!staging_.index.empty());
     block_.Clear();
   }
   return dmlc::RowBlock<uint32_t>(staging_);  // NOLINT
 }
 
-bool FileAdapter::DataPool::Push(dmlc::RowBlock<uint32_t> const *block) {
-  CHECK_EQ(block->offset[0], 0);
+bool FileAdapter::DataPool::Push(dmlc::RowBlock<uint32_t> const *that) {
+  CHECK_EQ(that->offset[0], 0);
+  CHECK(!block_.offset.empty());
+
+  auto before_push = block_.Size();
+
   size_t back = block_.offset.size();
-  block_.offset.resize(block->size + back);
-  std::copy_n(block->offset + 1, block->size, this->block_.offset.begin() + back);
-
-  if (block->weight) {
+  CHECK_NE(that->size, 0);
+  size_t last = block_.offset.back();
+  block_.offset.resize(that->size + back);
+  std::transform(that->offset + 1, that->offset + 1 + that->size,
+                 block_.offset.begin() + back, [last](size_t ptr) { return ptr + last; });
+  if (that->weight) {
     back = block_.weight.size();
-    std::copy_n(block->weight, block->size, this->block_.weight.begin() + back);
+    block_.weight.resize(that->size + back);
+    std::copy_n(that->weight, that->size, this->block_.weight.begin() + back);
   }
-  if (block->qid) {
+  if (that->qid) {
     back = block_.qid.size();
-    std::copy_n(block->qid, block->size, this->block_.qid.begin() + back);
+    block_.qid.resize(that->size + back);
+    std::copy_n(that->qid, that->size, this->block_.qid.begin() + back);
   }
-  if (block->field) {
-    back = block_.field.size();
-    std::copy_n(block->field, block->size, this->block_.field.begin() + back);
+  if (that->label) {
+    back = block_.label.size();
+    block_.label.resize(that->size + back);
+    std::copy_n(that->label, that->size, this->block_.label.begin() + back);
   }
-  if (block->index) {
-    back = block_.index.size();
-    std::copy_n(block->index, block->size, this->block_.index.begin() + back);
-  }
-  if (block->value) {
-    back = block_.value.size();
-    std::copy_n(block->value, block->size, this->block_.value.begin() + back);
-  }
+  CHECK(!that->field);
 
-  CHECK(block->value || block->size == 0);
+  CHECK(that->value || that->size == 0);
+  size_t n_entries = that->offset[that->size];
   back = block_.value.size();
-  block_.value.resize(block->size + back);
-  std::copy_n(block->value, block->size, this->block_.value.begin() + back);
+  block_.value.resize(n_entries + back);
+  std::copy_n(that->value, n_entries, this->block_.value.begin() + back);
+  block_.index.resize(n_entries + back);
+  std::copy_n(that->index, n_entries, this->block_.index.begin() + back);
+
+  auto after_push = block_.Size();
+  CHECK_GT(after_push, before_push);
   return Full();
 }
 
 bool FileAdapter::Next() {
   if (pool_.Full()) {
+    std::cout << "Full" << std::endl;
     auto block = pool_.Value();
     batch_.reset(new FileAdapterBatch(block, row_offset_));
     return true;
   }
   bool next = false;
-  while ((next = parser_->Next()) && pool_.Push(&parser_->Value())) {
+  while ((next = parser_->Next()) && !(pool_.Push(&parser_->Value()))) {
   }
+  std::cout << "next: " << next << std::endl;
   auto block = pool_.Value();
+  CHECK(block.value);
+  CHECK(block.index);
   batch_.reset(new FileAdapterBatch(block, row_offset_));
   row_offset_ += block.size;
   return next;
