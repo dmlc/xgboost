@@ -501,21 +501,24 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
     inline size_t MemCostBytes() const {
       return dmlc::RowBlock<uint32_t>(*this).MemCostBytes();
     }
-  };
 
-  class DataPool {
-    Block block_;
-    Block staging_;  // to be returned to caller
+    void Clear() {
+      offset.resize(1);
+      offset.front() = 0;
 
-    size_t page_size_ {0};
-    size_t offset_{0};
-    size_t entry_offset_{0};
+      label.clear();
+      weight.clear(), qid.clear();
+      field.clear();
+      index.clear();
+      value.clear();
+    }
 
-    Block Slice(size_t offset, size_t n_rows, size_t entry_offset) const {
-      auto& in_offset = block_.offset;
-      auto& in_data = block_.value;
+    void CopySlice(Block const& that, size_t n_rows, size_t offset) {
+      auto& in_offset = that.offset;
+      auto& in_data = that.value;
+      size_t entry_offset = 0;
 
-      Block out;
+      Block& out = *this;
       auto &h_offset = out.offset;
       CHECK_LE(offset + n_rows + 1, in_offset.size());
       h_offset.resize(n_rows + 1, 0);
@@ -529,11 +532,14 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
       h_data.resize(n_entries);
 
       CHECK_EQ(n_entries, in_offset.at(offset + n_rows) - in_offset.at(offset));
-      std::copy_n(in_data.cbegin() + in_offset.at(offset), n_entries,
-                  h_data.begin());
-
-      return out;
+      std::copy_n(in_data.cbegin() + in_offset.at(offset), n_entries, h_data.begin());
     }
+  };
+
+  class DataPool {
+    Block block_;
+    Block staging_;  // to be returned to caller
+    size_t page_size_ {0};
 
    public:
     bool Full() const { return block_.MemCostBytes() > page_size_; }
@@ -546,9 +552,18 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
       return Full();
     }
 
-     auto Value() {
-      size_t i = std::upper_bound(block_.offset.begin(), block_.offset.end(), []{}) - block_.offset.cbegin();
-      staging_ = this->Slice(offset_, block_.offset.at(i), entry_offset_);
+    auto Value() {
+      if (Full()) {
+        size_t i = page_size_;
+        staging_.Clear();
+        staging_.CopySlice(block_, block_.offset.at(i), 0);
+        Block remaining;
+        remaining.CopySlice(block_, block_.offset.back() - block_.offset.at(i), block_.offset.at(i));
+        block_ = std::move(remaining);
+      } else {
+        staging_ = std::move(block_);
+        block_.Clear();
+      }
       return dmlc::RowBlock<uint32_t>(staging_);
     }
   };
