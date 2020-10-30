@@ -515,27 +515,7 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
       value.clear();
     }
 
-    void CopySlice(Block const& that, size_t n_rows, size_t offset) {
-      auto& in_offset = that.offset;
-      auto& in_data = that.value;
-      size_t entry_offset = 0;
-
-      Block& out = *this;
-      auto &h_offset = out.offset;
-      CHECK_LE(offset + n_rows + 1, in_offset.size());
-      h_offset.resize(n_rows + 1, 0);
-      std::transform(in_offset.cbegin() + offset,
-                     in_offset.cbegin() + offset + n_rows + 1, h_offset.begin(),
-                     [=](size_t ptr) { return ptr - entry_offset; });
-
-      auto &h_data = out.value;
-      CHECK_GT(h_offset.size(), 0);
-      size_t n_entries = h_offset.back();
-      h_data.resize(n_entries);
-
-      CHECK_EQ(n_entries, in_offset.at(offset + n_rows) - in_offset.at(offset));
-      std::copy_n(in_data.cbegin() + in_offset.at(offset), n_entries, h_data.begin());
-    }
+    void CopySlice(Block const& that, size_t n_rows, size_t offset);
 
     size_t Size() const {
       CHECK_GE(offset.size(), 1);
@@ -546,26 +526,13 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
   class DataPool {
     Block block_;
     Block staging_;  // to be returned to caller
-    size_t page_size_ {0};
+    size_t page_size_;
 
    public:
-    bool Full() const { return block_.MemCostBytes() > page_size_; }
+    DataPool();
+    bool Full() const { return block_.Size() > page_size_; }
     bool Push(dmlc::RowBlock<uint32_t> const* block);
-
-    auto Value() {
-      if (Full()) {
-        size_t i = page_size_;
-        staging_.Clear();
-        staging_.CopySlice(block_, i, 0);
-        Block remaining;
-        remaining.CopySlice(block_, block_.Size() - i, i);
-        block_ = std::move(remaining);
-      } else {
-        staging_ = std::move(block_);
-        block_.Clear();
-      }
-      return dmlc::RowBlock<uint32_t>(staging_);
-    }
+    dmlc::RowBlock<uint32_t> Value();
   };
 
  private:
@@ -580,20 +547,8 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
     parser_->BeforeFirst();
     row_offset_ = 0;
   }
-  bool Next() override {
-    if (pool_.Full()) {
-      auto block = pool_.Value();
-      batch_.reset(new FileAdapterBatch(block, row_offset_));
-      return true;
-    }
-    bool next = false;
-    while ((next = parser_->Next()) && pool_.Push(&parser_->Value())) {
-    }
-    auto block = pool_.Value();
-    batch_.reset(new FileAdapterBatch(block, row_offset_));
-    row_offset_ += block.size;
-    return next;
-  }
+  bool Next() override;
+
   // Indicates a number of rows/columns must be inferred
   size_t NumRows() const { return kAdapterUnknownSize; }
   size_t NumColumns() const { return kAdapterUnknownSize; }

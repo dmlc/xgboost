@@ -138,4 +138,7 @@ TEST(Adapter, IteratorAdapter) {
   ASSERT_EQ(num_batch, 1);
 }
 
+TEST(Adapter, FileAdapter) {
+  data::FileAdapter::DataPool pool;
+}
 }  // namespace xgboost
