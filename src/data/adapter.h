@@ -468,6 +468,7 @@ class FileAdapterBatch {
 /** \brief FileAdapter wraps dmlc::parser to read files and provide access in a
  * common interface. */
 class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
+ public:
   struct Block {
     std::vector<size_t> offset {0};
     /*! \brief array[size] label of each instance */
@@ -498,7 +499,7 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
     }
 
 
-    inline size_t MemCostBytes() const {
+    size_t MemCostBytes() const {
       return dmlc::RowBlock<uint32_t>(*this).MemCostBytes();
     }
 
@@ -507,7 +508,8 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
       offset.front() = 0;
 
       label.clear();
-      weight.clear(), qid.clear();
+      weight.clear();
+      qid.clear();
       field.clear();
       index.clear();
       value.clear();
@@ -565,6 +567,8 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
       return dmlc::RowBlock<uint32_t>(staging_);
     }
   };
+
+ private:
   DataPool pool_;
 
  public:
