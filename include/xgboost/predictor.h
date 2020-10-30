@@ -117,7 +117,7 @@ class Predictor {
    *
    * \param cfg   The configuration.
    */
-  virtual void Configure(const std::vector<std::pair<std::string, std::string>>& cfg);
+  virtual void Configure(const std::vector<std::pair<std::string, std::string>>&);
 
   /**
    * \brief Generate batch predictions for a given feature matrix. May use

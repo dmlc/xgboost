@@ -163,7 +163,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
                                      const unsigned* indices,
                                      const bst_float* data,
                                      size_t nindptr,
-                                     size_t nelem,
+                                     size_t,
                                      size_t num_row,
                                      DMatrixHandle* out) {
   API_BEGIN();

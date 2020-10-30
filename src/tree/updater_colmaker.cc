@@ -439,7 +439,7 @@ class ColMaker: public TreeUpdater {
     virtual void UpdateSolution(const SparsePage &batch,
                                 const std::vector<bst_feature_t> &feat_set,
                                 const std::vector<GradientPair> &gpair,
-                                DMatrix*p_fmat) {
+                                DMatrix*) {
       // start enumeration
       const auto num_features = static_cast<bst_omp_uint>(feat_set.size());
 #if defined(_OPENMP)

@@ -159,9 +159,9 @@ class HistMaker: public BaseMaker {
                                        const RegTree &tree) {
   }
   virtual void CreateHist(const std::vector<GradientPair> &gpair,
-                          DMatrix *p_fmat,
+                          DMatrix *,
                           const std::vector <bst_feature_t> &fset,
-                          const RegTree &tree)  = 0;
+                          const RegTree &)  = 0;
 
  private:
   void EnumerateSplit(const HistUnit &hist,
@@ -376,7 +376,7 @@ class CQHistMaker: public HistMaker {
                              this->wspace_.hset[0].data.size(), lazy_get_hist);
   }
 
-  void ResetPositionAfterSplit(DMatrix *p_fmat,
+  void ResetPositionAfterSplit(DMatrix *,
                                  const RegTree &tree) override {
     this->GetSplitSet(this->qexpand_, tree, &fsplit_set_);
   }
