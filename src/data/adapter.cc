@@ -76,7 +76,10 @@ bool FileAdapter::DataPool::Push(dmlc::RowBlock<uint32_t> const *block) {
     back = block_.field.size();
     std::copy_n(block->field, block->size, this->block_.field.begin() + back);
   }
-  CHECK(!block->index);
+  if (block->index) {
+    back = block_.index.size();
+    std::copy_n(block->index, block->size, this->block_.index.begin() + back);
+  }
   if (block->value) {
     back = block_.value.size();
     std::copy_n(block->value, block->size, this->block_.value.begin() + back);

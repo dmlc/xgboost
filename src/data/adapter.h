@@ -481,6 +481,8 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
     std::vector<uint64_t> qid;
     /*! \brief field id*/
     std::vector<uint32_t> field;
+    /*! \brief feature index */
+    std::vector<uint32_t> index;
     /*! \brief feature value, can be NULL, indicating all values are 1 */
     std::vector<float> value;
 
@@ -491,7 +493,7 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
                                    weight.data(),
                                    qid.data(),
                                    field.data(),
-                                   nullptr,
+                                   index.data(),
                                    value.data()};
       return out;
     }
@@ -509,6 +511,7 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
       weight.clear();
       qid.clear();
       field.clear();
+      index.clear();
       value.clear();
 
       return *this;
