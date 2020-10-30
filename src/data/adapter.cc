@@ -7,6 +7,16 @@
 namespace xgboost {
 namespace data {
 
+template <typename T> auto CopyMeta(std::vector<T> *p_out, std::vector<T> const &in,
+                                    size_t offset, size_t n_rows) {
+  auto &out = *p_out;
+  out.clear();
+  if (!in.empty()) {
+    out.resize(n_rows);
+    std::copy_n(in.begin() + offset, n_rows, out.begin());
+  }
+}
+
 void FileAdapter::Block::CopySlice(Block const &that, size_t n_rows, size_t offset) {
   auto &in_offset = that.offset;
   auto &in_data = that.value;
@@ -26,6 +36,11 @@ void FileAdapter::Block::CopySlice(Block const &that, size_t n_rows, size_t offs
 
   CHECK_EQ(n_entries, in_offset.at(offset + n_rows) - in_offset.at(offset));
   std::copy_n(in_data.cbegin() + in_offset.at(offset), n_entries, h_data.begin());
+
+  CopyMeta(&label, that.label, offset, n_rows);
+  CopyMeta(&weight, that.weight, offset, n_rows);
+  CopyMeta(&qid, that.qid, offset, n_rows);
+  CopyMeta(&field, that.field, offset, n_rows);
 }
 
 dmlc::RowBlock<uint32_t> FileAdapter::DataPool::Value() {
@@ -61,10 +76,7 @@ bool FileAdapter::DataPool::Push(dmlc::RowBlock<uint32_t> const *block) {
     back = block_.field.size();
     std::copy_n(block->field, block->size, this->block_.field.begin() + back);
   }
-  if (block->index) {
-    back = block_.index.size();
-    std::copy_n(block->index, block->size, this->block_.index.begin() + back);
-  }
+  CHECK(!block->index);
   if (block->value) {
     back = block_.value.size();
     std::copy_n(block->value, block->size, this->block_.value.begin() + back);
