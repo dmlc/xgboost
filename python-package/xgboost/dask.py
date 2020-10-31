@@ -18,6 +18,7 @@ import logging
 from collections import defaultdict
 from collections.abc import Sequence
 from threading import Thread
+from typing import List
 
 import numpy
 
@@ -339,21 +340,24 @@ class DaskDMatrix:
                 'is_quantile': self.is_quantile}
 
 
-def _get_worker_parts_ordered(has_base_margin, worker_map, partition_order,
-                              worker):
-    list_of_parts = worker_map[worker.address]
-    client = distributed.get_client()
-    list_of_parts_value = client.gather(list_of_parts)
+def _get_worker_parts_ordered(meta_names, worker_map, partition_order, worker):
+    list_of_parts: List[tuple] = worker_map[worker.address]
+    # List of partitions like: [(data, label, weight, margin, ...), ...]
+    assert isinstance(list_of_parts, list)
+    with distributed.worker_client() as client:
+        list_of_parts_value = client.gather(list_of_parts)
 
-    result = []
+        result = []
 
-    for i, part in enumerate(list_of_parts):
-        data = list_of_parts_value[i][0]
-        if has_base_margin:
-            base_margin = list_of_parts_value[i][1]
-        else:
-            base_margin = None
-        result.append((data, base_margin, partition_order[part.key]))
+        for i, part in enumerate(list_of_parts):
+            data = list_of_parts_value[i][0]
+            if 'base_margin' in meta_names:
+                for j, name in enumerate(meta_names):
+                    if name == 'base_margin':
+                        base_margin = list_of_parts_value[i][j + 1]
+            else:
+                base_margin = None
+            result.append((data, base_margin, partition_order[part.key]))
 
     return result
 
@@ -795,7 +799,7 @@ async def _predict_async(client, model, data, missing=numpy.nan, **kwargs):
     feature_names = data.feature_names
     feature_types = data.feature_types
     missing = data.missing
-    has_margin = "base_margin" in data.meta_names
+    meta_names = data.meta_names
 
     def dispatched_predict(worker_id):
         '''Perform prediction on each worker.'''
@@ -803,7 +807,7 @@ async def _predict_async(client, model, data, missing=numpy.nan, **kwargs):
 
         worker = distributed.get_worker()
         list_of_parts = _get_worker_parts_ordered(
-            has_margin, worker_map, partition_order, worker)
+            meta_names, worker_map, partition_order, worker)
         predictions = []
         booster.set_param({'nthread': worker.nthreads})
         for data, base_margin, order in list_of_parts:
@@ -829,7 +833,7 @@ async def _predict_async(client, model, data, missing=numpy.nan, **kwargs):
         LOGGER.info('Get shape on %d', worker_id)
         worker = distributed.get_worker()
         list_of_parts = _get_worker_parts_ordered(
-            False,
+            meta_names,
             worker_map,
             partition_order,
             worker
