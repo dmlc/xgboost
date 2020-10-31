@@ -582,6 +582,11 @@ def test_predict_with_meta(client):
     prediction = client.compute(prediction).result()
     assert np.all(prediction > 1e3)
 
+    m = xgb.DMatrix(X.compute())
+    m.set_info(label=y.compute(), weight=w.compute(), base_margin=margin.compute())
+    single = booster.predict(m)  # Make sure the ordering is correct.
+    assert np.all(prediction == single)
+
 
 def run_aft_survival(client, dmatrix_t):
     # survival doesn't handle empty dataset well.
