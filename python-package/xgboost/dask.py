@@ -981,8 +981,7 @@ def inplace_predict(client, model, data,
                        missing=missing)
 
 
-async def _evaluation_matrices(client, validation_set, sample_weight, base_margin,
-                               missing):
+async def _evaluation_matrices(client, validation_set, sample_weight, missing):
     '''
     Parameters
     ----------
@@ -1006,9 +1005,8 @@ async def _evaluation_matrices(client, validation_set, sample_weight, base_margi
         assert isinstance(validation_set, list)
         for i, e in enumerate(validation_set):
             w = (sample_weight[i] if sample_weight is not None else None)
-            margin = (base_margin[i] if base_margin is not None else None)
             dmat = await DaskDMatrix(client=client, data=e[0], label=e[1],
-                                     weight=w, missing=missing, base_margin=margin)
+                                     weight=w, missing=missing)
             evals.append((dmat, 'validation_{}'.format(i)))
     else:
         evals = None
@@ -1093,7 +1091,6 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         params = self.get_xgb_params()
         evals = await _evaluation_matrices(self.client, eval_set,
                                            sample_weight_eval_set,
-                                           base_margin,
                                            self.missing)
         results = await train(client=self.client,
                               params=params,
@@ -1177,7 +1174,6 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 
         evals = await _evaluation_matrices(self.client, eval_set,
                                            sample_weight_eval_set,
-                                           base_margin,
                                            self.missing)
         results = await train(client=self.client,
                               params=params,
