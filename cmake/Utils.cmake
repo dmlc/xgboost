@@ -156,9 +156,7 @@ function(xgboost_set_cuda_flags target)
   endif (USE_NVTX)
 
   target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
-  if (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
-    target_include_directories(${target} PRIVATE ${xgboost_SOURCE_DIR}/cub/)
-  endif (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
+  target_include_directories(${target} PRIVATE ${xgboost_SOURCE_DIR}/cub/)
 
   if (MSVC)
     target_compile_options(${target} PRIVATE
