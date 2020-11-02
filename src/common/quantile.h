@@ -739,6 +739,11 @@ class HostSketchContainer {
                                                 bst_feature_t n_columns,
                                                 size_t const nthreads);
 
+ static std::vector<bst_feature_t> LoadBalancePerRow(SparsePage const &page,
+                                                bst_feature_t n_columns,
+												bst_feature_t n_rows,
+                                                size_t const nthreads);
+
   static uint32_t SearchGroupIndFromRow(std::vector<bst_uint> const &group_ptr,
                                         size_t const base_rowid) {
     CHECK_LT(base_rowid, group_ptr.back())
