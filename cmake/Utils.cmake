@@ -155,7 +155,7 @@ function(xgboost_set_cuda_flags target)
     enable_nvtx(${target})
   endif (USE_NVTX)
 
-  target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
+  target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1 -DTHRUST_IGNORE_CUB_VERSION_CHECK=1)
   target_include_directories(${target} PRIVATE ${xgboost_SOURCE_DIR}/cub/)
 
   if (MSVC)

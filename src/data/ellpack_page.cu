@@ -177,7 +177,7 @@ struct TupleScanOp {
 // Change the value type of thrust discard iterator so we can use it with cub
 template <typename T>
 class TypedDiscard : public thrust::discard_iterator<T> {
-public:
+ public:
   using value_type = T;  // NOLINT
 };
 
