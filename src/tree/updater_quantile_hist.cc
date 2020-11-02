@@ -136,7 +136,7 @@ void BatchHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT *builder,
     return nbins;
   }, 1024);
 
-common::ParallelFor2d(space, builder->nthread_, [&](size_t node, common::Range1d r) {
+  common::ParallelFor2d(space, builder->nthread_, [&](size_t node, common::Range1d r) {
     const auto entry = builder->nodes_for_explicit_hist_build_[node];
     auto this_hist = builder->hist_[entry.nid];
     // Merging histograms from each thread into once
@@ -232,7 +232,7 @@ void BatchHistRowsAdder<GradientSumT>::AddHistRows(BuilderT *builder,
   for (auto const& node : builder->nodes_for_subtraction_trick_) {
     builder->hist_.AddHistRow(node.nid);
   }
-builder->hist_.AllocateAllData();
+  builder->hist_.AllocateAllData();
   builder->builder_monitor_.Stop("AddHistRows");
 }
 

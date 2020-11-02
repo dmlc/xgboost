@@ -409,7 +409,7 @@ class HistCollection {
     constexpr uint32_t kMax = std::numeric_limits<uint32_t>::max();
     CHECK_NE(row_ptr_[nid], kMax);
     GradientPairT* ptr =
-        const_cast<GradientPairT*>(dmlc::BeginPtr(data_[row_ptr_[nid]]) /*+ row_ptr_[nid]*/);
+        const_cast<GradientPairT*>(dmlc::BeginPtr(data_[row_ptr_[nid]]));
     return {ptr, nbins_};
   }
 
@@ -438,16 +438,17 @@ class HistCollection {
     }
     CHECK_EQ(row_ptr_[nid], kMax);
 
-    if (data_.size() < /*nbins_ * */(nid + 1)) {
-      data_.resize(/*nbins_ * */(nid + 1));
+    if (data_.size() < (nid + 1)) {
+      data_.resize((nid + 1));
     }
 
-    row_ptr_[nid] = /*nbins_ **/ n_nodes_added_;
+    row_ptr_[nid] = n_nodes_added_;
     n_nodes_added_++;
   }
   void AllocateData(bst_uint nid) {
-    if(data_[row_ptr_[nid]].size() == 0)
+    if(data_[row_ptr_[nid]].size() == 0) {
       data_[row_ptr_[nid]].resize(nbins_,{0,0});
+    }
   }
   void AllocateAllData() {
     for(size_t i = 0; i < data_.size(); ++i) {
@@ -512,10 +513,8 @@ class ParallelGHistBuilder {
     CHECK_LT(nid, nodes_);
     CHECK_LT(tid, nthreads_);
 
-/*    size_t idx = tid_nid_to_hist_.at({tid, nid});
-    GHistRowT hist = hist_memory_[idx];*/
     int idx = tid_nid_to_hist_hist_buffer_.at({tid, nid});
-    if (idx >= 0 /*&& (!hist_was_used_[tid * nodes_ + nid])*/) {
+    if (idx >= 0) {
       hist_buffer_.AllocateData(idx);
     }
     GHistRowT hist = idx == -1 ? targeted_hists_[nid] : hist_buffer_[idx];
@@ -539,9 +538,7 @@ class ParallelGHistBuilder {
     for (size_t tid = 0; tid < nthreads_; ++tid) {
       if (hist_was_used_[tid * nodes_ + nid]) {
         is_updated = true;
-/*        const size_t idx = tid_nid_to_hist_.at({tid, nid});
-        GHistRowT src = hist_memory_[idx];
-*/
+
         int idx = tid_nid_to_hist_hist_buffer_.at({tid, nid});
         GHistRowT src = idx == -1 ? targeted_hists_[nid] : hist_buffer_[idx];
 
@@ -603,7 +600,6 @@ class ParallelGHistBuilder {
     for (size_t i = 0; i < hist_allocated_additionally; ++i) {
       hist_buffer_.AddHistRow(i);
     }
-    //hist_buffer_.AllocateAllData();
   }
 
   void MatchNodeNidPairToHist() {
@@ -615,17 +611,13 @@ class ParallelGHistBuilder {
       for (size_t tid = 0; tid < nthreads_; ++tid) {
         if (threads_to_nids_map_[tid * nodes_ + nid]) {
           if (first_hist) {
-            //hist_memory_.push_back(targeted_hists_[nid]);
             tid_nid_to_hist_hist_buffer_[{tid, nid}] = -1;
             first_hist = false;
           } else {
-            //hist_memory_.push_back(hist_buffer_[hist_allocated_additionally]);
             tid_nid_to_hist_hist_buffer_[{tid, nid}] = hist_allocated_additionally++;
-            //hist_allocated_additionally++;
           }
           // map pair {tid, nid} to index of allocated histogram from hist_memory_
           tid_nid_to_hist_[{tid, nid}] = hist_total++;
-          //CHECK_EQ(hist_total, hist_memory_.size());
         }
       }
     }

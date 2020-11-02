@@ -147,9 +147,6 @@ class PartitionBuilder {
     if (n_tasks > max_n_tasks_) {
       mem_blocks_.resize(n_tasks);
       max_n_tasks_ = n_tasks;
-/*      for(size_t i = 0; i < mem_blocks_.size(); ++i) {
-        mem_blocks_[i].resize(1);
-      }*/
     }
   }
   void AllocateForTask(size_t id) {
