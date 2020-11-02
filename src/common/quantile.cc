@@ -92,7 +92,7 @@ std::vector<bst_feature_t> HostSketchContainer::LoadBalance(
 void HostSketchContainer::PushRowPage(SparsePage const &page,
                                       MetaInfo const &info) {
   monitor_.Start(__func__);
-  int nthread = omp_get_max_threads();
+  int nthread = 1;//omp_get_max_threads();
   CHECK_EQ(sketches_.size(), info.num_col_);
 
   // Data groups, used in ranking.
@@ -104,18 +104,25 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
   auto const ncol = static_cast<uint32_t>(info.num_col_);
   auto const is_dense = info.num_nonzero_ == info.num_col_ * info.num_row_;
   auto thread_columns_ptr = LoadBalance(page, info.num_col_, nthread);
+  std::cout << "MC thread_columns_ptr: ";
+  for (size_t imc=0; imc < thread_columns_ptr.size(); imc++)
+    std::cout << thread_columns_ptr[imc] << ",";
+  std::cout << std::endl;
 
+  monitor_.Start("PushRowPage3");
 #pragma omp parallel num_threads(nthread)
   {
     exec.Run([&]() {
       auto tid = static_cast<uint32_t>(omp_get_thread_num());
       auto const begin = thread_columns_ptr[tid];
       auto const end = thread_columns_ptr[tid + 1];
+	  std::cout << "MC begin-end: " << begin << "-" << end << std::endl;
       size_t group_ind = 0;
 
       // do not iterate if no columns are assigned to the thread
       if (begin < end && end <= ncol) {
         for (size_t i = 0; i < batch.Size(); ++i) {
+		  std::cout << "MC for i: " << i << std::endl;
           size_t const ridx = page.base_rowid + i;
           SparsePage::Inst const inst = batch[i];
           if (use_group_ind_) {
@@ -127,12 +134,14 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
           if (is_dense) {
             for (size_t ii = begin; ii < end; ii++) {
               sketches_[ii].Push(p_inst[ii].fvalue, w);
+			  std::cout << "MC push1: " << p_inst[ii].fvalue << std::endl;
             }
           } else {
             for (size_t i = 0; i < inst.size(); ++i) {
               auto const& entry = p_inst[i];
               if (entry.index >= begin && entry.index < end) {
                 sketches_[entry.index].Push(entry.fvalue, w);
+				std::cout << "MC push2: " << entry.fvalue << std::endl;
               }
             }
           }
@@ -141,6 +150,17 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
     });
   }
   exec.Rethrow();
+
+  std::cout << "MC sketches: " << sketches_.size() << std::endl;
+  for (size_t i=0; i < sketches_.size(); i++) {
+	  std::cout << "MC sketches ii: " << sketches_[i].data.size() << std::endl;
+         for (size_t iv=0; iv < sketches_[i].data.size(); iv ++){
+                 std::cout << sketches_[i].data[iv].value << " ";
+         }
+         std::cout << std::endl;
+  }
+
+  monitor_.Stop("PushRowPage3");
   monitor_.Stop(__func__);
 }
 
