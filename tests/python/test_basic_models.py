@@ -29,7 +29,7 @@ def json_model(model_path, parameters):
     return model
 
 
-class TestModels(unittest.TestCase):
+class TestModels:
     def test_glm(self):
         param = {'verbosity': 0, 'objective': 'binary:logistic',
                  'booster': 'gblinear', 'alpha': 0.0001, 'lambda': 1,
@@ -209,12 +209,14 @@ class TestModels(unittest.TestCase):
 
         bst = xgb.train([], dm1)
         bst.predict(dm1)  # success
-        self.assertRaises(ValueError, bst.predict, dm2)
+        with pytest.raises(ValueError):
+            bst.predict(dm2)
         bst.predict(dm1)  # success
 
         bst = xgb.train([], dm2)
         bst.predict(dm2)  # success
-        self.assertRaises(ValueError, bst.predict, dm1)
+        with pytest.raises(ValueError):
+            bst.predict(dm1)
         bst.predict(dm2)  # success
 
     def test_model_binary_io(self):
@@ -326,7 +328,8 @@ class TestModels(unittest.TestCase):
                       'objective': 'multi:softmax'}
         validate_model(parameters)
 
-    def run_slice(self, booster):
+    @pytest.mark.parametrize('booster', ['gbtree', 'dart'])
+    def test_slice(self, booster):
         from sklearn.datasets import make_classification
         num_classes = 3
         X, y = make_classification(n_samples=1000, n_informative=5,
@@ -367,27 +370,36 @@ class TestModels(unittest.TestCase):
         sliced_trees = end * num_parallel_tree * num_classes
         assert sliced_trees == len(sliced.get_dump())
 
-        self.assertRaises(ValueError, lambda: booster[-1: 0])
+        with pytest.raises(ValueError, match=r'>= 0'):
+            booster[-1: 0]
+
         # we do not accept empty slice.
-        self.assertRaises(ValueError, lambda: booster[1:1])
+        with pytest.raises(ValueError):
+            booster[1:1]
         # stop can not be smaller than begin
-        self.assertRaises(ValueError, lambda: booster[3:0])
-        self.assertRaises(ValueError, lambda: booster[3:-1])
+        with pytest.raises(ValueError, match=r'Invalid.*'):
+            booster[3:0]
+        with pytest.raises(ValueError, match=r'Invalid.*'):
+            booster[3:-1]
         # negative step is not supported.
-        self.assertRaises(ValueError, lambda: booster[0:2:-1])
+        with pytest.raises(ValueError, match=r'.*>= 1.*'):
+            booster[0:2:-1]
         # step can not be 0.
-        self.assertRaises(ValueError, lambda: booster[0:2:0])
+        with pytest.raises(ValueError, match=r'.*>= 1.*'):
+            booster[0:2:0]
 
         trees = [_ for _ in booster]
         assert len(trees) == num_boost_round
 
-        self.assertRaises(TypeError, lambda: booster["wrong type"])
-        self.assertRaises(IndexError, lambda: booster[:num_boost_round+1])
-        self.assertRaises(ValueError, lambda: booster[1, 2])  # too many dims
-
-        def assign():
+        with pytest.raises(TypeError):
+            booster["wrong type"]
+        with pytest.raises(IndexError):
+            booster[:num_boost_round+1]
+        with pytest.raises(ValueError):
+            booster[1, 2]       # too many dims
+        # setitem is not implemented as model is immutable during slicing.
+        with pytest.raises(TypeError):
             booster[...:end] = booster
-        self.assertRaises(TypeError, assign)
 
         sliced_0 = booster[1:3]
         sliced_1 = booster[3:7]
@@ -408,7 +420,3 @@ class TestModels(unittest.TestCase):
         merged = predt_0 + predt_1 - 0.5
         single = booster[1:7].predict(dtrain, output_margin=True)
         np.testing.assert_allclose(merged, single, atol=1e-6)
-
-    def test_slice(self):
-        self.run_slice('gbtree')
-        self.run_slice('dart')
