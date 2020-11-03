@@ -9,7 +9,7 @@ sys.path.append("tests/python")
 import testing as tm
 
 
-class TestDeviceQuantileDMatrix(unittest.TestCase):
+class TestDeviceQuantileDMatrix:
     def test_dmatrix_numpy_init(self):
         data = np.random.randn(5, 5)
         with pytest.raises(TypeError,

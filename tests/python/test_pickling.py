@@ -15,7 +15,7 @@ def generate_data():
     return X, y
 
 
-class TestPickling(unittest.TestCase):
+class TestPickling:
     def run_model_pickling(self, xgb_params):
         X, y = generate_data()
         dtrain = xgb.DMatrix(X, y)

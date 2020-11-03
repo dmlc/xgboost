@@ -23,7 +23,7 @@ def run_threaded_predict(X, rows, predict_func):
         assert f.result()
 
 
-class TestInplacePredict(unittest.TestCase):
+class TestInplacePredict:
     '''Tests for running inplace prediction'''
     def test_predict(self):
         rows = 1000

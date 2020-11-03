@@ -17,7 +17,7 @@ pytestmark = pytest.mark.skipif(
     reason=tm.no_dt()['reason'] + ' or ' + tm.no_pandas()['reason'])
 
 
-class TestDataTable(unittest.TestCase):
+class TestDataTable:
 
     def test_dt(self):
         df = pd.DataFrame([[1, 2., True], [2, 3., False]],

@@ -11,7 +11,7 @@ dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
 
 
-class TestSHAP(unittest.TestCase):
+class TestSHAP:
 
     def test_feature_importances(self):
         data = np.random.randn(100, 5)

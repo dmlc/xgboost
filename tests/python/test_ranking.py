@@ -73,7 +73,7 @@ def test_ranking_with_weighted_data():
         assert all(p <= q for p, q in zip(is_sorted, is_sorted[1:]))
 
 
-class TestRanking(unittest.TestCase):
+class TestRanking:
 
     @classmethod
     def setUpClass(cls):

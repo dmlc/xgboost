@@ -9,7 +9,7 @@ import test_callback as test_cb  # noqa
 rng = np.random.RandomState(1994)
 
 
-class TestGPUBasicModels(unittest.TestCase):
+class TestGPUBasicModels:
     cputest = test_cb.TestCallbacks()
 
     def run_cls(self, X, y, deterministic):

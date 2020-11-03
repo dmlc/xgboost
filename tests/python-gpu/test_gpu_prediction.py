@@ -19,7 +19,7 @@ shap_parameter_strategy = strategies.fixed_dictionaries({
 }).filter(lambda x: x['max_depth'] > 0 or x['max_leaves'] > 0)
 
 
-class TestGPUPredict(unittest.TestCase):
+class TestGPUPredict:
     def test_predict(self):
         iterations = 10
         np.random.seed(1)

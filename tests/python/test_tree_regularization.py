@@ -7,7 +7,7 @@ from numpy.testing import assert_approx_equal
 train_data = xgb.DMatrix(np.array([[1]]), label=np.array([1]))
 
 
-class TestTreeRegularization(unittest.TestCase):
+class TestTreeRegularization:
     def test_alpha(self):
         params = {
             'tree_method': 'exact', 'verbosity': 0,

@@ -7,7 +7,7 @@ import pytest
 rng = np.random.RandomState(1337)
 
 
-class TestEvalMetrics(unittest.TestCase):
+class TestEvalMetrics:
     xgb_params_01 = {
         'verbosity': 0,
         'nthread': 1,

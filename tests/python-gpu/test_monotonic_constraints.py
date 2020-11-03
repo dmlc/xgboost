@@ -38,7 +38,7 @@ def assert_constraint(constraint, tree_method):
         assert non_increasing(pred)
 
 
-class TestMonotonicConstraints(unittest.TestCase):
+class TestMonotonicConstraints:
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_gpu_hist_basic(self):
         assert_constraint(1, 'gpu_hist')

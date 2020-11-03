@@ -18,7 +18,7 @@ dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
 
 
-class TestModin(unittest.TestCase):
+class TestModin:
 
     def test_modin(self):
 

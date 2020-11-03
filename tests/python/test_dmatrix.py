@@ -12,7 +12,7 @@ dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
 
 
-class TestDMatrix(unittest.TestCase):
+class TestDMatrix:
     def test_warn_missing(self):
         from xgboost import data
         with pytest.warns(UserWarning):

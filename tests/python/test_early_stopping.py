@@ -7,7 +7,7 @@ import pytest
 rng = np.random.RandomState(1994)
 
 
-class TestEarlyStopping(unittest.TestCase):
+class TestEarlyStopping:
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_early_stopping_nonparallel(self):

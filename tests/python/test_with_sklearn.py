@@ -979,7 +979,7 @@ def test_feature_weights():
     assert poly_decreasing[0] < -0.08
 
 
-class TestBoostFromPrediction(unittest.TestCase):
+class TestBoostFromPrediction:
     def run_boost_from_prediction(self, tree_method):
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)

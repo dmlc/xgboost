@@ -32,7 +32,7 @@ def captured_output():
         sys.stdout, sys.stderr = old_out, old_err
 
 
-class TestBasic(unittest.TestCase):
+class TestBasic:
     def test_compat(self):
         from xgboost.compat import lazy_isinstance
         a = np.array([1, 2, 3])
@@ -247,7 +247,7 @@ class TestBasic(unittest.TestCase):
         assert output == solution
 
 
-class TestBasicPathLike(unittest.TestCase):
+class TestBasicPathLike:
     """Unit tests using pathlib.Path for file interaction."""
 
     def test_DMatrix_init_from_path(self):

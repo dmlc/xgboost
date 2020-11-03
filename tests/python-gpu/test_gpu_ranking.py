@@ -8,7 +8,7 @@ import urllib.request
 import zipfile
 
 
-class TestRanking(unittest.TestCase):
+class TestRanking:
     @classmethod
     def setUpClass(cls):
         """

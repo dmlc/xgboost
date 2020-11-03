@@ -18,7 +18,7 @@ dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
 
 
-class TestPandas(unittest.TestCase):
+class TestPandas:
 
     def test_pandas(self):
 

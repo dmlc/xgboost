@@ -9,7 +9,7 @@ import tempfile
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 
 
-class TestCallbacks(unittest.TestCase):
+class TestCallbacks:
     @classmethod
     def setUpClass(cls):
         from sklearn.datasets import load_breast_cancer

@@ -14,7 +14,7 @@ sys.path.append("tests/python")
 import test_basic as tb
 
 
-class TestLoadPickle(unittest.TestCase):
+class TestLoadPickle:
     def test_load_pkl(self):
         '''Test whether prediction is correct.'''
         assert os.environ['CUDA_VISIBLE_DEVICES'] == '-1'

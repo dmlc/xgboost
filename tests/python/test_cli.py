@@ -9,7 +9,7 @@ import json
 import testing as tm
 
 
-class TestCLI(unittest.TestCase):
+class TestCLI:
     template = '''
 booster = gbtree
 objective = reg:squarederror

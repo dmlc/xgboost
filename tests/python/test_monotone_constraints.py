@@ -61,7 +61,7 @@ y = (
 training_dset = xgb.DMatrix(x, label=y)
 
 
-class TestMonotoneConstraints(unittest.TestCase):
+class TestMonotoneConstraints:
 
     def test_monotone_constraints_for_exact_tree_method(self):
 

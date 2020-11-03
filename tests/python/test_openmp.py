@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 
-class TestOMP(unittest.TestCase):
+class TestOMP:
     def test_omp(self):
         dpath = 'demo/data/'
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')

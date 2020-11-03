@@ -7,7 +7,7 @@ import test_interaction_constraints as test_ic  # noqa
 rng = np.random.RandomState(1994)
 
 
-class TestGPUInteractionConstraints(unittest.TestCase):
+class TestGPUInteractionConstraints:
     cputest = test_ic.TestInteractionConstraints()
 
     def test_interaction_constraints(self):
