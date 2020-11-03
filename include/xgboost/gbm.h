@@ -61,6 +61,17 @@ class GradientBooster : public Model, public Configurable {
    */
   virtual void Save(dmlc::Stream* fo) const = 0;
   /*!
+   * \brief Slice a model using boosting index. The slice m:n indicates taking all trees
+   *        that were fit during the boosting rounds m, (m+1), (m+2), ..., (n-1).
+   * \param layer_begin Begining of boosted tree layer used for prediction.
+   * \param layer_end   End of booster layer. 0 means do not limit trees.
+   * \param out         Output gradient booster
+   */
+  virtual void Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
+                     GradientBooster *out, bool* out_of_bound) const {
+    LOG(FATAL) << "Slice is not supported by current booster.";
+  }
+  /*!
    * \brief whether the model allow lazy checkpoint
    * return true if model is only updated in DoBoost
    * after all Allreduce calls

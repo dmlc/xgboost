@@ -944,8 +944,8 @@ class Booster(object):
             Parameters for boosters.
         cache : list
             List of cache items.
-        model_file : string or os.PathLike
-            Path to the model file.
+        model_file : string/os.PathLike/Booster/bytearray
+            Path to the model file if it's string or PathLike.
         """
         for d in cache:
             if not isinstance(d, DMatrix):
@@ -1020,6 +1020,43 @@ class Booster(object):
                 _LIB.XGBoosterUnserializeFromBuffer(handle, ptr, length))
             state['handle'] = handle
         self.__dict__.update(state)
+
+    def __getitem__(self, val):
+        if isinstance(val, int):
+            val = slice(val, val+1)
+        if isinstance(val, tuple):
+            raise ValueError('Only supports slicing through 1 dimension.')
+        if not isinstance(val, slice):
+            msg = _expect((int, slice), type(val))
+            raise TypeError(msg)
+        if isinstance(val.start, type(Ellipsis)) or val.start is None:
+            start = 0
+        else:
+            start = val.start
+        if isinstance(val.stop, type(Ellipsis)) or val.stop is None:
+            stop = 0
+        else:
+            stop = val.stop
+            if stop < start:
+                raise ValueError('Invalid slice', val)
+
+        step = val.step if val.step is not None else 1
+
+        start = ctypes.c_int(start)
+        stop = ctypes.c_int(stop)
+        step = ctypes.c_int(step)
+
+        sliced_handle = ctypes.c_void_p()
+        status = _LIB.XGBoosterSlice(self.handle, start, stop, step,
+                                     ctypes.byref(sliced_handle))
+        if status == -2:
+            raise IndexError('Layer index out of range')
+        _check_call(status)
+
+        sliced = Booster()
+        _check_call(_LIB.XGBoosterFree(sliced.handle))
+        sliced.handle = sliced_handle
+        return sliced
 
     def save_config(self):
         '''Output internal parameter configuration of Booster as a JSON

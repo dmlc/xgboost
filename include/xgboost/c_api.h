@@ -581,6 +581,23 @@ XGB_DLL int XGBoosterCreate(const DMatrixHandle dmats[],
 XGB_DLL int XGBoosterFree(BoosterHandle handle);
 
 /*!
+ * \brief Slice a model using boosting index. The slice m:n indicates taking all trees
+ *        that were fit during the boosting rounds m, (m+1), (m+2), ..., (n-1).
+ *
+ * \param handle Booster to be sliced.
+ * \param begin_layer start of the slice
+ * \param end_layer end of the slice; end_layer=0 is equivalent to
+ *                  end_layer=num_boost_round
+ * \param step step size of the slice
+ * \param out Sliced booster.
+ *
+ * \return 0 when success, -1 when failure happens, -2 when index is out of bound.
+ */
+XGB_DLL int XGBoosterSlice(BoosterHandle handle, int begin_layer,
+                           int end_layer, int step,
+                           BoosterHandle *out);
+
+/*!
  * \brief set parameters
  * \param handle handle
  * \param name  parameter name

@@ -7,9 +7,9 @@ package.  In XGBoost 1.3, a new callback interface is designed for Python packag
 provides the flexiblity of designing various extension for training.  Also, XGBoost has a
 number of pre-defined callbacks for supporting early stopping, checkpoints etc.
 
-#######################
+
 Using builtin callbacks
-#######################
+-----------------------
 
 By default, training methods in XGBoost have parameters like ``early_stopping_rounds`` and
 ``verbose``/``verbose_eval``, when specified the training procedure will define the
@@ -50,9 +50,9 @@ this callback function directly into XGBoost:
     dump = booster.get_dump(dump_format='json')
     assert len(early_stop.stopping_history['Valid']['CustomErr']) == len(dump)
 
-##########################
+
 Defining your own callback
-##########################
+--------------------------
 
 XGBoost provides an callback interface class: ``xgboost.callback.TrainingCallback``, user
 defined callbacks should inherit this class and override corresponding methods.  There's a

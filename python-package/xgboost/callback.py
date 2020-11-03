@@ -10,7 +10,7 @@ from typing import Callable, List
 import numpy
 
 from . import rabit
-from .core import EarlyStopException, CallbackEnv
+from .core import EarlyStopException, CallbackEnv, Booster, XGBoostError
 from .compat import STRING_TYPES
 
 
@@ -279,9 +279,11 @@ class TrainingCallback(ABC):
 
     def before_training(self, model):
         '''Run before training starts.'''
+        return model
 
     def after_training(self, model):
         '''Run after training is finished.'''
+        return model
 
     def before_iteration(self, model, epoch, evals_log):
         '''Run before each iteration.  Return True when training should stop.'''
@@ -362,12 +364,24 @@ class CallbackContainer:
     def before_training(self, model):
         '''Function called before training.'''
         for c in self.callbacks:
-            c.before_training(model=model)
+            model = c.before_training(model=model)
+            msg = 'before_training should return the model'
+            if self.is_cv:
+                assert isinstance(model.cvfolds, list), msg
+            else:
+                assert isinstance(model, Booster), msg
+        return model
 
     def after_training(self, model):
         '''Function called after training.'''
         for c in self.callbacks:
-            c.after_training(model)
+            model = c.after_training(model=model)
+            msg = 'after_training should return the model'
+            if self.is_cv:
+                assert isinstance(model.cvfolds, list), msg
+            else:
+                assert isinstance(model, Booster), msg
+        return model
 
     def before_iteration(self, model, epoch, dtrain, evals):
         '''Function called before training iteration.'''
@@ -461,7 +475,7 @@ class EarlyStopping(TrainingCallback):
     maximize : bool
         Whether to maximize evaluation metric.  None means auto (discouraged).
     save_best : bool
-        Placeholder, the feature is not yet supported.
+        Whether training should return the best model or the last model.
     '''
     def __init__(self,
                  rounds,
@@ -473,9 +487,6 @@ class EarlyStopping(TrainingCallback):
         self.metric_name = metric_name
         self.rounds = rounds
         self.save_best = save_best
-        # https://github.com/dmlc/xgboost/issues/5531
-        assert self.save_best is False, 'save best is not yet supported.'
-
         self.maximize = maximize
         self.stopping_history = {}
 
@@ -525,7 +536,7 @@ class EarlyStopping(TrainingCallback):
             return True
         return False
 
-    def after_iteration(self, model, epoch, evals_log):
+    def after_iteration(self, model: Booster, epoch, evals_log):
         msg = 'Must have at least 1 validation dataset for early stopping.'
         assert len(evals_log.keys()) >= 1, msg
         data_name = ''
@@ -550,6 +561,14 @@ class EarlyStopping(TrainingCallback):
             metric_name = list(data_log.keys())[-1]
         score = data_log[metric_name][-1]
         return self._update_rounds(score, data_name, metric_name, model, epoch)
+
+    def after_training(self, model: Booster):
+        try:
+            if self.save_best:
+                model = model[: int(model.attr('best_iteration'))]
+        except XGBoostError as e:
+            raise XGBoostError('`save_best` is not applicable to current booster') from e
+        return model
 
 
 class EvaluationMonitor(TrainingCallback):
@@ -684,9 +703,11 @@ class LegacyCallbacks:
 
     def before_training(self, model):
         '''Nothing to do for legacy callbacks'''
+        return model
 
     def after_training(self, model):
         '''Nothing to do for legacy callbacks'''
+        return model
 
     def before_iteration(self, model, epoch, dtrain, evals):
         '''Called before each iteration.'''
