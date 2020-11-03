@@ -346,51 +346,43 @@ def test_sklearn_grid_search():
             assert len(means) == len(set(means))
 
 
-@pytest.mark.parametrize('tree_method', ['hist', 'approx'])
-def test_empty_dmatrix_reg(tree_method):
+def run_empty_dmatrix_reg(client, parameters):
     def _check_outputs(out, predictions):
         assert isinstance(out['booster'], xgb.dask.Booster)
         assert len(out['history']['validation']['rmse']) == 2
         assert isinstance(predictions, np.ndarray)
         assert predictions.shape[0] == 1
 
-    with LocalCluster(n_workers=kWorkers) as cluster:
-        with Client(cluster) as client:
-            parameters = {'tree_method': tree_method}
+    kRows, kCols = 1, 97
+    X = dd.from_array(np.random.randn(kRows, kCols))
+    y = dd.from_array(np.random.rand(kRows))
+    dtrain = xgb.dask.DaskDMatrix(client, X, y)
 
-            kRows, kCols = 1, 97
-            X = dd.from_array(np.random.randn(kRows, kCols))
-            y = dd.from_array(np.random.rand(kRows))
-            dtrain = xgb.dask.DaskDMatrix(client, X, y)
+    out = xgb.dask.train(client, parameters,
+                         dtrain=dtrain,
+                         evals=[(dtrain, 'validation')],
+                         num_boost_round=2)
+    predictions = xgb.dask.predict(client=client, model=out,
+                                   data=dtrain).compute()
+    _check_outputs(out, predictions)
 
-            out = xgb.dask.train(client, parameters,
-                                 dtrain=dtrain,
-                                 evals=[(dtrain, 'validation')],
-                                 num_boost_round=2)
-            predictions = xgb.dask.predict(client=client, model=out,
-                                           data=dtrain).compute()
-            _check_outputs(out, predictions)
+    # train has more rows than evals
+    valid = dtrain
+    kRows += 1
+    X = dd.from_array(np.random.randn(kRows, kCols))
+    y = dd.from_array(np.random.rand(kRows))
+    dtrain = xgb.dask.DaskDMatrix(client, X, y)
 
-            # train has more rows than evals
-            valid = dtrain
-            kRows += 1
-            X = dd.from_array(np.random.randn(kRows, kCols))
-            y = dd.from_array(np.random.rand(kRows))
-            dtrain = xgb.dask.DaskDMatrix(client, X, y)
-
-            out = xgb.dask.train(client, parameters,
-                                 dtrain=dtrain,
-                                 evals=[(valid, 'validation')],
-                                 num_boost_round=2)
-            predictions = xgb.dask.predict(client=client, model=out,
-                                           data=valid).compute()
-            _check_outputs(out, predictions)
+    out = xgb.dask.train(client, parameters,
+                         dtrain=dtrain,
+                         evals=[(valid, 'validation')],
+                         num_boost_round=2)
+    predictions = xgb.dask.predict(client=client, model=out,
+                                   data=valid).compute()
+    _check_outputs(out, predictions)
 
 
-# No test for Exact, as empty DMatrix handling are mostly for distributed
-# environment and Exact doesn't support it.
-@pytest.mark.parametrize('tree_method', ['hist', 'approx'])
-def test_empty_dmatrix_cls(tree_method):
+def run_empty_dmatrix_cls(client, parameters):
     n_classes = 4
 
     def _check_outputs(out, predictions):
@@ -399,42 +391,49 @@ def test_empty_dmatrix_cls(tree_method):
         assert isinstance(predictions, np.ndarray)
         assert predictions.shape[1] == n_classes, predictions.shape
 
+    kRows, kCols = 1, 97
+    X = dd.from_array(np.random.randn(kRows, kCols))
+    y = dd.from_array(np.random.randint(low=0, high=n_classes, size=kRows))
+    dtrain = xgb.dask.DaskDMatrix(client, X, y)
+    parameters['objective'] = 'multi:softprob'
+    parameters['eval_metric'] = 'merror'
+    parameters['num_class'] = n_classes
+
+    out = xgb.dask.train(client, parameters,
+                         dtrain=dtrain,
+                         evals=[(dtrain, 'validation')],
+                         num_boost_round=2)
+    predictions = xgb.dask.predict(client=client, model=out,
+                                   data=dtrain)
+    assert predictions.shape[1] == n_classes
+    predictions = predictions.compute()
+    _check_outputs(out, predictions)
+
+    # train has more rows than evals
+    valid = dtrain
+    kRows += 1
+    X = dd.from_array(np.random.randn(kRows, kCols))
+    y = dd.from_array(np.random.randint(low=0, high=n_classes, size=kRows))
+    dtrain = xgb.dask.DaskDMatrix(client, X, y)
+
+    out = xgb.dask.train(client, parameters,
+                         dtrain=dtrain,
+                         evals=[(valid, 'validation')],
+                         num_boost_round=2)
+    predictions = xgb.dask.predict(client=client, model=out,
+                                   data=valid).compute()
+    _check_outputs(out, predictions)
+
+
+# No test for Exact, as empty DMatrix handling are mostly for distributed
+# environment and Exact doesn't support it.
+@pytest.mark.parametrize('tree_method', ['hist', 'approx'])
+def test_empty_dmatrix(tree_method):
     with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             parameters = {'tree_method': tree_method}
-
-            kRows, kCols = 1, 97
-            X = dd.from_array(np.random.randn(kRows, kCols))
-            y = dd.from_array(np.random.randint(low=0, high=n_classes, size=kRows))
-            dtrain = xgb.dask.DaskDMatrix(client, X, y)
-            parameters['objective'] = 'multi:softprob'
-            parameters['eval_metric'] = 'merror'
-            parameters['num_class'] = n_classes
-
-            out = xgb.dask.train(client, parameters,
-                                 dtrain=dtrain,
-                                 evals=[(dtrain, 'validation')],
-                                 num_boost_round=2)
-            predictions = xgb.dask.predict(client=client, model=out,
-                                           data=dtrain)
-            assert predictions.shape[1] == n_classes
-            predictions = predictions.compute()
-            _check_outputs(out, predictions)
-
-            # train has more rows than evals
-            valid = dtrain
-            kRows += 1
-            X = dd.from_array(np.random.randn(kRows, kCols))
-            y = dd.from_array(np.random.randint(low=0, high=n_classes, size=kRows))
-            dtrain = xgb.dask.DaskDMatrix(client, X, y)
-
-            out = xgb.dask.train(client, parameters,
-                                 dtrain=dtrain,
-                                 evals=[(valid, 'validation')],
-                                 num_boost_round=2)
-            predictions = xgb.dask.predict(client=client, model=out,
-                                           data=valid).compute()
-            _check_outputs(out, predictions)
+            run_empty_dmatrix_reg(client, parameters)
+            run_empty_dmatrix_cls(client, parameters)
 
 
 async def run_from_dask_array_asyncio(scheduler_address):
