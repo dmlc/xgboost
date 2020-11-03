@@ -1,6 +1,5 @@
 import sys
 import os
-import unittest
 import numpy as np
 import xgboost as xgb
 sys.path.append("tests/python")

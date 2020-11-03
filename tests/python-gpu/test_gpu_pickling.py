@@ -1,6 +1,5 @@
 '''Test model IO with pickle.'''
 import pickle
-import unittest
 import numpy as np
 import subprocess
 import os

@@ -1,5 +1,4 @@
 import numpy as np
-import unittest
 import sys
 sys.path.append("tests/python")
 # Don't import the test class, otherwise they will run twice.

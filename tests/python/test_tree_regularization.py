@@ -1,5 +1,4 @@
 import numpy as np
-import unittest
 import xgboost as xgb
 
 from numpy.testing import assert_approx_equal

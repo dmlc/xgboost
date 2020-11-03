@@ -1,7 +1,6 @@
 import numpy as np
 import xgboost
 import os
-import unittest
 import itertools
 import shutil
 import urllib.request

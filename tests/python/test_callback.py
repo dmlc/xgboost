@@ -1,5 +1,4 @@
 import xgboost as xgb
-import unittest
 import pytest
 import os
 import testing as tm

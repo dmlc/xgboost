@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import xgboost
-import unittest
 import testing as tm
 import pytest
 

@@ -2,7 +2,6 @@ import xgboost as xgb
 import pytest
 import sys
 import numpy as np
-import unittest
 
 sys.path.append("tests/python")
 import testing as tm               # noqa

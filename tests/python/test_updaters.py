@@ -1,5 +1,4 @@
 import testing as tm
-import unittest
 import pytest
 import xgboost as xgb
 import numpy as np

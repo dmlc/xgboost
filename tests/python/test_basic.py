@@ -5,7 +5,7 @@ from io import StringIO
 import numpy as np
 import os
 import xgboost as xgb
-import unittest
+import pytest
 import json
 from pathlib import Path
 import tempfile

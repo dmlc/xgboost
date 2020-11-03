@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import unittest
 import pytest
 import numpy as np
 

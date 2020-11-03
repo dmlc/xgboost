@@ -2,7 +2,6 @@ import pickle
 import numpy as np
 import xgboost as xgb
 import os
-import unittest
 
 
 kRows = 100

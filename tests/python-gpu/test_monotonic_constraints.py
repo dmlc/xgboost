@@ -1,7 +1,6 @@
 import sys
 import numpy as np
 
-import unittest
 import pytest
 
 import xgboost as xgb

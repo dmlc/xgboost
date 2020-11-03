@@ -1,7 +1,6 @@
 import xgboost as xgb
 import testing as tm
 import numpy as np
-import unittest
 import pytest
 
 rng = np.random.RandomState(1337)

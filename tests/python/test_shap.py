@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import xgboost as xgb
-import unittest
 import itertools
 import re
 import scipy

@@ -1,4 +1,3 @@
-import unittest
 import numpy as np
 import xgboost as xgb
 import json

@@ -8,7 +8,6 @@ import tempfile
 import os
 import shutil
 import pytest
-import unittest
 import json
 
 from test_basic import captured_output

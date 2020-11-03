@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import xgboost as xgb
-import unittest
 import numpy as np
 
 

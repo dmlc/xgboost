@@ -1,5 +1,4 @@
 '''Tests for running inplace prediction.'''
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from scipy import sparse
