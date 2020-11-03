@@ -41,6 +41,11 @@ kCols = 10
 kWorkers = 5
 
 
+def _get_client_workers(client):
+    workers = client.scheduler_info()['workers']
+    return workers
+
+
 def generate_array(with_weights=False):
     partition_size = 20
     X = da.random.random((kRows, kCols), partition_size)
@@ -704,9 +709,9 @@ class TestWithDask:
 
         with LocalCluster(n_workers=4) as cluster:
             with Client(cluster) as client:
-                workers = list(xgb.dask._get_client_workers(client).keys())
+                workers = list(_get_client_workers(client).keys())
                 rabit_args = client.sync(
-                    xgb.dask._get_rabit_args, workers, client)
+                    xgb.dask._get_rabit_args, len(workers), client)
                 futures = client.map(runit,
                                      workers,
                                      pure=False,
@@ -783,8 +788,8 @@ class TestDaskCallbacks:
                 X, y = generate_array()
                 n_partitions = X.npartitions
                 m = xgb.dask.DaskDMatrix(client, X, y)
-                workers = list(xgb.dask._get_client_workers(client).keys())
-                rabit_args = client.sync(xgb.dask._get_rabit_args, workers, client)
+                workers = list(_get_client_workers(client).keys())
+                rabit_args = client.sync(xgb.dask._get_rabit_args, len(workers), client)
                 n_workers = len(workers)
 
                 def worker_fn(worker_addr, data_ref):
