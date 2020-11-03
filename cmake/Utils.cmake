@@ -144,10 +144,8 @@ function(xgboost_set_cuda_flags target)
   endif (CMAKE_VERSION VERSION_GREATER_EQUAL "3.18")
 
   if (USE_DEVICE_DEBUG)
-    if (CMAKE_BUILD_TYPE MATCHES "Debug")
-      target_compile_options(${target} PRIVATE
-        $<$<COMPILE_LANGUAGE:CUDA>:-G;-src-in-ptx>)
-    endif(CMAKE_BUILD_TYPE MATCHES "Debug")
+    target_compile_options(${target} PRIVATE
+      $<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>)
   else (USE_DEVICE_DEBUG)
     target_compile_options(${target} PRIVATE
       $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>)
@@ -157,10 +155,8 @@ function(xgboost_set_cuda_flags target)
     enable_nvtx(${target})
   endif (USE_NVTX)
 
-  target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1)
-  if (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
-    target_include_directories(${target} PRIVATE ${xgboost_SOURCE_DIR}/cub/)
-  endif (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
+  target_compile_definitions(${target} PRIVATE -DXGBOOST_USE_CUDA=1 -DTHRUST_IGNORE_CUB_VERSION_CHECK=1)
+  target_include_directories(${target} PRIVATE ${xgboost_SOURCE_DIR}/cub/)
 
   if (MSVC)
     target_compile_options(${target} PRIVATE
