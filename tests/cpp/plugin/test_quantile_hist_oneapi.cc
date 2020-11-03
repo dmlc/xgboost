@@ -124,13 +124,13 @@ class QuantileHistMockOneAPI : public GPUQuantileHistMakerOneAPI {
     void TestAddHistRows(const GHistIndexMatrixOneAPI& gmat,
                          const std::vector<GradientPair>& gpair,
                          DMatrix* p_fmat,
-                         RegTree* tree) {
+                         RegTree* tree,
+                         bool batch = true) {
       USMVector<GradientPair> gpair_device(this->qu_, gpair);
 
       RealImpl::InitData(gmat, gpair, gpair_device, *p_fmat, *tree);
 
-      int starting_index = std::numeric_limits<int>::max();
-      int sync_count = 0;
+      std::vector<int> sync_ids;
       this->nodes_for_explicit_hist_build_.clear();
       this->nodes_for_subtraction_trick_.clear();
 
@@ -142,9 +142,12 @@ class QuantileHistMockOneAPI : public GPUQuantileHistMakerOneAPI {
       this->nodes_for_subtraction_trick_.emplace_back(5, 6, tree->GetDepth(5), 0.0f, 0);
       this->nodes_for_subtraction_trick_.emplace_back(6, 5, tree->GetDepth(6), 0.0f, 0);
 
-      this->hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
-      ASSERT_EQ(sync_count, 2);
-      ASSERT_EQ(starting_index, 3);
+      this->hist_rows_adder_->AddHistRows(this, sync_ids, tree);
+
+      if (!batch) {
+        ASSERT_EQ(sync_ids.size(), 2);
+        ASSERT_EQ(sync_ids[0], 3);
+      }
 
       for (const ExpandEntryT& node : this->nodes_for_explicit_hist_build_) {
         ASSERT_EQ(this->hist_.RowExists(node.nid), true);
@@ -164,13 +167,12 @@ class QuantileHistMockOneAPI : public GPUQuantileHistMakerOneAPI {
 
       RealImpl::InitData(gmat, gpair, gpair_device, *p_fmat, *tree);
 
-      int starting_index = std::numeric_limits<int>::max();
-      int sync_count = 0;
+      std::vector<int> sync_ids;
       this->nodes_for_explicit_hist_build_.clear();
       this->nodes_for_subtraction_trick_.clear();
       // level 0
       this->nodes_for_explicit_hist_build_.emplace_back(0, -1, tree->GetDepth(0), 0.0f, 0);
-      this->hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
+      this->hist_rows_adder_->AddHistRows(this, sync_ids, tree);
       tree->ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
 
       this->nodes_for_explicit_hist_build_.clear();
@@ -182,7 +184,7 @@ class QuantileHistMockOneAPI : public GPUQuantileHistMakerOneAPI {
       this->nodes_for_subtraction_trick_.emplace_back((*tree)[0].RightChild(),
                                               (*tree)[0].LeftChild(),
                                               tree->GetDepth(2), 0.0f, 0);
-      this->hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
+      this->hist_rows_adder_->AddHistRows(this, sync_ids, tree);
       tree->ExpandNode((*tree)[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
       tree->ExpandNode((*tree)[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
 
@@ -193,7 +195,7 @@ class QuantileHistMockOneAPI : public GPUQuantileHistMakerOneAPI {
       this->nodes_for_subtraction_trick_.emplace_back(4, 3, tree->GetDepth(4), 0.0f, 0);
       this->nodes_for_explicit_hist_build_.emplace_back(5, 6, tree->GetDepth(5), 0.0f, 0);
       this->nodes_for_subtraction_trick_.emplace_back(6, 5, tree->GetDepth(6), 0.0f, 0);
-      this->hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
+      this->hist_rows_adder_->AddHistRows(this, sync_ids, tree);
 
       const size_t n_nodes = this->nodes_for_explicit_hist_build_.size();
       ASSERT_EQ(n_nodes, 2ul);
@@ -237,7 +239,7 @@ class QuantileHistMockOneAPI : public GPUQuantileHistMakerOneAPI {
 
       this->hist_buffer_.Reset(256);
       // sync hist
-      this->hist_synchronizer_->SyncHistograms(this, starting_index, sync_count, tree);
+      this->hist_synchronizer_->SyncHistograms(this, sync_ids, tree);
 
       auto check_hist = [] (const GHistRowT parent, const GHistRowT left,
                             const GHistRowT right, size_t begin, size_t end) {
@@ -494,8 +496,8 @@ class QuantileHistMockOneAPI : public GPUQuantileHistMakerOneAPI {
         float_builder_->SetHistSynchronizer(new BatchHistSynchronizerOneAPI<float>());
         float_builder_->SetHistRowsAdder(new BatchHistRowsAdderOneAPI<float>());
       } else {
-//        float_builder_->SetHistSynchronizer(new DistributedHistSynchronizerOneAPI<float>());
-//        float_builder_->SetHistRowsAdder(new DistributedHistRowsAdderOneAPI<float>());
+        float_builder_->SetHistSynchronizer(new DistributedHistSynchronizerOneAPI<float>());
+        float_builder_->SetHistRowsAdder(new DistributedHistRowsAdderOneAPI<float>());
       }
     } else {
       double_builder_.reset(
@@ -509,8 +511,8 @@ class QuantileHistMockOneAPI : public GPUQuantileHistMakerOneAPI {
         double_builder_->SetHistSynchronizer(new BatchHistSynchronizerOneAPI<double>());
         double_builder_->SetHistRowsAdder(new BatchHistRowsAdderOneAPI<double>());
       } else {
-//        double_builder_->SetHistSynchronizer(new DistributedHistSynchronizerOneAPI<double>());
-//        double_builder_->SetHistRowsAdder(new DistributedHistRowsAdderOneAPI<double>());
+        double_builder_->SetHistSynchronizer(new DistributedHistSynchronizerOneAPI<double>());
+        double_builder_->SetHistRowsAdder(new DistributedHistRowsAdderOneAPI<double>());
       }
     }
   }
@@ -556,7 +558,7 @@ class QuantileHistMockOneAPI : public GPUQuantileHistMakerOneAPI {
     }
   }
 
-  void TestAddHistRows() {
+  void TestAddHistRows(bool batch = true) {
     size_t constexpr kMaxBins = 4;
     common::GHistIndexMatrixOneAPI gmat;
     DeviceMatrixOneAPI dmat_device(qu_, dmat_.get());
@@ -568,9 +570,9 @@ class QuantileHistMockOneAPI : public GPUQuantileHistMakerOneAPI {
         { {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f},
           {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f} };
     if (double_builder_) {
-      double_builder_->TestAddHistRows(gmat, gpair, dmat_.get(), &tree);
+      double_builder_->TestAddHistRows(gmat, gpair, dmat_.get(), &tree, batch);
     } else {
-      float_builder_->TestAddHistRows(gmat, gpair, dmat_.get(), &tree);
+      float_builder_->TestAddHistRows(gmat, gpair, dmat_.get(), &tree, batch);
     }
   }
 
@@ -668,6 +670,26 @@ TEST(Plugin, GPUQuantileHistOneAPISyncHistograms) {
   maker.TestSyncHistograms();
   const bool single_precision_histogram = true;
   QuantileHistMockOneAPI maker_float(cfg, single_precision_histogram);
+  maker_float.TestSyncHistograms();
+}
+
+TEST(Plugin, GPUQuantileHistOneAPIDistributedAddHistRows) {
+  std::vector<std::pair<std::string, std::string>> cfg
+      {{"num_feature", std::to_string(QuantileHistMockOneAPI::GetNumColumns())}};
+  QuantileHistMockOneAPI maker(cfg, false, false);
+  maker.TestAddHistRows(false);
+  const bool single_precision_histogram = true;
+  QuantileHistMockOneAPI maker_float(cfg, single_precision_histogram, false);
+  maker_float.TestAddHistRows(false);
+}
+
+TEST(Plugin, GPUQuantileHistOneAPIDistributedSyncHistograms) {
+  std::vector<std::pair<std::string, std::string>> cfg
+      {{"num_feature", std::to_string(QuantileHistMockOneAPI::GetNumColumns())}};
+  QuantileHistMockOneAPI maker(cfg, false, false);
+  maker.TestSyncHistograms();
+  const bool single_precision_histogram = true;
+  QuantileHistMockOneAPI maker_float(cfg, single_precision_histogram, false);
   maker_float.TestSyncHistograms();
 }
 
