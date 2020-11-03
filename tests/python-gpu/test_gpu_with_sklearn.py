@@ -32,8 +32,5 @@ def test_gpu_binary_classification():
             assert err < 0.1
 
 
-class TestGPUBoostFromPrediction:
-    cpu_test = twskl.TestBoostFromPrediction()
-
-    def test_boost_from_prediction_gpu_hist(self):
-        self.cpu_test.run_boost_from_prediction('gpu_hist')
+def test_boost_from_prediction_gpu_hist():
+    cpu_test = twskl.test_boost_from_prediction(tree_method='gpu_hist')
