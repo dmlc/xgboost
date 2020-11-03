@@ -336,7 +336,8 @@ class TestModels(unittest.TestCase):
         num_boost_round = 16
         total_trees = num_parallel_tree * num_classes * num_boost_round
         booster = xgb.train({
-            'num_parallel_tree': 4, 'subsample': 0.5, 'num_class': 3, 'booster': booster},
+            'num_parallel_tree': 4, 'subsample': 0.5, 'num_class': 3, 'booster': booster,
+            'objective': 'multi:softprob'},
                             num_boost_round=num_boost_round, dtrain=dtrain)
         assert len(booster.get_dump()) == total_trees
         beg = 3
@@ -391,22 +392,22 @@ class TestModels(unittest.TestCase):
         sliced_0 = booster[1:3]
         sliced_1 = booster[3:7]
 
-        predt_0 = sliced_0.predict(dtrain)
-        predt_1 = sliced_1.predict(dtrain)
+        predt_0 = sliced_0.predict(dtrain, output_margin=True)
+        predt_1 = sliced_1.predict(dtrain, output_margin=True)
 
-        merged = predt_0 + predt_1 - 0.5
-        single = booster[1:7].predict(dtrain)
-        np.testing.assert_allclose(merged, single)
+        merged = predt_0 + predt_1 - 0.5  # base score.
+        single = booster[1:7].predict(dtrain, output_margin=True)
+        np.testing.assert_allclose(merged, single, atol=1e-6)
 
         sliced_0 = booster[1:7:2]  # 1,3,5
         sliced_1 = booster[2:8:2]  # 2,4,6
 
-        predt_0 = sliced_0.predict(dtrain)
-        predt_1 = sliced_1.predict(dtrain)
+        predt_0 = sliced_0.predict(dtrain, output_margin=True)
+        predt_1 = sliced_1.predict(dtrain, output_margin=True)
 
         merged = predt_0 + predt_1 - 0.5
-        single = booster[1:7].predict(dtrain)
-        np.testing.assert_allclose(merged, single)
+        single = booster[1:7].predict(dtrain, output_margin=True)
+        np.testing.assert_allclose(merged, single, atol=1e-6)
 
     def test_slice(self):
         self.run_slice('gbtree')
