@@ -382,6 +382,7 @@ class TestModels(unittest.TestCase):
 
         self.assertRaises(TypeError, lambda: booster["wrong type"])
         self.assertRaises(IndexError, lambda: booster[:num_boost_round+1])
+        self.assertRaises(ValueError, lambda: booster[1, 2])  # too many dims
 
         def assign():
             booster[...:end] = booster

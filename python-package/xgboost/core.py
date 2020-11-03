@@ -1027,6 +1027,8 @@ class Booster(object):
     def __getitem__(self, val):
         if isinstance(val, int):
             val = slice(val, val+1)
+        if isinstance(val, tuple):
+            raise ValueError('Only supports slicing through 1 dimension.')
         if not isinstance(val, slice):
             msg = _expect((int, slice), type(val))
             raise TypeError(msg)

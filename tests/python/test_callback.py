@@ -116,7 +116,8 @@ class TestCallbacks(unittest.TestCase):
     def test_early_stopping_save_best_model(self):
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)
-        cls = xgb.XGBClassifier(n_estimators=10)
+        n_estimators = 100
+        cls = xgb.XGBClassifier(n_estimators=n_estimators)
         early_stopping_rounds = 5
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
                                                 save_best=True)
