@@ -9,6 +9,7 @@ When ``booster`` is set to ``gbtree`` or ``dart``, XGBoost builds a tree model, 
 list of trees and can be sliced into multiple sub-models.
 
 .. code-block:: python
+
     from sklearn.datasets import make_classification
     num_classes = 3
     X, y = make_classification(n_samples=1000, n_informative=5,
