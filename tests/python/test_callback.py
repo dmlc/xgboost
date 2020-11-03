@@ -11,7 +11,7 @@ pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 
 class TestCallbacks:
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)
         cls.X = X

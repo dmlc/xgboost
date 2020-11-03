@@ -76,7 +76,7 @@ def test_ranking_with_weighted_data():
 class TestRanking:
 
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         """
         Download and setup the test fixtures
         """
@@ -119,7 +119,7 @@ class TestRanking:
                       }
 
     @classmethod
-    def tearDownClass(cls):
+    def teardown_class(cls):
         """
         Cleanup test artifacts from download and unpacking
         :return:
