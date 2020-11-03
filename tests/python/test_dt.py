@@ -43,7 +43,8 @@ class TestDataTable:
         df = pd.DataFrame([[1, 2., 'x'], [2, 3., 'y']],
                           columns=['a', 'b', 'c'])
         dtable = dt.Frame(df)
-        self.assertRaises(ValueError, xgb.DMatrix, dtable)
+        with pytest.raises(ValueError):
+            xgb.DMatrix(dtable)
 
         df = pd.DataFrame({'A=1': [1, 2, 3], 'A=2': [4, 5, 6]})
         dtable = dt.Frame(df)

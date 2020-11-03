@@ -48,15 +48,19 @@ class TestDMatrix:
         assert dm.num_col() == 2
 
         # 0d array
-        self.assertRaises(ValueError, xgb.DMatrix, np.array(1))
+        with pytest.raises(ValueError):
+            xgb.DMatrix(np.array(1))
         # 1d array
-        self.assertRaises(ValueError, xgb.DMatrix, np.array([1, 2, 3]))
+        with pytest.raises(ValueError):
+            xgb.DMatrix(np.array([1, 2, 3]))
         # 3d array
         data = np.random.randn(5, 5, 5)
-        self.assertRaises(ValueError, xgb.DMatrix, data)
+        with pytest.raises(ValueError):
+            xgb.DMatrix(data)
         # object dtype
         data = np.array([['a', 'b'], ['c', 'd']])
-        self.assertRaises(ValueError, xgb.DMatrix, data)
+        with pytest.raises(ValueError):
+            xgb.DMatrix(data)
 
     def test_csr(self):
         indptr = np.array([0, 2, 3, 6])
@@ -148,14 +152,14 @@ class TestDMatrix:
         data = np.random.randn(5, 5)
 
         # different length
-        self.assertRaises(ValueError, xgb.DMatrix, data,
-                          feature_names=list('abcdef'))
+        with pytest.raises(ValueError):
+            xgb.DMatrix(data, feature_names=list('abcdef'))
         # contains duplicates
-        self.assertRaises(ValueError, xgb.DMatrix, data,
-                          feature_names=['a', 'b', 'c', 'd', 'd'])
+        with pytest.raises(ValueError):
+            xgb.DMatrix(data, feature_names=['a', 'b', 'c', 'd', 'd'])
         # contains symbol
-        self.assertRaises(ValueError, xgb.DMatrix, data,
-                          feature_names=['a', 'b', 'c', 'd', 'e<1'])
+        with pytest.raises(ValueError):
+            xgb.DMatrix(data, feature_names=['a', 'b', 'c', 'd', 'e<1'])
 
         dm = xgb.DMatrix(data)
         dm.feature_names = list('abcde')
@@ -170,10 +174,8 @@ class TestDMatrix:
         dm.feature_types = list('qiqiq')
         assert dm.feature_types == list('qiqiq')
 
-        def incorrect_type_set():
+        with pytest.raises(ValueError):
             dm.feature_types = list('abcde')
-
-        self.assertRaises(ValueError, incorrect_type_set)
 
         # reset
         dm.feature_names = None
@@ -209,7 +211,8 @@ class TestDMatrix:
 
             # different feature name must raises error
             dm = xgb.DMatrix(dummy, feature_names=list('abcde'))
-            self.assertRaises(ValueError, bst.predict, dm)
+            with pytest.raises(ValueError):
+                bst.predict(dm)
 
     def test_get_info(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
@@ -234,9 +237,8 @@ class TestDMatrix:
 
         fw -= 1
 
-        def assign_weight():
+        with pytest.raises(ValueError):
             m.set_info(feature_weights=fw)
-        self.assertRaises(ValueError, assign_weight)
 
     def test_sparse_dmatrix_csr(self):
         nrow = 100

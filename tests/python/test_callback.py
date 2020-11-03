@@ -130,9 +130,9 @@ class TestCallbacks:
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
                                                 save_best=True)
         cls = xgb.XGBClassifier(booster='gblinear', n_estimators=10)
-        self.assertRaises(ValueError, lambda: cls.fit(X, y, eval_set=[(X, y)],
-                                                      eval_metric=tm.eval_error_metric,
-                                                      callbacks=[early_stop]))
+        with pytest.raises(ValueError):
+            cls.fit(X, y, eval_set=[(X, y)], eval_metric=tm.eval_error_metric,
+                    callbacks=[early_stop])
 
         # No error
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,

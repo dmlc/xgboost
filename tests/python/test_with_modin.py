@@ -43,7 +43,8 @@ class TestModin:
         # incorrect dtypes
         df = md.DataFrame([[1, 2., 'x'], [2, 3., 'y']],
                           columns=['a', 'b', 'c'])
-        self.assertRaises(ValueError, xgb.DMatrix, df)
+        with pytest.raises(ValueError):
+            xgb.DMatrix(df)
 
         # numeric columns
         df = md.DataFrame([[1, 2., True], [2, 3., False]])
@@ -113,13 +114,13 @@ class TestModin:
     def test_modin_label(self):
         # label must be a single column
         df = md.DataFrame({'A': ['X', 'Y', 'Z'], 'B': [1, 2, 3]})
-        self.assertRaises(ValueError, xgb.data._transform_pandas_df, df,
-                          False, None, None, 'label', 'float')
+        with pytest.raises(ValueError):
+            xgb.data._transform_pandas_df(df, False, None, None, 'label', 'float')
 
         # label must be supported dtype
         df = md.DataFrame({'A': np.array(['a', 'b', 'c'], dtype=object)})
-        self.assertRaises(ValueError, xgb.data._transform_pandas_df, df,
-                          False, None, None, 'label', 'float')
+        with pytest.raises(ValueError):
+            xgb.data._transform_pandas_df(df, False, None, None, 'label', 'float')
 
         df = md.DataFrame({'A': np.array([1, 2, 3], dtype=int)})
         result, _, _ = xgb.data._transform_pandas_df(df, False, None, None,

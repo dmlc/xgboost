@@ -158,11 +158,11 @@ class TestBasic:
         self.assertIn("gain", dump4j, "Expected 'gain' to be dumped in JSON.")
 
     def test_load_file_invalid(self):
-        self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
-                          model_file='incorrect_path')
+        with pytest.raises(xgb.core.XGBoostError):
+            xgb.Booster(model_file='incorrect_path')
 
-        self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
-                          model_file=u'不正なパス')
+        with pytest.raises(xgb.core.XGBoostError):
+            xgb.Booster(model_file=u'不正なパス')
 
     def test_dmatrix_numpy_init_omp(self):
 
@@ -275,8 +275,8 @@ class TestBasicPathLike:
 
     def test_Booster_init_invalid_path(self):
         """An invalid model_file path should raise XGBoostError."""
-        self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
-                          model_file=Path("invalidpath"))
+        with pytest.raises(xgb.core.XGBoostError):
+            xgb.Booster(model_file=Path("invalidpath"))
 
 
     def test_Booster_save_and_load(self):
