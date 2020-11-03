@@ -388,3 +388,23 @@ class TestModels(unittest.TestCase):
         def assign():
             booster[...:end] = booster
         self.assertRaises(TypeError, assign)
+
+        sliced_0 = booster[1:3]
+        sliced_1 = booster[3:7]
+
+        predt_0 = sliced_0.predict(dtrain)
+        predt_1 = sliced_1.predict(dtrain)
+
+        merged = predt_0 + predt_1 - 0.5
+        single = booster[1:7].predict(dtrain)
+        np.testing.assert_allclose(merged, single)
+
+        sliced_0 = booster[1:7:2]  # 1,3,5
+        sliced_1 = booster[2:8:2]  # 2,4,6
+
+        predt_0 = sliced_0.predict(dtrain)
+        predt_1 = sliced_1.predict(dtrain)
+
+        merged = predt_0 + predt_1 - 0.5
+        single = booster[1:7].predict(dtrain)
+        np.testing.assert_allclose(merged, single)
