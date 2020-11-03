@@ -65,7 +65,7 @@ class TestMonotoneConstraints:
     @pytest.mark.parametrize('tree_method,extra_kwargs',
                              [('exact', {}), ('hist', {}), ('hist', {'grow_policy': 'lossguide'})],
                              ids=['exact', 'hist-depthwise', 'hist-lossguide'])
-    def test_monotone_constraints_for_exact_tree_method(self, tree_method, extra_kwargs):
+    def test_monotone_constraints(self, tree_method, extra_kwargs):
         params = {
             'tree_method': tree_method, 'verbosity': 1, 'monotone_constraints': '(1, -1)'
         }

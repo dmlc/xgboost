@@ -41,7 +41,7 @@ def test_gpu_hist_basic(constraint):
 
 
 @pytest.mark.parametrize('grow_policy', ['depthwise', 'lossguide'])
-def test_gpu_hist_depthwise(grow_policy):
+def test_gpu_hist(grow_policy):
     params = {
         'tree_method': 'gpu_hist',
         'grow_policy': grow_policy,
