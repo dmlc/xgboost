@@ -2,6 +2,7 @@ import sys
 import os
 import numpy as np
 import xgboost as xgb
+import pytest
 sys.path.append("tests/python")
 # Don't import the test class, otherwise they will run twice.
 import test_callback as test_cb  # noqa
@@ -34,9 +35,11 @@ class TestGPUBasicModels:
 
         return hash(model_0), hash(model_1)
 
-    def test_eta_decay_gpu_hist(self):
-        self.cputest.run_eta_decay('gpu_hist', True)
-        self.cputest.run_eta_decay('gpu_hist', False)
+    @pytest.mark.parametrize('deprecated_callback', [True, False],
+                             ids=['old_callback', 'new_callback'])
+    @pytest.mark.parametrize('tree_method', ['gpu_hist'])
+    def test_eta_decay_gpu_hist(self, tree_method, deprecated_callback):
+        self.cputest.test_eta_decay(tree_method, deprecated_callback)
 
     def test_deterministic_gpu_hist(self):
         kRows = 1000
