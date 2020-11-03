@@ -178,7 +178,7 @@ class TestDMatrix:
 
         # reset
         dm.feature_names = None
-        self.assertEqual(dm.feature_names, ['f0', 'f1', 'f2', 'f3', 'f4'])
+        assert dm.feature_names == ['f0', 'f1', 'f2', 'f3', 'f4']
         assert dm.feature_types is None
 
     def test_feature_names(self):

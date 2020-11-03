@@ -143,8 +143,9 @@ class TestRanking:
         cv = xgboost.cv(self.params, self.dtrain, num_boost_round=2500,
                         early_stopping_rounds=10, nfold=10, as_pandas=False)
         assert isinstance(cv, dict)
-        self.assertSetEqual(set(cv.keys()), {'test-ndcg-mean', 'train-ndcg-mean', 'test-ndcg-std', 'train-ndcg-std'},
-                            "CV results dict key mismatch")
+        assert (set(cv.keys()) == {'test-ndcg-mean', 'train-ndcg-mean', 'test-ndcg-std',
+                                   'train-ndcg-std'},
+                'CV results dict key mismatch.')
 
     def test_cv_no_shuffle(self):
         """
