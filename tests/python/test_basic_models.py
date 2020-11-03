@@ -326,8 +326,7 @@ class TestModels(unittest.TestCase):
                       'objective': 'multi:softmax'}
         validate_model(parameters)
 
-    @pytest.mark.parametrize('booster', ['gbtree', 'dart'])
-    def test_slice(self, booster):
+    def run_slice(self, booster):
         from sklearn.datasets import make_classification
         num_classes = 3
         X, y = make_classification(n_samples=1000, n_informative=5,
@@ -408,3 +407,7 @@ class TestModels(unittest.TestCase):
         merged = predt_0 + predt_1 - 0.5
         single = booster[1:7].predict(dtrain)
         np.testing.assert_allclose(merged, single)
+
+    def test_slice(self):
+        self.run_slice('gbtree')
+        self.run_slice('dart')
