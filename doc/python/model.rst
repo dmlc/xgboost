@@ -16,7 +16,7 @@ list of trees and can be sliced into multiple sub-models.
     dtrain = xgb.DMatrix(data=X, label=y)
     num_parallel_tree = 4
     num_boost_round = 16
-    total_trees = num_parallel_tree * num_classes * num_boost_round
+    # total number of built trees is num_parallel_tree * num_classes * num_boost_round
 
     # We build a boosted random forest for classification here.
     booster = xgb.train({

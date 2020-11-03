@@ -61,7 +61,8 @@ class GradientBooster : public Model, public Configurable {
    */
   virtual void Save(dmlc::Stream* fo) const = 0;
   /*!
-   * \brief Slice the model.
+   * \brief Slice a model using boosting index. The slice m:n indicates taking all trees
+   *        that were fit during the boosting rounds m, (m+1), (m+2), ..., (n-1).
    * \param layer_begin Begining of boosted tree layer used for prediction.
    * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \param out         Output gradient booster
