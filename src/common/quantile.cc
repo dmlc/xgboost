@@ -166,8 +166,9 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
     std::cout << thread_rows_ptr[imc] << ",";
   std::cout << std::endl;
   auto const nBatchRows = batch.Size();
+  std::cout << "MC is_dense: " << is_dense << " nnonzero: " << info.num_nonzero_ << " ncol: " << info.num_col_ << " nrow: " << info.num_row_ << " nBatchRows: " << nBatchRows << std::endl;
   //std::pair<xgboost::bst_row_t, bst_float> sketches_values[ncol][nBatchRows]; // matrix of columns x rows of input data
-  std::vector<std::vector<std::pair<xgboost::bst_row_t, bst_float>>> sketches_values(ncol); // ncol is the first dimension of sketches_. sketches_values corresponds to the transposed batch matrix.
+  std::vector<std::vector<std::pair<bst_float, bst_float>>> sketches_values(ncol); // ncol is the first dimension of sketches_. sketches_values corresponds to the transposed batch matrix.
   for (size_t i = 0; i < ncol; ++i) {
 	  sketches_values[i].resize(nBatchRows);
   }
@@ -186,12 +187,13 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
       size_t group_ind = 0;
 
       // do not iterate if no columns are assigned to the thread
-      if (begin < end && end <= ncol) {
+      if (begin < end && end <= nBatchRows) {
         for (size_t i = begin; i < end; ++i) { // divide by rows
-		  std::cout << "MC for i: " << i << std::endl;
+		  //std::cout << "MC for i: " << i << std::endl;
           size_t const ridx = page.base_rowid + i;
           SparsePage::Inst const inst = batch[i];
           if (use_group_ind_) {
+			std::cout << "MC entered if use_group_ind_ " << std::endl;
             group_ind = this->SearchGroupIndFromRow(group_ptr, i + page.base_rowid);
           }
           size_t w_idx = use_group_ind_ ? group_ind : ridx;
@@ -201,15 +203,12 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
             for (size_t ii = 0; ii < ncol; ii++) { // traverse through columns
 			  std::pair<bst_float, bst_float> p = std::make_pair(p_inst[ii].fvalue, w);
 			  sketches_values[ii][i] = p; // position row x col
-			  std::cout << "MC push f: " << p.first << std::endl;
-			  std::cout << "MC push s: " << p.second << std::endl;
-              //sketches_[ii].Push(p_inst[ii].fvalue, w);
-			  /*std::cout << "MC push: " << typeid(w).name() << std::endl;
-			  std::cout << "MC push: " << typeid(p_inst[ii].fvalue).name() << std::endl;*/
-			  std::cout << "MC push f1: " << p_inst[ii].fvalue << std::endl;
-			  std::cout << "MC push s1: " << w << std::endl;
+			  //sketches_[ii].Push(p_inst[ii].fvalue, w);
+			  /*if (ii % 1000 == 0) {
+				  //std::cout << "MC p value == calc: " << p.first << ";" << p.second << " == ";				  
+				  std::cout << p_inst[ii].fvalue << ";" << w << std::endl;
+			  }*/
             }
-			std::cout << "MC after for: " << std::endl;
           } else {
             for (size_t i = 0; i < inst.size(); ++i) {
               auto const& entry = p_inst[i];
@@ -221,17 +220,15 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
               }*/
             }
           }
-		  std::cout << "MC fora do is_dense: " << std::endl;
         }
       }
     });
   }
   exec.Rethrow();
 
-  std::cout << "MC sketches_values: " << std::endl;
-  // OMP
+  // TODO OMP
   for (size_t y=0; y < ncol; ++y) {
-	 std::cout << "MC sketches_values nBatchRows: " << nBatchRows << std::endl;
+	 //std::cout << "MC sketches_values nBatchRows: " << nBatchRows << std::endl;
 	 for (size_t x=0; x < nBatchRows; ++x){
 		sketches_[y].Push(sketches_values[y][x].first, sketches_values[y][x].second);
 	 }
@@ -239,7 +236,7 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
 
   monitor_.Stop("PushRowPage3");
   monitor_.Stop(__func__);
-  /*
+/*  
   std::cout << "MC sketches_values: " << std::endl;
   for (size_t y=0; y < ncol; ++y) {
 	 for (size_t x=0; x < nBatchRows; ++x){
