@@ -6,6 +6,9 @@
 #include "quantile.h"
 #include "hist_util.h"
 
+#include <typeinfo>
+#include "boost/array.hpp"
+
 namespace xgboost {
 namespace common {
 
@@ -52,33 +55,6 @@ HostSketchContainer::CalcColumnSize(SparsePage const &batch,
   return entries_per_columns;
 }
 
-std::vector<bst_row_t>
-HostSketchContainer::CalcRowSize(SparsePage const &batch,
-                                    bst_feature_t const n_rows,
-                                    size_t const nthreads) {
-//auto page = batch.GetView();
-  std::vector<std::vector<bst_row_t>> row_sizes(nthreads);
-  for (auto &row : row_sizes) {
-    row.resize(n_rows, 0); 
-  }
-
-  ParallelFor(n_cols, nthreads, [&](size_t i) {
-    auto &local_row_sizes = row_sizes.at(omp_get_thread_num());
-    auto row = page[i];//TODO need to change!
-    auto const *p_col = col.data();
-    for (size_t j = 0; j < col.size(); ++j) {
-      local_row_sizes.at(p_col[j].index)++;
-    }   
-  }); 
-  std::vector<bst_row_t> entries_per_rows(n_rows, 0); 
-  ParallelFor(n_rows, nthreads, [&](size_t i) {
-    for (auto const &thread : row_sizes) {
-      entries_per_rows[i] += thread[i];
-    }
-  });
-  return entries_per_rows;
-}
-
 std::vector<bst_feature_t> HostSketchContainer::LoadBalance(
     SparsePage const &batch, bst_feature_t n_columns, size_t const nthreads) {
   /* Some sparse datasets have their mass concentrating on small number of features.  To
@@ -117,16 +93,23 @@ std::vector<bst_feature_t> HostSketchContainer::LoadBalance(
 }
 
 std::vector<bst_feature_t> HostSketchContainer::LoadBalancePerRow(
-    SparsePage const &batch, bst_feature_t n_columns, bst_feature_t n_rows, size_t const nthreads) {
+    SparsePage const &batch, size_t const nthreads) {
   /* Some sparse datasets have their mass concentrating on small number of features.  To
    * avoid wating for a few threads running forever, we here distribute different number
    * of rows to different threads according to number of entries.
    */
-  /*auto page = batch.GetView();
-  size_t const total_entries = page.data.size();*/
-  size_t const total_entries = n_columns;
+  //auto page = batch.GetView();
+  size_t const total_entries = batch.Size();
   size_t const entries_per_thread = common::DivRoundUp(total_entries, nthreads);
+  std::cout << "MC LoadBalancePerROw: " << total_entries << " " << entries_per_thread << std::endl;
+  std::vector<bst_feature_t> rows_ptr(nthreads + 1, 0);
+  
+  for (size_t current_thread {1}; current_thread < rows_ptr.size(); ++current_thread) {
+    rows_ptr[current_thread] = rows_ptr[current_thread-1] + entries_per_thread;
+  }
 
+  return rows_ptr;
+/*
   std::vector<std::vector<bst_row_t>> row_sizes(nthreads);
   for (auto& row : row_sizes) {
     row.resize(n_rows, 0);
@@ -151,7 +134,7 @@ std::vector<bst_feature_t> HostSketchContainer::LoadBalancePerRow(
   for (; current_thread < rows_ptr.size() - 1; ++current_thread) {
     rows_ptr[current_thread+1] = rows_ptr[current_thread];
   }
-  return rows_ptr;
+  return rows_ptr;*/
 }
 
 void HostSketchContainer::PushRowPage(SparsePage const &page,
@@ -176,12 +159,19 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
     std::cout << thread_columns_ptr[imc] << ",";
   std::cout << std::endl;
 */
-  auto thread_rows_ptr = LoadBalancePerRow(page, info.num_col_, info.num_row_, nthread);
+  auto thread_rows_ptr = LoadBalancePerRow(page, nthread);
   std::cout << "MC thread_rows_ptr: ";
+  
   for (size_t imc=0; imc < thread_rows_ptr.size(); imc++)
     std::cout << thread_rows_ptr[imc] << ",";
   std::cout << std::endl;
-
+  auto const nBatchRows = batch.Size();
+  //std::pair<xgboost::bst_row_t, bst_float> sketches_values[ncol][nBatchRows]; // matrix of columns x rows of input data
+  std::vector<std::vector<std::pair<xgboost::bst_row_t, bst_float>>> sketches_values(ncol); // ncol is the first dimension of sketches_. sketches_values corresponds to the transposed batch matrix.
+  for (size_t i = 0; i < ncol; ++i) {
+	  sketches_values[i].resize(nBatchRows);
+  }
+  
   monitor_.Start("PushRowPage3");
 #pragma omp parallel num_threads(nthread)
   {
@@ -197,7 +187,7 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
 
       // do not iterate if no columns are assigned to the thread
       if (begin < end && end <= ncol) {
-        for (size_t i = begin; i < end; ++i) {
+        for (size_t i = begin; i < end; ++i) { // divide by rows
 		  std::cout << "MC for i: " << i << std::endl;
           size_t const ridx = page.base_rowid + i;
           SparsePage::Inst const inst = batch[i];
@@ -208,10 +198,18 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
           auto w = info.GetWeight(w_idx);
           auto p_inst = inst.data();
           if (is_dense) {
-            for (size_t ii = 0; ii < ncol; ii++) {
-              sketches_[ii].Push(p_inst[ii].fvalue, w);
-			  std::cout << "MC push1: " << p_inst[ii].fvalue << std::endl;
+            for (size_t ii = 0; ii < ncol; ii++) { // traverse through columns
+			  std::pair<bst_float, bst_float> p = std::make_pair(p_inst[ii].fvalue, w);
+			  sketches_values[ii][i] = p; // position row x col
+			  std::cout << "MC push f: " << p.first << std::endl;
+			  std::cout << "MC push s: " << p.second << std::endl;
+              //sketches_[ii].Push(p_inst[ii].fvalue, w);
+			  /*std::cout << "MC push: " << typeid(w).name() << std::endl;
+			  std::cout << "MC push: " << typeid(p_inst[ii].fvalue).name() << std::endl;*/
+			  std::cout << "MC push f1: " << p_inst[ii].fvalue << std::endl;
+			  std::cout << "MC push s1: " << w << std::endl;
             }
+			std::cout << "MC after for: " << std::endl;
           } else {
             for (size_t i = 0; i < inst.size(); ++i) {
               auto const& entry = p_inst[i];
@@ -223,23 +221,43 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
               }*/
             }
           }
+		  std::cout << "MC fora do is_dense: " << std::endl;
         }
       }
     });
   }
   exec.Rethrow();
 
-  std::cout << "MC sketches: " << sketches_.size() << std::endl;
-  for (size_t i=0; i < sketches_.size(); i++) {
-	  std::cout << "MC sketches ii: " << sketches_[i].data.size() << std::endl;
-         for (size_t iv=0; iv < sketches_[i].data.size(); iv ++){
-                 std::cout << sketches_[i].data[iv].value << " ";
-         }
-         std::cout << std::endl;
+  std::cout << "MC sketches_values: " << std::endl;
+  // OMP
+  for (size_t y=0; y < ncol; ++y) {
+	 std::cout << "MC sketches_values nBatchRows: " << nBatchRows << std::endl;
+	 for (size_t x=0; x < nBatchRows; ++x){
+		sketches_[y].Push(sketches_values[y][x].first, sketches_values[y][x].second);
+	 }
   }
 
   monitor_.Stop("PushRowPage3");
   monitor_.Stop(__func__);
+  /*
+  std::cout << "MC sketches_values: " << std::endl;
+  for (size_t y=0; y < ncol; ++y) {
+	 for (size_t x=0; x < nBatchRows; ++x){
+		std::cout << sketches_values[y][x].first << ";";
+		std::cout << sketches_values[y][x].second << " ";
+	 }
+	 std::cout << std::endl;
+  }  
+*/
+  std::cout << "MC sketches: " << sketches_.size() << std::endl;
+  for (size_t i=0; i < sketches_.size(); i++) {
+     std::cout << "MC sketches i: " << sketches_[i].inqueue.queue.size() << std::endl;
+	 for (size_t iv=0; iv < sketches_[i].inqueue.queue.size(); iv ++){
+		std::cout << sketches_[i].inqueue.queue[iv].value << ";";
+	 }
+	 std::cout << std::endl;
+  }
+
 }
 
 void HostSketchContainer::GatherSketchInfo(
