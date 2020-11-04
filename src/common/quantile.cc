@@ -189,7 +189,6 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
       // do not iterate if no columns are assigned to the thread
       if (begin < end && end <= nBatchRows) {
         for (size_t i = begin; i < end; ++i) { // divide by rows
-		  //std::cout << "MC for i: " << i << std::endl;
           size_t const ridx = page.base_rowid + i;
           SparsePage::Inst const inst = batch[i];
           if (use_group_ind_) {
@@ -226,9 +225,8 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
   }
   exec.Rethrow();
 
-  // TODO OMP
+  // TODO OMP?
   for (size_t y=0; y < ncol; ++y) {
-	 //std::cout << "MC sketches_values nBatchRows: " << nBatchRows << std::endl;
 	 for (size_t x=0; x < nBatchRows; ++x){
 		sketches_[y].Push(sketches_values[y][x].first, sketches_values[y][x].second);
 	 }
