@@ -33,4 +33,4 @@ def test_gpu_binary_classification():
 
 
 def test_boost_from_prediction_gpu_hist():
-    cpu_test = twskl.test_boost_from_prediction(tree_method='gpu_hist')
+    cpu_test = twskl.run_boost_from_prediction('gpu_hist')

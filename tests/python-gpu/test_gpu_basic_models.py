@@ -35,11 +35,9 @@ class TestGPUBasicModels:
 
         return hash(model_0), hash(model_1)
 
-    @pytest.mark.parametrize('deprecated_callback', [True, False],
-                             ids=['old_callback', 'new_callback'])
-    @pytest.mark.parametrize('tree_method', ['gpu_hist'])
-    def test_eta_decay_gpu_hist(self, tree_method, deprecated_callback):
-        self.cputest.test_eta_decay(tree_method, deprecated_callback)
+    def test_eta_decay_gpu_hist(self):
+        self.cputest.run_eta_decay('gpu_hist', True)
+        self.cputest.run_eta_decay('gpu_hist', False)
 
     def test_deterministic_gpu_hist(self):
         kRows = 1000

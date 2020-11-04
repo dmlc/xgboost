@@ -141,10 +141,7 @@ class TestCallbacks:
             eval_metric=tm.eval_error_metric,
             callbacks=[early_stop])
 
-    @pytest.mark.parametrize('deprecated_callback', [True, False],
-                             ids=['old_callback', 'new_callback'])
-    @pytest.mark.parametrize('tree_method', ['hist', 'approx', 'exact'])
-    def test_eta_decay(self, tree_method, deprecated_callback):
+    def run_eta_decay(self, tree_method, deprecated_callback):
         if deprecated_callback:
             scheduler = xgb.callback.reset_learning_rate
         else:
@@ -226,6 +223,18 @@ class TestCallbacks:
 
         for i in range(1, len(eval_errors_0)):
             assert eval_errors_3[i] != eval_errors_2[i]
+
+    def test_eta_decay_hist(self):
+        self.run_eta_decay('hist', True)
+        self.run_eta_decay('hist', False)
+
+    def test_eta_decay_approx(self):
+        self.run_eta_decay('approx', True)
+        self.run_eta_decay('approx', False)
+
+    def test_eta_decay_exact(self):
+        self.run_eta_decay('exact', True)
+        self.run_eta_decay('exact', False)
 
     def test_check_point(self):
         from sklearn.datasets import load_breast_cancer

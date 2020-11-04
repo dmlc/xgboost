@@ -27,8 +27,7 @@ class TemporaryDirectory(object):
         shutil.rmtree(self.name)
 
 
-@pytest.mark.parametrize('cls', [xgb.XGBClassifier, xgb.XGBRFClassifier])
-def test_binary_classification(cls):
+def test_binary_classification():
     from sklearn.datasets import load_digits
     from sklearn.model_selection import KFold
 
@@ -36,14 +35,15 @@ def test_binary_classification(cls):
     y = digits['target']
     X = digits['data']
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
-    for train_index, test_index in kf.split(X, y):
-        clf = cls(random_state=42)
-        xgb_model = clf.fit(X[train_index], y[train_index], eval_metric=['auc', 'logloss'])
-        preds = xgb_model.predict(X[test_index])
-        labels = y[test_index]
-        err = sum(1 for i in range(len(preds))
-                  if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
-        assert err < 0.1
+    for cls in (xgb.XGBClassifier, xgb.XGBRFClassifier):
+        for train_index, test_index in kf.split(X, y):
+            clf = cls(random_state=42)
+            xgb_model = clf.fit(X[train_index], y[train_index], eval_metric=['auc', 'logloss'])
+            preds = xgb_model.predict(X[test_index])
+            labels = y[test_index]
+            err = sum(1 for i in range(len(preds))
+                      if int(preds[i] > 0.5) != labels[i]) / float(len(preds))
+            assert err < 0.1
 
 
 def test_multiclass_classification():
@@ -978,9 +978,7 @@ def test_feature_weights():
     assert poly_decreasing[0] < -0.08
 
 
-@pytest.mark.skipif(**tm.no_sklearn())
-@pytest.mark.parametrize('tree_method', ['hist', 'approx', 'exact'])
-def test_boost_from_prediction(tree_method):
+def run_boost_from_prediction(tree_method):
     from sklearn.datasets import load_breast_cancer
     X, y = load_breast_cancer(return_X_y=True)
     model_0 = xgb.XGBClassifier(
@@ -1001,3 +999,18 @@ def test_boost_from_prediction(tree_method):
     cls_2.fit(X=X, y=y)
     predictions_2 = cls_2.predict(X)
     assert np.all(predictions_1 == predictions_2)
+
+
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_boost_from_prediction_hist():
+    run_boost_from_prediction('hist')
+
+
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_boost_from_prediction_approx():
+    run_boost_from_prediction('approx')
+
+
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_boost_from_prediction_exact():
+    run_boost_from_prediction('exact')

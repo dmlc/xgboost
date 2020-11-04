@@ -19,16 +19,13 @@ def non_increasing(L):
     return all((y - x) < 0.001 for x, y in zip(L, L[1:]))
 
 
-@pytest.mark.skipif(**tm.no_sklearn())
-@pytest.mark.parametrize('constraint', [1, -1],
-                         ids=['nondecreasing_constraint', 'nonincreasing_constraint'])
-def test_gpu_hist_basic(constraint):
+def assert_constraint(constraint, tree_method):
     from sklearn.datasets import make_regression
     n = 1000
     X, y = make_regression(n, random_state=rng, n_features=1, n_informative=1)
     dtrain = xgb.DMatrix(X, y)
     param = {}
-    param['tree_method'] = 'gpu_hist'
+    param['tree_method'] = tree_method
     param['monotone_constraints'] = "(" + str(constraint) + ")"
     bst = xgb.train(param, dtrain)
     dpredict = xgb.DMatrix(X[X[:, 0].argsort()])
@@ -40,11 +37,26 @@ def test_gpu_hist_basic(constraint):
         assert non_increasing(pred)
 
 
-@pytest.mark.parametrize('grow_policy', ['depthwise', 'lossguide'])
-def test_gpu_hist(grow_policy):
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_gpu_hist_basic():
+    assert_constraint(1, 'gpu_hist')
+    assert_constraint(-1, 'gpu_hist')
+
+
+def test_gpu_hist_depthwise():
     params = {
         'tree_method': 'gpu_hist',
-        'grow_policy': grow_policy,
+        'grow_policy': 'depthwise',
+        'monotone_constraints': '(1, -1)'
+    }
+    model = xgb.train(params, tmc.training_dset)
+    tmc.is_correctly_constrained(model)
+
+
+def test_gpu_hist_lossguide():
+    params = {
+        'tree_method': 'gpu_hist',
+        'grow_policy': 'lossguide',
         'monotone_constraints': '(1, -1)'
     }
     model = xgb.train(params, tmc.training_dset)

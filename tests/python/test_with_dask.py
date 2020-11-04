@@ -427,11 +427,19 @@ def run_empty_dmatrix_cls(client, parameters):
 
 # No test for Exact, as empty DMatrix handling are mostly for distributed
 # environment and Exact doesn't support it.
-@pytest.mark.parametrize('tree_method', ['hist', 'approx'])
-def test_empty_dmatrix(tree_method):
+
+def test_empty_dmatrix_hist():
     with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
-            parameters = {'tree_method': tree_method}
+            parameters = {'tree_method': 'hist'}
+            run_empty_dmatrix_reg(client, parameters)
+            run_empty_dmatrix_cls(client, parameters)
+
+
+def test_empty_dmatrix_approx():
+    with LocalCluster(n_workers=kWorkers) as cluster:
+        with Client(cluster) as client:
+            parameters = {'tree_method': 'approx'}
             run_empty_dmatrix_reg(client, parameters)
             run_empty_dmatrix_cls(client, parameters)
 
