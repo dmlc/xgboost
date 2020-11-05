@@ -11,7 +11,7 @@ import sys
 from test_gpu_pickling import build_dataset, model_path, load_pickle
 
 sys.path.append("tests/python")
-import test_basic as tb
+import testing as tm
 
 
 class TestLoadPickle(unittest.TestCase):
@@ -61,7 +61,7 @@ class TestLoadPickle(unittest.TestCase):
         rng = np.random.RandomState(1994)
         X = rng.randn(10, 10)
         y = rng.randn(10)
-        with tb.captured_output() as (out, err):
+        with tm.captured_output() as (out, err):
             # Test no thrust exception is thrown
             with pytest.raises(xgb.core.XGBoostError):
                 xgb.train({'tree_method': 'gpu_hist'}, xgb.DMatrix(X, y))
