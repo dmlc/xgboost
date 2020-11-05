@@ -2,7 +2,6 @@ import collections
 import importlib.util
 import numpy as np
 import xgboost as xgb
-from xgboost.sklearn import XGBoostLabelEncoder
 import testing as tm
 import tempfile
 import os
@@ -10,8 +9,6 @@ import shutil
 import pytest
 import unittest
 import json
-
-from test_basic import captured_output
 
 rng = np.random.RandomState(1994)
 
@@ -872,7 +869,7 @@ def test_parameter_validation():
     reg = xgb.XGBRegressor(foo='bar', verbosity=1)
     X = np.random.randn(10, 10)
     y = np.random.randn(10)
-    with captured_output() as (out, err):
+    with tm.captured_output() as (out, err):
         reg.fit(X, y)
         output = out.getvalue().strip()
 
@@ -882,7 +879,7 @@ def test_parameter_validation():
                            importance_type='gain', verbosity=1)
     X = np.random.randn(10, 10)
     y = np.random.randn(10)
-    with captured_output() as (out, err):
+    with tm.captured_output() as (out, err):
         reg.fit(X, y)
         output = out.getvalue().strip()
 
