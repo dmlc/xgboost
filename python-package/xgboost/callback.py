@@ -583,12 +583,18 @@ class EvaluationMonitor(TrainingCallback):
         Extra user defined metric.
     rank : int
         Which worker should be used for printing the result.
+    period : int
+        How many epoches between printing.
     show_stdv : bool
         Used in cv to show standard deviation.  Users should not specify it.
     '''
-    def __init__(self, rank=0, show_stdv=False):
+    def __init__(self, rank=0, period=1, show_stdv=False):
         self.printer_rank = rank
         self.show_stdv = show_stdv
+        self.period = period
+        assert period > 0
+        # last error message, useful when early stopping and period are used together.
+        self._lastest = None
         super().__init__()
 
     def _fmt_metric(self, data, metric, score, std):
@@ -601,6 +607,7 @@ class EvaluationMonitor(TrainingCallback):
     def after_iteration(self, model, epoch, evals_log):
         if not evals_log:
             return False
+
         msg = f'[{epoch}]'
         if rabit.get_rank() == self.printer_rank:
             for data, metric in evals_log.items():
@@ -613,8 +620,19 @@ class EvaluationMonitor(TrainingCallback):
                         stdv = None
                     msg += self._fmt_metric(data, metric_name, score, stdv)
             msg += '\n'
-            rabit.tracker_print(msg)
+
+            if (epoch % self.period) != 0:
+                rabit.tracker_print(msg)
+                self._lastest = None
+            else:
+                # There is skipped message
+                self._lastest = msg
         return False
+
+    def after_training(self, model):
+        if rabit.get_rank() == self.printer_rank and self._lastest is not None:
+            rabit.tracker_print(self._lastest)
+        return model
 
 
 class TrainingCheckPoint(TrainingCallback):

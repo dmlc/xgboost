@@ -1,6 +1,8 @@
 # coding: utf-8
 import os
-import platform
+import sys
+from contextlib import contextmanager
+from io import StringIO
 from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
 from xgboost.compat import DASK_INSTALLED
 import pytest
@@ -279,6 +281,24 @@ class DirectoryExcursion:
             diff = files.difference(self.files)
             for f in diff:
                 os.remove(f)
+
+
+@contextmanager
+def captured_output():
+    """Reassign stdout temporarily in order to test printed statements
+    Taken from:
+    https://stackoverflow.com/questions/4219717/how-to-assert-output-with-nosetest-unittest-in-python
+
+    Also works for pytest.
+
+    """
+    new_out, new_err = StringIO(), StringIO()
+    old_out, old_err = sys.stdout, sys.stderr
+    try:
+        sys.stdout, sys.stderr = new_out, new_err
+        yield sys.stdout, sys.stderr
+    finally:
+        sys.stdout, sys.stderr = old_out, old_err
 
 
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
