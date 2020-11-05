@@ -755,7 +755,6 @@ class TestDaskCallbacks:
                                  num_boost_round=1000,
                                  early_stopping_rounds=early_stopping_rounds)['booster']
         assert hasattr(booster, 'best_score')
-        assert booster.best_iteration == 10
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
@@ -799,9 +798,11 @@ class TestDaskCallbacks:
                         total = xgb.rabit.allreduce(total, xgb.rabit.Op.SUM)
                         assert total[0] == kRows
 
-                futures = client.map(
-                    worker_fn, workers, [m.create_fn_args()] * len(workers),
-                    pure=False, workers=workers)
+                futures = []
+                for i in range(len(workers)):
+                    futures.append(client.submit(worker_fn, workers[i],
+                                                 m.create_fn_args(workers[i]), pure=False,
+                                                 workers=[workers[i]]))
                 client.gather(futures)
 
                 has_what = client.has_what()
