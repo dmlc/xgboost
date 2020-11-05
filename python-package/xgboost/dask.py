@@ -852,7 +852,7 @@ async def _predict_async(client, model, data, missing=numpy.nan, **kwargs):
         '''Run function for each part of the data.'''
         futures = []
         workers_address = list(worker_map.keys())
-        for wid in range(len(workers_address)):
+        for wid, worker_addr in enumerate(workers_address):
             worker_addr = workers_address[wid]
             list_of_parts = worker_map[worker_addr]
             list_of_keys = [part.key for part in list_of_parts]
