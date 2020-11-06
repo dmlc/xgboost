@@ -830,6 +830,7 @@ class GPUPredictor : public xgboost::Predictor {
   void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* predictions,
                    const gbm::GBTreeModel& model,
                    unsigned ntree_limit) override {
+    dh::safe_cuda(cudaSetDevice(generic_param_->gpu_id));
     const MetaInfo& info = p_fmat->Info();
     constexpr uint32_t kBlockThreads = 128;
     size_t shared_memory_bytes =
