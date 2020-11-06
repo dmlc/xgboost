@@ -412,6 +412,10 @@ Specify the learning task and the corresponding learning objective. The objectiv
 
   - Random number seed.  This parameter is ignored in R package, use `set.seed()` instead.
 
+* ``seed_per_iteration`` [default=false]
+
+  - Seed PRNG determnisticly via iterator number, this option will be switched on automatically on distributed mode.
+
 ***********************
 Command Line Parameters
 ***********************

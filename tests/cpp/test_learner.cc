@@ -11,6 +11,7 @@
 #include <xgboost/version_config.h>
 #include "xgboost/json.h"
 #include "../../src/common/io.h"
+#include "../../src/common/random.h"
 
 namespace xgboost {
 
@@ -332,5 +333,27 @@ TEST(Learner, Seed) {
   learner->SaveConfig(&config);
   ASSERT_EQ(std::to_string(seed),
             get<String>(config["learner"]["generic_param"]["seed"]));
+}
+
+TEST(Learner, ConstantSeed) {
+  auto m = RandomDataGenerator{10, 10, 0}.GenerateDMatrix(true);
+  std::unique_ptr<Learner> learner{Learner::Create({m})};
+  learner->Configure();  // seed the global random
+
+  std::uniform_real_distribution<float> dist;
+  auto& rng = common::GlobalRandom();
+  float v_0 = dist(rng);
+
+  learner->SetParam("", "");
+  learner->Configure();  // check configure doesn't change the seed.
+  float v_1 = dist(rng);
+  CHECK_NE(v_0, v_1);
+
+  {
+    rng.seed(GenericParameter::kDefaultSeed);
+    std::uniform_real_distribution<float> dist;
+    float v_2 = dist(rng);
+    CHECK_EQ(v_0, v_2);
+  }
 }
 }  // namespace xgboost
