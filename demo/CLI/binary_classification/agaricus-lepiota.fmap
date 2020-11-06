@@ -1,7 +1,7 @@
      1. cap-shape:                bell=b,conical=c,convex=x,flat=f,knobbed=k,sunken=s
      2. cap-surface:              fibrous=f,grooves=g,scaly=y,smooth=s
      3. cap-color:                brown=n,buff=b,cinnamon=c,gray=g,green=r,pink=p,purple=u,red=e,white=w,yellow=y
-     4. bruises?:                 bruises=t,no=f
+     4. bruises:                  bruises=t,no=f
      5. odor:                     almond=a,anise=l,creosote=c,fishy=y,foul=f,
                                   musty=m,none=n,pungent=p,spicy=s
      6. gill-attachment:          attached=a,descending=d,free=f,notched=n
