@@ -154,7 +154,7 @@ void PredictBatchByBlockOfRowsKernel(DataView batch, std::vector<bst_float> *out
   const auto nsize = static_cast<bst_omp_uint>(batch.Size());
 
   const bst_omp_uint n_row_blocks = (nsize) / block_of_rows_size + !!((nsize) % block_of_rows_size);
-#pragma omp parallel for schedule(guided)
+#pragma omp parallel for schedule(static)
   for (bst_omp_uint block_id = 0; block_id < n_row_blocks; ++block_id) {
     const size_t batch_offset = block_id * block_of_rows_size;
     const size_t block_size = std::min(nsize - batch_offset, block_of_rows_size);
