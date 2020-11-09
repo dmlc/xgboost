@@ -138,28 +138,88 @@ TEST(Adapter, IteratorAdapter) {
   ASSERT_EQ(num_batch, 1);
 }
 
-TEST(Adapter, FileAdapter) {
-  size_t constexpr kPageSize = 16;
+TEST(Adapter, FileAdapterBasic) {
+  {
+    data::FileAdapter::DataPool pool(16);
+    HostDeviceVector<float> values;
+    HostDeviceVector<size_t> rptrs;
+    HostDeviceVector<bst_feature_t> cids;
+
+    size_t constexpr kRows = 16, kCols = 12;
+    RandomDataGenerator{kRows, kCols, 0.5}.GenerateCSR(&values, &rptrs, &cids);
+
+    dmlc::RowBlock<uint32_t> block;
+    block.offset = rptrs.HostPointer();
+    block.value = values.HostPointer();
+    block.index = cids.HostPointer();
+    block.size = kRows;
+
+    block.label = nullptr;
+    block.weight = nullptr;
+    block.qid = nullptr;
+    block.field = nullptr;
+
+    pool.Push(&block);
+
+    auto stored = pool.Value();
+    CHECK_EQ(stored.size, block.size);
+    for (size_t i = 0; i < block.size + 1; ++i) {
+      CHECK_EQ(stored.offset[i], block.offset[i]);
+    }
+    for (size_t i = 0; i < block.offset[block.size]; ++i) {
+      CHECK_EQ(stored.value[i], block.value[i]);
+      CHECK_EQ(stored.index[i], block.index[i]);
+    }
+  }
+
+  {
+    size_t constexpr kPageSize = 16;
+    // Parser retuning empty block is not allowed.
+    data::FileAdapter::DataPool pool(kPageSize);
+
+    ASSERT_FALSE(pool.Full());
+
+    auto block = data::FileAdapter::Block{}.Clear();
+    auto empty = dmlc::RowBlock<uint32_t>(block);
+    ASSERT_THROW({ pool.Push(&empty); }, dmlc::Error);
+  }
+}
+
+TEST(Adapter, FileAdapterBalance) {
+  size_t constexpr kPageSize = 16, kPages = 4;
+  size_t constexpr kRows = kPageSize * kPages, kCols = 12;
   data::FileAdapter::DataPool pool(kPageSize);
-
-  ASSERT_FALSE(pool.Full());
-
-  auto block = data::FileAdapter::Block{}.Clear();
-
   HostDeviceVector<float> values;
   HostDeviceVector<size_t> rptrs;
   HostDeviceVector<bst_feature_t> cids;
+  RandomDataGenerator{kRows, kCols, 0.0f}.GenerateCSR(&values, &rptrs, &cids);
 
-  size_t constexpr kRows = kPageSize * 4, kCols = 12;
-  RandomDataGenerator{kRows, kCols, 0.5}.GenerateCSR(&values, &rptrs, &cids);
+  dmlc::RowBlock<uint32_t> block;
+  block.offset = rptrs.HostPointer();
+  block.value = values.HostPointer();
+  block.index = cids.HostPointer();
+  block.size = kRows;
 
-  {
-    // Push empty
-    auto empty = dmlc::RowBlock<uint32_t>(block);
-    pool.Push(&empty);
-    auto value = pool.Value();
-    ASSERT_EQ(value.size, 0ul);
-    ASSERT_EQ(value.offset[0], 0);
+  block.label = nullptr;
+  block.weight = nullptr;
+  block.qid = nullptr;
+  block.field = nullptr;
+
+  pool.Push(&block);
+
+  size_t v_it = 0;
+  for (size_t p = 0; p < kPages; ++p) {
+    auto stored = pool.Value();
+    ASSERT_EQ(stored.size, kPageSize);
+    for (size_t i = 0; i < stored.offset[stored.size]; ++i) {
+      CHECK_EQ(block.value[v_it], stored.value[i]);
+      v_it++;
+    }
+    CHECK_EQ(stored.offset[0], 0);
+    for (size_t i = 1; i < stored.size + 1; ++i) {
+      CHECK_EQ(stored.offset[i] - stored.offset[i-1], kCols);
+    }
   }
+  ASSERT_THROW({pool.Value();}, dmlc::Error);
 }
 }  // namespace xgboost
