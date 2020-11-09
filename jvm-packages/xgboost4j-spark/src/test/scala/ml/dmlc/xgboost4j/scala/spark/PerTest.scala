@@ -19,7 +19,7 @@ package ml.dmlc.xgboost4j.scala.spark
 import java.io.File
 
 import ml.dmlc.xgboost4j.{LabeledPoint => XGBLabeledPoint}
-import org.apache.spark.{SparkConf, SparkContext, TaskFailedListener}
+import org.apache.spark.{SparkContext, SparkContextUtils, TaskFailedListener}
 import org.apache.spark.sql._
 import org.scalatest.{BeforeAndAfterEach, FunSuite}
 
@@ -50,6 +50,7 @@ trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
         currentSession.stop()
         cleanExternalCache(currentSession.sparkContext.appName)
         currentSession = null
+        waitSparkContextTotallyStopped
       }
       TaskFailedListener.killerStarted = false
     }
@@ -106,5 +107,35 @@ trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
 
     ss.createDataFrame(sc.parallelize(it.toList, numPartitions))
       .toDF("id", "label", "features", "group")
+  }
+
+  // Background:
+  // 1. XGBoost has enabled Stopping SparkContext by default while tasks run into exceptions,
+  // 2. The Stopping SparkContext (SparkContext.getOrCreate().stop()) is called in a separate
+  //    thread differring with thread running unit tests
+  // 3. The unit tests are executed one by one in a same thread.
+  //
+  // Consider this sitution, TEST B follows TEST A (TEST A will throw exception in the worker)
+  // a) TEST A will trigger SparkContext.getOrCreate().stop() which takes long time to be finished
+  //        in a separate thread
+  // b) TEST A calls afterEach which tries to stop SparkContext which is stopping because of a)
+  // c) TEST B runs. first, calling beforeEach which creates SparkSession by wrapping a SparkContext
+  //      called by SparkContext.getOrCreate(), Since SparkContext is a singleTon and kept by
+  //      activeContext which was defined in SparkContext,
+  //
+  // SparkContext.stop will clear activeContext in the last of stop by
+  //      SparkContext.clearActiveContext()
+  // Here is the issue,
+  // The newly created Sparksession of TEST B will wrap the SparkContext which is stopping by
+  // TEST A, which will result sparkContext.assertNotStopped() throw exception and block the
+  //  following unit tests in SparkSession.
+
+  private def waitSparkContextTotallyStopped: Unit = {
+    var totalWaitedTime = 0L
+    while (!SparkContextUtils.getActiveSparkContext.isEmpty && totalWaitedTime <= 11000) {
+      Thread.sleep(1000)
+      totalWaitedTime += 1000
+    }
+    assert(SparkContextUtils.getActiveSparkContext.isEmpty === true)
   }
 }
