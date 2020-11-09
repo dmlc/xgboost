@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-import sys
-from contextlib import contextmanager
-from io import StringIO
 import numpy as np
 import os
 import xgboost as xgb
@@ -9,27 +6,10 @@ import unittest
 import json
 from pathlib import Path
 import tempfile
+import testing as tm
 
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
-
-
-@contextmanager
-def captured_output():
-    """Reassign stdout temporarily in order to test printed statements
-    Taken from:
-    https://stackoverflow.com/questions/4219717/how-to-assert-output-with-nosetest-unittest-in-python
-
-    Also works for pytest.
-
-    """
-    new_out, new_err = StringIO(), StringIO()
-    old_out, old_err = sys.stdout, sys.stderr
-    try:
-        sys.stdout, sys.stderr = new_out, new_err
-        yield sys.stdout, sys.stderr
-    finally:
-        sys.stdout, sys.stderr = old_out, old_err
 
 
 class TestBasic(unittest.TestCase):
@@ -181,7 +161,6 @@ class TestBasic(unittest.TestCase):
             assert dm.num_row() == row
             assert dm.num_col() == cols
 
-
     def test_cv(self):
         dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
         params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
@@ -236,7 +215,7 @@ class TestBasic(unittest.TestCase):
             print([fold.dtest.get_label() for fold in cbackenv.cvfolds])
 
         # Run cross validation and capture standard out to test callback result
-        with captured_output() as (out, err):
+        with tm.captured_output() as (out, err):
             xgb.cv(
                 params, dm, num_boost_round=1, folds=folds, callbacks=[cb],
                 as_pandas=False
@@ -256,7 +235,6 @@ class TestBasicPathLike(unittest.TestCase):
         dtrain = xgb.DMatrix(dpath / 'agaricus.txt.train')
         assert dtrain.num_row() == 6513
         assert dtrain.num_col() == 127
-
 
     def test_DMatrix_save_to_path(self):
         """Saving to a binary file using pathlib from a DMatrix."""
