@@ -150,11 +150,11 @@ class PartitionBuilder {
     }
   }
   void AllocateForTask(size_t id) {
-    if(mem_blocks_[id].size() == 0)
+    if (mem_blocks_[id].size() == 0)
       mem_blocks_[id].resize(1);
   }
   void AllocateAllTasks() {
-    for(size_t i = 0; i < mem_blocks_.size(); ++i) {
+    for (size_t i = 0; i < mem_blocks_.size(); ++i) {
       mem_blocks_[i].resize(1);
     }
   }
@@ -222,8 +222,8 @@ class PartitionBuilder {
   size_t GetTaskIdx(int nid, size_t begin) {
     return blocks_offsets_[nid] + begin / BlockSize;
   }
- protected:
 
+ protected:
   struct BlockInfo{
     size_t n_left;
     size_t n_right;

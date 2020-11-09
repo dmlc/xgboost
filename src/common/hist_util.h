@@ -446,15 +446,16 @@ class HistCollection {
     n_nodes_added_++;
   }
   void AllocateData(bst_uint nid) {
-    if(data_[row_ptr_[nid]].size() == 0) {
-      data_[row_ptr_[nid]].resize(nbins_,{0,0});
+    if (data_[row_ptr_[nid]].size() == 0) {
+      data_[row_ptr_[nid]].resize(nbins_, {0, 0});
     }
   }
   void AllocateAllData() {
-    for(size_t i = 0; i < data_.size(); ++i) {
-      data_[i].resize(nbins_,{0,0});
+    for (size_t i = 0; i < data_.size(); ++i) {
+      data_[i].resize(nbins_, {0, 0});
     }
   }
+
  private:
   /*! \brief number of all bins over all features */
   uint32_t nbins_ = 0;
@@ -647,7 +648,6 @@ class ParallelGHistBuilder {
   /*! \brief map pair {tid, nid} to index of allocated histogram from hist_memory_  */
   std::map<std::pair<size_t, size_t>, size_t> tid_nid_to_hist_;
   std::map<std::pair<size_t, size_t>, int> tid_nid_to_hist_hist_buffer_;
-
 };
 
 /*!
