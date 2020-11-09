@@ -263,6 +263,7 @@ void BuildHistDenseKernel(cl::sycl::queue qu,
                           GHistRowOneAPI<FPType>& hist_buffer) {
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
+  LOG(INFO) << "BuildHistDenseKernel, size = " << size;
   const float* pgh = reinterpret_cast<const float*>(gpair_device.DataConst());
   const BinIdxType* gradient_index = gmat.index.data<BinIdxType>();
   const uint32_t* offsets = gmat.index.Offset();
@@ -342,6 +343,7 @@ void BuildHistSparseKernel(cl::sycl::queue qu,
                            GHistRowOneAPI<FPType>& hist_buffer) {
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
+  LOG(INFO) << "BuildHistSparseKernel, size = " << size;
   const float* pgh = reinterpret_cast<const float*>(gpair_device.DataConst());
   const uint32_t* gradient_index = gmat.index.data<uint32_t>();
   const size_t* row_ptr =  gmat.row_ptr_device.DataConst();
@@ -368,9 +370,13 @@ void BuildHistSparseKernel(cl::sycl::queue qu,
     });
   }).wait();
 
+  const size_t local_size = gmat.nfeatures > 16 ? 16 : gmat.nfeatures;
+
   qu.submit([&](cl::sycl::handler& cgh) {
-    cgh.parallel_for<>(cl::sycl::range<1>(nblocks), [=](cl::sycl::item<1> pid) {
-      size_t block = pid.get_id(0);
+    cgh.parallel_for<>(cl::sycl::nd_range<2>(cl::sycl::range<2>(nblocks, local_size),
+    										 cl::sycl::range<2>(1, local_size)), [=](cl::sycl::nd_item<2> pid) {
+      size_t block = pid.get_global_id(0);
+      size_t col_id = pid.get_global_id(1);
 
       size_t start = block * block_size;
       size_t end = (block + 1) * block_size;
@@ -385,7 +391,9 @@ void BuildHistSparseKernel(cl::sycl::queue qu,
         const size_t icol_end = row_ptr[rid[i]+1];
         const size_t idx_gh = two * rid[i];
       
-        for (size_t j = icol_start; j < icol_end; ++j) {
+        pid.barrier(cl::sycl::access::fence_space::local_space);
+
+        for (size_t j = icol_start + col_id; j < icol_end; j += local_size) {
           const uint32_t idx_bin = two * gradient_index[j];
           hist_local[idx_bin]   += pgh[idx_gh];
           hist_local[idx_bin+1] += pgh[idx_gh+1];
@@ -396,14 +404,14 @@ void BuildHistSparseKernel(cl::sycl::queue qu,
 
   qu.submit([&](cl::sycl::handler& cgh) {
     cgh.parallel_for<>(cl::sycl::range<1>(nbins), [=](cl::sycl::item<1> pid) {
-      size_t i = pid.get_id(0);
+      const size_t i = pid.get_id(0);
 
       const size_t idx_bin = two * i;
 
       FPType gsum = 0.0f;
       FPType hsum = 0.0f;
 
-      for (size_t j = 0; j < nblocks; ++j) {
+      for (size_t j = 0; j < nblocks; j++) {
         gsum += hist_buffer_data[j * nbins * two + idx_bin];
         hsum += hist_buffer_data[j * nbins * two + idx_bin + 1];
       }
