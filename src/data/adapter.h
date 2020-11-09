@@ -534,6 +534,8 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
     explicit DataPool(size_t page_size) : page_size_{page_size} {}
     bool Full() const { return block_.Size() > page_size_; }
     bool Push(dmlc::RowBlock<uint32_t> const* block);
+    size_t StagingSize() const { return staging_.Size(); }
+    size_t Available() const { return block_.Size(); }
     dmlc::RowBlock<uint32_t> Value();
   };
 

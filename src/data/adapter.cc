@@ -22,7 +22,7 @@ void FileAdapter::Block::CopySlice(Block const &that, size_t n_rows, size_t offs
   auto &in_data = that.value;
   auto& in_index = that.index;
 
-  size_t entry_offset = 0;
+  size_t entry_offset = *(in_offset.cbegin() + offset);
 
   Block &out = *this;
   auto &h_offset = out.offset;
@@ -36,8 +36,10 @@ void FileAdapter::Block::CopySlice(Block const &that, size_t n_rows, size_t offs
   size_t n_entries = h_offset.back();
   h_data.resize(n_entries);
   auto& h_index = out.index;
+  h_index.resize(n_entries);
 
-  CHECK_EQ(n_entries, in_offset.at(offset + n_rows) - in_offset.at(offset));
+  CHECK_EQ(n_entries, in_offset.at(offset + n_rows) - in_offset.at(offset)) << "offset:" << offset << ", "
+                                                                            << "n_rows: " << n_rows;
   std::copy_n(in_data.cbegin() + in_offset.at(offset), n_entries, h_data.begin());
   std::copy_n(in_index.cbegin() + in_offset.at(offset), n_entries, h_index.begin());
 
@@ -116,13 +118,18 @@ bool FileAdapter::Next() {
   bool next = false;
   while ((next = parser_->Next()) && !(pool_.Push(&parser_->Value()))) {
   }
+
   std::cout << "next: " << next << std::endl;
+  if (pool_.Available() == 0) {
+    return false;
+  }
+
   auto block = pool_.Value();
   CHECK(block.value);
   CHECK(block.index);
   batch_.reset(new FileAdapterBatch(block, row_offset_));
   row_offset_ += block.size;
-  return next;
+  return batch_->Size() != 0;
 }
 }  // namespace data
 }  // namespace xgboost

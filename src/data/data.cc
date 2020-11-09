@@ -886,6 +886,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
         auto line = batch.GetLine(i);
         for (auto j = 0ull; j < line.Size(); j++) {
           auto element = line.GetElement(j);
+          CHECK_GE(element.row_idx, base_rowid);
           const size_t key = element.row_idx - base_rowid;
           CHECK_GE(key,  builder_base_row_offset);
           max_columns_local =

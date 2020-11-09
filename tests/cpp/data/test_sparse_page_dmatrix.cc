@@ -21,6 +21,7 @@ TEST(SparsePageDMatrix, MetaInfo) {
   EXPECT_TRUE(FileExists(tmp_file + ".cache"));
 
   // Test the metadata that was parsed
+  EXPECT_EQ(dmat->Info().num_row_, dmat->Info().labels_.Size());
   EXPECT_EQ(dmat->Info().num_row_, 8ul);
   EXPECT_EQ(dmat->Info().num_col_, 5ul);
   EXPECT_EQ(dmat->Info().num_nonzero_, kEntries);
