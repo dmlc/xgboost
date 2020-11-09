@@ -280,9 +280,6 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
     size_t n_entries, size_t page_size, std::string tmp_file);
 
 /**
- * \fn std::unique_ptr<DMatrix> CreateSparsePageDMatrixWithRC(size_t n_rows, size_t n_cols,
- *                                                            size_t page_size);
- *
  * \brief Creates dmatrix with some records, each record containing random number of
  *        features in [1, n_cols]
  *

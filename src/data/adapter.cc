@@ -38,8 +38,7 @@ void FileAdapter::Block::CopySlice(Block const &that, size_t n_rows, size_t offs
   auto& h_index = out.index;
   h_index.resize(n_entries);
 
-  CHECK_EQ(n_entries, in_offset.at(offset + n_rows) - in_offset.at(offset)) << "offset:" << offset << ", "
-                                                                            << "n_rows: " << n_rows;
+  CHECK_EQ(n_entries, in_offset.at(offset + n_rows) - in_offset.at(offset));
   std::copy_n(in_data.cbegin() + in_offset.at(offset), n_entries, h_data.begin());
   std::copy_n(in_index.cbegin() + in_offset.at(offset), n_entries, h_index.begin());
 
@@ -54,6 +53,7 @@ dmlc::RowBlock<uint32_t> FileAdapter::DataPool::Value() {
     size_t i = page_size_;
     staging_.Clear();
     staging_.CopySlice(block_, i, 0);
+    CHECK_EQ(staging_.Size(), page_size_);
     Block remaining;
     remaining.CopySlice(block_, block_.Size() - i, i);
     block_ = std::move(remaining);
@@ -110,7 +110,6 @@ bool FileAdapter::DataPool::Push(dmlc::RowBlock<uint32_t> const *that) {
 
 bool FileAdapter::Next() {
   if (pool_.Full()) {
-    std::cout << "Full" << std::endl;
     auto block = pool_.Value();
     batch_.reset(new FileAdapterBatch(block, row_offset_));
     row_offset_ += block.size;
@@ -121,17 +120,20 @@ bool FileAdapter::Next() {
   while ((next = parser_->Next()) && !(pool_.Push(&parser_->Value()))) {
   }
 
-  std::cout << "next: " << next << std::endl;
+  // Must return before calling Value, which moves data to staging.
   if (pool_.Available() == 0) {
     return false;
   }
 
   auto block = pool_.Value();
-  CHECK(block.value);
+  CHECK_NE(block.size, 0);
+  CHECK(block.value) << block.size;
   CHECK(block.index);
+
   batch_.reset(new FileAdapterBatch(block, row_offset_));
   row_offset_ += block.size;
-  return batch_->Size() != 0;
+  CHECK_NE(batch_->Size(), 0);
+  return true;
 }
 }  // namespace data
 }  // namespace xgboost
