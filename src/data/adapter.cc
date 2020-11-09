@@ -113,8 +113,10 @@ bool FileAdapter::Next() {
     std::cout << "Full" << std::endl;
     auto block = pool_.Value();
     batch_.reset(new FileAdapterBatch(block, row_offset_));
+    row_offset_ += block.size;
     return true;
   }
+
   bool next = false;
   while ((next = parser_->Next()) && !(pool_.Push(&parser_->Value()))) {
   }
