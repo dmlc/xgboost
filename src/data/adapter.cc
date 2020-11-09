@@ -1,6 +1,8 @@
 /*!
  *  Copyright (c) 2020 by XGBoost Contributors
  */
+#include <algorithm>
+
 #include "adapter.h"
 #include "xgboost/data.h"
 

@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2014-2019 by Contributors
+ *  Copyright (c) 2014-2020 by Contributors
  * \file page_csr_source.h
  *  External memory data source, saved with sparse_batch_page binary format.
  * \author Tianqi Chen
@@ -9,6 +9,7 @@
 
 #include <dmlc/threadediter.h>
 #include <dmlc/timer.h>
+#include <rabit/rabit.h>
 
 #include <algorithm>
 #include <limits>
