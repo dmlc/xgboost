@@ -123,7 +123,9 @@ class ColumnMatrixOneAPI {
     bool all_dense = gmat.IsDense(); // CHECK gmat.IsDense implicitly
     gmat.GetFeatureCounts(&feature_counts_[0]);
     // classify features
+    LOG(INFO) << "nrow = " << nrow << ", nfeature = " << nfeature;
     for (int32_t fid = 0; fid < nfeature; ++fid) {
+//      LOG(INFO) << "fid = " << fid << ", feature_counts_ = " << feature_counts_[fid];
       if (static_cast<double>(feature_counts_[fid])
                  < sparse_threshold * nrow) {
         all_dense = false;
@@ -132,7 +134,7 @@ class ColumnMatrixOneAPI {
     }
 
     if (!all_dense) {
-      LOG(WARNING) << "Sparse data is not supported for updater_quantil_hist_oneapi, converting to dense";
+      LOG(WARNING) << "Sparse data is not supported for updater_quantile_histmaker_oneapi, converting to dense";
       all_dense = true;
     }
 
