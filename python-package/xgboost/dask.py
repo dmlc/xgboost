@@ -339,7 +339,7 @@ class DaskDMatrix:
                 'feature_types': self.feature_types,
                 'meta_names': self.meta_names,
                 'missing': self.missing,
-                'worker_map': self.worker_map.get(worker_addr, None),
+                'parts': self.worker_map.get(worker_addr, None),
                 'is_quantile': self.is_quantile}
 
 
@@ -386,8 +386,7 @@ def _unzip(list_of_parts):
     return list(zip(*list_of_parts))
 
 
-def _get_worker_parts(worker_map, meta_names):
-    list_of_parts: List[tuple] = worker_map
+def _get_worker_parts(list_of_parts: List[tuple], meta_names):
     partitions = _get_worker_parts_ordered(meta_names, None, list_of_parts, None)
     partitions = _unzip(partitions)
     return partitions
@@ -525,10 +524,10 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
 
 
 def _create_device_quantile_dmatrix(feature_names, feature_types,
-                                    meta_names, missing, worker_map,
+                                    meta_names, missing, parts,
                                     max_bin):
     worker = distributed.get_worker()
-    if worker_map is None:
+    if parts is None:
         msg = 'worker {address} has an empty DMatrix.  '.format(
             address=worker.address)
         LOGGER.warning(msg)
@@ -541,7 +540,7 @@ def _create_device_quantile_dmatrix(feature_names, feature_types,
 
     (data, labels, weights, base_margin,
      label_lower_bound, label_upper_bound) = _get_worker_parts(
-         worker_map, meta_names)
+         parts, meta_names)
     it = DaskPartitionIter(data=data, label=labels, weight=weights,
                            base_margin=base_margin,
                            label_lower_bound=label_lower_bound,
@@ -556,8 +555,7 @@ def _create_device_quantile_dmatrix(feature_names, feature_types,
     return dmatrix
 
 
-def _create_dmatrix(feature_names, feature_types, meta_names, missing,
-                    worker_map):
+def _create_dmatrix(feature_names, feature_types, meta_names, missing, parts):
     '''Get data that local to worker from DaskDMatrix.
 
       Returns
@@ -566,7 +564,7 @@ def _create_dmatrix(feature_names, feature_types, meta_names, missing,
 
     '''
     worker = distributed.get_worker()
-    list_of_parts = worker_map
+    list_of_parts = parts
     if list_of_parts is None:
         msg = 'worker {address} has an empty DMatrix.  '.format(address=worker.address)
         LOGGER.warning(msg)
@@ -602,7 +600,7 @@ def _create_dmatrix(feature_names, feature_types, meta_names, missing,
     return dmatrix
 
 
-def _dmatrix_from_worker_map(is_quantile, **kwargs):
+def _dmatrix_from_list_of_parts(is_quantile, **kwargs):
     if is_quantile:
         return _create_device_quantile_dmatrix(**kwargs)
     return _create_dmatrix(**kwargs)
@@ -654,14 +652,14 @@ async def _train_async(client,
         LOGGER.info('Training on %s', str(worker_addr))
         worker = distributed.get_worker()
         with RabitContext(rabit_args):
-            local_dtrain = _dmatrix_from_worker_map(**dtrain_ref)
+            local_dtrain = _dmatrix_from_list_of_parts(**dtrain_ref)
             local_evals = []
             if evals_ref:
                 for ref, name, idt in evals_ref:
                     if idt == dtrain_idt:
                         local_evals.append((local_dtrain, name))
                         continue
-                    local_evals.append((_dmatrix_from_worker_map(**ref), name))
+                    local_evals.append((_dmatrix_from_list_of_parts(**ref), name))
 
             local_history = {}
             local_param = params.copy()  # just to be consistent
