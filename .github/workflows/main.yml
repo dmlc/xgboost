@@ -336,6 +336,10 @@ jobs:
         key: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
         restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-2-
 
+    - name: Install system packages
+      run: |
+        sudo apt-get update && sudo apt-get install libcurl4-openssl-dev libssl-dev
+
     - name: Install dependencies
       shell: Rscript {0}
       run: |
