@@ -503,7 +503,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             self.handle = None
 
     @_deprecate_positional_args
-    def set_info(self,
+    def set_info(self, *,
                  label=None, weight=None, base_margin=None,
                  group=None,
                  label_lower_bound=None,

@@ -889,6 +889,11 @@ def test_parameter_validation():
     assert len(output) == 0
 
 
+def test_deprecate_position_arg():
+    with pytest.warns(FutureWarning):
+        xgb.XGBRegressor(3, learning_rate=0.1)
+
+
 @pytest.mark.skipif(**tm.no_pandas())
 def test_pandas_input():
     import pandas as pd
