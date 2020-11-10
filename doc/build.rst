@@ -320,6 +320,26 @@ is a simple bash script does that:
   cd ../python-package
   pip install -e .  # or equivalently python setup.py develop
 
+3. Use ``libxgboost.so`` on system path.
+
+This is for distributing xgboost in a language independent manner, where ``libxgboost.so``
+is separately packaged with Python package.  Assuming `libxgboost.so` is already presented
+in system library path, which can be queried via:
+
+.. code-block:: python
+
+  import sys
+  import os
+  os.path.join(sys.prefix, 'lib')
+
+Then one only needs to provide an user option when installing Python package to reuse the
+shared object in system path:
+
+.. code-block:: bash
+
+  cd xgboost/python-package
+  python setup.py install --use-system-libxgboost
+
 .. _mingw_python:
 
 Building XGBoost library for Python for Windows with MinGW-w64 (Advanced)
