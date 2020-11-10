@@ -263,17 +263,18 @@ class XGBModel(XGBModelBase):
                 assert len(sample_weight_eval_set) == len(eval_set)
 
             evals = []
-            for i in range(len(eval_set)):
-                if eval_set[i][0] is X and eval_set[i][1] is y and \
+            for i, (valid_X, valid_y) in enumerate(eval_set):
+                if valid_X is X and valid_y is y and \
                    sample_weight_eval_set[i] is sample_weight and eval_group[i] is group:
                     evals.append(train_dmatrix)
                 else:
-                    m = DMatrix(eval_set[i][0],
-                                label=label_transform(eval_set[i][1]),
+                    m = DMatrix(valid_X,
+                                label=label_transform(valid_y),
                                 missing=self.missing, weight=sample_weight_eval_set[i],
                                 nthread=self.n_jobs)
                     m.set_info(group=eval_group[i])
                     evals.append(m)
+
             nevals = len(evals)
             eval_names = ["validation_{}".format(i) for i in range(nevals)]
             evals = list(zip(evals, eval_names))

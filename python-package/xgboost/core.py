@@ -404,7 +404,8 @@ def _deprecate_positional_args(f):
                 "Pass {} as keyword args.  Passing these as positional "
                 "arguments will be considered as error in uture releases.".
                 format(", ".join(args_msg)), FutureWarning)
-        kwargs.update({k: arg for k, arg in zip(sig.parameters, args)})
+        for k, arg in zip(sig.parameters, args):
+            kwargs[k] = arg
         return f(**kwargs)
 
     return inner_f
