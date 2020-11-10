@@ -552,20 +552,22 @@ class GraphvizGenerator : public TreeGenerator {
         {"{params}", param_.condition_node_params}});
 
     static std::string const kEdgeTemplate =
-        "    {nid} -> {child} [label=\"{is_missing}\" color=\"{color}\"]\n";
+        "    {nid} -> {child} [label=\"{branch}\" color=\"{color}\"]\n";
     auto MatchFn = SuperT::Match;  // mingw failed to capture protected fn.
     auto BuildEdge =
-        [&tree, nid, MatchFn, this](int32_t child) {
+        [&tree, nid, MatchFn, this](int32_t child, bool left) {
+          // Is this the default child for missing value?
           bool is_missing = tree[nid].DefaultChild() == child;
+          std::string branch = std::string{left ? "yes" : "no"} + std::string{is_missing ? ", missing" : ""};
           std::string buffer = MatchFn(kEdgeTemplate, {
               {"{nid}",        std::to_string(nid)},
               {"{child}",      std::to_string(child)},
               {"{color}",      is_missing ? param_.yes_color : param_.no_color},
-              {"{is_missing}", is_missing ? "yes, missing": "no"}});
+              {"{branch}",     branch}});
           return buffer;
         };
-    result += BuildEdge(tree[nid].LeftChild());
-    result += BuildEdge(tree[nid].RightChild());
+    result += BuildEdge(tree[nid].LeftChild(), true);
+    result += BuildEdge(tree[nid].RightChild(), false);
     return result;
   };
 
