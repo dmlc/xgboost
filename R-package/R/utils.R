@@ -7,6 +7,14 @@
 # General helper utilities ----------------------------------------------------
 #
 
+# Set global xgboost verbosity
+xgb.set.global.verbosity <- function(verbosity = c("warning","silent","info","debug")) {
+  verbosity <- match.arg(verbosity)
+  verbosity <- switch(verbosity, "silent" = "0", "warning" = "1", "info" = "2","debug" = "3")
+  .Call(XGSetGlobalVerbosity_R, verbosity)
+  return(invisible(verbosity))
+}
+
 # SQL-style NVL shortcut.
 NVL <- function(x, val) {
   if (is.null(x))

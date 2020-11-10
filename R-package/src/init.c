@@ -43,6 +43,7 @@ extern SEXP XGDMatrixNumRow_R(SEXP);
 extern SEXP XGDMatrixSaveBinary_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixSetInfo_R(SEXP, SEXP, SEXP);
 extern SEXP XGDMatrixSliceDMatrix_R(SEXP, SEXP);
+extern SEXP XGSetGlobalVerbosity_R(SEXP);
 
 static const R_CallMethodDef CallEntries[] = {
   {"XGBoosterBoostOneIter_R",     (DL_FUNC) &XGBoosterBoostOneIter_R,     4},
@@ -73,6 +74,7 @@ static const R_CallMethodDef CallEntries[] = {
   {"XGDMatrixSaveBinary_R",       (DL_FUNC) &XGDMatrixSaveBinary_R,       3},
   {"XGDMatrixSetInfo_R",          (DL_FUNC) &XGDMatrixSetInfo_R,          3},
   {"XGDMatrixSliceDMatrix_R",     (DL_FUNC) &XGDMatrixSliceDMatrix_R,     2},
+  {"XGSetGlobalVerbosity_R",      (DL_FUNC) &XGSetGlobalVerbosity_R,      1},
   {NULL, NULL, 0}
 };
 

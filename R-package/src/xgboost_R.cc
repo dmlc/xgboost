@@ -2,12 +2,14 @@
 #include <dmlc/logging.h>
 #include <dmlc/omp.h>
 #include <xgboost/c_api.h>
+#include <xgboost/logging.h>
 #include <vector>
 #include <string>
 #include <utility>
 #include <cstring>
 #include <cstdio>
 #include <sstream>
+#include <map>
 #include "./xgboost_R.h"
 
 /*!
@@ -34,6 +36,14 @@
     error(XGBGetLastError());                   \
   }
 
+using namespace xgboost;
+  
+SEXP XGSetGlobalVerbosity_R(SEXP verbosity) {
+  std::map<std::string, std::string> args {};
+  args["verbosity"] = CHAR(asChar(verbosity))[0];
+  ConsoleLogger::Configure({args.cbegin(), args.cend()});
+  return R_NilValue;
+}
 
 using namespace dmlc;
 

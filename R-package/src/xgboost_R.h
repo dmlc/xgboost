@@ -15,6 +15,13 @@
 #include <xgboost/c_api.h>
 
 /*!
+ * \brief Set xgboost global verbosity
+ * \param verbosity
+ * \return verbosity
+ */
+XGB_DLL SEXP XGSetGlobalVerbosity_R(SEXP verbosity);
+
+/*!
  * \brief check whether a handle is NULL
  * \param handle
  * \return whether it is null ptr
