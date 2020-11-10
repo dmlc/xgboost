@@ -371,8 +371,20 @@ class DataIter:
         raise NotImplementedError()
 
 
+# Notice for `_deprecate_positional_args`
+# Authors: Olivier Grisel
+#          Gael Varoquaux
+#          Andreas Mueller
+#          Lars Buitinck
+#          Alexandre Gramfort
+#          Nicolas Tresegnie
+#          Sylvain Marie
+# License: BSD 3 clause
 def _deprecate_positional_args(f):
     """Decorator for methods that issues warnings for positional arguments
+
+    Using the keyword-only argument syntax in pep 3102, arguments after the
+    * will issue a warning when passed as a positional argument.
 
     Modifed from sklearn utils.validation.
 
@@ -402,7 +414,7 @@ def _deprecate_positional_args(f):
             ]
             warnings.warn(
                 "Pass {} as keyword args.  Passing these as positional "
-                "arguments will be considered as error in uture releases.".
+                "arguments will be considered as error in future releases.".
                 format(", ".join(args_msg)), FutureWarning)
         for k, arg in zip(sig.parameters, args):
             kwargs[k] = arg
