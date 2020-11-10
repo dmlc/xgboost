@@ -44,13 +44,13 @@ TEST(SparsePage, PushCSC) {
   }
 
   auto inst = page[0];
-  ASSERT_EQ(inst.size(), 2);
+  ASSERT_EQ(inst.size(), 2ul);
   for (auto entry : inst) {
-    ASSERT_EQ(entry.index, 0);
+    ASSERT_EQ(entry.index, 0u);
   }
 
   inst = page[1];
-  ASSERT_EQ(inst.size(), 6);
+  ASSERT_EQ(inst.size(), 6ul);
   std::vector<size_t> indices_sol {1, 2, 3};
   for (size_t i = 0; i < inst.size(); ++i) {
     ASSERT_EQ(inst[i].index, indices_sol[i % 3]);
@@ -58,15 +58,12 @@ TEST(SparsePage, PushCSC) {
 }
 
 TEST(SparsePage, PushCSCAfterTranspose) {
-#if defined(__APPLE__)
-  LOG(WARNING) << "FIXME(trivialfis): Skipping `PushCSCAfterTranspose' for APPLE.";
-  return;
-#endif
   dmlc::TemporaryDirectory tmpdir;
   std::string filename = tmpdir.path + "/big.libsvm";
-  const int n_entries = 9;
+  size_t constexpr kPageSize = 1024, kEntriesPerCol = 3;
+  size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
   std::unique_ptr<DMatrix> dmat =
-      CreateSparsePageDMatrix(n_entries, 64UL, filename);
+      CreateSparsePageDMatrix(kEntries, 64UL, filename);
   const int ncols = dmat->Info().num_col_;
   SparsePage page; // Consolidated sparse page
   for (const auto &batch : dmat->GetBatches<xgboost::SparsePage>()) {
@@ -76,7 +73,7 @@ TEST(SparsePage, PushCSCAfterTranspose) {
   }
 
   // Make sure that the final sparse page has the right number of entries
-  ASSERT_EQ(n_entries, page.data.Size());
+  ASSERT_EQ(kEntries, page.data.Size());
 
   // The feature value for a feature in each row should be identical, as that is
   // how the dmatrix has been created

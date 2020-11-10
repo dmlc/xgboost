@@ -365,6 +365,10 @@ class CudaArrayIterForTest {
   auto Proxy() -> decltype(proxy_) { return proxy_; }
 };
 
+void DMatrixToCSR(DMatrix *dmat, std::vector<float> *p_data,
+                  std::vector<size_t> *p_row_ptr,
+                  std::vector<bst_feature_t> *p_cids);
+
 typedef void *DataIterHandle;  // NOLINT(*)
 
 inline void Reset(DataIterHandle self) {

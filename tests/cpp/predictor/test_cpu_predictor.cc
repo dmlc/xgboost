@@ -16,8 +16,8 @@ TEST(CpuPredictor, Basic) {
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
 
-  int kRows = 5;
-  int kCols = 5;
+  size_t constexpr kRows = 5;
+  size_t constexpr kCols = 5;
 
   LearnerModelParam param;
   param.num_feature = kCols;
@@ -85,7 +85,11 @@ TEST(CpuPredictor, Basic) {
 TEST(CpuPredictor, ExternalMemory) {
   dmlc::TemporaryDirectory tmpdir;
   std::string filename = tmpdir.path + "/big.libsvm";
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64, filename);
+
+  size_t constexpr kPageSize = 64, kEntriesPerCol = 3;
+  size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
+
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(kEntries, kPageSize, filename);
   auto lparam = CreateEmptyGenericParam(GPUIDX);
 
   std::unique_ptr<Predictor> cpu_predictor =
