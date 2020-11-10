@@ -760,7 +760,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
 
         Parameters
         ----------
-        rindex : list
+        rindex : list/numpy.ndarray
             List of indices to be selected.
         allow_groups : boolean
             Allow slicing of a matrix with a groups attribute
@@ -770,8 +770,10 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         res : DMatrix
             A new DMatrix containing only selected indices.
         """
+        from .data import _maybe_np_slice
         res = DMatrix(None)
         res.handle = ctypes.c_void_p()
+        rindex = _maybe_np_slice(rindex, dtype=np.int32)
         _check_call(_LIB.XGDMatrixSliceDMatrixEx(
             self.handle,
             c_array(ctypes.c_int, rindex),
