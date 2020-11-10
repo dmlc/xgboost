@@ -775,6 +775,7 @@ class XGBModel(XGBModelBase):
 ''')
 class XGBClassifier(XGBModel, XGBClassifierBase):
     # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
+    @_deprecate_positional_args
     def __init__(self, objective="binary:logistic", use_label_encoder=True, **kwargs):
         self.use_label_encoder = use_label_encoder
         super().__init__(objective=objective, **kwargs)
@@ -1065,6 +1066,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 ''')
 class XGBRFClassifier(XGBClassifier):
     # pylint: disable=missing-docstring
+    @_deprecate_positional_args
     def __init__(self,
                  learning_rate=1,
                  subsample=0.8,
@@ -1093,6 +1095,7 @@ class XGBRFClassifier(XGBClassifier):
     ['estimators', 'model', 'objective'])
 class XGBRegressor(XGBModel, XGBRegressorBase):
     # pylint: disable=missing-docstring
+    @_deprecate_positional_args
     def __init__(self, objective="reg:squarederror", **kwargs):
         super().__init__(objective=objective, **kwargs)
 
@@ -1105,6 +1108,7 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
 ''')
 class XGBRFRegressor(XGBRegressor):
     # pylint: disable=missing-docstring
+    @_deprecate_positional_args
     def __init__(self, learning_rate=1, subsample=0.8, colsample_bynode=0.8,
                  reg_lambda=1e-5, **kwargs):
         super().__init__(learning_rate=learning_rate, subsample=subsample,
@@ -1161,6 +1165,7 @@ class XGBRFRegressor(XGBRegressor):
 ''')
 class XGBRanker(XGBModel):
     # pylint: disable=missing-docstring,too-many-arguments,invalid-name
+    @_deprecate_positional_args
     def __init__(self, objective='rank:pairwise', **kwargs):
         super().__init__(objective=objective, **kwargs)
         if callable(self.objective):
