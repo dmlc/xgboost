@@ -502,6 +502,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             _check_call(_LIB.XGDMatrixFree(self.handle))
             self.handle = None
 
+    @_deprecate_positional_args
     def set_info(self,
                  label=None, weight=None, base_margin=None,
                  group=None,
