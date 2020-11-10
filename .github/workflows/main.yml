@@ -329,6 +329,8 @@ jobs:
       with:
         r-version: ${{ matrix.config.r }}
 
+    - uses: r-lib/actions/setup-tinytex@master
+
     - name: Cache R packages
       uses: actions/cache@v2
       with:
