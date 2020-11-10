@@ -483,6 +483,8 @@ void ExtractPaths(dh::device_vector<gpu_treeshap::PathElement>* paths,
 namespace {
 template <size_t kBlockThreads>
 size_t SharedMemoryBytes(size_t cols, size_t max_shared_memory_bytes) {
+  // No way max_shared_memory_bytes that is equal to 0.
+  CHECK_GT(max_shared_memory_bytes, 0);
   size_t shared_memory_bytes =
       static_cast<size_t>(sizeof(float) * cols * kBlockThreads);
   if (shared_memory_bytes > max_shared_memory_bytes) {
@@ -902,7 +904,7 @@ class GPUPredictor : public xgboost::Predictor {
 
   std::mutex lock_;
   DeviceModel model_;
-  size_t max_shared_memory_bytes_;
+  size_t max_shared_memory_bytes_ { 0 };
 };
 
 XGBOOST_REGISTER_PREDICTOR(GPUPredictor, "gpu_predictor")
