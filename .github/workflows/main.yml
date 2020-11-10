@@ -310,3 +310,39 @@ jobs:
     - name: Test R
       run: |
         python tests/ci_build/test_r_package.py --compiler="${{ matrix.config.compiler }}" --build-tool="${{ matrix.config.build }}"
+
+  test-R-CRAN:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {r: 'release'}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: r-lib/actions/setup-r@master
+      with:
+        r-version: ${{ matrix.config.r }}
+
+    - name: Cache R packages
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.R_LIBS_USER }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-2-
+
+    - name: Install dependencies
+      shell: Rscript {0}
+      run: |
+        install.packages(${{ env.R_PACKAGES }},
+                         repos = 'http://cloud.r-project.org',
+                         dependencies = c('Depends', 'Imports', 'LinkingTo'))
+
+    - name: Check R Package
+      run: |
+        make Rcheck
