@@ -15,6 +15,7 @@ if sys.platform.startswith("win"):
 sys.path.append("tests/python")
 from test_with_dask import run_empty_dmatrix_reg  # noqa
 from test_with_dask import run_empty_dmatrix_cls  # noqa
+from test_with_dask import _get_client_workers  # noqa
 from test_with_dask import generate_array     # noqa
 import testing as tm                          # noqa
 
@@ -217,7 +218,7 @@ class TestDistributedGPU:
             return subprocess.run([exe, test], env=env, stdout=subprocess.PIPE)
 
         with Client(local_cuda_cluster) as client:
-            workers = list(dxgb._get_client_workers(client).keys())
+            workers = list(_get_client_workers(client).keys())
             rabit_args = client.sync(dxgb._get_rabit_args, workers, client)
             futures = client.map(runit,
                                  workers,
