@@ -213,6 +213,7 @@ xgb.plot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, to
 #' Internal utility function.
 #'
 #' @inheritParams xgb.plot.shap
+#' @keywords internal
 #'
 #' @return A list containing: 'data', a matrix containing sample observations
 #'   and their feature values; 'shap_contrib', a matrix containing the SHAP contribution

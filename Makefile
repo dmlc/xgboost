@@ -141,7 +141,7 @@ Rpack: clean_all
 R ?= R
 
 Rbuild: Rpack
-	$(R) CMD build --no-build-vignettes xgboost
+	$(R) CMD build xgboost
 	rm -rf xgboost
 
 Rcheck: Rbuild
