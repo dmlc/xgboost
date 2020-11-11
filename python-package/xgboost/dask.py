@@ -626,7 +626,7 @@ def _get_workers_from_data(dtrain: DaskDMatrix, evals=()):
             assert len(e) == 2
             assert isinstance(e[0], DaskDMatrix) and isinstance(e[1], str)
             worker_map = set(e[0].worker_map.keys())
-            X_worker_map.union(worker_map)
+            X_worker_map = X_worker_map.union(worker_map)
     return X_worker_map
 
 
