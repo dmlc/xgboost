@@ -348,6 +348,13 @@ RandomDataGenerator::GenerateDMatrix(bool with_label, bool float_label,
       gen.GenerateDense(&out->Info().labels_);
     }
   }
+  if (device_ >= 0) {
+    out->Info().labels_.SetDevice(device_);
+    for (auto const& page : out->GetBatches<SparsePage>()) {
+      page.data.SetDevice(device_);
+      page.offset.SetDevice(device_);
+    }
+  }
   return out;
 }
 

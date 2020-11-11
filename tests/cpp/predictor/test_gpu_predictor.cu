@@ -190,6 +190,7 @@ TEST(GPUPredictor, ShapStump) {
   EXPECT_EQ(phis[4], 0.0);
   EXPECT_EQ(phis[5], param.base_score);
 }
+
 TEST(GPUPredictor, Shap) {
   LearnerModelParam param;
   param.num_feature = 1;
@@ -223,6 +224,29 @@ TEST(GPUPredictor, Shap) {
 
 TEST(GPUPredictor, CategoricalPrediction) {
   TestCategoricalPrediction("gpu_predictor");
+}
+
+TEST(GPUPredictor, PredictLeafBasic) {
+  size_t constexpr kRows = 5, kCols = 5;
+  auto dmat = RandomDataGenerator(kRows, kCols, 0).Device(0).GenerateDMatrix();
+  auto lparam = CreateEmptyGenericParam(GPUIDX);
+  std::unique_ptr<Predictor> gpu_predictor =
+      std::unique_ptr<Predictor>(Predictor::Create("gpu_predictor", &lparam));
+  gpu_predictor->Configure({});
+
+  LearnerModelParam param;
+  param.num_feature = kCols;
+  param.base_score = 0.0;
+  param.num_output_group = 1;
+
+  gbm::GBTreeModel model = CreateTestModel(&param);
+
+  HostDeviceVector<float> leaf_out_predictions;
+  gpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model);
+  auto const& h_leaf_out_predictions = leaf_out_predictions.ConstHostVector();
+  for (auto v : h_leaf_out_predictions) {
+    ASSERT_EQ(v, 0);
+  }
 }
 }  // namespace predictor
 }  // namespace xgboost

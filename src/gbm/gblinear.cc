@@ -147,9 +147,7 @@ class GBLinear : public GradientBooster {
     }
   }
 
-  void PredictLeaf(DMatrix*,
-                   std::vector<bst_float>*,
-                   unsigned) override {
+  void PredictLeaf(DMatrix *, HostDeviceVector<bst_float> *, unsigned) override {
     LOG(FATAL) << "gblinear does not support prediction of leaf index";
   }
 

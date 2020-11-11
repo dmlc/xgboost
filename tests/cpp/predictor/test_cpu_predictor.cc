@@ -46,9 +46,10 @@ TEST(CpuPredictor, Basic) {
   }
 
   // Test predict leaf
-  std::vector<float> leaf_out_predictions;
+  HostDeviceVector<float> leaf_out_predictions;
   cpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model);
-  for (auto v : leaf_out_predictions) {
+  auto const& h_leaf_out_predictions = leaf_out_predictions.ConstHostVector();
+  for (auto v : h_leaf_out_predictions) {
     ASSERT_EQ(v, 0);
   }
 
@@ -112,10 +113,11 @@ TEST(CpuPredictor, ExternalMemory) {
   }
 
   // Test predict leaf
-  std::vector<float> leaf_out_predictions;
+  HostDeviceVector<float> leaf_out_predictions;
   cpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model);
-  ASSERT_EQ(leaf_out_predictions.size(), dmat->Info().num_row_);
-  for (const auto& v : leaf_out_predictions) {
+  auto const& h_leaf_out_predictions = leaf_out_predictions.ConstHostVector();
+  ASSERT_EQ(h_leaf_out_predictions.size(), dmat->Info().num_row_);
+  for (const auto& v : h_leaf_out_predictions) {
     ASSERT_EQ(v, 0);
   }
 
