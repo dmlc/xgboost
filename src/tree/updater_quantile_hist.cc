@@ -182,8 +182,24 @@ void DistributedHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT* builder
     }
   });
   builder->builder_monitor_.Start("SyncHistogramsAllreduce");
-  builder->histred_.Allreduce(builder->hist_[starting_index].data(),
-                                    builder->hist_builder_.GetNumBins() * sync_count);
+
+  const size_t explicit_size = builder->nodes_for_explicit_hist_build_.size();
+  const size_t subtaction_size = builder->nodes_for_subtraction_trick_.size();
+  std::vector<int> merged_node_ids(explicit_size + subtaction_size);
+  for (size_t i = 0; i < explicit_size; ++i) {
+    merged_node_ids[i] = builder->nodes_for_explicit_hist_build_[i].nid;
+  }
+  for (size_t i = 0; i < subtaction_size; ++i) {
+    merged_node_ids[explicit_size + i] =
+    builder->nodes_for_subtraction_trick_[i].nid;
+  }
+  std::sort(merged_node_ids.begin(), merged_node_ids.end());
+  for (auto const& nid : merged_node_ids) {
+    if ((*p_tree)[nid].IsLeftChild()) {
+      builder->histred_.Allreduce(builder->hist_[nid].data(),
+                                        builder->hist_builder_.GetNumBins());
+    }
+  }
   builder->builder_monitor_.Stop("SyncHistogramsAllreduce");
 
   ParallelSubtractionHist(builder, space, builder->nodes_for_explicit_hist_build_, p_tree);

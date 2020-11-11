@@ -20,7 +20,7 @@ TEST(PartitionBuilder, BasicTest) {
   builder.Init(kTasks, kNodes, [&](size_t i) {
     return tasks[i];
   });
-
+  builder.AllocateAllTasks();
   std::vector<size_t> rows_for_left_node = { 2, 12, 0, 16, 8 };
 
   for(size_t nid = 0; nid < kNodes; ++nid) {

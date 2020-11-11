@@ -150,8 +150,9 @@ class PartitionBuilder {
     }
   }
   void AllocateForTask(size_t id) {
-    if (mem_blocks_[id].size() == 0)
+    if (mem_blocks_[id].size() == 0) {
       mem_blocks_[id].resize(1);
+    }
   }
   void AllocateAllTasks() {
     for (size_t i = 0; i < mem_blocks_.size(); ++i) {
@@ -224,7 +225,7 @@ class PartitionBuilder {
   }
 
  protected:
-  struct BlockInfo{
+  struct alignas(128) BlockInfo{
     size_t n_left;
     size_t n_right;
 
