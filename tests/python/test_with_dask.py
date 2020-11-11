@@ -796,7 +796,6 @@ class TestDaskCallbacks:
                 merged = xgb.dask._get_workers_from_data(train, evals=[(valid, 'Valid')])
                 assert len(merged) == 2
 
-
     def test_data_initialization(self):
         '''Assert each worker has the correct amount of data, and DMatrix initialization doesn't
         generate unnecessary copies of data.
@@ -813,16 +812,16 @@ class TestDaskCallbacks:
 
                 def worker_fn(worker_addr, data_ref):
                     with xgb.dask.RabitContext(rabit_args):
-                        local_dtrain = xgb.dask._dmatrix_from_list_of_parts(**data_ref)
-                        total = np.array([local_dtrain.num_row()])
+                        total = np.array([data_ref.num_row()])
                         total = xgb.rabit.allreduce(total, xgb.rabit.Op.SUM)
                         assert total[0] == kRows
 
                 futures = []
                 for i in range(len(workers)):
-                    futures.append(client.submit(worker_fn, workers[i],
-                                                 m.create_fn_args(workers[i]), pure=False,
-                                                 workers=[workers[i]]))
+                    futures.append(client.submit(
+                        worker_fn, workers[i],
+                        xgb.dask._init_dmatrix(m, workers[i], client), pure=False,
+                        workers=[workers[i]]))
                 client.gather(futures)
 
                 has_what = client.has_what()
