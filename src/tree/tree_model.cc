@@ -558,8 +558,8 @@ class GraphvizGenerator : public TreeGenerator {
         [&tree, nid, MatchFn, this](int32_t child, bool left) {
           // Is this the default child for missing value?
           bool is_missing = tree[nid].DefaultChild() == child;
-          std::string branch = std::string{left ? "yes" : "no"} +
-                               std::string{is_missing ? ", missing" : ""};
+          std::string branch = std::string {left ? "yes" : "no"} +
+                               std::string {is_missing ? ", missing" : ""};
           std::string buffer = MatchFn(kEdgeTemplate, {
               {"{nid}",        std::to_string(nid)},
               {"{child}",      std::to_string(child)},
