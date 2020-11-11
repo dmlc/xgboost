@@ -351,4 +351,6 @@ jobs:
 
     - name: Check R Package
       run: |
-        make Rcheck
+        # Print stacktrace upon success of failure
+        make Rcheck || tests/ci_build/print_r_stacktrace.sh fail
+        tests/ci_build/print_r_stacktrace.sh success
