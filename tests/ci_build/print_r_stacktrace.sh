@@ -3,6 +3,7 @@
 # To be called when R package tests have failed
 
 set -e
+set -x
 
 flag="$1"
 
