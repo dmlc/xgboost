@@ -662,7 +662,7 @@ class GPUPredictor : public xgboost::Predictor {
     auto GRID_SIZE = static_cast<uint32_t>(common::DivRoundUp(info.num_row_, BLOCK_THREADS));
 
     size_t shared_memory_bytes =
-        SharedMemoryBytes<BLOCK_THREADS>(info.num_col_, max_shared_memory_bytes_);
+        SharedMemoryBytes<BLOCK_THREADS>(info.num_col_, max_shared_memory_bytes);
     bool use_shared = shared_memory_bytes != 0;
     size_t entry_start = 0;
 
