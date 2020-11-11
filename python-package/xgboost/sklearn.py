@@ -510,7 +510,8 @@ class XGBModel(XGBModelBase):
 
             .. code-block:: python
 
-                [xgb.callback.reset_learning_rate(custom_rates)]
+                callbacks = [xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
+                                                        save_best=True)]
 
         """
         self.n_features_in_ = X.shape[1]
@@ -1249,7 +1250,8 @@ class XGBRanker(XGBModel):
 
             .. code-block:: python
 
-                [xgb.callback.reset_learning_rate(custom_rates)]
+                callbacks = [xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
+                                                        save_best=True)]
 
         """
         # check if group information is provided

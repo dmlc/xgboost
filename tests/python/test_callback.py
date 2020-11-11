@@ -123,9 +123,11 @@ class TestCallbacks(unittest.TestCase):
         X, y = load_breast_cancer(return_X_y=True)
         cls = xgb.XGBClassifier()
         early_stopping_rounds = 5
+        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
+                                                save_best=True)
         cls.fit(X, y, eval_set=[(X, y)],
-                early_stopping_rounds=early_stopping_rounds,
-                eval_metric=tm.eval_error_metric)
+                eval_metric=tm.eval_error_metric,
+                callbacks=[early_stop])
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
