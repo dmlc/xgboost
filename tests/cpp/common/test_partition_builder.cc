@@ -20,7 +20,6 @@ TEST(PartitionBuilder, BasicTest) {
   builder.Init(kTasks, kNodes, [&](size_t i) {
     return tasks[i];
   });
-  builder.AllocateAllTasks();
   std::vector<size_t> rows_for_left_node = { 2, 12, 0, 16, 8 };
 
   for(size_t nid = 0; nid < kNodes; ++nid) {
@@ -32,6 +31,8 @@ TEST(PartitionBuilder, BasicTest) {
     for(size_t j = 0; j < tasks[nid]; ++j) {
       size_t begin = kBlockSize*j;
       size_t end = kBlockSize*(j+1);
+      const size_t id = builder.GetTaskIdx(nid, begin);
+      builder.AllocateForTask(id);
 
       auto left  = builder.GetLeftBuffer(nid, begin, end);
       auto right = builder.GetRightBuffer(nid, begin, end);
