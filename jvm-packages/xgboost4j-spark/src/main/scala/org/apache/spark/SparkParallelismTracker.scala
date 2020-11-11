@@ -16,6 +16,8 @@
 
 package org.apache.spark
 
+import java.util.concurrent.atomic.AtomicBoolean
+
 import org.apache.commons.logging.LogFactory
 import org.apache.spark.scheduler._
 
@@ -146,22 +148,29 @@ class TaskFailedListener(killSparkContext: Boolean = true) extends SparkListener
 
 object TaskFailedListener {
 
-  var killerStarted = false
+  var killerStarted = new AtomicBoolean(false)
+
+  // mostly for testing
+  val sparkContextShutdownLock = new AnyRef
 
   private def startedSparkContextKiller(): Unit = this.synchronized {
-    if (!killerStarted) {
+    if (!killerStarted.get()) {
       // Spark does not allow ListenerThread to shutdown SparkContext so that we have to do it
       // in a separate thread
       val sparkContextKiller = new Thread() {
         override def run(): Unit = {
           LiveListenerBus.withinListenerThread.withValue(false) {
             SparkContext.getOrCreate().stop()
+            sparkContextShutdownLock.synchronized {
+              killerStarted.set(false)
+              sparkContextShutdownLock.notify()
+            }
           }
         }
       }
       sparkContextKiller.setDaemon(true)
+      killerStarted.set(true)
       sparkContextKiller.start()
-      killerStarted = true
     }
   }
 }

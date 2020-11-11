@@ -47,11 +47,22 @@ trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
   override def afterEach() {
     synchronized {
       if (currentSession != null) {
+        // this synchronization is mostly for the tests involving SparkContext shutdown
+        // for unit test involving the sparkContext shutdown there are two different events sequence
+        // 1. SparkContext killer is executed before afterEach, in this case, before SparkContext
+        // is fully stopped, afterEach() will block at the following code block
+        // 2. SparkContext killer is executed afterEach, in this case, currentSession.stop() in will
+        // block to wait for all msgs in ListenerBus get processed. Because currentSession.stop()
+        // has been called, SparkContext killer will not take effect
+        TaskFailedListener.sparkContextShutdownLock.synchronized {
+          while (TaskFailedListener.killerStarted.get()) {
+            TaskFailedListener.sparkContextShutdownLock.wait()
+          }
+        }
         currentSession.stop()
         cleanExternalCache(currentSession.sparkContext.appName)
         currentSession = null
       }
-      TaskFailedListener.killerStarted = false
     }
   }
 
