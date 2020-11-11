@@ -18,6 +18,31 @@ xgb.shap.data(
   max_observations = 1e+05
 )
 }
+\arguments{
+\item{data}{data as a \code{matrix} or \code{dgCMatrix}.}
+
+\item{shap_contrib}{a matrix of SHAP contributions that was computed earlier for the above
+\code{data}. When it is NULL, it is computed internally using \code{model} and \code{data}.}
+
+\item{features}{a vector of either column indices or of feature names to plot. When it is NULL,
+feature importance is calculated, and \code{top_n} high ranked features are taken.}
+
+\item{top_n}{when \code{features} is NULL, top_n [1, 100] most important features in a model are taken.}
+
+\item{model}{an \code{xgb.Booster} model. It has to be provided when either \code{shap_contrib}
+or \code{features} is missing.}
+
+\item{trees}{passed to \code{\link{xgb.importance}} when \code{features = NULL}.}
+
+\item{target_class}{is only relevant for multiclass models. When it is set to a 0-based class index,
+only SHAP contributions for that specific class are used.
+If it is not set, SHAP importances are averaged over all classes.}
+
+\item{approxcontrib}{passed to \code{\link{predict.xgb.Booster}} when \code{shap_contrib = NULL}.}
+
+\item{subsample}{a random fraction of data points to use for plotting. When it is NULL,
+it is set so that up to 100K data points are used.}
+}
 \value{
 A list containing: 'data', a matrix containing sample observations
   and their feature values; 'shap_contrib', a matrix containing the SHAP contribution
@@ -27,3 +52,4 @@ A list containing: 'data', a matrix containing sample observations
 Prepare data for SHAP plots. To be used in xgb.plot.shap, xgb.plot.shap.summary, etc.
 Internal utility function.
 }
+\keyword{internal}

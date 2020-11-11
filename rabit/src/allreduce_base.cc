@@ -104,9 +104,7 @@ bool AllreduceBase::Init(int argc, char* argv[]) {
     }
   }
   if (dmlc_role != "worker") {
-    fprintf(stderr, "Rabit Module currently only work with dmlc worker"\
-            ", quit this program by exit 0\n");
-    exit(0);
+    LOG(FATAL) << "Rabit Module currently only work with dmlc worker";
   }
 
   // clear the setting before start reconnection
@@ -236,10 +234,10 @@ utils::TCPSocket AllreduceBase::ConnectTracker() const {
   do {
     if (!tracker.Connect(utils::SockAddr(tracker_uri.c_str(), tracker_port))) {
       if (++retry >= connect_retry) {
-        fprintf(stderr, "connect to (failed): [%s]\n", tracker_uri.c_str());
+        LOG(WARNING) << "Connect to (failed): [" << tracker_uri << "]\n";
         utils::Socket::Error("Connect");
       } else {
-        fprintf(stderr, "retry connect to ip(retry time %d): [%s]\n", retry, tracker_uri.c_str());
+        LOG(WARNING) << "Retry connect to ip(retry time " << retry << "): [" << tracker_uri << "]\n";
 #if defined(_MSC_VER) || defined (__MINGW32__)
         Sleep(retry << 1);
 #else
@@ -295,10 +293,11 @@ bool AllreduceBase::ReConnectLinks(const char *cmd) {
            "must keep rank to same if the node already have one");
     rank = newrank;
 
-    // tracker got overwhelemed and not able to assign correct rank
-    if (rank == -1) exit(-1);
+    if (rank == -1) {
+      LOG(FATAL) << "tracker got overwhelemed and not able to assign correct rank";
+    }
 
-    fprintf(stdout, "task %s got new rank %d\n", task_id.c_str(), rank);
+    LOG(CONSOLE) << "task " << task_id << " got new rank " << rank;
 
     Assert(tracker.RecvAll(&num_neighbors, sizeof(num_neighbors)) == \
          sizeof(num_neighbors), "ReConnectLink failure 4");
@@ -424,7 +423,7 @@ bool AllreduceBase::ReConnectLinks(const char *cmd) {
         setsockopt(all_link.sock, IPPROTO_TCP,
                    TCP_NODELAY, reinterpret_cast<void *>(&tcpNoDelay), sizeof(tcpNoDelay));
 #else
-        fprintf(stderr, "tcp no delay is not implemented on non unix platforms\n");
+        LOG(WARNING) << "tcp no delay is not implemented on non unix platforms";
 #endif
       }
       if (tree_neighbors.count(all_link.rank) != 0) {
@@ -444,7 +443,7 @@ bool AllreduceBase::ReConnectLinks(const char *cmd) {
            "cannot find next ring in the link");
     return true;
   } catch (const std::exception& e) {
-    fprintf(stderr, "failed in ReconnectLink %s\n", e.what());
+    LOG(WARNING) << "failed in ReconnectLink " << e.what();
     return false;
   }
 }
