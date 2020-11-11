@@ -86,8 +86,7 @@ pipeline {
             'test-cpp-gpu-cuda11.0': { TestCppGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0') },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '3.0.0') },
             'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
-            'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') },
-            'test-r-3.5.3': { TestR(use_r35: true) }
+            'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') }
           ])
         }
       }
@@ -364,21 +363,6 @@ def CrossTestJVMwithJDK(args) {
     def docker_extra_params = (args.spark_version != null) ? "CI_DOCKER_EXTRA_PARAMS_INIT='-e RUN_INTEGRATION_TEST=1'" : ""
     sh """
     ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/test_jvm_cross.sh
-    """
-    deleteDir()
-  }
-}
-
-def TestR(args) {
-  node('linux && cpu') {
-    unstash name: 'srcs'
-    echo "Test R package"
-    def container_type = "rproject"
-    def docker_binary = "docker"
-    def use_r35_flag = (args.use_r35) ? "1" : "0"
-    def docker_args = "--build-arg USE_R35=${use_r35_flag}"
-    sh """
-    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_test_rpkg.sh || tests/ci_build/print_r_stacktrace.sh
     """
     deleteDir()
   }
