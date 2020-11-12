@@ -480,7 +480,7 @@ class XGBModel(XGBModelBase):
         self.get_booster().set_attr(scikit_learn=None)
 
     @_deprecate_positional_args
-    def fit(self, X, y, sample_weight=None, base_margin=None,
+    def fit(self, *, X, y, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None, early_stopping_rounds=None,
             verbose=True, xgb_model=None, sample_weight_eval_set=None,
             feature_weights=None,
@@ -803,7 +803,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         super().__init__(objective=objective, **kwargs)
 
     @_deprecate_positional_args
-    def fit(self, X, y, sample_weight=None, base_margin=None,
+    def fit(self, *, X, y, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None,
             sample_weight_eval_set=None, feature_weights=None, callbacks=None):
@@ -1183,7 +1183,7 @@ class XGBRanker(XGBModel):
             raise ValueError("please use XGBRanker for ranking task")
 
     @_deprecate_positional_args
-    def fit(self, X, y, group, sample_weight=None, base_margin=None,
+    def fit(self, *, X, y, group, sample_weight=None, base_margin=None,
             eval_set=None, sample_weight_eval_set=None,
             eval_group=None, eval_metric=None,
             early_stopping_rounds=None, verbose=False, xgb_model=None,
