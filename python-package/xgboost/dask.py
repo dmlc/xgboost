@@ -31,6 +31,7 @@ from .compat import CUDF_concat
 from .compat import lazy_isinstance
 
 from .core import DMatrix, DeviceQuantileDMatrix, Booster, _expect, DataIter
+from .core import _deprecate_positional_args
 from .training import train as worker_train
 from .tracker import RabitTracker
 from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase
@@ -1015,7 +1016,8 @@ class DaskScikitLearnBase(XGBModel):
     _client = None
 
     # pylint: disable=arguments-differ
-    def fit(self, X, y,
+    @_deprecate_positional_args
+    def fit(self, X, y, *,
             sample_weight=None,
             base_margin=None,
             eval_set=None,
@@ -1039,6 +1041,8 @@ class DaskScikitLearnBase(XGBModel):
         sample_weight_eval_set : list, optional
             A list of the form [L_1, L_2, ..., L_n], where each L_i is a list
             of group weights on the i-th validation set.
+        early_stopping_rounds : int
+            Activates early stopping.
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.'''
@@ -1101,9 +1105,11 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         return self
 
     # pylint: disable=missing-docstring
+    @_deprecate_positional_args
     def fit(self,
             X,
             y,
+            *,
             sample_weight=None,
             base_margin=None,
             eval_set=None,
@@ -1183,9 +1189,11 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         self.evals_result_ = results['history']
         return self
 
+    @_deprecate_positional_args
     def fit(self,
             X,
             y,
+            *,
             sample_weight=None,
             base_margin=None,
             eval_set=None,
