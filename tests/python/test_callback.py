@@ -123,8 +123,7 @@ class TestCallbacks(unittest.TestCase):
         X, y = load_breast_cancer(return_X_y=True)
         cls = xgb.XGBClassifier()
         early_stopping_rounds = 5
-        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
-                                                save_best=True)
+        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds)
         cls.fit(X, y, eval_set=[(X, y)],
                 eval_metric=tm.eval_error_metric,
                 callbacks=[early_stop])
