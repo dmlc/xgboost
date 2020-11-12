@@ -27,3 +27,4 @@ Here are guidelines for contributing to various aspect of the XGBoost project:
   Docs and Examples <docs>
   git_guide
   release
+  ci
