@@ -594,7 +594,6 @@ def test_predict_with_meta(client):
 
 
 def run_aft_survival(client, dmatrix_t):
-    # survival doesn't handle empty dataset well.
     df = dd.read_csv(os.path.join(tm.PROJECT_ROOT, 'demo', 'data',
                                   'veterans_lung_cancer.csv'))
     y_lower_bound = df['Survival_label_lower_bound']
@@ -632,7 +631,7 @@ def run_aft_survival(client, dmatrix_t):
 
 
 def test_aft_survival():
-    with LocalCluster(n_workers=1) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             run_aft_survival(client, DaskDMatrix)
 
