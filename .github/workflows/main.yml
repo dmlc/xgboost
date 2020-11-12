@@ -354,33 +354,3 @@ jobs:
         # Print stacktrace upon success of failure
         make Rcheck || tests/ci_build/print_r_stacktrace.sh fail
         tests/ci_build/print_r_stacktrace.sh success
-
-  test-R-noLD:
-    runs-on: ubuntu-latest
-    container: rhub/debian-gcc-devel-nold
-    steps:
-    - name: Install git and system packages
-      shell: bash
-      run: |
-        apt-get update && apt-get install -y git libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libxml2-dev
-
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-
-    - name: Install dependencies
-      shell: bash
-      run: |
-        cat > install_libs.R <<EOT
-          install.packages(${{ env.R_PACKAGES }},
-                           repos = 'http://cloud.r-project.org',
-                           dependencies = c('Depends', 'Imports', 'LinkingTo'))
-        EOT
-        /tmp/R-devel/bin/Rscript install_libs.R
-
-    - name: Run R tests
-      shell: bash
-      run: |
-        cd R-package && \
-        /tmp/R-devel/bin/R CMD INSTALL . && \
-        /tmp/R-devel/bin/R -q -e "library(testthat); setwd('tests'); source('testthat.R')"
