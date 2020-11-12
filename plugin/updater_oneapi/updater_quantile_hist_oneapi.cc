@@ -366,7 +366,7 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::BuildLocalHistograms(
     const USMVector<GradientPair> &gpair_device) {
   builder_monitor_.Start("BuildLocalHistogramsOneAPI");
   const size_t n_nodes = nodes_for_explicit_hist_build_.size();
-  hist_buffer_.Reset(256);
+  hist_buffer_.Reset(64);
   for (size_t i = 0; i < n_nodes; i++) {
     const int32_t nid = nodes_for_explicit_hist_build_[i].nid;
 

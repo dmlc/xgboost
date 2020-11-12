@@ -263,7 +263,6 @@ void BuildHistDenseKernel(cl::sycl::queue qu,
                           GHistRowOneAPI<FPType>& hist_buffer) {
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
-  LOG(INFO) << "BuildHistDenseKernel, size = " << size;
   const float* pgh = reinterpret_cast<const float*>(gpair_device.DataConst());
   const BinIdxType* gradient_index = gmat.index.data<BinIdxType>();
   const uint32_t* offsets = gmat.index.Offset();
@@ -276,8 +275,8 @@ void BuildHistDenseKernel(cl::sycl::queue qu,
 
   const size_t max_nblocks = hist_buffer.Size() / (nbins * two);
   const size_t min_block_size = 128;
-  const size_t blocks_local = 16;
-  const size_t feat_local = n_features < 16 ? n_features : 16;
+  const size_t blocks_local = 1;
+  const size_t feat_local = n_features < 64 ? n_features : 64;
   size_t nblocks = std::min(max_nblocks, size / min_block_size + !!(size % min_block_size));
   if (nblocks % blocks_local != 0) nblocks += blocks_local - nblocks % blocks_local;
   const size_t block_size = size / nblocks + !!(size % nblocks);
@@ -343,7 +342,6 @@ void BuildHistSparseKernel(cl::sycl::queue qu,
                            GHistRowOneAPI<FPType>& hist_buffer) {
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
-  LOG(INFO) << "BuildHistSparseKernel, size = " << size;
   const float* pgh = reinterpret_cast<const float*>(gpair_device.DataConst());
   const uint32_t* gradient_index = gmat.index.data<uint32_t>();
   const size_t* row_ptr =  gmat.row_ptr_device.DataConst();
