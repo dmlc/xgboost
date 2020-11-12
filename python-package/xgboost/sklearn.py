@@ -255,6 +255,8 @@ class XGBModel(XGBModelBase):
         '''Convert array_like evaluation matrices into DMatrix'''
         if eval_group is None and eval_set is not None:
             eval_group = [None] * len(eval_set)
+        else:
+            assert len(eval_group) == len(eval_set)
 
         if eval_set is not None:
             if sample_weight_eval_set is None:
