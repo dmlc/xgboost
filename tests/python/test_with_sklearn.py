@@ -890,8 +890,39 @@ def test_parameter_validation():
 
 
 def test_deprecate_position_arg():
+    from sklearn.datasets import load_digits
+    X, y = load_digits(return_X_y=True, n_class=2)
+    w = y
     with pytest.warns(FutureWarning):
         xgb.XGBRegressor(3, learning_rate=0.1)
+    model = xgb.XGBRegressor(n_estimators=1)
+    with pytest.warns(FutureWarning):
+        model.fit(X, y, w)
+
+    with pytest.warns(FutureWarning):
+        xgb.XGBClassifier(1, use_label_encoder=False)
+    model = xgb.XGBClassifier(n_estimators=1, use_label_encoder=False)
+    with pytest.warns(FutureWarning):
+        model.fit(X, y, w)
+
+    with pytest.warns(FutureWarning):
+        xgb.XGBRanker('rank:ndcg', learning_rate=0.1)
+    model = xgb.XGBRanker(n_estimators=1)
+    group = np.repeat(1, X.shape[0])
+    with pytest.warns(FutureWarning):
+        model.fit(X, y, group)
+
+    with pytest.warns(FutureWarning):
+        xgb.XGBRFRegressor(1, learning_rate=0.1)
+    model = xgb.XGBRFRegressor(n_estimators=1)
+    with pytest.warns(FutureWarning):
+        model.fit(X, y, w)
+
+    with pytest.warns(FutureWarning):
+        xgb.XGBRFClassifier(1, use_label_encoder=True)
+    model = xgb.XGBRFClassifier(n_estimators=1)
+    with pytest.warns(FutureWarning):
+        model.fit(X, y, w)
 
 
 @pytest.mark.skipif(**tm.no_pandas())

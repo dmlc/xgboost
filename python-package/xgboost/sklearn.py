@@ -249,23 +249,32 @@ class XGBModel(XGBModelBase):
         self.validate_parameters = validate_parameters
 
     def _wrap_evaluation_matrices(self, X, y, group,
-                                  sample_weight, train_dmatrix: DMatrix,
+                                  sample_weight, base_margin, feature_weights,
                                   eval_set, sample_weight_eval_set, eval_group,
                                   label_transform=lambda x: x):
         '''Convert array_like evaluation matrices into DMatrix'''
-        if eval_group is None and eval_set is not None:
-            eval_group = [None] * len(eval_set)
-        else:
+        if sample_weight_eval_set is not None:
+            assert eval_set is not None
+            assert len(sample_weight_eval_set) == len(eval_set)
+        if eval_group is not None:
+            assert eval_set is not None
             assert len(eval_group) == len(eval_set)
+
+        y = label_transform(y)
+        train_dmatrix = DMatrix(data=X, label=y, weight=sample_weight,
+                                base_margin=base_margin,
+                                missing=self.missing, nthread=self.n_jobs)
+        train_dmatrix.set_info(feature_weights=feature_weights, group=group)
 
         if eval_set is not None:
             if sample_weight_eval_set is None:
                 sample_weight_eval_set = [None] * len(eval_set)
-            else:
-                assert len(sample_weight_eval_set) == len(eval_set)
+            if eval_group is None:
+                eval_group = [None] * len(eval_set)
 
             evals = []
             for i, (valid_X, valid_y) in enumerate(eval_set):
+                # Skip the duplicated entry.
                 if valid_X is X and valid_y is y and \
                    sample_weight_eval_set[i] is sample_weight and eval_group[i] is group:
                     evals.append(train_dmatrix)
@@ -282,7 +291,7 @@ class XGBModel(XGBModelBase):
             evals = list(zip(evals, eval_names))
         else:
             evals = ()
-        return evals
+        return train_dmatrix, evals
 
     def _more_tags(self):
         '''Tags used for scikit-learn data validation.'''
@@ -482,7 +491,7 @@ class XGBModel(XGBModelBase):
         self.get_booster().set_attr(scikit_learn=None)
 
     @_deprecate_positional_args
-    def fit(self, *, X, y, sample_weight=None, base_margin=None,
+    def fit(self, X, y, *, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None, early_stopping_rounds=None,
             verbose=True, xgb_model=None, sample_weight_eval_set=None,
             feature_weights=None,
@@ -560,10 +569,10 @@ class XGBModel(XGBModelBase):
 
         evals_result = {}
 
-        evals = self._wrap_evaluation_matrices(
-            X, y, group=None, sample_weight=sample_weight, train_dmatrix=train_dmatrix,
-            eval_set=eval_set, sample_weight_eval_set=sample_weight_eval_set,
-            eval_group=None)
+        train_dmatrix, evals = self._wrap_evaluation_matrices(
+            X, y, group=None, sample_weight=sample_weight, base_margin=base_margin,
+            feature_weights=feature_weights, eval_set=eval_set,
+            sample_weight_eval_set=sample_weight_eval_set, eval_group=None)
         params = self.get_xgb_params()
 
         if callable(self.objective):
@@ -805,7 +814,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         super().__init__(objective=objective, **kwargs)
 
     @_deprecate_positional_args
-    def fit(self, *, X, y, sample_weight=None, base_margin=None,
+    def fit(self, X, y, *, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None,
             sample_weight_eval_set=None, feature_weights=None, callbacks=None):
@@ -876,7 +885,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             label_transform = self._le.transform
         else:
             label_transform = (lambda x: x)
-        training_labels = label_transform(y)
 
         if len(X.shape) != 2:
             # Simply raise an error here since there might be many
@@ -887,12 +895,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self._features_count = X.shape[1]
         self.n_features_in_ = self._features_count
 
-        train_dmatrix = DMatrix(X, label=training_labels, weight=sample_weight,
-                                base_margin=base_margin,
-                                missing=self.missing, nthread=self.n_jobs)
-        train_dmatrix.set_info(feature_weights=feature_weights)
-        evals = self._wrap_evaluation_matrices(
-            X, y, group=None, sample_weight=sample_weight, train_dmatrix=train_dmatrix,
+        train_dmatrix, evals = self._wrap_evaluation_matrices(
+            X, y, group=None, sample_weight=sample_weight, base_margin=base_margin,
+            feature_weights=feature_weights,
             eval_set=eval_set, sample_weight_eval_set=sample_weight_eval_set,
             eval_group=None, label_transform=label_transform)
 
@@ -1185,7 +1190,7 @@ class XGBRanker(XGBModel):
             raise ValueError("please use XGBRanker for ranking task")
 
     @_deprecate_positional_args
-    def fit(self, *, X, y, group, sample_weight=None, base_margin=None,
+    def fit(self, X, y, *, group, sample_weight=None, base_margin=None,
             eval_set=None, sample_weight_eval_set=None,
             eval_group=None, eval_metric=None,
             early_stopping_rounds=None, verbose=False, xgb_model=None,
@@ -1287,15 +1292,9 @@ class XGBRanker(XGBModel):
 
         self.n_features_in_ = X.shape[1]
 
-        train_dmatrix = DMatrix(data=X, label=y, weight=sample_weight,
-                                base_margin=base_margin,
-                                missing=self.missing, nthread=self.n_jobs)
-        train_dmatrix.set_info(feature_weights=feature_weights)
-        train_dmatrix.set_group(group)
-
-        evals = self._wrap_evaluation_matrices(
-            X, y, group=group, sample_weight=sample_weight, train_dmatrix=train_dmatrix,
-            eval_set=eval_set,
+        train_dmatrix, evals = self._wrap_evaluation_matrices(
+            X, y, group=group, sample_weight=sample_weight, base_margin=base_margin,
+            feature_weights=feature_weights, eval_set=eval_set,
             sample_weight_eval_set=sample_weight_eval_set,
             eval_group=eval_group)
 
