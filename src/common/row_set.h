@@ -240,8 +240,8 @@ class PartitionBuilder {
       return &right_data_[0];
     }
    private:
-    /*alignas(128) */size_t left_data_[BlockSize];
-    /*alignas(128) */size_t right_data_[BlockSize];
+    size_t left_data_[BlockSize];
+    size_t right_data_[BlockSize];
   };
   std::vector<std::pair<size_t, size_t>> left_right_nodes_sizes_;
   std::vector<size_t> blocks_offsets_;

@@ -127,8 +127,8 @@ bool QuantileHistMaker::UpdatePredictionCache(
 
 template <typename GradientSumT>
 void BatchHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT *builder,
-                                                         int starting_index,
-                                                         int sync_count,
+                                                         int,
+                                                         int,
                                                          RegTree *p_tree) {
   builder->builder_monitor_.Start("SyncHistograms");
   const size_t nbins = builder->hist_builder_.GetNumBins();
@@ -137,7 +137,7 @@ void BatchHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT *builder,
   }, 1024);
 
   common::ParallelFor2d(space, builder->nthread_, [&](size_t node, common::Range1d r) {
-    const auto entry = builder->nodes_for_explicit_hist_build_[node];
+    const auto& entry = builder->nodes_for_explicit_hist_build_[node];
     auto this_hist = builder->hist_[entry.nid];
     // Merging histograms from each thread into once
     builder->hist_buffer_.ReduceHist(node, r.begin(), r.end());
