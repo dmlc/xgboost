@@ -96,7 +96,7 @@ def test_ranking():
               'learning_rate': 0.1, 'gamma': 1.0, 'min_child_weight': 0.1,
               'max_depth': 6, 'n_estimators': 4}
     model = xgb.sklearn.XGBRanker(**params)
-    model.fit(x_train, y_train, train_group,
+    model.fit(x_train, y_train, group=train_group,
               eval_set=[(x_valid, y_valid)], eval_group=[valid_group])
     pred = model.predict(x_test)
 

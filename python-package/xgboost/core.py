@@ -409,11 +409,11 @@ def _deprecate_positional_args(f):
         if extra_args > 0:
             # ignore first 'self' argument for instance methods
             args_msg = [
-                '{}={}'.format(name, arg) for name, arg in zip(
+                '{}'.format(name) for name, _ in zip(
                     kwonly_args[:extra_args], args[-extra_args:])
             ]
             warnings.warn(
-                "Pass {} as keyword args.  Passing these as positional "
+                "Pass `{}` as keyword args.  Passing these as positional "
                 "arguments will be considered as error in future releases.".
                 format(", ".join(args_msg)), FutureWarning)
         for k, arg in zip(sig.parameters, args):
