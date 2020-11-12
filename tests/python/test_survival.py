@@ -52,6 +52,16 @@ def test_aft_survival_toy_data():
     for tree in model_json:
         assert gather_split_thresholds(tree).issubset({2.5, 3.5, 4.5})
 
+
+def test_aft_empty_dmatrix():
+    X = np.array([]).reshape((0, 2))
+    y_lower, y_upper = np.array([]), np.array([])
+    dtrain = xgb.DMatrix(X)
+    dtrain.set_info(label_lower_bound=y_lower, label_upper_bound=y_upper)
+    bst = xgb.train({'objective': 'survival:aft', 'tree_method': 'hist'},
+                    dtrain, num_boost_round=2, evals=[(dtrain, 'train')])
+
+
 @pytest.mark.skipif(**tm.no_pandas())
 def test_aft_survival_demo_data():
     import pandas as pd
