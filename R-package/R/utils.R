@@ -20,6 +20,12 @@ NVL <- function(x, val) {
   stop("typeof(x) == ", typeof(x), " is not supported by NVL")
 }
 
+# List of classification and ranking objectives
+.CLASSIFICATION_OBJECTIVES <- function() {
+  return(c('binary:logistic', 'binary:logitraw', 'binary:hinge', 'multi:softmax',
+           'multi:softprob', 'rank:pairwise', 'rank:ndcg', 'rank:map'))
+}
+
 
 #
 # Low-level functions for boosting --------------------------------------------
@@ -191,9 +197,8 @@ xgb.iter.eval <- function(booster_handle, watchlist, iter, feval = NULL) {
 # The labels are converted into factors only when the given objective refers to the classification
 # or ranking tasks.
 convert.labels <- function(labels, objective_name) {
-  if (objective_name %in% c('binary:logistic', 'binary:logitraw', 'binary:hinge', 'multi:softmax',
-                            'multi:softprob', 'rank:pairwise', 'rank:ndcg', 'rank:map')) {
-    return(factor(labels))
+  if (objective_name %in% .CLASSIFICATION_OBJECTIVES()) {
+    return(as.factor(labels))
   } else {
     return(labels)
   }
