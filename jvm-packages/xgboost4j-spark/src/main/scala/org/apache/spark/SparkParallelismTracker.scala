@@ -150,14 +150,18 @@ object TaskFailedListener {
 
   var killerStarted: Boolean = false
 
+  var sparkContextKiller: Thread = _
+
   val sparkContextShutdownLock = new AnyRef
+
+
 
   private def startedSparkContextKiller(): Unit = this.sparkContextShutdownLock.synchronized {
     if (!killerStarted) {
       killerStarted = true
       // Spark does not allow ListenerThread to shutdown SparkContext so that we have to do it
       // in a separate thread
-      val sparkContextKiller = new Thread() {
+      sparkContextKiller = new Thread() {
         override def run(): Unit = {
           LiveListenerBus.withinListenerThread.withValue(false) {
             sparkContextShutdownLock.synchronized {
