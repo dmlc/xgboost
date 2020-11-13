@@ -148,13 +148,13 @@ class TaskFailedListener(killSparkContext: Boolean = true) extends SparkListener
 
 object TaskFailedListener {
 
-  var killerStarted = new AtomicBoolean(false)
+  val killerStarted = new AtomicBoolean(false)
 
-  // mostly for testing
   val sparkContextShutdownLock = new AnyRef
 
-  private def startedSparkContextKiller(): Unit = this.synchronized {
+  private def startedSparkContextKiller(): Unit = this.sparkContextShutdownLock.synchronized {
     if (!killerStarted.get()) {
+      killerStarted.set(true)
       // Spark does not allow ListenerThread to shutdown SparkContext so that we have to do it
       // in a separate thread
       val sparkContextKiller = new Thread() {
@@ -169,7 +169,6 @@ object TaskFailedListener {
         }
       }
       sparkContextKiller.setDaemon(true)
-      killerStarted.set(true)
       sparkContextKiller.start()
     }
   }
