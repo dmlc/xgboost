@@ -1,4 +1,4 @@
-# pylint: disable=too-many-arguments, too-many-locals, fixme
+# pylint: disable=too-many-arguments, too-many-locals
 # pylint: disable=missing-class-docstring, invalid-name
 # pylint: disable=too-many-lines
 """Dask extensions for distributed training. See
@@ -222,6 +222,7 @@ class DaskDMatrix:
                 _expect((dd.DataFrame, da.Array, dd.Series), type(label)))
 
         self.worker_map = None
+        self.is_quantile = False
 
         self._init = client.sync(self.map_local_data,
                                  client, data, label=label, weights=weight,
@@ -329,15 +330,28 @@ class DaskDMatrix:
 
         return self
 
+    def create_fn_args(self, worker_addr: str):
+        '''Create a dictionary of objects that can be pickled for function
+        arguments.
 
-def _get_worker_parts_ordered(meta_names, list_of_parts, list_of_orders):
+        '''
+        return {'feature_names': self.feature_names,
+                'feature_types': self.feature_types,
+                'meta_names': self.meta_names,
+                'missing': self.missing,
+                'parts': self.worker_map.get(worker_addr, None),
+                'is_quantile': self.is_quantile}
+
+
+def _get_worker_parts_ordered(meta_names, list_of_keys, list_of_parts, partition_order):
     # List of partitions like: [(x3, y3, w3, m3, ..), ..], order is not preserved.
     assert isinstance(list_of_parts, list)
+    list_of_parts_value = list_of_parts
 
     result = []
 
     for i, _ in enumerate(list_of_parts):
-        data = list_of_parts[i][0]
+        data = list_of_parts_value[i][0]
         labels = None
         weights = None
         base_margin = None
@@ -345,7 +359,7 @@ def _get_worker_parts_ordered(meta_names, list_of_parts, list_of_orders):
         label_upper_bound = None
         # Iterate through all possible meta info, brings small overhead as in xgboost
         # there are constant number of meta info available.
-        for j, blob in enumerate(list_of_parts[i][1:]):
+        for j, blob in enumerate(list_of_parts_value[i][1:]):
             if meta_names[j] == 'labels':
                 labels = blob
             elif meta_names[j] == 'weights':
@@ -359,9 +373,9 @@ def _get_worker_parts_ordered(meta_names, list_of_parts, list_of_orders):
             else:
                 raise ValueError('Unknown metainfo:', meta_names[j])
 
-        if list_of_orders:
+        if partition_order:
             result.append((data, labels, weights, base_margin, label_lower_bound,
-                           label_upper_bound, list_of_orders[i]))
+                           label_upper_bound, partition_order[list_of_keys[i]]))
         else:
             result.append((data, labels, weights, base_margin, label_lower_bound,
                            label_upper_bound))
@@ -373,7 +387,7 @@ def _unzip(list_of_parts):
 
 
 def _get_worker_parts(list_of_parts: List[tuple], meta_names):
-    partitions = _get_worker_parts_ordered(meta_names, list_of_parts, None)
+    partitions = _get_worker_parts_ordered(meta_names, None, list_of_parts, None)
     partitions = _unzip(partitions)
     return partitions
 
@@ -467,7 +481,7 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
         return 1
 
 
-class DaskDeviceQuantileDMatrix(DaskDMatrix):  # pylint: disable=too-few-public-methods
+class DaskDeviceQuantileDMatrix(DaskDMatrix):
     '''Specialized data type for `gpu_hist` tree method.  This class is
     used to reduce the memory usage by eliminating data copies.
     Internally the data is merged by weighted GK sketching.  So the
@@ -501,6 +515,12 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):  # pylint: disable=too-few-public-
                          feature_names=feature_names,
                          feature_types=feature_types)
         self.max_bin = max_bin
+        self.is_quantile = True
+
+    def create_fn_args(self, worker_addr: str):
+        args = super().create_fn_args(worker_addr)
+        args['max_bin'] = self.max_bin
+        return args
 
 
 def _create_device_quantile_dmatrix(feature_names, feature_types,
@@ -580,23 +600,10 @@ def _create_dmatrix(feature_names, feature_types, meta_names, missing, parts):
     return dmatrix
 
 
-def _init_dmatrix(m, worker_addr, client):
-    '''Create a future to DMatrix, materialized during submit.'''
-    if isinstance(m, DaskDeviceQuantileDMatrix):
-        return client.submit(_create_device_quantile_dmatrix, m.feature_names,
-                             m.feature_types, m.meta_names, m.missing,
-                             m.worker_map[worker_addr], m.max_bin,
-                             workers=[worker_addr])
-    if isinstance(m, DaskDMatrix):
-        return client.submit(_create_dmatrix,
-                             m.feature_names,
-                             m.feature_types,
-                             m.meta_names,
-                             m.missing,
-                             m.worker_map[worker_addr],
-                             workers=[worker_addr])
-    raise TypeError('Unknown data type:', m,
-                    ' expecting a DaskDMatrix or DaskDeviceQuantileDMatrix')
+def _dmatrix_from_list_of_parts(is_quantile, **kwargs):
+    if is_quantile:
+        return _create_device_quantile_dmatrix(**kwargs)
+    return _create_dmatrix(**kwargs)
 
 
 async def _get_rabit_args(n_workers: int, client):
@@ -635,13 +642,25 @@ async def _train_async(client,
             'evals_result is not supported in dask interface.',
             'The evaluation history is returned as result of training.')
 
-    def dispatched_train(worker_addr, rabit_args, local_dtrain, local_evals):
+    workers = list(_get_workers_from_data(dtrain, evals))
+    _rabit_args = await _get_rabit_args(len(workers), client)
+
+    def dispatched_train(worker_addr, rabit_args, dtrain_ref, dtrain_idt, evals_ref):
         '''Perform training on a single worker.  A local function prevents pickling.
 
         '''
         LOGGER.info('Training on %s', str(worker_addr))
         worker = distributed.get_worker()
         with RabitContext(rabit_args):
+            local_dtrain = _dmatrix_from_list_of_parts(**dtrain_ref)
+            local_evals = []
+            if evals_ref:
+                for ref, name, idt in evals_ref:
+                    if idt == dtrain_idt:
+                        local_evals.append((local_dtrain, name))
+                        continue
+                    local_evals.append((_dmatrix_from_list_of_parts(**ref), name))
+
             local_history = {}
             local_param = params.copy()  # just to be consistent
             msg = 'Overriding `nthreads` defined in dask worker.'
@@ -664,33 +683,24 @@ async def _train_async(client,
                 ret = None
             return ret
 
-    workers = list(_get_workers_from_data(dtrain, evals))
-    _rabit_args = await _get_rabit_args(len(workers), client)
     # Note for function purity:
     # XGBoost is deterministic in most of the cases, which means train function is
     # supposed to be idempotent.  One known exception is gblinear with shotgun updater.
     # We haven't been able to do a full verification so here we keep pure to be False.
     futures = []
-    for worker_addr in workers:
-        dtrain_future = _init_dmatrix(dtrain, worker_addr, client)
-        # Don't duplicate the creation of training matrix.
-        # FIXME(Jiaming): How to test such behaviour?
+    for i, worker_addr in enumerate(workers):
         if evals:
-            evals_per_worker = []
-            for e, name in evals:
-                if e is dtrain:
-                    evals_per_worker.append((dtrain_future, name))
-                else:
-                    evals_per_worker.append((_init_dmatrix(e, worker_addr, client), name))
+            evals_per_worker = [(e.create_fn_args(worker_addr), name, id(e))
+                                for e, name in evals]
         else:
             evals_per_worker = []
         f = client.submit(dispatched_train,
                           worker_addr,
                           _rabit_args,
-                          dtrain_future,
+                          dtrain.create_fn_args(workers[i]),
+                          id(dtrain),
                           evals_per_worker,
-                          pure=False,
-                          workers=[worker_addr])
+                          pure=False)
         futures.append(f)
 
     results = await client.gather(futures)
@@ -782,17 +792,20 @@ async def _predict_async(client, model, data, missing=numpy.nan, **kwargs):
 
     # Prediction on dask DMatrix.
     worker_map = data.worker_map
+    partition_order = data.partition_order
     feature_names = data.feature_names
     feature_types = data.feature_types
     missing = data.missing
     meta_names = data.meta_names
 
-    def dispatched_predict(worker_id, list_of_orders, list_of_parts):
+    def dispatched_predict(worker_id, list_of_keys, list_of_parts):
         '''Perform prediction on each worker.'''
         LOGGER.info('Predicting on %d', worker_id)
+        c = distributed.get_client()
+        list_of_keys = c.compute(list_of_keys).result()
         worker = distributed.get_worker()
-        list_of_parts = _get_worker_parts_ordered(meta_names, list_of_parts,
-                                                  list_of_orders)
+        list_of_parts = _get_worker_parts_ordered(
+            meta_names, list_of_keys, list_of_parts, partition_order)
         predictions = []
 
         booster.set_param({'nthread': worker.nthreads})
@@ -816,13 +829,16 @@ async def _predict_async(client, model, data, missing=numpy.nan, **kwargs):
 
         return predictions
 
-    def dispatched_get_shape(worker_id, list_of_orders, list_of_parts):
+    def dispatched_get_shape(worker_id, list_of_keys, list_of_parts):
         '''Get shape of data in each worker.'''
         LOGGER.info('Get shape on %d', worker_id)
+        c = distributed.get_client()
+        list_of_keys = c.compute(list_of_keys).result()
         list_of_parts = _get_worker_parts_ordered(
             meta_names,
+            list_of_keys,
             list_of_parts,
-            list_of_orders,
+            partition_order,
         )
         shapes = []
         for parts in list_of_parts:
@@ -830,15 +846,16 @@ async def _predict_async(client, model, data, missing=numpy.nan, **kwargs):
             shapes.append((data.shape, order))
         return shapes
 
-    async def map_function(func, partition_order):
+    async def map_function(func):
         '''Run function for each part of the data.'''
         futures = []
         workers_address = list(worker_map.keys())
         for wid, worker_addr in enumerate(workers_address):
+            worker_addr = workers_address[wid]
             list_of_parts = worker_map[worker_addr]
-            list_of_orders = [partition_order[part.key] for part in list_of_parts]
+            list_of_keys = [part.key for part in list_of_parts]
             f = await client.submit(func, worker_id=wid,
-                                    list_of_orders=list_of_orders,
+                                    list_of_keys=dask.delayed(list_of_keys),
                                     list_of_parts=list_of_parts,
                                     pure=False, workers=[worker_addr])
             futures.append(f)
@@ -851,8 +868,8 @@ async def _predict_async(client, model, data, missing=numpy.nan, **kwargs):
         results = [predt for predt, order in results]  # remove order
         return results
 
-    results = await map_function(dispatched_predict, data.partition_order)
-    shapes = await map_function(dispatched_get_shape, data.partition_order)
+    results = await map_function(dispatched_predict)
+    shapes = await map_function(dispatched_get_shape)
 
     # Constructing a dask array from list of numpy arrays
     # See https://docs.dask.org/en/latest/array-creation.html
