@@ -55,7 +55,7 @@ trait PerTest extends BeforeAndAfterEach { self: FunSuite =>
         // block to wait for all msgs in ListenerBus get processed. Because currentSession.stop()
         // has been called, SparkContext killer will not take effect
         TaskFailedListener.sparkContextShutdownLock.synchronized {
-          while (TaskFailedListener.killerStarted.get()) {
+          while (TaskFailedListener.killerStarted) {
             TaskFailedListener.sparkContextShutdownLock.wait()
           }
         }
