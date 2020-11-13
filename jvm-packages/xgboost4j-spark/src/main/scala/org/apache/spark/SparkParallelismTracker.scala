@@ -161,7 +161,7 @@ object TaskFailedListener {
         override def run(): Unit = {
           LiveListenerBus.withinListenerThread.withValue(false) {
             sparkContextShutdownLock.synchronized {
-              SparkContext.getOrCreate().stop()
+              SparkContext.getActive.foreach(_.stop())
               killerStarted = false
               sparkContextShutdownLock.notify()
             }
