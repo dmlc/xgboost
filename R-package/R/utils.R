@@ -191,9 +191,8 @@ xgb.iter.eval <- function(booster_handle, watchlist, iter, feval = NULL) {
 generate.cv.folds <- function(nfold, nrows, stratified, label, params) {
 
   # cannot do it for rank
-  if (exists('objective', where = params) &&
-      is.character(params$objective) &&
-      strtrim(params$objective, 5) == 'rank:') {
+  objective <- params$objective
+  if (is.character(objective) && strtrim(objective, 5) == 'rank:') {
     stop("\n\tAutomatic generation of CV-folds is not implemented for ranking!\n",
          "\tConsider providing pre-computed CV-folds through the 'folds=' parameter.\n")
   }
@@ -206,8 +205,7 @@ generate.cv.folds <- function(nfold, nrows, stratified, label, params) {
     #  - For classification, need to convert y labels to factor before making the folds,
     #    and then do stratification by factor levels.
     #  - For regression, leave y numeric and do stratification by quantiles.
-    if (exists('objective', where = params) &&
-        is.character(params$objective)) {
+    if (is.character(objective)) {
       # If 'objective' provided in params, assume that y is a classification label
       # unless objective is reg:squarederror
       if (params$objective != 'reg:squarederror')
