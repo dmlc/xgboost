@@ -5,7 +5,7 @@ import copy
 import warnings
 import json
 import numpy as np
-from .core import Booster, DMatrix, XGBoostError
+from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
 from .training import train
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
 
@@ -248,6 +248,51 @@ class XGBModel(XGBModelBase):
         self.gpu_id = gpu_id
         self.validate_parameters = validate_parameters
 
+    def _wrap_evaluation_matrices(self, X, y, group,
+                                  sample_weight, base_margin, feature_weights,
+                                  eval_set, sample_weight_eval_set, eval_group,
+                                  label_transform=lambda x: x):
+        '''Convert array_like evaluation matrices into DMatrix'''
+        if sample_weight_eval_set is not None:
+            assert eval_set is not None
+            assert len(sample_weight_eval_set) == len(eval_set)
+        if eval_group is not None:
+            assert eval_set is not None
+            assert len(eval_group) == len(eval_set)
+
+        y = label_transform(y)
+        train_dmatrix = DMatrix(data=X, label=y, weight=sample_weight,
+                                base_margin=base_margin,
+                                missing=self.missing, nthread=self.n_jobs)
+        train_dmatrix.set_info(feature_weights=feature_weights, group=group)
+
+        if eval_set is not None:
+            if sample_weight_eval_set is None:
+                sample_weight_eval_set = [None] * len(eval_set)
+            if eval_group is None:
+                eval_group = [None] * len(eval_set)
+
+            evals = []
+            for i, (valid_X, valid_y) in enumerate(eval_set):
+                # Skip the duplicated entry.
+                if valid_X is X and valid_y is y and \
+                   sample_weight_eval_set[i] is sample_weight and eval_group[i] is group:
+                    evals.append(train_dmatrix)
+                else:
+                    m = DMatrix(valid_X,
+                                label=label_transform(valid_y),
+                                missing=self.missing, weight=sample_weight_eval_set[i],
+                                nthread=self.n_jobs)
+                    m.set_info(group=eval_group[i])
+                    evals.append(m)
+
+            nevals = len(evals)
+            eval_names = ["validation_{}".format(i) for i in range(nevals)]
+            evals = list(zip(evals, eval_names))
+        else:
+            evals = ()
+        return train_dmatrix, evals
+
     def _more_tags(self):
         '''Tags used for scikit-learn data validation.'''
         return {'allow_nan': True, 'no_validation': True}
@@ -445,7 +490,8 @@ class XGBModel(XGBModelBase):
         # Delete the attribute after load
         self.get_booster().set_attr(scikit_learn=None)
 
-    def fit(self, X, y, sample_weight=None, base_margin=None,
+    @_deprecate_positional_args
+    def fit(self, X, y, *, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None, early_stopping_rounds=None,
             verbose=True, xgb_model=None, sample_weight_eval_set=None,
             feature_weights=None,
@@ -524,22 +570,10 @@ class XGBModel(XGBModelBase):
 
         evals_result = {}
 
-        if eval_set is not None:
-            if not isinstance(eval_set[0], (list, tuple)):
-                raise TypeError('Unexpected input type for `eval_set`')
-            if sample_weight_eval_set is None:
-                sample_weight_eval_set = [None] * len(eval_set)
-            else:
-                assert len(eval_set) == len(sample_weight_eval_set)
-            evals = list(
-                DMatrix(eval_set[i][0], label=eval_set[i][1], missing=self.missing,
-                        weight=sample_weight_eval_set[i], nthread=self.n_jobs)
-                for i in range(len(eval_set)))
-            evals = list(zip(evals, ["validation_{}".format(i) for i in
-                                     range(len(evals))]))
-        else:
-            evals = ()
-
+        train_dmatrix, evals = self._wrap_evaluation_matrices(
+            X, y, group=None, sample_weight=sample_weight, base_margin=base_margin,
+            feature_weights=feature_weights, eval_set=eval_set,
+            sample_weight_eval_set=sample_weight_eval_set, eval_group=None)
         params = self.get_xgb_params()
 
         if callable(self.objective):
@@ -775,11 +809,13 @@ class XGBModel(XGBModelBase):
 ''')
 class XGBClassifier(XGBModel, XGBClassifierBase):
     # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
-    def __init__(self, objective="binary:logistic", use_label_encoder=True, **kwargs):
+    @_deprecate_positional_args
+    def __init__(self, *, objective="binary:logistic", use_label_encoder=True, **kwargs):
         self.use_label_encoder = use_label_encoder
         super().__init__(objective=objective, **kwargs)
 
-    def fit(self, X, y, sample_weight=None, base_margin=None,
+    @_deprecate_positional_args
+    def fit(self, X, y, *, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None,
             early_stopping_rounds=None, verbose=True, xgb_model=None,
             sample_weight_eval_set=None, feature_weights=None, callbacks=None):
@@ -850,25 +886,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             label_transform = self._le.transform
         else:
             label_transform = (lambda x: x)
-        training_labels = label_transform(y)
-
-        if eval_set is not None:
-            if sample_weight_eval_set is None:
-                sample_weight_eval_set = [None] * len(eval_set)
-            else:
-                assert len(sample_weight_eval_set) == len(eval_set)
-            evals = list(
-                DMatrix(eval_set[i][0],
-                        label=label_transform(eval_set[i][1]),
-                        missing=self.missing, weight=sample_weight_eval_set[i],
-                        nthread=self.n_jobs)
-                for i in range(len(eval_set))
-            )
-            nevals = len(evals)
-            eval_names = ["validation_{}".format(i) for i in range(nevals)]
-            evals = list(zip(evals, eval_names))
-        else:
-            evals = ()
 
         if len(X.shape) != 2:
             # Simply raise an error here since there might be many
@@ -879,10 +896,11 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self._features_count = X.shape[1]
         self.n_features_in_ = self._features_count
 
-        train_dmatrix = DMatrix(X, label=training_labels, weight=sample_weight,
-                                base_margin=base_margin,
-                                missing=self.missing, nthread=self.n_jobs)
-        train_dmatrix.set_info(feature_weights=feature_weights)
+        train_dmatrix, evals = self._wrap_evaluation_matrices(
+            X, y, group=None, sample_weight=sample_weight, base_margin=base_margin,
+            feature_weights=feature_weights,
+            eval_set=eval_set, sample_weight_eval_set=sample_weight_eval_set,
+            eval_group=None, label_transform=label_transform)
 
         self._Booster = train(xgb_options, train_dmatrix,
                               self.get_num_boosting_rounds(),
@@ -1064,7 +1082,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 ''')
 class XGBRFClassifier(XGBClassifier):
     # pylint: disable=missing-docstring
-    def __init__(self,
+    @_deprecate_positional_args
+    def __init__(self, *,
                  learning_rate=1,
                  subsample=0.8,
                  colsample_bynode=0.8,
@@ -1092,7 +1111,8 @@ class XGBRFClassifier(XGBClassifier):
     ['estimators', 'model', 'objective'])
 class XGBRegressor(XGBModel, XGBRegressorBase):
     # pylint: disable=missing-docstring
-    def __init__(self, objective="reg:squarederror", **kwargs):
+    @_deprecate_positional_args
+    def __init__(self, *, objective="reg:squarederror", **kwargs):
         super().__init__(objective=objective, **kwargs)
 
 
@@ -1104,7 +1124,8 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
 ''')
 class XGBRFRegressor(XGBRegressor):
     # pylint: disable=missing-docstring
-    def __init__(self, learning_rate=1, subsample=0.8, colsample_bynode=0.8,
+    @_deprecate_positional_args
+    def __init__(self, *, learning_rate=1, subsample=0.8, colsample_bynode=0.8,
                  reg_lambda=1e-5, **kwargs):
         super().__init__(learning_rate=learning_rate, subsample=subsample,
                          colsample_bynode=colsample_bynode,
@@ -1160,7 +1181,8 @@ class XGBRFRegressor(XGBRegressor):
 ''')
 class XGBRanker(XGBModel):
     # pylint: disable=missing-docstring,too-many-arguments,invalid-name
-    def __init__(self, objective='rank:pairwise', **kwargs):
+    @_deprecate_positional_args
+    def __init__(self, *, objective='rank:pairwise', **kwargs):
         super().__init__(objective=objective, **kwargs)
         if callable(self.objective):
             raise ValueError(
@@ -1168,7 +1190,8 @@ class XGBRanker(XGBModel):
         if "rank:" not in self.objective:
             raise ValueError("please use XGBRanker for ranking task")
 
-    def fit(self, X, y, group, sample_weight=None, base_margin=None,
+    @_deprecate_positional_args
+    def fit(self, X, y, *, group, sample_weight=None, base_margin=None,
             eval_set=None, sample_weight_eval_set=None,
             eval_group=None, eval_metric=None,
             early_stopping_rounds=None, verbose=False, xgb_model=None,
@@ -1269,37 +1292,15 @@ class XGBRanker(XGBModel):
                 raise ValueError(
                     "group is required for all eval datasets for ranking task")
 
-        def _dmat_init(group, **params):
-            ret = DMatrix(**params)
-            ret.set_group(group)
-            return ret
-
         self.n_features_in_ = X.shape[1]
 
-        train_dmatrix = DMatrix(data=X, label=y, weight=sample_weight,
-                                base_margin=base_margin,
-                                missing=self.missing, nthread=self.n_jobs)
-        train_dmatrix.set_info(feature_weights=feature_weights)
-        train_dmatrix.set_group(group)
+        train_dmatrix, evals = self._wrap_evaluation_matrices(
+            X, y, group=group, sample_weight=sample_weight, base_margin=base_margin,
+            feature_weights=feature_weights, eval_set=eval_set,
+            sample_weight_eval_set=sample_weight_eval_set,
+            eval_group=eval_group)
 
         evals_result = {}
-
-        if eval_set is not None:
-            if sample_weight_eval_set is None:
-                sample_weight_eval_set = [None] * len(eval_set)
-            evals = [_dmat_init(eval_group[i],
-                                data=eval_set[i][0],
-                                label=eval_set[i][1],
-                                missing=self.missing,
-                                weight=sample_weight_eval_set[i],
-                                nthread=self.n_jobs)
-                     for i in range(len(eval_set))]
-            nevals = len(evals)
-            eval_names = ["eval_{}".format(i) for i in range(nevals)]
-            evals = list(zip(evals, eval_names))
-        else:
-            evals = ()
-
         params = self.get_xgb_params()
 
         feval = eval_metric if callable(eval_metric) else None

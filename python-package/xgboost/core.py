@@ -12,6 +12,8 @@ import re
 import sys
 import json
 import warnings
+from functools import wraps
+from inspect import signature, Parameter
 
 import numpy as np
 import scipy.sparse
@@ -369,6 +371,58 @@ class DataIter:
         raise NotImplementedError()
 
 
+# Notice for `_deprecate_positional_args`
+# Authors: Olivier Grisel
+#          Gael Varoquaux
+#          Andreas Mueller
+#          Lars Buitinck
+#          Alexandre Gramfort
+#          Nicolas Tresegnie
+#          Sylvain Marie
+# License: BSD 3 clause
+def _deprecate_positional_args(f):
+    """Decorator for methods that issues warnings for positional arguments
+
+    Using the keyword-only argument syntax in pep 3102, arguments after the
+    * will issue a warning when passed as a positional argument.
+
+    Modifed from sklearn utils.validation.
+
+    Parameters
+    ----------
+    f : function
+        function to check arguments on
+    """
+    sig = signature(f)
+    kwonly_args = []
+    all_args = []
+
+    for name, param in sig.parameters.items():
+        if param.kind == Parameter.POSITIONAL_OR_KEYWORD:
+            all_args.append(name)
+        elif param.kind == Parameter.KEYWORD_ONLY:
+            kwonly_args.append(name)
+
+    @wraps(f)
+    def inner_f(*args, **kwargs):
+        extra_args = len(args) - len(all_args)
+        if extra_args > 0:
+            # ignore first 'self' argument for instance methods
+            args_msg = [
+                '{}'.format(name) for name, _ in zip(
+                    kwonly_args[:extra_args], args[-extra_args:])
+            ]
+            warnings.warn(
+                "Pass `{}` as keyword args.  Passing these as positional "
+                "arguments will be considered as error in future releases.".
+                format(", ".join(args_msg)), FutureWarning)
+        for k, arg in zip(sig.parameters, args):
+            kwargs[k] = arg
+        return f(**kwargs)
+
+    return inner_f
+
+
 class DMatrix:                  # pylint: disable=too-many-instance-attributes
     """Data Matrix used in XGBoost.
 
@@ -461,7 +515,8 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             _check_call(_LIB.XGDMatrixFree(self.handle))
             self.handle = None
 
-    def set_info(self,
+    @_deprecate_positional_args
+    def set_info(self, *,
                  label=None, weight=None, base_margin=None,
                  group=None,
                  label_lower_bound=None,
