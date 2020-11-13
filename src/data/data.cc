@@ -22,7 +22,6 @@
 #include "../common/threading_utils.h"
 #include "../data/adapter.h"
 #include "../data/iterative_device_dmatrix.h"
-
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
 #include "./sparse_page_dmatrix.h"
@@ -844,7 +843,7 @@ void SparsePage::Push(const SparsePage &batch) {
 template <typename AdapterBatchT>
 uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread) {
   // Set number of threads but keep old value so we can reset it after
-  int nthread_original = common::OmpSetNumThreads(&nthread);
+  int nthread_original = common::OmpSetNumThreadsWithoutHT(&nthread);
   auto& offset_vec = offset.HostVector();
   auto& data_vec = data.HostVector();
 
