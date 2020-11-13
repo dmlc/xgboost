@@ -52,10 +52,12 @@ inline bst_float PredValueByOneTree(const RegTree::FVec& p_feats,
 inline void PredictByAllTrees(gbm::GBTreeModel const &model, const size_t tree_begin,
                               const size_t tree_end, bst_float* preds,
                               const std::vector<RegTree::FVec> &thread_temp,
-                              const size_t offset, const size_t block_size) {
+                              const size_t offset, const size_t block_size,
+                              const size_t num_group) {
   for (size_t tree_id = tree_begin; tree_id < tree_end; ++tree_id) {
+    const size_t gid = model.tree_info[tree_id];
     for (size_t i = 0; i < block_size; ++i) {
-      preds[i] += PredValueByOneTree(thread_temp[offset + i], model.trees[tree_id]);
+      preds[i*num_group + gid] += PredValueByOneTree(thread_temp[offset + i], model.trees[tree_id]);
     }
   }
 }
@@ -63,11 +65,9 @@ inline void PredictByAllTrees(gbm::GBTreeModel const &model, const size_t tree_b
 inline void ReduceResult(const size_t num_group, const size_t predict_offset,
                         const size_t block_size, const bst_float* res_src,
                         std::vector<bst_float>* res_dst) {
-  std::vector<bst_float> &preds = *res_dst;
-  for (size_t gid = 0; gid < num_group; ++gid) {
-    for (size_t i = 0; i < block_size; ++i) {
-      preds[(predict_offset + i) * num_group + gid] += res_src[i];
-    }
+  bst_float * const preds = res_dst->data() + predict_offset*num_group;
+  for (size_t i = 0; i < block_size * num_group; ++i) {
+    preds[i] += res_src[i];
   }
 }
 
@@ -167,11 +167,11 @@ void PredictBatchByBlockOfRowsKernel(DataView batch, std::vector<bst_float> *out
     const size_t block_size = std::min(nsize - batch_offset, block_of_rows_size);
     const size_t fvec_offset = omp_get_thread_num() * block_of_rows_size;
     const size_t predict_offset = batch_offset + batch.base_rowid;
-    std::vector<bst_float> res_local(block_size, 0);
+    std::vector<bst_float> res_local(block_size * num_group, 0);
     FVecFill(block_size, batch_offset, &batch, fvec_offset, p_thread_temp);
     // process block of rows through all trees to keep cache locality
     PredictByAllTrees(model, tree_begin, tree_end, res_local.data(),
-                      thread_temp, fvec_offset, block_size);
+                      thread_temp, fvec_offset, block_size, num_group);
     ReduceResult(num_group, predict_offset, block_size, res_local.data(), out_preds);
 
     FVecDrop(block_size, batch_offset, &batch, fvec_offset, p_thread_temp);
