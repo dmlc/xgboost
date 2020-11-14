@@ -22,6 +22,7 @@
 #include "../common/threading_utils.h"
 #include "../data/adapter.h"
 #include "../data/iterative_device_dmatrix.h"
+
 #if DMLC_ENABLE_STD_THREAD
 #include "./sparse_page_source.h"
 #include "./sparse_page_dmatrix.h"

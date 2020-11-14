@@ -17,6 +17,7 @@
 #include "../common/random.h"
 #include "../common/threading_utils.h"
 #include "adapter.h"
+
 namespace xgboost {
 namespace data {
 MetaInfo& SimpleDMatrix::Info() { return info_; }
