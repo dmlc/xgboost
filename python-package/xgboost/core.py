@@ -426,7 +426,7 @@ def _deprecate_positional_args(f):
 class DMatrix:                  # pylint: disable=too-many-instance-attributes
     """Data Matrix used in XGBoost.
 
-    DMatrix is a internal data structure that used by XGBoost
+    DMatrix is an internal data structure that is used by XGBoost,
     which is optimized for both memory efficiency and training speed.
     You can construct DMatrix from multiple different sources of data.
     """
@@ -1695,7 +1695,7 @@ class Booster(object):
         """Load the model from a file or bytearray. Path to file can be local
         or as an URI.
 
-        The model is loaded from an XGBoost format which is universal among the
+        The model is loaded from XGBoost format which is universal among the
         various XGBoost interfaces. Auxiliary attributes of the Python Booster
         object (such as feature_names) will not be loaded.  See:
 
