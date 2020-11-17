@@ -55,7 +55,8 @@ Suggests:
     igraph (>= 1.0.1),
     jsonlite,
     float,
-    crayon
+    crayon,
+    titanic
 Depends:
     R (>= 3.3.0)
 Imports:

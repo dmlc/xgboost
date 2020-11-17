@@ -7,7 +7,7 @@ name: XGBoost-CI
 on: [push, pull_request]
 
 env:
-  R_PACKAGES: c('XML', 'igraph', 'data.table', 'magrittr', 'stringi', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm', 'devtools', 'float')
+  R_PACKAGES: c('XML', 'igraph', 'data.table', 'magrittr', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm', 'devtools', 'float', 'titanic')
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -77,7 +77,7 @@ jobs:
     - name: Install system packages
       run: |
         sudo apt-get install -y --no-install-recommends ninja-build
-    - uses: conda-incubator/setup-miniconda@v1
+    - uses: conda-incubator/setup-miniconda@v2
       with:
         auto-update-conda: true
         python-version: ${{ matrix.python-version }}

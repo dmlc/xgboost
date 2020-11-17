@@ -31,6 +31,7 @@ from .compat import CUDF_concat
 from .compat import lazy_isinstance
 
 from .core import DMatrix, DeviceQuantileDMatrix, Booster, _expect, DataIter
+from .core import _deprecate_positional_args
 from .training import train as worker_train
 from .tracker import RabitTracker
 from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase
@@ -346,12 +347,11 @@ class DaskDMatrix:
 def _get_worker_parts_ordered(meta_names, list_of_keys, list_of_parts, partition_order):
     # List of partitions like: [(x3, y3, w3, m3, ..), ..], order is not preserved.
     assert isinstance(list_of_parts, list)
-    list_of_parts_value = list_of_parts
 
     result = []
 
     for i, _ in enumerate(list_of_parts):
-        data = list_of_parts_value[i][0]
+        data = list_of_parts[i][0]
         labels = None
         weights = None
         base_margin = None
@@ -359,7 +359,7 @@ def _get_worker_parts_ordered(meta_names, list_of_keys, list_of_parts, partition
         label_upper_bound = None
         # Iterate through all possible meta info, brings small overhead as in xgboost
         # there are constant number of meta info available.
-        for j, blob in enumerate(list_of_parts_value[i][1:]):
+        for j, blob in enumerate(list_of_parts[i][1:]):
             if meta_names[j] == 'labels':
                 labels = blob
             elif meta_names[j] == 'weights':
@@ -626,7 +626,7 @@ def _get_workers_from_data(dtrain: DaskDMatrix, evals=()):
             assert len(e) == 2
             assert isinstance(e[0], DaskDMatrix) and isinstance(e[1], str)
             worker_map = set(e[0].worker_map.keys())
-            X_worker_map.union(worker_map)
+            X_worker_map = X_worker_map.union(worker_map)
     return X_worker_map
 
 
@@ -700,7 +700,8 @@ async def _train_async(client,
                           dtrain.create_fn_args(workers[i]),
                           id(dtrain),
                           evals_per_worker,
-                          pure=False)
+                          pure=False,
+                          workers=[worker_addr])
         futures.append(f)
 
     results = await client.gather(futures)
@@ -1026,7 +1027,8 @@ class DaskScikitLearnBase(XGBModel):
     _client = None
 
     # pylint: disable=arguments-differ
-    def fit(self, X, y,
+    @_deprecate_positional_args
+    def fit(self, X, y, *,
             sample_weight=None,
             base_margin=None,
             eval_set=None,
@@ -1050,6 +1052,8 @@ class DaskScikitLearnBase(XGBModel):
         sample_weight_eval_set : list, optional
             A list of the form [L_1, L_2, ..., L_n], where each L_i is a list
             of group weights on the i-th validation set.
+        early_stopping_rounds : int
+            Activates early stopping.
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.'''
@@ -1112,9 +1116,11 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         return self
 
     # pylint: disable=missing-docstring
+    @_deprecate_positional_args
     def fit(self,
             X,
             y,
+            *,
             sample_weight=None,
             base_margin=None,
             eval_set=None,
@@ -1195,9 +1201,11 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         self.evals_result_ = results['history']
         return self
 
+    @_deprecate_positional_args
     def fit(self,
             X,
             y,
+            *,
             sample_weight=None,
             base_margin=None,
             eval_set=None,

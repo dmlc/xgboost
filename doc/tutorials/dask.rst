@@ -41,24 +41,43 @@ on a dask cluster:
 .. code-block:: python
 
   import xgboost as xgb
+  import dask.array as da
   import dask.distributed
 
   cluster = dask.distributed.LocalCluster(n_workers=4, threads_per_worker=1)
   client = dask.distributed.Client(cluster)
 
-  dtrain = xgb.dask.DaskDMatrix(client, X, y)  # X and y are dask dataframes or arrays
+  # X and y must be Dask dataframes or arrays
+  num_obs = 1e5
+  num_features = 20
+  X = da.random.random(
+      size=(num_obs, num_features)
+  )
+  y = da.random.choice(
+      a=[0, 1],
+      size=num_obs,
+      replace=True
+  )
+
+  dtrain = xgb.dask.DaskDMatrix(client, X, y)
 
   output = xgb.dask.train(client,
                           {'verbosity': 2,
-                           'tree_method': 'hist'},
+                           'tree_method': 'hist',
+                           'objective': 'binary:logistic'
+                           },
                           dtrain,
                           num_boost_round=4, evals=[(dtrain, 'train')])
 
 Here we first create a cluster in single-node mode with ``dask.distributed.LocalCluster``, then
 connect a ``dask.distributed.Client`` to this cluster, setting up an environment for later computation.
 
-We then create a ``DMatrix`` object and pass it to ``train``, along with some other parameters,
-much like XGBoost's normal, non-dask interface. The primary difference with XGBoost's dask interface is
+We then create a ``DaskDMatrix`` object and pass it to ``train``, along with some other parameters,
+much like XGBoost's normal, non-dask interface. Unlike that interface, ``data`` and ``label`` must
+be either `Dask DataFrame <https://examples.dask.org/dataframe.html>`_ or
+`Dask Array <https://examples.dask.org/array.html>`_ instances.
+
+The primary difference with XGBoost's dask interface is
 we pass our dask client as an additional argument for carrying out the computation. Note that if
 client is set to ``None``, XGBoost will use the default client returned by dask.
 
