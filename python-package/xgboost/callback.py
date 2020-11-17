@@ -594,7 +594,7 @@ class EvaluationMonitor(TrainingCallback):
         self.period = period
         assert period > 0
         # last error message, useful when early stopping and period are used together.
-        self._lastest = None
+        self._latest = None
         super().__init__()
 
     def _fmt_metric(self, data, metric, score, std):
@@ -623,15 +623,15 @@ class EvaluationMonitor(TrainingCallback):
 
             if (epoch % self.period) != 0:
                 rabit.tracker_print(msg)
-                self._lastest = None
+                self._latest = None
             else:
                 # There is skipped message
-                self._lastest = msg
+                self._latest = msg
         return False
 
     def after_training(self, model):
-        if rabit.get_rank() == self.printer_rank and self._lastest is not None:
-            rabit.tracker_print(self._lastest)
+        if rabit.get_rank() == self.printer_rank and self._latest is not None:
+            rabit.tracker_print(self._latest)
         return model
 
 
