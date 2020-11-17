@@ -450,7 +450,8 @@ class QuantileHistMock : public QuantileHistMaker {
           RealImpl::partition_builder_.Init(1, 1, [&](size_t node_in_set) {
             return 1;
           });
-          RealImpl::partition_builder_.AllocateAllTasks();
+          const size_t task_id = RealImpl::partition_builder_.GetTaskIdx(0, 0);
+          RealImpl::partition_builder_.AllocateForTask(task_id);
           this->template PartitionKernel<uint8_t>(0, 0, common::Range1d(0, kNRows),
                                                   split, cm, tree);
           RealImpl::partition_builder_.CalculateRowOffsets();
