@@ -552,7 +552,6 @@ void BuildHistDenseKernel(const std::vector<GradientPair>& gpair,
   const BinIdxType* gradient_index = gmat.index.data<BinIdxType>();
   const uint32_t* offsets = gmat.index.Offset();
   FPType* hist_data = reinterpret_cast<FPType*>(hist.data());
-
   const uint32_t two {2};  // Each element from 'gpair' and 'hist' contains
                            // 2 FP values: gradient and hessian.
                            // So we need to multiply each row-index/bin-index by 2
@@ -590,11 +589,9 @@ void BuildHistSparseKernel(const std::vector<GradientPair>& gpair,
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
   const float* pgh = reinterpret_cast<const float*>(gpair.data());
-
   const uint32_t* gradient_index = gmat.index.data<uint32_t>();
   const size_t* row_ptr =  gmat.row_ptr.data();
   FPType* hist_data = reinterpret_cast<FPType*>(hist.data());
-
   const uint32_t two {2};  // Each element from 'gpair' and 'hist' contains
                            // 2 FP values: gradient and hessian.
                            // So we need to multiply each row-index/bin-index by 2
@@ -617,8 +614,8 @@ void BuildHistSparseKernel(const std::vector<GradientPair>& gpair,
     }
     for (size_t j = icol_start; j < icol_end; ++j) {
       const uint32_t idx_bin = two * gradient_index[j];
-      hist_data[idx_bin]     += pgh[idx_gh];
-      hist_data[idx_bin + 1] += pgh[idx_gh + 1];
+      hist_data[idx_bin]   += pgh[idx_gh];
+      hist_data[idx_bin+1] += pgh[idx_gh+1];
     }
   }
 }

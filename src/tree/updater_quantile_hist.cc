@@ -200,6 +200,8 @@ void DistributedHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT* builder
                                         builder->hist_builder_.GetNumBins());
     }
   }
+/*  builder->histred_.Allreduce(builder->hist_[starting_index].data(),
+                                    builder->hist_builder_.GetNumBins() * sync_count);*/
   builder->builder_monitor_.Stop("SyncHistogramsAllreduce");
 
   ParallelSubtractionHist(builder, space, builder->nodes_for_explicit_hist_build_, p_tree);
