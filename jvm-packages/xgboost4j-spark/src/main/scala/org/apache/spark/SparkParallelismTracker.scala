@@ -16,8 +16,6 @@
 
 package org.apache.spark
 
-import java.util.concurrent.atomic.AtomicBoolean
-
 import org.apache.commons.logging.LogFactory
 import org.apache.spark.scheduler._
 
