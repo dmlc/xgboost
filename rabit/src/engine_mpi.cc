@@ -166,18 +166,18 @@ ReduceHandle::ReduceHandle(void)
 ReduceHandle::~ReduceHandle(void) {
   /* !WARNING!
 
-     A handle can be held by a tree method/Learner from xgboost.  In a dynamic language
-     like Python, the booster might not be freed until program exit, while (good) users
-     call rabit.finalize() before reaching the end of program.  So op->Free() might be
-     called after finalization and results into following error:
+     A handle can be held by a tree method/Learner from xgboost.  The booster might not be
+     freed until program exit, while (good) users call rabit.finalize() before reaching
+     the end of program.  So op->Free() might be called after finalization and results
+     into following error:
 
       ```
         Attempting to use an MPI routine after finalizing MPICH
       ```
 
-     Here we skip calling Free if MPI have already been finalized.  It can be a potential
-     leak of memory.  The best way to resolve it is eliminate all use of long holding
-     handle.
+     Here we skip calling Free if MPI has already been finalized to workaround the issue.
+     It can be a potential leak of memory.  The best way to resolve it is to eliminate all
+     use of long living handle.
   */
   int finalized = 0;
   CHECK_EQ(MPI_Finalized(&finalized), MPI_SUCCESS);
