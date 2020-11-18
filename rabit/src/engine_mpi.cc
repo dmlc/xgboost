@@ -164,14 +164,31 @@ ReduceHandle::ReduceHandle(void)
     : handle_(NULL), redfunc_(NULL), htype_(NULL) {
 }
 ReduceHandle::~ReduceHandle(void) {
+  /* !WARNING!
+
+     A handle can be held by a tree method/Learner from xgboost.  In a dynamic language
+     like Python, the booster might not be freed until program exit, while (good) users
+     calls rabit.finalize() before reaching the end of program.  So op->Free() might be
+     called after finalization and results into following error:
+
+      ```
+        Attempting to use an MPI routine after finalizing MPICH
+      ```
+  */
+  int finalized = 0;
+  CHECK_EQ(MPI_Finalized(&finalized), MPI_SUCCESS);
   if (handle_ != NULL) {
     MPI::Op *op = reinterpret_cast<MPI::Op*>(handle_);
-    op->Free();
+    if (!finalized) {
+      op->Free();
+    }
     delete op;
   }
   if (htype_ != NULL) {
     MPI::Datatype *dtype = reinterpret_cast<MPI::Datatype*>(htype_);
-    dtype->Free();
+    if (!finalized) {
+      dtype->Free();
+    }
     delete dtype;
   }
 }
