@@ -22,15 +22,15 @@ jobs:
         - docker
     - os: osx
       arch: amd64
-      osx_image: xcode10.1
+      osx_image: xcode10.2
       env: TASK=python_test
     - os: osx
       arch: amd64
-      osx_image: xcode10.1
+      osx_image: xcode10.2
       env: TASK=python_sdist_test
     - os: osx
       arch: amd64
-      osx_image: xcode10.1
+      osx_image: xcode10.2
       env: TASK=java_test
     - os: linux
       arch: s390x
