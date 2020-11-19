@@ -687,21 +687,22 @@ void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const std::vector<Gr
   /* usage of mt19937_64 give 2x speed up for subsampling */
   std::vector<std::mt19937> rnds(nthread);
   /* create engine for each thread */
-  for (std::mt19937& r : rnds) {
-    r = rnd;
+  for (auto& r : rnds) {
+    r = std::mt19937(rnd());
   }
   const size_t discard_size = info.num_row_ / nthread;
+  uint32_t coin_flip_border = static_cast<uint32_t>(std::numeric_limits<uint32_t>::max()
+                                                    * param_.subsample);
+
   #pragma omp parallel num_threads(nthread)
   {
     const size_t tid = omp_get_thread_num();
     const size_t ibegin = tid * discard_size;
     const size_t iend = (tid == (nthread - 1)) ?
                         info.num_row_ : ibegin + discard_size;
-    std::bernoulli_distribution coin_flip(param_.subsample);
 
-    rnds[tid].discard(2*discard_size * tid);
     for (size_t i = ibegin; i < iend; ++i) {
-      if (gpair[i].GetHess() >= 0.0f && coin_flip(rnds[tid])) {
+      if (gpair[i].GetHess() >= 0.0f && rnds[tid]() < coin_flip_border) {
         p_row_indices[ibegin + row_offsets[tid]++] = i;
       }
     }
