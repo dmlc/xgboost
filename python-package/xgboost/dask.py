@@ -799,19 +799,18 @@ async def _predict_async(client, model, data, missing=numpy.nan, **kwargs):
     missing = data.missing
     meta_names = data.meta_names
 
-    def dispatched_predict(worker_id, list_of_keys, list_of_parts):
+    def dispatched_predict(worker_id, list_of_orders, list_of_parts):
         '''Perform prediction on each worker.'''
         LOGGER.info('Predicting on %d', worker_id)
-        c = distributed.get_client()
-        list_of_keys = c.compute(list_of_keys).result()
         worker = distributed.get_worker()
         list_of_parts = _get_worker_parts_ordered(
-            meta_names, list_of_keys, list_of_parts, partition_order)
+            meta_names, None, list_of_parts, None)
         predictions = []
 
         booster.set_param({'nthread': worker.nthreads})
-        for parts in list_of_parts:
-            (data, _, _, base_margin, _, _, order) = parts
+        for i, parts in enumerate(list_of_parts):
+            (data, _, _, base_margin, _, _) = parts
+            order = list_of_orders[i]
             local_part = DMatrix(
                 data,
                 base_margin=base_margin,
@@ -830,21 +829,19 @@ async def _predict_async(client, model, data, missing=numpy.nan, **kwargs):
 
         return predictions
 
-    def dispatched_get_shape(worker_id, list_of_keys, list_of_parts):
+    def dispatched_get_shape(worker_id, list_of_orders, list_of_parts):
         '''Get shape of data in each worker.'''
         LOGGER.info('Get shape on %d', worker_id)
-        c = distributed.get_client()
-        list_of_keys = c.compute(list_of_keys).result()
         list_of_parts = _get_worker_parts_ordered(
             meta_names,
-            list_of_keys,
+            None,
             list_of_parts,
-            partition_order,
+            None,
         )
         shapes = []
-        for parts in list_of_parts:
-            (data, _, _, _, _, _, order) = parts
-            shapes.append((data.shape, order))
+        for i, parts in enumerate(list_of_parts):
+            (data, _, _, _, _, _) = parts
+            shapes.append((data.shape, list_of_orders[i]))
         return shapes
 
     async def map_function(func):
@@ -854,11 +851,13 @@ async def _predict_async(client, model, data, missing=numpy.nan, **kwargs):
         for wid, worker_addr in enumerate(workers_address):
             worker_addr = workers_address[wid]
             list_of_parts = worker_map[worker_addr]
-            list_of_keys = [part.key for part in list_of_parts]
-            f = await client.submit(func, worker_id=wid,
-                                    list_of_keys=dask.delayed(list_of_keys),
-                                    list_of_parts=list_of_parts,
-                                    pure=False, workers=[worker_addr])
+            list_of_orders = [partition_order[part.key] for part in list_of_parts]
+
+            f = client.submit(func, worker_id=wid,
+                              list_of_orders=list_of_orders,
+                              list_of_parts=list_of_parts,
+                              pure=True, workers=[worker_addr])
+            assert isinstance(f, distributed.client.Future)
             futures.append(f)
         # Get delayed objects
         results = await client.gather(futures)
