@@ -109,43 +109,37 @@ class TestDMatrix:
 
     def test_slice(self):
         X = rng.randn(100, 100)
-        y = rng.randint(low=0, high=3, size=100)
+        y = rng.randint(low=0, high=3, size=100).astype(np.float32)
         d = xgb.DMatrix(X, y)
-        np.testing.assert_equal(d.get_label(), y.astype(np.float32))
+        np.testing.assert_equal(d.get_label(), y)
 
         fw = rng.uniform(size=100).astype(np.float32)
         d.set_info(feature_weights=fw)
 
-        eval_res_0 = {}
-        booster = xgb.train(
-            {'num_class': 3, 'objective': 'multi:softprob',
-             'eval_metric': 'merror'},
-            d,
-            num_boost_round=2, evals=[(d, 'd')], evals_result=eval_res_0)
-
-        predt = booster.predict(d)
-        predt = predt.reshape(100 * 3, 1)
-
-        d.set_base_margin(predt)
+        # base margin is per-class in multi-class classifier
+        base_margin = rng.randn(100, 3).astype(np.float32)
+        d.set_base_margin(base_margin.flatten())
 
         ridxs = [1, 2, 3, 4, 5, 6]
         sliced = d.slice(ridxs)
 
-        sliced_margin = sliced.get_float_info('base_margin')
-        assert sliced_margin.shape[0] == len(ridxs) * 3
+        # Slicing works with label and other meta info fields
+        np.testing.assert_equal(sliced.get_label(), y[1:7])
+        np.testing.assert_equal(sliced.get_float_info('feature_weights'), fw)
+        np.testing.assert_equal(sliced.get_base_margin(), base_margin[1:7, :].flatten())
+        np.testing.assert_equal(sliced.get_base_margin(), sliced.get_float_info('base_margin'))
 
-        eval_res_1 = {}
-        xgb.train(
+        # Slicing a DMatrix results into a DMatrix that's equivalent to a DMatrix that's
+        # constructed from the corresponding NumPy slice
+        d2 = xgb.DMatrix(X[1:7, :], y[1:7])
+        d2.set_base_margin(base_margin[1:7, :].flatten())
+        eval_res = {}
+        _ = xgb.train(
             {'num_class': 3, 'objective': 'multi:softprob',
-             'eval_metric': 'merror'},
-            sliced,
-            num_boost_round=2, evals=[(sliced, 'd')], evals_result=eval_res_1)
-
-        eval_res_0 = eval_res_0['d']['merror']
-        eval_res_1 = eval_res_1['d']['merror']
-
-        for i in range(len(eval_res_0)):
-            assert abs(eval_res_0[i] - eval_res_1[i]) < 0.02
+             'eval_metric': 'mlogloss'},
+            d,
+            num_boost_round=2, evals=[(d2, 'd2'), (sliced, 'sliced')], evals_result=eval_res)
+        np.testing.assert_equal(eval_res['d2']['mlogloss'], eval_res['sliced']['mlogloss'])
 
     def test_feature_names_slice(self):
         data = np.random.randn(5, 5)
