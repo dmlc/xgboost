@@ -7,7 +7,7 @@ name: XGBoost-CI
 on: [push, pull_request]
 
 env:
-  R_PACKAGES: c('XML', 'igraph', 'data.table', 'magrittr', 'stringi', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm', 'devtools')
+  R_PACKAGES: c('XML', 'igraph', 'data.table', 'magrittr', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm', 'devtools', 'float', 'titanic')
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -77,7 +77,7 @@ jobs:
     - name: Install system packages
       run: |
         sudo apt-get install -y --no-install-recommends ninja-build
-    - uses: conda-incubator/setup-miniconda@v1
+    - uses: conda-incubator/setup-miniconda@v2
       with:
         auto-update-conda: true
         python-version: ${{ matrix.python-version }}
@@ -310,3 +310,47 @@ jobs:
     - name: Test R
       run: |
         python tests/ci_build/test_r_package.py --compiler="${{ matrix.config.compiler }}" --build-tool="${{ matrix.config.build }}"
+
+  test-R-CRAN:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {r: 'release'}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: r-lib/actions/setup-r@master
+      with:
+        r-version: ${{ matrix.config.r }}
+
+    - uses: r-lib/actions/setup-tinytex@master
+
+    - name: Cache R packages
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.R_LIBS_USER }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-2-
+
+    - name: Install system packages
+      run: |
+        sudo apt-get update && sudo apt-get install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev
+
+    - name: Install dependencies
+      shell: Rscript {0}
+      run: |
+        install.packages(${{ env.R_PACKAGES }},
+                         repos = 'http://cloud.r-project.org',
+                         dependencies = c('Depends', 'Imports', 'LinkingTo'))
+
+    - name: Check R Package
+      run: |
+        # Print stacktrace upon success of failure
+        make Rcheck || tests/ci_build/print_r_stacktrace.sh fail
+        tests/ci_build/print_r_stacktrace.sh success

@@ -41,6 +41,11 @@ kCols = 10
 kWorkers = 5
 
 
+def _get_client_workers(client):
+    workers = client.scheduler_info()['workers']
+    return workers
+
+
 def generate_array(with_weights=False):
     partition_size = 20
     X = da.random.random((kRows, kCols), partition_size)
@@ -589,7 +594,6 @@ def test_predict_with_meta(client):
 
 
 def run_aft_survival(client, dmatrix_t):
-    # survival doesn't handle empty dataset well.
     df = dd.read_csv(os.path.join(tm.PROJECT_ROOT, 'demo', 'data',
                                   'veterans_lung_cancer.csv'))
     y_lower_bound = df['Survival_label_lower_bound']
@@ -627,7 +631,7 @@ def run_aft_survival(client, dmatrix_t):
 
 
 def test_aft_survival():
-    with LocalCluster(n_workers=1) as cluster:
+    with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             run_aft_survival(client, DaskDMatrix)
 
@@ -704,9 +708,9 @@ class TestWithDask:
 
         with LocalCluster(n_workers=4) as cluster:
             with Client(cluster) as client:
-                workers = list(xgb.dask._get_client_workers(client).keys())
+                workers = list(_get_client_workers(client).keys())
                 rabit_args = client.sync(
-                    xgb.dask._get_rabit_args, workers, client)
+                    xgb.dask._get_rabit_args, len(workers), client)
                 futures = client.map(runit,
                                      workers,
                                      pure=False,
@@ -750,7 +754,6 @@ class TestDaskCallbacks:
                                  num_boost_round=1000,
                                  early_stopping_rounds=early_stopping_rounds)['booster']
         assert hasattr(booster, 'best_score')
-        assert booster.best_iteration == 10
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
@@ -773,6 +776,26 @@ class TestDaskCallbacks:
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
 
+    def test_n_workers(self):
+        with LocalCluster(n_workers=2) as cluster:
+            with Client(cluster) as client:
+                workers = list(_get_client_workers(client).keys())
+                from sklearn.datasets import load_breast_cancer
+                X, y = load_breast_cancer(return_X_y=True)
+                dX = client.submit(da.from_array, X, workers=[workers[0]]).result()
+                dy = client.submit(da.from_array, y, workers=[workers[0]]).result()
+                train = xgb.dask.DaskDMatrix(client, dX, dy)
+
+                dX = dd.from_array(X)
+                dX = client.persist(dX, workers={dX: workers[1]})
+                dy = dd.from_array(y)
+                dy = client.persist(dy, workers={dy: workers[1]})
+                valid = xgb.dask.DaskDMatrix(client, dX, dy)
+
+                merged = xgb.dask._get_workers_from_data(train, evals=[(valid, 'Valid')])
+                assert len(merged) == 2
+
+
     def test_data_initialization(self):
         '''Assert each worker has the correct amount of data, and DMatrix initialization doesn't
         generate unnecessary copies of data.
@@ -783,20 +806,22 @@ class TestDaskCallbacks:
                 X, y = generate_array()
                 n_partitions = X.npartitions
                 m = xgb.dask.DaskDMatrix(client, X, y)
-                workers = list(xgb.dask._get_client_workers(client).keys())
-                rabit_args = client.sync(xgb.dask._get_rabit_args, workers, client)
+                workers = list(_get_client_workers(client).keys())
+                rabit_args = client.sync(xgb.dask._get_rabit_args, len(workers), client)
                 n_workers = len(workers)
 
                 def worker_fn(worker_addr, data_ref):
                     with xgb.dask.RabitContext(rabit_args):
-                        local_dtrain = xgb.dask._dmatrix_from_worker_map(**data_ref)
+                        local_dtrain = xgb.dask._dmatrix_from_list_of_parts(**data_ref)
                         total = np.array([local_dtrain.num_row()])
                         total = xgb.rabit.allreduce(total, xgb.rabit.Op.SUM)
                         assert total[0] == kRows
 
-                futures = client.map(
-                    worker_fn, workers, [m.create_fn_args()] * len(workers),
-                    pure=False, workers=workers)
+                futures = []
+                for i in range(len(workers)):
+                    futures.append(client.submit(worker_fn, workers[i],
+                                                 m.create_fn_args(workers[i]), pure=False,
+                                                 workers=[workers[i]]))
                 client.gather(futures)
 
                 has_what = client.has_what()

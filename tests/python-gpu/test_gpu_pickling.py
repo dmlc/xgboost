@@ -6,12 +6,11 @@ import os
 import sys
 import json
 import pytest
+import xgboost as xgb
+from xgboost import XGBClassifier
 
 sys.path.append("tests/python")
 import testing as tm
-
-import xgboost as xgb
-from xgboost import XGBClassifier
 
 model_path = './model.pkl'
 

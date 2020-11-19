@@ -69,10 +69,6 @@ inline bool StringToBool(const char* s) {
   return CompareStringsCaseInsensitive(s, "true") == 0 || atoi(s) != 0;
 }
 
-inline void HandlePrint(const char *msg) {
-  printf("%s", msg);
-}
-
 /*! \brief printf, prints messages to the console */
 inline void Printf(const char *fmt, ...) {
   std::string msg(kPrintBuffer, '\0');
@@ -80,7 +76,7 @@ inline void Printf(const char *fmt, ...) {
   va_start(args, fmt);
   vsnprintf(&msg[0], kPrintBuffer, fmt, args);
   va_end(args);
-  HandlePrint(msg.c_str());
+  LOG(CONSOLE) << msg;
 }
 
 /*! \brief assert a condition is true, use this to handle debug information */

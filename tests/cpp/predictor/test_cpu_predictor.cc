@@ -16,8 +16,8 @@ TEST(CpuPredictor, Basic) {
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
 
-  int kRows = 5;
-  int kCols = 5;
+  size_t constexpr kRows = 5;
+  size_t constexpr kCols = 5;
 
   LearnerModelParam param;
   param.num_feature = kCols;
@@ -46,9 +46,10 @@ TEST(CpuPredictor, Basic) {
   }
 
   // Test predict leaf
-  std::vector<float> leaf_out_predictions;
+  HostDeviceVector<float> leaf_out_predictions;
   cpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model);
-  for (auto v : leaf_out_predictions) {
+  auto const& h_leaf_out_predictions = leaf_out_predictions.ConstHostVector();
+  for (auto v : h_leaf_out_predictions) {
     ASSERT_EQ(v, 0);
   }
 
@@ -85,7 +86,11 @@ TEST(CpuPredictor, Basic) {
 TEST(CpuPredictor, ExternalMemory) {
   dmlc::TemporaryDirectory tmpdir;
   std::string filename = tmpdir.path + "/big.libsvm";
-  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(12, 64, filename);
+
+  size_t constexpr kPageSize = 64, kEntriesPerCol = 3;
+  size_t constexpr kEntries = kPageSize * kEntriesPerCol * 2;
+
+  std::unique_ptr<DMatrix> dmat = CreateSparsePageDMatrix(kEntries, kPageSize, filename);
   auto lparam = CreateEmptyGenericParam(GPUIDX);
 
   std::unique_ptr<Predictor> cpu_predictor =
@@ -108,10 +113,11 @@ TEST(CpuPredictor, ExternalMemory) {
   }
 
   // Test predict leaf
-  std::vector<float> leaf_out_predictions;
+  HostDeviceVector<float> leaf_out_predictions;
   cpu_predictor->PredictLeaf(dmat.get(), &leaf_out_predictions, model);
-  ASSERT_EQ(leaf_out_predictions.size(), dmat->Info().num_row_);
-  for (const auto& v : leaf_out_predictions) {
+  auto const& h_leaf_out_predictions = leaf_out_predictions.ConstHostVector();
+  ASSERT_EQ(h_leaf_out_predictions.size(), dmat->Info().num_row_);
+  for (const auto& v : h_leaf_out_predictions) {
     ASSERT_EQ(v, 0);
   }
 

@@ -549,8 +549,9 @@ class DMatrix {
                          int max_bin);
 
   virtual DMatrix *Slice(common::Span<int32_t const> ridxs) = 0;
-  /*! \brief page size 32 MB */
-  static const size_t kPageSize = 32UL << 20UL;
+  /*! \brief Number of rows per page in external memory.  Approximately 100MB per page for
+   *  dataset with 100 features. */
+  static const size_t kPageSize = 32UL << 12UL;
 
  protected:
   virtual BatchSet<SparsePage> GetRowBatches() = 0;

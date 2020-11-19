@@ -144,7 +144,7 @@ class GradientBooster : public Model, public Configurable {
    *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
    */
   virtual void PredictLeaf(DMatrix* dmat,
-                           std::vector<bst_float>* out_preds,
+                           HostDeviceVector<bst_float>* out_preds,
                            unsigned ntree_limit = 0) = 0;
 
   /*!

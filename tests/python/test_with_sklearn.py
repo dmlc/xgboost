@@ -2,15 +2,12 @@ import collections
 import importlib.util
 import numpy as np
 import xgboost as xgb
-from xgboost.sklearn import XGBoostLabelEncoder
 import testing as tm
 import tempfile
 import os
 import shutil
 import pytest
 import json
-
-from test_basic import captured_output
 
 rng = np.random.RandomState(1994)
 
@@ -31,7 +28,7 @@ def test_binary_classification():
     from sklearn.datasets import load_digits
     from sklearn.model_selection import KFold
 
-    digits = load_digits(2)
+    digits = load_digits(n_class=2)
     y = digits['target']
     X = digits['data']
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
@@ -95,7 +92,7 @@ def test_ranking():
               'learning_rate': 0.1, 'gamma': 1.0, 'min_child_weight': 0.1,
               'max_depth': 6, 'n_estimators': 4}
     model = xgb.sklearn.XGBRanker(**params)
-    model.fit(x_train, y_train, train_group,
+    model.fit(x_train, y_train, group=train_group,
               eval_set=[(x_valid, y_valid)], eval_group=[valid_group])
     pred = model.predict(x_test)
 
@@ -165,7 +162,7 @@ def test_stacking_classification():
 def test_feature_importances_weight():
     from sklearn.datasets import load_digits
 
-    digits = load_digits(2)
+    digits = load_digits(n_class=2)
     y = digits['target']
     X = digits['data']
     xgb_model = xgb.XGBClassifier(random_state=0,
@@ -203,7 +200,7 @@ def test_feature_importances_weight():
 def test_feature_importances_gain():
     from sklearn.datasets import load_digits
 
-    digits = load_digits(2)
+    digits = load_digits(n_class=2)
     y = digits['target']
     X = digits['data']
     xgb_model = xgb.XGBClassifier(
@@ -242,7 +239,7 @@ def test_feature_importances_gain():
 def test_select_feature():
     from sklearn.datasets import load_digits
     from sklearn.feature_selection import SelectFromModel
-    digits = load_digits(2)
+    digits = load_digits(n_class=2)
     y = digits['target']
     X = digits['data']
     cls = xgb.XGBClassifier()
@@ -375,7 +372,7 @@ def test_classification_with_custom_objective():
         hess = y_pred * (1.0 - y_pred)
         return grad, hess
 
-    digits = load_digits(2)
+    digits = load_digits(n_class=2)
     y = digits['target']
     X = digits['data']
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
@@ -472,7 +469,7 @@ def test_sklearn_nfolds_cv():
     from sklearn.datasets import load_digits
     from sklearn.model_selection import StratifiedKFold
 
-    digits = load_digits(3)
+    digits = load_digits(n_class=3)
     X = digits['data']
     y = digits['target']
     dm = xgb.DMatrix(X, label=y)
@@ -504,7 +501,7 @@ def test_sklearn_nfolds_cv():
 def test_split_value_histograms():
     from sklearn.datasets import load_digits
 
-    digits_2class = load_digits(2)
+    digits_2class = load_digits(n_class=2)
 
     X = digits_2class['data']
     y = digits_2class['target']
@@ -590,7 +587,7 @@ def test_sklearn_clone():
 
 def test_sklearn_get_default_params():
     from sklearn.datasets import load_digits
-    digits_2class = load_digits(2)
+    digits_2class = load_digits(n_class=2)
     X = digits_2class['data']
     y = digits_2class['target']
     cls = xgb.XGBClassifier()
@@ -871,7 +868,7 @@ def test_parameter_validation():
     reg = xgb.XGBRegressor(foo='bar', verbosity=1)
     X = np.random.randn(10, 10)
     y = np.random.randn(10)
-    with captured_output() as (out, err):
+    with tm.captured_output() as (out, err):
         reg.fit(X, y)
         output = out.getvalue().strip()
 
@@ -881,11 +878,47 @@ def test_parameter_validation():
                            importance_type='gain', verbosity=1)
     X = np.random.randn(10, 10)
     y = np.random.randn(10)
-    with captured_output() as (out, err):
+    with tm.captured_output() as (out, err):
         reg.fit(X, y)
         output = out.getvalue().strip()
 
     assert len(output) == 0
+
+
+def test_deprecate_position_arg():
+    from sklearn.datasets import load_digits
+    X, y = load_digits(return_X_y=True, n_class=2)
+    w = y
+    with pytest.warns(FutureWarning):
+        xgb.XGBRegressor(3, learning_rate=0.1)
+    model = xgb.XGBRegressor(n_estimators=1)
+    with pytest.warns(FutureWarning):
+        model.fit(X, y, w)
+
+    with pytest.warns(FutureWarning):
+        xgb.XGBClassifier(1, use_label_encoder=False)
+    model = xgb.XGBClassifier(n_estimators=1, use_label_encoder=False)
+    with pytest.warns(FutureWarning):
+        model.fit(X, y, w)
+
+    with pytest.warns(FutureWarning):
+        xgb.XGBRanker('rank:ndcg', learning_rate=0.1)
+    model = xgb.XGBRanker(n_estimators=1)
+    group = np.repeat(1, X.shape[0])
+    with pytest.warns(FutureWarning):
+        model.fit(X, y, group)
+
+    with pytest.warns(FutureWarning):
+        xgb.XGBRFRegressor(1, learning_rate=0.1)
+    model = xgb.XGBRFRegressor(n_estimators=1)
+    with pytest.warns(FutureWarning):
+        model.fit(X, y, w)
+
+    with pytest.warns(FutureWarning):
+        xgb.XGBRFClassifier(1, use_label_encoder=True)
+    model = xgb.XGBRFClassifier(n_estimators=1)
+    with pytest.warns(FutureWarning):
+        model.fit(X, y, w)
 
 
 @pytest.mark.skipif(**tm.no_pandas())

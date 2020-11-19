@@ -352,9 +352,15 @@ cb.early.stop <- function(stopping_rounds, maximize = FALSE,
   finalizer <- function(env) {
     if (!is.null(env$bst)) {
       attr_best_score <- as.numeric(xgb.attr(env$bst$handle, 'best_score'))
-      if (best_score != attr_best_score)
-        stop("Inconsistent 'best_score' values between the closure state: ", best_score,
-             " and the xgb.attr: ", attr_best_score)
+      if (best_score != attr_best_score) {
+        # If the difference is too big, throw an error
+        if (abs(best_score - attr_best_score) >= 1e-14) {
+          stop("Inconsistent 'best_score' values between the closure state: ", best_score,
+               " and the xgb.attr: ", attr_best_score)
+        }
+        # If the difference is due to floating-point truncation, update best_score
+        best_score <- attr_best_score
+      }
       env$bst$best_iteration <- best_iteration
       env$bst$best_ntreelimit <- best_ntreelimit
       env$bst$best_score <- best_score

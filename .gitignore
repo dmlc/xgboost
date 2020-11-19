@@ -109,3 +109,9 @@ R-package/src/Makevars
 
 # Python joblib.Memory used in pytest.
 cachedir/
+
+# Files from local Dask work
+dask-worker-space/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/

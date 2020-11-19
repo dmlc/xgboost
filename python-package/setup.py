@@ -17,6 +17,7 @@ sys.path.insert(0, CURRENT_DIR)
 # Options only effect `python setup.py install`, building `bdist_wheel`
 # requires using CMake directly.
 USER_OPTIONS = {
+    # libxgboost options.
     'use-openmp': (None, 'Build with OpenMP support.', 1),
     'use-cuda':   (None, 'Build with GPU acceleration.', 0),
     'use-nccl':   (None, 'Build with NCCL to enable distributed GPU support.', 0),
@@ -26,7 +27,9 @@ USER_OPTIONS = {
     'use-azure':  (None, 'Build with AZURE support.', 0),
     'use-s3':     (None, 'Build with S3 support', 0),
     'plugin-lz4': (None, 'Build lz4 plugin.', 0),
-    'plugin-dense-parser': (None, 'Build dense parser plugin.', 0)
+    'plugin-dense-parser': (None, 'Build dense parser plugin.', 0),
+    # Python specific
+    'use-system-libxgboost': (None, 'Use libxgboost.so in system path.', 0)
 }
 
 NEED_CLEAN_TREE = set()
@@ -103,6 +106,8 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
             arg = k.replace('-', '_').upper()
             value = str(v[2])
             cmake_cmd.append('-D' + arg + '=' + value)
+            if k == 'USE-SYSTEM-LIBXGBOOST':
+                continue
             if k == 'USE_OPENMP' and use_omp == 0:
                 continue
 
@@ -119,6 +124,10 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
 
     def build_cmake_extension(self):
         '''Configure and build using CMake'''
+        if USER_OPTIONS['use-system-libxgboost'][2]:
+            self.logger.info('Using system libxgboost.')
+            return
+
         src_dir = 'xgboost'
         try:
             copy_tree(os.path.join(CURRENT_DIR, os.path.pardir),
@@ -205,6 +214,15 @@ class InstallLib(install_lib.install_lib):
 
     def install(self):
         outfiles = super().install()
+
+        if USER_OPTIONS['use-system-libxgboost'][2] != 0:
+            self.logger.info('Using system libxgboost.')
+            lib_path = os.path.join(sys.prefix, 'lib')
+            msg = 'use-system-libxgboost is specified, but ' + lib_name() + \
+                ' is not found in: ' + lib_path
+            assert os.path.exists(os.path.join(lib_path, lib_name())), msg
+            return []
+
         lib_dir = os.path.join(self.install_dir, 'xgboost', 'lib')
         if not os.path.exists(lib_dir):
             os.mkdir(lib_dir)
@@ -251,7 +269,12 @@ class Install(install.install):  # pylint: disable=too-many-instance-attributes
         self.plugin_lz4 = 0
         self.plugin_dense_parser = 0
 
+        self.use_system_libxgboost = 0
+
     def run(self):
+        # setuptools will configure the options according to user supplied command line
+        # arguments, then here we propagate them into `USER_OPTIONS` for visibility to
+        # other sub-commands like `build_ext`.
         for k, v in USER_OPTIONS.items():
             arg = k.replace('-', '_')
             if hasattr(self, arg):
