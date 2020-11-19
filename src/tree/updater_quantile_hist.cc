@@ -691,8 +691,8 @@ void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const std::vector<Gr
     r = std::mt19937(rnd());
   }
   const size_t discard_size = info.num_row_ / nthread;
-  uint32_t coin_flip_border = static_cast<uint32_t>(std::numeric_limits<uint32_t>::max()
-                                                    * param_.subsample);
+  auto upper_border = static_cast<float>(std::numeric_limits<uint32_t>::max());
+  uint32_t coin_flip_border = static_cast<uint32_t>(upper_border * param_.subsample);
 
   #pragma omp parallel num_threads(nthread)
   {
