@@ -254,8 +254,9 @@ Here are some pratices on reducing memory usage with dask and xgboost.
 - Use inplace prediction when possible.
 
 References:
-[0]: https://github.com/dask/dask/issues/6833
-[1]: https://stackoverflow.com/questions/45941528/how-to-efficiently-send-a-large-numpy-array-to-the-cluster-with-dask-array
+
+#. https://github.com/dask/dask/issues/6833
+#. https://stackoverflow.com/questions/45941528/how-to-efficiently-send-a-large-numpy-array-to-the-cluster-with-dask-array
 
 ***********
 Limitations
