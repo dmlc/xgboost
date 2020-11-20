@@ -212,4 +212,27 @@ TEST(CAPI, Exception) {
   // Not null
   ASSERT_TRUE(error);
 }
+
+TEST(CAPI, XGBGlobalConfig) {
+  int ret;
+  const char* name[] = {"verbosity"};
+  const char* value[] = {"0"};
+  ret = XGBSetGlobalConfig(name, value, size_t(1));
+  ASSERT_EQ(ret, 0);
+  const char** updated_name;
+  const char** updated_value;
+  size_t updated_num_param = 0;
+  ret = XGBGetGlobalConfig(&updated_name, &updated_value, &updated_num_param);
+  ASSERT_EQ(ret, 0);
+  ASSERT_GT(updated_num_param, 0);
+  bool contains_verbosity = false;
+  for (size_t i = 0; i < updated_num_param; ++i) {
+    if (std::string(updated_name[i]) == "verbosity") {
+      ASSERT_EQ(std::string(updated_value[i]), "0");
+      contains_verbosity = true;
+    }
+  }
+  ASSERT_TRUE(contains_verbosity);
+}
+
 }  // namespace xgboost

@@ -18,6 +18,7 @@
 #include "xgboost/logging.h"
 #include "xgboost/version_config.h"
 #include "xgboost/json.h"
+#include "xgboost/global_config.h"
 
 #include "c_api_error.h"
 #include "../common/io.h"
@@ -43,6 +44,32 @@ XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
   API_BEGIN();
   LogCallbackRegistry* registry = LogCallbackRegistryStore::Get();
   registry->Register(callback);
+  API_END();
+}
+
+XGB_DLL int XGBSetGlobalConfig(const char** name, const char** value, size_t num_param) {
+  API_BEGIN();
+  Args args;
+  for (size_t i = 0; i < num_param; ++i) {
+    args.emplace_back(std::string(name[i]), std::string(value[i]));
+  }
+  GlobalConfiguration::SetArgs(args);
+  API_END();
+}
+
+XGB_DLL int XGBGetGlobalConfig(const char*** name, const char*** value, size_t* num_param) {
+  API_BEGIN();
+  auto& local = GlobalConfiguration::GetThreadLocal();
+  local.args = GlobalConfiguration::GetArgs();
+  local.names = std::vector<const char*>();
+  local.values = std::vector<const char*>();
+  for (const auto& e : local.args) {
+    local.names.emplace_back(e.first.c_str());
+    local.values.emplace_back(e.second.c_str());
+  }
+  *name = local.names.data();
+  *value = local.values.data();
+  *num_param = local.args.size();
   API_END();
 }
 

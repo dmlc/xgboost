@@ -52,7 +52,14 @@ bool ConsoleLogger::ShouldLog(LogVerbosity verbosity) {
 }
 
 void ConsoleLogger::Configure(Args const& args) {
-  param_.UpdateAllowUnknown(args);
+  auto unknown = param_.UpdateAllowUnknown(args);
+  if (!unknown.empty()) {
+    std::ostringstream oss;
+    for (const auto& e : unknown) {
+      oss << e.first << ", ";
+    }
+    LOG(FATAL) << "Unknown parameters: " << oss.str();
+  }
   switch (param_.verbosity) {
     case 0:
       global_verbosity_ = LogVerbosity::kSilent;

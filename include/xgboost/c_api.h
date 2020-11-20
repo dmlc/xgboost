@@ -64,6 +64,24 @@ XGB_DLL const char *XGBGetLastError(void);
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
 
 /*!
+ * \brief Set global configuration (collection of parameters that apply globally). This function
+ *        accepts the list of key-value pairs representing the global-score parameters to be
+ *        configured. The list of key-value pairs are passed with two arrays name[] and value[],
+ *        such that the i-th parameter is given by the pair (name[i], value[i]).
+ * \param name array of parameter names
+ * \param value array of parameter values
+ * \param num_param number of parameters to be configured
+ * \return 0 for success, -1 for failure
+ */
+XGB_DLL int XGBSetGlobalConfig(const char** name, const char** value, size_t num_param);
+
+/*!
+ * \brief Get current global configuration (collection of parameters that apply globally).
+ * \return 0 for success, -1 for failure
+ */
+XGB_DLL int XGBGetGlobalConfig(const char*** name, const char*** value, size_t* num_param);
+
+/*!
  * \brief load a data matrix
  * \param fname the name of the file
  * \param silent whether print messages during loading
