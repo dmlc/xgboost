@@ -5,34 +5,42 @@ from contextlib import contextmanager
 from .core import _LIB, _check_call
 
 
-def set_config(*, verbosity=None):
-    """Set global configuration, collection of parameters that apply globally.
+def set_config(**new_config):
+    """Set global configuration, collection of parameters that apply globally. See
+    https://xgboost.readthedocs.io/en/latest/parameter.html for the full list of parameters
+    supported in the global configuration.
 
     .. versionadded:: 1.3.0
 
     Parameters
     ----------
-    verbosity: int
-        Verbosity of printing messages. Valid values of 0 (silent), 1 (warning), 2 (info),
-        3 (debug).
+    new_config: Dict[str, str]
+        Keyword arguments representing the parameters and their values
+
+    Example
+    -------
+
+    .. code-block:: python
+
+        import xgboost as xgb
+
+        # Silence all messages
+        xgb.set_config(verbosity=0)
     """
-    params = {}
-
-    if verbosity is not None:
-        params['verbosity'] = verbosity
-
-    str_array_t = ctypes.c_char_p * len(params)
+    str_array_t = ctypes.c_char_p * len(new_config)
     names, values = str_array_t(), str_array_t()
-    for i, (key, value) in enumerate(params.items()):
+    for i, (key, value) in enumerate(new_config.items()):
         names[i] = key.encode('utf-8')
         values[i] = str(value).encode('utf-8')
 
-    _check_call(_LIB.XGBSetGlobalConfig(names, values, ctypes.c_size_t(len(params))))
+    _check_call(_LIB.XGBSetGlobalConfig(names, values, ctypes.c_size_t(len(new_config))))
 
 
 def get_config():
     """
-    Get current values of the global configuration
+    Get current values of the global configuration.
+    See https://xgboost.readthedocs.io/en/latest/parameter.html for the full list of parameters
+    supported in the global configuration.
 
     .. versionadded:: 1.3.0
 
@@ -61,7 +69,9 @@ def get_config():
 @contextmanager
 def config_context(**new_config):
     """
-    Context manager for global XGBoost configuration
+    Context manager for global XGBoost configuration. Global configuration consists of a collection
+    of parameters that apply globally. See https://xgboost.readthedocs.io/en/latest/parameter.html
+    for the full list of parameters supported in the global configuration.
 
     .. note::
 
@@ -72,9 +82,8 @@ def config_context(**new_config):
 
     Parameters
     ----------
-    verbosity: int
-        Verbosity of printing messages. Valid values of 0 (silent), 1 (warning), 2 (info),
-        3 (debug).
+    new_config: Dict[str, str]
+        Keyword arguments representing the parameters and their values
 
     Example
     -------
