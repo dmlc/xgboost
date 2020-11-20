@@ -1,7 +1,5 @@
 context('Test global configuration')
 
-require(xgboost)
-
 test_that('Global configuration works with verbosity', {
   old_verbosity <- xgb.get.config()$verbosity
   for (v in c(0, 1, 2, 3)) {
