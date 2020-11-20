@@ -107,6 +107,38 @@ Here ``prediction`` is a dask ``Array`` object containing predictions from model
 Alternatively, XGBoost also implements the Scikit-Learn interface with ``DaskXGBClassifier``
 and ``DaskXGBRegressor``. See ``xgboost/demo/dask`` for more examples.
 
+
+******************
+Running prediction
+******************
+
+In previous example we used ``DaskDMatrix`` as input to ``predict`` function.  In
+practice, it's also possible to call ``predict`` function directly on dask collections
+like ``Array`` and ``DataFrame`` and might have better prediction performance.  When
+``DataFrame`` is used as prediction input, the result is a dask ``Series`` instead of
+array.  Also, there's inplace predict support on dask interface, which can help reducing
+both memory usage and prediction time.
+
+.. code-block:: python
+
+  # dtrain is the DaskDMatrix defined above.
+  prediction = xgb.dask.predict(client, booster, dtrain)
+
+or equivalently:
+
+.. code-block:: python
+
+  # where X is a dask DataFrame or dask Array.
+  prediction = xgb.dask.predict(client, booster, X)
+
+Also for inplace prediction:
+
+.. code-block:: python
+
+  booster.set_param({'predictor': 'gpu_predictor'})
+  # where X is a dask DataFrame or dask Array.
+  prediction = xgb.dask.inplace_predict(client, booster, X)
+
 *******
 Threads
 *******
@@ -184,10 +216,6 @@ actual computation will return a coroutine and hence require awaiting:
         # Use `client.compute` instead of the `compute` method from dask collection
         print(await client.compute(prediction))
 
-Be careful that XGBoost uses all the workers supplied by the ``client`` object.  If you
-are training on GPU cluster and have 2 GPUs, the client object passed to XGBoost should
-return 2 workers.
-
 *****************************************************************************
 Why is the initialization of ``DaskDMatrix``  so slow and throws weird errors
 *****************************************************************************
@@ -207,6 +235,27 @@ where all your earlier computation actually being carried out, including operati
 computations, one can explicitly wait for results of input data before constructing a ``DaskDMatrix``.
 Also dask's `diagnostics dashboard <https://distributed.dask.org/en/latest/web.html>`_ can be used to
 monitor what operations are currently being performed.
+
+************
+Memory Usage
+************
+
+Here are some pratices on reducing memory usage with dask and xgboost.
+
+- In a distributed work flow, data is best loaded by dask collections directly instead of
+  loaded by client process.  When loading with client process is unavoidable, use
+  ``client.scatter`` to distribute data from client process to workers.  See [1] for a
+  nice summary.
+
+- When using GPU input, like dataframe loaded from ``dask_cudf``, you can try
+  ``xgboost.dask.DaskDeviceQuantileDMatrix`` as a drop in replacement for ``DaskDMatrix``
+  to reduce overall memory usage.  See ``demo/dask/gpu_training.py`` for an example.
+
+- Use inplace prediction when possible.
+
+References:
+[0]: https://github.com/dask/dask/issues/6833
+[1]: https://stackoverflow.com/questions/45941528/how-to-efficiently-send-a-large-numpy-array-to-the-cluster-with-dask-array
 
 ***********
 Limitations
