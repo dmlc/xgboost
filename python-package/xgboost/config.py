@@ -7,8 +7,8 @@ from .core import _LIB, _check_call, c_str, py_str
 
 
 def set_config(**new_config):
-    """Set global configuration, collection of parameters that apply globally. See
-    https://xgboost.readthedocs.io/en/latest/parameter.html for the full list of parameters
+    """Set global configuration, collection of parameters that can be applied in the global scope.
+    See https://xgboost.readthedocs.io/en/latest/parameter.html for the full list of parameters
     supported in the global configuration.
 
     .. versionadded:: 1.3.0
@@ -35,7 +35,8 @@ def set_config(**new_config):
 
 def get_config():
     """
-    Get current values of the global configuration.
+    Get current values of the global configuration. Global configuration consists of a collection
+    of parameters that can be applied in the global scope.
     See https://xgboost.readthedocs.io/en/latest/parameter.html for the full list of parameters
     supported in the global configuration.
 
@@ -57,8 +58,9 @@ def get_config():
 def config_context(**new_config):
     """
     Context manager for global XGBoost configuration. Global configuration consists of a collection
-    of parameters that apply globally. See https://xgboost.readthedocs.io/en/latest/parameter.html
-    for the full list of parameters supported in the global configuration.
+    of parameters that can be applied in the global scope. See
+    https://xgboost.readthedocs.io/en/latest/parameter.html for the full list of parameters
+    supported in the global configuration.
 
     .. note::
 
