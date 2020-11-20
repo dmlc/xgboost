@@ -1,8 +1,9 @@
 """Global configuration for XGBoost"""
 import ctypes
+import json
 from contextlib import contextmanager
 
-from .core import _LIB, _check_call
+from .core import _LIB, _check_call, c_str, py_str
 
 
 def set_config(**new_config):
@@ -27,13 +28,9 @@ def set_config(**new_config):
         # Silence all messages
         xgb.set_config(verbosity=0)
     """
-    str_array_t = ctypes.c_char_p * len(new_config)
-    names, values = str_array_t(), str_array_t()
-    for i, (key, value) in enumerate(new_config.items()):
-        names[i] = key.encode('utf-8')
-        values[i] = str(value).encode('utf-8')
+    config_str = json.dumps(new_config)
 
-    _check_call(_LIB.XGBSetGlobalConfig(names, values, ctypes.c_size_t(len(new_config))))
+    _check_call(_LIB.XGBSetGlobalConfig(c_str(config_str)))
 
 
 def get_config():
@@ -49,21 +46,11 @@ def get_config():
     args: Dict[str, str]
         The list of global parameters and their values
     """
-    str_array_t = ctypes.POINTER(ctypes.c_char_p)
-    name = str_array_t()
-    value = str_array_t()
-    num_param = ctypes.c_size_t()
-    _check_call(_LIB.XGBGetGlobalConfig(
-        ctypes.byref(name),
-        ctypes.byref(value),
-        ctypes.byref(num_param)))
-    num_param = num_param.value
-    assert num_param > 0
-    params = {}
-    for i in range(num_param):
-        params[name[i].decode('utf-8')] = value[i].decode('utf-8')
+    config_str = ctypes.c_char_p()
+    _check_call(_LIB.XGBGetGlobalConfig(ctypes.byref(config_str)))
+    config = json.loads(py_str(config_str.value))
 
-    return params
+    return config
 
 
 @contextmanager

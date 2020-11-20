@@ -215,24 +215,20 @@ TEST(CAPI, Exception) {
 
 TEST(CAPI, XGBGlobalConfig) {
   int ret;
-  const char* name[] = {"verbosity"};
-  const char* value[] = {"0"};
-  ret = XGBSetGlobalConfig(name, value, size_t(1));
-  ASSERT_EQ(ret, 0);
-  const char** updated_name;
-  const char** updated_value;
-  size_t updated_num_param = 0;
-  ret = XGBGetGlobalConfig(&updated_name, &updated_value, &updated_num_param);
-  ASSERT_EQ(ret, 0);
-  ASSERT_GT(updated_num_param, 0);
-  bool contains_verbosity = false;
-  for (size_t i = 0; i < updated_num_param; ++i) {
-    if (std::string(updated_name[i]) == "verbosity") {
-      ASSERT_EQ(std::string(updated_value[i]), "0");
-      contains_verbosity = true;
+  const char* config_str = R"json(
+    {
+      "verbosity": 0
     }
-  }
-  ASSERT_TRUE(contains_verbosity);
+  )json";
+  ret = XGBSetGlobalConfig(config_str);
+  ASSERT_EQ(ret, 0);
+  const char* updated_config_cstr;
+  ret = XGBGetGlobalConfig(&updated_config_cstr);
+  ASSERT_EQ(ret, 0);
+
+  std::string updated_config_str{updated_config_cstr};
+  auto updated_config = Json::Load({updated_config_str.data(), updated_config_str.size()});
+  ASSERT_EQ(get<String>(updated_config["verbosity"]), "0");
 }
 
 }  // namespace xgboost

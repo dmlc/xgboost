@@ -11,19 +11,18 @@
 #include <vector>
 #include <string>
 #include "xgboost/logging.h"
+#include "xgboost/json.h"
 
 namespace xgboost {
 
 struct GlobalConfigurationThreadLocalEntry {
-  Args args;
-  std::vector<const char*> names;
-  std::vector<const char*> values;
+  std::string ret_str;
 };
 
 class GlobalConfiguration {
  public:
-  static void SetArgs(Args const& args);
-  static Args GetArgs();
+  static void SetConfig(Json const& config);
+  static Json GetConfig();
 
   /*! \brief Get thread local memory for returning data from GlobalConfiguration.
    *         Used in the C API. */

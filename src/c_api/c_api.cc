@@ -47,29 +47,21 @@ XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
   API_END();
 }
 
-XGB_DLL int XGBSetGlobalConfig(const char** name, const char** value, size_t num_param) {
+XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
   API_BEGIN();
-  Args args;
-  for (size_t i = 0; i < num_param; ++i) {
-    args.emplace_back(std::string(name[i]), std::string(value[i]));
-  }
-  GlobalConfiguration::SetArgs(args);
+
+  std::string str{json_str};
+  Json config{Json::Load(StringView{str.data(), str.size()})};
+  GlobalConfiguration::SetConfig(config);
   API_END();
 }
 
-XGB_DLL int XGBGetGlobalConfig(const char*** name, const char*** value, size_t* num_param) {
+XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
   API_BEGIN();
   auto& local = GlobalConfiguration::GetThreadLocal();
-  local.args = GlobalConfiguration::GetArgs();
-  local.names = std::vector<const char*>();
-  local.values = std::vector<const char*>();
-  for (const auto& e : local.args) {
-    local.names.emplace_back(e.first.c_str());
-    local.values.emplace_back(e.second.c_str());
-  }
-  *name = local.names.data();
-  *value = local.values.data();
-  *num_param = local.args.size();
+  Json config = GlobalConfiguration::GetConfig();
+  Json::Dump(config, &local.ret_str);
+  *json_str = local.ret_str.c_str();
   API_END();
 }
 
