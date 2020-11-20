@@ -542,12 +542,28 @@ def test_sklearn_n_jobs():
     assert clf.get_xgb_params()['n_jobs'] == 2
 
 
-def test_kwargs():
+def test_parameters_access():
+    from sklearn import datasets
     params = {'updater': 'grow_gpu_hist', 'subsample': .5, 'n_jobs': -1}
     clf = xgb.XGBClassifier(n_estimators=1000, **params)
     assert clf.get_params()['updater'] == 'grow_gpu_hist'
     assert clf.get_params()['subsample'] == .5
     assert clf.get_params()['n_estimators'] == 1000
+
+    clf = xgb.XGBClassifier(n_estimators=1, nthread=4)
+    X, y = datasets.load_iris(return_X_y=True)
+    clf.fit(X, y)
+
+    config = json.loads(clf.get_booster().save_config())
+    assert int(config['learner']['generic_param']['nthread']) == 4
+
+    clf.set_params(nthread=16)
+    config = json.loads(clf.get_booster().save_config())
+    assert int(config['learner']['generic_param']['nthread']) == 16
+
+    clf.predict(X)
+    config = json.loads(clf.get_booster().save_config())
+    assert int(config['learner']['generic_param']['nthread']) == 16
 
 
 def test_kwargs_error():
