@@ -49,6 +49,21 @@ void _DMatrixFinalizer(SEXP ext) {
   R_API_END();
 }
 
+SEXP XGBSetGlobalConfig_R(SEXP json_str) {
+  R_API_BEGIN();
+  CHECK_CALL(XGBSetGlobalConfig(CHAR(asChar(json_str))));
+  R_API_END();
+  return R_NilValue;
+}
+
+SEXP XGBGetGlobalConfig_R() {
+  const char* json_str;
+  R_API_BEGIN();
+  CHECK_CALL(XGBGetGlobalConfig(&json_str));
+  R_API_END();
+  return mkString(json_str);
+}
+
 SEXP XGDMatrixCreateFromFile_R(SEXP fname, SEXP silent) {
   SEXP ret;
   R_API_BEGIN();
