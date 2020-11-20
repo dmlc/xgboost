@@ -7,10 +7,10 @@
 #ifndef XGBOOST_GLOBAL_CONFIG_H_
 #define XGBOOST_GLOBAL_CONFIG_H_
 
-#include "xgboost/logging.h"
 #include <mutex>
 #include <vector>
 #include <string>
+#include "xgboost/logging.h"
 
 namespace xgboost {
 
