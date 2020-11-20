@@ -1,5 +1,4 @@
 import testing as tm
-import unittest
 import pytest
 import xgboost as xgb
 import numpy as np
@@ -36,7 +35,7 @@ def train_result(param, dmat, num_rounds):
     return result
 
 
-class TestTreeMethod(unittest.TestCase):
+class TestTreeMethod:
     @given(exact_parameter_strategy, strategies.integers(1, 20),
            tm.dataset_strategy)
     @settings(deadline=None)

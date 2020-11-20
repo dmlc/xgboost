@@ -1,16 +1,15 @@
 import numpy as np
 import xgboost
 import os
-import unittest
 import itertools
 import shutil
 import urllib.request
 import zipfile
 
 
-class TestRanking(unittest.TestCase):
+class TestRanking:
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         """
         Download and setup the test fixtures
         """
@@ -75,7 +74,7 @@ class TestRanking(unittest.TestCase):
                           'predictor': 'cpu_predictor'}
 
     @classmethod
-    def tearDownClass(cls):
+    def teardown_class(cls):
         """
         Cleanup test artifacts from download and unpacking
         :return:

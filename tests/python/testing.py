@@ -301,6 +301,14 @@ def captured_output():
         sys.stdout, sys.stderr = old_out, old_err
 
 
+try:
+    # Python 3.7+
+    from contextlib import nullcontext as noop_context
+except ImportError:
+    # Python 3.6
+    from contextlib import suppress as noop_context
+
+
 CURDIR = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
 PROJECT_ROOT = os.path.normpath(
     os.path.join(CURDIR, os.path.pardir, os.path.pardir))

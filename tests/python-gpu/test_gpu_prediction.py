@@ -1,6 +1,4 @@
 import sys
-import json
-import unittest
 import pytest
 
 import numpy as np
@@ -26,7 +24,7 @@ predict_parameter_strategy = strategies.fixed_dictionaries({
 })
 
 
-class TestGPUPredict(unittest.TestCase):
+class TestGPUPredict:
     def test_predict(self):
         iterations = 10
         np.random.seed(1)

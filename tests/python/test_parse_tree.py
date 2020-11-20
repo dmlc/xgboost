@@ -1,5 +1,4 @@
 import xgboost as xgb
-import unittest
 import numpy as np
 import pytest
 import testing as tm
@@ -12,7 +11,7 @@ dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
 
 
-class TestTreesToDataFrame(unittest.TestCase):
+class TestTreesToDataFrame:
 
     def build_model(self, max_depth, num_round):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
