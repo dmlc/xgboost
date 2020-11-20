@@ -65,7 +65,7 @@ XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
 
 /*!
  * \brief Set global configuration (collection of parameters that apply globally). This function
- *        accepts the list of key-value pairs representing the global-score parameters to be
+ *        accepts the list of key-value pairs representing the global-scope parameters to be
  *        configured. The list of key-value pairs are passed in as a JSON string.
  * \param json_str a JSON string representing the list of key-value pairs. The JSON object shall
  *                 be flat: no value can be a JSON object or an array.
