@@ -334,6 +334,10 @@ class XGBModel(XGBModelBase):
             else:
                 self.kwargs[key] = value
 
+        if hasattr(self, '_Booster'):
+            parameters = self.get_xgb_params()
+            self.get_booster().set_param(parameters)
+
         return self
 
     def get_params(self, deep=True):
