@@ -15,7 +15,7 @@ def set_config(**new_config):
 
     Parameters
     ----------
-    new_config: Dict[str, str]
+    new_config: Dict[str, Any]
         Keyword arguments representing the parameters and their values
 
     Example
@@ -43,7 +43,7 @@ def get_config():
 
     Returns
     -------
-    args: Dict[str, str]
+    args: Dict[str, Any]
         The list of global parameters and their values
     """
     config_str = ctypes.c_char_p()
