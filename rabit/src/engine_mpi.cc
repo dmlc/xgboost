@@ -22,34 +22,21 @@ class MPIEngine : public IEngine {
   MPIEngine(void) {
     version_number = 0;
   }
-  virtual void Allgather(void *sendrecvbuf_,
-                             size_t total_size,
-                             size_t slice_begin,
-                             size_t slice_end,
-                             size_t size_prev_slice,
-                             const char* _file,
-                             const int _line,
-                             const char* _caller) {
+  void Allgather(void *sendrecvbuf_, size_t total_size, size_t slice_begin,
+                 size_t slice_end, size_t size_prev_slice) override {
     utils::Error("MPIEngine:: Allgather is not supported");
   }
-  virtual void Allreduce(void *sendrecvbuf_,
-                         size_t type_nbytes,
-                         size_t count,
-                         ReduceFunction reducer,
-                         PreprocFunction prepare_fun,
-                         void *prepare_arg,
-                         const char* _file,
-                         const int _line,
-                         const char* _caller) {
+  void Allreduce(void *sendrecvbuf_, size_t type_nbytes, size_t count,
+                 ReduceFunction reducer, PreprocFunction prepare_fun,
+                 void *prepare_arg) override {
     utils::Error("MPIEngine:: Allreduce is not supported,"\
                  "use Allreduce_ instead");
   }
-  virtual int GetRingPrevRank(void) const {
+  int GetRingPrevRank(void) const override {
     utils::Error("MPIEngine:: GetRingPrevRank is not supported");
+    return -1;
   }
-  virtual void Broadcast(void *sendrecvbuf_, size_t size, int root,
-    const char* _file, const int _line,
-    const char* _caller) {
+  void Broadcast(void *sendrecvbuf_, size_t size, int root) override {
     MPI::COMM_WORLD.Bcast(sendrecvbuf_, size, MPI::CHAR, root);
   }
   virtual void InitAfterException(void) {
@@ -166,10 +153,7 @@ void Allreduce_(void *sendrecvbuf,
                 mpi::DataType dtype,
                 mpi::OpType op,
                 IEngine::PreprocFunction prepare_fun,
-                void *prepare_arg,
-                const char* _file,
-                const int _line,
-                const char* _caller) {
+                void *prepare_arg) {
   if (prepare_fun != NULL) prepare_fun(prepare_arg);
   MPI::COMM_WORLD.Allreduce(MPI_IN_PLACE, sendrecvbuf,
                             count, GetType(dtype), GetOp(op));
@@ -180,14 +164,35 @@ ReduceHandle::ReduceHandle(void)
     : handle_(NULL), redfunc_(NULL), htype_(NULL) {
 }
 ReduceHandle::~ReduceHandle(void) {
+  /* !WARNING!
+
+     A handle can be held by a tree method/Learner from xgboost.  The booster might not be
+     freed until program exit, while (good) users call rabit.finalize() before reaching
+     the end of program.  So op->Free() might be called after finalization and results
+     into following error:
+
+      ```
+        Attempting to use an MPI routine after finalizing MPICH
+      ```
+
+     Here we skip calling Free if MPI has already been finalized to workaround the issue.
+     It can be a potential leak of memory.  The best way to resolve it is to eliminate all
+     use of long living handle.
+  */
+  int finalized = 0;
+  CHECK_EQ(MPI_Finalized(&finalized), MPI_SUCCESS);
   if (handle_ != NULL) {
     MPI::Op *op = reinterpret_cast<MPI::Op*>(handle_);
-    op->Free();
+    if (!finalized) {
+      op->Free();
+    }
     delete op;
   }
   if (htype_ != NULL) {
     MPI::Datatype *dtype = reinterpret_cast<MPI::Datatype*>(htype_);
-    dtype->Free();
+    if (!finalized) {
+      dtype->Free();
+    }
     delete dtype;
   }
 }
@@ -217,10 +222,7 @@ void ReduceHandle::Init(IEngine::ReduceFunction redfunc, size_t type_nbytes) {
 void ReduceHandle::Allreduce(void *sendrecvbuf,
                              size_t type_nbytes, size_t count,
                              IEngine::PreprocFunction prepare_fun,
-                             void *prepare_arg,
-                             const char* _file,
-                             const int _line,
-                             const char* _caller) {
+                             void *prepare_arg) {
   utils::Assert(handle_ != NULL, "must intialize handle to call AllReduce");
   MPI::Op *op = reinterpret_cast<MPI::Op*>(handle_);
   MPI::Datatype *dtype = reinterpret_cast<MPI::Datatype*>(htype_);
