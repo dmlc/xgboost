@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <vector>
 #include <utility>
+#include <memory>
 
 namespace xgboost {
 namespace common {
@@ -152,29 +153,30 @@ class PartitionBuilder {
 
   // allocate thread local memory, should be called for each specific task
   void AllocateForTask(size_t id) {
-    if (mem_blocks_[id].size() == 0) {
-      mem_blocks_[id].resize(1);
+    if (mem_blocks_[id].get() == nullptr) {
+      BlockInfo* local_block_ptr = new BlockInfo;
+      mem_blocks_[id].reset(local_block_ptr);
     }
   }
 
   common::Span<size_t> GetLeftBuffer(int nid, size_t begin, size_t end) {
     const size_t task_idx = GetTaskIdx(nid, begin);
-    return { mem_blocks_.at(task_idx).data()->Left(), end - begin };
+    return { mem_blocks_.at(task_idx)->Left(), end - begin };
   }
 
   common::Span<size_t> GetRightBuffer(int nid, size_t begin, size_t end) {
     const size_t task_idx = GetTaskIdx(nid, begin);
-    return { mem_blocks_.at(task_idx).data()->Right(), end - begin };
+    return { mem_blocks_.at(task_idx)->Right(), end - begin };
   }
 
   void SetNLeftElems(int nid, size_t begin, size_t end, size_t n_left) {
     size_t task_idx = GetTaskIdx(nid, begin);
-    mem_blocks_.at(task_idx).data()->n_left = n_left;
+    mem_blocks_.at(task_idx)->n_left = n_left;
   }
 
   void SetNRightElems(int nid, size_t begin, size_t end, size_t n_right) {
     size_t task_idx = GetTaskIdx(nid, begin);
-    mem_blocks_.at(task_idx).data()->n_right = n_right;
+    mem_blocks_.at(task_idx)->n_right = n_right;
   }
 
 
@@ -192,13 +194,13 @@ class PartitionBuilder {
     for (size_t i = 0; i < blocks_offsets_.size()-1; ++i) {
       size_t n_left = 0;
       for (size_t j = blocks_offsets_[i]; j < blocks_offsets_[i+1]; ++j) {
-        mem_blocks_[j].data()->n_offset_left = n_left;
-        n_left += mem_blocks_[j].data()->n_left;
+        mem_blocks_[j]->n_offset_left = n_left;
+        n_left += mem_blocks_[j]->n_left;
       }
       size_t n_right = 0;
       for (size_t j = blocks_offsets_[i]; j < blocks_offsets_[i+1]; ++j) {
-        mem_blocks_[j].data()->n_offset_right = n_left + n_right;
-        n_right += mem_blocks_[j].data()->n_right;
+        mem_blocks_[j]->n_offset_right = n_left + n_right;
+        n_right += mem_blocks_[j]->n_right;
       }
       left_right_nodes_sizes_[i] = {n_left, n_right};
     }
@@ -207,14 +209,14 @@ class PartitionBuilder {
   void MergeToArray(int nid, size_t begin, size_t* rows_indexes) {
     size_t task_idx = GetTaskIdx(nid, begin);
 
-    size_t* left_result  = rows_indexes + mem_blocks_[task_idx].data()->n_offset_left;
-    size_t* right_result = rows_indexes + mem_blocks_[task_idx].data()->n_offset_right;
+    size_t* left_result  = rows_indexes + mem_blocks_[task_idx]->n_offset_left;
+    size_t* right_result = rows_indexes + mem_blocks_[task_idx]->n_offset_right;
 
-    const size_t* left = mem_blocks_[task_idx].data()->Left();
-    const size_t* right = mem_blocks_[task_idx].data()->Right();
+    const size_t* left = mem_blocks_[task_idx]->Left();
+    const size_t* right = mem_blocks_[task_idx]->Right();
 
-    std::copy_n(left, mem_blocks_[task_idx].data()->n_left, left_result);
-    std::copy_n(right, mem_blocks_[task_idx].data()->n_right, right_result);
+    std::copy_n(left, mem_blocks_[task_idx]->n_left, left_result);
+    std::copy_n(right, mem_blocks_[task_idx]->n_right, right_result);
   }
 
   size_t GetTaskIdx(int nid, size_t begin) {
@@ -242,7 +244,7 @@ class PartitionBuilder {
   };
   std::vector<std::pair<size_t, size_t>> left_right_nodes_sizes_;
   std::vector<size_t> blocks_offsets_;
-  std::vector<std::vector<BlockInfo>> mem_blocks_;
+  std::vector<std::unique_ptr<BlockInfo>> mem_blocks_;
   size_t max_n_tasks_ = 0;
 };
 
