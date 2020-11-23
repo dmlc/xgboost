@@ -85,7 +85,7 @@ def BuildWin64() {
     bat """
     mkdir build
     cd build
-    cmake .. -G"Visual Studio 15 2017 Win64" -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON ${arch_flag}
+    cmake .. -G"Visual Studio 15 2017 Win64" -DUSE_CUDA=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON ${arch_flag} -DCMAKE_UNITY_BUILD=ON
     """
     bat """
     cd build

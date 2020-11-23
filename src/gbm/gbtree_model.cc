@@ -6,10 +6,10 @@
 #include "xgboost/json.h"
 #include "xgboost/logging.h"
 #include "gbtree_model.h"
+#include "gbtree.h"
 
 namespace xgboost {
 namespace gbm {
-
 void GBTreeModel::Save(dmlc::Stream* fo) const {
   CHECK_EQ(param.num_trees, static_cast<int32_t>(trees.size()));
 

@@ -71,15 +71,15 @@ class TreeEvaluator {
 
     XGBOOST_DEVICE double CalcSplitGain(const ParamT &param, bst_node_t nidx,
                                         bst_feature_t fidx,
-                                        tree::GradStats left,
-                                        tree::GradStats right) const {
+                                        tree::GradStats const& left,
+                                        tree::GradStats const& right) const {
       int constraint = constraints[fidx];
       const double negative_infinity = -std::numeric_limits<double>::infinity();
       double wleft = this->CalcWeight(nidx, param, left);
       double wright = this->CalcWeight(nidx, param, right);
 
-      double gain = this->CalcGainGivenWeight(nidx, param, left, wleft) +
-                    this->CalcGainGivenWeight(nidx, param, right, wright);
+      double gain = this->CalcGainGivenWeight(param, left, wleft) +
+                    this->CalcGainGivenWeight(param, right, wright);
 
       if (constraint == 0) {
         return gain;
@@ -91,7 +91,7 @@ class TreeEvaluator {
     }
 
     XGBOOST_DEVICE float CalcWeight(bst_node_t nodeid, const ParamT &param,
-                                    tree::GradStats stats) const {
+                                    tree::GradStats const& stats) const {
       float w = xgboost::tree::CalcWeight(param, stats);
       if (!has_constraint) {
         return w;
@@ -107,8 +107,8 @@ class TreeEvaluator {
         return w;
       }
     }
-    XGBOOST_DEVICE float CalcGainGivenWeight(bst_node_t, ParamT const &p,
-                                             tree::GradStats stats, float w) const {
+    XGBOOST_DEVICE float
+    CalcGainGivenWeight(ParamT const &p, tree::GradStats const& stats, float w) const {
       if (stats.GetHess() <= 0) {
         return .0f;
       }
@@ -121,8 +121,8 @@ class TreeEvaluator {
                                                       stats.sum_hess, w);
     }
     XGBOOST_DEVICE float CalcGain(bst_node_t nid, ParamT const &p,
-                                  tree::GradStats stats) const {
-      return this->CalcGainGivenWeight(nid, p, stats, this->CalcWeight(nid, p, stats));
+                                  tree::GradStats const& stats) const {
+      return this->CalcGainGivenWeight(p, stats, this->CalcWeight(nid, p, stats));
     }
   };
 

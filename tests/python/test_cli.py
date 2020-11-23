@@ -1,6 +1,5 @@
 import os
 import tempfile
-import unittest
 import platform
 import xgboost
 import subprocess
@@ -9,7 +8,7 @@ import json
 import testing as tm
 
 
-class TestCLI(unittest.TestCase):
+class TestCLI:
     template = '''
 booster = gbtree
 objective = reg:squarederror

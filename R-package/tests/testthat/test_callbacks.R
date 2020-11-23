@@ -2,6 +2,7 @@
 
 require(xgboost)
 require(data.table)
+require(titanic)
 
 context("callbacks")
 
@@ -252,6 +253,26 @@ test_that("early stopping using a specific metric works", {
   logloss_pred <- sum(-ltest * log(pred) - (1 - ltest) * log(1 - pred)) / length(ltest)
   logloss_log <- bst$evaluation_log[bst$best_iteration, test_logloss]
   expect_equal(logloss_log, logloss_pred, tolerance = 1e-5)
+})
+
+test_that("early stopping works with titanic", {
+  # This test was inspired by https://github.com/dmlc/xgboost/issues/5935
+  # It catches possible issues on noLD R
+  titanic <- titanic::titanic_train
+  titanic$Pclass <-  as.factor(titanic$Pclass)
+  dtx <- model.matrix(~ 0 + ., data = titanic[, c("Pclass", "Sex")])
+  dty <- titanic$Survived
+
+  xgboost::xgboost(
+    data = dtx,
+    label = dty,
+    objective = "binary:logistic",
+    eval_metric = "auc",
+    nrounds = 100,
+    early_stopping_rounds = 3
+  )
+
+  expect_true(TRUE)  # should not crash
 })
 
 test_that("early stopping xgb.cv works", {

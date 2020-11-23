@@ -92,7 +92,8 @@ def _train_internal(params, dtrain,
         assert all(isinstance(c, callback.TrainingCallback)
                    for c in callbacks), "You can't mix new and old callback styles."
         if verbose_eval:
-            callbacks.append(callback.EvaluationMonitor())
+            verbose_eval = 1 if verbose_eval is True else verbose_eval
+            callbacks.append(callback.EvaluationMonitor(period=verbose_eval))
         if early_stopping_rounds:
             callbacks.append(callback.EarlyStopping(
                 rounds=early_stopping_rounds, maximize=maximize))
@@ -103,7 +104,7 @@ def _train_internal(params, dtrain,
             num_boost_round, feval, evals_result, callbacks,
             show_stdv=False, cvfolds=None)
 
-    callbacks.before_training(bst)
+    bst = callbacks.before_training(bst)
     for i in range(start_iteration, num_boost_round):
         if callbacks.before_iteration(bst, i, dtrain, evals):
             break
@@ -125,7 +126,7 @@ def _train_internal(params, dtrain,
         bst.save_rabit_checkpoint()
         version += 1
 
-    callbacks.after_training(bst)
+    bst = callbacks.after_training(bst)
 
     if evals_result is not None and is_new_callback:
         evals_result.update(callbacks.history)
@@ -485,7 +486,9 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         assert all(isinstance(c, callback.TrainingCallback)
                    for c in callbacks), "You can't mix new and old callback styles."
         if isinstance(verbose_eval, bool) and verbose_eval:
-            callbacks.append(callback.EvaluationMonitor(show_stdv=show_stdv))
+            verbose_eval = 1 if verbose_eval is True else verbose_eval
+            callbacks.append(callback.EvaluationMonitor(period=verbose_eval,
+                                                        show_stdv=show_stdv))
         if early_stopping_rounds:
             callbacks.append(callback.EarlyStopping(
                 rounds=early_stopping_rounds, maximize=maximize))
@@ -495,9 +498,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
             verbose_eval, early_stopping_rounds, maximize, 0,
             num_boost_round, feval, None, callbacks,
             show_stdv=show_stdv, cvfolds=cvfolds)
-    callbacks.before_training(cvfolds)
-
     booster = _PackedBooster(cvfolds)
+    callbacks.before_training(booster)
 
     for i in range(num_boost_round):
         if callbacks.before_iteration(booster, i, dtrain, None):
@@ -524,4 +526,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
             results = pd.DataFrame.from_dict(results)
         except ImportError:
             pass
+
+    callbacks.after_training(booster)
+
     return results

@@ -830,9 +830,10 @@ void SparsePage::Push(const SparsePage &batch) {
   const auto& batch_data_vec = batch.data.HostVector();
   size_t top = offset_vec.back();
   data_vec.resize(top + batch.data.Size());
-  std::memcpy(dmlc::BeginPtr(data_vec) + top,
-              dmlc::BeginPtr(batch_data_vec),
-              sizeof(Entry) * batch.data.Size());
+  if (dmlc::BeginPtr(data_vec) && dmlc::BeginPtr(batch_data_vec)) {
+    std::memcpy(dmlc::BeginPtr(data_vec) + top, dmlc::BeginPtr(batch_data_vec),
+                sizeof(Entry) * batch.data.Size());
+  }
   size_t begin = offset.Size();
   offset_vec.resize(begin + batch.Size());
   for (size_t i = 0; i < batch.Size(); ++i) {
@@ -843,7 +844,7 @@ void SparsePage::Push(const SparsePage &batch) {
 template <typename AdapterBatchT>
 uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread) {
   // Set number of threads but keep old value so we can reset it after
-  int nthread_original = common::OmpSetNumThreads(&nthread);
+  int nthread_original = common::OmpSetNumThreadsWithoutHT(&nthread);
   auto& offset_vec = offset.HostVector();
   auto& data_vec = data.HostVector();
 

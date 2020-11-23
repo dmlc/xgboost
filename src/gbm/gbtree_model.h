@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2019 by Contributors
+ * Copyright 2017-2020 by Contributors
  * \file gbtree_model.h
  */
 #ifndef XGBOOST_GBM_GBTREE_MODEL_H_
@@ -22,6 +22,7 @@ namespace xgboost {
 class Json;
 
 namespace gbm {
+
 /*! \brief model parameters */
 struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
  public:

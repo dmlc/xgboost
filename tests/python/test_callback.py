@@ -1,5 +1,4 @@
 import xgboost as xgb
-import unittest
 import pytest
 import os
 import testing as tm
@@ -9,9 +8,9 @@ import tempfile
 pytestmark = pytest.mark.skipif(**tm.no_sklearn())
 
 
-class TestCallbacks(unittest.TestCase):
+class TestCallbacks:
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)
         cls.X = X
@@ -34,9 +33,26 @@ class TestCallbacks(unittest.TestCase):
                   num_boost_round=rounds,
                   evals_result=evals_result,
                   verbose_eval=True)
-        print('evals_result:', evals_result)
         assert len(evals_result['Train']['error']) == rounds
         assert len(evals_result['Valid']['error']) == rounds
+
+        with tm.captured_output() as (out, err):
+            xgb.train({'objective': 'binary:logistic',
+                       'eval_metric': 'error'}, D_train,
+                      evals=[(D_train, 'Train'), (D_valid, 'Valid')],
+                      num_boost_round=rounds,
+                      evals_result=evals_result,
+                      verbose_eval=2)
+            output: str = out.getvalue().strip()
+
+        pos = 0
+        msg = 'Train-error'
+        for i in range(rounds // 2):
+            pos = output.find('Train-error', pos)
+            assert pos != -1
+            pos += len(msg)
+
+        assert output.find('Train-error', pos) == -1
 
     def test_early_stopping(self):
         D_train = xgb.DMatrix(self.X_train, self.y_train)
@@ -106,12 +122,42 @@ class TestCallbacks(unittest.TestCase):
         X, y = load_breast_cancer(return_X_y=True)
         cls = xgb.XGBClassifier()
         early_stopping_rounds = 5
+        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds)
         cls.fit(X, y, eval_set=[(X, y)],
-                early_stopping_rounds=early_stopping_rounds,
-                eval_metric=tm.eval_error_metric)
+                eval_metric=tm.eval_error_metric,
+                callbacks=[early_stop])
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
+    def test_early_stopping_save_best_model(self):
+        from sklearn.datasets import load_breast_cancer
+        X, y = load_breast_cancer(return_X_y=True)
+        n_estimators = 100
+        cls = xgb.XGBClassifier(n_estimators=n_estimators)
+        early_stopping_rounds = 5
+        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
+                                                save_best=True)
+        cls.fit(X, y, eval_set=[(X, y)],
+                eval_metric=tm.eval_error_metric, callbacks=[early_stop])
+        booster = cls.get_booster()
+        dump = booster.get_dump(dump_format='json')
+        assert len(dump) == booster.best_iteration
+
+        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
+                                                save_best=True)
+        cls = xgb.XGBClassifier(booster='gblinear', n_estimators=10)
+        with pytest.raises(ValueError):
+            cls.fit(X, y, eval_set=[(X, y)], eval_metric=tm.eval_error_metric,
+                    callbacks=[early_stop])
+
+        # No error
+        early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
+                                                save_best=False)
+        xgb.XGBClassifier(booster='gblinear', n_estimators=10).fit(
+            X, y, eval_set=[(X, y)],
+            eval_metric=tm.eval_error_metric,
+            callbacks=[early_stop])
 
     def run_eta_decay(self, tree_method, deprecated_callback):
         if deprecated_callback:
@@ -125,17 +171,20 @@ class TestCallbacks(unittest.TestCase):
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 4
 
+        warning_check = pytest.warns(UserWarning) if deprecated_callback else tm.noop_context()
+
         # learning_rates as a list
         # init eta with 0 to check whether learning_rates work
         param = {'max_depth': 2, 'eta': 0, 'verbosity': 0,
                  'objective': 'binary:logistic', 'eval_metric': 'error',
                  'tree_method': tree_method}
         evals_result = {}
-        bst = xgb.train(param, dtrain, num_round, watchlist,
-                        callbacks=[scheduler([
-                            0.8, 0.7, 0.6, 0.5
-                        ])],
-                        evals_result=evals_result)
+        with warning_check:
+            bst = xgb.train(param, dtrain, num_round, watchlist,
+                            callbacks=[scheduler([
+                                0.8, 0.7, 0.6, 0.5
+                            ])],
+                            evals_result=evals_result)
         eval_errors_0 = list(map(float, evals_result['eval']['error']))
         assert isinstance(bst, xgb.core.Booster)
         # validation error should decrease, if eta > 0
@@ -146,10 +195,11 @@ class TestCallbacks(unittest.TestCase):
                  'objective': 'binary:logistic', 'eval_metric': 'error',
                  'tree_method': tree_method}
         evals_result = {}
-        bst = xgb.train(param, dtrain, num_round, watchlist,
-                        callbacks=[scheduler(
-                            [0.8, 0.7, 0.6, 0.5])],
-                        evals_result=evals_result)
+        with warning_check:
+            bst = xgb.train(param, dtrain, num_round, watchlist,
+                            callbacks=[scheduler(
+                                [0.8, 0.7, 0.6, 0.5])],
+                            evals_result=evals_result)
         eval_errors_1 = list(map(float, evals_result['eval']['error']))
         assert isinstance(bst, xgb.core.Booster)
         # validation error should decrease, if learning_rate > 0
@@ -161,11 +211,12 @@ class TestCallbacks(unittest.TestCase):
             'eval_metric': 'error', 'tree_method': tree_method
         }
         evals_result = {}
-        bst = xgb.train(param, dtrain, num_round, watchlist,
-                        callbacks=[scheduler(
-                            [0, 0, 0, 0]
-                        )],
-                        evals_result=evals_result)
+        with warning_check:
+            bst = xgb.train(param, dtrain, num_round, watchlist,
+                            callbacks=[scheduler(
+                                [0, 0, 0, 0]
+                            )],
+                            evals_result=evals_result)
         eval_errors_2 = list(map(float, evals_result['eval']['error']))
         assert isinstance(bst, xgb.core.Booster)
         # validation error should not decrease, if eta/learning_rate = 0
@@ -176,11 +227,12 @@ class TestCallbacks(unittest.TestCase):
             return num_boost_round / (ithround + 1)
 
         evals_result = {}
-        bst = xgb.train(param, dtrain, num_round, watchlist,
-                        callbacks=[
-                            scheduler(eta_decay)
-                        ],
-                        evals_result=evals_result)
+        with warning_check:
+            bst = xgb.train(param, dtrain, num_round, watchlist,
+                            callbacks=[
+                                scheduler(eta_decay)
+                            ],
+                            evals_result=evals_result)
         eval_errors_3 = list(map(float, evals_result['eval']['error']))
 
         assert isinstance(bst, xgb.core.Booster)
@@ -191,18 +243,15 @@ class TestCallbacks(unittest.TestCase):
             assert eval_errors_3[i] != eval_errors_2[i]
 
     def test_eta_decay_hist(self):
-        with pytest.warns(UserWarning):
-            self.run_eta_decay('hist', True)
+        self.run_eta_decay('hist', True)
         self.run_eta_decay('hist', False)
 
     def test_eta_decay_approx(self):
-        with pytest.warns(UserWarning):
-            self.run_eta_decay('approx', True)
+        self.run_eta_decay('approx', True)
         self.run_eta_decay('approx', False)
 
     def test_eta_decay_exact(self):
-        with pytest.warns(UserWarning):
-            self.run_eta_decay('exact', True)
+        self.run_eta_decay('exact', True)
         self.run_eta_decay('exact', False)
 
     def test_check_point(self):

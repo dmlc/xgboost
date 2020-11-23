@@ -81,7 +81,7 @@ void GBTree::Configure(const Args& cfg) {
     LOG(WARNING) << "DANGER AHEAD: You have manually specified `updater` "
         "parameter. The `tree_method` parameter will be ignored. "
         "Incorrect sequence of updaters will produce undefined "
-        "behavior. For common uses, we recommend using"
+        "behavior. For common uses, we recommend using "
         "`tree_method` parameter instead.";
     // Don't drive users to silent XGBOost.
     showed_updater_warning_ = true;
@@ -398,6 +398,38 @@ void GBTree::SaveModel(Json* p_out) const {
   model_.SaveModel(&model);
 }
 
+void GBTree::Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
+                   GradientBooster *out, bool* out_of_bound) const {
+  CHECK(configured_);
+  CHECK(out);
+
+  auto p_gbtree = dynamic_cast<GBTree *>(out);
+  CHECK(p_gbtree);
+  GBTreeModel &out_model = p_gbtree->model_;
+  auto layer_trees = this->LayerTrees();
+
+  layer_end = layer_end == 0 ? model_.trees.size() / layer_trees : layer_end;
+  CHECK_GE(layer_end, layer_begin);
+  CHECK_GE(step, 1);
+  int32_t n_layers = (layer_end - layer_begin) / step;
+  std::vector<std::unique_ptr<RegTree>> &out_trees = out_model.trees;
+  out_trees.resize(layer_trees * n_layers);
+  std::vector<int32_t> &out_trees_info = out_model.tree_info;
+  out_trees_info.resize(layer_trees * n_layers);
+  out_model.param.num_trees = out_model.trees.size();
+  CHECK(this->model_.trees_to_update.empty());
+
+  *out_of_bound = detail::SliceTrees(
+      layer_begin, layer_end, step, this->model_, tparam_, layer_trees,
+      [&](auto const &in_it, auto const &out_it) {
+        auto new_tree =
+            std::make_unique<RegTree>(*this->model_.trees.at(in_it));
+        bst_group_t group = this->model_.tree_info[in_it];
+        out_trees.at(out_it) = std::move(new_tree);
+        out_trees_info.at(out_it) = group;
+      });
+}
+
 void GBTree::PredictBatch(DMatrix* p_fmat,
                           PredictionCacheEntry* out_preds,
                           bool,
@@ -492,6 +524,22 @@ class Dart : public GBTree {
   void Configure(const Args& cfg) override {
     GBTree::Configure(cfg);
     dparam_.UpdateAllowUnknown(cfg);
+  }
+
+  void Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
+             GradientBooster *out, bool* out_of_bound) const final {
+    GBTree::Slice(layer_begin, layer_end, step, out, out_of_bound);
+    if (*out_of_bound) {
+      return;
+    }
+    auto p_dart = dynamic_cast<Dart*>(out);
+    CHECK(p_dart);
+    CHECK(p_dart->weight_drop_.empty());
+    detail::SliceTrees(
+        layer_begin, layer_end, step, model_, tparam_, this->LayerTrees(),
+        [&](auto const& in_it, auto const&) {
+          p_dart->weight_drop_.push_back(this->weight_drop_.at(in_it));
+        });
   }
 
   void SaveModel(Json *p_out) const override {

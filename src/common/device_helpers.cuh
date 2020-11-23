@@ -307,7 +307,7 @@ class MemoryLogger {
     void RegisterDeallocation(void *ptr, size_t n, int current_device) {
       auto itr = device_allocations.find(ptr);
       if (itr == device_allocations.end()) {
-        LOG(FATAL) << "Attempting to deallocate " << n << " bytes on device "
+        LOG(WARNING) << "Attempting to deallocate " << n << " bytes on device "
                    << current_device << " that was never allocated ";
       }
       num_deallocations++;

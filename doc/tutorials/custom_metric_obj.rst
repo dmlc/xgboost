@@ -45,6 +45,7 @@ namely prediction and labels.  For implementing ``SLE``, we define:
 
     import numpy as np
     import xgboost as xgb
+    from typing import Tuple
 
     def gradient(predt: np.ndarray, dtrain: xgb.DMatrix) -> np.ndarray:
         '''Compute the gradient squared log error.'''

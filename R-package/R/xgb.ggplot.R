@@ -118,8 +118,7 @@ xgb.ggplot.shap.summary <- function(data, shap_contrib = NULL, features = NULL, 
   p_data <- prepare.ggplot.shap.data(data_list, normalize = TRUE)
   # Reverse factor levels so that the first level is at the top of the plot
   p_data[, "feature" := factor(feature, rev(levels(feature)))]
-
-  p <- ggplot2::ggplot(p_data, ggplot2::aes(x = feature, y = shap_value, colour = feature_value)) +
+  p <- ggplot2::ggplot(p_data, ggplot2::aes(x = feature, y = p_data$shap_value, colour = p_data$feature_value)) +
     ggplot2::geom_jitter(alpha = 0.5, width = 0.1) +
     ggplot2::scale_colour_viridis_c(limits = c(-3, 3), option = "plasma", direction = -1) +
     ggplot2::geom_abline(slope = 0, intercept = 0, colour = "darkgrey") +

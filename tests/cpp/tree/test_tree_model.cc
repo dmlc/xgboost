@@ -343,6 +343,11 @@ TEST(Tree, DumpDot) {
 
   str = tree.DumpModel(fmap, true, R"(dot:{"graph_attrs": {"bgcolor": "#FFFF00"}})");
   ASSERT_NE(str.find(R"(graph [ bgcolor="#FFFF00" ])"), std::string::npos);
+
+  // Default left for root.
+  ASSERT_NE(str.find(R"(0 -> 1 [label="yes, missing")"), std::string::npos);
+  // Default right for node 1
+  ASSERT_NE(str.find(R"(1 -> 4 [label="no, missing")"), std::string::npos);
 }
 
 TEST(Tree, JsonIO) {

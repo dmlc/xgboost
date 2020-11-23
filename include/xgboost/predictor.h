@@ -164,10 +164,6 @@ class Predictor {
                                unsigned ntree_limit = 0) = 0;
 
   /**
-   * \fn  virtual void Predictor::PredictLeaf(DMatrix* dmat,
-   * std::vector<bst_float>* out_preds, const gbm::GBTreeModel& model, unsigned
-   * ntree_limit = 0) = 0;
-   *
    * \brief predict the leaf index of each tree, the output will be nsample *
    * ntree vector this is only valid in gbtree predictor.
    *
@@ -177,7 +173,7 @@ class Predictor {
    * \param           ntree_limit (Optional) The ntree limit.
    */
 
-  virtual void PredictLeaf(DMatrix* dmat, std::vector<bst_float>* out_preds,
+  virtual void PredictLeaf(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                            const gbm::GBTreeModel& model,
                            unsigned ntree_limit = 0) = 0;
 

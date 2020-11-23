@@ -226,8 +226,7 @@ class AllreduceBase : public IEngine {
    */
   inline void ReportStatus() const {
     if (hadoop_mode != 0) {
-      fprintf(stderr, "reporter:status:Rabit Phase[%03d] Operation %03d\n",
-              version_number, seq_counter);
+      LOG(CONSOLE) << "reporter:status:Rabit Phase[" << version_number << "] Operation " << seq_counter << "\n";
     }
   }
 

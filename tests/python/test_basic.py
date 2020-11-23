@@ -1,38 +1,18 @@
 # -*- coding: utf-8 -*-
-import sys
-from contextlib import contextmanager
-from io import StringIO
 import numpy as np
 import os
 import xgboost as xgb
-import unittest
+import pytest
 import json
 from pathlib import Path
 import tempfile
+import testing as tm
 
 dpath = 'demo/data/'
 rng = np.random.RandomState(1994)
 
 
-@contextmanager
-def captured_output():
-    """Reassign stdout temporarily in order to test printed statements
-    Taken from:
-    https://stackoverflow.com/questions/4219717/how-to-assert-output-with-nosetest-unittest-in-python
-
-    Also works for pytest.
-
-    """
-    new_out, new_err = StringIO(), StringIO()
-    old_out, old_err = sys.stdout, sys.stderr
-    try:
-        sys.stdout, sys.stderr = new_out, new_err
-        yield sys.stdout, sys.stderr
-    finally:
-        sys.stdout, sys.stderr = old_out, old_err
-
-
-class TestBasic(unittest.TestCase):
+class TestBasic:
     def test_compat(self):
         from xgboost.compat import lazy_isinstance
         a = np.array([1, 2, 3])
@@ -139,30 +119,28 @@ class TestBasic(unittest.TestCase):
 
         # number of feature importances should == number of features
         dump1 = bst.get_dump()
-        self.assertEqual(len(dump1), 1, "Expected only 1 tree to be dumped.")
-        self.assertEqual(len(dump1[0].splitlines()), 3,
-                         "Expected 1 root and 2 leaves - 3 lines in dump.")
+        assert len(dump1) == 1, 'Expected only 1 tree to be dumped.'
+        len(dump1[0].splitlines()) == 3, 'Expected 1 root and 2 leaves - 3 lines in dump.'
 
         dump2 = bst.get_dump(with_stats=True)
-        self.assertEqual(dump2[0].count('\n'), 3,
-                         "Expected 1 root and 2 leaves - 3 lines in dump.")
-        self.assertGreater(dump2[0].find('\n'), dump1[0].find('\n'),
-                           "Expected more info when with_stats=True is given.")
+        assert dump2[0].count('\n') == 3, 'Expected 1 root and 2 leaves - 3 lines in dump.'
+        assert (dump2[0].find('\n') > dump1[0].find('\n'),
+                'Expected more info when with_stats=True is given.')
 
         dump3 = bst.get_dump(dump_format="json")
         dump3j = json.loads(dump3[0])
-        self.assertEqual(dump3j["nodeid"], 0, "Expected the root node on top.")
+        assert dump3j['nodeid'] == 0, 'Expected the root node on top.'
 
         dump4 = bst.get_dump(dump_format="json", with_stats=True)
         dump4j = json.loads(dump4[0])
-        self.assertIn("gain", dump4j, "Expected 'gain' to be dumped in JSON.")
+        assert 'gain' in dump4j, "Expected 'gain' to be dumped in JSON."
 
     def test_load_file_invalid(self):
-        self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
-                          model_file='incorrect_path')
+        with pytest.raises(xgb.core.XGBoostError):
+            xgb.Booster(model_file='incorrect_path')
 
-        self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
-                          model_file=u'不正なパス')
+        with pytest.raises(xgb.core.XGBoostError):
+            xgb.Booster(model_file=u'不正なパス')
 
     def test_dmatrix_numpy_init_omp(self):
 
@@ -180,7 +158,6 @@ class TestBasic(unittest.TestCase):
             np.testing.assert_array_equal(dm.get_label(), y)
             assert dm.num_row() == row
             assert dm.num_col() == cols
-
 
     def test_cv(self):
         dm = xgb.DMatrix(dpath + 'agaricus.txt.train')
@@ -236,7 +213,7 @@ class TestBasic(unittest.TestCase):
             print([fold.dtest.get_label() for fold in cbackenv.cvfolds])
 
         # Run cross validation and capture standard out to test callback result
-        with captured_output() as (out, err):
+        with tm.captured_output() as (out, err):
             xgb.cv(
                 params, dm, num_boost_round=1, folds=folds, callbacks=[cb],
                 as_pandas=False
@@ -247,7 +224,7 @@ class TestBasic(unittest.TestCase):
         assert output == solution
 
 
-class TestBasicPathLike(unittest.TestCase):
+class TestBasicPathLike:
     """Unit tests using pathlib.Path for file interaction."""
 
     def test_DMatrix_init_from_path(self):
@@ -256,7 +233,6 @@ class TestBasicPathLike(unittest.TestCase):
         dtrain = xgb.DMatrix(dpath / 'agaricus.txt.train')
         assert dtrain.num_row() == 6513
         assert dtrain.num_col() == 127
-
 
     def test_DMatrix_save_to_path(self):
         """Saving to a binary file using pathlib from a DMatrix."""
@@ -275,8 +251,8 @@ class TestBasicPathLike(unittest.TestCase):
 
     def test_Booster_init_invalid_path(self):
         """An invalid model_file path should raise XGBoostError."""
-        self.assertRaises(xgb.core.XGBoostError, xgb.Booster,
-                          model_file=Path("invalidpath"))
+        with pytest.raises(xgb.core.XGBoostError):
+            xgb.Booster(model_file=Path("invalidpath"))
 
 
     def test_Booster_save_and_load(self):

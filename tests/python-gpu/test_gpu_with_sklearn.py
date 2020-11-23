@@ -2,7 +2,6 @@ import xgboost as xgb
 import pytest
 import sys
 import numpy as np
-import unittest
 
 sys.path.append("tests/python")
 import testing as tm               # noqa
@@ -33,8 +32,5 @@ def test_gpu_binary_classification():
             assert err < 0.1
 
 
-class TestGPUBoostFromPrediction(unittest.TestCase):
-    cpu_test = twskl.TestBoostFromPrediction()
-
-    def test_boost_from_prediction_gpu_hist(self):
-        self.cpu_test.run_boost_from_prediction('gpu_hist')
+def test_boost_from_prediction_gpu_hist():
+    cpu_test = twskl.run_boost_from_prediction('gpu_hist')

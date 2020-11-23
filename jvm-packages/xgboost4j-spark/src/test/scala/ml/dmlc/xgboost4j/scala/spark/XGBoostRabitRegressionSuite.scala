@@ -114,6 +114,7 @@ class XGBoostRabitRegressionSuite extends FunSuite with PerTest {
       // assume all tasks throw exception almost same time
       // 100ms should be enough to exhaust all retries
       assert(waitAndCheckSparkShutdown(100) == true)
+      TaskFailedListener.killerStarted = false
     }
   }
 

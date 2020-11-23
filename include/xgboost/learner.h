@@ -196,6 +196,18 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    */
   bool AllowLazyCheckPoint() const;
   /*!
+   * \brief Slice the model.
+   *
+   * See InplacePredict for layer parameters.
+   *
+   * \param step step size between slice.
+   * \param out_of_bound Return true if end layer is out of bound.
+   *
+   * \return a sliced model.
+   */
+  virtual Learner *Slice(int32_t begin_layer, int32_t end_layer, int32_t step,
+                         bool *out_of_bound) = 0;
+  /*!
    * \brief dump the model in the requested format
    * \param fmap feature map that may help give interpretations of feature
    * \param with_stats extra statistics while dumping model

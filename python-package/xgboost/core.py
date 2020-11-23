@@ -12,6 +12,8 @@ import re
 import sys
 import json
 import warnings
+from functools import wraps
+from inspect import signature, Parameter
 
 import numpy as np
 import scipy.sparse
@@ -369,10 +371,62 @@ class DataIter:
         raise NotImplementedError()
 
 
+# Notice for `_deprecate_positional_args`
+# Authors: Olivier Grisel
+#          Gael Varoquaux
+#          Andreas Mueller
+#          Lars Buitinck
+#          Alexandre Gramfort
+#          Nicolas Tresegnie
+#          Sylvain Marie
+# License: BSD 3 clause
+def _deprecate_positional_args(f):
+    """Decorator for methods that issues warnings for positional arguments
+
+    Using the keyword-only argument syntax in pep 3102, arguments after the
+    * will issue a warning when passed as a positional argument.
+
+    Modifed from sklearn utils.validation.
+
+    Parameters
+    ----------
+    f : function
+        function to check arguments on
+    """
+    sig = signature(f)
+    kwonly_args = []
+    all_args = []
+
+    for name, param in sig.parameters.items():
+        if param.kind == Parameter.POSITIONAL_OR_KEYWORD:
+            all_args.append(name)
+        elif param.kind == Parameter.KEYWORD_ONLY:
+            kwonly_args.append(name)
+
+    @wraps(f)
+    def inner_f(*args, **kwargs):
+        extra_args = len(args) - len(all_args)
+        if extra_args > 0:
+            # ignore first 'self' argument for instance methods
+            args_msg = [
+                '{}'.format(name) for name, _ in zip(
+                    kwonly_args[:extra_args], args[-extra_args:])
+            ]
+            warnings.warn(
+                "Pass `{}` as keyword args.  Passing these as positional "
+                "arguments will be considered as error in future releases.".
+                format(", ".join(args_msg)), FutureWarning)
+        for k, arg in zip(sig.parameters, args):
+            kwargs[k] = arg
+        return f(**kwargs)
+
+    return inner_f
+
+
 class DMatrix:                  # pylint: disable=too-many-instance-attributes
     """Data Matrix used in XGBoost.
 
-    DMatrix is a internal data structure that used by XGBoost
+    DMatrix is an internal data structure that is used by XGBoost,
     which is optimized for both memory efficiency and training speed.
     You can construct DMatrix from multiple different sources of data.
     """
@@ -461,7 +515,8 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             _check_call(_LIB.XGDMatrixFree(self.handle))
             self.handle = None
 
-    def set_info(self,
+    @_deprecate_positional_args
+    def set_info(self, *,
                  label=None, weight=None, base_margin=None,
                  group=None,
                  label_lower_bound=None,
@@ -870,9 +925,6 @@ class DeviceQuantileDMatrix(DMatrix):
     You can construct DeviceQuantileDMatrix from cupy/cudf/dlpack.
 
     .. versionadded:: 1.1.0
-
-    Known limitation:
-    The data size (rows * cols) can not exceed 2 ** 31 - 1000
     """
 
     def __init__(self, data, label=None, weight=None,  # pylint: disable=W0231
@@ -947,8 +999,8 @@ class Booster(object):
             Parameters for boosters.
         cache : list
             List of cache items.
-        model_file : string or os.PathLike
-            Path to the model file.
+        model_file : string/os.PathLike/Booster/bytearray
+            Path to the model file if it's string or PathLike.
         """
         for d in cache:
             if not isinstance(d, DMatrix):
@@ -1023,6 +1075,43 @@ class Booster(object):
                 _LIB.XGBoosterUnserializeFromBuffer(handle, ptr, length))
             state['handle'] = handle
         self.__dict__.update(state)
+
+    def __getitem__(self, val):
+        if isinstance(val, int):
+            val = slice(val, val+1)
+        if isinstance(val, tuple):
+            raise ValueError('Only supports slicing through 1 dimension.')
+        if not isinstance(val, slice):
+            msg = _expect((int, slice), type(val))
+            raise TypeError(msg)
+        if isinstance(val.start, type(Ellipsis)) or val.start is None:
+            start = 0
+        else:
+            start = val.start
+        if isinstance(val.stop, type(Ellipsis)) or val.stop is None:
+            stop = 0
+        else:
+            stop = val.stop
+            if stop < start:
+                raise ValueError('Invalid slice', val)
+
+        step = val.step if val.step is not None else 1
+
+        start = ctypes.c_int(start)
+        stop = ctypes.c_int(stop)
+        step = ctypes.c_int(step)
+
+        sliced_handle = ctypes.c_void_p()
+        status = _LIB.XGBoosterSlice(self.handle, start, stop, step,
+                                     ctypes.byref(sliced_handle))
+        if status == -2:
+            raise IndexError('Layer index out of range')
+        _check_call(status)
+
+        sliced = Booster()
+        _check_call(_LIB.XGBoosterFree(sliced.handle))
+        sliced.handle = sliced_handle
+        return sliced
 
     def save_config(self):
         '''Output internal parameter configuration of Booster as a JSON
@@ -1606,7 +1695,7 @@ class Booster(object):
         """Load the model from a file or bytearray. Path to file can be local
         or as an URI.
 
-        The model is loaded from an XGBoost format which is universal among the
+        The model is loaded from XGBoost format which is universal among the
         various XGBoost interfaces. Auxiliary attributes of the Python Booster
         object (such as feature_names) will not be loaded.  See:
 
