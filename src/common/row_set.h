@@ -244,7 +244,7 @@ class PartitionBuilder {
   };
   std::vector<std::pair<size_t, size_t>> left_right_nodes_sizes_;
   std::vector<size_t> blocks_offsets_;
-  std::vector<std::unique_ptr<BlockInfo>> mem_blocks_;
+  std::vector<std::shared_ptr<BlockInfo>> mem_blocks_;
   size_t max_n_tasks_ = 0;
 };
 
