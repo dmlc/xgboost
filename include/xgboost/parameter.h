@@ -87,7 +87,7 @@ struct XGBoostParameter : public dmlc::Parameter<Type> {
 
  public:
   template <typename Container>
-  Args UpdateAllowUnknown(Container const& kwargs, bool* out_changed = nullptr) {
+  Args UpdateAllowUnknown(Container const& kwargs) {
     if (initialised_) {
       return dmlc::Parameter<Type>::UpdateAllowUnknown(kwargs);
     } else {
