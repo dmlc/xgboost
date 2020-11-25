@@ -155,6 +155,7 @@ class PartitionBuilder {
   void AllocateForTask(size_t id) {
     if (mem_blocks_[id].get() == nullptr) {
       BlockInfo* local_block_ptr = new BlockInfo;
+      CHECK_NE(local_block_ptr, (BlockInfo*)nullptr);
       mem_blocks_[id].reset(local_block_ptr);
     }
   }
