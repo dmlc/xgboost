@@ -706,7 +706,35 @@ class HostSketchContainer {
   using WQSketch = WQuantileSketch<float, float>;
 
  private:
-  std::vector<WQSketch> sketches_;
+ struct WQSketchManager {
+ private:
+   std::vector<WQSketch> sketches_;
+ public:
+ inline void Init(size_t maxn, double eps, size_t i) {
+	 sketches_[i].Init(maxn, eps);
+	 sketches_[i].inqueue.queue.resize(sketches_[i].limit_size * 2);
+ }
+ 
+ void resize(int columns_size) {
+	 sketches_.resize(columns_size);
+ }
+
+ size_t size() {
+	 return sketches_.size();
+ }
+ 
+ WQSketch& get(size_t position){
+	 //std::cout << "MC inside get pos: " << position << "; size: " << sketches_.size() << "; ret: " << sketches_[position].inqueue.queue.size() << std::endl;
+	 return sketches_[position];
+ }
+ 
+ void print(size_t position){
+	 std::cout << sketches_[position].inqueue.queue[sketches_.size()-1].value << ";";
+ }
+ 
+};
+  //std::vector<WQSketch> sketches_;
+  WQSketchManager sketches_;
   std::vector<bst_row_t> columns_size_;
   int32_t max_bins_;
   bool use_group_ind_{false};
