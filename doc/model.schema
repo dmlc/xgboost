@@ -238,6 +238,12 @@
         "num_pairsample": { "type": "string" },
         "fix_list_weight": { "type": "string" }
       }
+    },
+    "lambdamart_param": {
+      "type": "object",
+      "properties": {
+        "lambdamart_truncation": { "type": "string" }
+      }
     }
   },
   "type": "object",
@@ -498,6 +504,17 @@
               "required": [
                 "name",
                 "lambda_rank_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "lambdamart:ndcg" },
+                "lambdamart_param": { "$ref": "#/definitions/lambdamart_param"}
+              },
+              "required": [
+                "name",
+                "lambdamart_param"
               ]
             },
             {

@@ -1,10 +1,12 @@
 /*!
  * Copyright 2019-2021 by XGBoost Contributors
  */
+#include <gtest/gtest.h>
 #include <thrust/host_vector.h>
 
-#include "test_ranking_obj.cc"
-#include "../../../src/objective/rank_obj.cu"
+// #include "test_ranking_obj.cc"
+#include "../../../src/objective/rank_obj.h"
+#include "../../../src/objective/rank_obj.cuh"
 
 namespace xgboost {
 
@@ -96,91 +98,35 @@ void RankItemCountImpl(const std::vector<int> &sorted_items, CountFunctor f,
   EXPECT_EQ(f(&sorted_items[0], sorted_items.size(), find_val), exp_val);
 }
 
-TEST(Objective, RankItemCountOnLeft) {
-  // Items sorted descendingly
-  std::vector<int> sorted_items{10, 10, 6, 4, 4, 4, 4, 1, 1, 1, 1, 1, 0};
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheLeftOf,
-                    10, static_cast<uint32_t>(0));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheLeftOf,
-                    6, static_cast<uint32_t>(2));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheLeftOf,
-                    4, static_cast<uint32_t>(3));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheLeftOf,
-                    1, static_cast<uint32_t>(7));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheLeftOf,
-                    0, static_cast<uint32_t>(12));
-}
+// TEST(Objective, RankItemCountOnLeft) {
+//   // Items sorted descendingly
+//   std::vector<int> sorted_items{10, 10, 6, 4, 4, 4, 4, 1, 1, 1, 1, 1, 0};
+//   RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheLeftOf,
+//                     10, static_cast<uint32_t>(0));
+//   RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheLeftOf,
+//                     6, static_cast<uint32_t>(2));
+//   RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheLeftOf,
+//                     4, static_cast<uint32_t>(3));
+//   RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheLeftOf,
+//                     1, static_cast<uint32_t>(7));
+//   RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheLeftOf,
+//                     0, static_cast<uint32_t>(12));
+// }
 
-TEST(Objective, RankItemCountOnRight) {
-  // Items sorted descendingly
-  std::vector<int> sorted_items{10, 10, 6, 4, 4, 4, 4, 1, 1, 1, 1, 1, 0};
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheRightOf,
-                    10, static_cast<uint32_t>(11));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheRightOf,
-                    6, static_cast<uint32_t>(10));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheRightOf,
-                    4, static_cast<uint32_t>(6));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheRightOf,
-                    1, static_cast<uint32_t>(1));
-  RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheRightOf,
-                    0, static_cast<uint32_t>(0));
-}
-
-TEST(Objective, NDCGLambdaWeightComputerTest) {
-  std::vector<float> hlabels = {3.1f, 1.2f, 2.3f, 4.4f,        // Labels
-                                7.8f, 5.01f, 6.96f,
-                                10.3f, 8.7f, 11.4f, 9.45f, 11.4f};
-  dh::device_vector<bst_float> dlabels(hlabels);
-
-  auto segment_label_sorter = RankSegmentSorterTestImpl<float>(
-    {0, 4, 7, 12},                  // Groups
-    hlabels,
-    {4.4f, 3.1f, 2.3f, 1.2f,        // Expected sorted labels
-     7.8f, 6.96f, 5.01f,
-     11.4f, 11.4f, 10.3f, 9.45f, 8.7f},
-    {3, 0, 2, 1,                    // Expected original positions
-     4, 6, 5,
-     9, 11, 7, 10, 8});
-
-  // Created segmented predictions for the labels from above
-  std::vector<bst_float> hpreds{-9.78f, 24.367f, 0.908f, -11.47f,
-                                -1.03f, -2.79f, -3.1f,
-                                104.22f, 103.1f, -101.7f, 100.5f, 45.1f};
-  dh::device_vector<bst_float> dpreds(hpreds);
-
-  xgboost::obj::NDCGLambdaWeightComputer ndcg_lw_computer(dpreds.data().get(),
-                                                          dlabels.data().get(),
-                                                          *segment_label_sorter);
-
-  // Where will the predictions move from its current position, if they were sorted
-  // descendingly?
-  auto dsorted_pred_pos = ndcg_lw_computer.GetPredictionSorter().GetIndexableSortedPositionsSpan();
-  std::vector<uint32_t> hsorted_pred_pos(segment_label_sorter->GetNumItems());
-  dh::CopyDeviceSpanToVector(&hsorted_pred_pos, dsorted_pred_pos);
-  std::vector<uint32_t> expected_sorted_pred_pos{2, 0, 1, 3,
-                                                 4, 5, 6,
-                                                 7, 8, 11, 9, 10};
-  EXPECT_EQ(expected_sorted_pred_pos, hsorted_pred_pos);
-
-  // Check group DCG values
-  std::vector<float> hgroup_dcgs(segment_label_sorter->GetNumGroups());
-  dh::CopyDeviceSpanToVector(&hgroup_dcgs, ndcg_lw_computer.GetGroupDcgsSpan());
-  std::vector<uint32_t> hgroups(segment_label_sorter->GetNumGroups() + 1);
-  dh::CopyDeviceSpanToVector(&hgroups, segment_label_sorter->GetGroupsSpan());
-  EXPECT_EQ(hgroup_dcgs.size(), segment_label_sorter->GetNumGroups());
-  std::vector<float> hsorted_labels(segment_label_sorter->GetNumItems());
-  dh::CopyDeviceSpanToVector(&hsorted_labels, segment_label_sorter->GetItemsSpan());
-  for (size_t i = 0; i < hgroup_dcgs.size(); ++i) {
-    // Compute group DCG value on CPU and compare
-    auto gbegin = hgroups[i];
-    auto gend = hgroups[i + 1];
-    EXPECT_NEAR(
-      hgroup_dcgs[i],
-      xgboost::obj::NDCGLambdaWeightComputer::ComputeGroupDCGWeight(&hsorted_labels[gbegin],
-                                                                    gend - gbegin),
-      0.01f);
-  }
-}
+// TEST(Objective, RankItemCountOnRight) {
+//   // Items sorted descendingly
+//   std::vector<int> sorted_items{10, 10, 6, 4, 4, 4, 4, 1, 1, 1, 1, 1, 0};
+//   RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheRightOf,
+//                     10, static_cast<uint32_t>(11));
+//   RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheRightOf,
+//                     6, static_cast<uint32_t>(10));
+//   RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheRightOf,
+//                     4, static_cast<uint32_t>(6));
+//   RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheRightOf,
+//                     1, static_cast<uint32_t>(1));
+//   RankItemCountImpl(sorted_items, &xgboost::obj::CountNumItemsToTheRightOf,
+//                     0, static_cast<uint32_t>(0));
+// }
 
 TEST(Objective, IndexableSortedItemsTest) {
   std::vector<float> hlabels = {3.1f, 1.2f, 2.3f, 4.4f,        // Labels
@@ -209,60 +155,76 @@ TEST(Objective, IndexableSortedItemsTest) {
   EXPECT_EQ(expected_sorted_indices, sorted_indices);
 }
 
-TEST(Objective, ComputeAndCompareMAPStatsTest) {
-  std::vector<float> hlabels = {3.1f, 0.0f, 2.3f, 4.4f,        // Labels
-                                0.0f, 5.01f, 0.0f,
-                                10.3f, 0.0f, 11.4f, 9.45f, 11.4f};
-  dh::device_vector<bst_float> dlabels(hlabels);
+// TEST(Objective, ComputeAndCompareMAPStatsTest) {
+//   std::vector<float> hlabels = {3.1f, 0.0f, 2.3f, 4.4f,        // Labels
+//                                 0.0f, 5.01f, 0.0f,
+//                                 10.3f, 0.0f, 11.4f, 9.45f, 11.4f};
+//   dh::device_vector<bst_float> dlabels(hlabels);
 
-  auto segment_label_sorter = RankSegmentSorterTestImpl<float>(
-    {0, 4, 7, 12},                  // Groups
-    hlabels,
-    {4.4f, 3.1f, 2.3f, 0.0f,        // Expected sorted labels
-     5.01f, 0.0f, 0.0f,
-     11.4f, 11.4f, 10.3f, 9.45f, 0.0f},
-    {3, 0, 2, 1,                    // Expected original positions
-     5, 4, 6,
-     9, 11, 7, 10, 8});
+//   auto segment_label_sorter = RankSegmentSorterTestImpl<float>(
+//     {0, 4, 7, 12},                  // Groups
+//     hlabels,
+//     {4.4f, 3.1f, 2.3f, 0.0f,        // Expected sorted labels
+//      5.01f, 0.0f, 0.0f,
+//      11.4f, 11.4f, 10.3f, 9.45f, 0.0f},
+//     {3, 0, 2, 1,                    // Expected original positions
+//      5, 4, 6,
+//      9, 11, 7, 10, 8});
 
-  // Create MAP stats on the device first using the objective
-  std::vector<bst_float> hpreds{-9.78f, 24.367f, 0.908f, -11.47f,
-                                -1.03f, -2.79f, -3.1f,
-                                104.22f, 103.1f, -101.7f, 100.5f, 45.1f};
-  dh::device_vector<bst_float> dpreds(hpreds);
+//   // Create MAP stats on the device first using the objective
+//   std::vector<bst_float> hpreds{-9.78f, 24.367f, 0.908f, -11.47f,
+//                                 -1.03f, -2.79f, -3.1f,
+//                                 104.22f, 103.1f, -101.7f, 100.5f, 45.1f};
+//   dh::device_vector<bst_float> dpreds(hpreds);
 
-  xgboost::obj::MAPLambdaWeightComputer map_lw_computer(dpreds.data().get(),
-                                                        dlabels.data().get(),
-                                                        *segment_label_sorter);
+//   xgboost::obj::MAPLambdaWeightComputer map_lw_computer(dpreds.data().get(),
+//                                                         dlabels.data().get(),
+//                                                         *segment_label_sorter);
 
-  // Get the device MAP stats on host
-  std::vector<xgboost::obj::MAPLambdaWeightComputer::MAPStats> dmap_stats(
-    segment_label_sorter->GetNumItems());
-  dh::CopyDeviceSpanToVector(&dmap_stats, map_lw_computer.GetMapStatsSpan());
+//   // Get the device MAP stats on host
+//   std::vector<xgboost::obj::MAPLambdaWeightComputer::MAPStats> dmap_stats(
+//     segment_label_sorter->GetNumItems());
+//   dh::CopyDeviceSpanToVector(&dmap_stats, map_lw_computer.GetMapStatsSpan());
 
-  // Compute the MAP stats on host next to compare
-  std::vector<uint32_t> hgroups(segment_label_sorter->GetNumGroups() + 1);
-  dh::CopyDeviceSpanToVector(&hgroups, segment_label_sorter->GetGroupsSpan());
+//   // Compute the MAP stats on host next to compare
+//   std::vector<uint32_t> hgroups(segment_label_sorter->GetNumGroups() + 1);
+//   dh::CopyDeviceSpanToVector(&hgroups, segment_label_sorter->GetGroupsSpan());
 
-  for (size_t i = 0; i < hgroups.size() - 1; ++i) {
-    auto gbegin = hgroups[i];
-    auto gend = hgroups[i + 1];
-    std::vector<xgboost::obj::ListEntry> lst_entry;
-    for (auto j = gbegin; j < gend; ++j) {
-      lst_entry.emplace_back(hpreds[j], hlabels[j], j);
-    }
-    std::stable_sort(lst_entry.begin(), lst_entry.end(), xgboost::obj::ListEntry::CmpPred);
+//   for (auto i = 0; i < hgroups.size() - 1; ++i) {
+//     auto gbegin = hgroups[i];
+//     auto gend = hgroups[i + 1];
+//     std::vector<xgboost::obj::ListEntry> lst_entry;
+//     for (auto j = gbegin; j < gend; ++j) {
+//       lst_entry.emplace_back(hpreds[j], hlabels[j], j);
+//     }
+//     std::stable_sort(lst_entry.begin(), lst_entry.end(), xgboost::obj::ListEntry::CmpPred);
 
-    // Compute the MAP stats with this list and compare with the ones computed on the device
-    std::vector<xgboost::obj::MAPLambdaWeightComputer::MAPStats> hmap_stats;
-    xgboost::obj::MAPLambdaWeightComputer::GetMAPStats(lst_entry, &hmap_stats);
-    for (auto j = gbegin; j < gend; ++j) {
-      EXPECT_EQ(dmap_stats[j].hits, hmap_stats[j - gbegin].hits);
-      EXPECT_NEAR(dmap_stats[j].ap_acc, hmap_stats[j - gbegin].ap_acc, 0.01f);
-      EXPECT_NEAR(dmap_stats[j].ap_acc_miss, hmap_stats[j - gbegin].ap_acc_miss, 0.01f);
-      EXPECT_NEAR(dmap_stats[j].ap_acc_add, hmap_stats[j - gbegin].ap_acc_add, 0.01f);
-    }
-  }
+//     // Compute the MAP stats with this list and compare with the ones computed on the device
+//     std::vector<xgboost::obj::MAPLambdaWeightComputer::MAPStats> hmap_stats;
+//     xgboost::obj::MAPLambdaWeightComputer::GetMAPStats(lst_entry, &hmap_stats);
+//     for (auto j = gbegin; j < gend; ++j) {
+//       EXPECT_EQ(dmap_stats[j].hits, hmap_stats[j - gbegin].hits);
+//       EXPECT_NEAR(dmap_stats[j].ap_acc, hmap_stats[j - gbegin].ap_acc, 0.01f);
+//       EXPECT_NEAR(dmap_stats[j].ap_acc_miss, hmap_stats[j - gbegin].ap_acc_miss, 0.01f);
+//       EXPECT_NEAR(dmap_stats[j].ap_acc_add, hmap_stats[j - gbegin].ap_acc_add, 0.01f);
+//     }
+//   }
+// }
+
+TEST(Objective, LambdaMARTIDCG) {
+  std::vector<float> scores{2, 2, 1, 0};
+  dh::device_vector<float> d_scores{scores};
+  dh::device_vector<bst_group_t> group_ptr(2);
+  group_ptr[0] = 0;
+  group_ptr[1] = scores.size();
+
+  dh::device_vector<float> IDCG(1, 0.0f);
+
+  obj::CalcQueriesInvIDCG(dh::ToSpan(d_scores), dh::ToSpan(group_ptr),
+                          dh::ToSpan(IDCG), 4);
+  float d_idcg = IDCG[0];
+
+  float h_idcg = CalcInvIDCG(scores, scores.size());
+  ASSERT_FLOAT_EQ(h_idcg, d_idcg);
 }
-
 }  // namespace xgboost

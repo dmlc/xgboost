@@ -14,10 +14,10 @@
 #include <string>
 #include <vector>
 
-#include "xgboost/parameter.h"
-#include "xgboost/data.h"
 #include "../common/categorical.h"
 #include "../common/math.h"
+#include "xgboost/data.h"
+#include "xgboost/parameter.h"
 
 namespace xgboost {
 namespace tree {

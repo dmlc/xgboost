@@ -17,6 +17,9 @@
 
 namespace xgboost {
 namespace common {
+
+template <typename T> XGBOOST_DEVICE T Sqr(T const &w) { return w * w; }
+
 /*!
  * \brief calculate the sigmoid of the input.
  * \param x input parameter
@@ -29,9 +32,6 @@ XGBOOST_DEVICE inline float Sigmoid(float x) {
   auto y = 1.0f / denom;
   return y;
 }
-
-template <typename T>
-XGBOOST_DEVICE inline static T Sqr(T a) { return a * a; }
 
 /*!
  * \brief Equality test for both integer and floating point.

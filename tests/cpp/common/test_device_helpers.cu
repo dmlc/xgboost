@@ -165,6 +165,44 @@ TEST(SegmentedUnique, Regression) {
   }
 }
 
+void TestSegmentedArgSort() {
+  size_t constexpr kElements = 100, kGroups = 3;
+  dh::device_vector<size_t> sorted_idx(kElements, 0);
+  dh::device_vector<size_t> offset_ptr(kGroups + 1, 0);
+  offset_ptr[0] = 0;
+  offset_ptr[1] = 2;
+  offset_ptr[2] = 78;
+  offset_ptr[kGroups] = kElements;
+  auto d_offset_ptr = dh::ToSpan(offset_ptr);
+
+  auto d_sorted_idx = dh::ToSpan(sorted_idx);
+  dh::LaunchN(sorted_idx.size(), [=] XGBOOST_DEVICE(size_t idx) {
+    auto group = dh::SegmentId(d_offset_ptr, idx);
+    d_sorted_idx[idx] = idx - d_offset_ptr[group];
+  });
+
+  dh::device_vector<float> values(kElements, 0.0f);
+  thrust::sequence(values.begin(), values.end(), 0.0f);
+  dh::SegmentedArgSort<true>(dh::ToSpan(values), d_offset_ptr, d_sorted_idx);
+
+  std::vector<size_t> h_sorted_index(sorted_idx.size());
+  thrust::copy(sorted_idx.begin(), sorted_idx.end(), h_sorted_index.begin());
+
+  for (size_t i = 1; i < kGroups + 1; ++i) {
+    auto group_idx =
+        common::Span<size_t>(h_sorted_index).subspan(offset_ptr[i - 1], offset_ptr[i] - offset_ptr[i - 1]);
+    ASSERT_TRUE(std::is_sorted(group_idx.begin(), group_idx.end(), std::greater<>{}));
+    ASSERT_EQ(group_idx.back(), 0);
+    for (auto j : group_idx) {
+      ASSERT_LT(j, group_idx.size());
+    }
+  }
+}
+
+TEST(DeviceHelpers, SegmentedArgSort) {
+  TestSegmentedArgSort();
+}
+
 TEST(Allocator, OOM) {
   auto size = dh::AvailableMemory(0) * 4;
   ASSERT_THROW({dh::caching_device_vector<char> vec(size);}, dmlc::Error);
