@@ -1,6 +1,7 @@
 #include "test_ranking_obj.cc"
 
 #include "../../../src/objective/rank_obj.cu"
+#include "../../../src/objective/rank_obj.cuh"
 
 namespace xgboost {
 
@@ -122,62 +123,6 @@ TEST(Objective, RankItemCountOnRight) {
                     0, static_cast<uint32_t>(0));
 }
 
-TEST(Objective, NDCGLambdaWeightComputerTest) {
-  std::vector<float> hlabels = {3.1f, 1.2f, 2.3f, 4.4f,        // Labels
-                                7.8f, 5.01f, 6.96f,
-                                10.3f, 8.7f, 11.4f, 9.45f, 11.4f};
-  dh::device_vector<bst_float> dlabels(hlabels);
-
-  auto segment_label_sorter = RankSegmentSorterTestImpl<float>(
-    {0, 4, 7, 12},                  // Groups
-    hlabels,
-    {4.4f, 3.1f, 2.3f, 1.2f,        // Expected sorted labels
-     7.8f, 6.96f, 5.01f,
-     11.4f, 11.4f, 10.3f, 9.45f, 8.7f},
-    {3, 0, 2, 1,                    // Expected original positions
-     4, 6, 5,
-     9, 11, 7, 10, 8});
-
-  // Created segmented predictions for the labels from above
-  std::vector<bst_float> hpreds{-9.78f, 24.367f, 0.908f, -11.47f,
-                                -1.03f, -2.79f, -3.1f,
-                                104.22f, 103.1f, -101.7f, 100.5f, 45.1f};
-  dh::device_vector<bst_float> dpreds(hpreds);
-
-  xgboost::obj::NDCGLambdaWeightComputer ndcg_lw_computer(dpreds.data().get(),
-                                                          dlabels.data().get(),
-                                                          *segment_label_sorter);
-
-  // Where will the predictions move from its current position, if they were sorted
-  // descendingly?
-  auto dsorted_pred_pos = ndcg_lw_computer.GetPredictionSorter().GetIndexableSortedPositionsSpan();
-  std::vector<uint32_t> hsorted_pred_pos(segment_label_sorter->GetNumItems());
-  dh::CopyDeviceSpanToVector(&hsorted_pred_pos, dsorted_pred_pos);
-  std::vector<uint32_t> expected_sorted_pred_pos{2, 0, 1, 3,
-                                                 4, 5, 6,
-                                                 7, 8, 11, 9, 10};
-  EXPECT_EQ(expected_sorted_pred_pos, hsorted_pred_pos);
-
-  // Check group DCG values
-  std::vector<float> hgroup_dcgs(segment_label_sorter->GetNumGroups());
-  dh::CopyDeviceSpanToVector(&hgroup_dcgs, ndcg_lw_computer.GetGroupDcgsSpan());
-  std::vector<uint32_t> hgroups(segment_label_sorter->GetNumGroups() + 1);
-  dh::CopyDeviceSpanToVector(&hgroups, segment_label_sorter->GetGroupsSpan());
-  EXPECT_EQ(hgroup_dcgs.size(), segment_label_sorter->GetNumGroups());
-  std::vector<float> hsorted_labels(segment_label_sorter->GetNumItems());
-  dh::CopyDeviceSpanToVector(&hsorted_labels, segment_label_sorter->GetItemsSpan());
-  for (auto i = 0; i < hgroup_dcgs.size(); ++i) {
-    // Compute group DCG value on CPU and compare
-    auto gbegin = hgroups[i];
-    auto gend = hgroups[i + 1];
-    EXPECT_NEAR(
-      hgroup_dcgs[i],
-      xgboost::obj::NDCGLambdaWeightComputer::ComputeGroupDCGWeight(&hsorted_labels[gbegin],
-                                                                    gend - gbegin),
-      0.01f);
-  }
-}
-
 TEST(Objective, IndexableSortedItemsTest) {
   std::vector<float> hlabels = {3.1f, 1.2f, 2.3f, 4.4f,        // Labels
                                 7.8f, 5.01f, 6.96f,
@@ -261,4 +206,80 @@ TEST(Objective, ComputeAndCompareMAPStatsTest) {
   }
 }
 
+TEST(Objective, LambdaMARTIDCG) {
+  std::vector<float> scores{2, 2, 1, 0};
+  dh::device_vector<float> d_scores{scores};
+  dh::device_vector<bst_group_t> group_ptr(2);
+  group_ptr[0] = 0;
+  group_ptr[1] = scores.size();
+
+  dh::device_vector<float> IDCG(1, 0.0f);
+
+  obj::CalcQueriesInvIDCG(dh::ToSpan(d_scores), dh::ToSpan(group_ptr),
+                          dh::ToSpan(IDCG), 4);
+  float d_idcg = IDCG[0];
+
+  float h_idcg = CalcInvIDCG(scores, scores.size());
+  ASSERT_FLOAT_EQ(h_idcg, d_idcg);
+}
+
+TEST(SegmentedTrapezoidThreads, Basic) {
+  size_t constexpr kElements = 24, kGroups = 3;
+  dh::device_vector<size_t> offset_ptr(kGroups + 1, 0);
+  offset_ptr[0] = 0;
+  offset_ptr[1] = 8;
+  offset_ptr[2] = 16;
+  offset_ptr[kGroups] = kElements;
+
+  size_t h = 1;
+  dh::device_vector<size_t> thread_ptr(kGroups + 1, 0);
+  size_t total = obj::SegmentedTrapezoidThreads(dh::ToSpan(offset_ptr), dh::ToSpan(thread_ptr), h);
+  ASSERT_EQ(total, kElements - kGroups);
+  total = obj::SegmentedTrapezoidThreads<true>(dh::ToSpan(offset_ptr), dh::ToSpan(thread_ptr), h);
+  ASSERT_EQ(total, kElements);
+
+  h = 2;
+  total = obj::SegmentedTrapezoidThreads(dh::ToSpan(offset_ptr), dh::ToSpan(thread_ptr), h);
+  std::vector<size_t> h_thread_ptr(thread_ptr.size());
+  thrust::copy(thread_ptr.cbegin(), thread_ptr.cend(), h_thread_ptr.begin());
+  for (size_t i = 1; i < h_thread_ptr.size(); ++i) {
+    ASSERT_EQ(h_thread_ptr[i] - h_thread_ptr[i - 1], 13);
+  }
+
+  h = 7;
+  total = obj::SegmentedTrapezoidThreads(dh::ToSpan(offset_ptr), dh::ToSpan(thread_ptr), h);
+  thrust::copy(thread_ptr.cbegin(), thread_ptr.cend(), h_thread_ptr.begin());
+  for (size_t i = 1; i < h_thread_ptr.size(); ++i) {
+    ASSERT_EQ(h_thread_ptr[i] - h_thread_ptr[i - 1], 28);
+  }
+}
+
+TEST(SegmentedTrapezoidThreads, Unravel) {
+  size_t i = 0, j = 0;
+  size_t constexpr kN = 8;
+
+  obj::UnravelTrapeziodIdx(6, kN, &i, &j);
+  ASSERT_EQ(i, 0);
+  ASSERT_EQ(j, 7);
+
+  obj::UnravelTrapeziodIdx(12, kN, &i, &j);
+  ASSERT_EQ(i, 1);
+  ASSERT_EQ(j, 7);
+
+  obj::UnravelTrapeziodIdx(15, kN, &i, &j);
+  ASSERT_EQ(i, 2);
+  ASSERT_EQ(j, 5);
+
+  obj::UnravelTrapeziodIdx(21, kN, &i, &j);
+  ASSERT_EQ(i, 3);
+  ASSERT_EQ(j, 7);
+
+  obj::UnravelTrapeziodIdx(25, kN, &i, &j);
+  ASSERT_EQ(i, 5);
+  ASSERT_EQ(j, 6);
+
+  obj::UnravelTrapeziodIdx(27, kN, &i, &j);
+  ASSERT_EQ(i, 6);
+  ASSERT_EQ(j, 7);
+}
 }  // namespace xgboost

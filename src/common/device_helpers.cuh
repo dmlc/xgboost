@@ -1027,6 +1027,86 @@ class SegmentSorter {
   }
 };
 
+namespace detail {
+// Wrapper around cub sort to enforce size_t as offset type
+template <bool descending, typename KeyT, typename ValueT, typename OffsetIteratorT>
+void DeviceSegmentedRadixSortPair(
+    void *d_temp_storage, size_t &temp_storage_bytes, const KeyT *d_keys_in,
+    KeyT *d_keys_out, const ValueT *d_values_in, ValueT *d_values_out,
+    size_t num_items, size_t num_segments, OffsetIteratorT d_begin_offsets,
+    OffsetIteratorT d_end_offsets, int begin_bit = 0,
+    int end_bit = sizeof(KeyT) * 8) {
+  cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(d_keys_in), d_keys_out);
+  cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(d_values_in),
+                                     d_values_out);
+  using OffsetT = size_t;
+  safe_cuda((cub::DispatchSegmentedRadixSort<
+             descending, KeyT, ValueT, OffsetIteratorT,
+             OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys,
+                                d_values, num_items, num_segments,
+                                d_begin_offsets, d_end_offsets, begin_bit,
+                                end_bit, false, nullptr, false)));
+}
+// Wrapper around cub sort to enforce size_t as offset type
+template <bool descending, typename KeyT, typename OffsetIteratorT>
+static void DeviceSegmentedRadixSortKeys(
+    void *d_temp_storage, size_t &temp_storage_bytes, const KeyT *d_keys_in,
+    KeyT *d_keys_out, size_t num_items, size_t num_segments,
+    OffsetIteratorT d_begin_offsets, OffsetIteratorT d_end_offsets,
+    int begin_bit = 0, int end_bit = sizeof(KeyT) * 8,
+    cudaStream_t stream = nullptr, bool debug_synchronous = false) {
+  using OffsetT = size_t;
+
+  cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(d_keys_in), d_keys_out);
+  cub::DoubleBuffer<cub::NullType> d_values;
+
+  dh::safe_cuda(
+      (cub::DispatchSegmentedRadixSort<
+          descending, KeyT, cub::NullType, OffsetIteratorT,
+          OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys,
+                             d_values, num_items, num_segments, d_begin_offsets,
+                             d_end_offsets, begin_bit, end_bit, false, stream,
+                             debug_synchronous)));
+}
+}  // namespace detail
+
+// Wrapper around cub sort
+template <bool descending, typename U, typename V, typename IdxT>
+inline void SegmentedArgSort(xgboost::common::Span<U> values,
+                             xgboost::common::Span<V> group_ptr,
+                             xgboost::common::Span<IdxT> sorted_idx) {
+  CHECK_GE(group_ptr.size(), 1ul);
+  size_t n_groups = group_ptr.size() - 1;
+  size_t bytes = 0;
+  dh::caching_device_vector<float> values_out(values.size());
+  detail::DeviceSegmentedRadixSortPair<descending>(
+      nullptr, bytes, values.data(), values_out.data().get(),
+      sorted_idx.data(), sorted_idx.data(), sorted_idx.size(), n_groups,
+      group_ptr.data(), group_ptr.data() + 1);
+  dh::TemporaryArray<xgboost::common::byte> temp_storage(bytes);
+  detail::DeviceSegmentedRadixSortPair<descending>(
+      temp_storage.data().get(), bytes, values.data(), values_out.data().get(),
+      sorted_idx.data(), sorted_idx.data(), sorted_idx.size(), n_groups,
+      group_ptr.data(), group_ptr.data() + 1);
+}
+
+// Wrapper around cub sort
+template <bool descending, typename U, typename V>
+inline void SegmentedSortKeys(xgboost::common::Span<V const> group_ptr,
+                              xgboost::common::Span<U> out_sorted_values) {
+  CHECK_GE(group_ptr.size(), 1ul);
+  size_t n_groups = group_ptr.size() - 1;
+  size_t bytes = 0;
+  detail::DeviceSegmentedRadixSortKeys<descending>(
+      nullptr, bytes, out_sorted_values.data(), out_sorted_values.data(),
+      out_sorted_values.size(), n_groups, group_ptr.data(), group_ptr.data() + 1);
+  dh::TemporaryArray<xgboost::common::byte> temp_storage(bytes);
+  detail::DeviceSegmentedRadixSortKeys<descending>(
+      temp_storage.data().get(), bytes, out_sorted_values.data(),
+      out_sorted_values.data(), out_sorted_values.size(), n_groups,
+      group_ptr.data(), group_ptr.data() + 1);
+}
+
 // Atomic add function for gradients
 template <typename OutputGradientT, typename InputGradientT>
 XGBOOST_DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
@@ -1057,6 +1137,16 @@ size_t XGBOOST_DEVICE SegmentId(It first, It last, size_t idx) {
 template <typename T>
 size_t XGBOOST_DEVICE SegmentId(xgboost::common::Span<T> segments_ptr, size_t idx) {
   return SegmentId(segments_ptr.cbegin(), segments_ptr.cend(), idx);
+}
+
+template <typename U, typename V>
+void SegmentedSequence(xgboost::common::Span<U> d_offset_ptr,
+                       xgboost::common::Span<V> out_sequence) {
+  dh::LaunchN(CurrentDevice(), out_sequence.size(),
+              [out_sequence, d_offset_ptr] __device__(size_t idx) {
+                auto group = SegmentId(d_offset_ptr, idx);
+                out_sequence[idx] = idx - d_offset_ptr[group];
+              });
 }
 
 namespace detail {

@@ -580,4 +580,4 @@ RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
   return RMMAllocatorPtr(nullptr, DeleteRMMResource);
 }
 #endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1
-}  // namespace xgboost
+} // namespace xgboost

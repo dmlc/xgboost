@@ -133,5 +133,4 @@ TEST(Objective, DeclareUnifiedTest(MAPRankingGPair)) {
                           {0.4988f, 0.4988f, 0.4988f, 0.4988f});
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
 }
-
 }  // namespace xgboost

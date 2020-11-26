@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2019 XGBoost contributors
+ * Copyright 2015-2020 XGBoost contributors
  */
 #include <dmlc/omp.h>
 #include <dmlc/timer.h>
@@ -7,6 +7,9 @@
 #include <xgboost/objective.h>
 #include <vector>
 #include <algorithm>
+#include <functional>
+#include <string>
+#include <memory>
 #include <utility>
 
 #include "xgboost/json.h"
@@ -14,6 +17,7 @@
 
 #include "../common/math.h"
 #include "../common/random.h"
+#include "../common/ranking_utils.h"
 
 #if defined(__CUDACC__)
 #include <thrust/sort.h>
@@ -25,7 +29,10 @@
 #include <cub/util_allocator.cuh>
 
 #include "../common/device_helpers.cuh"
+#include "rank_obj.h"
+#include "rank_obj.cuh"
 #endif
+
 
 namespace xgboost {
 namespace obj {
@@ -207,174 +214,6 @@ class IndexablePredictionSorter {
 };
 #endif
 
-// beta version: NDCG lambda rank
-class NDCGLambdaWeightComputer
-#if defined(__CUDACC__)
-  : public IndexablePredictionSorter
-#endif
-{
- public:
-#if defined(__CUDACC__)
-  // This function object computes the item's DCG value
-  class ComputeItemDCG : public thrust::unary_function<uint32_t, float> {
-   public:
-    XGBOOST_DEVICE ComputeItemDCG(const common::Span<const float> &dsorted_labels,
-                                  const common::Span<const uint32_t> &dgroups,
-                                  const common::Span<const uint32_t> &gidxs)
-      : dsorted_labels_(dsorted_labels),
-        dgroups_(dgroups),
-        dgidxs_(gidxs) {}
-
-    // Compute DCG for the item at 'idx'
-    __device__ __forceinline__ float operator()(uint32_t idx) const {
-      return ComputeItemDCGWeight(dsorted_labels_[idx], idx - dgroups_[dgidxs_[idx]]);
-    }
-
-   private:
-    const common::Span<const float> dsorted_labels_;  // Labels sorted within a group
-    const common::Span<const uint32_t> dgroups_;  // The group indices - where each group
-                                                  // begins and ends
-    const common::Span<const uint32_t> dgidxs_;  // The group each items belongs to
-  };
-
-  // Type containing device pointers that can be cheaply copied on the kernel
-  class NDCGLambdaWeightMultiplier : public BaseLambdaWeightMultiplier {
-   public:
-    NDCGLambdaWeightMultiplier(const dh::SegmentSorter<float> &segment_label_sorter,
-                               const NDCGLambdaWeightComputer &lwc)
-      : BaseLambdaWeightMultiplier(segment_label_sorter, lwc.GetPredictionSorter()),
-        dgroup_dcgs_(lwc.GetGroupDcgsSpan()) {}
-
-    // Adjust the items weight by this value
-    __device__ __forceinline__ bst_float GetWeight(uint32_t gidx, int pidx, int nidx) const {
-      if (dgroup_dcgs_[gidx] == 0.0) return 0.0f;
-
-      uint32_t group_begin = dgroups_[gidx];
-
-      auto pos_lab_orig_posn = dorig_pos_[pidx];
-      auto neg_lab_orig_posn = dorig_pos_[nidx];
-      KERNEL_CHECK(pos_lab_orig_posn != neg_lab_orig_posn);
-
-      // Note: the label positive and negative indices are relative to the entire dataset.
-      // Hence, scale them back to an index within the group
-      auto pos_pred_pos = dindexable_sorted_preds_pos_[pos_lab_orig_posn] - group_begin;
-      auto neg_pred_pos = dindexable_sorted_preds_pos_[neg_lab_orig_posn] - group_begin;
-      return NDCGLambdaWeightComputer::ComputeDeltaWeight(
-        pos_pred_pos, neg_pred_pos,
-        static_cast<int>(dsorted_labels_[pidx]), static_cast<int>(dsorted_labels_[nidx]),
-        dgroup_dcgs_[gidx]);
-    }
-
-   private:
-     const common::Span<const float> dgroup_dcgs_;  // Group DCG values
-  };
-
-  NDCGLambdaWeightComputer(const bst_float *dpreds,
-                           const bst_float*,
-                           const dh::SegmentSorter<float> &segment_label_sorter)
-    : IndexablePredictionSorter(dpreds, segment_label_sorter),
-      dgroup_dcg_(segment_label_sorter.GetNumGroups(), 0.0f),
-      weight_multiplier_(segment_label_sorter, *this) {
-    const auto &group_segments = segment_label_sorter.GetGroupSegmentsSpan();
-
-    // Allocator to be used for managing space overhead while performing transformed reductions
-    dh::XGBCachingDeviceAllocator<char> alloc;
-
-    // Compute each elements DCG values and reduce them across groups concurrently.
-    auto end_range =
-      thrust::reduce_by_key(thrust::cuda::par(alloc),
-                            dh::tcbegin(group_segments), dh::tcend(group_segments),
-                            thrust::make_transform_iterator(
-                              // The indices need not be sequential within a group, as we care only
-                              // about the sum of items DCG values within a group
-                              dh::tcbegin(segment_label_sorter.GetOriginalPositionsSpan()),
-                              ComputeItemDCG(segment_label_sorter.GetItemsSpan(),
-                                             segment_label_sorter.GetGroupsSpan(),
-                                             group_segments)),
-                            thrust::make_discard_iterator(),  // We don't care for the group indices
-                            dgroup_dcg_.begin());  // Sum of the item's DCG values in the group
-    CHECK(static_cast<unsigned>(end_range.second - dgroup_dcg_.begin()) == dgroup_dcg_.size());
-  }
-
-  inline const common::Span<const float> GetGroupDcgsSpan() const {
-    return { dgroup_dcg_.data().get(), dgroup_dcg_.size() };
-  }
-
-  inline const NDCGLambdaWeightMultiplier GetWeightMultiplier() const {
-    return weight_multiplier_;
-  }
-#endif
-
-  static void GetLambdaWeight(const std::vector<ListEntry> &sorted_list,
-                              std::vector<LambdaPair> *io_pairs) {
-    std::vector<LambdaPair> &pairs = *io_pairs;
-    float IDCG;  // NOLINT
-    {
-      std::vector<bst_float> labels(sorted_list.size());
-      for (size_t i = 0; i < sorted_list.size(); ++i) {
-        labels[i] = sorted_list[i].label;
-      }
-      std::stable_sort(labels.begin(), labels.end(), std::greater<>());
-      IDCG = ComputeGroupDCGWeight(&labels[0], labels.size());
-    }
-    if (IDCG == 0.0) {
-      for (auto & pair : pairs) {
-        pair.weight = 0.0f;
-      }
-    } else {
-      for (auto & pair : pairs) {
-        unsigned pos_idx = pair.pos_index;
-        unsigned neg_idx = pair.neg_index;
-        pair.weight *= ComputeDeltaWeight(pos_idx, neg_idx,
-                                          sorted_list[pos_idx].label, sorted_list[neg_idx].label,
-                                          IDCG);
-      }
-    }
-  }
-
-  static char const* Name() {
-    return "rank:ndcg";
-  }
-
-  inline static bst_float ComputeGroupDCGWeight(const float *sorted_labels, uint32_t size) {
-    double sumdcg = 0.0;
-    for (uint32_t i = 0; i < size; ++i) {
-      sumdcg += ComputeItemDCGWeight(sorted_labels[i], i);
-    }
-
-    return static_cast<bst_float>(sumdcg);
-  }
-
- private:
-  XGBOOST_DEVICE inline static bst_float ComputeItemDCGWeight(unsigned label, uint32_t idx) {
-    return (label != 0) ? (((1 << label) - 1) / std::log2(static_cast<bst_float>(idx + 2))) : 0;
-  }
-
-  // Compute the weight adjustment for an item within a group:
-  // pos_pred_pos => Where does the positive label live, had the list been sorted by prediction
-  // neg_pred_pos => Where does the negative label live, had the list been sorted by prediction
-  // pos_label => positive label value from sorted label list
-  // neg_label => negative label value from sorted label list
-  XGBOOST_DEVICE inline static bst_float ComputeDeltaWeight(uint32_t pos_pred_pos,
-                                                            uint32_t neg_pred_pos,
-                                                            int pos_label, int neg_label,
-                                                            float idcg) {
-    float pos_loginv = 1.0f / std::log2(pos_pred_pos + 2.0f);
-    float neg_loginv = 1.0f / std::log2(neg_pred_pos + 2.0f);
-    bst_float original = ((1 << pos_label) - 1) * pos_loginv + ((1 << neg_label) - 1) * neg_loginv;
-    float changed = ((1 << neg_label) - 1) * pos_loginv + ((1 << pos_label) - 1) * neg_loginv;
-    bst_float delta = (original - changed) * (1.0f / idcg);
-    if (delta < 0.0f) delta = - delta;
-    return delta;
-  }
-
-#if defined(__CUDACC__)
-  dh::caching_device_vector<float> dgroup_dcg_;
-  // This computes the adjustment to the weight
-  const NDCGLambdaWeightMultiplier weight_multiplier_;
-#endif
-};
-
 class MAPLambdaWeightComputer
 #if defined(__CUDACC__)
   : public IndexablePredictionSorter
@@ -496,6 +335,7 @@ class MAPLambdaWeightComputer
     std::vector<LambdaPair> &pairs = *io_pairs;
     std::vector<MAPStats> map_stats;
     GetMAPStats(sorted_list, &map_stats);
+
     for (auto & pair : pairs) {
       pair.weight *=
         GetLambdaMAP(pair.pos_index, pair.neg_index,
@@ -823,7 +663,7 @@ class LambdaRankObj : public ObjFunction {
     const auto ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
     out_gpair->Resize(preds.Size());
 
-    #pragma omp parallel
+#pragma omp parallel
     {
       // parallel construct, declare random number generator here, so that each
       // thread use its own random number generator, seed by thread id and current iteration
@@ -832,7 +672,7 @@ class LambdaRankObj : public ObjFunction {
       std::vector<ListEntry>  lst;
       std::vector< std::pair<bst_float, unsigned> > rec;
 
-      #pragma omp for schedule(static)
+#pragma omp for schedule(static)
       for (bst_omp_uint k = 0; k < ngroup; ++k) {
         lst.clear(); pairs.clear();
         for (unsigned j = gptr[k]; j < gptr[k+1]; ++j) {
@@ -941,14 +781,113 @@ XGBOOST_REGISTER_OBJECTIVE(PairwiseRankObj, PairwiseLambdaWeightComputer::Name()
 .describe("Pairwise rank objective.")
 .set_body([]() { return new LambdaRankObj<PairwiseLambdaWeightComputer>(); });
 
-XGBOOST_REGISTER_OBJECTIVE(LambdaRankNDCG, NDCGLambdaWeightComputer::Name())
-.describe("LambdaRank with NDCG as objective.")
-.set_body([]() { return new LambdaRankObj<NDCGLambdaWeightComputer>(); });
-
 XGBOOST_REGISTER_OBJECTIVE(LambdaRankObjMAP, MAPLambdaWeightComputer::Name())
 .describe("LambdaRank with MAP as objective.")
 .set_body([]() { return new LambdaRankObj<MAPLambdaWeightComputer>(); });
 #endif
 
+#if !defined(GTEST_TEST) && defined(__CUDACC__)
+struct DeviceNDCGCache {
+  MetaInfo const* p_info { nullptr };
+  dh::device_vector<float> inv_IDCG;  // NOLINT
+  size_t truncation {0};
+
+  dh::device_vector<size_t> threads_group_ptr;
+  dh::device_vector<bst_group_t> group_ptr;
+  size_t n_threads {0};
+
+  explicit DeviceNDCGCache(MetaInfo const *info, size_t ndcg_truncation,
+                           common::Span<float const> predts)
+      : p_info{info}, truncation{ndcg_truncation} {
+    auto labels = info->labels_.ConstDeviceSpan();
+    auto const &h_group_ptr = info->group_ptr_;
+    group_ptr.resize(h_group_ptr.size());
+    thrust::copy(h_group_ptr.cbegin(), h_group_ptr.cend(), group_ptr.begin());
+    auto d_group_ptr = dh::ToSpan(group_ptr);
+
+    size_t n_groups = group_ptr.size() - 1;
+    inv_IDCG.resize(n_groups, 0.0f);
+    CalcQueriesInvIDCG(labels, d_group_ptr, dh::ToSpan(inv_IDCG), ndcg_truncation);
+    CHECK_GE(ndcg_truncation, 1ul);
+
+    threads_group_ptr.resize(n_groups + 1, 0);
+    auto d_threads_group_ptr = dh::ToSpan(threads_group_ptr);
+    n_threads = SegmentedTrapezoidThreads(d_group_ptr, d_threads_group_ptr,
+                                          ndcg_truncation);
+  }
+
+  size_t Groups() const { return group_ptr.size() - 1; }
+  size_t Threads() const { return n_threads; }
+  common::Span<size_t const> ThreadsGroupPtr() const {
+    return {threads_group_ptr.data().get(), threads_group_ptr.size()};
+  }
+  common::Span<bst_group_t const> DataGroupPtr() const {
+    return {group_ptr.data().get(), group_ptr.size()};
+  }
+  common::Span<float const> InvIDCG() const {
+    return {inv_IDCG.data().get(), inv_IDCG.size()};
+  }
+};
+
+void LambdaMARTGetGradientNDCGGPUKernel(
+    const HostDeviceVector<bst_float> &preds, const MetaInfo &info,
+    size_t ndcg_truncation, std::shared_ptr<DeviceNDCGCache>* cache,
+    int32_t device_id, HostDeviceVector<GradientPair> *out_gpair) {
+  dh::safe_cuda(cudaSetDevice(device_id));
+  size_t n_groups = info.group_ptr_.size() - 1;
+
+  info.labels_.SetDevice(device_id);
+  preds.SetDevice(device_id);
+  out_gpair->SetDevice(device_id);
+  out_gpair->Resize(preds.Size());
+
+  auto labels = info.labels_.ConstDeviceSpan();
+  auto predts = preds.ConstDeviceSpan();
+  auto gpairs = out_gpair->DeviceSpan();
+  dh::LaunchN(dh::CurrentDevice(), gpairs.size(), [=]XGBOOST_DEVICE(size_t idx) {
+    gpairs[idx] = GradientPair{};
+  });
+
+  auto& p_cache = *cache;
+  if (!p_cache || p_cache->p_info != &info || p_cache->truncation != ndcg_truncation) {
+    p_cache = std::make_shared<DeviceNDCGCache>(&info, ndcg_truncation, predts);
+  }
+  auto d_threads_group_ptr = p_cache->ThreadsGroupPtr();
+  auto d_group_ptr = p_cache->DataGroupPtr();
+  auto d_inv_IDCG = p_cache->InvIDCG();
+  dh::device_vector<size_t> sorted_idx;
+  sorted_idx.resize(labels.size(), 0);
+  auto d_sorted_idx = dh::ToSpan(sorted_idx);
+  dh::SegmentedSequence(d_group_ptr, d_sorted_idx);
+  dh::SegmentedArgSort<true>(predts, d_group_ptr, d_sorted_idx);
+
+  dh::LaunchN(
+      dh::CurrentDevice(), p_cache->Threads(), [=] XGBOOST_DEVICE(size_t idx) {
+        auto query_group_idx = dh::SegmentId(d_threads_group_ptr, idx);
+
+        auto thread_group_begin = d_threads_group_ptr[query_group_idx];
+        auto n_group_threads =
+            d_threads_group_ptr[query_group_idx + 1] - thread_group_begin;
+        auto idx_in_thread_group = idx - thread_group_begin;
+
+        auto data_group_begin = d_group_ptr[query_group_idx];
+        size_t n_data = d_group_ptr[query_group_idx + 1] - data_group_begin;
+
+        auto inv_IDCG = d_inv_IDCG[query_group_idx];
+
+        auto g_labels = labels.subspan(data_group_begin, n_data);
+        auto g_predts = predts.subspan(data_group_begin, n_data);
+        auto g_gpairs = gpairs.subspan(data_group_begin, n_data);
+        auto g_sorted_idx = d_sorted_idx.subspan(data_group_begin, n_data);
+
+        size_t i = 0, j = 0;
+        UnravelTrapeziodIdx(idx_in_thread_group, n_data, &i, &j);
+
+        assert(g_sorted_idx[i] < n_data);
+        assert(g_sorted_idx[j] < n_data);
+        LambdaNDCG(g_labels, g_predts, g_sorted_idx, i, j, inv_IDCG, g_gpairs);
+      });
+}
+#endif  // !defined(GTEST_TEST) && defined(__CUDACC__)
 }  // namespace obj
 }  // namespace xgboost
