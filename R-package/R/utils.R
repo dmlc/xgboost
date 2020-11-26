@@ -20,6 +20,12 @@ NVL <- function(x, val) {
   stop("typeof(x) == ", typeof(x), " is not supported by NVL")
 }
 
+# List of classification and ranking objectives
+.CLASSIFICATION_OBJECTIVES <- function() {
+  return(c('binary:logistic', 'binary:logitraw', 'binary:hinge', 'multi:softmax',
+           'multi:softprob', 'rank:pairwise', 'rank:ndcg', 'rank:map'))
+}
+
 
 #
 # Low-level functions for boosting --------------------------------------------
@@ -187,13 +193,23 @@ xgb.iter.eval <- function(booster_handle, watchlist, iter, feval = NULL) {
 # Helper functions for cross validation ---------------------------------------
 #
 
+# Possibly convert the labels into factors, depending on the objective.
+# The labels are converted into factors only when the given objective refers to the classification
+# or ranking tasks.
+convert.labels <- function(labels, objective_name) {
+  if (objective_name %in% .CLASSIFICATION_OBJECTIVES()) {
+    return(as.factor(labels))
+  } else {
+    return(labels)
+  }
+}
+
 # Generates random (stratified if needed) CV folds
 generate.cv.folds <- function(nfold, nrows, stratified, label, params) {
 
   # cannot do it for rank
-  if (exists('objective', where = params) &&
-      is.character(params$objective) &&
-      strtrim(params$objective, 5) == 'rank:') {
+  objective <- params$objective
+  if (is.character(objective) && strtrim(objective, 5) == 'rank:') {
     stop("\n\tAutomatic generation of CV-folds is not implemented for ranking!\n",
          "\tConsider providing pre-computed CV-folds through the 'folds=' parameter.\n")
   }
@@ -206,19 +222,16 @@ generate.cv.folds <- function(nfold, nrows, stratified, label, params) {
     #  - For classification, need to convert y labels to factor before making the folds,
     #    and then do stratification by factor levels.
     #  - For regression, leave y numeric and do stratification by quantiles.
-    if (exists('objective', where = params) &&
-        is.character(params$objective)) {
-      # If 'objective' provided in params, assume that y is a classification label
-      # unless objective is reg:squarederror
-      if (params$objective != 'reg:squarederror')
-        y <- factor(y)
+    if (is.character(objective)) {
+      y <- convert.labels(y, params$objective)
     } else {
       # If no 'objective' given in params, it means that user either wants to
       # use the default 'reg:squarederror' objective or has provided a custom
       # obj function.  Here, assume classification setting when y has 5 or less
       # unique values:
-      if (length(unique(y)) <= 5)
+      if (length(unique(y)) <= 5) {
         y <- factor(y)
+      }
     }
     folds <- xgb.createFolds(y, nfold)
   } else {

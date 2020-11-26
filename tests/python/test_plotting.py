@@ -3,7 +3,6 @@ import numpy as np
 import xgboost as xgb
 import testing as tm
 
-import unittest
 import pytest
 
 try:
@@ -20,7 +19,7 @@ pytestmark = pytest.mark.skipif(**tm.no_multiple(tm.no_matplotlib(),
 dpath = 'demo/data/agaricus.txt.train'
 
 
-class TestPlotting(unittest.TestCase):
+class TestPlotting:
     def test_plotting(self):
         m = xgb.DMatrix(dpath)
         booster = xgb.train({'max_depth': 2, 'eta': 1,

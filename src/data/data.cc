@@ -844,7 +844,7 @@ void SparsePage::Push(const SparsePage &batch) {
 template <typename AdapterBatchT>
 uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread) {
   // Set number of threads but keep old value so we can reset it after
-  int nthread_original = common::OmpSetNumThreads(&nthread);
+  int nthread_original = common::OmpSetNumThreadsWithoutHT(&nthread);
   auto& offset_vec = offset.HostVector();
   auto& data_vec = data.HostVector();
 

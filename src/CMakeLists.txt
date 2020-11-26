@@ -78,6 +78,11 @@ if (USE_OPENMP OR USE_CUDA)  # CUDA requires OpenMP
   target_link_libraries(objxgboost PUBLIC OpenMP::OpenMP_CXX)
 endif (USE_OPENMP OR USE_CUDA)
 
+if (RABIT_BUILD_MPI)
+  find_package(MPI REQUIRED)
+  target_link_libraries(objxgboost PUBLIC MPI::MPI_CXX)
+endif (RABIT_BUILD_MPI)
+
 # For MSVC: Call msvc_use_static_runtime() once again to completely
 # replace /MD with /MT. See https://github.com/dmlc/xgboost/issues/4462
 # for issues caused by mixing of /MD and /MT flags

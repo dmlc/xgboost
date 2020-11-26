@@ -7,7 +7,6 @@ import tempfile
 import os
 import shutil
 import pytest
-import unittest
 import json
 
 rng = np.random.RandomState(1994)
@@ -543,12 +542,28 @@ def test_sklearn_n_jobs():
     assert clf.get_xgb_params()['n_jobs'] == 2
 
 
-def test_kwargs():
+def test_parameters_access():
+    from sklearn import datasets
     params = {'updater': 'grow_gpu_hist', 'subsample': .5, 'n_jobs': -1}
     clf = xgb.XGBClassifier(n_estimators=1000, **params)
     assert clf.get_params()['updater'] == 'grow_gpu_hist'
     assert clf.get_params()['subsample'] == .5
     assert clf.get_params()['n_estimators'] == 1000
+
+    clf = xgb.XGBClassifier(n_estimators=1, nthread=4)
+    X, y = datasets.load_iris(return_X_y=True)
+    clf.fit(X, y)
+
+    config = json.loads(clf.get_booster().save_config())
+    assert int(config['learner']['generic_param']['nthread']) == 4
+
+    clf.set_params(nthread=16)
+    config = json.loads(clf.get_booster().save_config())
+    assert int(config['learner']['generic_param']['nthread']) == 16
+
+    clf.predict(X)
+    config = json.loads(clf.get_booster().save_config())
+    assert int(config['learner']['generic_param']['nthread']) == 16
 
 
 def test_kwargs_error():
@@ -1012,37 +1027,39 @@ def test_feature_weights():
     assert poly_decreasing[0] < -0.08
 
 
-class TestBoostFromPrediction(unittest.TestCase):
-    def run_boost_from_prediction(self, tree_method):
-        from sklearn.datasets import load_breast_cancer
-        X, y = load_breast_cancer(return_X_y=True)
-        model_0 = xgb.XGBClassifier(
-            learning_rate=0.3, random_state=0, n_estimators=4,
-            tree_method=tree_method)
-        model_0.fit(X=X, y=y)
-        margin = model_0.predict(X, output_margin=True)
+def run_boost_from_prediction(tree_method):
+    from sklearn.datasets import load_breast_cancer
+    X, y = load_breast_cancer(return_X_y=True)
+    model_0 = xgb.XGBClassifier(
+        learning_rate=0.3, random_state=0, n_estimators=4,
+        tree_method=tree_method)
+    model_0.fit(X=X, y=y)
+    margin = model_0.predict(X, output_margin=True)
 
-        model_1 = xgb.XGBClassifier(
-            learning_rate=0.3, random_state=0, n_estimators=4,
-            tree_method=tree_method)
-        model_1.fit(X=X, y=y, base_margin=margin)
-        predictions_1 = model_1.predict(X, base_margin=margin)
+    model_1 = xgb.XGBClassifier(
+        learning_rate=0.3, random_state=0, n_estimators=4,
+        tree_method=tree_method)
+    model_1.fit(X=X, y=y, base_margin=margin)
+    predictions_1 = model_1.predict(X, base_margin=margin)
 
-        cls_2 = xgb.XGBClassifier(
-            learning_rate=0.3, random_state=0, n_estimators=8,
-            tree_method=tree_method)
-        cls_2.fit(X=X, y=y)
-        predictions_2 = cls_2.predict(X)
-        assert np.all(predictions_1 == predictions_2)
+    cls_2 = xgb.XGBClassifier(
+        learning_rate=0.3, random_state=0, n_estimators=8,
+        tree_method=tree_method)
+    cls_2.fit(X=X, y=y)
+    predictions_2 = cls_2.predict(X)
+    assert np.all(predictions_1 == predictions_2)
 
-    @pytest.mark.skipif(**tm.no_sklearn())
-    def test_boost_from_prediction_hist(self):
-        self.run_boost_from_prediction('hist')
 
-    @pytest.mark.skipif(**tm.no_sklearn())
-    def test_boost_from_prediction_approx(self):
-        self.run_boost_from_prediction('approx')
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_boost_from_prediction_hist():
+    run_boost_from_prediction('hist')
 
-    @pytest.mark.skipif(**tm.no_sklearn())
-    def test_boost_from_prediction_exact(self):
-        self.run_boost_from_prediction('exact')
+
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_boost_from_prediction_approx():
+    run_boost_from_prediction('approx')
+
+
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_boost_from_prediction_exact():
+    run_boost_from_prediction('exact')

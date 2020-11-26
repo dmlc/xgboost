@@ -1,7 +1,6 @@
 import sys
 import numpy as np
 
-import unittest
 import pytest
 
 import xgboost as xgb
@@ -38,26 +37,27 @@ def assert_constraint(constraint, tree_method):
         assert non_increasing(pred)
 
 
-class TestMonotonicConstraints(unittest.TestCase):
-    @pytest.mark.skipif(**tm.no_sklearn())
-    def test_gpu_hist_basic(self):
-        assert_constraint(1, 'gpu_hist')
-        assert_constraint(-1, 'gpu_hist')
+@pytest.mark.skipif(**tm.no_sklearn())
+def test_gpu_hist_basic():
+    assert_constraint(1, 'gpu_hist')
+    assert_constraint(-1, 'gpu_hist')
 
-    def test_gpu_hist_depthwise(self):
-        params = {
-            'tree_method': 'gpu_hist',
-            'grow_policy': 'depthwise',
-            'monotone_constraints': '(1, -1)'
-        }
-        model = xgb.train(params, tmc.training_dset)
-        tmc.is_correctly_constrained(model)
 
-    def test_gpu_hist_lossguide(self):
-        params = {
-            'tree_method': 'gpu_hist',
-            'grow_policy': 'lossguide',
-            'monotone_constraints': '(1, -1)'
-        }
-        model = xgb.train(params, tmc.training_dset)
-        tmc.is_correctly_constrained(model)
+def test_gpu_hist_depthwise():
+    params = {
+        'tree_method': 'gpu_hist',
+        'grow_policy': 'depthwise',
+        'monotone_constraints': '(1, -1)'
+    }
+    model = xgb.train(params, tmc.training_dset)
+    tmc.is_correctly_constrained(model)
+
+
+def test_gpu_hist_lossguide():
+    params = {
+        'tree_method': 'gpu_hist',
+        'grow_policy': 'lossguide',
+        'monotone_constraints': '(1, -1)'
+    }
+    model = xgb.train(params, tmc.training_dset)
+    tmc.is_correctly_constrained(model)

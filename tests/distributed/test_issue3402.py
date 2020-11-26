@@ -65,7 +65,7 @@ y = [1, 0]
 
 dtrain = xgb.DMatrix(X, label=y)
 
-param = {'max_depth': 2, 'eta': 1, 'silent': 1, 'objective': 'binary:logistic' }
+param = {'max_depth': 2, 'eta': 1, 'objective': 'binary:logistic' }
 watchlist  = [(dtrain,'train')]
 num_round = 2
 bst = xgb.train(param, dtrain, num_round, watchlist)

@@ -1,6 +1,5 @@
 '''Test model IO with pickle.'''
 import pickle
-import unittest
 import numpy as np
 import subprocess
 import os
@@ -35,7 +34,7 @@ def load_pickle(path):
     return bst
 
 
-class TestPickling(unittest.TestCase):
+class TestPickling:
     args_template = [
         "pytest",
         "--verbose",

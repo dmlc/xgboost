@@ -44,7 +44,7 @@ if [ ${TASK} == "python_test" ]; then
       cd ../python-package
       python setup.py bdist_wheel
       cd ..
-      TAG=macosx_10_13_x86_64.macosx_10_14_x86_64.macosx_10_15_x86_64
+      TAG=macosx_10_14_x86_64.macosx_10_15_x86_64.macosx_11_0_x86_64
       python tests/ci_build/rename_whl.py python-package/dist/*.whl ${TRAVIS_COMMIT} ${TAG}
     fi
 

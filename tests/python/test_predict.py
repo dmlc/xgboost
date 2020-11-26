@@ -1,5 +1,4 @@
 '''Tests for running inplace prediction.'''
-import unittest
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from scipy import sparse
@@ -66,7 +65,7 @@ def test_predict_leaf():
     run_predict_leaf('cpu_predictor')
 
 
-class TestInplacePredict(unittest.TestCase):
+class TestInplacePredict:
     '''Tests for running inplace prediction'''
     def test_predict(self):
         rows = 1000

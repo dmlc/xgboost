@@ -1,13 +1,12 @@
 import xgboost as xgb
 import testing as tm
 import numpy as np
-import unittest
 import pytest
 
 rng = np.random.RandomState(1994)
 
 
-class TestEarlyStopping(unittest.TestCase):
+class TestEarlyStopping:
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_early_stopping_nonparallel(self):
