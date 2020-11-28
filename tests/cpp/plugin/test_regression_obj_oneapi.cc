@@ -1,11 +1,12 @@
 /*!
- * Copyright 2017-2019 XGBoost contributors
+ * Copyright 2017-2020 XGBoost contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/objective.h>
 #include <xgboost/generic_parameters.h>
 #include <xgboost/json.h>
 #include "../helpers.h"
+
 namespace xgboost {
 
 TEST(Plugin, LinearRegressionGPairOneAPI) {

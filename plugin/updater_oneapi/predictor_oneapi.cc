@@ -5,13 +5,10 @@
 #include <limits>
 #include <mutex>
 
-#include "xgboost/base.h"
-#include "xgboost/data.h"
-#include "xgboost/predictor.h"
+#include "data_oneapi.h"
+
 #include "xgboost/tree_model.h"
 #include "xgboost/tree_updater.h"
-#include "xgboost/logging.h"
-#include "xgboost/host_device_vector.h"
 
 #include "../../src/data/adapter.h"
 #include "../../src/common/math.h"
@@ -24,82 +21,6 @@ namespace predictor {
 
 DMLC_REGISTRY_FILE_TAG(predictor_oneapi);
 
-/*! \brief Element from a sparse vector */
-struct EntryOneAPI {
-  /*! \brief feature index */
-  bst_feature_t index;
-  /*! \brief feature value */
-  bst_float fvalue;
-  /*! \brief default constructor */
-  EntryOneAPI() = default;
-  /*!
-   * \brief constructor with index and value
-   * \param index The feature or row index.
-   * \param fvalue The feature value.
-   */
-  EntryOneAPI(bst_feature_t index, bst_float fvalue) : index(index), fvalue(fvalue) {}
-
-  EntryOneAPI(const Entry& entry) : index(entry.index), fvalue(entry.fvalue) {}
-
-  /*! \brief reversely compare feature values */
-  inline static bool CmpValue(const EntryOneAPI& a, const EntryOneAPI& b) {
-    return a.fvalue < b.fvalue;
-  }
-  inline bool operator==(const EntryOneAPI& other) const {
-    return (this->index == other.index && this->fvalue == other.fvalue);
-  }
-};
-
-struct DeviceMatrixOneAPI {
-  DMatrix* p_mat;  // Pointer to the original matrix on the host
-  cl::sycl::queue qu_;
-  size_t* row_ptr;
-  size_t row_ptr_size;
-  EntryOneAPI* data;
-
-  DeviceMatrixOneAPI(DMatrix* dmat, cl::sycl::queue qu) : p_mat(dmat), qu_(qu) {
-    size_t num_row = 0;
-    size_t num_nonzero = 0;
-    for (auto &batch : dmat->GetBatches<SparsePage>()) {
-      const auto& data_vec = batch.data.HostVector();
-      const auto& offset_vec = batch.offset.HostVector();
-      num_nonzero += data_vec.size();
-      num_row += batch.Size();
-    }
-
-    row_ptr = cl::sycl::malloc_shared<size_t>(num_row + 1, qu_);
-    data = cl::sycl::malloc_shared<EntryOneAPI>(num_nonzero, qu_);
-
-    size_t data_offset = 0;
-    for (auto &batch : dmat->GetBatches<SparsePage>()) {
-      const auto& data_vec = batch.data.HostVector();
-      const auto& offset_vec = batch.offset.HostVector();
-      size_t batch_size = batch.Size();
-      if (batch_size > 0) {
-        std::copy(offset_vec.data(), offset_vec.data() + batch_size,
-                  row_ptr + batch.base_rowid);
-        if (batch.base_rowid > 0) {
-          for(size_t i = 0; i < batch_size; i++)
-            row_ptr[i + batch.base_rowid] += batch.base_rowid;
-        }
-        std::copy(data_vec.data(), data_vec.data() + offset_vec[batch_size],
-                  data + data_offset);
-        data_offset += offset_vec[batch_size];
-      }
-    }
-    row_ptr[num_row] = data_offset;
-    row_ptr_size = num_row + 1;
-  }
-
-  ~DeviceMatrixOneAPI() {
-    if (row_ptr) {
-      cl::sycl::free(row_ptr, qu_);
-    }
-    if (data) {
-      cl::sycl::free(data, qu_);
-    }
-  }
-};
 
 struct DeviceNodeOneAPI {
   DeviceNodeOneAPI()
@@ -152,26 +73,20 @@ struct DeviceNodeOneAPI {
 class DeviceModelOneAPI {
  public:
   cl::sycl::queue qu_;
-  DeviceNodeOneAPI* nodes;
-  size_t* tree_segments;
-  int* tree_group;
+  USMVector<DeviceNodeOneAPI> nodes;
+  USMVector<size_t> tree_segments;
+  USMVector<int> tree_group;
   size_t tree_beg_;
   size_t tree_end_;
   int num_group;
 
-  DeviceModelOneAPI() : nodes(nullptr), tree_segments(nullptr), tree_group(nullptr) {}
+  DeviceModelOneAPI() {}
 
   ~DeviceModelOneAPI() {
     Reset();
   }
 
   void Reset() {
-    if (nodes)
-      cl::sycl::free(nodes, qu_);
-    if (tree_segments)
-      cl::sycl::free(tree_segments, qu_);
-    if (tree_group)
-      cl::sycl::free(tree_group, qu_);
   }
 
   void Init(const gbm::GBTreeModel& model, size_t tree_begin, size_t tree_end, cl::sycl::queue qu) {
@@ -179,7 +94,7 @@ class DeviceModelOneAPI {
     CHECK_EQ(model.param.size_leaf_vector, 0);
     Reset();
 
-    tree_segments = cl::sycl::malloc_shared<size_t>((tree_end - tree_begin) + 1, qu_);
+    tree_segments.Resize(qu_, (tree_end - tree_begin) + 1);
     int sum = 0;
     tree_segments[0] = sum;
     for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
@@ -187,14 +102,14 @@ class DeviceModelOneAPI {
       tree_segments[tree_idx - tree_begin + 1] = sum;
     }
 
-    nodes = cl::sycl::malloc_shared<DeviceNodeOneAPI>(sum, qu_);
+    nodes.Resize(qu_, sum);
     for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
       auto& src_nodes = model.trees[tree_idx]->GetNodes();
       for (size_t node_idx = 0; node_idx < src_nodes.size(); node_idx++)
         nodes[node_idx + tree_segments[tree_idx - tree_begin]] = src_nodes[node_idx];
     }
 
-    tree_group = cl::sycl::malloc_shared<int>(model.tree_info.size(), qu_);
+    tree_group.Resize(qu_, model.tree_info.size());
     for (size_t tree_idx = 0; tree_idx < model.tree_info.size(); tree_idx++)
       tree_group[tree_idx] = model.tree_info[tree_idx];
 
@@ -286,8 +201,10 @@ class PredictorOneAPI : public Predictor {
     }
   }
 
-  void DevicePredictInternal(DeviceMatrixOneAPI* dmat, HostDeviceVector<float>* out_preds,
-                             const gbm::GBTreeModel& model, size_t tree_begin,
+  void DevicePredictInternal(DeviceMatrixOneAPI* dmat,
+                             HostDeviceVector<float>* out_preds,
+                             const gbm::GBTreeModel& model,
+                             size_t tree_begin,
                              size_t tree_end) {
     if (tree_end - tree_begin == 0) {
       return;
@@ -296,18 +213,18 @@ class PredictorOneAPI : public Predictor {
 
     auto& out_preds_vec = out_preds->HostVector();
 
-    DeviceNodeOneAPI* nodes = model_.nodes;
+    DeviceNodeOneAPI* nodes = model_.nodes.Data();
     cl::sycl::buffer<float, 1> out_preds_buf(out_preds_vec.data(), out_preds_vec.size());
-    size_t* tree_segments = model_.tree_segments;
-    int* tree_group = model_.tree_group;
-    size_t* row_ptr = dmat->row_ptr;
-    EntryOneAPI* data = dmat->data;
+    size_t* tree_segments = model_.tree_segments.Data();
+    int* tree_group = model_.tree_group.Data();
+    size_t* row_ptr = dmat->row_ptr.Data();
+    EntryOneAPI* data = dmat->data.Data();
     int num_features = dmat->p_mat->Info().num_col_;
-    int num_rows = dmat->row_ptr_size - 1;
+    int num_rows = dmat->row_ptr.Size() - 1;
     int num_group = model.learner_model_param->num_output_group;
 
     qu_.submit([&](cl::sycl::handler& cgh) {
-      auto out_predictions = out_preds_buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+      auto out_predictions = out_preds_buf.template get_access<cl::sycl::access::mode::read_write>(cgh);
       cgh.parallel_for<class PredictInternal>(cl::sycl::range<1>(num_rows), [=](cl::sycl::id<1> pid) {
         int global_idx = pid[0];
         if (global_idx >= num_rows) return;
@@ -345,7 +262,7 @@ class PredictorOneAPI : public Predictor {
         this->device_matrix_cache_.end()) {
       this->device_matrix_cache_.emplace(
           dmat, std::unique_ptr<DeviceMatrixOneAPI>(
-                    new DeviceMatrixOneAPI(dmat, qu_)));
+                    new DeviceMatrixOneAPI(qu_, dmat)));
     }
     DeviceMatrixOneAPI* device_matrix = device_matrix_cache_.find(dmat)->second.get();
 
@@ -413,7 +330,7 @@ class PredictorOneAPI : public Predictor {
     cpu_predictor->PredictLeaf(p_fmat, out_preds, model, ntree_limit);
   }
 
-  void PredictContribution(DMatrix* p_fmat, std::vector<bst_float>* out_contribs,
+  void PredictContribution(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
                            const gbm::GBTreeModel& model, uint32_t ntree_limit,
                            std::vector<bst_float>* tree_weights,
                            bool approximate, int condition,
@@ -421,7 +338,7 @@ class PredictorOneAPI : public Predictor {
     cpu_predictor->PredictContribution(p_fmat, out_contribs, model, ntree_limit, tree_weights, approximate, condition, condition_feature);
   }
 
-  void PredictInteractionContributions(DMatrix* p_fmat, std::vector<bst_float>* out_contribs,
+  void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
                                        const gbm::GBTreeModel& model, unsigned ntree_limit,
                                        std::vector<bst_float>* tree_weights,
                                        bool approximate) override {
@@ -435,8 +352,7 @@ class PredictorOneAPI : public Predictor {
   std::mutex lock_;
   std::unique_ptr<Predictor> cpu_predictor;
 
-  std::unordered_map<DMatrix*, std::unique_ptr<DeviceMatrixOneAPI>>
-      device_matrix_cache_;
+  std::unordered_map<DMatrix*, std::unique_ptr<DeviceMatrixOneAPI>> device_matrix_cache_;
 };
 
 XGBOOST_REGISTER_PREDICTOR(PredictorOneAPI, "oneapi_predictor")
