@@ -59,8 +59,10 @@ void GHistIndexMatrixOneAPI::SetIndexData(cl::sycl::queue qu,
   BinIdxType* index_data = index_data_span.data();
   const bst_float* cut_values = cut_device.Values().DataConst();
   const uint32_t* cut_ptrs = cut_device.Ptrs().DataConst();
+  cl::sycl::buffer<size_t, 1> hit_count_buf(hit_count.data(), hit_count.size());
   
   qu.submit([&](cl::sycl::handler& cgh) {
+    auto hit_count_acc = hit_count_buf.template get_access<cl::sycl::access::mode::atomic>(cgh);
     cgh.parallel_for<>(cl::sycl::range<1>(num_rows), [=](cl::sycl::item<1> pid) {
       const size_t i = pid.get_id(0);
       const size_t ibegin = offset_vec[i];
@@ -69,19 +71,10 @@ void GHistIndexMatrixOneAPI::SetIndexData(cl::sycl::queue qu,
       for (bst_uint j = 0; j < size; ++j) {
         uint32_t idx = SearchBin(cut_values, cut_ptrs, data_ptr[ibegin + j]);
         index_data[ibegin + j] = offsets ? idx - offsets[j] : idx;
+        cl::sycl::atomic_fetch_add<size_t>(hit_count_acc[idx], 1);
       }
     });
   }).wait();
-
-  for (size_t i = 0; i < num_rows; i++) {
-    const size_t ibegin = offset_vec[i];
-    const size_t iend = offset_vec[i + 1];
-    const size_t size = iend - ibegin;
-    for (bst_uint j = 0; j < size; ++j) {
-      uint32_t idx = offsets ? (uint32_t)index_data[ibegin + j] + offsets[j] : index_data[ibegin + j];
-      ++hit_count[idx];
-    }
-  }
 }
 
 void GHistIndexMatrixOneAPI::ResizeIndex(const size_t n_offsets,
