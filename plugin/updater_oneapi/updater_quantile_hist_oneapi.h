@@ -236,6 +236,7 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
         interaction_constraints_{std::move(int_constraints_)},
         p_last_tree_(nullptr), p_last_fmat_(fmat) {
       builder_monitor_.Init("QuantileOneAPI::Builder");
+      kernel_monitor_.Init("QuantileOneAPI::Kernels");
     }
     // update one tree, growing
     virtual void Update(const GHistIndexMatrixOneAPI& gmat,
@@ -329,7 +330,8 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
     template <typename BinIdxType>
     void PartitionKernel(const size_t node_in_set, const size_t nid, common::Range1d range,
                          const int32_t split_cond,
-                         const ColumnMatrixOneAPI& column_matrix, const RegTree& tree);
+                         const ColumnMatrixOneAPI& column_matrix, const RegTree& tree,
+                         cl::sycl::buffer<size_t, 1>& parts_size);
 
     void AddSplitsToRowSet(const std::vector<ExpandEntry>& nodes, RegTree* p_tree);
 
@@ -479,6 +481,7 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
     DataLayout data_layout_;
 
     common::Monitor builder_monitor_;
+    common::Monitor kernel_monitor_;
     common::ParallelGHistBuilderOneAPI<GradientSumT> hist_buffer_;
     rabit::Reducer<GradientPairT, GradientPairT::Reduce> histred_;
     std::unique_ptr<HistSynchronizerOneAPI<GradientSumT>> hist_synchronizer_;

@@ -101,7 +101,7 @@ class ColumnMatrixOneAPI {
  public:
   // get number of features
   inline bst_uint GetNumFeature() const {
-    return static_cast<bst_uint>(type_.Size());
+    return static_cast<bst_uint>(type_.size());
   }
 
   // construct column matrix from GHistIndexMatrixOneAPI
@@ -113,9 +113,9 @@ class ColumnMatrixOneAPI {
     const int32_t nfeature = static_cast<int32_t>(gmat.cut.Ptrs().size() - 1);
     const size_t nrow = gmat.row_ptr.size() - 1;
     // identify type of each column
-    feature_counts_.Resize(qu_, nfeature);
-    type_.Resize(qu_, nfeature);
-    std::fill(feature_counts_.Begin(), feature_counts_.End(), 0);
+    feature_counts_.resize(nfeature);
+    type_.resize(nfeature);
+    std::fill(feature_counts_.begin(), feature_counts_.end(), 0);
     uint32_t max_val = std::numeric_limits<uint32_t>::max();
     for (int32_t fid = 0; fid < nfeature; ++fid) {
       CHECK_LE(gmat.cut.Ptrs()[fid + 1] - gmat.cut.Ptrs()[fid], max_val);
@@ -123,9 +123,7 @@ class ColumnMatrixOneAPI {
     bool all_dense = gmat.IsDense(); // CHECK gmat.IsDense implicitly
     gmat.GetFeatureCounts(&feature_counts_[0]);
     // classify features
-    LOG(INFO) << "nrow = " << nrow << ", nfeature = " << nfeature;
     for (int32_t fid = 0; fid < nfeature; ++fid) {
-//      LOG(INFO) << "fid = " << fid << ", feature_counts_ = " << feature_counts_[fid];
       if (static_cast<double>(feature_counts_[fid])
                  < sparse_threshold * nrow) {
         all_dense = false;
@@ -140,7 +138,7 @@ class ColumnMatrixOneAPI {
 
     // want to compute storage boundary for each feature
     // using variants of prefix sum scan
-    feature_offsets_.Resize(qu_, nfeature + 1);
+    feature_offsets_.resize(nfeature + 1);
     size_t accum_index_ = 0;
     feature_offsets_[0] = accum_index_;
     for (int32_t fid = 1; fid < nfeature + 1; ++fid) {
@@ -151,6 +149,8 @@ class ColumnMatrixOneAPI {
       }
       feature_offsets_[fid] = accum_index_;
     }
+
+    feature_offsets_device_ = USMVector<size_t>(qu_, feature_offsets_);
 
     SetTypeSize(gmat.max_num_bins);
 
@@ -237,7 +237,7 @@ class ColumnMatrixOneAPI {
                                const bool noMissingValues) {
     T* local_index = reinterpret_cast<T*>(&index_[0]);
 
-    const size_t* feature_offsets = feature_offsets_.DataConst(); 
+    const size_t* feature_offsets = feature_offsets_device_.DataConst(); 
 
     /* missing values make sense only for column with type kDenseColumn,
        and if no missing values were observed it could be handled much faster. */
@@ -282,7 +282,7 @@ class ColumnMatrixOneAPI {
     const bst_row_t *offset_vec = dmat_device.row_ptr.DataConst();
     const size_t num_rows = dmat_device.row_ptr.Size() - 1;
     bool* missing_flags = missing_flags_.Data();
-    const size_t* feature_offsets = feature_offsets_.DataConst(); 
+    const size_t* feature_offsets = feature_offsets_device_.DataConst(); 
     const uint32_t* index_base_device = index_base_device_;
 
     qu_.submit([&](cl::sycl::handler& cgh) {
@@ -319,10 +319,11 @@ class ColumnMatrixOneAPI {
  private:
   USMVector<uint8_t> index_;
 
-  USMVector<size_t> feature_counts_;
-  USMVector<ColumnType> type_;
-  USMVector<size_t> row_ind_;
-  USMVector<size_t> feature_offsets_;
+  std::vector<size_t>     feature_counts_;
+  std::vector<ColumnType> type_;
+  USMVector<size_t>       row_ind_;
+  std::vector<size_t>     feature_offsets_;
+  USMVector<size_t>       feature_offsets_device_;
 
   uint32_t* index_base_;
   uint32_t* index_base_device_;

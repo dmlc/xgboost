@@ -192,7 +192,12 @@ void CopyHist(cl::sycl::queue qu,
   GradientSumT* pdst = reinterpret_cast<GradientSumT*>(dst.Data());
   const GradientSumT* psrc = reinterpret_cast<const GradientSumT*>(src.DataConst());
 
-  std::copy(psrc, psrc + 2 * size, pdst);
+  qu.submit([&](cl::sycl::handler& cgh) {
+    cgh.parallel_for<>(cl::sycl::range<1>(2 * size), [=](cl::sycl::item<1> pid) {
+      const size_t i = pid.get_id(0);
+      pdst[i] = psrc[i];
+    });
+  }).wait();  
 }
 template void CopyHist(cl::sycl::queue qu,
                        GHistRowOneAPI<float>& dst, const GHistRowOneAPI<float>& src,
@@ -215,7 +220,7 @@ void SubtractionHist(cl::sycl::queue qu,
 
   qu.submit([&](cl::sycl::handler& cgh) {
     cgh.parallel_for<>(cl::sycl::range<1>(2 * size), [=](cl::sycl::item<1> pid) {
-      size_t i = pid.get_id(0);
+      const size_t i = pid.get_id(0);
       pdst[i] = psrc1[i] - psrc2[i];
     });
   }).wait();

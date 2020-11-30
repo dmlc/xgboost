@@ -199,13 +199,10 @@ class PartitionBuilderOneAPI {
 
   void MergeToArray(int nid, size_t* rows_indexes) {
     size_t* left_result  = rows_indexes;
-    size_t* right_result = rows_indexes + result_left_rows_[nid];
 
     const size_t* left = left_data_.Data() + nodes_offsets_[nid];
-    const size_t* right = right_data_.Data() + nodes_offsets_[nid];
     
-    if (result_left_rows_[nid] > 0) qu_.memcpy(left_result, left, sizeof(size_t) * result_left_rows_[nid]).wait();
-    if (result_right_rows_[nid] > 0) qu_.memcpy(right_result, right, sizeof(size_t) * result_right_rows_[nid]).wait();
+    if (result_left_rows_[nid] + result_right_rows_[nid] > 0) qu_.memcpy(left_result, left, sizeof(size_t) * (result_left_rows_[nid] + result_right_rows_[nid]));
   }
 
  protected:

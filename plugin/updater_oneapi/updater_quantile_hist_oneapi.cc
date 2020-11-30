@@ -219,9 +219,7 @@ void DistributedHistSynchronizerOneAPI<GradientSumT>::SyncHistograms(BuilderT* b
       common::CopyHist(builder->qu_, sibling_local, sibling_hist, nbins);
     }
   }
-  builder->builder_monitor_.Start("SyncHistogramsAllreduce");
   builder->ReduceHists(sync_ids, nbins);
-  builder->builder_monitor_.Stop("SyncHistogramsAllreduce");
 
   ParallelSubtractionHist(builder, builder->nodes_for_explicit_hist_build_, p_tree);
   ParallelSubtractionHist(builder, builder->nodes_for_subtraction_trick_, p_tree);
@@ -251,18 +249,17 @@ void DistributedHistSynchronizerOneAPI<GradientSumT>::ParallelSubtractionHist(
 
 template <typename GradientSumT>
 void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::ReduceHists(std::vector<int>& sync_ids, size_t nbins) {
-  GHistRowOneAPI<GradientPairT> reduce_buffer(qu_, sync_ids.size() * nbins);
-  GradientPairT* pdst = reinterpret_cast<GradientPairT*>(reduce_buffer.Data());
+  std::vector<GradientPairT> reduce_buffer(sync_ids.size() * nbins);
   for (size_t i = 0; i < sync_ids.size(); i++) {
     auto this_hist = hist_[sync_ids[i]];
     const GradientPairT* psrc = reinterpret_cast<const GradientPairT*>(this_hist.DataConst());
-    std::copy(psrc, psrc + nbins, pdst + i * nbins);
+    std::copy(psrc, psrc + nbins, reduce_buffer.begin() + i * nbins);
   }
-  histred_.Allreduce(pdst, nbins * sync_ids.size());
+  histred_.Allreduce(reduce_buffer.data(), nbins * sync_ids.size());
   for (size_t i = 0; i < sync_ids.size(); i++) {
     auto this_hist = hist_[sync_ids[i]];
     GradientPairT* psrc = reinterpret_cast<GradientPairT*>(this_hist.Data());
-    std::copy(pdst + i * nbins, pdst + (i + 1) * nbins, psrc);
+    std::copy(reduce_buffer.begin() + i * nbins, reduce_buffer.begin() + (i + 1) * nbins, psrc);
   }
 }
 
@@ -1024,20 +1021,22 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::EvaluateSplits(
 // Handle dense columns
 // Analog of std::stable_partition, but in no-inplace manner
 template <bool default_left, bool any_missing, size_t subgroup_size, typename BinIdxType>
-inline std::pair<size_t, size_t> PartitionDenseKernel(
-    cl::sycl::queue qu,
+inline void PartitionDenseKernel(common::Monitor & updater_monitor,
+    cl::sycl::queue& qu,
+    const size_t node_in_set,
     const common::DenseColumnOneAPI<BinIdxType>& column,
-    common::Span<const size_t> rid_span,
+    common::Span<const size_t>& rid_span,
     const int32_t split_cond,
-    common::Span<size_t> left_part,
-    common::Span<size_t> right_part,
-    common::Span<size_t> prefix_sums,
+    common::Span<size_t>& left_part,
+    common::Span<size_t>& right_part,
+    common::Span<size_t>& prefix_sums,
+    cl::sycl::buffer<size_t, 1>& parts_size, 
     size_t local_size) {
   const int32_t offset = column.GetBaseIdx();
   const BinIdxType* idx = column.GetFeatureBinIdxPtr().data();
   const size_t* rid = &rid_span[0];
   const size_t range_size = rid_span.size();
-  const size_t n_sums = range_size / local_size + !!(range_size % local_size);
+  size_t n_sums = range_size / local_size + !!(range_size % local_size);
   size_t* prefix_sums_data = &prefix_sums[0];
 
   /* flags for missing values in dense columns */
@@ -1048,76 +1047,17 @@ inline std::pair<size_t, size_t> PartitionDenseKernel(
   size_t* p_right_part = right_part.data();
 
   qu.submit([&](cl::sycl::handler& cgh) {
-    cgh.parallel_for<>(cl::sycl::nd_range<2>(cl::sycl::range<2>(n_sums, subgroup_size),
-                                             cl::sycl::range<2>(1, subgroup_size)), [=](cl::sycl::nd_item<2> nid) [[intel::reqd_sub_group_size(subgroup_size)]]{
-      const size_t sum_id = nid.get_global_id(0);
-      const size_t local_id = nid.get_local_id(1);
-
-      const auto sg = nid.get_sub_group();
-
-      size_t begin = sum_id * local_size;
-      size_t end = (sum_id + 1) * local_size;
-
-      if (end > range_size) {
-        end = range_size;
-      }
-
-      size_t total_sum = 0;
-      for (size_t row = begin + local_id; row < end; row += subgroup_size) {
-        bool is_left = (any_missing && missing_flags && missing_flags[feature_offset + rid[row]]) ? default_left : (static_cast<int32_t>(idx[rid[row]]) + offset) <= split_cond;
-        total_sum += (size_t)is_left;
-      }
-
-      nid.barrier(cl::sycl::access::fence_space::local_space);
-
-      total_sum = reduce(sg, total_sum, sycl::ONEAPI::plus<size_t>());
-
-      if (local_id == 0) {
-        prefix_sums_data[sum_id] = total_sum;
+    auto parts_size_acc = parts_size.template get_access<cl::sycl::access::mode::atomic>(cgh);
+    cgh.parallel_for<>(cl::sycl::range<1>(range_size), [=](cl::sycl::item<1> nid) {
+      const size_t id = rid[nid.get_id(0)];
+      const bool is_left = (any_missing && missing_flags && missing_flags[feature_offset + id]) ? default_left : (static_cast<int32_t>(idx[id]) + offset) <= split_cond;
+      if (is_left) {
+        p_left_part[cl::sycl::atomic_fetch_add<size_t>(parts_size_acc[node_in_set * 2], 1)] = id;
+      } else {
+        p_left_part[range_size - cl::sycl::atomic_fetch_add<size_t>(parts_size_acc[node_in_set * 2 + 1], 1)] = id;
       }
     });
   }).wait();
-
-  size_t nleft_elems = 0;
-  for (size_t i = 0; i < n_sums; i++) {
-    size_t current_sum = prefix_sums_data[i];
-    prefix_sums_data[i] = nleft_elems;
-    nleft_elems += current_sum;
-  }
-  size_t nright_elems = range_size - nleft_elems;
-
-  qu.submit([&](cl::sycl::handler& cgh) {
-    cgh.parallel_for<>(cl::sycl::nd_range<2>(cl::sycl::range<2>(n_sums, subgroup_size),
-                                             cl::sycl::range<2>(1, subgroup_size)), [=](cl::sycl::nd_item<2> nid) [[intel::reqd_sub_group_size(subgroup_size)]]{
-      const size_t sum_id = nid.get_global_id(0);
-      const size_t local_id = nid.get_local_id(1);
-
-      const auto sg = nid.get_sub_group();
-
-      size_t begin = sum_id * local_size;
-      size_t end = (sum_id + 1) * local_size;
-
-      if (end > range_size) {
-        end = range_size;
-      }
-
-      size_t total_sum = prefix_sums_data[sum_id];
-      for (size_t row = begin + local_id; row < end; row += subgroup_size) {
-        size_t id = rid[row];
-        bool is_left = (any_missing && missing_flags && missing_flags[feature_offset + id]) ? default_left : (static_cast<int32_t>(idx[id]) + offset) <= split_cond;
-        nid.barrier(cl::sycl::access::fence_space::local_space);
-        size_t offset = exclusive_scan(sg, (size_t)is_left, sycl::ONEAPI::plus<size_t>());
-        if (is_left) {
-          p_left_part[total_sum + offset] = id;
-        } else {
-          p_right_part[row - (total_sum + offset)] = id;
-        }
-        total_sum += reduce(sg, (size_t)is_left, sycl::ONEAPI::plus<size_t>());
-      }                                                                                                        
-    });
-  }).wait();
-
-  return {nleft_elems, nright_elems};
 }
 
 template <typename GradientSumT>
@@ -1128,7 +1068,8 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::PartitionKernel(
     common::Range1d range,
     const int32_t split_cond,
     const ColumnMatrixOneAPI& column_matrix,
-    const RegTree& tree) {
+    const RegTree& tree,
+    cl::sycl::buffer<size_t, 1>& parts_size) {
   const size_t* rid = row_set_collection_[nid].begin;
 
   common::Span<const size_t> rid_span(rid + range.begin(), rid + range.end());
@@ -1140,41 +1081,29 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::PartitionKernel(
   const bool default_left = tree[nid].DefaultLeft();                                          
   const auto column_ptr = column_matrix.GetColumn<BinIdxType>(fid);
 
-  std::pair<size_t, size_t> child_nodes_sizes;
-
   if (column_ptr->GetType() == xgboost::common::kDenseColumn) {
     const common::DenseColumnOneAPI<BinIdxType>& column =
           static_cast<const common::DenseColumnOneAPI<BinIdxType>& >(*(column_ptr.get()));
     if (default_left) {
       if (column_matrix.AnyMissing()) {
-        child_nodes_sizes = PartitionDenseKernel<true, true,
-                                                 common::PartitionBuilderOneAPI::subgroupSize>(qu_, column, rid_span, split_cond,
-                                                                                               left, right, prefix_sums, local_size);
+        PartitionDenseKernel<true, true, common::PartitionBuilderOneAPI::subgroupSize>(builder_monitor_, qu_, node_in_set, column, rid_span, split_cond,
+                                                                                               left, right, prefix_sums, parts_size, local_size);
       } else {
-        child_nodes_sizes = PartitionDenseKernel<true, false,
-                                                 common::PartitionBuilderOneAPI::subgroupSize>(qu_, column, rid_span, split_cond,
-                                                                                               left, right, prefix_sums, local_size);
+        PartitionDenseKernel<true, false, common::PartitionBuilderOneAPI::subgroupSize>(builder_monitor_, qu_, node_in_set, column, rid_span, split_cond,
+                                                                                               left, right, prefix_sums, parts_size, local_size);
       }
     } else {
       if (column_matrix.AnyMissing()) {
-        child_nodes_sizes = PartitionDenseKernel<false, true,
-                                                 common::PartitionBuilderOneAPI::subgroupSize>(qu_, column, rid_span, split_cond,
-                                                                                               left, right, prefix_sums, local_size);
+        PartitionDenseKernel<false, true, common::PartitionBuilderOneAPI::subgroupSize>(builder_monitor_, qu_, node_in_set, column, rid_span, split_cond,
+                                                                                               left, right, prefix_sums, parts_size, local_size);
       } else {
-        child_nodes_sizes = PartitionDenseKernel<false, false,
-                                                 common::PartitionBuilderOneAPI::subgroupSize>(qu_, column, rid_span, split_cond,
-                                                                                               left, right, prefix_sums, local_size);
+        PartitionDenseKernel<false, false, common::PartitionBuilderOneAPI::subgroupSize>(builder_monitor_, qu_, node_in_set, column, rid_span, split_cond,
+                                                                                               left, right, prefix_sums, parts_size, local_size);
       }
     }
   } else {
     LOG(WARNING) << "Sparse data is currently unsupported for updater_quantile_hist_oneapi";
   }
-
-  const size_t n_left  = child_nodes_sizes.first;
-  const size_t n_right = child_nodes_sizes.second;
-
-  partition_builder_.SetNLeftElems(node_in_set, n_left);
-  partition_builder_.SetNRightElems(node_in_set, n_right);
 }
 
 template <typename GradientSumT>
@@ -1236,37 +1165,51 @@ void GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::ApplySplit(const std::ve
     return row_set_collection_[nid].Size();
   });
 
+  cl::sycl::buffer<size_t, 1> parts_size(n_nodes * 2);
+  {
+    auto parts_size_acc = parts_size.template get_access<cl::sycl::access::mode::write>();
+    for (size_t node_in_set = 0; node_in_set < n_nodes; node_in_set++) {
+      parts_size_acc[node_in_set * 2] = 0;
+      parts_size_acc[node_in_set * 2 + 1] = 0;
+    }
+  }
   for (size_t node_in_set = 0; node_in_set < n_nodes; node_in_set++) {
     const int32_t nid = nodes[node_in_set].nid;
     if (row_set_collection_[nid].Size() > 0) {
       switch (column_matrix.GetTypeSize()) {
         case common::kUint8BinsTypeSize:
           PartitionKernel<uint8_t>(node_in_set, nid, common::Range1d(0, row_set_collection_[nid].Size()),
-                    split_conditions[node_in_set], column_matrix, *p_tree);
+                    split_conditions[node_in_set], column_matrix, *p_tree, parts_size);
           break;
         case common::kUint16BinsTypeSize:
           PartitionKernel<uint16_t>(node_in_set, nid, common::Range1d(0, row_set_collection_[nid].Size()),
-                    split_conditions[node_in_set], column_matrix, *p_tree);
+                    split_conditions[node_in_set], column_matrix, *p_tree, parts_size);
           break;
         case common::kUint32BinsTypeSize:
           PartitionKernel<uint32_t>(node_in_set, nid, common::Range1d(0, row_set_collection_[nid].Size()),
-                    split_conditions[node_in_set], column_matrix, *p_tree);
+                    split_conditions[node_in_set], column_matrix, *p_tree, parts_size);
           break;
         default:
           CHECK(false);  // no default behavior
       }
-    } else {
-      partition_builder_.SetNLeftElems(node_in_set, 0);
-      partition_builder_.SetNRightElems(node_in_set, 0);
     }
   }
 
+  {
+    auto parts_size_acc = parts_size.template get_access<cl::sycl::access::mode::write>();
+    for (size_t node_in_set = 0; node_in_set < n_nodes; node_in_set++) {
+      partition_builder_.SetNLeftElems(node_in_set, parts_size_acc[node_in_set * 2]);
+      partition_builder_.SetNRightElems(node_in_set, parts_size_acc[node_in_set * 2 + 1]);
+    }
+  }
   partition_builder_.CalculateRowOffsets();
 
   for (size_t node_in_set = 0; node_in_set < n_nodes; node_in_set++) {
     const int32_t nid = nodes[node_in_set].nid;
     partition_builder_.MergeToArray(node_in_set, const_cast<size_t*>(row_set_collection_[nid].begin));
   }
+
+  qu_.wait();
 
   AddSplitsToRowSet(nodes, p_tree);
 
@@ -1397,22 +1340,22 @@ template struct GPUQuantileHistMakerOneAPI::Builder<float>;
 template struct GPUQuantileHistMakerOneAPI::Builder<double>;
 template void GPUQuantileHistMakerOneAPI::Builder<float>::PartitionKernel<uint8_t>(
     const size_t node_in_set, const size_t nid, common::Range1d range,
-    const int32_t split_cond, const ColumnMatrixOneAPI& column_matrix, const RegTree& tree);
+    const int32_t split_cond, const ColumnMatrixOneAPI& column_matrix, const RegTree& tree, cl::sycl::buffer<size_t, 1>& parts_size);
 template void GPUQuantileHistMakerOneAPI::Builder<float>::PartitionKernel<uint16_t>(
     const size_t node_in_set, const size_t nid, common::Range1d range,
-    const int32_t split_cond, const ColumnMatrixOneAPI& column_matrix, const RegTree& tree);
+    const int32_t split_cond, const ColumnMatrixOneAPI& column_matrix, const RegTree& tree, cl::sycl::buffer<size_t, 1>& parts_size);
 template void GPUQuantileHistMakerOneAPI::Builder<float>::PartitionKernel<uint32_t>(
     const size_t node_in_set, const size_t nid, common::Range1d range,
-    const int32_t split_cond, const ColumnMatrixOneAPI& column_matrix, const RegTree& tree);
+    const int32_t split_cond, const ColumnMatrixOneAPI& column_matrix, const RegTree& tree, cl::sycl::buffer<size_t, 1>& parts_size);
 template void GPUQuantileHistMakerOneAPI::Builder<double>::PartitionKernel<uint8_t>(
     const size_t node_in_set, const size_t nid, common::Range1d range,
-    const int32_t split_cond, const ColumnMatrixOneAPI& column_matrix, const RegTree& tree);
+    const int32_t split_cond, const ColumnMatrixOneAPI& column_matrix, const RegTree& tree, cl::sycl::buffer<size_t, 1>& parts_size);
 template void GPUQuantileHistMakerOneAPI::Builder<double>::PartitionKernel<uint16_t>(
     const size_t node_in_set, const size_t nid, common::Range1d range,
-    const int32_t split_cond, const ColumnMatrixOneAPI& column_matrix, const RegTree& tree);
+    const int32_t split_cond, const ColumnMatrixOneAPI& column_matrix, const RegTree& tree, cl::sycl::buffer<size_t, 1>& parts_size);
 template void GPUQuantileHistMakerOneAPI::Builder<double>::PartitionKernel<uint32_t>(
     const size_t node_in_set, const size_t nid, common::Range1d range,
-    const int32_t split_cond, const ColumnMatrixOneAPI& column_matrix, const RegTree& tree);
+    const int32_t split_cond, const ColumnMatrixOneAPI& column_matrix, const RegTree& tree, cl::sycl::buffer<size_t, 1>& parts_size);
 
 XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMakerOneAPI, "grow_quantile_histmaker_oneapi")
 .describe("Grow tree using quantized histogram with dpc++.")
