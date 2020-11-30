@@ -18,7 +18,6 @@ HostSketchContainer::HostSketchContainer(std::vector<bst_row_t> columns_size,
       use_group_ind_{use_group} {
   monitor_.Init(__func__);
   CHECK_NE(columns_size_.size(), 0);
-  //sketches_ = new WQSketchManager();
   sketches_.resize(columns_size_.size());
   for (size_t i = 0; i < sketches_.size(); ++i) {
     auto n_bins = std::min(static_cast<size_t>(max_bins_), columns_size_[i]);
@@ -169,8 +168,6 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
   auto const nBatchRows = batch.Size();
   std::cout << "MC is_dense: " << is_dense << " nnonzero: " << info.num_nonzero_ << " ncol: " << info.num_col_ << " nrow: " << info.num_row_ << " nBatchRows: " << nBatchRows << std::endl;
   
-  std::unordered_map<uint32_t, std::vector<WQSketch> > multi_sketches; // sketches_ per thread
-  
   monitor_.Start("PushRowPage3");
 #pragma omp parallel num_threads(nthread)
   {
@@ -199,7 +196,7 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
           if (is_dense) {
             for (size_t ii = 0; ii < ncol; ii++) { // traverse through columns
 			  //std::pair<bst_float, bst_float> p = std::make_pair(p_inst[ii].fvalue, w);			  
-			  sketches_.get(ii).Push(p_inst[ii].fvalue, w);
+			  sketches_.get(tid, ii).Push(p_inst[ii].fvalue, w);
 			  
 			  /*if (ii % 1000000 == 0) {
 				  //std::cout << "MC p value == calc: " << p.first << ";" << p.second << " == ";
@@ -210,7 +207,7 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
           } else {
             for (size_t i = 0; i < inst.size(); ++i) {
               auto const& entry = p_inst[i];
-              sketches_.get(entry.index).Push(entry.fvalue, w);
+              sketches_.get(tid, entry.index).Push(entry.fvalue, w);
               std::cout << "MC push2: " << entry.fvalue << std::endl;
               /*if (entry.index >= begin && entry.index < end) {
                 sketches_[entry.index].Push(entry.fvalue, w);
@@ -239,16 +236,16 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
 		 std::cout << std::endl;
 	  }
 	}
-*/
+
   std::cout << "MC sketches size: " << sketches_.size() << std::endl;
-  for (size_t i=0; i < sketches_.size(); i++) {
-     std::cout << "MC sketches i: " << sketches_.get(i).inqueue.queue.size() << std::endl;
-	 for (size_t iv=0; iv < sketches_.get(i).inqueue.queue.size(); iv ++){
-		std::cout << sketches_.get(i).inqueue.queue[iv].value << ";";
+  for ( size_t ithread = 0 ; ithread < sketches_.size() ; ++ithread ) {
+     std::cout << "MC sketches i: " << sketches_.get(ithread, i).inqueue.queue.size() << std::endl;
+	 for (size_t iv=0; iv < sketches_.get(ithread, i).inqueue.queue.size(); ++iv){
+		std::cout << sketches_.get(ithread, i).inqueue.queue[iv].value << ";";
 	 }
 	 std::cout << std::endl;
   }
-
+*/
 }
 
 void HostSketchContainer::GatherSketchInfo(
@@ -318,14 +315,14 @@ void HostSketchContainer::AllReduce(
   // Prune the intermediate num cuts for synchronization.
   std::vector<bst_row_t> global_column_size(columns_size_);
   rabit::Allreduce<rabit::op::Sum>(global_column_size.data(), global_column_size.size());
-
+  sketches_.merge();
 size_t nbytes = 0;
   for (size_t i = 0; i < sketches_.size(); ++i) {
     int32_t intermediate_num_cuts =  static_cast<int32_t>(std::min(
         global_column_size[i], static_cast<size_t>(max_bins_ * WQSketch::kFactor)));
     if (global_column_size[i] != 0) {
       WQSketch::SummaryContainer out;
-      sketches_.get(i).GetSummary(&out);
+      sketches_.get(0, i).GetSummary(&out);
       reduced[i].Reserve(intermediate_num_cuts);
       CHECK(reduced[i].data);
       reduced[i].SetPrune(out, intermediate_num_cuts);

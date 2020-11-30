@@ -17,6 +17,7 @@
 #include <iostream>
 
 #include "timer.h"
+#include <math.h>       /* ceil */
 
 namespace xgboost {
 namespace common {
@@ -708,28 +709,61 @@ class HostSketchContainer {
  private:
  struct WQSketchManager {
  private:
-   std::vector<WQSketch> sketches_;
- public:
- inline void Init(size_t maxn, double eps, size_t i) {
-	 sketches_[i].Init(maxn, eps);
-	 sketches_[i].inqueue.queue.resize(sketches_[i].limit_size * 2);
- }
+   //std::vector<WQSketch> sketches_;
+   std::vector<std::vector<WQSketch> > sketches_; // sketches_ per thread
+   size_t columns_size_;
+   size_t size_per_thread_;
+   int nthread_ = omp_get_max_threads();
  
+ public:
+ /*
+ isketch sketch position (WQKetch) in the data.
+ */
+ inline void Init(size_t maxn, double eps, size_t isketch) {	 
+	for (size_t i=0; i < nthread_; i++) {
+		sketches_[i][isketch].Init(maxn, eps);
+		sketches_[i][isketch].inqueue.queue.resize(sketches_[i][isketch].limit_size * 2);
+	}
+ }
+
  void resize(int columns_size) {
-	 sketches_.resize(columns_size);
+	 columns_size_ = columns_size;	 
+	 sketches_.resize(nthread_);
+	 for (size_t i=0; i < nthread_; i++) {
+		sketches_[i].resize(columns_size_);
+	 }
  }
 
  size_t size() {
-	 return sketches_.size();
+	 return columns_size_;
  }
  
- WQSketch& get(size_t position){
+/* \brief Get the sketch element.
+*
+* \param ithread position of the entire sketch that belongs to this thread index.
+* \param isketch position of sketch element.
+*/
+ WQSketch& get(size_t ithread, size_t isketch){
 	 //std::cout << "MC inside get pos: " << position << "; size: " << sketches_.size() << "; ret: " << sketches_[position].inqueue.queue.size() << std::endl;
-	 return sketches_[position];
+	 return sketches_[ithread][isketch];
  }
  
- void print(size_t position){
-	 std::cout << sketches_[position].inqueue.queue[sketches_.size()-1].value << ";";
+ /*
+ * \brief This method will merge each thread's sketches into 1 vector, which will reside in position 0.
+ */
+ void merge() {
+	 // TODO #pragma omp parallel
+	 for ( size_t ithread = 1 ; ithread < sketches_.size() ; ++ithread ) {
+		 for ( size_t iCol = 0 ; iCol < columns_size_ ; ++iCol  ) {
+			 WQSketch::SummaryContainer out;
+			 sketches_[ithread][iCol].GetSummary(&out);
+			 sketches_[0][iCol].PushSummary(out);
+		 }
+	 }
+ }
+ 
+ void print(size_t ithread, size_t isketch){
+	 std::cout << sketches_[ithread][isketch].inqueue.queue[sketches_.size()-1].value << ";";
  }
  
 };
