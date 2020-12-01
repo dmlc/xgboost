@@ -7,9 +7,9 @@
 #ifndef XGBOOST_GLOBAL_CONFIG_H_
 #define XGBOOST_GLOBAL_CONFIG_H_
 
+#include <xgboost/parameter.h>
 #include <vector>
 #include <string>
-#include <xgboost/parameter.h>
 
 namespace xgboost {
 class Json;
