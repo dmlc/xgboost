@@ -145,7 +145,7 @@ class MissingValueHandlingSuite extends FunSuite with PerTest {
     }
   }
 
-  test("specify a non-zero missing value but set allow_non_zero_missing " +
+  test("specify a non-zero missing value but set allow_non_zero_for_missing " +
     "does not stop application") {
     val spark = ss
     import spark.implicits._

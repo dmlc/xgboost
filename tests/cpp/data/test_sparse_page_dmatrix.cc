@@ -2,6 +2,8 @@
 #include <dmlc/filesystem.h>
 #include <gtest/gtest.h>
 #include <xgboost/data.h>
+#include <thread>
+#include <future>
 #include "../../../src/common/io.h"
 #include "../../../src/data/adapter.h"
 #include "../../../src/data/sparse_page_dmatrix.h"
@@ -99,26 +101,32 @@ TEST(SparsePageDMatrix, ThreadSafetyException) {
   std::unique_ptr<xgboost::DMatrix> dmat =
       xgboost::CreateSparsePageDMatrix(kEntries, kPageSize, filename);
 
-  std::atomic<bool> exception {false};
   int threads = 1000;
 
-  std::vector<std::thread> waiting;
+  std::vector<std::future<void>> waiting;
+
+  std::atomic<bool> exception {false};
 
   for (int32_t i = 0; i < threads; ++i) {
-    waiting.emplace_back([&]() {
+    waiting.emplace_back(std::async(std::launch::async, [&]() {
       try {
         auto iter = dmat->GetBatches<SparsePage>().begin();
         ++iter;
       } catch (...) {
-        exception = true;
+        exception.store(true);
       }
-    });
+    }));
   }
 
-  for (auto& t : waiting) {
-    t.join();
+  using namespace std::chrono_literals;
+
+  while (std::any_of(waiting.cbegin(), waiting.cend(), [](auto const &f) {
+    return f.wait_for(0ms) != std::future_status::ready;
+  })) {
+    std::this_thread::sleep_for(50ms);
   }
-  EXPECT_TRUE(exception);
+
+  CHECK(exception);
 }
 
 // Multi-batches access
