@@ -42,7 +42,9 @@ TrackerLogger::~TrackerLogger() {
 namespace xgboost {
 
 bool ConsoleLogger::ShouldLog(LogVerbosity verbosity) {
-  return static_cast<int>(verbosity) <= (GlobalConfigThreadLocalStore::Get()->verbosity) || verbosity == LV::kIgnore;
+  return static_cast<int>(verbosity) <=
+             (GlobalConfigThreadLocalStore::Get()->verbosity) ||
+         verbosity == LV::kIgnore;
 }
 
 void ConsoleLogger::Configure(Args const& args) {

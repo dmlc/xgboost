@@ -88,12 +88,13 @@ XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
   API_BEGIN();
   auto const& global_config = *GlobalConfigThreadLocalStore::Get();
   Json config {ToJson(global_config)};
-  auto const mgr = global_config.__MANAGER__();
+  auto const* mgr = global_config.__MANAGER__();
 
   for (auto& item : get<Object>(config)) {
     auto const &str = get<String const>(item.second);
     auto const& name = item.first;
     auto e = mgr->Find(name);
+    CHECK(e);
 
     if (dynamic_cast<dmlc::parameter::FieldEntry<int32_t> const*>(e) ||
         dynamic_cast<dmlc::parameter::FieldEntry<int64_t> const*>(e) ||
