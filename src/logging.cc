@@ -41,32 +41,13 @@ TrackerLogger::~TrackerLogger() {
 
 namespace xgboost {
 
-thread_local ConsoleLogger::LogVerbosity ConsoleLogger::global_verbosity_ =
-    ConsoleLogger::DefaultVerbosity();
-
 bool ConsoleLogger::ShouldLog(LogVerbosity verbosity) {
-  return verbosity <= global_verbosity_ || verbosity == LV::kIgnore;
+  return static_cast<int>(verbosity) <= (GlobalConfigThreadLocalStore::Get()->verbosity) || verbosity == LV::kIgnore;
 }
 
 void ConsoleLogger::Configure(Args const& args) {
   auto& param = *GlobalConfigThreadLocalStore::Get();
   param.UpdateAllowUnknown(args);
-  switch (param.verbosity) {
-    case 0:
-      global_verbosity_ = LogVerbosity::kSilent;
-      break;
-    case 1:
-      global_verbosity_ = LogVerbosity::kWarning;
-      break;
-    case 2:
-      global_verbosity_ = LogVerbosity::kInfo;
-      break;
-    case 3:
-      global_verbosity_ = LogVerbosity::kDebug;
-    default:
-      // global verbosity doesn't require kIgnore
-      break;
-  }
 }
 
 ConsoleLogger::LogVerbosity ConsoleLogger::DefaultVerbosity() {
@@ -74,7 +55,25 @@ ConsoleLogger::LogVerbosity ConsoleLogger::DefaultVerbosity() {
 }
 
 ConsoleLogger::LogVerbosity ConsoleLogger::GlobalVerbosity() {
-  return global_verbosity_;
+  LogVerbosity global_verbosity { LogVerbosity::kWarning };
+  switch (GlobalConfigThreadLocalStore::Get()->verbosity) {
+  case 0:
+    global_verbosity = LogVerbosity::kSilent;
+    break;
+  case 1:
+    global_verbosity = LogVerbosity::kWarning;
+    break;
+  case 2:
+    global_verbosity = LogVerbosity::kInfo;
+    break;
+  case 3:
+    global_verbosity = LogVerbosity::kDebug;
+  default:
+    // global verbosity doesn't require kIgnore
+    break;
+  }
+
+  return global_verbosity;
 }
 
 ConsoleLogger::ConsoleLogger(LogVerbosity cur_verb) :

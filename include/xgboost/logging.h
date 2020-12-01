@@ -48,8 +48,6 @@ class ConsoleLogger : public BaseLogger {
   using LV = LogVerbosity;
 
  private:
-  static thread_local LogVerbosity global_verbosity_;
-
   LogVerbosity cur_verbosity_;
 
  public:
