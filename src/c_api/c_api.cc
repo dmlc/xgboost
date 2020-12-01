@@ -100,7 +100,7 @@ XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
         dynamic_cast<dmlc::parameter::FieldEntry<int64_t> const*>(e) ||
         dynamic_cast<dmlc::parameter::FieldEntry<uint32_t> const*>(e) ||
         dynamic_cast<dmlc::parameter::FieldEntry<uint64_t> const*>(e)) {
-      auto i = std::stol(str.data());
+      auto i = std::strtoimax(str.data(), nullptr, 10);
       item.second = Integer(i);
     } else if (dynamic_cast<dmlc::parameter::FieldEntry<float> const *>(e) ||
                dynamic_cast<dmlc::parameter::FieldEntry<double> const *>(e)) {
