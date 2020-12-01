@@ -36,5 +36,4 @@ using GlobalConfigurationThreadLocalStore
 GlobalConfigurationThreadLocalEntry& GlobalConfiguration::GetThreadLocal() {
   return *GlobalConfigurationThreadLocalStore::Get();
 }
-
 }  // namespace xgboost
