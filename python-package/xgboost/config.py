@@ -8,6 +8,16 @@ from functools import wraps
 from .core import _LIB, _check_call, c_str, py_str
 
 
+def _parse_parameter(value):
+    for t in (int, float, str):
+        try:
+            ret = t(value)
+            return ret
+        except ValueError:
+            continue
+    return None
+
+
 def config_doc(*, header=None, extra_note=None, parameters=None, returns=None, see_also=None):
     """Decorator to format docstring for config functions.
 
@@ -109,9 +119,12 @@ def config_doc(*, header=None, extra_note=None, parameters=None, returns=None, s
         Keyword arguments representing the parameters and their values
             """)
 def set_config(**new_config):
-    config_str = json.dumps(new_config)
+    _str_config = {}
+    for k, v in new_config.items():
+        _str_config[k] = str(v)
+    config = json.dumps(_str_config)
 
-    _check_call(_LIB.XGBSetGlobalConfig(c_str(config_str)))
+    _check_call(_LIB.XGBSetGlobalConfig(c_str(config)))
 
 
 @config_doc(header="""
@@ -126,8 +139,11 @@ def set_config(**new_config):
 def get_config():
     config_str = ctypes.c_char_p()
     _check_call(_LIB.XGBGetGlobalConfig(ctypes.byref(config_str)))
-    config = json.loads(py_str(config_str.value))
-
+    _str_config = json.loads(py_str(config_str.value))
+    config = {}
+    for k, v in _str_config.items():
+        config[k] = _parse_parameter(v)
+        assert config[k] is not None
     return config
 
 

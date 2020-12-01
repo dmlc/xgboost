@@ -6,6 +6,7 @@ import warnings
 import json
 import numpy as np
 from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
+from .config import _parse_parameter
 from .training import train
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
 
@@ -356,15 +357,6 @@ class XGBModel(XGBModelBase):
             params['random_state'] = params['random_state'].randint(
                 np.iinfo(np.int32).max)
 
-        def parse_parameter(value):
-            for t in (int, float, str):
-                try:
-                    ret = t(value)
-                    return ret
-                except ValueError:
-                    continue
-            return None
-
         # Get internal parameter values
         try:
             config = json.loads(self.get_booster().save_config())
@@ -381,7 +373,7 @@ class XGBModel(XGBModelBase):
 
             for k, v in internal.items():
                 if k in params.keys() and params[k] is None:
-                    params[k] = parse_parameter(v)
+                    params[k] = _parse_parameter(v)
         except ValueError:
             pass
         return params
