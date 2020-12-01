@@ -94,8 +94,8 @@ XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
   }
   // Ugly hack to the dmlc::Parameter to get the parameter type.
   // Currently save_config and load_config for booster just output strings as values.
-  std::set<std::string> integers {"int", "long", "unsigned"};
-  std::set<std::string> floatings {"float", "double"};
+  std::vector<std::string> integers {"int", "long", "unsigned"};
+  std::vector<std::string> floatings {"float", "double"};
   auto is_integer = [&](std::string const& str) {
     return std::any_of(integers.cbegin(), integers.cend(), [&](std::string substr) {
       return str.find(substr) != std::string::npos;
@@ -114,11 +114,13 @@ XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
     if (is_integer(type)) {
       auto i = std::stol(str.data());
       item.second = Integer(i);
-    } else if (is_float(str)) {
+    } else if (is_float(type)) {
       float f;
       auto ec = from_chars(str.data(), str.data() + str.size(), f).ec;
       CHECK(ec == std::errc());
       item.second = Number(f);
+    } else if (type == "boolean") {
+      item.second = Boolean(str != "0");
     }
   }
 
