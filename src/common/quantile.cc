@@ -221,6 +221,7 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
   }
   exec.Rethrow();
 
+  sketches_.merge();
   monitor_.Stop("PushRowPage3");
   monitor_.Stop(__func__);
 
@@ -315,7 +316,7 @@ void HostSketchContainer::AllReduce(
   // Prune the intermediate num cuts for synchronization.
   std::vector<bst_row_t> global_column_size(columns_size_);
   rabit::Allreduce<rabit::op::Sum>(global_column_size.data(), global_column_size.size());
-  sketches_.merge();
+  //sketches_.merge();
 size_t nbytes = 0;
   for (size_t i = 0; i < sketches_.size(); ++i) {
     int32_t intermediate_num_cuts =  static_cast<int32_t>(std::min(
