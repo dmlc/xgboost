@@ -86,40 +86,28 @@ using GlobalConfigAPIThreadLocalStore = dmlc::ThreadLocalStore<XGBAPIThreadLocal
 
 XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
   API_BEGIN();
-  std::map<std::string, std::string> types;
   auto const& global_config = *GlobalConfigThreadLocalStore::Get();
   Json config {ToJson(global_config)};
-  for (auto const& item : global_config.__FIELDS__()) {
-    types[item.name] = item.type;
-  }
-  // Ugly hack to the dmlc::Parameter to get the parameter type.
-  // Currently save_config and load_config for booster just output strings as values.
-  std::vector<std::string> integers {"int", "long", "unsigned"};
-  std::vector<std::string> floatings {"float", "double"};
-  auto is_integer = [&](std::string const& str) {
-    return std::any_of(integers.cbegin(), integers.cend(), [&](std::string substr) {
-      return str.find(substr) != std::string::npos;
-    });
-  };
-  auto is_float = [&](std::string const& str) {
-    return std::any_of(floatings.cbegin(), floatings.cend(), [&](std::string substr) {
-      return str.find(substr) != std::string::npos;
-    });
-  };
+  auto const mgr = global_config.__MANAGER__();
 
   for (auto& item : get<Object>(config)) {
     auto const &str = get<String const>(item.second);
     auto const& name = item.first;
-    auto const& type = types.at(name);
-    if (is_integer(type)) {
+    auto e = mgr->Find(name);
+
+    if (dynamic_cast<dmlc::parameter::FieldEntry<int32_t> const*>(e) ||
+        dynamic_cast<dmlc::parameter::FieldEntry<int64_t> const*>(e) ||
+        dynamic_cast<dmlc::parameter::FieldEntry<uint32_t> const*>(e) ||
+        dynamic_cast<dmlc::parameter::FieldEntry<uint64_t> const*>(e)) {
       auto i = std::stol(str.data());
       item.second = Integer(i);
-    } else if (is_float(type)) {
+    } else if (dynamic_cast<dmlc::parameter::FieldEntry<float> const *>(e) ||
+               dynamic_cast<dmlc::parameter::FieldEntry<double> const *>(e)) {
       float f;
       auto ec = from_chars(str.data(), str.data() + str.size(), f).ec;
       CHECK(ec == std::errc());
       item.second = Number(f);
-    } else if (type == "boolean") {
+    } else if (dynamic_cast<dmlc::parameter::FieldEntry<bool> const *>(e)) {
       item.second = Boolean(str != "0");
     }
   }
