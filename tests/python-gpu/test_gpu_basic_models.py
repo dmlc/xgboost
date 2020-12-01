@@ -52,3 +52,17 @@ class TestGPUBasicModels:
 
         model_0, model_1 = self.run_cls(X, y, False)
         assert model_0 != model_1
+
+    def test_invalid_gpu_id(self):
+        X = np.random.randn(10, 5) * 1e4
+        y = np.random.randint(0, 2, size=10) * 1e4
+        # should pass with invalid gpu id
+        cls1 = xgb.XGBClassifier(tree_method='gpu_hist', gpu_id=9999)
+        cls1.fit(X, y)
+        # should throw error with fail_on_invalid_gpu_id enabled
+        cls2 = xgb.XGBClassifier(tree_method='gpu_hist', gpu_id=9999, fail_on_invalid_gpu_id=True)
+        try:
+            cls2.fit(X, y)
+            assert False, "Should have failed with with fail_on_invalid_gpu_id enabled"
+        except xgb.core.XGBoostError as err:
+            assert "gpu_id 9999 is invalid" in str(err)

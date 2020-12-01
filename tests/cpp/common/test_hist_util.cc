@@ -35,7 +35,7 @@ void ParallelGHistBuilderReset() {
   for(size_t inode = 0; inode < kNodesExtended; inode++) {
     collection.AddHistRow(inode);
   }
-
+  collection.AllocateAllData();
   ParallelGHistBuilder<GradientSumT> hist_builder;
   hist_builder.Init(kBins);
   std::vector<GHistRow<GradientSumT>> target_hist(kNodes);
@@ -91,7 +91,7 @@ void ParallelGHistBuilderReduceHist(){
   for(size_t inode = 0; inode < kNodes; inode++) {
     collection.AddHistRow(inode);
   }
-
+  collection.AllocateAllData();
   ParallelGHistBuilder<GradientSumT> hist_builder;
   hist_builder.Init(kBins);
   std::vector<GHistRow<GradientSumT>> target_hist(kNodes);

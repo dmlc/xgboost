@@ -182,8 +182,10 @@ void DistributedHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT* builder
     }
   });
   builder->builder_monitor_.Start("SyncHistogramsAllreduce");
+
   builder->histred_.Allreduce(builder->hist_[starting_index].data(),
                                     builder->hist_builder_.GetNumBins() * sync_count);
+
   builder->builder_monitor_.Stop("SyncHistogramsAllreduce");
 
   ParallelSubtractionHist(builder, space, builder->nodes_for_explicit_hist_build_, p_tree);
@@ -232,7 +234,7 @@ void BatchHistRowsAdder<GradientSumT>::AddHistRows(BuilderT *builder,
   for (auto const& node : builder->nodes_for_subtraction_trick_) {
     builder->hist_.AddHistRow(node.nid);
   }
-
+  builder->hist_.AllocateAllData();
   builder->builder_monitor_.Stop("AddHistRows");
 }
 
@@ -268,6 +270,8 @@ void DistributedHistRowsAdder<GradientSumT>::AddHistRows(BuilderT *builder,
       builder->hist_local_worker_.AddHistRow(nid);
     }
   }
+  builder->hist_.AllocateAllData();
+  builder->hist_local_worker_.AllocateAllData();
   (*sync_count) = std::max(1, n_left);
   builder->builder_monitor_.Stop("AddHistRows");
 }
@@ -1166,7 +1170,7 @@ template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::ApplySplit(const std::vector<ExpandEntry> nodes,
                                             const GHistIndexMatrix& gmat,
                                             const ColumnMatrix& column_matrix,
-                                            const HistCollection<GradientSumT>&,
+                                            const HistCollection<GradientSumT>& hist,
                                             RegTree* p_tree) {
   builder_monitor_.Start("ApplySplit");
   // 1. Find split condition for each split
@@ -1189,7 +1193,10 @@ void QuantileHistMaker::Builder<GradientSumT>::ApplySplit(const std::vector<Expa
   // 2.3 Split elements of row_set_collection_ to left and right child-nodes for each node
   // Store results in intermediate buffers from partition_builder_
   common::ParallelFor2d(space, this->nthread_, [&](size_t node_in_set, common::Range1d r) {
+    size_t begin = r.begin();
     const int32_t nid = nodes[node_in_set].nid;
+    const size_t task_id = partition_builder_.GetTaskIdx(node_in_set, begin);
+    partition_builder_.AllocateForTask(task_id);
       switch (column_matrix.GetTypeSize()) {
       case common::kUint8BinsTypeSize:
         PartitionKernel<uint8_t>(node_in_set, nid, r,
