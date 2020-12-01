@@ -330,8 +330,11 @@ size_t nbytes = 0;
       nbytes = std::max(
           WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts),
           nbytes);
+      for (int32_t id = 0; id < out.size; ++id) {
+		std::cout << out.data[id] << ";";
+	  }
+	  std::cout << "" << std::endl;
     }
-
     num_cuts.push_back(intermediate_num_cuts);
   }
   auto world = rabit::GetWorldSize();

@@ -709,17 +709,17 @@ class HostSketchContainer {
  private:
  struct WQSketchManager {
  private:
-   //std::vector<WQSketch> sketches_;
+   //std::vector<WQSketch> sketches_; // this was used for single thread only
    std::vector<std::vector<WQSketch> > sketches_; // sketches_ per thread
    size_t columns_size_;
    size_t size_per_thread_;
-   int nthread_ = omp_get_max_threads();
+   int nthread_ = 1;//omp_get_max_threads();
  
  public:
  /*
  isketch sketch position (WQKetch) in the data.
  */
- inline void Init(size_t maxn, double eps, size_t isketch) {	 
+ inline void Init(size_t maxn, double eps, size_t isketch) {
 	for (size_t i=0; i < nthread_; i++) {
 		sketches_[i][isketch].Init(maxn, eps);
 		sketches_[i][isketch].inqueue.queue.resize(sketches_[i][isketch].limit_size * 2);
