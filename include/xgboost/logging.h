@@ -54,8 +54,6 @@ class ConsoleLogger : public BaseLogger {
 
  public:
   static void Configure(Args const& args);
-  void LoadConfig(Json const& in);
-  void SaveConfig(Json* out) const;
 
   static LogVerbosity GlobalVerbosity();
   static LogVerbosity DefaultVerbosity();

@@ -44,15 +44,6 @@ namespace xgboost {
 thread_local ConsoleLogger::LogVerbosity ConsoleLogger::global_verbosity_ =
     ConsoleLogger::DefaultVerbosity();
 
-void ConsoleLogger::LoadConfig(Json const &in) {
-  FromJson(in["logging"], GlobalConfigThreadLocalStore::Get());
-}
-
-void ConsoleLogger::SaveConfig(Json *out) const {
-  (*out)["logging"] = ToJson(*GlobalConfigThreadLocalStore::Get());
-  Configure({});
-}
-
 bool ConsoleLogger::ShouldLog(LogVerbosity verbosity) {
   return verbosity <= global_verbosity_ || verbosity == LV::kIgnore;
 }
