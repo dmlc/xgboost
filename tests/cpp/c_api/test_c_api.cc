@@ -217,7 +217,7 @@ TEST(CAPI, XGBGlobalConfig) {
   int ret;
   const char* config_str = R"json(
     {
-      "verbosity": 0
+      "verbosity": "0"
     }
   )json";
   ret = XGBSetGlobalConfig(config_str);
@@ -228,7 +228,7 @@ TEST(CAPI, XGBGlobalConfig) {
 
   std::string updated_config_str{updated_config_cstr};
   auto updated_config = Json::Load({updated_config_str.data(), updated_config_str.size()});
-  ASSERT_EQ(get<Integer>(updated_config["verbosity"]), 0);
+  ASSERT_EQ(get<String>(updated_config["verbosity"]), "0");
 }
 
 }  // namespace xgboost
