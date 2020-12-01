@@ -10,7 +10,7 @@
 #include <mutex>
 #include <vector>
 #include <string>
-#include "xgboost/parameter.h"
+#include <xgboost/parameter.h>
 
 namespace xgboost {
 class Json;

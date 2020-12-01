@@ -103,11 +103,7 @@ def config_doc(*, header=None, extra_note=None, parameters=None, returns=None, s
         Keyword arguments representing the parameters and their values
             """)
 def set_config(**new_config):
-    _str_config = {}
-    for k, v in new_config.items():
-        _str_config[k] = str(v)
-    config = json.dumps(_str_config)
-
+    config = json.dumps(new_config)
     _check_call(_LIB.XGBSetGlobalConfig(c_str(config)))
 
 
