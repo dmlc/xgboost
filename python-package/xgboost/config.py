@@ -37,27 +37,11 @@ def config_doc(*, header=None, extra_note=None, parameters=None, returns=None, s
 
     doc_template = """
     {header}
-    Global configuration consists of a collection of parameters that can be applied in the global
-    scope. See https://xgboost.readthedocs.io/en/latest/parameter.html for the full list of
-    parameters supported in the global configuration.
 
-    .. note:: Setting global configuration in a Dask cluster
+    Global configuration consists of a collection of parameters that can be applied in the
+    global scope. See https://xgboost.readthedocs.io/en/latest/parameter.html for the full
+    list of parameters supported in the global configuration.
 
-        By default, the global configuration of the scheduler process is not shared with the worker
-        processes:
-
-        .. code:: python
-
-            xgb.set_config(verbosity=0)  # has no effect on Dask worker processes
-
-        To set global configuration for worker processes, make sure to call ``set_config()`` with
-        ``client.run()``:
-
-        .. code:: python
-
-            with Client(cluster) as client:
-                # Set verbosity config in worker processes
-                client.run(xgb.set_config, verbosity=0)
     {extra_note}
 
     .. versionadded:: 1.3.0
