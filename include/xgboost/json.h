@@ -557,7 +557,6 @@ using String  = JsonString;
 using Null    = JsonNull;
 
 // Utils tailored for XGBoost.
-
 template <typename Parameter>
 Object ToJson(Parameter const& param) {
   Object obj;

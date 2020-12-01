@@ -123,11 +123,7 @@ def set_config(**new_config):
 def get_config():
     config_str = ctypes.c_char_p()
     _check_call(_LIB.XGBGetGlobalConfig(ctypes.byref(config_str)))
-    _str_config = json.loads(py_str(config_str.value))
-    config = {}
-    for k, v in _str_config.items():
-        config[k] = _parse_parameter(v)
-        assert config[k] is not None
+    config = json.loads(py_str(config_str.value))
     return config
 
 

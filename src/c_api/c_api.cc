@@ -22,6 +22,7 @@
 
 #include "c_api_error.h"
 #include "../common/io.h"
+#include "../common/charconv.h"
 #include "../data/adapter.h"
 #include "../data/simple_dmatrix.h"
 #include "../data/proxy_dmatrix.h"
@@ -49,9 +50,34 @@ XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
 
 XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
   API_BEGIN();
-
   std::string str{json_str};
   Json config{Json::Load(StringView{str.data(), str.size()})};
+  for (auto& items : get<Object>(config)) {
+    switch (items.second.GetValue().Type()) {
+    case xgboost::Value::ValueKind::kInteger: {
+      items.second = String{std::to_string(get<Integer const>(items.second))};
+      break;
+    }
+    case xgboost::Value::ValueKind::kBoolean: {
+      if (get<Boolean const>(items.second)) {
+        items.second = String{"true"};
+      } else {
+        items.second = String{"false"};
+      }
+      break;
+    }
+    case xgboost::Value::ValueKind::kNumber: {
+      auto n = get<Number const>(items.second);
+      char chars[NumericLimits<float>::kToCharsSize];
+      auto ec = to_chars(chars, chars + sizeof(chars), n).ec;
+      CHECK(ec == std::errc());
+      items.second = String{chars};
+      break;
+    }
+    default:
+      break;
+    }
+  }
   FromJson(config, GlobalConfigThreadLocalStore::Get());
   API_END();
 }
@@ -60,7 +86,42 @@ using GlobalConfigAPIThreadLocalStore = dmlc::ThreadLocalStore<XGBAPIThreadLocal
 
 XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
   API_BEGIN();
-  Json config {ToJson(*GlobalConfigThreadLocalStore::Get())};
+  std::map<std::string, std::string> types;
+  auto const& global_config = *GlobalConfigThreadLocalStore::Get();
+  Json config {ToJson(global_config)};
+  for (auto const& item : global_config.__FIELDS__()) {
+    types[item.name] = item.type;
+  }
+  // Ugly hack to the dmlc::Parameter to get the parameter type.
+  // Currently save_config and load_config for booster just output strings as values.
+  std::set<std::string> integers {"int", "long", "unsigned"};
+  std::set<std::string> floatings {"float", "double"};
+  auto is_integer = [&](std::string const& str) {
+    return std::any_of(integers.cbegin(), integers.cend(), [&](std::string substr) {
+      return str.find(substr) != std::string::npos;
+    });
+  };
+  auto is_float = [&](std::string const& str) {
+    return std::any_of(floatings.cbegin(), floatings.cend(), [&](std::string substr) {
+      return str.find(substr) != std::string::npos;
+    });
+  };
+
+  for (auto& item : get<Object>(config)) {
+    auto const &str = get<String const>(item.second);
+    auto const& name = item.first;
+    auto const& type = types.at(name);
+    if (is_integer(type)) {
+      auto i = std::stol(str.data());
+      item.second = Integer(i);
+    } else if (is_float(str)) {
+      float f;
+      auto ec = from_chars(str.data(), str.data() + str.size(), f).ec;
+      CHECK(ec == std::errc());
+      item.second = Number(f);
+    }
+  }
+
   auto& local = *GlobalConfigAPIThreadLocalStore::Get();
   Json::Dump(config, &local.ret_str);
   *json_str = local.ret_str.c_str();
