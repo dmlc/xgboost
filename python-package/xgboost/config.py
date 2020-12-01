@@ -8,16 +8,6 @@ from functools import wraps
 from .core import _LIB, _check_call, c_str, py_str
 
 
-def _parse_parameter(value):
-    for t in (int, float, str):
-        try:
-            ret = t(value)
-            return ret
-        except ValueError:
-            continue
-    return None
-
-
 def config_doc(*, header=None, extra_note=None, parameters=None, returns=None, see_also=None):
     """Decorator to format docstring for config functions.
 
