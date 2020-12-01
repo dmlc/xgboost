@@ -10,25 +10,22 @@
 #include <mutex>
 #include <vector>
 #include <string>
-#include "xgboost/logging.h"
-#include "xgboost/json.h"
+#include "xgboost/parameter.h"
 
 namespace xgboost {
+class Json;
 
-struct GlobalConfigurationThreadLocalEntry {
-  std::string ret_str;
+struct GlobalConfiguration : public XGBoostParameter<GlobalConfiguration> {
+  int verbosity;
+  DMLC_DECLARE_PARAMETER(GlobalConfiguration) {
+    DMLC_DECLARE_FIELD(verbosity)
+        .set_range(0, 3)
+        .set_default(1)  // shows only warning
+        .describe("Flag to print out detailed breakdown of runtime.");
+  }
 };
 
-class GlobalConfiguration {
- public:
-  static void SetConfig(Json const& config);
-  static Json GetConfig();
-
-  /*! \brief Get thread local memory for returning data from GlobalConfiguration.
-   *         Used in the C API. */
-  static GlobalConfigurationThreadLocalEntry& GetThreadLocal();
-};
-
+using GlobalConfigThreadLocalStore = dmlc::ThreadLocalStore<GlobalConfiguration>;
 }  // namespace xgboost
 
 #endif  // XGBOOST_GLOBAL_CONFIG_H_

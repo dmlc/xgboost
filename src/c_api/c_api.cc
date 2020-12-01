@@ -52,14 +52,16 @@ XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
 
   std::string str{json_str};
   Json config{Json::Load(StringView{str.data(), str.size()})};
-  GlobalConfiguration::SetConfig(config);
+  FromJson(config, GlobalConfigThreadLocalStore::Get());
   API_END();
 }
 
+using GlobalConfigAPIThreadLocalStore = dmlc::ThreadLocalStore<XGBAPIThreadLocalEntry>;
+
 XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
   API_BEGIN();
-  auto& local = GlobalConfiguration::GetThreadLocal();
-  Json config = GlobalConfiguration::GetConfig();
+  Json config {ToJson(*GlobalConfigThreadLocalStore::Get())};
+  auto& local = *GlobalConfigAPIThreadLocalStore::Get();
   Json::Dump(config, &local.ret_str);
   *json_str = local.ret_str.c_str();
   API_END();

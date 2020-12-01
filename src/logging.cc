@@ -11,12 +11,13 @@
 
 #include "xgboost/parameter.h"
 #include "xgboost/logging.h"
+#include "xgboost/json.h"
 
 #if !defined(XGBOOST_STRICT_R_MODE) || XGBOOST_STRICT_R_MODE == 0
 // Override logging mechanism for non-R interfaces
 void dmlc::CustomLogMessage::Log(const std::string& msg) {
-  const xgboost::LogCallbackRegistry* registry
-    = xgboost::LogCallbackRegistryStore::Get();
+  const xgboost::LogCallbackRegistry *registry =
+      xgboost::LogCallbackRegistryStore::Get();
   auto callback = registry->Get();
   callback(msg.c_str());
 }
@@ -40,20 +41,26 @@ TrackerLogger::~TrackerLogger() {
 
 namespace xgboost {
 
-DMLC_REGISTER_PARAMETER(ConsoleLoggerParam);
-
-ConsoleLogger::LogVerbosity ConsoleLogger::global_verbosity_ =
+thread_local ConsoleLogger::LogVerbosity ConsoleLogger::global_verbosity_ =
     ConsoleLogger::DefaultVerbosity();
 
-ConsoleLoggerParam ConsoleLogger::param_ = ConsoleLoggerParam();
+void ConsoleLogger::LoadConfig(Json const &in) {
+  FromJson(in["logging"], GlobalConfigThreadLocalStore::Get());
+}
+
+void ConsoleLogger::SaveConfig(Json *out) const {
+  (*out)["logging"] = ToJson(*GlobalConfigThreadLocalStore::Get());
+  Configure({});
+}
 
 bool ConsoleLogger::ShouldLog(LogVerbosity verbosity) {
   return verbosity <= global_verbosity_ || verbosity == LV::kIgnore;
 }
 
 void ConsoleLogger::Configure(Args const& args) {
-  param_.UpdateAllowUnknown(args);
-  switch (param_.verbosity) {
+  auto& param = *GlobalConfigThreadLocalStore::Get();
+  param.UpdateAllowUnknown(args);
+  switch (param.verbosity) {
     case 0:
       global_verbosity_ = LogVerbosity::kSilent;
       break;

@@ -486,6 +486,12 @@ class LearnerConfiguration : public Learner {
 
     // Extract all parameters
     std::vector<std::string> keys;
+    // First global parameters
+    Json const global_config{ToJson(*GlobalConfigThreadLocalStore::Get())};
+    for (auto const& items : get<Object const>(global_config)) {
+      keys.emplace_back(items.first);
+    }
+    // Parameters in various xgboost components.
     while (!stack.empty()) {
       auto j_obj = stack.top();
       stack.pop();
