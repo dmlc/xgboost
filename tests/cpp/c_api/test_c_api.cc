@@ -215,20 +215,47 @@ TEST(CAPI, Exception) {
 
 TEST(CAPI, XGBGlobalConfig) {
   int ret;
-  const char* config_str = R"json(
+  {
+    const char *config_str = R"json(
     {
       "verbosity": 0
     }
   )json";
-  ret = XGBSetGlobalConfig(config_str);
-  ASSERT_EQ(ret, 0);
-  const char* updated_config_cstr;
-  ret = XGBGetGlobalConfig(&updated_config_cstr);
-  ASSERT_EQ(ret, 0);
+    ret = XGBSetGlobalConfig(config_str);
+    ASSERT_EQ(ret, 0);
+    const char *updated_config_cstr;
+    ret = XGBGetGlobalConfig(&updated_config_cstr);
+    ASSERT_EQ(ret, 0);
 
-  std::string updated_config_str{updated_config_cstr};
-  auto updated_config = Json::Load({updated_config_str.data(), updated_config_str.size()});
-  ASSERT_EQ(get<Integer>(updated_config["verbosity"]), 0);
+    std::string updated_config_str{updated_config_cstr};
+    auto updated_config =
+        Json::Load({updated_config_str.data(), updated_config_str.size()});
+    ASSERT_EQ(get<Integer>(updated_config["verbosity"]), 0);
+  }
+  {
+    const char *config_str = R"json(
+    {
+      "foo": 0
+    }
+  )json";
+    ret = XGBSetGlobalConfig(config_str);
+    ASSERT_EQ(ret , -1);
+    auto err = std::string{XGBGetLastError()};
+    ASSERT_NE(err.find("foo"), std::string::npos);
+  }
+  {
+    const char *config_str = R"json(
+    {
+      "foo": 0,
+      "verbosity": 0
+    }
+  )json";
+    ret = XGBSetGlobalConfig(config_str);
+    ASSERT_EQ(ret , -1);
+    auto err = std::string{XGBGetLastError()};
+    ASSERT_NE(err.find("foo"), std::string::npos);
+    ASSERT_EQ(err.find("verbosity"), std::string::npos);
+  }
 }
 
 }  // namespace xgboost

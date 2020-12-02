@@ -567,13 +567,13 @@ Object ToJson(Parameter const& param) {
 }
 
 template <typename Parameter>
-void FromJson(Json const& obj, Parameter* param) {
+Args FromJson(Json const& obj, Parameter* param) {
   auto const& j_param = get<Object const>(obj);
   std::map<std::string, std::string> m;
   for (auto const& kv : j_param) {
     m[kv.first] = get<String const>(kv.second);
   }
-  param->UpdateAllowUnknown(m);
+  return param->UpdateAllowUnknown(m);
 }
 }  // namespace xgboost
 #endif  // XGBOOST_JSON_H_

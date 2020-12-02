@@ -78,7 +78,20 @@ XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
       break;
     }
   }
-  FromJson(config, GlobalConfigThreadLocalStore::Get());
+  auto unknown = FromJson(config, GlobalConfigThreadLocalStore::Get());
+  if (!unknown.empty()) {
+    std::stringstream ss;
+    ss << "Unknown global parameters: { ";
+    size_t i = 0;
+    for (auto const& item : unknown) {
+      ss << item.first;
+      i++;
+      if (i != unknown.size()) {
+        ss << ", ";
+      }
+    }
+    LOG(FATAL) << ss.str()  << " }";
+  }
   API_END();
 }
 
