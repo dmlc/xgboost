@@ -63,8 +63,8 @@ def config_doc(*, header=None, extra_note=None, parameters=None, returns=None, s
         assert xgb.get_config()['verbosity'] == 2  # old value restored
     """
 
-    def none_to_str(v):
-        return '' if v is None else v
+    def none_to_str(value):
+        return '' if value is None else value
 
     def config_doc_decorator(func):
         func.__doc__ = (doc_template.format(header=none_to_str(header),
@@ -116,7 +116,7 @@ def get_config():
             parameters="""
     Parameters
     ----------
-    new_config: Dict[str, str]
+    new_config: Dict[str, Any]
         Keyword arguments representing the parameters and their values
             """,
             extra_note="""
