@@ -8,7 +8,8 @@ from functools import wraps
 from .core import _LIB, _check_call, c_str, py_str
 
 
-def config_doc(*, header=None, extra_note=None, parameters=None, returns=None, see_also=None):
+def config_doc(*, header=None, extra_note=None, parameters=None, returns=None,
+               see_also=None):
     """Decorator to format docstring for config functions.
 
     Parameters
@@ -29,7 +30,7 @@ def config_doc(*, header=None, extra_note=None, parameters=None, returns=None, s
     {header}
 
     Global configuration consists of a collection of parameters that can be applied in the
-    global scope. See https://xgboost.readthedocs.io/en/latest/parameter.html for the full
+    global scope. See https://xgboost.readthedocs.io/en/stable/parameter.html for the full
     list of parameters supported in the global configuration.
 
     {extra_note}
@@ -122,8 +123,8 @@ def get_config():
             extra_note="""
     .. note::
 
-        All settings, not just those presently modified, will be returned to their previous values
-        when the context manager is exited. This is not thread-safe.
+        All settings, not just those presently modified, will be returned to their
+        previous values when the context manager is exited. This is not thread-safe.
             """,
             see_also="""
     See Also

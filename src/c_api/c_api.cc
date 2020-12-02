@@ -105,7 +105,7 @@ XGB_DLL int XGBGetGlobalConfig(const char** json_str) {
 
   for (auto& item : get<Object>(config)) {
     auto const &str = get<String const>(item.second);
-    auto const& name = item.first;
+    auto const &name = item.first;
     auto e = mgr->Find(name);
     CHECK(e);
 

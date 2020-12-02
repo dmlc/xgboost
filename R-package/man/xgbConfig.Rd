@@ -19,11 +19,11 @@ a list containing all global-scope parameters and their values.
 }
 \description{
 Global configuration consists of a collection of parameters that can be applied in the global
-scope. See \url{https://xgboost.readthedocs.io/en/latest/parameter.html} for the full list of
+scope. See \url{https://xgboost.readthedocs.io/en/stable/parameter.html} for the full list of
 parameters supported in the global configuration. Use \code{xgb.set.config} to update the
 values of one or more global-scope parameters. Use \code{xgb.get.config} to fetch the current
 values of all global-scope parameters (listed in
-\url{https://xgboost.readthedocs.io/en/latest/parameter.html}).
+\url{https://xgboost.readthedocs.io/en/stable/parameter.html}).
 }
 \examples{
 # Set verbosity level to silent (0)
