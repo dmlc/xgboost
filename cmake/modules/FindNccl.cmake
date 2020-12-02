@@ -22,19 +22,24 @@
 #
 #  NCCL_ROOT - When set, this path is inspected instead of standard library
 #              locations as the root of the NCCL installation.
-#              The environment variable NCCL_ROOT overrides this veriable.
+#              The environment variable NCCL_ROOT overrides this variable.
 #
 # This module defines
 #  Nccl_FOUND, whether nccl has been found
 #  NCCL_INCLUDE_DIR, directory containing header
 #  NCCL_LIBRARY, directory containing nccl library
 #  NCCL_LIB_NAME, nccl library name
+#  USE_NCCL_LIB_PATH, when set, NCCL_LIBRARY path is also inspected for the 
+#                     location of the nccl library. This would disable
+#                     switching between static and shared.
 #
 # This module assumes that the user has already called find_package(CUDA)
 
 if (NCCL_LIBRARY)
-  # Don't cache NCCL_LIBRARY to enable switching between static and shared.
-  unset(NCCL_LIBRARY CACHE)
+  if(NOT USE_NCCL_LIB_PATH)
+    # Don't cache NCCL_LIBRARY to enable switching between static and shared.
+    unset(NCCL_LIBRARY CACHE)
+  endif(NOT USE_NCCL_LIB_PATH)
 endif()
 
 if (BUILD_WITH_SHARED_NCCL)

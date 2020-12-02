@@ -120,6 +120,7 @@ class XGBoostJNI {
   public final static native int XGBoosterSetAttr(long handle, String key, String value);
   public final static native int XGBoosterLoadRabitCheckpoint(long handle, int[] out_version);
   public final static native int XGBoosterSaveRabitCheckpoint(long handle);
+  public final static native int XGBoosterGetNumFeature(long handle, long[] feature);
 
   // rabit functions
   public final static native int RabitInit(String[] args);

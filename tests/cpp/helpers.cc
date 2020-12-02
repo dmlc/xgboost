@@ -17,8 +17,18 @@
 #include "helpers.h"
 #include "xgboost/c_api.h"
 #include "../../src/data/adapter.h"
+#include "../../src/data/simple_dmatrix.h"
 #include "../../src/gbm/gbtree_model.h"
 #include "xgboost/predictor.h"
+
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+#include <memory>
+#include <numeric>
+#include <vector>
+#include "rmm/mr/device/per_device_resource.hpp"
+#include "rmm/mr/device/cuda_memory_resource.hpp"
+#include "rmm/mr/device/pool_memory_resource.hpp"
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 bool FileExists(const std::string& filename) {
   struct stat st;
@@ -338,7 +348,21 @@ RandomDataGenerator::GenerateDMatrix(bool with_label, bool float_label,
       gen.GenerateDense(&out->Info().labels_);
     }
   }
+  if (device_ >= 0) {
+    out->Info().labels_.SetDevice(device_);
+    for (auto const& page : out->GetBatches<SparsePage>()) {
+      page.data.SetDevice(device_);
+      page.offset.SetDevice(device_);
+    }
+  }
   return out;
+}
+
+std::shared_ptr<DMatrix>
+GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns){
+  data::DenseAdapter adapter(x.data(), num_rows, num_columns);
+  return std::shared_ptr<DMatrix>(new data::SimpleDMatrix(
+      &adapter, std::numeric_limits<float>::quiet_NaN(), 1));
 }
 
 std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
@@ -356,12 +380,8 @@ std::unique_ptr<DMatrix> CreateSparsePageDMatrix(
     batch_count++;
     row_count += batch.Size();
   }
-#if defined(_OPENMP)
   EXPECT_GE(batch_count, 2);
   EXPECT_EQ(row_count, dmat->Info().num_row_);
-#else
-#warning "External memory doesn't work with Non-OpenMP build "
-#endif  // defined(_OPENMP)
   return dmat;
 }
 
@@ -478,4 +498,86 @@ std::unique_ptr<GradientBooster> CreateTrainedGBM(
   return gbm;
 }
 
+void DMatrixToCSR(DMatrix *dmat, std::vector<float> *p_data,
+                  std::vector<size_t> *p_row_ptr,
+                  std::vector<bst_feature_t> *p_cids) {
+  auto &data = *p_data;
+  auto &row_ptr = *p_row_ptr;
+  auto &cids = *p_cids;
+
+  data.resize(dmat->Info().num_nonzero_);
+  cids.resize(data.size());
+  row_ptr.resize(dmat->Info().num_row_ + 1);
+  SparsePage page;
+  for (const auto &batch : dmat->GetBatches<SparsePage>()) {
+    page.Push(batch);
+  }
+
+  auto const& in_offset = page.offset.HostVector();
+  auto const& in_data = page.data.HostVector();
+
+  CHECK_EQ(in_offset.size(), row_ptr.size());
+  std::copy(in_offset.cbegin(), in_offset.cend(), row_ptr.begin());
+  ASSERT_EQ(in_data.size(), data.size());
+  std::transform(in_data.cbegin(), in_data.cend(), data.begin(), [](Entry const& e) {
+    return e.fvalue;
+  });
+  ASSERT_EQ(in_data.size(), cids.size());
+  std::transform(in_data.cbegin(), in_data.cend(), cids.begin(), [](Entry const& e) {
+    return e.index;
+  });
+}
+
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+
+using CUDAMemoryResource = rmm::mr::cuda_memory_resource;
+using PoolMemoryResource = rmm::mr::pool_memory_resource<CUDAMemoryResource>;
+class RMMAllocator {
+ public:
+  std::vector<std::unique_ptr<CUDAMemoryResource>> cuda_mr;
+  std::vector<std::unique_ptr<PoolMemoryResource>> pool_mr;
+  int n_gpu;
+  RMMAllocator() : n_gpu(common::AllVisibleGPUs()) {
+    int current_device;
+    CHECK_EQ(cudaGetDevice(&current_device), cudaSuccess);
+    for (int i = 0; i < n_gpu; ++i) {
+      CHECK_EQ(cudaSetDevice(i), cudaSuccess);
+      cuda_mr.push_back(std::make_unique<CUDAMemoryResource>());
+      pool_mr.push_back(std::make_unique<PoolMemoryResource>(cuda_mr[i].get()));
+    }
+    CHECK_EQ(cudaSetDevice(current_device), cudaSuccess);
+  }
+  ~RMMAllocator() = default;
+};
+
+void DeleteRMMResource(RMMAllocator* r) {
+  delete r;
+}
+
+RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
+  bool use_rmm_pool = false;
+  for (int i = 1; i < argc; ++i) {
+    if (argv[i] == std::string("--use-rmm-pool")) {
+      use_rmm_pool = true;
+    }
+  }
+  if (!use_rmm_pool) {
+    return RMMAllocatorPtr(nullptr, DeleteRMMResource);
+  }
+  LOG(INFO) << "Using RMM memory pool";
+  auto ptr = RMMAllocatorPtr(new RMMAllocator(), DeleteRMMResource);
+  for (int i = 0; i < ptr->n_gpu; ++i) {
+    rmm::mr::set_per_device_resource(rmm::cuda_device_id(i), ptr->pool_mr[i].get());
+  }
+  return ptr;
+}
+#else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+class RMMAllocator {};
+
+void DeleteRMMResource(RMMAllocator* r) {}
+
+RMMAllocatorPtr SetUpRMMResourceForCppTests(int argc, char** argv) {
+  return RMMAllocatorPtr(nullptr, DeleteRMMResource);
+}
+#endif  // !defined(XGBOOST_USE_RMM) || XGBOOST_USE_RMM != 1
 }  // namespace xgboost

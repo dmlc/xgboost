@@ -99,7 +99,7 @@ class DistributedHistRowsAdder;
 // training parameters specific to this algorithm
 struct CPUHistMakerTrainParam
     : public XGBoostParameter<CPUHistMakerTrainParam> {
-  bool single_precision_histogram;
+  bool single_precision_histogram = false;
   // declare parameters
   DMLC_DECLARE_PARAMETER(CPUHistMakerTrainParam) {
     DMLC_DECLARE_FIELD(single_precision_histogram).set_default(false).describe(
@@ -127,12 +127,13 @@ class QuantileHistMaker: public TreeUpdater {
     FromJson(config.at("train_param"), &this->param_);
     try {
       FromJson(config.at("cpu_hist_train_param"), &this->hist_maker_param_);
-    } catch (std::out_of_range& e) {
+    } catch (std::out_of_range&) {
       // XGBoost model is from 1.1.x, so 'cpu_hist_train_param' is missing.
       // We add this compatibility check because it's just recently that we (developers) began
       // persuade R users away from using saveRDS() for model serialization. Hopefully, one day,
       // everyone will be using xgb.save().
-      LOG(WARNING) << "Attempted to load interal configuration for a model file that was generated "
+      LOG(WARNING)
+        << "Attempted to load internal configuration for a model file that was generated "
         << "by a previous version of XGBoost. A likely cause for this warning is that the model "
         << "was saved with saveRDS() in R or pickle.dump() in Python. We strongly ADVISE AGAINST "
         << "using saveRDS() or pickle.dump() so that the model remains accessible in current and "
@@ -190,7 +191,7 @@ class QuantileHistMaker: public TreeUpdater {
     /*! \brief current best solution */
     SplitEntry best;
     // constructor
-    explicit NodeEntry(const TrainParam& param)
+    explicit NodeEntry(const TrainParam&)
         : root_gain(0.0f), weight(0.0f) {}
   };
   // actual builder that runs the algorithm
@@ -203,11 +204,11 @@ class QuantileHistMaker: public TreeUpdater {
     // constructor
     explicit Builder(const TrainParam& param,
                      std::unique_ptr<TreeUpdater> pruner,
-                     std::unique_ptr<SplitEvaluator> spliteval,
                      FeatureInteractionConstraintHost int_constraints_,
                      DMatrix const* fmat)
-      : param_(param), pruner_(std::move(pruner)),
-        spliteval_(std::move(spliteval)),
+      : param_(param),
+        tree_evaluator_(param, fmat->Info().num_col_, GenericParameter::kCpuId),
+        pruner_(std::move(pruner)),
         interaction_constraints_{std::move(int_constraints_)},
         p_last_tree_(nullptr), p_last_fmat_(fmat) {
       builder_monitor_.Init("Quantile::Builder");
@@ -228,7 +229,8 @@ class QuantileHistMaker: public TreeUpdater {
       if (param_.enable_feature_grouping > 0) {
         hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
       } else {
-        hist_builder_.BuildHist(gpair, row_indices, gmat, hist, data_layout_ != kSparseData);
+        hist_builder_.BuildHist(gpair, row_indices, gmat, hist,
+                                data_layout_ != DataLayout::kSparseData);
       }
     }
 
@@ -262,10 +264,12 @@ class QuantileHistMaker: public TreeUpdater {
       int depth;
       bst_float loss_chg;
       unsigned timestamp;
-      ExpandEntry(int nid, int sibling_nid, int depth, bst_float loss_chg, unsigned tstmp):
-        nid(nid), sibling_nid(sibling_nid), depth(depth), loss_chg(loss_chg), timestamp(tstmp) {}
+      ExpandEntry(int nid, int sibling_nid, int depth, bst_float loss_chg,
+                  unsigned tstmp)
+          : nid(nid), sibling_nid(sibling_nid), depth(depth),
+            loss_chg(loss_chg), timestamp(tstmp) {}
 
-      bool IsValid(TrainParam const& param, int32_t num_leaves) const {
+      bool IsValid(TrainParam const &param, int32_t num_leaves) const {
         bool ret = loss_chg <= kRtEps ||
                    (param.max_depth > 0 && this->depth == param.max_depth) ||
                    (param.max_leaves > 0 && num_leaves == param.max_leaves);
@@ -314,9 +318,11 @@ class QuantileHistMaker: public TreeUpdater {
     // Returns the sum of gradients corresponding to the data points that contains a non-missing
     // value for the particular feature fid.
     template <int d_step>
-    GradStats EnumerateSplit(const GHistIndexMatrix &gmat, const GHistRowT &hist,
-                             const NodeEntry &snode, SplitEntry *p_best,
-                             bst_uint fid, bst_uint nodeID) const;
+    GradStats EnumerateSplit(
+        const GHistIndexMatrix &gmat, const GHistRowT &hist,
+        const NodeEntry &snode, SplitEntry *p_best, bst_uint fid,
+        bst_uint nodeID,
+        TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const;
 
     // if sum of statistics for non-missing values in the node
     // is equal to sum of statistics for all values:
@@ -407,6 +413,7 @@ class QuantileHistMaker: public TreeUpdater {
     HistCollection<GradientSumT> hist_;
     /*! \brief culmulative local parent histogram of gradients. */
     HistCollection<GradientSumT> hist_local_worker_;
+    TreeEvaluator tree_evaluator_;
     /*! \brief feature with least # of bins. to be used for dense specialization
                of InitNewNode() */
     uint32_t fid_least_bins_;
@@ -415,7 +422,6 @@ class QuantileHistMaker: public TreeUpdater {
 
     GHistBuilder<GradientSumT> hist_builder_;
     std::unique_ptr<TreeUpdater> pruner_;
-    std::unique_ptr<SplitEvaluator> spliteval_;
     FeatureInteractionConstraintHost interaction_constraints_;
 
     static constexpr size_t kPartitionBlockSize = 2048;
@@ -437,7 +443,7 @@ class QuantileHistMaker: public TreeUpdater {
     // list of nodes whose histograms would be built explicitly.
     std::vector<ExpandEntry> nodes_for_explicit_hist_build_;
 
-    enum DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
+    enum class DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
 
     common::Monitor builder_monitor_;
@@ -462,7 +468,6 @@ class QuantileHistMaker: public TreeUpdater {
   std::unique_ptr<Builder<double>> double_builder_;
 
   std::unique_ptr<TreeUpdater> pruner_;
-  std::unique_ptr<SplitEvaluator> spliteval_;
   FeatureInteractionConstraintHost int_constraint_;
 };
 

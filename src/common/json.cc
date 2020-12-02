@@ -76,7 +76,7 @@ void JsonWriter::Visit(JsonInteger const* num) {
   std::memcpy(stream_->data() + ori_size, i2s_buffer_, digits);
 }
 
-void JsonWriter::Visit(JsonNull const* null) {
+void JsonWriter::Visit(JsonNull const* ) {
     auto s = stream_->size();
     stream_->resize(s + 4);
     auto& buf = (*stream_);
@@ -179,14 +179,16 @@ Json& JsonObject::operator[](std::string const & key) {
   return object_[key];
 }
 
-Json& JsonObject::operator[](int ind) {
+Json& JsonObject::operator[](int ) {
   LOG(FATAL) << "Object of type "
              << Value::TypeStr() << " can not be indexed by Integer.";
   return DummyJsonObject();
 }
 
 bool JsonObject::operator==(Value const& rhs) const {
-  if (!IsA<JsonObject>(&rhs)) { return false; }
+  if (!IsA<JsonObject>(&rhs)) {
+    return false;
+  }
   return object_ == Cast<JsonObject const>(&rhs)->GetObject();
 }
 
@@ -201,13 +203,13 @@ void JsonObject::Save(JsonWriter* writer) {
 }
 
 // Json String
-Json& JsonString::operator[](std::string const & key) {
+Json& JsonString::operator[](std::string const& ) {
   LOG(FATAL) << "Object of type "
              << Value::TypeStr() << " can not be indexed by string.";
   return DummyJsonObject();
 }
 
-Json& JsonString::operator[](int ind) {
+Json& JsonString::operator[](int ) {
   LOG(FATAL) << "Object of type "
              << Value::TypeStr() << " can not be indexed by Integer."
              << "  Please try obtaining std::string first.";
@@ -234,7 +236,7 @@ void JsonString::Save(JsonWriter* writer) {
 JsonArray::JsonArray(JsonArray && that) :
     Value(ValueKind::kArray), vec_{std::move(that.vec_)} {}
 
-Json& JsonArray::operator[](std::string const & key) {
+Json& JsonArray::operator[](std::string const& ) {
   LOG(FATAL) << "Object of type "
              << Value::TypeStr() << " can not be indexed by string.";
   return DummyJsonObject();
@@ -261,13 +263,13 @@ void JsonArray::Save(JsonWriter* writer) {
 }
 
 // Json Number
-Json& JsonNumber::operator[](std::string const & key) {
+Json& JsonNumber::operator[](std::string const& ) {
   LOG(FATAL) << "Object of type "
              << Value::TypeStr() << " can not be indexed by string.";
   return DummyJsonObject();
 }
 
-Json& JsonNumber::operator[](int ind) {
+Json& JsonNumber::operator[](int ) {
   LOG(FATAL) << "Object of type "
              << Value::TypeStr() << " can not be indexed by Integer.";
   return DummyJsonObject();
@@ -275,7 +277,14 @@ Json& JsonNumber::operator[](int ind) {
 
 bool JsonNumber::operator==(Value const& rhs) const {
   if (!IsA<JsonNumber>(&rhs)) { return false; }
-  return std::abs(number_ - Cast<JsonNumber const>(&rhs)->GetNumber()) < kRtEps;
+  auto r_num = Cast<JsonNumber const>(&rhs)->GetNumber();
+  if (std::isinf(number_)) {
+    return std::isinf(r_num);
+  }
+  if (std::isnan(number_)) {
+    return std::isnan(r_num);
+  }
+  return number_ - r_num == 0;
 }
 
 Value & JsonNumber::operator=(Value const &rhs) {
@@ -289,13 +298,13 @@ void JsonNumber::Save(JsonWriter* writer) {
 }
 
 // Json Integer
-Json& JsonInteger::operator[](std::string const& key) {
+Json& JsonInteger::operator[](std::string const& ) {
   LOG(FATAL) << "Object of type "
              << Value::TypeStr() << " can not be indexed by string.";
   return DummyJsonObject();
 }
 
-Json& JsonInteger::operator[](int ind) {
+Json& JsonInteger::operator[](int ) {
   LOG(FATAL) << "Object of type "
              << Value::TypeStr() << " can not be indexed by Integer.";
   return DummyJsonObject();
@@ -317,13 +326,13 @@ void JsonInteger::Save(JsonWriter* writer) {
 }
 
 // Json Null
-Json& JsonNull::operator[](std::string const & key) {
+Json& JsonNull::operator[](std::string const& ) {
   LOG(FATAL) << "Object of type "
              << Value::TypeStr() << " can not be indexed by string.";
   return DummyJsonObject();
 }
 
-Json& JsonNull::operator[](int ind) {
+Json& JsonNull::operator[](int ) {
   LOG(FATAL) << "Object of type "
              << Value::TypeStr() << " can not be indexed by Integer.";
   return DummyJsonObject();
@@ -344,13 +353,13 @@ void JsonNull::Save(JsonWriter* writer) {
 }
 
 // Json Boolean
-Json& JsonBoolean::operator[](std::string const & key) {
+Json& JsonBoolean::operator[](std::string const& ) {
   LOG(FATAL) << "Object of type "
              << Value::TypeStr() << " can not be indexed by string.";
   return DummyJsonObject();
 }
 
-Json& JsonBoolean::operator[](int ind) {
+Json& JsonBoolean::operator[](int ) {
   LOG(FATAL) << "Object of type "
              << Value::TypeStr() << " can not be indexed by Integer.";
   return DummyJsonObject();

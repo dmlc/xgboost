@@ -1,18 +1,16 @@
 '''Test model IO with pickle.'''
 import pickle
-import unittest
 import numpy as np
 import subprocess
 import os
 import sys
 import json
 import pytest
+import xgboost as xgb
+from xgboost import XGBClassifier
 
 sys.path.append("tests/python")
 import testing as tm
-
-import xgboost as xgb
-from xgboost import XGBClassifier
 
 model_path = './model.pkl'
 
@@ -36,7 +34,7 @@ def load_pickle(path):
     return bst
 
 
-class TestPickling(unittest.TestCase):
+class TestPickling:
     args_template = [
         "pytest",
         "--verbose",

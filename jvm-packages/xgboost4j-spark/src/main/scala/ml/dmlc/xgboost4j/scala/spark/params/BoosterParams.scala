@@ -282,7 +282,7 @@ private[spark] trait BoosterParams extends Params {
 
   setDefault(eta -> 0.3, gamma -> 0, maxDepth -> 6,
     minChildWeight -> 1, maxDeltaStep -> 0,
-    growPolicy -> "depthwise", maxBins -> 16,
+    growPolicy -> "depthwise", maxBins -> 256,
     subsample -> 1, colsampleBytree -> 1, colsampleBylevel -> 1,
     lambda -> 1, alpha -> 0, treeMethod -> "auto", sketchEps -> 0.03,
     scalePosWeight -> 1.0, sampleType -> "uniform", normalizeType -> "tree",

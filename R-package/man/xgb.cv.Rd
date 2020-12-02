@@ -70,6 +70,8 @@ from each CV model. This parameter engages the \code{\link{cb.cv.predict}} callb
   \item \code{error} binary classification error rate
   \item \code{rmse} Rooted mean square error
   \item \code{logloss} negative log-likelihood function
+  \item \code{mae} Mean absolute error
+  \item \code{mape} Mean absolute percentage error
   \item \code{auc} Area under curve
   \item \code{aucpr} Area under PR curve
   \item \code{merror} Exact matching error, used to evaluate multi-class classification

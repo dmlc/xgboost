@@ -16,6 +16,12 @@ This tutorial is to cover the end-to-end process to build a machine learning pip
 * Building a Machine Learning Pipeline with XGBoost4J-Spark
 * Running XGBoost4J-Spark in Production
 
+.. note::
+
+  **SparkContext will be stopped by default when XGBoost training task fails**.
+
+  XGBoost4J-Spark 1.2.0+ exposes a parameter **kill_spark_context_on_worker_failure**. Set **kill_spark_context_on_worker_failure** to **false** so that the SparkContext will not be stopping on training failure. Instead of stopping the SparkContext, XGBoost4J-Spark will throw an exception instead. Users who want to re-use the SparkContext should wrap the training code in a try-catch block.
+
 .. contents::
   :backlinks: none
   :local:
@@ -155,7 +161,30 @@ Example of setting a missing value (e.g. -999) to the "missing" parameter in XGB
   1. Explicitly convert the Vector returned from VectorAssembler to a DenseVector to return the zeros to the dataset. If
   doing this with missing values encoded as NaN, you will want to set ``setHandleInvalid = "keep"`` on VectorAssembler
   in order to keep the NaN values in the dataset. You would then set the "missing" parameter to whatever you want to be
-  treated as missing. However this may cause a large amount of memory use if your dataset is very sparse.
+  treated as missing. However this may cause a large amount of memory use if your dataset is very sparse. For example:
+  
+  .. code-block:: scala
+
+  val assembler = new VectorAssembler().setInputCols(feature_names.toArray).setOutputCol("features").setHandleInvalid("keep")
+
+  // conversion to dense vector using Array()
+  
+  val featurePipeline = new Pipeline().setStages(Array(assembler))
+  val featureModel = featurePipeline.fit(df_training)
+  val featureDf = featureModel.transform(df_training)
+  
+  val xgbParam = Map("eta" -> 0.1f,
+        "max_depth" -> 2,
+        "objective" -> "multi:softprob",
+        "num_class" -> 3,
+        "num_round" -> 100,
+        "num_workers" -> 2,
+        "allow_non_zero_for_missing" -> "true",
+        "missing" -> -999)
+        
+  val xgb = new XGBoostClassifier(xgbParam)
+  val xgbclassifier = xgb.fit(featureDf)
+  
 
   2. Before calling VectorAssembler you can transform the values you want to represent missing into an irregular value
   that is not 0, NaN, or Null and set the "missing" parameter to 0. The irregular value should ideally be chosen to be

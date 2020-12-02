@@ -484,6 +484,34 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
                                        const char ***out_features);
 
 /*!
+ * \brief Set meta info from dense matrix.  Valid field names are:
+ *
+ *  - label
+ *  - weight
+ *  - base_margin
+ *  - group
+ *  - label_lower_bound
+ *  - label_upper_bound
+ *  - feature_weights
+ *
+ * \param handle An instance of data matrix
+ * \param field  Feild name
+ * \param data   Pointer to consecutive memory storing data.
+ * \param size   Size of the data, this is relative to size of type.  (Meaning NOT number
+ *               of bytes.)
+ * \param type   Indicator of data type.  This is defined in xgboost::DataType enum class.
+ *
+ *    float    = 1
+ *    double   = 2
+ *    uint32_t = 3
+ *    uint64_t = 4
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
+                                  void *data, bst_ulong size, int type);
+
+/*!
  * \brief (deprecated) Use XGDMatrixSetUIntInfo instead. Set group of the training matrix
  * \param handle a instance of data matrix
  * \param group pointer to group size
@@ -551,6 +579,23 @@ XGB_DLL int XGBoosterCreate(const DMatrixHandle dmats[],
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterFree(BoosterHandle handle);
+
+/*!
+ * \brief Slice a model using boosting index. The slice m:n indicates taking all trees
+ *        that were fit during the boosting rounds m, (m+1), (m+2), ..., (n-1).
+ *
+ * \param handle Booster to be sliced.
+ * \param begin_layer start of the slice
+ * \param end_layer end of the slice; end_layer=0 is equivalent to
+ *                  end_layer=num_boost_round
+ * \param step step size of the slice
+ * \param out Sliced booster.
+ *
+ * \return 0 when success, -1 when failure happens, -2 when index is out of bound.
+ */
+XGB_DLL int XGBoosterSlice(BoosterHandle handle, int begin_layer,
+                           int end_layer, int step,
+                           BoosterHandle *out);
 
 /*!
  * \brief set parameters

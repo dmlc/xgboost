@@ -56,13 +56,6 @@ class HistMaker: public BaseMaker {
     HistUnit(const float *cut, GradStats *data, uint32_t size)
         : cut{cut}, data{data}, size{size} {}
     /*! \brief add a histogram to data */
-    void Add(float fv, const std::vector<GradientPair> &gpair,
-             const MetaInfo &info, const size_t ridx) {
-      unsigned bin = std::upper_bound(cut, cut + size, fv) - cut;
-      CHECK_NE(size, 0U) << "try insert into size=0";
-      CHECK_LT(bin, size);
-      data[bin].Add(gpair[ridx]);
-    }
   };
   /*! \brief a set of histograms from different index */
   struct HistSet {
@@ -86,7 +79,7 @@ class HistMaker: public BaseMaker {
     // per thread histset
     std::vector<HistSet> hset;
     // initialize the hist set
-    inline void Configure(const TrainParam &param, int nthread) {
+    inline void Configure(int nthread) {
       hset.resize(nthread);
       // cleanup statistics
       for (int tid = 0; tid < nthread; ++tid) {
@@ -127,7 +120,7 @@ class HistMaker: public BaseMaker {
       // create histogram
       this->CreateHist(gpair, p_fmat, selected_features_, *p_tree);
       // find split based on histogram statistics
-      this->FindSplit(depth, gpair, p_fmat, selected_features_, p_tree);
+      this->FindSplit(selected_features_, p_tree);
       // reset position after split
       this->ResetPositionAfterSplit(p_fmat, *p_tree);
       this->UpdateQueueExpand(*p_tree);
@@ -146,7 +139,7 @@ class HistMaker: public BaseMaker {
                                   const std::vector <bst_feature_t> &fset,
                                   const RegTree &tree) = 0;
   // initialize the current working set of features in this round
-  virtual void InitWorkSet(DMatrix *p_fmat,
+  virtual void InitWorkSet(DMatrix *,
                            const RegTree &tree,
                            std::vector<bst_feature_t> *p_fset) {
     p_fset->resize(tree.param.num_feature);
@@ -159,9 +152,9 @@ class HistMaker: public BaseMaker {
                                        const RegTree &tree) {
   }
   virtual void CreateHist(const std::vector<GradientPair> &gpair,
-                          DMatrix *p_fmat,
+                          DMatrix *,
                           const std::vector <bst_feature_t> &fset,
-                          const RegTree &tree)  = 0;
+                          const RegTree &)  = 0;
 
  private:
   void EnumerateSplit(const HistUnit &hist,
@@ -202,10 +195,7 @@ class HistMaker: public BaseMaker {
     }
   }
 
-  void FindSplit(int depth,
-                 const std::vector<GradientPair> &gpair,
-                 DMatrix *p_fmat,
-                 const std::vector <bst_feature_t> &feature_set,
+  void FindSplit(const std::vector <bst_feature_t> &feature_set,
                  RegTree *p_tree) {
     const size_t num_feature = feature_set.size();
     // get the best split condition for each node
@@ -288,7 +278,6 @@ class CQHistMaker: public HistMaker {
      */
     inline void Add(bst_float fv,
                     const std::vector<GradientPair> &gpair,
-                    const MetaInfo &info,
                     const bst_uint ridx) {
       while (istart < hist.size && !(fv < hist.cut[istart])) ++istart;
       CHECK_NE(istart, hist.size);
@@ -342,7 +331,7 @@ class CQHistMaker: public HistMaker {
       feat2workindex_[fset[i]] = static_cast<int>(i);
     }
     // start to work
-    this->wspace_.Configure(this->param_, 1);
+    this->wspace_.Configure(1);
     // if it is C++11, use lazy evaluation for Allreduce,
     // to gain speedup in recovery
     auto lazy_get_hist = [&]() {
@@ -376,7 +365,7 @@ class CQHistMaker: public HistMaker {
                              this->wspace_.hset[0].data.size(), lazy_get_hist);
   }
 
-  void ResetPositionAfterSplit(DMatrix *p_fmat,
+  void ResetPositionAfterSplit(DMatrix *,
                                  const RegTree &tree) override {
     this->GetSplitSet(this->qexpand_, tree, &fsplit_set_);
   }
@@ -533,7 +522,7 @@ class CQHistMaker: public HistMaker {
         const bst_uint ridx = c.index;
         const int nid = this->position_[ridx];
         if (nid >= 0) {
-          hbuilder[nid].Add(c.fvalue, gpair, info, ridx);
+          hbuilder[nid].Add(c.fvalue, gpair, ridx);
         }
       }
     }
@@ -689,7 +678,7 @@ class GlobalProposalHistMaker: public CQHistMaker {
       this->feat2workindex_[fset[i]] = static_cast<int>(i);
     }
     // start to work
-    this->wspace_.Configure(this->param_, 1);
+    this->wspace_.Configure(1);
     // to gain speedup in recovery
     {
       this->thread_hist_.resize(omp_get_max_threads());

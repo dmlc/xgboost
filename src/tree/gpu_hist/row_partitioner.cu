@@ -72,7 +72,7 @@ void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
                                   common::Span<bst_node_t> position_out,
                                   common::Span<RowIndexT> ridx,
                                   common::Span<RowIndexT> ridx_out,
-                                  bst_node_t left_nidx, bst_node_t right_nidx,
+                                  bst_node_t left_nidx, bst_node_t,
                                   int64_t* d_left_count, cudaStream_t stream) {
   WriteResultsFunctor write_results{left_nidx, position, position_out,
                                     ridx,      ridx_out, d_left_count};
@@ -81,7 +81,7 @@ void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
   auto counting = thrust::make_counting_iterator(0llu);
   auto input_iterator = dh::MakeTransformIterator<IndexFlagTuple>(
       counting, [=] __device__(size_t idx) {
-        return IndexFlagTuple{idx, position[idx] == left_nidx};
+        return IndexFlagTuple{idx, static_cast<size_t>(position[idx] == left_nidx)};
       });
   size_t temp_bytes = 0;
   cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, input_iterator,

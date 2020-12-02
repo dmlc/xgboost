@@ -11,8 +11,8 @@
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::xgboost::PredictorReg);
 }  // namespace dmlc
-namespace xgboost {
 
+namespace xgboost {
 void PredictionContainer::ClearExpiredEntries() {
   std::vector<DMatrix*> expired;
   for (auto& kv : container_) {
@@ -47,7 +47,7 @@ decltype(PredictionContainer::container_) const& PredictionContainer::Container(
 }
 
 void Predictor::Configure(
-    const std::vector<std::pair<std::string, std::string>>& cfg) {
+    const std::vector<std::pair<std::string, std::string>>&) {
 }
 Predictor* Predictor::Create(
     std::string const& name, GenericParameter const* generic_param) {

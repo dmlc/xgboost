@@ -1,5 +1,24 @@
 @PACKAGE_INIT@
 
+include(CMakeFindDependencyMacro)
+
+set(USE_OPENMP @USE_OPENMP@)
+set(USE_CUDA @USE_CUDA@)
+set(USE_NCCL @USE_NCCL@)
+
+find_dependency(Threads)
+if(USE_OPENMP)
+  find_dependency(OpenMP)
+endif()
+if(USE_CUDA)
+  find_dependency(CUDA)
+endif()
+if(USE_NCCL)
+  find_dependency(Nccl)
+endif()
+
 if(NOT TARGET xgboost::xgboost)
   include(${CMAKE_CURRENT_LIST_DIR}/XGBoostTargets.cmake)
 endif()
+
+message(STATUS "Found XGBoost (found version \"${xgboost_VERSION}\")")

@@ -8,7 +8,7 @@ namespace xgboost {
 TEST(Plugin, ExampleObjective) {
   xgboost::GenericParameter tparam = CreateEmptyGenericParam(GPUIDX);
   auto * obj = xgboost::ObjFunction::Create("mylogistic", &tparam);
-  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"error"});
+  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"logloss"});
   delete obj;
 }
 

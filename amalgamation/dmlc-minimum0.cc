@@ -12,5 +12,3 @@
 #include "../dmlc-core/src/data.cc"
 #include "../dmlc-core/src/io.cc"
 #include "../dmlc-core/src/recordio.cc"
-
-

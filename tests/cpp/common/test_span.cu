@@ -64,7 +64,7 @@ __global__ void TestFromOtherKernelConst(Span<float const, 16> span) {
  */
 TEST(GPUSpan, FromOther) {
   thrust::host_vector<float> h_vec (16);
-  InitializeRange(h_vec.begin(), h_vec.end());
+  std::iota(h_vec.begin(), h_vec.end(), 0);
 
   thrust::device_vector<float> d_vec (h_vec.size());
   thrust::copy(h_vec.begin(), h_vec.end(), d_vec.begin());
@@ -123,7 +123,7 @@ TEST(GPUSpan, WithTrust) {
   // Not adviced to initialize span with host_vector, since h_vec.data() is
   // a host function.
   thrust::host_vector<float> h_vec (16);
-  InitializeRange(h_vec.begin(), h_vec.end());
+  std::iota(h_vec.begin(), h_vec.end(), 0);
 
   thrust::device_vector<float> d_vec (h_vec.size());
   thrust::copy(h_vec.begin(), h_vec.end(), d_vec.begin());
@@ -221,7 +221,7 @@ struct TestElementAccess {
   }
 };
 
-TEST(GPUSpan, ElementAccess) {
+TEST(GPUSpanDeathTest, ElementAccess) {
   dh::safe_cuda(cudaSetDevice(0));
   auto test_element_access = []() {
     thrust::host_vector<float> h_vec (16);

@@ -9,22 +9,9 @@ libxgboost2: libxgboostgpu libxgboostp2nonccl libxgboostp3
 libxgboost-cpu: libxgboostcpu libxgboostp2cpu-only libxgboostp3
 
 libxgboostgpu:
-	git submodule init && git submodule update dmlc-core && git submodule update && git submodule update cub && git submodule update rabit
-	rm -rf src/tree/updater_gpu_hist2.cu ;\
-	cp -a src/tree/updater_gpu_hist.cu src/tree/updater_gpu_hist2.cu ;\
-	sed -i 's/updater_gpu_hist/updater_gpu_hist2/g' src/tree/updater_gpu_hist2.cu ;\
-	sed -i 's/grow_gpu_hist/grow_gpu_hist2/g' src/tree/updater_gpu_hist2.cu ;\
-	sed -i 's/define PRECISE 1/define PRECISE 0/g' src/tree/updater_gpu_hist2.cu ;\
-	sed -i 's/GPUHistMaker/GPUHistMaker2/g' src/tree/updater_gpu_hist2.cu ;\
-	sed -i 's/upper_bound/upper_bound2/g' src/tree/updater_gpu_hist2.cu ;\
-	sed -i 's/SortPosition/SortPosition2/g' src/tree/updater_gpu_hist2.cu ;\
-	sed -i 's/compress_bin_ellpack_k/compress_bin_ellpack_k2/g' src/tree/updater_gpu_hist2.cu ;\
-	sed -i 's/CompressBinEllpackKernel/CompressBinEllpackKernel2/g' src/tree/updater_gpu_hist2.cu ;\
-	sed -i 's/CountLeft/CountLeft2/g' src/tree/updater_gpu_hist2.cu ;\
-    sed -i 's/BinarySearchRow/BinarySearchRow2/g' src/tree/updater_gpu_hist2.cu ;\
-	sed -i 's/Grow tree with GPU using doubles for sum/Grow tree with GPU using integer64s for sum/g' src/tree/updater_gpu_hist2.cu
+	git submodule init && git submodule update dmlc-core && git submodule update && git submodule update cub && git submodule update gputreeshap
 libxgboostcpu:
-	git submodule init && git submodule update dmlc-core && git submodule update rabit
+	git submodule init && git submodule update dmlc-core && git submodule update gputreeshap
 
 libxgboostp2nccl:
 	#pip install -r requirements_runtime.txt

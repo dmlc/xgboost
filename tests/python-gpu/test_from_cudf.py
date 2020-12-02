@@ -172,6 +172,34 @@ Arrow specification.'''
         _test_cudf_metainfo(xgb.DeviceQuantileDMatrix)
 
 
+@pytest.mark.skipif(**tm.no_cudf())
+@pytest.mark.skipif(**tm.no_cupy())
+@pytest.mark.skipif(**tm.no_sklearn())
+@pytest.mark.skipif(**tm.no_pandas())
+def test_cudf_training_with_sklearn():
+    from cudf import DataFrame as df
+    from cudf import Series as ss
+    import pandas as pd
+    np.random.seed(1)
+    X = pd.DataFrame(np.random.randn(50, 10))
+    y = pd.DataFrame((np.random.randn(50) > 0).astype(np.int8))
+    weights = np.random.random(50) + 1.0
+    cudf_weights = df.from_pandas(pd.DataFrame(weights))
+    base_margin = np.random.random(50)
+    cudf_base_margin = df.from_pandas(pd.DataFrame(base_margin))
+
+    X_cudf = df.from_pandas(X)
+    y_cudf = df.from_pandas(y)
+    y_cudf_series = ss(data=y.iloc[:, 0])
+
+    for y_obj in [y_cudf, y_cudf_series]:
+        clf = xgb.XGBClassifier(gpu_id=0, tree_method='gpu_hist', use_label_encoder=False)
+        clf.fit(X_cudf, y_obj, sample_weight=cudf_weights, base_margin=cudf_base_margin,
+                eval_set=[(X_cudf, y_obj)])
+        pred = clf.predict(X_cudf)
+        assert np.array_equal(np.unique(pred), np.array([0, 1]))
+
+
 class IterForDMatrixTest(xgb.core.DataIter):
     '''A data iterator for XGBoost DMatrix.
 

@@ -2,6 +2,7 @@
 
 require(xgboost)
 require(data.table)
+require(titanic)
 
 context("callbacks")
 
@@ -26,7 +27,8 @@ watchlist <- list(train = dtrain, test = dtest)
 
 err <- function(label, pr) sum((pr > 0.5) != label) / length(label)
 
-param <- list(objective = "binary:logistic", max_depth = 2, nthread = 2)
+param <- list(objective = "binary:logistic", eval_metric = "error",
+              max_depth = 2, nthread = 2)
 
 
 test_that("cb.print.evaluation works as expected", {
@@ -105,7 +107,8 @@ test_that("cb.evaluation.log works as expected", {
 })
 
 
-param <- list(objective = "binary:logistic", max_depth = 4, nthread = 2)
+param <- list(objective = "binary:logistic", eval_metric = "error",
+              max_depth = 4, nthread = 2)
 
 test_that("can store evaluation_log without printing", {
   expect_silent(
@@ -173,16 +176,16 @@ test_that("cb.reset.parameters works as expected", {
 })
 
 test_that("cb.save.model works as expected", {
-  files <- c('xgboost_01.model', 'xgboost_02.model', 'xgboost.model')
+  files <- c('xgboost_01.json', 'xgboost_02.json', 'xgboost.json')
   for (f in files) if (file.exists(f)) file.remove(f)
 
   bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, eta = 1, verbose = 0,
-                   save_period = 1, save_name = "xgboost_%02d.model")
-  expect_true(file.exists('xgboost_01.model'))
-  expect_true(file.exists('xgboost_02.model'))
-  b1 <- xgb.load('xgboost_01.model')
+                   save_period = 1, save_name = "xgboost_%02d.json")
+  expect_true(file.exists('xgboost_01.json'))
+  expect_true(file.exists('xgboost_02.json'))
+  b1 <- xgb.load('xgboost_01.json')
   expect_equal(xgb.ntree(b1), 1)
-  b2 <- xgb.load('xgboost_02.model')
+  b2 <- xgb.load('xgboost_02.json')
   expect_equal(xgb.ntree(b2), 2)
 
   xgb.config(b2) <- xgb.config(bst)
@@ -191,9 +194,9 @@ test_that("cb.save.model works as expected", {
 
   # save_period = 0 saves the last iteration's model
   bst <- xgb.train(param, dtrain, nrounds = 2, watchlist, eta = 1, verbose = 0,
-                   save_period = 0)
-  expect_true(file.exists('xgboost.model'))
-  b2 <- xgb.load('xgboost.model')
+                   save_period = 0, save_name = 'xgboost.json')
+  expect_true(file.exists('xgboost.json'))
+  b2 <- xgb.load('xgboost.json')
   xgb.config(b2) <- xgb.config(bst)
   expect_equal(bst$raw, b2$raw)
 
@@ -236,7 +239,7 @@ test_that("early stopping xgb.train works", {
 test_that("early stopping using a specific metric works", {
   set.seed(11)
   expect_output(
-    bst <- xgb.train(param, dtrain, nrounds = 20, watchlist, eta = 0.6,
+    bst <- xgb.train(param[-2], dtrain, nrounds = 20, watchlist, eta = 0.6,
                      eval_metric = "logloss", eval_metric = "auc",
                      callbacks = list(cb.early.stop(stopping_rounds = 3, maximize = FALSE,
                                                     metric_name = 'test_logloss')))
@@ -250,6 +253,26 @@ test_that("early stopping using a specific metric works", {
   logloss_pred <- sum(-ltest * log(pred) - (1 - ltest) * log(1 - pred)) / length(ltest)
   logloss_log <- bst$evaluation_log[bst$best_iteration, test_logloss]
   expect_equal(logloss_log, logloss_pred, tolerance = 1e-5)
+})
+
+test_that("early stopping works with titanic", {
+  # This test was inspired by https://github.com/dmlc/xgboost/issues/5935
+  # It catches possible issues on noLD R
+  titanic <- titanic::titanic_train
+  titanic$Pclass <-  as.factor(titanic$Pclass)
+  dtx <- model.matrix(~ 0 + ., data = titanic[, c("Pclass", "Sex")])
+  dty <- titanic$Survived
+
+  xgboost::xgboost(
+    data = dtx,
+    label = dty,
+    objective = "binary:logistic",
+    eval_metric = "auc",
+    nrounds = 100,
+    early_stopping_rounds = 3
+  )
+
+  expect_true(TRUE)  # should not crash
 })
 
 test_that("early stopping xgb.cv works", {

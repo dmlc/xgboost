@@ -63,15 +63,17 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
   size_t accumulated_rows = 0;
   bst_feature_t cols = 0;
   int32_t device = GenericParameter::kCpuId;
-  int32_t current_device_;
-  dh::safe_cuda(cudaGetDevice(&current_device_));
+  int32_t current_device;
+  dh::safe_cuda(cudaGetDevice(&current_device));
   auto get_device = [&]() -> int32_t {
-    int32_t d = GenericParameter::kCpuId ? current_device_ : device;
+    int32_t d = (device == GenericParameter::kCpuId) ? current_device : device;
+    CHECK_NE(d, GenericParameter::kCpuId);
     return d;
   };
 
   while (iter.Next()) {
     device = proxy->DeviceIdx();
+    CHECK_LT(device, common::AllVisibleGPUs());
     dh::safe_cuda(cudaSetDevice(get_device()));
     if (cols == 0) {
       cols = num_cols();
@@ -79,7 +81,8 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
     } else {
       CHECK_EQ(cols, num_cols()) << "Inconsistent number of columns.";
     }
-    sketch_containers.emplace_back(batch_param_.max_bin, cols, num_rows(), get_device());
+    sketch_containers.emplace_back(proxy->Info().feature_types,
+                                   batch_param_.max_bin, cols, num_rows(), get_device());
     auto* p_sketch = &sketch_containers.back();
     proxy->Info().weights_.SetDevice(get_device());
     Dispatch(proxy, [&](auto const &value) {
@@ -101,7 +104,10 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
   }
   iter.Reset();
   dh::safe_cuda(cudaSetDevice(get_device()));
-  common::SketchContainer final_sketch(batch_param_.max_bin, cols, accumulated_rows, get_device());
+  HostDeviceVector<FeatureType> ft;
+  common::SketchContainer final_sketch(
+      sketch_containers.empty() ? ft : sketch_containers.front().FeatureTypes(),
+      batch_param_.max_bin, cols, accumulated_rows, get_device());
   for (auto const& sketch : sketch_containers) {
     final_sketch.Merge(sketch.ColumnsPtr(), sketch.Data());
     final_sketch.FixError();

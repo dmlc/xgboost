@@ -850,6 +850,22 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterSaveRabit
 
 /*
  * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
+ * Method:    XGBoosterGetNumFeature
+ * Signature: (J[J)I
+ */
+JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_XGBoosterGetNumFeature
+  (JNIEnv *jenv, jclass jcls, jlong jhandle, jlongArray jout) {
+  BoosterHandle handle = (BoosterHandle) jhandle;
+  bst_ulong num_feature;
+  int ret = XGBoosterGetNumFeature(handle, &num_feature);
+  JVM_CHECK_CALL(ret);
+  jlong jnum_feature = num_feature;
+  jenv->SetLongArrayRegion(jout, 0, 1, &jnum_feature);
+  return ret;
+}
+
+/*
+ * Class:     ml_dmlc_xgboost4j_java_XGBoostJNI
  * Method:    RabitInit
  * Signature: ([Ljava/lang/String;)I
  */
@@ -900,7 +916,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitTrackerPrint
   (JNIEnv *jenv, jclass jcls, jstring jmsg) {
   std::string str(jenv->GetStringUTFChars(jmsg, 0),
                   jenv->GetStringLength(jmsg));
-  RabitTrackerPrint(str.c_str());
+  JVM_CHECK_CALL(RabitTrackerPrint(str.c_str()));
   return 0;
 }
 
@@ -948,7 +964,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitVersionNumber
 JNIEXPORT jint JNICALL Java_ml_dmlc_xgboost4j_java_XGBoostJNI_RabitAllreduce
   (JNIEnv *jenv, jclass jcls, jobject jsendrecvbuf, jint jcount, jint jenum_dtype, jint jenum_op) {
   void *ptr_sendrecvbuf = jenv->GetDirectBufferAddress(jsendrecvbuf);
-  RabitAllreduce(ptr_sendrecvbuf, (size_t) jcount, jenum_dtype, jenum_op, NULL, NULL);
+  JVM_CHECK_CALL(RabitAllreduce(ptr_sendrecvbuf, (size_t) jcount, jenum_dtype, jenum_op, NULL, NULL));
 
   return 0;
 }

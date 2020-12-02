@@ -15,15 +15,14 @@ Installation Guide
 
   * The binary wheel will support GPU algorithms (`gpu_hist`) on machines with NVIDIA GPUs. Please note that **training with multiple GPUs is only supported for Linux platform**. See :doc:`gpu/index`.
   * Currently, we provide binary wheels for 64-bit Linux, macOS and Windows.
-  * Nightly builds are available. You can now run
+  * Nightly builds are available. You can go to `this page
+    <https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/list.html>`_, find the
+    wheel with the commit id you want and install it with pip:
 
     .. code-block:: bash
 
-      pip install https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/xgboost-[version]+[commithash]-py2.py3-none-manylinux1_x86_64.whl
+      pip install <url to the wheel>
 
-    to install the nightly build with the given commit hash. See `this page
-    <https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/list.html>`_ to see the
-    list of all nightly builds.
 
 ****************************
 Building XGBoost from source
@@ -67,7 +66,7 @@ on the binding you choose).  For building language specific package, see corresp
 sections in this document.  The minimal building requirement is
 
 - A recent C++ compiler supporting C++11 (g++-5.0 or higher)
-- CMake 3.12 or higher.
+- CMake 3.13 or higher.
 
 For a list of CMake options, see ``#-- Options`` in CMakeLists.txt on top level of source tree.
 
@@ -169,6 +168,12 @@ XGBoost can be built with GPU support for both Linux and Windows using CMake. GP
 
 An up-to-date version of the CUDA toolkit is required.
 
+.. note:: Checking your compiler version
+
+  CUDA is really picky about supported compilers, a table for the compatible compilers for the latests CUDA version on Linux can be seen `here <https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html>`_.
+
+  Some distros package a compatible ``gcc`` version with CUDA. If you run into compiler errors with ``nvcc``, try specifying the correct compiler with ``-DCMAKE_CXX_COMPILER=/path/to/correct/g++ -DCMAKE_C_COMPILER=/path/to/correct/gcc``. On Arch Linux, for example, both binaries can be found under ``/opt/cuda/bin/``.
+
 From the command line on Linux starting from the XGBoost directory:
 
 .. code-block:: bash
@@ -177,6 +182,10 @@ From the command line on Linux starting from the XGBoost directory:
   cd build
   cmake .. -DUSE_CUDA=ON
   make -j4
+
+.. note:: Specifying compute capability
+
+  To speed up compilation, the compute version specific to your GPU could be passed to cmake as, e.g., ``-DGPU_COMPUTE_VER=50``. A quick explanation and numbers for some architectures can be found `here <https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/>`_.
 
 .. note:: Enabling distributed GPU training
 
@@ -207,7 +216,6 @@ On Windows, run CMake as follows:
 
     cmake .. -G"Visual Studio 15 2017 Win64" -T v140,cuda=8.0 -DUSE_CUDA=ON
 
-To speed up compilation, the compute version specific to your GPU could be passed to cmake as, e.g., ``-DGPU_COMPUTE_VER=50``.
 The above cmake configuration run will create an ``xgboost.sln`` solution file in the build directory. Build this solution in release mode as a x64 build, either from Visual studio or from command line:
 
 .. code-block:: bash
@@ -311,6 +319,26 @@ is a simple bash script does that:
   make -j$(nproc)
   cd ../python-package
   pip install -e .  # or equivalently python setup.py develop
+
+3. Use ``libxgboost.so`` on system path.
+
+This is for distributing xgboost in a language independent manner, where ``libxgboost.so``
+is separately packaged with Python package.  Assuming `libxgboost.so` is already presented
+in system library path, which can be queried via:
+
+.. code-block:: python
+
+  import sys
+  import os
+  os.path.join(sys.prefix, 'lib')
+
+Then one only needs to provide an user option when installing Python package to reuse the
+shared object in system path:
+
+.. code-block:: bash
+
+  cd xgboost/python-package
+  python setup.py install --use-system-libxgboost
 
 .. _mingw_python:
 

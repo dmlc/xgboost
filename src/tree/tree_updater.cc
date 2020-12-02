@@ -30,7 +30,6 @@ namespace xgboost {
 namespace tree {
 // List of files that will be force linked in static links.
 DMLC_REGISTRY_LINK_TAG(updater_colmaker);
-DMLC_REGISTRY_LINK_TAG(updater_skmaker);
 DMLC_REGISTRY_LINK_TAG(updater_refresh);
 DMLC_REGISTRY_LINK_TAG(updater_prune);
 DMLC_REGISTRY_LINK_TAG(updater_quantile_hist);
@@ -38,7 +37,6 @@ DMLC_REGISTRY_LINK_TAG(updater_histmaker);
 DMLC_REGISTRY_LINK_TAG(updater_sync);
 #ifdef XGBOOST_USE_CUDA
 DMLC_REGISTRY_LINK_TAG(updater_gpu_hist);
-DMLC_REGISTRY_LINK_TAG(updater_gpu_hist2);
 #endif  // XGBOOST_USE_CUDA
 }  // namespace tree
 }  // namespace xgboost

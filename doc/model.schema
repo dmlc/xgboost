@@ -58,12 +58,6 @@
                       "type": "number"
                     }
                   },
-                  "leaf_child_counts": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
                   "left_children": {
                     "type": "array",
                     "items": {
@@ -99,6 +93,30 @@
                     "items": {
                       "type": "boolean"
                     }
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "categories_nodes": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "categories_segments": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "categorical_sizes": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
                   }
                 },
                 "required": [
@@ -106,13 +124,16 @@
                   "loss_changes",
                   "sum_hessian",
                   "base_weights",
-                  "leaf_child_counts",
                   "left_children",
                   "right_children",
                   "parents",
                   "split_indices",
                   "split_conditions",
-                  "default_left"
+                  "default_left",
+                  "categories",
+                  "categories_nodes",
+                  "categories_segments",
+                  "categories_sizes"
                 ]
               }
             },
@@ -173,6 +194,17 @@
       "type": "object",
       "properties": {
         "scale_pos_weight": {
+          "type": "string"
+        }
+      }
+    },
+    "aft_loss_param": {
+      "type": "object",
+      "properties": {
+        "aft_loss_distribution": {
+          "type": "string"
+        },
+        "aft_loss_distribution_scale": {
           "type": "string"
         }
       }
@@ -276,7 +308,29 @@
             {
               "type": "object",
               "properties": {
+                "name": { "const": "reg:pseudohubererror" },
+                "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
+              },
+              "required": [
+                "name",
+                "reg_loss_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
                 "name": { "const": "reg:squaredlogerror" },
+                "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
+              },
+              "required": [
+                "name",
+                "reg_loss_param"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": { "const": "reg:linear" },
                 "reg_loss_param": { "$ref": "#/definitions/reg_loss_param"}
               },
               "required": [
@@ -420,6 +474,19 @@
                 "name",
                 "lambda_rank_param"
               ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": {"const": "survival:aft"},
+                "aft_loss_param": { "$ref": "#/definitions/aft_loss_param"}
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": {"const": "binary:hinge"}
+              }
             }
           ]
         },

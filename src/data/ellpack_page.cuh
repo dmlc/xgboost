@@ -13,34 +13,6 @@
 #include <thrust/binary_search.h>
 
 namespace xgboost {
-
-// Find a gidx value for a given feature otherwise return -1 if not found
-__forceinline__ __device__ int BinarySearchRow(
-    bst_uint begin, bst_uint end,
-    common::CompressedIterator<uint32_t> data,
-    int const fidx_begin, int const fidx_end) {
-  bst_uint previous_middle = UINT32_MAX;
-  while (end != begin) {
-    auto middle = begin + (end - begin) / 2;
-    if (middle == previous_middle) {
-      break;
-    }
-    previous_middle = middle;
-
-    auto gidx = data[middle];
-
-    if (gidx >= fidx_begin && gidx < fidx_end) {
-      return gidx;
-    } else if (gidx < fidx_begin) {
-      begin = middle;
-    } else {
-      end = middle;
-    }
-  }
-  // Value is missing
-  return -1;
-}
-
 /** \brief Struct for accessing and manipulating an ellpack matrix on the
  * device. Does not own underlying memory and may be trivially copied into
  * kernels.*/
@@ -83,11 +55,11 @@ struct EllpackDeviceAccessor {
     if (is_dense) {
       gidx = gidx_iter[row_begin + fidx];
     } else {
-      gidx = BinarySearchRow(row_begin,
-                             row_end,
-                             gidx_iter,
-                             feature_segments[fidx],
-                             feature_segments[fidx + 1]);
+      gidx = common::BinarySearchBin(row_begin,
+                                     row_end,
+                                     gidx_iter,
+                                     feature_segments[fidx],
+                                     feature_segments[fidx + 1]);
     }
     return gidx;
   }
@@ -146,10 +118,12 @@ class EllpackPageImpl {
    */
   EllpackPageImpl(int device, common::HistogramCuts cuts, bool is_dense,
                   size_t row_stride, size_t n_rows);
-
+  /*!
+   * \brief Constructor used for external memory.
+   */
   EllpackPageImpl(int device, common::HistogramCuts cuts,
-                  const SparsePage& page,
-                  bool is_dense, size_t row_stride);
+                  const SparsePage &page, bool is_dense, size_t row_stride,
+                  common::Span<FeatureType const> feature_types);
 
   /*!
    * \brief Constructor from an existing DMatrix.
@@ -212,8 +186,8 @@ class EllpackPageImpl {
    * @param row_batch The CSR page.
    */
   void CreateHistIndices(int device,
-                         const SparsePage& row_batch
-                         );
+                         const SparsePage& row_batch,
+                         common::Span<FeatureType const> feature_types);
   /*!
    * \brief Initialize the buffer to store compressed features.
    */

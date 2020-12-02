@@ -240,6 +240,9 @@ namespace aft {
 template <>
 XGBOOST_DEVICE inline double
 GetLimitGradAtInfPred<NormalDistribution>(CensoringType censor_type, bool sign, double sigma) {
+  // Remove unused parameter compiler warning.
+  (void) sigma;
+
   switch (censor_type) {
   case CensoringType::kUncensored:
     return sign ? kMinGradient : kMaxGradient;
@@ -288,6 +291,10 @@ GetLimitGradAtInfPred<LogisticDistribution>(CensoringType censor_type, bool sign
 template <>
 XGBOOST_DEVICE inline double
 GetLimitHessAtInfPred<LogisticDistribution>(CensoringType censor_type, bool sign, double sigma) {
+  // Remove unused parameter compiler warning.
+  (void) sign;
+  (void) sigma;
+
   switch (censor_type) {
   case CensoringType::kUncensored:
   case CensoringType::kRightCensored:
@@ -317,6 +324,9 @@ GetLimitGradAtInfPred<ExtremeDistribution>(CensoringType censor_type, bool sign,
 template <>
 XGBOOST_DEVICE inline double
 GetLimitHessAtInfPred<ExtremeDistribution>(CensoringType censor_type, bool sign, double sigma) {
+  // Remove unused parameter compiler warning.
+  (void) sigma;
+
   switch (censor_type) {
   case CensoringType::kUncensored:
   case CensoringType::kRightCensored:

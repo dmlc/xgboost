@@ -67,7 +67,7 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
 
   # first number of the path represents the tree, then the following numbers are related to the path to follow
   # root init
-  root.nodes <- tree.matrix[stri_detect_regex(ID, "\\d+-0"), ID]
+  root.nodes <- tree.matrix[Node == 0, ID]
   tree.matrix[ID %in% root.nodes, abs.node.position := root.nodes]
 
   precedent.nodes <- root.nodes
@@ -86,11 +86,8 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
   tree.matrix[!is.na(Yes), Yes := paste0(abs.node.position, "_0")]
   tree.matrix[!is.na(No), No := paste0(abs.node.position, "_1")]
 
-  remove.tree <- . %>% stri_replace_first_regex(pattern = "^\\d+-", replacement = "")
-
-  tree.matrix[, `:=`(abs.node.position = remove.tree(abs.node.position),
-                     Yes = remove.tree(Yes),
-                     No = remove.tree(No))]
+  for (nm in c("abs.node.position", "Yes", "No"))
+    data.table::set(tree.matrix, j = nm, value = sub("^\\d+-", "", tree.matrix[[nm]]))
 
   nodes.dt <- tree.matrix[
         , .(Quality = sum(Quality))

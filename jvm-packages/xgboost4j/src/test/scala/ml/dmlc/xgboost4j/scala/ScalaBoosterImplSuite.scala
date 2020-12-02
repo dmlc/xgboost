@@ -210,4 +210,12 @@ class ScalaBoosterImplSuite extends FunSuite {
     val nextBooster = XGBoost.train(trainMat, paramMap, round = 4, booster = prevBooster)
     assert(prevBooster == nextBooster)
   }
+
+  test("test getting number of features from a booster") {
+    val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
+    val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
+    val booster = trainBooster(trainMat, testMat)
+
+    TestCase.assertEquals(booster.getNumFeature, 127)
+  }
 }

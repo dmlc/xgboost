@@ -69,13 +69,15 @@ Plotting API
 
 Callback API
 ------------
-.. autofunction:: xgboost.callback.print_evaluation
+.. autofunction:: xgboost.callback.TrainingCallback
 
-.. autofunction:: xgboost.callback.record_evaluation
+.. autofunction:: xgboost.callback.EvaluationMonitor
 
-.. autofunction:: xgboost.callback.reset_learning_rate
+.. autofunction:: xgboost.callback.EarlyStopping
 
-.. autofunction:: xgboost.callback.early_stop
+.. autofunction:: xgboost.callback.LearningRateScheduler
+
+.. autofunction:: xgboost.callback.TrainingCheckPoint
 
 .. _dask_api:
 
@@ -85,9 +87,13 @@ Dask API
 
 .. autofunction:: xgboost.dask.DaskDMatrix
 
+.. autofunction:: xgboost.dask.DaskDeviceQuantileDMatrix
+
 .. autofunction:: xgboost.dask.train
 
 .. autofunction:: xgboost.dask.predict
+
+.. autofunction:: xgboost.dask.inplace_predict
 
 .. autofunction:: xgboost.dask.DaskXGBClassifier
 

@@ -55,13 +55,13 @@ class PerInstanceWeightPolicy {
  public:
   inline static xgboost::bst_float
   GetWeightOfInstance(const xgboost::MetaInfo& info,
-                      unsigned instance_id, unsigned group_id) {
+                      unsigned instance_id, unsigned) {
     return info.GetWeight(instance_id);
   }
   inline static xgboost::bst_float
   GetWeightOfSortedRecord(const xgboost::MetaInfo& info,
                           const PredIndPairContainer& rec,
-                          unsigned record_id, unsigned group_id) {
+                          unsigned record_id, unsigned) {
     return info.GetWeight(rec[record_id].second);
   }
 };
@@ -70,14 +70,14 @@ class PerGroupWeightPolicy {
  public:
   inline static xgboost::bst_float
   GetWeightOfInstance(const xgboost::MetaInfo& info,
-                      unsigned instance_id, unsigned group_id) {
+                      unsigned, unsigned group_id) {
     return info.GetWeight(group_id);
   }
 
   inline static xgboost::bst_float
   GetWeightOfSortedRecord(const xgboost::MetaInfo& info,
-                          const PredIndPairContainer& rec,
-                          unsigned record_id, unsigned group_id) {
+                          const PredIndPairContainer&,
+                          unsigned, unsigned group_id) {
     return info.GetWeight(group_id);
   }
 };
@@ -651,11 +651,11 @@ XGBOOST_REGISTER_METRIC(AMS, "ams")
 
 XGBOOST_REGISTER_METRIC(Auc, "auc")
 .describe("Area under curve for both classification and rank.")
-.set_body([](const char* param) { return new EvalAuc(); });
+.set_body([](const char*) { return new EvalAuc(); });
 
 XGBOOST_REGISTER_METRIC(AucPR, "aucpr")
 .describe("Area under PR curve for both classification and rank.")
-.set_body([](const char* param) { return new EvalAucPR(); });
+.set_body([](const char*) { return new EvalAucPR(); });
 
 XGBOOST_REGISTER_METRIC(Precision, "pre")
 .describe("precision@k for rank.")
@@ -671,6 +671,6 @@ XGBOOST_REGISTER_METRIC(MAP, "map")
 
 XGBOOST_REGISTER_METRIC(Cox, "cox-nloglik")
 .describe("Negative log partial likelihood of Cox proportioanl hazards model.")
-.set_body([](const char* param) { return new EvalCox(); });
+.set_body([](const char*) { return new EvalCox(); });
 }  // namespace metric
 }  // namespace xgboost

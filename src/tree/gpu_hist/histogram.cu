@@ -34,7 +34,7 @@ namespace tree {
  * to avoid outliers, as the full reduction is reproducible on GPU with reduction tree.
  */
 template <typename T>
-DEV_INLINE __host__ T CreateRoundingFactor(T max_abs, int n) {
+XGBOOST_DEV_INLINE __host__ T CreateRoundingFactor(T max_abs, int n) {
   T delta = max_abs / (static_cast<T>(1.0) - 2 * n * std::numeric_limits<T>::epsilon());
 
   // Calculate ceil(log_2(delta)).
@@ -53,20 +53,20 @@ struct Pair {
   GradientPair first;
   GradientPair second;
 };
-DEV_INLINE Pair operator+(Pair const& lhs, Pair const& rhs) {
+__host__ XGBOOST_DEV_INLINE Pair operator+(Pair const& lhs, Pair const& rhs) {
   return {lhs.first + rhs.first, lhs.second + rhs.second};
 }
 }  // anonymous namespace
 
 struct Clip : public thrust::unary_function<GradientPair, Pair> {
-  static DEV_INLINE float Pclip(float v) {
+  static XGBOOST_DEV_INLINE float Pclip(float v) {
     return v > 0 ? v : 0;
   }
-  static DEV_INLINE float Nclip(float v) {
+  static XGBOOST_DEV_INLINE float Nclip(float v) {
     return v < 0 ? abs(v) : 0;
   }
 
-  DEV_INLINE Pair operator()(GradientPair x) const {
+  XGBOOST_DEV_INLINE Pair operator()(GradientPair x) const {
     auto pg = Pclip(x.GetGrad());
     auto ph = Pclip(x.GetHess());
 
@@ -86,7 +86,7 @@ GradientSumT CreateRoundingFactor(common::Span<GradientPair const> gpair) {
   thrust::device_ptr<GradientPair const> gpair_end {gpair.data() + gpair.size()};
   auto beg = thrust::make_transform_iterator(gpair_beg, Clip());
   auto end = thrust::make_transform_iterator(gpair_end, Clip());
-  Pair p = thrust::reduce(thrust::cuda::par(alloc), beg, end, Pair{});
+  Pair p = dh::Reduce(thrust::cuda::par(alloc), beg, end, Pair{}, thrust::plus<Pair>{});
   GradientPair positive_sum {p.first}, negative_sum {p.second};
 
   auto histogram_rounding = GradientSumT {

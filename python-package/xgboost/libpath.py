@@ -24,7 +24,11 @@ def find_lib_path():
         os.path.join(curr_path, 'lib'),
         # editable installation, no copying is performed.
         os.path.join(curr_path, os.path.pardir, os.path.pardir, 'lib'),
+        # use libxgboost from a system prefix, if available.  This should be the last
+        # option.
+        os.path.join(sys.prefix, 'lib'),
     ]
+
     if sys.platform == 'win32':
         if platform.architecture()[0] == '64bit':
             dll_path.append(

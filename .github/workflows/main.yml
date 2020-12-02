@@ -7,17 +7,110 @@ name: XGBoost-CI
 on: [push, pull_request]
 
 env:
-  R_PACKAGES: c('XML', 'igraph', 'data.table', 'magrittr', 'stringi', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm', 'devtools')
+  R_PACKAGES: c('XML', 'igraph', 'data.table', 'magrittr', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm', 'devtools', 'float', 'titanic')
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
+  gtest-cpu:
+    name: Test Google C++ test (CPU)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-10.15]
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - name: Install system packages
+      run: |
+        brew install lz4 ninja libomp
+    - name: Build gtest binary
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON -GNinja
+        ninja -v
+    - name: Run gtest binary
+      run: |
+        cd build
+        ctest --extra-verbose
+
+  gtest-cpu-nonomp:
+    name: Test Google C++ unittest (CPU Non-OMP)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - name: Install system packages
+      run: |
+        sudo apt-get install -y --no-install-recommends ninja-build
+    - name: Build and install XGBoost
+      shell: bash -l {0}
+      run: |
+        mkdir build
+        cd build
+        cmake .. -GNinja -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON -DUSE_OPENMP=OFF
+        ninja -v
+    - name: Run gtest binary
+      run: |
+        cd build
+        ctest --extra-verbose
+
+  c-api-demo:
+    name: Test installing XGBoost lib + building the C API demo
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest"]
+        python-version: ["3.8"]
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - name: Install system packages
+      run: |
+        sudo apt-get install -y --no-install-recommends ninja-build
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: ${{ matrix.python-version }}
+    - name: Display Conda env
+      shell: bash -l {0}
+      run: |
+        conda info
+        conda list
+    - name: Build and install XGBoost
+      shell: bash -l {0}
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -GNinja
+        ninja -v install
+    - name: Build and run C API demo
+      shell: bash -l {0}
+      run: |
+        cd demo/c-api/
+        mkdir build
+        cd build
+        cmake .. -GNinja -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        ninja -v
+        cd ..
+        ./build/api-demo
+
   test-with-jvm:
     name: Test JVM on OS ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, windows-2016, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest]
 
     steps:
     - uses: actions/checkout@v2
@@ -35,17 +128,106 @@ jobs:
         key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
         restore-keys: ${{ runner.os }}-m2
 
-    - name: Test JVM packages
+    - name: Test XGBoost4J
       run: |
         cd jvm-packages
-        mvn test -pl :xgboost4j_2.12
+        mvn test -B -pl :xgboost4j_2.12
 
+    - name: Test XGBoost4J-Spark
+      run: |
+        rm -rfv build/
+        cd jvm-packages
+        mvn -B test
+      if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
+      env:
+        RABIT_MOCK: ON
+
+  lint:
+    runs-on: ubuntu-latest
+    name: Code linting for Python and C++
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.7'
+        architecture: 'x64'
+    - name: Install Python packages
+      run: |
+        python -m pip install wheel setuptools
+        python -m pip install pylint cpplint numpy scipy scikit-learn
+    - name: Run lint
+      run: |
+        make lint
+
+  doxygen:
+    runs-on: ubuntu-latest
+    name: Generate C/C++ API doc using Doxygen
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.7'
+        architecture: 'x64'
+    - name: Install system packages
+      run: |
+        sudo apt-get install -y --no-install-recommends doxygen graphviz ninja-build
+        python -m pip install wheel setuptools
+        python -m pip install awscli
+    - name: Run Doxygen
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DBUILD_C_DOC=ON -GNinja
+        ninja -v doc_doxygen
+    - name: Extract branch name
+      shell: bash
+      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+      id: extract_branch
+      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
+    - name: Publish
+      run: |
+        cd build/
+        tar cvjf ${{ steps.extract_branch.outputs.branch }}.tar.bz2 doc_doxygen/
+        python -m awscli s3 cp ./${{ steps.extract_branch.outputs.branch }}.tar.bz2 s3://xgboost-docs/ --acl public-read
+      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_IAM_S3_UPLOADER }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_IAM_S3_UPLOADER }}
+
+  sphinx:
+    runs-on: ubuntu-latest
+    name: Build docs using Sphinx
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.7'
+        architecture: 'x64'
+    - name: Install system packages
+      run: |
+        sudo apt-get install -y --no-install-recommends graphviz
+        python -m pip install wheel setuptools
+        python -m pip install -r doc/requirements.txt
+    - name: Extract branch name
+      shell: bash
+      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+      id: extract_branch
+      if: github.ref == 'refs/heads/master' || contains(github.ref, 'refs/heads/release_')
+    - name: Run Sphinx
+      run: |
+        make -C doc html
+      env:
+        SPHINX_GIT_BRANCH: ${{ steps.extract_branch.outputs.branch }}
 
   lintr:
     runs-on: ${{ matrix.config.os }}
-
     name: Run R linters on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
-
     strategy:
       matrix:
         config:
@@ -83,23 +265,15 @@ jobs:
         R.exe CMD INSTALL .
         Rscript.exe tests/helper_scripts/run_lint.R
 
-
   test-with-R:
     runs-on: ${{ matrix.config.os }}
-
     name: Test R on OS ${{ matrix.config.os }}, R ${{ matrix.config.r }}, Compiler ${{ matrix.config.compiler }}, Build ${{ matrix.config.build }}
-
     strategy:
       fail-fast: false
       matrix:
         config:
-          - {os: windows-latest, r: 'release', compiler: 'msvc', build: 'autotools'}
-          - {os: windows-2016, r: 'release', compiler: 'msvc', build: 'autotools'}
-          - {os: windows-latest, r: 'release', compiler: 'msvc', build: 'cmake'}
-          - {os: windows-2016, r: 'release', compiler: 'msvc', build: 'cmake'}
-          - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'autotools'}
           - {os: windows-2016, r: 'release', compiler: 'mingw', build: 'autotools'}
-          - {os: windows-latest, r: 'release', compiler: 'mingw', build: 'cmake'}
+          - {os: windows-2016, r: 'release', compiler: 'msvc', build: 'cmake'}
           - {os: windows-2016, r: 'release', compiler: 'mingw', build: 'cmake'}
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
@@ -130,9 +304,53 @@ jobs:
 
     - uses: actions/setup-python@v2
       with:
-        python-version: '3.6' # Version range or exact version of a Python version to use, using SemVer's version range syntax
-        architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
+        python-version: '3.7'
+        architecture: 'x64'
 
     - name: Test R
       run: |
         python tests/ci_build/test_r_package.py --compiler="${{ matrix.config.compiler }}" --build-tool="${{ matrix.config.build }}"
+
+  test-R-CRAN:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {r: 'release'}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: r-lib/actions/setup-r@master
+      with:
+        r-version: ${{ matrix.config.r }}
+
+    - uses: r-lib/actions/setup-tinytex@master
+
+    - name: Cache R packages
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.R_LIBS_USER }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-2-
+
+    - name: Install system packages
+      run: |
+        sudo apt-get update && sudo apt-get install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev
+
+    - name: Install dependencies
+      shell: Rscript {0}
+      run: |
+        install.packages(${{ env.R_PACKAGES }},
+                         repos = 'http://cloud.r-project.org',
+                         dependencies = c('Depends', 'Imports', 'LinkingTo'))
+
+    - name: Check R Package
+      run: |
+        # Print stacktrace upon success of failure
+        make Rcheck || tests/ci_build/print_r_stacktrace.sh fail
+        tests/ci_build/print_r_stacktrace.sh success

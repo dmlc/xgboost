@@ -17,6 +17,7 @@
 #include <map>
 
 #include "row_set.h"
+#include "common.h"
 #include "threading_utils.h"
 #include "../tree/param.h"
 #include "./quantile.h"
@@ -34,15 +35,8 @@ using GHistIndexRow = Span<uint32_t const>;
 // A CSC matrix representing histogram cuts, used in CPU quantile hist.
 // The cut values represent upper bounds of bins containing approximately equal numbers of elements
 class HistogramCuts {
-  // Using friends to avoid creating a virtual class, since HistogramCuts is used as value
-  // object in many places.
-  friend class SparseCuts;
-  friend class DenseCuts;
-  friend class CutsBuilder;
-
  protected:
   using BinIdx = uint32_t;
-  common::Monitor monitor_;
 
  public:
   HostDeviceVector<bst_float> cut_values_;  // NOLINT
@@ -75,16 +69,12 @@ class HistogramCuts {
   }
 
   HistogramCuts& operator=(HistogramCuts&& that) noexcept(true) {
-    monitor_ = std::move(that.monitor_);
     cut_ptrs_ = std::move(that.cut_ptrs_);
     cut_values_ = std::move(that.cut_values_);
     min_vals_ = std::move(that.min_vals_);
     return *this;
   }
 
-  /* \brief Build histogram cuts. */
-  void Build(DMatrix* dmat, uint32_t const max_num_bins);
-  /* \brief How many bins a feature has. */
   uint32_t FeatureBins(uint32_t feature) const {
     return cut_ptrs_.ConstHostVector().at(feature + 1) -
            cut_ptrs_.ConstHostVector()[feature];
@@ -118,86 +108,30 @@ class HistogramCuts {
   }
 };
 
-/* \brief An interface for building quantile cuts.
- *
- * `DenseCuts' always assumes there are `max_bins` for each feature, which makes it not
- * suitable for sparse dataset.  On the other hand `SparseCuts' uses `GetColumnBatches',
- * which doubles the memory usage, hence can not be applied to dense dataset.
- */
-class CutsBuilder {
- public:
-  using WQSketch = common::WQuantileSketch<bst_float, bst_float>;
-  /* \brief return whether group for ranking is used. */
-  static bool UseGroup(DMatrix* dmat);
-  static bool UseGroup(MetaInfo const& info);
-
- protected:
-  HistogramCuts* p_cuts_;
-
- public:
-  explicit CutsBuilder(HistogramCuts* p_cuts) : p_cuts_{p_cuts} {}
-  virtual ~CutsBuilder() = default;
-
-  static uint32_t SearchGroupIndFromRow(std::vector<bst_uint> const &group_ptr,
-                                        size_t const base_rowid) {
-    CHECK_LT(base_rowid, group_ptr.back())
-        << "Row: " << base_rowid << " is not found in any group.";
-    auto it =
-        std::upper_bound(group_ptr.cbegin(), group_ptr.cend() - 1, base_rowid);
-    bst_group_t group_ind = it - group_ptr.cbegin() - 1;
-    return group_ind;
+inline HistogramCuts SketchOnDMatrix(DMatrix *m, int32_t max_bins) {
+  HistogramCuts out;
+  auto const& info = m->Info();
+  const auto threads = omp_get_max_threads();
+  std::vector<std::vector<bst_row_t>> column_sizes(threads);
+  for (auto& column : column_sizes) {
+    column.resize(info.num_col_, 0);
   }
-
-  void AddCutPoint(WQSketch::SummaryContainer const& summary, int max_bin) {
-    size_t required_cuts = std::min(summary.size, static_cast<size_t>(max_bin));
-    for (size_t i = 1; i < required_cuts; ++i) {
-      bst_float cpt = summary.data[i].value;
-      if (i == 1 || cpt > p_cuts_->cut_values_.ConstHostVector().back()) {
-        p_cuts_->cut_values_.HostVector().push_back(cpt);
-      }
+  std::vector<bst_row_t> reduced(info.num_col_, 0);
+  for (auto const& page : m->GetBatches<SparsePage>()) {
+    auto const &entries_per_column =
+        HostSketchContainer::CalcColumnSize(page, info.num_col_, threads);
+    for (size_t i = 0; i < entries_per_column.size(); ++i) {
+      reduced[i] += entries_per_column[i];
     }
   }
-
-  /* \brief Build histogram indices. */
-  virtual void Build(DMatrix* dmat, uint32_t const max_num_bins) = 0;
-};
-
-/*! \brief Cut configuration for sparse dataset. */
-class SparseCuts : public CutsBuilder {
-  /* \brief Distribute columns to each thread according to number of entries. */
-  static std::vector<size_t> LoadBalance(SparsePage const& page, size_t const nthreads);
-  Monitor monitor_;
-
- public:
-  explicit SparseCuts(HistogramCuts* container) :
-      CutsBuilder(container) {
-    monitor_.Init(__FUNCTION__);
+  HostSketchContainer container(reduced, max_bins,
+                                HostSketchContainer::UseGroup(info));
+  for (auto const &page : m->GetBatches<SparsePage>()) {
+    container.PushRowPage(page, info);
   }
-
-  /* \brief Concatonate the built cuts in each thread. */
-  void Concat(std::vector<std::unique_ptr<SparseCuts>> const& cuts, uint32_t n_cols);
-  /* \brief Build histogram indices in single thread. */
-  void SingleThreadBuild(SparsePage const& page, MetaInfo const& info,
-                         uint32_t max_num_bins,
-                         bool const use_group_ind,
-                         uint32_t beg, uint32_t end, uint32_t thread_id);
-  void Build(DMatrix* dmat, uint32_t const max_num_bins) override;
-};
-
-/*! \brief Cut configuration for dense dataset. */
-class DenseCuts  : public CutsBuilder {
- protected:
-  Monitor monitor_;
-
- public:
-  explicit DenseCuts(HistogramCuts* container) :
-      CutsBuilder(container) {
-    monitor_.Init(__FUNCTION__);
-  }
-  void Init(std::vector<WQSketch>* sketchs, uint32_t max_num_bins, size_t max_rows);
-  void Build(DMatrix* p_fmat, uint32_t max_num_bins) override;
-};
-
+  container.MakeCuts(&out);
+  return out;
+}
 
 enum BinTypeSize {
   kUint8BinsTypeSize  = 1,
@@ -313,19 +247,33 @@ struct GHistIndexMatrix {
   // Create a global histogram matrix, given cut
   void Init(DMatrix* p_fmat, int max_num_bins);
 
-  template<typename BinIdxType>
-  void SetIndexDataForDense(common::Span<BinIdxType> index_data_span,
-                    size_t batch_threads, const SparsePage& batch,
-                    size_t rbegin, common::Span<const uint32_t> offsets_span,
-                    size_t nbins);
-
   // specific method for sparse data as no posibility to reduce allocated memory
-  void SetIndexDataForSparse(common::Span<uint32_t> index_data_span,
-                             size_t batch_threads, const SparsePage& batch,
-                             size_t rbegin, size_t nbins);
+  template <typename BinIdxType, typename GetOffset>
+  void SetIndexData(common::Span<BinIdxType> index_data_span,
+                    size_t batch_threads, const SparsePage &batch,
+                    size_t rbegin, size_t nbins, GetOffset get_offset) {
+    const xgboost::Entry *data_ptr = batch.data.HostVector().data();
+    const std::vector<bst_row_t> &offset_vec = batch.offset.HostVector();
+    const size_t batch_size = batch.Size();
+    CHECK_LT(batch_size, offset_vec.size());
+    BinIdxType* index_data = index_data_span.data();
+#pragma omp parallel for num_threads(batch_threads) schedule(static)
+    for (omp_ulong i = 0; i < batch_size; ++i) {
+      const int tid = omp_get_thread_num();
+      size_t ibegin = row_ptr[rbegin + i];
+      size_t iend = row_ptr[rbegin + i + 1];
+      const size_t size = offset_vec[i + 1] - offset_vec[i];
+      SparsePage::Inst inst = {data_ptr + offset_vec[i], size};
+      CHECK_EQ(ibegin + inst.size(), iend);
+      for (bst_uint j = 0; j < inst.size(); ++j) {
+        uint32_t idx = cut.SearchBin(inst[j]);
+        index_data[ibegin + j] = get_offset(idx, j);
+        ++hit_count_tloc_[tid * nbins + idx];
+      }
+    }
+  }
 
-  void ResizeIndex(const size_t rbegin, const SparsePage& batch,
-                   const size_t n_offsets, const size_t n_index,
+  void ResizeIndex(const size_t n_index,
                    const bool isDense);
 
   inline void GetFeatureCounts(size_t* counts) const {
@@ -346,6 +294,33 @@ struct GHistIndexMatrix {
   std::vector<size_t> hit_count_tloc_;
   bool isDense_;
 };
+
+template <typename GradientIndex>
+int32_t XGBOOST_HOST_DEV_INLINE BinarySearchBin(bst_uint begin, bst_uint end,
+                                                GradientIndex const &data,
+                                                uint32_t const fidx_begin,
+                                                uint32_t const fidx_end) {
+  uint32_t previous_middle = std::numeric_limits<uint32_t>::max();
+  while (end != begin) {
+    auto middle = begin + (end - begin) / 2;
+    if (middle == previous_middle) {
+      break;
+    }
+    previous_middle = middle;
+
+    auto gidx = data[middle];
+
+    if (gidx >= fidx_begin && gidx < fidx_end) {
+      return static_cast<int32_t>(gidx);
+    } else if (gidx < fidx_begin) {
+      begin = middle;
+    } else {
+      end = middle;
+    }
+  }
+  // Value is missing
+  return -1;
+}
 
 struct GHistIndexBlock {
   const size_t* row_ptr;
@@ -432,9 +407,14 @@ class HistCollection {
   // access histogram for i-th node
   GHistRowT operator[](bst_uint nid) const {
     constexpr uint32_t kMax = std::numeric_limits<uint32_t>::max();
-    CHECK_NE(row_ptr_[nid], kMax);
-    GradientPairT* ptr =
-        const_cast<GradientPairT*>(dmlc::BeginPtr(data_) + row_ptr_[nid]);
+    const size_t id = row_ptr_[nid];
+    CHECK_NE(id, kMax);
+    GradientPairT* ptr = nullptr;
+    if (contiguous_allocation_) {
+      ptr = const_cast<GradientPairT*>(data_[0].data() + nbins_*id);
+    } else {
+      ptr = const_cast<GradientPairT*>(data_[id].data());
+    }
     return {ptr, nbins_};
   }
 
@@ -463,12 +443,26 @@ class HistCollection {
     }
     CHECK_EQ(row_ptr_[nid], kMax);
 
-    if (data_.size() < nbins_ * (nid + 1)) {
-      data_.resize(nbins_ * (nid + 1));
+    if (data_.size() < (nid + 1)) {
+      data_.resize((nid + 1));
     }
 
-    row_ptr_[nid] = nbins_ * n_nodes_added_;
+    row_ptr_[nid] = n_nodes_added_;
     n_nodes_added_++;
+  }
+  // allocate thread local memory i-th node
+  void AllocateData(bst_uint nid) {
+    if (data_[row_ptr_[nid]].size() == 0) {
+      data_[row_ptr_[nid]].resize(nbins_, {0, 0});
+    }
+  }
+  // allocate common buffer contiguously for all nodes, need for single Allreduce call
+  void AllocateAllData() {
+    const size_t new_size = nbins_*data_.size();
+    contiguous_allocation_ = true;
+    if (data_[0].size() != new_size) {
+      data_[0].resize(new_size);
+    }
   }
 
  private:
@@ -476,8 +470,10 @@ class HistCollection {
   uint32_t nbins_ = 0;
   /*! \brief amount of active nodes in hist collection */
   uint32_t n_nodes_added_ = 0;
+  /*! \brief flag to identify contiguous memory allocation */
+  bool contiguous_allocation_ = false;
 
-  std::vector<GradientPairT> data_;
+  std::vector<std::vector<GradientPairT>> data_;
 
   /*! \brief row_ptr_[nid] locates bin for histogram of node nid */
   std::vector<size_t> row_ptr_;
@@ -506,7 +502,6 @@ class ParallelGHistBuilder {
              const std::vector<GHistRowT>& targeted_hists) {
     hist_buffer_.Init(nbins_);
     tid_nid_to_hist_.clear();
-    hist_memory_.clear();
     threads_to_nids_map_.clear();
 
     targeted_hists_ = targeted_hists;
@@ -529,8 +524,11 @@ class ParallelGHistBuilder {
     CHECK_LT(nid, nodes_);
     CHECK_LT(tid, nthreads_);
 
-    size_t idx = tid_nid_to_hist_.at({tid, nid});
-    GHistRowT hist = hist_memory_[idx];
+    int idx = tid_nid_to_hist_.at({tid, nid});
+    if (idx >= 0) {
+      hist_buffer_.AllocateData(idx);
+    }
+    GHistRowT hist = idx == -1 ? targeted_hists_[nid] : hist_buffer_[idx];
 
     if (!hist_was_used_[tid * nodes_ + nid]) {
       InitilizeHistByZeroes(hist, 0, hist.size());
@@ -551,8 +549,9 @@ class ParallelGHistBuilder {
     for (size_t tid = 0; tid < nthreads_; ++tid) {
       if (hist_was_used_[tid * nodes_ + nid]) {
         is_updated = true;
-        const size_t idx = tid_nid_to_hist_.at({tid, nid});
-        GHistRowT src = hist_memory_[idx];
+
+        int idx = tid_nid_to_hist_.at({tid, nid});
+        GHistRowT src = idx == -1 ? targeted_hists_[nid] : hist_buffer_[idx];
 
         if (dst.data() != src.data()) {
           IncrementHist(dst, src, begin, end);
@@ -614,7 +613,6 @@ class ParallelGHistBuilder {
   }
 
   void MatchNodeNidPairToHist() {
-    size_t hist_total = 0;
     size_t hist_allocated_additionally = 0;
 
     for (size_t nid = 0; nid < nodes_; ++nid) {
@@ -622,15 +620,11 @@ class ParallelGHistBuilder {
       for (size_t tid = 0; tid < nthreads_; ++tid) {
         if (threads_to_nids_map_[tid * nodes_ + nid]) {
           if (first_hist) {
-            hist_memory_.push_back(targeted_hists_[nid]);
+            tid_nid_to_hist_[{tid, nid}] = -1;
             first_hist = false;
           } else {
-            hist_memory_.push_back(hist_buffer_[hist_allocated_additionally]);
-            hist_allocated_additionally++;
+            tid_nid_to_hist_[{tid, nid}] = hist_allocated_additionally++;
           }
-          // map pair {tid, nid} to index of allocated histogram from hist_memory_
-          tid_nid_to_hist_[{tid, nid}] = hist_total++;
-          CHECK_EQ(hist_total, hist_memory_.size());
         }
       }
     }
@@ -655,10 +649,11 @@ class ParallelGHistBuilder {
   std::vector<bool> threads_to_nids_map_;
   /*! \brief Contains histograms for final results  */
   std::vector<GHistRowT> targeted_hists_;
-  /*! \brief Allocated memory for histograms used for construction  */
-  std::vector<GHistRowT> hist_memory_;
-  /*! \brief map pair {tid, nid} to index of allocated histogram from hist_memory_  */
-  std::map<std::pair<size_t, size_t>, size_t> tid_nid_to_hist_;
+  /*!
+   * \brief map pair {tid, nid} to index of allocated histogram from hist_buffer_ and targeted_hists_,
+   * -1 is reserved for targeted_hists_
+   */
+  std::map<std::pair<size_t, size_t>, int> tid_nid_to_hist_;
 };
 
 /*!
@@ -698,8 +693,6 @@ class GHistBuilder {
   /*! \brief number of all bins over all features */
   uint32_t nbins_ { 0 };
 };
-
-
 }  // namespace common
 }  // namespace xgboost
 #endif  // XGBOOST_COMMON_HIST_UTIL_H_

@@ -36,7 +36,7 @@ treeInteractions <- function(input_tree, input_max_depth) {
   interaction_trees <- trees[!is.na(Split) & !is.na(parent_1),
                              c('Feature', paste0('parent_feat_', 1:(input_max_depth - 1))),
                              with = FALSE]
-  interaction_trees_split <- split(interaction_trees, 1:nrow(interaction_trees))
+  interaction_trees_split <- split(interaction_trees, seq_len(nrow(interaction_trees)))
   interaction_list <- lapply(interaction_trees_split, as.character)
 
   # Remove NAs (no parent interaction)
@@ -101,8 +101,8 @@ bst3_interactions <- treeInteractions(bst3_tree, 4)
 
 # Show monotonic constraints still apply by checking scores after incrementing V1
 x1 <- sort(unique(x[['V1']]))
-for (i in 1:length(x1)){
-  testdata <- copy(x[, -c('V1')])
+for (i in seq_along(x1)){
+  testdata <- copy(x[, - ('V1')])
   testdata[['V1']] <- x1[i]
   testdata <- testdata[, paste0('V', 1:10), with = FALSE]
   pred <- predict(bst3, as.matrix(testdata))

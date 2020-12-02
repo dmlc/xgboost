@@ -7,8 +7,8 @@ import xgboost as xgb
 # several cache file with the prefix will be generated
 # currently only support convert from libsvm file
 CURRENT_DIR = os.path.dirname(__file__)
-dtrain = xgb.DMatrix(os.path.join(CURRENT_DIR, '../data/agaricus.txt.train'))
-dtest = xgb.DMatrix(os.path.join(CURRENT_DIR, '../data/agaricus.txt.test'))
+dtrain = xgb.DMatrix(os.path.join(CURRENT_DIR, '../data/agaricus.txt.train#dtrain.cache'))
+dtest = xgb.DMatrix(os.path.join(CURRENT_DIR, '../data/agaricus.txt.test#dtest.cache'))
 
 # specify validations set to watch performance
 param = {'max_depth':2, 'eta':1, 'objective':'binary:logistic'}

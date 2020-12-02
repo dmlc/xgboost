@@ -62,6 +62,14 @@ void GBTree::Configure(const Args& cfg) {
   }
 #endif  // defined(XGBOOST_USE_CUDA)
 
+#if defined(XGBOOST_USE_ONEAPI)
+  if (!oneapi_predictor_) {
+    oneapi_predictor_ = std::unique_ptr<Predictor>(
+        Predictor::Create("oneapi_predictor", this->generic_param_));
+  }
+  oneapi_predictor_->Configure(cfg);
+#endif  // defined(XGBOOST_USE_ONEAPI)
+
   monitor_.Init("GBTree");
 
   specified_updater_ = std::any_of(cfg.cbegin(), cfg.cend(),
@@ -73,7 +81,7 @@ void GBTree::Configure(const Args& cfg) {
     LOG(WARNING) << "DANGER AHEAD: You have manually specified `updater` "
         "parameter. The `tree_method` parameter will be ignored. "
         "Incorrect sequence of updaters will produce undefined "
-        "behavior. For common uses, we recommend using"
+        "behavior. For common uses, we recommend using "
         "`tree_method` parameter instead.";
     // Don't drive users to silent XGBOost.
     showed_updater_warning_ = true;
@@ -126,20 +134,19 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
   }
 
   if (rabit::IsDistributed()) {
-    LOG(WARNING) <<
-      "Tree method is automatically selected to be 'approx' "
-      "for distributed training.";
+    LOG(INFO) << "Tree method is automatically selected to be 'approx' "
+                 "for distributed training.";
     tparam_.tree_method = TreeMethod::kApprox;
   } else if (!fmat->SingleColBlock()) {
-    LOG(WARNING) << "Tree method is automatically set to 'approx' "
-                    "since external-memory data matrix is used.";
+    LOG(INFO) << "Tree method is automatically set to 'approx' "
+                 "since external-memory data matrix is used.";
     tparam_.tree_method = TreeMethod::kApprox;
   } else if (fmat->Info().num_row_ >= (4UL << 20UL)) {
     /* Choose tree_method='approx' automatically for large data matrix */
-    LOG(WARNING) << "Tree method is automatically selected to be "
-        "'approx' for faster speed. To use old behavior "
-        "(exact greedy algorithm on single machine), "
-        "set tree_method to 'exact'.";
+    LOG(INFO) << "Tree method is automatically selected to be "
+                 "'approx' for faster speed. To use old behavior "
+                 "(exact greedy algorithm on single machine), "
+                 "set tree_method to 'exact'.";
     tparam_.tree_method = TreeMethod::kApprox;
   } else {
     tparam_.tree_method = TreeMethod::kExact;
@@ -391,9 +398,41 @@ void GBTree::SaveModel(Json* p_out) const {
   model_.SaveModel(&model);
 }
 
+void GBTree::Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
+                   GradientBooster *out, bool* out_of_bound) const {
+  CHECK(configured_);
+  CHECK(out);
+
+  auto p_gbtree = dynamic_cast<GBTree *>(out);
+  CHECK(p_gbtree);
+  GBTreeModel &out_model = p_gbtree->model_;
+  auto layer_trees = this->LayerTrees();
+
+  layer_end = layer_end == 0 ? model_.trees.size() / layer_trees : layer_end;
+  CHECK_GE(layer_end, layer_begin);
+  CHECK_GE(step, 1);
+  int32_t n_layers = (layer_end - layer_begin) / step;
+  std::vector<std::unique_ptr<RegTree>> &out_trees = out_model.trees;
+  out_trees.resize(layer_trees * n_layers);
+  std::vector<int32_t> &out_trees_info = out_model.tree_info;
+  out_trees_info.resize(layer_trees * n_layers);
+  out_model.param.num_trees = out_model.trees.size();
+  CHECK(this->model_.trees_to_update.empty());
+
+  *out_of_bound = detail::SliceTrees(
+      layer_begin, layer_end, step, this->model_, tparam_, layer_trees,
+      [&](auto const &in_it, auto const &out_it) {
+        auto new_tree =
+            std::make_unique<RegTree>(*this->model_.trees.at(in_it));
+        bst_group_t group = this->model_.tree_info[in_it];
+        out_trees.at(out_it) = std::move(new_tree);
+        out_trees_info.at(out_it) = group;
+      });
+}
+
 void GBTree::PredictBatch(DMatrix* p_fmat,
                           PredictionCacheEntry* out_preds,
-                          bool training,
+                          bool,
                           unsigned ntree_limit) {
   CHECK(configured_);
   GetPredictor(&out_preds->predictions, p_fmat)
@@ -413,6 +452,14 @@ GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
 #else
       common::AssertGPUSupport();
 #endif  // defined(XGBOOST_USE_CUDA)
+    }
+    if (tparam_.predictor == PredictorType::kOneAPIPredictor) {
+#if defined(XGBOOST_USE_ONEAPI)
+      CHECK(oneapi_predictor_);
+      return oneapi_predictor_;
+#else
+      common::AssertOneAPISupport();
+#endif  // defined(XGBOOST_USE_ONEAPI)
     }
     CHECK(cpu_predictor_);
     return cpu_predictor_;
@@ -477,6 +524,22 @@ class Dart : public GBTree {
   void Configure(const Args& cfg) override {
     GBTree::Configure(cfg);
     dparam_.UpdateAllowUnknown(cfg);
+  }
+
+  void Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
+             GradientBooster *out, bool* out_of_bound) const final {
+    GBTree::Slice(layer_begin, layer_end, step, out, out_of_bound);
+    if (*out_of_bound) {
+      return;
+    }
+    auto p_dart = dynamic_cast<Dart*>(out);
+    CHECK(p_dart);
+    CHECK(p_dart->weight_drop_.empty());
+    detail::SliceTrees(
+        layer_begin, layer_end, step, model_, tparam_, this->LayerTrees(),
+        [&](auto const& in_it, auto const&) {
+          p_dart->weight_drop_.push_back(this->weight_drop_.at(in_it));
+        });
   }
 
   void SaveModel(Json *p_out) const override {
@@ -584,16 +647,16 @@ class Dart : public GBTree {
   }
 
   void PredictContribution(DMatrix* p_fmat,
-                           std::vector<bst_float>* out_contribs,
-                           unsigned ntree_limit, bool approximate, int condition,
-                           unsigned condition_feature) override {
+                           HostDeviceVector<bst_float>* out_contribs,
+                           unsigned ntree_limit, bool approximate, int,
+                           unsigned) override {
     CHECK(configured_);
     cpu_predictor_->PredictContribution(p_fmat, out_contribs, model_,
                                         ntree_limit, &weight_drop_, approximate);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat,
-                                       std::vector<bst_float>* out_contribs,
+                                       HostDeviceVector<bst_float>* out_contribs,
                                        unsigned ntree_limit, bool approximate) override {
     CHECK(configured_);
     cpu_predictor_->PredictInteractionContributions(p_fmat, out_contribs, model_,
@@ -658,8 +721,7 @@ class Dart : public GBTree {
   // commit new trees all at once
   void
   CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees,
-              DMatrix* m,
-              PredictionCacheEntry* predts) override {
+              DMatrix*, PredictionCacheEntry*) override {
     int num_new_trees = 0;
     for (uint32_t gid = 0; gid < model_.learner_model_param->num_output_group; ++gid) {
       num_new_trees += new_trees[gid].size();

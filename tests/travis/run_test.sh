@@ -9,7 +9,7 @@ if [ ${TASK} == "python_sdist_test" ]; then
 
     conda activate python3
     python --version
-    conda install numpy scipy
+    cmake --version
 
     make pippack
     python -m pip install xgboost-*.tar.gz -v --user
@@ -17,35 +17,54 @@ if [ ${TASK} == "python_sdist_test" ]; then
 fi
 
 if [ ${TASK} == "python_test" ]; then
-    set -e
-    # Build/test
-    rm -rf build
-    mkdir build && cd build
-    cmake .. -DUSE_OPENMP=ON -DCMAKE_VERBOSE_MAKEFILE=ON
-    make -j$(nproc)
+    if grep -n -R '<<<.*>>>\(.*\)' src include | grep --invert "NOLINT"; then
+        echo 'Do not use raw CUDA execution configuration syntax with <<<blocks, threads>>>.' \
+             'try `dh::LaunchKernel`'
+        exit -1
+    fi
 
-    echo "-------------------------------"
-    conda activate python3
-    conda --version
-    python --version
+    set -e
+
 
     # Build binary wheel
-    cd ../python-package
-    python setup.py bdist_wheel
-    TAG=macosx_10_13_x86_64.macosx_10_14_x86_64.macosx_10_15_x86_64
-    python ../tests/ci_build/rename_whl.py dist/*.whl ${TRAVIS_COMMIT} ${TAG}
-    python -m pip install ./dist/xgboost-*-py3-none-${TAG}.whl
+    if [ ${TRAVIS_CPU_ARCH} == "arm64" ]; then
+      # Build manylinux2014 wheel on ARM64
+      tests/ci_build/ci_build.sh aarch64 docker tests/ci_build/build_via_cmake.sh --conda-env=aarch64_test
+      tests/ci_build/ci_build.sh aarch64 docker bash -c "cd build && ctest --extra-verbose"
+      tests/ci_build/ci_build.sh aarch64 docker bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
+      TAG=manylinux2014_aarch64
+      tests/ci_build/ci_build.sh aarch64 docker python tests/ci_build/rename_whl.py python-package/dist/*.whl ${TRAVIS_COMMIT} ${TAG}
+    else
+      rm -rf build
+      mkdir build && cd build
+      conda activate python3
+      cmake --version
+      cmake .. -DUSE_OPENMP=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+      make -j$(nproc)
+      cd ../python-package
+      python setup.py bdist_wheel
+      cd ..
+      TAG=macosx_10_14_x86_64.macosx_10_15_x86_64.macosx_11_0_x86_64
+      python tests/ci_build/rename_whl.py python-package/dist/*.whl ${TRAVIS_COMMIT} ${TAG}
+    fi
 
     # Run unit tests
-    cd ..
-    python -m pip install graphviz pytest pytest-cov codecov
-    python -m pip install datatable hypothesis
-    python -m pip install numpy scipy pandas matplotlib scikit-learn dask[complete]
-    python -m pytest -v --fulltrace -s tests/python --cov=python-package/xgboost || exit -1
+    echo "------------------------------"
+    if [ ${TRAVIS_CPU_ARCH} == "arm64" ]; then
+        tests/ci_build/ci_build.sh aarch64 docker \
+          bash -c "source activate aarch64_test && python -m pip install ./python-package/dist/xgboost-*-py3-none-${TAG}.whl && python -m pytest -v -s -rxXs --durations=0 --fulltrace tests/python/test_basic.py tests/python/test_basic_models.py tests/python/test_model_compatibility.py --cov=python-package/xgboost"
+    else
+        conda env create -n cpu_test --file=tests/ci_build/conda_env/macos_cpu_test.yml
+        conda activate cpu_test
+        python -m pip install ./python-package/dist/xgboost-*-py3-none-${TAG}.whl
+        conda --version
+        python --version
+        python -m pytest -v -s -rxXs --durations=0 --fulltrace tests/python --cov=python-package/xgboost || exit -1
+    fi
+    conda activate python3
     codecov
 
     # Deploy binary wheel to S3
-    python -m pip install awscli
     if [ "${TRAVIS_PULL_REQUEST}" != "false" ]
     then
         S3_DEST="s3://xgboost-nightly-builds/PR-${TRAVIS_PULL_REQUEST}/"
@@ -69,22 +88,18 @@ if [ ${TASK} == "java_test" ]; then
     mvn -q test
 fi
 
-if [ ${TASK} == "cmake_test" ]; then
+if [ ${TASK} == "s390x_test" ]; then
     set -e
 
-    if grep -n -R '<<<.*>>>\(.*\)' src include | grep --invert "NOLINT"; then
-        echo 'Do not use raw CUDA execution configuration syntax with <<<blocks, threads>>>.' \
-             'try `dh::LaunchKernel`'
-        exit -1
-    fi
-
-    # Build/test
+    # Build and run C++ tests
     rm -rf build
     mkdir build && cd build
-    PLUGINS="-DPLUGIN_LZ4=ON -DPLUGIN_DENSE_PARSER=ON"
-    cmake .. -DCMAKE_VERBOSE_MAKEFILE=ON -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON ${PLUGINS}
-    make -j$(nproc)
+    cmake .. -DCMAKE_VERBOSE_MAKEFILE=ON -DGOOGLE_TEST=ON -DUSE_OPENMP=ON -DUSE_DMLC_GTEST=ON -GNinja
+    time ninja -v
     ./testxgboost
+
+    # Run model compatibility tests
     cd ..
-    rm -rf build
+    python3 -m pip install --user pytest hypothesis
+    PYTHONPATH=./python-package python3 -m pytest --fulltrace -v -rxXs tests/python/ -k 'test_model'
 fi

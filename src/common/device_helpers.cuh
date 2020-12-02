@@ -27,6 +27,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <tuple>
 
 #include "xgboost/logging.h"
 #include "xgboost/host_device_vector.h"
@@ -36,7 +37,12 @@
 
 #ifdef XGBOOST_USE_NCCL
 #include "nccl.h"
-#endif
+#endif  // XGBOOST_USE_NCCL
+
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+#include "rmm/mr/device/per_device_resource.hpp"
+#include "rmm/mr/device/thrust_allocator_adaptor.hpp"
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600 || defined(__clang__)
 
@@ -91,9 +97,6 @@ T __device__ __forceinline__ atomicAdd(T *addr, T v) {  // NOLINT
 
 namespace dh {
 
-#define HOST_DEV_INLINE XGBOOST_DEVICE __forceinline__
-#define DEV_INLINE __device__ __forceinline__
-
 #ifdef XGBOOST_USE_NCCL
 #define safe_nccl(ans) ThrowOnNcclError((ans), __FILE__, __LINE__)
 
@@ -124,6 +127,12 @@ inline size_t AvailableMemory(int device_idx) {
   safe_cuda(cudaSetDevice(device_idx));
   dh::safe_cuda(cudaMemGetInfo(&device_free, &device_total));
   return device_free;
+}
+
+inline int32_t CurrentDevice() {
+  int32_t device = 0;
+  safe_cuda(cudaGetDevice(&device));
+  return device;
 }
 
 inline size_t TotalMemory(int device_idx) {
@@ -179,9 +188,11 @@ inline void CheckComputeCapability() {
   }
 }
 
-DEV_INLINE void AtomicOrByte(unsigned int* __restrict__ buffer, size_t ibyte, unsigned char b) {
+XGBOOST_DEV_INLINE void AtomicOrByte(unsigned int *__restrict__ buffer,
+                                     size_t ibyte, unsigned char b) {
   atomicOr(&buffer[ibyte / sizeof(unsigned int)],
-           static_cast<unsigned int>(b) << (ibyte % (sizeof(unsigned int)) * 8));
+           static_cast<unsigned int>(b)
+               << (ibyte % (sizeof(unsigned int)) * 8));
 }
 
 template <typename T>
@@ -296,7 +307,7 @@ class MemoryLogger {
     void RegisterDeallocation(void *ptr, size_t n, int current_device) {
       auto itr = device_allocations.find(ptr);
       if (itr == device_allocations.end()) {
-        LOG(FATAL) << "Attempting to deallocate " << n << " bytes on device "
+        LOG(WARNING) << "Attempting to deallocate " << n << " bytes on device "
                    << current_device << " that was never allocated ";
       }
       num_deallocations++;
@@ -370,12 +381,31 @@ inline void DebugSyncDevice(std::string file="", int32_t line = -1) {
 }
 
 namespace detail {
+
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+template <typename T>
+using XGBBaseDeviceAllocator = rmm::mr::thrust_allocator<T>;
+#else  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+template <typename T>
+using XGBBaseDeviceAllocator = thrust::device_malloc_allocator<T>;
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+
+inline void ThrowOOMError(std::string const& err, size_t bytes) {
+  auto device = CurrentDevice();
+  auto rank = rabit::GetRank();
+  std::stringstream ss;
+  ss << "Memory allocation error on worker " << rank << ": " << err << "\n"
+     << "- Free memory: " << AvailableMemory(device) << "\n"
+     << "- Requested memory: " << bytes << std::endl;
+  LOG(FATAL) << ss.str();
+}
+
 /**
  * \brief Default memory allocator, uses cudaMalloc/Free and logs allocations if verbose.
  */
 template <class T>
-struct XGBDefaultDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
-  using SuperT = thrust::device_malloc_allocator<T>;
+struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
+  using SuperT = XGBBaseDeviceAllocator<T>;
   using pointer = thrust::device_ptr<T>;  // NOLINT
   template<typename U>
   struct rebind  // NOLINT
@@ -383,52 +413,61 @@ struct XGBDefaultDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
     using other = XGBDefaultDeviceAllocatorImpl<U>;  // NOLINT
   };
   pointer allocate(size_t n) {  // NOLINT
-    pointer ptr = SuperT::allocate(n);
+    pointer ptr;
+    try {
+      ptr = SuperT::allocate(n);
+      dh::safe_cuda(cudaGetLastError());
+    } catch (const std::exception &e) {
+      ThrowOOMError(e.what(), n * sizeof(T));
+    }
     GlobalMemoryLogger().RegisterAllocation(ptr.get(), n * sizeof(T));
     return ptr;
   }
   void deallocate(pointer ptr, size_t n) {  // NOLINT
     GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
-    return SuperT::deallocate(ptr, n);
+    SuperT::deallocate(ptr, n);
   }
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+  XGBDefaultDeviceAllocatorImpl()
+    : SuperT(rmm::mr::get_current_device_resource(), cudaStream_t{nullptr}) {}
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 };
 
 /**
- * \brief Caching memory allocator, uses cub::CachingDeviceAllocator as a back-end and logs allocations if verbose. Does not initialise memory on construction.
+ * \brief Caching memory allocator, uses cub::CachingDeviceAllocator as a back-end, unless
+ *        RMM pool allocator is enabled. Does not initialise memory on construction.
  */
 template <class T>
-struct XGBCachingDeviceAllocatorImpl : thrust::device_malloc_allocator<T> {
+struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
+  using SuperT = XGBBaseDeviceAllocator<T>;
   using pointer = thrust::device_ptr<T>;  // NOLINT
   template<typename U>
   struct rebind  // NOLINT
   {
     using other = XGBCachingDeviceAllocatorImpl<U>;  // NOLINT
   };
-   cub::CachingDeviceAllocator& GetGlobalCachingAllocator ()
-   {
-     // Configure allocator with maximum cached bin size of ~1GB and no limit on
-     // maximum cached bytes
-     static cub::CachingDeviceAllocator *allocator = new cub::CachingDeviceAllocator(2, 9, 29);
-     return *allocator;
-   }
-   pointer allocate(size_t n) {  // NOLINT
-     T *ptr;
-     GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&ptr),
-                                                n * sizeof(T));
-     pointer thrust_ptr(ptr);
-     GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T));
-     return thrust_ptr;
-   }
-   void deallocate(pointer ptr, size_t n) {  // NOLINT
-     GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
-     GetGlobalCachingAllocator().DeviceFree(ptr.get());
-   }
-
-  __host__ __device__
-    void construct(T *)  // NOLINT
-  {
-    // no-op
+  cub::CachingDeviceAllocator& GetGlobalCachingAllocator() {
+    // Configure allocator with maximum cached bin size of ~1GB and no limit on
+    // maximum cached bytes
+    static cub::CachingDeviceAllocator *allocator = new cub::CachingDeviceAllocator(2, 9, 29);
+    return *allocator;
   }
+  pointer allocate(size_t n) {  // NOLINT
+    T* ptr;
+    auto errc =  GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&ptr),
+                                                            n * sizeof(T));
+    if (errc != cudaSuccess) {
+      ThrowOOMError("Caching allocator", n * sizeof(T));
+    }
+    pointer thrust_ptr{ ptr };
+    GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T));
+    return thrust_ptr;
+  }
+  void deallocate(pointer ptr, size_t n) {  // NOLINT
+    GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
+    GetGlobalCachingAllocator().DeviceFree(ptr.get());
+  }
+  XGBOOST_DEVICE void construct(T *) {}  // NOLINT
 };
 }  // namespace detail
 
@@ -455,8 +494,18 @@ class TemporaryArray {
   using AllocT = XGBCachingDeviceAllocator<T>;
   using value_type = T;  // NOLINT
   explicit TemporaryArray(size_t n) : size_(n) { ptr_ = AllocT().allocate(n); }
+  TemporaryArray(size_t n, T val) : size_(n) {
+    ptr_ = AllocT().allocate(n);
+    this->fill(val);
+  }
   ~TemporaryArray() { AllocT().deallocate(ptr_, this->size()); }
-
+  void fill(T val)  // NOLINT
+  {
+    int device = 0;
+    dh::safe_cuda(cudaGetDevice(&device));
+    auto d_data = ptr_.get();
+    LaunchN(device, this->size(), [=] __device__(size_t idx) { d_data[idx] = val; });
+  }
   thrust::device_ptr<T> data() { return ptr_; }  // NOLINT
   size_t size() { return size_; }  // NOLINT
 
@@ -491,6 +540,21 @@ void CopyDeviceSpanToVector(std::vector<T> *dst, xgboost::common::Span<const T> 
   CHECK_EQ(dst->size(), src.size());
   dh::safe_cuda(cudaMemcpyAsync(dst->data(), src.data(), dst->size() * sizeof(T),
                                 cudaMemcpyDeviceToHost));
+}
+
+template <class HContainer, class DContainer>
+void CopyToD(HContainer const &h, DContainer *d) {
+  if (h.empty()) {
+    d->clear();
+    return;
+  }
+  d->resize(h.size());
+  using HVT = std::remove_cv_t<typename HContainer::value_type>;
+  using DVT = std::remove_cv_t<typename DContainer::value_type>;
+  static_assert(std::is_same<HVT, DVT>::value,
+                "Host and device containers must have same value type.");
+  dh::safe_cuda(cudaMemcpyAsync(d->data().get(), h.data(), h.size() * sizeof(HVT),
+                                cudaMemcpyHostToDevice));
 }
 
 // Keep track of pinned memory allocation
@@ -965,8 +1029,8 @@ class SegmentSorter {
 
 // Atomic add function for gradients
 template <typename OutputGradientT, typename InputGradientT>
-DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
-                               const InputGradientT& gpair) {
+XGBOOST_DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
+                                       const InputGradientT& gpair) {
   auto dst_ptr = reinterpret_cast<typename OutputGradientT::ValueT*>(dest);
 
   atomicAdd(dst_ptr,
@@ -1021,14 +1085,14 @@ struct SegmentedUniqueReduceOp {
  *
  * \return Number of unique values in total.
  */
-template <typename KeyInIt, typename KeyOutIt, typename ValInIt,
+template <typename DerivedPolicy, typename KeyInIt, typename KeyOutIt, typename ValInIt,
           typename ValOutIt, typename Comp>
 size_t
-SegmentedUnique(KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
+SegmentedUnique(const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
+                KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt val_first,
                 ValInIt val_last, KeyOutIt key_segments_out, ValOutIt val_out,
                 Comp comp) {
   using Key = thrust::pair<size_t, typename thrust::iterator_traits<ValInIt>::value_type>;
-  dh::XGBCachingDeviceAllocator<char> alloc;
   auto unique_key_it = dh::MakeTransformIterator<Key>(
       thrust::make_counting_iterator(static_cast<size_t>(0)),
       [=] __device__(size_t i) {
@@ -1045,7 +1109,7 @@ SegmentedUnique(KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt v
       thrust::make_discard_iterator(),
       detail::SegmentedUniqueReduceOp<Key, KeyOutIt>{key_segments_out});
   auto uniques_ret = thrust::unique_by_key_copy(
-      thrust::cuda::par(alloc), unique_key_it, unique_key_it + n_inputs,
+      exec, unique_key_it, unique_key_it + n_inputs,
       val_first, reduce_it, val_out,
       [=] __device__(Key const &l, Key const &r) {
         if (l.first == r.first) {
@@ -1056,8 +1120,33 @@ SegmentedUnique(KeyInIt key_segments_first, KeyInIt key_segments_last, ValInIt v
       });
   auto n_uniques = uniques_ret.second - val_out;
   CHECK_LE(n_uniques, n_inputs);
-  thrust::exclusive_scan(thrust::cuda::par(alloc), key_segments_out,
+  thrust::exclusive_scan(exec, key_segments_out,
                          key_segments_out + segments_len, key_segments_out, 0);
   return n_uniques;
+}
+
+template <typename... Inputs,
+          std::enable_if_t<std::tuple_size<std::tuple<Inputs...>>::value == 7>
+              * = nullptr>
+size_t SegmentedUnique(Inputs &&...inputs) {
+  dh::XGBCachingDeviceAllocator<char> alloc;
+  return SegmentedUnique(thrust::cuda::par(alloc), std::forward<Inputs&&>(inputs)...);
+}
+
+template <typename Policy, typename InputIt, typename Init, typename Func>
+auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce_op) {
+  size_t constexpr kLimit = std::numeric_limits<int32_t>::max() / 2;
+  size_t size = std::distance(first, second);
+  using Ty = std::remove_cv_t<Init>;
+  Ty aggregate = init;
+  for (size_t offset = 0; offset < size; offset += kLimit) {
+    auto begin_it = first + offset;
+    auto end_it = first + std::min(offset + kLimit, size);
+    size_t batch_size = std::distance(begin_it, end_it);
+    CHECK_LE(batch_size, size);
+    auto ret = thrust::reduce(policy, begin_it, end_it, init, reduce_op);
+    aggregate = reduce_op(aggregate, ret);
+  }
+  return aggregate;
 }
 }  // namespace dh

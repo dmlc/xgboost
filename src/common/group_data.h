@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <vector>
 #include <algorithm>
+#include <utility>
 
 #include "xgboost/base.h"
 
@@ -56,10 +57,10 @@ class ParallelGroupBuilder {
   void InitBudget(std::size_t max_key, int nthread) {
     thread_rptr_.resize(nthread);
     for (std::size_t i = 0; i < thread_rptr_.size(); ++i) {
-      thread_rptr_[i].resize(max_key - std::min(base_row_offset_, max_key));
-      std::fill(thread_rptr_[i].begin(), thread_rptr_[i].end(), 0);
+      thread_rptr_[i].resize(max_key - std::min(base_row_offset_, max_key), 0);
     }
   }
+
   /*!
    * \brief step 2: add budget to each key
    * \param key the key
@@ -74,6 +75,7 @@ class ParallelGroupBuilder {
     }
     trptr[offset_key] += nelem;
   }
+
   /*! \brief step 3: initialize the necessary storage */
   inline void InitStorage() {
     // set rptr to correct size
@@ -101,6 +103,7 @@ class ParallelGroupBuilder {
     }
     data_.resize(rptr_.back());
   }
+
   /*!
    * \brief step 4: add data to the allocated space,
    *   the calls to this function should be exactly match previous call to AddBudget
@@ -109,10 +112,10 @@ class ParallelGroupBuilder {
    * \param value The value to be pushed to the group.
    * \param threadid the id of thread that calls this function
    */
-  void Push(std::size_t key, ValueType value, int threadid) {
+  void Push(std::size_t key, ValueType&& value, int threadid) {
     size_t offset_key = key - base_row_offset_;
     SizeType &rp = thread_rptr_[threadid][offset_key];
-    data_[rp++] = value;
+    data_[rp++] = std::move(value);
   }
 
  private:

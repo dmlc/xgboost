@@ -47,7 +47,7 @@ test_that("custom objective with early stop works", {
   bst <- xgb.train(param, dtrain, 10, watchlist)
   expect_equal(class(bst), "xgb.Booster")
   train_log <- bst$evaluation_log$train_error
-  expect_true(all(diff(train_log)) <= 0)
+  expect_true(all(diff(train_log) <= 0))
 })
 
 test_that("custom objective using DMatrix attr works", {

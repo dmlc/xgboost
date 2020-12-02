@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <vector>
 #include <utility>
+#include <memory>
 
 namespace xgboost {
 namespace common {
@@ -24,13 +25,13 @@ class RowSetCollection {
   struct Elem {
     const size_t* begin{nullptr};
     const size_t* end{nullptr};
-    int node_id{-1};
+    bst_node_t node_id{-1};
       // id of node associated with this instance set; -1 means uninitialized
     Elem()
          = default;
     Elem(const size_t* begin,
          const size_t* end,
-         int node_id = -1)
+         bst_node_t node_id = -1)
         : begin(begin), end(end), node_id(node_id) {}
 
     inline size_t Size() const {
@@ -150,24 +151,33 @@ class PartitionBuilder {
     }
   }
 
+  // allocate thread local memory, should be called for each specific task
+  void AllocateForTask(size_t id) {
+    if (mem_blocks_[id].get() == nullptr) {
+      BlockInfo* local_block_ptr = new BlockInfo;
+      CHECK_NE(local_block_ptr, (BlockInfo*)nullptr);
+      mem_blocks_[id].reset(local_block_ptr);
+    }
+  }
+
   common::Span<size_t> GetLeftBuffer(int nid, size_t begin, size_t end) {
     const size_t task_idx = GetTaskIdx(nid, begin);
-    return { mem_blocks_.at(task_idx).Left(), end - begin };
+    return { mem_blocks_.at(task_idx)->Left(), end - begin };
   }
 
   common::Span<size_t> GetRightBuffer(int nid, size_t begin, size_t end) {
     const size_t task_idx = GetTaskIdx(nid, begin);
-    return { mem_blocks_.at(task_idx).Right(), end - begin };
+    return { mem_blocks_.at(task_idx)->Right(), end - begin };
   }
 
   void SetNLeftElems(int nid, size_t begin, size_t end, size_t n_left) {
     size_t task_idx = GetTaskIdx(nid, begin);
-    mem_blocks_.at(task_idx).n_left = n_left;
+    mem_blocks_.at(task_idx)->n_left = n_left;
   }
 
   void SetNRightElems(int nid, size_t begin, size_t end, size_t n_right) {
     size_t task_idx = GetTaskIdx(nid, begin);
-    mem_blocks_.at(task_idx).n_right = n_right;
+    mem_blocks_.at(task_idx)->n_right = n_right;
   }
 
 
@@ -185,13 +195,13 @@ class PartitionBuilder {
     for (size_t i = 0; i < blocks_offsets_.size()-1; ++i) {
       size_t n_left = 0;
       for (size_t j = blocks_offsets_[i]; j < blocks_offsets_[i+1]; ++j) {
-        mem_blocks_[j].n_offset_left = n_left;
-        n_left += mem_blocks_[j].n_left;
+        mem_blocks_[j]->n_offset_left = n_left;
+        n_left += mem_blocks_[j]->n_left;
       }
       size_t n_right = 0;
       for (size_t j = blocks_offsets_[i]; j < blocks_offsets_[i+1]; ++j) {
-        mem_blocks_[j].n_offset_right = n_left + n_right;
-        n_right += mem_blocks_[j].n_right;
+        mem_blocks_[j]->n_offset_right = n_left + n_right;
+        n_right += mem_blocks_[j]->n_right;
       }
       left_right_nodes_sizes_[i] = {n_left, n_right};
     }
@@ -200,21 +210,21 @@ class PartitionBuilder {
   void MergeToArray(int nid, size_t begin, size_t* rows_indexes) {
     size_t task_idx = GetTaskIdx(nid, begin);
 
-    size_t* left_result  = rows_indexes + mem_blocks_[task_idx].n_offset_left;
-    size_t* right_result = rows_indexes + mem_blocks_[task_idx].n_offset_right;
+    size_t* left_result  = rows_indexes + mem_blocks_[task_idx]->n_offset_left;
+    size_t* right_result = rows_indexes + mem_blocks_[task_idx]->n_offset_right;
 
-    const size_t* left = mem_blocks_[task_idx].Left();
-    const size_t* right = mem_blocks_[task_idx].Right();
+    const size_t* left = mem_blocks_[task_idx]->Left();
+    const size_t* right = mem_blocks_[task_idx]->Right();
 
-    std::copy_n(left, mem_blocks_[task_idx].n_left, left_result);
-    std::copy_n(right, mem_blocks_[task_idx].n_right, right_result);
+    std::copy_n(left, mem_blocks_[task_idx]->n_left, left_result);
+    std::copy_n(right, mem_blocks_[task_idx]->n_right, right_result);
   }
 
- protected:
   size_t GetTaskIdx(int nid, size_t begin) {
     return blocks_offsets_[nid] + begin / BlockSize;
   }
 
+ protected:
   struct BlockInfo{
     size_t n_left;
     size_t n_right;
@@ -230,12 +240,12 @@ class PartitionBuilder {
       return &right_data_[0];
     }
    private:
-    alignas(128) size_t left_data_[BlockSize];
-    alignas(128) size_t right_data_[BlockSize];
+    size_t left_data_[BlockSize];
+    size_t right_data_[BlockSize];
   };
   std::vector<std::pair<size_t, size_t>> left_right_nodes_sizes_;
   std::vector<size_t> blocks_offsets_;
-  std::vector<BlockInfo> mem_blocks_;
+  std::vector<std::shared_ptr<BlockInfo>> mem_blocks_;
   size_t max_n_tasks_ = 0;
 };
 

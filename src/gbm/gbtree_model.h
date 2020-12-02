@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2019 by Contributors
+ * Copyright 2017-2020 by Contributors
  * \file gbtree_model.h
  */
 #ifndef XGBOOST_GBM_GBTREE_MODEL_H_
@@ -23,6 +23,7 @@ namespace xgboost {
 class Json;
 
 namespace gbm {
+
 /*! \brief model parameters */
 struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
  public:
@@ -61,6 +62,21 @@ struct GBTreeModelParam : public dmlc::Parameter<GBTreeModelParam> {
         .set_lower_bound(0)
         .set_default(0)
         .describe("Reserved option for vector tree.");
+  }
+
+  // Swap byte order for all fields. Useful for transporting models between machines with different
+  // endianness (big endian vs little endian)
+  inline GBTreeModelParam ByteSwap() const {
+    GBTreeModelParam x = *this;
+    dmlc::ByteSwap(&x.num_trees, sizeof(x.num_trees), 1);
+    dmlc::ByteSwap(&x.deprecated_num_roots, sizeof(x.deprecated_num_roots), 1);
+    dmlc::ByteSwap(&x.deprecated_num_feature, sizeof(x.deprecated_num_feature), 1);
+    dmlc::ByteSwap(&x.pad_32bit, sizeof(x.pad_32bit), 1);
+    dmlc::ByteSwap(&x.deprecated_num_pbuffer, sizeof(x.deprecated_num_pbuffer), 1);
+    dmlc::ByteSwap(&x.deprecated_num_output_group, sizeof(x.deprecated_num_output_group), 1);
+    dmlc::ByteSwap(&x.size_leaf_vector, sizeof(x.size_leaf_vector), 1);
+    dmlc::ByteSwap(x.reserved, sizeof(x.reserved[0]), sizeof(x.reserved) / sizeof(x.reserved[0]));
+    return x;
   }
 };
 

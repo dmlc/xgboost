@@ -646,4 +646,18 @@ public class BoosterImplTest {
     TestCase.assertEquals(attr.get("bb"), "BB");
     TestCase.assertEquals(attr.get("cc"), "CC");
   }
+
+  /**
+   * test get number of features from a booster
+   *
+   * @throws XGBoostError
+   */
+  @Test
+  public void testGetNumFeature() throws XGBoostError {
+    DMatrix trainMat = new DMatrix("../../demo/data/agaricus.txt.train");
+    DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
+
+    Booster booster = trainBooster(trainMat, testMat);
+    TestCase.assertEquals(booster.getNumFeature(), 127);
+  }
 }

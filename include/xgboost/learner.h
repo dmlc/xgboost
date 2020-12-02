@@ -9,7 +9,6 @@
 #define XGBOOST_LEARNER_H_
 
 #include <dmlc/any.h>
-#include <rabit/rabit.h>
 #include <xgboost/base.h>
 #include <xgboost/feature_map.h>
 #include <xgboost/predictor.h>
@@ -65,7 +64,7 @@ struct XGBAPIThreadLocalEntry {
  *
  *  \endcode
  */
-class Learner : public Model, public Configurable, public rabit::Serializable {
+class Learner : public Model, public Configurable, public dmlc::Serializable {
  public:
   /*! \brief virtual destructor */
   ~Learner() override;
@@ -136,7 +135,7 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
   virtual void InplacePredict(dmlc::any const& x, std::string const& type,
                               float missing,
                               HostDeviceVector<bst_float> **out_preds,
-                              uint32_t layer_begin = 0, uint32_t layer_end = 0) = 0;
+                              uint32_t layer_begin, uint32_t layer_end) = 0;
 
   void LoadModel(Json const& in) override = 0;
   void SaveModel(Json* out) const override = 0;
@@ -198,6 +197,18 @@ class Learner : public Model, public Configurable, public rabit::Serializable {
    * \return whether the model allow lazy checkpoint in rabit.
    */
   bool AllowLazyCheckPoint() const;
+  /*!
+   * \brief Slice the model.
+   *
+   * See InplacePredict for layer parameters.
+   *
+   * \param step step size between slice.
+   * \param out_of_bound Return true if end layer is out of bound.
+   *
+   * \return a sliced model.
+   */
+  virtual Learner *Slice(int32_t begin_layer, int32_t end_layer, int32_t step,
+                         bool *out_of_bound) = 0;
   /*!
    * \brief dump the model in the requested format
    * \param fmap feature map that may help give interpretations of feature

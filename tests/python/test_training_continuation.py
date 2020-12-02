@@ -1,13 +1,12 @@
 import xgboost as xgb
 import testing as tm
 import numpy as np
-import unittest
 import pytest
 
 rng = np.random.RandomState(1337)
 
 
-class TestTrainingContinuation(unittest.TestCase):
+class TestTrainingContinuation:
     num_parallel_tree = 3
 
     def generate_parameters(self, use_json):

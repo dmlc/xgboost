@@ -174,7 +174,7 @@ test_that("SHAPs sum to predictions, with or without DART", {
 
     expect_equal(rowSums(shap), pred, tol = tol)
     expect_equal(apply(shapi, 1, sum), pred, tol = tol)
-    for (i in 1 : nrow(d))
+    for (i in seq_len(nrow(d)))
       for (f in list(rowSums, colSums))
         expect_equal(f(shapi[i, , ]), shap[i, ], tol = tol)
   }
@@ -335,8 +335,8 @@ test_that("xgb.model.dt.tree and xgb.importance work with a single split model",
 })
 
 test_that("xgb.plot.tree works with and without feature names", {
-  xgb.plot.tree(feature_names = feature.names, model = bst.Tree)
-  xgb.plot.tree(model = bst.Tree)
+  expect_silent(xgb.plot.tree(feature_names = feature.names, model = bst.Tree))
+  expect_silent(xgb.plot.tree(model = bst.Tree))
 })
 
 test_that("xgb.plot.multi.trees works with and without feature names", {
@@ -351,11 +351,47 @@ test_that("xgb.plot.deepness works", {
   xgb.ggplot.deepness(model = bst.Tree)
 })
 
+test_that("xgb.shap.data works when top_n is provided", {
+  data_list <- xgb.shap.data(data = sparse_matrix, model = bst.Tree, top_n = 2)
+  expect_equal(names(data_list), c("data", "shap_contrib"))
+  expect_equal(NCOL(data_list$data), 2)
+  expect_equal(NCOL(data_list$shap_contrib), 2)
+  expect_equal(NROW(data_list$data), NROW(data_list$shap_contrib))
+  expect_gt(length(colnames(data_list$data)), 0)
+  expect_gt(length(colnames(data_list$shap_contrib)), 0)
+
+  # for multiclass without target class provided
+  data_list <- xgb.shap.data(data = as.matrix(iris[, -5]), model = mbst.Tree, top_n = 2)
+  expect_equal(dim(data_list$shap_contrib), c(nrow(iris), 2))
+  # for multiclass with target class provided
+  data_list <- xgb.shap.data(data = as.matrix(iris[, -5]), model = mbst.Tree, top_n = 2, target_class = 0)
+  expect_equal(dim(data_list$shap_contrib), c(nrow(iris), 2))
+})
+
+test_that("xgb.shap.data works with subsampling", {
+  data_list <- xgb.shap.data(data = sparse_matrix, model = bst.Tree, top_n = 2, subsample = 0.8)
+  expect_equal(NROW(data_list$data), as.integer(0.8 * nrow(sparse_matrix)))
+  expect_equal(NROW(data_list$data), NROW(data_list$shap_contrib))
+})
+
+test_that("prepare.ggplot.shap.data works", {
+  data_list <- xgb.shap.data(data = sparse_matrix, model = bst.Tree, top_n = 2)
+  plot_data <- prepare.ggplot.shap.data(data_list, normalize = TRUE)
+  expect_s3_class(plot_data, "data.frame")
+  expect_equal(names(plot_data), c("id", "feature", "feature_value", "shap_value"))
+  expect_s3_class(plot_data$feature, "factor")
+  # Each observation should have 1 row for each feature
+  expect_equal(nrow(plot_data), nrow(sparse_matrix) * 2)
+})
+
 test_that("xgb.plot.shap works", {
   sh <- xgb.plot.shap(data = sparse_matrix, model = bst.Tree, top_n = 2, col = 4)
   expect_equal(names(sh), c("data", "shap_contrib"))
-  expect_equal(NCOL(sh$data), 2)
-  expect_equal(NCOL(sh$shap_contrib), 2)
+})
+
+test_that("xgb.plot.shap.summary works", {
+  expect_silent(xgb.plot.shap.summary(data = sparse_matrix, model = bst.Tree, top_n = 2))
+  expect_silent(xgb.ggplot.shap.summary(data = sparse_matrix, model = bst.Tree, top_n = 2))
 })
 
 test_that("check.deprecation works", {
@@ -373,4 +409,27 @@ test_that("check.deprecation works", {
     res <- ttt(a = 1, dumm = 22, z = 3)
   , "\'dumm\' was partially matched to \'dummy\'")
   expect_equal(res, list(a = 1, DUMMY = 22))
+})
+
+test_that('convert.labels works', {
+  y <- c(0, 1, 0, 0, 1)
+  for (objective in c('binary:logistic', 'binary:logitraw', 'binary:hinge')) {
+    res <- xgboost:::convert.labels(y, objective_name = objective)
+    expect_s3_class(res, 'factor')
+    expect_equal(res, factor(res))
+  }
+  y <- c(0, 1, 3, 2, 1, 4)
+  for (objective in c('multi:softmax', 'multi:softprob', 'rank:pairwise', 'rank:ndcg',
+                      'rank:map')) {
+    res <- xgboost:::convert.labels(y, objective_name = objective)
+    expect_s3_class(res, 'factor')
+    expect_equal(res, factor(res))
+  }
+  y <- c(1.2, 3.0, -1.0, 10.0)
+  for (objective in c('reg:squarederror', 'reg:squaredlogerror', 'reg:logistic',
+                      'reg:pseudohubererror', 'count:poisson', 'survival:cox', 'survival:aft',
+                      'reg:gamma', 'reg:tweedie')) {
+    res <- xgboost:::convert.labels(y, objective_name = objective)
+    expect_equal(class(res), 'numeric')
+  }
 })

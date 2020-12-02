@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 3.13)
-project(xgboost LANGUAGES CXX C VERSION 1.2.0)
+project(xgboost LANGUAGES CXX C VERSION 1.3.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
 cmake_policy(SET CMP0079 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
 cmake_policy(SET CMP0063 NEW)
 
 if ((${CMAKE_VERSION} VERSION_GREATER 3.13) OR (${CMAKE_VERSION} VERSION_EQUAL 3.13))
@@ -23,9 +24,11 @@ write_version()
 set_default_configuration_release()
 
 #-- Options
+## User options
 option(BUILD_C_DOC "Build documentation for C APIs using Doxygen." OFF)
 option(USE_OPENMP "Build with OpenMP support." ON)
 option(BUILD_STATIC_LIB "Build static library" OFF)
+option(RABIT_BUILD_MPI "Build MPI" OFF)
 ## Bindings
 option(JVM_BINDINGS "Build JVM bindings" OFF)
 option(R_LIB "Build shared library for R package" OFF)
@@ -37,6 +40,7 @@ option(ENABLE_ALL_WARNINGS "Enable all compiler warnings. Only effective for GCC
 option(LOG_CAPI_INVOCATION "Log all C API invocations for debugging" OFF)
 option(GOOGLE_TEST "Build google tests" OFF)
 option(USE_DMLC_GTEST "Use google tests bundled with dmlc-core submodule" OFF)
+option(USE_DEVICE_DEBUG "Generate CUDA device debug info." OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
 option(RABIT_MOCK "Build rabit with mock" OFF)
@@ -60,6 +64,9 @@ address, leak, undefined and thread.")
 ## Plugins
 option(PLUGIN_LZ4 "Build lz4 plugin" OFF)
 option(PLUGIN_DENSE_PARSER "Build dense parser plugin" OFF)
+option(PLUGIN_RMM "Build with RAPIDS Memory Manager (RMM)" OFF)
+## TODO: 1. Add check if DPC++ compiler is used for building
+option(PLUGIN_UPDATER_ONEAPI "DPC++ updater" OFF)
 option(ADD_PKGCONFIG "Add xgboost.pc into system." ON)
 
 #-- Checks for building XGBoost
@@ -69,6 +76,9 @@ endif (USE_DEBUG_OUTPUT AND (NOT (CMAKE_BUILD_TYPE MATCHES Debug)))
 if (USE_NCCL AND NOT (USE_CUDA))
   message(SEND_ERROR "`USE_NCCL` must be enabled with `USE_CUDA` flag.")
 endif (USE_NCCL AND NOT (USE_CUDA))
+if (USE_DEVICE_DEBUG AND NOT (USE_CUDA))
+  message(SEND_ERROR "`USE_DEVICE_DEBUG` must be enabled with `USE_CUDA` flag.")
+endif (USE_DEVICE_DEBUG AND NOT (USE_CUDA))
 if (BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
   message(SEND_ERROR "Build XGBoost with -DUSE_NCCL=ON to enable BUILD_WITH_SHARED_NCCL.")
 endif (BUILD_WITH_SHARED_NCCL AND (NOT USE_NCCL))
@@ -82,11 +92,23 @@ endif (R_LIB AND GOOGLE_TEST)
 if (USE_AVX)
   message(SEND_ERROR  "The option 'USE_AVX' is deprecated as experimental AVX features have been removed from XGBoost.")
 endif (USE_AVX)
+if (PLUGIN_RMM AND NOT (USE_CUDA))
+  message(SEND_ERROR "`PLUGIN_RMM` must be enabled with `USE_CUDA` flag.")
+endif (PLUGIN_RMM AND NOT (USE_CUDA))
+if (PLUGIN_RMM AND NOT ((CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")))
+  message(SEND_ERROR "`PLUGIN_RMM` must be used with GCC or Clang compiler.")
+endif (PLUGIN_RMM AND NOT ((CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")))
+if (PLUGIN_RMM AND NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+  message(SEND_ERROR "`PLUGIN_RMM` must be used with Linux.")
+endif (PLUGIN_RMM AND NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux"))
 if (ENABLE_ALL_WARNINGS)
   if ((NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang") AND (NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
     message(SEND_ERROR "ENABLE_ALL_WARNINGS is only available for Clang and GCC.")
   endif ((NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang") AND (NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
 endif (ENABLE_ALL_WARNINGS)
+if (BUILD_STATIC_LIB AND (R_LIB OR JVM_BINDINGS))
+  message(SEND_ERROR "Cannot build a static library libxgboost.a when R or JVM packages are enabled.")
+endif (BUILD_STATIC_LIB AND (R_LIB OR JVM_BINDINGS))
 
 #-- Sanitizer
 if (USE_SANITIZER)
@@ -106,7 +128,7 @@ if (USE_CUDA)
   endif()
   set(GEN_CODE "")
   format_gencode_flags("${GPU_COMPUTE_VER}" GEN_CODE)
-  message(STATUS "CUDA GEN_CODE: ${GEN_CODE}")
+  add_subdirectory(${PROJECT_SOURCE_DIR}/gputreeshap)
 endif (USE_CUDA)
 
 if (FORCE_COLORED_OUTPUT AND (CMAKE_GENERATOR STREQUAL "Ninja") AND
@@ -126,9 +148,6 @@ if (USE_OPENMP)
   find_package(OpenMP REQUIRED)
 endif (USE_OPENMP)
 
-# core xgboost
-add_subdirectory(${xgboost_SOURCE_DIR}/src)
-
 # dmlc-core
 msvc_use_static_runtime()
 add_subdirectory(${xgboost_SOURCE_DIR}/dmlc-core)
@@ -147,40 +166,13 @@ endif (MSVC)
 if (ENABLE_ALL_WARNINGS)
   target_compile_options(dmlc PRIVATE -Wall -Wextra)
 endif (ENABLE_ALL_WARNINGS)
-target_link_libraries(objxgboost PUBLIC dmlc)
 
 # rabit
-set(RABIT_BUILD_DMLC OFF)
-set(DMLC_ROOT ${xgboost_SOURCE_DIR}/dmlc-core)
-set(RABIT_WITH_R_LIB ${R_LIB})
 add_subdirectory(rabit)
 
-if (RABIT_MOCK)
-  target_link_libraries(objxgboost PUBLIC rabit_mock_static)
-  if (MSVC)
-    target_compile_options(rabit_mock_static PRIVATE
-                           -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
-  endif (MSVC)
-else()
-  target_link_libraries(objxgboost PUBLIC rabit)
-  if (MSVC)
-    target_compile_options(rabit PRIVATE
-                           -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE)
-  endif (MSVC)
-endif(RABIT_MOCK)
-foreach(lib rabit rabit_base rabit_empty rabit_mock rabit_mock_static)
-  # Explicitly link dmlc to rabit, so that configured header (build_config.h)
-  # from dmlc is correctly applied to rabit.
-  if (TARGET ${lib})
-    target_link_libraries(${lib} dmlc ${CMAKE_THREAD_LIBS_INIT})
-    if (HIDE_CXX_SYMBOLS)  # Hide all C++ symbols from Rabit
-      set_target_properties(${lib} PROPERTIES CXX_VISIBILITY_PRESET hidden)
-    endif (HIDE_CXX_SYMBOLS)
-    if (ENABLE_ALL_WARNINGS)
-      target_compile_options(${lib} PRIVATE -Wall -Wextra)
-    endif (ENABLE_ALL_WARNINGS)
-  endif (TARGET ${lib})
-endforeach()
+# core xgboost
+add_subdirectory(${xgboost_SOURCE_DIR}/src)
+target_link_libraries(objxgboost PUBLIC dmlc)
 
 # Exports some R specific definitions and objects
 if (R_LIB)
@@ -198,14 +190,15 @@ else (BUILD_STATIC_LIB)
 endif (BUILD_STATIC_LIB)
 target_link_libraries(xgboost PRIVATE objxgboost)
 
-if (USE_NVTX)
-  enable_nvtx(xgboost)
-endif (USE_NVTX)
+if (USE_CUDA)
+  xgboost_set_cuda_flags(xgboost)
+endif (USE_CUDA)
 
 #-- Hide all C++ symbols
 if (HIDE_CXX_SYMBOLS)
-  set_target_properties(objxgboost PROPERTIES CXX_VISIBILITY_PRESET hidden)
-  set_target_properties(xgboost PROPERTIES CXX_VISIBILITY_PRESET hidden)
+  foreach(target objxgboost xgboost dmlc)
+    set_target_properties(${target} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+  endforeach()
 endif (HIDE_CXX_SYMBOLS)
 
 target_include_directories(xgboost
@@ -267,7 +260,20 @@ include(GNUInstallDirs)
 install(DIRECTORY ${xgboost_SOURCE_DIR}/include/xgboost
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-install(TARGETS xgboost runxgboost
+# Install libraries. If `xgboost` is a static lib, specify `objxgboost` also, to avoid the
+# following error:
+#
+#  > install(EXPORT ...) includes target "xgboost" which requires target "objxgboost" that is not
+#  > in any export set.
+#
+# https://github.com/dmlc/xgboost/issues/6085
+if (BUILD_STATIC_LIB)
+  set(INSTALL_TARGETS xgboost runxgboost objxgboost dmlc)
+else (BUILD_STATIC_LIB)
+  set(INSTALL_TARGETS xgboost runxgboost)
+endif (BUILD_STATIC_LIB)
+
+install(TARGETS ${INSTALL_TARGETS}
   EXPORT XGBoostTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

@@ -1,5 +1,7 @@
 '''A demo for defining data iterator.
 
+    .. versionadded:: 1.2.0
+
 The demo that defines a customized iterator for passing batches of data into
 `xgboost.DeviceQuantileDMatrix` and use this `DeviceQuantileDMatrix` for
 training.  The feature is used primarily designed to reduce the required GPU
@@ -39,7 +41,7 @@ class IterForDMatrixDemo(xgboost.core.DataIter):
         rng = cupy.random.RandomState(1994)
         self._data = [rng.randn(self.rows, self.cols)] * BATCHES
         self._labels = [rng.randn(self.rows)] * BATCHES
-        self._weights = [rng.randn(self.rows)] * BATCHES
+        self._weights = [rng.uniform(size=self.rows)] * BATCHES
 
         self.it = 0             # set iterator to 0
         super().__init__()

@@ -124,8 +124,7 @@ class RowPartitioner {
     dh::safe_cuda(cudaMemcpyAsync(&left_count, d_left_count, sizeof(int64_t),
                                   cudaMemcpyDeviceToHost, streams_[0]));
 
-    SortPositionAndCopy(segment, left_nidx, right_nidx, d_left_count, streams_[1]
-                        );
+    SortPositionAndCopy(segment, left_nidx, right_nidx, d_left_count, streams_[1]);
 
     dh::safe_cuda(cudaStreamSynchronize(streams_[0]));
     CHECK_LE(left_count, segment.Size());

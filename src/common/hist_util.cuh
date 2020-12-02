@@ -28,37 +28,6 @@ struct EntryCompareOp {
   }
 };
 
-/**
- * \brief Extracts the cuts from sorted data.
- *
- * \param device                The device.
- * \param cuts_ptr              Column pointers to CSC structured cuts
- * \param sorted_data           Sorted entries in segments of columns
- * \param column_sizes_scan     Describes the boundaries of column segments in sorted data
- * \param out_cuts              Output cut values
- */
-void ExtractCutsSparse(int device, common::Span<SketchContainer::OffsetT const> cuts_ptr,
-                       Span<Entry const> sorted_data,
-                       Span<size_t const> column_sizes_scan,
-                       Span<SketchEntry> out_cuts);
-
-/**
- * \brief Extracts the cuts from sorted data, considering weights.
- *
- * \param device                The device.
- * \param cuts_ptr              Column pointers to CSC structured cuts
- * \param sorted_data           Sorted entries in segments of columns.
- * \param weights_scan          Inclusive scan of weights for each entry in sorted_data.
- * \param column_sizes_scan     Describes the boundaries of column segments in sorted data.
- * \param cuts                  Output cuts.
- */
-void ExtractWeightedCutsSparse(int device,
-                               common::Span<SketchContainer::OffsetT const> cuts_ptr,
-                               Span<Entry> sorted_data,
-                               Span<float> weights_scan,
-                               Span<size_t> column_sizes_scan,
-                               Span<SketchEntry> cuts);
-
 // Get column size from adapter batch and for output cuts.
 template <typename Iter>
 void GetColumnSizesScan(int device, size_t num_columns, size_t num_cuts_per_feature,
@@ -133,7 +102,7 @@ void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter,
                             size_t columns, size_t cuts_per_feature, int device,
                             HostDeviceVector<SketchContainer::OffsetT>* cut_sizes_scan,
                             dh::caching_device_vector<size_t>* column_sizes_scan,
-                            dh::caching_device_vector<Entry>* sorted_entries) {
+                            dh::device_vector<Entry>* sorted_entries) {
   auto entry_iter = dh::MakeTransformIterator<Entry>(
       thrust::make_counting_iterator(0llu), [=] __device__(size_t idx) {
         return Entry(batch.GetElement(idx).column_idx,
@@ -154,9 +123,8 @@ void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter,
                   entry_iter + range.end(), sorted_entries->begin(), is_valid);
 }
 
-void SortByWeight(dh::XGBCachingDeviceAllocator<char>* alloc,
-                  dh::caching_device_vector<float>* weights,
-                  dh::caching_device_vector<Entry>* sorted_entries);
+void SortByWeight(dh::device_vector<float>* weights,
+                  dh::device_vector<Entry>* sorted_entries);
 }  // namespace detail
 
 // Compute sketch on DMatrix.
@@ -169,7 +137,7 @@ void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
                           size_t begin, size_t end, float missing,
                           SketchContainer* sketch_container, int num_cuts) {
   // Copy current subset of valid elements into temporary storage and sort
-  dh::caching_device_vector<Entry> sorted_entries;
+  dh::device_vector<Entry> sorted_entries;
   dh::caching_device_vector<size_t> column_sizes_scan;
   auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
       thrust::make_counting_iterator(0llu),
@@ -180,22 +148,18 @@ void ProcessSlidingWindow(AdapterBatch const& batch, int device, size_t columns,
                                  &cuts_ptr,
                                  &column_sizes_scan,
                                  &sorted_entries);
-  dh::XGBCachingDeviceAllocator<char> alloc;
+  dh::XGBDeviceAllocator<char> alloc;
   thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
                sorted_entries.end(), detail::EntryCompareOp());
 
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
-  auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
-  dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
+  auto d_cuts_ptr = cuts_ptr.DeviceSpan();
   // Extract the cuts from all columns concurrently
-  detail::ExtractCutsSparse(device, d_cuts_ptr,
-                            dh::ToSpan(sorted_entries),
-                            dh::ToSpan(column_sizes_scan),
-                            dh::ToSpan(cuts));
+  sketch_container->Push(dh::ToSpan(sorted_entries),
+                         dh::ToSpan(column_sizes_scan), d_cuts_ptr,
+                         h_cuts_ptr.back());
   sorted_entries.clear();
   sorted_entries.shrink_to_fit();
-
-  sketch_container->Push(cuts_ptr.ConstDeviceSpan(), &cuts);
 }
 
 template <typename Batch>
@@ -214,7 +178,7 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
   auto batch_iter = dh::MakeTransformIterator<data::COOTuple>(
     thrust::make_counting_iterator(0llu),
     [=] __device__(size_t idx) { return batch.GetElement(idx); });
-  dh::caching_device_vector<Entry> sorted_entries;
+  dh::device_vector<Entry> sorted_entries;
   dh::caching_device_vector<size_t> column_sizes_scan;
   HostDeviceVector<SketchContainer::OffsetT> cuts_ptr;
   detail::MakeEntriesFromAdapter(batch, batch_iter,
@@ -225,7 +189,7 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
                                  &sorted_entries);
   data::IsValidFunctor is_valid(missing);
 
-  dh::caching_device_vector<float> temp_weights(sorted_entries.size());
+  dh::device_vector<float> temp_weights(sorted_entries.size());
   auto d_temp_weights = dh::ToSpan(temp_weights);
 
   if (is_ranking) {
@@ -257,22 +221,17 @@ void ProcessWeightedSlidingWindow(Batch batch, MetaInfo const& info,
     CHECK_EQ(retit - d_temp_weights.data(), d_temp_weights.size());
   }
 
-  detail::SortByWeight(&alloc, &temp_weights, &sorted_entries);
+  detail::SortByWeight(&temp_weights, &sorted_entries);
 
   auto const& h_cuts_ptr = cuts_ptr.ConstHostVector();
-  auto d_cuts_ptr = cuts_ptr.ConstDeviceSpan();
+  auto d_cuts_ptr = cuts_ptr.DeviceSpan();
 
   // Extract cuts
-  dh::caching_device_vector<SketchEntry> cuts(h_cuts_ptr.back());
-  detail::ExtractWeightedCutsSparse(device, d_cuts_ptr,
-                                    dh::ToSpan(sorted_entries),
-                                    dh::ToSpan(temp_weights),
-                                    dh::ToSpan(column_sizes_scan),
-                                    dh::ToSpan(cuts));
+  sketch_container->Push(dh::ToSpan(sorted_entries),
+                         dh::ToSpan(column_sizes_scan), d_cuts_ptr,
+                         h_cuts_ptr.back(), dh::ToSpan(temp_weights));
   sorted_entries.clear();
   sorted_entries.shrink_to_fit();
-  // add cuts into sketches
-  sketch_container->Push(cuts_ptr.ConstDeviceSpan(), &cuts);
 }
 
 /*
@@ -306,7 +265,7 @@ void AdapterDeviceSketch(Batch batch, int num_bins,
       size_t end = std::min(batch.Size(), size_t(begin + sketch_batch_num_elements));
       ProcessWeightedSlidingWindow(batch, info,
                                    num_cuts_per_feature,
-                                   CutsBuilder::UseGroup(info), missing, device, num_cols, begin, end,
+                                   HostSketchContainer::UseGroup(info), missing, device, num_cols, begin, end,
                                    sketch_container);
     }
   } else {

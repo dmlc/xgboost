@@ -39,7 +39,7 @@ then
     OPENMP_CXXFLAGS=''
     OPENMP_LIB=''
     echo '*****************************************************************************************'
-    echo 'WARNING: OpenMP is unavailable on this Mac OSX system. Training speed may be suboptimal.'
+    echo '         OpenMP is unavailable on this Mac OSX system. Training speed may be suboptimal.'
     echo '         To use all CPU cores for training jobs, you should install OpenMP by running\n'
     echo '             brew install libomp'
     echo '*****************************************************************************************'
@@ -52,4 +52,3 @@ AC_SUBST(ENDIAN_FLAG)
 AC_SUBST(BACKTRACE_LIB)
 AC_CONFIG_FILES([src/Makevars])
 AC_OUTPUT
-

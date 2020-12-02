@@ -1,6 +1,5 @@
 import os
 import tempfile
-import unittest
 import platform
 import xgboost
 import subprocess
@@ -9,7 +8,7 @@ import json
 import testing as tm
 
 
-class TestCLI(unittest.TestCase):
+class TestCLI:
     template = '''
 booster = gbtree
 objective = reg:squarederror
@@ -23,6 +22,7 @@ model_in = {model_in}
 model_out = {model_out}
 test_path = {test_path}
 name_pred = {name_pred}
+model_dir = {model_dir}
 
 num_round = 10
 data = {data_path}
@@ -47,9 +47,12 @@ eval[test] = {data_path}
         seed = 1994
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            model_out_cli = os.path.join(tmpdir, 'test_load_cli_model-cli.bin')
-            model_out_py = os.path.join(tmpdir, 'test_cli_model-py.bin')
-            config_path = os.path.join(tmpdir, 'test_load_cli_model.conf')
+            model_out_cli = os.path.join(
+                tmpdir, 'test_load_cli_model-cli.json')
+            model_out_py = os.path.join(
+                tmpdir, 'test_cli_model-py.json')
+            config_path = os.path.join(
+                tmpdir, 'test_load_cli_model.conf')
 
             train_conf = self.template.format(data_path=data_path,
                                               seed=seed,
@@ -57,7 +60,8 @@ eval[test] = {data_path}
                                               model_in='NULL',
                                               model_out=model_out_cli,
                                               test_path='NULL',
-                                              name_pred='NULL')
+                                              name_pred='NULL',
+                                              model_dir='NULL')
             with open(config_path, 'w') as fd:
                 fd.write(train_conf)
 
@@ -71,7 +75,8 @@ eval[test] = {data_path}
                                                 model_in=model_out_cli,
                                                 model_out='NULL',
                                                 test_path=data_path,
-                                                name_pred=predict_out)
+                                                name_pred=predict_out,
+                                                model_dir='NULL')
             with open(config_path, 'w') as fd:
                 fd.write(predict_conf)
 
@@ -143,7 +148,8 @@ eval[test] = {data_path}
                                               model_in='NULL',
                                               model_out=model_out_cli,
                                               test_path='NULL',
-                                              name_pred='NULL')
+                                              name_pred='NULL',
+                                              model_dir='NULL')
             with open(config_path, 'w') as fd:
                 fd.write(train_conf)
 
@@ -152,3 +158,28 @@ eval[test] = {data_path}
                 model = json.load(fd)
 
             assert model['learner']['gradient_booster']['name'] == 'gbtree'
+
+    def test_cli_save_model(self):
+        '''Test save on final round'''
+        exe = self.get_exe()
+        data_path = "{root}/demo/data/agaricus.txt.train?format=libsvm".format(
+            root=self.PROJECT_ROOT)
+        seed = 1994
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model_out_cli = os.path.join(tmpdir, '0010.model')
+            config_path = os.path.join(tmpdir, 'test_load_cli_model.conf')
+
+            train_conf = self.template.format(data_path=data_path,
+                                              seed=seed,
+                                              task='train',
+                                              model_in='NULL',
+                                              model_out='NULL',
+                                              test_path='NULL',
+                                              name_pred='NULL',
+                                              model_dir=tmpdir)
+            with open(config_path, 'w') as fd:
+                fd.write(train_conf)
+
+            subprocess.run([exe, config_path])
+            assert os.path.exists(model_out_cli)

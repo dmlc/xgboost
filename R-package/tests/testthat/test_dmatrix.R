@@ -64,8 +64,8 @@ test_that("xgb.DMatrix: getinfo & setinfo", {
   expect_true(setinfo(dtest, 'group', c(50, 50)))
   expect_error(setinfo(dtest, 'group', test_label))
 
-  # providing character values will give a warning
-  expect_warning(setinfo(dtest, 'weight', rep('a', nrow(test_data))))
+  # providing character values will give an error
+  expect_error(setinfo(dtest, 'weight', rep('a', nrow(test_data))))
 
   # any other label should error
   expect_error(setinfo(dtest, 'asdf', test_label))
@@ -99,7 +99,7 @@ test_that("xgb.DMatrix: colnames", {
   dtest <- xgb.DMatrix(test_data, label = test_label)
   expect_equal(colnames(dtest), colnames(test_data))
   expect_error(colnames(dtest) <- 'asdf')
-  new_names <- make.names(1:ncol(test_data))
+  new_names <- make.names(seq_len(ncol(test_data)))
   expect_silent(colnames(dtest) <- new_names)
   expect_equal(colnames(dtest), new_names)
   expect_silent(colnames(dtest) <- NULL)

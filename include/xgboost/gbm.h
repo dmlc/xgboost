@@ -62,6 +62,17 @@ class GradientBooster : public Model, public Configurable {
    */
   virtual void Save(dmlc::Stream* fo) const = 0;
   /*!
+   * \brief Slice a model using boosting index. The slice m:n indicates taking all trees
+   *        that were fit during the boosting rounds m, (m+1), (m+2), ..., (n-1).
+   * \param layer_begin Begining of boosted tree layer used for prediction.
+   * \param layer_end   End of booster layer. 0 means do not limit trees.
+   * \param out         Output gradient booster
+   */
+  virtual void Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
+                     GradientBooster *out, bool* out_of_bound) const {
+    LOG(FATAL) << "Slice is not supported by current booster.";
+  }
+  /*!
    * \brief whether the model allow lazy checkpoint
    * return true if model is only updated in DoBoost
    * after all Allreduce calls
@@ -76,8 +87,9 @@ class GradientBooster : public Model, public Configurable {
    * \param prediction The output prediction cache entry that needs to be updated.
    * the booster may change content of gpair
    */
-  virtual void DoBoost(DMatrix* p_fmat, HostDeviceVector<GradientPair>* in_gpair,
-                       PredictionCacheEntry *prediction) = 0;
+  virtual void DoBoost(DMatrix* p_fmat,
+                       HostDeviceVector<GradientPair>* in_gpair,
+                       PredictionCacheEntry*) = 0;
 
   /*!
    * \brief generate predictions for given feature matrix
@@ -104,10 +116,10 @@ class GradientBooster : public Model, public Configurable {
    * \param           layer_begin (Optional) Begining of boosted tree layer used for prediction.
    * \param           layer_end   (Optional) End of booster layer. 0 means do not limit trees.
    */
-  virtual void InplacePredict(dmlc::any const &x, float missing,
-                              PredictionCacheEntry *out_preds,
-                              uint32_t layer_begin = 0,
-                              uint32_t layer_end = 0) const {
+  virtual void InplacePredict(dmlc::any const &, float,
+                              PredictionCacheEntry*,
+                              uint32_t,
+                              uint32_t) const {
     LOG(FATAL) << "Inplace predict is not supported by current booster.";
   }
   /*!
@@ -133,7 +145,7 @@ class GradientBooster : public Model, public Configurable {
    *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
    */
   virtual void PredictLeaf(DMatrix* dmat,
-                           std::vector<bst_float>* out_preds,
+                           HostDeviceVector<bst_float>* out_preds,
                            unsigned ntree_limit = 0) = 0;
 
   /*!
@@ -148,13 +160,13 @@ class GradientBooster : public Model, public Configurable {
    * \param condition_feature feature to condition on (i.e. fix) during calculations
    */
   virtual void PredictContribution(DMatrix* dmat,
-                                   std::vector<bst_float>* out_contribs,
+                                   HostDeviceVector<bst_float>* out_contribs,
                                    unsigned ntree_limit = 0,
                                    bool approximate = false, int condition = 0,
                                    unsigned condition_feature = 0) = 0;
 
   virtual void PredictInteractionContributions(DMatrix* dmat,
-                                               std::vector<bst_float>* out_contribs,
+                                               HostDeviceVector<bst_float>* out_contribs,
                                                unsigned ntree_limit, bool approximate) = 0;
 
   /*!

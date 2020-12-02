@@ -18,14 +18,6 @@
 
 #endif
 
-template <typename Iter>
-void InitializeRange(Iter _begin, Iter _end) {
-  float j = 0;
-  for (Iter i = _begin; i != _end; ++i, ++j) {
-    *i = j;
-  }
-}
-
 namespace xgboost {
 namespace common {
 
@@ -41,9 +33,9 @@ TEST(Transform, DeclareUnifiedTest(Basic)) {
   const size_t size {256};
   std::vector<bst_float> h_in(size);
   std::vector<bst_float> h_out(size);
-  InitializeRange(h_in.begin(), h_in.end());
+  std::iota(h_in.begin(), h_in.end(), 0);
   std::vector<bst_float> h_sol(size);
-  InitializeRange(h_sol.begin(), h_sol.end());
+  std::iota(h_sol.begin(), h_sol.end(), 0);
 
   const HostDeviceVector<bst_float> in_vec{h_in, TRANSFORM_GPU};
   HostDeviceVector<bst_float> out_vec{h_out, TRANSFORM_GPU};
@@ -59,7 +51,7 @@ TEST(Transform, DeclareUnifiedTest(Basic)) {
 }
 
 #if !defined(__CUDACC__)
-TEST(Transform, Exception) {
+TEST(TransformDeathTest, Exception) {
   size_t const kSize {16};
   std::vector<bst_float> h_in(kSize);
   const HostDeviceVector<bst_float> in_vec{h_in, -1};

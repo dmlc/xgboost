@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include "test_quantile.h"
 #include "../helpers.h"
 #include "../../../src/common/hist_util.cuh"
 #include "../../../src/common/quantile.cuh"
@@ -7,45 +8,21 @@ namespace xgboost {
 namespace common {
 TEST(GPUQuantile, Basic) {
   constexpr size_t kRows = 1000, kCols = 100, kBins = 256;
-  SketchContainer sketch(kBins, kCols, kRows, 0);
-  dh::caching_device_vector<SketchEntry> entries;
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch(ft, kBins, kCols, kRows, 0);
+  dh::caching_device_vector<Entry> entries;
   dh::device_vector<bst_row_t> cuts_ptr(kCols+1);
   thrust::fill(cuts_ptr.begin(), cuts_ptr.end(), 0);
   // Push empty
-  sketch.Push(dh::ToSpan(cuts_ptr), &entries);
+  sketch.Push(dh::ToSpan(entries), dh::ToSpan(cuts_ptr), dh::ToSpan(cuts_ptr), 0);
   ASSERT_EQ(sketch.Data().size(), 0);
-}
-
-template <typename Fn> void RunWithSeedsAndBins(size_t rows, Fn fn) {
-  std::vector<int32_t> seeds(4);
-  SimpleLCG lcg;
-  SimpleRealUniformDistribution<float> dist(3, 1000);
-  std::generate(seeds.begin(), seeds.end(), [&](){ return dist(&lcg); });
-
-  std::vector<size_t> bins(8);
-  for (size_t i = 0; i < bins.size() - 1; ++i) {
-    bins[i] = i * 35 + 2;
-  }
-  bins.back() = rows + 80;  // provide a bin number greater than rows.
-
-  std::vector<MetaInfo> infos(2);
-  auto& h_weights = infos.front().weights_.HostVector();
-  h_weights.resize(rows);
-  std::generate(h_weights.begin(), h_weights.end(), [&]() { return dist(&lcg); });
-
-  for (auto seed : seeds) {
-    for (auto n_bin : bins) {
-      for (auto const& info : infos) {
-        fn(seed, n_bin, info);
-      }
-    }
-  }
 }
 
 void TestSketchUnique(float sparsity) {
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [kRows, kCols, sparsity](int32_t seed, size_t n_bins, MetaInfo const& info) {
-    SketchContainer sketch(n_bins, kCols, kRows, 0);
+    HostDeviceVector<FeatureType> ft;
+    SketchContainer sketch(ft, n_bins, kCols, kRows, 0);
 
     HostDeviceVector<float> storage;
     std::string interface_str = RandomDataGenerator{kRows, kCols, sparsity}
@@ -68,12 +45,11 @@ void TestSketchUnique(float sparsity) {
     detail::GetColumnSizesScan(0, kCols, n_cuts, batch_iter, is_valid, 0, end,
                                &cut_sizes_scan, &column_sizes_scan);
     auto const& cut_sizes = cut_sizes_scan.HostVector();
+    ASSERT_LE(sketch.Data().size(), cut_sizes.back());
 
-    if (sparsity == 0) {
-      ASSERT_EQ(sketch.Data().size(), n_cuts * kCols);
-    } else {
-      ASSERT_EQ(sketch.Data().size(), cut_sizes.back());
-    }
+    std::vector<size_t> h_columns_ptr(sketch.ColumnsPtr().size());
+    dh::CopyDeviceSpanToVector(&h_columns_ptr, sketch.ColumnsPtr());
+    ASSERT_EQ(sketch.Data().size(), h_columns_ptr.back());
 
     sketch.Unique();
     ASSERT_TRUE(thrust::is_sorted(thrust::device, sketch.Data().data(),
@@ -90,36 +66,42 @@ TEST(GPUQuantile, Unique) {
 // if with_error is true, the test tolerates floating point error
 void TestQuantileElemRank(int32_t device, Span<SketchEntry const> in,
                           Span<bst_row_t const> d_columns_ptr, bool with_error = false) {
-  dh::LaunchN(device, in.size(), [=]XGBOOST_DEVICE(size_t idx) {
-    auto column_id = dh::SegmentId(d_columns_ptr, idx);
-    auto in_column = in.subspan(d_columns_ptr[column_id],
-                                d_columns_ptr[column_id + 1] -
-                                    d_columns_ptr[column_id]);
-    auto constexpr kEps = 1e-6f;
-    idx -= d_columns_ptr[column_id];
-    float prev_rmin = idx == 0 ? 0.0f : in_column[idx-1].rmin;
-    float prev_rmax = idx == 0 ? 0.0f : in_column[idx-1].rmax;
-    float rmin_next = in_column[idx].RMinNext();
+  std::vector<SketchEntry> h_in(in.size());
+  dh::CopyDeviceSpanToVector(&h_in, in);
+  std::vector<bst_row_t> h_columns_ptr(d_columns_ptr.size());
+  dh::CopyDeviceSpanToVector(&h_columns_ptr, d_columns_ptr);
 
-    if (with_error) {
-      SPAN_CHECK(in_column[idx].rmin + in_column[idx].rmin * kEps >= prev_rmin);
-      SPAN_CHECK(in_column[idx].rmax + in_column[idx].rmin * kEps >= prev_rmax);
-      SPAN_CHECK(in_column[idx].rmax + in_column[idx].rmin * kEps >= rmin_next);
-    } else {
-      SPAN_CHECK(in_column[idx].rmin >= prev_rmin);
-      SPAN_CHECK(in_column[idx].rmax >= prev_rmax);
-      SPAN_CHECK(in_column[idx].rmax >= rmin_next);
+  for (size_t i = 1; i < d_columns_ptr.size(); ++i) {
+    auto column_id = i - 1;
+    auto beg = h_columns_ptr[column_id];
+    auto end = h_columns_ptr[i];
+
+    auto in_column = Span<SketchEntry>{h_in}.subspan(beg, end - beg);
+    for (size_t idx = 1; idx < in_column.size(); ++idx) {
+      float prev_rmin = in_column[idx - 1].rmin;
+      float prev_rmax = in_column[idx - 1].rmax;
+      float rmin_next = in_column[idx].RMinNext();
+      if (with_error) {
+        ASSERT_GE(in_column[idx].rmin + in_column[idx].rmin * kRtEps,
+                  prev_rmin);
+        ASSERT_GE(in_column[idx].rmax + in_column[idx].rmin * kRtEps,
+                  prev_rmax);
+        ASSERT_GE(in_column[idx].rmax + in_column[idx].rmin * kRtEps,
+                  rmin_next);
+      } else {
+        ASSERT_GE(in_column[idx].rmin, prev_rmin);
+        ASSERT_GE(in_column[idx].rmax, prev_rmax);
+        ASSERT_GE(in_column[idx].rmax, rmin_next);
+      }
     }
-  });
-  // Force sync to terminate current test instead of a later one.
-  dh::DebugSyncDevice(__FILE__, __LINE__);
+  }
 }
-
 
 TEST(GPUQuantile, Prune) {
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
-    SketchContainer sketch(n_bins, kCols, kRows, 0);
+    HostDeviceVector<FeatureType> ft;
+    SketchContainer sketch(ft, n_bins, kCols, kRows, 0);
 
     HostDeviceVector<float> storage;
     std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
@@ -130,16 +112,12 @@ TEST(GPUQuantile, Prune) {
     AdapterDeviceSketch(adapter.Value(), n_bins, info,
                         std::numeric_limits<float>::quiet_NaN(), &sketch);
     auto n_cuts = detail::RequiredSampleCutsPerColumn(n_bins, kRows);
-    ASSERT_EQ(sketch.Data().size(), n_cuts * kCols);
+    // LE because kRows * kCols is pushed into sketch, after removing
+    // duplicated entries we might not have that much inputs for prune.
+    ASSERT_LE(sketch.Data().size(), n_cuts * kCols);
 
     sketch.Prune(n_bins);
-    if (n_bins <= kRows) {
-      ASSERT_EQ(sketch.Data().size(), n_bins * kCols);
-    } else {
-      // LE because kRows * kCols is pushed into sketch, after removing duplicated entries
-      // we might not have that much inputs for prune.
-      ASSERT_LE(sketch.Data().size(), kRows * kCols);
-    }
+    ASSERT_LE(sketch.Data().size(), kRows * kCols);
     // This is not necessarily true for all inputs without calling unique after
     // prune.
     ASSERT_TRUE(thrust::is_sorted(thrust::device, sketch.Data().data(),
@@ -152,7 +130,8 @@ TEST(GPUQuantile, Prune) {
 TEST(GPUQuantile, MergeEmpty) {
   constexpr size_t kRows = 1000, kCols = 100;
   size_t n_bins = 10;
-  SketchContainer sketch_0(n_bins, kCols, kRows, 0);
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch_0(ft, n_bins, kCols, kRows, 0);
   HostDeviceVector<float> storage_0;
   std::string interface_str_0 =
       RandomDataGenerator{kRows, kCols, 0}.Device(0).GenerateArrayInterface(
@@ -191,7 +170,8 @@ TEST(GPUQuantile, MergeEmpty) {
 TEST(GPUQuantile, MergeBasic) {
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
-    SketchContainer sketch_0(n_bins, kCols, kRows, 0);
+    HostDeviceVector<FeatureType> ft;
+    SketchContainer sketch_0(ft, n_bins, kCols, kRows, 0);
     HostDeviceVector<float> storage_0;
     std::string interface_str_0 = RandomDataGenerator{kRows, kCols, 0}
                                       .Device(0)
@@ -201,7 +181,7 @@ TEST(GPUQuantile, MergeBasic) {
     AdapterDeviceSketch(adapter_0.Value(), n_bins, info,
                         std::numeric_limits<float>::quiet_NaN(), &sketch_0);
 
-    SketchContainer sketch_1(n_bins, kCols, kRows * kRows, 0);
+    SketchContainer sketch_1(ft, n_bins, kCols, kRows * kRows, 0);
     HostDeviceVector<float> storage_1;
     std::string interface_str_1 = RandomDataGenerator{kRows, kCols, 0}
                                       .Device(0)
@@ -237,7 +217,8 @@ TEST(GPUQuantile, MergeBasic) {
 void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
   MetaInfo info;
   int32_t seed = 0;
-  SketchContainer sketch_0(n_bins, cols, rows, 0);
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch_0(ft, n_bins, cols, rows, 0);
   HostDeviceVector<float> storage_0;
   std::string interface_str_0 = RandomDataGenerator{rows, cols, 0}
                                     .Device(0)
@@ -249,7 +230,7 @@ void TestMergeDuplicated(int32_t n_bins, size_t cols, size_t rows, float frac) {
                       &sketch_0);
 
   size_t f_rows = rows * frac;
-  SketchContainer sketch_1(n_bins, cols, f_rows, 0);
+  SketchContainer sketch_1(ft, n_bins, cols, f_rows, 0);
   HostDeviceVector<float> storage_1;
   std::string interface_str_1 = RandomDataGenerator{f_rows, cols, 0}
                                     .Device(0)
@@ -297,31 +278,51 @@ TEST(GPUQuantile, MergeDuplicated) {
   }
 }
 
-void InitRabitContext(std::string msg) {
-  auto n_gpus = AllVisibleGPUs();
-  auto port = std::getenv("DMLC_TRACKER_PORT");
-  std::string port_str;
-  if (port) {
-    port_str = port;
-  } else {
-    LOG(WARNING) << msg << " as `DMLC_TRACKER_PORT` is not set up.";
-    return;
-  }
+TEST(GPUQuantile, MultiMerge) {
+  constexpr size_t kRows = 20, kCols = 1;
+  int32_t world = 2;
+  RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins,
+                                 MetaInfo const &info) {
+    // Set up single node version
+    HostDeviceVector<FeatureType> ft;
+    SketchContainer sketch_on_single_node(ft, n_bins, kCols, kRows, 0);
 
-  std::vector<std::string> envs{
-      "DMLC_TRACKER_PORT=" + port_str,
-      "DMLC_TRACKER_URI=127.0.0.1",
-      "DMLC_NUM_WORKER=" + std::to_string(n_gpus)};
-  char* c_envs[] {&(envs[0][0]), &(envs[1][0]), &(envs[2][0])};
-  rabit::Init(3, c_envs);
+    size_t intermediate_num_cuts = std::min(
+        kRows * world, static_cast<size_t>(n_bins * WQSketch::kFactor));
+    std::vector<SketchContainer> containers;
+    for (auto rank = 0; rank < world; ++rank) {
+      HostDeviceVector<float> storage;
+      std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
+                                      .Device(0)
+                                      .Seed(rank + seed)
+                                      .GenerateArrayInterface(&storage);
+      data::CupyAdapter adapter(interface_str);
+      HostDeviceVector<FeatureType> ft;
+      containers.emplace_back(ft, n_bins, kCols, kRows, 0);
+      AdapterDeviceSketch(adapter.Value(), n_bins, info,
+                          std::numeric_limits<float>::quiet_NaN(),
+                          &containers.back());
+    }
+    for (auto &sketch : containers) {
+      sketch.Prune(intermediate_num_cuts);
+      sketch_on_single_node.Merge(sketch.ColumnsPtr(), sketch.Data());
+      sketch_on_single_node.FixError();
+    }
+    TestQuantileElemRank(0, sketch_on_single_node.Data(),
+                         sketch_on_single_node.ColumnsPtr());
+
+    sketch_on_single_node.Unique();
+    TestQuantileElemRank(0, sketch_on_single_node.Data(),
+                         sketch_on_single_node.ColumnsPtr());
+  });
 }
 
 TEST(GPUQuantile, AllReduceBasic) {
   // This test is supposed to run by a python test that setups the environment.
   std::string msg {"Skipping AllReduce test"};
 #if defined(__linux__) && defined(XGBOOST_USE_NCCL)
-  InitRabitContext(msg);
   auto n_gpus = AllVisibleGPUs();
+  InitRabitContext(msg, n_gpus);
   auto world = rabit::GetWorldSize();
   if (world != 1) {
     ASSERT_EQ(world, n_gpus);
@@ -332,10 +333,11 @@ TEST(GPUQuantile, AllReduceBasic) {
   constexpr size_t kRows = 1000, kCols = 100;
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins, MetaInfo const& info) {
     // Set up single node version;
-    SketchContainer sketch_on_single_node(n_bins, kCols, kRows, 0);
+    HostDeviceVector<FeatureType> ft;
+    SketchContainer sketch_on_single_node(ft, n_bins, kCols, kRows, 0);
 
-    size_t intermediate_num_cuts =
-        std::min(kRows * world, static_cast<size_t>(n_bins * WQSketch::kFactor));
+    size_t intermediate_num_cuts = std::min(
+        kRows * world, static_cast<size_t>(n_bins * WQSketch::kFactor));
     std::vector<SketchContainer> containers;
     for (auto rank = 0; rank < world; ++rank) {
       HostDeviceVector<float> storage;
@@ -344,12 +346,13 @@ TEST(GPUQuantile, AllReduceBasic) {
                                       .Seed(rank + seed)
                                       .GenerateArrayInterface(&storage);
       data::CupyAdapter adapter(interface_str);
-      containers.emplace_back(n_bins, kCols, kRows, 0);
+      HostDeviceVector<FeatureType> ft;
+      containers.emplace_back(ft, n_bins, kCols, kRows, 0);
       AdapterDeviceSketch(adapter.Value(), n_bins, info,
                           std::numeric_limits<float>::quiet_NaN(),
                           &containers.back());
     }
-    for (auto& sketch : containers) {
+    for (auto &sketch : containers) {
       sketch.Prune(intermediate_num_cuts);
       sketch_on_single_node.Merge(sketch.ColumnsPtr(), sketch.Data());
       sketch_on_single_node.FixError();
@@ -361,7 +364,7 @@ TEST(GPUQuantile, AllReduceBasic) {
     // Set up distributed version.  We rely on using rank as seed to generate
     // the exact same copy of data.
     auto rank = rabit::GetRank();
-    SketchContainer sketch_distributed(n_bins, kCols, kRows, 0);
+    SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, 0);
     HostDeviceVector<float> storage;
     std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
                                     .Device(0)
@@ -407,9 +410,9 @@ TEST(GPUQuantile, AllReduceBasic) {
 TEST(GPUQuantile, SameOnAllWorkers) {
   std::string msg {"Skipping SameOnAllWorkers test"};
 #if defined(__linux__) && defined(XGBOOST_USE_NCCL)
-  InitRabitContext(msg);
-  auto world = rabit::GetWorldSize();
   auto n_gpus = AllVisibleGPUs();
+  InitRabitContext(msg, n_gpus);
+  auto world = rabit::GetWorldSize();
   if (world != 1) {
     ASSERT_EQ(world, n_gpus);
   } else {
@@ -420,7 +423,8 @@ TEST(GPUQuantile, SameOnAllWorkers) {
   RunWithSeedsAndBins(kRows, [=](int32_t seed, size_t n_bins,
                                  MetaInfo const &info) {
     auto rank = rabit::GetRank();
-    SketchContainer sketch_distributed(n_bins, kCols, kRows, 0);
+    HostDeviceVector<FeatureType> ft;
+    SketchContainer sketch_distributed(ft, n_bins, kCols, kRows, 0);
     HostDeviceVector<float> storage;
     std::string interface_str = RandomDataGenerator{kRows, kCols, 0}
                                     .Device(0)
@@ -476,6 +480,100 @@ TEST(GPUQuantile, SameOnAllWorkers) {
   LOG(WARNING) << msg;
   return;
 #endif  // !defined(__linux__) && defined(XGBOOST_USE_NCCL)
+}
+
+TEST(GPUQuantile, Push) {
+  size_t constexpr kRows = 100;
+  std::vector<float> data(kRows);
+
+  std::fill(data.begin(), data.begin() + (data.size() / 2), 0.3f);
+  std::fill(data.begin() + (data.size() / 2), data.end(), 0.5f);
+  int32_t n_bins = 128;
+  bst_feature_t constexpr kCols = 1;
+
+  std::vector<Entry> entries(kRows);
+  for (bst_feature_t i = 0; i < entries.size(); ++i) {
+    Entry e{i, data[i]};
+    entries[i] = e;
+  }
+
+  dh::device_vector<Entry> d_entries(entries);
+  dh::device_vector<size_t> columns_ptr(2);
+  columns_ptr[0] = 0;
+  columns_ptr[1] = kRows;
+
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch(ft, n_bins, kCols, kRows, 0);
+  sketch.Push(dh::ToSpan(d_entries), dh::ToSpan(columns_ptr), dh::ToSpan(columns_ptr), kRows, {});
+
+  auto sketch_data = sketch.Data();
+
+  thrust::host_vector<SketchEntry> h_sketch_data(sketch_data.size());
+
+  auto ptr = thrust::device_ptr<SketchEntry const>(sketch_data.data());
+  thrust::copy(ptr, ptr + sketch_data.size(), h_sketch_data.begin());
+  ASSERT_EQ(h_sketch_data.size(), 2);
+
+  auto v_0 = h_sketch_data[0];
+  ASSERT_EQ(v_0.rmin, 0);
+  ASSERT_EQ(v_0.wmin, kRows / 2.0f);
+  ASSERT_EQ(v_0.rmax, kRows / 2.0f);
+
+  auto v_1 = h_sketch_data[1];
+  ASSERT_EQ(v_1.rmin, kRows / 2.0f);
+  ASSERT_EQ(v_1.wmin, kRows / 2.0f);
+  ASSERT_EQ(v_1.rmax, static_cast<float>(kRows));
+}
+
+TEST(GPUQuantile, MultiColPush) {
+  size_t constexpr kRows = 100, kCols = 4;
+  std::vector<float> data(kRows * kCols);
+
+  std::fill(data.begin(), data.begin() + (data.size() / 2), 0.3f);
+
+  std::vector<Entry> entries(kRows * kCols);
+
+  for (bst_feature_t c = 0; c < kCols; ++c) {
+    for (size_t r = 0; r < kRows; ++r) {
+      float v = (r >= kRows / 2) ? 0.7 : 0.4;
+      auto e = Entry{c, v};
+      entries[c * kRows + r] = e;
+    }
+  }
+
+  int32_t n_bins = 16;
+  HostDeviceVector<FeatureType> ft;
+  SketchContainer sketch(ft, n_bins, kCols, kRows, 0);
+  dh::device_vector<Entry> d_entries {entries};
+
+  dh::device_vector<size_t> columns_ptr(kCols + 1, 0);
+  for (size_t i = 1; i < kCols + 1; ++i) {
+    columns_ptr[i] = kRows;
+  }
+  thrust::inclusive_scan(thrust::device, columns_ptr.begin(), columns_ptr.end(),
+                         columns_ptr.begin());
+  dh::device_vector<size_t> cuts_ptr(columns_ptr);
+
+  sketch.Push(dh::ToSpan(d_entries), dh::ToSpan(columns_ptr),
+              dh::ToSpan(cuts_ptr), kRows * kCols, {});
+
+  auto sketch_data = sketch.Data();
+  ASSERT_EQ(sketch_data.size(), kCols * 2);
+  auto ptr = thrust::device_ptr<SketchEntry const>(sketch_data.data());
+  std::vector<SketchEntry> h_sketch_data(sketch_data.size());
+  thrust::copy(ptr, ptr + sketch_data.size(), h_sketch_data.begin());
+
+  for (size_t i = 0; i < kCols; ++i) {
+    auto v_0 = h_sketch_data[i * 2];
+    ASSERT_EQ(v_0.rmin, 0);
+    ASSERT_EQ(v_0.wmin, kRows / 2.0f);
+    ASSERT_EQ(v_0.rmax, kRows / 2.0f);
+
+    auto v_1 = h_sketch_data[i * 2 + 1];
+    ASSERT_EQ(v_1.rmin, kRows / 2.0f);
+    ASSERT_EQ(v_1.wmin, kRows / 2.0f);
+    ASSERT_EQ(v_1.rmax, static_cast<float>(kRows));
+  }
 }
 }  // namespace common
 }  // namespace xgboost

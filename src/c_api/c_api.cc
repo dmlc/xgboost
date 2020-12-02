@@ -165,7 +165,7 @@ XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
                                      const unsigned* indices,
                                      const bst_float* data,
                                      size_t nindptr,
-                                     size_t nelem,
+                                     size_t,
                                      size_t num_row,
                                      DMatrixHandle* out) {
   API_BEGIN();
@@ -242,7 +242,7 @@ XGB_DLL int XGDMatrixFree(DMatrixHandle handle) {
 }
 
 XGB_DLL int XGDMatrixSaveBinary(DMatrixHandle handle, const char* fname,
-                                int silent) {
+                                int) {
   API_BEGIN();
   CHECK_HANDLE();
   auto dmat = static_cast<std::shared_ptr<DMatrix>*>(handle)->get();
@@ -315,6 +315,17 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
   }
   *out_features = dmlc::BeginPtr(charp_vecs);
   *len = static_cast<xgboost::bst_ulong>(charp_vecs.size());
+  API_END();
+}
+
+XGB_DLL int XGDMatrixSetDenseInfo(DMatrixHandle handle, const char *field,
+                                  void *data, xgboost::bst_ulong size,
+                                  int type) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto &info = static_cast<std::shared_ptr<DMatrix> *>(handle)->get()->Info();
+  CHECK(type >= 1 && type <= 4);
+  info.SetInfo(field, data, static_cast<DataType>(type), size);
   API_END();
 }
 
@@ -534,7 +545,7 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, float *values,
     new xgboost::data::DenseAdapter(values, n_rows, n_cols)};
   HostDeviceVector<float>* p_predt { nullptr };
   std::string type { c_type };
-  learner->InplacePredict(x, type, missing, &p_predt);
+  learner->InplacePredict(x, type, missing, &p_predt, iteration_begin, iteration_end);
   CHECK(p_predt);
 
   *out_result = dmlc::BeginPtr(p_predt->HostVector());
@@ -566,7 +577,7 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle,
     new xgboost::data::CSRAdapter(indptr, indices, data, nindptr - 1, nelem, num_col)};
   HostDeviceVector<float>* p_predt { nullptr };
   std::string type { c_type };
-  learner->InplacePredict(x, type, missing, &p_predt);
+  learner->InplacePredict(x, type, missing, &p_predt, iteration_begin, iteration_end);
   CHECK(p_predt);
 
   *out_result = dmlc::BeginPtr(p_predt->HostVector());
@@ -718,6 +729,22 @@ XGB_DLL int XGBoosterSaveRabitCheckpoint(BoosterHandle handle) {
   } else {
     rabit::CheckPoint(learner);
   }
+  API_END();
+}
+
+XGB_DLL int XGBoosterSlice(BoosterHandle handle, int begin_layer,
+                           int end_layer, int step,
+                           BoosterHandle *out) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto* learner = static_cast<Learner*>(handle);
+  bool out_of_bound = false;
+  auto p_out = learner->Slice(begin_layer, end_layer, step, &out_of_bound);
+  if (out_of_bound) {
+    return -2;
+  }
+  CHECK(p_out);
+  *out = p_out;
   API_END();
 }
 

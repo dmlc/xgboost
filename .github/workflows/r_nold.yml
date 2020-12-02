@@ -1,0 +1,44 @@
+# Run R tests with noLD R. Only triggered by a pull request review
+# See discussion at https://github.com/dmlc/xgboost/pull/6378
+
+name: XGBoost-R-noLD
+
+on:
+  pull_request_review_comment:
+    types: [created]
+
+env:
+  R_PACKAGES: c('XML', 'igraph', 'data.table', 'magrittr', 'ggplot2', 'DiagrammeR', 'Ckmeans.1d.dp', 'vcd', 'testthat', 'lintr', 'knitr', 'rmarkdown', 'e1071', 'cplm', 'devtools', 'float', 'titanic')
+
+jobs:
+  test-R-noLD:
+    if: github.event.comment.body == '/gha run r-nold-test' && contains('OWNER,MEMBER,COLLABORATOR', github.event.comment.author_association)
+    timeout-minutes: 120
+    runs-on: ubuntu-latest
+    container: rhub/debian-gcc-devel-nold
+    steps:
+    - name: Install git and system packages
+      shell: bash
+      run: |
+        apt-get update && apt-get install -y git libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev libxml2-dev
+
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        cat > install_libs.R <<EOT
+          install.packages(${{ env.R_PACKAGES }},
+                           repos = 'http://cloud.r-project.org',
+                           dependencies = c('Depends', 'Imports', 'LinkingTo'))
+        EOT
+        /tmp/R-devel/bin/Rscript install_libs.R
+
+    - name: Run R tests
+      shell: bash
+      run: |
+        cd R-package && \
+        /tmp/R-devel/bin/R CMD INSTALL . && \
+        /tmp/R-devel/bin/R -q -e "library(testthat); setwd('tests'); source('testthat.R')"

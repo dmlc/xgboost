@@ -5,11 +5,21 @@
 
 namespace xgboost {
 namespace tree {
+namespace {
+auto ZeroParam() {
+  auto args = Args{{"min_child_weight", "0"},
+                   {"lambda", "0"}};
+  TrainParam tparam;
+  tparam.UpdateAllowUnknown(args);
+  return tparam;
+}
+}  // anonymous namespace
 
-TEST(GpuHist, EvaluateSingleSplit) {
+void TestEvaluateSingleSplit(bool is_categorical) {
   thrust::device_vector<DeviceSplitCandidate> out_splits(1);
   GradientPair parent_sum(0.0, 1.0);
-  GPUTrainingParam param{};
+  TrainParam tparam = ZeroParam();
+  GPUTrainingParam param{tparam};
 
   thrust::device_vector<bst_feature_t> feature_set =
       std::vector<bst_feature_t>{0, 1};
@@ -23,18 +33,26 @@ TEST(GpuHist, EvaluateSingleSplit) {
   thrust::device_vector<GradientPair> feature_histogram =
       std::vector<GradientPair>{
           {-0.5, 0.5}, {0.5, 0.5}, {-1.0, 0.5}, {1.0, 0.5}};
+
   thrust::device_vector<int> monotonic_constraints(feature_set.size(), 0);
+  dh::device_vector<FeatureType> feature_types(feature_set.size(),
+                                               FeatureType::kCategorical);
+  common::Span<FeatureType> d_feature_types;
+  if (is_categorical) {
+    d_feature_types = dh::ToSpan(feature_types);
+  }
   EvaluateSplitInputs<GradientPair> input{1,
                                           parent_sum,
                                           param,
                                           dh::ToSpan(feature_set),
+                                          d_feature_types,
                                           dh::ToSpan(feature_segments),
                                           dh::ToSpan(feature_values),
                                           dh::ToSpan(feature_min_values),
-                                          dh::ToSpan(feature_histogram),
-                                          ValueConstraint(),
-                                          dh::ToSpan(monotonic_constraints)};
-  EvaluateSingleSplit(dh::ToSpan(out_splits), input);
+                                          dh::ToSpan(feature_histogram)};
+  TreeEvaluator tree_evaluator(tparam, feature_min_values.size(), 0);
+  auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
+  EvaluateSingleSplit(dh::ToSpan(out_splits), evaluator, input);
 
   DeviceSplitCandidate result = out_splits[0];
   EXPECT_EQ(result.findex, 1);
@@ -45,10 +63,19 @@ TEST(GpuHist, EvaluateSingleSplit) {
                   parent_sum.GetHess());
 }
 
+TEST(GpuHist, EvaluateSingleSplit) {
+  TestEvaluateSingleSplit(false);
+}
+
+TEST(GpuHist, EvaluateCategoricalSplit) {
+  TestEvaluateSingleSplit(true);
+}
+
 TEST(GpuHist, EvaluateSingleSplitMissing) {
   thrust::device_vector<DeviceSplitCandidate> out_splits(1);
   GradientPair parent_sum(1.0, 1.5);
-  GPUTrainingParam param{};
+  TrainParam tparam = ZeroParam();
+  GPUTrainingParam param{tparam};
 
   thrust::device_vector<bst_feature_t> feature_set =
       std::vector<bst_feature_t>{0};
@@ -63,13 +90,15 @@ TEST(GpuHist, EvaluateSingleSplitMissing) {
                                           parent_sum,
                                           param,
                                           dh::ToSpan(feature_set),
+                                          {},
                                           dh::ToSpan(feature_segments),
                                           dh::ToSpan(feature_values),
                                           dh::ToSpan(feature_min_values),
-                                          dh::ToSpan(feature_histogram),
-                                          ValueConstraint(),
-                                          dh::ToSpan(monotonic_constraints)};
-  EvaluateSingleSplit(dh::ToSpan(out_splits), input);
+                                          dh::ToSpan(feature_histogram)};
+
+  TreeEvaluator tree_evaluator(tparam, feature_set.size(), 0);
+  auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
+  EvaluateSingleSplit(dh::ToSpan(out_splits), evaluator, input);
 
   DeviceSplitCandidate result = out_splits[0];
   EXPECT_EQ(result.findex, 0);
@@ -86,8 +115,13 @@ TEST(GpuHist, EvaluateSingleSplitEmpty) {
 
   thrust::device_vector<DeviceSplitCandidate> out_split(1);
   out_split[0] = nonzeroed;
-  EvaluateSingleSplit(dh::ToSpan(out_split),
+
+  TrainParam tparam = ZeroParam();
+  TreeEvaluator tree_evaluator(tparam, 1, 0);
+  auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
+  EvaluateSingleSplit(dh::ToSpan(out_split), evaluator,
                       EvaluateSplitInputs<GradientPair>{});
+
   DeviceSplitCandidate result = out_split[0];
   EXPECT_EQ(result.findex, -1);
   EXPECT_LT(result.loss_chg, 0.0f);
@@ -97,7 +131,9 @@ TEST(GpuHist, EvaluateSingleSplitEmpty) {
 TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
   thrust::device_vector<DeviceSplitCandidate> out_splits(1);
   GradientPair parent_sum(0.0, 1.0);
-  GPUTrainingParam param{};
+  TrainParam tparam = ZeroParam();
+  tparam.UpdateAllowUnknown(Args{});
+  GPUTrainingParam param{tparam};
 
   thrust::device_vector<bst_feature_t> feature_set =
       std::vector<bst_feature_t>{1};
@@ -115,13 +151,15 @@ TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
                                           parent_sum,
                                           param,
                                           dh::ToSpan(feature_set),
+                                          {},
                                           dh::ToSpan(feature_segments),
                                           dh::ToSpan(feature_values),
                                           dh::ToSpan(feature_min_values),
-                                          dh::ToSpan(feature_histogram),
-                                          ValueConstraint(),
-                                          dh::ToSpan(monotonic_constraints)};
-  EvaluateSingleSplit(dh::ToSpan(out_splits), input);
+                                          dh::ToSpan(feature_histogram)};
+
+  TreeEvaluator tree_evaluator(tparam, feature_min_values.size(), 0);
+  auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
+  EvaluateSingleSplit(dh::ToSpan(out_splits), evaluator, input);
 
   DeviceSplitCandidate result = out_splits[0];
   EXPECT_EQ(result.findex, 1);
@@ -134,7 +172,9 @@ TEST(GpuHist, EvaluateSingleSplitFeatureSampling) {
 TEST(GpuHist, EvaluateSingleSplitBreakTies) {
   thrust::device_vector<DeviceSplitCandidate> out_splits(1);
   GradientPair parent_sum(0.0, 1.0);
-  GPUTrainingParam param{};
+  TrainParam tparam = ZeroParam();
+  tparam.UpdateAllowUnknown(Args{});
+  GPUTrainingParam param{tparam};
 
   thrust::device_vector<bst_feature_t> feature_set =
       std::vector<bst_feature_t>{0, 1};
@@ -152,13 +192,15 @@ TEST(GpuHist, EvaluateSingleSplitBreakTies) {
                                           parent_sum,
                                           param,
                                           dh::ToSpan(feature_set),
+                                          {},
                                           dh::ToSpan(feature_segments),
                                           dh::ToSpan(feature_values),
                                           dh::ToSpan(feature_min_values),
-                                          dh::ToSpan(feature_histogram),
-                                          ValueConstraint(),
-                                          dh::ToSpan(monotonic_constraints)};
-  EvaluateSingleSplit(dh::ToSpan(out_splits), input);
+                                          dh::ToSpan(feature_histogram)};
+
+  TreeEvaluator tree_evaluator(tparam, feature_min_values.size(), 0);
+  auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
+  EvaluateSingleSplit(dh::ToSpan(out_splits), evaluator, input);
 
   DeviceSplitCandidate result = out_splits[0];
   EXPECT_EQ(result.findex, 0);
@@ -168,7 +210,9 @@ TEST(GpuHist, EvaluateSingleSplitBreakTies) {
 TEST(GpuHist, EvaluateSplits) {
   thrust::device_vector<DeviceSplitCandidate> out_splits(2);
   GradientPair parent_sum(0.0, 1.0);
-  GPUTrainingParam param{};
+  TrainParam tparam = ZeroParam();
+  tparam.UpdateAllowUnknown(Args{});
+  GPUTrainingParam param{tparam};
 
   thrust::device_vector<bst_feature_t> feature_set =
       std::vector<bst_feature_t>{0, 1};
@@ -190,24 +234,25 @@ TEST(GpuHist, EvaluateSplits) {
       parent_sum,
       param,
       dh::ToSpan(feature_set),
+      {},
       dh::ToSpan(feature_segments),
       dh::ToSpan(feature_values),
       dh::ToSpan(feature_min_values),
-      dh::ToSpan(feature_histogram_left),
-      ValueConstraint(),
-      dh::ToSpan(monotonic_constraints)};
+      dh::ToSpan(feature_histogram_left)};
   EvaluateSplitInputs<GradientPair> input_right{
       2,
       parent_sum,
       param,
       dh::ToSpan(feature_set),
+      {},
       dh::ToSpan(feature_segments),
       dh::ToSpan(feature_values),
       dh::ToSpan(feature_min_values),
-      dh::ToSpan(feature_histogram_right),
-      ValueConstraint(),
-      dh::ToSpan(monotonic_constraints)};
-  EvaluateSplits(dh::ToSpan(out_splits), input_left, input_right);
+      dh::ToSpan(feature_histogram_right)};
+
+  TreeEvaluator tree_evaluator(tparam, feature_min_values.size(), 0);
+  auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
+  EvaluateSplits(dh::ToSpan(out_splits), evaluator, input_left, input_right);
 
   DeviceSplitCandidate result_left = out_splits[0];
   EXPECT_EQ(result_left.findex, 1);
@@ -217,6 +262,5 @@ TEST(GpuHist, EvaluateSplits) {
   EXPECT_EQ(result_right.findex, 0);
   EXPECT_EQ(result_right.fvalue, 1.0);
 }
-
 }  // namespace tree
 }  // namespace xgboost

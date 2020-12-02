@@ -5,8 +5,9 @@ import copy
 import warnings
 import json
 import numpy as np
-from .core import Booster, DMatrix, XGBoostError
+from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
 from .training import train
+from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
 
 # Do not use class names on scikit-learn directly.  Re-define the classes on
 # .compat to guarantee the behavior without scikit-learn
@@ -73,7 +74,10 @@ __model_doc = '''
         available.  It's recommended to study this option from parameters
         document.
     n_jobs : int
-        Number of parallel threads used to run xgboost.
+        Number of parallel threads used to run xgboost.  When used with other Scikit-Learn
+        algorithms like grid search, you may choose which algorithm to parallelize and
+        balance the threads.  Creating thread contention will significantly slow dowm both
+        algorithms.
     gamma : float
         Minimum loss reduction required to make a further partition on a leaf
         node of the tree.
@@ -244,6 +248,51 @@ class XGBModel(XGBModelBase):
         self.gpu_id = gpu_id
         self.validate_parameters = validate_parameters
 
+    def _wrap_evaluation_matrices(self, X, y, group,
+                                  sample_weight, base_margin, feature_weights,
+                                  eval_set, sample_weight_eval_set, eval_group,
+                                  label_transform=lambda x: x):
+        '''Convert array_like evaluation matrices into DMatrix'''
+        if sample_weight_eval_set is not None:
+            assert eval_set is not None
+            assert len(sample_weight_eval_set) == len(eval_set)
+        if eval_group is not None:
+            assert eval_set is not None
+            assert len(eval_group) == len(eval_set)
+
+        y = label_transform(y)
+        train_dmatrix = DMatrix(data=X, label=y, weight=sample_weight,
+                                base_margin=base_margin,
+                                missing=self.missing, nthread=self.n_jobs)
+        train_dmatrix.set_info(feature_weights=feature_weights, group=group)
+
+        if eval_set is not None:
+            if sample_weight_eval_set is None:
+                sample_weight_eval_set = [None] * len(eval_set)
+            if eval_group is None:
+                eval_group = [None] * len(eval_set)
+
+            evals = []
+            for i, (valid_X, valid_y) in enumerate(eval_set):
+                # Skip the duplicated entry.
+                if valid_X is X and valid_y is y and \
+                   sample_weight_eval_set[i] is sample_weight and eval_group[i] is group:
+                    evals.append(train_dmatrix)
+                else:
+                    m = DMatrix(valid_X,
+                                label=label_transform(valid_y),
+                                missing=self.missing, weight=sample_weight_eval_set[i],
+                                nthread=self.n_jobs)
+                    m.set_info(group=eval_group[i])
+                    evals.append(m)
+
+            nevals = len(evals)
+            eval_names = ["validation_{}".format(i) for i in range(nevals)]
+            evals = list(zip(evals, eval_names))
+        else:
+            evals = ()
+        return train_dmatrix, evals
+
     def _more_tags(self):
         '''Tags used for scikit-learn data validation.'''
         return {'allow_nan': True, 'no_validation': True}
@@ -284,6 +333,10 @@ class XGBModel(XGBModelBase):
                 setattr(self, key, value)
             else:
                 self.kwargs[key] = value
+
+        if hasattr(self, '_Booster'):
+            parameters = self.get_xgb_params()
+            self.get_booster().set_param(parameters)
 
         return self
 
@@ -342,7 +395,7 @@ class XGBModel(XGBModelBase):
         params = self.get_params()
         # Parameters that should not go into native learner.
         wrapper_specific = {
-            'importance_type', 'kwargs', 'missing', 'n_estimators'}
+            'importance_type', 'kwargs', 'missing', 'n_estimators', 'use_label_encoder'}
         filtered = dict()
         for k, v in params.items():
             if k not in wrapper_specific:
@@ -427,6 +480,9 @@ class XGBModel(XGBModelBase):
             if k == 'classes_':
                 self.classes_ = np.array(v)
                 continue
+            if k == 'use_label_encoder':
+                self.use_label_encoder = bool(v)
+                continue
             if k == 'type' and type(self).__name__ != v:
                 msg = 'Current model type: {}, '.format(type(self).__name__) + \
                       'type of model in file: {}'.format(v)
@@ -438,10 +494,13 @@ class XGBModel(XGBModelBase):
         # Delete the attribute after load
         self.get_booster().set_attr(scikit_learn=None)
 
-    def fit(self, X, y, sample_weight=None, base_margin=None,
-            eval_set=None, eval_metric=None, early_stopping_rounds=None, early_stopping_threshold=None, early_stopping_limit=None,
-            verbose=True, xgb_model=None, sample_weight_eval_set=None, callbacks=None):
-        # pylint: disable=missing-docstring,invalid-name,attribute-defined-outside-init
+    @_deprecate_positional_args
+    def fit(self, X, y, *, sample_weight=None, base_margin=None,
+            eval_set=None, eval_metric=None, early_stopping_rounds=None,
+            verbose=True, xgb_model=None, sample_weight_eval_set=None,
+            feature_weights=None,
+            callbacks=None):
+        # pylint: disable=invalid-name,attribute-defined-outside-init
         """Fit gradient boosting model
 
         Parameters
@@ -458,9 +517,6 @@ class XGBModel(XGBModelBase):
             A list of (X, y) tuple pairs to use as validation sets, for which
             metrics will be computed.
             Validation metrics will help us track the performance of the model.
-        sample_weight_eval_set : list, optional
-            A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
-            instance weights on the i-th validation set.
         eval_metric : str, list of str, or callable, optional
             If a str, should be a built-in evaluation metric to use. See
             doc/parameter.rst.
@@ -482,20 +538,20 @@ class XGBModel(XGBModelBase):
             and bst.best_ntree_limit.
             (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
             and/or num_class appears in the parameters)
-        early_stopping_threshold : float
-        	Sets an potional threshold to smoothen the early stopping policy.
-￼           If after early_stopping_rounds iterations, the model hasn't improved
-        	more than threshold times the score from early_stopping_rounds before,
-            then the learning stops.
-        early_stopping_limit: float
-            Sets limit of "threshold times the score from early_stopping_rounds_before"
-            to value of limit.
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
         xgb_model : str
             file name of stored XGBoost model or 'Booster' instance XGBoost model to be
             loaded before training (allows training continuation).
+        sample_weight_eval_set : list, optional
+            A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
+            instance weights on the i-th validation set.
+        feature_weights: array_like
+            Weight for each feature, defines the probability of each feature being
+            selected when colsample is being used.  All values must be greater than 0,
+            otherwise a `ValueError` is thrown.  Only available for `hist`, `gpu_hist` and
+            `exact` tree methods.
         callbacks : list of callback functions
             List of callback functions that are applied at end of each iteration.
             It is possible to use predefined callbacks by using :ref:`callback_api`.
@@ -503,7 +559,9 @@ class XGBModel(XGBModelBase):
 
             .. code-block:: python
 
-                [xgb.callback.reset_learning_rate(custom_rates)]
+                callbacks = [xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
+                                                        save_best=True)]
+
         """
         self.n_features_in_ = X.shape[1]
 
@@ -511,25 +569,14 @@ class XGBModel(XGBModelBase):
                                 base_margin=base_margin,
                                 missing=self.missing,
                                 nthread=self.n_jobs)
+        train_dmatrix.set_info(feature_weights=feature_weights)
 
         evals_result = {}
 
-        if eval_set is not None:
-            if not isinstance(eval_set[0], (list, tuple)):
-                raise TypeError('Unexpected input type for `eval_set`')
-            if sample_weight_eval_set is None:
-                sample_weight_eval_set = [None] * len(eval_set)
-            else:
-                assert len(eval_set) == len(sample_weight_eval_set)
-            evals = list(
-                DMatrix(eval_set[i][0], label=eval_set[i][1], missing=self.missing,
-                        weight=sample_weight_eval_set[i], nthread=self.n_jobs)
-                for i in range(len(eval_set)))
-            evals = list(zip(evals, ["validation_{}".format(i) for i in
-                                     range(len(evals))]))
-        else:
-            evals = ()
-
+        train_dmatrix, evals = self._wrap_evaluation_matrices(
+            X, y, group=None, sample_weight=sample_weight, base_margin=base_margin,
+            feature_weights=feature_weights, eval_set=eval_set,
+            sample_weight_eval_set=sample_weight_eval_set, eval_group=None)
         params = self.get_xgb_params()
 
         if callable(self.objective):
@@ -548,8 +595,6 @@ class XGBModel(XGBModelBase):
         self._Booster = train(params, train_dmatrix,
                               self.get_num_boosting_rounds(), evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
-                              early_stopping_threshold=early_stopping_threshold,
-                              early_stopping_limit=early_stopping_limit,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose, xgb_model=xgb_model,
                               callbacks=callbacks)
@@ -763,75 +808,55 @@ class XGBModel(XGBModelBase):
     ['model', 'objective'], extra_parameters='''
     n_estimators : int
         Number of boosting rounds.
+    use_label_encoder : bool
+        (Deprecated) Use the label encoder from scikit-learn to encode the labels. For new code,
+        we recommend that you set this parameter to False.
 ''')
 class XGBClassifier(XGBModel, XGBClassifierBase):
     # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
-    def __init__(self, objective="binary:logistic", **kwargs):
+    @_deprecate_positional_args
+    def __init__(self, *, objective="binary:logistic", use_label_encoder=True, **kwargs):
+        self.use_label_encoder = use_label_encoder
         super().__init__(objective=objective, **kwargs)
 
-    def fit(self, X, y, sample_weight=None, base_margin=None,
+    @_deprecate_positional_args
+    def fit(self, X, y, *, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, early_stopping_threshold=None, early_stopping_limit=None, verbose=True, xgb_model=None,
-            sample_weight_eval_set=None, callbacks=None):
-        # pylint: disable = attribute-defined-outside-init,arguments-differ
-        """
-        Fit gradient boosting classifier
+            early_stopping_rounds=None, verbose=True, xgb_model=None,
+            sample_weight_eval_set=None, feature_weights=None, callbacks=None):
+        # pylint: disable = attribute-defined-outside-init,arguments-differ,too-many-statements
 
-        Parameters
-        ----------
-        X : array_like
-            Feature matrix
-        y : array_like
-            Labels
-        sample_weight : array_like
-            Weight for each instance
-        eval_set : list, optional
-            A list of (X, y) pairs to use as a validation set for
-            early-stopping
-        sample_weight_eval_set : list, optional
-            A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
-            instance weights on the i-th validation set.
-        eval_metric : str, callable, optional
-            If a str, should be a built-in evaluation metric to use. See
-            doc/parameter.rst. If callable, a custom evaluation metric. The call
-            signature is func(y_predicted, y_true) where y_true will be a
-            DMatrix object such that you may need to call the get_label
-            method. It must return a str, value pair where the str is a name
-            for the evaluation and value is the value of the evaluation
-            function. This objective is always minimized.
-        early_stopping_rounds : int, optional
-            Activates early stopping. Validation error needs to decrease at
-            least every <early_stopping_rounds> round(s) to continue training.
-            Requires at least one item in evals. If there's more than one,
-            will use the last. If early stopping occurs, the model will have
-            three additional fields: bst.best_score, bst.best_iteration and
-            bst.best_ntree_limit (bst.best_ntree_limit is the ntree_limit parameter
-            default value in predict method if not any other value is specified).
-            (Use bst.best_ntree_limit to get the correct value if num_parallel_tree
-            and/or num_class appears in the parameters)
-        early_stopping_threshold : float
-        	Sets an potional threshold to smoothen the early stopping policy.
-￼           If after early_stopping_rounds iterations, the model hasn't improved
-        	more than threshold times the score from early_stopping_rounds before,
-            then the learning stops.
-        early_stopping_limit: float
-            Sets limit of "threshold times the score from early_stopping_rounds_before"
-            to value of limit.
-        verbose : bool
-            If `verbose` and an evaluation set is used, writes the evaluation
-            metric measured on the validation set to stderr.
-        xgb_model : str
-            file name of stored xgb model or 'Booster' instance Xgb model to be
-            loaded before training (allows training continuation).
-        callbacks : list of callback functions
-            List of callback functions that are applied at end of each iteration.
-            It is possible to use predefined callbacks by using :ref:`callback_api`.
-            Example:
-            """
+        can_use_label_encoder = True
+        label_encoding_check_error = (
+                'The label must consist of integer labels of form 0, 1, 2, ..., [num_class - 1].')
+        label_encoder_deprecation_msg = (
+                'The use of label encoder in XGBClassifier is deprecated and will be ' +
+                'removed in a future release. To remove this warning, do the ' +
+                'following: 1) Pass option use_label_encoder=False when constructing ' +
+                'XGBClassifier object; and 2) Encode your labels (y) as integers ' +
+                'starting with 0, i.e. 0, 1, 2, ..., [num_class - 1].')
 
         evals_result = {}
-        self.classes_ = np.unique(y)
-        self.n_classes_ = len(self.classes_)
+        if _is_cudf_df(y) or _is_cudf_ser(y):
+            import cupy as cp  # pylint: disable=E0401
+            self.classes_ = cp.unique(y.values)
+            self.n_classes_ = len(self.classes_)
+            can_use_label_encoder = False
+            if not cp.array_equal(self.classes_, cp.arange(self.n_classes_)):
+                raise ValueError(label_encoding_check_error)
+        elif _is_cupy_array(y):
+            import cupy as cp  # pylint: disable=E0401
+            self.classes_ = cp.unique(y)
+            self.n_classes_ = len(self.classes_)
+            can_use_label_encoder = False
+            if not cp.array_equal(self.classes_, cp.arange(self.n_classes_)):
+                raise ValueError(label_encoding_check_error)
+        else:
+            self.classes_ = np.unique(y)
+            self.n_classes_ = len(self.classes_)
+            if not self.use_label_encoder and (
+                    not np.array_equal(self.classes_, np.arange(self.n_classes_))):
+                raise ValueError(label_encoding_check_error)
 
         xgb_options = self.get_xgb_params()
 
@@ -855,26 +880,17 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             else:
                 xgb_options.update({"eval_metric": eval_metric})
 
-        self._le = XGBoostLabelEncoder().fit(y)
-        training_labels = self._le.transform(y)
-
-        if eval_set is not None:
-            if sample_weight_eval_set is None:
-                sample_weight_eval_set = [None] * len(eval_set)
-            else:
-                assert len(sample_weight_eval_set) == len(eval_set)
-            evals = list(
-                DMatrix(eval_set[i][0],
-                        label=self._le.transform(eval_set[i][1]),
-                        missing=self.missing, weight=sample_weight_eval_set[i],
-                        nthread=self.n_jobs)
-                for i in range(len(eval_set))
-            )
-            nevals = len(evals)
-            eval_names = ["validation_{}".format(i) for i in range(nevals)]
-            evals = list(zip(evals, eval_names))
+        if self.use_label_encoder:
+            if not can_use_label_encoder:
+                raise ValueError('The option use_label_encoder=True is incompatible with inputs ' +
+                                 'of type cuDF or cuPy. Please set use_label_encoder=False when ' +
+                                 'constructing XGBClassifier object. NOTE: ' +
+                                 label_encoder_deprecation_msg)
+            warnings.warn(label_encoder_deprecation_msg, UserWarning)
+            self._le = XGBoostLabelEncoder().fit(y)
+            label_transform = self._le.transform
         else:
-            evals = ()
+            label_transform = (lambda x: x)
 
         if len(X.shape) != 2:
             # Simply raise an error here since there might be many
@@ -885,16 +901,16 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self._features_count = X.shape[1]
         self.n_features_in_ = self._features_count
 
-        train_dmatrix = DMatrix(X, label=training_labels, weight=sample_weight,
-                                base_margin=base_margin,
-                                missing=self.missing, nthread=self.n_jobs)
+        train_dmatrix, evals = self._wrap_evaluation_matrices(
+            X, y, group=None, sample_weight=sample_weight, base_margin=base_margin,
+            feature_weights=feature_weights,
+            eval_set=eval_set, sample_weight_eval_set=sample_weight_eval_set,
+            eval_group=None, label_transform=label_transform)
 
         self._Booster = train(xgb_options, train_dmatrix,
                               self.get_num_boosting_rounds(),
                               evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
-                              early_stopping_threshold=early_stopping_threshold,
-                              early_stopping_limit=early_stopping_limit,
                               evals_result=evals_result, obj=obj, feval=feval,
                               verbose_eval=verbose, xgb_model=xgb_model,
                               callbacks=callbacks)
@@ -938,7 +954,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         Parameters
         ----------
         data : array_like
-            The dmatrix storing the input.
+            Feature matrix.
         output_margin : bool
             Whether to output the raw untransformed margin value.
         ntree_limit : int
@@ -973,7 +989,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                 column_indexes[preds > 0.5] = 1
             preds = self._le.inverse_transform(column_indexes)
 
-        return preds
+        if hasattr(self, '_le'):
+            return self._le.inverse_transform(column_indexes)
+        return column_indexes
 
     def predict_proba(self, data, output_margin=False, ntree_limit=None, pred_leaf=False, pred_contribs=False, approx_contribs=False, validate_features=True,
                       base_margin=None):
@@ -988,10 +1006,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         Parameters
         ----------
-        data : DMatrix
-            The dmatrix storing the input.
-        output_margin : bool
-            Whether to output the raw untransformed margin value.
+        data : array_like
+            Feature matrix.
         ntree_limit : int
             Limit number of trees in the prediction; defaults to best_ntree_limit if defined
             (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
@@ -1072,23 +1088,29 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     extra_parameters='''
     n_estimators : int
         Number of trees in random forest to fit.
+    use_label_encoder : bool
+        (Deprecated) Use the label encoder from scikit-learn to encode the labels. For new code,
+        we recommend that you set this parameter to False.
 ''')
 class XGBRFClassifier(XGBClassifier):
     # pylint: disable=missing-docstring
-    def __init__(self,
+    @_deprecate_positional_args
+    def __init__(self, *,
                  learning_rate=1,
                  subsample=0.8,
                  colsample_bynode=0.8,
                  reg_lambda=1e-5,
+                 use_label_encoder=True,
                  **kwargs):
         super().__init__(learning_rate=learning_rate,
                          subsample=subsample,
                          colsample_bynode=colsample_bynode,
                          reg_lambda=reg_lambda,
+                         use_label_encoder=use_label_encoder,
                          **kwargs)
 
     def get_xgb_params(self):
-        params = super(XGBRFClassifier, self).get_xgb_params()
+        params = super().get_xgb_params()
         params['num_parallel_tree'] = self.n_estimators
         return params
 
@@ -1101,7 +1123,8 @@ class XGBRFClassifier(XGBClassifier):
     ['estimators', 'model', 'objective'])
 class XGBRegressor(XGBModel, XGBRegressorBase):
     # pylint: disable=missing-docstring
-    def __init__(self, objective="reg:squarederror", **kwargs):
+    @_deprecate_positional_args
+    def __init__(self, *, objective="reg:squarederror", **kwargs):
         super().__init__(objective=objective, **kwargs)
 
 
@@ -1113,14 +1136,15 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
 ''')
 class XGBRFRegressor(XGBRegressor):
     # pylint: disable=missing-docstring
-    def __init__(self, learning_rate=1, subsample=0.8, colsample_bynode=0.8,
+    @_deprecate_positional_args
+    def __init__(self, *, learning_rate=1, subsample=0.8, colsample_bynode=0.8,
                  reg_lambda=1e-5, **kwargs):
         super().__init__(learning_rate=learning_rate, subsample=subsample,
                          colsample_bynode=colsample_bynode,
                          reg_lambda=reg_lambda, **kwargs)
 
     def get_xgb_params(self):
-        params = super(XGBRFRegressor, self).get_xgb_params()
+        params = super().get_xgb_params()
         params['num_parallel_tree'] = self.n_estimators
         return params
 
@@ -1169,7 +1193,8 @@ class XGBRFRegressor(XGBRegressor):
 ''')
 class XGBRanker(XGBModel):
     # pylint: disable=missing-docstring,too-many-arguments,invalid-name
-    def __init__(self, objective='rank:pairwise', **kwargs):
+    @_deprecate_positional_args
+    def __init__(self, *, objective='rank:pairwise', **kwargs):
         super().__init__(objective=objective, **kwargs)
         if callable(self.objective):
             raise ValueError(
@@ -1177,11 +1202,12 @@ class XGBRanker(XGBModel):
         if "rank:" not in self.objective:
             raise ValueError("please use XGBRanker for ranking task")
 
-    def fit(self, X, y, group, sample_weight=None, base_margin=None,
-            eval_set=None,
-            sample_weight_eval_set=None, eval_group=None, eval_metric=None,
+    @_deprecate_positional_args
+    def fit(self, X, y, *, group, sample_weight=None, base_margin=None,
+            eval_set=None, sample_weight_eval_set=None,
+            eval_group=None, eval_metric=None,
             early_stopping_rounds=None, verbose=False, xgb_model=None,
-            callbacks=None):
+            feature_weights=None, callbacks=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """Fit gradient boosting ranker
 
@@ -1247,6 +1273,11 @@ class XGBRanker(XGBModel):
         xgb_model : str
             file name of stored XGBoost model or 'Booster' instance XGBoost
             model to be loaded before training (allows training continuation).
+        feature_weights: array_like
+            Weight for each feature, defines the probability of each feature being
+            selected when colsample is being used.  All values must be greater than 0,
+            otherwise a `ValueError` is thrown.  Only available for `hist`, `gpu_hist` and
+            `exact` tree methods.
         callbacks : list of callback functions
             List of callback functions that are applied at end of each
             iteration.  It is possible to use predefined callbacks by using
@@ -1254,7 +1285,8 @@ class XGBRanker(XGBModel):
 
             .. code-block:: python
 
-                [xgb.callback.reset_learning_rate(custom_rates)]
+                callbacks = [xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
+                                                        save_best=True)]
 
         """
         # check if group information is provided
@@ -1272,36 +1304,15 @@ class XGBRanker(XGBModel):
                 raise ValueError(
                     "group is required for all eval datasets for ranking task")
 
-        def _dmat_init(group, **params):
-            ret = DMatrix(**params)
-            ret.set_group(group)
-            return ret
-
         self.n_features_in_ = X.shape[1]
 
-        train_dmatrix = DMatrix(data=X, label=y, weight=sample_weight,
-                                base_margin=base_margin,
-                                missing=self.missing, nthread=self.n_jobs)
-        train_dmatrix.set_group(group)
+        train_dmatrix, evals = self._wrap_evaluation_matrices(
+            X, y, group=group, sample_weight=sample_weight, base_margin=base_margin,
+            feature_weights=feature_weights, eval_set=eval_set,
+            sample_weight_eval_set=sample_weight_eval_set,
+            eval_group=eval_group)
 
         evals_result = {}
-
-        if eval_set is not None:
-            if sample_weight_eval_set is None:
-                sample_weight_eval_set = [None] * len(eval_set)
-            evals = [_dmat_init(eval_group[i],
-                                data=eval_set[i][0],
-                                label=eval_set[i][1],
-                                missing=self.missing,
-                                weight=sample_weight_eval_set[i],
-                                nthread=self.n_jobs)
-                     for i in range(len(eval_set))]
-            nevals = len(evals)
-            eval_names = ["eval_{}".format(i) for i in range(nevals)]
-            evals = list(zip(evals, eval_names))
-        else:
-            evals = ()
-
         params = self.get_xgb_params()
 
         feval = eval_metric if callable(eval_metric) else None

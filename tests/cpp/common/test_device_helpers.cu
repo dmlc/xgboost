@@ -1,4 +1,3 @@
-
 /*!
  * Copyright 2017 XGBoost contributors
  */
@@ -27,6 +26,24 @@ void TestAtomicSizeT() {
 
 TEST(AtomicAdd, SizeT) {
   TestAtomicSizeT();
+}
+
+void TestSegmentID() {
+  std::vector<size_t> segments{0, 1, 3};
+  thrust::device_vector<size_t> d_segments(segments);
+  auto s_segments = dh::ToSpan(d_segments);
+  dh::LaunchN(0, 1, [=]__device__(size_t idx) {
+    auto id = dh::SegmentId(s_segments, 0);
+    SPAN_CHECK(id == 0);
+    id = dh::SegmentId(s_segments, 1);
+    SPAN_CHECK(id == 1);
+    id = dh::SegmentId(s_segments, 2);
+    SPAN_CHECK(id == 1);
+  });
+}
+
+TEST(SegmentID, Basic) {
+  TestSegmentID();
 }
 
 TEST(SegmentedUnique, Basic) {
@@ -104,6 +121,14 @@ void TestSegmentedUniqueRegression(std::vector<SketchEntry> values, size_t n_dup
   ASSERT_EQ(segments.at(1), d_segments_out[1] + n_duplicated);
 }
 
+TEST(DeviceHelpers, Reduce) {
+  size_t kSize = std::numeric_limits<uint32_t>::max();
+  auto it = thrust::make_counting_iterator(0ul);
+  dh::XGBCachingDeviceAllocator<char> alloc;
+  auto batched = dh::Reduce(thrust::cuda::par(alloc), it, it + kSize, 0ul, thrust::maximum<size_t>{});
+  CHECK_EQ(batched, kSize - 1);
+}
+
 
 TEST(SegmentedUnique, Regression) {
   {
@@ -137,6 +162,14 @@ TEST(SegmentedUnique, Regression) {
     std::vector<SketchEntry> values;
     TestSegmentedUniqueRegression(values, 0);
   }
+}
+
+TEST(Allocator, OOM) {
+  auto size = dh::AvailableMemory(0) * 4;
+  ASSERT_THROW({dh::caching_device_vector<char> vec(size);}, dmlc::Error);
+  ASSERT_THROW({dh::device_vector<char> vec(size);}, dmlc::Error);
+  // Clear last error so we don't fail subsequent tests
+  cudaGetLastError();
 }
 }  // namespace common
 }  // namespace xgboost

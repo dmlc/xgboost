@@ -15,6 +15,7 @@
 #include "simple_dmatrix.h"
 #include "./simple_batch_iterator.h"
 #include "../common/random.h"
+#include "../common/threading_utils.h"
 #include "adapter.h"
 
 namespace xgboost {
@@ -92,10 +93,7 @@ BatchSet<EllpackPage> SimpleDMatrix::GetEllpackBatches(const BatchParam& param) 
 template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   // Set number of threads but keep old value so we can reset it after
-  const int nthreadmax = omp_get_max_threads();
-  if (nthread <= 0) nthread = nthreadmax;
-  int nthread_original = omp_get_max_threads();
-  omp_set_num_threads(nthread);
+  int nthread_original = common::OmpSetNumThreadsWithoutHT(&nthread);
 
   std::vector<uint64_t> qids;
   uint64_t default_max = std::numeric_limits<uint64_t>::max();
@@ -192,8 +190,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
 
 SimpleDMatrix::SimpleDMatrix(dmlc::Stream* in_stream) {
   int tmagic;
-  CHECK(in_stream->Read(&tmagic, sizeof(tmagic)) == sizeof(tmagic))
-      << "invalid input file format";
+  CHECK(in_stream->Read(&tmagic)) << "invalid input file format";
   CHECK_EQ(tmagic, kMagic) << "invalid format, magic number mismatch";
   info_.LoadBinary(in_stream);
   in_stream->Read(&sparse_page_.offset.HostVector());
@@ -203,7 +200,7 @@ SimpleDMatrix::SimpleDMatrix(dmlc::Stream* in_stream) {
 void SimpleDMatrix::SaveToLocalFile(const std::string& fname) {
     std::unique_ptr<dmlc::Stream> fo(dmlc::Stream::Create(fname.c_str(), "w"));
     int tmagic = kMagic;
-    fo->Write(&tmagic, sizeof(tmagic));
+    fo->Write(tmagic);
     info_.SaveBinary(fo.get());
     fo->Write(sparse_page_.offset.HostVector());
     fo->Write(sparse_page_.data.HostVector());

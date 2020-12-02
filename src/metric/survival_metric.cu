@@ -206,10 +206,6 @@ struct EvalEWiseSurvivalBase : public Metric {
   bst_float Eval(const HostDeviceVector<bst_float>& preds,
                  const MetaInfo& info,
                  bool distributed) override {
-    CHECK_NE(info.labels_lower_bound_.Size(), 0U)
-      << "labels_lower_bound cannot be empty";
-    CHECK_NE(info.labels_upper_bound_.Size(), 0U)
-      << "labels_upper_bound cannot be empty";
     CHECK_EQ(preds.Size(), info.labels_lower_bound_.Size());
     CHECK_EQ(preds.Size(), info.labels_upper_bound_.Size());
 

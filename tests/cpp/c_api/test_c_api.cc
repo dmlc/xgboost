@@ -10,6 +10,8 @@
 #include "../helpers.h"
 #include "../../../src/common/io.h"
 
+#include "../../../src/c_api/c_api_error.h"
+
 TEST(CAPI, XGDMatrixCreateFromMatDT) {
   std::vector<int> col0 = {0, -1, 3};
   std::vector<float> col1 = {-4.0f, 2.0f, 0.0f};
@@ -23,9 +25,9 @@ TEST(CAPI, XGDMatrixCreateFromMatDT) {
   std::shared_ptr<xgboost::DMatrix> *dmat =
       static_cast<std::shared_ptr<xgboost::DMatrix> *>(handle);
   xgboost::MetaInfo &info = (*dmat)->Info();
-  ASSERT_EQ(info.num_col_, 2);
-  ASSERT_EQ(info.num_row_, 3);
-  ASSERT_EQ(info.num_nonzero_, 6);
+  ASSERT_EQ(info.num_col_, 2ul);
+  ASSERT_EQ(info.num_row_, 3ul);
+  ASSERT_EQ(info.num_nonzero_, 6ul);
 
   for (const auto &batch : (*dmat)->GetBatches<xgboost::SparsePage>()) {
     ASSERT_EQ(batch[0][0].fvalue, 0.0f);
@@ -38,9 +40,9 @@ TEST(CAPI, XGDMatrixCreateFromMatDT) {
 }
 
 TEST(CAPI, XGDMatrixCreateFromMatOmp) {
-  std::vector<int> num_rows = {100, 11374, 15000};
+  std::vector<bst_ulong> num_rows = {100, 11374, 15000};
   for (auto row : num_rows) {
-    int num_cols = 50;
+    bst_ulong num_cols = 50;
     int num_missing = 5;
     DMatrixHandle handle;
     std::vector<float> data(num_cols * row, 1.5);
@@ -195,5 +197,19 @@ TEST(CAPI, DMatrixSetFeatureName) {
   }
 
   XGDMatrixFree(handle);
+}
+
+int TestExceptionCatching() {
+  API_BEGIN();
+  throw std::bad_alloc();
+  API_END();
+}
+
+TEST(CAPI, Exception) {
+  ASSERT_NO_THROW({TestExceptionCatching();});
+  ASSERT_EQ(TestExceptionCatching(), -1);
+  auto error = XGBGetLastError();
+  // Not null
+  ASSERT_TRUE(error);
 }
 }  // namespace xgboost

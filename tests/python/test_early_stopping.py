@@ -1,13 +1,12 @@
 import xgboost as xgb
 import testing as tm
 import numpy as np
-import unittest
 import pytest
 
 rng = np.random.RandomState(1994)
 
 
-class TestEarlyStopping(unittest.TestCase):
+class TestEarlyStopping:
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_early_stopping_nonparallel(self):
@@ -88,7 +87,7 @@ class TestEarlyStopping(unittest.TestCase):
         y = digits['target']
         dm = xgb.DMatrix(X, label=y)
         params = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
-                  'objective': 'binary:logistic'}
+                  'objective': 'binary:logistic', 'eval_metric': 'error'}
 
         cv = xgb.cv(params, dm, num_boost_round=10, nfold=10,
                     early_stopping_rounds=10)
@@ -112,6 +111,7 @@ class TestEarlyStopping(unittest.TestCase):
         self.assert_metrics_length(cv, 1)
 
     @pytest.mark.skipif(**tm.no_sklearn())
+    @pytest.mark.skipif(**tm.no_pandas())
     def test_cv_early_stopping_with_multiple_eval_sets_and_metrics(self):
         from sklearn.datasets import load_breast_cancer
 

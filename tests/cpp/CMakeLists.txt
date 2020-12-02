@@ -12,48 +12,21 @@ if (USE_CUDA)
   file(GLOB_RECURSE CUDA_TEST_SOURCES "*.cu")
   list(APPEND TEST_SOURCES ${CUDA_TEST_SOURCES})
 endif (USE_CUDA)
+
+file(GLOB_RECURSE ONEAPI_TEST_SOURCES "plugin/*_oneapi.cc")
+if (NOT PLUGIN_UPDATER_ONEAPI)
+  list(REMOVE_ITEM TEST_SOURCES ${ONEAPI_TEST_SOURCES})
+endif (NOT PLUGIN_UPDATER_ONEAPI)
+
 add_executable(testxgboost ${TEST_SOURCES}
   ${xgboost_SOURCE_DIR}/plugin/example/custom_obj.cc)
 target_link_libraries(testxgboost PRIVATE objxgboost)
 
 if (USE_CUDA)
-  # OpenMP is mandatory for CUDA
-  find_package(OpenMP REQUIRED)
-  if (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
-    target_include_directories(testxgboost PRIVATE
-      ${xgboost_SOURCE_DIR}/cub/)
-  endif (CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
-  target_compile_options(testxgboost PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
-    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
-    $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${OpenMP_CXX_FLAGS}>
-    $<$<COMPILE_LANGUAGE:CUDA>:${GEN_CODE}>)
-  target_compile_definitions(testxgboost
-    PRIVATE -DXGBOOST_USE_CUDA=1)
-  set_target_properties(testxgboost PROPERTIES
-    CUDA_SEPARABLE_COMPILATION OFF)
+  xgboost_set_cuda_flags(testxgboost)
 
-  if (USE_NCCL)
-    find_package(Nccl REQUIRED)
-    target_include_directories(testxgboost PRIVATE ${NCCL_INCLUDE_DIR})
-    target_compile_definitions(testxgboost PRIVATE -DXGBOOST_USE_NCCL=1)
-    target_link_libraries(testxgboost PRIVATE ${NCCL_LIBRARY})
-  endif (USE_NCCL)
-
-  if (USE_NVTX)
-    enable_nvtx(testxgboost)
-  endif (USE_NVTX)
-
-  if (MSVC)
-    target_compile_options(testxgboost PRIVATE
-      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>
-    )
-  endif (MSVC)
-
-  set_target_properties(testxgboost PROPERTIES
-    CUDA_STANDARD 14
-    CUDA_STANDARD_REQUIRED ON)
+  find_package(CUDA)
+  target_include_directories(testxgboost PRIVATE ${CUDA_INCLUDE_DIRS})
 endif (USE_CUDA)
 
 if (MSVC)
