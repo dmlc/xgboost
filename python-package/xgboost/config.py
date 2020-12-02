@@ -62,20 +62,16 @@ def config_doc(*, header=None, extra_note=None, parameters=None, returns=None, s
             bst = xgb.Booster(model_file='./old_model.bin')
         assert xgb.get_config()['verbosity'] == 2  # old value restored
     """
-    config_doc.header = header
-    config_doc.extra_note = extra_note
-    config_doc.parameters = parameters
-    config_doc.returns = returns
-    config_doc.see_also = see_also
+
+    def none_to_str(v):
+        return '' if v is None else v
 
     def config_doc_decorator(func):
-        header = '' if config_doc.header is None else config_doc.header
-        extra_note = '' if config_doc.extra_note is None else config_doc.extra_note
-        parameters = '' if config_doc.parameters is None else config_doc.parameters
-        returns = '' if config_doc.returns is None else config_doc.returns
-        see_also = '' if config_doc.see_also is None else config_doc.see_also
-        func.__doc__ = (doc_template.format(header=header, extra_note=extra_note)
-                        + parameters + returns + common_example + see_also)
+        func.__doc__ = (doc_template.format(header=none_to_str(header),
+                                            extra_note=none_to_str(extra_note))
+                        + none_to_str(parameters) + none_to_str(returns)
+                        + none_to_str(common_example) + none_to_str(see_also))
+
         @wraps(func)
         def wrap(*args, **kwargs):
             return func(*args, **kwargs)
