@@ -69,7 +69,7 @@ std::vector<GradientPairPrecise> GetHostHistGpair() {
 }
 
 template <typename GradientSumT>
-void TestBuildHist(GPUHistBuilderBase<GradientSumT>& builder) {
+void TestBuildHist(bool use_shared_memory_histograms) {
   int const kNRows = 16, kNCols = 8;
 
   TrainParam param;
@@ -121,17 +121,13 @@ void TestBuildHist(GPUHistBuilderBase<GradientSumT>& builder) {
 }
 
 TEST(GpuHist, BuildHistGlobalMem) {
-  GlobalMemHistBuilder<GradientPairPrecise> double_builder;
-  TestBuildHist(double_builder);
-  GlobalMemHistBuilder<GradientPair> float_builder;
-  TestBuildHist(float_builder);
+  TestBuildHist<GradientPairPrecise>(false);
+  TestBuildHist<GradientPair>(false);
 }
 
 TEST(GpuHist, BuildHistSharedMem) {
-  SharedMemHistBuilder<GradientPairPrecise> double_builder;
-  TestBuildHist(double_builder);
-  SharedMemHistBuilder<GradientPair> float_builder;
-  TestBuildHist(float_builder);
+  TestBuildHist<GradientPairPrecise>(true);
+  TestBuildHist<GradientPair>(true);
 }
 
 TEST(GpuHist, ApplySplit) {

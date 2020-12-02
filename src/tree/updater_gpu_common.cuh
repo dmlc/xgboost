@@ -15,40 +15,6 @@
 namespace xgboost {
 namespace tree {
 
-// Atomic add function for gradients
-template <typename OutputGradientT, typename InputGradientT>
-DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
-                               const InputGradientT& gpair) {
-  auto dst_ptr = reinterpret_cast<typename OutputGradientT::ValueT*>(dest);
-
-  atomicAdd(dst_ptr,
-            static_cast<typename OutputGradientT::ValueT>(gpair.GetGrad()));
-  atomicAdd(dst_ptr + 1,
-            static_cast<typename OutputGradientT::ValueT>(gpair.GetHess()));
-}
-
-/**
- * \fn  void CheckGradientMax(const dh::dvec<bst_gpair>& gpair)
- *
- * \brief Check maximum gradient value is below max allowed. This is to prevent
- * overflow when using integer gradient summation.
- */
-
-inline void CheckGradientMax(HostDeviceVector<GradientPair> *gpair_ptr) {
-  auto* ptr = reinterpret_cast<const float*>(gpair_ptr->HostVector().data());
-  float abs_max =
-    std::accumulate(ptr, ptr + (gpair_ptr->Size() * 2) , 0.f,
-                      [=](float a, float b) { return max(abs(a), abs(b)); });
-
-  float max_allowed = 1E-4f*std::pow(2.0f, 63.0f)/(1+ gpair_ptr->Size());
-  CHECK_LT(abs_max, max_allowed)
-      << "Labels are too large for this algorithm. Rescale to much less than " << max_allowed << ".";
-
-// This is a weaker issue.  And (say) if have 0000011111 in labels, may not have taken gradient of that 1 case due to sampling, but that's ok.
-//  CHECK_GT(abs_max, 1e-4f)
-//      << "Labels are too small for this algorithm. Rescale to much more than 1E-4.";
-}
-
 struct GPUTrainingParam {
   // minimum amount of hessian(weight) allowed in a child
   float min_child_weight;

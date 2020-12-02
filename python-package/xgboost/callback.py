@@ -154,7 +154,7 @@ def reset_learning_rate(learning_rates):
     return callback
 
 
-def early_stop(stopping_rounds, threshold=None, limit=None, maximize=False, verbose=True):
+def early_stop(stopping_rounds, maximize=False, verbose=True):
     """Create a callback that activates early stoppping.
 
     Validation error needs to decrease at least
@@ -174,9 +174,6 @@ def early_stop(stopping_rounds, threshold=None, limit=None, maximize=False, verb
 
     maximize : bool
         Whether to maximize evaluation metric.
-
-    threshold : float
-        An optional threshold to smooth the early stopping.
 
     verbose : optional, bool
         Whether to print message about early stopping information.
@@ -264,39 +261,6 @@ def early_stop(stopping_rounds, threshold=None, limit=None, maximize=False, verb
                 msg = "Stopping. Best iteration:\n{}\n\n"
                 rabit.tracker_print(msg.format(best_msg))
             raise EarlyStopException(best_iteration)
-
-        if threshold is not None:
-            if env.iteration % stopping_rounds ==0 and env.iteration >= stopping_rounds:
-                best_score_last_stopping_round = state['best_score_last_round']
-
-                threshold_value = threshold
-                if limit is None:
-                    # make limit_value not matter
-                    if maximize_score:
-                        limit_value = +1E35
-                    else:
-                        limit_value = -1E35
-                else:
-                    limit_value = limit
-
-                if maximize_score:
-                    score_limit = min(limit_value,best_score_last_stopping_round*(1 + threshold_value))
-                else:
-                    score_limit = max(limit_value,best_score_last_stopping_round*(1 - threshold_value))
-
-                better_score2 = (maximize_score and score > score_limit) or (not maximize_score and score < score_limit)
-                #print("score %g best_score_last_stopping_round %g score_limit=%g limit_value=%g" % (score, best_score_last_stopping_round, score_limit , limit_value))
-
-                if not better_score2:
-                    best_msg = state['best_msg']
-                    state['best_score_last_round'] = score
-                    if verbose and env.rank == 0:
-                        msg = "Stopping, was not better enough. Best iteration:\n{}\n\n"
-                        rabit.tracker_print(msg.format(best_msg))
-                    raise EarlyStopException(best_iteration)
-
-            if env.iteration % stopping_rounds ==0:
-                state['best_score_last_round'] = score
 
     return callback
 

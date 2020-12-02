@@ -35,8 +35,6 @@
 #include "gpu_hist/evaluate_splits.cuh"
 #include "gpu_hist/driver.cuh"
 
-#define PRECISE 1
-
 namespace xgboost {
 namespace tree {
 #if !defined(GTEST_TEST)
@@ -850,9 +848,6 @@ class GPUHistMakerSpecialised {
   void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* p_fmat,
                   RegTree* p_tree) {
     monitor_.Start("InitData");
-    if (!initialised_ && PRECISE==0)
-      CheckGradientMax(gpair);
-
     this->InitData(p_fmat);
     monitor_.Stop("InitData");
 
