@@ -45,7 +45,6 @@ struct XGBAPIThreadLocalEntry {
   PredictionCacheEntry prediction_entry;
 };
 
-
 /*!
  * \brief Learner class that does training and prediction.
  *  This is the user facing module of xgboost training.

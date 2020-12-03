@@ -580,7 +580,7 @@ class GPUPredictor : public xgboost::Predictor {
       Predictor::Predictor{generic_param} {}
 
   ~GPUPredictor() override {
-    if (generic_param_->gpu_id >= 0) {
+    if (generic_param_->gpu_id >= 0 && generic_param_->gpu_id < common::AllVisibleGPUs()) {
       dh::safe_cuda(cudaSetDevice(generic_param_->gpu_id));
     }
   }

@@ -637,6 +637,46 @@ def test_aft_survival():
 
 
 class TestWithDask:
+    def test_global_config(self, client):
+        X, y = generate_array()
+        xgb.config.set_config(verbosity=0)
+        dtrain = DaskDMatrix(client, X, y)
+        before_fname = './before_training-test_global_config'
+        after_fname = './after_training-test_global_config'
+
+        class TestCallback(xgb.callback.TrainingCallback):
+            def write_file(self, fname):
+                with open(fname, 'w') as fd:
+                    fd.write(str(xgb.config.get_config()['verbosity']))
+
+            def before_training(self, model):
+                self.write_file(before_fname)
+                assert xgb.config.get_config()['verbosity'] == 0
+                return model
+
+            def after_training(self, model):
+                assert xgb.config.get_config()['verbosity'] == 0
+                return model
+
+            def before_iteration(self, model, epoch, evals_log):
+                assert xgb.config.get_config()['verbosity'] == 0
+                return False
+
+            def after_iteration(self, model, epoch, evals_log):
+                self.write_file(after_fname)
+                assert xgb.config.get_config()['verbosity'] == 0
+                return False
+
+        xgb.dask.train(client, {}, dtrain, num_boost_round=4, callbacks=[TestCallback()])[
+            'booster']
+
+        with open(before_fname, 'r') as before, open(after_fname, 'r') as after:
+            assert before.read() == '0'
+            assert after.read() == '0'
+
+        os.remove(before_fname)
+        os.remove(after_fname)
+
     def run_updater_test(self, client, params, num_rounds, dataset,
                          tree_method):
         params['tree_method'] = tree_method

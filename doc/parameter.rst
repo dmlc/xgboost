@@ -16,6 +16,13 @@ Before running XGBoost, we must set three types of parameters: general parameter
   :backlinks: none
   :local:
 
+********************
+Global Configuration
+********************
+The following parameters can be set in the global scope, using ``xgb.config_context()`` (Python) or ``xgb.set.config()`` (R).
+
+* ``verbosity``: Verbosity of printing messages. Valid values of 0 (silent), 1 (warning), 2 (info), and 3 (debug).
+
 ******************
 General Parameters
 ******************

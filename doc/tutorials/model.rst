@@ -2,7 +2,6 @@
 Introduction to Boosted Trees
 #############################
 XGBoost stands for "Extreme Gradient Boosting", where the term "Gradient Boosting" originates from the paper *Greedy Function Approximation: A Gradient Boosting Machine*, by Friedman.
-This is a tutorial on gradient boosted trees, and most of the content is based on `these slides <http://homes.cs.washington.edu/~tqchen/pdf/BoostedTree.pdf>`_ by Tianqi Chen, the original author of XGBoost.
 
 The **gradient boosted trees** has been around for a while, and there are a lot of materials on the topic.
 This tutorial will explain boosted trees in a self-contained and principled way using the elements of supervised learning.

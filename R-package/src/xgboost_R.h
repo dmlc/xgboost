@@ -22,6 +22,19 @@
 XGB_DLL SEXP XGCheckNullPtr_R(SEXP handle);
 
 /*!
+ * \brief Set global configuration
+ * \param json_str a JSON string representing the list of key-value pairs
+ * \return R_NilValue
+ */
+XGB_DLL SEXP XGBSetGlobalConfig_R(SEXP json_str);
+
+/*!
+ * \brief Get global configuration
+ * \return JSON string
+ */
+XGB_DLL SEXP XGBGetGlobalConfig_R();
+
+/*!
  * \brief load a data matrix
  * \param fname name of the content
  * \param silent whether print messages
