@@ -35,7 +35,7 @@ def config_doc(*, header=None, extra_note=None, parameters=None, returns=None,
 
     {extra_note}
 
-    .. versionadded:: 1.3.0
+    .. versionadded:: 1.4.0
     """
 
     common_example = """
