@@ -22,7 +22,7 @@ from typing import List
 
 import numpy
 
-from . import rabit
+from . import rabit, config
 
 from .compat import LazyLoader
 from .compat import sparse, scipy_sparse
@@ -639,6 +639,7 @@ async def _train_async(client,
 
     workers = list(_get_workers_from_data(dtrain, evals))
     _rabit_args = await _get_rabit_args(len(workers), client)
+    _global_config = config.get_config()
 
     def dispatched_train(worker_addr, rabit_args, dtrain_ref, dtrain_idt, evals_ref):
         '''Perform training on a single worker.  A local function prevents pickling.
@@ -646,7 +647,7 @@ async def _train_async(client,
         '''
         LOGGER.info('Training on %s', str(worker_addr))
         worker = distributed.get_worker()
-        with RabitContext(rabit_args):
+        with RabitContext(rabit_args), config.config_context(**_global_config):
             local_dtrain = _dmatrix_from_list_of_parts(**dtrain_ref)
             local_evals = []
             if evals_ref:
@@ -770,18 +771,21 @@ async def _predict_async(client, model, data, missing=numpy.nan, **kwargs):
         raise TypeError(_expect([DaskDMatrix, da.Array, dd.DataFrame],
                                 type(data)))
 
+    _global_config = config.get_config()
+
     def mapped_predict(partition, is_df):
         worker = distributed.get_worker()
-        booster.set_param({'nthread': worker.nthreads})
-        m = DMatrix(partition, missing=missing, nthread=worker.nthreads)
-        predt = booster.predict(m, validate_features=False, **kwargs)
-        if is_df:
-            if lazy_isinstance(partition, 'cudf', 'core.dataframe.DataFrame'):
-                import cudf     # pylint: disable=import-error
-                predt = cudf.DataFrame(predt, columns=['prediction'])
-            else:
-                predt = DataFrame(predt, columns=['prediction'])
-        return predt
+        with config.config_context(**_global_config):
+            booster.set_param({'nthread': worker.nthreads})
+            m = DMatrix(partition, missing=missing, nthread=worker.nthreads)
+            predt = booster.predict(m, validate_features=False, **kwargs)
+            if is_df:
+                if lazy_isinstance(partition, 'cudf', 'core.dataframe.DataFrame'):
+                    import cudf     # pylint: disable=import-error
+                    predt = cudf.DataFrame(predt, columns=['prediction'])
+                else:
+                    predt = DataFrame(predt, columns=['prediction'])
+            return predt
     # Predict on dask collection directly.
     if isinstance(data, (da.Array, dd.DataFrame)):
         return await _direct_predict_impl(client, data, mapped_predict)
@@ -797,31 +801,32 @@ async def _predict_async(client, model, data, missing=numpy.nan, **kwargs):
     def dispatched_predict(worker_id, list_of_orders, list_of_parts):
         '''Perform prediction on each worker.'''
         LOGGER.info('Predicting on %d', worker_id)
-        worker = distributed.get_worker()
-        list_of_parts = _get_worker_parts_ordered(meta_names, list_of_parts)
-        predictions = []
+        with config.config_context(**_global_config):
+            worker = distributed.get_worker()
+            list_of_parts = _get_worker_parts_ordered(meta_names, list_of_parts)
+            predictions = []
 
-        booster.set_param({'nthread': worker.nthreads})
-        for i, parts in enumerate(list_of_parts):
-            (data, _, _, base_margin, _, _) = parts
-            order = list_of_orders[i]
-            local_part = DMatrix(
-                data,
-                base_margin=base_margin,
-                feature_names=feature_names,
-                feature_types=feature_types,
-                missing=missing,
-                nthread=worker.nthreads
-            )
-            predt = booster.predict(
-                data=local_part,
-                validate_features=local_part.num_row() != 0,
-                **kwargs)
-            columns = 1 if len(predt.shape) == 1 else predt.shape[1]
-            ret = ((dask.delayed(predt), columns), order)
-            predictions.append(ret)
+            booster.set_param({'nthread': worker.nthreads})
+            for i, parts in enumerate(list_of_parts):
+                (data, _, _, base_margin, _, _) = parts
+                order = list_of_orders[i]
+                local_part = DMatrix(
+                    data,
+                    base_margin=base_margin,
+                    feature_names=feature_names,
+                    feature_types=feature_types,
+                    missing=missing,
+                    nthread=worker.nthreads
+                )
+                predt = booster.predict(
+                    data=local_part,
+                    validate_features=local_part.num_row() != 0,
+                    **kwargs)
+                columns = 1 if len(predt.shape) == 1 else predt.shape[1]
+                ret = ((dask.delayed(predt), columns), order)
+                predictions.append(ret)
 
-        return predictions
+            return predictions
 
     def dispatched_get_shape(worker_id, list_of_orders, list_of_parts):
         '''Get shape of data in each worker.'''

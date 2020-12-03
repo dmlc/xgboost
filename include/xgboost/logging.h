@@ -13,6 +13,7 @@
 
 #include <xgboost/base.h>
 #include <xgboost/parameter.h>
+#include <xgboost/global_config.h>
 
 #include <sstream>
 #include <map>
@@ -35,19 +36,6 @@ class BaseLogger {
   std::ostringstream log_stream_;
 };
 
-// Parsing both silent and debug_verbose is to provide backward compatibility.
-struct ConsoleLoggerParam : public XGBoostParameter<ConsoleLoggerParam> {
-  int verbosity;
-
-  DMLC_DECLARE_PARAMETER(ConsoleLoggerParam) {
-    DMLC_DECLARE_FIELD(verbosity)
-        .set_range(0, 3)
-        .set_default(1)  // shows only warning
-        .describe("Flag to print out detailed breakdown of runtime.");
-    DMLC_DECLARE_ALIAS(verbosity, debug_verbose);
-  }
-};
-
 class ConsoleLogger : public BaseLogger {
  public:
   enum class LogVerbosity {
@@ -60,9 +48,6 @@ class ConsoleLogger : public BaseLogger {
   using LV = LogVerbosity;
 
  private:
-  static LogVerbosity global_verbosity_;
-  static ConsoleLoggerParam param_;
-
   LogVerbosity cur_verbosity_;
 
  public:

@@ -64,6 +64,23 @@ XGB_DLL const char *XGBGetLastError(void);
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
 
 /*!
+ * \brief Set global configuration (collection of parameters that apply globally). This function
+ *        accepts the list of key-value pairs representing the global-scope parameters to be
+ *        configured. The list of key-value pairs are passed in as a JSON string.
+ * \param json_str a JSON string representing the list of key-value pairs. The JSON object shall
+ *                 be flat: no value can be a JSON object or an array.
+ * \return 0 for success, -1 for failure
+ */
+XGB_DLL int XGBSetGlobalConfig(const char* json_str);
+
+/*!
+ * \brief Get current global configuration (collection of parameters that apply globally).
+ * \param json_str pointer to received returned global configuration, represented as a JSON string.
+ * \return 0 for success, -1 for failure
+ */
+XGB_DLL int XGBGetGlobalConfig(const char** json_str);
+
+/*!
  * \brief load a data matrix
  * \param fname the name of the file
  * \param silent whether print messages during loading

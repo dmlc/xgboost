@@ -6,6 +6,14 @@ This page gives the Python API reference of xgboost, please also refer to Python
   :backlinks: none
   :local:
 
+Global Configuration
+--------------------
+.. autofunction:: xgboost.config_context
+
+.. autofunction:: xgboost.set_config
+
+.. autofunction:: xgboost.get_config
+
 Core Data Structure
 -------------------
 .. automodule:: xgboost.core
