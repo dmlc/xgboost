@@ -6,9 +6,6 @@
 #include "quantile.h"
 #include "hist_util.h"
 
-#include <typeinfo>
-#include "boost/array.hpp"
-
 namespace xgboost {
 namespace common {
 
@@ -24,7 +21,6 @@ HostSketchContainer::HostSketchContainer(std::vector<bst_row_t> columns_size,
     n_bins = std::max(n_bins, static_cast<decltype(n_bins)>(1));
     auto eps = 1.0 / (static_cast<float>(n_bins) * WQSketch::kFactor);
     sketches_.Init(columns_size_[i], eps, i);
-    //sketches_.get(i).inqueue.queue.resize(sketches_.get(i).limit_size * 2);
   }
 }
 
@@ -140,10 +136,9 @@ std::vector<bst_feature_t> HostSketchContainer::LoadBalancePerRow(
 void HostSketchContainer::PushRowPage(SparsePage const &page,
                                       MetaInfo const &info) {
   monitor_.Start(__func__);
-  int nthread = 1;//omp_get_max_threads();
+  int nthread = 36;//omp_get_max_threads();
+  std::cout << "MC PushRowPage opt nthread: " << nthread << std::endl;
   CHECK_EQ(sketches_.size(), info.num_col_);
-
-  std::cout << "MC PushRowPage nthread: " << nthread << std::endl;
 
   // Data groups, used in ranking.
   std::vector<bst_uint> const &group_ptr = info.group_ptr_;
@@ -160,15 +155,9 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
   std::cout << std::endl;
 */
   auto thread_rows_ptr = LoadBalancePerRow(page, nthread);
-  std::cout << "MC thread_rows_ptr: ";
-  
-  for (size_t imc=0; imc < thread_rows_ptr.size(); imc++)
-    std::cout << thread_rows_ptr[imc] << ",";
-  std::cout << std::endl;
   auto const nBatchRows = batch.Size();
-  std::cout << "MC is_dense: " << is_dense << " nnonzero: " << info.num_nonzero_ << " ncol: " << info.num_col_ << " nrow: " << info.num_row_ << " nBatchRows: " << nBatchRows << std::endl;
   
-  monitor_.Start("PushRowPage3");
+monitor_.Start("PushRowPage3");
 #pragma omp parallel num_threads(nthread)
   {
     exec.Run([&]() {
