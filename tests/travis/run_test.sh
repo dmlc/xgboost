@@ -34,6 +34,10 @@ if [ ${TASK} == "python_test" ]; then
       tests/ci_build/ci_build.sh aarch64 docker bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
       TAG=manylinux2014_aarch64
       tests/ci_build/ci_build.sh aarch64 docker python tests/ci_build/rename_whl.py python-package/dist/*.whl ${TRAVIS_COMMIT} ${TAG}
+      tests/ci_build/ci_build.sh aarch64 docker auditwheel repair --plat ${TAG} python-package/dist/*.whl
+      mv -v wheelhouse/*.whl python-package/dist/
+      # Make sure that libgomp.so is vendored in the wheel
+      unzip -l python-package/dist/*.whl | grep libgomp  || exit -1
     else
       rm -rf build
       mkdir build && cd build
