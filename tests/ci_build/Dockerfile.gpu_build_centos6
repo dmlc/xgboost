@@ -10,8 +10,9 @@ COPY CentOS-Base.repo /etc/yum.repos.d/
 
 # Install all basic requirements
 RUN \
+    yum install -y epel-release && \
     yum -y update && \
-    yum install -y tar unzip wget xz git yum-utils && \
+    yum install -y tar unzip wget xz git patchelf && \
     yum install -y $DEVTOOLSET_URL_ROOT/devtoolset-4-gcc-5.3.1-6.1.el6.x86_64.rpm \
                    $DEVTOOLSET_URL_ROOT/devtoolset-4-gcc-c++-5.3.1-6.1.el6.x86_64.rpm \
                    $DEVTOOLSET_URL_ROOT/devtoolset-4-binutils-2.25.1-8.el6.x86_64.rpm \
@@ -20,6 +21,7 @@ RUN \
     # Python
     wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
     bash Miniconda3.sh -b -p /opt/python && \
+    /opt/python/bin/python -m pip install auditwheel && \
     # CMake
     wget -nv -nc https://cmake.org/files/v3.13/cmake-3.13.0-Linux-x86_64.sh --no-check-certificate && \
     bash cmake-3.13.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
@@ -29,7 +31,7 @@ RUN \
     wget -nv -nc https://github.com/ninja-build/ninja/archive/v1.10.0.tar.gz --no-check-certificate && \
     tar xf v1.10.0.tar.gz && mv ninja-1.10.0 ninja && rm -v v1.10.0.tar.gz && \
     cd ninja && \
-    python ./configure.py --bootstrap
+    /opt/python/bin/python ./configure.py --bootstrap
 
 # NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
 RUN \
