@@ -159,5 +159,6 @@ XGBOOST_REGISTER_OBJECTIVE(LambdaMARTNDCG_obsolated, "rank:ndcg")
                       "`lambdamart:ndcg` instead.";
       return new LambdaMARTNDCG();
     });
+DMLC_REGISTRY_FILE_TAG(rank_obj);
 }  // namespace obj
 }  // namespace xgboost
