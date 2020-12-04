@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <utility>
 
 #include "xgboost/parameter.h"
 #include "xgboost/base.h"
