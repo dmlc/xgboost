@@ -136,7 +136,7 @@ std::vector<bst_feature_t> HostSketchContainer::LoadBalancePerRow(
 void HostSketchContainer::PushRowPage(SparsePage const &page,
                                       MetaInfo const &info) {
   monitor_.Start(__func__);
-  int nthread = 36;//omp_get_max_threads();
+  int nthread = 1;//omp_get_max_threads();
   std::cout << "MC PushRowPage opt nthread: " << nthread << std::endl;
   CHECK_EQ(sketches_.size(), info.num_col_);
 

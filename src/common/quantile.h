@@ -17,7 +17,6 @@
 #include <iostream>
 
 #include "timer.h"
-#include <math.h>       /* ceil */
 
 namespace xgboost {
 namespace common {
