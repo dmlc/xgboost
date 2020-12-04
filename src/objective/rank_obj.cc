@@ -1,7 +1,6 @@
 /*!
  * Copyright 2019-2020 XGBoost contributors
  */
-
 #include <dmlc/registry.h>
 
 #include <functional>
@@ -20,35 +19,12 @@
 #include "../common/ranking_utils.h"
 #include "rank_obj.h"
 
-namespace xgboost {
-namespace obj {
-
-DMLC_REGISTRY_FILE_TAG(rank_obj);
-enum class NDCGLabelType { kRelevance = 0, kGain = 1 };
-}  // namespace obj
-}  // namespace xgboost
-
-DECLARE_FIELD_ENUM_CLASS(xgboost::obj::NDCGLabelType);
-
 #ifndef XGBOOST_USE_CUDA
 #include "rank_obj.cu"
 #endif  // XGBOOST_USE_CUDA
 
 namespace xgboost {
 namespace obj {
-struct NDCGParam : public XGBoostParameter<NDCGParam> {
-  size_t ndcg_truncation;
-  NDCGLabelType ndcg_label_type;
-
-  DMLC_DECLARE_PARAMETER(NDCGParam) {
-    DMLC_DECLARE_FIELD(ndcg_truncation).set_lower_bound(1).set_default(1)
-        .describe("The truncation level for NDCG.");
-    DMLC_DECLARE_FIELD(ndcg_label_type).set_default(NDCGLabelType::kRelevance)
-        .add_enum("relevance", NDCGLabelType::kRelevance)
-        .add_enum("gain", NDCGLabelType::kGain);
-  }
-};
-
 DMLC_REGISTER_PARAMETER(NDCGParam);
 
 class LambdaMARTNDCG : public ObjFunction {
@@ -128,6 +104,7 @@ class LambdaMARTNDCG : public ObjFunction {
         idcg_cache_.truncation != ndcg_param_.ndcg_truncation) {
       idcg_cache_.inv_idcg.clear();
       idcg_cache_.inv_idcg.resize(n_groups, std::numeric_limits<float>::quiet_NaN());
+      CheckNDCGLabelsCPUKernel(ndcg_param_, h_label);
 #pragma omp parallel for schedule(guided)
       for (size_t g = 0; g < n_groups; ++g) {
         size_t cnt = info.group_ptr_.at(g + 1) - info.group_ptr_[g];
@@ -159,6 +136,18 @@ class LambdaMARTNDCG : public ObjFunction {
     return metric_.c_str();
   }
 };
+
+void CheckNDCGLabelsCPUKernel(NDCGParam const& p, common::Span<float const> labels) {
+  if (p.ndcg_label_type == NDCGLabelType::kRelevance) {
+    auto label_is_integer = std::none_of(
+        labels.data(), labels.data() + labels.size(), [](auto const &v) {
+          auto l = std::floor(v);
+          return std::fabs(l - v) > kRtEps || v < 0.0f;
+        });
+    CHECK(label_is_integer) << "When using relevance degree as target, labels "
+                               "must be either 0 or positive integer.";
+  }
+}
 
 XGBOOST_REGISTER_OBJECTIVE(LambdaMARTNDCG, LambdaMARTNDCG::Name())
     .describe("LambdaMART with NDCG as objective")

@@ -888,6 +888,18 @@ void LambdaMARTGetGradientNDCGGPUKernel(
         LambdaNDCG(g_labels, g_predts, g_sorted_idx, i, j, inv_IDCG, g_gpairs);
       });
 }
+
+void CheckNDCGLabelsGPUKernel(NDCGParam const& p, common::Span<float const> labels) {
+  if (p.ndcg_label_type == NDCGLabelType::kRelevance) {
+    auto label_is_integer = thrust::none_of(
+        labels.data(), labels.data() + labels.size(), [](auto const &v) {
+          auto l = std::floor(v);
+          return std::fabs(l - v) > kRtEps || v < 0.0f;
+        });
+    CHECK(label_is_integer) << "When using relevance degree as target, labels "
+                               "must be either 0 or positive integer.";
+  }
+}
 #endif  // !defined(GTEST_TEST) && defined(__CUDACC__)
 }  // namespace obj
 }  // namespace xgboost

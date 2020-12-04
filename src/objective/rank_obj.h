@@ -3,10 +3,12 @@
  */
 #ifndef XGBOOST_OBJECTIVE_RANK_OBJ_H_
 #define XGBOOST_OBJECTIVE_RANK_OBJ_H_
+#include <dmlc/registry.h>
 
 #include <algorithm>
 #include <memory>
 
+#include "xgboost/parameter.h"
 #include "xgboost/base.h"
 #include "xgboost/span.h"
 #include "xgboost/data.h"
@@ -16,6 +18,16 @@
 #if defined(__CUDACC__)
 #include "../common/device_helpers.cuh"
 #endif  // defined(__CUDACC__)
+
+
+namespace xgboost {
+namespace obj {
+DMLC_REGISTRY_FILE_TAG(rank_obj);
+enum class NDCGLabelType { kRelevance = 0, kGain = 1 };
+}  // namespace obj
+}  // namespace xgboost
+
+DECLARE_FIELD_ENUM_CLASS(xgboost::obj::NDCGLabelType);
 
 namespace xgboost {
 namespace obj {
@@ -74,6 +86,22 @@ XGBOOST_DEVICE inline void LambdaNDCG(common::Span<float const> labels,
   gpairs[idx_low] += GradientPair{-lambda_ij, hessian_ij};
 #endif
 }
+
+struct NDCGParam : public XGBoostParameter<NDCGParam> {
+  size_t ndcg_truncation;
+  NDCGLabelType ndcg_label_type;
+
+  DMLC_DECLARE_PARAMETER(NDCGParam) {
+    DMLC_DECLARE_FIELD(ndcg_truncation).set_lower_bound(1).set_default(1)
+        .describe("The truncation level for NDCG.");
+    DMLC_DECLARE_FIELD(ndcg_label_type).set_default(NDCGLabelType::kRelevance)
+        .add_enum("relevance", NDCGLabelType::kRelevance)
+        .add_enum("gain", NDCGLabelType::kGain);
+  }
+};
+
+void CheckNDCGLabelsCPUKernel(NDCGParam const& p, common::Span<float const> labels);
+void CheckNDCGLabelsGPUKernel(NDCGParam const& p, common::Span<float const> labels);
 
 struct DeviceNDCGCache;
 
