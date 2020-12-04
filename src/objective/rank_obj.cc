@@ -16,6 +16,7 @@
 
 #include "../common/common.h"
 #include "../common/math.h"
+#include "../common/charconv.h"
 #include "../common/ranking_utils.h"
 #include "rank_obj.h"
 
@@ -61,7 +62,8 @@ class LambdaMARTNDCG : public ObjFunction {
     } else {
       // Being compatible with XGBoost version < 1.4.
       auto const& j_parameter = get<Object const>(obj.at("lambda_rank_param"));
-      ndcg_param_.ndcg_truncation = get<Number const>(j_parameter.at("num_pairsample"));
+      ndcg_param_.ndcg_truncation =
+          std::stol(get<String const>(j_parameter.at("num_pairsample")));
     }
   }
 
