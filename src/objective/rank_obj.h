@@ -54,13 +54,9 @@ XGBOOST_DEVICE inline void LambdaNDCG(common::Span<float const> labels,
   if (labels[sorted_idx[i]] == labels[sorted_idx[j]]) {
     return;
   }
-  size_t rank_high, rank_low;
-  if (labels[sorted_idx[i]] > labels[sorted_idx[j]]) {
-    rank_high = i;
-    rank_low = j;
-  } else {
-    rank_high = j;
-    rank_low = i;
+  size_t rank_high = i, rank_low = j;
+  if (labels[sorted_idx[i]] <= labels[sorted_idx[j]]) {
+    std::swap(rank_high, rank_low);
   }
   size_t idx_high = sorted_idx[rank_high];
   size_t idx_low = sorted_idx[rank_low];

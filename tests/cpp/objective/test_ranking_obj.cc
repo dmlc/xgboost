@@ -81,27 +81,43 @@ TEST(Objective, DeclareUnifiedTest(NDCGRankingGPair)) {
   xgboost::GenericParameter lparam = xgboost::CreateEmptyGenericParam(GPUIDX);
 
   std::unique_ptr<xgboost::ObjFunction> obj {
-    xgboost::ObjFunction::Create("rank:ndcg", &lparam)
+    xgboost::ObjFunction::Create("lambdamart:ndcg", &lparam)
   };
   obj->Configure(args);
-  CheckConfigReload(obj, "rank:ndcg");
+  CheckConfigReload(obj, "lambdamart:ndcg");
 
-  // Test with setting sample weight to second query group
+  // No gain in swapping 2 documents.
   CheckRankingObjFunction(obj,
-                          {0, 0.1f, 0, 0.1f},
-                          {0,   1, 0, 1},
-                          {2.0f, 0.0f},
-                          {0, 2, 4},
-                          {0.7f, -0.7f, 0.0f, 0.0f},
-                          {0.74f, 0.74f, 0.0f, 0.0f});
-
-  CheckRankingObjFunction(obj,
-                          {0, 0.1f, 0, 0.1f},
-                          {0,   1, 0, 1},
+                          {1, 1, 1, 1},
+                          {1, 1, 1, 1},
                           {1.0f, 1.0f},
                           {0, 2, 4},
-                          {0.35f, -0.35f,  0.35f, -0.35f},
-                          {0.368f, 0.368f, 0.368f, 0.368f});
+                          {0.0f, -0.0f, 0.0f, 0.0f},
+                          {0.0f, 0.0f, 0.0f, 0.0f});
+
+  HostDeviceVector<float> predts {0, 1, 0, 1};
+  MetaInfo info;
+  info.labels_ = {0, 1, 0, 1};
+  info.group_ptr_ = {0, 2, 4};
+  info.num_row_ = 4;
+  HostDeviceVector<GradientPair> gpairs;
+  obj->GetGradient(predts, info, 0, &gpairs);
+  ASSERT_EQ(gpairs.Size(), predts.Size());
+
+  {
+    predts = {1, 0, 1, 0};
+    HostDeviceVector<GradientPair> gpairs;
+    obj->GetGradient(predts, info, 0, &gpairs);
+    for (size_t i = 0; i < gpairs.Size(); ++i) {
+      ASSERT_GT(gpairs.HostSpan()[i].GetHess(), 0);
+    }
+    ASSERT_LT(gpairs.HostSpan()[1].GetGrad(), 0);
+    ASSERT_LT(gpairs.HostSpan()[3].GetGrad(), 0);
+
+    ASSERT_GT(gpairs.HostSpan()[0].GetGrad(), 0);
+    ASSERT_GT(gpairs.HostSpan()[2].GetGrad(), 0);
+  }
+
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
 }
 

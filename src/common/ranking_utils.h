@@ -1,5 +1,8 @@
-#ifndef XGBOOST_COMMON_RANKING_H_
-#define XGBOOST_COMMON_RANKING_H_
+/*!
+ * Copyright 2020 XGBoost contributors
+ */
+#ifndef XGBOOST_COMMON_RANKING_UTILS_H_
+#define XGBOOST_COMMON_RANKING_UTILS_H_
 
 #include <algorithm>
 #include <cinttypes>
@@ -29,7 +32,6 @@ inline float CalcDCGAtK(Container const& scores, size_t k) {
   return sumdcg;
 }
 
-
 template <typename Container>
 float CalcInvIDCG(Container const& sorted_labels, size_t p) {
   double sumdcg = 0;
@@ -49,4 +51,4 @@ inline float CalcNDCGAtK(Container const& scores, Container const& labels, size_
   return idcg == 0 ? 0 : dcg / idcg;
 }
 }      // namespace xgboost
-#endif  // XGBOOST_COMMON_RANKING_H_
+#endif  // XGBOOST_COMMON_RANKING_UTILS_H_
