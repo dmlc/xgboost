@@ -792,6 +792,8 @@ struct DeviceNDCGCache {
   dh::device_vector<float> inv_IDCG;  // NOLINT
   size_t truncation {0};
 
+  dh::device_vector<size_t> sorted_idx_cache;  // avoid allocating memory for each iter.
+
   dh::device_vector<size_t> threads_group_ptr;
   dh::device_vector<bst_group_t> group_ptr;
   size_t n_threads {0};
@@ -814,6 +816,8 @@ struct DeviceNDCGCache {
     auto d_threads_group_ptr = dh::ToSpan(threads_group_ptr);
     n_threads = SegmentedTrapezoidThreads(d_group_ptr, d_threads_group_ptr,
                                           ndcg_truncation);
+
+    sorted_idx_cache.resize(labels.size(), 0);
   }
 
   size_t Groups() const { return group_ptr.size() - 1; }
@@ -826,6 +830,10 @@ struct DeviceNDCGCache {
   }
   common::Span<float const> InvIDCG() const {
     return {inv_IDCG.data().get(), inv_IDCG.size()};
+  }
+
+  common::Span<size_t const> SortedIdx() const {
+    return {sorted_idx_cache.data().get(), sorted_idx_cache.size()};
   }
 };
 
@@ -855,9 +863,8 @@ void LambdaMARTGetGradientNDCGGPUKernel(
   auto d_threads_group_ptr = p_cache->ThreadsGroupPtr();
   auto d_group_ptr = p_cache->DataGroupPtr();
   auto d_inv_IDCG = p_cache->InvIDCG();
-  dh::device_vector<size_t> sorted_idx;
-  sorted_idx.resize(labels.size(), 0);
-  auto d_sorted_idx = dh::ToSpan(sorted_idx);
+
+  auto d_sorted_idx = p_cache->SortedIdx();
   dh::SegmentedSequence(d_group_ptr, d_sorted_idx);
   dh::SegmentedArgSort<true>(predts, d_group_ptr, d_sorted_idx);
 
