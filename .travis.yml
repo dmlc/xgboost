@@ -52,6 +52,7 @@ addons:
   apt:
     packages:
       - snapd
+      - unzip
 
 before_install:
   - source tests/travis/travis_setup_env.sh
