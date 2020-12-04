@@ -31,12 +31,11 @@ class LambdaMARTNDCG : public ObjFunction {
  private:
   NDCGParam ndcg_param_;
   std::string metric_;
-  struct IDCGCache {
+  struct NDCGCache {
     size_t truncation{0};
     MetaInfo const* p_info;
     std::vector<float> inv_idcg;
-  } idcg_cache_;
-
+  } h_cache_;
   std::shared_ptr<DeviceNDCGCache> d_cache_{nullptr};
 
  public:
@@ -71,7 +70,7 @@ class LambdaMARTNDCG : public ObjFunction {
                           MetaInfo const &info, bst_group_t query_id) {
     auto cnt = info.group_ptr_.at(query_id+1) - info.group_ptr_.at(query_id);
     std::fill(gpair.begin(), gpair.end(), GradientPair{});
-    const double inv_IDCG = idcg_cache_.inv_idcg[query_id];
+    const double inv_IDCG = h_cache_.inv_idcg[query_id];
     auto sorted_idx = common::ArgSort<size_t>(predt, std::greater<>{});
     for (size_t i = 0; i < cnt - 1 && i < ndcg_param_.ndcg_truncation; ++i) {
       for (size_t j = i + 1; j < cnt; ++j) {
@@ -100,10 +99,10 @@ class LambdaMARTNDCG : public ObjFunction {
     auto h_predt = preds.ConstHostSpan();
     auto h_label = info.labels_.ConstHostSpan();
 
-    if (idcg_cache_.p_info != &info ||
-        idcg_cache_.truncation != ndcg_param_.ndcg_truncation) {
-      idcg_cache_.inv_idcg.clear();
-      idcg_cache_.inv_idcg.resize(n_groups, std::numeric_limits<float>::quiet_NaN());
+    if (h_cache_.p_info != &info ||
+        h_cache_.truncation != ndcg_param_.ndcg_truncation) {
+      h_cache_.inv_idcg.clear();
+      h_cache_.inv_idcg.resize(n_groups, std::numeric_limits<float>::quiet_NaN());
       CheckNDCGLabelsCPUKernel(ndcg_param_, h_label);
 #pragma omp parallel for schedule(guided)
       for (size_t g = 0; g < n_groups; ++g) {
@@ -115,10 +114,10 @@ class LambdaMARTNDCG : public ObjFunction {
                          std::greater<>{});
         float inv_IDCG =
             CalcInvIDCG(sorted_labels, ndcg_param_.ndcg_truncation);
-        idcg_cache_.inv_idcg[g] = inv_IDCG;
+        h_cache_.inv_idcg[g] = inv_IDCG;
       }
-      idcg_cache_.p_info = &info;
-      idcg_cache_.truncation = ndcg_param_.ndcg_truncation;
+      h_cache_.p_info = &info;
+      h_cache_.truncation = ndcg_param_.ndcg_truncation;
     }
 
 #pragma omp parallel for schedule(guided)

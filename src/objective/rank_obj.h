@@ -22,7 +22,6 @@
 
 namespace xgboost {
 namespace obj {
-DMLC_REGISTRY_FILE_TAG(rank_obj);
 enum class NDCGLabelType { kRelevance = 0, kGain = 1 };
 }  // namespace obj
 }  // namespace xgboost

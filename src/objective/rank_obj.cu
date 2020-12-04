@@ -832,8 +832,12 @@ struct DeviceNDCGCache {
     return {inv_IDCG.data().get(), inv_IDCG.size()};
   }
 
-  common::Span<size_t const> SortedIdx() const {
-    return {sorted_idx_cache.data().get(), sorted_idx_cache.size()};
+  auto SortedIdx(common::Span<float const> predts) {
+    auto d_sorted_idx = dh::ToSpan(sorted_idx_cache);
+    auto d_group_ptr = DataGroupPtr();
+    dh::SegmentedSequence(d_group_ptr, d_sorted_idx);
+    dh::SegmentedArgSort<true>(predts, d_group_ptr, d_sorted_idx);
+    return d_sorted_idx;
   }
 };
 
@@ -863,10 +867,7 @@ void LambdaMARTGetGradientNDCGGPUKernel(
   auto d_threads_group_ptr = p_cache->ThreadsGroupPtr();
   auto d_group_ptr = p_cache->DataGroupPtr();
   auto d_inv_IDCG = p_cache->InvIDCG();
-
-  auto d_sorted_idx = p_cache->SortedIdx();
-  dh::SegmentedSequence(d_group_ptr, d_sorted_idx);
-  dh::SegmentedArgSort<true>(predts, d_group_ptr, d_sorted_idx);
+  auto d_sorted_idx = p_cache->SortedIdx(predts);
 
   dh::LaunchN(
       dh::CurrentDevice(), p_cache->Threads(), [=] XGBOOST_DEVICE(size_t idx) {
