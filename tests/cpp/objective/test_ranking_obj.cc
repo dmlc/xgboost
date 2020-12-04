@@ -41,19 +41,19 @@ TEST(Objective, DeclareUnifiedTest(NDCG_JsonIO)) {
   tparam.UpdateAllowUnknown(Args{});
 
   std::unique_ptr<xgboost::ObjFunction> obj {
-    xgboost::ObjFunction::Create("rank:ndcg", &tparam)
+    xgboost::ObjFunction::Create("lambdamart:ndcg", &tparam)
   };
 
   obj->Configure(Args{});
   Json j_obj {Object()};
   obj->SaveConfig(&j_obj);
 
-  ASSERT_EQ(get<String>(j_obj["name"]), "rank:ndcg");;
+  ASSERT_EQ(get<String>(j_obj["name"]), "lambdamart:ndcg");;
 
-  auto const& j_param = j_obj["lambda_rank_param"];
+  auto const& j_param = j_obj["ndcg_param"];
 
-  ASSERT_EQ(get<String>(j_param["num_pairsample"]), "1");
-  ASSERT_EQ(get<String>(j_param["fix_list_weight"]), "0");
+  ASSERT_EQ(get<String>(j_param["ndcg_label_type"]), "relevance");
+  ASSERT_EQ(get<String>(j_param["ndcg_truncation"]), "1");
 }
 
 TEST(Objective, DeclareUnifiedTest(PairwiseRankingGPairSameLabels)) {

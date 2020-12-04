@@ -80,7 +80,14 @@ class LambdaMARTNDCG : public ObjFunction {
   }
 
   void LoadConfig(Json const& in) override {
-    FromJson(in["ndcg_param"], &ndcg_param_);
+    auto const& obj = get<Object const>(in);
+    if (obj.find("ndcg_param") != obj.cend()) {
+      FromJson(in["ndcg_param"], &ndcg_param_);
+    } else {
+      // Being compatible with XGBoost version < 1.4.
+      auto const& j_parameter = get<Object const>(obj.at("lambda_rank_param"));
+      ndcg_param_.ndcg_truncation = get<Number const>(j_parameter.at("num_pairsample"));
+    }
   }
 
   void CalcLambdaForGroup(common::Span<float const> predt, common::Span<float const> label,
@@ -154,11 +161,15 @@ class LambdaMARTNDCG : public ObjFunction {
 };
 
 XGBOOST_REGISTER_OBJECTIVE(LambdaMARTNDCG, LambdaMARTNDCG::Name())
-.describe("LambdaMART with NDCG as objective")
-.set_body([]() { return new LambdaMARTNDCG(); });
+    .describe("LambdaMART with NDCG as objective")
+    .set_body([]() { return new LambdaMARTNDCG(); });
 
 XGBOOST_REGISTER_OBJECTIVE(LambdaMARTNDCG_obsolated, "rank:ndcg")
-.describe("LambdaMART with NDCG as objective")
-.set_body([]() { return new LambdaMARTNDCG(); });
+    .describe("LambdaMART with NDCG as objective")
+    .set_body([]() {
+      LOG(WARNING) << "Objective `rank:ndcg` is deprecated in 1.4.  Use "
+                      "`lambdamart:ndcg` instead.";
+      return new LambdaMARTNDCG();
+    });
 }  // namespace obj
 }  // namespace xgboost

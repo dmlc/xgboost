@@ -51,13 +51,13 @@ XGBOOST_DEVICE inline void LambdaNDCG(common::Span<float const> labels,
     rank_high = j;
     rank_low = i;
   }
-  const size_t idx_high = sorted_idx[rank_high];
-  const size_t idx_low = sorted_idx[rank_low];
+  size_t idx_high = sorted_idx[rank_high];
+  size_t idx_low = sorted_idx[rank_low];
 
-  const uint32_t y_high = static_cast<uint32_t>(labels[idx_high]);
-  const float s_high = predts[idx_high];
-  const uint32_t y_low = static_cast<uint32_t>(labels[idx_low]);
-  const float s_low = predts[idx_low];
+  uint32_t y_high = static_cast<uint32_t>(labels[idx_high]);
+  float s_high = predts[idx_high];
+  uint32_t y_low = static_cast<uint32_t>(labels[idx_low]);
+  float s_low = predts[idx_low];
 
   float sigmoid = common::Sigmoid(s_high - s_low);
   float delta_NDCG = fabs(
@@ -67,11 +67,11 @@ XGBOOST_DEVICE inline void LambdaNDCG(common::Span<float const> labels,
   float hessian_ij = (std::max(sigmoid * (1.0f - sigmoid), kEps)) * delta_NDCG;
 
 #if defined(__CUDA_ARCH__)
-  dh::AtomicAddGpair(gpairs.data() + idx_high, GradientPair(lambda_ij, hessian_ij));
-  dh::AtomicAddGpair(gpairs.data() + idx_low, GradientPair(-lambda_ij, hessian_ij));
+  dh::AtomicAddGpair(gpairs.data() + idx_high, GradientPair{lambda_ij, hessian_ij});
+  dh::AtomicAddGpair(gpairs.data() + idx_low, GradientPair{-lambda_ij, hessian_ij});
 #else
   gpairs[idx_high] += GradientPair{lambda_ij, hessian_ij};
-  gpairs[idx_low] += GradientPair(-lambda_ij, hessian_ij);
+  gpairs[idx_low] += GradientPair{-lambda_ij, hessian_ij};
 #endif
 }
 
