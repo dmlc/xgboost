@@ -73,7 +73,7 @@ XGBOOST_DEVICE inline void LambdaNDCG(common::Span<float const> labels,
   float sigmoid = common::Sigmoid(s_high - s_low);
   float delta_NDCG = fabs(
       DeltaNDCG(s_high, s_low, y_high, y_low, rank_high, rank_low, inv_IDCG));
-  float lambda_ij = (sigmoid -1.0f) * delta_NDCG;
+  float lambda_ij = (sigmoid - 1.0f) * delta_NDCG;
   constexpr float kEps = 1e-16f;
   float hessian_ij = (std::max(sigmoid * (1.0f - sigmoid), kEps)) * delta_NDCG;
 

@@ -98,6 +98,7 @@ class LambdaMARTNDCG : public ObjFunction {
     auto h_gpair = out_gpair->HostSpan();
     auto h_predt = preds.ConstHostSpan();
     auto h_label = info.labels_.ConstHostSpan();
+    auto h_weight = info.weights_.ConstHostSpan();
 
     if (h_cache_.p_info != &info ||
         h_cache_.truncation != ndcg_param_.ndcg_truncation) {
@@ -123,10 +124,17 @@ class LambdaMARTNDCG : public ObjFunction {
 #pragma omp parallel for schedule(guided)
     for (size_t g = 0; g < n_groups; ++g) {
       size_t cnt = info.group_ptr_.at(g + 1) - info.group_ptr_[g];
-      auto predt = h_predt.subspan(info.group_ptr_[g], cnt);
-      auto gpair = h_gpair.subspan(info.group_ptr_[g], cnt);
-      auto label = h_label.subspan(info.group_ptr_[g], cnt);
-      this->CalcLambdaForGroup(predt, label, gpair, info, g);
+      auto predts = h_predt.subspan(info.group_ptr_[g], cnt);
+      auto gpairs = h_gpair.subspan(info.group_ptr_[g], cnt);
+      auto labels = h_label.subspan(info.group_ptr_[g], cnt);
+      this->CalcLambdaForGroup(predts, labels, gpairs, info, g);
+
+      if (!h_weight.empty()) {
+        CHECK_EQ(h_weight.size(), info.group_ptr_.size() - 1);
+        std::transform(
+            gpairs.begin(), gpairs.end(), gpairs.begin(),
+            [&](GradientPair const &gpair) { return gpair * h_weight[g]; });
+      }
     }
   }
 
