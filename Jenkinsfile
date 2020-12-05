@@ -190,11 +190,20 @@ def BuildCUDA(args) {
     if (env.BRANCH_NAME != 'master' && !(env.BRANCH_NAME.startsWith('release'))) {
       arch_flag = "-DGPU_COMPUTE_VER=75"
     }
+    def wheel_tag = "manylinux2010_x86_64"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_via_cmake.sh -DUSE_CUDA=ON -DUSE_NCCL=ON -DOPEN_MP:BOOL=ON -DHIDE_CXX_SYMBOLS=ON ${arch_flag}
     ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
-    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python tests/ci_build/rename_whl.py python-package/dist/*.whl ${commit_id} manylinux2010_x86_64
+    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python tests/ci_build/rename_whl.py python-package/dist/*.whl ${commit_id} ${wheel_tag}
     """
+    if (args.cuda_version == ref_cuda_ver) {
+      sh """
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} auditwheel repair --plat ${wheel_tag} python-package/dist/*.whl
+      mv -v wheelhouse/*.whl python-package/dist/
+      # Make sure that libgomp.so is vendored in the wheel
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "unzip -l python-package/dist/*.whl | grep libgomp  || exit -1"
+      """
+    }
     echo 'Stashing Python wheel...'
     stash name: "xgboost_whl_cuda${args.cuda_version}", includes: 'python-package/dist/*.whl'
     if (args.cuda_version == ref_cuda_ver && (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release'))) {

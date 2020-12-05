@@ -27,3 +27,4 @@ dependencies:
 - pip:
   - shap
   - awscli
+  - auditwheel
