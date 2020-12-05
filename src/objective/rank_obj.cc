@@ -109,7 +109,7 @@ class LambdaMARTNDCG : public ObjFunction {
       h_cache_.inv_idcg.resize(n_groups, std::numeric_limits<float>::quiet_NaN());
       CheckNDCGLabelsCPUKernel(ndcg_param_, h_label);
 #pragma omp parallel for schedule(guided)
-      for (size_t g = 0; g < n_groups; ++g) {
+      for (omp_ulong g = 0; g < n_groups; ++g) {
         size_t cnt = info.group_ptr_.at(g + 1) - info.group_ptr_[g];
         auto label = h_label.subspan(info.group_ptr_[g], cnt);
         std::vector<float> sorted_labels(label.size());
@@ -125,7 +125,7 @@ class LambdaMARTNDCG : public ObjFunction {
     }
 
 #pragma omp parallel for schedule(guided)
-    for (size_t g = 0; g < n_groups; ++g) {
+    for (omp_ulong g = 0; g < n_groups; ++g) {
       size_t cnt = info.group_ptr_.at(g + 1) - info.group_ptr_[g];
       auto predts = h_predt.subspan(info.group_ptr_[g], cnt);
       auto gpairs = h_gpair.subspan(info.group_ptr_[g], cnt);
