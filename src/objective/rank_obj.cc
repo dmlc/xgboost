@@ -64,6 +64,7 @@ class LambdaMARTNDCG : public ObjFunction {
       auto const& j_parameter = get<Object const>(obj.at("lambda_rank_param"));
       ndcg_param_.ndcg_truncation =
           std::stol(get<String const>(j_parameter.at("num_pairsample")));
+      ndcg_param_.ndcg_label_type = NDCGLabelType::kRelevance;
     }
   }
 
@@ -165,8 +166,6 @@ XGBOOST_REGISTER_OBJECTIVE(LambdaMARTNDCG, LambdaMARTNDCG::Name())
 XGBOOST_REGISTER_OBJECTIVE(LambdaMARTNDCG_obsolated, "rank:ndcg")
     .describe("LambdaMART with NDCG as objective")
     .set_body([]() {
-      LOG(WARNING) << "Objective `rank:ndcg` is deprecated in 1.4.  Use "
-                      "`lambdamart:ndcg` instead.";
       return new LambdaMARTNDCG();
     });
 DMLC_REGISTRY_FILE_TAG(rank_obj);
