@@ -984,21 +984,10 @@ def test_pandas_input():
                                np.array([0, 1]))
 
 
-def run_feature_weights(increasing):
+def run_feature_weights(X, y, fw, model=xgb.XGBRegressor):
     with TemporaryDirectory() as tmpdir:
-        kRows = 512
-        kCols = 64
         colsample_bynode = 0.5
-        reg = xgb.XGBRegressor(tree_method='hist',
-                               colsample_bynode=colsample_bynode)
-        X = rng.randn(kRows, kCols)
-        y = rng.randn(kRows)
-        fw = np.ones(shape=(kCols,))
-        for i in range(kCols):
-            if increasing:
-                fw[i] *= float(i)
-            else:
-                fw[i] *= float(kCols - i)
+        reg = model(tree_method='hist', colsample_bynode=colsample_bynode)
 
         reg.fit(X, y, feature_weights=fw)
         model_path = os.path.join(tmpdir, 'model.json')
@@ -1034,8 +1023,21 @@ def run_feature_weights(increasing):
 
 
 def test_feature_weights():
-    poly_increasing = run_feature_weights(True)
-    poly_decreasing = run_feature_weights(False)
+    kRows = 512
+    kCols = 64
+    X = rng.randn(kRows, kCols)
+    y = rng.randn(kRows)
+
+    fw = np.ones(shape=(kCols,))
+    for i in range(kCols):
+        fw[i] *= float(i)
+    poly_increasing = run_feature_weights(X, y, fw, xgb.XGBRegressor)
+
+    fw = np.ones(shape=(kCols,))
+    for i in range(kCols):
+        fw[i] *= float(kCols - i)
+    poly_decreasing = run_feature_weights(X, y, fw, xgb.XGBRegressor)
+
     # Approxmated test, this is dependent on the implementation of random
     # number generator in std library.
     assert poly_increasing[0] > 0.08
