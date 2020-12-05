@@ -2,12 +2,13 @@ FROM centos:6
 
 ENV DEVTOOLSET_URL_ROOT http://vault.centos.org/6.9/sclo/x86_64/rh/devtoolset-4/
 
+COPY CentOS-Base.repo /etc/yum.repos.d/
+
 # Install all basic requirements
 RUN \
+    yum install -y epel-release && \
     yum -y update && \
-    yum install -y tar unzip wget xz git centos-release-scl yum-utils java-1.8.0-openjdk-devel && \
-    yum-config-manager --enable centos-sclo-rh-testing && \
-    yum -y update && \
+    yum install -y tar unzip wget xz git java-1.8.0-openjdk-devel && \
     yum install -y $DEVTOOLSET_URL_ROOT/devtoolset-4-gcc-5.3.1-6.1.el6.x86_64.rpm \
                    $DEVTOOLSET_URL_ROOT/devtoolset-4-gcc-c++-5.3.1-6.1.el6.x86_64.rpm \
                    $DEVTOOLSET_URL_ROOT/devtoolset-4-binutils-2.25.1-8.el6.x86_64.rpm \
