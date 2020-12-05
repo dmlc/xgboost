@@ -114,7 +114,7 @@ class TreeEvaluator {
       }
       // Avoiding tree::CalcGainGivenWeight can significantly reduce avg floating point error.
       if (p.max_delta_step == 0.0f && has_constraint == false) {
-        return Sqr(ThresholdL1(stats.sum_grad, p.reg_alpha)) /
+        return common::Sqr(ThresholdL1(stats.sum_grad, p.reg_alpha)) /
                (stats.sum_hess + p.reg_lambda);
       }
       return tree::CalcGainGivenWeight<ParamT, float>(p, stats.sum_grad,

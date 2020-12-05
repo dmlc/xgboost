@@ -163,8 +163,10 @@ inline void AssertOneAPISupport() {
 #endif  // XGBOOST_USE_ONEAPI
 }
 
-template <typename Idx, typename V, typename Comp = std::less<V>>
-std::vector<Idx> ArgSort(std::vector<V> const &array, Comp comp = std::less<V>{}) {
+template <typename Idx, typename Container,
+          typename V = typename Container::value_type,
+          typename Comp = std::less<V>>
+std::vector<Idx> ArgSort(Container const &array, Comp comp = std::less<V>{}) {
   std::vector<Idx> result(array.size());
   std::iota(result.begin(), result.end(), 0);
   std::stable_sort(

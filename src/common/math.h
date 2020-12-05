@@ -17,6 +17,9 @@
 
 namespace xgboost {
 namespace common {
+
+template <typename T> XGBOOST_DEVICE T Sqr(T const &w) { return w * w; }
+
 /*!
  * \brief calculate the sigmoid of the input.
  * \param x input parameter

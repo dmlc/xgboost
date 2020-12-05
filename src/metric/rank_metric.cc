@@ -316,11 +316,11 @@ struct EvalRank : public Metric, public EvalRankConfig {
       const auto &labels = info.labels_.ConstHostVector();
       const auto &h_preds = preds.ConstHostVector();
 
-      #pragma omp parallel reduction(+:sum_metric)
+#pragma omp parallel reduction(+:sum_metric)
       {
         // each thread takes a local rec
         PredIndPairContainer rec;
-        #pragma omp for schedule(static)
+#pragma omp for schedule(static)
         for (bst_omp_uint k = 0; k < ngroups; ++k) {
           rec.clear();
           for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {

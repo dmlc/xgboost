@@ -15,6 +15,7 @@
 
 #include "xgboost/parameter.h"
 #include "xgboost/data.h"
+#include "../common/math.h"
 
 namespace xgboost {
 namespace tree {
@@ -264,14 +265,11 @@ XGBOOST_DEVICE inline static T1 ThresholdL1(T1 w, T2 alpha) {
   return 0.0;
 }
 
-template <typename T>
-XGBOOST_DEVICE inline static T Sqr(T a) { return a * a; }
-
 // calculate the cost of loss function
 template <typename TrainingParams, typename T>
 XGBOOST_DEVICE inline T CalcGainGivenWeight(const TrainingParams &p,
                                             T sum_grad, T sum_hess, T w) {
-  return -(T(2.0) * sum_grad * w + (sum_hess + p.reg_lambda) * Sqr(w));
+  return -(T(2.0) * sum_grad * w + (sum_hess + p.reg_lambda) * common::Sqr(w));
 }
 
 // calculate weight given the statistics
@@ -296,9 +294,9 @@ XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, T sum_grad, T sum_hess
   }
   if (p.max_delta_step == 0.0f) {
     if (p.reg_alpha == 0.0f) {
-      return Sqr(sum_grad) / (sum_hess + p.reg_lambda);
+      return common::Sqr(sum_grad) / (sum_hess + p.reg_lambda);
     } else {
-      return Sqr(ThresholdL1(sum_grad, p.reg_alpha)) /
+      return common::Sqr(ThresholdL1(sum_grad, p.reg_alpha)) /
           (sum_hess + p.reg_lambda);
     }
   } else {
