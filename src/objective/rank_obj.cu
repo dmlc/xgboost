@@ -892,6 +892,17 @@ void LambdaMARTGetGradientNDCGGPUKernel(
         UnravelTrapeziodIdx(idx_in_thread_group, n_data, &i, &j);
         LambdaNDCG(g_labels, g_predts, g_sorted_idx, i, j, inv_IDCG, g_gpairs);
       });
+
+  if (!info.weights_.Empty()) {
+    info.weights_.SetDevice(device_id);
+    auto d_weights = info.weights_.ConstDeviceSpan();
+    CHECK_EQ(d_weights.size(), n_groups);
+    dh::LaunchN(dh::CurrentDevice(), info.num_row_,
+                [=] XGBOOST_DEVICE(size_t idx) {
+                  auto g = dh::SegmentId(d_group_ptr, idx);
+                  gpairs[idx] *= d_weights[g];
+                });
+  }
 }
 
 void CheckNDCGLabelsGPUKernel(NDCGParam const& p, common::Span<float const> labels) {

@@ -116,6 +116,20 @@ TEST(Objective, DeclareUnifiedTest(NDCGRankingGPair)) {
 
     ASSERT_GT(gpairs.HostSpan()[0].GetGrad(), 0);
     ASSERT_GT(gpairs.HostSpan()[2].GetGrad(), 0);
+
+    info.weights_ = {2, 3};
+    HostDeviceVector<GradientPair> weighted_gpairs;
+    obj->GetGradient(predts, info, 0, &weighted_gpairs);
+    auto const& h_gpairs = gpairs.ConstHostSpan();
+    auto const& h_weighted_gpairs = weighted_gpairs.ConstHostSpan();
+    for (size_t i : {0ul, 1ul}) {
+      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetGrad(), h_gpairs[i].GetGrad() * 2.0f);
+      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetHess(), h_gpairs[i].GetHess() * 2.0f);
+    }
+    for (size_t i : {2ul, 3ul}) {
+      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetGrad(), h_gpairs[i].GetGrad() * 3.0f);
+      ASSERT_FLOAT_EQ(h_weighted_gpairs[i].GetHess(), h_gpairs[i].GetHess() * 3.0f);
+    }
   }
 
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
