@@ -23,7 +23,7 @@
 
 namespace xgboost {
 namespace obj {
-enum class NDCGLabelType { kRelevance = 0, kGain = 1 };
+enum class NDCGLabelType : int { kRelevance = 0, kGain = 1 };
 }  // namespace obj
 }  // namespace xgboost
 
