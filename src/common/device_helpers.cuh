@@ -1031,7 +1031,7 @@ namespace detail {
 // Wrapper around cub sort to enforce size_t as offset type
 template <bool descending, typename KeyT, typename ValueT, typename OffsetIteratorT>
 void DeviceSegmentedRadixSortPair(
-    void *d_temp_storage, size_t &temp_storage_bytes, const KeyT *d_keys_in,
+    void *d_temp_storage, size_t &temp_storage_bytes, const KeyT *d_keys_in,  // NOLINT
     KeyT *d_keys_out, const ValueT *d_values_in, ValueT *d_values_out,
     size_t num_items, size_t num_segments, OffsetIteratorT d_begin_offsets,
     OffsetIteratorT d_end_offsets, int begin_bit = 0,
@@ -1050,7 +1050,7 @@ void DeviceSegmentedRadixSortPair(
 // Wrapper around cub sort to enforce size_t as offset type
 template <bool descending, typename KeyT, typename OffsetIteratorT>
 static void DeviceSegmentedRadixSortKeys(
-    void *d_temp_storage, size_t &temp_storage_bytes, const KeyT *d_keys_in,
+    void *d_temp_storage, size_t &temp_storage_bytes, const KeyT *d_keys_in,  // NOLINT
     KeyT *d_keys_out, size_t num_items, size_t num_segments,
     OffsetIteratorT d_begin_offsets, OffsetIteratorT d_end_offsets,
     int begin_bit = 0, int end_bit = sizeof(KeyT) * 8,
@@ -1070,7 +1070,6 @@ static void DeviceSegmentedRadixSortKeys(
 }
 }  // namespace detail
 
-// Wrapper around cub sort
 template <bool descending, typename U, typename V, typename IdxT>
 inline void SegmentedArgSort(xgboost::common::Span<U> values,
                              xgboost::common::Span<V> group_ptr,
