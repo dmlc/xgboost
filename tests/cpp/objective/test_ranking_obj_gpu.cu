@@ -239,7 +239,7 @@ TEST(SegmentedTrapezoidThreads, Basic) {
   ASSERT_EQ(total, kElements);
 
   h = 2;
-  total = obj::SegmentedTrapezoidThreads(dh::ToSpan(offset_ptr), dh::ToSpan(thread_ptr), h);
+  obj::SegmentedTrapezoidThreads(dh::ToSpan(offset_ptr), dh::ToSpan(thread_ptr), h);
   std::vector<size_t> h_thread_ptr(thread_ptr.size());
   thrust::copy(thread_ptr.cbegin(), thread_ptr.cend(), h_thread_ptr.begin());
   for (size_t i = 1; i < h_thread_ptr.size(); ++i) {
@@ -247,7 +247,7 @@ TEST(SegmentedTrapezoidThreads, Basic) {
   }
 
   h = 7;
-  total = obj::SegmentedTrapezoidThreads(dh::ToSpan(offset_ptr), dh::ToSpan(thread_ptr), h);
+  obj::SegmentedTrapezoidThreads(dh::ToSpan(offset_ptr), dh::ToSpan(thread_ptr), h);
   thrust::copy(thread_ptr.cbegin(), thread_ptr.cend(), h_thread_ptr.begin());
   for (size_t i = 1; i < h_thread_ptr.size(); ++i) {
     ASSERT_EQ(h_thread_ptr[i] - h_thread_ptr[i - 1], 28);
