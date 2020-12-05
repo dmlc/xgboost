@@ -735,6 +735,8 @@ def train(client, params, dtrain, *args, evals=(), early_stopping_rounds=None,
     '''
     _assert_dask_support()
     client = _xgb_get_client(client)
+    # Get global configuration before transferring computation to another thread or
+    # process.
     global_config = config.get_config()
     return client.sync(
         _train_async, client, global_config, params, dtrain=dtrain, *args, evals=evals,
