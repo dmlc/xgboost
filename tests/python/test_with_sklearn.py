@@ -399,6 +399,21 @@ def test_classification_with_custom_objective():
         X, y
     )
 
+    cls = xgb.XGBClassifier(use_label_encoder=False, n_estimators=1)
+    cls.fit(X, y)
+
+    is_called = [False]
+
+    def wrapped(y, p):
+        is_called[0] = True
+        return logregobj(y, p)
+
+    cls.set_params(objective=wrapped)
+    cls.predict(X)              # no throw
+    cls.fit(X, y)
+
+    assert is_called[0]
+
 
 def test_sklearn_api():
     from sklearn.datasets import load_iris
