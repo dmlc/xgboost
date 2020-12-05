@@ -890,9 +890,6 @@ void LambdaMARTGetGradientNDCGGPUKernel(
 
         size_t i = 0, j = 0;
         UnravelTrapeziodIdx(idx_in_thread_group, n_data, &i, &j);
-
-        assert(g_sorted_idx[i] < n_data);
-        assert(g_sorted_idx[j] < n_data);
         LambdaNDCG(g_labels, g_predts, g_sorted_idx, i, j, inv_IDCG, g_gpairs);
       });
 }

@@ -57,7 +57,11 @@ XGBOOST_DEVICE inline void LambdaNDCG(common::Span<float const> labels,
   }
   size_t rank_high = i, rank_low = j;
   if (labels[sorted_idx[i]] <= labels[sorted_idx[j]]) {
+#if defined(__CUDACC__)
+    thrust::swap(rank_high, rank_low);
+#else
     std::swap(rank_high, rank_low);
+#endif  // defined(__CUDACC__)
   }
   size_t idx_high = sorted_idx[rank_high];
   size_t idx_low = sorted_idx[rank_low];
