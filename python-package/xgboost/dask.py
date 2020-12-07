@@ -33,7 +33,7 @@ from .compat import lazy_isinstance
 from .core import DMatrix, DeviceQuantileDMatrix, Booster, _expect, DataIter
 from .core import _deprecate_positional_args
 from .training import train as worker_train
-from .tracker import RabitTracker
+from .tracker import RabitTracker, get_host_ip
 from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase
 from .sklearn import xgboost_model_doc
 
@@ -67,9 +67,10 @@ distributed = LazyLoader('distributed', globals(), 'dask.distributed')
 LOGGER = logging.getLogger('[xgboost.dask]')
 
 
-def _start_tracker(host, n_workers):
+def _start_tracker(n_workers):
     """Start Rabit tracker """
     env = {'DMLC_NUM_WORKER': n_workers}
+    host = get_host_ip('auto')
     rabit_context = RabitTracker(hostIP=host, nslave=n_workers)
     env.update(rabit_context.slave_envs())
 
@@ -601,9 +602,7 @@ def _dmatrix_from_list_of_parts(is_quantile, **kwargs):
 
 async def _get_rabit_args(n_workers: int, client):
     '''Get rabit context arguments from data distribution in DaskDMatrix.'''
-    host = distributed.comm.get_address_host(client.scheduler.address)
-    env = await client.run_on_scheduler(
-        _start_tracker, host.strip('/:'), n_workers)
+    env = await client.run_on_scheduler(_start_tracker, n_workers)
     rabit_args = [('%s=%s' % item).encode() for item in env.items()]
     return rabit_args
 
