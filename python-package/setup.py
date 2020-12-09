@@ -301,7 +301,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     setup(name='xgboost',
           version=open(os.path.join(
-              CURRENT_DIR, 'xgboost/VERSION')).read().strip(),
+              CURRENT_DIR, 'xgboost/VERSION')).read().strip() + '.post0',
           description="XGBoost Python Package",
           long_description=open(os.path.join(CURRENT_DIR, 'README.rst'),
                                 encoding='utf-8').read(),
