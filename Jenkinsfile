@@ -198,10 +198,10 @@ def BuildCUDA(args) {
     """
     if (args.cuda_version == ref_cuda_ver) {
       sh """
-      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} auditwheel repair --plat ${wheel_tag} python-package/dist/*.whl
+      ${dockerRun} auditwheel_x86_64 ${docker_binary} auditwheel repair --plat ${wheel_tag} python-package/dist/*.whl
       mv -v wheelhouse/*.whl python-package/dist/
       # Make sure that libgomp.so is vendored in the wheel
-      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} bash -c "unzip -l python-package/dist/*.whl | grep libgomp  || exit -1"
+      ${dockerRun} auditwheel_x86_64 ${docker_binary} bash -c "unzip -l python-package/dist/*.whl | grep libgomp  || exit -1"
       """
     }
     echo 'Stashing Python wheel...'
