@@ -97,7 +97,6 @@ std::vector<bst_feature_t> HostSketchContainer::LoadBalancePerRow(
   //auto page = batch.GetView();
   size_t const total_entries = batch.Size();
   size_t const entries_per_thread = common::DivRoundUp(total_entries, nthreads);
-  std::cout << "MC LoadBalancePerROw: " << total_entries << " " << entries_per_thread << std::endl;
   std::vector<bst_feature_t> rows_ptr(nthreads + 1, 0);
   
   for (size_t current_thread {1}; current_thread < rows_ptr.size(); ++current_thread) {
@@ -319,10 +318,11 @@ size_t nbytes = 0;
       nbytes = std::max(
           WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts),
           nbytes);
-      for (int32_t id = 0; id < out.size; ++id) {
+/*      for (int32_t id = 0; id < out.size; ++id) {
 		std::cout << out.data[id] << ";";
 	  }
 	  std::cout << "" << std::endl;
+*/
     }
     num_cuts.push_back(intermediate_num_cuts);
   }
