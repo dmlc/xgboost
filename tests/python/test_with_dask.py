@@ -351,6 +351,30 @@ def test_sklearn_grid_search():
             assert len(means) == len(set(means))
 
 
+def test_empty_dmatrix_training_continuation(client):
+    kRows, kCols = 1, 97
+    X = dd.from_array(np.random.randn(kRows, kCols))
+    y = dd.from_array(np.random.rand(kRows))
+    X.columns = ['X' + str(i) for i in range(0, 97)]
+    dtrain = xgb.dask.DaskDMatrix(client, X, y)
+
+    kRows += 1000
+    X = dd.from_array(np.random.randn(kRows, kCols), chunksize=10)
+    X.columns = ['X' + str(i) for i in range(0, 97)]
+    y = dd.from_array(np.random.rand(kRows), chunksize=10)
+    valid = xgb.dask.DaskDMatrix(client, X, y)
+
+    out = xgb.dask.train(client, {'tree_method': 'hist'},
+                         dtrain=dtrain, num_boost_round=2,
+                         evals=[(valid, 'validation')])
+
+    out = xgb.dask.train(client, {'tree_method': 'hist'},
+                         dtrain=dtrain, xgb_model=out['booster'],
+                         num_boost_round=2,
+                         evals=[(valid, 'validation')])
+    assert xgb.dask.predict(client, out, dtrain).compute().shape[0] == 1
+
+
 def run_empty_dmatrix_reg(client, parameters):
     def _check_outputs(out, predictions):
         assert isinstance(out['booster'], xgb.dask.Booster)
@@ -366,6 +390,19 @@ def run_empty_dmatrix_reg(client, parameters):
     out = xgb.dask.train(client, parameters,
                          dtrain=dtrain,
                          evals=[(dtrain, 'validation')],
+                         num_boost_round=2)
+    predictions = xgb.dask.predict(client=client, model=out,
+                                   data=dtrain).compute()
+    _check_outputs(out, predictions)
+
+    # valid has more rows than train
+    kRows += 1
+    X = dd.from_array(np.random.randn(kRows, kCols))
+    y = dd.from_array(np.random.rand(kRows))
+    valid = xgb.dask.DaskDMatrix(client, X, y)
+    out = xgb.dask.train(client, parameters,
+                         dtrain=dtrain,
+                         evals=[(valid, 'validation')],
                          num_boost_round=2)
     predictions = xgb.dask.predict(client=client, model=out,
                                    data=dtrain).compute()

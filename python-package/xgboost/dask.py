@@ -33,7 +33,7 @@ from .compat import lazy_isinstance
 from .core import DMatrix, DeviceQuantileDMatrix, Booster, _expect, DataIter
 from .core import _deprecate_positional_args
 from .training import train as worker_train
-from .tracker import RabitTracker
+from .tracker import RabitTracker, get_host_ip
 from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase
 from .sklearn import xgboost_model_doc
 
@@ -70,8 +70,7 @@ LOGGER = logging.getLogger('[xgboost.dask]')
 def _start_tracker(n_workers):
     """Start Rabit tracker """
     env = {'DMLC_NUM_WORKER': n_workers}
-    import socket
-    host = socket.gethostbyname(socket.gethostname())
+    host = get_host_ip('auto')
     rabit_context = RabitTracker(hostIP=host, nslave=n_workers)
     env.update(rabit_context.slave_envs())
 
@@ -763,7 +762,8 @@ async def _direct_predict_impl(client, data, predict_fn):
 
 
 # pylint: disable=too-many-statements
-async def _predict_async(client, global_config, model, data, missing=numpy.nan, **kwargs):
+async def _predict_async(client, global_config, model, data, missing, validate_features,
+                         **kwargs):
     if isinstance(model, Booster):
         booster = model
     elif isinstance(model, dict):
@@ -779,7 +779,7 @@ async def _predict_async(client, global_config, model, data, missing=numpy.nan, 
         with config.config_context(**global_config):
             booster.set_param({'nthread': worker.nthreads})
             m = DMatrix(partition, missing=missing, nthread=worker.nthreads)
-            predt = booster.predict(m, validate_features=False, **kwargs)
+            predt = booster.predict(m, validate_features=validate_features, **kwargs)
             if is_df:
                 if lazy_isinstance(partition, 'cudf', 'core.dataframe.DataFrame'):
                     import cudf     # pylint: disable=import-error
@@ -821,7 +821,7 @@ async def _predict_async(client, global_config, model, data, missing=numpy.nan, 
                 )
                 predt = booster.predict(
                     data=local_part,
-                    validate_features=local_part.num_row() != 0,
+                    validate_features=validate_features,
                     **kwargs)
                 columns = 1 if len(predt.shape) == 1 else predt.shape[1]
                 ret = ((dask.delayed(predt), columns), order)
@@ -878,7 +878,7 @@ async def _predict_async(client, global_config, model, data, missing=numpy.nan, 
     return predictions
 
 
-def predict(client, model, data, missing=numpy.nan, **kwargs):
+def predict(client, model, data, missing=numpy.nan, validate_features=True, **kwargs):
     '''Run prediction with a trained booster.
 
     .. note::
@@ -910,7 +910,7 @@ def predict(client, model, data, missing=numpy.nan, **kwargs):
     client = _xgb_get_client(client)
     global_config = config.get_config()
     return client.sync(_predict_async, client, global_config, model, data,
-                       missing=missing, **kwargs)
+                       missing=missing, validate_features=validate_features, **kwargs)
 
 
 async def _inplace_predict_async(client, global_config, model, data,

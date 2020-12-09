@@ -2028,6 +2028,9 @@ class Booster(object):
         Validate Booster and data's feature_names are identical.
         Set feature_names and feature_types from DMatrix
         """
+        if data.num_row() == 0:
+            return
+
         if self.feature_names is None:
             self.feature_names = data.feature_names
             self.feature_types = data.feature_types
