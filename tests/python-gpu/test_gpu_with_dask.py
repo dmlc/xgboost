@@ -184,6 +184,43 @@ class TestDistributedGPU:
             run_with_dask_array(dxgb.DaskDMatrix, client)
             run_with_dask_array(dxgb.DaskDeviceQuantileDMatrix, client)
 
+    @pytest.mark.skipif(**tm.no_cupy())
+    @pytest.mark.skipif(**tm.no_dask())
+    @pytest.mark.skipif(**tm.no_dask_cuda())
+    def test_early_stopping(self, local_cuda_cluster):
+        from sklearn.datasets import load_breast_cancer
+        import cupy
+        with Client(local_cuda_cluster) as client:
+            X, y = load_breast_cancer(return_X_y=True)
+            X, y = da.from_array(X), da.from_array(y)
+
+            m = dxgb.DaskDMatrix(client, X, y)
+
+            valid = dxgb.DaskDMatrix(client, X, y)
+            early_stopping_rounds = 5
+            booster = dxgb.train(client, {'objective': 'binary:logistic',
+                                          'eval_metric': 'error',
+                                          'tree_method': 'gpu_hist'}, m,
+                                 evals=[(valid, 'Valid')],
+                                 num_boost_round=1000,
+                                 early_stopping_rounds=early_stopping_rounds)[
+                                     'booster']
+            assert hasattr(booster, 'best_score')
+            dump = booster.get_dump(dump_format='json')
+            assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
+            valid_X = X
+            valid_y = y
+            cls = dxgb.DaskXGBClassifier(objective='binary:logistic',
+                                         tree_method='gpu_hist',
+                                         n_estimators=100)
+            cls.client = client
+            cls.fit(X, y, early_stopping_rounds=early_stopping_rounds,
+                    eval_set=[(valid_X, valid_y)])
+            booster = cls.get_booster()
+            dump = booster.get_dump(dump_format='json')
+            assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
     @pytest.mark.mgpu
