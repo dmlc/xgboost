@@ -26,11 +26,11 @@
 
 namespace xgboost {
 namespace obj {
-DMLC_REGISTER_PARAMETER(NDCGParam);
+DMLC_REGISTER_PARAMETER(LambdaMARTParam);
 
 class LambdaMARTNDCG : public ObjFunction {
  private:
-  NDCGParam ndcg_param_;
+  LambdaMARTParam ndcg_param_;
   std::string metric_;
   struct NDCGCache {
     size_t truncation{0};
@@ -46,25 +46,24 @@ class LambdaMARTNDCG : public ObjFunction {
 
   void Configure(Args const& args) override {
     ndcg_param_.UpdateAllowUnknown(args);
-    metric_ = "ndcg@" + std::to_string(ndcg_param_.ndcg_truncation);
+    metric_ = "ndcg@" + std::to_string(ndcg_param_.lambdamart_truncation);
   }
 
   void SaveConfig(Json* p_out) const override {
     auto& out = *p_out;
     out["name"] = String(Name());
-    out["ndcg_param"] = ToJson(ndcg_param_);
+    out["lambdamart_param"] = ToJson(ndcg_param_);
   }
 
   void LoadConfig(Json const& in) override {
     auto const& obj = get<Object const>(in);
-    if (obj.find("ndcg_param") != obj.cend()) {
-      FromJson(in["ndcg_param"], &ndcg_param_);
+    if (obj.find("lambdamart_param") != obj.cend()) {
+      FromJson(in["lambdamart_param"], &ndcg_param_);
     } else {
       // Being compatible with XGBoost version < 1.4.
       auto const& j_parameter = get<Object const>(obj.at("lambda_rank_param"));
-      ndcg_param_.ndcg_truncation =
+      ndcg_param_.lambdamart_truncation =
           std::stol(get<String const>(j_parameter.at("num_pairsample")));
-      ndcg_param_.ndcg_label_type = NDCGLabelType::kRelevance;
     }
   }
 
@@ -75,7 +74,7 @@ class LambdaMARTNDCG : public ObjFunction {
     std::fill(gpair.begin(), gpair.end(), GradientPair{});
     const double inv_IDCG = h_cache_.inv_idcg[query_id];
     auto sorted_idx = common::ArgSort<size_t>(predt, std::greater<>{});
-    for (size_t i = 0; i < cnt - 1 && i < ndcg_param_.ndcg_truncation; ++i) {
+    for (size_t i = 0; i < cnt - 1 && i < ndcg_param_.lambdamart_truncation; ++i) {
       for (size_t j = i + 1; j < cnt; ++j) {
         if (label[sorted_idx[i]] == label[sorted_idx[j]]) { continue; }
         LambdaNDCG(label, predt, sorted_idx, i, j, inv_IDCG, gpair);
@@ -90,7 +89,7 @@ class LambdaMARTNDCG : public ObjFunction {
     auto device = tparam_->gpu_id;
     if (device != GenericParameter::kCpuId) {
       LambdaMARTGetGradientNDCGGPUKernel(
-          preds, info, ndcg_param_.ndcg_truncation, &d_cache_, device, out_gpair);
+          preds, info, ndcg_param_.lambdamart_truncation, &d_cache_, device, out_gpair);
       return;
     }
 #endif  // defined(XGBOOST_USE_CUDA)
@@ -104,7 +103,7 @@ class LambdaMARTNDCG : public ObjFunction {
     auto h_weight = info.weights_.ConstHostSpan();
 
     if (h_cache_.p_info != &info ||
-        h_cache_.truncation != ndcg_param_.ndcg_truncation) {
+        h_cache_.truncation != ndcg_param_.lambdamart_truncation) {
       h_cache_.inv_idcg.clear();
       h_cache_.inv_idcg.resize(n_groups, std::numeric_limits<float>::quiet_NaN());
       CheckNDCGLabelsCPUKernel(ndcg_param_, h_label);
@@ -117,11 +116,11 @@ class LambdaMARTNDCG : public ObjFunction {
         std::stable_sort(sorted_labels.begin(), sorted_labels.end(),
                          std::greater<>{});
         float inv_IDCG =
-            CalcInvIDCG(sorted_labels, ndcg_param_.ndcg_truncation);
+            CalcInvIDCG(sorted_labels, ndcg_param_.lambdamart_truncation);
         h_cache_.inv_idcg[g] = inv_IDCG;
       }
       h_cache_.p_info = &info;
-      h_cache_.truncation = ndcg_param_.ndcg_truncation;
+      h_cache_.truncation = ndcg_param_.lambdamart_truncation;
     }
 
 #pragma omp parallel for schedule(guided)
@@ -147,16 +146,15 @@ class LambdaMARTNDCG : public ObjFunction {
   }
 };
 
-void CheckNDCGLabelsCPUKernel(NDCGParam const& p, common::Span<float const> labels) {
-  if (p.ndcg_label_type == NDCGLabelType::kRelevance) {
-    auto label_is_integer = std::none_of(
-        labels.data(), labels.data() + labels.size(), [](auto const &v) {
-          auto l = std::floor(v);
-          return std::fabs(l - v) > kRtEps || v < 0.0f;
-        });
-    CHECK(label_is_integer) << "When using relevance degree as target, labels "
-                               "must be either 0 or positive integer.";
-  }
+void CheckNDCGLabelsCPUKernel(LambdaMARTParam const &p,
+                              common::Span<float const> labels) {
+  auto label_is_integer = std::none_of(
+      labels.data(), labels.data() + labels.size(), [](auto const &v) {
+        auto l = std::floor(v);
+        return std::fabs(l - v) > kRtEps || v < 0.0f;
+      });
+  CHECK(label_is_integer) << "When using relevance degree as target, labels "
+                             "must be either 0 or positive integer.";
 }
 
 XGBOOST_REGISTER_OBJECTIVE(LambdaMARTNDCG, LambdaMARTNDCG::Name())

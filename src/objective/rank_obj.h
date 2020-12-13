@@ -23,14 +23,6 @@
 
 namespace xgboost {
 namespace obj {
-enum class NDCGLabelType : int { kRelevance = 0, kGain = 1 };
-}  // namespace obj
-}  // namespace xgboost
-
-DECLARE_FIELD_ENUM_CLASS(xgboost::obj::NDCGLabelType);
-
-namespace xgboost {
-namespace obj {
 XGBOOST_DEVICE inline float DeltaNDCG(float s_high, float s_low,
                                       uint32_t y_high, uint32_t y_low,
                                       uint32_t r_high, uint32_t r_low,
@@ -87,21 +79,16 @@ XGBOOST_DEVICE inline void LambdaNDCG(common::Span<float const> labels,
 #endif
 }
 
-struct NDCGParam : public XGBoostParameter<NDCGParam> {
-  size_t ndcg_truncation;
-  NDCGLabelType ndcg_label_type;
+struct LambdaMARTParam : public XGBoostParameter<LambdaMARTParam> {
+  size_t lambdamart_truncation;
 
-  DMLC_DECLARE_PARAMETER(NDCGParam) {
-    DMLC_DECLARE_FIELD(ndcg_truncation).set_lower_bound(1).set_default(1)
-        .describe("The truncation level for NDCG.");
-    DMLC_DECLARE_FIELD(ndcg_label_type).set_default(NDCGLabelType::kRelevance)
-        .add_enum("relevance", NDCGLabelType::kRelevance)
-        .add_enum("gain", NDCGLabelType::kGain);
+  DMLC_DECLARE_PARAMETER(LambdaMARTParam) {
+    DMLC_DECLARE_FIELD(lambdamart_truncation).set_default(1).describe("");
   }
 };
 
-void CheckNDCGLabelsCPUKernel(NDCGParam const& p, common::Span<float const> labels);
-void CheckNDCGLabelsGPUKernel(NDCGParam const& p, common::Span<float const> labels);
+void CheckNDCGLabelsCPUKernel(LambdaMARTParam const& p, common::Span<float const> labels);
+void CheckNDCGLabelsGPUKernel(LambdaMARTParam const& p, common::Span<float const> labels);
 
 struct DeviceNDCGCache;
 

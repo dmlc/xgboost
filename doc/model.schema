@@ -222,11 +222,10 @@
         "fix_list_weight": { "type": "string" }
       }
     },
-    "ndcg_param": {
+    "lambdamart_param": {
       "type": "object",
       "properties": {
-        "ndcg_truncation": { "type": "string" },
-        "ndcg_label_type": { "type": "string" }
+        "lambdamart_truncation": { "type": "string" }
       }
     }
   },
@@ -475,11 +474,11 @@
               "type": "object",
               "properties": {
                 "name": { "const": "lambdamart:ndcg" },
-                "ndcg_param": { "$ref": "#/definitions/ndcg_param"}
+                "lambdamart_param": { "$ref": "#/definitions/lambdamart_param"}
               },
               "required": [
                 "name",
-                "ndcg_param"
+                "lambdamart_param"
               ]
             },
             {
