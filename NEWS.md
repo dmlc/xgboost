@@ -70,6 +70,7 @@ This file records the changes in xgboost library in reverse chronological order.
   - Optimize CPU sketch allreduce for sparse data (#6009)
   - Thread local memory allocation for BuildHist, leading to speedup up to 1.7x. (#6358)
   - Disable hyperthreading for DMatrix creation (#6386). This speeds up DMatrix creation by up to 2x.
+  - Simple fix for static shedule in predict (#6357)
 * Unify thread configuration, to make it easy to utilize all CPU cores (#6186)
 * [jvm-packages] Clean the way deterministic paritioning is computed (#6033)
 * Speed up JSON serialization by implementing an intrusive pointer class (#6129). It leads to 1.5x-2x performance boost.
@@ -303,7 +304,6 @@ This file records the changes in xgboost library in reverse chronological order.
   - Skip missing lookup in hist row partitioning if data is dense. (#5644)
   - Specialize training procedures for CPU hist tree method on distributed environment. (#5557)
   - Add single point histogram for CPU hist.  Previously gradient histogram for CPU hist is hard coded to be 64 bit, now users can specify the parameter `single_precision_histogram` to use 32 bit histogram instead for faster training performance. (#5624, #5811)
-  - Simple fix for static shedule in predict (#6357)
 * GPU hist tree method optimization
   - Removed some unnecessary synchronizations and better memory allocation pattern. (#5707)
   - Optimize GPU Hist for wide dataset.  Previously for wide dataset the atomic operation is performed on global memory, now it can run on shared memory for faster histogram building. But there's a known small regression on GeForce cards with dense data. (#5795, #5926, #5948, #5631)
