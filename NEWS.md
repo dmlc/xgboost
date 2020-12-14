@@ -29,10 +29,15 @@ This file records the changes in xgboost library in reverse chronological order.
 * Now we provide a simple interface to slice tree models by specifying a range of boosting rounds. The tree ensemble can be split into multiple sub-ensembles via the slicing interface. Check out [an example](https://xgboost.readthedocs.io/en/release_1.3.0/python/model.html).
 * In addition, the early stopping callback now supports `save_best` option. When enabled, XGBoost will save (persist) the model at the best boosting round and discard the trees that were fit subsequent to the best round.
 
+### Weighted subsampling of features (columns) (#5962)
+* It is now possible to sample features (columns) via weighted subsampling, in which features with higher weights are more likely to be selected in the sample. Weighted subsampling allows you to encode domain knowledge by emphasizing a particular set of features in the choice of tree splits. In addition, you can prevent particular features from being used in any splits, by assigning them zero weights.
+* Check out [the demo](https://github.com/dmlc/xgboost/blob/master/demo/guide-python/feature_weights.py).
+
 ### Improved integration with Dask
+* Support reverse-proxy environment such as Google Kubernetes Engine (#6343, #6475)
+* An XGBoost training job will no longer use all available workers. Instead, it will only use the workers that contain input data (#6343).
 * The new callback API works well with the Dask training API.
 * The `predict()` and `fit()` function of `DaskXGBClassifier` and `DaskXGBRegressor` now accept a base margin (#6155).
-* Support reverse-proxy environment such as Google Kubernetes Engine (#6343, #6475)
 * Support more meta data in the Dask API (#6130, #6132, #6333).
 * Allow passing extra keyword arguments as `kwargs` in `predict()` (#6117)
 * Fix typo in dask interface: `sample_weights` -> `sample_weight` (#6240)
@@ -60,26 +65,24 @@ This file records the changes in xgboost library in reverse chronological order.
 
 ### Performance improvements
 * Various performance improvement on multi-core CPUs
-  - Optimize DMatrix build time. (#5877)
-  - CPU predict performance improvement (#6127)
-  - Optimize CPU sketch allreduce for sparse data. (#6009)
-  - Thread local memory allocation for BuildHist (#6358)
-  - Disable hyperthreading for DMatrix creation (#6386)
+  - Optimize DMatrix build time by up to 3.7x. (#5877)
+  - CPU predict performance improvement, by up to 3.6x. (#6127)
+  - Optimize CPU sketch allreduce for sparse data (#6009)
+  - Thread local memory allocation for BuildHist, leading to speedup up to 1.7x. (#6358)
+  - Disable hyperthreading for DMatrix creation (#6386). This speeds up DMatrix creation by up to 2x.
 * Unify thread configuration, to make it easy to utilize all CPU cores (#6186)
 * [jvm-packages] Clean the way deterministic paritioning is computed (#6033)
-* Speed up JSON serialization by implementing an intrusive pointer class (#6129).
+* Speed up JSON serialization by implementing an intrusive pointer class (#6129). It leads to 1.5x-2x performance boost.
 
 ### API additions
 * [R] Add SHAP summary plot using ggplot2 (#5882)
-* Feature weights (#5962)
 * Modin DataFrame can now be used as input (#6055)
 * [jvm-packages] Add `getNumFeature` method (#6075)
 * Add MAPE metric (#6119)
 * Implement GPU predict leaf. (#6187)
 * Enable cuDF/cuPy inputs in `XGBClassifier` (#6269)
 * Document tree method for feature weights. (#6312)
-* Optionaly fail when `gpu_id` is set to invalid value (#6342)
-* [Python] Add option to use `libxgboost.so` from the system path (#6362)
+* Add `fail_on_invalid_gpu_id` parameter, which will cause XGBoost to terminate upon seeing an invalid value of `gpu_id` (#6342)
 
 ### Breaking: the default evaluation metric for classification is changed to `logloss` / `mlogloss` (#6183)
 * The default metric used to be accuracy, and it is not statistically consistent to perform early stopping with the accuracy metric when we are really optimizing the log loss for the `binary:logistic` objective.
@@ -113,11 +116,9 @@ This file records the changes in xgboost library in reverse chronological order.
 * Lazy import dask libraries. (#6309)
 * Deterministic data partitioning for external memory (#6317)
 * Avoid resetting seed for every configuration. (#6349)
-* Simple fix for static shedule in predict (#6357)
 * Fix label errors in graph visualization (#6369)
 * [jvm-packages] fix potential unit test suites aborted issue due to race condition (#6373)
 * [R] Fix warnings from `R check --as-cran` (#6374)
-* [dask] Fix union of workers. (#6375, #6391)
 * [R] Fix a crash that occurs with noLD R (#6378)
 * [R] Do not convert continuous labels to factors (#6380)
 * [R] remove uses of `exists()` (#6387)
@@ -240,6 +241,7 @@ This file records the changes in xgboost library in reverse chronological order.
 * Create a tutorial for using the C API in a C/C++ application (#6285)
 * Update plugin instructions for CMake build (#6289)
 * [doc] make Dask distributed example copy-pastable (#6345)
+* [Python] Add option to use `libxgboost.so` from the system path (#6362)
 * Fixed few grammatical mistakes in doc (#6393)
 * Fix broken link in CLI doc (#6396)
 * Improve documentation for the Dask API (#6413)
@@ -301,6 +303,7 @@ This file records the changes in xgboost library in reverse chronological order.
   - Skip missing lookup in hist row partitioning if data is dense. (#5644)
   - Specialize training procedures for CPU hist tree method on distributed environment. (#5557)
   - Add single point histogram for CPU hist.  Previously gradient histogram for CPU hist is hard coded to be 64 bit, now users can specify the parameter `single_precision_histogram` to use 32 bit histogram instead for faster training performance. (#5624, #5811)
+  - Simple fix for static shedule in predict (#6357)
 * GPU hist tree method optimization
   - Removed some unnecessary synchronizations and better memory allocation pattern. (#5707)
   - Optimize GPU Hist for wide dataset.  Previously for wide dataset the atomic operation is performed on global memory, now it can run on shared memory for faster histogram building. But there's a known small regression on GeForce cards with dense data. (#5795, #5926, #5948, #5631)
