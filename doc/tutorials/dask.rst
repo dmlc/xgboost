@@ -51,12 +51,12 @@ on a dask cluster:
   num_obs = 1e5
   num_features = 20
   X = da.random.random(
-      size=(num_obs, num_features)
+      size=(num_obs, num_features),
+      chunks=(1000, num_features)
   )
-  y = da.random.choice(
-      a=[0, 1],
-      size=num_obs,
-      replace=True
+  y = da.random.random(
+      size=(num_obs, 1),
+      chunks=(1000, 1)
   )
 
   dtrain = xgb.dask.DaskDMatrix(client, X, y)
@@ -64,7 +64,7 @@ on a dask cluster:
   output = xgb.dask.train(client,
                           {'verbosity': 2,
                            'tree_method': 'hist',
-                           'objective': 'binary:logistic'
+                           'objective': 'reg:squarederror'
                            },
                           dtrain,
                           num_boost_round=4, evals=[(dtrain, 'train')])
@@ -326,4 +326,3 @@ addressed yet:
 - Label encoding for the ``DaskXGBClassifier`` classifier may not be supported.  So users need
   to encode their training labels into discrete values first.
 - Ranking is not yet supported.
-- Callback functions are not tested.
