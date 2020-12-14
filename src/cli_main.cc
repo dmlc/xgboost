@@ -268,7 +268,7 @@ class CLI {
     // always save final round
     if ((param_.save_period == 0 ||
          param_.num_round % param_.save_period != 0) &&
-        param_.model_out != CLIParam::kNull && rabit::GetRank() == 0) {
+        rabit::GetRank() == 0) {
       std::ostringstream os;
       if (param_.model_out == CLIParam::kNull) {
         os << param_.model_dir << '/' << std::setfill('0') << std::setw(4)

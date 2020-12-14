@@ -5,11 +5,13 @@ import sys
 import numpy as np
 import json
 import asyncio
+import tempfile
 from sklearn.datasets import make_classification
 import os
 import subprocess
 from hypothesis import given, settings, note
 from test_updaters import hist_parameter_strategy, exact_parameter_strategy
+from test_with_sklearn import run_feature_weights
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -74,7 +76,7 @@ def test_from_dask_dataframe():
             assert isinstance(prediction, da.Array)
             assert prediction.shape[0] == kRows
 
-            with pytest.raises(ValueError):
+            with pytest.raises(TypeError):
                 # evals_result is not supported in dask interface.
                 xgb.dask.train(
                     client, {}, dtrain, num_boost_round=2, evals_result={})
@@ -351,6 +353,30 @@ def test_sklearn_grid_search():
             assert len(means) == len(set(means))
 
 
+def test_empty_dmatrix_training_continuation(client):
+    kRows, kCols = 1, 97
+    X = dd.from_array(np.random.randn(kRows, kCols))
+    y = dd.from_array(np.random.rand(kRows))
+    X.columns = ['X' + str(i) for i in range(0, 97)]
+    dtrain = xgb.dask.DaskDMatrix(client, X, y)
+
+    kRows += 1000
+    X = dd.from_array(np.random.randn(kRows, kCols), chunksize=10)
+    X.columns = ['X' + str(i) for i in range(0, 97)]
+    y = dd.from_array(np.random.rand(kRows), chunksize=10)
+    valid = xgb.dask.DaskDMatrix(client, X, y)
+
+    out = xgb.dask.train(client, {'tree_method': 'hist'},
+                         dtrain=dtrain, num_boost_round=2,
+                         evals=[(valid, 'validation')])
+
+    out = xgb.dask.train(client, {'tree_method': 'hist'},
+                         dtrain=dtrain, xgb_model=out['booster'],
+                         num_boost_round=2,
+                         evals=[(valid, 'validation')])
+    assert xgb.dask.predict(client, out, dtrain).compute().shape[0] == 1
+
+
 def run_empty_dmatrix_reg(client, parameters):
     def _check_outputs(out, predictions):
         assert isinstance(out['booster'], xgb.dask.Booster)
@@ -366,6 +392,19 @@ def run_empty_dmatrix_reg(client, parameters):
     out = xgb.dask.train(client, parameters,
                          dtrain=dtrain,
                          evals=[(dtrain, 'validation')],
+                         num_boost_round=2)
+    predictions = xgb.dask.predict(client=client, model=out,
+                                   data=dtrain).compute()
+    _check_outputs(out, predictions)
+
+    # valid has more rows than train
+    kRows += 1
+    X = dd.from_array(np.random.randn(kRows, kCols))
+    y = dd.from_array(np.random.rand(kRows))
+    valid = xgb.dask.DaskDMatrix(client, X, y)
+    out = xgb.dask.train(client, parameters,
+                         dtrain=dtrain,
+                         evals=[(valid, 'validation')],
                          num_boost_round=2)
     predictions = xgb.dask.predict(client=client, model=out,
                                    data=dtrain).compute()
@@ -637,6 +676,46 @@ def test_aft_survival():
 
 
 class TestWithDask:
+    def test_global_config(self, client):
+        X, y = generate_array()
+        xgb.config.set_config(verbosity=0)
+        dtrain = DaskDMatrix(client, X, y)
+        before_fname = './before_training-test_global_config'
+        after_fname = './after_training-test_global_config'
+
+        class TestCallback(xgb.callback.TrainingCallback):
+            def write_file(self, fname):
+                with open(fname, 'w') as fd:
+                    fd.write(str(xgb.config.get_config()['verbosity']))
+
+            def before_training(self, model):
+                self.write_file(before_fname)
+                assert xgb.config.get_config()['verbosity'] == 0
+                return model
+
+            def after_training(self, model):
+                assert xgb.config.get_config()['verbosity'] == 0
+                return model
+
+            def before_iteration(self, model, epoch, evals_log):
+                assert xgb.config.get_config()['verbosity'] == 0
+                return False
+
+            def after_iteration(self, model, epoch, evals_log):
+                self.write_file(after_fname)
+                assert xgb.config.get_config()['verbosity'] == 0
+                return False
+
+        xgb.dask.train(client, {}, dtrain, num_boost_round=4, callbacks=[TestCallback()])[
+            'booster']
+
+        with open(before_fname, 'r') as before, open(after_fname, 'r') as after:
+            assert before.read() == '0'
+            assert after.read() == '0'
+
+        os.remove(before_fname)
+        os.remove(after_fname)
+
     def run_updater_test(self, client, params, num_rounds, dataset,
                          tree_method):
         params['tree_method'] = tree_method
@@ -738,44 +817,6 @@ class TestWithDask:
     def test_quantile_same_on_all_workers(self):
         self.run_quantile('SameOnAllWorkers')
 
-
-class TestDaskCallbacks:
-    @pytest.mark.skipif(**tm.no_sklearn())
-    def test_early_stopping(self, client):
-        from sklearn.datasets import load_breast_cancer
-        X, y = load_breast_cancer(return_X_y=True)
-        X, y = da.from_array(X), da.from_array(y)
-        m = xgb.dask.DaskDMatrix(client, X, y)
-        early_stopping_rounds = 5
-        booster = xgb.dask.train(client, {'objective': 'binary:logistic',
-                                          'eval_metric': 'error',
-                                          'tree_method': 'hist'}, m,
-                                 evals=[(m, 'Train')],
-                                 num_boost_round=1000,
-                                 early_stopping_rounds=early_stopping_rounds)['booster']
-        assert hasattr(booster, 'best_score')
-        dump = booster.get_dump(dump_format='json')
-        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
-
-    @pytest.mark.skipif(**tm.no_sklearn())
-    def test_early_stopping_custom_eval(self, client):
-        from sklearn.datasets import load_breast_cancer
-        X, y = load_breast_cancer(return_X_y=True)
-        X, y = da.from_array(X), da.from_array(y)
-        m = xgb.dask.DaskDMatrix(client, X, y)
-        early_stopping_rounds = 5
-        booster = xgb.dask.train(
-            client, {'objective': 'binary:logistic',
-                     'eval_metric': 'error',
-                     'tree_method': 'hist'}, m,
-            evals=[(m, 'Train')],
-            feval=tm.eval_error_metric,
-            num_boost_round=1000,
-            early_stopping_rounds=early_stopping_rounds)['booster']
-        assert hasattr(booster, 'best_score')
-        dump = booster.get_dump(dump_format='json')
-        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
-
     def test_n_workers(self):
         with LocalCluster(n_workers=2) as cluster:
             with Client(cluster) as client:
@@ -795,6 +836,67 @@ class TestDaskCallbacks:
                 merged = xgb.dask._get_workers_from_data(train, evals=[(valid, 'Valid')])
                 assert len(merged) == 2
 
+    @pytest.mark.skipif(**tm.no_dask())
+    def test_feature_weights(self, client):
+        kRows = 1024
+        kCols = 64
+
+        X = da.random.random((kRows, kCols), chunks=(32, -1))
+        y = da.random.random(kRows, chunks=32)
+
+        fw = np.ones(shape=(kCols,))
+        for i in range(kCols):
+            fw[i] *= float(i)
+        fw = da.from_array(fw)
+        poly_increasing = run_feature_weights(X, y, fw, model=xgb.dask.DaskXGBRegressor)
+
+        fw = np.ones(shape=(kCols,))
+        for i in range(kCols):
+            fw[i] *= float(kCols - i)
+        fw = da.from_array(fw)
+        poly_decreasing = run_feature_weights(X, y, fw, model=xgb.dask.DaskXGBRegressor)
+
+        # Approxmated test, this is dependent on the implementation of random
+        # number generator in std library.
+        assert poly_increasing[0] > 0.08
+        assert poly_decreasing[0] < -0.08
+
+    @pytest.mark.skipif(**tm.no_dask())
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_custom_objective(self, client):
+        from sklearn.datasets import load_boston
+        X, y = load_boston(return_X_y=True)
+        X, y = da.from_array(X), da.from_array(y)
+        rounds = 20
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, 'log')
+
+            def sqr(labels, predts):
+                with open(path, 'a') as fd:
+                    print('Running sqr', file=fd)
+                grad = predts - labels
+                hess = np.ones(shape=labels.shape[0])
+                return grad, hess
+
+            reg = xgb.dask.DaskXGBRegressor(n_estimators=rounds, objective=sqr,
+                                            tree_method='hist')
+            reg.fit(X, y, eval_set=[(X, y)])
+
+            # Check the obj is ran for rounds.
+            with open(path, 'r') as fd:
+                out = fd.readlines()
+                assert len(out) == rounds
+
+            results_custom = reg.evals_result()
+
+            reg = xgb.dask.DaskXGBRegressor(n_estimators=rounds, tree_method='hist')
+            reg.fit(X, y, eval_set=[(X, y)])
+            results_native = reg.evals_result()
+
+            np.testing.assert_allclose(results_custom['validation_0']['rmse'],
+                                       results_native['validation_0']['rmse'])
+            tm.non_increasing(results_native['validation_0']['rmse'])
 
     def test_data_initialization(self):
         '''Assert each worker has the correct amount of data, and DMatrix initialization doesn't
@@ -835,3 +937,97 @@ class TestDaskCallbacks:
                 assert len(data) == cnt
                 # Subtract the on disk resource from each worker
                 assert cnt - n_workers == n_partitions
+
+
+class TestDaskCallbacks:
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_early_stopping(self, client):
+        from sklearn.datasets import load_breast_cancer
+        X, y = load_breast_cancer(return_X_y=True)
+        X, y = da.from_array(X), da.from_array(y)
+        m = xgb.dask.DaskDMatrix(client, X, y)
+
+        valid = xgb.dask.DaskDMatrix(client, X, y)
+        early_stopping_rounds = 5
+        booster = xgb.dask.train(client, {'objective': 'binary:logistic',
+                                          'eval_metric': 'error',
+                                          'tree_method': 'hist'}, m,
+                                 evals=[(valid, 'Valid')],
+                                 num_boost_round=1000,
+                                 early_stopping_rounds=early_stopping_rounds)['booster']
+        assert hasattr(booster, 'best_score')
+        dump = booster.get_dump(dump_format='json')
+        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
+        valid_X, valid_y = load_breast_cancer(return_X_y=True)
+        valid_X, valid_y = da.from_array(valid_X), da.from_array(valid_y)
+        cls = xgb.dask.DaskXGBClassifier(objective='binary:logistic', tree_method='hist',
+                                         n_estimators=1000)
+        cls.client = client
+        cls.fit(X, y, early_stopping_rounds=early_stopping_rounds,
+                eval_set=[(valid_X, valid_y)])
+        booster = cls.get_booster()
+        dump = booster.get_dump(dump_format='json')
+        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
+        # Specify the metric
+        cls = xgb.dask.DaskXGBClassifier(objective='binary:logistic', tree_method='hist',
+                                         n_estimators=1000)
+        cls.client = client
+        cls.fit(X, y, early_stopping_rounds=early_stopping_rounds,
+                eval_set=[(valid_X, valid_y)], eval_metric='error')
+        assert tm.non_increasing(cls.evals_result()['validation_0']['error'])
+        booster = cls.get_booster()
+        dump = booster.get_dump(dump_format='json')
+        assert len(cls.evals_result()['validation_0']['error']) < 20
+        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_early_stopping_custom_eval(self, client):
+        from sklearn.datasets import load_breast_cancer
+        X, y = load_breast_cancer(return_X_y=True)
+        X, y = da.from_array(X), da.from_array(y)
+        m = xgb.dask.DaskDMatrix(client, X, y)
+
+        valid = xgb.dask.DaskDMatrix(client, X, y)
+        early_stopping_rounds = 5
+        booster = xgb.dask.train(
+            client, {'objective': 'binary:logistic',
+                     'eval_metric': 'error',
+                     'tree_method': 'hist'}, m,
+            evals=[(m, 'Train'), (valid, 'Valid')],
+            feval=tm.eval_error_metric,
+            num_boost_round=1000,
+            early_stopping_rounds=early_stopping_rounds)['booster']
+        assert hasattr(booster, 'best_score')
+        dump = booster.get_dump(dump_format='json')
+        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
+        valid_X, valid_y = load_breast_cancer(return_X_y=True)
+        valid_X, valid_y = da.from_array(valid_X), da.from_array(valid_y)
+        cls = xgb.dask.DaskXGBClassifier(objective='binary:logistic', tree_method='hist',
+                                         n_estimators=1000)
+        cls.client = client
+        cls.fit(X, y, early_stopping_rounds=early_stopping_rounds,
+                eval_set=[(valid_X, valid_y)], eval_metric=tm.eval_error_metric)
+        booster = cls.get_booster()
+        dump = booster.get_dump(dump_format='json')
+        assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_callback(self, client):
+        from sklearn.datasets import load_breast_cancer
+        X, y = load_breast_cancer(return_X_y=True)
+        X, y = da.from_array(X), da.from_array(y)
+
+        cls = xgb.dask.DaskXGBClassifier(objective='binary:logistic', tree_method='hist',
+                                         n_estimators=10)
+        cls.client = client
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cls.fit(X, y, callbacks=[xgb.callback.TrainingCheckPoint(directory=tmpdir,
+                                                                     iterations=1,
+                                                                     name='model')])
+            for i in range(1, 10):
+                assert os.path.exists(
+                    os.path.join(tmpdir, 'model_' + str(i) + '.json'))

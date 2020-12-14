@@ -272,7 +272,11 @@ PredictKernel(Data data, common::Span<const RegTree::Node> d_nodes,
           d_categories.subspan(d_cat_tree_segments[tree_idx - tree_begin],
                                d_cat_tree_segments[tree_idx - tree_begin + 1] -
                                d_cat_tree_segments[tree_idx - tree_begin]);
-      float leaf = GetLeafWeight(global_idx, d_tree, d_tree_split_types,
+      auto tree_split_types =
+          d_tree_split_types.subspan(d_tree_segments[tree_idx - tree_begin],
+                                     d_tree_segments[tree_idx - tree_begin + 1] -
+                                     d_tree_segments[tree_idx - tree_begin]);
+      float leaf = GetLeafWeight(global_idx, d_tree, tree_split_types,
                                  tree_cat_ptrs,
                                  tree_categories,
                                  &loader);
@@ -580,7 +584,7 @@ class GPUPredictor : public xgboost::Predictor {
       Predictor::Predictor{generic_param} {}
 
   ~GPUPredictor() override {
-    if (generic_param_->gpu_id >= 0) {
+    if (generic_param_->gpu_id >= 0 && generic_param_->gpu_id < common::AllVisibleGPUs()) {
       dh::safe_cuda(cudaSetDevice(generic_param_->gpu_id));
     }
   }

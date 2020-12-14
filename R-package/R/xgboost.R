@@ -91,6 +91,8 @@ NULL
 #' @importFrom data.table setkeyv
 #' @importFrom data.table setnames
 #' @importFrom magrittr %>%
+#' @importFrom jsonlite fromJSON
+#' @importFrom jsonlite toJSON
 #' @importFrom utils object.size str tail
 #' @importFrom stats predict
 #' @importFrom stats median

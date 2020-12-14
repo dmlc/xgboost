@@ -222,6 +222,10 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
       LOG(WARNING) << "No visible GPU is found, setting `gpu_id` to -1";
     }
     this->UpdateAllowUnknown(Args{{"gpu_id", std::to_string(kCpuId)}});
+  } else if (fail_on_invalid_gpu_id) {
+    CHECK(gpu_id == kCpuId || gpu_id < n_gpus)
+      << "Only " << n_gpus << " GPUs are visible, gpu_id "
+      << gpu_id << " is invalid.";
   } else if (gpu_id != kCpuId && gpu_id >= n_gpus) {
     LOG(WARNING) << "Only " << n_gpus
                  << " GPUs are visible, setting `gpu_id` to " << gpu_id % n_gpus;
@@ -486,6 +490,12 @@ class LearnerConfiguration : public Learner {
 
     // Extract all parameters
     std::vector<std::string> keys;
+    // First global parameters
+    Json const global_config{ToJson(*GlobalConfigThreadLocalStore::Get())};
+    for (auto const& items : get<Object const>(global_config)) {
+      keys.emplace_back(items.first);
+    }
+    // Parameters in various xgboost components.
     while (!stack.empty()) {
       auto j_obj = stack.top();
       stack.pop();

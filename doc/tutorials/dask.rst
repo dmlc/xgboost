@@ -326,4 +326,3 @@ addressed yet:
 - Label encoding for the ``DaskXGBClassifier`` classifier may not be supported.  So users need
   to encode their training labels into discrete values first.
 - Ranking is not yet supported.
-- Callback functions are not tested.

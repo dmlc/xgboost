@@ -398,7 +398,7 @@ class XGBModel(XGBModelBase):
             'importance_type', 'kwargs', 'missing', 'n_estimators', 'use_label_encoder'}
         filtered = dict()
         for k, v in params.items():
-            if k not in wrapper_specific:
+            if k not in wrapper_specific and not callable(v):
                 filtered[k] = v
         return filtered
 

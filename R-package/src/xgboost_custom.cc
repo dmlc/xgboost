@@ -16,7 +16,7 @@ void CustomLogMessage::Log(const std::string& msg) {
 namespace xgboost {
 ConsoleLogger::~ConsoleLogger() {
   if (cur_verbosity_ == LogVerbosity::kIgnore ||
-      cur_verbosity_ <= global_verbosity_) {
+      cur_verbosity_ <= GlobalVerbosity()) {
     dmlc::CustomLogMessage::Log(log_stream_.str());
   }
 }
