@@ -6,12 +6,12 @@ This file records the changes in xgboost library in reverse chronological order.
 ## v1.3.0 (2020.12.08)
 
 ### XGBoost4J-Spark: Exceptions should cancel jobs gracefully instead of killing SparkContext (#6019).
-* Currently, exceptions in XGBoost4J-Spark causes the whole SparkContext to shut down, necessitating the restart of the Spark cluster. This behavior is often a major inconvenience.
+* By default, exceptions in XGBoost4J-Spark causes the whole SparkContext to shut down, necessitating the restart of the Spark cluster. This behavior is often a major inconvenience.
 * Starting from 1.3.0 release, XGBoost adds a new parameter `killSparkContextOnWorkerFailure` to optionally prevent killing SparkContext. If this parameter is set, exceptions will gracefully cancel training jobs instead of killing SparkContext.
 
 ### GPUTreeSHAP: GPU acceleration of the TreeSHAP algorithm (#6038, #6064, #6087, #6099, #6163, #6281, #6332)
-* [SHAP (SHapley Additive exPlanations)](https://github.com/slundberg/shap) is a game theoretic approach to explain prediction of machine learning models. It allocates feature importance scores to individual scores, attributing each feature for influencing a particular prediction. TreeSHAP is an optimized SHAP algorithm specifically designed for decision tree ensembles.
-* Starting with 1.3.0 release, it is now possible to leverage NVIDIA GPUs to accelerate the TreeSHAP algorithm. Check out [the demo notebook](https://github.com/dmlc/xgboost/blob/master/demo/gpu_acceleration/shap.ipynb).
+* [SHAP (SHapley Additive exPlanations)](https://github.com/slundberg/shap) is a game theoretic approach to explain predictions of machine learning models. It computes feature importance scores for individual examples, establishing how each feature influences a particular prediction. TreeSHAP is an optimized SHAP algorithm specifically designed for decision tree ensembles.
+* Starting with 1.3.0 release, it is now possible to leverage CUDA-capable GPUs to accelerate the TreeSHAP algorithm. Check out [the demo notebook](https://github.com/dmlc/xgboost/blob/master/demo/gpu_acceleration/shap.ipynb).
 * The CUDA implementation of the TreeSHAP algorithm is hosted at [rapidsai/GPUTreeSHAP](https://github.com/rapidsai/gputreeshap). XGBoost imports it as a Git submodule.
 
 ### New style Python callback API (#6199, #6270, #6320, #6348, #6376, #6399, #6441)
@@ -48,7 +48,7 @@ This file records the changes in xgboost library in reverse chronological order.
 * Currently, XGBoost requires users to one-hot-encode categorical variables. This has adverse performance implications, as the creation of many dummy variables results into higher memory consumption and may require fitting deeper trees to achieve equivalent model accuracy.
 * The 1.3.0 release of XGBoost contains an experimental support for direct handling of categorical variables in test nodes. Each test node will have the condition of form `feature_value \in match_set`, where the `match_set` on the right hand side contains one or more matching categories. The matching categories in `match_set` represent the condition for traversing to the right child node. Currently, XGBoost will only generate categorical splits with only a single matching category ("one-vs-rest split"). In a future release, we plan to remove this restriction and produce splits with multiple matching categories in `match_set`.
 * The categorical split requires the use of JSON model serialization. The legacy binary serialization method cannot be used to save (persist) models with categorical splits.
-* Note. This feature is currently highly experimental. Use it with your own risk. See the detailed list of limitations at [#5949](https://github.com/dmlc/xgboost/pull/5949).
+* Note. This feature is currently highly experimental. Use it at your own risk. See the detailed list of limitations at [#5949](https://github.com/dmlc/xgboost/pull/5949).
 
 ### Experimental plugin for RAPIDS Memory Manager (#5873, #6131, #6146, #6150, #6182)
 * RAPIDS Memory Manager library ([rapidsai/rmm](https://github.com/rapidsai/rmm)) provides a collection of efficient memory allocators for NVIDIA GPUs. It is now possible to use XGBoost with memory allocators provided by RMM, by enabling the RMM integration plugin. With this plugin, XGBoost is now able to share a common GPU memory pool with other applications using RMM, such as the RAPIDS data science packages.
