@@ -786,8 +786,6 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
                 ctypes.c_int(1 if allow_groups else 0),
             )
         )
-        res.feature_names = self.feature_names
-        res.feature_types = self.feature_types
         return res
 
     @property
