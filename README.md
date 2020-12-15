@@ -8,6 +8,7 @@
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)
 [![CRAN Status Badge](http://www.r-pkg.org/badges/version/xgboost)](http://cran.r-project.org/web/packages/xgboost)
 [![PyPI version](https://badge.fury.io/py/xgboost.svg)](https://pypi.python.org/pypi/xgboost/)
+[![Conda version](https://img.shields.io/conda/vn/conda-forge/py-xgboost.svg)](https://anaconda.org/conda-forge/py-xgboost)
 [![Optuna](https://img.shields.io/badge/Optuna-integrated-blue)](https://optuna.org)
 [![Twitter](https://img.shields.io/badge/@XGBoostProject--_.svg?style=social&logo=twitter)](https://twitter.com/XGBoostProject)
 
