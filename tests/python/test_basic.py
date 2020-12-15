@@ -57,6 +57,25 @@ class TestBasic:
             # assert they are the same
             assert np.sum(np.abs(preds2 - preds)) == 0
 
+    def test_metric_config(self):
+        # Make sure that the metric configuration happens in booster so the
+        # string `['error', 'auc']` doesn't get passed down to core.
+        dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
+        dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
+        param = {'max_depth': 2, 'eta': 1, 'verbosity': 0,
+                 'objective': 'binary:logistic', 'eval_metric': ['error', 'auc']}
+        watchlist = [(dtest, 'eval'), (dtrain, 'train')]
+        num_round = 2
+        booster = xgb.train(param, dtrain, num_round, watchlist)
+        predt_0 = booster.predict(dtrain)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, 'model.json')
+            booster.save_model(path)
+
+            booster = xgb.Booster(params=param, model_file=path)
+            predt_1 = booster.predict(dtrain)
+            np.testing.assert_allclose(predt_0, predt_1)
+
     def test_record_results(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')
         dtest = xgb.DMatrix(dpath + 'agaricus.txt.test')
@@ -124,8 +143,8 @@ class TestBasic:
 
         dump2 = bst.get_dump(with_stats=True)
         assert dump2[0].count('\n') == 3, 'Expected 1 root and 2 leaves - 3 lines in dump.'
-        assert (dump2[0].find('\n') > dump1[0].find('\n'),
-                'Expected more info when with_stats=True is given.')
+        msg = 'Expected more info when with_stats=True is given.'
+        assert dump2[0].find('\n') > dump1[0].find('\n'), msg
 
         dump3 = bst.get_dump(dump_format="json")
         dump3j = json.loads(dump3[0])
@@ -248,12 +267,10 @@ class TestBasicPathLike:
         assert binary_path.exists()
         Path.unlink(binary_path)
 
-
     def test_Booster_init_invalid_path(self):
         """An invalid model_file path should raise XGBoostError."""
         with pytest.raises(xgb.core.XGBoostError):
             xgb.Booster(model_file=Path("invalidpath"))
-
 
     def test_Booster_save_and_load(self):
         """Saving and loading model files from paths."""
