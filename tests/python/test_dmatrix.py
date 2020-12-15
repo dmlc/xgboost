@@ -222,6 +222,7 @@ class TestDMatrix:
                 "c": [4, 5]
             })
             m0 = xgb.DMatrix(data.loc[:, ["a", "b"]], data["c"])
+            assert m0.feature_names == ['a', 'b']
             m0.save_binary(path)
             m1 = xgb.DMatrix(path)
             assert m0.feature_names == m1.feature_names
