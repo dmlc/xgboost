@@ -40,18 +40,6 @@ def _is_new_callback(callbacks):
                for c in callbacks) or not callbacks
 
 
-def _configure_metrics(params):
-    if isinstance(params, dict) and 'eval_metric' in params \
-       and isinstance(params['eval_metric'], list):
-        params = dict((k, v) for k, v in params.items())
-        eval_metrics = params['eval_metric']
-        params.pop("eval_metric", None)
-        params = list(params.items())
-        for eval_metric in eval_metrics:
-            params += [('eval_metric', eval_metric)]
-    return params
-
-
 def _train_internal(params, dtrain,
                     num_boost_round=10, evals=(),
                     obj=None, feval=None,
@@ -61,7 +49,6 @@ def _train_internal(params, dtrain,
     """internal training function"""
     callbacks = [] if callbacks is None else copy.copy(callbacks)
     evals = list(evals)
-    params = _configure_metrics(params.copy())
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
     nboost = 0
