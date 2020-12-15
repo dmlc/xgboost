@@ -99,30 +99,6 @@ class QuantileHistMock : public QuantileHistMaker {
       }
     }
 
-    void TestInitDataSampling(const GHistIndexMatrix& gmat,
-                      const std::vector<GradientPair>& gpair,
-                      DMatrix* p_fmat,
-                      const RegTree& tree) {
-      const size_t nthreads = omp_get_num_threads();
-      // save state of global rng engine
-      auto initial_rnd = common::GlobalRandom();
-      RealImpl::InitData(gmat, gpair, *p_fmat, tree);
-      std::vector<size_t> row_indices_initial = *(this->row_set_collection_.Data());
-
-      for (size_t i_nthreads = 1; i_nthreads < 4; ++i_nthreads) {
-        omp_set_num_threads(i_nthreads);
-        // return initial state of global rng engine
-        common::GlobalRandom() = initial_rnd;
-        RealImpl::InitData(gmat, gpair, *p_fmat, tree);
-        std::vector<size_t>& row_indices = *(this->row_set_collection_.Data());
-        ASSERT_EQ(row_indices_initial.size(), row_indices.size());
-        for (size_t i = 0; i < row_indices_initial.size(); ++i) {
-          ASSERT_EQ(row_indices_initial[i], row_indices[i]);
-        }
-      }
-      omp_set_num_threads(nthreads);
-    }
-
     void TestAddHistRows(const GHistIndexMatrix& gmat,
                          const std::vector<GradientPair>& gpair,
                          DMatrix* p_fmat,
@@ -524,24 +500,6 @@ class QuantileHistMock : public QuantileHistMaker {
     }
   }
 
-  void TestInitDataSampling() {
-    size_t constexpr kMaxBins = 4;
-    common::GHistIndexMatrix gmat;
-    gmat.Init(dmat_.get(), kMaxBins);
-
-    RegTree tree = RegTree();
-    tree.param.UpdateAllowUnknown(cfg_);
-
-    std::vector<GradientPair> gpair =
-        { {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f}, {0.23f, 0.24f},
-          {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f}, {0.27f, 0.29f} };
-    if (double_builder_) {
-      double_builder_->TestInitDataSampling(gmat, gpair, dmat_.get(), tree);
-    } else {
-      float_builder_->TestInitDataSampling(gmat, gpair, dmat_.get(), tree);
-    }
-  }
-
   void TestAddHistRows() {
     size_t constexpr kMaxBins = 4;
     common::GHistIndexMatrix gmat;
@@ -620,18 +578,6 @@ TEST(QuantileHist, InitData) {
   const bool single_precision_histogram = true;
   QuantileHistMock maker_float(cfg, single_precision_histogram);
   maker_float.TestInitData();
-}
-
-TEST(QuantileHist, InitDataSampling) {
-  const float subsample = 0.5;
-  std::vector<std::pair<std::string, std::string>> cfg
-      {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())},
-       {"subsample", std::to_string(subsample)}};
-  QuantileHistMock maker(cfg);
-  maker.TestInitDataSampling();
-  const bool single_precision_histogram = true;
-  QuantileHistMock maker_float(cfg, single_precision_histogram);
-  maker_float.TestInitDataSampling();
 }
 
 TEST(QuantileHist, AddHistRows) {
