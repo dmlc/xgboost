@@ -347,8 +347,9 @@ If early stopping is enabled by also passing ``early_stopping_rounds``, you can 
 
 .. code-block:: python
 
-    bst = result["booster"]
+    booster = result["booster"]
     print(booster.best_iteration)
+    best_model = booster[: booster.best_iteration]
 
 *****************************************************************************
 Why is the initialization of ``DaskDMatrix``  so slow and throws weird errors
