@@ -7,6 +7,7 @@ import collections
 from collections.abc import Mapping
 from typing import List, Optional, Any, Union, Dict
 # pylint: enable=no-name-in-module,import-error
+from typing import Callable, Tuple
 import ctypes
 import os
 import re
@@ -988,6 +989,10 @@ class DeviceQuantileDMatrix(DMatrix):
                 interfaces_str
             )
         )
+
+
+Objective = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
+Metric = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
 
 
 class Booster(object):

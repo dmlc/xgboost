@@ -443,8 +443,8 @@ class XGBModel(XGBModelBase):
             except TypeError:
                 warnings.warn(str(k) + ' is not saved in Scikit-Learn meta.')
         meta['type'] = type(self).__name__
-        meta = json.dumps(meta)
-        self.get_booster().set_attr(scikit_learn=meta)
+        meta_str = json.dumps(meta)
+        self.get_booster().set_attr(scikit_learn=meta_str)
         self.get_booster().save_model(fname)
         # Delete the attribute after save
         self.get_booster().set_attr(scikit_learn=None)
