@@ -1,12 +1,12 @@
 # coding: utf-8
 # pylint: disable=too-many-arguments, too-many-branches, invalid-name
-# pylint: disable=too-many-lines, too-many-locals
+# pylint: disable=too-many-lines, too-many-locals, no-self-use
 """Core XGBoost Library."""
 import collections
 # pylint: disable=no-name-in-module,import-error
 from collections.abc import Mapping
 # pylint: enable=no-name-in-module,import-error
-from typing import Union, List
+from typing import Dict, Union, List
 import ctypes
 import os
 import re
@@ -1018,6 +1018,7 @@ class Booster(object):
         _check_call(_LIB.XGBoosterCreate(dmats, c_bst_ulong(len(cache)),
                                          ctypes.byref(self.handle)))
         params = params or {}
+        params = self._configure_metrics(params.copy())
         if isinstance(params, list):
             params.append(('validate_parameters', True))
         else:
@@ -1046,6 +1047,17 @@ class Booster(object):
             pass
         else:
             raise TypeError('Unknown type:', model_file)
+
+    def _configure_metrics(self, params: Union[Dict, List]) -> Union[Dict, List]:
+        if isinstance(params, dict) and 'eval_metric' in params \
+           and isinstance(params['eval_metric'], list):
+            params = dict((k, v) for k, v in params.items())
+            eval_metrics = params['eval_metric']
+            params.pop("eval_metric", None)
+            params = list(params.items())
+            for eval_metric in eval_metrics:
+                params += [('eval_metric', eval_metric)]
+        return params
 
     def __del__(self):
         if hasattr(self, 'handle') and self.handle is not None:

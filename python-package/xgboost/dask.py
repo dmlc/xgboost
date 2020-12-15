@@ -312,7 +312,7 @@ class DaskDMatrix:
         await distributed.wait(parts)  # async wait for parts to be computed
 
         for part in parts:
-            assert part.status == 'finished'
+            assert part.status == 'finished', part.status
 
         # Preserving the partition order for prediction.
         self.partition_order = {}
