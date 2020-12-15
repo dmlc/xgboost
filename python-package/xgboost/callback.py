@@ -621,7 +621,7 @@ class EvaluationMonitor(TrainingCallback):
                     msg += self._fmt_metric(data, metric_name, score, stdv)
             msg += '\n'
 
-            if (epoch % self.period) != 0 or self.period == 1:
+            if (epoch % self.period) == 0 or self.period == 1:
                 rabit.tracker_print(msg)
                 self._latest = None
             else:
