@@ -190,7 +190,7 @@ class TestCallbacks:
                 eval_metric=tm.eval_error_metric,
                 callbacks=[early_stop])
         booster = cls.get_booster()
-        assert booster.num_boosted_rounds() == booster.best_iteration
+        assert booster.num_boosted_rounds() == booster.best_iteration + 1
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, 'model.json')
