@@ -98,7 +98,7 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
  * \param data fvalue
  * \param nindptr number of rows in the matrix + 1
  * \param nelem number of nonzero elements in the matrix
- * \param num_col number of columns; when it's set to 0, then guess from data
+ * \param num_col number of columns; when it's set to kAdapterUnknownSize, then guess from data
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
