@@ -41,12 +41,6 @@ except ImportError:
     pandas_concat = None
     PANDAS_INSTALLED = False
 
-# cudf
-try:
-    from cudf import concat as CUDF_concat
-except ImportError:
-    CUDF_concat = None
-
 # sklearn
 try:
     from sklearn.base import BaseEstimator
@@ -104,9 +98,10 @@ except ImportError:
 
 # dask
 try:
-    import dask
+    import pkg_resources
+    pkg_resources.get_distribution('dask')
     DASK_INSTALLED = True
-except ImportError:
+except pkg_resources.DistributionNotFound:
     dask = None
     DASK_INSTALLED = False
 
