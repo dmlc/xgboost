@@ -5,9 +5,8 @@
 import collections
 # pylint: disable=no-name-in-module,import-error
 from collections.abc import Mapping
-from typing import List, Optional, Any, Union
+from typing import List, Optional, Any, Union, Dict
 # pylint: enable=no-name-in-module,import-error
-from typing import Dict, Union, List
 import ctypes
 import os
 import re
