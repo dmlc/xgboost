@@ -102,11 +102,12 @@ class SingleBatchDataIter : dmlc::DataIter<DType> {
 };
 
 /** \brief Indicates this data source cannot contain meta-info such as labels,
- * weights or qid. */
+ * weights, sample groups, or qid. */
 class NoMetaInfo {
  public:
   const float* Labels() const { return nullptr; }
   const float* Weights() const { return nullptr; }
+  const uint32_t* SampleGroups() const { return nullptr; }
   const uint64_t* Qid() const { return nullptr; }
   const float* BaseMargin() const { return nullptr; }
 };
@@ -455,6 +456,7 @@ class FileAdapterBatch {
   }
   const float* Labels() const { return block_->label; }
   const float* Weights() const { return block_->weight; }
+  const uint32_t* SampleGroups() const { return block_->sample_group; }
   const uint64_t* Qid() const { return block_->qid; }
   const float* BaseMargin() const { return nullptr; }
 

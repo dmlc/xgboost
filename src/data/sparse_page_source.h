@@ -340,6 +340,7 @@ class SparsePageSource {
           weights.insert(weights.end(), batch.Weights(),
                          batch.Weights() + batch.Size());
         }
+//TODO(tpb) insert into info.sample_groups_
         if (batch.BaseMargin() != nullptr) {
           auto& base_margin = info.base_margin_.HostVector();
           base_margin.insert(base_margin.end(), batch.BaseMargin(),
@@ -366,6 +367,8 @@ class SparsePageSource {
         pool.Push(page);
         page->SetBaseRowId(inferred_num_rows);
       }
+
+//TODO(tpb) build info.sample_group_numbers_
 
       if (last_group_id != default_max) {
         if (group_size > info.group_ptr_.back()) {

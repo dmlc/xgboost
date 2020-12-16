@@ -148,14 +148,34 @@ class BaseMaker: public TreeUpdater {
       }
       // mark subsample
       if (param_.subsample < 1.0f) {
-        CHECK_EQ(param_.sampling_method, TrainParam::kUniform)
-          << "Only uniform sampling is supported, "
-          << "gradient-based sampling is only support by GPU Hist.";
-        std::bernoulli_distribution coin_flip(param_.subsample);
-        auto& rnd = common::GlobalRandom();
-        for (size_t i = 0; i < position_.size(); ++i) {
-          if (gpair[i].GetHess() < 0.0f) continue;
-          if (!coin_flip(rnd)) position_[i] = ~position_[i];
+        CHECK_NE(param_.sampling_method, TrainParam::kGradientBased)
+          << "Only uniform and grouped sampling are supported; "
+          << "gradient-based sampling is only supported for tree_method = gpu_hist";
+        const MetaInfo& info = fmat.Info();
+        auto& sample_group_numbers = info.sample_group_numbers_.HostVector();
+        if (param_.sampling_method == TrainParam::kGrouped) {
+          CHECK_GT(sample_group_numbers.size(), 0)
+            << "group number column must be provided for group based subsampling";
+          std::cout << "TPB BaseMaker grouped subsampling" << std::endl;
+          std::set<bst_sample_group_t> random_group_numbers;
+          info.SelectRandomSampleGroups(param_.subsample, random_group_numbers);
+          const auto& sample_groups = info.sample_groups_.HostVector();
+          const auto row_count = static_cast<bst_omp_uint>(position_.size());
+          #pragma omp parallel for schedule(static)
+          for (bst_omp_uint i = 0; i < row_count; ++i) {
+            if (gpair[i].GetHess() < 0.0f) continue;
+            if (random_group_numbers.find(sample_groups[i]) == random_group_numbers.end()) {
+              position_[i] = ~position_[i];
+            }
+          }
+        } else {
+          std::cout << "TPB BaseMaker legacy subsampling" << std::endl;
+          std::bernoulli_distribution coin_flip(param_.subsample);
+          auto& rnd = common::GlobalRandom();
+          for (size_t i = 0; i < position_.size(); ++i) {
+            if (gpair[i].GetHess() < 0.0f) continue;
+            if (!coin_flip(rnd)) position_[i] = ~position_[i];
+          }
         }
       }
     }

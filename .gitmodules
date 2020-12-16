@@ -1,7 +1,7 @@
 [submodule "dmlc-core"]
 	path = dmlc-core
-	url = https://github.com/dmlc/dmlc-core
-	branch = main
+	url = https://github.com/tpboudreau/dmlc-core
+	branch = grouped_bagging
 [submodule "cub"]
 	path = cub
 	url = https://github.com/NVlabs/cub

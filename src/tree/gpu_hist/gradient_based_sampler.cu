@@ -9,6 +9,8 @@
 
 #include <algorithm>
 #include <limits>
+#include <sstream>
+#include <set>
 
 #include "../../common/compressed_iterator.h"
 #include "../../common/random.h"
@@ -45,6 +47,35 @@ class BernoulliTrial : public thrust::unary_function<size_t, bool> {
  private:
   RandomWeight rnd_;
   float p_;
+};
+
+/*! \brief A functor that performs a set element test to discard a gradient pair. */
+class SelectedGroupRow : public thrust::unary_function<bst_sample_group_t, bool> {
+ public:
+  SelectedGroupRow(common::Span<bst_sample_group_t> sg) : selected_groups_(sg) {}
+
+  XGBOOST_DEVICE bool operator()(bst_sample_group_t observed_group) const {
+    bool found = false;
+	int lo = 0;
+	int hi = selected_groups_.size() - 1;
+	while (lo <= hi) {
+		int md = lo + (hi - lo) / 2;
+		if (selected_groups_[md] == observed_group) {
+			found = true;
+			break;
+		} else {
+			if (selected_groups_[md] < observed_group) {
+				lo = md + 1;
+			} else {
+				hi = md - 1;
+			}
+		}
+	}
+    return !found;
+  }
+
+ private:
+  common::Span<bst_sample_group_t> selected_groups_; // integers in ascending order
 };
 
 /*! \brief A functor that returns true if the gradient pair is non-zero. */
@@ -146,6 +177,7 @@ class PoissonSampling : public thrust::binary_function<GradientPair, size_t, Gra
 NoSampling::NoSampling(EllpackPageImpl* page) : page_(page) {}
 
 GradientBasedSample NoSampling::Sample(common::Span<GradientPair> gpair, DMatrix* dmat) {
+LOG(CONSOLE) << "TPB GPU no subsampling";
   return {dmat->Info().num_row_, page_, gpair};
 }
 
@@ -158,6 +190,7 @@ ExternalMemoryNoSampling::ExternalMemoryNoSampling(EllpackPageImpl* page,
 
 GradientBasedSample ExternalMemoryNoSampling::Sample(common::Span<GradientPair> gpair,
                                                      DMatrix* dmat) {
+LOG(CONSOLE) << "TPB GPU [external] no subsampling";
   if (!page_concatenated_) {
     // Concatenate all the external memory ELLPACK pages into a single in-memory page.
     size_t offset = 0;
@@ -180,6 +213,7 @@ GradientBasedSample UniformSampling::Sample(common::Span<GradientPair> gpair, DM
                      thrust::counting_iterator<size_t>(0),
                      BernoulliTrial(common::GlobalRandom()(), subsample_),
                      GradientPair());
+LOG(CONSOLE) << "TPB GPU uniform subsampling";
   return {dmat->Info().num_row_, page_, gpair};
 }
 
@@ -194,10 +228,83 @@ ExternalMemoryUniformSampling::ExternalMemoryUniformSampling(EllpackPageImpl* pa
 
 GradientBasedSample ExternalMemoryUniformSampling::Sample(common::Span<GradientPair> gpair,
                                                           DMatrix* dmat) {
+LOG(CONSOLE) << "TPB GPU [external] uniform subsampling";
   // Set gradient pair to 0 with p = 1 - subsample
   thrust::replace_if(dh::tbegin(gpair), dh::tend(gpair),
                      thrust::counting_iterator<size_t>(0),
                      BernoulliTrial(common::GlobalRandom()(), subsample_),
+                     GradientPair());
+
+  // Count the sampled rows.
+  size_t sample_rows = thrust::count_if(dh::tbegin(gpair), dh::tend(gpair), IsNonZero());
+
+  // Compact gradient pairs.
+  gpair_.resize(sample_rows);
+  thrust::copy_if(dh::tbegin(gpair), dh::tend(gpair), gpair_.begin(), IsNonZero());
+
+  // Index the sample rows.
+  thrust::transform(dh::tbegin(gpair), dh::tend(gpair), sample_row_index_.begin(), IsNonZero());
+  thrust::exclusive_scan(sample_row_index_.begin(), sample_row_index_.end(),
+                         sample_row_index_.begin());
+  thrust::transform(dh::tbegin(gpair), dh::tend(gpair),
+                    sample_row_index_.begin(),
+                    sample_row_index_.begin(),
+                    ClearEmptyRows());
+
+  // Create a new ELLPACK page with empty rows.
+  page_.reset();  // Release the device memory first before reallocating
+  page_.reset(new EllpackPageImpl(
+      batch_param_.gpu_id, original_page_->Cuts(), original_page_->is_dense,
+                                  original_page_->row_stride, sample_rows));
+
+  // Compact the ELLPACK pages into the single sample page.
+  thrust::fill(dh::tbegin(page_->gidx_buffer), dh::tend(page_->gidx_buffer), 0);
+  for (auto& batch : dmat->GetBatches<EllpackPage>(batch_param_)) {
+    page_->Compact(batch_param_.gpu_id, batch.Impl(), dh::ToSpan(sample_row_index_));
+  }
+
+  return {sample_rows, page_.get(), dh::ToSpan(gpair_)};
+}
+
+GroupedSampling::GroupedSampling(EllpackPageImpl* page, float subsample)
+    : page_(page), subsample_(subsample) {}
+
+GradientBasedSample GroupedSampling::Sample(common::Span<GradientPair> gpair, DMatrix* dmat) {
+LOG(CONSOLE) << "TPB GPU grouped subsampling";
+  const MetaInfo& info = dmat->Info();
+  std::set<bst_sample_group_t> random_groups;
+  info.SelectRandomSampleGroups(subsample_, random_groups);
+  selected_groups_.clear();
+  selected_groups_.insert(selected_groups_.begin(), random_groups.cbegin(), random_groups.cend());
+  thrust::replace_if(dh::tbegin(gpair),
+                     dh::tend(gpair),
+                     dh::tcbegin(info.sample_groups_.ConstDeviceSpan()),
+                     SelectedGroupRow(dh::ToSpan(selected_groups_)),
+                     GradientPair());
+  return {dmat->Info().num_row_, page_, gpair};
+}
+
+ExternalMemoryGroupedSampling::ExternalMemoryGroupedSampling(EllpackPageImpl* page,
+                                                             size_t n_rows,
+                                                             const BatchParam& batch_param,
+                                                             float subsample)
+    : original_page_(page),
+      batch_param_(batch_param),
+      subsample_(subsample),
+      sample_row_index_(n_rows) {}
+
+GradientBasedSample ExternalMemoryGroupedSampling::Sample(common::Span<GradientPair> gpair,
+                                                          DMatrix* dmat) {
+LOG(CONSOLE) << "TPB GPU [external] grouped subsampling";
+  const MetaInfo& info = dmat->Info();
+  std::set<bst_sample_group_t> random_groups;
+  info.SelectRandomSampleGroups(subsample_, random_groups);
+  selected_groups_.clear();
+  selected_groups_.insert(selected_groups_.begin(), random_groups.cbegin(), random_groups.cend());
+  thrust::replace_if(dh::tbegin(gpair),
+                     dh::tend(gpair),
+                     dh::tcbegin(info.sample_groups_.ConstDeviceSpan()),
+                     SelectedGroupRow(dh::ToSpan(selected_groups_)),
                      GradientPair());
 
   // Count the sampled rows.
@@ -242,6 +349,7 @@ GradientBasedSampling::GradientBasedSampling(EllpackPageImpl* page,
 
 GradientBasedSample GradientBasedSampling::Sample(common::Span<GradientPair> gpair,
                                                   DMatrix* dmat) {
+LOG(CONSOLE) << "TPB GPU gradient subsampling";
   size_t n_rows = dmat->Info().num_row_;
   size_t threshold_index = GradientBasedSampler::CalculateThresholdIndex(
       gpair, dh::ToSpan(threshold_), dh::ToSpan(grad_sum_), n_rows * subsample_);
@@ -270,6 +378,7 @@ ExternalMemoryGradientBasedSampling::ExternalMemoryGradientBasedSampling(
 
 GradientBasedSample ExternalMemoryGradientBasedSampling::Sample(common::Span<GradientPair> gpair,
                                                                 DMatrix* dmat) {
+LOG(CONSOLE) << "TPB GPU [external] gradient subsampling";
   size_t n_rows = dmat->Info().num_row_;
   size_t threshold_index = GradientBasedSampler::CalculateThresholdIndex(
       gpair, dh::ToSpan(threshold_), dh::ToSpan(grad_sum_), n_rows * subsample_);
@@ -338,6 +447,13 @@ GradientBasedSampler::GradientBasedSampler(EllpackPageImpl* page,
               new ExternalMemoryGradientBasedSampling(page, n_rows, batch_param, subsample));
         } else {
           strategy_.reset(new GradientBasedSampling(page, n_rows, batch_param, subsample));
+        }
+        break;
+      case TrainParam::kGrouped:
+        if (is_external_memory) {
+          strategy_.reset(new ExternalMemoryGroupedSampling(page, n_rows, batch_param, subsample));
+        } else {
+          strategy_.reset(new GroupedSampling(page, subsample));
         }
         break;
       default:LOG(FATAL) << "unknown sampling method";

@@ -90,6 +90,9 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
     auto valid =
         thrust::all_of(thrust::device, ptr, ptr + weights_.Size(), AllOfOp{});
     CHECK(valid) << "Weights must be positive values.";
+  } else if (key == "sample_group") {
+//TODO(tpb): (1) fix copy below; (2) rebuild sample_group_numbers_ (?)
+    //CopyInfoImpl(array_interface, &sample_groups_);
   } else if (key == "base_margin") {
     CopyInfoImpl(array_interface, &base_margin_);
   } else if (key == "group") {

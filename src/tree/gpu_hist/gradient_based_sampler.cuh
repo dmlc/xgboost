@@ -63,7 +63,7 @@ class UniformSampling : public SamplingStrategy {
   float subsample_;
 };
 
-/*! \brief No sampling in external memory mode. */
+/*! \brief Uniform sampling in external memory mode. */
 class ExternalMemoryUniformSampling : public SamplingStrategy {
  public:
   ExternalMemoryUniformSampling(EllpackPageImpl* page,
@@ -79,6 +79,37 @@ class ExternalMemoryUniformSampling : public SamplingStrategy {
   std::unique_ptr<EllpackPageImpl> page_;
   dh::device_vector<GradientPair> gpair_{};
   dh::caching_device_vector<size_t> sample_row_index_;
+};
+
+/*! \brief Grouped sampling in in-memory mode. */
+class GroupedSampling : public SamplingStrategy {
+ public:
+  GroupedSampling(EllpackPageImpl* page, float subsample);
+  GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
+
+ private:
+  EllpackPageImpl* page_;
+  float subsample_;
+  dh::caching_device_vector<bst_sample_group_t> selected_groups_;
+};
+
+/*! \brief Grouped sampling in external memory mode. */
+class ExternalMemoryGroupedSampling : public SamplingStrategy {
+ public:
+  ExternalMemoryGroupedSampling(EllpackPageImpl* page,
+                                size_t n_rows,
+                                const BatchParam& batch_param,
+                                float subsample);
+  GradientBasedSample Sample(common::Span<GradientPair> gpair, DMatrix* dmat) override;
+
+ private:
+  EllpackPageImpl* original_page_;
+  BatchParam batch_param_;
+  float subsample_;
+  std::unique_ptr<EllpackPageImpl> page_;
+  dh::device_vector<GradientPair> gpair_{};
+  dh::caching_device_vector<size_t> sample_row_index_;
+  dh::caching_device_vector<bst_sample_group_t> selected_groups_;
 };
 
 /*! \brief Gradient-based sampling in in-memory mode.. */

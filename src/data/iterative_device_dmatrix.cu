@@ -85,6 +85,7 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
                                    batch_param_.max_bin, cols, num_rows(), get_device());
     auto* p_sketch = &sketch_containers.back();
     proxy->Info().weights_.SetDevice(get_device());
+    proxy->Info().sample_groups_.SetDevice(get_device());
     Dispatch(proxy, [&](auto const &value) {
         common::AdapterDeviceSketch(value, batch_param_.max_bin,
                                     proxy->Info(), missing, p_sketch);

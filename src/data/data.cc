@@ -4,6 +4,8 @@
  */
 #include <dmlc/registry.h>
 #include <cstring>
+#include <random>
+#include <sstream>
 
 #include "dmlc/io.h"
 #include "xgboost/data.h"
@@ -20,6 +22,7 @@
 #include "../common/version.h"
 #include "../common/group_data.h"
 #include "../common/threading_utils.h"
+#include "../common/random.h"
 #include "../data/adapter.h"
 #include "../data/iterative_device_dmatrix.h"
 
@@ -135,8 +138,44 @@ void MetaInfo::Clear() {
   labels_.HostVector().clear();
   group_ptr_.clear();
   weights_.HostVector().clear();
+  sample_groups_.HostVector().clear();
+  sample_group_numbers_.HostVector().clear();
   base_margin_.HostVector().clear();
 }
+
+void MetaInfo::SelectRandomSampleGroups(float subsample, std::set<bst_sample_group_t>& random_group_numbers) const {
+  CHECK_LT(subsample, 1.0);
+  auto& sample_group_numbers = sample_group_numbers_.HostVector();
+  long int random_group_count = 0;
+  if (subsample > 0.0) {
+    random_group_count = std::lround(subsample * static_cast<float>(sample_group_numbers.size()));
+    // Make sure at least one sample group is eliminated (subsample < 1.0)
+    random_group_count = std::min(random_group_count, static_cast<long int>(sample_group_numbers.size()) - 1L);
+    // Make sure at least one sample group is represented (subsample > 0.0)
+    random_group_count = std::max(random_group_count, 1L);
+  }
+  CHECK_GE(random_group_count, 0L);
+  CHECK_LE(random_group_count, sample_group_numbers.size());
+  LOG(DEBUG) << "grouped subsampling using " << random_group_count << " of " << sample_group_numbers.size() << " groups";
+  auto& generator = common::GlobalRandom();
+  std::uniform_int_distribution<> random_index(0, sample_group_numbers.size() - 1);
+  random_group_numbers.clear();
+  for (long int i = 0; i < random_group_count; ++i) {
+    auto result = random_group_numbers.insert(sample_group_numbers[random_index(generator)]);
+    // retry if the same group number was randomly selected more than once; assumes there are
+    // no duplicates in sample_group_numbers_.
+    while (!result.second) {
+      result = random_group_numbers.insert(sample_group_numbers[random_index(generator)]);
+    }
+  }
+  CHECK_EQ(random_group_count, random_group_numbers.size());
+  std::stringstream numbers;
+  for (bst_sample_group_t g : random_group_numbers) {numbers << " " << g;}
+  LOG(DEBUG) << "selected sample group numbers:" << numbers.str();
+  return;
+}
+
+// TODO(tpb): update this comment
 
 /*
  * Binary serialization format for MetaInfo:
@@ -174,6 +213,10 @@ void MetaInfo::SaveBinary(dmlc::Stream *fo) const {
                   {group_ptr_.size(), 1}, group_ptr_); ++field_cnt;
   SaveVectorField(fo, u8"weights", DataType::kFloat32,
                   {weights_.Size(), 1}, weights_); ++field_cnt;
+  SaveVectorField(fo, u8"sample_groups", DataType::kUInt32,
+                  {sample_groups_.Size(), 1}, sample_groups_); ++field_cnt;
+  SaveVectorField(fo, u8"sample_group_numbers", DataType::kUInt32,
+                  {sample_group_numbers_.Size(), 1}, sample_group_numbers_); ++field_cnt;
   SaveVectorField(fo, u8"base_margin", DataType::kFloat32,
                   {base_margin_.Size(), 1}, base_margin_); ++field_cnt;
   SaveVectorField(fo, u8"labels_lower_bound", DataType::kFloat32,
@@ -243,6 +286,8 @@ void MetaInfo::LoadBinary(dmlc::Stream *fi) {
   LoadVectorField(fi, u8"labels", DataType::kFloat32, &labels_);
   LoadVectorField(fi, u8"group_ptr", DataType::kUInt32, &group_ptr_);
   LoadVectorField(fi, u8"weights", DataType::kFloat32, &weights_);
+  LoadVectorField(fi, u8"sample_groups", DataType::kUInt32, &sample_groups_);
+  LoadVectorField(fi, u8"sample_group_numbers", DataType::kUInt32, &sample_group_numbers_);
   LoadVectorField(fi, u8"base_margin", DataType::kFloat32, &base_margin_);
   LoadVectorField(fi, u8"labels_lower_bound", DataType::kFloat32, &labels_lower_bound_);
   LoadVectorField(fi, u8"labels_upper_bound", DataType::kFloat32, &labels_upper_bound_);
@@ -287,6 +332,15 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
   } else {
     out.weights_.HostVector() = Gather(this->weights_.HostVector(), ridxs);
   }
+  // sample_groups
+  if (this->sample_groups_.Size() + 1 == this->group_ptr_.size()) {
+    auto& h_sample_groups =  out.sample_groups_.HostVector();
+    // Assuming all groups are available.
+    out.sample_groups_.HostVector() = h_sample_groups;
+  } else {
+    out.sample_groups_.HostVector() = Gather(this->sample_groups_.HostVector(), ridxs);
+  }
+  // TODO(tpb): transfer sample_group_numbers_ (rebuilt?)
 
   if (this->base_margin_.Size() != this->num_row_) {
     CHECK_EQ(this->base_margin_.Size() % this->num_row_, 0)
@@ -368,6 +422,12 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     auto valid = std::all_of(weights.cbegin(), weights.cend(),
                              [](float w) { return w >= 0; });
     CHECK(valid) << "Weights must be positive values.";
+  } else if (!std::strcmp(key, "sample_group")) {
+    auto& sample_groups = sample_groups_.HostVector();
+    sample_groups.resize(num);
+    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
+                       std::copy(cast_dptr, cast_dptr + num, sample_groups.begin()));
+    //TODO(tpb): (1) ensure that input values are converted to uint32_ts; (2) rebuild sample_group_numbers_
   } else if (!std::strcmp(key, "base_margin")) {
     auto& base_margin = base_margin_.HostVector();
     base_margin.resize(num);
@@ -431,6 +491,8 @@ void MetaInfo::GetInfo(char const *key, bst_ulong *out_len, DataType dtype,
     const std::vector<unsigned> *vec = nullptr;
     if (!std::strcmp(key, "group_ptr")) {
       vec = &this->group_ptr_;
+    } else if (!std::strcmp(key, "sample_group")) {
+      vec = &this->sample_groups_.HostVector();
     } else {
       LOG(FATAL) << "Unknown uint32 field name: " << key;
     }
@@ -494,6 +556,10 @@ void MetaInfo::Extend(MetaInfo const& that, bool accumulate_rows) {
   this->weights_.SetDevice(that.weights_.DeviceIdx());
   this->weights_.Extend(that.weights_);
 
+  this->sample_groups_.SetDevice(that.sample_groups_.DeviceIdx());
+  this->sample_groups_.Extend(that.sample_groups_);
+  //TODO(tpb): rebuild this->sample_group_numbers_?
+
   this->labels_lower_bound_.SetDevice(that.labels_lower_bound_.DeviceIdx());
   this->labels_lower_bound_.Extend(that.labels_lower_bound_);
 
@@ -553,8 +619,14 @@ void MetaInfo::Validate(int32_t device) const {
 
   if (weights_.Size() != 0) {
     CHECK_EQ(weights_.Size(), num_row_)
-        << "Size of weights must equal to number of rows.";
+        << "Size of weights must be equal to number of rows.";
     check_device(weights_);
+    return;
+  }
+  if (sample_groups_.Size() != 0) {
+    CHECK_EQ(sample_groups_.Size(), num_row_)
+        << "Size of sample groups must be equal to number of rows.";
+    // TODO(tpb) FIXME -- check_device(sample_groups_);
     return;
   }
   if (labels_.Size() != 0) {

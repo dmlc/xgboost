@@ -132,6 +132,8 @@ using bst_row_t = std::size_t;   // NOLINT
 using bst_node_t = int32_t;      // NOLINT
 /*! \brief Type for ranking group index. */
 using bst_group_t = uint32_t;    // NOLINT
+/*! \brief Type for sample group number. */
+using bst_sample_group_t = uint32_t;    // NOLINT
 
 namespace detail {
 /*! \brief Implementation of gradient statistics pair. Template specialisation

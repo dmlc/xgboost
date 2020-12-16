@@ -5,12 +5,15 @@
  * \author Tianqi Chen
  */
 #include <vector>
+#include <set>
 #include <limits>
 #include <type_traits>
 #include <algorithm>
+#include <sstream>
 
 #include "xgboost/data.h"
 #include "xgboost/c_api.h"
+#include "xgboost/logging.h"
 
 #include "simple_dmatrix.h"
 #include "./simple_batch_iterator.h"
@@ -123,6 +126,11 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
       weights.insert(weights.end(), batch.Weights(),
                      batch.Weights() + batch.Size());
     }
+    if (batch.SampleGroups() != nullptr) {
+      auto& sample_groups = info_.sample_groups_.HostVector();
+      sample_groups.insert(sample_groups.end(), batch.SampleGroups(),
+                     batch.SampleGroups() + batch.Size());
+    }
     if (batch.BaseMargin() != nullptr) {
       auto& base_margin = info_.base_margin_.HostVector();
       base_margin.insert(base_margin.end(), batch.BaseMargin(),
@@ -142,6 +150,20 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
     }
   }
 
+  auto& sample_groups = info_.sample_groups_.HostVector();
+  if (sample_groups.size() > 0) {
+    auto& sample_group_numbers = info_.sample_group_numbers_.HostVector();
+    std::set<bst_sample_group_t> sample_group_number_set;
+    for (bst_sample_group_t g : sample_groups) {
+      sample_group_number_set.insert(g);
+    }
+    sample_group_numbers.insert(sample_group_numbers.cbegin(), sample_group_number_set.cbegin(), sample_group_number_set.cend());
+    LOG(DEBUG) << "sample group number count: " << sample_group_numbers.size();
+    std::stringstream numbers;
+    for (bst_sample_group_t g : sample_group_numbers) {numbers << " " << g;}
+    LOG(DEBUG) << "sample group numbers:" << numbers.str();
+  }
+
   if (last_group_id != default_max) {
     if (group_size > info_.group_ptr_.back()) {
       info_.group_ptr_.push_back(group_size);
@@ -154,7 +176,6 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   } else {
     info_.num_col_ = adapter->NumColumns();
   }
-
 
   // Synchronise worker columns
   rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);

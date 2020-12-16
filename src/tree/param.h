@@ -51,7 +51,7 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   // whether we want to do subsample
   float subsample;
   // sampling method
-  enum SamplingMethod { kUniform = 0, kGradientBased = 1 };
+  enum SamplingMethod { kUniform = 0, kGradientBased = 1, kGrouped = 2};
   int sampling_method;
   // whether to subsample columns in each split (node)
   float colsample_bynode;
@@ -151,10 +151,13 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
         .set_default(kUniform)
         .add_enum("uniform", kUniform)
         .add_enum("gradient_based", kGradientBased)
+        .add_enum("grouped", kGrouped)
         .describe(
             "Sampling method. 0: select random training instances uniformly. "
             "1: select random training instances with higher probability when the "
-            "gradient and hessian are larger. (cf. CatBoost)");
+            "gradient and hessian are larger. (cf. CatBoost).  2: uniformaly select "
+            "group numbers inferred from a specified column in the training data, "
+            "then include all training instances belonging to those groups.");
     DMLC_DECLARE_FIELD(colsample_bynode)
         .set_range(0.0f, 1.0f)
         .set_default(1.0f)

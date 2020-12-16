@@ -808,6 +808,7 @@ class GPUHistMakerSpecialised {
     auto page = (*dmat->GetBatches<EllpackPage>(batch_param).begin()).Impl();
     dh::safe_cuda(cudaSetDevice(device_));
     info_->feature_types.SetDevice(device_);
+    info_->sample_groups_.SetDevice(device_);
     maker.reset(new GPUHistMakerDevice<GradientSumT>(device_,
                                                      page,
                                                      info_->feature_types.ConstDeviceSpan(),
