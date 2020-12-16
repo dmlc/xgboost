@@ -762,19 +762,7 @@ class LearnerIO : public LearnerConfiguration {
       // Before 1.0.0, base_score is saved as a transformed value, and there's no version
       // attribute (saved a 0) in the saved model.
       std::string multi{"multi:"};
-      if (tparam_.objective == "binary:logitraw") {
-        // Use PredTransform() from "binary:logistic" to transform base_score
-        HostDeviceVector<float> t;
-        t.HostVector().resize(1);
-        t.HostVector().at(0) = mparam_.base_score;
-        GenericParameter generic_param_;
-        generic_param_.ConfigureGpuId(false);
-        std::unique_ptr<ObjFunction> logistic_obj{
-          ObjFunction::Create("binary:logistic", &generic_param_)};
-        logistic_obj->PredTransform(&t);
-        auto base_score = t.HostVector().at(0);
-        mparam_.base_score = base_score;
-      } else if (!std::equal(multi.cbegin(), multi.cend(), tparam_.objective.cbegin())) {
+      if (!std::equal(multi.cbegin(), multi.cend(), tparam_.objective.cbegin())) {
         HostDeviceVector<float> t;
         t.HostVector().resize(1);
         t.HostVector().at(0) = mparam_.base_score;
