@@ -145,6 +145,10 @@ class TestDMatrix:
             num_boost_round=2, evals=[(d2, 'd2'), (sliced, 'sliced')], evals_result=eval_res)
         np.testing.assert_equal(eval_res['d2']['mlogloss'], eval_res['sliced']['mlogloss'])
 
+        ridxs_arr = np.array(ridxs)[1:]  # handles numpy slice correctly
+        sliced = d.slice(ridxs_arr)
+        np.testing.assert_equal(sliced.get_label(), y[2:7])
+
     def test_feature_names_slice(self):
         data = np.random.randn(5, 5)
 
