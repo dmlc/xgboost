@@ -9,10 +9,9 @@ open format that can be easily reused.  The support for binary format will be co
 the future until JSON format is no-longer experimental and has satisfying performance.
 This tutorial aims to share some basic insights into the JSON serialisation method used in
 XGBoost.  Without explicitly mentioned, the following sections assume you are using the
-experimental JSON format, which can be enabled by passing
-``enable_experimental_json_serialization=True`` as training parameter, or provide the file
-name with ``.json`` as file extension when saving/loading model:
-``booster.save_model('model.json')``.  More details below.
+JSON format, which can be enabled by providing the file name with ``.json`` as file
+extension when saving/loading model: ``booster.save_model('model.json')``.  More details
+below.
 
 Before we get started, XGBoost is a gradient boosting library with focus on tree model,
 which means inside XGBoost, there are 2 distinct parts:
@@ -66,26 +65,7 @@ a filename with ``.json`` as file extension:
 
   xgb.save(bst, 'model_file_name.json')
 
-To use JSON to store memory snapshots, add ``enable_experimental_json_serialization`` as a training
-parameter.  In Python this can be done by:
-
-.. code-block:: python
-
-  bst = xgboost.train({'enable_experimental_json_serialization': True}, dtrain)
-  with open('filename', 'wb') as fd:
-      pickle.dump(bst, fd)
-
-Notice the ``filename`` is for Python intrinsic function ``open``, not for XGBoost.  Hence
-parameter ``enable_experimental_json_serialization`` is required to enable JSON format.
-
-Similarly, in the R package, add ``enable_experimental_json_serialization`` to the training
-parameter:
-
-.. code-block:: r
-
-  params <- list(enable_experimental_json_serialization = TRUE, ...)
-  bst <- xgboost.train(params, dtrain, nrounds = 10)
-  saveRDS(bst, 'filename.rds')
+While for memory snapshot, JSON is the default starting with xgboost 1.3.
 
 ***************************************************************
 A note on backward compatibility of models and memory snapshots
@@ -110,11 +90,11 @@ Custom objective and metric
 ***************************
 
 XGBoost accepts user provided objective and metric functions as an extension.  These
-functions are not saved in model file as they are language dependent feature.  With
+functions are not saved in model file as they are language dependent features.  With
 Python, user can pickle the model to include these functions in saved binary.  One
 drawback is, the output from pickle is not a stable serialization format and doesn't work
-on different Python version or XGBoost version, not to mention different language
-environment.  Another way to workaround this limitation is to provide these functions
+on different Python version nor XGBoost version, not to mention different language
+environments.  Another way to workaround this limitation is to provide these functions
 again after the model is loaded. If the customized function is useful, please consider
 making a PR for implementing it inside XGBoost, this way we can have your functions
 working with different language bindings.
@@ -128,9 +108,9 @@ models are valuable.  One way to restore it in the future is to load it back wit
 specific version of Python and XGBoost, export the model by calling `save_model`.  To help
 easing the mitigation, we created a simple script for converting pickled XGBoost 0.90
 Scikit-Learn interface object to XGBoost 1.0.0 native model.  Please note that the script
-suits simple use cases, and it's advised not to use pickle when stability is needed.
-It's located in ``xgboost/doc/python`` with the name ``convert_090to100.py``.  See
-comments in the script for more details.
+suits simple use cases, and it's advised not to use pickle when stability is needed.  It's
+located in ``xgboost/doc/python`` with the name ``convert_090to100.py``.  See comments in
+the script for more details.
 
 A similar procedure may be used to recover the model persisted in an old RDS file. In R, you are
 able to install an older version of XGBoost using the ``remotes`` package:
@@ -172,7 +152,6 @@ Will print out something similiar to (not actual output as it's too long for dem
     {
       "Learner": {
         "generic_parameter": {
-          "enable_experimental_json_serialization": "0",
           "gpu_id": "0",
           "gpu_page_size": "0",
           "n_jobs": "0",

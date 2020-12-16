@@ -42,17 +42,9 @@ class TestPickling:
         if os.path.exists(filename):
             os.remove(filename)
 
-    def test_model_pickling_binary(self):
-        params = {
-            'nthread': 1,
-            'tree_method': 'hist'
-        }
-        self.run_model_pickling(params)
-
     def test_model_pickling_json(self):
         params = {
             'nthread': 1,
             'tree_method': 'hist',
-            'enable_experimental_json_serialization': True
         }
         self.run_model_pickling(params)
