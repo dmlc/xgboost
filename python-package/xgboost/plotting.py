@@ -1,4 +1,4 @@
-# pylint: disable=too-many-locals, too-many-arguments, invalid-name,
+# pylint: disable=too-many-locals, too-many-statements, too-many-arguments, invalid-name,
 # pylint: disable=too-many-branches
 # coding: utf-8
 """Plotting Library."""
