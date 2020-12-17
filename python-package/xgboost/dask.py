@@ -120,7 +120,7 @@ def concat(value):              # pylint: disable=too-many-return-statements
         return pandas_concat(value, axis=0)
     if lazy_isinstance(value[0], 'cudf.core.dataframe', 'DataFrame') or \
        lazy_isinstance(value[0], 'cudf.core.series', 'Series'):
-        from cudf import concat as CUDF_concat
+        from cudf import concat as CUDF_concat  # pylint: disable=import-error
         return CUDF_concat(value, axis=0)
     if lazy_isinstance(value[0], 'cupy.core.core', 'ndarray'):
         import cupy             # pylint: disable=import-error
