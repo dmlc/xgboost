@@ -162,6 +162,9 @@ struct LogisticRaw : public LogisticRegression {
     predt = common::Sigmoid(predt);
     return std::max(predt * (T(1.0f) - predt), eps);
   }
+  static bst_float ProbToMargin(bst_float base_score) {
+    return base_score;
+  }
   static const char* DefaultEvalMetric() { return "auc"; }
 
   static const char* Name() { return "binary:logitraw"; }
