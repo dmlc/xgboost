@@ -456,6 +456,7 @@ class LearningRateScheduler(TrainingCallback):
 
     def after_iteration(self, model, epoch, evals_log):
         model.set_param('learning_rate', self.learning_rates(epoch))
+        return False
 
 
 # pylint: disable=too-many-instance-attributes
@@ -565,7 +566,7 @@ class EarlyStopping(TrainingCallback):
     def after_training(self, model: Booster):
         try:
             if self.save_best:
-                model = model[: int(model.attr('best_iteration'))]
+                model = model[: int(model.attr('best_iteration')) + 1]
         except XGBoostError as e:
             raise XGBoostError('`save_best` is not applicable to current booster') from e
         return model
@@ -677,6 +678,7 @@ class TrainingCheckPoint(TrainingCallback):
                 else:
                     model.save_model(path)
         self._epoch += 1
+        return False
 
 
 class LegacyCallbacks:
