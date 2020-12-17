@@ -5,14 +5,10 @@
 import warnings
 import copy
 import json
-from typing import Dict, List, Any, Union, Tuple
-
 import numpy as np
 from .core import Booster, XGBoostError
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
 from . import callback
-
-Parameters = Union[List[Tuple[str, Any]], Dict[str, Any]]
 
 
 def _configure_deprecated_callbacks(
