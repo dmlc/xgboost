@@ -2,7 +2,6 @@
 # of saved model files from XGBoost version 0.90 and 1.0.x.
 library(xgboost)
 library(Matrix)
-source('./generate_models_params.R')
 
 set.seed(0)
 metadata <- list(
@@ -53,11 +52,16 @@ generate_logistic_model <- function () {
   y <- sample(0:1, size = metadata$kRows, replace = TRUE)
   stopifnot(max(y) == 1, min(y) == 0)
 
-  data <- xgb.DMatrix(X, label = y, weight = w)
-  params <- list(tree_method = 'hist', num_parallel_tree = metadata$kForests,
-                 max_depth = metadata$kMaxDepth, objective = 'binary:logistic')
-  booster <- xgb.train(params, data, nrounds = metadata$kRounds)
-  save_booster(booster, 'logit')
+  objective <- c('binary:logistic', 'binary:logitraw')
+  name <- c('logit', 'logitraw')
+
+  for (i in seq_len(length(objective))) {
+    data <- xgb.DMatrix(X, label = y, weight = w)
+    params <- list(tree_method = 'hist', num_parallel_tree = metadata$kForests,
+                   max_depth = metadata$kMaxDepth, objective = objective[i])
+    booster <- xgb.train(params, data, nrounds = metadata$kRounds)
+    save_booster(booster, name[i])
+  }
 }
 
 generate_classification_model <- function () {
