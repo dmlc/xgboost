@@ -41,12 +41,6 @@ except ImportError:
     pandas_concat = None
     PANDAS_INSTALLED = False
 
-# cudf
-try:
-    from cudf import concat as CUDF_concat
-except ImportError:
-    CUDF_concat = None
-
 # sklearn
 try:
     from sklearn.base import BaseEstimator
