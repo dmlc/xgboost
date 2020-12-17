@@ -98,9 +98,10 @@ except ImportError:
 
 # dask
 try:
-    import dask
+    import pkg_resources
+    pkg_resources.get_distribution('dask')
     DASK_INSTALLED = True
-except ImportError:
+except pkg_resources.DistributionNotFound:
     dask = None
     DASK_INSTALLED = False
 
