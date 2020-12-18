@@ -429,7 +429,7 @@ struct XGBDefaultDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
   }
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   XGBDefaultDeviceAllocatorImpl()
-    : SuperT(rmm::mr::get_current_device_resource(), cudaStream_t{nullptr}) {}
+    : SuperT(rmm::cuda_stream_default, rmm::mr::get_current_device_resource()) {}
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 };
 

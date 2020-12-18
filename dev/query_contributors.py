@@ -27,7 +27,7 @@ def paginate_request(url, callback):
         r = requests.get(r.links['next']['url'], auth=(username, password))
         callback(json.loads(r.text))
 
-for line in git.log(f'{from_commit}..{to_commit}', '--pretty=format:%s', '--reverse'):
+for line in git.log(f'{from_commit}..{to_commit}', '--pretty=format:%s', '--reverse', '--first-parent'):
     m = re.search('\(#([0-9]+)\)$', line.rstrip())
     if m:
         pr_id = m.group(1)

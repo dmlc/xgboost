@@ -64,22 +64,24 @@ def generate_logistic_model():
     y = np.random.randint(0, 2, size=kRows)
     assert y.max() == 1 and y.min() == 0
 
-    data = xgboost.DMatrix(X, label=y, weight=w)
-    booster = xgboost.train({'tree_method': 'hist',
-                             'num_parallel_tree': kForests,
-                             'max_depth': kMaxDepth,
-                             'objective': 'binary:logistic'},
-                            num_boost_round=kRounds, dtrain=data)
-    booster.save_model(booster_bin('logit'))
-    booster.save_model(booster_json('logit'))
+    for objective, name in [('binary:logistic', 'logit'), ('binary:logitraw', 'logitraw')]:
+        data = xgboost.DMatrix(X, label=y, weight=w)
+        booster = xgboost.train({'tree_method': 'hist',
+                                 'num_parallel_tree': kForests,
+                                 'max_depth': kMaxDepth,
+                                 'objective': objective},
+                                num_boost_round=kRounds, dtrain=data)
+        booster.save_model(booster_bin(name))
+        booster.save_model(booster_json(name))
 
-    reg = xgboost.XGBClassifier(tree_method='hist',
-                                num_parallel_tree=kForests,
-                                max_depth=kMaxDepth,
-                                n_estimators=kRounds)
-    reg.fit(X, y, w)
-    reg.save_model(skl_bin('logit'))
-    reg.save_model(skl_json('logit'))
+        reg = xgboost.XGBClassifier(tree_method='hist',
+                                    num_parallel_tree=kForests,
+                                    max_depth=kMaxDepth,
+                                    n_estimators=kRounds,
+                                    objective=objective)
+        reg.fit(X, y, w)
+        reg.save_model(skl_bin(name))
+        reg.save_model(skl_json(name))
 
 
 def generate_classification_model():

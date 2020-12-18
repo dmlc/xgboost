@@ -504,6 +504,14 @@ XGB_DLL int XGBoosterGetNumFeature(BoosterHandle handle,
   API_END();
 }
 
+XGB_DLL int XGBoosterBoostedRounds(BoosterHandle handle, int* out) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  static_cast<Learner*>(handle)->Configure();
+  *out = static_cast<Learner*>(handle)->BoostedRounds();
+  API_END();
+}
+
 XGB_DLL int XGBoosterLoadJsonConfig(BoosterHandle handle, char const* json_parameters) {
   API_BEGIN();
   CHECK_HANDLE();

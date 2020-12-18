@@ -98,7 +98,7 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
  * \param data fvalue
  * \param nindptr number of rows in the matrix + 1
  * \param nelem number of nonzero elements in the matrix
- * \param num_col number of columns; when it's set to 0, then guess from data
+ * \param num_col number of columns; when it's set to kAdapterUnknownSize, then guess from data
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
@@ -613,6 +613,15 @@ XGB_DLL int XGBoosterFree(BoosterHandle handle);
 XGB_DLL int XGBoosterSlice(BoosterHandle handle, int begin_layer,
                            int end_layer, int step,
                            BoosterHandle *out);
+
+/*!
+ * \brief Get number of boosted rounds from gradient booster.  When process_type is
+ *        update, this number might drop due to removed tree.
+ * \param handle Handle to booster.
+ * \param out Pointer to output integer.
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterBoostedRounds(BoosterHandle handle, int* out);
 
 /*!
  * \brief set parameters

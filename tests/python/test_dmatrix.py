@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
+import os
+import tempfile
 import numpy as np
 import xgboost as xgb
 import scipy.sparse
 import pytest
 from scipy.sparse import rand, csr_matrix
+
+import testing as tm
 
 rng = np.random.RandomState(1)
 
@@ -141,6 +145,10 @@ class TestDMatrix:
             num_boost_round=2, evals=[(d2, 'd2'), (sliced, 'sliced')], evals_result=eval_res)
         np.testing.assert_equal(eval_res['d2']['mlogloss'], eval_res['sliced']['mlogloss'])
 
+        ridxs_arr = np.array(ridxs)[1:]  # handles numpy slice correctly
+        sliced = d.slice(ridxs_arr)
+        np.testing.assert_equal(sliced.get_label(), y[2:7])
+
     def test_feature_names_slice(self):
         data = np.random.randn(5, 5)
 
@@ -206,6 +214,23 @@ class TestDMatrix:
             dm = xgb.DMatrix(dummy, feature_names=list('abcde'))
             with pytest.raises(ValueError):
                 bst.predict(dm)
+
+    @pytest.mark.skipif(**tm.no_pandas())
+    def test_save_binary(self):
+        import pandas as pd
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, 'm.dmatrix')
+            data = pd.DataFrame({
+                "a": [0, 1],
+                "b": [2, 3],
+                "c": [4, 5]
+            })
+            m0 = xgb.DMatrix(data.loc[:, ["a", "b"]], data["c"])
+            assert m0.feature_names == ['a', 'b']
+            m0.save_binary(path)
+            m1 = xgb.DMatrix(path)
+            assert m0.feature_names == m1.feature_names
+            assert m0.feature_types == m1.feature_types
 
     def test_get_info(self):
         dtrain = xgb.DMatrix(dpath + 'agaricus.txt.train')

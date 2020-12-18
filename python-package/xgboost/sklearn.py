@@ -4,6 +4,7 @@
 import copy
 import warnings
 import json
+from typing import Union, Optional, List, Dict, Callable, Tuple, Any
 import numpy as np
 from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
 from .training import train
@@ -494,6 +495,22 @@ class XGBModel(XGBModelBase):
         # Delete the attribute after load
         self.get_booster().set_attr(scikit_learn=None)
 
+    def _configure_fit(
+        self,
+        booster: Optional[Booster],
+        eval_metric: Optional[Union[Callable, str, List[str]]],
+        params: Dict[str, Any],
+    ) -> Tuple[Booster, Optional[Union[Callable, str, List[str]]], Dict[str, Any]]:
+        model = self._Booster if hasattr(self, "_Booster") else None
+        model = booster if booster is not None else model
+        feval = eval_metric if callable(eval_metric) else None
+        if eval_metric is not None:
+            if callable(eval_metric):
+                eval_metric = None
+            else:
+                params.update({"eval_metric": eval_metric})
+        return model, feval, params
+
     @_deprecate_positional_args
     def fit(self, X, y, *, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None, early_stopping_rounds=None,
@@ -585,18 +602,13 @@ class XGBModel(XGBModelBase):
         else:
             obj = None
 
-        feval = eval_metric if callable(eval_metric) else None
-        if eval_metric is not None:
-            if callable(eval_metric):
-                eval_metric = None
-            else:
-                params.update({'eval_metric': eval_metric})
-
+        model, feval, params = self._configure_fit(xgb_model, eval_metric, params)
         self._Booster = train(params, train_dmatrix,
                               self.get_num_boosting_rounds(), evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
-                              evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose, xgb_model=xgb_model,
+                              evals_result=evals_result,
+                              obj=obj, feval=feval,
+                              verbose_eval=verbose, xgb_model=model,
                               callbacks=callbacks)
 
         if evals_result:
@@ -842,14 +854,18 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             self.classes_ = cp.unique(y.values)
             self.n_classes_ = len(self.classes_)
             can_use_label_encoder = False
-            if not cp.array_equal(self.classes_, cp.arange(self.n_classes_)):
+            expected_classes = cp.arange(self.n_classes_)
+            if (self.classes_.shape != expected_classes.shape or
+                    not (self.classes_ == expected_classes).all()):
                 raise ValueError(label_encoding_check_error)
         elif _is_cupy_array(y):
             import cupy as cp  # pylint: disable=E0401
             self.classes_ = cp.unique(y)
             self.n_classes_ = len(self.classes_)
             can_use_label_encoder = False
-            if not cp.array_equal(self.classes_, cp.arange(self.n_classes_)):
+            expected_classes = cp.arange(self.n_classes_)
+            if (self.classes_.shape != expected_classes.shape or
+                    not (self.classes_ == expected_classes).all()):
                 raise ValueError(label_encoding_check_error)
         else:
             self.classes_ = np.unique(y)
@@ -858,27 +874,20 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                     not np.array_equal(self.classes_, np.arange(self.n_classes_))):
                 raise ValueError(label_encoding_check_error)
 
-        xgb_options = self.get_xgb_params()
+        params = self.get_xgb_params()
 
         if callable(self.objective):
             obj = _objective_decorator(self.objective)
             # Use default value. Is it really not used ?
-            xgb_options["objective"] = "binary:logistic"
+            params["objective"] = "binary:logistic"
         else:
             obj = None
 
         if self.n_classes_ > 2:
             # Switch to using a multiclass objective in the underlying
             # XGB instance
-            xgb_options['objective'] = 'multi:softprob'
-            xgb_options['num_class'] = self.n_classes_
-
-        feval = eval_metric if callable(eval_metric) else None
-        if eval_metric is not None:
-            if callable(eval_metric):
-                eval_metric = None
-            else:
-                xgb_options.update({"eval_metric": eval_metric})
+            params['objective'] = 'multi:softprob'
+            params['num_class'] = self.n_classes_
 
         if self.use_label_encoder:
             if not can_use_label_encoder:
@@ -892,6 +901,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         else:
             label_transform = (lambda x: x)
 
+        model, feval, params = self._configure_fit(xgb_model, eval_metric, params)
         if len(X.shape) != 2:
             # Simply raise an error here since there might be many
             # different ways of reshaping
@@ -907,15 +917,15 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             eval_set=eval_set, sample_weight_eval_set=sample_weight_eval_set,
             eval_group=None, label_transform=label_transform)
 
-        self._Booster = train(xgb_options, train_dmatrix,
+        self._Booster = train(params, train_dmatrix,
                               self.get_num_boosting_rounds(),
                               evals=evals,
                               early_stopping_rounds=early_stopping_rounds,
                               evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose, xgb_model=xgb_model,
+                              verbose_eval=verbose, xgb_model=model,
                               callbacks=callbacks)
 
-        self.objective = xgb_options["objective"]
+        self.objective = params["objective"]
         if evals_result:
             for val in evals_result.items():
                 evals_result_key = list(val[1].keys())[0]
