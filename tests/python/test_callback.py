@@ -148,7 +148,7 @@ class TestCallbacks:
                 eval_metric=tm.eval_error_metric, callbacks=[early_stop])
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format='json')
-        assert len(dump) == booster.best_iteration
+        assert len(dump) == booster.best_iteration + 1
 
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
                                                 save_best=True)
