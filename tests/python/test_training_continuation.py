@@ -9,7 +9,7 @@ rng = np.random.RandomState(1337)
 class TestTrainingContinuation:
     num_parallel_tree = 3
 
-    def generate_parameters(self):
+    def generate_parameters(self, use_json):
         xgb_params_01_binary = {
             'nthread': 1,
         }
@@ -24,6 +24,13 @@ class TestTrainingContinuation:
             'num_class': 5,
             'num_parallel_tree': self.num_parallel_tree
         }
+        if use_json:
+            xgb_params_01_binary[
+                'enable_experimental_json_serialization'] = True
+            xgb_params_02_binary[
+                'enable_experimental_json_serialization'] = True
+            xgb_params_03_binary[
+                'enable_experimental_json_serialization'] = True
 
         return [
             xgb_params_01_binary, xgb_params_02_binary, xgb_params_03_binary
@@ -130,15 +137,30 @@ class TestTrainingContinuation:
         np.testing.assert_almost_equal(res1, res2)
 
     @pytest.mark.skipif(**tm.no_sklearn())
+    def test_training_continuation_binary(self):
+        params = self.generate_parameters(False)
+        self.run_training_continuation(params[0], params[1], params[2])
+
+    @pytest.mark.skipif(**tm.no_sklearn())
     def test_training_continuation_json(self):
-        params = self.generate_parameters()
+        params = self.generate_parameters(True)
+        for p in params:
+            p['enable_experimental_json_serialization'] = True
+        self.run_training_continuation(params[0], params[1], params[2])
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_training_continuation_updaters_binary(self):
+        updaters = 'grow_colmaker,prune,refresh'
+        params = self.generate_parameters(False)
+        for p in params:
+            p['updater'] = updaters
         self.run_training_continuation(params[0], params[1], params[2])
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_training_continuation_updaters_json(self):
         # Picked up from R tests.
         updaters = 'grow_colmaker,prune,refresh'
-        params = self.generate_parameters()
+        params = self.generate_parameters(True)
         for p in params:
             p['updater'] = updaters
         self.run_training_continuation(params[0], params[1], params[2])
