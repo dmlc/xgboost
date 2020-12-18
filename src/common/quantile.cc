@@ -135,7 +135,7 @@ std::vector<bst_feature_t> HostSketchContainer::LoadBalancePerRow(
 void HostSketchContainer::PushRowPage(SparsePage const &page,
                                       MetaInfo const &info) {
   monitor_.Start(__func__);
-  int nthread = 1;//omp_get_max_threads();
+  int nthread = 36;//omp_get_max_threads();
   std::cout << "MC PushRowPage opt nthread: " << nthread << std::endl;
   CHECK_EQ(sketches_.size(), info.num_col_);
 
@@ -196,7 +196,8 @@ monitor_.Start("PushRowPage3");
             for (size_t i = 0; i < inst.size(); ++i) {
               auto const& entry = p_inst[i];
               sketches_.get(tid, entry.index).Push(entry.fvalue, w);
-              std::cout << "MC push2: " << entry.fvalue << std::endl;
+              std::cout << "MC data not dense." << std::endl;
+			  std::cout << "MC push2: " << entry.fvalue << std::endl;
               /*if (entry.index >= begin && entry.index < end) {
                 sketches_[entry.index].Push(entry.fvalue, w);
 				std::cout << "MC push2: " << entry.fvalue << std::endl;
