@@ -443,7 +443,6 @@ def _get_worker_parts(
 ) -> List[Tuple[Any, ...]]:
     partitions = _get_worker_parts_ordered(meta_names, list_of_parts)
     partitions_unzipped = _unzip(partitions)
-    print('partitions_unzipped:', partitions_unzipped)
     return partitions_unzipped
 
 
