@@ -66,6 +66,7 @@ xgb.dump <- function(model, fname = NULL, fmap = "", with_stats=FALSE,
   if (is.null(fname)) {
     return(model_dump)
   } else {
+    fname <- path.expand(fname)
     writeLines(model_dump, fname[1])
     return(TRUE)
   }
