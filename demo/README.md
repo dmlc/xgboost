@@ -110,6 +110,7 @@ Please send pull requests if you find ones that are missing here.
 
 ## Tutorials
 
+- [XGBoost Training with Dask, using Saturn Cloud](https://www.saturncloud.io/docs/tutorials/xgboost/)
 - [Machine Learning with XGBoost on Qubole Spark Cluster](https://www.qubole.com/blog/machine-learning-xgboost-qubole-spark-cluster/)
 - [XGBoost Official RMarkdown Tutorials](https://xgboost.readthedocs.org/en/latest/R-package/index.html#tutorials)
 - [An Introduction to XGBoost R Package](http://dmlc.ml/rstats/2016/03/10/xgboost.html) by Tong He
