@@ -176,14 +176,10 @@ jobs:
       run: |
         cd python-package
         # dask is required to pass, others are not
-        printf '\n\n mypy start: --- Following errors until end mark are not required to fix ------\n\n'
-
-        mypy . || true
-
-        printf '\n\n mypy end:  --- Above errors are not required to fix --------------------------\n\n'
-
         mypy ./xgboost/dask.py ../tests/python/test_with_dask.py --follow-imports=silent
         mypy ../tests/python-gpu/test_gpu_with_dask.py --follow-imports=silent
+        # If any of the above failed, contributor won't see the next error.
+        mypy . || true
 
   doxygen:
     runs-on: ubuntu-latest
