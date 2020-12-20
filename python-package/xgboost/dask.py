@@ -1277,19 +1277,27 @@ class DaskScikitLearnBase(XGBModel):
         '''
         raise NotImplementedError
 
-    def predict(                # type:ignore
+    def predict(
         self,
         data: _DaskCollection,
         output_margin: bool = False,
+        ntree_limit: Optional[int] = None,
+        validate_features: bool = True,
         base_margin: Optional[_DaskCollection] = None
     ) -> Any:
         '''Predict with `data`.
         Parameters
         ----------
-          data: data that can be used to construct a DaskDMatrix
+        data: data that can be used to construct a DaskDMatrix
+        output_margin : Whether to output the raw untransformed margin value.
+        ntree_limit : NOT supported on dask interface.
+        validate_features :
+            When this is True, validate that the Booster's and data's feature_names are
+            identical.  Otherwise, it is assumed that the feature_names are the same.
         Returns
         -------
         prediction:
+
         '''
         raise NotImplementedError
 
@@ -1399,6 +1407,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
     async def _predict_async(
         self, data: _DaskCollection,
         output_margin: bool = False,
+        validate_features: bool = True,
         base_margin: Optional[_DaskCollection] = None
     ) -> _DaskCollection:
         test_dmatrix = await DaskDMatrix(
@@ -1407,19 +1416,25 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         )
         pred_probs = await predict(client=self.client,
                                    model=self.get_booster(), data=test_dmatrix,
-                                   output_margin=output_margin)
+                                   output_margin=output_margin,
+                                   validate_features=validate_features)
         return pred_probs
 
     # pylint: disable=arguments-differ
-    def predict(                # type:ignore
+    def predict(
         self,
         data: _DaskCollection,
         output_margin: bool = False,
+        ntree_limit: Optional[int] = None,
+        validate_features: bool = True,
         base_margin: Optional[_DaskCollection] = None
     ) -> Any:
         _assert_dask_support()
+        msg = '`ntree_limit` is not supported on dask, use model slicing instead.'
+        assert ntree_limit is None, msg
         return self.client.sync(self._predict_async, data,
                                 output_margin=output_margin,
+                                validate_features=validate_features,
                                 base_margin=base_margin)
 
 
@@ -1525,7 +1540,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
     async def _predict_proba_async(
         self,
         data: _DaskCollection,
-        output_margin: bool,
+        validate_features: bool,
         base_margin: Optional[_DaskCollection]
     ) -> _DaskCollection:
         test_dmatrix = await DaskDMatrix(
@@ -1535,36 +1550,45 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         pred_probs = await predict(client=self.client,
                                    model=self.get_booster(),
                                    data=test_dmatrix,
-                                   output_margin=output_margin)
+                                   validate_features=validate_features,
+                                   output_margin=False)
         return pred_probs
 
     # pylint: disable=arguments-differ,missing-docstring
     def predict_proba(
-        self, data: _DaskCollection,
-        output_margin: bool = False,
+        self,
+        data: _DaskCollection,
+        ntree_limit: Optional[int] = None,
+        validate_features: bool = True,
         base_margin: Optional[_DaskCollection] = None
     ) -> Any:
         _assert_dask_support()
+        msg = '`ntree_limit` is not supported on dask, use model slicing instead.'
+        assert ntree_limit is None, msg
         return self.client.sync(
             self._predict_proba_async,
             data,
-            output_margin=output_margin,
+            validate_features=validate_features,
             base_margin=base_margin
         )
 
     async def _predict_async(
         self, data: _DaskCollection,
         output_margin: bool = False,
+        validate_features: bool = True,
         base_margin: Optional[_DaskCollection] = None
     ) -> _DaskCollection:
         test_dmatrix = await DaskDMatrix(
             client=self.client, data=data, base_margin=base_margin,
             missing=self.missing
         )
-        pred_probs = await predict(client=self.client,
-                                   model=self.get_booster(),
-                                   data=test_dmatrix,
-                                   output_margin=output_margin)
+        pred_probs = await predict(
+            client=self.client,
+            model=self.get_booster(),
+            data=test_dmatrix,
+            output_margin=output_margin,
+            validate_features=validate_features
+        )
 
         if self.n_classes_ == 2:
             preds = (pred_probs > 0.5).astype(int)
@@ -1574,14 +1598,21 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         return preds
 
     # pylint: disable=arguments-differ
-    def predict(                # type:ignore
+    def predict(
         self,
         data: _DaskCollection,
         output_margin: bool = False,
+        ntree_limit: Optional[int] = None,
+        validate_features: bool = True,
         base_margin: Optional[_DaskCollection] = None
     ) -> Any:
         _assert_dask_support()
-        return self.client.sync(self._predict_async,
-                                data,
-                                output_margin=output_margin,
-                                base_margin=base_margin)
+        msg = '`ntree_limit` is not supported on dask, use model slicing instead.'
+        assert ntree_limit is None, msg
+        return self.client.sync(
+            self._predict_async,
+            data,
+            output_margin=output_margin,
+            validate_features=validate_features,
+            base_margin=base_margin
+        )
