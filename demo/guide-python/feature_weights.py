@@ -28,10 +28,10 @@ def main(args):
                          'colsample_bynode': 0.5},
                         dtrain, num_boost_round=10,
                         evals=[(dtrain, 'd')])
-    featue_map = bst.get_fscore()
+    feature_map = bst.get_fscore()
     # feature zero has 0 weight
-    assert featue_map.get('f0', None) is None
-    assert max(featue_map.values()) == featue_map.get('f9')
+    assert feature_map.get('f0', None) is None
+    assert max(feature_map.values()) == feature_map.get('f9')
 
     if args.plot:
         xgboost.plot_importance(bst)
