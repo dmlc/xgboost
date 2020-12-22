@@ -6,6 +6,9 @@
 #include <cstring>
 #include <random>
 #include <sstream>
+#include <memory>
+#include <set>
+#include <vector>
 
 #include "dmlc/io.h"
 #include "xgboost/data.h"
@@ -130,6 +133,61 @@ void LoadVectorField(dmlc::Stream* strm, const std::string& expected_name,
 
 namespace xgboost {
 
+void SampleGroupSelector::SelectGroups(const std::vector<bst_sample_group_t>& sample_group_numbers, float subsample) {
+  CHECK_GT(sample_group_numbers.size(), 0);
+  long int selected_group_count = 0;
+  if (subsample > 0.0) {
+    if (subsample < 1.0) {
+      selected_group_count = std::lround(subsample * static_cast<float>(sample_group_numbers.size()));
+      // Make sure at least one sample group is eliminated (subsample < 1.0)
+      selected_group_count = std::min(selected_group_count, static_cast<long int>(sample_group_numbers.size()) - 1L);
+      // Make sure at least one sample group is represented (subsample > 0.0)
+      selected_group_count = std::max(selected_group_count, 1L);
+    } else {
+      CHECK_EQ(subsample, 1.0) << "subsample parameter must be in the range (0.0, 1.0]";
+      selected_group_count = sample_group_numbers.size();
+    }
+  }
+  CHECK_GE(selected_group_count, 0L);
+  CHECK_LE(selected_group_count, sample_group_numbers.size()); // equality where only one group in data or subsample == 1.0
+  LOG(DEBUG) << "grouped subsampling using " << selected_group_count << " of " << sample_group_numbers.size() << " groups";
+  selected_sample_groups_.clear();
+  if (selected_group_count < sample_group_numbers.size()) {
+    auto& generator = common::GlobalRandom();
+    std::uniform_int_distribution<> random_index(0, sample_group_numbers.size() - 1);
+    for (long int i = 0; i < selected_group_count; ++i) {
+      auto result = selected_sample_groups_.insert(sample_group_numbers[random_index(generator)]);
+      // retry if the same group number was randomly selected more than once; assumes there are
+      // no duplicates in sample_group_numbers_.
+      while (!result.second) {
+        result = selected_sample_groups_.insert(sample_group_numbers[random_index(generator)]);
+      }
+    }
+  } else {
+    selected_sample_groups_.insert(sample_group_numbers.cbegin(), sample_group_numbers.cend());
+  }
+  CHECK_EQ(selected_group_count, selected_sample_groups_.size());
+  std::stringstream groups;
+  for (bst_sample_group_t g : selected_sample_groups_) {groups << " " << g;}
+  LOG(DEBUG) << "selected sample group numbers:" << groups.str();
+  return;
+}
+
+void VectorSampleGroupSelector::SelectGroups(const std::vector<bst_sample_group_t>& sample_group_numbers, float subsample) {
+  // populate set selected_sample_groups_
+  SampleGroupSelector::SelectGroups(sample_group_numbers, subsample);
+  // translate to positional +1 (selected for sample) or -1 (not selected)
+  low_group_ = sample_group_numbers.front();
+  high_group_ = sample_group_numbers.back();
+  CHECK(low_group_ <= high_group_);
+  selected_sample_group_flags_.clear();
+  selected_sample_group_flags_.resize((high_group_ - low_group_) + 1, -1);
+  for (auto g : selected_sample_groups_) {
+    selected_sample_group_flags_[g - low_group_] = +1;
+  }
+  return;
+}
+
 uint64_t constexpr MetaInfo::kNumField;
 
 // implementation of inline functions
@@ -143,36 +201,25 @@ void MetaInfo::Clear() {
   base_margin_.HostVector().clear();
 }
 
-void MetaInfo::SelectRandomSampleGroups(float subsample, std::set<bst_sample_group_t>& random_group_numbers) const {
-  CHECK_LT(subsample, 1.0);
-  auto& sample_group_numbers = sample_group_numbers_.HostVector();
-  long int random_group_count = 0;
-  if (subsample > 0.0) {
-    random_group_count = std::lround(subsample * static_cast<float>(sample_group_numbers.size()));
-    // Make sure at least one sample group is eliminated (subsample < 1.0)
-    random_group_count = std::min(random_group_count, static_cast<long int>(sample_group_numbers.size()) - 1L);
-    // Make sure at least one sample group is represented (subsample > 0.0)
-    random_group_count = std::max(random_group_count, 1L);
+std::shared_ptr<SampleGroupSelector> MetaInfo::BuildSelector(float subsample, size_t maximum_size) const {
+  const std::vector<bst_sample_group_t>& sample_group_numbers = sample_group_numbers_.HostVector();
+  CHECK_GT(sample_group_numbers.size(), 0)
+    << "group number column must be provided for group based subsampling";
+  std::shared_ptr<SampleGroupSelector> selector;
+  int64_t required_size = (sample_group_numbers.back() - sample_group_numbers.front()) + 1;
+  CHECK_GT(required_size, 0);
+  LOG(DEBUG)
+    << "grouped subsampling vector size allowed: " << maximum_size
+    << ", required: " << required_size;
+  if (required_size > maximum_size) {
+    selector = std::make_shared<SampleGroupSelector>();
+    selector->SelectGroups(sample_group_numbers, subsample);
+  } else {
+    std::shared_ptr<VectorSampleGroupSelector> vector_selector = std::make_shared<VectorSampleGroupSelector>();
+    vector_selector->SelectGroups(sample_group_numbers, subsample);
+    selector = std::dynamic_pointer_cast<SampleGroupSelector>(vector_selector);
   }
-  CHECK_GE(random_group_count, 0L);
-  CHECK_LE(random_group_count, sample_group_numbers.size());
-  LOG(DEBUG) << "grouped subsampling using " << random_group_count << " of " << sample_group_numbers.size() << " groups";
-  auto& generator = common::GlobalRandom();
-  std::uniform_int_distribution<> random_index(0, sample_group_numbers.size() - 1);
-  random_group_numbers.clear();
-  for (long int i = 0; i < random_group_count; ++i) {
-    auto result = random_group_numbers.insert(sample_group_numbers[random_index(generator)]);
-    // retry if the same group number was randomly selected more than once; assumes there are
-    // no duplicates in sample_group_numbers_.
-    while (!result.second) {
-      result = random_group_numbers.insert(sample_group_numbers[random_index(generator)]);
-    }
-  }
-  CHECK_EQ(random_group_count, random_group_numbers.size());
-  std::stringstream numbers;
-  for (bst_sample_group_t g : random_group_numbers) {numbers << " " << g;}
-  LOG(DEBUG) << "selected sample group numbers:" << numbers.str();
-  return;
+  return selector;
 }
 
 // TODO(tpb): update this comment

@@ -40,6 +40,40 @@ enum class FeatureType : uint8_t {
   kCategorical
 };
 
+class SampleGroupSelector {
+  public:
+  static const size_t kMaximumVectorLookupSize = 4*1024;
+
+  SampleGroupSelector() = default;
+  virtual void SelectGroups(const std::vector<bst_sample_group_t>& sample_group_numbers, float subsample);
+  virtual const std::set<bst_sample_group_t>& GetSelectedGroups() const {
+    return selected_sample_groups_;
+  }
+  virtual bool IsSelectedGroup(bst_sample_group_t group) const {
+    return selected_sample_groups_.find(group) != selected_sample_groups_.end();
+  }
+  virtual ~SampleGroupSelector() {}
+
+  protected:
+  std::set<bst_sample_group_t> selected_sample_groups_;
+};
+
+class VectorSampleGroupSelector : public SampleGroupSelector {
+  public:
+  VectorSampleGroupSelector() = default;
+  void SelectGroups(const std::vector<bst_sample_group_t>& sample_group_numbers, float subsample) override;
+  bool IsSelectedGroup(bst_sample_group_t group) const override {
+    //CHECK(low_group_ <= group);
+    //CHECK(group <= high_group_);
+    return selected_sample_group_flags_[group - low_group_] > 0;
+  }
+
+  private:
+  std::vector<int8_t> selected_sample_group_flags_;
+  bst_sample_group_t low_group_;
+  bst_sample_group_t high_group_;
+};
+
 /*!
  * \brief Meta information about dataset, always sit in memory.
  */
@@ -188,7 +222,8 @@ class MetaInfo {
    */
   void Extend(MetaInfo const& that, bool accumulate_rows);
 
-  void SelectRandomSampleGroups(float subsample, std::set<bst_sample_group_t>& group_numbers) const;
+  std::shared_ptr<SampleGroupSelector> BuildSelector(float subsample,
+      size_t maximum_size = SampleGroupSelector::kMaximumVectorLookupSize) const;
 
  private:
   /*! \brief argsort of labels */

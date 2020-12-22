@@ -679,18 +679,14 @@ void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const std::vector<Gr
   size_t* p_row_indices = row_indices_local.data();
 
   if (param_.sampling_method == TrainParam::kGrouped) {
-    CHECK_GT(sample_group_numbers.size(), 0)
-      << "group number column must be provided for group based subsampling";
     std::cout << "TPB QuantileHistMaker grouped subsampling" << std::endl;
-    std::set<bst_sample_group_t> random_group_numbers;
-    info.SelectRandomSampleGroups(param_.subsample, random_group_numbers);
+    auto selector = info.BuildSelector(param_.subsample);
     const auto& sample_groups = info.sample_groups_.HostVector();
     const auto row_count = static_cast<bst_omp_uint>(info.num_row_);
     size_t j = 0;
     #pragma omp parallel for schedule(static)
     for (bst_omp_uint i = 0; i < row_count; ++i) {
-      if (gpair[i].GetHess() >= 0.0f &&
-          random_group_numbers.find(sample_groups[i]) != random_group_numbers.end()) {
+      if (gpair[i].GetHess() >= 0.0f && selector->IsSelectedGroup(sample_groups[i])) {
         p_row_indices[j++] = i;
       }
     }

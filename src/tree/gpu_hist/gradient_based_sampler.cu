@@ -272,10 +272,10 @@ GroupedSampling::GroupedSampling(EllpackPageImpl* page, float subsample)
 GradientBasedSample GroupedSampling::Sample(common::Span<GradientPair> gpair, DMatrix* dmat) {
 LOG(CONSOLE) << "TPB GPU grouped subsampling";
   const MetaInfo& info = dmat->Info();
-  std::set<bst_sample_group_t> random_groups;
-  info.SelectRandomSampleGroups(subsample_, random_groups);
+  auto selector = info.BuildSelector(subsample_, 0);
+  const auto& sg = selector->GetSelectedGroups();
   selected_groups_.clear();
-  selected_groups_.insert(selected_groups_.begin(), random_groups.cbegin(), random_groups.cend());
+  selected_groups_.insert(selected_groups_.begin(), sg.cbegin(), sg.cend());
   thrust::replace_if(dh::tbegin(gpair),
                      dh::tend(gpair),
                      dh::tcbegin(info.sample_groups_.ConstDeviceSpan()),
@@ -297,10 +297,10 @@ GradientBasedSample ExternalMemoryGroupedSampling::Sample(common::Span<GradientP
                                                           DMatrix* dmat) {
 LOG(CONSOLE) << "TPB GPU [external] grouped subsampling";
   const MetaInfo& info = dmat->Info();
-  std::set<bst_sample_group_t> random_groups;
-  info.SelectRandomSampleGroups(subsample_, random_groups);
+  auto selector = info.BuildSelector(subsample_, 0);
+  const auto& sg = selector->GetSelectedGroups();
   selected_groups_.clear();
-  selected_groups_.insert(selected_groups_.begin(), random_groups.cbegin(), random_groups.cend());
+  selected_groups_.insert(selected_groups_.begin(), sg.cbegin(), sg.cend());
   thrust::replace_if(dh::tbegin(gpair),
                      dh::tend(gpair),
                      dh::tcbegin(info.sample_groups_.ConstDeviceSpan()),

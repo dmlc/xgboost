@@ -215,20 +215,16 @@ class ColMaker: public TreeUpdater {
           CHECK_NE(param_.sampling_method, TrainParam::kGradientBased)
             << "Only uniform and grouped sampling are supported; "
             << "gradient-based sampling is only supported for tree_method = gpu_hist";
-          const MetaInfo& info = fmat.Info();
-          auto& sample_group_numbers = info.sample_group_numbers_.HostVector();
           if (param_.sampling_method == TrainParam::kGrouped) {
             std::cout << "TPB ColMaker grouped subsampling" << std::endl;
-            CHECK_GT(sample_group_numbers.size(), 0)
-              << "group number column must be provided for group based subsampling";
-            std::set<bst_sample_group_t> random_group_numbers;
-            info.SelectRandomSampleGroups(param_.subsample, random_group_numbers);
+            const MetaInfo& info = fmat.Info();
+            auto selector = info.BuildSelector(param_.subsample);
             const auto& sample_groups = info.sample_groups_.HostVector();
             const auto row_count = static_cast<bst_omp_uint>(position_.size());
             #pragma omp parallel for schedule(static)
             for (bst_omp_uint i = 0; i < row_count; ++i) {
               if (gpair[i].GetHess() < 0.0f) continue;
-              if (random_group_numbers.find(sample_groups[i]) == random_group_numbers.end()) {
+              if (!selector->IsSelectedGroup(sample_groups[i])) {
                 position_[i] = ~position_[i];
               }
             }
