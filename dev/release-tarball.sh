@@ -16,8 +16,8 @@ print_error() {
 check_input() {
     local TAG=$1
     if [ -z $TAG ]; then
-	print_error "Empty tag argument"
-	exit -1
+        print_error "Empty tag argument"
+        exit -1
     fi
 }
 
@@ -27,13 +27,13 @@ check_curdir() {
     local CUR=$(basename $CUR_ABS)
 
     if [ $CUR == "dev" ]; then
-	cd ..
-	CUR=$(basename $(pwd))
+        cd ..
+        CUR=$(basename $(pwd))
     fi
 
     if [ $CUR != "xgboost" ]; then
-	print_error "Must be in project root or xgboost/dev.  Current directory: ${CUR}"
-	exit -1;
+        print_error "Must be in project root or xgboost/dev.  Current directory: ${CUR}"
+        exit -1;
     fi
 }
 
@@ -47,7 +47,7 @@ cleanup_git() {
     local SUBMODULES=$(grep "path = " ./.gitmodules | cut -f 3 --delimiter=' ' -)
 
     for module in $SUBMODULES; do
-	rm -rf ${module}/.git
+        rm -rf ${module}/.git
     done
 
     rm -rf .git
