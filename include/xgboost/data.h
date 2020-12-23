@@ -41,11 +41,12 @@ enum class FeatureType : uint8_t {
 };
 
 class SampleGroupSelector {
-  public:
+ public:
   static const size_t kMaximumVectorLookupSize = 4*1024;
 
   SampleGroupSelector() = default;
-  virtual void SelectGroups(const std::vector<bst_sample_group_t>& sample_group_numbers, float subsample);
+  virtual void SelectGroups(const std::vector<bst_sample_group_t>& sample_group_numbers,
+                            float subsample);
   virtual const std::set<bst_sample_group_t>& GetSelectedGroups() const {
     return selected_sample_groups_;
   }
@@ -54,22 +55,22 @@ class SampleGroupSelector {
   }
   virtual ~SampleGroupSelector() {}
 
-  protected:
+ protected:
   std::set<bst_sample_group_t> selected_sample_groups_;
 };
 
 class VectorSampleGroupSelector : public SampleGroupSelector {
-  public:
+ public:
   VectorSampleGroupSelector() = default;
-  void SelectGroups(const std::vector<bst_sample_group_t>& sample_group_numbers, float subsample) override;
+  void SelectGroups(const std::vector<bst_sample_group_t>& sample_group_numbers,
+                    float subsample) override;
   bool IsSelectedGroup(bst_sample_group_t group) const override {
-    //CHECK(low_group_ <= group);
-    //CHECK(group <= high_group_);
-    return selected_sample_group_flags_[group - low_group_] > 0;
+    //CHECK(low_group_ <= group && group <= high_group_);
+    return selected_sample_group_markers_[group - low_group_] > 0;
   }
 
-  private:
-  std::vector<int8_t> selected_sample_group_flags_;
+ private:
+  std::vector<int8_t> selected_sample_group_markers_;
   bst_sample_group_t low_group_;
   bst_sample_group_t high_group_;
 };
@@ -97,10 +98,10 @@ class MetaInfo {
   std::vector<bst_group_t> group_ptr_;  // NOLINT
   /*! \brief weights of each instance, optional */
   HostDeviceVector<bst_float> weights_;  // NOLINT
-  /*! \brief sample group number of each instance, optional */
+  /*! \brief group number of each instance for grouped sampling, optional */
   HostDeviceVector<bst_sample_group_t> sample_groups_;  // NOLINT
-  /*! \brief unique sample group numbers, optional */
-  HostDeviceVector<bst_sample_group_t> sample_group_numbers_;  // NOLINT
+  /*! \brief set of unique sample groups found in sample_groups_, optional */
+  std::vector<bst_sample_group_t> unique_sample_groups_;  // NOLINT
   /*!
    * \brief initialized margins,
    * if specified, xgboost will start from this init margin
@@ -221,6 +222,8 @@ class MetaInfo {
    *        client code knows number of rows in advance, set this parameter to false.
    */
   void Extend(MetaInfo const& that, bool accumulate_rows);
+
+  void ResetUniqueSampleGroups();
 
   std::shared_ptr<SampleGroupSelector> BuildSelector(float subsample,
       size_t maximum_size = SampleGroupSelector::kMaximumVectorLookupSize) const;

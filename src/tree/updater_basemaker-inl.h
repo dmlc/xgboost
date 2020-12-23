@@ -152,7 +152,7 @@ class BaseMaker: public TreeUpdater {
           << "Only uniform and grouped sampling are supported; "
           << "gradient-based sampling is only supported for tree_method = gpu_hist";
         if (param_.sampling_method == TrainParam::kGrouped) {
-          std::cout << "TPB BaseMaker grouped subsampling" << std::endl;
+          LOG(CONSOLE) << "TPB BaseMaker grouped subsampling";
           const MetaInfo& info = fmat.Info();
           auto selector = info.BuildSelector(param_.subsample);
           const auto& sample_groups = info.sample_groups_.HostVector();
@@ -165,7 +165,7 @@ class BaseMaker: public TreeUpdater {
             }
           }
         } else {
-          std::cout << "TPB BaseMaker legacy subsampling" << std::endl;
+          LOG(CONSOLE) << "TPB BaseMaker legacy subsampling";
           std::bernoulli_distribution coin_flip(param_.subsample);
           auto& rnd = common::GlobalRandom();
           for (size_t i = 0; i < position_.size(); ++i) {

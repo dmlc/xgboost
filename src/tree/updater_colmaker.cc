@@ -216,7 +216,7 @@ class ColMaker: public TreeUpdater {
             << "Only uniform and grouped sampling are supported; "
             << "gradient-based sampling is only supported for tree_method = gpu_hist";
           if (param_.sampling_method == TrainParam::kGrouped) {
-            std::cout << "TPB ColMaker grouped subsampling" << std::endl;
+            LOG(CONSOLE) << "TPB ColMaker grouped subsampling";
             const MetaInfo& info = fmat.Info();
             auto selector = info.BuildSelector(param_.subsample);
             const auto& sample_groups = info.sample_groups_.HostVector();
@@ -229,7 +229,7 @@ class ColMaker: public TreeUpdater {
               }
             }
           } else {
-            std::cout << "TPB ColMaker legacy subsampling" << std::endl;
+            LOG(CONSOLE) << "TPB ColMaker legacy subsampling";
             std::bernoulli_distribution coin_flip(param_.subsample);
             auto& rnd = common::GlobalRandom();
             for (size_t ridx = 0; ridx < position_.size(); ++ridx) {

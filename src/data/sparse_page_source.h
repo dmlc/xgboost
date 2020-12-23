@@ -340,7 +340,11 @@ class SparsePageSource {
           weights.insert(weights.end(), batch.Weights(),
                          batch.Weights() + batch.Size());
         }
-//TODO(tpb) insert into info.sample_groups_
+        if (batch.SampleGroups() != nullptr) {
+          auto& sample_groups = info.sample_groups_.HostVector();
+          sample_groups.insert(sample_groups.end(), batch.SampleGroups(),
+                               batch.SampleGroups() + batch.Size());
+        }
         if (batch.BaseMargin() != nullptr) {
           auto& base_margin = info.base_margin_.HostVector();
           base_margin.insert(base_margin.end(), batch.BaseMargin(),
@@ -368,7 +372,7 @@ class SparsePageSource {
         page->SetBaseRowId(inferred_num_rows);
       }
 
-//TODO(tpb) build info.sample_group_numbers_
+      info.ResetUniqueSampleGroups();
 
       if (last_group_id != default_max) {
         if (group_size > info.group_ptr_.back()) {

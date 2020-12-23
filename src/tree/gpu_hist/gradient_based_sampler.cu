@@ -54,25 +54,27 @@ class SelectedGroupRow : public thrust::unary_function<bst_sample_group_t, bool>
  public:
   SelectedGroupRow(common::Span<bst_sample_group_t> sg) : selected_groups_(sg) {}
 
+  // TODO(tpb) search here is O(log n): consider an alternate functor with an
+  // O(1) search as in VectorRandomGroupSelector
   XGBOOST_DEVICE bool operator()(bst_sample_group_t observed_group) const {
-    bool found = false;
-	int lo = 0;
-	int hi = selected_groups_.size() - 1;
-	while (lo <= hi) {
-		int md = lo + (hi - lo) / 2;
-		if (selected_groups_[md] == observed_group) {
-			found = true;
-			break;
-		} else {
-			if (selected_groups_[md] < observed_group) {
-				lo = md + 1;
-			} else {
-				hi = md - 1;
-			}
-		}
-	}
-    return !found;
+  bool found = false;
+  int lo = 0;
+  int hi = selected_groups_.size() - 1;
+  while (lo <= hi) {
+    int md = lo + (hi - lo) / 2;
+    if (selected_groups_[md] == observed_group) {
+      found = true;
+      break;
+    } else {
+      if (selected_groups_[md] < observed_group) {
+        lo = md + 1;
+      } else {
+        hi = md - 1;
+      }
+    }
   }
+  return !found;
+}
 
  private:
   common::Span<bst_sample_group_t> selected_groups_; // integers in ascending order

@@ -150,19 +150,7 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
     }
   }
 
-  auto& sample_groups = info_.sample_groups_.HostVector();
-  if (sample_groups.size() > 0) {
-    auto& sample_group_numbers = info_.sample_group_numbers_.HostVector();
-    std::set<bst_sample_group_t> sample_group_number_set;
-    for (bst_sample_group_t g : sample_groups) {
-      sample_group_number_set.insert(g);
-    }
-    sample_group_numbers.insert(sample_group_numbers.cbegin(), sample_group_number_set.cbegin(), sample_group_number_set.cend());
-    LOG(DEBUG) << "sample group number count: " << sample_group_numbers.size();
-    std::stringstream numbers;
-    for (bst_sample_group_t g : sample_group_numbers) {numbers << " " << g;}
-    LOG(DEBUG) << "sample group numbers:" << numbers.str();
-  }
+  info_.ResetUniqueSampleGroups();
 
   if (last_group_id != default_max) {
     if (group_size > info_.group_ptr_.back()) {

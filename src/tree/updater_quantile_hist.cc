@@ -673,13 +673,12 @@ void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const std::vector<Gr
                                                 const DMatrix& fmat,
                                                 std::vector<size_t>* row_indices) {
   const auto& info = fmat.Info();
-  const auto& sample_group_numbers = info.sample_group_numbers_.HostVector();
   auto& rnd = common::GlobalRandom();
   std::vector<size_t>& row_indices_local = *row_indices;
   size_t* p_row_indices = row_indices_local.data();
 
   if (param_.sampling_method == TrainParam::kGrouped) {
-    std::cout << "TPB QuantileHistMaker grouped subsampling" << std::endl;
+    LOG(CONSOLE) << "TPB QuantileHistMaker grouped subsampling";
     auto selector = info.BuildSelector(param_.subsample);
     const auto& sample_groups = info.sample_groups_.HostVector();
     const auto row_count = static_cast<bst_omp_uint>(info.num_row_);
@@ -693,7 +692,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const std::vector<Gr
     /* resize row_indices to reduce memory */
     row_indices_local.resize(j);
   } else {
-    std::cout << "TPB QuantileHistMaker legacy subsampling" << std::endl;
+    LOG(CONSOLE) << "TPB QuantileHistMaker legacy subsampling";
 #if XGBOOST_CUSTOMIZE_GLOBAL_PRNG
     std::bernoulli_distribution coin_flip(param_.subsample);
     size_t j = 0;

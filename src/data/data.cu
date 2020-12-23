@@ -14,15 +14,16 @@
 
 namespace xgboost {
 
+static const auto SetDeviceToPtr = [](void* ptr) {
+  cudaPointerAttributes attr;
+  dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
+  int32_t ptr_device = attr.device;
+  dh::safe_cuda(cudaSetDevice(ptr_device));
+  return ptr_device;
+};
+
 void CopyInfoImpl(ArrayInterface column, HostDeviceVector<float>* out) {
-  auto SetDeviceToPtr = [](void* ptr) {
-    cudaPointerAttributes attr;
-    dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
-    int32_t ptr_device = attr.device;
-    dh::safe_cuda(cudaSetDevice(ptr_device));
-    return ptr_device;
-  };
-  auto ptr_device = SetDeviceToPtr(column.data);
+  auto ptr_device = xgboost::SetDeviceToPtr(column.data);
 
   out->SetDevice(ptr_device);
   out->Resize(column.num_rows);
@@ -37,14 +38,9 @@ void CopyInfoImpl(ArrayInterface column, HostDeviceVector<float>* out) {
 void CopyGroupInfoImpl(ArrayInterface column, std::vector<bst_group_t>* out) {
   CHECK(column.type[1] == 'i' || column.type[1] == 'u')
       << "Expected integer metainfo";
-  auto SetDeviceToPtr = [](void* ptr) {
-    cudaPointerAttributes attr;
-    dh::safe_cuda(cudaPointerGetAttributes(&attr, ptr));
-    int32_t ptr_device = attr.device;
-    dh::safe_cuda(cudaSetDevice(ptr_device));
-    return ptr_device;
-  };
-  auto ptr_device = SetDeviceToPtr(column.data);
+
+  auto ptr_device = xgboost::SetDeviceToPtr(column.data);
+
   dh::TemporaryArray<bst_group_t> temp(column.num_rows);
   auto d_tmp = temp.data();
 
@@ -56,6 +52,22 @@ void CopyGroupInfoImpl(ArrayInterface column, std::vector<bst_group_t>* out) {
   out->at(0) = 0;
   thrust::copy(temp.data(), temp.data() + length, out->begin() + 1);
   std::partial_sum(out->begin(), out->end(), out->begin());
+}
+
+void CopySampleGroupInfoImpl(ArrayInterface column, HostDeviceVector<uint32_t>* out) {
+  CHECK(column.type[1] == 'i' || column.type[1] == 'u')
+      << "Expected integer metainfo";
+
+  auto ptr_device = xgboost::SetDeviceToPtr(column.data);
+
+  out->SetDevice(ptr_device);
+  out->Resize(column.num_rows);
+
+  auto p_dst = thrust::device_pointer_cast(out->DevicePointer());
+
+  dh::LaunchN(ptr_device, column.num_rows, [=] __device__(size_t idx) {
+    p_dst[idx] = column.GetElement(idx);
+  });
 }
 
 namespace {
@@ -91,8 +103,10 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
         thrust::all_of(thrust::device, ptr, ptr + weights_.Size(), AllOfOp{});
     CHECK(valid) << "Weights must be positive values.";
   } else if (key == "sample_group") {
-//TODO(tpb): (1) fix copy below; (2) rebuild sample_group_numbers_ (?)
-    //CopyInfoImpl(array_interface, &sample_groups_);
+    CopySampleGroupInfoImpl(array_interface, &sample_groups_);
+    // TODO(tpb) Reset...() calls HostVector(): confirm that this will not invalidate 
+    // the data just copied to the device
+    ResetUniqueSampleGroups();
   } else if (key == "base_margin") {
     CopyInfoImpl(array_interface, &base_margin_);
   } else if (key == "group") {
