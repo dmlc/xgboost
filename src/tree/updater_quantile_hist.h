@@ -121,6 +121,9 @@ class QuantileHistMaker: public TreeUpdater {
 
   bool UpdatePredictionCache(const DMatrix* data,
                              HostDeviceVector<bst_float>* out_preds) override;
+  bool UpdatePredictionCacheMulticlass(const DMatrix* data,
+                                       HostDeviceVector<bst_float>* out_preds,
+                                       const int gid, const int ngroup) override;
 
   void LoadConfig(Json const& in) override {
     auto const& config = get<Object const>(in);
@@ -243,7 +246,9 @@ class QuantileHistMaker: public TreeUpdater {
     }
 
     bool UpdatePredictionCache(const DMatrix* data,
-                               HostDeviceVector<bst_float>* p_out_preds);
+                               HostDeviceVector<bst_float>* p_out_preds,
+                               const int gid = 0, const int ngroup = 1);
+
     void SetHistSynchronizer(HistSynchronizer<GradientSumT>* sync);
     void SetHistRowsAdder(HistRowsAdder<GradientSumT>* adder);
 

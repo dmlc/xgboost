@@ -78,6 +78,17 @@ class TreeUpdater : public Configurable {
     return false;
   }
 
+  virtual bool UpdatePredictionCacheMulticlass(const DMatrix* data,
+                                               HostDeviceVector<bst_float>* out_preds,
+                                               const int gid, const int ngroup) {
+    // Remove unused parameter compiler warning.
+    (void) data;
+    (void) out_preds;
+    (void) gid;
+    (void) ngroup;
+    return false;
+  }
+
   virtual char const* Name() const = 0;
 
   /*!
