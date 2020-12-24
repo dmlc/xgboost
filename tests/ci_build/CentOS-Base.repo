@@ -11,6 +11,11 @@ baseurl=http://vault.centos.org/centos/$releasever/updates/$basearch/
 gpgcheck=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-6
 
+[base_more]
+name=CentOS-$releasever - More
+baseurl=http://mirror.centos.org/altarch/7/os/$basearch/
+gpgcheck=0
+
 #additional packages that may be useful
 [extras]
 name=CentOS-$releasever - Extras

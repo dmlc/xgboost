@@ -1,32 +1,36 @@
 ARG CUDA_VERSION_ARG
-FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-centos6
+FROM nvidia/cuda-ppc64le:$CUDA_VERSION_ARG-devel-centos7
 ARG CUDA_VERSION_ARG
 
 # Environment
 ENV DEBIAN_FRONTEND noninteractive
-ENV DEVTOOLSET_URL_ROOT http://vault.centos.org/6.9/sclo/ppc64le/rh/devtoolset-4/
 
-COPY CentOS-Base.repo /etc/yum.repos.d/
+#COPY CentOS-Base.repo /etc/yum.repos.d/
+
+RUN \
+    yum groupinstall -y "Development Tools" && yum clean all -y && rm -rf /var/cache/yum
 
 # Install all basic requirements
 RUN \
-    yum install -y epel-release && \
+    yum install -y centos-release-scl-rh && \
+    yum-config-manager --enable rhel-server-rhscl-7-rpms && \
+    yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
     yum -y update && \
+    yum-config-manager --enable rhel-server-rhscl-7-rpms && \
     yum install -y tar unzip wget xz git patchelf && \
-    yum install -y $DEVTOOLSET_URL_ROOT/devtoolset-4-gcc-5.3.1-6.1.el6.ppc64le.rpm \
-                   $DEVTOOLSET_URL_ROOT/devtoolset-4-gcc-c++-5.3.1-6.1.el6.ppc64le.rpm \
-                   $DEVTOOLSET_URL_ROOT/devtoolset-4-binutils-2.25.1-8.el6.ppc64le.rpm \
-                   $DEVTOOLSET_URL_ROOT/devtoolset-4-runtime-4.1-3.sc1.el6.ppc64le.rpm \
-                   $DEVTOOLSET_URL_ROOT/devtoolset-4-libstdc++-devel-5.3.1-6.1.el6.ppc64le.rpm && \
-    # Python
+    yum update -y && \
+    yum install -y devtoolset-7
+
+# Python
+# CMake
+RUN \
     wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-ppc64le.sh && \
     bash Miniconda3.sh -b -p /opt/python && \
-    /opt/python/bin/conda install python=3.6 && \
-    /opt/python/bin/python -m pip install auditwheel && \
-    # CMake
-    wget -nv -nc https://cmake.org/files/v3.13/cmake-3.13.0-Linux-ppc64le.sh --no-check-certificate && \
-    bash cmake-3.13.0-Linux-ppc64le.sh --skip-license --prefix=/usr && \
-    # Ninja
+    /opt/python/bin/conda install python=3.6 cmake && \
+    /opt/python/bin/python -m pip install auditwheel
+
+# Ninja
+RUN \
     mkdir -p /usr/local && \
     cd /usr/local/ && \
     wget -nv -nc https://github.com/ninja-build/ninja/archive/v1.10.0.tar.gz --no-check-certificate && \
@@ -45,17 +49,9 @@ RUN \
     rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.ppc64le.rpm;
 
 ENV PATH=/opt/python/bin:/usr/local/ninja:$PATH
-ENV CC=/opt/rh/devtoolset-4/root/usr/bin/gcc
-ENV CXX=/opt/rh/devtoolset-4/root/usr/bin/c++
-ENV CPP=/opt/rh/devtoolset-4/root/usr/bin/cpp
-
-ENV GOSU_VERSION 1.10
-
-# Install lightweight sudo (not bound to TTY)
-RUN set -ex; \
-    wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64" && \
-    chmod +x /usr/local/bin/gosu && \
-    gosu nobody true
+ENV CC=/opt/rh/devtoolset-7/root/usr/bin/gcc
+ENV CXX=/opt/rh/devtoolset-7/root/usr/bin/c++
+ENV CPP=/opt/rh/devtoolset-7/root/usr/bin/cpp
 
 # Default entry-point to use if running locally
 # It will preserve attributes of created files
