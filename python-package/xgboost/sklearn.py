@@ -997,7 +997,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             else:
                 column_indexes = np.repeat(0, preds.shape[0])
                 column_indexes[preds > 0.5] = 1
-            preds = self._le.inverse_transform(column_indexes)
 
         if hasattr(self, '_le'):
             return self._le.inverse_transform(column_indexes)
