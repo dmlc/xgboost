@@ -2115,9 +2115,8 @@ class Booster(object):
         if as_pandas and not PANDAS_INSTALLED:
             sys.stderr.write(
                 "Returning histogram as ndarray (as_pandas == True, but pandas is not installed).")
-            return nph
-        else:
-            return nph
+        return nph
+
     def get_feature_interactions(self, max_fi_depth=2, max_tree_depth=-1, max_deepening=-1,
                                  ntrees=-1, fmap='', nthread=1, varimp_sep='|'):
         """XGBoost Feature Interactions & Importance (Xgbfi)
