@@ -16,7 +16,7 @@ class TestEarlyStopping:
         except ImportError:
             from sklearn.cross_validation import train_test_split
 
-        digits = load_digits(2)
+        digits = load_digits(n_class=2)
         X = digits['data']
         y = digits['target']
         X_train, X_test, y_train, y_test = train_test_split(X, y,
@@ -52,7 +52,7 @@ class TestEarlyStopping:
     def test_cv_early_stopping(self):
         from sklearn.datasets import load_digits
 
-        digits = load_digits(2)
+        digits = load_digits(n_class=2)
         X = digits['data']
         y = digits['target']
         dm = xgb.DMatrix(X, label=y)
