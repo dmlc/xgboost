@@ -1210,10 +1210,10 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
                                 early_stopping_rounds=early_stopping_rounds,
                                 verbose=verbose)
 
-    async def _predict_proba_async(self, data, output_margin=False,
+    async def _predict_proba_async(self, X, output_margin=False,
                                    base_margin=None):
         test_dmatrix = await DaskDMatrix(
-            client=self.client, data=data, base_margin=base_margin,
+            client=self.client, data=X, base_margin=base_margin,
             missing=self.missing
         )
         pred_probs = await predict(client=self.client,
@@ -1223,11 +1223,11 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         return pred_probs
 
     # pylint: disable=arguments-differ,missing-docstring
-    def predict_proba(self, data, output_margin=False, base_margin=None):
+    def predict_proba(self, X, output_margin=False, base_margin=None):
         _assert_dask_support()
         return self.client.sync(
             self._predict_proba_async,
-            data,
+            X=X,
             output_margin=output_margin,
             base_margin=base_margin
         )
