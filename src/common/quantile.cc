@@ -209,8 +209,10 @@ monitor_.Start("PushRowPage3");
     });
   }
   exec.Rethrow();
-
+  
+  monitor_.Start("PushRowPageMerge");
   sketches_.merge();
+  monitor_.Stop("PushRowPageMerge");
   monitor_.Stop("PushRowPage3");
   monitor_.Stop(__func__);
 
