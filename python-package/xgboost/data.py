@@ -486,7 +486,8 @@ def _is_uri(data):
 def _from_uri(data, missing, feature_names, feature_types):
     _warn_unused_missing(data, missing)
     handle = ctypes.c_void_p()
-    _check_call(_LIB.XGDMatrixCreateFromFile(c_str(os.fspath(data)),
+    data = os.fspath(os.path.expanduser(data))
+    _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
                                              ctypes.c_int(1),
                                              ctypes.byref(handle)))
     return handle, feature_names, feature_types

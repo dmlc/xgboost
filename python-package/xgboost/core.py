@@ -646,8 +646,9 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         silent : bool (optional; default: True)
             If set, the output is suppressed.
         """
+        fname = os.fspath(os.path.expanduser(fname))
         _check_call(_LIB.XGDMatrixSaveBinary(self.handle,
-                                             c_str(os.fspath(fname)),
+                                             c_str(fname),
                                              ctypes.c_int(silent)))
 
     def set_label(self, label):
@@ -1682,8 +1683,9 @@ class Booster(object):
 
         """
         if isinstance(fname, (STRING_TYPES, os.PathLike)):  # assume file name
+            fname = os.fspath(os.path.expanduser(fname))
             _check_call(_LIB.XGBoosterSaveModel(
-                self.handle, c_str(os.fspath(fname))))
+                self.handle, c_str(fname)))
         else:
             raise TypeError("fname must be a string or os PathLike")
 
@@ -1722,8 +1724,9 @@ class Booster(object):
         if isinstance(fname, (STRING_TYPES, os.PathLike)):
             # assume file name, cannot use os.path.exist to check, file can be
             # from URL.
+            fname = os.fspath(os.path.expanduser(fname))
             _check_call(_LIB.XGBoosterLoadModel(
-                self.handle, c_str(os.fspath(fname))))
+                self.handle, c_str(fname)))
         elif isinstance(fname, bytearray):
             buf = fname
             length = c_bst_ulong(len(buf))
@@ -1761,7 +1764,8 @@ class Booster(object):
             Format of model dump file. Can be 'text' or 'json'.
         """
         if isinstance(fout, (STRING_TYPES, os.PathLike)):
-            fout = open(os.fspath(fout), 'w')
+            fout = os.fspath(os.path.expanduser(fout))
+            fout = open(fout, 'w')
             need_close = True
         else:
             need_close = False
@@ -1795,7 +1799,7 @@ class Booster(object):
             Format of model dump. Can be 'text', 'json' or 'dot'.
 
         """
-        fmap = os.fspath(fmap)
+        fmap = os.fspath(os.path.expanduser(fmap))
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
         if self.feature_names is not None and fmap == '':
@@ -1875,7 +1879,7 @@ class Booster(object):
         importance_type: str, default 'weight'
             One of the importance types defined above.
         """
-        fmap = os.fspath(fmap)
+        fmap = os.fspath(os.path.expanduser(fmap))
         if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
             raise ValueError('Feature importance is not defined for Booster type {}'
                              .format(self.booster))
@@ -1968,7 +1972,7 @@ class Booster(object):
            The name of feature map file.
         """
         # pylint: disable=too-many-locals
-        fmap = os.fspath(fmap)
+        fmap = os.fspath(os.path.expanduser(fmap))
         if not PANDAS_INSTALLED:
             raise Exception(('pandas must be available to use this method.'
                              'Install pandas before calling again.'))

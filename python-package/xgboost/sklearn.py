@@ -852,14 +852,18 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             self.classes_ = cp.unique(y.values)
             self.n_classes_ = len(self.classes_)
             can_use_label_encoder = False
-            if not cp.array_equal(self.classes_, cp.arange(self.n_classes_)):
+            expected_classes = cp.arange(self.n_classes_)
+            if (self.classes_.shape != expected_classes.shape or
+                    not (self.classes_ == expected_classes).all()):
                 raise ValueError(label_encoding_check_error)
         elif _is_cupy_array(y):
             import cupy as cp  # pylint: disable=E0401
             self.classes_ = cp.unique(y)
             self.n_classes_ = len(self.classes_)
             can_use_label_encoder = False
-            if not cp.array_equal(self.classes_, cp.arange(self.n_classes_)):
+            expected_classes = cp.arange(self.n_classes_)
+            if (self.classes_.shape != expected_classes.shape or
+                    not (self.classes_ == expected_classes).all()):
                 raise ValueError(label_encoding_check_error)
         else:
             self.classes_ = np.unique(y)
@@ -996,10 +1000,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             return self._le.inverse_transform(column_indexes)
         return column_indexes
 
-    def predict_proba(self, data, ntree_limit=None, validate_features=False,
+    def predict_proba(self, X, ntree_limit=None, validate_features=False,
                       base_margin=None):
-        """
-        Predict the probability of each `data` example being of a given class.
+        """ Predict the probability of each `X` example being of a given class.
 
         .. note:: This function is not thread safe
 
@@ -1009,21 +1012,22 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         Parameters
         ----------
-        data : array_like
+        X : array_like
             Feature matrix.
         ntree_limit : int
-            Limit number of trees in the prediction; defaults to best_ntree_limit if defined
-            (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
+            Limit number of trees in the prediction; defaults to best_ntree_limit if
+            defined (i.e. it has been trained with early stopping), otherwise 0 (use all
+            trees).
         validate_features : bool
-            When this is True, validate that the Booster's and data's feature_names are identical.
-            Otherwise, it is assumed that the feature_names are the same.
+            When this is True, validate that the Booster's and data's feature_names are
+            identical.  Otherwise, it is assumed that the feature_names are the same.
 
         Returns
         -------
         prediction : numpy array
             a numpy array with the probability of each data example being of a given class.
         """
-        test_dmatrix = DMatrix(data, base_margin=base_margin,
+        test_dmatrix = DMatrix(X, base_margin=base_margin,
                                missing=self.missing, nthread=self.n_jobs)
         if ntree_limit is None:
             ntree_limit = getattr(self, "best_ntree_limit", 0)

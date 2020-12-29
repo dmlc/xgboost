@@ -27,6 +27,7 @@ xgb.DMatrix <- function(data, info = list(), missing = NA, silent = FALSE, ...) 
     if (length(data) > 1)
       stop("'data' has class 'character' and length ", length(data),
            ".\n  'data' accepts either a numeric matrix or a single filename.")
+    data <- path.expand(data)
     handle <- .Call(XGDMatrixCreateFromFile_R, data, as.integer(silent))
   } else if (is.matrix(data)) {
     handle <- .Call(XGDMatrixCreateFromMat_R, data, missing)
@@ -65,6 +66,7 @@ xgb.get.DMatrix <- function(data, label = NULL, missing = NA, weight = NULL) {
       warning("xgboost: label will be ignored.")
     }
     if (is.character(data)) {
+      data <- path.expand(data)
       dtrain <- xgb.DMatrix(data[1])
     } else if (inherits(data, "xgb.DMatrix")) {
       dtrain <- data

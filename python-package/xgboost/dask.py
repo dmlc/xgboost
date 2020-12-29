@@ -1539,12 +1539,12 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 
     async def _predict_proba_async(
         self,
-        data: _DaskCollection,
+        X: _DaskCollection,
         validate_features: bool,
         base_margin: Optional[_DaskCollection]
     ) -> _DaskCollection:
         test_dmatrix = await DaskDMatrix(
-            client=self.client, data=data, base_margin=base_margin,
+            client=self.client, data=X, base_margin=base_margin,
             missing=self.missing
         )
         pred_probs = await predict(client=self.client,
@@ -1557,7 +1557,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
     # pylint: disable=arguments-differ,missing-docstring
     def predict_proba(
         self,
-        data: _DaskCollection,
+        X: _DaskCollection,
         ntree_limit: Optional[int] = None,
         validate_features: bool = True,
         base_margin: Optional[_DaskCollection] = None
@@ -1567,7 +1567,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         assert ntree_limit is None, msg
         return self.client.sync(
             self._predict_proba_async,
-            data,
+            X=X,
             validate_features=validate_features,
             base_margin=base_margin
         )
