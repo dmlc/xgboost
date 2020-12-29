@@ -299,6 +299,11 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
 
   out.feature_weigths.Resize(this->feature_weigths.Size());
   out.feature_weigths.Copy(this->feature_weigths);
+
+  out.feature_names = this->feature_names;
+  out.feature_types.Copy(this->feature_types);
+  out.feature_type_names = this->feature_type_names;
+
   return out;
 }
 

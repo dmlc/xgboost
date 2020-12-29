@@ -62,6 +62,8 @@ def test_multiclass_classification():
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBClassifier().fit(X[train_index], y[train_index])
+        assert (xgb_model.get_booster().num_boosted_rounds() ==
+                xgb_model.n_estimators)
         preds = xgb_model.predict(X[test_index])
         # test other params in XGBClassifier().fit
         preds2 = xgb_model.predict(X[test_index], output_margin=True,
@@ -398,6 +400,21 @@ def test_classification_with_custom_objective():
         xgb_model.fit,
         X, y
     )
+
+    cls = xgb.XGBClassifier(use_label_encoder=False, n_estimators=1)
+    cls.fit(X, y)
+
+    is_called = [False]
+
+    def wrapped(y, p):
+        is_called[0] = True
+        return logregobj(y, p)
+
+    cls.set_params(objective=wrapped)
+    cls.predict(X)              # no throw
+    cls.fit(X, y)
+
+    assert is_called[0]
 
 
 def test_sklearn_api():
@@ -969,21 +986,10 @@ def test_pandas_input():
                                np.array([0, 1]))
 
 
-def run_feature_weights(increasing):
+def run_feature_weights(X, y, fw, model=xgb.XGBRegressor):
     with TemporaryDirectory() as tmpdir:
-        kRows = 512
-        kCols = 64
         colsample_bynode = 0.5
-        reg = xgb.XGBRegressor(tree_method='hist',
-                               colsample_bynode=colsample_bynode)
-        X = rng.randn(kRows, kCols)
-        y = rng.randn(kRows)
-        fw = np.ones(shape=(kCols,))
-        for i in range(kCols):
-            if increasing:
-                fw[i] *= float(i)
-            else:
-                fw[i] *= float(kCols - i)
+        reg = model(tree_method='hist', colsample_bynode=colsample_bynode)
 
         reg.fit(X, y, feature_weights=fw)
         model_path = os.path.join(tmpdir, 'model.json')
@@ -1019,8 +1025,21 @@ def run_feature_weights(increasing):
 
 
 def test_feature_weights():
-    poly_increasing = run_feature_weights(True)
-    poly_decreasing = run_feature_weights(False)
+    kRows = 512
+    kCols = 64
+    X = rng.randn(kRows, kCols)
+    y = rng.randn(kRows)
+
+    fw = np.ones(shape=(kCols,))
+    for i in range(kCols):
+        fw[i] *= float(i)
+    poly_increasing = run_feature_weights(X, y, fw, xgb.XGBRegressor)
+
+    fw = np.ones(shape=(kCols,))
+    for i in range(kCols):
+        fw[i] *= float(kCols - i)
+    poly_decreasing = run_feature_weights(X, y, fw, xgb.XGBRegressor)
+
     # Approxmated test, this is dependent on the implementation of random
     # number generator in std library.
     assert poly_increasing[0] > 0.08

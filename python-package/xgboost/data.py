@@ -424,6 +424,7 @@ def _transform_cupy_array(data):
             data, '__array__'):
         import cupy             # pylint: disable=import-error
         data = cupy.array(data, copy=False)
+    data = data.astype(dtype=data.dtype, order='C', copy=False)
     return data
 
 
@@ -485,7 +486,8 @@ def _is_uri(data):
 def _from_uri(data, missing, feature_names, feature_types):
     _warn_unused_missing(data, missing)
     handle = ctypes.c_void_p()
-    _check_call(_LIB.XGDMatrixCreateFromFile(c_str(os.fspath(data)),
+    data = os.fspath(os.path.expanduser(data))
+    _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
                                              ctypes.c_int(1),
                                              ctypes.byref(handle)))
     return handle, feature_names, feature_types

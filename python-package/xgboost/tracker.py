@@ -52,6 +52,28 @@ def get_some_ip(host):
     return socket.getaddrinfo(host, None)[0][4][0]
 
 
+def get_host_ip(hostIP=None):
+    if hostIP is None or hostIP == 'auto':
+        hostIP = 'ip'
+
+    if hostIP == 'dns':
+        hostIP = socket.getfqdn()
+    elif hostIP == 'ip':
+        from socket import gaierror
+        try:
+            hostIP = socket.gethostbyname(socket.getfqdn())
+        except gaierror:
+            logging.warning(
+                'gethostbyname(socket.getfqdn()) failed... trying on hostname()')
+            hostIP = socket.gethostbyname(socket.gethostname())
+        if hostIP.startswith("127."):
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            # doesn't have to be reachable
+            s.connect(('10.255.255.255', 1))
+            hostIP = s.getsockname()[0]
+    return hostIP
+
+
 def get_family(addr):
     return socket.getaddrinfo(addr, None)[0][0]
 

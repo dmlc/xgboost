@@ -67,6 +67,7 @@
 // global
 #include "../src/learner.cc"
 #include "../src/logging.cc"
+#include "../src/global_config.cc"
 #include "../src/common/common.cc"
 #include "../src/common/random.cc"
 #include "../src/common/charconv.cc"

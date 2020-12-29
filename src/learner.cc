@@ -222,6 +222,10 @@ void GenericParameter::ConfigureGpuId(bool require_gpu) {
       LOG(WARNING) << "No visible GPU is found, setting `gpu_id` to -1";
     }
     this->UpdateAllowUnknown(Args{{"gpu_id", std::to_string(kCpuId)}});
+  } else if (fail_on_invalid_gpu_id) {
+    CHECK(gpu_id == kCpuId || gpu_id < n_gpus)
+      << "Only " << n_gpus << " GPUs are visible, gpu_id "
+      << gpu_id << " is invalid.";
   } else if (gpu_id != kCpuId && gpu_id >= n_gpus) {
     LOG(WARNING) << "Only " << n_gpus
                  << " GPUs are visible, setting `gpu_id` to " << gpu_id % n_gpus;
@@ -486,6 +490,12 @@ class LearnerConfiguration : public Learner {
 
     // Extract all parameters
     std::vector<std::string> keys;
+    // First global parameters
+    Json const global_config{ToJson(*GlobalConfigThreadLocalStore::Get())};
+    for (auto const& items : get<Object const>(global_config)) {
+      keys.emplace_back(items.first);
+    }
+    // Parameters in various xgboost components.
     while (!stack.empty()) {
       auto j_obj = stack.top();
       stack.pop();
@@ -864,40 +874,16 @@ class LearnerIO : public LearnerConfiguration {
   }
 
   void Save(dmlc::Stream* fo) const override {
-    if (generic_parameters_.enable_experimental_json_serialization) {
-      Json memory_snapshot{Object()};
-      memory_snapshot["Model"] = Object();
-      auto &model = memory_snapshot["Model"];
-      this->SaveModel(&model);
-      memory_snapshot["Config"] = Object();
-      auto &config = memory_snapshot["Config"];
-      this->SaveConfig(&config);
-      std::string out_str;
-      Json::Dump(memory_snapshot, &out_str);
-      fo->Write(out_str.c_str(), out_str.size());
-    } else {
-      std::string binary_buf;
-      common::MemoryBufferStream s(&binary_buf);
-      this->SaveModel(&s);
-      Json config{ Object() };
-      // Do not use std::size_t as it's not portable.
-      int64_t const json_offset = binary_buf.size();
-      this->SaveConfig(&config);
-      std::string config_str;
-      Json::Dump(config, &config_str);
-      // concatonate the model and config at final output, it's a temporary solution for
-      // continuing support for binary model format
-      fo->Write(&serialisation_header_[0], serialisation_header_.size());
-      if (DMLC_IO_NO_ENDIAN_SWAP) {
-        fo->Write(&json_offset, sizeof(json_offset));
-      } else {
-        auto x = json_offset;
-        dmlc::ByteSwap(&x, sizeof(x), 1);
-        fo->Write(&x, sizeof(json_offset));
-      }
-      fo->Write(&binary_buf[0], binary_buf.size());
-      fo->Write(&config_str[0], config_str.size());
-    }
+    Json memory_snapshot{Object()};
+    memory_snapshot["Model"] = Object();
+    auto &model = memory_snapshot["Model"];
+    this->SaveModel(&model);
+    memory_snapshot["Config"] = Object();
+    auto &config = memory_snapshot["Config"];
+    this->SaveConfig(&config);
+    std::string out_str;
+    Json::Dump(memory_snapshot, &out_str);
+    fo->Write(out_str.c_str(), out_str.size());
   }
 
   void Load(dmlc::Stream* fi) override {
@@ -1119,6 +1105,12 @@ class LearnerImpl : public LearnerIO {
         obj_->PredTransform(out_preds);
       }
     }
+  }
+
+  int32_t BoostedRounds() const override {
+    if (!this->gbm_) { return 0; }  // haven't call train or LoadModel.
+    CHECK(!this->need_configuration_);
+    return this->gbm_->BoostedRounds();
   }
 
   XGBAPIThreadLocalEntry& GetThreadLocal() const override {

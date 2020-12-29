@@ -1,11 +1,13 @@
 # coding: utf-8
 # pylint: disable=too-many-arguments, too-many-branches, invalid-name
-# pylint: disable=too-many-lines, too-many-locals
+# pylint: disable=too-many-lines, too-many-locals, no-self-use
 """Core XGBoost Library."""
 import collections
 # pylint: disable=no-name-in-module,import-error
 from collections.abc import Mapping
+from typing import List, Optional, Any, Union, Dict
 # pylint: enable=no-name-in-module,import-error
+from typing import Callable, Tuple
 import ctypes
 import os
 import re
@@ -507,8 +509,10 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
 
         self.set_info(label=label, weight=weight, base_margin=base_margin)
 
-        self.feature_names = feature_names
-        self.feature_types = feature_types
+        if feature_names is not None:
+            self.feature_names = feature_names
+        if feature_types is not None:
+            self.feature_types = feature_types
 
     def __del__(self):
         if hasattr(self, "handle") and self.handle:
@@ -642,8 +646,9 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         silent : bool (optional; default: True)
             If set, the output is suppressed.
         """
+        fname = os.fspath(os.path.expanduser(fname))
         _check_call(_LIB.XGDMatrixSaveBinary(self.handle,
-                                             c_str(os.fspath(fname)),
+                                             c_str(fname),
                                              ctypes.c_int(silent)))
 
     def set_label(self, label):
@@ -751,39 +756,44 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         number of columns : int
         """
         ret = c_bst_ulong()
-        _check_call(_LIB.XGDMatrixNumCol(self.handle,
-                                         ctypes.byref(ret)))
+        _check_call(_LIB.XGDMatrixNumCol(self.handle, ctypes.byref(ret)))
         return ret.value
 
-    def slice(self, rindex, allow_groups=False):
+    def slice(
+        self, rindex: Union[List[int], np.ndarray], allow_groups: bool = False
+    ) -> "DMatrix":
         """Slice the DMatrix and return a new DMatrix that only contains `rindex`.
 
         Parameters
         ----------
-        rindex : list
+        rindex
             List of indices to be selected.
-        allow_groups : boolean
+        allow_groups
             Allow slicing of a matrix with a groups attribute
 
         Returns
         -------
-        res : DMatrix
+        res
             A new DMatrix containing only selected indices.
         """
+        from .data import _maybe_np_slice
+
         res = DMatrix(None)
         res.handle = ctypes.c_void_p()
-        _check_call(_LIB.XGDMatrixSliceDMatrixEx(
-            self.handle,
-            c_array(ctypes.c_int, rindex),
-            c_bst_ulong(len(rindex)),
-            ctypes.byref(res.handle),
-            ctypes.c_int(1 if allow_groups else 0)))
-        res.feature_names = self.feature_names
-        res.feature_types = self.feature_types
+        rindex = _maybe_np_slice(rindex, dtype=np.int32)
+        _check_call(
+            _LIB.XGDMatrixSliceDMatrixEx(
+                self.handle,
+                c_array(ctypes.c_int, rindex),
+                c_bst_ulong(len(rindex)),
+                ctypes.byref(res.handle),
+                ctypes.c_int(1 if allow_groups else 0),
+            )
+        )
         return res
 
     @property
-    def feature_names(self):
+    def feature_names(self) -> List[str]:
         """Get feature names (column labels).
 
         Returns
@@ -792,18 +802,21 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         """
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
-        _check_call(_LIB.XGDMatrixGetStrFeatureInfo(self.handle,
-                                                    c_str('feature_name'),
-                                                    ctypes.byref(length),
-                                                    ctypes.byref(sarr)))
+        _check_call(
+            _LIB.XGDMatrixGetStrFeatureInfo(
+                self.handle,
+                c_str("feature_name"),
+                ctypes.byref(length),
+                ctypes.byref(sarr),
+            )
+        )
         feature_names = from_cstr_to_pystr(sarr, length)
         if not feature_names:
-            feature_names = ['f{0}'.format(i)
-                             for i in range(self.num_col())]
+            feature_names = ["f{0}".format(i) for i in range(self.num_col())]
         return feature_names
 
     @feature_names.setter
-    def feature_names(self, feature_names):
+    def feature_names(self, feature_names: Optional[Union[List[str], str]]) -> None:
         """Set feature names (column labels).
 
         Parameters
@@ -827,12 +840,11 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
                 msg = 'feature_names must have the same length as data'
                 raise ValueError(msg)
             # prohibit to use symbols may affect to parse. e.g. []<
-            if not all(isinstance(f, STRING_TYPES) and
+            if not all(isinstance(f, str) and
                        not any(x in f for x in set(('[', ']', '<')))
                        for f in feature_names):
                 raise ValueError('feature_names must be string, and may not contain [, ] or <')
-            c_feature_names = [bytes(f, encoding='utf-8')
-                               for f in feature_names]
+            c_feature_names = [bytes(f, encoding='utf-8') for f in feature_names]
             c_feature_names = (ctypes.c_char_p *
                                len(c_feature_names))(*c_feature_names)
             _check_call(_LIB.XGDMatrixSetStrFeatureInfo(
@@ -849,7 +861,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             self.feature_types = None
 
     @property
-    def feature_types(self):
+    def feature_types(self) -> Optional[List[str]]:
         """Get feature types (column types).
 
         Returns
@@ -868,7 +880,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         return res
 
     @feature_types.setter
-    def feature_types(self, feature_types):
+    def feature_types(self, feature_types: Optional[Union[List[Any], Any]]) -> None:
         """Set feature types (column types).
 
         This is for displaying the results and unrelated
@@ -883,7 +895,7 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             if not isinstance(feature_types, (list, str)):
                 raise TypeError(
                     'feature_types must be string or list of strings')
-            if isinstance(feature_types, STRING_TYPES):
+            if isinstance(feature_types, str):
                 # single string will be applied to all columns
                 feature_types = [feature_types] * self.num_col()
             try:
@@ -980,6 +992,10 @@ class DeviceQuantileDMatrix(DMatrix):
         )
 
 
+Objective = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
+Metric = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
+
+
 class Booster(object):
     # pylint: disable=too-many-public-methods
     """A Booster of XGBoost.
@@ -1012,6 +1028,7 @@ class Booster(object):
         _check_call(_LIB.XGBoosterCreate(dmats, c_bst_ulong(len(cache)),
                                          ctypes.byref(self.handle)))
         params = params or {}
+        params = self._configure_metrics(params.copy())
         if isinstance(params, list):
             params.append(('validate_parameters', True))
         else:
@@ -1040,6 +1057,17 @@ class Booster(object):
             pass
         else:
             raise TypeError('Unknown type:', model_file)
+
+    def _configure_metrics(self, params: Union[Dict, List]) -> Union[Dict, List]:
+        if isinstance(params, dict) and 'eval_metric' in params \
+           and isinstance(params['eval_metric'], list):
+            params = dict((k, v) for k, v in params.items())
+            eval_metrics = params['eval_metric']
+            params.pop("eval_metric", None)
+            params = list(params.items())
+            for eval_metric in eval_metrics:
+                params += [('eval_metric', eval_metric)]
+        return params
 
     def __del__(self):
         if hasattr(self, 'handle') and self.handle is not None:
@@ -1154,23 +1182,6 @@ class Booster(object):
             a copied booster model
         """
         return self.__copy__()
-
-    def load_rabit_checkpoint(self):
-        """Initialize the model by load from rabit checkpoint.
-
-        Returns
-        -------
-        version: integer
-            The version number of the model.
-        """
-        version = ctypes.c_int()
-        _check_call(_LIB.XGBoosterLoadRabitCheckpoint(
-            self.handle, ctypes.byref(version)))
-        return version.value
-
-    def save_rabit_checkpoint(self):
-        """Save the current booster to rabit checkpoint."""
-        _check_call(_LIB.XGBoosterSaveRabitCheckpoint(self.handle))
 
     def attr(self, key):
         """Get attribute string from the Booster.
@@ -1672,8 +1683,9 @@ class Booster(object):
 
         """
         if isinstance(fname, (STRING_TYPES, os.PathLike)):  # assume file name
+            fname = os.fspath(os.path.expanduser(fname))
             _check_call(_LIB.XGBoosterSaveModel(
-                self.handle, c_str(os.fspath(fname))))
+                self.handle, c_str(fname)))
         else:
             raise TypeError("fname must be a string or os PathLike")
 
@@ -1712,8 +1724,9 @@ class Booster(object):
         if isinstance(fname, (STRING_TYPES, os.PathLike)):
             # assume file name, cannot use os.path.exist to check, file can be
             # from URL.
+            fname = os.fspath(os.path.expanduser(fname))
             _check_call(_LIB.XGBoosterLoadModel(
-                self.handle, c_str(os.fspath(fname))))
+                self.handle, c_str(fname)))
         elif isinstance(fname, bytearray):
             buf = fname
             length = c_bst_ulong(len(buf))
@@ -1722,6 +1735,17 @@ class Booster(object):
                                                           length))
         else:
             raise TypeError('Unknown file type: ', fname)
+
+    def num_boosted_rounds(self) -> int:
+        '''Get number of boosted rounds.  For gblinear this is reset to 0 after
+        serializing the model.
+
+        '''
+        rounds = ctypes.c_int()
+        assert self.handle is not None
+        _check_call(_LIB.XGBoosterBoostedRounds(
+            self.handle, ctypes.byref(rounds)))
+        return rounds.value
 
     def dump_model(self, fout, fmap='', with_stats=False, dump_format="text"):
         """Dump model into a text or JSON file.  Unlike `save_model`, the
@@ -1740,7 +1764,8 @@ class Booster(object):
             Format of model dump file. Can be 'text' or 'json'.
         """
         if isinstance(fout, (STRING_TYPES, os.PathLike)):
-            fout = open(os.fspath(fout), 'w')
+            fout = os.fspath(os.path.expanduser(fout))
+            fout = open(fout, 'w')
             need_close = True
         else:
             need_close = False
@@ -1774,7 +1799,7 @@ class Booster(object):
             Format of model dump. Can be 'text', 'json' or 'dot'.
 
         """
-        fmap = os.fspath(fmap)
+        fmap = os.fspath(os.path.expanduser(fmap))
         length = c_bst_ulong()
         sarr = ctypes.POINTER(ctypes.c_char_p)()
         if self.feature_names is not None and fmap == '':
@@ -1854,7 +1879,7 @@ class Booster(object):
         importance_type: str, default 'weight'
             One of the importance types defined above.
         """
-        fmap = os.fspath(fmap)
+        fmap = os.fspath(os.path.expanduser(fmap))
         if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
             raise ValueError('Feature importance is not defined for Booster type {}'
                              .format(self.booster))
@@ -1947,7 +1972,7 @@ class Booster(object):
            The name of feature map file.
         """
         # pylint: disable=too-many-locals
-        fmap = os.fspath(fmap)
+        fmap = os.fspath(os.path.expanduser(fmap))
         if not PANDAS_INSTALLED:
             raise Exception(('pandas must be available to use this method.'
                              'Install pandas before calling again.'))
@@ -2025,6 +2050,9 @@ class Booster(object):
         Validate Booster and data's feature_names are identical.
         Set feature_names and feature_types from DMatrix
         """
+        if data.num_row() == 0:
+            return
+
         if self.feature_names is None:
             self.feature_names = data.feature_names
             self.feature_types = data.feature_types

@@ -64,6 +64,23 @@ XGB_DLL const char *XGBGetLastError(void);
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*));
 
 /*!
+ * \brief Set global configuration (collection of parameters that apply globally). This function
+ *        accepts the list of key-value pairs representing the global-scope parameters to be
+ *        configured. The list of key-value pairs are passed in as a JSON string.
+ * \param json_str a JSON string representing the list of key-value pairs. The JSON object shall
+ *                 be flat: no value can be a JSON object or an array.
+ * \return 0 for success, -1 for failure
+ */
+XGB_DLL int XGBSetGlobalConfig(const char* json_str);
+
+/*!
+ * \brief Get current global configuration (collection of parameters that apply globally).
+ * \param json_str pointer to received returned global configuration, represented as a JSON string.
+ * \return 0 for success, -1 for failure
+ */
+XGB_DLL int XGBGetGlobalConfig(const char** json_str);
+
+/*!
  * \brief load a data matrix
  * \param fname the name of the file
  * \param silent whether print messages during loading
@@ -81,7 +98,7 @@ XGB_DLL int XGDMatrixCreateFromFile(const char *fname,
  * \param data fvalue
  * \param nindptr number of rows in the matrix + 1
  * \param nelem number of nonzero elements in the matrix
- * \param num_col number of columns; when it's set to 0, then guess from data
+ * \param num_col number of columns; when it's set to kAdapterUnknownSize, then guess from data
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
@@ -596,6 +613,15 @@ XGB_DLL int XGBoosterFree(BoosterHandle handle);
 XGB_DLL int XGBoosterSlice(BoosterHandle handle, int begin_layer,
                            int end_layer, int step,
                            BoosterHandle *out);
+
+/*!
+ * \brief Get number of boosted rounds from gradient booster.  When process_type is
+ *        update, this number might drop due to removed tree.
+ * \param handle Handle to booster.
+ * \param out Pointer to output integer.
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterBoostedRounds(BoosterHandle handle, int* out);
 
 /*!
  * \brief set parameters

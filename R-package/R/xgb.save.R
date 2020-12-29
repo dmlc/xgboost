@@ -42,6 +42,7 @@ xgb.save <- function(model, fname) {
          if (inherits(model, "xgb.DMatrix")) " Use xgb.DMatrix.save to save an xgb.DMatrix object." else "")
   }
   model <- xgb.Booster.complete(model, saveraw = FALSE)
+  fname <- path.expand(fname)
   .Call(XGBoosterSaveModel_R, model$handle, fname[1])
   return(TRUE)
 }

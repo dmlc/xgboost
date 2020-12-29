@@ -60,9 +60,9 @@ This is a list of short codes introducing different functionalities of xgboost p
 Most of examples in this section are based on CLI or python version.
 However, the parameter settings can be applied to all versions
 
-- [Binary classification](binary_classification)
+- [Binary classification](CLI/binary_classification)
 - [Multiclass classification](multiclass_classification)
-- [Regression](regression)
+- [Regression](CLI/regression)
 - [Learning to Rank](rank)
 
 ### Benchmarks
@@ -110,6 +110,7 @@ Please send pull requests if you find ones that are missing here.
 
 ## Tutorials
 
+- [XGBoost Training with Dask, using Saturn Cloud](https://www.saturncloud.io/docs/tutorials/xgboost/)
 - [Machine Learning with XGBoost on Qubole Spark Cluster](https://www.qubole.com/blog/machine-learning-xgboost-qubole-spark-cluster/)
 - [XGBoost Official RMarkdown Tutorials](https://xgboost.readthedocs.org/en/latest/R-package/index.html#tutorials)
 - [An Introduction to XGBoost R Package](http://dmlc.ml/rstats/2016/03/10/xgboost.html) by Tong He

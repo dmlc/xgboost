@@ -182,8 +182,10 @@ void DistributedHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT* builder
     }
   });
   builder->builder_monitor_.Start("SyncHistogramsAllreduce");
+
   builder->histred_.Allreduce(builder->hist_[starting_index].data(),
                                     builder->hist_builder_.GetNumBins() * sync_count);
+
   builder->builder_monitor_.Stop("SyncHistogramsAllreduce");
 
   ParallelSubtractionHist(builder, space, builder->nodes_for_explicit_hist_build_, p_tree);
@@ -232,7 +234,7 @@ void BatchHistRowsAdder<GradientSumT>::AddHistRows(BuilderT *builder,
   for (auto const& node : builder->nodes_for_subtraction_trick_) {
     builder->hist_.AddHistRow(node.nid);
   }
-
+  builder->hist_.AllocateAllData();
   builder->builder_monitor_.Stop("AddHistRows");
 }
 
@@ -268,6 +270,8 @@ void DistributedHistRowsAdder<GradientSumT>::AddHistRows(BuilderT *builder,
       builder->hist_local_worker_.AddHistRow(nid);
     }
   }
+  builder->hist_.AllocateAllData();
+  builder->hist_local_worker_.AllocateAllData();
   (*sync_count) = std::max(1, n_left);
   builder->builder_monitor_.Stop("AddHistRows");
 }
@@ -691,17 +695,18 @@ void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const std::vector<Gr
     r = rnd;
   }
   const size_t discard_size = info.num_row_ / nthread;
+  auto upper_border = static_cast<float>(std::numeric_limits<uint32_t>::max());
+  uint32_t coin_flip_border = static_cast<uint32_t>(upper_border * param_.subsample);
   #pragma omp parallel num_threads(nthread)
   {
     const size_t tid = omp_get_thread_num();
     const size_t ibegin = tid * discard_size;
     const size_t iend = (tid == (nthread - 1)) ?
                         info.num_row_ : ibegin + discard_size;
-    std::bernoulli_distribution coin_flip(param_.subsample);
 
-    rnds[tid].discard(2*discard_size * tid);
+    rnds[tid].discard(discard_size * tid);
     for (size_t i = ibegin; i < iend; ++i) {
-      if (gpair[i].GetHess() >= 0.0f && coin_flip(rnds[tid])) {
+      if (gpair[i].GetHess() >= 0.0f && rnds[tid]() < coin_flip_border) {
         p_row_indices[ibegin + row_offsets[tid]++] = i;
       }
     }
@@ -1166,7 +1171,7 @@ template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::ApplySplit(const std::vector<ExpandEntry> nodes,
                                             const GHistIndexMatrix& gmat,
                                             const ColumnMatrix& column_matrix,
-                                            const HistCollection<GradientSumT>&,
+                                            const HistCollection<GradientSumT>& hist,
                                             RegTree* p_tree) {
   builder_monitor_.Start("ApplySplit");
   // 1. Find split condition for each split
@@ -1189,7 +1194,10 @@ void QuantileHistMaker::Builder<GradientSumT>::ApplySplit(const std::vector<Expa
   // 2.3 Split elements of row_set_collection_ to left and right child-nodes for each node
   // Store results in intermediate buffers from partition_builder_
   common::ParallelFor2d(space, this->nthread_, [&](size_t node_in_set, common::Range1d r) {
+    size_t begin = r.begin();
     const int32_t nid = nodes[node_in_set].nid;
+    const size_t task_id = partition_builder_.GetTaskIdx(node_in_set, begin);
+    partition_builder_.AllocateForTask(task_id);
       switch (column_matrix.GetTypeSize()) {
       case common::kUint8BinsTypeSize:
         PartitionKernel<uint8_t>(node_in_set, nid, r,

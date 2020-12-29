@@ -1,5 +1,6 @@
 import sys
 import os
+from typing import Type, TypeVar, Any, Dict, List
 import pytest
 import numpy as np
 import asyncio
@@ -25,15 +26,16 @@ try:
     from xgboost import dask as dxgb
     from dask.distributed import Client
     from dask import array as da
+    from dask_cuda import LocalCUDACluster
     import cudf
 except ImportError:
     pass
 
 
-def run_with_dask_dataframe(DMatrixT, client):
+def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
     import cupy as cp
     cp.cuda.runtime.setDevice(0)
-    X, y = generate_array()
+    X, y, _ = generate_array()
 
     X = dd.from_dask_array(X)
     y = dd.from_dask_array(y)
@@ -68,7 +70,9 @@ def run_with_dask_dataframe(DMatrixT, client):
     predt = dxgb.predict(client, out, X)
     assert isinstance(predt, dd.Series)
 
-    def is_df(part):
+    T = TypeVar('T')
+
+    def is_df(part: T) -> T:
         assert isinstance(part, cudf.DataFrame), part
         return part
 
@@ -80,10 +84,10 @@ def run_with_dask_dataframe(DMatrixT, client):
         predt.values.compute(), single_node)
 
 
-def run_with_dask_array(DMatrixT, client):
+def run_with_dask_array(DMatrixT: Type, client: Client) -> None:
     import cupy as cp
     cp.cuda.runtime.setDevice(0)
-    X, y = generate_array()
+    X, y, _ = generate_array()
 
     X = X.map_blocks(cp.asarray)
     y = y.map_blocks(cp.asarray)
@@ -108,7 +112,7 @@ def run_with_dask_array(DMatrixT, client):
         inplace_predictions)
 
 
-def to_cp(x, DMatrixT):
+def to_cp(x: Any, DMatrixT: Type) -> Any:
     import cupy
     if isinstance(x, np.ndarray) and \
        DMatrixT is dxgb.DaskDeviceQuantileDMatrix:
@@ -118,7 +122,13 @@ def to_cp(x, DMatrixT):
     return X
 
 
-def run_gpu_hist(params, num_rounds, dataset, DMatrixT, client):
+def run_gpu_hist(
+    params: Dict,
+    num_rounds: int,
+    dataset: tm.TestDataset,
+    DMatrixT: Type,
+    client: Client
+) -> None:
     params['tree_method'] = 'gpu_hist'
     params = dataset.set_params(params)
     # It doesn't make sense to distribute a completely
@@ -156,7 +166,7 @@ class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_dask_cudf())
     @pytest.mark.skipif(**tm.no_dask_cuda())
     @pytest.mark.mgpu
-    def test_dask_dataframe(self, local_cuda_cluster):
+    def test_dask_dataframe(self, local_cuda_cluster: LocalCUDACluster) -> None:
         with Client(local_cuda_cluster) as client:
             run_with_dask_dataframe(dxgb.DaskDMatrix, client)
             run_with_dask_dataframe(dxgb.DaskDeviceQuantileDMatrix, client)
@@ -168,7 +178,13 @@ class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_dask_cuda())
     @pytest.mark.parametrize('local_cuda_cluster', [{'n_workers': 2}], indirect=['local_cuda_cluster'])
     @pytest.mark.mgpu
-    def test_gpu_hist(self, params, num_rounds, dataset, local_cuda_cluster):
+    def test_gpu_hist(
+        self,
+        params: Dict,
+        num_rounds: int,
+        dataset: tm.TestDataset,
+        local_cuda_cluster: LocalCUDACluster
+    ) -> None:
         with Client(local_cuda_cluster) as client:
             run_gpu_hist(params, num_rounds, dataset, dxgb.DaskDMatrix,
                          client)
@@ -179,22 +195,58 @@ class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
     @pytest.mark.mgpu
-    def test_dask_array(self, local_cuda_cluster):
+    def test_dask_array(self, local_cuda_cluster: LocalCUDACluster) -> None:
         with Client(local_cuda_cluster) as client:
             run_with_dask_array(dxgb.DaskDMatrix, client)
             run_with_dask_array(dxgb.DaskDeviceQuantileDMatrix, client)
 
+    @pytest.mark.skipif(**tm.no_cupy())
+    @pytest.mark.skipif(**tm.no_dask())
+    @pytest.mark.skipif(**tm.no_dask_cuda())
+    def test_early_stopping(self, local_cuda_cluster: LocalCUDACluster) -> None:
+        from sklearn.datasets import load_breast_cancer
+        with Client(local_cuda_cluster) as client:
+            X, y = load_breast_cancer(return_X_y=True)
+            X, y = da.from_array(X), da.from_array(y)
+
+            m = dxgb.DaskDMatrix(client, X, y)
+
+            valid = dxgb.DaskDMatrix(client, X, y)
+            early_stopping_rounds = 5
+            booster = dxgb.train(client, {'objective': 'binary:logistic',
+                                          'eval_metric': 'error',
+                                          'tree_method': 'gpu_hist'}, m,
+                                 evals=[(valid, 'Valid')],
+                                 num_boost_round=1000,
+                                 early_stopping_rounds=early_stopping_rounds)[
+                                     'booster']
+            assert hasattr(booster, 'best_score')
+            dump = booster.get_dump(dump_format='json')
+            assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
+            valid_X = X
+            valid_y = y
+            cls = dxgb.DaskXGBClassifier(objective='binary:logistic',
+                                         tree_method='gpu_hist',
+                                         n_estimators=100)
+            cls.client = client
+            cls.fit(X, y, early_stopping_rounds=early_stopping_rounds,
+                    eval_set=[(valid_X, valid_y)])
+            booster = cls.get_booster()
+            dump = booster.get_dump(dump_format='json')
+            assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
     @pytest.mark.mgpu
-    def test_empty_dmatrix(self, local_cuda_cluster):
+    def test_empty_dmatrix(self, local_cuda_cluster: LocalCUDACluster) -> None:
         with Client(local_cuda_cluster) as client:
             parameters = {'tree_method': 'gpu_hist',
                           'debug_synchronize': True}
             run_empty_dmatrix_reg(client, parameters)
             run_empty_dmatrix_cls(client, parameters)
 
-    def run_quantile(self, name, local_cuda_cluster):
+    def run_quantile(self, name: str, local_cuda_cluster: LocalCUDACluster) -> None:
         if sys.platform.startswith("win"):
             pytest.skip("Skipping dask tests on Windows")
 
@@ -206,16 +258,18 @@ class TestDistributedGPU:
         assert exe, 'No testxgboost executable found.'
         test = "--gtest_filter=GPUQuantile." + name
 
-        def runit(worker_addr, rabit_args):
-            port = None
+        def runit(
+            worker_addr: str, rabit_args: List[bytes]
+        ) -> subprocess.CompletedProcess:
+            port_env = ''
             # setup environment for running the c++ part.
             for arg in rabit_args:
                 if arg.decode('utf-8').startswith('DMLC_TRACKER_PORT'):
-                    port = arg.decode('utf-8')
-            port = port.split('=')
+                    port_env = arg.decode('utf-8')
+            port = port_env.split('=')
             env = os.environ.copy()
             env[port[0]] = port[1]
-            return subprocess.run([exe, test], env=env, stdout=subprocess.PIPE)
+            return subprocess.run([str(exe), test], env=env, stdout=subprocess.PIPE)
 
         with Client(local_cuda_cluster) as client:
             workers = list(_get_client_workers(client).keys())
@@ -235,21 +289,23 @@ class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_dask_cuda())
     @pytest.mark.mgpu
     @pytest.mark.gtest
-    def test_quantile_basic(self, local_cuda_cluster):
+    def test_quantile_basic(self, local_cuda_cluster: LocalCUDACluster) -> None:
         self.run_quantile('AllReduceBasic', local_cuda_cluster)
 
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
     @pytest.mark.mgpu
     @pytest.mark.gtest
-    def test_quantile_same_on_all_workers(self, local_cuda_cluster):
+    def test_quantile_same_on_all_workers(
+        self, local_cuda_cluster: LocalCUDACluster
+    ) -> None:
         self.run_quantile('SameOnAllWorkers', local_cuda_cluster)
 
 
-async def run_from_dask_array_asyncio(scheduler_address):
+async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainReturnT:
     async with Client(scheduler_address, asynchronous=True) as client:
         import cupy as cp
-        X, y = generate_array()
+        X, y, _ = generate_array()
         X = X.map_blocks(cp.array)
         y = y.map_blocks(cp.array)
 
@@ -276,7 +332,7 @@ async def run_from_dask_array_asyncio(scheduler_address):
 @pytest.mark.skipif(**tm.no_dask())
 @pytest.mark.skipif(**tm.no_dask_cuda())
 @pytest.mark.mgpu
-def test_with_asyncio(local_cuda_cluster):
+def test_with_asyncio(local_cuda_cluster: LocalCUDACluster) -> None:
     with Client(local_cuda_cluster) as client:
         address = client.scheduler.address
         output = asyncio.run(run_from_dask_array_asyncio(address))

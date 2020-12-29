@@ -39,6 +39,10 @@ run_booster_check <- function (booster, name) {
     testthat::expect_equal(config$learner$learner_train_param$objective, 'multi:softmax')
     testthat::expect_equal(as.numeric(config$learner$learner_model_param$num_class),
                            metadata$kClasses)
+  } else if (name == 'logitraw') {
+    testthat::expect_equal(get_num_tree(booster), metadata$kForests * metadata$kRounds)
+    testthat::expect_equal(as.numeric(config$learner$learner_model_param$num_class), 0)
+    testthat::expect_equal(config$learner$learner_train_param$objective, 'binary:logitraw')
   } else if (name == 'logit') {
     testthat::expect_equal(get_num_tree(booster), metadata$kForests * metadata$kRounds)
     testthat::expect_equal(as.numeric(config$learner$learner_model_param$num_class), 0)
