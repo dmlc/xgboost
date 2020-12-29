@@ -712,7 +712,7 @@ class HostSketchContainer {
    std::vector<std::vector<WQSketch> > sketches_; // sketches_ per thread
    size_t columns_size_;
    size_t size_per_thread_;
-   int nthread_ = 36;//omp_get_max_threads();
+   int nthread_ = omp_get_max_threads();
  
  public:
  /*
