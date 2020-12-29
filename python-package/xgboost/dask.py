@@ -1541,6 +1541,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         self,
         X: _DaskCollection,
         validate_features: bool,
+        output_margin: bool,
         base_margin: Optional[_DaskCollection]
     ) -> _DaskCollection:
         test_dmatrix = await DaskDMatrix(
@@ -1551,7 +1552,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
                                    model=self.get_booster(),
                                    data=test_dmatrix,
                                    validate_features=validate_features,
-                                   output_margin=False)
+                                   output_margin=output_margin)
         return pred_probs
 
     # pylint: disable=arguments-differ,missing-docstring
@@ -1560,6 +1561,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         X: _DaskCollection,
         ntree_limit: Optional[int] = None,
         validate_features: bool = True,
+        output_margin: bool = False,
         base_margin: Optional[_DaskCollection] = None
     ) -> Any:
         _assert_dask_support()
@@ -1569,6 +1571,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             self._predict_proba_async,
             X=X,
             validate_features=validate_features,
+            output_margin=output_margin,
             base_margin=base_margin
         )
 
