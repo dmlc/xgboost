@@ -166,7 +166,7 @@ monitor_.Start("PushRowPage3");
       auto const begin = thread_rows_ptr[tid];
       auto const end = thread_rows_ptr[tid + 1];
 
-	  std::cout << "MC begin-end: " << begin << "-" << end << std::endl;
+	  //std::cout << "MC begin-end: " << begin << "-" << end << std::endl;
       size_t group_ind = 0;
 
       // do not iterate if no columns are assigned to the thread
