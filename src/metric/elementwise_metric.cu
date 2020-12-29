@@ -291,6 +291,8 @@ struct EvalGammaNLogLik {
   }
 
   XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const {
+    const bst_float eps = 1e-16f;
+    if (y < eps) y = eps;
     bst_float psi = 1.0;
     bst_float theta = -1. / py;
     bst_float a = psi;

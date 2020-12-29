@@ -3,6 +3,7 @@
 
 import os
 import platform
+from typing import List
 import sys
 
 
@@ -10,12 +11,12 @@ class XGBoostLibraryNotFound(Exception):
     """Error thrown by when xgboost is not found"""
 
 
-def find_lib_path():
+def find_lib_path() -> List[str]:
     """Find the path to xgboost dynamic library files.
 
     Returns
     -------
-    lib_path: list(string)
+    lib_path
        List of all found library path to xgboost
     """
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))

@@ -443,8 +443,8 @@ class XGBModel(XGBModelBase):
             except TypeError:
                 warnings.warn(str(k) + ' is not saved in Scikit-Learn meta.')
         meta['type'] = type(self).__name__
-        meta = json.dumps(meta)
-        self.get_booster().set_attr(scikit_learn=meta)
+        meta_str = json.dumps(meta)
+        self.get_booster().set_attr(scikit_learn=meta_str)
         self.get_booster().save_model(fname)
         # Delete the attribute after save
         self.get_booster().set_attr(scikit_learn=None)
@@ -1000,10 +1000,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             return self._le.inverse_transform(column_indexes)
         return column_indexes
 
-    def predict_proba(self, data, ntree_limit=None, validate_features=False,
+    def predict_proba(self, X, ntree_limit=None, validate_features=False,
                       base_margin=None):
-        """
-        Predict the probability of each `data` example being of a given class.
+        """ Predict the probability of each `X` example being of a given class.
 
         .. note:: This function is not thread safe
 
@@ -1013,21 +1012,22 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         Parameters
         ----------
-        data : array_like
+        X : array_like
             Feature matrix.
         ntree_limit : int
-            Limit number of trees in the prediction; defaults to best_ntree_limit if defined
-            (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
+            Limit number of trees in the prediction; defaults to best_ntree_limit if
+            defined (i.e. it has been trained with early stopping), otherwise 0 (use all
+            trees).
         validate_features : bool
-            When this is True, validate that the Booster's and data's feature_names are identical.
-            Otherwise, it is assumed that the feature_names are the same.
+            When this is True, validate that the Booster's and data's feature_names are
+            identical.  Otherwise, it is assumed that the feature_names are the same.
 
         Returns
         -------
         prediction : numpy array
             a numpy array with the probability of each data example being of a given class.
         """
-        test_dmatrix = DMatrix(data, base_margin=base_margin,
+        test_dmatrix = DMatrix(X, base_margin=base_margin,
                                missing=self.missing, nthread=self.n_jobs)
         if ntree_limit is None:
             ntree_limit = getattr(self, "best_ntree_limit", 0)

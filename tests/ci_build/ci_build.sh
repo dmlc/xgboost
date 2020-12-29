@@ -214,4 +214,3 @@ ${DOCKER_BINARY} run --rm --pid=host \
     "${CI_DOCKER_EXTRA_PARAMS[@]}" \
     "${DOCKER_IMG_NAME}" \
     "${COMMAND[@]}"
-
