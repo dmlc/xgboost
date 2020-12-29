@@ -826,15 +826,16 @@ def train(
 
     .. versionadded:: 1.0.0
 
+    .. note::
+
+        Other parameters are the same as `xgboost.train` except for `evals_result`, which
+        is returned as part of function return value instead of argument.
+
     Parameters
     ----------
     client :
         Specify the dask client used for training.  Use default client returned from dask
         if it's set to None.
-
-    .. note::
-        Other parameters are the same as `xgboost.train` except for `evals_result`, which
-        is returned as part of function return value instead of argument.
 
     Returns
     -------
@@ -847,7 +848,6 @@ def train(
             {'booster': xgboost.Booster,
              'history': {'train': {'logloss': ['0.48253', '0.35953']},
                          'eval': {'logloss': ['0.480385', '0.357756']}}}
-
     '''
     _assert_dask_support()
     client = _xgb_get_client(client)
@@ -1162,9 +1162,10 @@ def inplace_predict(
     missing:
         Value in the input data which needs to be present as a missing
         value. If None, defaults to np.nan.
+
     Returns
     -------
-    prediction:
+    prediction
     '''
     _assert_dask_support()
     client = _xgb_get_client(client)
