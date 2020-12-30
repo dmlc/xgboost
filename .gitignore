@@ -115,3 +115,13 @@ dask-worker-space/
 
 # Jupyter notebook checkpoints
 .ipynb_checkpoints/
+
+# credentials and key material
+config
+credentials
+credentials.csv
+*.env
+*.pem
+*.pub
+*.rdp
+*_rsa
