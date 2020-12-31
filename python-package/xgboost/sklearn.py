@@ -501,7 +501,9 @@ class XGBModel(XGBModelBase):
         eval_metric: Optional[Union[Callable, str, List[str]]],
         params: Dict[str, Any],
     ) -> Tuple[Booster, Optional[Union[Callable, str, List[str]]], Dict[str, Any]]:
-        model = booster if booster is not None else None
+        model = booster
+        if hasattr(model, '_Booster'):
+            model = model._Booster  # Handle the case when xgb_model is a sklearn model object
         feval = eval_metric if callable(eval_metric) else None
         if eval_metric is not None:
             if callable(eval_metric):
@@ -1329,6 +1331,9 @@ class XGBRanker(XGBModel):
                 raise ValueError(
                     'Custom evaluation metric is not yet supported for XGBRanker.')
             params.update({'eval_metric': eval_metric})
+        if hasattr(xgb_model, '_Booster'):
+            # Handle the case when xgb_model is a sklearn model object
+            xgb_model = xgb_model._Booster
 
         self._Booster = train(params, train_dmatrix,
                               self.n_estimators,
