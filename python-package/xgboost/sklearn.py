@@ -517,7 +517,11 @@ class XGBModel(XGBModelBase):
             feature_weights=None,
             callbacks=None):
         # pylint: disable=invalid-name,attribute-defined-outside-init
-        """Fit gradient boosting model
+        """Fit gradient boosting model.
+
+        Note that calling ``fit()`` multiple times will cause the model object to be re-fit from
+        scratch. To resume training from a previous checkpoint, explicitly pass ``xgb_model``
+        argument.
 
         Parameters
         ----------
@@ -1210,6 +1214,10 @@ class XGBRanker(XGBModel):
             feature_weights=None, callbacks=None):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """Fit gradient boosting ranker
+
+        Note that calling ``fit()`` multiple times will cause the model object to be re-fit from
+        scratch. To resume training from a previous checkpoint, explicitly pass ``xgb_model``
+        argument.
 
         Parameters
         ----------
