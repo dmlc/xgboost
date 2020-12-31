@@ -501,8 +501,7 @@ class XGBModel(XGBModelBase):
         eval_metric: Optional[Union[Callable, str, List[str]]],
         params: Dict[str, Any],
     ) -> Tuple[Booster, Optional[Union[Callable, str, List[str]]], Dict[str, Any]]:
-        model = self._Booster if hasattr(self, "_Booster") else None
-        model = booster if booster is not None else model
+        model = booster if booster is not None else None
         feval = eval_metric if callable(eval_metric) else None
         if eval_metric is not None:
             if callable(eval_metric):
