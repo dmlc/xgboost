@@ -600,8 +600,8 @@ struct EvalAucPR : public Metric {
     }
     CHECK_GT(dat[1], 0.0f)
       << "AUC-PR: the dataset only contains pos or neg samples";
-    CHECK_LE(dat[0], dat[1]) << "AUC-PR: AUC > 1.0";
-    return dat[0] / dat[1];
+    //CHECK_LE(dat[0], dat[1]) << "AUC-PR: AUC > 1.0";
+    return dat[0] / dat[1] ? dat[0] <= dat[1] : 1.0;
   }
 
  public:
