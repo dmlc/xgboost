@@ -819,6 +819,20 @@ class XGBModel(XGBModelBase):
         return np.array(json.loads(b.get_dump(dump_format='json')[0])['bias'])
 
 
+def _cls_predict_proba(objective: Union[str, Callable], prediction: Any, vstack: Callable) -> Any:
+    if self.objective == 'multi:softmax':
+        raise ValueError('multi:softmax objective does not support predict_proba,'
+                         ' use `multi:softprob` or `binary:logistic` instead.')
+    if self.objective == 'multi:softprob' or callable(self.objective):
+        # Return prediction directly if if objective is defined by user since we don't
+        # know how to perform the transformation
+        return proba
+    # Lastly the binary logistic function
+    classone_probs = proba
+    classzero_probs = 1.0 - classone_probs
+    return vstack((classzero_probs, classone_probs)).transpose()
+
+
 @xgboost_model_doc(
     "Implementation of the scikit-learn API for XGBoost classification.",
     ['model', 'objective'], extra_parameters='''
@@ -1040,11 +1054,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         class_probs = self.get_booster().predict(test_dmatrix,
                                                  ntree_limit=ntree_limit,
                                                  validate_features=validate_features)
-        if self.objective == "multi:softprob":
-            return class_probs
-        classone_probs = class_probs
-        classzero_probs = 1.0 - classone_probs
-        return np.vstack((classzero_probs, classone_probs)).transpose()
+        return _cls_predict_proba(self.objective, class_probs, np.vstack)
 
     def evals_result(self):
         """Return the evaluation results.

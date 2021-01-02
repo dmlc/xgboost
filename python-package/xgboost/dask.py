@@ -40,6 +40,7 @@ from .training import train as worker_train
 from .tracker import RabitTracker, get_host_ip
 from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase, _objective_decorator
 from .sklearn import xgboost_model_doc
+from .sklearn import _cls_predict_proba
 
 
 if TYPE_CHECKING:
@@ -1554,7 +1555,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
                                    data=test_dmatrix,
                                    validate_features=validate_features,
                                    output_margin=output_margin)
-        return pred_probs
+        return _cls_predict_proba(self.objective, pred_probs, da.vstack)
 
     # pylint: disable=arguments-differ,missing-docstring
     def predict_proba(
@@ -1568,20 +1569,13 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         _assert_dask_support()
         msg = '`ntree_limit` is not supported on dask, use model slicing instead.'
         assert ntree_limit is None, msg
-        proba = self.client.sync(
+        return self.client.sync(
             self._predict_proba_async,
             X=X,
             validate_features=validate_features,
             output_margin=output_margin,
             base_margin=base_margin
         )
-
-        if self.objective == 'multi:softprob':
-            return proba
-
-        classone_probs = proba
-        classzero_probs = 1.0 - classone_probs
-        return da.vstack((classzero_probs, classone_probs)).transpose()
 
     async def _predict_async(
         self, data: _DaskCollection,
