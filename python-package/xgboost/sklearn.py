@@ -820,15 +820,15 @@ class XGBModel(XGBModelBase):
 
 
 def _cls_predict_proba(objective: Union[str, Callable], prediction: Any, vstack: Callable) -> Any:
-    if self.objective == 'multi:softmax':
+    if objective == 'multi:softmax':
         raise ValueError('multi:softmax objective does not support predict_proba,'
                          ' use `multi:softprob` or `binary:logistic` instead.')
-    if self.objective == 'multi:softprob' or callable(self.objective):
+    if objective == 'multi:softprob' or callable(objective):
         # Return prediction directly if if objective is defined by user since we don't
         # know how to perform the transformation
-        return proba
+        return prediction
     # Lastly the binary logistic function
-    classone_probs = proba
+    classone_probs = prediction
     classzero_probs = 1.0 - classone_probs
     return vstack((classzero_probs, classone_probs)).transpose()
 
