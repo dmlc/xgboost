@@ -1568,13 +1568,20 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         _assert_dask_support()
         msg = '`ntree_limit` is not supported on dask, use model slicing instead.'
         assert ntree_limit is None, msg
-        return self.client.sync(
+        proba = self.client.sync(
             self._predict_proba_async,
             X=X,
             validate_features=validate_features,
             output_margin=output_margin,
             base_margin=base_margin
         )
+
+        if self.objective == 'multi:softprob':
+            return proba
+
+        classone_probs = proba
+        classzero_probs = 1.0 - classone_probs
+        return da.vstack((classzero_probs, classone_probs)).transpose()
 
     async def _predict_async(
         self, data: _DaskCollection,
@@ -1593,6 +1600,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             output_margin=output_margin,
             validate_features=validate_features
         )
+        if output_margin:
+            return pred_probs
 
         if self.n_classes_ == 2:
             preds = (pred_probs > 0.5).astype(int)
