@@ -1258,25 +1258,40 @@ async def _evaluation_matrices(
 
 
 class DaskScikitLearnBase(XGBModel):
-    '''Base class for implementing scikit-learn interface with Dask'''
+    """Base class for implementing scikit-learn interface with Dask"""
 
     _client = None
 
     @_deprecate_positional_args
     async def _predict_async(
-        self, data: _DaskCollection,
+        self,
+        data: _DaskCollection,
         output_margin: bool = False,
         validate_features: bool = True,
-        base_margin: Optional[_DaskCollection] = None
+        base_margin: Optional[_DaskCollection] = None,
     ) -> Any:
-        test_dmatrix = await DaskDMatrix(
-            client=self.client, data=data, base_margin=base_margin,
-            missing=self.missing
-        )
-        pred_probs = await predict(client=self.client,
-                                   model=self.get_booster(), data=test_dmatrix,
-                                   output_margin=output_margin,
-                                   validate_features=validate_features)
+        if base_margin:
+            test_dmatrix = await DaskDMatrix(
+                client=self.client,
+                data=data,
+                base_margin=base_margin,
+                missing=self.missing,
+            )
+            pred_probs = await predict(
+                client=self.client,
+                model=self.get_booster(),
+                data=test_dmatrix,
+                output_margin=output_margin,
+                validate_features=validate_features,
+            )
+        else:
+            pred_probs = await inplace_predict(
+                client=self.client,
+                model=self.get_booster(),
+                data=data,
+                predict_type="margin" if output_margin else "value",
+                missing=self.missing,
+            )
         return pred_probs
 
     def predict(
@@ -1285,28 +1300,29 @@ class DaskScikitLearnBase(XGBModel):
         output_margin: bool = False,
         ntree_limit: Optional[int] = None,
         validate_features: bool = True,
-        base_margin: Optional[_DaskCollection] = None
+        base_margin: Optional[_DaskCollection] = None,
     ) -> Any:
         _assert_dask_support()
-        msg = '`ntree_limit` is not supported on dask, use model slicing instead.'
+        msg = "`ntree_limit` is not supported on dask, use model slicing instead."
         assert ntree_limit is None, msg
         return self.client.sync(
             self._predict_async,
             X,
             output_margin=output_margin,
             validate_features=validate_features,
-            base_margin=base_margin
+            base_margin=base_margin,
         )
 
     def __await__(self) -> Awaitable[Any]:
         # Generate a coroutine wrapper to make this class awaitable.
         async def _() -> Awaitable[Any]:
             return self
+
         return self.client.sync(_).__await__()
 
     @property
     def client(self) -> "distributed.Client":
-        '''The dask client used in this model.'''
+        """The dask client used in this model."""
         client = _xgb_get_client(self._client)
         return client
 
