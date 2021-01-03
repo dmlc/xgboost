@@ -788,6 +788,11 @@ def test_save_load_model():
         booster.save_model(model_path)
         cls = xgb.XGBClassifier()
         cls.load_model(model_path)
+
+        proba = cls.predict_proba(X)
+        assert proba.shape[0] == X.shape[0]
+        assert proba.shape[1] == 2  # binary
+
         predt_1 = cls.predict_proba(X)[:, 1]
         assert np.allclose(predt_0, predt_1)
 

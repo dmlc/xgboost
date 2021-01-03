@@ -1505,6 +1505,10 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
                               early_stopping_rounds=early_stopping_rounds,
                               callbacks=callbacks)
         self._Booster = results['booster']
+
+        if not callable(self.objective):
+            self.objective = params["objective"]
+
         # pylint: disable=attribute-defined-outside-init
         self.evals_result_ = results['history']
         return self
