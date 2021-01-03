@@ -253,6 +253,34 @@ def eval_error_metric(predt, dtrain: xgb.DMatrix):
     return 'CustomErr', np.sum(r)
 
 
+def softmax(x):
+    e = np.exp(x)
+    return e / np.sum(e)
+
+
+def softprob_obj(classes):
+    def objective(labels, predt):
+        rows = labels.shape[0]
+        grad = np.zeros((rows, classes), dtype=float)
+        hess = np.zeros((rows, classes), dtype=float)
+        eps = 1e-6
+        for r in range(predt.shape[0]):
+            target = labels[r]
+            p = softmax(predt[r, :])
+            for c in range(predt.shape[1]):
+                assert target >= 0 or target <= classes
+                g = p[c] - 1.0 if c == target else p[c]
+                h = max((2.0 * p[c] * (1.0 - p[c])).item(), eps)
+                grad[r, c] = g
+                hess[r, c] = h
+
+        grad = grad.reshape((rows * classes, 1))
+        hess = hess.reshape((rows * classes, 1))
+        return grad, hess
+
+    return objective
+
+
 class DirectoryExcursion:
     def __init__(self, path: os.PathLike, cleanup=False):
         '''Change directory.  Change back and optionally cleaning up the directory when exit.
