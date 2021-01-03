@@ -160,7 +160,7 @@ def test_boost_from_prediction(tree_method: str) -> None:
                 tree_method=tree_method,
             )
             model_0.fit(X=X_, y=y_)
-            margin = model_0.predict_proba(X_, output_margin=True)
+            margin = model_0.predict(X_, output_margin=True)
 
             model_1 = xgb.dask.DaskXGBClassifier(
                 learning_rate=0.3,

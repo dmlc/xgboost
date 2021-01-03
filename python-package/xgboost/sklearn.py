@@ -824,7 +824,6 @@ def _cls_predict_proba(objective: Union[str, Callable], prediction: Any, vstack:
         raise ValueError('multi:softmax objective does not support predict_proba,'
                          ' use `multi:softprob` or `binary:logistic` instead.')
     if objective == 'multi:softprob' or callable(objective):
-        print('Is softprob')
         # Return prediction directly if if objective is defined by user since we don't
         # know how to perform the transformation
         return prediction
