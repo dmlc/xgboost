@@ -1045,7 +1045,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         Returns
         -------
         prediction : numpy array
-            a numpy array with the probability of each data example being of a given class.
+            a numpy array of shape array-like of shape (n_samples, n_classes) with the
+            probability of each data example being of a given class.
         """
         test_dmatrix = DMatrix(X, base_margin=base_margin,
                                missing=self.missing, nthread=self.n_jobs)
