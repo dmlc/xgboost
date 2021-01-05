@@ -819,6 +819,20 @@ class XGBModel(XGBModelBase):
         return np.array(json.loads(b.get_dump(dump_format='json')[0])['bias'])
 
 
+def _cls_predict_proba(objective: Union[str, Callable], prediction: Any, vstack: Callable) -> Any:
+    if objective == 'multi:softmax':
+        raise ValueError('multi:softmax objective does not support predict_proba,'
+                         ' use `multi:softprob` or `binary:logistic` instead.')
+    if objective == 'multi:softprob' or callable(objective):
+        # Return prediction directly if if objective is defined by user since we don't
+        # know how to perform the transformation
+        return prediction
+    # Lastly the binary logistic function
+    classone_probs = prediction
+    classzero_probs = 1.0 - classone_probs
+    return vstack((classzero_probs, classone_probs)).transpose()
+
+
 @xgboost_model_doc(
     "Implementation of the scikit-learn API for XGBoost classification.",
     ['model', 'objective'], extra_parameters='''
@@ -929,7 +943,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                               verbose_eval=verbose, xgb_model=model,
                               callbacks=callbacks)
 
-        self.objective = params["objective"]
+        if not callable(self.objective):
+            self.objective = params["objective"]
+
         if evals_result:
             for val in evals_result.items():
                 evals_result_key = list(val[1].keys())[0]
@@ -1031,7 +1047,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         Returns
         -------
         prediction : numpy array
-            a numpy array with the probability of each data example being of a given class.
+            a numpy array of shape array-like of shape (n_samples, n_classes) with the
+            probability of each data example being of a given class.
         """
         test_dmatrix = DMatrix(X, base_margin=base_margin,
                                missing=self.missing, nthread=self.n_jobs)
@@ -1040,11 +1057,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         class_probs = self.get_booster().predict(test_dmatrix,
                                                  ntree_limit=ntree_limit,
                                                  validate_features=validate_features)
-        if self.objective == "multi:softprob":
-            return class_probs
-        classone_probs = class_probs
-        classzero_probs = 1.0 - classone_probs
-        return np.vstack((classzero_probs, classone_probs)).transpose()
+        return _cls_predict_proba(self.objective, class_probs, np.vstack)
 
     def evals_result(self):
         """Return the evaluation results.

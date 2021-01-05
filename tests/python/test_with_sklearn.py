@@ -79,6 +79,18 @@ def test_multiclass_classification():
         check_pred(preds3, labels, output_margin=True)
         check_pred(preds4, labels, output_margin=False)
 
+    cls = xgb.XGBClassifier(n_estimators=4).fit(X, y)
+    assert cls.n_classes_ == 3
+    proba = cls.predict_proba(X)
+    assert proba.shape[0] == X.shape[0]
+    assert proba.shape[1] == cls.n_classes_
+
+    # custom objective, the default is multi:softprob so no transformation is required.
+    cls = xgb.XGBClassifier(n_estimators=4, objective=tm.softprob_obj(3)).fit(X, y)
+    proba = cls.predict_proba(X)
+    assert proba.shape[0] == X.shape[0]
+    assert proba.shape[1] == cls.n_classes_
+
 
 def test_ranking():
     # generate random data
@@ -788,6 +800,11 @@ def test_save_load_model():
         booster.save_model(model_path)
         cls = xgb.XGBClassifier()
         cls.load_model(model_path)
+
+        proba = cls.predict_proba(X)
+        assert proba.shape[0] == X.shape[0]
+        assert proba.shape[1] == 2  # binary
+
         predt_1 = cls.predict_proba(X)[:, 1]
         assert np.allclose(predt_0, predt_1)
 
