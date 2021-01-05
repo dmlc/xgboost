@@ -501,8 +501,10 @@ class XGBModel(XGBModelBase):
         eval_metric: Optional[Union[Callable, str, List[str]]],
         params: Dict[str, Any],
     ) -> Tuple[Booster, Optional[Union[Callable, str, List[str]]], Dict[str, Any]]:
-        model = self._Booster if hasattr(self, "_Booster") else None
-        model = booster if booster is not None else model
+        # pylint: disable=protected-access, no-self-use
+        model = booster
+        if hasattr(model, '_Booster'):
+            model = model._Booster  # Handle the case when xgb_model is a sklearn model object
         feval = eval_metric if callable(eval_metric) else None
         if eval_metric is not None:
             if callable(eval_metric):
@@ -518,7 +520,11 @@ class XGBModel(XGBModelBase):
             feature_weights=None,
             callbacks=None):
         # pylint: disable=invalid-name,attribute-defined-outside-init
-        """Fit gradient boosting model
+        """Fit gradient boosting model.
+
+        Note that calling ``fit()`` multiple times will cause the model object to be re-fit from
+        scratch. To resume training from a previous checkpoint, explicitly pass ``xgb_model``
+        argument.
 
         Parameters
         ----------
@@ -813,6 +819,20 @@ class XGBModel(XGBModelBase):
         return np.array(json.loads(b.get_dump(dump_format='json')[0])['bias'])
 
 
+def _cls_predict_proba(objective: Union[str, Callable], prediction: Any, vstack: Callable) -> Any:
+    if objective == 'multi:softmax':
+        raise ValueError('multi:softmax objective does not support predict_proba,'
+                         ' use `multi:softprob` or `binary:logistic` instead.')
+    if objective == 'multi:softprob' or callable(objective):
+        # Return prediction directly if if objective is defined by user since we don't
+        # know how to perform the transformation
+        return prediction
+    # Lastly the binary logistic function
+    classone_probs = prediction
+    classzero_probs = 1.0 - classone_probs
+    return vstack((classzero_probs, classone_probs)).transpose()
+
+
 @xgboost_model_doc(
     "Implementation of the scikit-learn API for XGBoost classification.",
     ['model', 'objective'], extra_parameters='''
@@ -923,7 +943,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                               verbose_eval=verbose, xgb_model=model,
                               callbacks=callbacks)
 
-        self.objective = params["objective"]
+        if not callable(self.objective):
+            self.objective = params["objective"]
+
         if evals_result:
             for val in evals_result.items():
                 evals_result_key = list(val[1].keys())[0]
@@ -1025,7 +1047,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         Returns
         -------
         prediction : numpy array
-            a numpy array with the probability of each data example being of a given class.
+            a numpy array of shape array-like of shape (n_samples, n_classes) with the
+            probability of each data example being of a given class.
         """
         test_dmatrix = DMatrix(X, base_margin=base_margin,
                                missing=self.missing, nthread=self.n_jobs)
@@ -1034,11 +1057,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         class_probs = self.get_booster().predict(test_dmatrix,
                                                  ntree_limit=ntree_limit,
                                                  validate_features=validate_features)
-        if self.objective == "multi:softprob":
-            return class_probs
-        classone_probs = class_probs
-        classzero_probs = 1.0 - classone_probs
-        return np.vstack((classzero_probs, classone_probs)).transpose()
+        return _cls_predict_proba(self.objective, class_probs, np.vstack)
 
     def evals_result(self):
         """Return the evaluation results.
@@ -1212,6 +1231,10 @@ class XGBRanker(XGBModel):
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """Fit gradient boosting ranker
 
+        Note that calling ``fit()`` multiple times will cause the model object to be re-fit from
+        scratch. To resume training from a previous checkpoint, explicitly pass ``xgb_model``
+        argument.
+
         Parameters
         ----------
         X : array_like
@@ -1322,6 +1345,9 @@ class XGBRanker(XGBModel):
                 raise ValueError(
                     'Custom evaluation metric is not yet supported for XGBRanker.')
             params.update({'eval_metric': eval_metric})
+        if hasattr(xgb_model, '_Booster'):
+            # Handle the case when xgb_model is a sklearn model object
+            xgb_model = xgb_model._Booster  # pylint: disable=protected-access
 
         self._Booster = train(params, train_dmatrix,
                               self.n_estimators,

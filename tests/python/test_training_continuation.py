@@ -2,6 +2,7 @@ import xgboost as xgb
 import testing as tm
 import numpy as np
 import pytest
+import os
 
 rng = np.random.RandomState(1337)
 
@@ -34,8 +35,8 @@ class TestTrainingContinuation:
         from sklearn.datasets import load_digits
         from sklearn.metrics import mean_squared_error
 
-        digits_2class = load_digits(2)
-        digits_5class = load_digits(5)
+        digits_2class = load_digits(n_class=2)
+        digits_5class = load_digits(n_class=5)
 
         X_2class = digits_2class['data']
         y_2class = digits_2class['target']
@@ -85,6 +86,8 @@ class TestTrainingContinuation:
         assert ntrees_03a == 10
         assert ntrees_03b == 10
 
+        os.remove('xgb_tc.model')
+
         res1 = mean_squared_error(y_2class, gbdt_03a.predict(dtrain_2class))
         res2 = mean_squared_error(y_2class, gbdt_03b.predict(dtrain_2class))
         assert res1 == res2
@@ -116,13 +119,13 @@ class TestTrainingContinuation:
         gbdt_05 = xgb.train(xgb_params_03, dtrain_5class,
                             num_boost_round=7)
         assert gbdt_05.best_ntree_limit == (
-            gbdt_05.best_iteration + 1) * self.num_parallel_tree
+            gbdt_05.best_iteration + 1) * self.num_parallel_tree * 5
         gbdt_05 = xgb.train(xgb_params_03,
                             dtrain_5class,
                             num_boost_round=3,
                             xgb_model=gbdt_05)
         assert gbdt_05.best_ntree_limit == (
-            gbdt_05.best_iteration + 1) * self.num_parallel_tree
+            gbdt_05.best_iteration + 1) * self.num_parallel_tree * 5
 
         res1 = gbdt_05.predict(dtrain_5class)
         res2 = gbdt_05.predict(dtrain_5class,

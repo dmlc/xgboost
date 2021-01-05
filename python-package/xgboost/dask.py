@@ -40,6 +40,7 @@ from .training import train as worker_train
 from .tracker import RabitTracker, get_host_ip
 from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase, _objective_decorator
 from .sklearn import xgboost_model_doc
+from .sklearn import _cls_predict_proba
 
 
 if TYPE_CHECKING:
@@ -1504,6 +1505,10 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
                               early_stopping_rounds=early_stopping_rounds,
                               callbacks=callbacks)
         self._Booster = results['booster']
+
+        if not callable(self.objective):
+            self.objective = params["objective"]
+
         # pylint: disable=attribute-defined-outside-init
         self.evals_result_ = results['history']
         return self
@@ -1554,7 +1559,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
                                    data=test_dmatrix,
                                    validate_features=validate_features,
                                    output_margin=output_margin)
-        return pred_probs
+        return _cls_predict_proba(self.objective, pred_probs, da.vstack)
 
     # pylint: disable=arguments-differ,missing-docstring
     def predict_proba(
@@ -1593,6 +1598,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             output_margin=output_margin,
             validate_features=validate_features
         )
+        if output_margin:
+            return pred_probs
 
         if self.n_classes_ == 2:
             preds = (pred_probs > 0.5).astype(int)
