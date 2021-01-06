@@ -946,6 +946,40 @@ class TestWithDask:
                 # Subtract the on disk resource from each worker
                 assert cnt - n_workers == n_partitions
 
+    def test_shap(self, client: "Client") -> None:
+        from sklearn.datasets import load_boston
+        X, y = load_boston(return_X_y=True)
+        X, y = da.from_array(X), da.from_array(y)
+
+        param = {'objective': 'reg:squarederror'}
+        Xy = xgb.dask.DaskDMatrix(client, X, y)
+        booster = xgb.dask.train(client, param, Xy, num_boost_round=10)['booster']
+
+        test_Xy = xgb.dask.DaskDMatrix(client, X, y)
+
+        shap = xgb.dask.predict(client, booster, test_Xy, pred_contribs=True).compute()
+        margin = xgb.dask.predict(client, booster, test_Xy, output_margin=True).compute()
+        assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
+
+    def test_shap_interactions(self, client: "Client") -> None:
+        from sklearn.datasets import load_boston
+        X, y = load_boston(return_X_y=True)
+        X, y = da.from_array(X), da.from_array(y)
+
+        param = {'objective': 'reg:squarederror'}
+        Xy = xgb.dask.DaskDMatrix(client, X, y)
+        booster = xgb.dask.train(client, param, Xy, num_boost_round=10)['booster']
+
+        test_Xy = xgb.dask.DaskDMatrix(client, X, y)
+
+        shap = xgb.dask.predict(
+            client, booster, test_Xy, pred_interactions=True
+        ).compute()
+        margin = xgb.dask.predict(client, booster, test_Xy, output_margin=True).compute()
+        assert np.allclose(np.sum(shap, axis=(len(shap.shape) - 1, len(shap.shape) - 2)),
+                           margin,
+                           1e-5, 1e-5)
+
 
 class TestDaskCallbacks:
     @pytest.mark.skipif(**tm.no_sklearn())
