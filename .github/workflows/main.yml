@@ -174,12 +174,7 @@ jobs:
         python -m pip install wheel setuptools mypy dask[complete] distributed
     - name: Run mypy
       run: |
-        cd python-package
-        # dask is required to pass, others are not
-        mypy ./xgboost/dask.py ../tests/python/test_with_dask.py --follow-imports=silent
-        mypy ../tests/python-gpu/test_gpu_with_dask.py --follow-imports=silent
-        # If any of the above failed, contributor won't see the next error.
-        mypy . || true
+        make mypy
 
   doxygen:
     runs-on: ubuntu-latest
