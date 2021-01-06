@@ -1,5 +1,7 @@
 # coding: utf-8
 import os
+import urllib
+import zipfile
 import sys
 from contextlib import contextmanager
 from io import StringIO
@@ -207,6 +209,29 @@ def get_sparse():
             if flag[i, j]:
                 X[i, j] = np.nan
     return X, y
+
+
+@memory.cache
+def get_mq2008(dpath):
+    from sklearn.datasets import load_svmlight_files
+
+    src = 'https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip'
+    target = dpath + '/MQ2008.zip'
+    if not os.path.exists(target):
+        urllib.request.urlretrieve(url=src, filename=target)
+
+    with zipfile.ZipFile(target, 'r') as f:
+        f.extractall(path=dpath)
+
+    (x_train, y_train, qid_train, x_test, y_test, qid_test,
+     x_valid, y_valid, qid_valid) = load_svmlight_files(
+         (dpath + "MQ2008/Fold1/train.txt",
+          dpath + "MQ2008/Fold1/test.txt",
+          dpath + "MQ2008/Fold1/vali.txt"),
+         query_id=True, zero_based=False)
+
+    return (x_train, y_train, qid_train, x_test, y_test, qid_test,
+            x_valid, y_valid, qid_valid)
 
 
 _unweighted_datasets_strategy = strategies.sampled_from(

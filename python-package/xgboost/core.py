@@ -321,6 +321,7 @@ class DataIter:
 
         def data_handle(data, label=None, weight=None, base_margin=None,
                         group=None,
+                        qid=None,
                         label_lower_bound=None, label_upper_bound=None,
                         feature_names=None, feature_types=None,
                         feature_weights=None):
@@ -333,6 +334,7 @@ class DataIter:
             self.proxy.set_info(label=label, weight=weight,
                                 base_margin=base_margin,
                                 group=group,
+                                qid=qid,
                                 label_lower_bound=label_lower_bound,
                                 label_upper_bound=label_upper_bound,
                                 feature_names=feature_names,
@@ -523,12 +525,14 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
     def set_info(self, *,
                  label=None, weight=None, base_margin=None,
                  group=None,
+                 qid=None,
                  label_lower_bound=None,
                  label_upper_bound=None,
                  feature_names=None,
                  feature_types=None,
                  feature_weights=None):
         '''Set meta info for DMatrix.'''
+        from .data import dispatch_meta_backend
         if label is not None:
             self.set_label(label)
         if weight is not None:
@@ -537,6 +541,8 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             self.set_base_margin(base_margin)
         if group is not None:
             self.set_group(group)
+        if qid is not None:
+            dispatch_meta_backend(matrix=self, data=qid, name='qid')
         if label_lower_bound is not None:
             self.set_float_info('label_lower_bound', label_lower_bound)
         if label_upper_bound is not None:
@@ -546,7 +552,6 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         if feature_types is not None:
             self.feature_types = feature_types
         if feature_weights is not None:
-            from .data import dispatch_meta_backend
             dispatch_meta_backend(matrix=self, data=feature_weights,
                                   name='feature_weights')
 
@@ -1743,9 +1748,15 @@ class Booster(object):
         '''
         rounds = ctypes.c_int()
         assert self.handle is not None
-        _check_call(_LIB.XGBoosterBoostedRounds(
-            self.handle, ctypes.byref(rounds)))
+        _check_call(_LIB.XGBoosterBoostedRounds(self.handle, ctypes.byref(rounds)))
         return rounds.value
+
+    def num_features(self) -> int:
+        '''Number of features in booster.'''
+        features = ctypes.c_int()
+        assert self.handle is not None
+        _check_call(_LIB.XGBoosterGetNumFeature(self.handle, ctypes.byref(features)))
+        return features.value
 
     def dump_model(self, fout, fmap='', with_stats=False, dump_format="text"):
         """Dump model into a text or JSON file.  Unlike `save_model`, the

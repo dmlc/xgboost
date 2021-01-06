@@ -5,6 +5,7 @@ import pytest
 import xgboost as xgb
 import sys
 import numpy as np
+import scipy
 import json
 from typing import List, Tuple, Dict, Optional, Type, Any
 import asyncio
@@ -670,10 +671,54 @@ def run_aft_survival(client: "Client", dmatrix_t: Type) -> None:
     assert nloglik_rec['extreme'][-1] > 4.9
 
 
-def test_aft_survival() -> None:
+def test_dask_aft_survival() -> None:
     with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
             run_aft_survival(client, DaskDMatrix)
+
+
+def test_dask_ranking(client: "Client") -> None:
+    dpath = "demo/rank/"
+    mq2008 = tm.get_mq2008(dpath)
+    data = []
+    for d in mq2008:
+        if isinstance(d, scipy.sparse.csr_matrix):
+            d[d == 0] = np.inf
+            d = d.toarray()
+            d[d == 0] = np.nan
+            d[np.isinf(d)] = 0
+            data.append(da.from_array(d))
+        else:
+            data.append(da.from_array(d))
+
+    (
+        x_train,
+        y_train,
+        qid_train,
+        x_test,
+        y_test,
+        qid_test,
+        x_valid,
+        y_valid,
+        qid_valid,
+    ) = data
+    qid_train = qid_train.astype(np.uint32)
+    qid_valid = qid_valid.astype(np.uint32)
+    qid_test = qid_test.astype(np.uint32)
+
+    rank = xgb.dask.DaskXGBRanker(n_estimators=2500)
+    rank.fit(
+        x_train,
+        y_train,
+        qid=qid_train,
+        eval_set=[(x_test, y_test), (x_train, y_train)],
+        eval_qid=[qid_test, qid_train],
+        eval_metric=["ndcg"],
+        verbose=True,
+        early_stopping_rounds=10,
+    )
+    assert rank.n_features_in_ == 46
+    assert rank.best_score > 0.98
 
 
 class TestWithDask:

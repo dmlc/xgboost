@@ -165,7 +165,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \brief Get the number of features of the booster.
    * \return number of features
    */
-  virtual uint32_t GetNumFeature() = 0;
+  virtual uint32_t GetNumFeature() const = 0;
 
   /*!
    * \brief Set additional attribute to the Booster.

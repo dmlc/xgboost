@@ -374,13 +374,32 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
                        std::copy(cast_dptr, cast_dptr + num, base_margin.begin()));
   } else if (!std::strcmp(key, "group")) {
-    group_ptr_.resize(num + 1);
+    group_ptr_.clear(); group_ptr_.resize(num + 1, 0);
     DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
                        std::copy(cast_dptr, cast_dptr + num, group_ptr_.begin() + 1));
     group_ptr_[0] = 0;
     for (size_t i = 1; i < group_ptr_.size(); ++i) {
       group_ptr_[i] = group_ptr_[i - 1] + group_ptr_[i];
     }
+  } else if (!std::strcmp(key, "qid")) {
+    std::vector<uint32_t> query_ids(num, 0);
+    DISPATCH_CONST_PTR(dtype, dptr, cast_dptr,
+                       std::copy(cast_dptr, cast_dptr + num, query_ids.begin()));
+    bool non_dec = true;
+    for (size_t i = 1; i < query_ids.size(); ++i) {
+      if (query_ids[i] < query_ids[i-1]) {
+        non_dec = false;
+        break;
+      }
+    }
+    CHECK(non_dec) << "`qid` must be sorted in non-decreasing order along with data.";
+    group_ptr_.clear(); group_ptr_.push_back(0);
+    for (size_t i = 1; i < query_ids.size(); ++i) {
+      if (query_ids[i] != query_ids[i-1]) {
+        group_ptr_.push_back(i);
+      }
+    }
+    group_ptr_.push_back(query_ids.size());
   } else if (!std::strcmp(key, "label_lower_bound")) {
     auto& labels = labels_lower_bound_.HostVector();
     labels.resize(num);
