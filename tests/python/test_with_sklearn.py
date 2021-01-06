@@ -92,6 +92,34 @@ def test_multiclass_classification():
     assert proba.shape[1] == cls.n_classes_
 
 
+def test_best_ntree_limit():
+    from sklearn.datasets import load_iris
+
+    X, y = load_iris(return_X_y=True)
+
+    def train(booster, forest):
+        rounds = 4
+        cls = xgb.XGBClassifier(
+            n_estimators=rounds, num_parallel_tree=forest, booster=booster
+        ).fit(
+            X, y, eval_set=[(X, y)], early_stopping_rounds=3
+        )
+
+        if forest:
+            assert cls.best_ntree_limit == rounds * forest * cls.n_classes_
+        else:
+            assert cls.best_ntree_limit == 0
+
+        # best_ntree_limit is used by default, assert that under gblinear it's
+        # automatically ignored due to being 0.
+        cls.predict(X)
+
+    num_parallel_tree = 4
+    train('gbtree', num_parallel_tree)
+    train('dart', num_parallel_tree)
+    train('gblinear', None)
+
+
 def test_ranking():
     # generate random data
     x_train = np.random.rand(1000, 10)
