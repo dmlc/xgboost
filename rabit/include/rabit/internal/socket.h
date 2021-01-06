@@ -25,6 +25,10 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 
+#if defined(__sun)
+#include <sys/sockio.h>
+#endif  // defined(__sun)
+
 #endif  // defined(_WIN32)
 
 #include <string>
