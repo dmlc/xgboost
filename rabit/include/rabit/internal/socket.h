@@ -29,6 +29,10 @@
 #include <sys/sockio.h>
 #endif  // defined(__sun)
 
+#if defined(__sun) || defined(sun)
+#include <sys/sockio.h>
+#endif  // defined(__sun) || defined(sun)
+
 #endif  // defined(_WIN32)
 
 #include <string>
