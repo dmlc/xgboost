@@ -958,6 +958,19 @@ class TestWithDask:
         margin = xgb.dask.predict(client, booster, test_Xy, output_margin=True).compute()
         assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
 
+    def run_shap_cls_sklearn(self, X: Any, y: Any, client: "Client") -> None:
+        X, y = da.from_array(X), da.from_array(y)
+        cls = xgb.dask.DaskXGBClassifier()
+        cls.client = client
+        cls.fit(X, y)
+        booster = cls.get_booster()
+
+        test_Xy = xgb.dask.DaskDMatrix(client, X, y)
+
+        shap = xgb.dask.predict(client, booster, test_Xy, pred_contribs=True).compute()
+        margin = xgb.dask.predict(client, booster, test_Xy, output_margin=True).compute()
+        assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
+
     def test_shap(self, client: "Client") -> None:
         from sklearn.datasets import load_boston, load_digits
         X, y = load_boston(return_X_y=True)
@@ -969,6 +982,8 @@ class TestWithDask:
         self.run_shap(X, y, params, client)
         params = {'objective': 'multi:softprob', 'num_class': 10}
         self.run_shap(X, y, params, client)
+
+        self.run_shap_cls_sklearn(X, y, client)
 
     def run_shap_interactions(
         self,
@@ -998,8 +1013,6 @@ class TestWithDask:
         params = {'objective': 'reg:squarederror'}
         self.run_shap_interactions(X, y, params, client)
         X, y = load_digits(return_X_y=True)
-        params = {'objective': 'multi:softmax', 'num_class': 10}
-        self.run_shap_interactions(X, y, params, client)
         params = {'objective': 'multi:softprob', 'num_class': 10}
         self.run_shap_interactions(X, y, params, client)
 
