@@ -751,8 +751,9 @@ class HostSketchContainer {
  * \brief This method will merge each thread's sketches into 1 vector, which will reside in position 0.
  */
  void merge() {
-	 // TODO #pragma omp parallel for
+	//TODO  #pragma omp parallel for
 	 for ( size_t ithread = 1 ; ithread < sketches_.size() ; ++ithread ) {
+		 #pragma omp parallel for
 		 for ( size_t iCol = 0 ; iCol < columns_size_ ; ++iCol  ) {
 			 WQSketch::SummaryContainer out;
 			 sketches_[ithread][iCol].GetSummary(&out);
