@@ -55,7 +55,7 @@
 #endif  // defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4)
 
 #if defined(__GNUC__) && ((__GNUC__ == 4 && __GNUC_MINOR__ >= 8) || __GNUC__ > 4) && \
-    !defined(__CUDACC__)
+    !defined(__CUDACC__) && !defined(__sun) && !defined(sun)
 #include <parallel/algorithm>
 #define XGBOOST_PARALLEL_SORT(X, Y, Z) __gnu_parallel::sort((X), (Y), (Z))
 #define XGBOOST_PARALLEL_STABLE_SORT(X, Y, Z) \
