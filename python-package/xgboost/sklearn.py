@@ -16,7 +16,7 @@ from .compat import (SKLEARN_INSTALLED, XGBModelBase,
                      XGBClassifierBase, XGBRegressorBase, XGBoostLabelEncoder)
 
 
-class XGBRankerMixIn:
+class XGBRankerMixIn:           # pylint: disable=too-few-public-methods
     """MixIn for ranking, defines the _estimator_type usually defined in scikit-learn base
     classes."""
     _estimator_type = "ranker"
@@ -413,6 +413,13 @@ class XGBModel(XGBModelBase):
         """Gets the number of xgboost boosting rounds."""
         return self.n_estimators
 
+    def _get_type(self) -> str:
+        if not hasattr(self, '_estimator_type'):
+            raise AttributeError(
+                '`_estimator_type` undefined.  Please use appropriate mixin.'
+            )
+        return self._estimator_type  # pylint: disable=no-member
+
     def save_model(self, fname: str):
         """Save the model to a file.
 
@@ -448,7 +455,7 @@ class XGBModel(XGBModelBase):
                 meta[k] = v
             except TypeError:
                 warnings.warn(str(k) + ' is not saved in Scikit-Learn meta.')
-        meta['_estimator_type'] = self._estimator_type
+        meta['_estimator_type'] = self._get_type()
         meta_str = json.dumps(meta)
         self.get_booster().set_attr(scikit_learn=meta_str)
         self.get_booster().save_model(fname)
@@ -491,10 +498,10 @@ class XGBModel(XGBModelBase):
                 self.use_label_encoder = bool(v)
                 continue
             if k == "_estimator_type":
-                if self._estimator_type != v:
+                if self._get_type() != v:
                     raise TypeError(
                         "Loading an estimator with different type. "
-                        f"Expecting: {self._estimator_type}, got: {v}"
+                        f"Expecting: {self._get_type()}, got: {v}"
                     )
                 continue
             states[k] = v
