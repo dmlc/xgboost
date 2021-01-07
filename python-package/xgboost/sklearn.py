@@ -304,9 +304,6 @@ class XGBModel(XGBModelBase):
         '''Tags used for scikit-learn data validation.'''
         return {'allow_nan': True, 'no_validation': True}
 
-    def _model_type(self):
-        raise NotImplementedError("Base model doesn't have model type.")
-
     def get_booster(self):
         """Get the underlying xgboost Booster of this model.
 
@@ -856,9 +853,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     def __init__(self, *, objective="binary:logistic", use_label_encoder=True, **kwargs):
         self.use_label_encoder = use_label_encoder
         super().__init__(objective=objective, **kwargs)
-
-    def _model_type(self) -> str:
-        return "cls"
 
     @_deprecate_positional_args
     def fit(self, X, y, *, sample_weight=None, base_margin=None,
