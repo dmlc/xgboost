@@ -1107,3 +1107,18 @@ def test_estimator_type():
     assert xgb.XGBRegressor._estimator_type == "regressor"
     assert xgb.XGBRFRegressor._estimator_type == "regressor"
     assert xgb.XGBRanker._estimator_type == "ranker"
+
+    from sklearn.datasets import load_digits
+
+    X, y = load_digits(n_class=2, return_X_y=True)
+    cls = xgb.XGBClassifier(n_estimators=2).fit(X, y)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "cls.json")
+        cls.save_model(path)
+
+        reg = xgb.XGBRegressor()
+        with pytest.raises(TypeError):
+            reg.load_model(path)
+
+        cls = xgb.XGBClassifier()
+        cls.load_model(path)  # no error

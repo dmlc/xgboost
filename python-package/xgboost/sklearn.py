@@ -448,6 +448,7 @@ class XGBModel(XGBModelBase):
                 meta[k] = v
             except TypeError:
                 warnings.warn(str(k) + ' is not saved in Scikit-Learn meta.')
+        meta['_estimator_type'] = self._estimator_type
         meta_str = json.dumps(meta)
         self.get_booster().set_attr(scikit_learn=meta_str)
         self.get_booster().save_model(fname)
@@ -495,6 +496,7 @@ class XGBModel(XGBModelBase):
                         "Loading an estimator with different type "
                         f"{self._estimator_type}, {v}"
                     )
+                continue
             states[k] = v
         self.__dict__.update(states)
         # Delete the attribute after load
