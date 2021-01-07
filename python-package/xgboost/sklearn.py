@@ -415,8 +415,9 @@ class XGBModel(XGBModelBase):
 
     def _get_type(self) -> str:
         if not hasattr(self, '_estimator_type'):
-            raise AttributeError(
-                '`_estimator_type` undefined.  Please use appropriate mixin.'
+            raise TypeError(
+                "`_estimator_type` undefined.  "
+                "Please use appropriate mixin to define estimator type."
             )
         return self._estimator_type  # pylint: disable=no-member
 
