@@ -493,8 +493,8 @@ class XGBModel(XGBModelBase):
             if k == "_estimator_type":
                 if self._estimator_type != v:
                     raise TypeError(
-                        "Loading an estimator with different type "
-                        f"{self._estimator_type}, {v}"
+                        "Loading an estimator with different type. "
+                        f"Expecting: {self._estimator_type}, got: {v}"
                     )
                 continue
             states[k] = v
