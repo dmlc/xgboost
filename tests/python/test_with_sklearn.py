@@ -1099,11 +1099,3 @@ def test_boost_from_prediction_approx():
 @pytest.mark.skipif(**tm.no_sklearn())
 def test_boost_from_prediction_exact():
     run_boost_from_prediction('exact')
-
-
-def test_estimator_type():
-    assert xgb.XGBClassifier._estimator_type == "classifier"
-    assert xgb.XGBRFClassifier._estimator_type == "classifier"
-    assert xgb.XGBRegressor._estimator_type == "regressor"
-    assert xgb.XGBRFRegressor._estimator_type == "regressor"
-    assert xgb.XGBRanker._estimator_type == "ranker"

@@ -16,12 +16,6 @@ from .compat import (SKLEARN_INSTALLED, XGBModelBase,
                      XGBClassifierBase, XGBRegressorBase, XGBoostLabelEncoder)
 
 
-class XGBRankerMixIn:
-    """MixIn for ranking, defines the _estimator_type usually defined in scikit-learn base
-    classes."""
-    _estimator_type = "ranker"
-
-
 def _objective_decorator(func):
     """Decorate an objective function
 
@@ -304,9 +298,6 @@ class XGBModel(XGBModelBase):
         '''Tags used for scikit-learn data validation.'''
         return {'allow_nan': True, 'no_validation': True}
 
-    def _model_type(self):
-        raise NotImplementedError("Base model doesn't have model type.")
-
     def get_booster(self):
         """Get the underlying xgboost Booster of this model.
 
@@ -451,6 +442,7 @@ class XGBModel(XGBModelBase):
                 meta[k] = v
             except TypeError:
                 warnings.warn(str(k) + ' is not saved in Scikit-Learn meta.')
+        meta['type'] = type(self).__name__
         meta_str = json.dumps(meta)
         self.get_booster().set_attr(scikit_learn=meta_str)
         self.get_booster().save_model(fname)
@@ -492,12 +484,12 @@ class XGBModel(XGBModelBase):
             if k == 'use_label_encoder':
                 self.use_label_encoder = bool(v)
                 continue
-            if k == "_estimator_type":
-                if self._estimator_type != v:
-                    raise TypeError(
-                        "Loading an estimator with different type "
-                        f"{self._estimator_type}, {v}"
-                    )
+            if k == 'type' and type(self).__name__ != v:
+                msg = 'Current model type: {}, '.format(type(self).__name__) + \
+                      'type of model in file: {}'.format(v)
+                raise TypeError(msg)
+            if k == 'type':
+                continue
             states[k] = v
         self.__dict__.update(states)
         # Delete the attribute after load
@@ -856,9 +848,6 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     def __init__(self, *, objective="binary:logistic", use_label_encoder=True, **kwargs):
         self.use_label_encoder = use_label_encoder
         super().__init__(objective=objective, **kwargs)
-
-    def _model_type(self) -> str:
-        return "cls"
 
     @_deprecate_positional_args
     def fit(self, X, y, *, sample_weight=None, base_margin=None,
@@ -1222,7 +1211,7 @@ class XGBRFRegressor(XGBRegressor):
 
         then your group array should be ``[3, 4]``.
 ''')
-class XGBRanker(XGBModel, XGBRankerMixIn):
+class XGBRanker(XGBModel):
     # pylint: disable=missing-docstring,too-many-arguments,invalid-name
     @_deprecate_positional_args
     def __init__(self, *, objective='rank:pairwise', **kwargs):
