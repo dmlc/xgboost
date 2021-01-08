@@ -998,7 +998,7 @@ class DeviceQuantileDMatrix(DMatrix):
 
 
 Objective = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
-Metric = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
+Metric = Callable[[np.ndarray, DMatrix], Tuple[str, float]]
 
 
 class Booster(object):

@@ -1026,7 +1026,7 @@ class TestWithDask:
     def test_shap(self, client: "Client") -> None:
         from sklearn.datasets import load_boston, load_digits
         X, y = load_boston(return_X_y=True)
-        params = {'objective': 'reg:squarederror'}
+        params: Dict[str, Any] = {'objective': 'reg:squarederror'}
         self.run_shap(X, y, params, client)
 
         X, y = load_digits(return_X_y=True)
