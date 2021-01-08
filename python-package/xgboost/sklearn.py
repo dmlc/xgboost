@@ -7,6 +7,7 @@ import json
 from typing import Union, Optional, List, Dict, Callable, Tuple, Any
 import numpy as np
 from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
+from .core import Metric
 from .training import train
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
 
@@ -558,7 +559,7 @@ class XGBModel(XGBModelBase):
         booster: Optional[Booster],
         eval_metric: Optional[Union[Callable, str, List[str]]],
         params: Dict[str, Any],
-    ) -> Tuple[Booster, Optional[Union[Callable, str, List[str]]], Dict[str, Any]]:
+    ) -> Tuple[Booster, Optional[Metric], Dict[str, Any]]:
         # pylint: disable=protected-access, no-self-use
         model = booster
         if hasattr(model, '_Booster'):
