@@ -10,6 +10,7 @@ from typing import List, Tuple, Union, Dict, Optional, Callable, Type
 import asyncio
 import tempfile
 from sklearn.datasets import make_classification
+import sklearn
 import os
 import subprocess
 from hypothesis import given, settings, note
@@ -261,6 +262,9 @@ def test_dask_regressor() -> None:
         with Client(cluster) as client:
             X, y, w = generate_array(with_weights=True)
             regressor = xgb.dask.DaskXGBRegressor(verbosity=1, n_estimators=2)
+            assert regressor._estimator_type == "regressor"
+            assert sklearn.base.is_regressor(regressor)
+
             regressor.set_params(tree_method='hist')
             regressor.client = client
             regressor.fit(X, y, sample_weight=w, eval_set=[(X, y)])
@@ -285,6 +289,9 @@ def test_dask_classifier() -> None:
             y = (y * 10).astype(np.int32)
             classifier = xgb.dask.DaskXGBClassifier(
                 verbosity=1, n_estimators=2, eval_metric='merror')
+            assert classifier._estimator_type == "classifier"
+            assert sklearn.base.is_classifier(classifier)
+
             classifier.client = client
             classifier.fit(X, y, sample_weight=w, eval_set=[(X, y)])
             prediction = classifier.predict(X)
@@ -945,6 +952,35 @@ class TestWithDask:
                 assert len(data) == cnt
                 # Subtract the on disk resource from each worker
                 assert cnt - n_workers == n_partitions
+
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_sklearn_io(self, client: 'Client') -> None:
+        from sklearn.datasets import load_digits
+        X_, y_ = load_digits(return_X_y=True)
+        X, y = da.from_array(X_), da.from_array(y_)
+        cls = xgb.dask.DaskXGBClassifier(n_estimators=10)
+        cls.client = client
+        cls.fit(X, y)
+        predt_0 = cls.predict(X)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, 'cls.json')
+            cls.save_model(path)
+
+            cls = xgb.dask.DaskXGBClassifier()
+            cls.load_model(path)
+            assert cls.n_classes_ == 10
+            predt_1 = cls.predict(X)
+
+            np.testing.assert_allclose(predt_0.compute(), predt_1.compute())
+
+            # Use single node to load
+            cls = xgb.XGBClassifier()
+            cls.load_model(path)
+            assert cls.n_classes_ == 10
+            predt_2 = cls.predict(X_)
+
+            np.testing.assert_allclose(predt_0.compute(), predt_2)
 
 
 class TestDaskCallbacks:
