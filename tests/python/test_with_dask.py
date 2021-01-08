@@ -6,7 +6,7 @@ import xgboost as xgb
 import sys
 import numpy as np
 import json
-from typing import List, Tuple, Union, Dict, Optional, Callable, Type
+from typing import List, Tuple, Dict, Optional, Type, Any
 import asyncio
 import tempfile
 from sklearn.datasets import make_classification
@@ -952,6 +952,73 @@ class TestWithDask:
                 assert len(data) == cnt
                 # Subtract the on disk resource from each worker
                 assert cnt - n_workers == n_partitions
+
+    def run_shap(self, X: Any, y: Any, params: Dict[str, Any], client: "Client") -> None:
+        X, y = da.from_array(X), da.from_array(y)
+
+        Xy = xgb.dask.DaskDMatrix(client, X, y)
+        booster = xgb.dask.train(client, params, Xy, num_boost_round=10)['booster']
+
+        test_Xy = xgb.dask.DaskDMatrix(client, X, y)
+
+        shap = xgb.dask.predict(client, booster, test_Xy, pred_contribs=True).compute()
+        margin = xgb.dask.predict(client, booster, test_Xy, output_margin=True).compute()
+        assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
+
+    def run_shap_cls_sklearn(self, X: Any, y: Any, client: "Client") -> None:
+        X, y = da.from_array(X), da.from_array(y)
+        cls = xgb.dask.DaskXGBClassifier()
+        cls.client = client
+        cls.fit(X, y)
+        booster = cls.get_booster()
+
+        test_Xy = xgb.dask.DaskDMatrix(client, X, y)
+
+        shap = xgb.dask.predict(client, booster, test_Xy, pred_contribs=True).compute()
+        margin = xgb.dask.predict(client, booster, test_Xy, output_margin=True).compute()
+        assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
+
+    def test_shap(self, client: "Client") -> None:
+        from sklearn.datasets import load_boston, load_digits
+        X, y = load_boston(return_X_y=True)
+        params = {'objective': 'reg:squarederror'}
+        self.run_shap(X, y, params, client)
+
+        X, y = load_digits(return_X_y=True)
+        params = {'objective': 'multi:softmax', 'num_class': 10}
+        self.run_shap(X, y, params, client)
+        params = {'objective': 'multi:softprob', 'num_class': 10}
+        self.run_shap(X, y, params, client)
+
+        self.run_shap_cls_sklearn(X, y, client)
+
+    def run_shap_interactions(
+        self,
+        X: Any,
+        y: Any,
+        params: Dict[str, Any],
+        client: "Client"
+    ) -> None:
+        X, y = da.from_array(X), da.from_array(y)
+
+        Xy = xgb.dask.DaskDMatrix(client, X, y)
+        booster = xgb.dask.train(client, params, Xy, num_boost_round=10)['booster']
+
+        test_Xy = xgb.dask.DaskDMatrix(client, X, y)
+
+        shap = xgb.dask.predict(
+            client, booster, test_Xy, pred_interactions=True
+        ).compute()
+        margin = xgb.dask.predict(client, booster, test_Xy, output_margin=True).compute()
+        assert np.allclose(np.sum(shap, axis=(len(shap.shape) - 1, len(shap.shape) - 2)),
+                           margin,
+                           1e-5, 1e-5)
+
+    def test_shap_interactions(self, client: "Client") -> None:
+        from sklearn.datasets import load_boston
+        X, y = load_boston(return_X_y=True)
+        params = {'objective': 'reg:squarederror'}
+        self.run_shap_interactions(X, y, params, client)
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_sklearn_io(self, client: 'Client') -> None:

@@ -86,6 +86,15 @@ cover: check
 	)
 endif
 
+
+# dask is required to pass, others are not
+# If any of the dask tests failed, contributor won't see the other error.
+mypy:
+	cd python-package; \
+	mypy ./xgboost/dask.py ../tests/python/test_with_dask.py --follow-imports=silent; \
+	mypy ../tests/python-gpu/test_gpu_with_dask.py --follow-imports=silent; \
+	mypy . || true ;
+
 clean:
 	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o #xgboost
 	$(RM) -rf build_tests *.gcov tests/cpp/xgboost_test
