@@ -1008,12 +1008,9 @@ class TestWithDask:
                            1e-5, 1e-5)
 
     def test_shap_interactions(self, client: "Client") -> None:
-        from sklearn.datasets import load_boston, load_digits
+        from sklearn.datasets import load_boston
         X, y = load_boston(return_X_y=True)
         params = {'objective': 'reg:squarederror'}
-        self.run_shap_interactions(X, y, params, client)
-        X, y = load_digits(return_X_y=True)
-        params = {'objective': 'multi:softprob', 'num_class': 10}
         self.run_shap_interactions(X, y, params, client)
 
 
