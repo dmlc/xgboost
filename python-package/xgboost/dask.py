@@ -1664,7 +1664,7 @@ class DaskXGBRanker(DaskScikitLearnBase):
         msg = "Use `qid` instead of `group` on dask interface."
         if not (group is None and eval_group is None):
             raise ValueError(msg)
-        if not (qid is not None):
+        if qid is None:
             raise ValueError("`qid` is required for ranking.")
         return self.client.sync(
             self._fit_async,
