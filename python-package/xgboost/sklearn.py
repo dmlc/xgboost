@@ -1352,10 +1352,10 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
 
             .. note:: Weights are per-group for ranking tasks
 
-                In ranking task, one weight is assigned to each query group
-                (not each data point). This is because we only care about the
-                relative ordering of data points within each group, so it
-                doesn't make sense to assign weights to individual data points.
+                In ranking task, one weight is assigned to each query group/id (not each
+                data point). This is because we only care about the relative ordering of
+                data points within each group, so it doesn't make sense to assign weights
+                to individual data points.
 
         base_margin : array_like
             Global bias for each instance.

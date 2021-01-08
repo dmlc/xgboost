@@ -208,6 +208,8 @@ class DaskDMatrix:
         Weight for each instance.
     base_margin :
         Global bias for each instance.
+    qid :
+        Query ID for ranking.
     label_lower_bound :
         Upper bound for survival training.
     label_upper_bound :
@@ -244,6 +246,9 @@ class DaskDMatrix:
         self.feature_names = feature_names
         self.feature_types = feature_types
         self.missing = missing
+
+        if qid is not None and weight is not None:
+            raise NotImplementedError('per-group weight is not implemented.')
 
         if len(data.shape) != 2:
             raise ValueError(
@@ -1657,8 +1662,10 @@ class DaskXGBRanker(DaskScikitLearnBase):
     ) -> "DaskXGBRanker":
         _assert_dask_support()
         msg = "Use `qid` instead of `group` on dask interface."
-        assert group is None and eval_group is None, msg
-        assert qid is not None, "`qid` is required for ranking."
+        if not (group is None and eval_group is None):
+            raise ValueError(msg)
+        if not (qid is not None):
+            raise ValueError("`qid` is required for ranking.")
         return self.client.sync(
             self._fit_async,
             X=X,
