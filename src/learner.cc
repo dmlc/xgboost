@@ -436,7 +436,7 @@ class LearnerConfiguration : public Learner {
     }
   }
 
-  uint32_t GetNumFeature() override {
+  uint32_t GetNumFeature() const override {
     return learner_model_param_.num_feature;
   }
 

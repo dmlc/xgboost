@@ -172,6 +172,22 @@ Arrow specification.'''
             m.slice(rindex=[0, 1, 2])
 
     @pytest.mark.skipif(**tm.no_cupy())
+    def test_qid(self):
+        import cupy as cp
+        rng = cp.random.RandomState(1994)
+        rows = 100
+        cols = 10
+        X, y = rng.randn(rows, cols), rng.randn(rows)
+        qid = rng.randint(low=0, high=10, size=rows, dtype=np.uint32)
+        qid = cp.sort(qid)
+
+        Xy = xgb.DMatrix(X, y)
+        Xy.set_info(qid=qid)
+        group_ptr = Xy.get_uint_info('group_ptr')
+        assert group_ptr[0] == 0
+        assert group_ptr[-1] == rows
+
+    @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.mgpu
     def test_specified_device(self):
         import cupy as cp

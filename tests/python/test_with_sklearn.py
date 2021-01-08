@@ -125,9 +125,11 @@ def test_ranking():
     x_train = np.random.rand(1000, 10)
     y_train = np.random.randint(5, size=1000)
     train_group = np.repeat(50, 20)
+
     x_valid = np.random.rand(200, 10)
     y_valid = np.random.randint(5, size=200)
     valid_group = np.repeat(50, 4)
+
     x_test = np.random.rand(100, 10)
 
     params = {'tree_method': 'exact', 'objective': 'rank:pairwise',
@@ -136,6 +138,7 @@ def test_ranking():
     model = xgb.sklearn.XGBRanker(**params)
     model.fit(x_train, y_train, group=train_group,
               eval_set=[(x_valid, y_valid)], eval_group=[valid_group])
+
     pred = model.predict(x_test)
 
     train_data = xgb.DMatrix(x_train, y_train)
