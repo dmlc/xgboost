@@ -144,7 +144,7 @@ def _train_internal(params, dtrain,
         raise ValueError(f'Unknown booster: {booster}')
     num_groups = int(config['learner']['learner_model_param']['num_class'])
     num_groups = 1 if num_groups == 0 else num_groups
-    bst.best_ntree_limit = ((bst.best_iteration + 1) * num_parallel_tree * num_groups)
+    bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree * num_groups
 
     # Copy to serialise and unserialise booster to reset state and free
     # training memory
