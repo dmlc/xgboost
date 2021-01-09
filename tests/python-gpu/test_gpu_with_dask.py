@@ -5,6 +5,7 @@ import numpy as np
 import asyncio
 import xgboost
 import subprocess
+import hypothesis
 from hypothesis import given, strategies, settings, note
 from hypothesis._settings import duration
 from hypothesis import HealthCheck
@@ -19,6 +20,11 @@ from test_with_dask import run_empty_dmatrix_cls  # noqa
 from test_with_dask import _get_client_workers  # noqa
 from test_with_dask import generate_array     # noqa
 import testing as tm                          # noqa
+
+if hasattr(HealthCheck, 'function_scoped_fixture'):
+    suppress = [HealthCheck.function_scoped_fixture]
+else:
+    suppress = hypothesis.utils.conventions.not_set
 
 
 try:
@@ -169,7 +175,7 @@ class TestDistributedGPU:
     )
     @settings(
         deadline=duration(seconds=120),
-        suppress_health_check=[HealthCheck.function_scoped_fixture],
+        suppress_health_check=[function_scoped_fixture],
     )
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
