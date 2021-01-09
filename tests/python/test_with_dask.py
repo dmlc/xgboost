@@ -14,7 +14,7 @@ from sklearn.datasets import make_classification
 import sklearn
 import os
 import subprocess
-from hypothesis import given, settings, note
+from hypothesis import given, settings, note, HealthCheck
 from test_updaters import hist_parameter_strategy, exact_parameter_strategy
 from test_with_sklearn import run_feature_weights
 
@@ -803,7 +803,7 @@ class TestWithDask:
 
     @given(params=hist_parameter_strategy,
            dataset=tm.dataset_strategy)
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=HealthCheck.function_scoped_fixture)
     def test_hist(
             self, params: Dict, dataset: tm.TestDataset, client: "Client"
     ) -> None:
@@ -812,7 +812,7 @@ class TestWithDask:
 
     @given(params=exact_parameter_strategy,
            dataset=tm.dataset_strategy)
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=HealthCheck.function_scoped_fixture)
     def test_approx(
             self, client: "Client", params: Dict, dataset: tm.TestDataset
     ) -> None:
