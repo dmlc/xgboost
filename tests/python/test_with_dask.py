@@ -668,14 +668,14 @@ class TestWithDask:
 
     @given(params=hist_parameter_strategy,
            dataset=tm.dataset_strategy)
-    @settings(deadline=None, suppress_health_check=HealthCheck.function_scoped_fixture)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_hist(self, params, dataset, client):
         num_rounds = 30
         self.run_updater_test(client, params, num_rounds, dataset, 'hist')
 
     @given(params=exact_parameter_strategy,
            dataset=tm.dataset_strategy)
-    @settings(deadline=None, suppress_health_check=HealthCheck.function_scoped_fixture)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_approx(self, client, params, dataset):
         num_rounds = 30
         self.run_updater_test(client, params, num_rounds, dataset, 'approx')
