@@ -178,7 +178,7 @@ class TestDistributedGPU:
     )
     @settings(
         deadline=duration(seconds=120),
-        suppress_health_check=HealthCheck.function_scoped_fixture,
+        suppress_health_check=[HealthCheck.function_scoped_fixture],
     )
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
