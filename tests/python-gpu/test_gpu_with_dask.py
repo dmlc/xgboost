@@ -173,10 +173,7 @@ class TestDistributedGPU:
         num_rounds=strategies.integers(1, 20),
         dataset=tm.dataset_strategy,
     )
-    @settings(
-        deadline=duration(seconds=120),
-        suppress_health_check=[function_scoped_fixture],
-    )
+    @settings(deadline=duration(seconds=120), suppress_health_check=suppress)
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
     @pytest.mark.parametrize(
