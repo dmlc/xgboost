@@ -72,12 +72,13 @@ class QuantileHistMock : public QuantileHistMaker {
       ASSERT_LT(*std::max_element(gmat.index.begin(), gmat.index.end()),
                 gmat.cut.Ptrs().back());
       for (const auto& batch : p_fmat->GetBatches<xgboost::SparsePage>()) {
+        auto page = batch.GetView();
         for (size_t i = 0; i < batch.Size(); ++i) {
           const size_t rid = batch.base_rowid + i;
           ASSERT_LT(rid, num_row);
           const size_t gmat_row_offset = gmat.row_ptr[rid];
           ASSERT_LT(gmat_row_offset, gmat.index.Size());
-          SparsePage::Inst inst = batch[i];
+          SparsePage::Inst inst = page[i];
           ASSERT_EQ(gmat.row_ptr[rid] + inst.size(), gmat.row_ptr[rid + 1]);
           for (size_t j = 0; j < inst.size(); ++j) {
             // Each entry of GHistIndexMatrix represents a bin ID

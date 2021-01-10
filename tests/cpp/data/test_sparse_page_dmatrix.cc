@@ -39,7 +39,8 @@ TEST(SparsePageDMatrix, RowAccess) {
 
   // Test the data read into the first row
   auto &batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
-  auto first_row = batch[0];
+  auto page = batch.GetView();
+  auto first_row = page[0];
   ASSERT_EQ(first_row.size(), 3ul);
   EXPECT_EQ(first_row[2].index, 2u);
   EXPECT_EQ(first_row[2].fvalue, 20);
@@ -54,16 +55,18 @@ TEST(SparsePageDMatrix, ColAccess) {
 
   // Loop over the batches and assert the data is as expected
   for (auto const &col_batch : dmat->GetBatches<xgboost::SortedCSCPage>()) {
-    EXPECT_EQ(col_batch.Size(), dmat->Info().num_col_);
-    EXPECT_EQ(col_batch[1][0].fvalue, 10.0f);
-    EXPECT_EQ(col_batch[1].size(), 1);
+    auto col_page = col_batch.GetView();
+    EXPECT_EQ(col_page.Size(), dmat->Info().num_col_);
+    EXPECT_EQ(col_page[1][0].fvalue, 10.0f);
+    EXPECT_EQ(col_page[1].size(), 1);
   }
 
   // Loop over the batches and assert the data is as expected
   for (auto const &col_batch : dmat->GetBatches<xgboost::CSCPage>()) {
-    EXPECT_EQ(col_batch.Size(), dmat->Info().num_col_);
-    EXPECT_EQ(col_batch[1][0].fvalue, 10.0f);
-    EXPECT_EQ(col_batch[1].size(), 1);
+    auto col_page = col_batch.GetView();
+    EXPECT_EQ(col_page.Size(), dmat->Info().num_col_);
+    EXPECT_EQ(col_page[1][0].fvalue, 10.0f);
+    EXPECT_EQ(col_page[1].size(), 1);
   }
 
   EXPECT_TRUE(FileExists(tmp_file + ".cache"));
@@ -238,8 +241,9 @@ TEST(SparsePageDMatrix, FromDense) {
   EXPECT_EQ(dmat.Info().num_nonzero_, 6);
 
   for (auto &batch : dmat.GetBatches<SparsePage>()) {
+    auto page = batch.GetView();
     for (auto i = 0ull; i < batch.Size(); i++) {
-      auto inst = batch[i];
+      auto inst = page[i];
       for (auto j = 0ull; j < inst.size(); j++) {
         EXPECT_EQ(inst[j].fvalue, data[i * n + j]);
         EXPECT_EQ(inst[j].index, j);
@@ -262,19 +266,20 @@ TEST(SparsePageDMatrix, FromCSC) {
   EXPECT_EQ(dmat.Info().num_nonzero_, 5);
 
   auto &batch = *dmat.GetBatches<SparsePage>().begin();
-  auto inst = batch[0];
+  auto page = batch.GetView();
+  auto inst = page[0];
   EXPECT_EQ(inst[0].fvalue, 1);
   EXPECT_EQ(inst[0].index, 0);
   EXPECT_EQ(inst[1].fvalue, 2);
   EXPECT_EQ(inst[1].index, 1);
 
-  inst = batch[1];
+  inst = page[1];
   EXPECT_EQ(inst[0].fvalue, 3);
   EXPECT_EQ(inst[0].index, 0);
   EXPECT_EQ(inst[1].fvalue, 4);
   EXPECT_EQ(inst[1].index, 1);
 
-  inst = batch[2];
+  inst = page[2];
   EXPECT_EQ(inst[0].fvalue, 5);
   EXPECT_EQ(inst[0].index, 1);
 }
@@ -294,19 +299,20 @@ TEST(SparsePageDMatrix, FromFile) {
 
   for (auto &batch : dmat.GetBatches<SparsePage>()) {
     std::vector<bst_row_t> expected_offset(batch.Size() + 1);
+    auto page = batch.GetView();
     int n = -3;
     std::generate(expected_offset.begin(), expected_offset.end(),
                   [&n] { return n += 3; });
     EXPECT_EQ(batch.offset.HostVector(), expected_offset);
 
     if (batch.base_rowid % 2 == 0) {
-      EXPECT_EQ(batch[0][0].index, 0);
-      EXPECT_EQ(batch[0][1].index, 1);
-      EXPECT_EQ(batch[0][2].index, 2);
+      EXPECT_EQ(page[0][0].index, 0);
+      EXPECT_EQ(page[0][1].index, 1);
+      EXPECT_EQ(page[0][2].index, 2);
     } else {
-      EXPECT_EQ(batch[0][0].index, 0);
-      EXPECT_EQ(batch[0][1].index, 3);
-      EXPECT_EQ(batch[0][2].index, 4);
+      EXPECT_EQ(page[0][0].index, 0);
+      EXPECT_EQ(page[0][1].index, 3);
+      EXPECT_EQ(page[0][2].index, 4);
     }
   }
 }

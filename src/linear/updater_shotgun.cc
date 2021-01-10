@@ -52,6 +52,7 @@ class ShotgunUpdater : public LinearUpdater {
     selector_->Setup(*model, in_gpair->ConstHostVector(), p_fmat,
                      param_.reg_alpha_denorm, param_.reg_lambda_denorm, 0);
     for (const auto &batch : p_fmat->GetBatches<CSCPage>()) {
+      auto page = batch.GetView();
       const auto nfeat = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
@@ -60,7 +61,7 @@ class ShotgunUpdater : public LinearUpdater {
            param_.reg_lambda_denorm);
         if (ii < 0) continue;
         const bst_uint fid = ii;
-        auto col = batch[ii];
+        auto col = page[ii];
         for (int gid = 0; gid < ngroup; ++gid) {
           double sum_grad = 0.0, sum_hess = 0.0;
           for (auto& c : col) {

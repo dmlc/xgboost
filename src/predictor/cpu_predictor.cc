@@ -360,18 +360,19 @@ class CPUPredictor : public Predictor {
     // start collecting the prediction
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       // parallel over local batch
+      auto page = batch.GetView();
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
         const int tid = omp_get_thread_num();
         auto ridx = static_cast<size_t>(batch.base_rowid + i);
         RegTree::FVec &feats = thread_temp_[tid];
-        feats.Fill(batch[i]);
+        feats.Fill(page[i]);
         for (unsigned j = 0; j < ntree_limit; ++j) {
           int tid = model.trees[j]->GetLeafIndex(feats);
           preds[ridx * ntree_limit + j] = static_cast<bst_float>(tid);
         }
-        feats.Drop(batch[i]);
+        feats.Drop(page[i]);
       }
     }
   }
@@ -407,6 +408,7 @@ class CPUPredictor : public Predictor {
     const std::vector<bst_float>& base_margin = info.base_margin_.HostVector();
     // start collecting the contributions
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
+      auto page = batch.GetView();
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
 #pragma omp parallel for schedule(static)
@@ -417,7 +419,7 @@ class CPUPredictor : public Predictor {
         // loop over all classes
         for (int gid = 0; gid < ngroup; ++gid) {
           bst_float* p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
-          feats.Fill(batch[i]);
+          feats.Fill(page[i]);
           // calculate contributions
           for (unsigned j = 0; j < ntree_limit; ++j) {
             std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
@@ -435,7 +437,7 @@ class CPUPredictor : public Predictor {
                     (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
             }
           }
-          feats.Drop(batch[i]);
+          feats.Drop(page[i]);
           // add base margin to BIAS
           if (base_margin.size() != 0) {
             p_contribs[ncolumns - 1] += base_margin[row_idx * ngroup + gid];

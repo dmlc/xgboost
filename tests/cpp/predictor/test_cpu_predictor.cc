@@ -39,9 +39,10 @@ TEST(CpuPredictor, Basic) {
 
   // Test predict instance
   auto const &batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
+  auto page = batch.GetView();
   for (size_t i = 0; i < batch.Size(); i++) {
     std::vector<float> instance_out_predictions;
-    cpu_predictor->PredictInstance(batch[i], &instance_out_predictions, model);
+    cpu_predictor->PredictInstance(page[i], &instance_out_predictions, model);
     ASSERT_EQ(instance_out_predictions[0], 1.5);
   }
 
