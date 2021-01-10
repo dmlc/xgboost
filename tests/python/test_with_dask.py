@@ -14,6 +14,7 @@ from sklearn.datasets import make_classification
 import sklearn
 import os
 import subprocess
+import hypothesis
 from hypothesis import given, settings, note, HealthCheck
 from test_updaters import hist_parameter_strategy, exact_parameter_strategy
 from test_with_sklearn import run_feature_weights
@@ -23,12 +24,17 @@ if sys.platform.startswith("win"):
 if tm.no_dask()['condition']:
     pytest.skip(msg=tm.no_dask()['reason'], allow_module_level=True)
 
-
-from distributed import LocalCluster, Client, get_client
+from distributed import LocalCluster, Client
 from distributed.utils_test import client, loop, cluster_fixture
 import dask.dataframe as dd
 import dask.array as da
 from xgboost.dask import DaskDMatrix
+
+
+if hasattr(HealthCheck, 'function_scoped_fixture'):
+    suppress = [HealthCheck.function_scoped_fixture]
+else:
+    suppress = hypothesis.utils.conventions.not_set
 
 
 kRows = 1000
@@ -803,7 +809,7 @@ class TestWithDask:
 
     @given(params=hist_parameter_strategy,
            dataset=tm.dataset_strategy)
-    @settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(deadline=None, suppress_health_check=suppress)
     def test_hist(
             self, params: Dict, dataset: tm.TestDataset, client: "Client"
     ) -> None:
@@ -812,7 +818,7 @@ class TestWithDask:
 
     @given(params=exact_parameter_strategy,
            dataset=tm.dataset_strategy)
-    @settings(deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @settings(deadline=None, suppress_health_check=suppress)
     def test_approx(
             self, client: "Client", params: Dict, dataset: tm.TestDataset
     ) -> None:

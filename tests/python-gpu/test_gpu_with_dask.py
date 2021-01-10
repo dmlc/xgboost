@@ -18,6 +18,7 @@ from test_with_dask import run_empty_dmatrix_reg  # noqa
 from test_with_dask import run_empty_dmatrix_cls  # noqa
 from test_with_dask import _get_client_workers  # noqa
 from test_with_dask import generate_array     # noqa
+from test_with_dask import suppress
 import testing as tm                          # noqa
 
 
@@ -176,10 +177,7 @@ class TestDistributedGPU:
         num_rounds=strategies.integers(1, 20),
         dataset=tm.dataset_strategy,
     )
-    @settings(
-        deadline=duration(seconds=120),
-        suppress_health_check=[HealthCheck.function_scoped_fixture],
-    )
+    @settings(deadline=duration(seconds=120), suppress_health_check=suppress)
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
     @pytest.mark.parametrize(
