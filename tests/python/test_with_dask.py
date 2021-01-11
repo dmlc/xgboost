@@ -174,6 +174,22 @@ def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
 
     assert np.all(predictions_1.compute() == predictions_2.compute())
 
+    margined = xgb.dask.DaskXGBClassifier(n_estimators=4)
+    margined.fit(
+        X=X, y=y, base_margin=margin, eval_set=[(X, y)], base_margin_eval_set=[margin]
+    )
+
+    unmargined = xgb.dask.DaskXGBClassifier(n_estimators=4)
+    unmargined.fit(X=X, y=y, eval_set=[(X, y)], base_margin=margin)
+
+    margined_res = margined.evals_result()['validation_0']['logloss']
+    unmargined_res = unmargined.evals_result()['validation_0']['logloss']
+
+    assert len(margined_res) == len(unmargined_res)
+    for i in range(len(margined_res)):
+        # margined is correct one, so smaller error.
+        assert margined_res[i] < unmargined_res[i]
+
 
 def test_dask_missing_value_reg() -> None:
     with LocalCluster(n_workers=kWorkers) as cluster:

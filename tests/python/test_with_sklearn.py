@@ -717,13 +717,13 @@ def test_validation_weights_xgbmodel():
     assert all((logloss_with_weights[i] != logloss_without_weights[i]
                 for i in [0, 1]))
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         # length of eval set and sample weight doesn't match.
         clf.fit(X_train, y_train, sample_weight=weights_train,
                 eval_set=[(X_train, y_train), (X_test, y_test)],
                 sample_weight_eval_set=[weights_train])
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         cls = xgb.XGBClassifier()
         cls.fit(X_train, y_train, sample_weight=weights_train,
                 eval_set=[(X_train, y_train), (X_test, y_test)],
