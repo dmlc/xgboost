@@ -6,7 +6,7 @@ import numpy as np
 import asyncio
 import xgboost
 import subprocess
-from hypothesis import given, strategies, settings, note
+from hypothesis import given, strategies, settings, note, HealthCheck
 from hypothesis._settings import duration
 from test_gpu_updaters import parameter_strategy
 
@@ -18,6 +18,7 @@ from test_with_dask import run_empty_dmatrix_reg  # noqa
 from test_with_dask import run_empty_dmatrix_cls  # noqa
 from test_with_dask import _get_client_workers  # noqa
 from test_with_dask import generate_array     # noqa
+from test_with_dask import suppress
 import testing as tm                          # noqa
 
 
@@ -171,25 +172,30 @@ class TestDistributedGPU:
             run_with_dask_dataframe(dxgb.DaskDMatrix, client)
             run_with_dask_dataframe(dxgb.DaskDeviceQuantileDMatrix, client)
 
-    @given(params=parameter_strategy, num_rounds=strategies.integers(1, 20),
-           dataset=tm.dataset_strategy)
-    @settings(deadline=duration(seconds=120))
+    @given(
+        params=parameter_strategy,
+        num_rounds=strategies.integers(1, 20),
+        dataset=tm.dataset_strategy,
+    )
+    @settings(deadline=duration(seconds=120), suppress_health_check=suppress)
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
-    @pytest.mark.parametrize('local_cuda_cluster', [{'n_workers': 2}], indirect=['local_cuda_cluster'])
+    @pytest.mark.parametrize(
+        "local_cuda_cluster", [{"n_workers": 2}], indirect=["local_cuda_cluster"]
+    )
     @pytest.mark.mgpu
     def test_gpu_hist(
         self,
         params: Dict,
         num_rounds: int,
         dataset: tm.TestDataset,
-        local_cuda_cluster: LocalCUDACluster
+        local_cuda_cluster: LocalCUDACluster,
     ) -> None:
         with Client(local_cuda_cluster) as client:
-            run_gpu_hist(params, num_rounds, dataset, dxgb.DaskDMatrix,
-                         client)
-            run_gpu_hist(params, num_rounds, dataset,
-                         dxgb.DaskDeviceQuantileDMatrix, client)
+            run_gpu_hist(params, num_rounds, dataset, dxgb.DaskDMatrix, client)
+            run_gpu_hist(
+                params, num_rounds, dataset, dxgb.DaskDeviceQuantileDMatrix, client
+            )
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.skipif(**tm.no_dask())
