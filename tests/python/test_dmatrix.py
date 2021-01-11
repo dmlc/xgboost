@@ -296,3 +296,12 @@ class TestDMatrix:
         param = {'max_depth': 3, 'objective': 'binary:logistic', 'verbosity': 0}
         bst = xgb.train(param, dtrain, 5, watchlist)
         bst.predict(dtrain)
+
+    def test_unknown_data(self):
+        class Data:
+            pass
+
+        with pytest.raises(TypeError):
+            with pytest.warns(UserWarning):
+                d = Data()
+                xgb.DMatrix(d)
