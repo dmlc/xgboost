@@ -646,12 +646,6 @@ class XGBModel(XGBModelBase):
                                                         save_best=True)]
 
         """
-        train_dmatrix = DMatrix(data=X, label=y, weight=sample_weight,
-                                base_margin=base_margin,
-                                missing=self.missing,
-                                nthread=self.n_jobs)
-        train_dmatrix.set_info(feature_weights=feature_weights)
-
         evals_result = {}
 
         train_dmatrix, evals = self._wrap_evaluation_matrices(
