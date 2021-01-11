@@ -78,6 +78,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
     const size_t batch_threads = std::max(
         size_t(1),
         std::min(batch.Size(), static_cast<size_t>(omp_get_max_threads())));
+    auto page = batch.GetView();
     MemStackAllocator<size_t, 128> partial_sums(batch_threads);
     size_t* p_part = partial_sums.Get();
 
@@ -92,7 +93,7 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
 
         size_t sum = 0;
         for (size_t i = ibegin; i < iend; ++i) {
-          sum += batch[i].size();
+          sum += page[i].size();
           row_ptr[rbegin + 1 + i] = sum;
         }
       }

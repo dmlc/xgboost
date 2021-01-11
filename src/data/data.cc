@@ -825,19 +825,20 @@ SparsePage SparsePage::GetTranspose(int num_columns) const {
   const int nthread = omp_get_max_threads();
   builder.InitBudget(num_columns, nthread);
   long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
-#pragma omp parallel for default(none) shared(batch_size, builder) schedule(static)
+    auto page = this->GetView();
+#pragma omp parallel for default(none) shared(batch_size, builder, page) schedule(static)
   for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
-    auto inst = (*this)[i];
+    auto inst = page[i];
     for (const auto& entry : inst) {
       builder.AddBudget(entry.index, tid);
     }
   }
   builder.InitStorage();
-#pragma omp parallel for default(none) shared(batch_size, builder) schedule(static)
+#pragma omp parallel for default(none) shared(batch_size, builder, page) schedule(static)
   for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
-    auto inst = (*this)[i];
+    auto inst = page[i];
     for (const auto& entry : inst) {
       builder.Push(
           entry.index,

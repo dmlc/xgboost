@@ -35,8 +35,9 @@ TEST(SimpleDMatrix, FromColumnarDenseBasic) {
 
 void TestDenseColumn(DMatrix* dmat, size_t n_rows, size_t n_cols) {
   for (auto& batch : dmat->GetBatches<SparsePage>()) {
+    auto page = batch.GetView();
     for (auto i = 0ull; i < batch.Size(); i++) {
-      auto inst = batch[i];
+      auto inst = page[i];
       for (auto j = 0ull; j < inst.size(); j++) {
         EXPECT_EQ(inst[j].fvalue, i * 2);
         EXPECT_EQ(inst[j].index, j);
@@ -162,8 +163,9 @@ TEST(SimpleDMatrix, FromColumnarWithEmptyRows) {
                            -1);
 
   for (auto& batch : dmat.GetBatches<SparsePage>()) {
+    auto page = batch.GetView();
     for (auto i = 0ull; i < batch.Size(); i++) {
-      auto inst = batch[i];
+      auto inst = page[i];
       for (auto j = 0ull; j < inst.size(); j++) {
         EXPECT_EQ(inst[j].fvalue, i);
         EXPECT_EQ(inst[j].index, j);
@@ -257,8 +259,9 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
     data::CudfAdapter adapter(str);
     data::SimpleDMatrix dmat(&adapter, 2.0, -1);
     for (auto& batch : dmat.GetBatches<SparsePage>()) {
+      auto page = batch.GetView();
       for (auto i = 0ull; i < batch.Size(); i++) {
-        auto inst = batch[i];
+        auto inst = page[i];
         for (auto e : inst) {
           ASSERT_NE(e.fvalue, 2.0);
         }
@@ -304,8 +307,9 @@ TEST(SimpleDMatrix, FromColumnarSparseBasic) {
   EXPECT_EQ(dmat.Info().num_nonzero_, 32);
 
   for (auto& batch : dmat.GetBatches<SparsePage>()) {
+    auto page = batch.GetView();
     for (auto i = 0ull; i < batch.Size(); i++) {
-      auto inst = batch[i];
+      auto inst = page[i];
       for (auto j = 0ull; j < inst.size(); j++) {
         EXPECT_EQ(inst[j].fvalue, i * 2);
         EXPECT_EQ(inst[j].index, j);
@@ -329,8 +333,9 @@ TEST(SimpleDMatrix, FromCupy){
   EXPECT_EQ(dmat.Info().num_nonzero_, rows*cols);
 
   for (auto& batch : dmat.GetBatches<SparsePage>()) {
+    auto page = batch.GetView();
     for (auto i = 0ull; i < batch.Size(); i++) {
-      auto inst = batch[i];
+      auto inst = page[i];
       for (auto j = 0ull; j < inst.size(); j++) {
         EXPECT_EQ(inst[j].fvalue, i * cols + j);
         EXPECT_EQ(inst[j].index, j);
@@ -354,12 +359,14 @@ TEST(SimpleDMatrix, FromCupySparse){
   EXPECT_EQ(dmat.Info().num_row_, rows);
   EXPECT_EQ(dmat.Info().num_nonzero_, rows * cols - 2);
   auto& batch = *dmat.GetBatches<SparsePage>().begin();
-  auto inst0 = batch[0];
-  auto inst1 = batch[1];
-  EXPECT_EQ(batch[0].size(), 1);
-  EXPECT_EQ(batch[1].size(), 1);
-  EXPECT_EQ(batch[0][0].fvalue, 0.0f);
-  EXPECT_EQ(batch[0][0].index, 0);
-  EXPECT_EQ(batch[1][0].fvalue, 3.0f);
-  EXPECT_EQ(batch[1][0].index, 1);
+  auto page = batch.GetView();
+
+  auto inst0 = page[0];
+  auto inst1 = page[1];
+  EXPECT_EQ(page[0].size(), 1);
+  EXPECT_EQ(page[1].size(), 1);
+  EXPECT_EQ(page[0][0].fvalue, 0.0f);
+  EXPECT_EQ(page[0][0].index, 0);
+  EXPECT_EQ(page[1][0].fvalue, 3.0f);
+  EXPECT_EQ(page[1][0].index, 1);
 }

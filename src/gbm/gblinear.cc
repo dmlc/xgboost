@@ -173,9 +173,10 @@ class GBLinear : public GradientBooster {
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
+      auto page = batch.GetView();
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nsize; ++i) {
-        auto inst = batch[i];
+        auto inst = page[i];
         auto row_idx = static_cast<size_t>(batch.base_rowid + i);
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {

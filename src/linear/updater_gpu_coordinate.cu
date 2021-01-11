@@ -60,6 +60,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
 
     CHECK(p_fmat->SingleColBlock());
     SparsePage const& batch = *(p_fmat->GetBatches<CSCPage>().begin());
+    auto page = batch.GetView();
 
     if (IsEmpty()) {
       return;
@@ -72,7 +73,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     row_ptr_ = {0};
     // iterate through columns
     for (size_t fidx = 0; fidx < batch.Size(); fidx++) {
-      common::Span<Entry const> col = batch[fidx];
+      common::Span<Entry const> col = page[fidx];
       auto cmp = [](Entry e1, Entry e2) {
         return e1.index < e2.index;
       };
@@ -89,7 +90,7 @@ class GPUCoordinateUpdater : public LinearUpdater {  // NOLINT
     data_.resize(row_ptr_.back());
     gpair_.resize(num_row_ * model_param.num_output_group);
     for (size_t fidx = 0; fidx < batch.Size(); fidx++) {
-      auto col = batch[fidx];
+      auto col = page[fidx];
       auto seg = column_segments[fidx];
       dh::safe_cuda(cudaMemcpy(
           data_.data().get() + row_ptr_[fidx],

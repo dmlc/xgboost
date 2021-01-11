@@ -678,6 +678,7 @@ class Dart : public GBTree {
     CHECK_EQ(preds.size(), p_fmat->Info().num_row_ * num_group);
     // start collecting the prediction
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
+      auto page = batch.GetView();
       constexpr int kUnroll = 8;
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       const bst_omp_uint rest = nsize % kUnroll;
@@ -692,7 +693,7 @@ class Dart : public GBTree {
             ridx[k] = static_cast<int64_t>(batch.base_rowid + i + k);
           }
           for (int k = 0; k < kUnroll; ++k) {
-            inst[k] = batch[i + k];
+            inst[k] = page[i + k];
           }
           for (int k = 0; k < kUnroll; ++k) {
             for (int gid = 0; gid < num_group; ++gid) {
@@ -707,7 +708,7 @@ class Dart : public GBTree {
       for (bst_omp_uint i = nsize - rest; i < nsize; ++i) {
         RegTree::FVec& feats = thread_temp_[0];
         const auto ridx = static_cast<int64_t>(batch.base_rowid + i);
-        const SparsePage::Inst inst = batch[i];
+        const SparsePage::Inst inst = page[i];
         for (int gid = 0; gid < num_group; ++gid) {
           const size_t offset = ridx * num_group + gid;
           preds[offset] +=
