@@ -1262,7 +1262,6 @@ class DaskScikitLearnBase(XGBModel):
 
     _client = None
 
-    # pylint: disable=arguments-differ
     @_deprecate_positional_args
     async def _predict_async(
         self, data: _DaskCollection,
@@ -1703,10 +1702,12 @@ class DaskXGBRanker(DaskScikitLearnBase):
 
 @xgboost_model_doc(
     "Implementation of the Scikit-Learn API for XGBoost Random Forest Regressor.",
-    ['model', 'objective'], extra_parameters='''
+    ["model", "objective"],
+    extra_parameters="""
     n_estimators : int
         Number of trees in random forest to fit.
-''')
+""",
+)
 class DaskXGBRFRegressor(DaskXGBRegressor):
     @_deprecate_positional_args
     def __init__(
@@ -1737,11 +1738,12 @@ class DaskXGBRFRegressor(DaskXGBRegressor):
 
 @xgboost_model_doc(
     "Implementation of the Scikit-Learn API for XGBoost Random Forest Classifier.",
-    ['model', 'objective'],
-    extra_parameters='''
+    ["model", "objective"],
+    extra_parameters="""
     n_estimators : int
         Number of trees in random forest to fit.
-''')
+""",
+)
 class DaskXGBRFClassifier(DaskXGBClassifier):
     @_deprecate_positional_args
     def __init__(

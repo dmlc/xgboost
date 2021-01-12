@@ -91,7 +91,7 @@ __model_doc = '''
         node of the tree.
     min_child_weight : float
         Minimum sum of instance weight(hessian) needed in a child.
-    max_delta_step : int
+    max_delta_step : float
         Maximum delta step we allow each tree's weight estimation to be.
     subsample : float
         Subsample ratio of the training instance.
