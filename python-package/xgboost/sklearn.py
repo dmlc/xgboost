@@ -4,6 +4,7 @@
 import copy
 import warnings
 import json
+from typing import Optional
 import numpy as np
 from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
 from .training import train
@@ -494,6 +495,13 @@ class XGBModel(XGBModelBase):
         # Delete the attribute after load
         self.get_booster().set_attr(scikit_learn=None)
 
+    def _set_evaluation_result(self, evals_result: Optional[dict]) -> None:
+        if evals_result:
+            for val in evals_result.items():
+                evals_result_key = list(val[1].keys())[0]
+                evals_result[val[0]][evals_result_key] = val[1][evals_result_key]
+            self.evals_result_ = evals_result
+
     @_deprecate_positional_args
     def fit(self, X, y, *, sample_weight=None, base_margin=None,
             eval_set=None, eval_metric=None, early_stopping_rounds=None,
@@ -601,12 +609,7 @@ class XGBModel(XGBModelBase):
                               verbose_eval=verbose, xgb_model=xgb_model,
                               callbacks=callbacks)
 
-        if evals_result:
-            for val in evals_result.items():
-                evals_result_key = list(val[1].keys())[0]
-                evals_result[val[0]][evals_result_key] = val[1][
-                    evals_result_key]
-            self.evals_result_ = evals_result
+        self._set_evaluation_result(evals_result)
 
         if early_stopping_rounds is not None:
             self.best_score = self._Booster.best_score
@@ -919,12 +922,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
                               callbacks=callbacks)
 
         self.objective = xgb_options["objective"]
-        if evals_result:
-            for val in evals_result.items():
-                evals_result_key = list(val[1].keys())[0]
-                evals_result[val[0]][
-                    evals_result_key] = val[1][evals_result_key]
-            self.evals_result_ = evals_result
+        self._set_evaluation_result(evals_result)
 
         if early_stopping_rounds is not None:
             self.best_score = self._Booster.best_score
@@ -1328,12 +1326,7 @@ class XGBRanker(XGBModel):
 
         self.objective = params["objective"]
 
-        if evals_result:
-            for val in evals_result.items():
-                evals_result_key = list(val[1].keys())[0]
-                evals_result[val[0]][evals_result_key] = val[1][evals_result_key]
-            self.evals_result = evals_result
-
+        self._set_evaluation_result(evals_result)
         if early_stopping_rounds is not None:
             self.best_score = self._Booster.best_score
             self.best_iteration = self._Booster.best_iteration
