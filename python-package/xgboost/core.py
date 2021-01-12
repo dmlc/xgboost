@@ -1736,6 +1736,13 @@ class Booster(object):
         else:
             raise TypeError('Unknown file type: ', fname)
 
+        if self.attr("best_iteration") is not None:
+            self.best_iteration = int(self.attr("best_iteration"))
+        if self.attr("best_score") is not None:
+            self.best_score = float(self.attr("best_score"))
+        if self.attr("best_ntree_limit") is not None:
+            self.best_ntree_limit = int(self.attr("best_ntree_limit"))
+
     def dump_model(self, fout, fmap='', with_stats=False, dump_format="text"):
         """Dump model into a text or JSON file.  Unlike `save_model`, the
         output format is primarily used for visualization or interpretation,
