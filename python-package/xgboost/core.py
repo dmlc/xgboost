@@ -77,7 +77,7 @@ def from_pystr_to_cstr(data: Union[str, List[str]]):
     raise TypeError()
 
 
-def from_cstr_to_pystr(data, length):
+def from_cstr_to_pystr(data, length) -> List[str]:
     """Revert C pointer to Python str
 
     Parameters
@@ -869,7 +869,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         )
         feature_names = from_cstr_to_pystr(sarr, length)
         if not feature_names:
-            feature_names = ["f{0}".format(i) for i in range(self.num_col())]
+            return None
         return feature_names
 
     @feature_names.setter
@@ -1167,9 +1167,6 @@ class Booster(object):
     training, prediction and evaluation.
     """
 
-    feature_names = None
-    feature_types = None
-
     def __init__(self, params=None, cache=(), model_file=None):
         # pylint: disable=invalid-name
         """
@@ -1184,13 +1181,21 @@ class Booster(object):
         """
         for d in cache:
             if not isinstance(d, DMatrix):
-                raise TypeError('invalid cache item: {}'.format(type(d).__name__), cache)
-            self._validate_features(d)
+                raise TypeError(
+                    "invalid cache item: {}".format(type(d).__name__), cache
+                )
 
         dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
         self.handle = ctypes.c_void_p()
-        _check_call(_LIB.XGBoosterCreate(dmats, c_bst_ulong(len(cache)),
-                                         ctypes.byref(self.handle)))
+        _check_call(
+            _LIB.XGBoosterCreate(
+                dmats, c_bst_ulong(len(cache)), ctypes.byref(self.handle)
+            )
+        )
+        for d in cache:
+            # Validate feature only after the feature names are saved into booster.
+            self._validate_features(d)
+
         params = params or {}
         params = self._configure_metrics(params.copy())
         if isinstance(params, list):
@@ -1397,8 +1402,61 @@ class Booster(object):
                 if not isinstance(value, STRING_TYPES):
                     raise ValueError("Set Attr only accepts string values")
                 value = c_str(str(value))
-            _check_call(_LIB.XGBoosterSetAttr(
-                self.handle, c_str(key), value))
+            _check_call(_LIB.XGBoosterSetAttr(self.handle, c_str(key), value))
+
+    def _get_feature_info(self, field: str):
+        length = c_bst_ulong()
+        sarr = ctypes.POINTER(ctypes.c_char_p)()
+        if not hasattr(self, "handle") or self.handle is None:
+            return None
+        _check_call(
+            _LIB.XGBoosterGetStrFeatureInfo(
+                self.handle, c_str(field), ctypes.byref(length), ctypes.byref(sarr),
+            )
+        )
+        feature_info = from_cstr_to_pystr(sarr, length)
+        return feature_info if feature_info else None
+
+    @property
+    def feature_types(self) -> Optional[List[str]]:
+        """Feature types for this booster.  Can be directly set by input data or by
+        assignment.
+
+        """
+        return self._get_feature_info("feature_type")
+
+    @property
+    def feature_names(self) -> Optional[List[str]]:
+        """Feature names for this booster.  Can be directly set by input data or by
+        assignment.
+
+        """
+        return self._get_feature_info("feature_name")
+
+    def _set_feature_info(self, features: Optional[List[str]], field: str) -> None:
+        if features is not None:
+            assert isinstance(features, list)
+            c_feature_info = [bytes(f, encoding="utf-8") for f in features]
+            c_feature_info = (ctypes.c_char_p * len(c_feature_info))(*c_feature_info)
+            _check_call(
+                _LIB.XGBoosterSetStrFeatureInfo(
+                    self.handle, c_str(field), c_feature_info, c_bst_ulong(len(features))
+                )
+            )
+        else:
+            _check_call(
+                _LIB.XGBoosterSetStrFeatureInfo(
+                    self.handle, c_str(field), None, c_bst_ulong(0)
+                )
+            )
+
+    @feature_names.setter
+    def feature_names(self, features: Optional[List[str]]) -> None:
+        self._set_feature_info(features, "feature_name")
+
+    @feature_types.setter
+    def feature_types(self, features: Optional[List[str]]) -> None:
+        self._set_feature_info(features, "feature_type")
 
     def set_param(self, params, value=None):
         """Set parameters into the Booster.
@@ -1859,9 +1917,10 @@ class Booster(object):
     def save_model(self, fname):
         """Save the model to a file.
 
-        The model is saved in an XGBoost internal format which is universal
-        among the various XGBoost interfaces. Auxiliary attributes of the
-        Python Booster object (such as feature_names) will not be saved.  See:
+        The model is saved in an XGBoost internal format which is universal among the
+        various XGBoost interfaces. Auxiliary attributes of the Python Booster object
+        (such as feature_names) will not be saved when using binary format.  To save those
+        attributes, use JSON instead. See:
 
           https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html
 
@@ -1898,9 +1957,10 @@ class Booster(object):
         """Load the model from a file or bytearray. Path to file can be local
         or as an URI.
 
-        The model is loaded from XGBoost format which is universal among the
-        various XGBoost interfaces. Auxiliary attributes of the Python Booster
-        object (such as feature_names) will not be loaded.  See:
+        The model is loaded from XGBoost format which is universal among the various
+        XGBoost interfaces. Auxiliary attributes of the Python Booster object (such as
+        feature_names) will not be loaded when using binary format.  To save those
+        attributes, use JSON instead.  See:
 
           https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html
 
@@ -2249,7 +2309,7 @@ class Booster(object):
         # pylint: disable=no-member
         return df.sort(['Tree', 'Node']).reset_index(drop=True)
 
-    def _validate_features(self, data):
+    def _validate_features(self, data: DMatrix):
         """
         Validate Booster and data's feature_names are identical.
         Set feature_names and feature_types from DMatrix
@@ -2260,24 +2320,27 @@ class Booster(object):
         if self.feature_names is None:
             self.feature_names = data.feature_names
             self.feature_types = data.feature_types
-        else:
-            # Booster can't accept data with different feature names
-            if self.feature_names != data.feature_names:
-                dat_missing = set(self.feature_names) - set(data.feature_names)
-                my_missing = set(data.feature_names) - set(self.feature_names)
+        if data.feature_names is None and self.feature_names is not None:
+            raise ValueError(
+                "training data did not have the following fields: " +
+                ", ".join(self.feature_names)
+            )
+        # Booster can't accept data with different feature names
+        if self.feature_names != data.feature_names:
+            dat_missing = set(self.feature_names) - set(data.feature_names)
+            my_missing = set(data.feature_names) - set(self.feature_names)
 
-                msg = 'feature_names mismatch: {0} {1}'
+            msg = 'feature_names mismatch: {0} {1}'
 
-                if dat_missing:
-                    msg += ('\nexpected ' + ', '.join(
-                        str(s) for s in dat_missing) + ' in input data')
+            if dat_missing:
+                msg += ('\nexpected ' + ', '.join(
+                    str(s) for s in dat_missing) + ' in input data')
 
-                if my_missing:
-                    msg += ('\ntraining data did not have the following fields: ' +
-                            ', '.join(str(s) for s in my_missing))
+            if my_missing:
+                msg += ('\ntraining data did not have the following fields: ' +
+                        ', '.join(str(s) for s in my_missing))
 
-                raise ValueError(msg.format(self.feature_names,
-                                            data.feature_names))
+            raise ValueError(msg.format(self.feature_names, data.feature_names))
 
     def get_split_value_histogram(self, feature, fmap='', bins=None,
                                   as_pandas=True):

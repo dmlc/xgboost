@@ -1132,4 +1132,46 @@ XGB_DLL int XGBoosterSetAttr(BoosterHandle handle,
 XGB_DLL int XGBoosterGetAttrNames(BoosterHandle handle,
                                   bst_ulong* out_len,
                                   const char*** out);
+
+/*!
+ * \brief Set string encoded feature info in Booster, similar to the feature
+ *        info in DMatrix.
+ *
+ * Accepted fields are:
+ *   - feature_name
+ *   - feature_type
+ *
+ * \param handle    An instance of Booster
+ * \param field     Feild name
+ * \param features  Pointer to array of strings.
+ * \param size      Size of `features` pointer (number of strings passed in).
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterSetStrFeatureInfo(BoosterHandle handle, const char *field,
+                                       const char **features,
+                                       const bst_ulong size);
+
+/*!
+ * \brief Get string encoded feature info from Booster, similar to feature info
+ *        in DMatrix.
+ *
+ * Accepted fields are:
+ *   - feature_name
+ *   - feature_type
+ *
+ * Caller is responsible for copying out the data, before next call to any API
+ * function of XGBoost.
+ *
+ * \param handle       An instance of Booster
+ * \param field        Feild name
+ * \param size         Size of output pointer `features` (number of strings returned).
+ * \param out_features Address of a pointer to array of strings. Result is stored in
+ *        thread local memory.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterGetStrFeatureInfo(BoosterHandle handle, const char *field,
+                                       bst_ulong *len,
+                                       const char ***out_features);
 #endif  // XGBOOST_C_API_H_
