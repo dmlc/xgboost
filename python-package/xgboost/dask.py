@@ -38,7 +38,7 @@ from .core import Objective, Metric
 from .core import _deprecate_positional_args
 from .training import train as worker_train
 from .tracker import RabitTracker, get_host_ip
-from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase, XGBRFClassifier
+from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase
 from .sklearn import xgboost_model_doc, _objective_decorator
 from .sklearn import _cls_predict_proba
 from .sklearn import XGBRanker
