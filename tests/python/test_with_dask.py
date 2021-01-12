@@ -34,7 +34,7 @@ from xgboost.dask import DaskDMatrix
 if hasattr(HealthCheck, 'function_scoped_fixture'):
     suppress = [HealthCheck.function_scoped_fixture]
 else:
-    suppress = hypothesis.utils.conventions.not_set
+    suppress = hypothesis.utils.conventions.not_set  # type:ignore
 
 
 kRows = 1000
