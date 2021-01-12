@@ -214,7 +214,7 @@ TEST(CpuPredictor, UpdatePredictionCache) {
 
   PredictionCacheEntry out_predictions;
   // perform fair prediction on the same input data, should be equal to cached result
-  gbm->PredictBatch(dmat.get(), &out_predictions, 0, 0);
+  gbm->PredictBatch(dmat.get(), &out_predictions, false, 0);
 
   std::vector<float> &out_predictions_h = out_predictions.predictions.HostVector();
   std::vector<float> &predtion_cache_from_train = predtion_cache.predictions.HostVector();
