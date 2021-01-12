@@ -1465,7 +1465,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             xgb_model = xgb_model._Booster  # pylint: disable=protected-access
 
         self._Booster = train(params, train_dmatrix,
-                              self.n_estimators,
+                              self.get_num_boosting_rounds(),
                               early_stopping_rounds=early_stopping_rounds,
                               evals=evals,
                               evals_result=evals_result, feval=feval,
