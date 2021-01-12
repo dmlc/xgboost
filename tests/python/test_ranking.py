@@ -112,8 +112,12 @@ class TestRanking:
         Cleanup test artifacts from download and unpacking
         :return:
         """
-        os.remove(cls.dpath + "MQ2008.zip")
-        shutil.rmtree(cls.dpath + "MQ2008")
+        zip_f = cls.dpath + "MQ2008.zip"
+        if os.path.exists(zip_f):
+            os.remove(zip_f)
+        directory = cls.dpath + "MQ2008"
+        if os.path.exists(directory):
+            shutil.rmtree(directory)
 
     def test_training(self):
         """
