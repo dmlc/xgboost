@@ -1281,7 +1281,7 @@ class DaskScikitLearnBase(XGBModel):
 
     def predict(
         self,
-        data: _DaskCollection,
+        X: _DaskCollection,
         output_margin: bool = False,
         ntree_limit: Optional[int] = None,
         validate_features: bool = True,
@@ -1290,10 +1290,13 @@ class DaskScikitLearnBase(XGBModel):
         _assert_dask_support()
         msg = '`ntree_limit` is not supported on dask, use model slicing instead.'
         assert ntree_limit is None, msg
-        return self.client.sync(self._predict_async, data,
-                                output_margin=output_margin,
-                                validate_features=validate_features,
-                                base_margin=base_margin)
+        return self.client.sync(
+            self._predict_async,
+            X,
+            output_margin=output_margin,
+            validate_features=validate_features,
+            base_margin=base_margin
+        )
 
     def __await__(self) -> Awaitable[Any]:
         # Generate a coroutine wrapper to make this class awaitable.
