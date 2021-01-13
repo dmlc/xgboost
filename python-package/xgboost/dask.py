@@ -38,8 +38,8 @@ from .core import Objective, Metric
 from .core import _deprecate_positional_args
 from .training import train as worker_train
 from .tracker import RabitTracker, get_host_ip
-from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase, _objective_decorator
-from .sklearn import xgboost_model_doc
+from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase
+from .sklearn import xgboost_model_doc, _objective_decorator
 from .sklearn import _cls_predict_proba
 from .sklearn import XGBRanker
 
@@ -1262,7 +1262,6 @@ class DaskScikitLearnBase(XGBModel):
 
     _client = None
 
-    # pylint: disable=arguments-differ
     @_deprecate_positional_args
     async def _predict_async(
         self, data: _DaskCollection,
@@ -1282,7 +1281,7 @@ class DaskScikitLearnBase(XGBModel):
 
     def predict(
         self,
-        data: _DaskCollection,
+        X: _DaskCollection,
         output_margin: bool = False,
         ntree_limit: Optional[int] = None,
         validate_features: bool = True,
@@ -1291,10 +1290,13 @@ class DaskScikitLearnBase(XGBModel):
         _assert_dask_support()
         msg = '`ntree_limit` is not supported on dask, use model slicing instead.'
         assert ntree_limit is None, msg
-        return self.client.sync(self._predict_async, data,
-                                output_margin=output_margin,
-                                validate_features=validate_features,
-                                base_margin=base_margin)
+        return self.client.sync(
+            self._predict_async,
+            X,
+            output_margin=output_margin,
+            validate_features=validate_features,
+            base_margin=base_margin
+        )
 
     def __await__(self) -> Awaitable[Any]:
         # Generate a coroutine wrapper to make this class awaitable.
@@ -1586,7 +1588,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 """,
 )
 class DaskXGBRanker(DaskScikitLearnBase):
-    def __init__(self, objective: str = "rank:pairwise", **kwargs: Any):
+    @_deprecate_positional_args
+    def __init__(self, *, objective: str = "rank:pairwise", **kwargs: Any):
         if callable(objective):
             raise ValueError("Custom objective function not supported by XGBRanker.")
         super().__init__(objective=objective, kwargs=kwargs)
@@ -1698,3 +1701,75 @@ class DaskXGBRanker(DaskScikitLearnBase):
 
     # FIXME(trivialfis): arguments differ due to additional parameters like group and qid.
     fit.__doc__ = XGBRanker.fit.__doc__
+
+
+@xgboost_model_doc(
+    "Implementation of the Scikit-Learn API for XGBoost Random Forest Regressor.",
+    ["model", "objective"],
+    extra_parameters="""
+    n_estimators : int
+        Number of trees in random forest to fit.
+""",
+)
+class DaskXGBRFRegressor(DaskXGBRegressor):
+    @_deprecate_positional_args
+    def __init__(
+        self,
+        *,
+        learning_rate: Optional[float] = 1,
+        subsample: Optional[float] = 0.8,
+        colsample_bynode: Optional[float] = 0.8,
+        reg_lambda: Optional[float] = 1e-5,
+        **kwargs: Any
+    ) -> None:
+        super().__init__(
+            learning_rate=learning_rate,
+            subsample=subsample,
+            colsample_bynode=colsample_bynode,
+            reg_lambda=reg_lambda,
+            **kwargs
+        )
+
+    def get_xgb_params(self) -> Dict[str, Any]:
+        params = super().get_xgb_params()
+        params["num_parallel_tree"] = self.n_estimators
+        return params
+
+    def get_num_boosting_rounds(self) -> int:
+        return 1
+
+
+@xgboost_model_doc(
+    "Implementation of the Scikit-Learn API for XGBoost Random Forest Classifier.",
+    ["model", "objective"],
+    extra_parameters="""
+    n_estimators : int
+        Number of trees in random forest to fit.
+""",
+)
+class DaskXGBRFClassifier(DaskXGBClassifier):
+    @_deprecate_positional_args
+    def __init__(
+        self,
+        *,
+        learning_rate: Optional[float] = 1,
+        subsample: Optional[float] = 0.8,
+        colsample_bynode: Optional[float] = 0.8,
+        reg_lambda: Optional[float] = 1e-5,
+        **kwargs: Any
+    ) -> None:
+        super().__init__(
+            learning_rate=learning_rate,
+            subsample=subsample,
+            colsample_bynode=colsample_bynode,
+            reg_lambda=reg_lambda,
+            **kwargs
+        )
+
+    def get_xgb_params(self) -> Dict[str, Any]:
+        params = super().get_xgb_params()
+        params["num_parallel_tree"] = self.n_estimators
+        return params
+
+    def get_num_boosting_rounds(self) -> int:
+        return 1

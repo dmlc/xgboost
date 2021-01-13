@@ -34,7 +34,7 @@ from xgboost.dask import DaskDMatrix
 if hasattr(HealthCheck, 'function_scoped_fixture'):
     suppress = [HealthCheck.function_scoped_fixture]
 else:
-    suppress = hypothesis.utils.conventions.not_set
+    suppress = hypothesis.utils.conventions.not_set  # type:ignore
 
 
 kRows = 1000
@@ -264,100 +264,127 @@ def test_dask_missing_value_cls() -> None:
             assert hasattr(cls, 'missing')
 
 
-def test_dask_regressor() -> None:
-    with LocalCluster(n_workers=kWorkers) as cluster:
-        with Client(cluster) as client:
-            X, y, w = generate_array(with_weights=True)
-            regressor = xgb.dask.DaskXGBRegressor(verbosity=1, n_estimators=2)
-            assert regressor._estimator_type == "regressor"
-            assert sklearn.base.is_regressor(regressor)
+@pytest.mark.parametrize("model", ["boosting", "rf"])
+def test_dask_regressor(model: str, client: "Client") -> None:
+    X, y, w = generate_array(with_weights=True)
+    if model == "boosting":
+        regressor = xgb.dask.DaskXGBRegressor(verbosity=1, n_estimators=2)
+    else:
+        regressor = xgb.dask.DaskXGBRFRegressor(verbosity=1, n_estimators=2)
 
-            regressor.set_params(tree_method='hist')
-            regressor.client = client
-            regressor.fit(X, y, sample_weight=w, eval_set=[(X, y)])
-            prediction = regressor.predict(X)
+    assert regressor._estimator_type == "regressor"
+    assert sklearn.base.is_regressor(regressor)
 
-            assert prediction.ndim == 1
-            assert prediction.shape[0] == kRows
+    regressor.set_params(tree_method='hist')
+    regressor.client = client
+    regressor.fit(X, y, sample_weight=w, eval_set=[(X, y)])
+    prediction = regressor.predict(X)
 
-            history = regressor.evals_result()
+    assert prediction.ndim == 1
+    assert prediction.shape[0] == kRows
 
-            assert isinstance(prediction, da.Array)
-            assert isinstance(history, dict)
+    history = regressor.evals_result()
 
-            assert list(history['validation_0'].keys())[0] == 'rmse'
-            assert len(history['validation_0']['rmse']) == 2
+    assert isinstance(prediction, da.Array)
+    assert isinstance(history, dict)
+
+    assert list(history['validation_0'].keys())[0] == 'rmse'
+    forest = int(
+        json.loads(regressor.get_booster().save_config())["learner"][
+            "gradient_booster"
+        ]["gbtree_train_param"]["num_parallel_tree"]
+    )
+
+    if model == "boosting":
+        assert len(history['validation_0']['rmse']) == 2
+        assert forest == 1
+    else:
+        assert len(history['validation_0']['rmse']) == 1
+        assert forest == 2
 
 
-def test_dask_classifier() -> None:
-    with LocalCluster(n_workers=kWorkers) as cluster:
-        with Client(cluster) as client:
-            X, y, w = generate_array(with_weights=True)
-            y = (y * 10).astype(np.int32)
-            classifier = xgb.dask.DaskXGBClassifier(
-                verbosity=1, n_estimators=2, eval_metric='merror')
-            assert classifier._estimator_type == "classifier"
-            assert sklearn.base.is_classifier(classifier)
+@pytest.mark.parametrize("model", ["boosting", "rf"])
+def test_dask_classifier(model: str, client: "Client") -> None:
+    X, y, w = generate_array(with_weights=True)
+    y = (y * 10).astype(np.int32)
+    if model == "boosting":
+        classifier = xgb.dask.DaskXGBClassifier(
+            verbosity=1, n_estimators=2, eval_metric="merror"
+        )
+    else:
+        classifier = xgb.dask.DaskXGBRFClassifier(
+            verbosity=1, n_estimators=2, eval_metric="merror"
+        )
 
-            classifier.client = client
-            classifier.fit(X, y, sample_weight=w, eval_set=[(X, y)])
-            prediction = classifier.predict(X)
+    assert classifier._estimator_type == "classifier"
+    assert sklearn.base.is_classifier(classifier)
 
-            assert prediction.ndim == 1
-            assert prediction.shape[0] == kRows
+    classifier.client = client
+    classifier.fit(X, y, sample_weight=w, eval_set=[(X, y)])
+    prediction = classifier.predict(X)
 
-            history = classifier.evals_result()
+    assert prediction.ndim == 1
+    assert prediction.shape[0] == kRows
 
-            assert isinstance(prediction, da.Array)
-            assert isinstance(history, dict)
+    history = classifier.evals_result()
 
-            assert list(history.keys())[0] == 'validation_0'
-            assert list(history['validation_0'].keys())[0] == 'merror'
-            assert len(list(history['validation_0'])) == 1
-            assert len(history['validation_0']['merror']) == 2
+    assert isinstance(prediction, da.Array)
+    assert isinstance(history, dict)
 
-            # Test .predict_proba()
-            probas = classifier.predict_proba(X)
-            assert classifier.n_classes_ == 10
-            assert probas.ndim == 2
-            assert probas.shape[0] == kRows
-            assert probas.shape[1] == 10
+    assert list(history.keys())[0] == "validation_0"
+    assert list(history["validation_0"].keys())[0] == "merror"
+    assert len(list(history["validation_0"])) == 1
+    forest = int(
+        json.loads(classifier.get_booster().save_config())["learner"][
+            "gradient_booster"
+        ]["gbtree_train_param"]["num_parallel_tree"]
+    )
+    if model == "boosting":
+        assert len(history["validation_0"]["merror"]) == 2
+        assert forest == 1
+    else:
+        assert len(history["validation_0"]["merror"]) == 1
+        assert forest == 2
 
-            cls_booster = classifier.get_booster()
-            single_node_proba = cls_booster.inplace_predict(X.compute())
+    # Test .predict_proba()
+    probas = classifier.predict_proba(X)
+    assert classifier.n_classes_ == 10
+    assert probas.ndim == 2
+    assert probas.shape[0] == kRows
+    assert probas.shape[1] == 10
 
-            np.testing.assert_allclose(single_node_proba,
-                                       probas.compute())
+    cls_booster = classifier.get_booster()
+    single_node_proba = cls_booster.inplace_predict(X.compute())
 
-            # Test with dataframe.
-            X_d = dd.from_dask_array(X)
-            y_d = dd.from_dask_array(y)
-            classifier.fit(X_d, y_d)
+    np.testing.assert_allclose(single_node_proba, probas.compute())
 
-            assert classifier.n_classes_ == 10
-            prediction = classifier.predict(X_d)
+    # Test with dataframe.
+    X_d = dd.from_dask_array(X)
+    y_d = dd.from_dask_array(y)
+    classifier.fit(X_d, y_d)
 
-            assert prediction.ndim == 1
-            assert prediction.shape[0] == kRows
+    assert classifier.n_classes_ == 10
+    prediction = classifier.predict(X_d)
+
+    assert prediction.ndim == 1
+    assert prediction.shape[0] == kRows
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
-def test_sklearn_grid_search() -> None:
+def test_sklearn_grid_search(client: "Client") -> None:
     from sklearn.model_selection import GridSearchCV
-    with LocalCluster(n_workers=kWorkers) as cluster:
-        with Client(cluster) as client:
-            X, y, _ = generate_array()
-            reg = xgb.dask.DaskXGBRegressor(learning_rate=0.1,
-                                            tree_method='hist')
-            reg.client = client
-            model = GridSearchCV(reg, {'max_depth': [2, 4],
-                                       'n_estimators': [5, 10]},
-                                 cv=2, verbose=1)
-            model.fit(X, y)
-            # Expect unique results for each parameter value This confirms
-            # sklearn is able to successfully update the parameter
-            means = model.cv_results_['mean_test_score']
-            assert len(means) == len(set(means))
+    X, y, _ = generate_array()
+    reg = xgb.dask.DaskXGBRegressor(learning_rate=0.1,
+                                    tree_method='hist')
+    reg.client = client
+    model = GridSearchCV(reg, {'max_depth': [2, 4],
+                               'n_estimators': [5, 10]},
+                         cv=2, verbose=1)
+    model.fit(X, y)
+    # Expect unique results for each parameter value This confirms
+    # sklearn is able to successfully update the parameter
+    means = model.cv_results_['mean_test_score']
+    assert len(means) == len(set(means))
 
 
 def test_empty_dmatrix_training_continuation(client: "Client") -> None:
