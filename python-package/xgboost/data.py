@@ -517,7 +517,7 @@ def _has_array_protocol(data):
     return hasattr(data, '__array__')
 
 
-def _convert_unknown_data(data, meta=None, meta_type=None):
+def _convert_unknown_data(data):
     warnings.warn(
         f'Unknown data type: {type(data)}, trying to convert it to csr_matrix',
         UserWarning
@@ -529,7 +529,7 @@ def _convert_unknown_data(data, meta=None, meta_type=None):
 
     try:
         data = scipy.sparse.csr_matrix(data)
-    except Exception:
+    except Exception:           # pylint: disable=broad-except
         return None
 
     return data
