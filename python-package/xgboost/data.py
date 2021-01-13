@@ -517,6 +517,24 @@ def _has_array_protocol(data):
     return hasattr(data, '__array__')
 
 
+def _convert_unknown_data(data):
+    warnings.warn(
+        f'Unknown data type: {type(data)}, trying to convert it to csr_matrix',
+        UserWarning
+    )
+    try:
+        import scipy
+    except ImportError:
+        return None
+
+    try:
+        data = scipy.sparse.csr_matrix(data)
+    except Exception:           # pylint: disable=broad-except
+        return None
+
+    return data
+
+
 def dispatch_data_backend(data, missing, threads,
                           feature_names, feature_types,
                           enable_categorical=False):
@@ -570,6 +588,11 @@ def dispatch_data_backend(data, missing, threads,
                                    feature_types)
     if _has_array_protocol(data):
         pass
+
+    converted = _convert_unknown_data(data)
+    if converted:
+        return _from_scipy_csr(data, missing, feature_names, feature_types)
+
     raise TypeError('Not supported type for data.' + str(type(data)))
 
 
