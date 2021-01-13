@@ -305,6 +305,7 @@ if __name__ == '__main__':
           description="XGBoost Python Package",
           long_description=open(os.path.join(CURRENT_DIR, 'README.rst'),
                                 encoding='utf-8').read(),
+          long_description_content_type="text/x-rst",
           install_requires=[
               'numpy',
               'scipy',
