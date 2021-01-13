@@ -34,9 +34,9 @@ TO_VERSION=$2
 sed_i() {
   perl -p -000 -e "$1" "$2" > "$2.tmp" && mv "$2.tmp" "$2"
 }
-   
+
 export -f sed_i
- 
+
 BASEDIR=$(dirname $0)/..
 find "$BASEDIR" -name 'pom.xml' -not -path '*target*' -print \
   -exec bash -c \
