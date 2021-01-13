@@ -1586,7 +1586,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 )
 class DaskXGBRanker(DaskScikitLearnBase):
     @_deprecate_positional_args
-    def __init__(self, objective: str = "rank:pairwise", **kwargs: Any):
+    def __init__(self, *, objective: str = "rank:pairwise", **kwargs: Any):
         if callable(objective):
             raise ValueError("Custom objective function not supported by XGBRanker.")
         super().__init__(objective=objective, kwargs=kwargs)
