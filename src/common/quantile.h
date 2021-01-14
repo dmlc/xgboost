@@ -743,15 +743,14 @@ class HostSketchContainer {
 * \param isketch position of sketch element.
 */
  WQSketch& get(size_t ithread, size_t isketch){
-	 //std::cout << "MC inside get pos: " << position << "; size: " << sketches_.size() << "; ret: " << sketches_[position].inqueue.queue.size() << std::endl;
 	 return sketches_[ithread][isketch];
  }
  
  /*
- * \brief This method will merge each thread's sketches into 1 vector, which will reside in position 0.
+ * \brief This method will merge each thread's sketches into 1 vector,
+ * which will reside in position 0.
  */
  void merge() {
-	//TODO  #pragma omp parallel for
 	 for ( size_t ithread = 1 ; ithread < sketches_.size() ; ++ithread ) {
 		 #pragma omp parallel for
 		 for ( size_t iCol = 0 ; iCol < columns_size_ ; ++iCol  ) {

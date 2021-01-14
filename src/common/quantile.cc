@@ -136,7 +136,7 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
                                       MetaInfo const &info) {
   monitor_.Start(__func__);
   int nthread = omp_get_max_threads();
-  std::cout << "MC PushRowPage opt nthread: " << nthread << std::endl;
+  std::cout << "PushRowPage opt nthread: " << nthread << std::endl;
   CHECK_EQ(sketches_.size(), info.num_col_);
 
   // Data groups, used in ranking.
@@ -147,16 +147,9 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
   // Parallel over columns.  Each thread owns a set of consecutive columns.
   auto const ncol = static_cast<uint32_t>(info.num_col_);
   auto const is_dense = info.num_nonzero_ == info.num_col_ * info.num_row_;
-/*  auto thread_columns_ptr = LoadBalance(page, info.num_col_, nthread);
-  std::cout << "MC thread_columns_ptr: ";
-  for (size_t imc=0; imc < thread_columns_ptr.size(); imc++)
-    std::cout << thread_columns_ptr[imc] << ",";
-  std::cout << std::endl;
-*/
   auto thread_rows_ptr = LoadBalancePerRow(page, nthread);
   auto const nBatchRows = batch.Size();
   
-monitor_.Start("PushRowPage3");
 #pragma omp parallel num_threads(nthread)
   {
     exec.Run([&]() {
@@ -166,7 +159,6 @@ monitor_.Start("PushRowPage3");
       auto const begin = thread_rows_ptr[tid];
       auto const end = thread_rows_ptr[tid + 1];
 
-	  //std::cout << "MC begin-end: " << begin << "-" << end << std::endl;
       size_t group_ind = 0;
 
       // do not iterate if no columns are assigned to the thread
@@ -175,7 +167,6 @@ monitor_.Start("PushRowPage3");
           size_t const ridx = page.base_rowid + i;
           SparsePage::Inst const inst = batch[i];
           if (use_group_ind_) {
-			std::cout << "MC entered if use_group_ind_ " << std::endl;
             group_ind = this->SearchGroupIndFromRow(group_ptr, i + page.base_rowid);
           }
           size_t w_idx = use_group_ind_ ? group_ind : ridx;
@@ -183,25 +174,12 @@ monitor_.Start("PushRowPage3");
           auto p_inst = inst.data();
           if (is_dense) {
             for (size_t ii = 0; ii < ncol; ii++) { // traverse through columns
-			  //std::pair<bst_float, bst_float> p = std::make_pair(p_inst[ii].fvalue, w);			  
 			  sketches_.get(tid, ii).Push(p_inst[ii].fvalue, w);
-			  
-			  /*if (ii % 1000000 == 0) {
-				  //std::cout << "MC p value == calc: " << p.first << ";" << p.second << " == ";
-				  sketches_.print(ii);
-				  std::cout << p_inst[ii].fvalue << ";" << w << std::endl;
-			  }*/
             }
           } else {
             for (size_t i = 0; i < inst.size(); ++i) {
               auto const& entry = p_inst[i];
               sketches_.get(tid, entry.index).Push(entry.fvalue, w);
-              std::cout << "MC data not dense." << std::endl;
-			  std::cout << "MC push2: " << entry.fvalue << std::endl;
-              /*if (entry.index >= begin && entry.index < end) {
-                sketches_[entry.index].Push(entry.fvalue, w);
-				std::cout << "MC push2: " << entry.fvalue << std::endl;
-              }*/
             }
           }
         }
@@ -210,34 +188,9 @@ monitor_.Start("PushRowPage3");
   }
   exec.Rethrow();
   
-  monitor_.Start("PushRowPageMerge");
   sketches_.merge();
-  monitor_.Stop("PushRowPageMerge");
-  monitor_.Stop("PushRowPage3");
   monitor_.Stop(__func__);
 
-/*
-    std::cout << "MC multi sketches: " << multi_sketches.size() << std::endl;
-  for (auto im = multi_sketches.begin(); im != multi_sketches.end(); im++){ // traversing map's keys
-        auto v = im->second;
-	  for (size_t i=0; i < v.size(); i++) {
-		 std::cout << "MC sketches tid;size: " << im->first << " ; " << v[i].inqueue.queue.size() << std::endl;
-		 for (size_t iv=0; iv < v[i].inqueue.queue.size(); iv ++){
-			std::cout << v[i].inqueue.queue[iv].value << ";";
-		 }
-		 std::cout << std::endl;
-	  }
-	}
-
-  std::cout << "MC sketches size: " << sketches_.size() << std::endl;
-  for ( size_t ithread = 0 ; ithread < sketches_.size() ; ++ithread ) {
-     std::cout << "MC sketches i: " << sketches_.get(ithread, i).inqueue.queue.size() << std::endl;
-	 for (size_t iv=0; iv < sketches_.get(ithread, i).inqueue.queue.size(); ++iv){
-		std::cout << sketches_.get(ithread, i).inqueue.queue[iv].value << ";";
-	 }
-	 std::cout << std::endl;
-  }
-*/
 }
 
 void HostSketchContainer::GatherSketchInfo(
