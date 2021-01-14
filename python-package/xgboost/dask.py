@@ -1543,16 +1543,13 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         output_margin: bool,
         base_margin: Optional[_DaskCollection]
     ) -> _DaskCollection:
-        test_dmatrix = await DaskDMatrix(
-            client=self.client, data=X, base_margin=base_margin,
-            missing=self.missing
+        predt = await super()._predict_async(
+            X=X,
+            output_margin=output_margin,
+            base_margin=base_margin,
+            validate_features=validate_features
         )
-        pred_probs = await predict(client=self.client,
-                                   model=self.get_booster(),
-                                   data=test_dmatrix,
-                                   validate_features=validate_features,
-                                   output_margin=output_margin)
-        return _cls_predict_proba(self.objective, pred_probs, da.vstack)
+        return _cls_predict_proba(self.objective, predt, da.vstack)
 
     # pylint: disable=missing-docstring
     def predict_proba(
