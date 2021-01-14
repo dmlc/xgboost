@@ -1277,7 +1277,7 @@ class DaskScikitLearnBase(XGBModel):
                 base_margin=base_margin,
                 missing=self.missing,
             )
-            pred_probs = await predict(
+            predt = await predict(
                 client=self.client,
                 model=self.get_booster(),
                 data=test_dmatrix,
@@ -1285,14 +1285,14 @@ class DaskScikitLearnBase(XGBModel):
                 validate_features=validate_features,
             )
         else:
-            pred_probs = await inplace_predict(
+            predt = await inplace_predict(
                 client=self.client,
                 model=self.get_booster(),
                 data=data,
                 predict_type="margin" if output_margin else "value",
                 missing=self.missing,
             )
-        return pred_probs
+        return predt
 
     def predict(
         self,
