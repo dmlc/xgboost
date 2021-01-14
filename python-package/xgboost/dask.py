@@ -1543,7 +1543,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         output_margin: bool,
         base_margin: Optional[_DaskCollection]
     ) -> _DaskCollection:
-        predt = await super()._predict_async(
+        predt = await self._predict_async(
             X=X,
             output_margin=output_margin,
             base_margin=base_margin,
@@ -1572,13 +1572,13 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         )
 
     async def _predict_async(
-        self, data: _DaskCollection,
+        self, X: _DaskCollection,
         output_margin: bool = False,
         validate_features: bool = True,
         base_margin: Optional[_DaskCollection] = None
     ) -> _DaskCollection:
         pred_probs = await super()._predict_async(
-            data, output_margin, validate_features, base_margin
+            X, output_margin, validate_features, base_margin
         )
         if output_margin:
             return pred_probs
