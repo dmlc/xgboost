@@ -1,7 +1,6 @@
 # coding: utf-8
 # pylint: disable= invalid-name
 """Distributed XGBoost Rabit related API."""
-import sys
 import ctypes
 import pickle
 import numpy as np
