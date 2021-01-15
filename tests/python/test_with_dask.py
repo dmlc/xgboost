@@ -867,7 +867,9 @@ class TestWithDask:
 
         test = "--gtest_filter=Quantile." + name
 
-        def runit(worker_addr: str, rabit_args: List[bytes]) -> subprocess.CompletedProcess:
+        def runit(
+            worker_addr: str, rabit_args: List[bytes]
+        ) -> subprocess.CompletedProcess:
             port_env = ''
             # setup environment for running the c++ part.
             for arg in rabit_args:
@@ -965,7 +967,9 @@ class TestWithDask:
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, 'log')
 
-            def sqr(labels: np.ndarray, predts: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+            def sqr(
+                labels: np.ndarray, predts: np.ndarray
+            ) -> Tuple[np.ndarray, np.ndarray]:
                 with open(path, 'a') as fd:
                     print('Running sqr', file=fd)
                 grad = predts - labels

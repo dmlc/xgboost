@@ -293,7 +293,7 @@ class RabitTracker(object):
             s = SlaveEntry(fd, s_addr)
             if s.cmd == 'print':
                 msg = s.sock.recvstr()
-                logging.info(msg.strip())
+                print(msg.strip(), flush=True)
                 continue
             if s.cmd == 'shutdown':
                 assert s.rank >= 0 and s.rank not in shutdown

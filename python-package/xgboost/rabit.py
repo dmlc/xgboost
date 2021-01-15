@@ -79,8 +79,7 @@ def tracker_print(msg):
     if is_dist != 0:
         _check_call(_LIB.RabitTrackerPrint(c_str(msg)))
     else:
-        sys.stdout.write(msg)
-        sys.stdout.flush()
+        print(msg.strip(), flush=True)
 
 
 def get_processor_name():
