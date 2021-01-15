@@ -10,10 +10,6 @@ namespace xgboost {
 namespace gbm {
 
 void GBLinearModel::SaveModel(Json* p_out) const {
-  using WeightType = std::remove_reference<decltype(std::declval<decltype(weight)>().back())>::type;
-  using JsonFloat = Number::Float;
-  static_assert(std::is_same<WeightType, JsonFloat>::value,
-                "Weight type should be of the same type with JSON float");
   auto& out = *p_out;
 
   size_t const n_weights = weight.size();
