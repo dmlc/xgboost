@@ -933,9 +933,9 @@ class TestWithDask:
     def test_feature_weights(self, client: "Client") -> None:
         kRows = 1024
         kCols = 64
-
-        X = da.random.random((kRows, kCols), chunks=(32, -1))
-        y = da.random.random(kRows, chunks=32)
+        rng = da.random.RandomState(1994)
+        X = rng.random_sample((kRows, kCols), chunks=(32, -1))
+        y = rng.random_sample(kRows, chunks=32)
 
         fw = np.ones(shape=(kCols,))
         for i in range(kCols):
