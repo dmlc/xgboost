@@ -109,22 +109,18 @@ def _train_internal(params, dtrain,
     else:
         raise ValueError(f'Unknown booster: {booster}')
 
-    num_groups = int(config['learner']['learner_model_param']['num_class'])
-    num_groups = 1 if num_groups == 0 else num_groups
     if bst.attr('best_score') is not None:
         bst.best_score = float(bst.attr('best_score'))
         bst.best_iteration = int(bst.attr('best_iteration'))
         bst.set_attr(
-            best_ntree_limit=str(
-                (bst.best_iteration + 1) * num_parallel_tree * num_groups
-            )
+            best_ntree_limit=str((bst.best_iteration + 1) * num_parallel_tree)
         )
         bst.best_ntree_limit = int(bst.attr("best_ntree_limit"))
     else:
         # Due to compatibility with version older than 1.4, these attributes are added
         # to Python object even if early stopping is not used.
         bst.best_iteration = bst.num_boosted_rounds() - 1
-        bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree * num_groups
+        bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
 
     # Copy to serialise and unserialise booster to reset state and free
     # training memory
