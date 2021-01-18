@@ -112,6 +112,7 @@ def _train_internal(params, dtrain,
     if bst.attr('best_score') is not None:
         bst.best_score = float(bst.attr('best_score'))
         bst.best_iteration = int(bst.attr('best_iteration'))
+        # num_class is handled internally
         bst.set_attr(
             best_ntree_limit=str((bst.best_iteration + 1) * num_parallel_tree)
         )
