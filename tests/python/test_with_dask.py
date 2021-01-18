@@ -24,6 +24,7 @@ if sys.platform.startswith("win"):
 if tm.no_dask()['condition']:
     pytest.skip(msg=tm.no_dask()['reason'], allow_module_level=True)
 
+import distributed
 from distributed import LocalCluster, Client
 from distributed.utils_test import client, loop, cluster_fixture
 import dask.dataframe as dd
@@ -51,11 +52,12 @@ def generate_array(
         with_weights: bool = False
 ) -> Tuple[xgb.dask._DaskCollection, xgb.dask._DaskCollection,
            Optional[xgb.dask._DaskCollection]]:
-    partition_size = 20
-    X = da.random.random((kRows, kCols), partition_size)
-    y = da.random.random(kRows, partition_size)
+    chunk_size = 20
+    rng = da.random.RandomState(1994)
+    X = rng.random_sample((kRows, kCols), chunks=(chunk_size, -1))
+    y = rng.random_sample(kRows, chunks=chunk_size)
     if with_weights:
-        w = da.random.random(kRows, partition_size)
+        w = rng.random_sample(kRows, chunks=chunk_size)
         return X, y, w
     return X, y, None
 
@@ -175,55 +177,51 @@ def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
     assert np.all(predictions_1.compute() == predictions_2.compute())
 
 
-def test_dask_missing_value_reg() -> None:
-    with LocalCluster(n_workers=kWorkers) as cluster:
-        with Client(cluster) as client:
-            X_0 = np.ones((20 // 2, kCols))
-            X_1 = np.zeros((20 // 2, kCols))
-            X = np.concatenate([X_0, X_1], axis=0)
-            np.random.shuffle(X)
-            X = da.from_array(X)
-            X = X.rechunk(20, 1)
-            y = da.random.randint(0, 3, size=20)
-            y.rechunk(20)
-            regressor = xgb.dask.DaskXGBRegressor(verbosity=1, n_estimators=2,
-                                                  missing=0.0)
-            regressor.client = client
-            regressor.set_params(tree_method='hist')
-            regressor.fit(X, y, eval_set=[(X, y)])
-            dd_predt = regressor.predict(X).compute()
+def test_dask_missing_value_reg(client: "Client") -> None:
+    X_0 = np.ones((20 // 2, kCols))
+    X_1 = np.zeros((20 // 2, kCols))
+    X = np.concatenate([X_0, X_1], axis=0)
+    np.random.shuffle(X)
+    X = da.from_array(X)
+    X = X.rechunk(20, 1)
+    y = da.random.randint(0, 3, size=20)
+    y.rechunk(20)
+    regressor = xgb.dask.DaskXGBRegressor(verbosity=1, n_estimators=2,
+                                          missing=0.0)
+    regressor.client = client
+    regressor.set_params(tree_method='hist')
+    regressor.fit(X, y, eval_set=[(X, y)])
+    dd_predt = regressor.predict(X).compute()
 
-            np_X = X.compute()
-            np_predt = regressor.get_booster().predict(
-                xgb.DMatrix(np_X, missing=0.0))
-            np.testing.assert_allclose(np_predt, dd_predt)
+    np_X = X.compute()
+    np_predt = regressor.get_booster().predict(
+        xgb.DMatrix(np_X, missing=0.0))
+    np.testing.assert_allclose(np_predt, dd_predt)
 
 
-def test_dask_missing_value_cls() -> None:
-    with LocalCluster() as cluster:
-        with Client(cluster) as client:
-            X_0 = np.ones((kRows // 2, kCols))
-            X_1 = np.zeros((kRows // 2, kCols))
-            X = np.concatenate([X_0, X_1], axis=0)
-            np.random.shuffle(X)
-            X = da.from_array(X)
-            X = X.rechunk(20, None)
-            y = da.random.randint(0, 3, size=kRows)
-            y = y.rechunk(20, 1)
-            cls = xgb.dask.DaskXGBClassifier(verbosity=1, n_estimators=2,
-                                             tree_method='hist',
-                                             missing=0.0)
-            cls.client = client
-            cls.fit(X, y, eval_set=[(X, y)])
-            dd_pred_proba = cls.predict_proba(X).compute()
+def test_dask_missing_value_cls(client: "Client") -> None:
+    X_0 = np.ones((kRows // 2, kCols))
+    X_1 = np.zeros((kRows // 2, kCols))
+    X = np.concatenate([X_0, X_1], axis=0)
+    np.random.shuffle(X)
+    X = da.from_array(X)
+    X = X.rechunk(20, None)
+    y = da.random.randint(0, 3, size=kRows)
+    y = y.rechunk(20, 1)
+    cls = xgb.dask.DaskXGBClassifier(verbosity=1, n_estimators=2,
+                                     tree_method='hist',
+                                     missing=0.0)
+    cls.client = client
+    cls.fit(X, y, eval_set=[(X, y)])
+    dd_pred_proba = cls.predict_proba(X).compute()
 
-            np_X = X.compute()
-            np_pred_proba = cls.get_booster().predict(
-                xgb.DMatrix(np_X, missing=0.0))
-            np.testing.assert_allclose(np_pred_proba, dd_pred_proba)
+    np_X = X.compute()
+    np_pred_proba = cls.get_booster().predict(
+        xgb.DMatrix(np_X, missing=0.0))
+    np.testing.assert_allclose(np_pred_proba, dd_pred_proba)
 
-            cls = xgb.dask.DaskXGBClassifier()
-            assert hasattr(cls, 'missing')
+    cls = xgb.dask.DaskXGBClassifier()
+    assert hasattr(cls, 'missing')
 
 
 @pytest.mark.parametrize("model", ["boosting", "rf"])
@@ -998,8 +996,7 @@ class TestWithDask:
                 assert cnt - n_workers == n_partitions
 
     def run_shap(self, X: Any, y: Any, params: Dict[str, Any], client: "Client") -> None:
-        X, y = da.from_array(X), da.from_array(y)
-
+        X, y = da.from_array(X, chunks=(32, -1)), da.from_array(y, chunks=32)
         Xy = xgb.dask.DaskDMatrix(client, X, y)
         booster = xgb.dask.train(client, params, Xy, num_boost_round=10)['booster']
 
@@ -1009,8 +1006,12 @@ class TestWithDask:
         margin = xgb.dask.predict(client, booster, test_Xy, output_margin=True).compute()
         assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
 
+        shap = xgb.dask.predict(client, booster, X, pred_contribs=True).compute()
+        margin = xgb.dask.predict(client, booster, X, output_margin=True).compute()
+        assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
+
     def run_shap_cls_sklearn(self, X: Any, y: Any, client: "Client") -> None:
-        X, y = da.from_array(X), da.from_array(y)
+        X, y = da.from_array(X, chunks=(32, -1)), da.from_array(y, chunks=32)
         cls = xgb.dask.DaskXGBClassifier()
         cls.client = client
         cls.fit(X, y)
@@ -1022,6 +1023,10 @@ class TestWithDask:
         margin = xgb.dask.predict(client, booster, test_Xy, output_margin=True).compute()
         assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
 
+        shap = xgb.dask.predict(client, booster, X, pred_contribs=True).compute()
+        margin = xgb.dask.predict(client, booster, X, output_margin=True).compute()
+        assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
+
     def test_shap(self, client: "Client") -> None:
         from sklearn.datasets import load_boston, load_digits
         X, y = load_boston(return_X_y=True)
@@ -1031,6 +1036,7 @@ class TestWithDask:
         X, y = load_digits(return_X_y=True)
         params = {'objective': 'multi:softmax', 'num_class': 10}
         self.run_shap(X, y, params, client)
+
         params = {'objective': 'multi:softprob', 'num_class': 10}
         self.run_shap(X, y, params, client)
 
@@ -1043,7 +1049,7 @@ class TestWithDask:
         params: Dict[str, Any],
         client: "Client"
     ) -> None:
-        X, y = da.from_array(X), da.from_array(y)
+        X, y = da.from_array(X, chunks=(32, -1)), da.from_array(y, chunks=32)
 
         Xy = xgb.dask.DaskDMatrix(client, X, y)
         booster = xgb.dask.train(client, params, Xy, num_boost_round=10)['booster']

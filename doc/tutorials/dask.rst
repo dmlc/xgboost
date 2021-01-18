@@ -95,14 +95,21 @@ For prediction, pass the ``output`` returned by ``train`` into ``xgb.dask.predic
 .. code-block:: python
 
   prediction = xgb.dask.predict(client, output, dtrain)
+  # Or equivalently, pass ``output['booster']``:
+  prediction = xgb.dask.predict(client, output['booster'], dtrain)
 
-Or equivalently, pass ``output['booster']``:
+Eliminating the construction of DaskDMatrix is also possible, this can make the
+computation a bit faster when meta information like ``base_margin`` is not needed:
 
 .. code-block:: python
 
-  prediction = xgb.dask.predict(client, output['booster'], dtrain)
+  prediction = xgb.dask.predict(client, output, X)
+  # Use inplace version.
+  prediction = xgb.dask.inplace_predict(client, output, X)
 
-Here ``prediction`` is a dask ``Array`` object containing predictions from model.
+Here ``prediction`` is a dask ``Array`` object containing predictions from model if input
+is a ``DaskDMatrix`` or ``da.Array``.  For ``dd.DataFrame``, the return value is a
+``dd.Series``.
 
 Alternatively, XGBoost also implements the Scikit-Learn interface with ``DaskXGBClassifier``
 and ``DaskXGBRegressor``. See ``xgboost/demo/dask`` for more examples.
