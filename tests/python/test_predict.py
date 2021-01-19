@@ -33,9 +33,15 @@ def run_predict_leaf(predictor):
     y = rng.randint(low=0, high=classes, size=rows)
     m = xgb.DMatrix(X, y)
     booster = xgb.train(
-        {'num_parallel_tree': num_parallel_tree, 'num_class': classes,
-         'predictor': predictor, 'tree_method': 'hist'}, m,
-        num_boost_round=num_boost_round)
+        {
+            "num_parallel_tree": num_parallel_tree,
+            "num_class": classes,
+            "predictor": predictor,
+            "tree_method": "hist",
+        },
+        m,
+        num_boost_round=num_boost_round,
+    )
 
     empty = xgb.DMatrix(np.ones(shape=(0, cols)))
     empty_leaf = booster.predict(empty, pred_leaf=True)
@@ -52,12 +58,19 @@ def run_predict_leaf(predictor):
             end = classes * num_parallel_tree * (j + 1)
             layer = row[start: end]
             for c in range(classes):
-                tree_group = layer[c * num_parallel_tree:
-                                   (c+1) * num_parallel_tree]
+                tree_group = layer[c * num_parallel_tree: (c + 1) * num_parallel_tree]
                 assert tree_group.shape[0] == num_parallel_tree
                 # no subsampling so tree in same forest should output same
                 # leaf.
                 assert np.all(tree_group == tree_group[0])
+
+    ntree_limit = 2
+    sliced = booster.predict(
+        m, pred_leaf=True, ntree_limit=num_parallel_tree * ntree_limit
+    )
+    first = sliced[0, ...]
+
+    assert first.shape[0] == classes * num_parallel_tree * ntree_limit
     return leaf
 
 

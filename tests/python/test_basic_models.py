@@ -347,7 +347,7 @@ class TestModels:
         X, y = load_iris(return_X_y=True)
         cls = xgb.XGBClassifier(n_estimators=2)
         cls.fit(X, y, early_stopping_rounds=1, eval_set=[(X, y)])
-        assert cls.get_booster().best_ntree_limit == 2 * cls.n_classes_
+        assert cls.get_booster().best_ntree_limit == 2
         assert cls.best_ntree_limit == cls.get_booster().best_ntree_limit
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -356,7 +356,7 @@ class TestModels:
 
             cls = xgb.XGBClassifier(n_estimators=2)
             cls.load_model(path)
-            assert cls.get_booster().best_ntree_limit == 2 * cls.n_classes_
+            assert cls.get_booster().best_ntree_limit == 2
             assert cls.best_ntree_limit == cls.get_booster().best_ntree_limit
 
     @pytest.mark.skipif(**tm.no_sklearn())
