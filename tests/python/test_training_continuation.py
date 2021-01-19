@@ -123,13 +123,13 @@ class TestTrainingContinuation:
         gbdt_05 = xgb.train(xgb_params_03, dtrain_5class,
                             num_boost_round=7)
         assert gbdt_05.best_ntree_limit == (
-            gbdt_05.best_iteration + 1) * self.num_parallel_tree * 5
+            gbdt_05.best_iteration + 1) * self.num_parallel_tree
         gbdt_05 = xgb.train(xgb_params_03,
                             dtrain_5class,
                             num_boost_round=3,
                             xgb_model=gbdt_05)
         assert gbdt_05.best_ntree_limit == (
-            gbdt_05.best_iteration + 1) * self.num_parallel_tree * 5
+            gbdt_05.best_iteration + 1) * self.num_parallel_tree
 
         res1 = gbdt_05.predict(dtrain_5class)
         res2 = gbdt_05.predict(dtrain_5class,
