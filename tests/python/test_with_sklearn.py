@@ -92,7 +92,7 @@ def test_best_ntree_limit():
         )
 
         if forest:
-            assert cls.best_ntree_limit == rounds * forest * cls.n_classes_
+            assert cls.best_ntree_limit == rounds * forest
         else:
             assert cls.best_ntree_limit == 0
 
