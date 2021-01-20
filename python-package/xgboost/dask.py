@@ -178,6 +178,16 @@ def _xgb_get_client(client: Optional["distributed.Client"]) -> "distributed.Clie
 # index directly.
 
 
+class _PartInfo:
+    data = 0
+    labels = 1
+    weights = 2
+    base_margin = 3
+    qid = 4
+    label_lower_bound = 5
+    label_upper_bound = 6
+
+
 class DaskDMatrix:
     # pylint: disable=missing-docstring, too-many-instance-attributes
     '''DMatrix holding on references to Dask DataFrame or Dask Array.  Constructing
@@ -341,7 +351,7 @@ class DaskDMatrix:
         lu_parts = flatten_meta(label_upper_bound)
 
         parts = [X_parts]
-        meta_names = []
+        meta_names = [_PartInfo.data]
 
         def append_meta(
             m_parts: Optional[List["dask.delayed.delayed"]], name: str
@@ -352,12 +362,12 @@ class DaskDMatrix:
                 parts.append(m_parts)
                 meta_names.append(name)
 
-        append_meta(y_parts, 'labels')
-        append_meta(w_parts, 'weights')
-        append_meta(margin_parts, 'base_margin')
-        append_meta(qid_parts, 'qid')
-        append_meta(ll_parts, 'label_lower_bound')
-        append_meta(lu_parts, 'label_upper_bound')
+        append_meta(y_parts, _PartInfo.labels)
+        append_meta(w_parts, _PartInfo.weights)
+        append_meta(margin_parts, _PartInfo.base_margin)
+        append_meta(qid_parts, _PartInfo.qid)
+        append_meta(ll_parts, _PartInfo.label_lower_bound)
+        append_meta(lu_parts, _PartInfo.label_upper_bound)
         # At this point, `parts` looks like:
         # [(x0, x1, ..), (y0, y1, ..), ..] in delayed form
 
@@ -409,57 +419,31 @@ class DaskDMatrix:
                 'is_quantile': self.is_quantile}
 
 
-_DataParts = List[Tuple[Any, Optional[Any], Optional[Any], Optional[Any], Optional[Any],
-                        Optional[Any], Optional[Any]]]
+_DataParts = List[Dict[str, Any]]
 
 
-def _get_worker_parts_ordered(
-    meta_names: List[str], list_of_parts: _DataParts
-) -> _DataParts:
+def _create_parts_dict(meta_names: List[str], list_of_parts: _DataParts) -> _DataParts:
+    "Zip the name with partitions into dictionary."
     # List of partitions like: [(x3, y3, w3, m3, ..), ..], order is not preserved.
     assert isinstance(list_of_parts, list)
 
-    result = []
-
-    for i, _ in enumerate(list_of_parts):
-        data = list_of_parts[i][0]
-        labels = None
-        weights = None
-        base_margin = None
-        qid = None
-        label_lower_bound = None
-        label_upper_bound = None
-        # Iterate through all possible meta info, brings small overhead as in xgboost
-        # there are constant number of meta info available.
-        for j, blob in enumerate(list_of_parts[i][1:]):
-            if meta_names[j] == 'labels':
-                labels = blob
-            elif meta_names[j] == 'weights':
-                weights = blob
-            elif meta_names[j] == 'base_margin':
-                base_margin = blob
-            elif meta_names[j] == 'qid':
-                qid = blob
-            elif meta_names[j] == 'label_lower_bound':
-                label_lower_bound = blob
-            elif meta_names[j] == 'label_upper_bound':
-                label_upper_bound = blob
-            else:
-                raise ValueError('Unknown metainfo:', meta_names[j])
-        result.append((data, labels, weights, base_margin, qid, label_lower_bound,
-                       label_upper_bound))
-    return result
-
-
-def _unzip(list_of_parts: _DataParts) -> List[Tuple[Any, ...]]:
-    return list(zip(*list_of_parts))
+    parts = []
+    for part in list_of_parts:
+        part = dict(zip(meta_names, part))
+        parts.append(part)
+    return parts
 
 
 def _get_worker_parts(
     list_of_parts: _DataParts, meta_names: List[str]
-) -> List[Tuple[Any, ...]]:
-    partitions = _get_worker_parts_ordered(meta_names, list_of_parts)
-    partitions_unzipped = _unzip(partitions)
+) -> Dict[str, List[Any]]:
+    partitions = _create_parts_dict(meta_names, list_of_parts)
+    partitions_unzipped = {}
+    for part in partitions:
+        for k, v in part.items():
+            if k not in partitions_unzipped.keys():
+                partitions_unzipped[k] = []
+            partitions_unzipped[k].append(v)
     return partitions_unzipped
 
 
@@ -644,14 +628,16 @@ def _create_device_quantile_dmatrix(
                                   max_bin=max_bin)
         return d
 
-    (data, labels, weights, base_margin, qid,
-     label_lower_bound, label_upper_bound) = _get_worker_parts(
-         parts, meta_names)
-    it = DaskPartitionIter(data=data, label=labels, weight=weights,
-                           base_margin=base_margin,
-                           qid=qid,
-                           label_lower_bound=label_lower_bound,
-                           label_upper_bound=label_upper_bound)
+    parts = _get_worker_parts(parts, meta_names)
+    it = DaskPartitionIter(
+        data=parts.get(_PartInfo.data, None),
+        label=parts.get(_PartInfo.labels, None),
+        weight=parts.get(_PartInfo.weights, None),
+        base_margin=parts.get(_PartInfo.base_margin, None),
+        qid=parts.get(_PartInfo.qid, None),
+        label_lower_bound=parts.get(_PartInfo.label_lower_bound, None),
+        label_upper_bound=parts.get(_PartInfo.label_upper_bound, None),
+    )
 
     dmatrix = DeviceQuantileDMatrix(it,
                                     missing=missing,
@@ -691,21 +677,20 @@ def _create_dmatrix(
     T = TypeVar('T')
 
     def concat_or_none(data: Tuple[Optional[T], ...]) -> Optional[T]:
-        if any([part is None for part in data]):
+        if data is None:
             return None
         return concat(data)
 
-    (data, labels, weights, base_margin, qid,
-     label_lower_bound, label_upper_bound) = _get_worker_parts(list_of_parts, meta_names)
+    parts = _get_worker_parts(list_of_parts, meta_names)
 
-    _labels = concat_or_none(labels)
-    _weights = concat_or_none(weights)
-    _base_margin = concat_or_none(base_margin)
-    _qid = concat_or_none(qid)
-    _label_lower_bound = concat_or_none(label_lower_bound)
-    _label_upper_bound = concat_or_none(label_upper_bound)
+    _labels = concat_or_none(parts.get(_PartInfo.labels, None))
+    _weights = concat_or_none(parts.get(_PartInfo.weights, None))
+    _base_margin = concat_or_none(parts.get(_PartInfo.base_margin, None))
+    _qid = concat_or_none(parts.get(_PartInfo.qid, None))
+    _label_lower_bound = concat_or_none(parts.get(_PartInfo.label_lower_bound, None))
+    _label_upper_bound = concat_or_none(parts.get(_PartInfo.label_upper_bound, None))
 
-    _data = concat(data)
+    _data = concat(parts.get(_PartInfo.data))
     dmatrix = DMatrix(
         _data,
         _labels,
@@ -996,16 +981,15 @@ async def _predict_async(
         LOGGER.debug('Predicting on %d', worker_id)
         with config.config_context(**global_config):
             worker = distributed.get_worker()
-            list_of_parts = _get_worker_parts_ordered(meta_names, list_of_parts)
+            list_of_parts = _create_parts_dict(meta_names, list_of_parts)
             predictions = []
 
             booster.set_param({'nthread': worker.nthreads})
             for i, parts in enumerate(list_of_parts):
-                (data, _, _, base_margin, _, _, _) = parts
                 order = list_of_orders[i]
                 local_part = DMatrix(
-                    data,
-                    base_margin=base_margin,
+                    parts.get(_PartInfo.data),
+                    base_margin=parts.get(_PartInfo.base_margin, None),
                     feature_names=feature_names,
                     feature_types=feature_types,
                     missing=missing,
@@ -1031,11 +1015,10 @@ async def _predict_async(
     ) -> List[Tuple[int, int]]:
         '''Get shape of data in each worker.'''
         LOGGER.debug('Get shape on %d', worker_id)
-        list_of_parts = _get_worker_parts_ordered(meta_names, list_of_parts)
+        list_of_parts = _create_parts_dict(meta_names, list_of_parts)
         shapes = []
         for i, parts in enumerate(list_of_parts):
-            (data, _, _, _, _, _, _) = parts
-            shapes.append((data.shape, list_of_orders[i]))
+            shapes.append((parts.get(_PartInfo.data).shape, list_of_orders[i]))
         return shapes
 
     async def map_function(
