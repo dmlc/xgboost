@@ -432,10 +432,10 @@ class DaskDMatrix:
                 'is_quantile': self.is_quantile}
 
 
-_DataParts = List[Dict[str, Any]]
+_DataParts = List[Dict[int, Any]]
 
 
-def _create_parts_dict(meta_names: List[str], list_of_parts: _DataParts) -> _DataParts:
+def _create_parts_dict(meta_names: List[int], list_of_parts: _DataParts) -> _DataParts:
     "Zip the name with partitions into dictionary."
     # List of partitions like: [(x3, y3, w3, m3, ..), ..], order is not preserved.
     assert isinstance(list_of_parts, list)
@@ -448,10 +448,10 @@ def _create_parts_dict(meta_names: List[str], list_of_parts: _DataParts) -> _Dat
 
 
 def _get_worker_parts(
-    list_of_parts: _DataParts, meta_names: List[str]
-) -> Dict[str, List[Any]]:
+    list_of_parts: _DataParts, meta_names: List[int]
+) -> Dict[int, List[Any]]:
     partitions = _create_parts_dict(meta_names, list_of_parts)
-    partitions_unzipped: Dict[str, List[Any]] = {}
+    partitions_unzipped: Dict[int, List[Any]] = {}
     for part in partitions:
         for k, v in part.items():
             if k not in partitions_unzipped.keys():
@@ -465,13 +465,13 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
 
     def __init__(
         self,
-        data: Tuple[Any, ...],
-        label: Optional[Tuple[Any, ...]] = None,
-        weight: Optional[Tuple[Any, ...]] = None,
-        base_margin: Optional[Tuple[Any, ...]] = None,
-        qid: Optional[Tuple[Any, ...]] = None,
-        label_lower_bound: Optional[Tuple[Any, ...]] = None,
-        label_upper_bound: Optional[Tuple[Any, ...]] = None,
+        data: List[Any],
+        label: Optional[List[Any]] = None,
+        weight: Optional[List[Any]] = None,
+        base_margin: Optional[List[Any]] = None,
+        qid: Optional[List[Any]] = None,
+        label_lower_bound: Optional[List[Any]] = None,
+        label_upper_bound: Optional[List[Any]] = None,
         feature_names: Optional[Union[str, List[str]]] = None,
         feature_types: Optional[Union[Any, List[Any]]] = None
     ) -> None:
@@ -624,7 +624,7 @@ def _create_device_quantile_dmatrix(
     feature_names: Optional[Union[str, List[str]]],
     feature_types: Optional[Union[Any, List[Any]]],
     feature_weights: Optional[Any],
-    meta_names: List[str],
+    meta_names: List[int],
     missing: float,
     parts: Optional[_DataParts],
     max_bin: int
@@ -641,15 +641,15 @@ def _create_device_quantile_dmatrix(
                                   max_bin=max_bin)
         return d
 
-    parts = _get_worker_parts(parts, meta_names)
+    unzipped = _get_worker_parts(parts, meta_names)
     it = DaskPartitionIter(
-        data=parts.get(_PartInfo.data, None),
-        label=parts.get(_PartInfo.labels, None),
-        weight=parts.get(_PartInfo.weights, None),
-        base_margin=parts.get(_PartInfo.base_margin, None),
-        qid=parts.get(_PartInfo.qid, None),
-        label_lower_bound=parts.get(_PartInfo.label_lower_bound, None),
-        label_upper_bound=parts.get(_PartInfo.label_upper_bound, None),
+        data=unzipped[_PartInfo.data],
+        label=unzipped.get(_PartInfo.labels, None),
+        weight=unzipped.get(_PartInfo.weights, None),
+        base_margin=unzipped.get(_PartInfo.base_margin, None),
+        qid=unzipped.get(_PartInfo.qid, None),
+        label_lower_bound=unzipped.get(_PartInfo.label_lower_bound, None),
+        label_upper_bound=unzipped.get(_PartInfo.label_upper_bound, None),
     )
 
     dmatrix = DeviceQuantileDMatrix(it,
@@ -666,7 +666,7 @@ def _create_dmatrix(
     feature_names: Optional[Union[str, List[str]]],
     feature_types: Optional[Union[Any, List[Any]]],
     feature_weights: Optional[Any],
-    meta_names: List[str],
+    meta_names: List[int],
     missing: float,
     parts: Optional[_DataParts]
 ) -> DMatrix:
@@ -678,8 +678,7 @@ def _create_dmatrix(
 
     '''
     worker = distributed.get_worker()
-    list_of_parts = parts
-    if list_of_parts is None:
+    if parts is None:
         msg = 'worker {address} has an empty DMatrix.  '.format(address=worker.address)
         LOGGER.warning(msg)
         d = DMatrix(numpy.empty((0, 0)),
@@ -689,21 +688,21 @@ def _create_dmatrix(
 
     T = TypeVar('T')
 
-    def concat_or_none(data: Tuple[Optional[T], ...]) -> Optional[T]:
+    def concat_or_none(data: Optional[List[T]]) -> Optional[T]:
         if data is None:
             return None
         return concat(data)
 
-    parts = _get_worker_parts(list_of_parts, meta_names)
+    unzipped = _get_worker_parts(parts, meta_names)
 
-    _labels = concat_or_none(parts.get(_PartInfo.labels, None))
-    _weights = concat_or_none(parts.get(_PartInfo.weights, None))
-    _base_margin = concat_or_none(parts.get(_PartInfo.base_margin, None))
-    _qid = concat_or_none(parts.get(_PartInfo.qid, None))
-    _label_lower_bound = concat_or_none(parts.get(_PartInfo.label_lower_bound, None))
-    _label_upper_bound = concat_or_none(parts.get(_PartInfo.label_upper_bound, None))
+    _labels = concat_or_none(unzipped.get(_PartInfo.labels, None))
+    _weights = concat_or_none(unzipped.get(_PartInfo.weights, None))
+    _base_margin = concat_or_none(unzipped.get(_PartInfo.base_margin, None))
+    _qid = concat_or_none(unzipped.get(_PartInfo.qid, None))
+    _label_lower_bound = concat_or_none(unzipped.get(_PartInfo.label_lower_bound, None))
+    _label_upper_bound = concat_or_none(unzipped.get(_PartInfo.label_upper_bound, None))
 
-    _data = concat(parts.get(_PartInfo.data))
+    _data = concat(unzipped.get(_PartInfo.data))
     dmatrix = DMatrix(
         _data,
         _labels,
@@ -1028,10 +1027,10 @@ async def _predict_async(
     ) -> List[Tuple[int, int]]:
         '''Get shape of data in each worker.'''
         LOGGER.debug('Get shape on %d', worker_id)
-        list_of_parts = _create_parts_dict(meta_names, list_of_parts)
+        unzipped = _create_parts_dict(meta_names, list_of_parts)
         shapes = []
-        for i, parts in enumerate(list_of_parts):
-            shapes.append((parts.get(_PartInfo.data).shape, list_of_orders[i]))
+        for i, parts in enumerate(unzipped):
+            shapes.append((parts[_PartInfo.data].shape, list_of_orders[i]))
         return shapes
 
     async def map_function(
