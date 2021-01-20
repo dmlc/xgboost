@@ -178,7 +178,7 @@ def _xgb_get_client(client: Optional["distributed.Client"]) -> "distributed.Clie
 # index directly.
 
 
-class _PartInfo:
+class _PartInfo:                # pylint: disable=too-few-public-methods
     data = 0
     labels = 1
     weights = 2
@@ -189,6 +189,7 @@ class _PartInfo:
 
     @classmethod
     def get_name(cls, code: int) -> str:
+        "Get name from integer code."
         names: Dict[int, str] = {}
         for k, v in cls.__dict__.items():
             if k != "get_name" and not k.startswith("_"):
