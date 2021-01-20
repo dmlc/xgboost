@@ -31,7 +31,7 @@ jobs:
     - name: Run gtest binary
       run: |
         cd build
-        ctest --extra-verbose
+        ctest --exclude-regex AllTestsInDMLCUnitTests --extra-verbose
 
   gtest-cpu-nonomp:
     name: Test Google C++ unittest (CPU Non-OMP)
