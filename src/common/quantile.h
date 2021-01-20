@@ -708,7 +708,6 @@ class HostSketchContainer {
  private:
  struct WQSketchManager {
  private:
-   //std::vector<WQSketch> sketches_; // this was used for single thread only
    std::vector<std::vector<WQSketch> > sketches_; // sketches_ per thread
    size_t columns_size_;
    size_t size_per_thread_;
@@ -766,7 +765,6 @@ class HostSketchContainer {
  }
  
 };
-  //std::vector<WQSketch> sketches_;
   WQSketchManager sketches_;
   std::vector<bst_row_t> columns_size_;
   int32_t max_bins_;

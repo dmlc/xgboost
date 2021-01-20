@@ -94,7 +94,6 @@ std::vector<bst_feature_t> HostSketchContainer::LoadBalancePerRow(
    * avoid wating for a few threads running forever, we here distribute different number
    * of rows to different threads according to number of entries.
    */
-  //auto page = batch.GetView();
   size_t const total_entries = batch.Size();
   size_t const entries_per_thread = common::DivRoundUp(total_entries, nthreads);
   std::vector<bst_feature_t> rows_ptr(nthreads + 1, 0);
@@ -104,39 +103,12 @@ std::vector<bst_feature_t> HostSketchContainer::LoadBalancePerRow(
   }
 
   return rows_ptr;
-/*
-  std::vector<std::vector<bst_row_t>> row_sizes(nthreads);
-  for (auto& row : row_sizes) {
-    row.resize(n_rows, 0);
-  }
-  std::vector<bst_row_t> entries_per_rows =
-      CalcRowSize(batch, n_rows, nthreads);
-  std::vector<bst_feature_t> rows_ptr(nthreads + 1, 0);
-  size_t count {0};
-  size_t current_thread {1};
-
-  for (auto row : entries_per_rows) {
-    rows_ptr.at(current_thread)++;  // add one row to thread
-    count += row;
-    CHECK_LE(count, total_entries);
-    if (count > entries_per_thread) {
-      current_thread++;
-      count = 0;
-      rows_ptr.at(current_thread) = rows_ptr[current_thread-1];
-    }
-  }
-  // Idle threads.
-  for (; current_thread < rows_ptr.size() - 1; ++current_thread) {
-    rows_ptr[current_thread+1] = rows_ptr[current_thread];
-  }
-  return rows_ptr;*/
 }
 
 void HostSketchContainer::PushRowPage(SparsePage const &page,
                                       MetaInfo const &info) {
   monitor_.Start(__func__);
   int nthread = omp_get_max_threads();
-  std::cout << "PushRowPage opt nthread: " << nthread << std::endl;
   CHECK_EQ(sketches_.size(), info.num_col_);
 
   // Data groups, used in ranking.
@@ -154,8 +126,6 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
   {
     exec.Run([&]() {
       auto tid = static_cast<uint32_t>(omp_get_thread_num());
-/*      auto const begin = thread_columns_ptr[tid];
-      auto const end = thread_columns_ptr[tid + 1];*/
       auto const begin = thread_rows_ptr[tid];
       auto const end = thread_rows_ptr[tid + 1];
 
@@ -260,8 +230,7 @@ void HostSketchContainer::AllReduce(
   // Prune the intermediate num cuts for synchronization.
   std::vector<bst_row_t> global_column_size(columns_size_);
   rabit::Allreduce<rabit::op::Sum>(global_column_size.data(), global_column_size.size());
-  //sketches_.merge();
-size_t nbytes = 0;
+  size_t nbytes = 0;
   for (size_t i = 0; i < sketches_.size(); ++i) {
     int32_t intermediate_num_cuts =  static_cast<int32_t>(std::min(
         global_column_size[i], static_cast<size_t>(max_bins_ * WQSketch::kFactor)));
@@ -274,11 +243,6 @@ size_t nbytes = 0;
       nbytes = std::max(
           WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts),
           nbytes);
-/*      for (int32_t id = 0; id < out.size; ++id) {
-		std::cout << out.data[id] << ";";
-	  }
-	  std::cout << "" << std::endl;
-*/
     }
     num_cuts.push_back(intermediate_num_cuts);
   }
