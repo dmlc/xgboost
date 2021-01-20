@@ -187,6 +187,14 @@ class _PartInfo:
     label_lower_bound = 5
     label_upper_bound = 6
 
+    @classmethod
+    def get_name(cls, code: int) -> str:
+        names: Dict[int, str] = {}
+        for k, v in cls.__dict__.items():
+            if k != "get_name" and not k.startswith("_"):
+                names[v] = k
+        return names[code]
+
 
 class DaskDMatrix:
     # pylint: disable=missing-docstring, too-many-instance-attributes
@@ -354,11 +362,16 @@ class DaskDMatrix:
         meta_names = [_PartInfo.data]
 
         def append_meta(
-            m_parts: Optional[List["dask.delayed.delayed"]], name: str
+            m_parts: Optional[List["dask.delayed.delayed"]], name: int
         ) -> None:
             if m_parts is not None:
                 assert len(X_parts) == len(
-                    m_parts), inconsistent(X_parts, 'X', m_parts, name)
+                    m_parts), inconsistent(
+                        X_parts,
+                        _PartInfo.get_name(_PartInfo.data),
+                        m_parts,
+                        _PartInfo.get_name(name)
+                    )
                 parts.append(m_parts)
                 meta_names.append(name)
 
@@ -438,7 +451,7 @@ def _get_worker_parts(
     list_of_parts: _DataParts, meta_names: List[str]
 ) -> Dict[str, List[Any]]:
     partitions = _create_parts_dict(meta_names, list_of_parts)
-    partitions_unzipped = {}
+    partitions_unzipped: Dict[str, List[Any]] = {}
     for part in partitions:
         for k, v in part.items():
             if k not in partitions_unzipped.keys():
