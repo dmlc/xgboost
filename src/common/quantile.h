@@ -753,7 +753,7 @@ class HostSketchContainer {
  void merge() {
 	 for ( size_t ithread = 1 ; ithread < sketches_.size() ; ++ithread ) {
 		 #pragma omp parallel for
-		 for ( size_t iCol = 0 ; iCol < columns_size_ ; ++iCol  ) {
+		 for ( int iCol = 0 ; iCol < columns_size_ ; ++iCol  ) {
 			 WQSketch::SummaryContainer out;
 			 sketches_[ithread][iCol].GetSummary(&out);
 			 sketches_[0][iCol].PushSummary(out);
