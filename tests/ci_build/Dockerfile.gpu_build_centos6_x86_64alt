@@ -48,6 +48,26 @@ RUN \
     yum install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-static-${NCCL_VERSION}+cuda${CUDA_SHORT} && \
     rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm;
 
+# See https://github.com/Microsoft/LightGBM/wiki/Installation-Guide#with-gpu-support for details
+# https://github.com/Microsoft/LightGBM/pull/929/files
+# Could compile with these as well: -DBOOST_COMPUTE_USE_OFFLINE_CACHE=OFF -DBOOST_COMPUTE_THREAD_SAFE=ON
+RUN \
+    export CUDA_HOME=/usr/local/cuda/ && \
+  	yum install -y opencl-headers icu libicu-devel bzip2 bzip2-devel zlib-devel python-devel && \
+    wget https://s3.amazonaws.com/0xdata-public/boost/boost_1_72_0.tar.bz2  && \
+    tar xjf boost_1_72_0.tar.bz2 && \
+    cd boost_1_72_0 && \
+    export PYTHONPATH=/opt/python/ && \
+    ./bootstrap.sh --prefix=/opt/boost/ --with-python=python3 && \
+    export CPPFLAGS="-I/opt/python/include/python3.6m/ -fPIC" && \
+    export C_INCLUDE_PATH="/opt/h2oai/h2o4gpu/python/include/python${python_version}m/" ; export CPLUS_INCLUDE_PATH="/opt/python/include/python3.6m/" && \
+    ./b2 link=static -a -d0 install --prefix=/opt/boost/ --with=all -j 20 cxxflags="-fPIC -I /opt/python/include/python3.6m/" && \
+    cd /usr/include ; rm -rf boost ; ln -s /opt/boost/include/boost . && \
+    cd /usr/lib64/ ; rm -rf libboost* ; cp -a /opt/boost/lib/* . && \
+    cd /
+
+ENV CUDA_HOME=/usr/local/cuda-10.0
+
 ENV PATH=/opt/python/bin:/usr/local/ninja:$PATH
 ENV CC=/opt/rh/devtoolset-7/root/usr/bin/gcc
 ENV CXX=/opt/rh/devtoolset-7/root/usr/bin/c++
