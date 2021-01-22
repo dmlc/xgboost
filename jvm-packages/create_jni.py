@@ -133,14 +133,12 @@ if __name__ == "__main__":
     }[platform.system()]
     arch_folder = {
         "x86_64": "x86_64",  # on linux x86_64
-        "amd64": "x86_64",
-        "AMD64": "x86_64",  # on Windows x86_64
+        "amd64": "x86_64",  # on Windows x86_64
         "i86pc": "x86_64",  # on solaris x86_64
         "sun4v": "sparc",  # on solaris sparc
-        "arm64": "aarch64",  # on macOS arm 64-bit
-        "ARM64": "aarch64",  # on Windows ARM
+        "arm64": "aarch64",  # on macOS & Windows ARM 64-bit
         "aarch64": "aarch64"
-    }[platform.machine()]
+    }[platform.machine().lower()]
     output_folder = "{}/src/main/resources/lib/{}/{}".format(xgboost4j, os_folder, arch_folder)
     maybe_makedirs(output_folder)
     cp("../lib/" + library_name, output_folder)
