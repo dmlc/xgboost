@@ -132,10 +132,10 @@ if __name__ == "__main__":
         "SunOS": ("libxgboost4j.so", "solaris"),
     }[platform.system()]
     arch_folder = {
-        "x86_64": "x86_64",  # on linux x86_64
+        "x86_64": "x86_64",  # on Linux & macOS x86_64
         "amd64": "x86_64",  # on Windows x86_64
-        "i86pc": "x86_64",  # on solaris x86_64
-        "sun4v": "sparc",  # on solaris sparc
+        "i86pc": "x86_64",  # on Solaris x86_64
+        "sun4v": "sparc",  # on Solaris sparc
         "arm64": "aarch64",  # on macOS & Windows ARM 64-bit
         "aarch64": "aarch64"
     }[platform.machine().lower()]
