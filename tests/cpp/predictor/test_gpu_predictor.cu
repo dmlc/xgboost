@@ -45,7 +45,6 @@ TEST(GPUPredictor, Basic) {
     PredictionCacheEntry cpu_out_predictions;
 
     gpu_predictor->PredictBatch(dmat.get(), &gpu_out_predictions, model, 0);
-    ASSERT_EQ(model.trees.size(), gpu_out_predictions.version);
     cpu_predictor->PredictBatch(dmat.get(), &cpu_out_predictions, model, 0);
 
     std::vector<float>& gpu_out_predictions_h = gpu_out_predictions.predictions.HostVector();

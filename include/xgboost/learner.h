@@ -30,6 +30,15 @@ class ObjFunction;
 class DMatrix;
 class Json;
 
+enum class PredictionType : std::uint8_t {  // NOLINT
+  kValue = 0,
+  kMargin = 1,
+  kContribution = 2,
+  kApproxContribution = 3,
+  kInteraction = 4,
+  kLeaf = 5
+};
+
 /*! \brief entry to to easily hold returning information */
 struct XGBAPIThreadLocalEntry {
   /*! \brief result holder for returning string */
@@ -42,7 +51,10 @@ struct XGBAPIThreadLocalEntry {
   std::vector<bst_float> ret_vec_float;
   /*! \brief temp variable of gradient pairs. */
   std::vector<GradientPair> tmp_gpair;
+  /*! \brief Temp variable for returing prediction result. */
   PredictionCacheEntry prediction_entry;
+  /*! \brief Temp variable for returing prediction shape. */
+  std::vector<bst_ulong> prediction_shape;
 };
 
 /*!
@@ -101,8 +113,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param data input data
    * \param output_margin whether to only predict margin value instead of transformed prediction
    * \param out_preds output vector that stores the prediction
-   * \param ntree_limit limit number of trees used for boosted tree
-   *   predictor, when it equals 0, this means we are using all the trees
+   * \param layer_begin Begining of boosted tree layer used for prediction.
+   * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \param training Whether the prediction result is used for training
    * \param pred_leaf whether to only predict the leaf index of each tree in a boosted tree predictor
    * \param pred_contribs whether to only predict the feature contributions
@@ -112,7 +124,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   virtual void Predict(std::shared_ptr<DMatrix> data,
                        bool output_margin,
                        HostDeviceVector<bst_float> *out_preds,
-                       unsigned ntree_limit = 0,
+                       unsigned layer_begin,
+                       unsigned layer_end,
                        bool training = false,
                        bool pred_leaf = false,
                        bool pred_contribs = false,
@@ -123,13 +136,17 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \brief Inplace prediction.
    *
    * \param          x           A type erased data adapter.
+   * \param          p_m         An optional Proxy DMatrix object storing meta info like
+   *                             base margin.  Can be nullptr.
    * \param          type        Prediction type.
    * \param          missing     Missing value in the data.
    * \param [in,out] out_preds   Pointer to output prediction vector.
-   * \param          layer_begin (Optional) Begining of boosted tree layer used for prediction.
-   * \param          layer_end   (Optional) End of booster layer. 0 means do not limit trees.
+   * \param          layer_begin Begining of boosted tree layer used for prediction.
+   * \param          layer_end   End of booster layer. 0 means do not limit trees.
    */
-  virtual void InplacePredict(dmlc::any const& x, std::string const& type,
+  virtual void InplacePredict(dmlc::any const &x,
+                              std::shared_ptr<DMatrix> p_m,
+                              PredictionType type,
                               float missing,
                               HostDeviceVector<bst_float> **out_preds,
                               uint32_t layer_begin, uint32_t layer_end) = 0;
@@ -138,6 +155,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \brief Get number of boosted rounds from gradient booster.
    */
   virtual int32_t BoostedRounds() const = 0;
+  virtual uint32_t Groups() const = 0;
 
   void LoadModel(Json const& in) override = 0;
   void SaveModel(Json* out) const override = 0;

@@ -58,21 +58,23 @@ CallbackEnv = collections.namedtuple(
      "evaluation_result_list"])
 
 
-def from_pystr_to_cstr(data):
-    """Convert a list of Python str to C pointer
+def from_pystr_to_cstr(data: Union[str, List[str]]):
+    """Convert a Python str or list of Python str to C pointer
 
     Parameters
     ----------
-    data : list
-        list of str
+    data
+        str or list of str
     """
 
-    if not isinstance(data, list):
-        raise NotImplementedError
-    pointers = (ctypes.c_char_p * len(data))()
-    data = [bytes(d, 'utf-8') for d in data]
-    pointers[:] = data
-    return pointers
+    if isinstance(data, str):
+        return bytes(data, "utf-8")
+    if isinstance(data, list):
+        pointers = (ctypes.c_char_p * len(data))()
+        data = [bytes(d, 'utf-8') for d in data]
+        pointers[:] = data
+        return pointers
+    raise TypeError()
 
 
 def from_cstr_to_pystr(data, length):
@@ -92,6 +94,24 @@ def from_cstr_to_pystr(data, length):
         except UnicodeDecodeError:
             res.append(str(data[i].decode('utf-8')))
     return res
+
+
+def _conver_ntree_limit(booster, ntree_limit, iteration_range):
+    if ntree_limit is not None and ntree_limit != 0:
+        warnings.warn(
+            "ntree_limit is deprecated, use `iteration_range` or model "
+            "slicing instead.",
+            UserWarning
+        )
+        if iteration_range is not None and iteration_range[1] != 0:
+            raise ValueError(
+                "Only one of `iteration_range` and `ntree_limit` can be non zero."
+            )
+        num_parallel_tree, num_groups = _get_booster_layer_trees(booster)
+        num_parallel_tree = max([num_parallel_tree, 1])
+        num_groups = max([num_groups, 1])
+        iteration_range = (0, ntree_limit // num_parallel_tree)
+    return iteration_range
 
 
 def _expect(expectations, got):
@@ -190,21 +210,49 @@ def _check_call(ret):
         raise XGBoostError(py_str(_LIB.XGBGetLastError()))
 
 
-def ctypes2numpy(cptr, length, dtype) -> np.ndarray:
-    """Convert a ctypes pointer array to a numpy array."""
-    NUMPY_TO_CTYPES_MAPPING = {
+def _numpy2ctypes_type(dtype):
+    _NUMPY_TO_CTYPES_MAPPING = {
         np.float32: ctypes.c_float,
+        np.float64: ctypes.c_double,
         np.uint32: ctypes.c_uint,
+        np.uint64: ctypes.c_uint64,
+        np.int32: ctypes.c_int32,
+        np.int64: ctypes.c_int64,
     }
-    if dtype not in NUMPY_TO_CTYPES_MAPPING:
-        raise RuntimeError('Supported types: {}'.format(
-            NUMPY_TO_CTYPES_MAPPING.keys()))
-    ctype = NUMPY_TO_CTYPES_MAPPING[dtype]
+    if np.intc is not np.int32:  # Windows
+        _NUMPY_TO_CTYPES_MAPPING[np.intc] = _NUMPY_TO_CTYPES_MAPPING[np.int32]
+    if dtype not in _NUMPY_TO_CTYPES_MAPPING.keys():
+        raise TypeError(
+            f"Supported types: {_NUMPY_TO_CTYPES_MAPPING.keys()}, got: {dtype}"
+        )
+    return _NUMPY_TO_CTYPES_MAPPING[dtype]
+
+
+def _numpy2xgboost_type(dtype):
+    mapping = {
+        np.float32: 1,
+        np.float64: 2,
+        np.uint32: 3,
+        np.uint64: 4,
+        # str = 5
+        np.int32: 6,
+        np.int64: 7,
+    }
+    if np.intc is not np.int32:  # Windows
+        mapping[np.intc] = mapping[np.int32]
+    if dtype not in mapping.keys():
+        raise TypeError(f"Supported types: {mapping.keys()}, got: {dtype}")
+    return ctypes.c_int(mapping[dtype])
+
+
+def ctypes2numpy(cptr, length, dtype):
+    """Convert a ctypes pointer array to a numpy array."""
+    ctype = _numpy2ctypes_type(dtype)
     if not isinstance(cptr, ctypes.POINTER(ctype)):
-        raise RuntimeError('expected {} pointer'.format(ctype))
+        raise RuntimeError("expected {} pointer".format(ctype))
     res = np.zeros(length, dtype=dtype)
     if not ctypes.memmove(res.ctypes.data, cptr, length * res.strides[0]):
-        raise RuntimeError('memmove failed')
+        raise RuntimeError("memmove failed")
     return res
 
 
@@ -214,25 +262,21 @@ def ctypes2cupy(cptr, length, dtype):
     import cupy
     from cupy.cuda.memory import MemoryPointer
     from cupy.cuda.memory import UnownedMemory
-    CUPY_TO_CTYPES_MAPPING = {
-        cupy.float32: ctypes.c_float,
-        cupy.uint32: ctypes.c_uint
-    }
+
+    CUPY_TO_CTYPES_MAPPING = {cupy.float32: ctypes.c_float, cupy.uint32: ctypes.c_uint}
     if dtype not in CUPY_TO_CTYPES_MAPPING.keys():
-        raise RuntimeError('Supported types: {}'.format(
-            CUPY_TO_CTYPES_MAPPING.keys()
-        ))
+        raise RuntimeError("Supported types: {}".format(CUPY_TO_CTYPES_MAPPING.keys()))
     addr = ctypes.cast(cptr, ctypes.c_void_p).value
     # pylint: disable=c-extension-no-member,no-member
     device = cupy.cuda.runtime.pointerGetAttributes(addr).device
     # The owner field is just used to keep the memory alive with ref count.  As
     # unowned's life time is scoped within this function we don't need that.
     unownd = UnownedMemory(
-        addr, length.value * ctypes.sizeof(CUPY_TO_CTYPES_MAPPING[dtype]),
-        owner=None)
+        addr, length * ctypes.sizeof(CUPY_TO_CTYPES_MAPPING[dtype]), owner=None
+    )
     memptr = MemoryPointer(unownd, 0)
     # pylint: disable=unexpected-keyword-arg
-    mem = cupy.ndarray((length.value, ), dtype=dtype, memptr=memptr)
+    mem = cupy.ndarray((length,), dtype=dtype, memptr=memptr)
     assert mem.device.id == device
     arr = cupy.array(mem, copy=True)
     return arr
@@ -256,10 +300,41 @@ def c_str(string):
 
 def c_array(ctype, values):
     """Convert a python string to c array."""
-    if (isinstance(values, np.ndarray)
-            and values.dtype.itemsize == ctypes.sizeof(ctype)):
+    if isinstance(values, np.ndarray) and values.dtype.itemsize == ctypes.sizeof(ctype):
         return (ctype * len(values)).from_buffer_copy(values)
     return (ctype * len(values))(*values)
+
+
+def _prediction_output(shape, dims, predts, is_cuda):
+    arr_shape: np.ndarray = ctypes2numpy(shape, dims.value, np.uint64)
+    length = int(np.prod(arr_shape))
+    if is_cuda:
+        arr_predict = ctypes2cupy(predts, length, np.float32)
+    else:
+        arr_predict: np.ndarray = ctypes2numpy(predts, length, np.float32)
+    arr_predict = arr_predict.reshape(arr_shape)
+    return arr_predict
+
+
+def _prediction_type(
+    args, output_margin, pred_contribs, approx_contribs, pred_interactions, pred_leaf
+) -> Dict[str, any]:
+    """Assign prediction type according to parameter."""
+    def assign_type(t: int) -> None:
+        if args["type"] != 0:
+            raise ValueError("One type of prediction at a time.")
+        args["type"] = t
+
+    if output_margin:
+        assign_type(1)
+    if pred_contribs:
+        assign_type(2 if not approx_contribs else 3)
+    if pred_interactions:
+        assign_type(4)
+    if pred_leaf:
+        assign_type(5)
+
+    return args
 
 
 class DataIter:
@@ -275,9 +350,8 @@ class DataIter:
         Number of columns for each batch.
     '''
     def __init__(self):
-        proxy_handle = ctypes.c_void_p()
-        _check_call(_LIB.XGProxyDMatrixCreate(ctypes.byref(proxy_handle)))
-        self._handle = DeviceQuantileDMatrix(proxy_handle)
+        proxy = _ProxyDMatrix(owner=False)
+        self._handle = DeviceQuantileDMatrix(proxy.handle)
         self.exception = None
 
     @property
@@ -300,12 +374,7 @@ class DataIter:
         if self.exception is not None:
             return 0
 
-        def data_handle(data, label=None, weight=None, base_margin=None,
-                        group=None,
-                        qid=None,
-                        label_lower_bound=None, label_upper_bound=None,
-                        feature_names=None, feature_types=None,
-                        feature_weights=None):
+        def data_handle(data, feature_names=None, feature_types=None, **kwargs):
             from .data import dispatch_device_quantile_dmatrix_set_data
             from .data import _device_quantile_transform
             data, feature_names, feature_types = _device_quantile_transform(
@@ -313,16 +382,9 @@ class DataIter:
             )
             dispatch_device_quantile_dmatrix_set_data(self.proxy, data)
             self.proxy.set_info(
-                label=label,
-                weight=weight,
-                base_margin=base_margin,
-                group=group,
-                qid=qid,
-                label_lower_bound=label_lower_bound,
-                label_upper_bound=label_upper_bound,
                 feature_names=feature_names,
                 feature_types=feature_types,
-                feature_weights=feature_weights
+                **kwargs,
             )
         try:
             # Differ the exception in order to return 0 and stop the iteration.
@@ -959,6 +1021,22 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
                 c_bst_ulong(0)))
 
 
+class _ProxyDMatrix(DMatrix):
+    """A placeholder class when DMatrix cannot be constructed (DeviceQuantileDMatrix,
+    inplace_predict).  `owner` specifies whether should the handle be freed by this
+    object.
+
+    """
+    def __init__(self, owner):  # pylint: disable=super-init-not-called
+        self.handle = ctypes.c_void_p()
+        _check_call(_LIB.XGProxyDMatrixCreate(ctypes.byref(self.handle)))
+        self._owner = owner
+
+    def __del__(self):
+        if self._owner:
+            super().__del__()
+
+
 class DeviceQuantileDMatrix(DMatrix):
     """Device memory Data Matrix used in XGBoost for training with
     tree_method='gpu_hist'. Do not use this for test/validation tasks as some
@@ -1055,6 +1133,34 @@ class DeviceQuantileDMatrix(DMatrix):
 
 Objective = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
 Metric = Callable[[np.ndarray, DMatrix], Tuple[str, float]]
+
+
+def _get_booster_layer_trees(model: "Booster") -> Tuple[int, int]:
+    """Get number of trees added to booster per-iteration.  This function will be removed
+    once `best_ntree_limit` is dropped in favor of `best_iteration`.  Returns
+    `num_parallel_tree` and `num_groups`.
+
+    """
+    config = json.loads(model.save_config())
+    booster = config["learner"]["gradient_booster"]["name"]
+    if booster == "gblinear":
+        num_parallel_tree = 0
+    elif booster == "dart":
+        num_parallel_tree = int(
+            config["learner"]["gradient_booster"]["gbtree"]["gbtree_train_param"][
+                "num_parallel_tree"
+            ]
+        )
+    elif booster == "gbtree":
+        num_parallel_tree = int(
+            config["learner"]["gradient_booster"]["gbtree_train_param"][
+                "num_parallel_tree"
+            ]
+        )
+    else:
+        raise ValueError(f"Unknown booster: {booster}")
+    num_groups = int(config["learner"]["learner_model_param"]["num_class"])
+    return num_parallel_tree, num_groups
 
 
 class Booster(object):
@@ -1360,7 +1466,9 @@ class Booster(object):
 
         """
         if len(grad) != len(hess):
-            raise ValueError('grad / hess length mismatch: {} / {}'.format(len(grad), len(hess)))
+            raise ValueError(
+                'grad / hess length mismatch: {} / {}'.format(len(grad), len(hess))
+            )
         if not isinstance(dtrain, DMatrix):
             raise TypeError('invalid training matrix: {}'.format(type(dtrain).__name__))
         self._validate_features(dtrain)
@@ -1442,15 +1550,17 @@ class Booster(object):
 
     # pylint: disable=too-many-function-args
     def predict(self,
-                data,
-                output_margin=False,
-                ntree_limit=0,
-                pred_leaf=False,
-                pred_contribs=False,
-                approx_contribs=False,
-                pred_interactions=False,
-                validate_features=True,
-                training=False):
+                data: DMatrix,
+                output_margin: bool = False,
+                ntree_limit: int = 0,
+                pred_leaf: bool = False,
+                pred_contribs: bool = False,
+                approx_contribs: bool = False,
+                pred_interactions: bool = False,
+                validate_features: bool = True,
+                training: bool = False,
+                strict_shape: bool = False,
+                iteration_range: Tuple[int, int] = (0, 0)):
         """Predict with data.
 
         .. note:: This function is not thread safe except for ``gbtree``
@@ -1467,33 +1577,32 @@ class Booster(object):
 
         Parameters
         ----------
-        data : DMatrix
+        data :
             The dmatrix storing the input.
 
-        output_margin : bool
+        output_margin :
             Whether to output the raw untransformed margin value.
 
-        ntree_limit : int
-            Limit number of trees in the prediction; defaults to 0 (use all
-            trees).
+        ntree_limit :
+            Deprecated, use `iteration_range` instead.
 
-        pred_leaf : bool
+        pred_leaf :
             When this option is on, the output will be a matrix of (nsample,
             ntrees) with each record indicating the predicted leaf index of
             each sample in each tree.  Note that the leaf index of a tree is
             unique per tree, so you may find leaf 1 in both tree 1 and tree 0.
 
-        pred_contribs : bool
+        pred_contribs :
             When this is True the output will be a matrix of size (nsample,
             nfeats + 1) with each record indicating the feature contributions
             (SHAP values) for that prediction. The sum of all feature
             contributions is equal to the raw untransformed margin value of the
             prediction. Note the final column is the bias term.
 
-        approx_contribs : bool
+        approx_contribs :
             Approximate the contributions of each feature
 
-        pred_interactions : bool
+        pred_interactions :
             When this is True the output will be a matrix of size (nsample,
             nfeats + 1, nfeats + 1) indicating the SHAP interaction values for
             each pair of features. The sum of each row (or column) of the
@@ -1502,16 +1611,31 @@ class Booster(object):
             untransformed margin value of the prediction. Note the last row and
             column correspond to the bias term.
 
-        validate_features : bool
+        validate_features :
             When this is True, validate that the Booster's and data's
             feature_names are identical.  Otherwise, it is assumed that the
             feature_names are the same.
 
-        training : bool
+        training :
             Whether the prediction value is used for training.  This can effect
             `dart` booster, which performs dropouts during training iterations.
 
             .. versionadded:: 1.0.0
+
+        strict_shape :
+          Whether should we reshape the output with stricter rules.  If set to true,
+          normal/predict/margin predict will consider output groups (num class if it's a
+          classifier) in final output dimension.
+
+            .. versionadded:: 1.4.0
+
+        iteration_range :
+            Specifies which layer of trees are used in prediction.  For example, if a
+            random forest is trained with 100 rounds.  Specifying `iteration_range=(10,
+            20)`, then only the forests built during [10, 20) (half open set) rounds are
+            used in this prediction.
+
+            .. versionadded:: 1.4.0
 
         .. note:: Using ``predict()`` with DART booster
 
@@ -1524,64 +1648,45 @@ class Booster(object):
         prediction : numpy array
 
         """
-        option_mask = 0x00
-        if output_margin:
-            option_mask |= 0x01
-        if pred_leaf:
-            option_mask |= 0x02
-        if pred_contribs:
-            option_mask |= 0x04
-        if approx_contribs:
-            option_mask |= 0x08
-        if pred_interactions:
-            option_mask |= 0x10
-
         if not isinstance(data, DMatrix):
-            raise TypeError('Expecting data to be a DMatrix object, got: ',
-                            type(data))
-
+            raise TypeError('Expecting data to be a DMatrix object, got: ', type(data))
         if validate_features:
             self._validate_features(data)
-
-        length = c_bst_ulong()
+        iteration_range = _conver_ntree_limit(self, ntree_limit, iteration_range)
+        args = {
+            "type": 0,
+            "training": training,
+            "iteration_begin": iteration_range[0],
+            "iteration_end": iteration_range[1],
+            "strict_shape": strict_shape,
+        }
+        args = _prediction_type(args)
         preds = ctypes.POINTER(ctypes.c_float)()
-        _check_call(_LIB.XGBoosterPredict(self.handle, data.handle,
-                                          ctypes.c_int(option_mask),
-                                          ctypes.c_uint(ntree_limit),
-                                          ctypes.c_int(training),
-                                          ctypes.byref(length),
-                                          ctypes.byref(preds)))
-        preds = ctypes2numpy(preds, length.value, np.float32)
-        if pred_leaf:
-            preds = preds.astype(np.int32, copy=False)
-        nrow = data.num_row()
-        if preds.size != nrow and preds.size % nrow == 0:
-            chunk_size = int(preds.size / nrow)
+        shape = ctypes.POINTER(c_bst_ulong)()
+        dims = c_bst_ulong()
+        _check_call(
+            _LIB.XGBoosterPredictFromDMatrix(
+                self.handle,
+                data.handle,
+                from_pystr_to_cstr(json.dumps(args)),
+                ctypes.byref(shape),
+                ctypes.byref(dims),
+                ctypes.byref(preds)
+            )
+        )
+        return _prediction_output(shape, dims, preds, False)
 
-            if pred_interactions:
-                ngroup = int(chunk_size / ((data.num_col() + 1) *
-                                           (data.num_col() + 1)))
-                if ngroup == 1:
-                    preds = preds.reshape(nrow,
-                                          data.num_col() + 1,
-                                          data.num_col() + 1)
-                else:
-                    preds = preds.reshape(nrow, ngroup,
-                                          data.num_col() + 1,
-                                          data.num_col() + 1)
-            elif pred_contribs:
-                ngroup = int(chunk_size / (data.num_col() + 1))
-                if ngroup == 1:
-                    preds = preds.reshape(nrow, data.num_col() + 1)
-                else:
-                    preds = preds.reshape(nrow, ngroup, data.num_col() + 1)
-            else:
-                preds = preds.reshape(nrow, chunk_size)
-        return preds
-
-    def inplace_predict(self, data, iteration_range=(0, 0),
-                        predict_type='value', missing=np.nan):
-        '''Run prediction in-place, Unlike ``predict`` method, inplace prediction does
+    def inplace_predict(
+        self,
+        data,
+        iteration_range: Tuple[int, int] = (0, 0),
+        predict_type: str = "value",
+        missing: float = np.nan,
+        validate_features: bool = True,
+        base_margin: Any = None,
+        strict_shape: bool = False
+    ):
+        """Run prediction in-place, Unlike ``predict`` method, inplace prediction does
         not cache the prediction result.
 
         Calling only ``inplace_predict`` in multiple threads is safe and lock
@@ -1606,17 +1711,16 @@ class Booster(object):
             The input data, must not be a view for numpy array.  Set
             ``predictor`` to ``gpu_predictor`` for running prediction on CuPy
             array or CuDF DataFrame.
-        iteration_range : tuple
-            Specifies which layer of trees are used in prediction.  For
-            example, if a random forest is trained with 100 rounds.  Specifying
-            `iteration_range=(10, 20)`, then only the forests built during [10,
-            20) (open set) rounds are used in this prediction.
-        predict_type : str
+        iteration_range :
+            See `predict` for details.
+        predict_type :
             * `value` Output model prediction values.
             * `margin` Output the raw untransformed margin value.
-        missing : float
+        missing :
             Value in the input data which needs to be present as a missing
             value.
+        strict_shape :
+            See `predict` for details.
 
         Returns
         -------
@@ -1624,107 +1728,130 @@ class Booster(object):
             The prediction result.  When input data is on GPU, prediction
             result is stored in a cupy array.
 
-        '''
-
-        def reshape_output(predt, rows):
-            '''Reshape for multi-output prediction.'''
-            if predt.size != rows and predt.size % rows == 0:
-                cols = int(predt.size / rows)
-                predt = predt.reshape(rows, cols)
-                return predt
-            return predt
-
-        length = c_bst_ulong()
+        """
         preds = ctypes.POINTER(ctypes.c_float)()
-        iteration_range = (ctypes.c_uint(iteration_range[0]),
-                           ctypes.c_uint(iteration_range[1]))
 
         # once caching is supported, we can pass id(data) as cache id.
         try:
             import pandas as pd
+
             if isinstance(data, pd.DataFrame):
                 data = data.values
         except ImportError:
             pass
+        args = {
+            "type": 0,
+            "training": False,
+            "iteration_begin": iteration_range[0],
+            "iteration_end": iteration_range[1],
+            "missing": missing,
+            "strict_shape": strict_shape,
+            "cache_id": 0,
+        }
+        if predict_type == "margin":
+            args["type"] = 1
+        shape = ctypes.POINTER(c_bst_ulong)()
+        dims = c_bst_ulong()
+
+        if base_margin is not None:
+            proxy = _ProxyDMatrix(owner=True)
+            proxy.set_info(base_margin=base_margin)
+            p_handle = proxy.handle
+        else:
+            proxy = None
+            p_handle = ctypes.c_void_p()
+        assert proxy is None or isinstance(proxy, _ProxyDMatrix)
+        if validate_features:
+            if len(data.shape) != 1 and self.num_features() != data.shape[1]:
+                raise ValueError(
+                    f"Feature shape mismatch, expected: {self.num_features()}, "
+                    f"got {data.shape[0]}"
+                )
+
         if isinstance(data, np.ndarray):
-            assert data.flags.c_contiguous
-            arr = np.array(data.reshape(data.size), copy=False,
-                           dtype=np.float32)
-            _check_call(_LIB.XGBoosterPredictFromDense(
-                self.handle,
-                arr.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
-                c_bst_ulong(data.shape[0]),
-                c_bst_ulong(data.shape[1]),
-                ctypes.c_float(missing),
-                iteration_range[0],
-                iteration_range[1],
-                c_str(predict_type),
-                c_bst_ulong(0),
-                ctypes.byref(length),
-                ctypes.byref(preds)
-            ))
-            preds = ctypes2numpy(preds, length.value, np.float32)
-            rows = data.shape[0]
-            return reshape_output(preds, rows)
+            from .data import _maybe_np_slice
+            data = _maybe_np_slice(data, data.dtype)
+            _check_call(
+                _LIB.XGBoosterPredictFromDense(
+                    self.handle,
+                    data.ctypes.data_as(
+                        ctypes.POINTER(_numpy2ctypes_type(data.dtype.type))
+                    ),
+                    _numpy2xgboost_type(data.dtype.type),
+                    c_bst_ulong(data.shape[0]),
+                    c_bst_ulong(data.shape[1]),
+                    from_pystr_to_cstr(json.dumps(args)),
+                    p_handle,
+                    ctypes.byref(shape),
+                    ctypes.byref(dims),
+                    ctypes.byref(preds),
+                )
+            )
+            return _prediction_output(shape, dims, preds, False)
         if isinstance(data, scipy.sparse.csr_matrix):
             csr = data
-            _check_call(_LIB.XGBoosterPredictFromCSR(
-                self.handle,
-                c_array(ctypes.c_size_t, csr.indptr),
-                c_array(ctypes.c_uint, csr.indices),
-                c_array(ctypes.c_float, csr.data),
-                ctypes.c_size_t(len(csr.indptr)),
-                ctypes.c_size_t(len(csr.data)),
-                ctypes.c_size_t(csr.shape[1]),
-                ctypes.c_float(missing),
-                iteration_range[0],
-                iteration_range[1],
-                c_str(predict_type),
-                c_bst_ulong(0),
-                ctypes.byref(length),
-                ctypes.byref(preds)))
-            preds = ctypes2numpy(preds, length.value, np.float32)
-            rows = data.shape[0]
-            return reshape_output(preds, rows)
-        if lazy_isinstance(data, 'cupy.core.core', 'ndarray'):
-            assert data.flags.c_contiguous
+            _check_call(
+                _LIB.XGBoosterPredictFromCSR(
+                    self.handle,
+                    c_array(ctypes.c_size_t, csr.indptr),
+                    csr.indices.ctypes.data_as(
+                        ctypes.POINTER(_numpy2ctypes_type(csr.indices.dtype.type))
+                    ),
+                    _numpy2xgboost_type(csr.indices.dtype.type),
+                    csr.data.ctypes.data_as(
+                        ctypes.POINTER(_numpy2ctypes_type(csr.data.dtype.type))
+                    ),
+                    _numpy2xgboost_type(csr.data.dtype.type),
+                    ctypes.c_size_t(len(csr.indptr)),
+                    ctypes.c_size_t(len(csr.data)),
+                    ctypes.c_size_t(csr.shape[1]),
+                    from_pystr_to_cstr(json.dumps(args)),
+                    p_handle,
+                    ctypes.byref(shape),
+                    ctypes.byref(dims),
+                    ctypes.byref(preds),
+                )
+            )
+            return _prediction_output(shape, dims, preds, False)
+        if lazy_isinstance(data, "cupy.core.core", "ndarray"):
+            from .data import _transform_cupy_array
+            data = _transform_cupy_array(data)
             interface = data.__cuda_array_interface__
-            if 'mask' in interface:
-                interface['mask'] = interface['mask'].__cuda_array_interface__
-            interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
-            _check_call(_LIB.XGBoosterPredictFromArrayInterface(
-                self.handle,
-                interface_str,
-                ctypes.c_float(missing),
-                iteration_range[0],
-                iteration_range[1],
-                c_str(predict_type),
-                c_bst_ulong(0),
-                ctypes.byref(length),
-                ctypes.byref(preds)))
-            mem = ctypes2cupy(preds, length, np.float32)
-            rows = data.shape[0]
-            return reshape_output(mem, rows)
-        if lazy_isinstance(data, 'cudf.core.dataframe', 'DataFrame'):
+            if "mask" in interface:
+                interface["mask"] = interface["mask"].__cuda_array_interface__
+            interface_str = bytes(json.dumps(interface, indent=2), "utf-8")
+            _check_call(
+                _LIB.XGBoosterPredictFromArrayInterface(
+                    self.handle,
+                    interface_str,
+                    from_pystr_to_cstr(json.dumps(args)),
+                    p_handle,
+                    ctypes.byref(shape),
+                    ctypes.byref(dims),
+                    ctypes.byref(preds),
+                )
+            )
+            return _prediction_output(shape, dims, preds, True)
+        if lazy_isinstance(data, "cudf.core.dataframe", "DataFrame"):
             from .data import _cudf_array_interfaces
-            interfaces_str = _cudf_array_interfaces(data)
-            _check_call(_LIB.XGBoosterPredictFromArrayInterfaceColumns(
-                self.handle,
-                interfaces_str,
-                ctypes.c_float(missing),
-                iteration_range[0],
-                iteration_range[1],
-                c_str(predict_type),
-                c_bst_ulong(0),
-                ctypes.byref(length),
-                ctypes.byref(preds)))
-            mem = ctypes2cupy(preds, length, np.float32)
-            rows = data.shape[0]
-            predt = reshape_output(mem, rows)
-            return predt
 
-        raise TypeError('Data type:' + str(type(data)) +
-                        ' not supported by inplace prediction.')
+            interfaces_str = _cudf_array_interfaces(data)
+            _check_call(
+                _LIB.XGBoosterPredictFromArrayInterfaceColumns(
+                    self.handle,
+                    interfaces_str,
+                    from_pystr_to_cstr(json.dumps(args)),
+                    p_handle,
+                    ctypes.byref(shape),
+                    ctypes.byref(dims),
+                    ctypes.byref(preds),
+                )
+            )
+            return _prediction_output(shape, dims, preds, True)
+
+        raise TypeError(
+            "Data type:" + str(type(data)) + " not supported by inplace prediction."
+        )
 
     def save_model(self, fname):
         """Save the model to a file.

@@ -12,7 +12,7 @@
 #include "../../../src/data/adapter.h"
 
 namespace xgboost {
-TEST(CpuPredictor, Basic) {
+TEST(CPUPredictor, Basic) {
   auto lparam = CreateEmptyGenericParam(GPUIDX);
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
@@ -32,7 +32,7 @@ TEST(CpuPredictor, Basic) {
   // Test predict batch
   PredictionCacheEntry out_predictions;
   cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
-  ASSERT_EQ(model.trees.size(), out_predictions.version);
+
   std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
   for (size_t i = 0; i < out_predictions.predictions.Size(); i++) {
     ASSERT_EQ(out_predictions_h[i], 1.5);
@@ -85,7 +85,7 @@ TEST(CpuPredictor, Basic) {
   }
 }
 
-TEST(CpuPredictor, ExternalMemory) {
+TEST(CPUPredictor, ExternalMemory) {
   dmlc::TemporaryDirectory tmpdir;
   std::string filename = tmpdir.path + "/big.libsvm";
 
@@ -156,7 +156,7 @@ TEST(CpuPredictor, ExternalMemory) {
   }
 }
 
-TEST(CpuPredictor, InplacePredict) {
+TEST(CPUPredictor, InplacePredict) {
   bst_row_t constexpr kRows{128};
   bst_feature_t constexpr kCols{64};
   auto gen = RandomDataGenerator{kRows, kCols, 0.5}.Device(-1);
@@ -165,7 +165,7 @@ TEST(CpuPredictor, InplacePredict) {
     gen.GenerateDense(&data);
     ASSERT_EQ(data.Size(), kRows * kCols);
     std::shared_ptr<data::DenseAdapter> x{
-      new data::DenseAdapter(data.HostPointer(), kRows, kCols)};
+      new data::DenseAdapter(data.HostPointer(), DataType::kFloat32, kRows, kCols)};
     TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
   }
 
@@ -175,13 +175,13 @@ TEST(CpuPredictor, InplacePredict) {
     HostDeviceVector<bst_feature_t> columns;
     gen.GenerateCSR(&data, &rptrs, &columns);
     std::shared_ptr<data::CSRAdapter> x{new data::CSRAdapter(
-        rptrs.HostPointer(), columns.HostPointer(), data.HostPointer(), kRows,
-        data.Size(), kCols)};
+        rptrs.HostPointer(), columns.HostPointer(), DataType::kUInt32,
+        data.HostPointer(), DataType::kFloat32, kRows, data.Size(), kCols)};
     TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
   }
 }
 
-TEST(CpuPredictor, UpdatePredictionCache) {
+TEST(CPUPredictor, UpdatePredictionCache) {
   size_t constexpr kRows = 64, kCols = 16, kClasses = 4;
   LearnerModelParam mparam;
   mparam.num_feature = kCols;
@@ -215,7 +215,7 @@ TEST(CpuPredictor, UpdatePredictionCache) {
 
   PredictionCacheEntry out_predictions;
   // perform fair prediction on the same input data, should be equal to cached result
-  gbm->PredictBatch(dmat.get(), &out_predictions, false, 0);
+  gbm->PredictBatch(dmat.get(), &out_predictions, false, 0, 0);
 
   std::vector<float> &out_predictions_h = out_predictions.predictions.HostVector();
   std::vector<float> &predtion_cache_from_train = predtion_cache.predictions.HostVector();
@@ -224,7 +224,7 @@ TEST(CpuPredictor, UpdatePredictionCache) {
   }
 }
 
-TEST(CpuPredictor, LesserFeatures) {
+TEST(CPUPredictor, LesserFeatures) {
   TestPredictionWithLesserFeatures("cpu_predictor");
 }
 }  // namespace xgboost

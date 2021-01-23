@@ -337,22 +337,41 @@ inline bool MetaTryLoadFloatInfo(const std::string& fname,
 }
 
 // macro to dispatch according to specified pointer types
-#define DISPATCH_CONST_PTR(dtype, old_ptr, cast_ptr, proc)              \
-  switch (dtype) {                                                      \
-    case xgboost::DataType::kFloat32: {                                 \
-      auto cast_ptr = reinterpret_cast<const float*>(old_ptr); proc; break; \
-    }                                                                   \
-    case xgboost::DataType::kDouble: {                                  \
-      auto cast_ptr = reinterpret_cast<const double*>(old_ptr); proc; break; \
-    }                                                                   \
-    case xgboost::DataType::kUInt32: {                                  \
-      auto cast_ptr = reinterpret_cast<const uint32_t*>(old_ptr); proc; break; \
-    }                                                                   \
-    case xgboost::DataType::kUInt64: {                                  \
-      auto cast_ptr = reinterpret_cast<const uint64_t*>(old_ptr); proc; break; \
-    }                                                                   \
-    default: LOG(FATAL) << "Unknown data type" << static_cast<uint8_t>(dtype); \
-  }                                                                     \
+#define DISPATCH_CONST_PTR(dtype, old_ptr, cast_ptr, proc)                     \
+  switch (dtype) {                                                             \
+  case xgboost::DataType::kFloat32: {                                          \
+    auto cast_ptr = reinterpret_cast<const float *>(old_ptr);                  \
+    proc;                                                                      \
+    break;                                                                     \
+  }                                                                            \
+  case xgboost::DataType::kDouble: {                                           \
+    auto cast_ptr = reinterpret_cast<const double *>(old_ptr);                 \
+    proc;                                                                      \
+    break;                                                                     \
+  }                                                                            \
+  case xgboost::DataType::kUInt32: {                                           \
+    auto cast_ptr = reinterpret_cast<const uint32_t *>(old_ptr);               \
+    proc;                                                                      \
+    break;                                                                     \
+  }                                                                            \
+  case xgboost::DataType::kUInt64: {                                           \
+    auto cast_ptr = reinterpret_cast<const uint64_t *>(old_ptr);               \
+    proc;                                                                      \
+    break;                                                                     \
+  }                                                                            \
+  case xgboost::DataType::kInt32: {                                            \
+    auto cast_ptr = reinterpret_cast<const int32_t *>(old_ptr);                \
+    proc;                                                                      \
+    break;                                                                     \
+  }                                                                            \
+  case xgboost::DataType::kInt64: {                                            \
+    auto cast_ptr = reinterpret_cast<const int64_t *>(old_ptr);                \
+    proc;                                                                      \
+    break;                                                                     \
+  }                                                                            \
+  default:                                                                     \
+    LOG(FATAL) << "Unknown data type" << static_cast<uint8_t>(dtype);          \
+  }
 
 void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t num) {
   if (!std::strcmp(key, "label")) {
@@ -427,8 +446,9 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
 
 void MetaInfo::GetInfo(char const *key, bst_ulong *out_len, DataType dtype,
                        const void **out_dptr) const {
-  if (dtype == DataType::kFloat32) {
-    const std::vector<bst_float>* vec = nullptr;
+  switch (dtype) {
+  case DataType::kFloat32: {
+    const std::vector<bst_float> *vec = nullptr;
     if (!std::strcmp(key, "label")) {
       vec = &this->labels_.HostVector();
     } else if (!std::strcmp(key, "weight")) {
@@ -445,8 +465,10 @@ void MetaInfo::GetInfo(char const *key, bst_ulong *out_len, DataType dtype,
       LOG(FATAL) << "Unknown float field name: " << key;
     }
     *out_len = static_cast<xgboost::bst_ulong>(vec->size()); // NOLINT
-    *reinterpret_cast<float const**>(out_dptr) = dmlc::BeginPtr(*vec);
-  } else if (dtype == DataType::kUInt32) {
+    *reinterpret_cast<float const **>(out_dptr) = dmlc::BeginPtr(*vec);
+    break;
+  }
+  case DataType::kUInt32: {
     const std::vector<unsigned> *vec = nullptr;
     if (!std::strcmp(key, "group_ptr")) {
       vec = &this->group_ptr_;
@@ -455,8 +477,12 @@ void MetaInfo::GetInfo(char const *key, bst_ulong *out_len, DataType dtype,
     }
     *out_len = static_cast<xgboost::bst_ulong>(vec->size());
     *reinterpret_cast<unsigned const**>(out_dptr) = dmlc::BeginPtr(*vec);
-  } else {
+    break;
+  }
+  default: {
     LOG(FATAL) << "Unknown data type for getting meta info.";
+    break;
+  }
   }
 }
 

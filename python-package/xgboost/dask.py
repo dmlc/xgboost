@@ -1007,12 +1007,13 @@ def _infer_predict_output(
     rng = numpy.random.RandomState(1994)
     test_sample = rng.randn(1, features)
     if inplace:
-        # clear the state to avoid gpu_id, gpu_predictor
-        booster = Booster(model_file=booster.save_raw())
-        test_predt = booster.inplace_predict(test_sample, **kwargs)
+        kwargs = kwargs.copy()
+        if kwargs["predict_type"] == "margin":
+            kwargs["output_margin"] = True
+        del kwargs["predict_type"]
     else:
         m = DMatrix(test_sample)
-        test_predt = booster.predict(m, **kwargs)
+    test_predt = booster.predict(m, **kwargs)
     n_columns = test_predt.shape[1] if len(test_predt.shape) > 1 else 1
     meta: Dict[int, str] = {}
     if _can_output_df(data, test_predt.shape):
@@ -1034,6 +1035,7 @@ async def _predict_async(
     approx_contribs: bool,
     pred_interactions: bool,
     validate_features: bool,
+    iteration_range: Tuple[int, int],
 ) -> _DaskCollection:
     if isinstance(model, Booster):
         _booster = model
@@ -1057,6 +1059,7 @@ async def _predict_async(
                 approx_contribs=approx_contribs,
                 pred_interactions=pred_interactions,
                 validate_features=validate_features,
+                iteration_range=iteration_range,
             )
             if is_df and len(predt.shape) <= 2:
                 if lazy_isinstance(partition, "cudf", "core.dataframe.DataFrame"):
@@ -1176,7 +1179,8 @@ def predict(                    # pylint: disable=unused-argument
     pred_contribs: bool = False,
     approx_contribs: bool = False,
     pred_interactions: bool = False,
-    validate_features: bool = True
+    validate_features: bool = True,
+    iteration_range: Tuple[int, int] = (0, 0),
 ) -> Any:
     '''Run prediction with a trained booster.
 
@@ -1218,24 +1222,30 @@ def predict(                    # pylint: disable=unused-argument
     )
 
 
-async def _inplace_predict_async(
+async def _inplace_predict_async(  # pylint: disable=too-many-branches
     client: "distributed.Client",
     global_config: Dict[str, Any],
     model: Union[Booster, Dict],
     data: _DaskCollection,
-    iteration_range: Tuple[int, int] = (0, 0),
-    predict_type: str = 'value',
-    missing: float = numpy.nan
+    iteration_range: Tuple[int, int],
+    predict_type: str,
+    missing: float,
+    validate_features: bool,
+    base_margin: Optional[_DaskCollection],
 ) -> _DaskCollection:
     client = _xgb_get_client(client)
     if isinstance(model, Booster):
         booster = model
     elif isinstance(model, dict):
-        booster = model['booster']
+        booster = model["booster"]
     else:
         raise TypeError(_expect([Booster, dict], type(model)))
     if not isinstance(data, (da.Array, dd.DataFrame)):
         raise TypeError(_expect([da.Array, dd.DataFrame], type(data)))
+    if base_margin is not None and not isinstance(
+        data, (da.Array, dd.DataFrame, dd.Series)
+    ):
+        raise TypeError(_expect([da.Array, dd.DataFrame, dd.Series], type(base_margin)))
 
     def mapped_predict(
         booster: Booster, data: Any, is_df: bool, columns: List[int], _: Any
@@ -1264,7 +1274,7 @@ async def _inplace_predict_async(
         booster, data, True, predict_type=predict_type, iteration_range=iteration_range
     )
     return await _direct_predict_impl(
-        client, mapped_predict, booster, data, None, shape, meta
+        client, mapped_predict, booster, data, base_margin, shape, meta
     )
 
 
@@ -1273,10 +1283,12 @@ def inplace_predict(            # pylint: disable=unused-argument
     model: Union[TrainReturnT, Booster],
     data: _DaskCollection,
     iteration_range: Tuple[int, int] = (0, 0),
-    predict_type: str = 'value',
-    missing: float = numpy.nan
+    predict_type: str = "value",
+    missing: float = numpy.nan,
+    validate_features: bool = True,
+    base_margin: Optional[_DaskCollection] = None,
 ) -> Any:
-    '''Inplace prediction.
+    """Inplace prediction. See doc in `Booster.inplace_predict` for details.
 
     .. versionadded:: 1.1.0
 
@@ -1287,14 +1299,9 @@ def inplace_predict(            # pylint: disable=unused-argument
         returned from dask if it's set to None.
     model:
         The trained model.
-    iteration_range:
-        Specify the range of trees used for prediction.
-    predict_type:
-        * 'value': Normal prediction result.
-        * 'margin': Output the raw untransformed margin value.
-    missing:
-        Value in the input data which needs to be present as a missing
-        value. If None, defaults to np.nan.
+    base_margin:
+        Right now classifier is not well supported with base_margin as it requires the
+        size of base margin to be `n_classes * n_samples`.
 
     Returns
     -------
@@ -1303,7 +1310,7 @@ def inplace_predict(            # pylint: disable=unused-argument
         array, when input data is ``dask.dataframe.DataFrame``, return value can be
         ``dask.dataframe.Series``, ``dask.dataframe.DataFrame`` or ``dask.array.Array``,
         depending on the output shape.
-    '''
+    """
     _assert_dask_support()
     client = _xgb_get_client(client)
     return client.sync(
@@ -1338,19 +1345,36 @@ class DaskScikitLearnBase(XGBModel):
 
     async def _predict_async(
         self, data: _DaskCollection,
-        output_margin: bool = False,
-        validate_features: bool = True,
-        base_margin: Optional[_DaskCollection] = None
+        output_margin: bool,
+        validate_features: bool,
+        base_margin: Optional[_DaskCollection],
+        iteration_range: Optional[Tuple[int, int]],
     ) -> Any:
-        test_dmatrix = await DaskDMatrix(
-            client=self.client, data=data, base_margin=base_margin,
-            missing=self.missing
-        )
-        pred_probs = await predict(client=self.client,
-                                   model=self.get_booster(), data=test_dmatrix,
-                                   output_margin=output_margin,
-                                   validate_features=validate_features)
-        return pred_probs
+        iteration_range = self._get_iteration_range(iteration_range)
+        if self._can_use_inplace_predict():
+            predts = await inplace_predict(
+                client=self.client,
+                model=self.get_booster(),
+                data=data,
+                iteration_range=iteration_range,
+                predict_type="margin" if output_margin else "value",
+                missing=self.missing,
+                base_margin=base_margin,
+                validate_features=validate_features
+            )
+        else:
+            test_dmatrix = await DaskDMatrix(
+                self.client, data=data, base_margin=base_margin, missing=self.missing
+            )
+            predts = await predict(
+                self.client,
+                model=self.get_booster(),
+                data=test_dmatrix,
+                output_margin=output_margin,
+                validate_features=validate_features,
+                iteration_range=iteration_range
+            )
+        return predts
 
     def predict(
         self,
@@ -1358,7 +1382,8 @@ class DaskScikitLearnBase(XGBModel):
         output_margin: bool = False,
         ntree_limit: Optional[int] = None,
         validate_features: bool = True,
-        base_margin: Optional[_DaskCollection] = None
+        base_margin: Optional[_DaskCollection] = None,
+        iteration_range: Optional[Tuple[int, int]] = None,
     ) -> Any:
         _assert_dask_support()
         msg = '`ntree_limit` is not supported on dask, use model slicing instead.'
@@ -1368,7 +1393,8 @@ class DaskScikitLearnBase(XGBModel):
             X,
             output_margin=output_margin,
             validate_features=validate_features,
-            base_margin=base_margin
+            base_margin=base_margin,
+            iteration_range=iteration_range,
         )
 
     def __await__(self) -> Awaitable[Any]:
@@ -1591,18 +1617,19 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         X: _DaskCollection,
         validate_features: bool,
         output_margin: bool,
-        base_margin: Optional[_DaskCollection]
+        base_margin: Optional[_DaskCollection],
+        iteration_range: Optional[Tuple[int, int]],
     ) -> _DaskCollection:
-        test_dmatrix = await DaskDMatrix(
-            client=self.client, data=X, base_margin=base_margin,
-            missing=self.missing
+        if iteration_range is None:
+            iteration_range = (0, 0)
+        predts = await super()._predict_async(
+            data=X,
+            output_margin=output_margin,
+            validate_features=validate_features,
+            base_margin=base_margin,
+            iteration_range=iteration_range,
         )
-        pred_probs = await predict(client=self.client,
-                                   model=self.get_booster(),
-                                   data=test_dmatrix,
-                                   validate_features=validate_features,
-                                   output_margin=output_margin)
-        return _cls_predict_proba(self.objective, pred_probs, da.vstack)
+        return _cls_predict_proba(self.objective, predts, da.vstack)
 
     # pylint: disable=missing-function-docstring
     def predict_proba(
@@ -1611,7 +1638,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         ntree_limit: Optional[int] = None,
         validate_features: bool = True,
         output_margin: bool = False,
-        base_margin: Optional[_DaskCollection] = None
+        base_margin: Optional[_DaskCollection] = None,
+        iteration_range: Optional[Tuple[int, int]] = None,
     ) -> Any:
         _assert_dask_support()
         msg = '`ntree_limit` is not supported on dask, use model slicing instead.'
@@ -1621,18 +1649,20 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             X=X,
             validate_features=validate_features,
             output_margin=output_margin,
-            base_margin=base_margin
+            base_margin=base_margin,
+            iteration_range=iteration_range
         )
     predict_proba.__doc__ = XGBClassifier.predict_proba.__doc__
 
     async def _predict_async(
         self, data: _DaskCollection,
-        output_margin: bool = False,
-        validate_features: bool = True,
-        base_margin: Optional[_DaskCollection] = None
+        output_margin: bool,
+        validate_features: bool,
+        base_margin: Optional[_DaskCollection],
+        iteration_range: Optional[Tuple[int, int]],
     ) -> _DaskCollection:
         pred_probs = await super()._predict_async(
-            data, output_margin, validate_features, base_margin
+            data, output_margin, validate_features, base_margin, iteration_range
         )
         if output_margin:
             return pred_probs
@@ -1640,8 +1670,11 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         if self.n_classes_ == 2:
             preds = (pred_probs > 0.5).astype(int)
         else:
-            preds = da.argmax(pred_probs, axis=1)
-
+            assert not isinstance(pred_probs, dd.Series)
+            if isinstance(pred_probs, da.Array):
+                preds = da.argmax(pred_probs, axis=1)
+            if isinstance(pred_probs, dd.DataFrame):
+                preds = pred_probs.idxmax(axis=1)
         return preds
 
 

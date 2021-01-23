@@ -522,6 +522,8 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
  *    double   = 2
  *    uint32_t = 3
  *    uint64_t = 4
+ *    int32_t  = 6
+ *    int64_t  = 7
  *
  * \return 0 when success, -1 when failure happens
  */
@@ -683,8 +685,9 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
                                  const char *evnames[],
                                  bst_ulong len,
                                  const char **out_result);
+
 /*!
- * \brief make prediction based on dmat
+ * \brief make prediction based on dmat (deprecated, use `XGBoosterPredictFromDMatrix` instead)
  * \param handle handle
  * \param dmat data matrix
  * \param option_mask bit-mask of options taken in prediction, possible values
@@ -713,6 +716,161 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              int training,
                              bst_ulong *out_len,
                              const float **out_result);
+/*!
+ * \brief Make prediction from DMatrix, replacing `XGBoosterPredict`.
+ *
+ * \param handle Booster handle
+ * \param dmat   DMatrix handle
+ * \param c_json_config String encoded predict configuration in JSON format.
+ *
+ *    "type": [0, 5]
+ *      0: normal prediction
+ *      1: output margin
+ *      2: predict contribution
+ *      3: predict approxmated contribution
+ *      4: predict feature interaction
+ *      5: predict leaf
+ *    "training": bool
+ *      Whether the prediction function is used as part of a training loop.  **Not used
+ *      for inplace prediction**.
+ *
+ *      Prediction can be run in 2 scenarios:
+ *        1. Given data matrix X, obtain prediction y_pred from the model.
+ *        2. Obtain the prediction for computing gradients. For example, DART booster performs dropout
+ *           during training, and the prediction result will be different from the one obtained by normal
+ *           inference step due to dropped trees.
+ *      Set training=false for the first scenario. Set training=true for the second
+ *      scenario.  The second scenario applies when you are defining a custom objective
+ *      function.
+ *    "iteration_begin": int
+ *      Begining iteration of prediction.
+ *    "iteration_end": int
+ *      End iteration of prediction.  Set to 0 this will become the size of tree model.
+ *    "strict_shape": bool
+ *      Whether should we reshape the output with stricter rules.  If set to true,
+ *      normal/predict/margin predict will consider output groups (num class if it's a
+ *      classifier) in final output dimension.
+ *
+ *   Run a normal prediction with strict output shape, 2 dim for softprob , 1 dim for others.
+ *   \code
+ *      {
+ *         "type": 0,
+ *         "training": False,
+ *         "iteration_begin": 0,
+ *         "iteration_end": 0,
+ *         "strict_shape": true,
+ *     }
+ *   \endcode
+ *
+ * \param out_shape Shape of output prediction (copy before use).
+ * \param out_dim   Dimension of output prediction.
+ * \param out_result Buffer storing prediction value (copy before use).
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
+                                        DMatrixHandle dmat,
+                                        char const* c_json_config,
+                                        bst_ulong const **out_shape,
+                                        bst_ulong *out_dim,
+                                        float const **out_result);
+/*
+ * \brief Inplace prediction from CPU dense matrix.
+ *
+ * \param values       Contigious buffer storing the matrix in row major order.
+ * \param dtype        Type of data.  See `XGDMatrixSetDenseInfo` for more info.
+ * \param n_rows        Number of samples.
+ * \param n_cols        Number of features.
+ * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
+ *
+ *   Additional fields for inplace prediction are:
+ *     "missing": float
+ *
+ * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_result    See `XGBoosterPredictFromDMatrix` for more info.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, void const *values,
+                                      int dtype, bst_ulong n_rows,
+                                      bst_ulong n_cols,
+                                      char const *c_json_config,
+                                      DMatrixHandle m,
+                                      bst_ulong const **out_shape,
+                                      bst_ulong *out_dim,
+                                      const float **out_result);
+
+/*
+ * \brief Inplace prediction from CPU CSR matrix.
+ *
+ * \param indptr        Row pointer in CSR.
+ * \param indices       Contigious buffer storing column indices in CSR.
+ * \param itype         Type of column indices.
+ * \param values        Contigious buffer storing the matrix.
+ * \param dtype         Type of data.  See `XGDMatrixSetDenseInfo` for more info.
+ * \param nindptr       Size of row pointer.
+ * \param nelem         Number of elements in values.
+ * \param n_cols        Number of features in data.
+ * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
+ *   Additional fields for inplace prediction are:
+ *     "missing": float
+ *
+ * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_result    See `XGBoosterPredictFromDMatrix` for more info.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, const size_t *indptr,
+                                    const void *indices, int itype,
+                                    const void *values, int dtype,
+                                    size_t nindptr, size_t nelem, size_t n_cols,
+                                    char const *c_json_config,
+                                    DMatrixHandle m,
+                                    bst_ulong const **out_shape,
+                                    bst_ulong *out_dim,
+                                    float const **out_result);
+
+/*
+ * \brief Inplace prediction from CUDA Dense matrix (cupy in Python).
+ *
+ * \param handle        Booster handle
+ * \param c_json_strs   __cuda_array_interface__ encoded in JSON.
+ * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
+ *   Additional fields for inplace prediction are:
+ *     "missing": float
+ *
+ * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_result    See `XGBoosterPredictFromDMatrix` for more info.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterPredictFromArrayInterface(
+    BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
+    DMatrixHandle m, bst_ulong const **out_shape, bst_ulong *out_dim,
+    const float **out_result);
+
+/*
+ * \brief Inplace prediction from CUDA dense dataframe (cuDF in Python).
+ *
+ * \param handle        Booster handle
+ * \param c_json_strs   __cuda_array_interface__ for all columns encoded in JSON list.
+ * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
+ *   Additional fields for inplace prediction are:
+ *     "missing": float
+ *
+ * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
+ * \param out_result    See `XGBoosterPredictFromDMatrix` for more info.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGBoosterPredictFromArrayInterfaceColumns(
+    BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
+    DMatrixHandle m, bst_ulong const **out_shape, bst_ulong *out_dim,
+    const float **out_result);
 
 /*
  * ========================== Begin Serialization APIs =========================

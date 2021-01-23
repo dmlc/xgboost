@@ -332,7 +332,8 @@ RandomDataGenerator::GenerateDMatrix(bool with_label, bool float_label,
   HostDeviceVector<bst_feature_t> columns;
   this->GenerateCSR(&data, &rptrs, &columns);
   data::CSRAdapter adapter(rptrs.HostPointer(), columns.HostPointer(),
-                           data.HostPointer(), rows_, data.Size(), cols_);
+                           DataType::kUInt32, data.HostPointer(),
+                           DataType::kFloat32, rows_, data.Size(), cols_);
   std::shared_ptr<DMatrix> out{
       DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
 
@@ -360,7 +361,7 @@ RandomDataGenerator::GenerateDMatrix(bool with_label, bool float_label,
 
 std::shared_ptr<DMatrix>
 GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns){
-  data::DenseAdapter adapter(x.data(), num_rows, num_columns);
+  data::DenseAdapter adapter(x.data(), DataType::kFloat32, num_rows, num_columns);
   return std::shared_ptr<DMatrix>(new data::SimpleDMatrix(
       &adapter, std::numeric_limits<float>::quiet_NaN(), 1));
 }

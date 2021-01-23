@@ -158,7 +158,8 @@ TEST(SparsePageDMatrix, Empty) {
 
   {
     data::CSRAdapter csr_adapter(row_ptr.data(), feature_idx.data(),
-                                 data.data(), 0, 0, 0);
+                                 DataType::kUInt32, data.data(),
+                                 DataType::kFloat32, 0, 0, 0);
     data::SparsePageDMatrix dmat(
         &csr_adapter, std::numeric_limits<float>::quiet_NaN(), 1, tmp_file);
     EXPECT_EQ(dmat.Info().num_nonzero_, 0);
@@ -170,7 +171,7 @@ TEST(SparsePageDMatrix, Empty) {
   }
 
   {
-    data::DenseAdapter dense_adapter(nullptr, 0, 0);
+    data::DenseAdapter dense_adapter(nullptr, DataType::kFloat32, 0, 0);
     data::SparsePageDMatrix dmat2(
         &dense_adapter, std::numeric_limits<float>::quiet_NaN(), 1, tmp_file);
     EXPECT_EQ(dmat2.Info().num_nonzero_, 0);
@@ -200,8 +201,9 @@ TEST(SparsePageDMatrix, MissingData) {
   std::vector<unsigned> feature_idx = {0, 1, 0};
   std::vector<size_t> row_ptr = {0, 2, 3};
 
-  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2,
-                           3, 2);
+  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(),
+                           DataType::kUInt32, data.data(), DataType::kFloat32,
+                           2, 3, 2);
   data::SparsePageDMatrix dmat(
       &adapter, std::numeric_limits<float>::quiet_NaN(), 1, tmp_file);
   EXPECT_EQ(dmat.Info().num_nonzero_, 2);
@@ -218,8 +220,9 @@ TEST(SparsePageDMatrix, EmptyRow) {
   std::vector<unsigned> feature_idx = {0, 1};
   std::vector<size_t> row_ptr = {0, 2, 2};
 
-  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2,
-                           2, 2);
+  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(),
+                           DataType::kUInt32, data.data(), DataType::kFloat32,
+                           2, 2, 2);
   data::SparsePageDMatrix dmat(
       &adapter, std::numeric_limits<float>::quiet_NaN(), 1, tmp_file);
   EXPECT_EQ(dmat.Info().num_nonzero_, 2);
@@ -233,7 +236,7 @@ TEST(SparsePageDMatrix, FromDense) {
   int m = 3;
   int n = 2;
   std::vector<float> data = {1, 2, 3, 4, 5, 6};
-  data::DenseAdapter adapter(data.data(), m, n);
+  data::DenseAdapter adapter(data.data(), DataType::kFloat32, m, n);
   data::SparsePageDMatrix dmat(
       &adapter, std::numeric_limits<float>::quiet_NaN(), 1, tmp_file);
   EXPECT_EQ(dmat.Info().num_col_, 2);

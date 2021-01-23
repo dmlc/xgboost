@@ -113,7 +113,7 @@ def _maybe_np_slice(data, dtype):
     return data
 
 
-def _transform_np_array(data: np.ndarray):
+def _transform_np_array(data: np.ndarray) -> np.ndarray:
     if not isinstance(data, np.ndarray) and hasattr(data, '__array__'):
         data = np.array(data, copy=False)
     if len(data.shape) != 2:
@@ -142,7 +142,7 @@ def _from_numpy_array(data, missing, nthread, feature_names, feature_types):
     input layout and type if memory use is a concern.
 
     """
-    flatten = _transform_np_array(data)
+    flatten: np.ndarray = _transform_np_array(data)
     handle = ctypes.c_void_p()
     _check_call(_LIB.XGDMatrixCreateFromMat_omp(
         flatten.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),

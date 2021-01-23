@@ -202,6 +202,22 @@ def test_boost_from_prediction(tree_method: str, client: "Client") -> None:
         assert margined_res[i] < unmargined_res[i]
 
 
+def test_inplace_predict(client: "Client") -> None:
+    from sklearn.datasets import load_boston
+    X_, y_ = load_boston(return_X_y=True)
+    X, y = dd.from_array(X_, chunksize=32), dd.from_array(y_, chunksize=32)
+    cls = xgb.dask.DaskXGBRegressor(n_estimators=4).fit(X, y)
+    booster = cls.get_booster()
+    base_margin = y
+
+    inplace = xgb.dask.inplace_predict(
+        client, booster, X, base_margin=base_margin
+    ).compute()
+    Xy = xgb.dask.DaskDMatrix(client, X, base_margin=base_margin)
+    copied = xgb.dask.predict(client, booster, Xy).compute()
+    np.testing.assert_allclose(inplace, copied)
+
+
 def test_dask_missing_value_reg(client: "Client") -> None:
     X_0 = np.ones((20 // 2, kCols))
     X_1 = np.zeros((20 // 2, kCols))

@@ -111,60 +111,125 @@ class NoMetaInfo {
   const float* BaseMargin() const { return nullptr; }
 };
 
+inline float AdapterCast(DataType data_type, void const *values, size_t idx) {
+  float value = 0;
+  switch (data_type) {
+  case DataType::kFloat32:
+    value = static_cast<float const *>(values)[idx];
+    break;
+  case DataType::kDouble:
+    value = static_cast<float>(static_cast<double const *>(values)[idx]);
+    break;
+  case DataType::kUInt32:
+    value = static_cast<float>(static_cast<uint32_t const *>(values)[idx]);
+    break;
+  case DataType::kUInt64:
+    value = static_cast<float>(static_cast<uint64_t const *>(values)[idx]);
+    break;
+  case DataType::kInt32:
+    value = static_cast<float>(static_cast<int32_t const *>(values)[idx]);
+    break;
+  case DataType::kInt64:
+    value = static_cast<float>(static_cast<int64_t const *>(values)[idx]);
+    break;
+  default:
+    std::terminate();
+  }
+  return value;
+}
+
+inline void const* AdapterOffsetCast(DataType type, void const *values_, size_t begin_offset) {
+  void const *p_values = nullptr;
+  switch (type) {
+  case DataType::kFloat32:
+    p_values = static_cast<float const *>(values_) + begin_offset;
+    break;
+  case DataType::kDouble:
+    p_values = static_cast<double const *>(values_) + begin_offset;
+    break;
+  case DataType::kUInt32:
+    p_values = static_cast<uint32_t const *>(values_) + begin_offset;
+    break;
+  case DataType::kUInt64:
+    p_values = static_cast<uint64_t const *>(values_) + begin_offset;
+    break;
+  case DataType::kInt32:
+    p_values = static_cast<int32_t const *>(values_) + begin_offset;
+    break;
+  case DataType::kInt64:
+    p_values = static_cast<int64_t const *>(values_) + begin_offset;
+    break;
+  default:
+    std::terminate();
+    break;
+  }
+  return p_values;
+}
 };  // namespace detail
 
 class CSRAdapterBatch : public detail::NoMetaInfo {
  public:
   class Line {
    public:
-    Line(size_t row_idx, size_t size, const unsigned* feature_idx,
-         const float* values)
-        : row_idx_(row_idx),
-          size_(size),
-          feature_idx_(feature_idx),
-          values_(values) {}
+    Line(size_t row_idx, size_t size, const void *feature_idx,
+         DataType idx_type, const void *values, DataType data_type)
+        : row_idx_(row_idx), size_(size), idx_type_{idx_type}, feature_idx_(feature_idx),
+          data_type_{data_type}, values_(values) {
+      CHECK(idx_type == DataType::kUInt32 || idx_type == DataType::kUInt64 ||
+            idx_type == DataType::kInt32 || idx_type == DataType::kInt64)
+          << "CSR column index must be integer.";
+      CHECK(static_cast<int>(data_type) >= 1 && static_cast<int>(data_type) <= 5)
+          << "Invalid data type.";
+    }
 
     size_t Size() const { return size_; }
     COOTuple GetElement(size_t idx) const {
-      return COOTuple{row_idx_, feature_idx_[idx], values_[idx]};
+      bst_feature_t fidx = detail::AdapterCast(idx_type_, feature_idx_, idx);
+      float value = detail::AdapterCast(data_type_, values_, idx);
+      return COOTuple{row_idx_, fidx, value};
     }
 
    private:
     size_t row_idx_;
     size_t size_;
-    const unsigned* feature_idx_;
-    const float* values_;
+    DataType idx_type_;
+    const void* feature_idx_;
+    DataType data_type_;
+    const void* values_;
   };
-  CSRAdapterBatch(const size_t* row_ptr, const unsigned* feature_idx,
-                  const float* values, size_t num_rows, size_t, size_t)
-      : row_ptr_(row_ptr),
-        feature_idx_(feature_idx),
-        values_(values),
+
+  CSRAdapterBatch(const size_t *row_ptr, const void *feature_idx,
+                  DataType idx_type, const void *values, DataType data_type,
+                  size_t num_rows, size_t, size_t)
+      : row_ptr_(row_ptr), idx_type_{idx_type},
+        feature_idx_(feature_idx), data_type_{data_type}, values_(values),
         num_rows_(num_rows) {}
   const Line GetLine(size_t idx) const {
     size_t begin_offset = row_ptr_[idx];
+    void const* p_fidx = detail::AdapterOffsetCast(idx_type_, feature_idx_, begin_offset);
     size_t end_offset = row_ptr_[idx + 1];
-    return Line(idx, end_offset - begin_offset, &feature_idx_[begin_offset],
-                &values_[begin_offset]);
+    void const* p_values = detail::AdapterOffsetCast(data_type_, values_, begin_offset);
+    return Line(idx, end_offset - begin_offset, p_fidx, idx_type_, p_values, data_type_);
   }
   size_t Size() const { return num_rows_; }
 
  private:
   const size_t* row_ptr_;
-  const unsigned* feature_idx_;
-  const float* values_;
+  DataType idx_type_;
+  const void* feature_idx_;
+  DataType data_type_;
+  const void* values_;
   size_t num_rows_;
 };
 
 class CSRAdapter : public detail::SingleBatchDataIter<CSRAdapterBatch> {
  public:
-  CSRAdapter(const size_t* row_ptr, const unsigned* feature_idx,
-             const float* values, size_t num_rows, size_t num_elements,
-             size_t num_features)
-      : batch_(row_ptr, feature_idx, values, num_rows, num_elements,
-               num_features),
-        num_rows_(num_rows),
-        num_columns_(num_features) {}
+  CSRAdapter(const size_t *row_ptr, const void *feature_idx, DataType idx_type,
+             const void *values, DataType data_type, size_t num_rows,
+             size_t num_elements, size_t num_features)
+      : batch_(row_ptr, feature_idx, idx_type, values, data_type, num_rows,
+               num_elements, num_features),
+        num_rows_(num_rows), num_columns_(num_features) {}
   const CSRAdapterBatch& Value() const override { return batch_; }
   size_t NumRows() const { return num_rows_; }
   size_t NumColumns() const { return num_columns_; }
@@ -177,44 +242,51 @@ class CSRAdapter : public detail::SingleBatchDataIter<CSRAdapterBatch> {
 
 class DenseAdapterBatch : public detail::NoMetaInfo {
  public:
-  DenseAdapterBatch(const float* values, size_t num_rows, size_t num_features)
-      : values_(values),
+  DenseAdapterBatch(const void* values, DataType type, size_t num_rows, size_t num_features)
+      : type_{type},
+        values_(values),
         num_rows_(num_rows),
-        num_features_(num_features) {}
+        num_features_(num_features) {
+    CHECK(static_cast<int>(type) >= 1 && static_cast<int>(type) <= 7);
+  }
 
  private:
   class Line {
    public:
-    Line(const float* values, size_t size, size_t row_idx)
-        : row_idx_(row_idx), size_(size), values_(values) {}
+    Line(const void* values, size_t size, size_t row_idx, DataType type)
+        : type_{type}, row_idx_(row_idx), size_(size), values_(values) {}
 
     size_t Size() const { return size_; }
     COOTuple GetElement(size_t idx) const {
-      return COOTuple{row_idx_, idx, values_[idx]};
+      float value = detail::AdapterCast(type_, values_, idx);
+      return {row_idx_, idx, value};
     }
 
    private:
+    DataType type_;
     size_t row_idx_;
     size_t size_;
-    const float* values_;
+    void const* values_;
   };
 
  public:
   size_t Size() const { return num_rows_; }
   const Line GetLine(size_t idx) const {
-    return Line(values_ + idx * num_features_, num_features_, idx);
+    void const* p_values = detail::AdapterOffsetCast(type_, values_, idx * num_features_);
+    return Line(p_values, num_features_, idx, type_);
   }
 
  private:
-  const float* values_;
+  DataType type_;
+  const void* values_;
   size_t num_rows_;
   size_t num_features_;
 };
 
 class DenseAdapter : public detail::SingleBatchDataIter<DenseAdapterBatch> {
  public:
-  DenseAdapter(const float* values, size_t num_rows, size_t num_features)
-      : batch_(values, num_rows, num_features),
+  DenseAdapter(const void* values, DataType type, size_t num_rows, size_t num_features)
+      : batch_(values, type, num_rows, num_features),
         num_rows_(num_rows),
         num_columns_(num_features) {}
   const DenseAdapterBatch& Value() const override { return batch_; }

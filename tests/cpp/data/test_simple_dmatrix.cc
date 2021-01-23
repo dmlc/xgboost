@@ -72,8 +72,9 @@ TEST(SimpleDMatrix, Empty) {
   std::vector<unsigned> feature_idx = {};
   std::vector<size_t> row_ptr = {};
 
-  data::CSRAdapter csr_adapter(row_ptr.data(), feature_idx.data(), data.data(),
-                               0, 0, 0);
+  data::CSRAdapter csr_adapter(row_ptr.data(), feature_idx.data(),
+                               DataType::kUInt32, data.data(),
+                               DataType::kFloat32, 0, 0, 0);
   std::unique_ptr<data::SimpleDMatrix> dmat(new data::SimpleDMatrix(
       &csr_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
   CHECK_EQ(dmat->Info().num_nonzero_, 0);
@@ -83,7 +84,7 @@ TEST(SimpleDMatrix, Empty) {
     CHECK_EQ(batch.Size(), 0);
   }
 
-  data::DenseAdapter dense_adapter(nullptr, 0, 0);
+  data::DenseAdapter dense_adapter(nullptr, xgboost::DataType::kFloat32, 0, 0);
   dmat.reset( new data::SimpleDMatrix(&dense_adapter,
                                       std::numeric_limits<float>::quiet_NaN(), 1) );
   CHECK_EQ(dmat->Info().num_nonzero_, 0);
@@ -109,8 +110,9 @@ TEST(SimpleDMatrix, MissingData) {
   std::vector<unsigned> feature_idx = {0, 1, 0};
   std::vector<size_t> row_ptr = {0, 2, 3};
 
-  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2,
-                           3, 2);
+  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(),
+                           DataType::kUInt32, data.data(), DataType::kFloat32,
+                           2, 3, 2);
   std::unique_ptr<data::SimpleDMatrix> dmat{new data::SimpleDMatrix{
       &adapter, std::numeric_limits<float>::quiet_NaN(), 1}};
   CHECK_EQ(dmat->Info().num_nonzero_, 2);
@@ -123,8 +125,9 @@ TEST(SimpleDMatrix, EmptyRow) {
   std::vector<unsigned> feature_idx = {0, 1};
   std::vector<size_t> row_ptr = {0, 2, 2};
 
-  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2,
-                           2, 2);
+  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(),
+                           DataType::kUInt32, data.data(), DataType::kFloat32,
+                           2, 2, 2);
   data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
                            1);
   CHECK_EQ(dmat.Info().num_nonzero_, 2);
@@ -136,7 +139,7 @@ TEST(SimpleDMatrix, FromDense) {
   int m = 3;
   int n = 2;
   std::vector<float> data = {1, 2, 3, 4, 5, 6};
-  data::DenseAdapter adapter(data.data(), m, n);
+  data::DenseAdapter adapter(data.data(), xgboost::DataType::kFloat32, m, n);
   data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
                            -1);
   EXPECT_EQ(dmat.Info().num_col_, 2);
