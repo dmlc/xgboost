@@ -32,7 +32,7 @@ TEST(CpuPredictor, Basic) {
   // Test predict batch
   PredictionCacheEntry out_predictions;
   cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
-  ASSERT_EQ(model.trees.size(), out_predictions.version);
+
   std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
   for (size_t i = 0; i < out_predictions.predictions.Size(); i++) {
     ASSERT_EQ(out_predictions_h[i], 1.5);
@@ -215,7 +215,7 @@ TEST(CpuPredictor, UpdatePredictionCache) {
 
   PredictionCacheEntry out_predictions;
   // perform fair prediction on the same input data, should be equal to cached result
-  gbm->PredictBatch(dmat.get(), &out_predictions, false, 0);
+  gbm->PredictBatch(dmat.get(), &out_predictions, false, 0, 0);
 
   std::vector<float> &out_predictions_h = out_predictions.predictions.HostVector();
   std::vector<float> &predtion_cache_from_train = predtion_cache.predictions.HostVector();

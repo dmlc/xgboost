@@ -99,15 +99,14 @@ class GradientBooster : public Model, public Configurable {
    * \param out_preds output vector to hold the predictions
    * \param training Whether the prediction value is used for training.  For dart booster
    *                 drop out is performed during training.
-   * \param ntree_limit limit the number of trees used in prediction,
-   *                    when it equals 0, this means we do not limit
-   *                    number of trees, this parameter is only valid
-   *                    for gbtree, but not for gblinear
+   * \param layer_begin Begining of boosted tree layer used for prediction.
+   * \param layer_end   End of booster layer. 0 means do not limit trees.
    */
   virtual void PredictBatch(DMatrix* dmat,
                             PredictionCacheEntry* out_preds,
                             bool training,
-                            unsigned ntree_limit = 0) = 0;
+                            unsigned layer_begin,
+                            unsigned layer_end) = 0;
 
   /*!
    * \brief Inplace prediction.
@@ -132,44 +131,45 @@ class GradientBooster : public Model, public Configurable {
    *
    * \param inst the instance you want to predict
    * \param out_preds output vector to hold the predictions
-   * \param ntree_limit limit the number of trees used in prediction
+   * \param layer_begin Begining of boosted tree layer used for prediction.
+   * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \sa Predict
    */
   virtual void PredictInstance(const SparsePage::Inst& inst,
                                std::vector<bst_float>* out_preds,
-                               unsigned ntree_limit = 0) = 0;
+                               unsigned layer_begin, unsigned layer_end) = 0;
   /*!
    * \brief predict the leaf index of each tree, the output will be nsample * ntree vector
    *        this is only valid in gbtree predictor
    * \param dmat feature matrix
    * \param out_preds output vector to hold the predictions
-   * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
-   *    we do not limit number of trees, this parameter is only valid for gbtree, but not for gblinear
+   * \param layer_begin Begining of boosted tree layer used for prediction.
+   * \param layer_end   End of booster layer. 0 means do not limit trees.
    */
-  virtual void PredictLeaf(DMatrix* dmat,
-                           HostDeviceVector<bst_float>* out_preds,
-                           unsigned ntree_limit = 0) = 0;
+  virtual void PredictLeaf(DMatrix *dmat,
+                           HostDeviceVector<bst_float> *out_preds,
+                           unsigned layer_begin, unsigned layer_end) = 0;
 
   /*!
    * \brief feature contributions to individual predictions; the output will be a vector
    *         of length (nfeats + 1) * num_output_group * nsample, arranged in that order
    * \param dmat feature matrix
    * \param out_contribs output vector to hold the contributions
-   * \param ntree_limit limit the number of trees used in prediction, when it equals 0, this means
-   *    we do not limit number of trees
+   * \param layer_begin Begining of boosted tree layer used for prediction.
+   * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \param approximate use a faster (inconsistent) approximation of SHAP values
    * \param condition condition on the condition_feature (0=no, -1=cond off, 1=cond on).
    * \param condition_feature feature to condition on (i.e. fix) during calculations
    */
   virtual void PredictContribution(DMatrix* dmat,
                                    HostDeviceVector<bst_float>* out_contribs,
-                                   unsigned ntree_limit = 0,
+                                   unsigned layer_begin, unsigned layer_end,
                                    bool approximate = false, int condition = 0,
                                    unsigned condition_feature = 0) = 0;
 
-  virtual void PredictInteractionContributions(DMatrix* dmat,
-                                               HostDeviceVector<bst_float>* out_contribs,
-                                               unsigned ntree_limit, bool approximate) = 0;
+  virtual void PredictInteractionContributions(
+      DMatrix *dmat, HostDeviceVector<bst_float> *out_contribs,
+      unsigned layer_begin, unsigned layer_end, bool approximate) = 0;
 
   /*!
    * \brief dump the model in the requested format

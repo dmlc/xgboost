@@ -604,20 +604,58 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
   CHECK_HANDLE();
   auto *learner = static_cast<Learner*>(handle);
   auto& entry = learner->GetThreadLocal().prediction_entry;
-  learner->Predict(
-      *static_cast<std::shared_ptr<DMatrix>*>(dmat),
-      (option_mask & 1) != 0,
-      &entry.predictions, ntree_limit,
-      static_cast<bool>(training),
-      (option_mask & 2) != 0,
-      (option_mask & 4) != 0,
-      (option_mask & 8) != 0,
-      (option_mask & 16) != 0);
+  auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
+  learner->Predict(*static_cast<std::shared_ptr<DMatrix> *>(dmat),
+                   (option_mask & 1) != 0, &entry.predictions, 0, iteration_end,
+                   static_cast<bool>(training), (option_mask & 2) != 0,
+                   (option_mask & 4) != 0, (option_mask & 8) != 0,
+                   (option_mask & 16) != 0);
   *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
   *len = static_cast<xgboost::bst_ulong>(entry.predictions.Size());
   API_END();
 }
 
+XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
+                                        DMatrixHandle dmat,
+                                        char const* c_json_config,
+                                        xgboost::bst_ulong const **out_shape,
+                                        xgboost::bst_ulong *out_dim,
+                                        bst_float const **out_result) {
+  API_BEGIN();
+  if (handle == nullptr) {
+    LOG(FATAL) << "Booster has not been intialized or has already been disposed.";
+  }
+  if (dmat == nullptr) {
+    LOG(FATAL) << "DMatrix has not been intialized or has already been disposed.";
+  }
+  auto config = Json::Load(StringView{c_json_config});
+
+  auto *learner = static_cast<Learner*>(handle);
+  auto& entry = learner->GetThreadLocal().prediction_entry;
+  auto p_m = *static_cast<std::shared_ptr<DMatrix> *>(dmat);
+  auto type = PredictionType(get<Integer const>(config["type"]));
+  auto iteration_begin = get<Integer const>(config["iteration_begin"]);
+  auto iteration_end = get<Integer const>(config["iteration_end"]);
+  learner->Predict(
+      *static_cast<std::shared_ptr<DMatrix> *>(dmat),
+      type == PredictionType::kMargin, &entry.predictions, iteration_begin,
+      iteration_end, get<Boolean const>(config["training"]),
+      type == PredictionType::kLeaf, type == PredictionType::kContribution,
+      type == PredictionType::kApproxContribution,
+      type == PredictionType::kInteraction);
+  *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
+  auto &shape = learner->GetThreadLocal().prediction_shape;
+  auto chunksize = p_m->Info().num_row_ == 0 ? 0 : entry.predictions.Size() / p_m->Info().num_row_;
+  auto rounds = iteration_end - iteration_begin;
+  rounds = rounds == 0 ? learner->BoostedRounds() : rounds;
+  // Determine shape
+  bool strict_shape = get<Boolean const>(config["strict_shape"]);
+  CalcPredictShape(strict_shape, type, p_m->Info().num_row_,
+                   p_m->Info().num_col_, chunksize, learner->Groups(), rounds,
+                   &shape, out_dim);
+  *out_shape = dmlc::BeginPtr(shape);
+  API_END();
+}
 
 template <typename T>
 void InplacePredictImpl(std::shared_ptr<T> x, std::shared_ptr<DMatrix> p_m,
@@ -690,7 +728,7 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr,
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-XGB_DLL int XGBoosterPredictFromArrayInterface(
+XGB_DLL int XGBoosterPredictFromCUDAArray(
     BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
     DMatrixHandle m, xgboost::bst_ulong const **out_shape, xgboost::bst_ulong *out_dim,
     const float **out_result) {
@@ -700,7 +738,7 @@ XGB_DLL int XGBoosterPredictFromArrayInterface(
   API_END();
 }
 
-XGB_DLL int XGBoosterPredictFromArrayInterfaceColumns(
+XGB_DLL int XGBoosterPredictFromCUDAColumnar(
     BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
     DMatrixHandle m, xgboost::bst_ulong const **out_shape, xgboost::bst_ulong *out_dim,
     const float **out_result) {

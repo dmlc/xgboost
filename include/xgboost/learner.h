@@ -113,8 +113,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param data input data
    * \param output_margin whether to only predict margin value instead of transformed prediction
    * \param out_preds output vector that stores the prediction
-   * \param ntree_limit limit number of trees used for boosted tree
-   *   predictor, when it equals 0, this means we are using all the trees
+   * \param layer_begin Begining of boosted tree layer used for prediction.
+   * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \param training Whether the prediction result is used for training
    * \param pred_leaf whether to only predict the leaf index of each tree in a boosted tree predictor
    * \param pred_contribs whether to only predict the feature contributions
@@ -124,7 +124,8 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
   virtual void Predict(std::shared_ptr<DMatrix> data,
                        bool output_margin,
                        HostDeviceVector<bst_float> *out_preds,
-                       unsigned ntree_limit = 0,
+                       unsigned layer_begin,
+                       unsigned layer_end,
                        bool training = false,
                        bool pred_leaf = false,
                        bool pred_contribs = false,

@@ -234,56 +234,25 @@ class CPUPredictor : public Predictor {
  public:
   explicit CPUPredictor(GenericParameter const* generic_param) :
       Predictor::Predictor{generic_param} {}
-  // ntree_limit is a very problematic parameter, as it's ambiguous in the context of
-  // multi-output and forest.  Same problem exists for tree_begin
-  void PredictBatch(DMatrix* dmat, PredictionCacheEntry* predts,
-                    const gbm::GBTreeModel& model, int tree_begin,
-                    uint32_t const ntree_limit = 0) const override {
-    // tree_begin is not used, right now we just enforce it to be 0.
-    CHECK_EQ(tree_begin, 0);
+  void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts,
+                    const gbm::GBTreeModel &model, uint32_t tree_begin,
+                    uint32_t tree_end = 0) const override {
     auto* out_preds = &predts->predictions;
-    CHECK_GE(predts->version, tree_begin);
     if (out_preds->Size() == 0 && dmat->Info().num_row_ != 0) {
       CHECK_EQ(predts->version, 0);
+    }
+    // This is actually already handled in gbm, but large amount of tests rely on the
+    // behaviour.
+    if (tree_end == 0) {
+      tree_end = model.trees.size();
     }
     if (predts->version == 0) {
       // out_preds->Size() can be non-zero as it's initialized here before any tree is
       // built at the 0^th iterator.
       this->InitOutPredictions(dmat->Info(), out_preds, model);
     }
-
-    uint32_t const output_groups =  model.learner_model_param->num_output_group;
-    CHECK_NE(output_groups, 0);
-    // Right now we just assume ntree_limit provided by users means number of tree layers
-    // in the context of multi-output model
-    uint32_t real_ntree_limit = ntree_limit * output_groups;
-    if (real_ntree_limit == 0 || real_ntree_limit > model.trees.size()) {
-      real_ntree_limit = static_cast<uint32_t>(model.trees.size());
-    }
-
-    uint32_t const end_version = (tree_begin + real_ntree_limit) / output_groups;
-    // When users have provided ntree_limit, end_version can be lesser, cache is violated
-    if (predts->version > end_version) {
-      CHECK_NE(ntree_limit, 0);
-      this->InitOutPredictions(dmat->Info(), out_preds, model);
-      predts->version = 0;
-    }
-    uint32_t const beg_version = predts->version;
-    CHECK_LE(beg_version, end_version);
-
-    if (beg_version < end_version) {
-      this->PredictDMatrix(dmat, &out_preds->HostVector(), model,
-                           beg_version * output_groups,
-                           end_version * output_groups);
-    }
-
-    // delta means {size of forest} * {number of newly accumulated layers}
-    uint32_t delta = end_version - beg_version;
-    CHECK_LE(delta, model.trees.size());
-    predts->Update(delta);
-
-    CHECK(out_preds->Size() == output_groups * dmat->Info().num_row_ ||
-          out_preds->Size() == dmat->Info().num_row_);
+    this->PredictDMatrix(dmat, &out_preds->HostVector(), model, tree_begin,
+                         tree_end);
   }
 
   template <typename Adapter>
@@ -362,7 +331,6 @@ class CPUPredictor : public Predictor {
     InitThreadTemp(nthread, model.learner_model_param->num_feature, &feat_vecs);
     const MetaInfo& info = p_fmat->Info();
     // number of valid trees
-    ntree_limit *= model.learner_model_param->num_output_group;
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }
@@ -398,7 +366,6 @@ class CPUPredictor : public Predictor {
     InitThreadTemp(nthread,  model.learner_model_param->num_feature, &feat_vecs);
     const MetaInfo& info = p_fmat->Info();
     // number of valid trees
-    ntree_limit *= model.learner_model_param->num_output_group;
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }

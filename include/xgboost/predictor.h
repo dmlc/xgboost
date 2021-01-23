@@ -127,12 +127,11 @@ class Predictor {
    * \param [in,out]  out_preds   The output preds.
    * \param           model       The model to predict from.
    * \param           tree_begin  The tree begin index.
-   * \param           ntree_limit (Optional) The ntree limit. 0 means do not
-   *                              limit trees.
+   * \param           tree_end    The tree end index.
    */
   virtual void PredictBatch(DMatrix* dmat, PredictionCacheEntry* out_preds,
-                            const gbm::GBTreeModel& model, int tree_begin,
-                            uint32_t const ntree_limit = 0) const = 0;
+                            const gbm::GBTreeModel& model, uint32_t tree_begin,
+                            uint32_t tree_end = 0) const = 0;
 
   /**
    * \brief Inplace prediction.
@@ -159,13 +158,13 @@ class Predictor {
    * \param           inst        The instance to predict.
    * \param [in,out]  out_preds   The output preds.
    * \param           model       The model to predict from
-   * \param           ntree_limit (Optional) The ntree limit.
+   * \param           tree_end    (Optional) The tree end index.
    */
 
   virtual void PredictInstance(const SparsePage::Inst& inst,
                                std::vector<bst_float>* out_preds,
                                const gbm::GBTreeModel& model,
-                               unsigned ntree_limit = 0) const = 0;
+                               unsigned tree_end = 0) const = 0;
 
   /**
    * \brief predict the leaf index of each tree, the output will be nsample *
@@ -174,18 +173,14 @@ class Predictor {
    * \param [in,out]  dmat        The input feature matrix.
    * \param [in,out]  out_preds   The output preds.
    * \param           model       Model to make predictions from.
-   * \param           ntree_limit (Optional) The ntree limit.
+   * \param           tree_end    (Optional) The tree end index.
    */
 
   virtual void PredictLeaf(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                            const gbm::GBTreeModel& model,
-                           unsigned ntree_limit = 0) const = 0;
+                           unsigned tree_end = 0) const = 0;
 
   /**
-   * \fn  virtual void Predictor::PredictContribution( DMatrix* dmat,
-   * std::vector<bst_float>* out_contribs, const gbm::GBTreeModel& model,
-   * unsigned ntree_limit = 0) = 0;
-   *
    * \brief feature contributions to individual predictions; the output will be
    * a vector of length (nfeats + 1) * num_output_group * nsample, arranged in
    * that order.
@@ -193,7 +188,7 @@ class Predictor {
    * \param [in,out]  dmat               The input feature matrix.
    * \param [in,out]  out_contribs       The output feature contribs.
    * \param           model              Model to make predictions from.
-   * \param           ntree_limit        (Optional) The ntree limit.
+   * \param           tree_end           The tree end index.
    * \param           tree_weights       (Optional) Weights to multiply each tree by.
    * \param           approximate        Use fast approximate algorithm.
    * \param           condition          Condition on the condition_feature (0=no, -1=cond off, 1=cond on).
@@ -203,7 +198,7 @@ class Predictor {
   virtual void PredictContribution(DMatrix* dmat,
                                    HostDeviceVector<bst_float>* out_contribs,
                                    const gbm::GBTreeModel& model,
-                                   unsigned ntree_limit = 0,
+                                   unsigned tree_end = 0,
                                    std::vector<bst_float>* tree_weights = nullptr,
                                    bool approximate = false,
                                    int condition = 0,
@@ -212,7 +207,7 @@ class Predictor {
   virtual void PredictInteractionContributions(DMatrix* dmat,
                                                HostDeviceVector<bst_float>* out_contribs,
                                                const gbm::GBTreeModel& model,
-                                               unsigned ntree_limit = 0,
+                                               unsigned tree_end = 0,
                                                std::vector<bst_float>* tree_weights = nullptr,
                                                bool approximate = false) const = 0;
 
