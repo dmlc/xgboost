@@ -94,7 +94,7 @@ jobs:
         cd python-package
         python --version
         python setup.py sdist
-        pip install ./dist/xgboost-*.tar.gz
+        pip install -v ./dist/xgboost-*.tar.gz
         cd ..
         python -c 'import xgboost'
 
