@@ -3,6 +3,7 @@ import errno
 import argparse
 import glob
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -124,13 +125,23 @@ if __name__ == "__main__":
     xgboost4j_spark = 'xgboost4j-spark-gpu' if cli_args.use_cuda == 'ON' else 'xgboost4j-spark'
 
     print("copying native library")
-    library_name = {
-        "win32": "xgboost4j.dll",
-        "darwin": "libxgboost4j.dylib",
-        "linux": "libxgboost4j.so"
-    }[sys.platform]
-    maybe_makedirs("{}/src/main/resources/lib".format(xgboost4j))
-    cp("../lib/" + library_name, "{}/src/main/resources/lib".format(xgboost4j))
+    library_name, os_folder = {
+        "Windows": ("xgboost4j.dll", "windows"),
+        "Darwin": ("libxgboost4j.dylib", "macos"),
+        "Linux": ("libxgboost4j.so", "linux"),
+        "SunOS": ("libxgboost4j.so", "solaris"),
+    }[platform.system()]
+    arch_folder = {
+        "x86_64": "x86_64",  # on Linux & macOS x86_64
+        "amd64": "x86_64",  # on Windows x86_64
+        "i86pc": "x86_64",  # on Solaris x86_64
+        "sun4v": "sparc",  # on Solaris sparc
+        "arm64": "aarch64",  # on macOS & Windows ARM 64-bit
+        "aarch64": "aarch64"
+    }[platform.machine().lower()]
+    output_folder = "{}/src/main/resources/lib/{}/{}".format(xgboost4j, os_folder, arch_folder)
+    maybe_makedirs(output_folder)
+    cp("../lib/" + library_name, output_folder)
 
     print("copying pure-Python tracker")
     cp("../dmlc-core/tracker/dmlc_tracker/tracker.py",
