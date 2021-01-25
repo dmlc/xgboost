@@ -644,21 +644,16 @@ class XGBModel(XGBModelBase):
         ----------
         X : array_like
             Feature matrix
-
         y : array_like
             Labels
-
         sample_weight : array_like
             instance weights
-
         base_margin : array_like
             global bias for each instance.
-
         eval_set : list, optional
             A list of (X, y) tuple pairs to use as validation sets, for which
             metrics will be computed.
             Validation metrics will help us track the performance of the model.
-
         eval_metric : str, list of str, or callable, optional
             If a str, should be a built-in evaluation metric to use. See
             doc/parameter.rst.
@@ -669,7 +664,6 @@ class XGBModel(XGBModelBase):
             that you may need to call the ``get_label`` method. It must return a str,
             value pair where the str is a name for the evaluation and value is the value
             of the evaluation function. The callable custom objective is always minimized.
-
         early_stopping_rounds : int
             Activates early stopping. Validation metric needs to improve at least once in
             every **early_stopping_rounds** round(s) to continue training.
@@ -681,29 +675,23 @@ class XGBModel(XGBModelBase):
             used for early stopping.
             If early stopping occurs, the model will have three additional fields:
             ``clf.best_score``, ``clf.best_iteration`` and ``clf.best_ntree_limit``.
-
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation metric
             measured on the validation set to stderr.
-
-        xgb_model : Union[str, Booster, XGBModel]
+        xgb_model :
             file name of stored XGBoost model or 'Booster' instance XGBoost model to be
             loaded before training (allows training continuation).
-
         sample_weight_eval_set : list, optional
             A list of the form [L_1, L_2, ..., L_n], where each L_i is an array like
             object storing instance weights for the i-th validation set.
-
         base_margin_eval_set : list, optional
             A list of the form [M_1, M_2, ..., M_n], where each M_i is an array like
             object storing base margin for the i-th validation set.
-
         feature_weights: array_like
             Weight for each feature, defines the probability of each feature being
             selected when colsample is being used.  All values must be greater than 0,
             otherwise a `ValueError` is thrown.  Only available for `hist`, `gpu_hist` and
             `exact` tree methods.
-
         callbacks : list of callback functions
             List of callback functions that are applied at end of each iteration.
             It is possible to use predefined callbacks by using :ref:`callback_api`.
@@ -1102,12 +1090,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         if self.use_label_encoder:
             if not can_use_label_encoder:
-                raise ValueError(
-                    "The option use_label_encoder=True is incompatible with inputs "
-                    + "of type cuDF or cuPy. Please set use_label_encoder=False when "
-                    + "constructing XGBClassifier object. NOTE: "
-                    + label_encoder_deprecation_msg
-                )
+                raise ValueError('The option use_label_encoder=True is incompatible with inputs ' +
+                                 'of type cuDF or cuPy. Please set use_label_encoder=False when ' +
+                                 'constructing XGBClassifier object. NOTE: ' +
+                                 label_encoder_deprecation_msg)
             warnings.warn(label_encoder_deprecation_msg, UserWarning)
             self._le = XGBoostLabelEncoder().fit(y)
             label_transform = self._le.transform
@@ -1405,13 +1391,13 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         sample_weight=None,
         base_margin=None,
         eval_set=None,
+        eval_group=None,
+        eval_qid=None,
+        sample_weight_eval_set=None,
         eval_metric=None,
         early_stopping_rounds=None,
         verbose=False,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
-        eval_group=None,
-        eval_qid=None,
-        sample_weight_eval_set=None,
         base_margin_eval_set=None,
         feature_weights=None,
         callbacks=None
@@ -1427,19 +1413,15 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         ----------
         X : array_like
             Feature matrix
-
         y : array_like
             Labels
-
         group : array_like
             Size of each query group of training data. Should have as many elements as the
             query groups in the training data.  If this is set to None, then user must
             provide qid.
-
         qid : array_like
             Query ID for each training sample.  Should have the size of n_samples.  If
             this is set to None, then user must provide group.
-
         sample_weight : array_like
             Query group weights
 
@@ -1449,21 +1431,27 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
                 data point). This is because we only care about the relative ordering of
                 data points within each group, so it doesn't make sense to assign weights
                 to individual data points.
-
         base_margin : array_like
             Global bias for each instance.
-
         eval_set : list, optional
             A list of (X, y) tuple pairs to use as validation sets, for which
             metrics will be computed.
             Validation metrics will help us track the performance of the model.
+        sample_weight_eval_set : list, optional
+            A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
+            group weights on the i-th validation set.
 
+            .. note:: Weights are per-group for ranking tasks
+
+                In ranking task, one weight is assigned to each query group (not each
+                data point). This is because we only care about the relative ordering of
+                data points within each group, so it doesn't make sense to assign
+                weights to individual data points.
         eval_metric : str, list of str, optional
             If a str, should be a built-in evaluation metric to use. See
             doc/parameter.rst.
             If a list of str, should be the list of multiple built-in evaluation metrics
             to use. The custom evaluation metric is not yet supported for the ranker.
-
         early_stopping_rounds : int
             Activates early stopping. Validation metric needs to improve at least once in
             every **early_stopping_rounds** round(s) to continue training.  Requires at
@@ -1475,44 +1463,26 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             used for early stopping.
             If early stopping occurs, the model will have three additional fields:
             ``clf.best_score``, ``clf.best_iteration`` and ``clf.best_ntree_limit``.
-
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation metric
             measured on the validation set to stderr.
-
         xgb_model :
             file name of stored XGBoost model or 'Booster' instance XGBoost model to be
             loaded before training (allows training continuation).
-
         eval_group : list of arrays, optional
             A list in which ``eval_group[i]`` is the list containing the sizes of all
             query groups in the ``i``-th pair in **eval_set**.
-
         eval_qid : list of array_like, optional
             A list in which ``eval_qid[i]`` is the array containing query ID of ``i``-th
             pair in **eval_set**.
-
-        sample_weight_eval_set : list, optional
-            A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
-            group weights on the i-th validation set.
-
-            .. note:: Weights are per-group for ranking tasks
-
-                In ranking task, one weight is assigned to each query group (not each
-                data point). This is because we only care about the relative ordering of
-                data points within each group, so it doesn't make sense to assign
-                weights to individual data points.
-
         base_margin_eval_set : list, optional
             A list of the form [M_1, M_2, ..., M_n], where each M_i is an array like
             object storing base margin for the i-th validation set.
-
         feature_weights: array_like
             Weight for each feature, defines the probability of each feature being
             selected when colsample is being used.  All values must be greater than 0,
             otherwise a `ValueError` is thrown.  Only available for `hist`, `gpu_hist` and
             `exact` tree methods.
-
         callbacks : list of callback functions
             List of callback functions that are applied at end of each
             iteration.  It is possible to use predefined callbacks by using
