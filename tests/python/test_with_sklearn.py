@@ -1118,19 +1118,9 @@ def run_boost_from_prediction(tree_method):
     assert np.all(predictions_1 == predictions_2)
 
 
-@pytest.mark.skipif(**tm.no_sklearn())
-def test_boost_from_prediction_hist():
-    run_boost_from_prediction('hist')
-
-
-@pytest.mark.skipif(**tm.no_sklearn())
-def test_boost_from_prediction_approx():
-    run_boost_from_prediction('approx')
-
-
-@pytest.mark.skipif(**tm.no_sklearn())
-def test_boost_from_prediction_exact():
-    run_boost_from_prediction('exact')
+@pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
+def test_boost_from_prediction(tree_method):
+    run_boost_from_prediction(tree_method)
 
 
 def test_estimator_type():
@@ -1154,3 +1144,32 @@ def test_estimator_type():
 
         cls = xgb.XGBClassifier()
         cls.load_model(path)  # no error
+
+
+def run_data_initialization(DMatrix, model, X, y):
+    """Assert that we don't create duplicated DMatrix."""
+
+    old_init = DMatrix.__init__
+    count = [0]
+
+    def new_init(self, **kwargs):
+        count[0] += 1
+        return old_init(self, **kwargs)
+
+    DMatrix.__init__ = new_init
+    model(n_estimators=1).fit(X, y, eval_set=[(X, y)])
+
+    assert count[0] == 1
+    count[0] = 0                # only 1 DMatrix is created.
+
+    y_copy = y.copy()
+    model(n_estimators=1).fit(X, y, eval_set=[(X, y_copy)])
+    assert count[0] == 2        # a different Python object is considered different
+
+    DMatrix.__init__ = old_init
+
+
+def test_data_initialization():
+    from sklearn.datasets import load_digits
+    X, y = load_digits(return_X_y=True)
+    run_data_initialization(xgb.DMatrix, xgb.XGBClassifier, X, y)

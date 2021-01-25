@@ -17,7 +17,7 @@ import subprocess
 import hypothesis
 from hypothesis import given, settings, note, HealthCheck
 from test_updaters import hist_parameter_strategy, exact_parameter_strategy
-from test_with_sklearn import run_feature_weights
+from test_with_sklearn import run_feature_weights, run_data_initialization
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -973,7 +973,7 @@ class TestWithDask:
                                        results_native['validation_0']['rmse'])
             tm.non_increasing(results_native['validation_0']['rmse'])
 
-    def test_data_initialization(self) -> None:
+    def test_no_duplicated_partition(self) -> None:
         '''Assert each worker has the correct amount of data, and DMatrix initialization doesn't
         generate unnecessary copies of data.
 
@@ -1012,6 +1012,13 @@ class TestWithDask:
                 assert len(data) == cnt
                 # Subtract the on disk resource from each worker
                 assert cnt - n_workers == n_partitions
+
+    def test_data_initialization(self, client: "Client") -> None:
+        """assert that we don't create duplicated DMatrix"""
+        from sklearn.datasets import load_digits
+        X, y = load_digits(return_X_y=True)
+        X, y = dd.from_array(X, chunksize=32), dd.from_array(y, chunksize=32)
+        run_data_initialization(xgb.dask.DaskDMatrix, xgb.dask.DaskXGBClassifier, X, y)
 
     def run_shap(self, X: Any, y: Any, params: Dict[str, Any], client: "Client") -> None:
         X, y = da.from_array(X), da.from_array(y)
