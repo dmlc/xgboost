@@ -314,9 +314,9 @@ class TestDistributedGPU:
         for i in range(len(ddqdm_names)):
             assert ddqdm_names[i] == dqdm_names[i]
 
-        sig = OrderedDict(signature(xgb.XGBRanker.fit))
+        sig = OrderedDict(signature(xgb.XGBRanker.fit).parameters)
         ranker_names = list(sig.keys())
-        sig = OrderedDict(signature(xgb.dask.DaskXGBRanker.fit))
+        sig = OrderedDict(signature(xgb.dask.DaskXGBRanker.fit).parameters)
         dranker_names = list(sig.keys())
 
         for rn, drn in zip(ranker_names, dranker_names):
