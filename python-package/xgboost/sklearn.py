@@ -1437,6 +1437,12 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             A list of (X, y) tuple pairs to use as validation sets, for which
             metrics will be computed.
             Validation metrics will help us track the performance of the model.
+        eval_group : list of arrays, optional
+            A list in which ``eval_group[i]`` is the list containing the sizes of all
+            query groups in the ``i``-th pair in **eval_set**.
+        eval_qid : list of array_like, optional
+            A list in which ``eval_qid[i]`` is the array containing query ID of ``i``-th
+            pair in **eval_set**.
         sample_weight_eval_set : list, optional
             A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
             group weights on the i-th validation set.
@@ -1469,12 +1475,6 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         xgb_model :
             file name of stored XGBoost model or 'Booster' instance XGBoost model to be
             loaded before training (allows training continuation).
-        eval_group : list of arrays, optional
-            A list in which ``eval_group[i]`` is the list containing the sizes of all
-            query groups in the ``i``-th pair in **eval_set**.
-        eval_qid : list of array_like, optional
-            A list in which ``eval_qid[i]`` is the array containing query ID of ``i``-th
-            pair in **eval_set**.
         base_margin_eval_set : list, optional
             A list of the form [M_1, M_2, ..., M_n], where each M_i is an array like
             object storing base margin for the i-th validation set.

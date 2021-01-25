@@ -1241,6 +1241,7 @@ def inplace_predict(
 async def _async_wrap_evaluation_matrices(
     client: "distributed.Client", **kwargs: Any
 ) -> Tuple[DaskDMatrix, Optional[List[Tuple[DaskDMatrix, str]]]]:
+    """A switch function for async environment."""
     def _inner(**kwargs: Any) -> DaskDMatrix:
         m = DaskDMatrix(client=client, **kwargs)
         return m
@@ -1250,7 +1251,7 @@ async def _async_wrap_evaluation_matrices(
         return train_dmatrix, evals
     awaited = []
     for e in evals:
-        if e[0] is train_dmatrix:
+        if e[0] is train_dmatrix:  # already awaited
             awaited.append(e)
             continue
         awaited.append((await e[0], e[1]))
