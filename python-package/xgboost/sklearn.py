@@ -556,7 +556,7 @@ class XGBModel(XGBModelBase):
 
     def _configure_fit(
         self,
-        booster: Optional[Booster],
+        booster: Optional[Union[Booster, "XGBModel"]],
         eval_metric: Optional[Union[Callable, str, List[str]]],
         params: Dict[str, Any],
     ) -> Tuple[Booster, Optional[Metric], Dict[str, Any]]:
@@ -631,7 +631,7 @@ class XGBModel(XGBModelBase):
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
-        xgb_model : str
+        xgb_model : Union[str, Booster, XGBModel]
             file name of stored XGBoost model or 'Booster' instance XGBoost model to be
             loaded before training (allows training continuation).
         sample_weight_eval_set : list, optional
@@ -942,10 +942,22 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         super().__init__(objective=objective, **kwargs)
 
     @_deprecate_positional_args
-    def fit(self, X, y, *, sample_weight=None, base_margin=None,
-            eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True, xgb_model=None,
-            sample_weight_eval_set=None, feature_weights=None, callbacks=None):
+    def fit(
+        self,
+        X,
+        y,
+        *,
+        sample_weight=None,
+        base_margin=None,
+        eval_set=None,
+        eval_metric=None,
+        early_stopping_rounds=None,
+        verbose=True,
+        xgb_model=None,
+        sample_weight_eval_set=None,
+        feature_weights=None,
+        callbacks=None
+    ):
         # pylint: disable = attribute-defined-outside-init,arguments-differ,too-many-statements
 
         can_use_label_encoder = True
@@ -1283,7 +1295,10 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
 
     @_deprecate_positional_args
     def fit(
-        self, X, y, *,
+        self,
+        X,
+        y,
+        *,
         group=None,
         qid=None,
         sample_weight=None,
@@ -1372,7 +1387,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation
             metric measured on the validation set to stderr.
-        xgb_model : str
+        xgb_model : Union[str, Booster, XGBModel]
             file name of stored XGBoost model or 'Booster' instance XGBoost
             model to be loaded before training (allows training continuation).
         feature_weights: array_like
@@ -1391,9 +1406,8 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
                                                         save_best=True)]
 
         """
-        # check if group information is provided
-        if group is None:
-            raise ValueError("group is required for ranking task")
+        if group is None and qid is None:
+            raise ValueError("group or qid is required for ranking task")
 
         if eval_set is not None:
             if eval_group is None and eval_qid is None:

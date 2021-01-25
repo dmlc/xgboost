@@ -38,8 +38,9 @@ from .core import Objective, Metric
 from .core import _deprecate_positional_args
 from .training import train as worker_train
 from .tracker import RabitTracker, get_host_ip
-from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase
-from .sklearn import xgboost_model_doc, _objective_decorator
+from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase, _objective_decorator
+from .sklearn import XGBRankerMixIn
+from .sklearn import xgboost_model_doc
 from .sklearn import _cls_predict_proba
 from .sklearn import XGBRanker
 
@@ -180,10 +181,12 @@ def _xgb_get_client(client: Optional["distributed.Client"]) -> "distributed.Clie
 
 class DaskDMatrix:
     # pylint: disable=missing-docstring, too-many-instance-attributes
-    '''DMatrix holding on references to Dask DataFrame or Dask Array.  Constructing
-    a `DaskDMatrix` forces all lazy computation to be carried out.  Wait for
-    the input data explicitly if you want to see actual computation of
-    constructing `DaskDMatrix`.
+    '''DMatrix holding on references to Dask DataFrame or Dask Array.  Constructing a
+    `DaskDMatrix` forces all lazy computation to be carried out.  Wait for the input data
+    explicitly if you want to see actual computation of constructing `DaskDMatrix`.
+
+    See doc string for DMatrix constructor for other parameters.  DaskDMatrix accepts only
+    dask collection.
 
     .. note::
 
@@ -197,29 +200,6 @@ class DaskDMatrix:
     client :
         Specify the dask client used for training.  Use default client returned from dask
         if it's set to None.
-    data :
-        data source of DMatrix.
-    label :
-        label used for trainin.
-    missing :
-        Value in the input data (e.g. `numpy.ndarray`) which needs to be present as a
-        missing value. If None, defaults to np.nan.
-    weight :
-        Weight for each instance.
-    base_margin :
-        Global bias for each instance.
-    qid :
-        Query ID for ranking.
-    label_lower_bound :
-        Upper bound for survival training.
-    label_upper_bound :
-        Lower bound for survival training.
-    feature_weights :
-        Weight for features used in column sampling.
-    feature_names :
-        Set names for features.
-    feature_types :
-        Set types for features
 
     '''
 
@@ -230,15 +210,18 @@ class DaskDMatrix:
         data: _DaskCollection,
         label: Optional[_DaskCollection] = None,
         *,
-        missing: float = None,
         weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
+        missing: float = None,
+        silent: bool = False,   # pylint: disable=unused-argument
+        feature_names: Optional[Union[str, List[str]]] = None,
+        feature_types: Optional[Union[Any, List[Any]]] = None,
+        group: Optional[_DaskCollection] = None,
         qid: Optional[_DaskCollection] = None,
         label_lower_bound: Optional[_DaskCollection] = None,
         label_upper_bound: Optional[_DaskCollection] = None,
         feature_weights: Optional[_DaskCollection] = None,
-        feature_names: Optional[Union[str, List[str]]] = None,
-        feature_types: Optional[Union[Any, List[Any]]] = None
+        enable_categorical: bool = False
     ) -> None:
         _assert_dask_support()
         client = _xgb_get_client(client)
@@ -248,30 +231,41 @@ class DaskDMatrix:
         self.missing = missing
 
         if qid is not None and weight is not None:
-            raise NotImplementedError('per-group weight is not implemented.')
+            raise NotImplementedError("per-group weight is not implemented.")
+        if group is not None:
+            raise NotImplementedError(
+                "group structure is not implemented, use qid instead."
+            )
+        if enable_categorical:
+            raise NotImplementedError(
+                "categorical support is not enabled on `DaskDMatrix`."
+            )
 
         if len(data.shape) != 2:
             raise ValueError(
-                'Expecting 2 dimensional input, got: {shape}'.format(
-                    shape=data.shape))
+                "Expecting 2 dimensional input, got: {shape}".format(shape=data.shape)
+            )
 
         if not isinstance(data, (dd.DataFrame, da.Array)):
             raise TypeError(_expect((dd.DataFrame, da.Array), type(data)))
-        if not isinstance(label, (dd.DataFrame, da.Array, dd.Series,
-                                  type(None))):
-            raise TypeError(
-                _expect((dd.DataFrame, da.Array, dd.Series), type(label)))
+        if not isinstance(label, (dd.DataFrame, da.Array, dd.Series, type(None))):
+            raise TypeError(_expect((dd.DataFrame, da.Array, dd.Series), type(label)))
 
         self.worker_map: Dict[str, "distributed.Future"] = defaultdict(list)
         self.is_quantile: bool = False
 
-        self._init = client.sync(self.map_local_data,
-                                 client, data, label=label, weights=weight,
-                                 base_margin=base_margin,
-                                 qid=qid,
-                                 feature_weights=feature_weights,
-                                 label_lower_bound=label_lower_bound,
-                                 label_upper_bound=label_upper_bound)
+        self._init = client.sync(
+            self.map_local_data,
+            client,
+            data,
+            label=label,
+            weights=weight,
+            base_margin=base_margin,
+            qid=qid,
+            feature_weights=feature_weights,
+            label_lower_bound=label_lower_bound,
+            label_upper_bound=label_upper_bound,
+        )
 
     def __await__(self) -> Generator:
         return self._init.__await__()
@@ -571,11 +565,11 @@ class DaskPartitionIter(DataIter):  # pylint: disable=R0902
 
 
 class DaskDeviceQuantileDMatrix(DaskDMatrix):
-    '''Specialized data type for `gpu_hist` tree method.  This class is used to
-    reduce the memory usage by eliminating data copies.  Internally the all
-    partitions/chunks of data are merged by weighted GK sketching.  So the
-    number of partitions from dask may affect training accuracy as GK generates
-    bounded error for each merge.
+    '''Specialized data type for `gpu_hist` tree method.  This class is used to reduce the
+    memory usage by eliminating data copies.  Internally the all partitions/chunks of data
+    are merged by weighted GK sketching.  So the number of partitions from dask may affect
+    training accuracy as GK generates bounded error for each merge.  See doc string for
+    `DeviceQuantileDMatrix` and `DMatrix` for other parameters.
 
     .. versionadded:: 1.2.0
 
@@ -584,42 +578,50 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
     max_bin : Number of bins for histogram construction.
 
     '''
+    @_deprecate_positional_args
     def __init__(
         self,
         client: "distributed.Client",
         data: _DaskCollection,
         label: Optional[_DaskCollection] = None,
-        missing: float = None,
+        *,
         weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
+        missing: float = None,
+        silent: bool = False,
+        feature_names: Optional[Union[str, List[str]]] = None,
+        feature_types: Optional[Union[Any, List[Any]]] = None,
+        max_bin: int = 256,
+        group: Optional[_DaskCollection] = None,
         qid: Optional[_DaskCollection] = None,
         label_lower_bound: Optional[_DaskCollection] = None,
         label_upper_bound: Optional[_DaskCollection] = None,
         feature_weights: Optional[_DaskCollection] = None,
-        feature_names: Optional[Union[str, List[str]]] = None,
-        feature_types: Optional[Union[Any, List[Any]]] = None,
-        max_bin: int = 256
+        enable_categorical: bool = False,
     ) -> None:
         super().__init__(
             client=client,
             data=data,
             label=label,
-            missing=missing,
-            feature_weights=feature_weights,
             weight=weight,
             base_margin=base_margin,
+            group=group,
             qid=qid,
             label_lower_bound=label_lower_bound,
             label_upper_bound=label_upper_bound,
+            missing=missing,
+            silent=silent,
+            feature_weights=feature_weights,
             feature_names=feature_names,
-            feature_types=feature_types
+            feature_types=feature_types,
+            enable_categorical=enable_categorical,
         )
         self.max_bin = max_bin
         self.is_quantile = True
 
     def create_fn_args(self, worker_addr: str) -> Dict[str, Any]:
         args = super().create_fn_args(worker_addr)
-        args['max_bin'] = self.max_bin
+        args["max_bin"] = self.max_bin
         return args
 
 
@@ -630,35 +632,49 @@ def _create_device_quantile_dmatrix(
     meta_names: List[str],
     missing: float,
     parts: Optional[_DataParts],
-    max_bin: int
+    max_bin: int,
 ) -> DeviceQuantileDMatrix:
     worker = distributed.get_worker()
     if parts is None:
-        msg = 'worker {address} has an empty DMatrix.  '.format(
-            address=worker.address)
+        msg = "worker {address} has an empty DMatrix.".format(address=worker.address)
         LOGGER.warning(msg)
         import cupy
-        d = DeviceQuantileDMatrix(cupy.zeros((0, 0)),
-                                  feature_names=feature_names,
-                                  feature_types=feature_types,
-                                  max_bin=max_bin)
+
+        d = DeviceQuantileDMatrix(
+            cupy.zeros((0, 0)),
+            feature_names=feature_names,
+            feature_types=feature_types,
+            max_bin=max_bin,
+        )
         return d
 
-    (data, labels, weights, base_margin, qid,
-     label_lower_bound, label_upper_bound) = _get_worker_parts(
-         parts, meta_names)
-    it = DaskPartitionIter(data=data, label=labels, weight=weights,
-                           base_margin=base_margin,
-                           qid=qid,
-                           label_lower_bound=label_lower_bound,
-                           label_upper_bound=label_upper_bound)
+    (
+        data,
+        labels,
+        weights,
+        base_margin,
+        qid,
+        label_lower_bound,
+        label_upper_bound,
+    ) = _get_worker_parts(parts, meta_names)
+    it = DaskPartitionIter(
+        data=data,
+        label=labels,
+        weight=weights,
+        base_margin=base_margin,
+        qid=qid,
+        label_lower_bound=label_lower_bound,
+        label_upper_bound=label_upper_bound,
+    )
 
-    dmatrix = DeviceQuantileDMatrix(it,
-                                    missing=missing,
-                                    feature_names=feature_names,
-                                    feature_types=feature_types,
-                                    nthread=worker.nthreads,
-                                    max_bin=max_bin)
+    dmatrix = DeviceQuantileDMatrix(
+        it,
+        missing=missing,
+        feature_names=feature_names,
+        feature_types=feature_types,
+        nthread=worker.nthreads,
+        max_bin=max_bin,
+    )
     dmatrix.set_info(feature_weights=feature_weights)
     return dmatrix
 
@@ -712,13 +728,15 @@ def _create_dmatrix(
         missing=missing,
         feature_names=feature_names,
         feature_types=feature_types,
-        nthread=worker.nthreads
+        nthread=worker.nthreads,
     )
     dmatrix.set_info(
-        base_margin=_base_margin, qid=_qid, weight=_weights,
+        base_margin=_base_margin,
+        qid=_qid,
+        weight=_weights,
         label_lower_bound=_label_lower_bound,
         label_upper_bound=_label_upper_bound,
-        feature_weights=feature_weights
+        feature_weights=feature_weights,
     )
     return dmatrix
 
@@ -753,6 +771,8 @@ def _get_workers_from_data(
         for e in evals:
             assert len(e) == 2
             assert isinstance(e[0], DaskDMatrix) and isinstance(e[1], str)
+            if e[0] is dtrain:
+                continue
             worker_map = set(e[0].worker_map.keys())
             X_worker_map = X_worker_map.union(worker_map)
     return X_worker_map
@@ -960,7 +980,7 @@ async def _predict_async(
         worker = distributed.get_worker()
         with config.config_context(**global_config):
             booster.set_param({'nthread': worker.nthreads})
-            m = DMatrix(partition, missing=missing, nthread=worker.nthreads)
+            m = DMatrix(data=partition, missing=missing, nthread=worker.nthreads)
             predt = booster.predict(
                 data=m,
                 output_margin=output_margin,
@@ -1587,7 +1607,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         For dask implementation, group is not supported, use qid instead.
 """,
 )
-class DaskXGBRanker(DaskScikitLearnBase):
+class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
     @_deprecate_positional_args
     def __init__(self, *, objective: str = "rank:pairwise", **kwargs: Any):
         if callable(objective):
@@ -1632,11 +1652,10 @@ class DaskXGBRanker(DaskScikitLearnBase):
         if eval_metric is not None:
             if callable(eval_metric):
                 raise ValueError(
-                    'Custom evaluation metric is not yet supported for XGBRanker.')
+                    "Custom evaluation metric is not yet supported for XGBRanker."
+                )
         model, metric, params = self._configure_fit(
-            booster=xgb_model,
-            eval_metric=eval_metric,
-            params=params
+            booster=xgb_model, eval_metric=eval_metric, params=params
         )
         results = await train(
             client=self.client,
