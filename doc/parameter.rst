@@ -195,7 +195,7 @@ Parameters for Tree Booster
 * ``grow_policy`` [default= ``depthwise``]
 
   - Controls a way new nodes are added to the tree.
-  - Currently supported only if ``tree_method`` is set to ``hist``.
+  - Currently supported only if ``tree_method`` is set to ``hist`` or ``gpu_hist``.
   - Choices: ``depthwise``, ``lossguide``
 
     - ``depthwise``: split at nodes closest to the root.
@@ -207,7 +207,7 @@ Parameters for Tree Booster
 
 * ``max_bin``, [default=256]
 
-  - Only used if ``tree_method`` is set to ``hist``.
+  - Only used if ``tree_method`` is set to ``hist`` or ``gpu_hist``.
   - Maximum number of discrete bins to bucket continuous features.
   - Increasing this number improves the optimality of splits at the cost of higher computation time.
 
