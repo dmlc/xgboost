@@ -38,7 +38,8 @@ from .core import Objective, Metric
 from .core import _deprecate_positional_args
 from .training import train as worker_train
 from .tracker import RabitTracker, get_host_ip
-from .sklearn import XGBModel, XGBRegressorBase, XGBClassifierBase, _objective_decorator
+from .sklearn import XGBModel, XGBClassifier, XGBRegressorBase, XGBClassifierBase
+from .sklearn import _wrap_evaluation_matrices, _objective_decorator
 from .sklearn import XGBRankerMixIn
 from .sklearn import xgboost_model_doc
 from .sklearn import _cls_predict_proba
@@ -588,7 +589,7 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
         weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
         missing: float = None,
-        silent: bool = False,
+        silent: bool = False,   # disable=unused-argument
         feature_names: Optional[Union[str, List[str]]] = None,
         feature_types: Optional[Union[Any, List[Any]]] = None,
         max_bin: int = 256,
@@ -1292,44 +1293,24 @@ def inplace_predict(
                        missing=missing)
 
 
-async def _evaluation_matrices(
-    client: "distributed.Client",
-    validation_set: Optional[List[Tuple[_DaskCollection, _DaskCollection]]],
-    sample_weight: Optional[List[_DaskCollection]],
-    sample_qid: Optional[List[_DaskCollection]],
-    missing: float
-) -> Optional[List[Tuple[DaskDMatrix, str]]]:
-    '''
-    Parameters
-    ----------
-    validation_set: list of tuples
-        Each tuple contains a validation dataset including input X and label y.
-        E.g.:
-
-        .. code-block:: python
-
-          [(X_0, y_0), (X_1, y_1), ... ]
-
-    sample_weights: list of arrays
-        The weight vector for validation data.
-
-    Returns
-    -------
-    evals: list of validation DMatrix
-    '''
-    evals: Optional[List[Tuple[DaskDMatrix, str]]] = []
-    if validation_set is not None:
-        assert isinstance(validation_set, list)
-        for i, e in enumerate(validation_set):
-            w = sample_weight[i] if sample_weight is not None else None
-            qid = sample_qid[i] if sample_qid is not None else None
-            dmat = await DaskDMatrix(client=client, data=e[0], label=e[1],
-                                     weight=w, missing=missing, qid=qid)
-            assert isinstance(evals, list)
-            evals.append((dmat, 'validation_{}'.format(i)))
-    else:
-        evals = None
-    return evals
+async def _async_wrap_evaluation_matrices(
+    client: "distributed.Client", **kwargs: Any
+) -> Tuple[DaskDMatrix, Optional[List[Tuple[DaskDMatrix, str]]]]:
+    """A switch function for async environment."""
+    def _inner(**kwargs: Any) -> DaskDMatrix:
+        m = DaskDMatrix(client=client, **kwargs)
+        return m
+    train_dmatrix, evals = _wrap_evaluation_matrices(create_dmatrix=_inner, **kwargs)
+    train_dmatrix = await train_dmatrix
+    if evals is None:
+        return train_dmatrix, evals
+    awaited = []
+    for e in evals:
+        if e[0] is train_dmatrix:  # already awaited
+            awaited.append(e)
+            continue
+        awaited.append((await e[0], e[1]))
+    return train_dmatrix, awaited
 
 
 class DaskScikitLearnBase(XGBModel):
@@ -1337,7 +1318,6 @@ class DaskScikitLearnBase(XGBModel):
 
     _client = None
 
-    @_deprecate_positional_args
     async def _predict_async(
         self, data: _DaskCollection,
         output_margin: bool = False,
@@ -1404,24 +1384,29 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         eval_set: Optional[List[Tuple[_DaskCollection, _DaskCollection]]],
         eval_metric: Optional[Union[str, List[str], Metric]],
         sample_weight_eval_set: Optional[List[_DaskCollection]],
+        base_margin_eval_set: Optional[List[_DaskCollection]],
         early_stopping_rounds: int,
         verbose: bool,
         xgb_model: Optional[Union[Booster, XGBModel]],
         feature_weights: Optional[_DaskCollection],
         callbacks: Optional[List[TrainingCallback]],
     ) -> _DaskCollection:
-        dtrain = await DaskDMatrix(
+        params = self.get_xgb_params()
+        dtrain, evals = await _async_wrap_evaluation_matrices(
             client=self.client,
-            data=X,
-            label=y,
-            weight=sample_weight,
+            X=X,
+            y=y,
+            group=None,
+            qid=None,
+            sample_weight=sample_weight,
             base_margin=base_margin,
             feature_weights=feature_weights,
+            eval_set=eval_set,
+            sample_weight_eval_set=sample_weight_eval_set,
+            base_margin_eval_set=base_margin_eval_set,
+            eval_group=None,
+            eval_qid=None,
             missing=self.missing,
-        )
-        params = self.get_xgb_params()
-        evals = await _evaluation_matrices(
-            self.client, eval_set, sample_weight_eval_set, None, self.missing
         )
 
         if callable(self.objective):
@@ -1449,7 +1434,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         self.evals_result_ = results["history"]
         return self
 
-    # pylint: disable=missing-docstring
+    # pylint: disable=missing-docstring, disable=unused-argument
     @_deprecate_positional_args
     def fit(
         self,
@@ -1464,25 +1449,13 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         verbose: bool = True,
         xgb_model: Optional[Union[Booster, XGBModel]] = None,
         sample_weight_eval_set: Optional[List[_DaskCollection]] = None,
+        base_margin_eval_set: Optional[List[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "DaskXGBRegressor":
         _assert_dask_support()
-        return self.client.sync(
-            self._fit_async,
-            X=X,
-            y=y,
-            sample_weight=sample_weight,
-            base_margin=base_margin,
-            eval_set=eval_set,
-            eval_metric=eval_metric,
-            sample_weight_eval_set=sample_weight_eval_set,
-            early_stopping_rounds=early_stopping_rounds,
-            verbose=verbose,
-            xgb_model=xgb_model,
-            feature_weights=feature_weights,
-            callbacks=callbacks,
-        )
+        args = {k: v for k, v in locals().items() if k != "self"}
+        return self.client.sync(self._fit_async, **args)
 
 
 @xgboost_model_doc(
@@ -1497,20 +1470,30 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         eval_set: Optional[List[Tuple[_DaskCollection, _DaskCollection]]],
         eval_metric: Optional[Union[str, List[str], Metric]],
         sample_weight_eval_set: Optional[List[_DaskCollection]],
+        base_margin_eval_set: Optional[List[_DaskCollection]],
         early_stopping_rounds: int,
         verbose: bool,
         xgb_model: Optional[Union[Booster, XGBModel]],
         feature_weights: Optional[_DaskCollection],
         callbacks: Optional[List[TrainingCallback]]
     ) -> "DaskXGBClassifier":
-        dtrain = await DaskDMatrix(client=self.client,
-                                   data=X,
-                                   label=y,
-                                   weight=sample_weight,
-                                   base_margin=base_margin,
-                                   feature_weights=feature_weights,
-                                   missing=self.missing)
         params = self.get_xgb_params()
+        dtrain, evals = await _async_wrap_evaluation_matrices(
+            self.client,
+            X=X,
+            y=y,
+            group=None,
+            qid=None,
+            sample_weight=sample_weight,
+            base_margin=base_margin,
+            feature_weights=feature_weights,
+            eval_set=eval_set,
+            sample_weight_eval_set=sample_weight_eval_set,
+            base_margin_eval_set=base_margin_eval_set,
+            eval_group=None,
+            eval_qid=None,
+            missing=self.missing,
+        )
 
         # pylint: disable=attribute-defined-outside-init
         if isinstance(y, (da.Array)):
@@ -1524,11 +1507,6 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             params['num_class'] = self.n_classes_
         else:
             params["objective"] = "binary:logistic"
-
-        evals = await _evaluation_matrices(self.client, eval_set,
-                                           sample_weight_eval_set,
-                                           None,
-                                           self.missing)
 
         if callable(self.objective):
             obj = _objective_decorator(self.objective)
@@ -1561,6 +1539,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         self.evals_result_ = results['history']
         return self
 
+    # pylint: disable=unused-argument
     @_deprecate_positional_args
     def fit(
         self,
@@ -1575,25 +1554,13 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         verbose: bool = True,
         xgb_model: Optional[Union[Booster, XGBModel]] = None,
         sample_weight_eval_set: Optional[List[_DaskCollection]] = None,
+        base_margin_eval_set: Optional[List[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "DaskXGBClassifier":
         _assert_dask_support()
-        return self.client.sync(
-            self._fit_async,
-            X=X,
-            y=y,
-            sample_weight=sample_weight,
-            base_margin=base_margin,
-            eval_set=eval_set,
-            eval_metric=eval_metric,
-            sample_weight_eval_set=sample_weight_eval_set,
-            early_stopping_rounds=early_stopping_rounds,
-            verbose=verbose,
-            xgb_model=xgb_model,
-            feature_weights=feature_weights,
-            callbacks=callbacks,
-        )
+        args = {k: v for k, v in locals().items() if k != 'self'}
+        return self.client.sync(self._fit_async, **args)
 
     async def _predict_proba_async(
         self,
@@ -1613,7 +1580,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
                                    output_margin=output_margin)
         return _cls_predict_proba(self.objective, pred_probs, da.vstack)
 
-    # pylint: disable=missing-docstring
+    # pylint: disable=missing-function-docstring
     def predict_proba(
         self,
         X: _DaskCollection,
@@ -1632,6 +1599,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             output_margin=output_margin,
             base_margin=base_margin
         )
+    predict_proba.__doc__ = XGBClassifier.predict_proba.__doc__
 
     async def _predict_async(
         self, data: _DaskCollection,
@@ -1673,11 +1641,14 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         self,
         X: _DaskCollection,
         y: _DaskCollection,
+        group: Optional[_DaskCollection],
         qid: Optional[_DaskCollection],
         sample_weight: Optional[_DaskCollection],
         base_margin: Optional[_DaskCollection],
         eval_set: Optional[List[Tuple[_DaskCollection, _DaskCollection]]],
         sample_weight_eval_set: Optional[List[_DaskCollection]],
+        base_margin_eval_set: Optional[List[_DaskCollection]],
+        eval_group: Optional[List[_DaskCollection]],
         eval_qid: Optional[List[_DaskCollection]],
         eval_metric: Optional[Union[str, List[str], Metric]],
         early_stopping_rounds: int,
@@ -1686,22 +1657,26 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         feature_weights: Optional[_DaskCollection],
         callbacks: Optional[List[TrainingCallback]],
     ) -> "DaskXGBRanker":
-        dtrain = await DaskDMatrix(
-            client=self.client,
-            data=X,
-            label=y,
+        msg = "Use `qid` instead of `group` on dask interface."
+        if not (group is None and eval_group is None):
+            raise ValueError(msg)
+        if qid is None:
+            raise ValueError("`qid` is required for ranking.")
+        params = self.get_xgb_params()
+        dtrain, evals = await _async_wrap_evaluation_matrices(
+            self.client,
+            X=X,
+            y=y,
+            group=None,
             qid=qid,
-            weight=sample_weight,
+            sample_weight=sample_weight,
             base_margin=base_margin,
             feature_weights=feature_weights,
-            missing=self.missing,
-        )
-        params = self.get_xgb_params()
-        evals = await _evaluation_matrices(
-            self.client,
-            eval_set,
-            sample_weight_eval_set,
-            sample_qid=eval_qid,
+            eval_set=eval_set,
+            sample_weight_eval_set=sample_weight_eval_set,
+            base_margin_eval_set=base_margin_eval_set,
+            eval_group=None,
+            eval_qid=eval_qid,
             missing=self.missing,
         )
         if eval_metric is not None:
@@ -1728,8 +1703,9 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         self.evals_result_ = results["history"]
         return self
 
+    # pylint: disable=unused-argument, arguments-differ
     @_deprecate_positional_args
-    def fit(  # pylint: disable=arguments-differ
+    def fit(
         self,
         X: _DaskCollection,
         y: _DaskCollection,
@@ -1739,39 +1715,20 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         sample_weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
         eval_set: Optional[List[Tuple[_DaskCollection, _DaskCollection]]] = None,
-        sample_weight_eval_set: Optional[List[_DaskCollection]] = None,
         eval_group: Optional[List[_DaskCollection]] = None,
         eval_qid: Optional[List[_DaskCollection]] = None,
         eval_metric: Optional[Union[str, List[str], Metric]] = None,
         early_stopping_rounds: int = None,
         verbose: bool = False,
         xgb_model: Optional[Union[XGBModel, Booster]] = None,
+        sample_weight_eval_set: Optional[List[_DaskCollection]] = None,
+        base_margin_eval_set: Optional[List[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "DaskXGBRanker":
         _assert_dask_support()
-        msg = "Use `qid` instead of `group` on dask interface."
-        if not (group is None and eval_group is None):
-            raise ValueError(msg)
-        if qid is None:
-            raise ValueError("`qid` is required for ranking.")
-        return self.client.sync(
-            self._fit_async,
-            X=X,
-            y=y,
-            qid=qid,
-            sample_weight=sample_weight,
-            base_margin=base_margin,
-            eval_set=eval_set,
-            sample_weight_eval_set=sample_weight_eval_set,
-            eval_qid=eval_qid,
-            eval_metric=eval_metric,
-            early_stopping_rounds=early_stopping_rounds,
-            verbose=verbose,
-            xgb_model=xgb_model,
-            feature_weights=feature_weights,
-            callbacks=callbacks,
-        )
+        args = {k: v for k, v in locals().items() if k != 'self'}
+        return self.client.sync(self._fit_async, **args)
 
     # FIXME(trivialfis): arguments differ due to additional parameters like group and qid.
     fit.__doc__ = XGBRanker.fit.__doc__
