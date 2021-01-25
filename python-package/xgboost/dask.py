@@ -964,22 +964,21 @@ async def _predict_async(
     pred_contribs: bool,
     approx_contribs: bool,
     pred_interactions: bool,
-    validate_features: bool
+    validate_features: bool,
 ) -> _DaskCollection:
     if isinstance(model, Booster):
         booster = model
     elif isinstance(model, dict):
-        booster = model['booster']
+        booster = model["booster"]
     else:
         raise TypeError(_expect([Booster, dict], type(model)))
     if not isinstance(data, (DaskDMatrix, da.Array, dd.DataFrame)):
-        raise TypeError(_expect([DaskDMatrix, da.Array, dd.DataFrame],
-                                type(data)))
+        raise TypeError(_expect([DaskDMatrix, da.Array, dd.DataFrame], type(data)))
 
     def mapped_predict(partition: Any, is_df: bool) -> Any:
         worker = distributed.get_worker()
         with config.config_context(**global_config):
-            booster.set_param({'nthread': worker.nthreads})
+            booster.set_param({"nthread": worker.nthreads})
             m = DMatrix(data=partition, missing=missing, nthread=worker.nthreads)
             predt = booster.predict(
                 data=m,
@@ -988,15 +987,16 @@ async def _predict_async(
                 pred_contribs=pred_contribs,
                 approx_contribs=approx_contribs,
                 pred_interactions=pred_interactions,
-                validate_features=validate_features
+                validate_features=validate_features,
             )
             if is_df:
-                if lazy_isinstance(partition, 'cudf', 'core.dataframe.DataFrame'):
+                if lazy_isinstance(partition, "cudf", "core.dataframe.DataFrame"):
                     import cudf
-                    predt = cudf.DataFrame(predt, columns=['prediction'])
+                    predt = cudf.DataFrame(predt, columns=["prediction"])
                 else:
-                    predt = DataFrame(predt, columns=['prediction'])
+                    predt = DataFrame(predt, columns=["prediction"])
             return predt
+
     # Predict on dask collection directly.
     if isinstance(data, (da.Array, dd.DataFrame)):
         return await _direct_predict_impl(client, data, mapped_predict)
@@ -1010,16 +1010,16 @@ async def _predict_async(
     meta_names = data.meta_names
 
     def dispatched_predict(
-            worker_id: int, list_of_orders: List[int], list_of_parts: _DataParts
-    ) -> List[Tuple[Tuple["dask.delayed.Delayed", int], int]]:
-        '''Perform prediction on each worker.'''
-        LOGGER.debug('Predicting on %d', worker_id)
+        worker_id: int, list_of_orders: List[int], list_of_parts: _DataParts
+    ) -> List[Tuple[List[Union["dask.delayed.Delayed", int]], int]]:
+        """Perform prediction on each worker."""
+        LOGGER.debug("Predicting on %d", worker_id)
         with config.config_context(**global_config):
             worker = distributed.get_worker()
             list_of_parts = _get_worker_parts_ordered(meta_names, list_of_parts)
             predictions = []
 
-            booster.set_param({'nthread': worker.nthreads})
+            booster.set_param({"nthread": worker.nthreads})
             for i, parts in enumerate(list_of_parts):
                 (data, _, _, base_margin, _, _, _) = parts
                 order = list_of_orders[i]
@@ -1029,7 +1029,7 @@ async def _predict_async(
                     feature_names=feature_names,
                     feature_types=feature_types,
                     missing=missing,
-                    nthread=worker.nthreads
+                    nthread=worker.nthreads,
                 )
                 predt = booster.predict(
                     data=local_part,
@@ -1038,10 +1038,42 @@ async def _predict_async(
                     pred_contribs=pred_contribs,
                     approx_contribs=approx_contribs,
                     pred_interactions=pred_interactions,
-                    validate_features=validate_features
+                    validate_features=validate_features,
                 )
-                columns = 1 if len(predt.shape) == 1 else predt.shape[1]
-                ret = ((dask.delayed(predt), columns), order)  # pylint: disable=no-member
+                if pred_contribs and predt.size != local_part.num_row():
+                    assert len(predt.shape) in (2, 3)
+                    if len(predt.shape) == 2:
+                        groups = 1
+                        columns = predt.shape[1]
+                    else:
+                        groups = predt.shape[1]
+                        columns = predt.shape[2]
+                    # pylint: disable=no-member
+                    ret = (
+                        [dask.delayed(predt), groups, columns],
+                        order,
+                    )
+                elif pred_interactions and predt.size != local_part.num_row():
+                    assert len(predt.shape) in (3, 4)
+                    if len(predt.shape) == 3:
+                        groups = 1
+                        columns = predt.shape[1]
+                    else:
+                        groups = predt.shape[1]
+                        columns = predt.shape[2]
+                    # pylint: disable=no-member
+                    ret = (
+                        [dask.delayed(predt), groups, columns],
+                        order,
+                    )
+                else:
+                    assert len(predt.shape) == 1 or len(predt.shape) == 2
+                    columns = 1 if len(predt.shape) == 1 else predt.shape[1]
+                    # pylint: disable=no-member
+                    ret = (
+                        [dask.delayed(predt), columns],
+                        order,
+                    )
                 predictions.append(ret)
 
             return predictions
@@ -1049,8 +1081,8 @@ async def _predict_async(
     def dispatched_get_shape(
         worker_id: int, list_of_orders: List[int], list_of_parts: _DataParts
     ) -> List[Tuple[int, int]]:
-        '''Get shape of data in each worker.'''
-        LOGGER.debug('Get shape on %d', worker_id)
+        """Get shape of data in each worker."""
+        LOGGER.debug("Get shape on %d", worker_id)
         list_of_parts = _get_worker_parts_ordered(meta_names, list_of_parts)
         shapes = []
         for i, parts in enumerate(list_of_parts):
@@ -1061,7 +1093,7 @@ async def _predict_async(
     async def map_function(
         func: Callable[[int, List[int], _DataParts], Any]
     ) -> List[Any]:
-        '''Run function for each part of the data.'''
+        """Run function for each part of the data."""
         futures = []
         workers_address = list(worker_map.keys())
         for wid, worker_addr in enumerate(workers_address):
@@ -1069,10 +1101,14 @@ async def _predict_async(
             list_of_parts = worker_map[worker_addr]
             list_of_orders = [partition_order[part.key] for part in list_of_parts]
 
-            f = client.submit(func, worker_id=wid,
-                              list_of_orders=list_of_orders,
-                              list_of_parts=list_of_parts,
-                              pure=True, workers=[worker_addr])
+            f = client.submit(
+                func,
+                worker_id=wid,
+                list_of_orders=list_of_orders,
+                list_of_parts=list_of_parts,
+                pure=True,
+                workers=[worker_addr],
+            )
             assert isinstance(f, distributed.client.Future)
             futures.append(f)
         # Get delayed objects
@@ -1091,10 +1127,24 @@ async def _predict_async(
     # See https://docs.dask.org/en/latest/array-creation.html
     arrays = []
     for i, shape in enumerate(shapes):
-        arrays.append(da.from_delayed(
-            results[i][0], shape=(shape[0],)
-            if results[i][1] == 1 else (shape[0], results[i][1]),
-            dtype=numpy.float32))
+        if pred_contribs:
+            out_shape = (
+                (shape[0], results[i][2])
+                if results[i][1] == 1
+                else (shape[0], results[i][1], results[i][2])
+            )
+        elif pred_interactions:
+            out_shape = (
+                (shape[0], results[i][2], results[i][2])
+                if results[i][1] == 1
+                else (shape[0], results[i][1], results[i][2])
+            )
+        else:
+            out_shape = (shape[0],) if results[i][1] == 1 else (shape[0], results[i][1])
+        arrays.append(
+            da.from_delayed(results[i][0], shape=out_shape, dtype=numpy.float32)
+        )
+
     predictions = await da.concatenate(arrays, axis=0)
     return predictions
 
@@ -1115,7 +1165,9 @@ def predict(
 
     .. note::
 
-        Only default prediction mode is supported right now.
+        Using ``inplace_predict `` might be faster when meta information like
+        ``base_margin`` is not needed. For other parameters, please see
+        ``Booster.predict``.
 
     .. versionadded:: 1.0.0
 
@@ -1136,6 +1188,9 @@ def predict(
     Returns
     -------
     prediction: dask.array.Array/dask.dataframe.Series
+        When input data is ``dask.array.Array`` or ``DaskDMatrix``, the return value is an
+        array, when input data is ``dask.dataframe.DataFrame``, return value is
+        ``dask.dataframe.Series``
 
     '''
     _assert_dask_support()

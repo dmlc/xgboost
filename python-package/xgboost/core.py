@@ -190,7 +190,7 @@ def _check_call(ret):
         raise XGBoostError(py_str(_LIB.XGBGetLastError()))
 
 
-def ctypes2numpy(cptr, length, dtype):
+def ctypes2numpy(cptr, length, dtype) -> np.ndarray:
     """Convert a ctypes pointer array to a numpy array."""
     NUMPY_TO_CTYPES_MAPPING = {
         np.float32: ctypes.c_float,
@@ -1553,7 +1553,7 @@ class Booster(object):
                                           ctypes.byref(preds)))
         preds = ctypes2numpy(preds, length.value, np.float32)
         if pred_leaf:
-            preds = preds.astype(np.int32)
+            preds = preds.astype(np.int32, copy=False)
         nrow = data.num_row()
         if preds.size != nrow and preds.size % nrow == 0:
             chunk_size = int(preds.size / nrow)
