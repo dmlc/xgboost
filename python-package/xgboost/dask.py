@@ -1660,14 +1660,14 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
         sample_weight: Optional[_DaskCollection] = None,
         base_margin: Optional[_DaskCollection] = None,
         eval_set: Optional[List[Tuple[_DaskCollection, _DaskCollection]]] = None,
-        sample_weight_eval_set: Optional[List[_DaskCollection]] = None,
-        base_margin_eval_set: Optional[List[_DaskCollection]] = None,
         eval_group: Optional[List[_DaskCollection]] = None,
         eval_qid: Optional[List[_DaskCollection]] = None,
         eval_metric: Optional[Union[str, List[str], Metric]] = None,
         early_stopping_rounds: int = None,
         verbose: bool = False,
         xgb_model: Optional[Union[XGBModel, Booster]] = None,
+        sample_weight_eval_set: Optional[List[_DaskCollection]] = None,
+        base_margin_eval_set: Optional[List[_DaskCollection]] = None,
         feature_weights: Optional[_DaskCollection] = None,
         callbacks: Optional[List[TrainingCallback]] = None
     ) -> "DaskXGBRanker":

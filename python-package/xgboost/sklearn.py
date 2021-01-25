@@ -1393,11 +1393,11 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         eval_set=None,
         eval_group=None,
         eval_qid=None,
-        sample_weight_eval_set=None,
         eval_metric=None,
         early_stopping_rounds=None,
         verbose=False,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
+        sample_weight_eval_set=None,
         base_margin_eval_set=None,
         feature_weights=None,
         callbacks=None
@@ -1443,16 +1443,6 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         eval_qid : list of array_like, optional
             A list in which ``eval_qid[i]`` is the array containing query ID of ``i``-th
             pair in **eval_set**.
-        sample_weight_eval_set : list, optional
-            A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
-            group weights on the i-th validation set.
-
-            .. note:: Weights are per-group for ranking tasks
-
-                In ranking task, one weight is assigned to each query group (not each
-                data point). This is because we only care about the relative ordering of
-                data points within each group, so it doesn't make sense to assign
-                weights to individual data points.
         eval_metric : str, list of str, optional
             If a str, should be a built-in evaluation metric to use. See
             doc/parameter.rst.
@@ -1475,6 +1465,16 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         xgb_model :
             file name of stored XGBoost model or 'Booster' instance XGBoost model to be
             loaded before training (allows training continuation).
+        sample_weight_eval_set : list, optional
+            A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
+            group weights on the i-th validation set.
+
+            .. note:: Weights are per-group for ranking tasks
+
+                In ranking task, one weight is assigned to each query group (not each
+                data point). This is because we only care about the relative ordering of
+                data points within each group, so it doesn't make sense to assign
+                weights to individual data points.
         base_margin_eval_set : list, optional
             A list of the form [M_1, M_2, ..., M_n], where each M_i is an array like
             object storing base margin for the i-th validation set.

@@ -314,6 +314,14 @@ class TestDistributedGPU:
         for i in range(len(ddqdm_names)):
             assert ddqdm_names[i] == dqdm_names[i]
 
+        sig = OrderedDict(signature(xgb.XGBRanker.fit))
+        ranker_names = list(sig.keys())
+        sig = OrderedDict(signature(xgb.dask.DaskXGBRanker.fit))
+        dranker_names = list(sig.keys())
+
+        for rn, drn in zip(ranker_names, dranker_names):
+            assert rn == drn
+
     def run_quantile(self, name: str, local_cuda_cluster: LocalCUDACluster) -> None:
         if sys.platform.startswith("win"):
             pytest.skip("Skipping dask tests on Windows")
