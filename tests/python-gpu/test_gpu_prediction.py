@@ -283,9 +283,10 @@ class TestGPUPredict:
         y = (x0 * 10 - 20) + (x1 - 2)
         dtrain = xgb.DMatrix(df, label=y, enable_categorical=True)
 
-        params = {'tree_method': 'gpu_hist', 'predictor': 'gpu_predictor',
-                  'enable_experimental_json_serialization': True,
-                  'max_depth': 3, 'learning_rate': 1.0, 'base_score': 0.0, 'eval_metric': 'rmse'}
+        params = {
+            'tree_method': 'gpu_hist', 'predictor': 'gpu_predictor',
+            'max_depth': 3, 'learning_rate': 1.0, 'base_score': 0.0, 'eval_metric': 'rmse'
+        }
 
         eval_history = {}
         bst = xgb.train(params, dtrain, num_boost_round=5, evals=[(dtrain, 'train')],
