@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2020 by Contributors
+// Copyright (c) 2014-2021 by Contributors
 #include <rabit/rabit.h>
 #include <rabit/c_api.h>
 
@@ -50,8 +50,7 @@ XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
 
 XGB_DLL int XGBSetGlobalConfig(const char* json_str) {
   API_BEGIN();
-  std::string str{json_str};
-  Json config{Json::Load(StringView{str.data(), str.size()})};
+  Json config{Json::Load(StringView{json_str})};
   for (auto& items : get<Object>(config)) {
     switch (items.second.GetValue().Type()) {
     case xgboost::Value::ValueKind::kInteger: {
@@ -514,8 +513,7 @@ XGB_DLL int XGBoosterBoostedRounds(BoosterHandle handle, int* out) {
 XGB_DLL int XGBoosterLoadJsonConfig(BoosterHandle handle, char const* json_parameters) {
   API_BEGIN();
   CHECK_HANDLE();
-  std::string str {json_parameters};
-  Json config { Json::Load(StringView{str.c_str(), str.size()}) };
+  Json config { Json::Load(StringView{json_parameters}) };
   static_cast<Learner*>(handle)->LoadConfig(config);
   API_END();
 }
