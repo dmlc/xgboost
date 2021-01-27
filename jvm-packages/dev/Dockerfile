@@ -16,15 +16,15 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-FROM centos:6
+FROM centos:7
 
 # Install all basic requirements
 RUN \
     yum -y update && \
-    yum install -y tar unzip wget xz git centos-release-scl yum-utils java-1.8.0-openjdk-devel && \
+    yum install -y bzip2 tar unzip wget xz git centos-release-scl yum-utils java-1.8.0-openjdk-devel && \
     yum-config-manager --enable centos-sclo-rh-testing && \
     yum -y update && \
-    yum install -y devtoolset-6-gcc devtoolset-6-binutils devtoolset-6-gcc-c++ && \
+    yum install -y devtoolset-7-gcc devtoolset-7-binutils devtoolset-7-gcc-c++ && \
     # Python
     wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
     bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python && \
@@ -38,9 +38,9 @@ RUN \
 
 # Set the required environment variables
 ENV PATH=/opt/python/bin:/opt/maven/bin:$PATH
-ENV CC=/opt/rh/devtoolset-6/root/usr/bin/gcc
-ENV CXX=/opt/rh/devtoolset-6/root/usr/bin/c++
-ENV CPP=/opt/rh/devtoolset-6/root/usr/bin/cpp
+ENV CC=/opt/rh/devtoolset-7/root/usr/bin/gcc
+ENV CXX=/opt/rh/devtoolset-7/root/usr/bin/c++
+ENV CPP=/opt/rh/devtoolset-7/root/usr/bin/cpp
 ENV JAVA_HOME=/usr/lib/jvm/java
 
 # Install Python packages
