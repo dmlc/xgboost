@@ -60,6 +60,7 @@ class DataBatch {
         int numRows = 0;
         int numElem = 0;
         int numCol  = -1;
+        int ndim = -1;
         List<LabeledPoint> batch = new ArrayList<>(batchSize);
         while (base.hasNext() && batch.size() < batchSize) {
           LabeledPoint labeledPoint = base.next();
@@ -68,23 +69,33 @@ class DataBatch {
           } else if (numCol != labeledPoint.size()) {
             throw new RuntimeException("Feature size is not the same");
           }
+
+          if (ndim == -1) {
+            ndim = labeledPoint.label().length;
+          } else if (labeledPoint.label().length != ndim || labeledPoint.weight().length != ndim) {
+            throw new RuntimeException("wrong ndim");
+          }
           batch.add(labeledPoint);
           numElem += labeledPoint.values().length;
           numRows++;
         }
 
         long[] rowOffset = new long[numRows + 1];
-        float[] label = new float[numRows];
+        float[] label = new float[numRows * ndim];
         int[] featureIndex = new int[numElem];
         float[] featureValue = new float[numElem];
-        float[] weight = new float[numRows];
+        float[] weight = new float[numRows * ndim];
 
         int offset = 0;
         for (int i = 0; i < batch.size(); i++) {
           LabeledPoint labeledPoint = batch.get(i);
           rowOffset[i] = offset;
-          label[i] = labeledPoint.label();
-          weight[i] = labeledPoint.weight();
+
+          for (int j = 0; j < ndim; ++j) {
+            label[i * ndim + j] = labeledPoint.label()[j];
+            weight[i * ndim + j] = labeledPoint.weight()[j];
+          }
+
           if (labeledPoint.indices() != null) {
             System.arraycopy(labeledPoint.indices(), 0, featureIndex, offset,
                     labeledPoint.indices().length);

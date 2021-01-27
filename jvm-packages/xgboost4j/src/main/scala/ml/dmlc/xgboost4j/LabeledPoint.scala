@@ -28,11 +28,11 @@ package ml.dmlc.xgboost4j
  * @param baseMargin Initial prediction on this point or `Float.NaN`
  */
 case class LabeledPoint(
-    label: Float,
+    label: Array[Float],
     size: Int,
     indices: Array[Int],
     values: Array[Float],
-    weight: Float = 1f,
+    weight: Array[Float] = Array.empty,
     group: Int = -1,
     baseMargin: Float = Float.NaN) extends Serializable {
   require(indices == null || indices.length == values.length,
@@ -43,6 +43,11 @@ case class LabeledPoint(
 
   def this(label: Float, size: Int, indices: Array[Int], values: Array[Float]) = {
     // [[weight]] default duplicated to disambiguate the constructor call.
-    this(label, size, indices, values, 1.0f)
+    this(Array(label), size, indices, values, Array(1f))
+  }
+
+  def this(label: Array[Float], size: Int, indices: Array[Int], values: Array[Float]) = {
+    // [[weight]] default duplicated to disambiguate the constructor call.
+    this(label, size, indices, values, label.map(_ => 1f))
   }
 }

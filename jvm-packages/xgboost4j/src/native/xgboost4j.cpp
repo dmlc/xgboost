@@ -100,15 +100,15 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
           jenv->GetLongArrayElements(joffset, 0));
       if (jlabel != nullptr) {
         cbatch.label = jenv->GetFloatArrayElements(jlabel, 0);
-        CHECK_EQ(jenv->GetArrayLength(jlabel), static_cast<long>(cbatch.size))
-            << "batch.label.length must equal batch.numRows()";
+        //CHECK_EQ(jenv->GetArrayLength(jlabel), static_cast<long>(cbatch.size))
+        //    << "batch.label.length must equal batch.numRows()";
       } else {
         cbatch.label = nullptr;
       }
       if (jweight != nullptr) {
         cbatch.weight = jenv->GetFloatArrayElements(jweight, 0);
-        CHECK_EQ(jenv->GetArrayLength(jweight), static_cast<long>(cbatch.size))
-            << "batch.weight.length must equal batch.numRows()";
+        //CHECK_EQ(jenv->GetArrayLength(jweight), static_cast<long>(cbatch.size))
+        //    << "batch.weight.length must equal batch.numRows()";
       } else {
         cbatch.weight = nullptr;
       }

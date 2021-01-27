@@ -860,12 +860,12 @@ private object Watches {
         val groupsInfo = new mutable.ArrayBuilder.ofInt
         val weights = new mutable.ArrayBuilder.ofFloat
         val iter = labeledPointsGroups.filter(labeledPointGroup => {
-          var groupWeight = -1.0f
+          var groupWeight = Array.empty[Float]
           var groupSize = 0
           labeledPointGroup.map { labeledPoint => {
-            if (groupWeight < 0) {
+            if (groupWeight.isEmpty) {
               groupWeight = labeledPoint.weight
-            } else if (groupWeight != labeledPoint.weight) {
+            } else if (groupWeight.toSeq != labeledPoint.weight.toSeq) {
               throw new IllegalArgumentException("the instances in the same group have to be" +
                 s" assigned with the same weight (unexpected weight ${labeledPoint.weight}")
             }
@@ -874,7 +874,7 @@ private object Watches {
             labeledPoint
           }
           }
-          weights += groupWeight
+          groupWeight.foreach(weights += _)
           groupsInfo += groupSize
           true
         })
@@ -910,35 +910,35 @@ private object Watches {
     val trainLabelPointGroups = labeledPointGroups.filter { labeledPointGroup =>
       val accepted = r.nextDouble() <= trainTestRatio
       if (!accepted) {
-        var groupWeight = -1.0f
+        var groupWeight = Array.empty[Float]
         var groupSize = 0
         labeledPointGroup.foreach(labeledPoint => {
           testPoints += labeledPoint
           testBaseMargins += labeledPoint.baseMargin
-          if (groupWeight < 0) {
+          if (groupWeight.isEmpty) {
             groupWeight = labeledPoint.weight
-          } else if (labeledPoint.weight != groupWeight) {
+          } else if (groupWeight.toSeq != labeledPoint.weight.toSeq) {
             throw new IllegalArgumentException("the instances in the same group have to be" +
               s" assigned with the same weight (unexpected weight ${labeledPoint.weight}")
           }
           groupSize += 1
         })
-        testWeights += groupWeight
+        groupWeight.foreach(testWeights += _)
         testGroups += groupSize
       } else {
-        var groupWeight = -1.0f
+        var groupWeight = Array.empty[Float]
         var groupSize = 0
         labeledPointGroup.foreach { labeledPoint => {
-          if (groupWeight < 0) {
+          if (groupWeight.isEmpty) {
             groupWeight = labeledPoint.weight
-          } else if (labeledPoint.weight != groupWeight) {
+          } else if (labeledPoint.weight.toSeq != groupWeight.toSeq) {
             throw new IllegalArgumentException("the instances in the same group have to be" +
               s" assigned with the same weight (unexpected weight ${labeledPoint.weight}")
           }
           trainBaseMargins += labeledPoint.baseMargin
           groupSize += 1
         }}
-        trainWeights += groupWeight
+        groupWeight.foreach(trainWeights += _)
         trainGroups += groupSize
       }
       accepted

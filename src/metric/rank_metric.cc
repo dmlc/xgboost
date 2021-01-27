@@ -286,8 +286,8 @@ struct EvalRank : public Metric, public EvalRankConfig {
   bst_float Eval(const HostDeviceVector<bst_float> &preds,
                  const MetaInfo &info,
                  bool distributed) override {
-    CHECK_EQ(preds.Size(), info.labels_.Size())
-        << "label size predict size not match";
+    ///CHECK_EQ(preds.Size(), info.labels_.Size())
+    /// << "label size predict size not match";
 
     // quick consistency when group is not available
     std::vector<unsigned> tgptr(2, 0);
@@ -301,6 +301,7 @@ struct EvalRank : public Metric, public EvalRankConfig {
     const auto ngroups = static_cast<bst_omp_uint>(gptr.size() - 1);
     // sum statistics
     double sum_metric = 0.0f;
+    const auto ndim = info.labels_.Size() / preds.Size();
 
     // Check and see if we have the GPU metric registered in the internal registry
     if (tparam_->gpu_id >= 0) {
@@ -322,11 +323,13 @@ struct EvalRank : public Metric, public EvalRankConfig {
         PredIndPairContainer rec;
         #pragma omp for schedule(static)
         for (bst_omp_uint k = 0; k < ngroups; ++k) {
-          rec.clear();
-          for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
-            rec.emplace_back(h_preds[j], static_cast<int>(labels[j]));
+          for (unsigned e = 0; e < ndim; ++e) {
+            rec.clear();
+            for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
+              rec.emplace_back(h_preds[j], static_cast<int>(labels[j * ndim + e]));
+            }
+            sum_metric += this->EvalGroup(&rec);
           }
-          sum_metric += this->EvalGroup(&rec);
         }
       }
     }
@@ -334,12 +337,12 @@ struct EvalRank : public Metric, public EvalRankConfig {
     if (distributed) {
       bst_float dat[2];
       dat[0] = static_cast<bst_float>(sum_metric);
-      dat[1] = static_cast<bst_float>(ngroups);
+      dat[1] = static_cast<bst_float>(ngroups * ndim);
       // approximately estimate the metric using mean
       rabit::Allreduce<rabit::op::Sum>(dat, 2);
       return dat[0] / dat[1];
     } else {
-      return static_cast<bst_float>(sum_metric) / ngroups;
+      return static_cast<bst_float>(sum_metric) / ngroups / ndim;
     }
   }
 

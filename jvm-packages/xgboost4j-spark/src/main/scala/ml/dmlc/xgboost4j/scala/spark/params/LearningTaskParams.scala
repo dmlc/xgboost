@@ -63,6 +63,8 @@ private[spark] trait LearningTaskParams extends Params {
     "validation data, a default metric will be assigned according to objective " +
     "(rmse for regression, and error for classification, mean average precision for ranking)")
 
+  final val multiDim = new Param[Boolean](this, "multiDim", "")
+
   final def getEvalMetric: String = $(evalMetric)
 
   /**

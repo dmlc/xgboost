@@ -47,7 +47,7 @@ public class DMatrixTest {
       LabeledPoint p = new LabeledPoint(
               0.1f + i, 4, new int[]{0, 2, 3}, new float[]{3, 4, 5});
       blist.add(p);
-      labelall.add(p.label());
+      labelall.add(p.label()[0]);
     }
     DMatrix dmat = new DMatrix(blist.iterator(), null);
     // get label
@@ -73,7 +73,7 @@ public class DMatrixTest {
       LabeledPoint p = new LabeledPoint(
         0.1f + i, featureSize, new int[]{0, 2, 3}, new float[]{3, 4, 5});
       blist.add(p);
-      labelall.add(p.label());
+      labelall.add(p.label()[0]);
     }
     boolean success = true;
     try {

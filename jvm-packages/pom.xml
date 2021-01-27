@@ -61,7 +61,6 @@
             </activation>
             <modules>
                 <module>xgboost4j</module>
-                <module>xgboost4j-example</module>
                 <module>xgboost4j-spark</module>
                 <module>xgboost4j-flink</module>
             </modules>
@@ -128,7 +127,6 @@
             <id>release</id>
             <modules>
                 <module>xgboost4j</module>
-                <module>xgboost4j-example</module>
                 <module>xgboost4j-spark</module>
                 <module>xgboost4j-flink</module>
                 <module>xgboost4j-gpu</module>
@@ -254,7 +252,6 @@
             </properties>
             <modules>
                 <module>xgboost4j</module>
-                <module>xgboost4j-example</module>
                 <module>xgboost4j-spark</module>
                 <module>xgboost4j-flink</module>
                 <module>xgboost4j-gpu</module>
@@ -330,7 +327,6 @@
             </repositories>
             <modules>
                 <module>xgboost4j</module>
-                <module>xgboost4j-example</module>
                 <module>xgboost4j-spark</module>
                 <module>xgboost4j-flink</module>
                 <module>xgboost4j-gpu</module>
