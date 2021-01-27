@@ -56,6 +56,7 @@ pipeline {
           parallel ([
             'clang-tidy': { ClangTidy() },
             'build-cpu': { BuildCPU() },
+            'build-cpu-arm64': { BuildCPUARM64() },
             'build-cpu-rabit-mock': { BuildCPUMock() },
             // Build reference, distribution-ready Python wheel with CUDA 10.0
             // using CentOS 6 image
@@ -77,6 +78,7 @@ pipeline {
         script {
           parallel ([
             'test-python-cpu': { TestPythonCPU() },
+            'test-python-cpu-arm64': { TestPythonCPUARM64() },
             // artifact_cuda_version doesn't apply to RMM tests; RMM tests will always match CUDA version between artifact and host env
             'test-python-gpu-cuda10.2': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '10.2', test_rmm: true) },
             'test-python-gpu-cuda11.0-cross': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '11.0') },
@@ -159,6 +161,32 @@ def BuildCPU() {
     ${docker_extra_params} ${dockerRun} ${container_type} ${docker_binary} bash -c "cd build && ctest --exclude-regex AllTestsInDMLCUnitTests --extra-verbose"
     """
 
+    stash name: 'xgboost_cli', includes: 'xgboost'
+    deleteDir()
+  }
+}
+
+def BuildCPUARM64() {
+  node('linux && cpu && arm64') {
+    unstash name: 'srcs'
+    echo "Build CPU ARM64"
+    def container_type = "aarch64"
+    def docker_binary = "docker"
+    def wheel_tag = "manylinux2014_aarch64"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/build_via_cmake.sh --conda-env=aarch64_test -DOPEN_MP:BOOL=ON -DHIDE_CXX_SYMBOL=ON
+    ${dockerRun} ${container_type} ${docker_binary} bash -c "cd build && ctest --extra-verbose"
+    ${dockerRun} ${container_type} ${docker_binary} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
+    ${dockerRun} ${container_type} ${docker_binary} python tests/ci_build/rename_whl.py python-package/dist/*.whl ${commit_id} ${wheel_tag}
+    ${dockerRun} ${container_type} ${docker_binary} auditwheel repair --plat ${wheel_tag} python-package/dist/*.whl
+    """
+    echo 'Stashing Python wheel...'
+    stash name: "xgboost_whl_arm64_cpu", includes: 'python-package/dist/*.whl'
+    if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
+      echo 'Uploading Python wheel...'
+      path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
+      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
+    }
     stash name: 'xgboost_cli', includes: 'xgboost'
     deleteDir()
   }
@@ -296,6 +324,21 @@ def TestPythonCPU() {
     unstash name: 'xgboost_cli'
     echo "Test Python CPU"
     def container_type = "cpu"
+    def docker_binary = "docker"
+    sh """
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/test_python.sh cpu
+    """
+    deleteDir()
+  }
+}
+
+def TestPythonCPUARM64() {
+  node('linux && cpu && arm64') {
+    unstash name: "xgboost_whl_arm64_cpu"
+    unstash name: 'srcs'
+    unstash name: 'xgboost_cli'
+    echo "Test Python CPU ARM64"
+    def container_type = "aarch64"
     def docker_binary = "docker"
     sh """
     ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/test_python.sh cpu
