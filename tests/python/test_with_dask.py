@@ -1034,7 +1034,7 @@ class TestWithDask:
         rows = X.shape[0]
         cols = X.shape[1]
 
-        def assert_shape(shape):
+        def assert_shape(shape: Tuple[int, ...]) -> None:
             assert shape[0] == rows
             if "num_class" in params.keys():
                 assert shape[1] == params["num_class"]

@@ -112,8 +112,11 @@ is a ``DaskDMatrix`` or ``da.Array``.  When putting dask collection directly int
 ``predict`` function or using ``inplace_predict``, the output type depends on input data.
 See next section for details.
 
-Alternatively, XGBoost also implements the Scikit-Learn interface with ``DaskXGBClassifier``
-and ``DaskXGBRegressor``. See ``xgboost/demo/dask`` for more examples.
+Alternatively, XGBoost also implements the Scikit-Learn interface with
+``DaskXGBClassifier``, ``DaskXGBRegressor``, ``DaskXGBRanker`` and 2 random forest
+variances.  This wrapper is similar to the single node Scikit-Learn interface in xgboost,
+with dask collection as inputs and has an additional ``client`` attribute.  See
+``xgboost/demo/dask`` for more examples.
 
 
 ******************
@@ -160,6 +163,32 @@ if not using GPU, the number of threads used for prediction on each block matter
 now, xgboost uses single thread for each partition.  If the number of blocks on each
 workers is smaller than number of cores, then the CPU workers might not be fully utilized.
 
+One simple optimization for running consecutive predictions is using
+``distributed.Future``:
+
+.. code-block:: python
+
+    dataset = [X_0, X_1, X_2]
+    booster_f = client.scatter(booster, broadcast=True)
+    futures = []
+    for X in dataset:
+        # Here we pass in a future instead of concrete booster
+        shap_f = xgb.dask.predict(client, booster_f, X, pred_contribs=True)
+        futures.append(shap_f)
+
+  results = client.gather(futures)
+
+
+This is only available on functional interface, as the Scikit-Learn wrapper doesn't know
+how to maintain a valid future for booster.  To obtain the booster object from
+Scikit-Learn wrapper object:
+
+.. code-block:: python
+
+    cls = xgb.dask.DaskXGBClassifier()
+    cls.fit(X, y)
+
+    booster = cls.get_booster()
 
 
 ***************************
@@ -231,17 +260,17 @@ will override the configuration in Dask.  For example:
   with dask.distributed.LocalCluster(n_workers=7, threads_per_worker=4) as cluster:
 
 There are 4 threads allocated for each dask worker.  Then by default XGBoost will use 4
-threads in each process for both training and prediction.  But if ``nthread`` parameter is
-set:
+threads in each process for training.  But if ``nthread`` parameter is set:
 
 .. code-block:: python
 
-  output = xgb.dask.train(client,
-                          {'verbosity': 1,
-                           'nthread': 8,
-                           'tree_method': 'hist'},
-                          dtrain,
-                          num_boost_round=4, evals=[(dtrain, 'train')])
+    output = xgb.dask.train(
+        client,
+        {"verbosity": 1, "nthread": 8, "tree_method": "hist"},
+        dtrain,
+        num_boost_round=4,
+        evals=[(dtrain, "train")],
+    )
 
 XGBoost will use 8 threads in each training process.
 
@@ -274,12 +303,12 @@ Functional interface:
         with_X = await xgb.dask.predict(client, output, X)
         inplace = await xgb.dask.inplace_predict(client, output, X)
 
-        # Use `client.compute` instead of the `compute` method from dask collection
+        # Use ``client.compute`` instead of the ``compute`` method from dask collection
         print(await client.compute(with_m))
 
 
 While for the Scikit-Learn interface, trivial methods like ``set_params`` and accessing class
-attributes like ``evals_result_`` do not require ``await``.  Other methods involving
+attributes like ``evals_result()`` do not require ``await``.  Other methods involving
 actual computation will return a coroutine and hence require awaiting:
 
 .. code-block:: python
@@ -373,6 +402,46 @@ If early stopping is enabled by also passing ``early_stopping_rounds``, you can 
     print(booster.best_iteration)
     best_model = booster[: booster.best_iteration]
 
+
+*******************
+Other customization
+*******************
+
+XGBoost dask interface accepts other advanced features found in single node Python
+interface, including callback functions, custom evaluation metric and objective:
+
+    def eval_error_metric(predt, dtrain: xgb.DMatrix):
+        label = dtrain.get_label()
+        r = np.zeros(predt.shape)
+        gt = predt > 0.5
+        r[gt] = 1 - label[gt]
+        le = predt <= 0.5
+        r[le] = label[le]
+        return 'CustomErr', np.sum(r)
+
+    # custom callback
+    early_stop = xgb.callback.EarlyStopping(
+        rounds=early_stopping_rounds,
+        metric_name="CustomErr",
+        data_name="Train",
+        save_best=True,
+    )
+
+    booster = xgb.dask.train(
+        client,
+        params={
+            "objective": "binary:logistic",
+            "eval_metric": ["error", "rmse"],
+            "tree_method": "hist",
+        },
+        dtrain=D_train,
+        evals=[(D_train, "Train"), (D_valid, "Valid")],
+        feval=eval_error_metric,  # custom evaluation metric
+        num_boost_round=100,
+        callbacks=[early_stop],
+    )
+
+
 *****************************************************************************
 Why is the initialization of ``DaskDMatrix``  so slow and throws weird errors
 *****************************************************************************
@@ -414,15 +483,3 @@ References:
 
 #. https://github.com/dask/dask/issues/6833
 #. https://stackoverflow.com/questions/45941528/how-to-efficiently-send-a-large-numpy-array-to-the-cluster-with-dask-array
-
-***********
-Limitations
-***********
-
-Basic functionality including model training and generating classification and regression predictions
-have been implemented.  However, there are still some other limitations we haven't
-addressed yet:
-
-- Label encoding for the ``DaskXGBClassifier`` classifier may not be supported.  So users need
-  to encode their training labels into discrete values first.
-- Ranking is not yet supported.
