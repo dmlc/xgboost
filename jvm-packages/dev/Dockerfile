@@ -21,7 +21,7 @@ FROM centos:7
 # Install all basic requirements
 RUN \
     yum -y update && \
-    yum install -y bzip2 tar unzip wget xz git centos-release-scl yum-utils java-1.8.0-openjdk-devel && \
+    yum install -y make bzip2 tar unzip wget xz git centos-release-scl yum-utils java-1.8.0-openjdk-devel && \
     yum-config-manager --enable centos-sclo-rh-testing && \
     yum -y update && \
     yum install -y devtoolset-7-gcc devtoolset-7-binutils devtoolset-7-gcc-c++ && \
@@ -29,8 +29,8 @@ RUN \
     wget https://repo.continuum.io/miniconda/Miniconda3-4.5.12-Linux-x86_64.sh && \
     bash Miniconda3-4.5.12-Linux-x86_64.sh -b -p /opt/python && \
     # CMake
-    wget -nv -nc https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.sh --no-check-certificate && \
-    bash cmake-3.12.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
+    wget -nv -nc https://cmake.org/files/v3.13/cmake-3.13.0-Linux-x86_64.sh --no-check-certificate && \
+    bash cmake-3.13.0-Linux-x86_64.sh --skip-license --prefix=/usr && \
     # Maven
     wget https://archive.apache.org/dist/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz && \
     tar xvf apache-maven-3.6.1-bin.tar.gz -C /opt && \
