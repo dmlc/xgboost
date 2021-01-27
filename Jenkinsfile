@@ -190,7 +190,7 @@ def BuildCPUARM64() {
       path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
       s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', workingDir: 'python-package/dist', includePathPattern:'**/*.whl'
     }
-    stash name: 'xgboost_cli', includes: 'xgboost'
+    stash name: 'xgboost_cli_arm64', includes: 'xgboost'
     deleteDir()
   }
 }
@@ -339,7 +339,7 @@ def TestPythonCPUARM64() {
   node('linux && arm64') {
     unstash name: "xgboost_whl_arm64_cpu"
     unstash name: 'srcs'
-    unstash name: 'xgboost_cli'
+    unstash name: 'xgboost_cli_arm64'
     echo "Test Python CPU ARM64"
     def container_type = "aarch64"
     def docker_binary = "docker"
