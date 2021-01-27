@@ -632,8 +632,7 @@ class LearnerIO : public LearnerConfiguration {
  private:
   std::set<std::string> saved_configs_ = {"num_round"};
   // Used to identify the offset of JSON string when
-  // `enable_experimental_json_serialization' is set to false.  Will be removed once JSON
-  // takes over.
+  // Will be removed once JSON takes over.  Right now we still loads some RDS files from R.
   std::string const serialisation_header_ { u8"CONFIG-offset:" };
 
  public:
@@ -816,10 +815,7 @@ class LearnerIO : public LearnerConfiguration {
   }
 
   // Save model into binary format.  The code is about to be deprecated by more robust
-  // JSON serialization format.  This function is uneffected by
-  // `enable_experimental_json_serialization` as user might enable this flag for pickle
-  // while still want a binary output.  As we are progressing at replacing the binary
-  // format, there's no need to put too much effort on it.
+  // JSON serialization format.
   void SaveModel(dmlc::Stream* fo) const override {
     LearnerModelParamLegacy mparam = mparam_;  // make a copy to potentially modify
     std::vector<std::pair<std::string, std::string> > extra_attr;
