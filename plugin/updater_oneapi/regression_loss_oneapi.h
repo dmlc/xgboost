@@ -134,7 +134,7 @@ struct LogisticRawOneAPI : public LogisticRegressionOneAPI {
     predt = SigmoidOneAPI(predt);
     return std::max(predt * (T(1.0f) - predt), eps);
   }
-  static const char* DefaultEvalMetric() { return "auc"; }
+  static const char* DefaultEvalMetric() { return "logloss"; }
 
   static const char* Name() { return "binary:logitraw_oneapi"; }
 };
