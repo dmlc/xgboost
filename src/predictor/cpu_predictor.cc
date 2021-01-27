@@ -186,7 +186,8 @@ class CPUPredictor : public Predictor {
                       int32_t tree_end) const {
     const int threads = omp_get_max_threads();
     std::vector<RegTree::FVec> feat_vecs;
-    InitThreadTemp(threads,  model.learner_model_param->num_feature, &feat_vecs);
+    InitThreadTemp(threads * kBlockOfRowsSize,
+                   model.learner_model_param->num_feature, &feat_vecs);
     for (auto const& batch : p_fmat->GetBatches<SparsePage>()) {
       CHECK_EQ(out_preds->size(),
                p_fmat->Info().num_row_ * model.learner_model_param->num_output_group);
@@ -327,10 +328,8 @@ class CPUPredictor : public Predictor {
                        std::vector<bst_float>* out_preds,
                        const gbm::GBTreeModel& model, unsigned ntree_limit) const override {
     std::vector<RegTree::FVec> feat_vecs;
-    if (feat_vecs.size() == 0) {
-      feat_vecs.resize(1, RegTree::FVec());
-      feat_vecs[0].Init(model.learner_model_param->num_feature);
-    }
+    feat_vecs.resize(1, RegTree::FVec());
+    feat_vecs[0].Init(model.learner_model_param->num_feature);
     ntree_limit *= model.learner_model_param->num_output_group;
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
@@ -349,7 +348,7 @@ class CPUPredictor : public Predictor {
                    const gbm::GBTreeModel& model, unsigned ntree_limit) const override {
     const int nthread = omp_get_max_threads();
     std::vector<RegTree::FVec> feat_vecs;
-    InitThreadTemp(nthread,  model.learner_model_param->num_feature, &feat_vecs);
+    InitThreadTemp(nthread, model.learner_model_param->num_feature, &feat_vecs);
     const MetaInfo& info = p_fmat->Info();
     // number of valid trees
     ntree_limit *= model.learner_model_param->num_output_group;
