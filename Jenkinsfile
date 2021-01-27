@@ -167,7 +167,7 @@ def BuildCPU() {
 }
 
 def BuildCPUARM64() {
-  node('linux && cpu && arm64') {
+  node('linux && arm64') {
     unstash name: 'srcs'
     echo "Build CPU ARM64"
     def container_type = "aarch64"
@@ -336,7 +336,7 @@ def TestPythonCPU() {
 }
 
 def TestPythonCPUARM64() {
-  node('linux && cpu && arm64') {
+  node('linux && arm64') {
     unstash name: "xgboost_whl_arm64_cpu"
     unstash name: 'srcs'
     unstash name: 'xgboost_cli'
