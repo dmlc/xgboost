@@ -179,6 +179,9 @@ def BuildCPUARM64() {
     ${dockerRun} ${container_type} ${docker_binary} bash -c "cd python-package && rm -rf dist/* && python setup.py bdist_wheel --universal"
     ${dockerRun} ${container_type} ${docker_binary} python tests/ci_build/rename_whl.py python-package/dist/*.whl ${commit_id} ${wheel_tag}
     ${dockerRun} ${container_type} ${docker_binary} auditwheel repair --plat ${wheel_tag} python-package/dist/*.whl
+    mv -v wheelhouse/*.whl python-package/dist/
+    # Make sure that libgomp.so is vendored in the wheel
+    ${dockerRun} ${container_type} ${docker_binary} bash -c "unzip -l python-package/dist/*.whl | grep libgomp  || exit -1"
     """
     echo 'Stashing Python wheel...'
     stash name: "xgboost_whl_arm64_cpu", includes: 'python-package/dist/*.whl'
