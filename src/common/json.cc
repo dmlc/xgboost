@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) by Contributors 2019-2020
+ * Copyright (c) by Contributors 2019-2021
  */
 #include <cctype>
 #include <cstddef>
@@ -744,4 +744,11 @@ void Json::Dump(Json json, std::string* str) {
 }
 
 Json& Json::operator=(Json const &other) = default;
+
+std::ostream &operator<<(std::ostream &os, StringView const v) {
+  for (auto c : v) {
+    os.put(c);
+  }
+  return os;
+}
 }  // namespace xgboost

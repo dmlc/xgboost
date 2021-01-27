@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) by Contributors 2019
+ * Copyright (c) by Contributors 2019-2021
  */
 #include <gtest/gtest.h>
 #include <dmlc/filesystem.h>
@@ -573,5 +573,15 @@ TEST(Json, DISABLED_RoundTripExhaustive) {
   for (int64_t i = 0; i <= int32_max; ++i) {
     test(static_cast<uint32_t>(i));
   }
+}
+
+TEST(StringView, Basic) {
+  StringView str{"This is a string."};
+  std::stringstream ss;
+  ss << str;
+
+  std::string res = ss.str();
+  ASSERT_EQ(str.size(), res.size());
+  ASSERT_TRUE(std::equal(res.cbegin(), res.cend(), str.cbegin()));
 }
 }  // namespace xgboost
