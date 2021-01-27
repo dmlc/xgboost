@@ -344,7 +344,7 @@ def TestPythonCPUARM64() {
     def container_type = "aarch64"
     def docker_binary = "docker"
     sh """
-    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/test_python.sh cpu
+    ${dockerRun} ${container_type} ${docker_binary} tests/ci_build/test_python.sh cpu-arm64
     """
     deleteDir()
   }
