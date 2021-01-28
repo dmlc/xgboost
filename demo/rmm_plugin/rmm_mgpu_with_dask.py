@@ -5,6 +5,9 @@ from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
 
 def main(client):
+    # Inform XGBoost that RMM is used for GPU memory allocation
+    xgb.set_config(use_rmm=True)
+
     X, y = make_classification(n_samples=10000, n_informative=5, n_classes=3)
     X = dask.array.from_array(X)
     y = dask.array.from_array(y)
