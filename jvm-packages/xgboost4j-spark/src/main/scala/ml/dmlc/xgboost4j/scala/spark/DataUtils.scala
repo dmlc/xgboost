@@ -125,21 +125,21 @@ object DataUtils extends Serializable {
             values, weight.iterator.map(toFloat).toArray, group, baseMargin)
           attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
 
-        case row @ Row(label: Float, features: Vector, weight: Float, group: Int,
+        case row @ Row(label: Any, features: Vector, weight: Any, group: Int,
           baseMargin: Float) =>
           val (size, indices, values) = features match {
             case v: SparseVector => (v.size, v.indices, v.values.map(_.toFloat))
             case v: DenseVector => (v.size, null, v.values.map(_.toFloat))
           }
-          val xgbLp = XGBLabeledPoint(Array(label), size, indices, values, Array(weight),
+          val xgbLp = XGBLabeledPoint(Array(toFloat(label)), size, indices, values, Array(toFloat(weight)),
             group, baseMargin)
           attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
-        case row @ Row(label: Float, features: Vector, weight: Float, baseMargin: Float) =>
+        case row @ Row(label: Any, features: Vector, weight: Any, baseMargin: Float) =>
           val (size, indices, values) = features match {
             case v: SparseVector => (v.size, v.indices, v.values.map(_.toFloat))
             case v: DenseVector => (v.size, null, v.values.map(_.toFloat))
           }
-          val xgbLp = XGBLabeledPoint(Array(label), size, indices, values, Array(weight),
+          val xgbLp = XGBLabeledPoint(Array(toFloat(label)), size, indices, values, Array(toFloat(weight)),
             baseMargin = baseMargin)
           attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
       }
