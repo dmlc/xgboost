@@ -29,13 +29,6 @@
 #include "../common/row_set.h"
 #include "../common/column_matrix.h"
 #include "../common/threading_utils.h"
-#include <sys/time.h>
-long int mytimer2(){
-   struct timeval tp;
-   gettimeofday(&tp, NULL);
-   long int ms = tp.tv_sec * 1000 + tp.tv_usec / 1000;
-   return ms;
-}
 
 namespace xgboost {
 namespace tree {
@@ -84,15 +77,11 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
                                const std::vector<RegTree *> &trees) {
   if (dmat != p_last_dmat_ || is_gmat_initialized_ == false) {
     updater_monitor_.Start("GmatInitialization");
-    long int ini_mc = mytimer2();
     gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
     column_matrix_.Init(gmat_, param_.sparse_threshold);
     if (param_.enable_feature_grouping > 0) {
       gmatb_.Init(gmat_, column_matrix_, param_);
     }
-
-    std::string MC_st0 = "MC update (ms):" +  std::to_string(mytimer2() - ini_mc);
-    std::cout << MC_st0 << std::endl;
 
     updater_monitor_.Stop("GmatInitialization");
     // A proper solution is puting cut matrix in DMatrix, see:
