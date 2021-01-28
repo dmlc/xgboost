@@ -340,7 +340,7 @@ def test_dask_classifier(model: str, client: "Client") -> None:
     classifier.fit(X_d, y_d)
 
     assert classifier.n_classes_ == 10
-    prediction = classifier.predict(X_d)
+    prediction = classifier.predict(X_d).compute()
 
     assert prediction.ndim == 1
     assert prediction.shape[0] == kRows
@@ -541,6 +541,9 @@ async def run_dask_regressor_asyncio(scheduler_address: str) -> None:
         assert list(history['validation_0'].keys())[0] == 'rmse'
         assert len(history['validation_0']['rmse']) == 2
 
+        awaited = await client.compute(prediction)
+        assert awaited.shape[0] == kRows
+
 
 async def run_dask_classifier_asyncio(scheduler_address: str) -> None:
     async with Client(scheduler_address, asynchronous=True) as client:
@@ -578,7 +581,7 @@ async def run_dask_classifier_asyncio(scheduler_address: str) -> None:
         await classifier.fit(X_d, y_d)
 
         assert classifier.n_classes_ == 10
-        prediction = await classifier.predict(X_d)
+        prediction = await client.compute(await classifier.predict(X_d))
 
         assert prediction.ndim == 1
         assert prediction.shape[0] == kRows

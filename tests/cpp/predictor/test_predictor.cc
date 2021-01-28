@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 by Contributors
+ * Copyright 2020-2021 by Contributors
  */
 
 #include <gtest/gtest.h>
@@ -104,21 +104,24 @@ void TestInplacePrediction(dmlc::any x, std::string predictor,
   }
 
   HostDeviceVector<float> *p_out_predictions_0{nullptr};
-  learner->InplacePredict(x, "margin", std::numeric_limits<float>::quiet_NaN(),
+  learner->InplacePredict(x, nullptr, PredictionType::kMargin,
+                          std::numeric_limits<float>::quiet_NaN(),
                           &p_out_predictions_0, 0, 2);
   CHECK(p_out_predictions_0);
   HostDeviceVector<float> predict_0 (p_out_predictions_0->Size());
   predict_0.Copy(*p_out_predictions_0);
 
   HostDeviceVector<float> *p_out_predictions_1{nullptr};
-  learner->InplacePredict(x, "margin", std::numeric_limits<float>::quiet_NaN(),
+  learner->InplacePredict(x, nullptr, PredictionType::kMargin,
+                          std::numeric_limits<float>::quiet_NaN(),
                           &p_out_predictions_1, 2, 4);
   CHECK(p_out_predictions_1);
   HostDeviceVector<float> predict_1 (p_out_predictions_1->Size());
   predict_1.Copy(*p_out_predictions_1);
 
   HostDeviceVector<float>* p_out_predictions{nullptr};
-  learner->InplacePredict(x, "margin", std::numeric_limits<float>::quiet_NaN(),
+  learner->InplacePredict(x, nullptr, PredictionType::kMargin,
+                          std::numeric_limits<float>::quiet_NaN(),
                           &p_out_predictions, 0, 4);
 
   auto& h_pred = p_out_predictions->HostVector();

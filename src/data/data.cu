@@ -1,5 +1,5 @@
 /*!
- * Copyright 2019 by XGBoost Contributors
+ * Copyright 2019-2021 by XGBoost Contributors
  *
  * \file data.cu
  * \brief Handles setting metainfo from array interface.
@@ -45,15 +45,15 @@ auto SetDeviceToPtr(void *ptr) {
 }  // anonymous namespace
 
 void CopyGroupInfoImpl(ArrayInterface column, std::vector<bst_group_t>* out) {
-  CHECK(column.type[1] == 'i' || column.type[1] == 'u')
-      << "Expected integer metainfo";
+  CHECK(column.type != ArrayInterface::kF4 && column.type != ArrayInterface::kF8)
+      << "Expected integer for group info.";
 
   auto ptr_device = SetDeviceToPtr(column.data);
   dh::TemporaryArray<bst_group_t> temp(column.num_rows);
   auto d_tmp = temp.data();
 
   dh::LaunchN(ptr_device, column.num_rows, [=] __device__(size_t idx) {
-    d_tmp[idx] = column.GetElement(idx);
+    d_tmp[idx] = column.GetElement<size_t>(idx);
   });
   auto length = column.num_rows;
   out->resize(length + 1);
@@ -103,15 +103,15 @@ void MetaInfo::SetInfo(const char * c_key, std::string const& interface_str) {
     auto it = dh::MakeTransformIterator<uint32_t>(
         thrust::make_counting_iterator(0ul),
         [array_interface] __device__(size_t i) {
-          return static_cast<uint32_t>(array_interface.GetElement(i));
+          return array_interface.GetElement<uint32_t>(i);
         });
     dh::caching_device_vector<bool> flag(1);
     auto d_flag = dh::ToSpan(flag);
     auto d = SetDeviceToPtr(array_interface.data);
     dh::LaunchN(d, 1, [=] __device__(size_t) { d_flag[0] = true; });
     dh::LaunchN(d, array_interface.num_rows - 1, [=] __device__(size_t i) {
-      if (static_cast<uint32_t>(array_interface.GetElement(i)) >
-          static_cast<uint32_t>(array_interface.GetElement(i + 1))) {
+      if (array_interface.GetElement<uint32_t>(i) >
+          array_interface.GetElement<uint32_t>(i + 1)) {
         d_flag[0] = false;
       }
     });

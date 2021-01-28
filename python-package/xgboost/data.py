@@ -5,11 +5,12 @@ import ctypes
 import json
 import warnings
 import os
+from typing import Any
 
 import numpy as np
 
 from .core import c_array, _LIB, _check_call, c_str
-from .core import DataIter, DeviceQuantileDMatrix, DMatrix
+from .core import DataIter, _ProxyDMatrix, DMatrix
 from .compat import lazy_isinstance
 
 c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
@@ -113,7 +114,7 @@ def _maybe_np_slice(data, dtype):
     return data
 
 
-def _transform_np_array(data: np.ndarray):
+def _transform_np_array(data: np.ndarray) -> np.ndarray:
     if not isinstance(data, np.ndarray) and hasattr(data, '__array__'):
         data = np.array(data, copy=False)
     if len(data.shape) != 2:
@@ -142,7 +143,7 @@ def _from_numpy_array(data, missing, nthread, feature_names, feature_types):
     input layout and type if memory use is a concern.
 
     """
-    flatten = _transform_np_array(data)
+    flatten: np.ndarray = _transform_np_array(data)
     handle = ctypes.c_void_p()
     _check_call(_LIB.XGDMatrixCreateFromMat_omp(
         flatten.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
@@ -783,54 +784,6 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
         self.it = 0
 
 
-def init_device_quantile_dmatrix(
-        data, missing, max_bin, threads, feature_names, feature_types, **meta
-):
-    '''Constructor for DeviceQuantileDMatrix.'''
-    if not any([_is_cudf_df(data), _is_cudf_ser(data), _is_cupy_array(data),
-                _is_dlpack(data), _is_iter(data)]):
-        raise TypeError(str(type(data)) +
-                        ' is not supported for DeviceQuantileDMatrix')
-    if _is_dlpack(data):
-        # We specialize for dlpack because cupy will take the memory from it so
-        # it can't be transformed twice.
-        data = _transform_dlpack(data)
-    if _is_iter(data):
-        it = data
-    else:
-        it = SingleBatchInternalIter(
-            data, **meta, feature_names=feature_names,
-            feature_types=feature_types)
-
-    reset_factory = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
-    reset_callback = reset_factory(it.reset_wrapper)
-    next_factory = ctypes.CFUNCTYPE(
-        ctypes.c_int,
-        ctypes.c_void_p,
-    )
-    next_callback = next_factory(it.next_wrapper)
-    handle = ctypes.c_void_p()
-    ret = _LIB.XGDeviceQuantileDMatrixCreateFromCallback(
-        None,
-        it.proxy.handle,
-        reset_callback,
-        next_callback,
-        ctypes.c_float(missing),
-        ctypes.c_int(threads),
-        ctypes.c_int(max_bin),
-        ctypes.byref(handle)
-    )
-    if it.exception:
-        raise it.exception
-    # delay check_call to throw intermediate exception first
-    _check_call(ret)
-    matrix = DeviceQuantileDMatrix(handle)
-    feature_names = matrix.feature_names
-    feature_types = matrix.feature_types
-    matrix.handle = None
-    return handle, feature_names, feature_types
-
-
 def _device_quantile_transform(data, feature_names, feature_types):
     if _is_cudf_df(data):
         return _transform_cudf_df(data, feature_names, feature_types)
@@ -845,7 +798,7 @@ def _device_quantile_transform(data, feature_names, feature_types):
                     str(type(data)))
 
 
-def dispatch_device_quantile_dmatrix_set_data(proxy, data):
+def dispatch_device_quantile_dmatrix_set_data(proxy: _ProxyDMatrix, data: Any) -> None:
     '''Dispatch for DeviceQuantileDMatrix.'''
     if _is_cudf_df(data):
         proxy._set_data_from_cuda_columnar(data)  # pylint: disable=W0212
