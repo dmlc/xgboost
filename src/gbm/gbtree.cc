@@ -4,6 +4,7 @@
  * \brief gradient boosted tree implementation.
  * \author Tianqi Chen
  */
+#include <sys/time.h>  // MC
 #include <dmlc/omp.h>
 #include <dmlc/parameter.h>
 
@@ -27,14 +28,13 @@
 #include "../common/common.h"
 #include "../common/random.h"
 #include "../common/timer.h"
-#include <sys/time.h>
-long int mytimer(){
-   struct timeval tp;
-   gettimeofday(&tp, NULL);
-   long int ms = tp.tv_sec * 1000 + tp.tv_usec / 1000;
-   return ms;
+
+long int mytimer() {
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+  long int ms = tp.tv_sec * 1000 + tp.tv_usec / 1000;
+  return ms;
 }
-size_t imc = 0;
 
 namespace xgboost {
 namespace gbm {
@@ -293,6 +293,8 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
                            DMatrix *p_fmat,
                            int bst_group,
                            std::vector<std::unique_ptr<RegTree> >* ret) {
+  std::cout << "MC BoostNewTrees" << std::endl;
+
   std::vector<RegTree*> new_trees;
   ret->clear();
   // create the trees
@@ -336,7 +338,8 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
     up->Update(gpair, p_fmat, new_trees);
     std::string MC_st0 = "MC iteration " + simc + " (ms):" +  std::to_string(mytimer() - ini_mc);
     std::cout << MC_st0 << std::endl;
-    imc = imc + 1;
+    std::cout << imc << std::endl;
+    imc++;
   }
 }
 

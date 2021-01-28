@@ -97,7 +97,7 @@ std::vector<bst_feature_t> HostSketchContainer::LoadBalancePerRow(
   size_t const total_entries = batch.Size();
   size_t const entries_per_thread = common::DivRoundUp(total_entries, nthreads);
   std::vector<bst_feature_t> rows_ptr(nthreads + 1, 0);
-  
+
   for (size_t current_thread {1}; current_thread < rows_ptr.size(); ++current_thread) {
     rows_ptr[current_thread] = rows_ptr[current_thread-1] + entries_per_thread;
   }
@@ -122,7 +122,7 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
   auto const is_dense = info.num_nonzero_ == info.num_col_ * info.num_row_;
   auto thread_rows_ptr = LoadBalancePerRow(page, nthread);
   auto const nBatchRows = batch.Size();
-  
+
 #pragma omp parallel num_threads(nthread)
   {
     exec.Run([&]() {
@@ -134,7 +134,7 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
 
       // do not iterate if no columns are assigned to the thread
       if (begin < end && end <= nBatchRows) {
-        for (size_t i = begin; i < end; ++i) { // divide by rows
+        for (size_t i = begin; i < end; ++i) {  // divide by rows
           size_t const ridx = page.base_rowid + i;
           SparsePage::Inst const inst = batch[i];
           if (use_group_ind_) {
@@ -144,8 +144,8 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
           auto w = info.GetWeight(w_idx);
           auto p_inst = inst.data();
           if (is_dense) {
-            for (size_t ii = 0; ii < ncol; ii++) { // traverse through columns
-			  sketches_.get(tid, ii).Push(p_inst[ii].fvalue, w);
+            for (size_t ii = 0; ii < ncol; ii++) {  // traverse through columns
+              sketches_.get(tid, ii).Push(p_inst[ii].fvalue, w);
             }
           } else {
             for (size_t i = 0; i < inst.size(); ++i) {
@@ -158,10 +158,9 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
     });
   }
   exec.Rethrow();
-  
+
   sketches_.merge();
   monitor_.Stop(__func__);
-
 }
 
 void HostSketchContainer::GatherSketchInfo(

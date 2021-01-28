@@ -706,65 +706,64 @@ class HostSketchContainer {
   using WQSketch = WQuantileSketch<float, float>;
 
  private:
- struct WQSketchManager {
- private:
-   std::vector<std::vector<WQSketch> > sketches_; // sketches_ per thread
-   size_t columns_size_;
-   size_t size_per_thread_;
-   int nthread_ = omp_get_max_threads();
- 
- public:
- /*
- isketch sketch position (WQKetch) in the data.
- */
- inline void Init(size_t maxn, double eps, size_t isketch) {
-	for (size_t i=0; i < nthread_; i++) {
-		sketches_[i][isketch].Init(maxn, eps);
-		sketches_[i][isketch].inqueue.queue.resize(sketches_[i][isketch].limit_size * 2);
-	}
- }
+  struct WQSketchManager {
+   private:
+    std::vector<std::vector<WQSketch> > sketches_;  // sketches_ per thread
+    size_t columns_size_;
+    size_t size_per_thread_;
+    int nthread_ = omp_get_max_threads();
 
- void resize(int columns_size) {
-	 columns_size_ = columns_size;	 
-	 sketches_.resize(nthread_);
-	 for (size_t i=0; i < nthread_; i++) {
-		sketches_[i].resize(columns_size_);
-	 }
- }
+   public:
+	/*
+	isketch sketch position (WQKetch) in the data.
+	*/
+    inline void Init(size_t maxn, double eps, size_t isketch) {
+       for (size_t i=0; i < nthread_; i++) {
+           sketches_[i][isketch].Init(maxn, eps);
+           sketches_[i][isketch].inqueue.queue.resize(sketches_[i][isketch].limit_size * 2);
+       }
+    }
 
- size_t size() {
-	 return columns_size_;
- }
- 
-/* \brief Get the sketch element.
-*
-* \param ithread position of the entire sketch that belongs to this thread index.
-* \param isketch position of sketch element.
-*/
- WQSketch& get(size_t ithread, size_t isketch){
-	 return sketches_[ithread][isketch];
- }
- 
- /*
- * \brief This method will merge each thread's sketches into 1 vector,
- * which will reside in position 0.
- */
- void merge() {
-	 for ( size_t ithread = 1 ; ithread < sketches_.size() ; ++ithread ) {
-		 #pragma omp parallel for
-		 for ( int iCol = 0 ; iCol < columns_size_ ; ++iCol  ) {
-			 WQSketch::SummaryContainer out;
-			 sketches_[ithread][iCol].GetSummary(&out);
-			 sketches_[0][iCol].PushSummary(out);
-		 }
-	 }
- }
- 
- void print(size_t ithread, size_t isketch){
-	 std::cout << sketches_[ithread][isketch].inqueue.queue[sketches_.size()-1].value << ";";
- }
- 
-};
+    void resize(int columns_size) {
+        columns_size_ = columns_size;
+        sketches_.resize(nthread_);
+        for (size_t i=0; i < nthread_; i++) {
+            sketches_[i].resize(columns_size_);
+        }
+    }
+
+    size_t size() {
+        return columns_size_;
+    }
+
+    /* \brief Get the sketch element.
+    *
+    * \param ithread position of the entire sketch that belongs to this thread index.
+    * \param isketch position of sketch element.
+    */
+    WQSketch& get(size_t ithread, size_t isketch) {
+         return sketches_[ithread][isketch];
+    }
+
+    /*
+    * \brief This method will merge each thread's sketches into 1 vector,
+    * which will reside in position 0.
+    */
+    void merge() {
+         for (size_t ithread = 1 ; ithread < sketches_.size() ; ++ithread) {
+            #pragma omp parallel for
+            for (int iCol = 0 ; iCol < columns_size_ ; ++iCol) {
+                WQSketch::SummaryContainer out;
+                sketches_[ithread][iCol].GetSummary(&out);
+                sketches_[0][iCol].PushSummary(out);
+           }
+        }
+    }
+
+    void print(size_t ithread, size_t isketch){
+        std::cout << sketches_[ithread][isketch].inqueue.queue[sketches_.size()-1].value << ";";
+    }
+  };
   WQSketchManager sketches_;
   std::vector<bst_row_t> columns_size_;
   int32_t max_bins_;
