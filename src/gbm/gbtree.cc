@@ -27,6 +27,14 @@
 #include "../common/common.h"
 #include "../common/random.h"
 #include "../common/timer.h"
+#include <sys/time.h>
+long int mytimer(){
+   struct timeval tp;
+   gettimeofday(&tp, NULL);
+   long int ms = tp.tv_sec * 1000 + tp.tv_usec / 1000;
+   return ms;
+}
+size_t imc = 0;
 
 namespace xgboost {
 namespace gbm {
@@ -321,8 +329,14 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
   CHECK_EQ(gpair->Size(), p_fmat->Info().num_row_)
       << "Mismatching size between number of rows from input data and size of "
          "gradient vector.";
+  size_t imc = 0;
+  std::string simc = std::to_string(imc);
   for (auto& up : updaters_) {
+    long int ini_mc = mytimer();
     up->Update(gpair, p_fmat, new_trees);
+    std::string MC_st0 = "MC iteration " + simc + " (ms):" +  std::to_string(mytimer() - ini_mc);
+    std::cout << MC_st0 << std::endl;
+    imc = imc + 1;
   }
 }
 

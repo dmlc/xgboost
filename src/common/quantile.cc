@@ -109,6 +109,7 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
                                       MetaInfo const &info) {
   monitor_.Start(__func__);
   int nthread = omp_get_max_threads();
+  std::cout << "MC PushRowPage opt nthread: " << nthread << std::endl;
   CHECK_EQ(sketches_.size(), info.num_col_);
 
   // Data groups, used in ranking.
