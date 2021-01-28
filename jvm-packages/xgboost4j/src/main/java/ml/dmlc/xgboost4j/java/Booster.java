@@ -62,7 +62,7 @@ public class Booster implements Serializable, KryoSerializable {
     if (modelPath == null) {
       throw new NullPointerException("modelPath : null");
     }
-    Booster ret = new Booster(new HashMap<String, Object>(), new DMatrix[0]);
+    Booster ret = new Booster(new HashMap<>(), new DMatrix[0]);
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadModel(ret.handle, modelPath));
     return ret;
   }
@@ -85,7 +85,7 @@ public class Booster implements Serializable, KryoSerializable {
       os.write(buf, 0, size);
     }
     in.close();
-    Booster ret = new Booster(new HashMap<String, Object>(), new DMatrix[0]);
+    Booster ret = new Booster(new HashMap<>(), new DMatrix[0]);
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadModelFromBuffer(ret.handle,os.toByteArray()));
     return ret;
   }
@@ -100,7 +100,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError
    */
   static Booster loadModel(byte[] buffer) throws XGBoostError {
-    Booster ret = newBooster(new HashMap<>(), new DMatrix[0]);
+    Booster ret = new Booster(new HashMap<>(), new DMatrix[0]);
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterLoadModelFromBuffer(ret.handle, buffer));
     return ret;
   }
