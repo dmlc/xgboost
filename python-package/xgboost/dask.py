@@ -1359,6 +1359,12 @@ class DaskScikitLearnBase(XGBModel):
             return self
         return self.client.sync(_).__await__()
 
+    def __getstate__(self):
+        this = self.__dict__.copy()
+        if "_client" in this.keys():
+            del this["_client"]
+        return this
+
     @property
     def client(self) -> "distributed.Client":
         '''The dask client used in this model.'''
