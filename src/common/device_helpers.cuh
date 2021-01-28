@@ -42,6 +42,14 @@
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 #include "rmm/mr/device/per_device_resource.hpp"
 #include "rmm/mr/device/thrust_allocator_adaptor.hpp"
+#include "rmm/version_config.hpp"
+
+#if !defined(RMM_VERSION_MAJOR) || !defined(RMM_VERSION_MINOR)
+#error "Please use RMM version 0.18 or later"
+#elif RMM_VERSION_MAJOR == 0 && RMM_VERSION_MINOR < 18
+#error "Please use RMM version 0.18 or later"
+#endif  // !defined(RMM_VERSION_MAJOR) || !defined(RMM_VERSION_MINOR)
+
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600 || defined(__clang__)
