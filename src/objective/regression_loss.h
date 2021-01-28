@@ -165,7 +165,7 @@ struct LogisticRaw : public LogisticRegression {
   static bst_float ProbToMargin(bst_float base_score) {
     return base_score;
   }
-  static const char* DefaultEvalMetric() { return "auc"; }
+  static const char* DefaultEvalMetric() { return "logloss"; }
 
   static const char* Name() { return "binary:logitraw"; }
 };

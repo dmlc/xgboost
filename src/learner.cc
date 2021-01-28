@@ -1035,16 +1035,18 @@ class LearnerImpl : public LearnerIO {
     os << '[' << iter << ']' << std::setiosflags(std::ios::fixed);
     if (metrics_.size() == 0 && tparam_.disable_default_eval_metric <= 0) {
       auto warn_default_eval_metric = [](const std::string& objective, const std::string& before,
-                                         const std::string& after) {
-        LOG(WARNING) << "Starting in XGBoost 1.3.0, the default evaluation metric used with the "
-                     << "objective '" << objective << "' was changed from '" << before
-                     << "' to '" << after << "'. Explicitly set eval_metric if you'd like to "
-                     << "restore the old behavior.";
+                                         const std::string& after, const std::string& version) {
+        LOG(WARNING) << "Starting in XGBoost " << version << ", the default evaluation metric "
+                     << "used with the objective '" << objective << "' was changed from '"
+                     << before << "' to '" << after << "'. Explicitly set eval_metric if you'd "
+                     << "like to restore the old behavior.";
       };
       if (tparam_.objective == "binary:logistic") {
-        warn_default_eval_metric(tparam_.objective, "error", "logloss");
+        warn_default_eval_metric(tparam_.objective, "error", "logloss", "1.3.0");
+      } else if (tparam_.objective == "binary:logitraw") {
+        warn_default_eval_metric(tparam_.objective, "auc", "logloss", "1.4.0");
       } else if ((tparam_.objective == "multi:softmax" || tparam_.objective == "multi:softprob")) {
-        warn_default_eval_metric(tparam_.objective, "merror", "mlogloss");
+        warn_default_eval_metric(tparam_.objective, "merror", "mlogloss", "1.3.0");
       }
       metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(), &generic_parameters_));
       metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
