@@ -14,7 +14,7 @@ def main(client):
     dtrain = xgb.dask.DaskDMatrix(client, X, label=y)
 
     params = {'max_depth': 8, 'eta': 0.01, 'objective': 'multi:softprob', 'num_class': 3,
-              'tree_method': 'gpu_hist'}
+              'tree_method': 'gpu_hist', 'eval_metric': 'merror'}
     output = xgb.dask.train(client, params, dtrain, num_boost_round=100,
                             evals=[(dtrain, 'train')])
     bst = output['booster']
