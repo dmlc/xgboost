@@ -62,6 +62,20 @@ public class XGBoost {
   }
 
   /**
+   * Load a new Booster model from a byte array buffer.
+   * The assumption is the array only contains one XGBoost Model.
+   * This can be used to load existing booster models saved by other xgboost bindings.
+   *
+   * @param buffer The byte contents of the booster.
+   * @return The create boosted
+   * @throws XGBoostError
+   */
+  public static Booster loadModel(byte[] buffer)
+    throws XGBoostError, IOException {
+    return Booster.loadModel(buffer);
+  }
+
+  /**
    * Train a booster given parameters.
    *
    * @param dtrain  Data to be trained.
