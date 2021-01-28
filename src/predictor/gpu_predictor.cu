@@ -501,17 +501,18 @@ size_t SharedMemoryBytes(size_t cols, size_t max_shared_memory_bytes) {
 class GPUPredictor : public xgboost::Predictor {
  private:
   void PredictInternal(const SparsePage& batch,
+                       DeviceModel const& model,
                        size_t num_features,
                        HostDeviceVector<bst_float>* predictions,
-                       size_t batch_offset) {
+                       size_t batch_offset) const {
     batch.offset.SetDevice(generic_param_->gpu_id);
     batch.data.SetDevice(generic_param_->gpu_id);
     const uint32_t BLOCK_THREADS = 128;
     size_t num_rows = batch.Size();
     auto GRID_SIZE = static_cast<uint32_t>(common::DivRoundUp(num_rows, BLOCK_THREADS));
-
+    auto max_shared_memory_bytes = ConfigureDevice(generic_param_->gpu_id);
     size_t shared_memory_bytes =
-        SharedMemoryBytes<BLOCK_THREADS>(num_features, max_shared_memory_bytes_);
+        SharedMemoryBytes<BLOCK_THREADS>(num_features, max_shared_memory_bytes);
     bool use_shared = shared_memory_bytes != 0;
 
     size_t entry_start = 0;
@@ -519,18 +520,19 @@ class GPUPredictor : public xgboost::Predictor {
                         num_features);
     dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes} (
         PredictKernel<SparsePageLoader, SparsePageView>, data,
-        model_.nodes.ConstDeviceSpan(),
+        model.nodes.ConstDeviceSpan(),
         predictions->DeviceSpan().subspan(batch_offset),
-        model_.tree_segments.ConstDeviceSpan(), model_.tree_group.ConstDeviceSpan(),
-        model_.split_types.ConstDeviceSpan(),
-        model_.categories_tree_segments.ConstDeviceSpan(),
-        model_.categories_node_segments.ConstDeviceSpan(),
-        model_.categories.ConstDeviceSpan(), model_.tree_beg_, model_.tree_end_,
-        num_features, num_rows, entry_start, use_shared, model_.num_group);
+        model.tree_segments.ConstDeviceSpan(), model.tree_group.ConstDeviceSpan(),
+        model.split_types.ConstDeviceSpan(),
+        model.categories_tree_segments.ConstDeviceSpan(),
+        model.categories_node_segments.ConstDeviceSpan(),
+        model.categories.ConstDeviceSpan(), model.tree_beg_, model.tree_end_,
+        num_features, num_rows, entry_start, use_shared, model.num_group);
   }
   void PredictInternal(EllpackDeviceAccessor const& batch,
+                       DeviceModel const& model,
                        HostDeviceVector<bst_float>* out_preds,
-                       size_t batch_offset) {
+                       size_t batch_offset) const {
     const uint32_t BLOCK_THREADS = 256;
     size_t num_rows = batch.n_rows;
     auto GRID_SIZE = static_cast<uint32_t>(common::DivRoundUp(num_rows, BLOCK_THREADS));
@@ -539,31 +541,31 @@ class GPUPredictor : public xgboost::Predictor {
     size_t entry_start = 0;
     dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS} (
         PredictKernel<EllpackLoader, EllpackDeviceAccessor>, batch,
-        model_.nodes.ConstDeviceSpan(), out_preds->DeviceSpan().subspan(batch_offset),
-        model_.tree_segments.ConstDeviceSpan(), model_.tree_group.ConstDeviceSpan(),
-        model_.split_types.ConstDeviceSpan(),
-        model_.categories_tree_segments.ConstDeviceSpan(),
-        model_.categories_node_segments.ConstDeviceSpan(),
-        model_.categories.ConstDeviceSpan(), model_.tree_beg_, model_.tree_end_,
+        model.nodes.ConstDeviceSpan(), out_preds->DeviceSpan().subspan(batch_offset),
+        model.tree_segments.ConstDeviceSpan(), model.tree_group.ConstDeviceSpan(),
+        model.split_types.ConstDeviceSpan(),
+        model.categories_tree_segments.ConstDeviceSpan(),
+        model.categories_node_segments.ConstDeviceSpan(),
+        model.categories.ConstDeviceSpan(), model.tree_beg_, model.tree_end_,
         batch.NumFeatures(), num_rows, entry_start, use_shared,
-        model_.num_group);
+        model.num_group);
   }
 
   void DevicePredictInternal(DMatrix* dmat, HostDeviceVector<float>* out_preds,
                              const gbm::GBTreeModel& model, size_t tree_begin,
-                             size_t tree_end) {
-    dh::safe_cuda(cudaSetDevice(generic_param_->gpu_id));
+                             size_t tree_end) const {
     if (tree_end - tree_begin == 0) {
       return;
     }
-    model_.Init(model, tree_begin, tree_end, generic_param_->gpu_id);
     out_preds->SetDevice(generic_param_->gpu_id);
     auto const& info = dmat->Info();
+    DeviceModel d_model;
+    d_model.Init(model, tree_begin, tree_end, generic_param_->gpu_id);
 
     if (dmat->PageExists<SparsePage>()) {
       size_t batch_offset = 0;
       for (auto &batch : dmat->GetBatches<SparsePage>()) {
-        this->PredictInternal(batch, model.learner_model_param->num_feature,
+        this->PredictInternal(batch, d_model, model.learner_model_param->num_feature,
                               out_preds, batch_offset);
         batch_offset += batch.Size() * model.learner_model_param->num_output_group;
       }
@@ -572,6 +574,7 @@ class GPUPredictor : public xgboost::Predictor {
       for (auto const& page : dmat->GetBatches<EllpackPage>()) {
         this->PredictInternal(
             page.Impl()->GetDeviceAccessor(generic_param_->gpu_id),
+            d_model,
             out_preds,
             batch_offset);
         batch_offset += page.Impl()->n_rows;
@@ -591,10 +594,9 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictBatch(DMatrix* dmat, PredictionCacheEntry* predts,
                     const gbm::GBTreeModel& model, int tree_begin,
-                    unsigned ntree_limit = 0) override {
+                    unsigned ntree_limit = 0) const override {
     // This function is duplicated with CPU predictor PredictBatch, see comments in there.
     // FIXME(trivialfis): Remove the duplication.
-    std::lock_guard<std::mutex> const guard(lock_);
     int device = generic_param_->gpu_id;
     CHECK_GE(device, 0) << "Set `gpu_id' to positive value for processing GPU data.";
     ConfigureDevice(device);
@@ -702,7 +704,7 @@ class GPUPredictor : public xgboost::Predictor {
                            const gbm::GBTreeModel& model, unsigned ntree_limit,
                            std::vector<bst_float>*,
                            bool approximate, int,
-                           unsigned) override {
+                           unsigned) const override {
     if (approximate) {
       LOG(FATAL) << "Approximated contribution is not implemented in GPU Predictor.";
     }
@@ -755,7 +757,7 @@ class GPUPredictor : public xgboost::Predictor {
                                        const gbm::GBTreeModel& model,
                                        unsigned ntree_limit,
                                        std::vector<bst_float>*,
-                                       bool approximate) override {
+                                       bool approximate) const override {
     if (approximate) {
       LOG(FATAL) << "[Internal error]: " << __func__
                  << " approximate is not implemented in GPU Predictor.";
@@ -828,21 +830,21 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictInstance(const SparsePage::Inst&,
                        std::vector<bst_float>*,
-                       const gbm::GBTreeModel&, unsigned) override {
+                       const gbm::GBTreeModel&, unsigned) const override {
     LOG(FATAL) << "[Internal error]: " << __func__
                << " is not implemented in GPU Predictor.";
   }
 
   void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* predictions,
                    const gbm::GBTreeModel& model,
-                   unsigned ntree_limit) override {
+                   unsigned ntree_limit) const override {
     dh::safe_cuda(cudaSetDevice(generic_param_->gpu_id));
-    ConfigureDevice(generic_param_->gpu_id);
+    auto max_shared_memory_bytes = ConfigureDevice(generic_param_->gpu_id);
 
     const MetaInfo& info = p_fmat->Info();
     constexpr uint32_t kBlockThreads = 128;
     size_t shared_memory_bytes =
-        SharedMemoryBytes<kBlockThreads>(info.num_col_, max_shared_memory_bytes_);
+        SharedMemoryBytes<kBlockThreads>(info.num_col_, max_shared_memory_bytes);
     bool use_shared = shared_memory_bytes != 0;
     bst_feature_t num_features = info.num_col_;
     bst_row_t num_rows = info.num_row_;
@@ -854,7 +856,8 @@ class GPUPredictor : public xgboost::Predictor {
     }
     predictions->SetDevice(generic_param_->gpu_id);
     predictions->Resize(num_rows * real_ntree_limit);
-    model_.Init(model, 0, real_ntree_limit, generic_param_->gpu_id);
+    DeviceModel d_model;
+    d_model.Init(model, 0, real_ntree_limit, this->generic_param_->gpu_id);
 
     if (p_fmat->PageExists<SparsePage>()) {
       for (auto const& batch : p_fmat->GetBatches<SparsePage>()) {
@@ -868,10 +871,10 @@ class GPUPredictor : public xgboost::Predictor {
             static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
         dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes} (
             PredictLeafKernel<SparsePageLoader, SparsePageView>, data,
-            model_.nodes.ConstDeviceSpan(),
+            d_model.nodes.ConstDeviceSpan(),
             predictions->DeviceSpan().subspan(batch_offset),
-            model_.tree_segments.ConstDeviceSpan(),
-            model_.tree_beg_, model_.tree_end_, num_features, num_rows,
+            d_model.tree_segments.ConstDeviceSpan(),
+            d_model.tree_beg_, d_model.tree_end_, num_features, num_rows,
             entry_start, use_shared);
         batch_offset += batch.Size();
       }
@@ -884,10 +887,10 @@ class GPUPredictor : public xgboost::Predictor {
             static_cast<uint32_t>(common::DivRoundUp(num_rows, kBlockThreads));
         dh::LaunchKernel {grid, kBlockThreads, shared_memory_bytes} (
             PredictLeafKernel<EllpackLoader, EllpackDeviceAccessor>, data,
-            model_.nodes.ConstDeviceSpan(),
+            d_model.nodes.ConstDeviceSpan(),
             predictions->DeviceSpan().subspan(batch_offset),
-            model_.tree_segments.ConstDeviceSpan(),
-            model_.tree_beg_, model_.tree_end_, num_features, num_rows,
+            d_model.tree_segments.ConstDeviceSpan(),
+            d_model.tree_beg_, d_model.tree_end_, num_features, num_rows,
             entry_start, use_shared);
         batch_offset += batch.Size();
       }
@@ -900,15 +903,12 @@ class GPUPredictor : public xgboost::Predictor {
 
  private:
   /*! \brief Reconfigure the device when GPU is changed. */
-  void ConfigureDevice(int device) {
+  static size_t ConfigureDevice(int device) {
     if (device >= 0) {
-      max_shared_memory_bytes_ = dh::MaxSharedMemory(device);
+      return dh::MaxSharedMemory(device);
     }
+    return 0;
   }
-
-  std::mutex lock_;
-  DeviceModel model_;
-  size_t max_shared_memory_bytes_ { 0 };
 };
 
 XGBOOST_REGISTER_PREDICTOR(GPUPredictor, "gpu_predictor")

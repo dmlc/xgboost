@@ -132,7 +132,7 @@ class Predictor {
    */
   virtual void PredictBatch(DMatrix* dmat, PredictionCacheEntry* out_preds,
                             const gbm::GBTreeModel& model, int tree_begin,
-                            uint32_t const ntree_limit = 0) = 0;
+                            uint32_t const ntree_limit = 0) const = 0;
 
   /**
    * \brief Inplace prediction.
@@ -161,7 +161,7 @@ class Predictor {
   virtual void PredictInstance(const SparsePage::Inst& inst,
                                std::vector<bst_float>* out_preds,
                                const gbm::GBTreeModel& model,
-                               unsigned ntree_limit = 0) = 0;
+                               unsigned ntree_limit = 0) const = 0;
 
   /**
    * \brief predict the leaf index of each tree, the output will be nsample *
@@ -175,7 +175,7 @@ class Predictor {
 
   virtual void PredictLeaf(DMatrix* dmat, HostDeviceVector<bst_float>* out_preds,
                            const gbm::GBTreeModel& model,
-                           unsigned ntree_limit = 0) = 0;
+                           unsigned ntree_limit = 0) const = 0;
 
   /**
    * \fn  virtual void Predictor::PredictContribution( DMatrix* dmat,
@@ -203,14 +203,14 @@ class Predictor {
                                    std::vector<bst_float>* tree_weights = nullptr,
                                    bool approximate = false,
                                    int condition = 0,
-                                   unsigned condition_feature = 0) = 0;
+                                   unsigned condition_feature = 0) const = 0;
 
   virtual void PredictInteractionContributions(DMatrix* dmat,
                                                HostDeviceVector<bst_float>* out_contribs,
                                                const gbm::GBTreeModel& model,
                                                unsigned ntree_limit = 0,
                                                std::vector<bst_float>* tree_weights = nullptr,
-                                               bool approximate = false) = 0;
+                                               bool approximate = false) const = 0;
 
 
   /**
