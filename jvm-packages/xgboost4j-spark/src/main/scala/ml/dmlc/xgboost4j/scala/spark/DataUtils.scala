@@ -131,16 +131,16 @@ object DataUtils extends Serializable {
             case v: SparseVector => (v.size, v.indices, v.values.map(_.toFloat))
             case v: DenseVector => (v.size, null, v.values.map(_.toFloat))
           }
-          val xgbLp = XGBLabeledPoint(Array(toFloat(label)), size, indices, values, Array(toFloat(weight)),
-            group, baseMargin)
+          val xgbLp = XGBLabeledPoint(Array(toFloat(label)), size, indices,
+            values, Array(toFloat(weight)), group, baseMargin)
           attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
         case row @ Row(label: Any, features: Vector, weight: Any, baseMargin: Float) =>
           val (size, indices, values) = features match {
             case v: SparseVector => (v.size, v.indices, v.values.map(_.toFloat))
             case v: DenseVector => (v.size, null, v.values.map(_.toFloat))
           }
-          val xgbLp = XGBLabeledPoint(Array(toFloat(label)), size, indices, values, Array(toFloat(weight)),
-            baseMargin = baseMargin)
+          val xgbLp = XGBLabeledPoint(Array(toFloat(label)), size, indices,
+            values, Array(toFloat(weight)), baseMargin = baseMargin)
           attachPartitionKey(row, deterministicPartition, numWorkers, xgbLp)
       }
     }
