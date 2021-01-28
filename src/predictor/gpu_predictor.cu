@@ -536,7 +536,6 @@ class GPUPredictor : public xgboost::Predictor {
     const uint32_t BLOCK_THREADS = 256;
     size_t num_rows = batch.n_rows;
     auto GRID_SIZE = static_cast<uint32_t>(common::DivRoundUp(num_rows, BLOCK_THREADS));
-    DeviceModel d_model;
 
     bool use_shared = false;
     size_t entry_start = 0;
