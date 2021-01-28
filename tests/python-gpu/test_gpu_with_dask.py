@@ -6,6 +6,8 @@ import numpy as np
 import asyncio
 import xgboost
 import subprocess
+from collections import OrderedDict
+from inspect import signature
 from hypothesis import given, strategies, settings, note
 from hypothesis._settings import duration
 from test_gpu_updaters import parameter_strategy
@@ -18,12 +20,15 @@ from test_with_dask import run_empty_dmatrix_reg  # noqa
 from test_with_dask import run_empty_dmatrix_cls  # noqa
 from test_with_dask import _get_client_workers  # noqa
 from test_with_dask import generate_array     # noqa
+from test_with_dask import kCols as random_cols  # noqa
+from test_with_dask import suppress           # noqa
 import testing as tm                          # noqa
 
 
 try:
     import dask.dataframe as dd
     from xgboost import dask as dxgb
+    import xgboost as xgb
     from dask.distributed import Client
     from dask import array as da
     from dask_cuda import LocalCUDACluster
@@ -171,25 +176,30 @@ class TestDistributedGPU:
             run_with_dask_dataframe(dxgb.DaskDMatrix, client)
             run_with_dask_dataframe(dxgb.DaskDeviceQuantileDMatrix, client)
 
-    @given(params=parameter_strategy, num_rounds=strategies.integers(1, 20),
-           dataset=tm.dataset_strategy)
-    @settings(deadline=duration(seconds=120))
+    @given(
+        params=parameter_strategy,
+        num_rounds=strategies.integers(1, 20),
+        dataset=tm.dataset_strategy,
+    )
+    @settings(deadline=duration(seconds=120), suppress_health_check=suppress)
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
-    @pytest.mark.parametrize('local_cuda_cluster', [{'n_workers': 2}], indirect=['local_cuda_cluster'])
+    @pytest.mark.parametrize(
+        "local_cuda_cluster", [{"n_workers": 2}], indirect=["local_cuda_cluster"]
+    )
     @pytest.mark.mgpu
     def test_gpu_hist(
         self,
         params: Dict,
         num_rounds: int,
         dataset: tm.TestDataset,
-        local_cuda_cluster: LocalCUDACluster
+        local_cuda_cluster: LocalCUDACluster,
     ) -> None:
         with Client(local_cuda_cluster) as client:
-            run_gpu_hist(params, num_rounds, dataset, dxgb.DaskDMatrix,
-                         client)
-            run_gpu_hist(params, num_rounds, dataset,
-                         dxgb.DaskDeviceQuantileDMatrix, client)
+            run_gpu_hist(params, num_rounds, dataset, dxgb.DaskDMatrix, client)
+            run_gpu_hist(
+                params, num_rounds, dataset, dxgb.DaskDeviceQuantileDMatrix, client
+            )
 
     @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.skipif(**tm.no_dask())
@@ -245,6 +255,72 @@ class TestDistributedGPU:
                           'debug_synchronize': True}
             run_empty_dmatrix_reg(client, parameters)
             run_empty_dmatrix_cls(client, parameters)
+
+    def test_data_initialization(self, local_cuda_cluster: LocalCUDACluster) -> None:
+        with Client(local_cuda_cluster) as client:
+            X, y, _ = generate_array()
+            fw = da.random.random((random_cols, ))
+            fw = fw - fw.min()
+            m = dxgb.DaskDMatrix(client, X, y, feature_weights=fw)
+
+            workers = list(_get_client_workers(client).keys())
+            rabit_args = client.sync(dxgb._get_rabit_args, len(workers), client)
+
+            def worker_fn(worker_addr: str, data_ref: Dict) -> None:
+                with dxgb.RabitContext(rabit_args):
+                    local_dtrain = dxgb._dmatrix_from_list_of_parts(**data_ref)
+                    fw_rows = local_dtrain.get_float_info("feature_weights").shape[0]
+                    assert fw_rows == local_dtrain.num_col()
+
+            futures = []
+            for i in range(len(workers)):
+                futures.append(client.submit(worker_fn, workers[i],
+                                             m.create_fn_args(workers[i]), pure=False,
+                                             workers=[workers[i]]))
+            client.gather(futures)
+
+    def test_interface_consistency(self) -> None:
+        sig = OrderedDict(signature(dxgb.DaskDMatrix).parameters)
+        del sig["client"]
+        ddm_names = list(sig.keys())
+        sig = OrderedDict(signature(dxgb.DaskDeviceQuantileDMatrix).parameters)
+        del sig["client"]
+        del sig["max_bin"]
+        ddqdm_names = list(sig.keys())
+        assert len(ddm_names) == len(ddqdm_names)
+
+        # between dask
+        for i in range(len(ddm_names)):
+            assert ddm_names[i] == ddqdm_names[i]
+
+        sig = OrderedDict(signature(xgb.DMatrix).parameters)
+        del sig["nthread"]      # no nthread in dask
+        dm_names = list(sig.keys())
+        sig = OrderedDict(signature(xgb.DeviceQuantileDMatrix).parameters)
+        del sig["nthread"]
+        del sig["max_bin"]
+        dqdm_names = list(sig.keys())
+
+        # between single node
+        assert len(dm_names) == len(dqdm_names)
+        for i in range(len(dm_names)):
+            assert dm_names[i] == dqdm_names[i]
+
+        # ddm <-> dm
+        for i in range(len(ddm_names)):
+            assert ddm_names[i] == dm_names[i]
+
+        # dqdm <-> ddqdm
+        for i in range(len(ddqdm_names)):
+            assert ddqdm_names[i] == dqdm_names[i]
+
+        sig = OrderedDict(signature(xgb.XGBRanker.fit).parameters)
+        ranker_names = list(sig.keys())
+        sig = OrderedDict(signature(xgb.dask.DaskXGBRanker.fit).parameters)
+        dranker_names = list(sig.keys())
+
+        for rn, drn in zip(ranker_names, dranker_names):
+            assert rn == drn
 
     def run_quantile(self, name: str, local_cuda_cluster: LocalCUDACluster) -> None:
         if sys.platform.startswith("win"):

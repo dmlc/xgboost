@@ -79,15 +79,57 @@ def test_multiclass_classification():
         check_pred(preds3, labels, output_margin=True)
         check_pred(preds4, labels, output_margin=False)
 
+    cls = xgb.XGBClassifier(n_estimators=4).fit(X, y)
+    assert cls.n_classes_ == 3
+    proba = cls.predict_proba(X)
+    assert proba.shape[0] == X.shape[0]
+    assert proba.shape[1] == cls.n_classes_
+
+    # custom objective, the default is multi:softprob so no transformation is required.
+    cls = xgb.XGBClassifier(n_estimators=4, objective=tm.softprob_obj(3)).fit(X, y)
+    proba = cls.predict_proba(X)
+    assert proba.shape[0] == X.shape[0]
+    assert proba.shape[1] == cls.n_classes_
+
+
+def test_best_ntree_limit():
+    from sklearn.datasets import load_iris
+
+    X, y = load_iris(return_X_y=True)
+
+    def train(booster, forest):
+        rounds = 4
+        cls = xgb.XGBClassifier(
+            n_estimators=rounds, num_parallel_tree=forest, booster=booster
+        ).fit(
+            X, y, eval_set=[(X, y)], early_stopping_rounds=3
+        )
+
+        if forest:
+            assert cls.best_ntree_limit == rounds * forest
+        else:
+            assert cls.best_ntree_limit == 0
+
+        # best_ntree_limit is used by default, assert that under gblinear it's
+        # automatically ignored due to being 0.
+        cls.predict(X)
+
+    num_parallel_tree = 4
+    train('gbtree', num_parallel_tree)
+    train('dart', num_parallel_tree)
+    train('gblinear', None)
+
 
 def test_ranking():
     # generate random data
     x_train = np.random.rand(1000, 10)
     y_train = np.random.randint(5, size=1000)
     train_group = np.repeat(50, 20)
+
     x_valid = np.random.rand(200, 10)
     y_valid = np.random.randint(5, size=200)
     valid_group = np.repeat(50, 4)
+
     x_test = np.random.rand(100, 10)
 
     params = {'tree_method': 'exact', 'objective': 'rank:pairwise',
@@ -96,6 +138,8 @@ def test_ranking():
     model = xgb.sklearn.XGBRanker(**params)
     model.fit(x_train, y_train, group=train_group,
               eval_set=[(x_valid, y_valid)], eval_group=[valid_group])
+    assert model.evals_result()
+
     pred = model.predict(x_test)
 
     train_data = xgb.DMatrix(x_train, y_train)
@@ -673,13 +717,13 @@ def test_validation_weights_xgbmodel():
     assert all((logloss_with_weights[i] != logloss_without_weights[i]
                 for i in [0, 1]))
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         # length of eval set and sample weight doesn't match.
         clf.fit(X_train, y_train, sample_weight=weights_train,
                 eval_set=[(X_train, y_train), (X_test, y_test)],
                 sample_weight_eval_set=[weights_train])
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         cls = xgb.XGBClassifier()
         cls.fit(X_train, y_train, sample_weight=weights_train,
                 eval_set=[(X_train, y_train), (X_test, y_test)],
@@ -788,6 +832,11 @@ def test_save_load_model():
         booster.save_model(model_path)
         cls = xgb.XGBClassifier()
         cls.load_model(model_path)
+
+        proba = cls.predict_proba(X)
+        assert proba.shape[0] == X.shape[0]
+        assert proba.shape[1] == 2  # binary
+
         predt_1 = cls.predict_proba(X)[:, 1]
         assert np.allclose(predt_0, predt_1)
 
@@ -1069,16 +1118,58 @@ def run_boost_from_prediction(tree_method):
     assert np.all(predictions_1 == predictions_2)
 
 
-@pytest.mark.skipif(**tm.no_sklearn())
-def test_boost_from_prediction_hist():
-    run_boost_from_prediction('hist')
+@pytest.mark.parametrize("tree_method", ["hist", "approx", "exact"])
+def test_boost_from_prediction(tree_method):
+    run_boost_from_prediction(tree_method)
 
 
-@pytest.mark.skipif(**tm.no_sklearn())
-def test_boost_from_prediction_approx():
-    run_boost_from_prediction('approx')
+def test_estimator_type():
+    assert xgb.XGBClassifier._estimator_type == "classifier"
+    assert xgb.XGBRFClassifier._estimator_type == "classifier"
+    assert xgb.XGBRegressor._estimator_type == "regressor"
+    assert xgb.XGBRFRegressor._estimator_type == "regressor"
+    assert xgb.XGBRanker._estimator_type == "ranker"
+
+    from sklearn.datasets import load_digits
+
+    X, y = load_digits(n_class=2, return_X_y=True)
+    cls = xgb.XGBClassifier(n_estimators=2).fit(X, y)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "cls.json")
+        cls.save_model(path)
+
+        reg = xgb.XGBRegressor()
+        with pytest.raises(TypeError):
+            reg.load_model(path)
+
+        cls = xgb.XGBClassifier()
+        cls.load_model(path)  # no error
 
 
-@pytest.mark.skipif(**tm.no_sklearn())
-def test_boost_from_prediction_exact():
-    run_boost_from_prediction('exact')
+def run_data_initialization(DMatrix, model, X, y):
+    """Assert that we don't create duplicated DMatrix."""
+
+    old_init = DMatrix.__init__
+    count = [0]
+
+    def new_init(self, **kwargs):
+        count[0] += 1
+        return old_init(self, **kwargs)
+
+    DMatrix.__init__ = new_init
+    model(n_estimators=1).fit(X, y, eval_set=[(X, y)])
+
+    assert count[0] == 1
+    count[0] = 0                # only 1 DMatrix is created.
+
+    y_copy = y.copy()
+    model(n_estimators=1).fit(X, y, eval_set=[(X, y_copy)])
+    assert count[0] == 2        # a different Python object is considered different
+
+    DMatrix.__init__ = old_init
+
+
+def test_data_initialization():
+    from sklearn.datasets import load_digits
+    X, y = load_digits(return_X_y=True)
+    run_data_initialization(xgb.DMatrix, xgb.XGBClassifier, X, y)

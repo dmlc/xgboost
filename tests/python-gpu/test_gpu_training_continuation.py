@@ -6,15 +6,14 @@ rng = np.random.RandomState(1994)
 
 
 class TestGPUTrainingContinuation:
-    def run_training_continuation(self, use_json):
+    def test_training_continuation(self):
         kRows = 64
         kCols = 32
         X = np.random.randn(kRows, kCols)
         y = np.random.randn(kRows)
         dtrain = xgb.DMatrix(X, y)
         params = {'tree_method': 'gpu_hist', 'max_depth': '2',
-                  'gamma': '0.1', 'alpha': '0.01',
-                  'enable_experimental_json_serialization': use_json}
+                  'gamma': '0.1', 'alpha': '0.01'}
         bst_0 = xgb.train(params, dtrain, num_boost_round=64)
         dump_0 = bst_0.get_dump(dump_format='json')
 
@@ -48,9 +47,3 @@ class TestGPUTrainingContinuation:
             obj_0 = json.loads(dump_0[i])
             obj_1 = json.loads(dump_1[i])
             recursive_compare(obj_0, obj_1)
-
-    def test_gpu_training_continuation_binary(self):
-        self.run_training_continuation(False)
-
-    def test_gpu_training_continuation_json(self):
-        self.run_training_continuation(True)

@@ -63,8 +63,9 @@ def get_host_ip(hostIP=None):
         try:
             hostIP = socket.gethostbyname(socket.getfqdn())
         except gaierror:
-            logging.warning(
-                'gethostbyname(socket.getfqdn()) failed... trying on hostname()')
+            logging.debug(
+                'gethostbyname(socket.getfqdn()) failed... trying on hostname()'
+            )
             hostIP = socket.gethostbyname(socket.gethostname())
         if hostIP.startswith("127."):
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -292,7 +293,7 @@ class RabitTracker(object):
             s = SlaveEntry(fd, s_addr)
             if s.cmd == 'print':
                 msg = s.sock.recvstr()
-                logging.info(msg.strip())
+                print(msg.strip(), flush=True)
                 continue
             if s.cmd == 'shutdown':
                 assert s.rank >= 0 and s.rank not in shutdown

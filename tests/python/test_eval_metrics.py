@@ -63,7 +63,7 @@ class TestEvalMetrics:
             from sklearn.cross_validation import train_test_split
         from sklearn.datasets import load_digits
 
-        digits = load_digits(2)
+        digits = load_digits(n_class=2)
         X = digits['data']
         y = digits['target']
 

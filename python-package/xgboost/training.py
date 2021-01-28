@@ -88,17 +88,41 @@ def _train_internal(params, dtrain,
     if evals_result is not None and is_new_callback:
         evals_result.update(callbacks.history)
 
+    # These should be moved into callback functions `after_training`, but until old
+    # callbacks are removed, the train function is the only place for setting the
+    # attributes.
+    config = json.loads(bst.save_config())
+    booster = config['learner']['gradient_booster']['name']
+    if booster == 'gblinear':
+        num_parallel_tree = 0
+    elif booster == 'dart':
+        num_parallel_tree = int(
+            config['learner']['gradient_booster']['gbtree']['gbtree_train_param'][
+                'num_parallel_tree'
+            ]
+        )
+    elif booster == 'gbtree':
+        num_parallel_tree = int(
+            config['learner']['gradient_booster']['gbtree_train_param'][
+                'num_parallel_tree']
+        )
+    else:
+        raise ValueError(f'Unknown booster: {booster}')
+
     if bst.attr('best_score') is not None:
         bst.best_score = float(bst.attr('best_score'))
         bst.best_iteration = int(bst.attr('best_iteration'))
+        # num_class is handled internally
+        bst.set_attr(
+            best_ntree_limit=str((bst.best_iteration + 1) * num_parallel_tree)
+        )
+        bst.best_ntree_limit = int(bst.attr("best_ntree_limit"))
     else:
+        # Due to compatibility with version older than 1.4, these attributes are added
+        # to Python object even if early stopping is not used.
         bst.best_iteration = bst.num_boosted_rounds() - 1
-    try:
-        num_parallel_tree = int(json.loads(bst.save_config())['learner'][
-            'gradient_booster']['gbtree_train_param']['num_parallel_tree'])
-    except KeyError:            # gblinear
-        num_parallel_tree = 1
-    bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
+        bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
+
     # Copy to serialise and unserialise booster to reset state and free
     # training memory
     return bst.copy()
@@ -131,15 +155,17 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         Activates early stopping. Validation metric needs to improve at least once in
         every **early_stopping_rounds** round(s) to continue training.
         Requires at least one item in **evals**.
-        The method returns the model from the last iteration (not the best one).
-        If there's more than one item in **evals**, the last entry will be used
-        for early stopping.
+        The method returns the model from the last iteration (not the best one).  Use
+        custom callback or model slicing if the best model is desired.
+        If there's more than one item in **evals**, the last entry will be used for early
+        stopping.
         If there's more than one metric in the **eval_metric** parameter given in
         **params**, the last metric will be used for early stopping.
         If early stopping occurs, the model will have three additional fields:
-        ``bst.best_score``, ``bst.best_iteration`` and ``bst.best_ntree_limit``.
-        (Use ``bst.best_ntree_limit`` to get the correct value if
-        ``num_parallel_tree`` and/or ``num_class`` appears in the parameters)
+        ``bst.best_score``, ``bst.best_iteration`` and ``bst.best_ntree_limit``.  Use
+        ``bst.best_ntree_limit`` to get the correct value if ``num_parallel_tree`` and/or
+        ``num_class`` appears in the parameters.  ``best_ntree_limit`` is the result of
+        ``num_parallel_tree * best_iteration``.
     evals_result: dict
         This dictionary stores the evaluation results of all the items in watchlist.
 

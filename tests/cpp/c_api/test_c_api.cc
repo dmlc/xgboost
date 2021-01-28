@@ -30,10 +30,11 @@ TEST(CAPI, XGDMatrixCreateFromMatDT) {
   ASSERT_EQ(info.num_nonzero_, 6ul);
 
   for (const auto &batch : (*dmat)->GetBatches<xgboost::SparsePage>()) {
-    ASSERT_EQ(batch[0][0].fvalue, 0.0f);
-    ASSERT_EQ(batch[0][1].fvalue, -4.0f);
-    ASSERT_EQ(batch[2][0].fvalue, 3.0f);
-    ASSERT_EQ(batch[2][1].fvalue, 0.0f);
+    auto page = batch.GetView();
+    ASSERT_EQ(page[0][0].fvalue, 0.0f);
+    ASSERT_EQ(page[0][1].fvalue, -4.0f);
+    ASSERT_EQ(page[2][0].fvalue, 3.0f);
+    ASSERT_EQ(page[2][1].fvalue, 0.0f);
   }
 
   delete dmat;
@@ -62,8 +63,9 @@ TEST(CAPI, XGDMatrixCreateFromMatOmp) {
     ASSERT_EQ(info.num_nonzero_, num_cols * row - num_missing);
 
     for (const auto &batch : (*dmat)->GetBatches<xgboost::SparsePage>()) {
+      auto page = batch.GetView();
       for (size_t i = 0; i < batch.Size(); i++) {
-        auto inst = batch[i];
+        auto inst = page[i];
         for (auto e : inst) {
           ASSERT_EQ(e.fvalue, 1.5);
         }

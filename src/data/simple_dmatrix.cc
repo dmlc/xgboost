@@ -28,13 +28,12 @@ DMatrix* SimpleDMatrix::Slice(common::Span<int32_t const> ridxs) {
   auto out = new SimpleDMatrix;
   SparsePage& out_page = out->sparse_page_;
   for (auto const &page : this->GetBatches<SparsePage>()) {
-    page.data.HostVector();
-    page.offset.HostVector();
+    auto batch = page.GetView();
     auto& h_data = out_page.data.HostVector();
     auto& h_offset = out_page.offset.HostVector();
     size_t rptr{0};
     for (auto ridx : ridxs) {
-      auto inst = page[ridx];
+      auto inst = batch[ridx];
       rptr += inst.size();
       std::copy(inst.begin(), inst.end(), std::back_inserter(h_data));
       h_offset.emplace_back(rptr);

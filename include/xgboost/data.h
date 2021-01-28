@@ -252,15 +252,6 @@ class SparsePage {
   /*! \brief an instance of sparse vector in the batch */
   using Inst = common::Span<Entry const>;
 
-  /*! \brief get i-th row from the batch */
-  inline Inst operator[](size_t i) const {
-    const auto& data_vec = data.HostVector();
-    const auto& offset_vec = offset.HostVector();
-    size_t size = offset_vec[i + 1] - offset_vec[i];
-    return {data_vec.data() + offset_vec[i],
-            static_cast<Inst::index_type>(size)};
-  }
-
   HostSparsePageView GetView() const {
     return {offset.ConstHostSpan(), data.ConstHostSpan()};
   }

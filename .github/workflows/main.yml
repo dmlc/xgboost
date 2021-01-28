@@ -31,7 +31,7 @@ jobs:
     - name: Run gtest binary
       run: |
         cd build
-        ctest --extra-verbose
+        ctest --exclude-regex AllTestsInDMLCUnitTests --extra-verbose
 
   gtest-cpu-nonomp:
     name: Test Google C++ unittest (CPU Non-OMP)
@@ -59,6 +59,45 @@ jobs:
         cd build
         ctest --extra-verbose
 
+  python-sdist-test:
+    name: Test installing XGBoost Python source package
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-10.15, windows-latest]
+        python-version: ["3.8"]
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - name: Install osx system dependencies
+      if: matrix.os == 'macos-10.15'
+      run: |
+        brew install ninja libomp
+    - name: Install Ubuntu system dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get install -y --no-install-recommends ninja-build
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: ${{ matrix.python-version }}
+        activate-environment: test
+    - name: Display Conda env
+      shell: bash -l {0}
+      run: |
+        conda info
+        conda list
+    - name: Build and install XGBoost
+      shell: bash -l {0}
+      run: |
+        cd python-package
+        python --version
+        python setup.py sdist
+        pip install -v ./dist/xgboost-*.tar.gz
+        cd ..
+        python -c 'import xgboost'
+
   c-api-demo:
     name: Test installing XGBoost lib + building the C API demo
     runs-on: ${{ matrix.os }}
@@ -78,6 +117,7 @@ jobs:
       with:
         auto-update-conda: true
         python-version: ${{ matrix.python-version }}
+        activate-environment: test
     - name: Display Conda env
       shell: bash -l {0}
       run: |
@@ -174,12 +214,7 @@ jobs:
         python -m pip install wheel setuptools mypy dask[complete] distributed
     - name: Run mypy
       run: |
-        cd python-package
-        # dask is required to pass, others are not
-        mypy ./xgboost/dask.py ../tests/python/test_with_dask.py --follow-imports=silent
-        mypy ../tests/python-gpu/test_gpu_with_dask.py --follow-imports=silent
-        # If any of the above failed, contributor won't see the next error.
-        mypy . || true
+        make mypy
 
   doxygen:
     runs-on: ubuntu-latest
@@ -227,7 +262,7 @@ jobs:
         submodules: 'true'
     - uses: actions/setup-python@v2
       with:
-        python-version: '3.7'
+        python-version: '3.8'
         architecture: 'x64'
     - name: Install system packages
       run: |

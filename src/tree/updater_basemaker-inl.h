@@ -59,8 +59,9 @@ class BaseMaker: public TreeUpdater {
                 -std::numeric_limits<bst_float>::max());
       // start accumulating statistics
       for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
+        auto page = batch.GetView();
         for (bst_uint fid = 0; fid < batch.Size(); ++fid) {
-          auto c = batch[fid];
+          auto c = page[fid];
           if (c.size() != 0) {
             CHECK_LT(fid * 2, fminmax_.size());
             fminmax_[fid * 2 + 0] =
@@ -249,8 +250,9 @@ class BaseMaker: public TreeUpdater {
   inline void CorrectNonDefaultPositionByBatch(
       const SparsePage &batch, const std::vector<bst_uint> &sorted_split_set,
       const RegTree &tree) {
+    auto page = batch.GetView();
     for (size_t fid = 0; fid < batch.Size(); ++fid) {
-      auto col = batch[fid];
+      auto col = page[fid];
       auto it = std::lower_bound(sorted_split_set.begin(), sorted_split_set.end(), fid);
 
       if (it != sorted_split_set.end() && *it == fid) {
@@ -308,10 +310,11 @@ class BaseMaker: public TreeUpdater {
     std::vector<unsigned> fsplits;
     this->GetSplitSet(nodes, tree, &fsplits);
     for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
+      auto page = batch.GetView();
       for (auto fid : fsplits) {
-        auto col = batch[fid];
+        auto col = page[fid];
         const auto ndata = static_cast<bst_omp_uint>(col.size());
-        #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
         for (bst_omp_uint j = 0; j < ndata; ++j) {
           const bst_uint ridx = col[j].index;
           const bst_float fvalue = col[j].fvalue;

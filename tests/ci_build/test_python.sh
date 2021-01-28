@@ -66,8 +66,15 @@ case "$suite" in
     uninstall_xgboost
     ;;
 
+  cpu-arm64)
+    source activate aarch64_test
+    install_xgboost
+    pytest -v -s -rxXs --fulltrace --durations=0 ${args} tests/python/test_basic.py tests/python/test_basic_models.py tests/python/test_model_compatibility.py
+    uninstall_xgboost
+    ;;
+
   *)
-    echo "Usage: $0 {gpu|mgpu|cpu} [extra args to pass to pytest]"
+    echo "Usage: $0 {gpu|mgpu|cpu|cpu-arm64} [extra args to pass to pytest]"
     exit 1
     ;;
 esac

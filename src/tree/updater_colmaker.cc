@@ -77,8 +77,9 @@ class ColMaker: public TreeUpdater {
     if (column_densities_.empty()) {
       std::vector<size_t> column_size(dmat->Info().num_col_);
       for (const auto &batch : dmat->GetBatches<SortedCSCPage>()) {
+        auto page = batch.GetView();
         for (auto i = 0u; i < batch.Size(); i++) {
-          column_size[i] += batch[i].size();
+          column_size[i] += page[i].size();
         }
       }
       column_densities_.resize(column_size.size());
@@ -447,13 +448,14 @@ class ColMaker: public TreeUpdater {
 #endif  // defined(_OPENMP)
       {
         dmlc::OMPException omp_handler;
+        auto page = batch.GetView();
 #pragma omp parallel for schedule(dynamic, batch_size)
         for (bst_omp_uint i = 0; i < num_features; ++i) {
           omp_handler.Run([&]() {
             auto evaluator = tree_evaluator_.GetEvaluator();
             bst_feature_t const fid = feat_set[i];
             int32_t const tid = omp_get_thread_num();
-            auto c = batch[fid];
+            auto c = page[fid];
             const bool ind =
                 c.size() != 0 && c[0].fvalue == c[c.size() - 1].fvalue;
             if (colmaker_train_param_.NeedForwardSearch(
@@ -562,8 +564,9 @@ class ColMaker: public TreeUpdater {
       std::sort(fsplits.begin(), fsplits.end());
       fsplits.resize(std::unique(fsplits.begin(), fsplits.end()) - fsplits.begin());
       for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
+        auto page = batch.GetView();
         for (auto fid : fsplits) {
-          auto col = batch[fid];
+          auto col = page[fid];
           const auto ndata = static_cast<bst_omp_uint>(col.size());
 #pragma omp parallel for schedule(static)
           for (bst_omp_uint j = 0; j < ndata; ++j) {

@@ -338,6 +338,7 @@ class CQHistMaker: public HistMaker {
       thread_hist_.resize(omp_get_max_threads());
       // start accumulating statistics
       for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
+        auto page = batch.GetView();
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(fset.size());
 #pragma omp parallel for schedule(dynamic, 1)
@@ -345,7 +346,7 @@ class CQHistMaker: public HistMaker {
           int fid = fset[i];
           int offset = feat2workindex_[fid];
           if (offset >= 0) {
-            this->UpdateHistCol(gpair, batch[fid], info, tree,
+            this->UpdateHistCol(gpair, page[fid], info, tree,
                                 fset, offset,
                                 &thread_hist_[omp_get_thread_num()]);
           }
@@ -413,15 +414,15 @@ class CQHistMaker: public HistMaker {
       for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
         // TWOPASS: use the real set + split set in the column iteration.
         this->CorrectNonDefaultPositionByBatch(batch, fsplit_set_, tree);
-
+        auto page = batch.GetView();
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(work_set_.size());
-        #pragma omp parallel for schedule(dynamic, 1)
+#pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
           int fid = work_set_[i];
           int offset = feat2workindex_[fid];
           if (offset >= 0) {
-            this->UpdateSketchCol(gpair, batch[fid], tree,
+            this->UpdateSketchCol(gpair, page[fid], tree,
                                   work_set_size, offset,
                                   &thread_sketch_[omp_get_thread_num()]);
           }
@@ -696,6 +697,7 @@ class GlobalProposalHistMaker: public CQHistMaker {
       for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
         // TWOPASS: use the real set + split set in the column iteration.
         this->CorrectNonDefaultPositionByBatch(batch, this->fsplit_set_, tree);
+        auto page = batch.GetView();
 
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(this->work_set_.size());
@@ -704,7 +706,7 @@ class GlobalProposalHistMaker: public CQHistMaker {
           int fid = this->work_set_[i];
           int offset = this->feat2workindex_[fid];
           if (offset >= 0) {
-            this->UpdateHistCol(gpair, batch[fid], info, tree,
+            this->UpdateHistCol(gpair, page[fid], info, tree,
                                 fset, offset,
                                 &this->thread_hist_[omp_get_thread_num()]);
           }

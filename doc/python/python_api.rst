@@ -106,3 +106,9 @@ Dask API
 .. autofunction:: xgboost.dask.DaskXGBClassifier
 
 .. autofunction:: xgboost.dask.DaskXGBRegressor
+
+.. autofunction:: xgboost.dask.DaskXGBRanker
+
+.. autofunction:: xgboost.dask.DaskXGBRFRegressor
+
+.. autofunction:: xgboost.dask.DaskXGBRFClassifier

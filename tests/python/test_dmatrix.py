@@ -239,6 +239,19 @@ class TestDMatrix:
         dtrain.get_float_info('base_margin')
         dtrain.get_uint_info('group_ptr')
 
+    def test_qid(self):
+        rows = 100
+        cols = 10
+        X, y = rng.randn(rows, cols), rng.randn(rows)
+        qid = rng.randint(low=0, high=10, size=rows, dtype=np.uint32)
+        qid = np.sort(qid)
+
+        Xy = xgb.DMatrix(X, y)
+        Xy.set_info(qid=qid)
+        group_ptr = Xy.get_uint_info('group_ptr')
+        assert group_ptr[0] == 0
+        assert group_ptr[-1] == rows
+
     def test_feature_weights(self):
         kRows = 10
         kCols = 50
@@ -283,3 +296,12 @@ class TestDMatrix:
         param = {'max_depth': 3, 'objective': 'binary:logistic', 'verbosity': 0}
         bst = xgb.train(param, dtrain, 5, watchlist)
         bst.predict(dtrain)
+
+    def test_unknown_data(self):
+        class Data:
+            pass
+
+        with pytest.raises(TypeError):
+            with pytest.warns(UserWarning):
+                d = Data()
+                xgb.DMatrix(d)

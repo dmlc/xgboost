@@ -190,7 +190,7 @@ def _check_call(ret):
         raise XGBoostError(py_str(_LIB.XGBGetLastError()))
 
 
-def ctypes2numpy(cptr, length, dtype):
+def ctypes2numpy(cptr, length, dtype) -> np.ndarray:
     """Convert a ctypes pointer array to a numpy array."""
     NUMPY_TO_CTYPES_MAPPING = {
         np.float32: ctypes.c_float,
@@ -262,25 +262,6 @@ def c_array(ctype, values):
     return (ctype * len(values))(*values)
 
 
-def _convert_unknown_data(data, meta=None, meta_type=None):
-    if meta is not None:
-        try:
-            data = np.array(data, dtype=meta_type)
-        except Exception as e:
-            raise TypeError('Can not handle data from {}'.format(
-                type(data).__name__)) from e
-    else:
-        warnings.warn(
-            'Unknown data type: ' + str(type(data)) +
-            ', coverting it to csr_matrix')
-        try:
-            data = scipy.sparse.csr_matrix(data)
-        except Exception as e:
-            raise TypeError('Can not initialize DMatrix from'
-                            ' {}'.format(type(data).__name__)) from e
-    return data
-
-
 class DataIter:
     '''The interface for user defined data iterator. Currently is only
     supported by Device DMatrix.
@@ -321,6 +302,7 @@ class DataIter:
 
         def data_handle(data, label=None, weight=None, base_margin=None,
                         group=None,
+                        qid=None,
                         label_lower_bound=None, label_upper_bound=None,
                         feature_names=None, feature_types=None,
                         feature_weights=None):
@@ -330,14 +312,18 @@ class DataIter:
                 data, feature_names, feature_types
             )
             dispatch_device_quantile_dmatrix_set_data(self.proxy, data)
-            self.proxy.set_info(label=label, weight=weight,
-                                base_margin=base_margin,
-                                group=group,
-                                label_lower_bound=label_lower_bound,
-                                label_upper_bound=label_upper_bound,
-                                feature_names=feature_names,
-                                feature_types=feature_types,
-                                feature_weights=feature_weights)
+            self.proxy.set_info(
+                label=label,
+                weight=weight,
+                base_margin=base_margin,
+                group=group,
+                qid=qid,
+                label_lower_bound=label_lower_bound,
+                label_upper_bound=label_upper_bound,
+                feature_names=feature_names,
+                feature_types=feature_types,
+                feature_weights=feature_weights
+            )
         try:
             # Differ the exception in order to return 0 and stop the iteration.
             # Exception inside a ctype callback function has no effect except
@@ -425,7 +411,7 @@ def _deprecate_positional_args(f):
     return inner_f
 
 
-class DMatrix:                  # pylint: disable=too-many-instance-attributes
+class DMatrix:  # pylint: disable=too-many-instance-attributes
     """Data Matrix used in XGBoost.
 
     DMatrix is an internal data structure that is used by XGBoost,
@@ -433,13 +419,26 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
     You can construct DMatrix from multiple different sources of data.
     """
 
-    def __init__(self, data, label=None, weight=None, base_margin=None,
-                 missing=None,
-                 silent=False,
-                 feature_names=None,
-                 feature_types=None,
-                 nthread=None,
-                 enable_categorical=False):
+    @_deprecate_positional_args
+    def __init__(
+        self,
+        data,
+        label=None,
+        *,
+        weight=None,
+        base_margin=None,
+        missing: Optional[float] = None,
+        silent=False,
+        feature_names=None,
+        feature_types=None,
+        nthread: Optional[int] = None,
+        group=None,
+        qid=None,
+        label_lower_bound=None,
+        label_upper_bound=None,
+        feature_weights=None,
+        enable_categorical: bool = False,
+    ) -> None:
         """Parameters
         ----------
         data : os.PathLike/string/numpy.array/scipy.sparse/pd.DataFrame/
@@ -449,12 +448,9 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             libsvm format txt file, csv file (by specifying uri parameter
             'path_to_csv?format=csv'), or binary file that xgboost can read
             from.
-        label : list, numpy 1-D array or cudf.DataFrame, optional
+        label : array_like
             Label of the training data.
-        missing : float, optional
-            Value in the input data which needs to be present as a missing
-            value. If None, defaults to np.nan.
-        weight : list, numpy 1-D array or cudf.DataFrame , optional
+        weight : array_like
             Weight for each instance.
 
             .. note:: For ranking task, weights are per-group.
@@ -464,6 +460,11 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
                 ordering of data points within each group, so it doesn't make
                 sense to assign weights to individual data points.
 
+        base_margin: array_like
+            Base margin used for boosting from existing model.
+        missing : float, optional
+            Value in the input data which needs to be present as a missing
+            value. If None, defaults to np.nan.
         silent : boolean, optional
             Whether print messages during construction
         feature_names : list, optional
@@ -473,7 +474,16 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         nthread : integer, optional
             Number of threads to use for loading data when parallelization is
             applicable. If -1, uses maximum threads available on the system.
-
+        group : array_like
+            Group size for all ranking group.
+        qid : array_like
+            Query ID for data samples, used for ranking.
+        label_lower_bound : array_like
+            Lower bound for survival training.
+        label_upper_bound : array_like
+            Upper bound for survival training.
+        feature_weights : array_like, optional
+            Set feature weights for column sampling.
         enable_categorical: boolean, optional
 
             .. versionadded:: 1.3.0
@@ -486,7 +496,9 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
 
         """
         if isinstance(data, list):
-            raise TypeError('Input data can not be a list.')
+            raise TypeError("Input data can not be a list.")
+        if group is not None and qid is not None:
+            raise ValueError("Either one of `group` or `qid` should be None.")
 
         self.missing = missing if missing is not None else np.nan
         self.nthread = nthread if nthread is not None else -1
@@ -498,16 +510,28 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             return
 
         from .data import dispatch_data_backend
+
         handle, feature_names, feature_types = dispatch_data_backend(
-            data, missing=self.missing,
+            data,
+            missing=self.missing,
             threads=self.nthread,
             feature_names=feature_names,
             feature_types=feature_types,
-            enable_categorical=enable_categorical)
+            enable_categorical=enable_categorical,
+        )
         assert handle is not None
         self.handle = handle
 
-        self.set_info(label=label, weight=weight, base_margin=base_margin)
+        self.set_info(
+            label=label,
+            weight=weight,
+            base_margin=base_margin,
+            group=group,
+            qid=qid,
+            label_lower_bound=label_lower_bound,
+            label_upper_bound=label_upper_bound,
+            feature_weights=feature_weights,
+        )
 
         if feature_names is not None:
             self.feature_names = feature_names
@@ -520,15 +544,23 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             self.handle = None
 
     @_deprecate_positional_args
-    def set_info(self, *,
-                 label=None, weight=None, base_margin=None,
-                 group=None,
-                 label_lower_bound=None,
-                 label_upper_bound=None,
-                 feature_names=None,
-                 feature_types=None,
-                 feature_weights=None):
-        '''Set meta info for DMatrix.'''
+    def set_info(
+        self,
+        *,
+        label=None,
+        weight=None,
+        base_margin=None,
+        group=None,
+        qid=None,
+        label_lower_bound=None,
+        label_upper_bound=None,
+        feature_names=None,
+        feature_types=None,
+        feature_weights=None
+    ) -> None:
+        """Set meta info for DMatrix.  See doc string for DMatrix constructor."""
+        from .data import dispatch_meta_backend
+
         if label is not None:
             self.set_label(label)
         if weight is not None:
@@ -537,6 +569,8 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
             self.set_base_margin(base_margin)
         if group is not None:
             self.set_group(group)
+        if qid is not None:
+            self.set_uint_info('qid', qid)
         if label_lower_bound is not None:
             self.set_float_info('label_lower_bound', label_lower_bound)
         if label_upper_bound is not None:
@@ -546,7 +580,6 @@ class DMatrix:                  # pylint: disable=too-many-instance-attributes
         if feature_types is not None:
             self.feature_types = feature_types
         if feature_weights is not None:
-            from .data import dispatch_meta_backend
             dispatch_meta_backend(matrix=self, data=feature_weights,
                                   name='feature_weights')
 
@@ -932,39 +965,67 @@ class DeviceQuantileDMatrix(DMatrix):
     information may be lost in quantisation. This DMatrix is primarily designed
     to save memory in training from device memory inputs by avoiding
     intermediate storage. Set max_bin to control the number of bins during
-    quantisation.
+    quantisation.  See doc string in `DMatrix` for documents on meta info.
 
     You can construct DeviceQuantileDMatrix from cupy/cudf/dlpack.
 
     .. versionadded:: 1.1.0
     """
-
-    def __init__(self, data, label=None, weight=None,  # pylint: disable=W0231
-                 base_margin=None,
-                 missing=None,
-                 silent=False,
-                 feature_names=None,
-                 feature_types=None,
-                 nthread=None, max_bin=256):
+    @_deprecate_positional_args
+    def __init__(              # pylint: disable=super-init-not-called
+        self,
+        data,
+        label=None,
+        *,
+        weight=None,
+        base_margin=None,
+        missing=None,
+        silent=False,
+        feature_names=None,
+        feature_types=None,
+        nthread: Optional[int] = None,
+        max_bin: int = 256,
+        group=None,
+        qid=None,
+        label_lower_bound=None,
+        label_upper_bound=None,
+        feature_weights=None,
+        enable_categorical: bool = False,
+    ):
         self.max_bin = max_bin
         self.missing = missing if missing is not None else np.nan
         self.nthread = nthread if nthread is not None else 1
+        self._silent = silent    # unused, kept for compatibility
 
         if isinstance(data, ctypes.c_void_p):
             self.handle = data
             return
         from .data import init_device_quantile_dmatrix
         handle, feature_names, feature_types = init_device_quantile_dmatrix(
-            data, missing=self.missing, threads=self.nthread,
-            max_bin=self.max_bin,
+            data,
             label=label, weight=weight,
             base_margin=base_margin,
-            group=None,
-            label_lower_bound=None,
-            label_upper_bound=None,
+            group=group,
+            qid=qid,
+            missing=self.missing,
+            label_lower_bound=label_lower_bound,
+            label_upper_bound=label_upper_bound,
+            feature_weights=feature_weights,
             feature_names=feature_names,
-            feature_types=feature_types)
+            feature_types=feature_types,
+            threads=self.nthread,
+            max_bin=self.max_bin,
+        )
+        if enable_categorical:
+            raise NotImplementedError(
+                'categorical support is not enabled on DeviceQuantileDMatrix.'
+            )
         self.handle = handle
+        if qid is not None and group is not None:
+            raise ValueError(
+                'Only one of the eval_qid or eval_group for each evaluation '
+                'dataset should be provided.'
+            )
 
         self.feature_names = feature_names
         self.feature_types = feature_types
@@ -993,7 +1054,7 @@ class DeviceQuantileDMatrix(DMatrix):
 
 
 Objective = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
-Metric = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
+Metric = Callable[[np.ndarray, DMatrix], Tuple[str, float]]
 
 
 class Booster(object):
@@ -1492,7 +1553,7 @@ class Booster(object):
                                           ctypes.byref(preds)))
         preds = ctypes2numpy(preds, length.value, np.float32)
         if pred_leaf:
-            preds = preds.astype(np.int32)
+            preds = preds.astype(np.int32, copy=False)
         nrow = data.num_row()
         if preds.size != nrow and preds.size % nrow == 0:
             chunk_size = int(preds.size / nrow)
@@ -1736,6 +1797,13 @@ class Booster(object):
         else:
             raise TypeError('Unknown file type: ', fname)
 
+        if self.attr("best_iteration") is not None:
+            self.best_iteration = int(self.attr("best_iteration"))
+        if self.attr("best_score") is not None:
+            self.best_score = float(self.attr("best_score"))
+        if self.attr("best_ntree_limit") is not None:
+            self.best_ntree_limit = int(self.attr("best_ntree_limit"))
+
     def num_boosted_rounds(self) -> int:
         '''Get number of boosted rounds.  For gblinear this is reset to 0 after
         serializing the model.
@@ -1743,9 +1811,15 @@ class Booster(object):
         '''
         rounds = ctypes.c_int()
         assert self.handle is not None
-        _check_call(_LIB.XGBoosterBoostedRounds(
-            self.handle, ctypes.byref(rounds)))
+        _check_call(_LIB.XGBoosterBoostedRounds(self.handle, ctypes.byref(rounds)))
         return rounds.value
+
+    def num_features(self) -> int:
+        '''Number of features in booster.'''
+        features = ctypes.c_int()
+        assert self.handle is not None
+        _check_call(_LIB.XGBoosterGetNumFeature(self.handle, ctypes.byref(features)))
+        return features.value
 
     def dump_model(self, fout, fmap='', with_stats=False, dump_format="text"):
         """Dump model into a text or JSON file.  Unlike `save_model`, the

@@ -339,7 +339,6 @@ TEST_F(SerializationTest, ConfigurationCount) {
     auto learner = std::unique_ptr<Learner>(Learner::Create(mat));
 
     learner->SetParam("tree_method", "gpu_hist");
-    learner->SetParam("enable_experimental_json_serialization", "1");
 
     for (size_t i = 0; i < 10; ++i) {
       learner->UpdateOneIter(i, p_dmat);

@@ -110,8 +110,7 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
 }
 
 bool QuantileHistMaker::UpdatePredictionCache(
-    const DMatrix* data,
-    HostDeviceVector<bst_float>* out_preds) {
+    const DMatrix* data, HostDeviceVector<bst_float>* out_preds) {
   if (param_.subsample < 1.0f) {
     return false;
   } else {
@@ -124,6 +123,23 @@ bool QuantileHistMaker::UpdatePredictionCache(
     }
   }
 }
+
+bool QuantileHistMaker::UpdatePredictionCacheMulticlass(
+    const DMatrix* data,
+    HostDeviceVector<bst_float>* out_preds, const int gid, const int ngroup) {
+  if (param_.subsample < 1.0f) {
+    return false;
+  } else {
+    if (hist_maker_param_.single_precision_histogram && float_builder_) {
+        return float_builder_->UpdatePredictionCache(data, out_preds, gid, ngroup);
+    } else if (double_builder_) {
+        return double_builder_->UpdatePredictionCache(data, out_preds, gid, ngroup);
+    } else {
+       return false;
+    }
+  }
+}
+
 
 template <typename GradientSumT>
 void BatchHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT *builder,
@@ -620,7 +636,7 @@ void QuantileHistMaker::Builder<GradientSumT>::Update(
 template<typename GradientSumT>
 bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
     const DMatrix* data,
-    HostDeviceVector<bst_float>* p_out_preds) {
+    HostDeviceVector<bst_float>* p_out_preds, const int gid, const int ngroup) {
   // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
   // conjunction with Update().
   if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
@@ -659,7 +675,7 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
       leaf_value = (*p_last_tree_)[nid].LeafValue();
 
       for (const size_t* it = rowset.begin + r.begin(); it < rowset.begin + r.end(); ++it) {
-        out_preds[*it] += leaf_value;
+        out_preds[*it * ngroup + gid] += leaf_value;
       }
     }
   });

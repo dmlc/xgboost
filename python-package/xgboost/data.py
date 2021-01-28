@@ -517,6 +517,24 @@ def _has_array_protocol(data):
     return hasattr(data, '__array__')
 
 
+def _convert_unknown_data(data):
+    warnings.warn(
+        f'Unknown data type: {type(data)}, trying to convert it to csr_matrix',
+        UserWarning
+    )
+    try:
+        import scipy
+    except ImportError:
+        return None
+
+    try:
+        data = scipy.sparse.csr_matrix(data)
+    except Exception:           # pylint: disable=broad-except
+        return None
+
+    return data
+
+
 def dispatch_data_backend(data, missing, threads,
                           feature_names, feature_types,
                           enable_categorical=False):
@@ -570,6 +588,11 @@ def dispatch_data_backend(data, missing, threads,
                                    feature_types)
     if _has_array_protocol(data):
         pass
+
+    converted = _convert_unknown_data(data)
+    if converted:
+        return _from_scipy_csr(data, missing, feature_names, feature_types)
+
     raise TypeError('Not supported type for data.' + str(type(data)))
 
 
@@ -714,16 +737,28 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
     area for meta info.
 
     '''
-    def __init__(self, data, label, weight, base_margin, group,
-                 label_lower_bound, label_upper_bound,
-                 feature_names, feature_types):
+    def __init__(
+        self, data,
+        label,
+        weight,
+        base_margin,
+        group,
+        qid,
+        label_lower_bound,
+        label_upper_bound,
+        feature_weights,
+        feature_names,
+        feature_types
+    ):
         self.data = data
         self.label = label
         self.weight = weight
         self.base_margin = base_margin
         self.group = group
+        self.qid = qid
         self.label_lower_bound = label_lower_bound
         self.label_upper_bound = label_upper_bound
+        self.feature_weights = feature_weights
         self.feature_names = feature_names
         self.feature_types = feature_types
         self.it = 0             # pylint: disable=invalid-name
@@ -736,8 +771,10 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
         input_data(data=self.data, label=self.label,
                    weight=self.weight, base_margin=self.base_margin,
                    group=self.group,
+                   qid=self.qid,
                    label_lower_bound=self.label_lower_bound,
                    label_upper_bound=self.label_upper_bound,
+                   feature_weights=self.feature_weights,
                    feature_names=self.feature_names,
                    feature_types=self.feature_types)
         return 1
@@ -747,7 +784,8 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
 
 
 def init_device_quantile_dmatrix(
-        data, missing, max_bin, threads, feature_names, feature_types, **meta):
+        data, missing, max_bin, threads, feature_names, feature_types, **meta
+):
     '''Constructor for DeviceQuantileDMatrix.'''
     if not any([_is_cudf_df(data), _is_cudf_ser(data), _is_cupy_array(data),
                 _is_dlpack(data), _is_iter(data)]):

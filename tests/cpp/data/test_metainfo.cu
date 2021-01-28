@@ -4,6 +4,7 @@
 #include <xgboost/data.h>
 #include <xgboost/json.h>
 #include <thrust/device_vector.h>
+#include "test_array_interface.h"
 #include "../../../src/common/device_helpers.cuh"
 
 namespace xgboost {
@@ -104,6 +105,28 @@ TEST(MetaInfo, Group) {
   info = MetaInfo();
   EXPECT_ANY_THROW(info.SetInfo("group", float_str.c_str()));
 }
+
+TEST(MetaInfo, GPUQid) {
+  xgboost::MetaInfo info;
+  info.num_row_ = 100;
+  thrust::device_vector<uint32_t> qid(info.num_row_, 0);
+  for (size_t i = 0; i < qid.size(); ++i) {
+    qid[i] = i;
+  }
+  auto column = Generate2dArrayInterface(info.num_row_, 1, "<u4", &qid);
+  Json array{std::vector<Json>{column}};
+  std::string array_str;
+  Json::Dump(array, &array_str);
+  info.SetInfo("qid", array_str.c_str());
+  ASSERT_EQ(info.group_ptr_.size(), info.num_row_ + 1);
+  ASSERT_EQ(info.group_ptr_.front(), 0);
+  ASSERT_EQ(info.group_ptr_.back(), info.num_row_);
+
+  for (size_t i = 0; i < info.num_row_ + 1; ++i) {
+    ASSERT_EQ(info.group_ptr_[i], i);
+  }
+}
+
 
 TEST(MetaInfo, DeviceExtend) {
   dh::safe_cuda(cudaSetDevice(0));

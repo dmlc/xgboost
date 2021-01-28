@@ -63,7 +63,7 @@ Json GenerateSparseColumn(std::string const& typestr, size_t kRows,
 
 template <typename T>
 Json Generate2dArrayInterface(int rows, int cols, std::string typestr,
-                                thrust::device_vector<T>* p_data) {
+                              thrust::device_vector<T> *p_data) {
   auto& data = *p_data;
   thrust::sequence(data.begin(), data.end());
 

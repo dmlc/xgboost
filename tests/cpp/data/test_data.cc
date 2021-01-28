@@ -11,9 +11,9 @@ namespace xgboost {
 TEST(SparsePage, PushCSC) {
   std::vector<bst_row_t> offset {0};
   std::vector<Entry> data;
-  SparsePage page;
-  page.offset.HostVector() = offset;
-  page.data.HostVector() = data;
+  SparsePage batch;
+  batch.offset.HostVector() = offset;
+  batch.data.HostVector() = data;
 
   offset = {0, 1, 4};
   for (size_t i = 0; i < offset.back(); ++i) {
@@ -24,25 +24,26 @@ TEST(SparsePage, PushCSC) {
   other.offset.HostVector() = offset;
   other.data.HostVector() = data;
 
-  page.PushCSC(other);
+  batch.PushCSC(other);
 
-  ASSERT_EQ(page.offset.HostVector().size(), offset.size());
-  ASSERT_EQ(page.data.HostVector().size(), data.size());
+  ASSERT_EQ(batch.offset.HostVector().size(), offset.size());
+  ASSERT_EQ(batch.data.HostVector().size(), data.size());
   for (size_t i = 0; i < offset.size(); ++i) {
-    ASSERT_EQ(page.offset.HostVector()[i], offset[i]);
+    ASSERT_EQ(batch.offset.HostVector()[i], offset[i]);
   }
   for (size_t i = 0; i < data.size(); ++i) {
-    ASSERT_EQ(page.data.HostVector()[i].index, data[i].index);
+    ASSERT_EQ(batch.data.HostVector()[i].index, data[i].index);
   }
 
-  page.PushCSC(other);
-  ASSERT_EQ(page.offset.HostVector().size(), offset.size());
-  ASSERT_EQ(page.data.Size(), data.size() * 2);
+  batch.PushCSC(other);
+  ASSERT_EQ(batch.offset.HostVector().size(), offset.size());
+  ASSERT_EQ(batch.data.Size(), data.size() * 2);
 
   for (size_t i = 0; i < offset.size(); ++i) {
-    ASSERT_EQ(page.offset.HostVector()[i], offset[i] * 2);
+    ASSERT_EQ(batch.offset.HostVector()[i], offset[i] * 2);
   }
 
+  auto page = batch.GetView();
   auto inst = page[0];
   ASSERT_EQ(inst.size(), 2ul);
   for (auto entry : inst) {
@@ -78,7 +79,7 @@ TEST(SparsePage, PushCSCAfterTranspose) {
   // The feature value for a feature in each row should be identical, as that is
   // how the dmatrix has been created
   for (size_t i = 0; i < page.Size(); ++i) {
-    auto inst = page[i];
+    auto inst = page.GetView()[i];
     for (size_t j = 1; j < inst.size(); ++j) {
       ASSERT_EQ(inst[0].fvalue, inst[j].fvalue);
     }

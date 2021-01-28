@@ -7,6 +7,7 @@ import json
 from typing import Union, Optional, List, Dict, Callable, Tuple, Any
 import numpy as np
 from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
+from .core import Metric
 from .training import train
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
 
@@ -14,6 +15,12 @@ from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
 # .compat to guarantee the behavior without scikit-learn
 from .compat import (SKLEARN_INSTALLED, XGBModelBase,
                      XGBClassifierBase, XGBRegressorBase, XGBoostLabelEncoder)
+
+
+class XGBRankerMixIn:           # pylint: disable=too-few-public-methods
+    """MixIn for ranking, defines the _estimator_type usually defined in scikit-learn base
+    classes."""
+    _estimator_type = "ranker"
 
 
 def _objective_decorator(func):
@@ -84,7 +91,7 @@ __model_doc = '''
         node of the tree.
     min_child_weight : float
         Minimum sum of instance weight(hessian) needed in a child.
-    max_delta_step : int
+    max_delta_step : float
         Maximum delta step we allow each tree's weight estimation to be.
     subsample : float
         Subsample ratio of the training instance.
@@ -126,6 +133,10 @@ __model_doc = '''
     importance_type: string, default "gain"
         The feature importance type for the feature_importances\\_ property:
         either "gain", "weight", "cover", "total_gain" or "total_cover".
+    gpu_id :
+        Device ordinal.
+    validate_parameters :
+        Give warnings for unknown parameter.
 
     \\*\\*kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of
@@ -201,24 +212,144 @@ Parameters
     return adddoc
 
 
+def _wrap_evaluation_matrices(
+    missing: float,
+    X: Any,
+    y: Any,
+    group: Optional[Any],
+    qid: Optional[Any],
+    sample_weight: Optional[Any],
+    base_margin: Optional[Any],
+    feature_weights: Optional[Any],
+    eval_set: Optional[List[Tuple[Any, Any]]],
+    sample_weight_eval_set: Optional[List[Any]],
+    base_margin_eval_set: Optional[List[Any]],
+    eval_group: Optional[List[Any]],
+    eval_qid: Optional[List[Any]],
+    create_dmatrix: Callable,
+    label_transform: Callable = lambda x: x,
+) -> Tuple[Any, Optional[List[Tuple[Any, str]]]]:
+    """Convert array_like evaluation matrices into DMatrix.  Perform validation on the way.
+
+    """
+    train_dmatrix = create_dmatrix(
+        data=X,
+        label=label_transform(y),
+        group=group,
+        qid=qid,
+        weight=sample_weight,
+        base_margin=base_margin,
+        feature_weights=feature_weights,
+        missing=missing,
+    )
+
+    def validate_or_none(meta: Optional[List], name: str) -> List:
+        if meta is None:
+            return [None] * len(eval_set)
+        if len(meta) != len(eval_set):
+            raise ValueError(
+                f"{name}'s length does not eqaul to `eval_set`, " +
+                f"expecting {len(eval_set)}, got {len(meta)}"
+            )
+        return meta
+
+    if eval_set is not None:
+        sample_weight_eval_set = validate_or_none(
+            sample_weight_eval_set, "sample_weight_eval_set"
+        )
+        base_margin_eval_set = validate_or_none(
+            base_margin_eval_set, "base_margin_eval_set"
+        )
+        eval_group = validate_or_none(eval_group, "eval_group")
+        eval_qid = validate_or_none(eval_qid, "eval_qid")
+
+        evals = []
+        for i, (valid_X, valid_y) in enumerate(eval_set):
+            # Skip the duplicated entry.
+            if all(
+                (
+                    valid_X is X, valid_y is y,
+                    sample_weight_eval_set[i] is sample_weight,
+                    base_margin_eval_set[i] is base_margin,
+                    eval_group[i] is group,
+                    eval_qid[i] is qid
+                )
+            ):
+                evals.append(train_dmatrix)
+            else:
+                m = create_dmatrix(
+                    data=valid_X,
+                    label=label_transform(valid_y),
+                    weight=sample_weight_eval_set[i],
+                    group=eval_group[i],
+                    qid=eval_qid[i],
+                    base_margin=base_margin_eval_set[i],
+                    missing=missing,
+                )
+                evals.append(m)
+        nevals = len(evals)
+        eval_names = ["validation_{}".format(i) for i in range(nevals)]
+        evals = list(zip(evals, eval_names))
+    else:
+        if any(
+            [
+                meta is not None
+                for meta in [
+                    sample_weight_eval_set,
+                    base_margin_eval_set,
+                    eval_group,
+                    eval_qid,
+                ]
+            ]
+        ):
+            raise ValueError(
+                "`eval_set` is not set but one of the other evaluation meta info is "
+                "not None."
+            )
+        evals = []
+
+    return train_dmatrix, evals
+
+
 @xgboost_model_doc("""Implementation of the Scikit-Learn API for XGBoost.""",
                    ['estimators', 'model', 'objective'])
 class XGBModel(XGBModelBase):
     # pylint: disable=too-many-arguments, too-many-instance-attributes, missing-docstring
-    def __init__(self, max_depth=None, learning_rate=None, n_estimators=100,
-                 verbosity=None, objective=None, booster=None,
-                 tree_method=None, n_jobs=None, gamma=None,
-                 min_child_weight=None, max_delta_step=None, subsample=None,
-                 colsample_bytree=None, colsample_bylevel=None,
-                 colsample_bynode=None, reg_alpha=None, reg_lambda=None,
-                 scale_pos_weight=None, base_score=None, random_state=None,
-                 missing=np.nan, num_parallel_tree=None,
-                 monotone_constraints=None, interaction_constraints=None,
-                 importance_type="gain", gpu_id=None,
-                 validate_parameters=None, **kwargs):
+    def __init__(
+        self,
+        max_depth=None,
+        learning_rate=None,
+        n_estimators=100,
+        verbosity=None,
+        objective=None,
+        booster=None,
+        tree_method=None,
+        n_jobs=None,
+        gamma=None,
+        min_child_weight=None,
+        max_delta_step=None,
+        subsample=None,
+        colsample_bytree=None,
+        colsample_bylevel=None,
+        colsample_bynode=None,
+        reg_alpha=None,
+        reg_lambda=None,
+        scale_pos_weight=None,
+        base_score=None,
+        random_state=None,
+        missing=np.nan,
+        num_parallel_tree=None,
+        monotone_constraints=None,
+        interaction_constraints=None,
+        importance_type="gain",
+        gpu_id=None,
+        validate_parameters=None,
+        **kwargs
+    ):
         if not SKLEARN_INSTALLED:
             raise XGBoostError(
-                'sklearn needs to be installed in order to use this module')
+                "sklearn needs to be installed in order to use this module"
+            )
         self.n_estimators = n_estimators
         self.objective = objective
 
@@ -248,51 +379,6 @@ class XGBModel(XGBModelBase):
         self.importance_type = importance_type
         self.gpu_id = gpu_id
         self.validate_parameters = validate_parameters
-
-    def _wrap_evaluation_matrices(self, X, y, group,
-                                  sample_weight, base_margin, feature_weights,
-                                  eval_set, sample_weight_eval_set, eval_group,
-                                  label_transform=lambda x: x):
-        '''Convert array_like evaluation matrices into DMatrix'''
-        if sample_weight_eval_set is not None:
-            assert eval_set is not None
-            assert len(sample_weight_eval_set) == len(eval_set)
-        if eval_group is not None:
-            assert eval_set is not None
-            assert len(eval_group) == len(eval_set)
-
-        y = label_transform(y)
-        train_dmatrix = DMatrix(data=X, label=y, weight=sample_weight,
-                                base_margin=base_margin,
-                                missing=self.missing, nthread=self.n_jobs)
-        train_dmatrix.set_info(feature_weights=feature_weights, group=group)
-
-        if eval_set is not None:
-            if sample_weight_eval_set is None:
-                sample_weight_eval_set = [None] * len(eval_set)
-            if eval_group is None:
-                eval_group = [None] * len(eval_set)
-
-            evals = []
-            for i, (valid_X, valid_y) in enumerate(eval_set):
-                # Skip the duplicated entry.
-                if valid_X is X and valid_y is y and \
-                   sample_weight_eval_set[i] is sample_weight and eval_group[i] is group:
-                    evals.append(train_dmatrix)
-                else:
-                    m = DMatrix(valid_X,
-                                label=label_transform(valid_y),
-                                missing=self.missing, weight=sample_weight_eval_set[i],
-                                nthread=self.n_jobs)
-                    m.set_info(group=eval_group[i])
-                    evals.append(m)
-
-            nevals = len(evals)
-            eval_names = ["validation_{}".format(i) for i in range(nevals)]
-            evals = list(zip(evals, eval_names))
-        else:
-            evals = ()
-        return train_dmatrix, evals
 
     def _more_tags(self):
         '''Tags used for scikit-learn data validation.'''
@@ -407,6 +493,14 @@ class XGBModel(XGBModelBase):
         """Gets the number of xgboost boosting rounds."""
         return self.n_estimators
 
+    def _get_type(self) -> str:
+        if not hasattr(self, '_estimator_type'):
+            raise TypeError(
+                "`_estimator_type` undefined.  "
+                "Please use appropriate mixin to define estimator type."
+            )
+        return self._estimator_type  # pylint: disable=no-member
+
     def save_model(self, fname: str):
         """Save the model to a file.
 
@@ -442,7 +536,7 @@ class XGBModel(XGBModelBase):
                 meta[k] = v
             except TypeError:
                 warnings.warn(str(k) + ' is not saved in Scikit-Learn meta.')
-        meta['type'] = type(self).__name__
+        meta['_estimator_type'] = self._get_type()
         meta_str = json.dumps(meta)
         self.get_booster().set_attr(scikit_learn=meta_str)
         self.get_booster().save_model(fname)
@@ -484,11 +578,12 @@ class XGBModel(XGBModelBase):
             if k == 'use_label_encoder':
                 self.use_label_encoder = bool(v)
                 continue
-            if k == 'type' and type(self).__name__ != v:
-                msg = 'Current model type: {}, '.format(type(self).__name__) + \
-                      'type of model in file: {}'.format(v)
-                raise TypeError(msg)
-            if k == 'type':
+            if k == "_estimator_type":
+                if self._get_type() != v:
+                    raise TypeError(
+                        "Loading an estimator with different type. "
+                        f"Expecting: {self._get_type()}, got: {v}"
+                    )
                 continue
             states[k] = v
         self.__dict__.update(states)
@@ -497,12 +592,14 @@ class XGBModel(XGBModelBase):
 
     def _configure_fit(
         self,
-        booster: Optional[Booster],
+        booster: Optional[Union[Booster, "XGBModel"]],
         eval_metric: Optional[Union[Callable, str, List[str]]],
         params: Dict[str, Any],
-    ) -> Tuple[Booster, Optional[Union[Callable, str, List[str]]], Dict[str, Any]]:
-        model = self._Booster if hasattr(self, "_Booster") else None
-        model = booster if booster is not None else model
+    ) -> Tuple[Booster, Optional[Metric], Dict[str, Any]]:
+        # pylint: disable=protected-access, no-self-use
+        model = booster
+        if hasattr(model, '_Booster'):
+            model = model._Booster  # Handle the case when xgb_model is a sklearn model object
         feval = eval_metric if callable(eval_metric) else None
         if eval_metric is not None:
             if callable(eval_metric):
@@ -511,14 +608,37 @@ class XGBModel(XGBModelBase):
                 params.update({"eval_metric": eval_metric})
         return model, feval, params
 
+    def _set_evaluation_result(self, evals_result: Optional[dict]) -> None:
+        if evals_result:
+            for val in evals_result.items():
+                evals_result_key = list(val[1].keys())[0]
+                evals_result[val[0]][evals_result_key] = val[1][evals_result_key]
+            self.evals_result_ = evals_result
+
     @_deprecate_positional_args
-    def fit(self, X, y, *, sample_weight=None, base_margin=None,
-            eval_set=None, eval_metric=None, early_stopping_rounds=None,
-            verbose=True, xgb_model=None, sample_weight_eval_set=None,
-            feature_weights=None,
-            callbacks=None):
+    def fit(
+        self,
+        X,
+        y,
+        *,
+        sample_weight=None,
+        base_margin=None,
+        eval_set=None,
+        eval_metric=None,
+        early_stopping_rounds=None,
+        verbose=True,
+        xgb_model: Optional[Union[Booster, str, "XGBModel"]] = None,
+        sample_weight_eval_set=None,
+        base_margin_eval_set=None,
+        feature_weights=None,
+        callbacks=None
+    ):
         # pylint: disable=invalid-name,attribute-defined-outside-init
-        """Fit gradient boosting model
+        """Fit gradient boosting model.
+
+        Note that calling ``fit()`` multiple times will cause the model object to be
+        re-fit from scratch. To resume training from a previous checkpoint, explicitly
+        pass ``xgb_model`` argument.
 
         Parameters
         ----------
@@ -539,12 +659,11 @@ class XGBModel(XGBModelBase):
             doc/parameter.rst.
             If a list of str, should be the list of multiple built-in evaluation metrics
             to use.
-            If callable, a custom evaluation metric. The call
-            signature is ``func(y_predicted, y_true)`` where ``y_true`` will be a
-            DMatrix object such that you may need to call the ``get_label``
-            method. It must return a str, value pair where the str is a name
-            for the evaluation and value is the value of the evaluation
-            function. The callable custom objective is always minimized.
+            If callable, a custom evaluation metric. The call signature is
+            ``func(y_predicted, y_true)`` where ``y_true`` will be a DMatrix object such
+            that you may need to call the ``get_label`` method. It must return a str,
+            value pair where the str is a name for the evaluation and value is the value
+            of the evaluation function. The callable custom objective is always minimized.
         early_stopping_rounds : int
             Activates early stopping. Validation metric needs to improve at least once in
             every **early_stopping_rounds** round(s) to continue training.
@@ -557,14 +676,17 @@ class XGBModel(XGBModelBase):
             If early stopping occurs, the model will have three additional fields:
             ``clf.best_score``, ``clf.best_iteration`` and ``clf.best_ntree_limit``.
         verbose : bool
-            If `verbose` and an evaluation set is used, writes the evaluation
-            metric measured on the validation set to stderr.
-        xgb_model : str
+            If `verbose` and an evaluation set is used, writes the evaluation metric
+            measured on the validation set to stderr.
+        xgb_model :
             file name of stored XGBoost model or 'Booster' instance XGBoost model to be
             loaded before training (allows training continuation).
         sample_weight_eval_set : list, optional
-            A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
-            instance weights on the i-th validation set.
+            A list of the form [L_1, L_2, ..., L_n], where each L_i is an array like
+            object storing instance weights for the i-th validation set.
+        base_margin_eval_set : list, optional
+            A list of the form [M_1, M_2, ..., M_n], where each M_i is an array like
+            object storing base margin for the i-th validation set.
         feature_weights: array_like
             Weight for each feature, defines the probability of each feature being
             selected when colsample is being used.  All values must be greater than 0,
@@ -581,20 +703,24 @@ class XGBModel(XGBModelBase):
                                                         save_best=True)]
 
         """
-        self.n_features_in_ = X.shape[1]
-
-        train_dmatrix = DMatrix(data=X, label=y, weight=sample_weight,
-                                base_margin=base_margin,
-                                missing=self.missing,
-                                nthread=self.n_jobs)
-        train_dmatrix.set_info(feature_weights=feature_weights)
-
         evals_result = {}
 
-        train_dmatrix, evals = self._wrap_evaluation_matrices(
-            X, y, group=None, sample_weight=sample_weight, base_margin=base_margin,
-            feature_weights=feature_weights, eval_set=eval_set,
-            sample_weight_eval_set=sample_weight_eval_set, eval_group=None)
+        train_dmatrix, evals = _wrap_evaluation_matrices(
+            missing=self.missing,
+            X=X,
+            y=y,
+            group=None,
+            qid=None,
+            sample_weight=sample_weight,
+            base_margin=base_margin,
+            feature_weights=feature_weights,
+            eval_set=eval_set,
+            sample_weight_eval_set=sample_weight_eval_set,
+            base_margin_eval_set=base_margin_eval_set,
+            eval_group=None,
+            eval_qid=None,
+            create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
+        )
         params = self.get_xgb_params()
 
         if callable(self.objective):
@@ -604,31 +730,33 @@ class XGBModel(XGBModelBase):
             obj = None
 
         model, feval, params = self._configure_fit(xgb_model, eval_metric, params)
-        self._Booster = train(params, train_dmatrix,
-                              self.get_num_boosting_rounds(), evals=evals,
-                              early_stopping_rounds=early_stopping_rounds,
-                              evals_result=evals_result,
-                              obj=obj, feval=feval,
-                              verbose_eval=verbose, xgb_model=model,
-                              callbacks=callbacks)
+        self._Booster = train(
+            params,
+            train_dmatrix,
+            self.get_num_boosting_rounds(),
+            evals=evals,
+            early_stopping_rounds=early_stopping_rounds,
+            evals_result=evals_result,
+            obj=obj,
+            feval=feval,
+            verbose_eval=verbose,
+            xgb_model=model,
+            callbacks=callbacks,
+        )
 
-        if evals_result:
-            for val in evals_result.items():
-                evals_result_key = list(val[1].keys())[0]
-                evals_result[val[0]][evals_result_key] = val[1][
-                    evals_result_key]
-            self.evals_result_ = evals_result
-
-        if early_stopping_rounds is not None:
-            self.best_score = self._Booster.best_score
-            self.best_iteration = self._Booster.best_iteration
-            self.best_ntree_limit = self._Booster.best_ntree_limit
+        self._set_evaluation_result(evals_result)
         return self
 
-    def predict(self, data, output_margin=False, ntree_limit=None,
-                validate_features=True, base_margin=None):
+    def predict(
+        self,
+        X,
+        output_margin=False,
+        ntree_limit=None,
+        validate_features=True,
+        base_margin=None
+    ):
         """
-        Predict with `data`.
+        Predict with `X`.
 
         .. note:: This function is not thread safe.
 
@@ -642,31 +770,40 @@ class XGBModel(XGBModelBase):
 
         Parameters
         ----------
-        data : numpy.array/scipy.sparse
+        X : array_like
             Data to predict with
         output_margin : bool
             Whether to output the raw untransformed margin value.
         ntree_limit : int
-            Limit number of trees in the prediction; defaults to best_ntree_limit if defined
-            (i.e. it has been trained with early stopping), otherwise 0 (use all trees).
+            Limit number of trees in the prediction; defaults to best_ntree_limit if
+            defined (i.e. it has been trained with early stopping), otherwise 0 (use all
+            trees).
         validate_features : bool
             When this is True, validate that the Booster's and data's feature_names are identical.
             Otherwise, it is assumed that the feature_names are the same.
+        base_margin : array_like
+            Margin added to prediction.
+
         Returns
         -------
         prediction : numpy array
         """
         # pylint: disable=missing-docstring,invalid-name
-        test_dmatrix = DMatrix(data, base_margin=base_margin,
+        test_dmatrix = DMatrix(X, base_margin=base_margin,
                                missing=self.missing, nthread=self.n_jobs)
         # get ntree_limit to use - if none specified, default to
         # best_ntree_limit if defined, otherwise 0.
         if ntree_limit is None:
-            ntree_limit = getattr(self, "best_ntree_limit", 0)
-        return self.get_booster().predict(test_dmatrix,
-                                          output_margin=output_margin,
-                                          ntree_limit=ntree_limit,
-                                          validate_features=validate_features)
+            try:
+                ntree_limit = self.best_ntree_limit
+            except AttributeError:
+                ntree_limit = 0
+        return self.get_booster().predict(
+            test_dmatrix,
+            output_margin=output_margin,
+            ntree_limit=ntree_limit,
+            validate_features=validate_features
+        )
 
     def apply(self, X, ntree_limit=0):
         """Return the predicted leaf every tree for each sample.
@@ -732,6 +869,32 @@ class XGBModel(XGBModelBase):
             raise XGBoostError('No results.')
 
         return evals_result
+
+    @property
+    def n_features_in_(self) -> int:
+        booster = self.get_booster()
+        return booster.num_features()
+
+    def _early_stopping_attr(self, attr: str) -> Union[float, int]:
+        booster = self.get_booster()
+        try:
+            return getattr(booster, attr)
+        except AttributeError as e:
+            raise AttributeError(
+                f'`{attr}` in only defined when early stopping is used.'
+            ) from e
+
+    @property
+    def best_score(self) -> float:
+        return float(self._early_stopping_attr('best_score'))
+
+    @property
+    def best_iteration(self) -> int:
+        return int(self._early_stopping_attr('best_iteration'))
+
+    @property
+    def best_ntree_limit(self) -> int:
+        return int(self._early_stopping_attr('best_ntree_limit'))
 
     @property
     def feature_importances_(self):
@@ -813,14 +976,30 @@ class XGBModel(XGBModelBase):
         return np.array(json.loads(b.get_dump(dump_format='json')[0])['bias'])
 
 
+def _cls_predict_proba(
+    objective: Union[str, Callable], prediction: Any, vstack: Callable
+) -> Any:
+    if objective == 'multi:softmax':
+        raise ValueError('multi:softmax objective does not support predict_proba,'
+                         ' use `multi:softprob` or `binary:logistic` instead.')
+    if objective == 'multi:softprob' or callable(objective):
+        # Return prediction directly if if objective is defined by user since we don't
+        # know how to perform the transformation
+        return prediction
+    # Lastly the binary logistic function
+    classone_probs = prediction
+    classzero_probs = 1.0 - classone_probs
+    return vstack((classzero_probs, classone_probs)).transpose()
+
+
 @xgboost_model_doc(
     "Implementation of the scikit-learn API for XGBoost classification.",
     ['model', 'objective'], extra_parameters='''
     n_estimators : int
         Number of boosting rounds.
     use_label_encoder : bool
-        (Deprecated) Use the label encoder from scikit-learn to encode the labels. For new code,
-        we recommend that you set this parameter to False.
+        (Deprecated) Use the label encoder from scikit-learn to encode the labels. For new
+        code, we recommend that you set this parameter to False.
 ''')
 class XGBClassifier(XGBModel, XGBClassifierBase):
     # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
@@ -830,46 +1009,68 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         super().__init__(objective=objective, **kwargs)
 
     @_deprecate_positional_args
-    def fit(self, X, y, *, sample_weight=None, base_margin=None,
-            eval_set=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=True, xgb_model=None,
-            sample_weight_eval_set=None, feature_weights=None, callbacks=None):
-        # pylint: disable = attribute-defined-outside-init,arguments-differ,too-many-statements
-
+    def fit(
+        self,
+        X,
+        y,
+        *,
+        sample_weight=None,
+        base_margin=None,
+        eval_set=None,
+        eval_metric=None,
+        early_stopping_rounds=None,
+        verbose=True,
+        xgb_model=None,
+        sample_weight_eval_set=None,
+        base_margin_eval_set=None,
+        feature_weights=None,
+        callbacks=None
+    ):
+        # pylint: disable = attribute-defined-outside-init,too-many-statements
         can_use_label_encoder = True
         label_encoding_check_error = (
-                'The label must consist of integer labels of form 0, 1, 2, ..., [num_class - 1].')
+            "The label must consist of integer "
+            "labels of form 0, 1, 2, ..., [num_class - 1]."
+        )
         label_encoder_deprecation_msg = (
-                'The use of label encoder in XGBClassifier is deprecated and will be ' +
-                'removed in a future release. To remove this warning, do the ' +
-                'following: 1) Pass option use_label_encoder=False when constructing ' +
-                'XGBClassifier object; and 2) Encode your labels (y) as integers ' +
-                'starting with 0, i.e. 0, 1, 2, ..., [num_class - 1].')
+            "The use of label encoder in XGBClassifier is deprecated and will be "
+            "removed in a future release. To remove this warning, do the "
+            "following: 1) Pass option use_label_encoder=False when constructing "
+            "XGBClassifier object; and 2) Encode your labels (y) as integers "
+            "starting with 0, i.e. 0, 1, 2, ..., [num_class - 1]."
+        )
 
         evals_result = {}
         if _is_cudf_df(y) or _is_cudf_ser(y):
             import cupy as cp  # pylint: disable=E0401
+
             self.classes_ = cp.unique(y.values)
             self.n_classes_ = len(self.classes_)
             can_use_label_encoder = False
             expected_classes = cp.arange(self.n_classes_)
-            if (self.classes_.shape != expected_classes.shape or
-                    not (self.classes_ == expected_classes).all()):
+            if (
+                self.classes_.shape != expected_classes.shape
+                or not (self.classes_ == expected_classes).all()
+            ):
                 raise ValueError(label_encoding_check_error)
         elif _is_cupy_array(y):
             import cupy as cp  # pylint: disable=E0401
+
             self.classes_ = cp.unique(y)
             self.n_classes_ = len(self.classes_)
             can_use_label_encoder = False
             expected_classes = cp.arange(self.n_classes_)
-            if (self.classes_.shape != expected_classes.shape or
-                    not (self.classes_ == expected_classes).all()):
+            if (
+                self.classes_.shape != expected_classes.shape
+                or not (self.classes_ == expected_classes).all()
+            ):
                 raise ValueError(label_encoding_check_error)
         else:
             self.classes_ = np.unique(y)
             self.n_classes_ = len(self.classes_)
             if not self.use_label_encoder and (
-                    not np.array_equal(self.classes_, np.arange(self.n_classes_))):
+                not np.array_equal(self.classes_, np.arange(self.n_classes_))
+            ):
                 raise ValueError(label_encoding_check_error)
 
         params = self.get_xgb_params()
@@ -884,8 +1085,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         if self.n_classes_ > 2:
             # Switch to using a multiclass objective in the underlying
             # XGB instance
-            params['objective'] = 'multi:softprob'
-            params['num_class'] = self.n_classes_
+            params["objective"] = "multi:softprob"
+            params["num_class"] = self.n_classes_
 
         if self.use_label_encoder:
             if not can_use_label_encoder:
@@ -897,95 +1098,71 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             self._le = XGBoostLabelEncoder().fit(y)
             label_transform = self._le.transform
         else:
-            label_transform = (lambda x: x)
+            label_transform = lambda x: x
 
         model, feval, params = self._configure_fit(xgb_model, eval_metric, params)
         if len(X.shape) != 2:
             # Simply raise an error here since there might be many
             # different ways of reshaping
-            raise ValueError(
-                'Please reshape the input data X into 2-dimensional matrix.')
+            raise ValueError("Please reshape the input data X into 2-dimensional matrix.")
 
-        self._features_count = X.shape[1]
-        self.n_features_in_ = self._features_count
-
-        train_dmatrix, evals = self._wrap_evaluation_matrices(
-            X, y, group=None, sample_weight=sample_weight, base_margin=base_margin,
+        train_dmatrix, evals = _wrap_evaluation_matrices(
+            missing=self.missing,
+            X=X,
+            y=y,
+            group=None,
+            qid=None,
+            sample_weight=sample_weight,
+            base_margin=base_margin,
             feature_weights=feature_weights,
-            eval_set=eval_set, sample_weight_eval_set=sample_weight_eval_set,
-            eval_group=None, label_transform=label_transform)
+            eval_set=eval_set,
+            sample_weight_eval_set=sample_weight_eval_set,
+            base_margin_eval_set=base_margin_eval_set,
+            eval_group=None,
+            eval_qid=None,
+            create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
+            label_transform=label_transform,
+        )
 
-        self._Booster = train(params, train_dmatrix,
-                              self.get_num_boosting_rounds(),
-                              evals=evals,
-                              early_stopping_rounds=early_stopping_rounds,
-                              evals_result=evals_result, obj=obj, feval=feval,
-                              verbose_eval=verbose, xgb_model=model,
-                              callbacks=callbacks)
+        self._Booster = train(
+            params,
+            train_dmatrix,
+            self.get_num_boosting_rounds(),
+            evals=evals,
+            early_stopping_rounds=early_stopping_rounds,
+            evals_result=evals_result,
+            obj=obj,
+            feval=feval,
+            verbose_eval=verbose,
+            xgb_model=model,
+            callbacks=callbacks,
+        )
 
-        self.objective = params["objective"]
-        if evals_result:
-            for val in evals_result.items():
-                evals_result_key = list(val[1].keys())[0]
-                evals_result[val[0]][
-                    evals_result_key] = val[1][evals_result_key]
-            self.evals_result_ = evals_result
+        if not callable(self.objective):
+            self.objective = params["objective"]
 
-        if early_stopping_rounds is not None:
-            self.best_score = self._Booster.best_score
-            self.best_iteration = self._Booster.best_iteration
-            self.best_ntree_limit = self._Booster.best_ntree_limit
-
+        self._set_evaluation_result(evals_result)
         return self
 
     fit.__doc__ = XGBModel.fit.__doc__.replace(
         'Fit gradient boosting model',
         'Fit gradient boosting classifier', 1)
 
-    def predict(self, data, output_margin=False, ntree_limit=None,
-                validate_features=True, base_margin=None):
-        """
-        Predict with `data`.
-
-        .. note:: This function is not thread safe.
-
-          For each booster object, predict can only be called from one thread.
-          If you want to run prediction using multiple thread, call
-          ``xgb.copy()`` to make copies of model object and then call
-          ``predict()``.
-
-          .. code-block:: python
-
-            preds = bst.predict(dtest, ntree_limit=num_round)
-
-        Parameters
-        ----------
-        data : array_like
-            Feature matrix.
-        output_margin : bool
-            Whether to output the raw untransformed margin value.
-        ntree_limit : int
-            Limit number of trees in the prediction; defaults to
-            best_ntree_limit if defined (i.e. it has been trained with early
-            stopping), otherwise 0 (use all trees).
-        validate_features : bool
-            When this is True, validate that the Booster's and data's
-            feature_names are identical.  Otherwise, it is assumed that the
-            feature_names are the same.
-
-        Returns
-        -------
-        prediction : numpy array
-        """
-        test_dmatrix = DMatrix(data, base_margin=base_margin,
-                               missing=self.missing, nthread=self.n_jobs)
-        if ntree_limit is None:
-            ntree_limit = getattr(self, "best_ntree_limit", 0)
-        class_probs = self.get_booster().predict(
-            test_dmatrix,
+    def predict(
+        self,
+        X,
+        output_margin=False,
+        ntree_limit=None,
+        validate_features=True,
+        base_margin=None
+    ):
+        class_probs = super().predict(
+            X=X,
             output_margin=output_margin,
             ntree_limit=ntree_limit,
-            validate_features=validate_features)
+            validate_features=validate_features,
+            base_margin=base_margin
+        )
         if output_margin:
             # If output_margin is active, simply return the scores
             return class_probs
@@ -1021,24 +1198,23 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         validate_features : bool
             When this is True, validate that the Booster's and data's feature_names are
             identical.  Otherwise, it is assumed that the feature_names are the same.
+        base_margin : array_like
+            Margin added to prediction.
 
         Returns
         -------
         prediction : numpy array
-            a numpy array with the probability of each data example being of a given class.
+            a numpy array of shape array-like of shape (n_samples, n_classes) with the
+            probability of each data example being of a given class.
         """
-        test_dmatrix = DMatrix(X, base_margin=base_margin,
-                               missing=self.missing, nthread=self.n_jobs)
-        if ntree_limit is None:
-            ntree_limit = getattr(self, "best_ntree_limit", 0)
-        class_probs = self.get_booster().predict(test_dmatrix,
-                                                 ntree_limit=ntree_limit,
-                                                 validate_features=validate_features)
-        if self.objective == "multi:softprob":
-            return class_probs
-        classone_probs = class_probs
-        classzero_probs = 1.0 - classone_probs
-        return np.vstack((classzero_probs, classone_probs)).transpose()
+        class_probs = super().predict(
+            X=X,
+            output_margin=False,
+            ntree_limit=ntree_limit,
+            validate_features=validate_features,
+            base_margin=base_margin
+        )
+        return _cls_predict_proba(self.objective, class_probs, np.vstack)
 
     def evals_result(self):
         """Return the evaluation results.
@@ -1090,8 +1266,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     n_estimators : int
         Number of trees in random forest to fit.
     use_label_encoder : bool
-        (Deprecated) Use the label encoder from scikit-learn to encode the labels. For new code,
-        we recommend that you set this parameter to False.
+        (Deprecated) Use the label encoder from scikit-learn to encode the labels. For new
+        code, we recommend that you set this parameter to False.
 ''')
 class XGBRFClassifier(XGBClassifier):
     # pylint: disable=missing-docstring
@@ -1164,11 +1340,12 @@ class XGBRFRegressor(XGBRegressor):
 
         Note
         ----
-        Query group information is required for ranking tasks.
+        Query group information is required for ranking tasks by either using the `group`
+        parameter or `qid` parameter in `fit` method.
 
-        Before fitting the model, your data need to be sorted by query
-        group. When fitting the model, you need to provide an additional array
-        that contains the size of each query group.
+        Before fitting the model, your data need to be sorted by query group. When fitting
+        the model, you need to provide an additional array that contains the size of each
+        query group.
 
         For example, if your original data look like:
 
@@ -1190,27 +1367,47 @@ class XGBRFRegressor(XGBRegressor):
         |   2   |   1       |   x_7         |
         +-------+-----------+---------------+
 
-        then your group array should be ``[3, 4]``.
+        then your group array should be ``[3, 4]``.  Sometimes using query id (`qid`)
+        instead of group can be more convenient.
 ''')
-class XGBRanker(XGBModel):
+class XGBRanker(XGBModel, XGBRankerMixIn):
     # pylint: disable=missing-docstring,too-many-arguments,invalid-name
     @_deprecate_positional_args
-    def __init__(self, *, objective='rank:pairwise', **kwargs):
+    def __init__(self, *, objective="rank:pairwise", **kwargs):
         super().__init__(objective=objective, **kwargs)
         if callable(self.objective):
-            raise ValueError(
-                "custom objective function not supported by XGBRanker")
+            raise ValueError("custom objective function not supported by XGBRanker")
         if "rank:" not in self.objective:
             raise ValueError("please use XGBRanker for ranking task")
 
     @_deprecate_positional_args
-    def fit(self, X, y, *, group, sample_weight=None, base_margin=None,
-            eval_set=None, sample_weight_eval_set=None,
-            eval_group=None, eval_metric=None,
-            early_stopping_rounds=None, verbose=False, xgb_model=None,
-            feature_weights=None, callbacks=None):
+    def fit(
+        self,
+        X,
+        y,
+        *,
+        group=None,
+        qid=None,
+        sample_weight=None,
+        base_margin=None,
+        eval_set=None,
+        eval_group=None,
+        eval_qid=None,
+        eval_metric=None,
+        early_stopping_rounds=None,
+        verbose=False,
+        xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
+        sample_weight_eval_set=None,
+        base_margin_eval_set=None,
+        feature_weights=None,
+        callbacks=None
+    ) -> "XGBRanker":
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """Fit gradient boosting ranker
+
+        Note that calling ``fit()`` multiple times will cause the model object to be
+        re-fit from scratch. To resume training from a previous checkpoint, explicitly
+        pass ``xgb_model`` argument.
 
         Parameters
         ----------
@@ -1219,24 +1416,55 @@ class XGBRanker(XGBModel):
         y : array_like
             Labels
         group : array_like
-            Size of each query group of training data. Should have as many
-            elements as the query groups in the training data
+            Size of each query group of training data. Should have as many elements as the
+            query groups in the training data.  If this is set to None, then user must
+            provide qid.
+        qid : array_like
+            Query ID for each training sample.  Should have the size of n_samples.  If
+            this is set to None, then user must provide group.
         sample_weight : array_like
             Query group weights
 
             .. note:: Weights are per-group for ranking tasks
 
-                In ranking task, one weight is assigned to each query group
-                (not each data point). This is because we only care about the
-                relative ordering of data points within each group, so it
-                doesn't make sense to assign weights to individual data points.
-
+                In ranking task, one weight is assigned to each query group/id (not each
+                data point). This is because we only care about the relative ordering of
+                data points within each group, so it doesn't make sense to assign weights
+                to individual data points.
         base_margin : array_like
             Global bias for each instance.
         eval_set : list, optional
             A list of (X, y) tuple pairs to use as validation sets, for which
             metrics will be computed.
             Validation metrics will help us track the performance of the model.
+        eval_group : list of arrays, optional
+            A list in which ``eval_group[i]`` is the list containing the sizes of all
+            query groups in the ``i``-th pair in **eval_set**.
+        eval_qid : list of array_like, optional
+            A list in which ``eval_qid[i]`` is the array containing query ID of ``i``-th
+            pair in **eval_set**.
+        eval_metric : str, list of str, optional
+            If a str, should be a built-in evaluation metric to use. See
+            doc/parameter.rst.
+            If a list of str, should be the list of multiple built-in evaluation metrics
+            to use. The custom evaluation metric is not yet supported for the ranker.
+        early_stopping_rounds : int
+            Activates early stopping. Validation metric needs to improve at least once in
+            every **early_stopping_rounds** round(s) to continue training.  Requires at
+            least one item in **eval_set**.
+            The method returns the model from the last iteration (not the best one).  If
+            there's more than one item in **eval_set**, the last entry will be used for
+            early stopping.
+            If there's more than one metric in **eval_metric**, the last metric will be
+            used for early stopping.
+            If early stopping occurs, the model will have three additional fields:
+            ``clf.best_score``, ``clf.best_iteration`` and ``clf.best_ntree_limit``.
+        verbose : bool
+            If `verbose` and an evaluation set is used, writes the evaluation metric
+            measured on the validation set to stderr.
+        xgb_model :
+            file name of stored XGBoost model or 'Booster' instance XGBoost model to be
+            loaded before training (allows training continuation).
         sample_weight_eval_set : list, optional
             A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
             group weights on the i-th validation set.
@@ -1247,33 +1475,9 @@ class XGBRanker(XGBModel):
                 data point). This is because we only care about the relative ordering of
                 data points within each group, so it doesn't make sense to assign
                 weights to individual data points.
-
-        eval_group : list of arrays, optional
-            A list in which ``eval_group[i]`` is the list containing the sizes of all
-            query groups in the ``i``-th pair in **eval_set**.
-        eval_metric : str, list of str, optional
-            If a str, should be a built-in evaluation metric to use. See
-            doc/parameter.rst.
-            If a list of str, should be the list of multiple built-in evaluation metrics
-            to use. The custom evaluation metric is not yet supported for the ranker.
-        early_stopping_rounds : int
-            Activates early stopping. Validation metric needs to improve at least once in
-            every **early_stopping_rounds** round(s) to continue training.
-            Requires at least one item in **eval_set**.
-            The method returns the model from the last iteration (not the best one).
-            If there's more than one item in **eval_set**, the last entry will be used
-            for early stopping.
-            If there's more than one metric in **eval_metric**, the last metric
-            will be used for early stopping.
-            If early stopping occurs, the model will have three additional
-            fields: ``clf.best_score``, ``clf.best_iteration`` and
-            ``clf.best_ntree_limit``.
-        verbose : bool
-            If `verbose` and an evaluation set is used, writes the evaluation
-            metric measured on the validation set to stderr.
-        xgb_model : str
-            file name of stored XGBoost model or 'Booster' instance XGBoost
-            model to be loaded before training (allows training continuation).
+        base_margin_eval_set : list, optional
+            A list of the form [M_1, M_2, ..., M_n], where each M_i is an array like
+            object storing base margin for the i-th validation set.
         feature_weights: array_like
             Weight for each feature, defines the probability of each feature being
             selected when colsample is being used.  All values must be greater than 0,
@@ -1291,72 +1495,50 @@ class XGBRanker(XGBModel):
 
         """
         # check if group information is provided
-        if group is None:
-            raise ValueError("group is required for ranking task")
+        if group is None and qid is None:
+            raise ValueError("group or qid is required for ranking task")
 
         if eval_set is not None:
-            if eval_group is None:
+            if eval_group is None and eval_qid is None:
                 raise ValueError(
-                    "eval_group is required if eval_set is not None")
-            if len(eval_group) != len(eval_set):
-                raise ValueError(
-                    "length of eval_group should match that of eval_set")
-            if any(group is None for group in eval_group):
-                raise ValueError(
-                    "group is required for all eval datasets for ranking task")
-
-        self.n_features_in_ = X.shape[1]
-
-        train_dmatrix, evals = self._wrap_evaluation_matrices(
-            X, y, group=group, sample_weight=sample_weight, base_margin=base_margin,
-            feature_weights=feature_weights, eval_set=eval_set,
+                    "eval_group or eval_qid is required if eval_set is not None")
+        train_dmatrix, evals = _wrap_evaluation_matrices(
+            missing=self.missing,
+            X=X,
+            y=y,
+            group=group,
+            qid=qid,
+            sample_weight=sample_weight,
+            base_margin=base_margin,
+            feature_weights=feature_weights,
+            eval_set=eval_set,
             sample_weight_eval_set=sample_weight_eval_set,
-            eval_group=eval_group)
+            base_margin_eval_set=base_margin_eval_set,
+            eval_group=eval_group,
+            eval_qid=eval_qid,
+            create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
+        )
 
         evals_result = {}
         params = self.get_xgb_params()
 
-        feval = eval_metric if callable(eval_metric) else None
-        if eval_metric is not None:
-            if callable(eval_metric):
-                raise ValueError(
-                    'Custom evaluation metric is not yet supported for XGBRanker.')
-            params.update({'eval_metric': eval_metric})
+        model, feval, params = self._configure_fit(xgb_model, eval_metric, params)
+        if callable(feval):
+            raise ValueError(
+                'Custom evaluation metric is not yet supported for XGBRanker.'
+            )
 
-        self._Booster = train(params, train_dmatrix,
-                              self.n_estimators,
-                              early_stopping_rounds=early_stopping_rounds,
-                              evals=evals,
-                              evals_result=evals_result, feval=feval,
-                              verbose_eval=verbose, xgb_model=xgb_model,
-                              callbacks=callbacks)
+        self._Booster = train(
+            params, train_dmatrix,
+            self.n_estimators,
+            early_stopping_rounds=early_stopping_rounds,
+            evals=evals,
+            evals_result=evals_result, feval=feval,
+            verbose_eval=verbose, xgb_model=model,
+            callbacks=callbacks
+        )
 
         self.objective = params["objective"]
 
-        if evals_result:
-            for val in evals_result.items():
-                evals_result_key = list(val[1].keys())[0]
-                evals_result[val[0]][evals_result_key] = val[1][evals_result_key]
-            self.evals_result = evals_result
-
-        if early_stopping_rounds is not None:
-            self.best_score = self._Booster.best_score
-            self.best_iteration = self._Booster.best_iteration
-            self.best_ntree_limit = self._Booster.best_ntree_limit
-
+        self._set_evaluation_result(evals_result)
         return self
-
-    def predict(self, data, output_margin=False,
-                ntree_limit=0, validate_features=True, base_margin=None):
-
-        test_dmatrix = DMatrix(data, base_margin=base_margin,
-                               missing=self.missing)
-        if ntree_limit is None:
-            ntree_limit = getattr(self, "best_ntree_limit", 0)
-
-        return self.get_booster().predict(test_dmatrix,
-                                          output_margin=output_margin,
-                                          ntree_limit=ntree_limit,
-                                          validate_features=validate_features)
-
-    predict.__doc__ = XGBModel.predict.__doc__

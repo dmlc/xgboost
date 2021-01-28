@@ -63,9 +63,7 @@ class TestGPUUpdaters:
         by_etl_results = {}
         by_builtin_results = {}
 
-        parameters = {'tree_method': 'gpu_hist',
-                      'predictor': 'gpu_predictor',
-                      'enable_experimental_json_serialization': True}
+        parameters = {'tree_method': 'gpu_hist', 'predictor': 'gpu_predictor'}
 
         m = xgb.DMatrix(onehot, label, enable_categorical=True)
         xgb.train(parameters, m,

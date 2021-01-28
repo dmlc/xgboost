@@ -1,6 +1,7 @@
 [submodule "dmlc-core"]
 	path = dmlc-core
 	url = https://github.com/dmlc/dmlc-core
+	branch = main
 [submodule "cub"]
 	path = cub
 	url = https://github.com/NVlabs/cub

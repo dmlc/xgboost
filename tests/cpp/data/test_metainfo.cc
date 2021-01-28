@@ -202,6 +202,24 @@ TEST(MetaInfo, LoadQid) {
   }
 }
 
+TEST(MetaInfo, CPUQid) {
+  xgboost::MetaInfo info;
+  info.num_row_ = 100;
+  std::vector<uint32_t> qid(info.num_row_, 0);
+  for (size_t i = 0; i < qid.size(); ++i) {
+    qid[i] = i;
+  }
+
+  info.SetInfo("qid", qid.data(), xgboost::DataType::kUInt32, info.num_row_);
+  ASSERT_EQ(info.group_ptr_.size(), info.num_row_ + 1);
+  ASSERT_EQ(info.group_ptr_.front(), 0);
+  ASSERT_EQ(info.group_ptr_.back(), info.num_row_);
+
+  for (size_t i = 0; i < info.num_row_ + 1; ++i) {
+    ASSERT_EQ(info.group_ptr_[i], i);
+  }
+}
+
 TEST(MetaInfo, Validate) {
   xgboost::MetaInfo info;
   info.num_row_ = 10;

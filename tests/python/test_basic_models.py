@@ -341,6 +341,25 @@ class TestModels:
                       'objective': 'multi:softmax'}
         validate_model(parameters)
 
+    @pytest.mark.skipif(**tm.no_sklearn())
+    def test_attributes(self):
+        from sklearn.datasets import load_iris
+        X, y = load_iris(return_X_y=True)
+        cls = xgb.XGBClassifier(n_estimators=2)
+        cls.fit(X, y, early_stopping_rounds=1, eval_set=[(X, y)])
+        assert cls.get_booster().best_ntree_limit == 2
+        assert cls.best_ntree_limit == cls.get_booster().best_ntree_limit
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "cls.json")
+            cls.save_model(path)
+
+            cls = xgb.XGBClassifier(n_estimators=2)
+            cls.load_model(path)
+            assert cls.get_booster().best_ntree_limit == 2
+            assert cls.best_ntree_limit == cls.get_booster().best_ntree_limit
+
+    @pytest.mark.skipif(**tm.no_sklearn())
     @pytest.mark.parametrize('booster', ['gbtree', 'dart'])
     def test_slice(self, booster):
         from sklearn.datasets import make_classification
