@@ -32,6 +32,7 @@
 #include "xgboost/logging.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/span.h"
+#include "xgboost/global_config.h"
 
 #include "common.h"
 
@@ -461,21 +462,42 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     return *allocator;
   }
   pointer allocate(size_t n) {  // NOLINT
-    T* ptr;
-    auto errc =  GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&ptr),
-                                                            n * sizeof(T));
-    if (errc != cudaSuccess) {
-      ThrowOOMError("Caching allocator", n * sizeof(T));
+    pointer thrust_ptr;
+    if (use_cub_allocator_) {
+      T* raw_ptr{nullptr};
+      auto errc =  GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&raw_ptr),
+                                                              n * sizeof(T));
+      if (errc != cudaSuccess) {
+        ThrowOOMError("Caching allocator", n * sizeof(T));
+      }
+      thrust_ptr = pointer(raw_ptr);
+    } else {
+      try {
+        thrust_ptr = SuperT::allocate(n);
+        dh::safe_cuda(cudaGetLastError());
+      } catch (const std::exception &e) {
+        ThrowOOMError(e.what(), n * sizeof(T));
+      }
     }
-    pointer thrust_ptr{ ptr };
     GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T));
     return thrust_ptr;
   }
   void deallocate(pointer ptr, size_t n) {  // NOLINT
     GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
-    GetGlobalCachingAllocator().DeviceFree(ptr.get());
+    if (use_cub_allocator_) {
+      GetGlobalCachingAllocator().DeviceFree(ptr.get());
+    } else {
+      SuperT::deallocate(ptr, n);
+    }
   }
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+  XGBCachingDeviceAllocatorImpl()
+    : SuperT(rmm::cuda_stream_default, rmm::mr::get_current_device_resource()),
+      use_cub_allocator_(!xgboost::GlobalConfigThreadLocalStore::Get()->use_rmm) {}
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   XGBOOST_DEVICE void construct(T *) {}  // NOLINT
+ private:
+  bool use_cub_allocator_{true};
 };
 }  // namespace detail
 
