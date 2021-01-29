@@ -835,11 +835,14 @@ class LambdaRankObj : public ObjFunction {
 
       #pragma omp for schedule(static)
       for (bst_omp_uint k = 0; k < ngroup; ++k) {
+        for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
+          gpair[j] = GradientPair(0.0f, 0.0f);
+        }
+
         for (unsigned e = 0; e < ndim; ++e) {
           lst.clear();
           pairs.clear();
           for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
-            gpair[j] = GradientPair(0.0f, 0.0f);
             if (std::isnan(labels[j * ndim + e])) {continue;}
             lst.emplace_back(preds_h[j], labels[j * ndim + e], j);
           }
