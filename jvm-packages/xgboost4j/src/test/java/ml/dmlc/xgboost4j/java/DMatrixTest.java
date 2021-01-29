@@ -45,14 +45,15 @@ public class DMatrixTest {
     java.util.List<LabeledPoint> blist = new java.util.LinkedList<LabeledPoint>();
     for (int i = 0; i < nrep; ++i) {
       LabeledPoint p = new LabeledPoint(
-              0.1f + i, 4, new int[]{0, 2, 3}, new float[]{3, 4, 5});
+              new float[]{0.1f + i, 0.2f + i}, 4, new int[]{0, 2, 3}, new float[]{3, 4, 5}, new float[]{1f, 2f}, i/10, 0f);
       blist.add(p);
       labelall.add(p.label()[0]);
+      labelall.add(p.label()[1]);
     }
     DMatrix dmat = new DMatrix(blist.iterator(), null);
     // get label
     float[] labels = dmat.getLabel();
-    for (int i = 0; i < labels.length; ++i) {
+    for (int i = 0; i < labelall.size(); ++i) {
       TestCase.assertTrue(labelall.get(i) == labels[i]);
     }
   }
