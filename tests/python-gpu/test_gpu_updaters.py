@@ -112,7 +112,6 @@ class TestGPUUpdaters:
            tm.dataset_strategy)
     @settings(deadline=None)
     def test_external_memory(self, param, num_rounds, dataset):
-        pytest.xfail(reason='TestGPUUpdaters::test_external_memory is flaky')
         # We cannot handle empty dataset yet
         assume(len(dataset.y) > 0)
         param['tree_method'] = 'gpu_hist'

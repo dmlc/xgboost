@@ -444,7 +444,7 @@ class ColMaker: public TreeUpdater {
     }
 
     // update the solution candidate
-    virtual void UpdateSolution(const SparsePage &batch,
+    virtual void UpdateSolution(const SortedCSCPage &batch,
                                 const std::vector<bst_feature_t> &feat_set,
                                 const std::vector<GradientPair> &gpair,
                                 DMatrix*) {
