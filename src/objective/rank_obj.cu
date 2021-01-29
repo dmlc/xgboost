@@ -842,10 +842,18 @@ class LambdaRankObj : public ObjFunction {
         for (unsigned e = 0; e < ndim; ++e) {
           lst.clear();
           pairs.clear();
+
+          bool is_active = false;
+          bst_float x = labels[gptr[k] * ndim + e];
+
           for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
             if (std::isnan(labels[j * ndim + e])) {continue;}
+            if (x != labels[j * ndim + e]) {
+              is_active = true;
+            }
             lst.emplace_back(preds_h[j], labels[j * ndim + e], j);
           }
+          if (!is_active) {continue;}
           std::stable_sort(lst.begin(), lst.end(), ListEntry::CmpPred);
           rec.resize(lst.size());
           for (unsigned i = 0; i < lst.size(); ++i) {
