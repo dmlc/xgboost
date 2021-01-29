@@ -164,15 +164,18 @@ class CSRAdapter : public detail::SingleBatchDataIter<CSRAdapterBatch> {
       : batch_(row_ptr, feature_idx, values, num_rows, num_elements,
                num_features),
         num_rows_(num_rows),
-        num_columns_(num_features) {}
+        num_columns_(num_features),
+        ndim_(1) {}
   const CSRAdapterBatch& Value() const override { return batch_; }
   size_t NumRows() const { return num_rows_; }
   size_t NumColumns() const { return num_columns_; }
+  size_t ndim() const { return ndim_; }
 
  private:
   CSRAdapterBatch batch_;
   size_t num_rows_;
   size_t num_columns_;
+  size_t ndim_;
 };
 
 class DenseAdapterBatch : public detail::NoMetaInfo {
@@ -216,16 +219,19 @@ class DenseAdapter : public detail::SingleBatchDataIter<DenseAdapterBatch> {
   DenseAdapter(const float* values, size_t num_rows, size_t num_features)
       : batch_(values, num_rows, num_features),
         num_rows_(num_rows),
-        num_columns_(num_features) {}
+        num_columns_(num_features),
+        ndim_(1) {}
   const DenseAdapterBatch& Value() const override { return batch_; }
 
   size_t NumRows() const { return num_rows_; }
   size_t NumColumns() const { return num_columns_; }
+  size_t ndim() const { return ndim_; }
 
  private:
   DenseAdapterBatch batch_;
   size_t num_rows_;
   size_t num_columns_;
+  size_t ndim_;
 };
 
 class CSCAdapterBatch : public detail::NoMetaInfo {
@@ -278,7 +284,8 @@ class CSCAdapter : public detail::SingleBatchDataIter<CSCAdapterBatch> {
              const float* values, size_t num_features, size_t num_rows)
       : batch_(col_ptr, row_idx, values, num_features),
         num_rows_(num_rows),
-        num_columns_(num_features) {}
+        num_columns_(num_features),
+        ndim_(1) {}
   const CSCAdapterBatch& Value() const override { return batch_; }
 
   // JVM package sends 0 as unknown
@@ -287,10 +294,13 @@ class CSCAdapter : public detail::SingleBatchDataIter<CSCAdapterBatch> {
   }
   size_t NumColumns() const { return num_columns_; }
 
+  size_t ndim() const { return ndim_; }
+
  private:
   CSCAdapterBatch batch_;
   size_t num_rows_;
   size_t num_columns_;
+  size_t ndim_;
 };
 
 class DataTableAdapterBatch : public detail::NoMetaInfo {
@@ -411,15 +421,18 @@ class DataTableAdapter
                    size_t num_features)
       : batch_(data, feature_stypes, num_rows, num_features),
         num_rows_(num_rows),
-        num_columns_(num_features) {}
+        num_columns_(num_features),
+        ndim_(1) {}
   const DataTableAdapterBatch& Value() const override { return batch_; }
   size_t NumRows() const { return num_rows_; }
   size_t NumColumns() const { return num_columns_; }
+  size_t ndim() const { return ndim_; }
 
  private:
   DataTableAdapterBatch batch_;
   size_t num_rows_;
   size_t num_columns_;
+  size_t ndim_;
 };
 
 class FileAdapterBatch {
@@ -476,7 +489,9 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
     batch_.reset();
     parser_->BeforeFirst();
     row_offset_ = 0;
+    ndim_ = 1;
   }
+
   bool Next() override {
     bool next = parser_->Next();
     batch_.reset(new FileAdapterBatch(&parser_->Value(), row_offset_));
@@ -486,11 +501,13 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
   // Indicates a number of rows/columns must be inferred
   size_t NumRows() const { return kAdapterUnknownSize; }
   size_t NumColumns() const { return kAdapterUnknownSize; }
+  size_t ndim() const {return ndim_;}
 
  private:
   size_t row_offset_{0};
   std::unique_ptr<FileAdapterBatch> batch_;
   dmlc::Parser<uint32_t>* parser_;
+  size_t ndim_;
 };
 
 /*! \brief Data iterator that takes callback to return data, used in JVM package for
@@ -563,8 +580,8 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
         << " to " << batch.columns;
 
     columns_ = batch.columns;
+    ndim_ = batch.ndim;
     block_.size = batch.size;
-
     block_.offset = dmlc::BeginPtr(offset_);
     block_.label = dmlc::BeginPtr(label_);
     block_.weight = dmlc::BeginPtr(weight_);
@@ -579,6 +596,7 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
 
   size_t NumColumns() const { return columns_; }
   size_t NumRows() const { return kAdapterUnknownSize; }
+  size_t ndim() const { return ndim_; }
 
  private:
   std::vector<size_t> offset_;
@@ -589,6 +607,7 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
 
   size_t columns_;
   size_t row_offset_;
+  size_t ndim_;
   // at the beinning.
   bool at_first_;
   // handle to the iterator,

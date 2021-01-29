@@ -93,9 +93,12 @@ XGB_EXTERN_C int XGBoost4jCallbackDataIterNext(
           batch, jenv->GetFieldID(batchClass, "featureValue", "[F"));
       jint jcols = jenv->GetIntField(
           batch, jenv->GetFieldID(batchClass, "featureCols", "I"));
+      jint jndim = jenv->GetIntField(
+              batch, jenv->GetFieldID(batchClass, "ndim", "I"));
       XGBoostBatchCSR cbatch;
       cbatch.size = jenv->GetArrayLength(joffset) - 1;
       cbatch.columns = jcols;
+      cbatch.ndim = jndim;
       cbatch.offset = reinterpret_cast<jlong *>(
           jenv->GetLongArrayElements(joffset, 0));
       if (jlabel != nullptr) {

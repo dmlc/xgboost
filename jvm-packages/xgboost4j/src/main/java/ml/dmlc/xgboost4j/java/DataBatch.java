@@ -30,14 +30,17 @@ class DataBatch {
   /** feature columns */
   final int featureCols;
 
+  final int ndim;
+
   DataBatch(long[] rowOffset, float[] weight, float[] label, int[] featureIndex,
-            float[] featureValue, int featureCols) {
+            float[] featureValue, int featureCols, int ndim) {
     this.rowOffset = rowOffset;
     this.weight = weight;
     this.label = label;
     this.featureIndex = featureIndex;
     this.featureValue = featureValue;
     this.featureCols = featureCols;
+    this.ndim = ndim;
   }
 
   static class BatchIterator implements Iterator<DataBatch> {
@@ -111,7 +114,7 @@ class DataBatch {
         }
 
         rowOffset[batch.size()] = offset;
-        return new DataBatch(rowOffset, weight, label, featureIndex, featureValue, numCol);
+        return new DataBatch(rowOffset, weight, label, featureIndex, featureValue, numCol, ndim);
       } catch (RuntimeException runtimeError) {
         logger.error(runtimeError);
         return null;

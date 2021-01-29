@@ -232,6 +232,8 @@ typedef struct {  // NOLINT(*)
   int* index;
   /*! \brief feature values */
   float* value;
+
+  size_t ndim;
 } XGBoostBatchCSR;
 
 /*!
