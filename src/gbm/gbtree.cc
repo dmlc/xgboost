@@ -285,8 +285,6 @@ void GBTree::BoostNewTrees(HostDeviceVector<GradientPair>* gpair,
                            DMatrix *p_fmat,
                            int bst_group,
                            std::vector<std::unique_ptr<RegTree> >* ret) {
-  std::cout << "MC BoostNewTrees" << std::endl;
-
   std::vector<RegTree*> new_trees;
   ret->clear();
   // create the trees
