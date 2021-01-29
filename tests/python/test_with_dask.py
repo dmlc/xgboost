@@ -1,5 +1,5 @@
 from pathlib import Path
-
+import pickle
 import testing as tm
 import pytest
 import xgboost as xgb
@@ -1104,23 +1104,32 @@ class TestWithDask:
         predt_0 = cls.predict(X)
 
         with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "model.pkl")
+            with open(path, "wb") as fd:
+                pickle.dump(cls, fd)
+
+            with open(path, "rb") as fd:
+                cls = pickle.load(fd)
+            predt_1 = cls.predict(X)
+            np.testing.assert_allclose(predt_0.compute(), predt_1.compute())
+
             path = os.path.join(tmpdir, 'cls.json')
             cls.save_model(path)
 
             cls = xgb.dask.DaskXGBClassifier()
             cls.load_model(path)
             assert cls.n_classes_ == 10
-            predt_1 = cls.predict(X)
+            predt_2 = cls.predict(X)
 
-            np.testing.assert_allclose(predt_0.compute(), predt_1.compute())
+            np.testing.assert_allclose(predt_0.compute(), predt_2.compute())
 
             # Use single node to load
             cls = xgb.XGBClassifier()
             cls.load_model(path)
             assert cls.n_classes_ == 10
-            predt_2 = cls.predict(X_)
+            predt_3 = cls.predict(X_)
 
-            np.testing.assert_allclose(predt_0.compute(), predt_2)
+            np.testing.assert_allclose(predt_0.compute(), predt_3)
 
 
 class TestDaskCallbacks:
