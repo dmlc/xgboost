@@ -345,8 +345,6 @@ struct EvalRank : public Metric, public EvalRankConfig {
       }
     }
 
-    std::cerr << "eval ndim " << ndim << " " << ngroups << " " << n_active_groups << " " << sum_metric << "\n";
-
     if (distributed) {
       bst_float dat[2];
       dat[0] = static_cast<bst_float>(sum_metric);
