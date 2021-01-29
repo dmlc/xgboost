@@ -1008,12 +1008,9 @@ def _infer_predict_output(
     rng = numpy.random.RandomState(1994)
     test_sample = rng.randn(1, features)
     if inplace:
-        predictor = json.loads(booster.save_config())["learner"]["gradient_booster"][
-            "gbtree_train_param"
-        ]["predictor"]
-        booster.set_param({"predictor": "cpu_predictor"})
+        # clear the state to avoid gpu_id, gpu_predictor
+        booster = Booster(model_file=booster.save_raw())
         test_predt = booster.inplace_predict(test_sample, **kwargs)
-        booster.set_param({"predictor": predictor})
     else:
         m = DMatrix(test_sample)
         test_predt = booster.predict(m, **kwargs)
