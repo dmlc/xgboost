@@ -318,7 +318,7 @@ struct EvalRank : public Metric, public EvalRankConfig {
       const auto &labels = info.labels_.ConstHostVector();
       const auto &h_preds = preds.ConstHostVector();
 
-      #pragma omp parallel reduction(+:sum_metric, +:n_active_groups)
+      #pragma omp parallel reduction(+:sum_metric,n_active_groups)
       {
         // each thread takes a local rec
         PredIndPairContainer rec;
