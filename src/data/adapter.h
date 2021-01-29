@@ -556,10 +556,10 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
     offset_.insert(offset_.end(), batch.offset, batch.offset + batch.size + 1);
 
     if (batch.label != nullptr) {
-      label_.insert(label_.end(), batch.label, batch.label + batch.size);
+      label_.insert(label_.end(), batch.label, batch.label + batch.size * batch.ndim);
     }
     if (batch.weight != nullptr) {
-      weight_.insert(weight_.end(), batch.weight, batch.weight + batch.size);
+      weight_.insert(weight_.end(), batch.weight, batch.weight + batch.size * batch.ndim);
     }
     if (batch.index != nullptr) {
       index_.insert(index_.end(), batch.index + offset_[0],
