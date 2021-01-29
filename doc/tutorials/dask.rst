@@ -113,10 +113,6 @@ either a ``dd.Series`` or ``dd.DataFrame`` for normal prediction, depending on t
 shape of prediction.  When shap based prediction is used, the return value can exceed 2
 dimension, in such cases an ``Array`` is returned.
 
-The performance of running prediction is sensitive to number of parations/blocks for each
-input dataset.  Internally it's implemented as running local prediction on each data
-partition.
-
 Alternatively, XGBoost also implements the Scikit-Learn interface with ``DaskXGBClassifier``
 and ``DaskXGBRegressor``. See ``xgboost/demo/dask`` for more examples.
 
