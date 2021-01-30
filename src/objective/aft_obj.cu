@@ -108,7 +108,7 @@ class AFTObj : public ObjFunction {
         [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
       _preds[_idx] = exp(_preds[_idx]);
     }, common::Range{0, static_cast<int64_t>(io_preds->Size())},
-        tparam_->gpu_id)
+        io_preds->DeviceIdx())
     .Eval(io_preds);
   }
 
