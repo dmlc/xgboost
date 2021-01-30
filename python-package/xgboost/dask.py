@@ -19,7 +19,6 @@ import logging
 from collections import defaultdict
 from collections.abc import Sequence
 from threading import Thread
-import json
 from typing import TYPE_CHECKING, List, Tuple, Callable, Optional, Any, Union, Dict, Set
 from typing import Awaitable, Generator, TypeVar
 
