@@ -108,8 +108,9 @@ computation a bit faster when meta information like ``base_margin`` is not neede
   prediction = xgb.dask.inplace_predict(client, output, X)
 
 Here ``prediction`` is a dask ``Array`` object containing predictions from model if input
-is a ``DaskDMatrix`` or ``da.Array``.  For ``dd.DataFrame``, the return value is a
-``dd.Series``.
+is a ``DaskDMatrix`` or ``da.Array``.  When putting dask collection directly into the
+``predict`` function or using ``inplace_predict``, the output type depends on input data.
+See next section for details.
 
 Alternatively, XGBoost also implements the Scikit-Learn interface with ``DaskXGBClassifier``
 and ``DaskXGBRegressor``. See ``xgboost/demo/dask`` for more examples.
@@ -143,8 +144,22 @@ Also for inplace prediction:
 .. code-block:: python
 
   booster.set_param({'predictor': 'gpu_predictor'})
-  # where X is a dask DataFrame or dask Array.
+  # where X is a dask DataFrame or dask Array containing cupy or cuDF backed data.
   prediction = xgb.dask.inplace_predict(client, booster, X)
+
+When input is ``da.Array`` object, output is always ``da.Array``.  However, if the input
+type is ``dd.DataFrame``, output can be ``dd.Series``, ``dd.DataFrame`` or ``da.Array``,
+depending on output shape.  For example, when shap based prediction is used, the return
+value can have 3 or 4 dimensions , in such cases an ``Array`` is always returned.
+
+The performance of running prediction, either using ``predict`` or ``inplace_predict``, is
+sensitive to number of blocks.  Internally, it's implemented using ``da.map_blocks`` or
+``dd.map_partitions``.  When number of partitions is large and each of them have only
+small amount of data, the overhead of calling predict becomes visible.  On the other hand,
+if not using GPU, the number of threads used for prediction on each block matters.  Right
+now, xgboost uses single thread for each partition.  If the number of blocks on each
+workers is smaller than number of cores, then the CPU workers might not be fully utilized.
+
 
 
 ***************************

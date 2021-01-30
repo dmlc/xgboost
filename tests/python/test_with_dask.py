@@ -24,7 +24,6 @@ if sys.platform.startswith("win"):
 if tm.no_dask()['condition']:
     pytest.skip(msg=tm.no_dask()['reason'], allow_module_level=True)
 
-import distributed
 from distributed import LocalCluster, Client
 from distributed.utils_test import client, loop, cluster_fixture
 import dask.dataframe as dd
@@ -130,24 +129,34 @@ def test_from_dask_array() -> None:
             assert np.all(single_node_predt == from_arr.compute())
 
 
-def test_dask_predict_shape_infer() -> None:
-    with LocalCluster(n_workers=kWorkers) as cluster:
-        with Client(cluster) as client:
-            X, y = make_classification(n_samples=1000, n_informative=5,
-                                       n_classes=3)
-            X_ = dd.from_array(X, chunksize=100)
-            y_ = dd.from_array(y, chunksize=100)
-            dtrain = xgb.dask.DaskDMatrix(client, data=X_, label=y_)
+def test_dask_predict_shape_infer(client: "Client") -> None:
+    X, y = make_classification(n_samples=1000, n_informative=5, n_classes=3)
+    X_ = dd.from_array(X, chunksize=100)
+    y_ = dd.from_array(y, chunksize=100)
+    dtrain = xgb.dask.DaskDMatrix(client, data=X_, label=y_)
 
-            model = xgb.dask.train(
-                client,
-                {"objective": "multi:softprob", "num_class": 3},
-                dtrain=dtrain
-            )
+    model = xgb.dask.train(
+        client, {"objective": "multi:softprob", "num_class": 3}, dtrain=dtrain
+    )
 
-            preds = xgb.dask.predict(client, model, dtrain)
-            assert preds.shape[0] == preds.compute().shape[0]
-            assert preds.shape[1] == preds.compute().shape[1]
+    preds = xgb.dask.predict(client, model, dtrain)
+    assert preds.shape[0] == preds.compute().shape[0]
+    assert preds.shape[1] == preds.compute().shape[1]
+
+    prediction = xgb.dask.predict(client, model, X_, output_margin=True)
+    assert isinstance(prediction, dd.DataFrame)
+
+    prediction = prediction.compute()
+    assert prediction.ndim == 2
+    assert prediction.shape[0] == kRows
+    assert prediction.shape[1] == 3
+
+    prediction = xgb.dask.inplace_predict(client, model, X_, predict_type="margin")
+    assert isinstance(prediction, dd.DataFrame)
+    prediction = prediction.compute()
+    assert prediction.ndim == 2
+    assert prediction.shape[0] == kRows
+    assert prediction.shape[1] == 3
 
 
 @pytest.mark.parametrize("tree_method", ["hist", "approx"])
@@ -340,7 +349,7 @@ def test_dask_classifier(model: str, client: "Client") -> None:
     classifier.fit(X_d, y_d)
 
     assert classifier.n_classes_ == 10
-    prediction = classifier.predict(X_d)
+    prediction = classifier.predict(X_d).compute()
 
     assert prediction.ndim == 1
     assert prediction.shape[0] == kRows
@@ -541,6 +550,9 @@ async def run_dask_regressor_asyncio(scheduler_address: str) -> None:
         assert list(history['validation_0'].keys())[0] == 'rmse'
         assert len(history['validation_0']['rmse']) == 2
 
+        awaited = await client.compute(prediction)
+        assert awaited.shape[0] == kRows
+
 
 async def run_dask_classifier_asyncio(scheduler_address: str) -> None:
     async with Client(scheduler_address, asynchronous=True) as client:
@@ -578,7 +590,7 @@ async def run_dask_classifier_asyncio(scheduler_address: str) -> None:
         await classifier.fit(X_d, y_d)
 
         assert classifier.n_classes_ == 10
-        prediction = await classifier.predict(X_d)
+        prediction = await client.compute(await classifier.predict(X_d))
 
         assert prediction.ndim == 1
         assert prediction.shape[0] == kRows
@@ -1019,6 +1031,17 @@ class TestWithDask:
         run_data_initialization(xgb.dask.DaskDMatrix, xgb.dask.DaskXGBClassifier, X, y)
 
     def run_shap(self, X: Any, y: Any, params: Dict[str, Any], client: "Client") -> None:
+        rows = X.shape[0]
+        cols = X.shape[1]
+
+        def assert_shape(shape):
+            assert shape[0] == rows
+            if "num_class" in params.keys():
+                assert shape[1] == params["num_class"]
+                assert shape[2] == cols + 1
+            else:
+                assert shape[1] == cols + 1
+
         X, y = da.from_array(X, chunks=(32, -1)), da.from_array(y, chunks=32)
         Xy = xgb.dask.DaskDMatrix(client, X, y)
         booster = xgb.dask.train(client, params, Xy, num_boost_round=10)['booster']
@@ -1027,15 +1050,17 @@ class TestWithDask:
 
         shap = xgb.dask.predict(client, booster, test_Xy, pred_contribs=True).compute()
         margin = xgb.dask.predict(client, booster, test_Xy, output_margin=True).compute()
+        assert_shape(shap.shape)
         assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
 
         shap = xgb.dask.predict(client, booster, X, pred_contribs=True).compute()
         margin = xgb.dask.predict(client, booster, X, output_margin=True).compute()
+        assert_shape(shap.shape)
         assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
 
     def run_shap_cls_sklearn(self, X: Any, y: Any, client: "Client") -> None:
         X, y = da.from_array(X, chunks=(32, -1)), da.from_array(y, chunks=32)
-        cls = xgb.dask.DaskXGBClassifier()
+        cls = xgb.dask.DaskXGBClassifier(n_estimators=4)
         cls.client = client
         cls.fit(X, y)
         booster = cls.get_booster()
@@ -1072,6 +1097,8 @@ class TestWithDask:
         params: Dict[str, Any],
         client: "Client"
     ) -> None:
+        rows = X.shape[0]
+        cols = X.shape[1]
         X, y = da.from_array(X, chunks=(32, -1)), da.from_array(y, chunks=32)
 
         Xy = xgb.dask.DaskDMatrix(client, X, y)
@@ -1082,6 +1109,12 @@ class TestWithDask:
         shap = xgb.dask.predict(
             client, booster, test_Xy, pred_interactions=True
         ).compute()
+
+        assert len(shap.shape) == 3
+        assert shap.shape[0] == rows
+        assert shap.shape[1] == cols + 1
+        assert shap.shape[2] == cols + 1
+
         margin = xgb.dask.predict(client, booster, test_Xy, output_margin=True).compute()
         assert np.allclose(np.sum(shap, axis=(len(shap.shape) - 1, len(shap.shape) - 2)),
                            margin,
