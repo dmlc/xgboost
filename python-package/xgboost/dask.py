@@ -1009,8 +1009,10 @@ def _infer_predict_output(
     test_sample = rng.randn(1, features)
     if inplace:
         # clear the state to avoid gpu_id, gpu_predictor
-        booster = Booster(model_file=booster.save_raw())
+        booster_config = booster.save_config()
+        booster.set_param({"predictor": "cpu_predictor", "gpu_id": -1})
         test_predt = booster.inplace_predict(test_sample, **kwargs)
+        booster.load_config(booster_config)
     else:
         m = DMatrix(test_sample)
         test_predt = booster.predict(m, **kwargs)
