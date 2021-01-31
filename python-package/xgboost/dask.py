@@ -19,7 +19,6 @@ import logging
 from collections import defaultdict
 from collections.abc import Sequence
 from threading import Thread
-import json
 from typing import TYPE_CHECKING, List, Tuple, Callable, Optional, Any, Union, Dict, Set
 from typing import Awaitable, Generator, TypeVar
 
@@ -1085,7 +1084,6 @@ async def _predict_async(
     # Predict on dask collection directly.
     if isinstance(data, (da.Array, dd.DataFrame)):
         _output_shape, meta = _infer_predict_output(
-            _booster,
             await _booster.result(),
             data,
             inplace=False,
