@@ -354,7 +354,6 @@ class LearnerConfiguration : public Learner {
 
   void LoadConfig(Json const& in) override {
     CHECK(IsA<Object>(in));
-    std::lock_guard<std::mutex> guard(config_lock_);
     Version::Load(in);
 
     auto const& learner_parameters = get<Object>(in["learner"]);
@@ -420,7 +419,6 @@ class LearnerConfiguration : public Learner {
   }
 
   void SetParam(const std::string& key, const std::string& value) override {
-    std::lock_guard<std::mutex> guard(config_lock_);
     this->need_configuration_ = true;
     if (key == kEvalMetric) {
       if (std::find(metric_names_.cbegin(), metric_names_.cend(),
