@@ -290,16 +290,9 @@ def _prediction_output(shape, dims, predts, is_cuda):
 
 
 class DataIter:
-    '''The interface for user defined data iterator. Currently is only
-    supported by Device DMatrix.
+    '''The interface for user defined data iterator. Currently is only supported by Device
+    DMatrix.
 
-    Parameters
-    ----------
-
-    rows : int
-        Total number of rows combining all batches.
-    cols : int
-        Number of columns for each batch.
     '''
     def __init__(self):
         self._handle = _ProxyDMatrix()
@@ -1016,8 +1009,9 @@ class DeviceQuantileDMatrix(DMatrix):
 
     .. versionadded:: 1.1.0
     """
+
     @_deprecate_positional_args
-    def __init__(              # pylint: disable=super-init-not-called
+    def __init__(  # pylint: disable=super-init-not-called
         self,
         data,
         label=None,
@@ -1040,7 +1034,7 @@ class DeviceQuantileDMatrix(DMatrix):
         self.max_bin = max_bin
         self.missing = missing if missing is not None else np.nan
         self.nthread = nthread if nthread is not None else 1
-        self._silent = silent    # unused, kept for compatibility
+        self._silent = silent  # unused, kept for compatibility
 
         if isinstance(data, ctypes.c_void_p):
             self.handle = data
@@ -1058,7 +1052,8 @@ class DeviceQuantileDMatrix(DMatrix):
 
         self._init(
             data,
-            label=label, weight=weight,
+            label=label,
+            weight=weight,
             base_margin=base_margin,
             group=group,
             qid=qid,
@@ -1070,7 +1065,13 @@ class DeviceQuantileDMatrix(DMatrix):
         )
 
     def _init(self, data, feature_names, feature_types, **meta):
-        from .data import _is_dlpack, _transform_dlpack, _is_iter, SingleBatchInternalIter
+        from .data import (
+            _is_dlpack,
+            _transform_dlpack,
+            _is_iter,
+            SingleBatchInternalIter,
+        )
+
         if _is_dlpack(data):
             # We specialize for dlpack because cupy will take the memory from it so
             # it can't be transformed twice.
@@ -1079,11 +1080,14 @@ class DeviceQuantileDMatrix(DMatrix):
             it = data
         else:
             it = SingleBatchInternalIter(
-                data, **meta, feature_names=feature_names,
-                feature_types=feature_types)
+                data, **meta, feature_names=feature_names, feature_types=feature_types
+            )
 
         reset_callback = ctypes.CFUNCTYPE(None, ctypes.c_void_p)(it.reset_wrapper)
-        next_callback = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p,)(it.next_wrapper)
+        next_callback = ctypes.CFUNCTYPE(
+            ctypes.c_int,
+            ctypes.c_void_p,
+        )(it.next_wrapper)
         handle = ctypes.c_void_p()
         ret = _LIB.XGDeviceQuantileDMatrixCreateFromCallback(
             None,
@@ -1093,7 +1097,7 @@ class DeviceQuantileDMatrix(DMatrix):
             ctypes.c_float(self.missing),
             ctypes.c_int(self.nthread),
             ctypes.c_int(self.max_bin),
-            ctypes.byref(handle)
+            ctypes.byref(handle),
         )
         if it.exception:
             raise it.exception
