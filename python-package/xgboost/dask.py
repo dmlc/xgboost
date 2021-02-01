@@ -801,7 +801,7 @@ async def _train_async(
     workers = list(_get_workers_from_data(dtrain, evals))
     _rabit_args = await _get_rabit_args(len(workers), client)
 
-    if "booster" in params.keys() and params["booster"] != "gbtree":
+    if params.get("booster", None) is not None and params["booster"] != "gbtree":
         raise NotImplementedError(
             f"booster `{params['booster']}` is not yet supported for dask."
         )
