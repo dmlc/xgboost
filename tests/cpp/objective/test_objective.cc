@@ -26,8 +26,7 @@ TEST(Objective, PredTransform) {
   tparam.UpdateAllowUnknown(args);
   size_t n = 100;
 
-  for (const auto &entry :
-       ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
+  for (const auto entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
     std::unique_ptr<xgboost::ObjFunction> obj{
         xgboost::ObjFunction::Create(entry->name, &tparam)};
     HostDeviceVector<float> predts;
