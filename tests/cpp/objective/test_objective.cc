@@ -22,18 +22,19 @@ namespace xgboost {
 TEST(Objective, PredTransform) {
   // Test that show PredTransform uses the same device with predictor.
   xgboost::GenericParameter tparam;
-  Args args{{"gpu_id", "0"}};  // set to deviec
-  tparam.UpdateAllowUnknown(args);
+  tparam.UpdateAllowUnknown(Args{{"gpu_id", "0"}});
   size_t n = 100;
 
-  for (const auto entry : ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
+  for (const auto &entry :
+       ::dmlc::Registry<::xgboost::ObjFunctionReg>::List()) {
     std::unique_ptr<xgboost::ObjFunction> obj{
         xgboost::ObjFunction::Create(entry->name, &tparam)};
+    obj->Configure(Args{{"num_class", "2"}});
     HostDeviceVector<float> predts;
-    predts.Resize(n); // prediction is performed on host.
-    ASSERT_FALSE(predts.DeviceCanRead()) << entry->name;
+    predts.Resize(n, 3.14f);  // prediction is performed on host.
+    ASSERT_FALSE(predts.DeviceCanRead());
     obj->PredTransform(&predts);
-    ASSERT_FALSE(predts.DeviceCanRead()) << entry->name;
+    ASSERT_FALSE(predts.DeviceCanRead());
     ASSERT_TRUE(predts.HostCanWrite());
   }
 }
