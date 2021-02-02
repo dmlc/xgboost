@@ -535,7 +535,7 @@ class XGBModel(XGBModelBase):
                 json.dumps({k: v})
                 meta[k] = v
             except TypeError:
-                warnings.warn(str(k) + ' is not saved in Scikit-Learn meta.')
+                warnings.warn(str(k) + ' is not saved in Scikit-Learn meta.', UserWarning)
         meta['_estimator_type'] = self._get_type()
         meta_str = json.dumps(meta)
         self.get_booster().set_attr(scikit_learn=meta_str)
