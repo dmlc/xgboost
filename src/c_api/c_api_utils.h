@@ -30,14 +30,15 @@ inline void CalcPredictShape(bool strict_shape, PredictionType type, size_t rows
                              std::vector<bst_ulong> *out_shape,
                              xgboost::bst_ulong *out_dim) {
   auto &shape = *out_shape;
-  if (type == PredictionType::kMargin && rows != 0) {
+  if ((type == PredictionType::kMargin || type == PredictionType::kValue) &&
+      rows != 0) {
     CHECK_EQ(chunksize, groups);
   }
 
   switch (type) {
   case PredictionType::kValue:
   case PredictionType::kMargin: {
-    if (chunksize == 1) {
+    if (chunksize == 1 && !strict_shape) {
       *out_dim = 1;
       shape.resize(*out_dim);
       shape.front() = rows;
@@ -52,7 +53,7 @@ inline void CalcPredictShape(bool strict_shape, PredictionType type, size_t rows
   case PredictionType::kApproxContribution:
   case PredictionType::kContribution: {
     auto groups = chunksize / (cols + 1);
-    if (groups == 1) {
+    if (groups == 1 && !strict_shape) {
       *out_dim = 2;
       shape.resize(*out_dim);
       shape.front() = rows;
@@ -67,7 +68,7 @@ inline void CalcPredictShape(bool strict_shape, PredictionType type, size_t rows
     break;
   }
   case PredictionType::kInteraction: {
-    if (groups == 1) {
+    if (groups == 1 && !strict_shape) {
       *out_dim = 3;
       shape.resize(*out_dim);
       shape[0] = rows;
@@ -85,18 +86,13 @@ inline void CalcPredictShape(bool strict_shape, PredictionType type, size_t rows
   }
   case PredictionType::kLeaf: {
     if (strict_shape) {
-      shape.resize(2);
+      shape.resize(4);
       shape[0] = rows;
       shape[1] = rounds;
-
-      if (groups != 1) {
-        shape.push_back(groups);
-      }
+      shape[2] = groups;
       auto forest = chunksize / (shape[1] * shape[2]);
       forest = std::max(static_cast<decltype(forest)>(1), forest);
-      if (forest != 1) {
-        shape.push_back(forest);
-      }
+      shape[3] = forest;
       *out_dim = shape.size();
     } else {
       *out_dim = 2;

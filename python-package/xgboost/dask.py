@@ -186,8 +186,8 @@ class DaskDMatrix:
     `DaskDMatrix` forces all lazy computation to be carried out.  Wait for the input data
     explicitly if you want to see actual computation of constructing `DaskDMatrix`.
 
-    See doc string for DMatrix constructor for other parameters.  DaskDMatrix accepts only
-    dask collection.
+    See doc for :py:obj:`xgboost.DMatrix` constructor for other parameters.  DaskDMatrix
+    accepts only dask collection.
 
     .. note::
 
@@ -570,7 +570,8 @@ class DaskDeviceQuantileDMatrix(DaskDMatrix):
     memory usage by eliminating data copies.  Internally the all partitions/chunks of data
     are merged by weighted GK sketching.  So the number of partitions from dask may affect
     training accuracy as GK generates bounded error for each merge.  See doc string for
-    `DeviceQuantileDMatrix` and `DMatrix` for other parameters.
+    :py:obj:`xgboost.DeviceQuantileDMatrix` and :py:obj:`xgboost.DMatrix` for other
+    parameters.
 
     .. versionadded:: 1.2.0
 

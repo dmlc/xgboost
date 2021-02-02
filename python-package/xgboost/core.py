@@ -564,7 +564,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         feature_types=None,
         feature_weights=None
     ) -> None:
-        """Set meta info for DMatrix.  See doc string for DMatrix constructor."""
+        """Set meta info for DMatrix.  See doc string for :py:obj:`xgboost.DMatrix`."""
         from .data import dispatch_meta_backend
 
         if label is not None:
@@ -998,16 +998,17 @@ class _ProxyDMatrix(DMatrix):
 
 
 class DeviceQuantileDMatrix(DMatrix):
-    """Device memory Data Matrix used in XGBoost for training with
-    tree_method='gpu_hist'. Do not use this for test/validation tasks as some
-    information may be lost in quantisation. This DMatrix is primarily designed
-    to save memory in training from device memory inputs by avoiding
-    intermediate storage. Set max_bin to control the number of bins during
-    quantisation.  See doc string in `DMatrix` for documents on meta info.
+    """Device memory Data Matrix used in XGBoost for training with tree_method='gpu_hist'. Do
+    not use this for test/validation tasks as some information may be lost in
+    quantisation. This DMatrix is primarily designed to save memory in training from
+    device memory inputs by avoiding intermediate storage. Set max_bin to control the
+    number of bins during quantisation.  See doc string in :py:obj:`xgboost.DMatrix` for
+    documents on meta info.
 
     You can construct DeviceQuantileDMatrix from cupy/cudf/dlpack.
 
     .. versionadded:: 1.1.0
+
     """
 
     @_deprecate_positional_args
@@ -1399,7 +1400,7 @@ class Booster(object):
 
     def boost(self, dtrain, grad, hess):
         """Boost the booster for one iteration, with customized gradient
-        statistics.  Like :func:`xgboost.core.Booster.update`, this
+        statistics.  Like :py:func:`xgboost.Booster.update`, this
         function should not be called directly by users.
 
         Parameters
@@ -1508,17 +1509,12 @@ class Booster(object):
                 training=False):
         """Predict with data.
 
-        .. note:: This function is not thread safe except for ``gbtree``
-                  booster.
+          .. note:: This function is not thread safe except for ``gbtree`` booster.
 
-          For ``gbtree`` booster, the thread safety is guaranteed by locks.
-          For lock free prediction use ``inplace_predict`` instead.  Also, the
-          safety does not hold when used in conjunction with other methods.
-
-          When using booster other than ``gbtree``, predict can only be called
-          from one thread.  If you want to run prediction using multiple
-          thread, call ``bst.copy()`` to make copies of model object and then
-          call ``predict()``.
+          When using booster other than ``gbtree``, predict can only be called from one
+          thread.  If you want to run prediction using multiple thread, call
+          :py:meth:`xgboost.Booster.copy` to make copies of model object and then call
+          ``predict()``.
 
         Parameters
         ----------
@@ -1680,6 +1676,15 @@ class Booster(object):
         missing : float
             Value in the input data which needs to be present as a missing
             value.
+        validate_features:
+            See :py:meth:`xgboost.Booster.predict` for details.
+        base_margin:
+            See :py:obj:`xgboost.DMatrix` for details.
+        strict_shape:
+            When set to True, output shape is invariant to whether classification is used.
+            For both value and margin prediction, the output shape is (n_samples,
+            n_groups), n_groups == 1 when multi-class is not used.  Default to False, in
+            which case the output shape can be (n_samples, ) if multi-class is not used.
 
         Returns
         -------
