@@ -410,6 +410,8 @@ Other customization
 XGBoost dask interface accepts other advanced features found in single node Python
 interface, including callback functions, custom evaluation metric and objective:
 
+.. code-block:: python
+
     def eval_error_metric(predt, dtrain: xgb.DMatrix):
         label = dtrain.get_label()
         r = np.zeros(predt.shape)

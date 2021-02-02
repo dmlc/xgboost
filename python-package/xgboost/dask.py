@@ -1313,8 +1313,8 @@ def inplace_predict(            # pylint: disable=unused-argument
     Returns
     -------
     prediction :
-        When input data is ``dask.array.Array`` or ``DaskDMatrix``, the return value is an
-        array, when input data is ``dask.dataframe.DataFrame``, return value can be
+        When input data is ``dask.array.Array``, the return value is an array, when input
+        data is ``dask.dataframe.DataFrame``, return value can be
         ``dask.dataframe.Series``, ``dask.dataframe.DataFrame`` or ``dask.array.Array``,
         depending on the output shape.
     '''
