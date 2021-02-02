@@ -1611,18 +1611,18 @@ class Booster(object):
 
             .. versionadded:: 1.0.0
 
-        strict_shape :
-          Whether should we reshape the output with stricter rules.  If set to true,
-          normal/predict/margin predict will consider output groups (num class if it's a
-          classifier) in final output dimension.
-
-            .. versionadded:: 1.4.0
-
         iteration_range :
             Specifies which layer of trees are used in prediction.  For example, if a
             random forest is trained with 100 rounds.  Specifying `iteration_range=(10,
             20)`, then only the forests built during [10, 20) (half open set) rounds are
             used in this prediction.
+
+            .. versionadded:: 1.4.0
+
+        strict_shape :
+          Whether should we reshape the output with stricter rules.  If set to true,
+          normal/predict/margin predict will consider output groups (num class if it's a
+          classifier) in final output dimension.
 
             .. versionadded:: 1.4.0
 

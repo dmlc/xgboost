@@ -1265,6 +1265,7 @@ async def _inplace_predict_async(  # pylint: disable=too-many-branches
                 predict_type=predict_type,
                 missing=missing,
                 base_margin=base_margin,
+                validate_features=validate_features
             )
         if is_df and len(prediction.shape) <= 2:
             if lazy_isinstance(data, 'cudf.core.dataframe', 'DataFrame'):
