@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2020 by Contributors
+ * Copyright 2014-2021 by Contributors
  * \file gbm.h
  * \brief Interface of gradient booster,
  *  that learns through gradient statistics.
@@ -118,7 +118,7 @@ class GradientBooster : public Model, public Configurable {
    * \param           layer_begin (Optional) Begining of boosted tree layer used for prediction.
    * \param           layer_end   (Optional) End of booster layer. 0 means do not limit trees.
    */
-  virtual void InplacePredict(dmlc::any const &, float,
+  virtual void InplacePredict(dmlc::any const &, std::shared_ptr<DMatrix>, float,
                               PredictionCacheEntry*,
                               uint32_t,
                               uint32_t) const {

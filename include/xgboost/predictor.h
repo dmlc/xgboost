@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 by Contributors
+ * Copyright 2017-2021 by Contributors
  * \file predictor.h
  * \brief Interface of predictor,
  *  performs predictions for a gradient booster.
@@ -142,10 +142,14 @@ class Predictor {
    * \param [in,out]  out_preds              The output preds.
    * \param           tree_begin (Optional) Begining of boosted trees used for prediction.
    * \param           tree_end   (Optional) End of booster trees. 0 means do not limit trees.
+   *
+   * \return True if the data can be handled by current predictor, false otherwise.
    */
-  virtual void InplacePredict(dmlc::any const &x, const gbm::GBTreeModel &model,
-                              float missing, PredictionCacheEntry *out_preds,
-                              uint32_t tree_begin = 0, uint32_t tree_end = 0) const = 0;
+  virtual bool InplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
+                              const gbm::GBTreeModel &model, float missing,
+                              PredictionCacheEntry *out_preds,
+                              uint32_t tree_begin = 0,
+                              uint32_t tree_end = 0) const = 0;
   /**
    * \brief online prediction function, predict score for one instance at a time
    * NOTE: use the batch prediction interface if possible, batch prediction is

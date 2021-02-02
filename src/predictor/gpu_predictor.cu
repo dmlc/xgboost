@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 by Contributors
+ * Copyright 2017-2021 by Contributors
  */
 #include <thrust/copy.h>
 #include <thrust/device_ptr.h>
@@ -644,7 +644,7 @@ class GPUPredictor : public xgboost::Predictor {
   }
 
   template <typename Adapter, typename Loader>
-  void DispatchedInplacePredict(dmlc::any const &x,
+  void DispatchedInplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
                                 const gbm::GBTreeModel &model, float,
                                 PredictionCacheEntry *out_preds,
                                 uint32_t tree_begin, uint32_t tree_end) const {
@@ -659,16 +659,20 @@ class GPUPredictor : public xgboost::Predictor {
     CHECK_EQ(this->generic_param_->gpu_id, m->DeviceIdx())
         << "XGBoost is running on device: " << this->generic_param_->gpu_id << ", "
         << "but data is on: " << m->DeviceIdx();
-    MetaInfo info;
-    info.num_col_ = m->NumColumns();
-    info.num_row_ = m->NumRows();
-    this->InitOutPredictions(info, &(out_preds->predictions), model);
+    if (p_m) {
+      p_m->Info().num_row_ = m->NumRows();
+      this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
+    } else {
+      MetaInfo info;
+      info.num_row_ = m->NumRows();
+      this->InitOutPredictions(info, &(out_preds->predictions), model);
+    }
 
     const uint32_t BLOCK_THREADS = 128;
-    auto GRID_SIZE = static_cast<uint32_t>(common::DivRoundUp(info.num_row_, BLOCK_THREADS));
+    auto GRID_SIZE = static_cast<uint32_t>(common::DivRoundUp(m->NumRows(), BLOCK_THREADS));
 
     size_t shared_memory_bytes =
-        SharedMemoryBytes<BLOCK_THREADS>(info.num_col_, max_shared_memory_bytes);
+        SharedMemoryBytes<BLOCK_THREADS>(m->NumColumns(), max_shared_memory_bytes);
     bool use_shared = shared_memory_bytes != 0;
     size_t entry_start = 0;
 
@@ -680,23 +684,25 @@ class GPUPredictor : public xgboost::Predictor {
         d_model.categories_tree_segments.ConstDeviceSpan(),
         d_model.categories_node_segments.ConstDeviceSpan(),
         d_model.categories.ConstDeviceSpan(), tree_begin, tree_end, m->NumColumns(),
-        info.num_row_, entry_start, use_shared, output_groups);
+        m->NumRows(), entry_start, use_shared, output_groups);
   }
 
-  void InplacePredict(dmlc::any const &x, const gbm::GBTreeModel &model,
-                      float missing, PredictionCacheEntry *out_preds,
-                      uint32_t tree_begin, unsigned tree_end) const override {
+  bool InplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
+                      const gbm::GBTreeModel &model, float missing,
+                      PredictionCacheEntry *out_preds, uint32_t tree_begin,
+                      unsigned tree_end) const override {
     if (x.type() == typeid(std::shared_ptr<data::CupyAdapter>)) {
       this->DispatchedInplacePredict<
           data::CupyAdapter, DeviceAdapterLoader<data::CupyAdapterBatch>>(
-          x, model, missing, out_preds, tree_begin, tree_end);
+          x, p_m, model, missing, out_preds, tree_begin, tree_end);
     } else if (x.type() == typeid(std::shared_ptr<data::CudfAdapter>)) {
       this->DispatchedInplacePredict<
           data::CudfAdapter, DeviceAdapterLoader<data::CudfAdapterBatch>>(
-          x, model, missing, out_preds, tree_begin, tree_end);
+          x, p_m, model, missing, out_preds, tree_begin, tree_end);
     } else {
-      LOG(FATAL) << "Only CuPy and CuDF are supported by GPU Predictor.";
+      return false;
     }
+    return true;
   }
 
   void PredictContribution(DMatrix* p_fmat,
