@@ -75,6 +75,23 @@ def test_predict_leaf():
     run_predict_leaf('cpu_predictor')
 
 
+def test_predict_shape():
+    from sklearn.datasets import load_boston
+    X, y = load_boston(return_X_y=True)
+    reg = xgb.XGBRegressor(n_estimators=1)
+    reg.fit(X, y)
+    predt = reg.get_booster().predict(xgb.DMatrix(X), strict_shape=True)
+    assert len(predt.shape) == 2
+    assert predt.shape[0] == X.shape[0]
+    assert predt.shape[1] == 1
+
+    contrib = reg.get_booster().predict(
+        xgb.DMatrix(X), pred_contribs=True, strict_shape=True
+    )
+    assert len(contrib.shape) == 3
+    assert contrib.shape[1] == 1
+
+
 class TestInplacePredict:
     '''Tests for running inplace prediction'''
     @classmethod
