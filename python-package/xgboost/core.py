@@ -228,21 +228,12 @@ def _numpy2ctypes_type(dtype):
     return _NUMPY_TO_CTYPES_MAPPING[dtype]
 
 
-def _numpy2xgboost_type(dtype):
-    mapping = {
-        np.float32: 1,
-        np.float64: 2,
-        np.uint32: 3,
-        np.uint64: 4,
-        # str = 5
-        np.int32: 6,
-        np.int64: 7,
-    }
-    if np.intc is not np.int32:  # Windows
-        mapping[np.intc] = mapping[np.int32]
-    if dtype not in mapping.keys():
-        raise TypeError(f"Supported types: {mapping.keys()}, got: {dtype}")
-    return ctypes.c_int(mapping[dtype])
+def _array_interface(data: np.ndarray) -> bytes:
+    interface = data.__array_interface__
+    if "mask" in interface:
+        interface["mask"] = interface["mask"].__array_interface__
+    interface_str = bytes(json.dumps(interface, indent=2), "utf-8")
+    return interface_str
 
 
 def ctypes2numpy(cptr, length, dtype):
@@ -316,42 +307,13 @@ def _prediction_output(shape, dims, predts, is_cuda):
     return arr_predict
 
 
-def _prediction_type(
-    args, output_margin, pred_contribs, approx_contribs, pred_interactions, pred_leaf
-) -> Dict[str, any]:
-    """Assign prediction type according to parameter."""
-    def assign_type(t: int) -> None:
-        if args["type"] != 0:
-            raise ValueError("One type of prediction at a time.")
-        args["type"] = t
-
-    if output_margin:
-        assign_type(1)
-    if pred_contribs:
-        assign_type(2 if not approx_contribs else 3)
-    if pred_interactions:
-        assign_type(4)
-    if pred_leaf:
-        assign_type(5)
-
-    return args
-
-
 class DataIter:
-    '''The interface for user defined data iterator. Currently is only
-    supported by Device DMatrix.
+    '''The interface for user defined data iterator. Currently is only supported by Device
+    DMatrix.
 
-    Parameters
-    ----------
-
-    rows : int
-        Total number of rows combining all batches.
-    cols : int
-        Number of columns for each batch.
     '''
     def __init__(self):
-        proxy = _ProxyDMatrix(owner=False)
-        self._handle = DeviceQuantileDMatrix(proxy.handle)
+        self._handle = _ProxyDMatrix()
         self.exception = None
 
     @property
@@ -620,7 +582,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         feature_types=None,
         feature_weights=None
     ) -> None:
-        """Set meta info for DMatrix.  See doc string for DMatrix constructor."""
+        """Set meta info for DMatrix.  See doc string for :py:obj:`xgboost.DMatrix`."""
         from .data import dispatch_meta_backend
 
         if label is not None:
@@ -1023,90 +985,12 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
 
 class _ProxyDMatrix(DMatrix):
     """A placeholder class when DMatrix cannot be constructed (DeviceQuantileDMatrix,
-    inplace_predict).  `owner` specifies whether should the handle be freed by this
-    object.
+    inplace_predict).
 
     """
-    def __init__(self, owner):  # pylint: disable=super-init-not-called
+    def __init__(self):  # pylint: disable=super-init-not-called
         self.handle = ctypes.c_void_p()
         _check_call(_LIB.XGProxyDMatrixCreate(ctypes.byref(self.handle)))
-        self._owner = owner
-
-    def __del__(self):
-        if self._owner:
-            super().__del__()
-
-
-class DeviceQuantileDMatrix(DMatrix):
-    """Device memory Data Matrix used in XGBoost for training with
-    tree_method='gpu_hist'. Do not use this for test/validation tasks as some
-    information may be lost in quantisation. This DMatrix is primarily designed
-    to save memory in training from device memory inputs by avoiding
-    intermediate storage. Set max_bin to control the number of bins during
-    quantisation.  See doc string in `DMatrix` for documents on meta info.
-
-    You can construct DeviceQuantileDMatrix from cupy/cudf/dlpack.
-
-    .. versionadded:: 1.1.0
-    """
-    @_deprecate_positional_args
-    def __init__(              # pylint: disable=super-init-not-called
-        self,
-        data,
-        label=None,
-        *,
-        weight=None,
-        base_margin=None,
-        missing=None,
-        silent=False,
-        feature_names=None,
-        feature_types=None,
-        nthread: Optional[int] = None,
-        max_bin: int = 256,
-        group=None,
-        qid=None,
-        label_lower_bound=None,
-        label_upper_bound=None,
-        feature_weights=None,
-        enable_categorical: bool = False,
-    ):
-        self.max_bin = max_bin
-        self.missing = missing if missing is not None else np.nan
-        self.nthread = nthread if nthread is not None else 1
-        self._silent = silent    # unused, kept for compatibility
-
-        if isinstance(data, ctypes.c_void_p):
-            self.handle = data
-            return
-        from .data import init_device_quantile_dmatrix
-        handle, feature_names, feature_types = init_device_quantile_dmatrix(
-            data,
-            label=label, weight=weight,
-            base_margin=base_margin,
-            group=group,
-            qid=qid,
-            missing=self.missing,
-            label_lower_bound=label_lower_bound,
-            label_upper_bound=label_upper_bound,
-            feature_weights=feature_weights,
-            feature_names=feature_names,
-            feature_types=feature_types,
-            threads=self.nthread,
-            max_bin=self.max_bin,
-        )
-        if enable_categorical:
-            raise NotImplementedError(
-                'categorical support is not enabled on DeviceQuantileDMatrix.'
-            )
-        self.handle = handle
-        if qid is not None and group is not None:
-            raise ValueError(
-                'Only one of the eval_qid or eval_group for each evaluation '
-                'dataset should be provided.'
-            )
-
-        self.feature_names = feature_names
-        self.feature_types = feature_types
 
     def _set_data_from_cuda_interface(self, data):
         '''Set data from CUDA array interface.'''
@@ -1129,6 +1013,116 @@ class DeviceQuantileDMatrix(DMatrix):
                 interfaces_str
             )
         )
+
+
+class DeviceQuantileDMatrix(DMatrix):
+    """Device memory Data Matrix used in XGBoost for training with tree_method='gpu_hist'. Do
+    not use this for test/validation tasks as some information may be lost in
+    quantisation. This DMatrix is primarily designed to save memory in training from
+    device memory inputs by avoiding intermediate storage. Set max_bin to control the
+    number of bins during quantisation.  See doc string in :py:obj:`xgboost.DMatrix` for
+    documents on meta info.
+
+    You can construct DeviceQuantileDMatrix from cupy/cudf/dlpack.
+
+    .. versionadded:: 1.1.0
+
+    """
+
+    @_deprecate_positional_args
+    def __init__(  # pylint: disable=super-init-not-called
+        self,
+        data,
+        label=None,
+        *,
+        weight=None,
+        base_margin=None,
+        missing=None,
+        silent=False,
+        feature_names=None,
+        feature_types=None,
+        nthread: Optional[int] = None,
+        max_bin: int = 256,
+        group=None,
+        qid=None,
+        label_lower_bound=None,
+        label_upper_bound=None,
+        feature_weights=None,
+        enable_categorical: bool = False,
+    ):
+        self.max_bin = max_bin
+        self.missing = missing if missing is not None else np.nan
+        self.nthread = nthread if nthread is not None else 1
+        self._silent = silent  # unused, kept for compatibility
+
+        if isinstance(data, ctypes.c_void_p):
+            self.handle = data
+            return
+
+        if enable_categorical:
+            raise NotImplementedError(
+                'categorical support is not enabled on DeviceQuantileDMatrix.'
+            )
+        if qid is not None and group is not None:
+            raise ValueError(
+                'Only one of the eval_qid or eval_group for each evaluation '
+                'dataset should be provided.'
+            )
+
+        self._init(
+            data,
+            label=label,
+            weight=weight,
+            base_margin=base_margin,
+            group=group,
+            qid=qid,
+            label_lower_bound=label_lower_bound,
+            label_upper_bound=label_upper_bound,
+            feature_weights=feature_weights,
+            feature_names=feature_names,
+            feature_types=feature_types,
+        )
+
+    def _init(self, data, feature_names, feature_types, **meta):
+        from .data import (
+            _is_dlpack,
+            _transform_dlpack,
+            _is_iter,
+            SingleBatchInternalIter,
+        )
+
+        if _is_dlpack(data):
+            # We specialize for dlpack because cupy will take the memory from it so
+            # it can't be transformed twice.
+            data = _transform_dlpack(data)
+        if _is_iter(data):
+            it = data
+        else:
+            it = SingleBatchInternalIter(
+                data, **meta, feature_names=feature_names, feature_types=feature_types
+            )
+
+        reset_callback = ctypes.CFUNCTYPE(None, ctypes.c_void_p)(it.reset_wrapper)
+        next_callback = ctypes.CFUNCTYPE(
+            ctypes.c_int,
+            ctypes.c_void_p,
+        )(it.next_wrapper)
+        handle = ctypes.c_void_p()
+        ret = _LIB.XGDeviceQuantileDMatrixCreateFromCallback(
+            None,
+            it.proxy.handle,
+            reset_callback,
+            next_callback,
+            ctypes.c_float(self.missing),
+            ctypes.c_int(self.nthread),
+            ctypes.c_int(self.max_bin),
+            ctypes.byref(handle),
+        )
+        if it.exception:
+            raise it.exception
+        # delay check_call to throw intermediate exception first
+        _check_call(ret)
+        self.handle = handle
 
 
 Objective = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
@@ -1452,7 +1446,7 @@ class Booster(object):
 
     def boost(self, dtrain, grad, hess):
         """Boost the booster for one iteration, with customized gradient
-        statistics.  Like :func:`xgboost.core.Booster.update`, this
+        statistics.  Like :py:func:`xgboost.Booster.update`, this
         function should not be called directly by users.
 
         Parameters
@@ -1563,17 +1557,12 @@ class Booster(object):
                 iteration_range: Tuple[int, int] = (0, 0)):
         """Predict with data.
 
-        .. note:: This function is not thread safe except for ``gbtree``
-                  booster.
+          .. note:: This function is not thread safe except for ``gbtree`` booster.
 
-          For ``gbtree`` booster, the thread safety is guaranteed by locks.
-          For lock free prediction use ``inplace_predict`` instead.  Also, the
-          safety does not hold when used in conjunction with other methods.
-
-          When using booster other than ``gbtree``, predict can only be called
-          from one thread.  If you want to run prediction using multiple
-          thread, call ``bst.copy()`` to make copies of model object and then
-          call ``predict()``.
+          When using booster other than ``gbtree``, predict can only be called from one
+          thread.  If you want to run prediction using multiple thread, call
+          :py:meth:`xgboost.Booster.copy` to make copies of model object and then call
+          ``predict()``.
 
         Parameters
         ----------
@@ -1660,7 +1649,19 @@ class Booster(object):
             "iteration_end": iteration_range[1],
             "strict_shape": strict_shape,
         }
-        args = _prediction_type(args)
+        def assign_type(t: int) -> None:
+            if args["type"] != 0:
+                raise ValueError("One type of prediction at a time.")
+            args["type"] = t
+
+        if output_margin:
+            assign_type(1)
+        if pred_contribs:
+            assign_type(2 if not approx_contribs else 3)
+        if pred_interactions:
+            assign_type(4)
+        if pred_leaf:
+            assign_type(5)
         preds = ctypes.POINTER(ctypes.c_float)()
         shape = ctypes.POINTER(c_bst_ulong)()
         dims = c_bst_ulong()
@@ -1711,16 +1712,26 @@ class Booster(object):
             The input data, must not be a view for numpy array.  Set
             ``predictor`` to ``gpu_predictor`` for running prediction on CuPy
             array or CuDF DataFrame.
-        iteration_range :
-            See `predict` for details.
-        predict_type :
+        iteration_range : tuple
+            Specifies which layer of trees are used in prediction.  For
+            example, if a random forest is trained with 100 rounds.  Specifying
+            `iteration_range=(10, 20)`, then only the forests built during [10,
+            20) (open set) rounds are used in this prediction.
+        predict_type : str
             * `value` Output model prediction values.
             * `margin` Output the raw untransformed margin value.
-        missing :
+        missing : float
             Value in the input data which needs to be present as a missing
             value.
-        strict_shape :
-            See `predict` for details.
+        validate_features:
+            See :py:meth:`xgboost.Booster.predict` for details.
+        base_margin:
+            See :py:obj:`xgboost.DMatrix` for details.
+        strict_shape:
+            When set to True, output shape is invariant to whether classification is used.
+            For both value and margin prediction, the output shape is (n_samples,
+            n_groups), n_groups == 1 when multi-class is not used.  Default to False, in
+            which case the output shape can be (n_samples, ) if multi-class is not used.
 
         Returns
         -------
@@ -1754,7 +1765,7 @@ class Booster(object):
         dims = c_bst_ulong()
 
         if base_margin is not None:
-            proxy = _ProxyDMatrix(owner=True)
+            proxy = _ProxyDMatrix()
             proxy.set_info(base_margin=base_margin)
             p_handle = proxy.handle
         else:
@@ -1774,12 +1785,7 @@ class Booster(object):
             _check_call(
                 _LIB.XGBoosterPredictFromDense(
                     self.handle,
-                    data.ctypes.data_as(
-                        ctypes.POINTER(_numpy2ctypes_type(data.dtype.type))
-                    ),
-                    _numpy2xgboost_type(data.dtype.type),
-                    c_bst_ulong(data.shape[0]),
-                    c_bst_ulong(data.shape[1]),
+                    _array_interface(data),
                     from_pystr_to_cstr(json.dumps(args)),
                     p_handle,
                     ctypes.byref(shape),
@@ -1793,17 +1799,9 @@ class Booster(object):
             _check_call(
                 _LIB.XGBoosterPredictFromCSR(
                     self.handle,
-                    c_array(ctypes.c_size_t, csr.indptr),
-                    csr.indices.ctypes.data_as(
-                        ctypes.POINTER(_numpy2ctypes_type(csr.indices.dtype.type))
-                    ),
-                    _numpy2xgboost_type(csr.indices.dtype.type),
-                    csr.data.ctypes.data_as(
-                        ctypes.POINTER(_numpy2ctypes_type(csr.data.dtype.type))
-                    ),
-                    _numpy2xgboost_type(csr.data.dtype.type),
-                    ctypes.c_size_t(len(csr.indptr)),
-                    ctypes.c_size_t(len(csr.data)),
+                    _array_interface(csr.indptr),
+                    _array_interface(csr.indices),
+                    _array_interface(csr.data),
                     ctypes.c_size_t(csr.shape[1]),
                     from_pystr_to_cstr(json.dumps(args)),
                     p_handle,

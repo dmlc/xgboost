@@ -1,5 +1,5 @@
 /*!
- * Copyright 2015-2020 by Contributors
+ * Copyright 2015-2021 by Contributors
  * \file learner.h
  * \brief Learner interface that integrates objective, gbm and evaluation together.
  *  This is the user facing XGBoost training module.

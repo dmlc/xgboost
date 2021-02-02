@@ -17,8 +17,7 @@ TEST(Adapter, CSRAdapter) {
   std::vector<float> data = {1, 2, 3, 4, 5};
   std::vector<unsigned> feature_idx = {0, 1, 0, 1, 1};
   std::vector<size_t> row_ptr = {0, 2, 4, 5};
-  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(),
-                           DataType::kUInt32, data.data(), DataType::kFloat32,
+  data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(),
                            row_ptr.size() - 1, data.size(), n);
   adapter.Next();
   auto & batch = adapter.Value();

@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 by Contributors
+ * Copyright 2020-2021 by Contributors
  */
 
 #include <gtest/gtest.h>

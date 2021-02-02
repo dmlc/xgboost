@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 by Contributors
+ * Copyright 2017-2021 by Contributors
  * \file predictor.h
  * \brief Interface of predictor,
  *  performs predictions for a gradient booster.
@@ -164,7 +164,7 @@ class Predictor {
   virtual void PredictInstance(const SparsePage::Inst& inst,
                                std::vector<bst_float>* out_preds,
                                const gbm::GBTreeModel& model,
-                               unsigned tree_end = 0) = 0;
+                               unsigned tree_end = 0) const = 0;
 
   /**
    * \brief predict the leaf index of each tree, the output will be nsample *

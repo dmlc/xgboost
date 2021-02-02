@@ -12,7 +12,7 @@
 #include "../../../src/data/adapter.h"
 
 namespace xgboost {
-TEST(CPUPredictor, Basic) {
+TEST(CpuPredictor, Basic) {
   auto lparam = CreateEmptyGenericParam(GPUIDX);
   std::unique_ptr<Predictor> cpu_predictor =
       std::unique_ptr<Predictor>(Predictor::Create("cpu_predictor", &lparam));
@@ -85,7 +85,7 @@ TEST(CPUPredictor, Basic) {
   }
 }
 
-TEST(CPUPredictor, ExternalMemory) {
+TEST(CpuPredictor, ExternalMemory) {
   dmlc::TemporaryDirectory tmpdir;
   std::string filename = tmpdir.path + "/big.libsvm";
 
@@ -156,7 +156,7 @@ TEST(CPUPredictor, ExternalMemory) {
   }
 }
 
-TEST(CPUPredictor, InplacePredict) {
+TEST(CpuPredictor, InplacePredict) {
   bst_row_t constexpr kRows{128};
   bst_feature_t constexpr kCols{64};
   auto gen = RandomDataGenerator{kRows, kCols, 0.5}.Device(-1);
@@ -165,7 +165,7 @@ TEST(CPUPredictor, InplacePredict) {
     gen.GenerateDense(&data);
     ASSERT_EQ(data.Size(), kRows * kCols);
     std::shared_ptr<data::DenseAdapter> x{
-      new data::DenseAdapter(data.HostPointer(), DataType::kFloat32, kRows, kCols)};
+      new data::DenseAdapter(data.HostPointer(), kRows, kCols)};
     TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
   }
 
@@ -175,13 +175,13 @@ TEST(CPUPredictor, InplacePredict) {
     HostDeviceVector<bst_feature_t> columns;
     gen.GenerateCSR(&data, &rptrs, &columns);
     std::shared_ptr<data::CSRAdapter> x{new data::CSRAdapter(
-        rptrs.HostPointer(), columns.HostPointer(), DataType::kUInt32,
-        data.HostPointer(), DataType::kFloat32, kRows, data.Size(), kCols)};
+        rptrs.HostPointer(), columns.HostPointer(), data.HostPointer(), kRows,
+        data.Size(), kCols)};
     TestInplacePrediction(x, "cpu_predictor", kRows, kCols, -1);
   }
 }
 
-TEST(CPUPredictor, UpdatePredictionCache) {
+TEST(CpuPredictor, UpdatePredictionCache) {
   size_t constexpr kRows = 64, kCols = 16, kClasses = 4;
   LearnerModelParam mparam;
   mparam.num_feature = kCols;
@@ -224,7 +224,7 @@ TEST(CPUPredictor, UpdatePredictionCache) {
   }
 }
 
-TEST(CPUPredictor, LesserFeatures) {
+TEST(CpuPredictor, LesserFeatures) {
   TestPredictionWithLesserFeatures("cpu_predictor");
 }
 }  // namespace xgboost

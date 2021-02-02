@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 by Contributors
+ * Copyright 2017-2021 by Contributors
  */
 #include <thrust/copy.h>
 #include <thrust/device_ptr.h>

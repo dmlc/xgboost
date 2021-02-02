@@ -522,8 +522,6 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
  *    double   = 2
  *    uint32_t = 3
  *    uint64_t = 4
- *    int32_t  = 6
- *    int64_t  = 7
  *
  * \return 0 when success, -1 when failure happens
  */
@@ -748,8 +746,9 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
  *      End iteration of prediction.  Set to 0 this will become the size of tree model.
  *    "strict_shape": bool
  *      Whether should we reshape the output with stricter rules.  If set to true,
- *      normal/predict/margin predict will consider output groups (num class if it's a
- *      classifier) in final output dimension.
+ *      normal/margin/contrib/interaction predict will output consistent shape
+ *      disregarding the use of multi-class model, and leaf prediction will output 4-dim
+ *      array representing: (n_samples, n_iterations, n_classes, n_trees_in_forest)
  *
  *   Run a normal prediction with strict output shape, 2 dim for softprob , 1 dim for others.
  *   \code
@@ -777,14 +776,15 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
 /*
  * \brief Inplace prediction from CPU dense matrix.
  *
- * \param values       Contigious buffer storing the matrix in row major order.
- * \param dtype        Type of data.  See `XGDMatrixSetDenseInfo` for more info.
- * \param n_rows        Number of samples.
- * \param n_cols        Number of features.
+ * \param handle        Booster handle.
+ * \param values        JSON encoded__array_interface__ to values.
  * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
  *
  *   Additional fields for inplace prediction are:
  *     "missing": float
+ *
+ * \param m             An optional (NULL if not available) proxy DMatrix instance
+ *                      storing meta info.
  *
  * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
  * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
@@ -792,9 +792,8 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, void const *values,
-                                      int dtype, bst_ulong n_rows,
-                                      bst_ulong n_cols,
+XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle,
+                                      char const *values,
                                       char const *c_json_config,
                                       DMatrixHandle m,
                                       bst_ulong const **out_shape,
@@ -804,17 +803,17 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, void const *values,
 /*
  * \brief Inplace prediction from CPU CSR matrix.
  *
- * \param indptr        Row pointer in CSR.
- * \param indices       Contigious buffer storing column indices in CSR.
- * \param itype         Type of column indices.
- * \param values        Contigious buffer storing the matrix.
- * \param dtype         Type of data.  See `XGDMatrixSetDenseInfo` for more info.
- * \param nindptr       Size of row pointer.
- * \param nelem         Number of elements in values.
- * \param n_cols        Number of features in data.
+ * \param handle        Booster handle.
+ * \param indptr        JSON encoded__array_interface__ to row pointer in CSR.
+ * \param indices       JSON encoded__array_interface__ to column indices in CSR.
+ * \param values        JSON encoded__array_interface__ to values in CSR..
+ * \param ncol          Number of features in data.
  * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
  *   Additional fields for inplace prediction are:
  *     "missing": float
+ *
+ * \param m             An optional (NULL if not available) proxy DMatrix instance
+ *                      storing meta info.
  *
  * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
  * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
@@ -822,21 +821,19 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, void const *values,
  *
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, const size_t *indptr,
-                                    const void *indices, int itype,
-                                    const void *values, int dtype,
-                                    size_t nindptr, size_t nelem, size_t n_cols,
-                                    char const *c_json_config,
-                                    DMatrixHandle m,
+XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr,
+                                    char const *indices, char const *values,
+                                    bst_ulong ncol,
+                                    char const *c_json_config, DMatrixHandle m,
                                     bst_ulong const **out_shape,
                                     bst_ulong *out_dim,
-                                    float const **out_result);
+                                    const float **out_result);
 
 /*
  * \brief Inplace prediction from CUDA Dense matrix (cupy in Python).
  *
  * \param handle        Booster handle
- * \param c_json_strs   __cuda_array_interface__ encoded in JSON.
+ * \param values        JSON encoded __cuda_array_interface__ to values.
  * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
  *   Additional fields for inplace prediction are:
  *     "missing": float
@@ -848,7 +845,7 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, const size_t *indptr,
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterPredictFromArrayInterface(
-    BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
+    BoosterHandle handle, char const *values, char const *c_json_config,
     DMatrixHandle m, bst_ulong const **out_shape, bst_ulong *out_dim,
     const float **out_result);
 
@@ -856,7 +853,7 @@ XGB_DLL int XGBoosterPredictFromArrayInterface(
  * \brief Inplace prediction from CUDA dense dataframe (cuDF in Python).
  *
  * \param handle        Booster handle
- * \param c_json_strs   __cuda_array_interface__ for all columns encoded in JSON list.
+ * \param values        List of __cuda_array_interface__ for all columns encoded in JSON list.
  * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
  *   Additional fields for inplace prediction are:
  *     "missing": float
@@ -868,9 +865,10 @@ XGB_DLL int XGBoosterPredictFromArrayInterface(
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterPredictFromArrayInterfaceColumns(
-    BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
+    BoosterHandle handle, char const *values, char const *c_json_config,
     DMatrixHandle m, bst_ulong const **out_shape, bst_ulong *out_dim,
     const float **out_result);
+
 
 /*
  * ========================== Begin Serialization APIs =========================

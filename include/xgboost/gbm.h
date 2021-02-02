@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2020 by Contributors
+ * Copyright 2014-2021 by Contributors
  * \file gbm.h
  * \brief Interface of gradient booster,
  *  that learns through gradient statistics.

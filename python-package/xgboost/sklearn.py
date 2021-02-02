@@ -536,7 +536,7 @@ class XGBModel(XGBModelBase):
                 json.dumps({k: v})
                 meta[k] = v
             except TypeError:
-                warnings.warn(str(k) + ' is not saved in Scikit-Learn meta.')
+                warnings.warn(str(k) + ' is not saved in Scikit-Learn meta.', UserWarning)
         meta['_estimator_type'] = self._get_type()
         meta_str = json.dumps(meta)
         self.get_booster().set_attr(scikit_learn=meta_str)
@@ -749,6 +749,8 @@ class XGBModel(XGBModelBase):
         return self
 
     def _can_use_inplace_predict(self) -> bool:
+        # When predictor is explicitly set, using `inplace_predict` might result into
+        # error with incompatible data type.
         params = self.get_params().keys()
         booster = self.booster
         if "predictor" not in params and (booster is None or booster == "gbtree"):
@@ -821,7 +823,7 @@ class XGBModel(XGBModelBase):
             )
             if _is_cupy_array(predts):
                 import cupy     # pylint: disable=import-error
-                predts = cupy.asnumpy(predts)
+                predts = cupy.asnumpy(predts)  # ensure numpy array is used.
             return predts
         test = DMatrix(
             X, base_margin=base_margin, missing=self.missing, nthread=self.n_jobs

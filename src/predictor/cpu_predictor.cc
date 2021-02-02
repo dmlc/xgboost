@@ -1,5 +1,5 @@
 /*!
- * Copyright by Contributors 2017-2020
+ * Copyright by Contributors 2017-2021
  */
 #include <dmlc/omp.h>
 #include <dmlc/any.h>
@@ -292,6 +292,12 @@ class CPUPredictor : public Predictor {
     } else if (x.type() == typeid(std::shared_ptr<data::CSRAdapter>)) {
       this->DispatchedInplacePredict<data::CSRAdapter>(
           x, p_m, model, missing, out_preds, tree_begin, tree_end);
+    } else if (x.type() == typeid(std::shared_ptr<data::ArrayAdapter>)) {
+      this->DispatchedInplacePredict<data::ArrayAdapter> (
+          x, p_m, model, missing, out_preds, tree_begin, tree_end);
+    } else if (x.type() == typeid(std::shared_ptr<data::CSRArrayAdapter>)) {
+      this->DispatchedInplacePredict<data::CSRArrayAdapter> (
+          x, p_m, model, missing, out_preds, tree_begin, tree_end);
     } else {
       return false;
     }
@@ -300,7 +306,7 @@ class CPUPredictor : public Predictor {
 
   void PredictInstance(const SparsePage::Inst& inst,
                        std::vector<bst_float>* out_preds,
-                       const gbm::GBTreeModel& model, unsigned ntree_limit) override {
+                       const gbm::GBTreeModel& model, unsigned ntree_limit) const override {
     std::vector<RegTree::FVec> feat_vecs;
     feat_vecs.resize(1, RegTree::FVec());
     feat_vecs[0].Init(model.learner_model_param->num_feature);

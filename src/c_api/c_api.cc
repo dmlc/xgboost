@@ -241,8 +241,7 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
                                      size_t num_col,
                                      DMatrixHandle* out) {
   API_BEGIN();
-  data::CSRAdapter adapter(indptr, indices, DataType::kUInt32, data,
-                           DataType::kFloat32, nindptr - 1, nelem, num_col);
+  data::CSRAdapter adapter(indptr, indices, data, nindptr - 1, nelem, num_col);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), 1));
   API_END();
 }
@@ -265,7 +264,7 @@ XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,
                                    xgboost::bst_ulong ncol, bst_float missing,
                                    DMatrixHandle* out) {
   API_BEGIN();
-  data::DenseAdapter adapter(data, DataType::kFloat32, nrow, ncol);
+  data::DenseAdapter adapter(data, nrow, ncol);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, 1));
   API_END();
 }
@@ -276,7 +275,7 @@ XGB_DLL int XGDMatrixCreateFromMat_omp(const bst_float* data,  // NOLINT
                                        bst_float missing, DMatrixHandle* out,
                                        int nthread) {
   API_BEGIN();
-  data::DenseAdapter adapter(data, DataType::kFloat32, nrow, ncol);
+  data::DenseAdapter adapter(data, nrow, ncol);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
   API_END();
 }
@@ -707,9 +706,8 @@ void InplacePredictImpl(std::shared_ptr<T> x, std::shared_ptr<DMatrix> p_m,
 }
 
 // A hidden API as cache id is not being supported yet.
-XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, void const *values,
-                                      int data_type, xgboost::bst_ulong n_rows,
-                                      xgboost::bst_ulong n_cols,
+XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle,
+                                      char const *array_interface,
                                       char const *c_json_config,
                                       DMatrixHandle m,
                                       xgboost::bst_ulong const **out_shape,
@@ -717,44 +715,38 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, void const *values,
                                       const float **out_result) {
   API_BEGIN();
   CHECK_HANDLE();
-  DataType dtype = static_cast<DataType>(data_type);
-  std::shared_ptr<xgboost::data::DenseAdapter> x{
-      new xgboost::data::DenseAdapter(values, dtype, n_rows, n_cols)};
+  std::shared_ptr<xgboost::data::ArrayAdapter> x{
+      new xgboost::data::ArrayAdapter(StringView{array_interface})};
   std::shared_ptr<DMatrix> p_m {nullptr};
   if (m) {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
   }
   auto *learner = static_cast<xgboost::Learner *>(handle);
-
-  InplacePredictImpl(x, p_m, c_json_config, learner, n_rows, n_cols, out_shape,
-                     out_dim, out_result);
+  InplacePredictImpl(x, p_m, c_json_config, learner, x->NumRows(),
+                     x->NumColumns(), out_shape, out_dim, out_result);
   API_END();
 }
 
 // A hidden API as cache id is not being supported yet.
-XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, const size_t *indptr,
-                                    const void *indices, int indices_type,
-                                    const void *data, int data_type,
-                                    size_t nindptr, size_t nelem, size_t n_cols,
-                                    char const *c_json_config,
-                                    DMatrixHandle m,
+XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr,
+                                    char const *indices, char const *data,
+                                    xgboost::bst_ulong cols,
+                                    char const *c_json_config, DMatrixHandle m,
                                     xgboost::bst_ulong const **out_shape,
                                     xgboost::bst_ulong *out_dim,
                                     const float **out_result) {
   API_BEGIN();
   CHECK_HANDLE();
-  std::shared_ptr<xgboost::data::CSRAdapter> x{new xgboost::data::CSRAdapter(
-      indptr, indices, DataType(indices_type), data, DataType(data_type),
-      nindptr - 1, nelem, n_cols)};
+  std::shared_ptr<xgboost::data::CSRArrayAdapter> x{
+      new xgboost::data::CSRArrayAdapter{
+          StringView{indptr}, StringView{indices}, StringView{data}, cols}};
   std::shared_ptr<DMatrix> p_m {nullptr};
   if (m) {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
   }
   auto *learner = static_cast<xgboost::Learner *>(handle);
-  size_t n_rows = nindptr == 0 ? 0 : nindptr - 1;
-
-  InplacePredictImpl(x, p_m, c_json_config, learner, n_rows, n_cols, out_shape,
-                     out_dim, out_result);
+  InplacePredictImpl(x, p_m, c_json_config, learner, x->NumRows(),
+                     x->NumColumns(), out_shape, out_dim, out_result);
   API_END();
 }
 
