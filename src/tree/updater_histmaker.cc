@@ -202,8 +202,10 @@ class HistMaker: public BaseMaker {
     std::vector<SplitEntry> sol(qexpand_.size());
     std::vector<GradStats> left_sum(qexpand_.size());
     auto nexpand = static_cast<bst_omp_uint>(qexpand_.size());
+    OMP_INIT();
 #pragma omp parallel for schedule(dynamic, 1)
     for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
+      OMP_BEGIN();
       const int nid = qexpand_[wid];
       CHECK_EQ(node2workindex_[nid], static_cast<int>(wid));
       SplitEntry &best = sol[wid];
@@ -217,7 +219,9 @@ class HistMaker: public BaseMaker {
         EnumerateSplit(this->wspace_.hset[0][i + wid * (num_feature+1)],
                        node_sum, feature_set[i], &best, &left_sum[wid]);
       }
+      OMP_END();
     }
+    OMP_THROW();
     // get the best result, we can synchronize the solution
     for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
       const bst_node_t nid = qexpand_[wid];
@@ -341,8 +345,10 @@ class CQHistMaker: public HistMaker {
         auto page = batch.GetView();
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(fset.size());
+        OMP_INIT();
 #pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
+          OMP_BEGIN();
           int fid = fset[i];
           int offset = feat2workindex_[fid];
           if (offset >= 0) {
@@ -350,7 +356,9 @@ class CQHistMaker: public HistMaker {
                                 fset, offset,
                                 &thread_hist_[omp_get_thread_num()]);
           }
+          OMP_END();
         }
+        OMP_THROW();
       }
       // update node statistics.
       this->GetNodeStats(gpair, *p_fmat, tree,
@@ -417,8 +425,10 @@ class CQHistMaker: public HistMaker {
         auto page = batch.GetView();
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(work_set_.size());
+        OMP_INIT();
 #pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
+          OMP_BEGIN();
           int fid = work_set_[i];
           int offset = feat2workindex_[fid];
           if (offset >= 0) {
@@ -426,7 +436,9 @@ class CQHistMaker: public HistMaker {
                                   work_set_size, offset,
                                   &thread_sketch_[omp_get_thread_num()]);
           }
+          OMP_END();
         }
+        OMP_THROW();
       }
       for (size_t i = 0; i < sketchs_.size(); ++i) {
         common::WXQuantileSketch<bst_float, bst_float>::SummaryContainer out;
@@ -701,8 +713,10 @@ class GlobalProposalHistMaker: public CQHistMaker {
 
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(this->work_set_.size());
+        OMP_INIT();
 #pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
+          OMP_BEGIN();
           int fid = this->work_set_[i];
           int offset = this->feat2workindex_[fid];
           if (offset >= 0) {
@@ -710,7 +724,9 @@ class GlobalProposalHistMaker: public CQHistMaker {
                                 fset, offset,
                                 &this->thread_hist_[omp_get_thread_num()]);
           }
+          OMP_END();
         }
+        OMP_THROW();
       }
 
       // update node statistics.

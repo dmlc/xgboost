@@ -54,8 +54,10 @@ class ShotgunUpdater : public LinearUpdater {
     for (const auto &batch : p_fmat->GetBatches<CSCPage>()) {
       auto page = batch.GetView();
       const auto nfeat = static_cast<bst_omp_uint>(batch.Size());
+      OMP_INIT();
 #pragma omp parallel for schedule(static)
       for (bst_omp_uint i = 0; i < nfeat; ++i) {
+        OMP_BEGIN();
         int ii = selector_->NextFeature
           (i, *model, 0, in_gpair->ConstHostVector(), p_fmat, param_.reg_alpha_denorm,
            param_.reg_lambda_denorm);
@@ -85,7 +87,9 @@ class ShotgunUpdater : public LinearUpdater {
             p += GradientPair(p.GetHess() * c.fvalue * dw, 0);
           }
         }
+        OMP_END();
       }
+      OMP_THROW();
     }
   }
 

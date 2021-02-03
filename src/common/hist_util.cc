@@ -84,10 +84,12 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
 
     size_t block_size =  batch.Size() / batch_threads;
 
+    OMP_INIT();
     #pragma omp parallel num_threads(batch_threads)
     {
       #pragma omp for
       for (omp_ulong tid = 0; tid < batch_threads; ++tid) {
+        OMP_BEGIN();
         size_t ibegin = block_size * tid;
         size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
 
@@ -96,26 +98,32 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
           sum += page[i].size();
           row_ptr[rbegin + 1 + i] = sum;
         }
+        OMP_END();
       }
 
       #pragma omp single
       {
+        OMP_BEGIN();
         p_part[0] = prev_sum;
         for (size_t i = 1; i < batch_threads; ++i) {
           p_part[i] = p_part[i - 1] + row_ptr[rbegin + i*block_size];
         }
+        OMP_END();
       }
 
       #pragma omp for
       for (omp_ulong tid = 0; tid < batch_threads; ++tid) {
+        OMP_BEGIN();
         size_t ibegin = block_size * tid;
         size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
 
         for (size_t i = ibegin; i < iend; ++i) {
           row_ptr[rbegin + 1 + i] += p_part[tid];
         }
+        OMP_END();
       }
     }
+    OMP_THROW();
 
     const size_t n_offsets = cut.Ptrs().size() - 1;
     const size_t n_index = row_ptr[rbegin + batch.Size()];
@@ -167,13 +175,12 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
                    [](auto idx, auto) { return idx; });
     }
 
-    #pragma omp parallel for num_threads(nthread) schedule(static)
-    for (bst_omp_uint idx = 0; idx < bst_omp_uint(nbins); ++idx) {
+    ParallelFor(nbins, nthread, [&](size_t idx) {
       for (int32_t tid = 0; tid < nthread; ++tid) {
         hit_count[idx] += hit_count_tloc_[tid * nbins + idx];
         hit_count_tloc_[tid * nbins + idx] = 0;  // reset for next batch
       }
-    }
+    });
 
     prev_sum = row_ptr[rbegin + batch.Size()];
     rbegin += batch.Size();
@@ -710,8 +717,10 @@ void GHistBuilder<GradientSumT>::BuildBlockHist(const std::vector<GradientPair>&
 #endif  // defined(_OPENMP)
   xgboost::detail::GradientPairInternal<GradientSumT>* p_hist = hist.data();
 
+  OMP_INIT();
 #pragma omp parallel for num_threads(nthread) schedule(guided)
   for (bst_omp_uint bid = 0; bid < nblock; ++bid) {
+    OMP_BEGIN();
     auto gmat = gmatb[bid];
 
     for (size_t i = 0; i < nrows - rest; i += kUnroll) {
@@ -743,7 +752,9 @@ void GHistBuilder<GradientSumT>::BuildBlockHist(const std::vector<GradientPair>&
         p_hist[bin].Add(stat.GetGrad(), stat.GetHess());
       }
     }
+    OMP_END();
   }
+  OMP_THROW();
 }
 template
 void GHistBuilder<float>::BuildBlockHist(const std::vector<GradientPair>& gpair,
@@ -768,12 +779,11 @@ void GHistBuilder<GradientSumT>::SubtractionTrick(GHistRowT self,
   const size_t block_size = 1024;  // aproximatly 1024 values per block
   size_t n_blocks = size/block_size + !!(size%block_size);
 
-#pragma omp parallel for
-  for (omp_ulong iblock = 0; iblock < n_blocks; ++iblock) {
+  ParallelFor(n_blocks, [&](size_t iblock) {
     const size_t ibegin = iblock*block_size;
     const size_t iend = (((iblock+1)*block_size > size) ? size : ibegin + block_size);
     SubtractionHist(self, parent, sibling, ibegin, iend);
-  }
+  });
 }
 template
 void GHistBuilder<float>::SubtractionTrick(GHistRow<float> self,

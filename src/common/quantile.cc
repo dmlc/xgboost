@@ -99,48 +99,48 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
   std::vector<bst_uint> const &group_ptr = info.group_ptr_;
   // Use group index for weights?
   auto batch = page.GetView();
-  dmlc::OMPException exec;
   // Parallel over columns.  Each thread owns a set of consecutive columns.
   auto const ncol = static_cast<uint32_t>(info.num_col_);
   auto const is_dense = info.num_nonzero_ == info.num_col_ * info.num_row_;
   auto thread_columns_ptr = LoadBalance(page, info.num_col_, nthread);
 
+  OMP_INIT();
 #pragma omp parallel num_threads(nthread)
   {
-    exec.Run([&]() {
-      auto tid = static_cast<uint32_t>(omp_get_thread_num());
-      auto const begin = thread_columns_ptr[tid];
-      auto const end = thread_columns_ptr[tid + 1];
-      size_t group_ind = 0;
+    OMP_BEGIN();
+    auto tid = static_cast<uint32_t>(omp_get_thread_num());
+    auto const begin = thread_columns_ptr[tid];
+    auto const end = thread_columns_ptr[tid + 1];
+    size_t group_ind = 0;
 
-      // do not iterate if no columns are assigned to the thread
-      if (begin < end && end <= ncol) {
-        for (size_t i = 0; i < batch.Size(); ++i) {
-          size_t const ridx = page.base_rowid + i;
-          SparsePage::Inst const inst = batch[i];
-          if (use_group_ind_) {
-            group_ind = this->SearchGroupIndFromRow(group_ptr, i + page.base_rowid);
+    // do not iterate if no columns are assigned to the thread
+    if (begin < end && end <= ncol) {
+      for (size_t i = 0; i < batch.Size(); ++i) {
+        size_t const ridx = page.base_rowid + i;
+        SparsePage::Inst const inst = batch[i];
+        if (use_group_ind_) {
+          group_ind = this->SearchGroupIndFromRow(group_ptr, i + page.base_rowid);
+        }
+        size_t w_idx = use_group_ind_ ? group_ind : ridx;
+        auto w = info.GetWeight(w_idx);
+        auto p_inst = inst.data();
+        if (is_dense) {
+          for (size_t ii = begin; ii < end; ii++) {
+            sketches_[ii].Push(p_inst[ii].fvalue, w);
           }
-          size_t w_idx = use_group_ind_ ? group_ind : ridx;
-          auto w = info.GetWeight(w_idx);
-          auto p_inst = inst.data();
-          if (is_dense) {
-            for (size_t ii = begin; ii < end; ii++) {
-              sketches_[ii].Push(p_inst[ii].fvalue, w);
-            }
-          } else {
-            for (size_t i = 0; i < inst.size(); ++i) {
-              auto const& entry = p_inst[i];
-              if (entry.index >= begin && entry.index < end) {
-                sketches_[entry.index].Push(entry.fvalue, w);
-              }
+        } else {
+          for (size_t i = 0; i < inst.size(); ++i) {
+            auto const& entry = p_inst[i];
+            if (entry.index >= begin && entry.index < end) {
+              sketches_[entry.index].Push(entry.fvalue, w);
             }
           }
         }
       }
-    });
+    }
+    OMP_END();
   }
-  exec.Rethrow();
+  OMP_THROW();
   monitor_.Stop(__func__);
 }
 
@@ -242,7 +242,7 @@ size_t nbytes = 0;
                          &global_sketches);
 
   std::vector<WQSketch::SummaryContainer> final_sketches(n_columns);
-  ParallelFor(n_columns, omp_get_max_threads(), [&](size_t fidx) {
+  ParallelFor(n_columns, [&](size_t fidx) {
     int32_t intermediate_num_cuts = num_cuts[fidx];
     auto nbytes =
         WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts);

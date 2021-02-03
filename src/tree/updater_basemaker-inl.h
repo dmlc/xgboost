@@ -25,6 +25,7 @@
 #include "../common/io.h"
 #include "../common/random.h"
 #include "../common/quantile.h"
+#include "../common/threading_utils.h"
 
 namespace xgboost {
 namespace tree {
@@ -221,8 +222,7 @@ class BaseMaker: public TreeUpdater {
     // so that they are ignored in future statistics collection
     const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
 
-#pragma omp parallel for schedule(static)
-    for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
+    common::ParallelFor(ndata, [&](size_t ridx) {
       const int nid = this->DecodePosition(ridx);
       if (tree[nid].IsLeaf()) {
         // mark finish when it is not a fresh leaf
@@ -237,7 +237,7 @@ class BaseMaker: public TreeUpdater {
           this->SetEncodePosition(ridx, tree[nid].RightChild());
         }
       }
-    }
+    });
   }
   /*!
    * \brief this is helper function uses column based data structure,
@@ -257,8 +257,7 @@ class BaseMaker: public TreeUpdater {
 
       if (it != sorted_split_set.end() && *it == fid) {
         const auto ndata = static_cast<bst_omp_uint>(col.size());
-        #pragma omp parallel for schedule(static)
-        for (bst_omp_uint j = 0; j < ndata; ++j) {
+        common::ParallelFor(ndata, [&](size_t j) {
           const bst_uint ridx = col[j].index;
           const bst_float fvalue = col[j].fvalue;
           const int nid = this->DecodePosition(ridx);
@@ -273,7 +272,7 @@ class BaseMaker: public TreeUpdater {
               this->SetEncodePosition(ridx, tree[pid].RightChild());
             }
           }
-        }
+        });
       }
     }
   }
@@ -314,8 +313,7 @@ class BaseMaker: public TreeUpdater {
       for (auto fid : fsplits) {
         auto col = page[fid];
         const auto ndata = static_cast<bst_omp_uint>(col.size());
-#pragma omp parallel for schedule(static)
-        for (bst_omp_uint j = 0; j < ndata; ++j) {
+        common::ParallelFor(ndata, [&](size_t j) {
           const bst_uint ridx = col[j].index;
           const bst_float fvalue = col[j].fvalue;
           const int nid = this->DecodePosition(ridx);
@@ -327,7 +325,7 @@ class BaseMaker: public TreeUpdater {
               this->SetEncodePosition(ridx, tree[nid].RightChild());
             }
           }
-        }
+        });
       }
     }
   }
@@ -341,24 +339,27 @@ class BaseMaker: public TreeUpdater {
     std::vector< std::vector<TStats> > &thread_temp = *p_thread_temp;
     thread_temp.resize(omp_get_max_threads());
     p_node_stats->resize(tree.param.num_nodes);
+    OMP_INIT();
 #pragma omp parallel
     {
+      OMP_BEGIN();
       const int tid = omp_get_thread_num();
       thread_temp[tid].resize(tree.param.num_nodes, TStats());
       for (unsigned int nid : qexpand_) {
         thread_temp[tid][nid] = TStats();
       }
+      OMP_END();
     }
+    OMP_THROW();
     // setup position
     const auto ndata = static_cast<bst_omp_uint>(fmat.Info().num_row_);
-#pragma omp parallel for schedule(static)
-    for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
+    common::ParallelFor(ndata, [&](size_t ridx) {
       const int nid = position_[ridx];
       const int tid = omp_get_thread_num();
       if (nid >= 0) {
         thread_temp[tid][nid].Add(gpair[ridx]);
       }
-    }
+    });
     // sum the per thread statistics together
     for (int nid : qexpand_) {
       TStats &s = (*p_node_stats)[nid];

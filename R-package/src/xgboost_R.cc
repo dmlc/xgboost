@@ -1,6 +1,7 @@
 // Copyright (c) 2014 by Contributors
 #include <dmlc/logging.h>
 #include <dmlc/omp.h>
+#include <dmlc/common.h>
 #include <xgboost/c_api.h>
 #include <vector>
 #include <string>
@@ -92,12 +93,16 @@ SEXP XGDMatrixCreateFromMat_R(SEXP mat,
     din = REAL(mat);
   }
   std::vector<float> data(nrow * ncol);
+  OMP_INIT();
   #pragma omp parallel for schedule(static)
   for (omp_ulong i = 0; i < nrow; ++i) {
+    OMP_BEGIN();
     for (size_t j = 0; j < ncol; ++j) {
       data[i * ncol +j] = is_int ? static_cast<float>(iin[i + nrow * j]) : din[i + nrow * j];
     }
+    OMP_END();
   }
+  OMP_THROW();
   DMatrixHandle handle;
   CHECK_CALL(XGDMatrixCreateFromMat(BeginPtr(data), nrow, ncol, asReal(missing), &handle));
   ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
@@ -126,11 +131,15 @@ SEXP XGDMatrixCreateFromCSC_R(SEXP indptr,
   for (size_t i = 0; i < nindptr; ++i) {
     col_ptr_[i] = static_cast<size_t>(p_indptr[i]);
   }
+  OMP_INIT();
   #pragma omp parallel for schedule(static)
   for (int64_t i = 0; i < static_cast<int64_t>(ndata); ++i) {
+    OMP_BEGIN();
     indices_[i] = static_cast<unsigned>(p_indices[i]);
     data_[i] = static_cast<float>(p_data[i]);
+    OMP_END();
   }
+  OMP_THROW();
   DMatrixHandle handle;
   CHECK_CALL(XGDMatrixCreateFromCSCEx(BeginPtr(col_ptr_), BeginPtr(indices_),
                                       BeginPtr(data_), nindptr, ndata,
@@ -175,12 +184,16 @@ SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
   R_API_BEGIN();
   int len = length(array);
   const char *name = CHAR(asChar(field));
+  OMP_INIT();
   if (!strcmp("group", name)) {
     std::vector<unsigned> vec(len);
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < len; ++i) {
+      OMP_BEGIN();
       vec[i] = static_cast<unsigned>(INTEGER(array)[i]);
+      OMP_END();
     }
+    OMP_THROW();
     CHECK_CALL(XGDMatrixSetUIntInfo(R_ExternalPtrAddr(handle),
                                     CHAR(asChar(field)),
                                     BeginPtr(vec), len));
@@ -188,8 +201,11 @@ SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
     std::vector<float> vec(len);
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < len; ++i) {
+      OMP_BEGIN();
       vec[i] = REAL(array)[i];
+      OMP_END();
     }
+    OMP_THROW();
     CHECK_CALL(XGDMatrixSetFloatInfo(R_ExternalPtrAddr(handle),
                                      CHAR(asChar(field)),
                                      BeginPtr(vec), len));
@@ -280,11 +296,15 @@ SEXP XGBoosterBoostOneIter_R(SEXP handle, SEXP dtrain, SEXP grad, SEXP hess) {
       << "gradient and hess must have same length";
   int len = length(grad);
   std::vector<float> tgrad(len), thess(len);
+  OMP_INIT();
   #pragma omp parallel for schedule(static)
   for (int j = 0; j < len; ++j) {
+    OMP_BEGIN();
     tgrad[j] = REAL(grad)[j];
     thess[j] = REAL(hess)[j];
+    OMP_END();
   }
+  OMP_THROW();
   CHECK_CALL(XGBoosterBoostOneIter(R_ExternalPtrAddr(handle),
                                  R_ExternalPtrAddr(dtrain),
                                  BeginPtr(tgrad), BeginPtr(thess),

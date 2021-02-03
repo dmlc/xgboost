@@ -58,15 +58,19 @@ class ElementWiseSurvivalMetricsReduction {
     double residue_sum = 0;
     double weights_sum = 0;
 
+    OMP_INIT();
 #pragma omp parallel for reduction(+: residue_sum, weights_sum) schedule(static)
     for (omp_ulong i = 0; i < ndata; ++i) {
+      OMP_BEGIN();
       const double wt = h_weights.empty() ? 1.0 : static_cast<double>(h_weights[i]);
       residue_sum += policy_.EvalRow(
         static_cast<double>(h_labels_lower_bound[i]),
         static_cast<double>(h_labels_upper_bound[i]),
         static_cast<double>(h_preds[i])) * wt;
       weights_sum += wt;
+      OMP_END();
     }
+    OMP_THROW();
     PackedReduceResult res{residue_sum, weights_sum};
     return res;
   }

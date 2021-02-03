@@ -713,8 +713,10 @@ void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const std::vector<Gr
   const size_t discard_size = info.num_row_ / nthread;
   auto upper_border = static_cast<float>(std::numeric_limits<uint32_t>::max());
   uint32_t coin_flip_border = static_cast<uint32_t>(upper_border * param_.subsample);
+  OMP_INIT();
   #pragma omp parallel num_threads(nthread)
   {
+    OMP_BEGIN();
     const size_t tid = omp_get_thread_num();
     const size_t ibegin = tid * discard_size;
     const size_t iend = (tid == (nthread - 1)) ?
@@ -726,7 +728,9 @@ void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const std::vector<Gr
         p_row_indices[ibegin + row_offsets[tid]++] = i;
       }
     }
+    OMP_END();
   }
+  OMP_THROW();
   /* discard global engine */
   rnd = rnds[nthread - 1];
   size_t prefix_sum = row_offsets[0];
@@ -769,10 +773,14 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
     hist_buffer_.Init(nbins);
 
     // initialize histogram builder
+    OMP_INIT();
 #pragma omp parallel
     {
+      OMP_BEGIN();
       this->nthread_ = omp_get_num_threads();
+      OMP_END();
     }
+    OMP_THROW();
     hist_builder_ = GHistBuilder<GradientSumT>(this->nthread_, nbins);
 
     std::vector<size_t>& row_indices = *row_set_collection_.Data();
@@ -794,6 +802,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
 
       #pragma omp parallel num_threads(this->nthread_)
       {
+        OMP_BEGIN();
         const size_t tid = omp_get_thread_num();
         const size_t ibegin = tid * block_size;
         const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
@@ -805,7 +814,9 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
             break;
           }
         }
+        OMP_END();
       }
+      OMP_THROW();
 
       bool has_neg_hess = false;
       for (int32_t tid = 0; tid < this->nthread_; ++tid) {
@@ -825,6 +836,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
       } else {
         #pragma omp parallel num_threads(this->nthread_)
         {
+          OMP_BEGIN();
           const size_t tid = omp_get_thread_num();
           const size_t ibegin = tid * block_size;
           const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
@@ -832,7 +844,9 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
           for (size_t i = ibegin; i < iend; ++i) {
            p_row_indices[i] = i;
           }
+          OMP_END();
         }
+        OMP_THROW();
       }
     }
   }

@@ -27,6 +27,7 @@
 #include "../common/common.h"
 #include "../common/random.h"
 #include "../common/timer.h"
+#include "../common/threading_utils.h"
 
 namespace xgboost {
 namespace gbm {
@@ -219,10 +220,9 @@ void GBTree::DoBoost(DMatrix* p_fmat,
     bool update_predict = true;
     for (int gid = 0; gid < ngroup; ++gid) {
       std::vector<GradientPair>& tmp_h = tmp.HostVector();
-#pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
+      common::ParallelFor(nsize, [&](size_t i) {
         tmp_h[i] = gpair_h[i * ngroup + gid];
-      }
+      });
       std::vector<std::unique_ptr<RegTree> > ret;
       BoostNewTrees(&tmp, p_fmat, gid, &ret);
       const size_t num_new_trees = ret.size();
@@ -688,8 +688,10 @@ class Dart : public GBTree {
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       const bst_omp_uint rest = nsize % kUnroll;
       if (nsize >= kUnroll) {
+        OMP_INIT();
 #pragma omp parallel for schedule(static)
         for (bst_omp_uint i = 0; i < nsize - rest; i += kUnroll) {
+          OMP_BEGIN();
           const int tid = omp_get_thread_num();
           RegTree::FVec& feats = thread_temp_[tid];
           int64_t ridx[kUnroll];
@@ -707,7 +709,9 @@ class Dart : public GBTree {
                   this->PredValue(inst[k], gid, &feats, tree_begin, tree_end);
             }
           }
+          OMP_END();
         }
+        OMP_THROW();
       }
 
       for (bst_omp_uint i = nsize - rest; i < nsize; ++i) {

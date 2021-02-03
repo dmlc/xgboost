@@ -823,8 +823,10 @@ class LambdaRankObj : public ObjFunction {
     const auto ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
     out_gpair->Resize(preds.Size());
 
+    OMP_INIT();
     #pragma omp parallel
     {
+      OMP_BEGIN();
       // parallel construct, declare random number generator here, so that each
       // thread use its own random number generator, seed by thread id and current iteration
       std::minstd_rand rnd((iter + 1) * 1111);
@@ -834,6 +836,7 @@ class LambdaRankObj : public ObjFunction {
 
       #pragma omp for schedule(static)
       for (bst_omp_uint k = 0; k < ngroup; ++k) {
+        OMP_BEGIN();
         lst.clear(); pairs.clear();
         for (unsigned j = gptr[k]; j < gptr[k+1]; ++j) {
           lst.emplace_back(preds_h[j], labels[j], j);
@@ -887,8 +890,11 @@ class LambdaRankObj : public ObjFunction {
           gpair[pos.rindex] += GradientPair(g * w, 2.0f*w*h);
           gpair[neg.rindex] += GradientPair(-g * w, 2.0f*w*h);
         }
+        OMP_END();
       }
+      OMP_END();
     }
+    OMP_THROW();
   }
 
 #if defined(__CUDACC__)

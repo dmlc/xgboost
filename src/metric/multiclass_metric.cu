@@ -53,8 +53,10 @@ class MultiClassMetricsReduction {
     int label_error = 0;
     bool const is_null_weight = weights.Size() == 0;
 
+    OMP_INIT();
 #pragma omp parallel for reduction(+: residue_sum, weights_sum) schedule(static)
     for (omp_ulong idx = 0; idx < ndata; ++idx) {
+      OMP_BEGIN();
       bst_float weight = is_null_weight ? 1.0f : h_weights[idx];
       auto label = static_cast<int>(h_labels[idx]);
       if (label >= 0 && label < static_cast<int>(n_class)) {
@@ -64,7 +66,10 @@ class MultiClassMetricsReduction {
       } else {
         label_error = label;
       }
+      OMP_END();
     }
+    OMP_THROW();
+
     CheckLabelError(label_error, n_class);
     PackedReduceResult res { residue_sum, weights_sum };
 

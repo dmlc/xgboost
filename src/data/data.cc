@@ -825,18 +825,16 @@ SparsePage SparsePage::GetTranspose(int num_columns) const {
   const int nthread = omp_get_max_threads();
   builder.InitBudget(num_columns, nthread);
   long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
-    auto page = this->GetView();
-#pragma omp parallel for default(none) shared(batch_size, builder, page) schedule(static)
-  for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
+  auto page = this->GetView();
+  common::ParallelFor(batch_size, [&](size_t i) {
     int tid = omp_get_thread_num();
     auto inst = page[i];
     for (const auto& entry : inst) {
       builder.AddBudget(entry.index, tid);
     }
-  }
+  });
   builder.InitStorage();
-#pragma omp parallel for default(none) shared(batch_size, builder, page) schedule(static)
-  for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
+  common::ParallelFor(batch_size, [&](size_t i) {
     int tid = omp_get_thread_num();
     auto inst = page[i];
     for (const auto& entry : inst) {
@@ -845,7 +843,7 @@ SparsePage SparsePage::GetTranspose(int num_columns) const {
           Entry(static_cast<bst_uint>(this->base_rowid + i), entry.fvalue),
           tid);
     }
-  }
+  });
   return transpose;
 }
 void SparsePage::Push(const SparsePage &batch) {
@@ -896,36 +894,36 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     return max_columns;
   }
   std::vector<std::vector<uint64_t>> max_columns_vector(nthread);
-  dmlc::OMPException exec;
+  OMP_INIT();
   // First-pass over the batch counting valid elements
 #pragma omp parallel num_threads(nthread)
   {
-    exec.Run([&]() {
-      int tid = omp_get_thread_num();
-      size_t begin = tid*thread_size;
-      size_t end = tid != (nthread-1) ? (tid+1)*thread_size : batch_size;
-      max_columns_vector[tid].resize(1, 0);
-      uint64_t& max_columns_local = max_columns_vector[tid][0];
+    OMP_BEGIN();
+    int tid = omp_get_thread_num();
+    size_t begin = tid*thread_size;
+    size_t end = tid != (nthread-1) ? (tid+1)*thread_size : batch_size;
+    max_columns_vector[tid].resize(1, 0);
+    uint64_t& max_columns_local = max_columns_vector[tid][0];
 
-      for (size_t i = begin; i < end; ++i) {
-        auto line = batch.GetLine(i);
-        for (auto j = 0ull; j < line.Size(); j++) {
-          auto element = line.GetElement(j);
-          const size_t key = element.row_idx - base_rowid;
-          CHECK_GE(key,  builder_base_row_offset);
-          max_columns_local =
-              std::max(max_columns_local, static_cast<uint64_t>(element.column_idx + 1));
+    for (size_t i = begin; i < end; ++i) {
+      auto line = batch.GetLine(i);
+      for (auto j = 0ull; j < line.Size(); j++) {
+        auto element = line.GetElement(j);
+        const size_t key = element.row_idx - base_rowid;
+        CHECK_GE(key,  builder_base_row_offset);
+        max_columns_local =
+            std::max(max_columns_local, static_cast<uint64_t>(element.column_idx + 1));
 
-          if (!common::CheckNAN(element.value) && element.value != missing) {
-            // Adapter row index is absolute, here we want it relative to
-            // current page
-            builder.AddBudget(key, tid);
-          }
+        if (!common::CheckNAN(element.value) && element.value != missing) {
+          // Adapter row index is absolute, here we want it relative to
+          // current page
+          builder.AddBudget(key, tid);
         }
       }
-    });
+    }
+    OMP_END();
   }
-  exec.Rethrow();
+  OMP_THROW();
   for (const auto & max : max_columns_vector) {
     max_columns = std::max(max_columns, max[0]);
   }
@@ -936,23 +934,23 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
 
 #pragma omp parallel num_threads(nthread)
   {
-    exec.Run([&]() {
-      int tid = omp_get_thread_num();
-      size_t begin = tid*thread_size;
-      size_t end = tid != (nthread-1) ? (tid+1)*thread_size : batch_size;
-      for (size_t i = begin; i < end; ++i) {
-        auto line = batch.GetLine(i);
-        for (auto j = 0ull; j < line.Size(); j++) {
-          auto element = line.GetElement(j);
-          const size_t key = (element.row_idx - base_rowid);
-          if (!common::CheckNAN(element.value) && element.value != missing) {
-            builder.Push(key, Entry(element.column_idx, element.value), tid);
-          }
+    OMP_BEGIN();
+    int tid = omp_get_thread_num();
+    size_t begin = tid*thread_size;
+    size_t end = tid != (nthread-1) ? (tid+1)*thread_size : batch_size;
+    for (size_t i = begin; i < end; ++i) {
+      auto line = batch.GetLine(i);
+      for (auto j = 0ull; j < line.Size(); j++) {
+        auto element = line.GetElement(j);
+        const size_t key = (element.row_idx - base_rowid);
+        if (!common::CheckNAN(element.value) && element.value != missing) {
+          builder.Push(key, Entry(element.column_idx, element.value), tid);
         }
       }
-    });
+    }
+    OMP_END();
   }
-  exec.Rethrow();
+  OMP_THROW();
   omp_set_num_threads(nthread_original);
 
   return max_columns;

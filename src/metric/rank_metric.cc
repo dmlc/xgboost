@@ -29,6 +29,7 @@
 
 #include "xgboost/host_device_vector.h"
 #include "../common/math.h"
+#include "../common/threading_utils.h"
 #include "metric_common.h"
 
 namespace {
@@ -111,10 +112,9 @@ struct EvalAMS : public Metric {
     PredIndPairContainer rec(ndata);
 
     const auto &h_preds = preds.ConstHostVector();
-    #pragma omp parallel for schedule(static)
-    for (bst_omp_uint i = 0; i < ndata; ++i) {
+    common::ParallelFor(ndata, [&](size_t i) {
       rec[i] = std::make_pair(h_preds[i], i);
-    }
+    });
     XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
     auto ntop = static_cast<unsigned>(ratio_ * ndata);
     if (ntop == 0) ntop = ndata;
@@ -175,18 +175,23 @@ struct EvalAuc : public Metric {
     const auto& labels = info.labels_.ConstHostVector();
     const auto &h_preds = preds.ConstHostVector();
 
+    OMP_INIT();
     #pragma omp parallel reduction(+:sum_auc, auc_error) if (ngroups > 1)
     {
+      OMP_BEGIN();
       // Each thread works on a distinct group and sorts the predictions in that group
       PredIndPairContainer rec;
       #pragma omp for schedule(static)
       for (bst_omp_uint group_id = 0; group_id < ngroups; ++group_id) {
+        OMP_BEGIN();
         // Same thread can work on multiple groups one after another; hence, resize
         // the predictions array based on the current group
         rec.resize(gptr[group_id + 1] - gptr[group_id]);
         #pragma omp parallel for schedule(static) if (!omp_in_parallel())
         for (bst_omp_uint j = gptr[group_id]; j < gptr[group_id + 1]; ++j) {
+          OMP_BEGIN();
           rec[j - gptr[group_id]] = {h_preds[j], j};
+          OMP_END();
         }
 
         XGBOOST_PARALLEL_SORT(rec.begin(), rec.end(), common::CmpFirst);
@@ -216,8 +221,11 @@ struct EvalAuc : public Metric {
           // this is the AUC
           sum_auc += sum_pospair / (sum_npos * sum_nneg);
         }
+        OMP_END();
       }
+      OMP_END();
     }
+    OMP_THROW();
 
     // Report average AUC across all groups
     // In distributed mode, workers which only contains pos or neg samples
@@ -316,19 +324,25 @@ struct EvalRank : public Metric, public EvalRankConfig {
       const auto &labels = info.labels_.ConstHostVector();
       const auto &h_preds = preds.ConstHostVector();
 
+      OMP_INIT();
       #pragma omp parallel reduction(+:sum_metric)
       {
+        OMP_BEGIN();
         // each thread takes a local rec
         PredIndPairContainer rec;
         #pragma omp for schedule(static)
         for (bst_omp_uint k = 0; k < ngroups; ++k) {
+          OMP_BEGIN();
           rec.clear();
           for (unsigned j = gptr[k]; j < gptr[k + 1]; ++j) {
             rec.emplace_back(h_preds[j], static_cast<int>(labels[j]));
           }
           sum_metric += this->EvalGroup(&rec);
+          OMP_END();
         }
+        OMP_END();
       }
+      OMP_THROW();
     }
 
     if (distributed) {
@@ -526,12 +540,15 @@ struct EvalAucPR : public Metric {
     const auto &h_labels = info.labels_.ConstHostVector();
     const auto &h_preds = preds.ConstHostVector();
 
+    OMP_INIT();
     #pragma omp parallel reduction(+:sum_auc, auc_error) if (ngroups > 1)
     {
+      OMP_BEGIN();
       // Each thread works on a distinct group and sorts the predictions in that group
       PredIndPairContainer rec;
       #pragma omp for schedule(static)
       for (bst_omp_uint group_id = 0; group_id < ngroups; ++group_id) {
+        OMP_BEGIN();
         double total_pos = 0.0;
         double total_neg = 0.0;
         // Same thread can work on multiple groups one after another; hence, resize
@@ -540,10 +557,12 @@ struct EvalAucPR : public Metric {
         #pragma omp parallel for schedule(static) reduction(+:total_pos, total_neg) \
           if (!omp_in_parallel())  // NOLINT
         for (bst_omp_uint j = gptr[group_id]; j < gptr[group_id + 1]; ++j) {
+          OMP_BEGIN();
           const bst_float wt = WeightPolicy::GetWeightOfInstance(info, j, group_id);
           total_pos += wt * h_labels[j];
           total_neg += wt * (1.0f - h_labels[j]);
           rec[j - gptr[group_id]] = {h_preds[j], j};
+          OMP_END();
         }
 
         // we need pos > 0 && neg > 0
@@ -584,8 +603,11 @@ struct EvalAucPR : public Metric {
         if (tp < 0 || prevtp < 0 || fp < 0 || prevfp < 0) {
           CHECK(!auc_error) << "AUC-PR: error in calculation";
         }
+        OMP_END();
       }
+      OMP_END();
     }
+    OMP_THROW();
 
     // Report average AUC-PR across all groups
     // In distributed mode, workers which only contains pos or neg samples
