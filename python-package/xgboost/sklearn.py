@@ -920,7 +920,10 @@ class XGBModel(XGBModelBase):
         score = b.get_score(importance_type=self.importance_type)
         all_features = [score.get(f, 0.) for f in b.feature_names]
         all_features = np.array(all_features, dtype=np.float32)
-        return all_features / all_features.sum()
+        total = all_features.sum()
+        if total == 0:
+            return all_features
+        return all_features / total
 
     @property
     def coef_(self):
