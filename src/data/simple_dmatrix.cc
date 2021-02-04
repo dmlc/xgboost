@@ -209,6 +209,8 @@ template SimpleDMatrix::SimpleDMatrix(DenseAdapter* adapter, float missing,
                                      int nthread);
 template SimpleDMatrix::SimpleDMatrix(CSRAdapter* adapter, float missing,
                                      int nthread);
+template SimpleDMatrix::SimpleDMatrix(CSRArrayAdapter* adapter, float missing,
+                                     int nthread);
 template SimpleDMatrix::SimpleDMatrix(CSCAdapter* adapter, float missing,
                                      int nthread);
 template SimpleDMatrix::SimpleDMatrix(DataTableAdapter* adapter, float missing,

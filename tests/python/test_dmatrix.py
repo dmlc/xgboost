@@ -284,6 +284,31 @@ class TestDMatrix:
         bst = xgb.train(param, dtrain, 5, watchlist)
         bst.predict(dtrain)
 
+        i32 = csr_matrix((x.data.astype(np.int32), x.indices, x.indptr), shape=x.shape)
+        f32 = csr_matrix(
+            (i32.data.astype(np.float32), x.indices, x.indptr), shape=x.shape
+        )
+        di32 = xgb.DMatrix(i32)
+        df32 = xgb.DMatrix(f32)
+        dense = xgb.DMatrix(f32.toarray(), missing=0)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "f32.dmatrix")
+            df32.save_binary(path)
+            with open(path, "rb") as fd:
+                df32_buffer = np.array(fd.read())
+            path = os.path.join(tmpdir, "f32.dmatrix")
+            di32.save_binary(path)
+            with open(path, "rb") as fd:
+                di32_buffer = np.array(fd.read())
+
+            path = os.path.join(tmpdir, "dense.dmatrix")
+            dense.save_binary(path)
+            with open(path, "rb") as fd:
+                dense_buffer = np.array(fd.read())
+
+            np.testing.assert_equal(df32_buffer, di32_buffer)
+            np.testing.assert_equal(df32_buffer, dense_buffer)
+
     def test_sparse_dmatrix_csc(self):
         nrow = 1000
         ncol = 100

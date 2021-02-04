@@ -47,12 +47,11 @@ def _from_scipy_csr(data, missing, feature_names, feature_types):
             len(data.indices), len(data.data)))
     _warn_unused_missing(data, missing)
     handle = ctypes.c_void_p()
-    _check_call(_LIB.XGDMatrixCreateFromCSREx(
-        c_array(ctypes.c_size_t, data.indptr),
-        c_array(ctypes.c_uint, data.indices),
-        c_array(ctypes.c_float, data.data),
-        ctypes.c_size_t(len(data.indptr)),
-        ctypes.c_size_t(len(data.data)),
+    from .core import _array_interface
+    _check_call(_LIB.XGDMatrixCreateFromCSR(
+        _array_interface(data.indptr),
+        _array_interface(data.indices),
+        _array_interface(data.data),
         ctypes.c_size_t(data.shape[1]),
         ctypes.byref(handle)))
     return handle, feature_names, feature_types

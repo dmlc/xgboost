@@ -109,6 +109,22 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
                                      size_t nelem,
                                      size_t num_col,
                                      DMatrixHandle* out);
+
+/*!
+ * \brief Create a matrix from CSR matrix.
+ * \param indptr  JSON encoded __array_interface__ to row pointers in CSR.
+ * \param indices JSON encoded __array_interface__ to column indices in CSR.
+ * \param data    JSON encoded __array_interface__ to values in CSR.
+ * \param num_col Number of columns.
+ *
+ * \param out created dmatrix
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr,
+                                   char const *indices, char const *data,
+                                   bst_ulong ncol,
+                                   DMatrixHandle* out);
+
 /*!
  * \brief create a matrix content from CSC format
  * \param col_ptr pointer to col headers

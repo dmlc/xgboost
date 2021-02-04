@@ -812,6 +812,9 @@ template DMatrix* DMatrix::Create<data::DataTableAdapter>(
 template DMatrix* DMatrix::Create<data::FileAdapter>(
     data::FileAdapter* adapter, float missing, int nthread,
     const std::string& cache_prefix, size_t page_size);
+template DMatrix* DMatrix::Create<data::CSRArrayAdapter>(
+    data::CSRArrayAdapter* adapter, float missing, int nthread,
+    const std::string& cache_prefix, size_t page_size);
 template DMatrix *
 DMatrix::Create(data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext,
                                       XGBoostBatchCSR> *adapter,

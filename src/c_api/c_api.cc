@@ -246,6 +246,17 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
   API_END();
 }
 
+XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr,
+                                   char const *indices, char const *data,
+                                   xgboost::bst_ulong ncol,
+                                   DMatrixHandle* out) {
+  API_BEGIN();
+  data::CSRArrayAdapter adapter(StringView{indptr}, StringView{indices},
+                                StringView{data}, ncol);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), 1));
+  API_END();
+}
+
 XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
                                      const unsigned* indices,
                                      const bst_float* data,
