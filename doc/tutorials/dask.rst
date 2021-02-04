@@ -443,9 +443,9 @@ interface, including callback functions, custom evaluation metric and objective:
         callbacks=[early_stop],
     )
 
-************************************
-Training multipl models in parallels
-************************************
+***********************************
+Training multipl models in parallel
+***********************************
 
 This is for training multiple models in parallel, with each model also trained in
 distributed setting.  If each of these model can be trained using single node, then the
