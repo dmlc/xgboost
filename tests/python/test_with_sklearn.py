@@ -252,7 +252,9 @@ def test_feature_importances_gain():
     xgb_model = xgb.XGBClassifier(
         random_state=0, tree_method="exact",
         learning_rate=0.1,
-        importance_type="gain").fit(X, y)
+        importance_type="gain",
+        use_label_encoder=False,
+    ).fit(X, y)
 
     exp = np.array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
                     0.00326159, 0., 0., 0., 0., 0., 0., 0., 0.,
@@ -270,16 +272,29 @@ def test_feature_importances_gain():
     y = pd.Series(digits['target'])
     X = pd.DataFrame(digits['data'])
     xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact",
+        random_state=0,
+        tree_method="exact",
         learning_rate=0.1,
-        importance_type="gain").fit(X, y)
+        importance_type="gain",
+        use_label_encoder=False,
+    ).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
 
     xgb_model = xgb.XGBClassifier(
-        random_state=0, tree_method="exact",
+        random_state=0,
+        tree_method="exact",
         learning_rate=0.1,
-        importance_type="gain").fit(X, y)
+        importance_type="gain",
+        use_label_encoder=False,
+    ).fit(X, y)
     np.testing.assert_almost_equal(xgb_model.feature_importances_, exp)
+
+    # no split can be found
+    cls = xgb.XGBClassifier(
+        min_child_weight=1000, tree_method="hist", n_estimators=1, use_label_encoder=False
+    )
+    cls.fit(X, y)
+    assert np.all(cls.feature_importances_ == 0)
 
 
 def test_select_feature():
