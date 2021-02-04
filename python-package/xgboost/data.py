@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 
-from .core import c_array, _LIB, _check_call, c_str
+from .core import c_array, _LIB, _check_call, c_str, _array_interface
 from .core import DataIter, _ProxyDMatrix, DMatrix
 from .compat import lazy_isinstance
 
@@ -41,19 +41,22 @@ def _is_scipy_csr(data):
 
 
 def _from_scipy_csr(data, missing, feature_names, feature_types):
-    '''Initialize data from a CSR matrix.'''
+    """Initialize data from a CSR matrix."""
     if len(data.indices) != len(data.data):
-        raise ValueError('length mismatch: {} vs {}'.format(
-            len(data.indices), len(data.data)))
+        raise ValueError(
+            "length mismatch: {} vs {}".format(len(data.indices), len(data.data))
+        )
     _warn_unused_missing(data, missing)
     handle = ctypes.c_void_p()
-    from .core import _array_interface
-    _check_call(_LIB.XGDMatrixCreateFromCSR(
-        _array_interface(data.indptr),
-        _array_interface(data.indices),
-        _array_interface(data.data),
-        ctypes.c_size_t(data.shape[1]),
-        ctypes.byref(handle)))
+    _check_call(
+        _LIB.XGDMatrixCreateFromCSR(
+            _array_interface(data.indptr),
+            _array_interface(data.indices),
+            _array_interface(data.data),
+            ctypes.c_size_t(data.shape[1]),
+            ctypes.byref(handle),
+        )
+    )
     return handle, feature_names, feature_types
 
 
