@@ -1167,6 +1167,19 @@ class TestWithDask:
             np.testing.assert_allclose(predt_0.compute(), predt_3)
 
 
+def test_unsupported_features(client: "Client"):
+    X, y, _ = generate_array()
+    # gblinear doesn't support distributed training.
+    with pytest.raises(NotImplementedError, match="gblinear"):
+        xgb.dask.train(
+            client, {"booster": "gblinear"}, xgb.dask.DaskDMatrix(client, X, y)
+        )
+    # dart prediction is not thread safe, running predict with each partition will have
+    # race.
+    with pytest.raises(NotImplementedError, match="dart"):
+        xgb.dask.train(client, {"booster": "dart"}, xgb.dask.DaskDMatrix(client, X, y))
+
+
 class TestDaskCallbacks:
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_early_stopping(self, client: "Client") -> None:
