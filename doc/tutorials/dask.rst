@@ -443,6 +443,74 @@ interface, including callback functions, custom evaluation metric and objective:
         callbacks=[early_stop],
     )
 
+************************************
+Training multipl models in parallels
+************************************
+
+This is for training multiple models in parallel, with each model also trained in
+distributed setting.  If each of these model can be trained using single node, then the
+dask interface here isn't needed.  There are a few things one needs to be careful when
+training multiple models, first is setting the correct client.  By default
+``distributed.get_client`` is used when ``client`` object is not provided as input, but
+when training task is launched inside worker instead of client process, the right way to
+get the client is ``distributed.worker_client``.  Also ``Client`` object is not sent to
+remote worker even if you provide it as an argument, so using:
+
+.. code-block:: python
+
+    xgboost.dask.train(client, {}, ...)
+
+in client process won't work.  For ``Scikit-Learn`` interface, this is handled
+automatically, one can just submit the job using:
+
+.. code-block:: python
+
+    from distributed import LocalCluster, Client
+    from dask import dataframe as dd
+    from sklearn.datasets import load_digits
+    import xgboost as xgb
+
+
+    def test_parallel_submits(client: Client) -> None:
+        futures = []
+        for i in range(10):
+            # Only for demo, in practice one should load the data using dask collection.
+            X_, y_ = load_digits(return_X_y=True)
+            X = client.submit(dd.from_array, X_, chunksize=32)
+            y = client.submit(dd.from_array, y_, chunksize=32)
+            cls = xgb.dask.DaskXGBClassifier(
+                verbosity=1, n_estimators=30, eval_metric="merror"
+            )
+            # Submit the training into a worker, then xgboost will submit sub-tasks.
+            f = client.submit(cls.fit, X, y, pure=False)
+            futures.append(f)
+        classifiers = client.gather(futures)
+        assert len(classifiers) == 10
+        for cls in classifiers:
+            assert cls.get_booster().num_boosted_rounds() == 30
+
+
+    if __name__ == "__main__":
+        with LocalCluster() as cluster:
+            print(cluster.dashboard_link)
+            with Client(cluster) as client:
+                test_parallel_submits(client)
+
+But for using functional interface, additional care needs to be taken.  Users need to wrap
+``xgboost.dask.train`` inside another function, which should obtain the correct ``Client``
+with ``distributed.worker_client`` and pass it as an argument:
+
+.. code-block:: python
+
+    def my_training_fn(X, y, ...):
+        with distributed.worker_client() as client:
+            Xy = xgb.dask.DaskDMatrix(client, X, y)
+            xgb.dask.train(client, {}, Xy)
+
+The second issue is, underlying xgboost uses a MPI like communication framework.  For each
+training task, there are functions running on all workers simultaneously and they
+synchronize with each others.  If one of these function is scheduled differently than the
+other peers, xgboost might get sub-optimal performance.
 
 *****************************************************************************
 Why is the initialization of ``DaskDMatrix``  so slow and throws weird errors

@@ -1382,7 +1382,7 @@ class DaskScikitLearnBase(XGBModel):
         _assert_dask_support()
         msg = '`ntree_limit` is not supported on dask, use model slicing instead.'
         assert ntree_limit is None, msg
-        return self.client.sync(
+        return self._client_sync(
             self._predict_async,
             X,
             output_margin=output_margin,
@@ -1394,7 +1394,7 @@ class DaskScikitLearnBase(XGBModel):
         # Generate a coroutine wrapper to make this class awaitable.
         async def _() -> Awaitable[Any]:
             return self
-        return self.client.sync(_).__await__()
+        return self._client_sync(_).__await__()
 
     def __getstate__(self):
         this = self.__dict__.copy()
@@ -1411,6 +1411,22 @@ class DaskScikitLearnBase(XGBModel):
     @client.setter
     def client(self, clt: "distributed.Client") -> None:
         self._client = clt
+
+    def _client_sync(self, func: Callable, **kwargs) -> Any:
+        if self._client is None:
+            try:
+                distributed.get_worker()
+                in_worker = True
+            except ValueError:
+                in_worker = False
+            if in_worker:
+                with distributed.worker_client() as client:
+                    self.client = client
+                    ret = self.client.sync(func, **kwargs)
+                    self.client = None
+                    return ret
+
+        return self.client.sync(func, **kwargs)
 
 
 @xgboost_model_doc(
@@ -1498,7 +1514,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
     ) -> "DaskXGBRegressor":
         _assert_dask_support()
         args = {k: v for k, v in locals().items() if k != "self"}
-        return self.client.sync(self._fit_async, **args)
+        return self._client_sync(self._fit_async, **args)
 
 
 @xgboost_model_doc(
@@ -1603,7 +1619,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
     ) -> "DaskXGBClassifier":
         _assert_dask_support()
         args = {k: v for k, v in locals().items() if k != 'self'}
-        return self.client.sync(self._fit_async, **args)
+        return self._client_sync(self._fit_async, **args)
 
     async def _predict_proba_async(
         self,
@@ -1635,7 +1651,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         _assert_dask_support()
         msg = '`ntree_limit` is not supported on dask, use model slicing instead.'
         assert ntree_limit is None, msg
-        return self.client.sync(
+        return self._client_sync(
             self._predict_proba_async,
             X=X,
             validate_features=validate_features,
@@ -1771,7 +1787,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
     ) -> "DaskXGBRanker":
         _assert_dask_support()
         args = {k: v for k, v in locals().items() if k != 'self'}
-        return self.client.sync(self._fit_async, **args)
+        return self._client_sync(self._fit_async, **args)
 
     # FIXME(trivialfis): arguments differ due to additional parameters like group and qid.
     fit.__doc__ = XGBRanker.fit.__doc__
