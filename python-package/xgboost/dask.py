@@ -818,6 +818,8 @@ async def _train_async(
 
         '''
         LOGGER.debug('Training on %s', str(worker_addr))
+        # Initialize rabit without workers first
+        rabit.init()
         worker = distributed.get_worker()
         with RabitContext(rabit_args), config.config_context(**global_config):
             local_dtrain = _dmatrix_from_list_of_parts(**dtrain_ref)
@@ -839,6 +841,11 @@ async def _train_async(
                     LOGGER.info(msg)
                 else:
                     local_param[p] = worker.nthreads
+            
+            # If worker did not receive input data, return without failing
+            if local_dtrain.num_row() == 0:
+                return None
+
             bst = worker_train(params=local_param,
                                dtrain=local_dtrain,
                                num_boost_round=num_boost_round,
