@@ -252,20 +252,21 @@ def test_dask_missing_value_cls(client: "Client") -> None:
 def test_parallel_submits(client: "Client"):
     from sklearn.datasets import load_digits
     futures = []
-    for i in range(10):
+    n_submits = 4
+    for i in range(n_submits):
         X_, y_ = load_digits(return_X_y=True)
         X_ += 1.0
         X = client.submit(dd.from_array, X_, chunksize=32)
         y = client.submit(dd.from_array, y_, chunksize=32)
         cls = xgb.dask.DaskXGBClassifier(
-            verbosity=1, n_estimators=30, eval_metric="merror", use_label_encoder=False
+            verbosity=1, n_estimators=i+1, eval_metric="merror", use_label_encoder=False
         )
         f = client.submit(cls.fit, X, y, pure=False)
         futures.append(f)
     classifiers = client.gather(futures)
-    assert len(classifiers) == 10
-    for cls in classifiers:
-        assert cls.get_booster().num_boosted_rounds() == 30
+    assert len(classifiers) == n_submits
+    for i, cls in enumerate(classifiers):
+        assert cls.get_booster().num_boosted_rounds() == i+1
 
 
 
