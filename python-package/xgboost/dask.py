@@ -1384,7 +1384,7 @@ class DaskScikitLearnBase(XGBModel):
         assert ntree_limit is None, msg
         return self._client_sync(
             self._predict_async,
-            X,
+            data=X,
             output_margin=output_margin,
             validate_features=validate_features,
             base_margin=base_margin
