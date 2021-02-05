@@ -190,24 +190,7 @@ void RandomDataGenerator::GenerateDense(HostDeviceVector<float> *out) const {
 Json RandomDataGenerator::ArrayInterfaceImpl(HostDeviceVector<float> *storage,
                                              size_t rows, size_t cols) const {
   this->GenerateDense(storage);
-  Json array_interface {Object()};
-  array_interface["data"] = std::vector<Json>(2);
-  if (storage->DeviceCanRead()) {
-    array_interface["data"][0] =
-        Integer(reinterpret_cast<int64_t>(storage->ConstDevicePointer()));
-  } else {
-    array_interface["data"][0] =
-        Integer(reinterpret_cast<int64_t>(storage->ConstHostPointer()));
-  }
-  array_interface["data"][1] = Boolean(false);
-
-  array_interface["shape"] = std::vector<Json>(2);
-  array_interface["shape"][0] = rows;
-  array_interface["shape"][1] = cols;
-
-  array_interface["typestr"] = String("<f4");
-  array_interface["version"] = 1;
-  return array_interface;
+  return GetArrayInterface(storage, rows, cols);
 }
 
 std::string RandomDataGenerator::GenerateArrayInterface(
