@@ -306,6 +306,12 @@ class CSRArrayAdapterBatch : public detail::NoMetaInfo {
       : indptr_{std::move(indptr)}, indices_{std::move(indices)},
         values_{std::move(values)} {}
 
+  size_t Size() const {
+    size_t size = indptr_.num_rows * indptr_.num_cols;
+    size = size == 0 ? 0 : size - 1;
+    return size;
+  }
+
   Line const GetLine(size_t idx) const {
     auto begin_offset = indptr_.GetElement<size_t>(idx);
     auto end_offset = indptr_.GetElement<size_t>(idx + 1);
