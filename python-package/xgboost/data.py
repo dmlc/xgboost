@@ -40,20 +40,25 @@ def _is_scipy_csr(data):
     return isinstance(data, scipy.sparse.csr_matrix)
 
 
-def _from_scipy_csr(data, missing, feature_names, feature_types):
+def _from_scipy_csr(data, missing, nthread, feature_names, feature_types):
     """Initialize data from a CSR matrix."""
     if len(data.indices) != len(data.data):
         raise ValueError(
             "length mismatch: {} vs {}".format(len(data.indices), len(data.data))
         )
-    _warn_unused_missing(data, missing)
     handle = ctypes.c_void_p()
+    args = {
+        "missing": float(missing),
+        "nthread": int(nthread),
+    }
+    config = bytes(json.dumps(args), "utf-8")
     _check_call(
         _LIB.XGDMatrixCreateFromCSR(
             _array_interface(data.indptr),
             _array_interface(data.indices),
             _array_interface(data.data),
             ctypes.c_size_t(data.shape[1]),
+            config,
             ctypes.byref(handle),
         )
     )
@@ -543,11 +548,11 @@ def dispatch_data_backend(data, missing, threads,
                           enable_categorical=False):
     '''Dispatch data for DMatrix.'''
     if _is_scipy_csr(data):
-        return _from_scipy_csr(data, missing, feature_names, feature_types)
+        return _from_scipy_csr(data, missing, threads, feature_names, feature_types)
     if _is_scipy_csc(data):
         return _from_scipy_csc(data, missing, feature_names, feature_types)
     if _is_scipy_coo(data):
-        return _from_scipy_csr(data.tocsr(), missing, feature_names, feature_types)
+        return _from_scipy_csr(data.tocsr(), missing, threads, feature_names, feature_types)
     if _is_numpy_array(data):
         return _from_numpy_array(data, missing, threads, feature_names,
                                  feature_types)
@@ -594,7 +599,7 @@ def dispatch_data_backend(data, missing, threads,
 
     converted = _convert_unknown_data(data)
     if converted:
-        return _from_scipy_csr(data, missing, feature_names, feature_types)
+        return _from_scipy_csr(data, missing, threads, feature_names, feature_types)
 
     raise TypeError('Not supported type for data.' + str(type(data)))
 

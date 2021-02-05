@@ -37,7 +37,7 @@ class TestDMatrix:
 
         with pytest.warns(UserWarning):
             csr = csr_matrix(x)
-            xgb.DMatrix(csr, y, missing=4)
+            xgb.DMatrix(csr.tocsc(), y, missing=4)
 
     def test_dmatrix_numpy_init(self):
         data = np.random.randn(5, 5)
