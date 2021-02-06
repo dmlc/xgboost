@@ -77,18 +77,35 @@ namespace common {
 
 #if defined(__CUDA_ARCH__)
 // Usual logging facility is not available inside device code.
+
+#if defined(_MSC_VER)
+
+// Windows CUDA doesn't have __assert_fail.
+#define KERNEL_CHECK(cond)                                                     \
+  do {                                                                         \
+    if (XGBOOST_EXPECT(!(cond), false)) {                                      \
+      asm("trap;");                                                            \
+    }                                                                          \
+  } while (0)
+
+#else  // defined(_MSC_VER)
+
 #define __ASSERT_STR_HELPER(x) #x
 
-#define KERNEL_CHECK(e)                                                        \
-  ((e) ? static_cast<void>(0)                                                  \
+#define KERNEL_CHECK(cond)                                                     \
+  (XGBOOST_EXPECT((cond), true)                                                \
+       ? static_cast<void>(0)                                                  \
        : __assert_fail(__ASSERT_STR_HELPER(e), __FILE__, __LINE__,             \
                        __PRETTY_FUNCTION__))
+
+#endif  // defined(_MSC_VER)
 
 #define SPAN_CHECK KERNEL_CHECK
 
 #else  // not CUDA
 
-#define KERNEL_CHECK(cond) ((cond) ? static_cast<void>(0) : std::terminate())
+#define KERNEL_CHECK(cond)                                                     \
+  (XGBOOST_EXPECT((cond), true) ? static_cast<void>(0) : std::terminate())
 
 #define SPAN_CHECK(cond) KERNEL_CHECK(cond)
 
