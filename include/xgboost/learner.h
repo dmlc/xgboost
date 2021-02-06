@@ -113,7 +113,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param data input data
    * \param output_margin whether to only predict margin value instead of transformed prediction
    * \param out_preds output vector that stores the prediction
-   * \param layer_begin Begining of boosted tree layer used for prediction.
+   * \param layer_begin Beginning of boosted tree layer used for prediction.
    * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \param training Whether the prediction result is used for training
    * \param pred_leaf whether to only predict the leaf index of each tree in a boosted tree predictor
@@ -141,7 +141,7 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \param          type        Prediction type.
    * \param          missing     Missing value in the data.
    * \param [in,out] out_preds   Pointer to output prediction vector.
-   * \param          layer_begin Begining of boosted tree layer used for prediction.
+   * \param          layer_begin Beginning of boosted tree layer used for prediction.
    * \param          layer_end   End of booster layer. 0 means do not limit trees.
    */
   virtual void InplacePredict(dmlc::any const &x,

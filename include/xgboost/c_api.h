@@ -741,7 +741,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
  *      scenario.  The second scenario applies when you are defining a custom objective
  *      function.
  *    "iteration_begin": int
- *      Begining iteration of prediction.
+ *      Beginning iteration of prediction.
  *    "iteration_end": int
  *      End iteration of prediction.  Set to 0 this will become the size of tree model.
  *    "strict_shape": bool
@@ -777,7 +777,7 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
  * \brief Inplace prediction from CPU dense matrix.
  *
  * \param handle        Booster handle.
- * \param values        JSON encoded__array_interface__ to values.
+ * \param values        JSON encoded __array_interface__ to values.
  * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
  *
  *   Additional fields for inplace prediction are:
@@ -804,9 +804,9 @@ XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle,
  * \brief Inplace prediction from CPU CSR matrix.
  *
  * \param handle        Booster handle.
- * \param indptr        JSON encoded__array_interface__ to row pointer in CSR.
- * \param indices       JSON encoded__array_interface__ to column indices in CSR.
- * \param values        JSON encoded__array_interface__ to values in CSR..
+ * \param indptr        JSON encoded __array_interface__ to row pointer in CSR.
+ * \param indices       JSON encoded __array_interface__ to column indices in CSR.
+ * \param values        JSON encoded __array_interface__ to values in CSR..
  * \param ncol          Number of features in data.
  * \param c_json_config See `XGBoosterPredictFromDMatrix` for more info.
  *   Additional fields for inplace prediction are:
@@ -838,6 +838,8 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr,
  *   Additional fields for inplace prediction are:
  *     "missing": float
  *
+ * \param m             An optional (NULL if not available) proxy DMatrix instance
+ *                      storing meta info.
  * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
  * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
  * \param out_result    See `XGBoosterPredictFromDMatrix` for more info.
@@ -858,6 +860,8 @@ XGB_DLL int XGBoosterPredictFromCudaArray(
  *   Additional fields for inplace prediction are:
  *     "missing": float
  *
+ * \param m             An optional (NULL if not available) proxy DMatrix instance
+ *                      storing meta info.
  * \param out_shape     See `XGBoosterPredictFromDMatrix` for more info.
  * \param out_dim       See `XGBoosterPredictFromDMatrix` for more info.
  * \param out_result    See `XGBoosterPredictFromDMatrix` for more info.

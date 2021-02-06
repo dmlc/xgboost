@@ -1003,9 +1003,8 @@ def _infer_predict_output(
     test_sample = rng.randn(1, features)
     if inplace:
         kwargs = kwargs.copy()
-        if kwargs["predict_type"] == "margin":
+        if kwargs.pop("predict_type") == "margin":
             kwargs["output_margin"] = True
-        del kwargs["predict_type"]
     m = DMatrix(test_sample)
     test_predt = booster.predict(m, validate_features=False, **kwargs)
     n_columns = test_predt.shape[1] if len(test_predt.shape) > 1 else 1

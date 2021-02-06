@@ -63,7 +63,7 @@ class GradientBooster : public Model, public Configurable {
   /*!
    * \brief Slice a model using boosting index. The slice m:n indicates taking all trees
    *        that were fit during the boosting rounds m, (m+1), (m+2), ..., (n-1).
-   * \param layer_begin Begining of boosted tree layer used for prediction.
+   * \param layer_begin Beginning of boosted tree layer used for prediction.
    * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \param out         Output gradient booster
    */
@@ -99,7 +99,7 @@ class GradientBooster : public Model, public Configurable {
    * \param out_preds output vector to hold the predictions
    * \param training Whether the prediction value is used for training.  For dart booster
    *                 drop out is performed during training.
-   * \param layer_begin Begining of boosted tree layer used for prediction.
+   * \param layer_begin Beginning of boosted tree layer used for prediction.
    * \param layer_end   End of booster layer. 0 means do not limit trees.
    */
   virtual void PredictBatch(DMatrix* dmat,
@@ -114,7 +114,7 @@ class GradientBooster : public Model, public Configurable {
    * \param           x                      A type erased data adapter.
    * \param           missing                Missing value in the data.
    * \param [in,out]  out_preds              The output preds.
-   * \param           layer_begin (Optional) Begining of boosted tree layer used for prediction.
+   * \param           layer_begin (Optional) Beginning of boosted tree layer used for prediction.
    * \param           layer_end   (Optional) End of booster layer. 0 means do not limit trees.
    */
   virtual void InplacePredict(dmlc::any const &, std::shared_ptr<DMatrix>, float,
@@ -131,7 +131,7 @@ class GradientBooster : public Model, public Configurable {
    *
    * \param inst the instance you want to predict
    * \param out_preds output vector to hold the predictions
-   * \param layer_begin Begining of boosted tree layer used for prediction.
+   * \param layer_begin Beginning of boosted tree layer used for prediction.
    * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \sa Predict
    */
@@ -143,7 +143,7 @@ class GradientBooster : public Model, public Configurable {
    *        this is only valid in gbtree predictor
    * \param dmat feature matrix
    * \param out_preds output vector to hold the predictions
-   * \param layer_begin Begining of boosted tree layer used for prediction.
+   * \param layer_begin Beginning of boosted tree layer used for prediction.
    * \param layer_end   End of booster layer. 0 means do not limit trees.
    */
   virtual void PredictLeaf(DMatrix *dmat,
@@ -155,7 +155,7 @@ class GradientBooster : public Model, public Configurable {
    *         of length (nfeats + 1) * num_output_group * nsample, arranged in that order
    * \param dmat feature matrix
    * \param out_contribs output vector to hold the contributions
-   * \param layer_begin Begining of boosted tree layer used for prediction.
+   * \param layer_begin Beginning of boosted tree layer used for prediction.
    * \param layer_end   End of booster layer. 0 means do not limit trees.
    * \param approximate use a faster (inconsistent) approximation of SHAP values
    * \param condition condition on the condition_feature (0=no, -1=cond off, 1=cond on).

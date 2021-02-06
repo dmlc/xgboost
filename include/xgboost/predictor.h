@@ -139,7 +139,7 @@ class Predictor {
    * \param           model                  The model to predict from.
    * \param           missing                Missing value in the data.
    * \param [in,out]  out_preds              The output preds.
-   * \param           tree_begin (Optional) Begining of boosted trees used for prediction.
+   * \param           tree_begin (Optional) Beginning of boosted trees used for prediction.
    * \param           tree_end   (Optional) End of booster trees. 0 means do not limit trees.
    *
    * \return True if the data can be handled by current predictor, false otherwise.
