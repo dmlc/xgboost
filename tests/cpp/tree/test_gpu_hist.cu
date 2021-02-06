@@ -256,7 +256,9 @@ TEST(GpuHist, EvaluateRootSplit) {
   info.num_row_ = kNRows;
   info.num_col_ = kNCols;
 
-  DeviceSplitCandidate res = maker.EvaluateRootSplit({6.4f, 12.8f});
+  thrust::device_vector<DeviceSplitCandidate> split_out(1);
+  maker.EvaluateRootSplit({6.4f, 12.8f}, dh::ToSpan(split_out));
+  DeviceSplitCandidate res = split_out.front();
 
   ASSERT_EQ(res.findex, 7);
   ASSERT_NEAR(res.fvalue, 0.26, xgboost::kRtEps);
