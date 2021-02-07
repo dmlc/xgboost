@@ -611,6 +611,9 @@ class GPUPredictor : public xgboost::Predictor {
       // built at the 0^th iterator.
       this->InitOutPredictions(dmat->Info(), out_preds, model);
     }
+    if (tree_end - tree_begin == 0) {
+      return;
+    }
     this->DevicePredictInternal(dmat, out_preds, model, tree_begin, tree_end);
   }
 

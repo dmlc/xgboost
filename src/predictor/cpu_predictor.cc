@@ -251,6 +251,9 @@ class CPUPredictor : public Predictor {
       // built at the 0^th iterator.
       this->InitOutPredictions(dmat->Info(), out_preds, model);
     }
+    if (tree_end - tree_begin == 0) {
+      return;
+    }
     this->PredictDMatrix(dmat, &out_preds->HostVector(), model, tree_begin,
                          tree_end);
   }
