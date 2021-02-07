@@ -951,9 +951,9 @@ class TestWithDask:
                 train = xgb.dask.DaskDMatrix(client, dX, dy)
 
                 dX = dd.from_array(X)
-                dX = client.persist(dX, workers={dX: workers[1]})
+                dX = client.persist(dX, workers=workers[1])
                 dy = dd.from_array(y)
-                dy = client.persist(dy, workers={dy: workers[1]})
+                dy = client.persist(dy, workers=workers[1])
                 valid = xgb.dask.DaskDMatrix(client, dX, dy)
 
                 merged = xgb.dask._get_workers_from_data(train, evals=[(valid, 'Valid')])

@@ -254,6 +254,7 @@ class DaskDMatrix:
             raise TypeError(_expect((dd.DataFrame, da.Array, dd.Series), type(label)))
 
         self._n_cols = data.shape[1]
+        assert isinstance(self._n_cols, int)
         self.worker_map: Dict[str, "distributed.Future"] = defaultdict(list)
         self.is_quantile: bool = False
 
