@@ -66,8 +66,7 @@ int InplacePreidctCuda(BoosterHandle handle, char const *c_json_strs,
   API_END();
 }
 
-// A hidden API as cache id is not being supported yet.
-XGB_DLL int XGBoosterPredictFromArrayInterfaceColumns(
+XGB_DLL int XGBoosterPredictFromCudaColumnar(
     BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
     DMatrixHandle m, xgboost::bst_ulong const **out_shape,
     xgboost::bst_ulong *out_dim, const float **out_result) {
@@ -79,8 +78,7 @@ XGB_DLL int XGBoosterPredictFromArrayInterfaceColumns(
       handle, c_json_strs, c_json_config, p_m, out_shape, out_dim, out_result);
 }
 
-// A hidden API as cache id is not being supported yet.
-XGB_DLL int XGBoosterPredictFromArrayInterface(
+XGB_DLL int XGBoosterPredictFromCudaArray(
     BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
     DMatrixHandle m, xgboost::bst_ulong const **out_shape,
     xgboost::bst_ulong *out_dim, const float **out_result) {

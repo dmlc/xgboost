@@ -96,6 +96,24 @@ def from_cstr_to_pystr(data, length):
     return res
 
 
+def _convert_ntree_limit(booster, ntree_limit, iteration_range):
+    if ntree_limit is not None and ntree_limit != 0:
+        warnings.warn(
+            "ntree_limit is deprecated, use `iteration_range` or model "
+            "slicing instead.",
+            UserWarning
+        )
+        if iteration_range is not None and iteration_range[1] != 0:
+            raise ValueError(
+                "Only one of `iteration_range` and `ntree_limit` can be non zero."
+            )
+        num_parallel_tree, num_groups = _get_booster_layer_trees(booster)
+        num_parallel_tree = max([num_parallel_tree, 1])
+        num_groups = max([num_groups, 1])
+        iteration_range = (0, ntree_limit // num_parallel_tree)
+    return iteration_range
+
+
 def _expect(expectations, got):
     """Translate input error into string.
 
@@ -1111,6 +1129,34 @@ Objective = Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
 Metric = Callable[[np.ndarray, DMatrix], Tuple[str, float]]
 
 
+def _get_booster_layer_trees(model: "Booster") -> Tuple[int, int]:
+    """Get number of trees added to booster per-iteration.  This function will be removed
+    once `best_ntree_limit` is dropped in favor of `best_iteration`.  Returns
+    `num_parallel_tree` and `num_groups`.
+
+    """
+    config = json.loads(model.save_config())
+    booster = config["learner"]["gradient_booster"]["name"]
+    if booster == "gblinear":
+        num_parallel_tree = 0
+    elif booster == "dart":
+        num_parallel_tree = int(
+            config["learner"]["gradient_booster"]["gbtree"]["gbtree_train_param"][
+                "num_parallel_tree"
+            ]
+        )
+    elif booster == "gbtree":
+        num_parallel_tree = int(
+            config["learner"]["gradient_booster"]["gbtree_train_param"][
+                "num_parallel_tree"
+            ]
+        )
+    else:
+        raise ValueError(f"Unknown booster: {booster}")
+    num_groups = int(config["learner"]["learner_model_param"]["num_class"])
+    return num_parallel_tree, num_groups
+
+
 class Booster(object):
     # pylint: disable=too-many-public-methods
     """A Booster of XGBoost.
@@ -1497,16 +1543,20 @@ class Booster(object):
         return self.eval_set([(data, name)], iteration)
 
     # pylint: disable=too-many-function-args
-    def predict(self,
-                data,
-                output_margin=False,
-                ntree_limit=0,
-                pred_leaf=False,
-                pred_contribs=False,
-                approx_contribs=False,
-                pred_interactions=False,
-                validate_features=True,
-                training=False):
+    def predict(
+        self,
+        data: DMatrix,
+        output_margin: bool = False,
+        ntree_limit: int = 0,
+        pred_leaf: bool = False,
+        pred_contribs: bool = False,
+        approx_contribs: bool = False,
+        pred_interactions: bool = False,
+        validate_features: bool = True,
+        training: bool = False,
+        iteration_range: Tuple[int, int] = (0, 0),
+        strict_shape: bool = False,
+    ) -> np.ndarray:
         """Predict with data.
 
           .. note:: This function is not thread safe except for ``gbtree`` booster.
@@ -1518,33 +1568,32 @@ class Booster(object):
 
         Parameters
         ----------
-        data : DMatrix
+        data :
             The dmatrix storing the input.
 
-        output_margin : bool
+        output_margin :
             Whether to output the raw untransformed margin value.
 
-        ntree_limit : int
-            Limit number of trees in the prediction; defaults to 0 (use all
-            trees).
+        ntree_limit :
+            Deprecated, use `iteration_range` instead.
 
-        pred_leaf : bool
+        pred_leaf :
             When this option is on, the output will be a matrix of (nsample,
             ntrees) with each record indicating the predicted leaf index of
             each sample in each tree.  Note that the leaf index of a tree is
             unique per tree, so you may find leaf 1 in both tree 1 and tree 0.
 
-        pred_contribs : bool
+        pred_contribs :
             When this is True the output will be a matrix of size (nsample,
             nfeats + 1) with each record indicating the feature contributions
             (SHAP values) for that prediction. The sum of all feature
             contributions is equal to the raw untransformed margin value of the
             prediction. Note the final column is the bias term.
 
-        approx_contribs : bool
+        approx_contribs :
             Approximate the contributions of each feature
 
-        pred_interactions : bool
+        pred_interactions :
             When this is True the output will be a matrix of size (nsample,
             nfeats + 1, nfeats + 1) indicating the SHAP interaction values for
             each pair of features. The sum of each row (or column) of the
@@ -1553,16 +1602,32 @@ class Booster(object):
             untransformed margin value of the prediction. Note the last row and
             column correspond to the bias term.
 
-        validate_features : bool
+        validate_features :
             When this is True, validate that the Booster's and data's
             feature_names are identical.  Otherwise, it is assumed that the
             feature_names are the same.
 
-        training : bool
+        training :
             Whether the prediction value is used for training.  This can effect
             `dart` booster, which performs dropouts during training iterations.
 
             .. versionadded:: 1.0.0
+
+        iteration_range :
+            Specifies which layer of trees are used in prediction.  For example, if a
+            random forest is trained with 100 rounds.  Specifying `iteration_range=(10,
+            20)`, then only the forests built during [10, 20) (half open set) rounds are
+            used in this prediction.
+
+            .. versionadded:: 1.4.0
+
+        strict_shape :
+            When set to True, output shape is invariant to whether classification is used.
+            For both value and margin prediction, the output shape is (n_samples,
+            n_groups), n_groups == 1 when multi-class is not used.  Default to False, in
+            which case the output shape can be (n_samples, ) if multi-class is not used.
+
+            .. versionadded:: 1.4.0
 
         .. note:: Using ``predict()`` with DART booster
 
@@ -1575,64 +1640,50 @@ class Booster(object):
         prediction : numpy array
 
         """
-        option_mask = 0x00
-        if output_margin:
-            option_mask |= 0x01
-        if pred_leaf:
-            option_mask |= 0x02
-        if pred_contribs:
-            option_mask |= 0x04
-        if approx_contribs:
-            option_mask |= 0x08
-        if pred_interactions:
-            option_mask |= 0x10
-
         if not isinstance(data, DMatrix):
-            raise TypeError('Expecting data to be a DMatrix object, got: ',
-                            type(data))
-
+            raise TypeError('Expecting data to be a DMatrix object, got: ', type(data))
         if validate_features:
             self._validate_features(data)
+        iteration_range = _convert_ntree_limit(self, ntree_limit, iteration_range)
+        args = {
+            "type": 0,
+            "training": training,
+            "iteration_begin": iteration_range[0],
+            "iteration_end": iteration_range[1],
+            "strict_shape": strict_shape,
+        }
 
-        length = c_bst_ulong()
-        preds = ctypes.POINTER(ctypes.c_float)()
-        _check_call(_LIB.XGBoosterPredict(self.handle, data.handle,
-                                          ctypes.c_int(option_mask),
-                                          ctypes.c_uint(ntree_limit),
-                                          ctypes.c_int(training),
-                                          ctypes.byref(length),
-                                          ctypes.byref(preds)))
-        preds = ctypes2numpy(preds, length.value, np.float32)
+        def assign_type(t: int) -> None:
+            if args["type"] != 0:
+                raise ValueError("One type of prediction at a time.")
+            args["type"] = t
+
+        if output_margin:
+            assign_type(1)
+        if pred_contribs:
+            assign_type(2 if not approx_contribs else 3)
+        if pred_interactions:
+            assign_type(4)
         if pred_leaf:
-            preds = preds.astype(np.int32, copy=False)
-        nrow = data.num_row()
-        if preds.size != nrow and preds.size % nrow == 0:
-            chunk_size = int(preds.size / nrow)
-
-            if pred_interactions:
-                ngroup = int(chunk_size / ((data.num_col() + 1) *
-                                           (data.num_col() + 1)))
-                if ngroup == 1:
-                    preds = preds.reshape(nrow,
-                                          data.num_col() + 1,
-                                          data.num_col() + 1)
-                else:
-                    preds = preds.reshape(nrow, ngroup,
-                                          data.num_col() + 1,
-                                          data.num_col() + 1)
-            elif pred_contribs:
-                ngroup = int(chunk_size / (data.num_col() + 1))
-                if ngroup == 1:
-                    preds = preds.reshape(nrow, data.num_col() + 1)
-                else:
-                    preds = preds.reshape(nrow, ngroup, data.num_col() + 1)
-            else:
-                preds = preds.reshape(nrow, chunk_size)
-        return preds
+            assign_type(5)
+        preds = ctypes.POINTER(ctypes.c_float)()
+        shape = ctypes.POINTER(c_bst_ulong)()
+        dims = c_bst_ulong()
+        _check_call(
+            _LIB.XGBoosterPredictFromDMatrix(
+                self.handle,
+                data.handle,
+                from_pystr_to_cstr(json.dumps(args)),
+                ctypes.byref(shape),
+                ctypes.byref(dims),
+                ctypes.byref(preds)
+            )
+        )
+        return _prediction_output(shape, dims, preds, False)
 
     def inplace_predict(
         self,
-        data,
+        data: Any,
         iteration_range: Tuple[int, int] = (0, 0),
         predict_type: str = "value",
         missing: float = np.nan,
@@ -1665,26 +1716,24 @@ class Booster(object):
             The input data, must not be a view for numpy array.  Set
             ``predictor`` to ``gpu_predictor`` for running prediction on CuPy
             array or CuDF DataFrame.
-        iteration_range : tuple
-            Specifies which layer of trees are used in prediction.  For
-            example, if a random forest is trained with 100 rounds.  Specifying
-            `iteration_range=(10, 20)`, then only the forests built during [10,
-            20) (open set) rounds are used in this prediction.
-        predict_type : str
+        iteration_range :
+            See :py:meth:`xgboost.Booster.predict` for details.
+        predict_type :
             * `value` Output model prediction values.
             * `margin` Output the raw untransformed margin value.
-        missing : float
-            Value in the input data which needs to be present as a missing
-            value.
+        missing :
+            See :py:obj:`xgboost.DMatrix` for details.
         validate_features:
             See :py:meth:`xgboost.Booster.predict` for details.
         base_margin:
             See :py:obj:`xgboost.DMatrix` for details.
+
+            .. versionadded:: 1.4.0
+
         strict_shape:
-            When set to True, output shape is invariant to whether classification is used.
-            For both value and margin prediction, the output shape is (n_samples,
-            n_groups), n_groups == 1 when multi-class is not used.  Default to False, in
-            which case the output shape can be (n_samples, ) if multi-class is not used.
+            See :py:meth:`xgboost.Booster.predict` for details.
+
+            .. versionadded:: 1.4.0
 
         Returns
         -------
@@ -1772,7 +1821,7 @@ class Booster(object):
                 interface["mask"] = interface["mask"].__cuda_array_interface__
             interface_str = bytes(json.dumps(interface, indent=2), "utf-8")
             _check_call(
-                _LIB.XGBoosterPredictFromArrayInterface(
+                _LIB.XGBoosterPredictFromCudaArray(
                     self.handle,
                     interface_str,
                     from_pystr_to_cstr(json.dumps(args)),
@@ -1788,7 +1837,7 @@ class Booster(object):
 
             interfaces_str = _cudf_array_interfaces(data)
             _check_call(
-                _LIB.XGBoosterPredictFromArrayInterfaceColumns(
+                _LIB.XGBoosterPredictFromCudaColumnar(
                     self.handle,
                     interfaces_str,
                     from_pystr_to_cstr(json.dumps(args)),

@@ -64,10 +64,10 @@ void TestTrainingPrediction(size_t rows, size_t bins,
     }
 
     HostDeviceVector<float> from_full;
-    learner->Predict(p_full, false, &from_full);
+    learner->Predict(p_full, false, &from_full, 0, 0);
 
     HostDeviceVector<float> from_hist;
-    learner->Predict(p_hist, false, &from_hist);
+    learner->Predict(p_hist, false, &from_hist, 0, 0);
 
     for (size_t i = 0; i < rows; ++i) {
       EXPECT_NEAR(from_hist.ConstHostVector()[i],
@@ -157,20 +157,20 @@ void TestPredictionWithLesserFeatures(std::string predictor_name) {
   learner->SaveConfig(&config);
   ASSERT_EQ(get<String>(config["learner"]["gradient_booster"]["gbtree_train_param"]["predictor"]), predictor_name);
 
-  learner->Predict(m_test, false, &prediction);
+  learner->Predict(m_test, false, &prediction, 0, 0);
   ASSERT_EQ(prediction.Size(), kRows);
 
   auto m_invalid = RandomDataGenerator(kRows, kTrainCols + 1, 0.5).GenerateDMatrix(false);
-  ASSERT_THROW({learner->Predict(m_invalid, false, &prediction);}, dmlc::Error);
+  ASSERT_THROW({learner->Predict(m_invalid, false, &prediction, 0, 0);}, dmlc::Error);
 
 #if defined(XGBOOST_USE_CUDA)
   HostDeviceVector<float> from_cpu;
   learner->SetParam("predictor", "cpu_predictor");
-  learner->Predict(m_test, false, &from_cpu);
+  learner->Predict(m_test, false, &from_cpu, 0, 0);
 
   HostDeviceVector<float> from_cuda;
   learner->SetParam("predictor", "gpu_predictor");
-  learner->Predict(m_test, false, &from_cuda);
+  learner->Predict(m_test, false, &from_cuda, 0, 0);
 
   auto const& h_cpu = from_cpu.ConstHostVector();
   auto const& h_gpu = from_cuda.ConstHostVector();

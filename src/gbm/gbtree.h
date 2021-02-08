@@ -164,7 +164,9 @@ inline std::pair<uint32_t, uint32_t> LayerToTree(gbm::GBTreeModel const &model,
   if (tree_end == 0) {
     tree_end = static_cast<uint32_t>(model.trees.size());
   }
-  CHECK_LT(tree_begin, tree_end);
+  if (model.trees.size() != 0) {
+    CHECK_LE(tree_begin, tree_end);
+  }
   return {tree_begin, tree_end};
 }
 
@@ -260,10 +262,8 @@ class GBTree : public GradientBooster {
     return model_.trees.size() / this->LayerTrees();
   }
 
-  void PredictBatch(DMatrix* p_fmat,
-                    PredictionCacheEntry* out_preds,
-                    bool training,
-                    unsigned ntree_limit) override;
+  void PredictBatch(DMatrix *p_fmat, PredictionCacheEntry *out_preds,
+                    bool training, unsigned layer_begin, unsigned layer_end) override;
 
   void InplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
                       float missing, PredictionCacheEntry *out_preds,
@@ -297,33 +297,49 @@ class GBTree : public GradientBooster {
 
   void PredictInstance(const SparsePage::Inst& inst,
                        std::vector<bst_float>* out_preds,
-                       unsigned ntree_limit) override {
+                       uint32_t layer_begin, uint32_t layer_end) override {
     CHECK(configured_);
+    uint32_t tree_begin, tree_end;
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
     cpu_predictor_->PredictInstance(inst, out_preds, model_,
-                                    ntree_limit);
+                                    tree_end);
   }
 
   void PredictLeaf(DMatrix* p_fmat,
                    HostDeviceVector<bst_float>* out_preds,
-                   unsigned ntree_limit) override {
-    this->GetPredictor()->PredictLeaf(p_fmat, out_preds, model_, ntree_limit);
+                   uint32_t layer_begin, uint32_t layer_end) override {
+    uint32_t tree_begin, tree_end;
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
+    CHECK_EQ(tree_begin, 0) << "Predict leaf supports only iteration end: (0, "
+                               "n_iteration), use model slicing instead.";
+    this->GetPredictor()->PredictLeaf(p_fmat, out_preds, model_, tree_end);
   }
 
   void PredictContribution(DMatrix* p_fmat,
                            HostDeviceVector<bst_float>* out_contribs,
-                           unsigned ntree_limit, bool approximate,
+                           uint32_t layer_begin, uint32_t layer_end, bool approximate,
                            int, unsigned) override {
     CHECK(configured_);
+    uint32_t tree_begin, tree_end;
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
+    CHECK_EQ(tree_begin, 0)
+        << "Predict contribution supports only iteration end: (0, "
+           "n_iteration), using model slicing instead.";
     this->GetPredictor()->PredictContribution(
-        p_fmat, out_contribs, model_, ntree_limit, nullptr, approximate);
+        p_fmat, out_contribs, model_, tree_end, nullptr, approximate);
   }
 
-  void PredictInteractionContributions(DMatrix* p_fmat,
-                                       HostDeviceVector<bst_float>* out_contribs,
-                                       unsigned ntree_limit, bool approximate) override {
+  void PredictInteractionContributions(
+      DMatrix *p_fmat, HostDeviceVector<bst_float> *out_contribs,
+      uint32_t layer_begin, uint32_t layer_end, bool approximate) override {
     CHECK(configured_);
-    this->GetPredictor()->PredictInteractionContributions(p_fmat, out_contribs, model_,
-                                                    ntree_limit, nullptr, approximate);
+    uint32_t tree_begin, tree_end;
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
+    CHECK_EQ(tree_begin, 0)
+        << "Predict interaction contribution supports only iteration end: (0, "
+           "n_iteration), using model slicing instead.";
+    this->GetPredictor()->PredictInteractionContributions(
+        p_fmat, out_contribs, model_, tree_end, nullptr, approximate);
   }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap,

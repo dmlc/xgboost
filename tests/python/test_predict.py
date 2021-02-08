@@ -47,35 +47,49 @@ def run_predict_leaf(predictor):
     empty_leaf = booster.predict(empty, pred_leaf=True)
     assert empty_leaf.shape[0] == 0
 
-    leaf = booster.predict(m, pred_leaf=True)
+    leaf = booster.predict(m, pred_leaf=True, strict_shape=True)
     assert leaf.shape[0] == rows
-    assert leaf.shape[1] == classes * num_parallel_tree * num_boost_round
+    assert leaf.shape[1] == num_boost_round
+    assert leaf.shape[2] == classes
+    assert leaf.shape[3] == num_parallel_tree
 
     for i in range(rows):
-        row = leaf[i, ...]
         for j in range(num_boost_round):
-            start = classes * num_parallel_tree * j
-            end = classes * num_parallel_tree * (j + 1)
-            layer = row[start: end]
-            for c in range(classes):
-                tree_group = layer[c * num_parallel_tree: (c + 1) * num_parallel_tree]
+            for k in range(classes):
+                tree_group = leaf[i, j, k, :]
                 assert tree_group.shape[0] == num_parallel_tree
-                # no subsampling so tree in same forest should output same
-                # leaf.
+                # No sampling, all trees within forest are the same
                 assert np.all(tree_group == tree_group[0])
 
     ntree_limit = 2
     sliced = booster.predict(
-        m, pred_leaf=True, ntree_limit=num_parallel_tree * ntree_limit
+        m, pred_leaf=True, ntree_limit=num_parallel_tree * ntree_limit, strict_shape=True
     )
     first = sliced[0, ...]
 
-    assert first.shape[0] == classes * num_parallel_tree * ntree_limit
+    assert np.prod(first.shape) == classes * num_parallel_tree * ntree_limit
     return leaf
 
 
 def test_predict_leaf():
     run_predict_leaf('cpu_predictor')
+
+
+def test_predict_shape():
+    from sklearn.datasets import load_boston
+    X, y = load_boston(return_X_y=True)
+    reg = xgb.XGBRegressor(n_estimators=1)
+    reg.fit(X, y)
+    predt = reg.get_booster().predict(xgb.DMatrix(X), strict_shape=True)
+    assert len(predt.shape) == 2
+    assert predt.shape[0] == X.shape[0]
+    assert predt.shape[1] == 1
+
+    contrib = reg.get_booster().predict(
+        xgb.DMatrix(X), pred_contribs=True, strict_shape=True
+    )
+    assert len(contrib.shape) == 3
+    assert contrib.shape[1] == 1
 
 
 class TestInplacePredict:
@@ -92,8 +106,7 @@ class TestInplacePredict:
 
         dtrain = xgb.DMatrix(cls.X, cls.y)
 
-        cls.booster = xgb.train({'tree_method': 'hist'},
-                                dtrain, num_boost_round=10)
+        cls.booster = xgb.train({'tree_method': 'hist'}, dtrain, num_boost_round=10)
 
         cls.test = xgb.DMatrix(cls.X[:10, ...])
 

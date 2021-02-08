@@ -16,13 +16,15 @@ if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
 
 sys.path.append("tests/python")
-from test_with_dask import run_empty_dmatrix_reg  # noqa
-from test_with_dask import run_empty_dmatrix_cls  # noqa
-from test_with_dask import _get_client_workers  # noqa
-from test_with_dask import generate_array     # noqa
-from test_with_dask import kCols as random_cols  # noqa
-from test_with_dask import suppress           # noqa
-import testing as tm                          # noqa
+from test_with_dask import run_empty_dmatrix_reg      # noqa
+from test_with_dask import run_boost_from_prediction  # noqa
+from test_with_dask import run_dask_classifier        # noqa
+from test_with_dask import run_empty_dmatrix_cls      # noqa
+from test_with_dask import _get_client_workers        # noqa
+from test_with_dask import generate_array             # noqa
+from test_with_dask import kCols as random_cols       # noqa
+from test_with_dask import suppress                   # noqa
+import testing as tm                                  # noqa
 
 
 try:
@@ -132,9 +134,9 @@ def run_gpu_hist(
     num_rounds: int,
     dataset: tm.TestDataset,
     DMatrixT: Type,
-    client: Client
+    client: Client,
 ) -> None:
-    params['tree_method'] = 'gpu_hist'
+    params["tree_method"] = "gpu_hist"
     params = dataset.set_params(params)
     # It doesn't make sense to distribute a completely
     # empty dataset.
@@ -143,26 +145,40 @@ def run_gpu_hist(
 
     chunk = 128
     X = to_cp(dataset.X, DMatrixT)
-    X = da.from_array(X,
-                      chunks=(chunk, dataset.X.shape[1]))
+    X = da.from_array(X, chunks=(chunk, dataset.X.shape[1]))
     y = to_cp(dataset.y, DMatrixT)
-    y = da.from_array(y, chunks=(chunk, ))
+    y = da.from_array(y, chunks=(chunk,))
     if dataset.w is not None:
         w = to_cp(dataset.w, DMatrixT)
-        w = da.from_array(w, chunks=(chunk, ))
+        w = da.from_array(w, chunks=(chunk,))
     else:
         w = None
 
     if DMatrixT is dxgb.DaskDeviceQuantileDMatrix:
-        m = DMatrixT(client, data=X, label=y, weight=w,
-                     max_bin=params.get('max_bin', 256))
+        m = DMatrixT(
+            client, data=X, label=y, weight=w, max_bin=params.get("max_bin", 256)
+        )
     else:
         m = DMatrixT(client, data=X, label=y, weight=w)
-    history = dxgb.train(client, params=params, dtrain=m,
-                         num_boost_round=num_rounds,
-                         evals=[(m, 'train')])['history']
+    history = dxgb.train(
+        client,
+        params=params,
+        dtrain=m,
+        num_boost_round=num_rounds,
+        evals=[(m, "train")],
+    )["history"]
     note(history)
-    assert tm.non_increasing(history['train'][dataset.metric])
+    assert tm.non_increasing(history["train"][dataset.metric])
+
+
+def test_boost_from_prediction(local_cuda_cluster: LocalCUDACluster) -> None:
+    import cudf
+    from sklearn.datasets import load_breast_cancer
+    with Client(local_cuda_cluster) as client:
+        X_, y_ = load_breast_cancer(return_X_y=True)
+        X = dd.from_array(X_, chunksize=100).map_partitions(cudf.from_pandas)
+        y = dd.from_array(y_, chunksize=100).map_partitions(cudf.from_pandas)
+        run_boost_from_prediction(X, y, "gpu_hist", client)
 
 
 class TestDistributedGPU:
@@ -245,6 +261,20 @@ class TestDistributedGPU:
             booster = cls.get_booster()
             dump = booster.get_dump(dump_format='json')
             assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
+
+    @pytest.mark.skipif(**tm.no_cudf())
+    @pytest.mark.skipif(**tm.no_dask())
+    @pytest.mark.skipif(**tm.no_dask_cuda())
+    @pytest.mark.parametrize("model", ["boosting"])
+    def test_dask_classifier(self, model, local_cuda_cluster: LocalCUDACluster) -> None:
+        import dask_cudf
+        with Client(local_cuda_cluster) as client:
+            X_, y_, w_ = generate_array(with_weights=True)
+            y_ = (y_ * 10).astype(np.int32)
+            X = dask_cudf.from_dask_dataframe(dd.from_dask_array(X_))
+            y = dask_cudf.from_dask_dataframe(dd.from_dask_array(y_))
+            w = dask_cudf.from_dask_dataframe(dd.from_dask_array(w_))
+            run_dask_classifier(X, y, w, model, client)
 
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())

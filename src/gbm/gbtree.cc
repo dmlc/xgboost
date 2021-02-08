@@ -414,7 +414,7 @@ void GBTree::Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
   auto layer_trees = this->LayerTrees();
 
   layer_end = layer_end == 0 ? model_.trees.size() / layer_trees : layer_end;
-  CHECK_GE(layer_end, layer_begin);
+  CHECK_GT(layer_end, layer_begin);
   CHECK_GE(step, 1);
   int32_t n_layers = (layer_end - layer_begin) / step;
   std::vector<std::unique_ptr<RegTree>> &out_trees = out_model.trees;
@@ -438,10 +438,35 @@ void GBTree::Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
 void GBTree::PredictBatch(DMatrix* p_fmat,
                           PredictionCacheEntry* out_preds,
                           bool,
-                          unsigned ntree_limit) {
+                          unsigned layer_begin,
+                          unsigned layer_end) {
   CHECK(configured_);
+  if (layer_end == 0) {
+    layer_end = this->BoostedRounds();
+  }
+  if (layer_begin != 0 || layer_end < out_preds->version) {
+    // cache is dropped.
+    out_preds->version = 0;
+  }
+  bool reset = false;
+  if (layer_begin == 0) {
+    layer_begin = out_preds->version;
+  } else {
+    // When begin layer is not 0, the cache is not useful.
+    reset = true;
+  }
+
+  uint32_t tree_begin, tree_end;
+  std::tie(tree_begin, tree_end) =
+      detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
   GetPredictor(&out_preds->predictions, p_fmat)
-      ->PredictBatch(p_fmat, out_preds, model_, 0, ntree_limit);
+      ->PredictBatch(p_fmat, out_preds, model_, tree_begin, tree_end);
+  if (reset) {
+    out_preds->version = 0;
+  } else {
+    uint32_t delta = layer_end - out_preds->version;
+    out_preds->Update(delta);
+  }
 }
 
 std::unique_ptr<Predictor> const &
@@ -603,13 +628,14 @@ class Dart : public GBTree {
   void PredictBatch(DMatrix* p_fmat,
                     PredictionCacheEntry* p_out_preds,
                     bool training,
-                    unsigned ntree_limit) override {
+                    unsigned layer_begin,
+                    unsigned layer_end) override {
     DropTrees(training);
     int num_group = model_.learner_model_param->num_output_group;
-    ntree_limit *= num_group;
-    if (ntree_limit == 0 || ntree_limit > model_.trees.size()) {
-      ntree_limit = static_cast<unsigned>(model_.trees.size());
-    }
+    uint32_t tree_begin, tree_end;
+    std::tie(tree_begin, tree_end) =
+        detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
+
     size_t n = num_group * p_fmat->Info().num_row_;
     const auto &base_margin = p_fmat->Info().base_margin_.ConstHostVector();
     auto& out_preds = p_out_preds->predictions.HostVector();
@@ -623,26 +649,24 @@ class Dart : public GBTree {
     }
     const int nthread = omp_get_max_threads();
     InitThreadTemp(nthread);
-    PredLoopSpecalize(p_fmat, &out_preds, num_group, 0, ntree_limit);
+    PredLoopSpecalize(p_fmat, &out_preds, num_group, tree_begin, tree_end);
   }
 
   void PredictInstance(const SparsePage::Inst &inst,
                        std::vector<bst_float> *out_preds,
-                       unsigned ntree_limit) override {
+                       unsigned layer_begin, unsigned layer_end) override {
     DropTrees(false);
     if (thread_temp_.size() == 0) {
       thread_temp_.resize(1, RegTree::FVec());
       thread_temp_[0].Init(model_.learner_model_param->num_feature);
     }
     out_preds->resize(model_.learner_model_param->num_output_group);
-    ntree_limit *= model_.learner_model_param->num_output_group;
-    if (ntree_limit == 0 || ntree_limit > model_.trees.size()) {
-      ntree_limit = static_cast<unsigned>(model_.trees.size());
-    }
+    uint32_t tree_begin, tree_end;
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
     // loop over output groups
     for (uint32_t gid = 0; gid < model_.learner_model_param->num_output_group; ++gid) {
       (*out_preds)[gid] =
-          PredValue(inst, gid, &thread_temp_[0], 0, ntree_limit) +
+          PredValue(inst, gid, &thread_temp_[0], 0, tree_end) +
           model_.learner_model_param->base_score;
     }
   }
@@ -653,21 +677,24 @@ class Dart : public GBTree {
 
   void PredictContribution(DMatrix* p_fmat,
                            HostDeviceVector<bst_float>* out_contribs,
-                           unsigned ntree_limit, bool approximate, int,
+                           unsigned layer_begin, unsigned layer_end, bool approximate, int,
                            unsigned) override {
     CHECK(configured_);
+    uint32_t tree_begin, tree_end;
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
     cpu_predictor_->PredictContribution(p_fmat, out_contribs, model_,
-                                        ntree_limit, &weight_drop_, approximate);
+                                        tree_end, &weight_drop_, approximate);
   }
 
-  void PredictInteractionContributions(DMatrix* p_fmat,
-                                       HostDeviceVector<bst_float>* out_contribs,
-                                       unsigned ntree_limit, bool approximate) override {
+  void PredictInteractionContributions(
+      DMatrix *p_fmat, HostDeviceVector<bst_float> *out_contribs,
+      unsigned layer_begin, unsigned layer_end, bool approximate) override {
     CHECK(configured_);
+    uint32_t tree_begin, tree_end;
+    std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
     cpu_predictor_->PredictInteractionContributions(p_fmat, out_contribs, model_,
-                                                    ntree_limit, &weight_drop_, approximate);
+                                                    tree_end, &weight_drop_, approximate);
   }
-
 
  protected:
   inline void PredLoopSpecalize(
