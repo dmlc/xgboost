@@ -950,9 +950,9 @@ async def _direct_predict_impl(
 ) -> _DaskCollection:
     columns = list(meta.keys())
     if len(output_shape) >= 3 and isinstance(data, dd.DataFrame):
-        # Without this check, dask will finish the prediction silently even output is
-        # larger than 3 dim.  But during map_partitions, dask passes a dd.DataFrame as
-        # local input to xgboost, which is converted to csr_matrix by
+        # Without this check, dask will finish the prediction silently even if output
+        # dimension is greater than 3.  But during map_partitions, dask passes a
+        # `dd.DataFrame` as local input to xgboost, which is converted to csr_matrix by
         # `_convert_unknown_data` since dd.DataFrame is not known to xgboost native
         # binding.
         raise ValueError(
