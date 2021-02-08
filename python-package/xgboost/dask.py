@@ -949,6 +949,15 @@ async def _direct_predict_impl(
     meta: Dict[int, str],
 ) -> _DaskCollection:
     columns = list(meta.keys())
+    if len(output_shape) >= 3 and isinstance(data, dd.DataFrame):
+        # Without this check, dask will finish the prediction silently even output is
+        # larger than 3 dim.  But during map_partitions, dask passes a dd.DataFrame as
+        # local input to xgboost, which is converted to csr_matrix by
+        # `_convert_unknown_data` since dd.DataFrame is not known to xgboost native
+        # binding.
+        raise ValueError(
+            "Use `da.Array` or `DaskDMatrix` when output has more than 2 dimensions."
+        )
     if _can_output_df(isinstance(data, dd.DataFrame), output_shape):
         if base_margin is not None and isinstance(base_margin, da.Array):
             # Easier for map_partitions
@@ -1209,10 +1218,9 @@ def predict(                    # pylint: disable=unused-argument
     .. note::
 
         Using ``inplace_predict`` might be faster when some features are not needed.  See
-        :py:meth:`xgboost.Booster.predict` for details on various parameters.  When using
-        ``pred_interactions`` with mutli-class model, input should be ``da.Array`` or
-        ``DaskDMatrix`` due to limitation in ``da.map_blocks``.
-
+        :py:meth:`xgboost.Booster.predict` for details on various parameters.  When output
+        has more than 2 dimensions (shap value, leaf with strict_shape), input should be
+        ``da.Array`` or ``DaskDMatrix``.
 
     .. versionadded:: 1.0.0
 
@@ -1236,8 +1244,8 @@ def predict(                    # pylint: disable=unused-argument
     prediction: dask.array.Array/dask.dataframe.Series
         When input data is ``dask.array.Array`` or ``DaskDMatrix``, the return value is an
         array, when input data is ``dask.dataframe.DataFrame``, return value can be
-        ``dask.dataframe.Series``, ``dask.dataframe.DataFrame`` or ``dask.array.Array``,
-        depending on the output shape.
+        ``dask.dataframe.Series``, ``dask.dataframe.DataFrame``, depending on the output
+        shape.
 
     '''
     _assert_dask_support()
@@ -1356,8 +1364,9 @@ def inplace_predict(  # pylint: disable=unused-argument
     prediction :
         When input data is ``dask.array.Array``, the return value is an array, when input
         data is ``dask.dataframe.DataFrame``, return value can be
-        ``dask.dataframe.Series``, ``dask.dataframe.DataFrame`` or ``dask.array.Array``,
-        depending on the output shape.
+        ``dask.dataframe.Series``, ``dask.dataframe.DataFrame``, depending on the output
+        shape.
+
     """
     _assert_dask_support()
     client = _xgb_get_client(client)

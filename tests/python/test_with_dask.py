@@ -797,7 +797,12 @@ def test_dask_predict_leaf(booster: str, client: "Client") -> None:
     cls.client = client
     cls.fit(X, y)
     leaf = xgb.dask.predict(
-        client, cls.get_booster(), X, pred_leaf=True, strict_shape=True
+        client,
+        cls.get_booster(),
+        X.to_dask_array(),      # we can't map_blocks on dataframe when output is 4-dim.
+        pred_leaf=True,
+        strict_shape=True,
+        validate_features=False,
     ).compute()
 
     assert leaf.shape[0] == X_.shape[0]
@@ -1130,15 +1135,16 @@ class TestWithDask:
         assert_shape(shap.shape)
         assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
 
-        X = dd.from_dask_array(X).repartition(npartitions=32)
-        y = dd.from_dask_array(y).repartition(npartitions=32)
-        shap_df = xgb.dask.predict(
-            client, booster, X, pred_contribs=True, validate_features=False
-        ).compute()
-        assert_shape(shap_df.shape)
-        assert np.allclose(
-            np.sum(shap_df, axis=len(shap_df.shape) - 1), margin, 1e-5, 1e-5
-        )
+        if "num_class" not in params.keys():
+            X = dd.from_dask_array(X).repartition(npartitions=32)
+            y = dd.from_dask_array(y).repartition(npartitions=32)
+            shap_df = xgb.dask.predict(
+                client, booster, X, pred_contribs=True, validate_features=False
+            ).compute()
+            assert_shape(shap_df.shape)
+            assert np.allclose(
+                np.sum(shap_df, axis=len(shap_df.shape) - 1), margin, 1e-5, 1e-5
+            )
 
     def run_shap_cls_sklearn(self, X: Any, y: Any, client: "Client") -> None:
         X, y = da.from_array(X, chunks=(32, -1)), da.from_array(y, chunks=32)
