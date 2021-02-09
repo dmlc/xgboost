@@ -804,7 +804,7 @@ async def _train_async(
     workers = list(_get_workers_from_data(dtrain, evals))
     _rabit_args = await _get_rabit_args(len(workers), client)
 
-    if params.get("booster", None) is not None and params["booster"] != "gbtree":
+    if params.get("booster", None) == "gblinear":
         raise NotImplementedError(
             f"booster `{params['booster']}` is not yet supported for dask."
         )
@@ -949,6 +949,15 @@ async def _direct_predict_impl(
     meta: Dict[int, str],
 ) -> _DaskCollection:
     columns = list(meta.keys())
+    if len(output_shape) >= 3 and isinstance(data, dd.DataFrame):
+        # Without this check, dask will finish the prediction silently even if output
+        # dimension is greater than 3.  But during map_partitions, dask passes a
+        # `dd.DataFrame` as local input to xgboost, which is converted to csr_matrix by
+        # `_convert_unknown_data` since dd.DataFrame is not known to xgboost native
+        # binding.
+        raise ValueError(
+            "Use `da.Array` or `DaskDMatrix` when output has more than 2 dimensions."
+        )
     if _can_output_df(isinstance(data, dd.DataFrame), output_shape):
         if base_margin is not None and isinstance(base_margin, da.Array):
             # Easier for map_partitions
@@ -1012,6 +1021,7 @@ def _infer_predict_output(
         if kwargs.pop("predict_type") == "margin":
             kwargs["output_margin"] = True
     m = DMatrix(test_sample)
+    # generated DMatrix doesn't have feature name, so no validation.
     test_predt = booster.predict(m, validate_features=False, **kwargs)
     n_columns = test_predt.shape[1] if len(test_predt.shape) > 1 else 1
     meta: Dict[int, str] = {}
@@ -1098,6 +1108,7 @@ async def _predict_async(
                 pred_contribs=pred_contribs,
                 approx_contribs=approx_contribs,
                 pred_interactions=pred_interactions,
+                strict_shape=strict_shape,
             )
         )
         return await _direct_predict_impl(
@@ -1116,6 +1127,7 @@ async def _predict_async(
             pred_contribs=pred_contribs,
             approx_contribs=approx_contribs,
             pred_interactions=pred_interactions,
+            strict_shape=strict_shape,
         )
     )
     # Prediction on dask DMatrix.
@@ -1206,10 +1218,9 @@ def predict(                    # pylint: disable=unused-argument
     .. note::
 
         Using ``inplace_predict`` might be faster when some features are not needed.  See
-        :py:meth:`xgboost.Booster.predict` for details on various parameters.  When using
-        ``pred_interactions`` with mutli-class model, input should be ``da.Array`` or
-        ``DaskDMatrix`` due to limitation in ``da.map_blocks``.
-
+        :py:meth:`xgboost.Booster.predict` for details on various parameters.  When output
+        has more than 2 dimensions (shap value, leaf with strict_shape), input should be
+        ``da.Array`` or ``DaskDMatrix``.
 
     .. versionadded:: 1.0.0
 
@@ -1233,8 +1244,8 @@ def predict(                    # pylint: disable=unused-argument
     prediction: dask.array.Array/dask.dataframe.Series
         When input data is ``dask.array.Array`` or ``DaskDMatrix``, the return value is an
         array, when input data is ``dask.dataframe.DataFrame``, return value can be
-        ``dask.dataframe.Series``, ``dask.dataframe.DataFrame`` or ``dask.array.Array``,
-        depending on the output shape.
+        ``dask.dataframe.Series``, ``dask.dataframe.DataFrame``, depending on the output
+        shape.
 
     '''
     _assert_dask_support()
@@ -1297,6 +1308,7 @@ async def _inplace_predict_async(  # pylint: disable=too-many-branches
             inplace=True,
             predict_type=predict_type,
             iteration_range=iteration_range,
+            strict_shape=strict_shape,
         )
     )
     return await _direct_predict_impl(
@@ -1352,8 +1364,9 @@ def inplace_predict(  # pylint: disable=unused-argument
     prediction :
         When input data is ``dask.array.Array``, the return value is an array, when input
         data is ``dask.dataframe.DataFrame``, return value can be
-        ``dask.dataframe.Series``, ``dask.dataframe.DataFrame`` or ``dask.array.Array``,
-        depending on the output shape.
+        ``dask.dataframe.Series``, ``dask.dataframe.DataFrame``, depending on the output
+        shape.
+
     """
     _assert_dask_support()
     client = _xgb_get_client(client)

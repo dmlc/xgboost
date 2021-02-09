@@ -754,10 +754,7 @@ class XGBModel(XGBModelBase):
         # Inplace predict doesn't handle as many data types as DMatrix, but it's
         # sufficient for dask interface where input is simpiler.
         params = self.get_params()
-        booster = self.booster
-        if params.get("predictor", None) is None and (
-            booster is None or booster == "gbtree"
-        ):
+        if params.get("predictor", None) is None and self.booster != "gblinear":
             return True
         return False
 

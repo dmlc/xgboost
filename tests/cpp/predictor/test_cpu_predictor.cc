@@ -31,6 +31,7 @@ TEST(CpuPredictor, Basic) {
 
   // Test predict batch
   PredictionCacheEntry out_predictions;
+  cpu_predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
   cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
 
   std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
@@ -107,6 +108,7 @@ TEST(CpuPredictor, ExternalMemory) {
 
   // Test predict batch
   PredictionCacheEntry out_predictions;
+  cpu_predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
   cpu_predictor->PredictBatch(dmat.get(), &out_predictions, model, 0);
   std::vector<float> &out_predictions_h = out_predictions.predictions.HostVector();
   ASSERT_EQ(out_predictions.predictions.Size(), dmat->Info().num_row_);

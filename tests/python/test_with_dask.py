@@ -18,6 +18,7 @@ import hypothesis
 from hypothesis import given, settings, note, HealthCheck
 from test_updaters import hist_parameter_strategy, exact_parameter_strategy
 from test_with_sklearn import run_feature_weights, run_data_initialization
+from test_predict import verify_leaf_output
 
 if sys.platform.startswith("win"):
     pytest.skip("Skipping dask tests on Windows", allow_module_level=True)
@@ -748,9 +749,9 @@ def test_dask_ranking(client: "Client") -> None:
             d = d.toarray()
             d[d == 0] = np.nan
             d[np.isinf(d)] = 0
-            data.append(da.from_array(d))
+            data.append(dd.from_array(d, chunksize=32))
         else:
-            data.append(da.from_array(d))
+            data.append(dd.from_array(d, chunksize=32))
 
     (
         x_train,
@@ -780,6 +781,39 @@ def test_dask_ranking(client: "Client") -> None:
     )
     assert rank.n_features_in_ == 46
     assert rank.best_score > 0.98
+
+
+@pytest.mark.parametrize("booster", ["dart", "gbtree"])
+def test_dask_predict_leaf(booster: str, client: "Client") -> None:
+    from sklearn.datasets import load_digits
+
+    X_, y_ = load_digits(return_X_y=True)
+    num_parallel_tree = 4
+    X, y = dd.from_array(X_, chunksize=32), dd.from_array(y_, chunksize=32)
+    rounds = 4
+    cls = xgb.dask.DaskXGBClassifier(
+        n_estimators=rounds, num_parallel_tree=num_parallel_tree, booster=booster
+    )
+    cls.client = client
+    cls.fit(X, y)
+    leaf = xgb.dask.predict(
+        client,
+        cls.get_booster(),
+        X.to_dask_array(),      # we can't map_blocks on dataframe when output is 4-dim.
+        pred_leaf=True,
+        strict_shape=True,
+        validate_features=False,
+    ).compute()
+
+    assert leaf.shape[0] == X_.shape[0]
+    assert leaf.shape[1] == rounds
+    assert leaf.shape[2] == cls.n_classes_
+    assert leaf.shape[3] == num_parallel_tree
+
+    leaf_from_apply = cls.apply(X).reshape(leaf.shape).compute()
+    np.testing.assert_allclose(leaf_from_apply, leaf)
+
+    verify_leaf_output(leaf, num_parallel_tree)
 
 
 class TestWithDask:
@@ -1101,15 +1135,16 @@ class TestWithDask:
         assert_shape(shap.shape)
         assert np.allclose(np.sum(shap, axis=len(shap.shape) - 1), margin, 1e-5, 1e-5)
 
-        X = dd.from_dask_array(X).repartition(npartitions=32)
-        y = dd.from_dask_array(y).repartition(npartitions=32)
-        shap_df = xgb.dask.predict(
-            client, booster, X, pred_contribs=True, validate_features=False
-        ).compute()
-        assert_shape(shap_df.shape)
-        assert np.allclose(
-            np.sum(shap_df, axis=len(shap_df.shape) - 1), margin, 1e-5, 1e-5
-        )
+        if "num_class" not in params.keys():
+            X = dd.from_dask_array(X).repartition(npartitions=32)
+            y = dd.from_dask_array(y).repartition(npartitions=32)
+            shap_df = xgb.dask.predict(
+                client, booster, X, pred_contribs=True, validate_features=False
+            ).compute()
+            assert_shape(shap_df.shape)
+            assert np.allclose(
+                np.sum(shap_df, axis=len(shap_df.shape) - 1), margin, 1e-5, 1e-5
+            )
 
     def run_shap_cls_sklearn(self, X: Any, y: Any, client: "Client") -> None:
         X, y = da.from_array(X, chunks=(32, -1)), da.from_array(y, chunks=32)
@@ -1218,17 +1253,13 @@ class TestWithDask:
             np.testing.assert_allclose(predt_0.compute(), predt_3)
 
 
-def test_unsupported_features(client: "Client"):
+def test_dask_unsupported_features(client: "Client") -> None:
     X, y, _ = generate_array()
     # gblinear doesn't support distributed training.
     with pytest.raises(NotImplementedError, match="gblinear"):
         xgb.dask.train(
             client, {"booster": "gblinear"}, xgb.dask.DaskDMatrix(client, X, y)
         )
-    # dart prediction is not thread safe, running predict with each partition will have
-    # race.
-    with pytest.raises(NotImplementedError, match="dart"):
-        xgb.dask.train(client, {"booster": "dart"}, xgb.dask.DaskDMatrix(client, X, y))
 
 
 class TestDaskCallbacks:
