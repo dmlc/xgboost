@@ -434,7 +434,13 @@ class TestModels:
             booster[...:end] = booster
 
         sliced_0 = booster[1:3]
+        np.testing.assert_allclose(
+            booster.predict(dtrain, iteration_range=(1, 3)), sliced_0.predict(dtrain)
+        )
         sliced_1 = booster[3:7]
+        np.testing.assert_allclose(
+            booster.predict(dtrain, iteration_range=(3, 7)), sliced_1.predict(dtrain)
+        )
 
         predt_0 = sliced_0.predict(dtrain, output_margin=True)
         predt_1 = sliced_1.predict(dtrain, output_margin=True)

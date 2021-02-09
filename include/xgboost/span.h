@@ -38,6 +38,10 @@
 #include <type_traits>
 #include <cstdio>
 
+#if defined(__CUDACC__)
+#include <cuda_runtime.h>
+#endif  // defined(__CUDACC__)
+
 /*!
  * The version number 1910 is picked up from GSL.
  *
@@ -71,45 +75,46 @@
 namespace xgboost {
 namespace common {
 
+#if defined(__CUDA_ARCH__)
 // Usual logging facility is not available inside device code.
-// assert is not supported in mac as of CUDA 10.0
+
+#if defined(_MSC_VER)
+
+// Windows CUDA doesn't have __assert_fail.
 #define KERNEL_CHECK(cond)                                                     \
   do {                                                                         \
-    if (!(cond)) {                                                             \
-      printf("\nKernel error:\n"                                               \
-             "In: %s: %d\n"                                                    \
-             "\t%s\n\tExpecting: %s\n"                                         \
-             "\tBlock: [%d, %d, %d], Thread: [%d, %d, %d]\n\n",                \
-             __FILE__, __LINE__, __PRETTY_FUNCTION__, #cond, blockIdx.x,       \
-             blockIdx.y, blockIdx.z, threadIdx.x, threadIdx.y, threadIdx.z);   \
+    if (XGBOOST_EXPECT(!(cond), false)) {                                      \
       asm("trap;");                                                            \
     }                                                                          \
-  } while (0);
+  } while (0)
 
-#if defined(__CUDA_ARCH__)
+#else  // defined(_MSC_VER)
+
+#define __ASSERT_STR_HELPER(x) #x
+
+#define KERNEL_CHECK(cond)                                                     \
+  (XGBOOST_EXPECT((cond), true)                                                \
+       ? static_cast<void>(0)                                                  \
+       : __assert_fail(__ASSERT_STR_HELPER(e), __FILE__, __LINE__,             \
+                       __PRETTY_FUNCTION__))
+
+#endif  // defined(_MSC_VER)
+
 #define SPAN_CHECK KERNEL_CHECK
-#elif defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1  // R package
-#define SPAN_CHECK CHECK  // check from dmlc
-#else  // not CUDA, not R
-#define SPAN_CHECK(cond)                                                       \
-  do {                                                                         \
-    if (XGBOOST_EXPECT(!(cond), false)) {                                      \
-      fprintf(stderr, "[xgboost] Condition %s failed.\n", #cond);              \
-      fflush(stderr);  /* It seems stderr on Windows is beffered? */           \
-      std::terminate();                                                        \
-    }                                                                          \
-  } while (0);
+
+#else  // not CUDA
+
+#define KERNEL_CHECK(cond)                                                     \
+  (XGBOOST_EXPECT((cond), true) ? static_cast<void>(0) : std::terminate())
+
+#define SPAN_CHECK(cond) KERNEL_CHECK(cond)
+
 #endif  // __CUDA_ARCH__
 
 #if defined(__CUDA_ARCH__)
-#define SPAN_LT(lhs, rhs)                                                      \
-  if (!((lhs) < (rhs))) {                                                      \
-    printf("[xgboost] Condition: %lu < %lu failed\n",                          \
-           static_cast<size_t>(lhs), static_cast<size_t>(rhs));                \
-    asm("trap;");                                                              \
-  }
+#define SPAN_LT(lhs, rhs) KERNEL_CHECK((lhs) < (rhs))
 #else
-#define SPAN_LT(lhs, rhs) SPAN_CHECK((lhs) < (rhs))
+#define SPAN_LT(lhs, rhs) KERNEL_CHECK((lhs) < (rhs))
 #endif  // defined(__CUDA_ARCH__)
 
 namespace detail {

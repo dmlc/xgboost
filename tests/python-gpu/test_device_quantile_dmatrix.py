@@ -11,8 +11,7 @@ import testing as tm
 class TestDeviceQuantileDMatrix:
     def test_dmatrix_numpy_init(self):
         data = np.random.randn(5, 5)
-        with pytest.raises(TypeError,
-                           match='is not supported for DeviceQuantileDMatrix'):
+        with pytest.raises(TypeError, match='is not supported'):
             xgb.DeviceQuantileDMatrix(data, np.ones(5, dtype=np.float64))
 
     @pytest.mark.skipif(**tm.no_cupy())

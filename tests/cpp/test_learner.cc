@@ -221,9 +221,10 @@ TEST(Learner, MultiThreadedPredict) {
       auto &entry = learner->GetThreadLocal().prediction_entry;
       HostDeviceVector<float> predictions;
       for (size_t iter = 0; iter < kIters; ++iter) {
-        learner->Predict(p_data, false, &entry.predictions);
-        learner->Predict(p_data, false, &predictions, 0, true);  // leaf
-        learner->Predict(p_data, false, &predictions, 0, false, true);  // contribs
+        learner->Predict(p_data, false, &entry.predictions, 0, 0);
+
+        learner->Predict(p_data, false, &predictions, 0, 0, false, true);  // leaf
+        learner->Predict(p_data, false, &predictions, 0, 0, false, false, true);  // contribs
       }
     });
   }

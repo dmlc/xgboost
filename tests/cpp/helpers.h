@@ -22,6 +22,7 @@
 
 #include "../../src/common/common.h"
 #include "../../src/gbm/gbtree_model.h"
+#include "../../src/data/array_interface.h"
 
 #if defined(__CUDACC__)
 #define DeclareUnifiedTest(name) GPU ## name
@@ -180,6 +181,29 @@ class SimpleRealUniformDistribution {
     return std::max(ret, lower_);
   }
 };
+
+template <typename T>
+Json GetArrayInterface(HostDeviceVector<T> *storage, size_t rows, size_t cols) {
+  Json array_interface{Object()};
+  array_interface["data"] = std::vector<Json>(2);
+  if (storage->DeviceCanRead()) {
+    array_interface["data"][0] =
+        Integer(reinterpret_cast<int64_t>(storage->ConstDevicePointer()));
+  } else {
+    array_interface["data"][0] =
+        Integer(reinterpret_cast<int64_t>(storage->ConstHostPointer()));
+  }
+  array_interface["data"][1] = Boolean(false);
+
+  array_interface["shape"] = std::vector<Json>(2);
+  array_interface["shape"][0] = rows;
+  array_interface["shape"][1] = cols;
+
+  char t = ArrayInterfaceHandler::TypeChar<T>();
+  array_interface["typestr"] = String(std::string{"<"} + t + std::to_string(sizeof(T)));
+  array_interface["version"] = 1;
+  return array_interface;
+}
 
 // Generate in-memory random data without using DMatrix.
 class RandomDataGenerator {

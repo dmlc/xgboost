@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 by XGBoost Contributors
+ * Copyright 2020-2021 by XGBoost Contributors
  */
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
@@ -15,6 +15,17 @@ TEST(ArrayInterface, Initialize) {
   ASSERT_EQ(arr_interface.num_rows, kRows);
   ASSERT_EQ(arr_interface.num_cols, kCols);
   ASSERT_EQ(arr_interface.data, storage.ConstHostPointer());
+  ASSERT_EQ(arr_interface.ElementSize(), 4);
+  ASSERT_EQ(arr_interface.type, ArrayInterface::kF4);
+
+  HostDeviceVector<size_t> u64_storage(storage.Size());
+  std::string u64_arr_str;
+  Json::Dump(GetArrayInterface(&u64_storage, kRows, kCols), &u64_arr_str);
+  std::copy(storage.ConstHostVector().cbegin(), storage.ConstHostVector().cend(),
+            u64_storage.HostSpan().begin());
+  auto u64_arr = ArrayInterface{u64_arr_str};
+  ASSERT_EQ(u64_arr.ElementSize(), 8);
+  ASSERT_EQ(u64_arr.type, ArrayInterface::kU8);
 }
 
 TEST(ArrayInterface, Error) {

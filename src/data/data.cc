@@ -301,6 +301,7 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
   out.feature_weigths.Copy(this->feature_weigths);
 
   out.feature_names = this->feature_names;
+  out.feature_types.Resize(this->feature_types.Size());
   out.feature_types.Copy(this->feature_types);
   out.feature_type_names = this->feature_type_names;
 
@@ -811,6 +812,9 @@ template DMatrix* DMatrix::Create<data::DataTableAdapter>(
     const std::string& cache_prefix, size_t page_size);
 template DMatrix* DMatrix::Create<data::FileAdapter>(
     data::FileAdapter* adapter, float missing, int nthread,
+    const std::string& cache_prefix, size_t page_size);
+template DMatrix* DMatrix::Create<data::CSRArrayAdapter>(
+    data::CSRArrayAdapter* adapter, float missing, int nthread,
     const std::string& cache_prefix, size_t page_size);
 template DMatrix *
 DMatrix::Create(data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext,

@@ -4,9 +4,8 @@
 """Training Library containing training routines."""
 import warnings
 import copy
-import json
 import numpy as np
-from .core import Booster, XGBoostError
+from .core import Booster, XGBoostError, _get_booster_layer_trees
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
 from . import callback
 
@@ -91,24 +90,7 @@ def _train_internal(params, dtrain,
     # These should be moved into callback functions `after_training`, but until old
     # callbacks are removed, the train function is the only place for setting the
     # attributes.
-    config = json.loads(bst.save_config())
-    booster = config['learner']['gradient_booster']['name']
-    if booster == 'gblinear':
-        num_parallel_tree = 0
-    elif booster == 'dart':
-        num_parallel_tree = int(
-            config['learner']['gradient_booster']['gbtree']['gbtree_train_param'][
-                'num_parallel_tree'
-            ]
-        )
-    elif booster == 'gbtree':
-        num_parallel_tree = int(
-            config['learner']['gradient_booster']['gbtree_train_param'][
-                'num_parallel_tree']
-        )
-    else:
-        raise ValueError(f'Unknown booster: {booster}')
-
+    num_parallel_tree, _ = _get_booster_layer_trees(bst)
     if bst.attr('best_score') is not None:
         bst.best_score = float(bst.attr('best_score'))
         bst.best_iteration = int(bst.attr('best_iteration'))

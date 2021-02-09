@@ -29,9 +29,11 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, size_t cols,
     auto p_precise = RandomDataGenerator(rows, cols, 0).GenerateDMatrix();
 
     PredictionCacheEntry approx_out_predictions;
+    predictor->InitOutPredictions(p_hist->Info(), &approx_out_predictions.predictions, model);
     predictor->PredictBatch(p_hist.get(), &approx_out_predictions, model, 0);
 
     PredictionCacheEntry precise_out_predictions;
+    predictor->InitOutPredictions(p_precise->Info(), &precise_out_predictions.predictions, model);
     predictor->PredictBatch(p_precise.get(), &precise_out_predictions, model, 0);
 
     for (size_t i = 0; i < rows; ++i) {
@@ -46,6 +48,7 @@ void TestPredictionFromGradientIndex(std::string name, size_t rows, size_t cols,
     // matrix is used for training.
     auto p_dmat = RandomDataGenerator(rows, cols, 0).GenerateDMatrix();
     PredictionCacheEntry precise_out_predictions;
+    predictor->InitOutPredictions(p_dmat->Info(), &precise_out_predictions.predictions, model);
     predictor->PredictBatch(p_dmat.get(), &precise_out_predictions, model, 0);
     ASSERT_FALSE(p_dmat->PageExists<Page>());
   }
