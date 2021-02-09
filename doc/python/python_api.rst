@@ -93,9 +93,15 @@ Dask API
 --------
 .. automodule:: xgboost.dask
 
-.. autofunction:: xgboost.dask.DaskDMatrix
+.. autoclass:: xgboost.dask.DaskDMatrix
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
-.. autofunction:: xgboost.dask.DaskDeviceQuantileDMatrix
+.. autoclass:: xgboost.dask.DaskDeviceQuantileDMatrix
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
 .. autofunction:: xgboost.dask.train
 
@@ -103,12 +109,27 @@ Dask API
 
 .. autofunction:: xgboost.dask.inplace_predict
 
-.. autofunction:: xgboost.dask.DaskXGBClassifier
+.. autoclass:: xgboost.dask.DaskXGBClassifier
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
-.. autofunction:: xgboost.dask.DaskXGBRegressor
+.. autoclass:: xgboost.dask.DaskXGBRegressor
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
-.. autofunction:: xgboost.dask.DaskXGBRanker
+.. autoclass:: xgboost.dask.DaskXGBRanker
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
-.. autofunction:: xgboost.dask.DaskXGBRFRegressor
+.. autoclass:: xgboost.dask.DaskXGBRFRegressor
+    :members:
+    :inherited-members:
+    :show-inheritance:
 
-.. autofunction:: xgboost.dask.DaskXGBRFClassifier
+.. autoclass:: xgboost.dask.DaskXGBRFClassifier
+    :members:
+    :inherited-members:
+    :show-inheritance:

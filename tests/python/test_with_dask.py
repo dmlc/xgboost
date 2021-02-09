@@ -1046,9 +1046,12 @@ class TestWithDask:
 
                 futures = []
                 for i in range(len(workers)):
-                    futures.append(client.submit(worker_fn, workers[i],
-                                                 m.create_fn_args(workers[i]), pure=False,
-                                                 workers=[workers[i]]))
+                    futures.append(
+                        client.submit(
+                            worker_fn, workers[i],
+                            m._create_fn_args(workers[i]), pure=False,
+                            workers=[workers[i]])
+                    )
                 client.gather(futures)
 
                 has_what = client.has_what()
