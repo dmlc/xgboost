@@ -35,7 +35,7 @@ HostSketchContainer::CalcColumnSize(SparsePage const &batch,
     column.resize(n_columns, 0);
   }
 
-  ParallelFor(page.Size(), nthreads, [&](size_t i) {
+  ParallelFor(omp_ulong(page.Size()), nthreads, [&](omp_ulong i) {
     auto &local_column_sizes = column_sizes.at(omp_get_thread_num());
     auto row = page[i];
     auto const *p_row = row.data();
@@ -44,7 +44,7 @@ HostSketchContainer::CalcColumnSize(SparsePage const &batch,
     }
   });
   std::vector<bst_row_t> entries_per_columns(n_columns, 0);
-  ParallelFor(n_columns, nthreads, [&](size_t i) {
+  ParallelFor(bst_omp_uint(n_columns), nthreads, [&](bst_omp_uint i) {
     for (auto const &thread : column_sizes) {
       entries_per_columns[i] += thread[i];
     }
@@ -242,7 +242,7 @@ size_t nbytes = 0;
                          &global_sketches);
 
   std::vector<WQSketch::SummaryContainer> final_sketches(n_columns);
-  ParallelFor(n_columns, [&](size_t fidx) {
+  ParallelFor(omp_ulong(n_columns), [&](omp_ulong fidx) {
     int32_t intermediate_num_cuts = num_cuts[fidx];
     auto nbytes =
         WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts);

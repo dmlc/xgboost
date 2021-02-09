@@ -684,7 +684,7 @@ class Dart : public GBTree {
     // start collecting the prediction
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       auto page = batch.GetView();
-      constexpr int kUnroll = 8;
+      static constexpr int kUnroll = 8;
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       const bst_omp_uint rest = nsize % kUnroll;
       if (nsize >= kUnroll) {

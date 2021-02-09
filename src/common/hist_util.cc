@@ -708,7 +708,7 @@ void GHistBuilder<GradientSumT>::BuildBlockHist(const std::vector<GradientPair>&
                                   const RowSetCollection::Elem row_indices,
                                   const GHistIndexBlockMatrix& gmatb,
                                   GHistRowT hist) {
-  constexpr int kUnroll = 8;  // loop unrolling factor
+  static constexpr int kUnroll = 8;  // loop unrolling factor
   const size_t nblock = gmatb.GetNumBlock();
   const size_t nrows = row_indices.end - row_indices.begin;
   const size_t rest = nrows % kUnroll;
