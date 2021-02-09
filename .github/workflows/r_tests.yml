@@ -112,13 +112,6 @@ jobs:
 
     - uses: r-lib/actions/setup-tinytex@master
 
-    - name: Cache R packages
-      uses: actions/cache@v2
-      with:
-        path: ${{ env.R_LIBS_USER }}
-        key: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-2-
-
     - name: Install system packages
       run: |
         sudo apt-get update && sudo apt-get install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev
