@@ -155,7 +155,7 @@ void PredictBatchByBlockOfRowsKernel(DataView batch, std::vector<bst_float> *out
   const auto nsize = static_cast<bst_omp_uint>(batch.Size());
 
   const bst_omp_uint n_row_blocks = (nsize) / block_of_rows_size + !!((nsize) % block_of_rows_size);
-  common::ParallelFor(n_row_blocks, [&](size_t block_id) {
+  common::ParallelFor(n_row_blocks, [&](bst_omp_uint block_id) {
     const size_t batch_offset = block_id * block_of_rows_size;
     const size_t block_size = std::min(nsize - batch_offset, block_of_rows_size);
     const size_t fvec_offset = omp_get_thread_num() * block_of_rows_size;
@@ -362,7 +362,7 @@ class CPUPredictor : public Predictor {
       // parallel over local batch
       auto page = batch.GetView();
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
-      common::ParallelFor(nsize, [&](size_t i) {
+      common::ParallelFor(nsize, [&](bst_omp_uint i) {
         const int tid = omp_get_thread_num();
         auto ridx = static_cast<size_t>(batch.base_rowid + i);
         RegTree::FVec &feats = feat_vecs[tid];
@@ -401,7 +401,7 @@ class CPUPredictor : public Predictor {
     // allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
     // initialize tree node mean values
-    common::ParallelFor(ntree_limit, [&](size_t i) {
+    common::ParallelFor(bst_omp_uint(ntree_limit), [&](bst_omp_uint i) {
       model.trees[i]->FillNodeMeanValues();
     });
     const std::vector<bst_float>& base_margin = info.base_margin_.HostVector();
@@ -410,7 +410,7 @@ class CPUPredictor : public Predictor {
       auto page = batch.GetView();
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
-      common::ParallelFor(nsize, [&](size_t i) {
+      common::ParallelFor(nsize, [&](bst_omp_uint i) {
         auto row_idx = static_cast<size_t>(batch.base_rowid + i);
         RegTree::FVec &feats = feat_vecs[omp_get_thread_num()];
         std::vector<bst_float> this_tree_contribs(ncolumns);

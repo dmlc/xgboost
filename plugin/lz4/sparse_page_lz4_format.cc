@@ -250,18 +250,18 @@ class SparsePageLZ4Format : public SparsePageFormat<SparsePage> {
     int nindex = index_.num_chunk();
     int nvalue = value_.num_chunk();
     int ntotal = nindex + nvalue;
-    OMP_INIT();
+    dmlc::OMPException exc;
     #pragma omp parallel for schedule(dynamic, 1) num_threads(nthread_write_)
     for (int i = 0; i < ntotal; ++i) {
-      OMP_BEGIN();
-      if (i < nindex) {
-        index_.Compress(i, use_lz4_hc_);
-      } else {
-        value_.Compress(i - nindex, use_lz4_hc_);
-      }
-      OMP_END();
+      exc.Run([&]() {
+        if (i < nindex) {
+          index_.Compress(i, use_lz4_hc_);
+        } else {
+          value_.Compress(i - nindex, use_lz4_hc_);
+        }
+      });
     }
-    OMP_THROW();
+    exc.Rethrow();
     index_.Write(fo);
     value_.Write(fo);
     // statistics
@@ -280,18 +280,18 @@ class SparsePageLZ4Format : public SparsePageFormat<SparsePage> {
     int nindex = index_.num_chunk();
     int nvalue = value_.num_chunk();
     int ntotal = nindex + nvalue;
-    OMP_INIT();
+    dmlc::OMPException exc;
     #pragma omp parallel for schedule(dynamic, 1) num_threads(nthread_)
     for (int i = 0; i < ntotal; ++i) {
-      OMP_BEGIN();
-      if (i < nindex) {
-        index_.Decompress(i);
-      } else {
-        value_.Decompress(i - nindex);
-      }
-      OMP_END();
+      exc.Run([&]() {
+        if (i < nindex) {
+          index_.Decompress(i);
+        } else {
+          value_.Decompress(i - nindex);
+        }
+      });
     }
-    OMP_THROW();
+    exc.Rethrow();
   }
 
  private:

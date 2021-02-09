@@ -53,21 +53,21 @@ class TreeRefresher: public TreeUpdater {
     const int nthread = omp_get_max_threads();
     fvec_temp.resize(nthread, RegTree::FVec());
     stemp.resize(nthread, std::vector<GradStats>());
-    OMP_INIT();
+    dmlc::OMPException exc;
     #pragma omp parallel
     {
-      OMP_BEGIN();
-      int tid = omp_get_thread_num();
-      int num_nodes = 0;
-      for (auto tree : trees) {
-        num_nodes += tree->param.num_nodes;
-      }
-      stemp[tid].resize(num_nodes, GradStats());
-      std::fill(stemp[tid].begin(), stemp[tid].end(), GradStats());
-      fvec_temp[tid].Init(trees[0]->param.num_feature);
-      OMP_END();
+      exc.Run([&]() {
+        int tid = omp_get_thread_num();
+        int num_nodes = 0;
+        for (auto tree : trees) {
+          num_nodes += tree->param.num_nodes;
+        }
+        stemp[tid].resize(num_nodes, GradStats());
+        std::fill(stemp[tid].begin(), stemp[tid].end(), GradStats());
+        fvec_temp[tid].Init(trees[0]->param.num_feature);
+      });
     }
-    OMP_THROW();
+    exc.Rethrow();
     // if it is C++11, use lazy evaluation for Allreduce,
     // to gain speedup in recovery
     auto lazy_get_stats = [&]() {
@@ -77,7 +77,7 @@ class TreeRefresher: public TreeUpdater {
         auto page = batch.GetView();
         CHECK_LT(batch.Size(), std::numeric_limits<unsigned>::max());
         const auto nbatch = static_cast<bst_omp_uint>(batch.Size());
-        common::ParallelFor(nbatch, [&](size_t i) {
+        common::ParallelFor(nbatch, [&](bst_omp_uint i) {
           SparsePage::Inst inst = page[i];
           const int tid = omp_get_thread_num();
           const auto ridx = static_cast<bst_uint>(batch.base_rowid + i);
@@ -94,7 +94,7 @@ class TreeRefresher: public TreeUpdater {
       }
       // aggregate the statistics
       auto num_nodes = static_cast<int>(stemp[0].size());
-      common::ParallelFor(num_nodes, [&](size_t nid) {
+      common::ParallelFor(num_nodes, [&](int nid) {
         for (int tid = 1; tid < nthread; ++tid) {
           stemp[0][nid].Add(stemp[tid][nid]);
         }

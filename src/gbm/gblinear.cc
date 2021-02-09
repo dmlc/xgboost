@@ -175,7 +175,7 @@ class GBLinear : public GradientBooster {
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       auto page = batch.GetView();
-      common::ParallelFor(nsize, [&](size_t i) {
+      common::ParallelFor(nsize, [&](bst_omp_uint i) {
         auto inst = page[i];
         auto row_idx = static_cast<size_t>(batch.base_rowid + i);
         // loop over output groups
@@ -241,7 +241,7 @@ class GBLinear : public GradientBooster {
       if (base_margin.size() != 0) {
         CHECK_EQ(base_margin.size(), nsize * ngroup);
       }
-      common::ParallelFor(nsize, [&](size_t i) {
+      common::ParallelFor(nsize, [&](omp_ulong i) {
         const size_t ridx = page.base_rowid + i;
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {

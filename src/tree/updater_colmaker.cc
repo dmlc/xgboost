@@ -264,16 +264,16 @@ class ColMaker: public TreeUpdater {
       const MetaInfo& info = fmat.Info();
       // setup position
       const auto ndata = static_cast<bst_omp_uint>(info.num_row_);
-      OMP_INIT();
+      dmlc::OMPException exc;
       #pragma omp parallel for schedule(static)
       for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
-        OMP_BEGIN();
-        const int tid = omp_get_thread_num();
-        if (position_[ridx] < 0) continue;
-        stemp_[tid][position_[ridx]].stats.Add(gpair[ridx]);
-        OMP_END();
+        exc.Run([&]() {
+          const int tid = omp_get_thread_num();
+          if (position_[ridx] < 0) return;
+          stemp_[tid][position_[ridx]].stats.Add(gpair[ridx]);
+        });
       }
-      OMP_THROW();
+      exc.Rethrow();
       // sum the per thread statistics together
       for (int nid : qexpand) {
         GradStats stats;
@@ -452,29 +452,29 @@ class ColMaker: public TreeUpdater {
 #endif  // defined(_OPENMP)
       {
         auto page = batch.GetView();
-        OMP_INIT();
+        dmlc::OMPException exc;
 #pragma omp parallel for schedule(dynamic, batch_size)
         for (bst_omp_uint i = 0; i < num_features; ++i) {
-          OMP_BEGIN();
-          auto evaluator = tree_evaluator_.GetEvaluator();
-          bst_feature_t const fid = feat_set[i];
-          int32_t const tid = omp_get_thread_num();
-          auto c = page[fid];
-          const bool ind =
-              c.size() != 0 && c[0].fvalue == c[c.size() - 1].fvalue;
-          if (colmaker_train_param_.NeedForwardSearch(
-                  param_.default_direction, column_densities_[fid], ind)) {
-            this->EnumerateSplit(c.data(), c.data() + c.size(), +1, fid,
-                                 gpair, stemp_[tid], evaluator);
-          }
-          if (colmaker_train_param_.NeedBackwardSearch(
-                  param_.default_direction)) {
-            this->EnumerateSplit(c.data() + c.size() - 1, c.data() - 1, -1,
-                                 fid, gpair, stemp_[tid], evaluator);
-          }
-          OMP_END();
+          exc.Run([&]() {
+            auto evaluator = tree_evaluator_.GetEvaluator();
+            bst_feature_t const fid = feat_set[i];
+            int32_t const tid = omp_get_thread_num();
+            auto c = page[fid];
+            const bool ind =
+                c.size() != 0 && c[0].fvalue == c[c.size() - 1].fvalue;
+            if (colmaker_train_param_.NeedForwardSearch(
+                    param_.default_direction, column_densities_[fid], ind)) {
+              this->EnumerateSplit(c.data(), c.data() + c.size(), +1, fid,
+                                  gpair, stemp_[tid], evaluator);
+            }
+            if (colmaker_train_param_.NeedBackwardSearch(
+                    param_.default_direction)) {
+              this->EnumerateSplit(c.data() + c.size() - 1, c.data() - 1, -1,
+                                  fid, gpair, stemp_[tid], evaluator);
+            }
+          });
         }
-        OMP_THROW();
+        exc.Rethrow();
       }
     }
     // find splits at current level, do split per level
@@ -525,7 +525,7 @@ class ColMaker: public TreeUpdater {
       // so that they are ignored in future statistics collection
       const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
 
-      common::ParallelFor(ndata, [&](size_t ridx) {
+      common::ParallelFor(ndata, [&](bst_omp_uint ridx) {
         CHECK_LT(ridx, position_.size())
             << "ridx exceed bound " << "ridx="<<  ridx << " pos=" << position_.size();
         const int nid = this->DecodePosition(ridx);
@@ -571,7 +571,7 @@ class ColMaker: public TreeUpdater {
         for (auto fid : fsplits) {
           auto col = page[fid];
           const auto ndata = static_cast<bst_omp_uint>(col.size());
-          common::ParallelFor(ndata, [&](size_t j) {
+          common::ParallelFor(ndata, [&](bst_omp_uint j) {
             const bst_uint ridx = col[j].index;
             const int nid = this->DecodePosition(ridx);
             const bst_float fvalue = col[j].fvalue;

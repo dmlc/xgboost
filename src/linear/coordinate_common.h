@@ -116,18 +116,18 @@ inline std::pair<double, double> GetGradientParallel(int group_idx, int num_grou
     auto page = batch.GetView();
     auto col = page[fidx];
     const auto ndata = static_cast<bst_omp_uint>(col.size());
-    OMP_INIT();
+    dmlc::OMPException exc;
 #pragma omp parallel for schedule(static) reduction(+ : sum_grad, sum_hess)
     for (bst_omp_uint j = 0; j < ndata; ++j) {
-      OMP_BEGIN();
-      const bst_float v = col[j].fvalue;
-      auto &p = gpair[col[j].index * num_group + group_idx];
-      if (p.GetHess() < 0.0f) continue;
-      sum_grad += p.GetGrad() * v;
-      sum_hess += p.GetHess() * v * v;
-      OMP_END();
+      exc.Run([&]() {
+        const bst_float v = col[j].fvalue;
+        auto &p = gpair[col[j].index * num_group + group_idx];
+        if (p.GetHess() < 0.0f) return;
+        sum_grad += p.GetGrad() * v;
+        sum_hess += p.GetHess() * v * v;
+      });
     }
-    OMP_THROW();
+    exc.Rethrow();
   }
   return std::make_pair(sum_grad, sum_hess);
 }
@@ -147,18 +147,18 @@ inline std::pair<double, double> GetBiasGradientParallel(int group_idx, int num_
                                                          DMatrix *p_fmat) {
   double sum_grad = 0.0, sum_hess = 0.0;
   const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
-  OMP_INIT();
+  dmlc::OMPException exc;
 #pragma omp parallel for schedule(static) reduction(+ : sum_grad, sum_hess)
   for (bst_omp_uint i = 0; i < ndata; ++i) {
-    OMP_BEGIN();
-    auto &p = gpair[i * num_group + group_idx];
-    if (p.GetHess() >= 0.0f) {
-      sum_grad += p.GetGrad();
-      sum_hess += p.GetHess();
-    }
-    OMP_END();
+    exc.Run([&]() {
+      auto &p = gpair[i * num_group + group_idx];
+      if (p.GetHess() >= 0.0f) {
+        sum_grad += p.GetGrad();
+        sum_hess += p.GetHess();
+      }
+    });
   }
-  OMP_THROW();
+  exc.Rethrow();
   return std::make_pair(sum_grad, sum_hess);
 }
 
@@ -181,16 +181,16 @@ inline void UpdateResidualParallel(int fidx, int group_idx, int num_group,
     auto col = page[fidx];
     // update grad value
     const auto num_row = static_cast<bst_omp_uint>(col.size());
-    OMP_INIT();
+    dmlc::OMPException exc;
 #pragma omp parallel for schedule(static)
     for (bst_omp_uint j = 0; j < num_row; ++j) {
-      OMP_BEGIN();
-      GradientPair &p = (*in_gpair)[col[j].index * num_group + group_idx];
-      if (p.GetHess() < 0.0f) continue;
-      p += GradientPair(p.GetHess() * col[j].fvalue * dw, 0);
-      OMP_END();
+      exc.Run([&]() {
+        GradientPair &p = (*in_gpair)[col[j].index * num_group + group_idx];
+        if (p.GetHess() < 0.0f) return;
+        p += GradientPair(p.GetHess() * col[j].fvalue * dw, 0);
+      });
     }
-    OMP_THROW();
+    exc.Rethrow();
   }
 }
 
@@ -208,16 +208,16 @@ inline void UpdateBiasResidualParallel(int group_idx, int num_group, float dbias
                                        DMatrix *p_fmat) {
   if (dbias == 0.0f) return;
   const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
-  OMP_INIT();
+  dmlc::OMPException exc;
 #pragma omp parallel for schedule(static)
   for (bst_omp_uint i = 0; i < ndata; ++i) {
-    OMP_BEGIN();
-    GradientPair &g = (*in_gpair)[i * num_group + group_idx];
-    if (g.GetHess() < 0.0f) continue;
-    g += GradientPair(g.GetHess() * dbias, 0);
-    OMP_END();
+    exc.Run([&]() {
+      GradientPair &g = (*in_gpair)[i * num_group + group_idx];
+      if (g.GetHess() < 0.0f) return;
+      g += GradientPair(g.GetHess() * dbias, 0);
+    });
   }
-  OMP_THROW();
+  exc.Rethrow();
 }
 
 /**
@@ -353,9 +353,9 @@ class GreedyFeatureSelector : public FeatureSelector {
     const bst_omp_uint nfeat = model.learner_model_param->num_feature;
     // Calculate univariate gradient sums
     std::fill(gpair_sums_.begin(), gpair_sums_.end(), std::make_pair(0., 0.));
-  for (const auto &batch : p_fmat->GetBatches<CSCPage>()) {
-    auto page = batch.GetView();
-      common::ParallelFor(nfeat, [&](size_t i) {
+    for (const auto &batch : p_fmat->GetBatches<CSCPage>()) {
+      auto page = batch.GetView();
+      common::ParallelFor(nfeat, [&](bst_omp_uint i) {
         const auto col = page[i];
         const bst_uint ndata = col.size();
         auto &sums = gpair_sums_[group_idx * nfeat + i];
@@ -421,7 +421,7 @@ class ThriftyFeatureSelector : public FeatureSelector {
     for (const auto &batch : p_fmat->GetBatches<CSCPage>()) {
       auto page = batch.GetView();
       // column-parallel is usually fastaer than row-parallel
-      common::ParallelFor(nfeat, [&](size_t i) {
+      common::ParallelFor(nfeat, [&](bst_omp_uint i) {
         const auto col = page[i];
         const bst_uint ndata = col.size();
         for (bst_uint gid = 0u; gid < ngroup; ++gid) {

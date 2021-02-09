@@ -170,7 +170,7 @@ class Transform {
     void LaunchCPU(Functor func, HDV*... vectors) const {
       omp_ulong end = static_cast<omp_ulong>(*(range_.end()));
       SyncHost(vectors...);
-      ParallelFor(end, [&](size_t idx) {
+      ParallelFor(end, [&](omp_ulong idx) {
         func(idx, UnpackHDV(vectors)...);
       });
     }

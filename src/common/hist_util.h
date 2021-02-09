@@ -257,7 +257,7 @@ struct GHistIndexMatrix {
     const size_t batch_size = batch.Size();
     CHECK_LT(batch_size, offset_vec.size());
     BinIdxType* index_data = index_data_span.data();
-    ParallelFor(batch_size, batch_threads, [&](size_t i) {
+    ParallelFor(omp_ulong(batch_size), batch_threads, [&](omp_ulong i) {
       const int tid = omp_get_thread_num();
       size_t ibegin = row_ptr[rbegin + i];
       size_t iend = row_ptr[rbegin + i + 1];

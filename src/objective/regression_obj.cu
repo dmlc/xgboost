@@ -346,7 +346,7 @@ class CoxRegression : public ObjFunction {
   void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
     std::vector<bst_float> &preds = io_preds->HostVector();
     const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
-    common::ParallelFor(ndata, [&](size_t j) {
+    common::ParallelFor(ndata, [&](long j) { // NOLINT(*)
       preds[j] = std::exp(preds[j]);
     });
   }

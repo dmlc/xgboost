@@ -47,16 +47,16 @@ class ElementWiseMetricsReduction {
     bst_float residue_sum = 0;
     bst_float weights_sum = 0;
 
-    OMP_INIT();
+    dmlc::OMPException exc;
 #pragma omp parallel for reduction(+: residue_sum, weights_sum) schedule(static)
     for (omp_ulong i = 0; i < ndata; ++i) {
-      OMP_BEGIN();
-      const bst_float wt = h_weights.size() > 0 ? h_weights[i] : 1.0f;
-      residue_sum += policy_.EvalRow(h_labels[i], h_preds[i]) * wt;
-      weights_sum += wt;
-      OMP_END();
+      exc.Run([&]() {
+        const bst_float wt = h_weights.size() > 0 ? h_weights[i] : 1.0f;
+        residue_sum += policy_.EvalRow(h_labels[i], h_preds[i]) * wt;
+        weights_sum += wt;
+      });
     }
-    OMP_THROW();
+    exc.Rethrow();
     PackedReduceResult res { residue_sum, weights_sum };
     return res;
   }

@@ -220,7 +220,7 @@ void GBTree::DoBoost(DMatrix* p_fmat,
     bool update_predict = true;
     for (int gid = 0; gid < ngroup; ++gid) {
       std::vector<GradientPair>& tmp_h = tmp.HostVector();
-      common::ParallelFor(nsize, [&](size_t i) {
+      common::ParallelFor(nsize, [&](bst_omp_uint i) {
         tmp_h[i] = gpair_h[i * ngroup + gid];
       });
       std::vector<std::unique_ptr<RegTree> > ret;
@@ -688,30 +688,30 @@ class Dart : public GBTree {
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       const bst_omp_uint rest = nsize % kUnroll;
       if (nsize >= kUnroll) {
-        OMP_INIT();
+        dmlc::OMPException exc;
 #pragma omp parallel for schedule(static)
         for (bst_omp_uint i = 0; i < nsize - rest; i += kUnroll) {
-          OMP_BEGIN();
-          const int tid = omp_get_thread_num();
-          RegTree::FVec& feats = thread_temp_[tid];
-          int64_t ridx[kUnroll];
-          SparsePage::Inst inst[kUnroll];
-          for (int k = 0; k < kUnroll; ++k) {
-            ridx[k] = static_cast<int64_t>(batch.base_rowid + i + k);
-          }
-          for (int k = 0; k < kUnroll; ++k) {
-            inst[k] = page[i + k];
-          }
-          for (int k = 0; k < kUnroll; ++k) {
-            for (int gid = 0; gid < num_group; ++gid) {
-              const size_t offset = ridx[k] * num_group + gid;
-              preds[offset] +=
-                  this->PredValue(inst[k], gid, &feats, tree_begin, tree_end);
+          exc.Run([&]() {
+            const int tid = omp_get_thread_num();
+            RegTree::FVec& feats = thread_temp_[tid];
+            int64_t ridx[kUnroll];
+            SparsePage::Inst inst[kUnroll];
+            for (int k = 0; k < kUnroll; ++k) {
+              ridx[k] = static_cast<int64_t>(batch.base_rowid + i + k);
             }
-          }
-          OMP_END();
+            for (int k = 0; k < kUnroll; ++k) {
+              inst[k] = page[i + k];
+            }
+            for (int k = 0; k < kUnroll; ++k) {
+              for (int gid = 0; gid < num_group; ++gid) {
+                const size_t offset = ridx[k] * num_group + gid;
+                preds[offset] +=
+                    this->PredValue(inst[k], gid, &feats, tree_begin, tree_end);
+              }
+            }
+          });
         }
-        OMP_THROW();
+        exc.Rethrow();
       }
 
       for (bst_omp_uint i = nsize - rest; i < nsize; ++i) {
