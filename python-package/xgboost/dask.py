@@ -69,13 +69,6 @@ try:
 except ImportError:
     TrainReturnT = Dict[str, Any]  # type:ignore
 
-# Current status is considered as initial support, many features are not properly
-# supported yet.
-#
-# TODOs:
-#   - CV
-#   - Ranking
-#
 # Note for developers:
 #
 #   As of writing asyncio is still a new feature of Python and in depth documentation is
