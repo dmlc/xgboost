@@ -602,9 +602,6 @@ class GPUPredictor : public xgboost::Predictor {
     if (tree_end == 0) {
       tree_end = model.trees.size();
     }
-    if (tree_end - tree_begin == 0) {
-      return;
-    }
     this->DevicePredictInternal(dmat, out_preds, model, tree_begin, tree_end);
   }
 

@@ -470,7 +470,9 @@ void GBTree::PredictBatch(DMatrix* p_fmat,
   uint32_t tree_begin, tree_end;
   std::tie(tree_begin, tree_end) =
       detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
-  predictor->PredictBatch(p_fmat, out_preds, model_, tree_begin, tree_end);
+  if (tree_end > tree_begin) {
+    predictor->PredictBatch(p_fmat, out_preds, model_, tree_begin, tree_end);
+  }
   if (reset) {
     out_preds->version = 0;
   } else {
