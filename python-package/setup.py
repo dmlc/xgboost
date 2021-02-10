@@ -129,12 +129,6 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
             self.logger.info('Using system libxgboost.')
             return
 
-        src_dir = 'xgboost'
-        try:
-            copy_tree(os.path.join(CURRENT_DIR, os.path.pardir),
-                      os.path.join(self.build_temp, src_dir))
-        except Exception:  # pylint: disable=broad-except
-            copy_tree(src_dir, os.path.join(self.build_temp, src_dir))
         build_dir = self.build_temp
         global BUILD_TEMP_DIR  # pylint: disable=global-statement
         BUILD_TEMP_DIR = build_dir
@@ -144,6 +138,13 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
         if os.path.exists(libxgboost):
             self.logger.info('Found shared library, skipping build.')
             return
+
+        src_dir = 'xgboost'
+        try:
+            copy_tree(os.path.join(CURRENT_DIR, os.path.pardir),
+                      os.path.join(self.build_temp, src_dir))
+        except Exception:  # pylint: disable=broad-except
+            copy_tree(src_dir, os.path.join(self.build_temp, src_dir))
 
         self.logger.info('Building from source. %s', libxgboost)
         if not os.path.exists(build_dir):
