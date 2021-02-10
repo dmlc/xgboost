@@ -842,7 +842,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
             const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
                 static_cast<size_t>(info.num_row_));
             for (size_t i = ibegin; i < iend; ++i) {
-            p_row_indices[i] = i;
+              p_row_indices[i] = i;
             }
           });
         }
