@@ -65,8 +65,8 @@ inline void PredictByAllTrees(gbm::GBTreeModel const &model, const size_t tree_b
 }
 
 template <typename DataView>
-void FVecFill(const size_t block_size, const size_t batch_offset, DataView* batch,
-              const size_t fvec_offset, std::vector<RegTree::FVec>* p_feats, int num_feature) {
+void FVecFill(const size_t block_size, const size_t batch_offset, const int num_feature,
+              DataView* batch, const size_t fvec_offset, std::vector<RegTree::FVec>* p_feats) {
   for (size_t i = 0; i < block_size; ++i) {
     RegTree::FVec &feats = (*p_feats)[fvec_offset + i];
     if (feats.Size() == 0) {
@@ -163,7 +163,7 @@ void PredictBatchByBlockOfRowsKernel(DataView batch, std::vector<bst_float> *out
     const size_t block_size = std::min(nsize - batch_offset, block_of_rows_size);
     const size_t fvec_offset = omp_get_thread_num() * block_of_rows_size;
 
-    FVecFill(block_size, batch_offset, &batch, fvec_offset, p_thread_temp, num_feature);
+    FVecFill(block_size, batch_offset, num_feature, &batch, fvec_offset, p_thread_temp);
     // process block of rows through all trees to keep cache locality
     PredictByAllTrees(model, tree_begin, tree_end, out_preds, batch_offset + batch.base_rowid,
                       num_group, thread_temp, fvec_offset, block_size);
