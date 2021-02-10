@@ -244,6 +244,9 @@ class CPUPredictor : public Predictor {
     if (tree_end == 0) {
       tree_end = model.trees.size();
     }
+    if (tree_end - tree_begin == 0) {
+      return;
+    }
     this->PredictDMatrix(dmat, &out_preds->HostVector(), model, tree_begin,
                          tree_end);
   }
