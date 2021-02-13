@@ -1166,6 +1166,7 @@ class Booster(object):
     """
 
     feature_names = None
+    feature_types = None
 
     def __init__(self, params=None, cache=(), model_file=None):
         # pylint: disable=invalid-name
