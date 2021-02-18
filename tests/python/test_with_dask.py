@@ -9,6 +9,7 @@ import scipy
 import json
 from typing import List, Tuple, Dict, Optional, Type, Any
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import tempfile
 from sklearn.datasets import make_classification
 import sklearn
@@ -43,9 +44,9 @@ kCols = 10
 kWorkers = 5
 
 
-def _get_client_workers(client: "Client") -> Dict[str, Dict]:
+def _get_client_workers(client: "Client") -> List[str]:
     workers = client.scheduler_info()['workers']
-    return workers
+    return list(workers.keys())
 
 
 def generate_array(
@@ -967,7 +968,7 @@ class TestWithDask:
 
         with LocalCluster(n_workers=4) as cluster:
             with Client(cluster) as client:
-                workers = list(_get_client_workers(client).keys())
+                workers = _get_client_workers(client)
                 rabit_args = client.sync(
                     xgb.dask._get_rabit_args, len(workers), client)
                 futures = client.map(runit,
@@ -1000,7 +1001,7 @@ class TestWithDask:
     def test_n_workers(self) -> None:
         with LocalCluster(n_workers=2) as cluster:
             with Client(cluster) as client:
-                workers = list(_get_client_workers(client).keys())
+                workers = _get_client_workers(client)
                 from sklearn.datasets import load_breast_cancer
                 X, y = load_breast_cancer(return_X_y=True)
                 dX = client.submit(da.from_array, X, workers=[workers[0]]).result()
@@ -1090,7 +1091,7 @@ class TestWithDask:
                 X, y, _ = generate_array()
                 n_partitions = X.npartitions
                 m = xgb.dask.DaskDMatrix(client, X, y)
-                workers = list(_get_client_workers(client).keys())
+                workers = _get_client_workers(client)
                 rabit_args = client.sync(xgb.dask._get_rabit_args, len(workers), client)
                 n_workers = len(workers)
 
@@ -1283,6 +1284,72 @@ def test_dask_unsupported_features(client: "Client") -> None:
         xgb.dask.train(
             client, {"booster": "gblinear"}, xgb.dask.DaskDMatrix(client, X, y)
         )
+
+
+def test_parallel_submits(client: "Client"):
+    """Test for running multiple train simultaneously from single clients."""
+    from sklearn.datasets import load_digits
+
+    futures = []
+    workers = _get_client_workers(client)
+    n_submits = len(workers)
+    for i in range(n_submits):
+        X_, y_ = load_digits(return_X_y=True)
+        X = dd.from_array(X_, chunksize=32)
+        y = dd.from_array(y_, chunksize=32)
+        cls = xgb.dask.DaskXGBClassifier(
+            verbosity=1,
+            n_estimators=i + 1,
+            eval_metric="merror",
+            use_label_encoder=False,
+        )
+        f = client.submit(cls.fit, X, y, pure=False)
+        futures.append(f)
+
+    classifiers = client.gather(futures)
+    assert len(classifiers) == n_submits
+    for i, cls in enumerate(classifiers):
+        assert cls.get_booster().num_boosted_rounds() == i + 1
+
+
+def test_parallel_submit_multi_clients():
+    """Test for running multiple train simultaneously from multiple clients."""
+    from sklearn.datasets import load_digits
+
+    with LocalCluster(n_workers=4) as cluster:
+        with Client(cluster) as client:
+            workers = _get_client_workers(client)
+
+        n_submits = len(workers)
+        assert n_submits == 4
+        futures = []
+
+        for i in range(n_submits):
+            client = Client(cluster)
+            X_, y_ = load_digits(return_X_y=True)
+            X_ += 1.0
+            X = dd.from_array(X_, chunksize=32)
+            y = dd.from_array(y_, chunksize=32)
+            cls = xgb.dask.DaskXGBClassifier(
+                verbosity=1,
+                n_estimators=i + 1,
+                eval_metric="merror",
+                use_label_encoder=False,
+            )
+            f = client.submit(cls.fit, X, y, pure=False)
+            futures.append((client, f))
+
+        t_futures = []
+        with ThreadPoolExecutor(max_workers=16) as e:
+            for i in range(n_submits):
+                def _():
+                    return futures[i][0].compute(futures[i][1]).result()
+
+                f = e.submit(_)
+                t_futures.append(f)
+
+        for i, f in enumerate(t_futures):
+            assert f.result().get_booster().num_boosted_rounds() == i + 1
 
 
 class TestDaskCallbacks:
