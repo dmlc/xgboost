@@ -1118,7 +1118,7 @@ class DeviceQuantileDMatrix(DMatrix):
             ctypes.c_int(self.max_bin),
             ctypes.byref(handle),
         )
-        if it.exception:
+        if it.exception is not None:
             raise it.exception
         # delay check_call to throw intermediate exception first
         _check_call(ret)
@@ -1315,7 +1315,7 @@ class Booster(object):
             self.handle,
             ctypes.byref(length),
             ctypes.byref(json_string)))
-        json_string = json_string.value.decode()
+        json_string = json_string.value.decode()  # NOLINT
         return json_string
 
     def load_config(self, config):
@@ -1508,7 +1508,7 @@ class Booster(object):
                                               dmats, evnames,
                                               c_bst_ulong(len(evals)),
                                               ctypes.byref(msg)))
-        res = msg.value.decode()
+        res = msg.value.decode()  # NOLINT
         if feval is not None:
             for dmat, evname in evals:
                 feval_ret = feval(self.predict(dmat, training=False,
