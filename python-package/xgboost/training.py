@@ -180,7 +180,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
 
         .. code-block:: python
 
-            [xgb.callback.reset_learning_rate(custom_rates)]
+            [xgb.callback.LearningRateScheduler(custom_rates)]
 
     Returns
     -------
@@ -206,6 +206,11 @@ class CVPack(object):
         self.dtest = dtest
         self.watchlist = [(dtrain, 'train'), (dtest, 'test')]
         self.bst = Booster(param, [dtrain, dtest])
+
+    def __getattr__(self, name):
+        def _inner(*args, **kwargs):
+            return getattr(self.bst, name)(*args, **kwargs)
+        return _inner
 
     def update(self, iteration, fobj):
         """"Update the boosters for one iteration"""
@@ -239,15 +244,24 @@ class _PackedBooster:
         '''Redirect to booster attr.'''
         return self.cvfolds[0].bst.attr(key)
 
+    def set_param(self, params, value=None):
+        """Iterate through folds for set_param"""
+        for f in self.cvfolds:
+            f.bst.set_param(params, value)
+
+    def num_boosted_rounds(self):
+        '''Number of boosted rounds.'''
+        return self.cvfolds[0].num_boosted_rounds()
+
     @property
     def best_iteration(self):
         '''Get best_iteration'''
-        ret = self.cvfolds[0].bst.attr('best_iteration')
-        return int(ret)
+        return int(self.cvfolds[0].bst.attr("best_iteration"))
 
-    def num_boosted_rounds(self) -> int:
-        '''Number of boosted rounds.'''
-        return self.cvfolds[0].bst.num_boosted_rounds()
+    @property
+    def best_score(self):
+        """Get best_score."""
+        return float(self.cvfolds[0].bst.attr("best_score"))
 
 
 def groups_to_rows(groups, boundaries):
@@ -419,7 +433,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
 
         .. code-block:: python
 
-            [xgb.callback.reset_learning_rate(custom_rates)]
+            [xgb.callback.LearningRateScheduler(custom_rates)]
     shuffle : bool
         Shuffle data before creating folds.
 
