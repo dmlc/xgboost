@@ -303,11 +303,11 @@ class DaskDMatrix:
                 ' of columns for your dask Array explicitly. e.g.' \
                 ' chunks=(partition_size, X.shape[1])'
 
-        data = data.persist()
+        data = client.persist(data)
         for meta in [label, weights, base_margin, label_lower_bound,
                      label_upper_bound]:
             if meta is not None:
-                meta = meta.persist()
+                meta = client.persist(meta)
         # Breaking data into partitions, a trick borrowed from dask_xgboost.
 
         # `to_delayed` downgrades high-level objects into numpy or pandas
