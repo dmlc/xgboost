@@ -15,10 +15,7 @@
  */
 package ml.dmlc.xgboost4j.java;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.*;
 
 import org.apache.commons.logging.Log;
@@ -56,9 +53,28 @@ public class XGBoost {
    * @throws XGBoostError
    * @throws IOException
    */
-  public static Booster loadModel(InputStream in)
-          throws XGBoostError, IOException {
-    return Booster.loadModel(in);
+  public static Booster loadModel(InputStream in) throws XGBoostError, IOException {
+    int size;
+    byte[] buf = new byte[1<<20];
+    ByteArrayOutputStream os = new ByteArrayOutputStream();
+    while ((size = in.read(buf)) != -1) {
+      os.write(buf, 0, size);
+    }
+    in.close();
+    return Booster.loadModel(buf);
+  }
+
+  /**
+   * Load a new Booster model from a byte array buffer.
+   * The assumption is the array only contains one XGBoost Model.
+   * This can be used to load existing booster models saved by other xgboost bindings.
+   *
+   * @param buffer The byte contents of the booster.
+   * @return The create boosted
+   * @throws XGBoostError
+   */
+  public static Booster loadModel(byte[] buffer) throws XGBoostError, IOException {
+    return Booster.loadModel(buffer);
   }
 
   /**
