@@ -1119,7 +1119,9 @@ class DeviceQuantileDMatrix(DMatrix):
             ctypes.byref(handle),
         )
         if it.exception is not None:
-            raise it.exception
+            #  pylint 2.7.0 believes `it.exception` can be None even with `assert
+            #  isinstace`
+            raise it.exception  # pylint: disable=raising-bad-type
         # delay check_call to throw intermediate exception first
         _check_call(ret)
         self.handle = handle
@@ -1315,7 +1317,7 @@ class Booster(object):
             self.handle,
             ctypes.byref(length),
             ctypes.byref(json_string)))
-        json_string = json_string.value.decode()  # NOLINT
+        json_string = json_string.value.decode()  # pylint: disable=no-member
         return json_string
 
     def load_config(self, config):
@@ -1508,7 +1510,7 @@ class Booster(object):
                                               dmats, evnames,
                                               c_bst_ulong(len(evals)),
                                               ctypes.byref(msg)))
-        res = msg.value.decode()  # NOLINT
+        res = msg.value.decode()  # pylint: disable=no-member
         if feval is not None:
             for dmat, evname in evals:
                 feval_ret = feval(self.predict(dmat, training=False,

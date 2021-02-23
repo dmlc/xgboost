@@ -712,7 +712,7 @@ def _create_dmatrix(
     T = TypeVar('T')
 
     def concat_or_none(data: Tuple[Optional[T], ...]) -> Optional[T]:
-        if any([part is None for part in data]):
+        if any(part is None for part in data):
             return None
         return concat(data)
 

@@ -293,14 +293,12 @@ def _wrap_evaluation_matrices(
         evals = list(zip(evals, eval_names))
     else:
         if any(
-            [
-                meta is not None
-                for meta in [
-                    sample_weight_eval_set,
-                    base_margin_eval_set,
-                    eval_group,
-                    eval_qid,
-                ]
+            meta is not None
+            for meta in [
+                sample_weight_eval_set,
+                base_margin_eval_set,
+                eval_group,
+                eval_qid,
             ]
         ):
             raise ValueError(
