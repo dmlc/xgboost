@@ -1181,17 +1181,13 @@ class Booster(object):
         """
         for d in cache:
             if not isinstance(d, DMatrix):
-                raise TypeError(
-                    "invalid cache item: {}".format(type(d).__name__), cache
-                )
+                raise TypeError('invalid cache item: {}'.format(type(d).__name__), cache)
+            self._validate_features(d)
 
         dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
         self.handle = ctypes.c_void_p()
-        _check_call(
-            _LIB.XGBoosterCreate(
-                dmats, c_bst_ulong(len(cache)), ctypes.byref(self.handle)
-            )
-        )
+        _check_call(_LIB.XGBoosterCreate(dmats, c_bst_ulong(len(cache)),
+                                         ctypes.byref(self.handle)))
         for d in cache:
             # Validate feature only after the feature names are saved into booster.
             self._validate_features(d)
@@ -1402,7 +1398,8 @@ class Booster(object):
                 if not isinstance(value, STRING_TYPES):
                     raise ValueError("Set Attr only accepts string values")
                 value = c_str(str(value))
-            _check_call(_LIB.XGBoosterSetAttr(self.handle, c_str(key), value))
+            _check_call(_LIB.XGBoosterSetAttr(
+                self.handle, c_str(key), value))
 
     def _get_feature_info(self, field: str):
         length = c_bst_ulong()
