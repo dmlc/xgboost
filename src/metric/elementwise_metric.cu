@@ -270,21 +270,6 @@ struct EvalPoissonNegLogLik {
   }
 };
 
-struct EvalGammaDeviance {
-  const char *Name() const {
-    return "gamma-deviance";
-  }
-
-  XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
-    bst_float epsilon = 1.0e-9;
-    bst_float tmp = label / (pred + epsilon);
-    return tmp - std::log(tmp) - 1;
-  }
-  static bst_float GetFinal(bst_float esum, bst_float wsum) {
-    return 2 * esum;
-  }
-};
-
 struct EvalGammaNLogLik {
   static const char *Name() {
     return "gamma-nloglik";
@@ -398,10 +383,6 @@ XGBOOST_REGISTER_METRIC(LogLoss, "logloss")
 XGBOOST_REGISTER_METRIC(PossionNegLoglik, "poisson-nloglik")
 .describe("Negative loglikelihood for poisson regression.")
 .set_body([](const char* param) { return new EvalEWiseBase<EvalPoissonNegLogLik>(); });
-
-XGBOOST_REGISTER_METRIC(GammaDeviance, "gamma-deviance")
-.describe("Residual deviance for gamma regression.")
-.set_body([](const char* param) { return new EvalEWiseBase<EvalGammaDeviance>(); });
 
 XGBOOST_REGISTER_METRIC(GammaNLogLik, "gamma-nloglik")
 .describe("Negative log-likelihood for gamma regression.")
