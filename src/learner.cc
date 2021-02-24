@@ -689,15 +689,17 @@ class LearnerIO : public LearnerConfiguration {
     }
 
     // feature names and types are saved in xgboost 1.4
-    if (learner.find("feature_names") != learner.cend()) {
-      auto const &feature_names = get<Array const>(learner.at("feature_names"));
+    auto it = learner.find("feature_names");
+    if (it != learner.cend()) {
+      auto const &feature_names = get<Array const>(it->second);
       feature_names_.clear();
       for (auto const &name : feature_names) {
         feature_names_.emplace_back(get<String const>(name));
       }
     }
-    if (learner.find("feature_types") != learner.cend()) {
-      auto const &feature_types = get<Array const>(learner.at("feature_types"));
+    it = learner.find("feature_types");
+    if (it != learner.cend()) {
+      auto const &feature_types = get<Array const>(it->second);
       feature_types_.clear();
       for (auto const &name : feature_types) {
         auto type = get<String const>(name);
