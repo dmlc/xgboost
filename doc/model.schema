@@ -88,6 +88,12 @@
                       "type": "number"
                     }
                   },
+                  "split_type": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
                   "default_left": {
                     "type": "array",
                     "items": {
@@ -247,6 +253,18 @@
     "learner": {
       "type": "object",
       "properties": {
+        "feature_names": {
+          "type": "array",
+          "items": {
+              "type": "string"
+          }
+        },
+        "feature_types": {
+          "type": "array",
+          "items": {
+              "type": "string"
+          }
+        },
         "gradient_booster": {
           "oneOf": [
             {
