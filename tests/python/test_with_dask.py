@@ -563,9 +563,7 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> xgb.dask.TrainR
                                    await client.compute(with_X))
         np.testing.assert_allclose(await client.compute(with_m),
                                    await client.compute(inplace))
-
-        client.shutdown()
-        return output
+    return output
 
 
 async def run_dask_regressor_asyncio(scheduler_address: str) -> None:
@@ -645,6 +643,25 @@ def test_with_asyncio() -> None:
 
             asyncio.run(run_dask_regressor_asyncio(address))
             asyncio.run(run_dask_classifier_asyncio(address))
+
+
+async def generate_concurrent_trainings() -> None:
+    async def train():
+        async with LocalCluster(n_workers=2,
+                                threads_per_worker=1,
+                                asynchronous=True,
+                                dashboard_address=0) as cluster:
+            async with Client(cluster, asynchronous=True) as client:
+                X, y, w = generate_array(with_weights=True)
+                dtrain = await DaskDMatrix(client, X, y, weight=w)
+                dvalid = await DaskDMatrix(client, X, y, weight=w)
+                output = await xgb.dask.train(client, {}, dtrain=dtrain)
+                await xgb.dask.predict(client, output, data=dvalid)
+    await asyncio.gather(train(), train())
+
+
+def test_concurrent_trainings() -> None:
+    asyncio.run(generate_concurrent_trainings())
 
 
 def test_predict(client: "Client") -> None:
