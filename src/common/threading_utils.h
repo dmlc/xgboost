@@ -115,11 +115,10 @@ void ParallelFor2d(const BlockedSpace2d& space, int nthreads, Func func) {
   nthreads = std::min(nthreads, omp_get_max_threads());
   nthreads = std::max(nthreads, 1);
 
-  dmlc::OMPException omp_exc;
+  dmlc::OMPException exc;
 #pragma omp parallel num_threads(nthreads)
   {
-    omp_exc.Run(
-        [](size_t num_blocks_in_space, const BlockedSpace2d& space, int nthreads, Func func) {
+    exc.Run([&]() {
       size_t tid = omp_get_thread_num();
       size_t chunck_size =
           num_blocks_in_space / nthreads + !!(num_blocks_in_space % nthreads);
@@ -129,19 +128,24 @@ void ParallelFor2d(const BlockedSpace2d& space, int nthreads, Func func) {
       for (auto i = begin; i < end; i++) {
         func(space.GetFirstDimension(i), space.GetRange(i));
       }
-    }, num_blocks_in_space, space, nthreads, func);
+    });
   }
-  omp_exc.Rethrow();
+  exc.Rethrow();
 }
 
-template <typename Func>
-void ParallelFor(size_t size, size_t nthreads, Func fn) {
-  dmlc::OMPException omp_exc;
-#pragma omp parallel for num_threads(nthreads)
-  for (omp_ulong i = 0; i < size; ++i) {
-    omp_exc.Run(fn, i);
+template <typename Index, typename Func>
+void ParallelFor(Index size, size_t nthreads, Func fn) {
+  dmlc::OMPException exc;
+#pragma omp parallel for num_threads(nthreads) schedule(static)
+  for (Index i = 0; i < size; ++i) {
+    exc.Run(fn, i);
   }
-  omp_exc.Rethrow();
+  exc.Rethrow();
+}
+
+template <typename Index, typename Func>
+void ParallelFor(Index size, Func fn) {
+  ParallelFor(size, omp_get_max_threads(), fn);
 }
 
 /* \brief Configure parallel threads.

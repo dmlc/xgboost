@@ -16,6 +16,7 @@
 #include "xgboost/span.h"
 
 #include "common.h"
+#include "threading_utils.h"
 
 #if defined (__CUDACC__)
 #include "device_helpers.cuh"
@@ -168,13 +169,10 @@ class Transform {
     template <typename... HDV>
     void LaunchCPU(Functor func, HDV*... vectors) const {
       omp_ulong end = static_cast<omp_ulong>(*(range_.end()));
-      dmlc::OMPException omp_exc;
       SyncHost(vectors...);
-#pragma omp parallel for schedule(static)
-      for (omp_ulong idx = 0; idx < end; ++idx) {
-        omp_exc.Run(func, idx, UnpackHDV(vectors)...);
-      }
-      omp_exc.Rethrow();
+      ParallelFor(end, [&](omp_ulong idx) {
+        func(idx, UnpackHDV(vectors)...);
+      });
     }
 
    private:

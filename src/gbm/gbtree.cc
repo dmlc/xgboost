@@ -27,6 +27,7 @@
 #include "../common/common.h"
 #include "../common/random.h"
 #include "../common/timer.h"
+#include "../common/threading_utils.h"
 
 namespace xgboost {
 namespace gbm {
@@ -219,10 +220,9 @@ void GBTree::DoBoost(DMatrix* p_fmat,
     bool update_predict = true;
     for (int gid = 0; gid < ngroup; ++gid) {
       std::vector<GradientPair>& tmp_h = tmp.HostVector();
-#pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
+      common::ParallelFor(nsize, [&](bst_omp_uint i) {
         tmp_h[i] = gpair_h[i * ngroup + gid];
-      }
+      });
       std::vector<std::unique_ptr<RegTree> > ret;
       BoostNewTrees(&tmp, p_fmat, gid, &ret);
       const size_t num_new_trees = ret.size();

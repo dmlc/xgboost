@@ -23,6 +23,7 @@
 #include "gblinear_model.h"
 #include "../common/timer.h"
 #include "../common/common.h"
+#include "../common/threading_utils.h"
 
 namespace xgboost {
 namespace gbm {
@@ -178,8 +179,7 @@ class GBLinear : public GradientBooster {
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
       auto page = batch.GetView();
-#pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
+      common::ParallelFor(nsize, [&](bst_omp_uint i) {
         auto inst = page[i];
         auto row_idx = static_cast<size_t>(batch.base_rowid + i);
         // loop over output groups
@@ -195,7 +195,7 @@ class GBLinear : public GradientBooster {
             ((base_margin.size() != 0) ? base_margin[row_idx * ngroup + gid] :
                                          learner_model_param_->base_score);
         }
-      }
+      });
     }
   }
 
@@ -246,8 +246,7 @@ class GBLinear : public GradientBooster {
       if (base_margin.size() != 0) {
         CHECK_EQ(base_margin.size(), nsize * ngroup);
       }
-#pragma omp parallel for schedule(static)
-      for (omp_ulong i = 0; i < nsize; ++i) {
+      common::ParallelFor(nsize, [&](omp_ulong i) {
         const size_t ridx = page.base_rowid + i;
         // loop over output groups
         for (int gid = 0; gid < ngroup; ++gid) {
@@ -256,7 +255,7 @@ class GBLinear : public GradientBooster {
               base_margin[ridx * ngroup + gid] : learner_model_param_->base_score;
           this->Pred(batch[i], &preds[ridx * ngroup], gid, margin);
         }
-      }
+      });
     }
     monitor_.Stop("PredictBatchInternal");
   }

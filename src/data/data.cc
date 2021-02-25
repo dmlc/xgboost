@@ -829,18 +829,16 @@ SparsePage SparsePage::GetTranspose(int num_columns) const {
   const int nthread = omp_get_max_threads();
   builder.InitBudget(num_columns, nthread);
   long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
-    auto page = this->GetView();
-#pragma omp parallel for default(none) shared(batch_size, builder, page) schedule(static)
-  for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
+  auto page = this->GetView();
+  common::ParallelFor(batch_size, [&](long i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     auto inst = page[i];
     for (const auto& entry : inst) {
       builder.AddBudget(entry.index, tid);
     }
-  }
+  });
   builder.InitStorage();
-#pragma omp parallel for default(none) shared(batch_size, builder, page) schedule(static)
-  for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
+  common::ParallelFor(batch_size, [&](long i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     auto inst = page[i];
     for (const auto& entry : inst) {
@@ -849,7 +847,7 @@ SparsePage SparsePage::GetTranspose(int num_columns) const {
           Entry(static_cast<bst_uint>(this->base_rowid + i), entry.fvalue),
           tid);
     }
-  }
+  });
   return transpose;
 }
 void SparsePage::Push(const SparsePage &batch) {
@@ -900,11 +898,11 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     return max_columns;
   }
   std::vector<std::vector<uint64_t>> max_columns_vector(nthread);
-  dmlc::OMPException exec;
+  dmlc::OMPException exc;
   // First-pass over the batch counting valid elements
 #pragma omp parallel num_threads(nthread)
   {
-    exec.Run([&]() {
+    exc.Run([&]() {
       int tid = omp_get_thread_num();
       size_t begin = tid*thread_size;
       size_t end = tid != (nthread-1) ? (tid+1)*thread_size : batch_size;
@@ -929,7 +927,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
       }
     });
   }
-  exec.Rethrow();
+  exc.Rethrow();
   for (const auto & max : max_columns_vector) {
     max_columns = std::max(max_columns, max[0]);
   }
@@ -940,7 +938,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
 
 #pragma omp parallel num_threads(nthread)
   {
-    exec.Run([&]() {
+    exc.Run([&]() {
       int tid = omp_get_thread_num();
       size_t begin = tid*thread_size;
       size_t end = tid != (nthread-1) ? (tid+1)*thread_size : batch_size;
@@ -956,7 +954,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
       }
     });
   }
-  exec.Rethrow();
+  exc.Rethrow();
   omp_set_num_threads(nthread_original);
 
   return max_columns;
