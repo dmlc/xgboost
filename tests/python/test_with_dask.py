@@ -652,7 +652,7 @@ async def generate_concurrent_trainings() -> None:
                                 asynchronous=True,
                                 dashboard_address=0) as cluster:
             async with Client(cluster, asynchronous=True) as client:
-                X, y, w = generate_array()
+                X, y, w = generate_array(with_weights=True)
                 dtrain = await DaskDMatrix(client, X, y, weight=w)
                 dvalid = await DaskDMatrix(client, X, y, weight=w)
                 output = await xgb.dask.train(client, {}, dtrain=dtrain)
