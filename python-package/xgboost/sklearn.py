@@ -59,6 +59,23 @@ def _objective_decorator(func):
     return inner
 
 
+def _metric_decorator(func: Callable) -> Metric:
+    """Decorate a metric function from sklearn.
+
+    Converts an objective function using the typical sklearn metrics signature so that it
+    is usable with ``xgboost.training.train``
+
+    """
+    def inner(y_score: np.ndarray, dmatrix: DMatrix) -> float:
+        y_true = dmatrix.get_label()
+        try:
+            return func.__name__, func(y_true, y_score)
+        except Exception:
+            # compatible with old impl.
+            return func(y_true, y_score)
+    return inner
+
+
 __estimator_doc = '''
     n_estimators : int
         Number of gradient boosted trees.  Equivalent to number of boosting
@@ -138,6 +155,42 @@ __model_doc = '''
         Device ordinal.
     validate_parameters :
         Give warnings for unknown parameter.
+    scoring :
+        Metric used for monitoring the training result and early stopping.  This can be a
+        string of list of string names of predefined metric in XGBoost (See
+        doc/parameter.rst), one of the metrics in :py:mod:`sklearn.metrics`, or any other
+        user defined metric that looks like `sklearn.metrics`.  Unlike scikit-learn, when
+        a callable object is provided in scikit-learn interface, it's assumed to be a cost
+        function and XGBoost will minimize the result by default. For advanced usage on
+        Early stopping like directly choosing to maximize instead of minimize, see
+        :py:obj:`xgboost.callbacks.EarlyStopping`.
+
+        .. versionadded:: 1.5.0
+
+        .. note::
+
+            This parameter replaces `eval_metric` in
+            :py:meth:`xgboost.sklearn.XGBModel.fit` method.
+
+     n_iter_no_change :
+        Activates early stopping. Validation metric needs to improve at least once in
+        every **n_iter_no_change** round(s) to continue training.  Requires at least
+        one item in **eval_set** in :py:meth:`xgboost.sklearn.XGBModel.fit`.
+
+        The method returns the model from the last iteration (not the best one).  If
+        there's more than one item in **eval_set**, the last entry will be used for early
+        stopping.  If there's more than one metric in **scoring**, the last metric will be
+        used for early stopping.
+
+        If early stopping occurs, the model will have three additional fields:
+        ``clf.best_score``, ``clf.best_iteration`` and ``clf.best_ntree_limit``.
+
+        .. versionadded:: 1.5.0
+
+        .. note::
+
+            This parameter replaces `early_stopping_rounds` in
+            :py:meth:`xgboost.sklearn.XGBModel.fit` method.
 
     \\*\\*kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of
@@ -343,6 +396,8 @@ class XGBModel(XGBModelBase):
         importance_type="gain",
         gpu_id=None,
         validate_parameters=None,
+        scoring: Optional[str, Callable] = None,
+        n_iter_no_change: Optional[int] = None,
         **kwargs
     ):
         if not SKLEARN_INSTALLED:
@@ -378,6 +433,8 @@ class XGBModel(XGBModelBase):
         self.importance_type = importance_type
         self.gpu_id = gpu_id
         self.validate_parameters = validate_parameters
+        self.scoring = scoring
+        self.n_iter_no_change = n_iter_no_change
 
     def _more_tags(self):
         '''Tags used for scikit-learn data validation.'''
@@ -481,7 +538,14 @@ class XGBModel(XGBModelBase):
         params = self.get_params()
         # Parameters that should not go into native learner.
         wrapper_specific = {
-            'importance_type', 'kwargs', 'missing', 'n_estimators', 'use_label_encoder'}
+            'importance_type',
+            'kwargs',
+            'missing',
+            'n_estimators',
+            'use_label_encoder',
+            "scoring",
+            "n_iter_no_change"
+        }
         filtered = dict()
         for k, v in params.items():
             if k not in wrapper_specific and not callable(v):
@@ -501,24 +565,6 @@ class XGBModel(XGBModelBase):
         return self._estimator_type  # pylint: disable=no-member
 
     def save_model(self, fname: str):
-        """Save the model to a file.
-
-        The model is saved in an XGBoost internal format which is universal
-        among the various XGBoost interfaces. Auxiliary attributes of the
-        Python Booster object (such as feature names) will not be saved.
-
-          .. note::
-
-            See:
-
-            https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html
-
-        Parameters
-        ----------
-        fname : string
-            Output file name
-
-        """
         meta = dict()
         for k, v in self.__dict__.items():
             if k == '_le':
@@ -542,20 +588,10 @@ class XGBModel(XGBModelBase):
         # Delete the attribute after save
         self.get_booster().set_attr(scikit_learn=None)
 
+    save_model.__doc__ = Booster.save_model.__doc__
+
     def load_model(self, fname):
         # pylint: disable=attribute-defined-outside-init
-        """Load the model from a file.
-
-        The model is loaded from an XGBoost internal format which is universal
-        among the various XGBoost interfaces. Auxiliary attributes of the
-        Python Booster object (such as feature names) will not be loaded.
-
-        Parameters
-        ----------
-        fname : string
-            Input file name.
-
-        """
         if not hasattr(self, '_Booster'):
             self._Booster = Booster({'n_jobs': self.n_jobs})
         self._Booster.load_model(fname)
@@ -589,22 +625,50 @@ class XGBModel(XGBModelBase):
         # Delete the attribute after load
         self.get_booster().set_attr(scikit_learn=None)
 
+    load_model.__doc__ = Booster.load_model.__doc__
+
     def _configure_fit(
         self,
         booster: Optional[Union[Booster, "XGBModel"]],
         eval_metric: Optional[Union[Callable, str, List[str]]],
         params: Dict[str, Any],
+        early_stopping_rounds: Optional[int],
     ) -> Tuple[Booster, Optional[Metric], Dict[str, Any]]:
-        # pylint: disable=protected-access, no-self-use
+        # pylint: disable=protected-access
         model = booster
         if hasattr(model, '_Booster'):
-            model = model._Booster  # Handle the case when xgb_model is a sklearn model object
-        feval = eval_metric if callable(eval_metric) else None
+            # Handle the case when xgb_model is a sklearn model object
+            model = model._Booster
+
+        if eval_metric is not None:
+            warnings.warn(
+                "eval_metric for `fit` method is deprecated, use `scoring` in "
+                "constructor or `set_params` instead.",
+                UserWarning
+            )
+        feval = _metric_decorator(eval_metric) if callable(eval_metric) else None
+        if self.scoring is not None and feval is not None:
+            warnings.warn("Overriding `eval_metric` with `scoring`", UserWarning)
+        feval = _metric_decorator(self.scoring) if callable(self.scoring) else feval
+
         if eval_metric is not None:
             if callable(eval_metric):
                 eval_metric = None
             else:
                 params.update({"eval_metric": eval_metric})
+
+        if early_stopping_rounds is not None:
+            warnings.warn(
+                "`early_stopping_rounds` is deprecated, use `n_iter_no_change` "
+                "in constructor instead.",
+                UserWarning,
+            )
+        early_stopping_rounds = (
+            self.n_iter_no_change
+            if self.n_iter_no_change is not None
+            else early_stopping_rounds
+        )
+
         return model, feval, params
 
     def _set_evaluation_result(self, evals_result: Optional[dict]) -> None:
@@ -654,26 +718,9 @@ class XGBModel(XGBModelBase):
             metrics will be computed.
             Validation metrics will help us track the performance of the model.
         eval_metric : str, list of str, or callable, optional
-            If a str, should be a built-in evaluation metric to use. See
-            doc/parameter.rst.
-            If a list of str, should be the list of multiple built-in evaluation metrics
-            to use.
-            If callable, a custom evaluation metric. The call signature is
-            ``func(y_predicted, y_true)`` where ``y_true`` will be a DMatrix object such
-            that you may need to call the ``get_label`` method. It must return a str,
-            value pair where the str is a name for the evaluation and value is the value
-            of the evaluation function. The callable custom objective is always minimized.
+            Deprecated, use `scoring` in constructor instead.
         early_stopping_rounds : int
-            Activates early stopping. Validation metric needs to improve at least once in
-            every **early_stopping_rounds** round(s) to continue training.
-            Requires at least one item in **eval_set**.
-            The method returns the model from the last iteration (not the best one).
-            If there's more than one item in **eval_set**, the last entry will be used
-            for early stopping.
-            If there's more than one metric in **eval_metric**, the last metric will be
-            used for early stopping.
-            If early stopping occurs, the model will have three additional fields:
-            ``clf.best_score``, ``clf.best_iteration`` and ``clf.best_ntree_limit``.
+            Deprecated, use `n_iter_no_change` in constructor instead.
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation metric
             measured on the validation set to stderr.
@@ -728,7 +775,9 @@ class XGBModel(XGBModelBase):
         else:
             obj = None
 
-        model, feval, params = self._configure_fit(xgb_model, eval_metric, params)
+        model, feval, params, early_stopping_rounds = self._configure_fit(
+            xgb_model, eval_metric, params, early_stopping_rounds
+        )
         self._Booster = train(
             params,
             train_dmatrix,
@@ -1148,7 +1197,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         else:
             label_transform = lambda x: x
 
-        model, feval, params = self._configure_fit(xgb_model, eval_metric, params)
+        model, feval, params, early_stopping_rounds = self._configure_fit(
+            xgb_model, eval_metric, params, early_stopping_rounds
+        )
         if len(X.shape) != 2:
             # Simply raise an error here since there might be many
             # different ways of reshaping
@@ -1277,8 +1328,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         If **eval_set** is passed to the `fit` function, you can call
         ``evals_result()`` to get evaluation results for all passed **eval_sets**.
-        When **eval_metric** is also passed to the `fit` function, the
-        **evals_result** will contain the **eval_metrics** passed to the `fit` function.
+
+        When **scoring** is also passed as a parameter, the **evals_result** will contain
+        the **scoring** passed to the `fit` function.
 
         Returns
         -------
@@ -1289,13 +1341,14 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         .. code-block:: python
 
-            param_dist = {'objective':'binary:logistic', 'n_estimators':2}
+            param_dist = {
+                'objective':'binary:logistic', 'n_estimators':2, scoring="logloss"
+            }
 
             clf = xgb.XGBClassifier(**param_dist)
 
             clf.fit(X_train, y_train,
                     eval_set=[(X_train, y_train), (X_test, y_test)],
-                    eval_metric='logloss',
                     verbose=True)
 
             evals_result = clf.evals_result()
@@ -1500,21 +1553,9 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             A list in which ``eval_qid[i]`` is the array containing query ID of ``i``-th
             pair in **eval_set**.
         eval_metric : str, list of str, optional
-            If a str, should be a built-in evaluation metric to use. See
-            doc/parameter.rst.
-            If a list of str, should be the list of multiple built-in evaluation metrics
-            to use. The custom evaluation metric is not yet supported for the ranker.
+            The custom evaluation metric is not yet supported for the ranker.
         early_stopping_rounds : int
-            Activates early stopping. Validation metric needs to improve at least once in
-            every **early_stopping_rounds** round(s) to continue training.  Requires at
-            least one item in **eval_set**.
-            The method returns the model from the last iteration (not the best one).  If
-            there's more than one item in **eval_set**, the last entry will be used for
-            early stopping.
-            If there's more than one metric in **eval_metric**, the last metric will be
-            used for early stopping.
-            If early stopping occurs, the model will have three additional fields:
-            ``clf.best_score``, ``clf.best_iteration`` and ``clf.best_ntree_limit``.
+            Deprecated, use `n_iter_no_change` in constructor instead.
         verbose : bool
             If `verbose` and an evaluation set is used, writes the evaluation metric
             measured on the validation set to stderr.
@@ -1578,7 +1619,9 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
         evals_result = {}
         params = self.get_xgb_params()
 
-        model, feval, params = self._configure_fit(xgb_model, eval_metric, params)
+        model, feval, params, early_stopping_rounds = self._configure_fit(
+            xgb_model, eval_metric, params, early_stopping_rounds
+        )
         if callable(feval):
             raise ValueError(
                 'Custom evaluation metric is not yet supported for XGBRanker.'

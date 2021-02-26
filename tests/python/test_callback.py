@@ -144,7 +144,7 @@ class TestCallbacks:
         early_stopping_rounds = 5
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds)
         cls.fit(X, y, eval_set=[(X, y)],
-                eval_metric=tm.eval_error_metric,
+                eval_metric=tm.eval_error_metric_skl,
                 callbacks=[early_stop])
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format='json')
@@ -159,7 +159,7 @@ class TestCallbacks:
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
                                                 save_best=True)
         cls.fit(X, y, eval_set=[(X, y)],
-                eval_metric=tm.eval_error_metric, callbacks=[early_stop])
+                eval_metric=tm.eval_error_metric_skl, callbacks=[early_stop])
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format='json')
         assert len(dump) == booster.best_iteration + 1
@@ -168,7 +168,7 @@ class TestCallbacks:
                                                 save_best=True)
         cls = xgb.XGBClassifier(booster='gblinear', n_estimators=10)
         with pytest.raises(ValueError):
-            cls.fit(X, y, eval_set=[(X, y)], eval_metric=tm.eval_error_metric,
+            cls.fit(X, y, eval_set=[(X, y)], eval_metric=tm.eval_error_metric_skl,
                     callbacks=[early_stop])
 
         # No error
@@ -176,7 +176,7 @@ class TestCallbacks:
                                                 save_best=False)
         xgb.XGBClassifier(booster='gblinear', n_estimators=10).fit(
             X, y, eval_set=[(X, y)],
-            eval_metric=tm.eval_error_metric,
+            eval_metric=tm.eval_error_metric_skl,
             callbacks=[early_stop])
 
     def test_early_stopping_continuation(self):
@@ -187,7 +187,7 @@ class TestCallbacks:
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
                                                 save_best=True)
         cls.fit(X, y, eval_set=[(X, y)],
-                eval_metric=tm.eval_error_metric,
+                eval_metric=tm.eval_error_metric_skl,
                 callbacks=[early_stop])
         booster = cls.get_booster()
         assert booster.num_boosted_rounds() == booster.best_iteration + 1
@@ -199,7 +199,7 @@ class TestCallbacks:
             cls.load_model(path)
             assert cls._Booster is not None
             early_stopping_rounds = 3
-            cls.fit(X, y, eval_set=[(X, y)], eval_metric=tm.eval_error_metric,
+            cls.fit(X, y, eval_set=[(X, y)], eval_metric=tm.eval_error_metric_skl,
                     early_stopping_rounds=early_stopping_rounds)
             booster = cls.get_booster()
             assert booster.num_boosted_rounds() == \
