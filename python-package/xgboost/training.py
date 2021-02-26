@@ -4,9 +4,12 @@
 """Training Library containing training routines."""
 import copy
 from typing import Optional, List
+import warnings
 
 import numpy as np
 from .core import Booster, XGBoostError, _get_booster_layer_trees
+from .core import _deprecate_positional_args
+from .core import Objective, Metric
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
 from . import callback
 
@@ -22,21 +25,48 @@ def _assert_new_callback(callbacks: Optional[List[callback.TrainingCallback]]) -
         )
 
 
-def _train_internal(params, dtrain,
-                    num_boost_round=10, evals=(),
-                    obj=None, feval=None,
-                    xgb_model=None, callbacks=None,
-                    evals_result=None, maximize=None,
-                    verbose_eval=None, early_stopping_rounds=None):
+def _configure_custom_metric(
+    feval: Optional[Metric], custom_metric: Optional[Metric]
+) -> Optional[Metric]:
+    if feval is not None:
+        link = "https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html"
+        warnings.warn(
+            "`feval` is deprecated, use `custom_metric` instead.  They have "
+            "different behavior when custom objective is also used."
+            f"See {link} for details on the `custom_metric`."
+        )
+    if feval is not None and custom_metric is not None:
+        raise ValueError(
+            "Bost `feval` and `custom_metric` are supplied.  Use `custom_metric` instead."
+        )
+    eval_metric = custom_metric if custom_metric is not None else feval
+    return eval_metric
+
+
+def _train_internal(
+    params,
+    dtrain,
+    num_boost_round=10,
+    evals=(),
+    obj=None,
+    feval=None,
+    custom_metric=None,
+    xgb_model=None,
+    callbacks=None,
+    evals_result=None,
+    maximize=None,
+    verbose_eval=None,
+    early_stopping_rounds=None,
+):
     """internal training function"""
     callbacks = [] if callbacks is None else copy.copy(callbacks)
+    metric_fn = _configure_custom_metric(feval, custom_metric)
     evals = list(evals)
 
     bst = Booster(params, [dtrain] + [d[0] for d in evals])
 
     if xgb_model is not None:
-        bst = Booster(params, [dtrain] + [d[0] for d in evals],
-                      model_file=xgb_model)
+        bst = Booster(params, [dtrain] + [d[0] for d in evals], model_file=xgb_model)
 
     start_iteration = 0
 
@@ -48,7 +78,14 @@ def _train_internal(params, dtrain,
         callbacks.append(
             callback.EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
         )
-    callbacks = callback.CallbackContainer(callbacks, metric=feval)
+    callbacks = callback.CallbackContainer(
+        callbacks,
+        metric=metric_fn,
+        # For old `feval` parameter, the behavior is unchanged.  For the new
+        # `custom_metric`, it will receive proper prediction result when custom objective
+        # is not used.
+        output_margin=callable(obj) or metric_fn is feval,
+    )
 
     bst = callbacks.before_training(bst)
 
@@ -89,9 +126,23 @@ def _train_internal(params, dtrain,
     return bst.copy()
 
 
-def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
-          maximize=None, early_stopping_rounds=None, evals_result=None,
-          verbose_eval=True, xgb_model=None, callbacks=None):
+@_deprecate_positional_args
+def train(
+    params,
+    dtrain,
+    num_boost_round=10,
+    *,
+    evals=(),
+    obj: Optional[Objective] = None,
+    feval=None,
+    maximize=None,
+    early_stopping_rounds=None,
+    evals_result=None,
+    verbose_eval=True,
+    xgb_model=None,
+    callbacks=None,
+    custom_metric: Optional[Metric] = None,
+):
     # pylint: disable=too-many-statements,too-many-branches, attribute-defined-outside-init
     """Train a booster with given parameters.
 
@@ -106,10 +157,13 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
     evals: list of pairs (DMatrix, string)
         List of validation sets for which metrics will evaluated during training.
         Validation metrics will help us track the performance of the model.
-    obj : function
-        Customized objective function.
-    feval : function
-        Customized evaluation function.
+    obj
+        Custom objective function.  See `Custom Objective
+        <https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html>`_ for
+        details.
+    feval :
+        .. deprecated:: 1.5.1
+            Use `custom_metric` instead.
     maximize : bool
         Whether to maximize feval.
     early_stopping_rounds: int
@@ -158,23 +212,37 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
 
             [xgb.callback.LearningRateScheduler(custom_rates)]
 
+    custom_metric:
+
+        .. versionadded 1.5.1
+
+        Custom metric function.  See `Custom Metric
+        <https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html>`_ for
+        details.
+
     Returns
     -------
     Booster : a trained booster model
     """
-    bst = _train_internal(params, dtrain,
-                          num_boost_round=num_boost_round,
-                          evals=evals,
-                          obj=obj, feval=feval,
-                          xgb_model=xgb_model, callbacks=callbacks,
-                          verbose_eval=verbose_eval,
-                          evals_result=evals_result,
-                          maximize=maximize,
-                          early_stopping_rounds=early_stopping_rounds)
+    bst = _train_internal(
+        params,
+        dtrain,
+        num_boost_round=num_boost_round,
+        evals=evals,
+        obj=obj,
+        feval=feval,
+        xgb_model=xgb_model,
+        callbacks=callbacks,
+        verbose_eval=verbose_eval,
+        evals_result=evals_result,
+        maximize=maximize,
+        early_stopping_rounds=early_stopping_rounds,
+        custom_metric=custom_metric,
+    )
     return bst
 
 
-class CVPack(object):
+class CVPack:
     """"Auxiliary datastruct to hold one fold of CV."""
     def __init__(self, dtrain, dtest, param):
         """"Initialize the CVPack"""
@@ -192,9 +260,9 @@ class CVPack(object):
         """"Update the boosters for one iteration"""
         self.bst.update(self.dtrain, iteration, fobj)
 
-    def eval(self, iteration, feval):
+    def eval(self, iteration, feval, output_margin):
         """"Evaluate the CVPack for one iteration."""
-        return self.bst.eval_set(self.watchlist, iteration, feval)
+        return self.bst.eval_set(self.watchlist, iteration, feval, output_margin)
 
 
 class _PackedBooster:
@@ -206,9 +274,9 @@ class _PackedBooster:
         for fold in self.cvfolds:
             fold.update(iteration, obj)
 
-    def eval(self, iteration, feval):
+    def eval(self, iteration, feval, output_margin):
         '''Iterate through folds for eval'''
-        result = [f.eval(iteration, feval) for f in self.cvfolds]
+        result = [f.eval(iteration, feval, output_margin) for f in self.cvfolds]
         return result
 
     def set_attr(self, **kwargs):
@@ -345,9 +413,10 @@ def mknfold(dall, nfold, param, seed, evals=(), fpreproc=None, stratified=False,
 
 
 def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None,
-       metrics=(), obj=None, feval=None, maximize=None, early_stopping_rounds=None,
+       metrics=(), obj: Optional[Objective] = None,
+       feval=None, maximize=None, early_stopping_rounds=None,
        fpreproc=None, as_pandas=True, verbose_eval=None, show_stdv=True,
-       seed=0, callbacks=None, shuffle=True):
+       seed=0, callbacks=None, shuffle=True, custom_metric: Optional[Metric] = None):
     # pylint: disable = invalid-name
     """Cross-validation with given parameters.
 
@@ -372,10 +441,15 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         indices to be used as the testing samples for the ``n`` th fold.
     metrics : string or list of strings
         Evaluation metrics to be watched in CV.
-    obj : function
-        Custom objective function.
+    obj :
+
+        Custom objective function.  See `Custom Objective
+        <https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html>`_ for
+        details.
+
     feval : function
-        Custom evaluation function.
+        .. deprecated:: 1.5.1
+            Use `custom_metric` instead.
     maximize : bool
         Whether to maximize feval.
     early_stopping_rounds: int
@@ -412,6 +486,13 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
             [xgb.callback.LearningRateScheduler(custom_rates)]
     shuffle : bool
         Shuffle data before creating folds.
+    custom_metric :
+
+        .. versionadded 1.5.1
+
+        Custom metric function.  See `Custom Metric
+        <https://xgboost.readthedocs.io/en/latest/tutorials/custom_metric_obj.html>`_ for
+        details.
 
     Returns
     -------
@@ -443,6 +524,8 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     cvfolds = mknfold(dtrain, nfold, params, seed, metrics, fpreproc,
                       stratified, folds, shuffle)
 
+    metric_fn = _configure_custom_metric(feval, custom_metric)
+
     # setup callbacks
     callbacks = [] if callbacks is None else callbacks
     _assert_new_callback(callbacks)
@@ -456,7 +539,12 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
         callbacks.append(
             callback.EarlyStopping(rounds=early_stopping_rounds, maximize=maximize)
         )
-    callbacks = callback.CallbackContainer(callbacks, metric=feval, is_cv=True)
+    callbacks = callback.CallbackContainer(
+        callbacks,
+        metric=metric_fn,
+        is_cv=True,
+        output_margin=callable(obj) or metric_fn is feval,
+    )
 
     booster = _PackedBooster(cvfolds)
     callbacks.before_training(booster)

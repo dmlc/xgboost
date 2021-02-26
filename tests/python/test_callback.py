@@ -173,10 +173,11 @@ class TestCallbacks:
     def test_early_stopping_skl(self):
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)
-        cls = xgb.XGBClassifier()
         early_stopping_rounds = 5
-        cls.fit(X, y, eval_set=[(X, y)],
-                early_stopping_rounds=early_stopping_rounds, eval_metric='error')
+        cls = xgb.XGBClassifier(
+            early_stopping_rounds=early_stopping_rounds, eval_metric='error'
+        )
+        cls.fit(X, y, eval_set=[(X, y)])
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
@@ -184,12 +185,10 @@ class TestCallbacks:
     def test_early_stopping_custom_eval_skl(self):
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)
-        cls = xgb.XGBClassifier()
+        cls = xgb.XGBClassifier(eval_metric=tm.eval_error_metric_skl)
         early_stopping_rounds = 5
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds)
-        cls.fit(X, y, eval_set=[(X, y)],
-                eval_metric=tm.eval_error_metric,
-                callbacks=[early_stop])
+        cls.fit(X, y, eval_set=[(X, y)], callbacks=[early_stop])
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format='json')
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
@@ -198,41 +197,40 @@ class TestCallbacks:
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)
         n_estimators = 100
-        cls = xgb.XGBClassifier(n_estimators=n_estimators)
+        cls = xgb.XGBClassifier(
+            n_estimators=n_estimators, eval_metric=tm.eval_error_metric_skl
+        )
         early_stopping_rounds = 5
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
                                                 save_best=True)
-        cls.fit(X, y, eval_set=[(X, y)],
-                eval_metric=tm.eval_error_metric, callbacks=[early_stop])
+        cls.fit(X, y, eval_set=[(X, y)], callbacks=[early_stop])
         booster = cls.get_booster()
         dump = booster.get_dump(dump_format='json')
         assert len(dump) == booster.best_iteration + 1
 
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
                                                 save_best=True)
-        cls = xgb.XGBClassifier(booster='gblinear', n_estimators=10)
+        cls = xgb.XGBClassifier(
+            booster='gblinear', n_estimators=10, eval_metric=tm.eval_error_metric_skl
+        )
         with pytest.raises(ValueError):
-            cls.fit(X, y, eval_set=[(X, y)], eval_metric=tm.eval_error_metric,
-                    callbacks=[early_stop])
+            cls.fit(X, y, eval_set=[(X, y)], callbacks=[early_stop])
 
         # No error
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
                                                 save_best=False)
-        xgb.XGBClassifier(booster='gblinear', n_estimators=10).fit(
-            X, y, eval_set=[(X, y)],
-            eval_metric=tm.eval_error_metric,
-            callbacks=[early_stop])
+        xgb.XGBClassifier(
+            booster='gblinear', n_estimators=10, eval_metric=tm.eval_error_metric_skl
+        ).fit(X, y, eval_set=[(X, y)], callbacks=[early_stop])
 
     def test_early_stopping_continuation(self):
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)
-        cls = xgb.XGBClassifier()
+        cls = xgb.XGBClassifier(eval_metric=tm.eval_error_metric_skl)
         early_stopping_rounds = 5
         early_stop = xgb.callback.EarlyStopping(rounds=early_stopping_rounds,
                                                 save_best=True)
-        cls.fit(X, y, eval_set=[(X, y)],
-                eval_metric=tm.eval_error_metric,
-                callbacks=[early_stop])
+        cls.fit(X, y, eval_set=[(X, y)], callbacks=[early_stop])
         booster = cls.get_booster()
         assert booster.num_boosted_rounds() == booster.best_iteration + 1
 
@@ -243,8 +241,8 @@ class TestCallbacks:
             cls.load_model(path)
             assert cls._Booster is not None
             early_stopping_rounds = 3
-            cls.fit(X, y, eval_set=[(X, y)], eval_metric=tm.eval_error_metric,
-                    early_stopping_rounds=early_stopping_rounds)
+            cls.set_params(eval_metric=tm.eval_error_metric_skl)
+            cls.fit(X, y, eval_set=[(X, y)], early_stopping_rounds=early_stopping_rounds)
             booster = cls.get_booster()
             assert booster.num_boosted_rounds() == \
                 booster.best_iteration + early_stopping_rounds + 1
