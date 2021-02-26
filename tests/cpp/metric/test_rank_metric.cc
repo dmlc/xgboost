@@ -24,49 +24,6 @@ TEST(Metric, AMS) {
 }
 #endif
 
-TEST(Metric, DeclareUnifiedTest(AUC)) {
-  auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
-  xgboost::Metric * metric = xgboost::Metric::Create("auc", &tparam);
-  ASSERT_STREQ(metric->Name(), "auc");
-  EXPECT_NEAR(GetMetricEval(metric, {0, 1}, {0, 1}), 1, 1e-10);
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.1f, 0.9f, 0.1f, 0.9f},
-                            {  0,   0,   1,   1}),
-              0.5f, 0.001f);
-  EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {}));
-  EXPECT_ANY_THROW(GetMetricEval(metric, {0, 0}, {0, 0}));
-  EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1}, {1, 1}));
-
-  // AUC with instance weights
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.9f, 0.1f, 0.4f, 0.3f},
-                            {0,    0,    1,    1},
-                            {1.0f, 3.0f, 2.0f, 4.0f}),
-              0.75f, 0.001f);
-
-  // AUC for a ranking task without weights
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.9f, 0.1f, 0.4f, 0.3f, 0.7f},
-                            {0,    1,    0,    1,    1},
-                            {},
-                            {0, 2, 5}),
-              0.25f, 0.001f);
-
-  // AUC for a ranking task with weights/group
-  EXPECT_NEAR(GetMetricEval(metric,
-                            {0.9f, 0.1f, 0.4f, 0.3f, 0.7f},
-                            {1,    0,    1,    0,    0},
-                            {1, 2},
-                            {0, 2, 5}),
-              0.75f, 0.001f);
-
-  // AUC metric for grouped datasets - exception scenarios
-  EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1, 2}, {0, 0, 0}, {}, {0, 2, 3}));
-  EXPECT_ANY_THROW(GetMetricEval(metric, {0, 1, 2}, {1, 1, 1}, {}, {0, 2, 3}));
-
-  delete metric;
-}
-
 TEST(Metric, DeclareUnifiedTest(AUCPR)) {
   auto tparam = xgboost::CreateEmptyGenericParam(GPUIDX);
   xgboost::Metric *metric = xgboost::Metric::Create("aucpr", &tparam);
