@@ -89,7 +89,6 @@ class ParameterSuite extends FunSuite with PerTest with BeforeAndAfterAll {
       new XGBoostClassifier(paramMap).fit(trainingDF)
     }
 
-    println(s"thrown = ${thrown}")
     assert(thrown.getMessage.contains("custom_eval does not support early stopping"))
   }
 
