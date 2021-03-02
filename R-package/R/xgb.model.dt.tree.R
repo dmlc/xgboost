@@ -95,7 +95,7 @@ xgb.model.dt.tree <- function(feature_names = NULL, model = NULL, text = NULL,
 
   add.tree.id <- function(node, tree) if (use_int_id) node else paste(tree, node, sep = "-")
 
-  anynumber_regex <- "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?"
+  anynumber_regex <- "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?|[-+]?[Ii]nf"
 
   td <- data.table(t = text)
   td[position, Tree := 1L]
