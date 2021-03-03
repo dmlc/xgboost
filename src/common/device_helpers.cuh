@@ -1104,6 +1104,14 @@ XGBOOST_DEV_INLINE void AtomicAddGpair(OutputGradientT* dest,
             static_cast<typename OutputGradientT::ValueT>(gpair.GetHess()));
 }
 
+template <typename InputGradientT>
+XGBOOST_DEV_INLINE void AtomicAddGpair(xgboost::GradientPairInt32* dest,
+                                       const InputGradientT& gpair) {
+  auto dst_ptr = reinterpret_cast<typename xgboost::GradientPairInt32::ValueT*>(dest);
+
+  atomicAdd(dst_ptr, static_cast<int>(gpair.GetGrad()));
+  atomicAdd(dst_ptr + 1, static_cast<int>(gpair.GetHess()));
+}
 
 // Thrust version of this function causes error on Windows
 template <typename ReturnT, typename IterT, typename FuncT>

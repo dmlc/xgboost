@@ -259,6 +259,8 @@ using GradientPair = detail::GradientPairInternal<float>;
 /*! \brief High precision gradient statistics pair */
 using GradientPairPrecise = detail::GradientPairInternal<double>;
 
+using GradientPairInt32 = detail::GradientPairInternal<int>;
+
 using Args = std::vector<std::pair<std::string, std::string> >;
 
 /*! \brief small eps gap for minimum split decision. */
