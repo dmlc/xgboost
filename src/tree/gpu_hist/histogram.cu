@@ -175,7 +175,8 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   int device = 0;
   dh::safe_cuda(cudaGetDevice(&device));
   int max_shared_memory = dh::MaxSharedMemoryOptin(device);
-  size_t smem_size = sizeof(GradientSumT) * feature_groups.max_group_bins;
+  //size_t smem_size = sizeof(GradientSumT) * feature_groups.max_group_bins;
+  size_t smem_size = sizeof(GradientPairInt32) * feature_groups.max_group_bins;
   bool shared = smem_size <= max_shared_memory;
   smem_size = shared ? smem_size : 0;
 
