@@ -107,11 +107,10 @@ __global__ void SharedMemHistKernel(EllpackDeviceAccessor matrix,
                                     GradientSumT* __restrict__ d_node_hist,
                                     const GradientPair* __restrict__ d_gpair,
                                     GradientSumT const rounding,
+                                    GradientSumT adjust_rounding,
+                                    GradientSumT inv_adjust_rounding,
                                     bool use_shared_memory_histograms) {
   using T = typename GradientSumT::ValueT;
-  GradientSumT adjust_rounding = rounding / float(1 << 30);
-  GradientSumT inv_adjust_rounding = GradientSumT
-    (T(1) / adjust_rounding.GetGrad(), T(1) / adjust_rounding.GetHess());
   extern __shared__ char smem[];
   FeatureGroup group = feature_groups[blockIdx.y];
   //GradientSumT* smem_arr = reinterpret_cast<GradientSumT*>(smem);  // NOLINT
@@ -217,10 +216,16 @@ void BuildGradientHistogram(EllpackDeviceAccessor const& matrix,
   grid_size = common::DivRoundUp(grid_size,
       common::DivRoundUp(num_groups, num_groups_threshold));
 
+  using T = typename GradientSumT::ValueT;
+  GradientSumT adjust_rounding = rounding / float(1 << 30);
+  GradientSumT inv_adjust_rounding = GradientSumT
+    (T(1) / adjust_rounding.GetGrad(), T(1) / adjust_rounding.GetHess());
+  
   dh::LaunchKernel {
     dim3(grid_size, num_groups), static_cast<uint32_t>(block_threads), smem_size} (
       kernel,
-      matrix, feature_groups, d_ridx, histogram.data(), gpair.data(), rounding,
+      matrix, feature_groups, d_ridx, histogram.data(), gpair.data(),
+      rounding, adjust_rounding, inv_adjust_rounding,
       shared);
   dh::safe_cuda(cudaGetLastError());
 }
