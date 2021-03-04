@@ -116,6 +116,14 @@ TEST(SimpleDMatrix, MissingData) {
   CHECK_EQ(dmat->Info().num_nonzero_, 2);
   dmat.reset(new data::SimpleDMatrix(&adapter, 1.0, 1));
   CHECK_EQ(dmat->Info().num_nonzero_, 1);
+
+  {
+    data[1] = std::numeric_limits<float>::infinity();
+    data::DenseAdapter adapter(data.data(), data.size(), 1);
+    EXPECT_THROW(data::SimpleDMatrix dmat(
+                     &adapter, std::numeric_limits<float>::quiet_NaN(), -1),
+                 dmlc::Error);
+  }
 }
 
 TEST(SimpleDMatrix, EmptyRow) {
