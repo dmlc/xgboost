@@ -308,6 +308,7 @@ struct StringView {
  public:
   StringView() = default;
   StringView(CharT const* str, size_t size) : str_{str}, size_{size} {}
+  explicit StringView(std::string const& str): str_{str.c_str()}, size_{str.size()} {}
   explicit StringView(CharT const* str) : str_{str}, size_{Traits::length(str)} {}
 
   CharT const& operator[](size_t p) const { return str_[p]; }

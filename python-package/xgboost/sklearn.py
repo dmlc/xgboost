@@ -6,7 +6,8 @@ import warnings
 import json
 from typing import Union, Optional, List, Dict, Callable, Tuple, Any
 import numpy as np
-from .core import Booster, DMatrix, XGBoostError, _deprecate_positional_args
+from .core import Booster, DMatrix, XGBoostError
+from .core import _deprecate_positional_args, _convert_ntree_limit
 from .core import Metric
 from .training import train
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
@@ -84,7 +85,7 @@ __model_doc = '''
     n_jobs : int
         Number of parallel threads used to run xgboost.  When used with other Scikit-Learn
         algorithms like grid search, you may choose which algorithm to parallelize and
-        balance the threads.  Creating thread contention will significantly slow dowm both
+        balance the threads.  Creating thread contention will significantly slow down both
         algorithms.
     gamma : float
         Minimum loss reduction required to make a further partition on a leaf
@@ -292,14 +293,12 @@ def _wrap_evaluation_matrices(
         evals = list(zip(evals, eval_names))
     else:
         if any(
-            [
-                meta is not None
-                for meta in [
-                    sample_weight_eval_set,
-                    base_margin_eval_set,
-                    eval_group,
-                    eval_qid,
-                ]
+            meta is not None
+            for meta in [
+                sample_weight_eval_set,
+                base_margin_eval_set,
+                eval_group,
+                eval_qid,
             ]
         ):
             raise ValueError(
@@ -413,8 +412,8 @@ class XGBModel(XGBModelBase):
             # Simple optimization to gain speed (inspect is slow)
             return self
 
-        # this concatenates kwargs into paraemters, enabling `get_params` for
-        # obtaining parameters from keyword paraemters.
+        # this concatenates kwargs into parameters, enabling `get_params` for
+        # obtaining parameters from keyword parameters.
         for key, value in params.items():
             if hasattr(self, key):
                 setattr(self, key, value)
@@ -535,7 +534,7 @@ class XGBModel(XGBModelBase):
                 json.dumps({k: v})
                 meta[k] = v
             except TypeError:
-                warnings.warn(str(k) + ' is not saved in Scikit-Learn meta.')
+                warnings.warn(str(k) + ' is not saved in Scikit-Learn meta.', UserWarning)
         meta['_estimator_type'] = self._get_type()
         meta_str = json.dumps(meta)
         self.get_booster().set_attr(scikit_learn=meta_str)
@@ -747,26 +746,42 @@ class XGBModel(XGBModelBase):
         self._set_evaluation_result(evals_result)
         return self
 
+    def _can_use_inplace_predict(self) -> bool:
+        # When predictor is explicitly set, using `inplace_predict` might result into
+        # error with incompatible data type.
+        # Inplace predict doesn't handle as many data types as DMatrix, but it's
+        # sufficient for dask interface where input is simpiler.
+        params = self.get_params()
+        if params.get("predictor", None) is None and self.booster != "gblinear":
+            return True
+        return False
+
+    def _get_iteration_range(
+        self, iteration_range: Optional[Tuple[int, int]]
+    ) -> Tuple[int, int]:
+        if (iteration_range is None or iteration_range[1] == 0):
+            # Use best_iteration if defined.
+            try:
+                iteration_range = (0, self.best_iteration + 1)
+            except AttributeError:
+                iteration_range = (0, 0)
+        if self.booster == "gblinear":
+            iteration_range = (0, 0)
+        return iteration_range
+
     def predict(
         self,
         X,
         output_margin=False,
         ntree_limit=None,
         validate_features=True,
-        base_margin=None
+        base_margin=None,
+        iteration_range=None,
     ):
         """
         Predict with `X`.
 
-        .. note:: This function is not thread safe.
-
-          For each booster object, predict can only be called from one thread.
-          If you want to run prediction using multiple thread, call ``xgb.copy()`` to make copies
-          of model object and then call ``predict()``.
-
-          .. code-block:: python
-
-            preds = bst.predict(dtest, ntree_limit=num_round)
+        .. note:: This function is only thread safe for `gbtree` and `dart`.
 
         Parameters
         ----------
@@ -775,37 +790,58 @@ class XGBModel(XGBModelBase):
         output_margin : bool
             Whether to output the raw untransformed margin value.
         ntree_limit : int
-            Limit number of trees in the prediction; defaults to best_ntree_limit if
-            defined (i.e. it has been trained with early stopping), otherwise 0 (use all
-            trees).
+            Deprecated, use `iteration_range` instead.
         validate_features : bool
-            When this is True, validate that the Booster's and data's feature_names are identical.
-            Otherwise, it is assumed that the feature_names are the same.
+            When this is True, validate that the Booster's and data's feature_names are
+            identical.  Otherwise, it is assumed that the feature_names are the same.
         base_margin : array_like
             Margin added to prediction.
+        iteration_range :
+            Specifies which layer of trees are used in prediction.  For example, if a
+            random forest is trained with 100 rounds.  Specifying `iteration_range=(10,
+            20)`, then only the forests built during [10, 20) (half open set) rounds are
+            used in this prediction.
 
+            .. versionadded:: 1.4.0
         Returns
         -------
         prediction : numpy array
         """
-        # pylint: disable=missing-docstring,invalid-name
-        test_dmatrix = DMatrix(X, base_margin=base_margin,
-                               missing=self.missing, nthread=self.n_jobs)
-        # get ntree_limit to use - if none specified, default to
-        # best_ntree_limit if defined, otherwise 0.
-        if ntree_limit is None:
+        iteration_range = _convert_ntree_limit(
+            self.get_booster(), ntree_limit, iteration_range
+        )
+        iteration_range = self._get_iteration_range(iteration_range)
+        if self._can_use_inplace_predict():
             try:
-                ntree_limit = self.best_ntree_limit
-            except AttributeError:
-                ntree_limit = 0
+                predts = self.get_booster().inplace_predict(
+                    data=X,
+                    iteration_range=iteration_range,
+                    predict_type="margin" if output_margin else "value",
+                    missing=self.missing,
+                    base_margin=base_margin,
+                    validate_features=validate_features,
+                )
+                if _is_cupy_array(predts):
+                    import cupy     # pylint: disable=import-error
+                    predts = cupy.asnumpy(predts)  # ensure numpy array is used.
+                return predts
+            except TypeError:
+                # coo, csc, dt
+                pass
+
+        test = DMatrix(
+            X, base_margin=base_margin, missing=self.missing, nthread=self.n_jobs
+        )
         return self.get_booster().predict(
-            test_dmatrix,
+            data=test,
+            iteration_range=iteration_range,
             output_margin=output_margin,
-            ntree_limit=ntree_limit,
-            validate_features=validate_features
+            validate_features=validate_features,
         )
 
-    def apply(self, X, ntree_limit=0):
+    def apply(
+        self, X, ntree_limit: int = 0, iteration_range: Optional[Tuple[int, int]] = None
+    ) -> np.ndarray:
         """Return the predicted leaf every tree for each sample.
 
         Parameters
@@ -823,10 +859,16 @@ class XGBModel(XGBModelBase):
             leaf x ends up in. Leaves are numbered within
             ``[0; 2**(self.max_depth+1))``, possibly with gaps in the numbering.
         """
+        iteration_range = _convert_ntree_limit(
+            self.get_booster(), ntree_limit, iteration_range
+        )
+        iteration_range = self._get_iteration_range(iteration_range)
         test_dmatrix = DMatrix(X, missing=self.missing, nthread=self.n_jobs)
-        return self.get_booster().predict(test_dmatrix,
-                                          pred_leaf=True,
-                                          ntree_limit=ntree_limit)
+        return self.get_booster().predict(
+            test_dmatrix,
+            pred_leaf=True,
+            iteration_range=iteration_range
+        )
 
     def evals_result(self):
         """Return the evaluation results.
@@ -916,11 +958,18 @@ class XGBModel(XGBModelBase):
             raise AttributeError(
                 'Feature importance is not defined for Booster type {}'
                 .format(self.booster))
-        b = self.get_booster()
+        b: Booster = self.get_booster()
         score = b.get_score(importance_type=self.importance_type)
-        all_features = [score.get(f, 0.) for f in b.feature_names]
+        if b.feature_names is None:
+            feature_names = ["f{0}".format(i) for i in range(self.n_features_in_)]
+        else:
+            feature_names = b.feature_names
+        all_features = [score.get(f, 0.) for f in feature_names]
         all_features = np.array(all_features, dtype=np.float32)
-        return all_features / all_features.sum()
+        total = all_features.sum()
+        if total == 0:
+            return all_features
+        return all_features / total
 
     @property
     def coef_(self):
@@ -942,8 +991,7 @@ class XGBModel(XGBModelBase):
                 'Coefficients are not defined for Booster type {}'
                 .format(self.booster))
         b = self.get_booster()
-        coef = np.array(json.loads(
-            b.get_dump(dump_format='json')[0])['weight'])
+        coef = np.array(json.loads(b.get_dump(dump_format='json')[0])['weight'])
         # Logic for multiclass classification
         n_classes = getattr(self, 'n_classes_', None)
         if n_classes is not None:
@@ -1154,14 +1202,16 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         output_margin=False,
         ntree_limit=None,
         validate_features=True,
-        base_margin=None
+        base_margin=None,
+        iteration_range: Optional[Tuple[int, int]] = None,
     ):
         class_probs = super().predict(
             X=X,
             output_margin=output_margin,
             ntree_limit=ntree_limit,
             validate_features=validate_features,
-            base_margin=base_margin
+            base_margin=base_margin,
+            iteration_range=iteration_range,
         )
         if output_margin:
             # If output_margin is active, simply return the scores
@@ -1177,29 +1227,34 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             return self._le.inverse_transform(column_indexes)
         return column_indexes
 
-    def predict_proba(self, X, ntree_limit=None, validate_features=False,
-                      base_margin=None):
+    def predict_proba(
+        self,
+        X,
+        ntree_limit=None,
+        validate_features=False,
+        base_margin=None,
+        iteration_range: Optional[Tuple[int, int]] = None,
+    ) -> np.ndarray:
         """ Predict the probability of each `X` example being of a given class.
 
-        .. note:: This function is not thread safe
-
-            For each booster object, predict can only be called from one
-            thread.  If you want to run prediction using multiple thread, call
-            ``xgb.copy()`` to make copies of model object and then call predict
+        .. note:: This function is only thread safe for `gbtree` and `dart`.
 
         Parameters
         ----------
         X : array_like
             Feature matrix.
         ntree_limit : int
-            Limit number of trees in the prediction; defaults to best_ntree_limit if
-            defined (i.e. it has been trained with early stopping), otherwise 0 (use all
-            trees).
+            Deprecated, use `iteration_range` instead.
         validate_features : bool
             When this is True, validate that the Booster's and data's feature_names are
             identical.  Otherwise, it is assumed that the feature_names are the same.
         base_margin : array_like
             Margin added to prediction.
+        iteration_range :
+            Specifies which layer of trees are used in prediction.  For example, if a
+            random forest is trained with 100 rounds.  Specifying `iteration_range=(10,
+            20)`, then only the forests built during [10, 20) (half open set) rounds are
+            used in this prediction.
 
         Returns
         -------
@@ -1212,7 +1267,8 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             output_margin=False,
             ntree_limit=ntree_limit,
             validate_features=validate_features,
-            base_margin=base_margin
+            base_margin=base_margin,
+            iteration_range=iteration_range
         )
         return _cls_predict_proba(self.objective, class_probs, np.vstack)
 

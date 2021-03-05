@@ -21,6 +21,7 @@
 #include "xgboost/global_config.h"
 
 #include "c_api_error.h"
+#include "c_api_utils.h"
 #include "../common/io.h"
 #include "../common/charconv.h"
 #include "../data/adapter.h"
@@ -242,6 +243,21 @@ XGB_DLL int XGDMatrixCreateFromCSREx(const size_t* indptr,
   API_BEGIN();
   data::CSRAdapter adapter(indptr, indices, data, nindptr - 1, nelem, num_col);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, std::nan(""), 1));
+  API_END();
+}
+
+XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr,
+                                   char const *indices, char const *data,
+                                   xgboost::bst_ulong ncol,
+                                   char const* c_json_config,
+                                   DMatrixHandle* out) {
+  API_BEGIN();
+  data::CSRArrayAdapter adapter(StringView{indptr}, StringView{indices},
+                                StringView{data}, ncol);
+  auto config = Json::Load(StringView{c_json_config});
+  float missing = get<Number const>(config["missing"]);
+  auto nthread = get<Integer const>(config["nthread"]);
+  *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
   API_END();
 }
 
@@ -603,104 +619,144 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
   CHECK_HANDLE();
   auto *learner = static_cast<Learner*>(handle);
   auto& entry = learner->GetThreadLocal().prediction_entry;
-  learner->Predict(
-      *static_cast<std::shared_ptr<DMatrix>*>(dmat),
-      (option_mask & 1) != 0,
-      &entry.predictions, ntree_limit,
-      static_cast<bool>(training),
-      (option_mask & 2) != 0,
-      (option_mask & 4) != 0,
-      (option_mask & 8) != 0,
-      (option_mask & 16) != 0);
+  auto iteration_end = GetIterationFromTreeLimit(ntree_limit, learner);
+  learner->Predict(*static_cast<std::shared_ptr<DMatrix> *>(dmat),
+                   (option_mask & 1) != 0, &entry.predictions, 0, iteration_end,
+                   static_cast<bool>(training), (option_mask & 2) != 0,
+                   (option_mask & 4) != 0, (option_mask & 8) != 0,
+                   (option_mask & 16) != 0);
   *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
   *len = static_cast<xgboost::bst_ulong>(entry.predictions.Size());
   API_END();
 }
 
+XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
+                                        DMatrixHandle dmat,
+                                        char const* c_json_config,
+                                        xgboost::bst_ulong const **out_shape,
+                                        xgboost::bst_ulong *out_dim,
+                                        bst_float const **out_result) {
+  API_BEGIN();
+  if (handle == nullptr) {
+    LOG(FATAL) << "Booster has not been intialized or has already been disposed.";
+  }
+  if (dmat == nullptr) {
+    LOG(FATAL) << "DMatrix has not been intialized or has already been disposed.";
+  }
+  auto config = Json::Load(StringView{c_json_config});
+
+  auto *learner = static_cast<Learner*>(handle);
+  auto& entry = learner->GetThreadLocal().prediction_entry;
+  auto p_m = *static_cast<std::shared_ptr<DMatrix> *>(dmat);
+  auto type = PredictionType(get<Integer const>(config["type"]));
+  auto iteration_begin = get<Integer const>(config["iteration_begin"]);
+  auto iteration_end = get<Integer const>(config["iteration_end"]);
+  learner->Predict(
+      *static_cast<std::shared_ptr<DMatrix> *>(dmat),
+      type == PredictionType::kMargin, &entry.predictions, iteration_begin,
+      iteration_end, get<Boolean const>(config["training"]),
+      type == PredictionType::kLeaf, type == PredictionType::kContribution,
+      type == PredictionType::kApproxContribution,
+      type == PredictionType::kInteraction);
+  *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
+  auto &shape = learner->GetThreadLocal().prediction_shape;
+  auto chunksize = p_m->Info().num_row_ == 0 ? 0 : entry.predictions.Size() / p_m->Info().num_row_;
+  auto rounds = iteration_end - iteration_begin;
+  rounds = rounds == 0 ? learner->BoostedRounds() : rounds;
+  // Determine shape
+  bool strict_shape = get<Boolean const>(config["strict_shape"]);
+  CalcPredictShape(strict_shape, type, p_m->Info().num_row_,
+                   p_m->Info().num_col_, chunksize, learner->Groups(), rounds,
+                   &shape, out_dim);
+  *out_shape = dmlc::BeginPtr(shape);
+  API_END();
+}
+
+template <typename T>
+void InplacePredictImpl(std::shared_ptr<T> x, std::shared_ptr<DMatrix> p_m,
+                        char const *c_json_config, Learner *learner,
+                        size_t n_rows, size_t n_cols,
+                        xgboost::bst_ulong const **out_shape,
+                        xgboost::bst_ulong *out_dim, const float **out_result) {
+  auto config = Json::Load(StringView{c_json_config});
+  CHECK_EQ(get<Integer const>(config["cache_id"]), 0) << "Cache ID is not supported yet";
+
+  HostDeviceVector<float>* p_predt { nullptr };
+  auto type = PredictionType(get<Integer const>(config["type"]));
+  learner->InplacePredict(x, p_m, type, get<Number const>(config["missing"]),
+                          &p_predt,
+                          get<Integer const>(config["iteration_begin"]),
+                          get<Integer const>(config["iteration_end"]));
+  CHECK(p_predt);
+  auto &shape = learner->GetThreadLocal().prediction_shape;
+  auto chunksize = n_rows == 0 ? 0 : p_predt->Size() / n_rows;
+  bool strict_shape = get<Boolean const>(config["strict_shape"]);
+  CalcPredictShape(strict_shape, type, n_rows, n_cols, chunksize, learner->Groups(),
+                   learner->BoostedRounds(), &shape, out_dim);
+  *out_result = dmlc::BeginPtr(p_predt->HostVector());
+  *out_shape = dmlc::BeginPtr(shape);
+}
+
 // A hidden API as cache id is not being supported yet.
-XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle, float *values,
-                                      xgboost::bst_ulong n_rows,
-                                      xgboost::bst_ulong n_cols,
-                                      float missing,
-                                      unsigned iteration_begin,
-                                      unsigned iteration_end,
-                                      char const* c_type,
-                                      xgboost::bst_ulong cache_id,
-                                      xgboost::bst_ulong *out_len,
+XGB_DLL int XGBoosterPredictFromDense(BoosterHandle handle,
+                                      char const *array_interface,
+                                      char const *c_json_config,
+                                      DMatrixHandle m,
+                                      xgboost::bst_ulong const **out_shape,
+                                      xgboost::bst_ulong *out_dim,
                                       const float **out_result) {
   API_BEGIN();
   CHECK_HANDLE();
-  CHECK_EQ(cache_id, 0) << "Cache ID is not supported yet";
+  std::shared_ptr<xgboost::data::ArrayAdapter> x{
+      new xgboost::data::ArrayAdapter(StringView{array_interface})};
+  std::shared_ptr<DMatrix> p_m {nullptr};
+  if (m) {
+    p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
+  }
   auto *learner = static_cast<xgboost::Learner *>(handle);
-
-  std::shared_ptr<xgboost::data::DenseAdapter> x{
-    new xgboost::data::DenseAdapter(values, n_rows, n_cols)};
-  HostDeviceVector<float>* p_predt { nullptr };
-  std::string type { c_type };
-  learner->InplacePredict(x, type, missing, &p_predt, iteration_begin, iteration_end);
-  CHECK(p_predt);
-
-  *out_result = dmlc::BeginPtr(p_predt->HostVector());
-  *out_len = static_cast<xgboost::bst_ulong>(p_predt->Size());
+  InplacePredictImpl(x, p_m, c_json_config, learner, x->NumRows(),
+                     x->NumColumns(), out_shape, out_dim, out_result);
   API_END();
 }
 
 // A hidden API as cache id is not being supported yet.
-XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle,
-                                    const size_t* indptr,
-                                    const unsigned* indices,
-                                    const bst_float* data,
-                                    size_t nindptr,
-                                    size_t nelem,
-                                    size_t num_col,
-                                    float missing,
-                                    unsigned iteration_begin,
-                                    unsigned iteration_end,
-                                    char const *c_type,
-                                    xgboost::bst_ulong cache_id,
-                                    xgboost::bst_ulong *out_len,
+XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr,
+                                    char const *indices, char const *data,
+                                    xgboost::bst_ulong cols,
+                                    char const *c_json_config, DMatrixHandle m,
+                                    xgboost::bst_ulong const **out_shape,
+                                    xgboost::bst_ulong *out_dim,
                                     const float **out_result) {
   API_BEGIN();
   CHECK_HANDLE();
-  CHECK_EQ(cache_id, 0) << "Cache ID is not supported yet";
+  std::shared_ptr<xgboost::data::CSRArrayAdapter> x{
+      new xgboost::data::CSRArrayAdapter{
+          StringView{indptr}, StringView{indices}, StringView{data}, cols}};
+  std::shared_ptr<DMatrix> p_m {nullptr};
+  if (m) {
+    p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
+  }
   auto *learner = static_cast<xgboost::Learner *>(handle);
-
-  std::shared_ptr<xgboost::data::CSRAdapter> x{
-    new xgboost::data::CSRAdapter(indptr, indices, data, nindptr - 1, nelem, num_col)};
-  HostDeviceVector<float>* p_predt { nullptr };
-  std::string type { c_type };
-  learner->InplacePredict(x, type, missing, &p_predt, iteration_begin, iteration_end);
-  CHECK(p_predt);
-
-  *out_result = dmlc::BeginPtr(p_predt->HostVector());
-  *out_len = static_cast<xgboost::bst_ulong>(p_predt->Size());
+  InplacePredictImpl(x, p_m, c_json_config, learner, x->NumRows(),
+                     x->NumColumns(), out_shape, out_dim, out_result);
   API_END();
 }
 
 #if !defined(XGBOOST_USE_CUDA)
-XGB_DLL int XGBoosterPredictFromArrayInterfaceColumns(BoosterHandle handle,
-                                                      char const* c_json_strs,
-                                                      float missing,
-                                                      unsigned iteration_begin,
-                                                      unsigned iteration_end,
-                                                      char const* c_type,
-                                                      xgboost::bst_ulong cache_id,
-                                                      xgboost::bst_ulong *out_len,
-                                                      float const** out_result) {
+XGB_DLL int XGBoosterPredictFromCUDAArray(
+    BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
+    DMatrixHandle m, xgboost::bst_ulong const **out_shape, xgboost::bst_ulong *out_dim,
+    const float **out_result) {
   API_BEGIN();
   CHECK_HANDLE();
   common::AssertGPUSupport();
   API_END();
 }
-XGB_DLL int XGBoosterPredictFromArrayInterface(BoosterHandle handle,
-                                               char const* c_json_strs,
-                                               float missing,
-                                               unsigned iteration_begin,
-                                               unsigned iteration_end,
-                                               char const* c_type,
-                                               xgboost::bst_ulong cache_id,
-                                               xgboost::bst_ulong *out_len,
-                                               const float **out_result) {
+
+XGB_DLL int XGBoosterPredictFromCUDAColumnar(
+    BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
+    DMatrixHandle m, xgboost::bst_ulong const **out_shape, xgboost::bst_ulong *out_dim,
+    const float **out_result) {
   API_BEGIN();
   CHECK_HANDLE();
   common::AssertGPUSupport();
@@ -963,6 +1019,51 @@ XGB_DLL int XGBoosterGetAttrNames(BoosterHandle handle,
   }
   *out = dmlc::BeginPtr(charp_vecs);
   *out_len = static_cast<xgboost::bst_ulong>(charp_vecs.size());
+  API_END();
+}
+
+XGB_DLL int XGBoosterSetStrFeatureInfo(BoosterHandle handle, const char *field,
+                                       const char **features,
+                                       const xgboost::bst_ulong size) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto *learner = static_cast<Learner *>(handle);
+  std::vector<std::string> feature_info;
+  for (size_t i = 0; i < size; ++i) {
+    feature_info.emplace_back(features[i]);
+  }
+  if (!std::strcmp(field, "feature_name")) {
+    learner->SetFeatureNames(feature_info);
+  } else if (!std::strcmp(field, "feature_type")) {
+    learner->SetFeatureTypes(feature_info);
+  } else {
+    LOG(FATAL) << "Unknown field for Booster feature info:" << field;
+  }
+  API_END();
+}
+
+XGB_DLL int XGBoosterGetStrFeatureInfo(BoosterHandle handle, const char *field,
+                                       xgboost::bst_ulong *len,
+                                       const char ***out_features) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto const *learner = static_cast<Learner const *>(handle);
+  std::vector<const char *> &charp_vecs =
+      learner->GetThreadLocal().ret_vec_charp;
+  std::vector<std::string> &str_vecs = learner->GetThreadLocal().ret_vec_str;
+  if (!std::strcmp(field, "feature_name")) {
+    learner->GetFeatureNames(&str_vecs);
+  } else if (!std::strcmp(field, "feature_type")) {
+    learner->GetFeatureTypes(&str_vecs);
+  } else {
+    LOG(FATAL) << "Unknown field for Booster feature info:" << field;
+  }
+  charp_vecs.resize(str_vecs.size());
+  for (size_t i = 0; i < str_vecs.size(); ++i) {
+    charp_vecs[i] = str_vecs[i].c_str();
+  }
+  *out_features = dmlc::BeginPtr(charp_vecs);
+  *len = static_cast<xgboost::bst_ulong>(charp_vecs.size());
   API_END();
 }
 

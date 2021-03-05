@@ -53,18 +53,23 @@ class MultiClassMetricsReduction {
     int label_error = 0;
     bool const is_null_weight = weights.Size() == 0;
 
+    dmlc::OMPException exc;
 #pragma omp parallel for reduction(+: residue_sum, weights_sum) schedule(static)
     for (omp_ulong idx = 0; idx < ndata; ++idx) {
-      bst_float weight = is_null_weight ? 1.0f : h_weights[idx];
-      auto label = static_cast<int>(h_labels[idx]);
-      if (label >= 0 && label < static_cast<int>(n_class)) {
-        residue_sum += EvalRowPolicy::EvalRow(
-            label, h_preds.data() + idx * n_class, n_class) * weight;
-        weights_sum += weight;
-      } else {
-        label_error = label;
-      }
+      exc.Run([&]() {
+        bst_float weight = is_null_weight ? 1.0f : h_weights[idx];
+        auto label = static_cast<int>(h_labels[idx]);
+        if (label >= 0 && label < static_cast<int>(n_class)) {
+          residue_sum += EvalRowPolicy::EvalRow(
+              label, h_preds.data() + idx * n_class, n_class) * weight;
+          weights_sum += weight;
+        } else {
+          label_error = label;
+        }
+      });
     }
+    exc.Rethrow();
+
     CheckLabelError(label_error, n_class);
     PackedReduceResult res { residue_sum, weights_sum };
 

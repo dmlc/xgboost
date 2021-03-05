@@ -301,6 +301,7 @@ MetaInfo MetaInfo::Slice(common::Span<int32_t const> ridxs) const {
   out.feature_weigths.Copy(this->feature_weigths);
 
   out.feature_names = this->feature_names;
+  out.feature_types.Resize(this->feature_types.Size());
   out.feature_types.Copy(this->feature_types);
   out.feature_type_names = this->feature_type_names;
 
@@ -812,6 +813,9 @@ template DMatrix* DMatrix::Create<data::DataTableAdapter>(
 template DMatrix* DMatrix::Create<data::FileAdapter>(
     data::FileAdapter* adapter, float missing, int nthread,
     const std::string& cache_prefix, size_t page_size);
+template DMatrix* DMatrix::Create<data::CSRArrayAdapter>(
+    data::CSRArrayAdapter* adapter, float missing, int nthread,
+    const std::string& cache_prefix, size_t page_size);
 template DMatrix *
 DMatrix::Create(data::IteratorAdapter<DataIterHandle, XGBCallbackDataIterNext,
                                       XGBoostBatchCSR> *adapter,
@@ -825,18 +829,16 @@ SparsePage SparsePage::GetTranspose(int num_columns) const {
   const int nthread = omp_get_max_threads();
   builder.InitBudget(num_columns, nthread);
   long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
-    auto page = this->GetView();
-#pragma omp parallel for default(none) shared(batch_size, builder, page) schedule(static)
-  for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
+  auto page = this->GetView();
+  common::ParallelFor(batch_size, [&](long i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     auto inst = page[i];
     for (const auto& entry : inst) {
       builder.AddBudget(entry.index, tid);
     }
-  }
+  });
   builder.InitStorage();
-#pragma omp parallel for default(none) shared(batch_size, builder, page) schedule(static)
-  for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
+  common::ParallelFor(batch_size, [&](long i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     auto inst = page[i];
     for (const auto& entry : inst) {
@@ -845,7 +847,7 @@ SparsePage SparsePage::GetTranspose(int num_columns) const {
           Entry(static_cast<bst_uint>(this->base_rowid + i), entry.fvalue),
           tid);
     }
-  }
+  });
   return transpose;
 }
 void SparsePage::Push(const SparsePage &batch) {
@@ -897,6 +899,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   }
   std::vector<std::vector<uint64_t>> max_columns_vector(nthread);
   dmlc::OMPException exec;
+  std::atomic<bool> valid{true};
   // First-pass over the batch counting valid elements
 #pragma omp parallel num_threads(nthread)
   {
@@ -910,7 +913,10 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
       for (size_t i = begin; i < end; ++i) {
         auto line = batch.GetLine(i);
         for (auto j = 0ull; j < line.Size(); j++) {
-          auto element = line.GetElement(j);
+          data::COOTuple const& element = line.GetElement(j);
+          if (!std::isinf(missing) && std::isinf(element.value)) {
+            valid = false;
+          }
           const size_t key = element.row_idx - base_rowid;
           CHECK_GE(key,  builder_base_row_offset);
           max_columns_local =
@@ -926,6 +932,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     });
   }
   exec.Rethrow();
+  CHECK(valid) << "Input data contains `inf` or `nan`";
   for (const auto & max : max_columns_vector) {
     max_columns = std::max(max_columns, max[0]);
   }

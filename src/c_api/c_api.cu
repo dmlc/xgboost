@@ -1,8 +1,9 @@
-// Copyright (c) 2019-2020 by Contributors
+// Copyright (c) 2019-2021 by Contributors
 #include "xgboost/data.h"
 #include "xgboost/c_api.h"
 #include "xgboost/learner.h"
 #include "c_api_error.h"
+#include "c_api_utils.h"
 #include "../data/device_adapter.cuh"
 
 using namespace xgboost;  // NOLINT
@@ -30,59 +31,61 @@ XGB_DLL int XGDMatrixCreateFromArrayInterface(char const* c_json_strs,
   API_END();
 }
 
-// A hidden API as cache id is not being supported yet.
-XGB_DLL int XGBoosterPredictFromArrayInterfaceColumns(BoosterHandle handle,
-                                                      char const* c_json_strs,
-                                                      float missing,
-                                                      unsigned iteration_begin,
-                                                      unsigned iteration_end,
-                                                      char const* c_type,
-                                                      xgboost::bst_ulong cache_id,
-                                                      xgboost::bst_ulong *out_len,
-                                                      float const** out_result) {
+template <typename T>
+int InplacePreidctCuda(BoosterHandle handle, char const *c_json_strs,
+                       char const *c_json_config,
+                       std::shared_ptr<DMatrix> p_m,
+                       xgboost::bst_ulong const **out_shape,
+                       xgboost::bst_ulong *out_dim, const float **out_result) {
   API_BEGIN();
   CHECK_HANDLE();
-  CHECK_EQ(cache_id, 0) << "Cache ID is not supported yet";
-  auto *learner = static_cast<Learner*>(handle);
+  auto config = Json::Load(StringView{c_json_config});
+  CHECK_EQ(get<Integer const>(config["cache_id"]), 0)
+      << "Cache ID is not supported yet";
+  auto *learner = static_cast<Learner *>(handle);
 
   std::string json_str{c_json_strs};
-  auto x = std::make_shared<data::CudfAdapter>(json_str);
-  HostDeviceVector<float>* p_predt { nullptr };
-  std::string type { c_type };
-  learner->InplacePredict(x, type, missing, &p_predt, iteration_begin, iteration_end);
+  auto x = std::make_shared<T>(json_str);
+  HostDeviceVector<float> *p_predt{nullptr};
+  auto type = PredictionType(get<Integer const>(config["type"]));
+  learner->InplacePredict(x, p_m, type, get<Number const>(config["missing"]),
+                          &p_predt,
+                          get<Integer const>(config["iteration_begin"]),
+                          get<Integer const>(config["iteration_end"]));
   CHECK(p_predt);
-  CHECK(p_predt->DeviceCanRead());
+  CHECK(p_predt->DeviceCanRead() && !p_predt->HostCanRead());
 
+  auto &shape = learner->GetThreadLocal().prediction_shape;
+  auto chunksize = x->NumRows() == 0 ? 0 : p_predt->Size() / x->NumRows();
+  bool strict_shape = get<Boolean const>(config["strict_shape"]);
+  CalcPredictShape(strict_shape, type, x->NumRows(), x->NumColumns(), chunksize,
+                   learner->Groups(), learner->BoostedRounds(), &shape,
+                   out_dim);
+  *out_shape = dmlc::BeginPtr(shape);
   *out_result = p_predt->ConstDevicePointer();
-  *out_len = static_cast<xgboost::bst_ulong>(p_predt->Size());
-
   API_END();
 }
-// A hidden API as cache id is not being supported yet.
-XGB_DLL int XGBoosterPredictFromArrayInterface(BoosterHandle handle,
-                                               char const* c_json_strs,
-                                               float missing,
-                                               unsigned iteration_begin,
-                                               unsigned iteration_end,
-                                               char const* c_type,
-                                               xgboost::bst_ulong cache_id,
-                                               xgboost::bst_ulong *out_len,
-                                               float const** out_result) {
-  API_BEGIN();
-  CHECK_HANDLE();
-  CHECK_EQ(cache_id, 0) << "Cache ID is not supported yet";
-  auto *learner = static_cast<Learner*>(handle);
 
-  std::string json_str{c_json_strs};
-  auto x = std::make_shared<data::CupyAdapter>(json_str);
-  HostDeviceVector<float>* p_predt { nullptr };
-  std::string type { c_type };
-  learner->InplacePredict(x, type, missing, &p_predt, iteration_begin, iteration_end);
-  CHECK(p_predt);
-  CHECK(p_predt->DeviceCanRead());
+XGB_DLL int XGBoosterPredictFromCudaColumnar(
+    BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
+    DMatrixHandle m, xgboost::bst_ulong const **out_shape,
+    xgboost::bst_ulong *out_dim, const float **out_result) {
+  std::shared_ptr<DMatrix> p_m {nullptr};
+  if (m) {
+    p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
+  }
+  return InplacePreidctCuda<data::CudfAdapter>(
+      handle, c_json_strs, c_json_config, p_m, out_shape, out_dim, out_result);
+}
 
-  *out_result = p_predt->ConstDevicePointer();
-  *out_len = static_cast<xgboost::bst_ulong>(p_predt->Size());
-
-  API_END();
+XGB_DLL int XGBoosterPredictFromCudaArray(
+    BoosterHandle handle, char const *c_json_strs, char const *c_json_config,
+    DMatrixHandle m, xgboost::bst_ulong const **out_shape,
+    xgboost::bst_ulong *out_dim, const float **out_result) {
+  std::shared_ptr<DMatrix> p_m {nullptr};
+  if (m) {
+    p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
+  }
+  return InplacePreidctCuda<data::CupyAdapter>(
+      handle, c_json_strs, c_json_config, p_m, out_shape, out_dim, out_result);
 }

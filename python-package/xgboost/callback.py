@@ -20,6 +20,8 @@ def _get_callback_context(env):
         context = 'train'
     elif env.model is None and env.cvfolds is not None:
         context = 'cv'
+    else:
+        raise ValueError("Unexpected input with both model and cvfolds.")
     return context
 
 
@@ -751,7 +753,7 @@ class LegacyCallbacks:
         '''Called before each iteration.'''
         for cb in self.callbacks_before_iter:
             rank = rabit.get_rank()
-            cb(CallbackEnv(model=model,
+            cb(CallbackEnv(model=None if self.cvfolds is not None else model,
                            cvfolds=self.cvfolds,
                            iteration=epoch,
                            begin_iteration=self.start_iteration,
@@ -764,6 +766,7 @@ class LegacyCallbacks:
         '''Called after each iteration.'''
         evaluation_result_list = []
         if self.cvfolds is not None:
+            # dtrain is not used here.
             scores = model.eval(epoch, self.feval)
             self.aggregated_cv = _aggcv(scores)
             evaluation_result_list = self.aggregated_cv
@@ -782,7 +785,7 @@ class LegacyCallbacks:
         try:
             for cb in self.callbacks_after_iter:
                 rank = rabit.get_rank()
-                cb(CallbackEnv(model=model,
+                cb(CallbackEnv(model=None if self.cvfolds is not None else model,
                                cvfolds=self.cvfolds,
                                iteration=epoch,
                                begin_iteration=self.start_iteration,

@@ -230,8 +230,7 @@ class ColumnMatrix {
     /* missing values make sense only for column with type kDenseColumn,
        and if no missing values were observed it could be handled much faster. */
     if (noMissingValues) {
-#pragma omp parallel for num_threads(omp_get_max_threads())
-      for (omp_ulong rid = 0; rid < nrow; ++rid) {
+      ParallelFor(omp_ulong(nrow), [&](omp_ulong rid) {
         const size_t ibegin = rid*nfeature;
         const size_t iend = (rid+1)*nfeature;
         size_t j = 0;
@@ -239,7 +238,7 @@ class ColumnMatrix {
             const size_t idx = feature_offsets_[j];
             local_index[idx + rid] = index[i];
         }
-      }
+      });
     } else {
       /* to handle rows in all batches, sum of all batch sizes equal to gmat.row_ptr.size() - 1 */
       size_t rbegin = 0;

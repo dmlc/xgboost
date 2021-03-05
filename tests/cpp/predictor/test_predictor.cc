@@ -1,5 +1,5 @@
 /*!
- * Copyright 2020 by Contributors
+ * Copyright 2020-2021 by Contributors
  */
 
 #include <gtest/gtest.h>
@@ -64,10 +64,10 @@ void TestTrainingPrediction(size_t rows, size_t bins,
     }
 
     HostDeviceVector<float> from_full;
-    learner->Predict(p_full, false, &from_full);
+    learner->Predict(p_full, false, &from_full, 0, 0);
 
     HostDeviceVector<float> from_hist;
-    learner->Predict(p_hist, false, &from_hist);
+    learner->Predict(p_hist, false, &from_hist, 0, 0);
 
     for (size_t i = 0; i < rows; ++i) {
       EXPECT_NEAR(from_hist.ConstHostVector()[i],
@@ -104,21 +104,24 @@ void TestInplacePrediction(dmlc::any x, std::string predictor,
   }
 
   HostDeviceVector<float> *p_out_predictions_0{nullptr};
-  learner->InplacePredict(x, "margin", std::numeric_limits<float>::quiet_NaN(),
+  learner->InplacePredict(x, nullptr, PredictionType::kMargin,
+                          std::numeric_limits<float>::quiet_NaN(),
                           &p_out_predictions_0, 0, 2);
   CHECK(p_out_predictions_0);
   HostDeviceVector<float> predict_0 (p_out_predictions_0->Size());
   predict_0.Copy(*p_out_predictions_0);
 
   HostDeviceVector<float> *p_out_predictions_1{nullptr};
-  learner->InplacePredict(x, "margin", std::numeric_limits<float>::quiet_NaN(),
+  learner->InplacePredict(x, nullptr, PredictionType::kMargin,
+                          std::numeric_limits<float>::quiet_NaN(),
                           &p_out_predictions_1, 2, 4);
   CHECK(p_out_predictions_1);
   HostDeviceVector<float> predict_1 (p_out_predictions_1->Size());
   predict_1.Copy(*p_out_predictions_1);
 
   HostDeviceVector<float>* p_out_predictions{nullptr};
-  learner->InplacePredict(x, "margin", std::numeric_limits<float>::quiet_NaN(),
+  learner->InplacePredict(x, nullptr, PredictionType::kMargin,
+                          std::numeric_limits<float>::quiet_NaN(),
                           &p_out_predictions, 0, 4);
 
   auto& h_pred = p_out_predictions->HostVector();
@@ -154,20 +157,20 @@ void TestPredictionWithLesserFeatures(std::string predictor_name) {
   learner->SaveConfig(&config);
   ASSERT_EQ(get<String>(config["learner"]["gradient_booster"]["gbtree_train_param"]["predictor"]), predictor_name);
 
-  learner->Predict(m_test, false, &prediction);
+  learner->Predict(m_test, false, &prediction, 0, 0);
   ASSERT_EQ(prediction.Size(), kRows);
 
   auto m_invalid = RandomDataGenerator(kRows, kTrainCols + 1, 0.5).GenerateDMatrix(false);
-  ASSERT_THROW({learner->Predict(m_invalid, false, &prediction);}, dmlc::Error);
+  ASSERT_THROW({learner->Predict(m_invalid, false, &prediction, 0, 0);}, dmlc::Error);
 
 #if defined(XGBOOST_USE_CUDA)
   HostDeviceVector<float> from_cpu;
   learner->SetParam("predictor", "cpu_predictor");
-  learner->Predict(m_test, false, &from_cpu);
+  learner->Predict(m_test, false, &from_cpu, 0, 0);
 
   HostDeviceVector<float> from_cuda;
   learner->SetParam("predictor", "gpu_predictor");
-  learner->Predict(m_test, false, &from_cuda);
+  learner->Predict(m_test, false, &from_cuda, 0, 0);
 
   auto const& h_cpu = from_cpu.ConstHostVector();
   auto const& h_gpu = from_cuda.ConstHostVector();
@@ -215,6 +218,7 @@ void TestCategoricalPrediction(std::string name) {
   row[split_ind] = split_cat;
   auto m = GetDMatrixFromData(row, 1, kCols);
 
+  predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
   predictor->PredictBatch(m.get(), &out_predictions, model, 0);
   ASSERT_EQ(out_predictions.predictions.Size(), 1ul);
   ASSERT_EQ(out_predictions.predictions.HostVector()[0],
@@ -223,6 +227,7 @@ void TestCategoricalPrediction(std::string name) {
   row[split_ind] = split_cat + 1;
   m = GetDMatrixFromData(row, 1, kCols);
   out_predictions.version = 0;
+  predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
   predictor->PredictBatch(m.get(), &out_predictions, model, 0);
   ASSERT_EQ(out_predictions.predictions.HostVector()[0],
             left_weight + param.base_score);
