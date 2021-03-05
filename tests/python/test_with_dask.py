@@ -647,7 +647,7 @@ def test_with_asyncio() -> None:
 
 
 async def generate_concurrent_trainings() -> None:
-    async def train():
+    async def train() -> None:
         async with LocalCluster(n_workers=2,
                                 threads_per_worker=1,
                                 asynchronous=True,
@@ -1286,7 +1286,7 @@ def test_dask_unsupported_features(client: "Client") -> None:
         )
 
 
-def test_parallel_submits(client: "Client"):
+def test_parallel_submits(client: "Client") -> None:
     """Test for running multiple train simultaneously from single clients."""
     try:
         from distributed import MultiLock  # NOQA
@@ -1317,7 +1317,7 @@ def test_parallel_submits(client: "Client"):
         assert cls.get_booster().num_boosted_rounds() == i + 1
 
 
-def test_parallel_submit_multi_clients():
+def test_parallel_submit_multi_clients() -> None:
     """Test for running multiple train simultaneously from multiple clients."""
     try:
         from distributed import MultiLock  # NOQA
@@ -1352,7 +1352,7 @@ def test_parallel_submit_multi_clients():
         t_futures = []
         with ThreadPoolExecutor(max_workers=16) as e:
             for i in range(n_submits):
-                def _():
+                def _() -> xgb.dask.DaskXGBClassifier:
                     return futures[i][0].compute(futures[i][1]).result()
 
                 f = e.submit(_)

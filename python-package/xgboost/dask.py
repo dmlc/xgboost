@@ -94,7 +94,7 @@ except ImportError:
 LOGGER = logging.getLogger('[xgboost.dask]')
 
 
-def _multi_lock():
+def _multi_lock() -> Any:
     """MultiLock is only available on latest distributed."""
     try:
         from distributed import MultiLock
@@ -105,7 +105,7 @@ def _multi_lock():
         )
         LOGGER.warning(msg)
 
-        class MultiLock:
+        class MultiLock:        # type:ignore
             def __init__(self, *args: Any, **kwargs: Any) -> None:
                 pass
 
@@ -115,10 +115,10 @@ def _multi_lock():
             def __exit__(self, *args: Any, **kwargs: Any) -> None:
                 return
 
-            async def __aenter__(self):
+            async def __aenter__(self) -> "MultiLock":
                 return self
 
-            async def __aexit__(self, *args, **kwargs):
+            async def __aexit__(self, *args: Any, **kwargs: Any) -> None:
                 return
 
     return MultiLock
@@ -801,7 +801,7 @@ async def _get_rabit_args(n_workers: int, client: "distributed.Client") -> List[
 def _get_workers_from_data(
     dtrain: DaskDMatrix,
     evals: Optional[List[Tuple[DaskDMatrix, str]]]
-) -> Set[str]:
+) -> List[str]:
     X_worker_map: Set[str] = set(dtrain.worker_map.keys())
     if evals:
         for e in evals:
@@ -1429,7 +1429,7 @@ async def _async_wrap_evaluation_matrices(
 @contextmanager
 def _set_worker_client(
     model: "DaskScikitLearnBase", client: "distributed.Client"
-) -> "DaskScikitLearnBase":
+) -> Generator:
     """Temporarily set the client for sklearn model."""
     try:
         model.client = client
@@ -1552,7 +1552,7 @@ class DaskScikitLearnBase(XGBModel):
         self._asynchronous = clt.asynchronous if clt is not None else False
         self._client = clt
 
-    def _client_sync(self, func: Callable, **kwargs) -> Any:
+    def _client_sync(self, func: Callable, **kwargs: Any) -> Any:
         """Get the correct client, when method is invoked inside a worker we
         should use `worker_client' instead of default client.
 
