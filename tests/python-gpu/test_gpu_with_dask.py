@@ -293,7 +293,7 @@ class TestDistributedGPU:
             fw = fw - fw.min()
             m = dxgb.DaskDMatrix(client, X, y, feature_weights=fw)
 
-            workers = list(_get_client_workers(client).keys())
+            workers = _get_client_workers(client)
             rabit_args = client.sync(dxgb._get_rabit_args, len(workers), client)
 
             def worker_fn(worker_addr: str, data_ref: Dict) -> None:
@@ -384,7 +384,7 @@ class TestDistributedGPU:
             return subprocess.run([str(exe), test], env=env, stdout=subprocess.PIPE)
 
         with Client(local_cuda_cluster) as client:
-            workers = list(_get_client_workers(client).keys())
+            workers = _get_client_workers(client)
             rabit_args = client.sync(dxgb._get_rabit_args, workers, client)
             futures = client.map(runit,
                                  workers,
