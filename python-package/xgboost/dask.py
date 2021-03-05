@@ -98,7 +98,7 @@ def _multi_lock():
     """MultiLock is only available on latest distributed."""
     try:
         from distributed import MultiLock
-    except AttributeError:
+    except ImportError:
         msg = (
             "`distributed.MultiLock` is not available, training multiple models "
             "in parallel might hang."
