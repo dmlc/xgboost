@@ -2191,7 +2191,9 @@ class Booster(object):
 
         return self.get_score(fmap, importance_type='weight')
 
-    def get_score(self, fmap='', importance_type='weight'):
+    def get_score(
+        self, fmap: os.PathLike = '', importance_type: str = 'weight'
+    ) -> Dict[str, float]:
         """Get feature importance of each feature.
         Importance type can be defined as:
 
@@ -2203,9 +2205,9 @@ class Booster(object):
 
         .. note:: Feature importance is defined only for tree boosters
 
-            Feature importance is only defined when the decision tree model is chosen as base
-            learner (`booster=gbtree`). It is not defined for other base learner types, such
-            as linear learners (`booster=gblinear`).
+            Feature importance is only defined when the decision tree model is chosen as
+            base learner (`booster=gbtree` or `booster=dart`). It is not defined for other
+            base learner types, such as linear learners (`booster=gblinear`).
 
         Parameters
         ----------
@@ -2213,86 +2215,33 @@ class Booster(object):
            The name of feature map file.
         importance_type: str, default 'weight'
             One of the importance types defined above.
+
+        Returns
+        -------
+        A map between feature names and their scores.
         """
         fmap = os.fspath(os.path.expanduser(fmap))
-        if getattr(self, 'booster', None) is not None and self.booster not in {'gbtree', 'dart'}:
-            raise ValueError('Feature importance is not defined for Booster type {}'
-                             .format(self.booster))
-
-        allowed_importance_types = ['weight', 'gain', 'cover', 'total_gain', 'total_cover']
-        if importance_type not in allowed_importance_types:
-            msg = ("importance_type mismatch, got '{}', expected one of " +
-                   repr(allowed_importance_types))
-            raise ValueError(msg.format(importance_type))
-
-        # if it's weight, then omap stores the number of missing values
-        if importance_type == 'weight':
-            # do a simpler tree dump to save time
-            trees = self.get_dump(fmap, with_stats=False)
-            fmap = {}
-            for tree in trees:
-                for line in tree.split('\n'):
-                    # look for the opening square bracket
-                    arr = line.split('[')
-                    # if no opening bracket (leaf node), ignore this line
-                    if len(arr) == 1:
-                        continue
-
-                    # extract feature name from string between []
-                    fid = arr[1].split(']')[0].split('<')[0]
-
-                    if fid not in fmap:
-                        # if the feature hasn't been seen yet
-                        fmap[fid] = 1
-                    else:
-                        fmap[fid] += 1
-
-            return fmap
-
-        average_over_splits = True
-        if importance_type == 'total_gain':
-            importance_type = 'gain'
-            average_over_splits = False
-        elif importance_type == 'total_cover':
-            importance_type = 'cover'
-            average_over_splits = False
-
-        trees = self.get_dump(fmap, with_stats=True)
-
-        importance_type += '='
-        fmap = {}
-        gmap = {}
-        for tree in trees:
-            for line in tree.split('\n'):
-                # look for the opening square bracket
-                arr = line.split('[')
-                # if no opening bracket (leaf node), ignore this line
-                if len(arr) == 1:
-                    continue
-
-                # look for the closing bracket, extract only info within that bracket
-                fid = arr[1].split(']')
-
-                # extract gain or cover from string after closing bracket
-                g = float(fid[1].split(importance_type)[1].split(',')[0])
-
-                # extract feature name from string before closing bracket
-                fid = fid[0].split('<')[0]
-
-                if fid not in fmap:
-                    # if the feature hasn't been seen yet
-                    fmap[fid] = 1
-                    gmap[fid] = g
-                else:
-                    fmap[fid] += 1
-                    gmap[fid] += g
-
-        # calculate average value (gain/cover) for each feature
-        if average_over_splits:
-            for fid in gmap:
-                gmap[fid] = gmap[fid] / fmap[fid]
-
-        return gmap
+        args = from_pystr_to_cstr(
+            json.dumps({"importance_type": importance_type, "feature_map": fmap})
+        )
+        features = ctypes.POINTER(ctypes.c_char_p)()
+        scores = ctypes.POINTER(ctypes.c_float)()
+        length = c_bst_ulong()
+        _check_call(
+            _LIB.XGBoosterFeatureScore(
+                self.handle,
+                args,
+                ctypes.byref(length),
+                ctypes.byref(features),
+                ctypes.byref(scores)
+            )
+        )
+        features_arr = from_cstr_to_pystr(features, length)
+        scores_arr = ctypes2numpy(scores, length.value, np.float32)
+        results = {}
+        for feat, score in zip(features_arr, scores_arr):
+            results[feat] = score
+        return results
 
     def trees_to_dataframe(self, fmap=''):
         """Parse a boosted tree model text dump into a pandas DataFrame structure.

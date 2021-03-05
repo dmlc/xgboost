@@ -181,6 +181,12 @@ class GradientBooster : public Model, public Configurable {
   virtual std::vector<std::string> DumpModel(const FeatureMap& fmap,
                                              bool with_stats,
                                              std::string format) const = 0;
+
+  virtual void FeatureScore(std::string const &importance_type,
+                            std::vector<bst_feature_t> *features,
+                            std::vector<float> *scores) const {
+    LOG(FATAL) << "`feature_score` is not implemented for current booster.";
+  }
   /*!
    * \brief Whether the current booster uses GPU.
    */

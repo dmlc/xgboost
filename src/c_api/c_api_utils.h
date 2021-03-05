@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <functional>
 #include <vector>
+#include <memory>
+#include <string>
 
 #include "xgboost/logging.h"
 #include "xgboost/json.h"
@@ -181,5 +183,39 @@ class XGBoostAPIGuard {
     RestoreGPUAttribute();
   }
 };
+
+inline FeatureMap LoadFeatureMap(std::string const& uri) {
+  FeatureMap feat;
+  if (uri.size() != 0) {
+    std::unique_ptr<dmlc::Stream> fs(dmlc::Stream::Create(uri.c_str(), "r"));
+    dmlc::istream is(fs.get());
+    feat.LoadText(is);
+  }
+  return feat;
+}
+
+// FIXME(jiamingy): Use this for model dump.
+inline void GenerateFeatureMap(Learner const *learner,
+                               size_t n_features, FeatureMap *out_feature_map) {
+  auto &feature_map = *out_feature_map;
+  auto maybe = [&](std::vector<std::string> const &values, size_t i,
+                   std::string const &dft) {
+    return values.empty() ? dft : values[i];
+  };
+  if (feature_map.Size() == 0) {
+    // Use the feature names and types from booster.
+    std::vector<std::string> feature_names;
+    learner->GetFeatureNames(&feature_names);
+    std::vector<std::string> feature_types;
+    learner->GetFeatureTypes(&feature_types);
+    for (size_t i = 0; i < n_features; ++i) {
+      feature_map.PushBack(
+          i,
+          maybe(feature_names, i, "f" + std::to_string(i)).data(),
+          maybe(feature_types, i, "q").data());
+    }
+  }
+  CHECK_EQ(feature_map.Size(), n_features);
+}
 }  // namespace xgboost
 #endif  // XGBOOST_C_API_C_API_UTILS_H_

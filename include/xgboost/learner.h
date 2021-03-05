@@ -46,6 +46,8 @@ struct XGBAPIThreadLocalEntry {
   std::string ret_str;
   /*! \brief result holder for returning strings */
   std::vector<std::string> ret_vec_str;
+  /*! \brief result holder for returning unsigned integers */
+  std::vector<uint32_t> ret_vec_uint32;
   /*! \brief result holder for returning string pointers */
   std::vector<const char *> ret_vec_charp;
   /*! \brief returning float vector. */
@@ -151,6 +153,13 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
                               float missing,
                               HostDeviceVector<bst_float> **out_preds,
                               uint32_t layer_begin, uint32_t layer_end) = 0;
+
+  /*!
+   * \brief Calculate feature score.  See doc in C API for outputs.
+   */
+  virtual void CalcFeatureScore(std::string const &importance_type,
+                                std::vector<bst_feature_t> *features,
+                                std::vector<float> *scores) = 0;
 
   /*
    * \brief Get number of boosted rounds from gradient booster.
