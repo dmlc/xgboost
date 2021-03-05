@@ -220,7 +220,8 @@ TEST(CAPI, XGBGlobalConfig) {
   {
     const char *config_str = R"json(
     {
-      "verbosity": 0
+      "verbosity": 0,
+      "use_rmm": false
     }
   )json";
     ret = XGBSetGlobalConfig(config_str);
