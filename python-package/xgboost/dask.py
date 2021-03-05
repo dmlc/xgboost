@@ -1916,6 +1916,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
             dtrain=dtrain,
             num_boost_round=self.get_num_boosting_rounds(),
             evals=evals,
+            obj=None,
             feval=metric,
             verbose_eval=verbose,
             early_stopping_rounds=early_stopping_rounds,
