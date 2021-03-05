@@ -31,7 +31,7 @@ jobs:
       with:
         path: ${{ env.R_LIBS_USER }}
         key: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-2-
+        restore-keys: ${{ runner.os }}-lintr-${{ matrix.config.r }}-3-
 
     - name: Install dependencies
       shell: Rscript {0}
@@ -74,7 +74,7 @@ jobs:
       with:
         path: ${{ env.R_LIBS_USER }}
         key: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-2-
+        restore-keys: ${{ runner.os }}-testr-${{ matrix.config.r }}-3-
 
     - name: Install dependencies
       shell: Rscript {0}
@@ -111,6 +111,13 @@ jobs:
         r-version: ${{ matrix.config.r }}
 
     - uses: r-lib/actions/setup-tinytex@master
+
+    - name: Cache R packages
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.R_LIBS_USER }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-cran-${{ matrix.config.r }}-3-
 
     - name: Install system packages
       run: |
