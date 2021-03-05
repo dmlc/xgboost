@@ -1571,7 +1571,7 @@ class DaskScikitLearnBase(XGBModel):
                         return ret
                     return ret
 
-        return self.client.sync(func, **kwargs)
+        return self.client.sync(func, **kwargs, asynchronous=asynchronous)
 
 
 @xgboost_model_doc(
