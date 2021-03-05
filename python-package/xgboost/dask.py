@@ -99,11 +99,11 @@ def _multi_lock():
     try:
         from distributed import MultiLock
     except AttributeError:
-        LOGGER.warn(
+        msg = (
             "`distributed.MultiLock` is not available, training multiple models "
-            "in parallel might hang.",
-            UserWarning,
+            "in parallel might hang."
         )
+        LOGGER.warning(msg)
 
         class MultiLock:
             def __init__(self, *args: Any, **kwargs: Any) -> None:
