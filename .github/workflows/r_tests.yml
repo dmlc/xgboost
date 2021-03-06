@@ -26,13 +26,6 @@ jobs:
       with:
         r-version: ${{ matrix.config.r }}
 
-    - name: Cache R packages
-      uses: actions/cache@v2
-      with:
-        path: ${{ env.R_LIBS_USER }}
-        key: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-2-
-
     - name: Install dependencies
       shell: Rscript {0}
       run: |
@@ -68,13 +61,6 @@ jobs:
     - uses: r-lib/actions/setup-r@master
       with:
         r-version: ${{ matrix.config.r }}
-
-    - name: Cache R packages
-      uses: actions/cache@v2
-      with:
-        path: ${{ env.R_LIBS_USER }}
-        key: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
-        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-2-
 
     - name: Install dependencies
       shell: Rscript {0}
