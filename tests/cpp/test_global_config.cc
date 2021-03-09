@@ -19,4 +19,14 @@ TEST(GlobalConfiguration, Verbosity) {
   EXPECT_EQ(get<String>(current_config["verbosity"]), "0");
 }
 
+TEST(GlobalConfiguration, UseRMM) {
+  Json config{JsonObject()};
+  config["use_rmm"] = String("true");
+  auto& global_config = *GlobalConfigThreadLocalStore::Get();
+  FromJson(config, &global_config);
+  // GetConfig() should return updated use_rmm flag
+  Json current_config { ToJson(*GlobalConfigThreadLocalStore::Get()) };
+  EXPECT_EQ(get<String>(current_config["use_rmm"]), "1");
+}
+
 }  // namespace xgboost

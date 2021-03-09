@@ -22,6 +22,7 @@ Global Configuration
 The following parameters can be set in the global scope, using ``xgb.config_context()`` (Python) or ``xgb.set.config()`` (R).
 
 * ``verbosity``: Verbosity of printing messages. Valid values of 0 (silent), 1 (warning), 2 (info), and 3 (debug).
+* ``use_rmm``: Whether to use RAPIDS Memory Manager (RMM) to allocate GPU memory. This option is only applicable when XGBoost is built (compiled) with the RMM plugin enabled. Valid values are ``true`` and ``false``.
 
 ******************
 General Parameters
