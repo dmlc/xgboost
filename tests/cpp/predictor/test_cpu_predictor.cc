@@ -183,7 +183,7 @@ TEST(CpuPredictor, InplacePredict) {
   }
 }
 
-TEST(CpuPredictor, UpdatePredictionCache) {
+void TestUpdatePredictionCache(bool use_subsampling) {
   size_t constexpr kRows = 64, kCols = 16, kClasses = 4;
   LearnerModelParam mparam;
   mparam.num_feature = kCols;
@@ -224,6 +224,11 @@ TEST(CpuPredictor, UpdatePredictionCache) {
   for (size_t i = 0; i < out_predictions_h.size(); ++i) {
     ASSERT_NEAR(out_predictions_h[i], predtion_cache_from_train[i], kRtEps);
   }
+}
+
+TEST(CpuPredictor, UpdatePredictionCache) {
+    TestUpdatePredictionCache(false);
+    TestUpdatePredictionCache(true);
 }
 
 TEST(CpuPredictor, LesserFeatures) {

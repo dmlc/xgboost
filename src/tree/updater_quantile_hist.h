@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2018 by Contributors
+ * Copyright 2017-2021 by Contributors
  * \file updater_quantile_hist.h
  * \brief use quantized feature values to construct a tree
  * \author Philip Cho, Tianqi Chen, Egor Smirnov
@@ -11,13 +11,12 @@
 #include <rabit/rabit.h>
 #include <xgboost/tree_updater.h>
 
-#include <memory>
-#include <vector>
-#include <string>
-#include <queue>
 #include <iomanip>
-#include <unordered_map>
+#include <memory>
+#include <queue>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "xgboost/data.h"
 #include "xgboost/json.h"
@@ -409,6 +408,10 @@ class QuantileHistMaker: public TreeUpdater {
     common::ColumnSampler column_sampler_;
     // the internal row sets
     RowSetCollection row_set_collection_;
+    // tree rows that were not used for current training
+    std::vector<size_t> unused_rows_;
+    // feature vectors for subsampled prediction
+    std::vector<RegTree::FVec> feat_vecs_;
     // the temp space for split
     std::vector<RowSetCollection::Split> row_split_tloc_;
     std::vector<SplitEntry> best_split_tloc_;
@@ -422,8 +425,6 @@ class QuantileHistMaker: public TreeUpdater {
     /*! \brief feature with least # of bins. to be used for dense specialization
                of InitNewNode() */
     uint32_t fid_least_bins_;
-    /*! \brief local prediction cache; maps node id to leaf value */
-    std::vector<float> leaf_value_cache_;
 
     GHistBuilder<GradientSumT> hist_builder_;
     std::unique_ptr<TreeUpdater> pruner_;
@@ -435,6 +436,7 @@ class QuantileHistMaker: public TreeUpdater {
     // back pointers to tree and data matrix
     const RegTree* p_last_tree_;
     DMatrix const* const p_last_fmat_;
+    DMatrix* p_last_fmat_mutable_;
 
     using ExpandQueue =
        std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
