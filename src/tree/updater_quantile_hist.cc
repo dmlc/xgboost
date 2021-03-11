@@ -695,7 +695,8 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
       // CHECK_EQ(model.param.size_leaf_vector, 0)
       //   << "size_leaf_vector is enforced to 0 so far";
 
-      common::ParallelFor(unused_rows_.size(), [&](bst_omp_uint block_id) {
+      const auto num_parallel_ops = static_cast<bst_omp_uint>(unused_rows_.size());
+      common::ParallelFor(num_parallel_ops, [&](bst_omp_uint block_id) {
         RegTree::FVec &feats = feat_vecs_[omp_get_thread_num()];
         const SparsePage::Inst inst = batch_view[unused_rows_[block_id]];
         feats.Fill(inst);
