@@ -121,8 +121,8 @@ class QuantileHistMock : public QuantileHistMaker {
         for (auto&& row_indice : second) {
           ++arr_union[row_indice];
         }
-        for (size_t i = 0; i < nrows; ++i) {
-          ASSERT_EQ(arr_union[i], 1ul);
+        for (auto&& row_cnt : arr_union) {
+          ASSERT_EQ(row_cnt, 1ul);
         }
       };
       check_each_row_occurs_in_one_of_arrays(row_indices_initial, unused_row_indices_initial,

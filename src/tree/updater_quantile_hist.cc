@@ -626,20 +626,6 @@ void QuantileHistMaker::Builder<GradientSumT>::Update(
   builder_monitor_.Stop("Update");
 }
 
-template <size_t kUnrollLen = 8>
-struct SparsePageView {
-  bst_row_t base_rowid;
-  HostSparsePageView view;
-  static size_t constexpr kUnroll = kUnrollLen;
-
-  explicit SparsePageView(SparsePage const *p)
-      : base_rowid{p->base_rowid} {
-    view = p->GetView();
-  }
-  SparsePage::Inst operator[](size_t i) { return view[i]; }
-  size_t Size() const { return view.Size(); }
-};
-
 template<typename GradientSumT>
 bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
     const DMatrix* data,
@@ -684,24 +670,21 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
   });
 
   if (param_.subsample < 1.0f) {
-    // Making real prediction for the remaining rows
+    // Making a real prediction for the remaining rows
     size_t fvecs_size = feat_vecs_.size();
     feat_vecs_.resize(omp_get_max_threads(), RegTree::FVec());
     while (fvecs_size < feat_vecs_.size()) {
       feat_vecs_[fvecs_size++].Init(data->Info().num_col_);
     }
     for (auto&& batch : p_last_fmat_mutable_->GetBatches<SparsePage>()) {
-      auto batch_view = SparsePageView<>{&batch};
-      // CHECK_EQ(model.param.size_leaf_vector, 0)
-      //   << "size_leaf_vector is enforced to 0 so far";
-
+      HostSparsePageView page_view = batch.GetView();
       const auto num_parallel_ops = static_cast<bst_omp_uint>(unused_rows_.size());
       common::ParallelFor(num_parallel_ops, [&](bst_omp_uint block_id) {
         RegTree::FVec &feats = feat_vecs_[omp_get_thread_num()];
-        const SparsePage::Inst inst = batch_view[unused_rows_[block_id]];
+        const SparsePage::Inst inst = page_view[unused_rows_[block_id]];
         feats.Fill(inst);
 
-        const size_t row_num = unused_rows_[block_id] + batch_view.base_rowid;
+        const size_t row_num = unused_rows_[block_id] + batch.base_rowid;
         const int lid = feats.HasMissing() ? p_last_tree_->GetLeafIndex<true>(feats) :
                                             p_last_tree_->GetLeafIndex<false>(feats);
         out_preds[row_num * ngroup + gid] += (*p_last_tree_)[lid].LeafValue();

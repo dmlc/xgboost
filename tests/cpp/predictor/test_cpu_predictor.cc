@@ -198,6 +198,9 @@ void TestUpdatePredictionCache(bool use_subsampling) {
   std::map<std::string, std::string> cfg;
   cfg["tree_method"] = "hist";
   cfg["predictor"]   = "cpu_predictor";
+  if (use_subsampling) {
+    cfg["subsample"] = "0.5";
+  }
   Args args = {cfg.cbegin(), cfg.cend()};
   gbm->Configure(args);
 
