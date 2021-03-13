@@ -95,7 +95,7 @@ namespace common {
 #define KERNEL_CHECK(cond)                                                     \
   (XGBOOST_EXPECT((cond), true)                                                \
        ? static_cast<void>(0)                                                  \
-       : __assert_fail(__ASSERT_STR_HELPER(e), __FILE__, __LINE__,             \
+       : __assert_fail(__ASSERT_STR_HELPER((cond)), __FILE__, __LINE__,        \
                        __PRETTY_FUNCTION__))
 
 #endif  // defined(_MSC_VER)
