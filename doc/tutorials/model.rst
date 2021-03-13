@@ -46,7 +46,7 @@ Another commonly used loss function is logistic loss, to be used for logistic re
 
 .. math::
 
-  L(\theta) = \sum_i[ y_i\ln (1+e^{-\hat{y}_i}) + (1-y_i)\ln (1+e^{\hat{y}_i})]
+  L(\theta) = \sum_i[ y_i\ln (1/(1+e^{-\hat{y}_i})) + (1-y_i)\ln (e^{\hat{y}_i}/(1+e^{\hat{y}_i}))]
 
 The **regularization term** is what people usually forget to add. The regularization term controls the complexity of the model, which helps us to avoid overfitting.
 This sounds a bit abstract, so let us consider the following problem in the following picture. You are asked to *fit* visually a step function given the input data points
