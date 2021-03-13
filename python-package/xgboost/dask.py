@@ -1776,9 +1776,9 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 """,
     ["estimators", "model"],
     end_note="""
-        Note
-        ----
-        For dask implementation, group is not supported, use qid instead.
+        .. note::
+
+            For dask implementation, group is not supported, use qid instead.
 """,
 )
 class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
