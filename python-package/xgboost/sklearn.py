@@ -63,16 +63,12 @@ def _metric_decorator(func: Callable) -> Metric:
     """Decorate a metric function from sklearn.
 
     Converts an objective function using the typical sklearn metrics signature so that it
-    is usable with ``xgboost.training.train``
+    is compatible with ``xgboost.training.train``
 
     """
     def inner(y_score: np.ndarray, dmatrix: DMatrix) -> float:
         y_true = dmatrix.get_label()
-        try:
-            return func.__name__, func(y_true, y_score)
-        except Exception:
-            # compatible with old impl.
-            return func(y_true, y_score)
+        return func.__name__, func(y_true, y_score)
     return inner
 
 
@@ -648,18 +644,25 @@ class XGBModel(XGBModelBase):
                 "constructor or `set_params` instead.",
                 UserWarning,
             )
-        feval = _metric_decorator(eval_metric) if callable(eval_metric) else None
+
+        # configure callable evaluation metric
+        feval = eval_metric if callable(eval_metric) else None
         if self.eval_metric is not None and feval is not None:
-            warnings.warn("Overriding `eval_metric` with `eval_metric`", UserWarning)
+            warnings.warn(
+                "Overriding `eval_metric` from `fit` with `eval_metric` from parameter",
+                UserWarning
+            )
         if callable(self.eval_metric):
             feval = _metric_decorator(self.eval_metric)
 
+        # configure string/list evaluation metric
         if eval_metric is not None:
             if callable(eval_metric):
                 eval_metric = None
             else:
                 params.update({"eval_metric": eval_metric})
 
+        # configure early_stopping_rounds
         if early_stopping_rounds is not None:
             warnings.warn(
                 "`early_stopping_rounds` is deprecated, use `early_stopping_rounds` "
