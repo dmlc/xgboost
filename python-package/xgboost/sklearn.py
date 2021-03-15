@@ -638,7 +638,7 @@ class XGBModel(XGBModelBase):
     ) -> Tuple[Booster, Optional[Metric], Dict[str, Any]]:
         # pylint: disable=protected-access
         model = booster
-        if hasattr(model, '_Booster'):
+        if hasattr(model, "_Booster"):
             # Handle the case when xgb_model is a sklearn model object
             model = model._Booster
 
@@ -646,7 +646,7 @@ class XGBModel(XGBModelBase):
             warnings.warn(
                 "eval_metric for `fit` method is deprecated, use `eval_metric` in "
                 "constructor or `set_params` instead.",
-                UserWarning
+                UserWarning,
             )
         feval = _metric_decorator(eval_metric) if callable(eval_metric) else None
         if self.eval_metric is not None and feval is not None:
@@ -666,13 +666,19 @@ class XGBModel(XGBModelBase):
                 "in constructor or `set_params` instead.",
                 UserWarning,
             )
+            if (
+                self.early_stopping_rounds is not None
+                and self.early_stopping_rounds != early_stopping_rounds
+            ):
+                raise ValueError("2 different `early_stopping_rounds` are provided.")
+
         early_stopping_rounds = (
             self.early_stopping_rounds
             if self.early_stopping_rounds is not None
             else early_stopping_rounds
         )
 
-        return model, feval, params
+        return model, feval, params, early_stopping_rounds
 
     def _set_evaluation_result(self, evals_result: Optional[dict]) -> None:
         if evals_result:
