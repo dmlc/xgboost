@@ -18,6 +18,7 @@
 #include "xgboost/logging.h"
 #include "xgboost/span.h"
 #include "../common/bitfield.h"
+#include "../common/common.h"
 
 namespace xgboost {
 // Common errors in parsing columnar format.
@@ -233,7 +234,15 @@ class ArrayInterfaceHandler {
     }
     return p_data;
   }
+
+  static void SyncCudaStream(ptrdiff_t stream);
 };
+
+#if !defined(XGBOOST_USE_CUDA)
+void ArrayInterfaceHandler::SyncCudaStream(ptrdiff_t stream) {
+  common::AssertGPUSupport();
+}
+#endif  // !defined(XGBOOST_USE_CUDA)
 
 // A view over __array_interface__
 class ArrayInterface {
@@ -267,6 +276,12 @@ class ArrayInterface {
 
     ArrayInterfaceHandler::ExtractStride(column, strides, num_rows, num_cols,
                                          typestr[2] - '0');
+
+    auto stream_it = column.find("stream");
+    if (stream_it != column.cend()) {
+      stream = get<Integer const>(stream_it->second);
+      ArrayInterfaceHandler::SyncCudaStream(stream);
+    }
   }
 
  public:
@@ -377,6 +392,8 @@ class ArrayInterface {
   bst_feature_t num_cols;
   size_t strides[2]{0, 0};
   void* data;
+
+  ptrdiff_t stream = 0;
 
   Type type;
 };
