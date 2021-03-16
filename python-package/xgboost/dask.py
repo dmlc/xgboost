@@ -95,16 +95,14 @@ LOGGER = logging.getLogger('[xgboost.dask]')
 
 
 def _multi_lock() -> Any:
-    """MultiLock is only available on latest distributed."""
+    """MultiLock is only available on latest distributed.  See:
+
+    https://github.com/dask/distributed/pull/4503
+
+"""
     try:
         from distributed import MultiLock
     except ImportError:
-        msg = (
-            "`distributed.MultiLock` is not available, training multiple models "
-            "in parallel might hang."
-        )
-        LOGGER.warning(msg)
-
         class MultiLock:        # type:ignore
             def __init__(self, *args: Any, **kwargs: Any) -> None:
                 pass
