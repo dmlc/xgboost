@@ -169,7 +169,7 @@ struct GPUHistMakerDevice {
   std::unique_ptr<RowPartitioner> row_partitioner;
   DeviceHistogram<GradientSumT> hist{};
 
-  # https://github.com/dmlc/xgboost/pull/6755/files
+  // https://github.com/dmlc/xgboost/pull/6755/files
   dh::caching_device_vector<GradientPair> d_gpair; // storage for gpair;
   common::Span<GradientPair> gpair;
 
@@ -271,7 +271,7 @@ struct GPUHistMakerDevice {
     std::fill(node_sum_gradients.begin(), node_sum_gradients.end(),
               GradientPair());
 
-    # https://github.com/dmlc/xgboost/pull/6755/files
+    // https://github.com/dmlc/xgboost/pull/6755/files
     if (d_gpair.size() != dh_gpair->Size()) {
       d_gpair.resize(dh_gpair->Size());
     }
