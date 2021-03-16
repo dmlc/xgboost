@@ -1397,6 +1397,9 @@ def inplace_predict(  # pylint: disable=unused-argument
     """
     _assert_dask_support()
     client = _xgb_get_client(client)
+    # When used in asynchronous environment, the `client` object should have
+    # `asynchronous` attribute as True.  When invoked by the skl interface, it's
+    # responsible for setting up the client.
     return client.sync(
         _inplace_predict_async, global_config=config.get_config(), **locals()
     )
@@ -1540,13 +1543,19 @@ class DaskScikitLearnBase(XGBModel):
 
     @property
     def client(self) -> "distributed.Client":
-        """The dask client used in this model."""
+        """The dask client used in this model.  The `Client` object can not be serialized for
+        transmission, so if task is launched from a worker instead of directly from the
+        client process, this attribute needs to be set at that worker.
+
+        """
+
         client = _xgb_get_client(self._client)
         return client
 
     @client.setter
     def client(self, clt: "distributed.Client") -> None:
-        # calling `worker_client' doesn't return the correct state"
+        # calling `worker_client' doesn't return the correct `asynchronous` attribute, so
+        # we have to pass it ourselves.
         self._asynchronous = clt.asynchronous if clt is not None else False
         self._client = clt
 
