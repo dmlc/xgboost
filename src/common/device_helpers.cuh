@@ -1189,7 +1189,8 @@ template <bool accending, typename IdxT, typename U>
 void ArgSort(xgboost::common::Span<U> values, xgboost::common::Span<IdxT> sorted_idx) {
   size_t bytes = 0;
   Iota(sorted_idx);
-  dh::caching_device_vector<float> out(values.size());
+  CHECK_LT(sorted_idx.size(), 1 << 31);
+  TemporaryArray<U> out(values.size());
   if (accending) {
     cub::DeviceRadixSort::SortPairs(nullptr, bytes, values.data(),
                                     out.data().get(), sorted_idx.data(),
@@ -1239,7 +1240,8 @@ void SegmentedArgSort(xgboost::common::Span<U> values,
   size_t n_groups = group_ptr.size() - 1;
   size_t bytes = 0;
   Iota(sorted_idx);
-  dh::caching_device_vector<float> values_out(values.size());
+  CHECK_LT(sorted_idx.size(), 1 << 31);
+  TemporaryArray<U> values_out(values.size());
   detail::DeviceSegmentedRadixSortPair<!accending>(
       nullptr, bytes, values.data(), values_out.data().get(),
       sorted_idx.data(), sorted_idx.data(), sorted_idx.size(), n_groups,
