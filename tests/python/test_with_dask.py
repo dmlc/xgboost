@@ -1286,13 +1286,10 @@ def test_dask_unsupported_features(client: "Client") -> None:
         )
 
 
+@pytest.mark.skipimport("distributed.MultiLock")
 def test_parallel_submits(client: "Client") -> None:
     """Test for running multiple train simultaneously from single clients."""
-    try:
-        from distributed import MultiLock  # NOQA
-    except ImportError:
-        pytest.skip("`distributed.MultiLock' is not available")
-
+    from distributed import MultiLock
     from sklearn.datasets import load_digits
 
     futures = []
@@ -1317,13 +1314,9 @@ def test_parallel_submits(client: "Client") -> None:
         assert cls.get_booster().num_boosted_rounds() == i + 1
 
 
-def test_parallel_submit_multi_clients() -> None:
+@pytest.mark.skipimport("distributed.MultiLock")
+def test_parallel_submits_multi_clients() -> None:
     """Test for running multiple train simultaneously from multiple clients."""
-    try:
-        from distributed import MultiLock  # NOQA
-    except ImportError:
-        pytest.skip("`distributed.MultiLock' is not available")
-
     from sklearn.datasets import load_digits
 
     with LocalCluster(n_workers=4) as cluster:
