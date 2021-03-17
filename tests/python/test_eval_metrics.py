@@ -103,3 +103,22 @@ class TestEvalMetrics:
         assert gbdt_01.predict(dvalid)[0] == gbdt_02.predict(dvalid)[0]
         assert gbdt_01.predict(dvalid)[0] == gbdt_03.predict(dvalid)[0]
         assert gbdt_03.predict(dvalid)[0] != gbdt_04.predict(dvalid)[0]
+
+    @pytest.mark.skipimport("sklearn")
+    def test_gamma_deviance(self):
+        from sklearn.metrics import mean_gamma_deviance
+        rng = np.random.RandomState(1994)
+        n_samples = 100
+        n_features = 30
+
+        X = rng.randn(n_samples, n_features)
+        y = rng.randn(n_samples)
+
+        reg = xgb.XGBRegressor(tree_method="hist", objective="gamma", n_estimators=10)
+        reg.fit(X, y, eval_metric="gamma-deviance")
+
+        booster = reg.get_booster()
+        score = reg.predict(X)
+        gamma_dev = float(booster.eval(xgb.DMatrix(X, y)).split(":"))
+        skl_gamma_dev = mean_gamma_deviance(y, score)
+        np.testing.assert_allclose(gamma_dev, skl_gamma_dev)
