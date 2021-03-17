@@ -103,12 +103,9 @@ void Reset(int device_idx, common::Span<RowPartitioner::RowIndexT> ridx,
 }
 
 RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
-    : device_idx_(device_idx) {
+    : device_idx_(device_idx), ridx_a_(num_rows), position_a_(num_rows),
+      ridx_b_(num_rows), position_b_(num_rows) {
   dh::safe_cuda(cudaSetDevice(device_idx_));
-  ridx_a_.resize(num_rows);
-  ridx_b_.resize(num_rows);
-  position_a_.resize(num_rows);
-  position_b_.resize(num_rows);
   ridx_ = dh::DoubleBuffer<RowIndexT>{&ridx_a_, &ridx_b_};
   position_ = dh::DoubleBuffer<bst_node_t>{&position_a_, &position_b_};
   ridx_segments_.emplace_back(Segment(0, num_rows));
