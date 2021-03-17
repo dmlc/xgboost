@@ -93,6 +93,15 @@ void RowPartitioner::SortPosition(common::Span<bst_node_t> position,
                                  position.size(), stream);
 }
 
+void Reset(int device_idx, common::Span<RowPartitioner::RowIndexT> ridx,
+           common::Span<bst_node_t> position) {
+  CHECK_EQ(ridx.size(), position.size());
+  dh::LaunchN(device_idx, ridx.size(), [=] __device__(size_t idx) {
+    ridx[idx] = idx;
+    position[idx] = 0;
+  });
+}
+
 RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
     : device_idx_(device_idx) {
   dh::safe_cuda(cudaSetDevice(device_idx_));
@@ -104,12 +113,7 @@ RowPartitioner::RowPartitioner(int device_idx, size_t num_rows)
   position_ = dh::DoubleBuffer<bst_node_t>{&position_a_, &position_b_};
   ridx_segments_.emplace_back(Segment(0, num_rows));
 
-  thrust::sequence(
-      thrust::device_pointer_cast(ridx_.CurrentSpan().data()),
-      thrust::device_pointer_cast(ridx_.CurrentSpan().data() + ridx_.Size()));
-  thrust::fill(
-      thrust::device_pointer_cast(position_.Current()),
-      thrust::device_pointer_cast(position_.Current() + position_.Size()), 0);
+  Reset(device_idx, ridx_.CurrentSpan(), position_.CurrentSpan());
   left_counts_.resize(256);
   thrust::fill(left_counts_.begin(), left_counts_.end(), 0);
   streams_.resize(2);

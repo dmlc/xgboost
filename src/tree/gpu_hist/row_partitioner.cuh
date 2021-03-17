@@ -46,10 +46,10 @@ class RowPartitioner {
    */
   /*! \brief Range of row index for each node, pointers into ridx below. */
   std::vector<Segment> ridx_segments_;
-  dh::caching_device_vector<RowIndexT> ridx_a_;
-  dh::caching_device_vector<RowIndexT> ridx_b_;
-  dh::caching_device_vector<bst_node_t> position_a_;
-  dh::caching_device_vector<bst_node_t> position_b_;
+  dh::TemporaryArray<RowIndexT> ridx_a_;
+  dh::TemporaryArray<RowIndexT> ridx_b_;
+  dh::TemporaryArray<bst_node_t> position_a_;
+  dh::TemporaryArray<bst_node_t> position_b_;
   /*! \brief mapping for node id -> rows.
    * This looks like:
    * node id  |    1    |    2   |
