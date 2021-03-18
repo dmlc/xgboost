@@ -2,7 +2,10 @@
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from scipy import sparse
+import pytest
+import pandas as pd
 
+import testing as tm
 import xgboost as xgb
 
 
@@ -146,6 +149,19 @@ class TestInplacePredict:
 
         for i in range(10):
             run_threaded_predict(X, self.rows, predict_csr)
+
+    @pytest.mark.skipif(**tm.no_pandas())
+    def test_predict_pd(self):
+        X = self.X
+        # construct it in column major style
+        df = pd.DataFrame({str(i): X[:, i] for i in range(X.shape[1])})
+        booster = self.booster
+        df_predt = booster.inplace_predict(df)
+        arr_predt = booster.inplace_predict(X)
+        dmat_predt = booster.predict(xgb.DMatrix(X))
+
+        np.testing.assert_allclose(dmat_predt, arr_predt)
+        np.testing.assert_allclose(df_predt, arr_predt)
 
     def test_base_margin(self):
         booster = self.booster

@@ -38,17 +38,28 @@ TEST(ArrayInterface, Error) {
         Json(Boolean(false))};
 
   auto const& column_obj = get<Object>(column);
+  std::pair<size_t, size_t> shape{kRows, kCols};
+  std::string typestr{"<f4"};
+
   // missing version
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData<float>(column_obj), dmlc::Error);
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj,
+                                                  StringView{typestr}, shape),
+               dmlc::Error);
   column["version"] = Integer(static_cast<Integer::Int>(1));
   // missing data
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData<float>(column_obj), dmlc::Error);
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj,
+                                                  StringView{typestr}, shape),
+               dmlc::Error);
   column["data"] = j_data;
   // missing typestr
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData<float>(column_obj), dmlc::Error);
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj,
+                                                  StringView{typestr}, shape),
+               dmlc::Error);
   column["typestr"] = String("<f4");
   // nullptr is not valid
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData<float>(column_obj), dmlc::Error);
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj,
+                                                  StringView{typestr}, shape),
+               dmlc::Error);
 
   HostDeviceVector<float> storage;
   auto array = RandomDataGenerator{kRows, kCols, 0}.GenerateArrayInterface(&storage);
@@ -56,7 +67,23 @@ TEST(ArrayInterface, Error) {
       Json(Integer(reinterpret_cast<Integer::Int>(storage.ConstHostPointer()))),
       Json(Boolean(false))};
   column["data"] = j_data;
-  EXPECT_NO_THROW(ArrayInterfaceHandler::ExtractData<float>(column_obj));
+  EXPECT_NO_THROW(ArrayInterfaceHandler::ExtractData(
+      column_obj, StringView{typestr}, shape));
 }
 
+TEST(ArrayInterface, GetElement) {
+  size_t kRows = 4, kCols = 2;
+  HostDeviceVector<float> storage;
+  auto intefrace_str = RandomDataGenerator{kRows, kCols, 0}.GenerateArrayInterface(&storage);
+  ArrayInterface array_interface{intefrace_str};
+
+  auto const& h_storage = storage.ConstHostVector();
+  for (size_t i = 0; i < kRows; ++i) {
+    for (size_t j = 0; j < kCols; ++j) {
+      float v0 = array_interface.GetElement(i, j);
+      float v1 = h_storage.at(i * kCols + j);
+      ASSERT_EQ(v0, v1);
+    }
+  }
+}
 }  // namespace xgboost
