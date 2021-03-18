@@ -15,7 +15,7 @@
 #'
 #' 2. Booster Parameters
 #'
-#' 2.1. Parameter for Tree Booster
+#' 2.1. Parameters for Tree Booster
 #'
 #' \itemize{
 #'   \item \code{eta} control the learning rate: scale the contribution of each tree by a factor of \code{0 < eta < 1} when it is added to the current approximation. Used to prevent overfitting by making the boosting process more conservative. Lower value for \code{eta} implies larger value for \code{nrounds}: low \code{eta} value means model more robust to overfitting but slower to compute. Default: 0.3
@@ -31,7 +31,7 @@
 #'   \item \code{interaction_constraints} A list of vectors specifying feature indices of permitted interactions. Each item of the list represents one permitted interaction where specified features are allowed to interact with each other. Feature index values should start from \code{0} (\code{0} references the first column).  Leave argument unspecified for no interaction constraints.
 #' }
 #'
-#' 2.2. Parameter for Linear Booster
+#' 2.2. Parameters for Linear Booster
 #'
 #' \itemize{
 #'   \item \code{lambda} L2 regularization term on weights. Default: 0
