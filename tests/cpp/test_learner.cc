@@ -48,7 +48,7 @@ TEST(Learner, ParameterValidation) {
   learner->Configure();
   std::string output = testing::internal::GetCapturedStderr();
 
-  ASSERT_TRUE(output.find("Parameters: { Knock Knock, Silence }") != std::string::npos);
+  ASSERT_TRUE(output.find(R"(Parameters: { "Knock Knock", "Silence" })") != std::string::npos);
 }
 
 TEST(Learner, CheckGroup) {
