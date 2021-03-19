@@ -90,7 +90,8 @@ xgb.get.DMatrix <- function(data, label = NULL, missing = NA, weight = NULL) {
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
+#' train <- agaricus.train
+#' dtrain <- xgb.DMatrix(train$data, label=train$label)
 #'
 #' stopifnot(nrow(dtrain) == nrow(train$data))
 #' stopifnot(ncol(dtrain) == ncol(train$data))
@@ -117,7 +118,8 @@ dim.xgb.DMatrix <- function(x) {
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
+#' train <- agaricus.train
+#' dtrain <- xgb.DMatrix(train$data, label=train$label)
 #' dimnames(dtrain)
 #' colnames(dtrain)
 #' colnames(dtrain) <- make.names(1:ncol(train$data))
