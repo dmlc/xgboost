@@ -151,6 +151,8 @@ Send a PR to add a one sentence description:)
 ## Integrations with 3rd party software
 Open source integrations with XGBoost:
 * [Neptune.ai](http://neptune.ai/) - Experiment management and collaboration tool for ML/DL/RL specialists. Integration has a form of the [XGBoost callback](https://docs.neptune.ai/integrations/xgboost.html) that automatically logs training and evaluation metrics, as well as saved model (booster), feature importance chart and visualized trees.
+* [FLAML](https://github.com/microsoft/FLAML) - An open source AutoML library 
+designed to automatically produce accurate machine learning models with low computational cost. FLAML includes [XGBoost as one of the default learners](https://github.com/microsoft/FLAML/blob/main/flaml/model.py) and can also be used as [a fast hyperparameter tuning tool for XGBoost](https://github.com/microsoft/FLAML/blob/main/notebook/flaml_xgboost.ipynb).
 * [Optuna](https://optuna.org/) - An open source hyperparameter optimization framework to automate hyperparameter search. Optuna integrates with XGBoost in the [XGBoostPruningCallback](https://optuna.readthedocs.io/en/stable/reference/integration.html#optuna.integration.XGBoostPruningCallback) that let users easily prune unpromising trials.
 * [dtreeviz](https://github.com/parrt/dtreeviz) - A python library for decision tree visualization and model interpretation. Starting from version 1.0, dtreeviz is able to visualize tree ensembles produced by XGBoost.
 
