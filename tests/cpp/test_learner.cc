@@ -40,7 +40,7 @@ TEST(Learner, ParameterValidation) {
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
   learner->SetParam("validate_parameters", "1");
-  learner->SetParam("Knock Knock", "Who's there?");
+  learner->SetParam("Knock-Knock", "Who's-there?");
   learner->SetParam("Silence", "....");
   learner->SetParam("tree_method", "exact");
 
@@ -48,7 +48,11 @@ TEST(Learner, ParameterValidation) {
   learner->Configure();
   std::string output = testing::internal::GetCapturedStderr();
 
-  ASSERT_TRUE(output.find(R"(Parameters: { "Knock Knock", "Silence" })") != std::string::npos);
+  ASSERT_TRUE(output.find(R"(Parameters: { "Knock-Knock", "Silence" })") != std::string::npos);
+
+  // whitespace
+  learner->SetParam("tree method", "exact");
+  EXPECT_THROW(learner->Configure(), dmlc::Error);
 }
 
 TEST(Learner, CheckGroup) {

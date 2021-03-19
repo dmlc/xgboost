@@ -537,6 +537,7 @@ class LearnerConfiguration : public Learner {
       }
     }
 
+    // FIXME(trivialfis): Make eval_metric a training parameter.
     keys.emplace_back(kEvalMetric);
     keys.emplace_back("num_output_group");
 
@@ -544,7 +545,10 @@ class LearnerConfiguration : public Learner {
 
     std::vector<std::string> provided;
     for (auto const &kv : cfg_) {
-      // FIXME(trivialfis): Make eval_metric a training parameter.
+      if (std::any_of(kv.first.cbegin(), kv.first.cend(),
+                      [](char ch) { return std::isspace(ch); })) {
+        LOG(FATAL) << "Invalid parameter \"" << kv.first << "\" contains whitespace.";
+      }
       provided.push_back(kv.first);
     }
     std::sort(provided.begin(), provided.end());
