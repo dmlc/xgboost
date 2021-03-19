@@ -538,7 +538,6 @@ class LearnerConfiguration : public Learner {
     }
 
     keys.emplace_back(kEvalMetric);
-    keys.emplace_back("verbosity");
     keys.emplace_back("num_output_group");
 
     std::sort(keys.begin(), keys.end());
@@ -557,9 +556,9 @@ class LearnerConfiguration : public Learner {
       std::stringstream ss;
       ss << "\nParameters: { ";
       for (size_t i = 0; i < diff.size() - 1; ++i) {
-        ss << diff[i] << ", ";
+        ss << "\"" << diff[i] << "\", ";
       }
-      ss << diff.back();
+      ss << "\"" << diff.back() << "\"";
       ss << R"W( } might not be used.
 
   This may not be accurate due to some parameters are only used in language bindings but
