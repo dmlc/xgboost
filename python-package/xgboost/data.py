@@ -432,7 +432,6 @@ def _transform_cupy_array(data):
             data, '__array__'):
         import cupy             # pylint: disable=import-error
         data = cupy.array(data, copy=False)
-    data = data.astype(dtype=data.dtype, order='C', copy=False)
     return data
 
 

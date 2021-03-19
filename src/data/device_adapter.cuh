@@ -47,7 +47,7 @@ class CudfAdapterBatch : public detail::NoMetaInfo {
     size_t row_idx = idx / columns_.size();
     auto const& column = columns_[column_idx];
     float value = column.valid.Data() == nullptr || column.valid.Check(row_idx)
-                      ? column.GetElement(row_idx)
+                  ? column.GetElement(row_idx, 0)
                       : std::numeric_limits<float>::quiet_NaN();
     return {row_idx, column_idx, value};
   }
@@ -170,7 +170,7 @@ class CupyAdapterBatch : public detail::NoMetaInfo {
   __device__ COOTuple GetElement(size_t idx) const {
     size_t column_idx = idx % array_interface_.num_cols;
     size_t row_idx = idx / array_interface_.num_cols;
-    float value = array_interface_.GetElement(idx);
+    float value = array_interface_.GetElement(row_idx, column_idx);
     return {row_idx, column_idx, value};
   }
 

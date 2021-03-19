@@ -210,9 +210,13 @@ class TestGPUPredict:
         cp.testing.assert_allclose(predt_from_array, predt_from_dmatrix)
 
         def predict_df(x):
-            inplace_predt = booster.inplace_predict(x)
+            # column major array
+            inplace_predt = booster.inplace_predict(x.values)
             d = xgb.DMatrix(x)
             copied_predt = cp.array(booster.predict(d))
+            assert cp.all(copied_predt == inplace_predt)
+
+            inplace_predt = booster.inplace_predict(x)
             return cp.all(copied_predt == inplace_predt)
 
         for i in range(10):
