@@ -45,7 +45,7 @@ struct DeviceAUCCache {
   dh::device_vector<size_t> sorted_idx;
   // track FP/TP for computation on trapesoid area
   dh::device_vector<Pair> fptp;
-  // track negative/positive for computation on trapesoid area
+  // track FP_PREV/TP_PREV for computation on trapesoid area
   dh::device_vector<Pair> neg_pos;
   // index of unique prediction values.
   dh::device_vector<size_t> unique_idx;
@@ -73,7 +73,7 @@ struct DeviceAUCCache {
  * work across threads:
  *
  * - Run scan to obtain TP/FP values, which are right coordinates of trapesoid.
- * - Find distinct prediction values and get the corresponding negative/postive value,
+ * - Find distinct prediction values and get the corresponding FP_PREV/TP_PREV value,
  *   which are left coordinates of trapesoid.
  * - Reduce the scan array into 1 AUC value.
  */
@@ -160,16 +160,16 @@ GPUBinaryAUC(common::Span<float const> predts, MetaInfo const &info,
   auto in = dh::MakeTransformIterator<float>(
       thrust::make_counting_iterator(0), [=] __device__(size_t i) {
         float fp, tp;
-        float negative, positive;
+        float fp_prev, tp_prev;
         if (i == 0) {
           // handle the last element
           thrust::tie(fp, tp) = d_fptp.back();
-          thrust::tie(negative, positive) = d_neg_pos[d_unique_idx.back()];
+          thrust::tie(fp_prev, tp_prev) = d_neg_pos[d_unique_idx.back()];
         } else {
           thrust::tie(fp, tp) = d_fptp[d_unique_idx[i] - 1];
-          thrust::tie(negative, positive) = d_neg_pos[d_unique_idx[i - 1]];
+          thrust::tie(fp_prev, tp_prev) = d_neg_pos[d_unique_idx[i - 1]];
         }
-        return TrapesoidArea(negative, fp, positive, tp);
+        return TrapesoidArea(fp_prev, fp, tp_prev, tp);
       });
 
   Pair last = cache->fptp.back();
@@ -201,8 +201,8 @@ XGBOOST_DEVICE size_t LastOf(size_t group, common::Span<Idx> indptr) {
  * MultiClass implementation is similar to binary classification, except we need to split
  * up each class in all kernels.
  */
-float GPUMultiClassAUC(common::Span<float const> predts, MetaInfo const &info,
-                       int32_t device, std::shared_ptr<DeviceAUCCache>* p_cache) {
+float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info,
+                          int32_t device, std::shared_ptr<DeviceAUCCache>* p_cache) {
   auto& cache = *p_cache;
   if (!cache) {
     cache.reset(new DeviceAUCCache);
@@ -311,7 +311,7 @@ float GPUMultiClassAUC(common::Span<float const> predts, MetaInfo const &info,
       },
       d_fptp.size());
 
-  // scatter unique negative/positive values
+  // scatter unique FP_PREV/TP_PREV values
   auto d_neg_pos = dh::ToSpan(cache->neg_pos);
   // When dataset is not empty, each class must have at least 1 (unique) sample
   // prediction, so no need to handle special case.
@@ -343,17 +343,17 @@ float GPUMultiClassAUC(common::Span<float const> predts, MetaInfo const &info,
       thrust::make_counting_iterator(0), [=] __device__(size_t i) {
         size_t class_id = d_unique_idx[i] / n_samples;
         float fp, tp;
-        float negative, positive;
+        float fp_prev, tp_prev;
         if (i == d_unique_class_ptr[class_id]) {
           // first item is ignored, we use this thread to calculate the last item
           thrust::tie(fp, tp) = d_fptp[class_id * n_samples + (n_samples - 1)];
-          thrust::tie(negative, positive) =
+          thrust::tie(fp_prev, tp_prev) =
               d_neg_pos[d_unique_idx[LastOf(class_id, d_unique_class_ptr)]];
         } else {
           thrust::tie(fp, tp) = d_fptp[d_unique_idx[i] - 1];
-          thrust::tie(negative, positive) = d_neg_pos[d_unique_idx[i - 1]];
+          thrust::tie(fp_prev, tp_prev) = d_neg_pos[d_unique_idx[i - 1]];
         }
-        float auc = TrapesoidArea(negative, fp, positive, tp);
+        float auc = TrapesoidArea(fp_prev, fp, tp_prev, tp);
         return auc;
       });
 

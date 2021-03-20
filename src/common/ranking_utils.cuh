@@ -63,7 +63,7 @@ SegmentedTrapezoidThreads(xgboost::common::Span<U> group_ptr,
 }
 
 /**
- * Called inside kerenl to obtain coordinate from trapezoid grid.
+ * Called inside kernel to obtain coordinate from trapezoid grid.
  */
 XGBOOST_DEVICE inline void UnravelTrapeziodIdx(size_t i_idx, size_t n,
                                                size_t *out_i, size_t *out_j) {

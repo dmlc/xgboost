@@ -35,7 +35,9 @@ constexpr auto UnpackArr(std::array<T, N> &&arr) {
 }
 
 /**
- * Calculate AUC for binary classification problem.
+ * Calculate AUC for binary classification problem.  This function does not normalize the
+ * AUC by 1 / (num_positive * num_negative), instead it returns a tuple for caller to
+ * handle the normalization.
  */
 std::tuple<float, float, float> BinaryAUC(std::vector<float> const &predts,
                                           std::vector<float> const &labels,
@@ -53,13 +55,13 @@ std::tuple<float, float, float> BinaryAUC(std::vector<float> const &predts,
   float label = labels[sorted_idx.front()];
   float w = get_weight(0);
   float fp = (1.0 - label) * w, tp = label * w;
-  float positive = 0, negative = 0;
+  float tp_prev = 0, fp_prev = 0;
   // TODO(jiaming): We can parallize this if we have a parallel scan for CPU.
   for (size_t i = 1; i < sorted_idx.size(); ++i) {
     if (predts[sorted_idx[i]] != predts[sorted_idx[i-1]]) {
-      auc += TrapesoidArea(negative, fp, positive, tp);
-      positive = tp;
-      negative = fp;
+      auc += TrapesoidArea(fp_prev, fp, tp_prev, tp);
+      tp_prev = tp;
+      fp_prev = fp;
     }
     label = labels[sorted_idx[i]];
     float w = get_weight(i);
@@ -67,7 +69,7 @@ std::tuple<float, float, float> BinaryAUC(std::vector<float> const &predts,
     tp += label * w;
   }
 
-  auc += TrapesoidArea(negative, fp, positive, tp);
+  auc += TrapesoidArea(fp_prev, fp, tp_prev, tp);
   if (fp <= 0.0f || tp <= 0.0f) {
     auc = 0;
     fp = 0;
@@ -267,8 +269,8 @@ class EvalAUC : public Metric {
       if (tparam_->gpu_id == GenericParameter::kCpuId) {
         auc = MultiClassOVR(preds.ConstHostVector(), info);
       } else {
-        auc = GPUMultiClassAUC(preds.ConstDeviceSpan(), info, tparam_->gpu_id,
-                               &this->d_cache_);
+        auc = GPUMultiClassAUCOVR(preds.ConstDeviceSpan(), info, tparam_->gpu_id,
+                                  &this->d_cache_);
       }
     } else {
       /**
@@ -320,8 +322,8 @@ GPUBinaryAUC(common::Span<float const> predts, MetaInfo const &info,
   return std::make_tuple(0.0f, 0.0f, 0.0f);
 }
 
-float GPUMultiClassAUC(common::Span<float const> predts, MetaInfo const &info,
-                       int32_t device, std::shared_ptr<DeviceAUCCache>* cache) {
+float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info,
+                          int32_t device, std::shared_ptr<DeviceAUCCache>* cache) {
   common::AssertGPUSupport();
   return 0;
 }
