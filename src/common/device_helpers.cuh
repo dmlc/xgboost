@@ -1198,6 +1198,62 @@ size_t SegmentedUnique(Inputs &&...inputs) {
   return SegmentedUnique(thrust::cuda::par(alloc), std::forward<Inputs&&>(inputs)...);
 }
 
+/**
+ * \brief Unique by key for many groups of data.  Has same constraint as `SegmentedUnique`.
+ *
+ * \tparam exec               thrust execution policy
+ * \tparam key_segments_first start iter to segment pointer
+ * \tparam key_segments_last  end iter to segment pointer
+ * \tparam key_first          start iter to key for comparison
+ * \tparam key_last           end iter to key for comparison
+ * \tparam val_first          start iter to values
+ * \tparam key_segments_out   output iterator for new segment pointer
+ * \tparam val_out            output iterator for values
+ * \tparam comp               binary comparison operator
+ */
+template <typename DerivedPolicy, typename SegInIt, typename SegOutIt,
+          typename KeyInIt, typename ValInIt, typename ValOutIt, typename Comp>
+size_t SegmentedUniqueByKey(
+    const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
+    SegInIt key_segments_first, SegInIt key_segments_last, KeyInIt key_first,
+    KeyInIt key_last, ValInIt val_first, SegOutIt key_segments_out,
+    ValOutIt val_out, Comp comp) {
+  using Key =
+      thrust::pair<size_t,
+                   typename thrust::iterator_traits<KeyInIt>::value_type>;
+
+  auto unique_key_it = dh::MakeTransformIterator<Key>(
+      thrust::make_counting_iterator(static_cast<size_t>(0)),
+      [=] __device__(size_t i) {
+        size_t seg = dh::SegmentId(key_segments_first, key_segments_last, i);
+        return thrust::make_pair(seg, *(key_first + i));
+      });
+  size_t segments_len = key_segments_last - key_segments_first;
+  thrust::fill(thrust::device, key_segments_out,
+               key_segments_out + segments_len, 0);
+  size_t n_inputs = std::distance(key_first, key_last);
+  // Reduce the number of uniques elements per segment, avoid creating an
+  // intermediate array for `reduce_by_key`.  It's limited by the types that
+  // atomicAdd supports.  For example, size_t is not supported as of CUDA 10.2.
+  auto reduce_it = thrust::make_transform_output_iterator(
+      thrust::make_discard_iterator(),
+      detail::SegmentedUniqueReduceOp<Key, SegOutIt>{key_segments_out});
+  auto uniques_ret = thrust::unique_by_key_copy(
+      exec, unique_key_it, unique_key_it + n_inputs, val_first, reduce_it,
+      val_out, [=] __device__(Key const &l, Key const &r) {
+        if (l.first == r.first) {
+          // In the same segment.
+          return comp(thrust::get<1>(l), thrust::get<1>(r));
+        }
+        return false;
+      });
+  auto n_uniques = uniques_ret.second - val_out;
+  CHECK_LE(n_uniques, n_inputs);
+  thrust::exclusive_scan(exec, key_segments_out,
+                         key_segments_out + segments_len, key_segments_out, 0);
+  return n_uniques;
+}
+
 template <typename Policy, typename InputIt, typename Init, typename Func>
 auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce_op) {
   size_t constexpr kLimit = std::numeric_limits<int32_t>::max() / 2;
@@ -1215,36 +1271,73 @@ auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce
   return aggregate;
 }
 
+// wrapper to avoid integer `num_items`.
+template <typename InputIteratorT, typename OutputIteratorT, typename ScanOpT,
+          typename OffsetT>
+void InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op,
+                   OffsetT num_items) {
+  size_t bytes = 0;
+  safe_cuda((
+      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType,
+                        OffsetT>::Dispatch(nullptr, bytes, d_in, d_out, scan_op,
+                                           cub::NullType(), num_items, nullptr,
+                                           false)));
+  dh::TemporaryArray<char> storage(bytes);
+  safe_cuda((
+      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType,
+                        OffsetT>::Dispatch(storage.data().get(), bytes, d_in,
+                                           d_out, scan_op, cub::NullType(),
+                                           num_items, nullptr, false)));
+}
+
+template <typename InputIteratorT, typename OutputIteratorT, typename OffsetT>
+void InclusiveSum(InputIteratorT d_in, OutputIteratorT d_out, OffsetT num_items) {
+  InclusiveScan(d_in, d_out, cub::Sum(), num_items);
+}
+
 template <bool accending, typename IdxT, typename U>
-void ArgSort(xgboost::common::Span<U> values, xgboost::common::Span<IdxT> sorted_idx) {
+void ArgSort(xgboost::common::Span<U> keys, xgboost::common::Span<IdxT> sorted_idx) {
   size_t bytes = 0;
   Iota(sorted_idx);
-  CHECK_LT(sorted_idx.size(), 1 << 31);
-  TemporaryArray<U> out(values.size());
+
+  using KeyT = typename decltype(keys)::value_type;
+  using ValueT = std::remove_const_t<IdxT>;
+
+  TemporaryArray<KeyT> out(keys.size());
+  cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(keys.data()),
+                                 out.data().get());
+  cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(sorted_idx.data()),
+                                     sorted_idx.data());
+
   if (accending) {
-    cub::DeviceRadixSort::SortPairs(nullptr, bytes, values.data(),
-                                    out.data().get(), sorted_idx.data(),
-                                    sorted_idx.data(), sorted_idx.size());
+    void *d_temp_storage = nullptr;
+    cub::DispatchRadixSort<false, KeyT, ValueT, size_t>::Dispatch(
+        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
+        sizeof(KeyT) * 8, false, nullptr, false);
     dh::TemporaryArray<char> storage(bytes);
-    cub::DeviceRadixSort::SortPairs(storage.data().get(), bytes, values.data(),
-                                    out.data().get(), sorted_idx.data(),
-                                    sorted_idx.data(), sorted_idx.size());
+    d_temp_storage = storage.data().get();
+    cub::DispatchRadixSort<false, KeyT, ValueT, size_t>::Dispatch(
+        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
+        sizeof(KeyT) * 8, false, nullptr, false);
   } else {
-    cub::DeviceRadixSort::SortPairsDescending(
-        nullptr, bytes, values.data(), out.data().get(), sorted_idx.data(),
-        sorted_idx.data(), sorted_idx.size());
+    void *d_temp_storage = nullptr;
+    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, size_t>::Dispatch(
+        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
+        sizeof(KeyT) * 8, false, nullptr, false)));
     dh::TemporaryArray<char> storage(bytes);
-    cub::DeviceRadixSort::SortPairsDescending(
-        storage.data().get(), bytes, values.data(), out.data().get(),
-        sorted_idx.data(), sorted_idx.data(), sorted_idx.size());
+    d_temp_storage = storage.data().get();
+    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, size_t>::Dispatch(
+        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
+        sizeof(KeyT) * 8, false, nullptr, false)));
   }
 }
 
 namespace detail {
-// Wrapper around cub sort for easier `descending` sort
-template <bool descending, typename KeyT, typename ValueT, typename OffsetIteratorT>
+// Wrapper around cub sort for easier `descending` sort and `size_t num_items`.
+template <bool descending, typename KeyT, typename ValueT,
+          typename OffsetIteratorT>
 void DeviceSegmentedRadixSortPair(
-    void *d_temp_storage, size_t &temp_storage_bytes, const KeyT *d_keys_in,  // NOLINT
+    void *d_temp_storage, size_t &temp_storage_bytes, const KeyT *d_keys_in, // NOLINT
     KeyT *d_keys_out, const ValueT *d_values_in, ValueT *d_values_out,
     size_t num_items, size_t num_segments, OffsetIteratorT d_begin_offsets,
     OffsetIteratorT d_end_offsets, int begin_bit = 0,
@@ -1253,12 +1346,12 @@ void DeviceSegmentedRadixSortPair(
   cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(d_values_in),
                                      d_values_out);
   using OffsetT = size_t;
-  dh::safe_cuda((cub::DispatchSegmentedRadixSort<
-                 descending, KeyT, ValueT, OffsetIteratorT,
-                 OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys,
-                                    d_values, num_items, num_segments,
-                                    d_begin_offsets, d_end_offsets, begin_bit,
-                                    end_bit, false, nullptr, false)));
+  safe_cuda((cub::DispatchSegmentedRadixSort<
+             descending, KeyT, ValueT, OffsetIteratorT,
+             OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys,
+                                d_values, num_items, num_segments,
+                                d_begin_offsets, d_end_offsets, begin_bit,
+                                end_bit, false, nullptr, false)));
 }
 }  // namespace detail
 
@@ -1270,12 +1363,11 @@ void SegmentedArgSort(xgboost::common::Span<U> values,
   size_t n_groups = group_ptr.size() - 1;
   size_t bytes = 0;
   Iota(sorted_idx);
-  CHECK_LT(sorted_idx.size(), 1 << 31);
-  TemporaryArray<U> values_out(values.size());
+  TemporaryArray<std::remove_const_t<U>> values_out(values.size());
   detail::DeviceSegmentedRadixSortPair<!accending>(
-      nullptr, bytes, values.data(), values_out.data().get(),
-      sorted_idx.data(), sorted_idx.data(), sorted_idx.size(), n_groups,
-      group_ptr.data(), group_ptr.data() + 1);
+      nullptr, bytes, values.data(), values_out.data().get(), sorted_idx.data(),
+      sorted_idx.data(), sorted_idx.size(), n_groups, group_ptr.data(),
+      group_ptr.data() + 1);
   dh::TemporaryArray<xgboost::common::byte> temp_storage(bytes);
   detail::DeviceSegmentedRadixSortPair<!accending>(
       temp_storage.data().get(), bytes, values.data(), values_out.data().get(),

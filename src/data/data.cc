@@ -400,7 +400,9 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
         group_ptr_.push_back(i);
       }
     }
-    group_ptr_.push_back(query_ids.size());
+    if (group_ptr_.back() != query_ids.size()) {
+      group_ptr_.push_back(query_ids.size());
+    }
   } else if (!std::strcmp(key, "label_lower_bound")) {
     auto& labels = labels_lower_bound_.HostVector();
     labels.resize(num);

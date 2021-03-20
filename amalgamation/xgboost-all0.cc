@@ -14,6 +14,7 @@
 #include "../src/metric/elementwise_metric.cc"
 #include "../src/metric/multiclass_metric.cc"
 #include "../src/metric/rank_metric.cc"
+#include "../src/metric/auc.cc"
 #include "../src/metric/survival_metric.cc"
 
 // objectives

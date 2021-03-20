@@ -9,6 +9,7 @@ import scipy
 import json
 from typing import List, Tuple, Dict, Optional, Type, Any
 import asyncio
+from functools import partial
 from concurrent.futures import ThreadPoolExecutor
 import tempfile
 from sklearn.datasets import make_classification
@@ -528,9 +529,106 @@ def run_empty_dmatrix_cls(client: "Client", parameters: dict) -> None:
     _check_outputs(out, predictions)
 
 
+def run_empty_dmatrix_auc(client: "Client", tree_method: str, n_workers: int) -> None:
+    from sklearn import datasets
+    n_samples = 100
+    n_features = 97
+    rng = np.random.RandomState(1994)
+
+    make_classification = partial(
+        datasets.make_classification,
+        n_features=n_features,
+        random_state=rng
+    )
+
+    # binary
+    X_, y_ = make_classification(n_samples=n_samples, random_state=rng)
+    X = dd.from_array(X_, chunksize=10)
+    y = dd.from_array(y_, chunksize=10)
+
+    n_samples = n_workers - 1
+    valid_X_, valid_y_ = make_classification(n_samples=n_samples, random_state=rng)
+    valid_X = dd.from_array(valid_X_, chunksize=n_samples)
+    valid_y = dd.from_array(valid_y_, chunksize=n_samples)
+
+    cls = xgb.dask.DaskXGBClassifier(
+        tree_method=tree_method, n_estimators=2, use_label_encoder=False
+    )
+    cls.fit(X, y, eval_metric="auc", eval_set=[(valid_X, valid_y)])
+
+    # multiclass
+    X_, y_ = make_classification(
+        n_samples=n_samples,
+        n_classes=10,
+        n_informative=n_features,
+        n_redundant=0,
+        n_repeated=0
+    )
+    X = dd.from_array(X_, chunksize=10)
+    y = dd.from_array(y_, chunksize=10)
+
+    n_samples = n_workers - 1
+    valid_X_, valid_y_ = make_classification(
+        n_samples=n_samples,
+        n_classes=10,
+        n_informative=n_features,
+        n_redundant=0,
+        n_repeated=0
+    )
+    valid_X = dd.from_array(valid_X_, chunksize=n_samples)
+    valid_y = dd.from_array(valid_y_, chunksize=n_samples)
+
+    cls = xgb.dask.DaskXGBClassifier(
+        tree_method=tree_method, n_estimators=2, use_label_encoder=False
+    )
+    cls.fit(X, y, eval_metric="auc", eval_set=[(valid_X, valid_y)])
+
+
+def test_empty_dmatrix_auc() -> None:
+    with LocalCluster(n_workers=2) as cluster:
+        with Client(cluster) as client:
+            run_empty_dmatrix_auc(client, "hist", 2)
+
+
+def run_auc(client: "Client", tree_method: str) -> None:
+    from sklearn import datasets
+    n_samples = 100
+    n_features = 97
+    rng = np.random.RandomState(1994)
+    X_, y_ = datasets.make_classification(
+        n_samples=n_samples, n_features=n_features, random_state=rng
+    )
+    X = dd.from_array(X_, chunksize=10)
+    y = dd.from_array(y_, chunksize=10)
+
+    valid_X_, valid_y_ = datasets.make_classification(
+        n_samples=n_samples, n_features=n_features, random_state=rng
+    )
+    valid_X = dd.from_array(valid_X_, chunksize=10)
+    valid_y = dd.from_array(valid_y_, chunksize=10)
+
+    cls = xgb.XGBClassifier(
+        tree_method=tree_method, n_estimators=2, use_label_encoder=False
+    )
+    cls.fit(X_, y_, eval_metric="auc", eval_set=[(valid_X_, valid_y_)])
+
+    dcls = xgb.dask.DaskXGBClassifier(
+        tree_method=tree_method, n_estimators=2, use_label_encoder=False
+    )
+    dcls.fit(X, y, eval_metric="auc", eval_set=[(valid_X, valid_y)])
+
+    approx = dcls.evals_result()["validation_0"]["auc"]
+    exact = cls.evals_result()["validation_0"]["auc"]
+    for i in range(2):
+        # approximated test.
+        assert np.abs(approx[i] - exact[i]) <= 0.06
+
+
+def test_auc(client: "Client") -> None:
+    run_auc(client, "hist")
+
 # No test for Exact, as empty DMatrix handling are mostly for distributed
 # environment and Exact doesn't support it.
-
 def test_empty_dmatrix_hist() -> None:
     with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:

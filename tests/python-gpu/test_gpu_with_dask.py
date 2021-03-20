@@ -17,6 +17,8 @@ if sys.platform.startswith("win"):
 
 sys.path.append("tests/python")
 from test_with_dask import run_empty_dmatrix_reg      # noqa
+from test_with_dask import run_empty_dmatrix_auc      # noqa
+from test_with_dask import run_auc                    # noqa
 from test_with_dask import run_boost_from_prediction  # noqa
 from test_with_dask import run_dask_classifier        # noqa
 from test_with_dask import run_empty_dmatrix_cls      # noqa
@@ -285,6 +287,15 @@ class TestDistributedGPU:
                           'debug_synchronize': True}
             run_empty_dmatrix_reg(client, parameters)
             run_empty_dmatrix_cls(client, parameters)
+
+    def test_empty_dmatrix_auc(self, local_cuda_cluster: LocalCUDACluster) -> None:
+        with Client(local_cuda_cluster) as client:
+            n_workers = len(_get_client_workers(client))
+            run_empty_dmatrix_auc(client, "gpu_hist", n_workers)
+
+    def test_auc(self, local_cuda_cluster: LocalCUDACluster) -> None:
+        with Client(local_cuda_cluster) as client:
+            run_auc(client, "gpu_hist")
 
     def test_data_initialization(self, local_cuda_cluster: LocalCUDACluster) -> None:
         with Client(local_cuda_cluster) as client:

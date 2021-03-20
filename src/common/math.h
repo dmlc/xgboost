@@ -26,6 +26,9 @@ XGBOOST_DEVICE inline float Sigmoid(float x) {
   return 1.0f / (1.0f + expf(-x));
 }
 
+template <typename T>
+XGBOOST_DEVICE inline static T Sqr(T a) { return a * a; }
+
 /*!
  * \brief Equality test for both integer and floating point.
  */
