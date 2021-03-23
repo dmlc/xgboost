@@ -25,6 +25,10 @@ namespace xgboost {
 namespace common {
 /*!
  * \brief multi-thread version of group builder
+ *
+ *   Other than the storage for transposed matrix, the extra runtime memory usage of this
+ *   class is approximately `nnz + (rows + 1) * num_threads`.
+ *
  * \tparam ValueType type of entries in the sparse matrix
  * \tparam SizeType type of the index range holder
  */
