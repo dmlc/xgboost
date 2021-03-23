@@ -168,7 +168,7 @@ inline int32_t OmpSetNumThreadsWithoutHT(int32_t* p_threads) {
   auto& threads = *p_threads;
   int32_t nthread_original = omp_get_max_threads();
   if (threads <= 0) {
-    threads = nthread_original;
+    threads = 1;
   }
   omp_set_num_threads(threads);
   return nthread_original;
