@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2021 by Contributors
+ */
 #include <gtest/gtest.h>
 #include <xgboost/host_device_vector.h>
 #include "../helpers.h"

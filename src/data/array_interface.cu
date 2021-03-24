@@ -1,3 +1,6 @@
+/*!
+ * Copyright 2021 by Contributors
+ */
 #include "array_interface.h"
 #include "../common/common.h"
 
