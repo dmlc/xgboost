@@ -692,8 +692,10 @@ class Dart : public GBTree {
 
       size_t n_rows = p_fmat->Info().num_row_;
       if (predts.predictions.DeviceIdx() != GenericParameter::kCpuId) {
-        GPUDartPredictInc(p_out_preds->predictions.DeviceSpan(), predts.predictions.DeviceSpan(),
-                          w, n_rows, n_groups, group);
+        p_out_preds->predictions.SetDevice(predts.predictions.DeviceIdx());
+        GPUDartPredictInc(p_out_preds->predictions.DeviceSpan(),
+                          predts.predictions.DeviceSpan(), w, n_rows, n_groups,
+                          group);
       } else {
         auto &h_out_predts = p_out_preds->predictions.HostVector();
         auto &h_predts = predts.predictions.HostVector();
