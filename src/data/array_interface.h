@@ -42,7 +42,7 @@ struct ArrayInterfaceErrors {
     return str.c_str();
   }
   static char const* Version() {
-    return "Only version 1 and 2 of `__cuda_array_interface__' are supported.";
+    return "Only version <= 3 of `__cuda_array_interface__' are supported.";
   }
   static char const* OfType(std::string const& type) {
     static std::string str;
@@ -246,21 +246,21 @@ void ArrayInterfaceHandler::SyncCudaStream(ptrdiff_t stream) {
 
 // A view over __array_interface__
 class ArrayInterface {
-  void Initialize(std::map<std::string, Json> const &column,
+  void Initialize(std::map<std::string, Json> const &array,
                   bool allow_mask = true) {
-    ArrayInterfaceHandler::Validate(column);
-    auto typestr = get<String const>(column.at("typestr"));
+    ArrayInterfaceHandler::Validate(array);
+    auto typestr = get<String const>(array.at("typestr"));
     this->AssignType(StringView{typestr});
 
-    auto shape = ArrayInterfaceHandler::ExtractShape(column);
+    auto shape = ArrayInterfaceHandler::ExtractShape(array);
     num_rows = shape.first;
     num_cols = shape.second;
 
-    data = ArrayInterfaceHandler::ExtractData(column, StringView{typestr}, shape);
+    data = ArrayInterfaceHandler::ExtractData(array, StringView{typestr}, shape);
 
     if (allow_mask) {
       common::Span<RBitField8::value_type> s_mask;
-      size_t n_bits = ArrayInterfaceHandler::ExtractMask(column, &s_mask);
+      size_t n_bits = ArrayInterfaceHandler::ExtractMask(array, &s_mask);
 
       valid = RBitField8(s_mask);
 
@@ -270,16 +270,20 @@ class ArrayInterface {
             << "XGBoost doesn't support internal broadcasting.";
       }
     } else {
-      CHECK(column.find("mask") == column.cend())
+      CHECK(array.find("mask") == array.cend())
           << "Masked array is not yet supported.";
     }
 
-    ArrayInterfaceHandler::ExtractStride(column, strides, num_rows, num_cols,
+    ArrayInterfaceHandler::ExtractStride(array, strides, num_rows, num_cols,
                                          typestr[2] - '0');
 
-    auto stream_it = column.find("stream");
-    if (stream_it != column.cend()) {
+    auto stream_it = array.find("stream");
+    if (stream_it != array.cend() && !IsA<Null>(stream_it->second)) {
       stream = get<Integer const>(stream_it->second);
+      // is cuda, check the version.
+      if (get<Integer const>(array.at("version")) > 3) {
+        LOG(FATAL) << ArrayInterfaceErrors::Version();
+      }
       ArrayInterfaceHandler::SyncCudaStream(stream);
     }
   }
