@@ -91,6 +91,8 @@ BatchSet<EllpackPage> SimpleDMatrix::GetEllpackBatches(const BatchParam& param) 
 
 template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
+  // Allow threading only for row-major case as column-major requires O(nthread*batch_size) memory
+  nthread = adapter->Value().kIsRowMajor ? nthread : 1;
   // Set number of threads but keep old value so we can reset it after
   int nthread_original = common::OmpSetNumThreadsWithoutHT(&nthread);
 

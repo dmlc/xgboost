@@ -876,10 +876,10 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   int nthread_original = common::OmpSetNumThreadsWithoutHT(&nthread);
   auto& offset_vec = offset.HostVector();
   auto& data_vec = data.HostVector();
-
   size_t builder_base_row_offset = this->Size();
+  constexpr bool kIsRowMajor = AdapterBatchT::kIsRowMajor;
   common::ParallelGroupBuilder<
-      Entry, std::remove_reference<decltype(offset_vec)>::type::value_type>
+      Entry, std::remove_reference<decltype(offset_vec)>::type::value_type, kIsRowMajor>
       builder(&offset_vec, &data_vec, builder_base_row_offset);
   // Estimate expected number of rows by using last element in batch
   // This is not required to be exact but prevents unnecessary resizing
@@ -892,13 +892,15 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     }
   }
   size_t batch_size = batch.Size();
-  const size_t thread_size = batch_size / nthread;
-  builder.InitBudget(expected_rows+1, nthread);
+  expected_rows = kIsRowMajor ? batch_size : expected_rows;
   uint64_t max_columns = 0;
   if (batch_size == 0) {
     omp_set_num_threads(nthread_original);
     return max_columns;
   }
+  const size_t thread_size = batch_size / nthread;
+
+  builder.InitBudget(expected_rows, nthread);
   std::vector<std::vector<uint64_t>> max_columns_vector(nthread);
   dmlc::OMPException exec;
   std::atomic<bool> valid{true};
