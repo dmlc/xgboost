@@ -633,7 +633,6 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
   // Indicates a number of rows/columns must be inferred
   size_t NumRows() const { return kAdapterUnknownSize; }
   size_t NumColumns() const { return kAdapterUnknownSize; }
-  const bool IsRowMajor() const { return FileAdapterBatch::kIsRowMajor; }
 
  private:
   size_t row_offset_{0};
