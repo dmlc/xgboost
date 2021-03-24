@@ -120,9 +120,18 @@ class ArrayInterfaceHandler {
   }
 
   static void Validate(std::map<std::string, Json> const& array) {
-    if (array.find("version") == array.cend()) {
+    auto version_it = array.find("version");
+    if (version_it == array.cend()) {
       LOG(FATAL) << "Missing `version' field for array interface";
     }
+    auto stream_it = array.find("stream");
+    if (stream_it != array.cend() && !IsA<Null>(stream_it->second)) {
+      // is cuda, check the version.
+      if (get<Integer const>(version_it->second) > 3) {
+        LOG(FATAL) << ArrayInterfaceErrors::Version();
+      }
+    }
+
     if (array.find("typestr") == array.cend()) {
       LOG(FATAL) << "Missing `typestr' field for array interface";
     }
@@ -252,11 +261,9 @@ class ArrayInterface {
     auto typestr = get<String const>(array.at("typestr"));
     this->AssignType(StringView{typestr});
 
-    auto shape = ArrayInterfaceHandler::ExtractShape(array);
-    num_rows = shape.first;
-    num_cols = shape.second;
-
-    data = ArrayInterfaceHandler::ExtractData(array, StringView{typestr}, shape);
+    std::tie(num_rows, num_cols) = ArrayInterfaceHandler::ExtractShape(array);
+    data = ArrayInterfaceHandler::ExtractData(
+        array, StringView{typestr}, std::make_pair(num_rows, num_cols));
 
     if (allow_mask) {
       common::Span<RBitField8::value_type> s_mask;
@@ -280,10 +287,6 @@ class ArrayInterface {
     auto stream_it = array.find("stream");
     if (stream_it != array.cend() && !IsA<Null>(stream_it->second)) {
       stream = get<Integer const>(stream_it->second);
-      // is cuda, check the version.
-      if (get<Integer const>(array.at("version")) > 3) {
-        LOG(FATAL) << ArrayInterfaceErrors::Version();
-      }
       ArrayInterfaceHandler::SyncCudaStream(stream);
     }
   }
