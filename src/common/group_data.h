@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2020 by Contributors
+ * Copyright 2014-2021 by Contributors
  * \file group_data.h
  * \brief this file defines utils to group data by integer keys
  *     Input: given input sequence (key,value), (k1,v1), (k2,v2)
@@ -95,7 +95,6 @@ class ParallelGroupBuilder {
       // initialize rptr to be beginning of each segment
       SizeType rptr_fill_value = rptr_.empty() ? 0 : rptr_.back();
       rptr_.resize(expected_rows + base_row_offset_ + 1, rptr_fill_value);
-      const size_t thread_size = thread_rptr_[0].size();
 
       std::size_t count = 0;
       size_t offset_idx = base_row_offset_ + 1;
@@ -117,7 +116,7 @@ class ParallelGroupBuilder {
       for (std::size_t tid = 0; tid < thread_rptr_.size(); ++tid) {
         if (rptr_.size() <= thread_rptr_[tid].size() + base_row_offset_) {
           rptr_.resize(thread_rptr_[tid].size() + base_row_offset_ + 1,
-                      rptr_fill_value);  // key + 1
+                       rptr_fill_value);  // key + 1
         }
       }
       // initialize rptr to be beginning of each segment
