@@ -404,7 +404,7 @@ class GammaRegression : public ObjFunction {
           bst_float p = _preds[_idx];
           bst_float w = is_null_weight ? 1.0f : _weights[_idx];
           bst_float y = _labels[_idx];
-          if (y < 0.0f) {
+          if (y <= 0.0f) {
             _label_correct[0] = 0;
           }
           _out_gpair[_idx] = GradientPair((1 - y / expf(p)) * w, y / expf(p) * w);
@@ -416,7 +416,7 @@ class GammaRegression : public ObjFunction {
     std::vector<int>& label_correct_h = label_correct_.HostVector();
     for (auto const flag : label_correct_h) {
       if (flag == 0) {
-        LOG(FATAL) << "GammaRegression: label must be nonnegative";
+        LOG(FATAL) << "GammaRegression: label must be positive.";
       }
     }
   }
