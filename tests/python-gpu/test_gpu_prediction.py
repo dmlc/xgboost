@@ -312,3 +312,33 @@ class TestGPUPredict:
         pred = bst.predict(dtrain)
         rmse = mean_squared_error(y_true=y, y_pred=pred, squared=False)
         np.testing.assert_almost_equal(rmse, eval_history['train']['rmse'][-1], decimal=5)
+
+    def test_predict_dart(self):
+        import cupy as cp
+        rng = cp.random.RandomState(1994)
+        n_samples = 1000
+        X = rng.randn(n_samples, 10)
+        y = rng.randn(n_samples)
+        Xy = xgb.DMatrix(X, y)
+        booster = xgb.train(
+            {
+                "tree_method": "gpu_hist",
+                "booster": "dart",
+                "rate_drop": 0.5,
+            },
+            Xy,
+            num_boost_round=32
+        )
+        # predictor=auto
+        inplace = booster.inplace_predict(X)
+        copied = booster.predict(Xy)
+
+        copied = cp.array(copied)
+        cp.testing.assert_allclose(inplace, copied, atol=1e-6)
+
+        booster.set_param({"predictor": "gpu_predictor"})
+        inplace = booster.inplace_predict(X)
+        copied = booster.predict(Xy)
+
+        copied = cp.array(copied)
+        cp.testing.assert_allclose(inplace, copied, atol=1e-6)
