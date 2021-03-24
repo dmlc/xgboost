@@ -244,11 +244,11 @@ class ArrayInterfaceHandler {
     return p_data;
   }
 
-  static void SyncCudaStream(ptrdiff_t stream);
+  static void SyncCudaStream(int64_t stream);
 };
 
 #if !defined(XGBOOST_USE_CUDA)
-inline void ArrayInterfaceHandler::SyncCudaStream(ptrdiff_t stream) {
+inline void ArrayInterfaceHandler::SyncCudaStream(int64_t stream) {
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
@@ -286,7 +286,7 @@ class ArrayInterface {
 
     auto stream_it = array.find("stream");
     if (stream_it != array.cend() && !IsA<Null>(stream_it->second)) {
-      stream = get<Integer const>(stream_it->second);
+      int64_t stream = get<Integer const>(stream_it->second);
       ArrayInterfaceHandler::SyncCudaStream(stream);
     }
   }
@@ -399,9 +399,6 @@ class ArrayInterface {
   bst_feature_t num_cols;
   size_t strides[2]{0, 0};
   void* data;
-
-  ptrdiff_t stream = 0;
-
   Type type;
 };
 
