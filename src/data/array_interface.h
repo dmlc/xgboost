@@ -248,7 +248,7 @@ class ArrayInterfaceHandler {
 };
 
 #if !defined(XGBOOST_USE_CUDA)
-void ArrayInterfaceHandler::SyncCudaStream(ptrdiff_t stream) {
+inline void ArrayInterfaceHandler::SyncCudaStream(ptrdiff_t stream) {
   common::AssertGPUSupport();
 }
 #endif  // !defined(XGBOOST_USE_CUDA)
