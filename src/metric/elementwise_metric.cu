@@ -312,7 +312,7 @@ struct EvalGammaNLogLik {
     // b = -std::log(-theta);
     float b = 1.0f;
     // c = 1. / kPsi * std::log(y/kPsi) - std::log(y) - common::LogGamma(1. / kPsi);
-    //     1.0f      * 1.0f             - 1.0f        - 0
+    //   = 1.0f      * std::log(y)      - std::log(y) - 0 = 0
     float c = 0;
     // general form for exponential family.
     return -((y * theta - b) / a + c);
