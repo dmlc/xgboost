@@ -882,6 +882,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   }
   auto& offset_vec = offset.HostVector();
   auto& data_vec = data.HostVector();
+
   size_t builder_base_row_offset = this->Size();
   common::ParallelGroupBuilder<
       Entry, std::remove_reference<decltype(offset_vec)>::type::value_type, kIsRowMajor>
