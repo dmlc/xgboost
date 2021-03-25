@@ -205,16 +205,16 @@ TEST(Objective, DeclareUnifiedTest(GammaRegressionGPair)) {
   obj->Configure(args);
   CheckObjFunction(obj,
                    {0, 0.1f, 0.9f, 1, 0,  0.1f,  0.9f,    1},
-                   {0,   0,   0, 0, 1,    1,    1,    1},
-                   {1,   1,   1, 1, 1,    1,    1,    1},
-                   {1,   1,   1, 1, 0, 0.09f, 0.59f, 0.63f},
-                   {0,   0,   0, 0, 1, 0.90f, 0.40f, 0.36f});
+                   {2,   2,   2,   2, 1,    1,    1,    1},
+                   {1,   1,   1,   1, 1,    1,    1,    1},
+                   {-1,  -0.809, 0.187, 0.264, 0, 0.09f, 0.59f, 0.63f},
+                   {2,   1.809,  0.813, 0.735, 1, 0.90f, 0.40f, 0.36f});
   CheckObjFunction(obj,
                    {0, 0.1f, 0.9f, 1, 0,  0.1f,  0.9f,    1},
-                   {0,   0,   0, 0, 1,    1,    1,    1},
+                   {2,   2,   2,   2, 1,    1,    1,    1},
                    {},  // Empty weight
-                   {1,   1,   1, 1, 0, 0.09f, 0.59f, 0.63f},
-                   {0,   0,   0, 0, 1, 0.90f, 0.40f, 0.36f});
+                   {-1,  -0.809, 0.187, 0.264, 0, 0.09f, 0.59f, 0.63f},
+                   {2,   1.809,  0.813, 0.735, 1, 0.90f, 0.40f, 0.36f});
 }
 
 TEST(Objective, DeclareUnifiedTest(GammaRegressionBasic)) {
@@ -228,7 +228,9 @@ TEST(Objective, DeclareUnifiedTest(GammaRegressionBasic)) {
   CheckConfigReload(obj, "reg:gamma");
 
   // test label validation
-  EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {-1}, {1}, {0}, {0}))
+  EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {0}, {1}, {0}, {0}))
+    << "Expected error when label = 0 for GammaRegression";
+  EXPECT_ANY_THROW(CheckObjFunction(obj, {-1}, {-1}, {1}, {-1}, {-3}))
     << "Expected error when label < 0 for GammaRegression";
 
   // test ProbToMargin

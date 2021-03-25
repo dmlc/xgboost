@@ -304,13 +304,17 @@ struct EvalGammaNLogLik {
   }
 
   XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const {
-    const bst_float eps = 1e-16f;
-    if (y < eps) y = eps;
-    bst_float psi = 1.0;
+    py = std::max(py, 1e-6f);
+    // hardcoded dispersion.
+    float constexpr kPsi = 1.0;
     bst_float theta = -1. / py;
-    bst_float a = psi;
-    bst_float b = -std::log(-theta);
-    bst_float c = 1. / psi * std::log(y/psi) - std::log(y) - common::LogGamma(1. / psi);
+    bst_float a = kPsi;
+    // b = -std::log(-theta);
+    float b = 1.0f;
+    // c = 1. / kPsi * std::log(y/kPsi) - std::log(y) - common::LogGamma(1. / kPsi);
+    //   = 1.0f      * std::log(y)      - std::log(y) - 0 = 0
+    float c = 0;
+    // general form for exponential family.
     return -((y * theta - b) / a + c);
   }
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
