@@ -190,6 +190,20 @@ class TestGPUPredict:
         base_margin = cp_rng.randn(rows)
         self.run_inplace_base_margin(booster, dtrain, X, base_margin)
 
+        # Create a wide dataset
+        X = cp_rng.randn(100, 10000)
+        y = cp_rng.randn(100)
+
+        missing_idx = [i for i in range(0, X.shape[1], 16)]
+        X[:, missing_idx] = missing
+        reg = xgb.XGBRegressor(tree_method="gpu_hist", n_estimators=8, missing=missing)
+        reg.fit(X, y)
+
+        gpu_predt = reg.predict(X)
+        reg.set_params(predictor="cpu_predictor")
+        cpu_predt = reg.predict(X)
+        np.testing.assert_allclose(gpu_predt, cpu_predt, atol=1e-6)
+
     @pytest.mark.skipif(**tm.no_cudf())
     def test_inplace_predict_cudf(self):
         import cupy as cp
