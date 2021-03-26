@@ -616,68 +616,69 @@ class GPUPredictor : public xgboost::Predictor {
     this->DevicePredictInternal(dmat, out_preds, model, tree_begin, tree_end);
   }
 
-  template <typename Adapter, typename Loader>
-  void DispatchedInplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
-                                const gbm::GBTreeModel &model, float missing,
-                                PredictionCacheEntry *out_preds,
-                                uint32_t tree_begin, uint32_t tree_end) const {
-    uint32_t const output_groups =  model.learner_model_param->num_output_group;
+  template <typename AdapterBatch,
+            typename Loader = DeviceAdapterLoader<AdapterBatch>>
+  void
+  DispatchedInplacePredict(AdapterBatch const &m, std::shared_ptr<DMatrix> p_m,
+                           const gbm::GBTreeModel &model, float missing,
+                           PredictionCacheEntry *out_preds, uint32_t tree_begin,
+                           uint32_t tree_end, int32_t device) const {
+    uint32_t const output_groups = model.learner_model_param->num_output_group;
 
-    auto m = dmlc::get<std::shared_ptr<Adapter>>(x);
-    CHECK_EQ(m->NumColumns(), model.learner_model_param->num_feature)
+    CHECK_EQ(m.NumCols(), model.learner_model_param->num_feature)
         << "Number of columns in data must equal to trained model.";
-    CHECK_EQ(dh::CurrentDevice(), m->DeviceIdx())
-        << "XGBoost is running on device: " << this->generic_param_->gpu_id << ", "
-        << "but data is on: " << m->DeviceIdx();
+    CHECK_EQ(dh::CurrentDevice(), device)
+        << "XGBoost is running on device: " << this->generic_param_->gpu_id
+        << ", "
+        << "but data is on: " << device;
     if (p_m) {
-      p_m->Info().num_row_ = m->NumRows();
+      p_m->Info().num_row_ = m.NumRows();
       this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
     } else {
       MetaInfo info;
-      info.num_row_ = m->NumRows();
+      info.num_row_ = m.NumRows();
       this->InitOutPredictions(info, &(out_preds->predictions), model);
     }
-    out_preds->predictions.SetDevice(m->DeviceIdx());
+    out_preds->predictions.SetDevice(device);
 
     const uint32_t BLOCK_THREADS = 128;
-    auto GRID_SIZE = static_cast<uint32_t>(common::DivRoundUp(m->NumRows(), BLOCK_THREADS));
+    auto GRID_SIZE =
+        static_cast<uint32_t>(common::DivRoundUp(m.NumRows(), BLOCK_THREADS));
 
-    auto max_shared_memory_bytes = dh::MaxSharedMemory(m->DeviceIdx());
+    auto max_shared_memory_bytes = dh::MaxSharedMemory(device);
     size_t shared_memory_bytes =
-        SharedMemoryBytes<BLOCK_THREADS>(m->NumColumns(), max_shared_memory_bytes);
+        SharedMemoryBytes<BLOCK_THREADS>(m.NumCols(), max_shared_memory_bytes);
     DeviceModel d_model;
-    d_model.Init(model, tree_begin, tree_end, m->DeviceIdx());
+    d_model.Init(model, tree_begin, tree_end, device);
 
     bool use_shared = shared_memory_bytes != 0;
     size_t entry_start = 0;
 
-    dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes} (
-        PredictKernel<Loader, typename Loader::BatchT>, m->Value(),
+    dh::LaunchKernel{GRID_SIZE, BLOCK_THREADS, shared_memory_bytes}(
+        PredictKernel<Loader, typename Loader::BatchT>, m,
         d_model.nodes.ConstDeviceSpan(), out_preds->predictions.DeviceSpan(),
-        d_model.tree_segments.ConstDeviceSpan(), d_model.tree_group.ConstDeviceSpan(),
+        d_model.tree_segments.ConstDeviceSpan(),
+        d_model.tree_group.ConstDeviceSpan(),
         d_model.split_types.ConstDeviceSpan(),
         d_model.categories_tree_segments.ConstDeviceSpan(),
         d_model.categories_node_segments.ConstDeviceSpan(),
-        d_model.categories.ConstDeviceSpan(), tree_begin, tree_end, m->NumColumns(),
-        m->NumRows(), entry_start, use_shared, output_groups, missing);
+        d_model.categories.ConstDeviceSpan(), tree_begin, tree_end, m.NumCols(),
+        m.NumRows(), entry_start, use_shared, output_groups, missing);
   }
 
   bool InplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
                       const gbm::GBTreeModel &model, float missing,
                       PredictionCacheEntry *out_preds, uint32_t tree_begin,
-                      unsigned tree_end) const override {
-    if (x.type() == typeid(std::shared_ptr<data::CupyAdapter>)) {
-      this->DispatchedInplacePredict<
-          data::CupyAdapter, DeviceAdapterLoader<data::CupyAdapterBatch>>(
-          x, p_m, model, missing, out_preds, tree_begin, tree_end);
-    } else if (x.type() == typeid(std::shared_ptr<data::CudfAdapter>)) {
-      this->DispatchedInplacePredict<
-          data::CudfAdapter, DeviceAdapterLoader<data::CudfAdapterBatch>>(
-          x, p_m, model, missing, out_preds, tree_begin, tree_end);
-    } else {
-      return false;
-    }
-    return true;
+                      uint32_t tree_end) const override {
+    bool known_type = true;
+    data::DispatchDeviceAdapter(
+        x,
+        [&](auto m, int32_t device) {
+          this->DispatchedInplacePredict(m, p_m, model, missing, out_preds,
+                                         tree_begin, tree_end, device);
+        },
+        &known_type);
+    return known_type;
   }
 
   void PredictContribution(DMatrix* p_fmat,

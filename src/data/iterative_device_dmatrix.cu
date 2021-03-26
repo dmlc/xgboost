@@ -15,25 +15,6 @@
 
 namespace xgboost {
 namespace data {
-
-template <typename Fn>
-decltype(auto) Dispatch(DMatrixProxy const* proxy, Fn fn) {
-  if (proxy->Adapter().type() == typeid(std::shared_ptr<CupyAdapter>)) {
-    auto value = dmlc::get<std::shared_ptr<CupyAdapter>>(
-        proxy->Adapter())->Value();
-    return fn(value);
-  } else if (proxy->Adapter().type() == typeid(std::shared_ptr<CudfAdapter>)) {
-    auto value = dmlc::get<std::shared_ptr<CudfAdapter>>(
-        proxy->Adapter())->Value();
-    return fn(value);
-  } else {
-    LOG(FATAL) << "Unknown type: " << proxy->Adapter().type().name();
-    auto value = dmlc::get<std::shared_ptr<CudfAdapter>>(
-        proxy->Adapter())->Value();
-    return fn(value);
-  }
-}
-
 void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missing, int nthread) {
   // A handle passed to external iterator.
   auto handle = static_cast<std::shared_ptr<DMatrix>*>(proxy_);
@@ -45,12 +26,15 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
     iter_handle, reset_, next_};
 
   dh::XGBCachingDeviceAllocator<char> alloc;
-
   auto num_rows = [&]() {
-    return Dispatch(proxy, [](auto const &value) { return value.NumRows(); });
+    return data::DispatchDeviceAdapter(
+        proxy->Adapter(),
+        [&](auto const &value, int32_t) { return value.NumRows(); });
   };
   auto num_cols = [&]() {
-    return Dispatch(proxy, [](auto const &value) { return value.NumCols(); });
+    return data::DispatchDeviceAdapter(
+        proxy->Adapter(),
+        [&](auto const &value, int32_t) { return value.NumCols(); });
   };
 
   size_t row_stride = 0;
@@ -85,19 +69,22 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
                                    batch_param_.max_bin, cols, num_rows(), get_device());
     auto* p_sketch = &sketch_containers.back();
     proxy->Info().weights_.SetDevice(get_device());
-    Dispatch(proxy, [&](auto const &value) {
-        common::AdapterDeviceSketch(value, batch_param_.max_bin,
-                                    proxy->Info(), missing, p_sketch);
-      });
+    data::DispatchDeviceAdapter(
+        proxy->Adapter(), [&](auto const &value, int32_t) {
+          common::AdapterDeviceSketch(value, batch_param_.max_bin,
+                                      proxy->Info(), missing, p_sketch);
+        });
     auto batch_rows = num_rows();
     accumulated_rows += batch_rows;
     dh::caching_device_vector<size_t> row_counts(batch_rows + 1, 0);
     common::Span<size_t> row_counts_span(row_counts.data().get(),
                                          row_counts.size());
-    row_stride = std::max(row_stride, Dispatch(proxy, [=](auto const &value) {
-          return GetRowCounts(value, row_counts_span,
-                              get_device(), missing);
-        }));
+    row_stride = std::max(
+        row_stride, data::DispatchDeviceAdapter(
+                        proxy->Adapter(), [=](auto const &value, int32_t) {
+                          return GetRowCounts(value, row_counts_span,
+                                              get_device(), missing);
+                        }));
     nnz += thrust::reduce(thrust::cuda::par(alloc), row_counts.begin(),
                           row_counts.end());
     batches++;
@@ -144,14 +131,17 @@ void IterativeDeviceDMatrix::Initialize(DataIterHandle iter_handle, float missin
     dh::caching_device_vector<size_t> row_counts(rows + 1, 0);
     common::Span<size_t> row_counts_span(row_counts.data().get(),
                                          row_counts.size());
-    Dispatch(proxy, [=](auto const& value) {
-        return GetRowCounts(value, row_counts_span, get_device(), missing);
-      });
+    data::DispatchDeviceAdapter(
+        proxy->Adapter(), [=](auto const &value, int32_t) {
+          return GetRowCounts(value, row_counts_span, get_device(), missing);
+        });
     auto is_dense = this->IsDense();
-    auto new_impl = Dispatch(proxy, [&](auto const &value) {
-        return EllpackPageImpl(value, missing, get_device(), is_dense, nthread,
-                               row_counts_span, row_stride, rows, cols, cuts);
-    });
+    auto new_impl = data::DispatchDeviceAdapter(
+        proxy->Adapter(), [&](auto const &value, int32_t) {
+          return EllpackPageImpl(value, missing, get_device(), is_dense,
+                                 nthread, row_counts_span, row_stride, rows,
+                                 cols, cuts);
+        });
     size_t num_elements = page_->Impl()->Copy(get_device(), &new_impl, offset);
     offset += num_elements;
 

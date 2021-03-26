@@ -94,5 +94,7 @@ template SimpleDMatrix::SimpleDMatrix(CudfAdapter* adapter, float missing,
                                       int nthread);
 template SimpleDMatrix::SimpleDMatrix(CupyAdapter* adapter, float missing,
                                       int nthread);
+template SimpleDMatrix::SimpleDMatrix(CupyxCSRAdapter* adapter, float missing,
+                                      int nthread);
 }  // namespace data
 }  // namespace xgboost

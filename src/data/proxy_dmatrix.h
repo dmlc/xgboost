@@ -50,6 +50,8 @@ class DMatrixProxy : public DMatrix {
 #if defined(XGBOOST_USE_CUDA)
   void FromCudaColumnar(std::string interface_str);
   void FromCudaArray(std::string interface_str);
+  void FromCudaCSR(StringView indptr, StringView indices, StringView values,
+                   bst_feature_t n_features);
 #endif  // defined(XGBOOST_USE_CUDA)
 
  public:
@@ -69,6 +71,15 @@ class DMatrixProxy : public DMatrix {
     if (this->info_.num_row_ == 0) {
       this->device_ = GenericParameter::kCpuId;
     }
+#endif  // defined(XGBOOST_USE_CUDA)
+  }
+
+  void SetData(char const *indptr,
+               char const *indices, char const *data, bst_feature_t n_features) {
+    common::AssertGPUSupport();
+#if defined(XGBOOST_USE_CUDA)
+    this->FromCudaCSR(StringView{indptr}, StringView{indices},
+                      StringView{data}, n_features);
 #endif  // defined(XGBOOST_USE_CUDA)
   }
 

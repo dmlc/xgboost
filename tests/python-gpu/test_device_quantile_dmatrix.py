@@ -5,7 +5,7 @@ import pytest
 import sys
 
 sys.path.append("tests/python")
-import testing as tm
+import testing as tm            # noqa
 
 
 class TestDeviceQuantileDMatrix:

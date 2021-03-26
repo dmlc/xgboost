@@ -179,4 +179,7 @@ template DMatrix* DMatrix::Create<data::CudfAdapter>(
 template DMatrix* DMatrix::Create<data::CupyAdapter>(
     data::CupyAdapter* adapter, float missing, int nthread,
     const std::string& cache_prefix, size_t page_size);
+template DMatrix* DMatrix::Create<data::CupyxCSRAdapter>(
+    data::CupyxCSRAdapter* adapter, float missing, int nthread,
+    const std::string& cache_prefix, size_t page_size);
 }  // namespace xgboost

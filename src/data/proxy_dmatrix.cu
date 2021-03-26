@@ -24,5 +24,13 @@ void DMatrixProxy::FromCudaArray(std::string interface_str) {
   this->Info().num_row_ = adapter->NumRows();
 }
 
+void DMatrixProxy::FromCudaCSR(StringView indptr, StringView indices, StringView values,
+                               bst_feature_t n_features) {
+  std::shared_ptr<CupyxCSRAdapter> adapter(new CupyxCSRAdapter(indptr, indices, values, n_features));
+  this->batch_ = adapter;
+  device_ = adapter->DeviceIdx();
+  this->Info().num_col_ = adapter->NumColumns();
+  this->Info().num_row_ = adapter->NumRows();
+}
 }  // namespace data
 }  // namespace xgboost

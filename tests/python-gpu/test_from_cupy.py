@@ -170,6 +170,30 @@ Arrow specification.'''
         xgb.DMatrix(X.toDlpack())
 
     @pytest.mark.skipif(**tm.no_cupy())
+    def test_dmatrix_csr_init(self):
+        import cupy as cp
+        from cupyx.scipy import sparse as sp
+        rng = cp.random.RandomState(1994)
+        X = rng.randn(100, 100)
+        y = rng.randn(100)
+
+        csr = sp.csr_matrix(X)
+        from_csr = xgb.DeviceQuantileDMatrix(csr, y)
+        from_X = xgb.DeviceQuantileDMatrix(X, y)
+        dmat_csr = xgb.DMatrix(csr, y)
+        dmat_X = xgb.DMatrix(X, y)
+
+        m_csr = xgb.train({"tree_method": "gpu_hist"}, from_csr, num_boost_round=4)
+        m_X = xgb.train({"tree_method": "gpu_hist"}, from_X, num_boost_round=4)
+        m_dmat_csr = xgb.train({"tree_method": "gpu_hist"}, dmat_csr, num_boost_round=4)
+
+        predt_csr = m_X.inplace_predict(csr)
+        cp.testing.assert_allclose(predt_csr, m_csr.inplace_predict(csr))
+        cp.testing.assert_allclose(predt_csr, m_dmat_csr.inplace_predict(X))
+        cp.testing.assert_allclose(predt_csr, m_X.predict(dmat_csr))
+        cp.testing.assert_allclose(predt_csr, m_X.predict(dmat_X))
+
+    @pytest.mark.skipif(**tm.no_cupy())
     def test_dlpack_device_dmat(self):
         import cupy as cp
         n = 100
