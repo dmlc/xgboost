@@ -171,9 +171,9 @@ struct DeviceAdapterLoader {
     }
     auto value = batch.GetElement(ridx * columns + fidx).value;
     if (is_valid(value)) {
-      return nan("");
+      return value;
     } else {
-      return batch.GetElement(ridx * columns + fidx).value;
+      return nan("");
     }
   }
 };
