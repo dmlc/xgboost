@@ -148,6 +148,7 @@ class CSRAdapterBatch : public detail::NoMetaInfo {
                 &values_[begin_offset]);
   }
   size_t Size() const { return num_rows_; }
+  static constexpr bool kIsRowMajor = true;
 
  private:
   const size_t* row_ptr_;
@@ -204,6 +205,7 @@ class DenseAdapterBatch : public detail::NoMetaInfo {
   const Line GetLine(size_t idx) const {
     return Line(values_ + idx * num_features_, num_features_, idx);
   }
+  static constexpr bool kIsRowMajor = true;
 
  private:
   const float* values_;
@@ -320,6 +322,7 @@ class CSRArrayAdapterBatch : public detail::NoMetaInfo {
     size = size == 0 ? 0 : size - 1;
     return size;
   }
+  static constexpr bool kIsRowMajor = true;
 
   Line const GetLine(size_t idx) const {
     auto begin_offset = indptr_.GetElement<size_t>(idx, 0);
@@ -405,6 +408,7 @@ class CSCAdapterBatch : public detail::NoMetaInfo {
     return Line(idx, end_offset - begin_offset, &row_idx_[begin_offset],
                 &values_[begin_offset]);
   }
+  static constexpr bool kIsRowMajor = false;
 
  private:
   const size_t* col_ptr_;
@@ -537,6 +541,7 @@ class DataTableAdapterBatch : public detail::NoMetaInfo {
   const Line GetLine(size_t idx) const {
     return Line(DTGetType(feature_stypes_[idx]), num_rows_, idx, data_[idx]);
   }
+  static constexpr bool kIsRowMajor = false;
 
  private:
   void** data_;
@@ -600,6 +605,7 @@ class FileAdapterBatch {
   const float* BaseMargin() const { return nullptr; }
 
   size_t Size() const { return block_->size; }
+  static constexpr bool kIsRowMajor = true;
 
  private:
   const dmlc::RowBlock<uint32_t>* block_;
