@@ -255,7 +255,7 @@ XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr,
   data::CSRArrayAdapter adapter(StringView{indptr}, StringView{indices},
                                 StringView{data}, ncol);
   auto config = Json::Load(StringView{c_json_config});
-  float missing = get<Number const>(config["missing"]);
+  float missing = GetMissing(config);
   auto nthread = get<Integer const>(config["nthread"]);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
   API_END();
@@ -683,8 +683,8 @@ void InplacePredictImpl(std::shared_ptr<T> x, std::shared_ptr<DMatrix> p_m,
 
   HostDeviceVector<float>* p_predt { nullptr };
   auto type = PredictionType(get<Integer const>(config["type"]));
-  learner->InplacePredict(x, p_m, type, get<Number const>(config["missing"]),
-                          &p_predt,
+  float missing = GetMissing(config);
+  learner->InplacePredict(x, p_m, type, missing, &p_predt,
                           get<Integer const>(config["iteration_begin"]),
                           get<Integer const>(config["iteration_end"]));
   CHECK(p_predt);

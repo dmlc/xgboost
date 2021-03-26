@@ -154,17 +154,22 @@ class TestGPUPredict:
         cp.cuda.runtime.setDevice(0)
         rows = 1000
         cols = 10
+        missing = 11            # set to integer for testing
+
         cp_rng = cp.random.RandomState(1994)
         cp.random.set_random_state(cp_rng)
+
         X = cp.random.randn(rows, cols)
+        missing_idx = [i for i in range(0, cols, 4)]
+        X[missing_idx] = missing  # set to be missing
         y = cp.random.randn(rows)
 
         dtrain = xgb.DMatrix(X, y)
 
-        booster = xgb.train({'tree_method': 'gpu_hist'},
-                            dtrain, num_boost_round=10)
-        test = xgb.DMatrix(X[:10, ...])
-        predt_from_array = booster.inplace_predict(X[:10, ...])
+        booster = xgb.train({'tree_method': 'gpu_hist'}, dtrain, num_boost_round=10)
+
+        test = xgb.DMatrix(X[:10, ...], missing=missing)
+        predt_from_array = booster.inplace_predict(X[:10, ...], missing=missing)
         predt_from_dmatrix = booster.predict(test)
 
         cp.testing.assert_allclose(predt_from_array, predt_from_dmatrix)

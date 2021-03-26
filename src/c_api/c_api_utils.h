@@ -11,6 +11,9 @@
 #include "xgboost/logging.h"
 #include "xgboost/json.h"
 #include "xgboost/learner.h"
+#include "xgboost/c_api.h"
+
+#include "c_api_error.h"
 
 namespace xgboost {
 /* \brief Determine the output shape of prediction.
@@ -140,6 +143,20 @@ inline uint32_t GetIterationFromTreeLimit(uint32_t ntree_limit, Learner *learner
     ntree_limit /= std::max(num_parallel_tree, 1u);
   }
   return ntree_limit;
+}
+
+inline float GetMissing(Json const &config) {
+  float missing;
+  auto const& j_missing = config["missing"];
+  if (IsA<Number const>(j_missing)) {
+    missing = get<Number const>(j_missing);
+  } else if (IsA<Integer const>(j_missing)) {
+    missing = get<Integer const>(j_missing);
+  } else {
+    missing = nan("");
+    LOG(FATAL) << "Invalid missing value: " << j_missing;
+  }
+  return missing;
 }
 }  // namespace xgboost
 #endif  // XGBOOST_C_API_C_API_UTILS_H_

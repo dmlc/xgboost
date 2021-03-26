@@ -76,7 +76,7 @@ struct SparsePageLoader {
   size_t entry_start;
 
   __device__ SparsePageLoader(SparsePageView data, bool use_shared, bst_feature_t num_features,
-                              bst_row_t num_rows, size_t entry_start)
+                              bst_row_t num_rows, size_t entry_start, float)
       : use_shared(use_shared),
         data(data),
         entry_start(entry_start) {
@@ -111,7 +111,7 @@ struct SparsePageLoader {
 struct EllpackLoader {
   EllpackDeviceAccessor const& matrix;
   XGBOOST_DEVICE EllpackLoader(EllpackDeviceAccessor const& m, bool,
-                               bst_feature_t, bst_row_t, size_t)
+                               bst_feature_t, bst_row_t, size_t, float)
       : matrix{m} {}
   __device__ __forceinline__ float GetElement(size_t  ridx, size_t  fidx) const {
     auto gidx = matrix.GetBinIndex(ridx, fidx);
@@ -133,15 +133,17 @@ struct DeviceAdapterLoader {
   bst_feature_t columns;
   float* smem;
   bool use_shared;
+  data::IsValidFunctor is_valid;
 
   using BatchT = Batch;
 
   XGBOOST_DEV_INLINE DeviceAdapterLoader(Batch const batch, bool use_shared,
                                          bst_feature_t num_features, bst_row_t num_rows,
-                                         size_t entry_start) :
+                                         size_t entry_start, float missing) :
     batch{batch},
     columns{num_features},
-    use_shared{use_shared} {
+    use_shared{use_shared},
+    is_valid{missing} {
       extern __shared__ float _smem[];
       smem = _smem;
       if (use_shared) {
@@ -153,7 +155,10 @@ struct DeviceAdapterLoader {
           auto beg = global_idx * columns;
           auto end = (global_idx + 1) * columns;
           for (size_t i = beg; i < end; ++i) {
-            smem[threadIdx.x * num_features + (i - beg)] = batch.GetElement(i).value;
+            auto value = batch.GetElement(i).value;
+            if (is_valid(value)) {
+              smem[threadIdx.x * num_features + (i - beg)] = value;
+            }
           }
         }
       }
@@ -164,7 +169,12 @@ struct DeviceAdapterLoader {
     if (use_shared) {
       return smem[threadIdx.x * columns + fidx];
     }
-    return batch.GetElement(ridx * columns + fidx).value;
+    auto value = batch.GetElement(ridx * columns + fidx).value;
+    if (is_valid(value)) {
+      return nan("");
+    } else {
+      return batch.GetElement(ridx * columns + fidx).value;
+    }
   }
 };
 
@@ -209,7 +219,7 @@ __device__ bst_node_t GetLeafIndex(bst_row_t ridx, const RegTree::Node* tree,
   while (!n.IsLeaf()) {
     float fvalue = loader.GetElement(ridx, n.SplitIndex());
     // Missing value
-    if (isnan(fvalue)) {
+    if (common::CheckNAN(fvalue)) {
       nidx = n.DefaultChild();
       n = tree[nidx];
     } else {
@@ -231,12 +241,13 @@ __global__ void PredictLeafKernel(Data data,
                                   common::Span<float> d_out_predictions,
                                   common::Span<size_t const> d_tree_segments,
                                   size_t tree_begin, size_t tree_end, size_t num_features,
-                                  size_t num_rows, size_t entry_start, bool use_shared) {
+                                  size_t num_rows, size_t entry_start, bool use_shared,
+                                  float missing) {
   bst_row_t ridx = blockDim.x * blockIdx.x + threadIdx.x;
   if (ridx >= num_rows) {
     return;
   }
-  Loader loader(data, use_shared, num_features, num_rows, entry_start);
+  Loader loader(data, use_shared, num_features, num_rows, entry_start, missing);
   for (int tree_idx = tree_begin; tree_idx < tree_end; ++tree_idx) {
     const RegTree::Node* d_tree = &d_nodes[d_tree_segments[tree_idx - tree_begin]];
     auto leaf = GetLeafIndex(ridx, d_tree, loader);
@@ -255,9 +266,9 @@ PredictKernel(Data data, common::Span<const RegTree::Node> d_nodes,
               common::Span<RegTree::Segment const> d_cat_node_segments,
               common::Span<uint32_t const> d_categories, size_t tree_begin,
               size_t tree_end, size_t num_features, size_t num_rows,
-              size_t entry_start, bool use_shared, int num_group) {
+              size_t entry_start, bool use_shared, int num_group, float missing) {
   bst_uint global_idx = blockDim.x * blockIdx.x + threadIdx.x;
-  Loader loader(data, use_shared, num_features, num_rows, entry_start);
+  Loader loader(data, use_shared, num_features, num_rows, entry_start, missing);
   if (global_idx >= num_rows) return;
   if (num_group == 1) {
     float sum = 0;
@@ -527,7 +538,7 @@ class GPUPredictor : public xgboost::Predictor {
         model.categories_tree_segments.ConstDeviceSpan(),
         model.categories_node_segments.ConstDeviceSpan(),
         model.categories.ConstDeviceSpan(), model.tree_beg_, model.tree_end_,
-        num_features, num_rows, entry_start, use_shared, model.num_group);
+        num_features, num_rows, entry_start, use_shared, model.num_group, nan(""));
   }
   void PredictInternal(EllpackDeviceAccessor const& batch,
                        DeviceModel const& model,
@@ -549,7 +560,7 @@ class GPUPredictor : public xgboost::Predictor {
         model.categories_node_segments.ConstDeviceSpan(),
         model.categories.ConstDeviceSpan(), model.tree_beg_, model.tree_end_,
         batch.NumFeatures(), num_rows, entry_start, use_shared,
-        model.num_group);
+        model.num_group, nan(""));
   }
 
   void DevicePredictInternal(DMatrix* dmat, HostDeviceVector<float>* out_preds,
@@ -607,7 +618,7 @@ class GPUPredictor : public xgboost::Predictor {
 
   template <typename Adapter, typename Loader>
   void DispatchedInplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
-                                const gbm::GBTreeModel &model, float,
+                                const gbm::GBTreeModel &model, float missing,
                                 PredictionCacheEntry *out_preds,
                                 uint32_t tree_begin, uint32_t tree_end) const {
     uint32_t const output_groups =  model.learner_model_param->num_output_group;
@@ -648,7 +659,7 @@ class GPUPredictor : public xgboost::Predictor {
         d_model.categories_tree_segments.ConstDeviceSpan(),
         d_model.categories_node_segments.ConstDeviceSpan(),
         d_model.categories.ConstDeviceSpan(), tree_begin, tree_end, m->NumColumns(),
-        m->NumRows(), entry_start, use_shared, output_groups);
+        m->NumRows(), entry_start, use_shared, output_groups, missing);
   }
 
   bool InplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
@@ -836,7 +847,7 @@ class GPUPredictor : public xgboost::Predictor {
             predictions->DeviceSpan().subspan(batch_offset),
             d_model.tree_segments.ConstDeviceSpan(),
             d_model.tree_beg_, d_model.tree_end_, num_features, num_rows,
-            entry_start, use_shared);
+            entry_start, use_shared, nan(""));
         batch_offset += batch.Size();
       }
     } else {
@@ -852,7 +863,7 @@ class GPUPredictor : public xgboost::Predictor {
             predictions->DeviceSpan().subspan(batch_offset),
             d_model.tree_segments.ConstDeviceSpan(),
             d_model.tree_beg_, d_model.tree_end_, num_features, num_rows,
-            entry_start, use_shared);
+            entry_start, use_shared, nan(""));
         batch_offset += batch.Size();
       }
     }
