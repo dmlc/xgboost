@@ -48,8 +48,9 @@ int InplacePreidctCuda(BoosterHandle handle, char const *c_json_strs,
   auto x = std::make_shared<T>(json_str);
   HostDeviceVector<float> *p_predt{nullptr};
   auto type = PredictionType(get<Integer const>(config["type"]));
-  learner->InplacePredict(x, p_m, type, get<Number const>(config["missing"]),
-                          &p_predt,
+  float missing = GetMissing(config);
+
+  learner->InplacePredict(x, p_m, type, missing, &p_predt,
                           get<Integer const>(config["iteration_begin"]),
                           get<Integer const>(config["iteration_end"]));
   CHECK(p_predt);
