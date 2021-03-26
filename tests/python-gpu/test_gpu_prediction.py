@@ -161,7 +161,7 @@ class TestGPUPredict:
 
         X = cp.random.randn(rows, cols)
         missing_idx = [i for i in range(0, cols, 4)]
-        X[missing_idx] = missing  # set to be missing
+        X[:, missing_idx] = missing  # set to be missing
         y = cp.random.randn(rows)
 
         dtrain = xgb.DMatrix(X, y)
