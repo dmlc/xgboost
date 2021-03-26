@@ -6,7 +6,6 @@ import sys
 from contextlib import contextmanager
 from io import StringIO
 from xgboost.compat import SKLEARN_INSTALLED, PANDAS_INSTALLED
-from xgboost.compat import DASK_INSTALLED
 import pytest
 import tempfile
 import xgboost as xgb
@@ -33,8 +32,13 @@ def no_sklearn():
 
 
 def no_dask():
-    return {'condition': not DASK_INSTALLED,
-            'reason': 'Dask is not installed'}
+    reason = "dask/distributed is not installed."
+    try:
+        import dask             # noqa
+        import distributed      # noqa
+        return {"condition": False, "reason": reason}
+    except ImportError:
+        return {"condition": True, "reason": reason}
 
 
 def no_pandas():

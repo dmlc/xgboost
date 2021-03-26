@@ -96,16 +96,6 @@ except ImportError:
     XGBoostLabelEncoder = None
 
 
-# dask
-try:
-    import pkg_resources
-    pkg_resources.get_distribution('dask')
-    DASK_INSTALLED = True
-except pkg_resources.DistributionNotFound:
-    dask = None
-    DASK_INSTALLED = False
-
-
 try:
     import sparse
     import scipy.sparse as scipy_sparse

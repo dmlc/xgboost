@@ -139,9 +139,10 @@ def _start_tracker(n_workers: int) -> Dict[str, Any]:
 def _assert_dask_support() -> None:
     try:
         import dask  # pylint: disable=W0621,W0611
+        import distributed  # pylint: disable=W0621,W0611
     except ImportError as e:
         raise ImportError(
-            "Dask needs to be installed in order to use this module"
+            "dask and distributed need to be installed in order to use this module"
         ) from e
 
     if platform.system() == "Windows":
