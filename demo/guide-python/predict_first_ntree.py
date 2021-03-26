@@ -31,15 +31,15 @@ def native_interface():
 def sklearn_interface():
     X_train, y_train = load_svmlight_file(train)
     X_test, y_test = load_svmlight_file(test)
-    cls = xgb.XGBClassifier(n_estimators=3, max_depth=2, eta=1, use_label_encoder=False)
-    cls.fit(X_train, y_train, eval_set=[(X_test, y_test)])
-    assert cls.n_classes_ == 2
+    clf = xgb.XGBClassifier(n_estimators=3, max_depth=2, eta=1, use_label_encoder=False)
+    clf.fit(X_train, y_train, eval_set=[(X_test, y_test)])
+    assert clf.n_classes_ == 2
 
     print("start testing prediction from first n trees")
     # predict using first 1 tree
-    ypred1 = cls.predict(X_test, iteration_range=(0, 1))
+    ypred1 = clf.predict(X_test, iteration_range=(0, 1))
     # by default, we predict using all the trees
-    ypred2 = cls.predict(X_test)
+    ypred2 = clf.predict(X_test)
 
     print(
         "error of ypred1=%f" % (np.sum((ypred1 > 0.5) != y_test) / float(len(y_test)))
