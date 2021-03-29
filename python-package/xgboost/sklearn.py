@@ -1,16 +1,18 @@
 # coding: utf-8
-# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, E0012, R0912, C0302
+# pylint: disable=too-many-arguments, too-many-locals, invalid-name, fixme, R0912, C0302
 """Scikit-Learn Wrapper interface for XGBoost."""
 import copy
 import warnings
 import json
 import os
-from typing import Union, Optional, List, Dict, Callable, Tuple, Any, TypeVar
+from typing import Union, Optional, List, Dict, Callable, Tuple, Any, TypeVar, Type
 import numpy as np
+
 from .core import Booster, DMatrix, XGBoostError
 from .core import _deprecate_positional_args, _convert_ntree_limit
 from .core import Metric
 from .training import train
+from .callback import TrainingCallback
 from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
 
 # Do not use class names on scikit-learn directly.  Re-define the classes on
@@ -25,7 +27,9 @@ class XGBRankerMixIn:           # pylint: disable=too-few-public-methods
     _estimator_type = "ranker"
 
 
-def _objective_decorator(func):
+def _objective_decorator(
+    func: Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]
+) -> Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]:
     """Decorate an objective function
 
     Converts an objective function using the typical sklearn metrics
@@ -53,7 +57,7 @@ def _objective_decorator(func):
             The training set from which the labels will be extracted using
             ``dmatrix.get_label()``
     """
-    def inner(preds, dmatrix):
+    def inner(preds: np.ndarray, dmatrix: DMatrix) -> Tuple[np.ndarray, np.ndarray]:
         """internal function"""
         labels = dmatrix.get_label()
         return func(labels, preds)
@@ -173,7 +177,11 @@ __custom_obj_note = '''
 '''
 
 
-def xgboost_model_doc(header, items, extra_parameters=None, end_note=None):
+def xgboost_model_doc(
+    header: str, items: List[str],
+    extra_parameters: Optional[str] = None,
+    end_note: Optional[str] = None
+) -> Callable[[Type], Type]:
     '''Obtain documentation for Scikit-Learn wrappers
 
     Parameters
@@ -190,14 +198,14 @@ def xgboost_model_doc(header, items, extra_parameters=None, end_note=None):
     end_note: str
        Extra notes put to the end.
 '''
-    def get_doc(item):
+    def get_doc(item: str) -> str:
         '''Return selected item'''
         __doc = {'estimators': __estimator_doc,
                  'model': __model_doc,
                  'objective': __custom_obj_note}
         return __doc[item]
 
-    def adddoc(cls):
+    def adddoc(cls: Type) -> Type:
         doc = ['''
 Parameters
 ----------
@@ -245,13 +253,15 @@ def _wrap_evaluation_matrices(
         missing=missing,
     )
 
+    n_validation = 0 if eval_set is None else len(eval_set)
+
     def validate_or_none(meta: Optional[List], name: str) -> List:
         if meta is None:
-            return [None] * len(eval_set)
-        if len(meta) != len(eval_set):
+            return [None] * n_validation
+        if len(meta) != n_validation:
             raise ValueError(
                 f"{name}'s length does not eqaul to `eval_set`, " +
-                f"expecting {len(eval_set)}, got {len(meta)}"
+                f"expecting {n_validation}, got {len(meta)}"
             )
         return meta
 
@@ -317,35 +327,39 @@ class XGBModel(XGBModelBase):
     # pylint: disable=too-many-arguments, too-many-instance-attributes, missing-docstring
     def __init__(
         self,
-        max_depth=None,
-        learning_rate=None,
-        n_estimators=100,
-        verbosity=None,
-        objective=None,
-        booster=None,
-        tree_method=None,
-        n_jobs=None,
-        gamma=None,
-        min_child_weight=None,
-        max_delta_step=None,
-        subsample=None,
-        colsample_bytree=None,
-        colsample_bylevel=None,
-        colsample_bynode=None,
-        reg_alpha=None,
-        reg_lambda=None,
-        scale_pos_weight=None,
-        base_score=None,
-        random_state=None,
-        missing=np.nan,
-        num_parallel_tree=None,
-        monotone_constraints=None,
-        interaction_constraints=None,
-        importance_type="gain",
-        gpu_id=None,
-        validate_parameters=None,
-        **kwargs
-    ):
+        max_depth: Optional[int] = None,
+        learning_rate: Optional[float] = None,
+        n_estimators: int = 100,
+        verbosity: Optional[int] = None,
+        objective: Optional[
+            Union[
+                str, Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]
+            ]
+        ] = None,
+        booster: Optional[str] = None,
+        tree_method: Optional[str] = None,
+        n_jobs: Optional[int] = None,
+        gamma: Optional[float] = None,
+        min_child_weight: Optional[float] = None,
+        max_delta_step: Optional[float] = None,
+        subsample: Optional[float] = None,
+        colsample_bytree: Optional[float] = None,
+        colsample_bylevel: Optional[float] = None,
+        colsample_bynode: Optional[float] = None,
+        reg_alpha: Optional[float] = None,
+        reg_lambda: Optional[float] = None,
+        scale_pos_weight: Optional[float] = None,
+        base_score: Optional[float] = None,
+        random_state: Optional[Union[np.random.RandomState, int]] = None,
+        missing: float = np.nan,
+        num_parallel_tree: Optional[int] = None,
+        monotone_constraints: Optional[str] = None,
+        interaction_constraints: Optional[str] = None,
+        importance_type: str = "gain",
+        gpu_id: Optional[int] = None,
+        validate_parameters: Optional[bool] = None,
+        **kwargs: Any
+    ) -> None:
         if not SKLEARN_INSTALLED:
             raise XGBoostError(
                 "sklearn needs to be installed in order to use this module"
@@ -380,11 +394,11 @@ class XGBModel(XGBModelBase):
         self.gpu_id = gpu_id
         self.validate_parameters = validate_parameters
 
-    def _more_tags(self):
+    def _more_tags(self) -> Dict[str, bool]:
         '''Tags used for scikit-learn data validation.'''
         return {'allow_nan': True, 'no_validation': True}
 
-    def get_booster(self):
+    def get_booster(self) -> Booster:
         """Get the underlying xgboost Booster of this model.
 
         This will raise an exception when fit was not called
@@ -398,7 +412,7 @@ class XGBModel(XGBModelBase):
             raise NotFittedError('need to call fit or load_model beforehand')
         return self._Booster
 
-    def set_params(self, **params):
+    def set_params(self, **params: Any) -> "XGBModel":
         """Set the parameters of this estimator.  Modification of the sklearn method to
         allow unknown kwargs. This allows using the full range of xgboost
         parameters that are not defined as member variables in sklearn grid
@@ -427,7 +441,7 @@ class XGBModel(XGBModelBase):
 
         return self
 
-    def get_params(self, deep=True):
+    def get_params(self, deep: bool = True) -> Dict[str, Any]:
         # pylint: disable=attribute-defined-outside-init
         """Get parameters."""
         # Based on: https://stackoverflow.com/questions/59248211
@@ -447,7 +461,7 @@ class XGBModel(XGBModelBase):
             params['random_state'] = params['random_state'].randint(
                 np.iinfo(np.int32).max)
 
-        def parse_parameter(value):
+        def parse_parameter(value: Any) -> Optional[Union[int, float, str]]:
             for t in (int, float, str):
                 try:
                     ret = t(value)
@@ -477,7 +491,7 @@ class XGBModel(XGBModelBase):
             pass
         return params
 
-    def get_xgb_params(self):
+    def get_xgb_params(self) -> Dict[str, Any]:
         """Get xgboost specific parameters."""
         params = self.get_params()
         # Parameters that should not go into native learner.
@@ -489,7 +503,7 @@ class XGBModel(XGBModelBase):
                 filtered[k] = v
         return filtered
 
-    def get_num_boosting_rounds(self):
+    def get_num_boosting_rounds(self) -> int:
         """Gets the number of xgboost boosting rounds."""
         return self.n_estimators
 
@@ -532,15 +546,15 @@ class XGBModel(XGBModelBase):
         if not hasattr(self, '_Booster'):
             self._Booster = Booster({'n_jobs': self.n_jobs})
         self.get_booster().load_model(fname)
-        meta = self.get_booster().attr('scikit_learn')
-        if meta is None:
+        meta_str = self.get_booster().attr('scikit_learn')
+        if meta_str is None:
             # FIXME(jiaming): This doesn't have to be a problem as most of the needed
             # information like num_class and objective is in Learner class.
             warnings.warn(
                 'Loading a native XGBoost model with Scikit-Learn interface.'
             )
             return
-        meta = json.loads(meta)
+        meta = json.loads(meta_str)
         states = dict()
         for k, v in meta.items():
             if k == '_le':
@@ -568,14 +582,17 @@ class XGBModel(XGBModelBase):
 
     def _configure_fit(
         self,
-        booster: Optional[Union[Booster, "XGBModel"]],
+        booster: Optional[Union[Booster, "XGBModel", str]],
         eval_metric: Optional[Union[Callable, str, List[str]]],
         params: Dict[str, Any],
-    ) -> Tuple[Booster, Optional[Metric], Dict[str, Any]]:
+    ) -> Tuple[Optional[Union[Booster, str]], Optional[Metric], Dict[str, Any]]:
         # pylint: disable=protected-access, no-self-use
-        model = booster
-        if hasattr(model, '_Booster'):
-            model = model._Booster  # Handle the case when xgb_model is a sklearn model object
+        if isinstance(booster, XGBModel):
+            # Handle the case when xgb_model is a sklearn model object
+            model: Optional[Union[Booster, str]] = booster._Booster
+        else:
+            model = booster
+
         feval = eval_metric if callable(eval_metric) else None
         if eval_metric is not None:
             if callable(eval_metric):
@@ -584,7 +601,7 @@ class XGBModel(XGBModelBase):
                 params.update({"eval_metric": eval_metric})
         return model, feval, params
 
-    def _set_evaluation_result(self, evals_result: Optional[dict]) -> None:
+    def _set_evaluation_result(self, evals_result: TrainingCallback.EvalsLog) -> None:
         if evals_result:
             for val in evals_result.items():
                 evals_result_key = list(val[1].keys())[0]
@@ -594,21 +611,21 @@ class XGBModel(XGBModelBase):
     @_deprecate_positional_args
     def fit(
         self,
-        X,
-        y,
+        X: Any,
+        y: Any,
         *,
-        sample_weight=None,
-        base_margin=None,
-        eval_set=None,
-        eval_metric=None,
-        early_stopping_rounds=None,
-        verbose=True,
+        sample_weight: Optional[Any] = None,
+        base_margin: Optional[Any] = None,
+        eval_set: Optional[List[Tuple[Any, Any]]] = None,
+        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        early_stopping_rounds: Optional[int] = None,
+        verbose: Optional[bool] = True,
         xgb_model: Optional[Union[Booster, str, "XGBModel"]] = None,
-        sample_weight_eval_set=None,
-        base_margin_eval_set=None,
-        feature_weights=None,
-        callbacks=None
-    ):
+        sample_weight_eval_set: Optional[List[Any]] = None,
+        base_margin_eval_set: Optional[List[Any]] = None,
+        feature_weights: Optional[Any] = None,
+        callbacks: Optional[List[TrainingCallback]] = None
+    ) -> "XGBModel":
         # pylint: disable=invalid-name,attribute-defined-outside-init
         """Fit gradient boosting model.
 
@@ -679,7 +696,7 @@ class XGBModel(XGBModelBase):
                                                         save_best=True)]
 
         """
-        evals_result = {}
+        evals_result: TrainingCallback.EvalsLog = {}
 
         train_dmatrix, evals = _wrap_evaluation_matrices(
             missing=self.missing,
@@ -700,7 +717,9 @@ class XGBModel(XGBModelBase):
         params = self.get_xgb_params()
 
         if callable(self.objective):
-            obj = _objective_decorator(self.objective)
+            obj: Optional[
+                Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
+            ] = _objective_decorator(self.objective)
             params["objective"] = "reg:squarederror"
         else:
             obj = None
@@ -748,13 +767,13 @@ class XGBModel(XGBModelBase):
 
     def predict(
         self,
-        X,
-        output_margin=False,
-        ntree_limit=None,
-        validate_features=True,
-        base_margin=None,
-        iteration_range=None,
-    ):
+        X: Any,
+        output_margin: bool = False,
+        ntree_limit: Optional[int] = None,
+        validate_features: bool = True,
+        base_margin: Optional[Any] = None,
+        iteration_range: Optional[Tuple[int, int]] = None,
+    ) -> np.ndarray:
         """
         Predict with `X`.
 
@@ -817,7 +836,9 @@ class XGBModel(XGBModelBase):
         )
 
     def apply(
-        self, X, ntree_limit: int = 0, iteration_range: Optional[Tuple[int, int]] = None
+        self, X: Any,
+        ntree_limit: int = 0,
+        iteration_range: Optional[Tuple[int, int]] = None
     ) -> np.ndarray:
         """Return the predicted leaf every tree for each sample.
 
@@ -850,7 +871,7 @@ class XGBModel(XGBModelBase):
             iteration_range=iteration_range
         )
 
-    def evals_result(self):
+    def evals_result(self) -> TrainingCallback.EvalsLog:
         """Return the evaluation results.
 
         If **eval_set** is passed to the `fit` function, you can call
@@ -883,12 +904,14 @@ class XGBModel(XGBModelBase):
         .. code-block:: python
 
             {'validation_0': {'logloss': ['0.604835', '0.531479']},
-            'validation_1': {'logloss': ['0.41965', '0.17686']}}
+             'validation_1': {'logloss': ['0.41965', '0.17686']}}
         """
-        if self.evals_result_:
+        if hasattr(self, "evals_result_"):
             evals_result = self.evals_result_
         else:
-            raise XGBoostError('No results.')
+            raise XGBoostError(
+                "No evaluation result, `eval_set` is not used during training."
+            )
 
         return evals_result
 
@@ -919,7 +942,7 @@ class XGBModel(XGBModelBase):
         return int(self._early_stopping_attr('best_ntree_limit'))
 
     @property
-    def feature_importances_(self):
+    def feature_importances_(self) -> np.ndarray:
         """
         Feature importances property
 
@@ -945,14 +968,14 @@ class XGBModel(XGBModelBase):
         else:
             feature_names = b.feature_names
         all_features = [score.get(f, 0.) for f in feature_names]
-        all_features = np.array(all_features, dtype=np.float32)
-        total = all_features.sum()
+        all_features_arr = np.array(all_features, dtype=np.float32)
+        total = all_features_arr.sum()
         if total == 0:
-            return all_features
-        return all_features / total
+            return all_features_arr
+        return all_features_arr / total
 
     @property
-    def coef_(self):
+    def coef_(self) -> np.ndarray:
         """
         Coefficients property
 
@@ -982,7 +1005,7 @@ class XGBModel(XGBModelBase):
         return coef
 
     @property
-    def intercept_(self):
+    def intercept_(self) -> np.ndarray:
         """
         Intercept (bias) property
 
@@ -1029,28 +1052,34 @@ def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> 
 class XGBClassifier(XGBModel, XGBClassifierBase):
     # pylint: disable=missing-docstring,invalid-name,too-many-instance-attributes
     @_deprecate_positional_args
-    def __init__(self, *, objective="binary:logistic", use_label_encoder=True, **kwargs):
+    def __init__(
+        self,
+        *,
+        objective: str = "binary:logistic",
+        use_label_encoder: bool = True,
+        **kwargs: Any
+    ) -> None:
         self.use_label_encoder = use_label_encoder
         super().__init__(objective=objective, **kwargs)
 
     @_deprecate_positional_args
     def fit(
         self,
-        X,
-        y,
+        X: Any,
+        y: Any,
         *,
-        sample_weight=None,
-        base_margin=None,
-        eval_set=None,
-        eval_metric=None,
-        early_stopping_rounds=None,
-        verbose=True,
-        xgb_model=None,
-        sample_weight_eval_set=None,
-        base_margin_eval_set=None,
-        feature_weights=None,
-        callbacks=None
-    ):
+        sample_weight: Optional[Any] = None,
+        base_margin: Optional[Any] = None,
+        eval_set: Optional[List[Tuple[Any, Any]]] = None,
+        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        early_stopping_rounds: Optional[int] = None,
+        verbose: Optional[bool] = True,
+        xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
+        sample_weight_eval_set: Optional[List[Any]] = None,
+        base_margin_eval_set: Optional[List[Any]] = None,
+        feature_weights: Optional[Any] = None,
+        callbacks: Optional[List[TrainingCallback]] = None
+    ) -> "XGBClassifier":
         # pylint: disable = attribute-defined-outside-init,too-many-statements
         can_use_label_encoder = True
         label_encoding_check_error = (
@@ -1065,7 +1094,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             "starting with 0, i.e. 0, 1, 2, ..., [num_class - 1]."
         )
 
-        evals_result = {}
+        evals_result: TrainingCallback.EvalsLog = {}
         if _is_cudf_df(y) or _is_cudf_ser(y):
             import cupy as cp  # pylint: disable=E0401
 
@@ -1101,7 +1130,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         params = self.get_xgb_params()
 
         if callable(self.objective):
-            obj = _objective_decorator(self.objective)
+            obj: Optional[
+                Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]
+            ] = _objective_decorator(self.objective)
             # Use default value. Is it really not used ?
             params["objective"] = "binary:logistic"
         else:
@@ -1169,19 +1200,20 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self._set_evaluation_result(evals_result)
         return self
 
+    assert XGBModel.fit.__doc__ is not None
     fit.__doc__ = XGBModel.fit.__doc__.replace(
         'Fit gradient boosting model',
         'Fit gradient boosting classifier', 1)
 
     def predict(
         self,
-        X,
-        output_margin=False,
-        ntree_limit=None,
-        validate_features=True,
-        base_margin=None,
+        X: Any,
+        output_margin: bool = False,
+        ntree_limit: Optional[int] = None,
+        validate_features: bool = True,
+        base_margin: Optional[Any] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
-    ):
+    ) -> np.ndarray:
         class_probs = super().predict(
             X=X,
             output_margin=output_margin,
@@ -1208,10 +1240,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
     def predict_proba(
         self,
-        X,
-        ntree_limit=None,
-        validate_features=False,
-        base_margin=None,
+        X: Any,
+        ntree_limit: Optional[int] = None,
+        validate_features: bool = False,
+        base_margin: Optional[Any] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
         """ Predict the probability of each `X` example being of a given class.
@@ -1259,7 +1291,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             getattr(self, "n_classes_", None), class_probs, np.vstack
         )
 
-    def evals_result(self):
+    def evals_result(self) -> TrainingCallback.EvalsLog:
         """Return the evaluation results.
 
         If **eval_set** is passed to the `fit` function, you can call
@@ -1315,13 +1347,15 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 class XGBRFClassifier(XGBClassifier):
     # pylint: disable=missing-docstring
     @_deprecate_positional_args
-    def __init__(self, *,
-                 learning_rate=1,
-                 subsample=0.8,
-                 colsample_bynode=0.8,
-                 reg_lambda=1e-5,
-                 use_label_encoder=True,
-                 **kwargs):
+    def __init__(
+        self, *,
+        learning_rate: float = 1.0,
+        subsample: float = 0.8,
+        colsample_bynode: float = 0.8,
+        reg_lambda: float = 1e-5,
+        use_label_encoder: bool = True,
+        **kwargs: Any
+    ):
         super().__init__(learning_rate=learning_rate,
                          subsample=subsample,
                          colsample_bynode=colsample_bynode,
@@ -1329,12 +1363,12 @@ class XGBRFClassifier(XGBClassifier):
                          use_label_encoder=use_label_encoder,
                          **kwargs)
 
-    def get_xgb_params(self):
+    def get_xgb_params(self) -> Dict[str, Any]:
         params = super().get_xgb_params()
         params['num_parallel_tree'] = self.n_estimators
         return params
 
-    def get_num_boosting_rounds(self):
+    def get_num_boosting_rounds(self) -> int:
         return 1
 
 
@@ -1344,7 +1378,7 @@ class XGBRFClassifier(XGBClassifier):
 class XGBRegressor(XGBModel, XGBRegressorBase):
     # pylint: disable=missing-docstring
     @_deprecate_positional_args
-    def __init__(self, *, objective="reg:squarederror", **kwargs):
+    def __init__(self, *, objective: str = "reg:squarederror", **kwargs: Any) -> None:
         super().__init__(objective=objective, **kwargs)
 
 
@@ -1357,18 +1391,25 @@ class XGBRegressor(XGBModel, XGBRegressorBase):
 class XGBRFRegressor(XGBRegressor):
     # pylint: disable=missing-docstring
     @_deprecate_positional_args
-    def __init__(self, *, learning_rate=1, subsample=0.8, colsample_bynode=0.8,
-                 reg_lambda=1e-5, **kwargs):
+    def __init__(
+        self,
+        *,
+        learning_rate: float = 1.0,
+        subsample: float = 0.8,
+        colsample_bynode: float = 0.8,
+        reg_lambda: float = 1e-5,
+        **kwargs: Any
+    ) -> None:
         super().__init__(learning_rate=learning_rate, subsample=subsample,
                          colsample_bynode=colsample_bynode,
                          reg_lambda=reg_lambda, **kwargs)
 
-    def get_xgb_params(self):
+    def get_xgb_params(self) -> Dict[str, Any]:
         params = super().get_xgb_params()
         params['num_parallel_tree'] = self.n_estimators
         return params
 
-    def get_num_boosting_rounds(self):
+    def get_num_boosting_rounds(self) -> int:
         return 1
 
 
@@ -1416,34 +1457,34 @@ class XGBRFRegressor(XGBRegressor):
 class XGBRanker(XGBModel, XGBRankerMixIn):
     # pylint: disable=missing-docstring,too-many-arguments,invalid-name
     @_deprecate_positional_args
-    def __init__(self, *, objective="rank:pairwise", **kwargs):
+    def __init__(self, *, objective: str = "rank:pairwise", **kwargs: Any):
         super().__init__(objective=objective, **kwargs)
         if callable(self.objective):
             raise ValueError("custom objective function not supported by XGBRanker")
-        if "rank:" not in self.objective:
+        if "rank:" not in objective:
             raise ValueError("please use XGBRanker for ranking task")
 
     @_deprecate_positional_args
     def fit(
         self,
-        X,
-        y,
+        X: Any,
+        y: Any,
         *,
-        group=None,
-        qid=None,
-        sample_weight=None,
-        base_margin=None,
-        eval_set=None,
-        eval_group=None,
-        eval_qid=None,
-        eval_metric=None,
-        early_stopping_rounds=None,
-        verbose=False,
+        group: Optional[Any] = None,
+        qid: Optional[Any] = None,
+        sample_weight: Optional[Any] = None,
+        base_margin: Optional[Any] = None,
+        eval_set: Optional[List[Tuple[Any, Any]]] = None,
+        eval_group: Optional[List[Any]] = None,
+        eval_qid: Optional[List[Any]] = None,
+        eval_metric: Optional[Union[str, List[str], Metric]] = None,
+        early_stopping_rounds: Optional[int] = None,
+        verbose: Optional[bool] = False,
         xgb_model: Optional[Union[Booster, str, XGBModel]] = None,
-        sample_weight_eval_set=None,
-        base_margin_eval_set=None,
-        feature_weights=None,
-        callbacks=None
+        sample_weight_eval_set: Optional[List[Any]] = None,
+        base_margin_eval_set: Optional[List[Any]] = None,
+        feature_weights: Optional[Any] = None,
+        callbacks: Optional[List[TrainingCallback]] = None
     ) -> "XGBRanker":
         # pylint: disable = attribute-defined-outside-init,arguments-differ
         """Fit gradient boosting ranker
@@ -1562,7 +1603,7 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             create_dmatrix=lambda **kwargs: DMatrix(nthread=self.n_jobs, **kwargs),
         )
 
-        evals_result = {}
+        evals_result: TrainingCallback.EvalsLog = {}
         params = self.get_xgb_params()
 
         model, feval, params = self._configure_fit(xgb_model, eval_metric, params)

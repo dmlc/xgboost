@@ -93,6 +93,7 @@ mypy:
 	cd python-package; \
 	mypy ./xgboost/dask.py ../tests/python/test_with_dask.py --follow-imports=silent; \
 	mypy ../tests/python-gpu/test_gpu_with_dask.py --follow-imports=silent; \
+	mypy ./xgboost/sklearn.py --follow-imports=silent; \
 	mypy . || true ;
 
 clean:

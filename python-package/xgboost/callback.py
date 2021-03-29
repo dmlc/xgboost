@@ -276,6 +276,9 @@ class TrainingCallback(ABC):
     .. versionadded:: 1.3.0
 
     '''
+
+    EvalsLog = Dict[str, Dict[str, Union[List[float], List[Tuple[float, float]]]]]
+
     def __init__(self):
         pass
 
@@ -287,13 +290,11 @@ class TrainingCallback(ABC):
         '''Run after training is finished.'''
         return model
 
-    def before_iteration(self, model, epoch: int,
-                         evals_log: 'CallbackContainer.EvalsLog') -> bool:
+    def before_iteration(self, model, epoch: int, evals_log: EvalsLog) -> bool:
         '''Run before each iteration.  Return True when training should stop.'''
         return False
 
-    def after_iteration(self, model, epoch: int,
-                        evals_log: 'CallbackContainer.EvalsLog') -> bool:
+    def after_iteration(self, model, epoch: int, evals_log: EvalsLog) -> bool:
         '''Run after each iteration.  Return True when training should stop.'''
         return False
 
@@ -351,7 +352,7 @@ class CallbackContainer:
 
     '''
 
-    EvalsLog = Dict[str, Dict[str, Union[List[float], List[Tuple[float, float]]]]]
+    EvalsLog = TrainingCallback.EvalsLog
 
     def __init__(self,
                  callbacks: List[TrainingCallback],

@@ -96,7 +96,11 @@ def from_cstr_to_pystr(data, length) -> List[str]:
     return res
 
 
-def _convert_ntree_limit(booster, ntree_limit, iteration_range):
+def _convert_ntree_limit(
+    booster: "Booster",
+    ntree_limit: Optional[int],
+    iteration_range: Optional[Tuple[int, int]]
+) -> Optional[Tuple[int, int]]:
     if ntree_limit is not None and ntree_limit != 0:
         warnings.warn(
             "ntree_limit is deprecated, use `iteration_range` or model "
@@ -1447,7 +1451,7 @@ class Booster(object):
         attr_names = from_cstr_to_pystr(sarr, length)
         return {n: self.attr(n) for n in attr_names}
 
-    def set_attr(self, **kwargs):
+    def set_attr(self, **kwargs: Optional[str]) -> None:
         """Set the attribute of the Booster.
 
         Parameters
