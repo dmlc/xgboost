@@ -907,6 +907,7 @@ async def _train_async(
                 evals_per_worker,
                 pure=False,
                 workers=[worker_addr],
+                allow_other_workers=False
             )
             futures.append(f)
 
