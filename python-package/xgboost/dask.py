@@ -1625,8 +1625,8 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             obj = _objective_decorator(self.objective)
         else:
             obj = None
-        model, metric, params = self._configure_fit(
-            booster=xgb_model, eval_metric=eval_metric, params=params
+        model, metric, params, early_stopping_rounds = self._configure_fit(
+            xgb_model, eval_metric, params, early_stopping_rounds
         )
         results = await self.client.sync(
             _train_async,
@@ -1726,8 +1726,8 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             obj = _objective_decorator(self.objective)
         else:
             obj = None
-        model, metric, params = self._configure_fit(
-            booster=xgb_model, eval_metric=eval_metric, params=params
+        model, metric, params, early_stopping_rounds = self._configure_fit(
+            xgb_model, eval_metric, params, early_stopping_rounds
         )
         results = await self.client.sync(
             _train_async,
@@ -1853,9 +1853,9 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
 """,
     ["estimators", "model"],
     end_note="""
-        Note
-        ----
-        For dask implementation, group is not supported, use qid instead.
+        .. note::
+
+            For dask implementation, group is not supported, use qid instead.
 """,
 )
 class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
@@ -1912,8 +1912,8 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
                 raise ValueError(
                     "Custom evaluation metric is not yet supported for XGBRanker."
                 )
-        model, metric, params = self._configure_fit(
-            booster=xgb_model, eval_metric=eval_metric, params=params
+        model, metric, params, early_stopping_rounds = self._configure_fit(
+            xgb_model, eval_metric, params, early_stopping_rounds
         )
         results = await self.client.sync(
             _train_async,

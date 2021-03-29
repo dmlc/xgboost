@@ -269,6 +269,7 @@ def non_increasing(L, tolerance=1e-4):
 
 
 def eval_error_metric(predt, dtrain: xgb.DMatrix):
+    """Evaluation metric for xgb.train"""
     label = dtrain.get_label()
     r = np.zeros(predt.shape)
     gt = predt > 0.5
@@ -276,6 +277,16 @@ def eval_error_metric(predt, dtrain: xgb.DMatrix):
     le = predt <= 0.5
     r[le] = label[le]
     return 'CustomErr', np.sum(r)
+
+
+def eval_error_metric_skl(y_true, y_score):
+    """Evaluation metric that looks like metrics provided by sklearn."""
+    r = np.zeros(y_score.shape)
+    gt = y_score > 0.5
+    r[gt] = 1 - y_true[gt]
+    le = y_score <= 0.5
+    r[le] = y_true[le]
+    return np.sum(r)
 
 
 def softmax(x):
