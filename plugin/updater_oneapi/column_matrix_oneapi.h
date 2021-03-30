@@ -1,0 +1,281 @@
+/*!
+ * Copyright 2017-2021 by Contributors
+ * \file column_matrix_oneapi.h
+ * \brief Utility for fast column-wise access for oneAPI plugin
+ */
+
+#ifndef XGBOOST_COMMON_COLUMN_MATRIX_ONEAPI_H_
+#define XGBOOST_COMMON_COLUMN_MATRIX_ONEAPI_H_
+
+#include <limits>
+#include <vector>
+#include <memory>
+#include "../../src/common/column_matrix.h"
+#include "hist_util_oneapi.h"
+
+namespace xgboost {
+namespace common {
+
+template <typename BinIdxType>
+class DenseColumnOneAPI: public Column<BinIdxType> {
+ public:
+  DenseColumnOneAPI(ColumnType type, common::Span<const BinIdxType> index,
+              uint32_t index_base, bool* missing_flags,
+              size_t feature_offset)
+      : Column<BinIdxType>(type, index, index_base),
+        missing_flags_(missing_flags),
+        feature_offset_(feature_offset) {}
+
+  bool IsMissing(size_t idx) const { return missing_flags_[feature_offset_ + idx]; }
+
+  bool* GetMissingFlags() const {
+    return missing_flags_;
+  }
+
+  size_t GetFeatureOffset() const {
+    return feature_offset_;
+  }
+
+ private:
+  /* flags for missing values in dense columns */
+  bool* missing_flags_;
+  size_t feature_offset_;
+};
+
+/*! \brief a collection of columns, with support for construction from
+    GHistIndexMatrixOneAPI. */
+class ColumnMatrixOneAPI {
+ public:
+  // construct oneAPI column matrix from GHistIndexMatrixOneAPI
+  inline void Init(cl::sycl::queue qu,
+                   const GHistIndexMatrixOneAPI& gmat,
+                   const DeviceMatrixOneAPI& dmat_device,
+                   double sparse_threshold) {
+    qu_ = qu;
+    const int32_t nfeature = static_cast<int32_t>(gmat.cut.Ptrs().size() - 1);
+    const size_t nrow = gmat.row_ptr.size() - 1;
+    // identify type of each column
+    feature_counts_.resize(nfeature);
+    type_.resize(nfeature);
+    std::fill(feature_counts_.begin(), feature_counts_.end(), 0);
+    uint32_t max_val = std::numeric_limits<uint32_t>::max();
+    for (int32_t fid = 0; fid < nfeature; ++fid) {
+      CHECK_LE(gmat.cut.Ptrs()[fid + 1] - gmat.cut.Ptrs()[fid], max_val);
+    }
+    bool all_dense = gmat.IsDense(); // CHECK gmat.IsDense implicitly
+    gmat.GetFeatureCounts(feature_counts_);
+    // classify features
+    for (int32_t fid = 0; fid < nfeature; ++fid) {
+      if (static_cast<double>(feature_counts_[fid])
+                 < sparse_threshold * nrow) {
+        all_dense = false;
+      }
+      type_[fid] = kDenseColumn;
+    }
+
+    if (!all_dense) {
+      LOG(WARNING) << "Sparse data is not supported for updater_quantile_histmaker_oneapi, converting to dense";
+      all_dense = true;
+    }
+
+    // want to compute storage boundary for each feature
+    // using variants of prefix sum scan
+    feature_offsets_.resize(nfeature + 1);
+    size_t accum_index_ = 0;
+    feature_offsets_[0] = accum_index_;
+    for (int32_t fid = 1; fid < nfeature + 1; ++fid) {
+      if (type_[fid - 1] == kDenseColumn) {
+        accum_index_ += static_cast<size_t>(nrow);
+      } else {
+        accum_index_ += feature_counts_[fid - 1];
+      }
+      feature_offsets_[fid] = accum_index_;
+    }
+
+    feature_offsets_device_ = USMVector<size_t>(qu_, feature_offsets_);
+
+    SetTypeSize(gmat.max_num_bins);
+
+    index_.Resize(qu_, feature_offsets_[nfeature] * bins_type_size_, 0);
+    if (!all_dense) {
+      row_ind_.Resize(qu_, feature_offsets_[nfeature]);
+    }
+
+    // store least bin id for each feature
+    index_base_ = const_cast<uint32_t*>(gmat.cut.Ptrs().data());
+    index_base_device_ = const_cast<uint32_t*>(gmat.cut_device.Ptrs().DataConst());
+
+    const bool noMissingValues = NoMissingValues(gmat.row_ptr[nrow], nrow, nfeature);
+    any_missing_ = !noMissingValues;
+
+    if (noMissingValues) {
+      missing_flags_.Resize(qu_, feature_offsets_[nfeature], false);
+    } else {
+      missing_flags_.Resize(qu_, feature_offsets_[nfeature], true);
+    }
+
+    // pre-fill index_ for dense columns
+    if (gmat.IsDense()) {
+      BinTypeSize gmat_bin_size = gmat.index.GetBinTypeSize();
+      if (gmat_bin_size == kUint8BinsTypeSize) {
+        SetIndexAllDense(gmat.index.data<uint8_t>(), gmat, dmat_device, nrow, nfeature, noMissingValues);
+      } else if (gmat_bin_size == kUint16BinsTypeSize) {
+        SetIndexAllDense(gmat.index.data<uint16_t>(), gmat, dmat_device, nrow, nfeature, noMissingValues);
+      } else {
+        CHECK_EQ(gmat_bin_size, kUint32BinsTypeSize);
+        SetIndexAllDense(gmat.index.data<uint32_t>(), gmat, dmat_device, nrow, nfeature, noMissingValues);
+      }
+    } else {
+      if (bins_type_size_ == kUint8BinsTypeSize) {
+        SetIndex<uint8_t>(gmat.index.data<uint32_t>(), gmat, dmat_device, nrow, nfeature);
+      } else if (bins_type_size_ == kUint16BinsTypeSize) {
+        SetIndex<uint16_t>(gmat.index.data<uint32_t>(), gmat, dmat_device, nrow, nfeature);
+      } else {
+        CHECK_EQ(bins_type_size_, kUint32BinsTypeSize);
+        SetIndex<uint32_t>(gmat.index.data<uint32_t>(), gmat, dmat_device, nrow, nfeature);
+      }
+    }
+  }
+
+  /* Set the number of bytes based on numeric limit of maximum number of bins provided by user */
+  void SetTypeSize(size_t max_num_bins) {
+    if ( (max_num_bins - 1) <= static_cast<int>(std::numeric_limits<uint8_t>::max()) ) {
+      bins_type_size_ = kUint8BinsTypeSize;
+    } else if ((max_num_bins - 1) <= static_cast<int>(std::numeric_limits<uint16_t>::max())) {
+      bins_type_size_ = kUint16BinsTypeSize;
+    } else {
+      bins_type_size_ = kUint32BinsTypeSize;
+    }
+  }
+
+  /* Fetch an individual column. This code should be used with type swith
+     to determine type of bin id's */
+  template <typename BinIdxType>
+  std::unique_ptr<const Column<BinIdxType> > GetColumn(unsigned fid) const {
+    CHECK_EQ(sizeof(BinIdxType), bins_type_size_);
+
+    const size_t feature_offset = feature_offsets_[fid];  // to get right place for certain feature
+    const size_t column_size = feature_offsets_[fid + 1] - feature_offset;
+    common::Span<const BinIdxType> bin_index = { reinterpret_cast<const BinIdxType*>(
+                                                 &index_[feature_offset * bins_type_size_]),
+                                                 column_size };
+    std::unique_ptr<const Column<BinIdxType> > res;
+    if (type_[fid] == ColumnType::kDenseColumn) {
+      res.reset(new DenseColumnOneAPI<BinIdxType>(type_[fid], bin_index, index_base_[fid],
+                                                  missing_flags_.Begin(), feature_offset));
+    } else {
+      res.reset(new SparseColumn<BinIdxType>(type_[fid], bin_index, index_base_[fid],
+                                             {&row_ind_[feature_offset], column_size}));
+    }
+    return res;
+  }
+
+  template<typename T>
+  inline void SetIndexAllDense(const T* index,
+                               const GHistIndexMatrixOneAPI& gmat,
+                               const DeviceMatrixOneAPI& dmat_device,
+                               const size_t nrow,
+                               const size_t nfeature,
+                               const bool noMissingValues) {
+    T* local_index = reinterpret_cast<T*>(&index_[0]);
+
+    const size_t* feature_offsets = feature_offsets_device_.DataConst(); 
+
+    /* missing values make sense only for column with type kDenseColumn,
+       and if no missing values were observed it could be handled much faster. */
+    if (noMissingValues) {
+      qu_.submit([&](cl::sycl::handler& cgh){
+        cgh.parallel_for<>(cl::sycl::range<2>(nrow, nfeature), [=](cl::sycl::item<2> pid) {
+          int i = pid.get_id(0);
+          int j = pid.get_id(1);
+          local_index[i + feature_offsets[j]] = index[i * nfeature + j];
+        });
+      }).wait();
+    } else {
+      const xgboost::Entry *data_ptr = dmat_device.data.DataConst();
+      const bst_row_t *offset_vec = dmat_device.row_ptr.DataConst();
+      const size_t num_rows = dmat_device.row_ptr.Size() - 1;
+      bool* missing_flags = missing_flags_.Data();
+
+      qu_.submit([&](cl::sycl::handler& cgh) {
+        cgh.parallel_for<>(cl::sycl::range<1>(num_rows), [=](cl::sycl::item<1> pid) {
+          const size_t i = pid.get_id(0);
+          const size_t ibegin = offset_vec[i];
+          const size_t iend = offset_vec[i + 1];
+          const size_t size = iend - ibegin;
+          for (bst_uint j = 0; j < size; ++j) {
+            const size_t idx = feature_offsets[data_ptr[ibegin + j].index];
+            local_index[i + idx] = index[ibegin + j];
+            missing_flags[i + idx] = false;
+          }
+        });
+      }).wait();
+    }
+  }
+
+  template<typename T>
+  inline void SetIndex(const uint32_t* index,
+                       const GHistIndexMatrixOneAPI& gmat,
+                       const DeviceMatrixOneAPI& dmat_device,
+                       const size_t nrow,
+                       const size_t nfeature) {
+    T* local_index = reinterpret_cast<T*>(&index_[0]);
+    const xgboost::Entry *data_ptr = dmat_device.data.DataConst();
+    const bst_row_t *offset_vec = dmat_device.row_ptr.DataConst();
+    const size_t num_rows = dmat_device.row_ptr.Size() - 1;
+    bool* missing_flags = missing_flags_.Data();
+    const size_t* feature_offsets = feature_offsets_device_.DataConst(); 
+    const uint32_t* index_base_device = index_base_device_;
+
+    qu_.submit([&](cl::sycl::handler& cgh) {
+      cgh.parallel_for<>(cl::sycl::range<1>(num_rows), [=](cl::sycl::item<1> pid) {
+        const size_t i = pid.get_id(0);
+        const size_t ibegin = offset_vec[i];
+        const size_t iend = offset_vec[i + 1];
+        const size_t size = iend - ibegin;
+        for (bst_uint j = 0; j < size; ++j) {
+          const size_t fid = data_ptr[ibegin + j].index;
+          const size_t idx = feature_offsets[fid];
+          local_index[i + idx] = index[ibegin + j] - index_base_device[fid];
+          missing_flags[i + idx] = false;
+        }
+      });
+    }).wait();
+  }
+
+  const BinTypeSize GetTypeSize() const {
+    return bins_type_size_;
+  }
+
+  // This is just an utility function
+  const bool NoMissingValues(const size_t n_elements,
+                             const size_t n_row, const size_t n_features) {
+    return n_elements == n_features * n_row;
+  }
+
+  // And this returns part of state
+  const bool AnyMissing() const {
+    return any_missing_;
+  }
+
+ private:
+  USMVector<uint8_t> index_;
+
+  std::vector<size_t>     feature_counts_;
+  std::vector<ColumnType> type_;
+  USMVector<size_t>       row_ind_;
+  std::vector<size_t>     feature_offsets_;
+  USMVector<size_t>       feature_offsets_device_;
+
+  uint32_t* index_base_;
+  uint32_t* index_base_device_;
+  USMVector<bool> missing_flags_;
+  BinTypeSize bins_type_size_;
+  bool any_missing_;
+
+  cl::sycl::queue qu_;
+};
+
+}  // namespace common
+}  // namespace xgboost
+#endif  // XGBOOST_COMMON_COLUMN_MATRIX_ONEAPI_H_

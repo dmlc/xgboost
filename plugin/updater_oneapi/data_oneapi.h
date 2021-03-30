@@ -1,5 +1,5 @@
 /*!
- * Copyright by Contributors 2017-2020
+ * Copyright by Contributors 2017-2021
  */
 #ifndef XGBOOST_COMMON_DATA_ONEAPI_H_
 #define XGBOOST_COMMON_DATA_ONEAPI_H_
@@ -30,7 +30,8 @@ private:
   cl::sycl::queue qu_;
 };
 
-
+/* OneAPI implementation of a HostDeviceVector, storing both host and device memory in a single USM buffer.
+   Synchronization between host and device is managed by the compiler runtime. */
 template <typename T>
 class USMVector {
   static_assert(std::is_standard_layout<T>::value, "USMVector admits only POD types");
@@ -46,13 +47,9 @@ public:
 
   USMVector(cl::sycl::queue qu, size_t size, T v) : qu_(qu), size_(size) {
     data_ = std::shared_ptr<T>(cl::sycl::malloc_shared<T>(size_, qu_), USMDeleter<T>(qu_));
-    std::fill(data_.get(), data_.get() + size_, v);
-    // switch to handler fill after moving to new compiler
-    /*
     qu.submit([&](cl::sycl::handler& cgh) {
       cgh.fill(data_.get(), v, size_);
     }).wait();
-    */
   }
 
   USMVector(cl::sycl::queue qu, const std::vector<T> &vec) : qu_(qu) {
@@ -92,47 +89,41 @@ public:
     size_ = 0;
   }
 
-  void Resize(cl::sycl::queue qu, size_t new_size) {
+  void Resize(cl::sycl::queue qu, size_t size_new) {
     qu_ = qu;
-    if (new_size <= size_) {
-      size_ = new_size;
+    if (size_new <= size_) {
+      size_ = size_new;
     } else {
-      size_t old_size = size_;
+      size_t size_old = size_;
       auto data_old = data_;
-      size_ = new_size;
+      size_ = size_new;
       data_ = std::shared_ptr<T>(cl::sycl::malloc_shared<T>(size_, qu_), USMDeleter<T>(qu_));
-      if (old_size > 0) {
-        std::copy(data_old.get(), data_old.get() + old_size, data_.get());
-        // switch to handler copy after moving to new compiler
-        /*
+      if (size_old > 0) {
         qu.submit([&](cl::sycl::handler& cgh) {
-          cgh.copy(data_old.get(), data_.get(), old_size);
+          cgh.memcpy(data_old.get(), data_.get(), size_old);
         }).wait();
-        */
       }
     }
   }
 
-  void Resize(cl::sycl::queue qu, size_t new_size, T v) {
+  void Resize(cl::sycl::queue qu, size_t size_new, T v) {
     qu_ = qu;
-    if (new_size <= size_) {
-      size_ = new_size;
+    if (size_new <= size_) {
+      size_ = size_new;
     } else {
-      size_t old_size = size_;
+      size_t size_old = size_;
       auto data_old = data_;
-      size_ = new_size;
+      size_ = size_new;
       data_ = std::shared_ptr<T>(cl::sycl::malloc_shared<T>(size_, qu_), USMDeleter<T>(qu_));
-      if (old_size > 0) {
-        std::copy(data_old.get(), data_old.get() + old_size, data_.get());
-        // switch to handler copy after moving to new compiler
-        /*
+      if (size_old > 0) {
         qu.submit([&](cl::sycl::handler& cgh) {
-          cgh.copy(data_old.get(), data_.get(), old_size);
+          cgh.memcpy(data_old.get(), data_.get(), size_old);
         }).wait();
-        */
       }
-      if (new_size > old_size) {
-        std::fill(data_.get() + old_size, data_.get() + new_size, v);
+      if (size_new > size_old) {
+        qu.submit([&](cl::sycl::handler& cgh) {
+          cgh.fill(data_.get() + size_old, v, size_new - size_old);
+        }).wait();
       }
     }
   }
@@ -152,37 +143,12 @@ private:
   std::shared_ptr<T> data_;
 };
 
-/*! \brief Element from a sparse vector */
-struct EntryOneAPI {
-  /*! \brief feature index */
-  bst_feature_t index;
-  /*! \brief feature value */
-  bst_float fvalue;
-  /*! \brief default constructor */
-  EntryOneAPI() = default;
-  /*!
-   * \brief constructor with index and value
-   * \param index The feature or row index.
-   * \param fvalue The feature value.
-   */
-  EntryOneAPI(bst_feature_t index, bst_float fvalue) : index(index), fvalue(fvalue) {}
-
-  EntryOneAPI(const Entry& entry) : index(entry.index), fvalue(entry.fvalue) {}
-
-  /*! \brief reversely compare feature values */
-  inline static bool CmpValue(const EntryOneAPI& a, const EntryOneAPI& b) {
-    return a.fvalue < b.fvalue;
-  }
-  inline bool operator==(const EntryOneAPI& other) const {
-    return (this->index == other.index && this->fvalue == other.fvalue);
-  }
-};
-
+/* Wrapper for DMatrix which stores all batches in a single USM buffer */
 struct DeviceMatrixOneAPI {
   DMatrix* p_mat;  // Pointer to the original matrix on the host
   cl::sycl::queue qu_;
   USMVector<size_t> row_ptr;
-  USMVector<EntryOneAPI> data;
+  USMVector<Entry> data;
   size_t total_offset;
 
   DeviceMatrixOneAPI(cl::sycl::queue qu, DMatrix* dmat) : p_mat(dmat), qu_(qu) {
