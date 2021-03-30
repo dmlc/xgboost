@@ -17,8 +17,8 @@ There are a number of different prediction options for the
 ``pred_leaf``.  The output shape depends on types of prediction.  Also for multi-class
 classification problem, XGBoost builds one tree for each class and the trees for each
 class are called a "group" of trees, so output dimension may change due to used model.
-After 1.4 release, we added a new parameter called ``strict_shape``, which is set to
-``False`` to indicate a more restricted output.  Assuming you are using
+After 1.4 release, we added a new parameter called ``strict_shape``, one can set it to
+``Ture`` to indicate a more restricted output is desired.  Assuming you are using
 :py:obj:`xgboost.Booster`, here is a list of possible returns:
 
 - When using normal prediction with ``strict_shape`` set to ``True``:
@@ -29,7 +29,7 @@ After 1.4 release, we added a new parameter called ``strict_shape``, which is se
   columns equals to number of classes.  If strict_shape is set to False then XGBoost might
   output 1 or 2 dim array.
 
-- When using ``output_margin`` to avoid transformation and ``strict_shape`` set to ``True``:
+- When using ``output_margin`` to avoid transformation and ``strict_shape`` is set to ``True``:
 
   Similar to the previous case, output is a 2-dim array, except for that ``multi:softmax``
   has equivalent output of ``multi:softprob`` due to dropped transformation.  If strict
@@ -67,7 +67,7 @@ multiple stacks, it simply returns the prediction formed by the trees within ran
 Predictor
 *********
 
-There are 2 predictors in XGBoost (3 if you have enabled the one-api plugin), namely
+There are 2 predictors in XGBoost (3 if you have the one-api plugin enabled), namely
 ``cpu_predictor`` and ``gpu_predictor``.  The default option is ``auto`` so that XGBoost
 can employ some heuristics for saving GPU memory during training.  They might have slight
 different outputs due to floating point errors.
