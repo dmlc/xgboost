@@ -374,6 +374,45 @@ SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP option_mask,
   return ret;
 }
 
+SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_config)  {
+  SEXP r_out_shape;
+  SEXP r_out_result;
+  SEXP r_out;
+
+  R_API_BEGIN();
+  char const *c_json_config = CHAR(asChar(json_config));
+
+  bst_ulong out_dim;
+  bst_ulong const *out_shape;
+  float const *out_result;
+  CHECK_CALL(XGBoosterPredictFromDMatrix(R_ExternalPtrAddr(handle),
+                                         R_ExternalPtrAddr(dmat), c_json_config,
+                                         &out_shape, &out_dim, &out_result));
+
+  r_out_shape = PROTECT(allocVector(INTSXP, out_dim));
+  size_t len = 1;
+  for (size_t i = 0; i < out_dim; ++i) {
+    INTEGER(r_out_shape)[i] = out_shape[i];
+    len *= out_shape[i];
+  }
+  r_out_result = PROTECT(allocVector(REALSXP, len));
+
+#pragma omp parallel for
+  for (size_t i = 0; i < len; ++i) {
+    REAL(r_out_result)[i] = out_result[i];
+  }
+
+  r_out = PROTECT(allocVector(VECSXP, 2));
+
+  SET_VECTOR_ELT(r_out, 0, r_out_shape);
+  SET_VECTOR_ELT(r_out, 1, r_out_result);
+
+  R_API_END();
+  UNPROTECT(3);
+
+  return r_out;
+}
+
 SEXP XGBoosterLoadModel_R(SEXP handle, SEXP fname) {
   R_API_BEGIN();
   CHECK_CALL(XGBoosterLoadModel(R_ExternalPtrAddr(handle), CHAR(asChar(fname))));

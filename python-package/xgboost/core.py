@@ -111,9 +111,8 @@ def _convert_ntree_limit(
             raise ValueError(
                 "Only one of `iteration_range` and `ntree_limit` can be non zero."
             )
-        num_parallel_tree, num_groups = _get_booster_layer_trees(booster)
+        num_parallel_tree, _ = _get_booster_layer_trees(booster)
         num_parallel_tree = max([num_parallel_tree, 1])
-        num_groups = max([num_groups, 1])
         iteration_range = (0, ntree_limit // num_parallel_tree)
     return iteration_range
 

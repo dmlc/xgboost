@@ -168,8 +168,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @param outputmargin whether the prediction should be returned in the for of original untransformed
 #'        sum of predictions from boosting iterations' results. E.g., setting \code{outputmargin=TRUE} for
 #'        logistic regression would result in predictions for log-odds instead of probabilities.
-#' @param ntreelimit limit the number of model's trees or boosting iterations used in prediction (see Details).
-#'        It will use all the trees by default (\code{NULL} value).
+#' @param ntreelimit Deprecated, use \code{iterationrange} instead.
 #' @param predleaf whether predict leaf index.
 #' @param predcontrib whether to return feature contributions to individual predictions (see Details).
 #' @param approxcontrib whether to use a fast approximation for feature contributions (see Details).
@@ -179,6 +178,10 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'        or predinteraction flags is TRUE.
 #' @param training whether is the prediction result used for training.  For dart booster,
 #'        training predicting will perform dropout.
+#' @param iterationrange Specifies which layer of trees are used in prediction.  For example, if a
+#'        random forest is trained with 100 rounds.  Specifying `iteration_range=(10,
+#'        20)`, then only the forests built during [10, 20) (half open set) rounds are
+#'        used in this prediction.
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
 #'
 #' @details
@@ -328,7 +331,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @export
 predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FALSE, ntreelimit = NULL,
                                 predleaf = FALSE, predcontrib = FALSE, approxcontrib = FALSE, predinteraction = FALSE,
-                                reshape = FALSE, training = FALSE, ...) {
+                                reshape = FALSE, training = FALSE, iterationrange = NULL, ...) {
 
   object <- xgb.Booster.complete(object, saveraw = FALSE)
   if (!inherits(newdata, "xgb.DMatrix"))
@@ -337,18 +340,65 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
       !is.null(colnames(newdata)) &&
       !identical(object[["feature_names"]], colnames(newdata)))
     stop("Feature names stored in `object` and `newdata` are different!")
-  if (is.null(ntreelimit))
-    ntreelimit <- NVL(object$best_ntreelimit, 0)
-  if (NVL(object$params[['booster']], '') == 'gblinear')
+
+  if (NVL(object$params[['booster']], '') == 'gblinear' || is.null(ntreelimit))
     ntreelimit <- 0
-  if (ntreelimit < 0)
-    stop("ntreelimit cannot be negative")
+  if (ntreelimit != 0 && is.null(iterationrange)) {
+    ## only ntreelimit, initialize iteration range
+    iterationrange = list(begin = 0, end = 0)
+  } else if (ntreelimit == 0 && !is.null(iterationrange)) {
+    ## only iteration range, do nothing
+  } else if (ntreelimit != 0 && !is.null(iterationrange)) {
+    ## both are specified, let libgxgboost throw an error
+  } else {
+    ## no limit is supplied, use best
+    iterationrange = list(begin = 0, end = NVL(object$best_iteration, 0))
+  }
 
-  option <- 0L + 1L * as.logical(outputmargin) + 2L * as.logical(predleaf) + 4L * as.logical(predcontrib) +
-    8L * as.logical(approxcontrib) + 16L * as.logical(predinteraction)
+  args <- list(
+    training = training,
+    strict_shape = FALSE,
+    iteration_begin = iterationrange$begin,
+    iteration_end = iterationrange$end,
+    ntree_limit = ntreelimit,
+    type = 0
+  )
+  check_type <- function(type) {
+    if (args$type != 0) {
+      stop("One type of prediction at a time.")
+    }
+  }
+  if (outputmargin) {
+    check_type()
+    args$type = 1
+  }
+  if (predcontrib) {
+    check_type()
+    if (!approxcontrib) {
+      args$type = 2
+    } else {
+      args$type = 3
+    }
+  }
+  if (predinteraction) {
+    check_type()
+    if (!approxcontrib) {
+      args$type = 4
+    } else {
+      args$type = 5
+    }
+  }
+  if (predleaf) {
+    check_type()
+    args$type = 6
+  }
 
-  ret <- .Call(XGBoosterPredict_R, object$handle, newdata, option[1],
-               as.integer(ntreelimit), as.integer(training))
+  predts <- .Call(
+    XGBoosterPredictFromDMatrix_R, object$handle, newdata, jsonlite::toJSON(args, auto_unbox=TRUE)
+  )
+  names(predts) <- c("shape", "results")
+  shape <- predts$shape
+  ret <- predts$results
 
   n_ret <- length(ret)
   n_row <- nrow(newdata)
