@@ -117,9 +117,7 @@ public:
         qu.memcpy(data_old.get(), data_.get(), size_old);
       }
       if (size_new > size_old) {
-        qu.submit([&](cl::sycl::handler& cgh) {
-          cgh.fill(data_.get() + size_old, v, size_new - size_old);
-        }).wait();
+        qu.fill(data_.get() + size_old, v, size_new - size_old);
       }
     }
   }
