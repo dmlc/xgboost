@@ -332,18 +332,23 @@ class TestGPUPredict:
         rmse = mean_squared_error(y_true=y, y_pred=pred, squared=False)
         np.testing.assert_almost_equal(rmse, eval_history['train']['rmse'][-1], decimal=5)
 
-    def test_predict_dart(self):
+    @pytest.mark.parametrize("n_classes", [2, 3])
+    def test_predict_dart(self, n_classes):
+        from sklearn.datasets import make_classification
         import cupy as cp
-        rng = cp.random.RandomState(1994)
         n_samples = 1000
-        X = rng.randn(n_samples, 10)
-        y = rng.randn(n_samples)
+        X_, y_ = make_classification(
+            n_samples=n_samples, n_informative=5, n_classes=n_classes
+        )
+        X, y = cp.array(X_), cp.array(y_)
+
         Xy = xgb.DMatrix(X, y)
         booster = xgb.train(
             {
                 "tree_method": "gpu_hist",
                 "booster": "dart",
                 "rate_drop": 0.5,
+                "num_class": n_classes
             },
             Xy,
             num_boost_round=32
@@ -351,8 +356,13 @@ class TestGPUPredict:
         # predictor=auto
         inplace = booster.inplace_predict(X)
         copied = booster.predict(Xy)
+        cpu_inplace = booster.inplace_predict(X_)
+        booster.set_param({"predictor": "cpu_predictor"})
+        cpu_copied = booster.predict(Xy)
 
         copied = cp.array(copied)
+        cp.testing.assert_allclose(cpu_inplace, copied, atol=1e-6)
+        cp.testing.assert_allclose(cpu_copied, copied, atol=1e-6)
         cp.testing.assert_allclose(inplace, copied, atol=1e-6)
 
         booster.set_param({"predictor": "gpu_predictor"})
