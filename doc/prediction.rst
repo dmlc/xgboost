@@ -44,10 +44,10 @@ After 1.4 release, we added a new parameter called ``strict_shape``, which is se
 
 - When using ``preds_interactions`` with ``strict_shape`` set to ``True``:
 
-  Output is a 4-dim array, ``(rows, groups, columns + 1, columns + 1)`` as shape.  Like
-  the predict contribution case, whether ``approx_contribs`` is used does not change the
-  output shape.  If strict shape is set to False, it can have 3 or 4 dims depending on the
-  underlying model.
+  Output is a 4-dim array, with ``(rows, groups, columns + 1, columns + 1)`` as shape.
+  Like the predict contribution case, whether ``approx_contribs`` is used does not change
+  the output shape.  If strict shape is set to False, it can have 3 or 4 dims depending on
+  the underlying model.
 
 - When using ``pred_leaf`` with ``strict_shape`` set to ``True``:
 
@@ -70,7 +70,7 @@ Predictor
 There are 2 predictors in XGBoost (3 if you have enabled the one-api plugin), namely
 ``cpu_predictor`` and ``gpu_predictor``.  The default option is ``auto`` so that XGBoost
 can employ some heuristics for saving GPU memory during training.  They might have slight
-different outputs due to floating errors.
+different outputs due to floating point errors.
 
 
 ***********
@@ -102,11 +102,12 @@ Traditionally XGBoost accepts only ``DMatrix`` for prediction, with wrappers lik
 scikit-learn interface the construction happens internally.  We added support for in-place
 predict to bypass the construction of ``DMatrix``, which is slow and memory consuming.
 The new predict function has limited features but is often sufficient for simple inference
-tasks.  It accepts some commonly found data types in Python like ``numpy.ndarray``,
-``scipy.sparse.csr_matrix`` and ``cudf.DataFrame`` instead of ``DMatrix``.  You can call
-``booster.inplace_predict`` to use it.  Be aware that the output of in-place prediction
-depends on input data type, when input is on GPU data output is ``cupy.ndarray``,
-otherwise a ``numpy.ndarray`` is returned.
+tasks.  It accepts some commonly found data types in Python like :py:obj:`numpy.ndarray`,
+:py:obj:`scipy.sparse.csr_matrix` and :py:obj:`cudf.DataFrame` instead of
+:py:obj:`xgboost.DMatrix`.  You can call :py:meth:`xgboost.Booster.inplace_predict` to use
+it.  Be aware that the output of in-place prediction depends on input data type, when
+input is on GPU data output is :py:obj:`cupy.ndarray`, otherwise a :py:obj:`numpy.ndarray`
+is returned.
 
 ****************
 Categorical Data
