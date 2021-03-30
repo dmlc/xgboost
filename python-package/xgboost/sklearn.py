@@ -4,6 +4,7 @@
 import copy
 import warnings
 import json
+import os
 from typing import Union, Optional, List, Dict, Callable, Tuple, Any
 import numpy as np
 from .core import Booster, DMatrix, XGBoostError
@@ -500,25 +501,7 @@ class XGBModel(XGBModelBase):
             )
         return self._estimator_type  # pylint: disable=no-member
 
-    def save_model(self, fname: str):
-        """Save the model to a file.
-
-        The model is saved in an XGBoost internal format which is universal
-        among the various XGBoost interfaces. Auxiliary attributes of the
-        Python Booster object (such as feature names) will not be saved.
-
-          .. note::
-
-            See:
-
-            https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html
-
-        Parameters
-        ----------
-        fname : string
-            Output file name
-
-        """
+    def save_model(self, fname: Union[str, os.PathLike]):
         meta = dict()
         for k, v in self.__dict__.items():
             if k == '_le':
@@ -542,27 +525,18 @@ class XGBModel(XGBModelBase):
         # Delete the attribute after save
         self.get_booster().set_attr(scikit_learn=None)
 
-    def load_model(self, fname):
+    save_model.__doc__ = f"""{Booster.save_model.__doc__}"""
+
+    def load_model(self, fname: Union[str, bytearray, os.PathLike]) -> None:
         # pylint: disable=attribute-defined-outside-init
-        """Load the model from a file.
-
-        The model is loaded from an XGBoost internal format which is universal
-        among the various XGBoost interfaces. Auxiliary attributes of the
-        Python Booster object (such as feature names) will not be loaded.
-
-        Parameters
-        ----------
-        fname : string
-            Input file name.
-
-        """
         if not hasattr(self, '_Booster'):
             self._Booster = Booster({'n_jobs': self.n_jobs})
-        self._Booster.load_model(fname)
-        meta = self._Booster.attr('scikit_learn')
+        self.get_booster().load_model(fname)
+        meta = self.get_booster().attr('scikit_learn')
         if meta is None:
             warnings.warn(
-                'Loading a native XGBoost model with Scikit-Learn interface.')
+                'Loading a native XGBoost model with Scikit-Learn interface.'
+            )
             return
         meta = json.loads(meta)
         states = dict()
@@ -573,9 +547,6 @@ class XGBModel(XGBModelBase):
                 continue
             if k == 'classes_':
                 self.classes_ = np.array(v)
-                continue
-            if k == 'use_label_encoder':
-                self.use_label_encoder = bool(v)
                 continue
             if k == "_estimator_type":
                 if self._get_type() != v:
@@ -588,6 +559,8 @@ class XGBModel(XGBModelBase):
         self.__dict__.update(states)
         # Delete the attribute after load
         self.get_booster().set_attr(scikit_learn=None)
+
+    load_model.__doc__ = f"""{Booster.load_model.__doc__}"""
 
     def _configure_fit(
         self,

@@ -804,10 +804,14 @@ def save_load_model(model_path):
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBClassifier(use_label_encoder=False).fit(X[train_index], y[train_index])
         xgb_model.save_model(model_path)
-        xgb_model = xgb.XGBClassifier(use_label_encoder=False)
+
+        xgb_model = xgb.XGBClassifier()
         xgb_model.load_model(model_path)
+
+        assert xgb_model.use_label_encoder is False
         assert isinstance(xgb_model.classes_, np.ndarray)
         assert isinstance(xgb_model._Booster, xgb.Booster)
+
         preds = xgb_model.predict(X[test_index])
         labels = y[test_index]
         err = sum(1 for i in range(len(preds))
