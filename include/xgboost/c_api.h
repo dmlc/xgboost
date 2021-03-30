@@ -740,15 +740,17 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
  *
  * \param handle Booster handle
  * \param dmat   DMatrix handle
- * \param c_json_config String encoded predict configuration in JSON format.
+ * \param c_json_config String encoded predict configuration in JSON format, with
+ *                      following available fields in the JSON object:
  *
- *    "type": [0, 5]
+ *    "type": [0, 6]
  *      0: normal prediction
  *      1: output margin
  *      2: predict contribution
- *      3: predict approxmated contribution
+ *      3: predict approximated contribution
  *      4: predict feature interaction
- *      5: predict leaf
+ *      5: predict approximated feature interaction
+ *      6: predict leaf
  *    "training": bool
  *      Whether the prediction function is used as part of a training loop.  **Not used
  *      for inplace prediction**.
@@ -764,7 +766,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
  *    "iteration_begin": int
  *      Beginning iteration of prediction.
  *    "iteration_end": int
- *      End iteration of prediction.  Set to 0 this will become the size of tree model.
+ *      End iteration of prediction.  Set to 0 this will become the size of tree model (all the trees).
  *    "strict_shape": bool
  *      Whether should we reshape the output with stricter rules.  If set to true,
  *      normal/margin/contrib/interaction predict will output consistent shape
