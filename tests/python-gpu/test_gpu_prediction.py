@@ -343,16 +343,23 @@ class TestGPUPredict:
         X, y = cp.array(X_), cp.array(y_)
 
         Xy = xgb.DMatrix(X, y)
-        booster = xgb.train(
-            {
+        if n_classes == 2:
+            params = {
                 "tree_method": "gpu_hist",
                 "booster": "dart",
                 "rate_drop": 0.5,
+                "objective": "binary:logistic"
+            }
+        else:
+            params = {
+                "tree_method": "gpu_hist",
+                "booster": "dart",
+                "rate_drop": 0.5,
+                "objective": "multi:softprob",
                 "num_class": n_classes
-            },
-            Xy,
-            num_boost_round=32
-        )
+            }
+
+        booster = xgb.train(params, Xy, num_boost_round=32)
         # predictor=auto
         inplace = booster.inplace_predict(X)
         copied = booster.predict(Xy)
