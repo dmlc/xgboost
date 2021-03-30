@@ -93,6 +93,11 @@ size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
                               bst_row_t num_rows, bst_feature_t columns,
                               size_t nnz, int device,
                               size_t num_cuts, bool has_weight) {
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+  // device available memory is not accurate when rmm is used.
+  return nnz;
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+
   if (sketch_batch_num_elements == 0) {
     auto required_memory = RequiredMemory(num_rows, columns, nnz, num_cuts, has_weight);
     // use up to 80% of available space
