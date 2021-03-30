@@ -36,7 +36,8 @@ enum class PredictionType : std::uint8_t {  // NOLINT
   kContribution = 2,
   kApproxContribution = 3,
   kInteraction = 4,
-  kLeaf = 5
+  kApproxInteraction = 5,
+  kLeaf = 6
 };
 
 /*! \brief entry to to easily hold returning information */

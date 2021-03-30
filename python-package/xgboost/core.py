@@ -1648,7 +1648,9 @@ class Booster(object):
             prediction. Note the final column is the bias term.
 
         approx_contribs :
-            Approximate the contributions of each feature
+            Approximate the contributions of each feature.  Used when ``pred_contribs`` or
+            ``pred_interactions`` is set to True.  Changing the default of this parameter
+            (False) is not recommended.
 
         pred_interactions :
             When this is True the output will be a matrix of size (nsample,
@@ -1720,9 +1722,9 @@ class Booster(object):
         if pred_contribs:
             assign_type(2 if not approx_contribs else 3)
         if pred_interactions:
-            assign_type(4)
+            assign_type(4 if not approx_contribs else 5)
         if pred_leaf:
-            assign_type(5)
+            assign_type(6)
         preds = ctypes.POINTER(ctypes.c_float)()
         shape = ctypes.POINTER(c_bst_ulong)()
         dims = c_bst_ulong()
