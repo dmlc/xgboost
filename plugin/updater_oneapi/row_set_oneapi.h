@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 XGBoost contributors
+ * Copyright 2017-2021 XGBoost contributors
  */
 #ifndef XGBOOST_COMMON_ROW_SET_ONEAPI_H_
 #define XGBOOST_COMMON_ROW_SET_ONEAPI_H_
@@ -16,7 +16,7 @@
 namespace xgboost {
 namespace common {
 
-/*! \brief collection of rowset */
+/*! \brief Collection of rowsets stored on device in USM memory */
 class RowSetCollectionOneAPI {
  public:
   /*! \brief data structure to store an instance set, a subset of
@@ -25,8 +25,7 @@ class RowSetCollectionOneAPI {
   struct Elem {
     const size_t* begin{nullptr};
     const size_t* end{nullptr};
-    bst_node_t node_id{-1};
-      // id of node associated with this instance set; -1 means uninitialized
+    bst_node_t node_id{-1}; // id of node associated with this instance set; -1 means uninitialized
     Elem()
          = default;
     Elem(const size_t* begin,
@@ -38,18 +37,9 @@ class RowSetCollectionOneAPI {
       return end - begin;
     }
   };
-  /* \brief specifies how to split a rowset into two */
-  struct Split {
-    std::vector<size_t> left;
-    std::vector<size_t> right;
-  };
 
-  inline std::vector<Elem>::const_iterator begin() const {  // NOLINT
-    return elem_of_each_node_.begin();
-  }
-
-  inline std::vector<Elem>::const_iterator end() const {  // NOLINT
-    return elem_of_each_node_.end();
+  inline size_t Size() const {
+    return elem_of_each_node_.size();
   }
 
   /*! \brief return corresponding element set given the node_id */
@@ -73,18 +63,6 @@ class RowSetCollectionOneAPI {
   // initialize node id 0->everything
   inline void Init() {
     CHECK_EQ(elem_of_each_node_.size(), 0U);
-
-    if (row_indices_.Empty()) {  // edge case: empty instance set
-      // assign arbitrary address here, to bypass nullptr check
-      // (nullptr usually indicates a nonexistent rowset, but we want to
-      //  indicate a valid rowset that happens to have zero length and occupies
-      //  the whole instance set)
-      // this is okay, as BuildHist will compute (end-begin) as the set size
-      const size_t* begin = reinterpret_cast<size_t*>(20);
-      const size_t* end = begin;
-      elem_of_each_node_.emplace_back(Elem(begin, end, 0));
-      return;
-    }
 
     const size_t* begin = row_indices_.Begin();
     const size_t* end = row_indices_.End();
@@ -146,19 +124,14 @@ class PartitionBuilderOneAPI {
       nodes_offsets_[i] = nodes_offsets_[i-1] + funcNTaks(i-1);
     }
 
-    if (left_data_.Size() < nodes_offsets_[n_nodes]) {
-      left_data_.Resize(qu_, nodes_offsets_[n_nodes]);
-      right_data_.Resize(qu_, nodes_offsets_[n_nodes]);
+    if (data_.Size() < nodes_offsets_[n_nodes]) {
+      data_.Resize(qu_, nodes_offsets_[n_nodes]);
     }
     prefix_sums_.Resize(qu, maxLocalSums);
   }
 
-  common::Span<size_t> GetLeftData(int nid) {
-    return { left_data_.Data() + nodes_offsets_[nid], nodes_offsets_[nid + 1] - nodes_offsets_[nid] };
-  }
-
-  common::Span<size_t> GetRightData(int nid) {
-    return { right_data_.Data() + nodes_offsets_[nid], nodes_offsets_[nid + 1] - nodes_offsets_[nid] };
+  common::Span<size_t> GetData(int nid) {
+    return { data_.Data() + nodes_offsets_[nid], nodes_offsets_[nid + 1] - nodes_offsets_[nid] };
   }
 
   common::Span<size_t> GetPrefixSums() {
@@ -198,11 +171,11 @@ class PartitionBuilderOneAPI {
   }
 
   void MergeToArray(int nid, size_t* rows_indexes) {
-    size_t* left_result  = rows_indexes;
+    size_t* data_result = rows_indexes;
 
-    const size_t* left = left_data_.Data() + nodes_offsets_[nid];
+    const size_t* data = data_.Data() + nodes_offsets_[nid];
     
-    if (result_left_rows_[nid] + result_right_rows_[nid] > 0) qu_.memcpy(left_result, left, sizeof(size_t) * (result_left_rows_[nid] + result_right_rows_[nid]));
+    if (result_left_rows_[nid] + result_right_rows_[nid] > 0) qu_.memcpy(data_result, data, sizeof(size_t) * (result_left_rows_[nid] + result_right_rows_[nid]));
   }
 
  protected:
@@ -211,8 +184,7 @@ class PartitionBuilderOneAPI {
   std::vector<size_t> result_left_rows_;
   std::vector<size_t> result_right_rows_;
 
-  USMVector<size_t> left_data_;
-  USMVector<size_t> right_data_;
+  USMVector<size_t> data_;
 
   USMVector<size_t> prefix_sums_;
 
@@ -222,4 +194,4 @@ class PartitionBuilderOneAPI {
 }  // namespace common
 }  // namespace xgboost
 
-#endif  // XGBOOST_COMMON_ROW_SET_H_
+#endif  // XGBOOST_COMMON_ROW_SET_ONEAPI_H_
