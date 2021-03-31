@@ -21,6 +21,7 @@ from contextlib import contextmanager
 from collections import defaultdict
 from collections.abc import Sequence
 from threading import Thread
+from functools import partial, update_wrapper
 from typing import TYPE_CHECKING, List, Tuple, Callable, Optional, Any, Union, Dict, Set
 from typing import Awaitable, Generator, TypeVar
 
@@ -1023,6 +1024,13 @@ async def _direct_predict_impl(
                 new_axis = list(range(len(output_shape) - 2))
             else:
                 new_axis = [i + 2 for i in range(len(output_shape) - 2)]
+        if len(output_shape) == 2:
+            # Somehow dask fail to infer output shape change, and `chunks = (None,
+            #  output_shape[1])` doesn't work due to None is not supported in map_blocks.
+            chunks = list(data.chunks)
+            chunks[1] = (output_shape[1], )
+        else:
+            chunks = None
         predictions = da.map_blocks(
             mapped_predict,
             booster,
@@ -1030,6 +1038,8 @@ async def _direct_predict_impl(
             False,
             columns,
             base_margin_array,
+
+            chunks=chunks,
             drop_axis=drop_axis,
             new_axis=new_axis,
             dtype=numpy.float32,
@@ -1787,7 +1797,10 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             base_margin=base_margin,
             iteration_range=iteration_range,
         )
-        return _cls_predict_proba(self.n_classes_, predts, da.vstack)
+        vstack = update_wrapper(
+            partial(da.vstack, allow_unknown_chunksizes=True), da.vstack
+        )
+        return _cls_predict_proba(self.n_classes_, predts, vstack)
 
     # pylint: disable=missing-function-docstring
     def predict_proba(
