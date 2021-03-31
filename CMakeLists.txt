@@ -44,7 +44,7 @@ option(USE_DEVICE_DEBUG "Generate CUDA device debug info." OFF)
 option(USE_NVTX "Build with cuda profiling annotations. Developers only." OFF)
 set(NVTX_HEADER_DIR "" CACHE PATH "Path to the stand-alone nvtx header")
 option(RABIT_MOCK "Build rabit with mock" OFF)
-option(HIDE_CXX_SYMBOLS "Build shared library and hide all C++ symbols" OFF)
+option(HIDE_CXX_SYMBOLS "Build shared library and hide all C++ symbols" ON)
 ## CUDA
 option(USE_CUDA  "Build with GPU acceleration" OFF)
 option(USE_NCCL  "Build with NCCL to enable distributed GPU support." OFF)
