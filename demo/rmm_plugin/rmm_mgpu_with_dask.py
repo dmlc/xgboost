@@ -4,11 +4,14 @@ import dask
 from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
 
+
 def main(client):
-    # Inform XGBoost that RMM is used for GPU memory allocation
-    xgb.set_config(use_rmm=True)
+    # Optionally force XGBoost to use RMM for all GPU memory allocation, see ./README.md
+    # xgb.set_config(use_rmm=True)
 
     X, y = make_classification(n_samples=10000, n_informative=5, n_classes=3)
+    # In pratice one should prefer loading the data with dask collections instead of using
+    # `from_array`.
     X = dask.array.from_array(X)
     y = dask.array.from_array(y)
     dtrain = xgb.dask.DaskDMatrix(client, X, label=y)
@@ -21,6 +24,7 @@ def main(client):
     history = output['history']
     for i, e in enumerate(history['train']['merror']):
         print(f'[{i}] train-merror: {e}')
+
 
 if __name__ == '__main__':
     # To use RMM pool allocator with a GPU Dask cluster, just add rmm_pool_size option to
