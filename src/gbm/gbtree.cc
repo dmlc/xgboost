@@ -575,6 +575,20 @@ void GPUDartPredictInc(common::Span<float> out_predts,
 }
 #endif
 
+void GPUDartInplacePredictInc(common::Span<float> out_predts,
+                              common::Span<float> predts, float tree_w,
+                              size_t n_rows, float base_score,
+                              bst_group_t n_groups,
+                              bst_group_t group)
+#if defined(XGBOOST_USE_CUDA)
+;  // NOLINT
+#else
+{
+  common::AssertGPUSupport();
+}
+#endif
+
+
 class Dart : public GBTree {
  public:
   explicit Dart(LearnerModelParam const* booster_config) :
@@ -728,13 +742,14 @@ class Dart : public GBTree {
       gpu_predictor_.get()
 #endif  // defined(XGBOOST_USE_CUDA)
     };
+    Predictor const * predictor {nullptr};
 
     MetaInfo info;
     StringView msg{"Unsupported data type for inplace predict."};
     int32_t device = GenericParameter::kCpuId;
+    PredictionCacheEntry predts;
     // Inplace predict is not used for training, so no need to drop tree.
     for (size_t i = tree_begin; i < tree_end; ++i) {
-      PredictionCacheEntry predts;
       if (tparam_.predictor == PredictorType::kAuto) {
         // Try both predictor implementations
         bool success = false;
@@ -742,6 +757,7 @@ class Dart : public GBTree {
           if (p && p->InplacePredict(x, nullptr, model_, missing, &predts, i,
                                      i + 1)) {
             success = true;
+            predictor = p;
 #if defined(XGBOOST_USE_CUDA)
             device = predts.predictions.DeviceIdx();
 #endif  // defined(XGBOOST_USE_CUDA)
@@ -750,45 +766,52 @@ class Dart : public GBTree {
         }
         CHECK(success) << msg;
       } else {
-        // No base margin for each tree
-        bool success = this->GetPredictor()->InplacePredict(
-            x, nullptr, model_, missing, &predts, i, i + 1);
+        // No base margin from meta info for each tree
+        predictor = this->GetPredictor().get();
+        bool success = predictor->InplacePredict(x, nullptr, model_, missing,
+                                                 &predts, i, i + 1);
         device = predts.predictions.DeviceIdx();
         CHECK(success) << msg;
       }
 
       auto w = this->weight_drop_.at(i);
-      auto &h_predts = predts.predictions.HostVector();
-      auto &h_out_predts = out_preds->predictions.HostVector();
+      size_t n_groups = model_.learner_model_param->num_output_group;
+      auto n_rows = predts.predictions.Size() / n_groups;
 
       if (i == tree_begin) {
-        auto n_rows =
-            h_predts.size() / model_.learner_model_param->num_output_group;
+        // base margin is added here.
         if (p_m) {
           p_m->Info().num_row_ = n_rows;
-          cpu_predictor_->InitOutPredictions(p_m->Info(),
-                                             &out_preds->predictions, model_);
+          predictor->InitOutPredictions(p_m->Info(), &out_preds->predictions,
+                                        model_);
         } else {
           info.num_row_ = n_rows;
-          cpu_predictor_->InitOutPredictions(info, &out_preds->predictions,
-                                             model_);
+          predictor->InitOutPredictions(info, &out_preds->predictions, model_);
         }
       }
 
       // Multiple the tree weight
-      CHECK_EQ(h_predts.size(), h_out_predts.size());
+      CHECK_EQ(predts.predictions.Size(), out_preds->predictions.Size());
+      auto group = model_.tree_info.at(i);
 
+      if (device == GenericParameter::kCpuId) {
+        auto &h_predts = predts.predictions.HostVector();
+        auto &h_out_predts = out_preds->predictions.HostVector();
 #pragma omp parallel for
-      for (omp_ulong i = 0; i < h_out_predts.size(); ++i) {
-        // Need to remove the base margin from indiviual tree.
-        h_out_predts[i] +=
-            (h_predts[i] - model_.learner_model_param->base_score) * w;
+        for (omp_ulong ridx = 0; ridx < n_rows; ++ridx) {
+          const size_t offset = ridx * n_groups + group;
+          // Need to remove the base margin from indiviual tree.
+          h_out_predts[offset] +=
+              (h_predts[offset] - model_.learner_model_param->base_score) * w;
+        }
+      } else {
+        out_preds->predictions.SetDevice(device);
+        predts.predictions.SetDevice(device);
+        GPUDartInplacePredictInc(out_preds->predictions.DeviceSpan(),
+                                 predts.predictions.DeviceSpan(), w, n_rows,
+                                 model_.learner_model_param->base_score,
+                                 n_groups, group);
       }
-    }
-
-    if (device != GenericParameter::kCpuId) {
-      out_preds->predictions.SetDevice(device);
-      out_preds->predictions.DeviceSpan();
     }
   }
 
