@@ -534,6 +534,8 @@ class XGBModel(XGBModelBase):
         self.get_booster().load_model(fname)
         meta = self.get_booster().attr('scikit_learn')
         if meta is None:
+            # FIXME(jiaming): This doesn't have to be a problem as most of the needed
+            # information like num_class and objective is in Learner class.
             warnings.warn(
                 'Loading a native XGBoost model with Scikit-Learn interface.'
             )
@@ -545,6 +547,8 @@ class XGBModel(XGBModelBase):
                 self._le = XGBoostLabelEncoder()
                 self._le.from_json(v)
                 continue
+            # FIXME(jiaming): This can be removed once label encoder is gone since we can
+            # generate it from `np.arange(self.n_classes_)`
             if k == 'classes_':
                 self.classes_ = np.array(v)
                 continue
@@ -1005,8 +1009,6 @@ PredtT = TypeVar("PredtT")
 
 def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> PredtT:
     assert len(prediction.shape) <= 2
-    if n_classes is None:
-        return prediction
     if len(prediction.shape) == 2 and prediction.shape[1] == n_classes:
         return prediction
     # binary logistic function
