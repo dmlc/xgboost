@@ -74,7 +74,7 @@ struct DeviceAUCCache {
  *
  * - Run scan to obtain TP/FP values, which are right coordinates of trapesoid.
  * - Find distinct prediction values and get the corresponding FP_PREV/TP_PREV value,
- *   which are left coordinates of trapesoid.
+ *   which are left coordinates of trapesoids.
  * - Reduce the scan array into 1 AUC value.
  */
 std::tuple<float, float, float>
@@ -151,7 +151,7 @@ GPUBinaryAUC(common::Span<float const> predts, MetaInfo const &info,
     d_neg_pos[d_unique_idx[i]] = d_fptp[d_unique_idx[i] - 1];
     if (i == d_unique_idx.size() - 1) {
       // last one needs to be included, may override above assignment if the last
-      // prediction value is district from previous one.
+      // prediction value is distinct from previous one.
       d_neg_pos.back() = d_fptp[d_unique_idx[i] - 1];
       return;
     }

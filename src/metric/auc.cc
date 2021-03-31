@@ -126,8 +126,8 @@ float MultiClassOVR(std::vector<float> const& predts, MetaInfo const& info) {
   for (size_t c = 0; c < n_classes; ++c) {
     if (local_area[c] != 0) {
       // normalize and weight it by prevalence.  After allreduce, `local_area` means the
-      // total covered area (not area under curve, rather it's the accessible are for each
-      // worker) for each class.
+      // total covered area (not area under curve, rather it's the accessible area for
+      // each worker) for each class.
       auc_sum += auc[c] / local_area[c] * tp[c];
       tp_sum += tp[c];
     } else {
@@ -310,7 +310,7 @@ class EvalAUC : public Metric {
   }
 };
 
-XGBOOST_REGISTER_METRIC(EvalBinaryAUC, "auc")
+XGBOOST_REGISTER_METRIC(EvalAUC, "auc")
 .describe("Receiver Operating Characteristic Area Under the Curve.")
 .set_body([](const char*) { return new EvalAUC(); });
 
