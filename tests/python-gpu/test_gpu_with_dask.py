@@ -173,6 +173,7 @@ def run_gpu_hist(
     assert tm.non_increasing(history["train"][dataset.metric])
 
 
+@pytest.mark.skipif(**tm.no_cudf())
 def test_boost_from_prediction(local_cuda_cluster: LocalCUDACluster) -> None:
     import cudf
     from sklearn.datasets import load_breast_cancer
@@ -202,6 +203,7 @@ class TestDistributedGPU:
     @settings(deadline=duration(seconds=120), suppress_health_check=suppress)
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
+    @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize(
         "local_cuda_cluster", [{"n_workers": 2}], indirect=["local_cuda_cluster"]
     )
@@ -276,7 +278,7 @@ class TestDistributedGPU:
             X = dask_cudf.from_dask_dataframe(dd.from_dask_array(X_))
             y = dask_cudf.from_dask_dataframe(dd.from_dask_array(y_))
             w = dask_cudf.from_dask_dataframe(dd.from_dask_array(w_))
-            run_dask_classifier(X, y, w, model, client)
+            run_dask_classifier(X, y, w, model, client, 10)
 
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
@@ -454,6 +456,7 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
 
 @pytest.mark.skipif(**tm.no_dask())
 @pytest.mark.skipif(**tm.no_dask_cuda())
+@pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.mgpu
 def test_with_asyncio(local_cuda_cluster: LocalCUDACluster) -> None:
     with Client(local_cuda_cluster) as client:

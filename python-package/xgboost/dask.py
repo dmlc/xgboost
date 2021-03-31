@@ -1777,20 +1777,17 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         self,
         X: _DaskCollection,
         validate_features: bool,
-        output_margin: bool,
         base_margin: Optional[_DaskCollection],
         iteration_range: Optional[Tuple[int, int]],
     ) -> _DaskCollection:
-        if iteration_range is None:
-            iteration_range = (0, 0)
         predts = await super()._predict_async(
             data=X,
-            output_margin=output_margin,
+            output_margin=self.objective == "multi:softmax",
             validate_features=validate_features,
             base_margin=base_margin,
             iteration_range=iteration_range,
         )
-        return _cls_predict_proba(self.objective, predts, da.vstack)
+        return _cls_predict_proba(self.n_classes_, predts, da.vstack)
 
     # pylint: disable=missing-function-docstring
     def predict_proba(
@@ -1798,7 +1795,6 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         X: _DaskCollection,
         ntree_limit: Optional[int] = None,
         validate_features: bool = True,
-        output_margin: bool = False,
         base_margin: Optional[_DaskCollection] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> Any:
@@ -1809,7 +1805,6 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             self._predict_proba_async,
             X=X,
             validate_features=validate_features,
-            output_margin=output_margin,
             base_margin=base_margin,
             iteration_range=iteration_range,
         )

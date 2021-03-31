@@ -5,7 +5,7 @@ import copy
 import warnings
 import json
 import os
-from typing import Union, Optional, List, Dict, Callable, Tuple, Any
+from typing import Union, Optional, List, Dict, Callable, Tuple, Any, TypeVar
 import numpy as np
 from .core import Booster, DMatrix, XGBoostError
 from .core import _deprecate_positional_args, _convert_ntree_limit
@@ -1000,17 +1000,14 @@ class XGBModel(XGBModelBase):
         return np.array(json.loads(b.get_dump(dump_format='json')[0])['bias'])
 
 
-def _cls_predict_proba(
-    objective: Union[str, Callable], prediction: Any, vstack: Callable
-) -> Any:
-    if objective == 'multi:softmax':
-        raise ValueError('multi:softmax objective does not support predict_proba,'
-                         ' use `multi:softprob` or `binary:logistic` instead.')
-    if objective == 'multi:softprob' or callable(objective):
-        # Return prediction directly if if objective is defined by user since we don't
-        # know how to perform the transformation
+PredtT = TypeVar("PredtT")
+
+
+def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> PredtT:
+    assert len(prediction.shape) <= 2
+    if len(prediction.shape) == 2 and prediction.shape[1] == n_classes:
         return prediction
-    # Lastly the binary logistic function
+    # binary logistic function
     classone_probs = prediction
     classzero_probs = 1.0 - classone_probs
     return vstack((classzero_probs, classone_probs)).transpose()
@@ -1194,8 +1191,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             return class_probs
 
         if len(class_probs.shape) > 1:
+            # turns softprob into softmax
             column_indexes = np.argmax(class_probs, axis=1)
         else:
+            # turns soft logit into class label
             column_indexes = np.repeat(0, class_probs.shape[0])
             column_indexes[class_probs > 0.5] = 1
 
@@ -1238,15 +1237,20 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             a numpy array of shape array-like of shape (n_samples, n_classes) with the
             probability of each data example being of a given class.
         """
+        # custom obj:      Do nothing as we don't know what to do.
+        # softprob:        Do nothing, output is proba.
+        # softmax:         Use output margin to remove the argmax in PredTransform.
+        # binary:logistic: Expand the prob vector into 2-class matrix after predict.
+        # binary:logitraw: Unsupported, let's deprecate this objective when possible.
         class_probs = super().predict(
             X=X,
-            output_margin=False,
+            output_margin=self.objective == "multi:softmax",
             ntree_limit=ntree_limit,
             validate_features=validate_features,
             base_margin=base_margin,
             iteration_range=iteration_range
         )
-        return _cls_predict_proba(self.objective, class_probs, np.vstack)
+        return _cls_predict_proba(self.n_classes_, class_probs, np.vstack)
 
     def evals_result(self):
         """Return the evaluation results.
