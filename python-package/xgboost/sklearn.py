@@ -786,7 +786,7 @@ class XGBModel(XGBModelBase):
         Parameters
         ----------
         X : array_like
-            Data to predict with
+            Data to predict with.
         output_margin : bool
             Whether to output the raw untransformed margin value.
         ntree_limit : int
@@ -798,8 +798,8 @@ class XGBModel(XGBModelBase):
             Margin added to prediction.
         iteration_range :
             Specifies which layer of trees are used in prediction.  For example, if a
-            random forest is trained with 100 rounds.  Specifying `iteration_range=(10,
-            20)`, then only the forests built during [10, 20) (half open set) rounds are
+            random forest is trained with 100 rounds.  Specifying ``iteration_range=(10,
+            20)``, then only the forests built during [10, 20) (half open set) rounds are
             used in this prediction.
 
             .. versionadded:: 1.4.0
@@ -849,8 +849,11 @@ class XGBModel(XGBModelBase):
         X : array_like, shape=[n_samples, n_features]
             Input features matrix.
 
-        ntree_limit : int
-            Limit number of trees in the prediction; defaults to 0 (use all trees).
+        iteration_range :
+            See :py:meth:`xgboost.XGBRegressor.predict`.
+
+        ntree_limit :
+            Deprecated, use ``iteration_range`` instead.
 
         Returns
         -------
