@@ -969,7 +969,7 @@ def _can_output_df(is_df: bool, output_shape: Tuple) -> bool:
     return is_df and len(output_shape) <= 2
 
 
-async def _direct_predict_impl(
+async def _direct_predict_impl(  # pylint: disable=too-many-branches
     mapped_predict: Callable,
     booster: "distributed.Future",
     data: _DaskCollection,
@@ -1025,8 +1025,9 @@ async def _direct_predict_impl(
             else:
                 new_axis = [i + 2 for i in range(len(output_shape) - 2)]
         if len(output_shape) == 2:
-            # Somehow dask fail to infer output shape change, and `chunks = (None,
-            #  output_shape[1])` doesn't work due to None is not supported in map_blocks.
+            # Somehow dask fail to infer output shape change for 2-dim prediction, and
+            #  `chunks = (None, output_shape[1])` doesn't work due to None is not
+            #  supported in map_blocks.
             chunks = list(data.chunks)
             chunks[1] = (output_shape[1], )
         else:
