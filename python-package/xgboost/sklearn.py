@@ -1005,6 +1005,8 @@ PredtT = TypeVar("PredtT")
 
 def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> PredtT:
     assert len(prediction.shape) <= 2
+    if n_classes is None:
+        return prediction
     if len(prediction.shape) == 2 and prediction.shape[1] == n_classes:
         return prediction
     # binary logistic function
@@ -1250,7 +1252,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             base_margin=base_margin,
             iteration_range=iteration_range
         )
-        return _cls_predict_proba(self.n_classes_, class_probs, np.vstack)
+        # If model is loaded from a raw booster there's no `n_classes_`
+        return _cls_predict_proba(
+            getattr(self, "n_classes_", None), class_probs, np.vstack
+        )
 
     def evals_result(self):
         """Return the evaluation results.
