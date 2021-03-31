@@ -45,6 +45,10 @@ TEST(HistUtil, DeviceSketch) {
 }
 
 TEST(HistUtil, SketchBatchNumElements) {
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+  LOG(WARNING) << "Test not runnable with RMM enabled.";
+  return;
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   size_t constexpr kCols = 10000;
   int device;
   dh::safe_cuda(cudaGetDevice(&device));
