@@ -21,6 +21,7 @@ from contextlib import contextmanager
 from collections import defaultdict
 from collections.abc import Sequence
 from threading import Thread
+from functools import partial, update_wrapper
 from typing import TYPE_CHECKING, List, Tuple, Callable, Optional, Any, Union, Dict, Set
 from typing import Awaitable, Generator, TypeVar
 
@@ -968,7 +969,7 @@ def _can_output_df(is_df: bool, output_shape: Tuple) -> bool:
     return is_df and len(output_shape) <= 2
 
 
-async def _direct_predict_impl(
+async def _direct_predict_impl(  # pylint: disable=too-many-branches
     mapped_predict: Callable,
     booster: "distributed.Future",
     data: _DaskCollection,
@@ -1023,6 +1024,14 @@ async def _direct_predict_impl(
                 new_axis = list(range(len(output_shape) - 2))
             else:
                 new_axis = [i + 2 for i in range(len(output_shape) - 2)]
+        if len(output_shape) == 2:
+            # Somehow dask fail to infer output shape change for 2-dim prediction, and
+            #  `chunks = (None, output_shape[1])` doesn't work due to None is not
+            #  supported in map_blocks.
+            chunks = list(data.chunks)
+            chunks[1] = (output_shape[1], )
+        else:
+            chunks = None
         predictions = da.map_blocks(
             mapped_predict,
             booster,
@@ -1030,6 +1039,8 @@ async def _direct_predict_impl(
             False,
             columns,
             base_margin_array,
+
+            chunks=chunks,
             drop_axis=drop_axis,
             new_axis=new_axis,
             dtype=numpy.float32,
@@ -1777,20 +1788,20 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         self,
         X: _DaskCollection,
         validate_features: bool,
-        output_margin: bool,
         base_margin: Optional[_DaskCollection],
         iteration_range: Optional[Tuple[int, int]],
     ) -> _DaskCollection:
-        if iteration_range is None:
-            iteration_range = (0, 0)
         predts = await super()._predict_async(
             data=X,
-            output_margin=output_margin,
+            output_margin=self.objective == "multi:softmax",
             validate_features=validate_features,
             base_margin=base_margin,
             iteration_range=iteration_range,
         )
-        return _cls_predict_proba(self.objective, predts, da.vstack)
+        vstack = update_wrapper(
+            partial(da.vstack, allow_unknown_chunksizes=True), da.vstack
+        )
+        return _cls_predict_proba(getattr(self, "n_classes_", None), predts, vstack)
 
     # pylint: disable=missing-function-docstring
     def predict_proba(
@@ -1798,7 +1809,6 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         X: _DaskCollection,
         ntree_limit: Optional[int] = None,
         validate_features: bool = True,
-        output_margin: bool = False,
         base_margin: Optional[_DaskCollection] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> Any:
@@ -1809,7 +1819,6 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             self._predict_proba_async,
             X=X,
             validate_features=validate_features,
-            output_margin=output_margin,
             base_margin=base_margin,
             iteration_range=iteration_range,
         )
