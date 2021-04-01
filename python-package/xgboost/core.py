@@ -1949,7 +1949,7 @@ class Booster(object):
                                               ctypes.byref(cptr)))
         return ctypes2buffer(cptr, length.value)
 
-    def load_model(self, fname):
+    def load_model(self, fname: Union[str, bytearray, os.PathLike]) -> None:
         """Load the model from a file or bytearray. Path to file can be local
         or as an URI.
 
@@ -1964,11 +1964,11 @@ class Booster(object):
 
         Parameters
         ----------
-        fname : string, os.PathLike, or a memory buffer
+        fname :
             Input file name or memory buffer(see also save_raw)
 
         """
-        if isinstance(fname, (STRING_TYPES, os.PathLike)):
+        if isinstance(fname, (str, os.PathLike)):
             # assume file name, cannot use os.path.exist to check, file can be
             # from URL.
             fname = os.fspath(os.path.expanduser(fname))
