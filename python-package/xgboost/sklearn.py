@@ -1245,7 +1245,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         # softprob:        Do nothing, output is proba.
         # softmax:         Use output margin to remove the argmax in PredTransform.
         # binary:logistic: Expand the prob vector into 2-class matrix after predict.
-        # binary:logitraw: Unsupported.
+        # binary:logitraw: Unsupported by predict_proba()
         class_probs = super().predict(
             X=X,
             output_margin=self.objective == "multi:softmax",
