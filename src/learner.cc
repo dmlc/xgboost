@@ -302,7 +302,6 @@ class LearnerConfiguration : public Learner {
     auto initialized = generic_parameters_.GetInitialised();
     auto old_seed = generic_parameters_.seed;
     generic_parameters_.UpdateAllowUnknown(args);
-    generic_parameters_.CheckDeprecated();
 
     ConsoleLogger::Configure(args);
     common::OmpSetNumThreads(&generic_parameters_.nthread);
