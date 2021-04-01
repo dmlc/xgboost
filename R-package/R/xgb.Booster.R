@@ -345,21 +345,25 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     ntreelimit <- 0
   if (ntreelimit != 0 && is.null(iterationrange)) {
     ## only ntreelimit, initialize iteration range
-    iterationrange = list(begin = 0, end = 0)
+    iterationrange = c(0, 0)
   } else if (ntreelimit == 0 && !is.null(iterationrange)) {
     ## only iteration range, do nothing
   } else if (ntreelimit != 0 && !is.null(iterationrange)) {
     ## both are specified, let libgxgboost throw an error
   } else {
     ## no limit is supplied, use best
-    iterationrange = list(begin = 0, end = NVL(object$best_iteration, 0))
+    if (is.null(object$best_iteration)) {
+      iterationrange = c(0, 0)
+    } else {
+      iterationrange = c(0, object$best_iteration + 1)
+    }
   }
 
   args <- list(
     training = training,
     strict_shape = FALSE,
-    iteration_begin = iterationrange$begin,
-    iteration_end = iterationrange$end,
+    iteration_begin = iterationrange[0],
+    iteration_end = iterationrange[1],
     ntree_limit = ntreelimit,
     type = 0
   )
