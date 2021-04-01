@@ -1666,7 +1666,9 @@ class Booster(object):
         training :
             Whether the prediction value is used for training.  This can effect `dart`
             booster, which performs dropouts during training iterations but use all trees
-            for inference.
+            for inference. If you want to obtain result with dropouts, set this parameter
+            to `True`.  Also, the parameter is set to true when obtaining prediction for
+            custom objective function.
 
             .. versionadded:: 1.0.0
 

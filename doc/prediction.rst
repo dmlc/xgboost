@@ -18,7 +18,7 @@ There are a number of different prediction options for the
 classification problem, XGBoost builds one tree for each class and the trees for each
 class are called a "group" of trees, so output dimension may change due to used model.
 After 1.4 release, we added a new parameter called ``strict_shape``, one can set it to
-``Ture`` to indicate a more restricted output is desired.  Assuming you are using
+``True`` to indicate a more restricted output is desired.  Assuming you are using
 :py:obj:`xgboost.Booster`, here is a list of possible returns:
 
 - When using normal prediction with ``strict_shape`` set to ``True``:
@@ -61,6 +61,11 @@ After 1.4 release, we added a new parameter called ``strict_shape``, one can set
 Other than these prediction types, there's also a parameter called ``iteration_range``,
 which is similar to model slicing.  But instead of actually splitting up the model into
 multiple stacks, it simply returns the prediction formed by the trees within range.
+Number of trees created in each iteration eqauls to :math:`trees_i = num\_class \times
+num\_parallel\_tree`.  So if you are training a boosted random forest with size of 4, on
+the 3-class classification dataset, and want to use the first 2 iterations of trees for
+prediction, you need to provide ``iteration_range=(0, 2)``.  Then the first :math:`2
+\times 3 \times 4` trees will be used in this prediction.
 
 
 *********
@@ -77,10 +82,11 @@ different outputs due to floating point errors.
 Base Margin
 ***********
 
-There's a parameter in XGBoost called ``base_score``, and a meta data called
-``base_margin``.  They specifies the global bias for boosted model.  If the latter is
-supplied then former is ignored.  ``base_margin`` can be used to train XGBoost model based
-on other models.  See demos on boosting from predictions.
+There's a training parameter in XGBoost called ``base_score``, and a meta data for
+``DMatrix`` called ``base_margin`` (which can be set in ``fit`` method if you are using
+scikit-learn interface).  They specifies the global bias for boosted model.  If the latter
+is supplied then former is ignored.  ``base_margin`` can be used to train XGBoost model
+based on other models.  See demos on boosting from predictions.
 
 *****************
 Staged Prediction
