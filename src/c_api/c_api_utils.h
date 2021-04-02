@@ -56,7 +56,6 @@ inline void CalcPredictShape(bool strict_shape, PredictionType type, size_t rows
   }
   case PredictionType::kApproxContribution:
   case PredictionType::kContribution: {
-    auto groups = chunksize / (cols + 1);
     if (groups == 1 && !strict_shape) {
       *out_dim = 2;
       shape.resize(*out_dim);
@@ -71,6 +70,7 @@ inline void CalcPredictShape(bool strict_shape, PredictionType type, size_t rows
     }
     break;
   }
+  case PredictionType::kApproxInteraction:
   case PredictionType::kInteraction: {
     if (groups == 1 && !strict_shape) {
       *out_dim = 3;
