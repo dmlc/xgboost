@@ -1616,12 +1616,11 @@ class Booster(object):
     ) -> np.ndarray:
         """Predict with data.
 
-          .. note:: This function is not thread safe except for ``gbtree`` booster.
+        .. note::
 
-          When using booster other than ``gbtree``, predict can only be called from one
-          thread.  If you want to run prediction using multiple thread, call
-          :py:meth:`xgboost.Booster.copy` to make copies of model object and then call
-          ``predict()``.
+            See `Prediction
+            <https://xgboost.readthedocs.io/en/latest/tutorials/prediction.html>`_
+            for issues like thread safety and a summary of outputs from this function.
 
         Parameters
         ----------
@@ -1665,8 +1664,11 @@ class Booster(object):
             feature_names are the same.
 
         training :
-            Whether the prediction value is used for training.  This can effect
-            `dart` booster, which performs dropouts during training iterations.
+            Whether the prediction value is used for training.  This can effect `dart`
+            booster, which performs dropouts during training iterations but use all trees
+            for inference. If you want to obtain result with dropouts, set this parameter
+            to `True`.  Also, the parameter is set to true when obtaining prediction for
+            custom objective function.
 
             .. versionadded:: 1.0.0
 
@@ -1685,12 +1687,6 @@ class Booster(object):
             which case the output shape can be (n_samples, ) if multi-class is not used.
 
             .. versionadded:: 1.4.0
-
-        .. note:: Using ``predict()`` with DART booster
-
-          If the booster object is DART type, ``predict()`` will not perform
-          dropouts, i.e. all the trees will be evaluated.  If you want to
-          obtain result with dropouts, provide `training=True`.
 
         Returns
         -------
@@ -1916,11 +1912,9 @@ class Booster(object):
         The model is saved in an XGBoost internal format which is universal among the
         various XGBoost interfaces. Auxiliary attributes of the Python Booster object
         (such as feature_names) will not be saved when using binary format.  To save those
-        attributes, use JSON instead. See:
-
-          https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html
-
-        for more info.
+        attributes, use JSON instead. See: `Model IO
+        <https://xgboost.readthedocs.io/en/stable/tutorials/saving_model.html>`_ for more
+        info.
 
         Parameters
         ----------
@@ -1956,11 +1950,9 @@ class Booster(object):
         The model is loaded from XGBoost format which is universal among the various
         XGBoost interfaces. Auxiliary attributes of the Python Booster object (such as
         feature_names) will not be loaded when using binary format.  To save those
-        attributes, use JSON instead.  See:
-
-          https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html
-
-        for more info.
+        attributes, use JSON instead.  See: `Model IO
+        <https://xgboost.readthedocs.io/en/stable/tutorials/saving_model.html>`_ for more
+        info.
 
         Parameters
         ----------
