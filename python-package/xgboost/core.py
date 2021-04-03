@@ -1253,26 +1253,35 @@ class Booster(object):
         feature_idx_mapping = {k: str(v) for v, k in enumerate(self.feature_names or [])}
 
         try:
-            s = '['
+            s = "["
             for constraint in value:
-                s += '[' + ','.join([feature_idx_mapping[feature_name]
-                                     for feature_name in constraint]) + ']'
-            return s + ']'
-        except KeyError:
+                s += (
+                    "["
+                    + ",".join(
+                        [feature_idx_mapping[feature_name] for feature_name in constraint]
+                    )
+                    + "]"
+                )
+            return s + "]"
+        except KeyError as e:
             # pylint: disable=raise-missing-from
-            raise ValueError('Constrained features are not a subset of '
-                                     'training data feature names')
-
+            raise ValueError(
+                "Constrained features are not a subset of training data feature names"
+            ) from e
 
     def _configure_constraints(self, params: Union[Dict, List]) -> Union[Dict, List]:
         if isinstance(params, dict):
-            value = params.get('monotone_constraints')
+            value = params.get("monotone_constraints")
             if value:
-                params['monotone_constraints'] = self._transform_monotone_constrains(value)
+                params[
+                    "monotone_constraints"
+                ] = self._transform_monotone_constrains(value)
 
-            value = params.get('interaction_constraints')
+            value = params.get("interaction_constraints")
             if value:
-                params['interaction_constraints'] = self._transform_interaction_constraints(value)
+                params[
+                    "interaction_constraints"
+                ] = self._transform_interaction_constraints(value)
 
         elif isinstance(params, list):
             for idx, param in enumerate(params):
@@ -1280,9 +1289,9 @@ class Booster(object):
                 if not value:
                     continue
 
-                if name == 'monotone_constraints':
+                if name == "monotone_constraints":
                     params[idx] = (name, self._transform_monotone_constrains(value))
-                elif name == 'interaction_constraints':
+                elif name == "interaction_constraints":
                     params[idx] = (name, self._transform_interaction_constraints(value))
 
         return params
