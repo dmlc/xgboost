@@ -1,7 +1,7 @@
 XGBoost Change Log
 ==================
 
-This file records the changes in xgboost library in reverse chronological order.
+*This file is no longer maintained and only kept for historical reasons. Please check out the release notes [here](https://github.com/dmlc/xgboost/releases) instead.*
 
 ## v1.3.0 (2020.12.08)
 
