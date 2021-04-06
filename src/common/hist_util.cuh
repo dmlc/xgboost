@@ -118,9 +118,8 @@ void MakeEntriesFromAdapter(AdapterBatch const& batch, BatchIter batch_iter,
   size_t num_valid = column_sizes_scan->back();
   // Copy current subset of valid elements into temporary storage and sort
   sorted_entries->resize(num_valid);
-  dh::XGBCachingDeviceAllocator<char> alloc;
-  thrust::copy_if(thrust::cuda::par(alloc), entry_iter + range.begin(),
-                  entry_iter + range.end(), sorted_entries->begin(), is_valid);
+  dh::CopyIf(entry_iter + range.begin(), entry_iter + range.end(),
+             sorted_entries->begin(), is_valid);
 }
 
 void SortByWeight(dh::device_vector<float>* weights,
