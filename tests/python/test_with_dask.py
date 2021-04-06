@@ -318,14 +318,17 @@ def run_dask_classifier(
     w: xgb.dask._DaskCollection,
     model: str,
     client: "Client",
+    n_classes,
 ) -> None:
+    metric = "merror" if n_classes > 2 else "logloss"
+
     if model == "boosting":
         classifier = xgb.dask.DaskXGBClassifier(
-            verbosity=1, n_estimators=2, eval_metric="merror"
+            verbosity=1, n_estimators=2, eval_metric=metric
         )
     else:
         classifier = xgb.dask.DaskXGBRFClassifier(
-            verbosity=1, n_estimators=2, eval_metric="merror"
+            verbosity=1, n_estimators=2, eval_metric=metric
         )
 
     assert classifier._estimator_type == "classifier"
@@ -343,7 +346,7 @@ def run_dask_classifier(
     assert isinstance(history, dict)
 
     assert list(history.keys())[0] == "validation_0"
-    assert list(history["validation_0"].keys())[0] == "merror"
+    assert list(history["validation_0"].keys())[0] == metric
     assert len(list(history["validation_0"])) == 1
     forest = int(
         json.loads(classifier.get_booster().save_config())["learner"][
@@ -351,34 +354,35 @@ def run_dask_classifier(
         ]["gbtree_train_param"]["num_parallel_tree"]
     )
     if model == "boosting":
-        assert len(history["validation_0"]["merror"]) == 2
+        assert len(history["validation_0"][metric]) == 2
         assert forest == 1
     else:
-        assert len(history["validation_0"]["merror"]) == 1
+        assert len(history["validation_0"][metric]) == 1
         assert forest == 2
 
     # Test .predict_proba()
     probas = classifier.predict_proba(X).compute()
-    assert classifier.n_classes_ == 10
+    assert classifier.n_classes_ == n_classes
     assert probas.ndim == 2
     assert probas.shape[0] == kRows
-    assert probas.shape[1] == 10
+    assert probas.shape[1] == n_classes
 
-    cls_booster = classifier.get_booster()
-    single_node_proba = cls_booster.inplace_predict(X.compute())
+    if n_classes > 2:
+        cls_booster = classifier.get_booster()
+        single_node_proba = cls_booster.inplace_predict(X.compute())
 
-    # test shared by CPU and GPU
-    if isinstance(single_node_proba, np.ndarray):
-        np.testing.assert_allclose(single_node_proba, probas)
-    else:
-        import cupy
-        cupy.testing.assert_allclose(single_node_proba, probas)
+        # test shared by CPU and GPU
+        if isinstance(single_node_proba, np.ndarray):
+            np.testing.assert_allclose(single_node_proba, probas)
+        else:
+            import cupy
+            cupy.testing.assert_allclose(single_node_proba, probas)
 
     # Test with dataframe, not shared with GPU as cupy doesn't work well with da.unique.
-    if isinstance(X, da.Array):
+    if isinstance(X, da.Array) and n_classes > 2:
         X_d: dd.DataFrame = X.to_dask_dataframe()
 
-        assert classifier.n_classes_ == 10
+        assert classifier.n_classes_ == n_classes
         prediction_df = classifier.predict(X_d).compute()
 
         assert prediction_df.ndim == 1
@@ -393,7 +397,12 @@ def run_dask_classifier(
 def test_dask_classifier(model: str, client: "Client") -> None:
     X, y, w = generate_array(with_weights=True)
     y = (y * 10).astype(np.int32)
-    run_dask_classifier(X, y, w, model, client)
+    run_dask_classifier(X, y, w, model, client, 10)
+
+    y_bin = y.copy()
+    y_bin[y > 5] = 1.0
+    y_bin[y <= 5] = 0.0
+    run_dask_classifier(X, y_bin, w, model, client, 2)
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
