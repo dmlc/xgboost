@@ -54,7 +54,7 @@ pipeline {
       steps {
         script {
           parallel ([
-            'build-gpu-rpkg': { BuildRPackageWithCUDA() }
+            'build-gpu-rpkg': { BuildRPackageWithCUDA(cuda_version: '10.0') }
           ])
         }
       }
