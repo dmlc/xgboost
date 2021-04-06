@@ -1292,9 +1292,9 @@ void InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op,
 
 template <typename InIt, typename OutIt, typename Predicate>
 void CopyIf(InIt in_first, InIt in_second, OutIt out_first, Predicate pred) {
-  // We loop over batches because thrust::copy_if cant deal with sizes > 2^31
-  // See thrust issue #1302, #6822
-  size_t max_copy_size = std::numeric_limits<int>::max() / 2;
+  // We loop over batches because thrust::copy_if can't deal with sizes > 2^31
+  // See thrust issue #1302, XGBoost #6822
+  size_t constexpr max_copy_size = std::numeric_limits<int>::max() / 2;
   size_t length = std::distance(in_first, in_second);
   XGBCachingDeviceAllocator<char> alloc;
   for (size_t offset = 0; offset < length; offset += max_copy_size) {
