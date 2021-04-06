@@ -2,6 +2,14 @@
 set -e
 set -x
 
+if [ "$#" -ne 1 ]
+then
+  echo "Build the R package tarball with CUDA code. Usage: $0 [commit hash]"
+  exit 1
+fi
+
+commit_hash="$1"
+
 make Rpack
 mv xgboost/ xgboost_rpack/
 
@@ -19,4 +27,4 @@ cp -v lib/xgboost.so xgboost_rpack/src/
 echo 'all:' > xgboost_rpack/src/Makefile
 echo 'all:' > xgboost_rpack/src/Makefile.win
 mv xgboost_rpack/ xgboost/
-tar cvzf xgboost.tar.gz xgboost/
+tar cvzf xgboost_r_gpu_linux_${commit_hash}.tar.gz xgboost/
