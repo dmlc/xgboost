@@ -54,7 +54,21 @@ pipeline {
       steps {
         script {
           parallel ([
+            'clang-tidy': { ClangTidy() },
+            'build-cpu': { BuildCPU() },
+            'build-cpu-arm64': { BuildCPUARM64() },
+            'build-cpu-rabit-mock': { BuildCPUMock() },
+            // Build reference, distribution-ready Python wheel with CUDA 10.0
+            // using CentOS 6 image
+            'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
+            // The build-gpu-* builds below use Ubuntu image
+            'build-gpu-cuda10.1': { BuildCUDA(cuda_version: '10.1') },
+            'build-gpu-cuda10.2': { BuildCUDA(cuda_version: '10.2', build_rmm: true) },
+            'build-gpu-cuda11.0': { BuildCUDA(cuda_version: '11.0') },
             'build-gpu-rpkg': { BuildRPackageWithCUDA(cuda_version: '10.0') }
+            'build-jvm-packages-gpu-cuda10.0': { BuildJVMPackagesWithCUDA(spark_version: '3.0.0', cuda_version: '10.0') },
+            'build-jvm-packages': { BuildJVMPackages(spark_version: '3.0.0') },
+            'build-jvm-doc': { BuildJVMDoc() }
           ])
         }
       }
