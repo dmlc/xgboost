@@ -20,6 +20,9 @@ ninja
 cd ..
 
 rm xgboost
+# This super wacky hack is found in cmake/RPackageInstall.cmake.in and
+# cmake/RPackageInstallTargetSetup.cmake. This hack lets us bypass the normal build process of R
+# and have R use xgboost.so that we've already built.
 rm -v xgboost_rpack/configure
 rm -rfv xgboost_rpack/src
 mkdir -p xgboost_rpack/src

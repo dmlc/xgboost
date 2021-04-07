@@ -29,6 +29,12 @@ ENV CXX=/opt/rh/devtoolset-4/root/usr/bin/c++
 ENV CPP=/opt/rh/devtoolset-4/root/usr/bin/cpp
 ENV F77=/opt/rh/devtoolset-4/root/usr/bin/gfortran
 
+# A few packages have to be built from the source because CentOS 6 is a very old distribution and
+# the system packages are not sufficiently up-to-date to build R 3.3.0. We'll want to update to
+# CentOS 7 after the 1.4.0 release. Tracking issue: dmlc/xgboost#6791.
+#
+# Why choose an old Linux distro? This is so that the resulting xgboost.so is compatible with a
+# wide range of Linux OSes currently in operation. See https://www.python.org/dev/peps/pep-0571/
 RUN \
     wget https://zlib.net/fossils/zlib-1.2.5.tar.gz  && \
     wget https://sourceware.org/pub/bzip2/bzip2-1.0.6.tar.gz  && \
