@@ -47,7 +47,7 @@
           <groupId>org.scalatest</groupId>
           <artifactId>scalatest_${scala.binary.version}</artifactId>
           <version>3.0.5</version>
-          <scope>compile</scope>
+          <scope>provided</scope>
         </dependency>
     </dependencies>
 
