@@ -271,12 +271,14 @@ def BuildRPackageWithCUDA(args) {
     def container_type = 'gpu_build_r_centos6'
     def docker_binary = "docker"
     def docker_args = "--build-arg CUDA_VERSION_ARG=10.0"
-    sh """
-    ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_r_pkg_with_cuda.sh ${commit_id}
-    """
-    echo 'Uploading R tarball...'
-    path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
-    s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', includePathPattern:'xgboost_r_gpu_linux_*.tar.gz'
+    if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
+      sh """
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_r_pkg_with_cuda.sh ${commit_id}
+      """
+      echo 'Uploading R tarball...'
+      path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
+      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', includePathPattern:'xgboost_r_gpu_linux_*.tar.gz'
+    }
     deleteDir()
   }
 }
