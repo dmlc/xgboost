@@ -36,7 +36,8 @@ enum class PredictionType : std::uint8_t {  // NOLINT
   kContribution = 2,
   kApproxContribution = 3,
   kInteraction = 4,
-  kLeaf = 5
+  kApproxInteraction = 5,
+  kLeaf = 6
 };
 
 /*! \brief entry to to easily hold returning information */
@@ -213,6 +214,27 @@ class Learner : public Model, public Configurable, public dmlc::Serializable {
    * \return vector of attribute name strings.
    */
   virtual std::vector<std::string> GetAttrNames() const = 0;
+  /*!
+   * \brief Set the feature names for current booster.
+   * \param fn Input feature names
+   */
+  virtual  void SetFeatureNames(std::vector<std::string> const& fn) = 0;
+  /*!
+   * \brief Get the feature names for current booster.
+   * \param fn Output feature names
+   */
+  virtual void GetFeatureNames(std::vector<std::string>* fn) const = 0;
+  /*!
+   * \brief Set the feature types for current booster.
+   * \param ft Input feature types.
+   */
+  virtual void SetFeatureTypes(std::vector<std::string> const& ft) = 0;
+  /*!
+   * \brief Get the feature types for current booster.
+   * \param fn Output feature types
+   */
+  virtual void GetFeatureTypes(std::vector<std::string>* ft) const = 0;
+
   /*!
    * \return whether the model allow lazy checkpoint in rabit.
    */

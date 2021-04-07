@@ -55,18 +55,9 @@ void CopyDataToDMatrix(AdapterT* adapter, common::Span<Entry> data,
   COOToEntryOp<decltype(batch)> transform_op{batch};
   thrust::transform_iterator<decltype(transform_op), decltype(counting)>
       transform_iter(counting, transform_op);
-  // We loop over batches because thrust::copy_if cant deal with sizes > 2^31
-  // See thrust issue #1302
-  size_t max_copy_size = std::numeric_limits<int>::max() / 2;
   auto begin_output = thrust::device_pointer_cast(data.data());
-  for (size_t offset = 0; offset < batch.Size(); offset += max_copy_size) {
-    auto begin_input = transform_iter + offset;
-    auto end_input =
-        transform_iter + std::min(offset + max_copy_size, batch.Size());
-    begin_output =
-        thrust::copy_if(thrust::cuda::par(alloc), begin_input, end_input,
-                        begin_output, IsValidFunctor(missing));
-  }
+  dh::CopyIf(transform_iter, transform_iter + batch.Size(), begin_output,
+             IsValidFunctor(missing));
 }
 
 // Does not currently support metainfo as no on-device data source contains this

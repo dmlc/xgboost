@@ -255,7 +255,7 @@ XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr,
   data::CSRArrayAdapter adapter(StringView{indptr}, StringView{indices},
                                 StringView{data}, ncol);
   auto config = Json::Load(StringView{c_json_config});
-  float missing = get<Number const>(config["missing"]);
+  float missing = GetMissing(config);
   auto nthread = get<Integer const>(config["nthread"]);
   *out = new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
   API_END();
@@ -651,13 +651,17 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
   auto type = PredictionType(get<Integer const>(config["type"]));
   auto iteration_begin = get<Integer const>(config["iteration_begin"]);
   auto iteration_end = get<Integer const>(config["iteration_end"]);
-  learner->Predict(
-      *static_cast<std::shared_ptr<DMatrix> *>(dmat),
-      type == PredictionType::kMargin, &entry.predictions, iteration_begin,
-      iteration_end, get<Boolean const>(config["training"]),
-      type == PredictionType::kLeaf, type == PredictionType::kContribution,
-      type == PredictionType::kApproxContribution,
-      type == PredictionType::kInteraction);
+  bool approximate = type == PredictionType::kApproxContribution ||
+                     type == PredictionType::kApproxInteraction;
+  bool contribs = type == PredictionType::kContribution ||
+                  type == PredictionType::kApproxContribution;
+  bool interactions = type == PredictionType::kInteraction ||
+                      type == PredictionType::kApproxInteraction;
+  bool training = get<Boolean const>(config["training"]);
+  learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions,
+                   iteration_begin, iteration_end, training,
+                   type == PredictionType::kLeaf, contribs, approximate,
+                   interactions);
   *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
   auto &shape = learner->GetThreadLocal().prediction_shape;
   auto chunksize = p_m->Info().num_row_ == 0 ? 0 : entry.predictions.Size() / p_m->Info().num_row_;
@@ -683,8 +687,8 @@ void InplacePredictImpl(std::shared_ptr<T> x, std::shared_ptr<DMatrix> p_m,
 
   HostDeviceVector<float>* p_predt { nullptr };
   auto type = PredictionType(get<Integer const>(config["type"]));
-  learner->InplacePredict(x, p_m, type, get<Number const>(config["missing"]),
-                          &p_predt,
+  float missing = GetMissing(config);
+  learner->InplacePredict(x, p_m, type, missing, &p_predt,
                           get<Integer const>(config["iteration_begin"]),
                           get<Integer const>(config["iteration_end"]));
   CHECK(p_predt);
@@ -1019,6 +1023,51 @@ XGB_DLL int XGBoosterGetAttrNames(BoosterHandle handle,
   }
   *out = dmlc::BeginPtr(charp_vecs);
   *out_len = static_cast<xgboost::bst_ulong>(charp_vecs.size());
+  API_END();
+}
+
+XGB_DLL int XGBoosterSetStrFeatureInfo(BoosterHandle handle, const char *field,
+                                       const char **features,
+                                       const xgboost::bst_ulong size) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto *learner = static_cast<Learner *>(handle);
+  std::vector<std::string> feature_info;
+  for (size_t i = 0; i < size; ++i) {
+    feature_info.emplace_back(features[i]);
+  }
+  if (!std::strcmp(field, "feature_name")) {
+    learner->SetFeatureNames(feature_info);
+  } else if (!std::strcmp(field, "feature_type")) {
+    learner->SetFeatureTypes(feature_info);
+  } else {
+    LOG(FATAL) << "Unknown field for Booster feature info:" << field;
+  }
+  API_END();
+}
+
+XGB_DLL int XGBoosterGetStrFeatureInfo(BoosterHandle handle, const char *field,
+                                       xgboost::bst_ulong *len,
+                                       const char ***out_features) {
+  API_BEGIN();
+  CHECK_HANDLE();
+  auto const *learner = static_cast<Learner const *>(handle);
+  std::vector<const char *> &charp_vecs =
+      learner->GetThreadLocal().ret_vec_charp;
+  std::vector<std::string> &str_vecs = learner->GetThreadLocal().ret_vec_str;
+  if (!std::strcmp(field, "feature_name")) {
+    learner->GetFeatureNames(&str_vecs);
+  } else if (!std::strcmp(field, "feature_type")) {
+    learner->GetFeatureTypes(&str_vecs);
+  } else {
+    LOG(FATAL) << "Unknown field for Booster feature info:" << field;
+  }
+  charp_vecs.resize(str_vecs.size());
+  for (size_t i = 0; i < str_vecs.size(); ++i) {
+    charp_vecs[i] = str_vecs[i].c_str();
+  }
+  *out_features = dmlc::BeginPtr(charp_vecs);
+  *len = static_cast<xgboost::bst_ulong>(charp_vecs.size());
   API_END();
 }
 

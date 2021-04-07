@@ -66,7 +66,7 @@ test_that("parameter validation works", {
       xgb.train(params = params, data = dtrain, nrounds = nrounds))
     print(output)
   }
-  expect_output(incorrect(), "bar, foo")
+  expect_output(incorrect(), '\\\\"bar\\\\", \\\\"foo\\\\"')
 })
 
 

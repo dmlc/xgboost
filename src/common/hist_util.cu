@@ -93,6 +93,11 @@ size_t SketchBatchNumElements(size_t sketch_batch_num_elements,
                               bst_row_t num_rows, bst_feature_t columns,
                               size_t nnz, int device,
                               size_t num_cuts, bool has_weight) {
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+  // device available memory is not accurate when rmm is used.
+  return nnz;
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+
   if (sketch_batch_num_elements == 0) {
     auto required_memory = RequiredMemory(num_rows, columns, nnz, num_cuts, has_weight);
     // use up to 80% of available space
@@ -185,9 +190,15 @@ void ProcessBatch(int device, MetaInfo const &info, const SparsePage &page,
                   size_t begin, size_t end, SketchContainer *sketch_container,
                   int num_cuts_per_feature, size_t num_columns) {
   dh::XGBCachingDeviceAllocator<char> alloc;
-  const auto& host_data = page.data.ConstHostVector();
-  dh::device_vector<Entry> sorted_entries(host_data.begin() + begin,
-                                          host_data.begin() + end);
+  dh::device_vector<Entry> sorted_entries;
+  if (page.data.DeviceCanRead()) {
+    const auto& device_data = page.data.ConstDevicePointer();
+    sorted_entries = dh::device_vector<Entry>(device_data + begin, device_data + end);
+  } else {
+    const auto& host_data = page.data.ConstHostVector();
+    sorted_entries = dh::device_vector<Entry>(host_data.begin() + begin,
+                                              host_data.begin() + end);
+  }
   thrust::sort(thrust::cuda::par(alloc), sorted_entries.begin(),
                sorted_entries.end(), detail::EntryCompareOp());
 

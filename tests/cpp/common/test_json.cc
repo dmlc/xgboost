@@ -374,6 +374,11 @@ TEST(Json, AssigningNumber) {
     value = 15;  // NOLINT
     ASSERT_EQ(get<Number>(json), 4);
   }
+
+  {
+    Json value {Number(std::numeric_limits<float>::quiet_NaN())};
+    ASSERT_TRUE(IsA<Number>(value));
+  }
 }
 
 TEST(Json, AssigningString) {

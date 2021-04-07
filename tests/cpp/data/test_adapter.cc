@@ -138,5 +138,4 @@ TEST(Adapter, IteratorAdapter) {
   }
   ASSERT_EQ(num_batch, 1);
 }
-
 }  // namespace xgboost

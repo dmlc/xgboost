@@ -30,4 +30,4 @@ Examples
 Development
 -----------
 
-* See the [R Package section](https://xgboost.readthedocs.io/en/latest/contribute.html#r-package) of the contributors guide.
+* See the [R Package section](https://xgboost.readthedocs.io/en/latest/contrib/coding_guide.html#r-coding-guideline) of the contributors guide.

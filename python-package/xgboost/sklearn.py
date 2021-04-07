@@ -4,7 +4,8 @@
 import copy
 import warnings
 import json
-from typing import Union, Optional, List, Dict, Callable, Tuple, Any
+import os
+from typing import Union, Optional, List, Dict, Callable, Tuple, Any, TypeVar
 import numpy as np
 from .core import Booster, DMatrix, XGBoostError
 from .core import _deprecate_positional_args, _convert_ntree_limit
@@ -293,14 +294,12 @@ def _wrap_evaluation_matrices(
         evals = list(zip(evals, eval_names))
     else:
         if any(
-            [
-                meta is not None
-                for meta in [
-                    sample_weight_eval_set,
-                    base_margin_eval_set,
-                    eval_group,
-                    eval_qid,
-                ]
+            meta is not None
+            for meta in [
+                sample_weight_eval_set,
+                base_margin_eval_set,
+                eval_group,
+                eval_qid,
             ]
         ):
             raise ValueError(
@@ -502,25 +501,7 @@ class XGBModel(XGBModelBase):
             )
         return self._estimator_type  # pylint: disable=no-member
 
-    def save_model(self, fname: str):
-        """Save the model to a file.
-
-        The model is saved in an XGBoost internal format which is universal
-        among the various XGBoost interfaces. Auxiliary attributes of the
-        Python Booster object (such as feature names) will not be saved.
-
-          .. note::
-
-            See:
-
-            https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html
-
-        Parameters
-        ----------
-        fname : string
-            Output file name
-
-        """
+    def save_model(self, fname: Union[str, os.PathLike]):
         meta = dict()
         for k, v in self.__dict__.items():
             if k == '_le':
@@ -544,27 +525,20 @@ class XGBModel(XGBModelBase):
         # Delete the attribute after save
         self.get_booster().set_attr(scikit_learn=None)
 
-    def load_model(self, fname):
+    save_model.__doc__ = f"""{Booster.save_model.__doc__}"""
+
+    def load_model(self, fname: Union[str, bytearray, os.PathLike]) -> None:
         # pylint: disable=attribute-defined-outside-init
-        """Load the model from a file.
-
-        The model is loaded from an XGBoost internal format which is universal
-        among the various XGBoost interfaces. Auxiliary attributes of the
-        Python Booster object (such as feature names) will not be loaded.
-
-        Parameters
-        ----------
-        fname : string
-            Input file name.
-
-        """
         if not hasattr(self, '_Booster'):
             self._Booster = Booster({'n_jobs': self.n_jobs})
-        self._Booster.load_model(fname)
-        meta = self._Booster.attr('scikit_learn')
+        self.get_booster().load_model(fname)
+        meta = self.get_booster().attr('scikit_learn')
         if meta is None:
+            # FIXME(jiaming): This doesn't have to be a problem as most of the needed
+            # information like num_class and objective is in Learner class.
             warnings.warn(
-                'Loading a native XGBoost model with Scikit-Learn interface.')
+                'Loading a native XGBoost model with Scikit-Learn interface.'
+            )
             return
         meta = json.loads(meta)
         states = dict()
@@ -573,11 +547,10 @@ class XGBModel(XGBModelBase):
                 self._le = XGBoostLabelEncoder()
                 self._le.from_json(v)
                 continue
+            # FIXME(jiaming): This can be removed once label encoder is gone since we can
+            # generate it from `np.arange(self.n_classes_)`
             if k == 'classes_':
                 self.classes_ = np.array(v)
-                continue
-            if k == 'use_label_encoder':
-                self.use_label_encoder = bool(v)
                 continue
             if k == "_estimator_type":
                 if self._get_type() != v:
@@ -590,6 +563,8 @@ class XGBModel(XGBModelBase):
         self.__dict__.update(states)
         # Delete the attribute after load
         self.get_booster().set_attr(scikit_learn=None)
+
+    load_model.__doc__ = f"""{Booster.load_model.__doc__}"""
 
     def _configure_fit(
         self,
@@ -788,7 +763,7 @@ class XGBModel(XGBModelBase):
         Parameters
         ----------
         X : array_like
-            Data to predict with
+            Data to predict with.
         output_margin : bool
             Whether to output the raw untransformed margin value.
         ntree_limit : int
@@ -800,8 +775,8 @@ class XGBModel(XGBModelBase):
             Margin added to prediction.
         iteration_range :
             Specifies which layer of trees are used in prediction.  For example, if a
-            random forest is trained with 100 rounds.  Specifying `iteration_range=(10,
-            20)`, then only the forests built during [10, 20) (half open set) rounds are
+            random forest is trained with 100 rounds.  Specifying ``iteration_range=(10,
+            20)``, then only the forests built during [10, 20) (half open set) rounds are
             used in this prediction.
 
             .. versionadded:: 1.4.0
@@ -851,8 +826,11 @@ class XGBModel(XGBModelBase):
         X : array_like, shape=[n_samples, n_features]
             Input features matrix.
 
-        ntree_limit : int
-            Limit number of trees in the prediction; defaults to 0 (use all trees).
+        iteration_range :
+            See :py:meth:`xgboost.XGBRegressor.predict`.
+
+        ntree_limit :
+            Deprecated, use ``iteration_range`` instead.
 
         Returns
         -------
@@ -960,9 +938,13 @@ class XGBModel(XGBModelBase):
             raise AttributeError(
                 'Feature importance is not defined for Booster type {}'
                 .format(self.booster))
-        b = self.get_booster()
+        b: Booster = self.get_booster()
         score = b.get_score(importance_type=self.importance_type)
-        all_features = [score.get(f, 0.) for f in b.feature_names]
+        if b.feature_names is None:
+            feature_names = ["f{0}".format(i) for i in range(self.n_features_in_)]
+        else:
+            feature_names = b.feature_names
+        all_features = [score.get(f, 0.) for f in feature_names]
         all_features = np.array(all_features, dtype=np.float32)
         total = all_features.sum()
         if total == 0:
@@ -1022,17 +1004,14 @@ class XGBModel(XGBModelBase):
         return np.array(json.loads(b.get_dump(dump_format='json')[0])['bias'])
 
 
-def _cls_predict_proba(
-    objective: Union[str, Callable], prediction: Any, vstack: Callable
-) -> Any:
-    if objective == 'multi:softmax':
-        raise ValueError('multi:softmax objective does not support predict_proba,'
-                         ' use `multi:softprob` or `binary:logistic` instead.')
-    if objective == 'multi:softprob' or callable(objective):
-        # Return prediction directly if if objective is defined by user since we don't
-        # know how to perform the transformation
+PredtT = TypeVar("PredtT")
+
+
+def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> PredtT:
+    assert len(prediction.shape) <= 2
+    if len(prediction.shape) == 2 and prediction.shape[1] == n_classes:
         return prediction
-    # Lastly the binary logistic function
+    # binary logistic function
     classone_probs = prediction
     classzero_probs = 1.0 - classone_probs
     return vstack((classzero_probs, classone_probs)).transpose()
@@ -1216,8 +1195,10 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             return class_probs
 
         if len(class_probs.shape) > 1:
+            # turns softprob into softmax
             column_indexes = np.argmax(class_probs, axis=1)
         else:
+            # turns soft logit into class label
             column_indexes = np.repeat(0, class_probs.shape[0])
             column_indexes[class_probs > 0.5] = 1
 
@@ -1260,15 +1241,23 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             a numpy array of shape array-like of shape (n_samples, n_classes) with the
             probability of each data example being of a given class.
         """
+        # custom obj:      Do nothing as we don't know what to do.
+        # softprob:        Do nothing, output is proba.
+        # softmax:         Use output margin to remove the argmax in PredTransform.
+        # binary:logistic: Expand the prob vector into 2-class matrix after predict.
+        # binary:logitraw: Unsupported by predict_proba()
         class_probs = super().predict(
             X=X,
-            output_margin=False,
+            output_margin=self.objective == "multi:softmax",
             ntree_limit=ntree_limit,
             validate_features=validate_features,
             base_margin=base_margin,
             iteration_range=iteration_range
         )
-        return _cls_predict_proba(self.objective, class_probs, np.vstack)
+        # If model is loaded from a raw booster there's no `n_classes_`
+        return _cls_predict_proba(
+            getattr(self, "n_classes_", None), class_probs, np.vstack
+        )
 
     def evals_result(self):
         """Return the evaluation results.

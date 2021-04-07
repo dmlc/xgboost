@@ -400,7 +400,9 @@ void MetaInfo::SetInfo(const char* key, const void* dptr, DataType dtype, size_t
         group_ptr_.push_back(i);
       }
     }
-    group_ptr_.push_back(query_ids.size());
+    if (group_ptr_.back() != query_ids.size()) {
+      group_ptr_.push_back(query_ids.size());
+    }
   } else if (!std::strcmp(key, "label_lower_bound")) {
     auto& labels = labels_lower_bound_.HostVector();
     labels.resize(num);
@@ -829,18 +831,16 @@ SparsePage SparsePage::GetTranspose(int num_columns) const {
   const int nthread = omp_get_max_threads();
   builder.InitBudget(num_columns, nthread);
   long batch_size = static_cast<long>(this->Size());  // NOLINT(*)
-    auto page = this->GetView();
-#pragma omp parallel for default(none) shared(batch_size, builder, page) schedule(static)
-  for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
+  auto page = this->GetView();
+  common::ParallelFor(batch_size, [&](long i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     auto inst = page[i];
     for (const auto& entry : inst) {
       builder.AddBudget(entry.index, tid);
     }
-  }
+  });
   builder.InitStorage();
-#pragma omp parallel for default(none) shared(batch_size, builder, page) schedule(static)
-  for (long i = 0; i < batch_size; ++i) {  // NOLINT(*)
+  common::ParallelFor(batch_size, [&](long i) {  // NOLINT(*)
     int tid = omp_get_thread_num();
     auto inst = page[i];
     for (const auto& entry : inst) {
@@ -849,7 +849,7 @@ SparsePage SparsePage::GetTranspose(int num_columns) const {
           Entry(static_cast<bst_uint>(this->base_rowid + i), entry.fvalue),
           tid);
     }
-  }
+  });
   return transpose;
 }
 void SparsePage::Push(const SparsePage &batch) {
@@ -872,14 +872,20 @@ void SparsePage::Push(const SparsePage &batch) {
 
 template <typename AdapterBatchT>
 uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread) {
+  constexpr bool kIsRowMajor = AdapterBatchT::kIsRowMajor;
+  // Allow threading only for row-major case as column-major requires O(nthread*batch_size) memory
+  nthread = kIsRowMajor ? nthread : 1;
   // Set number of threads but keep old value so we can reset it after
   int nthread_original = common::OmpSetNumThreadsWithoutHT(&nthread);
+  if (!kIsRowMajor) {
+    CHECK_EQ(nthread, 1);
+  }
   auto& offset_vec = offset.HostVector();
   auto& data_vec = data.HostVector();
 
   size_t builder_base_row_offset = this->Size();
   common::ParallelGroupBuilder<
-      Entry, std::remove_reference<decltype(offset_vec)>::type::value_type>
+      Entry, std::remove_reference<decltype(offset_vec)>::type::value_type, kIsRowMajor>
       builder(&offset_vec, &data_vec, builder_base_row_offset);
   // Estimate expected number of rows by using last element in batch
   // This is not required to be exact but prevents unnecessary resizing
@@ -892,15 +898,18 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     }
   }
   size_t batch_size = batch.Size();
-  const size_t thread_size = batch_size / nthread;
-  builder.InitBudget(expected_rows+1, nthread);
+  expected_rows = kIsRowMajor ? batch_size : expected_rows;
   uint64_t max_columns = 0;
   if (batch_size == 0) {
     omp_set_num_threads(nthread_original);
     return max_columns;
   }
+  const size_t thread_size = batch_size / nthread;
+
+  builder.InitBudget(expected_rows, nthread);
   std::vector<std::vector<uint64_t>> max_columns_vector(nthread);
   dmlc::OMPException exec;
+  std::atomic<bool> valid{true};
   // First-pass over the batch counting valid elements
 #pragma omp parallel num_threads(nthread)
   {
@@ -914,7 +923,10 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
       for (size_t i = begin; i < end; ++i) {
         auto line = batch.GetLine(i);
         for (auto j = 0ull; j < line.Size(); j++) {
-          auto element = line.GetElement(j);
+          data::COOTuple const& element = line.GetElement(j);
+          if (!std::isinf(missing) && std::isinf(element.value)) {
+            valid = false;
+          }
           const size_t key = element.row_idx - base_rowid;
           CHECK_GE(key,  builder_base_row_offset);
           max_columns_local =
@@ -930,6 +942,7 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
     });
   }
   exec.Rethrow();
+  CHECK(valid) << "Input data contains `inf` or `nan`";
   for (const auto & max : max_columns_vector) {
     max_columns = std::max(max_columns, max[0]);
   }

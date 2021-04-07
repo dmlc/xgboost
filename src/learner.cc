@@ -256,6 +256,11 @@ class LearnerConfiguration : public Learner {
   std::map<std::string, std::string> cfg_;
   // Stores information like best-iteration for early stopping.
   std::map<std::string, std::string> attributes_;
+  // Name of each feature, usually set from DMatrix.
+  std::vector<std::string> feature_names_;
+  // Type of each feature, usually set from DMatrix.
+  std::vector<std::string> feature_types_;
+
   common::Monitor monitor_;
   LearnerModelParamLegacy mparam_;
   LearnerModelParam learner_model_param_;
@@ -297,7 +302,6 @@ class LearnerConfiguration : public Learner {
     auto initialized = generic_parameters_.GetInitialised();
     auto old_seed = generic_parameters_.seed;
     generic_parameters_.UpdateAllowUnknown(args);
-    generic_parameters_.CheckDeprecated();
 
     ConsoleLogger::Configure(args);
     common::OmpSetNumThreads(&generic_parameters_.nthread);
@@ -460,6 +464,23 @@ class LearnerConfiguration : public Learner {
     return true;
   }
 
+  void SetFeatureNames(std::vector<std::string> const& fn) override {
+    feature_names_ = fn;
+  }
+
+  void GetFeatureNames(std::vector<std::string>* fn) const override {
+    *fn = feature_names_;
+  }
+
+  void SetFeatureTypes(std::vector<std::string> const& ft) override {
+    this->feature_types_ = ft;
+  }
+
+  void GetFeatureTypes(std::vector<std::string>* p_ft) const override {
+    auto& ft = *p_ft;
+    ft = this->feature_types_;
+  }
+
   std::vector<std::string> GetAttrNames() const override {
     std::vector<std::string> out;
     for (auto const& kv : attributes_) {
@@ -515,15 +536,18 @@ class LearnerConfiguration : public Learner {
       }
     }
 
+    // FIXME(trivialfis): Make eval_metric a training parameter.
     keys.emplace_back(kEvalMetric);
-    keys.emplace_back("verbosity");
     keys.emplace_back("num_output_group");
 
     std::sort(keys.begin(), keys.end());
 
     std::vector<std::string> provided;
     for (auto const &kv : cfg_) {
-      // FIXME(trivialfis): Make eval_metric a training parameter.
+      if (std::any_of(kv.first.cbegin(), kv.first.cend(),
+                      [](char ch) { return std::isspace(ch); })) {
+        LOG(FATAL) << "Invalid parameter \"" << kv.first << "\" contains whitespace.";
+      }
       provided.push_back(kv.first);
     }
     std::sort(provided.begin(), provided.end());
@@ -535,9 +559,9 @@ class LearnerConfiguration : public Learner {
       std::stringstream ss;
       ss << "\nParameters: { ";
       for (size_t i = 0; i < diff.size() - 1; ++i) {
-        ss << diff[i] << ", ";
+        ss << "\"" << diff[i] << "\", ";
       }
-      ss << diff.back();
+      ss << "\"" << diff.back() << "\"";
       ss << R"W( } might not be used.
 
   This may not be accurate due to some parameters are only used in language bindings but
@@ -666,6 +690,25 @@ class LearnerIO : public LearnerConfiguration {
       attributes_[kv.first] = get<String const>(kv.second);
     }
 
+    // feature names and types are saved in xgboost 1.4
+    auto it = learner.find("feature_names");
+    if (it != learner.cend()) {
+      auto const &feature_names = get<Array const>(it->second);
+      feature_names_.clear();
+      for (auto const &name : feature_names) {
+        feature_names_.emplace_back(get<String const>(name));
+      }
+    }
+    it = learner.find("feature_types");
+    if (it != learner.cend()) {
+      auto const &feature_types = get<Array const>(it->second);
+      feature_types_.clear();
+      for (auto const &name : feature_types) {
+        auto type = get<String const>(name);
+        feature_types_.emplace_back(type);
+      }
+    }
+
     this->need_configuration_ = true;
   }
 
@@ -690,6 +733,17 @@ class LearnerIO : public LearnerConfiguration {
     learner["attributes"] = Object();
     for (auto const& kv : attributes_) {
       learner["attributes"][kv.first] = String(kv.second);
+    }
+
+    learner["feature_names"] = Array();
+    auto& feature_names = get<Array>(learner["feature_names"]);
+    for (auto const& name : feature_names_) {
+      feature_names.emplace_back(name);
+    }
+    learner["feature_types"] = Array();
+    auto& feature_types = get<Array>(learner["feature_types"]);
+    for (auto const& type : feature_types_) {
+      feature_types.emplace_back(type);
     }
   }
   // About to be deprecated by JSON format

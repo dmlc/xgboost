@@ -15,8 +15,7 @@
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' train <- agaricus.train
-#' dtrain <- xgb.DMatrix(train$data, label=train$label)
+#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 #' xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
 #' dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 #' if (file.exists('xgb.DMatrix.data')) file.remove('xgb.DMatrix.data')
@@ -173,8 +172,7 @@ dimnames.xgb.DMatrix <- function(x) {
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' train <- agaricus.train
-#' dtrain <- xgb.DMatrix(train$data, label=train$label)
+#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 #'
 #' labels <- getinfo(dtrain, 'label')
 #' setinfo(dtrain, 'label', 1-labels)
@@ -226,8 +224,7 @@ getinfo.xgb.DMatrix <- function(object, name, ...) {
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' train <- agaricus.train
-#' dtrain <- xgb.DMatrix(train$data, label=train$label)
+#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 #'
 #' labels <- getinfo(dtrain, 'label')
 #' setinfo(dtrain, 'label', 1-labels)
@@ -292,8 +289,7 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' train <- agaricus.train
-#' dtrain <- xgb.DMatrix(train$data, label=train$label)
+#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 #'
 #' dsub <- slice(dtrain, 1:42)
 #' labels1 <- getinfo(dsub, 'label')
@@ -349,8 +345,7 @@ slice.xgb.DMatrix <- function(object, idxset, ...) {
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' train <- agaricus.train
-#' dtrain <- xgb.DMatrix(train$data, label=train$label)
+#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 #'
 #' dtrain
 #' print(dtrain, verbose=TRUE)

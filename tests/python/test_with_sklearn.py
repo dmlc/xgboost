@@ -357,21 +357,24 @@ def test_boston_housing_regression():
         assert mean_squared_error(preds4, labels) < 350
 
 
-def test_boston_housing_rf_regression():
+def run_boston_housing_rf_regression(tree_method):
     from sklearn.metrics import mean_squared_error
     from sklearn.datasets import load_boston
     from sklearn.model_selection import KFold
 
-    boston = load_boston()
-    y = boston['target']
-    X = boston['data']
+    X, y = load_boston(return_X_y=True)
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for train_index, test_index in kf.split(X, y):
-        xgb_model = xgb.XGBRFRegressor(random_state=42).fit(
-            X[train_index], y[train_index])
+        xgb_model = xgb.XGBRFRegressor(random_state=42, tree_method=tree_method).fit(
+            X[train_index], y[train_index]
+        )
         preds = xgb_model.predict(X[test_index])
         labels = y[test_index]
         assert mean_squared_error(preds, labels) < 35
+
+
+def test_boston_housing_rf_regression():
+    run_boston_housing_rf_regression("hist")
 
 
 def test_parameter_tuning():
@@ -801,10 +804,14 @@ def save_load_model(model_path):
     for train_index, test_index in kf.split(X, y):
         xgb_model = xgb.XGBClassifier(use_label_encoder=False).fit(X[train_index], y[train_index])
         xgb_model.save_model(model_path)
-        xgb_model = xgb.XGBClassifier(use_label_encoder=False)
+
+        xgb_model = xgb.XGBClassifier()
         xgb_model.load_model(model_path)
+
+        assert xgb_model.use_label_encoder is False
         assert isinstance(xgb_model.classes_, np.ndarray)
         assert isinstance(xgb_model._Booster, xgb.Booster)
+
         preds = xgb_model.predict(X[test_index])
         labels = y[test_index]
         err = sum(1 for i in range(len(preds))

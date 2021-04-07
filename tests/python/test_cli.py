@@ -95,6 +95,11 @@ eval[test] = {data_path}
             }
             data = xgboost.DMatrix(data_path)
             booster = xgboost.train(parameters, data, num_boost_round=10)
+
+            # CLI model doesn't contain feature info.
+            booster.feature_names = None
+            booster.feature_types = None
+
             booster.save_model(model_out_py)
             py_predt = booster.predict(data)
 

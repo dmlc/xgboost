@@ -17,6 +17,8 @@ if sys.platform.startswith("win"):
 
 sys.path.append("tests/python")
 from test_with_dask import run_empty_dmatrix_reg      # noqa
+from test_with_dask import run_empty_dmatrix_auc      # noqa
+from test_with_dask import run_auc                    # noqa
 from test_with_dask import run_boost_from_prediction  # noqa
 from test_with_dask import run_dask_classifier        # noqa
 from test_with_dask import run_empty_dmatrix_cls      # noqa
@@ -171,13 +173,13 @@ def run_gpu_hist(
     assert tm.non_increasing(history["train"][dataset.metric])
 
 
+@pytest.mark.skipif(**tm.no_cudf())
 def test_boost_from_prediction(local_cuda_cluster: LocalCUDACluster) -> None:
-    import cudf
     from sklearn.datasets import load_breast_cancer
     with Client(local_cuda_cluster) as client:
         X_, y_ = load_breast_cancer(return_X_y=True)
-        X = dd.from_array(X_, chunksize=100).map_partitions(cudf.from_pandas)
-        y = dd.from_array(y_, chunksize=100).map_partitions(cudf.from_pandas)
+        X = dd.from_array(X_, chunksize=100)
+        y = dd.from_array(y_, chunksize=100)
         run_boost_from_prediction(X, y, "gpu_hist", client)
 
 
@@ -200,6 +202,7 @@ class TestDistributedGPU:
     @settings(deadline=duration(seconds=120), suppress_health_check=suppress)
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
+    @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize(
         "local_cuda_cluster", [{"n_workers": 2}], indirect=["local_cuda_cluster"]
     )
@@ -274,7 +277,7 @@ class TestDistributedGPU:
             X = dask_cudf.from_dask_dataframe(dd.from_dask_array(X_))
             y = dask_cudf.from_dask_dataframe(dd.from_dask_array(y_))
             w = dask_cudf.from_dask_dataframe(dd.from_dask_array(w_))
-            run_dask_classifier(X, y, w, model, client)
+            run_dask_classifier(X, y, w, model, client, 10)
 
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
@@ -286,6 +289,15 @@ class TestDistributedGPU:
             run_empty_dmatrix_reg(client, parameters)
             run_empty_dmatrix_cls(client, parameters)
 
+    def test_empty_dmatrix_auc(self, local_cuda_cluster: LocalCUDACluster) -> None:
+        with Client(local_cuda_cluster) as client:
+            n_workers = len(_get_client_workers(client))
+            run_empty_dmatrix_auc(client, "gpu_hist", n_workers)
+
+    def test_auc(self, local_cuda_cluster: LocalCUDACluster) -> None:
+        with Client(local_cuda_cluster) as client:
+            run_auc(client, "gpu_hist")
+
     def test_data_initialization(self, local_cuda_cluster: LocalCUDACluster) -> None:
         with Client(local_cuda_cluster) as client:
             X, y, _ = generate_array()
@@ -293,7 +305,7 @@ class TestDistributedGPU:
             fw = fw - fw.min()
             m = dxgb.DaskDMatrix(client, X, y, feature_weights=fw)
 
-            workers = list(_get_client_workers(client).keys())
+            workers = _get_client_workers(client)
             rabit_args = client.sync(dxgb._get_rabit_args, len(workers), client)
 
             def worker_fn(worker_addr: str, data_ref: Dict) -> None:
@@ -384,7 +396,7 @@ class TestDistributedGPU:
             return subprocess.run([str(exe), test], env=env, stdout=subprocess.PIPE)
 
         with Client(local_cuda_cluster) as client:
-            workers = list(_get_client_workers(client).keys())
+            workers = _get_client_workers(client)
             rabit_args = client.sync(dxgb._get_rabit_args, workers, client)
             futures = client.map(runit,
                                  workers,
@@ -443,6 +455,7 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> dxgb.TrainRetur
 
 @pytest.mark.skipif(**tm.no_dask())
 @pytest.mark.skipif(**tm.no_dask_cuda())
+@pytest.mark.skipif(**tm.no_cupy())
 @pytest.mark.mgpu
 def test_with_asyncio(local_cuda_cluster: LocalCUDACluster) -> None:
     with Client(local_cuda_cluster) as client:

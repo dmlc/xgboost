@@ -2,7 +2,10 @@
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from scipy import sparse
+import pytest
+import pandas as pd
 
+import testing as tm
 import xgboost as xgb
 
 
@@ -95,36 +98,63 @@ def test_predict_shape():
     assert len(contrib.shape) == 3
     assert contrib.shape[1] == 1
 
+    contrib = reg.get_booster().predict(
+        xgb.DMatrix(X), pred_contribs=True, approx_contribs=True
+    )
+    assert len(contrib.shape) == 2
+    assert contrib.shape[1] == X.shape[1] + 1
+
+    interaction = reg.get_booster().predict(
+        xgb.DMatrix(X), pred_interactions=True, approx_contribs=True
+    )
+    assert len(interaction.shape) == 3
+    assert interaction.shape[1] == X.shape[1] + 1
+    assert interaction.shape[2] == X.shape[1] + 1
+
+    interaction = reg.get_booster().predict(
+        xgb.DMatrix(X), pred_interactions=True, approx_contribs=True, strict_shape=True
+    )
+    assert len(interaction.shape) == 4
+    assert interaction.shape[1] == 1
+    assert interaction.shape[2] == X.shape[1] + 1
+    assert interaction.shape[3] == X.shape[1] + 1
+
 
 class TestInplacePredict:
     '''Tests for running inplace prediction'''
     @classmethod
     def setup_class(cls):
-        cls.rows = 100
+        cls.rows = 1000
         cls.cols = 10
+
+        cls.missing = 11            # set to integer for testing
 
         cls.rng = np.random.RandomState(1994)
 
         cls.X = cls.rng.randn(cls.rows, cls.cols)
+        missing_idx = [i for i in range(0, cls.cols, 4)]
+        cls.X[:, missing_idx] = cls.missing  # set to be missing
+
         cls.y = cls.rng.randn(cls.rows)
 
         dtrain = xgb.DMatrix(cls.X, cls.y)
+        cls.test = xgb.DMatrix(cls.X[:10, ...], missing=cls.missing)
 
         cls.booster = xgb.train({'tree_method': 'hist'}, dtrain, num_boost_round=10)
-
-        cls.test = xgb.DMatrix(cls.X[:10, ...])
 
     def test_predict(self):
         booster = self.booster
         X = self.X
         test = self.test
 
-        predt_from_array = booster.inplace_predict(X[:10, ...])
+        predt_from_array = booster.inplace_predict(X[:10, ...], missing=self.missing)
         predt_from_dmatrix = booster.predict(test)
 
         np.testing.assert_allclose(predt_from_dmatrix, predt_from_array)
 
-        predt_from_array = booster.inplace_predict(X[:10, ...], iteration_range=(0, 4))
+        predt_from_array = booster.inplace_predict(
+            X[:10, ...], iteration_range=(0, 4), missing=self.missing
+        )
         predt_from_dmatrix = booster.predict(test, ntree_limit=4)
 
         np.testing.assert_allclose(predt_from_dmatrix, predt_from_array)
@@ -146,6 +176,19 @@ class TestInplacePredict:
 
         for i in range(10):
             run_threaded_predict(X, self.rows, predict_csr)
+
+    @pytest.mark.skipif(**tm.no_pandas())
+    def test_predict_pd(self):
+        X = self.X
+        # construct it in column major style
+        df = pd.DataFrame({str(i): X[:, i] for i in range(X.shape[1])})
+        booster = self.booster
+        df_predt = booster.inplace_predict(df)
+        arr_predt = booster.inplace_predict(X)
+        dmat_predt = booster.predict(xgb.DMatrix(X))
+
+        np.testing.assert_allclose(dmat_predt, arr_predt)
+        np.testing.assert_allclose(df_predt, arr_predt)
 
     def test_base_margin(self):
         booster = self.booster

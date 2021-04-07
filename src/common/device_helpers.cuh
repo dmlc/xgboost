@@ -32,6 +32,7 @@
 #include "xgboost/logging.h"
 #include "xgboost/host_device_vector.h"
 #include "xgboost/span.h"
+#include "xgboost/global_config.h"
 
 #include "common.h"
 
@@ -42,6 +43,14 @@
 #if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 #include "rmm/mr/device/per_device_resource.hpp"
 #include "rmm/mr/device/thrust_allocator_adaptor.hpp"
+#include "rmm/version_config.hpp"
+
+#if !defined(RMM_VERSION_MAJOR) || !defined(RMM_VERSION_MINOR)
+#error "Please use RMM version 0.18 or later"
+#elif RMM_VERSION_MAJOR == 0 && RMM_VERSION_MINOR < 18
+#error "Please use RMM version 0.18 or later"
+#endif  // !defined(RMM_VERSION_MAJOR) || !defined(RMM_VERSION_MINOR)
+
 #endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
 
 #if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600 || defined(__clang__)
@@ -286,6 +295,11 @@ inline void LaunchN(int device_idx, size_t n, L lambda) {
   LaunchN<ITEMS_PER_THREAD, BLOCK_THREADS>(device_idx, n, nullptr, lambda);
 }
 
+template <typename Container>
+void Iota(Container array, int32_t device = CurrentDevice()) {
+  LaunchN(device, array.size(), [=] __device__(size_t i) { array[i] = i; });
+}
+
 namespace detail {
 /** \brief Keeps track of global device memory allocations. Thread safe.*/
 class MemoryLogger {
@@ -453,21 +467,42 @@ struct XGBCachingDeviceAllocatorImpl : XGBBaseDeviceAllocator<T> {
     return *allocator;
   }
   pointer allocate(size_t n) {  // NOLINT
-    T* ptr;
-    auto errc =  GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&ptr),
-                                                            n * sizeof(T));
-    if (errc != cudaSuccess) {
-      ThrowOOMError("Caching allocator", n * sizeof(T));
+    pointer thrust_ptr;
+    if (use_cub_allocator_) {
+      T* raw_ptr{nullptr};
+      auto errc =  GetGlobalCachingAllocator().DeviceAllocate(reinterpret_cast<void **>(&raw_ptr),
+                                                              n * sizeof(T));
+      if (errc != cudaSuccess) {
+        ThrowOOMError("Caching allocator", n * sizeof(T));
+      }
+      thrust_ptr = pointer(raw_ptr);
+    } else {
+      try {
+        thrust_ptr = SuperT::allocate(n);
+        dh::safe_cuda(cudaGetLastError());
+      } catch (const std::exception &e) {
+        ThrowOOMError(e.what(), n * sizeof(T));
+      }
     }
-    pointer thrust_ptr{ ptr };
     GlobalMemoryLogger().RegisterAllocation(thrust_ptr.get(), n * sizeof(T));
     return thrust_ptr;
   }
   void deallocate(pointer ptr, size_t n) {  // NOLINT
     GlobalMemoryLogger().RegisterDeallocation(ptr.get(), n * sizeof(T));
-    GetGlobalCachingAllocator().DeviceFree(ptr.get());
+    if (use_cub_allocator_) {
+      GetGlobalCachingAllocator().DeviceFree(ptr.get());
+    } else {
+      SuperT::deallocate(ptr, n);
+    }
   }
+#if defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
+  XGBCachingDeviceAllocatorImpl()
+    : SuperT(rmm::cuda_stream_default, rmm::mr::get_current_device_resource()),
+      use_cub_allocator_(!xgboost::GlobalConfigThreadLocalStore::Get()->use_rmm) {}
+#endif  // defined(XGBOOST_USE_RMM) && XGBOOST_USE_RMM == 1
   XGBOOST_DEVICE void construct(T *) {}  // NOLINT
+ private:
+  bool use_cub_allocator_{true};
 };
 }  // namespace detail
 
@@ -512,6 +547,36 @@ class TemporaryArray {
  private:
   thrust::device_ptr<T> ptr_;
   size_t size_;
+};
+
+/**
+ * \brief A double buffer, useful for algorithms like sort.
+ */
+template <typename T>
+class DoubleBuffer {
+ public:
+  cub::DoubleBuffer<T> buff;
+  xgboost::common::Span<T> a, b;
+  DoubleBuffer() = default;
+  template <typename VectorT>
+  DoubleBuffer(VectorT *v1, VectorT *v2) {
+    a = xgboost::common::Span<T>(v1->data().get(), v1->size());
+    b = xgboost::common::Span<T>(v2->data().get(), v2->size());
+    buff = cub::DoubleBuffer<T>(a.data(), b.data());
+  }
+
+  size_t Size() const {
+    CHECK_EQ(a.size(), b.size());
+    return a.size();
+  }
+  cub::DoubleBuffer<T> &CubBuffer() { return buff; }
+
+  T *Current() { return buff.Current(); }
+  xgboost::common::Span<T> CurrentSpan() {
+    return xgboost::common::Span<T>{buff.Current(), Size()};
+  }
+
+  T *Other() { return buff.Alternate(); }
 };
 
 /**
@@ -1133,6 +1198,62 @@ size_t SegmentedUnique(Inputs &&...inputs) {
   return SegmentedUnique(thrust::cuda::par(alloc), std::forward<Inputs&&>(inputs)...);
 }
 
+/**
+ * \brief Unique by key for many groups of data.  Has same constraint as `SegmentedUnique`.
+ *
+ * \tparam exec               thrust execution policy
+ * \tparam key_segments_first start iter to segment pointer
+ * \tparam key_segments_last  end iter to segment pointer
+ * \tparam key_first          start iter to key for comparison
+ * \tparam key_last           end iter to key for comparison
+ * \tparam val_first          start iter to values
+ * \tparam key_segments_out   output iterator for new segment pointer
+ * \tparam val_out            output iterator for values
+ * \tparam comp               binary comparison operator
+ */
+template <typename DerivedPolicy, typename SegInIt, typename SegOutIt,
+          typename KeyInIt, typename ValInIt, typename ValOutIt, typename Comp>
+size_t SegmentedUniqueByKey(
+    const thrust::detail::execution_policy_base<DerivedPolicy> &exec,
+    SegInIt key_segments_first, SegInIt key_segments_last, KeyInIt key_first,
+    KeyInIt key_last, ValInIt val_first, SegOutIt key_segments_out,
+    ValOutIt val_out, Comp comp) {
+  using Key =
+      thrust::pair<size_t,
+                   typename thrust::iterator_traits<KeyInIt>::value_type>;
+
+  auto unique_key_it = dh::MakeTransformIterator<Key>(
+      thrust::make_counting_iterator(static_cast<size_t>(0)),
+      [=] __device__(size_t i) {
+        size_t seg = dh::SegmentId(key_segments_first, key_segments_last, i);
+        return thrust::make_pair(seg, *(key_first + i));
+      });
+  size_t segments_len = key_segments_last - key_segments_first;
+  thrust::fill(thrust::device, key_segments_out,
+               key_segments_out + segments_len, 0);
+  size_t n_inputs = std::distance(key_first, key_last);
+  // Reduce the number of uniques elements per segment, avoid creating an
+  // intermediate array for `reduce_by_key`.  It's limited by the types that
+  // atomicAdd supports.  For example, size_t is not supported as of CUDA 10.2.
+  auto reduce_it = thrust::make_transform_output_iterator(
+      thrust::make_discard_iterator(),
+      detail::SegmentedUniqueReduceOp<Key, SegOutIt>{key_segments_out});
+  auto uniques_ret = thrust::unique_by_key_copy(
+      exec, unique_key_it, unique_key_it + n_inputs, val_first, reduce_it,
+      val_out, [=] __device__(Key const &l, Key const &r) {
+        if (l.first == r.first) {
+          // In the same segment.
+          return comp(thrust::get<1>(l), thrust::get<1>(r));
+        }
+        return false;
+      });
+  auto n_uniques = uniques_ret.second - val_out;
+  CHECK_LE(n_uniques, n_inputs);
+  thrust::exclusive_scan(exec, key_segments_out,
+                         key_segments_out + segments_len, key_segments_out, 0);
+  return n_uniques;
+}
+
 template <typename Policy, typename InputIt, typename Init, typename Func>
 auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce_op) {
   size_t constexpr kLimit = std::numeric_limits<int32_t>::max() / 2;
@@ -1148,5 +1269,124 @@ auto Reduce(Policy policy, InputIt first, InputIt second, Init init, Func reduce
     aggregate = reduce_op(aggregate, ret);
   }
   return aggregate;
+}
+
+// wrapper to avoid integer `num_items`.
+template <typename InputIteratorT, typename OutputIteratorT, typename ScanOpT,
+          typename OffsetT>
+void InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op,
+                   OffsetT num_items) {
+  size_t bytes = 0;
+  safe_cuda((
+      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType,
+                        OffsetT>::Dispatch(nullptr, bytes, d_in, d_out, scan_op,
+                                           cub::NullType(), num_items, nullptr,
+                                           false)));
+  dh::TemporaryArray<char> storage(bytes);
+  safe_cuda((
+      cub::DispatchScan<InputIteratorT, OutputIteratorT, ScanOpT, cub::NullType,
+                        OffsetT>::Dispatch(storage.data().get(), bytes, d_in,
+                                           d_out, scan_op, cub::NullType(),
+                                           num_items, nullptr, false)));
+}
+
+template <typename InIt, typename OutIt, typename Predicate>
+void CopyIf(InIt in_first, InIt in_second, OutIt out_first, Predicate pred) {
+  // We loop over batches because thrust::copy_if cant deal with sizes > 2^31
+  // See thrust issue #1302, #6822
+  size_t max_copy_size = std::numeric_limits<int>::max() / 2;
+  size_t length = std::distance(in_first, in_second);
+  XGBCachingDeviceAllocator<char> alloc;
+  for (size_t offset = 0; offset < length; offset += max_copy_size) {
+    auto begin_input = in_first + offset;
+    auto end_input = in_first + std::min(offset + max_copy_size, length);
+    out_first = thrust::copy_if(thrust::cuda::par(alloc), begin_input,
+                                end_input, out_first, pred);
+  }
+}
+
+template <typename InputIteratorT, typename OutputIteratorT, typename OffsetT>
+void InclusiveSum(InputIteratorT d_in, OutputIteratorT d_out, OffsetT num_items) {
+  InclusiveScan(d_in, d_out, cub::Sum(), num_items);
+}
+
+template <bool accending, typename IdxT, typename U>
+void ArgSort(xgboost::common::Span<U> keys, xgboost::common::Span<IdxT> sorted_idx) {
+  size_t bytes = 0;
+  Iota(sorted_idx);
+
+  using KeyT = typename decltype(keys)::value_type;
+  using ValueT = std::remove_const_t<IdxT>;
+
+  TemporaryArray<KeyT> out(keys.size());
+  cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(keys.data()),
+                                 out.data().get());
+  cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(sorted_idx.data()),
+                                     sorted_idx.data());
+
+  if (accending) {
+    void *d_temp_storage = nullptr;
+    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, size_t>::Dispatch(
+        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
+        sizeof(KeyT) * 8, false, nullptr, false)));
+    dh::TemporaryArray<char> storage(bytes);
+    d_temp_storage = storage.data().get();
+    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, size_t>::Dispatch(
+        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
+        sizeof(KeyT) * 8, false, nullptr, false)));
+  } else {
+    void *d_temp_storage = nullptr;
+    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, size_t>::Dispatch(
+        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
+        sizeof(KeyT) * 8, false, nullptr, false)));
+    dh::TemporaryArray<char> storage(bytes);
+    d_temp_storage = storage.data().get();
+    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, size_t>::Dispatch(
+        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
+        sizeof(KeyT) * 8, false, nullptr, false)));
+  }
+}
+
+namespace detail {
+// Wrapper around cub sort for easier `descending` sort and `size_t num_items`.
+template <bool descending, typename KeyT, typename ValueT,
+          typename OffsetIteratorT>
+void DeviceSegmentedRadixSortPair(
+    void *d_temp_storage, size_t &temp_storage_bytes, const KeyT *d_keys_in, // NOLINT
+    KeyT *d_keys_out, const ValueT *d_values_in, ValueT *d_values_out,
+    size_t num_items, size_t num_segments, OffsetIteratorT d_begin_offsets,
+    OffsetIteratorT d_end_offsets, int begin_bit = 0,
+    int end_bit = sizeof(KeyT) * 8) {
+  cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(d_keys_in), d_keys_out);
+  cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(d_values_in),
+                                     d_values_out);
+  using OffsetT = size_t;
+  safe_cuda((cub::DispatchSegmentedRadixSort<
+             descending, KeyT, ValueT, OffsetIteratorT,
+             OffsetT>::Dispatch(d_temp_storage, temp_storage_bytes, d_keys,
+                                d_values, num_items, num_segments,
+                                d_begin_offsets, d_end_offsets, begin_bit,
+                                end_bit, false, nullptr, false)));
+}
+}  // namespace detail
+
+template <bool accending, typename U, typename V, typename IdxT>
+void SegmentedArgSort(xgboost::common::Span<U> values,
+                      xgboost::common::Span<V> group_ptr,
+                      xgboost::common::Span<IdxT> sorted_idx) {
+  CHECK_GE(group_ptr.size(), 1ul);
+  size_t n_groups = group_ptr.size() - 1;
+  size_t bytes = 0;
+  Iota(sorted_idx);
+  TemporaryArray<std::remove_const_t<U>> values_out(values.size());
+  detail::DeviceSegmentedRadixSortPair<!accending>(
+      nullptr, bytes, values.data(), values_out.data().get(), sorted_idx.data(),
+      sorted_idx.data(), sorted_idx.size(), n_groups, group_ptr.data(),
+      group_ptr.data() + 1);
+  dh::TemporaryArray<xgboost::common::byte> temp_storage(bytes);
+  detail::DeviceSegmentedRadixSortPair<!accending>(
+      temp_storage.data().get(), bytes, values.data(), values_out.data().get(),
+      sorted_idx.data(), sorted_idx.data(), sorted_idx.size(), n_groups,
+      group_ptr.data(), group_ptr.data() + 1);
 }
 }  // namespace dh

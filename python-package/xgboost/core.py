@@ -77,7 +77,7 @@ def from_pystr_to_cstr(data: Union[str, List[str]]):
     raise TypeError()
 
 
-def from_cstr_to_pystr(data, length):
+def from_cstr_to_pystr(data, length) -> List[str]:
     """Revert C pointer to Python str
 
     Parameters
@@ -869,7 +869,7 @@ class DMatrix:  # pylint: disable=too-many-instance-attributes
         )
         feature_names = from_cstr_to_pystr(sarr, length)
         if not feature_names:
-            feature_names = ["f{0}".format(i) for i in range(self.num_col())]
+            return None
         return feature_names
 
     @feature_names.setter
@@ -1119,7 +1119,9 @@ class DeviceQuantileDMatrix(DMatrix):
             ctypes.byref(handle),
         )
         if it.exception is not None:
-            raise it.exception
+            #  pylint 2.7.0 believes `it.exception` can be None even with `assert
+            #  isinstace`
+            raise it.exception  # pylint: disable=raising-bad-type
         # delay check_call to throw intermediate exception first
         _check_call(ret)
         self.handle = handle
@@ -1165,9 +1167,6 @@ class Booster(object):
     training, prediction and evaluation.
     """
 
-    feature_names = None
-    feature_types = None
-
     def __init__(self, params=None, cache=(), model_file=None):
         # pylint: disable=invalid-name
         """
@@ -1183,14 +1182,18 @@ class Booster(object):
         for d in cache:
             if not isinstance(d, DMatrix):
                 raise TypeError('invalid cache item: {}'.format(type(d).__name__), cache)
-            self._validate_features(d)
 
         dmats = c_array(ctypes.c_void_p, [d.handle for d in cache])
         self.handle = ctypes.c_void_p()
         _check_call(_LIB.XGBoosterCreate(dmats, c_bst_ulong(len(cache)),
                                          ctypes.byref(self.handle)))
+        for d in cache:
+            # Validate feature only after the feature names are saved into booster.
+            self._validate_features(d)
+
         params = params or {}
         params = self._configure_metrics(params.copy())
+        params = self._configure_constraints(params)
         if isinstance(params, list):
             params.append(('validate_parameters', True))
         else:
@@ -1229,6 +1232,68 @@ class Booster(object):
             params = list(params.items())
             for eval_metric in eval_metrics:
                 params += [('eval_metric', eval_metric)]
+        return params
+
+    def _transform_monotone_constrains(self, value: Union[dict, str]) -> str:
+        if isinstance(value, str):
+            return value
+
+        constrained_features = set(value.keys())
+        if not constrained_features.issubset(set(self.feature_names or [])):
+            raise ValueError('Constrained features are not a subset of '
+                             'training data feature names')
+
+        return '(' + ','.join([str(value.get(feature_name, 0))
+                               for feature_name in self.feature_names]) + ')'
+
+    def _transform_interaction_constraints(self, value: Union[list, str]) -> str:
+        if isinstance(value, str):
+            return value
+
+        feature_idx_mapping = {k: str(v) for v, k in enumerate(self.feature_names or [])}
+
+        try:
+            s = "["
+            for constraint in value:
+                s += (
+                    "["
+                    + ",".join(
+                        [feature_idx_mapping[feature_name] for feature_name in constraint]
+                    )
+                    + "]"
+                )
+            return s + "]"
+        except KeyError as e:
+            # pylint: disable=raise-missing-from
+            raise ValueError(
+                "Constrained features are not a subset of training data feature names"
+            ) from e
+
+    def _configure_constraints(self, params: Union[Dict, List]) -> Union[Dict, List]:
+        if isinstance(params, dict):
+            value = params.get("monotone_constraints")
+            if value:
+                params[
+                    "monotone_constraints"
+                ] = self._transform_monotone_constrains(value)
+
+            value = params.get("interaction_constraints")
+            if value:
+                params[
+                    "interaction_constraints"
+                ] = self._transform_interaction_constraints(value)
+
+        elif isinstance(params, list):
+            for idx, param in enumerate(params):
+                name, value = param
+                if not value:
+                    continue
+
+                if name == "monotone_constraints":
+                    params[idx] = (name, self._transform_monotone_constrains(value))
+                elif name == "interaction_constraints":
+                    params[idx] = (name, self._transform_interaction_constraints(value))
+
         return params
 
     def __del__(self):
@@ -1315,7 +1380,7 @@ class Booster(object):
             self.handle,
             ctypes.byref(length),
             ctypes.byref(json_string)))
-        json_string = json_string.value.decode()  # NOLINT
+        json_string = json_string.value.decode()  # pylint: disable=no-member
         return json_string
 
     def load_config(self, config):
@@ -1397,6 +1462,60 @@ class Booster(object):
                 value = c_str(str(value))
             _check_call(_LIB.XGBoosterSetAttr(
                 self.handle, c_str(key), value))
+
+    def _get_feature_info(self, field: str):
+        length = c_bst_ulong()
+        sarr = ctypes.POINTER(ctypes.c_char_p)()
+        if not hasattr(self, "handle") or self.handle is None:
+            return None
+        _check_call(
+            _LIB.XGBoosterGetStrFeatureInfo(
+                self.handle, c_str(field), ctypes.byref(length), ctypes.byref(sarr),
+            )
+        )
+        feature_info = from_cstr_to_pystr(sarr, length)
+        return feature_info if feature_info else None
+
+    @property
+    def feature_types(self) -> Optional[List[str]]:
+        """Feature types for this booster.  Can be directly set by input data or by
+        assignment.
+
+        """
+        return self._get_feature_info("feature_type")
+
+    @property
+    def feature_names(self) -> Optional[List[str]]:
+        """Feature names for this booster.  Can be directly set by input data or by
+        assignment.
+
+        """
+        return self._get_feature_info("feature_name")
+
+    def _set_feature_info(self, features: Optional[List[str]], field: str) -> None:
+        if features is not None:
+            assert isinstance(features, list)
+            c_feature_info = [bytes(f, encoding="utf-8") for f in features]
+            c_feature_info = (ctypes.c_char_p * len(c_feature_info))(*c_feature_info)
+            _check_call(
+                _LIB.XGBoosterSetStrFeatureInfo(
+                    self.handle, c_str(field), c_feature_info, c_bst_ulong(len(features))
+                )
+            )
+        else:
+            _check_call(
+                _LIB.XGBoosterSetStrFeatureInfo(
+                    self.handle, c_str(field), None, c_bst_ulong(0)
+                )
+            )
+
+    @feature_names.setter
+    def feature_names(self, features: Optional[List[str]]) -> None:
+        self._set_feature_info(features, "feature_name")
+
+    @feature_types.setter
+    def feature_types(self, features: Optional[List[str]]) -> None:
+        self._set_feature_info(features, "feature_type")
 
     def set_param(self, params, value=None):
         """Set parameters into the Booster.
@@ -1508,7 +1627,7 @@ class Booster(object):
                                               dmats, evnames,
                                               c_bst_ulong(len(evals)),
                                               ctypes.byref(msg)))
-        res = msg.value.decode()  # NOLINT
+        res = msg.value.decode()  # pylint: disable=no-member
         if feval is not None:
             for dmat, evname in evals:
                 feval_ret = feval(self.predict(dmat, training=False,
@@ -1560,12 +1679,11 @@ class Booster(object):
     ) -> np.ndarray:
         """Predict with data.
 
-          .. note:: This function is not thread safe except for ``gbtree`` booster.
+        .. note::
 
-          When using booster other than ``gbtree``, predict can only be called from one
-          thread.  If you want to run prediction using multiple thread, call
-          :py:meth:`xgboost.Booster.copy` to make copies of model object and then call
-          ``predict()``.
+            See `Prediction
+            <https://xgboost.readthedocs.io/en/latest/tutorials/prediction.html>`_
+            for issues like thread safety and a summary of outputs from this function.
 
         Parameters
         ----------
@@ -1592,7 +1710,9 @@ class Booster(object):
             prediction. Note the final column is the bias term.
 
         approx_contribs :
-            Approximate the contributions of each feature
+            Approximate the contributions of each feature.  Used when ``pred_contribs`` or
+            ``pred_interactions`` is set to True.  Changing the default of this parameter
+            (False) is not recommended.
 
         pred_interactions :
             When this is True the output will be a matrix of size (nsample,
@@ -1609,8 +1729,11 @@ class Booster(object):
             feature_names are the same.
 
         training :
-            Whether the prediction value is used for training.  This can effect
-            `dart` booster, which performs dropouts during training iterations.
+            Whether the prediction value is used for training.  This can effect `dart`
+            booster, which performs dropouts during training iterations but use all trees
+            for inference. If you want to obtain result with dropouts, set this parameter
+            to `True`.  Also, the parameter is set to true when obtaining prediction for
+            custom objective function.
 
             .. versionadded:: 1.0.0
 
@@ -1629,12 +1752,6 @@ class Booster(object):
             which case the output shape can be (n_samples, ) if multi-class is not used.
 
             .. versionadded:: 1.4.0
-
-        .. note:: Using ``predict()`` with DART booster
-
-          If the booster object is DART type, ``predict()`` will not perform
-          dropouts, i.e. all the trees will be evaluated.  If you want to
-          obtain result with dropouts, provide `training=True`.
 
         Returns
         -------
@@ -1664,9 +1781,9 @@ class Booster(object):
         if pred_contribs:
             assign_type(2 if not approx_contribs else 3)
         if pred_interactions:
-            assign_type(4)
+            assign_type(4 if not approx_contribs else 5)
         if pred_leaf:
-            assign_type(5)
+            assign_type(6)
         preds = ctypes.POINTER(ctypes.c_float)()
         shape = ctypes.POINTER(c_bst_ulong)()
         dims = c_bst_ulong()
@@ -1857,13 +1974,12 @@ class Booster(object):
     def save_model(self, fname):
         """Save the model to a file.
 
-        The model is saved in an XGBoost internal format which is universal
-        among the various XGBoost interfaces. Auxiliary attributes of the
-        Python Booster object (such as feature_names) will not be saved.  See:
-
-          https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html
-
-        for more info.
+        The model is saved in an XGBoost internal format which is universal among the
+        various XGBoost interfaces. Auxiliary attributes of the Python Booster object
+        (such as feature_names) will not be saved when using binary format.  To save those
+        attributes, use JSON instead. See: `Model IO
+        <https://xgboost.readthedocs.io/en/stable/tutorials/saving_model.html>`_ for more
+        info.
 
         Parameters
         ----------
@@ -1892,25 +2008,24 @@ class Booster(object):
                                               ctypes.byref(cptr)))
         return ctypes2buffer(cptr, length.value)
 
-    def load_model(self, fname):
+    def load_model(self, fname: Union[str, bytearray, os.PathLike]) -> None:
         """Load the model from a file or bytearray. Path to file can be local
         or as an URI.
 
-        The model is loaded from XGBoost format which is universal among the
-        various XGBoost interfaces. Auxiliary attributes of the Python Booster
-        object (such as feature_names) will not be loaded.  See:
-
-          https://xgboost.readthedocs.io/en/latest/tutorials/saving_model.html
-
-        for more info.
+        The model is loaded from XGBoost format which is universal among the various
+        XGBoost interfaces. Auxiliary attributes of the Python Booster object (such as
+        feature_names) will not be loaded when using binary format.  To save those
+        attributes, use JSON instead.  See: `Model IO
+        <https://xgboost.readthedocs.io/en/stable/tutorials/saving_model.html>`_ for more
+        info.
 
         Parameters
         ----------
-        fname : string, os.PathLike, or a memory buffer
+        fname :
             Input file name or memory buffer(see also save_raw)
 
         """
-        if isinstance(fname, (STRING_TYPES, os.PathLike)):
+        if isinstance(fname, (str, os.PathLike)):
             # assume file name, cannot use os.path.exist to check, file can be
             # from URL.
             fname = os.fspath(os.path.expanduser(fname))
@@ -2247,7 +2362,7 @@ class Booster(object):
         # pylint: disable=no-member
         return df.sort(['Tree', 'Node']).reset_index(drop=True)
 
-    def _validate_features(self, data):
+    def _validate_features(self, data: DMatrix):
         """
         Validate Booster and data's feature_names are identical.
         Set feature_names and feature_types from DMatrix
@@ -2258,24 +2373,27 @@ class Booster(object):
         if self.feature_names is None:
             self.feature_names = data.feature_names
             self.feature_types = data.feature_types
-        else:
-            # Booster can't accept data with different feature names
-            if self.feature_names != data.feature_names:
-                dat_missing = set(self.feature_names) - set(data.feature_names)
-                my_missing = set(data.feature_names) - set(self.feature_names)
+        if data.feature_names is None and self.feature_names is not None:
+            raise ValueError(
+                "training data did not have the following fields: " +
+                ", ".join(self.feature_names)
+            )
+        # Booster can't accept data with different feature names
+        if self.feature_names != data.feature_names:
+            dat_missing = set(self.feature_names) - set(data.feature_names)
+            my_missing = set(data.feature_names) - set(self.feature_names)
 
-                msg = 'feature_names mismatch: {0} {1}'
+            msg = 'feature_names mismatch: {0} {1}'
 
-                if dat_missing:
-                    msg += ('\nexpected ' + ', '.join(
-                        str(s) for s in dat_missing) + ' in input data')
+            if dat_missing:
+                msg += ('\nexpected ' + ', '.join(
+                    str(s) for s in dat_missing) + ' in input data')
 
-                if my_missing:
-                    msg += ('\ntraining data did not have the following fields: ' +
-                            ', '.join(str(s) for s in my_missing))
+            if my_missing:
+                msg += ('\ntraining data did not have the following fields: ' +
+                        ', '.join(str(s) for s in my_missing))
 
-                raise ValueError(msg.format(self.feature_names,
-                                            data.feature_names))
+            raise ValueError(msg.format(self.feature_names, data.feature_names))
 
     def get_split_value_histogram(self, feature, fmap='', bins=None,
                                   as_pandas=True):

@@ -91,9 +91,6 @@ BatchSet<EllpackPage> SimpleDMatrix::GetEllpackBatches(const BatchParam& param) 
 
 template <typename AdapterT>
 SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
-  // Set number of threads but keep old value so we can reset it after
-  int nthread_original = common::OmpSetNumThreadsWithoutHT(&nthread);
-
   std::vector<uint64_t> qids;
   uint64_t default_max = std::numeric_limits<uint64_t>::max();
   uint64_t last_group_id = default_max;
@@ -184,7 +181,6 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
     info_.num_row_ = adapter->NumRows();
   }
   info_.num_nonzero_ = data_vec.size();
-  omp_set_num_threads(nthread_original);
 }
 
 SimpleDMatrix::SimpleDMatrix(dmlc::Stream* in_stream) {

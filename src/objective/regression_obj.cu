@@ -19,6 +19,7 @@
 
 #include "../common/transform.h"
 #include "../common/common.h"
+#include "../common/threading_utils.h"
 #include "./regression_loss.h"
 
 
@@ -345,10 +346,9 @@ class CoxRegression : public ObjFunction {
   void PredTransform(HostDeviceVector<bst_float> *io_preds) override {
     std::vector<bst_float> &preds = io_preds->HostVector();
     const long ndata = static_cast<long>(preds.size()); // NOLINT(*)
-#pragma omp parallel for schedule(static)
-    for (long j = 0; j < ndata; ++j) {  // NOLINT(*)
+    common::ParallelFor(ndata, [&](long j) { // NOLINT(*)
       preds[j] = std::exp(preds[j]);
-    }
+    });
   }
   void EvalTransform(HostDeviceVector<bst_float> *io_preds) override {
     PredTransform(io_preds);
@@ -404,7 +404,7 @@ class GammaRegression : public ObjFunction {
           bst_float p = _preds[_idx];
           bst_float w = is_null_weight ? 1.0f : _weights[_idx];
           bst_float y = _labels[_idx];
-          if (y < 0.0f) {
+          if (y <= 0.0f) {
             _label_correct[0] = 0;
           }
           _out_gpair[_idx] = GradientPair((1 - y / expf(p)) * w, y / expf(p) * w);
@@ -416,7 +416,7 @@ class GammaRegression : public ObjFunction {
     std::vector<int>& label_correct_h = label_correct_.HostVector();
     for (auto const flag : label_correct_h) {
       if (flag == 0) {
-        LOG(FATAL) << "GammaRegression: label must be nonnegative";
+        LOG(FATAL) << "GammaRegression: label must be positive.";
       }
     }
   }

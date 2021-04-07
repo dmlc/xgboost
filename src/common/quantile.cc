@@ -35,7 +35,7 @@ HostSketchContainer::CalcColumnSize(SparsePage const &batch,
     column.resize(n_columns, 0);
   }
 
-  ParallelFor(page.Size(), nthreads, [&](size_t i) {
+  ParallelFor(omp_ulong(page.Size()), nthreads, [&](omp_ulong i) {
     auto &local_column_sizes = column_sizes.at(omp_get_thread_num());
     auto row = page[i];
     auto const *p_row = row.data();
@@ -44,7 +44,7 @@ HostSketchContainer::CalcColumnSize(SparsePage const &batch,
     }
   });
   std::vector<bst_row_t> entries_per_columns(n_columns, 0);
-  ParallelFor(n_columns, nthreads, [&](size_t i) {
+  ParallelFor(bst_omp_uint(n_columns), nthreads, [&](bst_omp_uint i) {
     for (auto const &thread : column_sizes) {
       entries_per_columns[i] += thread[i];
     }
@@ -99,15 +99,15 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
   std::vector<bst_uint> const &group_ptr = info.group_ptr_;
   // Use group index for weights?
   auto batch = page.GetView();
-  dmlc::OMPException exec;
   // Parallel over columns.  Each thread owns a set of consecutive columns.
   auto const ncol = static_cast<uint32_t>(info.num_col_);
   auto const is_dense = info.num_nonzero_ == info.num_col_ * info.num_row_;
   auto thread_columns_ptr = LoadBalance(page, info.num_col_, nthread);
 
+  dmlc::OMPException exc;
 #pragma omp parallel num_threads(nthread)
   {
-    exec.Run([&]() {
+    exc.Run([&]() {
       auto tid = static_cast<uint32_t>(omp_get_thread_num());
       auto const begin = thread_columns_ptr[tid];
       auto const end = thread_columns_ptr[tid + 1];
@@ -140,7 +140,7 @@ void HostSketchContainer::PushRowPage(SparsePage const &page,
       }
     });
   }
-  exec.Rethrow();
+  exc.Rethrow();
   monitor_.Stop(__func__);
 }
 
@@ -242,7 +242,7 @@ size_t nbytes = 0;
                          &global_sketches);
 
   std::vector<WQSketch::SummaryContainer> final_sketches(n_columns);
-  ParallelFor(n_columns, omp_get_max_threads(), [&](size_t fidx) {
+  ParallelFor(omp_ulong(n_columns), [&](omp_ulong fidx) {
     int32_t intermediate_num_cuts = num_cuts[fidx];
     auto nbytes =
         WQSketch::SummaryContainer::CalcMemCost(intermediate_num_cuts);

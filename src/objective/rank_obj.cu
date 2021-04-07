@@ -293,7 +293,7 @@ class NDCGLambdaWeightComputer
                                              group_segments)),
                             thrust::make_discard_iterator(),  // We don't care for the group indices
                             dgroup_dcg_.begin());  // Sum of the item's DCG values in the group
-    CHECK(static_cast<unsigned>(end_range.second - dgroup_dcg_.begin()) == dgroup_dcg_.size());
+    CHECK_EQ(static_cast<unsigned>(end_range.second - dgroup_dcg_.begin()), dgroup_dcg_.size());
   }
 
   inline const common::Span<const float> GetGroupDcgsSpan() const {
@@ -823,72 +823,80 @@ class LambdaRankObj : public ObjFunction {
     const auto ngroup = static_cast<bst_omp_uint>(gptr.size() - 1);
     out_gpair->Resize(preds.Size());
 
+    dmlc::OMPException exc;
     #pragma omp parallel
     {
-      // parallel construct, declare random number generator here, so that each
-      // thread use its own random number generator, seed by thread id and current iteration
-      std::minstd_rand rnd((iter + 1) * 1111);
-      std::vector<LambdaPair> pairs;
-      std::vector<ListEntry>  lst;
-      std::vector< std::pair<bst_float, unsigned> > rec;
+      exc.Run([&]() {
+        // parallel construct, declare random number generator here, so that each
+        // thread use its own random number generator, seed by thread id and current iteration
+        std::minstd_rand rnd((iter + 1) * 1111);
+        std::vector<LambdaPair> pairs;
+        std::vector<ListEntry>  lst;
+        std::vector< std::pair<bst_float, unsigned> > rec;
 
-      #pragma omp for schedule(static)
-      for (bst_omp_uint k = 0; k < ngroup; ++k) {
-        lst.clear(); pairs.clear();
-        for (unsigned j = gptr[k]; j < gptr[k+1]; ++j) {
-          lst.emplace_back(preds_h[j], labels[j], j);
-          gpair[j] = GradientPair(0.0f, 0.0f);
-        }
-        std::stable_sort(lst.begin(), lst.end(), ListEntry::CmpPred);
-        rec.resize(lst.size());
-        for (unsigned i = 0; i < lst.size(); ++i) {
-          rec[i] = std::make_pair(lst[i].label, i);
-        }
-        std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
-        // enumerate buckets with same label, for each item in the lst, grab another sample randomly
-        for (unsigned i = 0; i < rec.size(); ) {
-          unsigned j = i + 1;
-          while (j < rec.size() && rec[j].first == rec[i].first) ++j;
-          // bucket in [i,j), get a sample outside bucket
-          unsigned nleft = i, nright = static_cast<unsigned>(rec.size() - j);
-          if (nleft + nright != 0) {
-            int nsample = param_.num_pairsample;
-            while (nsample --) {
-              for (unsigned pid = i; pid < j; ++pid) {
-                unsigned ridx = std::uniform_int_distribution<unsigned>(0, nleft + nright - 1)(rnd);
-                if (ridx < nleft) {
-                  pairs.emplace_back(rec[ridx].second, rec[pid].second,
-                      info.GetWeight(k) * weight_normalization_factor);
-                } else {
-                  pairs.emplace_back(rec[pid].second, rec[ridx+j-i].second,
-                      info.GetWeight(k) * weight_normalization_factor);
+        #pragma omp for schedule(static)
+        for (bst_omp_uint k = 0; k < ngroup; ++k) {
+          exc.Run([&]() {
+            lst.clear(); pairs.clear();
+            for (unsigned j = gptr[k]; j < gptr[k+1]; ++j) {
+              lst.emplace_back(preds_h[j], labels[j], j);
+              gpair[j] = GradientPair(0.0f, 0.0f);
+            }
+            std::stable_sort(lst.begin(), lst.end(), ListEntry::CmpPred);
+            rec.resize(lst.size());
+            for (unsigned i = 0; i < lst.size(); ++i) {
+              rec[i] = std::make_pair(lst[i].label, i);
+            }
+            std::stable_sort(rec.begin(), rec.end(), common::CmpFirst);
+            // enumerate buckets with same label
+            // for each item in the lst, grab another sample randomly
+            for (unsigned i = 0; i < rec.size(); ) {
+              unsigned j = i + 1;
+              while (j < rec.size() && rec[j].first == rec[i].first) ++j;
+              // bucket in [i,j), get a sample outside bucket
+              unsigned nleft = i, nright = static_cast<unsigned>(rec.size() - j);
+              if (nleft + nright != 0) {
+                int nsample = param_.num_pairsample;
+                while (nsample --) {
+                  for (unsigned pid = i; pid < j; ++pid) {
+                    unsigned ridx =
+                        std::uniform_int_distribution<unsigned>(0, nleft + nright - 1)(rnd);
+                    if (ridx < nleft) {
+                      pairs.emplace_back(rec[ridx].second, rec[pid].second,
+                          info.GetWeight(k) * weight_normalization_factor);
+                    } else {
+                      pairs.emplace_back(rec[pid].second, rec[ridx+j-i].second,
+                          info.GetWeight(k) * weight_normalization_factor);
+                    }
+                  }
                 }
               }
+              i = j;
             }
-          }
-          i = j;
+            // get lambda weight for the pairs
+            LambdaWeightComputerT::GetLambdaWeight(lst, &pairs);
+            // rescale each gradient and hessian so that the lst have constant weighted
+            float scale = 1.0f / param_.num_pairsample;
+            if (param_.fix_list_weight != 0.0f) {
+              scale *= param_.fix_list_weight / (gptr[k + 1] - gptr[k]);
+            }
+            for (auto & pair : pairs) {
+              const ListEntry &pos = lst[pair.pos_index];
+              const ListEntry &neg = lst[pair.neg_index];
+              const bst_float w = pair.weight * scale;
+              const float eps = 1e-16f;
+              bst_float p = common::Sigmoid(pos.pred - neg.pred);
+              bst_float g = p - 1.0f;
+              bst_float h = std::max(p * (1.0f - p), eps);
+              // accumulate gradient and hessian in both pid, and nid
+              gpair[pos.rindex] += GradientPair(g * w, 2.0f*w*h);
+              gpair[neg.rindex] += GradientPair(-g * w, 2.0f*w*h);
+            }
+          });
         }
-        // get lambda weight for the pairs
-        LambdaWeightComputerT::GetLambdaWeight(lst, &pairs);
-        // rescale each gradient and hessian so that the lst have constant weighted
-        float scale = 1.0f / param_.num_pairsample;
-        if (param_.fix_list_weight != 0.0f) {
-          scale *= param_.fix_list_weight / (gptr[k + 1] - gptr[k]);
-        }
-        for (auto & pair : pairs) {
-          const ListEntry &pos = lst[pair.pos_index];
-          const ListEntry &neg = lst[pair.neg_index];
-          const bst_float w = pair.weight * scale;
-          const float eps = 1e-16f;
-          bst_float p = common::Sigmoid(pos.pred - neg.pred);
-          bst_float g = p - 1.0f;
-          bst_float h = std::max(p * (1.0f - p), eps);
-          // accumulate gradient and hessian in both pid, and nid
-          gpair[pos.rindex] += GradientPair(g * w, 2.0f*w*h);
-          gpair[neg.rindex] += GradientPair(-g * w, 2.0f*w*h);
-        }
-      }
+      });
     }
+    exc.Rethrow();
   }
 
 #if defined(__CUDACC__)

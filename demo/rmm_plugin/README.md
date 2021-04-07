@@ -27,5 +27,21 @@ cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON -DCMAKE_PREFIX_PATH=$CONDA_
 cmake .. -DUSE_CUDA=ON -DUSE_NCCL=ON -DPLUGIN_RMM=ON -DCMAKE_PREFIX_PATH=/path/to/rmm
 ```
 
+# Informing XGBoost about RMM pool
+
+When XGBoost is compiled with RMM, most of the large size allocation will go through RMM
+allocators, but some small allocations in performance critical areas are using a different
+caching allocator so that we can have better control over memory allocation behavior.
+Users can override this behavior and force the use of rmm for all allocations by setting
+the global configuration ``use_rmm``:
+
+``` python
+with xgb.config_context(use_rmm=True):
+    clf = xgb.XGBClassifier(tree_method="gpu_hist")
+```
+
+Depending on the choice of memory pool size or type of allocator, this may have negative
+performance impact.
+
 * [Using RMM with a single GPU](./rmm_singlegpu.py)
 * [Using RMM with a local Dask cluster consisting of multiple GPUs](./rmm_mgpu_with_dask.py)

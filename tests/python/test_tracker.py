@@ -27,7 +27,7 @@ def run_rabit_ops(client, n_workers):
     from xgboost.dask import RabitContext, _get_rabit_args
     from xgboost import rabit
 
-    workers = list(_get_client_workers(client).keys())
+    workers = _get_client_workers(client)
     rabit_args = client.sync(_get_rabit_args, len(workers), client)
     assert not rabit.is_distributed()
     n_workers_from_dask = len(workers)

@@ -78,4 +78,26 @@ class ParameterSuite extends FunSuite with PerTest with BeforeAndAfterAll {
       waitForSparkContextShutdown()
     }
   }
+
+  test("custom_eval does not support early stopping") {
+    val paramMap = Map("eta" -> "0.1", "custom_eval" -> new EvalError, "silent" -> "1",
+      "objective" -> "multi:softmax", "num_class" -> "6", "num_round" -> 5,
+      "num_workers" -> numWorkers, "num_early_stopping_rounds" -> 2)
+    val trainingDF = buildDataFrame(MultiClassification.train)
+
+    val thrown = intercept[IllegalArgumentException] {
+      new XGBoostClassifier(paramMap).fit(trainingDF)
+    }
+
+    assert(thrown.getMessage.contains("custom_eval does not support early stopping"))
+  }
+
+  test("early stopping should work without custom_eval setting") {
+    val paramMap = Map("eta" -> "0.1", "silent" -> "1",
+      "objective" -> "multi:softmax", "num_class" -> "6", "num_round" -> 5,
+      "num_workers" -> numWorkers, "num_early_stopping_rounds" -> 2)
+    val trainingDF = buildDataFrame(MultiClassification.train)
+
+    new XGBoostClassifier(paramMap).fit(trainingDF)
+  }
 }

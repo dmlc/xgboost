@@ -9,6 +9,8 @@ import scipy
 import json
 from typing import List, Tuple, Dict, Optional, Type, Any
 import asyncio
+from functools import partial
+from concurrent.futures import ThreadPoolExecutor
 import tempfile
 from sklearn.datasets import make_classification
 import sklearn
@@ -43,9 +45,9 @@ kCols = 10
 kWorkers = 5
 
 
-def _get_client_workers(client: "Client") -> Dict[str, Dict]:
+def _get_client_workers(client: "Client") -> List[str]:
     workers = client.scheduler_info()['workers']
-    return workers
+    return list(workers.keys())
 
 
 def generate_array(
@@ -316,14 +318,17 @@ def run_dask_classifier(
     w: xgb.dask._DaskCollection,
     model: str,
     client: "Client",
+    n_classes,
 ) -> None:
+    metric = "merror" if n_classes > 2 else "logloss"
+
     if model == "boosting":
         classifier = xgb.dask.DaskXGBClassifier(
-            verbosity=1, n_estimators=2, eval_metric="merror"
+            verbosity=1, n_estimators=2, eval_metric=metric
         )
     else:
         classifier = xgb.dask.DaskXGBRFClassifier(
-            verbosity=1, n_estimators=2, eval_metric="merror"
+            verbosity=1, n_estimators=2, eval_metric=metric
         )
 
     assert classifier._estimator_type == "classifier"
@@ -341,7 +346,7 @@ def run_dask_classifier(
     assert isinstance(history, dict)
 
     assert list(history.keys())[0] == "validation_0"
-    assert list(history["validation_0"].keys())[0] == "merror"
+    assert list(history["validation_0"].keys())[0] == metric
     assert len(list(history["validation_0"])) == 1
     forest = int(
         json.loads(classifier.get_booster().save_config())["learner"][
@@ -349,34 +354,35 @@ def run_dask_classifier(
         ]["gbtree_train_param"]["num_parallel_tree"]
     )
     if model == "boosting":
-        assert len(history["validation_0"]["merror"]) == 2
+        assert len(history["validation_0"][metric]) == 2
         assert forest == 1
     else:
-        assert len(history["validation_0"]["merror"]) == 1
+        assert len(history["validation_0"][metric]) == 1
         assert forest == 2
 
     # Test .predict_proba()
     probas = classifier.predict_proba(X).compute()
-    assert classifier.n_classes_ == 10
+    assert classifier.n_classes_ == n_classes
     assert probas.ndim == 2
     assert probas.shape[0] == kRows
-    assert probas.shape[1] == 10
+    assert probas.shape[1] == n_classes
 
-    cls_booster = classifier.get_booster()
-    single_node_proba = cls_booster.inplace_predict(X.compute())
+    if n_classes > 2:
+        cls_booster = classifier.get_booster()
+        single_node_proba = cls_booster.inplace_predict(X.compute())
 
-    # test shared by CPU and GPU
-    if isinstance(single_node_proba, np.ndarray):
-        np.testing.assert_allclose(single_node_proba, probas)
-    else:
-        import cupy
-        cupy.testing.assert_allclose(single_node_proba, probas)
+        # test shared by CPU and GPU
+        if isinstance(single_node_proba, np.ndarray):
+            np.testing.assert_allclose(single_node_proba, probas)
+        else:
+            import cupy
+            cupy.testing.assert_allclose(single_node_proba, probas)
 
     # Test with dataframe, not shared with GPU as cupy doesn't work well with da.unique.
-    if isinstance(X, da.Array):
+    if isinstance(X, da.Array) and n_classes > 2:
         X_d: dd.DataFrame = X.to_dask_dataframe()
 
-        assert classifier.n_classes_ == 10
+        assert classifier.n_classes_ == n_classes
         prediction_df = classifier.predict(X_d).compute()
 
         assert prediction_df.ndim == 1
@@ -391,7 +397,12 @@ def run_dask_classifier(
 def test_dask_classifier(model: str, client: "Client") -> None:
     X, y, w = generate_array(with_weights=True)
     y = (y * 10).astype(np.int32)
-    run_dask_classifier(X, y, w, model, client)
+    run_dask_classifier(X, y, w, model, client, 10)
+
+    y_bin = y.copy()
+    y_bin[y > 5] = 1.0
+    y_bin[y <= 5] = 0.0
+    run_dask_classifier(X, y_bin, w, model, client, 2)
 
 
 @pytest.mark.skipif(**tm.no_sklearn())
@@ -527,9 +538,106 @@ def run_empty_dmatrix_cls(client: "Client", parameters: dict) -> None:
     _check_outputs(out, predictions)
 
 
+def run_empty_dmatrix_auc(client: "Client", tree_method: str, n_workers: int) -> None:
+    from sklearn import datasets
+    n_samples = 100
+    n_features = 97
+    rng = np.random.RandomState(1994)
+
+    make_classification = partial(
+        datasets.make_classification,
+        n_features=n_features,
+        random_state=rng
+    )
+
+    # binary
+    X_, y_ = make_classification(n_samples=n_samples, random_state=rng)
+    X = dd.from_array(X_, chunksize=10)
+    y = dd.from_array(y_, chunksize=10)
+
+    n_samples = n_workers - 1
+    valid_X_, valid_y_ = make_classification(n_samples=n_samples, random_state=rng)
+    valid_X = dd.from_array(valid_X_, chunksize=n_samples)
+    valid_y = dd.from_array(valid_y_, chunksize=n_samples)
+
+    cls = xgb.dask.DaskXGBClassifier(
+        tree_method=tree_method, n_estimators=2, use_label_encoder=False
+    )
+    cls.fit(X, y, eval_metric="auc", eval_set=[(valid_X, valid_y)])
+
+    # multiclass
+    X_, y_ = make_classification(
+        n_samples=n_samples,
+        n_classes=10,
+        n_informative=n_features,
+        n_redundant=0,
+        n_repeated=0
+    )
+    X = dd.from_array(X_, chunksize=10)
+    y = dd.from_array(y_, chunksize=10)
+
+    n_samples = n_workers - 1
+    valid_X_, valid_y_ = make_classification(
+        n_samples=n_samples,
+        n_classes=10,
+        n_informative=n_features,
+        n_redundant=0,
+        n_repeated=0
+    )
+    valid_X = dd.from_array(valid_X_, chunksize=n_samples)
+    valid_y = dd.from_array(valid_y_, chunksize=n_samples)
+
+    cls = xgb.dask.DaskXGBClassifier(
+        tree_method=tree_method, n_estimators=2, use_label_encoder=False
+    )
+    cls.fit(X, y, eval_metric="auc", eval_set=[(valid_X, valid_y)])
+
+
+def test_empty_dmatrix_auc() -> None:
+    with LocalCluster(n_workers=2) as cluster:
+        with Client(cluster) as client:
+            run_empty_dmatrix_auc(client, "hist", 2)
+
+
+def run_auc(client: "Client", tree_method: str) -> None:
+    from sklearn import datasets
+    n_samples = 100
+    n_features = 97
+    rng = np.random.RandomState(1994)
+    X_, y_ = datasets.make_classification(
+        n_samples=n_samples, n_features=n_features, random_state=rng
+    )
+    X = dd.from_array(X_, chunksize=10)
+    y = dd.from_array(y_, chunksize=10)
+
+    valid_X_, valid_y_ = datasets.make_classification(
+        n_samples=n_samples, n_features=n_features, random_state=rng
+    )
+    valid_X = dd.from_array(valid_X_, chunksize=10)
+    valid_y = dd.from_array(valid_y_, chunksize=10)
+
+    cls = xgb.XGBClassifier(
+        tree_method=tree_method, n_estimators=2, use_label_encoder=False
+    )
+    cls.fit(X_, y_, eval_metric="auc", eval_set=[(valid_X_, valid_y_)])
+
+    dcls = xgb.dask.DaskXGBClassifier(
+        tree_method=tree_method, n_estimators=2, use_label_encoder=False
+    )
+    dcls.fit(X, y, eval_metric="auc", eval_set=[(valid_X, valid_y)])
+
+    approx = dcls.evals_result()["validation_0"]["auc"]
+    exact = cls.evals_result()["validation_0"]["auc"]
+    for i in range(2):
+        # approximated test.
+        assert np.abs(approx[i] - exact[i]) <= 0.06
+
+
+def test_auc(client: "Client") -> None:
+    run_auc(client, "hist")
+
 # No test for Exact, as empty DMatrix handling are mostly for distributed
 # environment and Exact doesn't support it.
-
 def test_empty_dmatrix_hist() -> None:
     with LocalCluster(n_workers=kWorkers) as cluster:
         with Client(cluster) as client:
@@ -563,9 +671,7 @@ async def run_from_dask_array_asyncio(scheduler_address: str) -> xgb.dask.TrainR
                                    await client.compute(with_X))
         np.testing.assert_allclose(await client.compute(with_m),
                                    await client.compute(inplace))
-
-        client.shutdown()
-        return output
+    return output
 
 
 async def run_dask_regressor_asyncio(scheduler_address: str) -> None:
@@ -645,6 +751,25 @@ def test_with_asyncio() -> None:
 
             asyncio.run(run_dask_regressor_asyncio(address))
             asyncio.run(run_dask_classifier_asyncio(address))
+
+
+async def generate_concurrent_trainings() -> None:
+    async def train() -> None:
+        async with LocalCluster(n_workers=2,
+                                threads_per_worker=1,
+                                asynchronous=True,
+                                dashboard_address=0) as cluster:
+            async with Client(cluster, asynchronous=True) as client:
+                X, y, w = generate_array(with_weights=True)
+                dtrain = await DaskDMatrix(client, X, y, weight=w)
+                dvalid = await DaskDMatrix(client, X, y, weight=w)
+                output = await xgb.dask.train(client, {}, dtrain=dtrain)
+                await xgb.dask.predict(client, output, data=dvalid)
+    await asyncio.gather(train(), train())
+
+
+def test_concurrent_trainings() -> None:
+    asyncio.run(generate_concurrent_trainings())
 
 
 def test_predict(client: "Client") -> None:
@@ -817,9 +942,15 @@ def test_dask_predict_leaf(booster: str, client: "Client") -> None:
 
 
 class TestWithDask:
-    def test_global_config(self, client: "Client") -> None:
+    @pytest.mark.parametrize('config_key,config_value', [('verbosity', 0), ('use_rmm', True)])
+    def test_global_config(
+            self,
+            client: "Client",
+            config_key: str,
+            config_value: Any
+    ) -> None:
         X, y, _ = generate_array()
-        xgb.config.set_config(verbosity=0)
+        xgb.config.set_config(**{config_key: config_value})
         dtrain = DaskDMatrix(client, X, y)
         before_fname = './before_training-test_global_config'
         after_fname = './after_training-test_global_config'
@@ -827,36 +958,36 @@ class TestWithDask:
         class TestCallback(xgb.callback.TrainingCallback):
             def write_file(self, fname: str) -> None:
                 with open(fname, 'w') as fd:
-                    fd.write(str(xgb.config.get_config()['verbosity']))
+                    fd.write(str(xgb.config.get_config()[config_key]))
 
             def before_training(self, model: xgb.Booster) -> xgb.Booster:
                 self.write_file(before_fname)
-                assert xgb.config.get_config()['verbosity'] == 0
+                assert xgb.config.get_config()[config_key] == config_value
                 return model
 
             def after_training(self, model: xgb.Booster) -> xgb.Booster:
-                assert xgb.config.get_config()['verbosity'] == 0
+                assert xgb.config.get_config()[config_key] == config_value
                 return model
 
             def before_iteration(
                     self, model: xgb.Booster, epoch: int, evals_log: Dict
             ) -> bool:
-                assert xgb.config.get_config()['verbosity'] == 0
+                assert xgb.config.get_config()[config_key] == config_value
                 return False
 
             def after_iteration(
                     self, model: xgb.Booster, epoch: int, evals_log: Dict
             ) -> bool:
                 self.write_file(after_fname)
-                assert xgb.config.get_config()['verbosity'] == 0
+                assert xgb.config.get_config()[config_key] == config_value
                 return False
 
         xgb.dask.train(client, {}, dtrain, num_boost_round=4, callbacks=[TestCallback()])[
             'booster']
 
         with open(before_fname, 'r') as before, open(after_fname, 'r') as after:
-            assert before.read() == '0'
-            assert after.read() == '0'
+            assert before.read() == str(config_value)
+            assert after.read() == str(config_value)
 
         os.remove(before_fname)
         os.remove(after_fname)
@@ -944,7 +1075,7 @@ class TestWithDask:
 
         with LocalCluster(n_workers=4) as cluster:
             with Client(cluster) as client:
-                workers = list(_get_client_workers(client).keys())
+                workers = _get_client_workers(client)
                 rabit_args = client.sync(
                     xgb.dask._get_rabit_args, len(workers), client)
                 futures = client.map(runit,
@@ -977,7 +1108,7 @@ class TestWithDask:
     def test_n_workers(self) -> None:
         with LocalCluster(n_workers=2) as cluster:
             with Client(cluster) as client:
-                workers = list(_get_client_workers(client).keys())
+                workers = _get_client_workers(client)
                 from sklearn.datasets import load_breast_cancer
                 X, y = load_breast_cancer(return_X_y=True)
                 dX = client.submit(da.from_array, X, workers=[workers[0]]).result()
@@ -1067,7 +1198,7 @@ class TestWithDask:
                 X, y, _ = generate_array()
                 n_partitions = X.npartitions
                 m = xgb.dask.DaskDMatrix(client, X, y)
-                workers = list(_get_client_workers(client).keys())
+                workers = _get_client_workers(client)
                 rabit_args = client.sync(xgb.dask._get_rabit_args, len(workers), client)
                 n_workers = len(workers)
 
@@ -1260,6 +1391,82 @@ def test_dask_unsupported_features(client: "Client") -> None:
         xgb.dask.train(
             client, {"booster": "gblinear"}, xgb.dask.DaskDMatrix(client, X, y)
         )
+
+
+def test_parallel_submits(client: "Client") -> None:
+    """Test for running multiple train simultaneously from single clients."""
+    try:
+        from distributed import MultiLock  # NOQA
+    except ImportError:
+        pytest.skip("`distributed.MultiLock' is not available")
+
+    from sklearn.datasets import load_digits
+
+    futures = []
+    workers = _get_client_workers(client)
+    n_submits = len(workers)
+    for i in range(n_submits):
+        X_, y_ = load_digits(return_X_y=True)
+        X = dd.from_array(X_, chunksize=32)
+        y = dd.from_array(y_, chunksize=32)
+        cls = xgb.dask.DaskXGBClassifier(
+            verbosity=1,
+            n_estimators=i + 1,
+            eval_metric="merror",
+            use_label_encoder=False,
+        )
+        f = client.submit(cls.fit, X, y, pure=False)
+        futures.append(f)
+
+    classifiers = client.gather(futures)
+    assert len(classifiers) == n_submits
+    for i, cls in enumerate(classifiers):
+        assert cls.get_booster().num_boosted_rounds() == i + 1
+
+
+def test_parallel_submit_multi_clients() -> None:
+    """Test for running multiple train simultaneously from multiple clients."""
+    try:
+        from distributed import MultiLock  # NOQA
+    except ImportError:
+        pytest.skip("`distributed.MultiLock' is not available")
+
+    from sklearn.datasets import load_digits
+
+    with LocalCluster(n_workers=4) as cluster:
+        with Client(cluster) as client:
+            workers = _get_client_workers(client)
+
+        n_submits = len(workers)
+        assert n_submits == 4
+        futures = []
+
+        for i in range(n_submits):
+            client = Client(cluster)
+            X_, y_ = load_digits(return_X_y=True)
+            X_ += 1.0
+            X = dd.from_array(X_, chunksize=32)
+            y = dd.from_array(y_, chunksize=32)
+            cls = xgb.dask.DaskXGBClassifier(
+                verbosity=1,
+                n_estimators=i + 1,
+                eval_metric="merror",
+                use_label_encoder=False,
+            )
+            f = client.submit(cls.fit, X, y, pure=False)
+            futures.append((client, f))
+
+        t_futures = []
+        with ThreadPoolExecutor(max_workers=16) as e:
+            for i in range(n_submits):
+                def _() -> xgb.dask.DaskXGBClassifier:
+                    return futures[i][0].compute(futures[i][1]).result()
+
+                f = e.submit(_)
+                t_futures.append(f)
+
+        for i, f in enumerate(t_futures):
+            assert f.result().get_booster().num_boosted_rounds() == i + 1
 
 
 class TestDaskCallbacks:

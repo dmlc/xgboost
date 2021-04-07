@@ -203,7 +203,7 @@ endif (HIDE_CXX_SYMBOLS)
 
 target_include_directories(xgboost
   INTERFACE
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
+  $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
 
 # This creates its own shared library `xgboost4j'.
