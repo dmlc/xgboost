@@ -1793,7 +1793,6 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
     ) -> _DaskCollection:
         predts = await super()._predict_async(
             data=X,
-            output_margin=self.objective == "multi:softmax",
             validate_features=validate_features,
             base_margin=base_margin,
             iteration_range=iteration_range,
@@ -1801,7 +1800,9 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
         vstack = update_wrapper(
             partial(da.vstack, allow_unknown_chunksizes=True), da.vstack
         )
-        return _cls_predict_proba(getattr(self, "n_classes_", None), predts, vstack)
+        return _cls_predict_proba(
+            self.objective, getattr(self, "n_classes_", None), predts, vstack
+        )
 
     # pylint: disable=missing-function-docstring
     def predict_proba(

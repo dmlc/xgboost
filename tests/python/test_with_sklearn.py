@@ -91,6 +91,12 @@ def test_multiclass_classification():
     assert proba.shape[0] == X.shape[0]
     assert proba.shape[1] == cls.n_classes_
 
+    cls = xgb.XGBClassifier(
+        objective="multi:softmax", n_estimators=1, use_label_encoder=False
+    )
+    cls.fit(X, y)
+    assert cls.objective == "multi:softprob"
+
 
 def test_best_ntree_limit():
     from sklearn.datasets import load_iris

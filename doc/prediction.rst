@@ -32,8 +32,8 @@ After 1.4 release, we added a new parameter called ``strict_shape``, one can set
 - When using ``output_margin`` to avoid transformation and ``strict_shape`` is set to ``True``:
 
   Similar to the previous case, output is a 2-dim array, except for that ``multi:softmax``
-  has equivalent output of ``multi:softprob`` due to dropped transformation.  If strict
-  shape is set to False then output can have 1 or 2 dim depending on used model.
+  has equivalent output shape of ``multi:softprob`` due to dropped transformation.  If
+  strict shape is set to False then output can have 1 or 2 dim depending on used model.
 
 - When using ``preds_contribs`` with ``strict_shape`` set to ``True``:
 
