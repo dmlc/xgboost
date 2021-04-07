@@ -96,6 +96,14 @@ def test_multiclass_classification():
     )
     cls.fit(X, y)
     assert cls.objective == "multi:softprob"
+    cls.set_params(objective="multi:softmax")
+    classes_by_softprob = cls.predict(X)
+
+    with pytest.raises(ValueError):
+        cls.predict_proba(X)
+
+    classes_by_softmax = cls.predict(X)
+    np.testing.assert_allclose(classes_by_softprob, classes_by_softmax)
 
 
 def test_best_ntree_limit():
