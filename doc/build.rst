@@ -2,18 +2,15 @@
 Installation Guide
 ##################
 
-.. note:: Pre-built binary wheel for Python
+.. note:: Pre-built binary wheel for Python: now with GPU support
 
-  If you are planning to use Python, consider installing XGBoost from a pre-built binary wheel, available from Python Package Index (PyPI). You may download and install it by running
+  If you are planning to use Python, consider installing XGBoost from a pre-built binary wheel, to avoid the trouble of building XGBoost from the source. You may download and install it by running
 
   .. code-block:: bash
 
-    # Ensure that you are downloading one of the following:
-    #   * xgboost-{version}-py2.py3-none-manylinux1_x86_64.whl
-    #   * xgboost-{version}-py2.py3-none-win_amd64.whl
     pip3 install xgboost
 
-  * The binary wheel will support GPU algorithms (`gpu_hist`) on machines with NVIDIA GPUs. Please note that **training with multiple GPUs is only supported for Linux platform**. See :doc:`gpu/index`.
+  * The binary wheel will support the GPU algorithm (``gpu_hist``) on machines with NVIDIA GPUs. Please note that **training with multiple GPUs is only supported for Linux platform**. See :doc:`gpu/index`.
   * Currently, we provide binary wheels for 64-bit Linux, macOS and Windows.
   * Nightly builds are available. You can go to `this page
     <https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/list.html>`_, find the
@@ -22,6 +19,21 @@ Installation Guide
     .. code-block:: bash
 
       pip install <url to the wheel>
+
+.. note:: (EXPERIMENTAL) Pre-built binary package for R: now with GPU support
+
+  If you are planning to use R, consider installing ``{xgboost}`` from a pre-built binary package, to avoid the trouble of building XGBoost from the source. The binary package will let you use the GPU algorithm (``gpu_hist``) out of the box, as long as your machine has NVIDIA GPUs.
+
+  Download the binary package from the Releases page. The file name will be of the form ``xgboost_r_gpu_linux_[version].tar.gz``. Then install XGBoost by running:
+
+  .. code-block:: bash
+
+    # Install dependencies
+    R -q -e "install.packages(c('data.table', 'magrittr', 'jsonlite', 'remotes'))"
+    # Install XGBoost
+    R CMD INSTALL ./xgboost_r_gpu_linux.tar.gz
+
+  Currently, we provide the binary package for 64-bit Linux.
 
 
 ****************************

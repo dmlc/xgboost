@@ -65,6 +65,7 @@ pipeline {
             'build-gpu-cuda10.1': { BuildCUDA(cuda_version: '10.1') },
             'build-gpu-cuda10.2': { BuildCUDA(cuda_version: '10.2', build_rmm: true) },
             'build-gpu-cuda11.0': { BuildCUDA(cuda_version: '11.0') },
+            'build-gpu-rpkg': { BuildRPackageWithCUDA(cuda_version: '10.0') },
             'build-jvm-packages-gpu-cuda10.0': { BuildJVMPackagesWithCUDA(spark_version: '3.0.0', cuda_version: '10.0') },
             'build-jvm-packages': { BuildJVMPackages(spark_version: '3.0.0') },
             'build-jvm-doc': { BuildJVMDoc() }
@@ -259,6 +260,24 @@ def BuildCUDA(args) {
       stash name: "xgboost_whl_rmm_cuda${args.cuda_version}", includes: 'python-package/dist/*.whl'
       echo 'Stashing C++ test executable (testxgboost)...'
       stash name: "xgboost_cpp_tests_rmm_cuda${args.cuda_version}", includes: 'build/testxgboost'
+    }
+    deleteDir()
+  }
+}
+
+def BuildRPackageWithCUDA(args) {
+  node('linux && cpu_build') {
+    unstash name: 'srcs'
+    def container_type = 'gpu_build_r_centos6'
+    def docker_binary = "docker"
+    def docker_args = "--build-arg CUDA_VERSION_ARG=10.0"
+    if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('release')) {
+      sh """
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} tests/ci_build/build_r_pkg_with_cuda.sh ${commit_id}
+      """
+      echo 'Uploading R tarball...'
+      path = ("${BRANCH_NAME}" == 'master') ? '' : "${BRANCH_NAME}/"
+      s3Upload bucket: 'xgboost-nightly-builds', path: path, acl: 'PublicRead', includePathPattern:'xgboost_r_gpu_linux_*.tar.gz'
     }
     deleteDir()
   }
