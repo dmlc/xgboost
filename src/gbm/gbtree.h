@@ -278,7 +278,8 @@ class GBTree : public GradientBooster {
       gpu_predictor_.get()
 #endif  // defined(XGBOOST_USE_CUDA)
     };
-    std::string msg{std::string{"Unsupported data type for inplace predict: "} + x.type().name()};
+    std::string msg{std::string{"Unsupported data type for inplace predict: "} +  // NOLINT
+                    x.type().name()};
     if (tparam_.predictor == PredictorType::kAuto) {
       // Try both predictor implementations
       for (auto const &p : predictors) {

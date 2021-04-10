@@ -654,7 +654,7 @@ class GPUPredictor : public xgboost::Predictor {
     bool use_shared = shared_memory_bytes != 0;
     size_t entry_start = 0;
 
-    dh::LaunchKernel{GRID_SIZE, BLOCK_THREADS, shared_memory_bytes}(
+    dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes} (
         PredictKernel<Loader, typename Loader::BatchT>, m,
         d_model.nodes.ConstDeviceSpan(), out_preds->predictions.DeviceSpan(),
         d_model.tree_segments.ConstDeviceSpan(),
