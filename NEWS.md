@@ -5,7 +5,7 @@ This file records the changes in xgboost library in reverse chronological order.
 
 ## v1.4.0 (2021.04.12)
 
-### Prediction
+### Improvements on prediction functions
 We overhauled the underlying prediction functions for C API and Python API with an unified
 interface.  XGBoost has many prediction types including shap value computation and inplace
 prediction.  Starting with 1.4, sklearn interface prediction will use inplace predict by
@@ -14,11 +14,11 @@ and enable GPU acceleration just like ``gbtree``.  Also all prediction functions
 model are now thread safe.  Inplace predict is improved with ``base_margin`` support.  A
 new set of C predict functions are exposed in public interface. (#6777, #6693, #6653,
 #6662, #6648, #6668)
-  * A user visible change is a newly added parameter called ``stric_shape``.  Add
+  * A user visible change is a newly added parameter called ``stric_shape``.  See
     prediction document on our document site for more details.
 
 
-### Dask
+### Improvement on Dask interface
 * Starting with 1.4, dask interface is considered to be feature complete, which means all
   of the models found in single node Python interface are now supported in dask, including
   but not limited to ranking and random forest.  Also the prediction function is
@@ -89,14 +89,14 @@ interface some attributes are now implemented as Python object property with bet
 
 
 ### JVM package
-49c22c23 [jvm-packages] fix early stopping doesn't work even without custom_eval setting (#6738)
-9d2832a3 fix potential TaskFailedListener's callback won't be called (#6612)
-17913713 [jvm] Add ability to load booster direct from byte array (#6655)
-fec66d03 [jvm-packages] JVM library loader extensions (#6630)
+* [jvm-packages] fix early stopping doesn't work even without custom_eval setting (#6738)
+* fix potential TaskFailedListener's callback won't be called (#6612)
+* [jvm] Add ability to load booster direct from byte array (#6655)
+* [jvm-packages] JVM library loader extensions (#6630)
 
 ### R package
-c2b6b806 R documentation: Make construction of DMatrix consistent.
-4e00737c Fix R documentation for xgb.train. (#6764)
+* R documentation: Make construction of DMatrix consistent.
+* Fix R documentation for xgb.train. (#6764)
 
 ### ROC-AUC
 We re-implemented the ROC-AUC metric in XGBoost.  The new implementation supports
@@ -112,15 +112,15 @@ related README file for details. (#6414, #6656)
 
 ### Other New features.
 * Better handling for input data types that support ``__array_interface__``.  For some
-  data types including GPU inputs and ``scipy.sparse.csr_matrix``, XGBoost
-  ``__array_interface__`` for consuming the underlying data.  Starting from 1.4, XGBoost
+  data types including GPU inputs and ``scipy.sparse.csr_matrix``, XGBoost employs
+  ``__array_interface__`` for processing the underlying data.  Starting from 1.4, XGBoost
   can accept arbitrary array strides (which means column major is supported) without
   making data copies, potentially reducing significant amount of memory consumption.  Also
   version 3 of ``__cuda_array_interface__`` is now supported.  (#6776, #6765, #6459,
   #6675)
 * Improved parameter validation, now feeding XGBoost with parameters that contain
   whitespace will trigger an error. (#6769)
-* For Python and R package, file path can now contain the home indicator ``~``.
+* For Python and R package, file paths containing the home indicator ``~`` are supported.
 * As mentioned in Python changes summary, the JSON model can now save feature information
   of trained booster.  The JSON schema is updated accordingly. (#6605)
 * Development on categorical data support is continued.  Newly added weighted data support
@@ -144,7 +144,6 @@ These fixes are not resided in particular language bindings:
   metric. (#6778, #6537, #6761)
 * Random forest with ``gpu_hist`` might generate low accuracy in previous versions. (#6755)
 
-
 * Memory consumption fix for row-major adapters (#6779)
 * Don't estimate sketch batch size when rmm is used. (#6807) (#6830)
 * Fix inplace predict missing value. (#6787)
@@ -153,7 +152,7 @@ These fixes are not resided in particular language bindings:
 * Fix DMatrix feature names/types IO. (#6507)
 * Use view for `SparsePage` exclusively to avoid some data access races. (#6590)
 * Check for invalid data. (#6742)
-* fix relocatable include in CMakeList (#6734) (#6737)
+* Fix relocatable include in CMakeList (#6734) (#6737)
 * Fix DMatrix slice with feature types. (#6689)
 
 
@@ -168,7 +167,7 @@ These fixes are not resided in particular language bindings:
 * Update the C API comments (#6457)
 * Fix document. [skip ci] (#6669)
 
-### Maintenance: Testing, continuous integration, build system
+### Maintenance: Testing, continuous integration
 * Use CPU input for test_boost_from_prediction. (#6818)
 * [CI] Upload xgboost4j.dll to S3 (#6781)
 * Update dmlc-core submodule (#6745)
@@ -190,7 +189,6 @@ These fixes are not resided in particular language bindings:
 * Add helper script and doc for releasing pip package. (#6613)
 * Support pylint 2.7.0 (#6726)
 * Remove R cache in github action. (#6695)
-* Use generic dispatching routine for array interface. (#6672)
 * [CI] Do not mix up stashed executable built for ARM and x86_64 platforms (#6646)
 * [CI] Add ARM64 test to Jenkins pipeline (#6643)
 * Disable s390x and arm64 tests on travis for now. (#6641)
@@ -202,6 +200,7 @@ These fixes are not resided in particular language bindings:
 * Improve OpenMP exception handling (#6680)
 * Improve string view to reduce string allocation. (#6644)
 * Simplify Span checks. (#6685)
+* Use generic dispatching routine for array interface. (#6672)
 
 
 ## v1.3.0 (2020.12.08)
