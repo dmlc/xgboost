@@ -1024,7 +1024,7 @@ class _ProxyDMatrix(DMatrix):
 
     def _set_data_from_cuda_csr(self, data):
         _check_call(
-            _LIB.XGDeviceQuantileDMatrixSetDataCudaCSR(
+            _LIB.XGProxyDMatrixSetDataCudaCSR(
                 self.handle,
                 _cuda_array_interface(data.indptr),
                 _cuda_array_interface(data.indices),

@@ -220,6 +220,7 @@ XGB_DLL int XGDMatrixCreateFromDT(void** data,
  * - DataIterResetCallback
  * - XGDeviceQuantileDMatrixSetDataCudaArrayInterface
  * - XGDeviceQuantileDMatrixSetDataCudaColumnar
+ * - XGProxyDMatrixSetDataCudaCSR
  * - ... (data setters)
  */
 
@@ -370,6 +371,26 @@ XGB_DLL int XGDeviceQuantileDMatrixSetDataCudaArrayInterface(
 XGB_DLL int XGDeviceQuantileDMatrixSetDataCudaColumnar(
     DMatrixHandle handle,
     const char* c_interface_str);
+
+/**
+ * \brief Set CSR data on a DMatrix proxy.
+ *
+ * \param handle  A DMatrix proxy created by XGProxyDMatrixCreate
+ * \param indptr  Null terminated JSON document string representation of CUDA array
+ *                interface for row pointer of CSR.
+ * \param indices Null terminated JSON document string representation of CUDA array
+ *                interface for column indices of CSR.
+ * \param values  Null terminated JSON document string representation of CUDA array
+ *                interface for values of CSR.
+ * \param ncol    Number of columns in CSR.
+ *
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGProxyDMatrixSetDataCudaCSR(DMatrixHandle handle,
+                                         char const *indptr,
+                                         char const *indices,
+                                         char const *values,
+                                         bst_ulong ncol);
 /*
  * ==========================- End data callback APIs ==========================
  */
