@@ -1229,7 +1229,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         if len(class_probs.shape) > 1:
             # turns softprob into softmax
-            column_indexes: np.ndarray = np.argmax(class_probs, axis=1)
+            column_indexes: np.ndarray = np.argmax(class_probs, axis=1)  # type: ignore
         else:
             # turns soft logit into class label
             column_indexes = np.repeat(0, class_probs.shape[0])
