@@ -1005,7 +1005,7 @@ class _ProxyDMatrix(DMatrix):
         _check_call(
             _LIB.XGProxyDMatrixSetDataCudaArrayInterface(
                 self.handle,
-                _cuda_array_interface(data.indptr)(data)
+                _cuda_array_interface(data)
             )
         )
 
