@@ -1002,12 +1002,10 @@ class _ProxyDMatrix(DMatrix):
 
     def _set_data_from_cuda_interface(self, data):
         '''Set data from CUDA array interface.'''
-        interface = data.__cuda_array_interface__
-        interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
         _check_call(
             _LIB.XGDeviceQuantileDMatrixSetDataCudaArrayInterface(
                 self.handle,
-                interface_str
+                _cuda_array_interface(data.indptr)(data)
             )
         )
 
