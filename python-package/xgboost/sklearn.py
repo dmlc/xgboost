@@ -906,7 +906,7 @@ class XGBModel(XGBModelBase):
             {'validation_0': {'logloss': ['0.604835', '0.531479']},
              'validation_1': {'logloss': ['0.41965', '0.17686']}}
         """
-        if hasattr(self, "evals_result_"):
+        if getattr(self, "evals_result_", None) is not None:
             evals_result = self.evals_result_
         else:
             raise XGBoostError(
