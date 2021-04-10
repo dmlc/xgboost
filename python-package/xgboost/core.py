@@ -1012,7 +1012,7 @@ class _ProxyDMatrix(DMatrix):
         )
 
     def _set_data_from_cuda_columnar(self, data):
-        '''Set data from CUDA columnar format.1'''
+        '''Set data from CUDA columnar format.'''
         from .data import _cudf_array_interfaces
         interfaces_str = _cudf_array_interfaces(data)
         _check_call(
@@ -1023,6 +1023,7 @@ class _ProxyDMatrix(DMatrix):
         )
 
     def _set_data_from_cuda_csr(self, data):
+        """Set data from cupyx csr matrix."""
         _check_call(
             _LIB.XGProxyDMatrixSetDataCudaCSR(
                 self.handle,
