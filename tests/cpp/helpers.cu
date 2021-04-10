@@ -23,7 +23,7 @@ int CudaArrayIterForTest::Next() {
   if (iter_ == n_batches_) {
     return 0;
   }
-  XGDeviceQuantileDMatrixSetDataCudaArrayInterface(proxy_, batches_[iter_].c_str());
+  XGProxyDMatrixSetDataCudaArrayInterface(proxy_, batches_[iter_].c_str());
   iter_++;
   return 1;
 }
