@@ -1032,7 +1032,6 @@ PredtT = TypeVar("PredtT", bound=np.ndarray)
 
 def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> PredtT:
     assert len(prediction.shape) <= 2
-    assert isinstance(prediction.shape[1], int)
     if len(prediction.shape) == 2 and prediction.shape[1] == n_classes:
         return prediction
     # binary logistic function
