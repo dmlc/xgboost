@@ -1028,7 +1028,8 @@ async def _direct_predict_impl(  # pylint: disable=too-many-branches
             # Somehow dask fail to infer output shape change for 2-dim prediction, and
             #  `chunks = (None, output_shape[1])` doesn't work due to None is not
             #  supported in map_blocks.
-            chunks = list(data.chunks)
+            chunks: Optional[List[Tuple]] = list(data.chunks)
+            assert isinstance(chunks, list)
             chunks[1] = (output_shape[1], )
         else:
             chunks = None
@@ -1633,7 +1634,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
         )
 
         if callable(self.objective):
-            obj = _objective_decorator(self.objective)
+            obj: Optional[Callable] = _objective_decorator(self.objective)
         else:
             obj = None
         model, metric, params = self._configure_fit(
@@ -1734,7 +1735,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             params["objective"] = "binary:logistic"
 
         if callable(self.objective):
-            obj = _objective_decorator(self.objective)
+            obj: Optional[Callable] = _objective_decorator(self.objective)
         else:
             obj = None
         model, metric, params = self._configure_fit(

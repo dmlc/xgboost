@@ -515,7 +515,7 @@ class XGBModel(XGBModelBase):
             )
         return self._estimator_type  # pylint: disable=no-member
 
-    def save_model(self, fname: Union[str, os.PathLike]):
+    def save_model(self, fname: Union[str, os.PathLike]) -> None:
         meta = dict()
         for k, v in self.__dict__.items():
             if k == '_le':
@@ -1027,11 +1027,12 @@ class XGBModel(XGBModelBase):
         return np.array(json.loads(b.get_dump(dump_format='json')[0])['bias'])
 
 
-PredtT = TypeVar("PredtT")
+PredtT = TypeVar("PredtT", bound=np.ndarray)
 
 
 def _cls_predict_proba(n_classes: int, prediction: PredtT, vstack: Callable) -> PredtT:
     assert len(prediction.shape) <= 2
+    assert isinstance(prediction.shape[1], int)
     if len(prediction.shape) == 2 and prediction.shape[1] == n_classes:
         return prediction
     # binary logistic function
@@ -1228,7 +1229,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         if len(class_probs.shape) > 1:
             # turns softprob into softmax
-            column_indexes = np.argmax(class_probs, axis=1)
+            column_indexes: np.ndarray = np.argmax(class_probs, axis=1)
         else:
             # turns soft logit into class label
             column_indexes = np.repeat(0, class_probs.shape[0])
