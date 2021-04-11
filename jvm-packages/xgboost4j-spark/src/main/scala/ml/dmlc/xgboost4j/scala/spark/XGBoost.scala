@@ -759,7 +759,7 @@ private class Watches private(
     val cacheDirName: Option[String]) {
 
   def toMap: Map[String, DMatrix] = {
-    names.zip(datasets).toMap.filter { case (_, matrix) => matrix.rowNum > 0 }
+    names.zip(datasets).toMap.filter { case (_, matrix) => matrix.rowNum >= 0 }
   }
 
   def size: Int = toMap.size
