@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     import pandas as pd
     array_like = TypeVar("array_like", bound=Union[np.ndarray, pd.DataFrame])
 else:
-    array_like = TypeVar("array_like", bound=Union[np.ndarray, pd.DataFrame])
+    array_like = TypeVar("array_like", bound=Union[np.ndarray, Any])
 
 
 class XGBRankerMixIn:           # pylint: disable=too-few-public-methods
