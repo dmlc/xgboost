@@ -1,6 +1,7 @@
 # coding: utf-8
 # pylint: disable= invalid-name,  unused-import
 """For compatibility and optional dependencies."""
+from typing import Any
 import sys
 import types
 import importlib.util
@@ -36,7 +37,7 @@ except ImportError:
 
     MultiIndex = object
     Int64Index = object
-    DataFrame = object
+    DataFrame: Any = object
     Series = object
     pandas_concat = None
     PANDAS_INSTALLED = False
@@ -109,10 +110,12 @@ except pkg_resources.DistributionNotFound:
 try:
     import sparse
     import scipy.sparse as scipy_sparse
+    from scipy.sparse import csr_matrix as scipy_csr
     SCIPY_INSTALLED = True
 except ImportError:
     sparse = False
     scipy_sparse = False
+    scipy_csr: Any = object
     SCIPY_INSTALLED = False
 
 

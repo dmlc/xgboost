@@ -6,7 +6,6 @@ import warnings
 import json
 import os
 from typing import Union, Optional, List, Dict, Callable, Tuple, Any, TypeVar, Type
-from typing import TYPE_CHECKING
 import numpy as np
 
 from .core import Booster, DMatrix, XGBoostError
@@ -18,20 +17,26 @@ from .data import _is_cudf_df, _is_cudf_ser, _is_cupy_array
 
 # Do not use class names on scikit-learn directly.  Re-define the classes on
 # .compat to guarantee the behavior without scikit-learn
-from .compat import (SKLEARN_INSTALLED, XGBModelBase,
-                     XGBClassifierBase, XGBRegressorBase, XGBoostLabelEncoder)
+from .compat import (
+    SKLEARN_INSTALLED,
+    XGBModelBase,
+    XGBClassifierBase,
+    XGBRegressorBase,
+    XGBoostLabelEncoder,
+    DataFrame,
+    scipy_csr,
+)
 
-if TYPE_CHECKING:
-    # Don't require pandas
-    import pandas as pd
-    array_like = TypeVar("array_like", bound=Union[np.ndarray, pd.DataFrame])
-else:
-    array_like = TypeVar("array_like", bound=Union[np.ndarray, Any])
+# Actually XGBoost supports a lot more data types including `scipy.sparse.csr_matrix` and
+# many others.  See `data.py` for a complete list.  The `array_like` here is just for
+# easier type checks.
+array_like = TypeVar("array_like", bound=Union[np.ndarray, DataFrame, scipy_csr])
 
 
-class XGBRankerMixIn:           # pylint: disable=too-few-public-methods
+class XGBRankerMixIn:  # pylint: disable=too-few-public-methods
     """MixIn for ranking, defines the _estimator_type usually defined in scikit-learn base
     classes."""
+
     _estimator_type = "ranker"
 
 
