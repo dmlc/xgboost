@@ -17,7 +17,7 @@ See the instructions at https://xgboost.readthedocs.io/en/latest/build.html
 ### Improvements on prediction functions
 XGBoost has many prediction types including shap value computation and inplace prediction.
 In 1.4 we overhauled the underlying prediction functions for C API and Python API with an
-unified interface. (#6777, #6693, #6653, #6662, #6648, #6668)
+unified interface. (#6777, #6693, #6653, #6662, #6648, #6668, #6804)
 * Starting with 1.4, sklearn interface prediction will use inplace predict by default when
   input data is supported.
 * Users can use inplace predict with `dart` booster and enable GPU acceleration just
