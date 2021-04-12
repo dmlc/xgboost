@@ -5,76 +5,85 @@ This file records the changes in xgboost library in reverse chronological order.
 
 ## v1.4.0 (2021.04.12)
 
+### Introduction of pre-built binary package for R, with GPU support
+Starting with release 1.4.0, users now have the option of installing `{xgboost}` without
+having to build it from the source. This is particularly advantageous for users who want
+to take advantage of the GPU algorithm (`gpu_hist`), as previously they'd have to build
+`{xgboost}` from the source using CMake and NVCC. Now installing `{xgboost}` with GPU
+support is as easy as: `R CMD INSTALL ./xgboost_r_gpu_linux.tar.gz`.
+
+See the instructions at https://xgboost.readthedocs.io/en/latest/build.html
+
 ### Improvements on prediction functions
 XGBoost has many prediction types including shap value computation and inplace prediction.
 In 1.4 we overhauled the underlying prediction functions for C API and Python API with an
 unified interface. (#6777, #6693, #6653, #6662, #6648, #6668)
 * Starting with 1.4, sklearn interface prediction will use inplace predict by default when
   input data is supported.
-* Users can use inplace predict with ``dart`` booster and enable GPU acceleration just
-  like ``gbtree``.
+* Users can use inplace predict with `dart` booster and enable GPU acceleration just
+  like `gbtree`.
 * Also all prediction functions with tree models are now thread-safe.  Inplace predict is
-  improved with ``base_margin`` support.
+  improved with `base_margin` support.
 * A new set of C predict functions are exposed in the public interface.
-* A user-visible change is a newly added parameter called ``stric_shape``.  See
+* A user-visible change is a newly added parameter called `strict_shape`.  See
   https://xgboost.readthedocs.io/en/latest/prediction.html for more details.
 
 
 ### Improvement on Dask interface
-* Starting with 1.4, the dask interface is considered to be feature complete, which means
-  all of the models found in the single node Python interface are now supported in dask,
+* Starting with 1.4, the Dask interface is considered to be feature-complete, which means
+  all of the models found in the single node Python interface are now supported in Dask,
   including but not limited to ranking and random forest.  Also, the prediction function
   is significantly faster and supports shap value computation.
   - Most of the parameters found in single node sklearn interface are supported by
-    dask. (#6471, #6591)
-  - Implements learning to rank.  On the dask interface, we use the newly added support of
+    Dask interface. (#6471, #6591)
+  - Implements learning to rank.  On the Dask interface, we use the newly added support of
     query ID to enable group structure. (#6576)
-  - The dask interface has Python type hints support. (#6519)
+  - The Dask interface has Python type hints support. (#6519)
   - All models can be safely pickled. (#6651)
   - Random forest estimators are now supported. (#6602)
   - Shap value computation is now supported. (#6575, #6645, #6614)
   - Evaluation result is printed on the scheduler process. (#6609)
-  - ``DaskDMatrix`` (and device quantile dmatrix) now accepts all meta-information. (#6601)
+  - `DaskDMatrix` (and device quantile dmatrix) now accepts all meta-information. (#6601)
 
 * Prediction optimization.  We enhanced and speeded up the prediction function for the
-  dask interface.  See the latest dask tutorial page in our document for an overview of
+  Dask interface.  See the latest Dask tutorial page in our document for an overview of
   how you can optimize it even further. (#6650, #6645, #6648, #6668)
 
 * Bug fixes
-  - If you are using the latest dask and distributed where ``distributed.MultiLock`` is
-    presented, XGBoost supports training multiple models on the same cluster in
+  - If you are using the latest Dask and distributed where `distributed.MultiLock` is
+    present, XGBoost supports training multiple models on the same cluster in
     parallel. (#6743)
-  - A bug fix for when using ``dask.client`` to launch async task, XGBoost might use a
+  - A bug fix for when using `dask.client` to launch async task, XGBoost might use a
     different client object internally. (#6722)
 
 * Other improvements on documents, blogs, tutorials, and demos. (#6389, #6366, #6687,
   #6699, #6532, #6501)
 
 ### Python package
-With changes from dask and general improvement on prediction, we have made some
+With changes from Dask and general improvement on prediction, we have made some
 enhancements on the general Python interface and IO for booster information.  Starting
 from 1.4, booster feature names and types can be saved into the JSON model.  Also some
-model attributes like ``best_iteration``, ``best_score`` are restored upon model load.  On
+model attributes like `best_iteration`, `best_score` are restored upon model load.  On
 sklearn interface, some attributes are now implemented as Python object property with
 better documents.
 
-* Breaking change: All ``data`` parameters in prediction functions are renamed to ``X``
+* Breaking change: All `data` parameters in prediction functions are renamed to `X`
   for better compliance to sklearn estimator interface guidelines.
-* Breaking change: XGBoost used to generate some pseudo feature names with ``DMatrix``
-  when inputs like ``np.ndarray`` don't have column names.  The procedure is removed to
+* Breaking change: XGBoost used to generate some pseudo feature names with `DMatrix`
+  when inputs like `np.ndarray` don't have column names.  The procedure is removed to
   avoid conflict with other inputs. (#6605)
 * Early stopping with training continuation is now supported. (#6506)
-* Optional import for dask and cuDF are now lazy. (#6522)
+* Optional import for Dask and cuDF are now lazy. (#6522)
 * As mentioned in the prediction improvement summary, the sklearn interface uses inplace
   prediction whenever possible. (#6718)
 * Booster information like feature names and feature types are now saved into the JSON
   model file. (#6605)
-* All ``DMatrix`` interfaces including ``DeviceQuantileDMatrix`` and counterparts in dask
-  interface (as mentioned in the dask changes summary) now accept all the meta-information
-  like ``group`` and ``qid`` in their constructor for better consistency. (#6601)
-* Booster attributes are restored upon model load so users don't have to call ``attr``
+* All `DMatrix` interfaces including `DeviceQuantileDMatrix` and counterparts in Dask
+  interface (as mentioned in the Dask changes summary) now accept all the meta-information
+  like `group` and `qid` in their constructor for better consistency. (#6601)
+* Booster attributes are restored upon model load so users don't have to call `attr`
   manually. (#6593)
-* On sklearn interface, all models accept ``base_margin`` for evaluation datasets. (#6591)
+* On sklearn interface, all models accept `base_margin` for evaluation datasets. (#6591)
 * Improvements over the setup script including smaller sdist size and faster installation
   if the C++ library is already built (#6611, #6694, #6565).
 
@@ -110,27 +119,27 @@ handling for invalid datasets. (#6749, #6747)
 ### Global configuration.
 Starting from 1.4, XGBoost's Python, R and C interfaces support a new global configuration
 model where users can specify some global parameters.  Currently, supported parameters are
-``verbosity`` and ``use_rmm``.  The latter is experimental, see rmm plugin demo and
+`verbosity` and `use_rmm`.  The latter is experimental, see rmm plugin demo and
 related README file for details. (#6414, #6656)
 
 ### Other New features.
-* Better handling for input data types that support ``__array_interface__``.  For some
-  data types including GPU inputs and ``scipy.sparse.csr_matrix``, XGBoost employs
-  ``__array_interface__`` for processing the underlying data.  Starting from 1.4, XGBoost
+* Better handling for input data types that support `__array_interface__`.  For some
+  data types including GPU inputs and `scipy.sparse.csr_matrix`, XGBoost employs
+  `__array_interface__` for processing the underlying data.  Starting from 1.4, XGBoost
   can accept arbitrary array strides (which means column-major is supported) without
   making data copies, potentially reducing a significant amount of memory consumption.
-  Also version 3 of ``__cuda_array_interface__`` is now supported.  (#6776, #6765, #6459,
+  Also version 3 of `__cuda_array_interface__` is now supported.  (#6776, #6765, #6459,
   #6675)
 * Improved parameter validation, now feeding XGBoost with parameters that contain
   whitespace will trigger an error. (#6769)
-* For Python and R packages, file paths containing the home indicator ``~`` are supported.
+* For Python and R packages, file paths containing the home indicator `~` are supported.
 * As mentioned in the Python changes summary, the JSON model can now save feature
   information of the trained booster.  The JSON schema is updated accordingly. (#6605)
 * Development of categorical data support is continued.  Newly added weighted data support
-  and ``dart`` booster support. (#6508, #6693)
-* As mentioned in dask change summary, ranking now supports the ``qid`` parameter for
+  and `dart` booster support. (#6508, #6693)
+* As mentioned in Dask change summary, ranking now supports the `qid` parameter for
   query groups. (#6576)
-* ``DMatrix.slice`` can now consume a numpy array. (#6368)
+* `DMatrix.slice` can now consume a numpy array. (#6368)
 
 ### Other breaking changes
 * Aside from the feature name generation, there are 2 breaking changes:
@@ -140,14 +149,14 @@ related README file for details. (#6414, #6656)
 ### CPU Optimization
 * Aside from the general changes on predict function, some optimizations are applied on
   CPU implementation. (#6683, #6550, #6696, #6700)
-* Also performance for sampling initialization in ``hist`` is improved. (#6410)
+* Also performance for sampling initialization in `hist` is improved. (#6410)
 
 ### Notable fixes in the core library
 These fixes do not reside in particular language bindings:
 * Fixes for gamma regression.  This includes checking for invalid input values, fixes for
   gamma deviance metric, and better floating point guard for gamma negative log-likelihood
   metric. (#6778, #6537, #6761)
-* Random forest with ``gpu_hist`` might generate low accuracy in previous versions. (#6755)
+* Random forest with `gpu_hist` might generate low accuracy in previous versions. (#6755)
 
 * Memory consumption fix for row-major adapters (#6779)
 * Don't estimate sketch batch size when rmm is used. (#6807) (#6830)
@@ -162,11 +171,11 @@ These fixes do not reside in particular language bindings:
 
 
 ### Doc
-* Dedicated page for ``tree_method`` parameter is added. (#6564, #6633)
+* Dedicated page for `tree_method` parameter is added. (#6564, #6633)
 
 * [doc] Add FLAML as a fast tuning tool for XGBoost  (#6770)
 * Add document for tests directory. [skip ci] (#6760)
-* Fix doc string of config.py to use correct ``versionadded`` (#6458)
+* Fix doc string of config.py to use correct `versionadded` (#6458)
 * Update demo for prediction. (#6789)
 * [Doc] Document that AUCPR is for binary classification/ranking (#5899)
 * Update the C API comments (#6457)
