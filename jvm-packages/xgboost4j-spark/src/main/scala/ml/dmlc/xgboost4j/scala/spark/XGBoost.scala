@@ -377,7 +377,7 @@ object XGBoost extends Serializable {
     // to workaround the empty partitions in training dataset,
     // this might not be the best efficient implementation, see
     // (https://github.com/dmlc/xgboost/issues/1277)
-    if (watches.toMap("train").rowNum == 0) {
+    if (!watches.toMap.contains("train")) {
       throw new XGBoostError(
         s"detected an empty partition in the training data, partition ID:" +
           s" ${TaskContext.getPartitionId()}")
@@ -759,7 +759,7 @@ private class Watches private(
     val cacheDirName: Option[String]) {
 
   def toMap: Map[String, DMatrix] = {
-    names.zip(datasets).toMap.filter { case (_, matrix) => matrix.rowNum >= 0 }
+    names.zip(datasets).toMap.filter { case (_, matrix) => matrix.rowNum > 0 }
   }
 
   def size: Int = toMap.size
