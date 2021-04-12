@@ -49,7 +49,7 @@ def download_wheels(
     dir_URL: str,
     src_filename_prefix: str,
     target_filename_prefix: str,
-) -> None:
+) -> List:
     """Download all binary wheels. dir_URL is the URL for remote directory storing the release
     wheels
 
@@ -71,6 +71,7 @@ def download_wheels(
         stdout = ret.stdout.decode("utf-8")
         assert stderr.find("warning") == -1, "Unresolved warnings:\n" + stderr
         assert stdout.find("warning") == -1, "Unresolved warnings:\n" + stdout
+    return filenames
 
 
 def check_path():
