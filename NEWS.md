@@ -10,7 +10,7 @@ Starting with release 1.4.0, users now have the option of installing `{xgboost}`
 having to build it from the source. This is particularly advantageous for users who want
 to take advantage of the GPU algorithm (`gpu_hist`), as previously they'd have to build
 `{xgboost}` from the source using CMake and NVCC. Now installing `{xgboost}` with GPU
-support is as easy as: `R CMD INSTALL ./xgboost_r_gpu_linux.tar.gz`.
+support is as easy as: `R CMD INSTALL ./xgboost_r_gpu_linux.tar.gz`. (#6827)
 
 See the instructions at https://xgboost.readthedocs.io/en/latest/build.html
 
@@ -92,7 +92,7 @@ better documents.
   - Move metric configuration into booster. (#6504)
   - Calling XGBModel.fit() should clear the Booster by default (#6562)
   - Support `_estimator_type`. (#6582)
-  - [dask, sklearn] Fix predict proba. (#6566)
+  - [dask, sklearn] Fix predict proba. (#6566, #6817)
   - Restore unknown data support. (#6595)
   - Fix learning rate scheduler with cv. (#6720)
   - Fixes small typo in sklearn documentation (#6717)
@@ -114,7 +114,7 @@ better documents.
 We re-implemented the ROC-AUC metric in XGBoost.  The new implementation supports
 multi-class classification and has better support for learning to rank tasks that are not
 binary.  Also, it has a better-defined average on distributed environments with additional
-handling for invalid datasets. (#6749, #6747)
+handling for invalid datasets. (#6749, #6747, #6797)
 
 ### Global configuration.
 Starting from 1.4, XGBoost's Python, R and C interfaces support a new global configuration
@@ -157,6 +157,7 @@ These fixes do not reside in particular language bindings:
   gamma deviance metric, and better floating point guard for gamma negative log-likelihood
   metric. (#6778, #6537, #6761)
 * Random forest with `gpu_hist` might generate low accuracy in previous versions. (#6755)
+* Fix a bug in GPU sketching when data size exceeds limit of 32-bit integer. (#6826)
 
 * Memory consumption fix for row-major adapters (#6779)
 * Don't estimate sketch batch size when rmm is used. (#6807) (#6830)
