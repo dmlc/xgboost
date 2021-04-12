@@ -158,7 +158,6 @@ These fixes do not reside in particular language bindings:
   metric. (#6778, #6537, #6761)
 * Random forest with `gpu_hist` might generate low accuracy in previous versions. (#6755)
 * Fix a bug in GPU sketching when data size exceeds limit of 32-bit integer. (#6826)
-
 * Memory consumption fix for row-major adapters (#6779)
 * Don't estimate sketch batch size when rmm is used. (#6807) (#6830)
 * Fix in-place predict with missing value. (#6787)
@@ -173,7 +172,6 @@ These fixes do not reside in particular language bindings:
 
 ### Doc
 * Dedicated page for `tree_method` parameter is added. (#6564, #6633)
-
 * [doc] Add FLAML as a fast tuning tool for XGBoost  (#6770)
 * Add document for tests directory. [skip ci] (#6760)
 * Fix doc string of config.py to use correct `versionadded` (#6458)
