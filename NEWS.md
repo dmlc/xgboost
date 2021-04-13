@@ -169,6 +169,20 @@ These fixes do not reside in particular language bindings:
 * Fix relocatable include in CMakeList (#6734) (#6737)
 * Fix DMatrix slice with feature types. (#6689)
 
+### Other deprecation notices:
+
+* This release will be the last release to support CUDA 10.0. (#6642)
+
+* Starting in the next release, the Python package will require Pip 19.3+ due to the use
+  of manylinux2014 tag. Also, CentOS 6, RHEL 6 and other old distributions will not be
+  supported.
+
+### Known issue:
+
+MacOS build of the JVM packages doesn't support multi-threading out of the box. To enable
+multi-threading with JVM packages, MacOS users will need to build the JVM packages from
+the source. See https://xgboost.readthedocs.io/en/latest/jvm/index.html#installation-from-source
+
 
 ### Doc
 * Dedicated page for `tree_method` parameter is added. (#6564, #6633)
