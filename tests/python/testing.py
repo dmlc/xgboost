@@ -79,11 +79,7 @@ def no_dask_cuda():
 
 
 def no_cudf():
-    try:
-        import cudf  # noqa
-        CUDF_INSTALLED = True
-    except ImportError:
-        CUDF_INSTALLED = False
+    CUDF_INSTALLED = False
 
     return {'condition': not CUDF_INSTALLED,
             'reason': 'CUDF is not installed'}

@@ -36,7 +36,6 @@ try:
     from dask.distributed import Client
     from dask import array as da
     from dask_cuda import LocalCUDACluster
-    import cudf
 except ImportError:
     pass
 
