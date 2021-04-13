@@ -50,7 +50,7 @@ case "$suite" in
   mgpu)
     source activate gpu_test
     install_xgboost
-    /usr/local/cuda/bin/cuda-memcheck pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/python-gpu
+    pytest -v -s -rxXs --fulltrace --durations=0 -m "mgpu" ${args} tests/python-gpu
 
     cd tests/distributed
     ./runtests-gpu.sh
