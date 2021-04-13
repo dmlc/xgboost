@@ -612,11 +612,17 @@ object XGBoost extends Serializable {
             boostersAndMetrics.foreachPartition(() => _)
           }
         }
+        val listener = new TaskFailedListener(xgbExecParams.killSparkContextOnWorkerFailure)
+        sc.addSparkListener(listener)
         sparkJobThread.setUncaughtExceptionHandler(tracker)
 
-        val trackerReturnVal = parallelismTracker.execute {
-          sparkJobThread.start()
-          tracker.waitFor(0L)
+        val trackerReturnVal = try {
+          parallelismTracker.execute {
+            sparkJobThread.start()
+            tracker.waitFor(0L)
+          }
+        } finally {
+          sc.removeSparkListener(listener)
         }
 
         logger.info(s"Rabit returns with exit code $trackerReturnVal")
