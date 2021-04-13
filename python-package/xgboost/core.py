@@ -1238,7 +1238,7 @@ class Booster(object):
                 params += [('eval_metric', eval_metric)]
         return params
 
-    def _transform_monotone_constrains(self, value: Union[dict, str]) -> str:
+    def _transform_monotone_constrains(self, value: Union[Dict[str, int], str]) -> str:
         if isinstance(value, str):
             return value
 
@@ -1250,7 +1250,9 @@ class Booster(object):
         return '(' + ','.join([str(value.get(feature_name, 0))
                                for feature_name in self.feature_names]) + ')'
 
-    def _transform_interaction_constraints(self, value: Union[list, str]) -> str:
+    def _transform_interaction_constraints(
+        self, value: Union[List[Tuple[str]], str]
+    ) -> str:
         if isinstance(value, str):
             return value
 

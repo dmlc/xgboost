@@ -40,6 +40,13 @@ class XGBRankerMixIn:  # pylint: disable=too-few-public-methods
     _estimator_type = "ranker"
 
 
+_SklObjective = Optional[
+    Union[
+        str, Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]
+    ]
+]
+
+
 def _objective_decorator(
     func: Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]
 ) -> Callable[[np.ndarray, DMatrix], Tuple[np.ndarray, np.ndarray]]:
@@ -83,52 +90,52 @@ __estimator_doc = '''
         rounds.
 '''
 
-__model_doc = '''
-    max_depth : int
+__model_doc = f'''
+    max_depth :  Optional[int]
         Maximum tree depth for base learners.
-    learning_rate : float
+    learning_rate : Optional[float]
         Boosting learning rate (xgb's "eta")
-    verbosity : int
+    verbosity : Optional[int]
         The degree of verbosity. Valid values are 0 (silent) - 3 (debug).
-    objective : string or callable
+    objective : {_SklObjective}
         Specify the learning task and the corresponding learning objective or
         a custom objective function to be used (see note below).
-    booster: string
+    booster: Optional[str]
         Specify which booster to use: gbtree, gblinear or dart.
-    tree_method: string
+    tree_method: Optional[str]
         Specify which tree method to use.  Default to auto.  If this parameter
         is set to default, XGBoost will choose the most conservative option
         available.  It's recommended to study this option from parameters
         document.
-    n_jobs : int
+    n_jobs : Optional[int]
         Number of parallel threads used to run xgboost.  When used with other Scikit-Learn
         algorithms like grid search, you may choose which algorithm to parallelize and
         balance the threads.  Creating thread contention will significantly slow down both
         algorithms.
-    gamma : float
+    gamma : Optional[float]
         Minimum loss reduction required to make a further partition on a leaf
         node of the tree.
-    min_child_weight : float
+    min_child_weight : Optional[float]
         Minimum sum of instance weight(hessian) needed in a child.
-    max_delta_step : float
+    max_delta_step : Optional[float]
         Maximum delta step we allow each tree's weight estimation to be.
-    subsample : float
+    subsample : Optional[float]
         Subsample ratio of the training instance.
-    colsample_bytree : float
+    colsample_bytree : Optional[float]
         Subsample ratio of columns when constructing each tree.
-    colsample_bylevel : float
+    colsample_bylevel : Optional[float]
         Subsample ratio of columns for each level.
-    colsample_bynode : float
+    colsample_bynode : Optional[float]
         Subsample ratio of columns for each split.
-    reg_alpha : float (xgb's alpha)
-        L1 regularization term on weights
-    reg_lambda : float (xgb's lambda)
-        L2 regularization term on weights
-    scale_pos_weight : float
+    reg_alpha : Optional[float]
+        L1 regularization term on weights (xgb's alpha).
+    reg_lambda : Optional[float]
+        L2 regularization term on weights (xgb's lambda).
+    scale_pos_weight : Optional[float]
         Balancing of positive and negative weights.
-    base_score:
+    base_score : Optional[float]
         The initial prediction score of all instances, global bias.
-    random_state : int
+    random_state : Optional[Union[numpy.random.RandomState, int]]
         Random number seed.
 
         .. note::
@@ -138,12 +145,12 @@ __model_doc = '''
 
     missing : float, default np.nan
         Value in the data which needs to be present as a missing value.
-    num_parallel_tree: int
+    num_parallel_tree: Optional[int]
         Used for boosting random forest.
-    monotone_constraints : str
+    monotone_constraints : Optional[Union[Dict[str, int], str]]
         Constraint of variable monotonicity.  See tutorial for more
         information.
-    interaction_constraints : str
+    interaction_constraints : Optional[Union[str, List[Tuple[str]]]]
         Constraints for interaction representing permitted interactions.  The
         constraints must be specified in the form of a nest list, e.g. [[0, 1],
         [2, 3, 4]], where each inner list is a group of indices of features
@@ -152,12 +159,12 @@ __model_doc = '''
     importance_type: string, default "gain"
         The feature importance type for the feature_importances\\_ property:
         either "gain", "weight", "cover", "total_gain" or "total_cover".
-    gpu_id :
+    gpu_id : Optional[int]
         Device ordinal.
-    validate_parameters :
+    validate_parameters : Optional[bool]
         Give warnings for unknown parameter.
 
-    \\*\\*kwargs : dict, optional
+    kwargs : dict, optional
         Keyword arguments for XGBoost Booster object.  Full documentation of
         parameters can be found here:
         https://github.com/dmlc/xgboost/blob/master/doc/parameter.rst.
@@ -334,13 +341,6 @@ def _wrap_evaluation_matrices(
     return train_dmatrix, evals
 
 
-_SklObjective = Optional[
-    Union[
-        str, Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]
-    ]
-]
-
-
 @xgboost_model_doc("""Implementation of the Scikit-Learn API for XGBoost.""",
                    ['estimators', 'model', 'objective'])
 class XGBModel(XGBModelBase):
@@ -369,8 +369,8 @@ class XGBModel(XGBModelBase):
         random_state: Optional[Union[np.random.RandomState, int]] = None,
         missing: float = np.nan,
         num_parallel_tree: Optional[int] = None,
-        monotone_constraints: Optional[str] = None,
-        interaction_constraints: Optional[str] = None,
+        monotone_constraints: Optional[Union[Dict[str, int], str]] = None,
+        interaction_constraints: Optional[Union[str, List[Tuple[str]]]] = None,
         importance_type: str = "gain",
         gpu_id: Optional[int] = None,
         validate_parameters: Optional[bool] = None,
@@ -1517,18 +1517,18 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
 
         Parameters
         ----------
-        X : array_like
+        X :
             Feature matrix
-        y : array_like
+        y :
             Labels
-        group : array_like
+        group :
             Size of each query group of training data. Should have as many elements as the
             query groups in the training data.  If this is set to None, then user must
             provide qid.
-        qid : array_like
+        qid :
             Query ID for each training sample.  Should have the size of n_samples.  If
             this is set to None, then user must provide group.
-        sample_weight : array_like
+        sample_weight :
             Query group weights
 
             .. note:: Weights are per-group for ranking tasks
@@ -1537,24 +1537,24 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
                 data point). This is because we only care about the relative ordering of
                 data points within each group, so it doesn't make sense to assign weights
                 to individual data points.
-        base_margin : array_like
+        base_margin :
             Global bias for each instance.
-        eval_set : list, optional
+        eval_set :
             A list of (X, y) tuple pairs to use as validation sets, for which
             metrics will be computed.
             Validation metrics will help us track the performance of the model.
-        eval_group : list of arrays, optional
+        eval_group :
             A list in which ``eval_group[i]`` is the list containing the sizes of all
             query groups in the ``i``-th pair in **eval_set**.
-        eval_qid : list of array_like, optional
+        eval_qid :
             A list in which ``eval_qid[i]`` is the array containing query ID of ``i``-th
             pair in **eval_set**.
-        eval_metric : str, list of str, optional
+        eval_metric :
             If a str, should be a built-in evaluation metric to use. See
             doc/parameter.rst.
             If a list of str, should be the list of multiple built-in evaluation metrics
             to use. The custom evaluation metric is not yet supported for the ranker.
-        early_stopping_rounds : int
+        early_stopping_rounds :
             Activates early stopping. Validation metric needs to improve at least once in
             every **early_stopping_rounds** round(s) to continue training.  Requires at
             least one item in **eval_set**.
@@ -1565,13 +1565,13 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
             used for early stopping.
             If early stopping occurs, the model will have three additional fields:
             ``clf.best_score``, ``clf.best_iteration`` and ``clf.best_ntree_limit``.
-        verbose : bool
+        verbose :
             If `verbose` and an evaluation set is used, writes the evaluation metric
             measured on the validation set to stderr.
         xgb_model :
             file name of stored XGBoost model or 'Booster' instance XGBoost model to be
             loaded before training (allows training continuation).
-        sample_weight_eval_set : list, optional
+        sample_weight_eval_set :
             A list of the form [L_1, L_2, ..., L_n], where each L_i is a list of
             group weights on the i-th validation set.
 
@@ -1581,15 +1581,15 @@ class XGBRanker(XGBModel, XGBRankerMixIn):
                 data point). This is because we only care about the relative ordering of
                 data points within each group, so it doesn't make sense to assign
                 weights to individual data points.
-        base_margin_eval_set : list, optional
+        base_margin_eval_set :
             A list of the form [M_1, M_2, ..., M_n], where each M_i is an array like
             object storing base margin for the i-th validation set.
-        feature_weights: array_like
+        feature_weights :
             Weight for each feature, defines the probability of each feature being
             selected when colsample is being used.  All values must be greater than 0,
             otherwise a `ValueError` is thrown.  Only available for `hist`, `gpu_hist` and
             `exact` tree methods.
-        callbacks : list of callback functions
+        callbacks :
             List of callback functions that are applied at end of each
             iteration.  It is possible to use predefined callbacks by using
             :ref:`callback_api`.  Example:
