@@ -91,8 +91,9 @@ endif
 # If any of the dask tests failed, contributor won't see the other error.
 mypy:
 	cd python-package; \
-	mypy ./xgboost/dask.py ../tests/python/test_with_dask.py --follow-imports=silent; \
-	mypy ../tests/python-gpu/test_gpu_with_dask.py --follow-imports=silent; \
+	mypy ./xgboost/dask.py && \
+	mypy ../tests/python-gpu/test_gpu_with_dask.py && \
+	mypy ./xgboost/sklearn.py || exit 1; \
 	mypy . || true ;
 
 clean:

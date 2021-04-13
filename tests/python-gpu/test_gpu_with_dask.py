@@ -269,7 +269,9 @@ class TestDistributedGPU:
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
     @pytest.mark.parametrize("model", ["boosting"])
-    def test_dask_classifier(self, model, local_cuda_cluster: LocalCUDACluster) -> None:
+    def test_dask_classifier(
+        self, model: str, local_cuda_cluster: LocalCUDACluster
+    ) -> None:
         import dask_cudf
         with Client(local_cuda_cluster) as client:
             X_, y_, w_ = generate_array(with_weights=True)

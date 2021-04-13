@@ -96,7 +96,11 @@ def from_cstr_to_pystr(data, length) -> List[str]:
     return res
 
 
-def _convert_ntree_limit(booster, ntree_limit, iteration_range):
+def _convert_ntree_limit(
+    booster: "Booster",
+    ntree_limit: Optional[int],
+    iteration_range: Optional[Tuple[int, int]]
+) -> Optional[Tuple[int, int]]:
     if ntree_limit is not None and ntree_limit != 0:
         warnings.warn(
             "ntree_limit is deprecated, use `iteration_range` or model "
@@ -1234,7 +1238,7 @@ class Booster(object):
                 params += [('eval_metric', eval_metric)]
         return params
 
-    def _transform_monotone_constrains(self, value: Union[dict, str]) -> str:
+    def _transform_monotone_constrains(self, value: Union[Dict[str, int], str]) -> str:
         if isinstance(value, str):
             return value
 
@@ -1246,7 +1250,9 @@ class Booster(object):
         return '(' + ','.join([str(value.get(feature_name, 0))
                                for feature_name in self.feature_names]) + ')'
 
-    def _transform_interaction_constraints(self, value: Union[list, str]) -> str:
+    def _transform_interaction_constraints(
+        self, value: Union[List[Tuple[str]], str]
+    ) -> str:
         if isinstance(value, str):
             return value
 
@@ -1447,7 +1453,7 @@ class Booster(object):
         attr_names = from_cstr_to_pystr(sarr, length)
         return {n: self.attr(n) for n in attr_names}
 
-    def set_attr(self, **kwargs):
+    def set_attr(self, **kwargs: Optional[str]) -> None:
         """Set the attribute of the Booster.
 
         Parameters
@@ -1971,7 +1977,7 @@ class Booster(object):
             "Data type:" + str(type(data)) + " not supported by inplace prediction."
         )
 
-    def save_model(self, fname):
+    def save_model(self, fname: Union[str, os.PathLike]):
         """Save the model to a file.
 
         The model is saved in an XGBoost internal format which is universal among the
