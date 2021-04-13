@@ -50,7 +50,7 @@ def _objective_decorator(
 
     Parameters
     ----------
-    func: callable
+    func:
         Expects a callable with signature ``func(y_true, y_pred)``:
 
         y_true: array_like of shape [n_samples]
@@ -60,7 +60,7 @@ def _objective_decorator(
 
     Returns
     -------
-    new_func: callable
+    new_func:
         The new objective function as expected by ``xgboost.training.train``.
         The signature is ``new_func(preds, dmatrix)``:
 
@@ -648,57 +648,61 @@ class XGBModel(XGBModelBase):
 
         Parameters
         ----------
-        X : array_like
+        X :
             Feature matrix
-        y : array_like
+        y :
             Labels
-        sample_weight : array_like
+        sample_weight :
             instance weights
-        base_margin : array_like
+        base_margin :
             global bias for each instance.
-        eval_set : list, optional
+        eval_set :
             A list of (X, y) tuple pairs to use as validation sets, for which
             metrics will be computed.
             Validation metrics will help us track the performance of the model.
-        eval_metric : str, list of str, or callable, optional
-            If a str, should be a built-in evaluation metric to use. See
-            doc/parameter.rst.
+        eval_metric :
+            If a str, should be a built-in evaluation metric to use. See doc/parameter.rst.
+
             If a list of str, should be the list of multiple built-in evaluation metrics
             to use.
+
             If callable, a custom evaluation metric. The call signature is
             ``func(y_predicted, y_true)`` where ``y_true`` will be a DMatrix object such
             that you may need to call the ``get_label`` method. It must return a str,
             value pair where the str is a name for the evaluation and value is the value
             of the evaluation function. The callable custom objective is always minimized.
-        early_stopping_rounds : int
+        early_stopping_rounds :
             Activates early stopping. Validation metric needs to improve at least once in
             every **early_stopping_rounds** round(s) to continue training.
             Requires at least one item in **eval_set**.
+
             The method returns the model from the last iteration (not the best one).
             If there's more than one item in **eval_set**, the last entry will be used
             for early stopping.
+
             If there's more than one metric in **eval_metric**, the last metric will be
             used for early stopping.
+
             If early stopping occurs, the model will have three additional fields:
             ``clf.best_score``, ``clf.best_iteration`` and ``clf.best_ntree_limit``.
-        verbose : bool
+        verbose :
             If `verbose` and an evaluation set is used, writes the evaluation metric
             measured on the validation set to stderr.
         xgb_model :
             file name of stored XGBoost model or 'Booster' instance XGBoost model to be
             loaded before training (allows training continuation).
-        sample_weight_eval_set : list, optional
+        sample_weight_eval_set :
             A list of the form [L_1, L_2, ..., L_n], where each L_i is an array like
             object storing instance weights for the i-th validation set.
-        base_margin_eval_set : list, optional
+        base_margin_eval_set :
             A list of the form [M_1, M_2, ..., M_n], where each M_i is an array like
             object storing base margin for the i-th validation set.
-        feature_weights: array_like
+        feature_weights :
             Weight for each feature, defines the probability of each feature being
             selected when colsample is being used.  All values must be greater than 0,
             otherwise a `ValueError` is thrown.  Only available for `hist`, `gpu_hist` and
             `exact` tree methods.
-        callbacks : list of callback functions
+        callbacks :
             List of callback functions that are applied at end of each iteration.
             It is possible to use predefined callbacks by using :ref:`callback_api`.
             Example:
@@ -794,16 +798,16 @@ class XGBModel(XGBModelBase):
 
         Parameters
         ----------
-        X : array_like
+        X :
             Data to predict with.
-        output_margin : bool
+        output_margin :
             Whether to output the raw untransformed margin value.
-        ntree_limit : int
+        ntree_limit :
             Deprecated, use `iteration_range` instead.
-        validate_features : bool
+        validate_features :
             When this is True, validate that the Booster's and data's feature_names are
             identical.  Otherwise, it is assumed that the feature_names are the same.
-        base_margin : array_like
+        base_margin :
             Margin added to prediction.
         iteration_range :
             Specifies which layer of trees are used in prediction.  For example, if a

@@ -1975,7 +1975,7 @@ class Booster(object):
             "Data type:" + str(type(data)) + " not supported by inplace prediction."
         )
 
-    def save_model(self, fname):
+    def save_model(self, fname: Union[str, os.PathLike]):
         """Save the model to a file.
 
         The model is saved in an XGBoost internal format which is universal among the
