@@ -334,6 +334,13 @@ def _wrap_evaluation_matrices(
     return train_dmatrix, evals
 
 
+_SklObjective = Optional[
+    Union[
+        str, Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]
+    ]
+]
+
+
 @xgboost_model_doc("""Implementation of the Scikit-Learn API for XGBoost.""",
                    ['estimators', 'model', 'objective'])
 class XGBModel(XGBModelBase):
@@ -344,11 +351,7 @@ class XGBModel(XGBModelBase):
         learning_rate: Optional[float] = None,
         n_estimators: int = 100,
         verbosity: Optional[int] = None,
-        objective: Optional[
-            Union[
-                str, Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]
-            ]
-        ] = None,
+        objective: _SklObjective = None,
         booster: Optional[str] = None,
         tree_method: Optional[str] = None,
         n_jobs: Optional[int] = None,
@@ -1072,7 +1075,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
     def __init__(
         self,
         *,
-        objective: str = "binary:logistic",
+        objective: _SklObjective = "binary:logistic",
         use_label_encoder: bool = True,
         **kwargs: Any
     ) -> None:
@@ -1395,7 +1398,9 @@ class XGBRFClassifier(XGBClassifier):
 class XGBRegressor(XGBModel, XGBRegressorBase):
     # pylint: disable=missing-docstring
     @_deprecate_positional_args
-    def __init__(self, *, objective: str = "reg:squarederror", **kwargs: Any) -> None:
+    def __init__(
+        self, *, objective: _SklObjective = "reg:squarederror", **kwargs: Any
+    ) -> None:
         super().__init__(objective=objective, **kwargs)
 
 
