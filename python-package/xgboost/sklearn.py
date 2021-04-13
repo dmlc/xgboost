@@ -821,7 +821,7 @@ class XGBModel(XGBModelBase):
             .. versionadded:: 1.4.0
         Returns
         -------
-        prediction : numpy array
+        prediction
         """
         iteration_range = _convert_ntree_limit(
             self.get_booster(), ntree_limit, iteration_range
@@ -1289,7 +1289,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
 
         Returns
         -------
-        prediction : numpy array
+        prediction :
             a numpy array of shape array-like of shape (n_samples, n_classes) with the
             probability of each data example being of a given class.
         """
