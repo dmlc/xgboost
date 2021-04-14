@@ -38,7 +38,11 @@ template <typename T> class MatrixView {
     std::copy(strides.cbegin(), strides.cend(), strides_);
     std::copy(shape.cbegin(), shape.cend(), shape_);
   }
+
   XGBOOST_DEVICE T const &operator()(size_t r, size_t c) const {
+    return values_[strides_[0] * r + strides_[1] * c];
+  }
+  XGBOOST_DEVICE T &operator()(size_t r, size_t c) {
     return values_[strides_[0] * r + strides_[1] * c];
   }
 
@@ -50,32 +54,23 @@ template <typename T> class MatrixView {
 };
 
 template <typename T, bool is_column = true> class VectorView {
-  size_t strides_[2];
-  size_t shape_[2];
-  common::Span<T> values_;
-  int32_t device_;
+  MatrixView<T> matrix_;
   size_t column_;
-  static_assert(is_column, "Only column view over row matrix is implemented.");
 
  public:
-  explicit VectorView(MatrixView<T> matrix, size_t column) {
-    std::memcpy(strides_, matrix.Strides(), sizeof(strides_));
-    std::memcpy(shape_, matrix.Shape(), sizeof(shape_));
-    values_ = matrix.Values();
-    column_ = column;
-    device_ = matrix.DeviceIdx();
-  }
+  explicit VectorView(MatrixView<T> matrix, size_t column)
+      : matrix_{matrix}, column_{column} {}
 
   XGBOOST_DEVICE T &operator[](size_t i) {
-    return values_[strides_[0] * i + strides_[1] * column_];
+    return matrix_(i, column_);
   }
 
   XGBOOST_DEVICE T const &operator[](size_t i) const {
-    return values_[strides_[0] * i + strides_[1] * column_];
+    return matrix_(i, column_);
   }
 
-  size_t Size() { return is_column ? shape_[0] : shape_[1]; }
-  int32_t DeviceIdx() const { return device_; }
+  size_t Size() { return matrix_.Shape()[0]; }
+  int32_t DeviceIdx() const { return matrix_.DeviceIdx(); }
 };
 }       // namespace xgboost
 #endif  // XGBOOST_LINALG_H_
