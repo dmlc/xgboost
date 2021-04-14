@@ -632,7 +632,7 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
   common::BlockedSpace2d space(n_nodes, [&](size_t node) {
     return row_set_collection_[node].Size();
   }, 1024);
-
+  CHECK_EQ(out_preds.DeviceIdx(), GenericParameter::kCpuId);
   common::ParallelFor2d(space, this->nthread_, [&](size_t node, common::Range1d r) {
     const RowSetCollection::Elem rowset = row_set_collection_[node];
     if (rowset.begin != nullptr && rowset.end != nullptr) {

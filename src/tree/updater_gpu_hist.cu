@@ -530,6 +530,7 @@ struct GPUHistMakerDevice {
 
   void UpdatePredictionCache(VectorView<float> out_preds_d) {
     dh::safe_cuda(cudaSetDevice(device_id));
+    CHECK_EQ(out_preds_d.DeviceIdx(), device_id);
     auto d_ridx = row_partitioner->GetRows();
 
     GPUTrainingParam param_d(param);

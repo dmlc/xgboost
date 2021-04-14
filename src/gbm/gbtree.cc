@@ -223,10 +223,16 @@ void GBTree::DoBoost(DMatrix* p_fmat,
   const int ngroup = model_.learner_model_param->num_output_group;
   ConfigureWithKnownData(this->cfg_, p_fmat);
   monitor_.Start("BoostNewTrees");
+  // Weird case that tree method is cpu-based but gpu_id is set.  Ideally we should let
+  // `gpu_id` be the single source of determining what algorithms to run, but that will
+  // break a lots of existing code.
+  auto device = tparam_.tree_method != TreeMethod::kGPUHist
+                    ? GenericParameter::kCpuId
+                    : in_gpair->DeviceIdx();
   auto out =
       MatrixView<float>(&predt->predictions, {static_cast<size_t>(ngroup), 1},
                         {p_fmat->Info().num_row_, static_cast<size_t>(ngroup)},
-                        in_gpair->DeviceIdx());
+                        device);
   CHECK_NE(ngroup, 0);
   if (ngroup == 1) {
     std::vector<std::unique_ptr<RegTree>> ret;
@@ -242,7 +248,6 @@ void GBTree::DoBoost(DMatrix* p_fmat,
   } else {
     CHECK_EQ(in_gpair->Size() % ngroup, 0U)
         << "must have exactly ngroup * nrow gpairs";
-    // TODO(canonizer): perform this on GPU if HostDeviceVector has device set.
     HostDeviceVector<GradientPair> tmp(in_gpair->Size() / ngroup,
                                        GradientPair(),
                                        in_gpair->DeviceIdx());

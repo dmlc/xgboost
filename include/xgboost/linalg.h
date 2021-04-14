@@ -15,6 +15,7 @@
 
 namespace xgboost {
 template <typename T> class MatrixView {
+  int32_t device_;
   common::Span<T> values_;
   size_t strides_[2];
   size_t shape_[2];
@@ -22,15 +23,18 @@ template <typename T> class MatrixView {
  public:
   MatrixView(HostDeviceVector<T> *vec, std::array<size_t, 2> strides,
              std::array<size_t, 2> shape, int32_t device)
-      : values_{device == GenericParameter::kCpuId ? vec->HostSpan()
-                                                   : vec->DeviceSpan()} {
+      : device_{device}, values_{device == GenericParameter::kCpuId
+                                     ? vec->HostSpan()
+                                     : vec->DeviceSpan()} {
     std::copy(strides.cbegin(), strides.cend(), strides_);
     std::copy(shape.cbegin(), shape.cend(), shape_);
   }
-  MatrixView(HostDeviceVector<std::remove_const_t<T>> const *vec, std::array<size_t, 2> strides,
-             std::array<size_t, 2> shape, int32_t device)
-      : values_{device == GenericParameter::kCpuId ? vec->HostSpan()
-                                                   : vec->DeviceSpan()} {
+  MatrixView(HostDeviceVector<std::remove_const_t<T>> const *vec,
+             std::array<size_t, 2> strides, std::array<size_t, 2> shape,
+             int32_t device)
+      : device_{device}, values_{device == GenericParameter::kCpuId
+                                     ? vec->HostSpan()
+                                     : vec->DeviceSpan()} {
     std::copy(strides.cbegin(), strides.cend(), strides_);
     std::copy(shape.cbegin(), shape.cend(), shape_);
   }
@@ -42,12 +46,14 @@ template <typename T> class MatrixView {
   auto Shape() const { return shape_; }
   auto Values() const { return values_; }
   auto Size() const { return shape_[0] * shape_[1]; }
+  auto DeviceIdx() const { return device_; }
 };
 
 template <typename T, bool is_column = true> class VectorView {
   size_t strides_[2];
   size_t shape_[2];
   common::Span<T> values_;
+  int32_t device_;
   size_t column_;
   static_assert(is_column, "Only column view over row matrix is implemented.");
 
@@ -57,6 +63,7 @@ template <typename T, bool is_column = true> class VectorView {
     std::memcpy(shape_, matrix.Shape(), sizeof(shape_));
     values_ = matrix.Values();
     column_ = column;
+    device_ = matrix.DeviceIdx();
   }
 
   XGBOOST_DEVICE T &operator[](size_t i) {
@@ -68,6 +75,7 @@ template <typename T, bool is_column = true> class VectorView {
   }
 
   size_t Size() { return is_column ? shape_[0] : shape_[1]; }
+  int32_t DeviceIdx() const { return device_; }
 };
-}       // namespace xgboost
+} // namespace xgboost
 #endif  // XGBOOST_LINALG_H_
