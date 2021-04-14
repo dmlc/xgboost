@@ -175,11 +175,12 @@ def run_gpu_hist(
 
 @pytest.mark.skipif(**tm.no_cudf())
 def test_boost_from_prediction(local_cuda_cluster: LocalCUDACluster) -> None:
+    import cudf
     from sklearn.datasets import load_breast_cancer
     with Client(local_cuda_cluster) as client:
         X_, y_ = load_breast_cancer(return_X_y=True)
-        X = dd.from_array(X_, chunksize=100)
-        y = dd.from_array(y_, chunksize=100)
+        X = dd.from_array(X_, chunksize=100).map_partitions(cudf.from_pandas)
+        y = dd.from_array(y_, chunksize=100).map_partitions(cudf.from_pandas)
         run_boost_from_prediction(X, y, "gpu_hist", client)
 
 
