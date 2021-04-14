@@ -194,7 +194,7 @@ void GPUCopyGradient(HostDeviceVector<GradientPair> const *in_gpair,
                      bst_group_t n_groups, bst_group_t group_id,
                      HostDeviceVector<GradientPair> *out_gpair)
 #if defined(XGBOOST_USE_CUDA)
-    ;
+;  // NOLINT
 #else
 {
   common::AssertGPUSupport();

@@ -11,6 +11,7 @@
 #include <xgboost/generic_parameters.h>
 
 #include <array>
+#include <algorithm>
 
 namespace xgboost {
 template <typename T> class MatrixView {
@@ -68,5 +69,5 @@ template <typename T, bool is_column = true> class VectorView {
 
   size_t Size() { return is_column ? shape_[0] : shape_[1]; }
 };
-} // namespace xgboost
+}       // namespace xgboost
 #endif  // XGBOOST_LINALG_H_
