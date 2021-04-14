@@ -14,6 +14,11 @@
 #include <algorithm>
 
 namespace xgboost {
+/*!
+ * \brief A veiw over a matrix on contigious storage.
+ *
+ * \tparam T data type of matrix
+ */
 template <typename T> class MatrixView {
   int32_t device_;
   common::Span<T> values_;
@@ -21,6 +26,12 @@ template <typename T> class MatrixView {
   size_t shape_[2];
 
  public:
+  /*!
+   * \param vec     storage.
+   * \param strides Strides for matrix.
+   * \param shape   Rows anc columns.
+   * \param device  Where the data is stored in.
+   */
   MatrixView(HostDeviceVector<T> *vec, std::array<size_t, 2> strides,
              std::array<size_t, 2> shape, int32_t device)
       : device_{device}, values_{device == GenericParameter::kCpuId
@@ -53,7 +64,8 @@ template <typename T> class MatrixView {
   auto DeviceIdx() const { return device_; }
 };
 
-template <typename T, bool is_column = true> class VectorView {
+/*! \brief A slice for 1 column of MatrixView.  Can be extended to row if needed. */
+template <typename T> class VectorView {
   MatrixView<T> matrix_;
   size_t column_;
 
