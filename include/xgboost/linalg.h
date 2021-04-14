@@ -71,7 +71,7 @@ template <typename T> class VectorView {
 
  public:
   explicit VectorView(MatrixView<T> matrix, size_t column)
-      : matrix_{matrix}, column_{column} {}
+      : matrix_{std::move(matrix)}, column_{column} {}
 
   XGBOOST_DEVICE T &operator[](size_t i) {
     return matrix_(i, column_);
