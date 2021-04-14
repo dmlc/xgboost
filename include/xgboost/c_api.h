@@ -744,13 +744,13 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
  *                      following available fields in the JSON object:
  *
  *    "type": [0, 6]
- *      0: normal prediction
- *      1: output margin
- *      2: predict contribution
- *      3: predict approximated contribution
- *      4: predict feature interaction
- *      5: predict approximated feature interaction
- *      6: predict leaf
+ *      - 0: normal prediction
+ *      - 1: output margin
+ *      - 2: predict contribution
+ *      - 3: predict approximated contribution
+ *      - 4: predict feature interaction
+ *      - 5: predict approximated feature interaction
+ *      - 6: predict leaf
  *    "training": bool
  *      Whether the prediction function is used as part of a training loop.  **Not used
  *      for inplace prediction**.
@@ -773,7 +773,8 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
  *      disregarding the use of multi-class model, and leaf prediction will output 4-dim
  *      array representing: (n_samples, n_iterations, n_classes, n_trees_in_forest)
  *
- *   Run a normal prediction with strict output shape, 2 dim for softprob , 1 dim for others.
+ *   Example JSON input for running a normal prediction with strict output shape, 2 dim
+ *   for softprob , 1 dim for others.
  *   \code
  *      {
  *         "type": 0,
