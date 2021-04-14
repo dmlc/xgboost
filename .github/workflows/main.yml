@@ -168,13 +168,6 @@ jobs:
         python -m pip install wheel setuptools
         python -m pip install awscli
 
-    - name: Cache Maven packages
-      uses: actions/cache@v2
-      with:
-        path: ~/.m2
-        key: ${{ runner.os }}-m2-${{ hashFiles('./jvm-packages/pom.xml') }}
-        restore-keys: ${{ runner.os }}-m2
-
     - name: Test XGBoost4J
       run: |
         cd jvm-packages
