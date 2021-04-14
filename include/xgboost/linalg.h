@@ -12,6 +12,7 @@
 
 #include <array>
 #include <algorithm>
+#include <utility>
 
 namespace xgboost {
 /*!
