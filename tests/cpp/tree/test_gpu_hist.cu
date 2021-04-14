@@ -390,7 +390,11 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
   hist_maker.Configure(args, &generic_param);
 
   hist_maker.Update(gpair, dmat, {tree});
-  hist_maker.UpdatePredictionCache(dmat, preds);
+  hist_maker.UpdatePredictionCache(
+      dmat,
+      VectorView<float>{MatrixView<float>(preds, {1, 1}, {preds->Size(), 1},
+                                          preds->DeviceIdx()),
+                        0});
 }
 
 TEST(GpuHist, UniformSampling) {

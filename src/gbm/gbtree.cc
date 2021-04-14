@@ -190,6 +190,32 @@ void GBTree::ConfigureUpdaters() {
   }
 }
 
+void GPUCopyGradient(HostDeviceVector<GradientPair> const *in_gpair,
+                     bst_group_t n_groups, bst_group_t group_id,
+                     HostDeviceVector<GradientPair> *out_gpair)
+#if defined(XGBOOST_USE_CUDA)
+    ;
+#else
+{
+  common::AssertGPUSupport();
+}
+#endif
+
+void CopyGradient(HostDeviceVector<GradientPair> const *in_gpair,
+                  bst_group_t n_groups, bst_group_t group_id,
+                  HostDeviceVector<GradientPair> *out_gpair) {
+  if (in_gpair->DeviceIdx() != GenericParameter::kCpuId) {
+    GPUCopyGradient(in_gpair, n_groups, group_id, out_gpair);
+  } else {
+    std::vector<GradientPair> &tmp_h = out_gpair->HostVector();
+    auto nsize = static_cast<bst_omp_uint>(out_gpair->Size());
+    const auto &gpair_h = in_gpair->ConstHostVector();
+    common::ParallelFor(nsize, [&](bst_omp_uint i) {
+      tmp_h[i] = gpair_h[i * n_groups + group_id];
+    });
+  }
+}
+
 void GBTree::DoBoost(DMatrix* p_fmat,
                      HostDeviceVector<GradientPair>* in_gpair,
                      PredictionCacheEntry* predt) {
@@ -197,15 +223,20 @@ void GBTree::DoBoost(DMatrix* p_fmat,
   const int ngroup = model_.learner_model_param->num_output_group;
   ConfigureWithKnownData(this->cfg_, p_fmat);
   monitor_.Start("BoostNewTrees");
-  auto* out = &predt->predictions;
+  auto out =
+      MatrixView<float>(&predt->predictions, {static_cast<size_t>(ngroup), 1},
+                        {p_fmat->Info().num_row_, static_cast<size_t>(ngroup)},
+                        in_gpair->DeviceIdx());
   CHECK_NE(ngroup, 0);
   if (ngroup == 1) {
-    std::vector<std::unique_ptr<RegTree> > ret;
+    std::vector<std::unique_ptr<RegTree>> ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &ret);
     const size_t num_new_trees = ret.size();
     new_trees.push_back(std::move(ret));
-    if (updaters_.size() > 0 && num_new_trees == 1 && out->Size() > 0 &&
-        updaters_.back()->UpdatePredictionCache(p_fmat, out)) {
+    auto v_predt = VectorView<float>{out, 0};
+    if (updaters_.size() > 0 && num_new_trees == 1 &&
+        predt->predictions.Size() > 0 &&
+        updaters_.back()->UpdatePredictionCache(p_fmat, v_predt)) {
       predt->Update(1);
     }
   } else {
@@ -215,21 +246,17 @@ void GBTree::DoBoost(DMatrix* p_fmat,
     HostDeviceVector<GradientPair> tmp(in_gpair->Size() / ngroup,
                                        GradientPair(),
                                        in_gpair->DeviceIdx());
-    const auto& gpair_h = in_gpair->ConstHostVector();
-    auto nsize = static_cast<bst_omp_uint>(tmp.Size());
     bool update_predict = true;
     for (int gid = 0; gid < ngroup; ++gid) {
-      std::vector<GradientPair>& tmp_h = tmp.HostVector();
-      common::ParallelFor(nsize, [&](bst_omp_uint i) {
-        tmp_h[i] = gpair_h[i * ngroup + gid];
-      });
+      CopyGradient(in_gpair, ngroup, gid, &tmp);
       std::vector<std::unique_ptr<RegTree> > ret;
       BoostNewTrees(&tmp, p_fmat, gid, &ret);
       const size_t num_new_trees = ret.size();
       new_trees.push_back(std::move(ret));
-      auto* out = &predt->predictions;
-      if (!(updaters_.size() > 0 && out->Size() > 0 && num_new_trees == 1 &&
-          updaters_.back()->UpdatePredictionCacheMulticlass(p_fmat, out, gid, ngroup))) {
+      auto v_predt = VectorView<float>{out, static_cast<size_t>(gid)};
+      if (!(updaters_.size() > 0 && predt->predictions.Size() > 0 &&
+            num_new_trees == 1 &&
+            updaters_.back()->UpdatePredictionCache(p_fmat, v_predt))) {
         update_predict = false;
       }
     }

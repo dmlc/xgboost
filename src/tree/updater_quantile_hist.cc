@@ -110,7 +110,7 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
 }
 
 bool QuantileHistMaker::UpdatePredictionCache(
-    const DMatrix* data, HostDeviceVector<bst_float>* out_preds) {
+    const DMatrix* data, VectorView<float> out_preds) {
   if (hist_maker_param_.single_precision_histogram && float_builder_) {
       return float_builder_->UpdatePredictionCache(data, out_preds);
   } else if (double_builder_) {
@@ -119,19 +119,6 @@ bool QuantileHistMaker::UpdatePredictionCache(
       return false;
   }
 }
-
-bool QuantileHistMaker::UpdatePredictionCacheMulticlass(
-    const DMatrix* data,
-    HostDeviceVector<bst_float>* out_preds, const int gid, const int ngroup) {
-  if (hist_maker_param_.single_precision_histogram && float_builder_) {
-      return float_builder_->UpdatePredictionCache(data, out_preds, gid, ngroup);
-  } else if (double_builder_) {
-      return double_builder_->UpdatePredictionCache(data, out_preds, gid, ngroup);
-  } else {
-      return false;
-  }
-}
-
 
 template <typename GradientSumT>
 void BatchHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT *builder,
@@ -629,7 +616,7 @@ void QuantileHistMaker::Builder<GradientSumT>::Update(
 template<typename GradientSumT>
 bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
     const DMatrix* data,
-    HostDeviceVector<bst_float>* p_out_preds, const int gid, const int ngroup) {
+    VectorView<float> out_preds) {
   // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
   // conjunction with Update().
   if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_ ||
@@ -638,9 +625,7 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
   }
   builder_monitor_.Start("UpdatePredictionCache");
 
-  std::vector<bst_float>& out_preds = p_out_preds->HostVector();
-
-  CHECK_GT(out_preds.size(), 0U);
+  CHECK_GT(out_preds.Size(), 0U);
 
   size_t n_nodes = row_set_collection_.end() - row_set_collection_.begin();
 
@@ -664,7 +649,7 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
       leaf_value = (*p_last_tree_)[nid].LeafValue();
 
       for (const size_t* it = rowset.begin + r.begin(); it < rowset.begin + r.end(); ++it) {
-        out_preds[*it * ngroup + gid] += leaf_value;
+        out_preds[*it] += leaf_value;
       }
     }
   });
@@ -687,7 +672,7 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
         const size_t row_num = unused_rows_[block_id] + batch.base_rowid;
         const int lid = feats.HasMissing() ? p_last_tree_->GetLeafIndex<true>(feats) :
                                             p_last_tree_->GetLeafIndex<false>(feats);
-        out_preds[row_num * ngroup + gid] += (*p_last_tree_)[lid].LeafValue();
+        out_preds[row_num] += (*p_last_tree_)[lid].LeafValue();
 
         feats.Drop(inst);
       });
