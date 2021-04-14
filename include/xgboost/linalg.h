@@ -77,5 +77,5 @@ template <typename T, bool is_column = true> class VectorView {
   size_t Size() { return is_column ? shape_[0] : shape_[1]; }
   int32_t DeviceIdx() const { return device_; }
 };
-} // namespace xgboost
+}       // namespace xgboost
 #endif  // XGBOOST_LINALG_H_
