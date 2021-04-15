@@ -533,7 +533,7 @@ cb.cv.predict <- function(save_models = FALSE) {
 #' Callback closure for collecting the model coefficients history of a gblinear booster
 #' during its training.
 #'
-#' @param sparse when set to FALSE/TURE, a dense/sparse matrix is used to store the result.
+#' @param sparse when set to FALSE/TRUE, a dense/sparse matrix is used to store the result.
 #'       Sparse format is useful when one expects only a subset of coefficients to be non-zero,
 #'       when using the "thrifty" feature selector with fairly small number of top features
 #'       selected per iteration.
