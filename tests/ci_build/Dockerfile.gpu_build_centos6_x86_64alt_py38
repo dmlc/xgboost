@@ -1,0 +1,83 @@
+ARG CUDA_VERSION_ARG
+FROM nvidia/cuda:$CUDA_VERSION_ARG-devel-centos7
+ARG CUDA_VERSION_ARG
+
+# Environment
+ENV DEBIAN_FRONTEND noninteractive
+
+#COPY CentOS-Base.repo /etc/yum.repos.d/
+
+RUN \
+    yum groupinstall -y "Development Tools" && yum clean all -y && rm -rf /var/cache/yum
+
+# Install all basic requirements
+RUN \
+    yum install -y centos-release-scl-rh && \
+    yum-config-manager --enable rhel-server-rhscl-7-rpms && \
+    yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
+    yum -y update && \
+    yum-config-manager --enable rhel-server-rhscl-7-rpms && \
+    yum install -y tar unzip wget xz git patchelf && \
+    yum update -y && \
+    yum install -y devtoolset-7
+
+# Python
+# CMake
+RUN \
+    wget -O Miniconda3.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash Miniconda3.sh -b -p /opt/python && \
+    /opt/python/bin/conda install python=3.8 cmake && \
+    /opt/python/bin/python -m pip install auditwheel
+
+# Ninja
+RUN \
+    mkdir -p /usr/local && \
+    cd /usr/local/ && \
+    wget -nv -nc https://github.com/ninja-build/ninja/archive/v1.10.0.tar.gz --no-check-certificate && \
+    tar xf v1.10.0.tar.gz && mv ninja-1.10.0 ninja && rm -v v1.10.0.tar.gz && \
+    cd ninja && \
+    /opt/python/bin/python ./configure.py --bootstrap
+
+# NCCL2 (License: https://docs.nvidia.com/deeplearning/sdk/nccl-sla/index.html)
+RUN \
+    export CUDA_SHORT=`echo $CUDA_VERSION_ARG | grep -o -E '[0-9]+\.[0-9]'` && \
+    export NCCL_VERSION=2.4.8-1 && \
+    wget https://developer.download.nvidia.com/compute/machine-learning/repos/rhel7/x86_64/nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
+    rpm -i nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm && \
+    yum -y update && \
+    yum install -y libnccl-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-devel-${NCCL_VERSION}+cuda${CUDA_SHORT} libnccl-static-${NCCL_VERSION}+cuda${CUDA_SHORT} && \
+    rm -f nvidia-machine-learning-repo-rhel7-1.0.0-1.x86_64.rpm;
+
+# See https://github.com/Microsoft/LightGBM/wiki/Installation-Guide#with-gpu-support for details
+# https://github.com/Microsoft/LightGBM/pull/929/files
+# Could compile with these as well: -DBOOST_COMPUTE_USE_OFFLINE_CACHE=OFF -DBOOST_COMPUTE_THREAD_SAFE=ON
+RUN \
+    export CUDA_HOME=/usr/local/cuda/ && \
+  	yum install -y opencl-headers icu libicu-devel bzip2 bzip2-devel zlib-devel python-devel && \
+    wget https://s3.amazonaws.com/0xdata-public/boost/boost_1_72_0.tar.bz2  && \
+    tar xjf boost_1_72_0.tar.bz2 && \
+    cd boost_1_72_0 && \
+    export PYTHONPATH=/opt/python/ && \
+    ./bootstrap.sh --prefix=/opt/boost/ --with-python=python3 && \
+    export CPPFLAGS="-I/opt/python/include/python3.8m/ -fPIC" && \
+    export C_INCLUDE_PATH="/opt/h2oai/h2o4gpu/python/include/python${python_version}m/" ; export CPLUS_INCLUDE_PATH="/opt/python/include/python3.8m/" && \
+    ./b2 link=static -a -d0 install --prefix=/opt/boost/ --with=all -j 20 cxxflags="-fPIC -I /opt/python/include/python3.8m/" && \
+    cd /usr/include ; rm -rf boost ; ln -s /opt/boost/include/boost . && \
+    cd /usr/lib64/ ; rm -rf libboost* ; cp -a /opt/boost/lib/* . && \
+    cd /
+
+ENV CUDA_HOME=/usr/local/cuda-10.0
+
+ENV PATH=/opt/python/bin:/usr/local/ninja:$PATH
+ENV CC=/opt/rh/devtoolset-7/root/usr/bin/gcc
+ENV CXX=/opt/rh/devtoolset-7/root/usr/bin/c++
+ENV CPP=/opt/rh/devtoolset-7/root/usr/bin/cpp
+
+RUN source /opt/rh/devtoolset-7/enable
+
+# Default entry-point to use if running locally
+# It will preserve attributes of created files
+COPY entrypoint.sh /scripts/
+
+WORKDIR /workspace
+ENTRYPOINT ["/scripts/entrypoint.sh"]
