@@ -100,7 +100,7 @@ jobs:
 
     - name: Install system packages
       run: |
-        sudo apt-get update && sudo apt-get install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev
+        sudo apt-get update && sudo apt-get install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev pandoc pandoc-citeproc
 
     - name: Install dependencies
       shell: Rscript {0}
