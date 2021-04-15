@@ -1683,7 +1683,9 @@ class Booster(object):
         iteration_range: Tuple[int, int] = (0, 0),
         strict_shape: bool = False,
     ) -> np.ndarray:
-        """Predict with data.
+        """Predict with data.  The full model will be used unless `iteration_range` is specified,
+        meaning user have to either slice the model or use the ``best_iteration``
+        attribute to get prediction from best model returned from early stopping.
 
         .. note::
 

@@ -67,6 +67,18 @@ the 3-class classification dataset, and want to use the first 2 iterations of tr
 prediction, you need to provide ``iteration_range=(0, 2)``.  Then the first :math:`2
 \times 3 \times 4` trees will be used in this prediction.
 
+**************
+Early Stopping
+**************
+
+When a model is trained with early stopping, there is an inconsistent behavior between
+native Python interface and sklearn/R interfaces.  By default on R and sklearn interfaces,
+the ``best_iteration`` is automatically used so prediction comes from the best model.  But
+with the native Python interface :py:meth:`xgboost.Booster.predict` and
+:py:meth:`xgboost.Booster.inplace_predict` uses the full model.  Users can use
+``best_iteration`` attribute with ``iteration_range`` parameter to achieve the same
+behavior.  Also the ``save_best`` parameter from :py:obj:`xgboost.callback.EarlyStopping`
+might also be useful.
 
 *********
 Predictor
