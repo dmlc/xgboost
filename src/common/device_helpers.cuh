@@ -1310,41 +1310,12 @@ void InclusiveSum(InputIteratorT d_in, OutputIteratorT d_out, OffsetT num_items)
   InclusiveScan(d_in, d_out, cub::Sum(), num_items);
 }
 
-template <bool accending, typename IdxT, typename U>
-void ArgSort(xgboost::common::Span<U> keys, xgboost::common::Span<IdxT> sorted_idx) {
-  size_t bytes = 0;
+template <typename IdxT, typename U, typename Pred>
+void ArgSort(xgboost::common::Span<U> keys, xgboost::common::Span<IdxT> sorted_idx, Pred pred) {
   Iota(sorted_idx);
-
-  using KeyT = typename decltype(keys)::value_type;
-  using ValueT = std::remove_const_t<IdxT>;
-
-  TemporaryArray<KeyT> out(keys.size());
-  cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(keys.data()),
-                                 out.data().get());
-  cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(sorted_idx.data()),
-                                     sorted_idx.data());
-
-  if (accending) {
-    void *d_temp_storage = nullptr;
-    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, size_t>::Dispatch(
-        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
-        sizeof(KeyT) * 8, false, nullptr, false)));
-    dh::TemporaryArray<char> storage(bytes);
-    d_temp_storage = storage.data().get();
-    safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, size_t>::Dispatch(
-        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
-        sizeof(KeyT) * 8, false, nullptr, false)));
-  } else {
-    void *d_temp_storage = nullptr;
-    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, size_t>::Dispatch(
-        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
-        sizeof(KeyT) * 8, false, nullptr, false)));
-    dh::TemporaryArray<char> storage(bytes);
-    d_temp_storage = storage.data().get();
-    safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, size_t>::Dispatch(
-        d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
-        sizeof(KeyT) * 8, false, nullptr, false)));
-  }
+  dh::XGBCachingDeviceAllocator<char> alloc;
+  thrust::stable_sort_by_key(thrust::cuda::par(alloc), dh::tbegin(keys),
+                             dh::tend(keys), dh::tbegin(sorted_idx), pred);
 }
 
 namespace detail {
