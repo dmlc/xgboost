@@ -176,7 +176,7 @@ One simple optimization for running consecutive predictions is using
         shap_f = xgb.dask.predict(client, booster_f, X, pred_contribs=True)
         futures.append(shap_f)
 
-  results = client.gather(futures)
+    results = client.gather(futures)
 
 
 This is only available on functional interface, as the Scikit-Learn wrapper doesn't know

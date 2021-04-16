@@ -794,8 +794,8 @@ class XGBModel(XGBModelBase):
         base_margin: Optional[array_like] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> np.ndarray:
-        """
-        Predict with `X`.
+        """Predict with `X`.  If the model is trained with early stopping, then `best_iteration`
+        is used automatically.
 
         .. note:: This function is only thread safe for `gbtree` and `dart`.
 
@@ -819,6 +819,7 @@ class XGBModel(XGBModelBase):
             used in this prediction.
 
             .. versionadded:: 1.4.0
+
         Returns
         -------
         prediction
@@ -860,7 +861,8 @@ class XGBModel(XGBModelBase):
         ntree_limit: int = 0,
         iteration_range: Optional[Tuple[int, int]] = None
     ) -> np.ndarray:
-        """Return the predicted leaf every tree for each sample.
+        """Return the predicted leaf every tree for each sample. If the model is trained with
+        early stopping, then `best_iteration` is used automatically.
 
         Parameters
         ----------
@@ -879,6 +881,7 @@ class XGBModel(XGBModelBase):
             For each datapoint x in X and for each tree, return the index of the
             leaf x ends up in. Leaves are numbered within
             ``[0; 2**(self.max_depth+1))``, possibly with gaps in the numbering.
+
         """
         iteration_range = _convert_ntree_limit(
             self.get_booster(), ntree_limit, iteration_range
