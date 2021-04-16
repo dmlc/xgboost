@@ -295,6 +295,13 @@ TEST(Learner, GPUConfiguration) {
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
   }
   {
+    std::unique_ptr<Learner> learner {Learner::Create(mat)};
+    learner->SetParams({Arg{"tree_method", "gpu_hist"},
+                        Arg{"gpu_id", "-1"}});
+    learner->UpdateOneIter(0, p_dmat);
+    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+  }
+  {
     // with CPU algorithm
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "hist"}});
