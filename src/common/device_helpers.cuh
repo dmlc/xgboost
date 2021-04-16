@@ -1392,8 +1392,8 @@ void SegmentedArgSort(xgboost::common::Span<U> values,
   TemporaryArray<xgboost::common::byte> temp_storage(bytes);
   detail::DeviceSegmentedRadixSortPair<!accending>(
       temp_storage.data().get(), bytes, values.data(), values_out.data().get(),
-      sorted_idx_out.data().get(), sorted_idx.data(), sorted_idx.size(), n_groups,
-      group_ptr.data(), group_ptr.data() + 1);
+      sorted_idx.data(), sorted_idx_out.data().get(), sorted_idx.size(),
+      n_groups, group_ptr.data(), group_ptr.data() + 1);
 
   safe_cuda(cudaMemcpyAsync(sorted_idx.data(), sorted_idx_out.data().get(),
                             sorted_idx.size_bytes(), cudaMemcpyDeviceToDevice));

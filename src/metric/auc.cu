@@ -269,7 +269,7 @@ float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info
       });
 
   // unique values are sparse, so we need a CSR style indptr
-  dh::TemporaryArray<uint32_t> unique_class_ptr(class_ptr.size() + 1);
+  dh::TemporaryArray<uint32_t> unique_class_ptr(class_ptr.size());
   auto d_unique_class_ptr = dh::ToSpan(unique_class_ptr);
   auto n_uniques = dh::SegmentedUniqueByKey(
       thrust::cuda::par(alloc),
