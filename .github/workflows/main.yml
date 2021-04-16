@@ -208,6 +208,8 @@ jobs:
       run: |
         rm -rfv build/
         cd jvm-packages
+        ip addr
+        export SPARK_LOCAL_IP="127.0.0.1"
         mvn -B test
       if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
       env:
