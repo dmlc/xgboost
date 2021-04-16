@@ -78,7 +78,7 @@ with the native Python interface :py:meth:`xgboost.Booster.predict` and
 :py:meth:`xgboost.Booster.inplace_predict` uses the full model.  Users can use
 ``best_iteration`` attribute with ``iteration_range`` parameter to achieve the same
 behavior.  Also the ``save_best`` parameter from :py:obj:`xgboost.callback.EarlyStopping`
-might also be useful.
+might be useful.
 
 *********
 Predictor

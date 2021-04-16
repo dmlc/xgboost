@@ -183,7 +183,7 @@ Early stopping requires at least one set in ``evals``. If there's more than one,
 
 The model will train until the validation score stops improving. Validation error needs to decrease at least every ``early_stopping_rounds`` to continue training.
 
-If early stopping occurs, the model will have three additional fields: ``bst.best_score``, ``bst.best_iteration``.  Note that :py:meth:`xgboost.train` will return a model from the last iteration, not the best one.
+If early stopping occurs, the model will have two additional fields: ``bst.best_score``, ``bst.best_iteration``.  Note that :py:meth:`xgboost.train` will return a model from the last iteration, not the best one.
 
 This works with both metrics to minimize (RMSE, log loss, etc.) and to maximize (MAP, NDCG, AUC). Note that if you specify more than one evaluation metric the last one in ``param['eval_metric']`` is used for early stopping.
 
