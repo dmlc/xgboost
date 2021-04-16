@@ -229,10 +229,9 @@ void GBTree::DoBoost(DMatrix* p_fmat,
   auto device = tparam_.tree_method != TreeMethod::kGPUHist
                     ? GenericParameter::kCpuId
                     : in_gpair->DeviceIdx();
-  auto out =
-      MatrixView<float>(&predt->predictions, {static_cast<size_t>(ngroup), 1},
-                        {p_fmat->Info().num_row_, static_cast<size_t>(ngroup)},
-                        device);
+  auto out = MatrixView<float>(
+      &predt->predictions,
+      {p_fmat->Info().num_row_, static_cast<size_t>(ngroup)}, device);
   CHECK_NE(ngroup, 0);
   if (ngroup == 1) {
     std::vector<std::unique_ptr<RegTree>> ret;

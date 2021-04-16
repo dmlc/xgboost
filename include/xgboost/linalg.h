@@ -26,6 +26,11 @@ template <typename T> class MatrixView {
   size_t strides_[2];
   size_t shape_[2];
 
+  template <typename Vec> static auto InferValues(Vec *vec, int32_t device) {
+    return device == GenericParameter::kCpuId ? vec->HostSpan()
+                                              : vec->DeviceSpan();
+  }
+
  public:
   /*!
    * \param vec     storage.
@@ -35,20 +40,31 @@ template <typename T> class MatrixView {
    */
   MatrixView(HostDeviceVector<T> *vec, std::array<size_t, 2> strides,
              std::array<size_t, 2> shape, int32_t device)
-      : device_{device}, values_{device == GenericParameter::kCpuId
-                                     ? vec->HostSpan()
-                                     : vec->DeviceSpan()} {
+      : device_{device}, values_{InferValues(vec, device)} {
     std::copy(strides.cbegin(), strides.cend(), strides_);
     std::copy(shape.cbegin(), shape.cend(), shape_);
   }
   MatrixView(HostDeviceVector<std::remove_const_t<T>> const *vec,
              std::array<size_t, 2> strides, std::array<size_t, 2> shape,
              int32_t device)
-      : device_{device}, values_{device == GenericParameter::kCpuId
-                                     ? vec->HostSpan()
-                                     : vec->DeviceSpan()} {
+      : device_{device}, values_{InferValues(vec, device)} {
     std::copy(strides.cbegin(), strides.cend(), strides_);
     std::copy(shape.cbegin(), shape.cend(), shape_);
+  }
+  /*! \brief Row major constructor. */
+  MatrixView(HostDeviceVector<T> *vec, std::array<size_t, 2> shape,
+             int32_t device)
+      : device_{device}, values_{InferValues(vec, device)} {
+    std::copy(shape.cbegin(), shape.cend(), shape_);
+    strides_[0] = shape[1];
+    strides_[1] = 1;
+  }
+  MatrixView(HostDeviceVector<std::remove_const_t<T>> const *vec,
+             std::array<size_t, 2> shape, int32_t device)
+      : device_{device}, values_{InferValues(vec, device)} {
+    std::copy(shape.cbegin(), shape.cend(), shape_);
+    strides_[0] = shape[1];
+    strides_[1] = 1;
   }
 
   XGBOOST_DEVICE T const &operator()(size_t r, size_t c) const {
