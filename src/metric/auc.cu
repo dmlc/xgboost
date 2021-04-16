@@ -49,8 +49,7 @@ struct DeviceAUCCache {
   dh::device_vector<Pair> neg_pos;
   // index of unique prediction values.
   dh::device_vector<size_t> unique_idx;
-  // p^T: transposed prediction matrix, used by MultiClassAUC.  Also it's used for binary
-  // case as a buffer for sort.
+  // p^T: transposed prediction matrix, used by MultiClassAUC
   dh::device_vector<float> predts_t;
   std::unique_ptr<dh::AllReducer> reducer;
 
@@ -60,11 +59,11 @@ struct DeviceAUCCache {
       fptp.resize(sorted_idx.size());
       unique_idx.resize(sorted_idx.size());
       neg_pos.resize(sorted_idx.size());
-      predts_t.resize(sorted_idx.size());
-    }
-    if (!reducer && is_multi) {
-      reducer.reset(new dh::AllReducer);
-      reducer->Init(rabit::GetRank());
+      if (is_multi) {
+        predts_t.resize(sorted_idx.size());
+        reducer.reset(new dh::AllReducer);
+        reducer->Init(rabit::GetRank());
+      }
     }
   }
 };
@@ -98,10 +97,7 @@ GPUBinaryAUC(common::Span<float const> predts, MetaInfo const &info,
    * Create sorted index for each class
    */
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
-  auto d_predts_copy = dh::ToSpan(cache->predts_t);
-  dh::safe_cuda(cudaMemcpyAsync(d_predts_copy.data(), predts.data(),
-                                predts.size_bytes(), cudaMemcpyDeviceToDevice));
-  dh::ArgSort(d_predts_copy, d_sorted_idx, thrust::greater<float>{});
+  dh::ArgSort<false>(predts, d_sorted_idx);
 
   /**
    * Linear scan
@@ -224,8 +220,6 @@ float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info
    * Create sorted index for each class
    */
   auto d_predts_t = dh::ToSpan(cache->predts_t);
-  // transpose to make predictions belonging the the same class to be stored in contigious
-  // segment of memory.
   Transpose(predts, d_predts_t, n_samples, n_classes, device);
 
   dh::TemporaryArray<uint32_t> class_ptr(n_classes + 1, 0);
@@ -233,27 +227,10 @@ float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info
   dh::LaunchN(device, n_classes + 1, [=]__device__(size_t i) {
     d_class_ptr[i] = i * n_samples;
   });
-
   // no out-of-place sort for thrust, cub sort doesn't accept general iterator. So can't
   // use transform iterator in sorting.
   auto d_sorted_idx = dh::ToSpan(cache->sorted_idx);
-  dh::Iota(d_sorted_idx);
-  auto sort_it = dh::MakeTransformIterator<thrust::pair<uint32_t, float>>(
-      thrust::make_counting_iterator(0ul), [=] __device__(size_t i) {
-        return thrust::make_pair(static_cast<uint32_t>(i / n_samples),
-                                 d_predts_t[i]);
-      });
-  dh::XGBDeviceAllocator<char> alloc;
-  thrust::stable_sort_by_key(
-      thrust::cuda::par(alloc), sort_it, sort_it + d_predts_t.size(),
-      dh::tbegin(d_sorted_idx),
-      [] __device__(thrust::pair<uint32_t, float> const &l,
-                    thrust::pair<uint32_t, float> const &r) {
-        if (l.first == r.first) {
-          return l.second > r.second;
-        }
-        return l.first < r.first;
-      });
+  dh::SegmentedArgSort<false>(d_predts_t, d_class_ptr, d_sorted_idx);
 
   /**
    * Linear scan
@@ -281,6 +258,7 @@ float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info
   /**
    *  Handle duplicated predictions
    */
+  dh::XGBDeviceAllocator<char> alloc;
   auto d_unique_idx = dh::ToSpan(cache->unique_idx);
   dh::Iota(d_unique_idx, device);
   auto uni_key = dh::MakeTransformIterator<thrust::pair<uint32_t, float>>(
@@ -291,7 +269,7 @@ float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info
       });
 
   // unique values are sparse, so we need a CSR style indptr
-  dh::TemporaryArray<uint32_t> unique_class_ptr(class_ptr.size());
+  dh::TemporaryArray<uint32_t> unique_class_ptr(class_ptr.size() + 1);
   auto d_unique_class_ptr = dh::ToSpan(unique_class_ptr);
   auto n_uniques = dh::SegmentedUniqueByKey(
       thrust::cuda::par(alloc),

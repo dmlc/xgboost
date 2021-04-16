@@ -176,8 +176,7 @@ TEST(DeviceHelpers, ArgSort) {
   dh::device_vector<float> values(20);
   dh::Iota(dh::ToSpan(values));  // accending
   dh::device_vector<size_t> sorted_idx(20);
-  dh::ArgSort(dh::ToSpan(values), dh::ToSpan(sorted_idx),
-              thrust::greater<float>{}); // sort to descending
+  dh::ArgSort<false>(dh::ToSpan(values), dh::ToSpan(sorted_idx));  // sort to descending
   ASSERT_TRUE(thrust::is_sorted(thrust::device, sorted_idx.begin(),
                                 sorted_idx.end(), thrust::greater<size_t>{}));
 
