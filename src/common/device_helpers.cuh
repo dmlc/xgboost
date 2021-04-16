@@ -1321,15 +1321,16 @@ void ArgSort(xgboost::common::Span<U> keys, xgboost::common::Span<IdxT> sorted_i
   TemporaryArray<KeyT> out(keys.size());
   cub::DoubleBuffer<KeyT> d_keys(const_cast<KeyT *>(keys.data()),
                                  out.data().get());
+  TemporaryArray<IdxT> sorted_idx_out(sorted_idx.size());
   cub::DoubleBuffer<ValueT> d_values(const_cast<ValueT *>(sorted_idx.data()),
-                                     sorted_idx.data());
+                                     sorted_idx_out.data().get());
 
   if (accending) {
     void *d_temp_storage = nullptr;
     safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, size_t>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
         sizeof(KeyT) * 8, false, nullptr, false)));
-    dh::TemporaryArray<char> storage(bytes);
+    TemporaryArray<char> storage(bytes);
     d_temp_storage = storage.data().get();
     safe_cuda((cub::DispatchRadixSort<false, KeyT, ValueT, size_t>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
@@ -1339,12 +1340,15 @@ void ArgSort(xgboost::common::Span<U> keys, xgboost::common::Span<IdxT> sorted_i
     safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, size_t>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
         sizeof(KeyT) * 8, false, nullptr, false)));
-    dh::TemporaryArray<char> storage(bytes);
+    TemporaryArray<char> storage(bytes);
     d_temp_storage = storage.data().get();
     safe_cuda((cub::DispatchRadixSort<true, KeyT, ValueT, size_t>::Dispatch(
         d_temp_storage, bytes, d_keys, d_values, sorted_idx.size(), 0,
         sizeof(KeyT) * 8, false, nullptr, false)));
   }
+
+  safe_cuda(cudaMemcpyAsync(sorted_idx.data(), sorted_idx_out.data().get(),
+                            sorted_idx.size_bytes(), cudaMemcpyDeviceToDevice));
 }
 
 namespace detail {
@@ -1379,14 +1383,19 @@ void SegmentedArgSort(xgboost::common::Span<U> values,
   size_t bytes = 0;
   Iota(sorted_idx);
   TemporaryArray<std::remove_const_t<U>> values_out(values.size());
+  TemporaryArray<std::remove_const_t<IdxT>> sorted_idx_out(sorted_idx.size());
+
   detail::DeviceSegmentedRadixSortPair<!accending>(
       nullptr, bytes, values.data(), values_out.data().get(), sorted_idx.data(),
-      sorted_idx.data(), sorted_idx.size(), n_groups, group_ptr.data(),
+      sorted_idx_out.data().get(), sorted_idx.size(), n_groups, group_ptr.data(),
       group_ptr.data() + 1);
-  dh::TemporaryArray<xgboost::common::byte> temp_storage(bytes);
+  TemporaryArray<xgboost::common::byte> temp_storage(bytes);
   detail::DeviceSegmentedRadixSortPair<!accending>(
       temp_storage.data().get(), bytes, values.data(), values_out.data().get(),
-      sorted_idx.data(), sorted_idx.data(), sorted_idx.size(), n_groups,
+      sorted_idx_out.data().get(), sorted_idx.data(), sorted_idx.size(), n_groups,
       group_ptr.data(), group_ptr.data() + 1);
+
+  safe_cuda(cudaMemcpyAsync(sorted_idx.data(), sorted_idx_out.data().get(),
+                            sorted_idx.size_bytes(), cudaMemcpyDeviceToDevice));
 }
 }  // namespace dh
