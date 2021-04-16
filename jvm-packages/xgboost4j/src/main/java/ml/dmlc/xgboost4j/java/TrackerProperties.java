@@ -51,6 +51,8 @@ public class TrackerProperties {
   }
 
   public String getHostIp(){
-    return this.properties.getProperty(HOST_IP);
+    // mostly for testing
+    String hostIp = System.getenv("XGBOOST_RABIT_TRACKER_IP");
+    return hostIp != null ? hostIp : this.properties.getProperty(HOST_IP);
   }
 }
