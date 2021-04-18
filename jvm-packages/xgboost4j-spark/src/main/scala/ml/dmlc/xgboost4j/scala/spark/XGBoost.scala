@@ -32,7 +32,7 @@ import org.apache.commons.io.FileUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext, TaskFailedListener}
+import org.apache.spark.{SparkContext, SparkParallelismTracker, TaskContext}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.storage.StorageLevel
 
@@ -368,28 +368,33 @@ object XGBoost extends Serializable {
   }
 
   private def buildDistributedBooster(
-      watches: Watches,
+      buildWatches: () => Watches,
       xgbExecutionParam: XGBoostExecutionParams,
       rabitEnv: java.util.Map[String, String],
       obj: ObjectiveTrait,
       eval: EvalTrait,
       prevBooster: Booster): Iterator[(Booster, Map[String, Array[Float]])] = {
-    // to workaround the empty partitions in training dataset,
-    // this might not be the best efficient implementation, see
-    // (https://github.com/dmlc/xgboost/issues/1277)
-    if (watches.toMap("train").rowNum == 0) {
-      throw new XGBoostError(
-        s"detected an empty partition in the training data, partition ID:" +
-          s" ${TaskContext.getPartitionId()}")
-    }
+
     val taskId = TaskContext.getPartitionId().toString
     val attempt = TaskContext.get().attemptNumber.toString
     rabitEnv.put("DMLC_TASK_ID", taskId)
     rabitEnv.put("DMLC_NUM_ATTEMPT", attempt)
     val numRounds = xgbExecutionParam.numRounds
     val makeCheckpoint = xgbExecutionParam.checkpointParam.isDefined && taskId.toInt == 0
+    var watches: Watches = null
     try {
       Rabit.init(rabitEnv)
+      watches = buildWatches()
+
+      // to workaround the empty partitions in training dataset,
+      // this might not be the best efficient implementation, see
+      // (https://github.com/dmlc/xgboost/issues/1277)
+      if (watches.toMap("train").rowNum == 0) {
+        throw new XGBoostError(
+          s"detected an empty partition in the training data, partition ID:" +
+            s" ${TaskContext.getPartitionId()}")
+      }
+
       val numEarlyStoppingRounds = xgbExecutionParam.earlyStoppingParams.numEarlyStoppingRounds
       val metrics = Array.tabulate(watches.size)(_ => Array.ofDim[Float](numRounds))
       val externalCheckpointParams = xgbExecutionParam.checkpointParam
@@ -422,7 +427,7 @@ object XGBoost extends Serializable {
         throw xgbException
     } finally {
       Rabit.shutdown()
-      watches.delete()
+      if (watches != null) watches.delete()
     }
   }
 
@@ -491,25 +496,31 @@ object XGBoost extends Serializable {
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPoints => {
-        val watches = Watches.buildWatches(xgbExecutionParams,
-          processMissingValues(labeledPoints, xgbExecutionParams.missing,
-            xgbExecutionParams.allowNonZeroForMissing),
-          getCacheDirName(xgbExecutionParams.useExternalMemory))
-        buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, xgbExecutionParams.obj,
-          xgbExecutionParams.eval, prevBooster)
+        val buildWatches = () => {
+          Watches.buildWatches(xgbExecutionParams,
+            processMissingValues(labeledPoints,
+              xgbExecutionParams.missing,
+              xgbExecutionParams.allowNonZeroForMissing),
+            getCacheDirName(xgbExecutionParams.useExternalMemory))
+        }
+        buildDistributedBooster(buildWatches, xgbExecutionParams, rabitEnv,
+          xgbExecutionParams.obj, xgbExecutionParams.eval, prevBooster)
       }).cache()
     } else {
       coPartitionNoGroupSets(trainingData, evalSetsMap, xgbExecutionParams.numWorkers).
         mapPartitions {
           nameAndLabeledPointSets =>
-            val watches = Watches.buildWatches(
-              nameAndLabeledPointSets.map {
-                case (name, iter) => (name, processMissingValues(iter,
-                  xgbExecutionParams.missing, xgbExecutionParams.allowNonZeroForMissing))
-              },
-              getCacheDirName(xgbExecutionParams.useExternalMemory))
-            buildDistributedBooster(watches, xgbExecutionParams, rabitEnv, xgbExecutionParams.obj,
-              xgbExecutionParams.eval, prevBooster)
+            val buildWatches = () => {
+              Watches.buildWatches(
+                nameAndLabeledPointSets.map {
+                  case (name, iter) => (name, processMissingValues(iter,
+                    xgbExecutionParams.missing,
+                    xgbExecutionParams.allowNonZeroForMissing))
+                },
+                getCacheDirName(xgbExecutionParams.useExternalMemory))
+            }
+            buildDistributedBooster(buildWatches, xgbExecutionParams, rabitEnv,
+              xgbExecutionParams.obj, xgbExecutionParams.eval, prevBooster)
         }.cache()
     }
   }
@@ -522,26 +533,30 @@ object XGBoost extends Serializable {
       evalSetsMap: Map[String, RDD[XGBLabeledPoint]]): RDD[(Booster, Map[String, Array[Float]])] = {
     if (evalSetsMap.isEmpty) {
       trainingData.mapPartitions(labeledPointGroups => {
-        val watches = Watches.buildWatchesWithGroup(xgbExecutionParam,
-          processMissingValuesWithGroup(labeledPointGroups, xgbExecutionParam.missing,
-            xgbExecutionParam.allowNonZeroForMissing),
-          getCacheDirName(xgbExecutionParam.useExternalMemory))
-        buildDistributedBooster(watches, xgbExecutionParam, rabitEnv,
+        val buildWatches = () => {
+          Watches.buildWatchesWithGroup(xgbExecutionParam,
+            processMissingValuesWithGroup(labeledPointGroups, xgbExecutionParam.missing,
+              xgbExecutionParam.allowNonZeroForMissing),
+            getCacheDirName(xgbExecutionParam.useExternalMemory))
+        }
+        buildDistributedBooster(buildWatches, xgbExecutionParam, rabitEnv,
           xgbExecutionParam.obj, xgbExecutionParam.eval, prevBooster)
       }).cache()
     } else {
       coPartitionGroupSets(trainingData, evalSetsMap, xgbExecutionParam.numWorkers).mapPartitions(
         labeledPointGroupSets => {
-          val watches = Watches.buildWatchesWithGroup(
-            labeledPointGroupSets.map {
-              case (name, iter) => (name, processMissingValuesWithGroup(iter,
-                xgbExecutionParam.missing, xgbExecutionParam.allowNonZeroForMissing))
-            },
-            getCacheDirName(xgbExecutionParam.useExternalMemory))
-          buildDistributedBooster(watches, xgbExecutionParam, rabitEnv,
-            xgbExecutionParam.obj,
-            xgbExecutionParam.eval,
-            prevBooster)
+          val buildWatches = () => {
+            Watches.buildWatchesWithGroup(
+              labeledPointGroupSets.map {
+                case (name, iter) => (name, processMissingValuesWithGroup(iter,
+                  xgbExecutionParam.missing,
+                  xgbExecutionParam.allowNonZeroForMissing))
+              },
+              getCacheDirName(xgbExecutionParam.useExternalMemory))
+          }
+
+          buildDistributedBooster(buildWatches, xgbExecutionParam, rabitEnv, xgbExecutionParam.obj,
+            xgbExecutionParam.eval, prevBooster)
         }).cache()
     }
   }
