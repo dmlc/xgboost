@@ -3,6 +3,11 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## v1.4.1 (2021.04.20)
+This is a bug fix release.
+
+* Fix GPU implementation of AUC on some large datasets. (#6866)
+
 ## v1.4.0 (2021.04.12)
 
 ### Introduction of pre-built binary package for R, with GPU support
