@@ -10,7 +10,7 @@ This document gives a basic walkthrough of xgboost python package.
 
 Install XGBoost
 ---------------
-To install XGBoost, follow instructions in :doc:`/build`.
+To install XGBoost, follow instructions in :doc:`/install`.
 
 To verify your installation, run the following in Python:
 

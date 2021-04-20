@@ -30,7 +30,7 @@ into permission errors.
 R
 -
 
-From CRAN:
+* From CRAN:
 
 .. code-block:: R
 
@@ -46,9 +46,9 @@ From CRAN:
 
    and then run ``install.packages("xgboost")``. Without OpenMP, XGBoost will only use a single CPU core, leading to suboptimal training speed.
 
-We also provide **experimental** pre-built binary on Linux x86_64 with GPU support.
-Download the binary package from the Releases page. The file name will be of the form
-``xgboost_r_gpu_linux_[version].tar.gz``. Then install XGBoost by running:
+* We also provide **experimental** pre-built binary on Linux x86_64 with GPU support.
+  Download the binary package from the Releases page. The file name will be of the form
+  ``xgboost_r_gpu_linux_[version].tar.gz``. Then install XGBoost by running:
 
 .. code-block:: bash
 

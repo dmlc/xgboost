@@ -24,7 +24,7 @@ Installation
   :backlinks: none
 
 Checkout the :doc:`Installation Guide </install>` for how to install jvm package, or
-:doc:`Building from Source </build>` on how to buit it form source.
+:doc:`Building from Source </build>` on how to build it form source.
 
 ********
 Contents
