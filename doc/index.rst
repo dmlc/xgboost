@@ -15,6 +15,7 @@ Contents
   :maxdepth: 2
   :titlesonly:
 
+  install
   build
   get_started
   tutorials/index

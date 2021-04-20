@@ -3,7 +3,6 @@ XGBoost GPU Support
 ###################
 
 This page contains information about GPU algorithms supported in XGBoost.
-To install GPU support, checkout the :doc:`/build`.
 
 .. note:: CUDA 10.0, Compute Capability 3.5 required
 
