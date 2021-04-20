@@ -25,7 +25,22 @@ with x86_64, aarch, Windows x86_64 and OSX.
 
 
 You might need to run the command with ``--user`` flag or use ``virtualenv`` if you run
-into permission errors.
+into permission errors.  Python pre-built binary capability for each platform:
+
+.. |tick| unicode:: U+2714
+.. |cross| unicode:: U+2718
+
++-------------------+---------+----------------------+
+| Platform          | GPU     | Multi-Node-Multi-GPU |
++===================+=========+======================+
+| Linux x86_64      | |tick|  |  |tick|              |
++-------------------+---------+----------------------+
+| Linux aarch64     | |cross| |  |cross|             |
++-------------------+---------+----------------------+
+| OSX               | |cross| |  |cross|             |
++-------------------+---------+----------------------+
+| Windows           | |tick|  |  |cross|             |
++-------------------+---------+----------------------+
 
 R
 -
@@ -118,6 +133,10 @@ find the wheel with the commit id you want and install it with pip:
 .. code-block:: bash
 
   pip install <url to the wheel>
+
+
+The Python pre-built is the same as stable release.
+
 
 R
 -
