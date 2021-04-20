@@ -8,10 +8,10 @@ with multiple GPUs is only supported for Linux platform**. See :doc:`gpu/index`.
 have both stable releases and nightly builds, see below for how to install them.  For
 building from source, checkout :doc:`here </build>`.
 
+.. contents:: Contents
+
 Stable Release
 ==============
-
-.. contents:: Contents
 
 Python
 ------
@@ -47,30 +47,31 @@ R
 
 * From CRAN:
 
-.. code-block:: R
+  .. code-block:: R
 
-  install.packages("xgboost")
+    install.packages("xgboost")
 
-.. note:: Using all CPU cores (threads) on Mac OSX
+  .. note:: Using all CPU cores (threads) on Mac OSX
 
-   If you are using Mac OSX, you should first install OpenMP library (``libomp``) by running
+     If you are using Mac OSX, you should first install OpenMP library (``libomp``) by running
 
-   .. code-block:: bash
+     .. code-block:: bash
 
-      brew install libomp
+        brew install libomp
 
-   and then run ``install.packages("xgboost")``. Without OpenMP, XGBoost will only use a single CPU core, leading to suboptimal training speed.
+     and then run ``install.packages("xgboost")``. Without OpenMP, XGBoost will only use a
+     single CPU core, leading to suboptimal training speed.
 
 * We also provide **experimental** pre-built binary on Linux x86_64 with GPU support.
   Download the binary package from the Releases page. The file name will be of the form
   ``xgboost_r_gpu_linux_[version].tar.gz``. Then install XGBoost by running:
 
-.. code-block:: bash
+  .. code-block:: bash
 
-  # Install dependencies
-  R -q -e "install.packages(c('data.table', 'magrittr', 'jsonlite', 'remotes'))"
-  # Install XGBoost
-  R CMD INSTALL ./xgboost_r_gpu_linux.tar.gz
+    # Install dependencies
+    R -q -e "install.packages(c('data.table', 'magrittr', 'jsonlite', 'remotes'))"
+    # Install XGBoost
+    R CMD INSTALL ./xgboost_r_gpu_linux.tar.gz
 
 JVM
 ---
@@ -135,7 +136,7 @@ find the wheel with the commit id you want and install it with pip:
   pip install <url to the wheel>
 
 
-The Python pre-built is the same as stable release.
+The capability of Python pre-built wheel is the same as stable release.
 
 
 R
@@ -144,7 +145,7 @@ R
 Other than standard CRAN installation, we also provide *experimental* pre-built binary on
 Linux x86_64 with GPU support.  You can go to `this page
 <https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/list.html>`_, Find the commit
-ID you want to install ``xgboost_r_gpu_linux_[commit].tar.gz``, download it then run:
+ID you want to install: ``xgboost_r_gpu_linux_[commit].tar.gz``, download it then run:
 
 .. code-block:: bash
 

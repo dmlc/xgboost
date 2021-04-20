@@ -205,107 +205,107 @@ There are several ways to build and install the package from source:
 
 1. Use Python setuptools directly
 
-The XGBoost Python package supports most of the setuptools commands, here is a list of tested commands:
+  The XGBoost Python package supports most of the setuptools commands, here is a list of tested commands:
 
-.. code-block:: bash
+  .. code-block:: bash
 
-  python setup.py install  # Install the XGBoost to your current Python environment.
-  python setup.py build    # Build the Python package.
-  python setup.py build_ext # Build only the C++ core.
-  python setup.py sdist     # Create a source distribution
-  python setup.py bdist     # Create a binary distribution
-  python setup.py bdist_wheel # Create a binary distribution with wheel format
+    python setup.py install  # Install the XGBoost to your current Python environment.
+    python setup.py build    # Build the Python package.
+    python setup.py build_ext # Build only the C++ core.
+    python setup.py sdist     # Create a source distribution
+    python setup.py bdist     # Create a binary distribution
+    python setup.py bdist_wheel # Create a binary distribution with wheel format
 
-Running ``python setup.py install`` will compile XGBoost using default CMake flags.  For
-passing additional compilation options, append the flags to the command.  For example, to
-enable CUDA acceleration and NCCL (distributed GPU) support:
+  Running ``python setup.py install`` will compile XGBoost using default CMake flags.  For
+  passing additional compilation options, append the flags to the command.  For example,
+  to enable CUDA acceleration and NCCL (distributed GPU) support:
 
-.. code-block:: bash
+  .. code-block:: bash
 
-  python setup.py install --use-cuda --use-nccl
+    python setup.py install --use-cuda --use-nccl
 
-Please refer to ``setup.py`` for a complete list of avaiable options.  Some other options
-used for development are only available for using CMake directly.  See next section on
-how to use CMake with setuptools manually.
+  Please refer to ``setup.py`` for a complete list of avaiable options.  Some other
+  options used for development are only available for using CMake directly.  See next
+  section on how to use CMake with setuptools manually.
 
-You can install the created distribution packages using pip. For example, after running
-``sdist`` setuptools command, a tar ball similar to ``xgboost-1.0.0.tar.gz`` will be
-created under the ``dist`` directory.  Then you can install it by invoking the following
-command under ``dist`` directory:
+  You can install the created distribution packages using pip. For example, after running
+  ``sdist`` setuptools command, a tar ball similar to ``xgboost-1.0.0.tar.gz`` will be
+  created under the ``dist`` directory.  Then you can install it by invoking the following
+  command under ``dist`` directory:
 
-.. code-block:: bash
+  .. code-block:: bash
 
-  # under python-package directory
-  cd dist
-  pip install ./xgboost-1.0.0.tar.gz
-
-
-For details about these commands, please refer to the official document of `setuptools
-<https://setuptools.readthedocs.io/en/latest/>`_, or just Google "how to install Python
-package from source".  XGBoost Python package follows the general convention.  Setuptools
-is usually available with your Python distribution, if not you can install it via system
-command.  For example on Debian or Ubuntu:
-
-.. code-block:: bash
-
-  sudo apt-get install python-setuptools
+    # under python-package directory
+    cd dist
+    pip install ./xgboost-1.0.0.tar.gz
 
 
-For cleaning up the directory after running above commands, ``python setup.py clean`` is
-not sufficient.  After copying out the build result, simply running ``git clean -xdf``
-under ``python-package`` is an efficient way to remove generated cache files.  If you find
-weird behaviors in Python build or running linter, it might be caused by those cached
-files.
+  For details about these commands, please refer to the official document of `setuptools
+  <https://setuptools.readthedocs.io/en/latest/>`_, or just Google "how to install Python
+  package from source".  XGBoost Python package follows the general convention.
+  Setuptools is usually available with your Python distribution, if not you can install it
+  via system command.  For example on Debian or Ubuntu:
 
-For using develop command (editable installation), see next section.
+  .. code-block:: bash
 
-.. code-block::
+    sudo apt-get install python-setuptools
 
-  python setup.py develop   # Create a editable installation.
-  pip install -e .          # Same as above, but carried out by pip.
+
+  For cleaning up the directory after running above commands, ``python setup.py clean`` is
+  not sufficient.  After copying out the build result, simply running ``git clean -xdf``
+  under ``python-package`` is an efficient way to remove generated cache files.  If you
+  find weird behaviors in Python build or running linter, it might be caused by those
+  cached files.
+
+  For using develop command (editable installation), see next section.
+
+  .. code-block::
+
+    python setup.py develop   # Create a editable installation.
+    pip install -e .          # Same as above, but carried out by pip.
 
 
 2. Build C++ core with CMake first
 
-This is mostly for C++ developers who don't want to go through the hooks in Python
-setuptools.  You can build C++ library directly using CMake as described in above
-sections.  After compilation, a shared object (or called dynamic linked library, jargon
-depending on your platform) will appear in XGBoost's source tree under ``lib/`` directory.
-On Linux distributions it's ``lib/libxgboost.so``.  From there all Python setuptools
-commands will reuse that shared object instead of compiling it again.  This is especially
-convenient if you are using the editable installation, where the installed package is
-simply a link to the source tree.  We can perform rapid testing during development.  Here
-is a simple bash script does that:
+  This is mostly for C++ developers who don't want to go through the hooks in Python
+  setuptools.  You can build C++ library directly using CMake as described in above
+  sections.  After compilation, a shared object (or called dynamic linked library, jargon
+  depending on your platform) will appear in XGBoost's source tree under ``lib/``
+  directory.  On Linux distributions it's ``lib/libxgboost.so``.  From there all Python
+  setuptools commands will reuse that shared object instead of compiling it again.  This
+  is especially convenient if you are using the editable installation, where the installed
+  package is simply a link to the source tree.  We can perform rapid testing during
+  development.  Here is a simple bash script does that:
 
-.. code-block:: bash
+  .. code-block:: bash
 
-  # Under xgboost source tree.
-  mkdir build
-  cd build
-  cmake ..
-  make -j$(nproc)
-  cd ../python-package
-  pip install -e .  # or equivalently python setup.py develop
+    # Under xgboost source tree.
+    mkdir build
+    cd build
+    cmake ..
+    make -j$(nproc)
+    cd ../python-package
+    pip install -e .  # or equivalently python setup.py develop
 
 3. Use ``libxgboost.so`` on system path.
 
-This is for distributing xgboost in a language independent manner, where ``libxgboost.so``
-is separately packaged with Python package.  Assuming `libxgboost.so` is already presented
-in system library path, which can be queried via:
+  This is for distributing xgboost in a language independent manner, where
+  ``libxgboost.so`` is separately packaged with Python package.  Assuming `libxgboost.so`
+  is already presented in system library path, which can be queried via:
 
-.. code-block:: python
+  .. code-block:: python
 
-  import sys
-  import os
-  os.path.join(sys.prefix, 'lib')
+    import sys
+    import os
+    os.path.join(sys.prefix, 'lib')
 
-Then one only needs to provide an user option when installing Python package to reuse the
-shared object in system path:
+  Then one only needs to provide an user option when installing Python package to reuse the
+  shared object in system path:
 
-.. code-block:: bash
+  .. code-block:: bash
 
-  cd xgboost/python-package
-  python setup.py install --use-system-libxgboost
+    cd xgboost/python-package
+    python setup.py install --use-system-libxgboost
 
 
 .. _python_mingw:
