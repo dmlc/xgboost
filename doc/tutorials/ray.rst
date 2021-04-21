@@ -4,18 +4,20 @@ Distributed XGBoost with Ray
 
 `Ray <https://ray.io/>`_ is a general purpose distributed execution framework.
 Ray can be used to scale computations from a single node to a cluster of hundreds
-of nodes.
+of nodes without changing any code.
 
 The Python bindings of Ray come with a collection of well maintained
 machine learning libraries for hyperparameter optimization and model serving.
 
 The `XGBoost-Ray <https://github.com/ray-project/xgboost_ray>`_ project provides
 an interface to run XGBoost training and prediction jobs on a Ray cluster. It allows
-to utilize distributed data representations, such as Modin dataframes or Ray MLDatasets,
+to utilize distributed data representations, such as
+`Modin <https://modin.readthedocs.io/en/latest/>`_ dataframes,
 as well as distributed loading from cloud storage (e.g. Parquet files).
 
 XGBoost-Ray integrates well with hyperparameter optimization library Ray Tune, and
-implements advanced fault tolerance handling mechanisms. With Ray you can scale your training jobs to hundreds of nodes just by adding new
+implements advanced fault tolerance handling mechanisms. With Ray you can scale
+your training jobs to hundreds of nodes just by adding new
 nodes to a cluster. You can also use Ray to leverage multi GPU XGBoost training.
 
 Installing and starting Ray
