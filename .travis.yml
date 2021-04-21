@@ -51,6 +51,7 @@ cache:
   directories:
     - ${HOME}/.cache/usr
     - ${HOME}/.cache/pip
+    - ${HOME}/Library/Caches/Homebrew
 
 before_cache:
   - tests/travis/travis_before_cache.sh

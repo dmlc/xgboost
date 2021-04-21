@@ -1,3 +1,4 @@
 #!/bin/bash
-# do nothing for now
 ls -alLR ${CACHE_PREFIX}
+# Avoid growing the cache.
+brew cleanup
