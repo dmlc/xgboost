@@ -348,8 +348,7 @@ class RabitTracker(object):
         def run():
             self.accept_slaves(nslave)
 
-        self.thread = Thread(target=run, args=())
-        self.thread.setDaemon(True)
+        self.thread = Thread(target=run, args=(), daemon=True)
         self.thread.start()
 
     def join(self):
