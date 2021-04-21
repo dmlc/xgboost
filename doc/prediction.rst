@@ -54,8 +54,8 @@ After 1.4 release, we added a new parameter called ``strict_shape``, one can set
   Output is a 4-dim array with ``(n_samples, n_iterations, n_classes, n_trees_in_forest)``
   as shape.  ``n_trees_in_forest`` is specified by the ``numb_parallel_tree`` during
   training.  When strict shape is set to False, output is a 2-dim array with last 3 dims
-  concatenated into 1.  When using ``apply`` method in scikit learn interface, this is set
-  to False by default.
+  concatenated into 1.  Also the last dimension is dropped if it eqauls to 1. When using
+  ``apply`` method in scikit learn interface, this is set to False by default.
 
 
 Other than these prediction types, there's also a parameter called ``iteration_range``,

@@ -75,6 +75,11 @@ def run_predict_leaf(predictor):
     first = sliced[0, ...]
 
     assert np.prod(first.shape) == classes * num_parallel_tree * ntree_limit
+
+    # When there's only 1 tree, the output is a 1 dim vector
+    booster = xgb.train({"tree_method": "hist"}, num_boost_round=1, dtrain=m)
+    assert booster.predict(m, pred_leaf=True).shape == (rows, )
+
     return leaf
 
 
