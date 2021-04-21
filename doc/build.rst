@@ -71,7 +71,7 @@ After obtaining the source code, one builds XGBoost by running CMake:
   make -j$(nproc)
 
 Building on MacOS
-===============
+=================
 
 Obtain ``libomp`` from `Homebrew <https://brew.sh/>`_:
 
