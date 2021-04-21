@@ -210,6 +210,8 @@ jobs:
       if: matrix.os == 'ubuntu-latest'  # Distributed training doesn't work on Windows
       env:
         RABIT_MOCK: ON
+        SPARK_LOCAL_IP: 127.0.0.1
+        XGBOOST_RABIT_TRACKER_IP_FOR_TEST: 127.0.0.1
 
   lint:
     runs-on: ubuntu-latest

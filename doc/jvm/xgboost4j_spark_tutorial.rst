@@ -162,17 +162,17 @@ Example of setting a missing value (e.g. -999) to the "missing" parameter in XGB
   doing this with missing values encoded as NaN, you will want to set ``setHandleInvalid = "keep"`` on VectorAssembler
   in order to keep the NaN values in the dataset. You would then set the "missing" parameter to whatever you want to be
   treated as missing. However this may cause a large amount of memory use if your dataset is very sparse. For example:
-  
+
   .. code-block:: scala
 
   val assembler = new VectorAssembler().setInputCols(feature_names.toArray).setOutputCol("features").setHandleInvalid("keep")
 
   // conversion to dense vector using Array()
-  
+
   val featurePipeline = new Pipeline().setStages(Array(assembler))
   val featureModel = featurePipeline.fit(df_training)
   val featureDf = featureModel.transform(df_training)
-  
+
   val xgbParam = Map("eta" -> 0.1f,
         "max_depth" -> 2,
         "objective" -> "multi:softprob",
@@ -181,10 +181,10 @@ Example of setting a missing value (e.g. -999) to the "missing" parameter in XGB
         "num_workers" -> 2,
         "allow_non_zero_for_missing" -> "true",
         "missing" -> -999)
-        
+
   val xgb = new XGBoostClassifier(xgbParam)
   val xgbclassifier = xgb.fit(featureDf)
-  
+
 
   2. Before calling VectorAssembler you can transform the values you want to represent missing into an irregular value
   that is not 0, NaN, or Null and set the "missing" parameter to 0. The irregular value should ideally be chosen to be
@@ -586,3 +586,11 @@ An equivalent way is to pass in parameters in XGBoostClassifier's constructor:
       setLabelCol("classIndex")
 
 If the training failed during these 100 rounds, the next run of training would start by reading the latest checkpoint file in ``/checkpoints_path`` and start from the iteration when the checkpoint was built until to next failure or the specified 100 rounds.
+
+
+Developer Notes
+===============
+
+There's an environment variable called ``XGBOOST_RABIT_TRACKER_IP_FOR_TEST`` used to
+specify the tracker IP, which can be used in combination with ``SPARK_LOCAL_IP``.  It's
+only used for testing and is not maintained as a part of the interface.
