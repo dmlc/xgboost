@@ -58,16 +58,16 @@ if [ ${TASK} == "python_test" ]; then
         tests/ci_build/ci_build.sh aarch64 docker \
           bash -c "source activate aarch64_test && python -m pip install ./python-package/dist/xgboost-*-py3-none-${TAG}.whl && python -m pytest -v -s -rxXs --durations=0 --fulltrace tests/python/test_basic.py tests/python/test_basic_models.py tests/python/test_model_compatibility.py --cov=python-package/xgboost"
     else
-	echo "Create Conda environment"
-	date
+        echo "Create Conda environment"
+        date
         time conda env create -n cpu_test --file=tests/ci_build/conda_env/macos_cpu_test.yml
         conda activate cpu_test
         python -m pip install ./python-package/dist/xgboost-*-py3-none-${TAG}.whl
         conda --version
         python --version
-	date
+        date
 
-	echo "Run unittests"
+        echo "Run unittests"
         time python -m pytest -v -s -rxXs --durations=0 --fulltrace tests/python --cov=python-package/xgboost || exit -1
     fi
     conda activate python3
