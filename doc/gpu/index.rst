@@ -3,7 +3,6 @@ XGBoost GPU Support
 ###################
 
 This page contains information about GPU algorithms supported in XGBoost.
-To install GPU support, checkout the :doc:`/build`.
 
 .. note:: CUDA 10.0, Compute Capability 3.5 required
 
@@ -71,7 +70,7 @@ The device ordinal (which GPU to use if you have many of them) can be selected u
 ``gpu_id`` parameter, which defaults to 0 (the first device reported by CUDA runtime).
 
 
-The GPU algorithms currently work with CLI, Python and R packages. See :doc:`/build` for details.
+The GPU algorithms currently work with CLI, Python, R, and JVM packages. See :doc:`/install` for details.
 
 .. code-block:: python
   :caption: Python example
