@@ -8,6 +8,9 @@ if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_sdist_test" ]; then
     else
         wget --no-verbose -O conda.sh https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
     fi
+    echo "Install Conda"
+    date
+
     bash conda.sh -b -p $HOME/miniconda
     source $HOME/miniconda/bin/activate
     hash -r
@@ -18,6 +21,8 @@ if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_sdist_test" ]; then
     conda create -n python3 python=3.7 cmake numpy scipy codecov
     conda activate python3
     python -m pip install awscli
+
+    date
 fi
 
 if [ ${TASK} == "s390x_test" ] && [ ${TRAVIS_CPU_ARCH} == "s390x" ]; then
