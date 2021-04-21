@@ -58,7 +58,7 @@ For a list of CMake options like GPU support, see ``#-- Options`` in CMakeLists.
 level of source tree.
 
 Building on Linux and other UNIX-like systems
-===============================
+=============================================
 
 After obtaining the source code, one builds XGBoost by running CMake:
 
