@@ -41,13 +41,18 @@ if [ ${TASK} == "python_test" ]; then
     else
       rm -rf build
       mkdir build && cd build
+      echo "Build XGBoost"
+      date
+
       conda activate python3
       cmake --version
       cmake .. -DUSE_OPENMP=ON -DCMAKE_VERBOSE_MAKEFILE=ON
-      make -j$(nproc)
+      time make -j$(nproc)
       cd ../python-package
       python setup.py bdist_wheel
       cd ..
+
+      date
       TAG=macosx_10_14_x86_64.macosx_10_15_x86_64.macosx_11_0_x86_64
       python tests/ci_build/rename_whl.py python-package/dist/*.whl ${TRAVIS_COMMIT} ${TAG}
     fi
