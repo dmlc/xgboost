@@ -2,7 +2,7 @@
 Building From Source
 ####################
 
-This page gives instructions on how to build and install XGBoost from scratch on various
+This page gives instructions on how to build and install XGBoost from the source code on various
 systems.  If the instructions do not work for you, please feel free to ask questions at
 `the user forum <https://discuss.xgboost.ai>`_.
 
@@ -44,7 +44,8 @@ This section describes the procedure to build the shared library and CLI interfa
 independently.  For building language specific package, see corresponding sections in this
 document.
 
-- On Linux/OSX the target library is ``libxgboost.so``
+- On Linux and other UNIX-like systems, the target library is ``libxgboost.so``
+- On MacOS, the target library is ``libxgboost.dylib``
 - On Windows the target library is ``xgboost.dll``
 
 This shared library is used by different language bindings (with some additions depending
@@ -56,10 +57,10 @@ on the binding you choose).  The minimal building requirement is
 For a list of CMake options like GPU support, see ``#-- Options`` in CMakeLists.txt on top
 level of source tree.
 
-Building on Linux distributions
+Building on Linux and other UNIX-like systems
 ===============================
 
-On Ubuntu, after obtaining the source code, one builds XGBoost by running CMake:
+After obtaining the source code, one builds XGBoost by running CMake:
 
 .. code-block:: bash
 
@@ -69,10 +70,10 @@ On Ubuntu, after obtaining the source code, one builds XGBoost by running CMake:
   cmake ..
   make -j$(nproc)
 
-Building on OSX
+Building on MacOS
 ===============
 
-Obtain ``libomp`` from Homebrew:
+Obtain ``libomp`` from `Homebrew <https://brew.sh/>`_:
 
 .. code-block:: bash
 
@@ -447,7 +448,7 @@ You might find the exact location by running ``.libPaths()`` in R GUI or RStudio
 Building JVM Packages
 *********************
 
-Building XGBoost4J using Maven requires Maven 3 or newer, Java 7+ and CMake 3.13+ for compiling the JNI bindings.
+Building XGBoost4J using Maven requires Maven 3 or newer, Java 7+ and CMake 3.13+ for compiling Java code as well as the Java Native Interface (JNI) bindings.
 
 Before you install XGBoost4J, you need to define environment variable ``JAVA_HOME`` as your JDK directory to ensure that your compiler can find ``jni.h`` correctly, since XGBoost4J relies on JNI to implement the interaction between the JVM and native libraries.
 

@@ -6,7 +6,7 @@ XGBoost provides binary packages for some language bindings.  The binary package
 the GPU algorithm (``gpu_hist``) on machines with NVIDIA GPUs. Please note that **training
 with multiple GPUs is only supported for Linux platform**. See :doc:`gpu/index`.  Also we
 have both stable releases and nightly builds, see below for how to install them.  For
-building from source, checkout :doc:`here </build>`.
+building from source, visit :doc:`this page </build>`.
 
 .. contents:: Contents
 
@@ -16,8 +16,7 @@ Stable Release
 Python
 ------
 
-Pre-built binary are uploaded to Pypi for each release.  Supported platforms are Linux
-with x86_64, aarch, Windows x86_64 and OSX.
+Pre-built binary are uploaded to PyPI (Python Package Index) for each release.  Supported platforms are Linux (x86_64, aarch64), Windows (x86_64) and MacOS (x86_64).
 
 .. code-block:: bash
 
@@ -37,7 +36,7 @@ into permission errors.  Python pre-built binary capability for each platform:
 +-------------------+---------+----------------------+
 | Linux aarch64     | |cross| |  |cross|             |
 +-------------------+---------+----------------------+
-| OSX               | |cross| |  |cross|             |
+| MacOS             | |cross| |  |cross|             |
 +-------------------+---------+----------------------+
 | Windows           | |tick|  |  |cross|             |
 +-------------------+---------+----------------------+
@@ -69,7 +68,7 @@ R
   .. code-block:: bash
 
     # Install dependencies
-    R -q -e "install.packages(c('data.table', 'magrittr', 'jsonlite', 'remotes'))"
+    R -q -e "install.packages(c('data.table', 'magrittr', 'jsonlite'))"
     # Install XGBoost
     R CMD INSTALL ./xgboost_r_gpu_linux.tar.gz
 
@@ -129,7 +128,7 @@ Python
 ------
 
 Nightly builds are available. You can go to `this page <https://s3-us-west-2.amazonaws.com/xgboost-nightly-builds/list.html>`_,
-find the wheel with the commit id you want and install it with pip:
+find the wheel with the commit ID you want and install it with pip:
 
 .. code-block:: bash
 
