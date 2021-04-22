@@ -24,7 +24,7 @@
 #endif  // LOG_CAPI_INVOCATION
 
 /*! \brief every function starts with API_BEGIN();
-     and finishes with API_END() or API_END_HANDLE_ERROR */
+     and finishes with API_END() */
 #define API_END()                                                              \
   } catch (dmlc::Error & _except_) {                                           \
     return XGBAPIHandleException(_except_);                                    \
@@ -35,12 +35,6 @@
 
 #define CHECK_HANDLE() if (handle == nullptr) \
   LOG(FATAL) << "DMatrix/Booster has not been intialized or has already been disposed.";
-/*!
- * \brief every function starts with API_BEGIN();
- *   and finishes with API_END() or API_END_HANDLE_ERROR
- *   The finally clause contains procedure to cleanup states when an error happens.
- */
-#define API_END_HANDLE_ERROR(Finalize) } catch(dmlc::Error &_except_) { Finalize; return XGBAPIHandleException(_except_); } return 0; // NOLINT(*)
 
 /*!
  * \brief Set the last error message needed by C API
