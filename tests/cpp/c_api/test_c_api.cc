@@ -307,5 +307,8 @@ TEST(CAPI, GlobalVariables) {
   ASSERT_EQ(omp_get_max_threads(), 1);
 
   omp_set_num_threads(n_threads);
+
+  XGDMatrixFree(handle);
+  XGBoosterFree(booster);
 }
 }  // namespace xgboost
