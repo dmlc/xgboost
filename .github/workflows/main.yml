@@ -21,7 +21,7 @@ jobs:
         submodules: 'true'
     - name: Install system packages
       run: |
-        brew install lz4 ninja libomp
+        brew install lz4 ninja libomp@11.1.0
     - name: Build gtest binary
       run: |
         mkdir build
