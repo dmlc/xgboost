@@ -6,6 +6,16 @@
 #include "c_api_utils.h"
 #include "../data/device_adapter.cuh"
 
+namespace xgboost {
+void XGBoostAPIGuard::SetGPUAttribute() {
+  device_id_ = dh::CurrentDevice();
+}
+
+void XGBoostAPIGuard::RestoreGPUAttribute() {
+  dh::safe_cuda(cudaSetDevice(device_id_));
+}
+}                        // namespace xgboost
+
 using namespace xgboost;  // NOLINT
 
 XGB_DLL int XGDMatrixCreateFromArrayInterfaceColumns(char const* c_json_strs,
