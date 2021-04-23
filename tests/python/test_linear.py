@@ -61,7 +61,7 @@ class TestLinear:
         # result.
         if len(result) > 2:
             sampled_result = [score for i, score in enumerate(result)
-                              if i % 2 == 0]
+                              if i % 4 == 0]
             sampled_result[-1] = result[-1]  # make sure the last one is used
         else:
             sampled_result = result
