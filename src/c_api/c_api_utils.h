@@ -96,6 +96,10 @@ inline void CalcPredictShape(bool strict_shape, PredictionType type, size_t rows
       forest = std::max(static_cast<decltype(forest)>(1), forest);
       shape[3] = forest;
       *out_dim = shape.size();
+    } else if (chunksize == 1) {
+      *out_dim = 1;
+      shape.resize(*out_dim);
+      shape.front() = rows;
     } else {
       *out_dim = 2;
       shape.resize(*out_dim);
