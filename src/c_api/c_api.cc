@@ -43,7 +43,7 @@ XGB_DLL void XGBoostVersion(int* major, int* minor, int* patch) {
 }
 
 XGB_DLL int XGBRegisterLogCallback(void (*callback)(const char*)) {
-  API_BEGIN();
+  API_BEGIN_UNGUARD();
   LogCallbackRegistry* registry = LogCallbackRegistryStore::Get();
   registry->Register(callback);
   API_END();
@@ -568,9 +568,9 @@ XGB_DLL int XGBoosterBoostOneIter(BoosterHandle handle,
                                   bst_float *grad,
                                   bst_float *hess,
                                   xgboost::bst_ulong len) {
-  HostDeviceVector<GradientPair> tmp_gpair;
   API_BEGIN();
   CHECK_HANDLE();
+  HostDeviceVector<GradientPair> tmp_gpair;
   auto* bst = static_cast<Learner*>(handle);
   auto* dtr =
       static_cast<std::shared_ptr<DMatrix>*>(dtrain);

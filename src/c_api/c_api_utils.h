@@ -13,8 +13,6 @@
 #include "xgboost/learner.h"
 #include "xgboost/c_api.h"
 
-#include "c_api_error.h"
-
 namespace xgboost {
 /* \brief Determine the output shape of prediction.
  *
@@ -158,5 +156,28 @@ inline float GetMissing(Json const &config) {
   }
   return missing;
 }
+
+// Safe guard some global variables from being changed by XGBoost.
+class XGBoostAPIGuard {
+  int32_t n_threads_ {omp_get_max_threads()};
+  int32_t device_id_ {0};
+
+#if defined(XGBOOST_USE_CUDA)
+  void SetGPUAttribute();
+  void RestoreGPUAttribute();
+#else
+  void SetGPUAttribute() {}
+  void RestoreGPUAttribute() {}
+#endif
+
+ public:
+  XGBoostAPIGuard() {
+    SetGPUAttribute();
+  }
+  ~XGBoostAPIGuard() {
+    omp_set_num_threads(n_threads_);
+    RestoreGPUAttribute();
+  }
+};
 }  // namespace xgboost
 #endif  // XGBOOST_C_API_C_API_UTILS_H_
