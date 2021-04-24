@@ -1,7 +1,7 @@
 # Construct an internal xgboost Booster and return a handle to it.
 # internal utility function
 xgb.Booster.handle <- function(params = list(), cachelist = list(),
-                               modelfile = NULL) {
+                               modelfile = NULL, handle = NULL) {
   if (typeof(cachelist) != "list" ||
       !all(vapply(cachelist, inherits, logical(1), what = 'xgb.DMatrix'))) {
     stop("cachelist must be a list of xgb.DMatrix objects")
@@ -20,7 +20,7 @@ xgb.Booster.handle <- function(params = list(), cachelist = list(),
       return(handle)
     } else if (typeof(modelfile) == "raw") {
       ## A memory buffer
-      bst <- xgb.unserialize(modelfile)
+      bst <- xgb.unserialize(modelfile, handle)
       xgb.parameters(bst) <- params
       return (bst)
     } else if (inherits(modelfile, "xgb.Booster")) {
@@ -129,7 +129,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
     stop("argument type must be xgb.Booster")
 
   if (is.null.handle(object$handle)) {
-    object$handle <- xgb.Booster.handle(modelfile = object$raw)
+    object$handle <- xgb.Booster.handle(modelfile = object$raw, handle = object$handle)
   } else {
     if (is.null(object$raw) && saveraw) {
       object$raw <- xgb.serialize(object$handle)

@@ -3,9 +3,13 @@
 #' @param buffer the buffer containing booster instance saved by \code{\link{xgb.serialize}}
 #'
 #' @export
-xgb.unserialize <- function(buffer) {
+xgb.unserialize <- function(buffer, handle = NULL) {
   cachelist <- list()
-  handle <- .Call(XGBoosterCreate_R, cachelist)
+  if (is.null(handle)) {
+    handle <- .Call(XGBoosterCreate_R, cachelist)
+  } else {
+    .Call(XGBoosterCreateInEmptyObj_R, cachelist, handle)
+  }
   tryCatch(
     .Call(XGBoosterUnserializeFromBuffer_R, handle, buffer),
     error = function(e) {
