@@ -273,7 +273,6 @@ SEXP XGBoosterCreate_R(SEXP dmats) {
 }
 
 SEXP XGBoosterCreateInEmptyObj_R(SEXP dmats, SEXP R_handle) {
-  SEXP ret;
   R_API_BEGIN();
   int len = length(dmats);
   std::vector<void*> dvec;
