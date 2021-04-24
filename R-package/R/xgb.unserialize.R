@@ -1,6 +1,11 @@
 #' Load the instance back from \code{\link{xgb.serialize}}
 #'
 #' @param buffer the buffer containing booster instance saved by \code{\link{xgb.serialize}}
+#' @param handle An \code{xgb.Booster.handle} object which will be overwritten with
+#' the new deserialized object. Must be a null handle (e.g. when loading the model through
+#' `readRDS`). If not provided, a new handle will be created.
+#' 
+#' @return An \code{xgb.Booster.handle} object.
 #'
 #' @export
 xgb.unserialize <- function(buffer, handle = NULL) {
@@ -8,6 +13,8 @@ xgb.unserialize <- function(buffer, handle = NULL) {
   if (is.null(handle)) {
     handle <- .Call(XGBoosterCreate_R, cachelist)
   } else {
+    if (!is.null.handle(handle))
+      stop("'handle' is not null/empty. Cannot overwrite existing handle.")
     .Call(XGBoosterCreateInEmptyObj_R, cachelist, handle)
   }
   tryCatch(
