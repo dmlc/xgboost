@@ -29,7 +29,6 @@ addons:
       - libgit2
       - lz4
       - wget
-    update: false
   apt:
     packages:
       - snapd
