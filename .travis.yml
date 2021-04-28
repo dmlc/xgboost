@@ -29,7 +29,7 @@ addons:
       - libgit2
       - lz4
       - wget
-    update: true
+    update: false
   apt:
     packages:
       - snapd
