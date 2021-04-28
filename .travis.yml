@@ -19,16 +19,8 @@ jobs:
       env: TASK=java_test
 
 # dependent brew packages
+# the dependencies from homebrew is installed manually from setup script due to outdated image from travis.
 addons:
-  homebrew:
-    packages:
-      - cmake
-      - libomp
-      - graphviz
-      - openssl
-      - libgit2
-      - lz4
-      - wget
   apt:
     packages:
       - snapd

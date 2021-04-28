@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# https://travis-ci.community/t/macos-build-fails-because-of-homebrew-bundle-unknown-command/7296/27
+brew install cmake libomp graphviz openssl libgit2 lz4 wget
+
+
 if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_sdist_test" ]; then
     if [ ${TRAVIS_OS_NAME} == "osx" ]; then
         wget --no-verbose -O conda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
