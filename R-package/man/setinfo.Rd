@@ -33,8 +33,7 @@ The \code{name} field can be one of the following:
 }
 \examples{
 data(agaricus.train, package='xgboost')
-train <- agaricus.train
-dtrain <- xgb.DMatrix(train$data, label=train$label)
+dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 
 labels <- getinfo(dtrain, 'label')
 setinfo(dtrain, 'label', 1-labels)

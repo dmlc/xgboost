@@ -27,8 +27,7 @@ Supported input file formats are either a libsvm text file or a binary file that
 }
 \examples{
 data(agaricus.train, package='xgboost')
-train <- agaricus.train
-dtrain <- xgb.DMatrix(train$data, label=train$label)
+dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
 dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 if (file.exists('xgb.DMatrix.data')) file.remove('xgb.DMatrix.data')
