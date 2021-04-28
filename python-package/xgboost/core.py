@@ -2093,7 +2093,7 @@ class Booster(object):
         """
         if isinstance(fout, (STRING_TYPES, os.PathLike)):
             fout = os.fspath(os.path.expanduser(fout))
-            fout = open(fout, 'w')
+            fout = open(fout, 'w')  # pylint: disable=consider-using-with
             need_close = True
         else:
             need_close = False
