@@ -29,7 +29,6 @@ addons:
       - libgit2
       - lz4
       - wget
-      - r
     update: true
   apt:
     packages:
