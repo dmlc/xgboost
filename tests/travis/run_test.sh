@@ -41,7 +41,7 @@ if [ ${TASK} == "python_test" ]; then
       mkdir build && cd build
       conda activate python3
       cmake --version
-      cmake .. -DUSE_OPENMP=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+      cmake .. -DUSE_OPENMP=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DPLUGIN_LZ4=ON
       make -j$(nproc)
       cd ../python-package
       python setup.py bdist_wheel
