@@ -19,8 +19,7 @@ Currently it displays dimensions and presence of info-fields and colnames.
 }
 \examples{
 data(agaricus.train, package='xgboost')
-train <- agaricus.train
-dtrain <- xgb.DMatrix(train$data, label=train$label)
+dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 
 dtrain
 print(dtrain, verbose=TRUE)

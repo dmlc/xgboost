@@ -8,7 +8,7 @@ during its training.}
 cb.gblinear.history(sparse = FALSE)
 }
 \arguments{
-\item{sparse}{when set to FALSE/TURE, a dense/sparse matrix is used to store the result.
+\item{sparse}{when set to FALSE/TRUE, a dense/sparse matrix is used to store the result.
 Sparse format is useful when one expects only a subset of coefficients to be non-zero,
 when using the "thrifty" feature selector with fairly small number of top features
 selected per iteration.}
@@ -36,7 +36,6 @@ Callback function expects the following values to be set in its calling frame:
 #
 # In the iris dataset, it is hard to linearly separate Versicolor class from the rest
 # without considering the 2nd order interactions:
-require(magrittr)
 x <- model.matrix(Species ~ .^2, iris)[,-1]
 colnames(x)
 dtrain <- xgb.DMatrix(scale(x), label = 1*(iris$Species == "versicolor"))
@@ -57,7 +56,7 @@ matplot(coef_path, type = 'l')
 bst <- xgb.train(param, dtrain, list(tr=dtrain), nrounds = 200, eta = 0.8,
                  updater = 'coord_descent', feature_selector = 'thrifty', top_k = 1,
                  callbacks = list(cb.gblinear.history()))
-xgb.gblinear.history(bst) \%>\% matplot(type = 'l')
+matplot(xgb.gblinear.history(bst), type = 'l')
 #  Componentwise boosting is known to have similar effect to Lasso regularization.
 # Try experimenting with various values of top_k, eta, nrounds,
 # as well as different feature_selectors.
@@ -66,7 +65,7 @@ xgb.gblinear.history(bst) \%>\% matplot(type = 'l')
 bst <- xgb.cv(param, dtrain, nfold = 5, nrounds = 100, eta = 0.8,
              callbacks = list(cb.gblinear.history()))
 # coefficients in the CV fold #3
-xgb.gblinear.history(bst)[[3]] \%>\% matplot(type = 'l')
+matplot(xgb.gblinear.history(bst)[[3]], type = 'l')
 
 
 #### Multiclass classification:
@@ -79,15 +78,15 @@ param <- list(booster = "gblinear", objective = "multi:softprob", num_class = 3,
 bst <- xgb.train(param, dtrain, list(tr=dtrain), nrounds = 70, eta = 0.5,
                  callbacks = list(cb.gblinear.history()))
 # Will plot the coefficient paths separately for each class:
-xgb.gblinear.history(bst, class_index = 0) \%>\% matplot(type = 'l')
-xgb.gblinear.history(bst, class_index = 1) \%>\% matplot(type = 'l')
-xgb.gblinear.history(bst, class_index = 2) \%>\% matplot(type = 'l')
+matplot(xgb.gblinear.history(bst, class_index = 0), type = 'l')
+matplot(xgb.gblinear.history(bst, class_index = 1), type = 'l')
+matplot(xgb.gblinear.history(bst, class_index = 2), type = 'l')
 
 # CV:
 bst <- xgb.cv(param, dtrain, nfold = 5, nrounds = 70, eta = 0.5,
               callbacks = list(cb.gblinear.history(FALSE)))
-# 1st forld of 1st class
-xgb.gblinear.history(bst, class_index = 0)[[1]] \%>\% matplot(type = 'l')
+# 1st fold of 1st class
+matplot(xgb.gblinear.history(bst, class_index = 0)[[1]], type = 'l')
 
 }
 \seealso{
