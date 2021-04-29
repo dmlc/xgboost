@@ -1027,7 +1027,10 @@ class TestWithDask:
         def is_stump():
             return params["max_depth"] == 1 or params["max_leaves"] == 1
 
-        if params["max_bin"] == 2 and is_stump():
+        def minimum_bin():
+            return "max_bin" in params and params["max_bin"] == 2
+
+        if minimum_bin() and is_stump():
             assert tm.non_increasing(history, tolerance=1e-3)
         else:
             assert tm.non_increasing(history)
