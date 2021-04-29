@@ -272,6 +272,21 @@ SEXP XGBoosterCreate_R(SEXP dmats) {
   return ret;
 }
 
+SEXP XGBoosterCreateInEmptyObj_R(SEXP dmats, SEXP R_handle) {
+  R_API_BEGIN();
+  int len = length(dmats);
+  std::vector<void*> dvec;
+  for (int i = 0; i < len; ++i) {
+    dvec.push_back(R_ExternalPtrAddr(VECTOR_ELT(dmats, i)));
+  }
+  BoosterHandle handle;
+  CHECK_CALL(XGBoosterCreate(BeginPtr(dvec), dvec.size(), &handle));
+  R_SetExternalPtrAddr(R_handle, handle);
+  R_RegisterCFinalizerEx(R_handle, _BoosterFinalizer, TRUE);
+  R_API_END();
+  return R_NilValue;
+}
+
 SEXP XGBoosterSetParam_R(SEXP handle, SEXP name, SEXP val) {
   R_API_BEGIN();
   CHECK_CALL(XGBoosterSetParam(R_ExternalPtrAddr(handle),

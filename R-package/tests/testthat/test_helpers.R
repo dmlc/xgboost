@@ -238,12 +238,13 @@ if (grepl('Windows', Sys.info()[['sysname']]) ||
 test_that("xgb.Booster serializing as R object works", {
   saveRDS(bst.Tree, 'xgb.model.rds')
   bst <- readRDS('xgb.model.rds')
-  if (file.exists('xgb.model.rds')) file.remove('xgb.model.rds')
   dtrain <- xgb.DMatrix(sparse_matrix, label = label)
   expect_equal(predict(bst.Tree, dtrain), predict(bst, dtrain), tolerance = float_tolerance)
   expect_equal(xgb.dump(bst.Tree), xgb.dump(bst))
   xgb.save(bst, 'xgb.model')
   if (file.exists('xgb.model')) file.remove('xgb.model')
+  bst <- readRDS('xgb.model.rds')
+  if (file.exists('xgb.model.rds')) file.remove('xgb.model.rds')
   nil_ptr <- new("externalptr")
   class(nil_ptr) <- "xgb.Booster.handle"
   expect_true(identical(bst$handle, nil_ptr))
