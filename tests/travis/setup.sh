@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # https://travis-ci.community/t/macos-build-fails-because-of-homebrew-bundle-unknown-command/7296/27
-brew install cmake libomp openssl libgit2 lz4 wget
+brew install cmake libomp lz4
 
 
 if [ ${TASK} == "python_test" ] || [ ${TASK} == "python_sdist_test" ]; then
