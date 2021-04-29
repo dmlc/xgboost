@@ -21,6 +21,8 @@ jobs:
 # dependent brew packages
 # the dependencies from homebrew is installed manually from setup script due to outdated image from travis.
 addons:
+  homebrew:
+    update: false
   apt:
     packages:
       - snapd
