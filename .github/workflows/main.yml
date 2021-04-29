@@ -21,7 +21,7 @@ jobs:
         submodules: 'true'
     - uses: maxim-lobanov/setup-xcode@v1
       with:
-        xcode-version: "10.3"
+        xcode-version: "10.2"
     - name: Install system packages
       run: |
         brew install lz4 ninja libomp
