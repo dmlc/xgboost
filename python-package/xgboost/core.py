@@ -233,6 +233,8 @@ def _numpy2ctypes_type(dtype):
 
 
 def _array_interface(data: np.ndarray) -> bytes:
+    if data.dtype.hasobject:
+        data = data.astype(float, copy=False)
     interface = data.__array_interface__
     if "mask" in interface:
         interface["mask"] = interface["mask"].__array_interface__

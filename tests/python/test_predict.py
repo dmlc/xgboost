@@ -155,6 +155,14 @@ class TestInplacePredict:
         predt_from_array = booster.inplace_predict(X[:10, ...], missing=self.missing)
         predt_from_dmatrix = booster.predict(test)
 
+        X_obj = X.copy().astype(object)
+
+        assert X_obj.dtype.hasobject is True
+        assert X.dtype.hasobject is False
+        np.testing.assert_allclose(
+            booster.inplace_predict(X_obj), booster.inplace_predict(X)
+        )
+
         np.testing.assert_allclose(predt_from_dmatrix, predt_from_array)
 
         predt_from_array = booster.inplace_predict(
