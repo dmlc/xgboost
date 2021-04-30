@@ -31,7 +31,10 @@ jobs:
     - name: Run gtest binary
       run: |
         cd build
-        ctest --exclude-regex AllTestsInDMLCUnitTests --extra-verbose
+        # libomp internal error:
+        #   OMP: Error #131: Thread identifier invalid.
+        ./testxgboost  --gtest_filter="-HistIndexCreationWithExternalMemory.Test"
+        ctest -R TestXGBoostCLI --extra-verbose
 
   gtest-cpu-nonomp:
     name: Test Google C++ unittest (CPU Non-OMP)
