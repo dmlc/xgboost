@@ -231,7 +231,9 @@ class ArrayInterfaceHandler {
     }
 
     auto valid = rows * strides[0] + cols * strides[1] >= (rows * cols);
-    CHECK(valid) << "Invalid strides in array." << "  strides: (" << strides[0] << "," << strides[1] << "), shape: (" << rows << ", " << cols << ")";
+    CHECK(valid) << "Invalid strides in array."
+                 << "  strides: (" << strides[0] << "," << strides[1]
+                 << "), shape: (" << rows << ", " << cols << ")";
   }
 
   static void* ExtractData(std::map<std::string, Json> const &column,
