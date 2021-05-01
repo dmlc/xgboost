@@ -233,6 +233,9 @@ def _numpy2ctypes_type(dtype):
 
 
 def _array_interface(data: np.ndarray) -> bytes:
+    assert (
+        data.dtype.hasobject is False
+    ), "Input data contains `object` dtype.  Expecting numeric data."
     interface = data.__array_interface__
     if "mask" in interface:
         interface["mask"] = interface["mask"].__array_interface__
