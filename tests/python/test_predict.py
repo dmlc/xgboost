@@ -150,6 +150,14 @@ class TestInplacePredict:
         predt_from_array = booster.inplace_predict(X[:10, ...], missing=self.missing)
         predt_from_dmatrix = booster.predict(test)
 
+        X_obj = X.copy().astype(object)
+
+        assert X_obj.dtype.hasobject is True
+        assert X.dtype.hasobject is False
+        np.testing.assert_allclose(
+            booster.inplace_predict(X_obj), booster.inplace_predict(X)
+        )
+
         np.testing.assert_allclose(predt_from_dmatrix, predt_from_array)
 
         predt_from_array = booster.inplace_predict(
@@ -187,8 +195,13 @@ class TestInplacePredict:
         arr_predt = booster.inplace_predict(X)
         dmat_predt = booster.predict(xgb.DMatrix(X))
 
+        X = df.values
+        X = np.asfortranarray(X)
+        fort_predt = booster.inplace_predict(X)
+
         np.testing.assert_allclose(dmat_predt, arr_predt)
         np.testing.assert_allclose(df_predt, arr_predt)
+        np.testing.assert_allclose(fort_predt, arr_predt)
 
     def test_base_margin(self):
         booster = self.booster

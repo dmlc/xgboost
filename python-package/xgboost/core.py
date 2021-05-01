@@ -229,6 +229,9 @@ def _numpy2ctypes_type(dtype):
 
 
 def _array_interface(data: np.ndarray) -> bytes:
+    assert (
+        data.dtype.hasobject is False
+    ), "Input data contains `object` dtype.  Expecting numeric data."
     interface = data.__array_interface__
     if "mask" in interface:
         interface["mask"] = interface["mask"].__array_interface__
@@ -1841,8 +1844,8 @@ class Booster(object):
                 )
 
         if isinstance(data, np.ndarray):
-            from .data import _maybe_np_slice
-            data = _maybe_np_slice(data, data.dtype)
+            from .data import _ensure_np_dtype
+            data, _ = _ensure_np_dtype(data, data.dtype)
             _check_call(
                 _LIB.XGBoosterPredictFromDense(
                     self.handle,
