@@ -200,8 +200,13 @@ class TestInplacePredict:
         arr_predt = booster.inplace_predict(X)
         dmat_predt = booster.predict(xgb.DMatrix(X))
 
+        X = df.values
+        X = np.asfortranarray(X)
+        fort_predt = booster.inplace_predict(X)
+
         np.testing.assert_allclose(dmat_predt, arr_predt)
         np.testing.assert_allclose(df_predt, arr_predt)
+        np.testing.assert_allclose(fort_predt, arr_predt)
 
     def test_base_margin(self):
         booster = self.booster
