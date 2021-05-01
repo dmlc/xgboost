@@ -233,8 +233,6 @@ def _numpy2ctypes_type(dtype):
 
 
 def _array_interface(data: np.ndarray) -> bytes:
-    if data.dtype.hasobject:
-        data = data.astype(float, copy=False)
     interface = data.__array_interface__
     if "mask" in interface:
         interface["mask"] = interface["mask"].__array_interface__
@@ -1910,8 +1908,8 @@ class Booster(object):
                 )
 
         if isinstance(data, np.ndarray):
-            from .data import _maybe_np_slice
-            data = _maybe_np_slice(data, data.dtype)
+            from .data import _ensure_np_dtype
+            data, dtype = _ensure_np_dtype(data, data.dtype)
             _check_call(
                 _LIB.XGBoosterPredictFromDense(
                     self.handle,
