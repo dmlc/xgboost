@@ -114,7 +114,6 @@ def _ensure_np_dtype(data, dtype):
 def _maybe_np_slice(data, dtype):
     '''Handle numpy slice.  This can be removed if we use __array_interface__.
     '''
-    data, dtype = _ensure_np_dtype(data, dtype)
     try:
         if not data.flags.c_contiguous:
             warnings.warn(
@@ -126,6 +125,7 @@ def _maybe_np_slice(data, dtype):
             data = np.array(data, copy=False, dtype=dtype)
     except AttributeError:
         data = np.array(data, copy=False, dtype=dtype)
+    data, dtype = _ensure_np_dtype(data, dtype)
     return data
 
 
