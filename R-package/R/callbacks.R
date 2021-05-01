@@ -642,8 +642,13 @@ cb.gblinear.history <- function(sparse=FALSE) {
       coefs <<- list2mat(coefs)
     } else { # xgb.cv:
       # first lapply transposes the list
-      coefs <<- lapply(seq_along(coefs[[1]]), function(i) lapply(coefs, "[[", i)) %>%
-                lapply(function(x) list2mat(x))
+      coefs <<- lapply(
+        X = lapply(
+          X = seq_along(coefs[[1]]),
+          FUN = function(i) lapply(coefs, "[[", i)
+        ),
+        FUN = function(x) list2mat(x)
+      )
     }
   }
 

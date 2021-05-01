@@ -62,7 +62,6 @@ Imports:
     Matrix (>= 1.1-0),
     methods,
     data.table (>= 1.9.6),
-    magrittr (>= 1.5),
     jsonlite (>= 1.0),
 RoxygenNote: 7.1.1
 SystemRequirements: GNU make, C++14

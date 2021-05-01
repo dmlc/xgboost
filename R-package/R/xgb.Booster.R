@@ -372,8 +372,14 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     } else if (n_group == 1) {
       matrix(ret, nrow = n_row, byrow = TRUE, dimnames = list(NULL, cnames))
     } else {
-      arr <- array(ret, c(n_col1, n_group, n_row),
-                   dimnames = list(cnames, NULL, NULL)) %>% aperm(c(2, 3, 1)) # [group, row, col]
+      arr <- aperm(
+        a = array(
+          data = ret,
+          dim = c(n_col1, n_group, n_row),
+          dimnames = list(cnames, NULL, NULL)
+        ),
+        perm = c(2, 3, 1)  # [group, row, col]
+      )
       lapply(seq_len(n_group), function(g) arr[g, , ])
     }
   } else if (predinteraction) {
@@ -383,10 +389,23 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     ret <- if (n_ret == n_row) {
       matrix(ret, ncol = 1, dimnames = list(NULL, cnames))
     } else if (n_group == 1) {
-      array(ret, c(n_col1, n_col1, n_row), dimnames = list(cnames, cnames, NULL)) %>% aperm(c(3, 1, 2))
+      aperm(
+        a = array(
+          data = ret,
+          dim = c(n_col1, n_col1, n_row),
+          dimnames = list(cnames, cnames, NULL)
+        ),
+        perm = c(3, 1, 2)
+      )
     } else {
-      arr <- array(ret, c(n_col1, n_col1, n_group, n_row),
-                   dimnames = list(cnames, cnames, NULL, NULL)) %>% aperm(c(3, 4, 1, 2)) # [group, row, col1, col2]
+      arr <- aperm(
+        a = array(
+          data = ret,
+          dim = c(n_col1, n_col1, n_group, n_row),
+          dimnames = list(cnames, cnames, NULL, NULL)
+        ),
+        perm = c(3, 4, 1, 2)  # [group, row, col1, col2]
+      )
       lapply(seq_len(n_group), function(g) arr[g, , , ])
     }
   } else if (reshape && npred_per_case > 1) {
