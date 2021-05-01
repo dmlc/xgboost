@@ -1909,7 +1909,7 @@ class Booster(object):
 
         if isinstance(data, np.ndarray):
             from .data import _ensure_np_dtype
-            data, dtype = _ensure_np_dtype(data, data.dtype)
+            data, _ = _ensure_np_dtype(data, data.dtype)
             _check_call(
                 _LIB.XGBoosterPredictFromDense(
                     self.handle,
