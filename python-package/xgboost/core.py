@@ -1872,7 +1872,9 @@ class Booster(object):
                 )
             )
             return _prediction_output(shape, dims, preds, False)
-        if lazy_isinstance(data, "cupy.core.core", "ndarray"):
+        if lazy_isinstance(data, "cupy.core.core", "ndarray") or lazy_isinstance(
+            data, "cupy._core.core", "ndarray"
+        ):
             from .data import _transform_cupy_array
             data = _transform_cupy_array(data)
             interface = data.__cuda_array_interface__
