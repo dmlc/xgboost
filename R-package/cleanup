@@ -1,4 +1,3 @@
 #!/bin/sh
 
 rm -f src/Makevars
-rm -f CMakeLists.txt
