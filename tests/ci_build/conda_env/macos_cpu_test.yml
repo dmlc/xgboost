@@ -15,6 +15,7 @@ dependencies:
 - matplotlib
 - dask
 - distributed
+- graphviz
 - python-graphviz
 - hypothesis
 - astroid

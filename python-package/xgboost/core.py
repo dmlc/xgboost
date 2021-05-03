@@ -1872,7 +1872,9 @@ class Booster(object):
                 )
             )
             return _prediction_output(shape, dims, preds, False)
-        if lazy_isinstance(data, "cupy.core.core", "ndarray"):
+        if lazy_isinstance(data, "cupy.core.core", "ndarray") or lazy_isinstance(
+            data, "cupy._core.core", "ndarray"
+        ):
             from .data import _transform_cupy_array
             data = _transform_cupy_array(data)
             interface = data.__cuda_array_interface__
@@ -2027,7 +2029,7 @@ class Booster(object):
         """
         if isinstance(fout, (STRING_TYPES, os.PathLike)):
             fout = os.fspath(os.path.expanduser(fout))
-            fout = open(fout, 'w')
+            fout = open(fout, 'w')  # pylint: disable=consider-using-with
             need_close = True
         else:
             need_close = False

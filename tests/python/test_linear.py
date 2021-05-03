@@ -57,15 +57,13 @@ class TestLinear:
         param['updater'] = 'shotgun'
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)['train'][dataset.metric]
-        # shotgun is non-deterministic, so we relax the test by sampling
-        # result.
+        # shotgun is non-deterministic, so we relax the test by only using first and last
+        # iteration.
         if len(result) > 2:
-            sampled_result = [score for i, score in enumerate(result)
-                              if i % 2 == 0]
-            sampled_result[-1] = result[-1]  # make sure the last one is used
+            sampled_result = (result[0], result[-1])
         else:
             sampled_result = result
-        assert tm.non_increasing(sampled_result, 1e-3)
+        assert tm.non_increasing(sampled_result)
 
     @given(parameter_strategy, strategies.integers(10, 50),
            tm.dataset_strategy, strategies.floats(1e-5, 2.0),
