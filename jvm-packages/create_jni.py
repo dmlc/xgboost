@@ -84,8 +84,9 @@ if __name__ == "__main__":
 
     print("building Java wrapper")
     with cd(".."):
-        maybe_makedirs("build")
-        with cd("build"):
+        build_dir = 'build-gpu' if cli_args.use_cuda == 'ON' else 'build'
+        maybe_makedirs(build_dir)
+        with cd(build_dir):
             if sys.platform == "win32":
                 # Force x64 build on Windows.
                 maybe_generator = ' -A x64'
@@ -114,6 +115,9 @@ if __name__ == "__main__":
             if gpu_arch_flag is not None:
                 args.append("%s" % gpu_arch_flag)
 
+            lib_dir = os.path.join(os.pardir, 'lib')
+            if os.path.exists(lib_dir):
+                shutil.rmtree(lib_dir)
             run("cmake .. " + " ".join(args) + maybe_generator)
             run("cmake --build . --config Release" + maybe_parallel_build)
 
