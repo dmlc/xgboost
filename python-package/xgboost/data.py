@@ -104,6 +104,13 @@ def _is_numpy_array(data):
     return isinstance(data, (np.ndarray, np.matrix))
 
 
+def _ensure_np_dtype(data, dtype):
+    if data.dtype.hasobject:
+        data = data.astype(np.float32, copy=False)
+        dtype = np.float32
+    return data, dtype
+
+
 def _maybe_np_slice(data, dtype):
     '''Handle numpy slice.  This can be removed if we use __array_interface__.
     '''
@@ -118,6 +125,7 @@ def _maybe_np_slice(data, dtype):
             data = np.array(data, copy=False, dtype=dtype)
     except AttributeError:
         data = np.array(data, copy=False, dtype=dtype)
+    data, dtype = _ensure_np_dtype(data, dtype)
     return data
 
 
