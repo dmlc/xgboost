@@ -1023,7 +1023,17 @@ class TestWithDask:
                                  evals=[(m, 'train')])['history']
         note(history)
         history = history['train'][dataset.metric]
-        assert tm.non_increasing(history)
+
+        def is_stump():
+            return params["max_depth"] == 1 or params["max_leaves"] == 1
+
+        def minimum_bin():
+            return "max_bin" in params and params["max_bin"] == 2
+
+        if minimum_bin() and is_stump():
+            assert tm.non_increasing(history, tolerance=1e-3)
+        else:
+            assert tm.non_increasing(history)
         # Make sure that it's decreasing
         assert history[-1] < history[0]
 
