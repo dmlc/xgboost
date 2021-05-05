@@ -493,19 +493,17 @@ class EarlyStopping(TrainingCallback):
                  metric_name: Optional[str] = None,
                  data_name: Optional[str] = None,
                  maximize: Optional[bool] = None,
-                 save_best: Optional[bool] = False) -> None:
+                 save_best: Optional[bool] = False,
+                 tolerance: float = 0) -> None:
         self.data = data_name
         self.metric_name = metric_name
         self.rounds = rounds
         self.save_best = save_best
         self.maximize = maximize
         self.stopping_history: CallbackContainer.EvalsLog = {}
+        self._tol = tolerance
 
-        if self.maximize is not None:
-            if self.maximize:
-                self.improve_op = lambda x, y: x > y
-            else:
-                self.improve_op = lambda x, y: x < y
+        self.improve_op = None
 
         self.current_rounds: int = 0
         self.best_scores: dict = {}
@@ -523,11 +521,18 @@ class EarlyStopping(TrainingCallback):
             maximize_metrics = ('auc', 'aucpr', 'map', 'ndcg', 'auc@',
                                 'aucpr@', 'map@', 'ndcg@')
             if any(metric.startswith(x) for x in maximize_metrics):
-                self.improve_op = lambda x, y: x > y
+                self.improve_op = lambda x, y: x - y > -self._tol
                 self.maximize = True
             else:
-                self.improve_op = lambda x, y: x < y
+                self.improve_op = lambda x, y: y - x > -self._tol
                 self.maximize = False
+        else:
+            if self.maximize:
+                self.improve_op = lambda x, y: x - y > -self._tol
+            else:
+                self.improve_op = lambda x, y: y - x > -self._tol
+
+        assert self.improve_op
 
         if not self.stopping_history:  # First round
             self.current_rounds = 0
