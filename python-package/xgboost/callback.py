@@ -487,6 +487,8 @@ class EarlyStopping(TrainingCallback):
         Whether to maximize evaluation metric.  None means auto (discouraged).
     save_best
         Whether training should return the best model or the last model.
+    tolerance
+        Tolerance for early stopping condition.
     """
     def __init__(self,
                  rounds: int,
@@ -515,22 +517,30 @@ class EarlyStopping(TrainingCallback):
         return model
 
     def _update_rounds(self, score, name, metric, model, epoch) -> bool:
-        # Just to be compatibility with old behavior before 1.3.  We should let
-        # user to decide.
+        def get_s(x):
+            """get score if it's cross validation history."""
+            return x[0] if isinstance(x, tuple) else x
+
+        def maximize(new, last):
+            return get_s(new) - get_s(last) > -self._tol
+
+        def minimize(new, last):
+            return get_s(last) - get_s(new) > -self._tol
+
         if self.maximize is None:
+            # Just to be compatibility with old behavior before 1.3.  We should let
+            # user to decide.
             maximize_metrics = ('auc', 'aucpr', 'map', 'ndcg', 'auc@',
                                 'aucpr@', 'map@', 'ndcg@')
             if any(metric.startswith(x) for x in maximize_metrics):
-                self.improve_op = lambda x, y: x - y > -self._tol
                 self.maximize = True
             else:
-                self.improve_op = lambda x, y: y - x > -self._tol
                 self.maximize = False
+
+        if self.maximize:
+            self.improve_op = maximize
         else:
-            if self.maximize:
-                self.improve_op = lambda x, y: x - y > -self._tol
-            else:
-                self.improve_op = lambda x, y: y - x > -self._tol
+            self.improve_op = minimize
 
         assert self.improve_op
 
