@@ -1,7 +1,6 @@
 context('Test prediction of feature interactions')
 
 require(xgboost)
-require(magrittr)
 
 set.seed(123)
 
