@@ -105,8 +105,8 @@ __model_doc = f'''
     tree_method: Optional[str]
         Specify which tree method to use.  Default to auto.  If this parameter
         is set to default, XGBoost will choose the most conservative option
-        available.  It's recommended to study this option from parameters
-        document.
+        available.  It's recommended to study this option from the parameters
+        document: https://xgboost.readthedocs.io/en/latest/treemethod.html.
     n_jobs : Optional[int]
         Number of parallel threads used to run xgboost.  When used with other Scikit-Learn
         algorithms like grid search, you may choose which algorithm to parallelize and
