@@ -969,6 +969,29 @@ def _can_output_df(is_df: bool, output_shape: Tuple) -> bool:
     return is_df and len(output_shape) <= 2
 
 
+def _maybe_dataframe(
+    data: Any, prediction: Any, columns: List[int], is_df: bool
+) -> Any:
+    """Return dataframe for prediction when applicable."""
+    if _can_output_df(is_df, prediction.shape):
+        # Need to preserve the index for dataframe.
+        # See issue: https://github.com/dmlc/xgboost/issues/6939
+        # In older versions of dask, the partition is actually a numpy array when input is
+        # dataframe.
+        index = getattr(data, "index", None)
+        if lazy_isinstance(data, "cudf.core.dataframe", "DataFrame"):
+            import cudf
+
+            prediction = cudf.DataFrame(
+                prediction, columns=columns, dtype=numpy.float32, index=index
+            )
+        else:
+            prediction = DataFrame(
+                prediction, columns=columns, dtype=numpy.float32, index=index
+            )
+    return prediction
+
+
 async def _direct_predict_impl(  # pylint: disable=too-many-branches
     mapped_predict: Callable,
     booster: "distributed.Future",
@@ -1125,13 +1148,7 @@ async def _predict_async(
                 iteration_range=iteration_range,
                 strict_shape=strict_shape,
             )
-            if _can_output_df(is_df, predt.shape):
-                if lazy_isinstance(partition, "cudf", "core.dataframe.DataFrame"):
-                    import cudf
-
-                    predt = cudf.DataFrame(predt, columns=columns, dtype=numpy.float32)
-                else:
-                    predt = DataFrame(predt, columns=columns, dtype=numpy.float32)
+            predt = _maybe_dataframe(partition, predt, columns, is_df)
             return predt
 
     # Predict on dask collection directly.
@@ -1315,11 +1332,11 @@ async def _inplace_predict_async(  # pylint: disable=too-many-branches
         raise TypeError(_expect([da.Array, dd.DataFrame, dd.Series], type(base_margin)))
 
     def mapped_predict(
-        booster: Booster, data: Any, is_df: bool, columns: List[int], base_margin: Any
+        booster: Booster, partition: Any, is_df: bool, columns: List[int], base_margin: Any
     ) -> Any:
         with config.config_context(**global_config):
             prediction = booster.inplace_predict(
-                data,
+                partition,
                 iteration_range=iteration_range,
                 predict_type=predict_type,
                 missing=missing,
@@ -1327,17 +1344,9 @@ async def _inplace_predict_async(  # pylint: disable=too-many-branches
                 validate_features=validate_features,
                 strict_shape=strict_shape,
             )
-        if _can_output_df(is_df, prediction.shape):
-            if lazy_isinstance(data, "cudf.core.dataframe", "DataFrame"):
-                import cudf
-
-                prediction = cudf.DataFrame(
-                    prediction, columns=columns, dtype=numpy.float32
-                )
-            else:
-                # If it's from pandas, the partition is a numpy array
-                prediction = DataFrame(prediction, columns=columns, dtype=numpy.float32)
+        prediction = _maybe_dataframe(partition, prediction, columns, is_df)
         return prediction
+
     # await turns future into value.
     shape, meta = await client.compute(
         client.submit(
