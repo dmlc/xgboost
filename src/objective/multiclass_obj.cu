@@ -117,7 +117,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
     std::vector<int>& label_correct_h = label_correct_.HostVector();
     for (auto const flag : label_correct_h) {
       if (flag != 1) {
-        LOG(FATAL) << "SoftmaxMultiClassObj: label must be in [0, num_class).";
+        LOG(FATAL) << "SoftmaxMultiClassObj: label must be in [0, num_class)."
+                   << "Labels:" << info.labels_.Size();
       }
     }
   }

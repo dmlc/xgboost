@@ -61,9 +61,11 @@ struct DeviceAUCCache {
       neg_pos.resize(sorted_idx.size());
       if (is_multi) {
         predts_t.resize(sorted_idx.size());
-        reducer.reset(new dh::AllReducer);
-        reducer->Init(rabit::GetRank());
       }
+    }
+    if (is_multi && !reducer) {
+      reducer.reset(new dh::AllReducer);
+      reducer->Init(rabit::GetRank());
     }
   }
 };
@@ -197,12 +199,48 @@ XGBOOST_DEVICE size_t LastOf(size_t group, common::Span<Idx> indptr) {
   return indptr[group + 1] - 1;
 }
 
+
+float ScaleClasses(common::Span<float> results, common::Span<float> local_area,
+                   common::Span<float> fp, common::Span<float> tp,
+                   common::Span<float> auc, std::shared_ptr<DeviceAUCCache> cache,
+                   size_t n_classes) {
+  dh::XGBDeviceAllocator<char> alloc;
+  if (rabit::IsDistributed()) {
+    CHECK_EQ(dh::CudaGetPointerDevice(results.data()), dh::CurrentDevice());
+    cache->reducer->AllReduceSum(results.data(), results.data(), results.size());
+  }
+  auto reduce_in = dh::MakeTransformIterator<thrust::pair<float, float>>(
+      thrust::make_counting_iterator(0), [=] __device__(size_t i) {
+        if (local_area[i] > 0) {
+          return thrust::make_pair(auc[i] / local_area[i] * tp[i], tp[i]);
+        }
+        return thrust::make_pair(std::numeric_limits<float>::quiet_NaN(), 0.0f);
+      });
+
+  float tp_sum;
+  float auc_sum;
+  thrust::tie(auc_sum, tp_sum) = thrust::reduce(
+      thrust::cuda::par(alloc), reduce_in, reduce_in + n_classes,
+      thrust::make_pair(0.0f, 0.0f),
+      [=] __device__(auto const &l, auto const &r) {
+        return thrust::make_pair(l.first + r.first, l.second + r.second);
+      });
+  if (tp_sum != 0 && !std::isnan(auc_sum)) {
+    auc_sum /= tp_sum;
+  } else {
+    return std::numeric_limits<float>::quiet_NaN();
+  }
+  return auc_sum;
+}
+
 /**
  * MultiClass implementation is similar to binary classification, except we need to split
  * up each class in all kernels.
  */
 float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info,
-                          int32_t device, std::shared_ptr<DeviceAUCCache>* p_cache) {
+                          int32_t device, std::shared_ptr<DeviceAUCCache>* p_cache,
+                          size_t n_classes) {
+  dh::safe_cuda(cudaSetDevice(device));
   auto& cache = *p_cache;
   if (!cache) {
     cache.reset(new DeviceAUCCache);
@@ -213,8 +251,19 @@ float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info
   auto weights = info.weights_.ConstDeviceSpan();
 
   size_t n_samples = labels.size();
-  size_t n_classes = predts.size() / labels.size();
-  CHECK_NE(n_classes, 0);
+
+  if (n_samples == 0) {
+    dh::TemporaryArray<float> resutls(n_classes * 4, 0.0f);
+    auto d_results = dh::ToSpan(resutls);
+    dh::LaunchN(device, n_classes * 4, [=]__device__(size_t i) {
+      d_results[i] = 0.0f;
+    });
+    auto local_area = d_results.subspan(0, n_classes);
+    auto fp = d_results.subspan(n_classes, n_classes);
+    auto tp = d_results.subspan(2 * n_classes, n_classes);
+    auto auc = d_results.subspan(3 * n_classes, n_classes);
+    return ScaleClasses(d_results, local_area, fp, tp, auc, cache, n_classes);
+  }
 
   /**
    * Create sorted index for each class
@@ -377,32 +426,7 @@ float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info
     tp[c] = last.second;
     local_area[c] = last.first * last.second;
   });
-  if (rabit::IsDistributed()) {
-    cache->reducer->AllReduceSum(resutls.data().get(), resutls.data().get(),
-                                 resutls.size());
-  }
-  auto reduce_in = dh::MakeTransformIterator<thrust::pair<float, float>>(
-      thrust::make_counting_iterator(0), [=] __device__(size_t i) {
-        if (local_area[i] > 0) {
-          return thrust::make_pair(auc[i] / local_area[i] * tp[i], tp[i]);
-        }
-        return thrust::make_pair(std::numeric_limits<float>::quiet_NaN(), 0.0f);
-      });
-
-  float tp_sum;
-  float auc_sum;
-  thrust::tie(auc_sum, tp_sum) = thrust::reduce(
-      thrust::cuda::par(alloc), reduce_in, reduce_in + n_classes,
-      thrust::make_pair(0.0f, 0.0f),
-      [=] __device__(auto const &l, auto const &r) {
-        return thrust::make_pair(l.first + r.first, l.second + r.second);
-      });
-  if (tp_sum != 0 && !std::isnan(auc_sum)) {
-    auc_sum /= tp_sum;
-  } else {
-    return std::numeric_limits<float>::quiet_NaN();
-  }
-  return auc_sum;
+  return ScaleClasses(d_results, local_area, fp, tp, auc, cache, n_classes);
 }
 
 namespace {
