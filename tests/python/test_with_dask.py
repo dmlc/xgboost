@@ -100,6 +100,7 @@ def test_from_dask_dataframe() -> None:
             np.testing.assert_allclose(series_predictions.compute().values,
                                        from_dmatrix)
 
+            # Make sure the output can be integrated back to original dataframe
             X["predict"] = prediction
             X["inplace_predict"] = series_predictions
 
