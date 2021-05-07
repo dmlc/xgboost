@@ -1,7 +1,7 @@
 ###########################
 Python Package Introduction
 ###########################
-This document gives a basic walkthrough of xgboost python package.
+This document gives a basic walkthrough of the xgboost package for Python.
 
 **List of other Helpful Links**
 

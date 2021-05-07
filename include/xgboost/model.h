@@ -17,13 +17,13 @@ class Json;
 struct Model {
   virtual ~Model() = default;
   /*!
-   * \brief load the model from a json object
-   * \param in json object where to load the model from
+   * \brief load the model from a JSON object
+   * \param in JSON object where to load the model from
    */
   virtual void LoadModel(Json const& in) = 0;
   /*!
-   * \brief saves the model config to a json object
-   * \param out json container where to save the model to
+   * \brief saves the model config to a JSON object
+   * \param out JSON container where to save the model to
    */
   virtual void SaveModel(Json* out) const = 0;
 };

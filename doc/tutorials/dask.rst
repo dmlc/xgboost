@@ -127,7 +127,7 @@ In previous example we used ``DaskDMatrix`` as input to ``predict`` function.  I
 practice, it's also possible to call ``predict`` function directly on dask collections
 like ``Array`` and ``DataFrame`` and might have better prediction performance.  When
 ``DataFrame`` is used as prediction input, the result is a dask ``Series`` instead of
-array.  Also, there's inplace predict support on dask interface, which can help reducing
+array.  Also, there's in-place predict support on dask interface, which can help reducing
 both memory usage and prediction time.
 
 .. code-block:: python
@@ -479,7 +479,7 @@ Here are some pratices on reducing memory usage with dask and xgboost.
   ``xgboost.dask.DaskDeviceQuantileDMatrix`` as a drop in replacement for ``DaskDMatrix``
   to reduce overall memory usage.  See ``demo/dask/gpu_training.py`` for an example.
 
-- Use inplace prediction when possible.
+- Use in-place prediction when possible.
 
 References:
 

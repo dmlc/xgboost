@@ -155,7 +155,7 @@ class Transform {
           _func, shard_range, UnpackHDVOnDevice(_vectors)...);
     }
 #else
-    /*! \brief Dummy funtion defined when compiling for CPU.  */
+    /*! \brief Dummy function defined when compiling for CPU.  */
     template <typename std::enable_if<!CompiledWithCuda>::type* = nullptr,
               typename... HDV>
     void LaunchCUDA(Functor _func, HDV*...) const {

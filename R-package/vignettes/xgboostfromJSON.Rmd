@@ -16,7 +16,7 @@ XGBoost from JSON
 
 ## Introduction
 
-The purpose of this Vignette is to show you how to correctly load and work with an **Xgboost** model that has been dumped to JSON.  **Xgboost** internally converts all data to [32-bit floats](https://en.wikipedia.org/wiki/Single-precision_floating-point_format), and the values dumped to JSON are decimal representations of these values.  When working with a model that has been parsed from a JSON file, care must be taken to correctly treat:
+The purpose of this Vignette is to show you how to correctly load and work with an **XGBoost** model that has been dumped to JSON.  **XGBoost** internally converts all data to [32-bit floats](https://en.wikipedia.org/wiki/Single-precision_floating-point_format), and the values dumped to JSON are decimal representations of these values.  When working with a model that has been parsed from a JSON file, care must be taken to correctly treat:
 
 - the input data, which should be converted to 32-bit floats
 - any 32-bit floats that were stored in JSON as decimal representations
@@ -172,9 +172,9 @@ bst_from_json_preds <- ifelse(fl(data$dates)<fl(node$split_condition),
 bst_preds == bst_from_json_preds
 ```
 
-None are exactly equal again.  What is going on here?  Well, since we are using the value `1` in the calcuations, we have introduced a double into the calculation.  Because of this, all float values are promoted to 64-bit doubles and the 64-bit version of the exponentiation operator `exp` is also used.  On the other hand, xgboost uses the 32-bit version of the exponentation operator in its [sigmoid function](https://github.com/dmlc/xgboost/blob/54980b8959680a0da06a3fc0ec776e47c8cbb0a1/src/common/math.h#L25-L27).
+None are exactly equal again.  What is going on here?  Well, since we are using the value `1` in the calculations, we have introduced a double into the calculation.  Because of this, all float values are promoted to 64-bit doubles and the 64-bit version of the exponentiation operator `exp` is also used.  On the other hand, xgboost uses the 32-bit version of the exponentiation operator in its [sigmoid function](https://github.com/dmlc/xgboost/blob/54980b8959680a0da06a3fc0ec776e47c8cbb0a1/src/common/math.h#L25-L27).
 
-How do we fix this?  We have to ensure we use the correct datatypes everywhere and the correct operators.  If we use only floats, the float library that we have loaded will ensure the 32-bit float exponention operator is applied. 
+How do we fix this?  We have to ensure we use the correct data types everywhere and the correct operators.  If we use only floats, the float library that we have loaded will ensure the 32-bit float exponentiation operator is applied. 
 ```{r}
 # calculate the predictions casting doubles to floats
 bst_from_json_preds <- ifelse(fl(data$dates)<fl(node$split_condition),

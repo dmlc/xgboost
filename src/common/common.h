@@ -55,7 +55,7 @@ namespace xgboost {
 namespace common {
 /*!
  * \brief Split a string by delimiter
- * \param s String to be splitted.
+ * \param s String to be split.
  * \param delim The delimiter.
  */
 inline std::vector<std::string> Split(const std::string& s, char delim) {

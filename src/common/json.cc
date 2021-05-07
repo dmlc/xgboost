@@ -394,7 +394,7 @@ Json JsonReader::Parse() {
       return ParseArray();
     } else if ( c == '-' || std::isdigit(c) ||
                 c == 'N' || c == 'I') {
-      // For now we only accept `NaN`, not `nan` as the later violiates LR(1) with `null`.
+      // For now we only accept `NaN`, not `nan` as the later violates LR(1) with `null`.
       return ParseNumber();
     } else if ( c == '\"' ) {
       return ParseString();

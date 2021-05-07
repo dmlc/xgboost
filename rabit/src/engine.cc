@@ -121,7 +121,7 @@ void ReduceHandle::Allreduce(void *sendrecvbuf,
                              size_t type_nbytes, size_t count,
                              IEngine::PreprocFunction prepare_fun,
                              void *prepare_arg) {
-  utils::Assert(redfunc_ != nullptr, "must intialize handle to call AllReduce");
+  utils::Assert(redfunc_ != nullptr, "must initialize handle to call AllReduce");
   GetEngine()->Allreduce(sendrecvbuf, type_nbytes, count,
                          redfunc_, prepare_fun, prepare_arg);
 }

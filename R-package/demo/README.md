@@ -2,7 +2,7 @@ XGBoost R Feature Walkthrough
 ====
 * [Basic walkthrough of wrappers](basic_walkthrough.R)
 * [Train a xgboost model from caret library](caret_wrapper.R)
-* [Cutomize loss function, and evaluation metric](custom_objective.R)
+* [Customize loss function, and evaluation metric](custom_objective.R)
 * [Boosting from existing prediction](boost_from_prediction.R)
 * [Predicting using first n trees](predict_first_ntree.R)
 * [Generalized Linear Model](generalized_linear_model.R)

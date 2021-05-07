@@ -10,7 +10,7 @@ The external memory version takes in the following `URI <https://en.wikipedia.or
 
   filename#cacheprefix
 
-The ``filename`` is the normal path to libsvm format file you want to load in, and
+The ``filename`` is the normal path to LIBSVM format file you want to load in, and
 ``cacheprefix`` is a path to a cache file that XGBoost will use for caching preprocessed
 data in binary form.
 
@@ -24,7 +24,7 @@ where ``label_column`` should point to the csv column acting as the label.
 
 To provide a simple example for illustration, extracting the code from
 `demo/guide-python/external_memory.py <https://github.com/dmlc/xgboost/blob/master/demo/guide-python/external_memory.py>`_. If
-you have a dataset stored in a file similar to ``agaricus.txt.train`` with libSVM format, the external memory support can be enabled by:
+you have a dataset stored in a file similar to ``agaricus.txt.train`` with LIBSVM format, the external memory support can be enabled by:
 
 .. code-block:: python
 

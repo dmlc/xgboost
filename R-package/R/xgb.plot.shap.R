@@ -33,7 +33,7 @@
 #' @param col_loess a color to use for the loess curves.
 #' @param span_loess the \code{span} parameter in \code{\link[stats]{loess}}'s call.
 #' @param which whether to do univariate or bivariate plotting. NOTE: only 1D is implemented so far.
-#' @param plot whether a plot should be drawn. If FALSE, only a lits of matrices is returned.
+#' @param plot whether a plot should be drawn. If FALSE, only a list of matrices is returned.
 #' @param ... other parameters passed to \code{plot}.
 #'
 #' @details
@@ -157,7 +157,7 @@ xgb.plot.shap <- function(data, shap_contrib = NULL, features = NULL, top_n = 1,
       plot(x2plot, y, pch = pch, xlab = f, col = col, xlim = x_lim, ylim = y_lim, ylab = ylab, ...)
       grid()
       if (plot_loess) {
-        # compress x to 3 digits, and mean-aggredate y
+        # compress x to 3 digits, and mean-aggregate y
         zz <- data.table(x = signif(x, 3), y)[, .(.N, y = mean(y)), x]
         if (nrow(zz) <= 5) {
           lines(zz$x, zz$y, col = col_loess)

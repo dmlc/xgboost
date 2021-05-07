@@ -5,9 +5,9 @@ Understand your dataset with XGBoost
 Introduction
 ------------
 
-The purpose of this Vignette is to show you how to use **Xgboost** to discover and understand your own dataset better.
+The purpose of this Vignette is to show you how to use **XGBoost** to discover and understand your own dataset better.
 
-This Vignette is not about predicting anything (see [Xgboost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **Xgboost** to highlight the *link* between the *features* of your data and the *outcome*.
+This Vignette is not about predicting anything (see [XGBoost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **XGBoost** to highlight the *link* between the *features* of your data and the *outcome*.
 
 Package loading:
 
@@ -27,7 +27,7 @@ Preparation of the dataset
 ### Numeric VS categorical variables
 
 
-**Xgboost** manages only `numeric` vectors.
+**XGBoost** manages only `numeric` vectors.
 
 What to do when you have *categorical* data?
 
@@ -55,7 +55,7 @@ data(Arthritis)
 df <- data.table(Arthritis, keep.rownames = FALSE)
 ```
 
-> `data.table` is 100% compliant with **R** `data.frame` but its syntax is more consistent and its performance for large dataset is [best in class](http://stackoverflow.com/questions/21435339/data-table-vs-dplyr-can-one-do-something-well-the-other-cant-or-does-poorly) (`dplyr` from **R** and `Pandas` from **Python** [included](https://github.com/Rdatatable/data.table/wiki/Benchmarks-%3A-Grouping)). Some parts of **Xgboost** **R** package use `data.table`.
+> `data.table` is 100% compliant with **R** `data.frame` but its syntax is more consistent and its performance for large dataset is [best in class](http://stackoverflow.com/questions/21435339/data-table-vs-dplyr-can-one-do-something-well-the-other-cant-or-does-poorly) (`dplyr` from **R** and `Pandas` from **Python** [included](https://github.com/Rdatatable/data.table/wiki/Benchmarks-%3A-Grouping)). Some parts of **XGBoost** **R** package use `data.table`.
 
 The first thing we want to do is to have a look to the first lines of the `data.table`:
 
@@ -217,7 +217,7 @@ output_vector = df[,Improved] == "Marked"
 Build the model
 ---------------
 
-The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or at the vignette [Xgboost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)).
+The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or at the vignette [XGBoost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)).
 
 
 ```r
@@ -434,7 +434,7 @@ However, in Random Forests™ this random choice will be done for each tree, bec
 
 In boosting, when a specific link between feature and outcome have been learned by the algorithm, it will try to not refocus on it (in theory it is what happens, reality is not always that simple). Therefore, all the importance will be on feature `A` or on feature `B` (but not both). You will know that one feature have an important role in the link between the observations and the label. It is still up to you to search for the correlated features to the one detected as important if you need to know all of them.
 
-If you want to try Random Forests™ algorithm, you can tweak Xgboost parameters!
+If you want to try Random Forests™ algorithm, you can tweak XGBoost parameters!
 
 **Warning**: this is still an experimental parameter.
 

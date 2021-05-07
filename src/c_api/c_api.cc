@@ -638,10 +638,10 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
                                         bst_float const **out_result) {
   API_BEGIN();
   if (handle == nullptr) {
-    LOG(FATAL) << "Booster has not been intialized or has already been disposed.";
+    LOG(FATAL) << "Booster has not been initialized or has already been disposed.";
   }
   if (dmat == nullptr) {
-    LOG(FATAL) << "DMatrix has not been intialized or has already been disposed.";
+    LOG(FATAL) << "DMatrix has not been initialized or has already been disposed.";
   }
   auto config = Json::Load(StringView{c_json_config});
 
