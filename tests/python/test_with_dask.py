@@ -100,6 +100,11 @@ def test_from_dask_dataframe() -> None:
             np.testing.assert_allclose(series_predictions.compute().values,
                                        from_dmatrix)
 
+            X["predict"] = prediction
+            X["inplace_predict"] = series_predictions
+
+            assert bool(X.isnull().values.any().compute()) is False
+
 
 def test_from_dask_array() -> None:
     with LocalCluster(n_workers=kWorkers, threads_per_worker=5) as cluster:
