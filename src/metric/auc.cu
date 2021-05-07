@@ -65,7 +65,7 @@ struct DeviceAUCCache {
     }
     if (is_multi && !reducer) {
       reducer.reset(new dh::AllReducer);
-      reducer->Init(rabit::GetRank());
+      reducer->Init(device);
     }
   }
 };
