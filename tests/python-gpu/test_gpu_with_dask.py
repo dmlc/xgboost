@@ -280,7 +280,7 @@ class TestDistributedGPU:
             X = dask_cudf.from_dask_dataframe(dd.from_dask_array(X_))
             y = dask_cudf.from_dask_dataframe(dd.from_dask_array(y_))
             w = dask_cudf.from_dask_dataframe(dd.from_dask_array(w_))
-            run_dask_classifier(X, y, w, model, client, 10)
+            run_dask_classifier(X, y, w, model, "gpu_hist", client, 10)
 
     @pytest.mark.skipif(**tm.no_dask())
     @pytest.mark.skipif(**tm.no_dask_cuda())
