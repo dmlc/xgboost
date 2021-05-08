@@ -441,7 +441,7 @@ class QuantileHistMaker: public TreeUpdater {
     std::unique_ptr<ExpandQueue> qexpand_loss_guided_;
     std::vector<ExpandEntry> qexpand_depth_wise_;
     // key is the node id which should be calculated by Subtraction Trick, value is the node which
-    // provides the evidence for substracts
+    // provides the evidence for subtraction
     std::vector<ExpandEntry> nodes_for_subtraction_trick_;
     // list of nodes whose histograms would be built explicitly.
     std::vector<ExpandEntry> nodes_for_explicit_hist_build_;

@@ -43,7 +43,7 @@ Committers are people who have made substantial contribution to the project and 
 
 Become a Committer
 ------------------
-XGBoost is a opensource project and we are actively looking for new committers who are willing to help maintaining and lead the project.
+XGBoost is a open source project and we are actively looking for new committers who are willing to help maintaining and lead the project.
 Committers comes from contributors who:
 * Made substantial contribution to the project.
 * Willing to spent time on maintaining and lead the project.
@@ -59,7 +59,7 @@ List of Contributors
 * [Skipper Seabold](https://github.com/jseabold)
   - Skipper is the major contributor to the scikit-learn module of XGBoost.
 * [Zygmunt Zając](https://github.com/zygmuntz)
-  - Zygmunt is the master behind the early stopping feature frequently used by kagglers.
+  - Zygmunt is the master behind the early stopping feature frequently used by Kagglers.
 * [Ajinkya Kale](https://github.com/ajkl)
 * [Boliang Chen](https://github.com/cblsjtu)
 * [Yangqing Men](https://github.com/yanqingmen)
@@ -91,7 +91,7 @@ List of Contributors
 * [Henry Gouk](https://github.com/henrygouk)
 * [Pierre de Sahb](https://github.com/pdesahb)
 * [liuliang01](https://github.com/liuliang01)
-  - liuliang01 added support for the qid column for LibSVM input format. This makes ranking task easier in distributed setting.
+  - liuliang01 added support for the qid column for LIBSVM input format. This makes ranking task easier in distributed setting.
 * [Andrew Thia](https://github.com/BlueTea88)
   - Andrew Thia implemented feature interaction constraints
 * [Wei Tian](https://github.com/weitian)

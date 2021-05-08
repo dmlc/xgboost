@@ -23,7 +23,7 @@ Each line represent a single instance, and in the first line '1' is the instance
 ******************************************
 Auxiliary Files for Additional Information
 ******************************************
-**Note: all information below is applicable only to single-node version of the package.** If you'd like to perform distributed training with multiple nodes, skip to the section `Embedding additional information inside LibSVM file`_.
+**Note: all information below is applicable only to single-node version of the package.** If you'd like to perform distributed training with multiple nodes, skip to the section `Embedding additional information inside LIBSVM file`_.
 
 Group Input Format
 ==================

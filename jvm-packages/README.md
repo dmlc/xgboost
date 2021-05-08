@@ -107,7 +107,7 @@ be found in the [examples package](https://github.com/dmlc/xgboost/tree/master/j
 
 There is an inconsistent issue between XGBoost4J-Spark and other language bindings of XGBoost.
 
-When users use Spark to load trainingset/testset in LibSVM format with the following code snippet:
+When users use Spark to load trainingset/testset in LIBSVM format with the following code snippet:
 
 ```scala
 spark.read.format("libsvm").load("trainingset_libsvm")

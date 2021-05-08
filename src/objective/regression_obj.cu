@@ -271,7 +271,7 @@ class PoissonRegression : public ObjFunction {
 DMLC_REGISTER_PARAMETER(PoissonRegressionParam);
 
 XGBOOST_REGISTER_OBJECTIVE(PoissonRegression, "count:poisson")
-.describe("Possion regression for count data.")
+.describe("Poisson regression for count data.")
 .set_body([]() { return new PoissonRegression(); });
 
 

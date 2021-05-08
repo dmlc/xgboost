@@ -196,8 +196,8 @@ class BaseMaker: public TreeUpdater {
     }
   }
   /*!
-   * \brief this is helper function uses column based data structure,
-   *        reset the positions to the lastest one
+   * \brief This is a helper function that uses a column based data structure
+   *        and reset the positions to the latest one
    * \param nodes the set of nodes that contains the split to be used
    * \param p_fmat feature matrix needed for tree construction
    * \param tree the regression tree structure

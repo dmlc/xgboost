@@ -1105,7 +1105,7 @@ This release marks a major milestone for the XGBoost project.
 * Specify version macro in CMake. (#4730)
 * Include dmlc-tracker into XGBoost Python package (#4731)
 * [CI] Use long key ID for Ubuntu repository fingerprints. (#4783)
-* Remove plugin, cuda related code in automake & autoconf files (#4789)
+* Remove plugin, CUDA related code in automake & autoconf files (#4789)
 * Skip related tests when scikit-learn is not installed. (#4791)
 * Ignore vscode and clion files (#4866)
 * Use bundled Google Test by default (#4900)
@@ -1136,7 +1136,7 @@ This release marks a major milestone for the XGBoost project.
 ### Usability Improvements, Documentation
 * Add Random Forest API to Python API doc (#4500)
 * Fix Python demo and doc. (#4545)
-* Remove doc about not supporting cuda 10.1 (#4578)
+* Remove doc about not supporting CUDA 10.1 (#4578)
 * Address some sphinx warnings and errors, add doc for building doc. (#4589)
 * Add instruction to run formatting checks locally (#4591)
 * Fix docstring for `XGBModel.predict()` (#4592)
@@ -1151,7 +1151,7 @@ This release marks a major milestone for the XGBoost project.
 * Update XGBoost4J-Spark doc (#4804)
 * Regular formatting for evaluation metrics (#4803)
 * [jvm-packages] Refine documentation for handling missing values in XGBoost4J-Spark (#4805)
-* Monitor for distributed envorinment (#4829). This is useful for identifying performance bottleneck.
+* Monitor for distributed environment (#4829). This is useful for identifying performance bottleneck.
 * Add check for length of weights and produce a good error message (#4872)
 * Fix DMatrix doc (#4884)
 * Export C++ headers in CMake installation (#4897)
