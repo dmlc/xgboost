@@ -182,7 +182,7 @@ def BuildCPUARM64() {
     ${dockerRun} ${container_type} ${docker_binary} bash -c "auditwheel repair --plat ${wheel_tag} python-package/dist/*.whl && python tests/ci_build/rename_whl.py wheelhouse/*.whl ${commit_id} ${wheel_tag}"
     mv -v wheelhouse/*.whl python-package/dist/
     # Make sure that libgomp.so is vendored in the wheel
-    ${dockerRun} ${container_type} ${docker_binary} bash -c "ls -lh python-package/dist && unzip -l python-package/dist/*.whl"
+    ${dockerRun} ${container_type} ${docker_binary} "unzip -l python-package/dist/*.whl | grep libgomp || exit -1"
     """
     echo 'Stashing Python wheel...'
     stash name: "xgboost_whl_arm64_cpu", includes: 'python-package/dist/*.whl'
@@ -230,7 +230,8 @@ def BuildCUDA(args) {
     """
     if (args.cuda_version == ref_cuda_ver) {
       sh """
-      ${dockerRun} auditwheel_x86_64 ${docker_binary} bash -c "auditwheel repair --plat ${wheel_tag} python-package/dist/*.whl && python tests/ci_build/rename_whl.py wheelhouse/*.whl ${commit_id} ${wheel_tag}"
+      ${dockerRun} auditwheel_x86_64 ${docker_binary} auditwheel repair --plat ${wheel_tag} python-package/dist/*.whl
+      ${dockerRun} ${container_type} ${docker_binary} ${docker_args} python tests/ci_build/rename_whl.py wheelhouse/*.whl ${commit_id} ${wheel_tag}
       mv -v wheelhouse/*.whl python-package/dist/
       # Make sure that libgomp.so is vendored in the wheel
       ${dockerRun} auditwheel_x86_64 ${docker_binary} bash -c "unzip -l python-package/dist/*.whl | grep libgomp  || exit -1"
