@@ -94,7 +94,8 @@ def run_with_dask_dataframe(DMatrixT: Type, client: Client) -> None:
     X["predict"] = predictions
     X["inplace_predict"] = series_predictions
 
-    assert X.isnull().values.any().compute() is False
+    has_null = X.isnull().values.any().compute()
+    assert bool(has_null) is False
 
 
 def run_with_dask_array(DMatrixT: Type, client: Client) -> None:
