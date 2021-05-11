@@ -1,7 +1,7 @@
 /*!
  * Copyright 2020 by XGBoost Contributors
  *
- * \brief An implemenation of Ryu algorithm:
+ * \brief An implementation of Ryu algorithm:
  *
  * https://dl.acm.org/citation.cfm?id=3192369
  *
@@ -686,7 +686,7 @@ int32_t ToCharsFloatImpl(float f, char * const result) {
 
 // This is an implementation for base 10 inspired by the one in libstdc++v3.  The general
 // scheme is by decomposing the value into multiple combination of base (which is 10) by
-// mod, until the value is lesser than 10, then last char is just char '0' (ascii 48) plus
+// mod, until the value is lesser than 10, then last char is just char '0' (ASCII 48) plus
 // that value.  Other popular implementations can be found in RapidJson and libc++ (in
 // llvm-project), which uses the same general work flow with the same look up table, but
 // probably with better performance as they are more complicated.

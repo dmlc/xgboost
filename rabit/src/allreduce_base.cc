@@ -40,7 +40,7 @@ AllreduceBase::AllreduceBase() {
   err_link = nullptr;
   dmlc_role = "worker";
   this->SetParam("rabit_reduce_buffer", "256MB");
-  // setup possible enviroment variable of interest
+  // setup possible environment variable of interest
   // include dmlc support direct variables
   env_vars.emplace_back("DMLC_TASK_ID");
   env_vars.emplace_back("DMLC_ROLE");
@@ -52,7 +52,7 @@ AllreduceBase::AllreduceBase() {
 
 // initialization function
 bool AllreduceBase::Init(int argc, char* argv[]) {
-  // setup from enviroment variables
+  // setup from environment variables
   // handler to get variables from env
   for (auto & env_var : env_vars) {
     const char *value = getenv(env_var.c_str());
@@ -294,7 +294,7 @@ bool AllreduceBase::ReConnectLinks(const char *cmd) {
     rank = newrank;
 
     if (rank == -1) {
-      LOG(FATAL) << "tracker got overwhelemed and not able to assign correct rank";
+      LOG(FATAL) << "tracker got overwhelmed and not able to assign correct rank";
     }
 
     LOG(CONSOLE) << "task " << task_id << " got new rank " << rank;
@@ -455,7 +455,7 @@ bool AllreduceBase::ReConnectLinks(const char *cmd) {
  *    It only means the current node get the correct result of Allreduce.
  *    However, it means every node finishes LAST call(instead of this one) of Allreduce/Bcast
  *
- * \param sendrecvbuf_ buffer for both sending and recving data
+ * \param sendrecvbuf_ buffer for both sending and receiving data
  * \param type_nbytes the unit number of bytes the type have
  * \param count number of elements to be reduced
  * \param reducer reduce function
@@ -477,7 +477,7 @@ AllreduceBase::TryAllreduce(void *sendrecvbuf_,
  * \brief perform in-place allreduce, on sendrecvbuf,
  * this function implements tree-shape reduction
  *
- * \param sendrecvbuf_ buffer for both sending and recving data
+ * \param sendrecvbuf_ buffer for both sending and receiving data
  * \param type_nbytes the unit number of bytes the type have
  * \param count number of elements to be reduced
  * \param reducer reduce function
@@ -513,7 +513,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
     }
     links[i].ResetSize();
   }
-  // if no childs, no need to reduce
+  // if no children, no need to reduce
   if (nlink == static_cast<int>(parent_index != -1)) {
     size_up_reduce = total_size;
   }
@@ -548,7 +548,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
         }
       }
     }
-    // finish runing allreduce
+    // finish running allreduce
     if (finished) break;
     // select must return
     watcher.Poll(timeout_sec);
@@ -566,7 +566,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
         }
       }
     }
-    // this node have childs, peform reduce
+    // this node have children, perform reduce
     if (nlink > static_cast<int>(parent_index != -1)) {
       size_t buffer_size = 0;
       // do upstream reduce
@@ -584,16 +584,16 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
       max_reduce = (max_reduce / type_nbytes * type_nbytes);
 
       // if max reduce is less than total size, we reduce multiple times of
-      // eachreduce size
+      // each reduce size
       if (max_reduce < total_size) {
           max_reduce = max_reduce - max_reduce % eachreduce;
       }
 
-      // peform reduce, can be at most two rounds
+      // perform reduce, can be at most two rounds
       while (size_up_reduce < max_reduce) {
         // start position
         size_t start = size_up_reduce % buffer_size;
-        // peform read till end of buffer
+        // perform read till end of buffer
         size_t nread = std::min(buffer_size - start,
                                 max_reduce - size_up_reduce);
         utils::Assert(nread % type_nbytes == 0, "Allreduce: size check");
@@ -659,7 +659,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
       // this is root, can use reduce as most recent point
       size_down_in = size_up_out = size_up_reduce;
     }
-    // can pass message down to childs
+    // can pass message down to children
     for (int i = 0; i < nlink; ++i) {
       if (i != parent_index && links[i].size_write < size_down_in) {
         ReturnType ret = links[i].WriteFromArray(sendrecvbuf, size_down_in);
@@ -673,7 +673,7 @@ AllreduceBase::TryAllreduceTree(void *sendrecvbuf_,
 }
 /*!
  * \brief broadcast data from root to all nodes, this function can fail,and will return the cause of failure
- * \param sendrecvbuf_ buffer for both sending and recving data
+ * \param sendrecvbuf_ buffer for both sending and receiving data
  * \param total_size the size of the data to be broadcasted
  * \param root the root worker id to broadcast the data
  * \return this function can return kSuccess, kSockError, kGetExcept, see ReturnType for details
@@ -851,7 +851,7 @@ AllreduceBase::TryAllgatherRing(void *sendrecvbuf_, size_t total_size,
  *
  *  Ring-based algorithm
  *
- * \param sendrecvbuf_ buffer for both sending and recving data
+ * \param sendrecvbuf_ buffer for both sending and receiving data
  * \param type_nbytes the unit number of bytes the type have
  * \param count number of elements to be reduced
  * \param reducer reduce function
@@ -952,7 +952,7 @@ AllreduceBase::TryReduceScatterRing(void *sendrecvbuf_,
  * \brief perform in-place allreduce, on sendrecvbuf
  *  use a ring based algorithm
  *
- * \param sendrecvbuf_ buffer for both sending and recving data
+ * \param sendrecvbuf_ buffer for both sending and receiving data
  * \param type_nbytes the unit number of bytes the type have
  * \param count number of elements to be reduced
  * \param reducer reduce function

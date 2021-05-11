@@ -72,7 +72,7 @@ T* Cast(U* value) {
   } else {
     LOG(FATAL) << "Invalid cast, from " + value->TypeStr() + " to " + T().TypeStr();
   }
-  return dynamic_cast<T*>(value);  // supress compiler warning.
+  return dynamic_cast<T*>(value);  // suppress compiler warning.
 }
 
 class JsonString : public Value {

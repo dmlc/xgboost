@@ -31,10 +31,10 @@ part of model, that's because objective controls transformation of global bias (
 evaluation or continue the training with a different set of hyper-parameters etc.
 
 However, this is not the end of story.  There are cases where we need to save something
-more than just the model itself.  For example, in distrbuted training, XGBoost performs
+more than just the model itself.  For example, in distributed training, XGBoost performs
 checkpointing operation.  Or for some reasons, your favorite distributed computing
 framework decide to copy the model from one worker to another and continue the training in
-there.  In such cases, the serialisation output is required to contain enougth information
+there.  In such cases, the serialisation output is required to contain enough information
 to continue previous training without user providing any parameters again.  We consider
 such scenario as **memory snapshot** (or memory based serialisation method) and distinguish it
 with normal model IO operation. Currently, memory snapshot is used in the following places:
@@ -145,7 +145,7 @@ or in R:
   config <- xgb.config(bst)
   print(config)
 
-Will print out something similiar to (not actual output as it's too long for demonstration):
+Will print out something similar to (not actual output as it's too long for demonstration):
 
 .. code-block:: javascript
 

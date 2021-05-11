@@ -5,7 +5,7 @@
  * About NOLINTs in this file:
  *
  *   If we want Span to work with std interface, like range for loop, the
- *   naming must be consistant with std, not XGBoost. Also, the interface also
+ *   naming must be consistent with std, not XGBoost. Also, the interface also
  *   conflicts with XGBoost coding style, specifically, the use of `explicit'
  *   keyword.
  *
@@ -51,8 +51,8 @@
  * possible.
  *
  * There are other workarounds for MSVC, like _Unwrapped, _Verify_range ...
- * Some of these are hiden magics of MSVC and I tried to avoid them. Should any
- * of them become needed, please consult the source code of GSL, and possibily
+ * Some of these are hidden magics of MSVC and I tried to avoid them. Should any
+ * of them become needed, please consult the source code of GSL, and possibly
  * some explanations from this thread:
  *
  *   https://github.com/Microsoft/GSL/pull/664
@@ -121,7 +121,7 @@ namespace detail {
 /*!
  * By default, XGBoost uses uint32_t for indexing data. int64_t covers all
  *   values uint32_t can represent. Also, On x86-64 Linux, GCC uses long int to
- *   represent ptrdiff_t, which is just int64_t. So we make it determinstic
+ *   represent ptrdiff_t, which is just int64_t. So we make it deterministic
  *   here.
  */
 using ptrdiff_t = typename std::conditional<  // NOLINT
@@ -354,7 +354,7 @@ XGBOOST_DEVICE bool LexicographicalCompare(InputIt1 first1, InputIt1 last1,
  *    Interface might be slightly different, we stick with ISO.
  *
  *    GSL uses C++14/17 features, which are not available here.
- *    GSL uses constexpr extensively, which is not possibile with limitation
+ *    GSL uses constexpr extensively, which is not possible with limitation
  *      of C++11.
  *    GSL doesn't concern about CUDA.
  *
@@ -371,7 +371,7 @@ XGBOOST_DEVICE bool LexicographicalCompare(InputIt1 first1, InputIt1 last1,
  *      in CUDA.
  *    Initializing from std::array is not supported.
  *
- *    ISO uses constexpr extensively, which is not possibile with limitation
+ *    ISO uses constexpr extensively, which is not possible with limitation
  *      of C++11.
  *    ISO uses C++14/17 features, which is not available here.
  *    ISO doesn't concern about CUDA.
@@ -408,7 +408,7 @@ XGBOOST_DEVICE bool LexicographicalCompare(InputIt1 first1, InputIt1 last1,
  *       beg++;                 // crash
  *       \endcode
  *
- *       While hoding a pointer or reference should avoid the problem, its a
+ *       While holding a pointer or reference should avoid the problem, it's a
  *       compromise. Since we have subspan, it's acceptable not to support
  *       passing iterator.
  */

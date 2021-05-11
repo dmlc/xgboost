@@ -19,5 +19,5 @@ test_that("monotone constraints for regression", {
     pred.ord <- pred[ind]
     expect_true({
         !any(diff(pred.ord) > 0)
-    }, "Monotone Contraint Satisfied")
+    }, "Monotone constraint satisfied")
 })

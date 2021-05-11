@@ -55,7 +55,7 @@ HostSketchContainer::CalcColumnSize(SparsePage const &batch,
 std::vector<bst_feature_t> HostSketchContainer::LoadBalance(
     SparsePage const &batch, bst_feature_t n_columns, size_t const nthreads) {
   /* Some sparse datasets have their mass concentrating on small number of features.  To
-   * avoid wating for a few threads running forever, we here distirbute different number
+   * avoid waiting for a few threads running forever, we here distribute different number
    * of columns to different threads according to number of entries.
    */
   auto page = batch.GetView();

@@ -2,7 +2,7 @@
 C API Tutorial 
 ##############################
 
-In this tutorial, we are going to install XGBoost library & configure the CMakeLists.txt file of our C/C++ application to link XGBoost library with our application. Later on, we will see some usefull tips for using C API and code snippets as examples to use various functions available in C API to perform basic task like loading, training model & predicting on test dataset. 
+In this tutorial, we are going to install XGBoost library & configure the CMakeLists.txt file of our C/C++ application to link XGBoost library with our application. Later on, we will see some useful tips for using C API and code snippets as examples to use various functions available in C API to perform basic task like loading, training model & predicting on test dataset. 
 
 .. contents::
   :backlinks: none
@@ -68,11 +68,11 @@ To ensure that CMake can locate the XGBoost library, supply ``-DCMAKE_PREFIX_PAT
 Usefull Tips To Remember
 ************************
 
-Below are some usefull tips while using C API:
+Below are some useful tips while using C API:
 
 1. Error handling: Always check the return value of the C API functions.
 
-a. In a C application: Use the following macro to guard all calls to XGBoost's C API functions. The macro prints all the error/ exception occured:
+a. In a C application: Use the following macro to guard all calls to XGBoost's C API functions. The macro prints all the error/ exception occurred:
 
 .. highlight:: c
    :linenothreshold: 5

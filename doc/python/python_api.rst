@@ -1,6 +1,6 @@
 Python API Reference
 ====================
-This page gives the Python API reference of xgboost, please also refer to Python Package Introduction for more information about python package.
+This page gives the Python API reference of xgboost, please also refer to Python Package Introduction for more information about the Python package.
 
 .. contents::
   :backlinks: none

@@ -17,7 +17,7 @@
 
 namespace xgboost {
 namespace tree {
-// Following 2 functions are slightly modifed version of fbcuda.
+// Following 2 functions are slightly modified version of fbcuda.
 
 /* \brief Constructs a rounding factor used to truncate elements in a sum such that the
    sum of the truncated elements is the same no matter what the order of the sum is.

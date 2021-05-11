@@ -1,7 +1,7 @@
 ###########################
 Python Package Introduction
 ###########################
-This document gives a basic walkthrough of xgboost python package.
+This document gives a basic walkthrough of the xgboost package for Python.
 
 **List of other Helpful Links**
 
@@ -24,7 +24,7 @@ Data Interface
 --------------
 The XGBoost python module is able to load data from:
 
-- LibSVM text format file
+- LIBSVM text format file
 - Comma-separated values (CSV) file
 - NumPy 2D array
 - SciPy 2D sparse array
@@ -36,7 +36,7 @@ The XGBoost python module is able to load data from:
 
 The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
 
-* To load a libsvm text file or a XGBoost binary file into :py:class:`DMatrix <xgboost.DMatrix>`:
+* To load a LIBSVM text file or a XGBoost binary file into :py:class:`DMatrix <xgboost.DMatrix>`:
 
   .. code-block:: python
 

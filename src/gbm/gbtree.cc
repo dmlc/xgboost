@@ -563,7 +563,7 @@ GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
   // GPU_Hist by default has prediction cache calculated from quantile values,
   // so GPU Predictor is not used for training dataset.  But when XGBoost
   // performs continue training with an existing model, the prediction cache is
-  // not availbale and number of trees doesn't equal zero, the whole training
+  // not available and number of trees doesn't equal zero, the whole training
   // dataset got copied into GPU for precise prediction.  This condition tries
   // to avoid such copy by calling CPU Predictor instead.
   if ((out_pred && out_pred->Size() == 0) && (model_.param.num_trees != 0) &&
@@ -831,7 +831,7 @@ class Dart : public GBTree {
 #pragma omp parallel for
         for (omp_ulong ridx = 0; ridx < n_rows; ++ridx) {
           const size_t offset = ridx * n_groups + group;
-          // Need to remove the base margin from indiviual tree.
+          // Need to remove the base margin from individual tree.
           h_out_predts[offset] +=
               (h_predts[offset] - model_.learner_model_param->base_score) * w;
         }

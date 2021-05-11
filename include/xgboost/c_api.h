@@ -324,7 +324,7 @@ XGB_DLL int XGProxyDMatrixCreate(DMatrixHandle* out);
 XGB_EXTERN_C typedef int XGDMatrixCallbackNext(DataIterHandle iter);  // NOLINT(*)
 
 /*!
- * \brief Callback function prototype for reseting external iterator
+ * \brief Callback function prototype for resetting external iterator
  */
 XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLINT(*)
 
@@ -333,8 +333,8 @@ XGB_EXTERN_C typedef void DataIterResetCallback(DataIterHandle handle); // NOLIN
  *
  * \param iter     A handle to external data iterator.
  * \param proxy    A DMatrix proxy handle created by `XGProxyDMatrixCreate`.
- * \param reset    Callback function reseting the iterator state.
- * \param next     Callback function yieling the next batch of data.
+ * \param reset    Callback function resetting the iterator state.
+ * \param next     Callback function yielding the next batch of data.
  * \param missing  Which value to represent missing value
  * \param nthread  Number of threads to use, 0 for default.
  * \param max_bin  Maximum number of bins for building histogram.
@@ -461,7 +461,7 @@ XGB_DLL int XGDMatrixSetUIntInfo(DMatrixHandle handle,
  *   - feature_type
  *
  * \param handle    An instance of data matrix
- * \param field     Feild name
+ * \param field     Field name
  * \param features  Pointer to array of strings.
  * \param size      Size of `features` pointer (number of strings passed in).
  *
@@ -493,7 +493,7 @@ XGB_DLL int XGDMatrixSetStrFeatureInfo(DMatrixHandle handle, const char *field,
  * XGBoost.
  *
  * \param handle       An instance of data matrix
- * \param field        Feild name
+ * \param field        Field name
  * \param size         Size of output pointer `features` (number of strings returned).
  * \param out_features Address of a pointer to array of strings.  Result is stored in
  *                     thread local memory.
@@ -533,7 +533,7 @@ XGB_DLL int XGDMatrixGetStrFeatureInfo(DMatrixHandle handle, const char *field,
  *  - feature_weights
  *
  * \param handle An instance of data matrix
- * \param field  Feild name
+ * \param field  Field name
  * \param data   Pointer to consecutive memory storing data.
  * \param size   Size of the data, this is relative to size of type.  (Meaning NOT number
  *               of bytes.)
@@ -912,7 +912,7 @@ XGB_DLL int XGBoosterPredictFromCudaColumnar(
  *
  * - Functions with the term "Config" handles save/loading configuration.  It helps user
  *   to study the internal of XGBoost.  Also user can use the load method for specifying
- *   paramters in a structured way.  These functions are introduced in 1.0.0, and are not
+ *   parameters in a structured way.  These functions are introduced in 1.0.0, and are not
  *   yet stable.
  *
  * - Functions with the term "Serialization" are combined of above two.  They are used in
@@ -1145,7 +1145,7 @@ XGB_DLL int XGBoosterGetAttrNames(BoosterHandle handle,
  *   - feature_type
  *
  * \param handle    An instance of Booster
- * \param field     Feild name
+ * \param field     Field name
  * \param features  Pointer to array of strings.
  * \param size      Size of `features` pointer (number of strings passed in).
  *
@@ -1167,7 +1167,7 @@ XGB_DLL int XGBoosterSetStrFeatureInfo(BoosterHandle handle, const char *field,
  * function of XGBoost.
  *
  * \param handle       An instance of Booster
- * \param field        Feild name
+ * \param field        Field name
  * \param size         Size of output pointer `features` (number of strings returned).
  * \param out_features Address of a pointer to array of strings. Result is stored in
  *        thread local memory.

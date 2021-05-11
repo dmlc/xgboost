@@ -81,7 +81,7 @@ class HistogramCuts {
   }
 
   // Getters.  Cuts should be of no use after building histogram indices, but currently
-  // it's deeply linked with quantile_hist, gpu sketcher and gpu_hist.  So we preserve
+  // they are deeply linked with quantile_hist, gpu sketcher and gpu_hist, so we preserve
   // these for now.
   std::vector<uint32_t> const& Ptrs()      const { return cut_ptrs_.ConstHostVector();   }
   std::vector<float>    const& Values()    const { return cut_values_.ConstHostVector(); }
@@ -247,7 +247,7 @@ struct GHistIndexMatrix {
   // Create a global histogram matrix, given cut
   void Init(DMatrix* p_fmat, int max_num_bins);
 
-  // specific method for sparse data as no posibility to reduce allocated memory
+  // specific method for sparse data as no possibility to reduce allocated memory
   template <typename BinIdxType, typename GetOffset>
   void SetIndexData(common::Span<BinIdxType> index_data_span,
                     size_t batch_threads, const SparsePage &batch,

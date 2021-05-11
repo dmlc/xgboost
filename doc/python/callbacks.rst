@@ -4,7 +4,7 @@ Callback Functions
 
 This document gives a basic walkthrough of callback function used in XGBoost Python
 package.  In XGBoost 1.3, a new callback interface is designed for Python package, which
-provides the flexiblity of designing various extension for training.  Also, XGBoost has a
+provides the flexibility of designing various extension for training.  Also, XGBoost has a
 number of pre-defined callbacks for supporting early stopping, checkpoints etc.
 
 

@@ -549,7 +549,7 @@ struct GPUHistMakerDevice {
       bst_float weight = evaluator.CalcWeight(
           pos, param_d, GradStats{d_node_sum_gradients[pos]});
       static_assert(!std::is_const<decltype(out_preds_d)>::value, "");
-      auto v_predt = out_preds_d;  // for some reaon out_preds_d is const by both nvcc and clang.
+      auto v_predt = out_preds_d;  // for some reason out_preds_d is const by both nvcc and clang.
       v_predt[d_ridx[local_idx]] += weight * param_d.learning_rate;
     });
     row_partitioner.reset();

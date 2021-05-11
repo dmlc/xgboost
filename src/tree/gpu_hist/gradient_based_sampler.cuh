@@ -124,7 +124,7 @@ class ExternalMemoryGradientBasedSampling : public SamplingStrategy {
  * Processing Systems (pp. 3146-3154).
  * \see Zhu, R. (2016). Gradient-based sampling: An adaptive importance sampling for least-squares.
  * In Advances in Neural Information Processing Systems (pp. 406-414).
- * \see Ohlsson, E. (1998). Sequential poisson sampling. Journal of official Statistics, 14(2), 149.
+ * \see Ohlsson, E. (1998). Sequential Poisson sampling. Journal of official Statistics, 14(2), 149.
  */
 class GradientBasedSampler {
  public:

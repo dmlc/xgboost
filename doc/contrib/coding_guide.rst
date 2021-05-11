@@ -23,7 +23,7 @@ C++ Coding Guideline
 ***********************
 Python Coding Guideline
 ***********************
-- Follow `PEP 8: Style Guide for Python Code <https://www.python.org/dev/peps/pep-0008/>`_. We use PyLint to automatically enforce PEP 8 style across our Python codebase. Before submitting your pull request, you are encouraged to run PyLint on your machine. See :ref:`running_checks_locally`.
+- Follow `PEP 8: Style Guide for Python Code <https://www.python.org/dev/peps/pep-0008/>`_. We use Pylint to automatically enforce PEP 8 style across our Python codebase. Before submitting your pull request, you are encouraged to run Pylint on your machine. See :ref:`running_checks_locally`.
 - Docstrings should be in `NumPy docstring format <https://numpydoc.readthedocs.io/en/latest/format.html>`_.
 
 .. _running_checks_locally:

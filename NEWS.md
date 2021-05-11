@@ -1105,7 +1105,7 @@ This release marks a major milestone for the XGBoost project.
 * Specify version macro in CMake. (#4730)
 * Include dmlc-tracker into XGBoost Python package (#4731)
 * [CI] Use long key ID for Ubuntu repository fingerprints. (#4783)
-* Remove plugin, cuda related code in automake & autoconf files (#4789)
+* Remove plugin, CUDA related code in automake & autoconf files (#4789)
 * Skip related tests when scikit-learn is not installed. (#4791)
 * Ignore vscode and clion files (#4866)
 * Use bundled Google Test by default (#4900)
@@ -1136,7 +1136,7 @@ This release marks a major milestone for the XGBoost project.
 ### Usability Improvements, Documentation
 * Add Random Forest API to Python API doc (#4500)
 * Fix Python demo and doc. (#4545)
-* Remove doc about not supporting cuda 10.1 (#4578)
+* Remove doc about not supporting CUDA 10.1 (#4578)
 * Address some sphinx warnings and errors, add doc for building doc. (#4589)
 * Add instruction to run formatting checks locally (#4591)
 * Fix docstring for `XGBModel.predict()` (#4592)
@@ -1151,7 +1151,7 @@ This release marks a major milestone for the XGBoost project.
 * Update XGBoost4J-Spark doc (#4804)
 * Regular formatting for evaluation metrics (#4803)
 * [jvm-packages] Refine documentation for handling missing values in XGBoost4J-Spark (#4805)
-* Monitor for distributed envorinment (#4829). This is useful for identifying performance bottleneck.
+* Monitor for distributed environment (#4829). This is useful for identifying performance bottleneck.
 * Add check for length of weights and produce a good error message (#4872)
 * Fix DMatrix doc (#4884)
 * Export C++ headers in CMake installation (#4897)
@@ -1623,7 +1623,7 @@ This release is packed with many new features and bug fixes.
 ### Known issues
 * Quantile sketcher fails to produce any quantile for some edge cases (#2943)
 * The `hist` algorithm leaks memory when used with learning rate decay callback (#3579)
-* Using custom evaluation funciton together with early stopping causes assertion failure in XGBoost4J-Spark (#3595)
+* Using custom evaluation function together with early stopping causes assertion failure in XGBoost4J-Spark (#3595)
 * Early stopping doesn't work with `gblinear` learner (#3789)
 * Label and weight vectors are not reshared upon the change in number of GPUs (#3794). To get around this issue, delete the `DMatrix` object and re-load.
 * The `DMatrix` Python objects are initialized with incorrect values when given array slices (#3841)
@@ -1717,7 +1717,7 @@ This version is only applicable for the Python package. The content is identical
   - Add scripts to cross-build and deploy artifacts (#3276, #3307)
   - Fix a compilation error for Scala 2.10 (#3332)
 * BREAKING CHANGES
-  - `XGBClassifier.predict_proba()` no longer accepts paramter `output_margin`. The paramater makes no sense for `predict_proba()` because the method is to predict class probabilities, not raw margin scores.
+  - `XGBClassifier.predict_proba()` no longer accepts parameter `output_margin`. The parameter makes no sense for `predict_proba()` because the method is to predict class probabilities, not raw margin scores.
 
 ## v0.71 (2018.04.11)
 * This is a minor release, mainly motivated by issues concerning `pip install`, e.g. #2426, #3189, #3118, and #3194.
@@ -1733,7 +1733,7 @@ This version is only applicable for the Python package. The content is identical
   - AUC-PR metric for ranking task (#3172)
   - Monotonic constraints for 'hist' algorithm (#3085)
 * GPU support
-  - Create an abtract 1D vector class that moves data seamlessly between the main and GPU memory (#2935, #3116, #3068). This eliminates unnecessary PCIe data transfer during training time.
+    - Create an abstract 1D vector class that moves data seamlessly between the main and GPU memory (#2935, #3116, #3068). This eliminates unnecessary PCIe data transfer during training time.
   - Fix minor bugs (#3051, #3217)
   - Fix compatibility error for CUDA 9.1 (#3218)
 * Python package:
@@ -1761,7 +1761,7 @@ This version is only applicable for the Python package. The content is identical
 * Refactored gbm to allow more friendly cache strategy
   - Specialized some prediction routine
 * Robust `DMatrix` construction from a sparse matrix
-* Faster consturction of `DMatrix` from 2D NumPy matrices: elide copies, use of multiple threads
+* Faster construction of `DMatrix` from 2D NumPy matrices: elide copies, use of multiple threads
 * Automatically remove nan from input data when it is sparse.
   - This can solve some of user reported problem of istart != hist.size
 * Fix the single-instance prediction function to obtain correct predictions
@@ -1789,7 +1789,7 @@ This version is only applicable for the Python package. The content is identical
   - Faster, histogram-based tree algorithm (`tree_method='hist'`) .
   - GPU/CUDA accelerated tree algorithms (`tree_method='gpu_hist'` or `'gpu_exact'`), including the GPU-based predictor.
   - Monotonic constraints: when other features are fixed, force the prediction to be monotonic increasing with respect to a certain specified feature.
-  - Faster gradient caculation using AVX SIMD
+  - Faster gradient calculation using AVX SIMD
   - Ability to export models in JSON format
   - Support for Tweedie regression
   - Additional dropout options for DART: binomial+1, epsilon

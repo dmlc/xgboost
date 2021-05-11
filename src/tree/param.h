@@ -76,7 +76,7 @@ struct TrainParam : public XGBoostParameter<TrainParam> {
   // the criteria to use for ranking splits
   std::string split_evaluator;
 
-  // ------ From cpu quantile histogram -------.
+  // ------ From CPU quantile histogram -------.
   // percentage threshold for treating a feature as sparse
   // e.g. 0.2 indicates a feature with fewer than 20% nonzeros is considered sparse
   double sparse_threshold;
@@ -316,7 +316,7 @@ XGBOOST_DEVICE inline T CalcGain(const TrainingParams &p, StatT stat) {
   return CalcGain(p, stat.GetGrad(), stat.GetHess());
 }
 
-// Used in gpu code where GradientPair is used for gradient sum, not GradStats.
+// Used in GPU code where GradientPair is used for gradient sum, not GradStats.
 template <typename TrainingParams, typename GpairT>
 XGBOOST_DEVICE inline float CalcWeight(const TrainingParams &p, GpairT sum_grad) {
   return CalcWeight(p, sum_grad.GetGrad(), sum_grad.GetHess());
@@ -484,7 +484,7 @@ using SplitEntry = SplitEntryContainer<GradStats>;
 
 /*
  * \brief Parse the interaction constraints from string.
- * \param constraint_str String storing the interfaction constraints:
+ * \param constraint_str String storing the interaction constraints:
  *
  *  Example input string:
  *

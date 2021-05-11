@@ -13,13 +13,13 @@
 #include <thrust/binary_search.h>
 
 namespace xgboost {
-/** \brief Struct for accessing and manipulating an ellpack matrix on the
+/** \brief Struct for accessing and manipulating an ELLPACK matrix on the
  * device. Does not own underlying memory and may be trivially copied into
  * kernels.*/
 struct EllpackDeviceAccessor {
   /*! \brief Whether or not if the matrix is dense. */
   bool is_dense;
-  /*! \brief Row length for ELLPack, equal to number of features. */
+  /*! \brief Row length for ELLPACK, equal to number of features. */
   size_t row_stride;
   size_t base_rowid{};
   size_t n_rows{};
@@ -197,11 +197,11 @@ class EllpackPageImpl {
 public:
   /*! \brief Whether or not if the matrix is dense. */
   bool is_dense;
-  /*! \brief Row length for ELLPack. */
+  /*! \brief Row length for ELLPACK. */
   size_t row_stride;
   size_t base_rowid{0};
   size_t n_rows{};
-  /*! \brief global index of histogram, which is stored in ELLPack format. */
+  /*! \brief global index of histogram, which is stored in ELLPACK format. */
   HostDeviceVector<common::CompressedByteT> gidx_buffer;
 
  private:

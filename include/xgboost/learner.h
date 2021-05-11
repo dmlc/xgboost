@@ -52,9 +52,9 @@ struct XGBAPIThreadLocalEntry {
   std::vector<bst_float> ret_vec_float;
   /*! \brief temp variable of gradient pairs. */
   std::vector<GradientPair> tmp_gpair;
-  /*! \brief Temp variable for returing prediction result. */
+  /*! \brief Temp variable for returning prediction result. */
   PredictionCacheEntry prediction_entry;
-  /*! \brief Temp variable for returing prediction shape. */
+  /*! \brief Temp variable for returning prediction shape. */
   std::vector<bst_ulong> prediction_shape;
 };
 

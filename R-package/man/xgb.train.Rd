@@ -65,7 +65,7 @@ xgboost(
   \item \code{colsample_bytree} subsample ratio of columns when constructing each tree. Default: 1
   \item \code{lambda} L2 regularization term on weights. Default: 1
   \item \code{alpha} L1 regularization term on weights. (there is no L1 reg on bias because it is not important). Default: 0
-  \item \code{num_parallel_tree} Experimental parameter. number of trees to grow per round. Useful to test Random Forest through Xgboost (set \code{colsample_bytree < 1}, \code{subsample  < 1}  and \code{round = 1}) accordingly. Default: 1
+  \item \code{num_parallel_tree} Experimental parameter. number of trees to grow per round. Useful to test Random Forest through XGBoost (set \code{colsample_bytree < 1}, \code{subsample  < 1}  and \code{round = 1}) accordingly. Default: 1
   \item \code{monotone_constraints} A numerical vector consists of \code{1}, \code{0} and \code{-1} with its length equals to the number of features in the training data. \code{1} is increasing, \code{-1} is decreasing and \code{0} is no constraint.
   \item \code{interaction_constraints} A list of vectors specifying feature indices of permitted interactions. Each item of the list represents one permitted interaction where specified features are allowed to interact with each other. Feature index values should start from \code{0} (\code{0} references the first column).  Leave argument unspecified for no interaction constraints.
 }
@@ -90,10 +90,10 @@ xgboost(
     \item \code{binary:logistic} logistic regression for binary classification. Output probability.
     \item \code{binary:logitraw} logistic regression for binary classification, output score before logistic transformation.
     \item \code{binary:hinge}: hinge loss for binary classification. This makes predictions of 0 or 1, rather than producing probabilities.
-    \item \code{count:poisson}: poisson regression for count data, output mean of poisson distribution. \code{max_delta_step} is set to 0.7 by default in poisson regression (used to safeguard optimization).
+    \item \code{count:poisson}: Poisson regression for count data, output mean of Poisson distribution. \code{max_delta_step} is set to 0.7 by default in poisson regression (used to safeguard optimization).
     \item \code{survival:cox}: Cox regression for right censored survival time data (negative values are considered right censored). Note that predictions are returned on the hazard ratio scale (i.e., as HR = exp(marginal_prediction) in the proportional hazard function \code{h(t) = h0(t) * HR)}.
     \item \code{survival:aft}: Accelerated failure time model for censored survival time data. See \href{https://xgboost.readthedocs.io/en/latest/tutorials/aft_survival_analysis.html}{Survival Analysis with Accelerated Failure Time} for details.
-    \item \code{aft_loss_distribution}: Probabilty Density Function used by \code{survival:aft} and \code{aft-nloglik} metric.
+    \item \code{aft_loss_distribution}: Probability Density Function used by \code{survival:aft} and \code{aft-nloglik} metric.
     \item \code{multi:softmax} set xgboost to do multiclass classification using the softmax objective. Class is represented by a number and should be from 0 to \code{num_class - 1}.
     \item \code{multi:softprob} same as softmax, but prediction outputs a vector of ndata * nclass elements, which can be further reshaped to ndata, nclass matrix. The result contains predicted probabilities of each data point belonging to each class.
     \item \code{rank:pairwise} set xgboost to do ranking task by minimizing the pairwise loss.
@@ -211,11 +211,11 @@ than the \code{xgboost} interface.
 Parallelization is automatically enabled if \code{OpenMP} is present.
 Number of threads can also be manually specified via \code{nthread} parameter.
 
-The evaluation metric is chosen automatically by Xgboost (according to the objective)
+The evaluation metric is chosen automatically by XGBoost (according to the objective)
 when the \code{eval_metric} parameter is not provided.
 User may set one or several \code{eval_metric} parameters.
 Note that when using a customized metric, only this single metric can be used.
-The following is the list of built-in metrics for which Xgboost provides optimized implementation:
+The following is the list of built-in metrics for which XGBoost provides optimized implementation:
   \itemize{
      \item \code{rmse} root mean square error. \url{https://en.wikipedia.org/wiki/Root_mean_square_error}
      \item \code{logloss} negative log-likelihood. \url{https://en.wikipedia.org/wiki/Log-likelihood}

@@ -253,7 +253,7 @@ __global__ void LaunchNKernel(int device_idx, size_t begin, size_t end,
  *   function as argument.  Hence functions like `LaunchN` cannot use this wrapper.
  *
  * - With c++ initialization list `{}` syntax, you are forced to comply with the CUDA type
- *   spcification.
+ *   specification.
  */
 class LaunchKernel {
   size_t shmem_size_;
@@ -930,7 +930,7 @@ class SegmentSorter {
   // Items sorted within the group
   caching_device_vector<T> ditems_;
 
-  // Original position of the items before they are sorted descendingly within its groups
+  // Original position of the items before they are sorted descending within their groups
   caching_device_vector<uint32_t> doriginal_pos_;
 
   // Segments within the original list that delineates the different groups

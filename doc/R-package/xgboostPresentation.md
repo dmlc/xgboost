@@ -5,9 +5,9 @@ XGBoost R Tutorial
 ## Introduction
 
 
-**Xgboost** is short for e**X**treme **G**radient **Boost**ing package.
+**XGBoost** is short for e**X**treme **G**radient **Boost**ing package.
 
-The purpose of this Vignette is to show you how to use **Xgboost** to build a model and make predictions.
+The purpose of this Vignette is to show you how to use **XGBoost** to build a model and make predictions.
 
 It is an efficient and scalable implementation of gradient boosting framework by @friedman2000additive and @friedman2001greedy. Two solvers are included:
 
@@ -32,10 +32,10 @@ It has several features:
 ## Installation
 
 
-### Github version
+### GitHub version
 
 
-For weekly updated version (highly recommended), install from *Github*:
+For weekly updated version (highly recommended), install from *GitHub*:
 
 
 ```r
@@ -177,7 +177,7 @@ We will train decision tree model using the following parameters:
 
 * `objective = "binary:logistic"`: we will train a binary classification model ;
 * `max.depth = 2`: the trees won't be deep, because our case is very simple ;
-* `nthread = 2`: the number of cpu threads we are going to use;
+* `nthread = 2`: the number of CPU threads we are going to use;
 * `nrounds = 2`: there will be two passes on the data, the second one will enhance the model by further reducing the difference between ground truth and prediction.
 
 

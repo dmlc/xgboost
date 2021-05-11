@@ -22,7 +22,7 @@ It is useful when a 0 or some other extreme value represents missing values in d
 }
 \description{
 Construct xgb.DMatrix object from either a dense matrix, a sparse matrix, or a local file.
-Supported input file formats are either a libsvm text file or a binary file that was created previously by
+Supported input file formats are either a LIBSVM text file or a binary file that was created previously by
 \code{\link{xgb.DMatrix.save}}).
 }
 \examples{

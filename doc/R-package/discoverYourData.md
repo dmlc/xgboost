@@ -5,9 +5,9 @@ Understand your dataset with XGBoost
 Introduction
 ------------
 
-The purpose of this Vignette is to show you how to use **Xgboost** to discover and understand your own dataset better.
+The purpose of this Vignette is to show you how to use **XGBoost** to discover and understand your own dataset better.
 
-This Vignette is not about predicting anything (see [Xgboost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **Xgboost** to highlight the *link* between the *features* of your data and the *outcome*.
+This Vignette is not about predicting anything (see [XGBoost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)). We will explain how to use **XGBoost** to highlight the *link* between the *features* of your data and the *outcome*.
 
 Package loading:
 
@@ -27,7 +27,7 @@ Preparation of the dataset
 ### Numeric VS categorical variables
 
 
-**Xgboost** manages only `numeric` vectors.
+**XGBoost** manages only `numeric` vectors.
 
 What to do when you have *categorical* data?
 
@@ -55,7 +55,7 @@ data(Arthritis)
 df <- data.table(Arthritis, keep.rownames = FALSE)
 ```
 
-> `data.table` is 100% compliant with **R** `data.frame` but its syntax is more consistent and its performance for large dataset is [best in class](http://stackoverflow.com/questions/21435339/data-table-vs-dplyr-can-one-do-something-well-the-other-cant-or-does-poorly) (`dplyr` from **R** and `Pandas` from **Python** [included](https://github.com/Rdatatable/data.table/wiki/Benchmarks-%3A-Grouping)). Some parts of **Xgboost** **R** package use `data.table`.
+> `data.table` is 100% compliant with **R** `data.frame` but its syntax is more consistent and its performance for large dataset is [best in class](http://stackoverflow.com/questions/21435339/data-table-vs-dplyr-can-one-do-something-well-the-other-cant-or-does-poorly) (`dplyr` from **R** and `Pandas` from **Python** [included](https://github.com/Rdatatable/data.table/wiki/Benchmarks-%3A-Grouping)). Some parts of **XGBoost** **R** package use `data.table`.
 
 The first thing we want to do is to have a look to the first lines of the `data.table`:
 
@@ -217,7 +217,7 @@ output_vector = df[,Improved] == "Marked"
 Build the model
 ---------------
 
-The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or at the vignette [Xgboost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)).
+The code below is very usual. For more information, you can look at the documentation of `xgboost` function (or at the vignette [XGBoost presentation](https://github.com/dmlc/xgboost/blob/master/R-package/vignettes/xgboostPresentation.Rmd)).
 
 
 ```r
@@ -422,19 +422,19 @@ Linear models may not be that smart in this scenario.
 Special Note: What about Random Forests™?
 -----------------------------------------
 
-As you may know, [Random Forests™](http://en.wikipedia.org/wiki/Random_forest) algorithm is cousin with boosting and both are part of the [ensemble learning](http://en.wikipedia.org/wiki/Ensemble_learning) family.
+As you may know, [Random Forests](http://en.wikipedia.org/wiki/Random_forest) algorithm is cousin with boosting and both are part of the [ensemble learning](http://en.wikipedia.org/wiki/Ensemble_learning) family.
 
-Both train several decision trees for one dataset. The *main* difference is that in Random Forests™, trees are independent and in boosting, the tree `N+1` focus its learning on the loss (<=> what has not been well modeled by the tree `N`).
+Both train several decision trees for one dataset. The *main* difference is that in Random Forests, trees are independent and in boosting, the tree `N+1` focus its learning on the loss (<=> what has not been well modeled by the tree `N`).
 
 This difference have an impact on a corner case in feature importance analysis: the *correlated features*.
 
-Imagine two features perfectly correlated, feature `A` and feature `B`. For one specific tree, if the algorithm needs one of them, it will choose randomly (true in both boosting and Random Forests™).
+Imagine two features perfectly correlated, feature `A` and feature `B`. For one specific tree, if the algorithm needs one of them, it will choose randomly (true in both boosting and Random Forests).
 
-However, in Random Forests™ this random choice will be done for each tree, because each tree is independent from the others. Therefore, approximatively, depending of your parameters, 50% of the trees will choose feature `A` and the other 50% will choose feature `B`. So the *importance* of the information contained in `A` and `B` (which is the same, because they are perfectly correlated) is diluted in `A` and `B`. So you won't easily know this information is important to predict what you want to predict! It is even worse when you have 10 correlated features...
+However, in Random Forests this random choice will be done for each tree, because each tree is independent from the others. Therefore, approximatively, depending of your parameters, 50% of the trees will choose feature `A` and the other 50% will choose feature `B`. So the *importance* of the information contained in `A` and `B` (which is the same, because they are perfectly correlated) is diluted in `A` and `B`. So you won't easily know this information is important to predict what you want to predict! It is even worse when you have 10 correlated features...
 
 In boosting, when a specific link between feature and outcome have been learned by the algorithm, it will try to not refocus on it (in theory it is what happens, reality is not always that simple). Therefore, all the importance will be on feature `A` or on feature `B` (but not both). You will know that one feature have an important role in the link between the observations and the label. It is still up to you to search for the correlated features to the one detected as important if you need to know all of them.
 
-If you want to try Random Forests™ algorithm, you can tweak Xgboost parameters!
+If you want to try Random Forests algorithm, you can tweak XGBoost parameters!
 
 **Warning**: this is still an experimental parameter.
 
@@ -447,7 +447,7 @@ data(agaricus.test, package='xgboost')
 train <- agaricus.train
 test <- agaricus.test
 
-#Random Forest™ - 1000 trees
+#Random Forest - 1000 trees
 bst <- xgboost(data = train$data, label = train$label, max.depth = 4, num_parallel_tree = 1000, subsample = 0.5, colsample_bytree =0.5, nrounds = 1, objective = "binary:logistic")
 ```
 
@@ -468,4 +468,4 @@ bst <- xgboost(data = train$data, label = train$label, max.depth = 4, nrounds = 
 
 > Note that the parameter `round` is set to `1`.
 
-> [**Random Forests™**](https://www.stat.berkeley.edu/~breiman/RandomForests/cc_papers.htm) is a trademark of Leo Breiman and Adele Cutler and is licensed exclusively to Salford Systems for the commercial release of the software.
+> [**Random Forests**](https://www.stat.berkeley.edu/~breiman/RandomForests/cc_papers.htm) is a trademark of Leo Breiman and Adele Cutler and is licensed exclusively to Salford Systems for the commercial release of the software.

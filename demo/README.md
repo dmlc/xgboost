@@ -120,7 +120,7 @@ Please send pull requests if you find ones that are missing here.
 - [XGBoost - eXtreme Gradient Boosting](http://www.slideshare.net/ShangxuanZhang/xgboost) by Tong He
 - [How to use XGBoost algorithm in R in easy steps](http://www.analyticsvidhya.com/blog/2016/01/xgboost-algorithm-easy-steps/) by TAVISH SRIVASTAVA ([Chinese Translation 中文翻译](https://segmentfault.com/a/1190000004421821) by [HarryZhu](https://segmentfault.com/u/harryprince))
 - [Kaggle Solution: What’s Cooking ? (Text Mining Competition)](http://www.analyticsvidhya.com/blog/2015/12/kaggle-solution-cooking-text-mining-competition/) by MANISH SARASWAT
-- Better Optimization with Repeated Cross Validation and the XGBoost model - Machine Learning with R) by Manuel Amunategui ([Youtube Link](https://www.youtube.com/watch?v=Og7CGAfSr_Y)) ([Github Link](https://github.com/amunategui/BetterCrossValidation))
+- Better Optimization with Repeated Cross Validation and the XGBoost model - Machine Learning with R) by Manuel Amunategui ([Youtube Link](https://www.youtube.com/watch?v=Og7CGAfSr_Y)) ([GitHub Link](https://github.com/amunategui/BetterCrossValidation))
 - [XGBoost Rossman Parameter Tuning](https://www.kaggle.com/khozzy/rossmann-store-sales/xgboost-parameter-tuning-template/run/90168/notebook) by [Norbert Kozlowski](https://www.kaggle.com/khozzy)
 - [Featurizing log data before XGBoost](http://www.slideshare.net/DataRobot/featurizing-log-data-before-xgboost) by Xavier Conort, Owen Zhang etc
 - [West Nile Virus Competition Benchmarks & Tutorials](http://blog.kaggle.com/2015/07/21/west-nile-virus-competition-benchmarks-tutorials/) by [Anna Montoya](http://blog.kaggle.com/author/annamontoya/)

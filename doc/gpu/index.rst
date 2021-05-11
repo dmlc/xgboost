@@ -212,7 +212,7 @@ You can run benchmarks on synthetic data for binary classification:
   python tests/benchmark/benchmark_tree.py --tree_method=gpu_hist
   python tests/benchmark/benchmark_tree.py --tree_method=hist
 
-Training time on 1,000,000 rows x 50 columns of random data with 500 boosting iterations and 0.25/0.75 test/train split with AMD Ryzen 7 2700 8 core @3.20GHz and Nvidia 1080ti yields the following results:
+Training time on 1,000,000 rows x 50 columns of random data with 500 boosting iterations and 0.25/0.75 test/train split with AMD Ryzen 7 2700 8 core @3.20GHz and NVIDIA 1080ti yields the following results:
 
 +--------------+----------+
 | tree_method  | Time (s) |
@@ -242,14 +242,14 @@ If you are getting out-of-memory errors on a big dataset, try the `external memo
 
 Developer notes
 ===============
-The application may be profiled with annotations by specifying USE_NTVX to cmake and providing the path to the stand-alone nvtx header via NVTX_HEADER_DIR. Regions covered by the 'Monitor' class in cuda code will automatically appear in the nsight profiler.
+The application may be profiled with annotations by specifying USE_NTVX to cmake and providing the path to the stand-alone nvtx header via NVTX_HEADER_DIR. Regions covered by the 'Monitor' class in CUDA code will automatically appear in the nsight profiler.
 
 **********
 References
 **********
 `Mitchell R, Frank E. (2017) Accelerating the XGBoost algorithm using GPU computing. PeerJ Computer Science 3:e127 https://doi.org/10.7717/peerj-cs.127 <https://peerj.com/articles/cs-127/>`_
 
-`Nvidia Parallel Forall: Gradient Boosting, Decision Trees and XGBoost with CUDA <https://devblogs.nvidia.com/parallelforall/gradient-boosting-decision-trees-xgboost-cuda/>`_
+`NVIDIA Parallel Forall: Gradient Boosting, Decision Trees and XGBoost with CUDA <https://devblogs.nvidia.com/parallelforall/gradient-boosting-decision-trees-xgboost-cuda/>`_
 
 `Out-of-Core GPU Gradient Boosting <https://arxiv.org/abs/2005.09148>`_
 

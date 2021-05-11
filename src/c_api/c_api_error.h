@@ -36,7 +36,7 @@
   return 0; // NOLINT(*)
 
 #define CHECK_HANDLE() if (handle == nullptr) \
-  LOG(FATAL) << "DMatrix/Booster has not been intialized or has already been disposed.";
+  LOG(FATAL) << "DMatrix/Booster has not been initialized or has already been disposed.";
 
 /*!
  * \brief Set the last error message needed by C API

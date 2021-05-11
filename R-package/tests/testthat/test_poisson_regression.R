@@ -1,9 +1,9 @@
-context('Test poisson regression model')
+context('Test Poisson regression model')
 
 require(xgboost)
 set.seed(1994)
 
-test_that("poisson regression works", {
+test_that("Poisson regression works", {
   data(mtcars)
   bst <- xgboost(data = as.matrix(mtcars[, -11]), label = mtcars[, 11],
                 objective = 'count:poisson', nrounds = 10, verbose = 0)
