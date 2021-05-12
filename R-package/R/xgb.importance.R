@@ -100,9 +100,10 @@ xgb.importance <- function(feature_names = NULL, model = NULL, trees = NULL,
 
   # linear model
   if (model_text_dump[2] == "bias:"){
-    weights <- which(model_text_dump == "weight:") %>%
-               {model_text_dump[(. + 1):length(model_text_dump)]} %>%
-               as.numeric
+    weight_index <- which(model_text_dump == "weight:") + 1
+    weights <- as.numeric(
+      model_text_dump[weight_index:length(model_text_dump)]
+    )
 
     num_class <- NVL(model$params$num_class, 1)
     if (is.null(feature_names))

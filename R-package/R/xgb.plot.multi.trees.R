@@ -75,8 +75,8 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
   while (tree.matrix[, sum(is.na(abs.node.position))] > 0) {
     yes.row.nodes <- tree.matrix[abs.node.position %in% precedent.nodes & !is.na(Yes)]
     no.row.nodes <- tree.matrix[abs.node.position %in% precedent.nodes & !is.na(No)]
-    yes.nodes.abs.pos <- yes.row.nodes[, abs.node.position] %>% paste0("_0")
-    no.nodes.abs.pos <- no.row.nodes[, abs.node.position] %>% paste0("_1")
+    yes.nodes.abs.pos <- paste0(yes.row.nodes[, abs.node.position], "_0")
+    no.nodes.abs.pos <- paste0(no.row.nodes[, abs.node.position], "_1")
 
     tree.matrix[ID %in% yes.row.nodes[, Yes], abs.node.position := yes.nodes.abs.pos]
     tree.matrix[ID %in% no.row.nodes[, No], abs.node.position := no.nodes.abs.pos]
@@ -92,19 +92,28 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
   nodes.dt <- tree.matrix[
         , .(Quality = sum(Quality))
         , by = .(abs.node.position, Feature)
-      ][, .(Text = paste0(Feature[1:min(length(Feature), features_keep)],
-                          " (",
-                          format(Quality[1:min(length(Quality), features_keep)], digits = 5),
-                          ")") %>%
-                   paste0(collapse = "\n"))
-        , by = abs.node.position]
+      ][, .(Text = paste0(
+              paste0(
+                Feature[1:min(length(Feature), features_keep)],
+                " (",
+                format(Quality[1:min(length(Quality), features_keep)], digits = 5),
+                ")"
+              ),
+              collapse = "\n"
+            )
+          )
+        , by = abs.node.position
+      ]
 
-  edges.dt <- tree.matrix[Feature != "Leaf", .(abs.node.position, Yes)] %>%
-    list(tree.matrix[Feature != "Leaf", .(abs.node.position, No)]) %>%
-    rbindlist() %>%
-    setnames(c("From", "To")) %>%
-    .[, .N, .(From, To)] %>%
-    .[, N := NULL]
+  edges.dt <- data.table::rbindlist(
+    l = list(
+      tree.matrix[Feature != "Leaf", .(abs.node.position, Yes)],
+      tree.matrix[Feature != "Leaf", .(abs.node.position, No)]
+    )
+  )
+  data.table::setnames(edges.dt, c("From", "To"))
+  edges.dt <- edges.dt[, .N, .(From, To)]
+  edges.dt[, N := NULL]
 
   nodes <- DiagrammeR::create_node_df(
     n = nrow(nodes.dt),
@@ -120,21 +129,25 @@ xgb.plot.multi.trees <- function(model, feature_names = NULL, features_keep = 5,
       nodes_df = nodes,
       edges_df = edges,
       attr_theme = NULL
-      ) %>%
-    DiagrammeR::add_global_graph_attrs(
+  )
+  graph <- DiagrammeR::add_global_graph_attrs(
+      graph = graph,
       attr_type = "graph",
       attr  = c("layout", "rankdir"),
       value = c("dot", "LR")
-      ) %>%
-    DiagrammeR::add_global_graph_attrs(
+  )
+  graph <- DiagrammeR::add_global_graph_attrs(
+      graph = graph,
       attr_type = "node",
       attr  = c("color", "fillcolor", "style", "shape", "fontname"),
       value = c("DimGray", "beige", "filled", "rectangle", "Helvetica")
-      ) %>%
-    DiagrammeR::add_global_graph_attrs(
+  )
+  graph <- DiagrammeR::add_global_graph_attrs(
+      graph = graph,
       attr_type = "edge",
       attr  = c("color", "arrowsize", "arrowhead", "fontname"),
-      value = c("DimGray", "1.5", "vee", "Helvetica"))
+      value = c("DimGray", "1.5", "vee", "Helvetica")
+  )
 
   if (!render) return(invisible(graph))
 

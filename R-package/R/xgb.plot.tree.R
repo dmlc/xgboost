@@ -99,33 +99,41 @@ xgb.plot.tree <- function(feature_names = NULL, model = NULL, trees = NULL, plot
     fontcolor = "black")
 
   edges <- DiagrammeR::create_edge_df(
-    from  = match(dt[Feature != "Leaf", c(ID)] %>% rep(2), dt$ID),
+    from  = match(rep(dt[Feature != "Leaf", c(ID)], 2), dt$ID),
     to    = match(dt[Feature != "Leaf", c(Yes, No)], dt$ID),
-    label = dt[Feature != "Leaf", paste("<", Split)] %>%
-            c(rep("", nrow(dt[Feature != "Leaf"]))),
-    style = dt[Feature != "Leaf", ifelse(Missing == Yes, "bold", "solid")] %>%
-            c(dt[Feature != "Leaf", ifelse(Missing == No, "bold", "solid")]),
+    label = c(
+      dt[Feature != "Leaf", paste("<", Split)],
+      rep("", nrow(dt[Feature != "Leaf"]))
+    ),
+    style = c(
+      dt[Feature != "Leaf", ifelse(Missing == Yes, "bold", "solid")],
+      dt[Feature != "Leaf", ifelse(Missing == No, "bold", "solid")]
+    ),
     rel   = "leading_to")
 
   graph <- DiagrammeR::create_graph(
       nodes_df = nodes,
       edges_df = edges,
       attr_theme = NULL
-      ) %>%
-    DiagrammeR::add_global_graph_attrs(
+  )
+  graph <- DiagrammeR::add_global_graph_attrs(
+      graph = graph,
       attr_type = "graph",
       attr  = c("layout", "rankdir"),
       value = c("dot", "LR")
-      ) %>%
-    DiagrammeR::add_global_graph_attrs(
+  )
+  graph <- DiagrammeR::add_global_graph_attrs(
+      graph = graph,
       attr_type = "node",
       attr  = c("color", "style", "fontname"),
       value = c("DimGray", "filled", "Helvetica")
-      ) %>%
-    DiagrammeR::add_global_graph_attrs(
+  )
+  graph <- DiagrammeR::add_global_graph_attrs(
+      graph = graph,
       attr_type = "edge",
       attr  = c("color", "arrowsize", "arrowhead", "fontname"),
-      value = c("DimGray", "1.5", "vee", "Helvetica"))
+      value = c("DimGray", "1.5", "vee", "Helvetica")
+  )
 
   if (!render) return(invisible(graph))
 

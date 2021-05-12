@@ -68,7 +68,7 @@ R
   .. code-block:: bash
 
     # Install dependencies
-    R -q -e "install.packages(c('data.table', 'magrittr', 'jsonlite'))"
+    R -q -e "install.packages(c('data.table', 'jsonlite'))"
     # Install XGBoost
     R CMD INSTALL ./xgboost_r_gpu_linux.tar.gz
 
@@ -149,7 +149,7 @@ ID you want to install: ``xgboost_r_gpu_linux_[commit].tar.gz``, download it the
 .. code-block:: bash
 
   # Install dependencies
-  R -q -e "install.packages(c('data.table', 'magrittr', 'jsonlite', 'remotes'))"
+  R -q -e "install.packages(c('data.table', 'jsonlite', 'remotes'))"
   # Install XGBoost
   R CMD INSTALL ./xgboost_r_gpu_linux.tar.gz
 
