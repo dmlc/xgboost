@@ -1,4 +1,4 @@
-This folder contains testcases for XGBoost c++ core, Python package and some other CI
+This folder contains test cases for XGBoost c++ core, Python package and some other CI
 facilities.
 
 # Directories
@@ -9,7 +9,7 @@ facilities.
   * python: Tests for Python package, demonstrations and CLI.  For how to setup the
     dependencies for tests, see conda files in `ci_build`.
   * python-gpu: Similar to python tests, but for GPU.
-  * travis: CI facilities for travis.
+  * travis: CI facilities for Travis.
   * distributed: Legacy tests for distributed system.  Most of the distributed tests are
     in Python tests using `dask` and jvm package using `spark`.
   * benchmark: Legacy benchmark code.  There are a number of benchmark projects for

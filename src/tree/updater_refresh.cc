@@ -123,7 +123,7 @@ class TreeRefresher: public TreeUpdater {
     // start from groups that belongs to current data
     auto pid = 0;
     gstats[pid].Add(gpair[ridx]);
-    // tranverse tree
+    // traverse tree
     while (!tree[pid].IsLeaf()) {
       unsigned split_index = tree[pid].SplitIndex();
       pid = tree.GetNext(pid, feat.GetFvalue(split_index), feat.IsMissing(split_index));

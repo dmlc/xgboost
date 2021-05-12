@@ -80,7 +80,7 @@ Other Updaters
 
 1. ``Pruner``: It prunes the built tree by ``gamma`` parameter.  ``pruner`` is usually
    used as part of other tree methods.
-2. ``Refresh``: Refresh the statistic of bulilt trees on a new training dataset.
+2. ``Refresh``: Refresh the statistic of built trees on a new training dataset.
 3. ``Sync``: Synchronize the tree among workers when running distributed training.
 
 ****************
@@ -90,12 +90,12 @@ Removed Updaters
 2 Updaters were removed during development due to maintainability.  We describe them here
 solely for the interest of documentation.  First one is distributed colmaker, which was a
 distributed version of exact tree method.  It required specialization for column based
-spliting strategy and a different prediction procedure.  As the exact tree method is slow
+splitting strategy and a different prediction procedure.  As the exact tree method is slow
 by itself and scaling is even less efficient, we removed it entirely.  Second one is
 ``skmaker``.  Per-node weighted sketching employed by ``grow_local_histmaker`` is slow,
 the ``skmaker`` was unmaintained and seems to be a workaround trying to eliminate the
 histogram creation step and uses sketching values directly during split evaluation.  It
 was never tested and contained some unknown bugs, we decided to remove it and focus our
 resources on more promising algorithms instead.  For accuracy, most of the time
-``approx``, ``hist`` and ``gpu_hist`` are enough with some parameters tunning, so removing
+``approx``, ``hist`` and ``gpu_hist`` are enough with some parameters tuning, so removing
 them don't have any real practical impact.

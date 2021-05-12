@@ -6,7 +6,7 @@ The script 'runexp.sh' can be used to run the demo. Here we use [mushroom datase
 
 ### Tutorial
 #### Generate Input Data
-XGBoost takes LibSVM format. An example of faked input data is below:
+XGBoost takes LIBSVM format. An example of faked input data is below:
 ```
 1 101:1.2 102:0.03
 0 1:2.1 10001:300 10002:400
@@ -15,7 +15,7 @@ XGBoost takes LibSVM format. An example of faked input data is below:
 Each line represent a single instance, and in the first line '1' is the instance label,'101' and '102' are feature indices, '1.2' and '0.03' are feature values. In the binary classification case, '1' is used to indicate positive samples, and '0' is used to indicate negative samples. We also support probability values in [0,1] as label, to indicate the probability of the instance being positive.
 
 
-First we will transform the dataset into classic LibSVM format and split the data into training set and test set by running:
+First we will transform the dataset into classic LIBSVM format and split the data into training set and test set by running:
 ```
 python mapfeat.py
 python mknfold.py agaricus.txt 1

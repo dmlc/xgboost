@@ -5,9 +5,9 @@
 // possible for a valid device ordinal to be present for non GPU builds. However, it is possible
 // for an invalid device ordinal to be specified in GPU builds - to train/predict and/or compute
 // the metrics on CPU. To accommodate these scenarios, the following is done for the metrics
-// accelarated on the GPU.
+// accelerated on the GPU.
 // - An internal GPU registry holds all the GPU metric types (defined in the .cu file)
-// - An instance of the appropriate gpu metric type is created when a device ordinal is present
+// - An instance of the appropriate GPU metric type is created when a device ordinal is present
 // - If the creation is successful, the metric computation is done on the device
 // - else, it falls back on the CPU
 // - The GPU metric types are *only* registered when xgboost is built for GPUs
@@ -561,7 +561,7 @@ XGBOOST_REGISTER_METRIC(MAP, "map")
 .set_body([](const char* param) { return new EvalMAP("map", param); });
 
 XGBOOST_REGISTER_METRIC(Cox, "cox-nloglik")
-.describe("Negative log partial likelihood of Cox proportioanl hazards model.")
+.describe("Negative log partial likelihood of Cox proportional hazards model.")
 .set_body([](const char*) { return new EvalCox(); });
 }  // namespace metric
 }  // namespace xgboost

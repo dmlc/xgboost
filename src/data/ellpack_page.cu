@@ -187,7 +187,7 @@ template <typename AdapterBatchT>
 void CopyDataToEllpack(const AdapterBatchT& batch, EllpackPageImpl* dst,
                        int device_idx, float missing) {
   // Some witchcraft happens here
-  // The goal is to copy valid elements out of the input to an ellpack matrix
+  // The goal is to copy valid elements out of the input to an ELLPACK matrix
   // with a given row stride, using no extra working memory Standard stream
   // compaction needs to be modified to do this, so we manually define a
   // segmented stream compaction via operators on an inclusive scan. The output

@@ -87,7 +87,7 @@ more than 5 distinct values.}
 
 \item{which}{whether to do univariate or bivariate plotting. NOTE: only 1D is implemented so far.}
 
-\item{plot}{whether a plot should be drawn. If FALSE, only a lits of matrices is returned.}
+\item{plot}{whether a plot should be drawn. If FALSE, only a list of matrices is returned.}
 
 \item{...}{other parameters passed to \code{plot}.}
 }

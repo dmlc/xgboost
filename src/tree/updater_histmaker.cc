@@ -401,7 +401,7 @@ class CQHistMaker: public HistMaker {
     for (auto& sketch : sketchs_) {
       sketch.Init(info.num_row_, this->param_.sketch_eps);
     }
-    // intitialize the summary array
+    // initialize the summary array
     summary_array_.resize(sketchs_.size());
     // setup maximum size
     unsigned max_size = this->param_.MaxSketchSize();
@@ -409,7 +409,7 @@ class CQHistMaker: public HistMaker {
       summary_array_[i].Reserve(max_size);
     }
     {
-      // get smmary
+      // get summary
       thread_sketch_.resize(omp_get_max_threads());
 
       // TWOPASS: use the real set + split set in the column iteration.

@@ -1907,7 +1907,7 @@ class Booster(object):
             if len(data.shape) != 1 and self.num_features() != data.shape[1]:
                 raise ValueError(
                     f"Feature shape mismatch, expected: {self.num_features()}, "
-                    f"got {data.shape[0]}"
+                    f"got {data.shape[1]}"
                 )
 
         if isinstance(data, np.ndarray):

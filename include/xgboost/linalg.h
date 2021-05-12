@@ -16,7 +16,7 @@
 
 namespace xgboost {
 /*!
- * \brief A veiw over a matrix on contigious storage.
+ * \brief A view over a matrix on contiguous storage.
  *
  * \tparam T data type of matrix
  */
@@ -35,7 +35,7 @@ template <typename T> class MatrixView {
   /*!
    * \param vec     storage.
    * \param strides Strides for matrix.
-   * \param shape   Rows anc columns.
+   * \param shape   Rows and columns.
    * \param device  Where the data is stored in.
    */
   MatrixView(HostDeviceVector<T> *vec, std::array<size_t, 2> strides,

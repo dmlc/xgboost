@@ -157,7 +157,7 @@ TreeGenerator* TreeGenerator::Create(std::string const& attrs, FeatureMap const&
   if (pos != std::string::npos) {
     name = attrs.substr(0, pos);
     params = attrs.substr(pos+1, attrs.length() - pos - 1);
-    // Eliminate all occurances of single quote string.
+    // Eliminate all occurrences of single quote string.
     size_t pos = std::string::npos;
     while ((pos = params.find('\'')) != std::string::npos) {
       params.replace(pos, 1, "\"");
@@ -1069,7 +1069,7 @@ void RegTree::CalculateContributionsApprox(const RegTree::FVec &feat,
 // Used by TreeShap
 // data we keep about our decision path
 // note that pweight is included for convenience and is not tied with the other attributes
-// the pweight of the i'th path element is the permuation weight of paths with i-1 ones in them
+// the pweight of the i'th path element is the permutation weight of paths with i-1 ones in them
 struct PathElement {
   int feature_index;
   bst_float zero_fraction;
@@ -1123,7 +1123,7 @@ void UnwindPath(PathElement *unique_path, unsigned unique_depth,
   }
 }
 
-// determine what the total permuation weight would be if
+// determine what the total permutation weight would be if
 // we unwound a previous extension in the decision path
 bst_float UnwoundPathSum(const PathElement *unique_path, unsigned unique_depth,
                          unsigned path_index) {

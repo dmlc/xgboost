@@ -1,7 +1,7 @@
 #' Construct xgb.DMatrix object
 #'
 #' Construct xgb.DMatrix object from either a dense matrix, a sparse matrix, or a local file.
-#' Supported input file formats are either a libsvm text file or a binary file that was created previously by
+#' Supported input file formats are either a LIBSVM text file or a binary file that was created previously by
 #' \code{\link{xgb.DMatrix.save}}).
 #'
 #' @param data a \code{matrix} object (either numeric or integer), a \code{dgCMatrix} object, or a character
@@ -161,9 +161,9 @@ dimnames.xgb.DMatrix <- function(x) {
 #' The \code{name} field can be one of the following:
 #'
 #' \itemize{
-#'     \item \code{label}: label Xgboost learn from ;
+#'     \item \code{label}: label XGBoost learn from ;
 #'     \item \code{weight}: to do a weight rescale ;
-#'     \item \code{base_margin}: base margin is the base prediction Xgboost will boost from ;
+#'     \item \code{base_margin}: base margin is the base prediction XGBoost will boost from ;
 #'     \item \code{nrow}: number of rows of the \code{xgb.DMatrix}.
 #'
 #' }
@@ -216,9 +216,9 @@ getinfo.xgb.DMatrix <- function(object, name, ...) {
 #' The \code{name} field can be one of the following:
 #'
 #' \itemize{
-#'     \item \code{label}: label Xgboost learn from ;
+#'     \item \code{label}: label XGBoost learn from ;
 #'     \item \code{weight}: to do a weight rescale ;
-#'     \item \code{base_margin}: base margin is the base prediction Xgboost will boost from ;
+#'     \item \code{base_margin}: base margin is the base prediction XGBoost will boost from ;
 #'     \item \code{group}: number of rows in each group (to use with \code{rank:pairwise} objective).
 #' }
 #'

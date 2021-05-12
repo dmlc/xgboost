@@ -44,7 +44,7 @@ constexpr double kMaxGradient = 15.0;
 constexpr double kMinHessian = 1e-16;  // Ensure that no data point gets zero hessian
 constexpr double kMaxHessian = 15.0;
 
-constexpr double kEps = 1e-12;  // A denomitor in a fraction should not be too small
+constexpr double kEps = 1e-12;  // A denominator in a fraction should not be too small
 
 // Clip (limit) x to fit range [x_min, x_max].
 // If x < x_min, return x_min; if x > x_max, return x_max; if x_min <= x <= x_max, return x.

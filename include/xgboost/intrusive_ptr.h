@@ -35,7 +35,7 @@ class IntrusivePtrCell {
 };
 
 /*!
- * \brief User defined function for returing embedded reference count.
+ * \brief User defined function for returning embedded reference count.
  */
 template <typename T> IntrusivePtrCell &IntrusivePtrRefCount(T const *ptr) noexcept;
 

@@ -52,7 +52,7 @@ __global__ void LaunchCUDAKernel(Functor _func, Range _range,
  *
  *     If you use it in a function that can be compiled by both nvcc and host
  *     compiler, the behaviour is un-defined!  Because your function is NOT
- *     duplicated by `CompiledWithCuda`. At link time, cuda compiler resolution
+ *     duplicated by `CompiledWithCuda`. At link time, CUDA compiler resolution
  *     will merge functions with same signature.
  */
 template <bool CompiledWithCuda = WITH_CUDA()>
@@ -155,7 +155,7 @@ class Transform {
           _func, shard_range, UnpackHDVOnDevice(_vectors)...);
     }
 #else
-    /*! \brief Dummy funtion defined when compiling for CPU.  */
+    /*! \brief Dummy function defined when compiling for CPU.  */
     template <typename std::enable_if<!CompiledWithCuda>::type* = nullptr,
               typename... HDV>
     void LaunchCUDA(Functor _func, HDV*...) const {

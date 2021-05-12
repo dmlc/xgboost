@@ -22,10 +22,10 @@ xgb.cv(param, dtrain, nrounds, nfold = 5,
        metrics = 'error', showsd = FALSE)
 
 ###
-# you can also do cross validation with cutomized loss function
+# you can also do cross validation with customized loss function
 # See custom_objective.R
 ##
-print ('running cross validation, with cutomsized loss function')
+print ('running cross validation, with customized loss function')
 
 logregobj <- function(preds, dtrain) {
   labels <- getinfo(dtrain, "label")

@@ -1,6 +1,6 @@
 #
-# This file is for the low level reuseable utility functions
-# that are not supposed to be visibe to a user.
+# This file is for the low level reusable utility functions
+# that are not supposed to be visible to a user.
 #
 
 #
@@ -284,7 +284,7 @@ xgb.createFolds <- function(y, k = 10)
     for (i in seq_along(numInClass)) {
       ## create a vector of integers from 1:k as many times as possible without
       ## going over the number of samples in the class. Note that if the number
-      ## of samples in a class is less than k, nothing is producd here.
+      ## of samples in a class is less than k, nothing is produced here.
       seqVector <- rep(seq_len(k), numInClass[i] %/% k)
       ## add enough random integers to get  length(seqVector) == numInClass[i]
       if (numInClass[i] %% k > 0) seqVector <- c(seqVector, sample.int(k, numInClass[i] %% k))

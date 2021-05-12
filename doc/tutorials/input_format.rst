@@ -5,7 +5,7 @@ Text Input Format of DMatrix
 ******************
 Basic Input Format
 ******************
-XGBoost currently supports two text formats for ingesting data: LibSVM and CSV. The rest of this document will describe the LibSVM format. (See `this Wikipedia article <https://en.wikipedia.org/wiki/Comma-separated_values>`_ for a description of the CSV format.).  Please be careful that, XGBoost does **not** understand file extensions, nor try to guess the file format, as there is no universal agreement upon file extension of LibSVM or CSV.  Instead it employs `URI <https://en.wikipedia.org/wiki/Uniform_Resource_Identifier>`_ format for specifying the precise input file type.  For example if you provide a `csv` file ``./data.train.csv`` as input, XGBoost will blindly use the default libsvm parser to digest it and generate a parser error.  Instead, users need to provide an uri in the form of ``train.csv?format=csv``.  For external memory input, the uri should of a form similar to ``train.csv?format=csv#dtrain.cache``.  See :ref:`python_data_interface` and :doc:`/tutorials/external_memory` also.
+XGBoost currently supports two text formats for ingesting data: LIBSVM and CSV. The rest of this document will describe the LIBSVM format. (See `this Wikipedia article <https://en.wikipedia.org/wiki/Comma-separated_values>`_ for a description of the CSV format.).  Please be careful that, XGBoost does **not** understand file extensions, nor try to guess the file format, as there is no universal agreement upon file extension of LIBSVM or CSV.  Instead it employs `URI <https://en.wikipedia.org/wiki/Uniform_Resource_Identifier>`_ format for specifying the precise input file type.  For example if you provide a `csv` file ``./data.train.csv`` as input, XGBoost will blindly use the default LIBSVM parser to digest it and generate a parser error.  Instead, users need to provide an URI in the form of ``train.csv?format=csv``.  For external memory input, the URI should of a form similar to ``train.csv?format=csv#dtrain.cache``.  See :ref:`python_data_interface` and :doc:`/tutorials/external_memory` also.
 
 For training or predicting, XGBoost takes an instance file with the format as below:
 
@@ -23,7 +23,7 @@ Each line represent a single instance, and in the first line '1' is the instance
 ******************************************
 Auxiliary Files for Additional Information
 ******************************************
-**Note: all information below is applicable only to single-node version of the package.** If you'd like to perform distributed training with multiple nodes, skip to the section `Embedding additional information inside LibSVM file`_.
+**Note: all information below is applicable only to single-node version of the package.** If you'd like to perform distributed training with multiple nodes, skip to the section `Embedding additional information inside LIBSVM file`_.
 
 Group Input Format
 ==================
@@ -72,13 +72,13 @@ XGBoost supports providing each instance an initial margin prediction. For examp
 XGBoost will take these values as initial margin prediction and boost from that. An important note about base_margin is that it should be margin prediction before transformation, so if you are doing logistic loss, you will need to put in value before logistic transformation. If you are using XGBoost predictor, use ``pred_margin=1`` to output margin values.
 
 ***************************************************
-Embedding additional information inside LibSVM file
+Embedding additional information inside LIBSVM file
 ***************************************************
 **This section is applicable to both single- and multiple-node settings.**
 
 Query ID Columns
 ================
-This is most useful for `ranking task <https://github.com/dmlc/xgboost/tree/master/demo/rank>`_, where the instances are grouped into query groups. You may embed query group ID for each instance in the LibSVM file by adding a token of form ``qid:xx`` in each row:
+This is most useful for `ranking task <https://github.com/dmlc/xgboost/tree/master/demo/rank>`_, where the instances are grouped into query groups. You may embed query group ID for each instance in the LIBSVM file by adding a token of form ``qid:xx`` in each row:
 
 .. code-block:: none
   :caption: ``train.txt``
@@ -98,7 +98,7 @@ Keep in mind the following restrictions:
 
 Instance weights
 ================
-You may specify instance weights in the LibSVM file by appending each instance label with the corresponding weight in the form of ``[label]:[weight]``, as shown by the following example:
+You may specify instance weights in the LIBSVM file by appending each instance label with the corresponding weight in the form of ``[label]:[weight]``, as shown by the following example:
 
 .. code-block:: none
   :caption: ``train.txt``

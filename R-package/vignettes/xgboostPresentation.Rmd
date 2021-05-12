@@ -1,5 +1,5 @@
 ---
-title: "Xgboost presentation"
+title: "XGBoost presentation"
 output:
   rmarkdown::html_vignette:
     css: vignette.css
@@ -8,7 +8,7 @@ output:
 bibliography: xgboost.bib
 author: Tianqi Chen, Tong He, Michaël Benesty
 vignette: >
-  %\VignetteIndexEntry{Xgboost presentation}
+  %\VignetteIndexEntry{XGBoost presentation}
   %\VignetteEngine{knitr::rmarkdown}
   \usepackage[utf8]{inputenc}
 ---
@@ -19,9 +19,9 @@ XGBoost R Tutorial
 ## Introduction
 
 
-**Xgboost** is short for e**X**treme **G**radient **Boost**ing package.
+**XGBoost** is short for e**X**treme **G**radient **Boost**ing package.
 
-The purpose of this Vignette is to show you how to use **Xgboost** to build a model and make predictions.
+The purpose of this Vignette is to show you how to use **XGBoost** to build a model and make predictions.
 
 It is an efficient and scalable implementation of gradient boosting framework by @friedman2000additive and @friedman2001greedy. Two solvers are included:
 
@@ -46,10 +46,10 @@ It has several features:
 ## Installation
 
 
-### Github version
+### GitHub version
 
 
-For weekly updated version (highly recommended), install from *Github*:
+For weekly updated version (highly recommended), install from *GitHub*:
 
 ```{r installGithub, eval=FALSE}
 install.packages("drat", repos="https://cran.rstudio.com")
@@ -82,7 +82,7 @@ require(xgboost)
 ### Dataset presentation
 
 
-In this example, we are aiming to predict whether a mushroom can be eaten or not (like in many tutorials, example data are the the same as you will use on in your every day life :-).
+In this example, we are aiming to predict whether a mushroom can be eaten or not (like in many tutorials, example data are the same as you will use on in your every day life :-).
 
 Mushroom data is cited from UCI Machine Learning Repository. @Bache+Lichman:2013.
 
@@ -148,7 +148,7 @@ We will train decision tree model using the following parameters:
 
 * `objective = "binary:logistic"`: we will train a binary classification model ;
 * `max_depth = 2`: the trees won't be deep, because our case is very simple ;
-* `nthread = 2`: the number of cpu threads we are going to use;
+* `nthread = 2`: the number of CPU threads we are going to use;
 * `nrounds = 2`: there will be two passes on the data, the second one will enhance the model by further reducing the difference between ground truth and prediction.
 
 ```{r trainingSparse, message=F, warning=F}
@@ -180,7 +180,7 @@ bstDMatrix <- xgboost(data = dtrain, max_depth = 2, eta = 1, nthread = 2, nround
 
 **XGBoost** has several features to help you to view how the learning progress internally. The purpose is to help you to set the best parameters, which is the key of your model quality.
 
-One of the simplest way to see the training progress is to set the `verbose` option (see below for more advanced technics).
+One of the simplest way to see the training progress is to set the `verbose` option (see below for more advanced techniques).
 
 ```{r trainingVerbose0, message=T, warning=F}
 # verbose = 0, no message
@@ -253,7 +253,7 @@ The most important thing to remember is that **to do a classification, you just 
 
 *Multiclass* classification works in a similar way.
 
-This metric is **`r round(err, 2)`** and is pretty low: our yummly mushroom model works well!
+This metric is **`r round(err, 2)`** and is pretty low: our yummy mushroom model works well!
 
 ## Advanced features
 

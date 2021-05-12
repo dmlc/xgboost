@@ -188,7 +188,7 @@ cb.reset.parameters <- function(new_params) {
   pnames <- gsub("\\.", "_", names(new_params))
   nrounds <- NULL
 
-  # run some checks in the begining
+  # run some checks in the beginning
   init <- function(env) {
     nrounds <<- env$end_iteration - env$begin_iteration + 1
 

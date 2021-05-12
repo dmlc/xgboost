@@ -11,7 +11,7 @@ and do not need to be manually configured.
   - The port of rabit tracker
 * rabit_task_id [automatically detected]
   - The unique identifier of computing process
-  - When running on hadoop, this is automatically extracted from enviroment variable
+  - When running on Hadoop, this is automatically extracted from environment variable
 * rabit_reduce_buffer [default = 256MB]
   - The memory buffer used to store intermediate result of reduction
   - Format "digits + unit", can be 128M, 1G

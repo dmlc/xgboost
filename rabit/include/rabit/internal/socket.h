@@ -615,7 +615,7 @@ struct PollHelper {
   }
 
   /*!
-   * \brief peform poll on the set defined, read, write, exception
+   * \brief perform poll on the set defined, read, write, exception
    * \param timeout specify timeout in milliseconds(ms) if negative, means poll will block
    * \return
    */
