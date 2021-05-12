@@ -26,7 +26,8 @@ GPUBinaryAUC(common::Span<float const> predts, MetaInfo const &info,
              int32_t device, std::shared_ptr<DeviceAUCCache> *p_cache);
 
 float GPUMultiClassAUCOVR(common::Span<float const> predts, MetaInfo const &info,
-                          int32_t device, std::shared_ptr<DeviceAUCCache>* cache);
+                          int32_t device, std::shared_ptr<DeviceAUCCache>* cache,
+                          size_t n_classes);
 
 std::pair<float, uint32_t>
 GPURankingAUC(common::Span<float const> predts, MetaInfo const &info,
