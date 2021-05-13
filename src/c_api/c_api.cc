@@ -734,8 +734,9 @@ XGB_DLL int XGBoosterPredictFromCSR(BoosterHandle handle, char const *indptr,
   API_BEGIN();
   CHECK_HANDLE();
   std::shared_ptr<xgboost::data::CSRArrayAdapter> x{
-      new xgboost::data::CSRArrayAdapter{
-          StringView{indptr}, StringView{indices}, StringView{data}, (size_t)cols}};
+      new xgboost::data::CSRArrayAdapter{StringView{indptr},
+                                         StringView{indices}, StringView{data},
+                                         static_cast<size_t>(cols)}};
   std::shared_ptr<DMatrix> p_m {nullptr};
   if (m) {
     p_m = *static_cast<std::shared_ptr<DMatrix> *>(m);
