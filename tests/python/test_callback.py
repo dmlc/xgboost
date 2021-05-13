@@ -133,7 +133,7 @@ class TestCallbacks:
             rounds=early_stopping_rounds,
             metric_name='CustomErr',
             data_name='Train',
-            atol=tol
+            abs_tol=tol
         )
         booster = xgb.train(
             {'objective': 'binary:logistic',

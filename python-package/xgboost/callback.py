@@ -487,8 +487,25 @@ class EarlyStopping(TrainingCallback):
         Whether to maximize evaluation metric.  None means auto (discouraged).
     save_best
         Whether training should return the best model or the last model.
-    atol
+    abs_tol
         Absolute tolerance for early stopping condition.
+
+        .. versionadded:: 1.5.0
+
+        .. code-block:: python
+
+            clf = xgboost.XGBClassifier(tree_method="gpu_hist")
+            es = xgboost.callback.EarlyStopping(
+                rounds=2,
+                abs_tol=1e-3,
+                save_best=True,
+                maximize=False,
+                data_name="validation_0",
+                metric_name="mlogloss",
+            )
+
+            X, y = load_digits(return_X_y=True)
+            clf.fit(X, y, eval_set=[(X, y)], callbacks=[es])
     """
     def __init__(self,
                  rounds: int,
@@ -496,14 +513,16 @@ class EarlyStopping(TrainingCallback):
                  data_name: Optional[str] = None,
                  maximize: Optional[bool] = None,
                  save_best: Optional[bool] = False,
-                 atol: float = 0) -> None:
+                 abs_tol: float = 0) -> None:
         self.data = data_name
         self.metric_name = metric_name
         self.rounds = rounds
         self.save_best = save_best
         self.maximize = maximize
         self.stopping_history: CallbackContainer.EvalsLog = {}
-        self._tol = atol
+        self._tol = abs_tol
+        if self._tol < 0:
+            raise ValueError("tolerance must be greater or equal to 0.")
 
         self.improve_op = None
 
@@ -521,11 +540,11 @@ class EarlyStopping(TrainingCallback):
             """get score if it's cross validation history."""
             return x[0] if isinstance(x, tuple) else x
 
-        def maximize(new, last):
-            return get_s(new) - get_s(last) > -self._tol
+        def maximize(new, best):
+            return numpy.greater(get_s(new) + self._tol, get_s(best))
 
-        def minimize(new, last):
-            return get_s(last) - get_s(new) > -self._tol
+        def minimize(new, best):
+            return numpy.greater(get_s(best) + self._tol, get_s(new))
 
         if self.maximize is None:
             # Just to be compatibility with old behavior before 1.3.  We should let
