@@ -487,8 +487,8 @@ class EarlyStopping(TrainingCallback):
         Whether to maximize evaluation metric.  None means auto (discouraged).
     save_best
         Whether training should return the best model or the last model.
-    tolerance
-        Tolerance for early stopping condition.
+    atol
+        Absolute tolerance for early stopping condition.
     """
     def __init__(self,
                  rounds: int,
@@ -496,14 +496,14 @@ class EarlyStopping(TrainingCallback):
                  data_name: Optional[str] = None,
                  maximize: Optional[bool] = None,
                  save_best: Optional[bool] = False,
-                 tolerance: float = 0) -> None:
+                 atol: float = 0) -> None:
         self.data = data_name
         self.metric_name = metric_name
         self.rounds = rounds
         self.save_best = save_best
         self.maximize = maximize
         self.stopping_history: CallbackContainer.EvalsLog = {}
-        self._tol = tolerance
+        self._tol = atol
 
         self.improve_op = None
 
