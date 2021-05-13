@@ -647,7 +647,7 @@ cb.gblinear.history <- function(sparse=FALSE) {
           X = seq_along(coefs[[1]]),
           FUN = function(i) lapply(coefs, "[[", i)
         ),
-        FUN = function(x) list2mat(x)
+        FUN = list2mat
       )
     }
   }
