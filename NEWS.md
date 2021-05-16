@@ -3,6 +3,15 @@ XGBoost Change Log
 
 This file records the changes in xgboost library in reverse chronological order.
 
+## v1.4.2 (2021.05.13)
+This is a patch release for Python package with following fixes:
+
+* Handle the latest version of cupy.ndarray in inplace_predict. (#6933)
+* Ensure output array from predict_leaf is (n_samples, ) when there's only 1 tree. 1.4.0 outputs (n_samples, 1). (#6889)
+* Fix empty dataset handling with multi-class AUC. (#6947)
+* Handle object type from pandas in inplace_predict. (#6927)
+
+
 ## v1.4.1 (2021.04.20)
 This is a bug fix release.
 
