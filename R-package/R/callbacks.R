@@ -641,7 +641,7 @@ cb.gblinear.history <- function(sparse=FALSE) {
     if (!is.null(env$bst)) { # # xgb.train:
       coefs <<- list2mat(coefs)
     } else { # xgb.cv:
-      # first lapply transposes the list
+      # second lapply transposes the list
       coefs <<- lapply(
         X = lapply(
           X = seq_along(coefs[[1]]),
