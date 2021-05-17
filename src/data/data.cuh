@@ -1,3 +1,8 @@
+/*!
+ * Copyright (c) 2021 by Contributors
+ * \file data.cuh
+ * \brief Dispatching for input data.
+ */
 #include "xgboost/data.h"
 #include "simple_dmatrix.h"
 

@@ -1,3 +1,8 @@
+/*!
+ * Copyright (c) 2015-2021 by Contributors
+ * \file data.h
+ * \brief Dispatching for input data.
+ */
 #include <xgboost/data.h>
 #include "simple_dmatrix.h"
 #include "sparse_page_dmatrix.h"
