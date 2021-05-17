@@ -7,6 +7,7 @@
 #include "../../../src/data/iterative_device_dmatrix.h"
 #include "../../../src/data/ellpack_page.cuh"
 #include "../../../src/data/device_adapter.cuh"
+#include "../../../src/data/data.cuh"
 
 namespace xgboost {
 namespace data {

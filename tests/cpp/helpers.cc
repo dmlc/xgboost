@@ -17,6 +17,7 @@
 #include "helpers.h"
 #include "xgboost/c_api.h"
 #include "../../src/data/adapter.h"
+#include "../../src/data/data.h"
 #include "../../src/data/simple_dmatrix.h"
 #include "../../src/gbm/gbtree_model.h"
 #include "xgboost/predictor.h"

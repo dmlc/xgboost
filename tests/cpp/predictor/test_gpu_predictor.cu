@@ -12,6 +12,7 @@
 #include "../helpers.h"
 #include "../../../src/gbm/gbtree_model.h"
 #include "../../../src/data/device_adapter.cuh"
+#include "../../../src/data/data.cuh"
 #include "test_predictor.h"
 
 namespace xgboost {
