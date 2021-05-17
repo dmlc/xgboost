@@ -4,6 +4,7 @@
 #include <utility>
 #include <xgboost/data.h>
 #include "../../../src/data/adapter.h"
+#include "../../../src/data/data.h"
 #include "../../../src/data/simple_dmatrix.h"
 #include "../../../src/common/timer.h"
 #include "../helpers.h"
