@@ -12,6 +12,9 @@
 
 #include <memory>
 #include <string>
+#include <vector>
+#include <limits>
+#include <algorithm>
 
 #include "rabit/rabit.h"
 #include "adapter.h"

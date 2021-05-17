@@ -3,7 +3,15 @@
  * \file data.h
  * \brief Dispatching for input data.
  */
-#include <xgboost/data.h>
+#ifndef XGBOOST_DATA_DATA_H_
+#define XGBOOST_DATA_DATA_H_
+
+#include <vector>
+#include <limits>
+#include <algorithm>
+#include <string>
+
+#include "xgboost/data.h"
 #include "simple_dmatrix.h"
 #include "sparse_page_dmatrix.h"
 #include "../common/group_data.h"
@@ -131,3 +139,4 @@ uint64_t SparsePage::Push(const AdapterBatchT& batch, float missing, int nthread
   return max_columns;
 }
 }  // namespace xgboost
+#endif  // XGBOOST_DATA_DATA_H_
