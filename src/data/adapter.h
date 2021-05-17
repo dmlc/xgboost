@@ -96,9 +96,6 @@ class SingleBatchDataIter : dmlc::DataIter<DType> {
     }
     return false;
   }
-  virtual int32_t DeviceIdx() const {
-    return GenericParameter::kCpuId;
-  }
 
  private:
   int counter_{0};
@@ -636,7 +633,6 @@ class FileAdapter : dmlc::DataIter<FileAdapterBatch> {
   // Indicates a number of rows/columns must be inferred
   size_t NumRows() const { return kAdapterUnknownSize; }
   size_t NumColumns() const { return kAdapterUnknownSize; }
-  int32_t DeviceIdx() const { return GenericParameter::kCpuId; }
 
  private:
   size_t row_offset_{0};
@@ -730,7 +726,6 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
 
   size_t NumColumns() const { return columns_; }
   size_t NumRows() const { return kAdapterUnknownSize; }
-  int32_t DeviceIdx() const { return GenericParameter::kCpuId; }
 
  private:
   std::vector<size_t> offset_;
