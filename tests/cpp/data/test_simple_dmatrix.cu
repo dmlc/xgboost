@@ -1,13 +1,14 @@
 // Copyright by Contributors
 #include <dmlc/filesystem.h>
 #include <xgboost/data.h>
-#include "../../../src/data/simple_dmatrix.h"
-
 #include <thrust/sequence.h>
-#include "../../../src/data/device_adapter.cuh"
+#include <memory>
+
 #include "../helpers.h"
 #include "test_array_interface.h"
 #include "../../../src/data/array_interface.h"
+#include "../../../src/data/simple_dmatrix.h"
+#include "../../../src/data/device_adapter.cuh"
 
 using namespace xgboost;  // NOLINT
 
@@ -26,8 +27,10 @@ TEST(SimpleDMatrix, FromColumnarDenseBasic) {
   Json::Dump(column_arr, &str);
 
   data::CudfAdapter adapter(str);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           -1);
+  auto p_dmat =
+      std::unique_ptr<data::SimpleDMatrix>{data::SimpleDMatrix::FromGPUData(
+          &adapter, std::numeric_limits<float>::quiet_NaN(), -1)};
+  auto& dmat = *p_dmat;
   EXPECT_EQ(dmat.Info().num_col_, 2);
   EXPECT_EQ(dmat.Info().num_row_, 16);
   EXPECT_EQ(dmat.Info().num_nonzero_, 32);
@@ -65,19 +68,21 @@ TEST(SimpleDMatrix, FromColumnarDense) {
   // no missing value
   {
     data::CudfAdapter adapter(str);
-    data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                             -1);
-    TestDenseColumn(&dmat, kRows, kCols);
+    auto p_dmat =
+        std::unique_ptr<data::SimpleDMatrix>{data::SimpleDMatrix::FromGPUData(
+            &adapter, std::numeric_limits<float>::quiet_NaN(), -1)};
+    TestDenseColumn(p_dmat.get(), kRows, kCols);
   }
 
   // with missing value specified
   {
     data::CudfAdapter adapter(str);
-    data::SimpleDMatrix dmat(&adapter, 4.0, -1);
+    auto p_dmat = std::unique_ptr<data::SimpleDMatrix>{
+        data::SimpleDMatrix::FromGPUData(&adapter, 4.0, -1)};
 
-    ASSERT_EQ(dmat.Info().num_row_, kRows);
-    ASSERT_EQ(dmat.Info().num_col_, kCols);
-    ASSERT_EQ(dmat.Info().num_nonzero_, kCols * kRows - 2);
+    ASSERT_EQ(p_dmat->Info().num_row_, kRows);
+    ASSERT_EQ(p_dmat->Info().num_col_, kCols);
+    ASSERT_EQ(p_dmat->Info().num_nonzero_, kCols * kRows - 2);
   }
 
   {
@@ -85,11 +90,12 @@ TEST(SimpleDMatrix, FromColumnarDense) {
     d_data_0[3] = std::numeric_limits<float>::quiet_NaN();
     ASSERT_TRUE(std::isnan(d_data_0[3]));  // removes 6.0
     data::CudfAdapter adapter(str);
-    data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                             -1);
-    ASSERT_EQ(dmat.Info().num_nonzero_, kRows * kCols - 1);
-    ASSERT_EQ(dmat.Info().num_row_, kRows);
-    ASSERT_EQ(dmat.Info().num_col_, kCols);
+    auto p_dmat =
+        std::unique_ptr<data::SimpleDMatrix>{data::SimpleDMatrix::FromGPUData(
+            &adapter, std::numeric_limits<float>::quiet_NaN(), -1)};
+    ASSERT_EQ(p_dmat->Info().num_nonzero_, kRows * kCols - 1);
+    ASSERT_EQ(p_dmat->Info().num_row_, kRows);
+    ASSERT_EQ(p_dmat->Info().num_col_, kCols);
   }
 }
 
@@ -159,8 +165,10 @@ TEST(SimpleDMatrix, FromColumnarWithEmptyRows) {
   Json::Dump(column_arr, &str);
 
   data::CudfAdapter adapter(str);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           -1);
+  auto p_dmat =
+      std::unique_ptr<data::SimpleDMatrix>{data::SimpleDMatrix::FromGPUData(
+          &adapter, std::numeric_limits<float>::quiet_NaN(), -1)};
+  auto &dmat = *p_dmat;
 
   for (auto& batch : dmat.GetBatches<SparsePage>()) {
     auto page = batch.GetView();
@@ -249,7 +257,10 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
 
   {
     data::CudfAdapter adapter(str);
-    data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), -1);
+    auto p_dmat =
+        std::unique_ptr<data::SimpleDMatrix>{data::SimpleDMatrix::FromGPUData(
+            &adapter, std::numeric_limits<float>::quiet_NaN(), -1)};
+    auto& dmat = *p_dmat;
 
     ASSERT_EQ(dmat.Info().num_row_, kRows);
     ASSERT_EQ(dmat.Info().num_nonzero_, (kRows*kCols)-2);
@@ -257,8 +268,9 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
 
   {
     data::CudfAdapter adapter(str);
-    data::SimpleDMatrix dmat(&adapter, 2.0, -1);
-    for (auto& batch : dmat.GetBatches<SparsePage>()) {
+    auto p_dmat = std::unique_ptr<data::SimpleDMatrix>{
+        data::SimpleDMatrix::FromGPUData(&adapter, 2.0, -1)};
+    for (auto& batch : p_dmat->GetBatches<SparsePage>()) {
       auto page = batch.GetView();
       for (auto i = 0ull; i < batch.Size(); i++) {
         auto inst = page[i];
@@ -273,14 +285,15 @@ TEST(SimpleCSRSource, FromColumnarSparse) {
     // no missing value, but has NaN
     data::CudfAdapter adapter(str);
     columns_data[0][4] = std::numeric_limits<float>::quiet_NaN();  // 0^th column 4^th row
-    data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                             -1);
+    auto p_dmat =
+        std::unique_ptr<data::SimpleDMatrix>{data::SimpleDMatrix::FromGPUData(
+            &adapter, std::numeric_limits<float>::quiet_NaN(), -1)};
     ASSERT_TRUE(std::isnan(columns_data[0][4]));
 
     // Two invalid entries and one NaN, in CSC
     // 0^th column: 0, 1, 4, 5, 6, ..., kRows
     // 1^th column: 0, 1, 2, 3, ..., 19, 21, ..., kRows
-    ASSERT_EQ(dmat.Info().num_nonzero_, kRows * kCols - 3);
+    ASSERT_EQ(p_dmat->Info().num_nonzero_, kRows * kCols - 3);
   }
 }
 
@@ -300,8 +313,10 @@ TEST(SimpleDMatrix, FromColumnarSparseBasic) {
   Json::Dump(column_arr, &str);
 
   data::CudfAdapter adapter(str);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           -1);
+  auto p_dmat =
+      std::unique_ptr<data::SimpleDMatrix>{data::SimpleDMatrix::FromGPUData(
+          &adapter, std::numeric_limits<float>::quiet_NaN(), -1)};
+  auto &dmat = *p_dmat;
   EXPECT_EQ(dmat.Info().num_col_, 2);
   EXPECT_EQ(dmat.Info().num_row_, 16);
   EXPECT_EQ(dmat.Info().num_nonzero_, 32);
@@ -327,7 +342,10 @@ TEST(SimpleDMatrix, FromCupy){
   std::string str;
   Json::Dump(json_array_interface, &str);
   data::CupyAdapter adapter(str);
-  data::SimpleDMatrix dmat(&adapter, -1, 1);
+  auto p_dmat = std::unique_ptr<data::SimpleDMatrix>{
+      data::SimpleDMatrix::FromGPUData(&adapter, -1, 1)};
+  auto &dmat = *p_dmat;
+
   EXPECT_EQ(dmat.Info().num_col_, cols);
   EXPECT_EQ(dmat.Info().num_row_, rows);
   EXPECT_EQ(dmat.Info().num_nonzero_, rows*cols);
@@ -354,7 +372,11 @@ TEST(SimpleDMatrix, FromCupySparse){
   std::string str;
   Json::Dump(json_array_interface, &str);
   data::CupyAdapter adapter(str);
-  data::SimpleDMatrix dmat(&adapter, -1, 1);
+
+  auto p_dmat = std::unique_ptr<data::SimpleDMatrix>{
+      data::SimpleDMatrix::FromGPUData(&adapter, -1, 1)};
+  auto &dmat = *p_dmat;
+
   EXPECT_EQ(dmat.Info().num_col_, cols);
   EXPECT_EQ(dmat.Info().num_row_, rows);
   EXPECT_EQ(dmat.Info().num_nonzero_, rows * cols - 2);

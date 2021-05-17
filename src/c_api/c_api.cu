@@ -5,6 +5,7 @@
 #include "c_api_error.h"
 #include "c_api_utils.h"
 #include "../data/device_adapter.cuh"
+#include "../data/data.cuh"
 
 namespace xgboost {
 void XGBoostAPIGuard::SetGPUAttribute() {
@@ -34,7 +35,7 @@ XGB_DLL int XGDMatrixCreateFromArrayInterfaceColumns(char const* c_json_strs,
   std::string json_str{c_json_strs};
   data::CudfAdapter adapter(json_str);
   *out =
-      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
+      new std::shared_ptr<DMatrix>(DMatrix::CreateFromGPU(&adapter, missing, nthread));
   API_END();
 }
 
@@ -45,7 +46,7 @@ XGB_DLL int XGDMatrixCreateFromArrayInterface(char const* c_json_strs,
   std::string json_str{c_json_strs};
   data::CupyAdapter adapter(json_str);
   *out =
-      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
+      new std::shared_ptr<DMatrix>(DMatrix::CreateFromGPU(&adapter, missing, nthread));
   API_END();
 }
 

@@ -33,7 +33,7 @@ void TestEquivalent(float sparsity) {
   std::string interface_str = iter.AsArray();
   auto adapter = CupyAdapter(interface_str);
   std::unique_ptr<DMatrix> dm{
-      DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 0)};
+      DMatrix::CreateFromGPU(&adapter, std::numeric_limits<float>::quiet_NaN(), 0)};
   BatchParam bp {0, 256};
   for (auto& ellpack : dm->GetBatches<EllpackPage>(bp)) {
     auto from_data = ellpack.Impl()->GetDeviceAccessor(0);

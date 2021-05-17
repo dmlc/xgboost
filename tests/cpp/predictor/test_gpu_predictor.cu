@@ -83,7 +83,7 @@ TEST(GPUPredictor, EllpackTraining) {
        .GenerateArrayInterface(&storage);
   auto adapter = data::CupyAdapter(columnar);
   std::shared_ptr<DMatrix> p_full {
-    DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)
+    DMatrix::CreateFromGPU(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)
   };
   TestTrainingPrediction(kRows, kBins, "gpu_hist", p_full, p_ellpack);
 }
