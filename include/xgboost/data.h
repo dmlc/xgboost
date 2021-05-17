@@ -516,11 +516,11 @@ class DMatrix {
   static DMatrix* Create(AdapterT* adapter, float missing, int nthread,
                          const std::string& cache_prefix = "",
                          size_t page_size = kPageSize);
-
+  /**
+   * \brief Create a new DMatrix from external GPU data adapter.
+   */
   template <typename AdapterT>
-  static DMatrix *CreateFromGPU(AdapterT *adapter, float missing, int nthread,
-                                const std::string &cache_prefix = "",
-                                size_t page_size = kPageSize);
+  static DMatrix *CreateFromGPU(AdapterT *adapter, float missing, int nthread);
 
   /**
    * \brief Create a new Quantile based DMatrix used for histogram based algorithm.
