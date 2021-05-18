@@ -210,17 +210,17 @@ collection.
 
 
     def main(client: Client) -> None:
-	X, y = load_data()
-	clf = xgb.dask.DaskXGBClassifier(n_estimators=100, tree_method="hist")
-	clf.client = client  # assign the client
-	clf.fit(X, y, eval_set=[(X, y)])
-	proba = clf.predict_proba(X)
+        X, y = load_data()
+        clf = xgb.dask.DaskXGBClassifier(n_estimators=100, tree_method="hist")
+        clf.client = client  # assign the client
+        clf.fit(X, y, eval_set=[(X, y)])
+        proba = clf.predict_proba(X)
 
 
     if __name__ == "__main__":
-	with LocalCluster() as cluster:
-	    with Client(cluster) as client:
-		main(client)
+        with LocalCluster() as cluster:
+            with Client(cluster) as client:
+                main(client)
 
 
 ***************************
