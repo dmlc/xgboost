@@ -13,8 +13,10 @@
 
 #include "xgboost/data.h"
 #include "simple_dmatrix.h"
-#include "sparse_page_dmatrix.h"
 #include "../common/group_data.h"
+#if DMLC_ENABLE_STD_THREAD
+#include "sparse_page_dmatrix.h"
+#endif  // DMLC_ENABLE_STD_THREAD
 
 namespace xgboost {
 template <typename AdapterT>
