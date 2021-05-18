@@ -115,8 +115,8 @@ See next section for details.
 Alternatively, XGBoost also implements the Scikit-Learn interface with
 ``DaskXGBClassifier``, ``DaskXGBRegressor``, ``DaskXGBRanker`` and 2 random forest
 variances.  This wrapper is similar to the single node Scikit-Learn interface in xgboost,
-with dask collection as inputs and has an additional ``client`` attribute.  See
-``xgboost/demo/dask`` for more examples.
+with dask collection as inputs and has an additional ``client`` attribute.  See following
+sections and ``xgboost/demo/dask`` for more examples.
 
 
 ******************
@@ -189,6 +189,38 @@ Scikit-Learn wrapper object:
     cls.fit(X, y)
 
     booster = cls.get_booster()
+
+
+**********************
+Scikit-Learn interface
+**********************
+
+As mentioned previously, there's another interface that mimics the scikit-learn estimators
+with higher level of of abstraction.  The interface is easier to use compared to the
+functional interface but with more constraints.  It's worth mentioning that, although the
+interface mimics scikit-learn estimators, it doesn't work with normal scikit-learn
+utilities like ``GridSearchCV`` as scikit-learn doesn't understand distributed dask data
+collection.
+
+
+.. code-block:: python
+
+    from distributed import LocalCluster, Client
+    import xgboost as xgb
+
+
+    def main(client: Client) -> None:
+	X, y = load_data()
+	clf = xgb.dask.DaskXGBClassifier(n_estimators=100, tree_method="hist")
+	clf.client = client  # assign the client
+	clf.fit(X, y, eval_set=[(X, y)])
+	proba = clf.predict_proba(X)
+
+
+    if __name__ == "__main__":
+	with LocalCluster() as cluster:
+	    with Client(cluster) as client:
+		main(client)
 
 
 ***************************
