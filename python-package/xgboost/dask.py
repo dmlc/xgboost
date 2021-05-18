@@ -1000,7 +1000,7 @@ async def _direct_predict_impl(  # pylint: disable=too-many-branches
     output_shape: Tuple[int, ...],
     meta: Dict[int, str],
 ) -> _DaskCollection:
-    columns = list(meta.keys())
+    columns = tuple(meta.keys())
     if len(output_shape) >= 3 and isinstance(data, dd.DataFrame):
         # Without this check, dask will finish the prediction silently even if output
         # dimension is greater than 3.  But during map_partitions, dask passes a
