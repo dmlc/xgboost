@@ -1159,6 +1159,7 @@ XGB_DLL int XGBoosterGetFeatureInteractions(BoosterHandle handle,
                                             const char ***out_fi_array,
                                             int nthread);
 
+/*!
  * \brief Set string encoded feature info in Booster, similar to the feature
  *        info in DMatrix.
  *
