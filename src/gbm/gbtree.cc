@@ -129,7 +129,7 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
     // set, since only experts are expected to do so.
     return;
   }
-  if (generic_param_->gpu_id != GenericParameter::kCpuId){
+  if (generic_param_->gpu_id != GenericParameter::kCpuId) {
     // Prevent case that tree method is cpu-based but gpu_id is set.  Ideally we
     // should let `gpu_id` be the single source of determining what algorithms
     // to run, but that will break a lots of existing code.
