@@ -34,63 +34,125 @@ import org.apache.commons.logging.LogFactory;
 class NativeLibLoader {
   private static final Log logger = LogFactory.getLog(NativeLibLoader.class);
 
+  /**
+   * Supported OS enum.
+   */
+  enum OS {
+    WINDOWS("windows"),
+    MACOS("macos"),
+    LINUX("linux"),
+    SOLARIS("solaris");
+
+    final String name;
+
+    private OS(String name) {
+      this.name = name;
+    }
+
+    /**
+     * Detects the OS using the system properties.
+     * Throws IllegalStateException if the OS is not recognized.
+     * @return The OS.
+     */
+    static OS detectOS() {
+      String os = System.getProperty("os.name", "generic").toLowerCase(Locale.ENGLISH);
+      if (os.contains("mac") || os.contains("darwin")) {
+        return MACOS;
+      } else if (os.contains("win")) {
+        return WINDOWS;
+      } else if (os.contains("nux")) {
+        return LINUX;
+      } else if (os.contains("sunos")) {
+        return SOLARIS;
+      } else {
+        throw new IllegalStateException("Unsupported OS:" + os);
+      }
+    }
+  }
+
+  /**
+   * Supported architecture enum.
+   */
+  enum Arch {
+    X86_64("x86_64"),
+    AARCH64("aarch64"),
+    SPARC("sparc");
+
+    final String name;
+
+    private Arch(String name) {
+      this.name = name;
+    }
+
+    /**
+     * Detects the chip architecture using the system properties.
+     * Throws IllegalStateException if the architecture is not recognized.
+     * @return The architecture.
+     */
+    static Arch detectArch() {
+      String arch = System.getProperty("os.arch", "generic").toLowerCase(Locale.ENGLISH);
+      if (arch.startsWith("amd64") || arch.startsWith("x86_64")) {
+        return X86_64;
+      } else if (arch.startsWith("aarch64") || arch.startsWith("arm64")) {
+        return AARCH64;
+      } else if (arch.startsWith("sparc")) {
+        return SPARC;
+      } else {
+        throw new IllegalStateException("Unsupported architecture:" + arch);
+      }
+    }
+  }
+
   private static boolean initialized = false;
   private static final String nativeResourcePath = "/lib";
   private static final String[] libNames = new String[]{"xgboost4j"};
 
+  /**
+   * Loads the XGBoost library.
+   * <p>
+   * Throws IllegalStateException if the architecture or OS is unsupported.
+   * <ul>
+   *   <li>Supported OS: macOS, Windows, Linux, Solaris.</li>
+   *   <li>Supported Architectures: x86_64, aarch64, sparc.</li>
+   * </ul>
+   * Throws UnsatisfiedLinkError if the library failed to load it's dependencies.
+   * @throws IOException If the library could not be extracted from the jar.
+   */
   static synchronized void initXGBoost() throws IOException {
     if (!initialized) {
-      String platform = computePlatformArchitecture();
+      OS os = OS.detectOS();
+      Arch arch = Arch.detectArch();
+      String platform = os.name + "/" + arch.name;
       for (String libName : libNames) {
         try {
           String libraryPathInJar = nativeResourcePath + "/" +
               platform + "/" + System.mapLibraryName(libName);
           loadLibraryFromJar(libraryPathInJar);
+        } catch (UnsatisfiedLinkError ule) {
+          logger.error("Failed to load " + libName + " due to missing native dependencies for " +
+              "platform " + platform + ", this is likely due to a missing OpenMP dependency");
+          switch (os) {
+            case WINDOWS:
+              logger.error("You may need to install 'vcomp140.dll' or 'libgomp-1.dll'");
+              break;
+            case MACOS:
+              logger.error("You may need to install 'libomp.dylib', via `brew install libomp`" +
+                  " or similar");
+              break;
+            case LINUX:
+            case SOLARIS:
+              logger.error("You may need to install 'libgomp.so' (or glibc) via your package " +
+                  "manager.");
+              break;
+          }
+          throw ule;
         } catch (IOException ioe) {
-          logger.error("failed to load " + libName + " library from jar for platform " + platform);
+          logger.error("Failed to load " + libName + " library from jar for platform " + platform);
           throw ioe;
         }
       }
       initialized = true;
     }
-  }
-
-  /**
-   * Computes a String representing the path to look for.
-   * Assumes the libraries are stored in the jar in os/architecture folders.
-   * <p>
-   * Throws IllegalStateException if the architecture or OS is unsupported.
-   * Supported OS: macOS, Windows, Linux, Solaris.
-   * Supported Architectures: x86_64, aarch64, sparc.
-   * @return The platform & architecture path.
-   */
-  private static String computePlatformArchitecture() {
-    String detectedOS;
-    String os = System.getProperty("os.name", "generic").toLowerCase(Locale.ENGLISH);
-    if (os.contains("mac") || os.contains("darwin")) {
-      detectedOS = "macos";
-    } else if (os.contains("win")) {
-      detectedOS = "windows";
-    } else if (os.contains("nux")) {
-      detectedOS = "linux";
-    } else if (os.contains("sunos")) {
-      detectedOS = "solaris";
-    } else {
-      throw new IllegalStateException("Unsupported os:" + os);
-    }
-    String detectedArch;
-    String arch = System.getProperty("os.arch", "generic").toLowerCase(Locale.ENGLISH);
-    if (arch.startsWith("amd64") || arch.startsWith("x86_64")) {
-      detectedArch = "x86_64";
-    } else if (arch.startsWith("aarch64") || arch.startsWith("arm64")) {
-      detectedArch = "aarch64";
-    } else if (arch.startsWith("sparc")) {
-      detectedArch = "sparc";
-    } else {
-      throw new IllegalStateException("Unsupported architecture:" + arch);
-    }
-
-    return detectedOS + "/" + detectedArch;
   }
 
   /**
