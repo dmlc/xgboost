@@ -403,9 +403,12 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
     maximize : bool
         Whether to maximize feval.
     early_stopping_rounds: int
-        Activates early stopping. CV error needs to decrease at least
-        every <early_stopping_rounds> round(s) to continue.
-        Last entry in evaluation history is the one from best iteration.
+        Activates early stopping. Cross-Validation metric (average of validation
+        metric computed over CV folds) needs to improve at least once in
+        every **early_stopping_rounds** round(s) to continue training.
+        The last entry in the evaluation history will represent the best iteration.
+        If there's more than one metric in the **eval_metric** parameter given in
+        **params**, the last metric will be used for early stopping.
     fpreproc : function
         Preprocessing function that takes (dtrain, dtest, param) and returns
         transformed versions of those.

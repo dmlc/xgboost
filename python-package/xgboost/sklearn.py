@@ -793,6 +793,7 @@ class XGBModel(XGBModelBase):
         validate_features: bool = True,
         base_margin: Optional[array_like] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
+        pred_leaf=False, pred_contribs=False, approx_contribs=False,
     ) -> np.ndarray:
         """Predict with `X`.  If the model is trained with early stopping, then `best_iteration`
         is used automatically.
@@ -828,7 +829,7 @@ class XGBModel(XGBModelBase):
             self.get_booster(), ntree_limit, iteration_range
         )
         iteration_range = self._get_iteration_range(iteration_range)
-        if self._can_use_inplace_predict():
+        if self._can_use_inplace_predict() and not (pred_leaf or pred_contribs or approx_contribs):
             try:
                 predts = self.get_booster().inplace_predict(
                     data=X,
@@ -854,6 +855,9 @@ class XGBModel(XGBModelBase):
             iteration_range=iteration_range,
             output_margin=output_margin,
             validate_features=validate_features,
+            pred_leaf=pred_leaf,
+            pred_contribs=pred_contribs,
+            approx_contribs=approx_contribs,
         )
 
     def apply(
@@ -1079,7 +1083,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         self,
         *,
         objective: _SklObjective = "binary:logistic",
-        use_label_encoder: bool = True,
+        use_label_encoder: bool = False,
         **kwargs: Any
     ) -> None:
         self.use_label_encoder = use_label_encoder
@@ -1268,6 +1272,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         validate_features: bool = False,
         base_margin: Optional[array_like] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
+        pred_leaf=False, pred_contribs=False, approx_contribs=False,
     ) -> np.ndarray:
         """ Predict the probability of each `X` example being of a given class.
 
@@ -1307,12 +1312,18 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             ntree_limit=ntree_limit,
             validate_features=validate_features,
             base_margin=base_margin,
-            iteration_range=iteration_range
+            iteration_range=iteration_range,
+            pred_leaf=pred_leaf,
+            pred_contribs=pred_contribs,
+            approx_contribs=approx_contribs,
         )
         # If model is loaded from a raw booster there's no `n_classes_`
-        return _cls_predict_proba(
-            getattr(self, "n_classes_", None), class_probs, np.vstack
-        )
+        if not pred_leaf and not pred_contribs and not approx_contribs:
+            return _cls_predict_proba(
+                getattr(self, "n_classes_", None), class_probs, np.vstack
+            )
+        else:
+            return class_probs
 
     def evals_result(self) -> TrainingCallback.EvalsLog:
         """Return the evaluation results.
@@ -1376,7 +1387,7 @@ class XGBRFClassifier(XGBClassifier):
         subsample: float = 0.8,
         colsample_bynode: float = 0.8,
         reg_lambda: float = 1e-5,
-        use_label_encoder: bool = True,
+        use_label_encoder: bool = False,
         **kwargs: Any
     ):
         super().__init__(learning_rate=learning_rate,

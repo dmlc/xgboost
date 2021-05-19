@@ -1048,6 +1048,14 @@ XGB_DLL int XGBoosterGetFeatureInteractions(BoosterHandle handle,
                                            max_tree_depth,
                                            max_deepening,
                                            ntrees, fmap, nthread);
+  charp_vecs.resize(str_vecs.size());
+  for (size_t i = 0; i < str_vecs.size(); ++i) {
+    charp_vecs[i] = str_vecs[i].c_str();
+  }
+  *out_fi_array = dmlc::BeginPtr(charp_vecs);
+  *out_len = static_cast<xgboost::bst_ulong>(charp_vecs.size());
+  API_END();
+}
 
 XGB_DLL int XGBoosterSetStrFeatureInfo(BoosterHandle handle, const char *field,
                                        const char **features,
