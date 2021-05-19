@@ -332,6 +332,7 @@ class TestGPUPredict:
         rmse = mean_squared_error(y_true=y, y_pred=pred, squared=False)
         np.testing.assert_almost_equal(rmse, eval_history['train']['rmse'][-1], decimal=5)
 
+    @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize("n_classes", [2, 3])
     def test_predict_dart(self, n_classes):
         from sklearn.datasets import make_classification
