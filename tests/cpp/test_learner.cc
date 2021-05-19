@@ -314,6 +314,11 @@ TEST(Learner, GPUConfiguration) {
     learner->SetParams({Arg{"tree_method", "hist"},
                         Arg{"gpu_id", "0"}});
     learner->UpdateOneIter(0, p_dmat);
+    Json config {Object{}};
+    learner->SaveConfig(&config);
+    CHECK_EQ(get<String>(config["learner"]["gradient_booster"]
+                               ["gbtree_train_param"]["tree_method"]),
+             "gpu_hist");
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
   }
   {

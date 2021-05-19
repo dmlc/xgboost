@@ -129,6 +129,14 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
     // set, since only experts are expected to do so.
     return;
   }
+  if (generic_param_->gpu_id != GenericParameter::kCpuId){
+    // Prevent case that tree method is cpu-based but gpu_id is set.  Ideally we
+    // should let `gpu_id` be the single source of determining what algorithms
+    // to run, but that will break a lots of existing code.
+    LOG(INFO) << "Tree method is automatically selected to be 'gpu_hist' "
+                 "for gpu_id != -1.";
+    tparam_.tree_method = TreeMethod::kGPUHist;
+  }
   // tparam_ is set before calling this function.
   if (tparam_.tree_method != TreeMethod::kAuto) {
     return;
@@ -221,27 +229,31 @@ void GBTree::DoBoost(DMatrix* p_fmat,
                      PredictionCacheEntry* predt) {
   std::vector<std::vector<std::unique_ptr<RegTree> > > new_trees;
   const int ngroup = model_.learner_model_param->num_output_group;
+  CHECK_GE(ngroup, 1);
+
   ConfigureWithKnownData(this->cfg_, p_fmat);
   monitor_.Start("BoostNewTrees");
-  // Weird case that tree method is cpu-based but gpu_id is set.  Ideally we should let
-  // `gpu_id` be the single source of determining what algorithms to run, but that will
-  // break a lots of existing code.
-  auto device = tparam_.tree_method != TreeMethod::kGPUHist
-                    ? GenericParameter::kCpuId
-                    : in_gpair->DeviceIdx();
-  auto out = MatrixView<float>(
-      &predt->predictions,
-      {static_cast<size_t>(p_fmat->Info().num_row_), static_cast<size_t>(ngroup)}, device);
-  CHECK_NE(ngroup, 0);
+  if (generic_param_->gpu_id != GenericParameter::kCpuId) {
+    predt->predictions.SetDevice(generic_param_->gpu_id);
+    in_gpair->SetDevice(generic_param_->gpu_id);
+  }
+  auto out = MatrixView<float>(&predt->predictions,
+                               {static_cast<size_t>(p_fmat->Info().num_row_),
+                                static_cast<size_t>(ngroup)},
+                               generic_param_->gpu_id);
+  auto can_update_cache = [&](size_t n_new_trees, VectorView<float> v_predt) {
+    return updaters_.size() > 0 && n_new_trees == 1 &&
+           predt->predictions.Size() > 0 &&
+           updaters_.back()->UpdatePredictionCache(p_fmat, v_predt);
+  };
+
   if (ngroup == 1) {
     std::vector<std::unique_ptr<RegTree>> ret;
     BoostNewTrees(in_gpair, p_fmat, 0, &ret);
     const size_t num_new_trees = ret.size();
     new_trees.push_back(std::move(ret));
     auto v_predt = VectorView<float>{out, 0};
-    if (updaters_.size() > 0 && num_new_trees == 1 &&
-        predt->predictions.Size() > 0 &&
-        updaters_.back()->UpdatePredictionCache(p_fmat, v_predt)) {
+    if (can_update_cache(num_new_trees, v_predt)) {
       predt->Update(1);
     }
   } else {
@@ -250,18 +262,16 @@ void GBTree::DoBoost(DMatrix* p_fmat,
     HostDeviceVector<GradientPair> tmp(in_gpair->Size() / ngroup,
                                        GradientPair(),
                                        in_gpair->DeviceIdx());
-    bool update_predict = true;
+    bool update_predict = false;
     for (int gid = 0; gid < ngroup; ++gid) {
       CopyGradient(in_gpair, ngroup, gid, &tmp);
-      std::vector<std::unique_ptr<RegTree> > ret;
+      std::vector<std::unique_ptr<RegTree>> ret;
       BoostNewTrees(&tmp, p_fmat, gid, &ret);
       const size_t num_new_trees = ret.size();
       new_trees.push_back(std::move(ret));
       auto v_predt = VectorView<float>{out, static_cast<size_t>(gid)};
-      if (!(updaters_.size() > 0 && predt->predictions.Size() > 0 &&
-            num_new_trees == 1 &&
-            updaters_.back()->UpdatePredictionCache(p_fmat, v_predt))) {
-        update_predict = false;
+      if (can_update_cache(num_new_trees, v_predt)) {
+        update_predict = true;
       }
     }
     if (update_predict) {
