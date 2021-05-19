@@ -390,7 +390,10 @@ void UpdateTree(HostDeviceVector<GradientPair>* gpair, DMatrix* dmat,
   hist_maker.Configure(args, &generic_param);
 
   hist_maker.Update(gpair, dmat, {tree});
-  hist_maker.UpdatePredictionCache(dmat, preds);
+  hist_maker.UpdatePredictionCache(
+      dmat,
+      VectorView<float>{
+          MatrixView<float>(preds, {preds->Size(), 1}, preds->DeviceIdx()), 0});
 }
 
 TEST(GpuHist, UniformSampling) {
@@ -503,12 +506,15 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   auto gpair = GenerateRandomGradients(kRows);
 
   // Build a tree using the in-memory DMatrix.
+  auto rng = common::GlobalRandom();
+
   RegTree tree;
   HostDeviceVector<bst_float> preds(kRows, 0.0, 0);
   UpdateTree(&gpair, dmat.get(), 0, &tree, &preds, kSubsample, kSamplingMethod,
              kRows);
 
   // Build another tree using multiple ELLPACK pages.
+  common::GlobalRandom() = rng;
   RegTree tree_ext;
   HostDeviceVector<bst_float> preds_ext(kRows, 0.0, 0);
   UpdateTree(&gpair, dmat_ext.get(), kPageSize, &tree_ext, &preds_ext,
@@ -518,7 +524,7 @@ TEST(GpuHist, ExternalMemoryWithSampling) {
   auto preds_h = preds.ConstHostVector();
   auto preds_ext_h = preds_ext.ConstHostVector();
   for (int i = 0; i < kRows; i++) {
-    EXPECT_NEAR(preds_h[i], preds_ext_h[i], 2e-3);
+    EXPECT_NEAR(preds_h[i], preds_ext_h[i], 1e-3);
   }
 }
 

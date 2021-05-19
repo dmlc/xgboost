@@ -22,13 +22,12 @@ It is useful when a 0 or some other extreme value represents missing values in d
 }
 \description{
 Construct xgb.DMatrix object from either a dense matrix, a sparse matrix, or a local file.
-Supported input file formats are either a libsvm text file or a binary file that was created previously by
+Supported input file formats are either a LIBSVM text file or a binary file that was created previously by
 \code{\link{xgb.DMatrix.save}}).
 }
 \examples{
 data(agaricus.train, package='xgboost')
-train <- agaricus.train
-dtrain <- xgb.DMatrix(train$data, label=train$label)
+dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
 dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 if (file.exists('xgb.DMatrix.data')) file.remove('xgb.DMatrix.data')

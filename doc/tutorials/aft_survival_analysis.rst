@@ -158,7 +158,7 @@ The parameter ``aft_loss_distribution`` corresponds to the distribution of the :
 Currently, you can choose from three probability distributions for ``aft_loss_distribution``:
 
 ========================= ===========================================
-``aft_loss_distribution`` Probabilty Density Function (PDF)
+``aft_loss_distribution`` Probability Density Function (PDF)
 ========================= ===========================================
 ``normal``                :math:`\dfrac{\exp{(-z^2/2)}}{\sqrt{2\pi}}`
 ``logistic``              :math:`\dfrac{e^z}{(1+e^z)^2}`

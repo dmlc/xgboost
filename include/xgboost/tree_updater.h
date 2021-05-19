@@ -15,6 +15,7 @@
 #include <xgboost/generic_parameters.h>
 #include <xgboost/host_device_vector.h>
 #include <xgboost/model.h>
+#include <xgboost/linalg.h>
 
 #include <functional>
 #include <vector>
@@ -70,11 +71,8 @@ class TreeUpdater : public Configurable {
    *         the prediction cache. If true, the prediction cache will have been
    *         updated by the time this function returns.
    */
-  virtual bool UpdatePredictionCache(const DMatrix* data,
-                                     HostDeviceVector<bst_float>* out_preds) {
-    // Remove unused parameter compiler warning.
-    (void) data;
-    (void) out_preds;
+  virtual bool UpdatePredictionCache(const DMatrix * /*data*/,
+                                     VectorView<float> /*out_preds*/) {
     return false;
   }
 

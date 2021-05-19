@@ -49,7 +49,7 @@ static inline void CheckGPairOverGridPoints(
   const int num_point = 20;
   const double log_y_low = 1.0;
   const double log_y_high = 15.0;
-  
+
   obj->Configure({ {"aft_loss_distribution", dist_type},
                    {"aft_loss_distribution_scale", "1"} });
 

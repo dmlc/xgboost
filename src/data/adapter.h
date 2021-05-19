@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2019~2020 by Contributors
+ *  Copyright (c) 2019~2021 by Contributors
  * \file adapter.h
  */
 #ifndef XGBOOST_DATA_ADAPTER_H_
@@ -42,7 +42,7 @@ namespace data {
  * This abstraction allows us to read through different sparse matrix formats
  * using the same interface. In particular we can write a DMatrix constructor
  * that uses the same code to construct itself from a CSR matrix, CSC matrix,
- * dense matrix, csv, libsvm file, or potentially other formats. To see why this
+ * dense matrix, CSV, LIBSVM file, or potentially other formats. To see why this
  * is necessary, imagine we have 5 external matrix formats and 5 internal
  * DMatrix types where each DMatrix needs a custom constructor for each possible
  * input. The number of constructors is 5*5=25. Using an abstraction over the
@@ -148,6 +148,7 @@ class CSRAdapterBatch : public detail::NoMetaInfo {
                 &values_[begin_offset]);
   }
   size_t Size() const { return num_rows_; }
+  static constexpr bool kIsRowMajor = true;
 
  private:
   const size_t* row_ptr_;
@@ -204,6 +205,7 @@ class DenseAdapterBatch : public detail::NoMetaInfo {
   const Line GetLine(size_t idx) const {
     return Line(values_ + idx * num_features_, num_features_, idx);
   }
+  static constexpr bool kIsRowMajor = true;
 
  private:
   const float* values_;
@@ -226,6 +228,148 @@ class DenseAdapter : public detail::SingleBatchDataIter<DenseAdapterBatch> {
   DenseAdapterBatch batch_;
   size_t num_rows_;
   size_t num_columns_;
+};
+
+class ArrayAdapterBatch : public detail::NoMetaInfo {
+  ArrayInterface array_interface_;
+
+  class Line {
+    ArrayInterface array_interface_;
+    size_t ridx_;
+
+   public:
+    Line(ArrayInterface array_interface, size_t ridx)
+        : array_interface_{std::move(array_interface)}, ridx_{ridx} {}
+
+    size_t Size() const { return array_interface_.num_cols; }
+
+    COOTuple GetElement(size_t idx) const {
+      return {ridx_, idx, array_interface_.GetElement(ridx_, idx)};
+    }
+  };
+
+ public:
+  ArrayAdapterBatch() = default;
+  Line const GetLine(size_t idx) const {
+    return Line{array_interface_, idx};
+  }
+
+  explicit ArrayAdapterBatch(ArrayInterface array_interface)
+      : array_interface_{std::move(array_interface)} {}
+};
+
+/**
+ * Adapter for dense array on host, in Python that's `numpy.ndarray`.  This is similar to
+ * `DenseAdapter`, but supports __array_interface__ instead of raw pointers.  An
+ * advantage is this can handle various data type without making a copy.
+ */
+class ArrayAdapter : public detail::SingleBatchDataIter<ArrayAdapterBatch> {
+ public:
+  explicit ArrayAdapter(StringView array_interface) {
+    auto j = Json::Load(array_interface);
+    array_interface_ = ArrayInterface(get<Object const>(j));
+    batch_ = ArrayAdapterBatch{array_interface_};
+  }
+  ArrayAdapterBatch const& Value() const override { return batch_; }
+  size_t NumRows() const { return array_interface_.num_rows; }
+  size_t NumColumns() const { return array_interface_.num_cols; }
+
+ private:
+  ArrayAdapterBatch batch_;
+  ArrayInterface array_interface_;
+};
+
+class CSRArrayAdapterBatch : public detail::NoMetaInfo {
+  ArrayInterface indptr_;
+  ArrayInterface indices_;
+  ArrayInterface values_;
+
+  class Line {
+    ArrayInterface indices_;
+    ArrayInterface values_;
+    size_t ridx_;
+    size_t offset_;
+
+   public:
+    Line(ArrayInterface indices, ArrayInterface values, size_t ridx,
+         size_t offset)
+        : indices_{std::move(indices)}, values_{std::move(values)}, ridx_{ridx},
+          offset_{offset} {}
+
+    COOTuple GetElement(size_t idx) const {
+      return {ridx_, indices_.GetElement<size_t>(offset_ + idx, 0),
+              values_.GetElement(offset_ + idx, 0)};
+    }
+
+    size_t Size() const {
+      return values_.num_rows * values_.num_cols;
+    }
+  };
+
+ public:
+  CSRArrayAdapterBatch() = default;
+  CSRArrayAdapterBatch(ArrayInterface indptr, ArrayInterface indices,
+                       ArrayInterface values)
+      : indptr_{std::move(indptr)}, indices_{std::move(indices)},
+        values_{std::move(values)} {
+    indptr_.AsColumnVector();
+    values_.AsColumnVector();
+    indices_.AsColumnVector();
+  }
+
+  size_t Size() const {
+    size_t size = indptr_.num_rows * indptr_.num_cols;
+    size = size == 0 ? 0 : size - 1;
+    return size;
+  }
+  static constexpr bool kIsRowMajor = true;
+
+  Line const GetLine(size_t idx) const {
+    auto begin_offset = indptr_.GetElement<size_t>(idx, 0);
+    auto end_offset = indptr_.GetElement<size_t>(idx + 1, 0);
+
+    auto indices = indices_;
+    auto values = values_;
+
+    values.num_cols = end_offset - begin_offset;
+    values.num_rows = 1;
+
+    indices.num_cols = values.num_cols;
+    indices.num_rows = values.num_rows;
+
+    return Line{indices, values, idx, begin_offset};
+  }
+};
+
+/**
+ * Adapter for CSR array on host, in Python that's `scipy.sparse.csr_matrix`.  This is
+ * similar to `CSRAdapter`, but supports __array_interface__ instead of raw pointers.  An
+ * advantage is this can handle various data type without making a copy.
+ */
+class CSRArrayAdapter : public detail::SingleBatchDataIter<CSRArrayAdapterBatch> {
+ public:
+  CSRArrayAdapter(StringView indptr, StringView indices, StringView values,
+                  size_t num_cols)
+      : indptr_{indptr}, indices_{indices}, values_{values}, num_cols_{num_cols} {
+    batch_ = CSRArrayAdapterBatch{indptr_, indices_, values_};
+  }
+
+  CSRArrayAdapterBatch const& Value() const override {
+    return batch_;
+  }
+  size_t NumRows() const {
+    size_t size = indptr_.num_cols * indptr_.num_rows;
+    size = size == 0 ? 0 : size - 1;
+    return  size;
+  }
+  size_t NumColumns() const { return num_cols_; }
+
+ private:
+  CSRArrayAdapterBatch batch_;
+  ArrayInterface indptr_;
+  ArrayInterface indices_;
+  ArrayInterface values_;
+  size_t num_cols_;
 };
 
 class CSCAdapterBatch : public detail::NoMetaInfo {
@@ -264,6 +408,7 @@ class CSCAdapterBatch : public detail::NoMetaInfo {
     return Line(idx, end_offset - begin_offset, &row_idx_[begin_offset],
                 &values_[begin_offset]);
   }
+  static constexpr bool kIsRowMajor = false;
 
  private:
   const size_t* col_ptr_;
@@ -396,6 +541,7 @@ class DataTableAdapterBatch : public detail::NoMetaInfo {
   const Line GetLine(size_t idx) const {
     return Line(DTGetType(feature_stypes_[idx]), num_rows_, idx, data_[idx]);
   }
+  static constexpr bool kIsRowMajor = false;
 
  private:
   void** data_;
@@ -459,6 +605,7 @@ class FileAdapterBatch {
   const float* BaseMargin() const { return nullptr; }
 
   size_t Size() const { return block_->size; }
+  static constexpr bool kIsRowMajor = true;
 
  private:
   const dmlc::RowBlock<uint32_t>* block_;
@@ -589,7 +736,7 @@ class IteratorAdapter : public dmlc::DataIter<FileAdapterBatch> {
 
   size_t columns_;
   size_t row_offset_;
-  // at the beinning.
+  // at the beginning.
   bool at_first_;
   // handle to the iterator,
   DataIterHandle data_handle_;

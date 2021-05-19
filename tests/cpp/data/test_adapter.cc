@@ -47,7 +47,8 @@ TEST(Adapter, CSCAdapterColsMoreThanRows) {
   EXPECT_EQ(dmat.Info().num_nonzero_, 8);
 
   auto &batch = *dmat.GetBatches<SparsePage>().begin();
-  auto inst = batch[0];
+  auto page = batch.GetView();
+  auto inst = page[0];
   EXPECT_EQ(inst[0].fvalue, 1);
   EXPECT_EQ(inst[0].index, 0);
   EXPECT_EQ(inst[1].fvalue, 3);
@@ -57,7 +58,7 @@ TEST(Adapter, CSCAdapterColsMoreThanRows) {
   EXPECT_EQ(inst[3].fvalue, 7);
   EXPECT_EQ(inst[3].index, 3);
 
-  inst = batch[1];
+  inst = page[1];
   EXPECT_EQ(inst[0].fvalue, 2);
   EXPECT_EQ(inst[0].index, 0);
   EXPECT_EQ(inst[1].fvalue, 4);
@@ -137,5 +138,4 @@ TEST(Adapter, IteratorAdapter) {
   }
   ASSERT_EQ(num_batch, 1);
 }
-
 }  // namespace xgboost

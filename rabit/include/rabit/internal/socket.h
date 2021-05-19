@@ -25,6 +25,10 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 
+#if defined(__sun) || defined(sun)
+#include <sys/sockio.h>
+#endif  // defined(__sun) || defined(sun)
+
 #endif  // defined(_WIN32)
 
 #include <string>
@@ -611,7 +615,7 @@ struct PollHelper {
   }
 
   /*!
-   * \brief peform poll on the set defined, read, write, exception
+   * \brief perform poll on the set defined, read, write, exception
    * \param timeout specify timeout in milliseconds(ms) if negative, means poll will block
    * \return
    */

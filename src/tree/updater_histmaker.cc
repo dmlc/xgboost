@@ -202,22 +202,26 @@ class HistMaker: public BaseMaker {
     std::vector<SplitEntry> sol(qexpand_.size());
     std::vector<GradStats> left_sum(qexpand_.size());
     auto nexpand = static_cast<bst_omp_uint>(qexpand_.size());
+    dmlc::OMPException exc;
 #pragma omp parallel for schedule(dynamic, 1)
     for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
-      const int nid = qexpand_[wid];
-      CHECK_EQ(node2workindex_[nid], static_cast<int>(wid));
-      SplitEntry &best = sol[wid];
-      GradStats &node_sum = wspace_.hset[0][num_feature + wid * (num_feature + 1)].data[0];
-      for (size_t i = 0; i < feature_set.size(); ++i) {
-        // Query is thread safe as it's a const function.
-        if (!this->interaction_constraints_.Query(nid, feature_set[i])) {
-          continue;
-        }
+      exc.Run([&]() {
+        const int nid = qexpand_[wid];
+        CHECK_EQ(node2workindex_[nid], static_cast<int>(wid));
+        SplitEntry &best = sol[wid];
+        GradStats &node_sum = wspace_.hset[0][num_feature + wid * (num_feature + 1)].data[0];
+        for (size_t i = 0; i < feature_set.size(); ++i) {
+          // Query is thread safe as it's a const function.
+          if (!this->interaction_constraints_.Query(nid, feature_set[i])) {
+            continue;
+          }
 
-        EnumerateSplit(this->wspace_.hset[0][i + wid * (num_feature+1)],
-                       node_sum, feature_set[i], &best, &left_sum[wid]);
-      }
+          EnumerateSplit(this->wspace_.hset[0][i + wid * (num_feature+1)],
+                        node_sum, feature_set[i], &best, &left_sum[wid]);
+        }
+      });
     }
+    exc.Rethrow();
     // get the best result, we can synchronize the solution
     for (bst_omp_uint wid = 0; wid < nexpand; ++wid) {
       const bst_node_t nid = qexpand_[wid];
@@ -338,18 +342,23 @@ class CQHistMaker: public HistMaker {
       thread_hist_.resize(omp_get_max_threads());
       // start accumulating statistics
       for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
+        auto page = batch.GetView();
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(fset.size());
+        dmlc::OMPException exc;
 #pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
-          int fid = fset[i];
-          int offset = feat2workindex_[fid];
-          if (offset >= 0) {
-            this->UpdateHistCol(gpair, batch[fid], info, tree,
-                                fset, offset,
-                                &thread_hist_[omp_get_thread_num()]);
-          }
+          exc.Run([&]() {
+            int fid = fset[i];
+            int offset = feat2workindex_[fid];
+            if (offset >= 0) {
+              this->UpdateHistCol(gpair, page[fid], info, tree,
+                                  fset, offset,
+                                  &thread_hist_[omp_get_thread_num()]);
+            }
+          });
         }
+        exc.Rethrow();
       }
       // update node statistics.
       this->GetNodeStats(gpair, *p_fmat, tree,
@@ -392,7 +401,7 @@ class CQHistMaker: public HistMaker {
     for (auto& sketch : sketchs_) {
       sketch.Init(info.num_row_, this->param_.sketch_eps);
     }
-    // intitialize the summary array
+    // initialize the summary array
     summary_array_.resize(sketchs_.size());
     // setup maximum size
     unsigned max_size = this->param_.MaxSketchSize();
@@ -400,7 +409,7 @@ class CQHistMaker: public HistMaker {
       summary_array_[i].Reserve(max_size);
     }
     {
-      // get smmary
+      // get summary
       thread_sketch_.resize(omp_get_max_threads());
 
       // TWOPASS: use the real set + split set in the column iteration.
@@ -413,19 +422,23 @@ class CQHistMaker: public HistMaker {
       for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
         // TWOPASS: use the real set + split set in the column iteration.
         this->CorrectNonDefaultPositionByBatch(batch, fsplit_set_, tree);
-
+        auto page = batch.GetView();
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(work_set_.size());
-        #pragma omp parallel for schedule(dynamic, 1)
+        dmlc::OMPException exc;
+#pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
-          int fid = work_set_[i];
-          int offset = feat2workindex_[fid];
-          if (offset >= 0) {
-            this->UpdateSketchCol(gpair, batch[fid], tree,
-                                  work_set_size, offset,
-                                  &thread_sketch_[omp_get_thread_num()]);
-          }
+          exc.Run([&]() {
+            int fid = work_set_[i];
+            int offset = feat2workindex_[fid];
+            if (offset >= 0) {
+              this->UpdateSketchCol(gpair, page[fid], tree,
+                                    work_set_size, offset,
+                                    &thread_sketch_[omp_get_thread_num()]);
+            }
+          });
         }
+        exc.Rethrow();
       }
       for (size_t i = 0; i < sketchs_.size(); ++i) {
         common::WXQuantileSketch<bst_float, bst_float>::SummaryContainer out;
@@ -696,19 +709,24 @@ class GlobalProposalHistMaker: public CQHistMaker {
       for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
         // TWOPASS: use the real set + split set in the column iteration.
         this->CorrectNonDefaultPositionByBatch(batch, this->fsplit_set_, tree);
+        auto page = batch.GetView();
 
         // start enumeration
         const auto nsize = static_cast<bst_omp_uint>(this->work_set_.size());
+        dmlc::OMPException exc;
 #pragma omp parallel for schedule(dynamic, 1)
         for (bst_omp_uint i = 0; i < nsize; ++i) {
-          int fid = this->work_set_[i];
-          int offset = this->feat2workindex_[fid];
-          if (offset >= 0) {
-            this->UpdateHistCol(gpair, batch[fid], info, tree,
-                                fset, offset,
-                                &this->thread_hist_[omp_get_thread_num()]);
-          }
+          exc.Run([&]() {
+            int fid = this->work_set_[i];
+            int offset = this->feat2workindex_[fid];
+            if (offset >= 0) {
+              this->UpdateHistCol(gpair, page[fid], info, tree,
+                                  fset, offset,
+                                  &this->thread_hist_[omp_get_thread_num()]);
+            }
+          });
         }
+        exc.Rethrow();
       }
 
       // update node statistics.

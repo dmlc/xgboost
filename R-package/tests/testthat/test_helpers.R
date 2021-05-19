@@ -110,7 +110,7 @@ test_that("predict feature contributions works", {
   pred <- predict(bst.GLM, sparse_matrix, outputmargin = TRUE)
   expect_lt(max(abs(rowSums(pred_contr) - pred)), 1e-5)
   # manual calculation of linear terms
-  coefs <- xgb.dump(bst.GLM)[-c(1, 2, 4)] %>% as.numeric
+  coefs <- as.numeric(xgb.dump(bst.GLM)[-c(1, 2, 4)])
   coefs <- c(coefs[-1], coefs[1]) # intercept must be the last
   pred_contr_manual <- sweep(cbind(sparse_matrix, 1), 2, coefs, FUN = "*")
   expect_equal(as.numeric(pred_contr), as.numeric(pred_contr_manual),
@@ -130,7 +130,11 @@ test_that("predict feature contributions works", {
   pred <- predict(mbst.GLM, as.matrix(iris[, -5]), outputmargin = TRUE, reshape = TRUE)
   pred_contr <- predict(mbst.GLM, as.matrix(iris[, -5]), predcontrib = TRUE)
   expect_length(pred_contr, 3)
-  coefs_all <- xgb.dump(mbst.GLM)[-c(1, 2, 6)] %>% as.numeric %>% matrix(ncol = 3, byrow = TRUE)
+  coefs_all <- matrix(
+    data = as.numeric(xgb.dump(mbst.GLM)[-c(1, 2, 6)]),
+    ncol = 3,
+    byrow = TRUE
+  )
   for (g in seq_along(pred_contr)) {
     expect_equal(colnames(pred_contr[[g]]), c(colnames(iris[, -5]), "BIAS"))
     expect_lt(max(abs(rowSums(pred_contr[[g]]) - pred[, g])), float_tolerance)
@@ -238,12 +242,13 @@ if (grepl('Windows', Sys.info()[['sysname']]) ||
 test_that("xgb.Booster serializing as R object works", {
   saveRDS(bst.Tree, 'xgb.model.rds')
   bst <- readRDS('xgb.model.rds')
-  if (file.exists('xgb.model.rds')) file.remove('xgb.model.rds')
   dtrain <- xgb.DMatrix(sparse_matrix, label = label)
   expect_equal(predict(bst.Tree, dtrain), predict(bst, dtrain), tolerance = float_tolerance)
   expect_equal(xgb.dump(bst.Tree), xgb.dump(bst))
   xgb.save(bst, 'xgb.model')
   if (file.exists('xgb.model')) file.remove('xgb.model')
+  bst <- readRDS('xgb.model.rds')
+  if (file.exists('xgb.model.rds')) file.remove('xgb.model.rds')
   nil_ptr <- new("externalptr")
   class(nil_ptr) <- "xgb.Booster.handle"
   expect_true(identical(bst$handle, nil_ptr))

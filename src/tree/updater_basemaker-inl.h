@@ -25,6 +25,7 @@
 #include "../common/io.h"
 #include "../common/random.h"
 #include "../common/quantile.h"
+#include "../common/threading_utils.h"
 
 namespace xgboost {
 namespace tree {
@@ -59,8 +60,9 @@ class BaseMaker: public TreeUpdater {
                 -std::numeric_limits<bst_float>::max());
       // start accumulating statistics
       for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
+        auto page = batch.GetView();
         for (bst_uint fid = 0; fid < batch.Size(); ++fid) {
-          auto c = batch[fid];
+          auto c = page[fid];
           if (c.size() != 0) {
             CHECK_LT(fid * 2, fminmax_.size());
             fminmax_[fid * 2 + 0] =
@@ -194,8 +196,8 @@ class BaseMaker: public TreeUpdater {
     }
   }
   /*!
-   * \brief this is helper function uses column based data structure,
-   *        reset the positions to the lastest one
+   * \brief This is a helper function that uses a column based data structure
+   *        and reset the positions to the latest one
    * \param nodes the set of nodes that contains the split to be used
    * \param p_fmat feature matrix needed for tree construction
    * \param tree the regression tree structure
@@ -220,8 +222,7 @@ class BaseMaker: public TreeUpdater {
     // so that they are ignored in future statistics collection
     const auto ndata = static_cast<bst_omp_uint>(p_fmat->Info().num_row_);
 
-#pragma omp parallel for schedule(static)
-    for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
+    common::ParallelFor(ndata, [&](bst_omp_uint ridx) {
       const int nid = this->DecodePosition(ridx);
       if (tree[nid].IsLeaf()) {
         // mark finish when it is not a fresh leaf
@@ -236,7 +237,7 @@ class BaseMaker: public TreeUpdater {
           this->SetEncodePosition(ridx, tree[nid].RightChild());
         }
       }
-    }
+    });
   }
   /*!
    * \brief this is helper function uses column based data structure,
@@ -249,14 +250,14 @@ class BaseMaker: public TreeUpdater {
   inline void CorrectNonDefaultPositionByBatch(
       const SparsePage &batch, const std::vector<bst_uint> &sorted_split_set,
       const RegTree &tree) {
+    auto page = batch.GetView();
     for (size_t fid = 0; fid < batch.Size(); ++fid) {
-      auto col = batch[fid];
+      auto col = page[fid];
       auto it = std::lower_bound(sorted_split_set.begin(), sorted_split_set.end(), fid);
 
       if (it != sorted_split_set.end() && *it == fid) {
         const auto ndata = static_cast<bst_omp_uint>(col.size());
-        #pragma omp parallel for schedule(static)
-        for (bst_omp_uint j = 0; j < ndata; ++j) {
+        common::ParallelFor(ndata, [&](bst_omp_uint j) {
           const bst_uint ridx = col[j].index;
           const bst_float fvalue = col[j].fvalue;
           const int nid = this->DecodePosition(ridx);
@@ -271,7 +272,7 @@ class BaseMaker: public TreeUpdater {
               this->SetEncodePosition(ridx, tree[pid].RightChild());
             }
           }
-        }
+        });
       }
     }
   }
@@ -308,11 +309,11 @@ class BaseMaker: public TreeUpdater {
     std::vector<unsigned> fsplits;
     this->GetSplitSet(nodes, tree, &fsplits);
     for (const auto &batch : p_fmat->GetBatches<SortedCSCPage>()) {
+      auto page = batch.GetView();
       for (auto fid : fsplits) {
-        auto col = batch[fid];
+        auto col = page[fid];
         const auto ndata = static_cast<bst_omp_uint>(col.size());
-        #pragma omp parallel for schedule(static)
-        for (bst_omp_uint j = 0; j < ndata; ++j) {
+        common::ParallelFor(ndata, [&](bst_omp_uint j) {
           const bst_uint ridx = col[j].index;
           const bst_float fvalue = col[j].fvalue;
           const int nid = this->DecodePosition(ridx);
@@ -324,7 +325,7 @@ class BaseMaker: public TreeUpdater {
               this->SetEncodePosition(ridx, tree[nid].RightChild());
             }
           }
-        }
+        });
       }
     }
   }
@@ -338,24 +339,27 @@ class BaseMaker: public TreeUpdater {
     std::vector< std::vector<TStats> > &thread_temp = *p_thread_temp;
     thread_temp.resize(omp_get_max_threads());
     p_node_stats->resize(tree.param.num_nodes);
+    dmlc::OMPException exc;
 #pragma omp parallel
     {
-      const int tid = omp_get_thread_num();
-      thread_temp[tid].resize(tree.param.num_nodes, TStats());
-      for (unsigned int nid : qexpand_) {
-        thread_temp[tid][nid] = TStats();
-      }
+      exc.Run([&]() {
+        const int tid = omp_get_thread_num();
+        thread_temp[tid].resize(tree.param.num_nodes, TStats());
+        for (unsigned int nid : qexpand_) {
+          thread_temp[tid][nid] = TStats();
+        }
+      });
     }
+    exc.Rethrow();
     // setup position
     const auto ndata = static_cast<bst_omp_uint>(fmat.Info().num_row_);
-#pragma omp parallel for schedule(static)
-    for (bst_omp_uint ridx = 0; ridx < ndata; ++ridx) {
+    common::ParallelFor(ndata, [&](bst_omp_uint ridx) {
       const int nid = position_[ridx];
       const int tid = omp_get_thread_num();
       if (nid >= 0) {
         thread_temp[tid][nid].Add(gpair[ridx]);
       }
-    }
+    });
     // sum the per thread statistics together
     for (int nid : qexpand_) {
       TStats &s = (*p_node_stats)[nid];

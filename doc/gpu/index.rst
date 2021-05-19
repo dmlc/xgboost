@@ -3,7 +3,6 @@ XGBoost GPU Support
 ###################
 
 This page contains information about GPU algorithms supported in XGBoost.
-To install GPU support, checkout the :doc:`/build`.
 
 .. note:: CUDA 10.0, Compute Capability 3.5 required
 
@@ -71,7 +70,7 @@ The device ordinal (which GPU to use if you have many of them) can be selected u
 ``gpu_id`` parameter, which defaults to 0 (the first device reported by CUDA runtime).
 
 
-The GPU algorithms currently work with CLI, Python and R packages. See :doc:`/build` for details.
+The GPU algorithms currently work with CLI, Python, R, and JVM packages. See :doc:`/install` for details.
 
 .. code-block:: python
   :caption: Python example
@@ -213,7 +212,7 @@ You can run benchmarks on synthetic data for binary classification:
   python tests/benchmark/benchmark_tree.py --tree_method=gpu_hist
   python tests/benchmark/benchmark_tree.py --tree_method=hist
 
-Training time on 1,000,000 rows x 50 columns of random data with 500 boosting iterations and 0.25/0.75 test/train split with AMD Ryzen 7 2700 8 core @3.20GHz and Nvidia 1080ti yields the following results:
+Training time on 1,000,000 rows x 50 columns of random data with 500 boosting iterations and 0.25/0.75 test/train split with AMD Ryzen 7 2700 8 core @3.20GHz and NVIDIA 1080ti yields the following results:
 
 +--------------+----------+
 | tree_method  | Time (s) |
@@ -243,14 +242,14 @@ If you are getting out-of-memory errors on a big dataset, try the `external memo
 
 Developer notes
 ===============
-The application may be profiled with annotations by specifying USE_NTVX to cmake and providing the path to the stand-alone nvtx header via NVTX_HEADER_DIR. Regions covered by the 'Monitor' class in cuda code will automatically appear in the nsight profiler.
+The application may be profiled with annotations by specifying USE_NTVX to cmake and providing the path to the stand-alone nvtx header via NVTX_HEADER_DIR. Regions covered by the 'Monitor' class in CUDA code will automatically appear in the nsight profiler.
 
 **********
 References
 **********
 `Mitchell R, Frank E. (2017) Accelerating the XGBoost algorithm using GPU computing. PeerJ Computer Science 3:e127 https://doi.org/10.7717/peerj-cs.127 <https://peerj.com/articles/cs-127/>`_
 
-`Nvidia Parallel Forall: Gradient Boosting, Decision Trees and XGBoost with CUDA <https://devblogs.nvidia.com/parallelforall/gradient-boosting-decision-trees-xgboost-cuda/>`_
+`NVIDIA Parallel Forall: Gradient Boosting, Decision Trees and XGBoost with CUDA <https://devblogs.nvidia.com/parallelforall/gradient-boosting-decision-trees-xgboost-cuda/>`_
 
 `Out-of-Core GPU Gradient Boosting <https://arxiv.org/abs/2005.09148>`_
 

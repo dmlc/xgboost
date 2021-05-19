@@ -78,43 +78,52 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
     const size_t batch_threads = std::max(
         size_t(1),
         std::min(batch.Size(), static_cast<size_t>(omp_get_max_threads())));
+    auto page = batch.GetView();
     MemStackAllocator<size_t, 128> partial_sums(batch_threads);
     size_t* p_part = partial_sums.Get();
 
     size_t block_size =  batch.Size() / batch_threads;
 
+    dmlc::OMPException exc;
     #pragma omp parallel num_threads(batch_threads)
     {
       #pragma omp for
       for (omp_ulong tid = 0; tid < batch_threads; ++tid) {
-        size_t ibegin = block_size * tid;
-        size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
+        exc.Run([&]() {
+          size_t ibegin = block_size * tid;
+          size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
 
-        size_t sum = 0;
-        for (size_t i = ibegin; i < iend; ++i) {
-          sum += batch[i].size();
-          row_ptr[rbegin + 1 + i] = sum;
-        }
+          size_t sum = 0;
+          for (size_t i = ibegin; i < iend; ++i) {
+            sum += page[i].size();
+            row_ptr[rbegin + 1 + i] = sum;
+          }
+        });
       }
 
       #pragma omp single
       {
-        p_part[0] = prev_sum;
-        for (size_t i = 1; i < batch_threads; ++i) {
-          p_part[i] = p_part[i - 1] + row_ptr[rbegin + i*block_size];
-        }
+        exc.Run([&]() {
+          p_part[0] = prev_sum;
+          for (size_t i = 1; i < batch_threads; ++i) {
+            p_part[i] = p_part[i - 1] + row_ptr[rbegin + i*block_size];
+          }
+        });
       }
 
       #pragma omp for
       for (omp_ulong tid = 0; tid < batch_threads; ++tid) {
-        size_t ibegin = block_size * tid;
-        size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
+        exc.Run([&]() {
+          size_t ibegin = block_size * tid;
+          size_t iend = (tid == (batch_threads-1) ? batch.Size() : (block_size * (tid+1)));
 
-        for (size_t i = ibegin; i < iend; ++i) {
-          row_ptr[rbegin + 1 + i] += p_part[tid];
-        }
+          for (size_t i = ibegin; i < iend; ++i) {
+            row_ptr[rbegin + 1 + i] += p_part[tid];
+          }
+        });
       }
     }
+    exc.Rethrow();
 
     const size_t n_offsets = cut.Ptrs().size() - 1;
     const size_t n_index = row_ptr[rbegin + batch.Size()];
@@ -166,13 +175,12 @@ void GHistIndexMatrix::Init(DMatrix* p_fmat, int max_bins) {
                    [](auto idx, auto) { return idx; });
     }
 
-    #pragma omp parallel for num_threads(nthread) schedule(static)
-    for (bst_omp_uint idx = 0; idx < bst_omp_uint(nbins); ++idx) {
+    ParallelFor(bst_omp_uint(nbins), nthread, [&](bst_omp_uint idx) {
       for (int32_t tid = 0; tid < nthread; ++tid) {
         hit_count[idx] += hit_count_tloc_[tid * nbins + idx];
         hit_count_tloc_[tid * nbins + idx] = 0;  // reset for next batch
       }
-    }
+    });
 
     prev_sum = row_ptr[rbegin + batch.Size()];
     rbegin += batch.Size();
@@ -700,7 +708,7 @@ void GHistBuilder<GradientSumT>::BuildBlockHist(const std::vector<GradientPair>&
                                   const RowSetCollection::Elem row_indices,
                                   const GHistIndexBlockMatrix& gmatb,
                                   GHistRowT hist) {
-  constexpr int kUnroll = 8;  // loop unrolling factor
+  static constexpr int kUnroll = 8;  // loop unrolling factor
   const size_t nblock = gmatb.GetNumBlock();
   const size_t nrows = row_indices.end - row_indices.begin;
   const size_t rest = nrows % kUnroll;
@@ -709,40 +717,44 @@ void GHistBuilder<GradientSumT>::BuildBlockHist(const std::vector<GradientPair>&
 #endif  // defined(_OPENMP)
   xgboost::detail::GradientPairInternal<GradientSumT>* p_hist = hist.data();
 
+  dmlc::OMPException exc;
 #pragma omp parallel for num_threads(nthread) schedule(guided)
   for (bst_omp_uint bid = 0; bid < nblock; ++bid) {
-    auto gmat = gmatb[bid];
+    exc.Run([&]() {
+      auto gmat = gmatb[bid];
 
-    for (size_t i = 0; i < nrows - rest; i += kUnroll) {
-      size_t rid[kUnroll];
-      size_t ibegin[kUnroll];
-      size_t iend[kUnroll];
-      GradientPair stat[kUnroll];
+      for (size_t i = 0; i < nrows - rest; i += kUnroll) {
+        size_t rid[kUnroll];
+        size_t ibegin[kUnroll];
+        size_t iend[kUnroll];
+        GradientPair stat[kUnroll];
 
-      for (int k = 0; k < kUnroll; ++k) {
-        rid[k] = row_indices.begin[i + k];
-        ibegin[k] = gmat.row_ptr[rid[k]];
-        iend[k] = gmat.row_ptr[rid[k] + 1];
-        stat[k] = gpair[rid[k]];
-      }
-      for (int k = 0; k < kUnroll; ++k) {
-        for (size_t j = ibegin[k]; j < iend[k]; ++j) {
-          const uint32_t bin = gmat.index[j];
-          p_hist[bin].Add(stat[k].GetGrad(), stat[k].GetHess());
+        for (int k = 0; k < kUnroll; ++k) {
+          rid[k] = row_indices.begin[i + k];
+          ibegin[k] = gmat.row_ptr[rid[k]];
+          iend[k] = gmat.row_ptr[rid[k] + 1];
+          stat[k] = gpair[rid[k]];
+        }
+        for (int k = 0; k < kUnroll; ++k) {
+          for (size_t j = ibegin[k]; j < iend[k]; ++j) {
+            const uint32_t bin = gmat.index[j];
+            p_hist[bin].Add(stat[k].GetGrad(), stat[k].GetHess());
+          }
         }
       }
-    }
-    for (size_t i = nrows - rest; i < nrows; ++i) {
-      const size_t rid = row_indices.begin[i];
-      const size_t ibegin = gmat.row_ptr[rid];
-      const size_t iend = gmat.row_ptr[rid + 1];
-      const GradientPair stat = gpair[rid];
-      for (size_t j = ibegin; j < iend; ++j) {
-        const uint32_t bin = gmat.index[j];
-        p_hist[bin].Add(stat.GetGrad(), stat.GetHess());
+      for (size_t i = nrows - rest; i < nrows; ++i) {
+        const size_t rid = row_indices.begin[i];
+        const size_t ibegin = gmat.row_ptr[rid];
+        const size_t iend = gmat.row_ptr[rid + 1];
+        const GradientPair stat = gpair[rid];
+        for (size_t j = ibegin; j < iend; ++j) {
+          const uint32_t bin = gmat.index[j];
+          p_hist[bin].Add(stat.GetGrad(), stat.GetHess());
+        }
       }
-    }
+    });
   }
+  exc.Rethrow();
 }
 template
 void GHistBuilder<float>::BuildBlockHist(const std::vector<GradientPair>& gpair,
@@ -767,12 +779,11 @@ void GHistBuilder<GradientSumT>::SubtractionTrick(GHistRowT self,
   const size_t block_size = 1024;  // aproximatly 1024 values per block
   size_t n_blocks = size/block_size + !!(size%block_size);
 
-#pragma omp parallel for
-  for (omp_ulong iblock = 0; iblock < n_blocks; ++iblock) {
+  ParallelFor(omp_ulong(n_blocks), [&](omp_ulong iblock) {
     const size_t ibegin = iblock*block_size;
     const size_t iend = (((iblock+1)*block_size > size) ? size : ibegin + block_size);
     SubtractionHist(self, parent, sibling, ibegin, iend);
-  }
+  });
 }
 template
 void GHistBuilder<float>::SubtractionTrick(GHistRow<float> self,

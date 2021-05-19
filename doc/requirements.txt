@@ -7,3 +7,4 @@ matplotlib>=2.1
 graphviz
 numpy
 recommonmark
+xgboost_ray

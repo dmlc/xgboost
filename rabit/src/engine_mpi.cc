@@ -223,7 +223,7 @@ void ReduceHandle::Allreduce(void *sendrecvbuf,
                              size_t type_nbytes, size_t count,
                              IEngine::PreprocFunction prepare_fun,
                              void *prepare_arg) {
-  utils::Assert(handle_ != NULL, "must intialize handle to call AllReduce");
+  utils::Assert(handle_ != NULL, "must initialize handle to call AllReduce");
   MPI::Op *op = reinterpret_cast<MPI::Op*>(handle_);
   MPI::Datatype *dtype = reinterpret_cast<MPI::Datatype*>(htype_);
   if (created_type_nbytes_ != type_nbytes || dtype == NULL) {

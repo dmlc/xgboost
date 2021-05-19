@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
-project(xgboost LANGUAGES CXX C VERSION 1.4.0)
+project(xgboost LANGUAGES CXX C VERSION 1.5.0)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 cmake_policy(SET CMP0022 NEW)
@@ -203,7 +203,7 @@ endif (HIDE_CXX_SYMBOLS)
 
 target_include_directories(xgboost
   INTERFACE
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>
+  $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>)
 
 # This creates its own shared library `xgboost4j'.

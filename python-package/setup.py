@@ -105,11 +105,12 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
         for k, v in USER_OPTIONS.items():
             arg = k.replace('-', '_').upper()
             value = str(v[2])
+            if arg == 'USE_SYSTEM_LIBXGBOOST':
+                continue
+            if arg == 'USE_OPENMP' and use_omp == 0:
+                cmake_cmd.append("-D" + arg + "=0")
+                continue
             cmake_cmd.append('-D' + arg + '=' + value)
-            if k == 'USE-SYSTEM-LIBXGBOOST':
-                continue
-            if k == 'USE_OPENMP' and use_omp == 0:
-                continue
 
         self.logger.info('Run CMake command: %s', str(cmake_cmd))
         subprocess.check_call(cmake_cmd, cwd=build_dir)
@@ -128,12 +129,6 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
             self.logger.info('Using system libxgboost.')
             return
 
-        src_dir = 'xgboost'
-        try:
-            copy_tree(os.path.join(CURRENT_DIR, os.path.pardir),
-                      os.path.join(self.build_temp, src_dir))
-        except Exception:  # pylint: disable=broad-except
-            copy_tree(src_dir, os.path.join(self.build_temp, src_dir))
         build_dir = self.build_temp
         global BUILD_TEMP_DIR  # pylint: disable=global-statement
         BUILD_TEMP_DIR = build_dir
@@ -143,6 +138,13 @@ class BuildExt(build_ext.build_ext):  # pylint: disable=too-many-ancestors
         if os.path.exists(libxgboost):
             self.logger.info('Found shared library, skipping build.')
             return
+
+        src_dir = 'xgboost'
+        try:
+            copy_tree(os.path.join(CURRENT_DIR, os.path.pardir),
+                      os.path.join(self.build_temp, src_dir))
+        except Exception:  # pylint: disable=broad-except
+            copy_tree(src_dir, os.path.join(self.build_temp, src_dir))
 
         self.logger.info('Building from source. %s', libxgboost)
         if not os.path.exists(build_dir):
@@ -305,6 +307,7 @@ if __name__ == '__main__':
           description="XGBoost Python Package",
           long_description=open(os.path.join(CURRENT_DIR, 'README.rst'),
                                 encoding='utf-8').read(),
+          long_description_content_type="text/x-rst",
           install_requires=[
               'numpy',
               'scipy',

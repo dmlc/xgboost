@@ -9,7 +9,6 @@ dependencies:
 - scikit-learn
 - pandas
 - pytest
-- python-graphviz
 - boto3
 - hypothesis
 - jsonschema
@@ -17,3 +16,4 @@ dependencies:
 - pip:
   - cupy-cuda101
   - modin[all]
+  - graphviz

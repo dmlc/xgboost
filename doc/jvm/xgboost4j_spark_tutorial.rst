@@ -58,7 +58,7 @@ In this section, we use `Iris <https://archive.ics.uci.edu/ml/datasets/iris>`_ d
 showcase how we use Spark to transform raw dataset and make it fit to the data interface of XGBoost.
 
 Iris dataset is shipped in CSV format. Each instance contains 4 features, "sepal length", "sepal width",
-"petal length" and "petal width". In addition, it contains the "class" columnm, which is essentially the label with three possible values: "Iris Setosa", "Iris Versicolour" and "Iris Virginica".
+"petal length" and "petal width". In addition, it contains the "class" column, which is essentially the label with three possible values: "Iris Setosa", "Iris Versicolour" and "Iris Virginica".
 
 Read Dataset with Spark's Built-In Reader
 -----------------------------------------
@@ -562,7 +562,7 @@ Checkpoint During Training
 Transient failures are also commonly seen in production environment. To simplify the design of XGBoost,
 we stop training if any of the distributed workers fail. However, if the training fails after having been through a long time, it would be a great waste of resources.
 
-We support creating checkpoint during training to facilitate more efficient recovery from failture. To enable this feature, you can set how many iterations we build each checkpoint with ``setCheckpointInterval`` and the location of checkpoints with ``setCheckpointPath``:
+We support creating checkpoint during training to facilitate more efficient recovery from failure. To enable this feature, you can set how many iterations we build each checkpoint with ``setCheckpointInterval`` and the location of checkpoints with ``setCheckpointPath``:
 
 .. code-block:: scala
 

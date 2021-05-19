@@ -1,6 +1,7 @@
 // Copyright (c) 2014 by Contributors
 #include <dmlc/logging.h>
 #include <dmlc/omp.h>
+#include <dmlc/common.h>
 #include <xgboost/c_api.h>
 #include <vector>
 #include <string>
@@ -92,12 +93,16 @@ SEXP XGDMatrixCreateFromMat_R(SEXP mat,
     din = REAL(mat);
   }
   std::vector<float> data(nrow * ncol);
+  dmlc::OMPException exc;
   #pragma omp parallel for schedule(static)
   for (omp_ulong i = 0; i < nrow; ++i) {
-    for (size_t j = 0; j < ncol; ++j) {
-      data[i * ncol +j] = is_int ? static_cast<float>(iin[i + nrow * j]) : din[i + nrow * j];
-    }
+    exc.Run([&]() {
+      for (size_t j = 0; j < ncol; ++j) {
+        data[i * ncol +j] = is_int ? static_cast<float>(iin[i + nrow * j]) : din[i + nrow * j];
+      }
+    });
   }
+  exc.Rethrow();
   DMatrixHandle handle;
   CHECK_CALL(XGDMatrixCreateFromMat(BeginPtr(data), nrow, ncol, asReal(missing), &handle));
   ret = PROTECT(R_MakeExternalPtr(handle, R_NilValue, R_NilValue));
@@ -126,11 +131,15 @@ SEXP XGDMatrixCreateFromCSC_R(SEXP indptr,
   for (size_t i = 0; i < nindptr; ++i) {
     col_ptr_[i] = static_cast<size_t>(p_indptr[i]);
   }
+  dmlc::OMPException exc;
   #pragma omp parallel for schedule(static)
   for (int64_t i = 0; i < static_cast<int64_t>(ndata); ++i) {
-    indices_[i] = static_cast<unsigned>(p_indices[i]);
-    data_[i] = static_cast<float>(p_data[i]);
+    exc.Run([&]() {
+      indices_[i] = static_cast<unsigned>(p_indices[i]);
+      data_[i] = static_cast<float>(p_data[i]);
+    });
   }
+  exc.Rethrow();
   DMatrixHandle handle;
   CHECK_CALL(XGDMatrixCreateFromCSCEx(BeginPtr(col_ptr_), BeginPtr(indices_),
                                       BeginPtr(data_), nindptr, ndata,
@@ -175,12 +184,16 @@ SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
   R_API_BEGIN();
   int len = length(array);
   const char *name = CHAR(asChar(field));
+  dmlc::OMPException exc;
   if (!strcmp("group", name)) {
     std::vector<unsigned> vec(len);
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < len; ++i) {
-      vec[i] = static_cast<unsigned>(INTEGER(array)[i]);
+      exc.Run([&]() {
+        vec[i] = static_cast<unsigned>(INTEGER(array)[i]);
+      });
     }
+    exc.Rethrow();
     CHECK_CALL(XGDMatrixSetUIntInfo(R_ExternalPtrAddr(handle),
                                     CHAR(asChar(field)),
                                     BeginPtr(vec), len));
@@ -188,8 +201,11 @@ SEXP XGDMatrixSetInfo_R(SEXP handle, SEXP field, SEXP array) {
     std::vector<float> vec(len);
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < len; ++i) {
-      vec[i] = REAL(array)[i];
+      exc.Run([&]() {
+        vec[i] = REAL(array)[i];
+      });
     }
+    exc.Rethrow();
     CHECK_CALL(XGDMatrixSetFloatInfo(R_ExternalPtrAddr(handle),
                                      CHAR(asChar(field)),
                                      BeginPtr(vec), len));
@@ -256,6 +272,21 @@ SEXP XGBoosterCreate_R(SEXP dmats) {
   return ret;
 }
 
+SEXP XGBoosterCreateInEmptyObj_R(SEXP dmats, SEXP R_handle) {
+  R_API_BEGIN();
+  int len = length(dmats);
+  std::vector<void*> dvec;
+  for (int i = 0; i < len; ++i) {
+    dvec.push_back(R_ExternalPtrAddr(VECTOR_ELT(dmats, i)));
+  }
+  BoosterHandle handle;
+  CHECK_CALL(XGBoosterCreate(BeginPtr(dvec), dvec.size(), &handle));
+  R_SetExternalPtrAddr(R_handle, handle);
+  R_RegisterCFinalizerEx(R_handle, _BoosterFinalizer, TRUE);
+  R_API_END();
+  return R_NilValue;
+}
+
 SEXP XGBoosterSetParam_R(SEXP handle, SEXP name, SEXP val) {
   R_API_BEGIN();
   CHECK_CALL(XGBoosterSetParam(R_ExternalPtrAddr(handle),
@@ -280,11 +311,15 @@ SEXP XGBoosterBoostOneIter_R(SEXP handle, SEXP dtrain, SEXP grad, SEXP hess) {
       << "gradient and hess must have same length";
   int len = length(grad);
   std::vector<float> tgrad(len), thess(len);
+  dmlc::OMPException exc;
   #pragma omp parallel for schedule(static)
   for (int j = 0; j < len; ++j) {
-    tgrad[j] = REAL(grad)[j];
-    thess[j] = REAL(hess)[j];
+    exc.Run([&]() {
+      tgrad[j] = REAL(grad)[j];
+      thess[j] = REAL(hess)[j];
+    });
   }
+  exc.Rethrow();
   CHECK_CALL(XGBoosterBoostOneIter(R_ExternalPtrAddr(handle),
                                  R_ExternalPtrAddr(dtrain),
                                  BeginPtr(tgrad), BeginPtr(thess),

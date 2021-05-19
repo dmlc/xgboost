@@ -125,7 +125,7 @@ struct UpdateNumeric {
                              EvaluateSplitInputs<GradientSumT> const &inputs,
                              DeviceSplitCandidate *best_split) {
     // Use pointer from cut to indicate begin and end of bins for each feature.
-    uint32_t gidx_begin = inputs.feature_segments[fidx];  // begining bin
+    uint32_t gidx_begin = inputs.feature_segments[fidx];  // beginning bin
     int split_gidx = (scan_begin + threadIdx.x) - 1;
     float fvalue;
     if (split_gidx < static_cast<int>(gidx_begin)) {
@@ -152,7 +152,7 @@ __device__ void EvaluateFeature(
     TempStorageT* temp_storage         // temp memory for cub operations
 ) {
   // Use pointer from cut to indicate begin and end of bins for each feature.
-  uint32_t gidx_begin = inputs.feature_segments[fidx];  // begining bin
+  uint32_t gidx_begin = inputs.feature_segments[fidx];  // beginning bin
   uint32_t gidx_end =
       inputs.feature_segments[fidx + 1];  // end bin for i^th feature
   auto feature_hist = inputs.gradient_histogram.subspan(gidx_begin, gidx_end - gidx_begin);

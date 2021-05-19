@@ -5,11 +5,12 @@ import ctypes
 import json
 import warnings
 import os
+from typing import Any
 
 import numpy as np
 
-from .core import c_array, _LIB, _check_call, c_str
-from .core import DataIter, DeviceQuantileDMatrix, DMatrix
+from .core import c_array, _LIB, _check_call, c_str, _array_interface
+from .core import DataIter, _ProxyDMatrix, DMatrix
 from .compat import lazy_isinstance
 
 c_bst_ulong = ctypes.c_uint64   # pylint: disable=invalid-name
@@ -39,21 +40,28 @@ def _is_scipy_csr(data):
     return isinstance(data, scipy.sparse.csr_matrix)
 
 
-def _from_scipy_csr(data, missing, feature_names, feature_types):
-    '''Initialize data from a CSR matrix.'''
+def _from_scipy_csr(data, missing, nthread, feature_names, feature_types):
+    """Initialize data from a CSR matrix."""
     if len(data.indices) != len(data.data):
-        raise ValueError('length mismatch: {} vs {}'.format(
-            len(data.indices), len(data.data)))
-    _warn_unused_missing(data, missing)
+        raise ValueError(
+            "length mismatch: {} vs {}".format(len(data.indices), len(data.data))
+        )
     handle = ctypes.c_void_p()
-    _check_call(_LIB.XGDMatrixCreateFromCSREx(
-        c_array(ctypes.c_size_t, data.indptr),
-        c_array(ctypes.c_uint, data.indices),
-        c_array(ctypes.c_float, data.data),
-        ctypes.c_size_t(len(data.indptr)),
-        ctypes.c_size_t(len(data.data)),
-        ctypes.c_size_t(data.shape[1]),
-        ctypes.byref(handle)))
+    args = {
+        "missing": float(missing),
+        "nthread": int(nthread),
+    }
+    config = bytes(json.dumps(args), "utf-8")
+    _check_call(
+        _LIB.XGDMatrixCreateFromCSR(
+            _array_interface(data.indptr),
+            _array_interface(data.indices),
+            _array_interface(data.data),
+            ctypes.c_size_t(data.shape[1]),
+            config,
+            ctypes.byref(handle),
+        )
+    )
     return handle, feature_names, feature_types
 
 
@@ -96,24 +104,33 @@ def _is_numpy_array(data):
     return isinstance(data, (np.ndarray, np.matrix))
 
 
+def _ensure_np_dtype(data, dtype):
+    if data.dtype.hasobject:
+        data = data.astype(np.float32, copy=False)
+        dtype = np.float32
+    return data, dtype
+
+
 def _maybe_np_slice(data, dtype):
     '''Handle numpy slice.  This can be removed if we use __array_interface__.
     '''
     try:
         if not data.flags.c_contiguous:
             warnings.warn(
-                "Use subset (sliced data) of np.ndarray is not recommended " +
+                "Use of np.ndarray subsets (sliced data) is not recommended " +
                 "because it will generate extra copies and increase " +
-                "memory consumption")
+                "memory consumption. Consider using np.ascontiguousarray to " +
+                "make the array contiguous.")
             data = np.array(data, copy=True, dtype=dtype)
         else:
             data = np.array(data, copy=False, dtype=dtype)
     except AttributeError:
         data = np.array(data, copy=False, dtype=dtype)
+    data, dtype = _ensure_np_dtype(data, dtype)
     return data
 
 
-def _transform_np_array(data: np.ndarray):
+def _transform_np_array(data: np.ndarray) -> np.ndarray:
     if not isinstance(data, np.ndarray) and hasattr(data, '__array__'):
         data = np.array(data, copy=False)
     if len(data.shape) != 2:
@@ -142,7 +159,7 @@ def _from_numpy_array(data, missing, nthread, feature_names, feature_types):
     input layout and type if memory use is a concern.
 
     """
-    flatten = _transform_np_array(data)
+    flatten: np.ndarray = _transform_np_array(data)
     handle = ctypes.c_void_p()
     _check_call(_LIB.XGDMatrixCreateFromMat_omp(
         flatten.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
@@ -424,7 +441,6 @@ def _transform_cupy_array(data):
             data, '__array__'):
         import cupy             # pylint: disable=import-error
         data = cupy.array(data, copy=False)
-    data = data.astype(dtype=data.dtype, order='C', copy=False)
     return data
 
 
@@ -517,16 +533,34 @@ def _has_array_protocol(data):
     return hasattr(data, '__array__')
 
 
+def _convert_unknown_data(data):
+    warnings.warn(
+        f'Unknown data type: {type(data)}, trying to convert it to csr_matrix',
+        UserWarning
+    )
+    try:
+        import scipy
+    except ImportError:
+        return None
+
+    try:
+        data = scipy.sparse.csr_matrix(data)
+    except Exception:           # pylint: disable=broad-except
+        return None
+
+    return data
+
+
 def dispatch_data_backend(data, missing, threads,
                           feature_names, feature_types,
                           enable_categorical=False):
     '''Dispatch data for DMatrix.'''
     if _is_scipy_csr(data):
-        return _from_scipy_csr(data, missing, feature_names, feature_types)
+        return _from_scipy_csr(data, missing, threads, feature_names, feature_types)
     if _is_scipy_csc(data):
         return _from_scipy_csc(data, missing, feature_names, feature_types)
     if _is_scipy_coo(data):
-        return _from_scipy_csr(data.tocsr(), missing, feature_names, feature_types)
+        return _from_scipy_csr(data.tocsr(), missing, threads, feature_names, feature_types)
     if _is_numpy_array(data):
         return _from_numpy_array(data, missing, threads, feature_names,
                                  feature_types)
@@ -570,6 +604,11 @@ def dispatch_data_backend(data, missing, threads,
                                    feature_types)
     if _has_array_protocol(data):
         pass
+
+    converted = _convert_unknown_data(data)
+    if converted:
+        return _from_scipy_csr(data, missing, threads, feature_names, feature_types)
+
     raise TypeError('Not supported type for data.' + str(type(data)))
 
 
@@ -714,16 +753,28 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
     area for meta info.
 
     '''
-    def __init__(self, data, label, weight, base_margin, group,
-                 label_lower_bound, label_upper_bound,
-                 feature_names, feature_types):
+    def __init__(
+        self, data,
+        label,
+        weight,
+        base_margin,
+        group,
+        qid,
+        label_lower_bound,
+        label_upper_bound,
+        feature_weights,
+        feature_names,
+        feature_types
+    ):
         self.data = data
         self.label = label
         self.weight = weight
         self.base_margin = base_margin
         self.group = group
+        self.qid = qid
         self.label_lower_bound = label_lower_bound
         self.label_upper_bound = label_upper_bound
+        self.feature_weights = feature_weights
         self.feature_names = feature_names
         self.feature_types = feature_types
         self.it = 0             # pylint: disable=invalid-name
@@ -736,61 +787,16 @@ class SingleBatchInternalIter(DataIter):  # pylint: disable=R0902
         input_data(data=self.data, label=self.label,
                    weight=self.weight, base_margin=self.base_margin,
                    group=self.group,
+                   qid=self.qid,
                    label_lower_bound=self.label_lower_bound,
                    label_upper_bound=self.label_upper_bound,
+                   feature_weights=self.feature_weights,
                    feature_names=self.feature_names,
                    feature_types=self.feature_types)
         return 1
 
     def reset(self):
         self.it = 0
-
-
-def init_device_quantile_dmatrix(
-        data, missing, max_bin, threads, feature_names, feature_types, **meta):
-    '''Constructor for DeviceQuantileDMatrix.'''
-    if not any([_is_cudf_df(data), _is_cudf_ser(data), _is_cupy_array(data),
-                _is_dlpack(data), _is_iter(data)]):
-        raise TypeError(str(type(data)) +
-                        ' is not supported for DeviceQuantileDMatrix')
-    if _is_dlpack(data):
-        # We specialize for dlpack because cupy will take the memory from it so
-        # it can't be transformed twice.
-        data = _transform_dlpack(data)
-    if _is_iter(data):
-        it = data
-    else:
-        it = SingleBatchInternalIter(
-            data, **meta, feature_names=feature_names,
-            feature_types=feature_types)
-
-    reset_factory = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
-    reset_callback = reset_factory(it.reset_wrapper)
-    next_factory = ctypes.CFUNCTYPE(
-        ctypes.c_int,
-        ctypes.c_void_p,
-    )
-    next_callback = next_factory(it.next_wrapper)
-    handle = ctypes.c_void_p()
-    ret = _LIB.XGDeviceQuantileDMatrixCreateFromCallback(
-        None,
-        it.proxy.handle,
-        reset_callback,
-        next_callback,
-        ctypes.c_float(missing),
-        ctypes.c_int(threads),
-        ctypes.c_int(max_bin),
-        ctypes.byref(handle)
-    )
-    if it.exception:
-        raise it.exception
-    # delay check_call to throw intermediate exception first
-    _check_call(ret)
-    matrix = DeviceQuantileDMatrix(handle)
-    feature_names = matrix.feature_names
-    feature_types = matrix.feature_types
-    matrix.handle = None
-    return handle, feature_names, feature_types
 
 
 def _device_quantile_transform(data, feature_names, feature_types):
@@ -807,7 +813,7 @@ def _device_quantile_transform(data, feature_names, feature_types):
                     str(type(data)))
 
 
-def dispatch_device_quantile_dmatrix_set_data(proxy, data):
+def dispatch_device_quantile_dmatrix_set_data(proxy: _ProxyDMatrix, data: Any) -> None:
     '''Dispatch for DeviceQuantileDMatrix.'''
     if _is_cudf_df(data):
         proxy._set_data_from_cuda_columnar(data)  # pylint: disable=W0212

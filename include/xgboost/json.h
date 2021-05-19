@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) by XGBoost Contributors 2019-2020
+ * Copyright (c) by XGBoost Contributors 2019-2021
  */
 #ifndef XGBOOST_JSON_H_
 #define XGBOOST_JSON_H_
@@ -72,7 +72,7 @@ T* Cast(U* value) {
   } else {
     LOG(FATAL) << "Invalid cast, from " + value->TypeStr() + " to " + T().TypeStr();
   }
-  return dynamic_cast<T*>(value);  // supress compiler warning.
+  return dynamic_cast<T*>(value);  // suppress compiler warning.
 }
 
 class JsonString : public Value {
@@ -301,12 +301,15 @@ class JsonBoolean : public Value {
 struct StringView {
  private:
   using CharT = char;  // unsigned char
+  using Traits = std::char_traits<CharT>;
   CharT const* str_;
   size_t size_;
 
  public:
   StringView() = default;
   StringView(CharT const* str, size_t size) : str_{str}, size_{size} {}
+  explicit StringView(std::string const& str): str_{str.c_str()}, size_{str.size()} {}
+  explicit StringView(CharT const* str) : str_{str}, size_{Traits::length(str)} {}
 
   CharT const& operator[](size_t p) const { return str_[p]; }
   CharT const& at(size_t p) const {  // NOLINT
@@ -322,8 +325,15 @@ struct StringView {
     CHECK_LE(beg, size_);
     return std::string {str_ + beg, n < (size_ - beg) ? n : (size_ - beg)};
   }
-  char const* c_str() const { return str_; }  // NOLINT
+  CharT const* c_str() const { return str_; }  // NOLINT
+
+  CharT const* cbegin() const { return str_; }         // NOLINT
+  CharT const* cend() const { return str_ + size(); }  // NOLINT
+  CharT const* begin() const { return str_; }          // NOLINT
+  CharT const* end() const { return str_ + size(); }   // NOLINT
 };
+
+std::ostream &operator<<(std::ostream &os, StringView const v);
 
 /*!
  * \brief Data structure representing JSON format.

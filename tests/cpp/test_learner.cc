@@ -40,7 +40,7 @@ TEST(Learner, ParameterValidation) {
 
   auto learner = std::unique_ptr<Learner>(Learner::Create({p_mat}));
   learner->SetParam("validate_parameters", "1");
-  learner->SetParam("Knock Knock", "Who's there?");
+  learner->SetParam("Knock-Knock", "Who's-there?");
   learner->SetParam("Silence", "....");
   learner->SetParam("tree_method", "exact");
 
@@ -48,7 +48,11 @@ TEST(Learner, ParameterValidation) {
   learner->Configure();
   std::string output = testing::internal::GetCapturedStderr();
 
-  ASSERT_TRUE(output.find("Parameters: { Knock Knock, Silence }") != std::string::npos);
+  ASSERT_TRUE(output.find(R"(Parameters: { "Knock-Knock", "Silence" })") != std::string::npos);
+
+  // whitespace
+  learner->SetParam("tree method", "exact");
+  EXPECT_THROW(learner->Configure(), dmlc::Error);
 }
 
 TEST(Learner, CheckGroup) {
@@ -199,7 +203,7 @@ TEST(Learner, JsonModelIO) {
 // ```
 TEST(Learner, MultiThreadedPredict) {
   size_t constexpr kRows = 1000;
-  size_t constexpr kCols = 1000;
+  size_t constexpr kCols = 100;
 
   std::shared_ptr<DMatrix> p_dmat{
       RandomDataGenerator{kRows, kCols, 0}.GenerateDMatrix()};
@@ -219,8 +223,12 @@ TEST(Learner, MultiThreadedPredict) {
     threads.emplace_back([learner, p_data] {
       size_t constexpr kIters = 10;
       auto &entry = learner->GetThreadLocal().prediction_entry;
+      HostDeviceVector<float> predictions;
       for (size_t iter = 0; iter < kIters; ++iter) {
-        learner->Predict(p_data, false, &entry.predictions);
+        learner->Predict(p_data, false, &entry.predictions, 0, 0);
+
+        learner->Predict(p_data, false, &predictions, 0, 0, false, true);  // leaf
+        learner->Predict(p_data, false, &predictions, 0, 0, false, false, true);  // contribs
       }
     });
   }
@@ -322,6 +330,13 @@ TEST(Learner, GPUConfiguration) {
     ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
   }
   {
+    std::unique_ptr<Learner> learner {Learner::Create(mat)};
+    learner->SetParams({Arg{"tree_method", "gpu_hist"},
+                        Arg{"gpu_id", "-1"}});
+    learner->UpdateOneIter(0, p_dmat);
+    ASSERT_EQ(learner->GetGenericParameter().gpu_id, 0);
+  }
+  {
     // with CPU algorithm
     std::unique_ptr<Learner> learner {Learner::Create(mat)};
     learner->SetParams({Arg{"tree_method", "hist"}});
@@ -389,6 +404,62 @@ TEST(Learner, ConstantSeed) {
     std::uniform_real_distribution<float> dist;
     float v_2 = dist(rng);
     CHECK_EQ(v_0, v_2);
+  }
+}
+
+TEST(Learner, FeatureInfo) {
+  size_t constexpr kCols = 10;
+  auto m = RandomDataGenerator{10, kCols, 0}.GenerateDMatrix(true);
+  std::vector<std::string> names(kCols);
+  for (size_t i = 0; i < kCols; ++i) {
+    names[i] = ("f" + std::to_string(i));
+  }
+
+  std::vector<std::string> types(kCols);
+  for (size_t i = 0; i < kCols; ++i) {
+    types[i] = "q";
+  }
+  types[8] = "f";
+  types[0] = "int";
+  types[3] = "i";
+  types[7] = "i";
+
+  std::vector<char const*> c_names(kCols);
+  for (size_t i = 0; i < names.size(); ++i) {
+    c_names[i] = names[i].c_str();
+  }
+  std::vector<char const*> c_types(kCols);
+  for (size_t i = 0; i < types.size(); ++i) {
+    c_types[i] = names[i].c_str();
+  }
+
+  std::vector<std::string> out_names;
+  std::vector<std::string> out_types;
+
+  Json model{Object()};
+  {
+    std::unique_ptr<Learner> learner{Learner::Create({m})};
+    learner->Configure();
+    learner->SetFeatureNames(names);
+    learner->GetFeatureNames(&out_names);
+
+    learner->SetFeatureTypes(types);
+    learner->GetFeatureTypes(&out_types);
+
+    ASSERT_TRUE(std::equal(out_names.begin(), out_names.end(), names.begin()));
+    ASSERT_TRUE(std::equal(out_types.begin(), out_types.end(), types.begin()));
+
+    learner->SaveModel(&model);
+  }
+
+  {
+    std::unique_ptr<Learner> learner{Learner::Create({m})};
+    learner->LoadModel(model);
+
+    learner->GetFeatureNames(&out_names);
+    learner->GetFeatureTypes(&out_types);
+    ASSERT_TRUE(std::equal(out_names.begin(), out_names.end(), names.begin()));
+    ASSERT_TRUE(std::equal(out_types.begin(), out_types.end(), types.begin()));
   }
 }
 }  // namespace xgboost

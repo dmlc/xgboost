@@ -14,7 +14,7 @@ def is_decreasing(y):
     return np.count_nonzero(np.diff(y) > 0.0) == 0
 
 
-def is_correctly_constrained(learner):
+def is_correctly_constrained(learner, feature_names=None):
     n = 100
     variable_x = np.linspace(0, 1, n).reshape((n, 1))
     fixed_xs_values = np.linspace(0, 1, n)
@@ -22,13 +22,15 @@ def is_correctly_constrained(learner):
     for i in range(n):
         fixed_x = fixed_xs_values[i] * np.ones((n, 1))
         monotonically_increasing_x = np.column_stack((variable_x, fixed_x))
-        monotonically_increasing_dset = xgb.DMatrix(monotonically_increasing_x)
+        monotonically_increasing_dset = xgb.DMatrix(monotonically_increasing_x,
+                                                    feature_names=feature_names)
         monotonically_increasing_y = learner.predict(
             monotonically_increasing_dset
         )
 
         monotonically_decreasing_x = np.column_stack((fixed_x, variable_x))
-        monotonically_decreasing_dset = xgb.DMatrix(monotonically_decreasing_x)
+        monotonically_decreasing_dset = xgb.DMatrix(monotonically_decreasing_x,
+                                                    feature_names=feature_names)
         monotonically_decreasing_y = learner.predict(
             monotonically_decreasing_dset
         )
@@ -100,6 +102,38 @@ class TestMonotoneConstraints:
         )
 
         assert is_correctly_constrained(constrained_hist_method)
+
+    @pytest.mark.parametrize('format', [dict, list])
+    def test_monotone_constraints_feature_names(self, format):
+
+        # next check monotonicity when initializing monotone_constraints by feature names
+        params = {
+            'tree_method': 'hist', 'verbosity': 1,
+            'grow_policy': 'lossguide',
+            'monotone_constraints': {'feature_0': 1, 'feature_1': -1}
+        }
+
+        if format == list:
+            params = list(params.items())
+
+        with pytest.raises(ValueError):
+            xgb.train(params, training_dset)
+
+        feature_names = ['feature_0', 'feature_2']
+        training_dset_w_feature_names = xgb.DMatrix(x, label=y, feature_names=feature_names)
+
+        with pytest.raises(ValueError):
+            xgb.train(params, training_dset_w_feature_names)
+
+        feature_names = ['feature_0', 'feature_1']
+        training_dset_w_feature_names = xgb.DMatrix(x, label=y, feature_names=feature_names)
+
+        constrained_learner = xgb.train(
+            params, training_dset_w_feature_names
+        )
+
+        assert is_correctly_constrained(constrained_learner, feature_names)
+
 
     @pytest.mark.skipif(**tm.no_sklearn())
     def test_training_accuracy(self):

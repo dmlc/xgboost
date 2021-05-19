@@ -1,5 +1,5 @@
 /*!
- * Copyright 2018-2019 by Contributors
+ * Copyright 2018-2021 by Contributors
  */
 #include <xgboost/host_device_vector.h>
 #include <xgboost/tree_updater.h>
@@ -72,12 +72,13 @@ class QuantileHistMock : public QuantileHistMaker {
       ASSERT_LT(*std::max_element(gmat.index.begin(), gmat.index.end()),
                 gmat.cut.Ptrs().back());
       for (const auto& batch : p_fmat->GetBatches<xgboost::SparsePage>()) {
+        auto page = batch.GetView();
         for (size_t i = 0; i < batch.Size(); ++i) {
           const size_t rid = batch.base_rowid + i;
           ASSERT_LT(rid, num_row);
           const size_t gmat_row_offset = gmat.row_ptr[rid];
           ASSERT_LT(gmat_row_offset, gmat.index.Size());
-          SparsePage::Inst inst = batch[i];
+          SparsePage::Inst inst = page[i];
           ASSERT_EQ(gmat.row_ptr[rid] + inst.size(), gmat.row_ptr[rid + 1]);
           for (size_t j = 0; j < inst.size(); ++j) {
             // Each entry of GHistIndexMatrix represents a bin ID
@@ -106,19 +107,45 @@ class QuantileHistMock : public QuantileHistMaker {
       const size_t nthreads = omp_get_num_threads();
       // save state of global rng engine
       auto initial_rnd = common::GlobalRandom();
+      std::vector<size_t> unused_rows_cpy = this->unused_rows_;
       RealImpl::InitData(gmat, gpair, *p_fmat, tree);
       std::vector<size_t> row_indices_initial = *(this->row_set_collection_.Data());
+      std::vector<size_t> unused_row_indices_initial = this->unused_rows_;
+      auto check_each_row_occurs_in_one_of_arrays = [](const std::vector<size_t>& first,
+                                                       const std::vector<size_t>& second,
+                                                       size_t nrows) {
+        std::vector<size_t> arr_union(nrows);
+        for (auto&& row_indice : first) {
+          ++arr_union[row_indice];
+        }
+        for (auto&& row_indice : second) {
+          ++arr_union[row_indice];
+        }
+        for (auto&& row_cnt : arr_union) {
+          ASSERT_EQ(row_cnt, 1ul);
+        }
+      };
+      check_each_row_occurs_in_one_of_arrays(row_indices_initial, unused_row_indices_initial,
+                                             p_fmat->Info().num_row_);
 
       for (size_t i_nthreads = 1; i_nthreads < 4; ++i_nthreads) {
         omp_set_num_threads(i_nthreads);
         // return initial state of global rng engine
         common::GlobalRandom() = initial_rnd;
+        this->unused_rows_ = unused_rows_cpy;
         RealImpl::InitData(gmat, gpair, *p_fmat, tree);
         std::vector<size_t>& row_indices = *(this->row_set_collection_.Data());
         ASSERT_EQ(row_indices_initial.size(), row_indices.size());
         for (size_t i = 0; i < row_indices_initial.size(); ++i) {
           ASSERT_EQ(row_indices_initial[i], row_indices[i]);
         }
+        std::vector<size_t>& unused_row_indices = this->unused_rows_;
+        ASSERT_EQ(unused_row_indices_initial.size(), unused_row_indices.size());
+        for (size_t i = 0; i < unused_row_indices_initial.size(); ++i) {
+          ASSERT_EQ(unused_row_indices_initial[i], unused_row_indices[i]);
+        }
+        check_each_row_occurs_in_one_of_arrays(row_indices, unused_row_indices,
+                                               p_fmat->Info().num_row_);
       }
       omp_set_num_threads(nthreads);
     }

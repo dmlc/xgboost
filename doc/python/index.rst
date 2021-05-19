@@ -2,7 +2,7 @@
 XGBoost Python Package
 ######################
 This page contains links to all the python related documents on python package.
-To install the package package, checkout :doc:`Installation Guide </build>`.
+To install the package, checkout :doc:`Installation Guide </install>`.
 
 ********
 Contents

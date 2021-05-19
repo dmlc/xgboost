@@ -5,7 +5,7 @@
  * About NOLINTs in this file:
  *
  *   If we want Span to work with std interface, like range for loop, the
- *   naming must be consistant with std, not XGBoost. Also, the interface also
+ *   naming must be consistent with std, not XGBoost. Also, the interface also
  *   conflicts with XGBoost coding style, specifically, the use of `explicit'
  *   keyword.
  *
@@ -38,6 +38,10 @@
 #include <type_traits>
 #include <cstdio>
 
+#if defined(__CUDACC__)
+#include <cuda_runtime.h>
+#endif  // defined(__CUDACC__)
+
 /*!
  * The version number 1910 is picked up from GSL.
  *
@@ -47,8 +51,8 @@
  * possible.
  *
  * There are other workarounds for MSVC, like _Unwrapped, _Verify_range ...
- * Some of these are hiden magics of MSVC and I tried to avoid them. Should any
- * of them become needed, please consult the source code of GSL, and possibily
+ * Some of these are hidden magics of MSVC and I tried to avoid them. Should any
+ * of them become needed, please consult the source code of GSL, and possibly
  * some explanations from this thread:
  *
  *   https://github.com/Microsoft/GSL/pull/664
@@ -71,52 +75,53 @@
 namespace xgboost {
 namespace common {
 
+#if defined(__CUDA_ARCH__)
 // Usual logging facility is not available inside device code.
-// assert is not supported in mac as of CUDA 10.0
+
+#if defined(_MSC_VER)
+
+// Windows CUDA doesn't have __assert_fail.
 #define KERNEL_CHECK(cond)                                                     \
   do {                                                                         \
-    if (!(cond)) {                                                             \
-      printf("\nKernel error:\n"                                               \
-             "In: %s: %d\n"                                                    \
-             "\t%s\n\tExpecting: %s\n"                                         \
-             "\tBlock: [%d, %d, %d], Thread: [%d, %d, %d]\n\n",                \
-             __FILE__, __LINE__, __PRETTY_FUNCTION__, #cond, blockIdx.x,       \
-             blockIdx.y, blockIdx.z, threadIdx.x, threadIdx.y, threadIdx.z);   \
+    if (XGBOOST_EXPECT(!(cond), false)) {                                      \
       asm("trap;");                                                            \
     }                                                                          \
-  } while (0);
+  } while (0)
 
-#if defined(__CUDA_ARCH__)
+#else  // defined(_MSC_VER)
+
+#define __ASSERT_STR_HELPER(x) #x
+
+#define KERNEL_CHECK(cond)                                                     \
+  (XGBOOST_EXPECT((cond), true)                                                \
+       ? static_cast<void>(0)                                                  \
+       : __assert_fail(__ASSERT_STR_HELPER((cond)), __FILE__, __LINE__,        \
+                       __PRETTY_FUNCTION__))
+
+#endif  // defined(_MSC_VER)
+
 #define SPAN_CHECK KERNEL_CHECK
-#elif defined(XGBOOST_STRICT_R_MODE) && XGBOOST_STRICT_R_MODE == 1  // R package
-#define SPAN_CHECK CHECK  // check from dmlc
-#else  // not CUDA, not R
-#define SPAN_CHECK(cond)                                                       \
-  do {                                                                         \
-    if (XGBOOST_EXPECT(!(cond), false)) {                                      \
-      fprintf(stderr, "[xgboost] Condition %s failed.\n", #cond);              \
-      fflush(stderr);  /* It seems stderr on Windows is beffered? */           \
-      std::terminate();                                                        \
-    }                                                                          \
-  } while (0);
+
+#else  // not CUDA
+
+#define KERNEL_CHECK(cond)                                                     \
+  (XGBOOST_EXPECT((cond), true) ? static_cast<void>(0) : std::terminate())
+
+#define SPAN_CHECK(cond) KERNEL_CHECK(cond)
+
 #endif  // __CUDA_ARCH__
 
 #if defined(__CUDA_ARCH__)
-#define SPAN_LT(lhs, rhs)                                                      \
-  if (!((lhs) < (rhs))) {                                                      \
-    printf("[xgboost] Condition: %lu < %lu failed\n",                          \
-           static_cast<size_t>(lhs), static_cast<size_t>(rhs));                \
-    asm("trap;");                                                              \
-  }
+#define SPAN_LT(lhs, rhs) KERNEL_CHECK((lhs) < (rhs))
 #else
-#define SPAN_LT(lhs, rhs) SPAN_CHECK((lhs) < (rhs))
+#define SPAN_LT(lhs, rhs) KERNEL_CHECK((lhs) < (rhs))
 #endif  // defined(__CUDA_ARCH__)
 
 namespace detail {
 /*!
  * By default, XGBoost uses uint32_t for indexing data. int64_t covers all
  *   values uint32_t can represent. Also, On x86-64 Linux, GCC uses long int to
- *   represent ptrdiff_t, which is just int64_t. So we make it determinstic
+ *   represent ptrdiff_t, which is just int64_t. So we make it deterministic
  *   here.
  */
 using ptrdiff_t = typename std::conditional<  // NOLINT
@@ -349,7 +354,7 @@ XGBOOST_DEVICE bool LexicographicalCompare(InputIt1 first1, InputIt1 last1,
  *    Interface might be slightly different, we stick with ISO.
  *
  *    GSL uses C++14/17 features, which are not available here.
- *    GSL uses constexpr extensively, which is not possibile with limitation
+ *    GSL uses constexpr extensively, which is not possible with limitation
  *      of C++11.
  *    GSL doesn't concern about CUDA.
  *
@@ -366,7 +371,7 @@ XGBOOST_DEVICE bool LexicographicalCompare(InputIt1 first1, InputIt1 last1,
  *      in CUDA.
  *    Initializing from std::array is not supported.
  *
- *    ISO uses constexpr extensively, which is not possibile with limitation
+ *    ISO uses constexpr extensively, which is not possible with limitation
  *      of C++11.
  *    ISO uses C++14/17 features, which is not available here.
  *    ISO doesn't concern about CUDA.
@@ -403,7 +408,7 @@ XGBOOST_DEVICE bool LexicographicalCompare(InputIt1 first1, InputIt1 last1,
  *       beg++;                 // crash
  *       \endcode
  *
- *       While hoding a pointer or reference should avoid the problem, its a
+ *       While holding a pointer or reference should avoid the problem, it's a
  *       compromise. Since we have subspan, it's acceptable not to support
  *       passing iterator.
  */

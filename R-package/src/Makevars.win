@@ -3,7 +3,7 @@ PKGROOT=./
 ENABLE_STD_THREAD=0
 # _*_ mode: Makefile; _*_
 
-# This file is only used for windows compilation from github
+# This file is only used for Windows compilation from GitHub
 # It will be replaced with Makevars.in for the CRAN version
 .PHONY: all xgblib
 all: $(SHLIB)

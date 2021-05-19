@@ -25,6 +25,6 @@ inside the ``doc/`` directory.
 Examples
 ********
 * Use cases and examples will be in `demo <https://github.com/dmlc/xgboost/tree/master/demo>`_.
-* We are super excited to hear about your story, if you have blogposts,
-  tutorials code solutions using XGBoost, please tell us and we will add
+* We are super excited to hear about your story. If you have blog posts,
+  tutorials, or code solutions using XGBoost, please tell us, and we will add
   a link in the example pages.

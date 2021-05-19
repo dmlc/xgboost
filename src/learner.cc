@@ -1,5 +1,5 @@
 /*!
- * Copyright 2014-2020 by Contributors
+ * Copyright 2014-2021 by Contributors
  * \file learner.cc
  * \brief Implementation of learning algorithm.
  * \author Tianqi Chen
@@ -22,6 +22,7 @@
 
 #include "dmlc/any.h"
 #include "xgboost/base.h"
+#include "xgboost/c_api.h"
 #include "xgboost/data.h"
 #include "xgboost/model.h"
 #include "xgboost/predictor.h"
@@ -255,6 +256,11 @@ class LearnerConfiguration : public Learner {
   std::map<std::string, std::string> cfg_;
   // Stores information like best-iteration for early stopping.
   std::map<std::string, std::string> attributes_;
+  // Name of each feature, usually set from DMatrix.
+  std::vector<std::string> feature_names_;
+  // Type of each feature, usually set from DMatrix.
+  std::vector<std::string> feature_types_;
+
   common::Monitor monitor_;
   LearnerModelParamLegacy mparam_;
   LearnerModelParam learner_model_param_;
@@ -296,7 +302,6 @@ class LearnerConfiguration : public Learner {
     auto initialized = generic_parameters_.GetInitialised();
     auto old_seed = generic_parameters_.seed;
     generic_parameters_.UpdateAllowUnknown(args);
-    generic_parameters_.CheckDeprecated();
 
     ConsoleLogger::Configure(args);
     common::OmpSetNumThreads(&generic_parameters_.nthread);
@@ -436,7 +441,7 @@ class LearnerConfiguration : public Learner {
     }
   }
 
-  uint32_t GetNumFeature() override {
+  uint32_t GetNumFeature() const override {
     return learner_model_param_.num_feature;
   }
 
@@ -457,6 +462,23 @@ class LearnerConfiguration : public Learner {
     if (it == attributes_.end()) { return false; }
     attributes_.erase(it);
     return true;
+  }
+
+  void SetFeatureNames(std::vector<std::string> const& fn) override {
+    feature_names_ = fn;
+  }
+
+  void GetFeatureNames(std::vector<std::string>* fn) const override {
+    *fn = feature_names_;
+  }
+
+  void SetFeatureTypes(std::vector<std::string> const& ft) override {
+    this->feature_types_ = ft;
+  }
+
+  void GetFeatureTypes(std::vector<std::string>* p_ft) const override {
+    auto& ft = *p_ft;
+    ft = this->feature_types_;
   }
 
   std::vector<std::string> GetAttrNames() const override {
@@ -514,15 +536,18 @@ class LearnerConfiguration : public Learner {
       }
     }
 
+    // FIXME(trivialfis): Make eval_metric a training parameter.
     keys.emplace_back(kEvalMetric);
-    keys.emplace_back("verbosity");
     keys.emplace_back("num_output_group");
 
     std::sort(keys.begin(), keys.end());
 
     std::vector<std::string> provided;
     for (auto const &kv : cfg_) {
-      // FIXME(trivialfis): Make eval_metric a training parameter.
+      if (std::any_of(kv.first.cbegin(), kv.first.cend(),
+                      [](char ch) { return std::isspace(ch); })) {
+        LOG(FATAL) << "Invalid parameter \"" << kv.first << "\" contains whitespace.";
+      }
       provided.push_back(kv.first);
     }
     std::sort(provided.begin(), provided.end());
@@ -534,9 +559,9 @@ class LearnerConfiguration : public Learner {
       std::stringstream ss;
       ss << "\nParameters: { ";
       for (size_t i = 0; i < diff.size() - 1; ++i) {
-        ss << diff[i] << ", ";
+        ss << "\"" << diff[i] << "\", ";
       }
-      ss << diff.back();
+      ss << "\"" << diff.back() << "\"";
       ss << R"W( } might not be used.
 
   This may not be accurate due to some parameters are only used in language bindings but
@@ -632,8 +657,7 @@ class LearnerIO : public LearnerConfiguration {
  private:
   std::set<std::string> saved_configs_ = {"num_round"};
   // Used to identify the offset of JSON string when
-  // `enable_experimental_json_serialization' is set to false.  Will be removed once JSON
-  // takes over.
+  // Will be removed once JSON takes over.  Right now we still loads some RDS files from R.
   std::string const serialisation_header_ { u8"CONFIG-offset:" };
 
  public:
@@ -666,6 +690,25 @@ class LearnerIO : public LearnerConfiguration {
       attributes_[kv.first] = get<String const>(kv.second);
     }
 
+    // feature names and types are saved in xgboost 1.4
+    auto it = learner.find("feature_names");
+    if (it != learner.cend()) {
+      auto const &feature_names = get<Array const>(it->second);
+      feature_names_.clear();
+      for (auto const &name : feature_names) {
+        feature_names_.emplace_back(get<String const>(name));
+      }
+    }
+    it = learner.find("feature_types");
+    if (it != learner.cend()) {
+      auto const &feature_types = get<Array const>(it->second);
+      feature_types_.clear();
+      for (auto const &name : feature_types) {
+        auto type = get<String const>(name);
+        feature_types_.emplace_back(type);
+      }
+    }
+
     this->need_configuration_ = true;
   }
 
@@ -690,6 +733,17 @@ class LearnerIO : public LearnerConfiguration {
     learner["attributes"] = Object();
     for (auto const& kv : attributes_) {
       learner["attributes"][kv.first] = String(kv.second);
+    }
+
+    learner["feature_names"] = Array();
+    auto& feature_names = get<Array>(learner["feature_names"]);
+    for (auto const& name : feature_names_) {
+      feature_names.emplace_back(name);
+    }
+    learner["feature_types"] = Array();
+    auto& feature_types = get<Array>(learner["feature_types"]);
+    for (auto const& type : feature_types_) {
+      feature_types.emplace_back(type);
     }
   }
   // About to be deprecated by JSON format
@@ -833,10 +887,7 @@ class LearnerIO : public LearnerConfiguration {
   }
 
   // Save model into binary format.  The code is about to be deprecated by more robust
-  // JSON serialization format.  This function is uneffected by
-  // `enable_experimental_json_serialization` as user might enable this flag for pickle
-  // while still want a binary output.  As we are progressing at replacing the binary
-  // format, there's no need to put too much effort on it.
+  // JSON serialization format.
   void SaveModel(dmlc::Stream* fo) const override {
     LearnerModelParamLegacy mparam = mparam_;  // make a copy to potentially modify
     std::vector<std::pair<std::string, std::string> > extra_attr;
@@ -1041,7 +1092,7 @@ class LearnerImpl : public LearnerIO {
     auto& predt = local_cache->Cache(train, generic_parameters_.gpu_id);
 
     monitor_.Start("PredictRaw");
-    this->PredictRaw(train.get(), &predt, true);
+    this->PredictRaw(train.get(), &predt, true, 0, 0);
     TrainingObserver::Instance().Observe(predt.predictions, "Predictions");
     monitor_.Stop("PredictRaw");
 
@@ -1080,16 +1131,18 @@ class LearnerImpl : public LearnerIO {
     os << '[' << iter << ']' << std::setiosflags(std::ios::fixed);
     if (metrics_.size() == 0 && tparam_.disable_default_eval_metric <= 0) {
       auto warn_default_eval_metric = [](const std::string& objective, const std::string& before,
-                                         const std::string& after) {
-        LOG(WARNING) << "Starting in XGBoost 1.3.0, the default evaluation metric used with the "
-                     << "objective '" << objective << "' was changed from '" << before
-                     << "' to '" << after << "'. Explicitly set eval_metric if you'd like to "
-                     << "restore the old behavior.";
+                                         const std::string& after, const std::string& version) {
+        LOG(WARNING) << "Starting in XGBoost " << version << ", the default evaluation metric "
+                     << "used with the objective '" << objective << "' was changed from '"
+                     << before << "' to '" << after << "'. Explicitly set eval_metric if you'd "
+                     << "like to restore the old behavior.";
       };
       if (tparam_.objective == "binary:logistic") {
-        warn_default_eval_metric(tparam_.objective, "error", "logloss");
+        warn_default_eval_metric(tparam_.objective, "error", "logloss", "1.3.0");
+      } else if (tparam_.objective == "binary:logitraw") {
+        warn_default_eval_metric(tparam_.objective, "auc", "logloss", "1.4.0");
       } else if ((tparam_.objective == "multi:softmax" || tparam_.objective == "multi:softprob")) {
-        warn_default_eval_metric(tparam_.objective, "merror", "mlogloss");
+        warn_default_eval_metric(tparam_.objective, "merror", "mlogloss", "1.3.0");
       }
       metrics_.emplace_back(Metric::Create(obj_->DefaultEvalMetric(), &generic_parameters_));
       metrics_.back()->Configure({cfg_.begin(), cfg_.end()});
@@ -1100,7 +1153,7 @@ class LearnerImpl : public LearnerIO {
       std::shared_ptr<DMatrix> m = data_sets[i];
       auto &predt = local_cache->Cache(m, generic_parameters_.gpu_id);
       this->ValidateDMatrix(m.get(), false);
-      this->PredictRaw(m.get(), &predt, false);
+      this->PredictRaw(m.get(), &predt, false, 0, 0);
 
       auto &out = output_predictions_.Cache(m, generic_parameters_.gpu_id).predictions;
       out.Resize(predt.predictions.Size());
@@ -1118,8 +1171,8 @@ class LearnerImpl : public LearnerIO {
   }
 
   void Predict(std::shared_ptr<DMatrix> data, bool output_margin,
-               HostDeviceVector<bst_float>* out_preds, unsigned ntree_limit,
-               bool training,
+               HostDeviceVector<bst_float> *out_preds, unsigned layer_begin,
+               unsigned layer_end, bool training,
                bool pred_leaf, bool pred_contribs, bool approx_contribs,
                bool pred_interactions) override {
     int multiple_predictions = static_cast<int>(pred_leaf) +
@@ -1128,16 +1181,16 @@ class LearnerImpl : public LearnerIO {
     this->Configure();
     CHECK_LE(multiple_predictions, 1) << "Perform one kind of prediction at a time.";
     if (pred_contribs) {
-      gbm_->PredictContribution(data.get(), out_preds, ntree_limit, approx_contribs);
+      gbm_->PredictContribution(data.get(), out_preds, layer_begin, layer_end, approx_contribs);
     } else if (pred_interactions) {
-      gbm_->PredictInteractionContributions(data.get(), out_preds, ntree_limit,
+      gbm_->PredictInteractionContributions(data.get(), out_preds, layer_begin, layer_end,
                                             approx_contribs);
     } else if (pred_leaf) {
-      gbm_->PredictLeaf(data.get(), out_preds, ntree_limit);
+      gbm_->PredictLeaf(data.get(), out_preds, layer_begin, layer_end);
     } else {
       auto local_cache = this->GetPredictionCache();
       auto& prediction = local_cache->Cache(data, generic_parameters_.gpu_id);
-      this->PredictRaw(data.get(), &prediction, training, ntree_limit);
+      this->PredictRaw(data.get(), &prediction, training, layer_begin, layer_end);
       // Copy the prediction cache to output prediction. out_preds comes from C API
       out_preds->SetDevice(generic_parameters_.gpu_id);
       out_preds->Resize(prediction.predictions.Size());
@@ -1153,23 +1206,30 @@ class LearnerImpl : public LearnerIO {
     CHECK(!this->need_configuration_);
     return this->gbm_->BoostedRounds();
   }
+  uint32_t Groups() const override {
+    CHECK(!this->need_configuration_);
+    return this->learner_model_param_.num_output_group;
+  }
 
   XGBAPIThreadLocalEntry& GetThreadLocal() const override {
     return (*LearnerAPIThreadLocalStore::Get())[this];
   }
 
-  void InplacePredict(dmlc::any const &x, std::string const &type,
-                      float missing, HostDeviceVector<bst_float> **out_preds,
-                      uint32_t layer_begin, uint32_t layer_end) override {
+  void InplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
+                      PredictionType type, float missing,
+                      HostDeviceVector<bst_float> **out_preds,
+                      uint32_t iteration_begin,
+                      uint32_t iteration_end) override {
     this->Configure();
     auto& out_predictions = this->GetThreadLocal().prediction_entry;
-    this->gbm_->InplacePredict(x, missing, &out_predictions, layer_begin,
-                               layer_end);
-    if (type == "value") {
+    this->gbm_->InplacePredict(x, p_m, missing, &out_predictions,
+                               iteration_begin, iteration_end);
+    if (type == PredictionType::kValue) {
       obj_->PredTransform(&out_predictions.predictions);
-    } else if (type == "margin") {
+    } else if (type == PredictionType::kMargin) {
+      // do nothing
     } else {
-      LOG(FATAL) << "Unsupported prediction type:" << type;
+      LOG(FATAL) << "Unsupported prediction type:" << static_cast<int>(type);
     }
     *out_preds = &out_predictions.predictions;
   }
@@ -1187,12 +1247,11 @@ class LearnerImpl : public LearnerIO {
    *   predictor, when it equals 0, this means we are using all the trees
    * \param training allow dropout when the DART booster is being used
    */
-  void PredictRaw(DMatrix* data, PredictionCacheEntry* out_preds,
-                  bool training,
-                  unsigned ntree_limit = 0) const {
+  void PredictRaw(DMatrix *data, PredictionCacheEntry *out_preds, bool training,
+                  unsigned layer_begin, unsigned layer_end) const {
     CHECK(gbm_ != nullptr) << "Predict must happen after Load or configuration";
     this->ValidateDMatrix(data, false);
-    gbm_->PredictBatch(data, out_preds, training, ntree_limit);
+    gbm_->PredictBatch(data, out_preds, training, layer_begin, layer_end);
   }
 
   void ValidateDMatrix(DMatrix* p_fmat, bool is_training) const {

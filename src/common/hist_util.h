@@ -81,7 +81,7 @@ class HistogramCuts {
   }
 
   // Getters.  Cuts should be of no use after building histogram indices, but currently
-  // it's deeply linked with quantile_hist, gpu sketcher and gpu_hist.  So we preserve
+  // they are deeply linked with quantile_hist, gpu sketcher and gpu_hist, so we preserve
   // these for now.
   std::vector<uint32_t> const& Ptrs()      const { return cut_ptrs_.ConstHostVector();   }
   std::vector<float>    const& Values()    const { return cut_values_.ConstHostVector(); }
@@ -247,7 +247,7 @@ struct GHistIndexMatrix {
   // Create a global histogram matrix, given cut
   void Init(DMatrix* p_fmat, int max_num_bins);
 
-  // specific method for sparse data as no posibility to reduce allocated memory
+  // specific method for sparse data as no possibility to reduce allocated memory
   template <typename BinIdxType, typename GetOffset>
   void SetIndexData(common::Span<BinIdxType> index_data_span,
                     size_t batch_threads, const SparsePage &batch,
@@ -257,8 +257,7 @@ struct GHistIndexMatrix {
     const size_t batch_size = batch.Size();
     CHECK_LT(batch_size, offset_vec.size());
     BinIdxType* index_data = index_data_span.data();
-#pragma omp parallel for num_threads(batch_threads) schedule(static)
-    for (omp_ulong i = 0; i < batch_size; ++i) {
+    ParallelFor(omp_ulong(batch_size), batch_threads, [&](omp_ulong i) {
       const int tid = omp_get_thread_num();
       size_t ibegin = row_ptr[rbegin + i];
       size_t iend = row_ptr[rbegin + i + 1];
@@ -270,7 +269,7 @@ struct GHistIndexMatrix {
         index_data[ibegin + j] = get_offset(idx, j);
         ++hit_count_tloc_[tid * nbins + idx];
       }
-    }
+    });
   }
 
   void ResizeIndex(const size_t n_index,

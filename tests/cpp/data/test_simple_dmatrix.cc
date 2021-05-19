@@ -39,7 +39,8 @@ TEST(SimpleDMatrix, RowAccess) {
   EXPECT_EQ(row_count, dmat->Info().num_row_);
   // Test the data read into the first row
   auto &batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
-  auto first_row = batch[0];
+  auto page = batch.GetView();
+  auto first_row = page[0];
   ASSERT_EQ(first_row.size(), 3);
   EXPECT_EQ(first_row[2].index, 2);
   EXPECT_EQ(first_row[2].fvalue, 20);
@@ -115,6 +116,14 @@ TEST(SimpleDMatrix, MissingData) {
   CHECK_EQ(dmat->Info().num_nonzero_, 2);
   dmat.reset(new data::SimpleDMatrix(&adapter, 1.0, 1));
   CHECK_EQ(dmat->Info().num_nonzero_, 1);
+
+  {
+    data[1] = std::numeric_limits<float>::infinity();
+    data::DenseAdapter adapter(data.data(), data.size(), 1);
+    EXPECT_THROW(data::SimpleDMatrix dmat(
+                     &adapter, std::numeric_limits<float>::quiet_NaN(), -1),
+                 dmlc::Error);
+  }
 }
 
 TEST(SimpleDMatrix, EmptyRow) {
@@ -143,8 +152,9 @@ TEST(SimpleDMatrix, FromDense) {
   EXPECT_EQ(dmat.Info().num_nonzero_, 6);
 
   for (auto &batch : dmat.GetBatches<SparsePage>()) {
+    auto page = batch.GetView();
     for (auto i = 0ull; i < batch.Size(); i++) {
-      auto inst = batch[i];
+      auto inst = page[i];
       for (auto j = 0ull; j < inst.size(); j++) {
         EXPECT_EQ(inst[j].fvalue, data[i * n + j]);
         EXPECT_EQ(inst[j].index, j);
@@ -165,19 +175,20 @@ TEST(SimpleDMatrix, FromCSC) {
   EXPECT_EQ(dmat.Info().num_nonzero_, 5);
 
   auto &batch = *dmat.GetBatches<SparsePage>().begin();
-  auto inst = batch[0];
+  auto page = batch.GetView();
+  auto inst = page[0];
   EXPECT_EQ(inst[0].fvalue, 1);
   EXPECT_EQ(inst[0].index, 0);
   EXPECT_EQ(inst[1].fvalue, 2);
   EXPECT_EQ(inst[1].index, 1);
 
-  inst = batch[1];
+  inst = page[1];
   EXPECT_EQ(inst[0].fvalue, 3);
   EXPECT_EQ(inst[0].index, 0);
   EXPECT_EQ(inst[1].fvalue, 4);
   EXPECT_EQ(inst[1].index, 1);
 
-  inst = batch[2];
+  inst = page[2];
   EXPECT_EQ(inst[0].fvalue, 5);
   EXPECT_EQ(inst[0].index, 1);
 }
@@ -194,11 +205,12 @@ TEST(SimpleDMatrix, FromFile) {
   std::unique_ptr<dmlc::Parser<uint32_t>> parser(
       dmlc::Parser<uint32_t>::Create(filename.c_str(), 0, 1, "auto"));
 
-  auto verify_batch = [kExpectedNumRow](SparsePage const &batch) {
+  auto verify_batch = [kExpectedNumRow](SparsePage const &page) {
+    auto batch = page.GetView();
     EXPECT_EQ(batch.Size(), kExpectedNumRow);
-    EXPECT_EQ(batch.offset.HostVector(),
+    EXPECT_EQ(page.offset.HostVector(),
               std::vector<bst_row_t>({0, 3, 6, 9, 12, 15, 15}));
-    EXPECT_EQ(batch.base_rowid, 0);
+    EXPECT_EQ(page.base_rowid, 0);
 
     for (auto i = 0ull; i < batch.Size() - 1; i++) {
       if (i % 2 == 0) {
@@ -251,8 +263,10 @@ TEST(SimpleDMatrix, Slice) {
   ASSERT_EQ(out->Info().labels_upper_bound_.Size(), ridxs.size());
   ASSERT_EQ(out->Info().base_margin_.Size(), ridxs.size() * kClasses);
 
-  for (auto const& in_page : p_m->GetBatches<SparsePage>()) {
-    for (auto const &out_page : out->GetBatches<SparsePage>()) {
+  for (auto const& in_batch : p_m->GetBatches<SparsePage>()) {
+    auto in_page = in_batch.GetView();
+    for (auto const &out_batch : out->GetBatches<SparsePage>()) {
+      auto out_page = out_batch.GetView();
       for (size_t i = 0; i < ridxs.size(); ++i) {
         auto ridx = ridxs[i];
         auto out_inst = out_page[i];
@@ -305,8 +319,8 @@ TEST(SimpleDMatrix, SaveLoadBinary) {
   auto row_iter = dmat->GetBatches<xgboost::SparsePage>().begin();
   auto row_iter_read = dmat_read->GetBatches<xgboost::SparsePage>().begin();
   // Test the data read into the first row
-  auto first_row = (*row_iter)[0];
-  auto first_row_read = (*row_iter_read)[0];
+  auto first_row = (*row_iter).GetView()[0];
+  auto first_row_read = (*row_iter_read).GetView()[0];
   EXPECT_EQ(first_row.size(), first_row_read.size());
   EXPECT_EQ(first_row[2].index, first_row_read[2].index);
   EXPECT_EQ(first_row[2].fvalue, first_row_read[2].fvalue);

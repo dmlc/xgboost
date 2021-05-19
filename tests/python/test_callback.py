@@ -126,6 +126,27 @@ class TestCallbacks:
         assert len(dump) - booster.best_iteration == early_stopping_rounds + 1
         assert len(early_stop.stopping_history['Train']['CustomErr']) == len(dump)
 
+        # test tolerance, early stop won't occur with high tolerance.
+        tol = 10
+        rounds = 100
+        early_stop = xgb.callback.EarlyStopping(
+            rounds=early_stopping_rounds,
+            metric_name='CustomErr',
+            data_name='Train',
+            abs_tol=tol
+        )
+        booster = xgb.train(
+            {'objective': 'binary:logistic',
+             'eval_metric': ['error', 'rmse'],
+             'tree_method': 'hist'}, D_train,
+            evals=[(D_train, 'Train'), (D_valid, 'Valid')],
+            feval=tm.eval_error_metric,
+            num_boost_round=rounds,
+            callbacks=[early_stop],
+            verbose_eval=False)
+        # 0 based index
+        assert booster.best_iteration == rounds - 1
+
     def test_early_stopping_skl(self):
         from sklearn.datasets import load_breast_cancer
         X, y = load_breast_cancer(return_X_y=True)
@@ -206,6 +227,7 @@ class TestCallbacks:
                 booster.best_iteration + early_stopping_rounds + 1
 
     def run_eta_decay(self, tree_method, deprecated_callback):
+        """Test learning rate scheduler, used by both CPU and GPU tests."""
         if deprecated_callback:
             scheduler = xgb.callback.reset_learning_rate
         else:
@@ -217,7 +239,10 @@ class TestCallbacks:
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 4
 
-        warning_check = pytest.warns(UserWarning) if deprecated_callback else tm.noop_context()
+        if deprecated_callback:
+            warning_check = pytest.warns(UserWarning)
+        else:
+            warning_check = tm.noop_context()
 
         # learning_rates as a list
         # init eta with 0 to check whether learning_rates work
@@ -288,17 +313,22 @@ class TestCallbacks:
         for i in range(1, len(eval_errors_0)):
             assert eval_errors_3[i] != eval_errors_2[i]
 
-    def test_eta_decay_hist(self):
-        self.run_eta_decay('hist', True)
-        self.run_eta_decay('hist', False)
+        with warning_check:
+            xgb.cv(param, dtrain, num_round, callbacks=[scheduler(eta_decay)])
 
-    def test_eta_decay_approx(self):
-        self.run_eta_decay('approx', True)
-        self.run_eta_decay('approx', False)
-
-    def test_eta_decay_exact(self):
-        self.run_eta_decay('exact', True)
-        self.run_eta_decay('exact', False)
+    @pytest.mark.parametrize(
+        "tree_method, deprecated_callback",
+        [
+            ("hist", True),
+            ("hist", False),
+            ("approx", True),
+            ("approx", False),
+            ("exact", True),
+            ("exact", False),
+        ],
+    )
+    def test_eta_decay(self, tree_method, deprecated_callback):
+        self.run_eta_decay(tree_method, deprecated_callback)
 
     def test_check_point(self):
         from sklearn.datasets import load_breast_cancer

@@ -396,7 +396,7 @@ class RegTree : public Model {
    * \brief Compares whether 2 trees are equal from a user's perspective.  The equality
    *        compares only non-deleted nodes.
    *
-   * \parm b The other tree.
+   * \param b The other tree.
    */
   bool Equal(const RegTree& b) const;
 

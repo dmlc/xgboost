@@ -116,6 +116,14 @@ XGB_DLL SEXP XGDMatrixNumCol_R(SEXP handle);
  */
 XGB_DLL SEXP XGBoosterCreate_R(SEXP dmats);
 
+
+/*!
+ * \brief create xgboost learner, saving the pointer into an existing R object
+ * \param dmats a list of dmatrix handles that will be cached
+ * \param R_handle a clean R external pointer (not holding any object)
+ */
+XGB_DLL SEXP XGBoosterCreateInEmptyObj_R(SEXP dmats, SEXP R_handle);
+
 /*!
  * \brief set parameters
  * \param handle handle

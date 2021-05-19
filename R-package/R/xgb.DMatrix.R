@@ -1,7 +1,7 @@
 #' Construct xgb.DMatrix object
 #'
 #' Construct xgb.DMatrix object from either a dense matrix, a sparse matrix, or a local file.
-#' Supported input file formats are either a libsvm text file or a binary file that was created previously by
+#' Supported input file formats are either a LIBSVM text file or a binary file that was created previously by
 #' \code{\link{xgb.DMatrix.save}}).
 #'
 #' @param data a \code{matrix} object (either numeric or integer), a \code{dgCMatrix} object, or a character
@@ -15,8 +15,7 @@
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' train <- agaricus.train
-#' dtrain <- xgb.DMatrix(train$data, label=train$label)
+#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 #' xgb.DMatrix.save(dtrain, 'xgb.DMatrix.data')
 #' dtrain <- xgb.DMatrix('xgb.DMatrix.data')
 #' if (file.exists('xgb.DMatrix.data')) file.remove('xgb.DMatrix.data')
@@ -162,9 +161,9 @@ dimnames.xgb.DMatrix <- function(x) {
 #' The \code{name} field can be one of the following:
 #'
 #' \itemize{
-#'     \item \code{label}: label Xgboost learn from ;
+#'     \item \code{label}: label XGBoost learn from ;
 #'     \item \code{weight}: to do a weight rescale ;
-#'     \item \code{base_margin}: base margin is the base prediction Xgboost will boost from ;
+#'     \item \code{base_margin}: base margin is the base prediction XGBoost will boost from ;
 #'     \item \code{nrow}: number of rows of the \code{xgb.DMatrix}.
 #'
 #' }
@@ -173,8 +172,7 @@ dimnames.xgb.DMatrix <- function(x) {
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' train <- agaricus.train
-#' dtrain <- xgb.DMatrix(train$data, label=train$label)
+#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 #'
 #' labels <- getinfo(dtrain, 'label')
 #' setinfo(dtrain, 'label', 1-labels)
@@ -218,16 +216,15 @@ getinfo.xgb.DMatrix <- function(object, name, ...) {
 #' The \code{name} field can be one of the following:
 #'
 #' \itemize{
-#'     \item \code{label}: label Xgboost learn from ;
+#'     \item \code{label}: label XGBoost learn from ;
 #'     \item \code{weight}: to do a weight rescale ;
-#'     \item \code{base_margin}: base margin is the base prediction Xgboost will boost from ;
+#'     \item \code{base_margin}: base margin is the base prediction XGBoost will boost from ;
 #'     \item \code{group}: number of rows in each group (to use with \code{rank:pairwise} objective).
 #' }
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' train <- agaricus.train
-#' dtrain <- xgb.DMatrix(train$data, label=train$label)
+#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 #'
 #' labels <- getinfo(dtrain, 'label')
 #' setinfo(dtrain, 'label', 1-labels)
@@ -292,8 +289,7 @@ setinfo.xgb.DMatrix <- function(object, name, info, ...) {
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' train <- agaricus.train
-#' dtrain <- xgb.DMatrix(train$data, label=train$label)
+#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 #'
 #' dsub <- slice(dtrain, 1:42)
 #' labels1 <- getinfo(dsub, 'label')
@@ -349,8 +345,7 @@ slice.xgb.DMatrix <- function(object, idxset, ...) {
 #'
 #' @examples
 #' data(agaricus.train, package='xgboost')
-#' train <- agaricus.train
-#' dtrain <- xgb.DMatrix(train$data, label=train$label)
+#' dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 #'
 #' dtrain
 #' print(dtrain, verbose=TRUE)

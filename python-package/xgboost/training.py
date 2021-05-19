@@ -4,9 +4,8 @@
 """Training Library containing training routines."""
 import warnings
 import copy
-import json
 import numpy as np
-from .core import Booster, XGBoostError
+from .core import Booster, XGBoostError, _get_booster_layer_trees
 from .compat import (SKLEARN_INSTALLED, XGBStratifiedKFold)
 from . import callback
 
@@ -88,17 +87,24 @@ def _train_internal(params, dtrain,
     if evals_result is not None and is_new_callback:
         evals_result.update(callbacks.history)
 
+    # These should be moved into callback functions `after_training`, but until old
+    # callbacks are removed, the train function is the only place for setting the
+    # attributes.
+    num_parallel_tree, _ = _get_booster_layer_trees(bst)
     if bst.attr('best_score') is not None:
         bst.best_score = float(bst.attr('best_score'))
         bst.best_iteration = int(bst.attr('best_iteration'))
+        # num_class is handled internally
+        bst.set_attr(
+            best_ntree_limit=str((bst.best_iteration + 1) * num_parallel_tree)
+        )
+        bst.best_ntree_limit = int(bst.attr("best_ntree_limit"))
     else:
+        # Due to compatibility with version older than 1.4, these attributes are added
+        # to Python object even if early stopping is not used.
         bst.best_iteration = bst.num_boosted_rounds() - 1
-    try:
-        num_parallel_tree = int(json.loads(bst.save_config())['learner'][
-            'gradient_booster']['gbtree_train_param']['num_parallel_tree'])
-    except KeyError:            # gblinear
-        num_parallel_tree = 1
-    bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
+        bst.best_ntree_limit = (bst.best_iteration + 1) * num_parallel_tree
+
     # Copy to serialise and unserialise booster to reset state and free
     # training memory
     return bst.copy()
@@ -131,15 +137,17 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
         Activates early stopping. Validation metric needs to improve at least once in
         every **early_stopping_rounds** round(s) to continue training.
         Requires at least one item in **evals**.
-        The method returns the model from the last iteration (not the best one).
-        If there's more than one item in **evals**, the last entry will be used
-        for early stopping.
+        The method returns the model from the last iteration (not the best one).  Use
+        custom callback or model slicing if the best model is desired.
+        If there's more than one item in **evals**, the last entry will be used for early
+        stopping.
         If there's more than one metric in the **eval_metric** parameter given in
         **params**, the last metric will be used for early stopping.
         If early stopping occurs, the model will have three additional fields:
-        ``bst.best_score``, ``bst.best_iteration`` and ``bst.best_ntree_limit``.
-        (Use ``bst.best_ntree_limit`` to get the correct value if
-        ``num_parallel_tree`` and/or ``num_class`` appears in the parameters)
+        ``bst.best_score``, ``bst.best_iteration`` and ``bst.best_ntree_limit``.  Use
+        ``bst.best_ntree_limit`` to get the correct value if ``num_parallel_tree`` and/or
+        ``num_class`` appears in the parameters.  ``best_ntree_limit`` is the result of
+        ``num_parallel_tree * best_iteration``.
     evals_result: dict
         This dictionary stores the evaluation results of all the items in watchlist.
 
@@ -172,7 +180,7 @@ def train(params, dtrain, num_boost_round=10, evals=(), obj=None, feval=None,
 
         .. code-block:: python
 
-            [xgb.callback.reset_learning_rate(custom_rates)]
+            [xgb.callback.LearningRateScheduler(custom_rates)]
 
     Returns
     -------
@@ -198,6 +206,11 @@ class CVPack(object):
         self.dtest = dtest
         self.watchlist = [(dtrain, 'train'), (dtest, 'test')]
         self.bst = Booster(param, [dtrain, dtest])
+
+    def __getattr__(self, name):
+        def _inner(*args, **kwargs):
+            return getattr(self.bst, name)(*args, **kwargs)
+        return _inner
 
     def update(self, iteration, fobj):
         """"Update the boosters for one iteration"""
@@ -231,15 +244,24 @@ class _PackedBooster:
         '''Redirect to booster attr.'''
         return self.cvfolds[0].bst.attr(key)
 
+    def set_param(self, params, value=None):
+        """Iterate through folds for set_param"""
+        for f in self.cvfolds:
+            f.bst.set_param(params, value)
+
+    def num_boosted_rounds(self):
+        '''Number of boosted rounds.'''
+        return self.cvfolds[0].num_boosted_rounds()
+
     @property
     def best_iteration(self):
         '''Get best_iteration'''
-        ret = self.cvfolds[0].bst.attr('best_iteration')
-        return int(ret)
+        return int(self.cvfolds[0].bst.attr("best_iteration"))
 
-    def num_boosted_rounds(self) -> int:
-        '''Number of boosted rounds.'''
-        return self.cvfolds[0].bst.num_boosted_rounds()
+    @property
+    def best_score(self):
+        """Get best_score."""
+        return float(self.cvfolds[0].bst.attr("best_score"))
 
 
 def groups_to_rows(groups, boundaries):
@@ -408,7 +430,7 @@ def cv(params, dtrain, num_boost_round=10, nfold=3, stratified=False, folds=None
 
         .. code-block:: python
 
-            [xgb.callback.reset_learning_rate(custom_rates)]
+            [xgb.callback.LearningRateScheduler(custom_rates)]
     shuffle : bool
         Shuffle data before creating folds.
 

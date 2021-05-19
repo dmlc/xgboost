@@ -1,7 +1,7 @@
 ###########################
 Python Package Introduction
 ###########################
-This document gives a basic walkthrough of xgboost python package.
+This document gives a basic walkthrough of the xgboost package for Python.
 
 **List of other Helpful Links**
 
@@ -10,7 +10,7 @@ This document gives a basic walkthrough of xgboost python package.
 
 Install XGBoost
 ---------------
-To install XGBoost, follow instructions in :doc:`/build`.
+To install XGBoost, follow instructions in :doc:`/install`.
 
 To verify your installation, run the following in Python:
 
@@ -24,7 +24,7 @@ Data Interface
 --------------
 The XGBoost python module is able to load data from:
 
-- LibSVM text format file
+- LIBSVM text format file
 - Comma-separated values (CSV) file
 - NumPy 2D array
 - SciPy 2D sparse array
@@ -36,7 +36,7 @@ The XGBoost python module is able to load data from:
 
 The data is stored in a :py:class:`DMatrix <xgboost.DMatrix>` object.
 
-* To load a libsvm text file or a XGBoost binary file into :py:class:`DMatrix <xgboost.DMatrix>`:
+* To load a LIBSVM text file or a XGBoost binary file into :py:class:`DMatrix <xgboost.DMatrix>`:
 
   .. code-block:: python
 
@@ -183,7 +183,7 @@ Early stopping requires at least one set in ``evals``. If there's more than one,
 
 The model will train until the validation score stops improving. Validation error needs to decrease at least every ``early_stopping_rounds`` to continue training.
 
-If early stopping occurs, the model will have three additional fields: ``bst.best_score``, ``bst.best_iteration`` and ``bst.best_ntree_limit``. Note that :py:meth:`xgboost.train` will return a model from the last iteration, not the best one.
+If early stopping occurs, the model will have two additional fields: ``bst.best_score``, ``bst.best_iteration``.  Note that :py:meth:`xgboost.train` will return a model from the last iteration, not the best one.
 
 This works with both metrics to minimize (RMSE, log loss, etc.) and to maximize (MAP, NDCG, AUC). Note that if you specify more than one evaluation metric the last one in ``param['eval_metric']`` is used for early stopping.
 
@@ -198,11 +198,11 @@ A model that has been trained or loaded can perform predictions on data sets.
   dtest = xgb.DMatrix(data)
   ypred = bst.predict(dtest)
 
-If early stopping is enabled during training, you can get predictions from the best iteration with ``bst.best_ntree_limit``:
+If early stopping is enabled during training, you can get predictions from the best iteration with ``bst.best_iteration``:
 
 .. code-block:: python
 
-  ypred = bst.predict(dtest, ntree_limit=bst.best_ntree_limit)
+  ypred = bst.predict(dtest, iteration_range=(0, bst.best_iteration))
 
 Plotting
 --------

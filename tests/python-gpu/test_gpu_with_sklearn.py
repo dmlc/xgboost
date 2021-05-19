@@ -33,4 +33,8 @@ def test_gpu_binary_classification():
 
 
 def test_boost_from_prediction_gpu_hist():
-    cpu_test = twskl.run_boost_from_prediction('gpu_hist')
+    twskl.run_boost_from_prediction('gpu_hist')
+
+
+def test_num_parallel_tree():
+    twskl.run_boston_housing_rf_regression("gpu_hist")

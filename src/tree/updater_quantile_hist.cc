@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017-2020 by Contributors
+ * Copyright 2017-2021 by Contributors
  * \file updater_quantile_hist.cc
  * \brief use quantized feature values to construct a tree
  * \author Philip Cho, Tianqi Checn, Egor Smirnov
@@ -7,15 +7,15 @@
 #include <dmlc/timer.h>
 #include <rabit/rabit.h>
 
-#include <cmath>
-#include <memory>
-#include <vector>
 #include <algorithm>
-#include <queue>
+#include <cmath>
 #include <iomanip>
+#include <memory>
 #include <numeric>
+#include <queue>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "xgboost/logging.h"
 #include "xgboost/tree_updater.h"
@@ -110,18 +110,13 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
 }
 
 bool QuantileHistMaker::UpdatePredictionCache(
-    const DMatrix* data,
-    HostDeviceVector<bst_float>* out_preds) {
-  if (param_.subsample < 1.0f) {
-    return false;
+    const DMatrix* data, VectorView<float> out_preds) {
+  if (hist_maker_param_.single_precision_histogram && float_builder_) {
+      return float_builder_->UpdatePredictionCache(data, out_preds);
+  } else if (double_builder_) {
+      return double_builder_->UpdatePredictionCache(data, out_preds);
   } else {
-    if (hist_maker_param_.single_precision_histogram && float_builder_) {
-        return float_builder_->UpdatePredictionCache(data, out_preds);
-    } else if (double_builder_) {
-        return double_builder_->UpdatePredictionCache(data, out_preds);
-    } else {
-       return false;
-    }
+      return false;
   }
 }
 
@@ -599,6 +594,7 @@ void QuantileHistMaker::Builder<GradientSumT>::Update(
   tree_evaluator_ =
       TreeEvaluator(param_, p_fmat->Info().num_col_, GenericParameter::kCpuId);
   interaction_constraints_.Reset();
+  p_last_fmat_mutable_ = p_fmat;
 
   this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
   if (param_.grow_policy == TrainParam::kLossGuide) {
@@ -620,29 +616,23 @@ void QuantileHistMaker::Builder<GradientSumT>::Update(
 template<typename GradientSumT>
 bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
     const DMatrix* data,
-    HostDeviceVector<bst_float>* p_out_preds) {
+    VectorView<float> out_preds) {
   // p_last_fmat_ is a valid pointer as long as UpdatePredictionCache() is called in
   // conjunction with Update().
-  if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_) {
+  if (!p_last_fmat_ || !p_last_tree_ || data != p_last_fmat_ ||
+      p_last_fmat_ != p_last_fmat_mutable_) {
     return false;
   }
   builder_monitor_.Start("UpdatePredictionCache");
 
-  std::vector<bst_float>& out_preds = p_out_preds->HostVector();
-
-  if (leaf_value_cache_.empty()) {
-    leaf_value_cache_.resize(p_last_tree_->param.num_nodes,
-                             std::numeric_limits<float>::infinity());
-  }
-
-  CHECK_GT(out_preds.size(), 0U);
+  CHECK_GT(out_preds.Size(), 0U);
 
   size_t n_nodes = row_set_collection_.end() - row_set_collection_.begin();
 
   common::BlockedSpace2d space(n_nodes, [&](size_t node) {
     return row_set_collection_[node].Size();
   }, 1024);
-
+  CHECK_EQ(out_preds.DeviceIdx(), GenericParameter::kCpuId);
   common::ParallelFor2d(space, this->nthread_, [&](size_t node, common::Range1d r) {
     const RowSetCollection::Elem rowset = row_set_collection_[node];
     if (rowset.begin != nullptr && rowset.end != nullptr) {
@@ -664,30 +654,60 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
     }
   });
 
+  if (param_.subsample < 1.0f) {
+    // Making a real prediction for the remaining rows
+    size_t fvecs_size = feat_vecs_.size();
+    feat_vecs_.resize(omp_get_max_threads(), RegTree::FVec());
+    while (fvecs_size < feat_vecs_.size()) {
+      feat_vecs_[fvecs_size++].Init(data->Info().num_col_);
+    }
+    for (auto&& batch : p_last_fmat_mutable_->GetBatches<SparsePage>()) {
+      HostSparsePageView page_view = batch.GetView();
+      const auto num_parallel_ops = static_cast<bst_omp_uint>(unused_rows_.size());
+      common::ParallelFor(num_parallel_ops, [&](bst_omp_uint block_id) {
+        RegTree::FVec &feats = feat_vecs_[omp_get_thread_num()];
+        const SparsePage::Inst inst = page_view[unused_rows_[block_id]];
+        feats.Fill(inst);
+
+        const size_t row_num = unused_rows_[block_id] + batch.base_rowid;
+        const int lid = feats.HasMissing() ? p_last_tree_->GetLeafIndex<true>(feats) :
+                                            p_last_tree_->GetLeafIndex<false>(feats);
+        out_preds[row_num] += (*p_last_tree_)[lid].LeafValue();
+
+        feats.Drop(inst);
+      });
+    }
+  }
   builder_monitor_.Stop("UpdatePredictionCache");
   return true;
 }
+
 template<typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const std::vector<GradientPair>& gpair,
                                                 const DMatrix& fmat,
                                                 std::vector<size_t>* row_indices) {
   const auto& info = fmat.Info();
   auto& rnd = common::GlobalRandom();
-  std::vector<size_t>& row_indices_local = *row_indices;
-  size_t* p_row_indices = row_indices_local.data();
+  unused_rows_.resize(info.num_row_);
+  size_t* p_row_indices_used = row_indices->data();
+  size_t* p_row_indices_unused = unused_rows_.data();
 #if XGBOOST_CUSTOMIZE_GLOBAL_PRNG
   std::bernoulli_distribution coin_flip(param_.subsample);
-  size_t j = 0;
+  size_t used = 0, unused = 0;
   for (size_t i = 0; i < info.num_row_; ++i) {
     if (gpair[i].GetHess() >= 0.0f && coin_flip(rnd)) {
-      p_row_indices[j++] = i;
+      p_row_indices_used[used++] = i;
+    } else {
+      p_row_indices_unused[unused++] = i;
     }
   }
   /* resize row_indices to reduce memory */
-  row_indices_local.resize(j);
+  row_indices->resize(used);
+  unused_rows_.resize(unused);
 #else
   const size_t nthread = this->nthread_;
-  std::vector<size_t> row_offsets(nthread, 0);
+  std::vector<size_t> row_offsets_used(nthread, 0);
+  std::vector<size_t> row_offsets_unused(nthread, 0);
   /* usage of mt19937_64 give 2x speed up for subsampling */
   std::vector<std::mt19937> rnds(nthread);
   /* create engine for each thread */
@@ -697,35 +717,63 @@ void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const std::vector<Gr
   const size_t discard_size = info.num_row_ / nthread;
   auto upper_border = static_cast<float>(std::numeric_limits<uint32_t>::max());
   uint32_t coin_flip_border = static_cast<uint32_t>(upper_border * param_.subsample);
+  dmlc::OMPException exc;
   #pragma omp parallel num_threads(nthread)
   {
-    const size_t tid = omp_get_thread_num();
-    const size_t ibegin = tid * discard_size;
-    const size_t iend = (tid == (nthread - 1)) ?
-                        info.num_row_ : ibegin + discard_size;
+    exc.Run([&]() {
+      const size_t tid = omp_get_thread_num();
+      const size_t ibegin = tid * discard_size;
+      const size_t iend = (tid == (nthread - 1)) ?
+                          info.num_row_ : ibegin + discard_size;
 
-    rnds[tid].discard(discard_size * tid);
-    for (size_t i = ibegin; i < iend; ++i) {
-      if (gpair[i].GetHess() >= 0.0f && rnds[tid]() < coin_flip_border) {
-        p_row_indices[ibegin + row_offsets[tid]++] = i;
+      rnds[tid].discard(discard_size * tid);
+      for (size_t i = ibegin; i < iend; ++i) {
+        if (gpair[i].GetHess() >= 0.0f && rnds[tid]() < coin_flip_border) {
+          p_row_indices_used[ibegin + row_offsets_used[tid]++] = i;
+        } else {
+          p_row_indices_unused[ibegin + row_offsets_unused[tid]++] = i;
+        }
       }
-    }
+
+      #pragma omp barrier
+
+      if (tid == 0ul) {
+        size_t prefix_sum_used = row_offsets_used[0];
+        for (size_t i = 1; i < nthread; ++i) {
+          const size_t ibegin = i * discard_size;
+
+          for (size_t k = 0; k < row_offsets_used[i]; ++k) {
+            p_row_indices_used[prefix_sum_used + k] = p_row_indices_used[ibegin + k];
+          }
+
+          prefix_sum_used += row_offsets_used[i];
+        }
+        /* resize row_indices to reduce memory */
+        row_indices->resize(prefix_sum_used);
+      }
+
+      if (nthread == 1ul || tid == 1ul) {
+        size_t prefix_sum_unused = row_offsets_unused[0];
+        for (size_t i = 1; i < nthread; ++i) {
+          const size_t ibegin = i * discard_size;
+
+          for (size_t k = 0; k < row_offsets_unused[i]; ++k) {
+            p_row_indices_unused[prefix_sum_unused + k] = p_row_indices_unused[ibegin + k];
+          }
+
+          prefix_sum_unused += row_offsets_unused[i];
+        }
+        /* resize row_indices to reduce memory */
+        unused_rows_.resize(prefix_sum_unused);
+      }
+    });
   }
+  exc.Rethrow();
   /* discard global engine */
   rnd = rnds[nthread - 1];
-  size_t prefix_sum = row_offsets[0];
-  for (size_t i = 1; i < nthread; ++i) {
-    const size_t ibegin = i * discard_size;
-
-    for (size_t k = 0; k < row_offsets[i]; ++k) {
-      row_indices_local[prefix_sum + k] = row_indices_local[ibegin + k];
-    }
-    prefix_sum += row_offsets[i];
-  }
-  /* resize row_indices to reduce memory */
-  row_indices_local.resize(prefix_sum);
 #endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
 }
+
 template<typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& gmat,
                                           const std::vector<GradientPair>& gpair,
@@ -744,8 +792,6 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
   {
     // initialize the row set
     row_set_collection_.Clear();
-    // clear local prediction cache
-    leaf_value_cache_.clear();
     // initialize histogram collection
     uint32_t nbins = gmat.cut.Ptrs().back();
     hist_.Init(nbins);
@@ -753,10 +799,14 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
     hist_buffer_.Init(nbins);
 
     // initialize histogram builder
+    dmlc::OMPException exc;
 #pragma omp parallel
     {
-      this->nthread_ = omp_get_num_threads();
+      exc.Run([&]() {
+        this->nthread_ = omp_get_num_threads();
+      });
     }
+    exc.Rethrow();
     hist_builder_ = GHistBuilder<GradientSumT>(this->nthread_, nbins);
 
     std::vector<size_t>& row_indices = *row_set_collection_.Data();
@@ -769,6 +819,9 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
         << "Only uniform sampling is supported, "
         << "gradient-based sampling is only support by GPU Hist.";
       InitSampling(gpair, fmat, &row_indices);
+      // We should check that the partitioning was done correctly
+      // and each row of the dataset fell into exactly one of the categories
+      CHECK_EQ(row_indices.size() + unused_rows_.size(), info.num_row_);
     } else {
       MemStackAllocator<bool, 128> buff(this->nthread_);
       bool* p_buff = buff.Get();
@@ -778,18 +831,21 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
 
       #pragma omp parallel num_threads(this->nthread_)
       {
-        const size_t tid = omp_get_thread_num();
-        const size_t ibegin = tid * block_size;
-        const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
-            static_cast<size_t>(info.num_row_));
+        exc.Run([&]() {
+          const size_t tid = omp_get_thread_num();
+          const size_t ibegin = tid * block_size;
+          const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
+              static_cast<size_t>(info.num_row_));
 
-        for (size_t i = ibegin; i < iend; ++i) {
-          if (gpair[i].GetHess() < 0.0f) {
-            p_buff[tid] = true;
-            break;
+          for (size_t i = ibegin; i < iend; ++i) {
+            if (gpair[i].GetHess() < 0.0f) {
+              p_buff[tid] = true;
+              break;
+            }
           }
-        }
+        });
       }
+      exc.Rethrow();
 
       bool has_neg_hess = false;
       for (int32_t tid = 0; tid < this->nthread_; ++tid) {
@@ -809,14 +865,17 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
       } else {
         #pragma omp parallel num_threads(this->nthread_)
         {
-          const size_t tid = omp_get_thread_num();
-          const size_t ibegin = tid * block_size;
-          const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
-              static_cast<size_t>(info.num_row_));
-          for (size_t i = ibegin; i < iend; ++i) {
-           p_row_indices[i] = i;
-          }
+          exc.Run([&]() {
+            const size_t tid = omp_get_thread_num();
+            const size_t ibegin = tid * block_size;
+            const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
+                static_cast<size_t>(info.num_row_));
+            for (size_t i = ibegin; i < iend; ++i) {
+              p_row_indices[i] = i;
+            }
+          });
         }
+        exc.Rethrow();
       }
     }
   }

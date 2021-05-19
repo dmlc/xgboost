@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.sparse import csr_matrix
+import testing as tm
 import xgboost
 import os
 import itertools
@@ -79,22 +80,10 @@ class TestRanking:
         """
         Download and setup the test fixtures
         """
-        from sklearn.datasets import load_svmlight_files
-        # download the test data
         cls.dpath = 'demo/rank/'
-        src = 'https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip'
-        target = cls.dpath + '/MQ2008.zip'
-        urllib.request.urlretrieve(url=src, filename=target)
-
-        with zipfile.ZipFile(target, 'r') as f:
-            f.extractall(path=cls.dpath)
-
         (x_train, y_train, qid_train, x_test, y_test, qid_test,
-         x_valid, y_valid, qid_valid) = load_svmlight_files(
-            (cls.dpath + "MQ2008/Fold1/train.txt",
-             cls.dpath + "MQ2008/Fold1/test.txt",
-             cls.dpath + "MQ2008/Fold1/vali.txt"),
-            query_id=True, zero_based=False)
+         x_valid, y_valid, qid_valid) = tm.get_mq2008(cls.dpath)
+
         # instantiate the matrices
         cls.dtrain = xgboost.DMatrix(x_train, y_train)
         cls.dvalid = xgboost.DMatrix(x_valid, y_valid)
@@ -123,8 +112,12 @@ class TestRanking:
         Cleanup test artifacts from download and unpacking
         :return:
         """
-        os.remove(cls.dpath + "MQ2008.zip")
-        shutil.rmtree(cls.dpath + "MQ2008")
+        zip_f = cls.dpath + "MQ2008.zip"
+        if os.path.exists(zip_f):
+            os.remove(zip_f)
+        directory = cls.dpath + "MQ2008"
+        if os.path.exists(directory):
+            shutil.rmtree(directory)
 
     def test_training(self):
         """

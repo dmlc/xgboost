@@ -1,4 +1,4 @@
-"""Generate synthetic data in LibSVM format."""
+"""Generate synthetic data in LIBSVM format."""
 
 import argparse
 import io

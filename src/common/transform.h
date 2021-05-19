@@ -16,6 +16,7 @@
 #include "xgboost/span.h"
 
 #include "common.h"
+#include "threading_utils.h"
 
 #if defined (__CUDACC__)
 #include "device_helpers.cuh"
@@ -51,7 +52,7 @@ __global__ void LaunchCUDAKernel(Functor _func, Range _range,
  *
  *     If you use it in a function that can be compiled by both nvcc and host
  *     compiler, the behaviour is un-defined!  Because your function is NOT
- *     duplicated by `CompiledWithCuda`. At link time, cuda compiler resolution
+ *     duplicated by `CompiledWithCuda`. At link time, CUDA compiler resolution
  *     will merge functions with same signature.
  */
 template <bool CompiledWithCuda = WITH_CUDA()>
@@ -154,7 +155,7 @@ class Transform {
           _func, shard_range, UnpackHDVOnDevice(_vectors)...);
     }
 #else
-    /*! \brief Dummy funtion defined when compiling for CPU.  */
+    /*! \brief Dummy function defined when compiling for CPU.  */
     template <typename std::enable_if<!CompiledWithCuda>::type* = nullptr,
               typename... HDV>
     void LaunchCUDA(Functor _func, HDV*...) const {
@@ -168,13 +169,10 @@ class Transform {
     template <typename... HDV>
     void LaunchCPU(Functor func, HDV*... vectors) const {
       omp_ulong end = static_cast<omp_ulong>(*(range_.end()));
-      dmlc::OMPException omp_exc;
       SyncHost(vectors...);
-#pragma omp parallel for schedule(static)
-      for (omp_ulong idx = 0; idx < end; ++idx) {
-        omp_exc.Run(func, idx, UnpackHDV(vectors)...);
-      }
-      omp_exc.Rethrow();
+      ParallelFor(end, [&](omp_ulong idx) {
+        func(idx, UnpackHDV(vectors)...);
+      });
     }
 
    private:

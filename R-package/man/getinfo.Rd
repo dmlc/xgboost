@@ -23,9 +23,9 @@ Get information of an xgb.DMatrix object
 The \code{name} field can be one of the following:
 
 \itemize{
-    \item \code{label}: label Xgboost learn from ;
+    \item \code{label}: label XGBoost learn from ;
     \item \code{weight}: to do a weight rescale ;
-    \item \code{base_margin}: base margin is the base prediction Xgboost will boost from ;
+    \item \code{base_margin}: base margin is the base prediction XGBoost will boost from ;
     \item \code{nrow}: number of rows of the \code{xgb.DMatrix}.
 
 }
@@ -34,8 +34,7 @@ The \code{name} field can be one of the following:
 }
 \examples{
 data(agaricus.train, package='xgboost')
-train <- agaricus.train
-dtrain <- xgb.DMatrix(train$data, label=train$label)
+dtrain <- with(agaricus.train, xgb.DMatrix(data, label = label))
 
 labels <- getinfo(dtrain, 'label')
 setinfo(dtrain, 'label', 1-labels)

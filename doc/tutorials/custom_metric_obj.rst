@@ -143,6 +143,6 @@ For fully reproducible source code and comparison plots, see `custom_rmsle.py <h
 Multi-class objective function
 ******************************
 
-A similiar demo for multi-class objective funtion is also available, see
+A similar demo for multi-class objective function is also available, see
 `demo/guide-python/custom_softmax.py <https://github.com/dmlc/xgboost/tree/master/demo/guide-python/custom_softmax.py>`_
 for details.

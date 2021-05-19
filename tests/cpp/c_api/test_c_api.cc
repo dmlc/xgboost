@@ -30,10 +30,11 @@ TEST(CAPI, XGDMatrixCreateFromMatDT) {
   ASSERT_EQ(info.num_nonzero_, 6ul);
 
   for (const auto &batch : (*dmat)->GetBatches<xgboost::SparsePage>()) {
-    ASSERT_EQ(batch[0][0].fvalue, 0.0f);
-    ASSERT_EQ(batch[0][1].fvalue, -4.0f);
-    ASSERT_EQ(batch[2][0].fvalue, 3.0f);
-    ASSERT_EQ(batch[2][1].fvalue, 0.0f);
+    auto page = batch.GetView();
+    ASSERT_EQ(page[0][0].fvalue, 0.0f);
+    ASSERT_EQ(page[0][1].fvalue, -4.0f);
+    ASSERT_EQ(page[2][0].fvalue, 3.0f);
+    ASSERT_EQ(page[2][1].fvalue, 0.0f);
   }
 
   delete dmat;
@@ -62,8 +63,9 @@ TEST(CAPI, XGDMatrixCreateFromMatOmp) {
     ASSERT_EQ(info.num_nonzero_, num_cols * row - num_missing);
 
     for (const auto &batch : (*dmat)->GetBatches<xgboost::SparsePage>()) {
+      auto page = batch.GetView();
       for (size_t i = 0; i < batch.Size(); i++) {
-        auto inst = batch[i];
+        auto inst = page[i];
         for (auto e : inst) {
           ASSERT_EQ(e.fvalue, 1.5);
         }
@@ -218,7 +220,8 @@ TEST(CAPI, XGBGlobalConfig) {
   {
     const char *config_str = R"json(
     {
-      "verbosity": 0
+      "verbosity": 0,
+      "use_rmm": false
     }
   )json";
     ret = XGBSetGlobalConfig(config_str);
@@ -231,6 +234,24 @@ TEST(CAPI, XGBGlobalConfig) {
     auto updated_config =
         Json::Load({updated_config_str.data(), updated_config_str.size()});
     ASSERT_EQ(get<Integer>(updated_config["verbosity"]), 0);
+    ASSERT_EQ(get<Boolean>(updated_config["use_rmm"]), false);
+  }
+  {
+    const char *config_str = R"json(
+    {
+      "use_rmm": true
+    }
+  )json";
+    ret = XGBSetGlobalConfig(config_str);
+    ASSERT_EQ(ret, 0);
+    const char *updated_config_cstr;
+    ret = XGBGetGlobalConfig(&updated_config_cstr);
+    ASSERT_EQ(ret, 0);
+
+    std::string updated_config_str{updated_config_cstr};
+    auto updated_config =
+        Json::Load({updated_config_str.data(), updated_config_str.size()});
+    ASSERT_EQ(get<Boolean>(updated_config["use_rmm"]), true);
   }
   {
     const char *config_str = R"json(
@@ -258,4 +279,36 @@ TEST(CAPI, XGBGlobalConfig) {
   }
 }
 
+TEST(CAPI, GlobalVariables) {
+  size_t n_threads = omp_get_max_threads();
+  size_t constexpr kRows = 10;
+  bst_feature_t constexpr kCols = 2;
+
+  DMatrixHandle handle;
+  std::vector<float> data(kCols * kRows, 1.5);
+
+
+  ASSERT_EQ(XGDMatrixCreateFromMat_omp(data.data(), kRows, kCols,
+                                       std::numeric_limits<float>::quiet_NaN(),
+                                       &handle, 0),
+            0);
+  std::vector<float> labels(kRows, 2.0f);
+  ASSERT_EQ(XGDMatrixSetFloatInfo(handle, "label", labels.data(), labels.size()), 0);
+
+  DMatrixHandle m_handles[1];
+  m_handles[0] = handle;
+
+  BoosterHandle booster;
+  ASSERT_EQ(XGBoosterCreate(m_handles, 1, &booster), 0);
+  ASSERT_EQ(XGBoosterSetParam(booster, "nthread", "16"), 0);
+
+  omp_set_num_threads(1);
+  ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, handle), 0);
+  ASSERT_EQ(omp_get_max_threads(), 1);
+
+  omp_set_num_threads(n_threads);
+
+  XGDMatrixFree(handle);
+  XGBoosterFree(booster);
+}
 }  // namespace xgboost

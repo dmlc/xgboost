@@ -122,7 +122,7 @@ TEST(SpanDeathTest, FromPtrLen) {
   InitializeRange(arr, arr+16);
   {
     auto lazy = [=]() {Span<float const, 16> tmp (arr, 5);};
-    EXPECT_DEATH(lazy(), "\\[xgboost\\] Condition .* failed.\n");
+    EXPECT_DEATH(lazy(), "");
   }
 }
 
@@ -296,11 +296,11 @@ TEST(SpanDeathTest, ElementAccess) {
   InitializeRange(arr, arr + 16);
 
   Span<float> s (arr);
-  EXPECT_DEATH(s[16], "\\[xgboost\\] Condition .* failed.\n");
-  EXPECT_DEATH(s[-1], "\\[xgboost\\] Condition .* failed.\n");
+  EXPECT_DEATH(s[16], "");
+  EXPECT_DEATH(s[-1], "");
 
-  EXPECT_DEATH(s(16), "\\[xgboost\\] Condition .* failed.\n");
-  EXPECT_DEATH(s(-1), "\\[xgboost\\] Condition .* failed.\n");
+  EXPECT_DEATH(s(16), "");
+  EXPECT_DEATH(s(-1), "");
 }
 
 TEST(Span, Obversers) {
@@ -327,13 +327,13 @@ TEST(Span, FrontBack) {
 TEST(SpanDeathTest, FrontBack) {
   {
     Span<float, 0> s;
-    EXPECT_DEATH(s.front(), "\\[xgboost\\] Condition .* failed.\n");
-    EXPECT_DEATH(s.back(), "\\[xgboost\\] Condition .* failed.\n");
+    EXPECT_DEATH(s.front(), "");
+    EXPECT_DEATH(s.back(), "");
   }
   {
     Span<float> s;
-    EXPECT_DEATH(s.front(), "\\[xgboost\\] Condition .* failed.\n");
-    EXPECT_DEATH(s.back(), "\\[xgboost\\] Condition .* failed.\n");
+    EXPECT_DEATH(s.front(), "");
+    EXPECT_DEATH(s.back(), "");
   }
 }
 
@@ -411,9 +411,9 @@ TEST(SpanDeathTest, FirstLast) {
 
     Span<float> s (arr);
     auto constexpr kOne = static_cast<Span<float, 4>::index_type>(-1);
-    EXPECT_DEATH(s.first<kOne>(), "\\[xgboost\\] Condition .* failed.\n");
-    EXPECT_DEATH(s.first<17>(), "\\[xgboost\\] Condition .* failed.\n");
-    EXPECT_DEATH(s.first<32>(), "\\[xgboost\\] Condition .* failed.\n");
+    EXPECT_DEATH(s.first<kOne>(), "");
+    EXPECT_DEATH(s.first<17>(), "");
+    EXPECT_DEATH(s.first<32>(), "");
   }
 
   {
@@ -422,9 +422,9 @@ TEST(SpanDeathTest, FirstLast) {
 
     Span<float> s (arr);
     auto constexpr kOne = static_cast<Span<float, 4>::index_type>(-1);
-    EXPECT_DEATH(s.last<kOne>(), "\\[xgboost\\] Condition .* failed.\n");
-    EXPECT_DEATH(s.last<17>(), "\\[xgboost\\] Condition .* failed.\n");
-    EXPECT_DEATH(s.last<32>(), "\\[xgboost\\] Condition .* failed.\n");
+    EXPECT_DEATH(s.last<kOne>(), "");
+    EXPECT_DEATH(s.last<17>(), "");
+    EXPECT_DEATH(s.last<32>(), "");
   }
 
   // dynamic extent
@@ -432,9 +432,9 @@ TEST(SpanDeathTest, FirstLast) {
     float *arr = new float[16];
     InitializeRange(arr, arr + 16);
     Span<float> s (arr, 16);
-    EXPECT_DEATH(s.first(-1), "\\[xgboost\\] Condition .* failed.\n");
-    EXPECT_DEATH(s.first(17), "\\[xgboost\\] Condition .* failed.\n");
-    EXPECT_DEATH(s.first(32), "\\[xgboost\\] Condition .* failed.\n");
+    EXPECT_DEATH(s.first(-1), "");
+    EXPECT_DEATH(s.first(17), "");
+    EXPECT_DEATH(s.first(32), "");
 
     delete [] arr;
   }
@@ -443,9 +443,9 @@ TEST(SpanDeathTest, FirstLast) {
     float *arr = new float[16];
     InitializeRange(arr, arr + 16);
     Span<float> s (arr, 16);
-    EXPECT_DEATH(s.last(-1), "\\[xgboost\\] Condition .* failed.\n");
-    EXPECT_DEATH(s.last(17), "\\[xgboost\\] Condition .* failed.\n");
-    EXPECT_DEATH(s.last(32), "\\[xgboost\\] Condition .* failed.\n");
+    EXPECT_DEATH(s.last(-1), "");
+    EXPECT_DEATH(s.last(17), "");
+    EXPECT_DEATH(s.last(32), "");
 
     delete [] arr;
   }
@@ -469,12 +469,12 @@ TEST(Span, Subspan) {
 TEST(SpanDeathTest, Subspan) {
   int arr[16] {0};
   Span<int> s1 (arr);
-  EXPECT_DEATH(s1.subspan(-1, 0), "\\[xgboost\\] Condition .* failed.\n");
-  EXPECT_DEATH(s1.subspan(17, 0), "\\[xgboost\\] Condition .* failed.\n");
+  EXPECT_DEATH(s1.subspan(-1, 0), "");
+  EXPECT_DEATH(s1.subspan(17, 0), "");
 
   auto constexpr kOne = static_cast<Span<int, 4>::index_type>(-1);
-  EXPECT_DEATH(s1.subspan<kOne>(), "\\[xgboost\\] Condition .* failed.\n");
-  EXPECT_DEATH(s1.subspan<17>(),   "\\[xgboost\\] Condition .* failed.\n");
+  EXPECT_DEATH(s1.subspan<kOne>(), "");
+  EXPECT_DEATH(s1.subspan<17>(), "");
 }
 
 TEST(Span, Compare) {
@@ -523,7 +523,7 @@ TEST(SpanDeathTest, Empty) {
   std::vector<float> data(1, 0);
   ASSERT_TRUE(data.data());
   Span<float> s{data.data(), Span<float>::index_type(0)};  // ok to define 0 size span.
-  EXPECT_DEATH(s[0], "\\[xgboost\\] Condition .* failed.\n");  // not ok to use it.
+  EXPECT_DEATH(s[0], "");  // not ok to use it.
 }
 
 }  // namespace common

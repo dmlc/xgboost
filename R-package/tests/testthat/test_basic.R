@@ -66,7 +66,7 @@ test_that("parameter validation works", {
       xgb.train(params = params, data = dtrain, nrounds = nrounds))
     print(output)
   }
-  expect_output(incorrect(), "bar, foo")
+  expect_output(incorrect(), '\\\\"bar\\\\", \\\\"foo\\\\"')
 })
 
 
@@ -331,7 +331,7 @@ test_that("train and predict with non-strict classes", {
   expect_error(pr <- predict(bst, train_dense), regexp = NA)
   expect_equal(pr0, pr)
 
-  # when someone inhertis from xgb.Booster, it should still be possible to use it as xgb.Booster
+  # when someone inherits from xgb.Booster, it should still be possible to use it as xgb.Booster
   class(bst) <- c('super.Booster', 'xgb.Booster')
   expect_error(pr <- predict(bst, train_dense), regexp = NA)
   expect_equal(pr0, pr)
@@ -346,7 +346,7 @@ test_that("max_delta_step works", {
   bst1 <- xgb.train(param, dtrain, nrounds, watchlist, verbose = 1)
   # model with restricted max_delta_step
   bst2 <- xgb.train(param, dtrain, nrounds, watchlist, verbose = 1, max_delta_step = 1)
-  # the no-restriction model is expected to have consistently lower loss during the initial interations
+  # the no-restriction model is expected to have consistently lower loss during the initial iterations
   expect_true(all(bst1$evaluation_log$train_logloss < bst2$evaluation_log$train_logloss))
   expect_lt(mean(bst1$evaluation_log$train_logloss) / mean(bst2$evaluation_log$train_logloss), 0.8)
 })

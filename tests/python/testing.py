@@ -1,5 +1,7 @@
 # coding: utf-8
 import os
+import urllib
+import zipfile
 import sys
 from contextlib import contextmanager
 from io import StringIO
@@ -209,6 +211,29 @@ def get_sparse():
     return X, y
 
 
+@memory.cache
+def get_mq2008(dpath):
+    from sklearn.datasets import load_svmlight_files
+
+    src = 'https://s3-us-west-2.amazonaws.com/xgboost-examples/MQ2008.zip'
+    target = dpath + '/MQ2008.zip'
+    if not os.path.exists(target):
+        urllib.request.urlretrieve(url=src, filename=target)
+
+    with zipfile.ZipFile(target, 'r') as f:
+        f.extractall(path=dpath)
+
+    (x_train, y_train, qid_train, x_test, y_test, qid_test,
+     x_valid, y_valid, qid_valid) = load_svmlight_files(
+         (dpath + "MQ2008/Fold1/train.txt",
+          dpath + "MQ2008/Fold1/test.txt",
+          dpath + "MQ2008/Fold1/vali.txt"),
+         query_id=True, zero_based=False)
+
+    return (x_train, y_train, qid_train, x_test, y_test, qid_test,
+            x_valid, y_valid, qid_valid)
+
+
 _unweighted_datasets_strategy = strategies.sampled_from(
     [TestDataset('boston', get_boston, 'reg:squarederror', 'rmse'),
      TestDataset('digits', get_digits, 'multi:softmax', 'mlogloss'),
@@ -247,10 +272,40 @@ def eval_error_metric(predt, dtrain: xgb.DMatrix):
     label = dtrain.get_label()
     r = np.zeros(predt.shape)
     gt = predt > 0.5
+    if predt.size == 0:
+        return "CustomErr", 0
     r[gt] = 1 - label[gt]
     le = predt <= 0.5
     r[le] = label[le]
     return 'CustomErr', np.sum(r)
+
+
+def softmax(x):
+    e = np.exp(x)
+    return e / np.sum(e)
+
+
+def softprob_obj(classes):
+    def objective(labels, predt):
+        rows = labels.shape[0]
+        grad = np.zeros((rows, classes), dtype=float)
+        hess = np.zeros((rows, classes), dtype=float)
+        eps = 1e-6
+        for r in range(predt.shape[0]):
+            target = labels[r]
+            p = softmax(predt[r, :])
+            for c in range(predt.shape[1]):
+                assert target >= 0 or target <= classes
+                g = p[c] - 1.0 if c == target else p[c]
+                h = max((2.0 * p[c] * (1.0 - p[c])).item(), eps)
+                grad[r, c] = g
+                hess[r, c] = h
+
+        grad = grad.reshape((rows * classes, 1))
+        hess = hess.reshape((rows * classes, 1))
+        return grad, hess
+
+    return objective
 
 
 class DirectoryExcursion:

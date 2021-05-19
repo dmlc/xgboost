@@ -1,5 +1,5 @@
 /*!
- * Copyright by Contributors 2017-2020
+ * Copyright by Contributors 2017-2021
  */
 #include <dmlc/omp.h>
 #include <dmlc/any.h>
@@ -18,6 +18,7 @@
 
 #include "../data/adapter.h"
 #include "../common/math.h"
+#include "../common/threading_utils.h"
 #include "../gbm/gbtree_model.h"
 
 namespace xgboost {
@@ -65,10 +66,13 @@ inline void PredictByAllTrees(gbm::GBTreeModel const &model, const size_t tree_b
 }
 
 template <typename DataView>
-void FVecFill(const size_t block_size, const size_t batch_offset, DataView* batch,
-              const size_t fvec_offset, std::vector<RegTree::FVec>* p_feats) {
+void FVecFill(const size_t block_size, const size_t batch_offset, const int num_feature,
+              DataView* batch, const size_t fvec_offset, std::vector<RegTree::FVec>* p_feats) {
   for (size_t i = 0; i < block_size; ++i) {
     RegTree::FVec &feats = (*p_feats)[fvec_offset + i];
+    if (feats.Size() == 0) {
+      feats.Init(num_feature);
+    }
     const SparsePage::Inst inst = (*batch)[batch_offset + i];
     feats.Fill(inst);
   }
@@ -152,20 +156,19 @@ void PredictBatchByBlockOfRowsKernel(DataView batch, std::vector<bst_float> *out
       << "size_leaf_vector is enforced to 0 so far";
   // parallel over local batch
   const auto nsize = static_cast<bst_omp_uint>(batch.Size());
-
+  const int num_feature = model.learner_model_param->num_feature;
   const bst_omp_uint n_row_blocks = (nsize) / block_of_rows_size + !!((nsize) % block_of_rows_size);
-#pragma omp parallel for schedule(static)
-  for (bst_omp_uint block_id = 0; block_id < n_row_blocks; ++block_id) {
+  common::ParallelFor(n_row_blocks, [&](bst_omp_uint block_id) {
     const size_t batch_offset = block_id * block_of_rows_size;
     const size_t block_size = std::min(nsize - batch_offset, block_of_rows_size);
     const size_t fvec_offset = omp_get_thread_num() * block_of_rows_size;
 
-    FVecFill(block_size, batch_offset, &batch, fvec_offset, p_thread_temp);
+    FVecFill(block_size, batch_offset, num_feature, &batch, fvec_offset, p_thread_temp);
     // process block of rows through all trees to keep cache locality
     PredictByAllTrees(model, tree_begin, tree_end, out_preds, batch_offset + batch.base_rowid,
                       num_group, thread_temp, fvec_offset, block_size);
     FVecDrop(block_size, batch_offset, &batch, fvec_offset, p_thread_temp);
-  }
+  });
 }
 
 class CPUPredictor : public Predictor {
@@ -175,19 +178,16 @@ class CPUPredictor : public Predictor {
     int prev_thread_temp_size = out->size();
     if (prev_thread_temp_size < nthread) {
       out->resize(nthread, RegTree::FVec());
-      for (int i = prev_thread_temp_size; i < nthread; ++i) {
-        (*out)[i].Init(num_feature);
-      }
     }
   }
 
   void PredictDMatrix(DMatrix *p_fmat, std::vector<bst_float> *out_preds,
                       gbm::GBTreeModel const &model, int32_t tree_begin,
-                      int32_t tree_end) {
-    std::lock_guard<std::mutex> guard(lock_);
+                      int32_t tree_end) const {
     const int threads = omp_get_max_threads();
-    InitThreadTemp(threads*kBlockOfRowsSize, model.learner_model_param->num_feature,
-                   &this->thread_temp_);
+    std::vector<RegTree::FVec> feat_vecs;
+    InitThreadTemp(threads * kBlockOfRowsSize,
+                   model.learner_model_param->num_feature, &feat_vecs);
     for (auto const& batch : p_fmat->GetBatches<SparsePage>()) {
       CHECK_EQ(out_preds->size(),
                p_fmat->Info().num_row_ * model.learner_model_param->num_output_group);
@@ -195,13 +195,13 @@ class CPUPredictor : public Predictor {
       PredictBatchByBlockOfRowsKernel<SparsePageView<kUnroll>,
                           kBlockOfRowsSize>(SparsePageView<kUnroll>{&batch},
                                               out_preds, model, tree_begin,
-                                              tree_end, &thread_temp_);
+                                              tree_end, &feat_vecs);
     }
   }
 
   void InitOutPredictions(const MetaInfo& info,
                           HostDeviceVector<bst_float>* out_preds,
-                          const gbm::GBTreeModel& model) const {
+                          const gbm::GBTreeModel& model) const override {
     CHECK_NE(model.learner_model_param->num_output_group, 0);
     size_t n = model.learner_model_param->num_output_group * info.num_row_;
     const auto& base_margin = info.base_margin_.HostVector();
@@ -234,60 +234,22 @@ class CPUPredictor : public Predictor {
  public:
   explicit CPUPredictor(GenericParameter const* generic_param) :
       Predictor::Predictor{generic_param} {}
-  // ntree_limit is a very problematic parameter, as it's ambiguous in the context of
-  // multi-output and forest.  Same problem exists for tree_begin
-  void PredictBatch(DMatrix* dmat, PredictionCacheEntry* predts,
-                    const gbm::GBTreeModel& model, int tree_begin,
-                    uint32_t const ntree_limit = 0) override {
-    // tree_begin is not used, right now we just enforce it to be 0.
-    CHECK_EQ(tree_begin, 0);
+
+  void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts,
+                    const gbm::GBTreeModel &model, uint32_t tree_begin,
+                    uint32_t tree_end = 0) const override {
     auto* out_preds = &predts->predictions;
-    CHECK_GE(predts->version, tree_begin);
-    if (out_preds->Size() == 0 && dmat->Info().num_row_ != 0) {
-      CHECK_EQ(predts->version, 0);
+    // This is actually already handled in gbm, but large amount of tests rely on the
+    // behaviour.
+    if (tree_end == 0) {
+      tree_end = model.trees.size();
     }
-    if (predts->version == 0) {
-      // out_preds->Size() can be non-zero as it's initialized here before any tree is
-      // built at the 0^th iterator.
-      this->InitOutPredictions(dmat->Info(), out_preds, model);
-    }
-
-    uint32_t const output_groups =  model.learner_model_param->num_output_group;
-    CHECK_NE(output_groups, 0);
-    // Right now we just assume ntree_limit provided by users means number of tree layers
-    // in the context of multi-output model
-    uint32_t real_ntree_limit = ntree_limit * output_groups;
-    if (real_ntree_limit == 0 || real_ntree_limit > model.trees.size()) {
-      real_ntree_limit = static_cast<uint32_t>(model.trees.size());
-    }
-
-    uint32_t const end_version = (tree_begin + real_ntree_limit) / output_groups;
-    // When users have provided ntree_limit, end_version can be lesser, cache is violated
-    if (predts->version > end_version) {
-      CHECK_NE(ntree_limit, 0);
-      this->InitOutPredictions(dmat->Info(), out_preds, model);
-      predts->version = 0;
-    }
-    uint32_t const beg_version = predts->version;
-    CHECK_LE(beg_version, end_version);
-
-    if (beg_version < end_version) {
-      this->PredictDMatrix(dmat, &out_preds->HostVector(), model,
-                           beg_version * output_groups,
-                           end_version * output_groups);
-    }
-
-    // delta means {size of forest} * {number of newly accumulated layers}
-    uint32_t delta = end_version - beg_version;
-    CHECK_LE(delta, model.trees.size());
-    predts->Update(delta);
-
-    CHECK(out_preds->Size() == output_groups * dmat->Info().num_row_ ||
-          out_preds->Size() == dmat->Info().num_row_);
+    this->PredictDMatrix(dmat, &out_preds->HostVector(), model, tree_begin,
+                         tree_end);
   }
 
   template <typename Adapter>
-  void DispatchedInplacePredict(dmlc::any const &x,
+  void DispatchedInplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
                                 const gbm::GBTreeModel &model, float missing,
                                 PredictionCacheEntry *out_preds,
                                 uint32_t tree_begin, uint32_t tree_end) const {
@@ -295,42 +257,52 @@ class CPUPredictor : public Predictor {
     auto m = dmlc::get<std::shared_ptr<Adapter>>(x);
     CHECK_EQ(m->NumColumns(), model.learner_model_param->num_feature)
         << "Number of columns in data must equal to trained model.";
-    MetaInfo info;
-    info.num_col_ = m->NumColumns();
-    info.num_row_ = m->NumRows();
-    this->InitOutPredictions(info, &(out_preds->predictions), model);
-    std::vector<Entry> workspace(info.num_col_ * 8 * threads);
+    if (p_m) {
+      p_m->Info().num_row_ = m->NumRows();
+      this->InitOutPredictions(p_m->Info(), &(out_preds->predictions), model);
+    } else {
+      MetaInfo info;
+      info.num_row_ = m->NumRows();
+      this->InitOutPredictions(info, &(out_preds->predictions), model);
+    }
+    std::vector<Entry> workspace(m->NumColumns() * 8 * threads);
     auto &predictions = out_preds->predictions.HostVector();
     std::vector<RegTree::FVec> thread_temp;
-    InitThreadTemp(threads*kBlockOfRowsSize, model.learner_model_param->num_feature,
-                   &thread_temp);
-    PredictBatchByBlockOfRowsKernel<AdapterView<Adapter>,
-                       kBlockOfRowsSize>(AdapterView<Adapter>(
-                                          m.get(), missing, common::Span<Entry>{workspace}),
-                                          &predictions, model, tree_begin, tree_end, &thread_temp);
+    InitThreadTemp(threads * kBlockOfRowsSize,
+                   model.learner_model_param->num_feature, &thread_temp);
+    PredictBatchByBlockOfRowsKernel<AdapterView<Adapter>, kBlockOfRowsSize>(
+        AdapterView<Adapter>(m.get(), missing, common::Span<Entry>{workspace}),
+        &predictions, model, tree_begin, tree_end, &thread_temp);
   }
 
-  void InplacePredict(dmlc::any const &x, const gbm::GBTreeModel &model,
-                      float missing, PredictionCacheEntry *out_preds,
-                      uint32_t tree_begin, unsigned tree_end) const override {
+  bool InplacePredict(dmlc::any const &x, std::shared_ptr<DMatrix> p_m,
+                      const gbm::GBTreeModel &model, float missing,
+                      PredictionCacheEntry *out_preds, uint32_t tree_begin,
+                      unsigned tree_end) const override {
     if (x.type() == typeid(std::shared_ptr<data::DenseAdapter>)) {
       this->DispatchedInplacePredict<data::DenseAdapter>(
-          x, model, missing, out_preds, tree_begin, tree_end);
+          x, p_m, model, missing, out_preds, tree_begin, tree_end);
     } else if (x.type() == typeid(std::shared_ptr<data::CSRAdapter>)) {
       this->DispatchedInplacePredict<data::CSRAdapter>(
-          x, model, missing, out_preds, tree_begin, tree_end);
+          x, p_m, model, missing, out_preds, tree_begin, tree_end);
+    } else if (x.type() == typeid(std::shared_ptr<data::ArrayAdapter>)) {
+      this->DispatchedInplacePredict<data::ArrayAdapter> (
+          x, p_m, model, missing, out_preds, tree_begin, tree_end);
+    } else if (x.type() == typeid(std::shared_ptr<data::CSRArrayAdapter>)) {
+      this->DispatchedInplacePredict<data::CSRArrayAdapter> (
+          x, p_m, model, missing, out_preds, tree_begin, tree_end);
     } else {
-      LOG(FATAL) << "Data type is not supported by CPU Predictor.";
+      return false;
     }
+    return true;
   }
 
   void PredictInstance(const SparsePage::Inst& inst,
                        std::vector<bst_float>* out_preds,
-                       const gbm::GBTreeModel& model, unsigned ntree_limit) override {
-    if (thread_temp_.size() == 0) {
-      thread_temp_.resize(1, RegTree::FVec());
-      thread_temp_[0].Init(model.learner_model_param->num_feature);
-    }
+                       const gbm::GBTreeModel& model, unsigned ntree_limit) const override {
+    std::vector<RegTree::FVec> feat_vecs;
+    feat_vecs.resize(1, RegTree::FVec());
+    feat_vecs[0].Init(model.learner_model_param->num_feature);
     ntree_limit *= model.learner_model_param->num_output_group;
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
@@ -340,18 +312,19 @@ class CPUPredictor : public Predictor {
     // loop over output groups
     for (uint32_t gid = 0; gid < model.learner_model_param->num_output_group; ++gid) {
       (*out_preds)[gid] = PredValue(inst, model.trees, model.tree_info, gid,
-                                    &thread_temp_[0], 0, ntree_limit) +
+                                    &feat_vecs[0], 0, ntree_limit) +
                           model.learner_model_param->base_score;
     }
   }
 
   void PredictLeaf(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_preds,
-                   const gbm::GBTreeModel& model, unsigned ntree_limit) override {
+                   const gbm::GBTreeModel& model, unsigned ntree_limit) const override {
     const int nthread = omp_get_max_threads();
-    InitThreadTemp(nthread, model.learner_model_param->num_feature, &this->thread_temp_);
+    std::vector<RegTree::FVec> feat_vecs;
+    const int num_feature = model.learner_model_param->num_feature;
+    InitThreadTemp(nthread, num_feature, &feat_vecs);
     const MetaInfo& info = p_fmat->Info();
     // number of valid trees
-    ntree_limit *= model.learner_model_param->num_output_group;
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }
@@ -360,19 +333,22 @@ class CPUPredictor : public Predictor {
     // start collecting the prediction
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
       // parallel over local batch
+      auto page = batch.GetView();
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
-#pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
+      common::ParallelFor(nsize, [&](bst_omp_uint i) {
         const int tid = omp_get_thread_num();
         auto ridx = static_cast<size_t>(batch.base_rowid + i);
-        RegTree::FVec &feats = thread_temp_[tid];
-        feats.Fill(batch[i]);
+        RegTree::FVec &feats = feat_vecs[tid];
+        if (feats.Size() == 0) {
+          feats.Init(num_feature);
+        }
+        feats.Fill(page[i]);
         for (unsigned j = 0; j < ntree_limit; ++j) {
           int tid = model.trees[j]->GetLeafIndex(feats);
           preds[ridx * ntree_limit + j] = static_cast<bst_float>(tid);
         }
-        feats.Drop(batch[i]);
-      }
+        feats.Drop(page[i]);
+      });
     }
   }
 
@@ -380,18 +356,19 @@ class CPUPredictor : public Predictor {
                            const gbm::GBTreeModel& model, uint32_t ntree_limit,
                            std::vector<bst_float>* tree_weights,
                            bool approximate, int condition,
-                           unsigned condition_feature) override {
+                           unsigned condition_feature) const override {
     const int nthread = omp_get_max_threads();
-    InitThreadTemp(nthread,  model.learner_model_param->num_feature, &this->thread_temp_);
+    const int num_feature = model.learner_model_param->num_feature;
+    std::vector<RegTree::FVec> feat_vecs;
+    InitThreadTemp(nthread,  num_feature, &feat_vecs);
     const MetaInfo& info = p_fmat->Info();
     // number of valid trees
-    ntree_limit *= model.learner_model_param->num_output_group;
     if (ntree_limit == 0 || ntree_limit > model.trees.size()) {
       ntree_limit = static_cast<unsigned>(model.trees.size());
     }
     const int ngroup = model.learner_model_param->num_output_group;
     CHECK_NE(ngroup, 0);
-    size_t const ncolumns = model.learner_model_param->num_feature + 1;
+    size_t const ncolumns = num_feature + 1;
     CHECK_NE(ncolumns, 0);
     // allocate space for (number of features + bias) times the number of rows
     std::vector<bst_float>& contribs = out_contribs->HostVector();
@@ -400,24 +377,26 @@ class CPUPredictor : public Predictor {
     // allocated one
     std::fill(contribs.begin(), contribs.end(), 0);
     // initialize tree node mean values
-    #pragma omp parallel for schedule(static)
-    for (bst_omp_uint i = 0; i < ntree_limit; ++i) {
+    common::ParallelFor(bst_omp_uint(ntree_limit), [&](bst_omp_uint i) {
       model.trees[i]->FillNodeMeanValues();
-    }
+    });
     const std::vector<bst_float>& base_margin = info.base_margin_.HostVector();
     // start collecting the contributions
     for (const auto &batch : p_fmat->GetBatches<SparsePage>()) {
+      auto page = batch.GetView();
       // parallel over local batch
       const auto nsize = static_cast<bst_omp_uint>(batch.Size());
-#pragma omp parallel for schedule(static)
-      for (bst_omp_uint i = 0; i < nsize; ++i) {
+      common::ParallelFor(nsize, [&](bst_omp_uint i) {
         auto row_idx = static_cast<size_t>(batch.base_rowid + i);
-        RegTree::FVec &feats = thread_temp_[omp_get_thread_num()];
+        RegTree::FVec &feats = feat_vecs[omp_get_thread_num()];
+        if (feats.Size() == 0) {
+          feats.Init(num_feature);
+        }
         std::vector<bst_float> this_tree_contribs(ncolumns);
         // loop over all classes
         for (int gid = 0; gid < ngroup; ++gid) {
           bst_float* p_contribs = &contribs[(row_idx * ngroup + gid) * ncolumns];
-          feats.Fill(batch[i]);
+          feats.Fill(page[i]);
           // calculate contributions
           for (unsigned j = 0; j < ntree_limit; ++j) {
             std::fill(this_tree_contribs.begin(), this_tree_contribs.end(), 0);
@@ -435,7 +414,7 @@ class CPUPredictor : public Predictor {
                     (tree_weights == nullptr ? 1 : (*tree_weights)[j]);
             }
           }
-          feats.Drop(batch[i]);
+          feats.Drop(page[i]);
           // add base margin to BIAS
           if (base_margin.size() != 0) {
             p_contribs[ncolumns - 1] += base_margin[row_idx * ngroup + gid];
@@ -443,14 +422,14 @@ class CPUPredictor : public Predictor {
             p_contribs[ncolumns - 1] += model.learner_model_param->base_score;
           }
         }
-      }
+      });
     }
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
                                        const gbm::GBTreeModel& model, unsigned ntree_limit,
                                        std::vector<bst_float>* tree_weights,
-                                       bool approximate) override {
+                                       bool approximate) const override {
     const MetaInfo& info = p_fmat->Info();
     const int ngroup = model.learner_model_param->num_output_group;
     size_t const ncolumns = model.learner_model_param->num_feature;
@@ -499,8 +478,6 @@ class CPUPredictor : public Predictor {
   }
 
  private:
-  std::mutex lock_;
-  std::vector<RegTree::FVec> thread_temp_;
   static size_t constexpr kBlockOfRowsSize = 64;
 };
 

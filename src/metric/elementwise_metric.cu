@@ -47,12 +47,16 @@ class ElementWiseMetricsReduction {
     bst_float residue_sum = 0;
     bst_float weights_sum = 0;
 
+    dmlc::OMPException exc;
 #pragma omp parallel for reduction(+: residue_sum, weights_sum) schedule(static)
     for (omp_ulong i = 0; i < ndata; ++i) {
-      const bst_float wt = h_weights.size() > 0 ? h_weights[i] : 1.0f;
-      residue_sum += policy_.EvalRow(h_labels[i], h_preds[i]) * wt;
-      weights_sum += wt;
+      exc.Run([&]() {
+        const bst_float wt = h_weights.size() > 0 ? h_weights[i] : 1.0f;
+        residue_sum += policy_.EvalRow(h_labels[i], h_preds[i]) * wt;
+        weights_sum += wt;
+      });
     }
+    exc.Rethrow();
     PackedReduceResult res { residue_sum, weights_sum };
     return res;
   }
@@ -270,18 +274,27 @@ struct EvalPoissonNegLogLik {
   }
 };
 
+/**
+ * Gamma deviance
+ *
+ *   Expected input:
+ *   label >= 0
+ *   predt >= 0
+ */
 struct EvalGammaDeviance {
-  const char *Name() const {
-    return "gamma-deviance";
+  const char *Name() const { return "gamma-deviance"; }
+
+  XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float predt) const {
+    predt += kRtEps;
+    label += kRtEps;
+    return std::log(predt / label) + label / predt - 1;
   }
 
-  XGBOOST_DEVICE bst_float EvalRow(bst_float label, bst_float pred) const {
-    bst_float epsilon = 1.0e-9;
-    bst_float tmp = label / (pred + epsilon);
-    return tmp - std::log(tmp) - 1;
-  }
   static bst_float GetFinal(bst_float esum, bst_float wsum) {
-    return 2 * esum;
+    if (wsum <= 0) {
+      wsum = kRtEps;
+    }
+    return 2 * esum / wsum;
   }
 };
 
@@ -291,13 +304,17 @@ struct EvalGammaNLogLik {
   }
 
   XGBOOST_DEVICE bst_float EvalRow(bst_float y, bst_float py) const {
-    const bst_float eps = 1e-16f;
-    if (y < eps) y = eps;
-    bst_float psi = 1.0;
+    py = std::max(py, 1e-6f);
+    // hardcoded dispersion.
+    float constexpr kPsi = 1.0;
     bst_float theta = -1. / py;
-    bst_float a = psi;
-    bst_float b = -std::log(-theta);
-    bst_float c = 1. / psi * std::log(y/psi) - std::log(y) - common::LogGamma(1. / psi);
+    bst_float a = kPsi;
+    // b = -std::log(-theta);
+    float b = 1.0f;
+    // c = 1. / kPsi * std::log(y/kPsi) - std::log(y) - common::LogGamma(1. / kPsi);
+    //   = 1.0f      * std::log(y)      - std::log(y) - 0 = 0
+    float c = 0;
+    // general form for exponential family.
     return -((y * theta - b) / a + c);
   }
   static bst_float GetFinal(bst_float esum, bst_float wsum) {

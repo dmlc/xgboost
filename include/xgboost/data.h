@@ -252,15 +252,6 @@ class SparsePage {
   /*! \brief an instance of sparse vector in the batch */
   using Inst = common::Span<Entry const>;
 
-  /*! \brief get i-th row from the batch */
-  inline Inst operator[](size_t i) const {
-    const auto& data_vec = data.HostVector();
-    const auto& offset_vec = offset.HostVector();
-    size_t size = offset_vec[i + 1] - offset_vec[i];
-    return {data_vec.data() + offset_vec[i],
-            static_cast<Inst::index_type>(size)};
-  }
-
   HostSparsePageView GetView() const {
     return {offset.ConstHostSpan(), data.ConstHostSpan()};
   }
@@ -299,15 +290,19 @@ class SparsePage {
 
   void SortRows() {
     auto ncol = static_cast<bst_omp_uint>(this->Size());
-#pragma omp parallel for default(none) shared(ncol) schedule(dynamic, 1)
+    dmlc::OMPException exc;
+#pragma omp parallel for schedule(dynamic, 1)
     for (bst_omp_uint i = 0; i < ncol; ++i) {
-      if (this->offset.HostVector()[i] < this->offset.HostVector()[i + 1]) {
-        std::sort(
-            this->data.HostVector().begin() + this->offset.HostVector()[i],
-            this->data.HostVector().begin() + this->offset.HostVector()[i + 1],
-            Entry::CmpValue);
-      }
+      exc.Run([&]() {
+        if (this->offset.HostVector()[i] < this->offset.HostVector()[i + 1]) {
+          std::sort(
+              this->data.HostVector().begin() + this->offset.HostVector()[i],
+              this->data.HostVector().begin() + this->offset.HostVector()[i + 1],
+              Entry::CmpValue);
+        }
+      });
     }
+    exc.Rethrow();
   }
 
   /**

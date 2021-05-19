@@ -1,7 +1,6 @@
 context('Test prediction of feature interactions')
 
 require(xgboost)
-require(magrittr)
 
 set.seed(123)
 
@@ -32,7 +31,7 @@ test_that("predict feature interactions works", {
   cont <- predict(b, dm, predcontrib = TRUE)
   expect_equal(dim(cont), c(N, P + 1))
   # make sure for each row they add up to marginal predictions
-  max(abs(rowSums(cont) - pred)) %>% expect_lt(0.001)
+  expect_lt(max(abs(rowSums(cont) - pred)), 0.001)
   # Hand-construct the 'ground truth' feature contributions:
   gt_cont <- cbind(
       2. * X[, 1],
@@ -52,21 +51,24 @@ test_that("predict feature interactions works", {
   expect_equal(dimnames(intr), list(NULL, cn, cn))
 
   # check the symmetry
-  max(abs(aperm(intr, c(1, 3, 2)) - intr)) %>% expect_lt(0.00001)
+  expect_lt(max(abs(aperm(intr, c(1, 3, 2)) - intr)), 0.00001)
 
   # sums WRT columns must be close to feature contributions
-  max(abs(apply(intr, c(1, 2), sum) - cont)) %>% expect_lt(0.00001)
+  expect_lt(max(abs(apply(intr, c(1, 2), sum) - cont)), 0.00001)
 
   # diagonal terms for features 3,4,5 must be close to zero
-  Reduce(max, sapply(3:P, function(i) max(abs(intr[, i, i])))) %>% expect_lt(0.05)
+  expect_lt(Reduce(max, sapply(3:P, function(i) max(abs(intr[, i, i])))), 0.05)
 
   # BIAS must have no interactions
-  max(abs(intr[, 1:P, P + 1])) %>% expect_lt(0.00001)
+  expect_lt(max(abs(intr[, 1:P, P + 1])), 0.00001)
 
   # interactions other than 2 x 3 must be close to zero
   intr23 <- intr
   intr23[, 2, 3] <- 0
-  Reduce(max, sapply(1:P, function(i) max(abs(intr23[, i, (i + 1):(P + 1)])))) %>% expect_lt(0.05)
+  expect_lt(
+    Reduce(max, sapply(1:P, function(i) max(abs(intr23[, i, (i + 1):(P + 1)])))),
+    0.05
+  )
 
   # Construct the 'ground truth' contributions of interactions directly from the linear terms:
   gt_intr <- array(0, c(N, P + 1, P + 1))
@@ -119,23 +121,39 @@ test_that("multiclass feature interactions work", {
   dm <- xgb.DMatrix(as.matrix(iris[, -5]), label = as.numeric(iris$Species) - 1)
   param <- list(eta = 0.1, max_depth = 4, objective = 'multi:softprob', num_class = 3)
   b <- xgb.train(param, dm, 40)
-  pred <- predict(b, dm, outputmargin = TRUE) %>% array(c(3, 150)) %>% t
+  pred <- t(
+    array(
+      data = predict(b, dm, outputmargin = TRUE),
+      dim = c(3, 150)
+    )
+  )
 
   # SHAP contributions:
   cont <- predict(b, dm, predcontrib = TRUE)
   expect_length(cont, 3)
   # rewrap them as a 3d array
-  cont <- unlist(cont) %>% array(c(150, 5, 3))
+  cont <- array(
+    data = unlist(cont),
+    dim = c(150, 5,  3)
+  )
+
   # make sure for each row they add up to marginal predictions
-  max(abs(apply(cont, c(1, 3), sum) - pred)) %>% expect_lt(0.001)
+  expect_lt(max(abs(apply(cont, c(1, 3), sum) - pred)), 0.001)
 
   # SHAP interaction contributions:
   intr <- predict(b, dm, predinteraction = TRUE)
   expect_length(intr, 3)
   # rewrap them as a 4d array
-  intr <- unlist(intr) %>% array(c(150, 5, 5, 3)) %>% aperm(c(4, 1, 2, 3)) # [grp, row, col, col]
+  intr <- aperm(
+    a = array(
+      data = unlist(intr),
+      dim = c(150, 5, 5, 3)
+    ),
+    perm = c(4, 1, 2, 3)  # [grp, row, col, col]
+  )
+
   # check the symmetry
-  max(abs(aperm(intr, c(1, 2, 4, 3)) - intr)) %>% expect_lt(0.00001)
+  expect_lt(max(abs(aperm(intr, c(1, 2, 4, 3)) - intr)), 0.00001)
   # sums WRT columns must be close to feature contributions
-  max(abs(apply(intr, c(1, 2, 3), sum) - aperm(cont, c(3, 1, 2)))) %>% expect_lt(0.00001)
+  expect_lt(max(abs(apply(intr, c(1, 2, 3), sum) - aperm(cont, c(3, 1, 2)))), 0.00001)
 })
