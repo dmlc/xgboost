@@ -1510,6 +1510,7 @@ class DaskScikitLearnBase(XGBModel):
         validate_features: bool = True,
         base_margin: Optional[_DaskCollection] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
+        pred_leaf=False, pred_contribs=False, approx_contribs=False,
     ) -> Any:
         _assert_dask_support()
         msg = "`ntree_limit` is not supported on dask, use `iteration_range` instead."
@@ -1521,6 +1522,10 @@ class DaskScikitLearnBase(XGBModel):
             validate_features=validate_features,
             base_margin=base_margin,
             iteration_range=iteration_range,
+            # not supported by dask, should use non-dask for these
+            #pred_leaf=pred_leaf,
+            #pred_contribs=pred_contribs,
+            #approx_contribs=approx_contribs,
         )
 
     async def _apply_async(

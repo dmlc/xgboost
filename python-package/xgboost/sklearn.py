@@ -1240,6 +1240,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         validate_features: bool = True,
         base_margin: Optional[array_like] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
+        pred_leaf=False, pred_contribs=False, approx_contribs=False,
     ) -> np.ndarray:
         class_probs = super().predict(
             X=X,
@@ -1248,6 +1249,9 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
             validate_features=validate_features,
             base_margin=base_margin,
             iteration_range=iteration_range,
+            pred_leaf=pred_leaf,
+            pred_contribs=pred_contribs,
+            approx_contribs=approx_contribs,
         )
         if output_margin:
             # If output_margin is active, simply return the scores
@@ -1272,6 +1276,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         validate_features: bool = False,
         base_margin: Optional[array_like] = None,
         iteration_range: Optional[Tuple[int, int]] = None,
+        output_margin=False,
         pred_leaf=False, pred_contribs=False, approx_contribs=False,
     ) -> np.ndarray:
         """ Predict the probability of each `X` example being of a given class.
@@ -1308,7 +1313,7 @@ class XGBClassifier(XGBModel, XGBClassifierBase):
         # binary:logitraw: Unsupported by predict_proba()
         class_probs = super().predict(
             X=X,
-            output_margin=self.objective == "multi:softmax",
+            output_margin=self.objective == "multi:softmax" or output_margin,
             ntree_limit=ntree_limit,
             validate_features=validate_features,
             base_margin=base_margin,
