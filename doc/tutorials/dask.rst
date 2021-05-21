@@ -65,7 +65,9 @@ on a dask cluster:
         )
 
 Here we first create a cluster in single-node mode with ``dask.distributed.LocalCluster``, then
-connect a ``dask.distributed.Client`` to this cluster, setting up an environment for later computation.
+connect a ``dask.distributed.Client`` to this cluster, setting up an environment for later
+computation.  Notice that the cluster construction is guared by ``__name__ == "__main__"``, which is
+necessary otherwise there might be obscure errors.
 
 We then create a ``DaskDMatrix`` object and pass it to ``train``, along with some other parameters,
 much like XGBoost's normal, non-dask interface. Unlike that interface, ``data`` and ``label`` must
