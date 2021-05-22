@@ -174,13 +174,21 @@ class TestInplacePredict:
         np.testing.assert_allclose(predt_from_dmatrix, predt_from_array)
 
         with pytest.raises(ValueError):
-            booster.predict(test, ntree_limit=10000)
+            booster.predict(test, ntree_limit=booster.best_ntree_limit + 1)
         with pytest.raises(ValueError):
-            booster.predict(test, iteration_range=(0, 10000))
+            booster.predict(test, iteration_range=(0, booster.best_iteration + 2))
 
         default = booster.predict(test)
+
         range_full = booster.predict(test, iteration_range=(0, self.num_boost_round))
         ntree_full = booster.predict(test, ntree_limit=self.num_boost_round)
+        np.testing.assert_allclose(range_full, default)
+        np.testing.assert_allclose(ntree_full, default)
+
+        range_full = booster.predict(
+            test, iteration_range=(0, booster.best_iteration + 1)
+        )
+        ntree_full = booster.predict(test, ntree_limit=booster.best_ntree_limit)
         np.testing.assert_allclose(range_full, default)
         np.testing.assert_allclose(ntree_full, default)
 
