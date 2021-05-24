@@ -139,7 +139,7 @@ jobs:
 
     - name: Build XGBoost with msvc
       shell: bash -l {0}
-      if: matrix.config.compiler == "msvc"
+      if: matrix.config.compiler == 'msvc'
       run: |
         mkdir build_msvc
         cd build_msvc
