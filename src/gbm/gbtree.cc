@@ -58,10 +58,12 @@
  *   - `tree_method` parameter. `gpu_hist` or not.
  *   - `predictor` parameter: `gpu_predictor` or not.
  *   - data: Whether data is already on device (like cupy, cuDF).
- *   - environment: Does the environment have GPU at all?   This might happen
- *                  after users loading a pickled model on CPU only machine.
+ *   - environment: Does the environment have GPU at all?  This might happen after users
+ *                  loading a pickled model on CPU only machine.
  *   - model: User might continue training on an existing model, in which case we don't
  *            want to pull the data into GPU for initial prediction.
+ *   - custom objective: The gradient returned is on CPU while XGBoost might be running on
+ *                       GPU.
  *
  * As you might have notice those inputs are correlated.  XGBoost sorts them into
  * following relationship, please note that the ordering matters:
@@ -70,9 +72,9 @@
  *  2. `gpu_id` *constraints* tree method and predictor.
  *  3. data and model can *temporarily choose* `predictor`, overriding above conditions.
  *
- * This is high level view, this is what we have in practice:
+ * This is high level view.  What we have in practice are:
  *
- *  1. During call `configure` to, gbm returns `UseGPU` by looking at tree method and
+ *  1. During call to `configure`, gbm returns `UseGPU` by looking at tree method and
  *     predictor, then learner sets the `gpu_id` accordingly.  This is the "decides" part.
  *     After this step, the `gpu_id` should be in a valid state and we can ignore the
  *     existance of `gpu_hist` and `gpu_predictor` during decision making (but will still
