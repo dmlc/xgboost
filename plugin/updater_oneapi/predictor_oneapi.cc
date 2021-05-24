@@ -416,16 +416,18 @@ class PredictorOneAPI : public Predictor {
   void PredictContribution(DMatrix* p_fmat, std::vector<bst_float>* out_contribs,
                            const gbm::GBTreeModel& model, uint32_t ntree_limit,
                            std::vector<bst_float>* tree_weights,
-                           bool approximate, int condition,
-                           unsigned condition_feature) override {
-    cpu_predictor->PredictContribution(p_fmat, out_contribs, model, ntree_limit, tree_weights, approximate, condition, condition_feature);
+                           bool approximate, int *group_indices, int num_feat_group,
+                           int condition, unsigned condition_feature) override {
+    cpu_predictor->PredictContribution(p_fmat, out_contribs, model, ntree_limit, tree_weights, approximate,
+                                       group_indices, num_feat_group, condition, condition_feature);
   }
 
   void PredictInteractionContributions(DMatrix* p_fmat, std::vector<bst_float>* out_contribs,
                                        const gbm::GBTreeModel& model, unsigned ntree_limit,
                                        std::vector<bst_float>* tree_weights,
-                                       bool approximate) override {
-    cpu_predictor->PredictInteractionContributions(p_fmat, out_contribs, model, ntree_limit, tree_weights, approximate);
+                                       bool approximate, int *group_indices, int num_feat_group) override {
+    cpu_predictor->PredictInteractionContributions(p_fmat, out_contribs, model, ntree_limit, tree_weights,
+                                                   approximate, group_indices, num_feat_group);
   }
 
  private:

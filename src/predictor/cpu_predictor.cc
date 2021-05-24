@@ -355,8 +355,8 @@ class CPUPredictor : public Predictor {
   void PredictContribution(DMatrix* p_fmat, HostDeviceVector<float>* out_contribs,
                            const gbm::GBTreeModel& model, uint32_t ntree_limit,
                            std::vector<bst_float>* tree_weights,
-                           bool approximate, int condition,
-                           unsigned condition_feature) const override {
+                           bool approximate, int *group_indices, int num_feat_group,
+                           int condition, unsigned condition_feature) const override {
     const int nthread = omp_get_max_threads();
     const int num_feature = model.learner_model_param->num_feature;
     std::vector<RegTree::FVec> feat_vecs;
@@ -368,7 +368,7 @@ class CPUPredictor : public Predictor {
     }
     const int ngroup = model.learner_model_param->num_output_group;
     CHECK_NE(ngroup, 0);
-    size_t const ncolumns = num_feature + 1;
+    size_t const ncolumns = ((group_indices == nullptr) ? num_feature : num_feat_group) + 1;
     CHECK_NE(ncolumns, 0);
     // allocate space for (number of features + bias) times the number of rows
     std::vector<bst_float>& contribs = out_contribs->HostVector();
@@ -405,6 +405,7 @@ class CPUPredictor : public Predictor {
             }
             if (!approximate) {
               model.trees[j]->CalculateContributions(feats, &this_tree_contribs[0],
+                                                     group_indices, num_feat_group,
                                                      condition, condition_feature);
             } else {
               model.trees[j]->CalculateContributionsApprox(feats, &this_tree_contribs[0]);
@@ -428,11 +429,12 @@ class CPUPredictor : public Predictor {
 
   void PredictInteractionContributions(DMatrix* p_fmat, HostDeviceVector<bst_float>* out_contribs,
                                        const gbm::GBTreeModel& model, unsigned ntree_limit,
-                                       std::vector<bst_float>* tree_weights,
-                                       bool approximate) const override {
+                                       std::vector<bst_float>* tree_weights, bool approximate,
+                                       int *group_indices, int num_feat_group) const override {
     const MetaInfo& info = p_fmat->Info();
     const int ngroup = model.learner_model_param->num_output_group;
-    size_t const ncolumns = model.learner_model_param->num_feature;
+    size_t const ncolumns = (group_indices == nullptr) ?
+                        model.learner_model_param->num_feature : num_feat_group;
     const unsigned row_chunk = ngroup * (ncolumns + 1) * (ncolumns + 1);
     const unsigned mrow_chunk = (ncolumns + 1) * (ncolumns + 1);
     const unsigned crow_chunk = ngroup * (ncolumns + 1);
@@ -451,12 +453,12 @@ class CPUPredictor : public Predictor {
     // see: Axiomatic characterizations of probabilistic and
     //      cardinal-probabilistic interaction indices
     PredictContribution(p_fmat, &contribs_diag_hdv, model, ntree_limit,
-                        tree_weights, approximate, 0, 0);
+                        tree_weights, approximate, group_indices, num_feat_group, 0, 0);
     for (size_t i = 0; i < ncolumns + 1; ++i) {
       PredictContribution(p_fmat, &contribs_off_hdv, model, ntree_limit,
-                          tree_weights, approximate, -1, i);
+                          tree_weights, approximate, group_indices, num_feat_group, -1, i);
       PredictContribution(p_fmat, &contribs_on_hdv, model, ntree_limit,
-                          tree_weights, approximate, 1, i);
+                          tree_weights, approximate, group_indices, num_feat_group, 1, i);
 
       for (size_t j = 0; j < info.num_row_; ++j) {
         for (int l = 0; l < ngroup; ++l) {

@@ -15,6 +15,7 @@
 #include <cmath>
 #include <iomanip>
 #include <stack>
+#include <functional>
 
 #include "param.h"
 #include "../common/common.h"
@@ -1156,7 +1157,8 @@ void RegTree::TreeShap(const RegTree::FVec &feat, bst_float *phi,
                        bst_float parent_zero_fraction,
                        bst_float parent_one_fraction, int parent_feature_index,
                        int condition, unsigned condition_feature,
-                       bst_float condition_fraction) const {
+                       bst_float condition_fraction,
+                       const std::function<unsigned(unsigned)>& group_index_f) const {
   const auto node = (*this)[node_index];
 
   // stop if we have no weight coming down to us
@@ -1171,6 +1173,7 @@ void RegTree::TreeShap(const RegTree::FVec &feat, bst_float *phi,
                parent_one_fraction, parent_feature_index);
   }
   const unsigned split_index = node.SplitIndex();
+  const unsigned group_index = group_index_f(split_index);
 
   // leaf node
   if (node.IsLeaf()) {
@@ -1204,7 +1207,7 @@ void RegTree::TreeShap(const RegTree::FVec &feat, bst_float *phi,
     // if so we undo that split so we can redo it for this node
     unsigned path_index = 0;
     for (; path_index <= unique_depth; ++path_index) {
-      if (static_cast<unsigned>(unique_path[path_index].feature_index) == split_index) break;
+      if (static_cast<unsigned>(unique_path[path_index].feature_index) == group_index) break;
     }
     if (path_index != unique_depth + 1) {
       incoming_zero_fraction = unique_path[path_index].zero_fraction;
@@ -1216,10 +1219,10 @@ void RegTree::TreeShap(const RegTree::FVec &feat, bst_float *phi,
     // divide up the condition_fraction among the recursive calls
     bst_float hot_condition_fraction = condition_fraction;
     bst_float cold_condition_fraction = condition_fraction;
-    if (condition > 0 && split_index == condition_feature) {
+    if (condition > 0 && group_index == condition_feature) {
       cold_condition_fraction = 0;
       unique_depth -= 1;
-    } else if (condition < 0 && split_index == condition_feature) {
+    } else if (condition < 0 && group_index == condition_feature) {
       hot_condition_fraction *= hot_zero_fraction;
       cold_condition_fraction *= cold_zero_fraction;
       unique_depth -= 1;
@@ -1227,29 +1230,41 @@ void RegTree::TreeShap(const RegTree::FVec &feat, bst_float *phi,
 
     TreeShap(feat, phi, hot_index, unique_depth + 1, unique_path,
              hot_zero_fraction * incoming_zero_fraction, incoming_one_fraction,
-             split_index, condition, condition_feature, hot_condition_fraction);
+             group_index, condition, condition_feature, hot_condition_fraction,
+             group_index_f);
 
     TreeShap(feat, phi, cold_index, unique_depth + 1, unique_path,
              cold_zero_fraction * incoming_zero_fraction, 0,
-             split_index, condition, condition_feature, cold_condition_fraction);
+             group_index, condition, condition_feature, cold_condition_fraction,
+             group_index_f);
   }
 }
 
 void RegTree::CalculateContributions(const RegTree::FVec &feat,
                                      bst_float *out_contribs,
+                                     int *group_indices,
+                                     int num_feat_group,
                                      int condition,
                                      unsigned condition_feature) const {
   // find the expected value of the tree's predictions
   if (condition == 0) {
     bst_float node_value = this->node_mean_values_[0];
-    out_contribs[feat.Size()] += node_value;
+    if (group_indices == nullptr) num_feat_group = feat.Size();
+    out_contribs[num_feat_group] += node_value;
   }
 
   // Preallocate space for the unique path data
   const int maxd = this->MaxDepth(0) + 2;
   std::vector<PathElement> unique_path_data((maxd * (maxd + 1)) / 2);
 
+  // function for group_index
+  std::function<unsigned(unsigned)> group_index_f;
+  if (group_indices == nullptr)
+    group_index_f = [] (unsigned feature_index) { return feature_index; };
+  else
+    group_index_f = [&] (unsigned feature_index) { return group_indices[feature_index]; };
+
   TreeShap(feat, out_contribs, 0, 0, unique_path_data.data(),
-           1, 1, -1, condition, condition_feature, 1);
+           1, 1, -1, condition, condition_feature, 1, group_index_f);
 }
 }  // namespace xgboost

@@ -614,7 +614,9 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              unsigned ntree_limit,
                              int training,
                              xgboost::bst_ulong *len,
-                             const bst_float **out_result) {
+                             const bst_float **out_result,
+                             int *group_indices,
+                             int num_feat_group) {
   API_BEGIN();
   CHECK_HANDLE();
   auto *learner = static_cast<Learner*>(handle);
@@ -624,7 +626,7 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                    (option_mask & 1) != 0, &entry.predictions, 0, iteration_end,
                    static_cast<bool>(training), (option_mask & 2) != 0,
                    (option_mask & 4) != 0, (option_mask & 8) != 0,
-                   (option_mask & 16) != 0);
+                   (option_mask & 16) != 0, group_indices, num_feat_group);
   *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
   *len = static_cast<xgboost::bst_ulong>(entry.predictions.Size());
   API_END();
@@ -635,7 +637,9 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
                                         char const* c_json_config,
                                         xgboost::bst_ulong const **out_shape,
                                         xgboost::bst_ulong *out_dim,
-                                        bst_float const **out_result) {
+                                        bst_float const **out_result,
+                                        int *group_indices,
+                                        int num_feat_group) {
   API_BEGIN();
   if (handle == nullptr) {
     LOG(FATAL) << "Booster has not been initialized or has already been disposed.";
@@ -661,7 +665,7 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
   learner->Predict(p_m, type == PredictionType::kMargin, &entry.predictions,
                    iteration_begin, iteration_end, training,
                    type == PredictionType::kLeaf, contribs, approximate,
-                   interactions);
+                   interactions, group_indices, num_feat_group);
   *out_result = dmlc::BeginPtr(entry.predictions.ConstHostVector());
   auto &shape = learner->GetThreadLocal().prediction_shape;
   auto chunksize = p_m->Info().num_row_ == 0 ? 0 : entry.predictions.Size() / p_m->Info().num_row_;
@@ -669,8 +673,9 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
   rounds = rounds == 0 ? learner->BoostedRounds() : rounds;
   // Determine shape
   bool strict_shape = get<Boolean const>(config["strict_shape"]);
+  size_t num_features = (group_indices == nullptr) ? p_m->Info().num_col_ : num_feat_group;
   CalcPredictShape(strict_shape, type, p_m->Info().num_row_,
-                   p_m->Info().num_col_, chunksize, learner->Groups(), rounds,
+                   num_features, chunksize, learner->Groups(), rounds,
                    &shape, out_dim);
   *out_shape = dmlc::BeginPtr(shape);
   API_END();

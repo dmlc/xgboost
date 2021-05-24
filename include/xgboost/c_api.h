@@ -726,6 +726,8 @@ XGB_DLL int XGBoosterEvalOneIter(BoosterHandle handle,
  *    The second scenario applies when you are defining a custom objective function.
  * \param out_len used to store length of returning result
  * \param out_result used to set a pointer to array
+ * \param group_indices group index of features for group of feature contributions 
+ * \param num_feat_group the number of feature groups provided in group_indices
  * \return 0 when success, -1 when failure happens
  */
 XGB_DLL int XGBoosterPredict(BoosterHandle handle,
@@ -734,7 +736,9 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
                              unsigned ntree_limit,
                              int training,
                              bst_ulong *out_len,
-                             const float **out_result);
+                             const float **out_result,
+                             int *group_indices = nullptr,
+                             int num_feat_group = 0);
 /*!
  * \brief Make prediction from DMatrix, replacing `XGBoosterPredict`.
  *
@@ -788,6 +792,8 @@ XGB_DLL int XGBoosterPredict(BoosterHandle handle,
  * \param out_shape Shape of output prediction (copy before use).
  * \param out_dim   Dimension of output prediction.
  * \param out_result Buffer storing prediction value (copy before use).
+ * \param group_indices group index of features for group of feature contributions 
+ * \param num_feat_group the number of feature groups provided in group_indices
  *
  * \return 0 when success, -1 when failure happens
  */
@@ -796,7 +802,9 @@ XGB_DLL int XGBoosterPredictFromDMatrix(BoosterHandle handle,
                                         char const* c_json_config,
                                         bst_ulong const **out_shape,
                                         bst_ulong *out_dim,
-                                        float const **out_result);
+                                        float const **out_result,
+                                        int *group_indices = nullptr,
+                                        int num_feat_group = 0);
 /*
  * \brief Inplace prediction from CPU dense matrix.
  *

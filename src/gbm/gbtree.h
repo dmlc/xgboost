@@ -318,7 +318,7 @@ class GBTree : public GradientBooster {
   void PredictContribution(DMatrix* p_fmat,
                            HostDeviceVector<bst_float>* out_contribs,
                            uint32_t layer_begin, uint32_t layer_end, bool approximate,
-                           int, unsigned) override {
+                           int *group_indices, int num_feat_group, int, unsigned) override {
     CHECK(configured_);
     uint32_t tree_begin, tree_end;
     std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
@@ -326,12 +326,13 @@ class GBTree : public GradientBooster {
         << "Predict contribution supports only iteration end: (0, "
            "n_iteration), using model slicing instead.";
     this->GetPredictor()->PredictContribution(
-        p_fmat, out_contribs, model_, tree_end, nullptr, approximate);
+      p_fmat, out_contribs, model_, tree_end, nullptr, approximate, group_indices, num_feat_group);
   }
 
   void PredictInteractionContributions(
       DMatrix *p_fmat, HostDeviceVector<bst_float> *out_contribs,
-      uint32_t layer_begin, uint32_t layer_end, bool approximate) override {
+      uint32_t layer_begin, uint32_t layer_end, bool approximate,
+      int *group_indices, int num_feat_group) override {
     CHECK(configured_);
     uint32_t tree_begin, tree_end;
     std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
@@ -339,7 +340,7 @@ class GBTree : public GradientBooster {
         << "Predict interaction contribution supports only iteration end: (0, "
            "n_iteration), using model slicing instead.";
     this->GetPredictor()->PredictInteractionContributions(
-        p_fmat, out_contribs, model_, tree_end, nullptr, approximate);
+      p_fmat, out_contribs, model_, tree_end, nullptr, approximate, group_indices, num_feat_group);
   }
 
   std::vector<std::string> DumpModel(const FeatureMap& fmap,

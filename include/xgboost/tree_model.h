@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <tuple>
 #include <stack>
+#include <functional>
 
 namespace xgboost {
 
@@ -549,12 +550,14 @@ class RegTree : public Model {
    * \brief calculate the feature contributions (https://arxiv.org/abs/1706.06060) for the tree
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
    * \param out_contribs output vector to hold the contributions
+   * \param group_indices group index of features for group of feature contributions 
+   * \param num_feat_group the number of feature groups provided in group_indices
    * \param condition fix one feature to either off (-1) on (1) or not fixed (0 default)
    * \param condition_feature the index of the feature to fix
    */
-  void CalculateContributions(const RegTree::FVec& feat,
-                              bst_float* out_contribs, int condition = 0,
-                              unsigned condition_feature = 0) const;
+  void CalculateContributions(const RegTree::FVec& feat, bst_float* out_contribs,
+                              int *group_indices = nullptr, int num_feat_group = 0,
+                              int condition = 0, unsigned condition_feature = 0) const;
   /*!
    * \brief Recursive function that computes the feature attributions for a single tree.
    * \param feat dense feature vector, if the feature is missing the field is set to NaN
@@ -568,12 +571,14 @@ class RegTree : public Model {
    * \param condition fix one feature to either off (-1) on (1) or not fixed (0 default)
    * \param condition_feature the index of the feature to fix
    * \param condition_fraction what fraction of the current weight matches our conditioning feature
+   * \param group_index_f function that returns group index of feature
    */
   void TreeShap(const RegTree::FVec& feat, bst_float* phi, unsigned node_index,
                 unsigned unique_depth, PathElement* parent_unique_path,
                 bst_float parent_zero_fraction, bst_float parent_one_fraction,
                 int parent_feature_index, int condition,
-                unsigned condition_feature, bst_float condition_fraction) const;
+                unsigned condition_feature, bst_float condition_fraction,
+                const std::function<unsigned(unsigned)>& group_index_f = [](int i){return i;}) const;
 
   /*!
    * \brief calculate the approximate feature contributions for the given root

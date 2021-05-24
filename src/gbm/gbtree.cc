@@ -858,23 +858,26 @@ class Dart : public GBTree {
 
   void PredictContribution(DMatrix* p_fmat,
                            HostDeviceVector<bst_float>* out_contribs,
-                           unsigned layer_begin, unsigned layer_end, bool approximate, int,
-                           unsigned) override {
+                           unsigned layer_begin, unsigned layer_end, bool approximate,
+                           int *group_indices, int num_feat_group, int, unsigned) override {
     CHECK(configured_);
     uint32_t tree_begin, tree_end;
     std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
     cpu_predictor_->PredictContribution(p_fmat, out_contribs, model_,
-                                        tree_end, &weight_drop_, approximate);
+                                        tree_end, &weight_drop_, approximate,
+                                        group_indices, num_feat_group);
   }
 
   void PredictInteractionContributions(
       DMatrix *p_fmat, HostDeviceVector<bst_float> *out_contribs,
-      unsigned layer_begin, unsigned layer_end, bool approximate) override {
+      unsigned layer_begin, unsigned layer_end, bool approximate,
+      int *group_indices, int num_feat_group) override {
     CHECK(configured_);
     uint32_t tree_begin, tree_end;
     std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
     cpu_predictor_->PredictInteractionContributions(p_fmat, out_contribs, model_,
-                                                    tree_end, &weight_drop_, approximate);
+                                                    tree_end, &weight_drop_, approximate,
+                                                    group_indices, num_feat_group);
   }
 
  protected:

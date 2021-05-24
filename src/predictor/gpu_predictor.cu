@@ -684,8 +684,8 @@ class GPUPredictor : public xgboost::Predictor {
                            HostDeviceVector<bst_float>* out_contribs,
                            const gbm::GBTreeModel& model, unsigned tree_end,
                            std::vector<bst_float>*,
-                           bool approximate, int,
-                           unsigned) const override {
+                           bool approximate, int*, int,
+                           int, unsigned) const override {
     if (approximate) {
       LOG(FATAL) << "Approximated contribution is not implemented in GPU Predictor.";
     }
@@ -734,7 +734,7 @@ class GPUPredictor : public xgboost::Predictor {
                                        const gbm::GBTreeModel& model,
                                        unsigned tree_end,
                                        std::vector<bst_float>*,
-                                       bool approximate) const override {
+                                       bool approximate, int*, int) const override {
     if (approximate) {
       LOG(FATAL) << "[Internal error]: " << __func__
                  << " approximate is not implemented in GPU Predictor.";
