@@ -180,7 +180,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   public void update(DMatrix dtrain, IObjective obj) throws XGBoostError {
-    float[][] predicts = this.predict(dtrain, true, 0, false, false);
+    float[][] predicts = this.predict(dtrain, true, 0, false, false, null);
     List<float[]> gradients = obj.getGradient(predicts, dtrain);
     boost(dtrain, gradients.get(0), gradients.get(1));
   }
@@ -283,13 +283,15 @@ public class Booster implements Serializable, KryoSerializable {
    * @param treeLimit    limit number of trees, 0 means all trees.
    * @param predLeaf     prediction minimum to keep leafs
    * @param predContribs prediction feature contributions
+   * @param groupIndices group index of features for group of feature contributions
    * @return predict results
    */
   private synchronized float[][] predict(DMatrix data,
                                          boolean outputMargin,
                                          int treeLimit,
                                          boolean predLeaf,
-                                         boolean predContribs) throws XGBoostError {
+                                         boolean predContribs,
+                                         int[] groupIndices) throws XGBoostError {
     int optionMask = 0;
     if (outputMargin) {
       optionMask = 1;
@@ -301,8 +303,10 @@ public class Booster implements Serializable, KryoSerializable {
       optionMask = 4;
     }
     float[][] rawPredicts = new float[1][];
+    int numFeatureGroup = (groupIndices == null) ? 0
+                          : Arrays.stream(groupIndices).max().getAsInt() + 1;
     XGBoostJNI.checkCall(XGBoostJNI.XGBoosterPredict(handle, data.getHandle(), optionMask,
-            treeLimit, rawPredicts));
+            treeLimit, rawPredicts, groupIndices, numFeatureGroup));
     int row = (int) data.rowNum();
     int col = rawPredicts[0].length / row;
     float[][] predicts = new float[row][col];
@@ -324,7 +328,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError
    */
   public float[][] predictLeaf(DMatrix data, int treeLimit) throws XGBoostError {
-    return this.predict(data, false, treeLimit, true, false);
+    return this.predict(data, false, treeLimit, true, false, null);
   }
 
   /**
@@ -336,7 +340,22 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError
    */
   public float[][] predictContrib(DMatrix data, int treeLimit) throws XGBoostError {
-    return this.predict(data, false, treeLimit, true, true);
+    return this.predict(data, false, treeLimit, true, true, null);
+  }
+
+  /**
+   * Output group of feature contributions toward predictions of given data
+   *
+   * @param data The input data.
+   * @param treeLimit Number of trees to include, 0 means all trees.
+   * @param groupIndices group index of features for group of feature contributions
+   * @return The feature contributions and bias.
+   * @throws XGBoostError
+   */
+  public float[][] predictContrib(DMatrix data,
+                                  int treeLimit,
+                                  int[] groupIndices) throws XGBoostError {
+    return this.predict(data, false, treeLimit, true, true, groupIndices);
   }
 
   /**
@@ -347,7 +366,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @throws XGBoostError native error
    */
   public float[][] predict(DMatrix data) throws XGBoostError {
-    return this.predict(data, false, 0, false, false);
+    return this.predict(data, false, 0, false, false, null);
   }
 
   /**
@@ -358,7 +377,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @return predict results
    */
   public float[][] predict(DMatrix data, boolean outputMargin) throws XGBoostError {
-    return this.predict(data, outputMargin, 0, false, false);
+    return this.predict(data, outputMargin, 0, false, false, null);
   }
 
   /**
@@ -370,7 +389,7 @@ public class Booster implements Serializable, KryoSerializable {
    * @return predict results
    */
   public float[][] predict(DMatrix data, boolean outputMargin, int treeLimit) throws XGBoostError {
-    return this.predict(data, outputMargin, treeLimit, false, false);
+    return this.predict(data, outputMargin, treeLimit, false, false, null);
   }
 
   /**
