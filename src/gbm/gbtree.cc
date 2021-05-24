@@ -29,6 +29,76 @@
 #include "../common/timer.h"
 #include "../common/threading_utils.h"
 
+/**
+ * # Notes on the very convoluted `gpu_id` configuration.
+ *
+ * ## Good news:
+ *
+ * Before diving into the issues we have, it might be better to mention a possible
+ * solution first.  Our plan is to define a global parameter of `device_id` in config
+ * context to replace `gpu_id`:
+
+ * ``` python
+ * with xgboost.config_context(device_id = "CUDA:0"):
+ *    do_something()
+ * ```
+
+ * This device id should also incooperate OneAPI proposal from Intel.  Also, we plan to
+ * dreprecate the `gpu_hist`, `gpu_predictor`, `oneapi_predictor` and all similar
+ * constructs so that the `device_id` will be the only authority on how we run XGBoost
+ * internally.
+ *
+ * ## Bad news:
+ *
+ * The `gpu_id` is extremely difficult to configure.  In a high level view, we have
+ * following user inputs as contributing factors to whether things should be run on GPU
+ * (we are ignoring linear booster here):
+ *
+ *   - `gpu_id` parameter: the supposed only authority that was rarely honored.
+ *   - `tree_method` parameter. `gpu_hist` or not.
+ *   - `predictor` parameter: `gpu_predictor` or not.
+ *   - data: Whether data is already on device (like cupy, cuDF).
+ *   - environment: Does the environment have GPU at all?
+ *   - model: User might continue training on an existing model, in which case we don't
+ *            want to pull the data into GPU for initial prediction.  This might happen
+ *            after users loading a pickled model on CPU only machine.
+ *
+ * As you might have notice those inputs are correlated.  XGBoost sorts them into
+ * following relationship, please note that the ordering matters:
+ *
+ *  1. tree_method and predictor *decides* `gpu_id`.
+ *  2. `gpu_id` *constraints* tree method and predictor.
+ *  3. data and model can *temporarily choose* `predictor`, overriding above conditions.
+ *
+ * This is high level view, practically this is what we have:
+ *
+ *  1. During call `configure` to, gbm returns `UseGPU` by looking at tree method and
+ *     predictor, then learner set the `gpu_id` accordingly.  This is the "decides" part.
+ *     After this step, the `gpu_id` should be in a valid state and we can ignore the
+ *     existance of `gpu_hist` and `gpu_predictor` during decision making (but not
+ *     validation). Valid means it can represent the other 2 parameters.
+ *
+ *  2. During boost, gbm check the validity of `predictor` and `tree_method`, if users
+ *     have provided `gpu_id = 0` and `tree_method = gpu_hist`, an error is thrown.  This
+ *     is the "constraints" part.
+ *
+ *  3. When prediction is called, we want to avoid copying data into GPU if it's training
+ *     since the updater can generate prediction without looking at the real data (hence
+ *     smaller memory usage), except for the first iteration.  Here first iteration has 2
+ *     meaning, first boosting iteration, and first iteration in training continuation.
+ *     Also copying is can be in 2 directions, from CPU to GPU and from GPU to CPU.  This
+ *     is sorted out in `GetPredictor` where we use heuristic to decide which predictor
+ *     should be chosen.  This is the "temporarily choose" part.
+ *
+ * We can't make `gpu_id` as the only authority without breaking changes.  But with above
+ * configuration, we make `gpu_id` part of all the automated configuration.  With the
+ * proposed solution at top, `device_id` will decide `predictor` and `tree_method` and the
+ * relationship is one way.  The heuristic might be kept but's relatively easy and local
+ * to GBM.  The environment won't decide `device_id` since global parameter is not part of
+ * the model hence not part of any pickle.  Learner will run `configure` again in new
+ * environment with new global parameters.
+ */
+
 namespace xgboost {
 namespace gbm {
 
@@ -616,18 +686,9 @@ GBTree::GetPredictor(bool is_training, HostDeviceVector<float> const *out_pred,
   }
 
   /**
-   * gpu_id is set to valid values.
+   * gpu_id is set to GPU.
    */
-  if (on_device) {
-    // data and GPU match
-    common::AssertGPUSupport();
-#if defined(XGBOOST_USE_CUDA)
-    CHECK(gpu_predictor_);
-    return gpu_predictor_;
-#endif  // defined(XGBOOST_USE_CUDA)
-  }
-
-  // Pulling to device.
+  // Pulling to device.  This is the heuristic we employ, see comments below.
   if (!on_device) {
     // GPU_Hist by default has prediction cache calculated from quantile values, so GPU
     // Predictor is not used for training dataset.  But when XGBoost performs continue
@@ -643,6 +704,13 @@ GBTree::GetPredictor(bool is_training, HostDeviceVector<float> const *out_pred,
     if (continuation) {
       return cpu_predictor_;
     }
+    common::AssertGPUSupport();
+#if defined(XGBOOST_USE_CUDA)
+    CHECK(gpu_predictor_);
+    return gpu_predictor_;
+#endif  // defined(XGBOOST_USE_CUDA)
+  } else {
+    // data and GPU match
     common::AssertGPUSupport();
 #if defined(XGBOOST_USE_CUDA)
     CHECK(gpu_predictor_);
