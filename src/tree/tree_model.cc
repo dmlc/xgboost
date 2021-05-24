@@ -1259,10 +1259,11 @@ void RegTree::CalculateContributions(const RegTree::FVec &feat,
 
   // function for group_index
   std::function<unsigned(unsigned)> group_index_f;
-  if (group_indices == nullptr)
+  if (group_indices == nullptr) {
     group_index_f = [] (unsigned feature_index) { return feature_index; };
-  else
+  } else {
     group_index_f = [&] (unsigned feature_index) { return group_indices[feature_index]; };
+  }
 
   TreeShap(feat, out_contribs, 0, 0, unique_path_data.data(),
            1, 1, -1, condition, condition_feature, 1, group_index_f);
