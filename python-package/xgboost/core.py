@@ -1685,6 +1685,7 @@ class Booster(object):
         training: bool = False,
         iteration_range: Tuple[int, int] = (0, 0),
         strict_shape: bool = False,
+        group_indices: List[int] = None,
     ) -> np.ndarray:
         """Predict with data.  The full model will be used unless `iteration_range` is specified,
         meaning user have to either slice the model or use the ``best_iteration``
@@ -1764,6 +1765,9 @@ class Booster(object):
 
             .. versionadded:: 1.4.0
 
+        group_indices :
+            Group index list of features for group of feature contributions.
+
         Returns
         -------
         prediction : numpy array
@@ -1798,6 +1802,11 @@ class Booster(object):
         preds = ctypes.POINTER(ctypes.c_float)()
         shape = ctypes.POINTER(c_bst_ulong)()
         dims = c_bst_ulong()
+        if group_indices is not None:
+            num_feat_group = ctypes.c_int(max(group_indices) + 1)
+            group_indices = (ctypes.c_int * len(group_indices))(*group_indices)
+        else:
+            num_feat_group = ctypes.c_int(0)
         _check_call(
             _LIB.XGBoosterPredictFromDMatrix(
                 self.handle,
@@ -1805,7 +1814,9 @@ class Booster(object):
                 from_pystr_to_cstr(json.dumps(args)),
                 ctypes.byref(shape),
                 ctypes.byref(dims),
-                ctypes.byref(preds)
+                ctypes.byref(preds),
+                group_indices,
+                num_feat_group
             )
         )
         return _prediction_output(shape, dims, preds, False)
