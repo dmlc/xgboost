@@ -163,7 +163,6 @@ inline float GetMissing(Json const &config) {
 
 // Safe guard some global variables from being changed by XGBoost.
 class XGBoostAPIGuard {
-  int32_t n_threads_ {omp_get_max_threads()};
   int32_t device_id_ {0};
 
 #if defined(XGBOOST_USE_CUDA)
@@ -179,7 +178,6 @@ class XGBoostAPIGuard {
     SetGPUAttribute();
   }
   ~XGBoostAPIGuard() {
-    omp_set_num_threads(n_threads_);
     RestoreGPUAttribute();
   }
 };

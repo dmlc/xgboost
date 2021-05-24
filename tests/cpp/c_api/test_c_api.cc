@@ -278,37 +278,4 @@ TEST(CAPI, XGBGlobalConfig) {
     ASSERT_EQ(err.find("verbosity"), std::string::npos);
   }
 }
-
-TEST(CAPI, GlobalVariables) {
-  size_t n_threads = omp_get_max_threads();
-  size_t constexpr kRows = 10;
-  bst_feature_t constexpr kCols = 2;
-
-  DMatrixHandle handle;
-  std::vector<float> data(kCols * kRows, 1.5);
-
-
-  ASSERT_EQ(XGDMatrixCreateFromMat_omp(data.data(), kRows, kCols,
-                                       std::numeric_limits<float>::quiet_NaN(),
-                                       &handle, 0),
-            0);
-  std::vector<float> labels(kRows, 2.0f);
-  ASSERT_EQ(XGDMatrixSetFloatInfo(handle, "label", labels.data(), labels.size()), 0);
-
-  DMatrixHandle m_handles[1];
-  m_handles[0] = handle;
-
-  BoosterHandle booster;
-  ASSERT_EQ(XGBoosterCreate(m_handles, 1, &booster), 0);
-  ASSERT_EQ(XGBoosterSetParam(booster, "nthread", "16"), 0);
-
-  omp_set_num_threads(1);
-  ASSERT_EQ(XGBoosterUpdateOneIter(booster, 0, handle), 0);
-  ASSERT_EQ(omp_get_max_threads(), 1);
-
-  omp_set_num_threads(n_threads);
-
-  XGDMatrixFree(handle);
-  XGBoosterFree(booster);
-}
 }  // namespace xgboost
