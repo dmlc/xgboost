@@ -81,7 +81,7 @@
  *     changed by XGBoost here after.
  *
  *  2. During boost, gbm checks the validity of `predictor` and `tree_method`.  For
- *     instance, if user has provided `gpu_id = 0` and `tree_method = hist`, an error is
+ *     instance, if user has provided `gpu_id = 0` and `tree_method = exact`, an error is
  *     thrown.  This is the "constraints" part.
  *
  *  3. When prediction is called, we want to avoid copying data into GPU if it's training
@@ -224,7 +224,7 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
     tparam_.tree_method = TreeMethod::kGPUHist;
   } else {
     // This should be configured by Learner.
-    CHECK_NE(tparam_.tree_method, TreeMethod::kGPUHist)
+    CHECK(tparam_.tree_method != TreeMethod::kGPUHist)
         << "[Internal Error]: `gpu_hist` is used bu `gpu_id` is not configured.";
   }
 
@@ -655,7 +655,7 @@ GBTree::GetPredictor(bool is_training, HostDeviceVector<float> const *out_pred,
                       !f_dmat->PageExists<SparsePage>();
     if (is_ellpack) {
       // Only GPU Hist can consume ellpack
-      CHECK_EQ(tparam_.tree_method, TreeMethod::kGPUHist);
+      CHECK(tparam_.tree_method == TreeMethod::kGPUHist);
       // Since this is running with GPU Hist, `gpu_id` must already have been set
     }
     // Another case is data came from device memory, like CuDF or CuPy.  In such cases, we
