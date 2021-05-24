@@ -70,33 +70,36 @@
  *  2. `gpu_id` *constraints* tree method and predictor.
  *  3. data and model can *temporarily choose* `predictor`, overriding above conditions.
  *
- * This is high level view, practically this is what we have:
+ * This is high level view, this is what we have in practice:
  *
  *  1. During call `configure` to, gbm returns `UseGPU` by looking at tree method and
- *     predictor, then learner set the `gpu_id` accordingly.  This is the "decides" part.
+ *     predictor, then learner sets the `gpu_id` accordingly.  This is the "decides" part.
  *     After this step, the `gpu_id` should be in a valid state and we can ignore the
- *     existance of `gpu_hist` and `gpu_predictor` during decision making (but not
- *     validation). Valid means it can represent the other 2 parameters.
+ *     existance of `gpu_hist` and `gpu_predictor` during decision making (but will still
+ *     check these 2 parameters for other purposes than choosing devices). Being in valid
+ *     state means it can represent the other 2 parameters and environment, and can not be
+ *     changed by XGBoost here after.
  *
- *  2. During boost, gbm check the validity of `predictor` and `tree_method`, if users
- *     have provided `gpu_id = 0` and `tree_method = gpu_hist`, an error is thrown.  This
- *     is the "constraints" part.
+ *  2. During boost, gbm checks the validity of `predictor` and `tree_method`.  For
+ *     instance, if user has provided `gpu_id = 0` and `tree_method = hist`, an error is
+ *     thrown.  This is the "constraints" part.
  *
  *  3. When prediction is called, we want to avoid copying data into GPU if it's training
  *     since the updater can generate prediction without looking at the real data (hence
  *     smaller memory usage), except for the first iteration.  Here first iteration has 2
  *     meaning, first boosting iteration, and first iteration in training continuation.
- *     Also copying is can be in 2 directions, from CPU to GPU and from GPU to CPU.  This
- *     is sorted out in `GetPredictor` where we use heuristic to decide which predictor
+ *     Also copying can be in 2 directions, from CPU to GPU and from GPU to CPU, the
+ *     former is not so good but later is fine as explaned in related code.  This is
+ *     sorted out in `GetPredictor` where we use heuristic to decide which predictor
  *     should be chosen.  This is the "temporarily choose" part.
  *
  * We can't make `gpu_id` as the only authority without breaking changes.  But with above
- * configuration, we make `gpu_id` part of all the automated configuration.  With the
- * proposed solution at top, `device_id` will decide `predictor` and `tree_method` and the
- * relationship is one way.  The heuristic might be kept but's relatively easy and local
- * to GBM.  The environment won't decide `device_id` since global parameter is not part of
- * the model hence not part of any pickle.  Learner will run `configure` again in new
- * environment with new global parameters.
+ * configuration, we have made `gpu_id` part of all the automated configuration and cannot
+ * be ignored.  With the proposed solution at top, `device_id` will decide `predictor` and
+ * `tree_method` and the relationship is one way.  The heuristic might be kept but it's
+ * relatively easy and local to GBM.  The environment won't decide `device_id` since
+ * global parameter is not part of the model hence not part of any pickle.  Learner will
+ * run `configure` again in a new environment with a new set of global parameters.
  */
 
 namespace xgboost {
