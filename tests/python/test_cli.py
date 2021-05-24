@@ -129,7 +129,7 @@ eval[test] = {data_path}
         msg = completed.stdout.decode('utf-8')
         assert msg.find('XGBoost') != -1
         v = xgboost.__version__
-        if v.find('SNAPSHOT') != -1:
+        if v.find('dev') != -1:
             assert msg.split(':')[1].strip() == v.split('-')[0]
         elif v.find('rc') != -1:
             assert msg.split(':')[1].strip() == v.split('rc')[0]
