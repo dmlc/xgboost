@@ -71,6 +71,11 @@ void GBTree::Configure(const Args& cfg) {
   oneapi_predictor_->Configure(cfg);
 #endif  // defined(XGBOOST_USE_ONEAPI)
 
+  if (tparam_.predictor == PredictorType::kCPUPredictor) {
+    CHECK_EQ(generic_param_->gpu_id, GenericParameter::kCpuId)
+        << "Predictor is set to `cpu_predictor`, `gpu_id` must be set to `-1`.";
+  }
+
   monitor_.Init("GBTree");
 
   specified_updater_ = std::any_of(cfg.cbegin(), cfg.cend(),
@@ -490,7 +495,7 @@ void GBTree::Slice(int32_t layer_begin, int32_t layer_end, int32_t step,
 
 void GBTree::PredictBatch(DMatrix* p_fmat,
                           PredictionCacheEntry* out_preds,
-                          bool,
+                          bool is_training,
                           unsigned layer_begin,
                           unsigned layer_end) {
   CHECK(configured_);
@@ -512,7 +517,7 @@ void GBTree::PredictBatch(DMatrix* p_fmat,
     CHECK_EQ(out_preds->version, 0);
   }
 
-  auto const& predictor = GetPredictor(&out_preds->predictions, p_fmat);
+  auto const& predictor = GetPredictor(is_training, &out_preds->predictions, p_fmat);
   if (out_preds->version == 0) {
     // out_preds->Size() can be non-zero as it's initialized here before any
     // tree is built at the 0^th iterator.
@@ -535,27 +540,25 @@ void GBTree::PredictBatch(DMatrix* p_fmat,
 }
 
 std::unique_ptr<Predictor> const &
-GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
+GBTree::GetPredictor(bool is_training, HostDeviceVector<float> const *out_pred,
                      DMatrix *f_dmat) const {
   CHECK(configured_);
   if (tparam_.predictor != PredictorType::kAuto) {
-
     if (tparam_.predictor == PredictorType::kGPUPredictor) {
-#if defined(XGBOOST_USE_CUDA)
+      common::AssertGPUSupport();
       CHECK_GE(common::AllVisibleGPUs(), 1) << "No visible GPU is found for XGBoost.";
+      CHECK_NE(generic_param_->gpu_id, GenericParameter::kCpuId);
+#if defined(XGBOOST_USE_CUDA)
       CHECK(gpu_predictor_);
       return gpu_predictor_;
-#else
-      common::AssertGPUSupport();
 #endif  // defined(XGBOOST_USE_CUDA)
     }
 
     if (tparam_.predictor == PredictorType::kOneAPIPredictor) {
+      common::AssertOneAPISupport();
 #if defined(XGBOOST_USE_ONEAPI)
       CHECK(oneapi_predictor_);
       return oneapi_predictor_;
-#else
-      common::AssertOneAPISupport();
 #endif  // defined(XGBOOST_USE_ONEAPI)
     }
 
@@ -567,51 +570,64 @@ GBTree::GetPredictor(HostDeviceVector<float> const *out_pred,
     // Data comes from Device DMatrix.
     auto is_ellpack = f_dmat && f_dmat->PageExists<EllpackPage>() &&
                       !f_dmat->PageExists<SparsePage>();
-    // Data comes from device memory, like CuDF or CuPy.
+    if (is_ellpack) {
+      // Only GPU Hist can consume ellpack
+      CHECK_EQ(tparam_.tree_method, TreeMethod::kGPUHist);
+      // Since this is running with GPU Hist, `gpu_id` must already have been set
+    }
+    // Another case is data came from device memory, like CuDF or CuPy.  In such cases, we
+    // honer the `gpu_id` instead of performing specialized optimization to simplify the
+    // states.
+    if (tparam_.tree_method == TreeMethod::kGPUHist) {
+      CHECK_NE(generic_param_->gpu_id, GenericParameter::kCpuId);
+    }
     auto is_from_device =
         f_dmat && f_dmat->PageExists<SparsePage>() &&
         (*(f_dmat->GetBatches<SparsePage>().begin())).data.DeviceCanRead();
-    auto on_device = is_ellpack || is_from_device;
-    return on_device;
+    return is_ellpack || is_from_device;
   };
   // FIXME(trivialfis): Implement a better method for testing whether data
   // is on device after DMatrix refactoring is done.
   auto on_device = data_on_device();
-  auto use_gpu = on_device || generic_param_->gpu_id >= 0;
+  auto set_gpu = generic_param_->gpu_id != GenericParameter::kCpuId;
 
-  // Use GPU Predictor if data is already on device and gpu_id is set.
-  if (use_gpu) {
-    common::AssertGPUSupport();
-    CHECK_GE(common::AllVisibleGPUs(), 1) << "No visible GPU is found for XGBoost.";
-    CHECK(gpu_predictor_);
-    return gpu_predictor_;
-  }
-
-  // GPU_Hist by default has prediction cache calculated from quantile values,
-  // so GPU Predictor is not used for training dataset.  But when XGBoost
-  // performs continue training with an existing model, the prediction cache is
-  // not available and number of trees doesn't equal zero, the whole training
-  // dataset got copied into GPU for precise prediction.  This condition tries
-  // to avoid such copy by calling CPU Predictor instead.
-  auto continuation = (out_pred && out_pred->Empty()) && (model_.param.num_trees != 0);
-  auto use_cpu = continuation && !on_device;
-  if (use_cpu) {
-    CHECK(cpu_predictor_);
-    return cpu_predictor_;
-  }
-
-  if (generic_param_->gpu_id != GenericParameter::kCpuId) {
+  // data and GPU match
+  if (on_device && set_gpu) {
 #if defined(XGBOOST_USE_CUDA)
-    CHECK_GE(common::AllVisibleGPUs(), 1) << "No visible GPU is found for XGBoost.";
-    CHECK(gpu_predictor_);
     return gpu_predictor_;
-#else
-    common::AssertGPUSupport();
-    return cpu_predictor_;
 #endif  // defined(XGBOOST_USE_CUDA)
   }
+  // Pulling to host
+  // Pulling data to host doesn't hurt performance since:
+  // - GPU Hist is used: gpu_id must be have already been set to valid value, which
+  //   leads to GPU predictor being used.
+  // - CPU tree methods: A pull from device is a must anyway.
+  if (on_device && !set_gpu) {
+    return cpu_predictor_;
+  }
 
-  CHECK(cpu_predictor_);
+  // Pulling to device.
+  if (!on_device && set_gpu) {
+    // GPU_Hist by default has prediction cache calculated from quantile values,
+    // so GPU Predictor is not used for training dataset.  But when XGBoost
+    // performs continue training with an existing model, the prediction cache
+    // is not available and number of trees doesn't equal zero, the whole
+    // training dataset got copied into GPU for precise prediction.  This
+    // condition tries to avoid such copy by calling CPU Predictor instead.
+    auto continuation = (out_pred && out_pred->Empty()) && (model_.param.num_trees != 0) && is_training;
+    if (continuation) {
+      return cpu_predictor_;
+    }
+#if defined(XGBOOST_USE_CUDA)
+    return gpu_predictor_;
+#endif  // defined(XGBOOST_USE_CUDA)
+  }
+  // data and CPU match
+  if (!on_device && !set_gpu) {
+    return cpu_predictor_;
+  }
+
+  CHECK(false) << "[Internal Error]: Unreachable.";
   return cpu_predictor_;
 }
 
@@ -729,7 +745,7 @@ class Dart : public GBTree {
   void PredictBatchImpl(DMatrix *p_fmat, PredictionCacheEntry *p_out_preds,
                         bool training, unsigned layer_begin,
                         unsigned layer_end) const {
-    auto &predictor = this->GetPredictor(&p_out_preds->predictions, p_fmat);
+    auto &predictor = this->GetPredictor(training, &p_out_preds->predictions, p_fmat);
     CHECK(predictor);
     predictor->InitOutPredictions(p_fmat->Info(), &p_out_preds->predictions,
                                   model_);
@@ -824,7 +840,7 @@ class Dart : public GBTree {
         CHECK(success) << msg;
       } else {
         // No base margin from meta info for each tree
-        predictor = this->GetPredictor().get();
+        predictor = this->GetPredictor(false).get();
         bool success = predictor->InplacePredict(x, nullptr, model_, missing,
                                                  &predts, i, i + 1);
         device = predts.predictions.DeviceIdx();
@@ -876,7 +892,7 @@ class Dart : public GBTree {
                        std::vector<bst_float> *out_preds,
                        unsigned layer_begin, unsigned layer_end) override {
     DropTrees(false);
-    auto &predictor = this->GetPredictor();
+    auto &predictor = this->GetPredictor(false);
     uint32_t _, tree_end;
     std::tie(_, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
     predictor->PredictInstance(inst, out_preds, model_, tree_end);
