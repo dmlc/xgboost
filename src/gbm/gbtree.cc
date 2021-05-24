@@ -543,11 +543,16 @@ std::unique_ptr<Predictor> const &
 GBTree::GetPredictor(bool is_training, HostDeviceVector<float> const *out_pred,
                      DMatrix *f_dmat) const {
   CHECK(configured_);
+
+  /**
+   * Predictor is specified by users.
+   */
   if (tparam_.predictor != PredictorType::kAuto) {
     if (tparam_.predictor == PredictorType::kGPUPredictor) {
       common::AssertGPUSupport();
       CHECK_GE(common::AllVisibleGPUs(), 1) << "No visible GPU is found for XGBoost.";
       CHECK_NE(generic_param_->gpu_id, GenericParameter::kCpuId);
+
 #if defined(XGBOOST_USE_CUDA)
       CHECK(gpu_predictor_);
       return gpu_predictor_;
@@ -562,10 +567,14 @@ GBTree::GetPredictor(bool is_training, HostDeviceVector<float> const *out_pred,
 #endif  // defined(XGBOOST_USE_ONEAPI)
     }
 
+    CHECK_EQ(generic_param_->gpu_id, GenericParameter::kCpuId);
     CHECK(cpu_predictor_);
     return cpu_predictor_;
   }
 
+  /**
+   * Handle the predictor automatically
+   */
   auto data_on_device = [&]() {
     // Data comes from Device DMatrix.
     auto is_ellpack = f_dmat && f_dmat->PageExists<EllpackPage>() &&
@@ -591,40 +600,54 @@ GBTree::GetPredictor(bool is_training, HostDeviceVector<float> const *out_pred,
   auto on_device = data_on_device();
   auto set_gpu = generic_param_->gpu_id != GenericParameter::kCpuId;
 
-  // data and GPU match
-  if (on_device && set_gpu) {
-#if defined(XGBOOST_USE_CUDA)
-    return gpu_predictor_;
-#endif  // defined(XGBOOST_USE_CUDA)
-  }
-  // Pulling to host
-  // Pulling data to host doesn't hurt performance since:
-  // - GPU Hist is used: gpu_id must be have already been set to valid value, which
-  //   leads to GPU predictor being used.
+  /**
+   * gpu_id is set to CPU.
+   */
+  // Pulling to host, we ignore whether data is on device as it doesn't hurt performance.
+  // `gpu_id` must be set by user or by tree method (non-auto predictor is hanlded above),
+  // which narrows down to 2 cases:
+  //
+  // - GPU Hist is used: gpu_id must be have already been set to valid value, so this
+  //   condition cannot happen.
   // - CPU tree methods: A pull from device is a must anyway.
-  if (on_device && !set_gpu) {
+  if (!set_gpu) {
+    CHECK(cpu_predictor_);
     return cpu_predictor_;
   }
 
+  /**
+   * gpu_id is set to valid values.
+   */
+  if (on_device) {
+    // data and GPU match
+    common::AssertGPUSupport();
+#if defined(XGBOOST_USE_CUDA)
+    CHECK(gpu_predictor_);
+    return gpu_predictor_;
+#endif  // defined(XGBOOST_USE_CUDA)
+  }
+
   // Pulling to device.
-  if (!on_device && set_gpu) {
-    // GPU_Hist by default has prediction cache calculated from quantile values,
-    // so GPU Predictor is not used for training dataset.  But when XGBoost
-    // performs continue training with an existing model, the prediction cache
-    // is not available and number of trees doesn't equal zero, the whole
-    // training dataset got copied into GPU for precise prediction.  This
-    // condition tries to avoid such copy by calling CPU Predictor instead.
+  if (!on_device) {
+    // GPU_Hist by default has prediction cache calculated from quantile values, so GPU
+    // Predictor is not used for training dataset.  But when XGBoost performs continue
+    // training with an existing model, the prediction cache is not available and number
+    // of trees doesn't equal zero, the whole training dataset got copied into GPU for
+    // precise prediction.  This condition tries to avoid such copy by calling CPU
+    // Predictor instead.
+    //
+    // We only specialize it for continuation. For the first iteration of normal training,
+    // there's 0 tree and no prediction is performed hence no data pulling.  This is
+    // handled by the predictor itself.
     auto continuation = (out_pred && out_pred->Empty()) && (model_.param.num_trees != 0) && is_training;
     if (continuation) {
       return cpu_predictor_;
     }
+    common::AssertGPUSupport();
 #if defined(XGBOOST_USE_CUDA)
+    CHECK(gpu_predictor_);
     return gpu_predictor_;
 #endif  // defined(XGBOOST_USE_CUDA)
-  }
-  // data and CPU match
-  if (!on_device && !set_gpu) {
-    return cpu_predictor_;
   }
 
   CHECK(false) << "[Internal Error]: Unreachable.";
