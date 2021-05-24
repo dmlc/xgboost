@@ -378,6 +378,7 @@ class GBTree : public GradientBooster {
   Args cfg_;
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
+
   // Predictors
   std::unique_ptr<Predictor> cpu_predictor_;
 #if defined(XGBOOST_USE_CUDA)
@@ -386,6 +387,7 @@ class GBTree : public GradientBooster {
 #if defined(XGBOOST_USE_ONEAPI)
   std::unique_ptr<Predictor> oneapi_predictor_;
 #endif  // defined(XGBOOST_USE_ONEAPI)
+
   common::Monitor monitor_;
 };
 

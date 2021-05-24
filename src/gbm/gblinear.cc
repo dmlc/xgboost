@@ -67,6 +67,19 @@ class GBLinear : public GradientBooster {
         sum_weight_complete_(false),
         is_converged_(false) {}
 
+  void ValidateUpdater() {
+    if (generic_param_->gpu_id != GenericParameter::kCpuId) {
+      CHECK(param_.updater == "gpu_coord_descent" || param_.updater == "coord_descent")
+        << "`gpu_id` is set to: " << generic_param_->gpu_id << ".  "
+        << "Only coordinate descent supports GPU training.  "
+        << "Set `updater` to `coord_descent` or `gpu_coord_descent` along with "
+        << "`gpu_id` to enable GPU acceleration.";
+    } else {
+      CHECK_EQ(param_.updater, "gpu_coord_descent")
+          << "[Internal Error]: `gpu_coord_descent` is used bu `gpu_id` is not configured.";
+    }
+  }
+
   void Configure(const Args& cfg) override {
     if (model_.weight.size() == 0) {
       model_.Configure(cfg);
@@ -126,6 +139,7 @@ class GBLinear : public GradientBooster {
                HostDeviceVector<GradientPair> *in_gpair,
                PredictionCacheEntry*) override {
     monitor_.Start("DoBoost");
+    this->ValidateUpdater();
 
     model_.LazyInitModel();
     this->LazySumWeights(p_fmat);
