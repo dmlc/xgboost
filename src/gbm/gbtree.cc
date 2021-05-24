@@ -58,10 +58,10 @@
  *   - `tree_method` parameter. `gpu_hist` or not.
  *   - `predictor` parameter: `gpu_predictor` or not.
  *   - data: Whether data is already on device (like cupy, cuDF).
- *   - environment: Does the environment have GPU at all?
+ *   - environment: Does the environment have GPU at all?   This might happen
+ *                  after users loading a pickled model on CPU only machine.
  *   - model: User might continue training on an existing model, in which case we don't
- *            want to pull the data into GPU for initial prediction.  This might happen
- *            after users loading a pickled model on CPU only machine.
+ *            want to pull the data into GPU for initial prediction.
  *
  * As you might have notice those inputs are correlated.  XGBoost sorts them into
  * following relationship, please note that the ordering matters:
@@ -219,7 +219,8 @@ void GBTree::PerformTreeMethodHeuristic(DMatrix* fmat) {
           tparam_.tree_method == TreeMethod::kHist)
         << "`gpu_id` is set to: " << generic_param_->gpu_id << ".  "
         << "Only histogram based tree method supports GPU training.  "
-        << "Set `tree_method` to `hist` or `gpu_hist` along with `gpu_id` to enable GPU acceleration.";
+        << "Set `tree_method` to `hist` or `gpu_hist` along with "
+        << "`gpu_id` to enable GPU acceleration.";
     tparam_.tree_method = TreeMethod::kGPUHist;
   } else {
     // This should be configured by Learner.
@@ -703,7 +704,8 @@ GBTree::GetPredictor(bool is_training, HostDeviceVector<float> const *out_pred,
     // We only specialize it for continuation. For the first iteration of normal training,
     // there's 0 tree and no prediction is performed hence no data pulling.  This is
     // handled by the predictor itself.
-    auto continuation = (out_pred && out_pred->Empty()) && (model_.param.num_trees != 0) && is_training;
+    auto continuation = (out_pred && out_pred->Empty()) &&
+                        (model_.param.num_trees != 0) && is_training;
     if (continuation) {
       return cpu_predictor_;
     }
