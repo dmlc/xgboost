@@ -120,7 +120,7 @@ jobs:
         auto-update-conda: true
         python-version: ${{ matrix.config.python-version }}
         activate-environment: win64_test
-        environment-file: tests/ci_build/conda_env/win64_test.yml
+        environment-file: tests/ci_build/conda_env/win64_cpu_test.yml
 
     - name: Display Conda env
       shell: bash -l {0}
