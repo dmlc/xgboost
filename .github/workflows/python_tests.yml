@@ -75,7 +75,7 @@ jobs:
       run: |
         mkdir build_mingw
         cd build_mingw
-        cmake ../ -G"Unix Makefiles"
+        cmake ../ -G"Unix Makefiles" -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON
         make -j$(nproc)
         ctest --extra-verbose
 
@@ -85,7 +85,7 @@ jobs:
       run: |
         mkdir build_msvc
         cd build_msvc
-        cmake .. -G"Visual Studio 15 2017" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64
+        cmake .. -G"Visual Studio 15 2017" -DCMAKE_CONFIGURATION_TYPES="Release" -A x64 -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON
         cmake --build . --config Release --parallel $(nproc)
         ctest --extra-verbose
 
