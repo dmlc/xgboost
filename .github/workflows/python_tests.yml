@@ -4,8 +4,8 @@ on: [push, pull_request]
 
 jobs:
   python-sdist-test:
-    name: Test installing XGBoost Python source package
     runs-on: ${{ matrix.os }}
+    name: Test installing XGBoost Python source package on ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-10.15, windows-latest]
@@ -43,7 +43,7 @@ jobs:
         python -c 'import xgboost'
 
   python-tests:
-    name: Test XGBoost Python package
+    name: Test XGBoost Python package on ${{ matrix.config.os }}
     runs-on: ${{ matrix.config.os }}
     strategy:
       matrix:
