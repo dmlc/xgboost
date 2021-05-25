@@ -1533,6 +1533,8 @@ class DaskScikitLearnBase(XGBModel):
             pred_leaf=True,
             iteration_range=iteration_range,
         )
+        if isinstance(predts, dd.DataFrame):
+            predts = predts.to_dask_array()
         return predts
 
     def apply(
