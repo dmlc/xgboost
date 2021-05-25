@@ -26,6 +26,13 @@ jobs:
       with:
         r-version: ${{ matrix.config.r }}
 
+    - name: Cache R packages
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.R_LIBS_USER }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
+
     - name: Install dependencies
       shell: Rscript {0}
       run: |
@@ -62,6 +69,13 @@ jobs:
       with:
         r-version: ${{ matrix.config.r }}
 
+    - name: Cache R packages
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.R_LIBS_USER }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
+
     - name: Install dependencies
       shell: Rscript {0}
       run: |
@@ -76,7 +90,7 @@ jobs:
 
     - name: Test R
       run: |
-        python tests/ci_build/test_r_package.py --compiler='${{ matrix.config.compiler }}' --build-tool='${{ matrix.config.build }}'
+        python tests/ci_build/test_r_package.py --compiler="${{ matrix.config.compiler }}" --build-tool="${{ matrix.config.build }}"
 
   test-R-CRAN:
     runs-on: ubuntu-latest
@@ -101,6 +115,13 @@ jobs:
     - name: Install system packages
       run: |
         sudo apt-get update && sudo apt-get install libcurl4-openssl-dev libssl-dev libssh2-1-dev libgit2-dev pandoc pandoc-citeproc
+
+    - name: Cache R packages
+      uses: actions/cache@v2
+      with:
+        path: ${{ env.R_LIBS_USER }}
+        key: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
+        restore-keys: ${{ runner.os }}-r-${{ matrix.config.r }}-1-${{ hashFiles('R-package/DESCRIPTION') }}
 
     - name: Install dependencies
       shell: Rscript {0}
