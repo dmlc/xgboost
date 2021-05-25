@@ -116,11 +116,6 @@ def _maybe_np_slice(data, dtype):
     '''
     try:
         if not data.flags.c_contiguous:
-            warnings.warn(
-                "Use of np.ndarray subsets (sliced data) is not recommended " +
-                "because it will generate extra copies and increase " +
-                "memory consumption. Consider using np.ascontiguousarray to " +
-                "make the array contiguous.")
             data = np.array(data, copy=True, dtype=dtype)
         else:
             data = np.array(data, copy=False, dtype=dtype)
