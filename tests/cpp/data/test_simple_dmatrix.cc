@@ -74,8 +74,9 @@ TEST(SimpleDMatrix, Empty) {
 
   data::CSRAdapter csr_adapter(row_ptr.data(), feature_idx.data(), data.data(),
                                0, 0, 0);
-  std::unique_ptr<data::SimpleDMatrix> dmat(new data::SimpleDMatrix(
-      &csr_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
+  auto dmat =
+      std::unique_ptr<data::SimpleDMatrix>{data::SimpleDMatrix::FromCPUData(
+          &csr_adapter, std::numeric_limits<float>::quiet_NaN(), -1)};
   CHECK_EQ(dmat->Info().num_nonzero_, 0);
   CHECK_EQ(dmat->Info().num_row_, 0);
   CHECK_EQ(dmat->Info().num_col_, 0);
@@ -84,8 +85,8 @@ TEST(SimpleDMatrix, Empty) {
   }
 
   data::DenseAdapter dense_adapter(nullptr, 0, 0);
-  dmat.reset( new data::SimpleDMatrix(&dense_adapter,
-                                      std::numeric_limits<float>::quiet_NaN(), 1) );
+  dmat.reset(data::SimpleDMatrix::FromCPUData(
+      &dense_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
   CHECK_EQ(dmat->Info().num_nonzero_, 0);
   CHECK_EQ(dmat->Info().num_row_, 0);
   CHECK_EQ(dmat->Info().num_col_, 0);
@@ -94,7 +95,7 @@ TEST(SimpleDMatrix, Empty) {
   }
 
   data::CSCAdapter csc_adapter(nullptr, nullptr, nullptr, 0, 0);
-  dmat.reset(new data::SimpleDMatrix(
+  dmat.reset(data::SimpleDMatrix::FromCPUData(
       &csc_adapter, std::numeric_limits<float>::quiet_NaN(), 1));
   CHECK_EQ(dmat->Info().num_nonzero_, 0);
   CHECK_EQ(dmat->Info().num_row_, 0);
@@ -111,16 +112,16 @@ TEST(SimpleDMatrix, MissingData) {
 
   data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2,
                            3, 2);
-  std::unique_ptr<data::SimpleDMatrix> dmat{new data::SimpleDMatrix{
-      &adapter, std::numeric_limits<float>::quiet_NaN(), 1}};
+  std::unique_ptr<data::SimpleDMatrix> dmat{data::SimpleDMatrix::FromCPUData(
+      &adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
   CHECK_EQ(dmat->Info().num_nonzero_, 2);
-  dmat.reset(new data::SimpleDMatrix(&adapter, 1.0, 1));
+  dmat.reset(data::SimpleDMatrix::FromCPUData(&adapter, 1.0, 1));
   CHECK_EQ(dmat->Info().num_nonzero_, 1);
 
   {
     data[1] = std::numeric_limits<float>::infinity();
     data::DenseAdapter adapter(data.data(), data.size(), 1);
-    EXPECT_THROW(data::SimpleDMatrix dmat(
+    EXPECT_THROW(data::SimpleDMatrix::FromCPUData(
                      &adapter, std::numeric_limits<float>::quiet_NaN(), -1),
                  dmlc::Error);
   }
@@ -133,8 +134,11 @@ TEST(SimpleDMatrix, EmptyRow) {
 
   data::CSRAdapter adapter(row_ptr.data(), feature_idx.data(), data.data(), 2,
                            2, 2);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           1);
+  auto p_dmat =
+      std::unique_ptr<data::SimpleDMatrix>{data::SimpleDMatrix::FromCPUData(
+          &adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
+  auto& dmat = *p_dmat;
+
   CHECK_EQ(dmat.Info().num_nonzero_, 2);
   CHECK_EQ(dmat.Info().num_row_, 2);
   CHECK_EQ(dmat.Info().num_col_, 2);
@@ -145,8 +149,11 @@ TEST(SimpleDMatrix, FromDense) {
   int n = 2;
   std::vector<float> data = {1, 2, 3, 4, 5, 6};
   data::DenseAdapter adapter(data.data(), m, n);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           -1);
+  auto p_dmat =
+      std::unique_ptr<data::SimpleDMatrix>{data::SimpleDMatrix::FromCPUData(
+          &adapter, std::numeric_limits<float>::quiet_NaN(), -1)};
+  auto &dmat = *p_dmat;
+
   EXPECT_EQ(dmat.Info().num_col_, 2);
   EXPECT_EQ(dmat.Info().num_row_, 3);
   EXPECT_EQ(dmat.Info().num_nonzero_, 6);
@@ -168,8 +175,11 @@ TEST(SimpleDMatrix, FromCSC) {
   std::vector<unsigned> row_idx = {0, 1, 0, 1, 2};
   std::vector<size_t> col_ptr = {0, 2, 5};
   data::CSCAdapter adapter(col_ptr.data(), row_idx.data(), data.data(), 2, 3);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           -1);
+  auto p_dmat =
+      std::unique_ptr<data::SimpleDMatrix>{data::SimpleDMatrix::FromCPUData(
+          &adapter, std::numeric_limits<float>::quiet_NaN(), -1)};
+  auto &dmat = *p_dmat;
+
   EXPECT_EQ(dmat.Info().num_col_, 2);
   EXPECT_EQ(dmat.Info().num_row_, 3);
   EXPECT_EQ(dmat.Info().num_nonzero_, 5);
@@ -227,11 +237,12 @@ TEST(SimpleDMatrix, FromFile) {
 
   constexpr bst_feature_t kCols = 5;
   data::FileAdapter adapter(parser.get());
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(),
-                           1);
-  ASSERT_EQ(dmat.Info().num_col_, kCols);
+  auto p_dmat =
+      std::unique_ptr<data::SimpleDMatrix>{data::SimpleDMatrix::FromCPUData(
+          &adapter, std::numeric_limits<float>::quiet_NaN(), 1)};
+  ASSERT_EQ(p_dmat->Info().num_col_, kCols);
 
-  for (auto &batch : dmat.GetBatches<SparsePage>()) {
+  for (auto &batch : p_dmat->GetBatches<SparsePage>()) {
     verify_batch(batch);
   }
 }

@@ -63,7 +63,7 @@ inline data::CupyAdapter AdapterFromData(const thrust::device_vector<float> &x,
 inline std::shared_ptr<data::SimpleDMatrix>
 GetDMatrixFromData(const std::vector<float> &x, int num_rows, int num_columns) {
   data::DenseAdapter adapter(x.data(), num_rows, num_columns);
-  return std::shared_ptr<data::SimpleDMatrix>(new data::SimpleDMatrix(
+  return std::shared_ptr<data::SimpleDMatrix>(data::SimpleDMatrix::FromCPUData(
       &adapter, std::numeric_limits<float>::quiet_NaN(), 1));
 }
 

@@ -12,6 +12,7 @@
 #include "../helpers.h"
 #include "../../../src/gbm/gbtree_model.h"
 #include "../../../src/data/device_adapter.cuh"
+#include "../../../src/data/data.cuh"
 #include "test_predictor.h"
 
 namespace xgboost {
@@ -83,7 +84,7 @@ TEST(GPUPredictor, EllpackTraining) {
        .GenerateArrayInterface(&storage);
   auto adapter = data::CupyAdapter(columnar);
   std::shared_ptr<DMatrix> p_full {
-    DMatrix::Create(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)
+    DMatrix::CreateFromGPU(&adapter, std::numeric_limits<float>::quiet_NaN(), 1)
   };
   TestTrainingPrediction(kRows, kBins, "gpu_hist", p_full, p_ellpack);
 }

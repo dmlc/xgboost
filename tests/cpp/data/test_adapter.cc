@@ -4,6 +4,7 @@
 #include <utility>
 #include <xgboost/data.h>
 #include "../../../src/data/adapter.h"
+#include "../../../src/data/data.h"
 #include "../../../src/data/simple_dmatrix.h"
 #include "../../../src/common/timer.h"
 #include "../helpers.h"
@@ -41,7 +42,11 @@ TEST(Adapter, CSCAdapterColsMoreThanRows) {
   std::vector<size_t> col_ptr = {0, 2, 4, 6, 8};
   // Infer row count
   data::CSCAdapter adapter(col_ptr.data(), row_idx.data(), data.data(), 4, 0);
-  data::SimpleDMatrix dmat(&adapter, std::numeric_limits<float>::quiet_NaN(), -1);
+  auto p_dmat =
+      std::unique_ptr<data::SimpleDMatrix>{data::SimpleDMatrix::FromCPUData(
+          &adapter, std::numeric_limits<float>::quiet_NaN(), -1)};
+  auto& dmat = *p_dmat;
+
   EXPECT_EQ(dmat.Info().num_col_, 4);
   EXPECT_EQ(dmat.Info().num_row_, 2);
   EXPECT_EQ(dmat.Info().num_nonzero_, 8);

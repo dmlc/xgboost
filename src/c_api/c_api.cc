@@ -25,6 +25,7 @@
 #include "../common/io.h"
 #include "../common/charconv.h"
 #include "../data/adapter.h"
+#include "../data/data.h"
 #include "../data/simple_dmatrix.h"
 #include "../data/proxy_dmatrix.h"
 

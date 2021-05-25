@@ -24,8 +24,9 @@ namespace common {
 
 template <typename AdapterT>
 HistogramCuts GetHostCuts(AdapterT *adapter, int num_bins, float missing) {
-  data::SimpleDMatrix dmat(adapter, missing, 1);
-  HistogramCuts cuts = SketchOnDMatrix(&dmat, num_bins);
+  auto p_dmat = std::unique_ptr<data::SimpleDMatrix>{
+      data::SimpleDMatrix::FromGPUData(adapter, missing, 1)};
+  HistogramCuts cuts = SketchOnDMatrix(p_dmat.get(), num_bins);
   return cuts;
 }
 

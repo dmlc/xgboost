@@ -64,7 +64,7 @@ void CopyDataToDMatrix(AdapterT* adapter, common::Span<Entry> data,
 // Current implementation assumes a single batch. More batches can
 // be supported in future. Does not currently support inferring row/column size
 template <typename AdapterT>
-SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
+void SimpleDMatrix::LoadFromGPU(AdapterT* adapter, float missing, int nthread) {
   dh::safe_cuda(cudaSetDevice(adapter->DeviceIdx()));
   CHECK(adapter->NumRows() != kAdapterUnknownSize);
   CHECK(adapter->NumColumns() != kAdapterUnknownSize);
@@ -90,9 +90,9 @@ SimpleDMatrix::SimpleDMatrix(AdapterT* adapter, float missing, int nthread) {
   rabit::Allreduce<rabit::op::Max>(&info_.num_col_, 1);
 }
 
-template SimpleDMatrix::SimpleDMatrix(CudfAdapter* adapter, float missing,
-                                      int nthread);
-template SimpleDMatrix::SimpleDMatrix(CupyAdapter* adapter, float missing,
-                                      int nthread);
+template void SimpleDMatrix::LoadFromGPU(CudfAdapter *adapter, float missing,
+                                         int nthread);
+template void SimpleDMatrix::LoadFromGPU(CupyAdapter *adapter, float missing,
+                                         int nthread);
 }  // namespace data
 }  // namespace xgboost
