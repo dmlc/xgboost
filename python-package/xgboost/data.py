@@ -129,6 +129,10 @@ def _from_numpy_array(data, missing, nthread, feature_names, feature_types):
     """Initialize data from a 2-D numpy matrix.
 
     """
+    if len(data.shape) != 2:
+        raise ValueError(
+            "Expecting 2 dimensional numpy.ndarray, got: ", data.shape
+        )
     data, _ = _ensure_np_dtype(data, data.dtype)
     handle = ctypes.c_void_p()
     args = {
