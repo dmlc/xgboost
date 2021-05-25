@@ -203,6 +203,8 @@ void SimpleDMatrix::SaveToLocalFile(const std::string& fname) {
 
 template SimpleDMatrix::SimpleDMatrix(DenseAdapter* adapter, float missing,
                                      int nthread);
+template SimpleDMatrix::SimpleDMatrix(ArrayAdapter* adapter, float missing,
+                                     int nthread);
 template SimpleDMatrix::SimpleDMatrix(CSRAdapter* adapter, float missing,
                                      int nthread);
 template SimpleDMatrix::SimpleDMatrix(CSRArrayAdapter* adapter, float missing,

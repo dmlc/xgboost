@@ -261,6 +261,20 @@ XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr,
   API_END();
 }
 
+XGB_DLL int XGDMatrixCreateFromArray(char const *data,
+                                     char const *c_json_config,
+                                     DMatrixHandle *out) {
+  API_BEGIN();
+  xgboost::data::ArrayAdapter adapter{
+      xgboost::data::ArrayAdapter(StringView{data})};
+  auto config = Json::Load(StringView{c_json_config});
+  float missing = GetMissing(config);
+  auto nthread = get<Integer const>(config["nthread"]);
+  *out =
+      new std::shared_ptr<DMatrix>(DMatrix::Create(&adapter, missing, nthread));
+  API_END();
+}
+
 XGB_DLL int XGDMatrixCreateFromCSCEx(const size_t* col_ptr,
                                      const unsigned* indices,
                                      const bst_float* data,

@@ -803,6 +803,9 @@ DMatrix* DMatrix::Create(AdapterT* adapter, float missing, int nthread,
 template DMatrix* DMatrix::Create<data::DenseAdapter>(
     data::DenseAdapter* adapter, float missing, int nthread,
     const std::string& cache_prefix, size_t page_size);
+template DMatrix* DMatrix::Create<data::ArrayAdapter>(
+    data::ArrayAdapter* adapter, float missing, int nthread,
+    const std::string& cache_prefix, size_t page_size);
 template DMatrix* DMatrix::Create<data::CSRAdapter>(
     data::CSRAdapter* adapter, float missing, int nthread,
     const std::string& cache_prefix, size_t page_size);
@@ -1036,6 +1039,8 @@ void SparsePage::PushCSC(const SparsePage &batch) {
 
 template uint64_t
 SparsePage::Push(const data::DenseAdapterBatch& batch, float missing, int nthread);
+template uint64_t
+SparsePage::Push(const data::ArrayAdapterBatch& batch, float missing, int nthread);
 template uint64_t
 SparsePage::Push(const data::CSRAdapterBatch& batch, float missing, int nthread);
 template uint64_t
