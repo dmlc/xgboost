@@ -114,12 +114,14 @@ jobs:
     - uses: actions/checkout@v2
       with:
         submodules: 'true'
+
     - uses: conda-incubator/setup-miniconda@v2
       with:
         auto-update-conda: true
         python-version: ${{ matrix.config.python-version }}
-        activate-environment: test
+        activate-environment: win64_test
         environment-file: tests/ci_build/conda_env/win64_test.yml
+
     - name: Display Conda env
       shell: bash -l {0}
       run: |
