@@ -48,7 +48,6 @@ jobs:
     strategy:
       matrix:
         config:
-          - {os: windows-2016, compiler: 'mingw', python-version: '3.8'}
           - {os: windows-2016, compiler: 'msvc', python-version: '3.8'}
 
     steps:
