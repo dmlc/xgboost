@@ -1486,20 +1486,17 @@ class DaskScikitLearnBase(XGBModel):
                 base_margin=base_margin,
                 validate_features=validate_features,
             )
-            if isinstance(predts, dd.DataFrame):
-                predts = predts.to_dask_array()
         else:
-            test_dmatrix = await DaskDMatrix(
-                self.client, data=data, base_margin=base_margin, missing=self.missing
-            )
             predts = await predict(
                 self.client,
                 model=self.get_booster(),
-                data=test_dmatrix,
+                data=data,
                 output_margin=output_margin,
                 validate_features=validate_features,
                 iteration_range=iteration_range,
             )
+        if isinstance(predts, dd.DataFrame):
+            predts = predts.to_dask_array()
         return predts
 
     def predict(
@@ -1529,11 +1526,10 @@ class DaskScikitLearnBase(XGBModel):
         iteration_range: Optional[Tuple[int, int]] = None,
     ) -> Any:
         iteration_range = self._get_iteration_range(iteration_range)
-        test_dmatrix = await DaskDMatrix(self.client, data=X, missing=self.missing)
         predts = await predict(
             self.client,
             model=self.get_booster(),
-            data=test_dmatrix,
+            data=X,
             pred_leaf=True,
             iteration_range=iteration_range,
         )
