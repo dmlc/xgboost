@@ -687,7 +687,7 @@ class XGBModel(XGBModelBase):
             used for early stopping.
 
             If early stopping occurs, the model will have three additional fields:
-            ``clf.best_score``, ``clf.best_iteration`` and ``clf.best_ntree_limit``.
+            ``clf.best_score``, ``clf.best_iteration``.
         verbose :
             If `verbose` and an evaluation set is used, writes the evaluation metric
             measured on the validation set to stderr.
