@@ -103,7 +103,7 @@ jobs:
 
   python-tests:
     name: Test XGBoost Python package
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.config.os }}
     strategy:
       matrix:
         config:
