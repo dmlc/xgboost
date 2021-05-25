@@ -94,9 +94,8 @@ jobs:
       run: |
         cd python-package
         python --version
-        python setup.py install
-        mkdir wheel
-        python setup.py bdist_wheel --universal --plat-name win-amd64 -d wheel
+        python setup.py bdist_wheel --universal
+        pip insall ./dist/*.whl
 
     - name: Test Python package
       shell: bash -l {0}
