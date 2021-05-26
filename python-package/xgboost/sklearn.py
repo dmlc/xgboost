@@ -374,7 +374,7 @@ class XGBModel(XGBModelBase):
         importance_type: str = "gain",
         gpu_id: Optional[int] = None,
         validate_parameters: Optional[bool] = None,
-        predictor=None,
+        predictor: Optional[str] = None,
         **kwargs: Any
     ) -> None:
         if not SKLEARN_INSTALLED:
