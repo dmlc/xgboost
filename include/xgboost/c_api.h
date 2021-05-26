@@ -133,7 +133,7 @@ XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr,
 
 /*!
  * \brief Create a matrix from dense array.
- * \param data  JSON encoded __array_interface__ to row pointers in CSR.
+ * \param data  JSON encoded __array_interface__ to array values.
  * \param json_config JSON encoded configuration.  Required values are:
  *
  *          - missing
