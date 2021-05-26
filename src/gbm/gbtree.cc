@@ -802,7 +802,11 @@ class Dart : public GBTree {
         bool success = predictor->InplacePredict(x, nullptr, model_, missing,
                                                  &predts, i, i + 1);
         device = predts.predictions.DeviceIdx();
-        CHECK(success) << msg;
+        CHECK(success) << msg << std::endl
+                       << "Current Predictor: "
+                       << (tparam_.predictor == PredictorType::kCPUPredictor
+                               ? "cpu_predictor"
+                               : "gpu_predictor");
       }
 
       auto w = this->weight_drop_.at(i);

@@ -291,7 +291,11 @@ class GBTree : public GradientBooster {
     } else {
       bool success = this->GetPredictor()->InplacePredict(
           x, p_m, model_, missing, out_preds, tree_begin, tree_end);
-      CHECK(success) << msg;
+      CHECK(success) << msg << std::endl
+                     << "Current Predictor: "
+                     << (tparam_.predictor == PredictorType::kCPUPredictor
+                             ? "cpu_predictor"
+                             : "gpu_predictor");
     }
   }
 

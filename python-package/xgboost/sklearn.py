@@ -374,6 +374,7 @@ class XGBModel(XGBModelBase):
         importance_type: str = "gain",
         gpu_id: Optional[int] = None,
         validate_parameters: Optional[bool] = None,
+        predictor=None,
         **kwargs: Any
     ) -> None:
         if not SKLEARN_INSTALLED:
@@ -409,6 +410,7 @@ class XGBModel(XGBModelBase):
         self.importance_type = importance_type
         self.gpu_id = gpu_id
         self.validate_parameters = validate_parameters
+        self.predictor = predictor
 
     def _more_tags(self) -> Dict[str, bool]:
         '''Tags used for scikit-learn data validation.'''
