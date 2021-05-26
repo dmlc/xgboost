@@ -19,6 +19,7 @@
 #include "param.h"
 #include "../common/common.h"
 #include "../common/categorical.h"
+#include "../predictor/predict_fn.h"
 
 namespace xgboost {
 // register tree parameter
@@ -1052,10 +1053,16 @@ void RegTree::CalculateContributionsApprox(const RegTree::FVec &feat,
     // nothing to do anymore
     return;
   }
+
   bst_node_t nid = 0;
+  auto cats = this->GetCategoriesMatrix();
+  auto nodes = common::Span<Node const>{this->GetNodes()};
+
   while (!(*this)[nid].IsLeaf()) {
     split_index = (*this)[nid].SplitIndex();
-    nid = this->GetNext(nid, feat.GetFvalue(split_index), feat.IsMissing(split_index));
+    nid = predictor::GetNextNode<true, true>(nodes, nid,
+                                             feat.GetFvalue(split_index),
+                                             feat.IsMissing(split_index), cats);
     bst_float new_value = this->node_mean_values_[nid];
     // update feature weight
     out_contribs[split_index] += new_value - node_value;

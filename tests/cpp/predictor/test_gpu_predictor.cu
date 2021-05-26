@@ -228,6 +228,10 @@ TEST(GPUPredictor, CategoricalPrediction) {
   TestCategoricalPrediction("gpu_predictor");
 }
 
+TEST(GPUPredictor, CategoricalPredictLeaf) {
+  TestCategoricalPredictLeaf(StringView{"gpu_predictor"});
+}
+
 TEST(GPUPredictor, PredictLeafBasic) {
   size_t constexpr kRows = 5, kCols = 5;
   auto dmat = RandomDataGenerator(kRows, kCols, 0).Device(0).GenerateDMatrix();
