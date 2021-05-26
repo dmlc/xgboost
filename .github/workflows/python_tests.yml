@@ -68,16 +68,6 @@ jobs:
         conda info
         conda list
 
-    - name: Build XGBoost with mingw
-      shell: bash -l {0}
-      if: matrix.config.compiler == 'mingw'
-      run: |
-        mkdir build_mingw
-        cd build_mingw
-        cmake ../ -G"Unix Makefiles" -DGOOGLE_TEST=ON  -DUSE_DMLC_GTEST=ON
-        make -j$(nproc)
-        ctest --extra-verbose
-
     - name: Build XGBoost with msvc
       shell: bash -l {0}
       if: matrix.config.compiler == 'msvc'
