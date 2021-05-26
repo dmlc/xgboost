@@ -946,7 +946,7 @@ def test_dask_predict_leaf(booster: str, client: "Client") -> None:
     assert leaf.shape[2] == cls.n_classes_
     assert leaf.shape[3] == num_parallel_tree
 
-    leaf_from_apply = cls.apply(X).reshape(leaf.shape).compute()
+    leaf_from_apply = cls.apply(X).compute_chunk_sizes().reshape(leaf.shape).compute()
     np.testing.assert_allclose(leaf_from_apply, leaf)
 
     verify_leaf_output(leaf, num_parallel_tree)
