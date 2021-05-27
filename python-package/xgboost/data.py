@@ -141,7 +141,7 @@ def _from_numpy_array(data, missing, nthread, feature_names, feature_types):
     }
     config = bytes(json.dumps(args), "utf-8")
     _check_call(
-        _LIB.XGDMatrixCreateFromArray(
+        _LIB.XGDMatrixCreateFromDense(
             _array_interface(data),
             config,
             ctypes.byref(handle),
