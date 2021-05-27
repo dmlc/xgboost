@@ -9,7 +9,8 @@ from typing import Any
 
 import numpy as np
 
-from .core import c_array, _LIB, _check_call, c_str, _array_interface
+from .core import c_array, _LIB, _check_call, c_str
+from .core import _array_interface, _cuda_array_interface
 from .core import DataIter, _ProxyDMatrix, DMatrix
 from .compat import lazy_isinstance
 
@@ -105,7 +106,7 @@ def _is_numpy_array(data):
 
 
 def _ensure_np_dtype(data, dtype):
-    if data.dtype.hasobject:
+    if data.dtype.hasobject or data.dtype in [np.float16, np.bool_]:
         data = data.astype(np.float32, copy=False)
         dtype = np.float32
     return data, dtype
@@ -416,21 +417,19 @@ def _is_cupy_array(data):
 
 
 def _transform_cupy_array(data):
+    import cupy  # pylint: disable=import-error
     if not hasattr(data, '__cuda_array_interface__') and hasattr(
             data, '__array__'):
-        import cupy             # pylint: disable=import-error
         data = cupy.array(data, copy=False)
+    if data.dtype in [cupy.float16, cupy.bool_]:
+        data = data.astype(cupy.float32, copy=False)
     return data
 
 
 def _from_cupy_array(data, missing, nthread, feature_names, feature_types):
     """Initialize DMatrix from cupy ndarray."""
     data = _transform_cupy_array(data)
-    interface = data.__cuda_array_interface__
-    if 'mask' in interface:
-        interface['mask'] = interface['mask'].__cuda_array_interface__
-    interface_str = bytes(json.dumps(interface, indent=2), 'utf-8')
-
+    interface_str = _cuda_array_interface(data)
     handle = ctypes.c_void_p()
     _check_call(
         _LIB.XGDMatrixCreateFromArrayInterface(

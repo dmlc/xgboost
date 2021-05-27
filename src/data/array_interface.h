@@ -136,8 +136,9 @@ class ArrayInterfaceHandler {
     if (array.find("typestr") == array.cend()) {
       LOG(FATAL) << "Missing `typestr' field for array interface";
     }
+
     auto typestr = get<String const>(array.at("typestr"));
-    CHECK_EQ(typestr.size(),    3) << ArrayInterfaceErrors::TypestrFormat();
+    CHECK(typestr.size() == 3 || typestr.size() == 4) << ArrayInterfaceErrors::TypestrFormat();;
     CHECK_NE(typestr.front(), '>') << ArrayInterfaceErrors::BigEndian();
 
     if (array.find("shape") == array.cend()) {
@@ -296,7 +297,7 @@ class ArrayInterface {
   }
 
  public:
-  enum Type : std::int8_t { kF4, kF8, kI1, kI2, kI4, kI8, kU1, kU2, kU4, kU8 };
+  enum Type : std::int8_t { kF4, kF8, kF16, kI1, kI2, kI4, kI8, kU1, kU2, kU4, kU8 };
 
  public:
   ArrayInterface() = default;
@@ -332,7 +333,12 @@ class ArrayInterface {
   }
 
   void AssignType(StringView typestr) {
-    if (typestr[1] == 'f' && typestr[2] == '4') {
+    if (typestr.size() == 4 && typestr[1] == 'f' && typestr[2] == '1' &&
+        typestr[3] == '6') {
+      type = kF16;
+      CHECK(sizeof(long double) == 16)
+          << "128-bit floating point is not supported on current platform.";
+    } else if (typestr[1] == 'f' && typestr[2] == '4') {
       type = kF4;
     } else if (typestr[1] == 'f' && typestr[2] == '8') {
       type = kF8;
@@ -365,6 +371,10 @@ class ArrayInterface {
       return func(reinterpret_cast<float *>(data));
     case kF8:
       return func(reinterpret_cast<double *>(data));
+#ifndef __CUDA_ARCH__
+    case kF16:
+      return func(reinterpret_cast<long double *>(data));
+#endif
     case kI1:
       return func(reinterpret_cast<int8_t *>(data));
     case kI2:
