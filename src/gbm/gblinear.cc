@@ -69,14 +69,15 @@ class GBLinear : public GradientBooster {
 
   void ValidateUpdater() {
     if (generic_param_->gpu_id != GenericParameter::kCpuId) {
+      // On GPU.
       CHECK(param_.updater == "gpu_coord_descent" || param_.updater == "coord_descent")
         << "`gpu_id` is set to: " << generic_param_->gpu_id << ".  "
         << "Only coordinate descent supports GPU training.  "
         << "Set `updater` to `coord_descent` or `gpu_coord_descent` along with "
         << "`gpu_id` to enable GPU acceleration.";
     } else {
-      CHECK_EQ(param_.updater, "gpu_coord_descent")
-          << "[Internal Error]: `gpu_coord_descent` is used bu `gpu_id` is not configured.";
+      CHECK_EQ(param_.updater, "coord_descent")
+          << "[Internal Error]: `coord_descent` is used bu `gpu_id` is configured to -1.";
     }
   }
 
