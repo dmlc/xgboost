@@ -42,7 +42,8 @@ struct ArrayInterfaceErrors {
     return str.c_str();
   }
   static char const* Version() {
-    return "Only version <= 3 of `__cuda_array_interface__' are supported.";
+    return "Only version <= 3 of "
+           "`__cuda_array_interface__/__array_interface__' are supported.";
   }
   static char const* OfType(std::string const& type) {
     static std::string str;
@@ -81,7 +82,7 @@ struct ArrayInterfaceErrors {
         return "Other";
       default:
         LOG(FATAL) << "Invalid type code: " << c << " in `typestr' of input array."
-                   << "\nPlease verify the `__cuda_array_interface__' "
+                   << "\nPlease verify the `__cuda_array_interface__/__array_interface__' "
                    << "of your input data complies to: "
                    << "https://docs.scipy.org/doc/numpy/reference/arrays.interface.html"
                    << "\nOr open an issue.";
@@ -90,7 +91,7 @@ struct ArrayInterfaceErrors {
   }
 
   static std::string UnSupportedType(StringView typestr) {
-    return TypeStr(typestr[1]) + " is not supported.";
+    return TypeStr(typestr[1]) + "-" + typestr[2] + " is not supported.";
   }
 };
 
