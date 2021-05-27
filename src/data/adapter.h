@@ -231,6 +231,10 @@ class DenseAdapter : public detail::SingleBatchDataIter<DenseAdapterBatch> {
 };
 
 class ArrayAdapterBatch : public detail::NoMetaInfo {
+ public:
+  static constexpr bool kIsRowMajor = true;
+
+ private:
   ArrayInterface array_interface_;
 
   class Line {
@@ -253,6 +257,7 @@ class ArrayAdapterBatch : public detail::NoMetaInfo {
   Line const GetLine(size_t idx) const {
     return Line{array_interface_, idx};
   }
+  size_t Size() const { return array_interface_.num_rows; }
 
   explicit ArrayAdapterBatch(ArrayInterface array_interface)
       : array_interface_{std::move(array_interface)} {}

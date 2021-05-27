@@ -130,6 +130,22 @@ XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr,
                                    char const* json_config,
                                    DMatrixHandle* out);
 
+
+/*!
+ * \brief Create a matrix from dense array.
+ * \param data  JSON encoded __array_interface__ to array values.
+ * \param json_config JSON encoded configuration.  Required values are:
+ *
+ *          - missing
+ *          - nthread
+ *
+ * \param out created dmatrix
+ * \return 0 when success, -1 when failure happens
+ */
+XGB_DLL int XGDMatrixCreateFromArray(char const *data,
+                                     char const *json_config,
+                                     DMatrixHandle *out);
+
 /*!
  * \brief create a matrix content from CSC format
  * \param col_ptr pointer to col headers
