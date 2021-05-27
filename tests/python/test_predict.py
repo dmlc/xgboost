@@ -281,7 +281,6 @@ class TestInplacePredict:
             np.string_,
             np.complex64,
             np.complex128,
-            np.complex256,
         ]:
             X = np.array(orig, dtype=dtype)
             with pytest.raises(ValueError):
