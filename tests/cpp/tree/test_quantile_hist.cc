@@ -111,9 +111,9 @@ class QuantileHistMock : public QuantileHistMaker {
       for (size_t i = 0; i < 100; ++i) {
         eng_first();
       }
-      uint64_t initial_seed_th = SimpleSkip(100, initial_seed, 16807);
-      std::linear_congruential_engine<std::uint_fast64_t, 16807, 0,
-                                      (uint64_t)(1) << 63 > eng_second(initial_seed_th);
+      uint64_t initial_seed_th = RandomReplace::SimpleSkip(100, initial_seed, 16807, RandomReplace::kMod);
+      std::linear_congruential_engine<std::uint_fast64_t, RandomReplace::kBase, 0,
+                                      RandomReplace::kMod > eng_second(initial_seed_th);
       ASSERT_EQ(eng_first(), eng_second());
 
       const size_t nthreads = omp_get_num_threads();

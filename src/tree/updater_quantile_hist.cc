@@ -665,23 +665,47 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
   return true;
 }
 
-/*
-  Right-to-left binary method: https://en.wikipedia.org/wiki/Modular_exponentiation
-*/
-uint64_t SimpleSkip(uint64_t exponent, uint64_t initial_seed, uint64_t base) {
-  const uint64_t max = static_cast<uint64_t>(1) << 63;
-  CHECK_LE(exponent, max);
-  uint64_t result = 1;
-  while (exponent > 0) {
-    if (exponent % 2 == 1) {
-      result = (result * base) % max;
+struct RandomReplace {
+ private:
+  // similar value as for minstd_rand
+  static constexpr uint64_t kBase = 16807;
+  static constexpr uint64_t kMod = static_cast<uint64_t>(1) << 63;
+
+  /*
+    Right-to-left binary method: https://en.wikipedia.org/wiki/Modular_exponentiation
+  */
+  static uint64_t SimpleSkip(uint64_t exponent, uint64_t initial_seed,
+                             uint64_t base, uint64_t mod) {
+    CHECK_LE(exponent, mod);
+    uint64_t result = 1;
+    while (exponent > 0) {
+      if (exponent % 2 == 1) {
+        result = (result * base) % mod;
+      }
+      base = (base * base) % mod;
+      exponent = exponent >> 1;
     }
-    base = (base * base) % max;
-    exponent = exponent >> 1;
+    // with result we can now find the new seed
+    return (result * initial_seed) % mod;
   }
-  // with result we can now find the new seed
-  return (result * initial_seed) % max;
-}
+
+ public:
+  using EngineT = std::linear_congruential_engine<uint64_t, kBase, 0, kMod>;
+
+  template<typename Condition, typename ContainerData>
+  static void MakeIf(Condition condition, const typename ContainerData::value_type replace_value,
+                      const uint64_t initial_seed, const size_t ibegin,
+                      const size_t iend, ContainerData* gpair) {
+    ContainerData& gpair_ref = *gpair;
+    const uint64_t displaced_seed = SimpleSkip(ibegin, initial_seed, kBase, kMod);
+    EngineT eng(displaced_seed);
+    for (size_t i = ibegin; i < iend; ++i) {
+      if (condition(i, eng)) {
+        gpair_ref[i] = replace_value;
+      }
+    }
+  }
+};
 
 template<typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const DMatrix& fmat,
@@ -714,18 +738,9 @@ void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const DMatrix& fmat,
       const size_t ibegin = tid * discard_size;
       const size_t iend = (tid == (nthread - 1)) ?
                           info.num_row_ : ibegin + discard_size;
-      // similar value as for minstd_rand
-      constexpr uint64_t kBase = 16807;
-      uint64_t initial_seed_th = SimpleSkip(discard_size * tid, initial_seed, kBase);
-      std::linear_congruential_engine<std::uint_fast64_t,
-                                      kBase,
-                                      0,
-                                      static_cast<uint64_t>(1) << 63> eng(initial_seed_th);
-      for (size_t i = ibegin; i < iend; ++i) {
-        if (!(gpair_ref[i].GetHess() >= 0.0f && coin_flip(eng)) || gpair_ref[i].GetGrad() == 0.0f) {
-          gpair_ref[i] = GradientPair(0);
-        }
-      }
+      RandomReplace::MakeIf([&](size_t i, RandomReplace::EngineT& eng) {
+        return !(gpair_ref[i].GetHess() >= 0.0f && coin_flip(eng));
+      }, GradientPair(0), initial_seed, ibegin, iend, &gpair_ref);
     });
   }
   exc.Rethrow();
