@@ -33,10 +33,12 @@ namespace xgboost {
 
 
 struct RandomReplace {
- private:
+ public:
   // similar value as for minstd_rand
   static constexpr uint64_t kBase = 16807;
   static constexpr uint64_t kMod = static_cast<uint64_t>(1) << 63;
+
+  using EngineT = std::linear_congruential_engine<uint64_t, kBase, 0, kMod>;
 
   /*
     Right-to-left binary method: https://en.wikipedia.org/wiki/Modular_exponentiation
@@ -56,13 +58,10 @@ struct RandomReplace {
     return (result * initial_seed) % mod;
   }
 
- public:
-  using EngineT = std::linear_congruential_engine<uint64_t, kBase, 0, kMod>;
-
   template<typename Condition, typename ContainerData>
   static void MakeIf(Condition condition, const typename ContainerData::value_type replace_value,
-                      const uint64_t initial_seed, const size_t ibegin,
-                      const size_t iend, ContainerData* gpair) {
+                     const uint64_t initial_seed, const size_t ibegin,
+                     const size_t iend, ContainerData* gpair) {
     ContainerData& gpair_ref = *gpair;
     const uint64_t displaced_seed = SimpleSkip(ibegin, initial_seed, kBase, kMod);
     EngineT eng(displaced_seed);
