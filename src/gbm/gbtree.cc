@@ -32,6 +32,7 @@
 /**
  * # Notes on the very convoluted `gpu_id` configuration.
  *
+ *
  * ## Good news:
  *
  * Before diving into the issues we have, it might be better to mention a possible
@@ -46,7 +47,14 @@
  * This device id should also incooperate OneAPI proposal from Intel.  Also, we plan to
  * dreprecate the `gpu_hist`, `gpu_predictor`, `oneapi_predictor` and all similar
  * constructs so that the `device_id` will be the only authority on how we run XGBoost
- * internally.
+ * internally.  So for instance, if a user provides:
+ *
+ * ``` python
+ * with xgboost.config_context(device_id = "CUDA:0"):
+ *    xgboost.XGBRegressor(tree_method="hist")
+ * ```
+ * Then XGBoost should run `gpu_hist` on first CUDA device internally.
+ *
  *
  * ## Bad news:
  *

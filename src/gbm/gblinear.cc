@@ -76,8 +76,10 @@ class GBLinear : public GradientBooster {
         << "Set `updater` to `coord_descent` or `gpu_coord_descent` along with "
         << "`gpu_id` to enable GPU acceleration.";
     } else {
-      CHECK_EQ(param_.updater, "coord_descent")
-          << "[Internal Error]: `coord_descent` is used bu `gpu_id` is configured to -1.";
+      CHECK_NE(param_.updater, "gpu_coord_descent")
+          << "[Internal Error]: `gpu_coord_descent` is used but `gpu_id` is "
+             "configured: "
+          << generic_param_->gpu_id;
     }
   }
 
@@ -86,6 +88,11 @@ class GBLinear : public GradientBooster {
       model_.Configure(cfg);
     }
     param_.UpdateAllowUnknown(cfg);
+    if (generic_param_->gpu_id != GenericParameter::kCpuId &&
+        param_.updater == "coord_descent") {
+      param_.updater = "gpu_coord_descent";
+    }
+
     updater_.reset(LinearUpdater::Create(param_.updater, generic_param_));
     updater_->Configure(cfg);
     monitor_.Init("GBLinear");
