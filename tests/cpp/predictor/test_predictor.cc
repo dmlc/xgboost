@@ -99,6 +99,9 @@ void TestInplacePrediction(dmlc::any x, std::string predictor,
   learner->SetParam("subsample", "0.5");
   learner->SetParam("gpu_id", std::to_string(device));
   learner->SetParam("predictor", predictor);
+  if (predictor == "gpu_predictor") {
+    learner->SetParam("tree_method", "gpu_hist");
+  }
   for (int32_t it = 0; it < 4; ++it) {
     learner->UpdateOneIter(it, m);
   }
