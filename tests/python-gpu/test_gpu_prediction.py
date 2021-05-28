@@ -379,6 +379,7 @@ class TestGPUPredict:
         copied = cp.array(copied)
         cp.testing.assert_allclose(inplace, copied, atol=1e-6)
 
+    @pytest.mark.skipif(**tm.no_cupy())
     def test_dtypes(self):
         import cupy as cp
         rows = 1000

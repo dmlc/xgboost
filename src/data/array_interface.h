@@ -138,7 +138,7 @@ class ArrayInterfaceHandler {
     }
 
     auto typestr = get<String const>(array.at("typestr"));
-    CHECK(typestr.size() == 3 || typestr.size() == 4) << ArrayInterfaceErrors::TypestrFormat();;
+    CHECK(typestr.size() == 3 || typestr.size() == 4) << ArrayInterfaceErrors::TypestrFormat();
     CHECK_NE(typestr.front(), '>') << ArrayInterfaceErrors::BigEndian();
 
     if (array.find("shape") == array.cend()) {
