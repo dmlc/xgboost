@@ -31,6 +31,48 @@
 
 namespace xgboost {
 
+
+struct RandomReplace {
+ public:
+  // similar value as for minstd_rand
+  static constexpr uint64_t kBase = 16807;
+  static constexpr uint64_t kMod = static_cast<uint64_t>(1) << 63;
+
+  using EngineT = std::linear_congruential_engine<uint64_t, kBase, 0, kMod>;
+
+  /*
+    Right-to-left binary method: https://en.wikipedia.org/wiki/Modular_exponentiation
+  */
+  static uint64_t SimpleSkip(uint64_t exponent, uint64_t initial_seed,
+                             uint64_t base, uint64_t mod) {
+    CHECK_LE(exponent, mod);
+    uint64_t result = 1;
+    while (exponent > 0) {
+      if (exponent % 2 == 1) {
+        result = (result * base) % mod;
+      }
+      base = (base * base) % mod;
+      exponent = exponent >> 1;
+    }
+    // with result we can now find the new seed
+    return (result * initial_seed) % mod;
+  }
+
+  template<typename Condition, typename ContainerData>
+  static void MakeIf(Condition condition, const typename ContainerData::value_type replace_value,
+                     const uint64_t initial_seed, const size_t ibegin,
+                     const size_t iend, ContainerData* gpair) {
+    ContainerData& gpair_ref = *gpair;
+    const uint64_t displaced_seed = SimpleSkip(ibegin, initial_seed, kBase, kMod);
+    EngineT eng(displaced_seed);
+    for (size_t i = ibegin; i < iend; ++i) {
+      if (condition(i, eng)) {
+        gpair_ref[i] = replace_value;
+      }
+    }
+  }
+};
+
 /*!
  * \brief A C-style array with in-stack allocation. As long as the array is smaller than MaxStackSize, it will be allocated inside the stack. Otherwise, it will be heap-allocated.
  */
@@ -201,11 +243,13 @@ class QuantileHistMaker: public TreeUpdater {
     using GHistRowT = GHistRow<GradientSumT>;
     using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
     // constructor
-    explicit Builder(const TrainParam& param,
+    explicit Builder(const size_t n_trees,
+                     const TrainParam& param,
                      std::unique_ptr<TreeUpdater> pruner,
                      FeatureInteractionConstraintHost int_constraints_,
                      DMatrix const* fmat)
-      : param_(param),
+      : n_trees_(n_trees),
+        param_(param),
         tree_evaluator_(param, fmat->Info().num_col_, GenericParameter::kCpuId),
         pruner_(std::move(pruner)),
         interaction_constraints_{std::move(int_constraints_)},
@@ -279,12 +323,15 @@ class QuantileHistMaker: public TreeUpdater {
 
     // initialize temp data structure
     void InitData(const GHistIndexMatrix& gmat,
-                  const std::vector<GradientPair>& gpair,
                   const DMatrix& fmat,
-                  const RegTree& tree);
+                  const RegTree& tree,
+                  std::vector<GradientPair>* gpair);
 
-    void InitSampling(const std::vector<GradientPair>& gpair,
-                      const DMatrix& fmat, std::vector<size_t>* row_indices);
+    size_t GetNumberOfTrees();
+
+    void InitSampling(const DMatrix& fmat,
+                      std::vector<GradientPair>* gpair,
+                      std::vector<size_t>* row_indices);
 
     void EvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
                         const GHistIndexMatrix& gmat,
@@ -298,7 +345,7 @@ class QuantileHistMaker: public TreeUpdater {
                         RegTree* p_tree);
 
     template <typename BinIdxType>
-    void PartitionKernel(const size_t node_in_set, const size_t nid, common::Range1d range,
+    void PartitionKernel(const size_t node_in_set, const size_t nid, const common::Range1d range,
                          const int32_t split_cond,
                          const ColumnMatrix& column_matrix, const RegTree& tree);
 
@@ -398,6 +445,7 @@ class QuantileHistMaker: public TreeUpdater {
       }
     }
     //  --data fields--
+    const size_t n_trees_;
     const TrainParam& param_;
     // number of omp thread used during training
     int nthread_;
@@ -413,6 +461,7 @@ class QuantileHistMaker: public TreeUpdater {
     std::vector<SplitEntry> best_split_tloc_;
     /*! \brief TreeNode Data: statistics for each constructed node */
     std::vector<NodeEntry> snode_;
+    std::vector<GradientPair> gpair_local_;
     /*! \brief culmulative histogram of gradients. */
     HistCollection<GradientSumT> hist_;
     /*! \brief culmulative local parent histogram of gradients. */
@@ -458,7 +507,7 @@ class QuantileHistMaker: public TreeUpdater {
   common::Monitor updater_monitor_;
 
   template<typename GradientSumT>
-  void SetBuilder(std::unique_ptr<Builder<GradientSumT>>*, DMatrix *dmat);
+  void SetBuilder(const size_t n_trees, std::unique_ptr<Builder<GradientSumT>>*, DMatrix *dmat);
 
   template<typename GradientSumT>
   void CallBuilderUpdate(const std::unique_ptr<Builder<GradientSumT>>& builder,

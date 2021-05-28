@@ -48,9 +48,11 @@ void QuantileHistMaker::Configure(const Args& args) {
 }
 
 template<typename GradientSumT>
-void QuantileHistMaker::SetBuilder(std::unique_ptr<Builder<GradientSumT>>* builder,
+void QuantileHistMaker::SetBuilder(const size_t n_trees,
+                                   std::unique_ptr<Builder<GradientSumT>>* builder,
                                    DMatrix *dmat) {
   builder->reset(new Builder<GradientSumT>(
+                n_trees,
                 param_,
                 std::move(pruner_),
                 int_constraint_, dmat));
@@ -92,14 +94,15 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
   param_.learning_rate = lr / trees.size();
   int_constraint_.Configure(param_, dmat->Info().num_col_);
   // build tree
+  const size_t n_trees = trees.size();
   if (hist_maker_param_.single_precision_histogram) {
     if (!float_builder_) {
-      SetBuilder(&float_builder_, dmat);
+      SetBuilder(n_trees, &float_builder_, dmat);
     }
     CallBuilderUpdate(float_builder_, gpair, dmat, trees);
   } else {
     if (!double_builder_) {
-      SetBuilder(&double_builder_, dmat);
+      SetBuilder(n_trees, &double_builder_, dmat);
     }
     CallBuilderUpdate(double_builder_, gpair, dmat, trees);
   }
@@ -545,7 +548,6 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandWithLossGuide(
                          e.best.DefaultLeft(), e.weight, left_leaf_weight,
                          right_leaf_weight, e.best.loss_chg, e.stats.GetHess(),
                          e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
-
       this->ApplySplit({candidate}, gmat, column_matrix, hist_, p_tree);
 
       const int cleft = (*p_tree)[nid].LeftChild();
@@ -589,18 +591,23 @@ void QuantileHistMaker::Builder<GradientSumT>::Update(
     DMatrix *p_fmat, RegTree *p_tree) {
   builder_monitor_.Start("Update");
 
-  const std::vector<GradientPair>& gpair_h = gpair->ConstHostVector();
-
+  std::vector<GradientPair>* gpair_ptr = &(gpair->HostVector());
+  // in case 'num_parallel_trees != 1' no posibility to change initial gpair
+  if (GetNumberOfTrees() != 1) {
+    gpair_local_.resize(gpair_ptr->size());
+    gpair_local_ = *gpair_ptr;
+    gpair_ptr = &gpair_local_;
+  }
   tree_evaluator_ =
       TreeEvaluator(param_, p_fmat->Info().num_col_, GenericParameter::kCpuId);
   interaction_constraints_.Reset();
   p_last_fmat_mutable_ = p_fmat;
 
-  this->InitData(gmat, gpair_h, *p_fmat, *p_tree);
+  this->InitData(gmat, *p_fmat, *p_tree, gpair_ptr);
   if (param_.grow_policy == TrainParam::kLossGuide) {
-    ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
+    ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, *gpair_ptr);
   } else {
-    ExpandWithDepthWise(gmat, gmatb, column_matrix, p_fmat, p_tree, gpair_h);
+    ExpandWithDepthWise(gmat, gmatb, column_matrix, p_fmat, p_tree, *gpair_ptr);
   }
 
   for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
@@ -654,69 +661,33 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
     }
   });
 
-  if (param_.subsample < 1.0f) {
-    // Making a real prediction for the remaining rows
-    size_t fvecs_size = feat_vecs_.size();
-    feat_vecs_.resize(omp_get_max_threads(), RegTree::FVec());
-    while (fvecs_size < feat_vecs_.size()) {
-      feat_vecs_[fvecs_size++].Init(data->Info().num_col_);
-    }
-    for (auto&& batch : p_last_fmat_mutable_->GetBatches<SparsePage>()) {
-      HostSparsePageView page_view = batch.GetView();
-      const auto num_parallel_ops = static_cast<bst_omp_uint>(unused_rows_.size());
-      common::ParallelFor(num_parallel_ops, [&](bst_omp_uint block_id) {
-        RegTree::FVec &feats = feat_vecs_[omp_get_thread_num()];
-        const SparsePage::Inst inst = page_view[unused_rows_[block_id]];
-        feats.Fill(inst);
-
-        const size_t row_num = unused_rows_[block_id] + batch.base_rowid;
-        const int lid = feats.HasMissing() ? p_last_tree_->GetLeafIndex<true>(feats) :
-                                            p_last_tree_->GetLeafIndex<false>(feats);
-        out_preds[row_num] += (*p_last_tree_)[lid].LeafValue();
-
-        feats.Drop(inst);
-      });
-    }
-  }
   builder_monitor_.Stop("UpdatePredictionCache");
   return true;
 }
 
 template<typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const std::vector<GradientPair>& gpair,
-                                                const DMatrix& fmat,
+void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const DMatrix& fmat,
+                                                std::vector<GradientPair>* gpair,
                                                 std::vector<size_t>* row_indices) {
   const auto& info = fmat.Info();
   auto& rnd = common::GlobalRandom();
-  unused_rows_.resize(info.num_row_);
-  size_t* p_row_indices_used = row_indices->data();
-  size_t* p_row_indices_unused = unused_rows_.data();
+  std::vector<GradientPair>& gpair_ref = *gpair;
+
 #if XGBOOST_CUSTOMIZE_GLOBAL_PRNG
   std::bernoulli_distribution coin_flip(param_.subsample);
   size_t used = 0, unused = 0;
   for (size_t i = 0; i < info.num_row_; ++i) {
-    if (gpair[i].GetHess() >= 0.0f && coin_flip(rnd)) {
-      p_row_indices_used[used++] = i;
-    } else {
-      p_row_indices_unused[unused++] = i;
+    if (!(gpair_ref[i].GetHess() >= 0.0f && coin_flip(rnd)) || gpair_ref[i].GetGrad() == 0.0f) {
+      gpair_ref[i] = GradientPair(0);
     }
   }
-  /* resize row_indices to reduce memory */
-  row_indices->resize(used);
-  unused_rows_.resize(unused);
 #else
   const size_t nthread = this->nthread_;
-  std::vector<size_t> row_offsets_used(nthread, 0);
-  std::vector<size_t> row_offsets_unused(nthread, 0);
-  /* usage of mt19937_64 give 2x speed up for subsampling */
-  std::vector<std::mt19937> rnds(nthread);
-  /* create engine for each thread */
-  for (std::mt19937& r : rnds) {
-    r = rnd;
-  }
+  uint64_t initial_seed = rnd();
+
   const size_t discard_size = info.num_row_ / nthread;
-  auto upper_border = static_cast<float>(std::numeric_limits<uint32_t>::max());
-  uint32_t coin_flip_border = static_cast<uint32_t>(upper_border * param_.subsample);
+  std::bernoulli_distribution coin_flip(param_.subsample);
+
   dmlc::OMPException exc;
   #pragma omp parallel num_threads(nthread)
   {
@@ -725,60 +696,24 @@ void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const std::vector<Gr
       const size_t ibegin = tid * discard_size;
       const size_t iend = (tid == (nthread - 1)) ?
                           info.num_row_ : ibegin + discard_size;
-
-      rnds[tid].discard(discard_size * tid);
-      for (size_t i = ibegin; i < iend; ++i) {
-        if (gpair[i].GetHess() >= 0.0f && rnds[tid]() < coin_flip_border) {
-          p_row_indices_used[ibegin + row_offsets_used[tid]++] = i;
-        } else {
-          p_row_indices_unused[ibegin + row_offsets_unused[tid]++] = i;
-        }
-      }
-
-      #pragma omp barrier
-
-      if (tid == 0ul) {
-        size_t prefix_sum_used = row_offsets_used[0];
-        for (size_t i = 1; i < nthread; ++i) {
-          const size_t ibegin = i * discard_size;
-
-          for (size_t k = 0; k < row_offsets_used[i]; ++k) {
-            p_row_indices_used[prefix_sum_used + k] = p_row_indices_used[ibegin + k];
-          }
-
-          prefix_sum_used += row_offsets_used[i];
-        }
-        /* resize row_indices to reduce memory */
-        row_indices->resize(prefix_sum_used);
-      }
-
-      if (nthread == 1ul || tid == 1ul) {
-        size_t prefix_sum_unused = row_offsets_unused[0];
-        for (size_t i = 1; i < nthread; ++i) {
-          const size_t ibegin = i * discard_size;
-
-          for (size_t k = 0; k < row_offsets_unused[i]; ++k) {
-            p_row_indices_unused[prefix_sum_unused + k] = p_row_indices_unused[ibegin + k];
-          }
-
-          prefix_sum_unused += row_offsets_unused[i];
-        }
-        /* resize row_indices to reduce memory */
-        unused_rows_.resize(prefix_sum_unused);
-      }
+      RandomReplace::MakeIf([&](size_t i, RandomReplace::EngineT& eng) {
+        return !(gpair_ref[i].GetHess() >= 0.0f && coin_flip(eng));
+      }, GradientPair(0), initial_seed, ibegin, iend, &gpair_ref);
     });
   }
   exc.Rethrow();
-  /* discard global engine */
-  rnd = rnds[nthread - 1];
 #endif  // XGBOOST_CUSTOMIZE_GLOBAL_PRNG
+}
+template<typename GradientSumT>
+size_t QuantileHistMaker::Builder<GradientSumT>::GetNumberOfTrees() {
+  return n_trees_;
 }
 
 template<typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& gmat,
-                                          const std::vector<GradientPair>& gpair,
                                           const DMatrix& fmat,
-                                          const RegTree& tree) {
+                                          const RegTree& tree,
+                                          std::vector<GradientPair>* gpair) {
   CHECK((param_.max_depth > 0 || param_.max_leaves > 0))
       << "max_depth or max_leaves cannot be both 0 (unlimited); "
       << "at least one should be a positive quantity.";
@@ -818,17 +753,53 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
       CHECK_EQ(param_.sampling_method, TrainParam::kUniform)
         << "Only uniform sampling is supported, "
         << "gradient-based sampling is only support by GPU Hist.";
-      InitSampling(gpair, fmat, &row_indices);
+      builder_monitor_.Start("InitSampling");
+      InitSampling(fmat, gpair, &row_indices);
+      builder_monitor_.Stop("InitSampling");
+      CHECK_EQ(row_indices.size(), info.num_row_);
       // We should check that the partitioning was done correctly
       // and each row of the dataset fell into exactly one of the categories
-      CHECK_EQ(row_indices.size() + unused_rows_.size(), info.num_row_);
+    }
+    MemStackAllocator<bool, 128> buff(this->nthread_);
+    bool* p_buff = buff.Get();
+    std::fill(p_buff, p_buff + this->nthread_, false);
+
+    const size_t block_size = info.num_row_ / this->nthread_ + !!(info.num_row_ % this->nthread_);
+
+    #pragma omp parallel num_threads(this->nthread_)
+    {
+      exc.Run([&]() {
+        const size_t tid = omp_get_thread_num();
+        const size_t ibegin = tid * block_size;
+        const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
+            static_cast<size_t>(info.num_row_));
+
+        for (size_t i = ibegin; i < iend; ++i) {
+          if ((*gpair)[i].GetHess() < 0.0f) {
+            p_buff[tid] = true;
+            break;
+          }
+        }
+      });
+    }
+    exc.Rethrow();
+
+    bool has_neg_hess = false;
+    for (int32_t tid = 0; tid < this->nthread_; ++tid) {
+      if (p_buff[tid]) {
+        has_neg_hess = true;
+      }
+    }
+
+    if (has_neg_hess) {
+      size_t j = 0;
+      for (size_t i = 0; i < info.num_row_; ++i) {
+        if ((*gpair)[i].GetHess() >= 0.0f) {
+          p_row_indices[j++] = i;
+        }
+      }
+      row_indices.resize(j);
     } else {
-      MemStackAllocator<bool, 128> buff(this->nthread_);
-      bool* p_buff = buff.Get();
-      std::fill(p_buff, p_buff + this->nthread_, false);
-
-      const size_t block_size = info.num_row_ / this->nthread_ + !!(info.num_row_ % this->nthread_);
-
       #pragma omp parallel num_threads(this->nthread_)
       {
         exc.Run([&]() {
@@ -836,47 +807,12 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
           const size_t ibegin = tid * block_size;
           const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
               static_cast<size_t>(info.num_row_));
-
           for (size_t i = ibegin; i < iend; ++i) {
-            if (gpair[i].GetHess() < 0.0f) {
-              p_buff[tid] = true;
-              break;
-            }
+            p_row_indices[i] = i;
           }
         });
       }
       exc.Rethrow();
-
-      bool has_neg_hess = false;
-      for (int32_t tid = 0; tid < this->nthread_; ++tid) {
-        if (p_buff[tid]) {
-          has_neg_hess = true;
-        }
-      }
-
-      if (has_neg_hess) {
-        size_t j = 0;
-        for (size_t i = 0; i < info.num_row_; ++i) {
-          if (gpair[i].GetHess() >= 0.0f) {
-            p_row_indices[j++] = i;
-          }
-        }
-        row_indices.resize(j);
-      } else {
-        #pragma omp parallel num_threads(this->nthread_)
-        {
-          exc.Run([&]() {
-            const size_t tid = omp_get_thread_num();
-            const size_t ibegin = tid * block_size;
-            const size_t iend = std::min(static_cast<size_t>(ibegin + block_size),
-                static_cast<size_t>(info.num_row_));
-            for (size_t i = ibegin; i < iend; ++i) {
-              p_row_indices[i] = i;
-            }
-          });
-        }
-        exc.Rethrow();
-      }
     }
   }
 
@@ -1074,9 +1010,9 @@ inline std::pair<size_t, size_t> PartitionDenseKernel(const common::DenseColumn<
 // Handle sparse columns
 template<bool default_left, typename BinIdxType>
 inline std::pair<size_t, size_t> PartitionSparseKernel(
+  const common::SparseColumn<BinIdxType>& column,
   common::Span<const size_t> rid_span, const int32_t split_cond,
-  const common::SparseColumn<BinIdxType>& column, common::Span<size_t> left_part,
-  common::Span<size_t> right_part) {
+  common::Span<size_t> left_part, common::Span<size_t> right_part) {
   size_t* p_left_part  = left_part.data();
   size_t* p_right_part = right_part.data();
 
@@ -1131,7 +1067,7 @@ inline std::pair<size_t, size_t> PartitionSparseKernel(
 template <typename GradientSumT>
 template <typename BinIdxType>
 void QuantileHistMaker::Builder<GradientSumT>::PartitionKernel(
-    const size_t node_in_set, const size_t nid, common::Range1d range,
+    const size_t node_in_set, const size_t nid, const common::Range1d range,
     const int32_t split_cond, const ColumnMatrix& column_matrix, const RegTree& tree) {
   const size_t* rid = row_set_collection_[nid].begin;
 
@@ -1151,28 +1087,30 @@ void QuantileHistMaker::Builder<GradientSumT>::PartitionKernel(
           static_cast<const common::DenseColumn<BinIdxType>& >(*(column_ptr.get()));
     if (default_left) {
       if (column_matrix.AnyMissing()) {
-        child_nodes_sizes = PartitionDenseKernel<true, true>(column, rid_span, split_cond,
-                                                             left, right);
+        child_nodes_sizes = PartitionDenseKernel<true, true>(column, rid_span,
+                                                             split_cond, left, right);
       } else {
-        child_nodes_sizes = PartitionDenseKernel<true, false>(column, rid_span, split_cond,
-                                                              left, right);
+        child_nodes_sizes = PartitionDenseKernel<true, false>(column, rid_span,
+                                                              split_cond, left, right);
       }
     } else {
       if (column_matrix.AnyMissing()) {
-        child_nodes_sizes = PartitionDenseKernel<false, true>(column, rid_span, split_cond,
-                                                              left, right);
+        child_nodes_sizes = PartitionDenseKernel<false, true>(column, rid_span,
+                                                              split_cond, left, right);
       } else {
-        child_nodes_sizes = PartitionDenseKernel<false, false>(column, rid_span, split_cond,
-                                                               left, right);
+        child_nodes_sizes = PartitionDenseKernel<false, false>(column, rid_span,
+                                                               split_cond, left, right);
       }
     }
   } else {
     const common::SparseColumn<BinIdxType>& column
       = static_cast<const common::SparseColumn<BinIdxType>& >(*(column_ptr.get()));
     if (default_left) {
-      child_nodes_sizes = PartitionSparseKernel<true>(rid_span, split_cond, column, left, right);
+      child_nodes_sizes = PartitionSparseKernel<true>(column, rid_span,
+                                                      split_cond, left, right);
     } else {
-      child_nodes_sizes = PartitionSparseKernel<false>(rid_span, split_cond, column, left, right);
+      child_nodes_sizes = PartitionSparseKernel<false>(column, rid_span,
+                                                       split_cond, left, right);
     }
   }
 
