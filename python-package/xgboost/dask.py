@@ -1217,6 +1217,8 @@ async def _predict_async(
                 approx_contribs=approx_contribs,
                 pred_interactions=pred_interactions,
                 validate_features=validate_features,
+                iteration_range=iteration_range,
+                strict_shape=strict_shape,
             )
             return predt
 
