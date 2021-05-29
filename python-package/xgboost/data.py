@@ -441,20 +441,33 @@ def _from_cupy_array(data, missing, nthread, feature_names, feature_types):
     return handle, feature_names, feature_types
 
 
+def _from_cupyx_csr(data, missing, nthread, feature_names, feature_types):
+    from .core import _cuda_array_interface
+    handle = ctypes.c_void_p()
+    args = {
+        "missing": float(missing),
+        "nthread": int(nthread),
+    }
+    config = bytes(json.dumps(args), "utf-8")
+    _check_call(
+        _LIB.XGDMatrixCreateFromCudaCSR(
+            _cuda_array_interface(data.indptr),
+            _cuda_array_interface(data.indices),
+            _cuda_array_interface(data.data),
+            data.shape[1],
+            config,
+            ctypes.byref(handle)
+        )
+    )
+    return handle, feature_names, feature_types
+
+
 def _is_cupy_csr(data):
     try:
         import cupyx
     except ImportError:
         return False
     return isinstance(data, cupyx.scipy.sparse.csr_matrix)
-
-
-def _is_cupy_csc(data):
-    try:
-        import cupyx
-    except ImportError:
-        return False
-    return isinstance(data, cupyx.scipy.sparse.csc_matrix)
 
 
 def _is_dlpack(data):
@@ -565,9 +578,7 @@ def dispatch_data_backend(data, missing, threads,
         return _from_cupy_array(data, missing, threads, feature_names,
                                 feature_types)
     if _is_cupy_csr(data):
-        raise TypeError('cupyx CSR is not supported yet.')
-    if _is_cupy_csc(data):
-        raise TypeError('cupyx CSC is not supported yet.')
+        return _from_cupyx_csr(data, missing, threads, feature_names, feature_types)
     if _is_dlpack(data):
         return _from_dlpack(data, missing, threads, feature_names,
                             feature_types)
@@ -788,6 +799,8 @@ def _device_quantile_transform(data, feature_names, feature_types):
         return data, feature_names, feature_types
     if _is_dlpack(data):
         return _transform_dlpack(data), feature_names, feature_types
+    if _is_cupy_csr(data):
+        return data, feature_names, feature_types
     raise TypeError('Value type is not supported for data iterator:' +
                     str(type(data)))
 
@@ -806,6 +819,9 @@ def dispatch_device_quantile_dmatrix_set_data(proxy: _ProxyDMatrix, data: Any) -
     if _is_dlpack(data):
         data = _transform_dlpack(data)
         proxy._set_data_from_cuda_interface(data)  # pylint: disable=W0212
+        return
+    if _is_cupy_csr(data):
+        proxy._set_data_from_cuda_csr(data)  # pylint: disable=W0212
         return
     raise TypeError('Value type is not supported for data iterator:' +
                     str(type(data)))

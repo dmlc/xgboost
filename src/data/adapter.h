@@ -365,7 +365,7 @@ class CSRArrayAdapter : public detail::SingleBatchDataIter<CSRArrayAdapterBatch>
   size_t NumRows() const {
     size_t size = indptr_.num_cols * indptr_.num_rows;
     size = size == 0 ? 0 : size - 1;
-    return  size;
+    return size;
   }
   size_t NumColumns() const { return num_cols_; }
 

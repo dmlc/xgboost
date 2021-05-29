@@ -777,7 +777,8 @@ class Dart : public GBTree {
     Predictor const * predictor {nullptr};
 
     MetaInfo info;
-    StringView msg{"Unsupported data type for inplace predict."};
+    std::string msg{std::string{"Unsupported data type for inplace predict: "} +  // NOLINT
+                    x.type().name()};
     int32_t device = GenericParameter::kCpuId;
     PredictionCacheEntry predts;
     // Inplace predict is not used for training, so no need to drop tree.

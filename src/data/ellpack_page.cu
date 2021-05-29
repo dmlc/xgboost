@@ -282,6 +282,7 @@ EllpackPageImpl::EllpackPageImpl(AdapterBatch batch, float missing, int device,
 
 ELLPACK_BATCH_SPECIALIZE(data::CudfAdapterBatch)
 ELLPACK_BATCH_SPECIALIZE(data::CupyAdapterBatch)
+ELLPACK_BATCH_SPECIALIZE(data::CupyxCSRAdapterBatch)
 
 // A functor that copies the data from one EllpackPage to another.
 struct CopyPage {
