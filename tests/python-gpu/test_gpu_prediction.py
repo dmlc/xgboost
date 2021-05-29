@@ -204,6 +204,7 @@ class TestGPUPredict:
         cpu_predt = reg.predict(X)
         np.testing.assert_allclose(gpu_predt, cpu_predt, atol=1e-6)
 
+    @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.skipif(**tm.no_cudf())
     def test_inplace_predict_cudf(self):
         import cupy as cp
@@ -332,6 +333,7 @@ class TestGPUPredict:
         rmse = mean_squared_error(y_true=y, y_pred=pred, squared=False)
         np.testing.assert_almost_equal(rmse, eval_history['train']['rmse'][-1], decimal=5)
 
+    @pytest.mark.skipif(**tm.no_cupy())
     @pytest.mark.parametrize("n_classes", [2, 3])
     def test_predict_dart(self, n_classes):
         from sklearn.datasets import make_classification
