@@ -371,7 +371,7 @@ class ArrayInterface {
       return func(reinterpret_cast<float *>(data));
     case kF8:
       return func(reinterpret_cast<double *>(data));
-#ifndef __CUDA_ARCH__
+#ifdef __CUDA_ARCH__
     case kF16: {
       // CUDA device code doesn't support long double.
       SPAN_CHECK(false);
