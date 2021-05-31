@@ -159,7 +159,7 @@ class ScalaBoosterImplSuite extends FunSuite {
   test("test with quantile histo lossguide") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
     val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
-    val paramMap = List("max_depth" -> "0", "silent" -> "0",
+    val paramMap = List("max_depth" -> "3", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "lossguide", "max_leaves" -> "8", "eval_metric" -> "auc").toMap
     trainBoosterWithQuantileHisto(trainMat, Map("training" -> trainMat, "test" -> testMat),
@@ -169,7 +169,7 @@ class ScalaBoosterImplSuite extends FunSuite {
   test("test with quantile histo lossguide with max bin") {
     val trainMat = new DMatrix("../../demo/data/agaricus.txt.train")
     val testMat = new DMatrix("../../demo/data/agaricus.txt.test")
-    val paramMap = List("max_depth" -> "0", "silent" -> "0",
+    val paramMap = List("max_depth" -> "3", "silent" -> "0",
       "objective" -> "binary:logistic", "tree_method" -> "hist",
       "grow_policy" -> "lossguide", "max_leaves" -> "8", "max_bin" -> "16",
       "eval_metric" -> "auc").toMap
