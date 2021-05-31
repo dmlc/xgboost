@@ -141,14 +141,12 @@ Parameters for Tree Booster
     - ``auto``: Use heuristic to choose the fastest method.
 
       - For small dataset, exact greedy (``exact``) will be used.
-      - For larger dataset, approximate algorithm (``approx``) will be chosen.  It's
-        recommended to try ``hist`` and ``gpu_hist`` for higher performance with large
-        dataset.
+      - For larger dataset, histogram optimized approximate algorithm (``hist``) will be chosen.
         (``gpu_hist``)has support for ``external memory``.
 
       - Because old behavior is always use exact greedy in single machine, user will get a
         message when approximate algorithm is chosen to notify this choice.
-    - ``exact``: Exact greedy algorithm.  Enumerates all split candidates.
+    - ``exact``: Exact greedy algorithm. Enumerates all split candidates.
     - ``approx``: Approximate greedy algorithm using quantile sketch and gradient histogram.
     - ``hist``: Faster histogram optimized approximate greedy algorithm.
     - ``gpu_hist``: GPU implementation of ``hist`` algorithm.
