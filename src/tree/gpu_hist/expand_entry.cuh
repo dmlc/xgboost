@@ -1,9 +1,11 @@
 /*!
  * Copyright 2020 by XGBoost Contributors
  */
-#ifndef EXPAND_ENTRY_CUH_
-#define EXPAND_ENTRY_CUH_
+#ifndef DRIVER_CUH_
+#define DRIVER_CUH_
 #include <xgboost/span.h>
+#include <queue>
+#include "../param.h"
 #include "evaluate_splits.cuh"
 
 namespace xgboost {
@@ -45,18 +47,6 @@ struct ExpandEntry {
     return true;
   }
 
-  bst_float GetLossChange() const {
-    return split.loss_chg;
-  }
-
-  int GetNodeId() const {
-    return nid;
-  }
-
-  int GetDepth() const {
-    return depth;
-  }
-
   friend std::ostream& operator<<(std::ostream& os, const ExpandEntry& e) {
     os << "ExpandEntry: \n";
     os << "nidx: " << e.nid << "\n";
@@ -66,10 +56,72 @@ struct ExpandEntry {
     os << "right_sum: " << e.split.right_sum << "\n";
     return os;
   }
-
 };
 
+inline bool DepthWise(const ExpandEntry& lhs, const ExpandEntry& rhs) {
+  return lhs.depth > rhs.depth;  // favor small depth
+}
+
+inline bool LossGuide(const ExpandEntry& lhs, const ExpandEntry& rhs) {
+  if (lhs.split.loss_chg == rhs.split.loss_chg) {
+    return lhs.nid > rhs.nid;  // favor small timestamp
+  } else {
+    return lhs.split.loss_chg < rhs.split.loss_chg;  // favor large loss_chg
+  }
+}
+
+// Drives execution of tree building on device
+class Driver {
+  using ExpandQueue =
+      std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
+                          std::function<bool(ExpandEntry, ExpandEntry)>>;
+
+ public:
+  explicit Driver(TrainParam::TreeGrowPolicy policy)
+      : policy_(policy),
+        queue_(policy == TrainParam::kDepthWise ? DepthWise : LossGuide) {}
+  template <typename EntryIterT>
+  void Push(EntryIterT begin,EntryIterT end) {
+    for (auto it = begin; it != end; ++it) {
+      const ExpandEntry& e = *it;
+      if (e.split.loss_chg > kRtEps) {
+        queue_.push(e);
+      }
+    }
+  }
+  void Push(const std::vector<ExpandEntry> &entries) {
+    this->Push(entries.begin(), entries.end());
+  }
+  // Return the set of nodes to be expanded
+  // This set has no dependencies between entries so they may be expanded in
+  // parallel or asynchronously
+  std::vector<ExpandEntry> Pop() {
+    if (queue_.empty()) return {};
+    // Return a single entry for loss guided mode
+    if (policy_ == TrainParam::kLossGuide) {
+      ExpandEntry e = queue_.top();
+      queue_.pop();
+      return {e};
+    }
+    // Return nodes on same level for depth wise
+    std::vector<ExpandEntry> result;
+    ExpandEntry e = queue_.top();
+    int level = e.depth;
+    while (e.depth == level && !queue_.empty()) {
+      queue_.pop();
+      result.emplace_back(e);
+      if (!queue_.empty()) {
+        e = queue_.top();
+      }
+    }
+    return result;
+  }
+
+ private:
+  TrainParam::TreeGrowPolicy policy_;
+  ExpandQueue queue_;
+};
 }  // namespace tree
 }  // namespace xgboost
 
-#endif  // EXPAND_ENTRY_CUH_
+#endif  // DRIVER_CUH_
