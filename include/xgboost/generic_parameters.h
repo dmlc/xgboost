@@ -49,10 +49,7 @@ struct GenericParameter : public XGBoostParameter<GenericParameter> {
     DMLC_DECLARE_ALIAS(seed, random_state);
     DMLC_DECLARE_FIELD(seed_per_iteration)
         .set_default(false)
-        .describe(
-            "Seed PRNG determnisticly via iterator number, "
-            "this option will be switched on automatically on distributed "
-            "mode.");
+        .describe("Seed PRNG determnisticly via iterator number.");
     DMLC_DECLARE_FIELD(nthread).set_default(0).describe(
         "Number of threads to use.");
     DMLC_DECLARE_ALIAS(nthread, n_jobs);
