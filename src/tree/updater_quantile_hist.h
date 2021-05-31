@@ -321,6 +321,68 @@ class QuantileHistMaker: public TreeUpdater {
       }
     };
 
+
+    // Drives execution of tree building on device
+    struct Driver {
+      using ExpandQueue =
+          std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
+                              std::function<bool(ExpandEntry, ExpandEntry)>>;
+
+     public:
+      explicit Driver(TrainParam::TreeGrowPolicy policy)
+          : policy_(policy)
+          , queue_(policy == TrainParam::kDepthWise ? DepthWise : LossGuide) {}
+      template <typename EntryIterT>
+      void Push(EntryIterT begin, EntryIterT end) {
+        for (auto it = begin; it != end; ++it) {
+          const ExpandEntry& e = *it;
+          queue_.push(e);
+        }
+      }
+      void Push(const ExpandEntry e) {
+        queue_.push(e);
+      }
+      bool IsEmpty() {
+        return queue_.empty();
+      }
+      void Clear() {
+        while (!queue_.empty()) {
+          queue_.pop();
+        }
+      }
+      void Push(const std::vector<ExpandEntry> &entries) {
+        this->Push(entries.begin(), entries.end());
+      }
+      // Return the set of nodes to be expanded
+      // This set has no dependencies between entries so they may be expanded in
+      // parallel or asynchronously
+      std::vector<ExpandEntry> Pop() {
+        if (queue_.empty()) return {};
+        std::vector<ExpandEntry> result;
+        // Return a single entry for loss guided mode
+        if (policy_ == TrainParam::kLossGuide) {
+          ExpandEntry e = queue_.top();
+          queue_.pop();
+          const int nid = e.nid;
+          result.emplace_back(e);
+          return result;
+        } else {
+          // Return nodes on same level for depth wise
+          while (/*e.depth == level && */!queue_.empty()) {
+            ExpandEntry e = queue_.top();
+            queue_.pop();
+            result.emplace_back(e);
+          }
+          return result;
+        }
+      }
+
+     private:
+        TrainParam::TreeGrowPolicy policy_;
+        ExpandQueue queue_;
+    };
+
+
     // initialize temp data structure
     void InitData(const GHistIndexMatrix& gmat,
                   const DMatrix& fmat,
@@ -365,11 +427,10 @@ class QuantileHistMaker: public TreeUpdater {
     // Returns the sum of gradients corresponding to the data points that contains a non-missing
     // value for the particular feature fid.
     template <int d_step>
-    GradStats EnumerateSplit(
-        const GHistIndexMatrix &gmat, const GHistRowT &hist,
-        const NodeEntry &snode, SplitEntry *p_best, bst_uint fid,
-        bst_uint nodeID,
-        TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const;
+    GradStats EnumerateSplit(const GHistIndexMatrix &gmat, const GHistRowT &hist,
+                             const NodeEntry &snode, SplitEntry *p_best, bst_uint fid,
+                             bst_uint nodeID,
+                             TreeEvaluator::SplitEvaluator<TrainParam> const &evaluator) const;
 
     // if sum of statistics for non-missing values in the node
     // is equal to sum of statistics for all values:
@@ -377,65 +438,46 @@ class QuantileHistMaker: public TreeUpdater {
     // else - there are missing values
     bool SplitContainsMissingValues(const GradStats e, const NodeEntry& snode);
 
-    void ExpandWithDepthWise(const GHistIndexMatrix &gmat,
-                             const GHistIndexBlockMatrix &gmatb,
-                             const ColumnMatrix &column_matrix,
-                             DMatrix *p_fmat,
-                             RegTree *p_tree,
-                             const std::vector<GradientPair> &gpair_h);
-
     void BuildLocalHistograms(const GHistIndexMatrix &gmat,
                               const GHistIndexBlockMatrix &gmatb,
                               RegTree *p_tree,
                               const std::vector<GradientPair> &gpair_h);
 
-    void BuildHistogramsLossGuide(
-                        ExpandEntry entry,
-                        const GHistIndexMatrix &gmat,
-                        const GHistIndexBlockMatrix &gmatb,
-                        RegTree *p_tree,
-                        const std::vector<GradientPair> &gpair_h);
+    void InitRoot(const GHistIndexMatrix &gmat,
+                  const GHistIndexBlockMatrix &gmatb,
+                  const DMatrix& fmat,
+                  RegTree *p_tree,
+                  const std::vector<GradientPair> &gpair_h,
+                  unsigned *timestamp, int *num_leaves, std::vector<ExpandEntry> *expand);
 
     // Split nodes to 2 sets depending on amount of rows in each node
     // Histograms for small nodes will be built explicitly
     // Histograms for big nodes will be built by 'Subtraction Trick'
     void SplitSiblings(const std::vector<ExpandEntry>& nodes,
-                   std::vector<ExpandEntry>* small_siblings,
-                   std::vector<ExpandEntry>* big_siblings,
-                   RegTree *p_tree);
+                       std::vector<ExpandEntry>* nodes_to_evaluate,
+                       RegTree *p_tree, unsigned *timestamp);
 
     void ParallelSubtractionHist(const common::BlockedSpace2d& space,
                                  const std::vector<ExpandEntry>& nodes,
                                  const RegTree * p_tree);
 
+    void AddSplitsToTree(const std::vector<ExpandEntry>& expand,
+                         RegTree *p_tree,
+                         int *num_leaves,
+                         unsigned *timestamp,
+                         std::vector<ExpandEntry>* nodes_for_apply_split);
+
     void BuildNodeStats(const GHistIndexMatrix &gmat,
-                        DMatrix *p_fmat,
-                        RegTree *p_tree,
-                        const std::vector<GradientPair> &gpair_h);
+                        const DMatrix& fmat,
+                        const std::vector<GradientPair> &gpair_h,
+                        const std::vector<ExpandEntry>& nodes_for_apply_split, RegTree *p_tree);
 
-    void EvaluateAndApplySplits(const GHistIndexMatrix &gmat,
-                                const ColumnMatrix &column_matrix,
-                                RegTree *p_tree,
-                                int *num_leaves,
-                                int depth,
-                                unsigned *timestamp,
-                                std::vector<ExpandEntry> *temp_qexpand_depth);
-
-    void AddSplitsToTree(
-              const GHistIndexMatrix &gmat,
-              RegTree *p_tree,
-              int *num_leaves,
-              int depth,
-              unsigned *timestamp,
-              std::vector<ExpandEntry>* nodes_for_apply_split,
-              std::vector<ExpandEntry>* temp_qexpand_depth);
-
-    void ExpandWithLossGuide(const GHistIndexMatrix& gmat,
-                             const GHistIndexBlockMatrix& gmatb,
-                             const ColumnMatrix& column_matrix,
-                             DMatrix* p_fmat,
-                             RegTree* p_tree,
-                             const std::vector<GradientPair>& gpair_h);
+    void ExpandTree(const GHistIndexMatrix& gmat,
+                    const GHistIndexBlockMatrix& gmatb,
+                    const ColumnMatrix& column_matrix,
+                    DMatrix* p_fmat,
+                    RegTree* p_tree,
+                    const std::vector<GradientPair>& gpair_h);
 
     inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
       if (lhs.loss_chg == rhs.loss_chg) {
@@ -443,6 +485,10 @@ class QuantileHistMaker: public TreeUpdater {
       } else {
         return lhs.loss_chg < rhs.loss_chg;  // favor large loss_chg
       }
+    }
+
+    inline static bool DepthWise(ExpandEntry lhs, ExpandEntry rhs) {
+      return lhs.timestamp > rhs.timestamp;  // favor small timestamp
     }
     //  --data fields--
     const size_t n_trees_;
