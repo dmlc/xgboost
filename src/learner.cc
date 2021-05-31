@@ -1062,9 +1062,10 @@ class LearnerImpl : public LearnerIO {
     monitor_.Start("UpdateOneIter");
     TrainingObserver::Instance().Update(iter);
     this->Configure();
-    if (generic_parameters_.seed_per_iteration || rabit::IsDistributed()) {
+    if (generic_parameters_.seed_per_iteration) {
       common::GlobalRandom().seed(generic_parameters_.seed * kRandSeedMagic + iter);
     }
+
     this->CheckDataSplitMode();
     this->ValidateDMatrix(train.get(), true);
 
@@ -1089,9 +1090,10 @@ class LearnerImpl : public LearnerIO {
                     HostDeviceVector<GradientPair>* in_gpair) override {
     monitor_.Start("BoostOneIter");
     this->Configure();
-    if (generic_parameters_.seed_per_iteration || rabit::IsDistributed()) {
+    if (generic_parameters_.seed_per_iteration) {
       common::GlobalRandom().seed(generic_parameters_.seed * kRandSeedMagic + iter);
     }
+
     this->CheckDataSplitMode();
     this->ValidateDMatrix(train.get(), true);
     auto local_cache = this->GetPredictionCache();
