@@ -22,6 +22,7 @@
 #include "xgboost/json.h"
 #include "constraints.h"
 #include "./param.h"
+#include "./driver.h"
 #include "./split_evaluator.h"
 #include "../common/random.h"
 #include "../common/timer.h"
@@ -145,6 +146,40 @@ struct CPUHistMakerTrainParam
   DMLC_DECLARE_PARAMETER(CPUHistMakerTrainParam) {
     DMLC_DECLARE_FIELD(single_precision_histogram).set_default(false).describe(
         "Use single precision to build histograms.");
+  }
+};
+
+/* tree growing policies */
+struct ExpandEntry {
+  static const int kRootNid  = 0;
+  static const int kEmptyNid = -1;
+  int nid;
+  int sibling_nid;
+  int depth;
+  bst_float loss_chg;
+  unsigned timestamp;
+  ExpandEntry(int nid, int sibling_nid, int depth, bst_float loss_chg,
+              unsigned tstmp)
+      : nid(nid), sibling_nid(sibling_nid), depth(depth),
+        loss_chg(loss_chg), timestamp(tstmp) {}
+
+  bool IsValid(TrainParam const &param, int32_t num_leaves) const {
+    bool ret = loss_chg <= kRtEps ||
+               (param.max_depth > 0 && this->depth == param.max_depth) ||
+               (param.max_leaves > 0 && num_leaves == param.max_leaves);
+    return ret;
+  }
+
+  bst_float GetLossChange() const {
+    return loss_chg;
+  }
+
+  int GetNodeId() const {
+    return nid;
+  }
+
+  int GetDepth() const {
+    return depth;
   }
 };
 
@@ -299,90 +334,6 @@ class QuantileHistMaker: public TreeUpdater {
     friend class BatchHistRowsAdder<GradientSumT>;
     friend class DistributedHistRowsAdder<GradientSumT>;
 
-    /* tree growing policies */
-    struct ExpandEntry {
-      static const int kRootNid  = 0;
-      static const int kEmptyNid = -1;
-      int nid;
-      int sibling_nid;
-      int depth;
-      bst_float loss_chg;
-      unsigned timestamp;
-      ExpandEntry(int nid, int sibling_nid, int depth, bst_float loss_chg,
-                  unsigned tstmp)
-          : nid(nid), sibling_nid(sibling_nid), depth(depth),
-            loss_chg(loss_chg), timestamp(tstmp) {}
-
-      bool IsValid(TrainParam const &param, int32_t num_leaves) const {
-        bool ret = loss_chg <= kRtEps ||
-                   (param.max_depth > 0 && this->depth == param.max_depth) ||
-                   (param.max_leaves > 0 && num_leaves == param.max_leaves);
-        return ret;
-      }
-    };
-
-
-    // Drives execution of tree building on device
-    struct Driver {
-      using ExpandQueue =
-          std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
-                              std::function<bool(ExpandEntry, ExpandEntry)>>;
-
-     public:
-      explicit Driver(TrainParam::TreeGrowPolicy policy)
-          : policy_(policy)
-          , queue_(policy == TrainParam::kDepthWise ? DepthWise : LossGuide) {}
-      template <typename EntryIterT>
-      void Push(EntryIterT begin, EntryIterT end) {
-        for (auto it = begin; it != end; ++it) {
-          const ExpandEntry& e = *it;
-          queue_.push(e);
-        }
-      }
-      void Push(const ExpandEntry e) {
-        queue_.push(e);
-      }
-      bool IsEmpty() {
-        return queue_.empty();
-      }
-      void Clear() {
-        while (!queue_.empty()) {
-          queue_.pop();
-        }
-      }
-      void Push(const std::vector<ExpandEntry> &entries) {
-        this->Push(entries.begin(), entries.end());
-      }
-      // Return the set of nodes to be expanded
-      // This set has no dependencies between entries so they may be expanded in
-      // parallel or asynchronously
-      std::vector<ExpandEntry> Pop() {
-        if (queue_.empty()) return {};
-        std::vector<ExpandEntry> result;
-        // Return a single entry for loss guided mode
-        if (policy_ == TrainParam::kLossGuide) {
-          ExpandEntry e = queue_.top();
-          queue_.pop();
-          const int nid = e.nid;
-          result.emplace_back(e);
-          return result;
-        } else {
-          // Return nodes on same level for depth wise
-          while (/*e.depth == level && */!queue_.empty()) {
-            ExpandEntry e = queue_.top();
-            queue_.pop();
-            result.emplace_back(e);
-          }
-          return result;
-        }
-      }
-
-     private:
-        TrainParam::TreeGrowPolicy policy_;
-        ExpandQueue queue_;
-    };
-
-
     // initialize temp data structure
     void InitData(const GHistIndexMatrix& gmat,
                   const DMatrix& fmat,
@@ -479,17 +430,6 @@ class QuantileHistMaker: public TreeUpdater {
                     RegTree* p_tree,
                     const std::vector<GradientPair>& gpair_h);
 
-    inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
-      if (lhs.loss_chg == rhs.loss_chg) {
-        return lhs.timestamp > rhs.timestamp;  // favor small timestamp
-      } else {
-        return lhs.loss_chg < rhs.loss_chg;  // favor large loss_chg
-      }
-    }
-
-    inline static bool DepthWise(ExpandEntry lhs, ExpandEntry rhs) {
-      return lhs.timestamp > rhs.timestamp;  // favor small timestamp
-    }
     //  --data fields--
     const size_t n_trees_;
     const TrainParam& param_;
@@ -533,8 +473,6 @@ class QuantileHistMaker: public TreeUpdater {
        std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
                            std::function<bool(ExpandEntry, ExpandEntry)>>;
 
-    std::unique_ptr<ExpandQueue> qexpand_loss_guided_;
-    std::vector<ExpandEntry> qexpand_depth_wise_;
     // key is the node id which should be calculated by Subtraction Trick, value is the node which
     // provides the evidence for subtraction
     std::vector<ExpandEntry> nodes_for_subtraction_trick_;
@@ -595,14 +533,13 @@ template <typename GradientSumT>
 class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
  public:
   using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-  using ExpandEntryT = typename BuilderT::ExpandEntry;
 
   void SyncHistograms(BuilderT* builder, int starting_index,
                       int sync_count, RegTree *p_tree) override;
 
   void ParallelSubtractionHist(BuilderT* builder,
                                const common::BlockedSpace2d& space,
-                               const std::vector<ExpandEntryT>& nodes,
+                               const std::vector<ExpandEntry>& nodes,
                                const RegTree * p_tree);
 };
 

@@ -24,7 +24,6 @@ class QuantileHistMock : public QuantileHistMaker {
   template <typename GradientSumT>
   struct BuilderMock : public QuantileHistMaker::Builder<GradientSumT> {
     using RealImpl = QuantileHistMaker::Builder<GradientSumT>;
-    using ExpandEntryT = typename RealImpl::ExpandEntry;
     using GHistRowT = typename RealImpl::GHistRowT;
 
     BuilderMock(const TrainParam& param,
@@ -178,10 +177,10 @@ class QuantileHistMock : public QuantileHistMaker {
       ASSERT_EQ(sync_count, 2);
       ASSERT_EQ(starting_index, 3);
 
-      for (const ExpandEntryT& node : this->nodes_for_explicit_hist_build_) {
+      for (const ExpandEntry& node : this->nodes_for_explicit_hist_build_) {
         ASSERT_EQ(this->hist_.RowExists(node.nid), true);
       }
-      for (const ExpandEntryT& node : this->nodes_for_subtraction_trick_) {
+      for (const ExpandEntry& node : this->nodes_for_subtraction_trick_) {
         ASSERT_EQ(this->hist_.RowExists(node.nid), true);
       }
     }
@@ -278,7 +277,7 @@ class QuantileHistMock : public QuantileHistMaker {
           ASSERT_EQ(p_parent[i], p_left[i] + p_right[i]);
         }
       };
-      for (const ExpandEntryT& node : this->nodes_for_explicit_hist_build_) {
+      for (const ExpandEntry& node : this->nodes_for_explicit_hist_build_) {
         auto this_hist = this->hist_[node.nid];
         const size_t parent_id = (*tree)[node.nid].Parent();
         auto parent_hist =  this->hist_[parent_id];
@@ -286,7 +285,7 @@ class QuantileHistMock : public QuantileHistMaker {
 
         check_hist(parent_hist, this_hist, sibling_hist, 0, nbins);
       }
-      for (const ExpandEntryT& node : this->nodes_for_subtraction_trick_) {
+      for (const ExpandEntry& node : this->nodes_for_subtraction_trick_) {
         auto this_hist = this->hist_[node.nid];
         const size_t parent_id = (*tree)[node.nid].Parent();
         auto parent_hist =  this->hist_[parent_id];
@@ -408,10 +407,10 @@ class QuantileHistMock : public QuantileHistMaker {
       }
 
       /* Now compare against result given by EvaluateSplit() */
-      typename RealImpl::ExpandEntry node(RealImpl::ExpandEntry::kRootNid,
-                                          RealImpl::ExpandEntry::kEmptyNid,
-                                          tree.GetDepth(0),
-                                          this->snode_[0].best.loss_chg, 0);
+      ExpandEntry node(ExpandEntry::kRootNid,
+                       ExpandEntry::kEmptyNid,
+                       tree.GetDepth(0),
+                       this->snode_[0].best.loss_chg, 0);
       RealImpl::EvaluateSplits({node}, gmat, this->hist_, tree);
       ASSERT_EQ(this->snode_[0].best.SplitIndex(), best_split_feature);
       ASSERT_EQ(this->snode_[0].best.split_value, gmat.cut.Values()[best_split_threshold]);

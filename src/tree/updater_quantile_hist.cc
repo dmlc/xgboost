@@ -199,7 +199,7 @@ template <typename GradientSumT>
 void DistributedHistSynchronizer<GradientSumT>::ParallelSubtractionHist(
                                   BuilderT* builder,
                                   const common::BlockedSpace2d& space,
-                                  const std::vector<ExpandEntryT>& nodes,
+                                  const std::vector<ExpandEntry>& nodes,
                                   const RegTree * p_tree) {
   common::ParallelFor2d(space, builder->nthread_, [&](size_t node, common::Range1d r) {
     const auto& entry = nodes[node];
@@ -458,7 +458,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
   unsigned timestamp = 0;
   int num_leaves = 0;
 
-  Driver driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
+  Driver<ExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
   std::vector<ExpandEntry> expand;
   InitRoot(gmat, gmatb, *p_fmat, p_tree, gpair_h, &timestamp, &num_leaves, &expand);
   driver.Push(expand[0]);
@@ -792,13 +792,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
     snode_.reserve(256);
     snode_.clear();
   }
-  {
-    if (param_.grow_policy == TrainParam::kLossGuide) {
-      qexpand_loss_guided_.reset(new ExpandQueue(LossGuide));
-    } else {
-      qexpand_depth_wise_.clear();
-    }
-  }
+
   builder_monitor_.Stop("InitData");
 }
 
