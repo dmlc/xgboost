@@ -31,20 +31,6 @@ inline XGBOOST_DEVICE bst_node_t GetNextNode(
   }
   return nid;
 }
-
-template <bool has_missing, bool has_categorical>
-bst_node_t GetLeafIndex(RegTree const &tree, const RegTree::FVec &feat,
-                        RegTree::CategoricalSplitMatrix const& cats) {
-  bst_node_t nid = 0;
-  while (!tree[nid].IsLeaf()) {
-    unsigned split_index = tree[nid].SplitIndex();
-    auto fvalue = feat.GetFvalue(split_index);
-    auto nodes = common::Span<RegTree::Node const>{tree.GetNodes()};
-    nid = GetNextNode<has_missing, has_categorical>(
-        nodes, nid, fvalue, has_missing && feat.IsMissing(split_index), cats);
-  }
-  return nid;
-}
 }  // namespace predictor
 }  // namespace xgboost
 #endif  // XGBOOST_PREDICTOR_PREDICT_FN_H_

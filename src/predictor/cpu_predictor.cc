@@ -28,6 +28,20 @@ namespace predictor {
 
 DMLC_REGISTRY_FILE_TAG(cpu_predictor);
 
+template <bool has_missing, bool has_categorical>
+bst_node_t GetLeafIndex(RegTree const &tree, const RegTree::FVec &feat,
+                        RegTree::CategoricalSplitMatrix const& cats) {
+  bst_node_t nid = 0;
+  while (!tree[nid].IsLeaf()) {
+    unsigned split_index = tree[nid].SplitIndex();
+    auto fvalue = feat.GetFvalue(split_index);
+    auto nodes = common::Span<RegTree::Node const>{tree.GetNodes()};
+    nid = GetNextNode<has_missing, has_categorical>(
+        nodes, nid, fvalue, has_missing && feat.IsMissing(split_index), cats);
+  }
+  return nid;
+}
+
 bst_float PredValue(const SparsePage::Inst &inst,
                     const std::vector<std::unique_ptr<RegTree>> &trees,
                     const std::vector<int> &tree_info, int bst_group,
