@@ -150,18 +150,14 @@ struct CPUHistMakerTrainParam
 };
 
 /* tree growing policies */
-struct ExpandEntry {
+struct CPUExpandEntry {
   static const int kRootNid  = 0;
   static const int kEmptyNid = -1;
   int nid;
-  int sibling_nid;
   int depth;
   bst_float loss_chg;
-  unsigned timestamp;
-  ExpandEntry(int nid, int sibling_nid, int depth, bst_float loss_chg,
-              unsigned tstmp)
-      : nid(nid), sibling_nid(sibling_nid), depth(depth),
-        loss_chg(loss_chg), timestamp(tstmp) {}
+  CPUExpandEntry(int nid, int depth, bst_float loss_chg)
+      : nid(nid), depth(depth), loss_chg(loss_chg) {}
 
   bool IsValid(TrainParam const &param, int32_t num_leaves) const {
     bool ret = loss_chg <= kRtEps ||
@@ -346,12 +342,12 @@ class QuantileHistMaker: public TreeUpdater {
                       std::vector<GradientPair>* gpair,
                       std::vector<size_t>* row_indices);
 
-    void EvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
+    void EvaluateSplits(const std::vector<CPUExpandEntry>& nodes_set,
                         const GHistIndexMatrix& gmat,
                         const HistCollection<GradientSumT>& hist,
                         const RegTree& tree);
 
-    void ApplySplit(std::vector<ExpandEntry> nodes,
+    void ApplySplit(std::vector<CPUExpandEntry> nodes,
                         const GHistIndexMatrix& gmat,
                         const ColumnMatrix& column_matrix,
                         const HistCollection<GradientSumT>& hist,
@@ -362,10 +358,10 @@ class QuantileHistMaker: public TreeUpdater {
                          const int32_t split_cond,
                          const ColumnMatrix& column_matrix, const RegTree& tree);
 
-    void AddSplitsToRowSet(const std::vector<ExpandEntry>& nodes, RegTree* p_tree);
+    void AddSplitsToRowSet(const std::vector<CPUExpandEntry>& nodes, RegTree* p_tree);
 
 
-    void FindSplitConditions(const std::vector<ExpandEntry>& nodes, const RegTree& tree,
+    void FindSplitConditions(const std::vector<CPUExpandEntry>& nodes, const RegTree& tree,
                              const GHistIndexMatrix& gmat, std::vector<int32_t>* split_conditions);
 
     void InitNewNode(int nid,
@@ -399,29 +395,28 @@ class QuantileHistMaker: public TreeUpdater {
                   const DMatrix& fmat,
                   RegTree *p_tree,
                   const std::vector<GradientPair> &gpair_h,
-                  unsigned *timestamp, int *num_leaves, std::vector<ExpandEntry> *expand);
+                  int *num_leaves, std::vector<CPUExpandEntry> *expand);
 
     // Split nodes to 2 sets depending on amount of rows in each node
     // Histograms for small nodes will be built explicitly
     // Histograms for big nodes will be built by 'Subtraction Trick'
-    void SplitSiblings(const std::vector<ExpandEntry>& nodes,
-                       std::vector<ExpandEntry>* nodes_to_evaluate,
-                       RegTree *p_tree, unsigned *timestamp);
+    void SplitSiblings(const std::vector<CPUExpandEntry>& nodes,
+                       std::vector<CPUExpandEntry>* nodes_to_evaluate,
+                       RegTree *p_tree);
 
     void ParallelSubtractionHist(const common::BlockedSpace2d& space,
-                                 const std::vector<ExpandEntry>& nodes,
+                                 const std::vector<CPUExpandEntry>& nodes,
                                  const RegTree * p_tree);
 
-    void AddSplitsToTree(const std::vector<ExpandEntry>& expand,
+    void AddSplitsToTree(const std::vector<CPUExpandEntry>& expand,
                          RegTree *p_tree,
                          int *num_leaves,
-                         unsigned *timestamp,
-                         std::vector<ExpandEntry>* nodes_for_apply_split);
+                         std::vector<CPUExpandEntry>* nodes_for_apply_split);
 
     void BuildNodeStats(const GHistIndexMatrix &gmat,
                         const DMatrix& fmat,
                         const std::vector<GradientPair> &gpair_h,
-                        const std::vector<ExpandEntry>& nodes_for_apply_split, RegTree *p_tree);
+                        const std::vector<CPUExpandEntry>& nodes_for_apply_split, RegTree *p_tree);
 
     void ExpandTree(const GHistIndexMatrix& gmat,
                     const GHistIndexBlockMatrix& gmatb,
@@ -470,14 +465,14 @@ class QuantileHistMaker: public TreeUpdater {
     DMatrix* p_last_fmat_mutable_;
 
     using ExpandQueue =
-       std::priority_queue<ExpandEntry, std::vector<ExpandEntry>,
-                           std::function<bool(ExpandEntry, ExpandEntry)>>;
+       std::priority_queue<CPUExpandEntry, std::vector<CPUExpandEntry>,
+                           std::function<bool(CPUExpandEntry, CPUExpandEntry)>>;
 
     // key is the node id which should be calculated by Subtraction Trick, value is the node which
     // provides the evidence for subtraction
-    std::vector<ExpandEntry> nodes_for_subtraction_trick_;
+    std::vector<CPUExpandEntry> nodes_for_subtraction_trick_;
     // list of nodes whose histograms would be built explicitly.
-    std::vector<ExpandEntry> nodes_for_explicit_hist_build_;
+    std::vector<CPUExpandEntry> nodes_for_explicit_hist_build_;
 
     enum class DataLayout { kDenseDataZeroBased, kDenseDataOneBased, kSparseData };
     DataLayout data_layout_;
@@ -539,7 +534,7 @@ class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
 
   void ParallelSubtractionHist(BuilderT* builder,
                                const common::BlockedSpace2d& space,
-                               const std::vector<ExpandEntry>& nodes,
+                               const std::vector<CPUExpandEntry>& nodes,
                                const RegTree * p_tree);
 };
 

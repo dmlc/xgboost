@@ -25,6 +25,7 @@
 #include "../data/ellpack_page.cuh"
 
 #include "param.h"
+#include "driver.h"
 #include "updater_gpu_common.cuh"
 #include "split_evaluator.h"
 #include "constraints.cuh"
@@ -321,8 +322,8 @@ struct GPUHistMakerDevice {
   }
 
   void EvaluateLeftRightSplits(
-      ExpandEntry candidate, int left_nidx, int right_nidx, const RegTree& tree,
-      common::Span<ExpandEntry> pinned_candidates_out) {
+      GPUExpandEntry candidate, int left_nidx, int right_nidx, const RegTree& tree,
+      common::Span<GPUExpandEntry> pinned_candidates_out) {
     dh::TemporaryArray<DeviceSplitCandidate> splits_out(2);
     GPUTrainingParam gpu_param(param);
     auto left_sampled_features =
@@ -363,7 +364,7 @@ struct GPUHistMakerDevice {
         hist.GetNodeHistogram(right_nidx)};
     auto d_splits_out = dh::ToSpan(splits_out);
     EvaluateSplits(d_splits_out, tree_evaluator.GetEvaluator<GPUTrainingParam>(), left, right);
-    dh::TemporaryArray<ExpandEntry> entries(2);
+    dh::TemporaryArray<GPUExpandEntry> entries(2);
     auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
     auto d_entries = entries.data().get();
     dh::LaunchN(device_id, 2, [=] __device__(size_t idx) {
@@ -378,12 +379,12 @@ struct GPUHistMakerDevice {
           nidx, gpu_param, GradStats{split.right_sum});
 
       d_entries[idx] =
-          ExpandEntry{nidx,        candidate.depth + 1, d_splits_out[idx],
+          GPUExpandEntry{nidx,        candidate.depth + 1, d_splits_out[idx],
                       base_weight, left_weight,         right_weight};
     });
     dh::safe_cuda(cudaMemcpyAsync(
         pinned_candidates_out.data(), entries.data().get(),
-        sizeof(ExpandEntry) * entries.size(), cudaMemcpyDeviceToHost));
+        sizeof(GPUExpandEntry) * entries.size(), cudaMemcpyDeviceToHost));
   }
 
   void BuildHist(int nidx) {
@@ -569,7 +570,7 @@ struct GPUHistMakerDevice {
   /**
    * \brief Build GPU local histograms for the left and right child of some parent node
    */
-  void BuildHistLeftRight(const ExpandEntry &candidate, int nidx_left,
+  void BuildHistLeftRight(const GPUExpandEntry &candidate, int nidx_left,
         int nidx_right, dh::AllReducer* reducer) {
     auto build_hist_nidx = nidx_left;
     auto subtraction_trick_nidx = nidx_right;
@@ -599,7 +600,7 @@ struct GPUHistMakerDevice {
     }
   }
 
-  void ApplySplit(const ExpandEntry& candidate, RegTree* p_tree) {
+  void ApplySplit(const GPUExpandEntry& candidate, RegTree* p_tree) {
     RegTree& tree = *p_tree;
     auto evaluator = tree_evaluator.GetEvaluator();
     auto parent_sum = candidate.split.left_sum + candidate.split.right_sum;
@@ -647,7 +648,7 @@ struct GPUHistMakerDevice {
                                   tree[candidate.nid].RightChild());
   }
 
-  ExpandEntry InitRoot(RegTree* p_tree, dh::AllReducer* reducer) {
+  GPUExpandEntry InitRoot(RegTree* p_tree, dh::AllReducer* reducer) {
     constexpr bst_node_t kRootNIdx = 0;
     dh::XGBCachingDeviceAllocator<char> alloc;
     GradientPair root_sum = dh::Reduce(
@@ -670,7 +671,7 @@ struct GPUHistMakerDevice {
 
     // Generate first split
     auto split = this->EvaluateRootSplit(root_sum);
-    dh::TemporaryArray<ExpandEntry> entries(1);
+    dh::TemporaryArray<GPUExpandEntry> entries(1);
     auto d_entries = entries.data().get();
     auto evaluator = tree_evaluator.GetEvaluator<GPUTrainingParam>();
     GPUTrainingParam gpu_param(param);
@@ -681,20 +682,20 @@ struct GPUHistMakerDevice {
       float right_weight = evaluator.CalcWeight(
           kRootNIdx, gpu_param, GradStats{split.right_sum});
       d_entries[0] =
-          ExpandEntry(kRootNIdx, depth, split,
+          GPUExpandEntry(kRootNIdx, depth, split,
                       weight, left_weight, right_weight);
     });
-    ExpandEntry root_entry;
+    GPUExpandEntry root_entry;
     dh::safe_cuda(cudaMemcpyAsync(
         &root_entry, entries.data().get(),
-        sizeof(ExpandEntry) * entries.size(), cudaMemcpyDeviceToHost));
+        sizeof(GPUExpandEntry) * entries.size(), cudaMemcpyDeviceToHost));
     return root_entry;
   }
 
   void UpdateTree(HostDeviceVector<GradientPair>* gpair_all, DMatrix* p_fmat,
                   RegTree* p_tree, dh::AllReducer* reducer) {
     auto& tree = *p_tree;
-    Driver driver(static_cast<TrainParam::TreeGrowPolicy>(param.grow_policy));
+    Driver<GPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param.grow_policy));
 
     monitor.Start("Reset");
     this->Reset(gpair_all, p_fmat, p_fmat->Info().num_col_);
@@ -710,7 +711,7 @@ struct GPUHistMakerDevice {
     auto expand_set = driver.Pop();
     while (!expand_set.empty()) {
       auto new_candidates =
-          pinned.GetSpan<ExpandEntry>(expand_set.size() * 2, ExpandEntry());
+          pinned.GetSpan<GPUExpandEntry>(expand_set.size() * 2, GPUExpandEntry());
 
       for (auto i = 0ull; i < expand_set.size(); i++) {
         auto candidate = expand_set.at(i);
@@ -724,7 +725,7 @@ struct GPUHistMakerDevice {
         int left_child_nidx = tree[candidate.nid].LeftChild();
         int right_child_nidx = tree[candidate.nid].RightChild();
         // Only create child entries if needed
-        if (ExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
+        if (GPUExpandEntry::ChildIsValid(param, tree.GetDepth(left_child_nidx),
                                       num_leaves)) {
           monitor.Start("UpdatePosition");
           this->UpdatePosition(candidate.nid, p_tree);
@@ -741,8 +742,8 @@ struct GPUHistMakerDevice {
           monitor.Stop("EvaluateSplits");
         } else {
           // Set default
-          new_candidates[i * 2] = ExpandEntry();
-          new_candidates[i * 2 + 1] = ExpandEntry();
+          new_candidates[i * 2] = GPUExpandEntry();
+          new_candidates[i * 2 + 1] = GPUExpandEntry();
         }
       }
       dh::safe_cuda(cudaDeviceSynchronize());
