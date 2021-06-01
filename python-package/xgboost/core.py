@@ -239,7 +239,18 @@ def _array_interface(data: np.ndarray) -> bytes:
     interface = data.__array_interface__
     if "mask" in interface:
         interface["mask"] = interface["mask"].__array_interface__
-    interface_str = bytes(json.dumps(interface, indent=2), "utf-8")
+    interface_str = bytes(json.dumps(interface), "utf-8")
+    return interface_str
+
+
+def _cuda_array_interface(data) -> bytes:
+    assert (
+        data.dtype.hasobject is False
+    ), "Input data contains `object` dtype.  Expecting numeric data."
+    interface = data.__cuda_array_interface__
+    if "mask" in interface:
+        interface["mask"] = interface["mask"].__cuda_array_interface__
+    interface_str = bytes(json.dumps(interface), "utf-8")
     return interface_str
 
 
@@ -1948,10 +1959,7 @@ class Booster(object):
             from .data import _transform_cupy_array
 
             data = _transform_cupy_array(data)
-            interface = data.__cuda_array_interface__
-            if "mask" in interface:
-                interface["mask"] = interface["mask"].__cuda_array_interface__
-            interface_str = bytes(json.dumps(interface, indent=2), "utf-8")
+            interface_str = _cuda_array_interface(data)
             _check_call(
                 _LIB.XGBoosterPredictFromCudaArray(
                     self.handle,

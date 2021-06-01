@@ -261,7 +261,7 @@ XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr,
   API_END();
 }
 
-XGB_DLL int XGDMatrixCreateFromArray(char const *data,
+XGB_DLL int XGDMatrixCreateFromDense(char const *data,
                                      char const *c_json_config,
                                      DMatrixHandle *out) {
   API_BEGIN();

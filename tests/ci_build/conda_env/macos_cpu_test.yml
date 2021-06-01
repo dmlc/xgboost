@@ -13,8 +13,8 @@ dependencies:
 - scikit-learn
 - pandas
 - matplotlib
-- dask
-- distributed
+- dask=2021.05.0
+- distributed=2021.05.0
 - graphviz
 - python-graphviz
 - hypothesis

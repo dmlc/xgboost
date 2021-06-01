@@ -142,7 +142,7 @@ XGB_DLL int XGDMatrixCreateFromCSR(char const *indptr,
  * \param out created dmatrix
  * \return 0 when success, -1 when failure happens
  */
-XGB_DLL int XGDMatrixCreateFromArray(char const *data,
+XGB_DLL int XGDMatrixCreateFromDense(char const *data,
                                      char const *json_config,
                                      DMatrixHandle *out);
 
