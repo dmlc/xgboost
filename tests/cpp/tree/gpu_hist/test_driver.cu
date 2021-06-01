@@ -6,7 +6,7 @@ namespace xgboost {
 namespace tree {
 
 TEST(GpuHist, DriverDepthWise) {
-  Driver<GPUGPUExpandEntry> driver(TrainParam::kDepthWise);
+  Driver<GPUExpandEntry> driver(TrainParam::kDepthWise);
   EXPECT_TRUE(driver.Pop().empty());
   DeviceSplitCandidate split;
   split.loss_chg = 1.0f;
@@ -33,7 +33,7 @@ TEST(GpuHist, DriverLossGuided) {
   DeviceSplitCandidate low_gain;
   low_gain.loss_chg = 1.0f;
 
-  Driver<GPUGPUExpandEntry> driver(TrainParam::kLossGuide);
+  Driver<GPUExpandEntry> driver(TrainParam::kLossGuide);
   EXPECT_TRUE(driver.Pop().empty());
   GPUExpandEntry root(0, 0, high_gain, .0f, .0f, .0f);
   driver.Push({root});
