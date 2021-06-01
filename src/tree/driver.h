@@ -13,7 +13,7 @@ namespace tree {
 
 template <typename ExpandEntryT>
 inline bool DepthWise(const ExpandEntryT& lhs, const ExpandEntryT& rhs) {
-  return lhs.GetDepth() > rhs.GetDepth();  // favor small depth
+  return lhs.GetNodeId() > rhs.GetNodeId();  // favor small depth
 }
 
 template <typename ExpandEntryT>
