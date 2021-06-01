@@ -530,7 +530,7 @@ class GPUPredictor : public xgboost::Predictor {
     SparsePageView data(batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
                         num_features);
     auto const kernel = [&](auto predict_fn) {
-      dh::LaunchKernel{GRID_SIZE, BLOCK_THREADS, shared_memory_bytes}(
+      dh::LaunchKernel {GRID_SIZE, BLOCK_THREADS, shared_memory_bytes} (
           predict_fn, data, model.nodes.ConstDeviceSpan(),
           predictions->DeviceSpan().subspan(batch_offset),
           model.tree_segments.ConstDeviceSpan(),
