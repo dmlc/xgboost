@@ -530,16 +530,17 @@ class GPUPredictor : public xgboost::Predictor {
     SparsePageView data(batch.data.DeviceSpan(), batch.offset.DeviceSpan(),
                         num_features);
     auto const kernel = [&](auto predict_fn) {
-      predict_fn(data, model.nodes.ConstDeviceSpan(),
-                 predictions->DeviceSpan().subspan(batch_offset),
-                 model.tree_segments.ConstDeviceSpan(),
-                 model.tree_group.ConstDeviceSpan(),
-                 model.split_types.ConstDeviceSpan(),
-                 model.categories_tree_segments.ConstDeviceSpan(),
-                 model.categories_node_segments.ConstDeviceSpan(),
-                 model.categories.ConstDeviceSpan(), model.tree_beg_,
-                 model.tree_end_, num_features, num_rows, entry_start,
-                 use_shared, model.num_group, nan(""));
+      dh::LaunchKernel{GRID_SIZE, BLOCK_THREADS, shared_memory_bytes}(
+          predict_fn, data, model.nodes.ConstDeviceSpan(),
+          predictions->DeviceSpan().subspan(batch_offset),
+          model.tree_segments.ConstDeviceSpan(),
+          model.tree_group.ConstDeviceSpan(),
+          model.split_types.ConstDeviceSpan(),
+          model.categories_tree_segments.ConstDeviceSpan(),
+          model.categories_node_segments.ConstDeviceSpan(),
+          model.categories.ConstDeviceSpan(), model.tree_beg_, model.tree_end_,
+          num_features, num_rows, entry_start, use_shared, model.num_group,
+          nan(""));
     };
     if (is_dense) {
       kernel(PredictKernel<SparsePageLoader, SparsePageView, false>);
