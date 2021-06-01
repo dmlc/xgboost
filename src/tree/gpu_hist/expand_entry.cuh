@@ -4,7 +4,6 @@
 #ifndef EXPAND_ENTRY_CUH_
 #define EXPAND_ENTRY_CUH_
 #include <xgboost/span.h>
-#include <queue>
 #include "../param.h"
 #include "evaluate_splits.cuh"
 
@@ -46,6 +45,18 @@ struct GPUExpandEntry {
     if (param.max_depth > 0 && depth >= param.max_depth) return false;
     if (param.max_leaves > 0 && num_leaves >= param.max_leaves) return false;
     return true;
+  }
+
+  bst_float GetLossChange() const {
+    return split.loss_chg;
+  }
+
+  int GetNodeId() const {
+    return nid;
+  }
+
+  int GetDepth() const {
+    return depth;
   }
 
   friend std::ostream& operator<<(std::ostream& os, const GPUExpandEntry& e) {
