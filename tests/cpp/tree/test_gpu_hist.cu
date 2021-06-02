@@ -132,7 +132,7 @@ TEST(GpuHist, BuildHistSharedMem) {
 
 TEST(GpuHist, ApplySplit) {
   RegTree tree;
-  ExpandEntry candidate;
+  GPUExpandEntry candidate;
   candidate.nid = 0;
   candidate.left_weight = 1.0f;
   candidate.right_weight = 2.0f;
