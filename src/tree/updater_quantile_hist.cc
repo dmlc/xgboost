@@ -143,7 +143,7 @@ void BatchHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT *builder,
       const int subtraction_node_id = builder->nodes_for_subtraction_trick_[node].nid;
       CHECK(entry.sibling_nid == subtraction_node_id);
     }
-    if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
+    if (!(*p_tree)[entry.nid].IsRoot()) {
       const size_t parent_id = (*p_tree)[entry.nid].Parent();
       auto parent_hist = builder->hist_[parent_id];
       auto sibling_hist = builder->hist_[entry.sibling_nid];
@@ -176,7 +176,7 @@ void DistributedHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT* builder
       CHECK(entry.sibling_nid == subtraction_node_id);
     }
 
-    if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
+    if (!(*p_tree)[entry.nid].IsRoot()) {
       const size_t parent_id = (*p_tree)[entry.nid].Parent();
       auto parent_hist = builder->hist_local_worker_[parent_id];
       auto sibling_hist = builder->hist_[entry.sibling_nid];
@@ -193,12 +193,14 @@ void DistributedHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT* builder
 
   builder->builder_monitor_.Stop("SyncHistogramsAllreduce");
 
-  ParallelSubtractionHist(builder, space, builder->nodes_for_explicit_hist_build_, p_tree);
+  ParallelSubtractionHist(builder, space, builder->nodes_for_explicit_hist_build_,
+                          builder->nodes_for_subtraction_trick_, p_tree);
 
   common::BlockedSpace2d space2(builder->nodes_for_subtraction_trick_.size(), [&](size_t) {
     return nbins;
   }, 1024);
-  ParallelSubtractionHist(builder, space2, builder->nodes_for_subtraction_trick_, p_tree);
+  ParallelSubtractionHist(builder, space2, builder->nodes_for_subtraction_trick_,
+                          builder->nodes_for_explicit_hist_build_, p_tree);
   builder->builder_monitor_.Stop("SyncHistograms");
 }
 
@@ -207,17 +209,18 @@ void DistributedHistSynchronizer<GradientSumT>::ParallelSubtractionHist(
                                   BuilderT* builder,
                                   const common::BlockedSpace2d& space,
                                   const std::vector<CPUExpandEntry>& nodes,
+                                  const std::vector<CPUExpandEntry>& subtraction_nodes,
                                   const RegTree * p_tree) {
   common::ParallelFor2d(space, builder->nthread_, [&](size_t node, common::Range1d r) {
     const auto& entry = nodes[node];
     if (!((*p_tree)[entry.nid].IsLeftChild())) {
       auto this_hist = builder->hist_[entry.nid];
       if (!(*p_tree)[entry.nid].IsRoot()) {
-        const int subtraction_node_id = builder->nodes_for_subtraction_trick_[node].nid;
+        const int subtraction_node_id = subtraction_nodes[node].nid;
         CHECK(entry.sibling_nid == subtraction_node_id);
       }
 
-      if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
+      if (!(*p_tree)[entry.nid].IsRoot()) {
         auto parent_hist = builder->hist_[(*p_tree)[entry.nid].Parent()];
         auto sibling_hist = builder->hist_[entry.sibling_nid];
         SubtractionHist(this_hist, parent_hist, sibling_hist, r.begin(), r.end());

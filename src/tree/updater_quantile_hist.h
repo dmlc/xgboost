@@ -406,10 +406,6 @@ class QuantileHistMaker: public TreeUpdater {
                        std::vector<CPUExpandEntry>* nodes_to_evaluate,
                        RegTree *p_tree);
 
-    void ParallelSubtractionHist(const common::BlockedSpace2d& space,
-                                 const std::vector<CPUExpandEntry>& nodes,
-                                 const RegTree * p_tree);
-
     void AddSplitsToTree(const std::vector<CPUExpandEntry>& expand,
                          RegTree *p_tree,
                          int *num_leaves,
@@ -537,6 +533,7 @@ class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
   void ParallelSubtractionHist(BuilderT* builder,
                                const common::BlockedSpace2d& space,
                                const std::vector<CPUExpandEntry>& nodes,
+                               const std::vector<CPUExpandEntry>& subtraction_nodes,
                                const RegTree * p_tree);
 };
 
