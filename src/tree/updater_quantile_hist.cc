@@ -420,6 +420,7 @@ void QuantileHistMaker::Builder<GradientSumT>::SplitSiblings(
       nodes_for_subtraction_trick_.push_back(left_node);
     }
   }
+  CHECK_EQ(nodes_for_subtraction_trick_.size(), nodes_for_explicit_hist_build_.size());
   builder_monitor_.Stop("SplitSiblings");
 }
 
