@@ -111,7 +111,6 @@ class MemStackAllocator {
 namespace tree {
 
 using xgboost::common::GHistIndexMatrix;
-using xgboost::common::GHistIndexBlockMatrix;
 using xgboost::common::GHistIndexRow;
 using xgboost::common::HistCollection;
 using xgboost::common::RowSetCollection;
@@ -245,8 +244,6 @@ class QuantileHistMaker: public TreeUpdater {
   TrainParam param_;
   // quantized data matrix
   GHistIndexMatrix gmat_;
-  // (optional) data matrix with feature grouping
-  GHistIndexBlockMatrix gmatb_;
   // column accessor
   ColumnMatrix column_matrix_;
   DMatrix const* p_last_dmat_ {nullptr};
@@ -289,7 +286,6 @@ class QuantileHistMaker: public TreeUpdater {
     }
     // update one tree, growing
     virtual void Update(const GHistIndexMatrix& gmat,
-                        const GHistIndexBlockMatrix& gmatb,
                         const ColumnMatrix& column_matrix,
                         HostDeviceVector<GradientPair>* gpair,
                         DMatrix* p_fmat,
@@ -298,14 +294,9 @@ class QuantileHistMaker: public TreeUpdater {
     inline void BuildHist(const std::vector<GradientPair>& gpair,
                           const RowSetCollection::Elem row_indices,
                           const GHistIndexMatrix& gmat,
-                          const GHistIndexBlockMatrix& gmatb,
                           GHistRowT hist) {
-      if (param_.enable_feature_grouping > 0) {
-        hist_builder_.BuildBlockHist(gpair, row_indices, gmatb, hist);
-      } else {
-        hist_builder_.BuildHist(gpair, row_indices, gmat, hist,
-                                data_layout_ != DataLayout::kSparseData);
-      }
+      hist_builder_.BuildHist(gpair, row_indices, gmat, hist,
+                              data_layout_ != DataLayout::kSparseData);
     }
 
     inline void SubtractionTrick(GHistRowT self,
@@ -386,12 +377,10 @@ class QuantileHistMaker: public TreeUpdater {
     bool SplitContainsMissingValues(const GradStats e, const NodeEntry& snode);
 
     void BuildLocalHistograms(const GHistIndexMatrix &gmat,
-                              const GHistIndexBlockMatrix &gmatb,
                               RegTree *p_tree,
                               const std::vector<GradientPair> &gpair_h);
 
     void InitRoot(const GHistIndexMatrix &gmat,
-                  const GHistIndexBlockMatrix &gmatb,
                   const DMatrix& fmat,
                   RegTree *p_tree,
                   const std::vector<GradientPair> &gpair_h,
@@ -415,7 +404,6 @@ class QuantileHistMaker: public TreeUpdater {
                         const std::vector<CPUExpandEntry>& nodes_for_apply_split, RegTree *p_tree);
 
     void ExpandTree(const GHistIndexMatrix& gmat,
-                    const GHistIndexBlockMatrix& gmatb,
                     const ColumnMatrix& column_matrix,
                     DMatrix* p_fmat,
                     RegTree* p_tree,
