@@ -154,10 +154,12 @@ struct CPUExpandEntry {
   static const int kRootNid  = 0;
   static const int kEmptyNid = -1;
   int nid;
+  int sibling_nid;
   int depth;
   bst_float loss_chg;
-  CPUExpandEntry(int nid, int depth, bst_float loss_chg)
-      : nid(nid), depth(depth), loss_chg(loss_chg) {}
+  CPUExpandEntry(int nid, int sibling_nid, int depth, bst_float loss_chg)
+      : nid(nid), sibling_nid(sibling_nid),
+        depth(depth), loss_chg(loss_chg) {}
 
   bool IsValid(TrainParam const &param, int32_t num_leaves) const {
     bool ret = loss_chg <= kRtEps ||
