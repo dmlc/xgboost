@@ -71,7 +71,7 @@ void QuantileHistMaker::CallBuilderUpdate(const std::unique_ptr<Builder<Gradient
                                           DMatrix *dmat,
                                           const std::vector<RegTree *> &trees) {
   for (auto tree : trees) {
-    builder->Update(gmat_, gmatb_, column_matrix_, gpair, dmat, tree);
+    builder->Update(gmat_, column_matrix_, gpair, dmat, tree);
   }
 }
 void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
@@ -81,9 +81,6 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
     updater_monitor_.Start("GmatInitialization");
     gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
     column_matrix_.Init(gmat_, param_.sparse_threshold);
-    if (param_.enable_feature_grouping > 0) {
-      gmatb_.Init(gmat_, column_matrix_, param_);
-    }
     updater_monitor_.Stop("GmatInitialization");
     // A proper solution is puting cut matrix in DMatrix, see:
     // https://github.com/dmlc/xgboost/issues/5143
@@ -295,7 +292,6 @@ void QuantileHistMaker::Builder<GradientSumT>::SetHistRowsAdder(
 template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
     const GHistIndexMatrix &gmat,
-    const GHistIndexBlockMatrix &gmatb,
     const DMatrix& fmat,
     RegTree *p_tree,
     const std::vector<GradientPair> &gpair_h,
@@ -311,7 +307,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
   int sync_count = 0;
 
   hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, p_tree);
-  BuildLocalHistograms(gmat, gmatb, p_tree, gpair_h);
+  BuildLocalHistograms(gmat, p_tree, gpair_h);
   hist_synchronizer_->SyncHistograms(this, starting_index, sync_count, p_tree);
 
   this->InitNewNode(CPUExpandEntry::kRootNid, gmat, gpair_h, fmat, *p_tree);
@@ -325,7 +321,6 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
 template<typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::BuildLocalHistograms(
     const GHistIndexMatrix &gmat,
-    const GHistIndexBlockMatrix &gmatb,
     RegTree *p_tree,
     const std::vector<GradientPair> &gpair_h) {
   builder_monitor_.Start("BuildLocalHistograms");
@@ -355,7 +350,7 @@ void QuantileHistMaker::Builder<GradientSumT>::BuildLocalHistograms(
     auto rid_set = RowSetCollection::Elem(start_of_row_set + r.begin(),
                                       start_of_row_set + r.end(),
                                       nid);
-    BuildHist(gpair_h, rid_set, gmat, gmatb, hist_buffer_.GetInitializedHist(tid, nid_in_set));
+    BuildHist(gpair_h, rid_set, gmat, hist_buffer_.GetInitializedHist(tid, nid_in_set));
   });
 
   builder_monitor_.Stop("BuildLocalHistograms");
@@ -446,7 +441,6 @@ void QuantileHistMaker::Builder<GradientSumT>::BuildNodeStats(
 template<typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
     const GHistIndexMatrix& gmat,
-    const GHistIndexBlockMatrix& gmatb,
     const ColumnMatrix& column_matrix,
     DMatrix* p_fmat,
     RegTree* p_tree,
@@ -456,7 +450,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
 
   Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
   std::vector<CPUExpandEntry> expand;
-  InitRoot(gmat, gmatb, *p_fmat, p_tree, gpair_h, &num_leaves, &expand);
+  InitRoot(gmat, *p_fmat, p_tree, gpair_h, &num_leaves, &expand);
   driver.Push(expand[0]);
 
   int depth = 0;
@@ -478,7 +472,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
       int sync_count = 0;
       hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, p_tree);
       if (depth < param_.max_depth) {
-        BuildLocalHistograms(gmat, gmatb, p_tree, gpair_h);
+        BuildLocalHistograms(gmat, p_tree, gpair_h);
         hist_synchronizer_->SyncHistograms(this, starting_index, sync_count, p_tree);
       }
 
@@ -506,8 +500,9 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
 
 template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::Update(
-    const GHistIndexMatrix &gmat, const GHistIndexBlockMatrix &gmatb,
-    const ColumnMatrix &column_matrix, HostDeviceVector<GradientPair> *gpair,
+    const GHistIndexMatrix &gmat,
+    const ColumnMatrix &column_matrix,
+    HostDeviceVector<GradientPair> *gpair,
     DMatrix *p_fmat, RegTree *p_tree) {
   builder_monitor_.Start("Update");
 
@@ -525,7 +520,7 @@ void QuantileHistMaker::Builder<GradientSumT>::Update(
 
   this->InitData(gmat, *p_fmat, *p_tree, gpair_ptr);
 
-  ExpandTree(gmat, gmatb, column_matrix, p_fmat, p_tree, *gpair_ptr);
+  ExpandTree(gmat, column_matrix, p_fmat, p_tree, *gpair_ptr);
 
   for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
     p_tree->Stat(nid).loss_chg = snode_[nid].best.loss_chg;

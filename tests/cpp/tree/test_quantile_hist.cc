@@ -307,11 +307,10 @@ class QuantileHistMock : public QuantileHistMaker {
           { {0.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {0.27f, 0.28f},
             {0.27f, 0.29f}, {0.37f, 0.39f}, {0.47f, 0.49f}, {0.57f, 0.59f} };
       RealImpl::InitData(gmat, fmat, tree, &gpair);
-      GHistIndexBlockMatrix dummy;
       this->hist_.AddHistRow(nid);
       this->hist_.AllocateAllData();
       this->BuildHist(gpair, this->row_set_collection_[nid],
-                gmat, dummy, this->hist_[nid]);
+                      gmat, this->hist_[nid]);
 
       // Check if number of histogram bins is correct
       ASSERT_EQ(this->hist_[nid].size(), gmat.cut.Ptrs().back());
@@ -337,8 +336,7 @@ class QuantileHistMock : public QuantileHistMaker {
       }
     }
 
-    void TestEvaluateSplit(const GHistIndexBlockMatrix& quantile_index_block,
-                           const RegTree& tree) {
+    void TestEvaluateSplit(const RegTree& tree) {
       std::vector<GradientPair> row_gpairs =
           { {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {2.27f, 0.28f},
             {0.27f, 0.29f}, {0.37f, 0.39f}, {-0.47f, 0.49f}, {0.57f, 0.59f} };
@@ -353,7 +351,7 @@ class QuantileHistMock : public QuantileHistMaker {
       this->hist_.AddHistRow(0);
       this->hist_.AllocateAllData();
       this->BuildHist(row_gpairs, this->row_set_collection_[0],
-                      gmat, quantile_index_block, this->hist_[0]);
+                      gmat, this->hist_[0]);
 
       RealImpl::InitNewNode(0, gmat, row_gpairs, *dmat, tree);
 
@@ -419,15 +417,13 @@ class QuantileHistMock : public QuantileHistMaker {
       ASSERT_EQ(this->snode_[0].best.split_value, gmat.cut.Values()[best_split_threshold]);
     }
 
-    void TestEvaluateSplitParallel(const GHistIndexBlockMatrix &quantile_index_block,
-                                   const RegTree &tree) {
+    void TestEvaluateSplitParallel(const RegTree &tree) {
       omp_set_num_threads(2);
-      TestEvaluateSplit(quantile_index_block, tree);
+      TestEvaluateSplit(tree);
       omp_set_num_threads(1);
     }
 
-    void TestApplySplit(const GHistIndexBlockMatrix& quantile_index_block,
-                        const RegTree& tree) {
+    void TestApplySplit(const RegTree& tree) {
       std::vector<GradientPair> row_gpairs =
           { {1.23f, 0.24f}, {0.24f, 0.25f}, {0.26f, 0.27f}, {2.27f, 0.28f},
             {0.27f, 0.29f}, {0.37f, 0.39f}, {-0.47f, 0.49f}, {0.57f, 0.59f} };
@@ -632,9 +628,9 @@ class QuantileHistMock : public QuantileHistMaker {
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);
     if (double_builder_) {
-      double_builder_->TestEvaluateSplit(gmatb_, tree);
+      double_builder_->TestEvaluateSplit(tree);
     } else {
-      float_builder_->TestEvaluateSplit(gmatb_, tree);
+      float_builder_->TestEvaluateSplit(tree);
     }
   }
 
@@ -642,9 +638,9 @@ class QuantileHistMock : public QuantileHistMaker {
     RegTree tree = RegTree();
     tree.param.UpdateAllowUnknown(cfg_);
     if (double_builder_) {
-      double_builder_->TestApplySplit(gmatb_, tree);
+      double_builder_->TestApplySplit(tree);
     } else {
-      float_builder_->TestEvaluateSplit(gmatb_, tree);
+      float_builder_->TestEvaluateSplit(tree);
     }
   }
 };
@@ -714,8 +710,7 @@ TEST(QuantileHist, DistributedSyncHistograms) {
 TEST(QuantileHist, BuildHist) {
   // Don't enable feature grouping
   std::vector<std::pair<std::string, std::string>> cfg
-      {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())},
-       {"enable_feature_grouping", std::to_string(0)}};
+      {{"num_feature", std::to_string(QuantileHistMock::GetNumColumns())}};
   QuantileHistMock maker(cfg);
   maker.TestBuildHist();
   const bool single_precision_histogram = true;
