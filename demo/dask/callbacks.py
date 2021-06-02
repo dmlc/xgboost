@@ -1,11 +1,9 @@
 """Example of using callbacks in Dask"""
-import math
 import numpy as np
 import xgboost as xgb
 from xgboost.dask import DaskDMatrix
 from dask.distributed import Client
 from dask.distributed import LocalCluster
-from dask import array as da
 from dask_ml.datasets import make_regression
 from dask_ml.model_selection import train_test_split
 
