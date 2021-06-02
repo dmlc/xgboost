@@ -142,8 +142,6 @@ void BatchHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT *builder,
 
     if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
       const size_t parent_id = (*p_tree)[entry.nid].Parent();
-      //const size_t subtraction_node_id = builder->nodes_for_subtraction_trick_[node].nid;
-
       auto parent_hist = builder->hist_[parent_id];
       auto sibling_hist = builder->hist_[entry.sibling_nid];
       SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
