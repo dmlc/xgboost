@@ -1,5 +1,4 @@
 """Example of using callbacks in Dask"""
-import tempfile
 import math
 import numpy as np
 import xgboost as xgb
@@ -18,7 +17,7 @@ def probability_for_going_backward(epoch):
 # All callback functions must inherit from TrainingCallback
 class CustomEarlyStopping(xgb.callback.TrainingCallback):
     """A custom early stopping class where early stopping is determined stochastically.
-       In the beginning, allow the metric to become worse with a probability of 0.8.
+       In the beginning, allow the metric to become worse with a probability of 0.999.
        As boosting progresses, the probability should be adjusted downward"""
     def __init__(self, *, validation_set, target_metric, maximize, seed):
         self.validation_set = validation_set
@@ -54,26 +53,21 @@ def main(client):
     dtrain = DaskDMatrix(client, X_train, y_train)
     dtest = DaskDMatrix(client, X_test, y_test)
 
-    # Use train method from xgboost.dask instead of xgboost.  This
-    # distributed version of train returns a dictionary containing the
-    # resulting booster and evaluation history obtained from
-    # evaluation metrics.
-    with tempfile.TemporaryDirectory() as tmpdir:
-        output = xgb.dask.train(client,
-                                {'verbosity': 1,
-                                 'tree_method': 'hist',
-                                 'objective': 'reg:squarederror',
-                                 'eval_metric': 'rmse',
-                                 'max_depth': 6,
-                                 'learning_rate': 1.0},
-                                dtrain,
-                                num_boost_round=1000,
-                                evals=[(dtrain, 'train'), (dtest, 'test')],
-                                callbacks=[CustomEarlyStopping(
-                                    validation_set='test',
-                                    target_metric='rmse',
-                                    maximize=False,
-                                    seed=0)])
+    output = xgb.dask.train(client,
+                            {'verbosity': 1,
+                             'tree_method': 'hist',
+                             'objective': 'reg:squarederror',
+                             'eval_metric': 'rmse',
+                             'max_depth': 6,
+                             'learning_rate': 1.0},
+                            dtrain,
+                            num_boost_round=1000,
+                            evals=[(dtrain, 'train'), (dtest, 'test')],
+                            callbacks=[CustomEarlyStopping(
+                                validation_set='test',
+                                target_metric='rmse',
+                                maximize=False,
+                                seed=0)])
 
 
 if __name__ == '__main__':
