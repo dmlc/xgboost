@@ -139,7 +139,10 @@ void BatchHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT *builder,
     auto this_hist = builder->hist_[entry.nid];
     // Merging histograms from each thread into once
     builder->hist_buffer_.ReduceHist(node, r.begin(), r.end());
-
+    if (!(*p_tree)[entry.nid].IsRoot()) {
+      const int subtraction_node_id = builder->nodes_for_subtraction_trick_[node].nid;
+      CHECK(entry.sibling_nid == subtraction_node_id);
+    }
     if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
       const size_t parent_id = (*p_tree)[entry.nid].Parent();
       auto parent_hist = builder->hist_[parent_id];
@@ -168,6 +171,10 @@ void DistributedHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT* builder
     // Store posible parent node
     auto this_local = builder->hist_local_worker_[entry.nid];
     CopyHist(this_local, this_hist, r.begin(), r.end());
+    if (!(*p_tree)[entry.nid].IsRoot()) {
+      const int subtraction_node_id = builder->nodes_for_subtraction_trick_[node].nid;
+      CHECK(entry.sibling_nid == subtraction_node_id);
+    }
 
     if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
       const size_t parent_id = (*p_tree)[entry.nid].Parent();
@@ -205,6 +212,10 @@ void DistributedHistSynchronizer<GradientSumT>::ParallelSubtractionHist(
     const auto& entry = nodes[node];
     if (!((*p_tree)[entry.nid].IsLeftChild())) {
       auto this_hist = builder->hist_[entry.nid];
+      if (!(*p_tree)[entry.nid].IsRoot()) {
+        const int subtraction_node_id = builder->nodes_for_subtraction_trick_[node].nid;
+        CHECK(entry.sibling_nid == subtraction_node_id);
+      }
 
       if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
         auto parent_hist = builder->hist_[(*p_tree)[entry.nid].Parent()];
