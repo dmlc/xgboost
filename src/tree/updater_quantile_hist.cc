@@ -139,14 +139,12 @@ void BatchHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT *builder,
     auto this_hist = builder->hist_[entry.nid];
     // Merging histograms from each thread into once
     builder->hist_buffer_.ReduceHist(node, r.begin(), r.end());
-    if (!(*p_tree)[entry.nid].IsRoot()) {
-      const int subtraction_node_id = builder->nodes_for_subtraction_trick_[node].nid;
-      CHECK(entry.sibling_nid == subtraction_node_id);
-    }
+
     if (!(*p_tree)[entry.nid].IsRoot()) {
       const size_t parent_id = (*p_tree)[entry.nid].Parent();
+      const int subtraction_node_id = builder->nodes_for_subtraction_trick_[node].nid;
       auto parent_hist = builder->hist_[parent_id];
-      auto sibling_hist = builder->hist_[entry.sibling_nid];
+      auto sibling_hist = builder->hist_[subtraction_node_id];
       SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
     }
   });
@@ -171,18 +169,15 @@ void DistributedHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT* builder
     // Store posible parent node
     auto this_local = builder->hist_local_worker_[entry.nid];
     CopyHist(this_local, this_hist, r.begin(), r.end());
-    if (!(*p_tree)[entry.nid].IsRoot()) {
-      const int subtraction_node_id = builder->nodes_for_subtraction_trick_[node].nid;
-      CHECK(entry.sibling_nid == subtraction_node_id);
-    }
 
     if (!(*p_tree)[entry.nid].IsRoot()) {
       const size_t parent_id = (*p_tree)[entry.nid].Parent();
+      const int subtraction_node_id = builder->nodes_for_subtraction_trick_[node].nid;
       auto parent_hist = builder->hist_local_worker_[parent_id];
-      auto sibling_hist = builder->hist_[entry.sibling_nid];
+      auto sibling_hist = builder->hist_[subtraction_node_id];
       SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
       // Store posible parent node
-      auto sibling_local = builder->hist_local_worker_[entry.sibling_nid];
+      auto sibling_local = builder->hist_local_worker_[subtraction_node_id];
       CopyHist(sibling_local, sibling_hist, r.begin(), r.end());
     }
   });
@@ -215,14 +210,11 @@ void DistributedHistSynchronizer<GradientSumT>::ParallelSubtractionHist(
     const auto& entry = nodes[node];
     if (!((*p_tree)[entry.nid].IsLeftChild())) {
       auto this_hist = builder->hist_[entry.nid];
-      if (!(*p_tree)[entry.nid].IsRoot()) {
-        const int subtraction_node_id = subtraction_nodes[node].nid;
-        CHECK(entry.sibling_nid == subtraction_node_id);
-      }
 
       if (!(*p_tree)[entry.nid].IsRoot()) {
+        const int subtraction_node_id = subtraction_nodes[node].nid;
         auto parent_hist = builder->hist_[(*p_tree)[entry.nid].Parent()];
-        auto sibling_hist = builder->hist_[entry.sibling_nid];
+        auto sibling_hist = builder->hist_[subtraction_node_id];
         SubtractionHist(this_hist, parent_hist, sibling_hist, r.begin(), r.end());
       }
     }
@@ -309,7 +301,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
     const std::vector<GradientPair> &gpair_h,
     int *num_leaves, std::vector<CPUExpandEntry> *expand) {
 
-  CPUExpandEntry node(CPUExpandEntry::kRootNid, -1, p_tree->GetDepth(0), 0.0f);
+  CPUExpandEntry node(CPUExpandEntry::kRootNid, p_tree->GetDepth(0), 0.0f);
 
   nodes_for_explicit_hist_build_.clear();
   nodes_for_subtraction_trick_.clear();
@@ -415,8 +407,8 @@ void QuantileHistMaker::Builder<GradientSumT>::SplitSiblings(
 
     const int cleft = (*p_tree)[nid].LeftChild();
     const int cright = (*p_tree)[nid].RightChild();
-    const CPUExpandEntry left_node = CPUExpandEntry(cleft, cright, p_tree->GetDepth(cleft), 0.0);
-    const CPUExpandEntry right_node = CPUExpandEntry(cright, cleft, p_tree->GetDepth(cright), 0.0);
+    const CPUExpandEntry left_node = CPUExpandEntry(cleft, p_tree->GetDepth(cleft), 0.0);
+    const CPUExpandEntry right_node = CPUExpandEntry(cright, p_tree->GetDepth(cright), 0.0);
     nodes_to_evaluate->push_back(left_node);
     nodes_to_evaluate->push_back(right_node);
     if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {

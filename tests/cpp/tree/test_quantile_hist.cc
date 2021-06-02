@@ -168,10 +168,10 @@ class QuantileHistMock : public QuantileHistMaker {
       tree->ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
       tree->ExpandNode((*tree)[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
       tree->ExpandNode((*tree)[0].RightChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
-      this->nodes_for_explicit_hist_build_.emplace_back(3, 4, tree->GetDepth(3), 0.0f);
-      this->nodes_for_explicit_hist_build_.emplace_back(4, 3, tree->GetDepth(4), 0.0f);
-      this->nodes_for_subtraction_trick_.emplace_back(5, 6, tree->GetDepth(5), 0.0f);
-      this->nodes_for_subtraction_trick_.emplace_back(6, 5, tree->GetDepth(6), 0.0f);
+      this->nodes_for_explicit_hist_build_.emplace_back(3, tree->GetDepth(3), 0.0f);
+      this->nodes_for_explicit_hist_build_.emplace_back(4, tree->GetDepth(4), 0.0f);
+      this->nodes_for_subtraction_trick_.emplace_back(5, tree->GetDepth(5), 0.0f);
+      this->nodes_for_subtraction_trick_.emplace_back(6, tree->GetDepth(6), 0.0f);
 
       this->hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
       ASSERT_EQ(sync_count, 2);
@@ -198,7 +198,7 @@ class QuantileHistMock : public QuantileHistMaker {
       this->nodes_for_explicit_hist_build_.clear();
       this->nodes_for_subtraction_trick_.clear();
       // level 0
-      this->nodes_for_explicit_hist_build_.emplace_back(0, -1, tree->GetDepth(0), 0.0f);
+      this->nodes_for_explicit_hist_build_.emplace_back(0, tree->GetDepth(0), 0.0f);
       this->hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
       tree->ExpandNode(0, 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
 
@@ -206,10 +206,8 @@ class QuantileHistMock : public QuantileHistMaker {
       this->nodes_for_subtraction_trick_.clear();
       // level 1
       this->nodes_for_explicit_hist_build_.emplace_back((*tree)[0].LeftChild(),
-                                                (*tree)[0].RightChild(),
                                                 tree->GetDepth(1), 0.0f);
       this->nodes_for_subtraction_trick_.emplace_back((*tree)[0].RightChild(),
-                                              (*tree)[0].LeftChild(),
                                               tree->GetDepth(2), 0.0f);
       this->hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
       tree->ExpandNode((*tree)[0].LeftChild(), 0, 0, false, 0, 0, 0, 0, 0, 0, 0);
@@ -218,10 +216,10 @@ class QuantileHistMock : public QuantileHistMaker {
       this->nodes_for_explicit_hist_build_.clear();
       this->nodes_for_subtraction_trick_.clear();
       // level 2
-      this->nodes_for_explicit_hist_build_.emplace_back(3, 4, tree->GetDepth(3), 0.0f);
-      this->nodes_for_subtraction_trick_.emplace_back(4, 3, tree->GetDepth(4), 0.0f);
-      this->nodes_for_explicit_hist_build_.emplace_back(5, 6, tree->GetDepth(5), 0.0f);
-      this->nodes_for_subtraction_trick_.emplace_back(6, 5, tree->GetDepth(6), 0.0f);
+      this->nodes_for_explicit_hist_build_.emplace_back(3, tree->GetDepth(3), 0.0f);
+      this->nodes_for_subtraction_trick_.emplace_back(4, tree->GetDepth(4), 0.0f);
+      this->nodes_for_explicit_hist_build_.emplace_back(5, tree->GetDepth(5), 0.0f);
+      this->nodes_for_subtraction_trick_.emplace_back(6, tree->GetDepth(6), 0.0f);
       this->hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, tree);
 
       const size_t n_nodes = this->nodes_for_explicit_hist_build_.size();
@@ -277,23 +275,27 @@ class QuantileHistMock : public QuantileHistMaker {
           ASSERT_EQ(p_parent[i], p_left[i] + p_right[i]);
         }
       };
+      size_t node_id = 0;
       for (const CPUExpandEntry& node : this->nodes_for_explicit_hist_build_) {
         auto this_hist = this->hist_[node.nid];
         const size_t parent_id = (*tree)[node.nid].Parent();
-        //const size_t subtraction_node_id = this->nodes_for_subtraction_trick_[node_id].nid;
+        const size_t subtraction_node_id = this->nodes_for_subtraction_trick_[node_id].nid;
         auto parent_hist =  this->hist_[parent_id];
-        auto sibling_hist = this->hist_[node.sibling_nid];
+        auto sibling_hist = this->hist_[subtraction_node_id];
 
         check_hist(parent_hist, this_hist, sibling_hist, 0, nbins);
+        ++node_id;
       }
+      node_id = 0;
       for (const CPUExpandEntry& node : this->nodes_for_subtraction_trick_) {
         auto this_hist = this->hist_[node.nid];
         const size_t parent_id = (*tree)[node.nid].Parent();
-        //const size_t subtraction_node_id = this->nodes_for_explicit_hist_build_[node_id].nid;
+        const size_t subtraction_node_id = this->nodes_for_explicit_hist_build_[node_id].nid;
         auto parent_hist =  this->hist_[parent_id];
-        auto sibling_hist = this->hist_[node.sibling_nid];
+        auto sibling_hist = this->hist_[subtraction_node_id];
 
         check_hist(parent_hist, this_hist, sibling_hist, 0, nbins);
+        ++node_id;
       }
     }
 
@@ -410,7 +412,6 @@ class QuantileHistMock : public QuantileHistMaker {
 
       /* Now compare against result given by EvaluateSplit() */
       CPUExpandEntry node(CPUExpandEntry::kRootNid,
-                          CPUExpandEntry::kEmptyNid,
                           tree.GetDepth(0),
                           this->snode_[0].best.loss_chg);
       RealImpl::EvaluateSplits({node}, gmat, this->hist_, tree);
