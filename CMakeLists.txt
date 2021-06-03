@@ -197,7 +197,9 @@ endif (USE_CUDA)
 #-- Hide all C++ symbols
 if (HIDE_CXX_SYMBOLS)
   foreach(target objxgboost xgboost dmlc)
+    set_target_properties(${target} PROPERTIES C_VISIBILITY_PRESET hidden)
     set_target_properties(${target} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+    set_target_properties(${target} PROPERTIES CUDA_VISIBILITY_PRESET hidden)
   endforeach()
 endif (HIDE_CXX_SYMBOLS)
 
