@@ -1642,6 +1642,7 @@ class DaskXGBRegressor(DaskScikitLearnBase, XGBRegressorBase):
             eval_group=None,
             eval_qid=None,
             missing=self.missing,
+            enable_categorical=self.enable_categorical,
         )
 
         if callable(self.objective):
@@ -1730,6 +1731,7 @@ class DaskXGBClassifier(DaskScikitLearnBase, XGBClassifierBase):
             eval_group=None,
             eval_qid=None,
             missing=self.missing,
+            enable_categorical=self.enable_categorical,
         )
 
         # pylint: disable=attribute-defined-outside-init
@@ -1927,6 +1929,7 @@ class DaskXGBRanker(DaskScikitLearnBase, XGBRankerMixIn):
             eval_group=None,
             eval_qid=eval_qid,
             missing=self.missing,
+            enable_categorical=self.enable_categorical,
         )
         if eval_metric is not None:
             if callable(eval_metric):
