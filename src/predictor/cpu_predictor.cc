@@ -35,9 +35,8 @@ bst_node_t GetLeafIndex(RegTree const &tree, const RegTree::FVec &feat,
   while (!tree[nid].IsLeaf()) {
     unsigned split_index = tree[nid].SplitIndex();
     auto fvalue = feat.GetFvalue(split_index);
-    auto nodes = common::Span<RegTree::Node const>{tree.GetNodes()};
     nid = GetNextNode<has_missing, has_categorical>(
-        nodes, nid, fvalue, has_missing && feat.IsMissing(split_index), cats);
+        tree[nid], nid, fvalue, has_missing && feat.IsMissing(split_index), cats);
   }
   return nid;
 }
@@ -72,21 +71,13 @@ bst_float PredValue(const SparsePage::Inst &inst,
   return psum;
 }
 
+template <bool has_categorical>
 bst_float
 PredValueByOneTree(const RegTree::FVec &p_feats, RegTree const &tree,
                    RegTree::CategoricalSplitMatrix const& cats) {
-  bst_node_t leaf = -1;
-  auto has_missing = p_feats.HasMissing();
-  auto has_categorical = tree.HasCategoricalSplit();
-  if (has_missing && has_categorical) {
-    leaf = GetLeafIndex<true, true>(tree, p_feats, cats);
-  } else if (has_missing && !has_categorical) {
-    leaf = GetLeafIndex<true, false>(tree, p_feats, cats);
-  } else if (!has_missing && has_categorical) {
-    leaf = GetLeafIndex<false, true>(tree, p_feats, cats);
-  } else {
-    leaf = GetLeafIndex<false, false>(tree, p_feats, cats);
-  }
+  const bst_node_t leaf = p_feats.HasMissing() ?
+    GetLeafIndex<true, has_categorical>(tree, p_feats, cats) :
+    GetLeafIndex<false, has_categorical>(tree, p_feats, cats);
   return tree[leaf].LeafValue();
 }
 
@@ -100,10 +91,18 @@ void PredictByAllTrees(gbm::GBTreeModel const &model, const size_t tree_begin,
     const size_t gid = model.tree_info[tree_id];
     auto const &tree = *model.trees[tree_id];
     auto const& cats = tree.GetCategoriesMatrix();
+    auto has_categorical = tree.HasCategoricalSplit();
 
-    for (size_t i = 0; i < block_size; ++i) {
-      preds[(predict_offset + i) * num_group + gid] +=
-          PredValueByOneTree(thread_temp[offset + i], tree, cats);
+    if (has_categorical) {
+      for (size_t i = 0; i < block_size; ++i) {
+        preds[(predict_offset + i) * num_group + gid] +=
+            PredValueByOneTree<true>(thread_temp[offset + i], tree, cats);
+      }
+    } else {
+      for (size_t i = 0; i < block_size; ++i) {
+        preds[(predict_offset + i) * num_group + gid] +=
+            PredValueByOneTree<false>(thread_temp[offset + i], tree, cats);
+      }
     }
   }
 }

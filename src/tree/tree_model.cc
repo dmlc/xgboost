@@ -1056,11 +1056,10 @@ void RegTree::CalculateContributionsApprox(const RegTree::FVec &feat,
 
   bst_node_t nid = 0;
   auto cats = this->GetCategoriesMatrix();
-  auto nodes = common::Span<Node const>{this->GetNodes()};
 
   while (!(*this)[nid].IsLeaf()) {
     split_index = (*this)[nid].SplitIndex();
-    nid = predictor::GetNextNode<true, true>(nodes, nid,
+    nid = predictor::GetNextNode<true, true>((*this)[nid], nid,
                                              feat.GetFvalue(split_index),
                                              feat.IsMissing(split_index), cats);
     bst_float new_value = this->node_mean_values_[nid];
