@@ -15,7 +15,6 @@ inline XGBOOST_DEVICE bst_node_t GetNextNode(
   if (has_missing && is_missing) {
     return node.DefaultChild();
   } else {
-    bool go_left = true;
     if (has_categorical && common::IsCat(cats.split_type, nid)) {
       auto node_categories = cats.categories.subspan(cats.node_ptr[nid].beg,
                                                      cats.node_ptr[nid].size);
