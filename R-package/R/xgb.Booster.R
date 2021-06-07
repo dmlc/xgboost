@@ -179,20 +179,15 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @param training whether is the prediction result used for training.  For dart booster,
 #'        training predicting will perform dropout.
 #' @param iterationrange Specifies which layer of trees are used in prediction.  For example, if a
-#'        random forest is trained with 100 rounds.  Specifying `iteration_range=(10,
-#'        20)`, then only the forests built during [10, 20) (half open set) rounds are
-#'        used in this prediction.
+#'        random forest is trained with 100 rounds.  Specifying `iteration_range=(0,
+#'        20)`, then only the forests built during [0, 20) (half open set) rounds are
+#'        used in this prediction.  It's 0 based index (unlike R vector).
 #' @param strictshape When specifed to be TRUE, output shape is invariant to model type.
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
 #'
 #' @details
-#' Note that \code{ntreelimit} is not necessarily equal to the number of boosting iterations
-#' and it is not necessarily equal to the number of trees in a model.
-#' E.g., in a random forest-like model, \code{ntreelimit} would limit the number of trees.
-#' But for multiclass classification, while there are multiple trees per iteration,
-#' \code{ntreelimit} limits the number of boosting iterations.
 #'
-#' Also note that \code{ntreelimit} would currently do nothing for predictions from gblinear,
+#' Note that \code{iterationrange} would currently do nothing for predictions from gblinear,
 #' since gblinear doesn't keep its boosting history.
 #'
 #' One possible practical applications of the \code{predleaf} option is to use the model
