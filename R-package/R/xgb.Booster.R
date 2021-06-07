@@ -346,7 +346,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     ntreelimit <- 0
   if (ntreelimit != 0 && is.null(iterationrange)) {
     ## only ntreelimit, initialize iteration range
-    iterationrange = c(0, 0)
+    iterationrange <- c(0, 0)
   } else if (ntreelimit == 0 && !is.null(iterationrange)) {
     ## only iteration range, do nothing
   } else if (ntreelimit != 0 && !is.null(iterationrange)) {
@@ -354,16 +354,16 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   } else {
     ## no limit is supplied, use best
     if (is.null(object$best_iteration)) {
-      iterationrange = c(0, 0)
+      iterationrange <- c(0, 0)
     } else {
-      iterationrange = c(0, as.integer(object$best_iteration) + 1)
+      iterationrange <- c(0, as.integer(object$best_iteration) + 1)
     }
   }
   ## Handle the 0 length values.
   box <- function(val) {
     if (length(val) == 0) {
-      cval = vector(, 1)
-      cval[0] = val
+      cval <- vector(, 1)
+      cval[0] <- val
       return(cval)
     }
     return (val)
@@ -386,27 +386,27 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   }
   if (outputmargin) {
     check_type()
-    args$type = box(as.integer(1))
+    args$type <- box(as.integer(1))
   }
   if (predcontrib) {
     check_type()
     if (!approxcontrib) {
-      args$type = box(as.integer(2))
+      args$type <- box(as.integer(2))
     } else {
-      args$type = box(as.integer(3))
+      args$type <- box(as.integer(3))
     }
   }
   if (predinteraction) {
     check_type()
     if (!approxcontrib) {
-      args$type = box(as.integer(4))
+      args$type <- box(as.integer(4))
     } else {
-      args$type = box(as.integer(5))
+      args$type <- box(as.integer(5))
     }
   }
   if (predleaf) {
     check_type()
-    args$type = box(as.integer(6))
+    args$type <- box(as.integer(6))
   }
 
   predts <- .Call(
@@ -418,7 +418,6 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
 
   n_ret <- length(ret)
   n_row <- nrow(newdata)
-  npred_per_case <- n_ret / n_row
 
   if (n_ret %% n_row != 0)
     stop("prediction length ", n_ret, " is not multiple of nrows(newdata) ", n_row)
@@ -437,13 +436,13 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   }
 
   if (!strictshape) {
-    n_groups = shape[2]
+    n_groups <- shape[2]
     if (predleaf) {
-      arr <- matrix(arr, nrow=n_row, byrow=TRUE)
+      arr <- matrix(arr, nrow = n_row, byrow = TRUE)
     } else if (predcontrib && n_groups != 1) {
-      arr <- lapply(seq_len(n_groups), function(g) arr[g, ,])
+      arr <- lapply(seq_len(n_groups), function(g) arr[g, , ])
     } else if (predinteraction && n_groups != 1) {
-      arr <- lapply(seq_len(n_groups), function(g) arr[g, , ,])
+      arr <- lapply(seq_len(n_groups), function(g) arr[g, , , ])
     } else if (!reshape && n_groups != 1) {
       arr <- ret
     } else if (reshape && n_groups != 1) {
