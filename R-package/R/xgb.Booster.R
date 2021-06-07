@@ -438,7 +438,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     arr <- drop(arr)
     n_groups = shape[1]
     if (predleaf) {
-      ## do nothing
+      arr <- matrix(arr, nrow=n_row, byrow=TRUE)
     } else if (predcontrib && n_groups != 1) {
       arr <- lapply(seq_len(n_groups), function(g) arr[g, ,])
     } else if (predinteraction && n_groups != 1) {
