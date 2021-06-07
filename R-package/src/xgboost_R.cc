@@ -398,7 +398,7 @@ SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_config)  {
   r_out_result = PROTECT(allocVector(REALSXP, len));
 
 #pragma omp parallel for
-  for (size_t i = 0; i < len; ++i) {
+  for (omp_ulong i = 0; i < len; ++i) {
     REAL(r_out_result)[i] = out_result[i];
   }
 

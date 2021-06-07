@@ -359,8 +359,8 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
       iterationrange = c(0, object$best_iteration + 1)
     }
   }
-
-  auto_unbox <- function(val) {
+  ## Handle the 0 length values.
+  box <- function(val) {
     if (length(val) == 0) {
       cval = vector(, 1)
       cval[0] = val
@@ -370,12 +370,12 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   }
 
   args <- list(
-    training = auto_unbox(training),
-    strict_shape = auto_unbox(strictshape),
-    iteration_begin = auto_unbox(as.integer(iterationrange[0])),
-    iteration_end = auto_unbox(as.integer(iterationrange[1])),
-    ntree_limit = auto_unbox(as.integer(ntreelimit)),
-    type = auto_unbox(as.integer(0))
+    training = box(training),
+    strict_shape = box(strictshape),
+    iteration_begin = box(as.integer(iterationrange[0])),
+    iteration_end = box(as.integer(iterationrange[1])),
+    ntree_limit = box(as.integer(ntreelimit)),
+    type = box(as.integer(0))
   )
 
   check_type <- function(type) {
@@ -385,27 +385,27 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   }
   if (outputmargin) {
     check_type()
-    args$type = auto_unbox(as.integer(1))
+    args$type = box(as.integer(1))
   }
   if (predcontrib) {
     check_type()
     if (!approxcontrib) {
-      args$type = auto_unbox(as.integer(2))
+      args$type = box(as.integer(2))
     } else {
-      args$type = auto_unbox(as.integer(3))
+      args$type = box(as.integer(3))
     }
   }
   if (predinteraction) {
     check_type()
     if (!approxcontrib) {
-      args$type = auto_unbox(as.integer(4))
+      args$type = box(as.integer(4))
     } else {
-      args$type = auto_unbox(as.integer(5))
+      args$type = box(as.integer(5))
     }
   }
   if (predleaf) {
     check_type()
-    args$type = auto_unbox(as.integer(6))
+    args$type = box(as.integer(6))
   }
 
   predts <- .Call(
