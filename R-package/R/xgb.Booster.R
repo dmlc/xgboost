@@ -369,9 +369,10 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     return (val)
   }
 
+  ## We set strict_shape to TRUE can drop the dimensions conditionally
   args <- list(
     training = box(training),
-    strict_shape = box(strictshape),
+    strict_shape = box(TRUE),
     iteration_begin = box(as.integer(iterationrange[0])),
     iteration_end = box(as.integer(iterationrange[1])),
     ntree_limit = box(as.integer(ntreelimit)),
@@ -418,65 +419,44 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   n_ret <- length(ret)
   n_row <- nrow(newdata)
   npred_per_case <- n_ret / n_row
+  stopifnot(n_row == shape[0])
 
   if (n_ret %% n_row != 0)
     stop("prediction length ", n_ret, " is not multiple of nrows(newdata) ", n_row)
 
-  if (predleaf) {
-    ret <- if (n_ret == n_row) {
-      matrix(ret, ncol = 1)
-    } else {
-      matrix(ret, nrow = n_row, byrow = TRUE)
-    }
-  } else if (predcontrib) {
-    n_col1 <- ncol(newdata) + 1
-    n_group <- npred_per_case / n_col1
-    cnames <- if (!is.null(colnames(newdata))) c(colnames(newdata), "BIAS") else NULL
-    ret <- if (n_ret == n_row) {
-      matrix(ret, ncol = 1, dimnames = list(NULL, cnames))
-    } else if (n_group == 1) {
-      matrix(ret, nrow = n_row, byrow = TRUE, dimnames = list(NULL, cnames))
-    } else {
-      arr <- aperm(
-        a = array(
-          data = ret,
-          dim = c(n_col1, n_group, n_row),
-          dimnames = list(cnames, NULL, NULL)
-        ),
-        perm = c(2, 3, 1)  # [group, row, col]
-      )
-      lapply(seq_len(n_group), function(g) arr[g, , ])
-    }
+  arr <- array(data = ret, dim = rev(shape))
+  cnames <- if (!is.null(colnames(newdata))) c(colnames(newdata), "BIAS") else NULL
+  if (predcontrib) {
+    dimnames(arr) <- list(cnames, NULL, NULL)
+    arr <- aperm(a = arr, perm = c(2, 3, 1)) # [group, row, col]
   } else if (predinteraction) {
-    n_col1 <- ncol(newdata) + 1
-    n_group <- npred_per_case / n_col1^2
-    cnames <- if (!is.null(colnames(newdata))) c(colnames(newdata), "BIAS") else NULL
-    ret <- if (n_ret == n_row) {
-      matrix(ret, ncol = 1, dimnames = list(NULL, cnames))
-    } else if (n_group == 1) {
-      aperm(
-        a = array(
-          data = ret,
-          dim = c(n_col1, n_col1, n_row),
-          dimnames = list(cnames, cnames, NULL)
-        ),
-        perm = c(3, 1, 2)
-      )
-    } else {
-      arr <- aperm(
-        a = array(
-          data = ret,
-          dim = c(n_col1, n_col1, n_group, n_row),
-          dimnames = list(cnames, cnames, NULL, NULL)
-        ),
-        perm = c(3, 4, 1, 2)  # [group, row, col1, col2]
-      )
-      lapply(seq_len(n_group), function(g) arr[g, , , ])
-    }
-  } else if (reshape && npred_per_case > 1) {
-    ret <- matrix(ret, nrow = n_row, byrow = TRUE)
+    dimnames(arr) <- list(cnames, cnames, NULL, NULL)
+    arr <- aperm(a = arr, perm = c(3, 4, 1, 2)) # [group, row, col, col]
   }
-  return(ret)
+
+  if (!strictshape) {
+    arr <- drop(arr)
+    n_groups = shape[1]
+    if (predleaf) {
+      ## do nothing
+    } else if (predcontrib && n_groups != 1) {
+      arr <- lapply(seq_len(n_groups), function(g) arr[g, ,])
+    } else if (predinteraction && n_groups != 1) {
+      arr <- lapply(seq_len(n_groupss), function(g) arr[g, , ,])
+    } else if (!reshape) {
+      arr <- ret
+    } else if (reshape) {
+      arr <- matrix(arr, ncol = 3, byrow = TRUE)
+    }
+
+    if (length(dim(arr)) == 1) {
+      arr <- as.vector(arr)
+    } else if (length(dim(arr)) == 2) {
+      arr <- as.matrix(arr)
+    }
+  }
+
+  return(arr)
 }
 
 #' @rdname predict.xgb.Booster
