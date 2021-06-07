@@ -252,7 +252,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' # use all trees by default
 #' pred <- predict(bst, test$data)
 #' # use only the 1st tree
-#' pred1 <- predict(bst, test$data, ntreelimit = 1)
+#' pred1 <- predict(bst, test$data, iterationrange = c(0, 1))
 #'
 #' # Predicting tree leafs:
 #' # the result is an nsamples X ntrees matrix
@@ -304,7 +304,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' all.equal(pred, pred_labels)
 #' # prediction from using only 5 iterations should result
 #' # in the same error as seen in iteration 5:
-#' pred5 <- predict(bst, as.matrix(iris[, -5]), ntreelimit=5)
+#' pred5 <- predict(bst, as.matrix(iris[, -5]), iterationrange=(0, 5))
 #' sum(pred5 != lb)/length(lb)
 #'
 #'
@@ -318,7 +318,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' lb <- test$label
 #' dtest <- xgb.DMatrix(test$data, label=lb)
 #' err <- sapply(1:25, function(n) {
-#'   pred <- predict(bst, dtest, ntreelimit=n)
+#'   pred <- predict(bst, dtest, iterationrange=c(0, n))
 #'   sum((pred > 0.5) != lb)/length(lb)
 #' })
 #' plot(err, type='l', ylim=c(0,0.1), xlab='#trees')

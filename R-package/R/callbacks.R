@@ -263,9 +263,6 @@ cb.reset.parameters <- function(new_params) {
 #' \itemize{
 #' \item \code{best_score} the evaluation score at the best iteration
 #' \item \code{best_iteration} at which boosting iteration the best score has occurred (1-based index)
-#' \item \code{best_ntreelimit} to use with the \code{ntreelimit} parameter in \code{predict}.
-#'      It differs from \code{best_iteration} in multiclass or random forest settings.
-#' }
 #'
 #' The Same values are also stored as xgb-attributes:
 #' \itemize{
