@@ -182,7 +182,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'        random forest is trained with 100 rounds.  Specifying `iteration_range=(0,
 #'        20)`, then only the forests built during [0, 20) (half open set) rounds are
 #'        used in this prediction.  It's 0 based index (unlike R vector).
-#' @param strictshape When specifed to be TRUE, output shape is invariant to model type.
+#' @param strict_shape When specifed to be TRUE, output shape is invariant to model type.
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
 #'
 #' @details
@@ -327,7 +327,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @export
 predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FALSE, ntreelimit = NULL,
                                 predleaf = FALSE, predcontrib = FALSE, approxcontrib = FALSE, predinteraction = FALSE,
-                                reshape = FALSE, training = FALSE, iterationrange = NULL, strictshape = FALSE, ...) {
+                                reshape = FALSE, training = FALSE, iterationrange = NULL, strict_shape = FALSE, ...) {
 
   object <- xgb.Booster.complete(object, saveraw = FALSE)
   if (!inherits(newdata, "xgb.DMatrix"))
@@ -364,7 +364,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     return (val)
   }
 
-  ## We set strict_shape to TRUE can drop the dimensions conditionally
+  ## We set strict_shape to TRUE then drop the dimensions conditionally
   args <- list(
     training = box(training),
     strict_shape = box(TRUE),
@@ -406,6 +406,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   }
 
   arr <- array(data = ret, dim = rev(shape))
+
   cnames <- if (!is.null(colnames(newdata))) c(colnames(newdata), "BIAS") else NULL
   if (predcontrib) {
     dimnames(arr) <- list(cnames, NULL, NULL)
@@ -415,7 +416,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     arr <- aperm(a = arr, perm = c(3, 4, 1, 2)) # [group, row, col, col]
   }
 
-  if (!strictshape) {
+  if (!strict_shape) {
     n_groups <- shape[2]
     if (predleaf) {
       arr <- matrix(arr, nrow = n_row, byrow = TRUE)
