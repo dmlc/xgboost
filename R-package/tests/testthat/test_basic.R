@@ -390,3 +390,58 @@ test_that("Configuration works", {
   reloaded_config <- xgb.config(bst)
   expect_equal(config, reloaded_config);
 })
+
+test_that("strict_shape works", {
+  n_rounds = 2
+
+  test_strict_shape <- function(bst, X, n_groups) {
+    predt = predict(bst, X, strict_shape = TRUE)
+    margin = predict(bst, X, outputmargin = TRUE, strict_shape = TRUE)
+    contri = predict(bst, X, predcontrib = TRUE, strict_shape = TRUE)
+    interact = predict(bst, X, predinteraction = TRUE, strict_shape = TRUE)
+    leaf = predict(bst, X, predleaf = TRUE, strict_shape = TRUE)
+
+    n_rows <- nrow(X)
+    n_cols <- ncol(X)
+
+    expect_equal(dim(predt), c(n_groups, n_rows))
+    expect_equal(dim(margin), c(n_groups, n_rows))
+    expect_equal(dim(contri), c(n_cols + 1, n_groups, n_rows))
+    expect_equal(dim(interact), c(n_cols + 1, n_cols + 1, n_groups, n_rows))
+    expect_equal(dim(leaf), c(1, n_groups, n_rounds, n_rows))
+
+    if (n_groups != 1) {
+      print(seq_len(n_groups))
+      for (g in seq_len(n_groups)) {
+        expect_lt(max(abs(colSums(contri[, g, ]) - margin[g, ])), 1e-5)
+      }
+    }
+  }
+
+  test_iris <- function() {
+    y <- as.numeric(iris$Species) - 1
+    X <- as.matrix(iris[, -5])
+
+    bst <- xgboost(data = X, label = y,
+                   max_depth = 2, nrounds = n_rounds,
+                   objective = "multi:softprob", num_class = 3, eval_metric = "merror")
+
+    test_strict_shape(bst, X, 3)
+  }
+
+
+  test_agaricus <- function() {
+    data(agaricus.train, package = 'xgboost')
+    X <- agaricus.train$data
+    y <- agaricus.train$label
+
+    bst <- xgboost(data = X, label = y, max_depth = 2,
+                   nrounds = n_rounds, objective = "binary:logistic",
+                   eval_metric = 'error', eval_metric = 'auc', eval_metric = "logloss")
+
+    test_strict_shape(bst, X, 1)
+  }
+
+  test_iris()
+  test_agaricus()
+})

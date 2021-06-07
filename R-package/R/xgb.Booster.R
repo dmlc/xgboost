@@ -410,10 +410,14 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   cnames <- if (!is.null(colnames(newdata))) c(colnames(newdata), "BIAS") else NULL
   if (predcontrib) {
     dimnames(arr) <- list(cnames, NULL, NULL)
-    arr <- aperm(a = arr, perm = c(2, 3, 1)) # [group, row, col]
+    if (!strict_shape) {
+      arr <- aperm(a = arr, perm = c(2, 3, 1)) # [group, row, col]
+    }
   } else if (predinteraction) {
     dimnames(arr) <- list(cnames, cnames, NULL, NULL)
-    arr <- aperm(a = arr, perm = c(3, 4, 1, 2)) # [group, row, col, col]
+    if (!strict_shape) {
+      arr <- aperm(a = arr, perm = c(3, 4, 1, 2)) # [group, row, col, col]
+    }
   }
 
   if (!strict_shape) {
