@@ -498,7 +498,7 @@ cb.cv.predict <- function(save_models = FALSE) {
         rep(NA_real_, N)
       }
 
-    iterationrange <- NVL(env$basket$best_iteration, env$end_iteration)
+    iterationrange <- c(0, NVL(env$basket$best_iteration, env$end_iteration))
     if (NVL(env$params[['booster']], '') == 'gblinear') {
       iterationrange <- c(0, 0)  # must be 0 for gblinear
     }
