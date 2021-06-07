@@ -34,6 +34,10 @@ test_that("train and predict binary classification", {
   err_pred1 <- sum((pred1 > 0.5) != train$label) / length(train$label)
   err_log <- bst$evaluation_log[1, train_error]
   expect_lt(abs(err_pred1 - err_log), 10e-6)
+
+  pred2 <- predict(bst, train$data, iterationrange = c(0, 1))
+  expect_length(pred1, 6513)
+  expect_equal(pred1, pred2)
 })
 
 test_that("parameter validation works", {
@@ -143,6 +147,9 @@ test_that("train and predict softprob", {
   pred_labels <- max.col(mpred) - 1
   err <- sum(pred_labels != lb) / length(lb)
   expect_equal(bst$evaluation_log[1, train_merror], err, tolerance = 5e-6)
+
+  mpred1 <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE, iterationrange = c(0, 1))
+  expect_equal(mpred, mpred1)
 })
 
 test_that("train and predict softmax", {
@@ -182,10 +189,8 @@ test_that("train and predict RF", {
   pred_err_20 <- sum((pred > 0.5) != lb) / length(lb)
   expect_equal(pred_err_20, pred_err)
 
-  #pred <- predict(bst, train$data, ntreelimit = 1)
-  #pred_err_1 <- sum((pred > 0.5) != lb)/length(lb)
-  #expect_lt(pred_err, pred_err_1)
-  #expect_lt(pred_err, 0.08)
+  pred1 = predict(bst, , train$data, iterationrange = c(0, 1))
+  expect_equal(pred, pred1)
 })
 
 test_that("train and predict RF with softprob", {
