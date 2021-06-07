@@ -379,34 +379,23 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     type = box(as.integer(0))
   )
 
-  check_type <- function(type) {
+  set_type <- function(type) {
     if (args$type != 0) {
       stop("One type of prediction at a time.")
     }
+    return(box(as.integer(type)))
   }
   if (outputmargin) {
-    check_type()
-    args$type <- box(as.integer(1))
+    args$type <- set_type(1)
   }
   if (predcontrib) {
-    check_type()
-    if (!approxcontrib) {
-      args$type <- box(as.integer(2))
-    } else {
-      args$type <- box(as.integer(3))
-    }
+    args$type <- set_type(if (approxcontrib) 3 else 2)
   }
   if (predinteraction) {
-    check_type()
-    if (!approxcontrib) {
-      args$type <- box(as.integer(4))
-    } else {
-      args$type <- box(as.integer(5))
-    }
+    args$type <- set_type(if (approxcontrib) 5 else 4)
   }
   if (predleaf) {
-    check_type()
-    args$type <- box(as.integer(6))
+    args$type <- set_type(6)
   }
 
   predts <- .Call(
@@ -416,11 +405,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   shape <- predts$shape
   ret <- predts$results
 
-  n_ret <- length(ret)
   n_row <- nrow(newdata)
-
-  if (n_ret %% n_row != 0)
-    stop("prediction length ", n_ret, " is not multiple of nrows(newdata) ", n_row)
   if (n_row != shape[1]) {
     stop("Incorrect predict shape.")
   }
@@ -448,16 +433,13 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     } else if (reshape && n_groups != 1) {
       arr <- matrix(arr, ncol = 3, byrow = TRUE)
     }
-
     arr <- drop(arr)
-
     if (length(dim(arr)) == 1) {
       arr <- as.vector(arr)
     } else if (length(dim(arr)) == 2) {
       arr <- as.matrix(arr)
     }
   }
-
   return(arr)
 }
 
