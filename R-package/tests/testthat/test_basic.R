@@ -392,7 +392,7 @@ test_that("Configuration works", {
 })
 
 test_that("strict_shape works", {
-  n_rounds = 2
+  n_rounds <- 2
 
   test_strict_shape <- function(bst, X, n_groups) {
     predt <- predict(bst, X, strict_shape = TRUE)
