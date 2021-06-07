@@ -171,9 +171,6 @@
 #'         explicitly passed.
 #'   \item \code{best_iteration} iteration number with the best evaluation metric value
 #'         (only available with early stopping).
-#'   \item \code{best_ntreelimit} the \code{ntreelimit} value corresponding to the best iteration,
-#'         which could further be used in \code{predict} method
-#'         (only available with early stopping).
 #'   \item \code{best_score} the best evaluation metric value during early stopping.
 #'         (only available with early stopping).
 #'   \item \code{feature_names} names of the training dataset features

@@ -182,6 +182,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'        random forest is trained with 100 rounds.  Specifying `iteration_range=(10,
 #'        20)`, then only the forests built during [10, 20) (half open set) rounds are
 #'        used in this prediction.
+#' @param strictshape When specifed to be TRUE, output shape is invariant to model type.
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
 #'
 #' @details
@@ -331,7 +332,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @export
 predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FALSE, ntreelimit = NULL,
                                 predleaf = FALSE, predcontrib = FALSE, approxcontrib = FALSE, predinteraction = FALSE,
-                                reshape = FALSE, training = FALSE, iterationrange = NULL, ...) {
+                                reshape = FALSE, training = FALSE, iterationrange = NULL, strictshape = FALSE, ...) {
 
   object <- xgb.Booster.complete(object, saveraw = FALSE)
   if (!inherits(newdata, "xgb.DMatrix"))
@@ -359,14 +360,24 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     }
   }
 
+  auto_unbox <- function(val) {
+    if (length(val) == 0) {
+      cval = vector(, 1)
+      cval[0] = val
+      return(cval)
+    }
+    return (val)
+  }
+
   args <- list(
-    training = training,
-    strict_shape = FALSE,
-    iteration_begin = iterationrange[0],
-    iteration_end = iterationrange[1],
-    ntree_limit = ntreelimit,
-    type = 0
+    training = auto_unbox(training),
+    strict_shape = auto_unbox(strictshape),
+    iteration_begin = auto_unbox(as.integer(iterationrange[0])),
+    iteration_end = auto_unbox(as.integer(iterationrange[1])),
+    ntree_limit = auto_unbox(as.integer(ntreelimit)),
+    type = auto_unbox(as.integer(0))
   )
+
   check_type <- function(type) {
     if (args$type != 0) {
       stop("One type of prediction at a time.")
@@ -374,31 +385,31 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   }
   if (outputmargin) {
     check_type()
-    args$type = 1
+    args$type = auto_unbox(as.integer(1))
   }
   if (predcontrib) {
     check_type()
     if (!approxcontrib) {
-      args$type = 2
+      args$type = auto_unbox(as.integer(2))
     } else {
-      args$type = 3
+      args$type = auto_unbox(as.integer(3))
     }
   }
   if (predinteraction) {
     check_type()
     if (!approxcontrib) {
-      args$type = 4
+      args$type = auto_unbox(as.integer(4))
     } else {
-      args$type = 5
+      args$type = auto_unbox(as.integer(5))
     }
   }
   if (predleaf) {
     check_type()
-    args$type = 6
+    args$type = auto_unbox(as.integer(6))
   }
 
   predts <- .Call(
-    XGBoosterPredictFromDMatrix_R, object$handle, newdata, jsonlite::toJSON(args, auto_unbox=TRUE)
+    XGBoosterPredictFromDMatrix_R, object$handle, newdata, jsonlite::toJSON(args, auto_unbox = TRUE)
   )
   names(predts) <- c("shape", "results")
   shape <- predts$shape
