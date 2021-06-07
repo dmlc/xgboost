@@ -189,7 +189,7 @@ test_that("train and predict RF", {
   pred_err_20 <- sum((pred > 0.5) != lb) / length(lb)
   expect_equal(pred_err_20, pred_err)
 
-  pred1 = predict(bst, , train$data, iterationrange = c(0, 1))
+  pred1 = predict(bst, train$data, iterationrange = c(0, 1))
   expect_equal(pred, pred1)
 })
 
