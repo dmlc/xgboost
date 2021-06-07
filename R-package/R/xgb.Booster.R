@@ -373,8 +373,8 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   args <- list(
     training = box(training),
     strict_shape = box(TRUE),
-    iteration_begin = box(as.integer(iterationrange[0])),
-    iteration_end = box(as.integer(iterationrange[1])),
+    iteration_begin = box(as.integer(iterationrange[1])),
+    iteration_end = box(as.integer(iterationrange[2])),
     ntree_limit = box(as.integer(ntreelimit)),
     type = box(as.integer(0))
   )
@@ -419,10 +419,12 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   n_ret <- length(ret)
   n_row <- nrow(newdata)
   npred_per_case <- n_ret / n_row
-  stopifnot(n_row == shape[0])
 
   if (n_ret %% n_row != 0)
     stop("prediction length ", n_ret, " is not multiple of nrows(newdata) ", n_row)
+  if (n_row != shape[1]) {
+    stop("Incorrect predict shape.")
+  }
 
   arr <- array(data = ret, dim = rev(shape))
   cnames <- if (!is.null(colnames(newdata))) c(colnames(newdata), "BIAS") else NULL
@@ -435,19 +437,20 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
   }
 
   if (!strictshape) {
-    arr <- drop(arr)
-    n_groups = shape[1]
+    n_groups = shape[2]
     if (predleaf) {
       arr <- matrix(arr, nrow=n_row, byrow=TRUE)
     } else if (predcontrib && n_groups != 1) {
       arr <- lapply(seq_len(n_groups), function(g) arr[g, ,])
     } else if (predinteraction && n_groups != 1) {
-      arr <- lapply(seq_len(n_groupss), function(g) arr[g, , ,])
-    } else if (!reshape) {
+      arr <- lapply(seq_len(n_groups), function(g) arr[g, , ,])
+    } else if (!reshape && n_groups != 1) {
       arr <- ret
-    } else if (reshape) {
+    } else if (reshape && n_groups != 1) {
       arr <- matrix(arr, ncol = 3, byrow = TRUE)
     }
+
+    arr <- drop(arr)
 
     if (length(dim(arr)) == 1) {
       arr <- as.vector(arr)
