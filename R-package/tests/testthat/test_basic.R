@@ -395,11 +395,11 @@ test_that("strict_shape works", {
   n_rounds = 2
 
   test_strict_shape <- function(bst, X, n_groups) {
-    predt = predict(bst, X, strict_shape = TRUE)
-    margin = predict(bst, X, outputmargin = TRUE, strict_shape = TRUE)
-    contri = predict(bst, X, predcontrib = TRUE, strict_shape = TRUE)
-    interact = predict(bst, X, predinteraction = TRUE, strict_shape = TRUE)
-    leaf = predict(bst, X, predleaf = TRUE, strict_shape = TRUE)
+    predt <- predict(bst, X, strict_shape = TRUE)
+    margin <- predict(bst, X, outputmargin = TRUE, strict_shape = TRUE)
+    contri <- predict(bst, X, predcontrib = TRUE, strict_shape = TRUE)
+    interact <- predict(bst, X, predinteraction = TRUE, strict_shape = TRUE)
+    leaf <- predict(bst, X, predleaf = TRUE, strict_shape = TRUE)
 
     n_rows <- nrow(X)
     n_cols <- ncol(X)
