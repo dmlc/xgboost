@@ -295,13 +295,13 @@ struct GHistIndexMatrix {
 };
 
 template <typename GradientIndex>
-int32_t XGBOOST_HOST_DEV_INLINE BinarySearchBin(bst_uint begin, bst_uint end,
+int32_t XGBOOST_HOST_DEV_INLINE BinarySearchBin(size_t begin, size_t end,
                                                 GradientIndex const &data,
                                                 uint32_t const fidx_begin,
                                                 uint32_t const fidx_end) {
-  uint32_t previous_middle = std::numeric_limits<uint32_t>::max();
+  size_t previous_middle = std::numeric_limits<size_t>::max();
   while (end != begin) {
-    auto middle = begin + (end - begin) / 2;
+    size_t middle = begin + (end - begin) / 2;
     if (middle == previous_middle) {
       break;
     }
