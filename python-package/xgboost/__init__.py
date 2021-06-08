@@ -16,6 +16,7 @@ from . import dask
 try:
     from .sklearn import XGBModel, XGBClassifier, XGBRegressor, XGBRanker
     from .sklearn import XGBRFClassifier, XGBRFRegressor
+    from .wrapper import get_wrapper
     from .plotting import plot_importance, plot_tree, to_graphviz
     from .config import set_config, get_config, config_context
 except ImportError:
@@ -30,5 +31,6 @@ __all__ = ['DMatrix', 'DeviceQuantileDMatrix', 'Booster',
            'RabitTracker',
            'XGBModel', 'XGBClassifier', 'XGBRegressor', 'XGBRanker',
            'XGBRFClassifier', 'XGBRFRegressor',
+           'get_wrapper'
            'plot_importance', 'plot_tree', 'to_graphviz', 'dask',
            'set_config', 'get_config', 'config_context']
