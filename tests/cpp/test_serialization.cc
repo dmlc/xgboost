@@ -166,7 +166,7 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
     learner->Save(&mem_out);
     ASSERT_EQ(model_at_kiter, serialised_model_tmp);
 
-    learner->SetParam("gpu_id", "0");
+    // learner->SetParam("gpu_id", "0");
     // Pull data to device
     for (auto &batch : p_dmat->GetBatches<SparsePage>()) {
       batch.data.SetDevice(0);
@@ -184,9 +184,8 @@ void TestLearnerSerialization(Args args, FeatureMap const& fmap, std::shared_ptr
 
     Json m_0 = Json::Load(StringView{model_at_2kiter.c_str(), model_at_2kiter.size()});
     Json m_1 = Json::Load(StringView{serialised_model_tmp.c_str(), serialised_model_tmp.size()});
-    // GPU ID is changed as data is coming from device.
-    ASSERT_EQ(get<Object>(m_0["Config"]["learner"]["generic_param"]).erase("gpu_id"),
-              get<Object>(m_1["Config"]["learner"]["generic_param"]).erase("gpu_id"));
+    ASSERT_EQ(get<Object>(m_0["Config"]["learner"]["generic_param"]),
+              get<Object>(m_1["Config"]["learner"]["generic_param"]));
   }
 }
 

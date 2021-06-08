@@ -811,7 +811,6 @@ class GPUPredictor : public xgboost::Predictor {
   void PredictLeaf(DMatrix *p_fmat, HostDeviceVector<bst_float> *predictions,
                    const gbm::GBTreeModel &model,
                    unsigned tree_end) const override {
-    dh::safe_cuda(cudaSetDevice(generic_param_->gpu_id));
     auto max_shared_memory_bytes = ConfigureDevice(generic_param_->gpu_id);
 
     const MetaInfo& info = p_fmat->Info();
@@ -877,9 +876,12 @@ class GPUPredictor : public xgboost::Predictor {
   /*! \brief Reconfigure the device when GPU is changed. */
   static size_t ConfigureDevice(int device) {
     if (device >= 0) {
+      dh::safe_cuda(cudaSetDevice(device));
       return dh::MaxSharedMemory(device);
+    } else {
+      dh::safe_cuda(cudaSetDevice(0));
+      return dh::MaxSharedMemory(0);
     }
-    return 0;
   }
 };
 

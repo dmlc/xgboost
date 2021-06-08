@@ -49,12 +49,13 @@ def run_predict_leaf(predictor):
         {
             "num_parallel_tree": num_parallel_tree,
             "num_class": classes,
-            "predictor": predictor,
             "tree_method": "hist",
         },
         m,
         num_boost_round=num_boost_round,
     )
+
+    booster.set_param({"predictor": predictor})
 
     empty = xgb.DMatrix(np.ones(shape=(0, cols)))
     empty_leaf = booster.predict(empty, pred_leaf=True)
@@ -78,6 +79,7 @@ def run_predict_leaf(predictor):
 
     # When there's only 1 tree, the output is a 1 dim vector
     booster = xgb.train({"tree_method": "hist"}, num_boost_round=1, dtrain=m)
+    booster.set_param({"predictor": predictor})
     assert booster.predict(m, pred_leaf=True).shape == (rows, )
 
     return leaf

@@ -138,8 +138,13 @@ class TestModels:
         # behaviour is considered sub-optimal, feel free to change.
         assert booster.num_boosted_rounds() == 4
 
-    def test_custom_objective(self):
-        param = {'max_depth': 2, 'eta': 1, 'objective': 'reg:logistic'}
+    def run_custom_objective(self, tree_method=None):
+        param = {
+            'max_depth': 2,
+            'eta': 1,
+            'objective': 'reg:logistic',
+            "tree_method": tree_method
+        }
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]
         num_round = 10
 
@@ -180,6 +185,9 @@ class TestModels:
         err2 = sum(1 for i in range(len(preds2))
                    if int(preds2[i] > 0.5) != labels[i]) / float(len(preds2))
         assert err == err2
+
+    def test_custom_objective(self):
+        self.run_custom_objective()
 
     def test_multi_eval_metric(self):
         watchlist = [(dtest, 'eval'), (dtrain, 'train')]

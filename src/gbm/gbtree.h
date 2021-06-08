@@ -289,7 +289,7 @@ class GBTree : public GradientBooster {
       }
       LOG(FATAL) << msg;
     } else {
-      bool success = this->GetPredictor()->InplacePredict(
+      bool success = this->GetPredictor(false)->InplacePredict(
           x, p_m, model_, missing, out_preds, tree_begin, tree_end);
       CHECK(success) << msg << std::endl
                      << "Current Predictor: "
@@ -316,7 +316,7 @@ class GBTree : public GradientBooster {
     std::tie(tree_begin, tree_end) = detail::LayerToTree(model_, tparam_, layer_begin, layer_end);
     CHECK_EQ(tree_begin, 0) << "Predict leaf supports only iteration end: (0, "
                                "n_iteration), use model slicing instead.";
-    this->GetPredictor()->PredictLeaf(p_fmat, out_preds, model_, tree_end);
+    this->GetPredictor(false)->PredictLeaf(p_fmat, out_preds, model_, tree_end);
   }
 
   void PredictContribution(DMatrix* p_fmat,
@@ -329,7 +329,7 @@ class GBTree : public GradientBooster {
     CHECK_EQ(tree_begin, 0)
         << "Predict contribution supports only iteration end: (0, "
            "n_iteration), using model slicing instead.";
-    this->GetPredictor()->PredictContribution(
+    this->GetPredictor(false)->PredictContribution(
         p_fmat, out_contribs, model_, tree_end, nullptr, approximate);
   }
 
@@ -342,7 +342,7 @@ class GBTree : public GradientBooster {
     CHECK_EQ(tree_begin, 0)
         << "Predict interaction contribution supports only iteration end: (0, "
            "n_iteration), using model slicing instead.";
-    this->GetPredictor()->PredictInteractionContributions(
+    this->GetPredictor(false)->PredictInteractionContributions(
         p_fmat, out_contribs, model_, tree_end, nullptr, approximate);
   }
 
@@ -362,8 +362,10 @@ class GBTree : public GradientBooster {
                      int bst_group,
                      std::vector<std::unique_ptr<RegTree> >* ret);
 
-  std::unique_ptr<Predictor> const& GetPredictor(HostDeviceVector<float> const* out_pred = nullptr,
-                                                 DMatrix* f_dmat = nullptr) const;
+  std::unique_ptr<Predictor> const &
+  GetPredictor(bool is_training,
+               HostDeviceVector<float> const *out_pred = nullptr,
+               DMatrix *f_dmat = nullptr) const;
 
   // commit new trees all at once
   virtual void CommitModel(std::vector<std::vector<std::unique_ptr<RegTree>>>&& new_trees,
@@ -382,6 +384,7 @@ class GBTree : public GradientBooster {
   Args cfg_;
   // the updaters that can be applied to each of tree
   std::vector<std::unique_ptr<TreeUpdater>> updaters_;
+
   // Predictors
   std::unique_ptr<Predictor> cpu_predictor_;
 #if defined(XGBOOST_USE_CUDA)
@@ -390,6 +393,7 @@ class GBTree : public GradientBooster {
 #if defined(XGBOOST_USE_ONEAPI)
   std::unique_ptr<Predictor> oneapi_predictor_;
 #endif  // defined(XGBOOST_USE_ONEAPI)
+
   common::Monitor monitor_;
 };
 
