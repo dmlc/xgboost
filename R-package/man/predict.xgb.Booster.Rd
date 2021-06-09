@@ -187,22 +187,6 @@ all.equal(pred, pred_labels)
 pred5 <- predict(bst, as.matrix(iris[, -5]), iterationrange=c(1, 6))
 sum(pred5 != lb)/length(lb)
 
-
-## random forest-like model of 25 trees for binary classification:
-
-set.seed(11)
-bst <- xgboost(data = train$data, label = train$label, max_depth = 5,
-               nthread = 2, nrounds = 1, objective = "binary:logistic",
-               num_parallel_tree = 25, subsample = 0.6, colsample_bytree = 0.1)
-# Inspect the prediction error vs number of trees:
-lb <- test$label
-dtest <- xgb.DMatrix(test$data, label=lb)
-err <- sapply(1:25, function(n) {
-  pred <- predict(bst, dtest, iterationrange=c(1, n + 1))
-  sum((pred > 0.5) != lb)/length(lb)
-})
-plot(err, type='l', ylim=c(0,0.1), xlab='#trees')
-
 }
 \references{
 Scott M. Lundberg, Su-In Lee, "A Unified Approach to Interpreting Model Predictions", NIPS Proceedings 2017, \url{https://arxiv.org/abs/1705.07874}

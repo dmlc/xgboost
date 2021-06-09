@@ -318,22 +318,6 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' pred5 <- predict(bst, as.matrix(iris[, -5]), iterationrange=c(1, 6))
 #' sum(pred5 != lb)/length(lb)
 #'
-#'
-#' ## random forest-like model of 25 trees for binary classification:
-#'
-#' set.seed(11)
-#' bst <- xgboost(data = train$data, label = train$label, max_depth = 5,
-#'                nthread = 2, nrounds = 1, objective = "binary:logistic",
-#'                num_parallel_tree = 25, subsample = 0.6, colsample_bytree = 0.1)
-#' # Inspect the prediction error vs number of trees:
-#' lb <- test$label
-#' dtest <- xgb.DMatrix(test$data, label=lb)
-#' err <- sapply(1:25, function(n) {
-#'   pred <- predict(bst, dtest, iterationrange=c(1, n + 1))
-#'   sum((pred > 0.5) != lb)/length(lb)
-#' })
-#' plot(err, type='l', ylim=c(0,0.1), xlab='#trees')
-#'
 #' @rdname predict.xgb.Booster
 #' @export
 predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FALSE, ntreelimit = NULL,
