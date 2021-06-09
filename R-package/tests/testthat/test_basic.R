@@ -411,7 +411,6 @@ test_that("strict_shape works", {
     expect_equal(dim(leaf), c(1, n_groups, n_rounds, n_rows))
 
     if (n_groups != 1) {
-      print(seq_len(n_groups))
       for (g in seq_len(n_groups)) {
         expect_lt(max(abs(colSums(contri[, g, ]) - margin[g, ])), 1e-5)
       }
