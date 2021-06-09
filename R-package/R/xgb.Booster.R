@@ -181,7 +181,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @param iterationrange Specifies which layer of trees are used in prediction.  For example, if a
 #'        random forest is trained with 100 rounds.  Specifying `iteration_range=(0,
 #'        20)`, then only the forests built during [0, 20) (half open set) rounds are
-#'        used in this prediction.  It's 0 based index (unlike R vector).
+#'        used in this prediction.  It's 1-based index.
 #' @param strict_shape When specifed to be TRUE, output shape is invariant to model type.
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
 #'
@@ -328,7 +328,6 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FALSE, ntreelimit = NULL,
                                 predleaf = FALSE, predcontrib = FALSE, approxcontrib = FALSE, predinteraction = FALSE,
                                 reshape = FALSE, training = FALSE, iterationrange = NULL, strict_shape = FALSE, ...) {
-
   object <- xgb.Booster.complete(object, saveraw = FALSE)
   if (!inherits(newdata, "xgb.DMatrix"))
     newdata <- xgb.DMatrix(newdata, missing = missing)
@@ -343,7 +342,8 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     ## only ntreelimit, initialize iteration range
     iterationrange <- c(0, 0)
   } else if (ntreelimit == 0 && !is.null(iterationrange)) {
-    ## only iteration range, do nothing
+      ## only iteration range, handle 1-based indexing
+      iterationrange = c(iterationrange[0] - 1, iterationrange[1] - 1)
   } else if (ntreelimit != 0 && !is.null(iterationrange)) {
     ## both are specified, let libgxgboost throw an error
   } else {
