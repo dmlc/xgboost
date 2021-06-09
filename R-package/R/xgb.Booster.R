@@ -355,7 +355,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     iterationrange <- c(0, 0)
   } else if (ntreelimit == 0 && !is.null(iterationrange)) {
     ## only iteration range, handle 1-based indexing
-    iterationrange = c(iterationrange[1] - 1, iterationrange[2] - 1)
+    iterationrange <- c(iterationrange[1] - 1, iterationrange[2] - 1)
   } else if (ntreelimit != 0 && !is.null(iterationrange)) {
     ## both are specified, let libgxgboost throw an error
   } else {
