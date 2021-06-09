@@ -315,7 +315,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' all.equal(pred, pred_labels)
 #' # prediction from using only 5 iterations should result
 #' # in the same error as seen in iteration 5:
-#' pred5 <- predict(bst, as.matrix(iris[, -5]), iterationrange=(1, 6))
+#' pred5 <- predict(bst, as.matrix(iris[, -5]), iterationrange=c(1, 6))
 #' sum(pred5 != lb)/length(lb)
 #'
 #'
