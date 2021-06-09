@@ -351,6 +351,7 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
     if (is.null(object$best_iteration)) {
       iterationrange <- c(0, 0)
     } else {
+      ## We don't need to + 1 as R is 1-based index.
       iterationrange <- c(0, as.integer(object$best_iteration))
     }
   }
