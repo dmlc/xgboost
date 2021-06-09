@@ -263,7 +263,7 @@ cb.reset.parameters <- function(new_params) {
 #' \itemize{
 #' \item \code{best_score} the evaluation score at the best iteration
 #' \item \code{best_iteration} at which boosting iteration the best score has occurred (1-based index)
-#'
+#' }
 #' The Same values are also stored as xgb-attributes:
 #' \itemize{
 #' \item \code{best_iteration} is stored as a 0-based iteration index (for interoperability of binary models)

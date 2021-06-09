@@ -38,10 +38,7 @@ The following additional fields are assigned to the model's R object:
 \itemize{
 \item \code{best_score} the evaluation score at the best iteration
 \item \code{best_iteration} at which boosting iteration the best score has occurred (1-based index)
-\item \code{best_ntreelimit} to use with the \code{ntreelimit} parameter in \code{predict}.
-     It differs from \code{best_iteration} in multiclass or random forest settings.
 }
-
 The Same values are also stored as xgb-attributes:
 \itemize{
 \item \code{best_iteration} is stored as a 0-based iteration index (for interoperability of binary models)

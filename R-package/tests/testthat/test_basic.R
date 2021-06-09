@@ -35,7 +35,7 @@ test_that("train and predict binary classification", {
   err_log <- bst$evaluation_log[1, train_error]
   expect_lt(abs(err_pred1 - err_log), 10e-6)
 
-  pred2 <- predict(bst, train$data, iterationrange = c(0, 1))
+  pred2 <- predict(bst, train$data, iterationrange = c(1, 2))
   expect_length(pred1, 6513)
   expect_equal(pred1, pred2)
 })
@@ -148,7 +148,7 @@ test_that("train and predict softprob", {
   err <- sum(pred_labels != lb) / length(lb)
   expect_equal(bst$evaluation_log[1, train_merror], err, tolerance = 5e-6)
 
-  mpred1 <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE, iterationrange = c(0, 1))
+  mpred1 <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE, iterationrange = c(1, 2))
   expect_equal(mpred, mpred1)
 })
 
@@ -189,7 +189,7 @@ test_that("train and predict RF", {
   pred_err_20 <- sum((pred > 0.5) != lb) / length(lb)
   expect_equal(pred_err_20, pred_err)
 
-  pred1 <- predict(bst, train$data, iterationrange = c(0, 1))
+  pred1 <- predict(bst, train$data, iterationrange = c(1, 2))
   expect_equal(pred, pred1)
 })
 
