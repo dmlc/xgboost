@@ -2,7 +2,6 @@
 ===========
 [![Build Status](https://xgboost-ci.net/job/xgboost/job/master/badge/icon)](https://xgboost-ci.net/blue/organizations/jenkins/xgboost/activity)
 [![Build Status](https://img.shields.io/travis/dmlc/xgboost.svg?label=build&logo=travis&branch=master)](https://travis-ci.org/dmlc/xgboost)
-[![Build Status](https://ci.appveyor.com/api/projects/status/5ypa8vaed6kpmli8?svg=true)](https://ci.appveyor.com/project/tqchen/xgboost)
 [![XGBoost-CI](https://github.com/dmlc/xgboost/workflows/XGBoost-CI/badge.svg?branch=master)](https://github.com/dmlc/xgboost/actions)
 [![Documentation Status](https://readthedocs.org/projects/xgboost/badge/?version=latest)](https://xgboost.readthedocs.org)
 [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE)

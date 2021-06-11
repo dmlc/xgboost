@@ -62,9 +62,7 @@ pipeline {
             // using CentOS 6 image
             'build-gpu-cuda10.0': { BuildCUDA(cuda_version: '10.0') },
             // The build-gpu-* builds below use Ubuntu image
-            'build-gpu-cuda10.1': { BuildCUDA(cuda_version: '10.1') },
-            'build-gpu-cuda10.2': { BuildCUDA(cuda_version: '10.2', build_rmm: true) },
-            'build-gpu-cuda11.0': { BuildCUDA(cuda_version: '11.0') },
+            'build-gpu-cuda11.0': { BuildCUDA(cuda_version: '11.0', build_rmm: true) },
             'build-gpu-rpkg': { BuildRPackageWithCUDA(cuda_version: '10.0') },
             'build-jvm-packages-gpu-cuda10.0': { BuildJVMPackagesWithCUDA(spark_version: '3.0.0', cuda_version: '10.0') },
             'build-jvm-packages': { BuildJVMPackages(spark_version: '3.0.0') },
@@ -81,12 +79,10 @@ pipeline {
             'test-python-cpu': { TestPythonCPU() },
             'test-python-cpu-arm64': { TestPythonCPUARM64() },
             // artifact_cuda_version doesn't apply to RMM tests; RMM tests will always match CUDA version between artifact and host env
-            'test-python-gpu-cuda10.2': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '10.2', test_rmm: true) },
-            'test-python-gpu-cuda11.0-cross': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '11.0') },
+            'test-python-gpu-cuda11.0-cross': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '11.0', test_rmm: true) },
             'test-python-gpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0') },
-            'test-python-mgpu-cuda10.2': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '10.2', multi_gpu: true, test_rmm: true) },
-            'test-cpp-gpu-cuda10.2': { TestCppGPU(artifact_cuda_version: '10.2', host_cuda_version: '10.2', test_rmm: true) },
-            'test-cpp-gpu-cuda11.0': { TestCppGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0') },
+            'test-python-mgpu-cuda11.0': { TestPythonGPU(artifact_cuda_version: '10.0', host_cuda_version: '11.0', multi_gpu: true, test_rmm: true) },
+            'test-cpp-gpu-cuda11.0': { TestCppGPU(artifact_cuda_version: '11.0', host_cuda_version: '11.0', test_rmm: true) },
             'test-jvm-jdk8': { CrossTestJVMwithJDK(jdk_version: '8', spark_version: '3.0.0') },
             'test-jvm-jdk11': { CrossTestJVMwithJDK(jdk_version: '11') },
             'test-jvm-jdk12': { CrossTestJVMwithJDK(jdk_version: '12') }

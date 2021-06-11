@@ -71,7 +71,7 @@ void QuantileHistMaker::CallBuilderUpdate(const std::unique_ptr<Builder<Gradient
                                           DMatrix *dmat,
                                           const std::vector<RegTree *> &trees) {
   for (auto tree : trees) {
-    builder->Update(gmat_, gmatb_, column_matrix_, gpair, dmat, tree);
+    builder->Update(gmat_, column_matrix_, gpair, dmat, tree);
   }
 }
 void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
@@ -81,9 +81,6 @@ void QuantileHistMaker::Update(HostDeviceVector<GradientPair> *gpair,
     updater_monitor_.Start("GmatInitialization");
     gmat_.Init(dmat, static_cast<uint32_t>(param_.max_bin));
     column_matrix_.Init(gmat_, param_.sparse_threshold);
-    if (param_.enable_feature_grouping > 0) {
-      gmatb_.Init(gmat_, column_matrix_, param_);
-    }
     updater_monitor_.Stop("GmatInitialization");
     // A proper solution is puting cut matrix in DMatrix, see:
     // https://github.com/dmlc/xgboost/issues/5143
@@ -140,10 +137,11 @@ void BatchHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT *builder,
     // Merging histograms from each thread into once
     builder->hist_buffer_.ReduceHist(node, r.begin(), r.end());
 
-    if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
+    if (!(*p_tree)[entry.nid].IsRoot()) {
       const size_t parent_id = (*p_tree)[entry.nid].Parent();
+      const int subtraction_node_id = builder->nodes_for_subtraction_trick_[node].nid;
       auto parent_hist = builder->hist_[parent_id];
-      auto sibling_hist = builder->hist_[entry.sibling_nid];
+      auto sibling_hist = builder->hist_[subtraction_node_id];
       SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
     }
   });
@@ -169,13 +167,14 @@ void DistributedHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT* builder
     auto this_local = builder->hist_local_worker_[entry.nid];
     CopyHist(this_local, this_hist, r.begin(), r.end());
 
-    if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
+    if (!(*p_tree)[entry.nid].IsRoot()) {
       const size_t parent_id = (*p_tree)[entry.nid].Parent();
+      const int subtraction_node_id = builder->nodes_for_subtraction_trick_[node].nid;
       auto parent_hist = builder->hist_local_worker_[parent_id];
-      auto sibling_hist = builder->hist_[entry.sibling_nid];
+      auto sibling_hist = builder->hist_[subtraction_node_id];
       SubtractionHist(sibling_hist, parent_hist, this_hist, r.begin(), r.end());
       // Store posible parent node
-      auto sibling_local = builder->hist_local_worker_[entry.sibling_nid];
+      auto sibling_local = builder->hist_local_worker_[subtraction_node_id];
       CopyHist(sibling_local, sibling_hist, r.begin(), r.end());
     }
   });
@@ -186,12 +185,14 @@ void DistributedHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT* builder
 
   builder->builder_monitor_.Stop("SyncHistogramsAllreduce");
 
-  ParallelSubtractionHist(builder, space, builder->nodes_for_explicit_hist_build_, p_tree);
+  ParallelSubtractionHist(builder, space, builder->nodes_for_explicit_hist_build_,
+                          builder->nodes_for_subtraction_trick_, p_tree);
 
   common::BlockedSpace2d space2(builder->nodes_for_subtraction_trick_.size(), [&](size_t) {
     return nbins;
   }, 1024);
-  ParallelSubtractionHist(builder, space2, builder->nodes_for_subtraction_trick_, p_tree);
+  ParallelSubtractionHist(builder, space2, builder->nodes_for_subtraction_trick_,
+                          builder->nodes_for_explicit_hist_build_, p_tree);
   builder->builder_monitor_.Stop("SyncHistograms");
 }
 
@@ -199,16 +200,18 @@ template <typename GradientSumT>
 void DistributedHistSynchronizer<GradientSumT>::ParallelSubtractionHist(
                                   BuilderT* builder,
                                   const common::BlockedSpace2d& space,
-                                  const std::vector<ExpandEntryT>& nodes,
+                                  const std::vector<CPUExpandEntry>& nodes,
+                                  const std::vector<CPUExpandEntry>& subtraction_nodes,
                                   const RegTree * p_tree) {
   common::ParallelFor2d(space, builder->nthread_, [&](size_t node, common::Range1d r) {
     const auto& entry = nodes[node];
     if (!((*p_tree)[entry.nid].IsLeftChild())) {
       auto this_hist = builder->hist_[entry.nid];
 
-      if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
+      if (!(*p_tree)[entry.nid].IsRoot()) {
+        const int subtraction_node_id = subtraction_nodes[node].nid;
         auto parent_hist = builder->hist_[(*p_tree)[entry.nid].Parent()];
-        auto sibling_hist = builder->hist_[entry.sibling_nid];
+        auto sibling_hist = builder->hist_[subtraction_node_id];
         SubtractionHist(this_hist, parent_hist, sibling_hist, r.begin(), r.end());
       }
     }
@@ -287,31 +290,37 @@ void QuantileHistMaker::Builder<GradientSumT>::SetHistRowsAdder(
 }
 
 template <typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::BuildHistogramsLossGuide(
-    ExpandEntry entry, const GHistIndexMatrix &gmat,
-    const GHistIndexBlockMatrix &gmatb, RegTree *p_tree,
-    const std::vector<GradientPair> &gpair_h) {
+void QuantileHistMaker::Builder<GradientSumT>::InitRoot(
+    const GHistIndexMatrix &gmat,
+    const DMatrix& fmat,
+    RegTree *p_tree,
+    const std::vector<GradientPair> &gpair_h,
+    int *num_leaves, std::vector<CPUExpandEntry> *expand) {
+
+  CPUExpandEntry node(CPUExpandEntry::kRootNid, p_tree->GetDepth(0), 0.0f);
+
   nodes_for_explicit_hist_build_.clear();
   nodes_for_subtraction_trick_.clear();
-  nodes_for_explicit_hist_build_.push_back(entry);
-
-  if (entry.sibling_nid > -1) {
-    nodes_for_subtraction_trick_.emplace_back(entry.sibling_nid, entry.nid,
-        p_tree->GetDepth(entry.sibling_nid), 0.0f, 0);
-  }
+  nodes_for_explicit_hist_build_.push_back(node);
 
   int starting_index = std::numeric_limits<int>::max();
   int sync_count = 0;
 
   hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, p_tree);
-  BuildLocalHistograms(gmat, gmatb, p_tree, gpair_h);
+  BuildLocalHistograms(gmat, p_tree, gpair_h);
   hist_synchronizer_->SyncHistograms(this, starting_index, sync_count, p_tree);
+
+  this->InitNewNode(CPUExpandEntry::kRootNid, gmat, gpair_h, fmat, *p_tree);
+
+  this->EvaluateSplits({node}, gmat, hist_, *p_tree);
+  node.loss_chg = snode_[CPUExpandEntry::kRootNid].best.loss_chg;
+  expand->push_back(node);
+  ++(*num_leaves);
 }
 
 template<typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::BuildLocalHistograms(
     const GHistIndexMatrix &gmat,
-    const GHistIndexBlockMatrix &gmatb,
     RegTree *p_tree,
     const std::vector<GradientPair> &gpair_h) {
   builder_monitor_.Start("BuildLocalHistograms");
@@ -341,54 +350,23 @@ void QuantileHistMaker::Builder<GradientSumT>::BuildLocalHistograms(
     auto rid_set = RowSetCollection::Elem(start_of_row_set + r.begin(),
                                       start_of_row_set + r.end(),
                                       nid);
-    BuildHist(gpair_h, rid_set, gmat, gmatb, hist_buffer_.GetInitializedHist(tid, nid_in_set));
+    BuildHist(gpair_h, rid_set, gmat, hist_buffer_.GetInitializedHist(tid, nid_in_set));
   });
 
   builder_monitor_.Stop("BuildLocalHistograms");
 }
 
 template<typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::BuildNodeStats(
-    const GHistIndexMatrix &gmat,
-    DMatrix *p_fmat,
-    RegTree *p_tree,
-    const std::vector<GradientPair> &gpair_h) {
-  builder_monitor_.Start("BuildNodeStats");
-  for (auto const& entry : qexpand_depth_wise_) {
-    int nid = entry.nid;
-    this->InitNewNode(nid, gmat, gpair_h, *p_fmat, *p_tree);
-    // add constraints
-    if (!(*p_tree)[nid].IsLeftChild() && !(*p_tree)[nid].IsRoot()) {
-      // it's a right child
-      auto parent_id = (*p_tree)[nid].Parent();
-      auto left_sibling_id = (*p_tree)[parent_id].LeftChild();
-      auto parent_split_feature_id = snode_[parent_id].best.SplitIndex();
-      tree_evaluator_.AddSplit(
-          parent_id, left_sibling_id, nid, parent_split_feature_id,
-          snode_[left_sibling_id].weight, snode_[nid].weight);
-      interaction_constraints_.Split(parent_id, parent_split_feature_id,
-                                     left_sibling_id, nid);
-    }
-  }
-  builder_monitor_.Stop("BuildNodeStats");
-}
-
-template<typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToTree(
-          const GHistIndexMatrix &gmat,
+          const std::vector<CPUExpandEntry>& expand,
           RegTree *p_tree,
           int *num_leaves,
-          int depth,
-          unsigned *timestamp,
-          std::vector<ExpandEntry>* nodes_for_apply_split,
-          std::vector<ExpandEntry>* temp_qexpand_depth) {
+          std::vector<CPUExpandEntry>* nodes_for_apply_split) {
   auto evaluator = tree_evaluator_.GetEvaluator();
-  for (auto const& entry : qexpand_depth_wise_) {
+  for (auto const& entry : expand) {
     int nid = entry.nid;
 
-    if (snode_[nid].best.loss_chg < kRtEps ||
-        (param_.max_depth > 0 && depth == param_.max_depth) ||
-        (param_.max_leaves > 0 && (*num_leaves) == param_.max_leaves)) {
+    if (entry.IsValid(param_, *num_leaves)) {
       (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
     } else {
       nodes_for_apply_split->push_back(entry);
@@ -402,34 +380,10 @@ void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToTree(
                          e.best.DefaultLeft(), e.weight, left_leaf_weight,
                          right_leaf_weight, e.best.loss_chg, e.stats.GetHess(),
                          e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
-
-      int left_id = (*p_tree)[nid].LeftChild();
-      int right_id = (*p_tree)[nid].RightChild();
-      temp_qexpand_depth->push_back(ExpandEntry(left_id, right_id,
-                                                p_tree->GetDepth(left_id), 0.0, (*timestamp)++));
-      temp_qexpand_depth->push_back(ExpandEntry(right_id, left_id,
-                                                p_tree->GetDepth(right_id), 0.0, (*timestamp)++));
       // - 1 parent + 2 new children
       (*num_leaves)++;
     }
   }
-}
-
-template<typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::EvaluateAndApplySplits(
-    const GHistIndexMatrix &gmat,
-    const ColumnMatrix &column_matrix,
-    RegTree *p_tree,
-    int *num_leaves,
-    int depth,
-    unsigned *timestamp,
-    std::vector<ExpandEntry> *temp_qexpand_depth) {
-  EvaluateSplits(qexpand_depth_wise_, gmat, hist_, *p_tree);
-
-  std::vector<ExpandEntry> nodes_for_apply_split;
-  AddSplitsToTree(gmat, p_tree, num_leaves, depth, timestamp,
-                  &nodes_for_apply_split, temp_qexpand_depth);
-  ApplySplit(nodes_for_apply_split, gmat, column_matrix, hist_, p_tree);
 }
 
 // Split nodes to 2 sets depending on amount of rows in each node
@@ -440,154 +394,115 @@ void QuantileHistMaker::Builder<GradientSumT>::EvaluateAndApplySplits(
 //    This ensures that the workers operate on the same set of tree nodes.
 template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::SplitSiblings(
-    const std::vector<ExpandEntry> &nodes,
-    std::vector<ExpandEntry> *small_siblings,
-    std::vector<ExpandEntry> *big_siblings, RegTree *p_tree) {
+    const std::vector<CPUExpandEntry> &nodes_for_apply_split,
+    std::vector<CPUExpandEntry> *nodes_to_evaluate, RegTree *p_tree) {
   builder_monitor_.Start("SplitSiblings");
-  for (auto const& entry : nodes) {
+  for (auto const& entry : nodes_for_apply_split) {
     int nid = entry.nid;
-    RegTree::Node &node = (*p_tree)[nid];
-    if (node.IsRoot()) {
-      small_siblings->push_back(entry);
-    } else {
-      const int32_t left_id = (*p_tree)[node.Parent()].LeftChild();
-      const int32_t right_id = (*p_tree)[node.Parent()].RightChild();
 
-      if (nid == left_id && row_set_collection_[left_id ].Size() <
-                            row_set_collection_[right_id].Size()) {
-        small_siblings->push_back(entry);
-      } else if (nid == right_id && row_set_collection_[right_id].Size() <=
-                                    row_set_collection_[left_id ].Size()) {
-        small_siblings->push_back(entry);
-      } else {
-        big_siblings->push_back(entry);
-      }
+    const int cleft = (*p_tree)[nid].LeftChild();
+    const int cright = (*p_tree)[nid].RightChild();
+    const CPUExpandEntry left_node = CPUExpandEntry(cleft, p_tree->GetDepth(cleft), 0.0);
+    const CPUExpandEntry right_node = CPUExpandEntry(cright, p_tree->GetDepth(cright), 0.0);
+    nodes_to_evaluate->push_back(left_node);
+    nodes_to_evaluate->push_back(right_node);
+    if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
+      nodes_for_explicit_hist_build_.push_back(left_node);
+      nodes_for_subtraction_trick_.push_back(right_node);
+    } else {
+      nodes_for_explicit_hist_build_.push_back(right_node);
+      nodes_for_subtraction_trick_.push_back(left_node);
     }
   }
+  CHECK_EQ(nodes_for_subtraction_trick_.size(), nodes_for_explicit_hist_build_.size());
   builder_monitor_.Stop("SplitSiblings");
 }
-template<typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::ExpandWithDepthWise(
+
+template <typename GradientSumT>
+void QuantileHistMaker::Builder<GradientSumT>::BuildNodeStats(
   const GHistIndexMatrix &gmat,
-  const GHistIndexBlockMatrix &gmatb,
-  const ColumnMatrix &column_matrix,
-  DMatrix *p_fmat,
-  RegTree *p_tree,
-  const std::vector<GradientPair> &gpair_h) {
-  unsigned timestamp = 0;
-  int num_leaves = 0;
+  const DMatrix& fmat,
+  const std::vector<GradientPair> &gpair_h,
+  const std::vector<CPUExpandEntry>& nodes_for_apply_split, RegTree *p_tree) {
+  for (auto const& candidate : nodes_for_apply_split) {
+    const int nid = candidate.nid;
+    const int cleft = (*p_tree)[nid].LeftChild();
+    const int cright = (*p_tree)[nid].RightChild();
 
-  // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
-  qexpand_depth_wise_.emplace_back(ExpandEntry(ExpandEntry::kRootNid, ExpandEntry::kEmptyNid,
-      p_tree->GetDepth(ExpandEntry::kRootNid), 0.0, timestamp++));
-  ++num_leaves;
-  for (int depth = 0; depth < param_.max_depth + 1; depth++) {
-    int starting_index = std::numeric_limits<int>::max();
-    int sync_count = 0;
-    std::vector<ExpandEntry> temp_qexpand_depth;
-    SplitSiblings(qexpand_depth_wise_, &nodes_for_explicit_hist_build_,
-                  &nodes_for_subtraction_trick_, p_tree);
-    hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, p_tree);
-    BuildLocalHistograms(gmat, gmatb, p_tree, gpair_h);
-    hist_synchronizer_->SyncHistograms(this, starting_index, sync_count, p_tree);
-    BuildNodeStats(gmat, p_fmat, p_tree, gpair_h);
-
-    EvaluateAndApplySplits(gmat, column_matrix, p_tree, &num_leaves, depth, &timestamp,
-                   &temp_qexpand_depth);
-
-    // clean up
-    qexpand_depth_wise_.clear();
-    nodes_for_subtraction_trick_.clear();
-    nodes_for_explicit_hist_build_.clear();
-    if (temp_qexpand_depth.empty()) {
-      break;
-    } else {
-      qexpand_depth_wise_ = temp_qexpand_depth;
-      temp_qexpand_depth.clear();
-    }
+    InitNewNode(cleft, gmat, gpair_h, fmat, *p_tree);
+    InitNewNode(cright, gmat, gpair_h, fmat, *p_tree);
+    bst_uint featureid = snode_[nid].best.SplitIndex();
+    tree_evaluator_.AddSplit(nid, cleft, cright, featureid,
+                            snode_[cleft].weight, snode_[cright].weight);
+    interaction_constraints_.Split(nid, featureid, cleft, cright);
   }
 }
+
 template<typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::ExpandWithLossGuide(
+void QuantileHistMaker::Builder<GradientSumT>::ExpandTree(
     const GHistIndexMatrix& gmat,
-    const GHistIndexBlockMatrix& gmatb,
     const ColumnMatrix& column_matrix,
     DMatrix* p_fmat,
     RegTree* p_tree,
     const std::vector<GradientPair>& gpair_h) {
-  builder_monitor_.Start("ExpandWithLossGuide");
-  unsigned timestamp = 0;
+  builder_monitor_.Start("ExpandTree");
   int num_leaves = 0;
 
-  ExpandEntry node(ExpandEntry::kRootNid, ExpandEntry::kEmptyNid,
-      p_tree->GetDepth(0), 0.0f, timestamp++);
-  BuildHistogramsLossGuide(node, gmat, gmatb, p_tree, gpair_h);
+  Driver<CPUExpandEntry> driver(static_cast<TrainParam::TreeGrowPolicy>(param_.grow_policy));
+  std::vector<CPUExpandEntry> expand;
+  InitRoot(gmat, *p_fmat, p_tree, gpair_h, &num_leaves, &expand);
+  driver.Push(expand[0]);
 
-  this->InitNewNode(ExpandEntry::kRootNid, gmat, gpair_h, *p_fmat, *p_tree);
+  int depth = 0;
+  while (!driver.IsEmpty()) {
+    expand = driver.Pop();
+    depth = expand[0].depth + 1;
+    std::vector<CPUExpandEntry> nodes_for_apply_split;
+    std::vector<CPUExpandEntry> nodes_to_evaluate;
+    nodes_for_explicit_hist_build_.clear();
+    nodes_for_subtraction_trick_.clear();
 
-  this->EvaluateSplits({node}, gmat, hist_, *p_tree);
-  node.loss_chg = snode_[ExpandEntry::kRootNid].best.loss_chg;
+    AddSplitsToTree(expand, p_tree, &num_leaves, &nodes_for_apply_split);
 
-  qexpand_loss_guided_->push(node);
-  ++num_leaves;
+    if (nodes_for_apply_split.size() != 0) {
+      ApplySplit(nodes_for_apply_split, gmat, column_matrix, hist_, p_tree);
+      SplitSiblings(nodes_for_apply_split, &nodes_to_evaluate, p_tree);
 
-  while (!qexpand_loss_guided_->empty()) {
-    const ExpandEntry candidate = qexpand_loss_guided_->top();
-    const int nid = candidate.nid;
-    qexpand_loss_guided_->pop();
-    if (candidate.IsValid(param_, num_leaves)) {
-      (*p_tree)[nid].SetLeaf(snode_[nid].weight * param_.learning_rate);
-    } else {
-      auto evaluator = tree_evaluator_.GetEvaluator();
-      NodeEntry& e = snode_[nid];
-      bst_float left_leaf_weight =
-          evaluator.CalcWeight(nid, param_, GradStats{e.best.left_sum}) * param_.learning_rate;
-      bst_float right_leaf_weight =
-          evaluator.CalcWeight(nid, param_, GradStats{e.best.right_sum}) * param_.learning_rate;
-      p_tree->ExpandNode(nid, e.best.SplitIndex(), e.best.split_value,
-                         e.best.DefaultLeft(), e.weight, left_leaf_weight,
-                         right_leaf_weight, e.best.loss_chg, e.stats.GetHess(),
-                         e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
-      this->ApplySplit({candidate}, gmat, column_matrix, hist_, p_tree);
-
-      const int cleft = (*p_tree)[nid].LeftChild();
-      const int cright = (*p_tree)[nid].RightChild();
-
-      ExpandEntry left_node(cleft, cright, p_tree->GetDepth(cleft),
-                            0.0f, timestamp++);
-      ExpandEntry right_node(cright, cleft, p_tree->GetDepth(cright),
-                            0.0f, timestamp++);
-
-      if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
-        BuildHistogramsLossGuide(left_node, gmat, gmatb, p_tree, gpair_h);
-      } else {
-        BuildHistogramsLossGuide(right_node, gmat, gmatb, p_tree, gpair_h);
+      int starting_index = std::numeric_limits<int>::max();
+      int sync_count = 0;
+      hist_rows_adder_->AddHistRows(this, &starting_index, &sync_count, p_tree);
+      if (depth < param_.max_depth) {
+        BuildLocalHistograms(gmat, p_tree, gpair_h);
+        hist_synchronizer_->SyncHistograms(this, starting_index, sync_count, p_tree);
       }
 
-      this->InitNewNode(cleft, gmat, gpair_h, *p_fmat, *p_tree);
-      this->InitNewNode(cright, gmat, gpair_h, *p_fmat, *p_tree);
-      bst_uint featureid = snode_[nid].best.SplitIndex();
-      tree_evaluator_.AddSplit(nid, cleft, cright, featureid,
-                               snode_[cleft].weight, snode_[cright].weight);
-      interaction_constraints_.Split(nid, featureid, cleft, cright);
+      BuildNodeStats(gmat, *p_fmat, gpair_h, nodes_for_apply_split, p_tree);
+      EvaluateSplits(nodes_to_evaluate, gmat, hist_, *p_tree);
 
-      this->EvaluateSplits({left_node, right_node}, gmat, hist_, *p_tree);
-      left_node.loss_chg = snode_[cleft].best.loss_chg;
-      right_node.loss_chg = snode_[cright].best.loss_chg;
+      for (size_t i = 0; i < nodes_for_apply_split.size(); ++i) {
+        const CPUExpandEntry candidate = nodes_for_apply_split[i];
+        const int nid = candidate.nid;
+        const int cleft = (*p_tree)[nid].LeftChild();
+        const int cright = (*p_tree)[nid].RightChild();
+        CPUExpandEntry left_node = nodes_to_evaluate[i*2 + 0];
+        CPUExpandEntry right_node = nodes_to_evaluate[i*2 + 1];
 
-      qexpand_loss_guided_->push(left_node);
-      qexpand_loss_guided_->push(right_node);
+        left_node.loss_chg = snode_[cleft].best.loss_chg;
+        right_node.loss_chg = snode_[cright].best.loss_chg;
 
-      ++num_leaves;  // give two and take one, as parent is no longer a leaf
+        driver.Push(left_node);
+        driver.Push(right_node);
+      }
     }
   }
-  builder_monitor_.Stop("ExpandWithLossGuide");
+  builder_monitor_.Stop("ExpandTree");
 }
 
 template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::Update(
-    const GHistIndexMatrix &gmat, const GHistIndexBlockMatrix &gmatb,
-    const ColumnMatrix &column_matrix, HostDeviceVector<GradientPair> *gpair,
+    const GHistIndexMatrix &gmat,
+    const ColumnMatrix &column_matrix,
+    HostDeviceVector<GradientPair> *gpair,
     DMatrix *p_fmat, RegTree *p_tree) {
   builder_monitor_.Start("Update");
 
@@ -604,11 +519,8 @@ void QuantileHistMaker::Builder<GradientSumT>::Update(
   p_last_fmat_mutable_ = p_fmat;
 
   this->InitData(gmat, *p_fmat, *p_tree, gpair_ptr);
-  if (param_.grow_policy == TrainParam::kLossGuide) {
-    ExpandWithLossGuide(gmat, gmatb, column_matrix, p_fmat, p_tree, *gpair_ptr);
-  } else {
-    ExpandWithDepthWise(gmat, gmatb, column_matrix, p_fmat, p_tree, *gpair_ptr);
-  }
+
+  ExpandTree(gmat, column_matrix, p_fmat, p_tree, *gpair_ptr);
 
   for (int nid = 0; nid < p_tree->param.num_nodes; ++nid) {
     p_tree->Stat(nid).loss_chg = snode_[nid].best.loss_chg;
@@ -675,7 +587,6 @@ void QuantileHistMaker::Builder<GradientSumT>::InitSampling(const DMatrix& fmat,
 
 #if XGBOOST_CUSTOMIZE_GLOBAL_PRNG
   std::bernoulli_distribution coin_flip(param_.subsample);
-  size_t used = 0, unused = 0;
   for (size_t i = 0; i < info.num_row_; ++i) {
     if (!(gpair_ref[i].GetHess() >= 0.0f && coin_flip(rnd)) || gpair_ref[i].GetGrad() == 0.0f) {
       gpair_ref[i] = GradientPair(0);
@@ -871,13 +782,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(const GHistIndexMatrix& 
     snode_.reserve(256);
     snode_.clear();
   }
-  {
-    if (param_.grow_policy == TrainParam::kLossGuide) {
-      qexpand_loss_guided_.reset(new ExpandQueue(LossGuide));
-    } else {
-      qexpand_depth_wise_.clear();
-    }
-  }
+
   builder_monitor_.Stop("InitData");
 }
 
@@ -898,7 +803,7 @@ bool QuantileHistMaker::Builder<GradientSumT>::SplitContainsMissingValues(
 // nodes_set - set of nodes to be processed in parallel
 template<typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::EvaluateSplits(
-                                               const std::vector<ExpandEntry>& nodes_set,
+                                               const std::vector<CPUExpandEntry>& nodes_set,
                                                const GHistIndexMatrix& gmat,
                                                const HistCollection<GradientSumT>& hist,
                                                const RegTree& tree) {
@@ -1123,7 +1028,7 @@ void QuantileHistMaker::Builder<GradientSumT>::PartitionKernel(
 
 template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::FindSplitConditions(
-                                                     const std::vector<ExpandEntry>& nodes,
+                                                     const std::vector<CPUExpandEntry>& nodes,
                                                      const RegTree& tree,
                                                      const GHistIndexMatrix& gmat,
                                                      std::vector<int32_t>* split_conditions) {
@@ -1151,7 +1056,7 @@ void QuantileHistMaker::Builder<GradientSumT>::FindSplitConditions(
 }
 template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToRowSet(
-                                               const std::vector<ExpandEntry>& nodes,
+                                               const std::vector<CPUExpandEntry>& nodes,
                                                RegTree* p_tree) {
   const size_t n_nodes = nodes.size();
   for (unsigned int i = 0; i < n_nodes; ++i) {
@@ -1165,7 +1070,7 @@ void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToRowSet(
 }
 
 template <typename GradientSumT>
-void QuantileHistMaker::Builder<GradientSumT>::ApplySplit(const std::vector<ExpandEntry> nodes,
+void QuantileHistMaker::Builder<GradientSumT>::ApplySplit(const std::vector<CPUExpandEntry> nodes,
                                             const GHistIndexMatrix& gmat,
                                             const ColumnMatrix& column_matrix,
                                             const HistCollection<GradientSumT>& hist,

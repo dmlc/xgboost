@@ -6,7 +6,7 @@ Prediction
 
 There are a number of prediction functions in XGBoost with various parameters.  This
 document attempts to clarify some of confusions around prediction with a focus on the
-Python binding.
+Python binding, R package is similar when ``strict_shape`` is specified (see below).
 
 ******************
 Prediction Options
@@ -57,6 +57,13 @@ After 1.4 release, we added a new parameter called ``strict_shape``, one can set
   concatenated into 1.  Also the last dimension is dropped if it eqauls to 1. When using
   ``apply`` method in scikit learn interface, this is set to False by default.
 
+
+For R package, when ``strict_shape`` is specified, an ``array`` is returned, with the same
+value as Python except R array is column-major while Python numpy array is row-major, so
+all the dimensions are reversed.  For example, for a Python ``predict_leaf`` output
+obtained by having ``strict_shape=True`` has 4 dimensions: ``(n_samples, n_iterations,
+n_classes, n_trees_in_forest)``, while R with ``strict_shape=TRUE`` outputs
+``(n_trees_in_forest, n_classes, n_iterations, n_samples)``.
 
 Other than these prediction types, there's also a parameter called ``iteration_range``,
 which is similar to model slicing.  But instead of actually splitting up the model into

@@ -295,13 +295,13 @@ struct GHistIndexMatrix {
 };
 
 template <typename GradientIndex>
-int32_t XGBOOST_HOST_DEV_INLINE BinarySearchBin(bst_uint begin, bst_uint end,
+int32_t XGBOOST_HOST_DEV_INLINE BinarySearchBin(size_t begin, size_t end,
                                                 GradientIndex const &data,
                                                 uint32_t const fidx_begin,
                                                 uint32_t const fidx_end) {
-  uint32_t previous_middle = std::numeric_limits<uint32_t>::max();
+  size_t previous_middle = std::numeric_limits<size_t>::max();
   while (end != begin) {
-    auto middle = begin + (end - begin) / 2;
+    size_t middle = begin + (end - begin) / 2;
     if (middle == previous_middle) {
       break;
     }
@@ -321,47 +321,7 @@ int32_t XGBOOST_HOST_DEV_INLINE BinarySearchBin(bst_uint begin, bst_uint end,
   return -1;
 }
 
-struct GHistIndexBlock {
-  const size_t* row_ptr;
-  const uint32_t* index;
-
-  inline GHistIndexBlock(const size_t* row_ptr, const uint32_t* index)
-    : row_ptr(row_ptr), index(index) {}
-
-  // get i-th row
-  inline GHistIndexRow operator[](size_t i) const {
-    return {&index[0] + row_ptr[i], row_ptr[i + 1] - row_ptr[i]};
-  }
-};
-
 class ColumnMatrix;
-
-class GHistIndexBlockMatrix {
- public:
-  void Init(const GHistIndexMatrix& gmat,
-            const ColumnMatrix& colmat,
-            const tree::TrainParam& param);
-
-  inline GHistIndexBlock operator[](size_t i) const {
-    return {blocks_[i].row_ptr_begin, blocks_[i].index_begin};
-  }
-
-  inline size_t GetNumBlock() const {
-    return blocks_.size();
-  }
-
- private:
-  std::vector<size_t> row_ptr_;
-  std::vector<uint32_t> index_;
-  const HistogramCuts* cut_;
-  struct Block {
-    const size_t* row_ptr_begin;
-    const size_t* row_ptr_end;
-    const uint32_t* index_begin;
-    const uint32_t* index_end;
-  };
-  std::vector<Block> blocks_;
-};
 
 template<typename GradientSumT>
 using GHistRow = Span<xgboost::detail::GradientPairInternal<GradientSumT> >;
@@ -672,11 +632,6 @@ class GHistBuilder {
                  const GHistIndexMatrix& gmat,
                  GHistRowT hist,
                  bool isDense);
-  // same, with feature grouping
-  void BuildBlockHist(const std::vector<GradientPair>& gpair,
-                      const RowSetCollection::Elem row_indices,
-                      const GHistIndexBlockMatrix& gmatb,
-                      GHistRowT hist);
   // construct a histogram via subtraction trick
   void SubtractionTrick(GHistRowT self,
                         GHistRowT sibling,

@@ -387,7 +387,7 @@ public class BoosterImplTest {
     DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
-        put("max_depth", 0);
+        put("max_depth", 3);
         put("silent", 1);
         put("objective", "binary:logistic");
         put("tree_method", "hist");
@@ -408,7 +408,7 @@ public class BoosterImplTest {
     DMatrix testMat = new DMatrix("../../demo/data/agaricus.txt.test");
     Map<String, Object> paramMap = new HashMap<String, Object>() {
       {
-        put("max_depth", 0);
+        put("max_depth", 3);
         put("silent", 1);
         put("objective", "binary:logistic");
         put("tree_method", "hist");
