@@ -952,17 +952,17 @@ void QuantileHistMaker::Builder<GradientSumT>::ApplySplit(const std::vector<CPUE
     partition_builder_.AllocateForTask(task_id);
       switch (column_matrix.GetTypeSize()) {
       case common::kUint8BinsTypeSize:
-        partition_builder_.Partition<uint8_t, any_missing>(node_in_set, nid, r,
+        partition_builder_.template Partition<uint8_t, any_missing>(node_in_set, nid, r,
                   split_conditions[node_in_set], column_matrix,
                   *p_tree, row_set_collection_[nid].begin);
         break;
       case common::kUint16BinsTypeSize:
-        partition_builder_.Partition<uint16_t, any_missing>(node_in_set, nid, r,
+        partition_builder_.template Partition<uint16_t, any_missing>(node_in_set, nid, r,
                   split_conditions[node_in_set], column_matrix,
                   *p_tree, row_set_collection_[nid].begin);
         break;
       case common::kUint32BinsTypeSize:
-        partition_builder_.Partition<uint32_t, any_missing>(node_in_set, nid, r,
+        partition_builder_.template Partition<uint32_t, any_missing>(node_in_set, nid, r,
                   split_conditions[node_in_set], column_matrix,
                   *p_tree, row_set_collection_[nid].begin);
         break;
