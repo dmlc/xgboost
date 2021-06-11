@@ -28,7 +28,6 @@ if tm.no_dask()['condition']:
     pytest.skip(msg=tm.no_dask()['reason'], allow_module_level=True)
 
 from distributed import LocalCluster, Client
-from distributed.utils_test import client, loop, cluster_fixture
 import dask.dataframe as dd
 import dask.array as da
 from xgboost.dask import DaskDMatrix
@@ -38,6 +37,20 @@ if hasattr(HealthCheck, 'function_scoped_fixture'):
     suppress = [HealthCheck.function_scoped_fixture]
 else:
     suppress = hypothesis.utils.conventions.not_set  # type:ignore
+
+
+@pytest.fixture(scope='module')
+def cluster():
+    with LocalCluster(
+        n_workers=2, threads_per_worker=2, dashboard_address=None
+    ) as dask_cluster:
+        yield dask_cluster
+
+
+@pytest.fixture
+def client(cluster):
+    with Client(cluster) as dask_client:
+        yield dask_client
 
 
 kRows = 1000
