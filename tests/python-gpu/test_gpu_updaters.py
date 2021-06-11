@@ -71,7 +71,6 @@ class TestGPUUpdaters:
     @settings(deadline=None)
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical(self, rows, cols, rounds, cats):
-        pytest.xfail(reason='TestGPUUpdaters::test_categorical is flaky')
         self.run_categorical_basic(rows, cols, rounds, cats)
 
     def test_categorical_32_cat(self):
