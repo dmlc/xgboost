@@ -168,8 +168,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' @param outputmargin whether the prediction should be returned in the for of original untransformed
 #'        sum of predictions from boosting iterations' results. E.g., setting \code{outputmargin=TRUE} for
 #'        logistic regression would result in predictions for log-odds instead of probabilities.
-#' @param ntreelimit limit the number of model's trees or boosting iterations used in prediction (see Details).
-#'        It will use all the trees by default (\code{NULL} value).
+#' @param ntreelimit Deprecated, use \code{iterationrange} instead.
 #' @param predleaf whether predict leaf index.
 #' @param predcontrib whether to return feature contributions to individual predictions (see Details).
 #' @param approxcontrib whether to use a fast approximation for feature contributions (see Details).
@@ -179,16 +178,19 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #'        or predinteraction flags is TRUE.
 #' @param training whether is the prediction result used for training.  For dart booster,
 #'        training predicting will perform dropout.
+#' @param iterationrange Specifies which layer of trees are used in prediction.  For
+#'        example, if a random forest is trained with 100 rounds.  Specifying
+#'        `iteration_range=(1, 21)`, then only the forests built during [1, 21) (half open set)
+#'        rounds are used in this prediction.  It's 1-based index just like R vector.  When set
+#'        to \code{c(1, 1)} XGBoost will use all trees.
+#' @param strict_shape  Default is \code{FALSE}. When it's set to \code{TRUE}, output
+#'        type and shape of prediction are invariant to model type.
+#'
 #' @param ... Parameters passed to \code{predict.xgb.Booster}
 #'
 #' @details
-#' Note that \code{ntreelimit} is not necessarily equal to the number of boosting iterations
-#' and it is not necessarily equal to the number of trees in a model.
-#' E.g., in a random forest-like model, \code{ntreelimit} would limit the number of trees.
-#' But for multiclass classification, while there are multiple trees per iteration,
-#' \code{ntreelimit} limits the number of boosting iterations.
 #'
-#' Also note that \code{ntreelimit} would currently do nothing for predictions from gblinear,
+#' Note that \code{iterationrange} would currently do nothing for predictions from gblinear,
 #' since gblinear doesn't keep its boosting history.
 #'
 #' One possible practical applications of the \code{predleaf} option is to use the model
@@ -209,7 +211,8 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' of the most important features first. See below about the format of the returned results.
 #'
 #' @return
-#' For regression or binary classification, it returns a vector of length \code{nrows(newdata)}.
+#' The return type is different depending whether \code{strict_shape} is set to \code{TRUE}.  By default,
+#' for regression or binary classification, it returns a vector of length \code{nrows(newdata)}.
 #' For multiclass classification, either a \code{num_class * nrows(newdata)} vector or
 #' a \code{(nrows(newdata), num_class)} dimension matrix is returned, depending on
 #' the \code{reshape} value.
@@ -230,6 +233,13 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' produce practically the same result as predict with \code{predcontrib = TRUE}.
 #' For a multiclass case, a list of \code{num_class} elements is returned, where each element is
 #' such an array.
+#'
+#' When \code{strict_shape} is set to \code{TRUE}, the output is always an array.  For
+#' normal prediction, the output is a 2-dimension array \code{(num_class, nrow(newdata))}.
+#'
+#' For \code{predcontrib = TRUE}, output is \code{(ncol(newdata) + 1, num_class, nrow(newdata))}
+#' For \code{predinteraction = TRUE}, output is \code{(ncol(newdata) + 1, ncol(newdata) + 1, num_class, nrow(newdata))}
+#' For \code{predleaf = TRUE}, output is \code{(n_trees_in_forest, num_class, n_iterations, nrow(newdata))}
 #'
 #' @seealso
 #' \code{\link{xgb.train}}.
@@ -253,7 +263,7 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' # use all trees by default
 #' pred <- predict(bst, test$data)
 #' # use only the 1st tree
-#' pred1 <- predict(bst, test$data, ntreelimit = 1)
+#' pred1 <- predict(bst, test$data, iterationrange = c(1, 2))
 #'
 #' # Predicting tree leafs:
 #' # the result is an nsamples X ntrees matrix
@@ -305,31 +315,14 @@ xgb.Booster.complete <- function(object, saveraw = TRUE) {
 #' all.equal(pred, pred_labels)
 #' # prediction from using only 5 iterations should result
 #' # in the same error as seen in iteration 5:
-#' pred5 <- predict(bst, as.matrix(iris[, -5]), ntreelimit=5)
+#' pred5 <- predict(bst, as.matrix(iris[, -5]), iterationrange=c(1, 6))
 #' sum(pred5 != lb)/length(lb)
-#'
-#'
-#' ## random forest-like model of 25 trees for binary classification:
-#'
-#' set.seed(11)
-#' bst <- xgboost(data = train$data, label = train$label, max_depth = 5,
-#'                nthread = 2, nrounds = 1, objective = "binary:logistic",
-#'                num_parallel_tree = 25, subsample = 0.6, colsample_bytree = 0.1)
-#' # Inspect the prediction error vs number of trees:
-#' lb <- test$label
-#' dtest <- xgb.DMatrix(test$data, label=lb)
-#' err <- sapply(1:25, function(n) {
-#'   pred <- predict(bst, dtest, ntreelimit=n)
-#'   sum((pred > 0.5) != lb)/length(lb)
-#' })
-#' plot(err, type='l', ylim=c(0,0.1), xlab='#trees')
 #'
 #' @rdname predict.xgb.Booster
 #' @export
 predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FALSE, ntreelimit = NULL,
                                 predleaf = FALSE, predcontrib = FALSE, approxcontrib = FALSE, predinteraction = FALSE,
-                                reshape = FALSE, training = FALSE, ...) {
-
+                                reshape = FALSE, training = FALSE, iterationrange = NULL, strict_shape = FALSE, ...) {
   object <- xgb.Booster.complete(object, saveraw = FALSE)
   if (!inherits(newdata, "xgb.DMatrix"))
     newdata <- xgb.DMatrix(newdata, missing = missing)
@@ -337,81 +330,114 @@ predict.xgb.Booster <- function(object, newdata, missing = NA, outputmargin = FA
       !is.null(colnames(newdata)) &&
       !identical(object[["feature_names"]], colnames(newdata)))
     stop("Feature names stored in `object` and `newdata` are different!")
-  if (is.null(ntreelimit))
-    ntreelimit <- NVL(object$best_ntreelimit, 0)
-  if (NVL(object$params[['booster']], '') == 'gblinear')
+
+  if (NVL(object$params[['booster']], '') == 'gblinear' || is.null(ntreelimit))
     ntreelimit <- 0
-  if (ntreelimit < 0)
-    stop("ntreelimit cannot be negative")
 
-  option <- 0L + 1L * as.logical(outputmargin) + 2L * as.logical(predleaf) + 4L * as.logical(predcontrib) +
-    8L * as.logical(approxcontrib) + 16L * as.logical(predinteraction)
-
-  ret <- .Call(XGBoosterPredict_R, object$handle, newdata, option[1],
-               as.integer(ntreelimit), as.integer(training))
-
-  n_ret <- length(ret)
-  n_row <- nrow(newdata)
-  npred_per_case <- n_ret / n_row
-
-  if (n_ret %% n_row != 0)
-    stop("prediction length ", n_ret, " is not multiple of nrows(newdata) ", n_row)
-
-  if (predleaf) {
-    ret <- if (n_ret == n_row) {
-      matrix(ret, ncol = 1)
+  if (ntreelimit != 0 && is.null(iterationrange)) {
+    ## only ntreelimit, initialize iteration range
+    iterationrange <- c(0, 0)
+  } else if (ntreelimit == 0 && !is.null(iterationrange)) {
+    ## only iteration range, handle 1-based indexing
+    iterationrange <- c(iterationrange[1] - 1, iterationrange[2] - 1)
+  } else if (ntreelimit != 0 && !is.null(iterationrange)) {
+    ## both are specified, let libgxgboost throw an error
+  } else {
+    ## no limit is supplied, use best
+    if (is.null(object$best_iteration)) {
+      iterationrange <- c(0, 0)
     } else {
-      matrix(ret, nrow = n_row, byrow = TRUE)
+      ## We don't need to + 1 as R is 1-based index.
+      iterationrange <- c(0, as.integer(object$best_iteration))
     }
-  } else if (predcontrib) {
-    n_col1 <- ncol(newdata) + 1
-    n_group <- npred_per_case / n_col1
-    cnames <- if (!is.null(colnames(newdata))) c(colnames(newdata), "BIAS") else NULL
-    ret <- if (n_ret == n_row) {
-      matrix(ret, ncol = 1, dimnames = list(NULL, cnames))
-    } else if (n_group == 1) {
-      matrix(ret, nrow = n_row, byrow = TRUE, dimnames = list(NULL, cnames))
-    } else {
-      arr <- aperm(
-        a = array(
-          data = ret,
-          dim = c(n_col1, n_group, n_row),
-          dimnames = list(cnames, NULL, NULL)
-        ),
-        perm = c(2, 3, 1)  # [group, row, col]
-      )
-      lapply(seq_len(n_group), function(g) arr[g, , ])
+  }
+  ## Handle the 0 length values.
+  box <- function(val) {
+    if (length(val) == 0) {
+      cval <- vector(, 1)
+      cval[0] <- val
+      return(cval)
+    }
+    return (val)
+  }
+
+  ## We set strict_shape to TRUE then drop the dimensions conditionally
+  args <- list(
+    training = box(training),
+    strict_shape = box(TRUE),
+    iteration_begin = box(as.integer(iterationrange[1])),
+    iteration_end = box(as.integer(iterationrange[2])),
+    ntree_limit = box(as.integer(ntreelimit)),
+    type = box(as.integer(0))
+  )
+
+  set_type <- function(type) {
+    if (args$type != 0) {
+      stop("One type of prediction at a time.")
+    }
+    return(box(as.integer(type)))
+  }
+  if (outputmargin) {
+    args$type <- set_type(1)
+  }
+  if (predcontrib) {
+    args$type <- set_type(if (approxcontrib) 3 else 2)
+  }
+  if (predinteraction) {
+    args$type <- set_type(if (approxcontrib) 5 else 4)
+  }
+  if (predleaf) {
+    args$type <- set_type(6)
+  }
+
+  predts <- .Call(
+    XGBoosterPredictFromDMatrix_R, object$handle, newdata, jsonlite::toJSON(args, auto_unbox = TRUE)
+  )
+  names(predts) <- c("shape", "results")
+  shape <- predts$shape
+  ret <- predts$results
+
+  n_row <- nrow(newdata)
+  if (n_row != shape[1]) {
+    stop("Incorrect predict shape.")
+  }
+
+  arr <- array(data = ret, dim = rev(shape))
+
+  cnames <- if (!is.null(colnames(newdata))) c(colnames(newdata), "BIAS") else NULL
+  if (predcontrib) {
+    dimnames(arr) <- list(cnames, NULL, NULL)
+    if (!strict_shape) {
+      arr <- aperm(a = arr, perm = c(2, 3, 1)) # [group, row, col]
     }
   } else if (predinteraction) {
-    n_col1 <- ncol(newdata) + 1
-    n_group <- npred_per_case / n_col1^2
-    cnames <- if (!is.null(colnames(newdata))) c(colnames(newdata), "BIAS") else NULL
-    ret <- if (n_ret == n_row) {
-      matrix(ret, ncol = 1, dimnames = list(NULL, cnames))
-    } else if (n_group == 1) {
-      aperm(
-        a = array(
-          data = ret,
-          dim = c(n_col1, n_col1, n_row),
-          dimnames = list(cnames, cnames, NULL)
-        ),
-        perm = c(3, 1, 2)
-      )
-    } else {
-      arr <- aperm(
-        a = array(
-          data = ret,
-          dim = c(n_col1, n_col1, n_group, n_row),
-          dimnames = list(cnames, cnames, NULL, NULL)
-        ),
-        perm = c(3, 4, 1, 2)  # [group, row, col1, col2]
-      )
-      lapply(seq_len(n_group), function(g) arr[g, , , ])
+    dimnames(arr) <- list(cnames, cnames, NULL, NULL)
+    if (!strict_shape) {
+      arr <- aperm(a = arr, perm = c(3, 4, 1, 2)) # [group, row, col, col]
     }
-  } else if (reshape && npred_per_case > 1) {
-    ret <- matrix(ret, nrow = n_row, byrow = TRUE)
   }
-  return(ret)
+
+  if (!strict_shape) {
+    n_groups <- shape[2]
+    if (predleaf) {
+      arr <- matrix(arr, nrow = n_row, byrow = TRUE)
+    } else if (predcontrib && n_groups != 1) {
+      arr <- lapply(seq_len(n_groups), function(g) arr[g, , ])
+    } else if (predinteraction && n_groups != 1) {
+      arr <- lapply(seq_len(n_groups), function(g) arr[g, , , ])
+    } else if (!reshape && n_groups != 1) {
+      arr <- ret
+    } else if (reshape && n_groups != 1) {
+      arr <- matrix(arr, ncol = 3, byrow = TRUE)
+    }
+    arr <- drop(arr)
+    if (length(dim(arr)) == 1) {
+      arr <- as.vector(arr)
+    } else if (length(dim(arr)) == 2) {
+      arr <- as.matrix(arr)
+    }
+  }
+  return(arr)
 }
 
 #' @rdname predict.xgb.Booster

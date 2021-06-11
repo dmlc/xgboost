@@ -34,6 +34,10 @@ test_that("train and predict binary classification", {
   err_pred1 <- sum((pred1 > 0.5) != train$label) / length(train$label)
   err_log <- bst$evaluation_log[1, train_error]
   expect_lt(abs(err_pred1 - err_log), 10e-6)
+
+  pred2 <- predict(bst, train$data, iterationrange = c(1, 2))
+  expect_length(pred1, 6513)
+  expect_equal(pred1, pred2)
 })
 
 test_that("parameter validation works", {
@@ -143,6 +147,9 @@ test_that("train and predict softprob", {
   pred_labels <- max.col(mpred) - 1
   err <- sum(pred_labels != lb) / length(lb)
   expect_equal(bst$evaluation_log[1, train_merror], err, tolerance = 5e-6)
+
+  mpred1 <- predict(bst, as.matrix(iris[, -5]), reshape = TRUE, iterationrange = c(1, 2))
+  expect_equal(mpred, mpred1)
 })
 
 test_that("train and predict softmax", {
@@ -182,10 +189,8 @@ test_that("train and predict RF", {
   pred_err_20 <- sum((pred > 0.5) != lb) / length(lb)
   expect_equal(pred_err_20, pred_err)
 
-  #pred <- predict(bst, train$data, ntreelimit = 1)
-  #pred_err_1 <- sum((pred > 0.5) != lb)/length(lb)
-  #expect_lt(pred_err, pred_err_1)
-  #expect_lt(pred_err, 0.08)
+  pred1 <- predict(bst, train$data, iterationrange = c(1, 2))
+  expect_equal(pred, pred1)
 })
 
 test_that("train and predict RF with softprob", {
@@ -384,4 +389,58 @@ test_that("Configuration works", {
   xgb.config(bst) <- config
   reloaded_config <- xgb.config(bst)
   expect_equal(config, reloaded_config);
+})
+
+test_that("strict_shape works", {
+  n_rounds <- 2
+
+  test_strict_shape <- function(bst, X, n_groups) {
+    predt <- predict(bst, X, strict_shape = TRUE)
+    margin <- predict(bst, X, outputmargin = TRUE, strict_shape = TRUE)
+    contri <- predict(bst, X, predcontrib = TRUE, strict_shape = TRUE)
+    interact <- predict(bst, X, predinteraction = TRUE, strict_shape = TRUE)
+    leaf <- predict(bst, X, predleaf = TRUE, strict_shape = TRUE)
+
+    n_rows <- nrow(X)
+    n_cols <- ncol(X)
+
+    expect_equal(dim(predt), c(n_groups, n_rows))
+    expect_equal(dim(margin), c(n_groups, n_rows))
+    expect_equal(dim(contri), c(n_cols + 1, n_groups, n_rows))
+    expect_equal(dim(interact), c(n_cols + 1, n_cols + 1, n_groups, n_rows))
+    expect_equal(dim(leaf), c(1, n_groups, n_rounds, n_rows))
+
+    if (n_groups != 1) {
+      for (g in seq_len(n_groups)) {
+        expect_lt(max(abs(colSums(contri[, g, ]) - margin[g, ])), 1e-5)
+      }
+    }
+  }
+
+  test_iris <- function() {
+    y <- as.numeric(iris$Species) - 1
+    X <- as.matrix(iris[, -5])
+
+    bst <- xgboost(data = X, label = y,
+                   max_depth = 2, nrounds = n_rounds,
+                   objective = "multi:softprob", num_class = 3, eval_metric = "merror")
+
+    test_strict_shape(bst, X, 3)
+  }
+
+
+  test_agaricus <- function() {
+    data(agaricus.train, package = 'xgboost')
+    X <- agaricus.train$data
+    y <- agaricus.train$label
+
+    bst <- xgboost(data = X, label = y, max_depth = 2,
+                   nrounds = n_rounds, objective = "binary:logistic",
+                   eval_metric = 'error', eval_metric = 'auc', eval_metric = "logloss")
+
+    test_strict_shape(bst, X, 1)
+  }
+
+  test_iris()
+  test_agaricus()
 })
