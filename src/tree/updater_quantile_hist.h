@@ -28,6 +28,7 @@
 #include "../common/timer.h"
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
+#include "../common/partition_builder.h"
 #include "../common/column_matrix.h"
 
 namespace xgboost {
@@ -336,11 +337,6 @@ class QuantileHistMaker: public TreeUpdater {
                         const ColumnMatrix& column_matrix,
                         const HistCollection<GradientSumT>& hist,
                         RegTree* p_tree);
-
-    template <typename BinIdxType, bool any_missing>
-    void Partition(const size_t node_in_set, const size_t nid, const common::Range1d range,
-                         const int32_t split_cond,
-                         const ColumnMatrix& column_matrix, const RegTree& tree);
 
     void AddSplitsToRowSet(const std::vector<CPUExpandEntry>& nodes, RegTree* p_tree);
 
