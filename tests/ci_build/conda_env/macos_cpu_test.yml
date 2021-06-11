@@ -14,7 +14,7 @@ dependencies:
 - pandas
 - matplotlib
 - dask
-- distributed=2021.05.0
+- distributed
 - graphviz
 - python-graphviz
 - hypothesis
