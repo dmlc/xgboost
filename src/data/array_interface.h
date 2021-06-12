@@ -29,10 +29,6 @@ struct ArrayInterfaceErrors {
   static char const* TypestrFormat() {
     return "`typestr' should be of format <endian><type><size of type in bytes>.";
   }
-  // Not supported in Apache Arrow.
-  static char const* BigEndian() {
-    return "Big endian is not supported.";
-  }
   static char const* Dimension(int32_t d) {
     static std::string str;
     str.clear();
@@ -139,7 +135,6 @@ class ArrayInterfaceHandler {
 
     auto typestr = get<String const>(array.at("typestr"));
     CHECK(typestr.size() == 3 || typestr.size() == 4) << ArrayInterfaceErrors::TypestrFormat();
-    CHECK_NE(typestr.front(), '>') << ArrayInterfaceErrors::BigEndian();
 
     if (array.find("shape") == array.cend()) {
       LOG(FATAL) << "Missing `shape' field for array interface";
