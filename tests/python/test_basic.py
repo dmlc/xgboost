@@ -215,9 +215,8 @@ class TestBasic:
         assert isinstance(cv, dict)
         assert len(cv) == (4)
 
+    @pytest.mark.skipif(**tm.skip_s390x())
     def test_cv_explicit_fold_indices_labels(self):
-        import platform
-        print(platform.machine())
         params = {'max_depth': 2, 'eta': 1, 'verbosity': 0, 'objective':
                   'reg:squarederror'}
         N = 100
