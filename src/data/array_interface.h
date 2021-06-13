@@ -234,7 +234,6 @@ class ArrayInterfaceHandler {
   }
 
   static void* ExtractData(std::map<std::string, Json> const &column,
-                                     StringView typestr,
                                      std::pair<size_t, size_t> shape) {
     Validate(column);
     void* p_data = ArrayInterfaceHandler::GetPtrFromArrayData<void*>(column);
@@ -263,7 +262,7 @@ class ArrayInterface {
 
     std::tie(num_rows, num_cols) = ArrayInterfaceHandler::ExtractShape(array);
     data = ArrayInterfaceHandler::ExtractData(
-        array, StringView{typestr}, std::make_pair(num_rows, num_cols));
+        array, std::make_pair(num_rows, num_cols));
 
     if (allow_mask) {
       common::Span<RBitField8::value_type> s_mask;

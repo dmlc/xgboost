@@ -124,7 +124,6 @@ class CudfAdapter : public detail::SingleBatchDataIter<CudfAdapterBatch> {
 
     auto const& typestr = get<String const>(json_columns[0]["typestr"]);
     CHECK_EQ(typestr.size(), 3) << ArrayInterfaceErrors::TypestrFormat();
-    CHECK_NE(typestr.front(), '>') << ArrayInterfaceErrors::BigEndian();
     std::vector<ArrayInterface> columns;
     auto first_column = ArrayInterface(get<Object const>(json_columns[0]));
     num_rows_ = first_column.num_rows;
