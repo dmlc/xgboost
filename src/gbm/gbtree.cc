@@ -228,7 +228,7 @@ void GBTree::DoBoost(DMatrix* p_fmat,
   // break a lots of existing code.
   auto device = tparam_.tree_method != TreeMethod::kGPUHist
                     ? GenericParameter::kCpuId
-                    : in_gpair->DeviceIdx();
+                    : generic_param_->gpu_id;
   auto out = MatrixView<float>(
       &predt->predictions,
       {static_cast<size_t>(p_fmat->Info().num_row_), static_cast<size_t>(ngroup)}, device);
