@@ -234,6 +234,34 @@ def get_mq2008(dpath):
             x_valid, y_valid, qid_valid)
 
 
+@memory.cache
+def make_categorical(
+    n_samples: int, n_features: int, n_categories: int, onehot_enc: bool
+):
+    import pandas as pd
+
+    rng = np.random.RandomState(1994)
+
+    pd_dict = {}
+    for i in range(n_features + 1):
+        c = rng.randint(low=0, high=n_categories + 1, size=n_samples)
+        pd_dict[str(i)] = pd.Series(c, dtype=np.int64)
+
+    df = pd.DataFrame(pd_dict)
+    label = df.iloc[:, 0]
+    df = df.iloc[:, 1:]
+    for i in range(0, n_features):
+        label += df.iloc[:, i]
+    label += 1
+
+    df = df.astype("category")
+    if onehot_enc:
+        cat = pd.get_dummies(df)
+    else:
+        cat = df
+    return cat, label
+
+
 _unweighted_datasets_strategy = strategies.sampled_from(
     [TestDataset('boston', get_boston, 'reg:squarederror', 'rmse'),
      TestDataset('digits', get_digits, 'multi:softmax', 'mlogloss'),
