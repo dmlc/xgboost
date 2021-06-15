@@ -231,17 +231,6 @@ def _numpy2ctypes_type(dtype):
     return _NUMPY_TO_CTYPES_MAPPING[dtype]
 
 
-def _array_interface(data: np.ndarray) -> bytes:
-    assert (
-        data.dtype.hasobject is False
-    ), "Input data contains `object` dtype.  Expecting numeric data."
-    interface = data.__array_interface__
-    if "mask" in interface:
-        interface["mask"] = interface["mask"].__array_interface__
-    interface_str = bytes(json.dumps(interface), "utf-8")
-    return interface_str
-
-
 def _cuda_array_interface(data) -> bytes:
     assert (
         data.dtype.hasobject is False
@@ -1920,6 +1909,7 @@ class Booster(object):
                     f"got {data.shape[1]}"
                 )
 
+        from .data import _array_interface
         if isinstance(data, np.ndarray):
             from .data import _ensure_np_dtype
             data, _ = _ensure_np_dtype(data, data.dtype)

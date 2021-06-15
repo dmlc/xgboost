@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 
 from .core import c_array, _LIB, _check_call, c_str
-from .core import _array_interface, _cuda_array_interface
+from .core import _cuda_array_interface
 from .core import DataIter, _ProxyDMatrix, DMatrix
 from .compat import lazy_isinstance
 
@@ -39,6 +39,17 @@ def _is_scipy_csr(data):
         scipy = None
         return False
     return isinstance(data, scipy.sparse.csr_matrix)
+
+
+def _array_interface(data: np.ndarray) -> bytes:
+    assert (
+        data.dtype.hasobject is False
+    ), "Input data contains `object` dtype.  Expecting numeric data."
+    interface = data.__array_interface__
+    if "mask" in interface:
+        interface["mask"] = interface["mask"].__array_interface__
+    interface_str = bytes(json.dumps(interface), "utf-8")
+    return interface_str
 
 
 def _from_scipy_csr(data, missing, nthread, feature_names, feature_types):
