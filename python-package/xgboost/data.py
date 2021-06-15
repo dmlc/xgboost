@@ -403,7 +403,7 @@ def _transform_cudf_df(data, feature_names, feature_types, enable_categorical):
             dtypes = [data.dtype]
         else:
             dtypes = data.dtypes
-        for i, dtype in enumerate(dtypes):
+        for dtype in dtypes:
             if is_categorical_dtype(dtype) and enable_categorical:
                 feature_types.append("categorical")
             else:
