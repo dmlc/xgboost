@@ -46,8 +46,6 @@ struct XGBAPIThreadLocalEntry {
   std::string ret_str;
   /*! \brief result holder for returning strings */
   std::vector<std::string> ret_vec_str;
-  /*! \brief result holder for returning unsigned integers */
-  std::vector<uint32_t> ret_vec_uint32;
   /*! \brief result holder for returning string pointers */
   std::vector<const char *> ret_vec_charp;
   /*! \brief returning float vector. */

@@ -1115,7 +1115,7 @@ XGB_DLL int XGBoosterFeatureScore(BoosterHandle handle,
   FeatureMap feature_map = LoadFeatureMap(feature_map_uri);
 
   auto& scores = learner->GetThreadLocal().ret_vec_float;
-  auto& features = learner->GetThreadLocal().ret_vec_uint32;
+  std::vector<bst_feature_t> features;
   learner->CalcFeatureScore(importance, &features, &scores);
 
   auto n_features = learner->GetNumFeature();
