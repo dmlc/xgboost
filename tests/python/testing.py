@@ -236,7 +236,7 @@ def get_mq2008(dpath):
 
 @memory.cache
 def make_categorical(
-    n_samples: int, n_features: int, n_categories: int, onehot_enc: bool
+    n_samples: int, n_features: int, n_categories: int, onehot: bool
 ):
     import pandas as pd
 
@@ -244,7 +244,7 @@ def make_categorical(
 
     pd_dict = {}
     for i in range(n_features + 1):
-        c = rng.randint(low=0, high=n_categories + 1, size=n_samples)
+        c = rng.randint(low=0, high=n_categories, size=n_samples)
         pd_dict[str(i)] = pd.Series(c, dtype=np.int64)
 
     df = pd.DataFrame(pd_dict)
@@ -255,11 +255,13 @@ def make_categorical(
     label += 1
 
     df = df.astype("category")
-    if onehot_enc:
-        cat = pd.get_dummies(df)
-    else:
-        cat = df
-    return cat, label
+    categories = np.arange(0, n_categories)
+    for col in df.columns:
+        df[col] = df[col].cat.set_categories(categories)
+
+    if onehot:
+        return pd.get_dummies(df), label
+    return df, label
 
 
 _unweighted_datasets_strategy = strategies.sampled_from(

@@ -225,6 +225,9 @@ void TestCategoricalPrediction(std::string name) {
   row[split_ind] = split_cat;
   auto m = GetDMatrixFromData(row, 1, kCols);
 
+  std::vector<FeatureType> types(10, FeatureType::kCategorical);
+  m->Info().feature_types.HostVector() = types;
+
   predictor->InitOutPredictions(m->Info(), &out_predictions.predictions, model);
   predictor->PredictBatch(m.get(), &out_predictions, model, 0);
   ASSERT_EQ(out_predictions.predictions.Size(), 1ul);

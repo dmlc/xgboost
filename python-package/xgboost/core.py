@@ -321,6 +321,7 @@ class DataIter:
     def __init__(self):
         self._handle = _ProxyDMatrix()
         self.exception = None
+        self.enable_categorical = False
 
     @property
     def proxy(self):
@@ -346,13 +347,12 @@ class DataIter:
             data,
             feature_names=None,
             feature_types=None,
-            enable_categorical=False,
             **kwargs
         ):
             from .data import dispatch_device_quantile_dmatrix_set_data
             from .data import _device_quantile_transform
             data, feature_names, feature_types = _device_quantile_transform(
-                data, feature_names, feature_types, enable_categorical,
+                data, feature_names, feature_types, self.enable_categorical,
             )
             dispatch_device_quantile_dmatrix_set_data(self.proxy, data)
             self.proxy.set_info(
@@ -1106,15 +1106,10 @@ class DeviceQuantileDMatrix(DMatrix):
             data = _transform_dlpack(data)
         if _is_iter(data):
             it = data
-            if enable_categorical:
-                raise NotImplementedError(
-                    "categorical support is not enabled on data iterator."
-                )
         else:
-            it = SingleBatchInternalIter(
-                data=data, enable_categorical=enable_categorical, **meta
-            )
+            it = SingleBatchInternalIter(data=data, **meta)
 
+        it.enable_categorical = enable_categorical
         reset_callback = ctypes.CFUNCTYPE(None, ctypes.c_void_p)(it.reset_wrapper)
         next_callback = ctypes.CFUNCTYPE(
             ctypes.c_int,

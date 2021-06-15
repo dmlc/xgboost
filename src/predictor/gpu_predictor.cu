@@ -155,6 +155,9 @@ struct EllpackLoader {
     if (gidx == -1) {
       return nan("");
     }
+    if (common::IsCat(matrix.feature_types, fidx)) {
+      return matrix.gidx_fvalue_map[gidx];
+    }
     // The gradient index needs to be shifted by one as min values are not included in the
     // cuts.
     if (gidx == matrix.feature_segments[fidx]) {
@@ -592,8 +595,10 @@ class GPUPredictor : public xgboost::Predictor {
     } else {
       size_t batch_offset = 0;
       for (auto const& page : dmat->GetBatches<EllpackPage>()) {
+        dmat->Info().feature_types.SetDevice(generic_param_->gpu_id);
+        auto feature_types = dmat->Info().feature_types.ConstDeviceSpan();
         this->PredictInternal(
-            page.Impl()->GetDeviceAccessor(generic_param_->gpu_id),
+            page.Impl()->GetDeviceAccessor(generic_param_->gpu_id, feature_types),
             d_model,
             out_preds,
             batch_offset);
