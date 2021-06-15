@@ -112,7 +112,7 @@ struct GBTreeModel : public Model {
   std::vector<std::string> DumpModel(const FeatureMap &fmap, bool with_stats,
                                      std::string format) const {
     std::vector<std::string> dump(trees.size());
-    common::ParallelFor(trees.size(), [&](size_t i) {
+    common::ParallelFor(static_cast<omp_ulong>(trees.size()), [&](size_t i) {
       dump[i] = trees[i]->DumpModel(fmap, with_stats, format);
     });
     return dump;
