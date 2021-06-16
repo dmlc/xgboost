@@ -3,6 +3,7 @@
 '''Data dispatching for DMatrix.'''
 import ctypes
 import json
+import sys
 import warnings
 import os
 from typing import Any
