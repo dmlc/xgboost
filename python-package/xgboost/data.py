@@ -362,6 +362,10 @@ def _from_dt_df(data, missing, nthread, feature_names, feature_types):
 
 
 def _is_cudf_df(data):
+    if 'cudf' not in sys.modules:
+        # don't import cudf if don't need, leads to hangs due to mutex locking.
+        # cudf has to already be imported if cudf dataframe
+        return False
     try:
         import cudf
     except ImportError:
@@ -421,6 +425,10 @@ def _from_cudf_df(data, missing, nthread, feature_names, feature_types):
 
 
 def _is_cudf_ser(data):
+    if 'cudf' not in sys.modules:
+        # don't import cudf if don't need, leads to hangs due to mutex locking.
+        # cudf has to already be imported if cudf dataframe
+        return False
     try:
         import cudf
     except ImportError:
@@ -429,6 +437,10 @@ def _is_cudf_ser(data):
 
 
 def _is_cupy_array(data):
+    if 'cupy' not in sys.modules:
+        # don't import cupy if don't need, leads to hangs due to mutex locking.
+        # cupy has to already be imported if cupy dataframe
+        return False
     try:
         import cupy
     except ImportError:
@@ -463,6 +475,10 @@ def _from_cupy_array(data, missing, nthread, feature_names, feature_types):
 
 
 def _is_cupy_csr(data):
+    if 'cupyx' not in sys.modules and 'cupy' not in sys.modules:
+        # don't import cupyx if don't need, leads to hangs due to mutex locking.
+        # cupyx has to already be imported if cupyx dataframe
+        return False
     try:
         import cupyx
     except ImportError:
@@ -471,6 +487,10 @@ def _is_cupy_csr(data):
 
 
 def _is_cupy_csc(data):
+    if 'cupyx' not in sys.modules and 'cupy' not in sys.modules:
+        # don't import cupyx if don't need, leads to hangs due to mutex locking.
+        # cupyx has to already be imported if cupyx dataframe
+        return False
     try:
         import cupyx
     except ImportError:
