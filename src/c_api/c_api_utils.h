@@ -48,7 +48,7 @@ inline void CalcPredictShape(bool strict_shape, PredictionType type, size_t rows
       *out_dim = 2;
       shape.resize(*out_dim);
       shape.front() = rows;
-      shape.back() = groups;
+      shape.back() = std::min(groups, chunksize);
     }
     break;
   }

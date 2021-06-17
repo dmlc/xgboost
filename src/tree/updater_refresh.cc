@@ -14,6 +14,7 @@
 #include "./param.h"
 #include "../common/io.h"
 #include "../common/threading_utils.h"
+#include "../predictor/predict_fn.h"
 
 namespace xgboost {
 namespace tree {
@@ -123,10 +124,13 @@ class TreeRefresher: public TreeUpdater {
     // start from groups that belongs to current data
     auto pid = 0;
     gstats[pid].Add(gpair[ridx]);
+    auto const& cats = tree.GetCategoriesMatrix();
     // traverse tree
     while (!tree[pid].IsLeaf()) {
       unsigned split_index = tree[pid].SplitIndex();
-      pid = tree.GetNext(pid, feat.GetFvalue(split_index), feat.IsMissing(split_index));
+      pid = predictor::GetNextNode<true, true>(
+          tree[pid], pid, feat.GetFvalue(split_index), feat.IsMissing(split_index),
+          cats);
       gstats[pid].Add(gpair[ridx]);
     }
   }

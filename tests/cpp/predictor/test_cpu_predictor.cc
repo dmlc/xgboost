@@ -229,9 +229,17 @@ void TestUpdatePredictionCache(bool use_subsampling) {
   }
 }
 
+TEST(CPUPredictor, CategoricalPrediction) {
+  TestCategoricalPrediction("cpu_predictor");
+}
+
+TEST(CPUPredictor, CategoricalPredictLeaf) {
+  TestCategoricalPredictLeaf(StringView{"cpu_predictor"});
+}
+
 TEST(CpuPredictor, UpdatePredictionCache) {
-    TestUpdatePredictionCache(false);
-    TestUpdatePredictionCache(true);
+  TestUpdatePredictionCache(false);
+  TestUpdatePredictionCache(true);
 }
 
 TEST(CpuPredictor, LesserFeatures) {
