@@ -231,17 +231,6 @@ def _numpy2ctypes_type(dtype):
     return _NUMPY_TO_CTYPES_MAPPING[dtype]
 
 
-def _array_interface(data: np.ndarray) -> bytes:
-    assert (
-        data.dtype.hasobject is False
-    ), "Input data contains `object` dtype.  Expecting numeric data."
-    interface = data.__array_interface__
-    if "mask" in interface:
-        interface["mask"] = interface["mask"].__array_interface__
-    interface_str = bytes(json.dumps(interface), "utf-8")
-    return interface_str
-
-
 def _cuda_array_interface(data) -> bytes:
     assert (
         data.dtype.hasobject is False
@@ -353,11 +342,17 @@ class DataIter:
         if self.exception is not None:
             return 0
 
-        def data_handle(data, feature_names=None, feature_types=None, **kwargs):
+        def data_handle(
+            data,
+            feature_names=None,
+            feature_types=None,
+            enable_categorical=False,
+            **kwargs
+        ):
             from .data import dispatch_device_quantile_dmatrix_set_data
             from .data import _device_quantile_transform
             data, feature_names, feature_types = _device_quantile_transform(
-                data, feature_names, feature_types
+                data, feature_names, feature_types, enable_categorical,
             )
             dispatch_device_quantile_dmatrix_set_data(self.proxy, data)
             self.proxy.set_info(
@@ -1023,7 +1018,7 @@ class _ProxyDMatrix(DMatrix):
     def _set_data_from_cuda_columnar(self, data):
         '''Set data from CUDA columnar format.1'''
         from .data import _cudf_array_interfaces
-        interfaces_str = _cudf_array_interfaces(data)
+        _, interfaces_str = _cudf_array_interfaces(data)
         _check_call(
             _LIB.XGDeviceQuantileDMatrixSetDataCudaColumnar(
                 self.handle,
@@ -1076,10 +1071,6 @@ class DeviceQuantileDMatrix(DMatrix):
             self.handle = data
             return
 
-        if enable_categorical:
-            raise NotImplementedError(
-                'categorical support is not enabled on DeviceQuantileDMatrix.'
-            )
         if qid is not None and group is not None:
             raise ValueError(
                 'Only one of the eval_qid or eval_group for each evaluation '
@@ -1098,9 +1089,10 @@ class DeviceQuantileDMatrix(DMatrix):
             feature_weights=feature_weights,
             feature_names=feature_names,
             feature_types=feature_types,
+            enable_categorical=enable_categorical,
         )
 
-    def _init(self, data, feature_names, feature_types, **meta):
+    def _init(self, data, enable_categorical, **meta):
         from .data import (
             _is_dlpack,
             _transform_dlpack,
@@ -1114,9 +1106,13 @@ class DeviceQuantileDMatrix(DMatrix):
             data = _transform_dlpack(data)
         if _is_iter(data):
             it = data
+            if enable_categorical:
+                raise NotImplementedError(
+                    "categorical support is not enabled on data iterator."
+                )
         else:
             it = SingleBatchInternalIter(
-                data, **meta, feature_names=feature_names, feature_types=feature_types
+                data=data, enable_categorical=enable_categorical, **meta
             )
 
         reset_callback = ctypes.CFUNCTYPE(None, ctypes.c_void_p)(it.reset_wrapper)
@@ -1920,6 +1916,7 @@ class Booster(object):
                     f"got {data.shape[1]}"
                 )
 
+        from .data import _array_interface
         if isinstance(data, np.ndarray):
             from .data import _ensure_np_dtype
             data, _ = _ensure_np_dtype(data, data.dtype)
@@ -1974,7 +1971,7 @@ class Booster(object):
         if lazy_isinstance(data, "cudf.core.dataframe", "DataFrame"):
             from .data import _cudf_array_interfaces
 
-            interfaces_str = _cudf_array_interfaces(data)
+            _, interfaces_str = _cudf_array_interfaces(data)
             _check_call(
                 _LIB.XGBoosterPredictFromCudaColumnar(
                     self.handle,
