@@ -206,8 +206,14 @@ inline void GenerateFeatureMap(Learner const *learner,
     // Use the feature names and types from booster.
     std::vector<std::string> feature_names;
     learner->GetFeatureNames(&feature_names);
+    if (!feature_names.empty()) {
+      CHECK_EQ(feature_names.size(), n_features) << "Incorrect number of feature names.";
+    }
     std::vector<std::string> feature_types;
     learner->GetFeatureTypes(&feature_types);
+    if (!feature_types.empty()) {
+      CHECK_EQ(feature_types.size(), n_features) << "Incorrect number of feature types.";
+    }
     for (size_t i = 0; i < n_features; ++i) {
       feature_map.PushBack(
           i,
