@@ -28,6 +28,7 @@
 #include "../common/timer.h"
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
+#include "../common/partition_builder.h"
 #include "../common/column_matrix.h"
 
 namespace xgboost {
@@ -291,14 +292,6 @@ class QuantileHistMaker: public TreeUpdater {
                         DMatrix* p_fmat,
                         RegTree* p_tree);
 
-    inline void BuildHist(const std::vector<GradientPair>& gpair,
-                          const RowSetCollection::Elem row_indices,
-                          const GHistIndexMatrix& gmat,
-                          GHistRowT hist) {
-      hist_builder_.BuildHist(gpair, row_indices, gmat, hist,
-                              data_layout_ != DataLayout::kSparseData);
-    }
-
     inline void SubtractionTrick(GHistRowT self,
                                  GHistRowT sibling,
                                  GHistRowT parent) {
@@ -338,16 +331,12 @@ class QuantileHistMaker: public TreeUpdater {
                         const HistCollection<GradientSumT>& hist,
                         const RegTree& tree);
 
+    template <bool any_missing>
     void ApplySplit(std::vector<CPUExpandEntry> nodes,
                         const GHistIndexMatrix& gmat,
                         const ColumnMatrix& column_matrix,
                         const HistCollection<GradientSumT>& hist,
                         RegTree* p_tree);
-
-    template <typename BinIdxType>
-    void PartitionKernel(const size_t node_in_set, const size_t nid, const common::Range1d range,
-                         const int32_t split_cond,
-                         const ColumnMatrix& column_matrix, const RegTree& tree);
 
     void AddSplitsToRowSet(const std::vector<CPUExpandEntry>& nodes, RegTree* p_tree);
 
@@ -376,10 +365,11 @@ class QuantileHistMaker: public TreeUpdater {
     // else - there are missing values
     bool SplitContainsMissingValues(const GradStats e, const NodeEntry& snode);
 
+    template <bool any_missing>
     void BuildLocalHistograms(const GHistIndexMatrix &gmat,
                               RegTree *p_tree,
                               const std::vector<GradientPair> &gpair_h);
-
+    template <bool any_missing>
     void InitRoot(const GHistIndexMatrix &gmat,
                   const DMatrix& fmat,
                   RegTree *p_tree,
@@ -402,7 +392,7 @@ class QuantileHistMaker: public TreeUpdater {
                         const DMatrix& fmat,
                         const std::vector<GradientPair> &gpair_h,
                         const std::vector<CPUExpandEntry>& nodes_for_apply_split, RegTree *p_tree);
-
+    template <bool any_missing>
     void ExpandTree(const GHistIndexMatrix& gmat,
                     const ColumnMatrix& column_matrix,
                     DMatrix* p_fmat,

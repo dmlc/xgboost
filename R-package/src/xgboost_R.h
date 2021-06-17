@@ -164,7 +164,7 @@ XGB_DLL SEXP XGBoosterBoostOneIter_R(SEXP handle, SEXP dtrain, SEXP grad, SEXP h
 XGB_DLL SEXP XGBoosterEvalOneIter_R(SEXP handle, SEXP iter, SEXP dmats, SEXP evnames);
 
 /*!
- * \brief make prediction based on dmat
+ * \brief (Deprecated) make prediction based on dmat
  * \param handle handle
  * \param dmat data matrix
  * \param option_mask output_margin:1 predict_leaf:2
@@ -173,6 +173,16 @@ XGB_DLL SEXP XGBoosterEvalOneIter_R(SEXP handle, SEXP iter, SEXP dmats, SEXP evn
  */
 XGB_DLL SEXP XGBoosterPredict_R(SEXP handle, SEXP dmat, SEXP option_mask,
                                 SEXP ntree_limit, SEXP training);
+
+/*!
+ * \brief Run prediction on DMatrix, replacing `XGBoosterPredict_R`
+ * \param handle handle
+ * \param dmat data matrix
+ * \param json_config See `XGBoosterPredictFromDMatrix` in xgboost c_api.h
+ *
+ * \return A list containing 2 vectors, first one for shape while second one for prediction result.
+ */
+XGB_DLL SEXP XGBoosterPredictFromDMatrix_R(SEXP handle, SEXP dmat, SEXP json_config);
 /*!
  * \brief load model from existing file
  * \param handle handle
