@@ -11,6 +11,7 @@ import pytest
 import tempfile
 import xgboost as xgb
 import numpy as np
+import platform
 
 hypothesis = pytest.importorskip('hypothesis')
 sklearn = pytest.importorskip('sklearn')
@@ -134,6 +135,12 @@ def no_multiple(*args):
             reason = arg['reason']
             break
     return {'condition': condition, 'reason': reason}
+
+
+def skip_s390x():
+    condition = platform.machine() == "s390x"
+    reason = "Known to fail on s390x"
+    return {"condition": condition, "reason": reason}
 
 
 # Contains a dataset in numpy format as well as the relevant objective and metric

@@ -42,23 +42,19 @@ TEST(ArrayInterface, Error) {
   std::string typestr{"<f4"};
 
   // missing version
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj,
-                                                  StringView{typestr}, shape),
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, shape),
                dmlc::Error);
   column["version"] = Integer(static_cast<Integer::Int>(1));
   // missing data
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj,
-                                                  StringView{typestr}, shape),
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, shape),
                dmlc::Error);
   column["data"] = j_data;
   // missing typestr
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj,
-                                                  StringView{typestr}, shape),
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, shape),
                dmlc::Error);
   column["typestr"] = String("<f4");
   // nullptr is not valid
-  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj,
-                                                  StringView{typestr}, shape),
+  EXPECT_THROW(ArrayInterfaceHandler::ExtractData(column_obj, shape),
                dmlc::Error);
 
   HostDeviceVector<float> storage;
@@ -67,8 +63,7 @@ TEST(ArrayInterface, Error) {
       Json(Integer(reinterpret_cast<Integer::Int>(storage.ConstHostPointer()))),
       Json(Boolean(false))};
   column["data"] = j_data;
-  EXPECT_NO_THROW(ArrayInterfaceHandler::ExtractData(
-      column_obj, StringView{typestr}, shape));
+  EXPECT_NO_THROW(ArrayInterfaceHandler::ExtractData(column_obj, shape));
 }
 
 TEST(ArrayInterface, GetElement) {
