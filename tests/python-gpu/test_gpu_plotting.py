@@ -22,7 +22,7 @@ pytestmark = pytest.mark.skipif(**tm.no_multiple(tm.no_matplotlib(), tm.no_graph
 class TestPlotting:
     @pytest.mark.skipif(**tm.no_pandas())
     def test_categorical(self):
-        X, y = tm.make_categorical(1000, 31, 19, onehot_enc=False)
+        X, y = tm.make_categorical(1000, 31, 19, onehot=False)
         reg = xgb.XGBRegressor(
             enable_categorical=True, n_estimators=10, tree_method="gpu_hist"
         )
